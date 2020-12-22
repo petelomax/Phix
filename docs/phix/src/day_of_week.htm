@@ -33,7 +33,7 @@
             Obviously this functionality is required as part of <a href="date.htm">date</a>(), and has been made available for general use.
             <br>
             <br>
-            if bAsText is true, then y and m can be 0 and d 1..7, aka a <a href="date.htm">date</a>()[DT_DOW], for convenience.
+            if bAsText is true<small><sup>2</sup></small>, then y and m can be 0 and d 1..7, aka a <a href="date.htm">date</a>()[DT_DOW], for convenience.
             <br>
             <br>
             Not suitable for use with years prior to the introduction of the Gregorian calendar (1752).
@@ -49,11 +49,28 @@
 ?day_of_week(2015,1,1,true) -- prints "Thursday"
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#0000FF">?</font><font color="#5E005E">day_of_week</font><font color="#0000FF">(</font><font color="#000000">2015</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">) </font><font color="#000080"><i> -- prints 4 (Thursday)
-</i></font><font color="#0000FF">?</font><font color="#5E005E">day_of_week</font><font color="#0000FF">(</font><font color="#000000">2015</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#004600">true</font><font color="#0000FF">)</font><font color="#000080"><i> -- prints "Thursday"</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">day_of_week</font><font color="#0000FF">(</font><font color="#000000">2015</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">) </font><font color="#000080"><i> -- prints 4 (Thursday)</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">day_of_week</font><font color="#0000FF">(</font><font color="#000000">2015</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#004600">true</font><font color="#0000FF">)</font><font color="#000080"><i> -- prints "Thursday"</i></font>
 </pre>
             <br>
-            Obviously checking the result for "Thursday" is quicker to comprehend and less error-prone than checking for 4.
+<!--            Obviously checking the result for "Thursday" is quicker to comprehend and less error-prone than checking for 4.-->
+            You may also, performance considerations aside, feel that
+<!--eucode>
+if day_of_week(y,m,d,true)="Monday" then    -- (or format_timedate(td,"Dddd")="Monday")
+                                            -- (day_of_week(0,0,td[DT_DOW],true) is also valid)
+</eucode-->
+<pre>
+<font color="#008080">if</font><font color="#5E005E"> day_of_week</font><font color="#0000FF">(</font><font color="#000000">y</font><font color="#0000FF">,</font><font color="#000000">m</font><font color="#0000FF">,</font><font color="#000000">d</font><font color="#0000FF">,</font><font color="#004600">true</font><font color="#0000FF">)=</font><font color="#008000">"Monday"</font><font color="#008080"> then   </font><font color="#000080"><i> -- (or format_timedate(td,"Dddd")="Monday")
+                                            -- (day_of_week(0,0,td[DT_DOW],true) is also valid)</i></font>
+</pre>
+          <br>
+            is clearer or otherwise makes debugging easier than the equivalent
+<!--eucode>
+if day_of_week(y,m,d)=1 then                -- (or td[DT_DOW]=1)
+</eucode-->
+<pre>
+<font color="#008080">if</font><font color="#5E005E"> day_of_week</font><font color="#0000FF">(</font><font color="#000000">y</font><font color="#0000FF">,</font><font color="#000000">m</font><font color="#0000FF">,</font><font color="#000000">d</font><font color="#0000FF">)=</font><font color="#000000">1</font><font color="#008080"> then               </font><font color="#000080"><i> -- (or td[DT_DOW]=1)</i></font>
+</pre>
          </td>
         </tr>
         <tr>
@@ -61,7 +78,7 @@
           <b>Implementation:</b>
          </td>
          <td>
-            See builtins\pdate.e (an autoinclude) for details of the actual implementation.
+            See builtins\pdates.e (an autoinclude) for details of the actual implementation.
          </td>
         </tr>
         <tr>
@@ -70,7 +87,8 @@
          </td>
          <td>
           <a href="date.htm">date</a>,
-          <a href="time.htm">time</a>
+          <a href="time.htm">time</a>,
+          <a href="format_timedate.htm">format_timedate</a>
          </td>
         </tr>
         <tr id="Technicalia" style="display:none;">
@@ -83,6 +101,10 @@
             <small><sup>1</sup></small> As of version 0.8.1, the result is now 1..7 (Mon..Sun) [was Sun..Sat], bringing it into line with ISO 8601, 
             and the earlier ISO 2015.<br>
             Obviously this may require changes to some legacy code.
+            <br>
+            <br>
+            <small><sup>2</sup></small> Clearly there is no point allowing/treating day_of_week(0,0,d,false) as if d is already a dow and returning it unaltered.<br>
+            (Instead the m of 0 would instantly trigger a subscript error.)
          </td>
         </tr>
        </table>

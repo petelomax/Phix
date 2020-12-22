@@ -558,7 +558,7 @@ end procedure
 global procedure Fatal(string msg)
 -- error not relating to a particular source line.
 integer fn
---/**/  #isginfo{msg,string,MIN,MAX,integer,-2}
+--!/**/ #isginfo{msg,string,MIN,MAX,integer,-2}
 
     fn = open("ex.err","w")
     puts(fn,msg)

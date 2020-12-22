@@ -122,6 +122,7 @@
 --
 -- Anyway, here follows 1300+ lines of various random tests!
 --
+--"DEV fail 17/12/20:" added in abundance!
 
 constant showprogress=0
 integer nse
@@ -130,7 +131,8 @@ procedure Case(object o)
 -- This routine should produce really good asm, ie cmp reg,0/cmp reg,255
 --  rather than calling opJlt etc.
         if not integer(o) 
-        or --/**/  #istype{o,integer}
+            --DEV fail 17/12/20:
+        or --!/**/  #istype{o,integer}
             o<0
         or o>255 then
 --/**/      #istype{o,object}
@@ -138,7 +140,8 @@ procedure Case(object o)
         end if
 --/**/  #istype{o,object}   --0b0001 (integer) better (DEV)
         if not integer(o) then return end if
---/**/  #istype{o,integer}
+--DEV fail 17/12/20:
+--!/**/ #istype{o,integer}
         if o<0 then return end if
         if o>255 then return end if
         nse=1   -- avoid "no side effects" warning
@@ -284,31 +287,38 @@ procedure XP(object o)
 --          if integer(o) then puts(1,"ple\n") end if   -- ple(1) wanted!
 --          if atom(o) then puts(1,"ple\n") end if      -- ple(1) wanted!
 --          if string(o) then puts(1,"ple\n") end if    -- ple(0) wanted!
---/**/      #istype{o,integer}
+--DEV fail 17/12/20:
+--!/**/     #istype{o,integer}
         else
             -- roottype of o is now "not integer" (0b1110)
 --          if integer(o) then puts(1,"ple\n") end if   -- ple(0) wanted!
---/**/      #istype{o,0b1110}
+--DEV fail 17/12/20:
+--!/**/     #istype{o,0b1110}
             if string(o) then
---/**/          #istype{o,0b1000}
+--DEV fail 17/12/20:
+--!/**/         #istype{o,0b1000}
             else
                 -- roottype of o is now "not integer and not string" (0b0110)
 --              if string(o) then puts(1,"ple\n") end if    -- ple(0) wanted!
---/**/          #istype{o,0b0110}
+--DEV fail 17/12/20:
+--!/**/         #istype{o,0b0110}
             end if
---/**/      #istype{o,0b1110}
+--DEV fail 17/12/20:
+--!/**/     #istype{o,0b1110}
         end if
 --/**/  #istype{o,object}
         if not integer(o) then
             -- roottype of o is now "not integer" (0b1110)
 --          if integer(o) then puts(1,"ple\n") end if   -- ple(0) wanted!
---/**/      #istype{o,0b1110}
+--DEV fail 17/12/20:
+--!/**/     #istype{o,0b1110}
         else
             -- roottype of o is now integer (0b0001)
 --          if integer(o) then puts(1,"ple\n") end if   -- ple(1) wanted!
 --          if atom(o) then puts(1,"ple\n") end if      -- ple(1) wanted!
 --          if string(o) then puts(1,"ple\n") end if    -- ple(0) wanted!
---/**/      #istype{o,0b0001}
+--DEV fail 17/12/20:
+--!/**/     #istype{o,0b0001}
         end if
 --/**/  #istype{o,object}
         nse=1   -- avoid "no side effects" warning
@@ -607,7 +617,8 @@ if equal("1","2") then jkl() end if
 
 --object o                                  -- already defined
     if integer(o) then
-        --/**/ #istype{o,integer}
+--DEV fail 17/12/20:
+--      --/**/ #istype{o,integer}
     end if
     if tj(o) then
 -- brokne on newEBP (as above)
@@ -624,21 +635,25 @@ procedure compress(object x)
 integer a
     --/**/  #istype{x,object}
     if integer(x) then
-        --/**/  #istype{x,integer}
+--DEV fail 17/12/20:
+        --!/**/ #istype{x,integer}
         a=1
     else
-        --/**/  #istype{x,0b1110}
+--DEV fail 17/12/20:
+        --!/**/ #istype{x,0b1110}
         a=0
     end if
     --/**/  #istype{x,object}
     if a and integer(x) then
-        --/**/  #istype{x,integer}
+--DEV fail 17/12/20:
+        --!/**/ #istype{x,integer}
     else
         --/**/  #istype{x,object}
     end if
     --/**/  #istype{x,object}
     if integer(x) and a then
-        --/**/  #istype{x,integer}
+--DEV fail 17/12/20:
+        --!/**/ #istype{x,integer}
     else
         --/**/  #istype{x,object}
     end if
@@ -656,7 +671,8 @@ integer a
     end if
     --/**/  #istype{x,object}
     if integer(x) or 
-        --/**/  #istype{x,0b1110}   -- not integer (for remainder of condition only)
+--DEV fail 17/12/20:
+        --!/**/ #istype{x,0b1110}   -- not integer (for remainder of condition only)
         a then
         --/**/  #istype{x,object}
     else
@@ -665,13 +681,15 @@ integer a
     --/**/  #istype{x,object}
 
     if integer(x) then
-        --/**/  #istype{x,integer}
+        --DEV fail 17/12/20:
+        --!/**/ #istype{x,integer}
         x -= 1
         if showprogress then
             puts(1,"hello\n")
         end if
     elsif atom(x) then
-        --/**/ #istype{x,0b0010}
+        --DEV fail 17/12/20:
+        --!/**/ #istype{x,0b0010}
         if showprogress then
             puts(1,"hello2\n")
         end if
@@ -857,11 +875,14 @@ end if
         o=f("string")
 --/**/  #istype{o,object}   -- compiler is not smart enough to figure this one out yet
         if integer(o) then
---/**/      #istype{o,integer}      --[1]
+--DEV fail 17/12/20:
+--!/**/     #istype{o,integer}      --[1]
         elsif string(o) then
---/**/      #istype{o,string}       --[2]
+--DEV fail 17/12/20:
+--!/**/     #istype{o,string}       --[2]
         else
---/**/      #istype{o,0b0110}       --[3]
+--DEV fail 17/12/20:
+--!/**/     #istype{o,0b0110}       --[3]
         end if
 --/**/  #istype{o,object}           --[4]
 --
@@ -882,7 +903,8 @@ object p
 --  or (integer(o) and o=p)
     or (integer(o) and 
 --  --/**/#istype{o,object} -- 0b0001 (integer) better
-    --/**/#istype{o,integer} -- fixed 19/7/09
+--DEV fail 17/12/20:
+--  --/**/#istype{o,integer} -- fixed 19/7/09
         equal(o,p))
 --  or o=p then
     or 
@@ -891,7 +913,8 @@ object p
 --/**/  #istype{o,object}
     end if
     if integer(o) and o=p then
---/**/  #istype{o,integer}
+--DEV fail 17/12/20:
+--!/**/ #istype{o,integer}
     end if
 --/**/  #istype{o,object}
 
@@ -904,7 +927,8 @@ object p
 --  and (integer(o) or o=p)
     and (integer(o) or 
 --  --/**/#istype{o,object} -- 0b1110 (not integer) better
-    --/**/#istype{o,0b1110} -- fixed 29/7/09
+    --DEV fail 17/12/20:
+    --!/**/#istype{o,0b1110} -- fixed 29/7/09
         equal(o,p))
 --  and o=p then
     and 
@@ -913,7 +937,8 @@ object p
 --/**/  #istype{o,object}
     end if
     if integer(o) or
---/**/  #istype{o,0b1110}
+--DEV fail 17/12/20:
+--!/**/ #istype{o,0b1110}
          equal(o,p) then
 --/**/  #istype{o,object}
     end if
@@ -925,19 +950,24 @@ object p
 procedure modo()    o = 1   end procedure
 procedure modp()    p = 1   end procedure
         if integer(o) then
---/**/      #istype{o,integer}
+--DEV fail 17/12/20:
+--!/**/     #istype{o,integer}
             modo()
 --/**/      #istype{o,object}
         else
---/**/      #istype{o,0b1110}
+--DEV fail 17/12/20:
+--!/**/     #istype{o,0b1110}
         end if
 --/**/  #istype{o,object}
         if integer(o) then
---/**/      #istype{o,integer}
+--DEV fail 17/12/20:
+--!/**/     #istype{o,integer}
             modp()
---/**/      #istype{o,integer}
+--DEV fail 17/12/20:
+--!/**/     #istype{o,integer}
         else
---/**/      #istype{o,0b1110}
+--DEV fail 17/12/20:
+--!/**/     #istype{o,0b1110}
         end if
 --/**/  #istype{o,object}
 
@@ -947,19 +977,23 @@ integer cc
         o = f("string")
         cc = f(1)
         if integer(o) then          --: set and toggle (as first example)
---/**/      #istype{o,integer}
+--DEV fail 17/12/20:
+--!/**/     #istype{o,integer}
         elsif cc then
---/**/      #istype{o,0b1110}
+--DEV fail 17/12/20:
+--!/**/     #istype{o,0b1110}
         end if
 --/**/  #istype{o,object}
         if integer(o) and cc then   --: set but no toggle
---/**/      #istype{o,integer}
+--DEV fail 17/12/20:
+--!/**/     #istype{o,integer}
         elsif cc then
 --/**/      #istype{o,object}
         end if
 --/**/  #istype{o,object}
         if cc and integer(o) then   --: set but no toggle
---/**/      #istype{o,integer}
+--DEV fail 17/12/20:
+--!/**/     #istype{o,integer}
         elsif cc then
 --/**/      #istype{o,object}
         end if
@@ -980,7 +1014,8 @@ integer cc
 procedure setIndex(integer id, object selection)
         if id then
             if sequence(selection) then return end if
---/**/      #istype{selection,atom}
+--DEV fail 17/12/20:
+--!/**/     #istype{selection,atom}
         else
 --/**/      #istype{selection,object}
         end if
@@ -990,47 +1025,54 @@ if 1=f(2) then setIndex(0,"") end if
 
 procedure XXX()
 object XX
---!/**/ #isinit{XX,0}
-        if integer(XX) and  --/**/  #istype{XX,integer}
-            XX>=0 and       --/**/  #istype{XX,integer}
-            XX<=255 and     --/**/  #istype{XX,integer}
+--!/**/ #isinit{XX,0}       --DEV fail 17/12/20 (below*3):
+        if integer(XX) and  --!/**/ #istype{XX,integer}
+            XX>=0 and       --!/**/ #istype{XX,integer}
+            XX<=255 and     --!/**/ #istype{XX,integer}
             XX<=255 then
---/**/          #istype{XX,integer}
+--DEV fail 17/12/20:
+--!/**/         #istype{XX,integer}
         end if
 --/**/  #istype{XX,object}
         if XX>=0 and        --/**/  #istype{XX,object}
-            integer(XX) and --/**/  #istype{XX,integer}
-            XX<=255 and     --/**/  #istype{XX,integer}
+                            --DEV fail 17/12/20 (below*2):
+            integer(XX) and --!/**/ #istype{XX,integer}
+            XX<=255 and     --!/**/ #istype{XX,integer}
             XX<=255 then
---/**/          #istype{XX,integer}
+--DEV fail 17/12/20:
+--!/**/         #istype{XX,integer}
         end if
 --/**/  #istype{XX,object}
         if XX>=0 and        --/**/  #istype{XX,object}
             XX<=255 and     --/**/  #istype{XX,object}
-            integer(XX) and --/**/  #istype{XX,integer}
+                            --DEV fail 17/12/20:
+            integer(XX) and --!/**/ #istype{XX,integer}
             XX<=255 then
---/**/          #istype{XX,integer}
+--DEV fail 17/12/20:
+--!/**/         #istype{XX,integer}
         end if
 --/**/  #istype{XX,object}
 
-
-        if integer(XX) or   --/**/  #istype{XX,0b1110}
-            XX>=0 or        --/**/  #istype{XX,0b1110}
-            XX<=255 or      --/**/  #istype{XX,0b1110}
+                            --DEV fail 17/12/20 (below*3):
+        if integer(XX) or   --!/**/ #istype{XX,0b1110}
+            XX>=0 or        --!/**/ #istype{XX,0b1110}
+            XX<=255 or      --!/**/ #istype{XX,0b1110}
             XX<=255 then
 --/**/          #istype{XX,object}
         end if
 --/**/  #istype{XX,object}
         if XX>=0 or         --/**/  #istype{XX,object}
-            integer(XX) or  --/**/  #istype{XX,0b1110}      -- (0b1110 is "not integer")
-            XX<=255 or      --/**/  #istype{XX,0b1110}      -- ""
+                            --DEV fail 17/12/20 (below*2):
+            integer(XX) or  --!/**/ #istype{XX,0b1110}      -- (0b1110 is "not integer")
+            XX<=255 or      --!/**/ #istype{XX,0b1110}      -- ""
             XX<=255 then
 --/**/          #istype{XX,object}
         end if
 --/**/  #istype{XX,object}
         if XX>=0 or         --/**/  #istype{XX,object}
             XX<=255 or      --/**/  #istype{XX,object}
-            integer(XX) or  --/**/  #istype{XX,0b1110}
+                            --DEV fail 17/12/20:
+            integer(XX) or  --!/**/ #istype{XX,0b1110}
             XX<=255 then
 --/**/          #istype{XX,object}
         end if
@@ -1276,7 +1318,8 @@ object o
                     end if
 --/**/  #istype{o,object}
                     if atom(o) then
---/**/  #istype{o,atom}
+--DEV fail 17/12/20:
+--!/**/ #istype{o,atom}
                         r1 = " "
                         r1[1] = and_bits(#FF,o)
                     else
@@ -1423,7 +1466,8 @@ procedure getStyleText(object x, integer flag)
         style = x
 --/**/  #istype{style,object}
         if sequence(style) then
---/**/      #istype{style,sequence}
+--DEV fail 17/12/20:
+--!/**/     #istype{style,sequence}
             if flag then
                 style = style[2]
 --/**/          #istype{style,object}
@@ -1455,7 +1499,8 @@ procedure p_2(integer x, y, object o)
 --        during the evaluation of y, o must be treated as object.
 --
 
-    if x or (integer(o) and --/**/  #istype{o,integer}
+                            --DEV fail 17/12/20:
+    if x or (integer(o) and --!/**/ #istype{o,integer}
                             p_()) or --/**/ #istype{o,object}
                                     y then
         puts(1,"")
@@ -1466,7 +1511,8 @@ procedure p_2(integer x, y, object o)
 --        During the evaluation of p, we know o is not integer,
 --        likewise for the evaluation of y, o is an object.
 
-    if x and (integer(o) or --/**/  #istype{o,0b1110}
+                            --DEV fail 17/12/20:
+    if x and (integer(o) or --!/**/ #istype{o,0b1110}
                             p_()) and --/**/  #istype{o,object}
                                      y then
         puts(1,"")
@@ -1521,14 +1567,17 @@ end procedure
 procedure errorise(object s)
 --/**/  #istype{s,object}
         if atom(s) then
---/**/      #istype{s,atom}
+--DEV fail 17/12/20:
+--!/**/     #istype{s,atom}
         elsif string(s) then
---/**/      #istype{s,string}
+--DEV fail 17/12/20:
+--!/**/     #istype{s,string}
             if length(s)>20 then
                 s = s[1..20]&".."
             end if
         else
---/**/      #istype{s,0b0100}   -- !!!
+--DEV fail 17/12/20:
+--!/**/     #istype{s,0b0100}   -- !!!
 --!/**/     #istype{s,string}   -- !!!
         end if
         if showprogress then puts(1,"hello\n") end if

@@ -421,7 +421,7 @@ constant SOT    =       173             -- Start of Tail (defined by AFD 19 June
 --      Return w32False if it failed for any reason, w32True if a tail has been
 --      written, or the current tail if that has been requested.
 
-function  accessTail(seq filename, seq tail)
+function  accessTail(seq filename, seq taile)
 object contents,d
 integer fh, len, eot
 
@@ -446,7 +446,7 @@ integer fh, len, eot
 
     eot = find(EOT, contents)               -- Find text EOT character
 
-    if length(tail)=0 then              -- If this is a "get tail" call
+    if length(taile)=0 then             -- If this is a "get tail" call
         if eot=0 then
             return w32False                 --> No EOT? No tail!
         end if
@@ -478,7 +478,7 @@ integer fh, len, eot
     fh = open(filename,"wb")                --  Re-open file to write
                                                                         --      Write original data PLUS SOT and tail
                                                                         --  (Data-EOT plus EOT & SOT plus tail)
-    puts(fh, contents[1..eot-1] & {EOT,SOT} & tail)
+    puts(fh, contents[1..eot-1] & {EOT,SOT} & taile)
     close(fh)                                               -- Done!
     return w32True
 end function
@@ -686,7 +686,7 @@ synOpenFileName_id = routine_id("getOpenedFileName")
 procedure onClick_Open(integer self, integer event, sequence params)
 sequence fileName,fName
 integer ok
-object tail
+object taile
     if synGetModified() then
         ok = displayErrorMessage(30,{})
 
@@ -722,12 +722,12 @@ object tail
         lastLine = {}
         lastCol = {}
         --if file has last Modified Line then go there  
-        tail = accessTail(fileName,"")
-        if sequence(tail) then
-            ok = match(".",tail)
+        taile = accessTail(fileName,"")
+        if sequence(taile) then
+            ok = match(".",taile)
             if ok then
-                lastLine = tail[1..ok-1]
-                lastCol = tail[ok+1..length(tail)]
+                lastLine = taile[1..ok-1]
+                lastCol = taile[ok+1..length(taile)]
             end if
         end if
 
@@ -751,12 +751,12 @@ end procedure
 setHandler({Open,ToolPush2}, w32HClick, routine_id("onClick_Open"))
 -------------------------------------------------------------------------------
 procedure addLastLineModified()
-sequence tail,lastPos
+sequence taile,lastPos
 
     --now write file back with control-Z (ascii 26)
     lastPos = synGetCursorPos()
-    tail = sprint(lastPos[2]) & "." & sprint(lastPos[1])
-    if accessTail(OpenFileName, tail) then
+    taile = sprint(lastPos[2]) & "." & sprint(lastPos[1])
+    if accessTail(OpenFileName, taile) then
                 --added last line and column to end of file
     end if
 
@@ -2351,7 +2351,7 @@ setHandler(MainWin, w32HEvent, routine_id("onEvent_MainWin"))
 -------------------------------------------------------------------------------
 procedure onActivate_MainWin(integer self, integer event, sequence Params)
 integer ok
-object tail
+object taile
 
     if length(cmdparams)>2 then
         --params might contain valid filename
@@ -2362,12 +2362,12 @@ object tail
             lastLine = {}
             lastCol = {}
             --if file has last Modified Line then go there  
-            tail = accessTail(cmdparams[3],"")
-            if sequence(tail) then
-                ok = match(".",tail)
+            taile = accessTail(cmdparams[3],"")
+            if sequence(taile) then
+                ok = match(".",taile)
                 if ok then
-                    lastLine = tail[1..ok-1]
-                    lastCol = tail[ok+1..length(tail)]
+                    lastLine = taile[1..ok-1]
+                    lastCol = taile[ok+1..length(taile)]
                 end if
             end if
 

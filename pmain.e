@@ -11562,12 +11562,19 @@ if ttidx=T_final then ?9/0 end if
                 if dtor then getToken() end if
                 getToken()
                 string routine_name = text[tokcol..col-1]
+                integer pf = {SF_PROC,SF_FUNC}[is_method]
                 if dtor then
                     if ttidx!=name_ttidx then Aborp(routine_name&" expected") end if
                     if wasttidx!=T_proc then Aborp("destructor must be a procedure") end if
                     routine_name = '~'&routine_name
                 elsif ttidx=name_ttidx then -- constructor
                     if wasttidx!=T_func then Aborp("constructor must be a function") end if
+                else
+                    -- 22/12/2020: prevent replacement of function <==> procedure, etc.
+                    integer ff = structs:get_field_flags(struct_name,routine_name)
+                    if ff!=NULL and and_bits(ff,SF_RTN)!=pf then
+                        Aborp("invalid override type")
+                    end if
                 end if
                 nParams = 1             
                 paramNames[nParams] = T_this
@@ -11577,7 +11584,7 @@ if ttidx=T_final then ?9/0 end if
                 paramDflts[nParams] = 0
                 paramUsed [nParams] = true
                 ttidx = wasttidx    -- (sneaky...)
-                iPrivate += {SF_PROC,SF_FUNC}[is_method]
+                iPrivate += pf
                 structs:struct_add_field(routine_name,T_integer,iPrivate)
                 bFromStruct = true -- allow "show();" - ie abstract/r_lambda==0 
                 DoRoutineDef(is_method,true,{N})

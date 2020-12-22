@@ -2532,8 +2532,8 @@ else
     initialAutoEntry("define_c_proc",       S_Func,"FOOO",  "pcfunc.e",0,E_none)
 end if
     initialAutoEntry("delete_file",         S_Func,"FS",    "pfile.e",0,E_other)
-    initialAutoEntry("day_of_year",         S_Func,"FIII",  "pdate.e",0,E_none)
-    initialAutoEntry("days_in_month",       S_Func,"FII",   "pdate.e",0,E_none)
+    initialAutoEntry("day_of_year",         S_Func,"FIII",  "pdates.e",0,E_none)
+    initialAutoEntry("days_in_month",       S_Func,"FII",   "pdates.e",0,E_none)
 --DEV (needs MARKTYPES...)
 --  initialAutoEntry("dictionary",          S_Type,"TI",    "dict.e",0,E_none)
     initialAutoEntry("dict_size",           S_Func,"FI",    "dict.e",0,E_none)
@@ -2571,7 +2571,7 @@ end if
     initialAutoEntry("include_file",        S_Func,"FI",    "pincpathN.e",0,E_none,0)
     initialAutoEntry("is_dict",             S_Func,"FI",    "dict.e",0,E_none)
     initialAutoEntry("is_integer",          S_Func,"FS",    "to_int.e",0,E_none)
-    initialAutoEntry("is_leap_year",        S_Func,"FI",    "pdate.e",0,E_none)
+    initialAutoEntry("is_leap_year",        S_Func,"FI",    "pdates.e",0,E_none)
     initialAutoEntry("is_prime",            S_Func,"FN",    "pfactors.e",0,E_none)
     initialAutoEntry("is_struct",           S_Func,"FOS",   "structs.e",0,E_none)   T_is_struct = symlimit
     initialAutoEntry("isatty",              S_Func,"FI",    "isatty.e",0,E_none)
@@ -2724,8 +2724,8 @@ end if
     initialAutoEntry("decode_flags",        S_Func,"FPNS",  "pdecodeflags.e",0,E_none,2)
     initialAutoEntry("decode_base64",       S_Func,"FP",    "base64.e",0,E_none)
     initialAutoEntry("encode_base64",       S_Func,"FPI",   "base64.e",0,E_none,1)
-    initialAutoEntry("elapsed",             S_Func,"FN",    "pelapsed.e",0,E_none)
-    initialAutoEntry("elapsed_short",       S_Func,"FN",    "pelapsed.e",0,E_none)
+    initialAutoEntry("elapsed",             S_Func,"FNNS",  "pelapsed.e",0,E_none,1)
+    initialAutoEntry("elapsed_short",       S_Func,"FNNS",  "pelapsed.e",0,E_none,1)
     initialAutoEntry("file_size_k",         S_Func,"FNI",   "pfile.e",0,E_none,1)
     initialAutoEntry("get_file_base",       S_Func,"FS",    "pfile.e",0,E_none)
     Alias("filebase", symlimit)
@@ -2855,7 +2855,7 @@ if newEmit then
 else
     initialAutoEntry("call_func",           S_Func,"FIP",   "pcfunc.e",0,E_all)
 end if
-    initialAutoEntry("day_of_week",         S_Func,"FIIII", "pdate.e",0,E_none,3)
+    initialAutoEntry("day_of_week",         S_Func,"FIIII", "pdates.e",0,E_none,3)
     initialAutoEntry("db_record_data",      S_Func,"FI",    "database.e",0,E_none)
     initialAutoEntry("db_record_key",       S_Func,"FI",    "database.e",0,E_none)
 if newEmit then
@@ -2991,7 +2991,7 @@ end if
 --  initialAutoEntry("add_block",           S_Proc,"P",     "primes.e",0,E_none)    -- removed 23/2/20 (not global...)
     initialAutoEntry("allow_break",         S_Proc,"PI",    "pbreak.e",0,E_other)
     initialAutoEntry("any_key",             S_Proc,"PSI",   "panykey.e",0,E_other,1)
-    initialAutoEntry("assert",              S_Proc,"PIS",   "assert.e",0,E_other,1)
+    initialAutoEntry("assert",              S_Proc,"PISP",  "assert.e",0,E_other,1)
     initialAutoEntry("maybe_any_key",       S_Proc,"PSI",   "panykey.e",0,E_other,1)
     if newEmit then
 --      initialAutoEntry("abort",           S_Proc,"PI",    "VM\\pAbort.e",0,E_other)               T_abort = symlimit
@@ -3219,6 +3219,7 @@ short static super -switch synchronized
 this throw throws transient true -try typeof
 var volatile void
 -while -with
+undefined Nan Infinity
 --*/
     T_Ainc = symlimit
 

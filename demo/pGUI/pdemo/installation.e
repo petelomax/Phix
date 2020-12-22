@@ -58,7 +58,11 @@ constant r_xferinfo32 = routine_id("curl_xferinfo_callback32")
 
 constant xferinfo_cb = call_back({'+', iff(machine_bits()=64?r_xferinfo64:r_xferinfo32)})
 
-procedure download(string filename)
+procedure download(string base_url, filename)
+--  string url = base_url&filename,
+    string url = base_url&get_file_name(filename),
+--         out = substitute(filename,"zip","tmp")
+           out = substitute_all(filename,{"zip","exe"},{"tmp","tmp"})
     if filename="" then -- cleanup
         if curl!=NULL then
             curl_easy_cleanup(curl)
@@ -74,8 +78,6 @@ procedure download(string filename)
         pErrorBuffer = allocate(CURL_ERROR_SIZE)
         curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, pErrorBuffer)
     end if
-    string url = base_url&filename,
-           out = substitute(filename,"zip","tmp")
     integer fn = open(out,"wb")
     if fn=-1 then
         crash("Cannot open %s",{filename})
@@ -88,8 +90,10 @@ procedure download(string filename)
     atom pFilename = allocate_string(filename)
     curl_easy_setopt(curl, CURLOPT_XFERINFODATA, pFilename)
     curl_easy_setopt(curl, CURLOPT_FAILONERROR, true)
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, true)
 --  curl_easy_setopt(curl, CURLOPT_VERBOSE, true)
 
+    printf(1,"downloading %s\n",{url})
     integer ret = curl_easy_perform(curl)
     if ret!=CURLE_OK then
         crash("Error %d(%s) downloading file", {ret,peek_string(pErrorBuffer)})
@@ -137,6 +141,17 @@ global procedure install()
            sfxdir = join_path({cd,"sfx"}),
            sfxctl = join_path({sfxdir,sprintf("phix.%s.txt",{setupver})})
 
+    --
+    -- Explanation: phix.version.setup.exe extracts itself, then chdir()s to eg
+    --              C:\Program Files x86\Phix and runs ppw.bat, which then runs
+    --              'pw pdemo -settings', so this file (installation.e) cannot
+    --              simply use command_line() to locate the setup.exe. Hence it
+    --              looks in some "sensible places" for it, in the hope that it
+    --              can find the other zip files it needs and avoid downloading
+    --              them (which is not permitted on a server, and not possible
+    --              on machines without an internet connection). On failing to
+    --              find setup.exe, it just proceeds to download the zips.
+    --
     sequence envset = iff(platform()=WINDOWS?{`C:\Downloads`, "ALLUSERSPROFILE", 
                                               "APPDATA", "LOCALAPPDATA", "PUBLIC",
                                               "USERPROFILE", "TEMP", "PHIXSETUP"}
@@ -145,6 +160,7 @@ global procedure install()
     for i=1 to length(envset) do
         object ei = envset[i]
         if i>1 then ei = getenv(ei) end if
+--envset[i] = ei -- (DEV/temp)
         if string(ei) then
             if get_file_type(join_path({ei,setupexe}))==FILETYPE_FILE then
                 setupdir = ei
@@ -183,8 +199,9 @@ global procedure install()
     for i=1 to length(ctrl) do
         if ctrl[i][1]!='Y' then
             string filename = join_path({setupdir,ctrl[i][3..$]})
-            if get_file_type(filename)!=FILETYPE_FILE then
-                download(filename)
+            if get_file_type(filename)!=FILETYPE_FILE
+            or get_file_size(filename)=0 then
+                download(base_url,filename)
                 filenames = append(filenames,filename)
             end if
             extract_zip(filename)
@@ -195,6 +212,41 @@ global procedure install()
             close(fn)
         end if  
     end for
+--13/12/20:
+    if platform()=WINDOWS then
+        -- Aside: pGUI.e allows vc runtimes to be distributed in a copy of demo/pGUI/win32|64/,
+        --        whereas Phix itself does not, hence there is no chdir() or similar here.
+        sequence vcr = IupCheckVCRuntime(false)
+        for i=1 to length(vcr) do -- ("" returns {} if all present and correct)
+            string filename = get_file_name(vcr[i]),
+                   filepath = join_path({setupdir,filename}),
+                   fileroot = vcr[i][1..-length(filename)-1]
+            if get_file_type(filepath)!=FILETYPE_FILE
+            or get_file_size(filepath)=0 then
+                download(fileroot,filepath)
+                filenames = append(filenames,filepath)
+                printf(1,"downloaded %s\n",{filepath})
+            else
+                printf(1,"located %s\n",{filepath})
+            end if
+            puts(1,"About to install the Visual C++ Redistributable Packages for Visual Studio 2015..19 from Microsoft.\n")
+            puts(1,"\n\nPress any key to launch the Microsoft installer...")
+            {} = wait_key()
+            puts(1,"\n\n")
+--          puts(1,"\n\n  (Please check for a UAC warning hiding in the background... [grr]) \n\n")
+--          integer vcres = system_exec(filepath)
+--          integer vcres = system_exec(filepath&" /install /quiet /norestart")
+            integer vcres = system_exec(filepath&" /install /norestart")
+--          if vcres!=0 then crash("%s failed with error code %d",{filename,vcres}) end if
+            if vcres!=0 then
+                -- while researching '/install /quiet', I found error code 23 means it cannot
+                --  install the KB2999266 update, so for problems like that this is a warning
+                --  and not treated as an error
+                printf(1,"warning: %s returned error code %d\n",{filepath,vcres})
+                sleep(4)
+            end if
+        end for
+    end if
     if length(filenames) then
         printf(1,"\nDelete downloaded zip files?(Y/N):")
         res = upper(getc(0))

@@ -9,6 +9,7 @@
 include p2js_basics.e   -- includes/constants/globals/utilities
 include p2js_tree.e     -- simple ternary tree for fast identifier lookup
 sequence p2js_kwdbg = p2js_keywords -- (debug aid)
+--sequence tt_r = tt_reserved
 
 integer i,  -- to text[]
 --      lt, -- length(text)
@@ -62,8 +63,13 @@ global function tok_error(string reason="", integer e=i)
 --          printf(1,"token error: %s, line %d\n%s\n%s",
 --                   {reason,line,text[linestart..e],
 --                    repeat(' ',e-linestart)})
-            string ltxt = text[linestart..e],
-                   lpad = repeat(' ',e-linestart)
+            string lpad = repeat(' ',e-linestart)
+            if e=i then
+                while e<length(text) and text[e+1]>=' ' do
+                    e += 1
+                end while
+            end if
+            string ltxt = text[linestart..e]
 --DEV filename?
             printf(1,"token error on line %d:\n%s\n%s^%s\n",
                      {line,ltxt,lpad,reason})
@@ -174,6 +180,7 @@ global procedure tokenise()
                         while true do -- (normal "--" or "//")
                             -- aside: GT_WHOLE_FILE ensures we'll hit \n
                             i += 1
+--                          if i>length(text) then exit end if
                             ch = text[i]
                             toktype = charset[ch]
                             if toktype = EOL then exit end if
@@ -188,7 +195,7 @@ global procedure tokenise()
                 end if
                 fallthrough
 --          case SYMBOL:
-            case '?','+','*','!','=',';',',','.','|','<','&',':','>','\\','$','%':
+            case '?','+','*','!','=',';',',','.','|','<','&',':','>','\\','$','%','~':
                 while i<lt 
 --                and charset[text[i+1]]=SYMBOL
                   and charset[text[i+1]]>SYMBOL do

@@ -44,7 +44,7 @@ constant extensions = {{PHIX, {"exw","ex","e","eu"}},
                        {JS, {"js"}},
                        {C, {"c"}}}
 --*/
-constant extensions = {{PHIX :=1, {"exw","ex","e","eu"}},
+constant extensions = {{PHIX :=1, {"exw","ex","e","eu","ew"}},
                        {HTML :=2, {"html","htm"}},
                        {CSS  :=3, {"css"}},
                        {JS   :=4, {"js"}},
@@ -162,7 +162,6 @@ global enum EOL, SPACE, /*MINUS,*/ /*FWDSLASH,*/ /*DIVIDE=$,*/ --ELLIPSE, --SPRE
 --?'\''
 --?'\\'     -- 92
 --X--?'\'	-- illegal
-global constant INCLUDETOKS = `\/.<>`&LETTER
 
 -- (sequence rather than constant because we /want/ this in ex.err:)
 -- (disney matter if damaged, as real deal in tok_names/show_tok anyway)
@@ -386,11 +385,14 @@ global constant precedences = {{BEQ     := 129, `:=`,   PASGN},
                                {           '%', `%`,    PMORD},
 --                             {DOT     := 191, `.`,    PUNY},
                                {           '.', `.`,    PUNY},
+                               {TWIDDLE := 191, `~`,    PUNY},
                                {NOT     := 193, `not`,  PUNY},
                                {NEW     := 195, `new`,  PUNY},
                                {SPREAD  := 197, `...`,  PUNY},
                                {ELLIPSE := 199, `..`,   PSBSC}}
 global constant {mstoktypes,multisym,msprec} = columnize(precedences)
+
+global constant INCLUDETOKS = `\/.<>`&'`'&DQUOTE&LETTER&ELLIPSE&DIGIT
 
 -- to show in ex.err as a useful lookup table during debugging:
 sequence precedence_table = precedences

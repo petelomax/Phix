@@ -378,6 +378,7 @@ sequence RtnCharMap
     RtnCharMap['A'+1..'Z'+1] = 1
     RtnCharMap['0'+1..'9'+1] = 2
     RtnCharMap['_'+1] = 1
+    RtnCharMap['$'+1] = 1   -- 17/12/20 (for js)
     RtnCharMap['-'+1] = -1
     RtnCharMap['\"'+1] = -2
 
@@ -880,13 +881,13 @@ integer default_view
 --??        call_proc(r_enableMenuToolBar,{})
 --?"call_proc(r_enableMenuToolBar,{})"
 
-            -- default to Sections view for non-Euphoria/Phix files
+            -- default to Sections view for non-Euphoria/Phix/js files
             default_view = Sections
 --DEV get_file_extension
             for i=length(lcfile) to 1 by -1 do
                 if lcfile[i]='.' then
                     lcfile = lcfile[i+1..length(lcfile)]
-                    if find(lower(lcfile),{"e","eu","ew","ex","exu","exw","exwc","pro"}) then
+                    if find(lower(lcfile),{"e","eu","ew","ex","exu","exw","exwc","pro","js"}) then
                         default_view = All
                     end if
                     exit

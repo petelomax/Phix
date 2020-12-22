@@ -387,6 +387,13 @@ global function dict_name(integer tid=1)
     return treenames[tid]
 end function
 
+global function named_dict(string name)
+    for tid=1 to length(treenames) do
+        if treenames[tid]=name then return tid end if
+    end for
+    return NULL
+end function
+
 ----DEV temp: (didn't help...)
 --function f(object o) return o end function
 --if "abc"="def" then object x=f(1) x=f(1.5); x=f(""); x=f({1,1.5,"",{x}}) end if

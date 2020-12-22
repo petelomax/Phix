@@ -292,15 +292,15 @@ constant testset={
     "t43tchk.exw",          --[43] OK   -- simple user defined type checks
     "t44silly.exw",         --[44] OK   -- recursive return test (ie the function f() returns f() case)
     "t45aod.exw",           --[45] OK   -- an assignment on declaration problem test
---DEV p64 -c t46 is broken
---  "t46ltype.exw",         --[46] OK   -- localtype tests
+--DEV p64 -c t46 is broken (put back in a broken state 17/12/20)
+    "t46ltype.exw",         --[46] OK   -- localtype tests
     "t47ltth.exw",          --[47] OK   -- localtype test harness, for tweakers of Assignment() in pmain.e
 --DEV top-level abort(0) kills the run...
---  "t48init.exw",          --[48] OK   -- init tests ** not implemented/suboptimal **
---DEV p64 -c t49 is broken
---  "t49ginfo.exw",         --[49] OK   -- gvar_scan final results tests.
+    "t48init.exw",          --[48] OK   -- init tests ** not implemented/suboptimal **
+--DEV p64 -c t49 is broken (now excluded below)
+    "t49ginfo.exw",         --[49] OK   -- gvar_scan final results tests.
 --Fine, but needs annoying edit
---  "t50gscan.exw",         --[50] OK   -- some snippets which gave pgscan.e a hard time.
+    "t50gscan.exw",         --[50] OK   -- some snippets which gave pgscan.e a hard time.
     "t51nstc.exw",          --[51] OK   -- some tests for an upgrade to Expr().
     "t52oparm.exw",         --[52] OK   -- optional parameter tests.
     "t53switch.exw",        --[53] OK   -- switch tests [DEV incomplete].
@@ -312,8 +312,8 @@ constant testset={
     "t58rtxt.exw",          --[58] OK   -- file i/o tests
     "t59mri.exw",           --[59] OK   -- test mutually recursive includes
     "t60td.exw",            --[60] OK   -- timedate tests
---DEV this is a very windows-centric test, need something quite different for linux:
---  "t61cffi.exw",          --[61] OK   -- cffi tests
+--DEV this is a very windows-centric test, need something quite different for linux: (now excluded on LINUX)
+    "t61cffi.exw",          --[61] OK   -- cffi tests
     "t62utf.exw",           --[62] OK   -- test the utf conversion routines
     "t63regex.exw",         --[63] OK   -- test the regular expression routines
     "t64struct.exw",        --[64] OK   -- test the new struct/class syntax
@@ -1853,6 +1853,39 @@ integer ntokens
 
 --include puts1h.e
 
+--UH? 22/12/20. getter/setter mods break self-hosting...
+--include builtins\VM\prtnidN.e -- OK
+--include builtins\get_routine_info.e -- NOT
+--function routine_id(string /*name*/) return 9/0 end function -- OK
+--function Xrtnid(string name) return routine_id(name) end function -- NOT
+
+--procedure Xroutine_id()
+--
+--object symtab
+--integer rtn
+--  -- get copy of symtab. NB read only! may contain nuts! (unassigned vars)
+--  enter_cs()
+--  #ilASM{
+--      [32]
+--          lea edi,[symtab]
+--          call :%opGetST      -- [edi]=symtab (ie our local:=the real symtab)
+--          mov edi,[ebp+20]    -- prev_ebp
+--          mov edi,[edi+8]     -- calling routine no
+--          mov [rtn],edi
+--      [64]
+--          lea rdi,[symtab]
+--          call :%opGetST      -- [rdi]=symtab (ie our local:=the real symtab)
+--          mov rdi,[rbp+40]    -- prev_ebp
+--          mov rdi,[rdi+16]    -- calling routine no
+--          mov [rtn],rdi
+--      []
+--        }
+--  symtab = 0
+--  leave_cs()
+--end procedure
+
+-- <ends>
+
 with trace
 function main()
 object savepath
@@ -1913,6 +1946,8 @@ string pi
     end if
     t = time()
 t0 = t
+    --22/12/20 (getter/setter)
+    {} = get_routine_info(-9)   -- (disable symtab stomping!)
 
     fileno=0
     resetOptions()
@@ -2775,8 +2810,10 @@ if testall then
     tt_save_init()
     for i=1 to length(testset)-1 do
 --printf(1,"state=%d\n",state)
-        if not safemode or not find(i,{41,42}) then
-            mainfile = testset[i]
+        mainfile = testset[i]
+        if (not safemode or not find(mainfile,{"t41infan.exw","t42cback.exw"}))
+        and (mainfile!="t49ginfo.exw" or machine_bits()!=64 or not bind)
+        and (mainfile!="t61cffi.exw" or platform()!=LINUX) then
             printf(1,"Testing[%d]: %s%s\n",{i,mainpath,mainfile})
             eres = main()
             if eres!=0 then exit end if

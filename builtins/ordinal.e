@@ -9,7 +9,9 @@
 --      ordinal(atom n, bool bJustSpell:=true) yields "one", "two", etc.
 --
 
-global function ord(integer n)
+--DEV 10/12/20 (docs not updated)
+--global function ord(integer n)
+global function ord(atom n)
 integer r = remainder(n,10)+1
     if r<=0 or r>4 or remainder(n,100)=r+9 then r = 1 end if
     string res = {"th","st","nd","rd"}[r]

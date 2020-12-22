@@ -1,0 +1,75 @@
+global function IupTableResize_cb(Ihandle dlg, integer width, height)
+integer tw = width, th = height
+-- default RESIZE_CB for IupTable (callable directly, when overridden)
+    Ihandle table = IupGetAttributePtr(dlg,"TABLE"),
+            parent = IupGetParent(table)
+    integer rid = IupGetInt(table, "ORIG_RESIZE_CB")
+--  {} = c_func(rid,{table,width,height})
+    integer dsidx = IupGetInt(table,"DSIDX"),
+            w = IupGetInt(table,"NUMCOL")
+    sequence new_widths = repeat(0,w)
+    for i=1 to w do
+        new_widths[i] = IupGetIntId(table,"RASTERWIDTH",i)
+    end for
+    --
+    -- aside: buglette: at precisely one size this will leave space for a
+    --                  scrollbar which never appears. (cy+17) is probably
+    --                  more accurate, however windows can then decide to
+    --                  display an unnecessary horizontal scrollbar, which
+    --                  is even uglier and even slightly harder to remove.
+    --
+    integer {cx,cy} = IupGetIntInt(parent,"CLIENTSIZE"),
+            {nx,ny} = IupGetIntInt(table,"NATURALSIZE"),
+--          {nx,ny} = IupGetIntInt(table,"RASTERSIZE"),
+--          vs = (ny>(cy+16)) -- vertical scrollbar?
+            vs = (cy<(ny-16)) -- vertical scrollbar?
+--          vs = (ny<=(cy+16)) -- vertical scrollbar?
+--          vs = true -- vertical scrollbar?
+--          vs = IupGetInt(table,"NUMLIN")>IupGetInt(table,"NUMLIN_VISIBLE") -- vertical scrollbar?
+--?{"NUMLIN",IupGetInt(table,"NUMLIN"),"NUMLIN_VISIBLE",IupGetInt(table,"NUMLIN_VISIBLE"),"vs",vs}
+
+    width -= (w*8+17*vs) -- ( derived by trial and error... )
+width -= 10
+    if width<120 then width = 120 end if
+    integer total_width = sum(new_widths)
+    IupSetInt(table,"RASTERWIDTH0",0)
+    for i=1 to w do
+        integer new_width = max(round((new_widths[i]/total_width)*width),10)
+        total_width -= new_widths[i]
+              width -= new_width
+        IupSetIntId(table,"RASTERWIDTH",i,new_width)
+        new_widths[i] = new_width
+    end for
+    table_widths[dsidx] = new_widths -- save for IupTableColResize_cb
+    IupSetInt(table,"RASTERWIDTH",sum(new_widths)+vs*17)
+    IupRefresh(table)
+--  integer {tw,th} = IupGetIntInt(table,"RASTERSIZE")
+--  c_func(IupGetCallback(table, "RESIZE_CB"),{table,sum(new_widths)+vs*17,h})
+--  return c_func(IupGetCallback(table, "RESIZE_CB"),{table,tw,th})
+--  integer rid = IupGetInt(table, "ORIG_RESIZE_CB")
+--  return c_func(rid,{table,tw,th})
+--  return c_func(rid,{table,th,tw})
+    {} = c_func(rid,{table,tw,th})
+--  IupRefresh(table)
+    return IUP_DEFAULT
+end function
+
+function IupTableMap_cb(Ihandle table)
+-- internal only (MAP_CB)
+-- nb only suitable for the single-table case, with multiple you
+-- must override RESIZE_CB and invoke IupTableResize_cb directly.
+-- In most cases, parent = IupDialog() has not been invoked at the point
+-- when you invoke table = IupTable(), which is why this is separate.
+    Ihandle parent = IupGetParent(table)
+    Ihandln grandp = IupGetParent(parent)
+    while grandp!=NULL do
+        parent = grandp
+        grandp = IupGetParent(parent)
+    end while
+    IupSetAttributePtr(parent,"TABLE",table)
+    atom orcb = IupGetCallback(parent, "RESIZE_CB")
+    integer rid = define_c_func({},orcb,{C_PTR,C_INT,C_INT},C_INT)
+    IupSetInt(table, "ORIG_RESIZE_CB", rid)
+    IupSetCallback(parent, "RESIZE_CB", Icallback("IupTableResize_cb"))
+    return IUP_DEFAULT
+end function

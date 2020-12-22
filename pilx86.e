@@ -720,7 +720,7 @@ forward procedure movRegImm32(integer reg, atom v)
 
 integer pfileno
 --with trace
-global -- used by psched.e  [DEV]
+--global -- used by psched.e    [DEV]
 procedure lineinfo()
 -- For a proper explanation of LineTab, see pdiag.e (this was written
 --  in a relatively ad-hoc manner, sorry).
@@ -749,12 +749,12 @@ integer firstline, skipline
 --if sched then shfixup() end if
         if not bind then
             if opLnv then       -- set in ilxlate()
-                if sched then
-                    if schidx then
---      schend()
-                        ?9/0    -- do this asap in opLnt etc
-                    end if
-                end if
+--              if sched then
+--                  if schidx then
+----        schend()
+--                      ?9/0    -- do this asap in opLnt etc
+--                  end if
+--              end if
 --if callopTraceFirst then
 --  leamov(edi,callopTraceFirst)                    -- lea edi,[src]/mov edi,src
 --  emitHex5call(opTrace)                           -- call opXxxx
@@ -796,7 +796,7 @@ integer firstline, skipline
     lastline = emitline
 end procedure
 
-include psched.e
+--include psched.e
 
 
 -- The emitHexNnn routines
@@ -825,17 +825,17 @@ include psched.e
 
 procedure emitHex1(integer op1)
     -- emit a one byte opcode, or a one byte literal immediate
-    if not sched then
-        if lastline!=emitline then lineinfo() end if
-    end if
+--  if not sched then
+    if lastline!=emitline then lineinfo() end if
+--  end if
     x86 = append(x86,op1)
 end procedure
 
 procedure emitHex2(integer op1, integer op2)
     -- emit two literal bytes
-    if not sched then
-        if lastline!=emitline then lineinfo() end if
-    end if
+--  if not sched then
+    if lastline!=emitline then lineinfo() end if
+--  end if
     x86 = append(x86,op1)
     x86 = append(x86,op2)
 end procedure
@@ -843,9 +843,9 @@ end procedure
 --DEV temp replace of above... (do the same for emitHex2s)
 procedure emitHexx2(integer op1, integer op2)
     -- emit two literal bytes
-    if not sched then
-        if lastline!=emitline then lineinfo() end if
-    end if
+--  if not sched then
+    if lastline!=emitline then lineinfo() end if
+--  end if
     if X64 
     and op1!=push_imm8
     and op1!=mov_al_imm8 then
@@ -859,9 +859,9 @@ procedure emitHex2s(sequence op2)
 -- emit a two byte opcode, passed as a sequence
 --/**/  #isginfo{op2,0b0100,MIN,MAX,integer,2}  -- sequence of integer length 2
     if length(op2)!=2 then ?9/0 end if  -- compiler should optimise this away!
-    if not sched then
-        if lastline!=emitline then lineinfo() end if
-    end if
+--  if not sched then
+    if lastline!=emitline then lineinfo() end if
+--  end if
     x86 &= op2
 end procedure
 
@@ -869,18 +869,18 @@ procedure emitHex3(sequence op2, integer i8)
 -- emit a two byte opcode and a one byte immediate
 --/**/  #isginfo{op2,0b0100,MIN,MAX,integer,2}  -- sequence of integer length 2
     if length(op2)!=2 then ?9/0 end if  -- compiler should optimise this away!
-    if not sched then
-        if lastline!=emitline then lineinfo() end if
-    end if
+--  if not sched then
+    if lastline!=emitline then lineinfo() end if
+--  end if
     x86 &= op2
     x86 = append(x86,i8)
 end procedure
 
 procedure emitHex3l(integer op1, integer op2, integer op3)
     -- emit three literal bytes
-    if not sched then
-        if lastline!=emitline then lineinfo() end if
-    end if
+--  if not sched then
+    if lastline!=emitline then lineinfo() end if
+--  end if
     x86 = append(x86,op1)
     x86 = append(x86,op2)
     x86 = append(x86,op3)
@@ -890,17 +890,17 @@ end procedure
 ---- emit a three byte operation
 ----/**/    #isginfo{op3,0b0100,MIN,MAX,integer,3}  -- sequence of integer length 3
 --  if length(op3)!=3 then ?9/0 end if  -- compiler should optimise this away!
---if not sched then
+----if not sched then
 --  if lastline!=emitline then lineinfo() end if
---end if
+----end if
 --  x86 &= op3
 --end procedure
 
 procedure emitHex4l(integer op1, integer op2, integer op3, integer op4)
     -- emit four literal bytes
-    if not sched then
-        if lastline!=emitline then lineinfo() end if
-    end if
+--  if not sched then
+    if lastline!=emitline then lineinfo() end if
+--  end if
     x86 &= {op1,op2,op3,op4}
 end procedure
 
@@ -908,9 +908,9 @@ procedure emitHex4sib(sequence op2, integer op3, integer op4)
 -- emit an {opcode,xrm},sib,disp8 instruction, eg dec dword[ebx+edx*4-8]
 --/**/  #isginfo{op2,0b0100,MIN,MAX,integer,2}  -- sequence of integer length 2
     if length(op2)!=2 then ?9/0 end if  -- compiler should optimise this away!
-    if not sched then
-        if lastline!=emitline then lineinfo() end if
-    end if
+--  if not sched then
+    if lastline!=emitline then lineinfo() end if
+--  end if
     x86 &= op2
     x86 = append(x86,op3)
     x86 = append(x86,op4)
@@ -931,9 +931,9 @@ end procedure
 --procedure emitHex5(integer op1, integer flags, integer v)
 ---- emit a one byte opcode and a dword operand, ie (opcode,flags,0,0,value)
 ----    if emitON then
---      if not sched then
---          if lastline!=emitline then lineinfo() end if
---      end if
+----        if not sched then
+--      if lastline!=emitline then lineinfo() end if
+----        end if
 --      if collectstats then
 --          if not bind and flags=isOpCode then
 --              -- Example use of opStat.
@@ -979,9 +979,9 @@ end procedure
 function emitHex5addr()
 -- push a return address for opTchk/MkSq/Subss/Subse/ConcatN/Repe/Reps
 -- plants a zero offset and returns the location to backpatch later.
-if not sched then
+--if not sched then
     if lastline!=emitline then lineinfo() end if    -- (not currently needed)
-end if
+--end if
     if q86 then
         x86 &= push_imm32
         quad(isAddr,0)
@@ -1011,9 +1011,9 @@ end function
 --  --  the latter being easier to read in some cases, and those that need a
 --  --  jump rather than a call obviously won't work here (see also the list
 --  --  of opcodes given in the comments of emitHex5addr).
---  if not sched then
---      if lastline!=emitline then lineinfo() end if
---  end if
+----    if not sched then
+--  if lastline!=emitline then lineinfo() end if
+----    end if
 ----if newEmit then
 --  printf(1,"warning: emitHex5call(%d=%s) skipped for newEmit (pilx86.e line 984, emitline=%d)\n",{opcode,opNames[opcode],emitline})
 --?9/0
@@ -1032,9 +1032,9 @@ end function
 procedure emitHex5cr(integer opcode, integer N)
 -- emit a 5 byte mov reg,constref instruction
 if newEmit then ?9/0 end if
-    if not sched then
-        if lastline!=emitline then lineinfo() end if
-    end if
+--  if not sched then
+    if lastline!=emitline then lineinfo() end if
+--  end if
     x86 &= opcode
     if q86>1 then
         quad2(isConstRef,N)
@@ -1050,9 +1050,9 @@ end procedure
 --       j5 = {jump_rel32,isJmp,0,0,0}
 procedure emitHex5j(integer offset)
 -- emit a 5 byte jump (auto-packed to 2 bytes when possible, see pemit.e/scanforShortJmp)
-    if not sched then
-        if lastline!=emitline then lineinfo() end if
-    end if
+--  if not sched then
+    if lastline!=emitline then lineinfo() end if
+--  end if
     if q86 then
         x86 &= jump_rel32
         quad(isJmp,offset)
@@ -1075,13 +1075,13 @@ integer lblidx = tt[aatidx[opcode]+EQ]
     if lblidx=0 then ?9/0 end if
 if not newEmit then ?9/0 end if
     -- Jump to an opcode(global label). ?Used for opRetf and in tandem with emitHex5addr.
-    if not sched then
+--  if not sched then
         if lastline!=emitline then
 --dev?
             if opcode!=opRetf then ?9/0 end if
             lineinfo()
         end if
-    end if
+--  end if
 if suppressopRetf then
     if opcode=opRetf then
         puts(1,"pilx86.e line 1054 (opRetf)\n")
@@ -1114,11 +1114,9 @@ procedure emitHex5callG(integer opcode, integer lblidx=0)
 --      end if
     end if
     -- call an opcode(global label).
-    if not sched then
-        if lastline!=emitline then
-            lineinfo()
-        end if
-    end if
+--  if not sched then
+    if lastline!=emitline then lineinfo() end if
+--  end if
     if q86>1 then
         x86 &= call_rel32
         quad2(isJmpG,lblidx)
@@ -1146,9 +1144,9 @@ procedure emitHex5s(sequence op5)
 -- emit a five byte opcode, eg call an opcode.
 --/**/  #isginfo{op5,0b0100,MIN,MAX,integer,5}  -- sequence of integer length 5
     if length(op5)!=5 then ?9/0 end if  -- compiler should optimise this away!
-    if not sched then
-        if lastline!=emitline then lineinfo() end if
-    end if
+--  if not sched then
+    if lastline!=emitline then lineinfo() end if
+--  end if
 if newEmit and op5[2]=isOpCode then ?9/0 end if
     x86 &= op5
 --  reginfo = 0     --NB callee's responsibility. last re-checked 6/3/09.
@@ -1158,9 +1156,9 @@ procedure emitHex5sib(sequence op2, integer o3, integer o4, integer o5)
 -- emit an {opcode,xrm},sib,disp8,imm8 instruction, eg cmp byte[ecx+edx*4-1],0x12
 --/**/  #isginfo{op2,0b0100,MIN,MAX,integer,2}  -- sequence of integer length 2
     if length(op2)!=2 then ?9/0 end if  -- compiler should optimise this away!
-    if not sched then
-        if lastline!=emitline then lineinfo() end if
-    end if
+--  if not sched then
+    if lastline!=emitline then lineinfo() end if
+--  end if
     x86 &= op2
     x86 = append(x86,o3)
     x86 = append(x86,o4)
@@ -1180,9 +1178,9 @@ procedure emitHex5v(integer op1, integer N)
 --!/**/ #isginfo{N,atom,MIN,MAX,object,-1}
 --DEV broken on 64bit:
 --!/**/ #isginfo{N,integer,MIN,MAX,object,-1}
-    if not sched then
-        if lastline!=emitline then lineinfo() end if
-    end if
+--  if not sched then
+    if lastline!=emitline then lineinfo() end if
+--  end if
     if symtab[N][S_NTyp]=S_TVar then ?9/0 end if
     if and_bits(symtab[N][S_State],K_Fres) then ?9/0 end if
     x86 &= op1
@@ -1205,9 +1203,9 @@ procedure emitHex5vno(integer op1, integer N)
 --DEV broken/atom on 64bit
 --!/**/ #isginfo{N,integer,MIN,MAX,object,-1}
 if not newEmit then ?9/0 end if
-    if not sched then
-        if lastline!=emitline then lineinfo() end if
-    end if
+--  if not sched then
+    if lastline!=emitline then lineinfo() end if
+--  end if
 --  if X64 then ?9/0 end if     -- use emit movRegVno or emitHex62vno
     if X64 then
 --printf(1,"warning: emitHex5vno for newEmit (pilx86.e line 1174, emitline=%d)\n",{emitline})
@@ -1226,9 +1224,9 @@ end procedure
 procedure emitHex5w(integer op1, atom v)
 -- emit a one byte opcode and a literal dword
 -- NB: use emitHex5vno() if v is a symtab index
-    if not sched then
-        if lastline!=emitline then lineinfo() end if
-    end if
+--  if not sched then
+    if lastline!=emitline then lineinfo() end if
+--  end if
     x86 = append(x86,op1)
     emitHexDword(v)
 end procedure
@@ -1240,9 +1238,9 @@ sequence cr4
 procedure emitHex5constref(integer op1, integer N)
 -- emit an opcode,isConstRef,0,0,N instruction
 if newEmit then ?9/0 end if
-    if not sched then
-        if lastline!=emitline then lineinfo() end if
-    end if
+--  if not sched then
+    if lastline!=emitline then lineinfo() end if
+--  end if
     x86 &= op1
     if q86>1 then
         quad2(isConstRef,N)
@@ -1277,9 +1275,9 @@ end procedure
 
 procedure cmp_eax_srcid(integer vno)
 --puts(1,"warning: cmp eax,var_id handling incomplete (pilx86.e line 1199)\n") (seems alright to me!)
---  if not sched then
+----    if not sched then
 --      if lastline!=emitline then lineinfo() end if
---  end if
+----    end if
 if not newEmit then ?9/0 end if --(isVno handling is only in pemit2.e)
 if lastline!=emitline then ?9/0 end if --(counts as suspicious use)
 --if X64 then ?9/0 end if -- erm? (fine)
@@ -1287,9 +1285,9 @@ if lastline!=emitline then ?9/0 end if --(counts as suspicious use)
 end procedure
 
 procedure cmp_imm32(integer reg, integer v)
-    if not sched then
-        if lastline!=emitline then lineinfo() end if
-    end if
+--  if not sched then
+    if lastline!=emitline then lineinfo() end if
+--  end if
     if X64 then
         emitHex1(#48)
     end if
@@ -1315,9 +1313,9 @@ procedure emitHex6j(sequence op2, integer offset)
     --  if op2[1]!=#0F then ?9/0 end if
     --  if or_bits(op2[2],#0F)!=#8F then ?9/0 end if    -- (ie in range #80..#8F) \ only one of these
     --  if and_bits(op2[2],#F0)!=#80 then ?9/0 end if   -- (ie in range #80..#8F) /  would be needed
-    if not sched then
-        if lastline!=emitline then lineinfo() end if
-    end if
+--  if not sched then
+    if lastline!=emitline then lineinfo() end if
+--  end if
     x86 &= op2
     if q86 then
         quad(isJmp,offset)
@@ -1334,11 +1332,11 @@ end procedure
 ----/**/    #isginfo{op2,0b0100,MIN,MAX,integer,2}  -- sequence of integer length 2
 --  if length(op2)!=2 then ?9/0 end if  -- compiler should optimise this away!
 --  --(ditto as per emitHex6j)
---  if sched then
---      schend()
---  else
+----    if sched then
+----        schend()
+----    else
 --      if lastline!=emitline then lineinfo() end if
---  end if
+----    end if
 --  x86 &= op2
 --if newEmit then ?9/0 end if -- see eg emitHex5jmpG
 --if suppressopRetf then
@@ -1357,11 +1355,11 @@ integer lblidx = tt[aatidx[opRetf]+EQ]
 --/**/  #isginfo{op2,0b0100,MIN,MAX,integer,2}  -- sequence of integer length 2
     if length(op2)!=2 then ?9/0 end if  -- compiler should optimise this away!
     --(ditto as per emitHex6j)
-    if sched then
-        schend()
-    else
-        if lastline!=emitline then lineinfo() end if
-    end if
+--  if sched then
+--      schend()
+--  else
+    if lastline!=emitline then lineinfo() end if
+--  end if
     x86 &= op2
 if not newEmit then ?9/0 end if
 --printf(1,"pilx86.e/emitHex6retg line 1335, emitline=%d\n",{emitline}) -- OK!
@@ -1384,9 +1382,9 @@ procedure emitHex6v(sequence op2, integer N)
 -- emit a 2 byte opcode and a 4 byte var addr
 --/**/  #isginfo{op2,0b0100,MIN,MAX,integer,2}  -- sequence of integer length 2
     if length(op2)!=2 then ?9/0 end if  -- compiler should optimise this away!
-    if not sched then
-        if lastline!=emitline then lineinfo() end if
-    end if
+--  if not sched then
+    if lastline!=emitline then lineinfo() end if
+--  end if
     if symtab[N][S_NTyp]=S_TVar then ?9/0 end if
     if and_bits(symtab[N][S_State],K_Fres) then ?9/0 end if
     x86 &= op2
@@ -1399,9 +1397,9 @@ end procedure
 
 procedure emitHex62v(integer op1, integer op2, integer N)
 -- emit 2 opcode bytes and a 4 byte var addr
-    if not sched then
-        if lastline!=emitline then lineinfo() end if
-    end if
+--  if not sched then
+    if lastline!=emitline then lineinfo() end if
+--  end if
     if symtab[N][S_NTyp]=S_TVar then ?9/0 end if
     if and_bits(symtab[N][S_State],K_Fres) then ?9/0 end if
     x86 &= op1
@@ -1415,9 +1413,9 @@ end procedure
 
 procedure emitHex62vno(integer op1, integer op2, integer N)
 -- emit 2 opcode bytes and a 4 byte symtab index
-    if not sched then
-        if lastline!=emitline then lineinfo() end if
-    end if
+--  if not sched then
+    if lastline!=emitline then lineinfo() end if
+--  end if
 if not newEmit then ?9/0 end if
     x86 &= op1
     x86 &= op2
@@ -1435,9 +1433,9 @@ procedure movRegVno(integer reg, integer N)
 --DEV broken on 64bit:
 --!/**/ #isginfo{N,integer,MIN,MAX,object,-1}
 integer op1, xrm
-    if not sched then
-        if lastline!=emitline then lineinfo() end if
-    end if
+--  if not sched then
+    if lastline!=emitline then lineinfo() end if
+--  end if
 if not newEmit then ?9/0 end if
     if X64 then
         emitHex1(#48)
@@ -1454,9 +1452,9 @@ procedure emitHex6w(sequence op2, atom v)
 -- emit a 2 byte opcode and a literal dword
 --/**/  #isginfo{op2,0b0100,MIN,MAX,integer,2}  -- sequence of integer length 2
     if length(op2)!=2 then ?9/0 end if  -- compiler should optimise this away!
-    if not sched then
-        if lastline!=emitline then lineinfo() end if
-    end if
+--  if not sched then
+    if lastline!=emitline then lineinfo() end if
+--  end if
     x86 &= op2
     emitHexDword(v)
 end procedure
@@ -1465,18 +1463,18 @@ end procedure
 ---- emit a 2 byte opcode and a literal word
 ----/**/    #isginfo{op2,0b0100,MIN,MAX,integer,2}  -- sequence of integer length 2
 --  if length(op2)!=2 then ?9/0 end if  -- compiler should optimise this away!
---  if not sched then
---      if lastline!=emitline then lineinfo() end if
---  end if
+----    if not sched then
+--  if lastline!=emitline then lineinfo() end if
+----    end if
 --  x86 &= op2
 --  emitHexWord(v)
 --end procedure
 
 procedure emitHex62w(integer op1, integer op2, atom v)
 -- emit 2 opcode bytes and a literal dword
-    if not sched then
-        if lastline!=emitline then lineinfo() end if
-    end if
+--  if not sched then
+    if lastline!=emitline then lineinfo() end if
+--  end if
     x86 &= op1
     x86 &= op2
     emitHexDword(v)
@@ -1489,9 +1487,9 @@ procedure emitHex6constrefcount(sequence op2, integer N)
 -- emit an {opcode,xrm},isConstRefCount,0,0,N instruction
 --/**/  #isginfo{op2,0b0100,MIN,MAX,integer,2}  -- sequence of integer length 2
     if length(op2)!=2 then ?9/0 end if  -- compiler should optimise this away!
-    if not sched then
-        if lastline!=emitline then lineinfo() end if
-    end if
+--  if not sched then
+    if lastline!=emitline then lineinfo() end if
+--  end if
     x86 &= op2
     if q86>1 then
         quad2(isConstRefCount,N)
@@ -1527,9 +1525,9 @@ procedure emitHex7d8constref(sequence op2, integer offset, integer N)
 --/**/  #isginfo{op2,0b0100,MIN,MAX,integer,2}  -- sequence of integer length 2
 if newEmit then ?9/0 end if
     if length(op2)!=2 then ?9/0 end if  -- compiler should optimise this away!
-    if not sched then
-        if lastline!=emitline then lineinfo() end if
-    end if
+--  if not sched then
+    if lastline!=emitline then lineinfo() end if
+--  end if
     if symtab[N][S_NTyp]=S_TVar then ?9/0 end if
     if and_bits(symtab[N][S_State],K_Fres) then ?9/0 end if
     x86 &= op2
@@ -1546,9 +1544,9 @@ procedure emitHex7d8v(sequence op2, integer offset, atom v)
 -- emit an {opcode,xrm},d8,imm32 instruction, eg mov [ebp-4],0x12345678
 --/**/  #isginfo{op2,0b0100,MIN,MAX,integer,2}  -- sequence of integer length 2
     if length(op2)!=2 then ?9/0 end if  -- compiler should optimise this away!
-    if not sched then
-        if lastline!=emitline then lineinfo() end if
-    end if
+--  if not sched then
+    if lastline!=emitline then lineinfo() end if
+--  end if
     x86 &= op2
     x86 = append(x86,offset)
     emitHexDword(v)
@@ -1556,9 +1554,9 @@ end procedure
 
 procedure emitHex7i(integer op1, integer op2, integer op3, atom d32)
 -- emit 3 opcode bytes and an imm32, eg mov idx,[ebx+reg*4+d32]
-    if not sched then
-        if lastline!=emitline then lineinfo() end if    -- (not actually necessary)
-    end if
+--  if not sched then
+    if lastline!=emitline then lineinfo() end if    -- (not actually necessary)
+--  end if
     x86 = append(x86,op1)
     x86 = append(x86,op2)
     x86 = append(x86,op3)
@@ -1570,9 +1568,9 @@ end procedure
 ---- emit an {opcode,xrm},sib,imm32 instruction, eg jmp [ecx*4+edx*4-1],0x12
 ----/**/    #isginfo{op2,0b0100,MIN,MAX,integer,2}  -- sequence of integer length 2
 --  if length(op2)!=2 then ?9/0 end if  -- compiler should optimise this away!
---  if not sched then
---      if lastline!=emitline then lineinfo() end if
---  end if
+----    if not sched then
+--  if lastline!=emitline then lineinfo() end if
+----    end if
 --  x86 &= op2
 --  x86 = append(x86,o3)
 --  x86 = append(x86,o4)
@@ -1586,9 +1584,9 @@ procedure emitHex7base(sequence op2, integer o3, integer o5)
 --  where the imm32 contains the base adjustment for a switch (see lone use below)
 --/**/  #isginfo{op2,0b0100,MIN,MAX,integer,2}  -- sequence of integer length 2
     if length(op2)!=2 then ?9/0 end if  -- compiler should optimise this away!
-    if not sched then
-        if lastline!=emitline then lineinfo() end if
-    end if
+--  if not sched then
+    if lastline!=emitline then lineinfo() end if
+--  end if
     x86 &= op2
     x86 = append(x86,o3)
     if q86 then
@@ -1628,9 +1626,9 @@ procedure emitHex10constref(sequence op2, integer dest, integer src)
 if newEmit then ?9/0 end if
     if length(op2)!=2 then ?9/0 end if  -- compiler should optimise this away!
 -- should not be needed as always follows an emitHex6constrefcount() call...
---  if not sched then
---      if lastline!=emitline then lineinfo() end if
---  end if
+----    if not sched then
+--  if lastline!=emitline then lineinfo() end if
+----    end if
     if symtab[dest][S_NTyp]=S_TVar then ?9/0 end if
     if and_bits(symtab[dest][S_State],K_Fres) then ?9/0 end if
     x86 &= op2
@@ -1652,9 +1650,9 @@ if newEmit then ?9/0 end if
     if length(op2)!=2 then ?9/0 end if  -- compiler should optimise this away!
 --DEV re-check:
 -- should not be needed as always follows an emitHex6constrefcount() call...
---  if not sched then
---      if lastline!=emitline then lineinfo() end if
---  end if
+----    if not sched then
+--  if lastline!=emitline then lineinfo() end if
+----    end if
     x86 &= op2
     emitHexDword(offset)
     if q86>1 then
@@ -1670,9 +1668,9 @@ procedure emitHex10ww(sequence op2, integer offset, atom v)
 --  ie/eg mov [ebp-256],#01020304
 --/**/  #isginfo{op2,0b0100,MIN,MAX,integer,2}  -- sequence of integer length 2
     if length(op2)!=2 then ?9/0 end if  -- compiler should optimise this away!
-    if not sched then
-        if lastline!=emitline then lineinfo() end if
-    end if
+--  if not sched then
+    if lastline!=emitline then lineinfo() end if
+--  end if
     x86 &= op2
     emitHexDword(offset)
     emitHexDword(v)
@@ -2386,9 +2384,9 @@ integer k, r
     -- and mark r/ireg as "most recently used"
     regstate = transitions[regstate][ireg]
     --  end if
-    if sched then
-        schedule(0,0,regbit[r+1],pUV,0,N)
-    end if
+--  if sched then
+--      schedule(0,0,regbit[r+1],pUV,0,N)
+--  end if
     loadMem(r,N)
     return r
 end function
@@ -2539,9 +2537,9 @@ integer k
         regstate = transitions[regstate][ireg]
     end if
     if emit then
-        if sched then
-            schedule(regbit[reg+1],0,0,pUV,0,N)
-        end if
+--      if sched then
+--          schedule(regbit[reg+1],0,0,pUV,0,N)
+--      end if
         storeMem(N,reg)
     end if
 end procedure
@@ -3563,9 +3561,9 @@ integer rtype, rtype2   --DEV use slroot, slroot2??
         end if
     end if
     if tmpd!=-1 and soon!=-1 then   -- final common setup if rqd:
-        if sched then
-            sch00n = soon
-        end if
+--      if sched then
+--          sch00n = soon
+--      end if
         if tmpd and tmpr>=0 then
             promoteReg(tmpr)    -- prevent any loadReg/spareReg clash
         end if
@@ -3616,9 +3614,9 @@ procedure emitHex10sdi(integer dest, atom v)
     if lastline!=emitline then lineinfo() end if
     if symtab[dest][S_NTyp]=S_TVar then ?9/0 end if
     if and_bits(symtab[dest][S_State],K_Fres) then ?9/0 end if
-    if sched then
-        schedule(0,0,0,pUV,0,dest)
-    end if
+--  if sched then
+--      schedule(0,0,0,pUV,0,dest)
+--  end if
 --  bool r14 = false
     if X64=1 and (v>#7FFFFFFF or v<-#80000000) then
         -- mov r14,imm64:
@@ -3661,7 +3659,8 @@ procedure emitHex10sdi(integer dest, atom v)
     end if
 end procedure
 
-integer rb, rw, rx, xrm, opcode, op1
+--integer rb, rw, rx, xrm, opcode, op1
+integer xrm, opcode, op1
 
 integer mod -- middle octal digit:
                         --    m
@@ -3685,10 +3684,10 @@ procedure regimm365(atom imm)
     --   reg, mod must be set before the call. The 365 not only indicates that this can
     --   be used any day of the year, but that it emits a 3, 6, or 5 byte instruction.
     --
-    if sched then
-        rb = regbit[reg+1]
-        schedule(rb,0,rb,pUV,1,0)
-    end if
+--  if sched then
+--      rb = regbit[reg+1]
+--      schedule(rb,0,rb,pUV,1,0)
+--  end if
     if X64 then
         emitHex1(#48)
     end if
@@ -3713,13 +3712,13 @@ procedure reg_src2()
         regimm365(smin2)                            -- <op> reg,imm
     else
         wrk = loadReg(src2)                         -- mov wrk,[src2]
-        if sched then
-            rb = regbit[reg+1]
-            rw = regbit[wrk+1]
---      if mod<m_cmp then rx=rb else rx=0 end if
---      schedule(rb+rw,0,rx,pUV,1,0)
-            schedule(rb+rw,0,rb,pUV,1,0)
-        end if
+--      if sched then
+--          rb = regbit[reg+1]
+--          rw = regbit[wrk+1]
+----        if mod<m_cmp then rx=rb else rx=0 end if
+----        schedule(rb+rw,0,rx,pUV,1,0)
+--          schedule(rb+rw,0,rb,pUV,1,0)
+--      end if
         op1 = mod+1         -- 0o0m1
         xrm = #C0+wrk*8+reg -- 0o3wr
         emitHexx2(op1,xrm)                          -- <op> reg,wrk
@@ -3755,9 +3754,9 @@ procedure set_op1(object res)
         if res>edx then ?9/0 end if
     end if
     mod = res*8         -- 0o0r0
-    if sched then
-        rw = regbit[res+1]
-    end if
+--  if sched then
+--      rw = regbit[res+1]
+--  end if
 end procedure
 
 procedure sibLoad743(object res, integer scale, integer idx, integer base, integer offset)
@@ -3771,11 +3770,11 @@ procedure sibLoad743(object res, integer scale, integer idx, integer base, integ
 integer sib
     set_op1(res)    -- set op1 to mov_dword/byte, mod to 0o0r0, rw to regbit[res+1]
     sib = scale+idx*8+base  -- 0osib ;-)
-    if sched then
-        rb = regbit[base+1]
-        rx = regbit[idx+1]
-        schedule(0,rb+rx,rw,pUV,0,0)
-    end if
+--  if sched then
+--      rb = regbit[base+1]
+--      rx = regbit[idx+1]
+--      schedule(0,rb+rx,rw,pUV,0,0)
+--  end if
     if X64 then
         emitHex1(#48)
     end if
@@ -3799,10 +3798,10 @@ procedure baseLoad632(object res, integer base, integer offset)
 --  offset is any integer value (shortest allowable instruction form selected)
 --
     set_op1(res)    -- set op1 to mov_dword/byte, mod to 0o0r0, rw to regbit[res+1]
-    if sched then
-        rb = regbit[base+1]
-        schedule(0,rb,rw,pUV,0,0)
-    end if
+--  if sched then
+--      rb = regbit[base+1]
+--      schedule(0,rb,rw,pUV,0,0)
+--  end if
     xrm = mod+base      -- 0o0rb
     if offset>127 or offset<-128 then
         xrm += #80      -- 0o2rb
@@ -4570,13 +4569,13 @@ sequence jcode
         if tmpv then    -- always taken:
             if mergeSet=isOpCode then
 if not isGscan then
-                if sched then
-                    -- hmm:
-                    -- a: would be done by opLabel rsn anyways,
-                    -- b: necessary before that return 1/exit main loop,
-                    --    (though o/c we could "then schend() return 1").
-                    schend()
-                end if
+--              if sched then
+--                  -- hmm:
+--                  -- a: would be done by opLabel rsn anyways,
+--                  -- b: necessary before that return 1/exit main loop,
+--                  --    (though o/c we could "then schend() return 1").
+--                  schend()
+--              end if
 if suppressopRetf then
     puts(1,"pilx86.e line 4218 (jend/opRetf)\n")
 end if
@@ -4591,13 +4590,13 @@ end if
                     detach(tgt,npc+3)
                 else
 if not isGscan then
-                    if sched then
-                        -- hmm:
-                        -- a: would be done by opLabel anyways,
-                        -- b: must be done before that merge(), (probably no longer true?)
-                        -- c: opJmp kinda assumes this will happen (I think).
-                        schend()
-                    end if
+--                  if sched then
+--                      -- hmm:
+--                      -- a: would be done by opLabel anyways,
+--                      -- b: must be done before that merge(), (probably no longer true?)
+--                      -- c: opJmp kinda assumes this will happen (I think).
+--                      schend()
+--                  end if
                     merge(mergeSet,0)
 --                  emitHex5s(jump_0) -- jmp xxx (backpatched later)
                     emitHex5j(0)                -- jmp xxx (backpatched later)
@@ -4627,21 +4626,21 @@ if not isGscan then
 --end if
             emitHex6retg(jcode)                 -- jcc opRetf
         else
-            if sched then
-                if schidx then  --***DEV***??
-                    if s5[tgt]=pc+3 then
-                        if not lastJmp then ?9/0 end if
-                        schend()
-                    else
-                        if lastJmp then ?9/0 end if
-                        schedule(0,0,0,pV,1,0)
-                        -- and build a list for schend()
-                        k = pc+4
-                        s5[k] = schall
-                        schall = k
-                    end if
-                end if -- schidx
-            end if -- sched
+--          if sched then
+--              if schidx then  --***DEV***??
+--                  if s5[tgt]=pc+3 then
+--                      if not lastJmp then ?9/0 end if
+--                      schend()
+--                  else
+--                      if lastJmp then ?9/0 end if
+--                      schedule(0,0,0,pV,1,0)
+--                      -- and build a list for schend()
+--                      k = pc+4
+--                      s5[k] = schall
+--                      schall = k
+--                  end if
+--              end if -- schidx
+--          end if -- sched
 -- 15/10/2020 (until)
 if mergeSet!=0 then
             merge(mergeSet,0)
@@ -4705,7 +4704,8 @@ integer p1, p2, p4, pc3, pc6,
         isInit,     -- (actually a chain: 0 is False, anything else, including the -1 terminator, is True)
         onDeclaration, ltype, prev,
         routineNo, first, ltot, invert,
-        rs, rx, tii, noofitems,
+--      rs, rx, 
+        tii, noofitems,
         lim, step, isInt,
         flag,
         pcTchk,     -- limit of routine vi's parameter's opTchks
@@ -4925,15 +4925,15 @@ end if
                     opLnv = 0
                     opcode = lastop
                 else
-                    if sched then
-                        if schidx then
-                    -- don't call lineinfo via here this:
---                  wasemitline = emitline  -- not necessary
-                            emitline = lastline
-                            schend()
---                  emitline = wasemitline  -- not necessary
-                        end if
-                    end if
+--                  if sched then
+--                      if schidx then
+--                  -- don't call lineinfo via here this:
+----                    wasemitline = emitline  -- not necessary
+--                          emitline = lastline
+--                          schend()
+----                    emitline = wasemitline  -- not necessary
+--                      end if
+--                  end if
                     opLnv = opcode
                     -- all regs will get trashed before they could be used:
                     reginfo = 0
@@ -5152,9 +5152,9 @@ end if
 --                          elsif onDeclaration -- no need to decref/dealloc
 --                             or symtab[src][S_Name]=-1 then
                                 reg = loadReg(src)                              -- mov reg,[src]
-                                if sched then
-                                    schedule(0,0,0,pUV,0,src)
-                                end if
+--                              if sched then
+--                                  schedule(0,0,0,pUV,0,src)
+--                              end if
 if onDeclaration=2 then
     -- pbr optimisation:
     -- (note that [src] (now in reg) may possibly be uninitialised here, 
@@ -5167,9 +5167,9 @@ end if
                                 if reginfo then clearMem(src) end if
                                 storeReg(reg,dest,1,0)                          -- mov [dest],reg
                             else
-                                if sched then
-                                    sch00n = schoon
-                                end if
+--                              if sched then
+--                                  sch00n = schoon
+--                              end if
                                 vroot = vtype
                                 if vroot>T_object then vroot = rootType(vtype) end if
                                 reg = loadReg(src)                              -- mov reg,[src]    (nb reg!=edx)
@@ -5180,21 +5180,21 @@ if vroot!=T_integer then
 --DEV prefer edx
                                 prev = loadReg(dest)                            -- mov prev,[dest]
 end if
-                                if sched then
-                                    schedule(0,0,0,pUV,0,src)
-                                end if
+--                              if sched then
+--                                  schedule(0,0,0,pUV,0,src)
+--                              end if
                                 zero(src)                                       -- mov [src],ebx(0)
                                 if vroot=T_integer then
                                     storeReg(reg,dest,1,0)                      -- mov [dest],reg
                                 else
-                                    if sched then
-                                        schedule(regbit[prev+1],0,0,pUV,1,0)
-                                    end if
+--                                  if sched then
+--                                      schedule(regbit[prev+1],0,0,pUV,1,0)
+--                                  end if
                                     cmp_h4(prev)                                    -- cmp prev,h4
                                     storeReg(reg,dest,1,0)                          -- mov [dest],reg
-                                    if sched then
-                                        schend()
-                                    end if
+--                                  if sched then
+--                                      schend()
+--                                  end if
                                     emitHex6j(jle_rel32,0)                          -- jle @f [sj NOT ok]
                                     backpatch = length(x86)
                                     sib = #83+prev*8 -- 0o2r3, ebx+prev*4
@@ -5237,9 +5237,9 @@ if not newEmit and ssNTyp1=S_Const and and_bits(state1,K_noclr) then
                             -- (we should not get here (opMove) if src is
                             --  an integer, instead of opMovsi/opMovbi:)
                             if slroot=T_integer then ?9/0 end if
-                            if sched then
-                                schedule(0,0,0,pUV,0,dest)
-                            end if
+--                          if sched then
+--                              schedule(0,0,0,pUV,0,dest)
+--                          end if
                             emitHex6constrefcount(inc_mem32, src)                   -- inc dword[#xxxxxxxx]
                             if isFresDst then
                                 emitHex5constref(mov_eax_imm32,src)                 -- mov eax,#xxxxxxxx
@@ -5312,9 +5312,9 @@ else -- K_noclr S_Const
                                     --
                                 end if
                             end if
-                            if sched then
-                                schedule(regbit[reg+1],0,0,pNP,1,0) -- treat next 3 as one big instruction
-                            end if
+--                          if sched then
+--                              schedule(regbit[reg+1],0,0,pNP,1,0) -- treat next 3 as one big instruction
+--                          end if
     --DEV if not cmph4, this could/should be split (and scheduled):
 --
 -- NB we /CAN/ get an exception on the incd_sib below, for unassigned vars. Of course that
@@ -5511,10 +5511,10 @@ end if
                         if not onDeclaration 
                         and not isFresDst then
                             -- need to decref/dealloc:
-                            if sched then
-                                sch00n = schoon
-                                schedule(0,0,edxbit,pUV,0,dest)
-                            end if
+--                          if sched then
+--                              sch00n = schoon
+--                              schedule(0,0,edxbit,pUV,0,dest)
+--                          end if
                             loadMem(edx,dest)
                         end if
                         getSrc()
@@ -5545,9 +5545,9 @@ if and_bits(state1,K_rtn) then ?9/0 end if
                                 end if
                             end if
                             if not onDeclaration then
-                                if sched then
-                                    schedule(edxbit,0,0,pUV,1,0)
-                                end if
+--                              if sched then
+--                                  schedule(edxbit,0,0,pUV,1,0)
+--                              end if
                                 cmp_h4(edx)                                     -- cmp edx,h4
                             end if
                             if slroot=T_integer and smin=smax then
@@ -5561,9 +5561,9 @@ end if
                                 storeReg(reg,dest,1,0)                          -- mov [dest],reg
                             end if
                             if not onDeclaration then
-                                if sched then
-                                    schend()
-                                end if
+--                              if sched then
+--                                  schend()
+--                              end if
 --DEVBPM backpatch me: [DONE]
 --                              emitHex6j(jle_rel32,15)                         -- jle @f [sj NOT ok]
                                 emitHex6j(jle_rel32,0)                          -- jle @f [sj NOT ok]
@@ -5624,13 +5624,13 @@ end if
 ----DEV dtype?! (spotted in passing)
 --                      if dtype!=T_integer or not isInit then
                         if slroot!=T_integer or not isInit then
-                            if sched then
-                                schedule(regbit[reg+1],0,0,pUV,1,0)
-                            end if
+--                          if sched then
+--                              schedule(regbit[reg+1],0,0,pUV,1,0)
+--                          end if
                             cmp_h4(reg)                             -- cmp reg,h4
-                            if sched then
-                                schedule(0,0,0,pV,1,0)  -- treat next 4 as one instruction
-                            end if
+--                          if sched then
+--                              schedule(0,0,0,pV,1,0)  -- treat next 4 as one instruction
+--                          end if
 -- 30/1/15: for callpending, we just want unassigned on the call; typecheck error we can leave until the routine is called...
     if callpending then
                             emitHex6j(jne_rel32,0)                  -- jne @f [sj NOT ok]
@@ -5774,24 +5774,24 @@ end if
                     end while
                     callpending = 0
                 else -- not fksip
-                    if sched then
---              if schidx then schend() end if -- treat next 4 as one big instruction [DEV??]
-                        sch00n = schoon
-                    end if
+--                  if sched then
+----                if schidx then schend() end if -- treat next 4 as one big instruction [DEV??]
+--                      sch00n = schoon
+--                  end if
                     if first>0 then
                         movRegImm32(ecx,ltot)                           -- mov ecx,no of params
                     else
                         if X64 then
                             emitHex1(#48)
                         end if
-                        if sched then
-                            schedule(0,0,ecxbit,pUV,1,0)
-                        end if
+--                      if sched then
+--                          schedule(0,0,ecxbit,pUV,1,0)
+--                      end if
                         emitHex2s(xor_ecx_ecx)                          -- xor ecx,ecx
                     end if
-                    if sched then
-                        schedule(0,0,edxbit,pUV,0,0)
-                    end if
+--                  if sched then
+--                      schedule(0,0,edxbit,pUV,0,0)
+--                  end if
                     if newEmit then
                         movRegVno(edx,routineNo)                        -- mov e/rdx,routineNo
                     else
@@ -5800,9 +5800,9 @@ end if
                     -- Warning: under no circumstances emit an opLnt/p/pt between
                     -- now and the opCall, ie emitline/lastline must not be altered
                     -- by the next few instructions lines nor owt they call.
-                    if sched then
-                        schend()
-                    end if
+--                  if sched then
+--                      schend()
+--                  end if
                     emitHex5callG(opFrame)
                     reginfo = 0 -- leaves registers as:
                                 -- eax is h4, ebx is 0, ecx is 0, 
@@ -5826,14 +5826,14 @@ end if -- NOLT
 
             if not isGscan then
                 -- NB should not be calling lineinfo here
-                if sched then
-                --  schedule(0,0,0,pU,0,0)  -- while some docs claim pU, all
-                --  schedule(0,0,0,pUV,0,0) -- my tests indicate this is pUV
-                --  schedule(0,0,ebpbit+edxbit,pU,0)    --DEV?
--- strictly, this is if schidx or lastline!=emitline... (and elsewhere)???
---          if schidx then schend() end if  -- isAddr not relocatable (yet)
-                    schend() -- isAddr not relocatable (yet?)
-                end if
+--              if sched then
+--              --  schedule(0,0,0,pU,0,0)  -- while some docs claim pU, all
+--              --  schedule(0,0,0,pUV,0,0) -- my tests indicate this is pUV
+--              --  schedule(0,0,ebpbit+edxbit,pU,0)    --DEV?
+---- strictly, this is if schidx or lastline!=emitline... (and elsewhere)???
+----            if schidx then schend() end if  -- isAddr not relocatable (yet)
+--                  schend() -- isAddr not relocatable (yet?)
+--              end if
 if X64 then
                 emitHex1(#48)
 --EXCEPT
@@ -5978,17 +5978,17 @@ end if
                         x86[backpatch] = length(x86)-backpatch  -- @@:
 
                     else
-                        if sched then
-                            schedule(0,0,ebxbit,pUV,1,0)
-                        end if
+--                      if sched then
+--                          schedule(0,0,ebxbit,pUV,1,0)
+--                      end if
                         if X64 then
                             emitHex1(#48)
                         end if
                         emitHex2s(xor_ebx_ebx)                  -- xor ebx,ebx
 --DEV if and_bits(dtype[nb not loaded yet],T_integer) then...
-                        if sched then
-                            schedule(eaxbit,0,0,pNP,1,0)    -- treat next 3 as one instruction
-                        end if
+--                      if sched then
+--                          schedule(eaxbit,0,0,pNP,1,0)    -- treat next 3 as one instruction
+--                      end if
                         cmp_h4(eax)                             -- cmp eax,h4
 --PL 3/5/3013:
 --                      emitHex6j(jl_rel32,4)                   -- jl @f [sj OK]
@@ -7014,14 +7014,14 @@ end if
                     opcode = lastop
                 end if
                 s5[pc+2] = x86tloc                  -- save Label's x86 offset
-                if sched then
---          if schidx then schend() end if
--- but don't lineinfo() yet!
-                    wasemitline = emitline
-                    emitline = lastline
-                    schend()
-                    emitline = wasemitline
-                end if
+--              if sched then
+----            if schidx then schend() end if
+---- but don't lineinfo() yet!
+--                  wasemitline = emitline
+--                  emitline = lastline
+--                  schend()
+--                  emitline = wasemitline
+--              end if
             --if vi!=21 then ?x86 end if
             end if
             pc += 4 -- (nb matching one of these in opEndFor2)
@@ -7070,35 +7070,35 @@ end if
                             ltot = symk[S_Ltot]
                             symk = {}
 
-                            if sched then
-                                sch00n = schoon
-                            end if
+--                          if sched then
+--                              sch00n = schoon
+--                          end if
                             if X64 then
                                 emitHex1(#48)
                             end if
                             if ltot then
-                                if sched then
-                                    schedule(0,0,ecxbit,pUV,0,0)
-                                end if
+--                              if sched then
+--                                  schedule(0,0,ecxbit,pUV,0,0)
+--                              end if
 --                              emitHex5w(mov_ecx_imm32,ltot)       -- mov ecx,no of params+locals
                                 movRegImm32(ecx,ltot)               -- mov ecx,no of params+locals
                             else
-                                if sched then
-                                    schedule(0,0,ecxbit,pUV,1,0)
-                                end if
+--                              if sched then
+--                                  schedule(0,0,ecxbit,pUV,1,0)
+--                              end if
                                 emitHex2s(xor_ecx_ecx)              -- xor ecx,ecx
                             end if
-                            if sched then
-                                schedule(0,0,edxbit,pUV,0,0)
-                            end if
+--                          if sched then
+--                              schedule(0,0,edxbit,pUV,0,0)
+--                          end if
 if newEmit then
                             movRegVno(edx,routineNo)                -- mov e/rdx,routineNo
 else
                             emitHex5w(mov_edx_imm32,routineNo)      -- mov edx,routineNo
 end if
-                            if sched then
-                                schend()
-                            end if
+--                          if sched then
+--                              schend()
+--                          end if
                             emitHex5callG(opFrame)
                             reginfo = 0 -- opFrame leaves registers as:
                                         -- eax is h4, ebx is 0, ecx is 0, 
@@ -7112,9 +7112,9 @@ end if
                             end if -- NOLT
 
                             -- NB should not be calling lineinfo here
-                            if sched then
-                                schend() -- isAddr not relocatable (yet?)
-                            end if
+--                          if sched then
+--                              schend() -- isAddr not relocatable (yet?)
+--                          end if
 if X64 then
                             emitHex1(#48)
 --EXCEPT
@@ -7372,9 +7372,9 @@ end if
                                 -- (a cmp h4/jne got us here)
                             else
                                 reg = loadReg(src)                              -- mov reg,[src]
-                                if sched then
-                                    schedule(regbit[reg+1],0,0,pNP,1,0) -- treat as one big instruction!
-                                end if
+--                              if sched then
+--                                  schedule(regbit[reg+1],0,0,pNP,1,0) -- treat as one big instruction!
+--                              end if
 --DEV if and_bits(dtype[not currently set!],T_integer) then
                                 cmp_h4(reg)                                         -- cmp reg,h4
                             end if
@@ -7435,24 +7435,24 @@ end if
 --; push dword[var]     ; value to check            377 065     FF 35 mem32     push dword[mem32]
 --; jmp opTchk                                      351         E9 rel32        jmp rel32
                         symk = symtab[sudt] -- type check routine symtab entry
-                        if sched then
-                            schedule(0,0,ecxbit,pUV,0,0)
-                        end if
+--                      if sched then
+--                          schedule(0,0,ecxbit,pUV,0,0)
+--                      end if
                         k = symk[S_Ltot]
 --                      emitHex5w(mov_ecx_imm32,k)                          -- mov ecx,no of items to save
                         movRegImm32(ecx,k)                                  -- mov ecx,no of items to save
-                        if sched then
-                            schedule(0,0,edxbit,pUV,0,src)
-                        end if
+--                      if sched then
+--                          schedule(0,0,edxbit,pUV,0,src)
+--                      end if
 if newEmit then
                         movRegVno(edx,sudt)                                 -- mov e/rdx,routineNo
 else
                         emitHex5w(mov_edx_imm32,sudt)                       -- mov edx,routineNo
 end if
 
-                        if sched then
-                            schend()
-                        end if
+--                      if sched then
+--                          schend()
+--                      end if
                         backpatch = emitHex5addr()                          -- push <return addr>
 --if newEmit then
                         emitHex5vno(push_imm32,src)                         -- push var no
@@ -7497,9 +7497,9 @@ end if
                 pc += 1
                 if pc>length(s5) then exit end if
             else
-                if sched then
-                    schend()
-                end if
+--              if sched then
+--                  schend()
+--              end if
                 if opcode=opRetf then
                     -- 7/12/15: (mt program)
 --                  if lastline=-1 then
@@ -7669,22 +7669,22 @@ end if
                 if tii then         -- twoInitInts (Jne/Jeq do EITHER, rest need BOTH).
                     -- if result predictable set tmpv to 0/1 and tmpd to -1
                     k = 0
-                    if sched then
-                        if mergeSet!=isOpCode then
-                            k = lastJmp -- equivalent to schoon or 0 (can schedule non-last jumps)
-                        end if
-                    end if
+--                  if sched then
+--                      if mergeSet!=isOpCode then
+--                          k = lastJmp -- equivalent to schoon or 0 (can schedule non-last jumps)
+--                      end if
+--                  end if
                     if SetCC(Scde[bcode],k) then
                         -- we must do a compare:
                         mod = m_cmp
                         if tmpd=-1 then
                             regimm365(smin2)                            -- cmp reg,imm
                         else
-                            if sched then
-                                rb = regbit[reg+1]
-                                rw = regbit[wrk+1]
-                                schedule(rb+rw,0,0,pUV,1,0)
-                            end if
+--                          if sched then
+--                              rb = regbit[reg+1]
+--                              rw = regbit[wrk+1]
+--                              schedule(rb+rw,0,0,pUV,1,0)
+--                          end if
                             if X64 then
                                 emitHex1(#48)
                             end if
@@ -7709,11 +7709,11 @@ end if
                         if SetCC(Scde[bcode],-1) then end if -- but no common setup, use the opcode instead
                     end if
                     if not tmpd then
-                        if sched then
---                  if schidx then
-                            schend()    -- [esp]-15/-9
---                  end if
-                        end if
+--                      if sched then
+----                    if schidx then
+--                          schend()    -- [esp]-15/-9
+----                    end if
+--                      end if
 if not bothInit then
     getSrc()
     getSrc2()
@@ -7909,22 +7909,22 @@ else -- 20/4/19
                 if tii then         -- twoInitInts (Jne/Jeq do EITHER, rest need BOTH).
                     -- if result predictable set tmpv to 0/1 and tmpd to -1
                     k = 0
-                    if sched then
-                        if mergeSet!=isOpCode then
-                            k = lastJmp -- equivalent to schoon or 0 (can schedule non-last jumps)
-                        end if
-                    end if
+--                  if sched then
+--                      if mergeSet!=isOpCode then
+--                          k = lastJmp -- equivalent to schoon or 0 (can schedule non-last jumps)
+--                      end if
+--                  end if
                     if SetCC(Scde[bcode],k) then
                         -- we must do a compare:
                         mod = m_cmp
                         if tmpd=-1 then
                             regimm365(smin2)                            -- cmp reg,imm
                         else
-                            if sched then
-                                rb = regbit[reg+1]
-                                rw = regbit[wrk+1]
-                                schedule(rb+rw,0,0,pUV,1,0)
-                            end if
+--                          if sched then
+--                              rb = regbit[reg+1]
+--                              rw = regbit[wrk+1]
+--                              schedule(rb+rw,0,0,pUV,1,0)
+--                          end if
                             if X64 then
                                 emitHex1(#48)
                             end if
@@ -7949,11 +7949,11 @@ end if
                         if SetCC(Scde[bcode],-1) then end if -- but no common setup, use the opcode instead
                     end if
                     if not tmpd then
-                        if sched then
---                  if schidx then
-                            schend()    -- [esp]-15/-9
---                  end if
-                        end if
+--                      if sched then
+----                    if schidx then
+--                          schend()    -- [esp]-15/-9
+----                    end if
+--                      end if
 if not bothInit then
     getSrc()
     getSrc2()
@@ -8110,15 +8110,15 @@ end if -- 20/4/19
                     --  construct is added to the language), this code can be used.
                     --  The same thing occurs in opEndFor (another bkwd jmp), btw.
                     --   (btw, not sure about detach() for new constructs...)
-                    if sched then
---              if schidx then schend() end if
-                        schend()
-                    end if
+--                  if sched then
+----                if schidx then schend() end if
+--                      schend()
+--                  end if
                     tgt = s5[tgt-1] -- saved x86 offset (see opLabel in this source)
 --added 13/1/14:
-    if not sched then
-        if lastline!=emitline then lineinfo() end if
-    end if
+--  if not sched then
+                    if lastline!=emitline then lineinfo() end if
+--  end if
 
 --DEVBPM backpatch me: [DONE]
 if newEmit then
@@ -8262,11 +8262,11 @@ end if
                                 -- and "s" is more likely to be reused than "idx", we go option 2:
                                 -- 64bit:
                                 --  2: idx*=8;      mov idx,[idx+reg*4-8]
-                                if sched then
-                                    rb = regbit[reg+1]
-                                    rx = regbit[idx+1]
-                                    schedule(rb+rx,0,rx,pUV,1,0)
-                                end if
+--                              if sched then
+--                                  rb = regbit[reg+1]
+--                                  rx = regbit[idx+1]
+--                                  schedule(rb+rx,0,rx,pUV,1,0)
+--                              end if
 if X64 then
 --printf(1,"checkme: line 7635 pilx86.e, (emitline=%d, %s)\n",{emitline,filenames[symtab[vi][S_FPno]][2]})
                                 xrm = 0o340+idx
@@ -8313,10 +8313,10 @@ end if
                                 idx = loadReg(src2) -- idx (if we can't use a fixed literal offset)
                             end if
                             reg = loadReg(src)      -- s
-                            if sched then
-                                rb = regbit[reg+1]
-                                schedule(0,0,edxbit,pUV,1,0)
-                            end if
+--                          if sched then
+--                              rb = regbit[reg+1]
+--                              schedule(0,0,edxbit,pUV,1,0)
+--                          end if
                             if X64 then
                                 emitHex1(#48)
                             end if
@@ -8363,11 +8363,11 @@ end if
 --; mov [dest],eax      ; res                       271         A3 imm32        mov ecx,imm32   u 7
 -- all regs trashed, unless result is integer, in eax (and [dest])
                 if dest then    -- not inlined above
-                    if sched then
-                --DEV there may be some scheduling possibilities here, especially for init idx, res addr.
---              if schidx then schend() end if
-                        schend()
-                    end if
+--                  if sched then
+--              --DEV there may be some scheduling possibilities here, especially for init idx, res addr.
+----                if schidx then schend() end if
+--                      schend()
+--                  end if
                     --DEV if idx already in a register, use that.
                     --  Naively, for eg r=s[i+1], we might be tempted to load s/dest before idx to prevent a
                     --  memory dependency but better would be transtmpfer/some (new) variant of loadReg, and
@@ -8426,20 +8426,20 @@ end if
 --                          -- (never need sch00n when dname=-1, btw)
 --                      end if
 --                      if dest then
-                            if sched then
-                                if opcode=opSubse1i then
-                                    -- needed for [esp]+1 error handling:
-                                    sch00n = schoon
-                                end if
-                            end if
+--                          if sched then
+--                              if opcode=opSubse1i then
+--                                  -- needed for [esp]+1 error handling:
+--                                  sch00n = schoon
+--                              end if
+--                          end if
                             storeReg(eax,dest,1,0)                  -- mov [dest],eax
 --12/10
 --                          if dname!=-1 then
                                 transtmpfer(0,eax)
 --                          end if
-                            if sched then
-                                sch00n = 0  -- (just the above line)
-                            end if
+--                          if sched then
+--                              sch00n = 0  -- (just the above line)
+--                          end if
 --                      end if
 --9/4/15:
 --                  elsif dtype=T_integer then
@@ -8669,9 +8669,9 @@ end if
                                 --    ie edx:=const-reg, cannot use reg:=reg-const
                                 --
                                 reg = loadReg(src2)
-                                if sched then
-                                    schedule(0,0,edxbit,pUV,0,0)
-                                end if
+--                              if sched then
+--                                  schedule(0,0,edxbit,pUV,0,0)
+--                              end if
                                 if nmax then
 --DEV test set did not catch this being commented out::
 --SUG: EmitHex1(nop)
@@ -8683,10 +8683,10 @@ end if
                                     end if
                                     emitHex2s(xor_edx_edx)                  -- xor edx,edx
                                 end if
-                                if sched then
-                                    rb = regbit[reg+1]
-                                    schedule(rb,0,rb+edxbit,pUV,0,0)
-                                end if
+--                              if sched then
+--                                  rb = regbit[reg+1]
+--                                  schedule(rb,0,rb+edxbit,pUV,0,0)
+--                              end if
                                 op1 = m_sub+1   -- 0o051
                                 xrm = #C2+reg*8 -- 0o3r2
                                 emitHexx2(op1,xrm)                          -- sub edx,reg
@@ -8711,10 +8711,10 @@ end if
                     if dest then
                         if dtype!=T_integer or dmax=MAXINT or dmin=MININT then
                             if reg!=edx then
-                                if sched then
-                                    rb = regbit[reg+1]
-                                    schedule(rb,0,edxbit,pUV,0,0)
-                                end if
+--                              if sched then
+--                                  rb = regbit[reg+1]
+--                                  schedule(rb,0,edxbit,pUV,0,0)
+--                              end if
 --DEV use mov_reg?
                                 xrm = #D0+reg   -- 0o32r
                                 emitHexx2(mov_dword,xrm)                        -- mov edx,reg
@@ -8724,9 +8724,9 @@ end if
                             -- actually, I think we're OK (re-check when we simplify further)
                             --  update: I now /think/ this is OK because of that reg = edx (64 lines up).
                             storeReg(reg,dest,1,0)                          -- mov [dest],reg
-                            if sched then
-                                schedule(edxbit,0,edxbit,pU,1,0) -- treat following as one instruction:
-                            end if
+--                          if sched then
+--                              schedule(edxbit,0,edxbit,pU,1,0) -- treat following as one instruction:
+--                          end if
                             if X64 then
                                 emitHex1(#48)
                             end if
@@ -8902,9 +8902,9 @@ end if
 --  if k then
                         opcode = opDivi2    -- dev is this needed (opLabel?)
                         if slroot=T_integer and smin=smax then
-                            if sched then
-                                schedule(0,0,eaxbit,pUV,0,0)
-                            end if
+--                          if sched then
+--                              schedule(0,0,eaxbit,pUV,0,0)
+--                          end if
                             if and_bits(smin,1) then    -- (oops, heading for a fatal error)
                                                         -- (let the backend catch it)
 --                              emitHex5w(mov_eax_imm32,smin)           -- mov eax,imm32
@@ -8916,19 +8916,19 @@ end if
                                 src = 0 -- flag no sar etc rqd
                             end if
                         else
-                            if sched then
-                                schedule(0,0,eaxbit,pUV,0,src)
-                            end if
+--                          if sched then
+--                              schedule(0,0,eaxbit,pUV,0,src)
+--                          end if
                             loadToReg(eax,src)                          -- mov eax,[src]
                         end if
                         if src then
-                            if sched then
-                                schedule(0,0,edxbit,pUV,0,0)
-                            end if
+--                          if sched then
+--                              schedule(0,0,edxbit,pUV,0,0)
+--                          end if
                             leamov(edx,dest)                            -- lea edx,[dest]/mov edx,addr dest
-                            if sched then
-                                schedule(eaxbit,0,eaxbit,pU,1,0)
-                            end if
+--                          if sched then
+--                              schedule(eaxbit,0,eaxbit,pU,1,0)
+--                          end if
 --DEV tryme
 -- if k>1 then
 --  test eax,smin2-1
@@ -8942,9 +8942,9 @@ end if
                                 emitHex1(#48)
                             end if
                             emitHex2s(sar_eax_1)                        -- sar eax,1
-                            if sched then
-                                schedule(0,0,0,pV,1,0)  -- treat next pair as one instruction
-                            end if
+--                          if sched then
+--                              schedule(0,0,0,pV,1,0)  -- treat next pair as one instruction
+--                          end if
 --DEVBPM backpatch me: [DONE, for newEmit anyway]
                             emitHex6j(jnc_rel32,0)                      -- jnc @f [sj NOT ok]
                             backpatch = length(x86)
@@ -8955,10 +8955,10 @@ end if
                             storeReg(eax,dest,1,1)                      -- mov [dest],eax
                         end if
                     else
-                        if sched then
-                            schend()    -- [esp]+13/-24/-18
-                            -- nb error handling below assumes all [sj OK] are so when all's finished
-                        end if
+--                      if sched then
+--                          schend()    -- [esp]+13/-24/-18
+--                          -- nb error handling below assumes all [sj OK] are so when all's finished
+--                      end if
                         if slroot2=T_integer and smin2=0 and smax2=0 then
                             emitHex5callG(opDiv0)                               -- call :%e02atdb0 (see pDiagN.e)
                             -- fatal error, does not return
@@ -9065,14 +9065,14 @@ else -- (old code)
                             emitHex6j(jo_rel32,0)                               -- jo (call e01, dest too big) [sj OK]
                             x86[length(x86)] = backpatch-length(x86)
                                                                             -- (can only happen for -#40000000/-1, btw)
-                            if sched then
-                                -- needed for [esp]+13 error handling:
-                                sch00n = schoon
-                            end if
+--                          if sched then
+--                              -- needed for [esp]+13 error handling:
+--                              sch00n = schoon
+--                          end if
                             storeReg(eax,dest,1,1)                          -- mov [dest],eax
-                            if sched then
-                                sch00n = 0 -- (just the above line)
-                            end if
+--                          if sched then
+--                              sch00n = 0 -- (just the above line)
+--                          end if
 end if
                         end if
                     end if
@@ -9168,10 +9168,10 @@ end if
                             end if
                         elsif mul2 then -- i=2*j or i=j*2 case (for j read mul2)
                             reg = loadReg(mul2,CLEAR)                   -- mov reg,[src/2]
-                            if sched then
-                                rb = regbit[reg+1]
-                                schedule(rb,0,rb,pU,1,0)
-                            end if
+--                          if sched then
+--                              rb = regbit[reg+1]
+--                              schedule(rb,0,rb,pU,1,0)
+--                          end if
                             xrm = 0o340+reg -- 0o34r, shl/reg
                             emitHexx2(0o321,xrm)                        -- shl reg,1
                             xrm = 0o320+reg -- 0o32r
@@ -9198,36 +9198,36 @@ end if
                                         --      and storeReg(eax,dest,1,1) under sch00n=schoon, and
                                         --          get dest from [esp]+7 to preserve edi...)
                             if slroot2=T_integer and smin2=smax2 then
-                                if sched then
-                                    sch00n = schoon
-                                    schedule(0,0,ecxbit,pUV,0,0)
-                                end if
+--                              if sched then
+--                                  sch00n = schoon
+--                                  schedule(0,0,ecxbit,pUV,0,0)
+--                              end if
 --                              emitHex5w(mov_ecx_imm32,smin2)          -- mov ecx,imm32
                                 movRegImm32(ecx,smin2)                  -- mov ecx,imm32
                             else
-                                if sched then
-                                    sch00n = schoon
-                                    schedule(0,0,ecxbit,pUV,0,src2)
-                                end if
+--                              if sched then
+--                                  sch00n = schoon
+--                                  schedule(0,0,ecxbit,pUV,0,src2)
+--                              end if
                                 loadToReg(ecx,src2)                     -- mov ecx,[src2]
                             end if
                             if slroot=T_integer and smin=smax then
-                                if sched then
-                                    schedule(0,0,eaxbit,pUV,0,0)
-                                end if
+--                              if sched then
+--                                  schedule(0,0,eaxbit,pUV,0,0)
+--                              end if
 --                              emitHex5w(mov_eax_imm32,smin)           -- mov eax,imm32
                                 movRegImm32(eax,smin)                   -- mov eax,imm32
                             else
-                                if sched then
-                                    schedule(0,0,eaxbit,pUV,0,src)
-                                end if
+--                              if sched then
+--                                  schedule(0,0,eaxbit,pUV,0,src)
+--                              end if
                                 loadToReg(eax,src)                      -- mov eax,[src]
                             end if
-                            if sched then
-                                schend()    -- (may possibly schedule more here, up to je,
-                                            --  and that store eax, but je..jo non-sched.
-                                            --  I doubt such would be worthwhile, though.)
-                            end if
+--                          if sched then
+--                              schend()    -- (may possibly schedule more here, up to je,
+--                                          --  and that store eax, but je..jo non-sched.
+--                                          --  I doubt such would be worthwhile, though.)
+--                          end if
                             if X64 then
                                 emitHex1(#48)
                             end if
@@ -9306,10 +9306,10 @@ end if
                 if not isGscan then
                     markConstUseds({dest,src})
                     reg = loadReg(src,CLEAR)                        -- mov reg,[src]
-                    if sched then
-                        rb = regbit[reg+1]
-                        schedule(rb,0,rb,pU,1,0)
-                    end if
+--                  if sched then
+--                      rb = regbit[reg+1]
+--                      schedule(rb,0,rb,pU,1,0)
+--                  end if
                     xrm = #F8+reg -- 0o37r, sar/reg
                     src2 -= 1
                     if src2=1 then
@@ -9512,18 +9512,18 @@ end if
 --DEV handle +-*0 as well here:
                     if slroot2=T_integer and smin2=0 and smax2=0 then
                     -- an opDiv of /0 flavour
-                        if sched then
-                            schend()
-                        end if
+--                      if sched then
+--                          schend()
+--                      end if
                         emitHex5callG(opDiv0)                               -- call :%e02atdb0 (see pDiagN.e)
                         -- fatal error, does not return
                         opcode = opRTErn -- for opLabel
 --DEV handle */1 here?
                     else
-                        if sched then
-                            sch00n = schoon
-                            schedule(0,0,edibit,pUV,0,0)
-                        end if
+--                      if sched then
+--                          sch00n = schoon
+--                          schedule(0,0,edibit,pUV,0,0)
+--                      end if
                         leamov(edi,dest)                            -- lea edi,[dest]/mov edi,dest (addr result)
 --DEV ideally, these should be mov esi,[src] & NB src/2 obtained from [esp]-?/? on error:
 -- (will have to be done one by one though...)
@@ -9552,9 +9552,9 @@ end if
                             loadToReg(ecx,src)                          -- mov ecx,[src]
                             loadToReg(eax,src2)                         -- mov eax,[src2]
                         end if
-                        if sched then
-                            schend()
-                        end if
+--                      if sched then
+--                          schend()
+--                      end if
                         emitHex5callG(opcode)                           -- call opXxx (mathop)
                         reginfo = 0 -- all regs trashed
                     end if
@@ -9626,28 +9626,28 @@ end if  -- NOLT
                             end if
                         end if
                     else
-                        if sched then
-                            if mergeSet!=isOpCode then
-                                sch00n = lastJmp    -- (can schedule non-last-jumps)
-                            end if
-                        end if
+--                      if sched then
+--                          if mergeSet!=isOpCode then
+--                              sch00n = lastJmp    -- (can schedule non-last-jumps)
+--                          end if
+--                      end if
                         reg = loadReg(src)                          -- mov reg,[src]
                     end if
                     if tmpd=0 then
-                        if sched then
-                            if mergeSet!=isOpCode then
-                                sch00n = lastJmp    -- (can schedule non-last-jumps)
-                            end if
-                            schedule(regbit[reg+1],0,0,pUV,1,0)
-                        end if
+--                      if sched then
+--                          if mergeSet!=isOpCode then
+--                              sch00n = lastJmp    -- (can schedule non-last-jumps)
+--                          end if
+--                          schedule(regbit[reg+1],0,0,pUV,1,0)
+--                      end if
                         xrm = 0o300+reg*9 -- 0o3rr
                         emitHexx2(test_reg_reg,xrm)                 -- test reg,reg
                     end if
                 else    -- not init/stype>T_atom; use opcode.
                     if tmpd then ?9/0 end if
-                    if sched then
-                        schend()    -- [esp]-9
-                    end if
+--                  if sched then
+--                      schend()    -- [esp]-9
+--                  end if
                     loadToReg(eax,src)              -- mov eax,[src]
                     storeReg(eax,src,0,1)           -- just record that now eax==[src]
                     if X64 then
@@ -9737,14 +9737,14 @@ end if
                         end if
                     end if  -- dest!=0 (transtmpfer fixed length)
                 else -- not inline (tgt may need dealloc, src may be uninit or int|flt)
-                    if sched then
-                        sch00n = schoon
-                        schedule(0,0,edibit,pUV,0,0)
-                    end if
+--                  if sched then
+--                      sch00n = schoon
+--                      schedule(0,0,edibit,pUV,0,0)
+--                  end if
                     leamov(edi,dest)                                -- lea edi,[dest]/mov edi,dest (addr result)
-                    if sched then
-                        schend()    -- [esp]-9
-                    end if
+--                  if sched then
+--                      schend()    -- [esp]-9
+--                  end if
                     loadToReg(esi,src,CLEAR)                        -- mov esi,[src]
                     movRegVno(edx,src)                              -- mov e/rdx,src (var no)
                     emitHex5callG(opLen)                            -- call :%opLen
@@ -9838,22 +9838,22 @@ end if
             --else
             if not isGscan then
                 markConstUseds({dest,src,src2})
-                if sched then
-                    sch00n = schoon
-                    schedule(0,0,edxbit,pUV,0,0)
-                end if
+--              if sched then
+--                  sch00n = schoon
+--                  schedule(0,0,edxbit,pUV,0,0)
+--              end if
                 leamov(edx,dest)                                -- lea edx,[dest]/mov edx,addr dest
-                if sched then
-                    schedule(0,0,edibit,pUV,0,0)
-                end if
+--              if sched then
+--                  schedule(0,0,edibit,pUV,0,0)
+--              end if
                 leamov(edi,src)                                 -- lea edi,[src]/mov edi,src
-                if sched then
-                    schedule(0,0,ecxbit,pUV,0,0)
-                end if
+--              if sched then
+--                  schedule(0,0,ecxbit,pUV,0,0)
+--              end if
                 leamov(ecx,src2)                                -- lea ecx,[src2]/mov ecx,addr src2
-                if sched then
-                    schend()
-                end if
+--              if sched then
+--                  schend()
+--              end if
                 if opcode=opApnd then
                     if X64 then
                         emitHex1(#48)
@@ -9908,20 +9908,20 @@ end if
 --; push esi        ; dest addr
 --; push [e1]..[en]
 --; jmp opMkSq
-                if sched then
-                    sch00n = schoon
-                    schedule(0,0,edxbit,pUV,0,0)
-                end if
+--              if sched then
+--                  sch00n = schoon
+--                  schedule(0,0,edxbit,pUV,0,0)
+--              end if
                 leamov(eax,dest)
 --              emitHex5w(mov_edx_imm32,noofitems)                  -- mov edx,noofitems (literal int)
                 movRegImm32(edx,noofitems)                          -- mov edx,noofitems (literal int)
-                if sched then
-                    schedule(0,0,esibit,pUV,0,0)
-                end if
+--              if sched then
+--                  schedule(0,0,esibit,pUV,0,0)
+--              end if
                 getDest()
-                if sched then
-                    schend()    -- isAddr not relocatable
-                end if
+--              if sched then
+--                  schend()    -- isAddr not relocatable
+--              end if
                 raoffset = emitHex5addr()                           -- push <return addr> [backpatched below]
                 emitHex1(push_eax)                                  -- push dest addr (leamov'd above)
                 pc += 3
@@ -10076,11 +10076,11 @@ end if
 
             if not isGscan then
                 markConstUseds({dest,src,src2})
-                if sched then
---          if schidx then
-                    schend()    -- [esp]-15/-9/-21
---          end if
-                end if
+--              if sched then
+----            if schidx then
+--                  schend()    -- [esp]-15/-9/-21
+----            end if
+--              end if
                 --DEV what's wrong with dtype here??	[20/9 erm, it may be a roottype!]
 --DEV why am I not using dtype and detyp here??
 --trace(1)
@@ -10316,22 +10316,22 @@ end if -- NOLT
                     flag = 0
                 end if
 --end if
-                if sched then
---      if mergeSet=isOpCode then   ? (seems far too messy to schedule this lot anyways)
-                    sch00n = schoon
---          if mergeSet!=isOpCode then
---              sch00n = lastJmp    -- (can schedule non-last-jumps)
---          end if
-                end if
+--              if sched then
+----        if mergeSet=isOpCode then   ? (seems far too messy to schedule this lot anyways)
+--                  sch00n = schoon
+----            if mergeSet!=isOpCode then
+----                sch00n = lastJmp    -- (can schedule non-last-jumps)
+----            end if
+--              end if
                 backpatch = 0
                 if flag=-1 then
 if not isGscan then
                     -- we must test
 --DEV and ltype!=T_object?
                     if not isInit then -- non-init param
-                        if sched then
-                            schend()    -- [esp-9]
-                        end if
+--                      if sched then
+--                          schend()    -- [esp-9]
+--                      end if
                         loadToReg(eax,src)                          -- mov eax,[src] (var ref)
 --DEV 18/1/2013 expect errors here...
                         ltype = opTyp0[ltype]
@@ -10349,10 +10349,10 @@ if not isGscan then
                     else -- isInit
                         reg = loadReg(src)                          -- mov reg,[src]
                         if and_bits(slroot,T_integer) then
-                            if sched then
-                                rb = regbit[reg+1]
-                                schedule(rb,0,0,pNP,1,0) -- treat remainder as one instruction
-                            end if
+--                          if sched then
+--                              rb = regbit[reg+1]
+--                              schedule(rb,0,0,pNP,1,0) -- treat remainder as one instruction
+--                          end if
                             cmp_h4(reg)                             -- cmp reg,h4
 --                      else
 --  if sched then
@@ -10361,9 +10361,9 @@ if not isGscan then
 --  end if
 
                         end if
-                        if sched then
-                            schend()    -- must catch jmp 1 of 2...
-                        end if
+--                      if sched then
+--                          schend()    -- must catch jmp 1 of 2...
+--                      end if
 --                      bcode = 0   -- temp, ioob if we fail to set it
                         if ltype=T_integer then
                             bcode = 1+invert*5  -- invert=jg[6], not invert=jl[1]   (idx to ccde)
@@ -11132,9 +11132,9 @@ end if
                 getSrc()
                 src2 = lim
                 getSrc2()
-                if sched then
-                    sch00n = schoon
-                end if
+--              if sched then
+--                  sch00n = schoon
+--              end if
 --?         if slroot=T_integer and smin=smax then
                 if smin=smax then   -- optimise for known literal step value
                     reg = loadReg(p2)                           -- mov reg,[p2] (control var)
@@ -11159,18 +11159,18 @@ end if
                     --              mod = m_cmp
                     --              regimm365(lim)                              -- cmp reg,imm
                     --else
-                    if sched then
-                        schedule(rb+regbit[lim+1],0,0,pUV,1,0)
-                    end if
+--                  if sched then
+--                      schedule(rb+regbit[lim+1],0,0,pUV,1,0)
+--                  end if
                     xrm = #C0+reg*8+lim -- 0o3rl
 -- (#3B = m_cmp+3):
                     emitHexx2(0o073,xrm)                        -- cmp reg,lim
 --end if
                     storeReg(reg,p2,1,1)                        -- mov [p2],reg (control var)
 
-                    if sched then
-                        schend()
-                    end if
+--                  if sched then
+--                      schend()
+--                  end if
                     jcode = jge_rel32
                     if smin>0 then
                         jcode = jle_rel32
@@ -11196,25 +11196,25 @@ end if
                     else
                         lim = loadReg(lim)                      -- mov lim,[lim] (limit value)
                     end if
-                    if sched then
-                        rb = regbit[reg+1]
-                        rs = regbit[step+1]
-                        schedule(rb+rs,0,rb,pUV,1,0)
-                    end if
+--                  if sched then
+--                      rb = regbit[reg+1]
+--                      rs = regbit[step+1]
+--                      schedule(rb+rs,0,rb,pUV,1,0)
+--                  end if
                     xrm = 0o300+step*8+reg --0o3sr
 -- (#01 = m_add+1):
                     emitHexx2(0o001,xrm)                        -- add reg,step
-                    if sched then
-                        schedule(rs,0,0,pUV,1,0)
-                    end if
+--                  if sched then
+--                      schedule(rs,0,0,pUV,1,0)
+--                  end if
                     if smin<=0 and smax>=0 then
                         xrm = 0o300+step*9 -- 0o3ss
                         emitHexx2(test_reg_reg,xrm)             -- test step,step
                     end if
                     storeReg(reg,p2,1,1)                        -- mov [p2],reg (control var)
-                    if sched then
-                        schend()
-                    end if
+--                  if sched then
+--                      schend()
+--                  end if
                     xrm = #C0+reg*8+lim -- 0o3rl
 -- (#3B = m_cmp+3):
                     backpatch2 = 0
@@ -11314,9 +11314,9 @@ end if -- NOLT
 --              s5[pc+2] = thisAsm
 --              thisAsm = pc
 --end if
-                if sched then
-                    schend()    -- if k=0 this is probably a label!
-                end if
+--              if sched then
+--                  schend()    -- if k=0 this is probably a label!
+--              end if
                 if k then
                     if lastline!=emitline then lineinfo() end if
                     pc += 4
@@ -11626,18 +11626,18 @@ if vtype=T_integer then -- dest is integer
     end if
 end if
 if dest then
-                if sched then
-                    sch00n = schoon
-                    schedule(0,0,edibit,pUV,0,0)
-                end if
+--              if sched then
+--                  sch00n = schoon
+--                  schedule(0,0,edibit,pUV,0,0)
+--              end if
                 leamov(edi,dest)                                -- lea edi,[dest]/mov edi,dest (addr result)
-                if sched then
-                    schedule(0,0,eaxbit,pUV,0,src)
-                end if
+--              if sched then
+--                  schedule(0,0,eaxbit,pUV,0,src)
+--              end if
                 loadToReg(eax,src)                              -- mov eax,[src]
-                if sched then
-                    schend()
-                end if
+--              if sched then
+--                  schend()
+--              end if
                 emitHex5callG(opFloor)                          -- call :%opFloor
                 -- all regs trashed, unless result is integer, in eax (and [dest])
                 reginfo = 0
@@ -11797,33 +11797,33 @@ end if
                 --  mov eax,[p2]        ; source (opUnassigned)
                 --  lea edi,[p1]        ; addr of target
                 --  call :%opPow        ; [edi]:=power(eax,ecx)
---              if sched then
---                  sch00n = schoon
---                  schedule(0,0,edibit,pUV,0,0)
---              end if
+----                if sched then
+----                    sch00n = schoon
+----                    schedule(0,0,edibit,pUV,0,0)
+----                end if
 --21/3/17 (moved below tmpr - may be edi) [above killed off in the process]
 --              leamov(edi,dest)                                -- lea edi,[dest]/mov edi,dest (addr result)
 if tmpd then
     if tmpr>=0 then
         if tmpr!=ecx then
-                if sched then
-                    schedule(regbit[tmpr+1],0,ecxbit,pUV,0,0)
-                end if
+--              if sched then
+--                  schedule(regbit[tmpr+1],0,ecxbit,pUV,0,0)
+--              end if
                 xrm = 0o310+tmpr    -- 0o31r
                 emitHexx2(mov_dword,xrm)                        -- mov ecx,tmpr
         end if
     else
-                if sched then
-                    schedule(0,0,ecxbit,pUV,0,0)
-                end if
+--              if sched then
+--                  schedule(0,0,ecxbit,pUV,0,0)
+--              end if
 --              emitHex5w(mov_ecx_imm32,smin2)                  -- mov ecx,imm32
                 movRegImm32(ecx,smin2)                          -- mov ecx,imm32
     end if
     tmpd = 0
 else -- not tmpd
-                if sched then
-                    schedule(0,0,ecxbit,pUV,0,src2)
-                end if
+--              if sched then
+--                  schedule(0,0,ecxbit,pUV,0,src2)
+--              end if
 --8/6/16:
 --              loadToReg(ecx,src2)                             -- mov ecx,[src2]
                 if slroot2=T_integer and smin2=smax2 then
@@ -11832,9 +11832,9 @@ else -- not tmpd
                     loadToReg(ecx,src2)                         -- mov ecx,[src2]
                 end if
 end if -- tmpd
-                if sched then
-                    schedule(0,0,eaxbit,pUV,0,src)
-                end if
+--              if sched then
+--                  schedule(0,0,eaxbit,pUV,0,src)
+--              end if
 --8/6/16:
 --              loadToReg(eax,src)                              -- mov eax,[src]
                 clearReg(ecx)       -- (added 5/12/19)
@@ -11852,9 +11852,9 @@ end if -- tmpd
                 else
                     loadToReg(eax,src)                          -- mov eax,[src]
                 end if
-                if sched then
-                    schend()
-                end if
+--              if sched then
+--                  schend()
+--              end if
 --21/3/17 (moved from above)
                 leamov(edi,dest)                                -- lea edi,[dest]/mov edi,dest (addr result)
                 emitHex5callG(opPow)
@@ -11892,27 +11892,27 @@ end if -- tmpd
             if not isGscan then
                 markConstUseds({dest,src,src2})
                 --DEV merge with opRepeat etc (needs mods to backend)
-                if sched then
-                    sch00n = schoon
-                    schedule(0,0,edibit,pUV,0,0)
-                end if
+--              if sched then
+--                  sch00n = schoon
+--                  schedule(0,0,edibit,pUV,0,0)
+--              end if
                 leamov(edi,dest)                                -- lea edi,[dest]/mov edi,dest (addr result)
 --; mov edi,dest    ; addr dest                     277         BF imm32        mov edi,imm32
 --; mov eax,[p2]    ; ref p2                        241         A1 m32          mov eax,[m32]
 --; mov esi,[p3]    ; ref p3                        213 065     8B 35 m32       mov esi,[m32]
 --; call opXor      ; [edi] = [edx] xor [ecx]       350         E8 rel32        call rel32
 --; nb: p2/3 determined from [esp]-15/-9 on error
-                if sched then
-                    schedule(0,0,eaxbit,pUV,0,src)
-                end if
+--              if sched then
+--                  schedule(0,0,eaxbit,pUV,0,src)
+--              end if
                 loadToReg(eax,src)                              -- mov eax,[src]
-                if sched then
-                    schedule(0,0,esibit,pUV,0,src2)
-                end if
+--              if sched then
+--                  schedule(0,0,esibit,pUV,0,src2)
+--              end if
                 loadToReg(esi,src2)                             -- mov esi,[src2]
-                if sched then
-                    schend()
-                end if
+--              if sched then
+--                  schend()
+--              end if
                 movRegVno(ecx,src)                              -- mov ecx,varno of src
                 movRegVno(edx,src2)                             -- mov edx,varno of src2
                 emitHex5callG(opXor)
@@ -12089,9 +12089,9 @@ end if
                 if slroot2=T_integer and bmin2=0 and bmax2=0 then
                 -- e103atgrondb0esp  ; attempt to get remainder of a number divided by 0
                 --  (this message can also occur below, inlined and within opRmdr)
-                    if sched then
-                        schend()
-                    end if
+--                  if sched then
+--                      schend()
+--                  end if
 --                  emitHex5w(mov_eax_imm32,103)        -- e103atgrondb0esp
                     emitHexx2(mov_al_imm8,103)          -- e103atgrondb0esp
                     emitHex5callG(opRTErn)
@@ -12128,9 +12128,9 @@ end if
 --DEV:
 if useAndBits then
                                 if bmin=bmax then ?9/0 end if   -- should have been dealt with above
-                                if sched then
-                                    schedule(0,0,eaxbit,pUV,0,src)
-                                end if
+--                              if sched then
+--                                  schedule(0,0,eaxbit,pUV,0,src)
+--                              end if
                                 loadToReg(eax,src)                              -- mov eax,[src]
                                 clearReg(eax)
                                 bmin2 -= 1
@@ -12156,14 +12156,14 @@ else -- not useAndBits
                             if bmin2=bmax2 then
 --                              if smin=smax then ?9/0 end if   -- should have been dealt with above
                                 if bmin=bmax then ?9/0 end if   -- should have been dealt with above
-                                if sched then
-                                    schedule(0,0,eaxbit,pUV,0,src)
-                                end if
+--                              if sched then
+--                                  schedule(0,0,eaxbit,pUV,0,src)
+--                              end if
                                 loadToReg(eax,src)                          -- mov eax,[src]
                                 clearReg(eax)
-                                if sched then
-                                    schedule(0,0,ecxbit,pUV,0,0)
-                                end if
+--                              if sched then
+--                                  schedule(0,0,ecxbit,pUV,0,0)
+--                              end if
 --                              emitHex5w(mov_ecx_imm32,smin2)              -- mov ecx,imm32
 --                              emitHex5w(mov_ecx_imm32,bmin2)              -- mov ecx,imm32
                                 movRegImm32(ecx,bmin2)                      -- mov ecx,imm32
@@ -12171,29 +12171,29 @@ else -- not useAndBits
                             else -- bmin2!=bmax2
 --                              if smin=smax then
                                 if bmin=bmax then
-                                    if sched then
-                                        schedule(0,0,eaxbit,pUV,0,0)
-                                    end if
+--                                  if sched then
+--                                      schedule(0,0,eaxbit,pUV,0,0)
+--                                  end if
 --                                  emitHex5w(mov_eax_imm32,smin)           -- mov eax,imm32
 --                                  emitHex5w(mov_eax_imm32,bmin)           -- mov eax,imm32
                                     movRegImm32(eax,bmin)                   -- mov eax,imm32
                                 else
-                                    if sched then
-                                        schedule(0,0,eaxbit,pUV,0,src)
-                                    end if
+--                                  if sched then
+--                                      schedule(0,0,eaxbit,pUV,0,src)
+--                                  end if
                                     loadToReg(eax,src)                      -- mov eax,[src]
                                 end if
                                 clearReg(eax)
-                                if sched then
-                                    schedule(0,0,ecxbit,pUV,0,src2)
-                                end if
+--                              if sched then
+--                                  schedule(0,0,ecxbit,pUV,0,src2)
+--                              end if
                                 loadToReg(ecx,src2)                         -- mov ecx,[src2]
                             end if
                             clearReg(ecx)
-                            if sched then
-                                -- treat rest as one bit instruction
-                                schedule(eaxbit+ecxbit,0,edxbit,pUV,1,src)
-                            end if
+--                          if sched then
+--                              -- treat rest as one bit instruction
+--                              schedule(eaxbit+ecxbit,0,edxbit,pUV,1,src)
+--                          end if
 --                          if smin2>0 then
                             if bmin2>0 then     -- always +ve
                                 if X64 then
@@ -12247,14 +12247,14 @@ end if -- useAndBits
                         end if
                     end if
                     if dest then
-                        if sched then
-                            sch00n = schoon
-                            schedule(0,0,edibit,pUV,0,0)
-                        end if
+--                      if sched then
+--                          sch00n = schoon
+--                          schedule(0,0,edibit,pUV,0,0)
+--                      end if
                         leamov(edi,dest)                                -- lea edi,[dest]/mov edi,dest (addr result)
-                        if sched then
-                            schend()    -- [esp]-9/-15
-                        end if
+--                      if sched then
+--                          schend()    -- [esp]-9/-15
+--                      end if
                         loadToReg(eax,src)                              -- mov eax,[src]
                         loadToReg(ecx,src2)                             -- mov ecx,[src2]
                         emitHex5callG(opRmdr)                           -- call :%opRmdr
@@ -12308,22 +12308,22 @@ end if -- useAndBits
                     else
                         -- inline (dest is int and no need to check for sequence op)
                         wrk = loadReg(src)                  -- [mov wrk,[src]]
-                        if sched then
-                            schedule(0,0,edxbit,pUV,1,0)
-                        end if
+--                      if sched then
+--                          schedule(0,0,edxbit,pUV,1,0)
+--                      end if
                         if X64 then
                             emitHex1(#48)
                         end if
                         emitHex2s(xor_edx_edx)              -- xor edx,edx
-                        if sched then
-                            rw = regbit[wrk+1]
-                            schedule(rw,0,0,pUV,1,0)
-                        end if
+--                      if sched then
+--                          rw = regbit[wrk+1]
+--                          schedule(rw,0,0,pUV,1,0)
+--                      end if
                         xrm = 0o300+wrk*9 -- 0o3ww
                         emitHexx2(test_reg_reg,xrm)         -- test wrk,wrk
-                        if sched then
-                            schedule(0,0,edxbit,pUV,1,0)
-                        end if
+--                      if sched then
+--                          schedule(0,0,edxbit,pUV,1,0)
+--                      end if
                         xrm = #C2 -- 0o302
                         emitHex3(sete,xrm)                  -- sete dl
                         if dname=-1 then -- a temp
@@ -12346,18 +12346,18 @@ end if -- useAndBits
 --; call opNot      ; [edi]=not(ecx)                350         E8 rel32        call rel32
 --; nb p2 obtained from [esp]-9 on error
 --; all registers trashed unless result is integer, else result in eax
-                    if sched then
-                        sch00n = schoon
-                        schedule(0,0,edibit,pUV,0,0)
-                    end if
+--                  if sched then
+--                      sch00n = schoon
+--                      schedule(0,0,edibit,pUV,0,0)
+--                  end if
                     leamov(edi,dest)                                -- lea edi,[dest]/mov edi,dest (addr result)
-                    if sched then
-                        schedule(0,0,eaxbit,pUV,0,src)
-                    end if
+--                  if sched then
+--                      schedule(0,0,eaxbit,pUV,0,src)
+--                  end if
                     loadToReg(ecx,src)                              -- mov ecx,[src]
-                    if sched then
-                        schend()
-                    end if
+--                  if sched then
+--                      schend()
+--                  end if
                     emitHex5callG(opcode)                           -- call opNot
                     if dtype=T_integer then
                         clearReg(edi)
@@ -12426,10 +12426,10 @@ end if -- useAndBits
                         end if
                     else
                         wrk = loadReg(src,CLEAR)            -- mov wrk,[src]
-                        if sched then
-                            rw = regbit[wrk+1]
-                            schedule(rw,0,rw,pUV,1,0)
-                        end if
+--                      if sched then
+--                          rw = regbit[wrk+1]
+--                          schedule(rw,0,rw,pUV,1,0)
+--                      end if
                         xrm = 0o330+wrk -- 0o33w, neg/wrk
                         emitHexx2(0o367,xrm)                -- neg wrk
                         if dname=-1 then -- a temp
@@ -12451,18 +12451,18 @@ end if -- useAndBits
 --; call opUminus                                   350         E8 rel32        call rel32
 --;   nb: p2 obtained from [esp]-9 on error
 --;   all registers trashed unless result is integer, else result in ecx
-                    if sched then
-                        sch00n = schoon
-                        schedule(0,0,edibit,pUV,0,0)
-                    end if
+--                  if sched then
+--                      sch00n = schoon
+--                      schedule(0,0,edibit,pUV,0,0)
+--                  end if
                     leamov(edi,dest)                                -- lea edi,[dest]/mov edi,dest (addr result)
-                    if sched then
-                        schedule(0,0,eaxbit,pUV,0,src)
-                    end if
+--                  if sched then
+--                      schedule(0,0,eaxbit,pUV,0,src)
+--                  end if
                     loadToReg(ecx,src)                              -- mov ecx,[src]
-                    if sched then
-                        schend()
-                    end if
+--                  if sched then
+--                      schend()
+--                  end if
                     emitHex5callG(opcode)                           -- call opUminus
                     if dtype=T_integer then
                         clearReg(edi)
@@ -12589,9 +12589,9 @@ end if -- useAndBits
 --;     p3/sliceend can be imm32'd iff p2 is, (if constant)
 --;     p2/ref can be constref'd iff p2 and p3 are imm32'd (if constant))
 -- opSubsss is 1, res, sliceend, slicestart, ref                -- res := string[slicestart..sliceend]
-                    if sched then
-                        schend()    -- no attempt to/thought about schedule this
-                    end if
+--                  if sched then
+--                      schend()    -- no attempt to/thought about schedule this
+--                  end if
                     leamov(eax,dest)                                -- lea eax,[dest]/mov eax,dest (addr result)
                     src2 = s5[pc+4] -- slice start
                     getSrc2()
@@ -12634,16 +12634,16 @@ end if -- useAndBits
                     reginfo = 0 -- trashes all registers
                     pc += 6
                 else
-                    if sched then
-                        sch00n = schoon
-                        schedule(0,0,ecxbit,pUV,0,0)
-                    end if
+--                  if sched then
+--                      sch00n = schoon
+--                      schedule(0,0,ecxbit,pUV,0,0)
+--                  end if
                     leamov(edx,dest)                                -- lea/mov edx,result addr
 --                  emitHex5w(mov_ecx_imm32,noofitems)              -- mov ecx,noofsubscripts
                     movRegImm32(ecx,noofitems)                      -- mov ecx,noofsubscripts
-                    if sched then
-                        schend()    -- isAddr not [yet] relocatable
-                    end if
+--                  if sched then
+--                      schend()    -- isAddr not [yet] relocatable
+--                  end if
                     backpatch = emitHex5addr()                      -- push <return addr>
 --DEV: (ought to be done in pmain.e?)
 --  if storeReturnVar and (p2<0) then
@@ -12710,9 +12710,9 @@ end if
             if isGscan then
                 pc += noofitems+4
             else
-                if sched then
-                    schend()    -- isAddr not [yet] relocatable
-                end if
+--              if sched then
+--                  schend()    -- isAddr not [yet] relocatable
+--              end if
                 leamov(eax,dest)
                 raoffset = emitHex5addr()                       -- push <return addr> [backpatched below]
                 emitHex1(push_eax)                              -- push res addr (leamov'd above)
@@ -12932,16 +12932,16 @@ if smin=smax then
                         dest = 0
                     end if
 else
-                    if sched then
-                        if not isInt then
-                            sch00n = schoon
-                        end if
-                    end if
+--                  if sched then
+--                      if not isInt then
+--                          sch00n = schoon
+--                      end if
+--                  end if
                     reg = loadReg(src,CLEAR)                        -- mov reg,[src]
                     if not isInt then -- target is non-integer
-                        if sched then
-                            schedule(0,0,edxbit,pUV,0,dest)
-                        end if
+--                      if sched then
+--                          schedule(0,0,edxbit,pUV,0,dest)
+--                      end if
                         if and_bits(symtab[dest][S_State],K_Fres) then ?9/0 end if
                         loadMem(edx,dest)
                     end if
@@ -12960,10 +12960,10 @@ else
                             end if
                         end if
                     else
-                        if sched then
-                            schend()    -- trashes all registers
-                            sch00n = schoon -- (avoid scheduling the following storeReg)
-                        end if
+--                      if sched then
+--                          schend()    -- trashes all registers
+--                          sch00n = schoon -- (avoid scheduling the following storeReg)
+--                      end if
                         cmp_h4(edx)                                     -- cmp edx,h4
 --DEV testset missed this being commented out...
                         storeReg(reg,dest,1,0)                          -- mov [dest],reg
@@ -12988,17 +12988,17 @@ end if
                         emitHex5callG(opDealloc)                        -- call :%pDealloc
                         x86[backpatch] = length(x86)-backpatch          -- @@:
                         x86[backpatch2] = length(x86)-backpatch2
-                        if sched then
-                            sch00n = 0 -- (actually only affects that storeReg, tho all 6 above are non-sched)
-                        end if
+--                      if sched then
+--                          sch00n = 0 -- (actually only affects that storeReg, tho all 6 above are non-sched)
+--                      end if
                         reginfo = 0 -- all regs trashed
                     end if
 end if
                 else    -- not twoInitialisedInts()
-                    if sched then
-                        sch00n = schoon
-                        schedule(0,0,edibit,pUV,0,0)
-                    end if
+--                  if sched then
+--                      sch00n = schoon
+--                      schedule(0,0,edibit,pUV,0,0)
+--                  end if
                     leamov(edi,dest)                                -- lea edi,[dest]/mov edi,dest (addr result)
                     loadToReg(ecx,src)                              -- mov ecx,[src]
                     loadToReg(eax,src2)                             -- mov eax,[src2]
@@ -13023,11 +13023,11 @@ end if
                 src2 = s5[pc+6]
                 invert = s5[pc+7]
                 jinit(pc+1)
-                if sched then
-                    if mergeSet!=isOpCode then
-                        sch00n = lastJmp    -- (can schedule non-last-jumps)
-                    end if
-                end if
+--              if sched then
+--                  if mergeSet!=isOpCode then
+--                      sch00n = lastJmp    -- (can schedule non-last-jumps)
+--                  end if
+--              end if
 if 1 then   -- new code 10/12/09:
 --              tmpd = 0
                 if tmpd then ?9/0 end if
@@ -13210,11 +13210,11 @@ end if
                         else
                             res = edx
                         end if
-                        if sched then
-                            rb = regbit[reg+1]
-                            rs = regbit[res+1]
-                            schedule(0,0,rs,pUV,1,0)
-                        end if
+--                      if sched then
+--                          rb = regbit[reg+1]
+--                          rs = regbit[res+1]
+--                          schedule(0,0,rs,pUV,1,0)
+--                      end if
                         xrm = 0o300+res*9 -- 0o3rr
 -- (#31 = m_xor+1):
                         emitHexx2(0o061,xrm)                            -- xor res,res
@@ -13222,17 +13222,17 @@ end if
                         if tmpd=-1 then
                             regimm365(smin2)                            -- cmp reg,imm
                         else
-                            if sched then
-                                rw = regbit[wrk+1]
-                                schedule(rb+rw,0,0,pUV,1,0)
-                            end if
+--                          if sched then
+--                              rw = regbit[wrk+1]
+--                              schedule(rb+rw,0,0,pUV,1,0)
+--                          end if
                             op1 = mod+1         -- 0o071
                             xrm = 0o300+wrk*8+reg -- 0o3wr
                             emitHexx2(op1,xrm)                          -- cmp reg,wrk
                         end if
-                        if sched then
-                            schedule(rs,0,rs,pNP,1,0)
-                        end if
+--                      if sched then
+--                          schedule(rs,0,rs,pNP,1,0)
+--                      end if
                         k = ccde[bcode][2]+#10
                         jcode = {#0F,k}
                         xrm = #C0+res   -- 0o30r
@@ -13264,13 +13264,13 @@ end if
                     end if
                 else   -- use opSxx to compare floats/strings/sequences, trap unassigned, dealloc prev, etc
                     if tmpd then ?9/0 end if
-                    if sched then
-                        sch00n = schoon
-                        schedule(0,0,edxbit,pUV,0,0)
-                    end if
-                    if sched then
-                        schend()    -- [esp]-9/-15
-                    end if
+--                  if sched then
+--                      sch00n = schoon
+--                      schedule(0,0,edxbit,pUV,0,0)
+--                  end if
+--                  if sched then
+--                      schend()    -- [esp]-9/-15
+--                  end if
                     loadToReg(edi,src2,CLEAR)                           -- mov edi,[src2]
                     loadToReg(eax,src,CLEAR)                            -- mov eax,[src]
                     movRegVno(esi,src2)                                 -- mov e/rsi,src2 (var no)
@@ -13483,27 +13483,27 @@ if {smin,smax}!={Tsmin,Tsmax} then ?9/0 end if
 ---- /**/               mov eax,[size]
 ---- /**/               call :%opMalloc }   -- [edi] := malloc(eax)
 --
---              if sched then
---                  sch00n = schoon
---                  schedule(0,0,edibit,pUV,0,0)
---              end if
+----                if sched then
+----                    sch00n = schoon
+----                    schedule(0,0,edibit,pUV,0,0)
+----                end if
 --              leamov(edi,dest)                                -- lea edi,[dest]/mov edi,dest (addr result)
 --              getSrc()
 --              if slroot=T_integer and smin=smax then
---                  if sched then
---                      schedule(0,0,eaxbit,pUV,0,0)
---                  end if
+----                    if sched then
+----                        schedule(0,0,eaxbit,pUV,0,0)
+----                    end if
 --                  emitHex5w(mov_eax_imm32,smin)               -- mov eax,imm32
 --                  movRegImm32(eax,smin)                       -- mov eax,imm32
 --              else
---                  if sched then
---                      schedule(0,0,eaxbit,pUV,0,src)
---                  end if
+----                    if sched then
+----                        schedule(0,0,eaxbit,pUV,0,src)
+----                    end if
 --                  loadToReg(eax,src,CLEAR)                    -- mov eax,[src]
 --              end if
---              if sched then
---                  schend()
---              end if
+----                if sched then
+----                    schend()
+----                end if
 ----                lblidx = tt[aatidx[opMalloc]+EQ]
 ----                if lblidx=0 then ?9/0 end if
 ----                x86 &= {call_rel32,isJmpG,0,0,lblidx}
@@ -13518,13 +13518,13 @@ if {smin,smax}!={Tsmin,Tsmax} then ?9/0 end if
 ----opMfree
 ---- /**/       #ilASM{ mov eax,[addr]
 ---- /**/               call :%opMfree }    -- mfree(eax)
---              if sched then
---                  schedule(0,0,eaxbit,pUV,0,src)
---              end if
+----                if sched then
+----                    schedule(0,0,eaxbit,pUV,0,src)
+----                end if
 --              loadToReg(eax,src,CLEAR)                    -- mov eax,[src]
---              if sched then
---                  schend()
---              end if
+----                if sched then
+----                    schend()
+----                end if
 ----                lblidx = tt[aatidx[opMfree]+EQ]
 ----                if lblidx=0 then ?9/0 end if
 ----                x86 &= {call_rel32,isJmpG,0,0,lblidx}
@@ -13549,18 +13549,18 @@ else
                 wasemitline = emitline
                 emitline = lastline
 end if
-                if sched then
-                    sch00n = schoon
-                    schedule(0,0,edibit,pUV,0,0)
-                end if
+--              if sched then
+--                  sch00n = schoon
+--                  schedule(0,0,edibit,pUV,0,0)
+--              end if
 if newEmit then
                 movRegVno(edi,routineNo)                    -- mov e/rdi,routineNo
 else
                 emitHex5w(mov_edi_imm32,routineNo)          -- mov edi,routineNo
 end if
-                if sched then
-                    schend()
-                end if
+--              if sched then
+--                  schend()
+--              end if
                 emitHex5callG(opCallOnce)
                 reginfo = 0 -- all regs trashed
 if newEmit then
@@ -13663,15 +13663,15 @@ end if
             if not isGscan then
                 pc = waspc
                 noofitems = s5[pc+1]    -- as damaged above...
-                if sched then
-                    sch00n = schoon
-                    schedule(0,0,ecxbit,pUV,0,0)
-                end if
+--              if sched then
+--                  sch00n = schoon
+--                  schedule(0,0,ecxbit,pUV,0,0)
+--              end if
 --              emitHex5w(mov_ecx_imm32,noofitems)                  -- mov ecx,noofitems
                 movRegImm32(ecx,noofitems)                          -- mov ecx,noofitems
-                if sched then
-                    schend()    -- isAddr not [yet] relocatable
-                end if
+--              if sched then
+--                  schend()    -- isAddr not [yet] relocatable
+--              end if
                 backpatch = emitHex5addr()                          -- push <return addr>
                 pc += 2
                 for j=1 to noofitems do
@@ -13770,11 +13770,11 @@ printf(1,"warning: emitHex5call(%d=%s) skipped for newEmit, pilx86.e line 13580\
 --DEV getSrc/plen>=0/plen=0/jskip!!!
 --DEV schoon or 0 for isOpCode?
                 if tvar=0 then
-                    if sched then
-                        if mergeSet!=isOpCode then
-                            sch00n = lastJmp    -- (can schedule non-last-jumps)
-                        end if
-                    end if
+--                  if sched then
+--                      if mergeSet!=isOpCode then
+--                          sch00n = lastJmp    -- (can schedule non-last-jumps)
+--                      end if
+--                  end if
                     reg = loadReg(src)                              -- mov reg,[src]
                     wrk = spareReg(1)   --DEV 0 might prove better? - prolly about to use it rsn!!
                                     -- (again, need to collect metrics before deciding)
@@ -13784,14 +13784,14 @@ else
                     sibLoad743(wrk,by4,reg,ebx,-12)                 -- mov wrk,[ebx+reg*4-12]
 end if
                 else
-                    if sched then
-                        sch00n = schoon
-                        schedule(0,0,edibit,pUV,0,0)
-                    end if
+--                  if sched then
+--                      sch00n = schoon
+--                      schedule(0,0,edibit,pUV,0,0)
+--                  end if
                     leamov(edi,tvar)                                -- lea edi,[tvar]/mov edi,tvar
-                    if sched then
-                        schend()    -- [esp]-9
-                    end if
+--                  if sched then
+--                      schend()    -- [esp]-9
+--                  end if
                     loadToReg(esi,src)                              -- mov esi,[src]
                     movRegVno(edx,src)                              -- mov e/rdx,src (var no)
                     emitHex5callG(opLen)                            -- call :%opLen
@@ -13811,12 +13811,12 @@ end if
                     wrk = ecx
 --DEV create localtype info that src is a sequence???
                 end if
-                if sched then
-                    if mergeSet!=isOpCode then
-                        sch00n = lastJmp    -- (can schedule non-last-jumps)
-                    end if
-                    schedule(regbit[wrk+1],0,0,pUV,1,0)
-                end if
+--              if sched then
+--                  if mergeSet!=isOpCode then
+--                      sch00n = lastJmp    -- (can schedule non-last-jumps)
+--                  end if
+--                  schedule(regbit[wrk+1],0,0,pUV,1,0)
+--              end if
                 xrm = 0o300+wrk*9 -- 0o3ww
                 emitHexx2(test_reg_reg,xrm)             -- test wrk,wrk
 
@@ -13883,9 +13883,9 @@ end if
             --else
             if not isGscan then
                 pc = waspc
-                if sched then
-                    schend()    -- isAddr not [yet] relocatable
-                end if
+--              if sched then
+--                  schend()    -- isAddr not [yet] relocatable
+--              end if
                 raoffset = emitHex5addr()                       -- push <return addr> [backpatched below]
                 pc += 2
                 for j=1 to noofitems+1 do                       -- push rep,idxn..idx1
@@ -14016,15 +14016,15 @@ end if
                 --;<return address>
                 rep = s5[pc+2]  -- rep
                 src2 = s5[pc+3] -- sliceend
-                if sched then
-                    sch00n = schoon
-                    schedule(0,0,ecxbit,pUV,0,0)
-                end if
+--              if sched then
+--                  sch00n = schoon
+--                  schedule(0,0,ecxbit,pUV,0,0)
+--              end if
 --              emitHex5w(mov_ecx_imm32,noofitems)                  -- mov ecx,noofsubscripts
                 movRegImm32(ecx,noofitems)                          -- mov ecx,noofsubscripts
-                if sched then
-                    schend()    -- isAddr not [yet] relocatable
-                end if
+--              if sched then
+--                  schend()    -- isAddr not [yet] relocatable
+--              end if
                 backpatch = emitHex5addr()                          -- push <return addr>
 if newEmit then
 --  printf(1,"opReps, emitline=%d (pilx86 line 13136)\n",emitline)
@@ -14075,46 +14075,46 @@ end if
                     --  x={1,2,"fred",4} if x[3] then as true (not zero) instead
                     --  of bothering with "true/false condition must be an atom".
                     -- (see ** below if you really want that error to occur.)
-                        if sched then
-                            if mergeSet!=isOpCode then
-                                sch00n = lastJmp    -- (can schedule non-last-jumps)
-                            end if
-                        end if
+--                      if sched then
+--                          if mergeSet!=isOpCode then
+--                              sch00n = lastJmp    -- (can schedule non-last-jumps)
+--                          end if
+--                      end if
                         if slroot=T_string then
                             reg = loadReg(src)                      -- mov reg,[src] (s)
                             idx = loadReg(src2)                     -- mov idx,[src2] (idx)
-                            if sched then
-                                rs = regbit[reg+1]
-                                rx = regbit[idx+1]
-                                schedule(0,rs+rx,0,pUV,1,0)
-                            end if
+--                          if sched then
+--                              rs = regbit[reg+1]
+--                              rx = regbit[idx+1]
+--                              schedule(0,rs+rx,0,pUV,1,0)
+--                          end if
                             sib = #80+reg*8+idx -- 0o2ri, idx+reg*4
                             emitHex5sib(cmpb_sibd8i8,sib,-1,0)      -- cmp byte[idx+reg*4-1],0
                         elsif slroot=T_Dsq then
 --                  elsif slroot=T_Dsq and not and_bits(setyp,T_sequence) then --(**)
                             reg = loadReg(src)                      -- mov reg,[src] (s)
                             idx = loadReg(src2,CLEAR)               -- mov idx,[src2] (idx)
-                            if sched then
-                                rs = regbit[reg+1]
-                                rx = regbit[idx+1]
-                                schedule(rx,0,rx,pUV,1,0)
-                            end if
+--                          if sched then
+--                              rs = regbit[reg+1]
+--                              rx = regbit[idx+1]
+--                              schedule(rx,0,rx,pUV,1,0)
+--                          end if
                             xrm = #E0+idx -- 0o34i, shl/idx
 if X64 then
                             if X64 then
                                 emitHex1(#48)
                             end if
                             emitHex3l(0o301,xrm,3)                  -- shl idx,3
-                            if sched then
-                                schedule(0,rs+rx,0,pUV,1,0)
-                            end if
+--                          if sched then
+--                              schedule(0,rs+rx,0,pUV,1,0)
+--                          end if
                             sib = 0o200+reg*8+idx -- 0o2ri, idx+reg*4
                             emitHex5sib(cmpd_sibd8i8,sib,-8,0)      -- cmp dword[idx+reg*4-8],0
 else
                             emitHex3l(0o301,xrm,2)                  -- shl idx,2
-                            if sched then
-                                schedule(0,rs+rx,0,pUV,1,0)
-                            end if
+--                          if sched then
+--                              schedule(0,rs+rx,0,pUV,1,0)
+--                          end if
                             sib = 0o200+reg*8+idx -- 0o2ri, idx+reg*4
                             emitHex5sib(cmpd_sibd8i8,sib,-4,0)      -- cmp dword[idx+reg*4-4],0
 end if
@@ -14122,9 +14122,9 @@ end if
                     end if
                 end if
                 if idx=-1 then  -- not inlined
-                    if sched then
-                        schend()    -- [esp]-15/-9
-                    end if
+--                  if sched then
+--                      schend()    -- [esp]-15/-9
+--                  end if
                     loadToReg(edi,src2)                 -- mov edi,[src2] (idx)
                     loadToReg(esi,src)                  -- mov esi,[src] (s)
 --;calling convention:                              octal:         binary:          code:
@@ -14212,35 +14212,35 @@ end if
 --      the acid test is a=integer(x) b=atom(y) c=string(z) if a and b and c then...
                     if reg=eax then
                         res = ecx
-                        if sched then
-                            schedule(0,0,ecxbit,pUV,1,0)
-                        end if
+--                      if sched then
+--                          schedule(0,0,ecxbit,pUV,1,0)
+--                      end if
                         if X64 then
                             emitHex1(#48)
                         end if
                         emitHex2s(xor_ecx_ecx)                          -- xor ecx,ecx
                     else
                         res = eax
-                        if sched then
-                            schedule(0,0,eaxbit,pUV,1,0)
-                        end if
+--                      if sched then
+--                          schedule(0,0,eaxbit,pUV,1,0)
+--                      end if
                         if X64 then
                             emitHex1(#48)
                         end if
                         emitHex2s(xor_eax_eax)                          -- xor eax,eax
                     end if
-                    if sched then
-                        rb = regbit[reg+1]
-                        rs = regbit[res+1]
-                        schedule(rb,0,0,pUV,1,0)
-                    end if
+--                  if sched then
+--                      rb = regbit[reg+1]
+--                      rs = regbit[res+1]
+--                      schedule(rb,0,0,pUV,1,0)
+--                  end if
 --DEV if and_bits(slroot,T_integer) then...
                     cmp_h4(reg)                                         -- cmp reg,h4
                     if opcode=opInt
                     or opcode=opObj then
-                        if sched then
-                            schedule(0,0,rs,pNP,1,0)
-                        end if
+--                      if sched then
+--                          schedule(0,0,rs,pNP,1,0)
+--                      end if
                         xrm = #C0+res   -- 0o30r
                         if opcode=opInt then
                             emitHex3(setl,xrm)                          -- setl res8
@@ -14248,9 +14248,9 @@ end if
                             emitHex3(setne,xrm)
                         end if
                     else
-                        if sched then
-                            schedule(0,rb,rs,pV,1,0)    -- treat as one big instruction
-                        end if
+--                      if sched then
+--                          schedule(0,rb,rs,pV,1,0)    -- treat as one big instruction
+--                      end if
                         sib = #83+reg*8 -- 0o2r3, ebx+reg*4
                         backpatch = 0
                         backpatch2 = 0
@@ -14307,14 +14307,14 @@ end if
                     end if
                     storeReg(res,dest,1,1)                              -- mov [dest],res
                 else --opINSPO with non-int result or non-init param:
-                    if sched then
-                        sch00n = schoon
-                        schedule(0,0,edibit,pUV,0,0)
-                    end if
+--                  if sched then
+--                      sch00n = schoon
+--                      schedule(0,0,edibit,pUV,0,0)
+--                  end if
                     leamov(edi,dest)                                -- lea edi,[dest]/mov edi,dest (addr result)
-                    if sched then
-                        schend()    -- [esp-9]
-                    end if
+--                  if sched then
+--                      schend()    -- [esp-9]
+--                  end if
                     loadToReg(eax,src)                              -- mov eax,[src] (var ref)
 --?                        ltype = opTyp0[ltype] (NO)
                     if opcode!=opObj then
@@ -14357,14 +14357,14 @@ end if
                 src = s5[pc+2]
                 src2 = s5[pc+3]
                 markConstUseds({src,src2})
-                if sched then
-                    sch00n = schoon
-                    schedule(0,0,edxbit,pUV,0,0)
-                end if
+--              if sched then
+--                  sch00n = schoon
+--                  schedule(0,0,edxbit,pUV,0,0)
+--              end if
                 leamov(edx,dest)                                -- lea edx,[dest]/mov edx,addr dest (result)
-                if sched then
-                    schend()    -- [esp]-9/-14
-                end if
+--              if sched then
+--                  schend()    -- [esp]-9/-14
+--              end if
                 loadToReg(edi,src2)                             -- mov edi,[src2]
                 loadToReg(eax,src)                              -- mov eax,[src]
                 emitHex5callG(opScmp)                           -- call opScmp
@@ -14686,30 +14686,30 @@ end if
                     reg = loadReg(src,CLEAR)                    -- mov reg,[src]
                     if reg=eax then
                         res = ecx
-                        if sched then
-                            schedule(0,0,ecxbit,pUV,1,0)
-                        end if
+--                      if sched then
+--                          schedule(0,0,ecxbit,pUV,1,0)
+--                      end if
                         if X64 then
                             emitHex1(#48)
                         end if
                         emitHex2s(xor_ecx_ecx)                  -- xor ecx,ecx
                     else
                         res = eax
-                        if sched then
-                            schedule(0,0,eaxbit,pUV,1,0)
-                        end if
+--                      if sched then
+--                          schedule(0,0,eaxbit,pUV,1,0)
+--                      end if
                         if X64 then
                             emitHex1(#48)
                         end if
                         emitHex2s(xor_eax_eax)                  -- xor eax,eax
                     end if
-                    if sched then
-                        schedule(regbit[reg+1],0,0,pUV,1,0)
-                    end if
+--                  if sched then
+--                      schedule(regbit[reg+1],0,0,pUV,1,0)
+--                  end if
                     cmp_h4(reg)                                 -- cmp reg,h4
-                    if sched then
-                        schedule(regbit[reg+1],0,regbit[res+1],pV,1,0)  -- treat as one big instruction
-                    end if
+--                  if sched then
+--                      schedule(regbit[reg+1],0,regbit[res+1],pV,1,0)  -- treat as one big instruction
+--                  end if
 --DEVBPM backpatch me: [DONE]
 --                  emitHex6j(jl_rel32,13)                      -- jl l1 [sj OK]
                     emitHex6j(jle_rel32,0)                      -- jl @f [sj OK]
@@ -14761,22 +14761,22 @@ end if
                     emitHexx2(mov_byte,xrm)                     -- mov res8,[reg]
                     storeReg(res,dest,1,1)                      -- mov [dest],res
                 else    -- not S_Init (the b in a=peek(b))
-                    if sched then
-                        schend()    -- [esp]-9
-                    end if
+--                  if sched then
+--                      schend()    -- [esp]-9
+--                  end if
 --DEV do we not need a var no? (or are we using opUnassigned and tce is misleading and this code is dead?)
                     loadToReg(esi,src)                          -- mov esi,[src]
 --DEV calls opAddiii??? (simply stopped using this)
                     emitHex5callG(opPeeki)                      -- call opPeeki -- flt->eax/unassigned/tce
                     -- result in eax, damages edx/edi, ecx/esi/ebx unaltered
-                    if sched then
-                        -- needed for [esp]+1 error handling:
-                        sch00n = schoon
-                    end if
+--                  if sched then
+--                      -- needed for [esp]+1 error handling:
+--                      sch00n = schoon
+--                  end if
                     storeReg(eax,dest,1,1)                      -- mov [dest],eax
-                    if sched then
-                        sch00n = 0  -- (just the above line)
-                    end if
+--                  if sched then
+--                      sch00n = 0  -- (just the above line)
+--                  end if
                     clearReg(edi)
                 end if
             end if
@@ -14847,19 +14847,19 @@ or opcode=opPokeN then
 --;  mov edi,[p1] ; addr                                213 075     8B 3D m32       mov edi,[m32]
 --;  call opPoke    ; poke(edi,eax)                     350         E8 rel32        call rel32
 --; nb p1/p2 obtained from [esp]-9/-15 on error
-                if sched then
-                    sch00n = schoon
-                    schedule(0,0,eaxbit,pUV,0,src2)
-                end if
+--              if sched then
+--                  sch00n = schoon
+--                  schedule(0,0,eaxbit,pUV,0,src2)
+--              end if
 --DEV constant, transtmpfer?
                 loadToReg(eax,src2)                     -- mov eax,[src2]
-                if sched then
-                    schedule(0,0,edibit,pUV,0,src)
-                end if
+--              if sched then
+--                  schedule(0,0,edibit,pUV,0,src)
+--              end if
                 loadToReg(edi,src)                      -- mov edi,[src]
-                if sched then
-                    schend()
-                end if
+--              if sched then
+--                  schend()
+--              end if
                 if opcode=opPoke1 then
                     movRegImm32(ecx,1)                  -- mov ecx,1
                 elsif opcode=opPoke2 then
@@ -15206,9 +15206,9 @@ if not newEmit then ?9/0 end if
 --                  sub rsp,8   -- align stack
 --                  emitHex1(push_eax)                  -- align stack
 --                  sub_rsp_imm8    = {#48,#83,#EC},    -- #48 0o203 0o354 imm8         -- sub Rsp,imm8
-                    if not sched then
-                        if lastline!=emitline then lineinfo() end if
-                    end if
+--                  if not sched then
+                    if lastline!=emitline then lineinfo() end if
+--                  end if
 --                  x86 &= {#48,#83,#EC,#08}            -- align stack (sub rsp,8)
 --                  x86 &= {#48,#83,#EC,#28}            -- align stack (sub rsp,8*5)
 --                  emitHex4l(integer op1, integer op2, integer op3, integer op4)

@@ -34,6 +34,12 @@ global function get_routine_info(integer rid)
 --  minp is the minmum            """				"""
 --  sig is the signature, in (roottype) string form, eg "FISO".
 --
+    if rid=-9 or grid=-9 then
+        -- compiler special (don't stomp on symtab!)
+        -- (as used in structs.e fetch/store_field.)
+        grid = -9
+        return {0,0,"XX"}
+    end if
     if grid=0 then grid = rtnid("get_routine_info") end if
     object symtab
     enter_cs()
@@ -46,8 +52,12 @@ global function get_routine_info(integer rid)
             call :%opGetST      -- [e/rdi]=symtab (ie our local:=the real symtab)
           }
     object sr = symtab[rid]
-    string name = sr[S_Name]
---  object name = sr[S_Name]
+--  string name = sr[S_Name]
+    object name = sr[S_Name]    -- 22/12/20 class methods have a [symtab] name of -1, on purpose
+                                --          (their proper names are kept in builtins/structs.e,
+                                --           and are passed in as text anyway, so you don't need
+                                --           multiple conflicting entries messing up the symtab,
+                                --           or ever allow a "do()" that should be an "s.do()".)
     integer ntype = sr[S_NTyp],
             minp = sr[S_ParmN]
     if ntype<S_Type or ntype>S_Proc then ?9/0 end if

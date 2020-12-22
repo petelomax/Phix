@@ -65,8 +65,12 @@
           <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
          </td>
          <td>
-          <b>Not supported</b> - as of 0.8.2, routine_id("<i>name</i>") and <i>name</i> not followed by '(' are the same. Since there
-            is no symbol table as such in JavaScript, the ability to "stitch together" and lookup a routine name is not possible.
+          <b>Not supported</b> - as of 0.8.2, routine_id("<i>name</i>") and <i>name</i> not followed by '(' are the same. The latter
+            (a bare identifier) is fine and recommended, pwa/p2js.exw may or may not succeed in stripping the routine_id("") parts,
+            but it certainly won&rsquo;t put them back on in any reverse trip and would therefore fail some reversibility tests.<br>
+            Since there is no symbol table as such in JavaScript, the ability to "stitch together" and lookup a routine name is not 
+            possible, and it is specifically that part which is <b>"not supported"</b>. Standard/Sane use should be fine.<br>
+            <small>(You know what, it might just be fine, I might rescind all that...)</small>
             <br>
             <br>
             Also note that get_routine_info() is not supported by p2js: the one place it was really needed, in the heart of 
@@ -91,13 +95,22 @@
             {<a href="integer.htm">integer</a> maxp, 
              <a href="integer.htm">integer</a> minp, 
              <a href="string.htm">string</a> sig, 
-             <a href="string.htm">string</a> name} = <b>get_routine_info</b>(<a href="integer.htm">integer</a> rid)<br>
+             <a href="object.htm">object</a> name} = <b>get_routine_info</b>(<a href="integer.htm">integer</a> rid)<br>
             Returns the maximum and minimum number of parameters, along with a string representing the signature in roottype format,
-            and the actual name of the routine.<br>
+            and the actual name of the routine, except when rid refers to a class method, when -1 is returned <small>(on purpose, since 
+            their proper names are kept in builtins/structs.e, and are passed in as text anyway, so you don&rsquo;t want or need 
+            multiple conflicting entries messing up the symtab.)</small>
+            <br>
+            <br>
             For instance get_routine_info(<a href="apply.htm">apply</a>) yields {3,2,"FOIO","apply"}. Note that invoking this routine
             coerces the compiler into populating the symbol table with actual names, which may make startup a fraction of a second slower 
             when interpreting, especially on larger programs - hopefully not quite enough for anyone to actually notice, but it&rsquo;s 
             only right to properly document these things, even if there might not be much you can really do to stop it.
+            <br>
+            <br>
+            Note that p.exw deliberately invokes get_routine_info(-9) to permanently disable it, since populating the symtab with actual 
+            names mid-compilation kinda spanners everything. In order words this routine is not available to the compiler itself. It is
+            now used (at runtime) in structs.e, to check the validity of any getters and setters it finds before invoking them.
             <br>
             <br>
             Intended for internal use in routines such as <a href="apply.htm">apply</a>() to make a more informed choice about precisely 

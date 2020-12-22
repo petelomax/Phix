@@ -3,8 +3,9 @@
 --
 --  "assert(test,msg)" is not unlike "if not test then crash(msg) end if".
 --
-global procedure assert(bool condition, string msg="")
+global procedure assert(bool condition, string msg="", sequence args={})
     if not condition then
+        if length(args) then msg = sprintf(msg,args) end if
         -- <similar to crash callstack-1 msg:>
         #ilASM{
             [32]

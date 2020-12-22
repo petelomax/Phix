@@ -1,0 +1,153 @@
+--
+-- demo/pGUI/IupTable.exw
+-- ======================
+--
+--  An IupTable is a Phix/pGUI invention, expressly written for pwa/p2js,
+--  but of course it can be freely used for strictly desktop-only purposes.
+--  It provides common ground between an HTML table and a desktop IupMatrix.
+--  (That is, a fairly advanced HTML table, even if I say so myself.)
+--
+--  Columns can be sorted by clicking on their headings. It maintains a stack
+--  of sort orders, so for instance if you click on amount then date, it shows
+--  items in amount order within each unique date, plus any with both the same 
+--  amount and date matching (aka all clicked columns) in their original order.
+--  Columns can also be resized by dragging the edges between column headings, 
+--  and resizing the window expands the table to fit, retaining the existing 
+--  column width ratios as best it can.
+--
+--  Internally, pGUI.e implements an IupTable via an IupMatrix, whereas
+--  (obviously) pGUI.js implements an IupTable via <table>.
+--
+--  The internals of IupTable are really quite straightforward: they just
+--  adopt a very narrow view of what we need to achieve from an IupMatrix,
+--  and/or the html, css, and JavaScript we need to use in a browser.
+--  Obviously, should IupTable not quite meet your needs, you are free to
+--  take a copy of it and tweak it, the only real question being whether
+--  you or I can make such changes work on both the desktop and browser.
+--
+--  See also demo/pGUI/listview.exw, on which this is based. While this is
+--  now nearly as long and complicated, that's only because I'm trying to
+--  show/test as much as possible, whereas the cut-down version in the docs
+--  is clearly quite nicely short and sweet.
+
+include pGUI.e
+--#withtype Ihandle
+--#withtype Ihandles
+
+constant columns = {{"Chq#",40,"ARIGHT"},
+                    {"Date",60,"ACENTER"},
+                    {"Amount",100,"ARIGHT"},
+                    {"Status",35,"ACENTER"},
+                    {"Bank",50,"ALEFT"}}
+
+--constant columns = {"Chq#","Date","Amount","Status","Bank"} -- (fine too)
+
+constant MAX = 50000
+
+function buildDummyData()
+    -- data is length 2: {raw/sortable,null/display columns}
+    sequence data = repeat(0,MAX)
+    data = {data,{0,data,data}}
+    for i=1 to MAX do
+        sequence dt = {2018+rand(2),rand(12),rand(28)}
+        atom cheque = i,
+             amount = rand(999999)/100
+        string status = iff(rand(5)==1?"R":""),
+                bank = sprintf("%5d", rand(9999)+10000)
+        data[1][i] = {cheque,dt,amount,status,bank}
+        -- initially overwritten with date/amt_fmt() below,
+        -- however not when ' ' is subsequently keyed:
+        data[2][2][i] = sprintf("%02d/%02d/%04d",reverse(dt))
+        data[2][3][i] = sprintf("%.2f",amount)
+    end for
+    return data
+end function
+sequence data = buildDummyData()
+
+procedure showselected(Ihandle table)
+    -- (private test routine, optional)
+    integer idx = IupTableGetSelected(table)
+    string msg = iff(idx?sprint(data[1][idx]):"nothing")
+    IupMessage("Selected", msg)
+    IupSetFocus(table)
+end procedure
+
+function key_cb(Ihandle table, atom c)
+    -- (optional)
+    if c=K_CR then showselected(table) end if
+    if c=' ' then -- (test, optional)
+        -- note this removes the column format routines 
+        -- date_fmt() and amt_fmt() as set below.
+        data = buildDummyData()
+        IupTableSetData(table,data,false)
+    end if
+    return IUP_CONTINUE
+end function
+
+function click_cb(Ihandle ih, integer l, c, atom pStatus)
+    -- (optional)
+    if l=0 then return IupTableClick_cb(ih, l, c, pStatus) end if
+    if iup_isdouble(pStatus) then
+        showselected(ih)
+    end if
+    return IUP_DEFAULT
+end function
+
+--/*
+function enteritem_cb(Ihandle table, integer lin, col)
+    -- (optional)
+    {} = IupTableEnterItem_cb(table,lin,col)
+    integer idx = IupTableGetSelected(table)
+    string msg = iff(idx?sprint(data[1][idx]):"nothing")
+    ?{"enteritem_cb",msg}
+    return IUP_DEFAULT
+end function
+--*/
+
+--/* (tested, works fine)
+Ihandles tables
+function resize_cb(Ihandle dlg, integer width, height)
+    -- (optional)
+    for t=1 to length(tables) do
+        IupSetAttributePtr(dlg,"TABLE",tables[t])
+        {} = IupTableResize_cb(dlg, width, NULL)
+    end for
+    return IUP_DEFAULT
+end function
+--*/
+
+function date_fmt(sequence dt)
+    return sprintf("%02d-%02d-%04d",reverse(dt))
+end function
+data[2][2] = date_fmt
+
+function amt_fmt(atom amt)
+    return sprintf("%,.2f",amt)
+end function
+data[2][3] = amt_fmt
+
+IupOpen()
+--string msg = buildDummyData() -- nb sets data
+--Ihandle table = IupTable(columns,data,"RASTERSIZE=750x450") -- fine (on desktop)
+Ihandle table = IupTable(columns,data,10),
+        dlg = IupDialog(table,"SHRINK=YES")
+--      dlg = IupDialog(IupHbox({table})) -- (also works fine)
+
+--IupSetAttribute(table, "MARKMULTIPLE", "YES") -- nope
+--IupSetAttribute(table, "MARKAREA", "NOT_CONTINUOUS") -- "/nope
+--IupSetAttribute(table,"WIDTH0","8") -- ah, you *need* this...
+
+IupSetCallback(table, "K_ANY", Icallback("key_cb")) -- (optional)
+--IupSetCallback(table, "ENTERITEM_CB", Icallback("enteritem_cb")) -- (optional)
+IupSetAttribute(dlg, "TITLE", "IupTable demo")
+IupCloseOnEscape(dlg)
+--tables = {table}  -- (needed for resize_cb)
+--IupSetCallback(dlg, "RESIZE_CB", Icallback("resize_cb")) -- (optional)
+IupSetCallback(table, "CLICK_CB", Icallback("click_cb")) --(optional)
+IupSetAttributeHandle(NULL,"PARENTDIALOG",dlg)
+IupShow(dlg)
+if platform()!=WEB then
+    IupMainLoop()
+    IupClose()
+end if
+

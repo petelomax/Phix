@@ -8,14 +8,14 @@
 -- T_xxx := T_integer|T_atom|T_string|T_sequence|T_object. // (nb no udt here)
 
 --DEV I think we need special toktypes here...
-enum INCLUDE, VARIABLE, STRICT, OPERATOR, /*QU,*/ IF, FOR,
+enum /*INCLUDE,*/ VARIABLE, STRICT, /*OPERATOR,*/ /*QU,*/ /*IF,*/ /*FOR,*/
 -- SPACE, ELLIPSE, /*BRACES,*/ HEXDEC, SYMBOL, 
-     STMAX = $
+--   STMAX = 
+$
 
 constant vartypes = {T_integer,T_atom,T_string,T_sequence,T_object,
-                     T_bool,T_int,T_Ihandle,T_Ihandln,T_nullable_string,
---                   T_const,T_let,
-                     T_constant,T_static},
+                     T_bool,T_int,T_Ihandle,T_Ihandln,T_atom_string,
+                     T_nullable_string,T_timedate,T_constant,T_static},
          jstypes = {T_const,T_let}
 sequence udts = {}
 
@@ -301,8 +301,21 @@ string tt = tok_name(toktype),
         case '+':
                     tok = {'+',expr(PUNY)}
 --                  break
+        case '*':
+                    tok = {'*',expr(PUNY)}
+--                  break
         case SPREAD:
+                    if is_phix() then
+                        return parse_error(tokens[tdx],"factor expected")
+                    end if
                     tok = {SPREAD,expr(PUNY)}
+--                  break
+        case '~':
+                    if not is_phix() then
+                        return parse_error(tokens[tdx],"factor expected")
+                    end if
+--                  tok = {TWIDDLE,factor()}
+                    tok = {TWIDDLE,expr(PUNY)}
 --                  break
         case '{':
                     tok = {'{'}
@@ -572,9 +585,13 @@ function vardef(integer this, skip=0, iForPar=0)
                     tdx = last_comma
                     exit
                 end if
+                if find(ttidx,tt_reserved) then
+                    return parse_error(tok,"illegal use of reserved word")
+                end if
             end if
             name = text[start..finish]
             tdx += 1
+            if tdx>length(tokens) then exit end if
             tok = tokens[tdx]
             {toktype,start,finish} = tok
 --          if toktype=SYMBOL and text[start]='=' then
@@ -603,6 +620,14 @@ function vardef(integer this, skip=0, iForPar=0)
         end if
         last_comma = tdx
         tdx += 1
+        while find(tokens[tdx][TOKTYPE],{COMMENT,BLK_CMT}) do
+            res = append(res,tokens[tdx])
+            tdx += 1
+        end while
+        if tokens[tdx][TOKTYPE]='$' then
+            tdx += 1
+            exit
+        end if
     end while
 --  return {VARIABLE,res}
     return {VARIABLE,this,res}  -- nb covers constants!
@@ -641,6 +666,10 @@ string name = text[start..finish]   --DEV/debug
             args &= vardef(tdx,is_phix(),2)
             if tokens[tdx][TOKTYPE]!=',' then exit end if
             tdx += 1
+            while find(tokens[tdx][TOKTYPE],{COMMENT,BLK_CMT}) do
+                args = append(args,tokens[tdx])
+                tdx += 1
+            end while
         end while
     end if
 --trace(1)
@@ -713,6 +742,7 @@ function statement()
                             filename &= text[start..finish]
                             tdx += 1
                         end while
+--?{toktype,filename}
                         ast = append(ast,{toktype,filename})
 
                     case T_forward:
@@ -1035,7 +1065,7 @@ function statement()
 --tok = tokens[tdx]
                             toktype = tokens[tdx][TOKTYPE]
 --                          if not find(toktype,"=+-&:") then
-                            if not find(toktype,{'=',MNUSEQ,AMPSEQ,BEQ}) then
+                            if not find(toktype,{'=',PLUSEQ,MNUSEQ,MULTEQ,DIVDEQ,AMPSEQ,BEQ}) then
                                 return parse_error(tok,"assignment operator expected")
                             end if
                             ast &= {toktype,expr(0,1)}
@@ -1090,7 +1120,8 @@ function statement()
                 end while
 --              expectt('}')
                 expectt(et)
-                if not find(tokens[tdx][TOKTYPE],"=+-") then
+                if not find(tokens[tdx][TOKTYPE],{'=','+','-',BEQ}) then
+--sequence tokt = tokens[tdx]
                     return parse_error(tok,"assignment operator expected")
                 end if
                 ast = {toktype,ast,expr(0,1)}

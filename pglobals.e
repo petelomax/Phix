@@ -29,8 +29,9 @@ global constant newEBP = 04 -- 4=on, 0=off(ie old style/working)
 --global constant pxversion = {0,7,8},  -- 0.7.8    -- 13/03/18
 --global constant pxversion = {0,7,9},  -- 0.7.9    -- 13/04/18
 --global constant pxversion = {0,8,0},  -- 0.8.0    -- 05/04/19 (uploaded 21/04/19)
---global constant pxversion = {0,8,1},  -- 0.8.1    -- 23/03/20 (uploaded 23/03/20)
-global constant phixversion = {0,8,2},  -- 0.8.2    -- 24/11/20 (uploaded 24/11/20)
+--global constant pxversion = {0,8,1},  -- 0.8.1    -- 23/03/20
+--global constant pxversion = {0,8,2},  -- 0.8.2    -- 24/11/20
+global constant phixversion = {0,8,3},  -- 0.8.3    -- ??/11/20
                 phixverstr = sprintf("%d.%d.%d",phixversion)
 sequence phixver = phixversion  -- (debug aid, otherwise unused)
 if sequence(phixver) then end if
@@ -77,7 +78,7 @@ global constant reusetmps = 01  -- (0 causes 12.5-25% performance loss as things
 --  must be found at the "global" rather than the "micro" level.
 --  
 
-global constant sched = 0           -- schedule/peephole optimisations (see psched.e)
+--global constant sched = 0         -- schedule/peephole optimisations (see psched.e)
                                     -- Overall this makes the compiler about 6.5% slower,
                                     -- though it was never properly measured on other pgms.
                                     -- WARNING: this (=1) is very badly broken. However,

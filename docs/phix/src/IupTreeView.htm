@@ -1,0 +1,507 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">IupTreeView</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td>
+          <b>Definition:</b>
+         </td>
+         <td>
+            include pGUI.e
+           <br>
+           <br>
+            <a href="Ihandle.htm">Ihandle</a> ih = IupTreeView(<a href="sequence.htm">sequence</a> data,
+                                                               <a href="string.htm">string</a> attributes="", 
+                                                               <a href="html/glossary.htm#dwordseq">dword_seq</a> args={})
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Description:</b>
+         </td>
+         <td>
+            <b>[INCOMPLETE/IN PROGRESS]</b><br>
+            Creates a nested tree control with expandable/collapsable nodes from a recursive [callback] data structure.
+            <br>
+            <br>
+            An IupTreeView is a Phix/pGUI invention, expressly written for pwa/p2js,<br>
+            but of course it can be freely used for strictly desktop-only purposes.<br>
+            The desktop version wraps IupTree(), including IupTreeSet/Get[User]Id(), and is liable to
+            break if any [features of] of those are used directly.<br>
+            In the browser the equivalent functionality is instead implemented directly.
+            <br>
+            <br>
+            data is a recursive construct of the form
+            <br>
+            <br>
+            {{{title,data[,image,id]}}[,pop_rid[,userdata]]}
+            <br>
+            <br>
+            Each data[1][i] represents a node in the tree, and each element of data[1][i][2] holds a sequence of equivalent 
+            structures, with pop_rid (if present) being invoked with the (outer) data structure, which should modify and 
+            return an updated data structure.<br>
+            Note that pop_rid is a routine_id() rather than an Icallback(), and can be specified as a bare name, without a
+            routine_id("") wrapper. You can supply an image in "string" or {handle} form, whereas an integer id is added by 
+            IupTreeView when it gets displayed.
+            <br>
+            <br>
+            For example, you might display your C: drive contents using a data of {{"C:",{}},populate,"C:\\"}, with populate() 
+            replacing that first {} by details obtained from dir("C:\\").
+            <br>
+            <br>
+            If you have a completed data structure, simply omit pop_rid.<br>
+            If the pop_rid() leaves the top-level copy of itself in place, it is (re-)invoked every time that node is displayed, 
+            with perhaps a flag it has set in userdata to indicate that, else it can be removed, along with userdata, or maybe 
+            replaced with a lessor refresh(). It should also plant a copy of itself on each of the data[1][i][2] it populates, 
+            unless perhaps that is a finished leaf node construct, along with whataver updated userdata any subsequent call 
+            might need (eg the subdir path).
+            <br>
+            <br>
+            The contents of userdata are not referenced in any way by this routine, merely forwarded to the pop_rid(), and can 
+            even be completely omitted. Typically, as hinted above, I might expect the userdata to hold a full path, and 
+            data[1][i][1] just the trailing file or directory name. Obviously you can also use a treeview for other 
+            non-file-and-directory-related things.
+            <br>
+            <br>
+            A suitable pop_rid might look something like this:
+<!--eucode>
+        function populate(sequence data)
+            string path = data[3]
+            sequence d = dir(data[3])
+            for i=3 to length(d) do -- (skip . & ..)
+                string name = d[i][1]
+                sequence di = {name,{},populate,path&name}
+                data[1][2] = append(data[1][2],di)
+            end for
+            data = data[1..1] -- (prevent re-invocation)
+            return data
+        end function
+</eucode-->
+<pre>
+<font color="#008080">        function</font><font color="#000000"> populate</font><font color="#0000FF">(</font><font color="#004080">sequence</font><font color="#000000"> data</font><font color="#0000FF">)</font>
+<font color="#004080">            string</font><font color="#000000"> path</font><font color="#0000FF"> =</font><font color="#000000"> data</font><font color="#0000FF">[</font><font color="#000000">3</font><font color="#0000FF">]</font>
+<font color="#004080">            sequence</font><font color="#000000"> d</font><font color="#0000FF"> =</font><font color="#5E005E"> dir</font><font color="#0000FF">(</font><font color="#000000">data</font><font color="#800000">[</font><font color="#000000">3</font><font color="#800000">]</font><font color="#0000FF">)</font>
+<font color="#008080">            for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">3</font><font color="#008080"> to</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">d</font><font color="#0000FF">)</font><font color="#008080"> do</font><font color="#000080"><i> -- (skip . &amp; ..)</i></font>
+<font color="#004080">                string</font><font color="#000000"> name</font><font color="#0000FF"> =</font><font color="#000000"> d</font><font color="#0000FF">[</font><font color="#000000">i</font><font color="#0000FF">][</font><font color="#000000">1</font><font color="#0000FF">]</font>
+<font color="#004080">                sequence</font><font color="#000000"> di</font><font color="#0000FF"> = {</font><font color="#000000">name</font><font color="#0000FF">,</font><font color="#800000">{}</font><font color="#0000FF">,</font><font color="#000000">populate</font><font color="#0000FF">,</font><font color="#000000">path</font><font color="#0000FF">&amp;</font><font color="#000000">name</font><font color="#0000FF">}</font>
+<font color="#000000">                data</font><font color="#0000FF">[</font><font color="#000000">1</font><font color="#0000FF">][</font><font color="#000000">2</font><font color="#0000FF">] =</font><font color="#7060A8"> append</font><font color="#0000FF">(</font><font color="#000000">data</font><font color="#800000">[</font><font color="#000000">1</font><font color="#800000">][</font><font color="#000000">2</font><font color="#800000">]</font><font color="#0000FF">,</font><font color="#000000">di</font><font color="#0000FF">)</font>
+<font color="#008080">            end for</font>
+<font color="#000000">            data</font><font color="#0000FF"> =</font><font color="#000000"> data</font><font color="#0000FF">[</font><font color="#000000">1</font><font color="#0000FF">..</font><font color="#000000">1</font><font color="#0000FF">]</font><font color="#000080"><i> -- (prevent re-invocation)</i></font>
+<font color="#008080">            return</font><font color="#000000"> data</font>
+<font color="#008080">        end function</font>
+</pre>
+
+            Blah...
+            <br>
+            <br>
+            Internally, pGUI.e implements an IupTable via an IupMatrix, whereas<br>
+            (obviously) pGUI.js implements an IupTable via &lt;table&gt;.
+            <br>
+            <br>
+            The internals of IupTable are really quite straightforward: they just adopt a very narrow view of what we 
+            need to achieve from an IupMatrix, and/or the html, css, and JavaScript we need to use in a browser.<br>
+            Obviously, should IupTable not quite meet your needs, you are free to take a copy of it and tweak it, 
+            the only real question being whether you or I can make such changes work on both the desktop and browser.
+            <br>
+            <br>
+            columns: each title can be a string or a {title,width,align} triplet.<br>
+            data: should be length 2 with length(data[1][row])=length(columns) and length(data[2])&lt;=length(columns).<br>
+            visible: the number of lines to show.<br>
+            For more information on the attributes and args<small>[nee data]</small> parameters see 
+            <a href="IupSetAttributes.htm">IupSetAttributes</a>.
+            <br>
+            <br>
+            data[1] contains the master/sortable values.<br>
+            data[2] is reserved for (string) display versions of data[1] or format callbacks:<br>
+            if data[2] is too short or data[2][col] is 0, then data[1][row][col] is displayed as-is<br>
+            if data[2][col] is a non-zero integer it is assumed to be the routine_id of a function
+            that will format data[1][row][col] properly for display (see demo/pGUI/IupTable.exw for examples),
+            or data[2][col] can be a sequence of pre-formatted strings, as in the example below.<br>
+            for dates, data[1][row][col] should be eg 20201122 or timedate-format, and data[2][col] a format routine or data[2][col][row] a string.<br>
+            for case-insensitive sorting, data[1][row][col] should be lower/upper(data[2][col][row]).<br>
+            Note that data[1] is one-per-line whereas data[2] is one-per-column (see example below).<br>
+            <br>
+            <br>
+            If column titles are specified as strings (as per the example below), the width defaults to 80, corresponding
+            to 20 characters, and the alignment to "ALEFT" (legal values are that, "ARIGHT", and "ACENTER").<br>
+            Note that IupMatrix() and hence IupTable() does not support individual column heading alignment, afaik,
+            whereas under p2js column headings are aligned the same as the column data.
+            <br>
+            <br>
+            Returns: the identifier of the created element.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="IupMatrix.htm">IupMatrix</a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Example:</b>
+         </td>
+         <td>
+            Initial and sorted appearance:<br>
+            <div class="parent">
+              <div class="child">
+                <img width="266" height="127" src="images/IupTable.png">
+              </div>
+              <div class="child">
+                <img width="266" height="127" src="images/IupTable2.png">
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
+          <br>
+        <small>
+<!--eucode>
+include pGUI.e
+constant columns = {"Chq","Date","Amount"},
+                   -- or eg {..,{"Amount",100,"ARIGHT"}}
+         data = {{{1,{2020,1,13},1500.89},
+                  {2,{2020,7,10},3646.86},
+                  {3,{2019,3,20},3807.94}},
+                 {0,
+                  {`13/01/2020`,`10/07/2020`,`20/03/2019`},
+                  {`1500.89`,`3646.86`,`3807.94`}}}
+IupOpen()
+Ihandle table = IupTable(columns,data,3),
+        dlg = IupDialog(table) 
+IupSetAttribute(dlg,"RASTERSIZE","280x134") -- (see note)
+IupSetAttribute(dlg,"TITLE","IupTable demo")
+IupCloseOnEscape(dlg)
+IupSetAttributeHandle(NULL,"PARENTDIALOG",dlg)
+IupShow(dlg)
+if platform()!=WEB then
+    IupMainLoop()
+    IupClose()
+end if
+</eucode-->
+<pre>
+<font color="#008080">include</font><font color="#000000"> pGUI.e</font>
+<font color="#008080">constant</font><font color="#000000"> columns</font><font color="#0000FF"> = {</font><font color="#008000">"Chq"</font><font color="#0000FF">,</font><font color="#008000">"Date"</font><font color="#0000FF">,</font><font color="#008000">"Amount"</font><font color="#0000FF">},</font>
+<font color="#000080"><i>                   -- or eg {..,{"Amount",100,"ARIGHT"}}</i></font>
+<font color="#000000">         data</font><font color="#0000FF"> = {</font><font color="#800000">{</font><font color="#800080">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#00FF00">{</font><font color="#000000">2020</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">13</font><font color="#00FF00">}</font><font color="#0000FF">,</font><font color="#000000">1500.89</font><font color="#800080">}</font><font color="#0000FF">,</font>
+<font color="#800080">                  {</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#00FF00">{</font><font color="#000000">2020</font><font color="#0000FF">,</font><font color="#000000">7</font><font color="#0000FF">,</font><font color="#000000">10</font><font color="#00FF00">}</font><font color="#0000FF">,</font><font color="#000000">3646.86</font><font color="#800080">}</font><font color="#0000FF">,</font>
+<font color="#800080">                  {</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#00FF00">{</font><font color="#000000">2019</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">20</font><font color="#00FF00">}</font><font color="#0000FF">,</font><font color="#000000">3807.94</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">,</font>
+<font color="#800000">                 {</font><font color="#000000">0</font><font color="#0000FF">,</font>
+<font color="#800080">                  {</font><font color="#008000">`13/01/2020`</font><font color="#0000FF">,</font><font color="#008000">`10/07/2020`</font><font color="#0000FF">,</font><font color="#008000">`20/03/2019`</font><font color="#800080">}</font><font color="#0000FF">,</font>
+<font color="#800080">                  {</font><font color="#008000">`1500.89`</font><font color="#0000FF">,</font><font color="#008000">`3646.86`</font><font color="#0000FF">,</font><font color="#008000">`3807.94`</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">}</font>
+<font color="#5E005E">IupOpen</font><font color="#0000FF">()</font>
+<font color="#5E005E">Ihandle</font><font color="#000000"> table</font><font color="#0000FF"> =</font><font color="#5E005E"> IupTable</font><font color="#0000FF">(</font><font color="#000000">columns</font><font color="#0000FF">,</font><font color="#000000">data</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">),</font>
+<font color="#000000">        dlg</font><font color="#0000FF"> =</font><font color="#5E005E"> IupDialog</font><font color="#0000FF">(</font><font color="#000000">table</font><font color="#0000FF">) </font>
+<font color="#5E005E">IupSetAttribute</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">,</font><font color="#008000">"RASTERSIZE"</font><font color="#0000FF">,</font><font color="#008000">"280x134"</font><font color="#0000FF">)</font><font color="#000080"><i> -- (see note)</i></font>
+<font color="#5E005E">IupSetAttribute</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">,</font><font color="#008000">"TITLE"</font><font color="#0000FF">,</font><font color="#008000">"IupTable demo"</font><font color="#0000FF">)</font>
+<font color="#5E005E">IupCloseOnEscape</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">)</font>
+<font color="#5E005E">IupSetAttributeHandle</font><font color="#0000FF">(</font><font color="#004600">NULL</font><font color="#0000FF">,</font><font color="#008000">"PARENTDIALOG"</font><font color="#0000FF">,</font><font color="#000000">dlg</font><font color="#0000FF">)</font>
+<font color="#5E005E">IupShow</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">)</font>
+<font color="#008080">if</font><font color="#7060A8"> platform</font><font color="#0000FF">()!=</font><font color="#000000">WEB</font><font color="#008080"> then</font>
+<font color="#5E005E">    IupMainLoop</font><font color="#0000FF">()</font>
+<font color="#5E005E">    IupClose</font><font color="#0000FF">()</font>
+<font color="#008080">end if</font>
+</pre>
+          </small>
+          <br>
+          In the above, data[2][1] is 0, meaning that values from data[1][1][i] should be displayed for column 1. <br>
+          The dates and amounts all have pre-formatted copies, since strings in data[1] would not not sort correctly.<br>
+          Note that while data[2] could contain formatting routines for each column (see demo/pGUI/IupTable.exw for examples), 
+          it simply <i>cannot</i>, for instance, "undo" case-insensitive values stored in data[1]. The "double storage" cost
+          of case-insensitive columns is deemed a small and rare edge case price to pay for keeping the interface simple.
+          <br>
+          <br>
+          Note my efforts have focused on getting width-wise fitting. The table is rarely as neatly fitting vertically as
+          the above images imply, not that it really matters when the table is longer than the viewport, which many are.
+          With the latter in mind, I have deliberately shown a vertical scrollbar (via explicitly setting RASTERSIZE), 
+          although it isn&rsquo;t really needed. I have also lost several handfuls of hair over trying to force when the
+          scrollbars should and should not appear: there are still a few minor hiccups which are beyond my ability to fix,
+          see demo/pGUI/pGUI.e routine IupTableResize_cb() for more details.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Extra Functions
+         </td>
+         <td>
+            IupTableClick_cb(): see <a href="#CLICK_CB">CLICK_CB</a><br>
+            IupTableEnterItem_cb(): see <a href="#ENTERITEM_CB">ENTERITEM_CB</a><br>
+            IupTableResize_cb(): see <a href="#RESIZE_CB">RESIZE_CB</a><br>
+            <a name="IupTableGetSelected"></a>
+          <br>
+          <br>
+            <a href="integer.htm">integer</a> idx = <b>IupTableGetSelected</b>(<a href="Ihandle.htm">Ihandle</a> table)<br>
+            table: Identifier of the interface element.
+          <br>
+          <br>
+            Returns the index of the currently selected line, or 0 if none.<br>
+            Note this can subscript the data, whereas the line numbers passed to click_cb and enteritem_cb cannot, at least
+            certainly not with column sorting in effect (if needed an IupTableMapLine() function could easily be added).
+            <a name="IupTableGetData"></a>
+          <br>
+          <br>
+            <a href="sequence.htm">sequence</a> data = <b>IupTableGetData</b>(<a href="Ihandle.htm">Ihandle</a> table)<br>
+            ih: Identifier of the interface element.
+          <br>
+          <br>
+            Returns a copy of the data stored for display in the table - probably not needed in most cases, since the
+            application is probably perfectly aware what data it previously associated with which table, and still has
+            a copy of that.
+            <a name="IupTableSetData"></a>
+          <br>
+          <br>
+            <b>IupTableSetData</b>(<a href="Ihandle.htm">Ihandle</a> table, <a href="sequence.htm">sequence</a> data,
+                                   <a href="integer.htm#bool">bool</a> bReset=true)<br>
+            ih: Identifier of the interface element.<br>
+            data: an updated copy of the data to be stored for display in the table.<br>
+            data must be a sequence of length 2, as per the parameter in the initial IupTable() call.<br>
+            bReset: removes any column-sorting and selection if either bReset is true or the length of data[1] is changed.<br>
+            The display is automatically refreshed.
+          <br>
+          <br>
+            It may or may not prove helpful to add an idx=0 parameter to both the above routines, such that if zero then
+            data is the whole shebang, otherwise it is a single element.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Attributes:</b>
+         </td>
+         <td>
+            General
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="common.htm#RASTERSIZE">RASTERSIZE</a>
+         </td>
+         <td>
+            (non inheritable) the initial size is determined from the sum of the column widths and the number of visible lines.<br>
+            Unlike some other controls it should <i>not</i> be necessary to set this to null to allow the automatic layout to use smaller values.
+         </td>
+        </tr>
+<!--
+        <tr>
+         <td>
+          <a href="common.htm#EXPAND">EXPAND</a>
+         </td>
+         <td>
+            (non inheritable) The default value is "YES".
+         </td>
+        </tr>
+        <tr>
+         <td>
+          SPACING
+         </td>
+         <td>
+            vertical internal padding for each node. Notice that the distance between each node will actually be 2x the spacing. (since 3.0)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          CSPACING
+         </td>
+         <td>
+            same as SPACING but using the units of the vertical part of the SIZE attribute. It will actually set the SPACING attribute. (since 3.29)
+         </td>
+        </tr>
+-->
+<!-- DEV/untested:
+        <tr>
+         <td>
+          Also:
+         </td>
+         <td>
+            <a href="common.htm#ACTIVE">ACTIVE</a>,
+            <a href="common.htm#EXPAND">EXPAND</a>, 
+            <a href="common.htm#FONT">FONT</a>,
+            <a href="common.htm#NAME">NAME</a>, 
+            <a href="common.htm#SCREENPOSITION">SCREENPOSITION</a>, 
+            <a href="common.htm#POSITION">POSITION</a>, 
+            <a href="common.htm#MINSIZE">MINSIZE</a>, 
+            <a href="common.htm#MAXSIZE">MAXSIZE</a>,
+            <a href="common.htm#WID">WID</a>,
+            <a href="common.htm#TIP">TIP</a>, 
+            <a href="common.htm#SIZE">SIZE</a>,
+            <a href="common.htm#ZORDER">ZORDER</a>,
+            <a href="common.htm#VISIBLE">VISIBLE</a>
+         </td>
+        </tr>
+-->
+
+        <tr>
+         <td>
+          <b>Callbacks:</b>
+         </td>
+         <td>
+            You may <i>not</i> use or override VALUE_CB or COLRESIZE_CB or MAP_CB.<br>
+            (You <i>can</i> use MAP_CB on the dialog, just not on the table itself.)
+            <br>
+            <br>
+            Internally it uses <a href="#CLICK_CB">CLICK_CB</a>, <a href="#ENTERITEM_CB">ENTERITEM_CB</a>, 
+            and the containing dialog&rsquo;s <a href="#RESIZE_CB">RESIZE_CB</a>,
+            however they can be overidden/extended as below.
+            <br>
+            <br>
+            It also uses MOUSEMOVE_CB and LEAVEWINDOW_CB, if ever needed the internal routines could easily 
+            be made global as per CLICK_CB etc, but any override implies the default hover effects are not wanted, 
+            and everything (bar said) will work just fine without them.
+            <br>
+            <br>
+            Other callbacks and attributes of IupMatrix may function in a desktop-only
+            scenario, but nothing else is yet tested or supported under pwa/p2js.
+          <a name=CLICK_CB></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          CLICK_CB
+         </td>
+         <td>
+            Action generated when any mouse button is pressed over a cell.
+            <br>
+            <br>
+            function click_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> lin, col, <a href="atom.htm">atom</a> pStatus)
+            <br>
+            <br>
+            ih: identifier of the element that activated the event.<br>
+            lin, col: Coordinates of the cell where the mouse button was pressed.<br>
+            pStatus: (a char*) Status of the mouse buttons and some keyboard keys at the moment the event is generated. <br>
+            The same macros used for <a href="callbacks.htm#BUTTON_CB">BUTTON_CB</a> can be used for this status.
+            <br>
+            <br>
+            If overidden, it should invoke the internal default, which implements column sorting, as follows:
+            <br>
+            <br>
+            <small>
+<!--eucode>
+function click_cb(Ihandle ih, integer l, c, atom pStatus)
+    if l=0 then return IupTableClick_cb(ih, l, c, pStatus) end if
+    ...
+    return IUP_DEFAULT
+end function
+</eucode-->
+<pre>
+<font color="#008080">function</font><font color="#000000"> click_cb</font><font color="#0000FF">(</font><font color="#5E005E">Ihandle</font><font color="#000000"> ih</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> l</font><font color="#0000FF">,</font><font color="#000000"> c</font><font color="#0000FF">,</font><font color="#004080"> atom</font><font color="#000000"> pStatus</font><font color="#0000FF">)</font>
+<font color="#008080">    if</font><font color="#000000"> l</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#008080"> then return</font><font color="#5E005E"> IupTableClick_cb</font><font color="#0000FF">(</font><font color="#000000">ih</font><font color="#0000FF">,</font><font color="#000000"> l</font><font color="#0000FF">,</font><font color="#000000"> c</font><font color="#0000FF">,</font><font color="#000000"> pStatus</font><font color="#0000FF">)</font><font color="#008080"> end if</font>
+<font color="#0000FF">    ...</font>
+<font color="#008080">    return</font><font color="#004600"> IUP_DEFAULT</font>
+<font color="#008080">end function</font>
+</pre>
+            </small>
+          <a name=ENTERITEM_CB></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          ENTERITEM_CB
+         </td>
+         <td>
+            Action generated when a matrix cell is selected, becoming the current cell.<br>
+            Also called when matrix is getting focus. Also called when focus is changed because lines or columns were added or removed (since 3.9).
+            <br>
+            <br>
+            function enteritem_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> lin, col)
+            <br>
+            <br>
+            ih: identifier of the element that activated the event.<br>
+            lin, col: Coordinates of the selected cell.
+            <br>
+            <br>
+            If overidden, it should invoke the internal default, which implements proper line selection/marking/focus settings, as follows:
+            <br>
+            <br>
+            <small>
+<!--eucode>
+function enteritem_cb(Ihandle table, integer lin, col)
+    {} = IupTableEnterItem_cb(table,lin,col)
+    integer idx = IupTableGetSelected(table) -- (usually rqd)
+    ...
+    return IUP_DEFAULT
+end function
+</eucode-->
+<pre>
+<font color="#008080">function</font><font color="#000000"> enteritem_cb</font><font color="#0000FF">(</font><font color="#5E005E">Ihandle</font><font color="#000000"> table</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> lin</font><font color="#0000FF">,</font><font color="#000000"> col</font><font color="#0000FF">)
+    {} =</font><font color="#5E005E"> IupTableEnterItem_cb</font><font color="#0000FF">(</font><font color="#000000">table</font><font color="#0000FF">,</font><font color="#000000">lin</font><font color="#0000FF">,</font><font color="#000000">col</font><font color="#0000FF">)</font>
+<font color="#004080">    integer</font><font color="#000000"> idx</font><font color="#0000FF"> =</font><font color="#5E005E"> IupTableGetSelected</font><font color="#0000FF">(</font><font color="#000000">table</font><font color="#0000FF">)</font><font color="#000080"><i> -- (usually rqd)</i></font>
+<font color="#0000FF">    ...</font>
+<font color="#008080">    return</font><font color="#004600"> IUP_DEFAULT</font>
+<font color="#008080">end function</font>
+</pre>
+            </small>
+          <a name=RESIZE_CB></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="callbacks.htm#RESIZE_CB">RESIZE_CB</a>
+         </td>
+         <td>
+            If overidden, or a dialog contains more than one IupTable, it should replicate/replace the internal workings as follows:
+            <br>
+            <br>
+            <small>
+<!--eucode>
+function resize_cb(Ihandle dlg, integer width, height)
+    for t=1 to length(tables) do -- (declared/set manually)
+        IupSetAttributePtr(dlg,"TABLE",tables[i])
+        {} = IupTableResize_cb(dlg, width, height)
+    end for
+    ...
+    return IUP_DEFAULT
+end function
+</eucode-->
+<pre>
+<font color="#008080">function</font><font color="#000000"> resize_cb</font><font color="#0000FF">(</font><font color="#5E005E">Ihandle</font><font color="#000000"> dlg</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> width</font><font color="#0000FF">,</font><font color="#000000"> height</font><font color="#0000FF">)</font>
+<font color="#008080">    for</font><font color="#000000"> t</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">tables</font><font color="#0000FF">)</font><font color="#008080"> do</font><font color="#000080"><i> -- (declared/set manually)</i></font>
+<font color="#5E005E">        IupSetAttributePtr</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">,</font><font color="#008000">"TABLE"</font><font color="#0000FF">,</font><font color="#000000">tables</font><font color="#800000">[</font><font color="#000000">i</font><font color="#800000">]</font><font color="#0000FF">)
+        {} =</font><font color="#5E005E"> IupTableResize_cb</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">,</font><font color="#000000"> width</font><font color="#0000FF">,</font><font color="#000000"> height</font><font color="#0000FF">)</font>
+<font color="#008080">    end for</font>
+<font color="#0000FF">    ...</font>
+<font color="#008080">    return</font><font color="#004600"> IUP_DEFAULT</font>
+<font color="#008080">end function</font>
+</pre>
+            </small>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          also
+         </td>
+         <td>
+<!--
+            <a href="callbacks.htm#UNMAP_CB">UNMAP_CB</a>,
+            <a href="callbacks.htm#DESTROY_CB">DESTROY_CB</a>,
+            <a href="callbacks.htm#GETFOCUS_CB">GETFOCUS_CB</a>,
+            <a href="callbacks.htm#KILLFOCUS_CB">KILLFOCUS_CB</a>, 
+            <a href="callbacks.htm#ENTERWINDOW_CB">ENTERWINDOW_CB</a>,
+            <a href="callbacks.htm#LEAVEWINDOW_CB">LEAVEWINDOW_CB</a>, 
+            <a href="callbacks.htm#HELP_CB">HELP_CB</a>: All common callbacks are supported.
+-->
+            <a href="callbacks.htm#K_ANY">K_ANY</a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Example:</b>
+         </td>
+         <td>
+            See demo/pGUI/IupTable.exw
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

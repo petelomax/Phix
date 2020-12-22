@@ -79,7 +79,10 @@ integer pos
     return ret
 end function
 
-global function split_any(sequence source, object delimiters=", \t|", bool no_empty=false, integer limit=0)
+--changed 5/12/2020:
+--global function split_any(sequence source, object delimiters=", \t|", bool no_empty=false, integer limit=0)
+--global function split_any(sequence source, object delimiters=", \t|", bool no_empty=true, integer limit=0)
+global function split_any(sequence source, object delimiters=", \t|")
 sequence ret = {}
 integer start = 1, pos
 --, k
@@ -94,15 +97,17 @@ integer start = 1, pos
     while 1 do
         pos = find_any(delimiters, source, start)
         if pos=0 then exit end if
-        if no_empty=0 or pos-1>=start then
+--      if no_empty=false or pos-1>=start then
+        if pos-1>=start then
             ret = append(ret, source[start..pos-1])
         end if
         start = pos+1
-        limit -= 1
-        if limit=0 then exit end if
+--      limit -= 1
+--      if limit=0 then exit end if
     end while
 
-    if no_empty=0 or start<=length(source) then
+--  if no_empty=false or start<=length(source) then
+    if start<=length(source) then
         ret = append(ret, source[start..$])
     end if
 

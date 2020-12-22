@@ -215,7 +215,16 @@ atom res
             fild qword[esp]
             add esp,8
             call :%pStoreFlt                    -- ([edi]:=ST0)
-        [PE64]
+        [ELF32]
+            mov eax,[filename]
+            push 0x00101        -- flags (RTLD_GLOBAL|RTLD_LAZY)
+            shl eax,2           -- ref->raw
+            push eax            -- library name
+            call "libdl.so.2", "dlopen"
+            add esp,8
+            lea edi,[res]
+            call :%pStoreMint   -- [e/rdi]:=e/rax, as float if rqd
+        [64]
             mov rcx,rsp -- put 2 copies of rsp onto the stack...
             push rsp
             push rcx
@@ -223,34 +232,23 @@ atom res
                         -- if on entry rsp was xxx8: both copies remain on the stack
                         -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
                         -- obviously rsp is now xxx8, whatever alignment we started with
+        [PE64]
             mov rcx,[filename]
             sub rsp,8*5         -- minimum 4 param shadow space, and align
             shl rcx,2                           -- lpLibFileName
             call "kernel32.dll","LoadLibraryA"
-            mov [rsp],rax
-            lea rdi,[res]
-            fild qword[rsp]
---          add rsp,8*5
---          pop rsp
-            mov rsp,[rsp+8*5]   -- equivalent to the add/pop
-            call :%pStoreFlt    -- ([rdi]:=ST0)
-        [ELF32]
-            mov eax,[filename]
---          push 1              -- flags (RTLD_LAZY)
-            push 0x00101        -- flags (RTLD_GLOBAL|RTLD_LAZY)
-            shl eax,2           -- ref->raw
-            push eax            -- library name
-            call "libdl.so.2", "dlopen"
-            add esp,8
-            lea edi,[res]
-            call :%pStoreMint   -- [edi]:=eax, as float if rqd
         [ELF64]
             mov rdi,[filename]
+            sub rsp,8*5         -- minimum 4 param shadow space, and align
             mov rsi,0x00101     -- flags (RTLD_GLOBAL|RTLD_LAZY)
             shl rdi,2           -- ref->raw (library name)
             call "libdl.so.2", "dlopen"
+        [64]
             lea rdi,[res]
-            call :%pStoreMint   -- [rdi]:=rax, as float if rqd
+--          add rsp,8*5
+--          pop rsp
+            mov rsp,[rsp+8*5]   -- equivalent to the add/pop
+            call :%pStoreMint   -- [e/rdi]:=e/rax, as float if rqd
         []
           }
     return res
@@ -305,6 +303,8 @@ atom addr
 --DEV tryme:
             lea edi,[addr]
             call :%pStoreMint
+--14/12/20:
+--/*
         [PE64]
             mov rcx,rsp -- put 2 copies of rsp onto the stack...
             push rsp
@@ -335,6 +335,37 @@ atom addr
             mov rdi,rax                         -- handle
             call "libdl.so.2", "dlsym"
             lea rdi,[addr]
+            call :%pStoreMint
+--*/
+        [64]
+            mov rcx,rsp -- put 2 copies of rsp onto the stack...
+            push rsp
+            push rcx
+            or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                        -- if on entry rsp was xxx8: both copies remain on the stack
+                        -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                        -- obviously rsp is now xxx8, whatever alignment we started with
+
+            mov rax,[lib]
+--          mov r15,h4
+            sub rsp,8*5                         -- minimum 4 param shadow space, and align
+        [PE64]
+            mov rdx,[name]
+            call :%pLoadMint -- (rax:=(int64)rax; rdx preserved)
+            shl rdx,2                           -- lpProcName
+            mov rcx,rax                         -- hModule
+            call "kernel32.dll","GetProcAddress"
+        [ELF64]
+            mov rsi,[name]
+            call :%pLoadMint -- (rax:=(int64)rax)
+            shl rsi,2                           -- symbol
+            mov rdi,rax                         -- handle
+            call "libdl.so.2", "dlsym"
+        [64]
+            lea rdi,[addr]
+--          add rsp,8*5
+--          pop rsp
+            mov rsp,[rsp+8*5]   -- equivalent to the add/pop
             call :%pStoreMint
         []
           }
@@ -938,7 +969,6 @@ integer prev_ebp4 -- (stored /4)
 --              call :%opClrDbg                             -- clear debug screen if needed
                 mov rax,[addr]
                 call :%pLoadMint
-            [PE64]
                 mov rcx,rsp -- put 2 copies of rsp onto the stack...
                 push rsp
                 push rcx
@@ -947,14 +977,11 @@ integer prev_ebp4 -- (stored /4)
                             -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
                             -- obviously rsp is now xxx8, whatever alignment we started with
                 sub rsp,8*5
-            [64]
                 call rax
                 xor rbx,rbx
-            [PE64]
 --              add rsp,8*5
 --              pop rsp
                 mov rsp,[rsp+8*5]   -- equivalent to the add/pop
-            [64]
                 mov rdx,[prev_ebp4]
                 shl rdx,2
                 call :%pSetSaveEBP          -- (rax<-pTCB.SaveEBP<-rdx, all regs trashed)
@@ -1083,18 +1110,24 @@ integer esp4
             if la<5 then
                 args &= repeat(0,5-la)
                 argdefs &= repeat(#01000004,5-la)
-            elsif remainder(la,2)!=1 then
-                args &= 0
-                argdefs &= #01000004    -- (C_INT)
+                la = 5
             end if
         else -- LINUX
-            if la<6 then
-                args &= repeat(0,6-la)
-                argdefs &= repeat(#01000004,6-la)
+--          if la<6 then
+            if la<7 then
+                args &= repeat(0,7-la)
+                argdefs &= repeat(#01000004,7-la)
+                la = 7
             end if
         end if
+        if remainder(la,2)!=1 then
+            args &= 0
+            argdefs &= #01000004    -- (C_INT)
+        end if
         #ilASM{
-            [PE64]
+--14/12/20
+--          [PE64]
+            [64]
                 mov rcx,rsp -- put 2 copies of rsp onto the stack...
                 push rsp
                 push rcx
@@ -1131,9 +1164,23 @@ integer esp4
         if return_type!=0 then fatalN(3,e118rrav) end if
     end if
 
+--22/12/20:
+    sequence xmmi = tagset(la)
+    if platform()=LINUX and machine_bits()=64 then
+        integer xmmr = 0
+        xmmi = repeat(0,la)
+        for i=1 to la do
+            if find(argdefs[i],{#03000008,#03000004}) then    -- C_DOUBLE,C_FLOAT
+                xmmr += 1
+                xmmi[i] = xmmr
+            end if
+        end for
+    end if
+
     for i=la to 1 by -1 do
         argi = args[i]
         argdefi = argdefs[i]
+        integer xi = xmmi[i]
         if integer(argi) then
 --DEV inline this
 --          if find(argdefi,{
@@ -1183,26 +1230,26 @@ integer esp4
                 -- (technically this should probably be done just before the "call rax" in c_func/proc,
                 --  but as we won't damage them (ie xmm0..xmm3/7) before that, this should be fine.)
                 if machine_bits()=64 then
-                    if i<=4 then
-                        if i=1 then
+                    if xi<=4 then
+                        if xi=1 then
                             #ilASM{
                                     [64]
                                         movsd xmm0,qword[rsp]
                                     []
                                   }
-                        elsif i=2 then
+                        elsif xi=2 then
                             #ilASM{
                                     [64]
                                         movsd xmm1,qword[rsp]
                                     []
                                   }
-                        elsif i=3 then
+                        elsif xi=3 then
                             #ilASM{
                                     [64]
                                         movsd xmm2,qword[rsp]
                                     []
                                   }
-                        elsif i=4 then
+                        elsif xi=4 then
                             #ilASM{
                                     [64]
                                         movsd xmm3,qword[rsp]
@@ -1217,26 +1264,26 @@ integer esp4
 --                                  add rsp,8
 --                              []
 --                            }
-                    elsif platform()=LINUX and i<=8 then
-                        if i=5 then
+                    elsif platform()=LINUX and xi<=8 then
+                        if xi=5 then
                             #ilASM{
                                     [64]
                                         movsd xmm4,qword[rsp]
                                     []
                                 }
-                        elsif i=6 then
+                        elsif xi=6 then
                             #ilASM{
                                     [64]
                                         movsd xmm5,qword[rsp]
                                     []
                                 }
-                        elsif i=7 then
+                        elsif xi=7 then
                             #ilASM{
                                     [64]
                                         movsd xmm6,qword[rsp]
                                     []
                                 }
-                        elsif i=8 then
+                        elsif xi=8 then
                             #ilASM{
                                     [64]
                                         movsd xmm7,qword[rsp]
@@ -1288,26 +1335,26 @@ else
                     }
                 -- (technically this should probably be done just before the "call rax" in c_func/proc,
                 --  but as we won't damage them (ie xmm0..xmm3/7) before that, this should be fine.)
-                if i<=4 then
-                    if i=1 then
+                if xi<=4 then
+                    if xi=1 then
                         #ilASM{
                                 [64]
                                     movd xmm0,dword[rsp]
                                 []
                               }
-                    elsif i=2 then
+                    elsif xi=2 then
                         #ilASM{
                                 [64]
                                     movd xmm1,dword[rsp]
                                 []
                               }
-                    elsif i=3 then
+                    elsif xi=3 then
                         #ilASM{
                                 [64]
                                     movd xmm2,dword[rsp]
                                 []
                               }
-                    elsif i=4 then
+                    elsif xi=4 then
                         #ilASM{
                                 [64]
                                     movd xmm3,dword[rsp]
@@ -1322,26 +1369,26 @@ else
 --                              add rsp,8
 --                          []
 --                        }
-                elsif platform()=LINUX and i<=8 then
-                    if i=5 then
+                elsif platform()=LINUX and xi<=8 then
+                    if xi=5 then
                         #ilASM{
                                 [64]
                                     movd xmm4,dword[rsp]
                                 []
                             }
-                    elsif i=6 then
+                    elsif xi=6 then
                         #ilASM{
                                 [64]
                                     movd xmm5,dword[rsp]
                                 []
                             }
-                    elsif i=7 then
+                    elsif xi=7 then
                         #ilASM{
                                 [64]
                                     movd xmm6,dword[rsp]
                                 []
                             }
-                    elsif i=8 then
+                    elsif xi=8 then
                         #ilASM{
                                 [64]
                                     movd xmm7,dword[rsp]
@@ -1418,26 +1465,26 @@ end if
                         []
                     }
                 if machine_bits()=64 then
-                    if i<=4 then
-                        if i=1 then
+                    if xi<=4 then
+                        if xi=1 then
                             #ilASM{
                                     [64]
                                         movsd xmm0,qword[rsp]
                                     []
                                 }
-                        elsif i=2 then
+                        elsif xi=2 then
                             #ilASM{
                                     [64]
                                         movsd xmm1,qword[rsp]
                                     []
                                 }
-                        elsif i=3 then
+                        elsif xi=3 then
                             #ilASM{
                                     [64]
                                         movsd xmm2,qword[rsp]
                                     []
                                 }
-                        elsif i=4 then
+                        elsif xi=4 then
                             #ilASM{
                                     [64]
                                         movsd xmm3,qword[rsp]
@@ -1452,26 +1499,26 @@ end if
 --                                  add rsp,8
 --                              []
 --                            }
-                    elsif platform()=LINUX and i<=8 then
-                        if i=5 then
+                    elsif platform()=LINUX and xi<=8 then
+                        if xi=5 then
                             #ilASM{
                                     [64]
                                         movsd xmm4,qword[rsp]
                                     []
                                 }
-                        elsif i=6 then
+                        elsif xi=6 then
                             #ilASM{
                                     [64]
                                         movsd xmm5,qword[rsp]
                                     []
                                 }
-                        elsif i=7 then
+                        elsif xi=7 then
                             #ilASM{
                                     [64]
                                         movsd xmm6,qword[rsp]
                                     []
                                 }
-                        elsif i=8 then
+                        elsif xi=8 then
                             #ilASM{
                                     [64]
                                         movsd xmm7,qword[rsp]
@@ -1521,26 +1568,26 @@ else
                             fstp dword[rsp]
                         []
                     }
-                if i<=4 then
-                    if i=1 then
+                if xi<=4 then
+                    if xi=1 then
                         #ilASM{
                                 [64]
                                     movd xmm0,dword[rsp]
                                 []
                             }
-                    elsif i=2 then
+                    elsif xi=2 then
                         #ilASM{
                                 [64]
                                     movd xmm1,dword[rsp]
                                 []
                             }
-                    elsif i=3 then
+                    elsif xi=3 then
                         #ilASM{
                                 [64]
                                     movd xmm2,dword[rsp]
                                 []
                               }
-                    elsif i=4 then
+                    elsif xi=4 then
                         #ilASM{
                                 [64]
                                     movd xmm3,dword[rsp]
@@ -1555,26 +1602,26 @@ else
 --                              add rsp,8
 --                          []
 --                        }
-                elsif platform()=LINUX and i<=8 then
-                    if i=5 then
+                elsif platform()=LINUX and xi<=8 then
+                    if xi=5 then
                         #ilASM{
                                 [64]
                                     movd xmm4,dword[rsp]
                                 []
                               }
-                    elsif i=6 then
+                    elsif xi=6 then
                         #ilASM{
                                 [64]
                                     movd xmm5,dword[rsp]
                                 []
                               }
-                    elsif i=7 then
+                    elsif xi=7 then
                         #ilASM{
                                 [64]
                                     movd xmm6,dword[rsp]
                                 []
                               }
-                    elsif i=8 then
+                    elsif xi=8 then
                         #ilASM{
                                 [64]
                                     movd xmm7,dword[rsp]

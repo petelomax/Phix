@@ -6,7 +6,8 @@
 --  There is an equivalent commented-out backend/asm version in pJcc.e, conversion of which is yet to be completed.
 --
 
-global function match(object needle, sequence haystack, integer start=1, bool case_insensitive=false)
+--global function match(object needle, sequence haystack, integer start=1, bool case_insensitive=false)
+global function match(object needle, sequence haystack, integer start=1, bool case_sensitive=true)
 --
 -- Try to match needle against some slice of haystack.
 -- If successful, return the element number of haystack where the (first) matching slice begins,
@@ -36,7 +37,8 @@ object ni, hi
     if atom(needle) then
         return find(needle,haystack,start)
     end if
-    if case_insensitive then
+--  if case_insensitive then
+    if not case_sensitive then
         needle = lower(needle)
         haystack = lower(haystack)
     end if
@@ -56,7 +58,8 @@ object ni, hi
 --          if hdx>lh then return 0 end if -- see above
             hi = haystack[hdx]
 --          if case_insensitive then ni = lower(ni)
---                                   hi = lower(hi) end if
+--          if not case_sensitive then ni = lower(ni)
+--                                     hi = lower(hi) end if
 --          if not quick_equal(ni,hi) then  -- asm variant
             if not equal(ni,hi) then
 --              if integer(ni) and not integer(hi) then -- maybe?
@@ -77,6 +80,7 @@ object ni, hi
                         if j>lh then return 0 end if
                         hi = haystack[j]
 --                      if case_insensitive then hi = lower(hi) end if
+--                      if not case_sensitive then hi = lower(hi) end if
                         if equal(ni,hi) then exit end if
                     end for
                     exit
@@ -93,6 +97,7 @@ object ni, hi
                         if j=0 then exit end if
                         ni = needle[j]
 --                      if case_insensitive then ni = lower(ni) end if
+--                      if not case_sensitive then ni = lower(ni) end if
                         if equal(hi,ni) then exit end if
                     end for
                     exit
@@ -136,7 +141,8 @@ end function
 -- See Also:
 --     [[:rfind]], [[:match]]
 
-global function rmatch(object needle, sequence haystack, integer start=length(haystack), bool case_insensitive=false)
+--global function rmatch(object needle, sequence haystack, integer start=length(haystack), bool case_insensitive=false)
+global function rmatch(object needle, sequence haystack, integer start=length(haystack), bool case_sensitive=true)
 
     -- This line, and first parameter being object not sequence, is not RDS compliant.
     --  (RDS gives error "first argument of match() must be a sequence")
@@ -154,7 +160,8 @@ global function rmatch(object needle, sequence haystack, integer start=length(ha
         return 0
     end if
 
-    if case_insensitive then
+--  if case_insensitive then
+    if not case_sensitive then
         needle = lower(needle)
         haystack = lower(haystack)
     end if

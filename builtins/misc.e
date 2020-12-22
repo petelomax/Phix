@@ -58,28 +58,28 @@ end procedure
 --  return t
 --end function
 
---global function reverse_subset(sequence s, integer pFrom = 1, integer pTo = -1)
---global function reverse(sequence s, integer pFrom = 1, integer pTo = -1)
-global function reverse(sequence src, sequence pFromTo = {1,-1})
---integer {pFrom,pTo} = pFromTo, len = length(src)
-integer pFrom = pFromTo[1], pTo = pFromTo[2], len = length(src)
+--global function reverse_subset(sequence s, integer from_dx = 1, integer to_dx = -1)
+--global function reverse(sequence s, integer from_dx = 1, integer to_dx = -1)
+global function reverse(sequence src, sequence from_to = {1,-1})
+--integer {from_dx,to_dx} = from_to, len = length(src)
+integer from_dx = from_to[1], to_dx = from_to[2], len = length(src)
 integer uppr, midpoint
 sequence res
 
-    if pFrom<0 then
-        pFrom = len+1+pFrom
+    if from_dx<0 then
+        from_dx = len+1+from_dx
     end if
-    if pTo<0 then
-        pTo = len+1+pTo
+    if to_dx<0 then
+        to_dx = len+1+to_dx
     end if
-    if len<2 or pFrom=pTo then
+    if len<2 or from_dx=to_dx then
         return src
     end if
 
-    midpoint = floor((pFrom+pTo-1)/2)
+    midpoint = floor((from_dx+to_dx-1)/2)
     res = src
-    uppr = pTo
-    for lowr=pFrom to midpoint do
+    uppr = to_dx
+    for lowr=from_dx to midpoint do
         res[uppr] = src[lowr]
         res[lowr] = src[uppr]
         uppr -= 1

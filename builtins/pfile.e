@@ -721,7 +721,9 @@ integer lend
 end function
 
 global function get_text(object file, integer options=GT_WHOLE_FILE)
-    integer fn = iff(string(file)?open(file,"rb"):file)
+--18/12/20: (final \n)
+--  integer fn = iff(string(file)?open(file,"rb"):file)
+    integer fn = iff(string(file)?open(file,"r"):file)
     if fn=-1 then return -1 end if
 --(may not need to do this...)
 --  bool keep_bom = false

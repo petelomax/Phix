@@ -2838,6 +2838,24 @@ global procedure mpq_get_den(mpz denominator, mpq rational)
     c_proc(x_mpq_get_den,{denominator,rational})
 end procedure
 
+integer x_mpq_get_d = NULL
+
+global function mpq_get_d(mpq op)
+-- return (atom) floor(mpq_get_num(op)/mpq_get_den(op))
+--Convert op to a double, truncating if necessary (ie. rounding towards zero).
+--If the exponent from the conversion is too big or too small to fit a double then the result is
+--system dependent. For too big an infinity is returned when available. For too small 0:0 is
+--normally returned. Hardware overflow, underflow and denorm traps may or may not occur.
+
+    if op=NULL then ?9/0 end if
+    if x_mpq_get_d=NULL then
+        x_mpq_get_d = link_c_func(mpir_dll, "+__gmpq_get_d", {P},D)
+    end if
+    atom res = c_func(x_mpq_get_d,{op})
+    return res
+end function
+
+
 integer x_mpq_add = NULL
 
 global procedure mpq_add(mpq rsum, addend1, addend2)
@@ -3707,7 +3725,7 @@ __gmpq_cmp_z
 --__gmpq_div
 --__gmpq_div_2exp
 __gmpq_equal
-__gmpq_get_d
+--__gmpq_get_d
 --__gmpq_get_den
 --__gmpq_get_num
 __gmpq_get_str
@@ -7018,11 +7036,11 @@ The return value is 0 if the entire string is a valid number, or -1 if not.
 void mpq_swap (mpq_t rop1, mpq_t rop2) 
 Swap the values rop1 and rop2 efficiently.
 6.2 Conversion Functions
-double mpq_get_d (mpq_t op) 
-Convert op to a double, truncating if necessary (ie. rounding towards zero).
-If the exponent from the conversion is too big or too small to fit a double then the result is
-system dependent. For too big an infinity is returned when available. For too small 0:0 is
-normally returned. Hardware overflow, underflow and denorm traps may or may not occur.
+--double mpq_get_d (mpq_t op) 
+--Convert op to a double, truncating if necessary (ie. rounding towards zero).
+--If the exponent from the conversion is too big or too small to fit a double then the result is
+--system dependent. For too big an infinity is returned when available. For too small 0:0 is
+--normally returned. Hardware overflow, underflow and denorm traps may or may not occur.
 void mpq_set_d (mpq_t rop, double op) 
 Set rop to the value of op. There is no rounding, this conversion is exact.
 char * mpq_get_str (char *str, int base, mpq_t op) 

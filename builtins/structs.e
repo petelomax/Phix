@@ -533,7 +533,9 @@ integer sdx, flags, stype
                     ?9/0 -- unknown stype??
                 end if -- sdx ok
             end if -- length 4 and {"struct",string,integer}
-        elsif s=NULL then
+--16/12/20: [struct(0)/class(0) and similar should return false, not crash]
+--      elsif s=NULL then
+        elsif s=NULL and rid!=0 then
             sdx = getd({"struct",rid},vtable)
             -- (serious internal error, next line is fatal anyway:)
 --          if sdx=0 then throw("unknown/invalid struct") end if
@@ -1067,6 +1069,25 @@ global procedure store_field(struct s, string field_name, object v, context=0)
             and and_bits(structs[sdx][S_FIELDS][fdx][S_FLAGS],SF_PRIVATE) then
                 object cdii = getd({"extends",sdx},vtable)
                 if cdii=NULL or not find(context,cdii) then
+                    -- 22/12/20 (setter handling)
+                    if stype<=S_CLASS then
+                        integer setter = field_dx(sdx,"set_"&field_name)
+                        if setter!=0 then
+                            integer flags = structs[sdx][S_FIELDS][setter][S_FLAGS]
+                            if flags=SF_PROC then -- (and not SF_PRIVATE, obvs)
+                                integer setfn = instances[sdx][C_INSTANCES][s[I_DATA]][setter]
+                                -- note: this is ineffective under compilation (itself), due to
+                                --       a get_routine_info(-9) in p.exw, that is your app will
+                                --       be fine, but p.exe itself does not ever do this stuff.
+                                --       obviously symtab name population mid compile not good
+                                {integer maxp, integer minp, string sig} = get_routine_info(setfn)
+                                if maxp>=2 and minp<=2 and sig[1..2] = "PO" then
+                                    call_proc(setfn,{s,v}) -- (this,v)
+                                    return
+                                end if
+                            end if
+                        end if
+                    end if
                     crash("attempt to modify private field (%s)",{field_name},2)
                 end if
             end if
@@ -1094,6 +1115,24 @@ global function fetch_field(struct s, string field_name, object context=0)
         object cdii = getd({"extends",sdx},vtable)
         if not sequence(cdii)
         or not find(context,cdii) then
+            -- 22/12/20 (getter handling)
+            if stype<=S_CLASS then
+                integer getter = field_dx(sdx,"get_"&field_name)
+                if getter!=0 then
+                    integer flags = structs[sdx][S_FIELDS][getter][S_FLAGS]
+                    if flags=SF_FUNC then -- (and not SF_PRIVATE, obvs)
+                        integer getfn = instances[sdx][C_INSTANCES][s[I_DATA]][getter]
+                        -- note: this is ineffective under compilation (itself), due to
+                        --       a get_routine_info(-9) in p.exw, that is your app will
+                        --       be fine, but p.exe itself does not ever do this stuff.
+                        --       obviously symtab name population mid compile not good
+                        {integer maxp, integer minp, string sig} = get_routine_info(getfn)
+                        if maxp>=1 and minp<=1 and sig[1..2] = "FO" then
+                            return call_func(getfn,{s}) -- (this)
+                        end if
+                    end if
+                end if
+            end if
             crash("attempt to read private field (%s)",{field_name},2)
         end if
     end if

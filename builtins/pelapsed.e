@@ -33,37 +33,43 @@ function elapsdwy(atom d, string res)
     return res
 end function
 
-global function elapsed(atom s)
+global function elapsed(atom s, min_s=0, string fmt="")
 -- convert s (in seconds) into an elapsed time string suitable for display.
 -- limits: a type check error occurs if s exceeds approx 100 billion years.
 atom m,h,d
-string minus = "", res
-    if s<0 then
-        minus = "minus "
-        s = 0-s
-    end if
-    m = floor(s/60)
-    s = remainder(s,60)
-    res = sprintf(iff(integer(s)?"%ds":"%3.1fs"),s)
-    if m then
-        s = round(s)
---      res = iff(s=0?"":sprintf(" and %02ds",s))
-        res = iff(s=0?"":sprintf(" and %ds",s))
-        h = floor(m/60)
-        m = remainder(m,60)
-        if m then res = elaps(m,"minute",res) end if
-        if h then
-            d = floor(h/24)
-            h = remainder(h,24)
-            if h then res = elaps(h,"hour",res) end if
-            if d then res = elapsdwy(d,res) end if  
+string res = ""
+    if min_s=0 or s>=min_s then
+        string minus = ""
+        if s<0 then
+            minus = "minus "
+            s = 0-s
+        end if
+        m = floor(s/60)
+        s = remainder(s,60)
+        res = sprintf(iff(integer(s)?"%ds":"%3.1fs"),s)
+        if m then
+            s = round(s)
+--          res = iff(s=0?"":sprintf(" and %02ds",s))
+            res = iff(s=0?"":sprintf(" and %ds",s))
+            h = floor(m/60)
+            m = remainder(m,60)
+            if m then res = elaps(m,"minute",res) end if
+            if h then
+                d = floor(h/24)
+                h = remainder(h,24)
+                if h then res = elaps(h,"hour",res) end if
+                if d then res = elapsdwy(d,res) end if  
+            end if
+        end if
+        res = minus&res
+        if length(fmt) then
+            res = sprintf(fmt,{res})
         end if
     end if
-    res = minus&res
     return res
 end function
 
-global function elapsed_short(atom s)
+global function elapsed_short(atom s, min_s=0, string fmt="")
 --
 -- as per elapsed(s), but the string returned is, erm, more compact and not quite as long.
 --  returns a string in the format 
@@ -77,34 +83,40 @@ global function elapsed_short(atom s)
 --      in the latter case negative values are prefixed with "minus ", otherwise with "-".
 --
 atom m,h,d
-string minus = "", res
-    if s<0 then
-        minus = "-"
-        s = 0-s
-    end if
-    m = floor(s/60)
-    s = remainder(s,60)
-    res = sprintf("%ds",{s})
-    if m then
-        h = floor(m/60)
-        m = remainder(m,60)
-        res = sprintf("%d:%02d",{m,s})
-        if h then
-            d = floor(h/24)
-            h = remainder(h,24)
-            if h=0 and m=0 and s=0 then
-                res = ""
-            else
-                res = sprintf("%d:%02d:%02d",{h,m,s})
-            end if
-            if d then
-                if length(minus) then
-                    minus = "minus "
+string res = ""
+    if min_s=0 or s>=min_s then
+        string minus = ""
+        if s<0 then
+            minus = "-"
+            s = 0-s
+        end if
+        m = floor(s/60)
+        s = remainder(s,60)
+        res = sprintf("%ds",{s})
+        if m then
+            h = floor(m/60)
+            m = remainder(m,60)
+            res = sprintf("%d:%02d",{m,s})
+            if h then
+                d = floor(h/24)
+                h = remainder(h,24)
+                if h=0 and m=0 and s=0 then
+                    res = ""
+                else
+                    res = sprintf("%d:%02d:%02d",{h,m,s})
                 end if
-                res = elapsdwy(d,res)
+                if d then
+                    if length(minus) then
+                        minus = "minus "
+                    end if
+                    res = elapsdwy(d,res)
+                end if
             end if
         end if
+        res = minus & res
+        if length(fmt) then
+            res = sprintf(fmt,{res})
+        end if
     end if
-    res = minus & res
     return res
 end function

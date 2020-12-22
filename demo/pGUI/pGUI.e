@@ -1423,6 +1423,35 @@ atom
 
     $
 
+global function IupCheckVCRuntime(bool bCrash=true)
+    if platform()!=WINDOWS then ?9/0 end if -- sanity check
+--  string runtime = msvcr120.dll
+    -- aside: don't ask me why 64bit apparently needs the "_1"...
+    string runtime = iff(machine_bits()=32?"VCRUNTIME140.DLL","VCRUNTIME140_1.DLL")
+    if open_dll(runtime)=0 then
+        printf(1,"fatal error: %s could not be loaded\n",{runtime})
+        if not bCrash then
+            -- (maintain this one place as a single source of truth:)
+            return {"https://aka.ms/vs/16/release/VC_redist.x86.exe",
+                    "https://aka.ms/vs/16/release/VC_redist.x64.exe"} 
+        end if
+--      puts(1," try installing Visual C++ Redistributable Packages for Visual Studio 2013\n")
+--      puts(1," from ht--tps://www.microsoft.com/en-us/download/details.aspx?id=40784 \n")
+--      -- ( ht--tps://www.microsoft.com/en-us/download/details.aspx?id=40784 )
+        puts(1," try installing Visual C++ Redistributable Packages for Visual Studio 2015..19\n")
+        -- aside: these *are* the genuine official urls from Microsoft, btw...
+        sequence mo = iff(machine_bits()=32?{"x86","x64"}:{"x64","x86"})
+        printf(1," from https://aka.ms/vs/16/release/VC_redist.%s.exe\n"&
+                 " [and maybe https://aka.ms/vs/16/release/VC_redist.%s.exe]\n",mo)
+        -- ( https://aka.ms/vs/16/release/VC_redist.x86.exe )
+        -- ( https://aka.ms/vs/16/release/VC_redist.x64.exe )
+--or https://support.microsoft.com/en-us/help/2977003/the-latest-supported-visual-c-downloads
+        {} = wait_key()
+        ?9/0
+    end if
+    return {}
+end function
+
 --DEV/SUG use this: sequence s = include_paths()
 -- Note: pGUI.e must reside in a directory named pGUI; should you require a private copy
 --        either to ensure that updates do not break anything, or you want users to be
@@ -1505,7 +1534,6 @@ procedure iup_init1(nullable_string dll_root)
         
 --end if
 
---DEV:
     if platform()=WINDOWS then
         -- Aside: normally I'd expect msvcr120.dll to be loaded from system32/syswow64, 
         --        but if someone puts copies in pGUI\win32|64, it should be alright.
@@ -1516,24 +1544,7 @@ procedure iup_init1(nullable_string dll_root)
 --4/7/18:
 --      if chdir(dll_path)=0 then ?9/0 end if
         if dll_path!="" and chdir(dll_path)=0 then ?9/0 end if
---      string runtime = msvcr120.dll
-        -- aside: don't ask me why 64bit apparently needs the "_1"...
-        string runtime = iff(machine_bits()=32?"VCRUNTIME140.DLL","VCRUNTIME140_1.DLL")
-        if open_dll(runtime)=0 then
-            printf(1,"fatal error: %s could not be loaded\n",{runtime})
---          puts(1," try installing Visual C++ Redistributable Packages for Visual Studio 2013\n")
---          puts(1," from ht--tps://www.microsoft.com/en-us/download/details.aspx?id=40784 \n")
---          -- ( ht--tps://www.microsoft.com/en-us/download/details.aspx?id=40784 )
-            puts(1," try installing Visual C++ Redistributable Packages for Visual Studio 2015..19\n")
-            -- aside: these *are* the genuine official urls from Microsoft, btw...
-            sequence mo = iff(machine_bits()=32?{"x86","x64"}:{"x64","x86"})
-            printf(1," from https://aka.ms/vs/16/release/VC_redist.%s.exe\n"&
-                     " [and maybe https://aka.ms/vs/16/release/VC_redist.%s.exe]\n",mo)
-            -- ( https://aka.ms/vs/16/release/VC_redist.x86.exe )
-            -- ( https://aka.ms/vs/16/release/VC_redist.x64.exe )
-            {} = wait_key()
-            ?9/0
-        end if
+        {} = IupCheckVCRuntime()
         if chdir(curr_dir)=0 then ?9/0 end if
     end if
 
@@ -3916,6 +3927,394 @@ global function IupMatGetFloat(Ihandle ih, string name, integer lin, integer col
     atom val = c_func(xIupGetFloatId2, {ih, name, lin, col})
     return val
 end function
+
+--
+-- IupTable support:
+--
+--global? (no)
+sequence table_datasets = {},
+         table_sortcols = {},
+         table_sortdirs = {},
+         table_tagsets = {},
+         table_titles = {},
+         table_widths = {}
+
+string semiperm -- (return value of IupTableValue_cb must outlive it)
+
+function IupTableValue_cb(Ihandle table, integer l, integer c)
+-- internal, for IupTable (VALUE_CB, non-overrideable)
+    if c>0 then
+        integer dsidx = IupGetInt(table,"DSIDX")
+        sequence data = table_datasets[dsidx]
+        if l>length(data[1]) then return NULL end if
+        if l==0 then
+            return IupRawStringPtr(table_titles[dsidx][c])  -- column title
+        end if
+        l = table_tagsets[dsidx][l]
+        sequence dl = data[1][l]
+        if c>length(dl) then return NULL end if
+        object dlc = dl[c]
+        if c<=length(data[2]) then
+            object d2c = data[2][c]
+            if sequence(d2c) then
+                dlc = d2c[l]
+            elsif d2c!=0 then
+                integer fn = d2c
+                semiperm = fn(dlc)
+                return IupRawStringPtr(semiperm)
+            end if
+        end if
+        if string(dlc) then
+            if length(dlc)=0 then return NULL end if
+            return IupRawStringPtr(dlc)
+        end if
+        semiperm = sprint(dlc)
+        return IupRawStringPtr(semiperm)
+    end if
+    return NULL
+end function
+
+global function IupTableEnterItem_cb(Ihandle table, integer lin, integer col)
+-- default ENTERITEM_CB for IupTable (callable directly, when overridden)
+    IupSetAttribute(table,"MARKED", NULL)   /* clear all marks */
+    IupMatSetAttribute(table,"MARK", lin, 0, "Yes")
+    IupSetStrAttribute(table,"REDRAW", "L%d", {lin})
+    IupSetStrAttribute(table,"FOCUSCELL", "%d:%d", {lin,col})
+    return IUP_DEFAULT
+end function
+
+global function IupTableGetSelected(Ihandle table)
+    integer idx = IupGetInt(table,"FOCUSCELL") -- (line only)
+    if idx!=0 then
+        integer dsidx = IupGetInt(table,"DSIDX")
+        idx = table_tagsets[dsidx][idx]
+    end if
+    return idx 
+end function
+
+integer dsidx = 0 -- (for gui-thread-only use)
+
+function by_column(integer i, integer j)
+-- internal, for IupTable (sort, non-overrideable)
+    sequence data = table_datasets[dsidx][1],
+             cols = table_sortcols[dsidx],
+             dirs = table_sortdirs[dsidx]
+    integer c = 0
+    for k=1 to length(cols) do
+        c = cols[k]
+        c = dirs[k]*compare(data[i][c],data[j][c])
+        if c!=0 then exit end if
+    end for
+    if c=0 then c=compare(i,j) end if -- original order
+    return c
+end function
+
+global function IupTableClick_cb(Ihandle table, integer l, integer c, atom pStatus)
+-- default CLICK_CB for IupTable (callable directly, when overridden)
+    integer numcol = IupGetInt(table,"NUMCOL")
+    if l=0 and c>0 and c<=numcol then
+        dsidx = IupGetInt(table,"DSIDX")
+        sequence data = table_datasets[dsidx],
+                 cols = table_sortcols[dsidx]
+        integer sel = IupTableGetSelected(table),
+                  k = find(c,cols)
+        integer sortcol = iff(length(cols)?cols[1]:0)
+        if k=1 then
+            table_sortdirs[dsidx][1] *= -1
+        else
+            if k then
+                table_sortcols[dsidx][k..k] = {}
+                table_sortdirs[dsidx][k..k] = {}
+            end if
+            table_sortcols[dsidx] = prepend(table_sortcols[dsidx],c)
+            table_sortdirs[dsidx] = prepend(table_sortdirs[dsidx],1)
+        end if
+        if sortcol!=0 and sortcol!=c then
+            IupSetAttributeId(table,"SORTSIGN",sortcol,"NO")
+        end if
+        integer sortdir = iff(IupGetAttributeId(table,"SORTSIGN",c)="DOWN"?-1:1)
+        IupSetAttributeId(table,"SORTSIGN",c,iff(sortdir=-1?"UP":"DOWN"))
+        table_tagsets[dsidx] = custom_sort(routine_id("by_column"),table_tagsets[dsidx])
+        IupSetAttribute(table,"REDRAW","ALL")
+        -- restore selection - it stays off-screen, but user can use up/down
+        --  to force it into the viewport, should they be inclined to do so.
+        sel = find(sel,table_tagsets[dsidx])
+        {} = IupTableEnterItem_cb(table, sel, 1)
+    end if
+    return IUP_DEFAULT
+end function
+
+function IupTableColResize_cb(Ihandle table, integer col)
+-- internal only (COLRESIZE_CB)
+    integer dsidx = IupGetInt(table,"DSIDX"),
+                w = IupGetInt(table,"NUMCOL")
+    if col<w then
+        integer thisw = IupGetIntId(table,"RASTERWIDTH",col),
+                nextw = IupGetIntId(table,"RASTERWIDTH",col+1),
+                diff = table_widths[dsidx][col] - thisw,
+                next = table_widths[dsidx][col+1] + diff
+        IupSetIntId(table,"RASTERWIDTH",col+1,next)
+        table_widths[dsidx][col] = thisw
+        table_widths[dsidx][col+1] = next
+    else
+        -- prevent right hand column resizing:
+        integer prev = table_widths[dsidx][col]
+        IupSetIntId(table,"RASTERWIDTH",col,prev)
+    end if
+    return IUP_IGNORE
+end function
+
+global function IupTableResize_cb(Ihandle dlg, integer width, /*height*/)
+-- default RESIZE_CB for IupTable (callable directly, when overridden)
+    Ihandle table = IupGetAttributePtr(dlg,"TABLE"),
+            parent = IupGetParent(table)
+    integer dsidx = IupGetInt(table,"DSIDX"),
+            w = IupGetInt(table,"NUMCOL"),
+            h = IupGetInt(table,"NUMLIN"),
+--          ty = h*23+28
+--          ty = h*23+29
+            ty = h*23+30 -- (see notes below)
+    sequence new_widths = repeat(0,w)
+    for i=1 to w do
+        new_widths[i] = IupGetIntId(table,"RASTERWIDTH",i)
+    end for
+    --
+    -- aside: buglette: at one or two sizes this leaves space for a 
+    --        scrollbar which never appears. (h*23+28) is probably 
+    --        more accurate, however windows can then decide to
+    --        display an unnecessary horizontal scrollbar, which
+    --        is even uglier and also slightly harder to remove,
+    --        that is by jiggling the mouse and/or approaching the
+    --        critical limit point from a different direction.
+    --        There may or may not be a slighly better setting of
+    --        +28/9/30 and (less likely) *8+17* which I missed...
+    --        Use demo/pGUI/IupTable.exw to test any changes (as
+    --        well as whatever it is that you're working on).
+    --
+    integer {cx,cy} = IupGetIntInt(parent,"CLIENTSIZE"),
+            vs = (cy<ty) -- vertical scrollbar?
+    width -= (w*8+17*vs) -- ( derived by trial and error... )
+    if width<120 then width = 120 end if
+    integer total_width = sum(new_widths)
+    IupSetInt(table,"RASTERWIDTH0",0)
+    for i=1 to w do
+        integer new_width = max(round((new_widths[i]/total_width)*width),10)
+        total_width -= new_widths[i]
+              width -= new_width
+        IupSetIntId(table,"RASTERWIDTH",i,new_width)
+        new_widths[i] = new_width
+    end for
+--  IupSetInt(table,"RASTERWIDTH",sum(new_widths)+vs*17) -- (no help)
+    table_widths[dsidx] = new_widths -- save for IupTableColResize_cb
+/*
+integer visible = floor((cy-25)/23)
+?{"cy",cy,"ny",ny,"NUMLIN_VISIBLE",IupGetInt(table, "NUMLIN_VISIBLE"),visible}
+--?{"cy",cy,"ny",ny,"NUMLIN_VISIBLE",IupGetInt(table, "NUMLIN"),visible}
+    IupSetInt(table, "NUMLIN_VISIBLE", visible)
+    IupRefresh(table)
+--IupResetAttribute(table, "NUMLIN_VISIBLE")
+*/
+--IupSetInt
+    return IUP_DEFAULT
+end function
+
+function IupTableMap_cb(Ihandle table)
+-- internal only (MAP_CB)
+-- nb only suitable for the single-table case, with multiple you
+-- must override RESIZE_CB and invoke IupTableResize_cb directly.
+-- In most cases, parent = IupDialog() has not been invoked at the point
+-- when you invoke table = IupTable(), which is why this is separate.
+    Ihandle parent = IupGetParent(table)
+    Ihandln grandp = IupGetParent(parent)
+    while grandp!=NULL do
+        parent = grandp
+        grandp = IupGetParent(parent)
+    end while
+    IupSetAttributePtr(parent,"TABLE",table)
+    IupSetCallback(parent, "RESIZE_CB", Icallback("IupTableResize_cb"))
+    return IUP_DEFAULT
+end function
+
+function IupTableMouseMove_cb(Ihandle table, integer lin, /*col*/)
+    integer hln = IupGetInt(table,"HOVERLINE") -- (pGUI-specific)
+    if lin!=hln then
+        if hln!=0 then
+            IupSetAttribute(table, sprintf("BGCOLOR%d:*",hln), "#FFFFFF")
+            IupSetStrAttribute(table,"REDRAW", "L%d", {hln})
+        end if
+        if lin!=0 then
+            IupSetAttribute(table, sprintf("BGCOLOR%d:*",lin), "#e6f7ff")
+            IupSetStrAttribute(table,"REDRAW", "L%d", {lin})
+        end if
+        IupSetInt(table,"HOVERLINE",lin)
+    end if
+    return IUP_DEFAULT
+end function
+
+function IupTableLeaveWindow_cb(Ihandle table)
+    return IupTableMouseMove_cb(table,0,0)
+end function
+    
+global function IupTable(sequence columns, data, integer visible=10, sequence attributes="", dword_seq args={})
+--function IupTable(sequence columns, data, integer visible=10, sequence attributes="", args={})
+--
+-- columns should be eg {{"Chq#",40,"ARIGHT"}
+--                       {"Date",60,"ACENTER"},
+--                       {"Amount",100,"ARIGHT"},
+--                       {"Status",50,"ACENTER"},
+--                       {"Bank",50,"ALEFT"}}
+--
+--         or just {"Chq#","Date","Amount","Status","Bank"},
+--
+-- the latter giving equal-sized columns, all left-aligned.
+-- Note that IupMatrix() does not support individual column heading alignment, afaik.
+--
+-- data should be length 2 with length(data[1])=length(columns).
+--      data[1] contains the master/sortable values.
+--      data[2] is reserved for (string) display versions of data[1]:
+--      if data[2] is too short or data[2][c] is atom, then data[1][c] is displayed as-is
+--      for dates, data[1][c][i] should be eg 20201122 or timedate-format, data[2][c][i] string.
+--      for case-insensitive sorting, data[1][c][i] should be lower(/upper)(data[2][c][i]).
+--
+--
+-- attributes supported: SIZE?, RASTERSIZE?
+--
+-- callbacks supported:
+--
+--  CLICK_CB - If overidden, it should invoke the internal default, which implements
+--              column sorting, as follows:
+--              function click_cb(Ihandle ih, integer l, integer c, atom pStatus)
+--                  if l=0 then return IupTableClick_cb(ih, l, c, NULL) end if
+--                  ...
+--                  return IUP_DEFAULT
+--              end function
+--
+--  ENTERITEM_CB - If overidden, it should invoke the internal default, which implements
+--                  proper line selection/marking/focus settings, as follows:
+--                  function enteritem_cb(Ihandle table, integer lin, integer col)
+--                      {} = IupTableEnterItem_cb(table,lin,col)
+--                      integer idx = IupTableGetSelected(table) -- (usually rqd)
+--                      ...
+--                      return IUP_DEFAULT
+--                  end function
+--
+--  RESIZE_CB - If overidden, or a dialog contains more than one IupTable, it should
+--              replicate/replace the internal/private IupTableMap_cb() as follows:
+--              function resize_cb(Ihandle dlg, integer width, height)
+--                  for t=1 to length(tables) do -- (declared/set manually)
+--                      IupSetAttributePtr(dlg,"TABLE",tables[i])
+--                      {} = IupTableResize_cb(dlg, width, height)
+--                  end for
+--                  ...
+--                  return IUP_DEFAULT
+--              end function
+--
+--  K_ANY -- (no special requirements here)
+--
+--  You may NOT use or override VALUE_CB or COLRESIZE_CB or MAP_CB.
+--   (You /can/ use MAP_CB on the dialog, just not on the table.)
+--  It also uses MOUSEMOVE_CB and LEAVEWINDOW_CB, if ever needed the
+--  internal routines could easily be made global as per CLICK_CB etc,
+--  but any override implies the default hover effects are not wanted, 
+--  and everything (bar said) will work just fine without them.
+--  Other callbacks and attributes of IupMatrix may function in a desktop-only
+--  scenario, but nothing else is yet tested or supported under pwa/p2js.
+--
+    integer l = length(columns),
+            m = length(data[1])
+    Ihandle table = IupMatrix()
+    IupSetInt(table, "NUMCOL", l)
+    IupSetInt(table, "NUMCOL_VISIBLE", l)
+    IupSetInt(table, "NUMLIN", m)
+    IupSetInt(table, "NUMLIN_VISIBLE", visible)
+    IupSetInt(table, "WIDTHDEF", 40) -- (now completely overidden anyway)
+--  IupSetInt(table, "SHRINK", true)
+    table_titles = append(table_titles,repeat("",l))
+    table_tagsets = append(table_tagsets,tagset(m))
+    table_datasets = append(table_datasets,data)
+    table_sortcols = append(table_sortcols,{})
+    table_sortdirs = append(table_sortdirs,{})
+    table_widths = append(table_widths,repeat(80,l))
+    integer dsidx = length(table_datasets)
+    for i=1 to l do
+        if string(columns[i]) then
+            table_titles[dsidx][i] = columns[i]
+        else
+            {string title, integer width, string align} = columns[i]
+            table_titles[dsidx][i] = title
+            table_widths[dsidx][i] = width
+            IupSetIntId(table, "RASTERWIDTH", i, width)
+            IupSetAttributeId(table, "ALIGNMENT", i, align)
+            -- I tried...
+--          IupSetAttribute(table, sprintf("ALIGN0:%d",i), align)
+--          IupSetAttributeId(table, "ALIGNMENTLIN0",i, align)
+--          IupSetAttributeId(table, "ALIGNMENTLIN0:",i, align)
+--          IupSetAttribute(table, sprintf("ALIGNMENTLIN0:%d",i), align)
+        end if
+    end for
+    --IMPORTANT: HEIGHT0 tells IupMatrix that we are gonna have column titles at line 0
+    IupSetInt(table, "HEIGHT0", 10)
+    IupSetAttribute(table, "RESIZEMATRIX", "YES")
+    IupSetAttribute(table, "RESIZEDRAG", "YES")
+    IupSetAttribute(table, "MARKMODE", "LIN")
+    IupSetAttribute(table, "MARKAREA", "CONTINUOUS")
+--DEV does not seem to work...
+--  IupSetAttribute(table, "MULTIPLE", "YES") -- (or is that "MARKMULTIPLE"? the default is NO anyway)
+
+    IupSetAttribute(table, "READONLY", "YES")
+    IupSetAttribute(table, "HIDEFOCUS", "YES")
+    --
+    -- Aside: iupmat_draw.c uses "attenuation", which is equivalent to 
+    --        floor((r|g|b)*8/10), so the max actual rgb (from #FF) is 
+    --        #CC. Hence it is not possible to get brighter highlight.
+    --
+    IupSetAttribute(table, "HLCOLOR", "#00AFFF")
+    IupSetAttribute(table, "FRAMECOLOR", "220 220 220")
+    IupSetAttribute(table, "BORDER", "NO")
+    IupSetAttribute(table, "CURSOR", "ARROW")
+
+    IupSetInt(table,"DSIDX",dsidx)
+    IupSetCallback(table, "VALUE_CB", Icallback("IupTableValue_cb"))
+    IupSetCallback(table, "ENTERITEM_CB", Icallback("IupTableEnterItem_cb"))
+    IupSetCallback(table, "CLICK_CB", Icallback("IupTableClick_cb"))
+    IupSetCallback(table, "COLRESIZE_CB", Icallback("IupTableColResize_cb"))
+    IupSetCallback(table, "MAP_CB", Icallback("IupTableMap_cb"))
+--DEV add to docs:
+    IupSetCallback(table, "MOUSEMOVE_CB", Icallback("IupTableMouseMove_cb"))
+    IupSetCallback(table, "LEAVEWINDOW_CB", Icallback("IupTableLeaveWindow_cb"))
+    if length(attributes) then
+        IupSetAttributes(table, attributes, args)
+    end if
+    return table
+end function
+
+global function IupTableGetData(Ihandle table)
+    integer dsidx = IupGetInt(table,"DSIDX")
+    return table_tagsets[dsidx]
+end function
+
+global procedure IupTableSetData(Ihandle table, sequence data, bool bReset=true)
+-- Replace the data, removing any column-sorting and selection.
+    if length(data)!=2 then
+         crash("data must be {sortable,display}",2)
+    end if
+    integer dsidx = IupGetInt(table,"DSIDX"),
+            o_len = length(table_datasets[dsidx][1]),
+            n_len = length(data[1])
+    table_datasets[dsidx] = data
+    if bReset or n_len!=o_len then
+        table_tagsets[dsidx] = tagset(n_len)
+        sequence cols = table_sortcols[dsidx]
+        if length(cols) then
+            integer sortcol = cols[1]
+            IupSetAttributeId(table,"SORTSIGN",sortcol,"NO")
+            table_sortcols[dsidx] = {}
+            table_sortdirs[dsidx] = {}
+        end if
+        IupSetAttribute(table,"MARKED", NULL)   /* clear all marks */
+    end if
+    IupRefresh(table)
+end procedure
 
 atom iupGLControls = NULL,
      xIupGLControlsOpen,

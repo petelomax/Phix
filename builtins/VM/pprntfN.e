@@ -127,15 +127,13 @@ atom inf,nan
 
 -- do we still need these?? (yes)
 function Nan() -- thread-safe alternative to "nan"
-string res
-    res = repeat('n',3)
+    string res = repeat('n',3)
     res[2] = 'a'
     return res
 end function
 
 function Inf() -- thread-safe alternative to "inf"
-string res
-    res = repeat('i',3)
+    string res = repeat('i',3)
     res[2] = 'n'
     res[3] = 'f'
     return res

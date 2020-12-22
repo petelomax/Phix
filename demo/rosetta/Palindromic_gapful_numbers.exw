@@ -1,0 +1,484 @@
+--
+-- demo/rosetta/Palindromic_gapful_numbers.exw
+--
+--  Astonishingly this is all done with standard precision numbers, <2^53.
+--  I will credit https://rosettacode.org/wiki/Self_numbers#AppleScript and
+--  the comment by Nigel Galloway on the talk page for ideas that inspired me.
+--
+--  A palindrome such as 9459549 can be constructed/broken down into
+--                       9000009
+--                        400040
+--                         50500
+--                          9000
+--
+-- Further, 9459549 rem 99 is the same as 
+--  (the sum of rem 99 on all of those pieces) rem 99
+--
+-- Some very simple initial experiments (see "the original test code")
+--  quickly showed there were patterns in 4000400 rem 99 and suchlike
+--  that we could exploit, initially I was thinking of speed but in 
+--  the end accuracy on silly sized numbers turned out to be far more 
+--  important (dare I say useful?)
+--
+-- Also, when filling a "hole", such as the final 9, we find
+--             v    
+--          9459549%99 = 0, 
+--          9458549%99 = 89,
+--          9457549%99 = 79,
+--          9456549%99 = 69, 
+--          9455549%99 = 59,
+--          9454549%99 = 49,
+--          9453549%99 = 39,
+--          9452549%99 = 29, 
+--          9451549%99 = 19, and
+--          9450549%99 = 9
+--             ^
+--  in this case only the '9' fits.
+--
+-- But actually we can predict what will fit from the partial sum of 
+--  prior pieces rem 99, ie 9000009..50500, and the same can be said 
+--  when filling the 505-sized hole - what will "fit" depends not on 
+--  what the "outer" actually are, but what their sum rem 99 is, and 
+--  likewise for larger and larger holes.
+--  If we later find ourselves looking at the same size hole, with 
+--  the same outer rem and the same rem 99 outmost requirement, we 
+--  would know instantly how many things are going to fit. 
+--  True, keeping full lists as the holes got bigger would probably 
+--  consume memory almost as fast as an SR-71, but a single count, 
+--  albeit one keyed on 4 conditions, we can cope. It turns out that
+--  even by the 10^15th scan, we only hit 17,579 variations anyway.
+--  As we stumble across larger and larger holes, what we learn can 
+--  be used to skip more and more similar, such that finding the 
+--  ten millionth item is almost as fast as the first millionth, as 
+--  opposed to the times 10 that you'd normally expect.
+--
+-- Note that if I stumble across a hole that will fit more than I'm 
+--  prepared to fully skip, I start going through things one-by-one, 
+--  but that's ok because many smaller but still quite big holes 
+--  will probably be skipped.
+--
+
+sequence cache = repeat(0,9)
+
+function rmdr(integer digit, gap, pow, n)
+--
+-- digit is the outer 0..9 (obvs 0 always yields 0),
+-- gap is zeroes between (-1,0,1,2,.. for eg 1,11,101,1001),
+-- pow is trailing zeros (0,1,2,.. for eg 101,1010,10100),
+-- n is 1..9 for 11..99
+-- eg rmdr(4,3,2,1) yields remainder(4000400,11),
+--    except without using division - which becomes
+--    critical for accuracy with very large numbers.
+--    (more precisely it does not use division on
+--     anything over 10^15, and usually far less,
+--     as opposed to 10^34 final answer suggests.)
+--
+    if digit=0 then return 0 end if
+    if cache[n] = 0 then cache[n] = repeat({},9) end if
+    sequence cnd = cache[n][digit]
+    if cnd={} then
+        integer d = digit, k,
+                nn = n*11
+        for g=1 to 10 do -- (8 is actually enough)
+            sequence gp = {}
+            atom dp = d
+            for p=1 to 10 do -- (7 actually enough)
+                integer gpr = remainder(dp,nn)
+                if length(gp)=1 and gpr=gp[1] then exit end if
+                k = find(gpr,gp)
+                if k then gp &= k exit end if
+                gp &= gpr
+                dp *= 10 -- eg 1, 10, 100, 1000, or
+                         --    11, 110, 1100, and/or
+                         --    101, 1010, 10100, etc
+            end for
+            k = find(gp,cnd)
+            if k then
+                if k>1 then cnd &= k end if
+                exit
+            end if
+            cnd &= {gp}
+            if g>1 then d-=digit end if
+            d = d*10+digit -- eg 1, 11, 101, 1001, etc
+        end for
+        cache[n][digit] = cnd
+    end if
+    integer l = length(cnd)
+    if l=1 or gap<0 then
+        gap = 1
+    else
+        gap += 2
+        while gap>=l do gap -= l-cnd[$] end while
+    end if
+    cnd = cnd[gap]
+    l = length(cnd)
+    if l=1 then
+        pow = 1
+    else
+        pow += 1
+        while pow>=l do pow -= l-cnd[$] end while
+    end if
+    return cnd[pow]
+end function
+
+integer skipd = new_dict()
+
+function palindromicgapfuls(sequence pals, string lhs, atom palcount, to_skip, count, integer l, r, p, dd)
+--
+-- pals: results (passing it up grants it automatic pass-by-reference status, which may help speedwise)
+-- lhs: eg "945" of a potential 9459549 result
+-- palcount, to_skip, count: self explanatory (aka got/ignore/target)
+-- l: length of inner to be filled in
+-- r: remainder of outer, eg remainder(9400049,11), built from rmdr()
+-- p: left shift (should in fact always equal length(lhs), I think)
+-- dd: outermost 1..9 (despite the name, it's a single digit)
+--
+    sequence key = {l,r,p,dd}
+    integer node = getd_index(key,skipd)
+    atom skip = iff(node==null?count:getd_by_index(node,skipd))
+    if node!=null and (palcount+skip)<to_skip then
+        palcount += skip
+    else
+        skip = 0
+        for d=0 to 9 do
+            integer r2 = remainder(r+rmdr(d,l-2,p,dd),dd*11)
+            if l<=2 then
+                if r2=0 then
+                    palcount += 1
+                    if palcount<=to_skip then
+                        skip += 1
+                    else
+                        pals = append(pals,lhs&repeat(d+'0',l)&reverse(lhs))
+                    end if
+                end if
+            else
+                {pals,palcount,atom skipn} = palindromicgapfuls(pals, lhs&(d+'0'), palcount, to_skip, count, l-2, r2, p+1, dd)
+                skip += skipn
+            end if
+            if palcount==count then exit end if
+        end for
+        if palcount<to_skip then setd(key,skip,skipd) end if
+    end if
+    return {pals,palcount,skip}
+end function
+
+function collect(integer digit, atom count, keep)
+    atom to_skip = count - keep,
+            palcount =  0, l = 3
+    sequence pals = {}
+    string lhs = ""&(digit+'0') -- ie "1" or "2" .. or "9"
+    while palcount < count do
+        integer r = rmdr(digit,l-2,0,digit)
+        {pals,palcount} = palindromicgapfuls(pals,lhs,palcount,to_skip,count,l-2,r,1,digit)
+        l += 1
+    end while
+    return pals
+end function
+
+--constant tests = {{20,20,1},{100,15,1},{1000,10,1},{10_000,5,1},
+--                {100_000,1,1},{1_000_000,1,1},{10_000_000,1,1},
+--                {100_000_000,1,9},{1000_000_000,1,9},{10_000_000_000,1,9},
+--                {100_000_000_000,1,9},{1000_000_000_000,1,9},
+--                {10_000_000_000_000,1,9},{100_000_000_000_000,1,9},
+--                {1000_000_000_000_000,1,9}}
+constant tests = {{20,20},{100,15},{1000,10},{1_000_000,1},
+                  {1000_000_000,1},{1000_000_000_000,1},
+                  {1000_000_000_000_000,1}}
+                 -- (any further and you'd need mpfr just to hold counts)
+
+atom t0 = time(), count, keep, start
+for i=1 to length(tests) do
+--  {count, keep, start} = tests[i]
+    {count, keep} = tests[i]
+    atom from = count-keep+1
+    string r = iff(count==keep?sprintf("First %d",{count}):
+                    iff(keep>1?sprintf("Last %d of first %,d",{keep,count})
+                              :sprintf("%,dth",{count}))),
+           s = iff(keep=1?"":"s")
+    printf(1,"%s palindromic gapful number%s ending with:\n", {r,s})
+--  sequence tags = tagset(9,start),
+    sequence tags = tagset(9,iff(i<4?1:9)),
+             res = apply(true,collect,{tags,count,keep})
+    string fmt = sprintf("%%%ds",max(apply(join(res,{}),length)))
+    for j=1 to length(res) do
+        printf(1,"%d: %s\n",{tags[j],join(apply(true,sprintf,{{fmt},res[j]})," ")})
+    end for
+    puts(1,"\n")
+end for
+printf(1,"Completed in %s\n",elapsed(time()-t0))
+
+--?collect(9, 0, 1)
+--I would agree that the last entry does not feel very convincing. Depending on how much
+--spare time you have, leave this running and it'll look better, uncomment the reset of
+--count, to something that'll actually finish, and you'll start to believe it.
+----count = 100000
+--integer c = 0
+--while count>1 do
+----    count -= 1
+--  count -= max(1,floor(count/10))
+--  c += 1
+--  if c<10 or remainder(c,10)=0 or count<10 then
+--      printf(1,"%d: %s\n",{count,collect(9,count,1)[1]})
+--  end if
+--end while
+
+--printf(1,"%d\n",power(2,53))
+--?dict_size(skipd) -- 17579
+
+--?remainder(9459549,99)
+--?remainder(sum(apply(true,remainder,{{9000009,400040,50500,9000},99})),99)
+
+?"done"
+{} = wait_key()
+abort(0)
+
+--/* -- all good!
+for d=0 to 9 do
+--for d=1 to 9 do
+--for d=1 to 1 do
+    for gap=-1 to 10 do
+        for pow=0 to 10 do
+            for n=1 to 9 do
+--          for n=4 to 4 do
+                integer r = rmdr(d,gap,pow,n)
+--if gap<5 and pow<3 and d!=0 then
+if (gap+pow)<16 then
+    atom q = iff(gap=-1?d:d*power(10,gap+1)+d)*power(10,pow)
+    if remainder(q,n*11)!=r then ?9/0 end if
+end if
+            end for
+        end for
+--?{d,gap}
+    end for
+end for
+--*/
+--pp(cache,{pp_Nest,2,pp_IntCh,false})
+
+--/*
+for dd = 11 to 99 by 11 do
+    printf(1,"dd=%d:\n",dd)
+    for outer=1001 to 9009 by 1001 do
+        printf(1,"%d (%2d): ",{outer,remainder(outer,dd)})
+        for inner=00 to 99 by 11 do
+            printf(1,"%3d",remainder(outer+inner*10,dd))
+        end for
+        printf(1,"\n")
+    end for
+end for
+--*/
+
+-- the original test code
+--/*
+for i=1 to 9 do
+-- if find(i,{5,6,7}) then
+ if find(i,{4}) then
+--  printf(1,"%d: ",i)
+    integer d11 = 11*i
+--  atom w = i
+--for k=1 to 9 do
+for k=1 to 3 do
+    atom w = k
+--  for j=0 to 9 do
+    for j=0 to 9 do
+--      printf(1,"i=%d, j=%d: ",{i,j})
+        printf(1,"i=%d, j=%d, k=%d: ",{i,j,k})
+        -- eg 1, 11, 101, 1001, 10001...
+        -- with trailing zero of "", "0", "00", "000"...
+--w = j
+        atom zw = w
+        for z=0 to 8 do
+            printf(1," %dr%d=%d, ",{zw,d11,remainder(zw,d11)})
+            zw *= 10
+        end for
+        if j=0 then
+--          w = d11
+            w += 10*k
+        else
+--          w = (w-i)*10+i
+            w = (w-k)*10+k
+        end if
+--      printf(1,"(w=%d)\n",w)
+        puts(1,"\n")
+    end for
+    puts(1,"\n")
+end for
+    puts(1,"\n")
+ end if
+end for
+--*!/
+
+Having calculated an outer 101, the 101 rem 11 == 2 determines permitted inners, in this case only 2, since 2*10 rem 11 is the needed 9.
+That idea needs generalising to d{0}d*10^k rem n11, ideally passing the outer remainder, needed inner length and trailing zeroes, then
+we don't actually have to perform any potentially expensive inner remainders at all, and maybe not even on the way in.
+A few small snippets from a quick experiment yields some clear patterns, both horizontal and vertical:
+
+i=6, j=0, k=3:  3r66=3,  30r66=30,  300r66=36,  3000r66=30,  30000r66=36,  300000r66=30,  3000000r66=36,  30000000r66=30,  300000000r66=36,
+i=6, j=1, k=3:  33r66=33,  330r66=0,  3300r66=0,  33000r66=0,  330000r66=0,  3300000r66=0,  33000000r66=0,  330000000r66=0,  3300000000r66=0,
+i=6, j=2, k=3:  303r66=39,  3030r66=60,  30300r66=6,  303000r66=60,  3030000r66=6,  30300000r66=60,  303000000r66=6,  3030000000r66=60,  30300000000r66=6,
+i=6, j=3, k=3:  3003r66=33,  30030r66=0,  300300r66=0,  3003000r66=0,  30030000r66=0,  300300000r66=0,  3003000000r66=0,  30030000000r66=0,  300300000000r66=0,
+i=6, j=4, k=3:  30003r66=39,  300030r66=60,  3000300r66=6,  30003000r66=60,  300030000r66=6,  3000300000r66=60,  30003000000r66=6,  300030000000r66=60,  3000300000000r66=6,
+i=6, j=5, k=3:  300003r66=33,  3000030r66=0,  30000300r66=0,  300003000r66=0,  3000030000r66=0,  30000300000r66=0,  300003000000r66=0,  3000030000000r66=0,  30000300000000r66=0,
+i=6, j=6, k=3:  3000003r66=39,  30000030r66=60,  300000300r66=6,  3000003000r66=60,  30000030000r66=6,  300000300000r66=60,  3000003000000r66=6,  30000030000000r66=60,  300000300000000r66=6,
+i=6, j=7, k=3:  30000003r66=33,  300000030r66=0,  3000000300r66=0,  30000003000r66=0,  300000030000r66=0,  3000000300000r66=0,  30000003000000r66=0,  300000030000000r66=0,  3000000300000000r66=0,
+i=6, j=8, k=3:  300000003r66=39,  3000000030r66=60,  30000000300r66=6,  300000003000r66=60,  3000000030000r66=6,  30000000300000r66=60,  300000003000000r66=6,  3000000030000000r66=60,  30000000300000000r66=6,
+i=6, j=9, k=3:  3000000003r66=33,  30000000030r66=0,  300000000300r66=0,  3000000003000r66=0,  30000000030000r66=0,  300000000300000r66=0,  3000000003000000r66=0,  30000000030000000r66=0,  300000000300000000r66=0,
+
+Obviously there is a fair bit of 30+36=66 and 60+6=66 going on there, however as well as the full dividend it can be say 22, in this case a third of it
+
+i=6, j=8, k=1:  100000001r66=35,  1000000010r66=20,  10000000100r66=2,  100000001000r66=20,  1000000010000r66=2,  10000000100000r66=20,  100000001000000r66=2,  1000000010000000r66=20,  10000000100000000r66=2,
+
+However, there are also some longer cycles:
+
+i=7, j=0, k=1:  1r77=1,  10r77=10,  100r77=23,  1000r77=76,  10000r77=67,  100000r77=54,  1000000r77=1,  10000000r77=10,  100000000r77=23,
+i=7, j=1, k=1:  11r77=11,  110r77=33,  1100r77=22,  11000r77=66,  110000r77=44,  1100000r77=55,  11000000r77=11,  110000000r77=33,  1100000000r77=22,
+i=7, j=2, k=1:  101r77=24,  1010r77=9,  10100r77=13,  101000r77=53,  1010000r77=68,  10100000r77=64,  101000000r77=24,  1010000000r77=9,  10100000000r77=13,
+i=7, j=3, k=1:  1001r77=0,  10010r77=0,  100100r77=0,  1001000r77=0,  10010000r77=0,  100100000r77=0,  1001000000r77=0,  10010000000r77=0,  100100000000r77=0,
+i=7, j=4, k=1:  10001r77=68,  100010r77=64,  1000100r77=24,  10001000r77=9,  100010000r77=13,  1000100000r77=53,  10001000000r77=68,  100010000000r77=64,  1000100000000r77=24,
+i=7, j=5, k=1:  100001r77=55,  1000010r77=11,  10000100r77=33,  100001000r77=22,  1000010000r77=66,  10000100000r77=44,  100001000000r77=55,  1000010000000r77=11,  10000100000000r77=33,
+i=7, j=6, k=1:  1000001r77=2,  10000010r77=20,  100000100r77=46,  1000001000r77=75,  10000010000r77=57,  100000100000r77=31,  1000001000000r77=2,  10000010000000r77=20,  100000100000000r77=46,
+i=7, j=7, k=1:  10000001r77=11,  100000010r77=33,  1000000100r77=22,  10000001000r77=66,  100000010000r77=44,  1000000100000r77=55,  10000001000000r77=11,  100000010000000r77=33,  1000000100000000r77=22,
+i=7, j=8, k=1:  100000001r77=24,  1000000010r77=9,  10000000100r77=13,  100000001000r77=53,  1000000010000r77=68,  10000000100000r77=64,  100000001000000r77=24,  1000000010000000r77=9,  10000000100000000r77=13,
+i=7, j=9, k=1:  1000000001r77=0,  10000000010r77=0,  100000000100r77=0,  1000000001000r77=0,  10000000010000r77=0,  100000000100000r77=0,  1000000001000000r77=0,  10000000010000000r77=0,  100000000100000000r77=0,
+
+If we have to, we could probably memoise that stuff in a pretty small cache, rather than repeating divisions all the way down.
+
+AH HA! The penny drops!
+If we have say 1001 rem 11 = 13, then we know all 10 inners will work (for 11). Likewise since 2002 rem 11 is ...
+Erm, if we know where and how big the gap we're trying to fill is, for a given dd valid contents will always be exactly the same.
+
+i=4, j=0, k=1:  1r44=1,  10r44=10,  100r44=12,  1000r44=32,  10000r44=12,  100000r44=32,  1000000r44=12,  10000000r44=32,  100000000r44=12,
+i=4, j=1, k=1:  11r44=11,  110r44=22,  1100r44=0,  11000r44=0,  110000r44=0,  1100000r44=0,  11000000r44=0,  110000000r44=0,  1100000000r44=0,
+i=4, j=2, k=1:  101r44=13,  1010r44=42,  10100r44=24,  101000r44=20,  1010000r44=24,  10100000r44=20,  101000000r44=24,  1010000000r44=20,  10100000000r44=24,
+i=4, j=3, k=1:  1001r44=33,  10010r44=22,  100100r44=0,  1001000r44=0,  10010000r44=0,  100100000r44=0,  1001000000r44=0,  10010000000r44=0,  100100000000r44=0,
+i=4, j=4, k=1:  10001r44=13,  100010r44=42,  1000100r44=24,  10001000r44=20,  100010000r44=24,  1000100000r44=20,  10001000000r44=24,  100010000000r44=20,  1000100000000r44=24,
+i=4, j=5, k=1:  100001r44=33,  1000010r44=22,  10000100r44=0,  100001000r44=0,  1000010000r44=0,  10000100000r44=0,  100001000000r44=0,  1000010000000r44=0,  10000100000000r44=0,
+i=4, j=6, k=1:  1000001r44=13,  10000010r44=42,  100000100r44=24,  1000001000r44=20,  10000010000r44=24,  100000100000r44=20,  1000001000000r44=24,  10000010000000r44=20,  100000100000000r44=24,
+i=4, j=7, k=1:  10000001r44=33,  100000010r44=22,  1000000100r44=0,  10000001000r44=0,  100000010000r44=0,  1000000100000r44=0,  10000001000000r44=0,  100000010000000r44=0,  1000000100000000r44=0,
+i=4, j=8, k=1:  100000001r44=13,  1000000010r44=42,  10000000100r44=24,  100000001000r44=20,  1000000010000r44=24,  10000000100000r44=20,  100000001000000r44=24,  1000000010000000r44=20,  10000000100000000r44=24,
+i=4, j=9, k=1:  1000000001r44=33,  10000000010r44=22,  100000000100r44=0,  1000000001000r44=0,  10000000010000r44=0,  100000000100000r44=0,  1000000001000000r44=0,  10000000010000000r44=0,  100000000100000000r44=0,
+--*/
+
+-- my first attempt:
+--/*
+function reverse_n(atom s)
+    atom e = 0
+    while s>0 do
+        e = e*10 + remainder(s,10)
+        s = floor(s/10)
+    end while
+    return e
+end function
+ 
+constant mx = 100000-0,
+         data = {{1, 20, "%7d "}, {86, 100, "%8d "}, {991, 1000, "%10d "},
+        {9995, 10000, "%12d "},
+        {1e5, 1e5, "%14d"}} --6.2s
+--      {1e6, 1e6, "%16d"}} -- exceeds accuracy limits...
+ 
+procedure main()
+    sequence results = repeat(repeat({},9),mx)
+    for d=1 to 9 do -- (the start/end digit)
+        integer count = 0, pow = 1, fl = d*11
+        for nd=3 to 15 do -- (number of digits, usually quits early)
+            -- (obvs. 64-bit phix is fine with 19 digits, but 32-bit ain't)
+            bool odd = (remainder(nd,2)==1)
+            for s=d*pow to (d+1)*pow-1 do   -- (eg 300 to 399)
+                integer e = reverse_n(s)
+                for m=0 to iff(odd?9:0) do  -- (1 or 10 iterations)
+                    atom p = e + iff(odd ? s*pow*100+m*pow*10
+                                         : s*pow*10)
+                    if remainder(p,fl)==0 then  -- gapful!
+                        count += 1
+                        results[count][d] = p
+                        -- (see? goto /is/ sometimes useful :-))
+                        if count==mx then #ilASM{jmp :outer} end if
+                    end if
+                end for
+            end for
+            if odd then pow *= 10 end if
+        end for
+        if count<mx then ?9/0 end if -- oh dear...
+        #ilASM{::outer}
+    end for
+ 
+    for i=1 to length(data) do
+        {integer s, integer e, string fmt} = data[i]
+        string r = sprintf("%,d%s",{s,ord(s)})
+        if e!=s then r &= sprintf(" to %,d%s",{e,ord(e)}) end if
+        printf(1,"%s palindromic gapful numbers (> 100) ending with:\n", {r})
+        for d=1 to 9 do
+            printf(1,"%d: ",d)
+            for j=s to e do
+                printf(1,fmt,results[j][d])
+            end for
+            printf(1,"\n")
+        end for
+        printf(1,"\n")
+    end for
+end procedure
+atom t0 = time()
+main() 
+?elapsed(time()-t0)
+--*/
+
+-- translation of Crystal... 17.5s (vs my 6.5s, at the time...)
+--/*
+constant t09 = tagset(9,0), -- {0,1,...9}
+         t99 = tagset(99,0,11) -- {1,11,...99}
+
+function fN(integer n)
+    if n=1 then return t09 end if
+    if n=2 then return t99 end if
+    sequence a = {}, fNnm2 = fN(n-2)
+    for d=0 to 9 do
+        for i=1 to length(fNnm2) do
+            a &= d*power(10,n-1)+d+10*fNnm2[i]  
+        end for
+    end for
+    return a
+end function
+ 
+procedure show(integer digit, count, keep)
+    integer to_skip = count - keep,
+            palcnt =  0, l = 3, dd = digit*11
+    sequence pals = {}
+    while palcnt < count do
+        sequence fnl2 = fN(l-2)
+        for i=1 to length(fnl2) do
+            atom pal = digit*power(10,l-1) + digit + 10*fnl2[i]
+            if remainder(pal,dd)=0 then
+                palcnt += 1
+                if palcnt>to_skip then
+                    pals &= pal
+                end if
+            end if
+            if palcnt - to_skip == keep then exit end if
+        end for
+        l += 1
+    end while
+--  print pals; puts
+    pp(pals,{pp_FltFmt,"%d"})
+end procedure
+ 
+atom t0 = time()
+ 
+--constant tests = {{20,20},{100,15},{1000,10},{100_000,1},{1_000_000,1}}
+constant tests = {{20,20},{100,15},{1000,10},{100_000,1}}
+for i=1 to length(tests) do
+    integer {count, keep} = tests[i]
+    for digit=1 to 9 do
+        show(digit, count, keep)
+    end for
+    ?"####"
+end for
+--(1..9).each { |digit| PalNo.new(digit).show(20, 20) }; puts "####"
+--(1..9).each { |digit| PalNo.new(digit).show(100, 15) }; puts "####"
+--(1..9).each { |digit| PalNo.new(digit).show(1000, 10) }; puts "####"
+--(1..9).each { |digit| PalNo.new(digit).show(100_000, 1) }; puts "####"
+--(1..9).each { |digit| PalNo.new(digit).show(1_000_000, 1) }; puts "####"
+?elapsed(time()-t0)
+?"done"
+{} = wait_key()
+abort(0)
+--*/
+

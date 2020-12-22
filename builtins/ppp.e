@@ -601,6 +601,8 @@ with warning
 procedure fatal(string msg, integer level)
 --  puts(1,msg)
 --  warned = true
+--18/12/20:
+--/*
     crash_message(msg)
     #ilASM{ 
             [32]
@@ -613,6 +615,8 @@ procedure fatal(string msg, integer level)
                 jmp :!fatalN    -- fatalN(level,errcode,ep1,ep2)
           }
 --  ?9/0
+--*/
+    crash(msg,nFrames:=level)
 end procedure
 
 procedure setAscii()

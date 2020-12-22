@@ -28,6 +28,19 @@ very useful. But it is now all open source.
 
 Version 0.8.2
 =============
+22/12/2020: Bugfix: "class x string name procedure name()" now produces the
+            error "invalid type". Note that all methods are "virtual" in the
+            sense they can be overidden, ideally it would check that it was
+            only overriding something from an "extends" clause, but that is
+            not particularly simple. Instead it is saying it cannot override 
+            a string with a procedure. Likewise it will trigger an error if
+            you try to override a procedure with a function and vice versa.
+            I would have liked to put signature checks in there, but alas
+            that information is not held (think "pure virtual"), or rather 
+            it is quite a bit more difficult to dig out.
+
+Version 0.8.2
+=============
 22/05/2020: You can now say pMem = free(pMem), setting pMem to NULL. While
             free() is still a procedure, there is a new function ffree()
             which returns appropriate NULLs and pmain.e now quietly maps 
