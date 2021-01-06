@@ -496,11 +496,11 @@ function prev(Ihandle /*ih*/)
   return IUP_DEFAULT
 end function
 
-function show_tree_2(Ihandle ih)
-  Ihandle dlg = IupGetHandle("dlg_2");
-  IupShowXY(dlg, IUP_CENTER, IUP_CENTER); /* Displays the dlg */
-  return IUP_DEFAULT
-end function
+--function show_tree_2(Ihandle ih)
+--  Ihandle dlg = IupGetHandle("dlg_2");
+--  IupShowXY(dlg, IUP_CENTER, IUP_CENTER); /* Displays the dlg */
+--  return IUP_DEFAULT
+--end function
 
 procedure init_tree_nodes()
   Ihandle tree = IupGetHandle("flattree");
@@ -509,13 +509,16 @@ procedure init_tree_nodes()
   //IupSetAttributeHandle(tree, "BACKIMAGE", bimage);
 
 //    IupSetAttribute(tree, "AUTOREDRAW", "No");
-if 0 then
+if 01 then -- DEV does not work... the ADDBRANCH-1 did though.
   /* create from bottom to top */
   /* the current node is the ROOT */
   //IupSetAttribute(tree, "VALUE", "0");
-  IupSetAttribute(tree, "TITLE", "Figures");  /* title of the root, id=0 */
+--  IupSetAttribute(tree, "TITLE", "Figures");  /* title of the root, id=0 */
+  IupSetAttribute(tree, "ADDBRANCH-1", "Figures");
   IupSetAttribute(tree, "ADDBRANCH", "3D");    /* 3D=1 */
-  IupSetAttribute(tree, "ADDLEAF", "2D");    /* add to the root, so it will be before "3D", now 2D=1, 3D=2 */
+--  IupSetAttribute(tree, "ADDLEAF", "2D");  /* add to the root, so it will be before "3D", now 2D=1, 3D=2 */
+  IupSetAttribute(tree, "ADDLEAF1", "2D");   /* X - ends up as chiled of 3D! add to the root, so it will be before "3D", now 2D=1, 3D=2 */
+--  IupSetAttribute(tree, "ADDLEAF0", "2D");     /* add to the root, so it will be before "3D", now 2D=1, 3D=2 */
   IupSetAttribute(tree, "ADDBRANCH", "parallelogram"); /* id=1 */
   IupSetAttribute(tree, "ADDLEAF1", "diamond");
   IupSetAttribute(tree, "ADDLEAF1", "square");
@@ -524,6 +527,8 @@ if 0 then
   IupSetAttribute(tree, "ADDLEAF1", "isoceles");
   IupSetAttribute(tree, "ADDLEAF1", "equilateral");
   IupSetAttribute(tree, "ADDLEAF", "Other");
+--  IupSetAttribute(tree, "ADDLEAF1", "Other"); -- different icon??
+--  IupSetAttribute(tree, "ADDLEAF0", "Other"); -- same icon as "ADDLEAF"??
 else
   /* create from top to bottom */
 
@@ -540,7 +545,7 @@ else
   IupSetAttribute(tree, "ADDLEAF7", "diamond");
   IupSetAttribute(tree, "INSERTLEAF6", "2D");  /* new id=9 */
   IupSetAttribute(tree, "INSERTBRANCH9", "3D");
-  IupSetAttribute(tree, "INSERTBRANCH10","Other (√ß√£√µ√°√≥√©)");
+  IupSetAttribute(tree, "INSERTBRANCH10","Other (Á„ı·ÛÈ)");
   IupSetAttribute(tree, "ADDLEAF11", "Depth 1");
   IupSetAttribute(tree, "ADDBRANCH12", "Folder");
   IupSetAttribute(tree, "ADDLEAF13", "Depth 2");
@@ -594,9 +599,10 @@ end if
   IupSetAttribute(tree, "EXTRATEXT3", "Very Long Extra Text 3");
   IupSetAttribute(tree, "EXTRATEXT4", "4");
   IupSetAttribute(tree, "USERDATA6", "Extra Text 6");
-  IupSetAttribute(tree, "USERDATA7", "√ßa√¢√£√≥");
+  IupSetAttribute(tree, "USERDATA7", "Áa‚„Û");
 end procedure
 
+--/*
 procedure init_tree_2_nodes()
   Ihandle tree2 = IupGetHandle("flattree_2");
 
@@ -604,7 +610,7 @@ procedure init_tree_2_nodes()
 //  IupSetAttributeHandle(tree2, "BACKIMAGE", bimage);
 
     //IupSetAttribute(tree2, "AUTOREDRAW", "No");
-if 0 then
+if 01 then
   /* create from bottom to top */
   /* the current node is the ROOT */
   //IupSetAttribute(tree2, "VALUE", "0");
@@ -772,6 +778,7 @@ function init_tree_2()
 
   return tree2;
 end function
+--*/
 
 /* Initializes IupFlatTree and registers callbacks */
 function init_tree()
@@ -852,14 +859,16 @@ procedure init_dlg()
   Ihandle butactv = IupButton("Active"),
           butnext = IupButton("Next"),
           butprev = IupButton("Prev"),
-          butmenu = IupButton("Menu"),
-          buttree = IupButton("Tree");
+          butmenu = IupButton("Menu");
+--        butmenu = IupButton("Menu"),
+--        buttree = IupButton("Tree");
   Ihandle tree = init_tree();
   Ihandle box = IupHbox({tree, IupVbox({butactv,
                                         butnext,
                                         butprev,
-                                        butmenu,
-                                        buttree})})
+                                        butmenu})})
+--                                      butmenu,
+--                                      buttree})})
   Ihandle dlg = IupDialog(box);
   IupSetAttribute(dlg, "TITLE", "IupFlatTree");
   IupSetAttribute(dlg, "SIZE", "400x400");
@@ -872,7 +881,7 @@ procedure init_dlg()
   IupSetCallback(butactv, "ACTION", Icallback("active"));
   IupSetCallback(butnext, "ACTION", Icallback("next"));
   IupSetCallback(butprev, "ACTION", Icallback("prev"));
-  IupSetCallback(buttree, "ACTION", Icallback("show_tree_2"));
+--  IupSetCallback(buttree, "ACTION", Icallback("show_tree_2"));
   IupSetCallback(butmenu, "ACTION", Icallback("rightclick_cb"));
 
   IupSetAttributeHandle(dlg, "FLATTREE", tree);
@@ -881,6 +890,7 @@ procedure init_dlg()
 end procedure
 
 /* Initializes the dlg */
+--/*
 procedure init_dlg_2()
   Ihandle tree = init_tree_2();
   Ihandle box = IupHbox({tree});
@@ -898,15 +908,16 @@ procedure init_dlg_2()
 
   IupSetHandle("dlg_2", dlg);
 end procedure
+--*/
 
 procedure FlatTreeTest()
   IupSetGlobalInt("UTF8MODE",true)  
   init_dlg();                             /* Initializes the dlg */
-  init_dlg_2();                             /* Initializes the dlg */
+--  init_dlg_2();                           /* Initializes the dlg */
   Ihandle dlg = IupGetHandle("dlg");              /* Retrieves the dlg handle */
   IupCloseOnEscape(dlg)
   init_tree_nodes();                  /* Initializes attributes, can be done here or anywhere */
-  init_tree_2_nodes();                  /* Initializes attributes, can be done here or anywhere */
+--  init_tree_2_nodes();                    /* Initializes attributes, can be done here or anywhere */
   IupShowXY(dlg, IUP_CENTER, IUP_CENTER); /* Displays the dlg */
   IupSetAttribute(dlg, "USERSIZE", NULL);
 end procedure
@@ -915,6 +926,6 @@ IupOpen()
 FlatTreeTest()
 IupMainLoop()
 IupClose()
-?"done"
-{} = wait_key()
+--?"done"
+--{} = wait_key()
 

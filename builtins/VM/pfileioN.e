@@ -6891,7 +6891,11 @@ end if
           }
     if filesize=0 then
         if option=GT_WHOLE_FILE then
-            return "\n"
+            if and_bits(fmode,F_BINARY) then
+                return ""
+            else
+                return "\n"
+            end if
         else
             return {}
         end if

@@ -723,7 +723,11 @@ end function
 global function get_text(object file, integer options=GT_WHOLE_FILE)
 --18/12/20: (final \n)
 --  integer fn = iff(string(file)?open(file,"rb"):file)
-    integer fn = iff(string(file)?open(file,"r"):file)
+--27/12/20: (GT_BINARY option)
+--  integer fn = iff(string(file)?open(file,"r"):file)
+    string mode = iff(and_bits(options,GT_BINARY)?"rb":"r")
+    options = and_bits(options,#0F) -- (kill any GT_BINARY flag, string file or otherwise)
+    integer fn = iff(string(file)?open(file,mode):file)
     if fn=-1 then return -1 end if
 --(may not need to do this...)
 --  bool keep_bom = false

@@ -345,24 +345,38 @@ function esc_close(Ihandle /*ih*/, atom c)
 end function
 
 -- This shows how to defer-load nodes on expand/demand:
--- Obviuously would probably be more dynamically set in a real app,
+-- Obviously would probably be more dynamically set in a real app,
 -- and of course elements can be more than plain-string leaf nodes,
 -- with daisy-chains of unique userids to control things properly.
 -- (7 is plucked out of the air, matches the 7 in tree_nodes below)
 -- (also feel free to use xxx[7]!=0 instead of find(7,toload)!=0..)
+-- Also note you don't have to finalise this at the get-go, the
+-- USERDATA of 10 could be allocated/added when the 7 is opened.
 
 sequence {toload,tolkids} = columnize({{7,{"equilateral",
-                                           "isoceles",
+--                                         "isoceles",
+                                           {"isoceles",         -- (branch with 2 children)
+--                                          {"STATE","COLLAPSED"},
+                                            {"STATE","COLLAPSED","USERDATA",10},
+--                                          {"acute",
+--                                           "obtuse",
+--                                          }},
+                                            {"dummy"}},         -- (ensures we get a '+')
                                            "scalenus"}},
---                                     {8,{"some",      -- (works just fine, if)
---                                         "other",     -- (8 uncommented below)
---                                         "branch"}},
+                                       {8,{"some",      -- (works just fine, if)
+                                           "other",     -- (8 uncommented below)
+                                           "branch"}},
+--                                     {9,{"acute",
+--                                         "obtuse"}},
+                                       {9,{}},          -- (kills "+" w/o opening)
+                                       {10,{"acute",
+                                            "obtuse"}},
                                       })
 
 function branchopen_cb(Ihandle tree, integer id)
---  printf(1,"BRANCHOPEN_CB (%d)\n", {id});
     integer userid = IupTreeGetUserId(tree,id),
             k = find(userid,toload)
+    printf(1,"BRANCHOPEN_CB (%d,%d,%d)\n", {id,userid,k});
     if k!=0 then -- (deferred load rqd for this node)
         -- first kill off "dummy" (which ensured a '+'):
         IupSetAttributeId(tree,"DELNODE",id,"CHILDREN")
@@ -371,6 +385,10 @@ function branchopen_cb(Ihandle tree, integer id)
         -- finally remove load from the to-do lists:
         toload[k..k] = {}
         tolkids[k..k] = {}
+        if length(children)=0 then return IUP_IGNORE end if
+    else
+        -- prevent empty branches from "opening"...
+        if IupGetIntId(tree,"CHILDCOUNT",id)=0 then return IUP_IGNORE end if
     end if
     return IUP_DEFAULT;
 end function
@@ -550,7 +568,8 @@ Ihandle mnu, menu1, backmenu, hbox_1, cnv_1, vbox_1, img,
 --  IupSetAttribute(tabs,"PADDING","5x5");
     set_callbacks(tabs);
 
-    tree = IupTree();
+--  tree = IupTree();
+    tree = IupFlatTree(); -- (same, but gets rid of annoying bell on escape)
     IupSetAttribute(tree, "SHOWRENAME", "YES");
 --DEV test..
 --  IupSetAttribute(tree, "ADDROOT", "NO");
@@ -617,7 +636,8 @@ Ihandle mnu, menu1, backmenu, hbox_1, cnv_1, vbox_1, img,
     IupMap(dlg);
 
     if 0 then
-        IupSetAttribute(tree, "TITLE0",     "Figures");
+--      IupSetAttribute(tree, "TITLE0",     "Figures");
+        IupSetAttribute(tree, "ADDBRANCH-1","Figures");
         IupSetAttribute(tree, "ADDLEAF0",   "Other");      /* new id=1 */
         IupSetAttribute(tree, "ADDBRANCH1", "triangle");  /* new id=2 */
         IupSetAttribute(tree, "ADDLEAF2",   "equilateral");  /* ... */
@@ -627,12 +647,21 @@ Ihandle mnu, menu1, backmenu, hbox_1, cnv_1, vbox_1, img,
         sequence tree_nodes = {"Figures",               -- (branch with 5 children)
 --                             {"STATE","COLLAPSED"},   --  (works fine, btw)
                                {"Other",                -- (leaf)
---                              {"triangle",            -- (branch with 3 children)
---                               {"STATE","COLLAPSED"},
---                               {"equilateral",
+                                {"triangle",            -- (branch with 3 children)
+                                 {"STATE","COLLAPSED"},
+                                 {"equilateral",
 --                                "isoceles",
---                                "scalenus",
---                               }},
+                                  {"isoceles",          -- (branch with 2 children)
+--                                 {"STATE","COLLAPSED"},
+                                   {"STATE","COLLAPSED","USERDATA",9},
+--                                 {"STATE","COLLAPSED","USERDATA",9}}, -- NO!
+--                                 {"acute",
+--                                  "obtuse",
+--                                 }},
+                                   {"dummy"}},          -- (ensures we get a '+')
+--                                 {}},                 -- ([we don't get a '+'])
+                                  "scalenus",
+                                 }},
                                 {"triangle",            -- (branch with 3 children)
                                  {"STATE","COLLAPSED","USERDATA",7},
                                  {"dummy"}},            -- (ensures we get a '+')
@@ -646,10 +675,12 @@ Ihandle mnu, menu1, backmenu, hbox_1, cnv_1, vbox_1, img,
 --                              {"2D"},                 -- (same)
 --                              {"2D",0},               -- (same)
 --                              {"2D",{},0},            -- (same)
-                                {"3D",{}},              -- (branch, empty)
---                              {"4D",                  -- (works just fine, if 8 uncommented above)
---                               {"STATE","COLLAPSED","USERDATA",8},
---                               {"dummy"}}             -- (branch, deferred load)
+                                {"3D",                  -- (branch)
+                                 {"STATE","COLLAPSED"}, -- (needed here)
+                                 {}},                   -- (empty)
+                                {"4D",                  -- (works just fine, if 8 uncommented above)
+                                 {"STATE","COLLAPSED","USERDATA",8},
+                                 {"dummy"}}             -- (branch, deferred load)
                                }
                               }
 --      tree_nodes = "one"  -- (as expected, creates a single leaf node)

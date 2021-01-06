@@ -89,18 +89,22 @@ function get_interpreter()
     return ""
 end function
 
-procedure save_extensions()
+global procedure save_extensions()
 if not find("exw",extensions) then ?9/0 end if
 if length(extensions)!=length(runwiths) then ?9/0 end if
-    string extkeys = join(sort(extensions),",")
-    IupConfigSetVariableStr(config,"Extensions","KEYS",extkeys)
+    switchToIniGroup("Extensions")
     for i=1 to length(extensions) do
-        IupConfigSetVariableStr(config,"Extensions",extensions[i],runwiths[i])
+        setIniTextValue(extensions[i])
+    end for
+    switchToIniGroup("RunWiths")
+    for i=1 to length(extensions) do
+        setIniTextValue(runwiths[i])
     end for
 end procedure
 
 procedure load_extensions()
-    extensions = split(IupConfigGetVariableStr(config,"Extensions","KEYS",""),',')
+    switchToIniGroup("Extensions")
+    extensions = getIniTextValues()
     if extensions={} then
         runwiths = {}
         string exw = get_interpreter()
@@ -122,12 +126,9 @@ procedure load_extensions()
         runwiths = append(runwiths,"open")
         extensions = append(extensions,"html")
         runwiths = append(runwiths,"open")
-        save_extensions()
     else
-        runwiths = repeat("",length(extensions))
-        for i=1 to length(extensions) do
-            runwiths[i] = IupConfigGetVariableStr(config,"Extensions",extensions[i])
-        end for
+        switchToIniGroup("RunWiths")
+        runwiths = getIniTextValues()
     end if
     tags = tagset(length(extensions))
 end procedure
@@ -158,6 +159,7 @@ procedure set_buttons()
     bool okc -- (true=>OK, false=>Cancel)
     if length(ext) and ext[1]='.' then ext = ext[2..$] end if
     if length(rw)>=2 and rw[1..2]="=." then rw[1..2] = "=" end if
+    if length(rw)>=1 and rw[1]="=" then rw[1] = "#" end if
     if length(ext)=0 then
         active = false
         okc = length(rw)=0
@@ -331,7 +333,13 @@ function save_cb(Ihandle /*ih*/)
         set_extname_dropdown()
     elsif length(rw)=0 or rw=runwiths[idx] then
         -- delete
-        IupConfigSetVariableStr(config,"Extensions",ext,NULL)
+--if USEINI then
+--      switchToIniGroup("Extensions")
+--      setIniValue(ext,"??")   -- DEV no way to actually delete ("" crashes...)
+--      defineIniHeading(ext,TEXT)  -- that might work... no...
+--else
+--      IupConfigSetVariableStr(config,"Extensions",ext,NULL)
+--end if
         extensions[idx..idx] = {}
         runwiths[idx..idx] = {}
         tags = custom_sort(routine_id("by_column"),tagset(length(extensions)))
@@ -342,7 +350,6 @@ function save_cb(Ihandle /*ih*/)
     end if
     IupSetAttribute(matrix, "REDRAW", "ALL");
     set_buttons()
-    save_extensions()
     return IUP_DEFAULT
 end function
 constant cb_save = Icallback("save_cb")
@@ -461,7 +468,7 @@ global function getExtRunWith(string ext)
         integer k = find(ext,extensions)
         if k=0 then res = "" exit end if
         res = runwiths[k]
-        if length(res)=0 or res[1]!='=' then exit end if
+        if length(res)=0 or res[1]!='#' then exit end if
         ext = res[2..$]
     end while
     return res

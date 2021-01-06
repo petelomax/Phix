@@ -9,9 +9,9 @@
 --DEV this should perhaps have an optional parameter to pop more frames.
 --without debug
 --/*
-global procedure crash(string fmt, object data={})  --, integer nFrames=1)
-    if atom(data) or length(data) then
-        fmt = sprintf(fmt, data)
+global procedure crash(string fmt, object args={})  --, integer nFrames=1)
+    if atom(args) or length(args) then
+        fmt = sprintf(fmt, args)
     end if
     crash_message(fmt)
     #ilASM{
@@ -37,10 +37,10 @@ global procedure crash(string fmt, object data={})  --, integer nFrames=1)
 end procedure
 --*/
 --/!*
-global procedure crash(string msg, object data={}, integer nFrames=1)
---  if atom(data) or length(data) then
-    if data!={} then
-        msg = sprintf(msg, data)
+global procedure crash(string msg, object args={}, integer nFrames=1)
+--  if atom(args) or length(args) then
+    if args!={} then
+        msg = sprintf(msg, args)
     end if
     if nFrames<1 then ?9/0 end if
     crash_message(msg)  -- (yes, that increfs msg correctly, I just checked!)

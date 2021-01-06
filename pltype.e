@@ -1104,9 +1104,11 @@ atom Pmin,Pmax
     letyp[tgtldx] = Petyp
     Lslen = lslen[srcldx]
     Pslen = lslen[tgtldx]
-    if Pslen=-1 then    -- "no idea yet"
-        Pslen = Lslen
-    elsif Pslen!=Lslen then
+--24/12/2020...
+--  if Pslen=-1 then    -- "no idea yet"
+--      Pslen = Lslen
+--  els
+    if Pslen!=Lslen then
         Pslen = -2      -- "any length"
     end if
     lslen[tgtldx] = Pslen

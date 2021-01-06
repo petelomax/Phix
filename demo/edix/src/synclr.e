@@ -275,8 +275,10 @@ end if
 if bcomm<0 then
     if bcomm=-1 then
         ch = '`'
-    else -- -2
+    elsif bcomm=-2 then
         ch = '"'
+    else -- -3
+        ch = '\''
     end if
     chidx -= 1
 else
@@ -315,10 +317,18 @@ end if
                         elsif length(Escapes[newSyntax]) 
                           and ch2=EscapeLeadIns[newSyntax] then
                             if chidx>=ll then
+-- 27/12/20
+    if SynNames[newSyntax]="css" and ch='\'' and ch2='\\' then
+                        bcomm = -3
+    end if
                                 exit
                             end if
                             ch2 = line[chidx+1]
                             if not find(ch2,Escapes[newSyntax]) then
+-- 27/12/20
+    if SynNames[newSyntax]="css" and ch='\'' and ch2='\\' then
+                        bcomm = -3
+    end if
                                 exit
                             end if
                             if ch2='#' then
@@ -657,6 +667,8 @@ integer allNumbers
     else
         chidx = 1
     end if
+--if SynNames[newSyntax]="css" and lineno=131 then trace(1) end if
+
 --  chidx = 1
 --  chidx = from
     getBrktCfwd(lineno)
@@ -928,8 +940,10 @@ end if
 if bcomm<0 then
     if bcomm=-1 then
         ch = '`'
-    else -- -2
+    elsif bcomm=-2 then
         ch = '"'
+    else -- -3
+        ch = '\''
     end if
     chidx2 -= 1
 else
@@ -945,6 +959,10 @@ end if
             while 1 do
                 if chidx2=length(text) then
 if bcomm=0 then
+--27/12/20
+        if SynNames[newSyntax]="css" and 0 then
+?9/0
+        else
                     -- using > and < to signify start/end, on a line such as
                     --   >puts(1,"hello <
                     -- rather than colour the final space red, do the 'o'
@@ -953,6 +971,7 @@ if bcomm=0 then
                         if text[chidx2]!=' ' then exit end if
                     end while
                     syntaxClass = Illegals
+        end if
 end if
                     exit
                 end if
@@ -991,7 +1010,12 @@ end if
                 and text[chidx2]=EscapeLeadIns[newSyntax]
                 and bcomm=0 then
                     if chidx2>=length(text) then
+-- 27/12/20
+    if SynNames[newSyntax]="css" and ch='\'' and ch2='\\' then
+                        bcomm = -3
+    else
                         syntaxClass = Illegals
+    end if
                         exit
                     end if
                     ch2 = text[chidx2+1]

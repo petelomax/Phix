@@ -1,0 +1,148 @@
+{{Infobox programming language
+|name = Phix
+|logo = [[File:Phixlogo32.png|Phix logo]]
+|caption = Phix logo
+|paradigm = [[Imperative programming|Imperative, procedural]]
+|released = {{Start date and age|2006}}
+|developer = Pete Lomax
+|latest release version = 0.8.2
+|latest release date = {{Start date and age|2020|11|24}}
+|typing = static, dynamic
+|operating system = [[Microsoft Windows|Windows]], [[Linux]]
+|genre = [[Interpreted language]] or [[compiled language]]
+|license = [[Open_Software_License|Open Software License 3.0]] / [[Academic_Free_License|Academic Free License 3.0]]
+|file_ext = .e, .ex, .exw, .edb
+|influenced by = [http://openeuphoria.org/ Euphoria]
+|website = {{URL|phix.x10.mx}}
+}}
+
+'''Phix''' is a [[programming language]] created by Pete Lomax in London, England. Initially developed as a clone of [[Euphoria]] it has adandoned some problematic features (implicit sequence operations), is entirely self-hosted, and has (arguably) slowly grown a much richer yet simpler set of standard libraries and builtins. Phix is currently available for [[Microsoft Windows|Windows]] and [[Linux]], in both 32 and 64 bit versions, with work in progress on a web version.
+
+Phix is a general-purpose [[High-level programming language|high-level]] [[Imperative programming|imperative-procedural]] [[interpreted]]/[[compiled]] language. The [[compiler]] generates executable binary files directly without the need to install any other compiler or linker. A number of [[graphical user interface]] (GUI) libraries are supported including pGUI<ref name=pGUI/> which wraps IUP<ref name=IUP/> and work is in progress on a new wrapper for  [[GTK]]<ref name=GTK/>, and several older (usually 32-bit only) wrappers exist<ref name=interfaces/>. Phix has a simple built-in [[database]]<ref name=database/> and wrappers for a variety of other databases.<ref name=otherdb/>
+
+==Overview==
+The Phix language is a general purpose [[procedural programming|procedural language]] that focuses on simplicity, legibility, rapid development and performance via several means.
+*''Simplicity'' – It uses just five built-in data types (see below) and implements automatic [[Garbage collection (computer science)|garbage collection]].
+*''Legibility'' – The syntax favors simple English keywords over the use of punctuation to delineate constructs.
+*''Rapid development'' – An [[Interpreter (computing)|interpreter]] encourages prototyping and incremental development.
+*''Performance'' – An efficient reference-counting garbage collector correctly handles cyclic references.
+
+==History==
+The first version (in 2006) relied on a closed-source backend written in [[FASM]]. By 2013 that code had been completely transferred to (open-source) inline assembly, which removed that dependency completely.
+
+No major upheaveals have ever proved necessary, or even desirable, and the author plans to keep it that way.
+
+More recently, in March 2020, 0.8.1 saw the long-awaited introduction of structs and classes, while still permitting traditional non-object-orientated use.
+
+==Features==
+Phix adheres to the following design goals and features:
+
+* Ease of learning and with consistent high-level constructs (more so than e.g., the [[BASIC]] language)
+* Implementation of flat-form memory to avoid complex memory management and size-addressing limits
+* Debugging support and run-time error-handling
+* Subscript and [[Type system|type checking]]
+* Loose and strict variable typing
+* Programming via objects as types (user-defined or otherwise)
+* Interpreted, with automatic memory management and [[Garbage collection (computer science)|garbage collection]]
+* Heterogeneous collection types (sequences)
+* Debugger
+* Integrated database system
+* Low-level memory handling
+* Straightforward [[wrapper function|wrapping]] of (or access to) [[C (programming language)|C]] libraries
+
+==Execution modes==
+* [[Interpreter (computing)|Interpreter]]
+* [[Compiler (computing)|Compiler]]
+* A [[Transpiler|Transpiler]] to [[JavaScript]] is being worked on, so things can be run in a browser.
+* A [[read–eval–print loop]] (REPL) ''should'' become available when the transpiler is complete.
+
+==Use==
+Phix is designed to readily facilitate handling of dynamic sets of data of varying types and is particularly useful for string and image processing. The whole of the Phix interpreter/compiler is written in Phix.
+
+Phix currently enjoys [https://rosettacode.org/wiki/Rosetta_Code/Count_examples/Full_list second ranking] on rosettacode, only behind [[Go_(programming_language)|Go]].
+
+==Data types==
+Phix has two basic data types:
+:Atom – A number, implemented as a 31(or 63)-bit signed [[integer]] or a 64(or 80)-bit [[IEEE floating-point standard|IEEE floating-point]]. Phix dynamically changes between integer and floating point representation according to the current value.
+:Sequence – A [[Array data type|vector]] (array) with zero or more elements. Each element may be an ''atom'' or another ''sequence''. The number of elements in a sequence is not fixed (i.e., the size of the vector/array does not have to be declared). The program may add or remove elements as needed during run-time. Memory allocation-deallocation is automatically handled by reference counting. Individual elements are referenced using an index value enclosed in square brackets. The first element in a sequence has an index of one [1]. Elements inside embedded sequences are referenced by additional bracked index values, thus X[3][2] refers to the second element contained in the sequence that is the third element of X. Each element of a sequence is an ''object'' type (see below).
+
+Phix has three additional data types predefined:
+:integer – An ''atom'', restricted on 32-bit implementations to 31-bit signed [[integer]] values in the range -1,073,741,824 to 1,073,741,823 (-2^30 to 2^30-1). On 64-bit implementations they are limited to -4,611,686,018,427,387,904 to 4,611,686,018,427,387,903 (-2^62 to 2^62-1). ''Integer'' data types are more efficient than the ''atom'' data types, but cannot contain the same range of values. Characters are stored as integers, e.g., coding [[ASCII]]-'A' is exactly the same as coding 65. There is no character [[String (computer science)|string]] data type, nor any need to convert them.
+:string - An 8-bit-per-element sequence that can save 75% on 32-bit, 87.5% on 64-bit, compared to a sequence of machine-word-sized elements. Strings in Phix are fully mutable, invluding variable-length slice substitution.
+:object – A generic datatype which may contain any of the above (i.e., ''atom'', ''sequence'' or ''integer'') and which may be changed to another type during run-time. Note that in Phix, while it supports object-orientated programming, the type object has no special relationship to that at all - an object does ''not'' have methods, whereas a class does, and a class instance can be stored in either a class instance variable or an object.
+
+==Hello, World!==
+ puts(1, "Hello, World!\n")
+
+==Examples==
+Line comments start with a double hyphen <code>--</code> and continue to the end of line. A C-style <code>//</code> is also allowed.<br>
+Block comments start with <code>/*</code> or <code>--/*</code>, end with <code>*/</code> or <code>--*/</code> (the two types exist so you can control whether [[Euphoria]] ignores them), and they ''can'' be nested.
+
+The following code looks for an old item in a group of items. If found, it removes it by concatenating all the elements before it with all the elements after it. Note that the first element in a sequence has the index one [1] and that $ refers to the length (i.e., total number of elements) of the sequence.
+
+ <span style="color:blue;">global function</span> delete_item(<span style="color:teal;">object</span> old, <span style="color:teal;">sequence</span> group)
+    <span style="color:teal;">integer</span> pos = <span style="color:teal;">find</span>(old, group)
+    <span style="color:blue;">if</span> pos>0 <span style="color:blue;">then</span>
+        group = group[1..pos-1] & group[pos+1..$]
+ <span style="color:green; font-style: oblique;">--     group[pos..pos] = {}  -- (equivalent)</span>
+    <span style="color:blue;">end if
+    return</span> group
+ <span style="color:blue;">end function</span>
+
+The following modification to the above example replaces an old item with a new item. As the variables ''old'' and ''new'' have been defined as objects, they could be ''atoms'' or ''sequences''. Type checking is not needed as the function will work with any sequence of data of any type and needs no external libraries.
+
+ <span style="color:blue;">global function</span> replace_item(<span style="color:teal;">object</span> old, <span style="color:teal;">object</span> new, <span style="color:teal;">sequence</span> group)
+    <span style="color:teal;">integer</span> pos = <span style="color:teal;">find</span>(old, group)
+    <span style="color:blue;">if</span> pos>0 <span style="color:blue;">then</span>
+        group[pos] = new
+    <span style="color:blue;">end if
+    return</span> group
+ <span style="color:blue;">end function</span>
+
+Furthermore, no pointers are involved and subscripts are automatically checked. Thus the function cannot access memory out-of-bounds. There is no need to allocate or deallocate memory explicitly and no chance of a memory leak.
+
+The line
+
+ group = group[1..pos-1] & group[pos+1..$]
+
+shows some of the ''sequence'' handling facilities. A ''sequence'' may contain a set of any types, and this can be sliced (to take a subset of the data in a ''sequence'') and concatenated in expressions with no need for special functions.
+
+==Parameter passing==
+Arguments to routines are usually passed by value, except for class instances which are passed by reference, and as a special optimisation by the compiler when you are explicitly assigning on return the same (local) variable passed in as a parameter. Note that all parameters are allowed to be modified ''locally'' (i.e., within the callee) which is implemented very efficiently even for pass by value cases as sequences have automatic [[copy-on-write]] semantics. In other words, when you pass a sequence to a routine, initially only a reference to it is passed, but at the point the routine modifies this sequence parameter the sequence is copied and the routine updates only a copy of the original.
+
+==Comparable languages==
+* [[Euphoria]]
+* [[Lua (programming language)|Lua]]
+* [[Go_(programming_language)|Go]]
+* [[Python (programming language)|Python]]
+* [[REBOL]]
+* [[Ruby (programming language)|Ruby]]
+
+==References==
+{{Reflist|refs=
+<ref name=pGUI>
+{{cite web|url=http://phix.x10.mx/docs/html/pGUI.htm|title=pGUI documentation|accessdate=2020-12-31}}</ref><ref name=IUP>
+{{cite web|url=http://webserver2.tecgraf.puc-rio.br/iup/|title=IUP|accessdate=2020-12-31}}</ref><ref name=GTK>
+{{cite web|url=https://www.gtk.org/|title=GTK|accessdate=2020-12-31}}</ref><ref name=database>
+{{cite web|url=http://phix.x10.mx/docs/html/database.htm|title=database documentation|accessdate=2020-12-31}}</ref><ref name=otherdb>
+{{cite web|url=http://phix.x10.mx/pmwiki/pmwiki.php?n=Catagory.Database|title=other databases|accessdate=2020-12-31}}</ref><ref name=interfaces>
+{{cite web|url=http://phix.x10.mx/pmwiki/pmwiki.php?n=Catagory.Interfaces|title=PCAN/interfaces|accessdate=2020-12-31}}
+</ref>
+
+}}
+
+==External links==
+Free downloads of Phix.
+* {{Official website|http://phix.x10.mx}} Phix
+* [http://phix.x10.mx/pmwiki/pmwiki.php PCAN] - Phix Contributions & Assorted Nicknacks
+* [http://openeuphoria.org/forum/index.wc openEuphoria Forum]
+* [https://github.com/petelomax/Phix Phix · GitHub] Development repositories.
+
+{{DEFAULTSORT:Phix (programming language)}}
+[[:Category:Procedural programming languages]]
+[[:Category:Cross-platform software]]
+[[:Category:Programming languages created in 2006]]
+[[:Category:Free educational software]]
+
+== The Phix programming language ==
+

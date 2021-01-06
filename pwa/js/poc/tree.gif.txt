@@ -1,0 +1,35 @@
+The tree.gif is actually inline base64 encoded in tree.css, so you may 
+want to revert that before experimenting with it (last few lines).
+
+I believe only the 4 rightmost of the 6 icons are actually used, so in
+theory it could be made even smaller. Maybe the first stage would be to
+add some different colours to it, so you can see what is really going on.
+
+Note that editing tree.gif with windows paint does something rude to it
+that gives css some grief, so I've been using paint.net with much better
+results, and quite a bit smaller output files as a bonus.
+
+I used the following simple code (ran from \Phix) to encode tree.gif:
+
+constant gif = get_text(`pwa\js\poc\tree.gif`,GT_WHOLE_FILE+GT_BINARY)
+?length(gif)
+constant b64 = encode_base64(gif)
+?b64
+?length(b64)
+
+and then (manually) cut and pasted the b64 output into tree.css
+
+Should you find any other encoded gif/png/jpg in .css files, you can
+easily recreate the standalone file with simple code such as:
+
+constant b64 = "iVBORw0KGgoAAAA...(shortened)...ASUVORK5CYII="
+?length(b64)
+constant png = decode_base64(b64) -- (or gif/jpg/etc)
+?length(png)
+integer fn = open("tree.png","wb")
+puts(fn,png)
+close(fn)
+?"tree.png created"
+
+In this particular case I reduced the original from 4100 bytes to 320,
+which is less than 8%, or a saving of just over 92% !!

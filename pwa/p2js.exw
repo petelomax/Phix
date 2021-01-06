@@ -115,8 +115,6 @@ end procedure
 --   {{`ASSIGN`, {8,155,160,10,4,1192}, {7,165,165,10,14}},
 --    {`PROC`, {8,172,189,11,4,1280}, {8,191,193,11,23,1136},
 --transpile(`C:\Program Files (x86)\Phix\test\t66prec.exw`)                     -- [ 1,224 chars, 345 tokens ]      [OK!!]
---transpile(`C:\Program Files (x86)\Phix\pwa\c\jsmin.c`)                        --                                  [static int the_a;...]
---  ???trace how it handles C:\Program Files (x86)\Phix\pwa\src\p2js_basics.e:260 global constant string charset = set_chars({{"\r\n",EOL},???
 --transpile(`C:\Program Files (x86)\Phix\pwa\phix\adp.exw`)                     -- [ 596 chars, 89 tokens ]         [OK!!]
 --transpile(`C:\Program Files (x86)\Phix\pwa\adp.html`)                         --                                  [OK!! (nonest)]
 --transpile(`E:\downloads\misc\js\pwa\adp.html`)                                --                                  [OK!! (but no nested script yet)]
@@ -127,6 +125,7 @@ end procedure
 --transpile(`C:\Program Files (x86)\Phix\pwa\src\p2js_tree.e`)                  -- [ 14,378 chars, 1,017 tokens ]   [OK!!]
 --transpile(`C:\Program Files (x86)\Phix\pwa\src\p2js_keywords.e`)              -- [ 2,909 chars, 430 tokens ]      [OK!!]
 --transpile(`C:\Program Files (x86)\Phix\pwa\src\p2js_parse.e`)                 -- [ 41,702 chars, 3,659 tokens ]   [OK!!]
+--transpile(`C:\Program Files (x86)\Phix\pwa\phix\IupTreeView.exw`)             -- [ 2,019 chars, 164 tokens ]      [OK!!]
 --transpile(`C:\Program Files (x86)\Phix\builtins\pfactors.e`)                  -- [ 4,995 chars, 702 tokens ]      [OK!!]
 --transpile(`C:\Program Files (x86)\Phix\builtins\psum.e`)                      -- [ 668 chars, 112 tokens ]        [OK!!]
 --transpile(`C:\Program Files (x86)\Phix\builtins\xml.e`)                       -- [ 35,992 chars, 5,011 tokens ]   [OK!!]
@@ -197,8 +196,8 @@ end procedure
 --transpile(`C:\Program Files (x86)\Phix\demo\pGUI\tee.exw`)                    -- nope, ifdef LINUX...
 --transpile(`C:\Program Files (x86)\Phix\test\t01ee.exw`) --??
 
---Xtranspile(`C:\Program Files (x86)\Phix\test\swtime.exw`) --#ilASM
---Xtranspile(`C:\Program Files (x86)\Phix\test\swtime2.exw`) --""
+--Xtranspile(`C:\Program Files (x86)\Phix\test\swtime.exw`)     --#ilASM
+--Xtranspile(`C:\Program Files (x86)\Phix\test\swtime2.exw`)    --""
 --transpile(`C:\Program Files (x86)\Phix\test\t01type.exw`)     -- OK
 --transpile(`C:\Program Files (x86)\Phix\test\t02parms.exw`)
 --transpile(`C:\Program Files (x86)\Phix\test\t03showt.exw`)
@@ -330,6 +329,10 @@ end procedure
 --transpile(`C:\Program Files (x86)\Phix\test\terror.exw`)      -- OK ?database.e(ok), dll.e(ok), machine.e(ok), syswait.ew
 --Xtranspile(`C:\Program Files (x86)\Phix\test\terrorX.exw`)    -- arwen
 --transpile(`C:\Program Files (x86)\Phix\test\trace.exw`)       -- OK
+
+--transpile(`C:\Program Files (x86)\Phix\pwa\c\jsmin.c`)        --                                  [static int the_a;...]
+--  ???trace how it handles C:\Program Files (x86)\Phix\pwa\src\p2js_basics.e:260 global constant string charset = set_chars({{"\r\n",EOL},???
+--transpile(`C:\Program Files (x86)\Phix\pwa\go\blackjack.go`)  -- hah, maybe one day... (get c working first!)
 
 include pGUI.e
 IupOpen()
@@ -633,7 +636,28 @@ It only works if the element is a direct child of an element with the display: f
 --?nan
 --?iff(nan?"nan is true":"nan is false")    -- true (phix)
 
+--/* these?
+for i=1 to 50 do
+    printf(1,"%,12d",{product(factors(i,1))})
+    if remainder(i,5)=0 then puts(1,"\n") end if
+end for
+Output:
+           1           2           3           8           5
+          36           7          64          27         100
+          11       1,728          13         196         225
+       1,024          17       5,832          19       8,000
+         441         484          23     331,776         125
+         676         729      21,952          29     810,000
+          31      32,768       1,089       1,156       1,225
+  10,077,696          37       1,444       1,521   2,560,000
+          41   3,111,696          43      85,184      91,125
+       2,116          47 254,803,968         343     125,000
+functional
+same output
 
+sequence r = apply(apply(true,factors,{tagset(50),{1}}),product)
+puts(1,join_by(apply(true,sprintf,{{"%,12d"},r}),1,5,""))
+--*/
 --/* from https://rosettacode.org/mw/index.php?title=Almost_prime#JavaScript
 function almostPrime (n, k) {
     var divisor = 2, count = 0
@@ -701,6 +725,12 @@ end for
 --          (something similar for un-named parameters?)
 -- Maybe: enum R,G,B <==> const /*enum*/ R=1,G=2,B=3;
 --          (fixed literals that match expectation can simply be omitted, on the return trip)
+-- Sug: try ... catch e ... end try <==> try { ... } catch(e) { e = $exception(e); ... } where
+--  function $exception(e) { let res = ["sequence",0,0,0,0,0,"rtn_name","file",",path",e.message]; return res; }
+--      (note: you don't get any line numbers or routine/file names, etc. They're just padding.)
+--  In pwa/p2js, only the throw(string[,args]) variety is supported.
+--  function $throw(e,args) { if (length(args)) { e = sprintf(e,args); } throw(e); }
+--  function $throw(e,args) { if (length(args)) { e = sprintf(e,args); } throw new Error(e); }
 --Note: <!DOCTYPE html> is self-closing, no "/>", parses as {`!DOCTYPE`, {}, {`html`}}. 
 --      note that <meta charset='utf-8'/> parses as {{`meta`, {{`charset`}, {`utf-8`}}, {}},
 --      conversely, <script src="pGUI.js"></script> parses as {`script`, {{`src`}, {`pGUI.js`}}, {``}},
@@ -723,6 +753,7 @@ end for
 --  you would specify a bespoke attribute, say "USEDFOR", rather than anything documented in the help files.
 --  Also note that IupCustomAttribute("USEDFOR") is itself generic and will allow that attribute to be set on
 --  any element - there is no way to limit what types of elements or containers it can be applied to.
+-- Maybe: https://github.com/GoogleChromeLabs/ProjectVisBug#visbug
 
 
 --no need to go mad on var names...:

@@ -1,0 +1,142 @@
+--
+-- demo/pGUI/plot5.exw
+-- ===================
+--
+constant tests = {{{16,  3}, {12, 17}, { 0,  6}, {-4, -6}, {16,  6},
+                   {16, -7}, {16, -3}, {17, -4}, { 5, 19}, {19, -8},
+                   { 3, 16}, {12, 13}, { 3, -4}, {17,  5}, {-3, 15},
+                   {-3, -9}, { 0, 11}, {-9, -3}, {-4, -2}, {12, 10}},
+                  {{16,  3}, {12, 17}, { 0,  6}, {-4, -6}, {16,  6},
+                   {16, -7}, {16, -3}, {17, -4}, { 5, 19}, {19, -8},
+                   { 3, 16}, {12, 13}, { 3, -4}, {17,  5}, {-3, 15},
+                   {-3, -9}, { 0, 11}, {-9, -3}, {-4, -2}, {12, 10}, {,-9}, {1,-9}},
+                  {{0,0}, {5,5}, {5,0}, {0,5}},
+                  {{0,0}, {0,1}, {0,2},
+                   {1,0}, {1,1}, {1,2},
+                   {2,0}, {2,1}, {2,2}},
+                  {{-8,-8}, {-8,4}, {-8,16},
+                   { 4,-8}, { 4,4}, { 4,16},
+                   {16,-8}, {16,4}, {16,16}}}
+
+integer t = 1
+
+enum x, y
+function ccw(sequence a, b, c)
+    return (b[x] - a[x]) * (c[y] - a[y])
+         > (b[y] - a[y]) * (c[x] - a[x])
+end function
+ 
+function convex_hull(sequence points)
+    sequence h = {}
+    points = sort(points)
+ 
+    /* lower hull */
+    for i=1 to length(points) do
+        while length(h)>=2
+          and not ccw(h[$-1], h[$], points[i]) do
+            h = h[1..$-1]
+        end while
+        h = append(h, points[i])
+    end for
+ 
+    /* upper hull */
+    integer t = length(h)+1
+    for i=length(points) to 1 by -1 do
+        while length(h)>=t
+          and not ccw(h[$-1],h[$],points[i]) do
+            h = h[1..$-1]
+        end while
+        h = append(h, points[i])
+    end for
+ 
+    h = h[1..$-1]
+    return h
+end function
+
+for i=1 to length(tests) do
+    printf(1,"For test set: ")
+    pp(tests[i],{pp_Indent,13,pp_Maxlen,111})
+    printf(1,"Convex Hull is: ")
+    pp(convex_hull(tests[i]))
+end for
+
+--/*
+For test set: {{16,3}, {12,17}, {0,6}, {-4,-6}, {16,6}, {16,-7}, {16,-3}, {17,-4}, {5,19}, {19,-8}, {3,16},
+              {12,13}, {3,-4}, {17,5}, {-3,15}, {-3,-9}, {0,11}, {-9,-3}, {-4,-2}, {12,10}}
+Convex Hull is: {{-9,-3}, {-3,-9}, {19,-8}, {17,5}, {12,17}, {5,19}, {-3,15}}
+For test set: {{16,3}, {12,17}, {0,6}, {-4,-6}, {16,6}, {16,-7}, {16,-3}, {17,-4}, {5,19}, {19,-8}, {3,16},
+              {12,13}, {3,-4}, {17,5}, {-3,15}, {-3,-9}, {0,11}, {-9,-3}, {-4,-2}, {12,10}, {14,-9}, {1,-9}}
+Convex Hull is: {{-9,-3}, {-3,-9}, {14,-9}, {19,-8}, {17,5}, {12,17}, {5,19}, {-3,15}}
+For test set: {{0,0}, {5,5}, {5,0}, {0,5}}
+Convex Hull is: {{0,0}, {5,0}, {5,5}, {0,5}}
+For test set: {{0,0}, {0,1}, {0,2}, {1,0}, {1,1}, {1,2}, {2,0}, {2,1}, {2,2}}
+Convex Hull is: {{0,0}, {2,0}, {2,2}, {0,2}}
+For test set: {{-8,-8}, {-8,4}, {-8,16}, {4,-8}, {4,4}, {4,16}, {16,-8}, {16,4}, {16,16}}
+Convex Hull is: {{-8,-8}, {16,-8}, {16,16}, {-8,16}}
+--*/
+
+-- plots the test points in red and the convex hull in green
+include pGUI.e
+--#withtype Ihandle
+
+Ihandle dlg, plot
+
+procedure set_title()
+    IupSetStrAttribute(dlg, "TITLE", "Marks Mode (%d/%d)", {t, length(tests)})
+end procedure
+
+procedure set_plots()
+    sequence tt = tests[t],
+             ch = convex_hull(tt)
+--/!* -- (used to visualise the (erroneous) Raku output, reported on the talk page)
+if ch={{-9,-3}, {-3,-9}, {14,-9}, {19,-8}, {17,5}, {12,17}, {5,19}, {-3,15}} then
+?{"swapping",ch,"for"}
+--  ch = {{-3, -9}, {1, -9}, {14, -9}, {19, -8}, {17, 5}, {12, 17}, {5, 19}, {-3, 15}, {-9, -3}}
+    ch = {{-3, -9}, {20, -9}, {17, 5}, {12, 17}, {5, 19}, {-3, 15}, {-9, -3}}
+?ch
+end if
+--*!/
+    atom x, y
+    IupSetAttribute(plot,"CLEAR","")
+
+    IupPlotBegin(plot)
+    for i=1 to length(tt) do
+        {x,y} = tt[i]
+        IupPlotAdd(plot, x, y)
+    end for
+    {} = IupPlotEnd(plot)
+    IupSetAttribute(plot, "DS_MODE", "MARK")
+    IupSetAttribute(plot, "DS_MARKSTYLE", "HOLLOW_CIRCLE")
+
+    IupPlotBegin(plot)
+    for i=1 to length(ch) do
+        {x,y} = ch[i]
+        IupPlotAdd(plot, x, y)
+    end for
+    {x,y} = ch[1]
+    IupPlotAdd(plot, x, y)
+    {} = IupPlotEnd(plot)
+    IupSetAttribute(plot, "DS_MODE", "MARKLINE")
+end procedure
+
+function key_cb(Ihandle /*ih*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if
+    if c=K_LEFT then t = iff(t=1?length(tests):t-1) end if
+    if c=K_RIGHT then t = iff(t=length(tests)?1:t+1) end if
+    set_plots()
+    return IUP_CONTINUE
+end function
+
+IupOpen()
+plot = IupPlot("AXS_XAUTOMIN=NO, AXS_XAUTOMAX=NO, AXS_YAUTOMIN=NO, AXS_YAUTOMAX=NO")
+IupSetAttributes(plot, "AXS_XMIN=-12, AXS_XMAX=20, AXS_YMIN=-12, AXS_YMAX=20")
+IupSetAttributes(plot, "AXS_XTICKFORMAT=%1.3f, LEGENDSHOW=YES, LEGENDPOS=BOTTOMRIGHT")
+dlg = IupDialog(plot)
+IupSetAttributes(dlg, "RASTERSIZE=640x480")
+IupSetCallback(dlg, "K_ANY", Icallback("key_cb"))
+set_title()
+set_plots()
+IupShow(dlg)
+IupMainLoop()
+IupClose()
+

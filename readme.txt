@@ -38,6 +38,18 @@ Version 0.8.2
             I would have liked to put signature checks in there, but alas
             that information is not held (think "pure virtual"), or rather 
             it is quite a bit more difficult to dig out.
+24/12/2020: BUGFIX: in something (well, anything!) like the following
+                sequence x = repeat(0,rand(50))
+                if <condition> then
+                    x = {} -- (or any other [fixed] length)
+                end if -- <<== **bad mergeBlocks()/mergeTypes() here !!!**
+                if length(x)=0 then ?9/0 end if -- <<== uses if 0=0 then!!
+            pltype.e was replacing/merging the lslen[prev] of -1 (aka
+            "no idea yet") with the lslen[curr] of 0, which meant it would
+            think x was length 0 (or whatever) even after condition failed.
+            It now leaves it alone (the last if now /looks/ at x's length).
+            Amazed this was not caught years ago, and even more amazed that 
+            p -test didn't start /any/ bitchin...
 
 Version 0.8.2
 =============

@@ -1771,6 +1771,7 @@ global procedure syminit()
         Alias("int",T_integer)
         Alias("seq",T_sequence)
     end if
+    Alias("number",T_atom)
 
     -- from misc.e: (must match table in builtins/get_interpreter.e/initv())
     initialConstant("DOS32", 1)                             -- ex.exe (not supported!)
@@ -1999,6 +2000,7 @@ atom pi, inf, nan
     initialConstant("GT_LF_LEFT",    2)     -- '\n' left on
     initialConstant("GT_LF_LAST",    4)     -- '\n' left on, plus '\n' if rqd
     initialConstant("GT_KEEP_BOM",   8)     -- do not strip utf8 bom
+    initialConstant("GT_BINARY",   #10)     -- open in binary mode
 
     -- from VM/pThreadN.e:
     initialConstant("CREATE_SUSPENDED", #00000004)
@@ -2802,7 +2804,7 @@ end if
 --end if
     initialAutoEntry("insert",              S_Func,"FPOI",  "pseqc.e",0,E_none)
     initialAutoEntry("int_to_bytes",        S_Func,"FNI",   "machine.e",0,E_none,1)
-    initialAutoEntry("int_to_bits",         S_Func,"FNI",   "machine.e",0,E_none)
+    initialAutoEntry("int_to_bits",         S_Func,"FNI",   "machine.e",0,E_none,1)
     initialAutoEntry("match_replace",       S_Func,"FOPOI", "matchrepl.e",0,E_none,3)
     initialAutoEntry("new",                 S_Func,"FOP",   "structs.e",0,E_other,1)        T_new = symlimit
     initialAutoEntry("pad_head",            S_Func,"FPIO",  "pseqc.e",0,E_none,2)

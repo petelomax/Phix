@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>JS Bin</title>
+<!--
+  <link rel="stylesheet" href="./tree.css">
+-->
+  <link rel="stylesheet" href="../../pGUI.css">
+</head>
+<body>
+  <main></main>
+  <br>
+  <footer></footer>
+  <script src="../../p2js.js"></script>
+  <script src="../../pGUI.js"></script>
+<!--
+  <script src="./tree.js"></script>
+-->
+  <script>
+let treedata = ["sequence",
+                ["sequence",                            // 1
+                 "equilateral",
+                 ["sequence",                           // (branch with 2 children)
+                  "isoceles",
+                  ["sequence",
+                   "STATE","COLLAPSED","USERDATA",4],
+                  ["sequence","dummy"]],                // (ensures we get a '+')
+                 "scalenus"],
+                ["sequence",                            // 2
+                 "some",
+                 "other",
+                 "branch"],
+                ["sequence"],                           // 3 (kills + w/o opening)
+                ["sequence",                            // 4
+                 "acute",
+                 "obtuse"]
+               ]
+
+let tree_nodes = ["sequence",
+                  "Figures",                            // (branch with 5 children)
+//                ["sequence",
+//                 "STATE","COLLAPSED"],                //  (works fine, btw)
+                  ["sequence",
+                    "Other",                            // (leaf)
+                   ["sequence",
+                    "triangle",                         // (branch with 3 children)
+                    ["sequence",
+                     "STATE","COLLAPSED"],
+                    ["sequence",
+                     "equilateral",
+                     ["sequence",
+                      "isoceles",                       // (branch with 2 children)
+                      ["sequence",
+                       "STATE","COLLAPSED","USERDATA",3],
+                      ["sequence","dummy"]],            // (ensures we get a '+')
+                     "scalenus"]],
+                   ["sequence",
+                    "triangle",                         // (branch with 3 children)
+                    ["sequence",
+                     "STATE","COLLAPSED","USERDATA",1],
+                    ["sequence","dummy"]],              // (ensures we get a '+')
+                   ["sequence",
+                    "parallelogram",                    // (branch with 2 children)
+                    ["sequence",
+                     "square",
+                     "diamond"]],
+                   "2D",                                // (leaf)
+                   ["sequence",
+                    "3D",                               // (branch)
+                    ["sequence",
+                     "STATE","COLLAPSED"],
+                    ["sequence"]],                      // (empty)
+                   ["sequence",
+                    "4D",
+                    ["sequence",
+                     "STATE","COLLAPSED","USERDATA",2],
+                    ["sequence","dummy"]]               // (branch, deferred load)
+                  ]
+                ];
+
+function branchopen_cb(/*Ihandle*/ tree, /*integer*/ id) {
+    let /*integer*/ userid = IupTreeGetUserId(tree,id);
+//  printf(1,"BRANCHOPEN_CB (%08x,%d,%d)\n", {tree,id,userid});
+    if (userid!==0 
+    && treedata[userid]!==0) { // (deferred load (still) rqd for this node)
+        // first kill off "dummy" (which ensured a '+'):
+//      IupSetAttributeId(tree,"DELNODE",id,"CHILDREN")
+        let /*sequence*/ children = treedata[userid];
+        IupTreeAddNodes(tree, children, userid);
+        // finally remove the deferred load (or otherise mark as done, if
+        // this isn't done then any sub-trees get deleted and collapsed.)
+        treedata[userid] = 0;
+//      if length(children)===0 then return IUP_IGNORE end if
+//  else
+//      // prevent empty branches from "opening"...
+//      if IupGetIntId(tree,"CHILDCOUNT",id)=0 then return IUP_IGNORE end if
+    }
+    return IUP_DEFAULT;
+}
+
+
+    const main = document.querySelector('main');
+    const tree = IupTreeView(tree_nodes,Icallback(branchopen_cb));
+    main.appendChild(tree);
+
+    const footer = document.querySelector('footer');
+
+    function my_open_cb(id, msg) {
+        footer.innerHTML = id + ' is opened' + msg;
+    }   
+    tree.open_cb = my_open_cb;
+
+    function my_select_cb(id, msg) {
+        footer.innerHTML = id + ' is selected' + msg;
+    }   
+    tree.select_cb = my_select_cb;
+
+    function my_close_cb(id, msg) {
+        footer.innerHTML = id + ' is closed' + msg;
+    }   
+    tree.close_cb = my_close_cb;
+  </script>
+</body>
+</html>

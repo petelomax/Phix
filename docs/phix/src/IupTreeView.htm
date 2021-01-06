@@ -16,7 +16,8 @@
             include pGUI.e
            <br>
            <br>
-            <a href="Ihandle.htm">Ihandle</a> ih = IupTreeView(<a href="sequence.htm">sequence</a> data,
+            <a href="Ihandle.htm">Ihandle</a> ih = IupTreeView(<a href="sequence.htm">sequence</a> tree_nodes,
+                                                               <a href="atom.htm">atom</a> branchopen_cb=NULL, 
                                                                <a href="string.htm">string</a> attributes="", 
                                                                <a href="html/glossary.htm#dwordseq">dword_seq</a> args={})
          </td>
@@ -26,20 +27,35 @@
           <b>Description:</b>
          </td>
          <td>
-            <b>[INCOMPLETE/IN PROGRESS]</b><br>
             Creates a nested tree control with expandable/collapsable nodes from a recursive [callback] data structure.
             <br>
             <br>
             An IupTreeView is a Phix/pGUI invention, expressly written for pwa/p2js,<br>
             but of course it can be freely used for strictly desktop-only purposes.<br>
-            The desktop version wraps IupTree(), including IupTreeSet/Get[User]Id(), and is liable to
-            break if any [features of] of those are used directly.<br>
-            In the browser the equivalent functionality is instead implemented directly.
+            The desktop version wraps IupFlatTree() with IupTreeAddNodes(), in other words a restricted/easier subset.<br>
+            The equivalent functionality is implemented in the browser using nested ul/li with a tiny embedded gif and a 
+            a small handful of suitable unicode characters, plus of course about 200 lines of handcrafted javascript.
             <br>
             <br>
-            data is a recursive construct of the form
+            The main purpose of this page is to show <b>only</b> pwa/p2js supported features, in preference to littering 
+            the IupFlatTree page with dozens if not hundreds of "not supported" markers.
             <br>
             <br>
+            Note, for example, that USERDATA is used internally, so that and IupTreeSet/Get[User]Id() are not available 
+            to the application, at least not in any generally useful way, other than as dictated below. In fact,
+            <a href="IupFlatTree.htm">IupTreeGetUserId</a>() is effectively a null-op on the browser, however it is
+            required on the desktop because of the way IUP renumbers nodes as predecessors are inserted.
+            <br>
+            <br>
+            tree_nodes: a nested construct of the form {"<i>text</i>"[,attr][,children]}, suitable for passing to 
+            <a href="IupTreeAddNodes.htm">IupTreeAddNodes</a>(). It may be empty, however the latter routine must then
+            be invoked before display to populate it with something, even partial, otherwise the desktop version crashes.<br>
+            branchopen_cb: an <a href="Icallback.htm">Icallback</a> for deferred loading, or NULL if tree_nodes is complete.<br>
+            For more information on the attributes and args parameters see <a href="IupSetAttributes.htm">IupSetAttributes</a>.
+            <br>
+            <br>
+<!--
+OLD:
             {{{title,data[,image,id]}}[,pop_rid[,userdata]]}
             <br>
             <br>
@@ -70,7 +86,7 @@
             <br>
             <br>
             A suitable pop_rid might look something like this:
-<!--eucode>
+<X!X--eucode>
         function populate(sequence data)
             string path = data[3]
             sequence d = dir(data[3])
@@ -82,8 +98,8 @@
             data = data[1..1] -- (prevent re-invocation)
             return data
         end function
-</eucode-->
-<pre>
+<X/eucode--X>
+<XpreX>
 <font color="#008080">        function</font><font color="#000000"> populate</font><font color="#0000FF">(</font><font color="#004080">sequence</font><font color="#000000"> data</font><font color="#0000FF">)</font>
 <font color="#004080">            string</font><font color="#000000"> path</font><font color="#0000FF"> =</font><font color="#000000"> data</font><font color="#0000FF">[</font><font color="#000000">3</font><font color="#0000FF">]</font>
 <font color="#004080">            sequence</font><font color="#000000"> d</font><font color="#0000FF"> =</font><font color="#5E005E"> dir</font><font color="#0000FF">(</font><font color="#000000">data</font><font color="#800000">[</font><font color="#000000">3</font><font color="#800000">]</font><font color="#0000FF">)</font>
@@ -95,46 +111,21 @@
 <font color="#000000">            data</font><font color="#0000FF"> =</font><font color="#000000"> data</font><font color="#0000FF">[</font><font color="#000000">1</font><font color="#0000FF">..</font><font color="#000000">1</font><font color="#0000FF">]</font><font color="#000080"><i> -- (prevent re-invocation)</i></font>
 <font color="#008080">            return</font><font color="#000000"> data</font>
 <font color="#008080">        end function</font>
-</pre>
+<X/preX>
 
             Blah...
             <br>
             <br>
-            Internally, pGUI.e implements an IupTable via an IupMatrix, whereas<br>
-            (obviously) pGUI.js implements an IupTable via &lt;table&gt;.
-            <br>
-            <br>
-            The internals of IupTable are really quite straightforward: they just adopt a very narrow view of what we 
-            need to achieve from an IupMatrix, and/or the html, css, and JavaScript we need to use in a browser.<br>
-            Obviously, should IupTable not quite meet your needs, you are free to take a copy of it and tweak it, 
-            the only real question being whether you or I can make such changes work on both the desktop and browser.
-            <br>
-            <br>
-            columns: each title can be a string or a {title,width,align} triplet.<br>
-            data: should be length 2 with length(data[1][row])=length(columns) and length(data[2])&lt;=length(columns).<br>
-            visible: the number of lines to show.<br>
-            For more information on the attributes and args<small>[nee data]</small> parameters see 
-            <a href="IupSetAttributes.htm">IupSetAttributes</a>.
-            <br>
-            <br>
-            data[1] contains the master/sortable values.<br>
-            data[2] is reserved for (string) display versions of data[1] or format callbacks:<br>
-            if data[2] is too short or data[2][col] is 0, then data[1][row][col] is displayed as-is<br>
-            if data[2][col] is a non-zero integer it is assumed to be the routine_id of a function
-            that will format data[1][row][col] properly for display (see demo/pGUI/IupTable.exw for examples),
-            or data[2][col] can be a sequence of pre-formatted strings, as in the example below.<br>
-            for dates, data[1][row][col] should be eg 20201122 or timedate-format, and data[2][col] a format routine or data[2][col][row] a string.<br>
-            for case-insensitive sorting, data[1][row][col] should be lower/upper(data[2][col][row]).<br>
-            Note that data[1] is one-per-line whereas data[2] is one-per-column (see example below).<br>
-            <br>
-            <br>
-            If column titles are specified as strings (as per the example below), the width defaults to 80, corresponding
-            to 20 characters, and the alignment to "ALEFT" (legal values are that, "ARIGHT", and "ACENTER").<br>
-            Note that IupMatrix() and hence IupTable() does not support individual column heading alignment, afaik,
-            whereas under p2js column headings are aligned the same as the column data.
-            <br>
-            <br>
+-->
             Returns: the identifier of the created element.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+            Supported.
          </td>
         </tr>
         <tr>
@@ -142,7 +133,7 @@
           <b>See Also:</b>
          </td>
          <td>
-          <a href="IupMatrix.htm">IupMatrix</a>
+          <a href="IupTreeAddNodes.htm">IupTreeAddNodes</a>
          </td>
         </tr>
         <tr>
@@ -150,143 +141,362 @@
           <b>Example:</b>
          </td>
          <td>
-            Initial and sorted appearance:<br>
             <div class="parent">
-              <div class="child">
-                <img width="266" height="127" src="images/IupTable.png">
+              <div class="child" style="border: solid 1px #dfdfdf;">
+                Desktop appearance:
+                <br>
+                <br>
+                <img width="241" height="188" src="images/IupTreeView.png">
               </div>
               <div class="child">
-                <img width="266" height="127" src="images/IupTable2.png">
+                &nbsp;
+              </div>
+              <div class="child" style="border: solid 1px #dfdfdf;">
+                Browser appearance:
+                <br>
+                <br>
+                <img width="241" height="188" src="images/IupTreeView2.png">
               </div>
             </div>
             <div style="clear:both;height:1px;"> </div>
           <br>
         <small>
 <!--eucode>
+-- pwa\phix\IupTreeView.exw
 include pGUI.e
-constant columns = {"Chq","Date","Amount"},
-                   -- or eg {..,{"Amount",100,"ARIGHT"}}
-         data = {{{1,{2020,1,13},1500.89},
-                  {2,{2020,7,10},3646.86},
-                  {3,{2019,3,20},3807.94}},
-                 {0,
-                  {`13/01/2020`,`10/07/2020`,`20/03/2019`},
-                  {`1500.89`,`3646.86`,`3807.94`}}}
+sequence tree_nodes = {"Figures",               -- (branch with 5 children)
+                       {"Other",                -- (leaf)
+                        {"triangle",            -- (branch with 3 children)
+                         {"STATE","COLLAPSED"},
+                         {"equilateral",
+                          {"isoceles",          -- (branch with 2 children)
+                           {"STATE","COLLAPSED"},
+                           {"acute",
+                            "obtuse"}},
+                          "scalenus"}},
+                        {"parallelogram",       -- (branch with 2 children)
+                         {"square",
+                          "diamond"}},
+                        "2D",                   -- (leaf)
+                        {"3D",                  -- (branch)
+                         {"STATE","COLLAPSED"}, -- (needed here)
+                         {}},                   -- (empty)
+                        {"4D",
+                         {"STATE","COLLAPSED"},
+                          {"some",
+                           "other",
+                           "branch"}}
+                       }
+                      }
 IupOpen()
-Ihandle table = IupTable(columns,data,3),
-        dlg = IupDialog(table) 
-IupSetAttribute(dlg,"RASTERSIZE","280x134") -- (see note)
-IupSetAttribute(dlg,"TITLE","IupTable demo")
+Ihandle tree = IupTreeView(tree_nodes)
+Ihandle dlg = IupDialog(tree)
+IupSetAttribute(dlg,"TITLE","IupTreeView basic demo")
+IupSetAttribute(dlg,"RASTERSIZE","260x230")
 IupCloseOnEscape(dlg)
-IupSetAttributeHandle(NULL,"PARENTDIALOG",dlg)
 IupShow(dlg)
+IupSetAttribute(dlg,"RASTERSIZE", NULL);
 if platform()!=WEB then
     IupMainLoop()
-    IupClose()
 end if
 </eucode-->
 <pre>
+<font color="#000080"><i>-- pwa\phix\IupTreeView.exw</i></font>
 <font color="#008080">include</font><font color="#000000"> pGUI.e</font>
-<font color="#008080">constant</font><font color="#000000"> columns</font><font color="#0000FF"> = {</font><font color="#008000">"Chq"</font><font color="#0000FF">,</font><font color="#008000">"Date"</font><font color="#0000FF">,</font><font color="#008000">"Amount"</font><font color="#0000FF">},</font>
-<font color="#000080"><i>                   -- or eg {..,{"Amount",100,"ARIGHT"}}</i></font>
-<font color="#000000">         data</font><font color="#0000FF"> = {</font><font color="#800000">{</font><font color="#800080">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#00FF00">{</font><font color="#000000">2020</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">13</font><font color="#00FF00">}</font><font color="#0000FF">,</font><font color="#000000">1500.89</font><font color="#800080">}</font><font color="#0000FF">,</font>
-<font color="#800080">                  {</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#00FF00">{</font><font color="#000000">2020</font><font color="#0000FF">,</font><font color="#000000">7</font><font color="#0000FF">,</font><font color="#000000">10</font><font color="#00FF00">}</font><font color="#0000FF">,</font><font color="#000000">3646.86</font><font color="#800080">}</font><font color="#0000FF">,</font>
-<font color="#800080">                  {</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#00FF00">{</font><font color="#000000">2019</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">20</font><font color="#00FF00">}</font><font color="#0000FF">,</font><font color="#000000">3807.94</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">,</font>
-<font color="#800000">                 {</font><font color="#000000">0</font><font color="#0000FF">,</font>
-<font color="#800080">                  {</font><font color="#008000">`13/01/2020`</font><font color="#0000FF">,</font><font color="#008000">`10/07/2020`</font><font color="#0000FF">,</font><font color="#008000">`20/03/2019`</font><font color="#800080">}</font><font color="#0000FF">,</font>
-<font color="#800080">                  {</font><font color="#008000">`1500.89`</font><font color="#0000FF">,</font><font color="#008000">`3646.86`</font><font color="#0000FF">,</font><font color="#008000">`3807.94`</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">}</font>
+<font color="#004080">sequence</font><font color="#000000"> tree_nodes</font><font color="#0000FF"> = {</font><font color="#008000">"Figures"</font><font color="#0000FF">,              </font><font color="#000080"><i> -- (branch with 5 children)</i></font>
+<font color="#800000">                       {</font><font color="#008000">"Other"</font><font color="#0000FF">,               </font><font color="#000080"><i> -- (leaf)</i></font>
+<font color="#800080">                        {</font><font color="#008000">"triangle"</font><font color="#0000FF">,           </font><font color="#000080"><i> -- (branch with 3 children)</i></font>
+<font color="#00FF00">                         {</font><font color="#008000">"STATE"</font><font color="#0000FF">,</font><font color="#008000">"COLLAPSED"</font><font color="#00FF00">}</font><font color="#0000FF">,</font>
+<font color="#00FF00">                         {</font><font color="#008000">"equilateral"</font><font color="#0000FF">,</font>
+<font color="#000080">                          {</font><font color="#008000">"isoceles"</font><font color="#0000FF">,         </font><font color="#000080"><i> -- (branch with 2 children)</i></font>
+<font color="#008000">                           {"STATE"</font><font color="#0000FF">,</font><font color="#008000">"COLLAPSED"}</font><font color="#0000FF">,</font>
+<font color="#008000">                           {"acute"</font><font color="#0000FF">,</font>
+<font color="#008000">                            "obtuse"}</font><font color="#000080">}</font><font color="#0000FF">,</font>
+<font color="#008000">                          "scalenus"</font><font color="#00FF00">}</font><font color="#800080">}</font><font color="#0000FF">,</font>
+<font color="#800080">                        {</font><font color="#008000">"parallelogram"</font><font color="#0000FF">,      </font><font color="#000080"><i> -- (branch with 2 children)</i></font>
+<font color="#00FF00">                         {</font><font color="#008000">"square"</font><font color="#0000FF">,</font>
+<font color="#008000">                          "diamond"</font><font color="#00FF00">}</font><font color="#800080">}</font><font color="#0000FF">,</font>
+<font color="#008000">                        "2D"</font><font color="#0000FF">,                  </font><font color="#000080"><i> -- (leaf)</i></font>
+<font color="#800080">                        {</font><font color="#008000">"3D"</font><font color="#0000FF">,                 </font><font color="#000080"><i> -- (branch)</i></font>
+<font color="#00FF00">                         {</font><font color="#008000">"STATE"</font><font color="#0000FF">,</font><font color="#008000">"COLLAPSED"</font><font color="#00FF00">}</font><font color="#0000FF">,</font><font color="#000080"><i> -- (needed here)</i></font>
+<font color="#00FF00">                         {}</font><font color="#800080">}</font><font color="#0000FF">,                  </font><font color="#000080"><i> -- (empty)</i></font>
+<font color="#800080">                        {</font><font color="#008000">"4D"</font><font color="#0000FF">,</font>
+<font color="#00FF00">                         {</font><font color="#008000">"STATE"</font><font color="#0000FF">,</font><font color="#008000">"COLLAPSED"</font><font color="#00FF00">}</font><font color="#0000FF">,</font>
+<font color="#00FF00">                          {</font><font color="#008000">"some"</font><font color="#0000FF">,</font>
+<font color="#008000">                           "other"</font><font color="#0000FF">,</font>
+<font color="#008000">                           "branch"</font><font color="#00FF00">}</font><font color="#800080">}</font>
+<font color="#800000">                       }</font>
+<font color="#0000FF">                      }</font>
 <font color="#5E005E">IupOpen</font><font color="#0000FF">()</font>
-<font color="#5E005E">Ihandle</font><font color="#000000"> table</font><font color="#0000FF"> =</font><font color="#5E005E"> IupTable</font><font color="#0000FF">(</font><font color="#000000">columns</font><font color="#0000FF">,</font><font color="#000000">data</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">),</font>
-<font color="#000000">        dlg</font><font color="#0000FF"> =</font><font color="#5E005E"> IupDialog</font><font color="#0000FF">(</font><font color="#000000">table</font><font color="#0000FF">) </font>
-<font color="#5E005E">IupSetAttribute</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">,</font><font color="#008000">"RASTERSIZE"</font><font color="#0000FF">,</font><font color="#008000">"280x134"</font><font color="#0000FF">)</font><font color="#000080"><i> -- (see note)</i></font>
-<font color="#5E005E">IupSetAttribute</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">,</font><font color="#008000">"TITLE"</font><font color="#0000FF">,</font><font color="#008000">"IupTable demo"</font><font color="#0000FF">)</font>
+<font color="#5E005E">Ihandle</font><font color="#000000"> tree</font><font color="#0000FF"> =</font><font color="#5E005E"> IupTreeView</font><font color="#0000FF">(</font><font color="#000000">tree_nodes</font><font color="#0000FF">)</font>
+<font color="#5E005E">Ihandle</font><font color="#000000"> dlg</font><font color="#0000FF"> =</font><font color="#5E005E"> IupDialog</font><font color="#0000FF">(</font><font color="#000000">tree</font><font color="#0000FF">)</font>
+<font color="#5E005E">IupSetAttribute</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">,</font><font color="#008000">"TITLE"</font><font color="#0000FF">,</font><font color="#008000">"IupTreeView basic demo"</font><font color="#0000FF">)</font>
+<font color="#5E005E">IupSetAttribute</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">,</font><font color="#008000">"RASTERSIZE"</font><font color="#0000FF">,</font><font color="#008000">"260x230"</font><font color="#0000FF">)</font>
 <font color="#5E005E">IupCloseOnEscape</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">)</font>
-<font color="#5E005E">IupSetAttributeHandle</font><font color="#0000FF">(</font><font color="#004600">NULL</font><font color="#0000FF">,</font><font color="#008000">"PARENTDIALOG"</font><font color="#0000FF">,</font><font color="#000000">dlg</font><font color="#0000FF">)</font>
 <font color="#5E005E">IupShow</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">)</font>
+<font color="#5E005E">IupSetAttribute</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">,</font><font color="#008000">"RASTERSIZE"</font><font color="#0000FF">,</font><font color="#004600"> NULL</font><font color="#0000FF">);</font>
 <font color="#008080">if</font><font color="#7060A8"> platform</font><font color="#0000FF">()!=</font><font color="#000000">WEB</font><font color="#008080"> then</font>
 <font color="#5E005E">    IupMainLoop</font><font color="#0000FF">()</font>
-<font color="#5E005E">    IupClose</font><font color="#0000FF">()</font>
 <font color="#008080">end if</font>
 </pre>
           </small>
           <br>
-          In the above, data[2][1] is 0, meaning that values from data[1][1][i] should be displayed for column 1. <br>
-          The dates and amounts all have pre-formatted copies, since strings in data[1] would not not sort correctly.<br>
-          Note that while data[2] could contain formatting routines for each column (see demo/pGUI/IupTable.exw for examples), 
-          it simply <i>cannot</i>, for instance, "undo" case-insensitive values stored in data[1]. The "double storage" cost
-          of case-insensitive columns is deemed a small and rare edge case price to pay for keeping the interface simple.
-          <br>
-          <br>
-          Note my efforts have focused on getting width-wise fitting. The table is rarely as neatly fitting vertically as
-          the above images imply, not that it really matters when the table is longer than the viewport, which many are.
-          With the latter in mind, I have deliberately shown a vertical scrollbar (via explicitly setting RASTERSIZE), 
-          although it isn&rsquo;t really needed. I have also lost several handfuls of hair over trying to force when the
-          scrollbars should and should not appear: there are still a few minor hiccups which are beyond my ability to fix,
-          see demo/pGUI/pGUI.e routine IupTableResize_cb() for more details.
          </td>
         </tr>
+<!--
+        <tr>
+         <td>
+          Images
+         </td>
+         <td>
+            IupFlatTree has three types of images: one associated to the leaf, one to the collapsed branch and the other to the expanded branch. <br>
+            Each image can be changed, both globally and individually.
+            <br>
+            <br>
+            The predefined images used in IupFlatTree can be obtained by means of function IupGetHandle. <br>
+            The names of the predefined images are: IMGLEAF, IMGCOLLAPSED, IMGEXPANDED, IMGBLANK (blank sheet of paper) and IMGPAPER (written sheet of paper). <br>
+            By default:
+            <br>
+            <br>
+            "IMAGELEAF" uses "IMGLEAF" <br>
+            "IMAGEBRANCHCOLLAPSED" uses "IMGCOLLAPSED" <br>
+            "IMAGEBRANCHEXPANDED" uses "IMGEXPANDED"
+            <br>
+            <br>
+            "IMGBLANK" and "IMGPAPER" are designed for use as "IMAGELEAF"
+            <br>
+            <br>
+            The default images are 16x16 pixels on standard resolution and 24x24 pixels on high resolution (4k displays), 
+            but you can force the use of the high resolution images by defining the global attribute "TREEIMAGE24" to "Yes".
+            <br>
+            <br>
+            All imagens do NOT need to have the same size, but it is recommended that a pair of branch open and branch collapsed to have the same size.
+            <br>
+            <br>
+            IMGEMPTY can be used as branches or leafs to clear the image (a totally transparent image).
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Simple Marking
+         </td>
+         <td>
+            It is the default operation mode (MARKMODE=SINGLE). In this mode only one node can be selected.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Multiple Marking
+         </td>
+         <td>
+            IupFlatTree allows marking several nodes simultaneously using the Shift and Control keys. <br>
+            To use multiple marking set MARKMODE=MULTIPLE. <br>
+            Multiple nodes can also be selected using mouse dragging if SHOWDRAGDROP=NO.
+          <br>
+          <br>
+            When a user keeps the Control key pressed, the individual marking mode is used. <br>
+            This way, the focus node can be modified without changing the marked node. <br>
+            To reverse a node marking, the user simply has to press the space bar.
+          <br>
+          <br>
+            When the user keeps the Shift key pressed, the block marking mode is used. <br>
+            This way, all nodes between the focus node and the initial node are marked, and all others are unmarked. <br>
+            The initial node is changed every time a node is marked without the Shift key being pressed. <br>
+            This happens when any movement is done without Shift or Control keys being pressed, or when the space bar is pressed together with Control.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Navigation
+         </td>
+         <td>
+            Using the keyboard:
+          <ul>
+           <li>Arrow Up/Down: Moves the focus node to the neighbor node, according to the arrow direction. 
+                              If Shift is pressed and MARKMODE=MULTIPLE a continuous range of cells is selected.</li>
+           <li>Home/End: Moves the focus node to the first/last node. </li>
+           <li>Page Up/Page Down: Moves the focus node to the node one visible page above/below the focus node. </li>
+           <li>Enter: If the focus node is an expanded branch, it is collapsed; if it is a collapsed branch, it is expanded; if it is a leaf, it is executed. </li>
+           <li>Ctrl+Arrow Up/Down: Moves only the focus node. </li>
+           <li>Ctrl+Space: Marks or unmarks the node at focus. </li>
+           <li>F2: Calls the rename callback or invokes the in place rename. </li>
+           <li>Esc: cancels in place rename. </li>
+          </ul>
+            Using the left mouse button:
+          <ul>
+           <li>Clicking a node: Moves the focus node to the clicked node. </li>
+           <li>Clicking a (-/+) box: Makes the branch to the right of the (-/+) box collapse/expand. </li>
+           <li>Double-clicking a node: Moves the focus node to the clicked node. 
+                If the node is an expanded branch, it is collapsed; 
+                if it is a collapsed branch, it is expanded; 
+                if it is a leaf, it is executed. </li>
+           <li>Clicking twice a node: Calls the rename callback or invokes the in place rename. </li>
+           <li>Clicking and dragging a node: if SHOWDRAGDROP=Yes starts a drag. When mouse is released, the DRAGDROP_CB callback is called. <br>
+                If the callback does not exist or if it returns <a href="callbacks.htm#IUP_CONTINUE">IUP_CONTINUE</a> then the node is moved to the new position. <br>
+                If Ctrl is pressed then the node is copied instead of moved. In Motif drag is performed with the middle mouse button.
+           </li>
+          </ul>
+            Removing a Node with "Del" <br>
+            By default the Del key is not processed, but you can implement it using a simple
+          <a href="callbacks.htm#K_ANY">K_ANY</a> callback:
+        <br>
+        <br><small>
+<X!X--eucode>
+    function k_any(Ihandle ih, integer c)
+        if c == K_DEL then IupSetAttribute(ih,"DELNODE","MARKED") end if 
+        return IUP_CONTINUE
+    end function
+</eucode--X>
+<Xpre>
+<font color="#008080">    function</font><font color="#000000"> k_any</font><font color="#0000FF">(</font><font color="#5E005E">Ihandle</font><font color="#000000"> ih</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> c</font><font color="#0000FF">)</font>
+<font color="#008080">        if</font><font color="#000000"> c</font><font color="#0000FF"> ==</font><font color="#004600"> K_DEL</font><font color="#008080"> then</font><font color="#5E005E"> IupSetAttribute</font><font color="#0000FF">(</font><font color="#000000">ih</font><font color="#0000FF">,</font><font color="#008000">"DELNODE"</font><font color="#0000FF">,</font><font color="#008000">"MARKED"</font><font color="#0000FF">)</font><font color="#008080"> end if 
+        return</font><font color="#004600"> IUP_CONTINUE</font>
+<font color="#008080">    end function</font>
+<X/pre>
+          </small>
+         </td>
+        </tr>
+
+-->
+<!--
         <tr>
          <td>
           Extra Functions
          </td>
          <td>
-            IupTableClick_cb(): see <a href="#CLICK_CB">CLICK_CB</a><br>
-            IupTableEnterItem_cb(): see <a href="#ENTERITEM_CB">ENTERITEM_CB</a><br>
-            IupTableResize_cb(): see <a href="#RESIZE_CB">RESIZE_CB</a><br>
-            <a name="IupTableGetSelected"></a>
+            IupFlatTree has functions that allow associating a pointer (or a user defined id) to a node. <br>
+            In order to do that, you provide the id of the node and the pointer (userid); even if the node&rsquo;s 
+            id changes later on (because of insertions/deletions above/below it), the userid will still be associated with the given node. <br>
+            A positive integer index, to some other table, is recommended in Phix, whereas using raw pointers would 
+            most likely require additional/careful/tedious memory management.<br>
+            These functions all use the USERDATAid attribute.
+            <br>
+            <br>
+            IupFlatTree shares the same functions with <a href="IupTree.htm">IupTree</a>.
+          <a name="IupTreeSetUserId"></a>
           <br>
           <br>
-            <a href="integer.htm">integer</a> idx = <b>IupTableGetSelected</b>(<a href="Ihandle.htm">Ihandle</a> table)<br>
-            table: Identifier of the interface element.
+            <b>IupTreeSetUserId</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> id, <a href="atom.htm">atom</a> userid) <br>
+            ih: Identifier of the interface element. <br>
+            id: Node identifier. <br>
+            userid: User index or pointer to be associated with the node. Use NULL to remove the association.
           <br>
           <br>
-            Returns the index of the currently selected line, or 0 if none.<br>
-            Note this can subscript the data, whereas the line numbers passed to click_cb and enteritem_cb cannot, at least
-            certainly not with column sorting in effect (if needed an IupTableMapLine() function could easily be added).
-            <a name="IupTableGetData"></a>
+            Associates a userid with a given id. If the id of the node is changed, the userid remains the same.
+            Terminates in error if the node cannot be found.
+          <a name="IupTreeGetUserId"></a>
           <br>
           <br>
-            <a href="sequence.htm">sequence</a> data = <b>IupTableGetData</b>(<a href="Ihandle.htm">Ihandle</a> table)<br>
-            ih: Identifier of the interface element.
+            <a href="atom.htm">atom</a> userid = <b>IupTreeGetUserId</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> id) <br>
+            ih: Identifier of the interface element. <br>
+            id: Node identifier.
           <br>
           <br>
-            Returns a copy of the data stored for display in the table - probably not needed in most cases, since the
-            application is probably perfectly aware what data it previously associated with which table, and still has
-            a copy of that.
-            <a name="IupTableSetData"></a>
+            Returns the index or pointer associated to the node or NULL if none was associated. <br>
+            IupTreeSetUserId must have been called for the node with the given id.
+          <a name="IupTreeGetId"></a>
           <br>
           <br>
-            <b>IupTableSetData</b>(<a href="Ihandle.htm">Ihandle</a> table, <a href="sequence.htm">sequence</a> data,
-                                   <a href="integer.htm#bool">bool</a> bReset=true)<br>
-            ih: Identifier of the interface element.<br>
-            data: an updated copy of the data to be stored for display in the table.<br>
-            data must be a sequence of length 2, as per the parameter in the initial IupTable() call.<br>
-            bReset: removes any column-sorting and selection if either bReset is true or the length of data[1] is changed.<br>
-            The display is automatically refreshed.
+            <a href="integer.htm">integer</a> id = <b>IupTreeGetId</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="atom.htm">atom</a> userid) <br>
+            ih: Identifier of the interface element. <br>
+            userid: Index or pointer associated to the node.
           <br>
           <br>
-            It may or may not prove helpful to add an idx=0 parameter to both the above routines, such that if zero then
-            data is the whole shebang, otherwise it is a single element.
+            Returns the id of the node that has the userid on success or -1 (nil) if not found. 
+            IupTreeSetUserId must have been called with the same userid.
+            <br>
+            <br>
+            The utility functions <a href="IupSetAttribute.htm#utility">IupSetAttributeId</a>, <a href="IupGetAttribute.htm#utility">IupGetAttributeId</a>, 
+            <a href="IupGetAttribute.htm#utility">IupGetIntId</a>, <a href="IupGetAttribute.htm#utility">IupGetFloatId</a>, 
+            <a href="IupSetStrAttribute.htm#utility">IupSetIntId</a>, and <a href="IupSetStrAttribute.htm#utility">IupSetFloatId</a>
+            can also be used here, as well as <a href="IupTreeAddNodes.htm">IupTreeAddNodes</a>.
+            <br>        
+            <br>        
+            They work just like the respective traditional set and get functions, but the attribute string is complemented with the id value. For example:
+            <br>
+            <br><small>
+<X!--eucode>
+IupSetAttributeId(ih, "KIND", 30, value) == IupSetAttribute(ih, "KIND30", value)
+IupSetAttributeId(ih, "ADDLEAF", 10, value) == IupSetAttribute(ih, "ADDLEAF10", value)
+</eucode--X>
+<Xpre>
+<font color="#5E005E">IupSetAttributeId</font><font color="#0000FF">(</font><font color="#000000">ih</font><font color="#0000FF">,</font><font color="#008000"> "KIND"</font><font color="#0000FF">,</font><font color="#000000"> 30</font><font color="#0000FF">,</font><font color="#5E005E"> value</font><font color="#0000FF">) ==</font><font color="#5E005E"> IupSetAttribute</font><font color="#0000FF">(</font><font color="#000000">ih</font><font color="#0000FF">,</font><font color="#008000"> "KIND30"</font><font color="#0000FF">,</font><font color="#5E005E"> value</font><font color="#0000FF">)</font>
+<font color="#5E005E">IupSetAttributeId</font><font color="#0000FF">(</font><font color="#000000">ih</font><font color="#0000FF">,</font><font color="#008000"> "ADDLEAF"</font><font color="#0000FF">,</font><font color="#000000"> 10</font><font color="#0000FF">,</font><font color="#5E005E"> value</font><font color="#0000FF">) ==</font><font color="#5E005E"> IupSetAttribute</font><font color="#0000FF">(</font><font color="#000000">ih</font><font color="#0000FF">,</font><font color="#008000"> "ADDLEAF10"</font><font color="#0000FF">,</font><font color="#5E005E"> value</font><font color="#0000FF">)</font>
+<X/pre>
+            </small><br>
+            These functions are faster than the traditional functions because they do not need to parse the attribute name string and the application 
+            does not need to concatenate the attribute name with the id, although you will probably only notice if you are processing a <i>very</i>
+            large tree.  Note that the C function IupSetfAttributeId is not wrapped by pGUI, however that functionality is covered by the
+            optional parameters of <a href="IupSetStrAttribute.htm#utility">IupSetStrAttributeId</a>.
          </td>
         </tr>
+-->
         <tr>
          <td>
           <b>Attributes:</b>
          </td>
          <td>
-            General
+<!--
+            Inherits all attributes and callbacks of the <a href="IupCanvas.htm">IupCanvas</a>, but redefines a few attributes.
+            <br>
+            <br>
+            Different from the <a href="IupTree.htm">IupTree</a>, all attributes are functional before map. <br>
+            The attributes marked with (*) are exclusive to the IupFlatTree and are NOT support in the regular IupTree.
+-->
+         </td>
+        </tr>
+<!--
+        <tr>
+         <td>
+          <b>General</b>
+         </td>
+         <td>
+            
+         </td>
+        </tr>
+-->
+<!--
+        <tr>
+         <td>
+          AUTOREDRAW
+         </td>
+         <td>
+            (non inheritable) automatically redraws the tree when something has change. <br>
+            Set to NO to add many items to the tree without updating the display. Default: "YES".
          </td>
         </tr>
         <tr>
          <td>
-          <a href="common.htm#RASTERSIZE">RASTERSIZE</a>
+          <a href="common.htm#BGCOLOR">BGCOLOR</a>
          </td>
          <td>
-            (non inheritable) the initial size is determined from the sum of the column widths and the number of visible lines.<br>
-            Unlike some other controls it should <i>not</i> be necessary to set this to null to allow the automatic layout to use smaller values.
+            Background color of the tree. Default: the global attribute <a href="iupgattr.htm#TXTBGCOLOR">TXTBGCOLOR</a>.
          </td>
         </tr>
-<!--
+        <tr>
+         <td>
+          BORDERCOLOR(*)
+         </td>
+         <td>
+            color used for the internal border. Default: "50 150 255". This is for the internal border.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          BORDERWIDTH(*)
+         </td>
+         <td>
+            line width used for the internal border. Default: "0". The internal borders are hidden by simply setting this value to 0. It is drawn inside the canvas, so inside the scrollbars.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          COUNT
+         </td>
+         <td>
+            (read only, non inheritable) returns the total number of nodes in the tree.
+         </td>
+        </tr>
         <tr>
          <td>
           <a href="common.htm#EXPAND">EXPAND</a>
@@ -297,10 +507,85 @@ end if
         </tr>
         <tr>
          <td>
+          EXTRATEXTWIDTH(*)
+         </td>
+         <td>
+            width of the extra text area at right. (since 3.30)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="common.htm#FGCOLOR">FGCOLOR</a>
+         </td>
+         <td>
+            default text foreground color. <br>
+            Once each node is created it will not change its color when <a href="common.htm#FGCOLOR">FGCOLOR</a> is changed.<br>
+            Default: the global attribute <a href="iupgattr.htm#TXTFGCOLOR">TXTFGCOLOR</a>.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          HLCOLOR(*)
+         </td>
+         <td>
+            (non inheritable) color of a filled box drawn over the selected node. Default: TXTHLCOLOR global attribute.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          HLCOLORALPHA(*)
+         </td>
+         <td>
+            the transparency used to draw the selection. Default: 128. If set to 0 the selection box is not drawn.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          PSCOLOR(*)
+         </td>
+         <td>
+            background color of a selected node. If not defined BACKCOLORid will be used. (since 3.30)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TEXTPSCOLOR(*)
+         </td>
+         <td>
+            foreground color of a selected node. If not defined FORECOLORid will be used. (since 3.30)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          ICONSPACING(*)
+         </td>
+         <td>
+            (non inheritable) spacing between the image and the text. Default: "2".
+         </td>
+        </tr>
+        <tr>
+         <td>
+          INDENTATION
+         </td>
+         <td>
+            sets the indentation level in pixels. <br>
+            Default: 16 for standard resolution, 24 for high resolution display.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="common.htm#RASTERSIZE">RASTERSIZE</a>
+         </td>
+         <td>
+            (non inheritable) the initial size is "400x200". Set to NULL to allow the automatic layout use smaller values.
+         </td>
+        </tr>
+        <tr>
+         <td>
           SPACING
          </td>
          <td>
-            vertical internal padding for each node. Notice that the distance between each node will actually be 2x the spacing. (since 3.0)
+            vertical space between nodes. Notice that this is not the same as the <a href="IupTree.htm">IupTree</a>.
          </td>
         </tr>
         <tr>
@@ -311,8 +596,26 @@ end if
             same as SPACING but using the units of the vertical part of the SIZE attribute. It will actually set the SPACING attribute. (since 3.29)
          </td>
         </tr>
+        <tr>
+         <td>
+          TOPITEM
+         </td>
+         <td>
+            (write-only) position the given node identifier at the top of the tree or near to make it visible. <br>
+            If any parent node is collapsed then they are automatically expanded.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <i>invalid</i>
+         </td>
+         <td>
+            The following are <b>not</b> used on IupFlatTree (unlike IupTree):<br>
+            ADDROOT (behaves as if "NO"),  EMPTYAS3STATE (replaced with EMPTYTOGGLE), INFOTIP (uses regular TIP behaviour instead)
+         </td>
+        </tr>
 -->
-<!-- DEV/untested:
+<!--
         <tr>
          <td>
           Also:
@@ -321,7 +624,6 @@ end if
             <a href="common.htm#ACTIVE">ACTIVE</a>,
             <a href="common.htm#EXPAND">EXPAND</a>, 
             <a href="common.htm#FONT">FONT</a>,
-            <a href="common.htm#NAME">NAME</a>, 
             <a href="common.htm#SCREENPOSITION">SCREENPOSITION</a>, 
             <a href="common.htm#POSITION">POSITION</a>, 
             <a href="common.htm#MINSIZE">MINSIZE</a>, 
@@ -329,145 +631,1066 @@ end if
             <a href="common.htm#WID">WID</a>,
             <a href="common.htm#TIP">TIP</a>, 
             <a href="common.htm#SIZE">SIZE</a>,
+            <a href="common.htm#RASTERSIZE">RASTERSIZE</a>,
             <a href="common.htm#ZORDER">ZORDER</a>,
-            <a href="common.htm#VISIBLE">VISIBLE</a>
+            <a href="common.htm#VISIBLE">VISIBLE</a>,
+            <a href="common.htm#THEME">THEME</a>: also accepted. 
+          <br>
+          <br>
+<x!--
+            The NAME common attribute is still not supported because of a backward compatibility code. <br>
+            Old applications must change the use of the old NAME attribute to TITLE, so the new NAME common attribute can be enabled in future versions.
+          <br>
+          <br>
+            Drag & Drop attributes are supported, but SHOWDRAGDROP must be set no No.
+--x>
          </td>
         </tr>
 -->
+<!--
+        <tr>
+         <td>
+          <b>Expanders</b>
+         </td>
+         <td>
+            (non inheritable)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          HIDEBUTTONS
+         </td>
+         <td>
+            hide the expand and collapse buttons.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          HIDELINES
+         </td>
+         <td>
+            hide the lines that connect the nodes in the hierarchy.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          LINECOLOR(*)
+         </td>
+         <td>
+            the color of the dotted guidelines. Default: "110 110 110"
+         </td>
+        </tr>
+        <tr>
+         <td>
+          BUTTONBGCOLOR(*)
+         </td>
+         <td>
+            background color of the expander buttons. Default: "240 240 240"
+         </td>
+        </tr>
+        <tr>
+         <td>
+          BUTTONFGCOLOR(*)
+         </td>
+         <td>
+            sign color of the expander buttons ("+" or "-" signs). Default: "50 100 150"
+         </td>
+        </tr>
+        <tr>
+         <td>
+          BUTTONBRDCOLOR(*)
+         </td>
+         <td>
+            border color of the expander buttons. Default: "150 150 150"
+         </td>
+        </tr>
+        <tr>
+         <td>
+          BUTTONSIZE(*)
+         </td>
+         <td>
+            size of the expander button square. Default: 9 for standard resolution, 16 for high resolution display
+         </td>
+        </tr>
+        <tr>
+         <td>
+          BUTTONPLUSIMAGE(*)
+         </td>
+         <td>
+            the image name that will be shown for all expander button when collapsed. By default the button is drawn. <br>
+            The "IMGPLUS" pre-defined image is a 9x9 image that can be used.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          BUTTONMINUSIMAGE(*)
+         </td>
+         <td>
+            the image name that will be shown for all expander button when collapsed. By default the button is drawn. <br>
+            The "IMGMINUS" pre-defined image is a 9x9 image that can be used.
+         </td>
+        </tr>
 
+        <tr>
+         <td>
+          <b>Nodes</b>
+         </td>
+         <td>
+            (non inheritable) For these attributes "id" is the specified node identifier. <br>
+            If "id" is empty or invalid, then the focus node is used as the specified node.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          CHILDCOUNTid
+         </td>
+         <td>
+            (read only) returns the immediate children count of the specified branch. <br>
+            It does not count children of child that are branches.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TOTALCHILDCOUNTid
+         </td>
+         <td>
+            (read only) returns the total children count of the specified branch. It counts all grandchildren too.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          ROOTCOUNT
+         </td>
+         <td>
+            (read only) returns the number of root nodes. (since 3.23)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          COLORid
+         </td>
+         <td>
+            foreground color of the title at the given id. If not defined FGCOLOR is used. <br>
+            The value should be a string in the format "R G B" where R, G, B are numbers from 0 to 255.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          BACKCOLOR(*)
+         </td>
+         <td>
+            background color of the title at the given id. If not defined BGCOLOR is used.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          ITEMTIP(*)
+         </td>
+         <td>
+            tip of the node at the given id. If defined will be shown instead of the TIP attribute.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          DEPTHid
+         </td>
+         <td>
+            (read only) returns the depth of the specified node. <br>
+            The first node has depth=0, its immediate children has depth=1, their children has depth=2 and so on.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          KINDid
+         </td>
+         <td>
+            (read only) returns the kind of the specified node. <br>
+            Possible values:
+          <br>
+          <br>
+            "LEAF": The node is a leaf <br>
+            "BRANCH": The node is a branch
+         </td>
+        </tr>
+        <tr>
+         <td>
+          PARENTid
+         </td>
+         <td>
+            (read only) returns the identifier of the specified node.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          NEXTid
+         </td>
+         <td>
+            (read only) returns the next brother (same depth) of the specified node. <br>
+            Returns NULLs if at last child node of the parent (at the same depth).
+         </td>
+        </tr>
+        <tr>
+         <td>
+          PREVIOUSid
+         </td>
+         <td>
+            (read only) returns the previous brother (same depth) of the specified node. <br>
+            Returns NULLs if at first child node of the parent (at the same depth).
+         </td>
+        </tr>
+        <tr>
+         <td>
+          LASTid
+         </td>
+         <td>
+            (read only) returns the last brother (same depth) of the specified node.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          FIRSTid
+         </td>
+         <td>
+            (read only) returns the first brother (same depth) of the specified node. <br>
+            This is the same as getting the first child of the parent of the given node. <br>
+            If the specified node is the first child returns the specified node.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          STATEid
+         </td>
+         <td>
+            the state of the specified branch. Returns NULL for a LEAF. <br>
+            Possible values:
+          <br>
+          <br>
+            "EXPANDED": Expanded branch state (shows its children) <br>
+            "COLLAPSED": Collapsed branch state (hides its children)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TITLEid
+         </td>
+         <td>
+            the text label of the specified node.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TITLEFONTid
+         </td>
+         <td>
+            the text font of the specified node. The format is the same as the <a href="common.htm#FONT">FONT</a> attribute.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TITLEFONTSTYLEid
+         </td>
+         <td>
+            changes the font style of the specified node. Actually changes the TITLEFONTid attribute.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TITLEFONTSIZEid
+         </td>
+         <td>
+            changes the font size of the specified node. Actually changes the TITLEFONTid attribute.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          USERDATAid
+         </td>
+         <td>
+            the user data associated with the specified node.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          EXTRATEXTid(*)
+         </td>
+         <td>
+            text displayed at the extra text area at right. (since 3.30)
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+          <b>Toggle</b>
+         </td>
+         <td>
+            (non inheritable)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          SHOWTOGGLE
+         </td>
+         <td>
+            enables the use of toggles for all nodes of the tree. <br>
+            Can be "YES", "3STATE" or "NO". Default: "NO". <br>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          EMPTYTOGGLE(*)
+         </td>
+         <td>
+            when SHOWTOGGLE=Yes, the empty space left in nodes that TOGGLEVISIBLEid=NO is filled with a blank space. Can be Yes or NO. Default: No.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TOGGLEVALUEid
+         </td>
+         <td>
+            defines the toggle state. Values can be "ON" or "OFF". <br>
+            If SHOW3STATE=YES then can also be "NOTDEF". Default: "OFF".
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TOGGLEVISIBLEid
+         </td>
+         <td>
+            defines the toggle visible state. Values can be "Yes" or "No". Default: "Yes".
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TOGGLEBGCOLOR(*)
+         </td>
+         <td>
+            background color of the toggle. Default: "TXTBGCOLOR"
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TOGGLEFGCOLOR(*)
+         </td>
+         <td>
+            foreground color of the toggle, use to draw the frame and the check mark. Default: "TXTFGCOLOR"
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TOGGLESIZE(*)
+         </td>
+         <td>
+            size of the toggle square. Default: 16 for standard resolution, 24 for high resolution display
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Images</b>
+         </td>
+         <td>
+            (non inheritable)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          IMAGEid
+         </td>
+         <td>
+            (write only) image name to be used in the specified node, where id is the specified node identifier. <br>
+            Use <a href="IupSetHandle.htm">IupSetHandle</a> or <a href="IupSetAttributeHandle.htm">IupSetAttributeHandle</a> to associate an image to a name. 
+            See also <a href="IupImage.htm">IupImage</a>. <br>
+            If node is a branch it is used when collapsed.<br>
+            All images do NOT need to have the same size, but it is recommended that a branch expanded and collapse images to have the same size.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          IMAGEEXPANDEDid
+         </td>
+         <td>
+            (write only) same as the IMAGE attribute but used for expanded branches.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          IMAGELEAF
+         </td>
+         <td>
+            the image name that will be shown for all leaves. Default: "IMGLEAF" (a bullet). <br>
+            Internal values "IMGBLANK" (blank sheet of paper) and "IMGPAPER" (written sheet of paper) are also available. <br>
+            If <a href="common.htm#BGCOLOR">BGCOLOR</a> is set the image is automatically updated.
+            This image defines the available space for the image in all nodes. <br>
+            "IMGEMPTY" can be used as a totally transparent image .
+         </td>
+        </tr>
+        <tr>
+         <td>
+          IMAGEBRANCHCOLLAPSED
+         </td>
+         <td>
+            the image name that will be shown for all collapsed branches. Default: "IMGCOLLAPSED" (a closed folder).
+         </td>
+        </tr>
+        <tr>
+         <td>
+          IMAGEBRANCHEXPANDED
+         </td>
+         <td>
+            the image name that will be shown for all expanded branches. Default: "IMGEXPANDED" (an open folder).
+         </td>
+        </tr>
+        <tr>
+         <td>
+          BACKIMAGE(*)
+         </td>
+         <td>
+            image name to be used as background. <br>
+            Use <a href="IupSetHandle.htm">IupSetHandle</a> or <a href="IupSetAttributeHandle.htm">IupSetAttributeHandle</a> to associate an image to a name. 
+            See also <a href="IupImage.htm">IupImage</a>.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          BACKIMAGEZOOM(*)
+         </td>
+         <td>
+            if set the back image will be zoomed to occupy the full background. Aspect ratio is NOT preserved. Can be Yes or No. Default: No.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Focus</b>
+         </td>
+         <td>
+            (non inheritable)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          VALUE
+         </td>
+         <td>
+            The focus node identifier. <br>
+            When retrieved but there isn&rsquo;t a node with focus it returns 0 if there are any nodes, and returns -1 if there are no nodes. <br>
+            When changed and MARKMODE=SINGLE the node is also selected. The tree is always scrolled so the node becomes visible. <br>
+            Additionally accepts the values:
+          <br>
+          <br>
+            "ROOT" or "FIRST": the first node (which is always expanded)<br>
+            "LAST": the last expanded node <br>
+            "NEXT": the next expanded node, one node after the focus node. If at the last does nothing <br>
+            "PREVIOUS": the previous expanded node, one node before the focus node. If at the first does nothing <br>
+            "PGDN": the next expanded node, ten nodes node after the focus node. If at the last does nothing <br>
+            "PGUP": the previous expanded node, ten nodes before the focus node. If at the first does nothing <br>
+            "CLEAR": clears the selection of the focus node.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          CANFOCUS
+         </td>
+         <td>
+            (creation only) enables the focus traversal of the control. Default: YES.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          PROPAGATEFOCUS
+         </td>
+         <td>
+            enables the focus callback forwarding to the next native parent with FOCUS_CB defined. Default: NO.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          FOCUSFEEDBACK(*)
+         </td>
+         <td>
+            (non inheritable) draw the focus feedback. Can be Yes or No. Default: Yes.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          HASFOCUS(*)
+         </td>
+         <td>
+            (read-only) returns the button state if has focus. Can be Yes or No. 
+         </td>
+        </tr>
+-->
+        <tr>
+         <td>
+          <b>Marks</b>
+         </td>
+         <td>
+            (non inheritable)
+         </td>
+        </tr>
+<!--
+        <tr>
+         <td>
+          MARK
+         </td>
+         <td>
+            (write only) Selects a range of nodes in the format "start-end" (%d-%d). <br>
+            Allowed only when MARKMODE=MULTIPLE. Also accepts the values:
+          <br>
+          <br>
+            "INVERTid": Inverts the specified node selected state, where id is the specified node identifier. If id is empty or invalid, then the focus node is used as reference node. <br>
+            "BLOCK": Selects all nodes between the focus node and the initial block-marking node defined by MARKSTART <br>
+            "CLEARALL": Clear the selection of all nodes <br>
+            "MARKALL": Selects all nodes <br>
+            "INVERTALL": Inverts the selection of all nodes
+         </td>
+        </tr>
+        <tr>
+         <td>
+          MARKEDid
+         </td>
+         <td>
+            The selection state of the specified node, where id is the specified node identifier. <br>
+            If id is empty or invalid, then the focus node is used as reference node. Can be: YES or NO. Default: NO
+         </td>
+        </tr>
+        <tr>
+         <td>
+          MARKEDNODES
+         </td>
+         <td>
+            The selection state of all nodes. <br>
+            It is/accepts a sequence of '+' and '-' symbols indicating the state of each item ('+'=selected, '-'=unselected). <br>
+            When setting this value, if the number of specified symbols is smaller than the total count then the remaining nodes will not be changed.<br>
+            Can be set only when MARKMODE=MULTIPLE, can also be get when MARKMODE=SINGLE.
+         </td>
+        </tr>
+-->
+        <tr>
+         <td>
+          MARKMODE
+         </td>
+         <td>
+            (not yet implemented , but planned)
+            defines how the nodes can be selected. Can be: SINGLE or MULTIPLE. Default: SINGLE.
+         </td>
+        </tr>
+<!--
+        <tr>
+         <td>
+          MARKSTART
+         </td>
+         <td>
+            Defines the initial node for the block marking, used when MARK=BLOCK.<br>
+            The value must be the node identifier. Default: 0 (first node).
+         </td>
+        </tr>
+        <tr>
+         <td>
+          MARKWHENTOGGLE
+         </td>
+         <td>
+            selects or clears the selection of a node when its toggle is changed. <br>
+            Works only if the node has a toggle. Default: No.
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+          <b>Hierarchy</b>
+         </td>
+         <td>
+            (non inheritable) For these attributes "id" is the specified node identifier. <br>
+            If "id" is empty or invalid, then the focus node is used as the specified node.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          ADDEXPANDED
+         </td>
+         <td>
+            (non inheritable) Defines if branches will be expanded when created.  <br>
+            The branch will be actually expanded when it receives the first child.  <br>
+            Possible values: "YES" = The branches will be created expanded; "NO" = The branches will be created collapsed. Default: "YES".
+         </td>
+        </tr>
+        <tr>
+         <td>
+          ADDLEAFid
+         </td>
+         <td>
+            (write only) Adds a new leaf after the reference node, where id is the reference node identifier. <br>
+            Use id=-1 to add before the first node. The value is used as the text label of the new node. <br>
+            The id of the new node will be the id of the reference node + 1. <br>
+            The attribute LASTADDNODE is set to the new id. <br>
+            The reference node is marked and all others unmarked. <br>
+            The reference node position remains the same. <br>
+            If the reference node does not exist, nothing happens. <br>
+            If the reference node is a branch then the depth of the new node is one depth increment from the depth of the reference node, <br>
+            if the reference node is a leaf then the new node has the same depth. <br>
+            If you need to add a node after a specified node but at a different depth use INSERTLEAF.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          ADDBRANCHid
+         </td>
+         <td>
+            (write only) Same as ADDLEAF for branches. Branches can be created expanded or collapsed depending on ADDEXPANDED.
+            <br>
+            <br>
+            <div id="images" class="images" align="center">
+            <table border="1">
+            <tbody align="center">
+            <tr>
+             <th>Initial layout</th>
+             <th>After calling <code>IupSetAttribute(ADDBRANCH9, "new branch")</code>:</th>
+            </tr>
+            <tr>
+             <td><img src="images/iuptree1.png"/></td>
+             <td><img src="images/iuptree2_addbranch9.png"/></td>
+            </tr>
+            </tbody>
+            </table>
+            </div>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          COPYNODEid
+         </td>
+         <td>
+            (write only) Copies a node and its children, where id is the specified node identifier. <br>
+            The value is the destination node identifier. <br>
+            If the destination node is a branch and it is expanded, then the specified node is inserted as the first child of the destination node. <br>
+            If the branch is not expanded or the destination node is a leaf, then it is inserted as the next brother of the leaf. <br>
+            The specified node is not changed. All node attributes are copied, except user data.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          DELNODEid
+         </td>
+         <td>
+            (write only) Removes a node and/or its children, where id is the specified node identifier. <br>
+            Possible values:
+          <br>
+          <br>
+            "ALL": deletes all nodes, id is ignored. <br>
+            "SELECTED": deletes the specified node and its children <br>
+            "CHILDREN": deletes only the children of the specified node  <br>
+            "MARKED": deletes all the selected nodes (and all their children), id is ignored
+         </td>
+        </tr>
+        <tr>
+         <td>
+          EXPANDALL
+         </td>
+         <td>
+            (write only) expand or contracts all nodes. Can be YES (expand all), or NO (contract all).
+         </td>
+        </tr>
+        <tr>
+         <td>
+          INSERTLEAFid, <br>
+          INSERTBRANCHid
+         </td>
+         <td>
+            (write only) Same as ADDLEAF and ADDBRANCH but the depth of the new node is always the same of the reference node. <br>
+            If the reference node is a leaf, then the id of the new node will be the id of the reference node + 1. <br>
+            If the reference node is a branch the id of the new node will be the id of the reference node + 1 + the total number of child nodes of the reference node.
+            <br>
+            <br>
+            <div id="images" class="images" align="center">
+            <table border="1">
+            <tbody align="center">
+            <tr>
+             <th>Initial layout</th>
+             <th>After calling <code>IupSetAttribute(INSERTBRANCH9, "new branch")</code>:</th>
+            </tr>
+            <tr>
+             <td><img src="images/iuptree1.png"/></td>
+             <td><img src="images/iuptree3_insertbranch9.png"/></td>
+            </tr>
+            </tbody>
+            </table>
+            </div>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          MOVENODEid
+         </td>
+         <td>
+            (write only): Moves a node and its children, where id is the specified node identifier. <br>
+            The value is the destination node identifier. <br>
+            If the destination node is a branch and it is expanded, then the specified node is inserted as the first child of the destination node. <br>
+            If the branch is not expanded or the destination node is a leaf, then it is inserted as the next brother of the leaf. <br>
+            The specified node is removed. User data and all node attributes are preserved.
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+          <b>Editing</b>
+         </td>
+         <td>
+
+         </td>
+        </tr>
+        <tr>
+         <td>
+          RENAME
+         </td>
+         <td>
+            (write only) Forces a rename action to take place. Valid only when SHOWRENAME=YES.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          RENAMECARET
+         </td>
+         <td>
+            (write only) the caret&rsquo;s position of the text box when in-place renaming. <br>
+            Same as the CARET attribute for <a href="IupText.htm">IupText</a>, but here is used only once after SHOWRENAME_CB is called and before the text box is shown.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          RENAMESELECTION
+         </td>
+         <td>
+            (write only) the selection interval of the text box when in-place renaming. <br>
+            Same as the SELECTION attribute for <a href="IupText.htm">IupText</a>, but here is used only once after SHOWRENAME_CB is called and before the text box is shown.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          SHOWRENAME
+         </td>
+         <td>
+            (non inheritable) Allows the in place rename of a node. Default: "NO". <br>
+            F2 and clicking twice only starts to rename a node if SHOWRENAME=Yes.
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+          <b>Drag&Drop</b>
+         </td>
+         <td>
+            Drag & Drop attributes are supported, but SHOWDRAGDROP must be set no No.  
+         </td>
+        </tr>
+        <tr>
+         <td>
+          DRAGDROPTREE
+         </td>
+         <td>
+            (non inheritable) prepare the Drag & Drop callbacks to support drag and drop of nodes between trees (IupFlatTree only), in the same IUP application. <br>
+            Drag & Drop attributes still need to be set in order to activate the drag & drop support, so the application can control if this tree will be source and/or target. <br>
+            Default: NO.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          DROPFILESTARGET
+         </td>
+         <td>
+            (non inheritable) Enable or disable the drop of files. <br>
+            Default: NO, but if DROPFILES_CB is defined when the element is mapped then it will be automatically enabled. <br>
+            This is NOT related to the drag&drop of nodes inside the tree.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          DROPEQUALDRAG
+         </td>
+         <td>
+            (non inheritable) if enabled will allow a drop node to be equal to the drag node. <br>
+            Used only if SHOWDRAGDROP =Yes. <br>
+            In the case the nodes are equal the callback return value is ignored and nothing is done after.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          SHOWDRAGDROP
+         </td>
+         <td>
+            (non inheritable) Enables the internal drag and drop of nodes, and enables the DRAGDROP_CB callback. Default: "NO". <br>
+            Works only if MARKMODE=SINGLE. Drag & Drop attributes are NOT used.
+         </td>
+        </tr>
+-->
         <tr>
          <td>
           <b>Callbacks:</b>
          </td>
          <td>
-            You may <i>not</i> use or override VALUE_CB or COLRESIZE_CB or MAP_CB.<br>
-            (You <i>can</i> use MAP_CB on the dialog, just not on the table itself.)
+<!--
+            Inherits all callbacks of the <a href="IupCanvas.htm">IupCanvas</a>, but redefines a few of them. <br>
+            Including <a href="callbacks.htm#BUTTON_CB">BUTTON_CB</a>, <a href="callbacks.htm#LEAVEWINDOW_CB">LEAVEWINDOW_CB</a>,
+            <a href="callbacks.htm#FOCUS_CB">FOCUS_CB</a>, and <a href="callbacks.htm#MOTION_CB">MOTION_CB</a>.
+            To allow the application to use those callbacks the same callbacks are exported with the "FLAT_" prefix using the same parameters.<br>
+            They are all called before the internal callbacks and if they return <a href="callbacks.htm#IUP_IGNORE">IUP_IGNORE</a>
+            the internal callbacks are not processed.
             <br>
             <br>
-            Internally it uses <a href="#CLICK_CB">CLICK_CB</a>, <a href="#ENTERITEM_CB">ENTERITEM_CB</a>, 
-            and the containing dialog&rsquo;s <a href="#RESIZE_CB">RESIZE_CB</a>,
-            however they can be overidden/extended as below.
+            Drag & Drop attributes and callbacks are supported, but SHOWDRAGDROP must be set to NO.
+-->
+         </td>
+        </tr>
+<!--
+        <tr>
+         <td>
+          SELECTION_CB
+         </td>
+         <td>
+            Action generated when a node is selected or deselected.
             <br>
             <br>
-            It also uses MOUSEMOVE_CB and LEAVEWINDOW_CB, if ever needed the internal routines could easily 
-            be made global as per CLICK_CB etc, but any override implies the default hover effects are not wanted, 
-            and everything (bar said) will work just fine without them.
+            This action occurs when the user clicks with the mouse or uses the keyboard with the appropriate combination of keys. <br>
+            It may be called more than once for the same node with the same status.
             <br>
             <br>
-            Other callbacks and attributes of IupMatrix may function in a desktop-only
-            scenario, but nothing else is yet tested or supported under pwa/p2js.
-          <a name=CLICK_CB></a>
+            function selection_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> id, status)<br>
+            ih: identifier of the element that activated the event. <br>
+            id: Node identifier.<br>
+            status: 1=node selected, 0=node unselected. 
          </td>
         </tr>
         <tr>
          <td>
-          CLICK_CB
+          MULTISELECTION_CB
          </td>
          <td>
-            Action generated when any mouse button is pressed over a cell.
+            Action generated after a continuous range of nodes is selected in one single operation. <br>
+            If not defined the SELECTION_CB with status=1 will be called for all nodes in the range. <br>
+            The range is always completely included, independent if some nodes were already marked. <br>
+            That single operation also guaranties that all other nodes outside the range are already not selected. <br>
+            Called only if MARKMODE=MULTIPLE.
             <br>
             <br>
-            function click_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> lin, col, <a href="atom.htm">atom</a> pStatus)
+            function multiselection_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="atom.htm">atom</a> pIds, <a href="integer.htm">integer</a> n)<br>
+            ih: identifier of the element that activated the event. <br>
+            pIds: Pointer to an array of node identifiers. <br>
+            This array is kept for backward compatibility, the range is simply defined by ids[0] to ids[n-1], where ids[i+1]=ids[i]+1.<br>
+            n: Number of nodes in the array.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          MULTIUNSELECTION_CB
+         </td>
+         <td>
+            Action generated before multiple nodes are unselected in one single operation. <br>
+            If not defined the SELECTION_CB with status=0 will be called for all nodes in the range. <br>
+            The range is not necessarily continuous. Called only if MARKMODE=MULTIPLE. (Since 3.1)
             <br>
             <br>
+            function multiunselection_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="atom.htm">atom</a> pIds, <a href="integer.htm">integer</a> n)<br>
+            ih: identifier of the element that activated the event. <br>
+            pIds: Pointer to an array of node identifiers.<br>
+            n: Number of nodes in the array.
+         </td>
+        </tr>
+-->
+        <tr>
+         <td>
+          BRANCHOPEN_CB
+         </td>
+         <td>
+            Action generated when a branch is expanded. <br>
+            This action occurs when the user clicks the "+" sign on the left of the branch, or when double clicks the branch, or hits Enter on a collapsed branch.
+            <br>
+            <br>
+            function branchopen_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> id)<br>
+            ih: identifier of the element that activated the event. <br>
+            id: node identifier. 
+            <br>
+            <br>
+            Returns: <a href="callbacks.htm#IUP_IGNORE">IUP_IGNORE</a> for the branch not to be opened, or 
+            <a href="callbacks.htm#IUP_DEFAULT">IUP_DEFAULT</a> for the branch to be opened.
+         </td>
+        </tr>
+<!--
+        <tr>
+         <td>
+          BRANCHCLOSE_CB
+         </td>
+         <td>
+            Action generated when a branch is collapsed. <br>
+            This action occurs when the user clicks the "-" sign on the left of the branch, or when double clicks the branch, or hits Enter on an expanded branch. 
+            <br>
+            <br>
+            function branchclose_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> id)<br>
+            ih: identifier of the element that activated the event. <br>
+            id: node identifier. 
+            <br>
+            <br>
+            Returns: <a href="callbacks.htm#IUP_IGNORE">IUP_IGNORE</a> for the branch not to be closed, or 
+            <a href="callbacks.htm#IUP_DEFAULT">IUP_DEFAULT</a> for the branch to be closed.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          EXECUTELEAF_CB
+         </td>
+         <td>
+            Action generated when a leaf is to be executed. <br>
+            This action occurs when the user double clicks a leaf, or hits Enter on a leaf. 
+            <br>
+            <br>
+            function executeleaf_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> id)<br>
+            ih: identifier of the element that activated the event. <br>
+            id: node identifier.  
+         </td>
+        </tr>
+        <tr>
+         <td>
+          EXECUTEBRANCH_CB
+         </td>
+         <td>
+            Action generated when a branch is executed. <br>
+            This action occurs when the user double clicks a branch, or hits Enter on a branch. <br>
+            Is is called before the BRANCH*_CB callbacks.
+            <br>
+            <br>
+            function executebranch_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> id)<br>
+            ih: identifier of the element that activated the event. <br>
+            id: node identifier.  
+         </td>
+        </tr>
+        <tr>
+         <td>
+          SHOWRENAME_CB
+         </td>
+         <td>
+            Action generated when a node is about to be renamed. <br>
+            It occurs when the user clicks twice the node or press F2. Called only if SHOWRENAME=YES.
+            <br>
+            <br>
+            function showrename_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> id)<br>
+            ih: identifier of the element that activated the event. <br>
+            id: node identifier.  
+            <br>
+            <br>
+            Returns: if <a href="callbacks.htm#IUP_IGNORE">IUP_IGNORE</a> is returned, the rename is canceled.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          RENAME_CB
+         </td>
+         <td>
+            Action generated after a node was renamed in place. <br>
+            It occurs when the user press Enter after editing the name, or when the text box looses it focus. Called only if SHOWRENAME=YES.
+            <br>
+            <br>
+            function rename_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> id, <a href="atom.htm">atom</a> pTitle)<br>
+            ih: identifier of the element that activated the event. <br>
+            id: node identifier. <br>
+            pTitle: new node title (a char*). 
+            <br>
+            <br>
+            Returns: The new title is accepted only if the callback returns <a href="callbacks.htm#IUP_DEFAULT">IUP_DEFAULT</a>. <br>
+            If the callback does not exist the new title is always accepted. <br>
+            If the user pressed Enter and the callback returns <a href="callbacks.htm#IUP_IGNORE">IUP_IGNORE</a> the editing continues. <br>
+            If the text box looses its focus the editing stops always.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          DRAGDROP_CB
+         </td>
+         <td>
+            Action generated when an internal drag & drop is executed. Only active if SHOWDRAGDROP=YES.
+            <br>
+            <br>
+            function dragdrop_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> drag_id, drop_id, isshift, iscontrol)
+            <br> 
+            <br> 
+            ih: identifier of the element that activated the event. <br>
+            drag_id: Identifier of the clicked node where the drag start. <br>
+            drop_id: Identifier of the clicked node where the drop were executed. -1 indicates a drop in a blank area.<br>
+            isshift: flag indicating the shift key state. <br>
+            iscontrol: flag indicating the control key state.
+            <br>
+            <br>
+            Returns: if returns <a href="callbacks.htm#IUP_CONTINUE">IUP_CONTINUE</a>, or if the callback is not defined 
+            and SHOWDRAGDROP=YES, then the node is moved to the new position. <br>
+            If Ctrl is pressed then the node is copied instead of moved. <br>
+            If the drop node is a branch and it is expanded, then the drag node is inserted as the first child of the node. <br>
+            If the branch is not expanded or the node is a leaf, then the drag node is inserted as the next brother of the drop node.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          NODEREMOVED_CB
+         </td>
+         <td>
+            Action generated when a node is about to be removed.<br>
+            It is only a notification, the action can not be aborted. <br>
+            No node dependent attribute can be consulted during the callback. <br>
+            It is useful to remove memory allocated for the userdata.
+            <br>
+            <br>
+            function noderemoved_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="atom.htm">atom</a> pUserdata)<br> 
+            ih: identifier of the element that activated the event. <br>
+            pUserdata: pointer to userdata.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          RIGHTCLICK_CB
+         </td>
+         <td>
+            Action generated when the right mouse button is pressed over a node.
+            <br>
+            <br>
+            function rightclick_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> id)<br>
+            ih: identifier of the element that activated the event. <br>
+            id: node identifier. 
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TOGGLEVALUE_CB
+         </td>
+         <td>
+            Action generated when the toggle&rsquo;s state was changed. <br>
+            The callback also receives the new toggle&rsquo;s state.
+            <br>
+            <br>
+            function togglevalue_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> id, state)<br>
             ih: identifier of the element that activated the event.<br>
-            lin, col: Coordinates of the cell where the mouse button was pressed.<br>
-            pStatus: (a char*) Status of the mouse buttons and some keyboard keys at the moment the event is generated. <br>
-            The same macros used for <a href="callbacks.htm#BUTTON_CB">BUTTON_CB</a> can be used for this status.
-            <br>
-            <br>
-            If overidden, it should invoke the internal default, which implements column sorting, as follows:
-            <br>
-            <br>
-            <small>
-<!--eucode>
-function click_cb(Ihandle ih, integer l, c, atom pStatus)
-    if l=0 then return IupTableClick_cb(ih, l, c, pStatus) end if
-    ...
-    return IUP_DEFAULT
-end function
-</eucode-->
-<pre>
-<font color="#008080">function</font><font color="#000000"> click_cb</font><font color="#0000FF">(</font><font color="#5E005E">Ihandle</font><font color="#000000"> ih</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> l</font><font color="#0000FF">,</font><font color="#000000"> c</font><font color="#0000FF">,</font><font color="#004080"> atom</font><font color="#000000"> pStatus</font><font color="#0000FF">)</font>
-<font color="#008080">    if</font><font color="#000000"> l</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#008080"> then return</font><font color="#5E005E"> IupTableClick_cb</font><font color="#0000FF">(</font><font color="#000000">ih</font><font color="#0000FF">,</font><font color="#000000"> l</font><font color="#0000FF">,</font><font color="#000000"> c</font><font color="#0000FF">,</font><font color="#000000"> pStatus</font><font color="#0000FF">)</font><font color="#008080"> end if</font>
-<font color="#0000FF">    ...</font>
-<font color="#008080">    return</font><font color="#004600"> IUP_DEFAULT</font>
-<font color="#008080">end function</font>
-</pre>
-            </small>
-          <a name=ENTERITEM_CB></a>
+            id: node identifier. <br>
+            state: 1 if the toggle&rsquo;s state was shifted to ON; 0 if it was shifted to OFF. If SHOW3STATE=YES, -1 if it was shifted to NOTDEF.
          </td>
         </tr>
         <tr>
          <td>
-          ENTERITEM_CB
+          FLAT_BUTTON_CB
          </td>
          <td>
-            Action generated when a matrix cell is selected, becoming the current cell.<br>
-            Also called when matrix is getting focus. Also called when focus is changed because lines or columns were added or removed (since 3.9).
-            <br>
-            <br>
-            function enteritem_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> lin, col)
-            <br>
-            <br>
-            ih: identifier of the element that activated the event.<br>
-            lin, col: Coordinates of the selected cell.
-            <br>
-            <br>
-            If overidden, it should invoke the internal default, which implements proper line selection/marking/focus settings, as follows:
-            <br>
-            <br>
-            <small>
-<!--eucode>
-function enteritem_cb(Ihandle table, integer lin, col)
-    {} = IupTableEnterItem_cb(table,lin,col)
-    integer idx = IupTableGetSelected(table) -- (usually rqd)
-    ...
-    return IUP_DEFAULT
-end function
-</eucode-->
-<pre>
-<font color="#008080">function</font><font color="#000000"> enteritem_cb</font><font color="#0000FF">(</font><font color="#5E005E">Ihandle</font><font color="#000000"> table</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> lin</font><font color="#0000FF">,</font><font color="#000000"> col</font><font color="#0000FF">)
-    {} =</font><font color="#5E005E"> IupTableEnterItem_cb</font><font color="#0000FF">(</font><font color="#000000">table</font><font color="#0000FF">,</font><font color="#000000">lin</font><font color="#0000FF">,</font><font color="#000000">col</font><font color="#0000FF">)</font>
-<font color="#004080">    integer</font><font color="#000000"> idx</font><font color="#0000FF"> =</font><font color="#5E005E"> IupTableGetSelected</font><font color="#0000FF">(</font><font color="#000000">table</font><font color="#0000FF">)</font><font color="#000080"><i> -- (usually rqd)</i></font>
-<font color="#0000FF">    ...</font>
-<font color="#008080">    return</font><font color="#004600"> IUP_DEFAULT</font>
-<font color="#008080">end function</font>
-</pre>
-            </small>
-          <a name=RESIZE_CB></a>
+            Action generated when any mouse button is pressed or released inside the element. <br>
+            Use <a href="IupConvertXYToPos.htm">IupConvertXYToPos</a>() to convert (x,y) coordinates in the node identifier.
          </td>
         </tr>
         <tr>
          <td>
-          <a href="callbacks.htm#RESIZE_CB">RESIZE_CB</a>
+          FLAT_MOTION_CB
          </td>
          <td>
-            If overidden, or a dialog contains more than one IupTable, it should replicate/replace the internal workings as follows:
-            <br>
-            <br>
-            <small>
-<!--eucode>
-function resize_cb(Ihandle dlg, integer width, height)
-    for t=1 to length(tables) do -- (declared/set manually)
-        IupSetAttributePtr(dlg,"TABLE",tables[i])
-        {} = IupTableResize_cb(dlg, width, height)
-    end for
-    ...
-    return IUP_DEFAULT
-end function
-</eucode-->
-<pre>
-<font color="#008080">function</font><font color="#000000"> resize_cb</font><font color="#0000FF">(</font><font color="#5E005E">Ihandle</font><font color="#000000"> dlg</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> width</font><font color="#0000FF">,</font><font color="#000000"> height</font><font color="#0000FF">)</font>
-<font color="#008080">    for</font><font color="#000000"> t</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">tables</font><font color="#0000FF">)</font><font color="#008080"> do</font><font color="#000080"><i> -- (declared/set manually)</i></font>
-<font color="#5E005E">        IupSetAttributePtr</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">,</font><font color="#008000">"TABLE"</font><font color="#0000FF">,</font><font color="#000000">tables</font><font color="#800000">[</font><font color="#000000">i</font><font color="#800000">]</font><font color="#0000FF">)
-        {} =</font><font color="#5E005E"> IupTableResize_cb</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">,</font><font color="#000000"> width</font><font color="#0000FF">,</font><font color="#000000"> height</font><font color="#0000FF">)</font>
-<font color="#008080">    end for</font>
-<font color="#0000FF">    ...</font>
-<font color="#008080">    return</font><font color="#004600"> IUP_DEFAULT</font>
-<font color="#008080">end function</font>
-</pre>
-            </small>
+            Action generated when the mouse is moved over the element. <br>
+            Use <a href="IupConvertXYToPos.htm">IupConvertXYToPos</a>() to convert (x,y) coordinates in item the node identifier.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          DROPFILES_CB
+         </td>
+         <td>
+            [Windows and GTK Only] Action generated when one or more files are dropped in the element.
          </td>
         </tr>
         <tr>
@@ -475,24 +1698,24 @@ end function
           also
          </td>
          <td>
-<!--
+            <a href="callbacks.htm#MAP_CB">MAP_CB</a>,
             <a href="callbacks.htm#UNMAP_CB">UNMAP_CB</a>,
             <a href="callbacks.htm#DESTROY_CB">DESTROY_CB</a>,
             <a href="callbacks.htm#GETFOCUS_CB">GETFOCUS_CB</a>,
             <a href="callbacks.htm#KILLFOCUS_CB">KILLFOCUS_CB</a>, 
             <a href="callbacks.htm#ENTERWINDOW_CB">ENTERWINDOW_CB</a>,
             <a href="callbacks.htm#LEAVEWINDOW_CB">LEAVEWINDOW_CB</a>, 
+            <a href="callbacks.htm#K_ANY">K_ANY</a>,
             <a href="callbacks.htm#HELP_CB">HELP_CB</a>: All common callbacks are supported.
--->
-            <a href="callbacks.htm#K_ANY">K_ANY</a>
          </td>
         </tr>
+-->
         <tr>
          <td>
-          <b>Example:</b>
+          <b>Examples:</b>
          </td>
          <td>
-            See demo/pGUI/IupTable.exw
+            See pwa/phix/IupTreeView.exw and pwa/phix/IupTreeView2.exw
          </td>
         </tr>
        </table>

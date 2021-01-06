@@ -219,31 +219,41 @@ atom mem = allocate(len,1)
     return peekNS(mem,len,signed)
 end function
 
-global function int_to_bits(atom x, integer nbits)
+global function int_to_bits(atom x, integer nbits=0)
 -- Returns the low-order nbits bits of x as a sequence of 1's and 0's. 
 -- Note that the least significant bits come first. You can use 
 -- sq_and/or/not operators on sequences of bits. You can also subscript, 
 -- slice, concatenate and so on to manipulate bits.
 sequence bits
-integer mask
+integer mask = 1
 
-    bits = repeat(0, nbits)
-    if integer(x) and nbits<30 then
-        -- faster method
-        mask = 1
-        for i=1 to nbits do
-            bits[i] = and_bits(x, mask) and 1
-            mask *= 2
-        end for
-    else
-        -- slower, but works for large x and large nbits
-        if x<0 then
-            x += power(2, nbits) -- for 2's complement bit pattern
-        end if
-        for i=1 to nbits do
-            bits[i] = remainder(x, 2)
+    if nbits<=0 then
+        -- (not intended to be fast, or ever timed as slow, just more conventient)
+        if not integer(x) or x<0 then crash("int_to_bits(x,0): x must be integer >=0",2) end if
+        bits = {}
+        while true do
+            bits &= and_bits(x,1)
             x = floor(x/2)
-        end for
+            if x=0 then exit end if
+        end while
+    else
+        bits = repeat(0, nbits)
+        if integer(x) and nbits<30 then
+            -- faster method
+            for i=1 to nbits do
+                bits[i] = (and_bits(x, mask) and 1)
+                mask *= 2
+            end for
+        else
+            -- slower, but works for large x and large nbits
+            if x<0 then
+                x += power(2, nbits) -- for 2's complement bit pattern
+            end if
+            for i=1 to nbits do
+                bits[i] = remainder(x, 2)
+                x = floor(x/2)
+            end for
+        end if
     end if
     return bits
 end function
