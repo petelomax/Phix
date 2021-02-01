@@ -7,7 +7,7 @@
 
 --#withtype bool
 
-atom finit = 0, W, SLASH, xGetFileAttributes, xMoveFile, xDeleteFile, xCopyFile, 
+atom finit = 0, W, xGetFileAttributes, xMoveFile, xDeleteFile, xCopyFile, 
      xCreateDirectory, xRemoveDirectory, xGetLogicalDriveStrings, xGetDriveType, 
      xCreateFileA, xSetFilePointer, xSetEndOfFile, xSetFileTime, xGetSystemTime,
      xSystemTimeToFileTime, xCloseHandle, xGetLastError
@@ -19,7 +19,7 @@ constant MOVEFILE_REPLACE_EXISTING  = #01,  -- (Not allowed for directories)
 
 procedure initf()
     W = (platform()=WINDOWS)
-    SLASH = iff(W?'\\':'/')
+--  SLASH = iff(W?'\\':'/')
 --  atom lib = open_dll(iff(W?"kernel32":""))   -- libc.so? libc.dylib?
     enter_cs()
     atom lib = open_dll(iff(W?"kernel32":"libc.so"))

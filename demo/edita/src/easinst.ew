@@ -25,25 +25,44 @@ constant Edita=xl("Edita")
 --   found=0
 atom Hwnd
 
+--constant xGetWindowModuleFileName = link_c_func(user32, "GetWindowModuleFileName", 
+--          {C_PTR,     --  HWND  hWnd 
+--           C_PTR,     --  lpszFileName 
+--           C_INT},    --  UINT cchFileNameMax 
+--          C_INT),     -- UINT 
+constant xGetWindowText = link_c_func(user32, "GetWindowTextA", 
+            {C_PTR,     --  HWND hWnd, 
+             C_PTR,     --  LPTSTR lpString, 
+             C_INT},    --  int nMaxCount 
+            C_INT),     -- int 
+         pszFileName = allocate(500) 
 --/*
 include builtins\ppp.e
 --*/
 function EnumWindowsProc(atom hwnd, atom lParam)
 atom mem, CDS
-integer len, len2
+integer len
+--, len2
 sequence text
     if lParam then end if   -- suppress warnings
-    len = c_func(xSendMessage, {hwnd, WM_GETTEXTLENGTH, 0, 0})
+--  len = c_func(xSendMessage, {hwnd, WM_GETTEXTLENGTH, 0, 0})
+    len = c_func(xGetWindowText,{hwnd,pszFileName,500}) 
 --  if len>=minlen then
     if len>=length(cd_text) then
         len += 1
 --      mem = allocate_TextSpace(len)
+--/*
         mem = allocate(len)
 --      len = c_func(xSendMessage, {hwnd, WM_GETTEXT, len, mem})
         len2 = c_func(xSendMessage, {hwnd, WM_GETTEXT, len, mem})
         if len2+1 != len then ?9/0 end if   -- sanity check
         text = peek({mem, len})
         free(mem)
+--*/
+        text = peek({pszFileName,len}) 
+--      if not find(text,{"Default IME","MSCTFIME UI"}) then 
+--          printf(1,"Window title:%s\n",{text}) 
+--      end if 
 --      if equal(Edita,text[1..minlen]) then
         if match(cd_text,text)=1 then
             --

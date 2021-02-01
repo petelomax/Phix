@@ -1116,6 +1116,14 @@ atom res
 --      for now, see demo/pGUI/lnx/installation.txt...
 --      path = dll_path&path
         res = open_dll(path)
+--no friggin help...
+--      if res=0 then
+--          if machine_bits()=64 then
+--              res = open_dll("/usr/lib64/"&path)
+--          else
+--              res = open_dll("/usr/lib/"&path)
+--          end if
+--      end if
     end if
     if res=0 then iup_link_error(path) end if
     return res
@@ -2492,15 +2500,21 @@ global procedure IupSetCallback(Ihandles ih, string name, cbfunc func)
             IupSetCallback(ihi,name,func)
         end for
     else
-        if name="K_ANY" then
+        if name="K_ANY" and func!=NULL then
             -- verify func takes the right args
+            -- Trapped specially because it is particularly irksome to have a
+            -- program run fine for ages then suddenly crash just because you
+            -- have (accidentally) hit a funny key.
             integer rid = rid_from_cb(func)
-            sequence ri = get_routine_info(rid)
+            sequence ri = get_routine_info(rid,false)
 --          if ri[1]!=2 then ?9/0 end if
 --          if ri[2]!=2 then ?9/0 end if
 --          if ri[3][1]!='F' then ?9/0 end if
 --          if ri[3][3]!='N' then ?9/0 end if
-            if ri[1..3]!={2,2,"FIN"} then ?9/0 end if
+--          if ri[1..3]!={2,2,"FIN"} then
+            if ri!={2,2,"FIN"} then
+                crash("K_ANY callback must have func(Ihandle,ATOM) sig",nFrames:=2)
+            end if
         end if
         atom prev = c_func(xIupSetCallback, {ih, name, func})
     end if
@@ -2523,16 +2537,22 @@ atom func = c_func(xIupGetCallback, {ih, name})
     return func
 end function
 
-function key_cb(Ihandle /*ih*/, atom c)
+function key_cb(Ihandle dlg, atom c)
     -- private version for IupCloseOnEscape()
---  return iff(c=K_ESC?IUP_CLOSE:IUP_CONTINUE)
---  return iff(c=K_ESC?IUP_CLOSE:IUP_IGNORE)
-    return iff(c=K_ESC?IUP_CLOSE:IUP_DEFAULT)
+
+    if c=K_ESC then
+        atom close_cb = IupGetCallback(dlg,"CLOSE_CB")
+        if close_cb!=NULL then
+            c_proc(define_c_proc({},{'+',close_cb},{C_PTR}),{dlg})
+        end if
+        return IUP_CLOSE
+    end if
+    return IUP_DEFAULT
 end function
 constant cb_key = Icallback("key_cb")
 
-global procedure IupCloseOnEscape(Ihandle dlg)
-    IupSetCallback(dlg, "K_ANY", cb_key)
+global procedure IupCloseOnEscape(Ihandle dlg, bool bClose=true)
+    IupSetCallback(dlg, "K_ANY", iff(bClose?cb_key:NULL))
 end procedure
 
 global function IupGetAllClasses()
@@ -3045,14 +3065,34 @@ end function
 
 --global function IupDialog(Ihandln child=NULL, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
 --  {action,func,attributes,data} = paranormalise(action,func,attributes,data)
-global function IupDialog(Ihandln child=NULL, string attributes="", dword_seq args={})
+--global function IupDialog(Ihandln child=NULL, string attributes="", dword_seq args={}, bool bEsc=true)
+global function IupDialog(Ihandln child=NULL, object attributes="", args={}, bool bEsc=true)
     Ihandle ih = c_func(xIupDialog, {child})
 --  if func!=NULL and action!=NULL then
 --      IupSetCallback(ih, action, func)
 --  end if
-    if length(attributes) then
-        IupSetAttributes(ih, attributes, args)
+    if bool(attributes) then
+        -- map IupDialog(child,false) to IupDialog(child,bEsc:=false)
+        --  - which of course equates to IupDialog(child,"",{},false)
+        if args!={} then ?9/0 end if
+        if bEsc!=true then ?9/0 end if
+        bEsc = attributes
+        attributes = ""
+    else
+        if not string(attributes) then ?9/0 end if
+        if bool(args) then
+            -- map IupDialog(child,attr,false), ie args param omitted,
+            --  to IupDialog(child,attr,bEsc:=false)
+            if bEsc!=true then ?9/0 end if
+            bEsc = args
+            args = {}
+        end if
+        if not dword_seq(args) then ?9/0 end if
+        if length(attributes) then
+            IupSetAttributes(ih, attributes, args)
+        end if
     end if
+    if bEsc then IupCloseOnEscape(ih) end if
     return ih
 end function
 
@@ -4068,6 +4108,7 @@ end function
 
 global function IupTableResize_cb(Ihandle dlg, integer width, /*height*/)
 -- default RESIZE_CB for IupTable (callable directly, when overridden)
+--width -= 40
     Ihandle table = IupGetAttributePtr(dlg,"TABLE"),
             parent = IupGetParent(table)
     integer dsidx = IupGetInt(table,"DSIDX"),
@@ -4094,8 +4135,12 @@ global function IupTableResize_cb(Ihandle dlg, integer width, /*height*/)
     --        well as whatever it is that you're working on).
     --
     integer {cx,cy} = IupGetIntInt(parent,"CLIENTSIZE"),
+            {mx,my} = IupGetIntInt(parent,"CMARGIN"),
             vs = (cy<ty) -- vertical scrollbar?
-    width -= (w*8+17*vs) -- ( derived by trial and error... )
+--  width -= (w*8+17*vs) -- ( derived by trial and error... )
+--  width = cx-mx-(w*8+17*vs) -- ( derived by trial and error... )
+--  width = cx-max(mx,0)-(w*8+17*vs) -- ( derived by trial and error... )
+    width -= mx*4+(w*8+17*vs) -- ( derived by trial and error... )
     if width<120 then width = 120 end if
     integer total_width = sum(new_widths)
     IupSetInt(table,"RASTERWIDTH0",0)
@@ -4314,6 +4359,7 @@ global procedure IupTableSetData(Ihandle table, sequence data, bool bReset=true)
             table_sortdirs[dsidx] = {}
         end if
         IupSetAttribute(table,"MARKED", NULL)   /* clear all marks */
+        IupSetInt(table, "NUMLIN", n_len)
     end if
     IupRefresh(table)
 end procedure

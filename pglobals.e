@@ -29,9 +29,9 @@ global constant newEBP = 04 -- 4=on, 0=off(ie old style/working)
 --global constant pxversion = {0,7,8},  -- 0.7.8    -- 13/03/18
 --global constant pxversion = {0,7,9},  -- 0.7.9    -- 13/04/18
 --global constant pxversion = {0,8,0},  -- 0.8.0    -- 05/04/19 (uploaded 21/04/19)
---global constant pxversion = {0,8,1},  -- 0.8.1    -- 23/03/20
---global constant pxversion = {0,8,2},  -- 0.8.2    -- 24/11/20
-global constant phixversion = {0,8,3},  -- 0.8.3    -- ??/11/20
+--global constant pxversion = {0,8,1},  -- 0.8.1    -- 23/03/20 (retrospectively deemed version 1.0)
+--global constant pxversion = {0,8,2},  -- 0.8.2    -- 24/11/20 (retrospectively deemed version 1.0.2)
+global constant phixversion = {0,8,3},  -- 0.8.3    -- 01/02/21
                 phixverstr = sprintf("%d.%d.%d",phixversion)
 sequence phixver = phixversion  -- (debug aid, otherwise unused)
 if sequence(phixver) then end if

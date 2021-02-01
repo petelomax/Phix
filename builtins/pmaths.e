@@ -147,5 +147,6 @@ global function atan2(atom y, atom x)
     else
         return 0
     end if
+--    return 2*arctan((sqrt(power(x,2)+power(y,2))-x)/y)
 end function
 

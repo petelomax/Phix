@@ -210,7 +210,7 @@ end function
 
 function extractDataValue(string line)
     sequence result = {}
-    string number = ""
+    string numstr = ""
 
     -- remove any whitespace
     line = removeAllWhiteSpace(line)
@@ -219,20 +219,20 @@ function extractDataValue(string line)
     for i=1 to length(line) do
         integer char = line[i]
         if char==',' then -- separator found
-            if length(number) then -- ok, convert to integer
-                result &= to_integer(number)
-                number = ""
+            if length(numstr) then -- ok, convert to integer
+                result &= to_integer(numstr)
+                numstr = ""
             end if
         elsif isNumber(char) or isArithmeticSign(char) then
-            number &= char
+            numstr &= char
         else -- error
             halt()
         end if
     end for
 
     -- tidy last piece
-    if length(number) then -- ok, convert to integer
-        result &= to_integer(number)
+    if length(numstr) then -- ok, convert to integer
+        result &= to_integer(numstr)
     end if
 
     -- return integer if only one numeric element

@@ -18,7 +18,8 @@
             <br>
             <a href="Ihandle.htm">Ihandle</a> ih = IupDialog(<a href="Ihandle.htm">Ihandln</a> child=NULL, 
                                                              <a href="string.htm">string</a> attributes="", 
-                                                             <a href="sequence.htm">sequence</a> args={})
+                                                             <a href="sequence.htm">sequence</a> args={},
+                                                             <a href="integer.htm#bool">bool</a> bEsc=true)
          </td>
         </tr>
         <tr>
@@ -30,10 +31,33 @@
             <br>
             <br>
             child: the identifier of an interface element. The dialog has only one child. It can be NULL.<br>
-            For more information on the attributes and args parameters see <a href="IupSetAttributes.htm">IupSetAttributes</a>.
+            For more information on the attributes and args parameters see <a href="IupSetAttributes.htm">IupSetAttributes</a><br>
+            bEsc: if true (the default) then <a href="IupClose.htm">IupCloseOnEscape</a>(ih) is applied automatically.
+            <br>
+            <br>
+            In a similar fashion to <a href="paranormal.htm">paranormalised functions</a>, only slightly simpler, attributes and
+            args are actually defined as <a href="object.htm">object</a>, so that IupDialog(<i>child</i>,false) behaves the same 
+            as IupDialog(<i>child</i>,bEsc:=false), and likewise if the string attributes is present but args is omitted, 
+            IupDialog(<i>child</i>,"<i>attributes</i>",false) behaves the same as 
+            IupDialog(<i>child</i>,"<i>attributes</i>",bEsc:=false).
+            <br>
+            <br>
+            Note that bEsc was added in version 0.8.3, prior to that it would behave as false, which meant that in nine out of
+            ten cases a separate <a href="IupClose.htm">IupCloseOnEscape</a>(ih) was required. In some cases a 
+            <a href="callbacks.htm#K_ANY">K_ANY</a> handler may shield you from any changes, in other (typically only top-level 
+            window) cases you may need to add a false parameter, or perhaps separately/conditionally invoke 
+            <a href="IupClose.htm">IupCloseOnEscape</a>(ih,false).
             <br>
             <br>
             Returns the identifier of the created element.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+            Supported.
          </td>
         </tr>
         <tr>
@@ -977,7 +1001,10 @@ TASKBARBUTTON=SHOW
           <a href="callbacks.htm#CLOSE_CB">CLOSE_CB</a>
          </td>
          <td>
-            Called right before the dialog is closed.
+            Called right before the dialog is closed.<br>
+            <b>NB</b>: Will <i>not</i> be invoked when a callback returns <a href="callbacks.htm#IUP_CLOSE">IUP_CLOSE</a>, or when
+            <a href="IupExitLoop.htm">IupExitLoop</a>() is invoked, instead the programmer should invoke any necessary routines explicitly, 
+            as per the example below.
          </td>
         </tr>
         <tr>
@@ -1107,7 +1134,7 @@ focus: is non zero if the dialog or any of its children is getting the focus, is
             dclick: indicates a double click. In GTK double click is simulated.
             <br>
             <br>
-            Returns: <a href="callbacks.htm#IUP_CLOSE">IUP_CLOSE</a> will be processed.
+            Returns: <a href="callbacks.htm#IUP_CLOSE">IUP_CLOSE</a> will be processed. Note that in that case any CLOSE_CB is <i>not</i> invoked.
          </td>
         </tr>
         <tr>
@@ -1142,9 +1169,17 @@ focus: is non zero if the dialog or any of its children is getting the focus, is
 -- =====================
 --
 include pGUI.e
+Ihandln dialog
 
-function quit_cb(Ihandle /*self*/)
-    return IUP_CLOSE
+function close_cb(Ihandle /*ih*/)
+    -- save_files() and/or IupConfigDialogClosed(config,dialog,"MainWindow"), etc.
+    return IUP_CLOSE -- (for quit_cb)
+end function
+
+function quit_cb(Ihandle ih)
+    -- (alternatively invoke [say] my_shutdown() from both close_cb() and quit_cb(),
+    --                              and from anywhere that invokes IupExitLoop().)
+    return close_cb(ih)
 end function
 
 IupOpen()
@@ -1152,21 +1187,32 @@ Ihandle quit_bt = IupButton("Quit", "ACTION", Icallback("quit_cb")),
         label = IupLabel("Very Long Text Label","EXPAND=YES, ALIGNMENT=ACENTER"),
         vbox = IupVbox({label, quit_bt},"ALIGNMENT=ACENTER,MARGIN=10x10,GAP=15")
 Ihandln dialog = IupDialog(vbox,`TITLE="Dialog Title", SIZE=180x`)
+IupSetCallback(dialog,"CLOSE_CB",Icallback("close_cb"))
 IupSetAttributeHandle(dialog, "DEFAULTESC", quit_bt)
 IupShow(dialog)
-IupMainLoop()
-dialog = IupDestroy(dialog)
-IupClose()
+if platform()!=JS then
+    IupMainLoop()
+    dialog = IupDestroy(dialog)
+    IupClose()
+end if
 </eucode-->
 <pre>
 <font color="#000080"><i>--
 -- demo\pGUI\dialog2.exw
 -- =====================
 --</i></font>
-<font color="#008080">include</font><font color="#000000"> pGUI.e
+<font color="#008080">include</font><font color="#000000"> pGUI.e</font>
+<font color="#5E005E">Ihandln</font><font color="#000000"> dialog
 </font>
-<font color="#008080">function</font><font color="#000000"> quit_cb</font><font color="#0000FF">(</font><font color="#5E005E">Ihandle</font><font color="#000080"><i> /*self*/</i></font><font color="#0000FF">)</font>
-<font color="#008080">    return</font><font color="#004600"> IUP_CLOSE</font>
+<font color="#008080">function</font><font color="#000000"> close_cb</font><font color="#0000FF">(</font><font color="#5E005E">Ihandle</font><font color="#000080"><i> /*ih*/</i></font><font color="#0000FF">)</font>
+<font color="#000080"><i>    -- save_files() and/or IupConfigDialogClosed(config,dialog,"MainWindow"), etc.</i></font>
+<font color="#008080">    return</font><font color="#004600"> IUP_CLOSE</font><font color="#000080"><i> -- (for quit_cb)</i></font>
+<font color="#008080">end function
+
+function</font><font color="#000000"> quit_cb</font><font color="#0000FF">(</font><font color="#5E005E">Ihandle</font><font color="#000000"> ih</font><font color="#0000FF">)</font>
+<font color="#000080"><i>    -- (alternatively invoke [say] my_shutdown() from both close_cb() and quit_cb(),
+    --                              and from anywhere that invokes IupExitLoop().)</i></font>
+<font color="#008080">    return</font><font color="#000000"> close_cb</font><font color="#0000FF">(</font><font color="#000000">ih</font><font color="#0000FF">)</font>
 <font color="#008080">end function
 </font>
 <font color="#5E005E">IupOpen</font><font color="#0000FF">()</font>
@@ -1174,15 +1220,19 @@ IupClose()
 <font color="#000000">        label</font><font color="#0000FF"> =</font><font color="#5E005E"> IupLabel</font><font color="#0000FF">(</font><font color="#008000">"Very Long Text Label"</font><font color="#0000FF">,</font><font color="#008000">"EXPAND=YES, ALIGNMENT=ACENTER"</font><font color="#0000FF">),</font>
 <font color="#000000">        vbox</font><font color="#0000FF"> =</font><font color="#5E005E"> IupVbox</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">label</font><font color="#0000FF">,</font><font color="#000000"> quit_bt</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000">"ALIGNMENT=ACENTER,MARGIN=10x10,GAP=15"</font><font color="#0000FF">)</font>
 <font color="#5E005E">Ihandln</font><font color="#000000"> dialog</font><font color="#0000FF"> =</font><font color="#5E005E"> IupDialog</font><font color="#0000FF">(</font><font color="#000000">vbox</font><font color="#0000FF">,</font><font color="#008000">`TITLE="Dialog Title", SIZE=180x`</font><font color="#0000FF">)</font>
+<font color="#5E005E">IupSetCallback</font><font color="#0000FF">(</font><font color="#000000">dialog</font><font color="#0000FF">,</font><font color="#008000">"CLOSE_CB"</font><font color="#0000FF">,</font><font color="#5E005E">Icallback</font><font color="#800000">(</font><font color="#008000">"close_cb"</font><font color="#800000">)</font><font color="#0000FF">)</font>
 <font color="#5E005E">IupSetAttributeHandle</font><font color="#0000FF">(</font><font color="#000000">dialog</font><font color="#0000FF">,</font><font color="#008000"> "DEFAULTESC"</font><font color="#0000FF">,</font><font color="#000000"> quit_bt</font><font color="#0000FF">)</font>
 <font color="#5E005E">IupShow</font><font color="#0000FF">(</font><font color="#000000">dialog</font><font color="#0000FF">)</font>
-<font color="#5E005E">IupMainLoop</font><font color="#0000FF">()</font>
-<font color="#000000">dialog</font><font color="#0000FF"> =</font><font color="#5E005E"> IupDestroy</font><font color="#0000FF">(</font><font color="#000000">dialog</font><font color="#0000FF">)</font>
-<font color="#5E005E">IupClose</font><font color="#0000FF">()</font>
+<font color="#008080">if</font><font color="#7060A8"> platform</font><font color="#0000FF">()!=</font><font color="#004600">JS</font><font color="#008080"> then</font>
+<font color="#5E005E">    IupMainLoop</font><font color="#0000FF">()</font>
+<font color="#000000">    dialog</font><font color="#0000FF"> =</font><font color="#5E005E"> IupDestroy</font><font color="#0000FF">(</font><font color="#000000">dialog</font><font color="#0000FF">)</font>
+<font color="#5E005E">    IupClose</font><font color="#0000FF">()</font>
+<font color="#008080">end if</font>
 </pre>
             <br>
-            Note that dialog has an <a href="Ihandle.htm">Ihandln</a> type for the benefit of <a href="IupDestroy.htm">IupDestroy</a>(); 
-            IupDialog() will throw a (catchable) exception rather than return NULL.
+            Note that dialog has an <a href="Ihandle.htm">Ihandln</a> type for the benefit of <a href="IupDestroy.htm">IupDestroy</a>().<br>
+            On error, IupDialog() throws an exception rather than returning NULL, though most causes, such as attempting to put the same
+            element on a dialog twice, are simple programming errors and the exception is not usually worth catching.
             <br>
             <br>
             <p align="center">

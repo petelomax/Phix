@@ -26,10 +26,10 @@ constant S_Name  = 1,    -- const/var/rtn name (now a ttidx number or -1)
 function rtnid(string name) return routine_id(name) end function
 integer grid = 0
 
-global function get_routine_info(integer rid)
+global function get_routine_info(integer rid, bool bName=true)
 --global function get_arg_count(integer rid, bMin = false)
 --
--- returns {maxp, minp, sig}, where
+-- returns {maxp, minp, sig[, name]}, where
 --  maxp is the maximum number of arguments the specified routine accepts,
 --  minp is the minmum            """				"""
 --  sig is the signature, in (roottype) string form, eg "FISO".
@@ -40,7 +40,7 @@ global function get_routine_info(integer rid)
         grid = -9
         return {0,0,"XX"}
     end if
-    if grid=0 then grid = rtnid("get_routine_info") end if
+    if bName and grid=0 then grid = rtnid("get_routine_info") end if
     object symtab
     enter_cs()
     #ilASM{
@@ -79,7 +79,7 @@ global function get_routine_info(integer rid)
         end if
         res[i] = si
     end for
-    res = {maxp,minp,res,name}
+    res = iff(bName?{maxp,minp,res,name}:{maxp,minp,res})
     sr = 0
     symtab = 0
     leave_cs()

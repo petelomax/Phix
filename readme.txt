@@ -50,6 +50,41 @@ Version 0.8.2
             It now leaves it alone (the last if now /looks/ at x's length).
             Amazed this was not caught years ago, and even more amazed that 
             p -test didn't start /any/ bitchin...
+02/01/2021: Replaced sys_exit with sys_exit_group, for proper linux s/down.
+08/01/2021: Moved initialisation in sha256.e to permit forward calls.
+10/01/2021: Added hideScope/restoreScope for nested functions, which hide
+            anything and everything that would otherwise require a closure.
+            Note that some work remains outstanding in this area.
+21/01/2021: Tightened up on builtin overrides, to prevent such nonsense as
+            integer integer, atom atom, string string, and so on. constant
+            SLASH was a bit of an innocent bystander, though you/I should
+            probably be using the builtin constant anyway.
+21/01/2021: BUGFIX: Ctrl [] in Edita/Edix now correctly skip backtick strs.
+21/01/2021: BUGFIX: easinst.ew now uses GetWindowText, should be better.
+21/01/2021: BUGFIX: Edix now uses an ini file rather than IupConfig for the
+            list of open files, which was always corrupting itself. Close
+            file now works properly, not mangling the table of tab handles.
+25/01/2021: IupCloseOnEscape() is now applied by default to all IupDialog,
+            and the latter has a new bEsc parameter to turn that off.
+25/01/2021: get_routine_info() now has a bName parameter, which will avoid
+            unnecessarily populating the symbol table with actual names.
+25/01/2021: ENH: IupScintilla() added to pGUI, along with a demo.
+29/01/2021: BUGFIX: deleting a dictionary entry was moving the key but not
+            the data(!!). Many thanks to irv for finding this nasty bug.
+29/01/2021: New still_has_delete_routine() function. Used by the internal 
+            type checking routines of builtins\structs.e to identify any 
+            now-invalid struct/class instances, and prevent accidentally 
+            clobbering a slot now occupied by something else.
+30/01/2021: BUGFIX: tagset was using ceil() not floor() for some unknown
+            reason, and thus overruning the limit (when step!=1).
+01/02/2021: ENH: allow dot notation on "struct" variables (previously it
+            only allowed that on actual struct/class definitions). Eg/ie
+                -- procedure test(Widget x)  -- (was ok)
+                procedure test(struct x)     -- (now ok too)
+                    x.field = 1
+                end procedure
+01/02/2021: Allowed delete_routine(x,0) to remove any prior association.
+            The docs said you could, but the front-end disallowed it.
 
 Version 0.8.2
 =============

@@ -45,36 +45,74 @@
           <b>Utility Routine</b>
          </td>
          <td>
-            The following procedure can also be used (much nearer the start) to assign a standard escape key handler to the main dialog:
+            The following procedure can also be used, any time between creating the dialog and displaying it, to assign a standard 
+            escape key handler to the main dialog:
             <br>
             <br>
-            <b>IupCloseOnEscape</b>(<a href="Ihandle.htm">Ihandle</a> dlg)
+            <b>IupCloseOnEscape</b>(<a href="Ihandle.htm">Ihandle</a> dlg, <a href="integer.htm#bool">bool</a> bClose=true))
+            <br>
+            <br>
+            dlg: typically the result of an <a href="IupDialog.htm">IupDialog</a>() call.<br>
+            bClose: if false any <a href="callbacks.htm#K_ANY">K_ANY</a> handler is removed, otherwise one is added.<br>
+            Note that, since 0.8.3, the bEsc parameter of <a href="IupDialog.htm">IupDialog</a>() controls whether this routine is
+            invoked automatically (default true), and therefore can make further manual/explicit calls to it completely unnecessary.
+            However, you may genuinely want an application to initially close on escape, particularly when it has been accidentally 
+            opened by mistake, but stop doing that the moment you actually start to enter or edit anything.
             <br>
             <br>
             This is implemented as and therefore behaves identially to declaring and using the following callback:
             <br>
             <br>
+            <small>
 <!--eucode>
-function key_cb(Ihandle /*dlg*/, atom c)
-    return iff(c=K_ESC?IUP_CLOSE:IUP_CONTINUE)
+function key_cb(Ihandle dlg, atom c)
+    if c=K_ESC then
+        atom close_cb = IupGetCallback(dlg,"CLOSE_CB")
+        if close_cb!=NULL then
+            c_proc(define_c_proc({},{'+',close_cb},{C_PTR}),{dlg})
+        end if
+        return IUP_CLOSE
+    end if
+    return IUP_DEFAULT
+//  return iff(c=K_ESC?close_cb(dlg):IUP_DEFAULT)
 end function
 IupSetCallback(dlg, "K_ANY", Icallback("key_cb"));
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#008080">function</font><font color="#000000"> key_cb</font><font color="#0000FF">(</font><font color="#5E005E">Ihandle</font><font color="#000080"><i> /*dlg*/</i></font><font color="#0000FF">,</font><font color="#004080"> atom</font><font color="#000000"> c</font><font color="#0000FF">)
-</font><font color="#008080">    return</font><font color="#7060A8"> iff</font><font color="#0000FF">(</font><font color="#000000">c</font><font color="#0000FF">=</font><font color="#004600">K_ESC</font><font color="#0000FF">?</font><font color="#004600">IUP_CLOSE</font><font color="#0000FF">:</font><font color="#004600">IUP_CONTINUE</font><font color="#0000FF">)
-</font><font color="#008080">end function
-</font><font color="#5E005E">IupSetCallback</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">,</font><font color="#008000"> "K_ANY"</font><font color="#0000FF">,</font><font color="#5E005E"> Icallback</font><font color="#800000">(</font><font color="#008000">"key_cb"</font><font color="#800000">)</font><font color="#0000FF">);</font>
+<font color="#008080">function</font><font color="#000000"> key_cb</font><font color="#0000FF">(</font><font color="#5E005E">Ihandle</font><font color="#000000"> dlg</font><font color="#0000FF">,</font><font color="#004080"> atom</font><font color="#000000"> c</font><font color="#0000FF">)</font>
+<font color="#008080">    if</font><font color="#000000"> c</font><font color="#0000FF">=</font><font color="#004600">K_ESC</font><font color="#008080"> then</font>
+<font color="#004080">        atom</font><font color="#000000"> close_cb</font><font color="#0000FF"> =</font><font color="#5E005E"> IupGetCallback</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">,</font><font color="#008000">"CLOSE_CB"</font><font color="#0000FF">)</font>
+<font color="#008080">        if</font><font color="#000000"> close_cb</font><font color="#0000FF">!=</font><font color="#004600">NULL</font><font color="#008080"> then</font>
+<font color="#5E005E">            c_proc</font><font color="#0000FF">(</font><font color="#7060A8">define_c_proc</font><font color="#800000">(</font><font color="#800080">{}</font><font color="#0000FF">,</font><font color="#800080">{</font><font color="#008000">'+'</font><font color="#0000FF">,</font><font color="#000000">close_cb</font><font color="#800080">}</font><font color="#0000FF">,</font><font color="#800080">{</font><font color="#004600">C_PTR</font><font color="#800080">}</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">dlg</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#008080">        end if
+        return</font><font color="#004600"> IUP_CLOSE</font>
+<font color="#008080">    end if
+    return</font><font color="#004600"> IUP_DEFAULT</font>
+<font color="#000080"><i>//  return iff(c=K_ESC?close_cb(dlg):IUP_DEFAULT)</i></font>
+<font color="#008080">end function</font>
+<font color="#5E005E">IupSetCallback</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">,</font><font color="#008000"> "K_ANY"</font><font color="#0000FF">,</font><font color="#5E005E"> Icallback</font><font color="#800000">(</font><font color="#008000">"key_cb"</font><font color="#800000">)</font><font color="#0000FF">);</font>
 </pre>
+            </small>
             <br>
-            Note that secondary dialogs may need to invoke <a href="IupHide.htm">IupHide</a>() rather than using <a href="callbacks.htm#IUP_CLOSE">IUP_CLOSE</a>, 
-            since that terminates the entire application, unless there are nested IupMainLoop() calls.
+            Since returning IUP_CLOSE does <i>not</i> invoke any CLOSE_CB callback, then as shown, if one is attached it is
+            invoked automatically for you (as a proc because we would ignore any result anyway). The single commented-out
+            line would normally be more appropriate in an application, ie invoke a known close_cb() directly in normal hll
+            code, rather than using any messy IupGetCallback/c_proc shenanigans.
+            <br>
+            <br>
+            Note that secondary dialogs may need to invoke <a href="IupHide.htm">IupHide</a>() rather than using 
+            <a href="callbacks.htm#IUP_CLOSE">IUP_CLOSE</a> or IupClose(), since that terminates the entire application unless 
+            there are nested IupMainLoop() calls. In other words use IupHide(1)-IupShow(2)-IupHide(2)-IupShow(1) instead of
+            trying and failing with IupClose(1)-IupShow(2)-IupClose(2)-IupShow(1).
             <br>
             <br>
             Obviously, should you need any other key handling then take a copy of that and modify it, instead of invoking IupCloseOnEscape().
             <br>
             <br>
             In truth, IupCloseOnEscape has almost nothing to do with IupClose and must not be considered a substitute or replacement for it.
+            <br>
+            <br>
+            As of 0.8.3, IupCloseOnEscape() is applied by default in <a href="IupDialog.htm">IupDialog</a>() to all dialogs on creation.
          </td>
         </tr>
         <tr>
@@ -87,20 +125,24 @@ include pGUI.e
 
 IupOpen()
 Ihandle main_dialog = IupDialog(IupLabel("Hello","PADDING=80x10"),"TITLE=test")
-IupCloseOnEscape(main_dialog)
+IupCloseOnEscape(main_dialog) -- (applies by default anyway)
 IupShow(main_dialog)
-IupMainLoop()
-IupClose()
+if platform()!=JS then
+    IupMainLoop()
+    IupClose()
+end if
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> pGUI.e
-
-</font><font color="#5E005E">IupOpen</font><font color="#0000FF">()
-</font><font color="#5E005E">Ihandle</font><font color="#000000"> main_dialog</font><font color="#0000FF"> =</font><font color="#5E005E"> IupDialog</font><font color="#0000FF">(</font><font color="#5E005E">IupLabel</font><font color="#800000">(</font><font color="#008000">"Hello"</font><font color="#0000FF">,</font><font color="#008000">"PADDING=80x10"</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#008000">"TITLE=test"</font><font color="#0000FF">)
-</font><font color="#5E005E">IupCloseOnEscape</font><font color="#0000FF">(</font><font color="#000000">main_dialog</font><font color="#0000FF">)
-</font><font color="#5E005E">IupShow</font><font color="#0000FF">(</font><font color="#000000">main_dialog</font><font color="#0000FF">)
-</font><font color="#5E005E">IupMainLoop</font><font color="#0000FF">()
-</font><font color="#5E005E">IupClose</font><font color="#0000FF">()</font>
+<font color="#008080">include</font><font color="#000000"> pGUI.e
+</font>
+<font color="#5E005E">IupOpen</font><font color="#0000FF">()</font>
+<font color="#5E005E">Ihandle</font><font color="#000000"> main_dialog</font><font color="#0000FF"> =</font><font color="#5E005E"> IupDialog</font><font color="#0000FF">(</font><font color="#5E005E">IupLabel</font><font color="#800000">(</font><font color="#008000">"Hello"</font><font color="#0000FF">,</font><font color="#008000">"PADDING=80x10"</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#008000">"TITLE=test"</font><font color="#0000FF">)</font>
+<font color="#5E005E">IupCloseOnEscape</font><font color="#0000FF">(</font><font color="#000000">main_dialog</font><font color="#0000FF">)</font><font color="#000080"><i> -- (applies by default anyway)</i></font>
+<font color="#5E005E">IupShow</font><font color="#0000FF">(</font><font color="#000000">main_dialog</font><font color="#0000FF">)</font>
+<font color="#008080">if</font><font color="#7060A8"> platform</font><font color="#0000FF">()!=</font><font color="#004600">JS</font><font color="#008080"> then</font>
+<font color="#5E005E">    IupMainLoop</font><font color="#0000FF">()</font>
+<font color="#5E005E">    IupClose</font><font color="#0000FF">()</font>
+<font color="#008080">end if</font>
 </pre>
          </td>
         </tr>

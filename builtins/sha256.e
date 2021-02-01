@@ -7,13 +7,18 @@
 --  Using a big block of highly optimised inline assembly (#ilASM).
 --  See demo\rosetta\sha-256.exw for a slightly saner hll version.
 
+integer sha_init4 = 0, sha_const4
+
+procedure sha_init()
 -- sha-256 initializes the hashing constants with these 8 dwords
-constant integer sha_init4 = floor(allocate(8*4)/4)
+--constant integer sha_init4 = floor(allocate(8*4)/4)
+    sha_init4 = floor(allocate(8*4)/4)
     poke4(sha_init4*4,{0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,
                        0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19})
 
 -- sha-256 uses 64 dwords, one for each round of main hashing routine
-constant integer sha_const4 = floor(allocate(64*4)/4)
+--constant integer sha_const4 = floor(allocate(64*4)/4)
+    sha_const4 = floor(allocate(64*4)/4)
     poke4(sha_const4*4,{0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,
                         0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
                         0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,
@@ -30,6 +35,7 @@ constant integer sha_const4 = floor(allocate(64*4)/4)
                         0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
                         0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,
                         0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2})
+end procedure
 
 function pad64(integer v)
 -- round v up to multiple of 64
@@ -61,6 +67,7 @@ integer block_offset
         if len=0 then exit end if
     end for
     integer num_blocks = length(msg)/64
+    if sha_init4=0 then sha_init() end if
 
 #ilASM{
 

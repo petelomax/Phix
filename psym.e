@@ -733,6 +733,39 @@ end if
     return currtls
 end function
 
+--NESTEDFUNC:
+global function hideScope()
+    --
+    -- hide localscope chain over nested function definition.
+    -- restScope is whatever restoreScope() needs it to be.
+    --
+    sequence restScope = {}
+    integer scopechain = localscopes[scopelevel]
+    while scopechain do
+        integer tnxt = symtab[scopechain][S_Nlink]
+        if tnxt!=-2 and symtab[scopechain][S_NTyp]=S_TVar then
+            integer tidx = symtab[scopechain][S_Name]
+--          symtab[scopechain][S_Nlink] = -2
+            if tt[tidx+EQ]!=scopechain then ?9/0 end if
+            tt[tidx+EQ] = tnxt
+            restScope &= scopechain
+        end if
+        scopechain = symtab[scopechain][S_Slink]
+    end while
+    return restScope
+end function
+
+global procedure restoreScope(sequence restScope)
+--  for i=1 to length(restScope) do
+    for i=length(restScope) to 1 by -1 do
+        integer scopechain = restScope[i]
+--      sequence ss = symtab[scopechain]
+        integer tidx = symtab[scopechain][S_Name]
+--      integer tnxt = symtab[scopechain][S_Nlink]
+        tt[tidx+EQ] = scopechain
+    end for 
+end procedure
+
 integer slink, glink, scope
         slink = -1
 --      glink = 0
@@ -2615,6 +2648,7 @@ end if
     initialAutoEntry("set_file_date",       S_Func,"FSI",   "pfile.e",0,E_other,1)
     initialAutoEntry("sizeof",              S_Func,"FI",    "dll.e",0,E_none)
     initialAutoEntry("square_free",         S_Func,"FNI",   "pfactors.e",0,E_none,1)
+    initialAutoEntry("still_has_delete_routine",S_Func,"FO","hasdel.e",0,E_none)
     initialAutoEntry("struct",              S_Type,"TO",    "structs.e",0,E_none)           Z_struct = symlimit
 --  symtab[symlimit][S_State] = or_bits(symtab[symlimit][S_State],K_struc)
     Alias("class",symlimit)
@@ -2780,7 +2814,7 @@ end if
     initialAutoEntry("flatten",             S_Func,"FP",    "pflatten.e",0,E_none)
     initialAutoEntry("get_logical_drives",  S_Func,"FP",    "pfile.e",   0,E_none)
     initialAutoEntry("get_primes",          S_Func,"FI",    "primes.e",  0,E_none,0)
-    initialAutoEntry("get_routine_info",    S_Func,"FI",    "get_routine_info.e",0,E_none)
+    initialAutoEntry("get_routine_info",    S_Func,"FII",   "get_routine_info.e",0,E_none,1)
 --sequence/string result:
     initialAutoEntry("hll_append",          S_Func,"FOO",   "hll_stubs.e",0,E_none)     hll_stubs[Z_append] = symlimit
     initialAutoEntry("hll_prepend",         S_Func,"FOO",   "hll_stubs.e",0,E_none)     hll_stubs[Z_prepend] = symlimit
@@ -3137,6 +3171,7 @@ end if
     --          ...
     --      end if)
     --
+--  reservedWord(T_integer)
     reservedWord(T_global)
     reservedWord(T_proc)
     reservedWord(T_func)

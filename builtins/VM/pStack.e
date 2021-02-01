@@ -1763,12 +1763,14 @@ end procedure -- (for Edita/CtrlQ)
 --          mov rsp,[rsp+8*5]   -- equivalent to the add/pop
     [ELF32]
         mov ebx,eax                     -- error_code (p1)
-        mov eax,1                       -- sys_exit(ebx=int error_code)
+--      mov eax,1                       -- sys_exit(ebx=int error_code)
+        mov eax,252                     -- sys_exit_group(ebx=int error_code)
         int 0x80
 --      xor ebx,ebx                     -- (common requirement after int 0x80)
     [ELF64]
         mov rdi,rax                     -- error_code (p1)
-        mov rax,60                      -- sys_exit(rdi=int error_code)
+--      mov rax,60                      -- sys_exit(rdi=int error_code)
+        mov rax,231                     -- sys_exit_group(rdi=int error_code) 
         syscall
     []
 

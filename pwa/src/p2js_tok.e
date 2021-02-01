@@ -30,6 +30,7 @@ procedure add_tok(sequence tok)
 --  end if
 end procedure
 
+--from basics: global enum TOKTYPE, TOKSTART, TOKFINISH, TOKLINE, TOKCOL, TOKTTIDX, TOKENDLINE=$ -- (one token)
 procedure std_token()
     add_tok({toktype,tokstart,i,line,tokstart-linestart})
 end procedure
@@ -98,6 +99,11 @@ procedure block_comment(integer tokstart)
     integer startline = line, nest = 1
     i = tokstart
     while true do
+        if i>length(text) then
+            line = startline
+            {} = tok_error("no closing comment",tokstart)
+            return 
+        end if
         ch = text[i]
         integer cn = iff(i<lt?text[i+1]:'\0')
         if ch='*' and cn='/' then
@@ -115,7 +121,7 @@ procedure block_comment(integer tokstart)
         end if
         i += 1
     end while
---Ah: **ALL** comments in js/html/c/css **ARE** block comments, so we **DO** need a way
+--Ah: **ALL** comments in js/html/css **ARE** block comments, so we **DO** need a way
 --      to convert them into line comments, roughly like this.
 --X -- note: block comments distinguished from line comments by length. [erm, startline!=line?]
     -- DEV add note re phix->js->phix handling, once we know what all the rules really are
@@ -224,7 +230,8 @@ global procedure tokenise()
             case '(','[','{','}',']',')':
                 std_token()
                 break
-            case HEXDEC:
+--          case HEXDEC:
+            case '#':
                 i += 1
                 ch = text[i]
                 if ch='i' then
@@ -245,14 +252,15 @@ global procedure tokenise()
                     end while
                     i -= 1
                     if i<=tokstart
---                  or find(charset[ch],{HEXDEC,SQUOTE,DQUOTE,BKTICK,DIGIT,LETTER}) then
-                    or find(charset[ch],{HEXDEC,SQUOTE,DQUOTE,'`',DIGIT,LETTER}) then
+--                  or find(charset[ch],{HEXDEC,SQUOTE,DQUOTE,'`',DIGIT,LETTER}) then
+                    or find(charset[ch],{'#','\'','"','`',DIGIT,LETTER}) then
                         {} = tok_error("unrecognised",i+1)
                         return
                     end if
                     std_token()
                 end if
-            case SQUOTE:
+--          case SQUOTE:
+            case '\'':
                 if is_phix() then
                     -- aside: GT_WHOLE_FILE ensures we'll hit \n
                     -- test set:  legal     illegal
@@ -279,8 +287,8 @@ global procedure tokenise()
                 end if
 --              ch = '\'' -- (still is)
                 fallthrough
---          case DQUOTE, BKTICK:
-            case DQUOTE, '`':
+--          case DQUOTE, '`':
+            case '"', '`':
                 integer cq = ch, startline = line
                 while true do
                     i += 1
@@ -317,13 +325,11 @@ global procedure tokenise()
                             text[tokstart] = '`'
                             i -= 2 -- (undone rsn)
                             text[i] = '`'
---                          toktype = BKTICK
                             toktype = '`'
 --                          {text[tokstart],text[i],toktype} @= '`'
                         end if
                         exit
                     end if
---                  if toktype=BKTICK then
                     if toktype='`' then
                         if i=lt then
                             line = startline
@@ -336,13 +342,10 @@ global procedure tokenise()
                         return
                     end if
                 end while
---              if toktype=BKTICK then
                 if toktype='`' then
-                    if phix_only(i) then return end if
---                  add_tok({BKTICK,tokstart,i,startline,line,tokstart-linestart})
+--removed 24/1/21:
+--                  if phix_only(i) then return end if
                     add_tok({'`',tokstart,i,startline,line,tokstart-linestart})
---                  add_tok({BLK_CMT,tokstart,i-2,startline,line,tokstart-linestart})
---                  add_tok({COMMENT,tokstart,i,line,line,tokstart-linestart})
                     if cq='"' then i += 2 end if -- triplequote
                 else
                     std_token()
@@ -353,6 +356,7 @@ global procedure tokenise()
                     ch = text[i]
                     toktype = charset[ch]
                     if toktype!=DIGIT then
+--DEV 0o, 0t, 0x, 0(bb)...
                         if ch='b' and i=tokstart+1 and text[tokstart]='0' then
                             -- 0bNNNN format number
                             while true do
@@ -365,7 +369,8 @@ global procedure tokenise()
                                 {} = tok_error("0/1 expected")
                                 return
                             end if
-                            toktype = BINDEC
+--                          toktype = BINDEC
+                            toktype = 'b'   -- 0bNNN format
                             std_token()
                             break
                         end if
@@ -427,15 +432,15 @@ _____this
 ?ts
 ?tq
 --*/
---(me: so this wouldn't really help anyway...)
+--(me: so this [error] wouldn't really help anyway...)
 --(me: anyway, the \r\n thing also makes it all a bit moot)
 --                          {} = tok_error("use backtick not triplequote")
 --                          return
---DEV thern _ (underscore) handling has to be done at a later date...
+--DEV then _ (underscore) handling has to be done at a later date...
 --      we also need to substitute "\r\n" with "\n" throughout...
 --/*
 if 0 then
--- Anyway, I quickly knocked this up, not sure where it might get used yet:
+-- So anyway, I quickly knocked this up, not sure where it might get used yet:
 string
 ts = """
 _____this
@@ -478,8 +483,6 @@ if s[1]='`' then ?9/0 end if -- (griefsaver?)
 end function
 --?backtick_cleanup("\r\n_____this\r\n_____string\\thing")
 ?backtick_cleanup("\r\n_____this\r\n     string\\thing")
---{"BKTICK",289,320,11,11,"`\r\n_____this\r\n     string\\thing`"}
---{"BKTICK",331,362,12,14,"`\r\n_____this\r\n     string\\thing`"}
 --*/
 
 

@@ -255,7 +255,12 @@ function action3_cb(Ihandle ih)
     if ih then end if
     printf(1,"ACTION3\n");
 --  IupSetAttribute(IupGetChild(IupGetDialog(ih), 0), "BGCOLOR", "128 0 0");
-    return IUP_DEFAULT;
+    return IUP_DEFAULT
+end function
+
+function scroll_cb(Ihandle /*ih*/, integer op, atom posx, atom posy)
+    ?{"scroll_cb",op,posx,posy}
+    return IUP_DEFAULT
 end function
 
 procedure set_callbacks(object ih)
@@ -265,6 +270,7 @@ procedure set_callbacks(object ih)
         end for
     else
         IupSetCallback(ih, "VALUECHANGED_CB", Icallback("valuechanged_cb"));
+--      IupSetCallback(ih, "SCROLL_CB", Icallback("scroll_cb")); -- nope (IupMultiLine)
 
 --      IupSetCallback(ih, "GETFOCUS_CB", Icallback("getfocus_cb"));
 --      IupSetCallback(ih, "KILLFOCUS_CB", Icallback("killfocus_cb"));
@@ -502,7 +508,11 @@ Ihandle mnu, menu1, backmenu, hbox_1, cnv_1, vbox_1, img,
 --  IupSetAttribute(ml_1,"FONT","Courier, 8")
 
     set_callbacks({text_1,ml_1})
-    frm_4 = IupFrame(IupVbox({text_1,ml_1}));
+
+Ihandle bb_1 = IupBackgroundBox(ml_1)
+IupSetCallback(bb_1, "SCROLL_CB", Icallback("scroll_cb"))
+--  frm_4 = IupFrame(IupVbox({text_1,ml_1}));
+    frm_4 = IupFrame(IupVbox({text_1,bb_1}));
 
     IupSetAttribute(frm_4,"TITLE","IupText");
 

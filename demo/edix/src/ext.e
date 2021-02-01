@@ -159,7 +159,8 @@ procedure set_buttons()
     bool okc -- (true=>OK, false=>Cancel)
     if length(ext) and ext[1]='.' then ext = ext[2..$] end if
     if length(rw)>=2 and rw[1..2]="=." then rw[1..2] = "=" end if
-    if length(rw)>=1 and rw[1]="=" then rw[1] = "#" end if
+--  if length(rw)>=1 and rw[1]="=" then rw[1] = "#" end if
+    if length(rw)>=1 and rw[1]='=' then rw[1] = '#' end if
     if length(ext)=0 then
         active = false
         okc = length(rw)=0

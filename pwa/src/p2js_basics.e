@@ -25,7 +25,9 @@ include builtins\syswait.ew
 with debug
 
 --global constant pwadir = join_path({include_path(""),`pwa`})
-global constant pwadir = `E:\downloads\misc\js\pwa` -- temp (until I sort out the final directory structure, add to phix7zip.lst, etc.)
+global constant pwadir = join_path({get_file_path(get_interpreter()),`pwa`})
+--global constant pwadir = `C:\Program Files (x86)\pwa`
+--?pwadir
 
 global string current_file
 integer ext
@@ -37,18 +39,19 @@ global sequence tokens
 
 -- aside: pwa/p2js (as per the docs) does not support nested constants.
 --/* -- backtrack, see p2js.exw
-enum PHIX, HTML, CSS, JS, C
+enum PHIX, HTML, CSS, JSS, C
 constant extensions = {{PHIX, {"exw","ex","e","eu"}},
                        {HTML, {"html","htm"}},
                        {CSS, {"css"}},
-                       {JS, {"js"}},
+                       {JSS, {"js"}},
                        {C, {"c"}}}
 --*/
 constant extensions = {{PHIX :=1, {"exw","ex","e","eu","ew"}},
                        {HTML :=2, {"html","htm"}},
                        {CSS  :=3, {"css"}},
-                       {JS   :=4, {"js"}},
-                       {C    :=5, {"c"}}}
+                       {JSS  :=4, {"js"}}, -- (avoid clash with platform()'s JS)
+                       {GO   :=5, {"go"}},
+                       {C    :=6, {"c"}}}
 --
 -- note that both the tokeniser and the parser have a local phix_only() routine
 --      that invokes is_phix(), before going on to invoke their own xxx_error().
@@ -56,29 +59,30 @@ constant extensions = {{PHIX :=1, {"exw","ex","e","eu","ew"}},
 global function is_phix() return ext=PHIX end function
 global function is_html() return ext=HTML end function
 global function is_css()  return ext=CSS  end function
-global function is_js()   return ext=JS   end function
+global function is_js()   return ext=JSS  end function
+global function is_go()   return ext=GO   end function
 global function is_C()    return ext=C    end function
 
 --/*
 -- don't think this helped... (the better plan is html -> xml,
 --                             then parse(xml[i],js/css) anyway,
---                             rather than HTML +=,-= JS/CSS)
+--                             rather than HTML +=,-= JSS/CSS)
 constant extensions = {{PHIX :=#01, {"exw","ex","e","eu"}},
                        {HTML :=#02, {"html","htm"}},
                        {CSS  :=#04, {"css"}},
-                       {JS   :=#08, {"js"}},
+                       {JSS  :=#08, {"js"}},
                        {C    :=#10, {"c"}}}
 integer ext
 
 --
 -- note that both the tokeniser and the parser have a local phix_only() routine
 --      that invokes is_phix(), before going on to invoke their own xxx_error().
--- also, (eg) html may temp. toggle ext to CSS/JS at some point in the future.      
+-- also, (eg) html may temp. toggle ext to CSS/JSS at some point in the future.     
 --
 global function is_phix() return and_bits(ext,PHIX)!=0 end function
 global function is_html() return and_bits(ext,HTML)!=0 end function
 global function is_css()  return and_bits(ext,CSS )!=0 end function
-global function is_js()   return and_bits(ext,JS  )!=0 end function
+global function is_js()   return and_bits(ext,JSS )!=0 end function
 global function is_C()    return and_bits(ext,C   )!=0 end function
 --*/
 
@@ -101,7 +105,7 @@ global function load_text(string filename)
         end if
     end for
     if ext=0 then
-        return fatal("unsupported file extension:"&filename)
+        return fatal("unsupported file extension: "&filename)
     end if
     object txt = get_text(filename,GT_WHOLE_FILE)
     if not string(txt) then
@@ -120,8 +124,7 @@ end function
 global enum TOKTYPE, TOKSTART, TOKFINISH, TOKLINE, TOKCOL, TOKTTIDX, TOKENDLINE=$ -- (one token)
             -- TOKTYPE is as per vslice(TOKTYPES,1) below
             -- TOKTTIDX is only set on LETTER tokens
---          -- TOKENDLINE only on BKTICK and BLK_CMT
-            -- TOKENDLINE only on '`' (aka `"""`) and BLK_CMT
+            -- TOKENDLINE only on '`' (aka `"""`) and BLK_CMT (no other tokens span lines)
 --DEV/SUG
             -- note that [TOKFINISH] can be a string, for debugging purposes:
 --/*
@@ -151,10 +154,11 @@ global enum EOL, SPACE, /*MINUS,*/ /*FWDSLASH,*/ /*DIVIDE=$,*/ --ELLIPSE, --SPRE
             /*BRACES,*/
 --          ORB, OSB, OCB, CCB, CSB, CRB, 
 --          ORB = '(', OSB, OCB, CCB, CSB, CRB, 
-            HEXDEC, BINDEC, SQUOTE, DQUOTE, 
---          BKTICK,
+--          HEXDEC, --BINDEC, --SQUOTE, --DQUOTE, 
             /*FLOAT,*/
             DIGIT, LETTER, COMMENT, BLK_CMT, ILLEGAL, SYMBOL, TOKMAX=$
+--SUG: (will it help or confuse?)
+--          EOL = '\n', SPACE = ' ', DIGIT = '0', LETTER = 'A', COMMENT = '-', BLK_CMT = '*', ILLEGAL='?', SYMBOL = '$'
 --if ILLEGAL>=' ' then ?9/0 end if
 
 --erm, good news, both 39:
@@ -172,9 +176,8 @@ TOKTYPES = {{EOL,"EOL",false},      -- End of line
 --          {FWDSLASH,"FWDSLASH",false}, -- Forward slash   (   ""   )
 --          {ELLIPSE,"ELLIPSE",false}, -- '..'
 --          {SPREAD,"SPREAD",false}, -- '...'
--- ugh, I've already forgotton what the last of these was meant to stand for... [or... was I just thinking of some TOKTYPE thing?]
--- BAND, BOR, MEQ, PEQ, TEQ, DEQ, BEQ, EEQ, EEEQ, LE, GE, LSHIFT, RSHIFT, TT.
--- &&  , || , -= , += , *= , /= , := , == , === , <=, >=, <<    , >>    , ?? (and ...where's &= anyway)
+-- BAND, BOR, MEQ, PEQ, TEQ, DEQ, BEQ, EEQ, EEEQ, LE, GE, LSHIFT, RSHIFT.
+-- &&  , || , -= , += , *= , /= , := , == , === , <=, >=, <<    , >>    (and ...where's &= anyway)
 --  (I accept that all multi-char SYMBOL need their own special TOKTYPE, btw)
 --X         {BRACES,"BRACES",false},    -- ()[]{}
 --          {ORB,"(",false},            -- opening round bracket
@@ -183,11 +186,10 @@ TOKTYPES = {{EOL,"EOL",false},      -- End of line
 --          {CCB,"}",false},            -- closing curly bracket
 --          {CSB,"]",false},            -- closing square bracket
 --          {CRB,")",false},            -- closing round bracket
-            {HEXDEC,"HEXDEC",false},    -- Hexadecimal (#) mark
-            {BINDEC,"BINDEC",false},    -- 0bNNN format digit
-            {SQUOTE,"SQUOTE",false},    -- Single quotation mark
-            {DQUOTE,"DQUOTE",false},    -- Double quotation mark
---          {BKTICK,"BKTICK",false},    -- Back tick (string with no escape characters)
+--          {HEXDEC,"HEXDEC",false},    -- Hexadecimal (#) mark     -- DEV '#' instead?
+--          {BINDEC,"BINDEC",false},    -- 0bNNN format digit
+--          {SQUOTE,"SQUOTE",false},    -- Single quotation mark    -- DEV '\'' instead?
+--          {DQUOTE,"DQUOTE",false},    -- Double quotation mark    -- DEV '"' instead?
 --          {FLOAT,"FLOAT",false},  -- float, eg 1.0 or 1e4 (may yet be desired?)
             {DIGIT,"DIGIT",false},  -- 0..9
             {LETTER,"LETTER",false}, -- A..Z,a..z
@@ -289,11 +291,13 @@ global constant string charset = set_chars({{"\r\n",EOL},
 --                                          {'-', MINUS},
 --                                          {'/', FWDSLASH},
 --
-                                            {'"', DQUOTE},
---                                          {'`', BKTICK},
+--                                          {'"', DQUOTE},
+                                            {'"', '"'},
                                             {'`', '`'},
-                                            {'#', HEXDEC},
-                                            {'\'', SQUOTE},
+--                                          {'#', HEXDEC},
+                                            {'#', '#'},
+--                                          {'\'', SQUOTE},
+                                            {'\'', '\''},
 --                                          {'(',ORB},
 --                                          {'[',OSB},
 --                                          {'{',OCB},
@@ -392,16 +396,17 @@ global constant precedences = {{BEQ     := 129, `:=`,   PASGN},
                                {ELLIPSE := 199, `..`,   PSBSC}}
 global constant {mstoktypes,multisym,msprec} = columnize(precedences)
 
-global constant INCLUDETOKS = `\/.<>`&'`'&DQUOTE&LETTER&ELLIPSE&DIGIT
+--global constant INCLUDETOKS = `\/.<>`&'`'&DQUOTE&LETTER&ELLIPSE&DIGIT
+global constant INCLUDETOKS = `\/.<>"`&'`'&LETTER&ELLIPSE&DIGIT
 
 -- to show in ex.err as a useful lookup table during debugging:
 sequence precedence_table = precedences
 
 --also ?, : 
 --/*
-Python:  := //[==floor division] and singles: | ^ & @[==matrix multiplication] % :(==slicing)
-C: ++ -- -> %= <<= >>= ^= |=
-JS: ?. ** >>> === !== ?? **= >>>= ??=
+--Python:  := //[==floor division] and singles: | ^ & @[==matrix multiplication] % :(==slicing)
+--C: ++ -- -> %= <<= >>= ^= |=
+--JS: ?. ** >>> === !== ?? **= >>>= ??=
 /*
 == equal value
 === equal value and equal type

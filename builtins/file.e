@@ -212,12 +212,12 @@ global function walk_dir(sequence path_name, integer your_function, integer scan
 object d, abort_now
 sequence di
 --integer SLASH = iff(platform()=LINUX?'/':'\\') 
-integer SLASH
-    if platform()=LINUX then
-        SLASH = '/'
-    else
-        SLASH = '\\'
-    end if
+--integer SLASH
+--  if platform()=LINUX then
+--      SLASH = '/'
+--  else
+--      SLASH = '\\'
+--  end if
 
     -- get the full directory information
     if my_dir=DEFAULT then

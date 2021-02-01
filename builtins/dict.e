@@ -97,9 +97,9 @@ end procedure
 function rotate(integer node, integer direction, integer tid)
 integer idirection = LEFT+RIGHT-direction
 integer pivot = trees[tid][node+idirection]
-integer Temp2 = trees[tid][pivot+direction]
+integer temp2 = trees[tid][pivot+direction]
     trees[tid][pivot+direction] = node
-    trees[tid][node+idirection] = Temp2
+    trees[tid][node+idirection] = temp2
     setHeight(node,tid)
     setHeight(pivot,tid)
     return pivot
@@ -226,6 +226,8 @@ integer c, left, right
         integer temp = minValueNode(right,tid,LEFT)
         key = trees[tid][temp+KEY]
         trees[tid][root+KEY] = key
+--bugfix 29/1/21:
+        trees[tid][root+DATA] = trees[tid][temp+DATA]
         trees[tid][root+RIGHT] = deleteNode(right, key, tid)
     end if
     if root=NULL then return root end if

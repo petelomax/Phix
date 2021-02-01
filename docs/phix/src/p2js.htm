@@ -66,12 +66,13 @@ Ihandln dlg = IupDialog(lbl,`TITLE="Hello", MINSIZE=225x75`)
 --if SIZE <?? then
 --IupSetInt(dlg,"HIDEHEADERS",true)
 --end if
-IupCloseOnEscape(dlg)
 
 IupShow(dlg)
-IupMainLoop()
-dlg = IupDestroy(dlg)
-IupClose()
+if platform()!=JS then
+    IupMainLoop()
+    dlg = IupDestroy(dlg)
+    IupClose()
+end if
 </eucode-->
 <pre>
 <font color="#000080"><i>--
@@ -86,13 +87,14 @@ IupClose()
 <font color="#000080"><i>--X IupSetAttribute(dlg,"HIDEHEADERS","YES")
 --if SIZE &lt;?? then
 --IupSetInt(dlg,"HIDEHEADERS",true)
---end if</i></font>
-<font color="#5E005E">IupCloseOnEscape</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">)
-</font>
+--end if
+</i></font>
 <font color="#5E005E">IupShow</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">)</font>
-<font color="#5E005E">IupMainLoop</font><font color="#0000FF">()</font>
-<font color="#000000">dlg</font><font color="#0000FF"> =</font><font color="#5E005E"> IupDestroy</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">)</font>
-<font color="#5E005E">IupClose</font><font color="#0000FF">()</font>
+<font color="#008080">if</font><font color="#7060A8"> platform</font><font color="#0000FF">()!=</font><font color="#004600">JS</font><font color="#008080"> then</font>
+<font color="#5E005E">    IupMainLoop</font><font color="#0000FF">()</font>
+<font color="#000000">    dlg</font><font color="#0000FF"> =</font><font color="#5E005E"> IupDestroy</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">)</font>
+<font color="#5E005E">    IupClose</font><font color="#0000FF">()</font>
+<font color="#008080">end if</font>
 </pre>
           </div>
          </div>
@@ -526,7 +528,7 @@ locking, video_config,  ...
          </div>
          <div>
             Optimised to literal (WEB==4) by p2js in much the same way as the desktop version, and no code is emitted for irrelevant if-branches.<br>
-            Note the presence of an "else" without an explicit WEB(/JS/JAVASCRIPT) branch triggers a transpile-time error.<br>
+            Note the presence of an "else" without an explicit WEB(/JS/JAVASCRIPT) branch triggers a transpile-time error.<br> <!-- DEV -->
          </div>
         </div>
         <br>
@@ -545,11 +547,11 @@ locking, video_config,  ...
             &nbsp;&nbsp;
          </div>
          <div>
-            fn must be 1 (append to document body) or 2 (prepend to document body)<br>
+            fn must be 1 (append to document body) or 2 (prepend to document body), as text not html.<br>
             Any '\n' in x are automatically replaced with '&lt;br&gt;', <br>
             likewise <small>(beforehand, so they appear normal)</small> '&amp;|&lt;|&gt;' ==&gt; '&amp;amp|lt|gt;', <br>
-            and should you want to show say '&amp;amp;' you&rsquo;ll have to output it as '&amp;amp;amp;'.<br>
-            <small>(TIP: do NOT look at p2js.htm for that: my txt->chm bears little or no resemblence to your txt->puts->browser!)</small>
+            and should you want to show say '&amp;amp;' you&rsquo;ll have to output '&amp;amp;amp;'.<br>
+            <small>(TIP: do NOT look at docs\phix\src\p2js.htm for that: my txt->chm bears little or no resemblence to your txt->puts->browser!)</small>
          </div>
         </div>
         <br>
@@ -833,7 +835,7 @@ locking, video_config,  ...
             &nbsp;&nbsp;
          </div>
          <div>
-            Dummy routine, as per IupMainLoop(). (Doesn&rsquo;t really appear to do very much on the desktop, anyway.)
+            Dummy routine. (Doesn&rsquo;t really appear to do very much on the desktop, anyway.)
          </div>
         </div>
         <br>
@@ -852,7 +854,7 @@ locking, video_config,  ...
             &nbsp;&nbsp;
          </div>
          <div>
-            <small><i>(No known issues.)</i></small>
+            <small><i>(No known issues. Now invoked by default from IupDialog() anyway, in both pGUI.e and pGUI.js.)</i></small>
          </div>
         </div>
         <br>
@@ -871,9 +873,8 @@ locking, video_config,  ...
             &nbsp;&nbsp;
          </div>
          <div>
-            Dummy function, returns it&rsquo;s argument unaltered. <br>
-            I had planned to return null, however IupMainLoop() being dummy meant that a following dlg = IupDestroy(dlg) would
-            spanner the whole show. Such final calls may, like IupMainLoop(), need to end up inside an `if platform()!=JS then` guard.
+            Dummy function, returns null. Note that (say) dlg = IupDestroy(dlg) after an IupMainLoop() would otherwise spanner the
+            whole show, and hence, like the IupMainLoop(), subsequent calls need to end up inside an `if platform()!=JS then` guard.
          </div>
         </div>
         <br>
@@ -1013,9 +1014,8 @@ locking, video_config,  ...
             &nbsp;&nbsp;
          </div>
          <div>
-            Dummy routine, does nothing. We simply rely on the JavaScript event loop instead.<br>
-            [DEV? - TBC] This may print an error/ need to be inside an `if platform()!=JS then`, as yet undecided.
-            It has already meant that IupDestroy has to be dummy, whereas if a final one was "" then it wouldn&rsquo;t have to be.
+            Invalid: we simply rely on the JavaScript event loop instead, and hence any IupMainLoop() needed for the desktop
+            along with any subsequent IupDestroy() <i>must</i> be placed inside an `if <a href="platform.htm">platform</a>()!=JS then` guard.
          </div>
         </div>
         <br>

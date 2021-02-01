@@ -642,7 +642,8 @@ integer finit = 0
 
 --      call :%opClosem9
 
-        mov rax,60  -- sys_exit
+--      mov rax,60  -- sys_exit
+        mov rax,231 -- sys_exit_group(rdi=int error_code) 
         xor rdi,rdi
         syscall
 

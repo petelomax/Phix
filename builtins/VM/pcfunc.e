@@ -1165,8 +1165,10 @@ integer esp4
     end if
 
 --22/12/20:
-    sequence xmmi = tagset(la)
+    sequence xmmi = tagset(la)  -- (used as-is under windows, and irrelevant on 32bit)
     if platform()=LINUX and machine_bits()=64 then
+        -- allocate registers for floating-point args on lnx
+        -- (on windows64, eg 3rd arg always ends up in xmm2)
         integer xmmr = 0
         xmmi = repeat(0,la)
         for i=1 to la do

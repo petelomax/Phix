@@ -57,7 +57,6 @@
           <br>
              Note that C routines, callable by Phix, also have (non-first-class) routine ids, but from
              <a href="define_c_proc.htm">define_c_proc</a>() and <a href="define_c_func.htm">define_c_func</a>(), not this.
-            <a name=aux></a>
          </td>
         </tr>
         <tr>
@@ -65,12 +64,36 @@
           <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
          </td>
          <td>
-          <b>Not supported</b> - as of 0.8.2, routine_id("<i>name</i>") and <i>name</i> not followed by '(' are the same. The latter
+            Supported (mostly). Note however that in 0.8.2 and later, routine_id("<i>name</i>") and <i>name</i> not followed by '(' 
+            are the same, so obviously the latter is recommended - and one less thing for pwa/p2js to potentially get wrong!
+            Be advised that JavaScript is not likely to match the scope rules of Phix particularly closely, and that any wierd
+            cases you can dream up such as <code>routine_id(module&"_"&action&iff(bCallback?"_cb":""))</code> are on you. Since
+            pwa/p2js.exw is expected to merge multiple Phix includes (and some builtins) into a single html/js file, multiple
+            instances of <i>any</i> identifier are likely (but not guaranteed) to trigger a fatal transpile-time error, bar
+            of course anything protected by function-level scope. ES6 does some block-scope via let/const, but I wouldn&rsquo;t 
+            overly rely on that if I were you, since Javascript is still fundamentally a function-scoped language.
+<!--
+DEV test, then delete:
+            In practice, pwa/p2js.exw tries to strip any unnecessary routine_id calls, routine_id() in p2js.js is a dummy routine
+            that returns a string result, and call_func/proc
+          <b><i>Partially</i> not supported</b> - straightforward and sane use such as <code>routine_id("action_cb")</code> is fine,
+            although as of 0.8.2 a bare <code>action_cb</code> would be equivalent, and is recommended.
+            <br>
+            <br>
+            Since there is no symbol table as such in JavaScript, the ability to "stitch together" and lookup a routine name is not 
+            possible, for instance <code>routine_id(module&"_"&action&iff(bCallback?"_cb":""))</code>, and it is specifically that 
+            part which is <b>"not supported"</b>. 
+
+                         In short, if the compiler can
+            figure it out at compile-time, it&rsquo;s fine, whereas 
+            is not supported.has
+            to be able to fu, routine_id("<i>name</i>") and <i>name</i> not followed by '(' are the same. The latter
             (a bare identifier) is fine and recommended, pwa/p2js.exw may or may not succeed in stripping the routine_id("") parts,
             but it certainly won&rsquo;t put them back on in any reverse trip and would therefore fail some reversibility tests.<br>
-            Since there is no symbol table as such in JavaScript, the ability to "stitch together" and lookup a routine name is not 
-            possible, and it is specifically that part which is <b>"not supported"</b>. Standard/Sane use should be fine.<br>
+            Standard/Sane use should be fine.<br>
             <small>(You know what, it might just be fine, I might rescind all that...)</small>
+it is: window["functionName"](arguments);
+-->
             <br>
             <br>
             Also note that get_routine_info() is not supported by p2js: the one place it was really needed, in the heart of 
@@ -85,6 +108,7 @@
             on the desktop, and of course if you forego testing things first on the desktop and switch to a direct edit/browser mode
             of development instead, that&rsquo;s on you. It would be perfectly possible and fairly straightforward for p2js.js to 
             contain a similar dummy routine_id(), just in that case utterly pointless.
+            <a name=aux></a>
          </td>
         </tr>
         <tr>
@@ -94,28 +118,32 @@
          <td>
             {<a href="integer.htm">integer</a> maxp, 
              <a href="integer.htm">integer</a> minp, 
-             <a href="string.htm">string</a> sig, 
-             <a href="object.htm">object</a> name} = <b>get_routine_info</b>(<a href="integer.htm">integer</a> rid)<br>
+             <a href="string.htm">string</a> sig[, 
+             <a href="object.htm">object</a> name]} = <b>get_routine_info</b>(<a href="integer.htm">integer</a> rid,
+                                                                              <a href="integer.htm#bool">bool</a> bName=true)<br>
             Returns the maximum and minimum number of parameters, along with a string representing the signature in roottype format,
-            and the actual name of the routine, except when rid refers to a class method, when -1 is returned <small>(on purpose, since 
-            their proper names are kept in builtins/structs.e, and are passed in as text anyway, so you don&rsquo;t want or need 
-            multiple conflicting entries messing up the symtab.)</small>
+            and optionally the actual name of the routine, except when rid refers to a class method, when -1 is returned <small>(on 
+            purpose, since their proper names are kept in builtins/structs.e, and are passed in as text anyway, so you don&rsquo;t 
+            want or need multiple conflicting entries messing up the symtab. You still(/only) get max/min/sig for class methods.)</small>
             <br>
             <br>
             For instance get_routine_info(<a href="apply.htm">apply</a>) yields {3,2,"FOIO","apply"}. Note that invoking this routine
-            coerces the compiler into populating the symbol table with actual names, which may make startup a fraction of a second slower 
-            when interpreting, especially on larger programs - hopefully not quite enough for anyone to actually notice, but it&rsquo;s 
-            only right to properly document these things, even if there might not be much you can really do to stop it.
+            with bName=true coerces the run-time into populating the symbol table with actual names, which may make startup a fraction 
+            of a second slower when interpreting, especially on larger programs - hopefully not quite enough for anyone to actually 
+            notice, but if you don&rsquo;t need the name there is not a lot of point asking for it.
             <br>
             <br>
-            Note that p.exw deliberately invokes get_routine_info(-9) to permanently disable it, since populating the symtab with actual 
-            names mid-compilation kinda spanners everything. In order words this routine is not available to the compiler itself. It is
-            now used (at runtime) in structs.e, to check the validity of any getters and setters it finds before invoking them.
+            Note that p.exw deliberately invokes get_routine_info(-9) to permanently disable it, that is within p.exe itself, since 
+            populating the symtab with actual names mid-compilation kinda spanners everything. In other words this routine is not 
+            available to the compiler itself, at least for now. In reality, p.exe is already pre-populated, no issue there, however
+            this and "p p" might or might not trigger armageddon, so I&rsquo;ve played it safe, perhaps for no good reason at all.
             <br>
             <br>
             Intended for internal use in routines such as <a href="apply.htm">apply</a>() to make a more informed choice about precisely 
-            how to invoke a routine, but of course it is also available for use at the application level. It is also used in the new
-            <a href="Icallback.htm">Icallback[i]</a>() routine.
+            how to invoke a routine, but of course it is also available for use at the application level. It is now used (at runtime) 
+            in structs.e, to check the validity of any getters and setters it finds before invoking them, and twice in pGUI.e, in the
+            <a href="Icallback.htm">Icallback[i]</a>() routine, and to check the <a href="callbacks.htm#K_ANY">K_ANY</a> callback does 
+            not have a time-bomb signature, since I&rsquo;ve managed to put quite a few of those in myself while translating C code.
             <a name=hllstubs></a>
          </td>
         </tr>

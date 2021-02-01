@@ -73,9 +73,21 @@
         difficult, turns out it is trivial and you simply don&rsquo;t need any of that anonymous iife drivel
         (don&rsquo;t ask). There are however a <i>tiny</i> number that would be useful, and thankfully 
         JavaScript allows $ in identifier names, so any of $_apply, (and $PROC, $FUNC,) $_concat, $deepcopy, 
-        $docbody, $paranormalise, $prefer_backtick, $seed, $store_attr, or $tce 
+        $docbody, $paranormalise, $prefer_backtick, $seed, $store_attr, $topzindex, or $tce 
         [told you it was a fairly short list] are just things we don&rsquo;t want to interfere with or be 
         accidentally accessible from transpiled user-code-land.
+        <br>
+        <br>
+        A DOM element such as <code>&lt;div id="myDiv"&gt;&lt;/div&gt;</code>, due to an obsolete quirk of IE
+        being propagated into all modern browsers, sets the variable myDiv in the global namespace, allowing a 
+        bare <code>myDiv</code> to act the same as <code>document.getElementById('myDiv')</code>.
+        While some would say this is a bad idea, it leads to shorter code, pwa/p2js.exw should really check 
+        anyway that no such global clashes are occurring, and the true culprit is clearly in <i>any</i> use 
+        of id, besides, clashing ids can and will go just as wrong with getElementById() anyway.
+        Since doing so would not necessarily help, pwa/p2js does <i>not</i> necessarily shy away from the 
+        shorthand version. Should it ever bite, pwa/p2js probably needs more checking, not more concealing,
+        plus phix generally allows &gt;1 of anything simultaneously on-screen, which kinda rules out most
+        uses of id anyway.
         <br>
         <br>
 <!--
@@ -842,8 +854,9 @@ toLowerCase
             &nbsp;&nbsp;
          </div>
          <div>
-            Too many to list, but the fields pGUI.js uses are: top, left, width, height, bottom, right, maxWidth, textAlign,
-            margin, marginTop, marginBottom, marginLeft, marginRight, background, cursor, position, display, and zIndex.
+            Too many to list, but the fields pGUI.js uses are: top, left, width, height, bottom, right, justifyContent, 
+            alignItems, maxWidth, textAlign, margin, marginTop, marginBottom, marginLeft, marginRight, background, 
+            cursor, position, display, and zIndex.
          </div>
         </div>
         <br>
@@ -1003,7 +1016,29 @@ toLowerCase
             </td>
             <td>
               Avoid (ditto --), in particular because of the "blind spot" that is the difference between ++i and i++, ie when asked like that, 
-              easily stated, but when (casually) reading code, those sort of errors can be almost impossible to spot.
+              easily stated, but when (casually) reading code, those sort of errors can be almost impossible to spot. For instance, the result
+              of <code>i = i++;</code> is formally both 
+              <a href="javascript:ExternalLink('ext832','http://en.wikipedia.org/wiki/Unspecified_behavior');"
+                 id="ext832" style="color:#9B5565" >unspecified</a> and 
+              <a href="javascript:ExternalLink('ext833','http://en.wikipedia.org/wiki/Undefined_behavior');"
+                 id="ext833" style="color:#9B5565" >undefined</a> behaviour - while a specific compiler(/browser) may (or may not) produce 
+              predictable results, it won&rsquo;t be hard to find a different compiler/browser that gives different results.
+            </td>
+         </tr>
+         <tr>
+            <td>
+             &
+            </td>
+            <td>
+              Bitwise and operation, similar to and_bits(). In Phix & performs concatenation.
+            </td>
+         </tr>
+         <tr>
+            <td>
+             &&
+            </td>
+            <td>
+              Logical and operation, similar to and_bits(). In Phix && is bitwise.
             </td>
          </tr>
          <tr>
@@ -1024,6 +1059,7 @@ toLowerCase
               but it only performs a shallow copy, see notes above.
             </td>
          </tr>
+         <!-- https://www.joshwcomeau.com/operator-lookup/ -->
         </table>
         <br>
         &nbsp;

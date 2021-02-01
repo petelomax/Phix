@@ -150,7 +150,9 @@ constant cont0 = """
 --
 global constant p2js_keywords = {
 """,
-        symbols = sort('`'&`!&|#*/+-,.:;<=>?~\$%([{}])"'`)
+        symbols = sort('`'&`!&|#*/+-,.:;<=>?~\$%([{}])"'0A`)
+--      symbols = `$,<@\|`&'`' -- #24,#2C,#3C,#40,#5C,#7C & #60
+--36,44,60,64,92,96,124
 
 --global (not used anywhere else yet...)
 function is_symbol(integer c)
@@ -163,28 +165,18 @@ function tt_keywords(sequence defs)
         {sequence txt,integer chk} = defs[i]
         if chk<=TOKMAX then ?9/0 end if
         if is_symbol(chk) then ?9/0 end if
-        -- ^^^^^^^^^           ^^^^
-        -- ^re-jig keywords (at random) until no SYMBOL/ttidx clashes:
-        --  If needed, you could just simply slap something like
-        --   "Llanfairpwllgwyngyllgogerychwyrndrobwllllantysiliogogogoch"
-        --   at the start of p2jskeywords.e and that way ensure that all 
-        --   ttidx are > 126, the highest significant latin-1 symbol...
-        --  The choice of integer/atom/string/sequence/object to start
-        --   the table off happens to work well enough for now (flw).
-        --  As it stands, T_integer=28 might be an issue, but T_atom is
-        --   48 ('0'), T_string 76 ('L') and T_sequence is 108 ('l'),
-        --   none of which are potentially single-character operators.
-        --   Another way to kludge a 28 clash might be to insert some
-        --   INGETTER constant into the SYMBOL enum in p2js_basics.e,
-        --   and then, of course, just not use that thing anywhere,
-        --   except perhaps as part of the above tests...
+        -- ^^
+        -- Aside: p2js_keywords.e was carefully rejigged until the
+        --  string/nullable_string/atom_string gave ttidx of 'X'
+        --  for nullable_string being the only potential clash.
         --
         text = txt              -- (text is defined in p2js_basics.e)
         integer ttidx = tt_idx(1,length(txt))--,false)
         if chk!=ttidx then
             bRebuild = true
             defs[i][2] = ttidx
-            printf(2,"%s should be %d, not %d\n",{text,ttidx,chk})
+            string ts = iff(ttidx>=32 and ttidx<128?sprintf("('%c')",ttidx):"")
+            printf(2,"%s should be %d%s, not %d\n",{text,ttidx,ts,chk})
         end if
 --      -- you need to correct the (recently-added/moved) 
 --      -- keyword entry, as is explained shortly below.
@@ -223,10 +215,19 @@ function tt_keywords(sequence defs)
         content[$] = '\n'
 
         content &= contk
+        integer clen = 0
         for i=1 to length(defs) do
             {string t, integer c} = defs[i]
-            string tq = `"`&t&`",`
-            content &= sprintf("    {%-18s T_%-17s := %d},\n",{tq,t,c})
+            string tq = `"`&t&`",`,
+                   ci = sprintf("    {%-18s T_%-17s := %d},",{tq,t,c})
+            if c>=32 and c<128 then
+                if clen=0 then
+                    clen = length(ci)+4
+                end if
+                ci &= repeat(' ',clen-length(ci))&sprintf("-- '%c'",c)
+            end if
+            ci &= '\n'
+            content &= ci
         end for
         content[-2] = '}'
 

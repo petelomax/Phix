@@ -319,6 +319,7 @@ constant testset={
     "t64struct.exw",        --[64] OK   -- test the new struct/class syntax
     "t65filter.exw",        --[65] OK   -- test the filter() builtin
     "t66prec.exw",          --[66] OK   -- test precedence handling (about time!)
+    "t67dicts.exw",         --[67] OK   -- test dictionaries (about time!)
     "..\\demo\\mandle.exw", --[61] OK   -- simple ascii mandlebrot demo
     "..\\demo\\combo.exw",  --[62] OK   -- simple combinations function
     "..\\demo\\takeuchi.exw",--[63] OK  -- stress test function calls
@@ -775,6 +776,7 @@ procedure OverWrite(sequence pw, integer fn, integer fin, integer oc)
 -- from file number fin, and patch the subsystem in the pw.exe case.
 -- oc is 0 (zero) for Overwrite, 1 for Create.
 integer c
+if platform()!=LINUX then
     if oc then
         puts(1,"Creating ")
     else
@@ -782,6 +784,7 @@ integer c
     end if
 --  puts(1,pw&"\n")
     puts(1,pw)
+end if
     while 1 do
         c = getc(fin)
         if c=-1 then exit end if
@@ -2134,28 +2137,34 @@ end if
         end if
 
         if bind then
+            string paramstr = ""
             for i=1 to length(params) do
-if 0 then
-                outfile &= ' '&params[i]
-else
+--if 0 then
+--              outfile &= ' '&params[i]
+--else
                 pi = params[i]
                 if find(' ',pi) then
                     pi = '\"'&pi&'\"'
                 end if
-                outfile &= ' '&pi
-end if
+--              outfile &= ' '&pi
+                paramstr &= ' '&pi
+--end if
             end for
             if bind>1 then
-                printf(1,"==>system_wait(%s):\n",{mainpath&outfile})
+--              printf(1,"==>system_wait(%s):\n",{mainpath&outfile})
+                printf(1,"==>system_wait(%s):\n",{"\""&mainpath&outfile&"\""&paramstr})
             end if
-            errorcode = system_wait(mainpath&outfile)
+--          errorcode = system_wait(mainpath&outfile)
+            errorcode = system_wait("\""&mainpath&outfile&"\""&paramstr)
             if bind=2 then
                 if errorcode=0 then
-                    outfile = mainpath&pnew2()&" -pmkr3"
+--                  outfile = mainpath&pnew2()&" -pmkr3"
+                    outfile = "\""&mainpath&pnew2()&"\" -pmkr3"
                     printf(1,"==>system_wait(%s):\n",{outfile})
                     errorcode = system_wait(outfile)
                     if errorcode = 0 then
-                        outfile = mainpath&pnew()&" -pmkr4"
+--                      outfile = mainpath&pnew()&" -pmkr4"
+                        outfile = "\""&mainpath&pnew()&"\" -pmkr4"
                         printf(1,"==>system_wait(%s):\n",{outfile})
                         errorcode = system_wait(outfile)
                         if errorcode = 0 then

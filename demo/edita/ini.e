@@ -226,7 +226,7 @@ integer c
 end function    
 
 
-global function convertTextNumberToInteger(sequence number)
+global function convertTextNumberToInteger(sequence numbre)
 integer r, len, pwr, c, neg
 sequence s
 
@@ -235,28 +235,28 @@ sequence s
 
     -- remove any sign symbols
     s = ""
-    for i = 1 to length(number) do
-        if isArithmeticSign(number[i]) then
-            if number[i] = '-' then
+    for i = 1 to length(numbre) do
+        if isArithmeticSign(numbre[i]) then
+            if numbre[i] = '-' then
                 neg = 1
             end if
         else
-            s &= number[i]
+            s &= numbre[i]
         end if
     end for
-    number = s
+    numbre = s
         
-    len = length(number)
-    r = number[len] - '0'
+    len = length(numbre)
+    r = numbre[len] - '0'
 
     -- calculate number
     for i = len-1 to 1 by -1 do
-        c = number[i]
+        c = numbre[i]
         pwr *= 10
         r += (c - '0') * pwr
     end for
 
-    -- take care of negative number
+    -- take care of negative numbre
     if neg then
         r = 0 - r
     end if
@@ -321,11 +321,11 @@ end function
 
 
 function extractDataValue(sequence line)
-sequence result, number
+sequence result, numbre
 integer char
 
     result = {}
-    number = {}
+    numbre = {}
 
     -- remove any whitespace
     line = removeAllWhiteSpace( line )
@@ -334,20 +334,20 @@ integer char
     for i = 1 to length(line) do
         char = line[i]
         if char = ',' then -- separator found
-            if length(number) then -- ok, convert to integer
-                result &= convertTextNumberToInteger(number)
-                number = {}
+            if length(numbre) then -- ok, convert to integer
+                result &= convertTextNumberToInteger(numbre)
+                numbre = {}
             end if
         elsif isNumber(char) or isArithmeticSign(char) then
-            number &= char
+            numbre &= char
         else -- error
             halt()
         end if
     end for
 
     -- tidy last piece
-    if length(number) then -- ok, convert to integer
-        result &= convertTextNumberToInteger(number)
+    if length(numbre) then -- ok, convert to integer
+        result &= convertTextNumberToInteger(numbre)
     end if
 
     -- return integer if only one numeric element

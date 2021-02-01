@@ -228,7 +228,9 @@ end function
 
 global procedure requires(object x, bool bPrefW=false)
 --
--- x: should be eg "0.8.2" for a version requirement, or 32/64 for a machine_bits() check.
+-- x: should be eg "0.8.2" for a version() requirement, or a
+--                  WINDOWS/LINUX/WEB platform() check, or
+--                  32/64 for a machine_bits() check.
 --
     if not vinit then initv() end if
     if string(x) then

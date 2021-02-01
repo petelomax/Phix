@@ -103,7 +103,7 @@ printf(1,"Tokenised successfully (%,d chars, %,d tokens)\n",{lt,length(tokens)})
 end procedure
 
 --transpile(join_path({pwadir,`p2js.js`}))                                      -- [ 25,076 chars, 4,213 tokens ]   [OK!! (although SPREAD aka "..." ain't actually handled[??])]
---transpile(join_path({pwadir,`pGUI.js`}))                                      -- [ 38,274 chars, 4,300 tokens ]   [OK!!]
+--Xtranspile(join_path({pwadir,`pGUI.js`}))                                     -- [ 38,274 chars, 4,300 tokens ]   [OK!!] (this[i].removeAttribute(); - not really worth pursuing...)
 --transpile(join_path({pwadir,`js`,`hello_world.html`}))                        -- [ 798 chars, 157 tokens ]        [OK!! (nonest)]
 --X transpile(join_path({pwadir,`js`,`hello_world.js`})) -- or rely on "" having a link to it...
 --transpile(join_path({pwadir,`hello_world.html`})) -- (if working on it)       -- [ 828 chars, 149 tokens ]        [OK!! (nonest)]
@@ -333,16 +333,297 @@ end procedure
 --transpile(`C:\Program Files (x86)\Phix\pwa\c\jsmin.c`)        --                                  [static int the_a;...]
 --  ???trace how it handles C:\Program Files (x86)\Phix\pwa\src\p2js_basics.e:260 global constant string charset = set_chars({{"\r\n",EOL},???
 --transpile(`C:\Program Files (x86)\Phix\pwa\go\blackjack.go`)  -- hah, maybe one day... (get c working first!)
+--C:\Program Files (x86)\Phix\demo\pGUI\IupMultiLine.c/exw (why not...)
+
+function is_js()    -- (for testing purposes)
+    return platform()==JS
+--  return true
+end function
+
+--DEV fixme:
+--global constant string initialcurrentdir = get_proper_dir(command_line()[2]),
+--                     inifile = join_path({initialcurrentdir,"p2js.ini"})
+global constant string initialcurrentdir = get_proper_dir(command_line()[2])
+--constant cl = command_line()
+--global constant string initialcurrentdir = get_proper_dir(cl[2]),
+global constant string inifile = join_path({initialcurrentdir,"p2js.ini"})
+
+sequence files = {}
 
 include pGUI.e
+Ihandle dlg, chosen, multitext, lbl_statusbar
+Ihandln config
+
+--/**/include builtins/read_file.e
+procedure open_file(string filename)
+    object str = read_file(filename)
+    if sequence(str) then
+--      IupSetStrAttribute(dlg, "TITLE", `pwa\p2js - %s`, {get_file_name(filename)})
+        if is_js() then
+            IupSetStrAttribute(chosen, "TITLE", filename)
+        else
+            integer pdx = find(filename,files)
+            if pdx=0 then
+                files = append(files,filename)
+                pdx  = length(files)
+            end if
+            IupSetAttributeId(chosen,"",pdx,filename)
+            IupSetInt(chosen,"VALUE",pdx)
+        end if
+--      IupSetStrAttribute(multitext, "FILENAME", filename)
+        IupSetStrAttribute(multitext, "VALUE", str)
+        -- dev syntax colour...
+--      NUMBERING 
+    end if
+end procedure
+
+--/*
+function demoset()
+    sequence res = {"p2js.exw",...}
+    for i=1 to length(res) do
+        res[i] = join_path({initialcurrentdir,res[i]})
+    end for
+    return res
+end function
+--*/
+
+procedure load_ini()
+    files = {}
+    object lines = get_text(inifile,GT_LF_STRIPPED)
+    if lines!=-1 then
+--      integer pdx = 0
+        for i=1 to length(lines) do
+            if lines[i]!="" then
+                string {lt,li} = apply(split(lines[i],":",true,2),trim)
+                if lt="file" then
+                    if find(li,files) then
+                        crash("duplicate project")
+                    end if
+                    files = append(files,li)
+--  integer pdx = IupGetInt(chosen,"VALUE")
+                    IupSetAttributeId(chosen,"",length(files),li)
+--      IupSetInt(chosen,"VALUE",pdx)
+--      files = append(files,{})
+--      IupSetInt(chosen,"VALUE",1)
+--              elsif lt="output" then
+--                  outputs[pdx] = li
+                else
+                    ?9/0
+                end if
+            end if
+        end for
+    end if
+--DEV on reflection, we might/probably want to do this without a gui... [laters]
+--  (then again, length 3 might be just this, ie you need -run/build/out to...)
+    sequence cl = command_line()
+    -- open a file from the command line (?allow file association in Windows?)
+    if length(cl)>2 then
+        string filename = cl[3]
+        open_file(filename)
+--DEV/SUG
+--  else
+--      if length(files)=0 then
+--          files = demoset()
+--      end if
+    elsif length(files) then
+        IupSetInt(chosen,"VALUE",1)
+        open_file(files[1])
+    end if
+end procedure
+
+procedure save_ini()
+    integer fn = open(inifile,"w")
+    if fn=-1 then crash("cannot open "&inifile) end if
+    sequence tags = tagset(length(files))
+    integer pdx = IupGetInt(chosen,"VALUE")
+    if pdx>1 then {tags[1],tags[pdx]} = {pdx,1} end if
+    for i=1 to length(tags) do
+        integer ti = tags[i]
+        printf(fn,"file: %s\n",files[ti])
+    end for
+    close(fn)
+end procedure
+
+function dropfiles_cb(Ihandle /*multitext*/, atom filename)
+    open_file(peek_string(filename))
+    return IUP_DEFAULT
+end function
+
+function multitext_valuechanged_cb(Ihandle /*multitext*/)
+--DEV update syntax colouring...
+    return IUP_DEFAULT
+end function
+
+function multitext_caret_cb(Ihandle /*ih*/, integer line, integer col)
+    IupSetStrAttribute(lbl_statusbar, "TITLE", "Line %d, Col %d", {line, col})
+    return IUP_DEFAULT
+end function
+
+Ihandln filedlg = NULL
+
+----function closefiledlg_cb(Ihandle /*filedlg*/)
+----?"closefiledlg_cb"
+--function file_cb(Ihandle /*filedlg*/, atom /*pFileName*/, pStatus)    
+--  string status = peek_string(pStatus)
+--  if status="FINISH" then
+--?"file_cb"
+--      IupConfigDialogClosed(config, filedlg, "FileDlg")
+--  end if
+--  return IUP_CLOSE
+--end function
+
+function choose_cb(Ihandle /*choose_file*/)
+    if filedlg=NULL then
+        filedlg = IupFileDlg()
+        IupSetAttribute(filedlg, "DIALOGTYPE", "OPEN");
+        IupSetAttributePtr(filedlg, "PARENTDIALOG", dlg);
+        IupSetAttribute(filedlg, "EXTFILTER", "All files|*.*|");
+        IupSetAttribute(filedlg, "TITLE", "Select File");
+        IupSetAttribute(filedlg,"DIRECTORY",initialcurrentdir)
+--      IupSetCallback(filedlg,"CLOSE_CB",Icallback(closefiledlg_cb))   -- NO!
+--      IupSetCallback(filedlg,"FILE_CB",Icallback(file_cb))            -- UGH! (not needed anyway, it seems)
+    end if
+    IupSetInt(filedlg,"MULTIPLEFILES ",false)
+--  IupConfigDialogShow(config, filedlg, "FileDlg")
+    IupPopup(filedlg, IUP_CURRENT, IUP_CURRENT)
+    if IupGetInt(filedlg, "STATUS")!=-1 then
+        string file = IupGetAttribute(filedlg, "VALUE")
+--      if not find(file,files) then
+--          files = append(files,file)
+--          APPENDITEM 
+--      end if
+        open_file(file)
+    end if
+    return IUP_DEFAULT
+end function
+
+function chosen_cb(Ihandle /*chosen*/, atom /*pText*/, integer /*item*/, /*state*/)
+    integer pdx = IupGetInt(chosen,"VALUE")
+    open_file(files[pdx])
+    return IUP_DEFAULT
+end function
+
+function show_tokens_cb(Ihandle /*show_tokens*/)
+?"show_tokens"
+    return IUP_DEFAULT
+end function
+
+function parse_tree_cb(Ihandle /*parse_tree*/)
+?"parse_tree_cb"
+    return IUP_DEFAULT
+end function
+
+function violations_cb(Ihandle /*parse_tree*/)
+?"violations_cb"
+    return IUP_DEFAULT
+end function
+
+function close_cb(Ihandle /*dlg*/)
+    if not is_js() then
+        IupConfigDialogClosed(config, dlg, "MainWindow")
+        {} = IupConfigSave(config)
+        config = IupDestroy(config)
+        save_ini()
+    end if
+    return IUP_CLOSE -- (for key_cb)
+end function
+
+function key_cb(Ihandle /*dlg*/, atom c)
+    return iff(c=K_ESC?close_cb(dlg):IUP_CONTINUE)
+end function
+
+procedure create_main_dialog()
+
+    Ihandle choose_file = IupButton("Choose File",Icallback(choose_cb),"PADDING=5x0, CANFOCUS=NO")
+    if is_js() then
+        chosen = IupFlatLabel("","EXPAND=HORIZONTAL")
+    else
+        config = IupConfig()
+        IupSetAttribute(config, "APP_CONFIG", "YES")
+        IupSetAttribute(config, "APP_PATH", initialcurrentdir)
+        IupSetAttribute(config, "APP_NAME", "p2js.exw")
+--      IupSetAttribute(config, "APP_NAME", "p2js")
+        {} = IupConfigLoad(config)
+        chosen = IupList(Icallback(chosen_cb),"DROPDOWN=YES,EXPAND=HORIZONTAL")
+    end if
+    Ihandle ch_box = IupHbox({choose_file,chosen},"MARGIN=5x5,GAP=10,NORMALIZESIZE=VERTICAL")
+    multitext = IupText("MULTILINE=YES, EXPAND=YES")
+--  IupSetAttribute(multitext, "FONT", "Consolas, 12")
+    IupSetAttribute(multitext, "FONT", "Lucida Console, 11")
+    IupSetCallback(multitext, "CARET_CB", Icallback("multitext_caret_cb"))
+    IupSetCallback(multitext, "VALUECHANGED_CB", Icallback("multitext_valuechanged_cb"))
+    IupSetCallback(multitext, "DROPFILES_CB", Icallback("dropfiles_cb"))
+--  IupSetInt(multitext,"BGCOLOR",CD_DARK_GREY)
+--  IupSetStrAttribute(multitext,"BGCOLOR","#C0C0C0")
+    IupSetStrAttribute(multitext,"BGCOLOR","#E4E4E4")
+--  IupSetStrAttribute(multitext,"BGCOLOR","#FFFFE0") -- yuk!
+--BGCOLOR 
+--  CD_DARK_GREY    = #808080,
+--  CD_GREY         = #C0C0C0,
+--  CD_LIGHT_GREY   = #E4E4E4,
+--  CD_PARCHMENT    = #FFFFE0,
+    IupSetAttribute(multitext,"FORMATTING ","YES")
+
+    lbl_statusbar = IupLabel("Lin 1, Col 1")
+    IupSetAttribute(lbl_statusbar, "EXPAND", "HORIZONTAL")
+    IupSetAttribute(lbl_statusbar, "PADDING", "10x5")
+
+    Ihandle show_tokens = IupButton("Tokens",Icallback(show_tokens_cb),"PADDING=5x0, CANFOCUS=NO")
+    Ihandle parse_tree = IupButton("Parse tree",Icallback(parse_tree_cb),"PADDING=5x0, CANFOCUS=NO")
+    Ihandle violations = IupButton("0 Violations",Icallback(violations_cb),"PADDING=5x0, CANFOCUS=NO, ACTIVE=NO")
+    Ihandle show_box = IupHbox({show_tokens,parse_tree,violations},"MARGIN=5x5,GAP=10")
+
+    Ihandle vbox = IupVbox({ch_box,multitext,lbl_statusbar,show_box},"MARGIN=5x0")
+    dlg = IupDialog(vbox,"RASTERSIZE=700x700")
+--  dlg = IupDialog(vbox,false)
+--  IupCloseOnEscape(dlg,false)
+    IupSetCallback(dlg, "DROPFILES_CB", Icallback("dropfiles_cb"))
+    IupSetCallback(dlg, "CLOSE_CB", Icallback("close_cb"))
+    IupSetCallback(dlg, "K_ANY", Icallback("key_cb"));
+
+    -- parent for pre-defined dialogs in closed functions (IupMessage and IupAlarm)
+    IupSetAttributeHandle(NULL, "PARENTDIALOG", dlg)
+
+    /* show the dialog at the last position, with the last size */
+    if is_js() then
+        IupShow(dlg)
+    else
+        IupConfigDialogShow(config, dlg, "MainWindow")
+    end if
+
+    IupSetAttribute(multitext,"RASTERSIZE",NULL)
+
+    -- initialize the current file
+    IupSetAttribute(dlg, "TITLE", `pwa\p2js - Phix to JavaScript transpiler`)
+--  IupSetAttribute(multitext, "FILENAME", NULL)
+    IupSetAttribute(multitext, "VALUE", "// Type, paste, drag and drop a file here, or click the button above...")
+
+    if not is_js() then load_ini() end if
+end procedure
+
 IupOpen()
-Ihandle dlg = IupDialog()
-IupSetAttribute(dlg,"TITLE",`pwa\p2js - Phix to JavaScript transpiler`)
-IupSetAttribute(dlg,"RASTERSIZE","400x400")
-IupCloseOnEscape(dlg)
-IupShow(dlg)
+
+IupSetGlobal("UTF8MODE","YES")
+create_main_dialog()
+
+----constant columns = {{"Additional File(s)",160,"ALEFT"},{"type",40,"ALEFT"},{"include",40,"ALEFT"}}
+--constant columns = {{"Source",160,"ALEFT"}}
+--Ihandle ptable = IupTable(columns,{files,{}},10)
+----TABCHANGEPOS_CB  Callback called when the user shifts the active tab. Called only when TABCHANGE_CB is not defined. 
+----function tabchangepos_cb(Ihandle ih, integer new_pos, old_pos) 
+----Ihandle tabs = IupFlatTabs({src,tok,ast,out})
+----constant tabtitles = {"Source","Tokens","Parse Tree","Output"}
+----for i=1 to length(tabtitles) do
+----    IupSetAttributeId(tabs,"TABTITLE",i-1,tabtitles[i])
+----end for
+--Ihandle dlg = IupDialog(ptable)
+--IupSetAttribute(dlg,"TITLE",`pwa\p2js - Phix to JavaScript transpiler`)
+--IupSetAttribute(dlg,"RASTERSIZE","400x400")
+--IupCloseOnEscape(dlg)
+--IupShow(dlg)
 if platform()!=WEB then
     IupMainLoop()
+    IupClose()
 end if
 
 --?"done"
@@ -380,6 +661,24 @@ function selectLink(e) {
 }
 <a href="http://www.google.com" onclick="selectLink(event)" alternative="http://www.yahoo.com">Click</a>
 
+--pyjs:
+-- (You ain't gona get nuthin fromthe sources!)
+-- http://pyjs.org/examples/EmployeeAdmin.html
+-- http://pyjs.org/examples/GChartTestApp.html
+-- http://pyjs.org/examples/SVGCanvasDemo.html
+-- http://pyjs.org/examples/GWTCanvasDemo.html
+-- http://pyjs.org/examples/KitchenSink.html
+-- http://pyjs.org/examples/lightout.html
+-- http://pyjs.org/examples/Mail.html
+-- http://pyjs.org/examples/minesweeper.html
+-- http://pyjs.org/examples/PicasaWeb.html -?
+-- http://pyjs.org/examples/events.html
+-- http://pyjs.org/examples/graffle.html
+-- http://pyjs.org/examples/spinner.html
+-- http://pyjs.org/examples/Showcase.html   -- with source...
+-- http://pyjs.org/examples/Slideshow.html
+-- http://pyjs.org/examples/svg_test.html
+-- http://pyjs.org/examples/Tabs.html
 
 <div class="windowbar">
         <span>File</span><span>Editing</span><span>Search</span><span>Show</span><span>Navigation</span><span>Development</span><span>Tools</span><span>Help</span>
@@ -568,14 +867,17 @@ file:///E:/downloads/misc/js/treeview/css-only-treeview/dist/index.html         
 E:/downloads/misc/js/treeview/aimaraJS-master/Example.html                          BCfh___ nice, but lots of separate images... fast, context menu[?] [NB: background lines wrong length] give up
 
 tabs:
-E:/downloads/misc/js/vanillajs/tabs-with-vanillajs/dist/index.html                              nice
-file:///E:/downloads/misc/js/uilang/examples/tabs/tabs/index.html                               simple
+Only TABTYPE of TOP is currently supported. However, if you run pwa/js/poc/vanillatabs.html and (in the browser debug window) add 
+display: flex to .tabs-container and remove it from .tabs, then you're probably 90% of the way to TABTYPE LEFT.
+C:\Program Files (x86)\Phix\pwa\js\pocremove
+E:/downloads/misc/js/vanillajs/tabs-with-vanillajs/dist/index.html                              nice ***
+--Xfile:///E:/downloads/misc/js/uilang/examples/tabs/tabs/index.html                                simple
 
 for images, we could do this:
 constant filename = `E:\downloads\misc\js\vanillajs\Red-dot-5px.png`,
          filedata = get_text(filename)
 ?encode_base64(filedata)
-/*
+
 "iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg=="
 <img src="data:image/png;base64,iVBORw0KGgoAAA
 ANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4
@@ -590,6 +892,180 @@ AAAD///+l2Z/dAAAAM0lEQVR4nGP4/5/h/1+G/58ZDrAz3D/McH8\
 yw83NDDeNGe4Ug9C9zwz3gVLMDA/A6P9/AFGGFyjOXZtQAAAAAEl\
 FTkSuQmCC') no-repeat scroll left top;
 }
+
+graphs:
+file:///E:/downloads/misc/js/vanillajs/graph/the-array-graph/dist/index.html
+file:///E:/downloads/misc/js/vanillajs/graph/simple-barchart-generator/dist/index.html
+
+file upload:
+E:\downloads\misc\js\micro-code-editor-in-the-browser\drop.html<input type="file" name="file" id="file" class="inputfile" />
+
+<label for="file">Choose a file</label>
+var x = document.createElement("INPUT");
+x.setAttribute("type", "file");
+
+let dropArea = document.getElementById('drop-area')
+dropArea.addEventListener('dragenter', handlerFunction, false)
+dropArea.addEventListener('dragleave', handlerFunction, false)
+dropArea.addEventListener('dragover', handlerFunction, false)
+dropArea.addEventListener('drop', handlerFunction, false)       << this one!
+event.preventDefault() is needed, otherwise the browser will open the file.
+
+<div id="drop-area">
+  <form class="my-form">
+    <p>Upload multiple files with the file dialog or by dragging and dropping images onto the dashed region</p>
+    <input type="file" id="fileElem" multiple accept="image/!*" onchange="handleFiles(this.files)">
+    <label class="button" for="fileElem">Select some files</label>
+  </form>
+</div>
+prism: a text input with opacity 0.7 overlaid exactly with a text output.
+       just tokenise then -> eg <span class="token comment">..</span> & "none" as-is.
+
+<style>
+#drop-area {
+  border: 2px dashed #ccc;
+  border-radius: 20px;
+  width: 480px;
+  font-family: sans-serif;
+  margin: 100px auto;
+  padding: 20px;
+}
+#drop-area.highlight {
+  border-color: purple;
+}
+p {
+  margin-top: 0;
+}
+.my-form {
+  margin-bottom: 10px;
+}
+#gallery {
+  margin-top: 10px;
+}
+#gallery img {
+  width: 150px;
+  margin-bottom: 10px;
+  margin-right: 10px;
+  vertical-align: middle;
+}
+.button {
+  display: inline-block;
+  padding: 10px;
+  background: #ccc;
+  cursor: pointer;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+}
+.button:hover {
+  background: #ddd;
+}
+#fileElem {
+  display: none;
+}
+</style>
+
+<div id="drop-area">
+  <form class="my-form">
+    <p>Upload multiple files with the file dialog or by dragging and dropping images onto the dashed region</p>
+    <input type="file" id="fileElem" multiple accept="image/*" onchange="handleFiles(this.files)">
+    <label class="button" for="fileElem">Select some files</label>
+  </form>
+  <div id="gallery"></div>
+</div>
+
+<script>
+let dropArea = document.querySelector('#drop-area');
+;['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+  dropArea.addEventListener(eventName, preventDefaults, false)
+})
+
+function preventDefaults (e) {
+  e.preventDefault();
+  e.stopPropagation();
+}
+;['dragenter', 'dragover'].forEach(eventName => {
+  dropArea.addEventListener(eventName, highlight, false)
+})
+
+;['dragleave', 'drop'].forEach(eventName => {
+  dropArea.addEventListener(eventName, unhighlight, false)
+})
+
+function highlight(e) {
+  dropArea.classList.add('highlight')
+}
+
+function unhighlight(e) {
+  dropArea.classList.remove('highlight')
+}
+dropArea.addEventListener('drop', handleDrop, false)
+
+function handleDrop(e) {
+  let dt = e.dataTransfer
+  let files = dt.files
+  handleFiles(files)
+}
+
+function handleFiles(files) {
+  files = [...files]
+  files.forEach(uploadFile)
+  files.forEach(previewFile)
+}
+
+function uploadFile(file) {
+  let url = 'YOUR URL HERE'
+  let formData = new FormData()
+
+  formData.append('file', file)
+
+  fetch(url, {
+    method: 'POST',
+    body: formData
+  })
+  .then(() => { /* Done. Inform the user */ })
+  .catch(() => { /* Error. Inform the user */ })
+}
+function previewFile(file) {
+  let reader = new FileReader()
+  reader.readAsDataURL(file)
+//FileReader.readAsText()
+  reader.onloadend = function() {
+    let img = document.createElement('img')
+    img.src = reader.result
+    document.getElementById('gallery').appendChild(img)
+  }
+}
+</script>
+
+
+maybe, from https://developer.mozilla.org/en-US/docs/Web/API/HTMLScriptElement
+[since I don't think we want phinglenook to load 1,277 examples...]
+(sandfox/phixsty/phixplaypen/phixlenook/phideout/phlair/phixtum/phixicle/phix snug/
+ phaven/phixtuary/phixster/phixude/phixroom/phixabode/phixloft/phixlab/phix snuggery)
+function loadError(oError) {
+  throw new URIError("The script " + oError.target.src + " didn't load correctly.");
+}
+
+function affixScriptToHead(url, onloadFunction) {
+  var newScript = document.createElement("script");
+  newScript.onerror = loadError;
+  if (onloadFunction) { newScript.onload = onloadFunction; }
+  document.head.appendChild(newScript);
+  newScript.src = url;
+}
+
+or just:
+function dynamicallyLoadScript(url) {
+    var script = document.createElement("script");  // create a script DOM node
+    script.src = url;  // set its src to the provided URL
+
+    document.head.appendChild(script);  // add it to the end of the head section of the page (could change 'head' to 'body' to add it to the end of the body section instead)
+}
+(rather than a callback, have the script call anything that depends on it being loaded...)
+
+
+-- https://www.codeproject.com/Articles/5291705/JavaScript-Playground
+-- downloaded to: E:\downloads\misc\js\JavaScript-Playground (parse/read b4 run)
 
 :root {
   /* image from an external URL (PNG in this case) */
@@ -621,7 +1097,6 @@ It only works if the element is a direct child of an element with the display: f
 */
 
 --*/
---/menus
 
 -- borken: file:///C:/Program%20Files%20(x86)/Phix/pwa/adp.html
 -- working: file:///E:/downloads/misc/js/pwa/adp.html
@@ -708,9 +1183,11 @@ end for
 -- AH: s[i] <==> s[i-1], and drop all that ["sequence",...] stuff... (strings would be fine that way too).
 --      note: s[e], where e does not end in "-1", would be illegal in any js-->phix xpilation.
 --      ditto s[i..j] <==> s[i-1..j-1], erm I mean s.slice(i-1?,j-1?).
+-- NB: javascript does not permit negative substripts
 -- Maybe: var /* mpz */ bigIntSample = 1234567890987654321n; <==> mpz bigIntSample = mpz_new("1234567890987654321")
 -- Maybe: cond ? truthy : falsy  <==> iff(cond?truthy:falsy)
 -- Maybe: {a.b} @= c <==> [a, b] = repeat(c,2); (destructuring)
+-- Ah-ha: {a,b} = {1,2} <==> [,a,b] = ["sequence",1,2]
 -- Nested comments:
 --          constant extensions = {{PHIX :=1, ...
 -- <==>
@@ -737,6 +1214,19 @@ end for
 --      **but** <script src="pGUI.js"/> is illegal/unrecognised... (oh, they /are/ actually different...)
 -- Erm: if platform()... [els...] end if <==> /* if platform()... */ <js> /* [els...] end if */ (error out if "else" but no explicit js branch)
 --routine_id
+--/* apparently this is legal in ES6...:
+class X {
+  method1(){
+    console.log("1");
+  }
+  method2(){
+    this['method1']();
+    console.log("2");
+  }
+}
+let x  = new X();
+x['method2']();
+--*/
 --Challenge: https://www.codeproject.com/Articles/5284262/WPF-Drag-and-Drop-using-Behavior
 --SUG: IupCustomAttribute(string name): if name="ANY" then go quiet, else add name to list of permitted attributes.
 --  By default, the desktop will quietly set custom attributes and otherwise completely ignore them. Personally,
@@ -754,7 +1244,101 @@ end for
 --  Also note that IupCustomAttribute("USEDFOR") is itself generic and will allow that attribute to be set on
 --  any element - there is no way to limit what types of elements or containers it can be applied to.
 -- Maybe: https://github.com/GoogleChromeLabs/ProjectVisBug#visbug
+-- Lots of good stuff: https://responsibleweb.app/
+-- nice: https://www.codeproject.com/Articles/5293085/mojiWriter-An-App-to-Make-It-Easier-to-Use-and-Man
+--       E:\downloads\misc\js\mojiWriter-main
+-- maybe: https://www.codeproject.com/Articles/5292611/Fiddler-for-Model-Driven-Apps
+-- HTML 5 DOCTYPE: <!DOCTYPE html>
+-- php: error_reporting(E_ALL);
+--/*
+order.html:
+<html>
+ <body>
 
+  <script language="javascript" type="text/javascript">
+function ajaxFunction(){
+    let ajaxRequest = new XMLHttpRequest();
+    // Create a function that will receive data sent from the server
+    ajaxRequest.onreadystatechange = function(){
+        if(ajaxRequest.readyState == 4){
+            var ajaxDisplay = document.getElementById('ajaxDiv');
+            ajaxDisplay.innerHTML = ajaxRequest.responseText;
+        }
+    }
+    let age = document.getElementById('age').value,
+        wpm = document.getElementById('wpm').value,
+        sex = document.getElementById('sex').value,
+        queryString = "?age=" + age + "&wpm=" + wpm + "&sex=" + sex;
+    ajaxRequest.open("GET", "ajax-example.php" + queryString, true);
+    ajaxRequest.send(null); 
+}
+  </script>
+
+  <form name='myForm'>
+   Max Age: <input type='text' id='age' /> <br />
+   Max WPM: <input type='text' id='wpm' /> <br />
+   Sex: 
+   <select id='sex'>
+    <option value='m'>m</option>
+    <option value='f'>f</option>
+   </select>
+   <input type='button' onclick='ajaxFunction()' value='Query MySQL' />
+  </form>
+  <div id='ajaxDiv'>Your result will display here</div>
+ </body>
+</html>
+
+ajax-example.php:
+<?php
+$dbhost = "localhost";
+$dbuser = "dbusername";
+$dbpass = "dbpassword";
+$dbname = "dbname";
+//Connect to MySQL Server
+mysql_connect($dbhost, $dbuser, $dbpass);
+//Select Database
+mysql_select_db($dbname) or die(mysql_error());
+// Retrieve data from Query String
+$age = $_GET['age'];
+$sex = $_GET['sex'];
+$wpm = $_GET['wpm'];
+// Escape User Input to help prevent SQL Injection
+$age = mysql_real_escape_string($age);
+$sex = mysql_real_escape_string($sex);
+$wpm = mysql_real_escape_string($wpm);
+//build query
+$query = "SELECT * FROM ajax_example WHERE ae_sex = '$sex'";
+if(is_numeric($age))
+    $query .= " AND ae_age <= $age";
+if(is_numeric($wpm))
+    $query .= " AND ae_wpm <= $wpm";
+//Execute query
+$qry_result = mysql_query($query) or die(mysql_error());
+
+//Build Result String
+$display_string = "<table>";
+$display_string .= "<tr>";
+$display_string .= "<th>Name</th>";
+$display_string .= "<th>Age</th>";
+$display_string .= "<th>Sex</th>";
+$display_string .= "<th>WPM</th>";
+$display_string .= "</tr>";
+
+// Insert a new row in the table for each person returned
+while($row = mysql_fetch_array($qry_result)){
+    $display_string .= "<tr>";
+    $display_string .= "<td>$row[ae_name]</td>";
+    $display_string .= "<td>$row[ae_age]</td>";
+    $display_string .= "<td>$row[ae_sex]</td>";
+    $display_string .= "<td>$row[ae_wpm]</td>";
+    $display_string .= "</tr>";
+}
+echo "Query: " . $query . "<br />";
+$display_string .= "</table>";
+echo $display_string;
+?>
+-- http://www.w3programmers.com/simple-crud-php-sqlite-database/
+--*/
 
 --no need to go mad on var names...:
 --for i=1 to 6 do
@@ -1103,7 +1687,7 @@ IupClose()
 --  https://rosettacode.org/wiki/Animation#JavaScript_.2B_HTML - demo\rosetta\Animation.exw
 --  https://rosettacode.org/wiki/Animate_a_pendulum#JavaScript - demo\rosetta\animate_pendulum2.exw (hmm)
 --  https://rosettacode.org/wiki/Archimedean_spiral#JavaScript
---  https://rosettacode.org/wiki/Barnsley_fern#JavaScript
+--  https://rosettacode.org/wiki/Barnsley_fern#JavaScript       [DONE!]
 --  demo\rosetta\Chaos_game.exw
 --  demo\rosetta\Conways_Game_of_Life.exw (maybe)
 --  demo\rosetta\FractalTree.exw

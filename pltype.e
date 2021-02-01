@@ -670,6 +670,15 @@ integer ldx
         --  of x to (temporarily) become flt, not atom(=int|flt),
         --  eg so we can incref it w/o first testing it (again).
         ntyp = and_bits(ntyp,ptyp)
+--31/1/21 (tried, total bust/undone)
+--  else
+--      integer tmp = ptyp
+--      while tmp>T_object do
+--          if tmp=ntyp then exit end if
+--          tmp = symtab[tmp][S_sig][2]
+--          if symtab[tmp][S_NTyp]!=S_Type then ?9/0 end if
+--      end while
+--      if tmp=ntyp then ntyp = ptyp end if
     end if
 
     if DEBUG then

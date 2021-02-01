@@ -1,0 +1,209 @@
+--
+-- test/t67dicts.exw
+--
+--  Tests for dictionaries (a bit belated...)
+--
+
+-- 29/01/2021 bug in dict.e routine deleteNode line 228.
+integer testd = new_dict()
+
+sequence test = shuffle(tagset(5007))
+for i=1 to length(test) do
+    integer ti = test[i]
+    setd(ti,ti,testd)
+end for
+test = shuffle(tagset(5000))
+for i=1 to length(test) do
+    integer ti = test[i]
+    if getd(ti,testd)!=ti then ?9/0 end if
+    deld(ti,testd)
+end for
+sequence k = getd_all_keys(testd)
+for i=1 to length(k) do
+    integer kd = getd(k[i],testd)
+    if kd!=k[i] then ?9/0 end if
+    ?{k[i],kd}
+end for
+
+-- there was no adequate tagset() testing either...
+if tagset(12,1,2)!={1,3,5,7,9,11} then ?9/0 end if
+if tagset(10,0)!={0,1,2,3,4,5,6,7,8,9,10} then ?9/0 end if
+if tagset('9','0')!="0123456789" then ?9/0 end if
+if tagset(99,0,11)!={0,11,22,33,44,55,66,77,88,99} then ?9/0 end if
+if tagset(72,12,12)!={12,24,36,48,60,72} then ?9/0 end if
+if tagset(75,15,12)!={15,27,39,51,63,75} then ?9/0 end if
+if tagset(36,4,8)!={4,12,20,28,36} then ?9/0 end if
+
+
+--/* -- (feel free to make more automated tests out of this, I'm just keeping it around for manual tests & experiments)
+class Widget 
+  public atom handle  
+end class  
+ 
+integer hdict = new_dict("handle lookup") 
+  
+class Window extends Widget  
+  function Window(integer h)
+    this.handle = h
+    setd(this.handle,this,hdict) 
+    return this  
+  end function  
+  procedure ~Window()  
+    printf(1,"Deleting Window %d ",this.handle) ? this
+    deld(this.handle,hdict) 
+--  this.destroy()
+  end procedure  
+end class 
+
+class Label extends Widget  
+  function Label(integer h)
+    this.handle = h
+    setd(this.handle,this,hdict) 
+    return this  
+  end function  
+  procedure ~Label()  
+    printf(1,"Deleting Label %d ",this.handle) ? this
+    deld(this.handle,hdict) 
+  end procedure  
+end class 
+
+class Box extends Widget    
+  function Box(integer h)
+    this.handle = h
+    setd(this.handle,this,hdict) 
+    return this  
+  end function  
+  procedure ~Box()  
+    printf(1,"Deleting Box %d ",this.handle) ? this
+    deld(this.handle,hdict) 
+  end procedure  
+end class 
+
+class ButtonBox extends Widget  
+  function ButtonBox(integer h)
+    this.handle = h
+    setd(this.handle,this,hdict) 
+    return this  
+  end function  
+  procedure ~ButtonBox()  
+    printf(1,"Deleting ButtonBox %d ",this.handle) ? this
+    deld(this.handle,hdict) 
+  end procedure  
+end class 
+
+class Button extends Widget 
+  function Button(integer h)
+    this.handle = h
+    setd(this.handle,this,hdict) 
+    return this  
+  end function  
+  procedure ~Button()  
+    printf(1,"Deleting Button %d ",this.handle) ? this
+    deld(this.handle,hdict) 
+  end procedure  
+end class 
+
+class Expander extends Widget 
+  function Expander(integer h)
+    this.handle = h
+    setd(this.handle,this,hdict) 
+    return this  
+  end function  
+  procedure ~Expander()  
+    printf(1,"Deleting Expander %d ",this.handle) ? this
+    deld(this.handle,hdict) 
+  end procedure  
+end class 
+
+class MessageDialog extends Widget 
+  function MessageDialog(integer h)
+    this.handle = h
+    setd(this.handle,this,hdict) 
+    return this  
+  end function  
+  procedure ~MessageDialog()  
+    printf(1,"Deleting MessageDialog %d ",this.handle) ? this
+    deld(this.handle,hdict) 
+  end procedure  
+end class 
+  
+function get_by_handle(integer handle) 
+    return getd(handle,hdict) 
+end function 
+
+procedure show_hd(string bn, bool bDetails)
+    sequence h = getd_all_keys(hdict)
+    printf(1,"hdict %s: %v\n",{bn,h})
+    if bDetails then
+        for i=1 to length(h) do
+            printf(1,"%d %d -> %v\n",{i,h[i],get_by_handle(h[i])})
+        end for 
+    end if
+end procedure
+
+?"---------- BEFORE ------------"
+Window w = new({25060000}) 
+Label l = new({23229424}) 
+Box b = new({25395632}) 
+ButtonBox bb = new({25436496}) 
+Button btn = new({25477504}) 
+
+show_hd("before",true)
+
+?"----------- DIALOG CREATED ------------"
+show_hd("before",false)
+Label l2 = new({23230672}) 
+Expander e = new({23231072}) 
+Box bx = new({25395984}) 
+MessageDialog md = new({27124512}) 
+show_hd("now",true)
+
+?"********** DIALOG CLOSED **************"
+?still_has_delete_routine(l2)
+delete(l2)
+?still_has_delete_routine(l2)
+delete(bx)
+delete(e)
+delete(md)
+
+?bx
+--Well, erm, you can catch the exception, by, erm, ... catching it... :-)
+--<eucode>
+--try
+--  ?bx.handle
+--catch e
+--  ?e[E_USER]
+--end try
+--</eucode>
+--Probably better to test first:
+--<eucode>
+--if Box(bx) then       -- best, if/when you can 
+--if struct(bx) then    -- or Widget or whatever (see note below) 
+if is_struct(bx,0) then -- (equivalent to struct) 
+--if is_struct(bx,Box) then -- same as Box() 
+--if is_struct(bx,routine_id("Box")) then -- ditto 
+    ?bx.handle 
+end if 
+--</eucode>
+--However, I think you know this, there will (probably) come a day when it succeeds,
+--because {"struct","Box",5,2} or close enough has been re-created for something else,
+--and you'll sorely wish it hadn't. Actually, though, there is something I could and
+--should do to improve upon that: implement a new builtin (and use it in is_struct)
+--<eucode>
+--bool bRes = still_has_delete_routine(object x)
+--</eucode>
+--(I'd still recommend doing everything you can to nullify delete()'d instances tho)
+
+show_hd("after",true)
+
+ 
+?dict_size(hdict) -- 1 
+delete(w) 
+--?getd_all_keys(hdict)
+?dict_size(hdict) -- 0 
+
+?"done"
+{} = wait_key()
+abort(0)
+--*/
+

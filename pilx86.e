@@ -15587,10 +15587,12 @@ if not newEmit then ?9/0 end if
             -- calling convention
             --  mov eax,[o]     -- (opUnassigned)
             --  call :%opDelete     -- delete(eax)
-            src = s5[pc+1]
-            loadToReg(eax,src)                                  -- mov eax,[o]
-            emitHex5callG(opcode)                               -- call opDelete
-            reginfo = 0
+            if not isGscan then -- (30/01/21!!)
+                src = s5[pc+1]
+                loadToReg(eax,src)                              -- mov eax,[o]
+                emitHex5callG(opcode)                           -- call opDelete
+                reginfo = 0
+            end if
             pc += 2
         elsif opcode=opCallFunc then
             -- calling convention

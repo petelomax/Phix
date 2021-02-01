@@ -14,24 +14,22 @@
 -- Further, 9459549 rem 99 is the same as 
 --  (the sum of rem 99 on all of those pieces) rem 99
 --
--- Some very simple initial experiments (see "the original test code")
---  quickly showed there were patterns in 4000400 rem 99 and suchlike
---  that we could exploit, initially I was thinking of speed but in 
---  the end accuracy on silly sized numbers turned out to be far more 
---  important (dare I say useful?)
+-- Finding eg 400040 rem 99 can also be simplified, it is of course the
+--   same as (400000 rem 99 + 40 rem 99) rem 99, and further 40 rem 99
+--   is the same as (4 rem 99[already known])*10 rem 99 [smaller nos].
 --
 -- Also, when filling a "hole", such as the final 9, we find
 --             v    
---          9459549%99 = 0, 
---          9458549%99 = 89,
---          9457549%99 = 79,
---          9456549%99 = 69, 
---          9455549%99 = 59,
---          9454549%99 = 49,
---          9453549%99 = 39,
---          9452549%99 = 29, 
---          9451549%99 = 19, and
---          9450549%99 = 9
+--          9450549 rem 99 = 9
+--          9451549 rem 99 = 19,
+--          9452549 rem 99 = 29, 
+--          9453549 rem 99 = 39,
+--          9454549 rem 99 = 49,
+--          9455549 rem 99 = 59,
+--          9456549 rem 99 = 69, 
+--          9457549 rem 99 = 79,
+--          9458549 rem 99 = 89, and
+--          9459549 rem 99 = 0, 
 --             ^
 --  in this case only the '9' fits.
 --
@@ -58,67 +56,46 @@
 --  will probably be skipped.
 --
 
-sequence cache = repeat(0,9)
-
+sequence cache = columnize(repeat(columnize({tagset(9)}),9))
+--   ie {{{1}, {1}, {1}, {1}, {1}, {1}, {1}, {1}, {1}},
+--       {{2}, {2}, {2}, {2}, {2}, {2}, {2}, {2}, {2}},
+--       {{3}, {3}, {3}, {3}, {3}, {3}, {3}, {3}, {3}},
+--       {{4}, {4}, {4}, {4}, {4}, {4}, {4}, {4}, {4}},
+--       {{5}, {5}, {5}, {5}, {5}, {5}, {5}, {5}, {5}},
+--       {{6}, {6}, {6}, {6}, {6}, {6}, {6}, {6}, {6}},
+--       {{7}, {7}, {7}, {7}, {7}, {7}, {7}, {7}, {7}},
+--       {{8}, {8}, {8}, {8}, {8}, {8}, {8}, {8}, {8}},
+--       {{9}, {9}, {9}, {9}, {9}, {9}, {9}, {9}, {9}}}
+-- aka 1 rem 11 .. 1 rem 99 are all 1,
+--  .. 9 rem 11 .. 9 rem 99 are all 9.
+-- each gets extended with 10 rem 11 .. 10 rem 99,
+--                        100 rem 11 .. 100 rem 99,
+--                    ...            .. 900 rem 99, etc.
+-- (not really worth trying to take advantage of any cycles
+--  that might appear in such a relatively small table, as
+--  it will be at most (on 64-bit) 9 * 9 * 42.)
+--
 function rmdr(integer digit, gap, pow, n)
 --
 -- digit is the outer 0..9 (obvs 0 always yields 0),
 -- gap is zeroes between (-1,0,1,2,.. for eg 1,11,101,1001),
 -- pow is trailing zeros (0,1,2,.. for eg 101,1010,10100),
 -- n is 1..9 for 11..99
--- eg rmdr(4,3,2,1) yields remainder(4000400,11),
---    except without using division - which becomes
---    critical for accuracy with very large numbers.
---    (more precisely it does not use division on
---     anything over 10^15, and usually far less,
---     as opposed to 10^34 final answer suggests.)
+-- eg rmdr(4,3,2,1) yields remainder(4000400,11), but
+--      that === remainder(remainder(4000000,11)+
+--                         remainder(    400,11),11), and
+--  if k = remainder(4*10^(m-1),11) [already known] then
+--         remainder(4*10^m,11) === remainder(k*10,11), so
+--  we only need to keep a small table for each [digit][n].
+--  Thus we avoid maths on 10^42-ish numbers/needing gmp.
 --
     if digit=0 then return 0 end if
-    if cache[n] = 0 then cache[n] = repeat({},9) end if
-    sequence cnd = cache[n][digit]
-    if cnd={} then
-        integer d = digit, k,
-                nn = n*11
-        for g=1 to 10 do -- (8 is actually enough)
-            sequence gp = {}
-            atom dp = d
-            for p=1 to 10 do -- (7 actually enough)
-                integer gpr = remainder(dp,nn)
-                if length(gp)=1 and gpr=gp[1] then exit end if
-                k = find(gpr,gp)
-                if k then gp &= k exit end if
-                gp &= gpr
-                dp *= 10 -- eg 1, 10, 100, 1000, or
-                         --    11, 110, 1100, and/or
-                         --    101, 1010, 10100, etc
-            end for
-            k = find(gp,cnd)
-            if k then
-                if k>1 then cnd &= k end if
-                exit
-            end if
-            cnd &= {gp}
-            if g>1 then d-=digit end if
-            d = d*10+digit -- eg 1, 11, 101, 1001, etc
-        end for
-        cache[n][digit] = cnd
-    end if
-    integer l = length(cnd)
-    if l=1 or gap<0 then
-        gap = 1
-    else
-        gap += 2
-        while gap>=l do gap -= l-cnd[$] end while
-    end if
-    cnd = cnd[gap]
-    l = length(cnd)
-    if l=1 then
-        pow = 1
-    else
-        pow += 1
-        while pow>=l do pow -= l-cnd[$] end while
-    end if
-    return cnd[pow]
+    integer nn = n*11
+    while length(cache[digit][n])<gap+pow+2 do
+        cache[digit][n] &= remainder(cache[digit][n][$]*10,nn)
+    end while
+    integer g = iff(gap=-1?0:cache[digit][n][gap+pow+2])
+    return remainder(g+cache[digit][n][pow+1],nn)
 end function
 
 integer skipd = new_dict()
@@ -175,29 +152,31 @@ function collect(integer digit, atom count, keep)
     return pals
 end function
 
---constant tests = {{20,20,1},{100,15,1},{1000,10,1},{10_000,5,1},
---                {100_000,1,1},{1_000_000,1,1},{10_000_000,1,1},
---                {100_000_000,1,9},{1000_000_000,1,9},{10_000_000_000,1,9},
---                {100_000_000_000,1,9},{1000_000_000_000,1,9},
---                {10_000_000_000_000,1,9},{100_000_000_000_000,1,9},
---                {1000_000_000_000_000,1,9}}
-constant tests = {{20,20},{100,15},{1000,10},{1_000_000,1},
-                  {1000_000_000,1},{1000_000_000_000,1},
-                  {1000_000_000_000_000,1}}
+constant tests = {{20,20,1},{100,15,1},{1000,10,1},{10_000,5,1},
+                  {100_000,1,1},{1_000_000,1,1},{10_000_000,1,1},
+                  {100_000_000,1,9},{1000_000_000,1,9},{10_000_000_000,1,9},
+                  {100_000_000_000,1,9},{1000_000_000_000,1,9},
+                  {10_000_000_000_000,1,9},{100_000_000_000_000,1,9},
+                  {1000_000_000_000_000,1,9},
+                  {10_000_000_000_000_000_000,1,9}} -- 64 bit only
+--constant tests = {{20,20},{100,15},{1000,10},{1_000_000,1},
+--                {1000_000_000,1},{1000_000_000_000,1},
+--                {1000_000_000_000_000,1},
+--                {10_000_000_000_000_000_000,1}} -- 64 bit only
                  -- (any further and you'd need mpfr just to hold counts)
 
 atom t0 = time(), count, keep, start
-for i=1 to length(tests) do
---  {count, keep, start} = tests[i]
-    {count, keep} = tests[i]
+for i=1 to length(tests)-(machine_bits()!=64) do
+    {count, keep, start} = tests[i]
+--  {count, keep} = tests[i]
     atom from = count-keep+1
     string r = iff(count==keep?sprintf("First %d",{count}):
                     iff(keep>1?sprintf("Last %d of first %,d",{keep,count})
                               :sprintf("%,dth",{count}))),
            s = iff(keep=1?"":"s")
     printf(1,"%s palindromic gapful number%s ending with:\n", {r,s})
---  sequence tags = tagset(9,start),
-    sequence tags = tagset(9,iff(i<4?1:9)),
+    sequence tags = tagset(9,start),
+--  sequence tags = tagset(9,iff(i<4?1:9)),
              res = apply(true,collect,{tags,count,keep})
     string fmt = sprintf("%%%ds",max(apply(join(res,{}),length)))
     for j=1 to length(res) do
@@ -205,6 +184,9 @@ for i=1 to length(tests) do
     end for
     puts(1,"\n")
 end for
+--printf(1,"%,d\n",1000_000_000_000_000)
+--printf(1,"%,d\n",power(2,53))
+--printf(1,"%,d\n",power(2,64))
 printf(1,"Completed in %s\n",elapsed(time()-t0))
 
 --?collect(9, 0, 1)
@@ -223,15 +205,86 @@ printf(1,"Completed in %s\n",elapsed(time()-t0))
 --end while
 
 --printf(1,"%d\n",power(2,53))
---?dict_size(skipd) -- 17579
+--?dict_size(skipd) -- 17579 (32 bit)
+?dict_size(skipd) -- 17579 (32 bit)
 
 --?remainder(9459549,99)
 --?remainder(sum(apply(true,remainder,{{9000009,400040,50500,9000},99})),99)
 
 ?"done"
 {} = wait_key()
-abort(0)
+--abort(0)
 
+--/*
+original version of rmdr, overly complicated...
+sequence cache = repeat(0,9)
+
+function rmdr(integer digit, gap, pow, n)
+--
+-- digit is the outer 0..9 (obvs 0 always yields 0),
+-- gap is zeroes between (-1,0,1,2,.. for eg 1,11,101,1001),
+-- pow is trailing zeros (0,1,2,.. for eg 101,1010,10100),
+-- n is 1..9 for 11..99
+-- eg rmdr(4,3,2,1) yields remainder(4000400,11),
+--    except without using division - which becomes
+--    critical for accuracy with very large numbers.
+--    (more precisely it does not use division on
+--     anything over 10^15, and usually far less,
+--     as opposed to 10^34 final answer suggests.)
+--
+    if digit=0 then return 0 end if
+--?{"rmdr",digit,gap,pow,n}
+integer cp, cp2 = rmdr2(digit,gap,pow,n)
+    if cache[n] = 0 then cache[n] = repeat({},9) end if
+    sequence cnd = cache[n][digit]
+    if cnd={} then
+        integer d = digit, k,
+                nn = n*11
+        for g=1 to 10 do -- (8 is actually enough)
+            sequence gp = {}
+            atom dp = d
+            for p=1 to 10 do -- (7 actually enough)
+                integer gpr = remainder(dp,nn)
+                if length(gp)=1 and gpr=gp[1] then exit end if
+                k = find(gpr,gp)
+                if k then gp &= k exit end if
+                gp &= gpr
+                dp *= 10 -- eg 1, 10, 100, 1000, or
+                         --    11, 110, 1100, and/or
+                         --    101, 1010, 10100, etc
+            end for
+            k = find(gp,cnd)
+            if k then
+                if k>1 then cnd &= k end if
+                exit
+            end if
+            cnd &= {gp}
+            if g>1 then d-=digit end if
+            d = d*10+digit -- eg 1, 11, 101, 1001, etc
+        end for
+        cache[n][digit] = cnd
+    end if
+    integer l = length(cnd)
+    if l=1 or gap<0 then
+        gap = 1
+    else
+        gap += 2
+        while gap>=l do gap -= l-cnd[$] end while
+    end if
+    cnd = cnd[gap]
+    l = length(cnd)
+    if l=1 then
+        pow = 1
+    else
+        pow += 1
+        while pow>=l do pow -= l-cnd[$] end while
+    end if
+cp = cnd[pow]
+if cp!=cp2 then ?9/0 end if
+    return cnd[pow]
+end function
+
+--*/
 --/* -- all good!
 for d=0 to 9 do
 --for d=1 to 9 do
@@ -424,7 +477,7 @@ main()
 -- translation of Crystal... 17.5s (vs my 6.5s, at the time...)
 --/*
 constant t09 = tagset(9,0), -- {0,1,...9}
-         t99 = tagset(99,0,11) -- {1,11,...99}
+         t99 = tagset(99,0,11) -- {0,11,...99}
 
 function fN(integer n)
     if n=1 then return t09 end if

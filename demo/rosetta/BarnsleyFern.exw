@@ -7,12 +7,12 @@ include pGUI.e
 Ihandle dlg, canvas
 cdCanvas cddbuffer, cdcanvas
 
-function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
-atom {x,y,r} @= 0
-integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
+function redraw_cb(Ihandle /*canvas*/, integer /*posx*/, integer /*posy*/)
+    atom x = 0, y = 0
+    integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
     cdCanvasActivate(cddbuffer)
     for i=1 to 100000 do
-        r = rand(100)
+        integer r = rand(100)
         {x, y} = iff(r<=1? {             0,        0.16*y     } :
                  iff(r<=8? { 0.20*x-0.26*y, 0.23*x+0.22*y+1.60} :
                  iff(r<=15?{-0.15*x+0.28*y, 0.26*x+0.24*y+0.44} :
@@ -23,32 +23,20 @@ integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
     return IUP_DEFAULT
 end function
 
-function map_cb(Ihandle ih)
-    cdcanvas = cdCreateCanvas(CD_IUP, ih)
-    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
-    cdCanvasSetBackground(cddbuffer, CD_WHITE)
-    cdCanvasSetForeground(cddbuffer, CD_DARK_GREEN)
-    return IUP_DEFAULT
-end function
+IupOpen()
 
-procedure main()
-    IupOpen()
+canvas = IupCanvas(Icallback("redraw_cb"),"RASTERSIZE=340x540")
+dlg = IupDialog(canvas)
+IupSetAttribute(dlg, "TITLE", "Barnsley Fern")
+--IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
 
-    canvas = IupCanvas(NULL)
-    IupSetAttribute(canvas, "RASTERSIZE", "340x540") -- initial size
-    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
-
-    dlg = IupDialog(canvas)
-    IupSetAttribute(dlg, "TITLE", "Barnsley Fern")
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
-    IupCloseOnEscape(dlg)
-
-    IupMap(dlg)
-    IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release the minimum limitation
-    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
+IupMap(dlg)
+cdcanvas = cdCreateCanvas(CD_IUP, canvas)
+cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release the minimum limitation
+IupShow(dlg)
+if platform()!=JS then
     IupMainLoop()
     IupClose()
-end procedure
-
-main()
+end if
 

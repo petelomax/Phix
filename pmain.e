@@ -1119,7 +1119,11 @@ if STyp!=0 then
                     Aborp("type error (storing sequence in atom)")
                 elsif not and_bits(STyp,T_sequence)     -- so STyp(RHS) must be atom
                   and not and_bits(t,T_atom) then       --   and t(LHS) must be sequence
-                    Aborp("type error (storing atom in sequence)")
+                    if t=T_string then
+                        Aborp("type error (storing atom in string)")
+                    else
+                        Aborp("type error (storing atom in sequence)")
+                    end if
                 elsif STyp=T_N
                   and t=T_integer then
                     Aborp("type error (storing float in integer)")
@@ -1727,6 +1731,7 @@ end if
                 p3 = opstack[opsidx]
 --DEV 12/7/16 bit harsh innit??? constants only?? (K-aod only??)
                 if scode=opDelRtn
+                and p3!=T_const0
                 and and_bits(symtab[p3][S_State],K_rtn)=0 then
                     Aborp("routine_id expected")
                 end if
@@ -2962,7 +2967,9 @@ integer nestedConst = 0, wastokcol
             if Ch=':' and ChNext('=') then
                 N = InTable(-InAny)
                 if N>0 then
-                    if symtab[N][S_NTyp]=S_Rsvd then
+--21/01/2021
+--                  if symtab[N][S_NTyp]=S_Rsvd then
+                    if N<=T_Asm or symtab[N][S_NTyp]=S_Rsvd then
                         Aborp("illegal use of a reserved word")
                     elsif InTable(InTop) then
                         Duplicate()
@@ -3391,7 +3398,9 @@ object Default
             N = InTable(InAny)
             if N<=0 then Aborp("unrecognised") end if
             dsig = symtab[N][S_sig]
+--21/01/2021
             if symtab[N][S_NTyp]=S_Rsvd then
+--          if N<=T_Asm or symtab[N][S_NTyp]=S_Rsvd then
                 Aborp("illegal use of reserved word")
             elsif sequence(dsig) then
                 if not find(dsig[1],"FT") then
@@ -3416,7 +3425,9 @@ object Default
                             dsig = symtab[N][S_sig]
                             if sequence(dsig) then
                                 Aborp("unsupported")
-                            elsif symtab[N][S_NTyp]=S_Rsvd then
+--21/01/2021
+--                          elsif symtab[N][S_NTyp]=S_Rsvd then
+                            elsif N<=T_Asm or symtab[N][S_NTyp]=S_Rsvd then
                                 Aborp("illegal use of a reserved word")
                             end if
 --                          paramDflts[nParams] = {T_length,N}
@@ -3481,7 +3492,9 @@ object Default
 --                          dsig = symtab[N][S_sig]
 --                          if sequence(dsig) then
 --                              Aborp("unsupported")
---                          elsif symtab[N][S_NTyp]=S_Rsvd then
+--21/01/2021
+----                        elsif symtab[N][S_NTyp]=S_Rsvd then
+--                          elsif N<=T_Asm or symtab[N][S_NTyp]=S_Rsvd then
 --                              Aborp("illegal use of a reserved word")
 --                          end if
 ----or resolve now..
@@ -3665,7 +3678,9 @@ end if
                     SNtyp = symtab[N][S_NTyp]
                     if SNtyp=S_Type then
                         Warn("assumed to be a variable_id, not a type",tokline,tokcol,0)
-                    elsif SNtyp=S_Rsvd then
+--21/01/2021
+--                  elsif SNtyp=S_Rsvd then
+                    elsif N<=T_Asm or SNtyp=S_Rsvd then
                         Aborp("illegal use of a reserved word")
                     end if
                 end if
@@ -3790,7 +3805,9 @@ integer SNtyp
                     SNtyp = symtab[N][S_NTyp]
                     if SNtyp=S_Type then
                         Warn("assumed to be a variable_id, not a type",tokline,tokcol,0)
+--21/01/2021
                     elsif SNtyp=S_Rsvd then
+--                  elsif N<=T_Asm or SNtyp=S_Rsvd then
                         Aborp("illegal use of a reserved word")
                     end if
                 end if
@@ -5716,7 +5733,9 @@ else
                 --
                 ReLinkAsGlobal(rtnttidx,N)
             end if
-        elsif symtab[N][S_NTyp]=S_Rsvd then
+--21/01/2021
+--      elsif symtab[N][S_NTyp]=S_Rsvd then
+        elsif N<=T_Asm or symtab[N][S_NTyp]=S_Rsvd then
 --          if (rType!=FUNC or and_bits(symtab[N][S_State],K_fun)!=K_fun) then
             Aborp("illegal use of a reserved word")
         else
@@ -5778,7 +5797,9 @@ else
                     symtab[N][S_State] = state
                 end if
 --end if
+--21/01/21
             elsif symtab[N][S_NTyp]=S_Rsvd
+--          elsif (N<=T_Asm or symtab[N][S_NTyp]=S_Rsvd)
               and (Rtype!=R_Func or and_bits(symtab[N][S_State],K_fun)!=K_fun) then
                 Aborp("illegal use of a reserved word")
             else
@@ -5935,6 +5956,12 @@ end if
         end if
     end if
     symtab[N][S_1stl] = rtntokline
+--restoreScope(restScope)
+--NESTEDFUNC
+    sequence restScope = {}
+    if scopetypes[scopelevel]=S_Rtn then
+        restScope = hideScope()
+    end if
     if increaseScope(S_Rtn,-1) then end if
 
 --11/07/20: (routine-level static and constant vars)
@@ -6277,6 +6304,7 @@ end if
     clearIchain(saveIchain)
 
     currRtn = dropScope(N,S_Rtn)
+    restoreScope(restScope)
 
 --if fileno = 1 then trace(1) end if
     MatchString(T_end)
@@ -6405,7 +6433,9 @@ sequence sig
     if N then Duplicate() end if
     N = InTable(InAny)
     if N>0 then
-        if symtab[N][S_NTyp]=S_Rsvd then
+--21/01/2021
+--      if symtab[N][S_NTyp]=S_Rsvd then
+        if N<=T_Asm or symtab[N][S_NTyp]=S_Rsvd then
 --      and (rType!=FUNC or and_bits(symtab[N][S_State],K_fun)!=K_fun) then
             Aborp("illegal use of a reserved word")
         end if
@@ -6462,7 +6492,9 @@ procedure DoSubScripts()
          bStruct = false
 
     if N!=0 and opsltrl[opsidx]=0 then
-        integer stype = symtab[N][S_ltype]
+--31/1/21:
+--      integer stype = symtab[N][S_ltype]
+        integer stype = symtab[N][S_vtype]
         if find(stype,stids) then
             bStruct = true
             etype = stype
@@ -7230,7 +7262,9 @@ object sig
 --              ForwardProc(FUNC,wasNamespace,nsttidx)
                 etype = T_object
             else
+--21/01/2021
                 if symtab[N][S_NTyp]=S_Rsvd then
+--              if N<=T_Asm or symtab[N][S_NTyp]=S_Rsvd then
 --              and (rType!=FUNC or and_bits(symtab[N][S_State],K_fun)!=K_fun or not sequence(sig)) then
                     Aborp("illegal use of reserved word")
                 end if
@@ -8157,7 +8191,9 @@ integer pstype, etype, petype, fN, s, const
     or (ORAC and toktype='.') then
 --4/11/19 (structs)
         etype = symtab[tidx][S_ltype]
-        bool bStruct = find(etype,stids)!=0
+--1/2/21:
+--      bool bStruct = find(etype,stids)!=0
+        bool bStruct = find(etype,stids)!=0 or etype=struct
 --      if not bStruct and not and_bits(rtype,T_sequence) then
         if not and_bits(rtype,T_sequence) then
             -- eg/ie int[i]=o
@@ -9671,7 +9707,7 @@ integer thispt
 integer wasttidx = ttidx
 
     loopage += 1    -- for DoTry()
---trace(1)
+--if fileno=1 then trace(1) end if
     saveExitBP = exitBP
     exitBP = 0  -- valid, end of chain
     saveContinueBP = continueBP
@@ -9984,7 +10020,9 @@ integer cnTyp
     else
         CN = InTable(-InAny)
         if CN>0 then
-            if symtab[CN][S_NTyp]=S_Rsvd then
+--21/01/2021
+--          if symtab[CN][S_NTyp]=S_Rsvd then
+            if CN<=T_Asm or symtab[CN][S_NTyp]=S_Rsvd then
                 Aborp("illegal use of a reserved word")
             end if
         end if
@@ -11054,7 +11092,9 @@ end if
     else
         E = InTable(-InAny)
         if E>0 then
-            if symtab[E][S_NTyp]=S_Rsvd then
+--21/01/2021
+--          if symtab[E][S_NTyp]=S_Rsvd then
+            if E<=T_Asm or symtab[E][S_NTyp]=S_Rsvd then
                 Aborp("illegal use of a reserved word")
             end if
         end if
@@ -11279,7 +11319,9 @@ integer Typ, rootInt
 --              end if
                 N = InTable(-InAny)
                 if N>0 then
-                    if symtab[N][S_NTyp]=S_Rsvd then
+--21/01/2021
+--                  if symtab[N][S_NTyp]=S_Rsvd then
+                    if N<=T_Asm or symtab[N][S_NTyp]=S_Rsvd then
                         Aborp("illegal use of a reserved word")
                     end if
                 end if
@@ -11807,7 +11849,9 @@ integer pstype, petype
                 else
                     Aborp("undefined")
                 end if
-            elsif symtab[tokno][S_NTyp]=S_Rsvd then
+--21/01/2021
+--          elsif symtab[tokno][S_NTyp]=S_Rsvd then
+            elsif tokno<=T_Asm or symtab[tokno][S_NTyp]=S_Rsvd then
                 Aborp("illegal use of reserved word")
             end if
 --if not implied_this then
@@ -12574,7 +12618,9 @@ integer N, isLit, etype
                 end if
                 ForwardProc(PROC)
             end if
+--21/01/2021
         elsif symtab[N][S_NTyp]=S_Rsvd then
+--      elsif N<=T_Asm or symtab[N][S_NTyp]=S_Rsvd then
             Aborp("illegal use of reserved word")
         else
             Type = symtab[N][S_vtype]   -- (==S_sig)
@@ -12779,7 +12825,9 @@ integer SNtyp
             N = InTable(-InAny)
             if N>0 then
                 SNtyp = symtab[N][S_NTyp]
+--21/01/2021
                 if SNtyp=S_Rsvd then
+--              if N<=T_Asm or SNtyp=S_Rsvd then
                     Aborp("illegal use of a reserved word")
 -- added 6/4/2012: allow eg
 -- constant integer Main=create(Window...)  -- typechecks if create returns {}.
@@ -13050,7 +13098,9 @@ integer k, kp1, ln, emitcol, N, reinclude, newfile, wasttidx, qch
         end if
         N = InTable(-InAny)
         if N then
-            if symtab[N][S_NTyp]=S_Rsvd then
+--21/01/2021
+--          if symtab[N][S_NTyp]=S_Rsvd then
+            if N<=T_Asm or symtab[N][S_NTyp]=S_Rsvd then
                 Aborp("illegal use of a reserved word")
             end if
         end if
@@ -13108,7 +13158,9 @@ integer k, kp1, ln, emitcol, N, reinclude, newfile, wasttidx, qch
                 N = InTable(-InAny)
                 fileno = newfile
                 if N then
-                    if symtab[N][S_NTyp]=S_Rsvd then
+--21/01/2021
+--                  if symtab[N][S_NTyp]=S_Rsvd then
+                    if N<=T_Asm or symtab[N][S_NTyp]=S_Rsvd then
                         Aborp("illegal use of a reserved word")
                     end if
                 end if
@@ -13244,7 +13296,9 @@ bool prevset = false
                 Aborp("builtin overide")
             elsif and_bits(symtab[N][S_State],S_fwd) then
                 Aborp("forward reference")
-            elsif symtab[N][S_NTyp]=S_Rsvd then
+--21/01/2021
+--          elsif symtab[N][S_NTyp]=S_Rsvd then
+            elsif N<=T_Asm or symtab[N][S_NTyp]=S_Rsvd then
                 Aborp("illegal use of a reserved word")
             else
                 Duplicate()
@@ -13292,7 +13346,9 @@ bool prevset = false
         if InTable(InTop) then Duplicate() end if
         N = InTable(InAny)
         if N then
-            if symtab[N][S_NTyp]=S_Rsvd then
+--21/01/2021
+--          if symtab[N][S_NTyp]=S_Rsvd then
+            if N<=T_Asm or symtab[N][S_NTyp]=S_Rsvd then
                 Aborp("illegal use of a reserved word")
             end if
         end if

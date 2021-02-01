@@ -1,0 +1,77 @@
+--
+-- demo\ilest.exw
+-- ==============
+--
+--  A program to estimate the number of #ilASM lines
+--
+constant B = "..\\builtins",
+         BVM = "..\\builtins\\VM"
+
+sequence want = {"e","ew"}, notwant = {"err","dll","txt","exw"}
+function efiles(sequence di)
+    if find('d',di[D_ATTRIBUTES]) then return 0 end if
+    string ext = get_file_extension(di[D_NAME])
+    integer k = find(ext,want)
+    if k then return k end if
+    k = find(ext,notwant)
+    if k=0 then
+        notwant  = append(notwant,ext)
+        ?ext
+        {} = wait_key() 
+    end if
+    return 0
+end function
+function addir(string file,path)
+    return join_path({path,file})
+end function
+function ilasm(string file)
+    string text = get_text(file)
+    return match("#ilASM",text)
+end function
+sequence d = filter(apply(true,addir,{vslice(filter(dir(B),efiles),1),{B}}),ilasm),
+         v = filter(apply(true,addir,{vslice(filter(dir(BVM),efiles),1),{BVM}}),ilasm)
+
+function strip_comments(string line)
+    line = trim(line)
+    integer k = match("--",line)
+    if k then
+        line = trim(line[1..k-1])
+    end if
+    return line
+end function
+function strip_blank(string line)
+    return length(line)
+end function
+function get_lines(string file)
+    sequence lines = filter(apply(get_text(file,GT_LF_STRIPPED),strip_comments),strip_blank)
+    bool bOpen = true
+    integer start, total = 0
+    for i=1 to length(lines) do
+        string line = lines[i]
+        integer ila = match("#ilASM",line)
+        if ila then
+            if not bOpen then ?9/0 end if
+            bOpen = false
+            start = i
+        end if
+        if not bOpen and match("}",line) then
+            bOpen = true
+            total += i-start+1
+        end if
+    end for
+    if not bOpen then ?9/0 end if
+    return total
+end function
+sequence dt = apply(d,get_lines),
+         vt = apply(v,get_lines)
+pp(columnize({d,dt}))
+pp(columnize({v,vt}))
+?length(d)
+?length(v)
+?sum(dt)+sum(vt)
+
+
+?"done"
+{} = wait_key()
+abort(0)
+

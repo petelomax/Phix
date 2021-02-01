@@ -8,10 +8,10 @@
 -- T_xxx := T_integer|T_atom|T_string|T_sequence|T_object. // (nb no udt here)
 
 --DEV I think we need special toktypes here...
-enum /*INCLUDE,*/ VARIABLE, STRICT, /*OPERATOR,*/ /*QU,*/ /*IF,*/ /*FOR,*/
--- SPACE, ELLIPSE, /*BRACES,*/ HEXDEC, SYMBOL, 
+--enum /*INCLUDE,*/ VARIABLE, STRICT, /*OPERATOR,*/ /*QU,*/ /*IF,*/ /*FOR,*/
+-- SPACE, ELLIPSE, /*BRACES,*/ /*HEXDEC,*/ SYMBOL, 
 --   STMAX = 
-$
+--$
 
 constant vartypes = {T_integer,T_atom,T_string,T_sequence,T_object,
                      T_bool,T_int,T_Ihandle,T_Ihandln,T_atom_string,
@@ -36,10 +36,9 @@ sequence s3 = {{INCLUDE,"??INCLUDE",false}, -- include statement
 --             {SYMBOL,"SYMBOL",false},     -- General symbols !&|*+,.:;<=>?~\$%
 --             {ELLIPSE,"ELLIPSE",true},    -- '..'
 --X            {BRACES,"BRACES",false},     -- ()[]{}
---             {HEXDEC,"HEXDEC",false},     -- Hexadecimal (#) mark
---             {SQUOTE,"SQUOTE",false},     -- Single quotation mark
---             {DQUOTE,"DQUOTE",false},     -- Double quotation mark
---X            {BKTICK,"BKTICK",false},     -- Back tick (string with no escape characters)
+--X            {HEXDEC,"HEXDEC",false},     -- Hexadecimal (#) mark
+--X            {SQUOTE,"SQUOTE",false},     -- Single quotation mark
+--X            {DQUOTE,"DQUOTE",false},     -- Double quotation mark
 --             {ILLEGAL,"ILLEGAL",false},   -- Illegal character
 ----               {FLOAT,"FLOAT",false},       -- float, eg 1.0 or 1e4
 --             {DIGIT,"DIGIT",false},       -- 0..9
@@ -259,11 +258,15 @@ string tt = tok_name(toktype),
 --toktype = and_bits(toktype,#FF) -- no help...
     switch toktype do
         case DIGIT,
-             SQUOTE,
-             DQUOTE,
+--           SQUOTE,
+             '\'',
+--           DQUOTE,
+             '"',
              '`',
-             HEXDEC,
-             BINDEC,
+--           HEXDEC,
+             '#',
+--           BINDEC,
+             'b',
              '?',
              '$':
                     break
@@ -511,7 +514,7 @@ parse_expression_1(lhs, min_precedence)
 
 --function vardef(string vtype)
 --function vardef(sequence tok)
-function vardef(integer this, skip=0, iForPar=0)
+function vardef(integer thistdx, skip=0, iForPar=0)
 --
 -- iForPar of 0 is normal var definition
 -- iForPar of 2 is rtndef() parameters [see note[s] therein]
@@ -615,6 +618,8 @@ function vardef(integer this, skip=0, iForPar=0)
 --      if iForPar=4 or toktype!=',' then
 --      if iForPar=4 or tokens[tdx][TOKTYPE]!=',' then
         if iForPar=4 or tdx>length(tokens) or tokens[tdx][TOKTYPE]!=',' then
+--?tokens[tdx]
+--?tokens[tdx][TOKTYPE]
 --          tdx -= 1
             exit
         end if
@@ -629,8 +634,10 @@ function vardef(integer this, skip=0, iForPar=0)
             exit
         end if
     end while
+-- actually, we might get away with 1/2... they need to be global though....
+--puts(1,"Warning: VARIABLE line 632 p2js_parse.e\n") -- (wrong, it needs to be like T_for, or something...)
 --  return {VARIABLE,res}
-    return {VARIABLE,this,res}  -- nb covers constants!
+    return {"vardef",thistdx,res}   -- nb covers constants!
 end function
 
 forward function block(integer skip=0, bool bOpt=false)
@@ -703,7 +710,7 @@ function statement()
         sequence tok = tokens[tdx]
         integer {toktype,start,finish,line} = tok,
 --DEV?? (maybe we /will/ have some kind of TOKDX entry, specific for each toktype??)
-                this = tdx
+                thistdx = tdx
 --if l0=-1 then l0 = line end if
 --if line=601 then trace(1) end if
         tdx += 1
@@ -732,18 +739,21 @@ function statement()
                         end if
 --*!/
                         string filename = ""
+                        integer toktype2
                         while tdx<=length(tokens) do
                             tok = tokens[tdx]
-                            {toktype,start,finish} = tok
+                            {toktype2,start,finish} = tok
                             if tok[4]!=line
-                            or not find(toktype,INCLUDETOKS) then
+                            or not find(toktype2,INCLUDETOKS) then
                                 exit
                             end if
                             filename &= text[start..finish]
                             tdx += 1
                         end while
 --?{toktype,filename}
-                        ast = append(ast,{toktype,filename})
+-- spotted in passing...: [ DEV these are ALL just going to be LETTER!! ]
+--                      ast = append(ast,{toktype,filename})
+                        ast = append(ast,{ttidx,filename})
 
                     case T_forward:
                         bForward = true
@@ -874,14 +884,19 @@ function statement()
                     case T_for:
 --DEV very different for js...
 --                      bool bLet = false
+                        bool bNoVar = false
                         if not is_phix() then
                             expectt('(')
-                            if tokens[tdx][TOKTTIDX]=T_let then
+                            if tokens[tdx][TOKTYPE]=';' then
+                                -- "for (; "-style (no phix output possible)
+--DEV/SUG:                      violation(tokens[tdx][TOKLINE],"for (;")
+                                bNoVar = true
+                            elsif tokens[tdx][TOKTTIDX]=T_let then
 --                              bLet = true
                                 tdx += 1
                             end if
                         end if
-                        sequence ctrl = vardef(this,0,4)
+                        sequence ctrl = iff(bNoVar?{}:vardef(thistdx,0,4))
                         if is_phix() then
                             if not expect(T_to) then exit end if
                         else
@@ -1032,7 +1047,7 @@ function statement()
                                                :find(ttidx,vartypes) or
                                                 find(ttidx,udts))
                         if bVar then
-                            ast = append(ast,vardef(this))
+                            ast = append(ast,vardef(thistdx))
 --                          ast = append(ast,vardef(tdx,1))
                             break
                         end if
@@ -1125,15 +1140,18 @@ function statement()
                     return parse_error(tok,"assignment operator expected")
                 end if
                 ast = {toktype,ast,expr(0,1)}
-
-            case DQUOTE:
+--expectt(';',true)
+                exit
+--          case DQUOTE:
+            case '"':
                 if is_js() then
                     string q = text[start..finish]
                     if q=`"use strict"` then
-                        ast = append(ast,{STRICT,this})
+--                      ast = append(ast,{STRICT,thistdx})
+                        ast = append(ast,{"use strict",thistdx})
                         exit
                     end if
---return parse_error(tok,"is_js DQUOTE??")                      
+--return parse_error(tok,"is_js '"'??")						
 --                  break
                 end if
                 fallthrough

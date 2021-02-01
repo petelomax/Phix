@@ -215,6 +215,13 @@ integer pchar
                             if ch='\"' then exit end if
                             if ch='\\' and k<len then k += 1 end if
                         end while
+--21/01/2021
+                    elsif ch='`' then                                   -- .. and backtick strings,
+                        while k<len do
+                            k += 1
+                            ch = oneline[k]
+                            if ch='`' then exit end if
+                        end while
                     elsif ch='\'' then                                  -- .. and char lits (esp '\"'!)
                         if k<len and oneline[k+1]='\\' then
                             k += 1

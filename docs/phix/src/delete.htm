@@ -54,10 +54,63 @@
         </tr>
         <tr>
          <td>
+          <b>Ancilliary function:</b>
+         </td>
+         <td>
+            <a href="integer.htm#bool">bool</a> res = still_has_delete_routine(<a href="opbject.htm">object</a> x)
+            <br>
+            <br>
+            Yields true(1) if delete_routine() has been invoked on x and delete() has not.<br>
+            Yields false(0) after delete() or if delete_routine() was never called on x.
+            <br>
+            <br>
+            In particular, residual references to a class instance become invalid the moment delete() is invoked on any
+            other reference to it. The internal type checking routines of builtins\structs.e use this to identify and
+            prohibit accidental access to any such now-invalid struct/class instance references.
+            <br>
+            <br>
+            Ideally you should nullify all variables referencing x as and when delete(x) is invoked, however that may not 
+            always be possible, as suggested in the example below, albeit something that trivial is trivially fixable, by
+            (for example) making process a null-returning function and invoking it as w = process(w). 
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Example:</b>
+         </td>
+         <td>
+<!--eucode>
+class thing nullable
+    public string s
+end class
+
+procedure process(thing t)
+    delete(t)   -- (w becomes invalid)
+end procedure
+
+thing w = new({"w"})
+process(w)
+?w.string       -- (invalid)
+</eucode-->
+<pre>
+<font color="#000080"><i>--            n : 0 1 2 3 4  5   6   7    8
+--  factorial(n): 1 1 2 6 24 120 720 5040 40320 </i></font>
+</pre>
+            <br>
+            The delete(t) causes w to become invalid and refer to a slot on the freelist. While a fatal error would normally occur 
+            on the last line, it was (prior to the introduction of still_has_delete_routine) possible for some other instance to
+            be created and occupy the slot that w still refers to. This additional check seeks to prevent mishaps of that kind.
+            Of course just printing the contents would probably have been fairly harmless, modifications and/or actions on such an
+            invalid reference would however be significantly more dangerous and damaging.
+         </td>
+        </tr>
+        <tr>
+         <td>
           <b>Implementation:</b>
          </td>
          <td>
-            via :%opDelete in builtins\VM\pDeleteN.e (an autoinclude) - be warned however it is low-level complicated stuff that you do not need to know. 
+            via :%opDelete in builtins\VM\pDeleteN.e (an autoinclude) - be warned however it is low-level complicated stuff that you do not need to know. <br>
+            Apart from still_has_delete_routine(), which is defined in builtins\hasdel.e
          </td>
         </tr>
         <tr>

@@ -1130,7 +1130,7 @@ global constant
 --  the very rare cases a goto is genuinely needed in hll code (I have seen just
 --  /three/ in the last two decades), the following construct(s) may be used:
 --
---          #ilASM{ jump :meaningful_label }
+--          #ilASM{ jmp :meaningful_label }
 --          ...
 --          #ilASM{ ::meaningful_label }
 --
@@ -1167,7 +1167,7 @@ global constant
 --DEV test this: (and rewrite) [I think labels have their own namespace now]
 --  Gotcha: what is wrong with this?
 --
---          #ilASM{ jump :ret }
+--          #ilASM{ jmp :ret }
 --          ...
 --          #ilASM{ ::ret }
 --

@@ -78,7 +78,7 @@ integer nmax = n
 end function
 
 global function join_path(sequence path_elements, integer trailsep=0)
-integer SLASH = iff(platform()=WINDOWS?'\\':'/')
+--integer SLASH = iff(platform()=WINDOWS?'\\':'/')
 string elem, fname = ""
 
     for i=1 to length(path_elements) do

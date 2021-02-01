@@ -723,6 +723,8 @@ puts(1,"pemit2.e line 1306 (opRetf)\n")
                 c2 = s5[c2]+5
                 offset += c2        -- ;-)
                 s5[i3] = offset
+--31/1/21
+if c2=0 then exit end if
             end while
 end if
 if c!=isBase then

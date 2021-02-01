@@ -1,0 +1,418 @@
+﻿--
+-- demo/pGUI/IupMultiLine.exw
+-- ==========================
+--
+include pGUI.e
+puts(1,"") -- (console /behind/ gui, pls)
+
+procedure text2multiline(Ihandle ih, string attribute)
+    Ihandle mltline = IupGetDialogChild(ih, "mltline")
+    Ihandle text = IupGetDialogChild(ih, "text")
+    IupSetAttribute(mltline, attribute, IupGetAttribute(text, "VALUE"))
+end procedure
+
+procedure multiline2text(Ihandle ih, string attribute)
+    Ihandle mltline = IupGetDialogChild(ih, "mltline")
+    Ihandle text = IupGetDialogChild(ih, "text")
+    IupSetAttribute(text, "VALUE", IupGetAttribute(mltline, attribute))
+end procedure
+
+function btn_append_cb(Ihandle ih)
+    text2multiline(ih, "APPEND")
+    return IUP_DEFAULT
+end function
+
+function btn_insert_cb(Ihandle ih)
+    text2multiline(ih, "INSERT")
+    return IUP_DEFAULT
+end function
+
+function btn_clip_cb(Ihandle ih)
+    text2multiline(ih, "CLIPBOARD")
+    return IUP_DEFAULT
+end function
+
+function btn_key_cb(Ihandle ih)
+    Ihandle mltline = IupGetDialogChild(ih, "mltline")
+    Ihandle text = IupGetDialogChild(ih, "text")
+    IupSetFocus(mltline)
+    IupFlush()
+    return IUP_DEFAULT
+end function
+
+function btn_caret_cb(Ihandle ih)
+    Ihandle opt = IupGetHandle("text2multi")
+    if IupGetInt(opt, "VALUE") then
+        text2multiline(ih, "CARET")
+    else
+        multiline2text(ih, "CARET")
+    end if
+    return IUP_DEFAULT
+end function
+
+function btn_readonly_cb(Ihandle ih)
+    Ihandle opt = IupGetHandle("text2multi")
+    if IupGetInt(opt, "VALUE") then
+        text2multiline(ih, "READONLY")
+    else
+        multiline2text(ih, "READONLY")
+    end if
+    return IUP_DEFAULT
+end function
+
+function btn_selection_cb(Ihandle ih)
+    Ihandle opt = IupGetHandle("text2multi")
+    if IupGetInt(opt, "VALUE") then
+        text2multiline(ih, "SELECTION")
+    else
+        multiline2text(ih, "SELECTION")
+    end if
+    return IUP_DEFAULT
+end function
+
+function btn_selectedtext_cb(Ihandle ih)
+    Ihandle opt = IupGetHandle("text2multi")
+    if IupGetInt(opt, "VALUE") then
+        text2multiline(ih, "SELECTEDTEXT")
+    else
+        multiline2text(ih, "SELECTEDTEXT")
+    end if
+    return IUP_DEFAULT
+end function
+
+function btn_overwrite_cb(Ihandle ih)
+    Ihandle opt = IupGetHandle("text2multi")
+    if IupGetInt(opt, "VALUE") then
+        text2multiline(ih, "OVERWRITE")
+    else
+        multiline2text(ih, "OVERWRITE")
+    end if
+    return IUP_DEFAULT
+end function
+
+function btn_active_cb(Ihandle ih)
+    Ihandle opt = IupGetHandle("text2multi")
+    if IupGetInt(opt, "VALUE") then
+        text2multiline(ih, "ACTIVE")
+    else
+        multiline2text(ih, "ACTIVE")
+    end if
+    return IUP_DEFAULT
+end function
+
+function btn_remformat_cb(Ihandle ih)
+    text2multiline(ih, "REMOVEFORMATTING")
+    return IUP_DEFAULT
+end function
+
+function btn_nc_cb(Ihandle ih)
+    Ihandle opt = IupGetHandle("text2multi")
+    if IupGetInt(opt, "VALUE") then
+        text2multiline(ih, "NC")
+    else
+        multiline2text(ih, "NC")
+    end if
+    return IUP_DEFAULT
+end function
+
+function btn_value_cb(Ihandle ih)
+    Ihandle opt = IupGetHandle("text2multi")
+    if IupGetInt(opt, "VALUE") then
+        text2multiline(ih, "VALUE")
+    else
+        multiline2text(ih, "VALUE")
+    end if
+    return IUP_DEFAULT
+end function
+
+function btn_tabsize_cb(Ihandle ih)
+    Ihandle opt = IupGetHandle("text2multi")
+    if IupGetInt(opt, "VALUE") then
+        text2multiline(ih, "TABSIZE")
+    else
+        multiline2text(ih, "TABSIZE")
+    end if
+    return IUP_DEFAULT
+end function
+
+function k_f2()
+    printf(1,"K_F2\n")
+    return IUP_DEFAULT
+end function
+
+function file_open()
+    string filename = IupGetFile("")  // test key after dlg in multiline
+    printf(1,filename)
+    return IUP_DEFAULT
+end function
+
+--char *iupKeyCodeToName(int code)
+
+function k_any(Ihandle ih, atom c)
+    if iup_isprint(c) then
+        printf(1,"K_ANY(%d = %s \'%c\')\n", {c, iupKeyCodeToName(c), c})
+    else
+        printf(1,"K_ANY(%d = %s)\n", {c, iupKeyCodeToName(c)})
+    end if
+    printf(1,"  CARET(%s)\n", IupGetAttribute(ih, "CARET"))
+    if c==K_cA then
+        return IUP_IGNORE    // Sound a beep in Windows
+    elsif c==K_cP then
+        {} = file_open()
+        return IUP_IGNORE    // Sound a beep in Windows
+    end if
+    return IUP_CONTINUE
+end function
+
+function action(Ihandle ih, int c, atom pAfter)
+    string after = peek_string(pAfter)
+    if iup_isprint(c) then
+        printf(1,"ACTION(%d = %s \'%c\', %s)\n", {c, iupKeyCodeToName(c), c, after})
+    else
+        printf(1,"ACTION(%d = %s, %s)\n", {c, iupKeyCodeToName(c), after})
+    end if
+    if c==K_i then
+        return IUP_IGNORE    // OK
+    elsif c==K_cD then
+        return IUP_IGNORE    // Sound a beep in Windows
+    elsif c==K_h then
+        return K_j
+    end if
+    return IUP_DEFAULT
+end function
+
+function caret_cb(Ihandle ih, int lin, int col, int pos)
+    printf(1,"CARET_CB(%d, %d - %d)\n", {lin, col, pos})
+    printf(1,"  CARET(%s - %s)\n", {IupGetAttribute(ih, "CARET"), IupGetAttribute(ih, "CARETPOS")})
+    return IUP_DEFAULT
+end function
+
+function getfocus_cb()
+    printf(1,"GETFOCUS_CB()\n")
+    return IUP_DEFAULT
+end function
+
+function help_cb()
+    printf(1,"HELP_CB()\n")
+    return IUP_DEFAULT
+end function
+
+function killfocus_cb()
+    printf(1,"KILLFOCUS_CB()\n")
+    return IUP_DEFAULT
+end function
+
+function leavewindow_cb()
+    printf(1,"LEAVEWINDOW_CB()\n")
+    return IUP_DEFAULT
+end function
+
+function enterwindow_cb()
+    printf(1,"ENTERWINDOW_CB()\n")
+    return IUP_DEFAULT
+end function
+
+function btn_def_esc_cb()
+    printf(1,"DEFAULTESC\n")
+    return IUP_DEFAULT
+end function
+
+function btn_def_enter_cb()
+    printf(1,"DEFAULTENTER\n")
+    return IUP_DEFAULT
+end function
+
+function dropfiles_cb(Ihandle ih, atom pFilename, int num, int x, int y)
+    string filename = peek_string(pFilename)
+    printf(1,"DROPFILES_CB(%s, %d, x=%d, y=%d)\n", {filename, num, x, y})
+    return IUP_DEFAULT
+end function
+
+function button_cb(Ihandle ih,int but,int pressed,int x,int y,atom pStatus)
+    int lin, col, pos
+    string status = peek_string(pStatus)
+    printf(1,"BUTTON_CB(but=%c (%d), x=%d, y=%d [%s])\n",{but,pressed,x,y, status})
+    pos = IupConvertXYToPos(ih, x, y)
+    {lin,col} = IupTextConvertPosToLinCol(ih, pos)
+    printf(1,"         (lin=%d, col=%d, pos=%d)\n", {lin, col, pos})
+    return IUP_DEFAULT
+end function
+
+function motion_cb(Ihandle ih,int x,int y,atom pStatus)
+    int lin, col, pos
+    string status = peek_string(pStatus)
+    printf(1,"MOTION_CB(x=%d, y=%d [%s])\n",{x,y, status})
+    pos = IupConvertXYToPos(ih, x, y)
+    {lin, col} = IupTextConvertPosToLinCol(ih, pos)
+    printf(1,"         (lin=%d, col=%d, pos=%d)\n", {lin, col, pos})
+    return IUP_DEFAULT
+end function
+
+procedure TextTest()
+    int formatting = 0
+    Ihandle dlg, mltline, text, opt, btn_def_enter, btn_def_esc, btn_active, btn_overwrite,
+            btn_append, btn_insert, btn_caret, btn_clip, btn_key, btn_readonly, btn_tabsize,
+            btn_selection, btn_selectedtext, btn_nc, btn_value, lbl, formattag, btn_remformat
+
+//  IupSetGlobal("UTF8AUTOCONVERT", "NO")
+
+    text = IupText(NULL)
+    IupSetAttribute(text, "EXPAND", "HORIZONTAL")
+//  IupSetAttribute(text, "VALUE", "Single Line Text")
+    IupSetAttribute(text, "CUEBANNER", "Enter Attribute Value Here")
+    IupSetAttribute(text, "NAME", "text")
+    IupSetAttribute(text, "TIP", "Attribute Value")
+
+    opt = IupToggle("Set/Get", NULL)
+    IupSetAttribute(opt, "VALUE", "ON")
+    IupSetHandle("text2multi", opt)
+
+    mltline = IupMultiLine(NULL)
+//  mltline = IupText(NULL)
+//  IupSetAttribute(mltline, "MULTILINE", "YES")
+    IupSetAttribute(mltline, "NAME", "mltline")
+
+    IupSetCallback(mltline, "DROPFILES_CB", Icallback(dropfiles_cb))
+    IupSetCallback(mltline, "BUTTON_CB",     Icallback(button_cb))
+//  IupSetCallback(mltline, "MOTION_CB",    Icallback(motion_cb))
+    IupSetCallback(mltline, "HELP_CB",   Icallback(help_cb))
+    IupSetCallback(mltline, "GETFOCUS_CB", Icallback(getfocus_cb))
+    IupSetCallback(mltline, "KILLFOCUS_CB",Icallback(killfocus_cb))
+    IupSetCallback(mltline, "ENTERWINDOW_CB",Icallback(enterwindow_cb))
+    IupSetCallback(mltline, "LEAVEWINDOW_CB",Icallback(leavewindow_cb))
+//  IupSetCallback(mltline, "ACTION",Icallback(action))
+    IupSetCallback(mltline, "K_ANY",Icallback(k_any))
+    IupSetCallback(mltline, "K_F2",Icallback(k_f2))
+    IupSetCallback(mltline, "CARET_CB",Icallback(caret_cb))
+//  IupSetAttribute(mltline, "WORDWRAP", "YES")
+//  IupSetAttribute(mltline, "BORDER", "NO")
+//  IupSetAttribute(mltline, "AUTOHIDE", "YES")
+//  IupSetAttribute(mltline, "BGCOLOR", "255 0 128")
+//  IupSetAttribute(mltline, "FGCOLOR", "0 128 192")
+//  IupSetAttribute(mltline, "PADDING", "15x15")
+//  IupSetAttribute(mltline, "VALUE", "First Line\nSecond Line Big Big Big\nThird Line\nmore\nmore\n챌찾천찼처챕") // UTF-8
+    IupSetAttribute(mltline, "VALUE", "First Line\nSecond Line Big Big Big\nThird Line\nmore\nmore\n豫雛猖") // Windows-1252
+    IupSetAttribute(mltline, "TIP", "First Line\nSecond Line\nThird Line")
+//  IupSetAttribute(mltline, "FONT", "Helvetica, 14")
+//  IupSetAttribute(mltline, "MASK", IUP_MASK_FLOAT)
+//  IupSetAttribute(mltline, "FILTER", "UPPERCASE")
+//  IupSetAttribute(mltline, "ALIGNMENT", "ACENTER")
+//  IupSetAttribute(mltline, "CANFOCUS", "NO")
+
+    /* Turns on multiline expand and text horizontal expand */
+    IupSetAttribute(mltline, "SIZE", "80x40")
+    IupSetAttribute(mltline, "EXPAND", "YES")
+
+//  IupSetAttribute(mltline, "FONT", "Courier, 16")
+//  IupSetAttribute(mltline, "FONT", "Arial, 12")
+//  IupSetAttribute(mltline, "FORMATTING", "YES")
+
+    formatting = 01
+    if formatting then      /* just to make easier to comment this section */
+        /* formatting before Map */
+        IupSetAttribute(mltline, "FORMATTING", "YES")
+
+        formattag = IupUser()
+        IupSetAttribute(formattag, "ALIGNMENT", "CENTER")
+        IupSetAttribute(formattag, "SPACEAFTER", "10")
+        IupSetAttribute(formattag, "FONTSIZE", "24")
+        IupSetAttribute(formattag, "SELECTION", "3,1:3,50")
+        IupSetAttribute(mltline, "ADDFORMATTAG_HANDLE", formattag)
+
+        formattag = IupUser()
+        IupSetAttribute(formattag, "BGCOLOR", "255 128 64")
+        IupSetAttribute(formattag, "UNDERLINE", "SINGLE")
+        IupSetAttribute(formattag, "WEIGHT", "BOLD")
+        IupSetAttribute(formattag, "SELECTION", "3,7:3,11")
+        IupSetAttribute(mltline, "ADDFORMATTAG_HANDLE", formattag)
+    end if
+
+    /* Creates buttons */
+//  btn_append = IupButton("APPEND 豫雛猖", NULL)     // Windows-1252
+//  btn_append = IupButton("APPEND 챌찾천찼처챕", NULL)  // UTF-8
+    btn_append = IupButton("&APPEND", NULL)
+    btn_insert = IupButton("INSERT", NULL)
+    btn_caret = IupButton("CARET", NULL)
+    btn_readonly = IupButton("READONLY", NULL)
+    btn_selection = IupButton("SELECTION", NULL)
+    btn_selectedtext = IupButton("SELECTEDTEXT", NULL)
+    btn_nc = IupButton("NC", NULL)
+    btn_value = IupButton("VALUE", NULL)
+    btn_tabsize = IupButton("TABSIZE", NULL)
+    btn_clip = IupButton("CLIPBOARD", NULL)
+    btn_key = IupButton("KEY", NULL)
+    btn_def_enter = IupButton("Default Enter", NULL)
+    btn_def_esc = IupButton("Default Esc", NULL)
+    btn_active = IupButton("ACTIVE", NULL)
+    btn_remformat = IupButton("REMOVEFORMATTING", NULL)
+    btn_overwrite = IupButton("OVERWRITE", NULL)
+
+    IupSetAttribute(btn_append, "TIP", "First Line\nSecond Line\nThird Line")
+
+    /* Registers callbacks */
+    IupSetCallback(btn_append, "ACTION", Icallback(btn_append_cb))
+    IupSetCallback(btn_insert, "ACTION", Icallback(btn_insert_cb))
+    IupSetCallback(btn_caret, "ACTION", Icallback(btn_caret_cb))
+    IupSetCallback(btn_readonly, "ACTION", Icallback(btn_readonly_cb))
+    IupSetCallback(btn_selection, "ACTION", Icallback(btn_selection_cb))
+    IupSetCallback(btn_selectedtext, "ACTION", Icallback(btn_selectedtext_cb))
+    IupSetCallback(btn_nc, "ACTION", Icallback(btn_nc_cb))
+    IupSetCallback(btn_value, "ACTION", Icallback(btn_value_cb))
+    IupSetCallback(btn_tabsize, "ACTION", Icallback(btn_tabsize_cb))
+    IupSetCallback(btn_clip, "ACTION", Icallback(btn_clip_cb))
+    IupSetCallback(btn_key, "ACTION", Icallback(btn_key_cb))
+    IupSetCallback(btn_def_enter, "ACTION", Icallback(btn_def_enter_cb))
+    IupSetCallback(btn_def_esc, "ACTION", Icallback(btn_def_esc_cb))
+    IupSetCallback(btn_active, "ACTION", Icallback(btn_active_cb))
+    IupSetCallback(btn_remformat, "ACTION", Icallback(btn_remformat_cb))
+    IupSetCallback(btn_overwrite, "ACTION", Icallback(btn_overwrite_cb))
+
+    lbl = IupLabel("&Multiline:")
+    IupSetAttribute(lbl, "PADDING", "2x2")
+
+    /* Creates dlg */
+    dlg = IupDialog(IupVbox({lbl,
+                             mltline,
+                             IupHbox({text, opt}),
+                             IupHbox({btn_append, btn_insert, btn_caret, btn_readonly, btn_selection}),
+                             IupHbox({btn_selectedtext, btn_nc, btn_value, btn_tabsize, btn_clip, btn_key}),
+                             IupHbox({btn_def_enter, btn_def_esc, btn_active, btn_remformat, btn_overwrite})
+                            }))
+    IupSetCallback(dlg, "K_cO", Icallback(file_open))
+    IupSetAttribute(dlg, "TITLE", "IupText Test")
+    IupSetAttribute(dlg, "MARGIN", "10x10")
+    IupSetAttribute(dlg, "GAP", "5")
+    IupSetAttributeHandle(dlg, "DEFAULTENTER", btn_def_enter)
+    IupSetAttributeHandle(dlg, "DEFAULTESC", btn_def_esc)
+    IupSetAttribute(dlg, "SHRINK", "YES")
+
+    if formatting then  /* just to make easier to comment this section */
+        IupMap(dlg)
+        /* formatting after Map */
+
+        formattag = IupUser()
+        IupSetAttribute(formattag, "ITALIC", "YES")
+        IupSetAttribute(formattag, "STRIKEOUT", "YES")
+        IupSetAttribute(formattag, "SELECTION", "2,1:2,12")
+        IupSetAttribute(mltline, "ADDFORMATTAG_HANDLE", formattag)
+
+--ugh, limited to 254... !!
+--      formattag = IupUser()
+--      IupSetAttribute(formattag, "NUMBERING", "ARABIC")
+--      IupSetAttribute(formattag, "NUMBERINGSTYLE", "NONE")
+--      IupSetAttribute(formattag, "NUMBERINGTAB", "15")
+--      IupSetAttribute(formattag, "SELECTION", "ALL")
+--      IupSetAttribute(mltline, "ADDFORMATTAG_HANDLE", formattag)
+
+    end if
+
+    /* Shows dlg in the center of the screen */
+    IupShowXY(dlg, IUP_CENTER, IUP_CENTER)
+    IupSetFocus(mltline)
+end procedure
+
+IupOpen()
+TextTest()
+IupMainLoop()
+IupClose()
+

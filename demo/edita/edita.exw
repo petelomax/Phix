@@ -3104,7 +3104,7 @@ global -- for eaundo.ew
 constant SEL_COPY = 0,  SEL_DELETE = 1
 
 --with trace
-global function getSelection(integer delete)
+global function getSelection(bool bDelete)
 --
 -- Returns the current selection, and deletes it if rqd.
 -- returns 0 if no selection
@@ -3143,19 +3143,19 @@ integer cY, sX, sY
         if x1 then
             if x2 then
                 sel = {oneline[x1..x2-1]}
-                if delete then
+                if bDelete then
                     oneline = oneline[1..x1-1]&oneline[x2..length(oneline)]
                 end if
             else
                 sel = {oneline[x1..length(oneline)]}
-                if delete then
+                if bDelete then
                     oneline = oneline[1..x1-1]
                 end if
             end if
         else
             if x2 then
                 sel = {oneline[1..x2-1]}
-                if delete then
+                if bDelete then
                     oneline = oneline[x2..length(oneline)]
                 end if
             else
@@ -3169,12 +3169,12 @@ integer cY, sX, sY
         if x1 then
             sel = {oneline[x1..length(oneline)]}
             if x2 then
-                if delete then
+                if bDelete then
                     oneline = oneline[1..x1-1]&twoline[x2..length(twoline)]
                 end if
                 selend = twoline[1..x2-1]
             else
-                if delete then
+                if bDelete then
                     oneline = oneline[1..x1-1]
                 end if
                 selend = twoline
@@ -3183,7 +3183,7 @@ integer cY, sX, sY
             sel = {{}}
             if x2 then
                 selend = twoline[1..x2-1]
-                if delete then
+                if bDelete then
                     oneline &= twoline[x2..length(twoline)]
                 end if
             else
@@ -3193,7 +3193,7 @@ integer cY, sX, sY
         for i=cY+2 to sY do
             sel = append(sel,filetext[currfile][i])
         end for
-        if delete then
+        if bDelete then
             removeLineLengths(cY+2,sY+1)
             updateQJ(cY+1,cY-sY)--,1)
             filetext[currfile] = filetext[currfile][1..cY+1]&
@@ -3208,7 +3208,7 @@ integer cY, sX, sY
     -- if deleting, move cursor to cX,cY (top left), and remove
     -- the selection and any highlighting.
     -- 
-    if delete then
+    if bDelete then
         replaceLine(cY+1,oneline)
     end if
     if selON=2 then
@@ -3219,19 +3219,19 @@ integer cY, sX, sY
             if x1 then
                 if x2 then
                     selend = oneline[x1..x2-1]
-                    if delete then
+                    if bDelete then
                         oneline = oneline[1..x1-1]&oneline[x2..length(oneline)]
                     end if
                 else
                     selend = oneline[x1..length(oneline)]
-                    if delete then
+                    if bDelete then
                         oneline = oneline[1..x1-1]
                     end if
                 end if
             else
                 if x2 then
                     selend = oneline[1..x2-1]
-                    if delete then
+                    if bDelete then
                         oneline = oneline[x2..length(oneline)]
                     end if
                 else
@@ -3239,12 +3239,12 @@ integer cY, sX, sY
                 end if
             end if
             sel = append(sel,selend)
-            if delete then
+            if bDelete then
                 replaceLine(i+1,oneline)
             end if
         end for
     end if
-    if delete then
+    if bDelete then
         CursorX = cX
         CursorY = cY
         selON = 0

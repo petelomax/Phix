@@ -24,7 +24,9 @@ global function tagset(integer lim, start=1, step=1)
 --  end if
     bool bString = (start>=' ' and start<='~' and lim>=' ' and lim<='~')
     integer z = iff(bString?' ':0)
-    sequence res = repeat(z,max(0,ceil((lim-start+step)/step)))
+--30/1/21 why was this ever so??
+--  sequence res = repeat(z,max(0,ceil((lim-start+step)/step)))
+    sequence res = repeat(z,max(0,floor((lim-start+step)/step)))
     for i=1 to length(res) do
         res[i] = start
         start += step

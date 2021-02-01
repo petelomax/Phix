@@ -13,8 +13,7 @@ function hypot(atom a,b) return sqrt(a*a+b*b) end function
 function hough_transform(imImage im, integer width=460, height=360)
     height = 2*floor(height / 2)
     integer xsize = im_width(im),
-            ysize = im_width(im)
-    sequence ht = repeat(repeat(repeat(255,3),width),height)
+            ysize = im_height(im)
     sequence canvas = repeat(repeat(255,width),height)
     atom rmax = hypot(xsize, ysize),
          dr = 2*(rmax / height),
@@ -28,24 +27,26 @@ function hough_transform(imImage im, integer width=460, height=360)
                          r2 = (x*cos(th) + y*sin(th))
                     integer iry = (height/2 + floor(r2/dr + 0.5))+1,
                             cik = canvas[iry][k] - 1
-                    canvas[iry][k] = cik
-                    ht[iry][k] = repeat(cik,3)
+                    if cik>=0 then
+                        canvas[iry][k] = cik
+                    end if
                 end for
             end if
         end for
     end for
---  ht = reverse(ht) -- (flips image, in case that helps any)
-    ht = flatten(ht) -- (needed by IupImageRGB)
---  ht = reverse(ht) -- (flips image, in case that helps any)
-    Ihandle new_img = IupImageRGB(width, height, ht) 
+    canvas = flatten(canvas) -- (needed by IupImage)
+    Ihandle new_img = IupImage(width, height, canvas)
+    for c=0 to 255 do
+        IupSetStrAttributeId(new_img,"",c,"%d %d %d",{c,c,c})
+    end for
     return new_img
 end function
  
 IupOpen()
 
 atom pError = allocate(machine_word())
-imImage im1 = imFileImageLoadBitmap("Pentagon.png",0,pError)
-if im1=NULL then ?"error opening Pentagon.png" abort(0) end if
+imImage im1 = imFileImageLoadBitmap("Pentagon320.png",0,pError)
+if im1=NULL then ?"error opening Pentagon320.png" abort(0) end if
 Ihandln image1 = IupImageFromImImage(im1),
         image2 = hough_transform(im1),
         label1 = IupLabel(),
@@ -55,7 +56,6 @@ IupSetAttributeHandle(label2, "IMAGE", image2)
 
 Ihandle dlg = IupDialog(IupHbox({label1, label2}))
 IupSetAttribute(dlg, "TITLE", "Hough transform")
-IupCloseOnEscape(dlg)
 IupShow(dlg)
 
 IupMainLoop()

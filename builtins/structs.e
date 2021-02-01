@@ -509,7 +509,8 @@ global function is_struct(object s, integer rid)
 --  that is, rather than something you would ever want to call directly.)
 integer sdx, flags, stype
     if vtable!=-1 then
-        if sequence(s) then
+--      if sequence(s)  then
+        if sequence(s) and still_has_delete_routine(s) then     -- breaks too many things...
             integer l = length(s)
             if l=4 and string(s[I_STRUCT]) and s[I_STRUCT]="struct"
                    and string(s[I_NAME])
@@ -771,13 +772,14 @@ function struct_dx(object s, bool rid=false)
     if vtable!=-1 then
         if string(s) then
             sdx = getd(s,vtable)
-        elsif struct(s) then
+--      elsif struct(s) then
+        elsif sequence(s) then
             sdx = s[I_SDX]
         elsif rid and integer(s) then
             sdx = getd({"struct",s},vtable)
         end if
     end if
-    if sdx=0 then throw("unknown/invalid struct") end if
+--  if sdx=0 then throw("unknown/invalid struct") end if
     return sdx
 end function
 
@@ -796,10 +798,11 @@ global function get_struct_type(object s)
 --  Returns S_STRUCT/S_CLASS/S_DYNAMIC/S_CFFI
 --? Returns S_STRUCT/S_CLASS/S_DYNAMIC/S_CFFI or 0
 --
---  if vtable=-1 then struct_init() end if -- (structdx() crashes either way)
+    if vtable=-1 then struct_init() end if -- (structdx() crashes either way)
 --? if vtable=-1 then return 0 end if
-    integer sdx = struct_dx(s,true),
-            flags = structs[sdx][S_FLAGS],
+    integer sdx = struct_dx(s,true)
+    if sdx=0 then return 0 end if
+    integer flags = structs[sdx][S_FLAGS],
             res = and_bits(flags,S_CORE)
     return res
 end function
@@ -870,7 +873,8 @@ function field_dx(object sdx, string name)
     return fdx
 end function
 
-procedure destroy_instance(struct s)
+--procedure destroy_instance(struct s)
+procedure destroy_instance(sequence s)
 --?{"destroy_instance",s}
     integer sdx = struct_dx(s),
             cdx = s[I_DATA],
@@ -879,7 +883,16 @@ procedure destroy_instance(struct s)
             dtor = field_dx(sdx, "~"&structs[sdx][S_NAME])
     if dtor then -- call destructor, if present
         dtor = structs[sdx][S_DEFAULT][dtor]
+        --
+        -- Now that struct() invokes still_has_delete_routine(), must
+        -- put something (anything, although normal/original is fine)
+        -- back temporarily, not that it'll ever be called (we hope).
+        -- [btw, delete_routine will barf if s already has something,
+        --       but it shd be gone b4 destroy_instance was invoked.]
+        --
+        s = delete_routine(s,destroy_instance)
         dtor(s)
+        s = delete_routine(s,0)
     end if
     if stype=S_DYNAMIC then
         destroy_dict(cdx)
@@ -1000,11 +1013,11 @@ global function new(object sdx, sequence imm={})
             instances[sdx][C_INSTANCES][cdx] = dflts
         end if
         res = {"struct",sname,sdx,cdx}
+        res = delete_routine(res,r_destroy_instance)
         if ctor then
             res = {res}&imm -- (done that way for ref count reasons)
             res = call_func(ctor,res)
         end if
-        res = delete_routine(res,r_destroy_instance)
     elsif stype=S_DYNAMIC then
 --      integer pid = structs[sdx][S_BDX]
 --      integer tid = new_dict(pid)
@@ -1080,7 +1093,7 @@ global procedure store_field(struct s, string field_name, object v, context=0)
                                 --       a get_routine_info(-9) in p.exw, that is your app will
                                 --       be fine, but p.exe itself does not ever do this stuff.
                                 --       obviously symtab name population mid compile not good
-                                {integer maxp, integer minp, string sig} = get_routine_info(setfn)
+                                {integer maxp, integer minp, string sig} = get_routine_info(setfn,false)
                                 if maxp>=2 and minp<=2 and sig[1..2] = "PO" then
                                     call_proc(setfn,{s,v}) -- (this,v)
                                     return
@@ -1126,7 +1139,7 @@ global function fetch_field(struct s, string field_name, object context=0)
                         --       a get_routine_info(-9) in p.exw, that is your app will
                         --       be fine, but p.exe itself does not ever do this stuff.
                         --       obviously symtab name population mid compile not good
-                        {integer maxp, integer minp, string sig} = get_routine_info(getfn)
+                        {integer maxp, integer minp, string sig} = get_routine_info(getfn,false)
                         if maxp>=1 and minp<=1 and sig[1..2] = "FO" then
                             return call_func(getfn,{s}) -- (this)
                         end if
@@ -1203,8 +1216,9 @@ global function get_field_flags(object s, string field_name, bool bAsText=false)
 end function
 
 global function get_field_type(object s, string field_name, bool bAsText=false)
-    integer sdx = struct_dx(s, true),
-            stype = and_bits(structs[sdx][S_FLAGS],S_CORE)
+    integer sdx = struct_dx(s, true)
+    if sdx=0 then return 0 end if
+    integer stype = and_bits(structs[sdx][S_FLAGS],S_CORE)
     if stype=S_CFFI then ?9/0 end if -- (as per docs)
     integer fdx = field_dx(sdx,field_name),
             res = iff(fdx=0?NULL:structs[sdx][S_FIELDS][fdx][S_TID])
