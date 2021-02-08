@@ -64,6 +64,10 @@
             bPrefW: causes the search to look for (eg) "pw.exe" before "p.exe" or vice versa, no real effect on Linux.
             <br>
             <br>
+            Should a bPrefW of -1 be specified, which is ok since it is a bool rather than a boolean, it is first replaced with 
+            true/false depending on whether the existing <a href="command_line.htm">command_line</a>()[1] contains a 'w'. 
+            <br>
+            <br>
             Note that an integer mb is advisory: if you ask for 32bit but all it can find is 64bit, it will return that, and vice versa, 
             but at least it looks thoroughly. Should that be unacceptable, pass {32} or {64} to be more strict about the result. You can 
             also (manually) create some or all of the files <wbr>"pw64.exe",<wbr>"p64.exe",<wbr>"pw32.exe",<wbr>"p32.exe",<wbr>
@@ -88,91 +92,6 @@
 <font color="#0000FF">?</font><font color="#5E005E">get_interpreter</font><font color="#0000FF">()</font><font color="#000080"><i> -- displays eg `C:\Program Files (x86)\Phix\p.exe`
                    -- or perhaps `/home/pete/phix/p` on Linux</i></font>
 </pre>
-            <a name=aux></a>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <b>Auxillary routine:</b>
-         </td>
-         <td>
-            <b>requires</b>(<a href="object.htm">object</a> x, <a href="integer.htm#bool">bool</a> bPrefW = false)
-            <br>
-            <br>
-            If x is a string, eg "0.8.2", it compares it (intelligently) against <a href="version.htm">version</a>() and
-            displays a message and terminates execution when necessary.
-            <br>
-            <br>
-            If x is an integer between 0 and 31, it compares it against <a href="platform.htm">platform</a>() and displays 
-            a message and terminates execution when necessary. Typically you would use <i>one</i> of the builtin constants
-            such as WINDOWS or LINUX, however they are not bit-fields so special literals must be used for any combinations. 
-            Examine the builtins/get_interpreter.e source to be sure, but 0: always crash, 5: Windows or Linux (not js), 
-            6: Windows or JavaScript (not Linux), 7: any/never crash and 8: Linux or JavaScript (not Windows) can also be 
-            used, and I think that just about covers every possible permutation.
-            <br>
-            <br>
-            Otherwise x should be 32 or 64, which is compared against <a href="machine_bits.htm">machine_bits</a>() 
-            and when necessary it uses get_interpreter(true,{x},platform(),bPrefW) to construct a suitable replacement 
-            commandline, which it then offers to execute, before aborting, eg:
-            <br>
-            <br>
-<!--eucode>
-requires("0.8.2")                           -- crashes on 0.8.1 and earlier
-requires(WINDOWS)                           -- crashes on Linux
-printf(1,"running %d-bit\n",machine_bits())
-requires(96-machine_bits()) -- (toggle 32<==>64 [a rather daft thing to do!])
-
--- example output (forever in this rather silly little case):
---running 32-bit
---requires 64 bit: "C:\Program Files\Phix\p.exe" "C:\Program Files (x86)\Phix\test.exw"
---Press Escape to abandon, Enter to retry as above...
---running 64-bit
---requires 32 bit: "C:\Program Files (x86)\Phix\p.exe" "C:\Program Files (x86)\Phix\test.exw"
---Press Escape to abandon, Enter to retry as above...
-</eucode-->
-<pre>
-<font color="#5E005E">requires</font><font color="#0000FF">(</font><font color="#008000">"0.8.2"</font><font color="#0000FF">)                          </font><font color="#000080"><i> -- crashes on 0.8.1 and earlier</i></font>
-<font color="#5E005E">requires</font><font color="#0000FF">(</font><font color="#004600">WINDOWS</font><font color="#0000FF">)                          </font><font color="#000080"><i> -- crashes on Linux</i></font>
-<font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"running %d-bit\n"</font><font color="#0000FF">,</font><font color="#7060A8">machine_bits</font><font color="#800000">()</font><font color="#0000FF">)</font>
-<font color="#5E005E">requires</font><font color="#0000FF">(</font><font color="#000000">96</font><font color="#0000FF">-</font><font color="#7060A8">machine_bits</font><font color="#800000">()</font><font color="#0000FF">)</font><font color="#000080"><i> -- (toggle 32&lt;==&gt;64 [a rather daft thing to do!])
-
--- example output (forever in this rather silly little case):
---running 32-bit
---requires 64 bit: "C:\Program Files\Phix\p.exe" "C:\Program Files (x86)\Phix\test.exw"
---Press Escape to abandon, Enter to retry as above...
---running 64-bit
---requires 32 bit: "C:\Program Files (x86)\Phix\p.exe" "C:\Program Files (x86)\Phix\test.exw"
---Press Escape to abandon, Enter to retry as above...</i></font>
-</pre>
-            <br>
-            Of course the more sensible requires(32) or requires(64) would only display 0 or 1 such steps.<br>
-            While the prompt may be mildly annoying, and no-one in their right mind would ever code the above, 
-            it is reasonably likely a main app might start off with requires(64) but then include a component 
-            that says requires(32), or vice versa, and without the pause it would spawn alternately/madly and 
-            in all probability completely lock up the machine. For focus reasons (specifically Edita/Edix) a
-            requires() call does not terminate until after the freshly-spawned subprocess has terminated.
-            <br>
-            <br>
-            Should a bPrefW of -1 be specified, which is ok since it is a bool rather than a boolean, it is first replaced with 
-            true/false depending on whether the existing <a href="command_line.htm">command_line</a>()[1] contains a 'w'. 
-            The default of false is usually appropriate given that it has already opened a console window for that prompt, even 
-            when running a gui application.
-            <br>
-            <br>
-            You can also invoke <code>requires(-machine_bits())</code> to trigger a similar "requires restart" prompt.
-            <br>
-            <br>
-            If no suitable interpreter can be found it displays an appropriate message instead.
-            <br>
-            <br>
-            Of course requires(32/64) may have nothing to do with the actual code, but availability of pre-built dlls, for example.<br>
-            It is perfectly possible to use a 32-bit compiler on a source containing format PE64|ELF64 and a requires(64) statement, 
-            and vice versa, however some 64-bit constants may (rarely) end up getting cropped to 53 bits, so it is probably best to 
-            avoid that sort of thing whenever possible. Originally, before I decided to construct an alternative commandline, requires()
-            was substituted in the front-end at compiler time like <a href="version.htm">version</a>(), and that code has been left
-            in but commented out: it may be possible to (partially) reinstate that to at least offer a warning (an outright ban would
-            however cripple the compiler&rsquo;s own self-hosting, where such cross-compilation concerns happen to be one of the less 
-            important things the "four rounds" mechanism described in <a href="Installation.htm">Installation</a> happens to solve).
          </td>
         </tr>
         <tr>
@@ -189,9 +108,9 @@ requires(96-machine_bits()) -- (toggle 32<==>64 [a rather daft thing to do!])
          </td>
          <td>
           <a href="command_line.htm">command_line</a>,
+          <a href="requires.htm">requires</a>,
           <a href="machine_bits.htm">machine_bits</a>,
-          <a href="platform.htm">platform</a>,
-          <a href="version.htm">version</a>
+          <a href="platform.htm">platform</a>
          </td>
         </tr>
        </table>

@@ -548,6 +548,7 @@ end procedure -- (for Edita/CtrlQ)
 --              and ecx,0x00FFFFFF
                 test ecx,0x00FFFFFF
                 jz @f
+                    and ecx,0xFF000000
                     cmp eax,0
                     je @f
                         -- e123dras     -- (delete routine already set)
@@ -557,10 +558,10 @@ end procedure -- (for Edita/CtrlQ)
                         jmp :!iDiag
                         int3
               @@:
-                or [ebx+esi*4-4],eax    -- (combine rid and type byte)
---              or ecx,eax              -- (combine rid and type byte)
---              mov [ebx+esi*4-4],ecx
+--              or [ebx+esi*4-4],eax    -- (combine rid and type byte)
+                or ecx,eax              -- (combine rid and type byte)
                 mov edx,[edi]
+                mov [ebx+esi*4-4],ecx
                 add dword[ebx+esi*4-8],1    -- incref
                 mov [edi],esi
                 cmp edx,h4
@@ -603,6 +604,9 @@ end procedure -- (for Edita/CtrlQ)
               @@:
                 shl rcx,8
                 jz @f
+                    mov rcx,[rbx+rsi*4-8]   -- type/delete_routine
+                    shr rcx,56
+                    shl rcx,56
                     cmp rax,0
                     je @f
                         -- e123dras     -- (delete routine already set)
@@ -612,8 +616,10 @@ end procedure -- (for Edita/CtrlQ)
                         jmp :!iDiag
                         int3
               @@:
-                or [rbx+rsi*4-8],rax    -- (combine rid and type byte)
+--              or [rbx+rsi*4-8],rax    -- (combine rid and type byte)
+                or rcx,rax
                 mov rdx,[rdi]
+                mov [rbx+rsi*4-8],rcx
                 add qword[rbx+rsi*4-16],1   -- incref
                 mov r15,h4
                 mov [rdi],rsi

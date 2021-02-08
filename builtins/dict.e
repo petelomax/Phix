@@ -220,6 +220,8 @@ integer c, left, right
             trees[tid][root+KEY..root+RIGHT] = trees[tid][temp+KEY..temp+RIGHT]
         end if
         trees[tid][temp+KEY] = freelists[tid]
+--4/2/21: (no gain, but left in)
+        trees[tid][temp+DATA] = NULL
         freelists[tid] = temp
         sizes[tid] -= 1
     else                    -- Two child case

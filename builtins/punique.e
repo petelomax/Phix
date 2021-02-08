@@ -14,7 +14,9 @@ global function unique(sequence s, string options="SORT")
             setd(s[1],0,d)
             for i=2 to length(s) do
                 object si = s[i]
-                if getd_index(si)=NULL then
+--7/2/21
+--              if getd_index(si)=NULL then
+                if getd_index(si,d)=NULL then
                     setd(si,0,d)
                     outdx += 1
                     s[outdx] = si

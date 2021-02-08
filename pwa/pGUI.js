@@ -1379,9 +1379,12 @@ function IupTreeAddNodes(/*Ihandle*/ tree, /*sequence*/ tree_nodes, /*integer*/ 
         }
         parentList.appendChild(leaf);
         if (!string(tree_nodes)) {
-            let children = ["sequence"],
-                lench = length(children),
-                lentn = length(tree_nodes);
+//          let children = ["sequence"],
+            let children,
+//              lench = length(children),
+                lench = 0,
+//              lentn = length(tree_nodes);
+                lentn = Math.min(length(tree_nodes),3);
             if (!atom(tree_nodes[lentn])) {
                 children = tree_nodes[lentn];
                 lench = length(children);

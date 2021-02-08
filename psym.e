@@ -2811,7 +2811,7 @@ end if
     initialAutoEntry("filter",              S_Func,"FPOOS", "pFilter.e",0,E_none,2)
     initialAutoEntry("find_all",            S_Func,"FOPI",  "pfindall.e",0,E_none,2)
     initialAutoEntry("find_replace",        S_Func,"FOPOI", "findrepl.e",0,E_none,3)
-    initialAutoEntry("flatten",             S_Func,"FP",    "pflatten.e",0,E_none)
+    initialAutoEntry("flatten",             S_Func,"FPP",   "pflatten.e",0,E_none,1)
     initialAutoEntry("get_logical_drives",  S_Func,"FP",    "pfile.e",   0,E_none)
     initialAutoEntry("get_primes",          S_Func,"FI",    "primes.e",  0,E_none,0)
     initialAutoEntry("get_routine_info",    S_Func,"FII",   "get_routine_info.e",0,E_none,1)

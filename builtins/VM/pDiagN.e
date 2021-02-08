@@ -283,6 +283,9 @@ end function
 --d) we might want a length>40 and >95% of elements are ascii or similar.
 --e) why not just \xHH those in 1..255 we're not sure of?
 --
+--4/2/21:
+string cdi_filename = "",
+       cdi_varname = ""
 
 function cdi(string name, string prev, integer prst, integer prdx, object o, sequence idii)
 --
@@ -434,7 +437,10 @@ integer newprst,                -- Scratch/innner version of prst.
             end if
             exit
         else
-            if lt+lp<MAXLINELEN then
+--4/2/21
+--          if lt+lp<MAXLINELEN then
+            if lt+lp<MAXLINELEN
+            and (cdi_filename!="dict.e" or cdi_varname!="trees" or prdx=1 or remainder(prdx-1,5)!=0) then
                 -- note that we are clearly returning a partial result here,
                 -- of say "1,2,3" rather than "{1,2,3}".
                 return {prst,prev&','&this}
@@ -492,6 +498,8 @@ string s
         printf(fn,"    %s = %s\n",{name,ppExf(o,{pp_Indent,length(name)+7})})
     else
         printstack = {}
+--4/2/21:
+cdi_varname = name
         {prst,s} = cdi(name,"",1,-1,o,{})
         if length(s) then
             addtostack({prst},prst,name,s)
@@ -3331,6 +3339,8 @@ else
                     filename = append(filename,sprintf("%d",lineno))
                 end if
                 put2(sprintf("%s%s:%s",filename))
+--4/2/21
+cdi_filename = filename[2]
 --end if
                 if sr[S_Name]=-1 then
 --              if sr[S_Name]=-1 or sr[S_NTyp]=S_Rsvd then
@@ -3400,14 +3410,15 @@ end if
                 rtype = 2       -- 2 normal
             end if  -- lineno!=-1
         else -- K_wdb
-            if sNTyp<S_Type then
-                put2(sprintf("pDiagN.e line 3322: symtab[%d] bad S_NTyp[%d]\n",{rtn,sNTyp}))
-?sr
-?"sleep(5)..."
-sleep(5)
---          else
---              put2(sprintf("diag.e: symtab[%d] skipped (no debug)\n",{rtn}))
-            end if
+--removed 4/2/21...
+--          if sNTyp<S_Type then
+--              put2(sprintf("pDiagN.e line 3322: symtab[%d] bad S_NTyp[%d]\n",{rtn,sNTyp}))
+--?sr
+--?"sleep(5)..."
+--sleep(5)
+----            else
+----                put2(sprintf("diag.e: symtab[%d] skipped (no debug)\n",{rtn}))
+--          end if
 --          msg_id = 0
 --          if not retN() then exit end if
             rtype = 3           -- 3 without debug
@@ -3526,6 +3537,8 @@ end if
                         filename = symtab[T_fileset][fileno][1..2]
                         filename[1] = pathset[filename[1]]
                         printf(fn,"\n %s%s:\n",filename)
+--4/2/21:
+cdi_filename = filename[2]
                     end if
                     {novalue,o} = getGvarValue(si[S_Slink])
                     if novalue then

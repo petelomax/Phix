@@ -60,14 +60,19 @@ end type
 
 global function Icallback(string name, integer rid = routine_id(name))
 --  if rid<=0 then ?9/0 end if -- (call_back() does better than that anyway)
-    atom cb = call_back({'+', rid})
-    integer k = find(cb,callbacks)
+--4/2/21 (!!):
+--  atom cb = call_back({'+', rid})
+--  integer k = find(cb,callbacks)
+    integer k = find(rid,cbrids)
+    atom cb
     if k=0 then
+        cb = call_back({'+', rid})
         callbacks = append(callbacks,cb)
         cbnames = append(cbnames,name)
         cbrids = append(cbrids,rid)
     else
         if cbnames[k]!=name then ?9/0 end if
+        cb = callbacks[k]
     end if
     return cb
 end function
@@ -533,6 +538,10 @@ global constant
     IUP_MOUSEPOS     = 0xFFFC, /* 65532 */
     IUP_CURRENT      = 0xFFFB, /* 65531 */
     IUP_CENTERPARENT = 0xFFFA, /* 65530 */
+    IUP_TOPPARENT    = 0xFFF9, /* 65529 */
+    IUP_BOTTOMPARENT = 0xFFF8, /* 65528 */
+    IUP_RIGHTPARENT  = IUP_BOTTOMPARENT,
+    IUP_LEFTPARENT   = IUP_TOPPARENT,
     IUP_TOP          = IUP_LEFT,
     IUP_BOTTOM       = IUP_RIGHT,
     IUP_ANYWHERE     = IUP_CURRENT,
@@ -1098,7 +1107,7 @@ constant integer libidx = iff(platform()=WINDOWS ? 1:
                                                    9/0))
 constant sequence dirs = {"win","lnx"}
 string dll_path
-global constant SLASH = iff(platform()=WINDOWS?'\\':'/')
+--global constant SLASH = iff(platform()=WINDOWS?'\\':'/')
 
 function iup_open_dll(sequence libs)
 string path = libs[libidx]
@@ -2538,14 +2547,21 @@ atom func = c_func(xIupGetCallback, {ih, name})
 end function
 
 function key_cb(Ihandle dlg, atom c)
+--?dlg
     -- private version for IupCloseOnEscape()
-
     if c=K_ESC then
         atom close_cb = IupGetCallback(dlg,"CLOSE_CB")
         if close_cb!=NULL then
             c_proc(define_c_proc({},{'+',close_cb},{C_PTR}),{dlg})
         end if
-        return IUP_CLOSE
+--?{"dlg",dlg,"modal",IupGetInt(dlg,"MODAL"),"parent",IupGetParent(dlg)}
+--?{"dlg",dlg,"modal",IupGetInt(dlg,"MODAL"),"parent",IupGetAttributeHandle(dlg,"PARENTDIALOG")}
+        if IupGetInt(dlg,"MODAL")
+--      or IupGetParent(dlg)=NULL then
+        or IupGetAttributeHandle(dlg,"PARENTDIALOG")=NULL then
+            return IUP_CLOSE
+        end if
+        IupHide(dlg)
     end if
     return IUP_DEFAULT
 end function
@@ -3100,14 +3116,20 @@ global procedure IupPopup(Ihandle ih, integer x=IUP_CURRENT, integer y=IUP_CURRE
     if c_func(xIupPopup, {ih,x,y})!=IUP_NOERROR then ?9/0 end if
 end procedure
 
-global procedure IupShow(Ihandle ih)
-    integer r = c_func(xIupShow, {ih})
-    if r!=IUP_NOERROR then ?9/0 end if  -- (r==1 is just IUP_ERROR...)
+--DEV doc... (and tidy IupConfigDialogShow...)
+--global procedure IupShow(Ihandle ih)
+--  integer r = c_func(xIupShow, {ih})
+--  if r!=IUP_NOERROR then ?9/0 end if      -- (r==1 is just IUP_ERROR...)
+global procedure IupShow(Ihandle ih, integer x=IUP_CURRENT, y=IUP_CURRENT)
+    integer err = c_func(xIupShowXY, {ih, x, y})
+    if err!=IUP_NOERROR then ?9/0 end if    -- (r==1 is just IUP_ERROR...)
+    IupSetAttribute(ih,"RASTERSIZE",NULL)
 end procedure
 
-global procedure IupShowXY(Ihandle ih, integer x=IUP_CURRENT, integer y=IUP_CURRENT)
+global procedure IupShowXY(Ihandle ih, integer x=IUP_CURRENT, y=IUP_CURRENT)
     integer err = c_func(xIupShowXY, {ih, x, y})
     if err!=IUP_NOERROR then ?9/0 end if
+    IupSetAttribute(ih,"RASTERSIZE",NULL)
 end procedure
 
 global procedure IupHide(Ihandle ih)
@@ -3118,12 +3140,12 @@ global function IupAlarm(string title, string msg, string b1, nullable_string b2
     return c_func(xIupAlarm, {title,msg,b1,b2,b3})
 end function
 
-global procedure IupMessage(nullable_string title=NULL, nullable_string msg=NULL, dword_seq args={})
+global procedure IupMessage(nullable_string title=NULL, nullable_string msg=NULL, dword_seq args={}, bool bWrap=true)
     if iup=NULL then iup_init1(NULL) end if
     if length(args) then
         msg = sprintf(msg, args)
     end if
-    if find('\n',msg) then
+    if string(msg) and find('\n',msg) and bWrap then
         -- make each paragraph a single line, improves wordwrap
         -- (note: this may be a windows only thing, not yet tested on lnx)
         msg = substitute(msg,"\n\n","\r\r")
@@ -3134,9 +3156,9 @@ global procedure IupMessage(nullable_string title=NULL, nullable_string msg=NULL
     c_proc(xIupMessage, {title,msg})
 end procedure
 
-global procedure IupMessageError(Ihandln parent, string message)
+global procedure IupMessageError(Ihandln parent, string message, bool bWrap=true)
     if iup=NULL then iup_init1(NULL) end if
-    if find('\n',message) then
+    if bWrap and find('\n',message) then
         -- make each paragraph a single line, improves wordwrap
         -- (note: this may be a windows only thing, not yet tested on lnx)
         message = substitute(message,"\n\n","\r\r")
@@ -4002,7 +4024,8 @@ function IupTableValue_cb(Ihandle table, integer l, integer c)
                 dlc = d2c[l]
             elsif d2c!=0 then
                 integer fn = d2c
-                semiperm = fn(dlc)
+--              semiperm = fn(dlc)
+                semiperm = fn(data[1],l,c)
                 return IupRawStringPtr(semiperm)
             end if
         end if
@@ -4040,11 +4063,15 @@ function by_column(integer i, integer j)
 -- internal, for IupTable (sort, non-overrideable)
     sequence data = table_datasets[dsidx][1],
              cols = table_sortcols[dsidx],
-             dirs = table_sortdirs[dsidx]
+             dirs = table_sortdirs[dsidx],
+             di = data[i],
+             dj = data[j]
     integer c = 0
     for k=1 to length(cols) do
         c = cols[k]
-        c = dirs[k]*compare(data[i][c],data[j][c])
+        object dic = iff(c<=length(di)?di[c]:0),
+               djc = iff(c<=length(dj)?dj[c]:0)
+        c = dirs[k]*compare(dic,djc)
         if c!=0 then exit end if
     end for
     if c=0 then c=compare(i,j) end if -- original order
@@ -4111,6 +4138,7 @@ global function IupTableResize_cb(Ihandle dlg, integer width, /*height*/)
 --width -= 40
     Ihandle table = IupGetAttributePtr(dlg,"TABLE"),
             parent = IupGetParent(table)
+--?{"RESIZE",dlg,parent,table}
     integer dsidx = IupGetInt(table,"DSIDX"),
             w = IupGetInt(table,"NUMCOL"),
             h = IupGetInt(table,"NUMLIN"),
@@ -4171,15 +4199,22 @@ function IupTableMap_cb(Ihandle table)
 -- must override RESIZE_CB and invoke IupTableResize_cb directly.
 -- In most cases, parent = IupDialog() has not been invoked at the point
 -- when you invoke table = IupTable(), which is why this is separate.
+--/*
     Ihandle parent = IupGetParent(table)
     Ihandln grandp = IupGetParent(parent)
     while grandp!=NULL do
         parent = grandp
         grandp = IupGetParent(parent)
     end while
+--*/
+    Ihandle parent = IupGetDialog(table)
+--?{table,parent}
     IupSetAttributePtr(parent,"TABLE",table)
     IupSetCallback(parent, "RESIZE_CB", Icallback("IupTableResize_cb"))
     return IUP_DEFAULT
+-- makes it worse!!
+--  integer {width} = IupGetIntInt(parent,"CLIENTSIZE")
+--  return IupTableResize_cb(parent,width,0)
 end function
 
 function IupTableMouseMove_cb(Ihandle table, integer lin, /*col*/)
@@ -10484,10 +10519,8 @@ integer next
     else
         sequence children = {}
         desc = tree_nodes[1]
-        if length(tree_nodes)>3 then
-            ?9/0
-        elsif length(tree_nodes)=1
-           or atom(tree_nodes[$]) then
+        integer l = min(length(tree_nodes),3)
+        if l=1 or atom(tree_nodes[l]) then
             -- also leaf (may have attributes)
             IupSetAttributeId(tree, "ADDLEAF", id, desc)
 --          iupSetTreeNodeAttribute(tree, "ADDLEAF", id, desc)
@@ -10495,14 +10528,14 @@ integer next
             -- branch
             IupSetAttributeId(tree, "ADDBRANCH", id, desc)
 --          iupSetTreeNodeAttribute(tree, "ADDBRANCH", id, desc)
-            children = tree_nodes[$]
+            children = tree_nodes[l]
         end if
         id += 1
         next = id
         for i=length(children) to 1 by -1 do
             next = iupTreeAddNodesRec(tree, children[i], id)
         end for
-        if length(tree_nodes)=3 then
+        if l=3 then
             iupTreeSetNodeAttributes(tree, id, tree_nodes[2])
         end if
     end if

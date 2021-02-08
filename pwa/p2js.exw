@@ -81,7 +81,7 @@ function shortast(object s)
 end function
 
 procedure transpile(string filename)
-    if load_text(filename) then
+    if load_file(filename) then
         if is_html() then
             sequence xml = strict_html_parse(text)
             pp(xml)
@@ -335,7 +335,7 @@ end procedure
 --transpile(`C:\Program Files (x86)\Phix\pwa\go\blackjack.go`)  -- hah, maybe one day... (get c working first!)
 --C:\Program Files (x86)\Phix\demo\pGUI\IupMultiLine.c/exw (why not...)
 
-function is_js()    -- (for testing purposes)
+function platform_is_js()   -- (for testing purposes)
     return platform()==JS
 --  return true
 end function
@@ -351,15 +351,23 @@ global constant string inifile = join_path({initialcurrentdir,"p2js.ini"})
 sequence files = {}
 
 include pGUI.e
-Ihandle dlg, chosen, multitext, lbl_statusbar
+Ihandle dlg, chosen, ctype, multitext, lbl_statusbar, show_tokens
 Ihandln config
 
---/**/include builtins/read_file.e
+function set_extensions(Ihandle ih)
+    for i=1 to length(ext_names) do
+        IupSetAttributeId(ih,"",i,ext_names[i])
+    end for
+    IupSetInt(ih,"VISIBLEITEMS",length(ext_names)+1) -- (no idea why +1 helps)
+    return ih
+end function
+
+include builtins/read_file.e
 procedure open_file(string filename)
     object str = read_file(filename)
     if sequence(str) then
 --      IupSetStrAttribute(dlg, "TITLE", `pwa\p2js - %s`, {get_file_name(filename)})
-        if is_js() then
+        if platform_is_js() then
             IupSetStrAttribute(chosen, "TITLE", filename)
         else
             integer pdx = find(filename,files)
@@ -370,6 +378,8 @@ procedure open_file(string filename)
             IupSetAttributeId(chosen,"",pdx,filename)
             IupSetInt(chosen,"VALUE",pdx)
         end if
+        integer ext = find_extension(get_file_extension(filename))
+        IupSetInt(ctype,"VALUE",ext)
 --      IupSetStrAttribute(multitext, "FILENAME", filename)
         IupSetStrAttribute(multitext, "VALUE", str)
         -- dev syntax colour...
@@ -436,7 +446,14 @@ procedure save_ini()
     if fn=-1 then crash("cannot open "&inifile) end if
     sequence tags = tagset(length(files))
     integer pdx = IupGetInt(chosen,"VALUE")
-    if pdx>1 then {tags[1],tags[pdx]} = {pdx,1} end if
+--  if pdx>1 then {tags[1],tags[pdx]} = {pdx,1} end if
+--  if pdx>1 then tags[1..pdx] = tags[pdx]&tags[1..pdx-1] end if
+    integer tp = tags[pdx]
+    while pdx>1 do
+        tags[pdx] = tags[pdx-1]
+        pdx -=1
+    end while
+    tags[1] = tp
     for i=1 to length(tags) do
         integer ti = tags[i]
         printf(fn,"file: %s\n",files[ti])
@@ -482,10 +499,11 @@ function choose_cb(Ihandle /*choose_file*/)
         IupSetAttribute(filedlg,"DIRECTORY",initialcurrentdir)
 --      IupSetCallback(filedlg,"CLOSE_CB",Icallback(closefiledlg_cb))   -- NO!
 --      IupSetCallback(filedlg,"FILE_CB",Icallback(file_cb))            -- UGH! (not needed anyway, it seems)
+        IupSetInt(filedlg,"MULTIPLEFILES ",false)
     end if
-    IupSetInt(filedlg,"MULTIPLEFILES ",false)
 --  IupConfigDialogShow(config, filedlg, "FileDlg")
-    IupPopup(filedlg, IUP_CURRENT, IUP_CURRENT)
+--  IupPopup(filedlg, IUP_CURRENT, IUP_CURRENT)
+    IupPopup(filedlg)
     if IupGetInt(filedlg, "STATUS")!=-1 then
         string file = IupGetAttribute(filedlg, "VALUE")
 --      if not find(file,files) then
@@ -503,14 +521,979 @@ function chosen_cb(Ihandle /*chosen*/, atom /*pText*/, integer /*item*/, /*state
     return IUP_DEFAULT
 end function
 
-function show_tokens_cb(Ihandle /*show_tokens*/)
-?"show_tokens"
+--
+-- Aside: Text is generated on the fly from start/finish, hence sorting on that
+--        behaves as if sorting on line number, but it's actually the finish.
+--        Likewise although as expected, tokno is actually sorted on start.
+--        Lastly toktype or ttidx then line ends up disturbingly subtly askew.
+--
+constant columns = {{"Toktype",  40,"ACENTER"},
+                    {"#",        15,"ARIGHT"},
+                    {"Text",    200,"ALEFT"},
+                    {"Line",     15,"ARIGHT"},
+                    {"Col",      15,"ARIGHT"},
+                    {"ttidx",    15,"ARIGHT"}}
+
+function toktype_fmt(sequence data, integer row, col)
+    return tok_name(data[row][col])
+end function
+
+function tokno_fmt(sequence /*data*/, integer row, /*col*/)
+    return sprintf("%d",row)
+end function
+
+string src
+
+function text_fmt(sequence data, integer row, col)
+    sequence token = data[row]
+    integer {toktype,start,finish} = token
+    finish = min(finish,start+80)
+    string txt = src[start..finish]
+    if toktype=BLK_CMT then
+        txt = substitute(txt,"\n","\\n")
+    end if
+    return txt
+end function
+
+Ihandln tok_dlg = NULL, tok_table
+
+--function show_stuff(Ihandle btn, bool bTokens)
+function show_stuff(bool bTokens)
+    src = IupGetAttribute(multitext, "VALUE")
+    integer ext = IupGetInt(ctype,"VALUE")
+    if load_text(src,ext) then
+        if is_html() then
+            sequence xml = strict_html_parse(text)
+            pp(xml)
+        else
+            tokenise()
+            if not tok_error() then
+if bTokens then
+--?tokens[135]
+--?shorten(text,"chars")
+--printf(1,"Tokenised successfully (%,d chars, %,d tokens)\n",{lt,length(tokens)}) 
+--?tokens
+--pp(shorten(tokens,"tokens",3),{pp_Nest,1,pp_IntCh,false})
+                sequence data = {tokens,{toktype_fmt,tokno_fmt,text_fmt}}
+--global enum TOKTYPE, TOKSTART, TOKFINISH, TOKLINE, TOKCOL, TOKTTIDX, TOKENDLINE=$ -- (one token)
+--global function tok_name(integer toktype)
+--  return iff(toktype>SYMBOL?toktype&"":tok_names[toktype])
+--end function
+                if tok_dlg=NULL then
+--              Ihandle table = IupTable(columns,data)
+                    tok_table = IupTable(columns,data)
+--              Ihandln dlg = IupDialog(table,bEsc:=false) 
+--              Ihandln tok_dlg = IupDialog(table) 
+                    tok_dlg = IupDialog(tok_table) 
+--              Ihandln tok_dlg = IupDialog(IupTable(columns,data))
+                    IupSetAttribute(tok_dlg,"RASTERSIZE","800x534") -- (see note)
+                    IupSetAttribute(tok_dlg,"TITLE","Tokens")
+--                  IupSetAttributeHandle(NULL,"PARENTDIALOG",dlg)
+--                  IupSetAttributeHandle(tok_dlg,"PARENTDIALOG",IupGetDialog(btn))
+                    IupSetAttributeHandle(tok_dlg,"PARENTDIALOG",dlg)
+--IupMap(tok_dlg)
+--?{tok_dlg,table,IupGetDialog(show_tokens)}
+--              IupShow(tok_dlg)
+--DEV fudge...
+--?{"tok_dlg",tok_dlg}
+                    IupMap(tok_dlg)
+                    integer {width} = IupGetIntInt(tok_dlg,"CLIENTSIZE")
+                    {} = IupTableResize_cb(tok_dlg,width,0)
+                else
+                    IupTableSetData(tok_table, data, bReset:=true)
+                end if
+----DEV IupConfig
+                IupShow(tok_dlg)
+
+--DEV on close? [NO]
+--              dlg = IupDestroy(dlg)
+else
+--/*
+{{{5,1,2,1,0},
+  {5,4,30,2,0},
+  {5,32' ',58':',3,0},
+  {5,60'<',61'=',4,0},
+  {1108, `pGUI.e`}},
+ {`PROC`,
+  {4,79'O',85'U',7,0,2244}},
+ {{5,89'Y',157,8,0},
+  {5,159,220,9,0},
+  {5,222,282,10,0},
+  {5,284,328,11,0},
+  {5,330,414,12,0},
+  {`vardef`, 17,
+   {`dlg`,
+    {`PROC`, {4,430,438,13,14,2284},
+     {`PROC`, {4,440,447,13,24,2308}, {34'\"',449,456,13,33'!'},
+      {34'\"',458,495,13,42'*'}}, {34'\"',498,510,13,82'R'}}}}},
+ {`PROC`,
+  {4,513,528,14,0,2364},
+  {4,530,532,14,17,2256}},
+ {`PROC`,
+  {4,536,542,16,0,2384},
+  {4,544,546,16,8,2256}},
+ {1004,
+  {161, {`PROC`, {4,590,597,18,3,1328}}, {4,602,604,18,15,2196}},
+  {{`PROC`, {4,615,625,19,4,2420}},
+   {`ASSIGN`, {4,633,635,20,4,2256},
+    {`PROC`, {4,639,648,20,10,2448}, {4,650,652,20,21,2256}}},
+   {`PROC`, {4,659,666,21,4,2452}}}}}
+
+==>
+{"Program",
+ {{"comment",1,2,1,0},
+  {"comment",4,30,2,0},
+  {"comment",32' ',58':',3,0},
+  {"comment",60'<',61'=',4,0},
+  {"include", `pGUI.e`}},
+ {`PROC`,
+  {"letter",79'O',85'U',7,0,2244}},
+ {{"comment",89'Y',157,8,0},
+  {"comment",159,220,9,0},
+  {"comment",222,282,10,0},
+  {"comment",284,328,11,0},
+  {"comment",330,414,12,0},
+  {`vardef`, 17,
+   {`dlg`,
+    {`PROC`, {"letter",430,438,13,14,2284},
+     {`PROC`, {"letter",440,447,13,24,2308}, {34'\"',449,456,13,33'!'},
+      {34'\"',458,495,13,42'*'}}, {34'\"',498,510,13,82'R'}}}}},
+ {`PROC`,
+  {"letter",513,528,14,0,2364},
+  {"letter",530,532,14,17,2256}},
+ {`PROC`,
+  {"letter",536,542,16,0,2384},
+  {"letter",544,546,16,8,2256}},
+ {1004,
+  {161, {`PROC`, {"letter",590,597,18,3,1328}}, {"letter",602,604,18,15,2196}},
+  {{`PROC`, {"letter",615,625,19,4,2420}},
+   {`ASSIGN`, {"letter",633,635,20,4,2256},
+    {`PROC`, {"letter",639,648,20,10,2448}, {"letter",650,652,20,21,2256}}},
+   {`PROC`, {"letter",659,666,21,4,2452}}}}}
+constant tree_nodes = {"Program",
+--                     {"STATE","COLLAPSED"},
+                       {{"Comments",
+                         {"STATE","COLLAPSED"},
+                         {"text","2","3","4"}},
+                        {"include",
+                         {"STATE","COLLAPSED"},
+                         {"pGUI.e"}},
+                        {"PROC",
+                         {"STATE","COLLAPSED"},
+                          {{"letter",
+                            {"STATE","COLLAPSED"},
+                            {"IupOpen"}},
+                        {"Comments",
+                         {"STATE","COLLAPSED"},
+                         {"text","2","3","4"}},
+                        {"vardef",
+                         {"STATE","COLLAPSED"},
+                         {{"dlg",
+                           {"STATE","COLLAPSED"},
+                           {{"PROC","3","4"}},
+                        "2D",                   -- (leaf)
+                        {"3D",                  -- (branch)
+                         {"STATE","COLLAPSED"}, -- (needed here)
+                         {}},                   -- (empty)
+                        {"4D",
+                         {"STATE","COLLAPSED"},
+                         {"some",
+                          "other",
+                          "branch"},
+                         {"random data"}        -- (iff attr and children present)
+                        }
+                       }
+                      }
+
+
+// auto-generated by pwa/p2js
+//
+// pwa\phix\hello_world.exw
+// ========================
+//
+//include pGUI.e
+
+IupOpen();
+var /* Ihandle */ lbl = IupLabel("World");
+//var /* Ihandle */ lbl = IupFlatLabel("World");
+//var /* Ihandle */ lbl = IupFlatLabel("World","EXPAND=YES, ALIGNMENT=ACENTER");
+var /* Ihandln */ dlg = IupDialog(lbl,'TITLE="Hello", MINSIZE=225x75');
+IupCloseOnEscape(dlg);
+IupShow(dlg);
+//IupMainLoop();
+//dlg = IupDestroy(dlg);
+//IupClose();
+
+Esprima:
+{
+  "type": "Program",
+  "body": [
+    {
+      "type": "ExpressionStatement",
+      "expression": {
+        "type": "CallExpression",
+        "callee": {
+          "type": "Identifier",
+          "name": "IupOpen",
+          "range": [
+            110,
+            117
+          ],
+          "loc": {
+            "start": {
+              "line": 8,
+              "column": 0
+            },
+            "end": {
+              "line": 8,
+              "column": 7
+            }
+          }
+        },
+        "arguments": [],
+        "range": [
+          110,
+          119
+        ],
+        "loc": {
+          "start": {
+            "line": 8,
+            "column": 0
+          },
+          "end": {
+            "line": 8,
+            "column": 9
+          }
+        }
+      },
+      "range": [
+        110,
+        120
+      ],
+      "loc": {
+        "start": {
+          "line": 8,
+          "column": 0
+        },
+        "end": {
+          "line": 8,
+          "column": 10
+        }
+      },
+      "leadingComments": [
+        {
+          "type": "Line",
+          "value": " auto-generated by pwa/p2js",
+          "range": [
+            0,
+            29
+          ],
+          "loc": {
+            "start": {
+              "line": 1,
+              "column": 0
+            },
+            "end": {
+              "line": 1,
+              "column": 29
+            }
+          }
+        },
+        {
+          "type": "Line",
+          "value": "",
+          "range": [
+            30,
+            32
+          ],
+          "loc": {
+            "start": {
+              "line": 2,
+              "column": 0
+            },
+            "end": {
+              "line": 2,
+              "column": 2
+            }
+          }
+        },
+        {
+          "type": "Line",
+          "value": " pwa\\phix\\hello_world.exw",
+          "range": [
+            33,
+            60
+          ],
+          "loc": {
+            "start": {
+              "line": 3,
+              "column": 0
+            },
+            "end": {
+              "line": 3,
+              "column": 27
+            }
+          }
+        },
+        {
+          "type": "Line",
+          "value": " ========================",
+          "range": [
+            61,
+            88
+          ],
+          "loc": {
+            "start": {
+              "line": 4,
+              "column": 0
+            },
+            "end": {
+              "line": 4,
+              "column": 27
+            }
+          }
+        },
+        {
+          "type": "Line",
+          "value": "",
+          "range": [
+            89,
+            91
+          ],
+          "loc": {
+            "start": {
+              "line": 5,
+              "column": 0
+            },
+            "end": {
+              "line": 5,
+              "column": 2
+            }
+          }
+        },
+        {
+          "type": "Line",
+          "value": "include pGUI.e",
+          "range": [
+            92,
+            108
+          ],
+          "loc": {
+            "start": {
+              "line": 6,
+              "column": 0
+            },
+            "end": {
+              "line": 6,
+              "column": 16
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "VariableDeclaration",
+      "declarations": [
+        {
+          "type": "VariableDeclarator",
+          "id": {
+            "type": "Identifier",
+            "name": "lbl",
+            "range": [
+              139,
+              142
+            ],
+            "loc": {
+              "start": {
+                "line": 9,
+                "column": 18
+              },
+              "end": {
+                "line": 9,
+                "column": 21
+              }
+            }
+          },
+          "init": {
+            "type": "CallExpression",
+            "callee": {
+              "type": "Identifier",
+              "name": "IupLabel",
+              "range": [
+                145,
+                153
+              ],
+              "loc": {
+                "start": {
+                  "line": 9,
+                  "column": 24
+                },
+                "end": {
+                  "line": 9,
+                  "column": 32
+                }
+              }
+            },
+            "arguments": [
+              {
+                "type": "Literal",
+                "value": "World",
+                "raw": "\"World\"",
+                "range": [
+                  154,
+                  161
+                ],
+                "loc": {
+                  "start": {
+                    "line": 9,
+                    "column": 33
+                  },
+                  "end": {
+                    "line": 9,
+                    "column": 40
+                  }
+                }
+              }
+            ],
+            "range": [
+              145,
+              162
+            ],
+            "loc": {
+              "start": {
+                "line": 9,
+                "column": 24
+              },
+              "end": {
+                "line": 9,
+                "column": 41
+              }
+            }
+          },
+          "range": [
+            139,
+            162
+          ],
+          "loc": {
+            "start": {
+              "line": 9,
+              "column": 18
+            },
+            "end": {
+              "line": 9,
+              "column": 41
+            }
+          },
+          "leadingComments": [
+            {
+              "type": "Block",
+              "value": " Ihandle ",
+              "range": [
+                125,
+                138
+              ],
+              "loc": {
+                "start": {
+                  "line": 9,
+                  "column": 4
+                },
+                "end": {
+                  "line": 9,
+                  "column": 17
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "kind": "var",
+      "range": [
+        121,
+        163
+      ],
+      "loc": {
+        "start": {
+          "line": 9,
+          "column": 0
+        },
+        "end": {
+          "line": 9,
+          "column": 42
+        }
+      },
+      "trailingComments": [
+        {
+          "type": "Line",
+          "value": "var /* Ihandle */ lbl = IupFlatLabel(\"World\");",
+          "range": [
+            164,
+            212
+          ],
+          "loc": {
+            "start": {
+              "line": 10,
+              "column": 0
+            },
+            "end": {
+              "line": 10,
+              "column": 48
+            }
+          }
+        },
+        {
+          "type": "Line",
+          "value": "var /* Ihandle */ lbl = IupFlatLabel(\"World\",\"EXPAND=YES, ALIGNMENT=ACENTER\");",
+          "range": [
+            213,
+            293
+          ],
+          "loc": {
+            "start": {
+              "line": 11,
+              "column": 0
+            },
+            "end": {
+              "line": 11,
+              "column": 80
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "VariableDeclaration",
+      "declarations": [
+        {
+          "type": "VariableDeclarator",
+          "id": {
+            "type": "Identifier",
+            "name": "dlg",
+            "range": [
+              312,
+              315
+            ],
+            "loc": {
+              "start": {
+                "line": 12,
+                "column": 18
+              },
+              "end": {
+                "line": 12,
+                "column": 21
+              }
+            }
+          },
+          "init": {
+            "type": "CallExpression",
+            "callee": {
+              "type": "Identifier",
+              "name": "IupDialog",
+              "range": [
+                318,
+                327
+              ],
+              "loc": {
+                "start": {
+                  "line": 12,
+                  "column": 24
+                },
+                "end": {
+                  "line": 12,
+                  "column": 33
+                }
+              }
+            },
+            "arguments": [
+              {
+                "type": "Identifier",
+                "name": "lbl",
+                "range": [
+                  328,
+                  331
+                ],
+                "loc": {
+                  "start": {
+                    "line": 12,
+                    "column": 34
+                  },
+                  "end": {
+                    "line": 12,
+                    "column": 37
+                  }
+                }
+              },
+              {
+                "type": "Literal",
+                "value": "TITLE=\"Hello\", MINSIZE=225x75",
+                "raw": "'TITLE=\"Hello\", MINSIZE=225x75'",
+                "range": [
+                  332,
+                  363
+                ],
+                "loc": {
+                  "start": {
+                    "line": 12,
+                    "column": 38
+                  },
+                  "end": {
+                    "line": 12,
+                    "column": 69
+                  }
+                }
+              }
+            ],
+            "range": [
+              318,
+              364
+            ],
+            "loc": {
+              "start": {
+                "line": 12,
+                "column": 24
+              },
+              "end": {
+                "line": 12,
+                "column": 70
+              }
+            }
+          },
+          "range": [
+            312,
+            364
+          ],
+          "loc": {
+            "start": {
+              "line": 12,
+              "column": 18
+            },
+            "end": {
+              "line": 12,
+              "column": 70
+            }
+          },
+          "leadingComments": [
+            {
+              "type": "Block",
+              "value": " Ihandln ",
+              "range": [
+                298,
+                311
+              ],
+              "loc": {
+                "start": {
+                  "line": 12,
+                  "column": 4
+                },
+                "end": {
+                  "line": 12,
+                  "column": 17
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "kind": "var",
+      "range": [
+        294,
+        365
+      ],
+      "loc": {
+        "start": {
+          "line": 12,
+          "column": 0
+        },
+        "end": {
+          "line": 12,
+          "column": 71
+        }
+      },
+      "leadingComments": [
+        {
+          "type": "Line",
+          "value": "var /* Ihandle */ lbl = IupFlatLabel(\"World\");",
+          "range": [
+            164,
+            212
+          ],
+          "loc": {
+            "start": {
+              "line": 10,
+              "column": 0
+            },
+            "end": {
+              "line": 10,
+              "column": 48
+            }
+          }
+        },
+        {
+          "type": "Line",
+          "value": "var /* Ihandle */ lbl = IupFlatLabel(\"World\",\"EXPAND=YES, ALIGNMENT=ACENTER\");",
+          "range": [
+            213,
+            293
+          ],
+          "loc": {
+            "start": {
+              "line": 11,
+              "column": 0
+            },
+            "end": {
+              "line": 11,
+              "column": 80
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "ExpressionStatement",
+      "expression": {
+        "type": "CallExpression",
+        "callee": {
+          "type": "Identifier",
+          "name": "IupCloseOnEscape",
+          "range": [
+            366,
+            382
+          ],
+          "loc": {
+            "start": {
+              "line": 13,
+              "column": 0
+            },
+            "end": {
+              "line": 13,
+              "column": 16
+            }
+          }
+        },
+        "arguments": [
+          {
+            "type": "Identifier",
+            "name": "dlg",
+            "range": [
+              383,
+              386
+            ],
+            "loc": {
+              "start": {
+                "line": 13,
+                "column": 17
+              },
+              "end": {
+                "line": 13,
+                "column": 20
+              }
+            }
+          }
+        ],
+        "range": [
+          366,
+          387
+        ],
+        "loc": {
+          "start": {
+            "line": 13,
+            "column": 0
+          },
+          "end": {
+            "line": 13,
+            "column": 21
+          }
+        }
+      },
+      "range": [
+        366,
+        388
+      ],
+      "loc": {
+        "start": {
+          "line": 13,
+          "column": 0
+        },
+        "end": {
+          "line": 13,
+          "column": 22
+        }
+      }
+    },
+    {
+      "type": "ExpressionStatement",
+      "expression": {
+        "type": "CallExpression",
+        "callee": {
+          "type": "Identifier",
+          "name": "IupShow",
+          "range": [
+            389,
+            396
+          ],
+          "loc": {
+            "start": {
+              "line": 14,
+              "column": 0
+            },
+            "end": {
+              "line": 14,
+              "column": 7
+            }
+          }
+        },
+        "arguments": [
+          {
+            "type": "Identifier",
+            "name": "dlg",
+            "range": [
+              397,
+              400
+            ],
+            "loc": {
+              "start": {
+                "line": 14,
+                "column": 8
+              },
+              "end": {
+                "line": 14,
+                "column": 11
+              }
+            }
+          }
+        ],
+        "range": [
+          389,
+          401
+        ],
+        "loc": {
+          "start": {
+            "line": 14,
+            "column": 0
+          },
+          "end": {
+            "line": 14,
+            "column": 12
+          }
+        }
+      },
+      "range": [
+        389,
+        402
+      ],
+      "loc": {
+        "start": {
+          "line": 14,
+          "column": 0
+        },
+        "end": {
+          "line": 14,
+          "column": 13
+        }
+      },
+      "trailingComments": [
+        {
+          "type": "Line",
+          "value": "IupMainLoop();",
+          "range": [
+            403,
+            419
+          ],
+          "loc": {
+            "start": {
+              "line": 15,
+              "column": 0
+            },
+            "end": {
+              "line": 15,
+              "column": 16
+            }
+          }
+        },
+        {
+          "type": "Line",
+          "value": "dlg = IupDestroy(dlg);",
+          "range": [
+            420,
+            444
+          ],
+          "loc": {
+            "start": {
+              "line": 16,
+              "column": 0
+            },
+            "end": {
+              "line": 16,
+              "column": 24
+            }
+          }
+        },
+        {
+          "type": "Line",
+          "value": "IupClose();",
+          "range": [
+            445,
+            458
+          ],
+          "loc": {
+            "start": {
+              "line": 17,
+              "column": 0
+            },
+            "end": {
+              "line": 17,
+              "column": 13
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "sourceType": "script",
+  "range": [
+    110,
+    402
+  ],
+  "loc": {
+    "start": {
+      "line": 8,
+      "column": 0
+    },
+    "end": {
+      "line": 14,
+      "column": 13
+    }
+  }
+}
+
+--*/
+                sequence ast = parse()
+                if not parse_error() then
+--                  pp(ast)
+                    pp(shortast(ast),{pp_Nest,2})
+                end if
+sequence tree_nodes = {"Program",
+                       {"STATE","COLLAPSED"},
+                       {}}
+                Ihandle tree = IupTreeView(tree_nodes)
+                Ihandle tree_dlg = IupDialog(tree)
+                IupSetAttributeHandle(tree_dlg,"PARENTDIALOG",dlg)
+                IupSetAttribute(tree_dlg,"TITLE","Parse Tree")
+                IupSetAttribute(tree_dlg,"RASTERSIZE","260x230")
+                IupShow(tree_dlg)
+                IupSetAttribute(tree_dlg,"RASTERSIZE", NULL)
+end if
+            end if
+        end if
+    end if
     return IUP_DEFAULT
 end function
 
+function show_tokens_cb(Ihandle /*show_tokens*/)
+    return show_stuff(true)
+end function
+
 function parse_tree_cb(Ihandle /*parse_tree*/)
-?"parse_tree_cb"
-    return IUP_DEFAULT
+    return show_stuff(false)
 end function
 
 function violations_cb(Ihandle /*parse_tree*/)
@@ -518,8 +1501,58 @@ function violations_cb(Ihandle /*parse_tree*/)
     return IUP_DEFAULT
 end function
 
-function close_cb(Ihandle /*dlg*/)
-    if not is_js() then
+function copy_cb(Ihandle /*copy_btn*/)
+?"copy_cb"
+    return IUP_DEFAULT
+end function
+
+function run_cb(Ihandle /*run_btn*/)
+?"run_cb"
+    return IUP_DEFAULT
+end function
+
+function options_cb(Ihandle /*opt_btn*/)
+?"options_cb"
+    return IUP_DEFAULT
+end function
+
+constant TITLE = `pwa\p2js - Phix to JavaScript transpiler`,
+         help_text = """
+Choose File opens a standard file dialog.
+Alternatively select a recent file or demo from the drop-down next to it.
+Alternatively drag and drop a file or paste (or type) into the edit area.
+If necessary, specify the source type using the top right drop-down.
+
+Be advised there is no official save option for the edit area, and that
+extensive changes may be rudely discarded without any warning.
+
+Tokens and Parse Tree are for diagnostics and information only.
+ (and really only for use on pared-to-the-bone even at that)
+n Violations (disabled when n=0, else next are) will show any errors.
+Output type, Copy, Run, Help, Close - should be self explanatory.
+Changing output type won't correct input errors(!), top right will.
+
+Options (desktop only?) is not yet implemented.
+
+Non-phix-to-js is permitted, but should be considered experimental.
+For instance c->phix is not meant to "work", but should save some time
+converting all those "{","}" to "", "then", "do", "end function", etc.
+
+Command-line options allow this to be run without showing a gui, eg
+        p pwa\p2js -run demo.exw -o demo.html
+        p pwa\p2js -? // show commandline options in detail
+"""
+
+function help_cb(Ihandle /*help_btn, or dlg*/)
+--  if not platform_is_js() then
+--  end if
+    IupMessage(TITLE,help_text,bWrap:=false)
+    return IUP_DEFAULT
+end function
+
+function close_cb(Ihandle /*dlg or close_btn*/)
+?"close_cb"
+    if not platform_is_js() then
         IupConfigDialogClosed(config, dlg, "MainWindow")
         {} = IupConfigSave(config)
         config = IupDestroy(config)
@@ -528,14 +1561,17 @@ function close_cb(Ihandle /*dlg*/)
     return IUP_CLOSE -- (for key_cb)
 end function
 
-function key_cb(Ihandle /*dlg*/, atom c)
+function key_cb(Ihandle dlg, atom c)
+    if c=K_F1 then return help_cb(dlg) end if
+    if c=K_cT then return show_stuff(true) end if   -- Tokens
+    if c=K_cP then return show_stuff(false) end if  -- Parse Tree
     return iff(c=K_ESC?close_cb(dlg):IUP_CONTINUE)
 end function
 
 procedure create_main_dialog()
 
     Ihandle choose_file = IupButton("Choose File",Icallback(choose_cb),"PADDING=5x0, CANFOCUS=NO")
-    if is_js() then
+    if platform_is_js() then
         chosen = IupFlatLabel("","EXPAND=HORIZONTAL")
     else
         config = IupConfig()
@@ -546,7 +1582,10 @@ procedure create_main_dialog()
         {} = IupConfigLoad(config)
         chosen = IupList(Icallback(chosen_cb),"DROPDOWN=YES,EXPAND=HORIZONTAL")
     end if
-    Ihandle ch_box = IupHbox({choose_file,chosen},"MARGIN=5x5,GAP=10,NORMALIZESIZE=VERTICAL")
+--  ctype = IupList(`DROPDOWN=YES, 1="phix", 2="js"`)
+    ctype = set_extensions(IupList(`DROPDOWN=YES`))
+--  IupSetAttributes(ctype, `1="phix", 2="js"`)
+    Ihandle ch_box = IupHbox({choose_file,chosen,ctype},"MARGIN=5x5,GAP=10,NORMALIZESIZE=VERTICAL")
     multitext = IupText("MULTILINE=YES, EXPAND=YES")
 --  IupSetAttribute(multitext, "FONT", "Consolas, 12")
     IupSetAttribute(multitext, "FONT", "Lucida Console, 11")
@@ -568,13 +1607,27 @@ procedure create_main_dialog()
     IupSetAttribute(lbl_statusbar, "EXPAND", "HORIZONTAL")
     IupSetAttribute(lbl_statusbar, "PADDING", "10x5")
 
-    Ihandle show_tokens = IupButton("Tokens",Icallback(show_tokens_cb),"PADDING=5x0, CANFOCUS=NO")
+--  Ihandle 
+    show_tokens = IupButton("Tokens",Icallback(show_tokens_cb),"PADDING=5x0, CANFOCUS=NO")
     Ihandle parse_tree = IupButton("Parse tree",Icallback(parse_tree_cb),"PADDING=5x0, CANFOCUS=NO")
     Ihandle violations = IupButton("0 Violations",Icallback(violations_cb),"PADDING=5x0, CANFOCUS=NO, ACTIVE=NO")
-    Ihandle show_box = IupHbox({show_tokens,parse_tree,violations},"MARGIN=5x5,GAP=10")
+--  Ihandle otype = IupList(`DROPDOWN=YES, 1="phix", 2="js"`)
+    Ihandle otype = set_extensions(IupList(`DROPDOWN=YES`))
+--  IupSetInt(otype,"VALUE",2)
+    IupSetInt(otype,"VALUE",find("html",ext_names))
+    Ihandle copy_btn = IupButton("Copy",Icallback(copy_cb),"PADDING=5x0, CANFOCUS=NO")
+    Ihandle run_btn = IupButton("Run",Icallback(run_cb),"PADDING=5x0, CANFOCUS=NO")
+    IupSetAttributes({copy_btn,run_btn},"ACTIVE=NO")
+    Ihandle opt_btn = IupButton("Options",Icallback(options_cb),"PADDING=5x0, CANFOCUS=NO")
+    Ihandle help_btn = IupButton("Help",Icallback(help_cb),"PADDING=5x0, CANFOCUS=NO")
+    Ihandle close_btn = IupButton("Close",Icallback(close_cb),"PADDING=5x0, CANFOCUS=NO")
+    Ihandle show_box = IupHbox({show_tokens,parse_tree,violations,IupFill(),
+                                otype, copy_btn, run_btn, IupFill(),
+                                opt_btn,help_btn,close_btn},"MARGIN=5x5,GAP=10")
 
     Ihandle vbox = IupVbox({ch_box,multitext,lbl_statusbar,show_box},"MARGIN=5x0")
     dlg = IupDialog(vbox,"RASTERSIZE=700x700")
+--?{"main_dlg",dlg}
 --  dlg = IupDialog(vbox,false)
 --  IupCloseOnEscape(dlg,false)
     IupSetCallback(dlg, "DROPFILES_CB", Icallback("dropfiles_cb"))
@@ -585,20 +1638,21 @@ procedure create_main_dialog()
     IupSetAttributeHandle(NULL, "PARENTDIALOG", dlg)
 
     /* show the dialog at the last position, with the last size */
-    if is_js() then
+    if platform_is_js() then
         IupShow(dlg)
     else
         IupConfigDialogShow(config, dlg, "MainWindow")
+--      IupShow(dlg)
     end if
 
     IupSetAttribute(multitext,"RASTERSIZE",NULL)
 
     -- initialize the current file
-    IupSetAttribute(dlg, "TITLE", `pwa\p2js - Phix to JavaScript transpiler`)
+    IupSetAttribute(dlg, "TITLE", TITLE)
 --  IupSetAttribute(multitext, "FILENAME", NULL)
     IupSetAttribute(multitext, "VALUE", "// Type, paste, drag and drop a file here, or click the button above...")
 
-    if not is_js() then load_ini() end if
+    if not platform_is_js() then load_ini() end if
 end procedure
 
 IupOpen()
@@ -1072,7 +2126,9 @@ function dynamicallyLoadScript(url) {
   --image-from-somewhere: url(https://codersblock.com/assets/images/logo.png);
 
   /* image from embedded data (SVG in this case) */
-  --image-embedded: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath d='M8 256c0 136.966 111.033 248 248 248s248-111.034 248-248S392.966 8 256 8 8 119.033 8 256zm248 184V72c101.705 0 184 82.311 184 184 0 101.705-82.311 184-184 184z'%3E%3C/path%3E%3C/svg%3E");
+  --image-embedded: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' 
+viewBox='0 0 512 512'%3E%3Cpath d='M8 256c0 136.966 111.033 248 248 248s248-111.034 248-248S392.966 8 256 8 8 119.033 8 256zm248 
+184V72c101.705 0 184 82.311 184 184 0 101.705-82.311 184-184 184z'%3E%3C/path%3E%3C/svg%3E");
 }
 
 .a {

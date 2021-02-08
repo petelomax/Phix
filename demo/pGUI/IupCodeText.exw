@@ -11,10 +11,9 @@ include pGUI.e
 Ihandle dlg, choose_file, chosen, multitext, lbl_statusbar
 Ihandln config
 
-global constant string initialcurrentdir = get_proper_dir(command_line()[2])
---                     inifile = join_path({initialcurrentdir,"pdist.ini"})
+constant string initialcurrentdir = get_proper_dir(command_line()[2])
 
---/**/include builtins/read_file.e
+include builtins/read_file.e
 procedure open_file(string filename)
     object str = read_file(filename)
     if sequence(str) then
@@ -22,6 +21,7 @@ procedure open_file(string filename)
         IupSetStrAttribute(chosen, "TITLE", filename)
         IupSetStrAttribute(multitext, "FILENAME", filename)
         IupSetStrAttribute(multitext, "VALUE", str)
+        --DEV syntax colour...
     end if
 end procedure
 
@@ -42,11 +42,6 @@ end function
 
 Ihandln filedlg = NULL
 
-function closefiledlg_cb(Ihandle /*filedlg*/)
-    IupConfigDialogClosed(config, filedlg, "FileDlg")
-    return IUP_CLOSE
-end function
-
 function choose_cb(Ihandle /*choose_file*/)
     if filedlg=NULL then
         filedlg = IupFileDlg()
@@ -55,11 +50,9 @@ function choose_cb(Ihandle /*choose_file*/)
         IupSetAttribute(filedlg, "EXTFILTER", "All files|*.*|");
         IupSetAttribute(filedlg, "TITLE", "Select File");
         IupSetAttribute(filedlg,"DIRECTORY",initialcurrentdir)
-        IupSetCallback(filedlg,"CLOSE_CB",Icallback(closefiledlg_cb))
+        IupSetInt(filedlg,"MULTIPLEFILES ",false)
     end if
-    IupSetInt(filedlg,"MULTIPLEFILES ",false)
-    IupConfigDialogShow(config, filedlg, "FileDlg")
-    IupPopup(filedlg, IUP_CURRENT, IUP_CURRENT)
+    IupPopup(filedlg)
     if IupGetInt(filedlg, "STATUS")!=-1 then
         string file = IupGetAttribute(filedlg, "VALUE")
         open_file(file)
@@ -82,9 +75,6 @@ procedure create_main_dialog()
 
     sequence cl = command_line()
     config = IupConfig()
---  IupSetAttribute(config, "APP_CONFIG", "YES")
---  IupSetAttribute(config, "APP_PATH", get_file_path(cl[2]))
---  IupSetAttribute(config, "APP_NAME", "IupCodeText.exw")
     IupSetAttribute(config, "APP_NAME", "IupCodeText")
     {} = IupConfigLoad(config)
 
@@ -102,12 +92,8 @@ procedure create_main_dialog()
     IupSetAttribute(lbl_statusbar, "EXPAND", "HORIZONTAL")
     IupSetAttribute(lbl_statusbar, "PADDING", "10x5")
 
---  Ihandle vbox = IupVbox({ch_box,multitext,lbl_statusbar},"MARGIN=5x0,RASTERSIZE=700x700")
     Ihandle vbox = IupVbox({ch_box,multitext,lbl_statusbar},"MARGIN=5x0")
---  dlg = IupDialog(vbox)
-    dlg = IupDialog(vbox,"RASTERSIZE=780x700",false)
---  dlg = IupDialog(vbox,false)
---  IupCloseOnEscape(dlg,false)
+    dlg = IupDialog(vbox,"RASTERSIZE=780x700",false) -- (no-config size)
     IupSetCallback(dlg, "DROPFILES_CB", Icallback("dropfiles_cb"))
     IupSetCallback(dlg, "CLOSE_CB", Icallback("close_cb"))
     IupSetCallback(dlg, "K_ANY", Icallback("key_cb"));
@@ -117,7 +103,6 @@ procedure create_main_dialog()
 
     /* show the dialog at the last position, with the last size */
     IupConfigDialogShow(config, dlg, "MainWindow")
---  IupShow(dlg)
 
     IupSetAttribute(multitext,"RASTERSIZE",NULL)
 

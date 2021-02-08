@@ -69,7 +69,7 @@ constant file_filters = allocate_string(
         "All files (*.*)"&0&"*.*"&0&0)
 
 
-atom hMainWnd, hFindDlg, hDlg, class,
+atom hMainWnd, hFindDlg, hDlg, cls,
     hmenu, hfilemenu, heditmenu, hsearchmenu, hviewmenu,
     hrunmenu, hoptionsmenu, hhelpmenu, htabmenu,
     hstatus, htabs, hcode, hedit, htooltip,
@@ -78,7 +78,7 @@ atom hMainWnd, hFindDlg, hDlg, class,
 sequence ui_hedits
          ui_hedits = {}
 
-class = 0
+cls = 0
 WM_FIND = 0
 hMainWnd = 0  -- the main window
 hFindDlg = 0
@@ -1604,7 +1604,7 @@ atom junk
         puts(1, "routine_id failed!\n")
         abort(1)
     end if
-    class = RegisterClass({
+    cls = RegisterClass({
                            or_bits(CS_HREDRAW, CS_VREDRAW),
                            call_back(id), -- get 32-bit address for callback
                            0,
@@ -1616,7 +1616,7 @@ atom junk
                            NULL,
                            AppName,
                            c_func(LoadIcon, {NULL, IDI_APPLICATION})})
-    if class=0 then
+    if cls=0 then
         puts(1, "Couldn't register class\n")
         abort(1)
     end if

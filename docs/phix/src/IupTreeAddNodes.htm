@@ -24,7 +24,8 @@
           <b>Description:</b>
          </td>
          <td>
-            Populates a tree from a nested <a href="sequence.htm">sequence</a> of branches and leaves.
+            Populates a tree from a nested <a href="sequence.htm">sequence</a> of branches and leaves.\\
+            Note this is a pGUI-specific add-on, there is no equivalent C routine that I am aware of.
           <br>
           <br>
             tree: The result of some previous invocation of <a href="IupTree.htm">IupTree</a>().<br>
@@ -53,17 +54,19 @@
             A node is a <a href="string.htm">string</a> (leaf node) or a <a href="sequence.htm">sequence</a> of length 2 or 3:<br>
             <ul>
             <li>    The first element is a <a href="string.htm">string</a> description.</li>
-            <li>    If length is 3 the second is an even-length set of attribute name/value pairs.</li>
-            <li>    The last element is a <a href="sequence.htm">sequence</a> of children, or 0 to indicate a leaf node.</li>
+            <li>    If length is &gt;=3 the second is an even-length set of attribute name/value pairs, can be {}.</li>
+            <li>    The last &lt;= 3rd element is a <a href="sequence.htm">sequence</a> of children, or 0 to indicate a leaf node.</li>
+            <li>    Elements 4 and above can contain application-specific data, ignored by this routine.</li>
             </ul>
             Each element of children is either a <a href="string.htm">string</a> to represent a leaf node or a <a href="sequence.htm">sequence</a>
-            of length 2 or 3 as above. Note that if the top-level node of a (/the entire) tree is a single <a href="string.htm">string</a>, 
+            of length&gt;=2 as above. Note that if the top-level node of a (/the entire) tree is a single <a href="string.htm">string</a>, 
             it represents a single leaf node with no attributes, and no branches.
             <br>
             <br>
             The rules to remember are: <br>
             if you have attributes on a leaf node, it must have a third element of 0, and: <br>
             if a branch has no children it must still have a {} to represent that. <br>
+            There cannot be any (ignored) application-specifc data on shorthand forms, ie 4 out of 6 entries in the table below.<br>
             Should you see leaf nodes such as "STATE" and "COLLAPSED", or similar attribute names/values, suspect a missing 0 or {}.
             <br>
             <br>
@@ -89,28 +92,28 @@
                 <td>ditto.</td>
             </tr>
             <tr>
-                <td>{"string",sequence evennvseq,0}</td>
-                <td>a leaf node with attributes.</td>
+                <td>{"string",sequence evennvseq,0[,appdata]}</td>
+                <td>a leaf node with zero or more attributes. Note the 0 is not optional, even without appdata.</td>
             </tr>
             <tr>
                 <td>{"string",sequence children}</td>
-                <td>a branch node with no attributes, each element of children is a node.</td>
+                <td>a branch node with no attributes, each element of children (if any) is a node.</td>
             </tr>
             <tr>
-                <td>{"string",sequence evennvseq,sequence children}</td>
-                <td>a branch node with attributes and a (potentially empty) list of children.</td>
+                <td>{"string",sequence evennvseq,sequence children[,appdata]}</td>
+                <td>a branch node with (potentially empty) lists of attributes and children.</td>
             </tr>
             </table>
             <br>
             &nbsp;
             <br>
             Every odd element in any even-length set of attributes should be an attribute that 
-            accepts an id, ie one from the <a href="IupTree.htm#Nodes">Nodes</a> or 
-            <a href="IupTree.htm#Images">Images</a> section of the Attributes table 
-            as shown in the documentation for <a href="IupTree.htm">IupTree</a>. The even elements 
-            are strings, except for "USERDATA" which requires a positive integer, intended to be 
-            an index into some application-specific table. Note that setting custom attributes 
-            proved problematical and therefore attempts to do so now trigger a fatal error. 
+            accepts an id, ie one from the <a href="IupFlatTree.htm#Nodes">Nodes</a> or 
+            <a href="IupFlatTree.htm#Images">Images</a> section of the Attributes table 
+            as shown in the documentation for <a href="IupFlatTree.htm">IupFlatTree</a>.
+            The even elements are strings, except for "USERDATA" which requires a positive integer, 
+            intended to be an index into some application-specific table. Note that setting custom 
+            attributes proved problematical and therefore attempts to do so now trigger a fatal error. 
             If someone gets such things working, outside of IupTreeAddNodes, via IupTreeGetId 
             and friends, then I&rsquo;ll take another look.
             <br>
@@ -120,6 +123,12 @@
             The fact that a leaf node with no attributes can be represented in three different ways
             is a simple consequence of making the recursive structure easier to use, rather than a
             deliberate design decision to complicate matters.
+            <br>
+            <br>
+            Note this routine is (now) targetted squarely at <a href="IupTreeView.htm">IupTreeView</a>,
+            which is based on <a href="IupFlatTree.htm">IupFlatTree</a> on the desktop, and rewritten
+            in pGUI.js for use in the browser, although it was originally written way back when only 
+            <a href="IupTree.htm">IupTree</a> existed. In <i>theory</i> it should work on all four.
             <br>
             <br>
             Performance note: For large trees it would normally be prudent to create all branches

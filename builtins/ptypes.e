@@ -1,7 +1,7 @@
 --
 -- builtins/ptypes.e
 --
---  NB not an autoinclude, but used/included by both pGUI.e and mpfr.e.
+--  NB not an autoinclude, but used/included by pGUI.e, mpfr.e, and structs.e.
 --
 
 -- used by IupSetAttribute, IupSetGlobal, cdCreateCanvas, mpz_import:

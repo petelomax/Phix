@@ -47,8 +47,8 @@ defined_words = {"OE", "OE4"}
         defined_words &= {"WINDOWS", "WIN32"}
     elsif platform()=LINUX then
         defined_words &= {"LINUX", "UNIX"}
-    elsif platform()=OSX then
-        defined_words &= {"OSX", "UNIX"}
+--  elsif platform()=OSX then
+--      defined_words &= {"OSX", "UNIX"}
     end if
 
 -- ast node types that are also opcodes
@@ -333,11 +333,11 @@ end procedure
 --integer print_token
 --print_token = 0
 
-function token(sequence try)
+function token(sequence attemnpt)
     if length(tok)=0 then
         skip_whitespace()
         if idx>length(text) then
-            return equal(tok, try)
+            return equal(tok, attemnpt)
         end if
         tok_idx = idx
         tok = {text[idx]}
@@ -364,16 +364,16 @@ function token(sequence try)
         end if
     --if print_token then printf(1, "token: %s\n", {tok}) end if
     end if
-    if equal(tok, try) then
+    if equal(tok, attemnpt) then
         tok = ""
         return 1
     end if
     return 0
 end function
 
-procedure expect(sequence try)
-    if not token(try) then
-        error("expected '" & try & "', saw '"&tok&"'")
+procedure expect(sequence attemnpt)
+    if not token(attemnpt) then
+        error("expected '" & attemnpt & "', saw '"&tok&"'")
     end if
 end procedure
 

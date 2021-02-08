@@ -8,12 +8,9 @@
 --  join_path: Concatenate all elements of a path.
 --
 
-global function flatten(sequence s)
-sequence res = ""
-object si
-
+global function flatten(sequence s, res="")
     for i=1 to length(s) do
-        si = s[i]
+        object si = s[i]
         if atom(si) 
         or string(si) then
             res &= si
@@ -25,8 +22,7 @@ object si
 end function
 
 global function join(sequence s, object delim=" ")
-sequence res = ""
-
+    sequence res = ""
     for i=1 to length(s) do
         if i!=1 then
             res &= delim
@@ -37,9 +33,9 @@ sequence res = ""
 end function
 
 global function join_by(sequence s, integer step, integer n, object step_pad="   ", object n_pad="\n")
-sequence res = {}, js
-integer nmax = n
-    integer ls = length(s)
+    sequence res = {}, js
+    integer nmax = n,
+            ls = length(s)
     ls += remainder(ls,step)
     while length(s)>=step do
 --  while length(s)>step do     -- (needed for auto-widthwise partial<=step)
@@ -79,11 +75,11 @@ end function
 
 global function join_path(sequence path_elements, integer trailsep=0)
 --integer SLASH = iff(platform()=WINDOWS?'\\':'/')
-string elem, fname = ""
+    string fname = ""
 
     for i=1 to length(path_elements) do
 
-        elem = path_elements[i]
+        string elem = path_elements[i]
 
         if length(elem) and find(elem[$],`\/`) then
             elem = elem[1..$-1]

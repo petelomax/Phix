@@ -457,7 +457,9 @@ end if
         end if
     end if
 
-    puts(fn,errline)
+--  puts(fn,errline)
+--  if fn=-1 then puts(fn,errline) end if
+    puts(max(fn,1),errline)
     if r_proemh=-1 then
 if not batchmode then
 --printf(1,"batchmode = %d\n",batchmode)

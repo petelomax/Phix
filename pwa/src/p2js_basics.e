@@ -4,7 +4,7 @@
 --
 --  standard includes, constants, globals, and utility routines for ../../pwa.exw
 --
-without debug   -- (keep the ex.err reasonably clear, comment out if/when needed)
+--without debug -- (keep the ex.err reasonably clear, comment out if/when needed)
 include pGUI.e
 -- (while autoincludes,    """    for all these too:)
 include builtins\VM\pcmdlnN.e
@@ -46,6 +46,7 @@ constant extensions = {{PHIX, {"exw","ex","e","eu"}},
                        {JSS, {"js"}},
                        {C, {"c"}}}
 --*/
+global constant ext_names = {"phix","html","css","js","go","c"}
 constant extensions = {{PHIX :=1, {"exw","ex","e","eu","ew"}},
                        {HTML :=2, {"html","htm"}},
                        {CSS  :=3, {"css"}},
@@ -87,6 +88,7 @@ global function is_C()    return and_bits(ext,C   )!=0 end function
 --*/
 
 global function fatal(string msg)
+--DEV IupMessage?
     puts(2,msg)
     {} = wait_key()
 --  crash(msg)
@@ -94,28 +96,37 @@ global function fatal(string msg)
     return false
 end function
 
-global function load_text(string filename)
-    current_file = filename -- (store for debugging purposes)
-    string e = get_file_extension(filename)
-    ext = 0
+global function find_extension(string e)
+    integer res = 0
     for i=1 to length(extensions) do
         if find(e,extensions[i][2]) then
-            ext = extensions[i][1]
+            res = extensions[i][1]
             exit
         end if
     end for
-    if ext=0 then
-        return fatal("unsupported file extension: "&filename)
-    end if
-    object txt = get_text(filename,GT_WHOLE_FILE)
-    if not string(txt) then
-        return fatal("unable to open "&filename)
-    end if
+    return res
+end function
+
+global function load_text(string txt, integer edx)
     text = txt
+    ext = edx
 -- temp/debug[?]:
 textlines = split(text,"\r\n")
     lt = length(text)
     return true
+end function
+
+global function load_file(string filename)
+    current_file = filename -- (store for debugging purposes)
+    object txt = get_text(filename,GT_WHOLE_FILE)
+    if not string(txt) then
+        return fatal("unable to open "&filename)
+    end if
+    integer ext = find_extension(get_file_extension(filename))
+    if ext=0 then
+        return fatal("unsupported file extension: "&filename)
+    end if
+    return load_text(txt,ext)
 end function
 
 --
@@ -205,40 +216,6 @@ TOKTYPES = {{EOL,"EOL",false},      -- End of line
 if vslice(TOKTYPES,1)!=tagset(TOKMAX) then ?9/0 end if
 constant tok_names = vslice(TOKTYPES,2)
 constant show_toks = vslice(TOKTYPES,3)
-
-global function tok_name(integer toktype)
-    return iff(toktype>SYMBOL?toktype&"":tok_names[toktype])
-end function
-
---global function show_tok(integer toktype)
---  return show_toks[min(toktype,SYMBOL)]
---end function
-
-global procedure show_token(sequence tok, string prefix="")
-    -- (diagnostic routine)
---object finish
-    integer {toktype,start,finish,line,col} = tok
-    if length(prefix) or show_toks[min(toktype,SYMBOL)] then
-        tok[TOKTYPE] = tok_name(toktype)
---  if toktype<=TOKMAX then
---      tok[TOKTYPE] = tok_names[toktype]
---  else
---      tok[TOKTYPE] &= ""
---  end if
-        tok = append(tok,shorten(text[start..finish]))
---  if length(prefix) then      -- (parser only)
---      tok = prepend(tok,prefix)
---  end if
-        ?tok
-        if length(prefix) then
-            string curline = textlines[line], -- (for debug reasons)
-                   padline = repeat(' ',col)&"^ "&prefix -- ("")
-            printf(1,"Error in %s line %d, column %d\n%s\n%s\n",
-                     {current_file,line,col+1,curline,padline})
-            if CRASH then ?9/0 end if
-        end if
-    end if
-end procedure
 
 function set_chars(sequence s)
     -- (once-only set routine)
@@ -395,6 +372,47 @@ global constant precedences = {{BEQ     := 129, `:=`,   PASGN},
                                {SPREAD  := 197, `...`,  PUNY},
                                {ELLIPSE := 199, `..`,   PSBSC}}
 global constant {mstoktypes,multisym,msprec} = columnize(precedences)
+
+global function tok_name(integer toktype)
+    if toktype>SYMBOL then
+        integer k = find(toktype,mstoktypes)
+        if k and string(multisym[k]) then
+            return multisym[k]
+        end if
+        return toktype&""
+    end if
+    return tok_names[toktype]
+end function
+
+--global function show_tok(integer toktype)
+--  return show_toks[min(toktype,SYMBOL)]
+--end function
+
+global procedure show_token(sequence tok, string prefix="")
+    -- (diagnostic routine)
+--object finish
+    integer {toktype,start,finish,line,col} = tok
+    if length(prefix) or show_toks[min(toktype,SYMBOL)] then
+        tok[TOKTYPE] = tok_name(toktype)
+--  if toktype<=TOKMAX then
+--      tok[TOKTYPE] = tok_names[toktype]
+--  else
+--      tok[TOKTYPE] &= ""
+--  end if
+        tok = append(tok,shorten(text[start..finish]))
+--  if length(prefix) then      -- (parser only)
+--      tok = prepend(tok,prefix)
+--  end if
+        ?tok
+        if length(prefix) then
+            string curline = textlines[line], -- (for debug reasons)
+                   padline = repeat(' ',col)&"^ "&prefix -- ("")
+            printf(1,"Error in %s line %d, column %d\n%s\n%s\n",
+                     {current_file,line,col+1,curline,padline})
+            if CRASH then ?9/0 end if
+        end if
+    end if
+end procedure
 
 --global constant INCLUDETOKS = `\/.<>`&'`'&DQUOTE&LETTER&ELLIPSE&DIGIT
 global constant INCLUDETOKS = `\/.<>"`&'`'&LETTER&ELLIPSE&DIGIT

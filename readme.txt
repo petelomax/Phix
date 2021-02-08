@@ -5,7 +5,7 @@ Phix readme.txt
 The windows installer (phix.setup.exe) defaults to C:\Program Files\Phix, though 
 you can change that. Alternatively you can use 7zip, and probably most other file 
 compression utilities, to extract the contents of phix.setup.exe, or equivalently
-phix1.zip and phix2.zip, to any directory of your choice.
+phix1.zip .. phix3.zip, to any directory of your choice.
 
 **DEV**: this has changed with pdemo.exw and needs rewriting:
 Installation does not modify anything in the system registry, nor does it create 
@@ -22,11 +22,24 @@ is currently just 3 lines and the last line (p -c pdemo) is technically optional
 If you run "p -c p", to recompile the compiler from the supplied sources, then
 it will create both a new p.exe and a new pw.exe, again automatically for you.
 
-Please note the following entries are probably more for my benefit than yours,
-and contain some references to the low level back end which you may not find 
-very useful. But it is now all open source.
+Please note the following entries are probably more for my benefit than yours.
 
-Version 0.8.2
+Version 1.0.0
+=============
+03/02/2021: Bugfix: IupMessage crashed if msg was NULL. Added bWrap option to
+            both IupMessage() and IupMessageError().
+04/02/2021: Bugfix: User defined types within classes not working. Given say
+            class Element Ihandle handle, the "Ihandle" was being pushed via
+            addUnnamedConstant(), when it obviously needed addRoutineId().
+04/02/2021: Bugfix: delete_routine(x,0) was not removing the routine.
+04/02/2021: Icallback() was creating multiple instances of a callback, even
+            though it was keeping (3) tables to avoid precisely that...
+            Not a big deal, since call_back(), which obviously Icallback()
+            wraps, already checked for and re-used prior instances anyway.
+07/02/2021: Bugfix: unique(x,STABLE) was not using the dictionary tid, and
+            hence returning the entire original list... Belated test added.
+
+Version 0.8.3
 =============
 22/12/2020: Bugfix: "class x string name procedure name()" now produces the
             error "invalid type". Note that all methods are "virtual" in the
@@ -60,7 +73,7 @@ Version 0.8.2
             SLASH was a bit of an innocent bystander, though you/I should
             probably be using the builtin constant anyway.
 21/01/2021: BUGFIX: Ctrl [] in Edita/Edix now correctly skip backtick strs.
-21/01/2021: BUGFIX: easinst.ew now uses GetWindowText, should be better.
+21/01/2021: Edita: easinst.ew now uses GetWindowText, should be better.
 21/01/2021: BUGFIX: Edix now uses an ini file rather than IupConfig for the
             list of open files, which was always corrupting itself. Close
             file now works properly, not mangling the table of tab handles.

@@ -246,6 +246,21 @@ function rcall(object fp, sequence tok)
     return res
 end function
 
+function skip_comments()
+--DEV make a count somewhere, and tag them onto something???
+--DOC Mid-line comments attached to individual tokens do not appear in the Parse Tree, 
+--    only those comments that appear between statements and declarations are shown.
+    while tdx<=length(tokens) do
+        integer toktype = tokens[tdx][TOKTYPE]
+        if toktype!=COMMENT
+        and toktype!=BLK_CMT then
+            return toktype
+        end if
+        tdx += 1
+    end while
+    return 0 -- EOL?
+end function
+
 --precedence climbing:
 
 function factor()
@@ -273,6 +288,7 @@ string tt = tok_name(toktype),
 
         case COMMENT,
              BLK_CMT:
+--?tok
                     return factor()
 --                  break
         case LETTER:
@@ -324,12 +340,14 @@ string tt = tok_name(toktype),
                     tok = {'{'}
                     while tokens[tdx][TOKTYPE]!='}' do
                         tok = append(tok,expr(0))
-                        toktype = tokens[tdx][TOKTYPE]
+--                      toktype = tokens[tdx][TOKTYPE]
+                        toktype = skip_comments()
                         if toktype!=',' then
 -- DEV :=
                             if toktype!=':' then exit end if
                             tok[$] = {":=",tok[$],expr(0,1)}
-                            toktype = tokens[tdx][TOKTYPE]
+--                          toktype = tokens[tdx][TOKTYPE]
+                            toktype = skip_comments()
                             if toktype!=',' then exit end if
                         end if
                         tdx += 1

@@ -11683,9 +11683,18 @@ if ttidx=T_final then ?9/0 end if
                     if tid!=0 then
                         tid = srids[tid]
                     else
-                        if tN=0 then tN = addUnnamedConstant(Typ,T_integer) end if
+                        if tN=0 then
+--4/2/21...
+--                          tN = addUnnamedConstant(Typ,T_integer)
+                            if Typ>T_object then
+                                tN = addRoutineId(Typ)
+                            else
+                                tN = addUnnamedConstant(Typ,T_integer)
+                            end if
+                        end if
                         tid = tN    
                     end if
+--??? routine_id?
                     PushFactor(tid,true,T_integer)
                     PushFactor(vN,true,T_integer)
                     getToken()

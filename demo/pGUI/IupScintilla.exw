@@ -1,0 +1,524 @@
+--
+-- demo/pGUI/IupScintilla.exw
+-- ==========================
+--
+--  DEV make a proper lexer for this (and build .so on lnx)
+--  (The main problem is "what is a comment?", ffs)
+--  Sug: load this file into sampleCode, why not...
+--  (I'm going to put my effort into IupCodeText())
+--
+include pGUI.e
+
+constant DEBUG = false      -- (if true show some console messages)
+if DEBUG then
+    puts(1,"")              -- (console behind main window, please)
+end if
+
+-- (DEV) this is vb, might be nicer to show a Phix example...
+constant sampleCode = """
+constant DEBUG = false      -- (if true show some console messages)
+if DEBUG then ?"" end if    -- (console behind main window, please)
+
+function button_cb(Ihandle /*ih*/, integer button, pressed, x, y, atom pStatus)
+    string status = peek_string(pStatus)
+    printf(1,"BUTTON_CB = button: %d, pressed: %d, x: %d, y: %d, status: %s\n", {button, pressed, x, y, status})
+    return IUP_DEFAULT
+end function
+"""
+--/*
+enum FB_TKCLASS
+  FB_TKCLASS_IDENTIFIER
+  FB_TKCLASS_KEYWORD
+  FB_TKCLASS_QUIRKWD
+  FB_TKCLASS_NUMLITERAL
+  FB_TKCLASS_STRLITERAL
+  FB_TKCLASS_OPERATOR
+  FB_TKCLASS_DELIMITER
+  FB_TKCLASS_UNKNOWN
+end enum
+
+'':::::
+sub symbSetDefType _
+  ( _
+  byval ichar as integer, _
+  byval echar as integer, _
+  byval dtype as integer _
+  )
+
+    dim as integer i = any
+
+  if( ichar < asc("A") ) then
+    ichar = asc("A")
+  elseif( ichar > asc("_") ) then
+    ichar = asc("_")
+  end if
+
+  if( echar < asc("A") ) then
+    echar = asc("A")
+  elseif( echar > asc("_") ) then
+    echar = asc("_")
+  end if
+
+  if( ichar > echar ) then
+    swap ichar, echar
+  end if
+
+  for i = ichar to echar
+    deftypeTB(i - asc("A")) = dtype
+  next
+
+end sub
+
+'' Recalculate the length, to be used after the symbol's type was set/changed
+sub symbRecalcLen( byval sym as FBSYMBOL ptr )
+  if( sym->class = FB_SYMBCLASS_PARAM ) then
+    sym->lgt = symbCalcParamLen( sym->typ, sym->subtype, sym->param.mode )
+  else
+    sym->lgt = symbCalcLen( sym->typ, sym->subtype )
+  end if
+end sub
+
+dim shared s as string
+s = "hello world"
+type simple_type
+  dim field1 as integer
+  dim field2 as integer
+end type
+"""
+--*/
+
+function marginclick_cb(Ihandle ih, integer margin, integer line, atom pStatus)
+    string status = peek_string(pStatus)
+    printf(1,"MARGINCLICK_CB(Margin: %d, Line: %d, Status:%s)\n", {margin, line, status})
+    printf(1,"Fold Level = %s\n", IupGetAttributeId(ih, "FOLDLEVEL", line))
+    IupSetStrAttribute(ih, "FOLDTOGGLE", "%d", {line})
+    return IUP_DEFAULT
+end function
+
+function hotspotclick_cb(Ihandle ih, integer pos, line, col, atom pStatus)
+    string status = peek_string(pStatus),
+           text = IupGetAttributeId(ih, "LINE", line)
+    printf(1,"HOTSPOTCLICK_CB (Pos: %d, Line: %d, Col: %d, Status:%s)\n", {pos, line, col, status})
+    printf(1,"    line text = %s\n", text)
+    return IUP_DEFAULT
+end function
+
+function button_cb(Ihandle /*ih*/, integer button, pressed, x, y, atom pStatus)
+    string status = peek_string(pStatus)
+    printf(1,"BUTTON_CB = button: %d, pressed: %d, x: %d, y: %d, status: %s\n", {button, pressed, x, y, status})
+    return IUP_DEFAULT
+end function
+
+function motion_cb(Ihandle /*ih*/, integer x, y, atom pStatus)
+    string status = peek_string(pStatus)
+    printf(1,"MOTION_CB = x: %d, y: %d, status: %s\n", {x, y, status})
+    return IUP_DEFAULT
+end function
+
+function caret_cb(Ihandle /*ih*/, integer lin, col, pos)
+    printf(1,"CARET_CB = lin: %d, col: %d, pos: %d\n", {lin, col, pos})
+    return IUP_DEFAULT
+end function
+
+function valuechanged_cb(Ihandle /*ih*/)
+    printf(1,"VALUECHANGED_CB\n")
+    return IUP_DEFAULT
+end function
+
+function action_cb(Ihandle /*ih*/, integer ins, pos, len, atom pText)
+    string text = peek_string(pText)
+    printf(1,"ACTION = insert: %d, pos: %d, lenght:%d, text: %s\n", {ins, pos, len, text})
+    return IUP_IGNORE
+end function
+
+procedure set_attribs(Ihandle sci)
+
+    IupSetAttribute(sci, "CLEARALL", "")
+--  IupSetAttribute(sci, "LEXERLANGUAGE", "vb")     -- (no propertynames)
+--  IupSetAttribute(sci, "LEXERLANGUAGE", "phix")
+--  IupSetAttribute(sci, "LEXERLANGUAGE", "lua")    -- (no propertynames)
+    IupSetAttribute(sci, "LEXERLANGUAGE", "cpp");   -- (block comments)
+--  IupSetAttribute(sci, "LEXERLANGUAGE", "vbscript");  -- (no propertynames)
+--  IupSetAttribute(sci, "LEXERLANGUAGE", "freebasic");
+
+
+    IupSetAttribute(sci, "KEYWORDS1", "constant function declare dim end type union as ptr enum "&
+                                      "if elseif then select case default break goto return "&
+                                      "for while do continue sizeof typeof new delete property "&
+                                      "namespace operator this cast using andalso orelse xor or "&
+                                      "and not cdecl byval byref ")
+    IupSetAttribute(sci,"KEYWORDS0","integer long ulong ulongint longint string zstring wstring "&
+                                    "short ushort ubyte double single unsigned signed")
+    IupSetAttribute(sci, "STYLEFONT32", "Consolas")
+    IupSetAttribute(sci, "STYLEFONTSIZE32", "11")
+
+    IupSetAttribute(sci, "STYLECLEARALL", "Yes")    /* sets all styles to have the same attributes as 32 */
+
+    IupSetAttribute(sci, "BGCOLOR",       "240 240 240")    -- Background
+    IupSetAttribute(sci, "STYLEBGCOLOR39", "0 128 0")       -- 
+--  IupSetAttribute(sci, "STYLEFGCOLOR0", "0 128 0")        -- 1-BASIC comment
+    IupSetAttribute(sci, "STYLEFGCOLOR1", "0 128 0")        -- 1-BASIC comment
+    IupSetAttribute(sci, "STYLEFGCOLOR2", "0 128 0")        -- 2-BASIC comment line
+--  IupSetAttribute(sci, "STYLEFGCOLOR3", "139 0 139")      -- 
+    IupSetAttribute(sci, "STYLEFGCOLOR4", "139 0 139")      -- 4-String
+    IupSetAttribute(sci, "STYLEFGCOLOR5", "0 128 128")      -- 5-keywords0 (lua)
+    IupSetAttribute(sci, "STYLEFGCOLOR6", "255 20 147")     -- 6-Operators
+    IupSetAttribute(sci, "STYLEFGCOLOR7", "0 0 0")          -- 7-Character
+--  IupSetAttribute(sci, "STYLEFGCOLOR8", "205 149 12")     --
+    IupSetAttribute(sci, "STYLEFGCOLOR9", "205 149 12")     -- 9-Preprocessor block
+    IupSetAttribute(sci, "STYLEFGCOLOR10", "0 197 205")     -- 10-Keywords1
+--  IupSetAttribute(sci, "STYLEFGCOLOR11", "0 0 255")       -- 11-Keywords2
+    IupSetAttribute(sci, "STYLEFGCOLOR12", "255 0 255")     -- 12-Keywords3 (lua)
+    IupSetAttribute(sci, "STYLEFGCOLOR13", "255 0 255")     -- 13-Keywords4 (lua)
+    IupSetAttribute(sci, "STYLEFGCOLOR16", "255 0 255")     -- 16-Keywords1 (cpp)
+
+    IupSetAttribute(sci, "STYLEBOLD10", "YES")
+
+    IupSetAttribute(sci, "STYLEHOTSPOT4", "YES")
+    IupSetAttribute(sci, "STYLEHOTSPOT11", "YES")
+ 
+    IupSetAttribute(sci, "INSERT0", sampleCode)
+--?IupGetAttribute(sci, "PROPERTYNAMES")
+
+    IupSetAttribute(sci, "MARGINWIDTH0", "50")              -- line numbers
+--  IupSetAttribute(sci, "MARGINWIDTH1", "0")
+
+    if (01) then 
+        IupSetAttribute(sci, "PROPERTY", "fold=1")
+        IupSetAttribute(sci, "PROPERTY", "fold.compact=0")
+        IupSetAttribute(sci, "PROPERTY", "fold.comment=1")
+        IupSetAttribute(sci, "PROPERTY", "fold.preprocessor=1")
+
+        IupSetAttribute(sci, "MARGINWIDTH1", "05")
+        IupSetAttribute(sci, "FOLDMARGINCOLOR", "220 220 220")  -- Yeah!
+
+        IupSetAttribute(sci, "MARGINTYPE1",  "SYMBOL")
+        IupSetAttribute(sci, "MARGINMASKFOLDERS1",  "Yes")
+
+        IupSetAttribute(sci, "MARKERDEFINE", "FOLDER=PLUS")
+        IupSetAttribute(sci, "MARKERDEFINE", "FOLDEROPEN=MINUS")
+        IupSetAttribute(sci, "MARKERDEFINE", "FOLDEREND=EMPTY")
+        IupSetAttribute(sci, "MARKERDEFINE", "FOLDERMIDTAIL=EMPTY")
+        IupSetAttribute(sci, "MARKERDEFINE", "FOLDEROPENMID=EMPTY")
+        IupSetAttribute(sci, "MARKERDEFINE", "FOLDERSUB=EMPTY")
+        IupSetAttribute(sci, "MARKERDEFINE", "FOLDERTAIL=EMPTY")
+        IupSetAttribute(sci, "FOLDFLAGS", "LINEAFTER_CONTRACTED")
+        IupSetAttribute(sci, "MARGINSENSITIVE1", "YES")
+    end if
+
+    if DEBUG then
+        printf(1,"Number of chars in this text: %s\n", IupGetAttribute(sci, "COUNT"))
+        printf(1,"Number of lines in this text: %s\n", IupGetAttribute(sci, "LINECOUNT"))
+        printf(1,"%s\n", IupGetAttribute(sci, "LINEVALUE"))
+    end if
+end procedure
+
+procedure ScintillaTest()
+
+--  IupScintillaOpen()   -- (not actually required, no harm though)
+
+    -- Creates an instance of the Scintilla control
+    Ihandle sci = IupScintilla()
+--  IupSetAttribute(sci, "VISIBLECOLUMNS", "50")
+--  IupSetAttribute(sci, "VISIBLELINES", "40")
+--  IupSetAttribute(sci, "VISIBLELINES", "25")
+--  IupSetAttribute(sci, "SCROLLBAR", "NO")
+--  IupSetAttribute(sci, "BORDER", "NO")
+    IupSetAttribute(sci, "EXPAND", "Yes")
+    IupSetAttribute(sci, "SCROLLWIDTH", "570")
+    IupSetAttribute(sci, "SCROLLWIDTHTRACKING", "Yes")
+
+    if DEBUG then
+        IupSetCallback(sci, "MARGINCLICK_CB", Icallback(marginclick_cb))
+        IupSetCallback(sci, "HOTSPOTCLICK_CB", Icallback(hotspotclick_cb))
+--      IupSetCallback(sci, "BUTTON_CB", Icallback(button_cb))
+--      IupSetCallback(sci, "MOTION_CB", Icallback(motion_cb))
+        IupSetCallback(sci, "CARET_CB", Icallback(caret_cb))
+        IupSetCallback(sci, "VALUECHANGED_CB", Icallback(valuechanged_cb))
+        IupSetCallback(sci, "ACTION", Icallback(action_cb))
+    end if
+
+    -- Creates a dialog containing the control
+    Ihandle dlg = IupDialog(IupVbox({sci}))
+    IupSetAttribute(dlg, "TITLE", "IupScintilla")
+    IupSetAttribute(dlg, "RASTERSIZE", "700x500")
+    IupSetAttribute(dlg, "MARGIN", "10x10")
+
+    -- Shows dialog
+    IupShow(dlg)
+    IupSetAttribute(dlg, "RASTERSIZE", NULL)
+    set_attribs(sci)
+end procedure
+
+IupOpen()
+ScintillaTest()
+IupMainLoop()
+IupClose()
+
+--?"done"
+--{} = wait_key()
+abort(0)
+--/* freebasic:
+include pGUI.e
+
+
+IupOpen()
+IupScintillaOpen()
+
+Ihandle ih = IupScintilla()
+
+IupSetAttribute(ih, "STYLEFONT32", "Consolas")
+IupSetAttribute(ih, "STYLEFONTSIZE32", "11")
+
+IupSetAttribute(ih, "STYLECLEARALL", "Yes") -- Problem!!!!!!!!
+
+IupSetAttribute(ih, "LEXERLANGUAGE", "freebasic")
+
+IupSetAttribute(ih, "KEYWORDS0", "dim if print then var")
+
+IupSetAttribute(ih, "STYLEFONT32", "Consolas")
+IupSetAttribute(ih, "STYLEFONTSIZE32", "11")
+
+-- some styles
+IupSetAttribute(ih, "STYLEFGCOLOR1", "0 160 0")    -- comment
+IupSetAttribute(ih, "STYLEFGCOLOR2", "0 160 160")  -- number
+IupSetAttribute(ih, "STYLEFGCOLOR3", "0 0 160")    -- keywords
+IupSetAttribute(ih, "STYLEFGCOLOR4", "160 0 0")    -- string
+IupSetAttribute(ih, "STYLEFGCOLOR6", "255 128 0")  -- operator
+IupSetAttribute(ih, "STYLEFGCOLOR7", "128 128 0")  -- preprocessor
+IupSetAttribute(ih, "STYLEFGCOLOR19", "128 128 128")  -- block comment
+
+IupSetAttribute(ih, "MARGINWIDTH0", "50")
+IupSetAttribute(ih, "MARGINSENSITIVE1", "YES")
+
+IupSetAttributes(ih,"EXPAND = YES")
+
+IupSetAttribute(ih, "VALUE",  "' comment\nvar number = 123\nprint \"hello world\"\n#if 0\n nothing\n#endif\n/' block comment '/\n\nif number >= 10 then print \">=10\"")
+
+Ihandle dlg = IupDialog(ih)
+IupSetAttributes( dlg, "TITLE = IupDialog, RASTERSIZE = 640x480" )
+IupShow(dlg)
+IupMainLoop()
+
+IupClose()
+abort(0)
+--*/
+
+--freebasic2:
+--/*
+include pGUI.e
+
+IupOpen()
+IupScintillaOpen()
+
+Ihandle ih = IupScintilla()
+--IupSetAttribute(ih, "EXPAND","YES")
+
+Ihandle dlg = IupDialog(ih)
+IupSetAttributes( dlg, "TITLE = IupDialog, RASTERSIZE = 640x480" )
+IupShow(dlg)
+
+----------------- Only now you need to set the attributes scintilla!!! --------------------------------
+
+IupSetAttribute(ih, "STYLEFONT32", "Courier new")
+IupSetAttribute(ih, "STYLEFONTSIZE32", "11")
+
+IupSetAttribute(ih, "STYLECLEARALL", "Yes") -- ...............No Problem!!!!!!!!
+
+IupSetAttribute(ih, "LEXERLANGUAGE", "freebasic")
+
+IupSetAttribute(ih, "KEYWORDS0", "dim if print then var")
+
+-- some styles
+IupSetAttribute(ih, "STYLEFGCOLOR1", "0 160 0")    -- comment
+IupSetAttribute(ih, "STYLEFGCOLOR2", "0 160 160")  -- number
+IupSetAttribute(ih, "STYLEFGCOLOR3", "0 0 160")    -- keywords
+IupSetAttribute(ih, "STYLEFGCOLOR4", "160 0 0")    -- string
+IupSetAttribute(ih, "STYLEFGCOLOR6", "255 128 0")  -- operator
+IupSetAttribute(ih, "STYLEFGCOLOR7", "128 128 0")  -- preprocessor
+IupSetAttribute(ih, "STYLEFGCOLOR19", "128 128 128")  -- block comment
+
+IupSetAttribute(ih, "MARGINWIDTH0", "50")
+IupSetAttribute(ih, "MARGINSENSITIVE1", "YES")
+
+IupSetAttributes(ih,"EXPAND = YES")
+
+IupSetAttribute(ih, "VALUE",  "' comment\nvar number = 123\nprint \"hello world\"\n#if 0\n nothing\n#endif\n/' block comment '/\n\nif number >= 10 then print \">=10\"")
+
+--IupRefresh(dlg)
+-----------------------------------------------------------------------------------------------
+
+-- main loop
+
+IupMainLoop()
+
+IupClose()
+abort(0)
+--*/
+
+--/*
+-- demo/pGUI/IupScintilla.exw
+
+puts(1,"") -- gui atop console, pls...
+include pGUI.e
+
+constant sampleCode = """
+/* Block comment */
+#include<stdio.h>
+#include<iup.h>
+
+void SampleTest() {
+  printf("Printing float: %f\n", 12.5);
+}
+
+void SampleTest2() {
+  printf("Printing char: %c\n", 'c');
+}
+
+int main(int argc, char **argv) {
+  // Start up IUP
+  IupOpen(&argc, &argv);
+  IupSetGlobal("SINGLEINSTANCE", "Iup Sample");
+
+  if(!IupGetGlobal("SINGLEINSTANCE")) {
+    IupClose(); 
+    return EXIT_SUCCESS; 
+  }
+
+  SampleTest();
+  SampleTest2();
+  printf("Printing an integer: %d\n", 37);
+
+  IupMainLoop();
+  IupClose();
+  return EXIT_SUCCESS;
+}
+"""
+
+function marginclick_cb(Ihandle ih, integer margin, line, atom pStatus)
+    string status = peek_string(pStatus)
+    printf(1,"MARGINCLICK_CB(Margin: %d, Line: %d, Status:%s)\n", {margin, line, status})
+    printf(1,"Fold Level = %s\n", IupGetAttributeId(ih, "FOLDLEVEL", line));
+    IupSetStrAttribute(ih, "FOLDTOGGLE", "%d", {line})
+    return IUP_DEFAULT
+end function
+
+function hotspotclick_cb(Ihandle ih, int pos, int line, int col, atom pStatus)
+    string text = IupGetAttributeId(ih, "LINE", line)
+    string status = peek_string(pStatus)
+    printf(1,"HOTSPOTCLICK_CB (Pos: %d, Line: %d, Col: %d, Status:%s)\n", {pos, line, col, status});
+    printf(1,"    line text = %s\n", text);
+    return IUP_DEFAULT;
+end function
+
+function button_cb(Ihandle /*ih*/, integer button, pressed, x, y, atom pStatus)
+    string status = peek_string(pStatus)
+    printf(1,"BUTTON_CB = button: %d, pressed: %d, x: %d, y: %d, status: %s\n", {button, pressed, x, y, status})
+    return IUP_DEFAULT
+end function
+
+function motion_cb(Ihandle /*ih*/, integer x, y, atom pStatus)
+    string status = peek_string(pStatus)
+    printf(1,"MOTION_CB = x: %d, y: %d, status: %s\n", {x, y, status});
+    return IUP_DEFAULT;
+end function
+
+function caret_cb(Ihandle /*ih*/, integer lin, col, pos)
+  printf(1,"CARET_CB = lin: %d, col: %d, pos: %d\n", {lin, col, pos});
+  return IUP_DEFAULT
+end function
+
+function valuechanged_cb(Ihandle /*ih*/)
+  printf(1,"VALUECHANGED_CB\n");
+  return IUP_DEFAULT;
+end function
+
+function action_cb(Ihandle /*id*/, integer ins, pos, len, atom pText)
+    string text = peek_string(pText)
+    printf(1,"ACTION = insert: %d, pos: %d, lenght:%d, text: %s\n", {ins, pos, len, text})
+    return IUP_IGNORE
+end function
+
+procedure set_attribs(Ihandle sci)
+    IupSetAttribute(sci, "CLEARALL", "");
+--  IupSetAttribute(sci, "LEXERLANGUAGE", "cpp");
+--  IupSetAttribute(sci, "LEXERLANGUAGE", "vbscript");
+    IupSetAttribute(sci, "LEXERLANGUAGE", "freebasic");
+    IupSetAttribute(sci, "KEYWORDS0", "void struct union enum char short int long double float "&
+                                      "signed unsigned const static extern auto register volatile "&
+                                      "bool class private protected public friend inline template "&
+                                      "virtual asm explicit typename mutable if else switch case "&
+                                      "default break goto return for while do continue typedef "&
+                                      "sizeof NULL new delete throw try catch namespace operator "&
+                                      "this const_cast static_cast dynamic_cast reinterpret_cast "&
+                                      "true false using typeid and and_eq bitand bitor compl not "&
+                                      "not_eq or or_eq xor xor_eq")
+    IupSetAttribute(sci, "KEYWORDS3", "IupOpen")
+
+    IupSetAttribute(sci, "STYLEFONT32", "Consolas");
+    IupSetAttribute(sci, "STYLEFONTSIZE32", "11");
+    IupSetAttribute(sci, "STYLECLEARALL", "Yes");  /* sets all styles to have the same attributes as 32 */
+    IupSetAttribute(sci, "STYLEFGCOLOR1", "0 128 0");    // 1-C comment
+    IupSetAttribute(sci, "STYLEFGCOLOR2", "0 128 0");    // 2-C++ comment line
+    IupSetAttribute(sci, "STYLEFGCOLOR4", "128 0 0");    // 4-Number
+    IupSetAttribute(sci, "STYLEFGCOLOR5", "0 0 255");    // 5-Keyword
+    IupSetAttribute(sci, "STYLEFGCOLOR6", "160 20 20");  // 6-String
+    IupSetAttribute(sci, "STYLEFGCOLOR7", "128 0 0");    // 7-Character
+    IupSetAttribute(sci, "STYLEFGCOLOR9", "0 0 255");    // 9-Preprocessor block
+    IupSetAttribute(sci, "STYLEFGCOLOR10", "255 0 255"); // 10-Operator
+    IupSetAttribute(sci, "STYLEBOLD10", "YES");
+    // 11-Identifier 
+    IupSetAttribute(sci, "STYLEHOTSPOT6", "YES");
+    IupSetAttribute(sci, "INSERT0", sampleCode);
+    IupSetAttribute(sci, "MARGINWIDTH0", "50");
+    if (1) then
+        IupSetAttribute(sci, "PROPERTY", "fold=1");
+        IupSetAttribute(sci, "PROPERTY", "fold.compact=0");
+        IupSetAttribute(sci, "PROPERTY", "fold.comment=1");
+        IupSetAttribute(sci, "PROPERTY", "fold.preprocessor=1");
+        IupSetAttribute(sci, "MARGINWIDTH1", "20");
+        IupSetAttribute(sci, "MARGINTYPE1",  "SYMBOL");
+        IupSetAttribute(sci, "MARGINMASKFOLDERS1",  "Yes");
+        IupSetAttribute(sci, "MARKERDEFINE", "FOLDER=PLUS");
+        IupSetAttribute(sci, "MARKERDEFINE", "FOLDEROPEN=MINUS");
+        IupSetAttribute(sci, "MARKERDEFINE", "FOLDEREND=EMPTY");
+        IupSetAttribute(sci, "MARKERDEFINE", "FOLDERMIDTAIL=EMPTY");
+        IupSetAttribute(sci, "MARKERDEFINE", "FOLDEROPENMID=EMPTY");
+        IupSetAttribute(sci, "MARKERDEFINE", "FOLDERSUB=EMPTY");
+        IupSetAttribute(sci, "MARKERDEFINE", "FOLDERTAIL=EMPTY");
+        IupSetAttribute(sci, "FOLDFLAGS", "LINEAFTER_CONTRACTED");
+        IupSetAttribute(sci, "MARGINSENSITIVE1", "YES");
+    end if
+    printf(1,"Number of chars in this text: %s\n", IupGetAttribute(sci, "COUNT"))
+    printf(1,"Number of lines in this text: %s\n", IupGetAttribute(sci, "LINECOUNT"))
+    printf(1,"%s\n", IupGetAttribute(sci, "LINEVALUE"))
+end procedure
+
+procedure ScintillaTest()
+    IupScintillaOpen()
+    Ihandle sci = IupScintilla()
+    IupSetAttribute(sci, "EXPAND", "Yes")
+    IupSetCallback(sci, "MARGINCLICK_CB", Icallback(marginclick_cb))
+    IupSetCallback(sci, "HOTSPOTCLICK_CB", Icallback(hotspotclick_cb))
+    IupSetCallback(sci, "CARET_CB", Icallback(caret_cb))
+    IupSetCallback(sci, "VALUECHANGED_CB", Icallback(valuechanged_cb))
+    IupSetCallback(sci, "ACTION", Icallback(action_cb))
+    // Creates a dialog containing the control
+    Ihandle dlg = IupDialog(IupVbox({sci}))
+    IupSetAttribute(dlg, "TITLE", "C BASIC - Iup Scintilla")
+    IupSetAttribute(dlg, "RASTERSIZE", "700x500")
+    IupSetAttribute(dlg, "MARGIN", "10x10")
+    // Shows dialog
+    IupShow(dlg)
+    IupSetAttribute(dlg, "RASTERSIZE", NULL)
+    set_attribs(sci)
+end procedure
+
+IupOpen()
+ScintillaTest()
+IupMainLoop()
+IupClose()
+
+abort(0)
+--*/
+
