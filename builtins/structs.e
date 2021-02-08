@@ -510,7 +510,7 @@ global function is_struct(object s, integer rid)
 integer sdx, flags, stype
     if vtable!=-1 then
 --      if sequence(s)  then
-        if sequence(s) and still_has_delete_routine(s) then     -- breaks too many things...
+        if sequence(s) and still_has_delete_routine(s) then
             integer l = length(s)
             if l=4 and string(s[I_STRUCT]) and s[I_STRUCT]="struct"
                    and string(s[I_NAME])
@@ -873,6 +873,12 @@ function field_dx(object sdx, string name)
     return fdx
 end function
 
+procedure no_no_no(sequence s)
+--  ?{"no_no_no",s}
+    ?9/0
+--  trace(1)
+end procedure
+
 --procedure destroy_instance(struct s)
 procedure destroy_instance(sequence s)
 --?{"destroy_instance",s}
@@ -881,6 +887,19 @@ procedure destroy_instance(sequence s)
             flags = structs[sdx][S_FLAGS],
             stype = and_bits(flags,S_CORE),
             dtor = field_dx(sdx, "~"&structs[sdx][S_NAME])
+--2/2/21: (find any parent destructor) [erm.. test w/o this first!]
+--/*
+    if dtor=NULL then
+        object cdii = getd({"extends",sdx},vtable)
+        if cdii!=NULL then
+            for i=length(cdii) to 1 by -1 do
+                integer cdx = cdii[i]
+                dtor = field_dx(cdx, "~"&structs[cdx][S_NAME])
+                if dtor then exit end if
+            end for
+        end if
+    end if
+--*/
     if dtor then -- call destructor, if present
         dtor = structs[sdx][S_DEFAULT][dtor]
         --
@@ -890,9 +909,12 @@ procedure destroy_instance(sequence s)
         -- [btw, delete_routine will barf if s already has something,
         --       but it shd be gone b4 destroy_instance was invoked.]
         --
-        s = delete_routine(s,destroy_instance)
+--      s = delete_routine(s,destroy_instance)
+        s = delete_routine(s,no_no_no)
+--trace(1)
         dtor(s)
         s = delete_routine(s,0)
+--if still_has_delete_routine(s) then ?9/0 end if
     end if
     if stype=S_DYNAMIC then
         destroy_dict(cdx)
