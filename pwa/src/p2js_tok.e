@@ -90,14 +90,15 @@ function phix_only(integer e=i)
     return false
 end function
 
-procedure block_comment(integer tokstart)
+procedure block_comment(integer tokstart,adj)
 --
 -- note: a comment is deemed to start with "--/*" if it ends with "--*/"
 --       nested block comments are replaced, "/* /* */ */" ==> "/* /@ @/ */"
 --       (since nested comments are *not* supported by js, html, c, or css!)
 --
     integer startline = line, nest = 1
-    i = tokstart
+--  integer startline = line, startcol = col, nest = 1
+    i = tokstart+adj
     while true do
         if i>length(text) then
             line = startline
@@ -118,6 +119,8 @@ procedure block_comment(integer tokstart)
             nest += 1
         elsif ch='\n' then
             line += 1
+--10/2/21...
+            linestart = i+1
         end if
         i += 1
     end while
@@ -135,7 +138,23 @@ procedure block_comment(integer tokstart)
     -- (and obviously "/* comment */" stays as-is... or rather " com " ==> "/* com */", 
     --                                                         "com --") ==> "--/* com --*/",
     --                                                         "-- com" ==> "-- com".)
-    add_tok({BLK_CMT,tokstart,i-2,startline,line,tokstart-linestart})
+--  add_tok({BLK_CMT,tokstart,i-2,startline,line,tokstart-linestart})
+    add_tok({BLK_CMT,tokstart,i,startline,tokstart-linestart,line})
+--  add_tok({toktype,tokstart,i,line,tokstart-linestart}) -- (std_tok)
+--  add_tok({BLK_CMT,tokstart,i-2,startline,startcol,line,tokstart-linestart})
+end procedure
+
+procedure line_comment()
+    while true do -- (normal "--" or "//")
+        -- aside: GT_WHOLE_FILE ensures we'll hit \n
+        i += 1
+--      if i>length(text) then exit end if
+        ch = text[i]
+        toktype = charset[ch]
+        if toktype = EOL then exit end if
+    end while
+    i -= 1
+    add_tok({COMMENT,tokstart,i,line,tokstart-linestart})
 end procedure
 
 global procedure tokenise()
@@ -177,12 +196,15 @@ global procedure tokenise()
                         string t4 = iff(i+3<=lt?text[i..i+3]:"")
                         if t4="--/*" then
                             if phix_only(i+3) then return end if
-                            block_comment(i+4)
+--                          block_comment(i+4)
+                            block_comment(i,4)
                             break
                         elsif t4="--*/" then
                             {} = tok_error("unexpected closing comment",i+3)
                             return
                         end if
+                        line_comment()
+--/*
                         while true do -- (normal "--" or "//")
                             -- aside: GT_WHOLE_FILE ensures we'll hit \n
                             i += 1
@@ -193,9 +215,11 @@ global procedure tokenise()
                         end while
                         i -= 1
                         add_tok({COMMENT,tokstart,i,line,tokstart-linestart})
+--*/
                         break
                     elsif toktype='/' and cn='*' then
-                        block_comment(i+2)
+--                      block_comment(i+2)
+                        block_comment(i,2)
                         break
                     end if
                 end if
@@ -232,6 +256,10 @@ global procedure tokenise()
                 break
 --          case HEXDEC:
             case '#':
+                if is_py() then
+                    line_comment()
+                    break
+                end if
                 i += 1
                 ch = text[i]
                 if ch='i' then
@@ -289,7 +317,7 @@ global procedure tokenise()
                 fallthrough
 --          case DQUOTE, '`':
             case '"', '`':
-                integer cq = ch, startline = line
+                integer cq = ch, startline = line, midlinestart = linestart
                 while true do
                     i += 1
                     ch = text[i]
@@ -298,7 +326,8 @@ global procedure tokenise()
                         ch = text[i]
                     elsif ch=cq then
                         if i=tokstart+1 
-                        and is_phix()
+--                      and is_phix()
+                        and (is_phix() or is_py())
                         and i<lt
                         and text[i+1]=cq then
                             -- triplequote handling...
@@ -318,7 +347,12 @@ global procedure tokenise()
                                 else
                                     cqc = 0
                                     i += (ch='\\')
-                                    line += (ch='\n')
+--10/2/21:
+--                                  line += (ch='\n')
+                                    if ch='\n' then
+                                        line += 1
+                                        midlinestart = i+1
+                                    end if
                                 end if
                             end while
                             tokstart += 2
@@ -336,7 +370,12 @@ global procedure tokenise()
                             {} = tok_error("missing closing quote",tokstart)
                             return
                         end if
-                        line += (ch='\n')
+--10/2/21
+--                      line += (ch='\n')
+                        if ch='\n' then
+                            line += 1
+                            midlinestart = i+1
+                        end if
                     elsif charset[ch]=EOL then
                         {} = tok_error("missing closing quote")
                         return
@@ -345,11 +384,13 @@ global procedure tokenise()
                 if toktype='`' then
 --removed 24/1/21:
 --                  if phix_only(i) then return end if
-                    add_tok({'`',tokstart,i,startline,line,tokstart-linestart})
+--                  add_tok({'`',tokstart,i,startline,line,tokstart-linestart})
+                    add_tok({'`',tokstart,i,startline,tokstart-linestart,line})
                     if cq='"' then i += 2 end if -- triplequote
                 else
                     std_token()
                 end if
+                linestart = midlinestart
             case DIGIT:
                 while true do
                     i += 1

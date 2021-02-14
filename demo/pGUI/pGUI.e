@@ -5542,8 +5542,11 @@ end function
 --  return ih
 --end function
 
-global function IupUser()
+global function IupUser(string attributes="", dword_seq args={})
     Ihandle ih = c_func(xIupUser, {})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, args)
+    end if
     return ih
 end function
 
@@ -5799,46 +5802,13 @@ global constant
     CD_SIM_ALL = #FFFF,
     CD_SIM_LINES = or_bits(CD_SIM_LINE, or_bits(CD_SIM_RECT, or_bits(CD_SIM_ARC, CD_SIM_POLYLINE))),
     CD_SIM_FILLS = or_bits(CD_SIM_BOX, or_bits(CD_SIM_SECTOR, or_bits(CD_SIM_CHORD, CD_SIM_POLYGON))),
-    --
-    -- Predefined Color Constants
-    --
-    -- These are simply for convenience
-    --
---DEV F1 lookup:
-    CD_RED          = #FF0000,
-    CD_DARK_RED     = #800000,  -- (not the best...)
-    CD_ORANGE       = #FF8C00,
-    CD_LIGHT_GREEN  = #00FF00,
-    CD_GREEN        = #3cb44b,
-    CD_DARK_GREEN   = #008000,
-    CD_LIGHT_BLUE   = #4363d8,
-    CD_BLUE         = #0000FF,
-    CD_DARK_BLUE    = #000080,
-    CD_YELLOW       = #FFFF00,
---  CD_MAGENTA      = #FF00FF,
-    CD_MAGENTA      = #f032e6,
-    CD_DARK_MAGENTA = #800080,  -- (not the best...)
-    CD_CYAN         = #00FFFF,
-    CD_DARK_CYAN    = #008080,
-    CD_WHITE        = #FFFFFF,
-    CD_BLACK        = #000000,
-    CD_DARK_GRAY    = #808080,
-    CD_DARK_GREY    = #808080,
-    CD_GRAY         = #C0C0C0,
-    CD_GREY         = #C0C0C0,
-    CD_LIGHT_GRAY   = #E4E4E4,
-    CD_LIGHT_GREY   = #E4E4E4,
-    CD_PARCHMENT    = #FFFFE0,
-    CD_INDIGO       = #4B0082,
---  CD_PURPLE       = #D080D0,
-    CD_PURPLE       = #911eb4,
-    CD_VIOLET       = #EE82EE,
 
     --
     -- Conversion Factor Constants
     --
     -- These are simply for convenience
     --
+--DEV F1 lookup:
     CD_MM2PT = 2.83465,         -- Millimeters to Points (pt = CD_MM2PT * mm)
 --  CD_DEG2RAD = 0.0174533,     -- Degrees to Radians (rad = CD_DEG2RAD * deg)
 --  CD_RAD2DEG = 57.2958,       -- Radians to Degrees (deg = CD_RAD2DEG * rad)
@@ -5868,7 +5838,120 @@ global constant
     CD_PDF          = {"CD_PDF"},
     CD_SVG          = {"CD_SVG"},
     CD_CLIPBOARD    = {"CD_CLIPBOARD"},
+
+    --
+    -- Predefined Color Constants
+    --
+    -- These are simply for convenience
+    --
+--XaddStandardColour("Black",    0,  0,  0) -- ==CD_BLACK
+--?addStandardColour("Maroon", 128,  0,  0)
+--XaddStandardColour("Green",    0,128,  0) -- ==CD_DARK_GREEN
+--XaddStandardColour("Olive",  128,128,  0)
+--XaddStandardColour("Navy",     0,  0,128)
+--~addStandardColour("Purple", 128,  0,128)
+--xaddStandardColour("Teal",     0,128,128) -- ==CD_DARK_CYAN
+--addStandardColour("Gray",    128,128,128) -- ==CD_DARK_GREY
+--XaddStandardColour("Silver", 192,192,192) -- ==CD_GREY
+--XaddStandardColour("Red",    255,  0,  0) -- ==CD_RED
+--?addStandardColour("Lime",     0,255,  0)
+--XaddStandardColour("Yellow", 255,255,  0) -- ==CD_YELLOW
+--XaddStandardColour("Blue",     0,  0,255) -- ==CD_BLUE
+--?addStandardColour("Fuchsia",255,  0,255)
+--?addStandardColour("Aqua",     0,255,255) -- ==CD_CYAN?
+--XaddStandardColour("White",  255,255,255) -- ==CD_WHITE
+--constant colour_table={#e6194b,   -- Red
+--                       #3cb44b,   -- Green
+--                       #ffe119,   -- Yellow
+--                       #4363d8,   -- Blue
+--                       #f58231,   -- Orange
+--                       #911eb4,   -- Purple
+--                       #42d4f4,   -- Cyan
+--                       #f032e6,   -- Magenta
+--                       #bfef45,   -- Lime
+--                       #fabebe,   -- Pink
+--                       #469990,   -- Teal
+--                       #e6beff,   -- Lavender
+--                       #9A6324,   -- Brown
+--                       #fffac8,   -- Beige
+--                       #800000,   -- Maroon
+--                       #aaffc3,   -- Mint
+--X                      #808000,   -- Olive
+--                       #ffd8b1,   -- Apricot
+--~                      #000075,   -- Navy
+--                       #a9a9a9}   -- Grey
+
+    CD_BLACK        = #000000,
+    CD_BLUE         = #0000FF,
+    CD_CYAN         = #00FFFF,
+    CD_DARK_BLUE    = #000080,
+    CD_DARK_CYAN    = #008080,
+    CD_DARK_GRAY    = #808080,
+    CD_DARK_GREY    = #808080,
+    CD_DARK_GREEN   = #008000,
+    CD_DARK_MAGENTA = #800080,  -- (not the best...)
+    CD_DARK_RED     = #800000,  -- (not the best...)
+    CD_GRAY         = #C0C0C0,
+    CD_GREY         = #C0C0C0,
+    CD_GREEN        = #3cb44b,
+    CD_INDIGO       = #4B0082,
+    CD_LIGHT_GRAY   = #E4E4E4,
+    CD_LIGHT_GREY   = #E4E4E4,
+    CD_LIGHT_GREEN  = #00FF00,
+    CD_LIGHT_BLUE   = #4363d8,
+--  CD_MAGENTA      = #FF00FF,
+    CD_MAGENTA      = #f032e6,
+    CD_NAVY         = #000080,  -- (=== CD_DARK_BLUE)
+    CD_ORANGE       = #FF8C00,
+    CD_OLIVE        = #808000,
+    CD_PARCHMENT    = #FFFFE0,
+--  CD_PURPLE       = #D080D0,
+    CD_PURPLE       = #911eb4,
+    CD_RED          = #FF0000,
+    CD_SILVER       = #C0C0C0,  -- (=== CD_GREY)
+    CD_TEAL         = #008080,  -- (=== CD_DARK_CYAN)
+    CD_VIOLET       = #EE82EE,
+    CD_WHITE        = #FFFFFF,
+    CD_YELLOW       = #FFFF00,
+
+    IUP_BLACK        = "#000000",
+    IUP_BLUE         = "#0000FF",
+    IUP_CYAN         = "#00FFFF",
+    IUP_DARK_BLUE    = "#000080",
+    IUP_DARK_CYAN    = "#008080",
+    IUP_DARK_GRAY    = "#808080",
+    IUP_DARK_GREY    = "#808080",
+    IUP_DARK_GREEN   = "#008000",
+    IUP_DARK_MAGENTA = "#800080",   -- (not the best...)
+    IUP_DARK_RED     = "#800000",   -- (not the best...)
+    IUP_GRAY         = "#C0C0C0",
+    IUP_GREY         = "#C0C0C0",
+    IUP_GREEN        = "#3cb44b",
+    IUP_INDIGO       = "#4B0082",
+    IUP_LIGHT_GRAY   = "#E4E4E4",
+    IUP_LIGHT_GREY   = "#E4E4E4",
+    IUP_LIGHT_GREEN  = "#00FF00",
+    IUP_LIGHT_BLUE   = "#4363d8",
+--  IUP_MAGENTA      = "#FF00FF",
+    IUP_MAGENTA      = "#f032e6",
+    IUP_NAVY         = "#000080",   -- (=== CD_DARK_BLUE)
+    IUP_ORANGE       = "#FF8C00",
+    IUP_OLIVE        = "#808000",
+    IUP_PARCHMENT    = "#FFFFE0",
+--  IUP_PURPLE       = "#D080D0",
+    IUP_PURPLE       = "#911eb4",
+    IUP_RED          = "#FF0000",
+    IUP_SILVER       = "#C0C0C0",   -- (=== CD_GREY)
+    IUP_TEAL         = "#008080",   -- (=== CD_DARK_CYAN)
+    IUP_VIOLET       = "#EE82EE",
+    IUP_WHITE        = "#FFFFFF",
+    IUP_YELLOW       = "#FFFF00",
     $
+
+--SUG/DOC:
+--global function CD2IUP(atom CD_COLOR)
+--  return sprintf("%06x",CD_COLOR)
+--end function
 
 atom
     hCd = 0,

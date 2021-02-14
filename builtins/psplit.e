@@ -6,7 +6,7 @@
 --  This is an auto-include file; there is no need to manually include it, unless you want a namespace.
 --
 
-global function split(sequence source, object delimiter=' ', bool no_empty=false, integer limit=0)
+global function split(sequence source, object delimiter=' ', bool no_empty=true, integer limit=0)
 sequence ret = {}
 integer start
 integer pos

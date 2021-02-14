@@ -216,7 +216,8 @@ forward function expr(integer p, skip=0)
 
 function rcall(object fp, sequence tok)
 --  sequence res = {"PCALL",tok}
-    sequence res = {fp,tok}
+--  sequence res = {fp,tok}
+    sequence res = {tok}
     integer ttidx = tok[TOKTTIDX]
     if ttidx=T_iif then ttidx = T_iff end if
     expectt('(')
@@ -243,7 +244,7 @@ function rcall(object fp, sequence tok)
         end while
     end if
     expectt(')')
-    return res
+    return {{fp,res}}
 end function
 
 function skip_comments()
@@ -544,7 +545,7 @@ function vardef(integer thistdx, skip=0, iForPar=0)
 --  sequence res = {VARIABLE,tok[TOKTYPE]}
 --  sequence res = {VARIABLE,tdx-1}
     tdx += skip
-    sequence res = {}, ast
+    sequence res = {tokens[thistdx]}, ast
     integer last_comma
     bool bEq = false
     while true do
@@ -655,7 +656,8 @@ function vardef(integer thistdx, skip=0, iForPar=0)
 -- actually, we might get away with 1/2... they need to be global though....
 --puts(1,"Warning: VARIABLE line 632 p2js_parse.e\n") -- (wrong, it needs to be like T_for, or something...)
 --  return {VARIABLE,res}
-    return {"vardef",thistdx,res}   -- nb covers constants!
+--  return {"vardef",thistdx,res}   -- nb covers constants!
+    return {"vardef",res}   -- nb covers constants!
 end function
 
 forward function block(integer skip=0, bool bOpt=false)
@@ -745,6 +747,8 @@ function statement()
                 integer ttidx = tok[TOKTTIDX]
                 switch ttidx do
                     case T_include,
+                         T_from,
+                         T_import,
                          T_with,
                          T_without:
 --?"include!"
@@ -752,8 +756,9 @@ function statement()
 --                      phix_only()
 --/!*
                         if not is_phix()
-                        and not is_C() then -- (#include really)
-                            return parse_error(tok,"phix/c only")
+                        and not is_C()  -- (#include really)
+                        and not is_py() then -- (from)
+                            return parse_error(tok,"phix/c/py only")
                         end if
 --*!/
                         string filename = ""
@@ -844,7 +849,8 @@ function statement()
 --                      sequence cond = expr(0)
 --  ast = {392,{61'=',{8,3061,3062,97'a',11,1004},{5,3064,3066,97'a',14}}}
 --if tok[TOKLINE]=141 then trace(1) end if
-                        ast = {T_if,expr(0)}
+--                      ast = {T_if,expr(0)}
+                        ast = {expr(0)}
 --?cond
                         if is_phix() then
                             if not expect(T_then) then exit end if
@@ -889,6 +895,7 @@ function statement()
 --                      {} = expects({T_end,T_if})
 --                      if not expect(T_end) then exit end if
 --                      if not expect(T_if) then exit end if
+                        ast = {{T_if,ast}}
 
                     case T_iff, T_iif:
                         expectt('(')
@@ -1173,6 +1180,12 @@ function statement()
 --                  break
                 end if
                 fallthrough
+            case '`':
+                if toktype='`'
+                and is_py() then
+                    ast = append(ast,{toktype,tdx})
+                    exit
+                end if
             default: 
 --              return parse_error(tok,"letter expected (erm, ? or { or [ perhaps?)")
                 return parse_error(tok,"unexpected token")
@@ -1247,7 +1260,8 @@ global function parse()
 --trace(1)
     while not parse_error()
       and tdx<length(tokens) do
-        ast = append(ast,statement())
+--      ast = append(ast,statement())
+        ast &= statement()
     end while
     if cdrop>0 then
         --
@@ -1259,7 +1273,8 @@ global function parse()
         --
         printf(1,"warning: %d comments dropped (lines %s)\n",{cdrop,join(clines,",")})
     end if
-    return ast
+--  return ast
+    return {"program",ast}
 end function
 
 --/*

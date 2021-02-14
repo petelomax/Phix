@@ -39,20 +39,21 @@ global sequence tokens
 
 -- aside: pwa/p2js (as per the docs) does not support nested constants.
 --/* -- backtrack, see p2js.exw
-enum PHIX, HTML, CSS, JSS, C
+enum PHIX, HTML, CSS, JSS, C, PYTH
 constant extensions = {{PHIX, {"exw","ex","e","eu"}},
                        {HTML, {"html","htm"}},
                        {CSS, {"css"}},
                        {JSS, {"js"}},
                        {C, {"c"}}}
 --*/
-global constant ext_names = {"phix","html","css","js","go","c"}
+global constant ext_names = {"phix","html","css","js","go","c","python"}
 constant extensions = {{PHIX :=1, {"exw","ex","e","eu","ew"}},
                        {HTML :=2, {"html","htm"}},
                        {CSS  :=3, {"css"}},
                        {JSS  :=4, {"js"}}, -- (avoid clash with platform()'s JS)
                        {GO   :=5, {"go"}},
-                       {C    :=6, {"c"}}}
+                       {C    :=6, {"c"}},
+                       {PYTH :=7, {"py"}}}
 --
 -- note that both the tokeniser and the parser have a local phix_only() routine
 --      that invokes is_phix(), before going on to invoke their own xxx_error().
@@ -63,6 +64,7 @@ global function is_css()  return ext=CSS  end function
 global function is_js()   return ext=JSS  end function
 global function is_go()   return ext=GO   end function
 global function is_C()    return ext=C    end function
+global function is_py()   return ext=PYTH end function
 
 --/*
 -- don't think this helped... (the better plan is html -> xml,
@@ -118,6 +120,7 @@ end function
 
 global function load_file(string filename)
     current_file = filename -- (store for debugging purposes)
+?{"current_file",current_file}
     object txt = get_text(filename,GT_WHOLE_FILE)
     if not string(txt) then
         return fatal("unable to open "&filename)
@@ -415,7 +418,7 @@ global procedure show_token(sequence tok, string prefix="")
 end procedure
 
 --global constant INCLUDETOKS = `\/.<>`&'`'&DQUOTE&LETTER&ELLIPSE&DIGIT
-global constant INCLUDETOKS = `\/.<>"`&'`'&LETTER&ELLIPSE&DIGIT
+global constant INCLUDETOKS = `\/.<>"*`&'`'&LETTER&ELLIPSE&DIGIT
 
 -- to show in ex.err as a useful lookup table during debugging:
 sequence precedence_table = precedences

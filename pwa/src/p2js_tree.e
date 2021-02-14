@@ -219,7 +219,7 @@ function tt_keywords(sequence defs)
         for i=1 to length(defs) do
             {string t, integer c} = defs[i]
             string tq = `"`&t&`",`,
-                   ci = sprintf("    {%-18s T_%-17s := %d},",{tq,t,c})
+                   ci = sprintf("    {%-26s T_%-25s := %d},",{tq,t,c})
             if c>=32 and c<128 then
                 if clen=0 then
                     clen = length(ci)+4
@@ -227,6 +227,9 @@ function tt_keywords(sequence defs)
                 ci &= repeat(' ',clen-length(ci))&sprintf("-- '%c'",c)
             end if
             ci &= '\n'
+            if find(t,{"object","xor","yield","wait_key"}) then
+                ci &= '\n'
+            end if
             content &= ci
         end for
         content[-2] = '}'

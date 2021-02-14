@@ -575,7 +575,7 @@ string a = IupGetClassName(ih)
 string b = ih_iclass_name(ih)
 if a!=b then ?9/0 end if
 atom iclass = ih_iclass(ih)
-integer nativetype = peek4s(iclass+8)   --DEV 32/64/win/lnx...
+atom nativetype = peek4s(iclass+8)  --DEV 32/64/win/lnx...
     return nativetype
 end function
 
@@ -589,7 +589,7 @@ string a = IupGetClassName(ih)
 string b = ih_iclass_name(ih)
 if a!=b then ?9/0 end if
 atom iclass = ih_iclass(ih)
-integer childtype = peek4s(iclass+12)   --DEV 32/64/win/lnx...
+atom childtype = peek4s(iclass+12)  --DEV 32/64/win/lnx...
     return childtype
 end function
 
