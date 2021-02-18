@@ -10,6 +10,9 @@
 -- the relevant entries in said may be meaningless for .exe files other
 -- than p[w].exe
 --
+constant WINDERS = platform()=WINDOWS -- (simplify dbg/port to LINUX)
+--constant WINDERS = false
+
 --DEV to do:
 --      handle /* */ and --/* --*/ backticks treblequotes...
 --      Integrate with Edita (or implement a cross-platform gui)
@@ -210,12 +213,14 @@ constant
 
 integer screenLines, screenCols, 
         attr, 
-        maxwid,
+        maxwid = 80,
         vararea = 4
 
 sequence consoleSize
 
-atom xGetConsoleScreenBufferInfo,
+atom xGetStdHandle,
+     xGetConsoleScreenBufferInfo,
+     xSetConsoleScreenBufferSize,
      xSetConsoleTextAttribute,
      xGetKeyState,
      xIsBadReadPtr,
@@ -226,94 +231,97 @@ atom xGetConsoleScreenBufferInfo,
      pMode
 
 procedure dinit()
--- platform()=WINDOWS only
-atom xKernel32,
-     xUser32,
-     xGetStdHandle,
-     xSetConsoleScreenBufferSize
-object dScreen
 
     puts(1,"") -- ensure console exists
---DEV
-if platform()!=WINDOWS then
-    puts(1,"pTrace.e not linux\n")
-end if
-    xKernel32 = open_dll("kernel32.dll")
-    xUser32 = open_dll("user32.dll")
-    xGetStdHandle = define_c_func(xKernel32,"GetStdHandle",
-        {C_LONG},   --  DWORD  nStdHandle   // input, output, or error device
-        C_PTR)      -- HANDLE
-    xGetConsoleScreenBufferInfo = define_c_func(xKernel32,"GetConsoleScreenBufferInfo",
-        {C_PTR,     --  HANDLE  hConsoleOutput, // handle of console screen buffer
-         C_PTR},    --  PCONSOLE_SCREEN_BUFFER_INFO  // address of screen buffer info
-        C_INT)      -- BOOL
-    xSetConsoleScreenBufferSize = define_c_func(xKernel32,"SetConsoleScreenBufferSize",
-        {C_PTR,     --  HANDLE  hConsoleOutput, // handle of console screen buffer
-         C_LONG},   --  COORD  coordSize    // new size in character rows and cols.
-        C_INT)      -- BOOL
-     xSetConsoleTextAttribute = define_c_func(xKernel32,"SetConsoleTextAttribute",
-        {C_PTR,     --  HANDLE  hConsoleOutput, // handle of console screen buffer
-         C_LONG},   --  WORD  wAttr         // text and background colors 
-        C_INT)      -- BOOL
-    xGetKeyState = define_c_func(xUser32,"GetKeyState",
-        {C_INT},    --  int  nVirtKey       // virtual-key code
-        C_INT)      -- SHORT
-    xIsBadReadPtr = define_c_func(xKernel32,"IsBadReadPtr",
-        {C_PTR,     --  CONST VOID  * lp,   // address of memory block
-         C_INT},    --  UINT  ucb   // size of block
-        C_INT)      -- BOOL
-    xGetConsoleMode = define_c_func(xKernel32,"GetConsoleMode",
-        {C_PTR,     --  HANDLE  hConsole,   // handle of console input or screen buffer
-         C_PTR},    --  LPDWORD  lpMode     // current mode flags 
-        C_INT)      -- BOOL
-    xSetConsoleMode = define_c_func(xKernel32,"SetConsoleMode",
-        {C_PTR,     --  HANDLE  hConsole,   // handle of console input or screen buffer
-         C_LONG},   --  DWORD  fdwMode      // input or output mode to set 
-        C_INT)      -- BOOL
+    if WINDERS then
+        atom xKernel32 = open_dll("kernel32.dll"),
+             xUser32   = open_dll("user32.dll")
+        xGetStdHandle = define_c_func(xKernel32,"GetStdHandle",
+            {C_LONG},   --  DWORD  nStdHandle   // input, output, or error device
+            C_PTR)      -- HANDLE
+        xGetConsoleScreenBufferInfo = define_c_func(xKernel32,"GetConsoleScreenBufferInfo",
+            {C_PTR,     --  HANDLE  hConsoleOutput, // handle of console screen buffer
+             C_PTR},    --  PCONSOLE_SCREEN_BUFFER_INFO  // address of screen buffer info
+            C_INT)      -- BOOL
+        xSetConsoleScreenBufferSize = define_c_func(xKernel32,"SetConsoleScreenBufferSize",
+            {C_PTR,     --  HANDLE  hConsoleOutput, // handle of console screen buffer
+             C_LONG},   --  COORD  coordSize    // new size in character rows and cols.
+            C_INT)      -- BOOL
+        xSetConsoleTextAttribute = define_c_func(xKernel32,"SetConsoleTextAttribute",
+            {C_PTR,     --  HANDLE  hConsoleOutput, // handle of console screen buffer
+             C_LONG},   --  WORD  wAttr         // text and background colors 
+            C_INT)      -- BOOL
+        xGetKeyState = define_c_func(xUser32,"GetKeyState",
+            {C_INT},    --  int  nVirtKey       // virtual-key code
+            C_INT)      -- SHORT
+        xIsBadReadPtr = define_c_func(xKernel32,"IsBadReadPtr",
+            {C_PTR,     --  CONST VOID  * lp,   // address of memory block
+             C_INT},    --  UINT  ucb   // size of block
+            C_INT)      -- BOOL
+        xGetConsoleMode = define_c_func(xKernel32,"GetConsoleMode",
+            {C_PTR,     --  HANDLE  hConsole,   // handle of console input or screen buffer
+             C_PTR},    --  LPDWORD  lpMode     // current mode flags 
+            C_INT)      -- BOOL
+        xSetConsoleMode = define_c_func(xKernel32,"SetConsoleMode",
+            {C_PTR,     --  HANDLE  hConsole,   // handle of console input or screen buffer
+             C_LONG},   --  DWORD  fdwMode      // input or output mode to set 
+            C_INT)      -- BOOL
 
-    xCSBI = allocate(sizeof_CSBI)
-    pMode = allocate(4)
-    stdout = c_func(xGetStdHandle,{STD_OUTPUT_HANDLE})
+        xCSBI = allocate(sizeof_CSBI)
+        pMode = allocate(4)
+        stdout = c_func(xGetStdHandle,{STD_OUTPUT_HANDLE})
 
-    if not c_func(xGetConsoleScreenBufferInfo,{stdout,xCSBI}) then ?9/0 end if
-    screenCols = peek2u(xCSBI+CSBI_SIZEX)
-    screenLines = peek2u(xCSBI+CSBI_SIZEY)
-    maxwid = screenCols-8
-    dbgPos = {1,1}
-    blankScreen = {}
---
--- 31/12/09...
--- On Windows XP, the default console size is 80x25, with a screen buffer of 80x300,
---  though you can change these in the properties dialogue. The problem is that at
---  that size, a call to ReadConsoleOutput fails with ERROR_NOT_ENOUGH_MEMORY (= 8)
---  so here I reduce the number of lines until it fits.
---
-    while 1 do
-        consoleSize = {screenLines,screenCols}
+        if not c_func(xGetConsoleScreenBufferInfo,{stdout,xCSBI}) then ?9/0 end if
+        screenCols = peek2u(xCSBI+CSBI_SIZEX)
+        screenLines = peek2u(xCSBI+CSBI_SIZEY)
+        maxwid = screenCols-8
+        dbgPos = {1,1}
+        blankScreen = {}
+        --
+        -- 31/12/09...
+        -- On Windows XP, the default console size is 80x25, with a screen buffer
+        --  of 80x300, though you can change those in the properties dialogue.
+        --  The problem is that at that size, a call to ReadConsoleOutput fails 
+        --  with ERROR_NOT_ENOUGH_MEMORY (= 8) so here I reduce the number of 
+        --  lines until it fits.
+        --
+        while 1 do
+            consoleSize = {screenLines,screenCols}
 --?{"pTrace.e dinit() line 293, consoleSize:",consoleSize}
-        dScreen = save_text_image({1,1},consoleSize)
-        if sequence(dScreen) then
-            dbgScreen = dScreen
-            exit
+            object dScreen = save_text_image({1,1},consoleSize)
+            if sequence(dScreen) then
+                dbgScreen = dScreen
+                exit
+            end if
+            screenLines -= 1
+        end while
+        if not c_func(xSetConsoleScreenBufferSize,{stdout,screenLines*#10000+screenCols}) then
+            puts(1,"error setting console size\n")
+            ?consoleSize
+            if getc(0) then end if
         end if
-        screenLines -= 1
-    end while
-    if not c_func(xSetConsoleScreenBufferSize,{stdout,screenLines*#10000+screenCols}) then
-        puts(1,"error setting console size\n")
-        ?consoleSize
-        if getc(0) then end if
-    end if
 --?{"pTrace.e dinit() line 305, consoleSize:",consoleSize}
 
---
--- Although we save the entire screen buffer, base display on the number of visible lines.
---  DEV: To-do: re-check this periodically to allow the debug window to be resized...
---       (could only do so on +/- keystrokes?)
---
-    screenLines = peek2u(xCSBI+CSBI_WINY2)-peek2u(xCSBI+CSBI_WINY1)+1
+        --
+        -- Although we save the entire screen buffer, base the
+        --  display on the number of visible lines.
+        --  DEV: To-do: re-check this periodically to allow the 
+        --       debug window to be resized...
+        --       (could only do so on +/- keystrokes?)
+        --
+        screenLines = peek2u(xCSBI+CSBI_WINY2)-peek2u(xCSBI+CSBI_WINY1)+1
 
---  free(xCSBI)
+--      free(xCSBI)
 
+    else
+        --DEV more...
+        screenLines = 25
+        screenCols = 80
+        blankScreen = {}
+        dbgScreen = {}
+        dbgPos = {1,1}
+        consoleSize = {screenLines,screenCols}
+    end if
     initD = 1
 end procedure
 
@@ -323,9 +331,8 @@ procedure debug_screen(integer on)
 --
 --  if not initD then dinit() end if -- NO!
     if initD then
-        if on then
-            if not debugOn then
---DEV oh bugger me - windows only!!
+        if on and not debugOn then
+            if WINDERS then
                 poke4(xCSBI+CSBI_ATTR,-1)
                 if not c_func(xGetConsoleScreenBufferInfo,{stdout,xCSBI}) then
                     puts(1,"oops:debug_screen\n")
@@ -334,19 +341,19 @@ procedure debug_screen(integer on)
                 runPos = get_position()
                 runScreen = save_text_image({1,1},consoleSize)
                 display_text_image({1,1},dbgScreen)
-                position(1,1)   -- ensure top line is visible
-                position(dbgPos[1],dbgPos[2])
-                debugOn = TRUE
             end if
-        else
-            if debugOn then
-                dbgPos = get_position()
+            position(1,1)   -- ensure top line is visible
+            position(dbgPos[1],dbgPos[2])
+            debugOn = TRUE
+        elsif not on and debugOn then
+            dbgPos = get_position()
+            if WINDERS then
                 dbgScreen = save_text_image({1,1},consoleSize)
                 display_text_image({1,1},runScreen)
                 position(runPos[1],runPos[2])
                 if c_func(xSetConsoleTextAttribute,{stdout,attr}) then end if
-                debugOn = FALSE
             end if
+            debugOn = FALSE
         end if
     end if
 end procedure
@@ -449,6 +456,7 @@ sequence bl
         end if
         puts(1,txt)
     else
+        if not WINDERS then ?9/0 end if
         attr = blat_bk*16+blat_txt
         x = blat_X*2-1
         bl = dbgScreen[blat_Y]
@@ -778,11 +786,16 @@ integer nTyp, tidx
 end function
 
 integer F3help = 0
-constant helptext = {
+constant helptext = {{
 "F3=toggle help, F6=animate, F7/Enter=step into, F8=step over, F9=step out",
 "(page)up/down, left/right, (shift)tab=navigate source; home/end=fully tab",
 "+=more varspace, -=less varspace, !=abort (create ex.err), ?=var lookup",
-"q=resume execution,  Q=permanently"}
+"q=resume execution,  Q=permanently"},{
+--345678901234567890123456789012345678901234567890123456789012345678901234567890
+"'3'=toggle help, '6'=animate, '7'/Enter=step into, '8'=step over, '9'=out",
+"(upper=page)u=up/n=down, h=left/j=right, tab=navigate source; H=home",
+"+=more varspace, -=less varspace, !=abort (create ex.err), ?=var lookup",
+"q=resume execution,  Q=permanently"}}
 constant ENABLE_WRAP_AT_EOL_OUTPUT = 2
 
 procedure showvars(integer limit)
@@ -793,7 +806,7 @@ integer lo, itemlen, padding
 integer varline
 object o
 
-    if platform()=WINDOWS then
+    if WINDERS then
         if not c_func(xGetConsoleMode,{stdout,pMode}) then ?9/0 end if
         WrapMode = peek4u(pMode)
         if and_bits(WrapMode,ENABLE_WRAP_AT_EOL_OUTPUT) then
@@ -806,8 +819,9 @@ object o
     varline = 1
     if F3help then
         set_colours(BLACK, WHITE)
-        for i=1 to length(helptext) do
-            oneline = helptext[i]
+        integer hdx = (2-WINDERS)
+        for i=1 to length(helptext[hdx]) do
+            oneline = helptext[hdx][i]
             oneline &= repeat(' ',80-length(oneline))
             blatpos(1,screenLines-vararea+i,oneline)
             varline += 1
@@ -869,14 +883,17 @@ object o
     end if
     -- lastly blank out any remaining lines
     oneline = repeat(' ',80)
+--  oneline = repeat(' ',79)
     if vars_shown>=vararea then
-        vars_shown = vararea-1
+--      vars_shown = vararea-1
+        vars_shown = vararea
     end if
     for i=varline to vars_shown do
         blatpos(1,screenLines-vararea+i,oneline)
     end for
     vars_shown = varline-1
-    if platform()=WINDOWS then
+    if WINDERS then
+        position(1,1)
         if and_bits(WrapMode,ENABLE_WRAP_AT_EOL_OUTPUT) then
             if not c_func(xSetConsoleMode,{stdout,WrapMode}) then ?9/0 end if
         end if
@@ -920,13 +937,17 @@ integer lf  -- length(ff) [scratch var]
         --
         -- display whole screenful of text
         --
-        blatit = 1
-        if length(blankScreen)=0 then
+        if WINDERS then
+            blatit = 1
+            if length(blankScreen)=0 then
 --if not initD then ?9/0 end if -- 14/2/19
-            clear_screen()
-            blankScreen = save_text_image({1,1},consoleSize)
+                clear_screen()
+                blankScreen = save_text_image({1,1},consoleSize)
+            end if
+            dbgScreen = blankScreen
+        else
+            blatit = 0
         end if
-        dbgScreen = blankScreen
 --DEV!
         if not toEnd then
 --?     if ascurrline then
@@ -957,7 +978,11 @@ integer lf  -- length(ff) [scratch var]
 --  +=more varspace  -=less varspace  !=abort (create ex.err)  ?=var lookup
 --      ff = sprintf(" %s%s  F1=main  F2=trace  Enter down-arrow  ?  q  Q  !                      ",ff)
 --ff={
-        ff = sprintf(" %s%s  F1=main  F2=trace  F3=help  ?  q  Q  ! ",ff)
+        if WINDERS then
+            ff = sprintf(" %s%s  F1=main  F2=trace  F3=help  ?  q  Q  ! ",ff)
+        else
+            ff = sprintf(" %s%s  '3'=help '7'=step '8'=step over  ?  q  Q  ! ",ff)
+        end if
         lf = length(ff)
         if lf<80 then
             ff &= repeat(' ',80-lf)
@@ -997,7 +1022,9 @@ integer lf  -- length(ff) [scratch var]
                 prevcol = column    -- (minor: avoids a full redisplay on next step)
             end if
         end while
-        display_text_image({1,1},dbgScreen)
+        if WINDERS then
+            display_text_image({1,1},dbgScreen)
+        end if
         blatit = 0
     end if
     if ascurrline then
@@ -1056,7 +1083,7 @@ integer key
 --DEV (2 lines 24/3/2013)
 --  r = c_func(xGetConsoleScreenBufferInfo,{stdout,xCSBI})
 integer y
-    if platform()=WINDOWS then
+    if WINDERS then
         if not c_func(xGetConsoleScreenBufferInfo,{stdout,xCSBI}) then ?9/0 end if
         y = peek2u(xCSBI+CSBI_WINY2)-peek2u(xCSBI+CSBI_WINY1)+1
         if y!=screenLines then
@@ -1179,7 +1206,7 @@ constant DOWN = +1, UP = -1
 function move(integer line, object direction)
 integer pageful, newline
 integer y
-    if platform()=WINDOWS then
+    if WINDERS then
         if not c_func(xGetConsoleScreenBufferInfo,{stdout,xCSBI}) then ?9/0 end if
         y = peek2u(xCSBI+CSBI_WINY2)-peek2u(xCSBI+CSBI_WINY1)+1
         if y!=screenLines then
@@ -1213,7 +1240,7 @@ constant VK_SHIFT = 16
 procedure Tab()
 -- note that wait_key() returns TAB('\t') whether shift is held down or not.
 integer shift
-    if platform()=WINDOWS then
+    if WINDERS then
         shift = (floor(c_func(xGetKeyState,{VK_SHIFT})/2)!=0)
     else
         --DEV
@@ -1227,6 +1254,7 @@ integer shift
         end if
     else
         column += 4
+--?{"column",column}
     end if
 end procedure
 
@@ -1442,15 +1470,7 @@ integer fileno
 --  tracelevel = trclvl
 
     needclr = 0
-    if platform()=WINDOWS then
-        if not initD then dinit() end if
-    else
-        --DEV more...
-        screenLines = 25
-        screenCols = 80
-        blankScreen = {}
-        consoleSize = {screenLines,screenCols}
-    end if
+    if not initD then dinit() end if
 --puts(1,"debug called...\n")
 --?{fileno,line,tracelevel}
 
@@ -1545,7 +1565,34 @@ integer fileno
                 key = 0
             end if
         end if
-        if key=13 then exit                                     -- return (run to next opLnt)
+        switch key do
+            case 10,13,284: exit                                -- return (run to next opLnt)
+            case 'n',336:   line = move(line,DOWN)              -- downarrow (NB "step over" is F8)
+            case 'u',328:   line = move(line,UP)                -- uparrow
+            case 'N',337:   line = move(line,{DOWN})            -- page down
+            case 'U',329:   line = move(line,{UP})              -- page up
+            case 'h',331:   column = maxI(column-1,1)           -- left arrow
+            case 'j',333:   column += 1                         -- right arrow
+            case 'H',327:   column = 1                          -- home
+            case 'J',335:   column = 1 toEnd = 1                -- end
+            case TAB:       Tab()                               -- tab and shift tab
+            case '+':       varArea(+1)                         -- increase var area
+            case '-':       varArea(-1)                         -- decrease var area
+            case 'q':       res = 0 exit                        -- quit (resume normal execution)
+            case 'Q':       res = -1 exit                       -- Quit ("", permanently)
+            case '!':       abort_trace()                       -- abort (create ex.err)
+            case '?':       var_lookup()
+            case '1',315:   debug_screen(0)                     -- F1
+            case '3',317:   F3help = 1-F3help                   -- F3 help
+            case '6',320:   animate = 1 exit                    -- F6 (animate)
+            case '7',321:   exit                                -- F7 (step into) [== return]
+            case '8',322:   Step(OVER) exit                     -- F8 (step over)
+            case '9',323:   Step(OUT) exit                      -- F9 (step out) [ie resume in callee]
+            default:        printf(1,"unknown key (%d)\n",key)
+        end switch
+--/*
+        if    key=10 then exit                                  -- 
+        elsif key=13 then exit                                  -- return (run to next opLnt)
         elsif key=284 then exit                                 -- Enter
         elsif key=336 then line = move(line,DOWN)               -- downarrow (NB "step over" is F8)
         elsif key=328 then line = move(line,UP)                 -- uparrow
@@ -1573,6 +1620,7 @@ integer fileno
         elsif key=322 then Step(OVER) exit                      -- F8 (step over)
         elsif key=323 then Step(OUT) exit                       -- F9 (step out) [ie resume in callee]
         end if
+--*/
     end while
     if res<=0 then
         needclr = 0

@@ -88,8 +88,8 @@ constant    -- TYPE PROCESS_INFORMATION
 --  dwThreadId  = 12,   -- DWORD
 SIZEOF_PROCESS_INFORMATION = W*2+8
 
-enum STDIN, STDOUT, STDERR, STD3=$
-enum READ, WRITE
+enum PIPEIN, PIPOUT, PIPERR
+enum READ_PIPE, WRITE_PIPE
 
 integer swinit swinit = 0
 atom kernel32,xCreateProcess,xWaitForSingleObject,xGetExitCodeProcess,
@@ -291,15 +291,14 @@ atom child = allocate_string(child_process)
 --      bool inherit = (Wait<=0) and (length(pipes)>0)
         bool inherit = length(pipes)>0
         if inherit then
-            if length(pipes)!=STD3 then ?9/0 end if
-            if sequence(pipes[STDIN]) then
-                pokeN(si+hStdInput,pipes[STDIN][READ],W)
+            if length(pipes)>=PIPEIN and sequence(pipes[PIPEIN]) then
+                pokeN(si+hStdInput,pipes[PIPEIN][READ_PIPE],W)
             end if
-            if sequence(pipes[STDOUT]) then
-                pokeN(si+hStdOutput,pipes[STDOUT][WRITE],W)
+            if length(pipes)>=PIPOUT and sequence(pipes[PIPOUT]) then
+                pokeN(si+hStdOutput,pipes[PIPOUT][WRITE_PIPE],W)
             end if
-            if sequence(pipes[STDERR]) then
-                pokeN(si+hStdError,pipes[STDERR][WRITE],W)
+            if length(pipes)>=PIPERR and sequence(pipes[PIPERR]) then
+                pokeN(si+hStdError,pipes[PIPERR][WRITE_PIPE],W)
             end if
             poke4(si+dwFlags,STARTF_USESTDHANDLES)
         end if
@@ -424,9 +423,9 @@ atom child = allocate_string(child_process)
             if ret=0 then
                 -- child
                 if length(pipes) then
-                    cdc(pipes[STDIN],WRITE,READ,0)
-                    cdc(pipes[STDOUT],READ,WRITE,1)
-                    cdc(pipes[STDERR],READ,WRITE,2)
+                    if length(pipes)>=PIPEIN then cdc(pipes[PIPEIN],WRITE_PIPE,READ_PIPE,0) end if
+                    if length(pipes)>=PIPOUT then cdc(pipes[PIPOUT],READ_PIPE,WRITE_PIPE,1) end if
+                    if length(pipes)>=PIPERR then cdc(pipes[PIPERR],READ_PIPE,WRITE_PIPE,2) end if
                 end if
                 #ilASM{
                     [ELF32]

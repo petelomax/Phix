@@ -113,7 +113,9 @@ end procedure
 --*/
 
 global function sizeof(integer x)
-    integer top = floor(x/#100000)
+--15/2/21:
+--  integer top = floor(x/#100000)
+    integer top = floor(x/#1000000)
     if not find(top,{#01,#02,#03}) then ?9/0 end if
     x -= top*#1000000
     if not find(x,{1,2,4,8}) then ?9/0 end if

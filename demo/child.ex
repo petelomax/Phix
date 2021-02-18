@@ -5,6 +5,8 @@ while true do
 --?o
     if atom(o) then exit end if
     puts(1,o)
+--printf(1,"length(o)=%d\n",length(o))
+--  sleep(1)
 end while
 puts(1,"Child: stdin done!\n")
 puts(2,"Child: stderr done!\n")

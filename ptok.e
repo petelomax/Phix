@@ -1223,6 +1223,7 @@ global constant
 --  USCORE  = 12,   -- _
     LETTER  = 13,   -- A..Z,a..z
     HEXSTR  = 14,   -- Hexadecimal Byte String
+    LABEL   = 15,   -- :: (as a hll label)
     DIGIBAD = -1    -- partials, eg "-."; "3.0e"
 
 --string charset, identset, baseset, whiteacl   -- identset now in ptree.e
@@ -2056,6 +2057,12 @@ global procedure getToken(bool float_valid=false)
                 setFLOAT()
                 return
             end if
+        elsif prevCh=':'
+              and Ch=':' then
+            col += 1
+            Ch = text[col]
+            toktype = LABEL
+            return
         end if
         toktype = prevCh
         return

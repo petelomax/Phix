@@ -5146,8 +5146,9 @@ end procedure -- (for Edita/CtrlQ)
         jmp :puts1sqlooptop
 
       ::puts1sqe65sfics
-        add esp,16      -- (locates era properly)
-      ::putsqe65sfics   -- DEV "" to do
+        add esp,8       -- (locates era properly)
+      ::putsqe65sfics
+        add esp,8       -- (locates era properly)
         mov al,65       -- "sequence found in character string"
         pop edx
         xor edi,edi     -- ep1 unused
@@ -5218,8 +5219,9 @@ end procedure -- (for Edita/CtrlQ)
         jmp :puts1sqlooptop
 
       ::puts1sqe65sfics
-        add rsp,32      -- (locates era properly[?])
-      ::putsqe65sfics   -- DEV "" to do
+        add rsp,16      -- (locates era properly)
+      ::putsqe65sfics
+        add rsp,16      -- (locates era properly)
         mov al,65       -- "sequence found in character string"
         pop rdx
         xor rdi,rdi     -- ep1 unused

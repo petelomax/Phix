@@ -38,6 +38,9 @@ Version 1.0.0
             wraps, already checked for and re-used prior instances anyway.
 07/02/2021: Bugfix: unique(x,STABLE) was not using the dictionary tid, and
             hence returning the entire original list... Belated test added.
+16/02/2021: Fixed trace on linux
+17/02/2021: Enhancement: Added a hll goto statement, and documented it.
+18/02/2021: Created builtins\pipeio.e from guts of demo\capture_console.exw
 
 Version 0.8.3
 =============

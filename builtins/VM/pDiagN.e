@@ -3319,7 +3319,7 @@ else
 --              filename = symtab[T_fileset][sr[S_FPno]][1..2]
                 sequence sfs = symtab[T_fileset]
                 integer srfn = sr[S_FPno]
---printf(1,"pDiag.e line 3294, srfn=%d, length(symtab[T_fileset])=%d\n",{srfn,length(sfs)})
+--printf(1,"pDiagN.e line 3294, srfn=%d, length(symtab[T_fileset])=%d\n",{srfn,length(sfs)})
                 if srfn>length(sfs) then
 --DEV triggered on ::retaddr in pcallfunc.e line 251 - needs something akin to AddressMapping (see below)...[??]
 --?pathset

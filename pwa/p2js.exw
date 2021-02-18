@@ -741,8 +741,49 @@ function selection_cb(Ihandle ih, integer id, status)
     return IUP_DEFAULT
 end function
 
-function treeify(sequence ast)
-    sequence res = {}
+function commentify(sequence comment)
+    return {"commentify??",comment}
+end function
+
+constant SC = {"STATE","COLLAPSED"}
+
+function treeify(sequence ast, bool bRoot=true)
+    if length(ast)!=2 then ?9/0 end if
+    {object nodetype, sequence children} = ast
+    if integer(nodetype) then nodetype = tok_name(nodetype) end if
+    sequence res = {nodetype,iff(bRoot?{}:SC),{}}
+    if string(children) then
+        res[$] = {children}
+    else
+        integer cdx=1
+        while cdx<=length(children) do
+            object child = children[cdx]
+            cdx += 1
+            if not string(child) then
+                object ctype = child[1]
+                if find(ctype,{COMMENT,BLK_CMT}) then
+                    integer first = cdx -- (-1 really)
+                    while cdx<=length(children)
+                      and find(children[cdx][1],{COMMENT,BLK_CMT}) do
+                        cdx += 1
+                    end while
+                    if cdx=first then
+                        child = {"comment",SC,commentify(child)}
+                    else    
+                        child = {"comments",SC,{commentify(child)}}
+                        for i=first to cdx-1 do
+                            child[3] = append(child[3],commentify(child))
+                        end for
+                    end if
+                elsif ctype=LETTER then
+                    child = {"LETTER??",SC,0,child}
+                else
+                    child = treeify(child,false)
+                end if
+            end if
+            res[$] = append(res[$],child)
+        end while
+    end if
     return res
 end function
 
@@ -1699,7 +1740,7 @@ open folder:
                     sequence tree_nodes0 = treeify(ast)
                     pp(tree_nodes0)
 sequence tree_nodes = {"Program",
---                     {"STATE","COLLAPSED"},
+--X                    {"STATE","COLLAPSED"},
                        {},
                        {{"comment",{},0,{"stuff"}},
                         {"include", {"STATE","COLLAPSED"}, {`pGUI.e`}},

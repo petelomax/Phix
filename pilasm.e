@@ -771,6 +771,7 @@ end if
         tokcol = col
         if Ch=':' then Aborp("cannot define a new label here") end if
         lblidx = il_search(':')
+--?{"get_label",lblidx,ttidx,tokcol}
 --      if ttidx=Z_dword then       -- (as T_dword but -3 terminator)
         if ttidx=Z_dword            -- (as T_dword but -3 terminator)
         or ttidx=Z_qword then
@@ -1374,6 +1375,7 @@ integer fwdchain = 0
 integer bklpos = -1
 integer bklopa = -1
 
+--procedure jcc(integer cc, bool bHllGoto=false)
 procedure jcc(integer cc)
 --object ilstuff
 --integer k
@@ -1381,6 +1383,8 @@ procedure jcc(integer cc)
     skipSpacesAndComments()
     if Ch=':' then
         jlabel(get_operand(P_LBL),cc)
+--  elsif bHllGoto then
+--      Aborp("invalid...")
     elsif Ch='[' then
         jlabel(get_mem(P_MEM+P_LBL,0),cc)
     elsif Ch='%' then -- opcode
@@ -1513,11 +1517,40 @@ procedure comma()
     skipSpacesAndComments()
 end procedure
 
-global procedure ilASM()
+procedure local_label(integer illen)
+--integer icol = col
+    integer lblidx = il_search(':')
+--?{"local_label",lblidx,ttidx,icol}
+    if emitON then
+        if lblidx then                                      -- update existing entry
+            if lblidx<=0 or lblidx>length(lblttidx) then
+                Aborp("bad lblidx (bug in phix)")
+            end if
+            if lblttidx[lblidx]!=ttidx then ?9/0 end if
+            if lblpos[lblidx]!=-1 then
+                Aborp("label already defined")
+            end if
+            lblpos[lblidx] = length(s5)
+            if lblopa[lblidx]!=-1 then ?9/0 end if  -- internal error
+            lblopa[lblidx] = illen-3
+        else                                                -- start a new entry
+            lblpos = append(lblpos,length(s5))
+            lblopa = append(lblopa,illen-3)
+            lblline = append(lblline,tokline)
+            lblcol = append(lblcol,tokcol)
+            lblused = append(lblused,0)
+            lblchain = append(lblchain,0)
+            lblttidx = append(lblttidx,ttidx)
+            tt[ttidx+EQ] = length(lblttidx)
+        end if -- existing/new label
+    end if -- emitON
+end procedure
+
+global procedure ilASM(bool bHllGoto=false)
 integer wasemitON = emitON
 integer opLnpos
 integer wasbind
-integer illen       -- opAsm locator, to fill lblopa (opAsm addr) and opAsm length
+integer illen = 0   -- opAsm locator, to fill lblopa (opAsm addr) and opAsm length
 --integer jlink     -- jump link, initially illen, updated as each opJmp emitted
 integer ltype       -- label type (1=local, 2=global)
 integer plen        -- patch a trailing {opLn,x,opAsm,0,0,0}, and gp scratch var
@@ -1575,9 +1608,11 @@ integer unrecognised
 --trace(1)
     bklpos = -1
     fwdchain = 0
+if not bHllGoto then
     MatchString(T_ilASM)
     if not equal(toktype,'{') then Expected("'{'") end if
     skipSpacesAndComments()
+end if
     Z64 = X64
     if emitON then
 --skipSpacesAndComments()
@@ -1595,6 +1630,38 @@ integer unrecognised
         illen = length(s5)
         jlink = illen
     end if
+if bHllGoto then
+-- if necessary...
+--  if returnvar=-1 then        -- top_level code
+--      Aborq("invalid...")
+--  end if
+    if toktype=LABEL then
+        -- eg ::label
+--      col -= 2
+--      Ch = ':'
+        local_label(illen)
+    else
+--      getToken()
+        skipSpacesAndComments()
+        sequence slop = iff(Ch=':'?get_operand(P_LBL):get_label())
+--?1
+--      if toktype=':' then ?2 MatchChar(':',false) end if
+--      if toktype=':' then getCh() end if
+--?{3,toktype}
+--      if toktype!=LETTER then Expected("label name") end if
+        if slop[1]!=P_LBL then Abort("invalid") end if
+        jlabel(slop,#10)
+    end if
+    if emitON then
+        b = length(s5)-illen
+        s5[illen-2] = b                 -- fill in the opAsm length
+    end if
+    if returnvar=-1 then        -- top_level code
+        label_fixup()           -- (also called at end of DoRoutineDef)
+    end if
+    emitON = wasemitON
+    return
+end if
 
     while 1 do
 --if kludge=0 then
@@ -1612,10 +1679,12 @@ integer unrecognised
 --              Aborq("define a new label using \"::\" (or :%/:>/:!/:< for global/init/bang/stop labels)")
             end if
             -- add a new label
-            tokline = line
-            tokcol = col
+--          tokline = line
+--          tokcol = col
             if ltype=1 then -- (local label)
                 getCh()
+                local_label(illen)
+--/*
                 lblidx = il_search(':')
                 if emitON then
                     if lblidx then                                      -- update existing entry
@@ -1640,6 +1709,7 @@ integer unrecognised
                         tt[ttidx+EQ] = length(lblttidx)
                     end if -- existing/new label
                 end if -- emitON
+--*/
             else -- ltype=2 (global label), 3 (init), 4 (bang), 5 (exch)
                 lstart = col
                 lblidx = il_search(':')

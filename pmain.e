@@ -11274,6 +11274,21 @@ end if
     end if
 end procedure
 
+procedure DoGoto()
+--  if in_try and loopage=try_loopage then
+    if in_try then
+        Aborp("invalid (potentially circumvents try handler set or reset)")
+    end if
+--?{"GOTO",toktype,LETTER,LABEL,tokline,tokcol}
+    ilASM(true) 
+    skipSpacesAndComments()
+    getToken()
+--?{"GOTO2",toktype,tokline,tokcol}
+--trace(1)
+--  tokline = line
+--  tokcol = col
+end procedure
+
 --with trace
 procedure TopDecls(integer AllowOnDeclaration)
 -- Parse and Translate Data Declarations
@@ -12578,6 +12593,8 @@ integer N, isLit, etype
             end if
         elsif toktype='{' then
             MultipleAssignment(0,0)
+        elsif toktype=LABEL then
+            DoGoto()
         else
             Aborp("unrecognised")
         end if
@@ -12595,6 +12612,7 @@ integer N, isLit, etype
 --  elsif ttidx=T_switch then       DoSwitch(flags)
     elsif ttidx=T_switch then       DoSwitch()
     elsif ttidx=T_try then          DoTry()
+    elsif ttidx=T_goto then         DoGoto()
     elsif NESTEDFUNC 
       and ttidx=T_func then         DoRoutineDef(R_Func)
     else
@@ -12738,7 +12756,7 @@ integer drop_scope = 0
     top_level_abort = 0
     while 1 do
         if toktype!=LETTER then
-            if not find(toktype,{HEXDEC,'?','{'}) then exit end if
+            if not find(toktype,{HEXDEC,'?','{',LABEL}) then exit end if
         else
             if find(ttidx,T_endelseelsif) then exit end if
 --          if find(ttidx,{T_end,T_else,T_elsif,

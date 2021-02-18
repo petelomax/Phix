@@ -1,0 +1,105 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">Goto Statement</h1>
+      <div id="mainSection">
+        Branches unconditionally to a specified line within a routine.
+        <br>
+        <br>
+        To quote the comp.lang.c FAQ:<br>
+        It has long been observed that unfettered use of goto quickly leads to unmaintainable spaghetti code. <br>
+        However, a simple, unthinking ban on the goto statement does not necessarily lead immediately to beautiful programming: <br>
+        an unstructured programmer is just as capable of constructing a Byzantine tangle without using goto.<br>
+        Many programmers adopt a moderate stance: goto should usually be avoided, but is acceptable in a few well-constrained <br>
+        situations, if necessary: as multi-level break statements, to coalesce common actions inside a switch statement, or <br>
+        to centralize cleanup tasks in a function with several error returns.<br>
+        Blindly avoiding certain constructs or following rules without understanding them can lead to just as many problems as <br>
+        the rules were supposed to avert. Furthermore, many opinions on programming style are just that: opinions. <br>
+        They may be strongly argued and strongly felt, they may be backed up by solid-seeming evidence and arguments, but the <br>
+        opposing opinions may be just as strongly felt, supported, and argued. It is usually futile to get dragged into "style wars", <br>
+        because on certain issues, opponents can never seem to agree, or agree to disagree, or stop arguing.
+        <br>
+        <br>
+        Situations in which goto is often useful include:<br>
+        <ul>
+        <li>To make the code more readable and easier to follow</li>
+        <li>To make smaller programs, and get rid of code duplication</li>
+        <li>Implementing multi-level break and continue from nested loops and condition.</li>
+        <li>Error handling, and particularly cleanup code such as resource deallocation.</li>
+        </ul>
+        The first of those is several orders of magnitude more compelling than the last three combined together.<br>
+        Imposing a self-policed rule that all jumps must be forward (or equivalently all backward, but never mixed) is recommended.
+        <br>
+        <br>
+        Phix imposes the following limitations on the use of goto statements:<br>
+        A goto statement must be in the same function as the label it is referring.<br>
+        The goto statement is not supported in top level code, outside of a routine definition.<br>
+        There are no computed, assigned, or multiple target forms of the goto statement.<br>
+        Goto may not be used and labels may not be defined anywhere inside a try/catch statement.<br>
+        Jumping over variable initialisation will, naturally, leave the variable unassigned.<br>
+        A goto can optionally refer to <code>label</code> or <code>:label</code> - they mean the same thing.<br>
+        (Technically the colon-less variant is shorthand for the formal with-colon label reference.)<br>
+        A label, which adheres to the usual identifier rules, is defined by preceding it with a double colon.
+        <br>
+        <br>
+        Example:<br>
+<!--eucode>
+procedure p()
+    goto label
+    puts(1,"This will not be printed...\n")
+::label
+    puts(1,"...but this will\n")
+end procedure
+p()
+</eucode-->
+<pre>
+<font color="#008080">procedure</font><font color="#000000"> p</font><font color="#0000FF">()</font>
+<font color="#008080">    goto</font><font color="#000000"> label</font>
+<font color="#7060A8">    puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"This will not be printed...\n"</font><font color="#0000FF">)
+::</font><font color="#000000">label</font>
+<font color="#7060A8">    puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"...but this will\n"</font><font color="#0000FF">)</font>
+<font color="#008080">end procedure</font>
+<font color="#000000">p</font><font color="#0000FF">()</font>
+</pre>
+        Obviously a more meaningful name than <code>label</code> is strongly recommended, and anything like a 1970&rsquo;s style <code>L01</code> should be <br>
+        cruelly and relentlessly mocked and ridiculed, unless the programmer is under six years old or recently suffered a stroke.
+        <br>
+        <br>
+        For hopefully obvious reasons goto rarely makes normal code faster and can actually make things bigger and slower:<br>
+<!--eucode>
+        if condition then                       -- faster and smaller
+            goto endif                          -- ==================
+        else                                    if not condition then
+            statements                              statements
+        end if                                  end if
+      ::endif
+</eucode-->
+<pre>
+<font color="#008080">        if</font><font color="#000000"> condition</font><font color="#008080"> then                      </font><font color="#000080"><i> -- faster and smaller</i></font>
+<font color="#008080">            goto</font><font color="#000000"> endif                         </font><font color="#000080"><i> -- ==================</i></font>
+<font color="#008080">        else                                    if not</font><font color="#000000"> condition</font><font color="#008080"> then</font>
+<font color="#000000">            statements                              statements</font>
+<font color="#008080">        end if                                  end if</font>
+<font color="#0000FF">      ::</font><font color="#000000">endif</font>
+</pre>
+        Besides, if the compiler did optimise away bizzare constructs such as that "then goto else", as in emit a single
+        jmp instruction instead of the three consecutive jmp asked for, it would probably thwart some forms of trace and 
+        trapping in the debugger, or profiling, which might be the very reason for doing it like that in the first place.
+        <br>
+        <br>
+        Bear in mind that all the optimisations the compiler tries to make are based on standard structured programming
+        constructs, and are disabled as soon as it encounters a low-level statement such as goto or inline assembly.
+        For instance, after <code>object o = 1</code> the compiler <i>knows</i> that o is an integer - toss in a goto
+        and it has to say "right, I have no idea what o might be or even whether or not it is still unassigned".
+        <br>
+        <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

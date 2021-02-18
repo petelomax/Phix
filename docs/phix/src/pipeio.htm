@@ -1,0 +1,166 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">pipeio</h1>
+      <div id="mainSection">
+        The file builtins/pipeio.e (not an autoinclude) contains routines for low-level handling of pipes.
+        <br>
+        <br>
+        These are (currently) used exclusively with <a href="system_exec.htm">system_exec</a>().
+        <br>
+        <br>
+        See demo\capture_console.exw for an example of use.
+        <br>
+        <br>
+        Note this is currently Windows-only. At one point that demo worked on Linux with a few minor glitches, 
+        but alas now it just hangs.<br>
+        <br>
+        <a name=constants></a>
+        <h2>constants</h2>
+        <style type="text/css">
+          dl {margin:0;padding:0;}
+          dt {margin:0;padding:0;}
+          dd {margin:0;padding:0;}
+          dd.pad {padding-left:8em;}
+        </style>
+        <div id="images" class="images" align="center">
+         <table cellspacing="0" cellpadding="0" border="0" style="padding: 0; border-style: none;">
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <nobr>PIPEIN&nbsp;</nobr>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 1 -- (for stdin)
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            PIPOUT&nbsp;
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 2 -- (for stdout)
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            PIPERR&nbsp;
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 3 -- (for stderr)
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            READ_PIPE&nbsp;
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 1
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            WRITE_PIPE&nbsp;
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 2
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            INHERIT_READ&nbsp;
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 1 -- (for create_pipe)
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <nobr>INHERIT_WRITE&nbsp;</nobr>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 2 -- (for create_pipe)
+          </td></tr>
+         </table>
+        </div>
+        <div style="clear:both;height:1px;"> </div>
+
+        <a name=routines></a>
+        <h2>routines</h2>
+
+        <div id="nopad" class="nopad" align="center">
+         <table cellspacing="0" cellpadding="0" border="0" style="padding: 0; border-style: none;">
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=create_pipe></a>
+            <nobr>sequence result =&nbsp;</nobr>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>create_pipe</b>(integer inherit=0) -- create pipe
+            </dt><dd class="pad">
+            <br>
+            inherit: (windows only) set to INHERIT_READ or INHERIT_WRITE (not both) to inherit from the relevant process.
+            <br>
+            <br>
+            On windows, if inherit is zero then the calling process will not be able to intercept the stdin, stdout, or stderr
+            of the child process; it would only be useful if the pipe handle is passed to the child (by some other means) and 
+            it reads or writes that explicitly.<br>
+<!-- (true, but ees borken...)
+            On linux, the pipe is created in non-blocking mode.
+            <br>
+-->
+            <br>
+            result: a pair of {read,write} handles referring to the read and write ends of the pipe.<br>
+            Use result[READ_PIPE] and result[WRITE_PIPE], or {r,w} = result, in preference to [1] and [2].
+            <br>
+            <br>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=write_to_pipe></a>
+            bool bRes =&nbsp;
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>write_to_pipe</b>(atom hPipe, atom_string x) -- write a string or character to a pipe
+            </dt><dd class="pad">
+            <br>
+            hPipe: A result[WRITE_PIPE] from create_pipe().<br>
+            x: a string or single character (8-bit, and_bits(x,#FF) is performed).
+            <br>
+            <br>
+            An error occurs if x is -1.<br>
+            Returns true on success, false on failure.
+            <br>
+            <br>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=read_from_pipe></a>
+            atom_string res =&nbsp;
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>read_from_pipe</b>(atom hPipe, hProc) -- read from a pipe
+            </dt><dd class="pad">
+            <br>
+            hPipe: A result[READ_PIPE] from create_pipe().<br>
+            hProc: A process handle from <a href="system_exec.htm">system_exec</a> (with bit 8 set).
+            <br>
+            <br>
+            Returns -1 to signify EOF, otherwise a string.
+            <br>
+            <br>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=close_handles></a>
+            object res =&nbsp;
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>close_handles</b>(object p) -- close pipes and/or other handles
+            </dt><dd class="pad">
+            <br>
+            p: A pipe or other handle, or (nested) sequence of such.
+            <br>
+            <br>
+            res is the same shape as p but composed entirely of NULLs
+            <br>
+            <br>
+            If p or any of its elements are NULL on the way in, nothing happens, in regard to that specific element.<br>
+            Using statements such as pipes[PIPEIN][WRITE_PIPE] = close_handles(pipes[PIPEIN][WRITE_PIPE]) or pipes = close_handles(pipes)
+            helps to ensure we do not accidentally keep references to any closed and/or subsequently re-used handles.
+            <br>
+            <br>
+            </dd></dl>
+          </td></tr>
+         </table>
+        </div>
+        <div style="clear:both;height:1px;"> </div>
+        <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>
