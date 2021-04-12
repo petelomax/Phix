@@ -101,7 +101,7 @@
 --          I'll work on a copy of this file w/o the next line soon [he said on 17/9/15]):
 --#without reformat
 
-include pdate.e -- days_in_month()
+--include pdate.e -- days_in_month() [not pwa/p2js]
 
 -- deliberately not global, to deter direct inspection:
 constant DT_TZ = 9,
@@ -212,61 +212,61 @@ constant AU = addDSTrule({10,1,4,1,1})                          -- First Sunday 
 --  Feel free to add/uncomment/correct as you see fit.
 --
 
-sequence {timezones, tzdescs,                            tzadjs, tzDSR, tzDSL} = columnize({
-            {"UTC", "Coordinated Universal Time"            ,+0,    0,  ""},        -- (must be first entry [0->1]'s)
---          {"BST", "Bangladesh Standard Time"              ,+6,    0,  ""},        -- Note: collision with British Summer Time
-            {"BST", "British Summer Time"                   ,+1,    EU, "GMT"},
-            {"GMT", "Greenwich Mean Time"                   ,+0,    0,  ""},
-            {"CEST","Central European Summer Time"          ,+2,    EU, "CET"},
-            {"CET", "Central European Time"                 ,+1,    0,  "CEST"},
-            {"EEST","Eastern European Summer Time"          ,+3,    EU, "EET"},
-            {"EET", "Eastern European Time"                 ,+2,    0,  "EEST"},
-            {"IST", "Irish Standard Time"                   ,+1,    EU, "GMT"},     -- or WET?
---          {"KUYT","Kuybyshev Time"                        ,+4,    0,  ""},
---          {"MSD", "Moscow Daylight Time"                  ,+4,    0,  "MSK"},     -- dead, I think
---          {"MSK", "Moscow Standard Time"                  ,+3,    0,  ""},
---          {"SAMT","Samara Time"                           ,+4,    0,  ""},
-            {"WEST","Western European Summer Time"          ,+1,    EU, "WET"},
-            {"WET", "Western European Time"                 ,+0,    0,  "WEST"},
-            {"ADT", "Atlantic Daylight Time"                ,-3,    US, "AST"},
-            {"AST", "Atlantic Standard Time"                ,-4,    0,  "ADT"},
-            {"AKDT","Alaska Daylight Time"                  ,-8,    US, "AKST"},
-            {"AKST","Alaska Standard Time"                  ,-9,    US, "AKDT"},
-            {"CDT", "Central Daylight Time"                 ,-5,    US, "CST"},
-            {"CST", "Central Standard Time"                 ,-6,    0,  "CDT"},
-            {"EDT", "Eastern Daylight Time"                 ,-4,    US, "EST"},
-            {"EST", "Eastern Standard Time"                 ,-5,    0,  "EDT"},
-            {"EGST","Eastern Greenland Summer Time"         ,+0,    EU, "EGST"},
-            {"EGT", "Eastern Greenland Time"                ,-1,    0,  "EGT"},
---          {"EST", "Egypt Standard Time",                  ,+2,    0,  ""},        -- Note: collision with Eastern Standard Time
-            {"HADT","Hawaii-Aleutian Daylight Time"         ,-9,    US, "HAST"},
-            {"HAST","Hawaii-Aleutian Standard Time"         ,-10,   0,  "HADT"},
-            {"MDT", "Mountain Daylight Time"                ,-6,    US, "MST"},
-            {"MST", "Mountain Standard Time"                ,-7,    0,  "MDT"},
-            {"NDT", "Newfoundland Daylight Time"            ,-2.5,  US, "NST"},
-            {"NST", "Newfoundland Standard Time"            ,-3.5,  0,  "NDT"},
-            {"PDT", "Pacific Daylight Time"                 ,-7,    US, "PST"},
-            {"PST", "Pacific Standard Time"                 ,-8,    0,  "PDT"},
---          {"PMDT","Pierre & Miquelon Daylight Time"       ,-2,    0,  "PMST"},
---          {"PMST","Pierre & Miquelon Standard Time"       ,-3,    0,  "PMDT"},    -- [[UTC-03:00]] (PMST) — [[French Guiana]], [[Saint Pierre and Miquelon]] 
-            {"WGST","Western Greenland Summer Time"         ,-2,    EU, "WGT"},
-            {"WGT", "West Greenland Time"                   ,-3,    0,  "WGST"},
---          {"IST", "India Standard Time"                   ,+5.5,  0,  ""},        -- Note: collision with Irish Standard Time
---          {"IST", "Israel Standard Time",                 ,+2,    0,  ""},        -- Note: collision with Irish Standard Time
---          {"PKT", "Pakistan Standard Time"                ,+5,    0,  ""},
---          {"NPT", "Nepal Time"                            ,+5.75, 0,  ""},
---          {"BTT", "Bhutan Time"                           ,+6,    0,  ""},
---          {"BIOT","British Indian Ocean Territory Time"   ,+6,    0,  ""},
---          {"MVT", "Maldives Time"                         ,+5,    0,  ""},
---          {"CCT", "Cocos Islands Time"                    ,+6.5,  0,  ""},
---          {"TFT", "French Southern and Antarctic Time"    ,+5,    0,  ""},
---          {"MST", "Myanmar Standard Time",                ,+6.5,  0,  ""},        -- Note: collision with Mountain Standard Time  (MMT?)
-            {"ACST","Australian Central Standard Time"      ,+9.5,  0,  "ACDT"},
-            {"ACDT","Australian Central Daylight Time"      ,+10.5, AU, "ACST"},
-            {"AEST","Australian Eastern Standard Time"      ,+10,   0,  "AEDT"},
-            {"AEDT","Australian Eastern Daylight Time"      ,+11,   AU, "AEST"},
-            {"AWST","Australian Western Standard Time"      ,+8,    0,  ""},
-                                      $})
+constant tdaDD = {{"UTC", "Coordinated Universal Time"          ,+0,    0,  ""},        -- (must be first entry [0->1]'s)
+--                {"BST", "Bangladesh Standard Time"            ,+6,    0,  ""},        -- Note: collision with British Summer Time
+                  {"BST", "British Summer Time"                 ,+1,    EU, "GMT"},
+                  {"GMT", "Greenwich Mean Time"                 ,+0,    0,  ""},
+                  {"CEST","Central European Summer Time"        ,+2,    EU, "CET"},
+                  {"CET", "Central European Time"               ,+1,    0,  "CEST"},
+                  {"EEST","Eastern European Summer Time"        ,+3,    EU, "EET"},
+                  {"EET", "Eastern European Time"               ,+2,    0,  "EEST"},
+                  {"IST", "Irish Standard Time"                 ,+1,    EU, "GMT"},     -- or WET?
+--                {"KUYT","Kuybyshev Time"                      ,+4,    0,  ""},
+--                {"MSD", "Moscow Daylight Time"                ,+4,    0,  "MSK"},     -- dead, I think
+--                {"MSK", "Moscow Standard Time"                ,+3,    0,  ""},
+--                {"SAMT","Samara Time"                         ,+4,    0,  ""},
+                  {"WEST","Western European Summer Time"        ,+1,    EU, "WET"},
+                  {"WET", "Western European Time"               ,+0,    0,  "WEST"},
+                  {"ADT", "Atlantic Daylight Time"              ,-3,    US, "AST"},
+                  {"AST", "Atlantic Standard Time"              ,-4,    0,  "ADT"},
+                  {"AKDT","Alaska Daylight Time"                ,-8,    US, "AKST"},
+                  {"AKST","Alaska Standard Time"                ,-9,    US, "AKDT"},
+                  {"CDT", "Central Daylight Time"               ,-5,    US, "CST"},
+                  {"CST", "Central Standard Time"               ,-6,    0,  "CDT"},
+                  {"EDT", "Eastern Daylight Time"               ,-4,    US, "EST"},
+                  {"EST", "Eastern Standard Time"               ,-5,    0,  "EDT"},
+                  {"EGST","Eastern Greenland Summer Time"       ,+0,    EU, "EGST"},
+                  {"EGT", "Eastern Greenland Time"              ,-1,    0,  "EGT"},
+--                {"EST", "Egypt Standard Time",                ,+2,    0,  ""},        -- Note: collision with Eastern Standard Time
+                  {"HADT","Hawaii-Aleutian Daylight Time"       ,-9,    US, "HAST"},
+                  {"HAST","Hawaii-Aleutian Standard Time"       ,-10,   0,  "HADT"},
+                  {"MDT", "Mountain Daylight Time"              ,-6,    US, "MST"},
+                  {"MST", "Mountain Standard Time"              ,-7,    0,  "MDT"},
+                  {"NDT", "Newfoundland Daylight Time"          ,-2.5,  US, "NST"},
+                  {"NST", "Newfoundland Standard Time"          ,-3.5,  0,  "NDT"},
+                  {"PDT", "Pacific Daylight Time"               ,-7,    US, "PST"},
+                  {"PST", "Pacific Standard Time"               ,-8,    0,  "PDT"},
+--                {"PMDT","Pierre & Miquelon Daylight Time"     ,-2,    0,  "PMST"},
+--                {"PMST","Pierre & Miquelon Standard Time"     ,-3,    0,  "PMDT"},    -- [[UTC-03:00]] (PMST) — [[French Guiana]], [[Saint Pierre and Miquelon]] 
+                  {"WGST","Western Greenland Summer Time"       ,-2,    EU, "WGT"},
+                  {"WGT", "West Greenland Time"                 ,-3,    0,  "WGST"},
+--                {"IST", "India Standard Time"                 ,+5.5,  0,  ""},        -- Note: collision with Irish Standard Time
+--                {"IST", "Israel Standard Time",               ,+2,    0,  ""},        -- Note: collision with Irish Standard Time
+--                {"PKT", "Pakistan Standard Time"              ,+5,    0,  ""},
+--                {"NPT", "Nepal Time"                          ,+5.75, 0,  ""},
+--                {"BTT", "Bhutan Time"                         ,+6,    0,  ""},
+--                {"BIOT","British Indian Ocean Territory Time" ,+6,    0,  ""},
+--                {"MVT", "Maldives Time"                       ,+5,    0,  ""},
+--                {"CCT", "Cocos Islands Time"                  ,+6.5,  0,  ""},
+--                {"TFT", "French Southern and Antarctic Time"  ,+5,    0,  ""},
+--                {"MST", "Myanmar Standard Time",              ,+6.5,  0,  ""},        -- Note: collision with Mountain Standard Time  (MMT?)
+                  {"ACST","Australian Central Standard Time"    ,+9.5,  0,  "ACDT"},
+                  {"ACDT","Australian Central Daylight Time"    ,+10.5, AU, "ACST"},
+                  {"AEST","Australian Eastern Standard Time"    ,+10,   0,  "AEDT"},
+                  {"AEDT","Australian Eastern Daylight Time"    ,+11,   AU, "AEST"},
+                  {"AWST","Australian Western Standard Time"    ,+8,    0,  ""},
+                  $}
+sequence {timezones, tzdescs, tzadjs, tzDSR, tzDSL} = columnize(tdaDD)
 
 --some other leftovers that may be helpful (or not):
 -- [[UTC-09:00]] ([[Alaska Time Zone|AKT]]) — most of the state of [[Alaska]]
@@ -291,29 +291,28 @@ sequence {timezones, tzdescs,                            tzadjs, tzDSR, tzDSL} =
 -- [[UTC+01:00]] ([[West Africa Time|WAT]])
 
 --DEV unused as yet...
-constant {alttzkeys,alttz} = columnize({
-                                        {"ADT", "HAA"},
-                                        {"AKDT","HAY"},
-                                        {"AKST","HNY"},
-                                        {"AST", "HNA"},
-                                        {"CDT", "HAC"},
-                                        {"CST", "HNC"},
-                                        {"CET", "CRT"},
-                                        {"EDT", "HAE"},
-                                        {"EST", "HNE"},
-                                        {"EST", "ET" },
-                                        {"MDT", "HAR"},
-                                        {"MST", "HNR"},
---                                      {"NDT", "HAT"},     -- clash with HAST/HADT?
-                                        {"NST", "HNT"},
-                                        {"PDT", "HAP"},
-                                        {"PST", "HNP"},
-                                        {"PST", "PT" }, 
---                                      {"BIOT","IOT"},
-                                        {"CST", "CT" },
-                                        {"MST", "MT" },
-                                        $})
-
+constant ktz = {{"ADT", "HAA"},
+                {"AKDT","HAY"},
+                {"AKST","HNY"},
+                {"AST", "HNA"},
+                {"CDT", "HAC"},
+                {"CST", "HNC"},
+                {"CET", "CRT"},
+                {"EDT", "HAE"},
+                {"EST", "HNE"},
+                {"EST", "ET" },
+                {"MDT", "HAR"},
+                {"MST", "HNR"},
+--              {"NDT", "HAT"},     -- clash with HAST/HADT?
+                {"NST", "HNT"},
+                {"PDT", "HAP"},
+                {"PST", "HNP"},
+                {"PST", "PT" }, 
+--              {"BIOT","IOT"},
+                {"CST", "CT" },
+                {"MST", "MT" },
+                $},
+        {alttzkeys,alttz} = columnize(ktz)
 if sequence(alttzkeys) or sequence(alttz) then end if
 
 sequence validtd = repeat(0,DT_DSTZ)    -- (say it out loud!)
@@ -494,24 +493,32 @@ sequence months      = repeat(0,langmax),
 --January February March April May June July August September October November December 
 --Sunday Monday Tuesday Wednesday Thursday Friday Saturday
 
-months[en] = {"January","February","March","April","May","June","July","August","September","October","November","December"}
+months[en] = {"January","February","March","April","May","June","July",
+              "August","September","October","November","December"}
 --12/1/2020:
 --days[en] = {"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"}
 days[en] = {"Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"}
 --Google Translate:
---months[de] = {"Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"}
+--months[de] = {"Januar","Februar","März","April","Mai","Juni","Juli",
+--              "August","September","Oktober","November","Dezember"}
 --days[de] = {"Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"}
---months[es] = {"Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"}
+--months[es] = {"Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio",
+--              "Agosto","Septiembre","Octubre","Noviembre","Diciembre"}
 --days[es] = {"Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"}
---months[fi] = {"Tammikuu","Helmikuu","Maaliskuu","Huhtikuu","Toukokuu","Kesäkuu","Heinäkuu","Elokuu","Syyskuu","Lokakuu","Marraskuu","Joulukuu"}
+--months[fi] = {"Tammikuu","Helmikuu","Maaliskuu","Huhtikuu","Toukokuu","Kesäkuu",
+--              "Heinäkuu","Elokuu","Syyskuu","Lokakuu","Marraskuu","Joulukuu"}
 --days[fi] = {"maanantai","tiistai","keskiviikko","torstai","perjantai","lauantai"}
---months[fr] = {"Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"}
+--months[fr] = {"Janvier","Février","Mars","Avril","Mai","Juin","Juillet",
+--              "Août","Septembre","Octobre","Novembre","Décembre"}
 --days[fr] = {"Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"}
---months[it] = {"Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"}
+--months[it] = {"Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio",
+--              "Agosto","Settembre","Ottobre","Novembre","Dicembre"}
 --days[it] = {"domenica","lunedì","martedì","mercoledì","giovedì","venerdì","sabato
---months[nl] = {"Januari","februari","maart","april","mei","juni","juli","augustus","september","oktober","november","december"}
---days[nl] = {"zondag","maandag","dinsdag","woensdag","donderdag","vrijdag","zaterdag
---months[pt] = {"Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"}
+--months[nl] = {"Januari","februari","maart","april","mei","juni","juli",
+--              "augustus","september","oktober","november","december"}
+--days[nl] = {"zondag","maandag","dinsdag","woensdag","donderdag","vrijdag","zaterdag"}
+--months[pt] = {"Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho",
+--              "Agosto","Setembro","Outubro","Novembro","Dezembro"}
 --days[pt] = {"domingo","segunda","terça","quarta","quinta","sexta","sábado"}
 
 ordinals[en] = {"st","nd","rd","th"}
@@ -521,7 +528,6 @@ ordinals[en] = {"st","nd","rd","th"}
 --shortdaylen[de] = 2
 
 ampm[en] = {"am","pm"}
-
 
 
 -- after updates to check the hours - not entirely perfect, but 5*1hr fwd then back gets:
@@ -1149,7 +1155,8 @@ integer ch, n, asize = 1, sidx = idx+1
     ch = s[sidx]
     if ch<'0' 
     or ch>'9' then
-        ecxtra = sprintf(`number expected "%s" at position %d, not "%s"`,{s,sidx,to_space(s[sidx..$])})
+        ecxtra = sprintf(`number expected "%s" at position %d, not "%s"`,
+                         {s,sidx,to_space(s[sidx..$])})
         return {3,idx,0}    -- "number expected"
     end if
     n = ch-'0'
@@ -1168,7 +1175,8 @@ integer ch, n, asize = 1, sidx = idx+1
     if asize!=nsize
     and (asize>nsize or
          nsize>3) then
-        ecxtra = sprintf(`wrong size (%d not %d) number in "%s" at position %d, ("%s")`,{asize,nsize,s,idx+1,to_space(s[idx+1..$])})
+        ecxtra = sprintf(`wrong size (%d not %d) number in "%s" at position %d, ("%s")`,
+                         {asize,nsize,s,idx+1,to_space(s[idx+1..$])})
         return {3,idx,0}    -- "number expected"
     end if
     return {0,sidx,n}
@@ -1176,18 +1184,16 @@ end function
 
 function get_any(string s, integer idx, sequence stringset, integer ssize, integer scase, string desc)
 -- ssize can be 2 for ampm, 3 for an abbreviation, and 4 means full length
-integer ecode, sidx, sch
-string si
     for i=1 to length(stringset) do
-        si = stringset[i]
+        string si = stringset[i]
         if ssize=3 then
             si = si[1..3]
         end if
-        sidx = idx+1
-        ecode = 0
+        integer sidx = idx+1,
+                ecode = 0
         for k=1 to length(si) do
             if sidx>length(s) then exit end if
-            sch = s[sidx]
+            integer sch = s[sidx]
             sidx += 1
             if scase!=2 then
                 if upper(sch)!=upper(si[k]) then ecode = -1 exit end if
@@ -1199,7 +1205,8 @@ string si
             return {ecode,idx+length(si),i}
         end if
     end for
-    ecxtra = sprintf(`%s expected in "%s" at position %d, not "%s"`,{desc,s,idx+1,to_space(s[idx+1..$])})
+    ecxtra = sprintf(`%s expected in "%s" at position %d, not "%s"`,
+                     {desc,s,idx+1,to_space(s[idx+1..$])})
     return {2,idx,0}    -- "unrecognised"
 end function
 

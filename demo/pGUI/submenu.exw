@@ -37,6 +37,7 @@ function button_cb(Ihandle /*ih*/, integer button, pressed, /*x*/, /*y*/, atom /
 --IUP_BUTTON3 - right mouse button (button 3).
 --  char attr[50];
         if popup_menu = NULL then
+--/* previous version (should I want to improve p2js_emit.e):
             popup_menu = IupMenu({IupItem("Cut"),
                                   IupItem("Copy"),
                                   IupItem("Paste"),
@@ -44,6 +45,15 @@ function button_cb(Ihandle /*ih*/, integer button, pressed, /*x*/, /*y*/, atom /
                                   IupSeparator(),
                                   IupItem("Reload"),
                                   IupItem("Exit",cb_exit)})
+--*/
+            sequence items = {IupItem("Cut"),
+                              IupItem("Copy"),
+                              IupItem("Paste"),
+                              IupItem("Delete"),
+                              IupSeparator(),
+                              IupItem("Reload"),
+                              IupItem("Exit",cb_exit)}
+            popup_menu = IupMenu(items)
         end if  
         IupPopup(popup_menu, IUP_MOUSEPOS, IUP_MOUSEPOS)
 --?"IupPopup returns"
@@ -56,35 +66,73 @@ function main_menu()
 --
 -- Created twice, once for the top (bar) menu, once for the lower drop-down.
 -- Done this way so that you can seen the different display behaviours.
+-- (And broken up into sequence/Ihandle for the benefit of pwa/p2js)
 --
-Ihandle menu_file = IupMenu({IupMenuItem("&New"),
-                             IupMenuItem("&Open"),
-                             IupMenuItem("&Close"),
+--/* previous version (should I want to improve p2js_emit.e):
+    Ihandle menu_file = IupMenu({IupMenuItem("&New"),
+                                 IupMenuItem("&Open"),
+                                 IupMenuItem("&Close"),
+                                 IupSeparator(),
+                                 IupMenuItem("E&xit", Icallback("item_exit_cb"))}),
+            menu_paste = IupMenu({IupMenuItem("Normal"),
+                                  IupMenuItem("html-stripped")}),
+            menu_circle = IupMenu({IupMenuItem("Normal"),
+                                   IupMenuItem("Dotted"),
+                                   IupSeparator(),
+                                   IupMenuItem("Filled")}),
+            menu_triangle = IupMenu({IupMenuItem("Equilateral"),
+                                     IupMenuItem("Isoceles"),
+                                     IupMenuItem("Scalenus")}),
+            menu_create = IupMenu({IupMenuItem("Line"),
+                                   IupSubmenu("Circle",menu_circle),
+                                   IupSeparator(),
+                                   IupSubmenu("Triangle", menu_triangle)}),
+            menu_edit = IupMenu({IupMenuItem("Copy"),
+                                 IupSubmenu("Paste",menu_paste),
+                                 IupSeparator(),
+                                 IupSubmenu("Create", menu_create)}),
+--          menu_help = IupMenu({IupMenuItem("&Help", Icallback("item_help_cb"))}),
+            menu_help = IupMenuItem("&Help", Icallback("item_help_cb")),
+            menu = IupMenu({IupSubmenu("&File", menu_file),
+                            IupSubmenu("&Edit", menu_edit),
+--                          IupSubmenu("&Help", menu_help)}),
+                            menu_help})
+--*/
+    sequence file_items = {IupMenuItem("&New"),
+                           IupMenuItem("&Open"),
+                           IupMenuItem("&Close"),
+                           IupSeparator(),
+                           IupMenuItem("E&xit", Icallback("item_exit_cb"))},
+             paste_items = {IupMenuItem("Normal"),
+                            IupMenuItem("html-stripped")},
+             circle_items = {IupMenuItem("Normal"),
+                             IupMenuItem("Dotted"),
                              IupSeparator(),
-                             IupMenuItem("E&xit", Icallback("item_exit_cb"))}),
-        menu_paste = IupMenu({IupMenuItem("Normal"),
-                              IupMenuItem("html-stripped")}),
-        menu_circle = IupMenu({IupMenuItem("Normal"),
-                               IupMenuItem("Dotted"),
-                               IupSeparator(),
-                               IupMenuItem("Filled")}),
-        menu_triangle = IupMenu({IupMenuItem("Equilateral"),
-                                 IupMenuItem("Isoceles"),
-                                 IupMenuItem("Scalenus")}),
-        menu_create = IupMenu({IupMenuItem("Line"),
-                               IupSubmenu("Circle",menu_circle),
-                               IupSeparator(),
-                               IupSubmenu("Triangle", menu_triangle)}),
-        menu_edit = IupMenu({IupMenuItem("Copy"),
-                             IupSubmenu("Paste",menu_paste),
+                             IupMenuItem("Filled")},
+             triangle_items = {IupMenuItem("Equilateral"),
+                               IupMenuItem("Isoceles"),
+                               IupMenuItem("Scalenus")}
+    Ihandle menu_file = IupMenu(file_items),
+            menu_paste = IupMenu(paste_items),
+            menu_circle = IupMenu(circle_items),
+            menu_triangle = IupMenu(triangle_items)
+    sequence create_items = {IupMenuItem("Line"),
+                             IupSubmenu("Circle",menu_circle),
                              IupSeparator(),
-                             IupSubmenu("Create", menu_create)}),
---      menu_help = IupMenu({IupMenuItem("&Help", Icallback("item_help_cb"))}),
-        menu_help = IupMenuItem("&Help", Icallback("item_help_cb")),
-        menu = IupMenu({IupSubmenu("&File", menu_file),
-                        IupSubmenu("&Edit", menu_edit),
---                      IupSubmenu("&Help", menu_help)}),
-                        menu_help})
+                             IupSubmenu("Triangle", menu_triangle)}
+    Ihandle menu_create = IupMenu(create_items)
+    sequence edit_items = {IupMenuItem("Copy"),
+                           IupSubmenu("Paste",menu_paste),
+                           IupSeparator(),
+                           IupSubmenu("Create", menu_create)}
+    Ihandle menu_edit = IupMenu(edit_items),
+--          menu_help = IupMenu({IupMenuItem("&Help", Icallback("item_help_cb"))}),
+            menu_help = IupMenuItem("&Help", Icallback("item_help_cb"))
+    sequence menu_items = {IupSubmenu("&File", menu_file),
+                           IupSubmenu("&Edit", menu_edit),
+--                         IupSubmenu("&Help", menu_help)}),
+                           menu_help}
+    Ihandle menu = IupMenu(menu_items)
     return menu
 end function
 

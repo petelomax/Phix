@@ -31,7 +31,9 @@ constant tile_colours = {#CCC0B4,   -- blank
 --  (merging two eights is not 8+8->16 but 4+1->5, internally)
 sequence board
 
-integer newgame = 1
+integer newgame = 1,
+        valid = 0, 
+        prev, nxt, bxy
 
 procedure add_rand(integer count)
 -- (nb infinite loop if board is full)
@@ -46,10 +48,7 @@ integer x, y
     end while   
 end procedure
 
-integer valid = 0
-integer prev, nxt, bxy
-
-procedure move_x(integer x, integer y, integer d)
+procedure move_x(integer x, y, d)
     bxy = board[x][y]
     if bxy!=1 then
         if bxy=prev then
@@ -77,7 +76,7 @@ procedure move_x(integer x, integer y, integer d)
     end if
 end procedure
 
-procedure move_y(integer x, integer y, integer d)
+procedure move_y(integer x, y, d)
     bxy = board[x][y]
     if bxy!=1 then
         if bxy=prev then
@@ -154,7 +153,7 @@ end function
 constant valid_keys = {K_LEFT,K_DOWN,K_RIGHT,K_UP}
 
 function no_valid_moves()
-sequence saved_board = board
+    sequence saved_board = board
     for i=1 to length(valid_keys) do
         if move(valid_keys[i]) then
             board = saved_board
@@ -164,12 +163,12 @@ sequence saved_board = board
     return 1 -- game over...
 end function
 
-function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
-integer tx, ty, bxy,
-        ox,oy,              -- top right coords
-        os,ts,              -- overall and tile size
-        ts2                 -- half tile, for number positioning
-integer {dw,dh} = IupGetIntInt(canvas, "DRAWSIZE")
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
+    integer tx, ty, bxy,
+            ox,oy,              -- top right coords
+            os,ts,              -- overall and tile size
+            ts2,                -- half tile, for number positioning
+            {dw,dh} = IupGetIntInt(canvas, "DRAWSIZE")
     if dw>=dh then
         ox = floor((dw-dh)/2)
         oy = 0
@@ -265,8 +264,10 @@ procedure main()
     IupShow(dialog)
     IupSetAttribute(canvas, "RASTERSIZE", NULL)
 
-    IupMainLoop()
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 main()
 

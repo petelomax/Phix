@@ -1,0 +1,30 @@
+--
+-- demo\rosetta\Bitmap_PPM_conversion_through_a_pipe.exw
+-- =====================================================
+--
+--  Author Pete Lomax, March 2021
+--
+--  Uses the demo\rosetta\viewppm.exw utility to accomplish this task.
+--
+include builtins\pipeio.e
+include builtins\serialize.e
+include ppm.e -- read_ppm()
+
+sequence pipes = repeat(0,3)
+pipes[PIPEIN] = create_pipe(INHERIT_WRITE)
+
+-- Create the child process, with replacement stdin. 
+string cmd = sprintf("%s viewppm -save test.jpg",{get_interpreter(true)})
+atom hProc = system_exec(cmd, 12, pipes),
+     hPipe = pipes[PIPEIN][WRITE_PIPE]
+
+sequence img = serialize(read_ppm("Lena.ppm",bFlat:=true))
+if not write_to_pipe(hPipe,img) then crash("error") end if
+
+-- Close the pipe handle so the child process stops reading. 
+--hPipe = close_handles(hPipe)
+pipes = close_handles(pipes) -- (may as well do the lot)
+
+?"done"
+{} = wait_key()
+

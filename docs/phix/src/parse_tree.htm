@@ -1,0 +1,370 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">parse tree</h1>
+      <div id="mainSection">
+        This documents the internal structure of the parse tree used by pwa/p2js. It is of no help whatsoever
+        to anyone actually using pwa/p2js, only those seeking to improve, extend, or fix some bug in it. The
+        structure is by no means set in stone and may change significantly between releases.
+        <br>
+        <br>
+        Aside: This is the "abstract syntax tree", ie the definition of it. The software uses a variable named
+        ast, but that&rsquo;s a misnomer - it actually holds a concrete parse tree. Apart from that one rogue 
+        identifier, I tend to prefer the term parse tree, as per the button, and apart from the slightly subtle
+        distinction between abstract and concrete you can assume I mean the same thing.
+        <br>
+        <br>
+        The top-level of a parse tree is always {"program",children} where children is a list of nested nodes
+        as described below. It is generated from the <a href="tokens.htm">tokens</a> by parse() in 
+        pwa\src\p2js_parse.e and must be handled by both [1] treeify() in p2js.exw which converts it into a form
+        suitable for <a href="IupTreeView.htm">IupTreeView</a>() and 
+        <a href="IupTreeAddNodes.htm">IupTreeAddNodes</a>(), as well as [2] generate_source() in
+        pwa\src\p2js_emit.e which fairly obviously creates the transpiled output.<br>
+        It is quite unlikely the parse tree will be modified to cater for [1], and the opposite for [2].<br>
+        When p2js_parse was written, a fair bit of that involved going back to p2js_tok and fixing that, and the 
+        emphasis was very much on getting through a successful parse, and not caring too much about whatever 
+        gibberish was being created in the stead of a decent parse tree. When p2js_emit was written, very nearly 
+        half the work was going back and fixing p2js_parse, and that will quite probably remain true for all 
+        future work on p2js_emit.
+        <br>
+        <br>
+        The following table lists the permitted elements of children. Numerical node types can be looked up in
+        pwa\src\p2js_basics.e or pwa\src\p2js_keywords.e or programatically converted to human readable form by 
+        tok_name() which is defined in p2js_basics.e (not that you should need to know that). The numerical values
+        are subject to change, so much so in fact that p2js.exw will (prompt and) overwrite p2js_keywords.e before
+        automatically restarting itself, should any keywords be added, edited, or removed.
+        <br>
+        <br>
+        Obviously pwa/p2js honours any parenthesis when parsing expressions, but does not actually keep them.<br>
+        Instead, it reconstitutes any required/desired parenthesis as needed, with the aim of preventing subtle
+        differences in the operator precedences between Phix and JavaScript from triggering any misbehaviour.<br>
+        In other words, the parenthesis needed for Phix is not necessarily the same as that needed for JavaScript,
+        so always completely discard and recreate it. As a bonus, in <code>if condition then</code> &lt;===&gt;
+        <code> if (condition) {</code> we can omit the enclosing () in Phix using an outer precedence of 0, and
+        force them in JavaScript by using an outer precedence of 12. In practice, we only ever omit unnecessary 
+        "common sense" parenthesis on +-/* and put them on any other nested operator, making subtle differences
+        in (other) operator precedences totally moot.
+        <br>        
+        <br>
+        One thing I am looking out for in particular is anywhere I can squidge in [,comment] and not spanner
+        everything...
+                
+        <h3>Expressions</h3>
+        <table>
+         <tr>
+            <th>Node type</th>
+            <th>Contents</th>
+         </tr>
+         <tr>
+            <td>
+             DIGIT (3), LETTER (4), 
+<!--             COMMENT (5), BLK_CMT (6),-->
+             '"' (34), '#' (35)
+             '$' (36), `'` (39),
+             '`' (96), '~' (126),
+            </td>
+            <td>
+              The node is a <a href="tokens.htm">token</a>, eg {3,407,408,10,16} might be "21" on line 10 column 17.<br>
+              <small>(~ is a shorthand/prefix operator for <a href="length.htm">length</a>(),
+              and obviously a "PROC"/T_length node is created instead when the longhand is used)</small>
+            </td>
+         </tr>
+         <tr>
+            <td>
+             '{' (123)
+            </td>
+            <td>
+              {'{',children}. A sequence (constructor), children will be {} to represent {}. See also MASS below, which 
+              is also/actually handled by expr() in p2js_emit.e even though it is technically not an expression.
+            </td>
+         </tr>
+         <tr>
+            <td>
+             ???
+            </td>
+            <td>
+              TBC...
+            </td>
+         </tr>
+        </table>
+        <div style="clear:both;height:1px;"> </div>     
+
+        <h3>Statements/Declarations</h3>
+
+        <table>
+         <tr>
+            <th>Node type</th>
+            <th>Contents</th>
+         </tr>
+         <tr>
+            <td>
+             COMMENT (5), BLK_CMT (6)
+            </td>
+            <td>
+              The node is a <a href="tokens.htm">token</a>. Note that consecutive comments are herded into a single "comments" node 
+              by treeify() for display in the Parse Tree window, but that is <i>not</i> the case for the actual parse tree, as 
+              generated by parse() and passed to generate_source().
+            </td>
+         </tr>
+         <tr>
+            <td>
+             T_exit, T_return, T_break, T_fallthrough
+            </td>
+            <td>
+              {T_xxx,Line_number}. It makes sense to just use a token, so that may happen, for one or all.
+            </td>
+         </tr>
+         <tr>
+            <td>
+             "MASS"
+            </td>
+            <td>
+              {"MASS",{MASS (201),children},expression}. A multiple assignment statement such as {a,b,c} = d.<br>
+              Note that eg {string s, integer i} triggers a "let" prefix.
+            </td>
+         </tr>
+         <tr>
+            <td>
+             T_switch
+            </td>
+            <td>
+             {T_switch,{expr,{T_case,block},{T_default|T_else,block}}}. A single expression followed by pairs of {T_case,block} and at most one default/else.
+            </td>
+         </tr>
+         <tr>
+            <td>
+             T_for
+            </td>
+            <td>
+             {T_for,{ctrl,limit,step,{T_block,block}}} where ctrl is {"vardef",{{LETTER,...T_for},{LETTER,...<i>&lt;ctrlvar&gt;</i>},expr}}<br>
+             Note that negative steps require an explicit '-' to determine whether &lt;= or &gt;= should be used, in contrast to Phix which
+             emits generic code to determine that at runtime, that is when presented with a runtime computed step, and obviously should p be -2 then
+             <code>by -p</code> will go horribly wrong - see the for examples in <a href="mappings.htm">mappings</a>.
+            </td>
+         </tr>
+         <tr>
+            <td>
+             T_include
+            </td>
+            <td>
+             {T_include,{string file, integer srcdx[, integer line]}} where if files is "" it is a restore point and line is not present.<br>
+             An include statement will have everything present, and the srcdx will be shown in the parse tree so that subsequent restore
+             points can be made sense of. The sequence of tokens emitted by p2js_tok.e all pertain to the same source file, however those
+             in the parse tree may refer to different files, and to handle that dummy T_include nodes are placed at the top level in the
+             parse tree as necessary, recognisable by having the empty string instead of a file, along with the needed index. The restore
+             operation is very cheap, so there is no point optimising away unnecessary back-to-back restore points.
+            </td>
+         </tr>
+         <tr>
+            <td>
+             T_enum
+            </td>
+            <td>
+             {T_enum,{COMMENT|BLK_CMT|tok|{'=',{tok,'$'|expr}}}} where tok is the identifier, '$' is a token and expr is expected to be a 
+             DIGIT token - some further tightening of what parse() leaves for emit() to deal with may be in order. Since JavaScript has no
+             enum type, they are converted to explicit const statements, and no attempt is made to covert such back into enums. There is
+             (as yet?) no attempt to deal with "by 2", etc.
+            </td>
+         </tr>
+         <tr>
+            <td>
+             ???
+            </td>
+            <td>
+              TBC...
+            </td>
+         </tr>
+        </table>
+        <div style="clear:both;height:1px;"> </div>
+        <br>
+        Note also that the list of reserved words must be extended to cover both Phix and JavaScript
+        <!--
+abstract        arguments       await   boolean
+break   byte    case    catch
+char    class   const   continue
+debugger        default delete  do
+double  else    enum*   eval
+export  extends     false   final
+finally float   for     function
+goto    if      implements      import
+in      instanceof      int     interface
+let     long    native  new
+null    package private protected
+public  return  short   static
+super   switch  synchronized    this
+throw   throws  transient       true
+try     typeof  var     void
+volatile        while   with    yield
+--->
+        <br>
+        <br>
+        <h3>Type inferencing</h3>
+        Identifier/LETTER tokens in the parse tree no longer need a column so it is reused as a localtype, via constant TOKALTYPE = TOKCOL.<br>
+        The dreadful pun is intended so that future maintainers know where to look for/are not distracted by that definition.
+        <br>
+        <br>
+        <style>
+         td {
+            text-align: center;
+         }
+        </style>
+<table>
+        <tr>
+                <td></td>
+                <td>integer</td>
+                <td colspan="2">atom</td>
+                <td>string</td>
+                <td colspan="2">sequence</td>
+                <td colspan="8">object</td>
+        </tr>
+        <tr>
+                <td>target</td>
+                <td><small>0001</small></td>
+                <td><small>0010</small></td>
+                <td><small>0011</small></td>
+                <td><small>1000</small></td>
+                <td><small>0100</small></td>
+                <td><small>1100</small></td>
+                <td><small>0101</small></td>
+                <td><small>0110</small></td>
+                <td><small>0111</small></td>
+                <td><small>1001</small></td>
+                <td><small>1010</small></td>
+                <td><small>1011</small></td>
+                <td><small>1101</small></td>
+                <td><small>1111</small></td>
+        </tr>
+        <tr>
+                <td>integer</td>
+                <td style="background-color:green;">Y</td>
+                <td style="background-color:red;"  >N</td>
+                <td style="background-color:gold; ">?</td>
+                <td style="background-color:red;"  >N</td>
+                <td style="background-color:red;"  >N</td>
+                <td style="background-color:red;"  >N</td>
+                <td style="background-color:gold; ">?</td>
+                <td style="background-color:red;"  >N</td>
+                <td style="background-color:gold; ">?</td>
+                <td style="background-color:gold; ">?</td>
+                <td style="background-color:red;"  >N</td>
+                <td style="background-color:gold; ">?</td>
+                <td style="background-color:gold; ">?</td>
+                <td style="background-color:gold; ">?</td>
+        </tr>
+        <tr>
+                <td>atom</td>
+                <td style="background-color:green;">Y</td>
+                <td style="background-color:green;">Y</td>
+                <td style="background-color:green;">Y</td>
+                <td style="background-color:red;"  >N</td>
+                <td style="background-color:red;"  >N</td>
+                <td style="background-color:red;"  >N</td>
+                <td style="background-color:gold; ">?</td>
+                <td style="background-color:gold; ">?</td>
+                <td style="background-color:gold; ">?</td>
+                <td style="background-color:gold; ">?</td>
+                <td style="background-color:gold; ">?</td>
+                <td style="background-color:gold; ">?</td>
+                <td style="background-color:gold; ">?</td>
+                <td style="background-color:gold; ">?</td>
+        </tr>
+        <tr>
+                <td>string</td>
+                <td style="background-color:red;"  >N</td>
+                <td style="background-color:red;"  >N</td>
+                <td style="background-color:red;"  >N</td>
+                <td style="background-color:green;">Y</td>
+                <td style="background-color:red;"  >N</td>
+                <td style="background-color:gold; ">?</td>
+                <td style="background-color:red;"  >N</td>
+                <td style="background-color:red;"  >N</td>
+                <td style="background-color:red;"  >N</td>
+                <td style="background-color:gold; ">?</td>
+                <td style="background-color:gold; ">?</td>
+                <td style="background-color:gold; ">?</td>
+                <td style="background-color:blue; ">U</td>
+                <td style="background-color:blue; ">U</td>
+        </tr>
+        <tr>
+                <td>sequence</td>
+                <td style="background-color:red;"  >N</td>
+                <td style="background-color:red;"  >N</td>
+                <td style="background-color:red;"  >N</td>
+                <td style="background-color:blue; ">U</td>
+                <td style="background-color:green;">Y</td>
+                <td style="background-color:green;">Y</td>
+                <td style="background-color:gold; ">?</td>
+                <td style="background-color:gold; ">?</td>
+                <td style="background-color:gold; ">?</td>
+                <td style="background-color:gold; ">?</td>
+                <td style="background-color:gold; ">?</td>
+                <td style="background-color:gold; ">?</td>
+                <td style="background-color:blue; ">U</td>
+                <td style="background-color:blue; ">U</td>
+        </tr>
+        <tr>
+                <td>object</td>
+                <td style="background-color:green;">Y</td>
+                <td style="background-color:green;">Y</td>
+                <td style="background-color:green;">Y</td>
+                <td style="background-color:green;">Y</td>
+                <td style="background-color:green;">Y</td>
+                <td style="background-color:green;">Y</td>
+                <td style="background-color:green;">Y</td>
+                <td style="background-color:green;">Y</td>
+                <td style="background-color:green;">Y</td>
+                <td style="background-color:green;">Y</td>
+                <td style="background-color:green;">Y</td>
+                <td style="background-color:green;">Y</td>
+                <td style="background-color:green;">Y</td>
+                <td style="background-color:green;">Y</td>
+        </tr>
+</table>
+        <div style="clear:both;height:1px;"> </div>
+        <br>
+        The blue squares indicate potentially unsafe practices in pwa/p2js.<br>
+        The amber cells indicate potential typecheck errors.<br>
+        On the traditional desktop version of phix the lone blue of sequence := string is trouble-free,<br>
+        and the block of four on the right would be amber instead.<br>
+        Under pwa/p2js different code is needed for subscripting strings and dword-sequences, so they may require code such as:
+        <br>
+        DEV: erm, should we not just emit $subscript(str/seq,idx), plus other flavours for s[i]:=, s[i..j], s[i..j]:=, ...?<br>
+        (In the s[i][j] case, we know s is not string, but don&rsquo;t know about s[i]...)
+        <br>
+<!--eucode>
+if string(s) then
+    ...s[i]...
+else
+    ...s[i]...
+end if
+</eucode-->
+<pre>
+<font color="#008080">if</font><font color="#004080"> string</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">)</font><font color="#008080"> then</font>
+<font color="#0000FF">    ...</font><font color="#000000">s</font><font color="#0000FF">[</font><font color="#000000">i</font><font color="#0000FF">]...</font>
+<font color="#008080">else</font>
+<font color="#0000FF">    ...</font><font color="#000000">s</font><font color="#0000FF">[</font><font color="#000000">i</font><font color="#0000FF">]...</font>
+<font color="#008080">end if</font>
+</pre>
+        <br>
+        The transpiler propagates the local type for single builtin type checks to code within that branch, and flips it for subsequent else/elsif branches.<br>
+        Hence in the above code the transpiler knows that the second s[i] is "not string" and therefore proceeds without error.<br>
+        Such localtype propagation ceases for certain types of assignment, though that assignment may itself trigger further localtype propagation.<br>
+        The transpiler can also propagate any top-level "and"-ed builtin type checks to a branch, but cannot flip it, and does nothing with "or"-d/nested checks.<br>
+        Note that no type inference is attempted on a while loop test.
+        <br>
+        <br>
+        Should you be lost here, maybe this will help: what I am trying to explain is why the transpiler issues the errors and the specific code that it does.
+        <br>
+        <br>
+        Alternatively, "with safe_subscripts" will use explict routines and spit out runtime warnings...
+        <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

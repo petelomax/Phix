@@ -1,0 +1,68 @@
+--
+-- demo\rosetta\Yahoo_search_interface.exw
+-- =======================================
+--
+include builtins\libcurl.e
+
+constant glyphs = {{"\xC2\xB7 ","*"},                -- bullet point
+                   {"&#39;",`'`},					 -- single quote
+                   {"&quot;",`"`},					 -- double quote
+                   {"&amp;","&"},                    -- ampersand
+                   {"\xE2\x94\xAC\xC2\xAB","[R]"},   -- registered
+                   {"\xC2\xAE","[R]"}},              -- registered
+         {gutf8,gascii} = columnize(glyphs),
+         tags = {{`<a `,`</a>`},
+                 {`<b>`,`</b>`},
+                 {`<span class=" fc-2nd">`,`</span>`}}
+
+function grab(string txt, opener, closer, integer tdx)
+    integer openidx = match(opener,txt,tdx)
+    if openidx=0 then return {0,""} end if
+    integer closeidx = match(closer,txt,openidx)
+    txt = txt[openidx+length(opener)..closeidx-1]
+    tdx = 1
+    while tdx<=length(tags) do
+        {opener,closer} = tags[tdx]
+        integer i = match(opener,txt)
+        if i=0 then
+            tdx += 1
+        else
+            if opener[$]='>' then
+                txt[i..i+length(opener)-1] = ""
+            else
+                txt[i..find('>',txt,i)] = ""
+            end if
+            i = match(closer,txt,i)
+            txt[i..i+length(closer)-1] = ""
+        end if
+    end while
+    txt = substitute_all(txt,gutf8,gascii)
+    if length(txt)>80 then txt[78..$] = ".." end if
+    return {closeidx+length(closer),txt}
+end function
+
+procedure YahooSearch(string query, integer page=1)
+    printf(1,"Page %d:\n=======\n",page)
+    string url = sprintf("https://search.yahoo.com/search?p=%s&b=%d", {query, (page-1)*10+1})
+    object res = curl_easy_perform_ex(url)
+    if not string(res) then
+        ?{"some error",res,curl_easy_strerror(res)}
+        return
+    end if
+    integer rdx = 1
+    string title, link, desc
+    while true do
+        {rdx,title} = grab(res,`<h3 class="title ov-h">`,`</h3>`,rdx)
+        if rdx=0 then exit end if
+        {rdx,link} = grab(res,`<span class=" fz-ms fw-m fc-12th wr-bw lh-17">`,`</span>`,rdx)
+        {rdx,desc} = grab(res,`<p class="fz-ms lh-1_43x">`,`</p>`,rdx)
+        printf(1,"title:%s\nlink:%s\ndesc:%s\n\n",{title,link,desc})
+    end while
+end procedure
+
+YahooSearch("rosettacode")
+YahooSearch("rosettacode",2)
+
+?"done"
+{} = wait_key()
+

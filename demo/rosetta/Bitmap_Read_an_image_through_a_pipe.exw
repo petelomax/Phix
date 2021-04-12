@@ -1,0 +1,40 @@
+--
+-- demo\rosetta\Bitmap_Read_an_image_through_a_pipe.exw
+-- =====================================================
+--
+--  Author Pete Lomax, March 2021
+--
+--  Uses the demo\rosetta\viewppm.exw utility to accomplish this task.
+--  The returned data is raw binary, so you can either write it direct or chuck it through read_ppm/write_ppm.
+--
+include builtins\pipeio.e
+include ppm.e -- read_ppm()
+
+sequence pipes = repeat(0,3)
+pipes[PIPOUT] = create_pipe(INHERIT_READ)
+
+-- Create the child process, with replacement stdout. 
+string cmd = sprintf("%s viewppm -load test.jpg",{get_interpreter(true)})
+atom hProc = system_exec(cmd, 12, pipes),
+     hPipe = pipes[PIPOUT][READ_PIPE]
+
+string ppm = read_from_pipe(hPipe, hProc)
+while true do
+    object chunk = read_from_pipe(hPipe, hProc)
+    if chunk=-1 then exit end if
+    ppm &= chunk
+end while
+
+pipes = close_handles(pipes)
+
+if 0 then
+    sequence img = read_ppm(ppm,bText:=true)
+    write_ppm("Lenapipe.ppm", img)
+else -- or
+    integer fn = open("Lenapipe.ppm","wb")
+    puts(fn,ppm)
+    close(fn)
+end if
+
+?"done"
+{} = wait_key()

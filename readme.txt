@@ -41,6 +41,14 @@ Version 1.0.0
 16/02/2021: Fixed trace on linux
 17/02/2021: Enhancement: Added a hll goto statement, and documented it.
 18/02/2021: Created builtins\pipeio.e from guts of demo\capture_console.exw
+23/02/2021: Moved && and || up the precedence table above relops, matching
+            Python and now disagreeing with C/JavaScript. For example,
+            a && b != c was a && (b != c), but is now (a && b) != c. Note
+            a and b != c is however still a and (b != c). t66 tweaked.
+03/03/2021: vslice() can now accept a pair of column indices, so it can now
+            take an actual slice as it always should have been able to.
+            (Needed/wanted for a rewrite of demo/rosetta/viewppm.exw)
+
 
 Version 0.8.3
 =============

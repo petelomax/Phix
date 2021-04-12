@@ -3,7 +3,7 @@
 --
 -- See also/similar to Eu's include/std/sequence.e/remove_dups()...
 --
-include dict.e
+--include dict.e
 
 global function unique(sequence s, string options="SORT")
     if length(s)>1 then

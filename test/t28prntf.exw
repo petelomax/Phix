@@ -9,8 +9,6 @@ type string(object s) return sequence(s) end type
 --*/
 constant showprogress=0
 
-procedure Abort(string msg) puts(1,msg) if getc(0) then end if abort(1) end procedure
-
 -- this got itself broken under O2:
 integer x
         x = 0
@@ -24,34 +22,27 @@ function fx(integer charflag)
     return 1
 end function
 
-if not fx('g') then Abort("fx error\n") end if
+if not fx('g') then crash("fx error\n") end if
 
-if showprogress then puts(1,"sprintf1\n") end if
-
-
-if not equal(sprintf("%d",{-10}),"-10") then
-    Abort("sprintf(\"%d\",{-10})!=\"-10\"\n")
-end if
-if showprogress then puts(1,"sprintf2\n") end if
-
-if not equal(sprintf("%.10g",{1}),"1") then
-    Abort("sprintf(\"%.10g\",{1})!=\"1\"\n")
-end if
-if showprogress then puts(1,"sprintf3\n") end if
-
-if floor(1.99)!=1 then Abort("floor(1.99)!=1\n") end if -- not really part of this test,
+if floor(1.99)!=1 then crash("floor(1.99)!=1\n") end if -- not really part of this test,
                                                         -- but let's not worry about that.
-if showprogress then puts(1,"sprintf4\n") end if
 
-if not equal(sprintf("%s\n",{"Hello Pete"}),"Hello Pete\n") then
-    Abort("sprintf err 1\n")
-end if
-if showprogress then puts(1,"sprintf5\n") end if
+procedure test(string prg, fmt, msg, object args, expected)
+    if showprogress then puts(1,prg) end if
+    string tmp = sprintf(fmt,args)
+    if string(expected) then
+        if tmp!=expected then
+            crash(msg & " - " & tmp & " != " & expected)
+        end if
+    elsif not find(tmp,expected) then
+        crash(msg & " - " & tmp & " not in " & join(expected,","))
+    end if
+end procedure
 
-if not equal(sprintf("%f\n",{10000}),"10000.000000\n") then
-    Abort("sprintf err 2\n")
-end if
-if showprogress then puts(1,"sprintf6\n") end if
+test("sprintf1\n","%d",`sprintf("%d",{-10})`,{-10},"-10")
+test("sprintf2\n","%.10g",`sprintf("%.10g",{1})`,{1},"1")
+test("sprintf3\n","%s\n",`sprintf err 3`,{"Hello Pete"},"Hello Pete\n")
+test("sprintf4\n","%f\n",`sprintf err 4`,{10000},"10000.000000\n")
 
 --
 --NOTE: This (below) does NOT work on exw (you get ***'s), but is
@@ -74,13 +65,21 @@ if showprogress then puts(1,"sprintf6\n") end if
 --      -- For this reason, "exw.exe -c p.exw" is not supported, instead 
 --      -- you should always use "p.exe -c p.exw" (or "p -cp").
 --
+-- p2js:
+--/*
 if not equal(sprintf("%f\n",{1e308}),
 "10000000000000000000000000000000000000000000000000000000000000000000000000000000"&
 "00000000000000000000000000000000000000000000000000000000000000000000000000000000"&
 "00000000000000000000000000000000000000000000000000000000000000000000000000000000"&
 "000000000000000000000000000000000000000000000000000000000000000000000.000000\n") then
-    puts(1,sprintf("%f (sprintf err 3)\n",{1e308}))
-    Abort("sprintf err 3\n")
+--*/
+--constant le308 = "10000000000000000000000000000000000000000000000000000000000000000000000000000000"&
+--               "00000000000000000000000000000000000000000000000000000000000000000000000000000000"&
+--               "00000000000000000000000000000000000000000000000000000000000000000000000000000000"&
+--               "000000000000000000000000000000000000000000000000000000000000000000000.000000\n"
+constant le308 = reinstate(repeat('0',317),{1,310,317},"1.\n")
+--if le308!=re308 then ?9/0 end if
+test("sprintf5\n","%f\n",`sprintf err 5`,{1e308},{le308,"1e+308\n"})
 --
 -- exw (using exw's built-in sprintf) gives:
 --********************************************************************************
@@ -104,82 +103,39 @@ if not equal(sprintf("%f\n",{1e308}),
 -- I should of course point out that the latter is actually better than 99.999999%
 -- accurate and perfectly good enough for all practical purposes.
 --
-end if
-if showprogress then puts(1,"sprintf7\n") end if
-
-if not equal(sprintf("%e\n",{1e308}),"1.000000e+308\n") then
-    puts(1,sprintf("%e\n",{1e308}))
-    Abort("sprintf err 4\n")
-end if
-if showprogress then puts(1,"sprintf8\n") end if
-
-if not equal(sprintf("%8.0f\n",{0.678}),"       1\n") then
-    Abort("sprintf err 5\n")
-end if
-if showprogress then puts(1,"sprintf9\n") end if
-
-if not equal(sprintf("%8.0f\n",{11.67}),"      12\n") then
-    Abort("sprintf err 5b\n")
-end if
-if showprogress then puts(1,"sprintf10\n") end if
-
-if not equal(sprintf("%8.2f\n",{12345.678}),"12345.68\n") then
-    Abort("sprintf err 6\n")
-end if
-if showprogress then puts(1,"sprintf11\n") end if
-
-if not equal(sprintf("x%sy\n",{"fred"}),"xfredy\n") then
-    Abort("sprintf err 7\n")
-end if
-if showprogress then puts(1,"sprintf12\n") end if
-
-if not equal(sprintf("%d\n",{17}),"17\n") then
-    Abort("sprintf err 8\n")
-end if
-if showprogress then puts(1,"sprintf13\n") end if
-
---if not equal(sprintf("%04x\n",{#ABC}),"0ABC\n") then
-if not find(sprintf("%04x\n",{#ABC}),{"0ABC\n","0abc\n"}) then
-    Abort("sprintf err 9\n")
-end if
-if showprogress then puts(1,"sprintf14\n") end if
-
-if not equal(sprintf("1 %d 1.0 %1.1f 0.0 %1.1f x %s\n",{1,1,0,"x"}),
-             "1 1 1.0 1.0 0.0 0.0 x x\n") then
-    puts(1,sprintf("1 %d 1.0 %1.1f 0.0 %1.1f x %s\n",{1,1,0,"x"}))
---  Abort("sprintf err 10\n")
-end if
-if showprogress then puts(1,"sprintf15\n") end if
-
-if not equal(sprintf("%f\n",{1/3}),"0.333333\n") then
-    Abort("sprintf err 11\n")
-end if
-if showprogress then puts(1,"sprintf16\n") end if
-
-if not equal(sprintf("%f\n",{4503599627370495}),"4503599627370495.000000\n") then
-    puts(1,sprintf("%f (sprintf err 12)\n",{4503599627370495}))
-    Abort("sprintf err 12\n")
-end if
-if showprogress then puts(1,"sprintf17\n") end if
-
-if not equal(sprintf("%7.2f",0.000015),"   0.00") then
-    Abort("sprintf err 13\n")
-end if
-if showprogress then puts(1,"sprintf18\n") end if
-
-if not equal(sprintf("%7.2f",0.005),"   0.00") then
-    puts(1,sprintf("%7.2f (sprintf err 14)\n",0.005))
---  Abort("sprintf err 14\n")
-end if
-if showprogress then puts(1,"sprintf19\n") end if
-
---if not equal(sprintf("%7.2f",0.015),"   0.02") then
-if not equal(sprintf("%7.2f",0.0151),"   0.02") then
-    puts(1,sprintf("%7.2f (sprintf err 15)\n",0.015))
-    Abort("sprintf err 15\n")
-end if
-if showprogress then puts(1,"sprintf20\n") end if
-
-if sprintf("true:%t, false:%t\n",{true,false})!="true:true, false:false\n" then ?9/0 end if
+-- pwa/p2js: generates "1e+308\n", technically wrong but good enough for me.
+--  (JavaScript's Number.prototype.toFixed() cops out on numbers >= 1e21, which is 
+--   reasonable, not that repeated /10 and bolting on repeat('0',k) would be hard.)
+--
+test("sprintf6\n","%e\n",`sprintf err 6`,{1e308},"1.000000e+308\n")
+test("sprintf7\n","%8.0f\n",`sprintf err 7`,{0.678},"       1\n")
+test("sprintf8\n","%8.0f\n",`sprintf err 8`,{11.67},"      12\n")
+test("sprintf9\n","%8.2f\n",`sprintf err 9`,{12345.678},"12345.68\n")
+test("sprintf10\n","x%sy\n",`sprintf err 10`,{"fred"},"xfredy\n")
+test("sprintf11\n","%d\n",`sprintf err 11`,{17},"17\n")
+test("sprintf12\n","%04x\n",`sprintf err 12`,{#ABC},"0ABC\n")
+test("sprintf13\n","%04X\n",`sprintf err 13`,{#ABC},"0abc\n")
+test("sprintf14\n","1 %d 1.0 %1.1f 0.0 %1.1f x %s\n",`sprintf err 14`,{1,1,0,"x"},"1 1 1.0 1.0 0.0 0.0 x x\n")
+test("sprintf15\n","%f\n",`sprintf err 15`,{1/3},"0.333333\n")
+test("sprintf16\n","%f\n",`sprintf err 16`,{4503599627370495},"4503599627370495.000000\n")
+test("sprintf17\n","%7.2f",`sprintf err 17`,0.000015,"   0.00")
+test("sprintf18\n","%7.2f",`sprintf err 18`,0.005,{"   0.00","   0.01"})
+test("sprintf19\n","%7.2f",`sprintf err 19`,0.015,{"   0.02","   0.01"})
+test("sprintf20\n","%7.2f",`sprintf err 20`,0.0151,"   0.02")
+test("sprintf21\n","%7.2f",`sprintf err 21`,35.855,"  35.85")
+test("sprintf22\n","%7.2f",`sprintf err 22`,35.755,"  35.76")
+test("sprintf23\n","%7.2f",`sprintf err 23`,1.005,"   1.00")
+test("sprintf24\n","%7.2f",`sprintf err 24`,1.015,"   1.01")
+--?sprintf("%7.2f",35.855)
+--?sprintf("%7.2f",35.755)
+--?sprintf("%7.2f",1.005)
+--?sprintf("%7.2f",1.015)
+--/*
+--"  35.85"
+--"  35.76"
+--"   1.00"
+--"   1.01"
+--*/
+test("sprintf25\n","true:%t, false:%t\n",`sprintf err 25`,{true,false},"true:true, false:false\n")
 
 --if getc(0) then end if

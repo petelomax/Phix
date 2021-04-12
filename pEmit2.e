@@ -1230,7 +1230,9 @@ end if
 --?length(glblused)
     for gidx=1 to length(glblused) do
         if glblabel[gidx]=vi then
+if not repl then
             if and_bits(glblused[gidx],G_declared+G_set)!=G_declared+G_set then ?9/0 end if
+end if
             offset = glboffset[gidx]
 --?{offset,gidx}
             k = 0
@@ -1512,7 +1514,9 @@ else
                         Abort("not declared")
 --                      Abort(glblname[vno]&" not declared")    -- got a '?'
                     end if
+if not repl then
                     if and_bits(k,G_set)=0 then ?9/0 end if
+end if
                     offset = glboffset[vno]
 if newEmit then
                     fileno = glblabel[vno]
@@ -3189,7 +3193,9 @@ integer showmapsymtab = 0
 --object dbg
 
 --1/1/18:
+if not repl then
     UnAliasAll()
+end if
 --if Z_ridN!=0 then -- still OK...
 ----    Z_ridN = 181
 --  ?symtab[Z_ridN]
@@ -4223,7 +4229,16 @@ end if
         else -- 32
             DSvsize = vmax*4 + 20
         end if
+if not repl or DSvaddr=0 then
+    if repl then
+        if DSvsize>replDSvsize then ?9/0 end if
+        if DSvaddr=0 then
+--?"allocate DSvaddr pEmit2.e line 4231" -- check once only... [good]
+            DSvaddr = AllocateBlock(replDSvsize)
+        end if
+    else
         DSvaddr = AllocateBlock(DSvsize)
+    end if
 --if platform()=LINUX then
 if 0 then
 printf(1,"(pemit2.e line 4805) DSvaddr=#%08x, CSvaddr=#%08x\n",{DSvaddr,CSvaddr})
@@ -4289,6 +4304,7 @@ end if
                   }
             mem_copy(DSvaddr+24,DSvaddr+20,DSvsize-24)
         end if
+end if
 
         -- for isIL, we must do them all in one go, before calling blurph()
         for v=1 to length(s5sets) do
@@ -4330,7 +4346,7 @@ end if
 
     code_section = repeat('\0',floor((CSvsize+3)/4)*4)
     for i=CSvsize+1 to length(code_section) do
-        -- (1-byte nops ensure disassembly/listing does not overrun section)
+        -- (1-byte [n]ops ensure disassembly/listing does not overrun section)
         code_section[i] = #90 -- nop
     end for
 
@@ -4424,16 +4440,16 @@ end if
         and sv[S_State]!=0 then
             nTyp = sv[S_NTyp]
             u = sv[S_State]
---/*
---MARKTYPES
-            if nTyp>S_Type      -- types are not properly marked as used... yet.
---          if nTyp>=S_Func-MARKTYPES
+----/*
+----MARKTYPES
+--          if nTyp>S_Type      -- types are not properly marked as used... yet.
+----            if nTyp>=S_Func-MARKTYPES
+----            if nTyp>=S_Type
+--          and sv[S_Slink]=-9 then -- (not on symtab[T_maintls][S_Slink] chain)
+----DEV (NEWGSCAN)
 --          if nTyp>=S_Type
-            and sv[S_Slink]=-9 then -- (not on symtab[T_maintls][S_Slink] chain)
---DEV (NEWGSCAN)
-            if nTyp>=S_Type
-            and g_scan[v]==0 then
---*/
+--          and g_scan[v]==0 then
+----*/
 --DEV as aboive,...
 --          bool doit = iff(NEWGSCAN ? nTyp>=S_Type and g_scan[v]==0
 --                                   : nTyp>S_Type and sv[S_Slink]=-9 )

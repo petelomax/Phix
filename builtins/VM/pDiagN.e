@@ -283,9 +283,12 @@ end function
 --d) we might want a length>40 and >95% of elements are ascii or similar.
 --e) why not just \xHH those in 1..255 we're not sure of?
 --
+--20/2/2021
 --4/2/21:
-string cdi_filename = "",
-       cdi_varname = ""
+--string cdi_filename = "",
+--     cdi_varname = ""
+string cdi_filename,
+       cdi_varname
 
 function cdi(string name, string prev, integer prst, integer prdx, object o, sequence idii)
 --
@@ -467,6 +470,7 @@ integer newprst,                -- Scratch/innner version of prst.
         lo = length(o)
         while lo-newprst+length(name)+13>MAXLINELEN do
             lp = newprst+MAXLINELEN-14-length(name)
+            if lp<newprst+5 then exit end if    -- added 1/3/2021...
             this = allascii(o[newprst..lp])
             namedx = sprintf("%s[%d..%d]",{name,newprst,lp})
             addtostack(idii,newprst,namedx,this)
@@ -739,7 +743,9 @@ constant msgs =
     -- (Acutally this only triggers for 0; -1 is treated as
     --  MAXUINT, which has turned out to be quite handy.)
  "argument to %s() must be an atom (use sq_%s?)\n",             -- e28NNatXmbausq
- "argument to set_rand() must be an atom\n",                    -- e29atsrmba
+-- no longer used (e48atlmmba triggers instead)
+-- "argument to set_rand() must be an atom\n",                  -- e29atsrmba
+ -1,
  "fatal exception %s at #%08x\n",                               -- e30ume
     -- Unknown machine error.
     --
@@ -2334,6 +2340,9 @@ string msg2
 atom symtabptr
 atom gvarptr
 
+--20/2/2021
+    cdi_filename = ""
+    cdi_varname = ""
 --/*
     This will definitely never work on RDS Eu!
 --*/
@@ -3324,9 +3333,9 @@ else
 --DEV triggered on ::retaddr in pcallfunc.e line 251 - needs something akin to AddressMapping (see below)...[??]
 --?pathset
 --printf(1,"cc_ret:%08x\n",{cc_ret_addr})
---                  filename = {"<unknown file>",sprintf("(%d)",srfn)}
+                    filename = {"<unknown file>",sprintf("(%d)",srfn)}
                     -- (drat, cannot be sure, so just take a leap of faith...)
-                    filename = {pathset[2],"pcallfunc.e",":cc_retaddr"}
+--                  filename = {pathset[2],"pcallfunc.e",":cc_retaddr"}
                     sr[S_Name] = -1
                 else
                     filename = sfs[srfn][1..2]

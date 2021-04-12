@@ -3,6 +3,223 @@
 --
 -- The main guts of the compiler.
 --
+-- DEV this might need to be in pHeap.e (:%pGetMCHK?): (so that pAlloc can store 0 in the era)
+--  it may also want to be "with memory_leak_checking/full_memory_leak_checking"
+
+--global constant NEWRETSLOT = 01       -- nb toggle in tandem with pStack/opRetf
+
+global constant MARKTYPES = 0
+global constant K_RIDT_UDTS = false -- added 28/02/19
+global constant NEWGSCAN = false -- added 01/03/19 (note: if set, K_RIDT_UDTS is ignored, check MARKTYPES as well)
+-- (for NEWGSCAN; move these to pglobals.e when done:)
+global sequence g_scan, kridt_scan
+-- g_scan is created as repeat(0,length(symtab)) on each iteration (actually kridt_scan, see below).
+--  As we encounter each opFrame/opTchk, in routine vi [initially T_maintls==21], if g_scan[rtn]=0 
+--  then insert into chain, ie g_scan[rtn]:=g_scan[vi]; g_scan[vi]:=rtn.
+-- However some "scannables" need to be more permanent, specifically when K_ridt is set on them.
+-- The same principle is applied to (both g_scan and) kridt_scan, and in fact we re-initialise
+--  g_scan from kridt_scan at the start of each iteration, rather than all-zero it.
+-- This replaces (some) prior use of [S_Slink] and fixes the type-routine issue, as well as 
+--  doing a much better job of excluding routines due to constant propagtion effects.
+-- Note that g_scan[T_maintls] (ditto kridt_scan) is initially "-1" as the chain terminator.
+--  (It uses a string to prevent any chance of accidentally treating it as symtab[$].)
+
+global constant NEWCATCH = 01
+
+global constant NESTEDFUNC = 01
+
+global constant FWARN = 01
+
+--global constant useFLOAT = 01
+global constant MCHK = 0        -- 0 = off, 1 = on
+
+--  Note that MCHK is ignored if opLntpcalled!=0 or length(ptab)!=0, as otherwise
+--                            opLnp/t will leave random floats etc on the "wrong heap"
+--                            and therefore trigger spurious memory leak errors.
+
+global constant ORAC = 1    -- adds int/eger seq/uence ~/length to/.. features.
+                            -- note this disables s[end], just use s[$] instead
+
+--SUG: check types and side-effects on auto-includes.
+--
+-- Programming notes:   (some general tips regarding bugs etc in p.exw itself)
+-- =================
+--  index out of bounds caused by opstack[opsidx[-1/2/3]] of 0: if emitON is 0, there
+--                      is probably a missing "if emitON then" wrapper at that point.
+--                      The missing entry from the test set is "constant DEBUG=0" with
+--                      "if DEBUG then <any & all possible code constructs> end if",
+--                      which ought to do nothing except compile cleanly.
+--  try "p p -cp" when "p -cp" fails. Certainly any change to the calling convention for
+--                      the backend VM (usually) requires this, similar build problems 
+--                      have occured with #ilasm/updates to iload in pttree.e, and with
+--                      some changes to #isginfo handling.
+--erm:
+--  stuff I rule out includes: goto: see notes/alternative in pops.e
+--                             preprocessing/macros: make the compiler smarter rather
+--                              than make it handle two different interlaced languages.
+--                             no proven gain: don't care about "want", need proof.
+--                              try whacky ideas yourself, be not premature with them.
+--                             because C does it like that: so what? Go use C then.
+--  open-source forks of the compiler are welcome, closed source ones are forbidden.
+--
+-- For a description of with/without console/gui, see file:docs/pfeat.htm#console
+--
+--DEV temp. removed (as it now triggers use of new emit, try putting back once pth works!)
+--!/**/format "p.fmt"
+----with gui 4.0        -- pw.exe/see verify_build() etc below
+--!/**/with console 4.0     -- p.exe (this program does not run on RDS Eu!)
+--DEV (this wants to be in a common file for p.exw/pth.exw)
+--format PE32 4.0
+--version { "FileDescription","Phix Programming Language",
+--        "LegalCopyright","Pete Lomax",
+--        "FileVersion","0.6.3",
+--        "ProductName","Phix Programming Language",
+--        "ProductVersion","0.6.3",
+--        "OriginalFilename","pw.exe" }
+
+--
+-- Warning: it is not wise to trace/profile the compiler whilst that is also
+--          trying to trace/profile a user app. In particular, "p p test" may
+--          crash (error code 91) when one of these is enabled.
+--          Update: I have stopped attempts to "share" a copy of pdebug.e and
+--          as long as pdiag.e (which remains "shared") has "without debug",
+--          this now seems better, albeit the sanity remains questionable...
+--
+--with profile_time
+--with profile
+
+--include demo\arwen\arwen.ew
+--include demo\arwen\axtra.ew
+--include builtins\timestamp.ew
+
+--without trace
+--without type_check
+--with trace
+--with type_check
+--without debug -- no gain
+
+--!/**/without licence      -- Disable licencing, since it quite deliberately cripples 
+--                          --  most of the core compiler/interpreter functionality.
+--                          -- (You may freely share modified compiler sources, with a
+--                          --   an "official" p.exe binary to recompile them, however
+--                          --   you may NOT ship a pre-built/closed source p.exe.)
+--                          -- (TIP: If you add a language construct, think twice before
+--                          --       using it in p.exw itself, otherwise you may need to
+--                          --       ship two versions of the modified compiler source.
+--                          --       Not that running p temp\pold -cp is a major burden
+--                          --       over "p -cp", as a one-time installation task.)
+
+global integer bind = 0         -- set by -c, -listing command line options (create .exe file)
+
+global integer repl = 0         -- set by -repl command line option (read eval print loop)
+global constant replDSvsize = 8032
+
+global integer testall = 0
+global integer pauseOnWarnings = 01     -- only used if testall!=0 (which it is for final file)
+
+-- note there is a "copy" of this in pdiag.e:
+global integer batchmode = 0    -- set by -batch command line option
+                                -- 1=suppress displays/prompts [incomplete]
+
+global integer safemode = false -- if true, running under -safe command line option.
+
+global integer norun = 0        -- set by -norun, -listing command line options
+
+global integer nodiag = 0       -- set by -nodiag command line option
+                                --  (can make list.asm easier to follow)
+
+global integer listing = 0      -- set by -listing command line option (also sets norun & bind)
+                                --  (aka -d, -dump, -l, -list, command line option)
+                                -- -1 indiates -d! (interpretive dump) listing
+--DEV should no longer need this (rsn)
+global integer listimports = 0  -- set by -import(s) command line option
+                                -- 1 just dumps the import section to screen
+
+global constant suppressopRetf = 0 -- debug aid, should be 0 in all releases
+if suppressopRetf then
+    puts(1,"warning (p.exw line 107): suppressopRetf is ON\n")
+end if
+
+--DEV this is not properly implemented yet; needs to do a full gvar_scan in pemit.e,
+--      process #isginfo/opGchk properly, etc. (pltype.e should be OK)
+--  (btw, apart from completely ignoring "without warning", this would/should not 
+--        give you any more info than -c already does...)
+global integer lint = 0         -- set by -lint command line option
+                                --  (nb all x[i] = c_func will give warnings)
+
+global integer dumpil = 0       -- set by -dumpil command line option
+                                --  (nb only suitable for small programs/compiler debugging,
+                                --      and also: not all errors/warnings will be displayed.)
+global integer dilfn = 1        -- for use with dumpil option, output file "ildump.txt"
+                                --  (opened here, written in pilx86, closed in pemit.e)
+
+global integer minus_e = false  -- if true, -e "pgm"; ie no source file.
+
+global constant showfileprogress = 0    -- show files, times, etc.
+
+global constant collectstats = 0        -- see opStat, profile.e, eg emitHex5(), Branch().
+                                        -- WARNING: this (=1) is currently broken.
+
+global constant countTransTmpFer = 0    -- if set, writes a table of instructions which
+                                        -- might be suitable for tmptransfer, sorted in
+                                        -- order of occurrence, to ildump.txt only.
+                                        -- NB: does nowt else, and collects "consumers"
+                                        --  only, not potential producers (see pilx86.e).
+global constant showOpCounts = 0        -- if set, writes a table of opcodes in order
+                                        -- of number of times ilxlate() processed them.
+if countTransTmpFer then
+    if showOpCounts then ?9/0 end if    -- these (debug) options are mutually exclusive!
+end if
+
+
+global constant AutoIncWarn = 01        -- If 1, warn when files are auto-included.
+                                        -- NB only has effect under -lint.
+
+--include pcore.e
+--include p6core.e
+--
+-- pcore.e
+--
+--  common incudeset for p.exw and pgui.exw
+--
+include pglobals.e
+
+include builtins\ppp.e
+
+include pops.e  -- opcode table
+
+include pttree.e    -- ternary tree
+
+include pmsgs.e -- Warnings/Warn/Abort/Duplicate/Expected/Fatal/Undefined
+
+include ptok.e  -- tokeniser: getToken()
+--include p6tok.e   -- tokeniser: getToken()
+
+include pltype.e    -- localtypes handling
+
+include psym.e      -- symbol table handler.
+--include p6sym.e -- symbol table handler.
+
+include pilx86.e    -- ilxlate(), (also includes psched.e)
+
+--7/4/16:
+--global sequence code_section
+global string code_section
+global integer CSvsize, DSvsize
+--25/4/16: (pHeap.e now using mmap)
+--global integer CSvaddr, DSvaddr, ImageBase, VMvaddr, VMraddr, DVraddr, VMvsize        --DEV temp, for listing
+global atom CSvaddr, DSvaddr, ImageBase, VMvaddr, VMraddr, DVraddr, VMvsize     --DEV temp, for listing
+global string divm  -- used by p2asm.e if dumpVM=1
+global sequence VMep -- used by p2asm.e [DEV]
+
+--include pemit.e
+--include p6emit.e
+include pEmit2.e
+
+--DEV this does not appear in Edita's project tree... (Finc thing??)
+--include pdebug.e  -- trace routines
+include VM\pTrace.e -- trace routines
+
 
 --DEV: kill off paramLines, opsline, calltokline (inc temp code in Warn()), 
 --              tok_abort_line, wascalltokline, lblline, rtntokline, notumline,
@@ -2898,7 +3115,11 @@ constant asBool=1,          -- return 0/1
          asNegatedBool=-1   -- return 0/-1
 --       asInvertedBool=-9  -- return 1/0       [DEV unused/broken?]
 
-constant ZZops = "*/+-&<>=!|&<>",
+--/*
+constant ZZops = "*!/+-&<>=!|&<>",
+         ZZpre = "9!988655443377",
+--*/
+constant ZZops = "*/+-&|&<>=!<>",
          ZZpre = "9988655443377",
          -- precedence levels:
 --       pSubsc   = 11, -- []. (unused/handled directly in GetFactor/DoSubScripts/Assignment)
@@ -2907,13 +3128,21 @@ constant ZZops = "*/+-&<>=!|&<>",
          pAddsub   = 8, -- + -
          pBitshift = 7, -- >> <<
          pConcat   = 6, -- &
+--       pBitops   = 5, -- && ||
+         pRelops   = 4, -- < > <= >=
+         pEqorne   = 3, -- == !=
+--/*
          pRelops   = 5, -- < > <= >=
          pEqorne   = 4, -- == !=
          pBitops   = 3, -- && ||
+--*/
          pLogop    = 2, -- and or xor
          pAllops   = 0, -- [full, effectively the same as pLogop]
-         ZZopcodes = {opMul,opDiv,opAdd,opSub,opConcat,opDivf,0,0,0,opOrBits,opAndBits,opPow,opPow},
-         ZZlong = {"mul","div","add","sub","","floor_div"},
+--       ZZopcodes = {opMul,opDiv,opAdd,opSub,opConcat,opDivf,0,0,0,opOrBits,opAndBits,opPow,opPow},
+         ZZopcodes = {opMul,opDiv,opAdd,opSub,opConcat,opOrBits,opAndBits,opDivf,0,0,0,opPow,opPow},
+                                        --  (kludge, see k = 8 below (opDivf ^)
+--       ZZlong = {"mul","div","add","sub","","floor_div"},
+         ZZlong = {"mul","div","add","sub","","","","floor_div"},
 --(nb different order to Bcde etc:)
          ZZjcc = {"ge","lt","eq","ne","gt","le"},
          Z_andorxor = {"and","or","xor"}
@@ -4768,6 +4997,7 @@ object dbg -- DEV (temp)
         and routineNo>T_Bin     -- Ah!!
 --      and routineNo>T_Asm
         and routineNo<=T_Ainc then
+if not repl or integer(symtab[routineNo][S_Name]) then
             tidx = symtab[routineNo][S_Name]
             if tidx=T_machine_func
             or tidx=T_machine_proc then
@@ -4785,6 +5015,7 @@ object dbg -- DEV (temp)
             else
                 symtab[routineNo][S_State] = state  -- undo
             end if
+end if
         end if
     end if
 
@@ -7596,9 +7827,14 @@ procedure Expr(integer p, integer toBool)
 --    pAddsub   = 8 : "" and + -
 --    pBitshift = 7 : "" and >> << (equivalent to (floor(/)|*)power(2,rhs))
 --    pConcat   = 6 : "" and & (string/sequence concatenation)
+--    pBitops   = 5 : "" and && || (equivalent to and/or_bits)
+--    pRelops   = 4 : "" and relops(<,>,<=,>=)
+--    pEqorne   = 3 : "" and == != (a single = means ==, sometimes)
+--/*
 --    pRelops   = 5 : "" and relops(<,>,<=,>=)
 --    pEqorne   = 4 : "" and == != (a single = means ==, sometimes)
 --    pBitops   = 3 : "" and && || (equivalent to and/or_bits)
+--*/
 --    pLogop    = 2 : "" and logicops (and,or,xor)
 --    pAllops   = 0 : [full, effectively the same as pLogop]
 --
@@ -7652,16 +7888,20 @@ object sig
     GetFactor(toBool)
 
     while 1 do
-        k = find(toktype,ZZops) -- "*/+-&<>=!|&<>"
+--      k = find(toktype,ZZops) -- "*/+-&<>=!|&<>"
+        k = find(toktype,ZZops) -- "*/+-&|&<>=!<>"
         if k then               --  1234567890123
 --          if toktype=Ch and find(Ch,"&|<>") then
-            if toktype=Ch and find(Ch,"&<>") then
+--          if toktype=Ch and find(Ch,"&<>") then
+            bool bChCh = (toktype=Ch and find(Ch,"&|<>"))
+            if bChCh then
                 -- (pConcat -> pBitops, pRelops -> pBitshift)
                 k = rfind(toktype,ZZops)
             end if
             thisp = ZZpre[k]-'0'
             if thisp<p then exit end if
-            if k>=10 then
+--          if k>=10 then
+            if bChCh then
                 MatchChar(Ch)
             end if
             if scBP>wasScBP             -- eg "(a or b)+?" -> 0/1+?
@@ -7729,7 +7969,8 @@ object sig
                     if routineNo=T_floor and wastok='/' then
                     --  trace(1)
                     --  ZZdesc = "sq_floor_div"
-                        k = 6
+--                      k = 6
+                        k = 8
                     end if
                     ZZdesc = "sq_"&ZZlong[k]
 --                  if sqopWarn then
@@ -8013,7 +8254,8 @@ end if
                     end if
                 end if
 
-                Expr(pBitops,false) -- a sub-expression with */+-&<>=! etc, but not and/or/xor.
+--              Expr(pBitops,false) -- a sub-expression with */+-&<>=! etc, but not and/or/xor.
+                Expr(pEqorne,false) -- a sub-expression with */+-&<>=! etc, but not and/or/xor.
 
                 if LogicTok=T_xor then
                     if opTopIsOp then PopFactor() end if
@@ -11561,7 +11803,13 @@ procedure DoStruct()
         base_name = TokStr
         getToken()
     end if
-    structs:struct_start(struct_flags,struct_name,N,base_name)
+--19/2/21
+--  structs:struct_start(struct_flags,struct_name,N,base_name)
+    try
+        structs:struct_start(struct_flags,struct_name,N,base_name)
+    catch e
+        Aborp(e[E_USER])
+    end try
     -- and emit "" (aside: N above isn't pukka, but is "unique enough" for compile-side)
     integer qN = addUnnamedConstant(struct_flags,T_integer),
             bN = addUnnamedConstant(base_name,T_string)
@@ -13955,6 +14203,7 @@ end procedure
 --with trace
 global procedure Compile(bool bInit = true)
 
+    opsidx = 0
     if bInit then   -- 9/2/10 (for repl)
 --  resetOptions()
 --trace(1)
@@ -14069,6 +14318,8 @@ end if
                     getCh()
                 end if
             end if
+--removed 2/3/21... (let Statement() do it!)
+--put back 20/3/21 (soloud wrapper said C_POINTER not defined)
         else
             Z_format = 0
             Alias_C_flags()

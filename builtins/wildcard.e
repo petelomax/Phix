@@ -7,7 +7,8 @@ constant LINUX = 3
 --*/
 
 --/**/-- not strictly necessary, but reduces opCallOnce/fwd calls/onDeclaration
---/**/include builtins\pcase.e  -- upper/lower()
+--pwa/p2js: removed...
+--!/**/include builtins\pcase.e -- upper/lower()
 
 --/* Not required for Phix (see pcase.e):
 constant TO_LOWER = 'a' - 'A' 

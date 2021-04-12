@@ -44,7 +44,7 @@ function help_cb(Ihandln /*help*/)
     return IUP_DEFAULT
 end function
 
-Ihandle dlg, plot, canvas, timer,
+Ihandle dlg, plot, canvas, timer, vbox,
         iteration, accuracy, w1, w2, w3
 cdCanvas cddbuffer, cdcanvas
 
@@ -195,7 +195,7 @@ function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
     IupSetStrAttribute(w2,"TITLE","%+f",{perceptron[WEIGHTS][2]})
     IupSetStrAttribute(w3,"TITLE","%+f",{perceptron[WEIGHTS][3]})
     IupSetStrAttribute(accuracy,"TITLE","accuracy: %.4g%%",{(correct/points)*100})
-    IupRefresh({iteration,w1,w2,w3,accuracy})   -- (force label resize)
+    IupRefreshChildren(vbox)    -- (force label resize)
     if correct=points then
         IupSetInt(timer,"RUN",0)                -- stop at 100%
     end if
@@ -299,11 +299,11 @@ procedure main()
     Ihandle weights = IupHbox({IupLabel("weights: ","PADDING=0x4"),IupVbox({w1,w2,w3})})
     accuracy = IupLabel("accuracy: 12.34%")
 
-    Ihandle vbox = IupVbox({settings_lbl, sep(),
-                            line, sep(), points, sep(), learn, sep(), 
-                            rate, sep(), maxiter, sep(), buttons, sep(),
-                            IupHbox({iteration}), weights, IupHbox({accuracy})})
-    IupSetAttribute(vbox, "GAP", "4");
+    vbox = IupVbox({settings_lbl, sep(),
+                    line, sep(), points, sep(), learn, sep(), 
+                    rate, sep(), maxiter, sep(), buttons, sep(),
+                    IupHbox({iteration}), weights, IupHbox({accuracy})})
+    IupSetAttributes(vbox,"GAP=4");
 
     plot = IupPlot("MENUITEMPROPERTIES=Yes")
     IupSetAttribute(plot, "TITLE", "Learning Curve");
@@ -320,9 +320,10 @@ procedure main()
     IupSetAttribute(plot, "AXS_YAUTOMAX", "No");
     IupSetInt(plot, "AXS_YMIN", 0)
     IupSetInt(plot, "AXS_YMAX", 100)
+    IupSetAttribute(plot,"RASTERSIZE", "320x360") -- initial size
 
     canvas = IupCanvas(NULL)
-    IupSetAttribute(canvas, "RASTERSIZE", "640x360") -- initial size
+    IupSetAttribute(canvas, "RASTERSIZE", "320x360") -- initial size
     IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
     IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
 
@@ -330,9 +331,9 @@ procedure main()
     dlg = IupDialog(hbox);
     IupSetCallback(dlg, "K_ANY", Icallback("k_any"))
     IupSetAttribute(dlg, "TITLE", "Perceptron")
-    IupMap(dlg)
+    IupShow(dlg)
+    IupSetAttribute(plot, "RASTERSIZE", NULL) -- release limitation
     IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release limitation
-    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
     timer = IupTimer(Icallback("timer_cb"), 100) -- (was 1 sec, now 0.1s)
     IupMainLoop()
     IupClose()

@@ -1,0 +1,56 @@
+--
+-- demo\rosetta\sleep.exw
+-- ======================
+--
+--  For https://rosettacode.org/wiki/Sleep#Phix
+--
+--/*
+atom a = prompt_number("wait for duration (in seconds, 0..20):", {0,20})
+puts(1,"Sleeping...\n")
+sleep(a)
+puts(1,"Awake!\n")
+--*/
+--/*
+Note that sleep() is entirely inappropriate for GUI applications, which should 
+instead set a routine to resume processing (that would be timer_cb below), 
+activate a timer (set RUN to true), and relinquish control to the event loop. 
+Another excellent way to perform extended processing without making an application 
+unresponsive is via an IDLE_ACTION, provided that also regularly relinquishes 
+control to the event loop, and can pick up where it left off when next invoked.
+--*/
+include pGUI.e
+Ihandle dlg, state, label, slider, snooze, timer 
+function timer_cb(Ihandle /*timer*/)
+    IupSetAttribute(state,"TITLE","awake")
+    IupSetInt(timer,"RUN",false)
+    return IUP_CONTINUE
+end function
+ 
+function slider_cb(Ihandle /*slider*/)
+    atom v = IupGetDouble(slider,"VALUE")
+    IupSetInt(timer,"TIME",v*1000)
+    IupSetStrAttribute(label,"TITLE","%3.1fs",{v})
+    return IUP_CONTINUE
+end function
+function snooze_cb(Ihandle /*snooze*/)
+    IupSetAttribute(state,"TITLE","asleep")
+    IupSetInt(timer,"RUN",true)
+    return IUP_CONTINUE
+end function
+IupOpen()
+state = IupLabel("awake")
+label = IupLabel("2.0s")
+slider = IupValuator(NULL,"VALUECHANGED_CB",Icallback("slider_cb"),"MIN=1, MAX=15, VALUE=2, EXPAND=HORIZONTAL")
+snooze = IupButton("Snooze",Icallback("snooze_cb"),"EXPAND=HORIZONTAL")
+dlg = IupDialog(IupVbox({IupHbox({IupLabel("state: "),state},"ALIGNMENT=ACENTER"),
+                         IupHbox({IupLabel("Duration: "),label,slider},"ALIGNMENT=ACENTER"),
+                         IupHbox({snooze})},
+                        "MARGIN=10x10"),
+                `TITLE="Snooze"`)
+IupSetAttributeHandle(dlg,"STARTFOCUS",snooze)
+timer = IupTimer(Icallback("timer_cb"),2000,false)
+IupShow(dlg)
+if platform()!=JS then
+    IupMainLoop()
+    IupClose()
+end if

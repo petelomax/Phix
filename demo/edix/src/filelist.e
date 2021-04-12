@@ -70,7 +70,6 @@ integer k,k2
             end if
         end for
 --      void = sendMessage(TLlvw, LVM_UPDATE, 0, 0)
-
 --      closeWindow(TLwin)
         IupHide(filelist_dlg)
     end if
@@ -146,7 +145,6 @@ function value_cb(Ihandle /*self*/, integer l, integer c)
                         semiperm = sprintf("%d",files[l][c])
                     end if
                 end if
-
 --*!/
 --/*
                 if c=F_size then
@@ -392,6 +390,7 @@ global procedure fileList()
 
     if filelist_dlg=NULL then
         create_filelist_dialog()
+--DEV why??
     elsif sortcol!=0 then
         IupSetAttributeId(matrix,"SORTSIGN",sortcol,"NO")
         sortcol = 0
@@ -467,11 +466,6 @@ global procedure fileList()
 --  IupShowXY(HelpWin,IUP_CENTERPARENT,IUP_CENTERPARENT)
 end procedure
 
-function filelist_cb(Ihandle /*cb_filelist*/)
-    fileList()
-    return IUP_DEFAULT
-end function
-global constant cb_filelist = Icallback("filelist_cb")
 
 
 --/* copy of eatabl.e:
@@ -758,5 +752,5 @@ integer found, k, k2
 --  addFocus(TLwin)
     openWindow(TLwin,SW_NORMAL)
 end procedure
-global constant r_fileList=routine_id("fileList")
+--global constant r_fileList=routine_id("fileList")
 --*/ --<end of copy of eatabl.e>

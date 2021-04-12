@@ -18,8 +18,8 @@ include VM\pHeap.e  -- :%pDealloc/:%pStoreFlt
 #ilASM{ jmp :%opRetf
 
 --DEV:
-    ::e29atsrmba        -- argument to set_rand must be atom
-        int3
+--  ::e29atsrmba        -- argument to set_rand must be atom
+--      int3
 --  ::e2801atrmbausq    -- argument to rand() must be an atom (use sq_rand?)
 --      int3
 --  ::e27atrmbge1       -- argument to rand must be >=1
@@ -29,6 +29,7 @@ include VM\pHeap.e  -- :%pDealloc/:%pStoreFlt
 ---------
         rdtsc
         xor eax,0x92D68CA2
+      @@:
         mov dword[ds+4],eax
         ret
 
@@ -38,12 +39,12 @@ end procedure -- (for Edita/CtrlQ)
 --*/
   :%opSetRand       -- [edi] := time()
 -------------
-    [32]
+--  [32]
         --calling convention:
         --  mov eax,[p1]        -- seed value (opUnassigned)
         --  call :%opSetRand    -- set_rand(eax)
-        cmp eax,h4
-        jae :e29atsrmba -- argument to set_rand must be atom
+--      cmp eax,h4
+--      jae :e29atsrmba -- argument to set_rand must be atom
 --      jl @f
 --          cmp byte[ebx+eax*4-1],0x12
 --          jne :e29atsrmba -- argument to set_rand must be atom
@@ -57,18 +58,21 @@ end procedure -- (for Edita/CtrlQ)
 --      lea rdi,[rseed]
 --      jmp :%pStoreFlt
 --      mov [rseed],eax
-        mov dword[ds+4],eax
-    [64]
+--      call :%pLoadMint
+--      mov dword[ds+4],eax
+--  [64]
         --calling convention:
         --  mov rax,[p1]        -- seed value (opUnassigned)
         --  call :%opSetRand    -- set_rand(rax)
-        mov r15,h4
-        cmp rax,r15
-        jae :e29atsrmba -- argument to set_rand must be atom
+--      mov r15,h4
+--      cmp rax,r15
+--      jae :e29atsrmba -- argument to set_rand must be atom
 --      mov [rseed],rax
-        mov dword[ds+4],eax
-    []
-        ret
+--  []
+        call :%pLoadMint
+        jmp @b
+--      mov dword[ds+4],eax
+--      ret
 
 --/*
 procedure :%opRand(:%)

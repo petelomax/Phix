@@ -481,7 +481,7 @@ end if
         end for
         if nwarns=0 then
 --if not equal(mainfile,"t00.exw") then
-if not batchmode then
+if not batchmode and not repl then
     if DEBUG then
             puts(1,"\nPress Enter, or d for diagnostics...")
             if find(wait_key(),"dD") then ?9/0 end if

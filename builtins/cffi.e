@@ -228,8 +228,10 @@ end function
 include builtins/ptypes.e   -- atom_string
 
 procedure err(string msg)
-    puts(1,msg)
-    ?9/0
+--19/2/21:
+--  puts(1,msg)
+--  ?9/0
+    throw(msg)
 end procedure
 
 string s
@@ -550,7 +552,7 @@ function parse_c_struct(bool bStruct, integer machine, integer base)
 --   nested structs and unions are involved, instead it is assumed that
 --   the calling code is happy enough just to know where the first is.
 --
-string name, token, mtype, mname, subname
+string name="?", token, mtype, mname, subname
 integer signed, k, mult, size, subsize, align, substruct, offset
 integer sizeofS = 0, widest = 0, isstruct
 sequence members = {}, ptrnames = {}
@@ -1005,7 +1007,16 @@ sequence res
     end if
     if not equal(token,"struct") then err("struct expected") end if
 --?"pcs"
+-- 19/2/21
     res = parse_c_struct(1,machine,0)
+--/*
+    try
+        res = parse_c_struct(1,machine,0)
+    catch e
+--      crash(e[E_USER],{},2)
+        throw(e[E_USER])
+    end try
+--*/
 --?"pcs ret"
     if add and typedef then
         return add_struct(res)
@@ -1033,16 +1044,22 @@ function get_smembers(integer id)
 end function
 
 --global procedure set_struct_field(integer id, atom pStruct, string fieldname, atom v)
-global procedure set_struct_field(integer id, atom pStruct, atom_string field, atom v)
+global procedure set_struct_field(integer id, atom pStruct, atom_string field, atom_string v)
     sequence {membernames,details} = get_smembers(id)
---integer k = find(fieldname,membernames)
---integer k
---integer size, offset
---  {membernames,details} = smembers[id]
---  k = find(fieldname,membernames)
     integer k = iff(string(field)?find(field,membernames):field)
     integer {?,size,offset} = details[k]
-    pokeN(pStruct+offset,v,size)
+    if atom(v) then
+        pokeN(pStruct+offset,v,size)
+    else
+        -- (the following should never trigger, since something similar
+        --  when defining the TCHAR[] should have already have happened.)
+        if unicode=-1 then ?9/0 end if
+        if unicode=0 then -- ansi
+            poke(pStruct+offset,v)
+        else
+            poke2(pStruct+offset,utf8_to_utf16(v))
+        end if
+    end if
 end procedure
 
 --global function get_struct_field(integer id, atom pStruct, string fieldname)
@@ -1057,6 +1074,16 @@ global function get_struct_field(integer id, atom pStruct, atom_string field)
     integer k = iff(string(field)?find(field,membernames):field)
     integer {?,size,offset,signed} = details[k]
     return peekNS(pStruct+offset,size,signed)
+end function
+
+global function get_struct_string(integer id, atom pStruct, string field, integer len)
+    sequence {membernames,details} = get_smembers(id)
+    integer k = find(field,membernames)
+    integer {?,?,offset} = details[k]
+    if unicode=1 then -- widestring
+        return utf16_to_utf8(peek2u({pStruct+offset,len}))
+    end if
+    return peek({pStruct+offset,len})
 end function
 
 --global function get_field_details(integer id, string fieldname)
@@ -1178,6 +1205,8 @@ integer rid
         rid = define_c_proc(lib,name,args)
     end if
     if rid=-1 then
+--      if unicode=-1 then crash(`"%s" not found (unicode still -1)`,{name},3) end if
+        if unicode=-1 then throw(`"%s" not found (unicode still -1)`,{name}) end if
 --      name &= AW[unicode+1] -- (errors out if unicode still -1)
         name &= "AW"[unicode+1] -- (errors out if unicode still -1)
         if func then
@@ -1185,7 +1214,9 @@ integer rid
         else
             rid = define_c_proc(lib,name,args)
         end if
-        if rid=-1 then ?9/0 end if
+--      if rid=-1 then ?9/0 end if
+--      if rid=-1 then crash(`"%s" not found`,{name[1..-2]},3) end if
+        if rid=-1 then throw(`"%s" not found`,{name[1..-2]}) end if
     end if
     return rid
 end function

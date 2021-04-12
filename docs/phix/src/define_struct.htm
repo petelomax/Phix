@@ -27,7 +27,8 @@
             parse a C struct definition into sizes/offsets etc.
             <br>
             <br>
-            <b>Note</b>: This functionality is now wrapped by <a href="cstruct.htm">c-struct</a>, which you may find slightly easier to use.
+            <b>Note</b>: This functionality is now wrapped by <a href="cstruct.htm">c-struct</a>, which you may find slightly easier to use,
+            however that will not play nice with any embedded TCHAR[] or similar fields.
          </td>
         </tr>
         <tr>
@@ -48,6 +49,10 @@
             <a href="get_struct_size.htm">get_struct_size</a>().<br>
             Otherwise the full details of the structure are returned, which you can display, use to write a little help file, or perhaps even directly 
             use the sizes and offsets etc. Typically this is only useful for testing/diagnostic purposes, see the dropdown below for more info.
+            <br>
+            <br>
+            The struct definition may contain comments, however they must be C-style, ie/eg <code>// comment </code> or <code>/* comment */</code>, 
+            and not <code>-- comment</code>.
          </td>
         </tr>
         <tr>
@@ -74,8 +79,8 @@ typedef struct {
 constant integer idMBP = define_struct(tMBP)
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> cffi.e
-</font><font color="#008080">constant</font><font color="#000000"> tMBP</font><font color="#0000FF">=</font><font color="#008000">"""
+<font color="#008080">include</font><font color="#000000"> cffi.e</font>
+<font color="#008080">constant</font><font color="#000000"> tMBP</font><font color="#0000FF">=</font><font color="#008000">"""
 typedef struct {
   UINT           cbSize;
   HWND           hwndOwner;
@@ -88,8 +93,8 @@ typedef struct {
   MSGBOXCALLBACK lpfnMsgBoxCallback;
   DWORD          dwLanguageId;
 } MSGBOXPARAMS, *PMSGBOXPARAMS;
-"""
-</font><font color="#008080">constant</font><font color="#004080"> integer</font><font color="#000000"> idMBP</font><font color="#0000FF"> =</font><font color="#5E005E"> define_struct</font><font color="#0000FF">(</font><font color="#000000">tMBP</font><font color="#0000FF">)</font>
+"""</font>
+<font color="#008080">constant</font><font color="#004080"> integer</font><font color="#000000"> idMBP</font><font color="#0000FF"> =</font><font color="#5E005E"> define_struct</font><font color="#0000FF">(</font><font color="#000000">tMBP</font><font color="#0000FF">)</font>
 </pre>
          </td>
         </tr>
@@ -120,15 +125,15 @@ constant tRECT = """
         idPS = define_struct(tPS)
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> cffi.e
-</font><font color="#008080">constant</font><font color="#000000"> tRECT</font><font color="#0000FF"> =</font><font color="#008000"> """
+<font color="#008080">include</font><font color="#000000"> cffi.e</font>
+<font color="#008080">constant</font><font color="#000000"> tRECT</font><font color="#0000FF"> =</font><font color="#008000"> """
                     typedef struct _RECT {
                       LONG left;
                       LONG top;
                       LONG right;
                       LONG bottom;
-                    } RECT, *PRECT;"""</font><font color="#0000FF">,
-</font><font color="#000000">         tPS</font><font color="#0000FF"> =</font><font color="#008000"> """
+                    } RECT, *PRECT;"""</font><font color="#0000FF">,</font>
+<font color="#000000">         tPS</font><font color="#0000FF"> =</font><font color="#008000"> """
                     typedef struct tagPAINTSTRUCT {
                       HDC  hdc;
                       BOOL fErase;
@@ -136,9 +141,9 @@ constant tRECT = """
                       BOOL fRestore;
                       BOOL fIncUpdate;
                       BYTE rgbReserved[32];
-                    } PAINTSTRUCT, *PPAINTSTRUCT;"""</font><font color="#0000FF">,
-</font><font color="#000000">        idRECT</font><font color="#0000FF"> =</font><font color="#5E005E"> define_struct</font><font color="#0000FF">(</font><font color="#000000">tRECT</font><font color="#0000FF">)
-</font><font color="#000000">        idPS</font><font color="#0000FF"> =</font><font color="#5E005E"> define_struct</font><font color="#0000FF">(</font><font color="#000000">tPS</font><font color="#0000FF">)</font>
+                    } PAINTSTRUCT, *PPAINTSTRUCT;"""</font><font color="#0000FF">,</font>
+<font color="#000000">        idRECT</font><font color="#0000FF"> =</font><font color="#5E005E"> define_struct</font><font color="#0000FF">(</font><font color="#000000">tRECT</font><font color="#0000FF">)</font>
+<font color="#000000">        idPS</font><font color="#0000FF"> =</font><font color="#5E005E"> define_struct</font><font color="#0000FF">(</font><font color="#000000">tPS</font><font color="#0000FF">)</font>
 </pre>
             <br>
             Structures can be nested - tPS can use "RECT", but only after tRECT has been processed.<br>
@@ -182,10 +187,10 @@ constant tRECT = """
 
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#0000FF">     {</font><font color="#008000">"RECT"</font><font color="#0000FF">,</font><font color="#000000"> 16</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#800080">{</font><font color="#008000">"left"</font><font color="#0000FF">,</font><font color="#008000"> "top"</font><font color="#0000FF">,</font><font color="#008000"> "right"</font><font color="#0000FF">,</font><font color="#008000"> "bottom"</font><font color="#800080">}</font><font color="#0000FF">,
-</font><font color="#800080">                   {</font><font color="#00FF00">{</font><font color="#008000">"LONG"</font><font color="#0000FF">,</font><font color="#000000"> 4</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#00FF00">}</font><font color="#0000FF">,</font><font color="#00FF00"> {</font><font color="#008000">"LONG"</font><font color="#0000FF">,</font><font color="#000000"> 4</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#00FF00">}</font><font color="#0000FF">,
-</font><font color="#00FF00">                    {</font><font color="#008000">"LONG"</font><font color="#0000FF">,</font><font color="#000000"> 4</font><font color="#0000FF">,</font><font color="#000000">8</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#00FF00">}</font><font color="#0000FF">,</font><font color="#00FF00"> {</font><font color="#008000">"LONG"</font><font color="#0000FF">,</font><font color="#000000"> 4</font><font color="#0000FF">,</font><font color="#000000">12</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#00FF00">}</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">,
-</font><font color="#800000">     {</font><font color="#008000">"PRECT"</font><font color="#800000">}</font><font color="#0000FF">}
+<font color="#0000FF">     {</font><font color="#008000">"RECT"</font><font color="#0000FF">,</font><font color="#000000"> 16</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#800080">{</font><font color="#008000">"left"</font><font color="#0000FF">,</font><font color="#008000"> "top"</font><font color="#0000FF">,</font><font color="#008000"> "right"</font><font color="#0000FF">,</font><font color="#008000"> "bottom"</font><font color="#800080">}</font><font color="#0000FF">,</font>
+<font color="#800080">                   {</font><font color="#00FF00">{</font><font color="#008000">"LONG"</font><font color="#0000FF">,</font><font color="#000000"> 4</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#00FF00">}</font><font color="#0000FF">,</font><font color="#00FF00"> {</font><font color="#008000">"LONG"</font><font color="#0000FF">,</font><font color="#000000"> 4</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#00FF00">}</font><font color="#0000FF">,</font>
+<font color="#00FF00">                    {</font><font color="#008000">"LONG"</font><font color="#0000FF">,</font><font color="#000000"> 4</font><font color="#0000FF">,</font><font color="#000000">8</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#00FF00">}</font><font color="#0000FF">,</font><font color="#00FF00"> {</font><font color="#008000">"LONG"</font><font color="#0000FF">,</font><font color="#000000"> 4</font><font color="#0000FF">,</font><font color="#000000">12</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#00FF00">}</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">,</font>
+<font color="#800000">     {</font><font color="#008000">"PRECT"</font><font color="#800000">}</font><font color="#0000FF">}
 </font>
 </pre>
             So a RECT is 16 bytes and needs 4 byte alignment, and RECT.bottom is a long, 4 bytes, at offset 12, and is signed. <br>

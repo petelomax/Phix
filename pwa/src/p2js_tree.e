@@ -37,7 +37,7 @@
 --
 --without trace
 --without type_check
-without debug   -- (keep ex.err clean, tt gets large and mainly gibberish)
+without debug -- (keep ex.err clean, tt gets large and mainly gibberish)
 
 include p2js_basics.e   -- (strictly unnecesary/ensure loaded/uses "text")
 
@@ -59,18 +59,18 @@ global function tt_idx(integer s, e)--, bool lowercase)
 --
 --  obtain a ttidx for text[s..e] (where text is defined in p2js_basics.e)
 --
-    integer ch = text[s],
+    integer ch = src[s],
             pcurr = 0,
             ttidx = 0
 --DOH, we want to use xml on html!
 --  if lowercase            -- (is_html())
 --  and ch!=lower(ch)       -- (eg "DIV" but not say "onLoad")
 --  and s>1
---  and find(text[s-1],"</") then
+--  and find(src[s-1],"</") then
 --      -- I think I'll rip this out the instant it causes me any grief:
 --      ch = lower(ch)
 --      for i=s to e do
---          text[i] = lower(text[i])
+--          src[i] = lower(src[i])
 --      end for
 --  end if
     if used then
@@ -81,7 +81,7 @@ global function tt_idx(integer s, e)--, bool lowercase)
                     return ttidx                    -- found !
                 end if
                 s += 1
-                ch = iff(s<=e?text[s]:'\0')
+                ch = iff(s<=e?src[s]:'\0')
                 pcurr = ttidx+EQ
             elsif ch>tch then
                 pcurr = ttidx+GT
@@ -115,18 +115,18 @@ global function tt_idx(integer s, e)--, bool lowercase)
         if ch='\0' then exit end if
         pcurr = ttidx+EQ
         s += 1
-        ch = iff(s<=e?text[s]:'\0')
+        ch = iff(s<=e?src[s]:'\0')
     end while
     return ttidx
 end function
 
 --function tt_keyword(sequence txt, integer chk)
---  text = txt              -- (text is defined in p2js_basics.e)
+--  src = txt               -- (src is defined in p2js_basics.e)
 --  integer ttidx = tt_idx(1,length(txt))--,false)
 --  if chk!=ttidx then
 --      -- you need to correct the (recently-added/moved) 
 --      -- keyword entry, as is explained shortly below.
---      printf(2,"%s should be %d, not %d\n",{text,ttidx,chk})
+--      printf(2,"%s should be %d, not %d\n",{src,ttidx,chk})
 --      {} = wait_key()
 --  end if
 --  return ttidx
@@ -159,10 +159,13 @@ function is_symbol(integer c)
     return c<=127 and find(c,symbols)
 end function
 
-function tt_keywords(sequence defs)
-    integer bRebuild = false
+procedure tt_keywords(sequence defs)
+    integer bRebuild = false, errcount = 0
+    sequence lq = repeat("",length(defs))
     for i=1 to length(defs) do
-        {sequence txt,integer chk} = defs[i]
+        {sequence txt,integer typ, integer chk} = defs[i]
+        -- (A leading ? just means untested. Preserve 'em.)
+        if txt[1]='?' then lq[i]="?" txt = txt[2..$] defs[i][1] = txt end if
         if chk<=TOKMAX then ?9/0 end if
         if is_symbol(chk) then ?9/0 end if
         -- ^^
@@ -170,20 +173,24 @@ function tt_keywords(sequence defs)
         --  string/nullable_string/atom_string gave ttidx of 'X'
         --  for nullable_string being the only potential clash.
         --
-        text = txt              -- (text is defined in p2js_basics.e)
+        src = txt               -- (src is defined in p2js_basics.e)
         integer ttidx = tt_idx(1,length(txt))--,false)
         if chk!=ttidx then
             bRebuild = true
-            defs[i][2] = ttidx
-            string ts = iff(ttidx>=32 and ttidx<128?sprintf("('%c')",ttidx):"")
-            printf(2,"%s should be %d%s, not %d\n",{text,ttidx,ts,chk})
+            defs[i][3] = ttidx
+            errcount += 1
+            if errcount<=5 then
+                string ts = iff(ttidx>=32 and ttidx<128?sprintf("('%c')",ttidx):"")
+                printf(2,"%s should be %d%s, not %d\n",{src,ttidx,ts,chk})
+            end if
         end if
 --      -- you need to correct the (recently-added/moved) 
 --      -- keyword entry, as is explained shortly below.
---      printf(2,"%s should be %d, not %d\n",{text,ttidx,chk})
+--      printf(2,"%s should be %d, not %d\n",{src,ttidx,chk})
 --      {} = wait_key()
     end for
     if bRebuild then
+        if errcount>5 then printf(2,"(%d similar skipped)\n",errcount-5) end if
         --
         -- Aside: While edita/edix/notepad/etc might keep old values,
         --        it should not really matter, apart from the list of
@@ -217,9 +224,11 @@ function tt_keywords(sequence defs)
         content &= contk
         integer clen = 0
         for i=1 to length(defs) do
-            {string t, integer c} = defs[i]
-            string tq = `"`&t&`",`,
-                   ci = sprintf("    {%-26s T_%-25s := %d},",{tq,t,c})
+            {string n, integer t, integer c} = defs[i]
+            string nq = `"` & lq[i] & n & `",`,
+                   tq = TYPES[t][2]
+            if n[1]='$' then n = n[2..$] end if
+            string ci = sprintf(`    {%-30s %4s,   T_%-29s := %d},`,{nq,tq,n,c})
             if c>=32 and c<128 then
                 if clen=0 then
                     clen = length(ci)+4
@@ -227,7 +236,7 @@ function tt_keywords(sequence defs)
                 ci &= repeat(' ',clen-length(ci))&sprintf("-- '%c'",c)
             end if
             ci &= '\n'
-            if find(t,{"object","xor","yield","wait_key"}) then
+            if find(n,{"object","volatile","xor","yield","wait_key"}) then
                 ci &= '\n'
             end if
             content &= ci
@@ -246,8 +255,11 @@ function tt_keywords(sequence defs)
         abort(0)
     end if
 --  return defs[$][1]
-    return vslice(defs,2)
-end function
+--  return vslice(defs,2)
+    T_keywords = vslice(defs,1)
+    T_toktypes = vslice(defs,2)
+    T_reserved = vslice(defs,3)
+end procedure
 
 --
 -- Keywords etc (T_xxx constants)
@@ -266,10 +278,13 @@ end function
 --  to overwite p2js_keywords.e and restart.
 --
 include p2js_keywords.e
-global constant tt_reserved = tt_keywords(p2js_keywords)
+--global constant tt_reserved = tt_keywords(p2js_keywords)
+--T_reserved = 
+tt_keywords(p2js_keywords)
+--tt_keywords = p2js_keywords
 
 --/*
-    -- to be added as needed and when they can be properly tested, not before:
+    -- to be added as needed and when they can be properly tested, not before: [erm, that idea went out the window!]
 --  {"profile",         T_profile           := 384},
 --  {"profile_time",    T_profile_time      := 408},
 --  {"trace",           T_trace             := 428},
@@ -281,6 +296,7 @@ global constant tt_reserved = tt_keywords(p2js_keywords)
 --  {"istype",          T_istype            := 692},
 --  {"isinit",          T_isinit            := 712},
 --  {"isginfo",         T_isginfo           := 736},
+--  {"?is_prime2",                  TYPF,   T_is_prime2                     := 4132},
 --  {"MIN",             T_MIN               := 752},
 --  {"MAX",             T_MAX               := 764},
 --  {"MAXLEN",          T_MAXLEN            := 780},
@@ -293,7 +309,6 @@ global constant tt_reserved = tt_keywords(p2js_keywords)
 --  {"elsedef",         T_elsedef           := 1036},
 --  {"WIN32",           T_WIN32             := 1060},
 --  {"WINDOWS",         T_WINDOWS           := 1080},
---  {"LINUX",           T_LINUX             := 1104},
 --  {"FREEBSD",         T_FREEBSD           := 1136},
 --  {"SUNOS",           T_SUNOS             := 1160},
 --  {"OPENBSD",         T_OPENBSD           := 1192},

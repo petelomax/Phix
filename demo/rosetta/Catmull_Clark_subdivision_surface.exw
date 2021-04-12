@@ -1,6 +1,279 @@
+--
+-- demo\rosetta\Catmull_Clark_subdivision_surface.exw
+-- ==================================================
+--
+-- [DEV] if I can draw a rotating rubics cube, I can draw the lines that python does...
+--
+function newPoint() return {0,0,0} end function
+function newPointEx() return {newPoint(),0} end function
+ 
+function centerPoint(sequence p1, p2)
+    return sq_div(sq_add(p1, p2), 2)
+end function
+ 
+function getFacePoints(sequence inputPoints, inputFaces)
+    sequence facePoints = repeat(0,length(inputFaces))
+    for f=1 to length(inputFaces) do
+        sequence currFace = inputFaces[f],
+                 facePoint = inputPoints[currFace[1]]
+        for i=2 to length(currFace) do
+            facePoint = sq_add(facePoint, inputPoints[currFace[i]])
+        end for
+        facePoints[f] = sq_div(facePoint, length(currFace))
+    end for
+    return facePoints
+end function
+ 
+function getEdgesFaces(sequence inputPoints, inputFaces)
+    sequence edges = {}
+    for faceNum=1 to length(inputFaces) do
+        sequence face = inputFaces[faceNum]
+        integer numPoints = length(face)
+        for pointIndex=1 to numPoints do
+            integer pointNum1 = face[pointIndex],
+                    pointNum2 = face[iff(pointIndex<=numPoints-1?pointIndex+1:1)]
+            if pointNum1 > pointNum2 then
+                {pointNum1, pointNum2} = {pointNum2, pointNum1}
+            end if
+            edges = append(edges, {pointNum1, pointNum2, faceNum})
+        end for
+    end for
+    edges = sort(edges)
+    integer numEdges = length(edges),
+            eIndex = 1
+    sequence mergedEdges ={}
+    while eIndex<=numEdges do
+        sequence e1 = edges[eIndex]
+        integer e4 = -1
+        if eIndex<=numEdges-1
+        and e1[1..2]==edges[eIndex+1][1..2] then
+            e4 = edges[eIndex+1][3]
+            eIndex += 1
+        end if
+        mergedEdges = append(mergedEdges, e1&e4)
+        eIndex += 1
+    end while
+    sequence edgesCenters = {}
+    for i=1 to length(mergedEdges) do
+        sequence me = mergedEdges[i],
+                 cp = centerPoint(inputPoints[me[1]], 
+                                  inputPoints[me[2]])
+        edgesCenters = append(edgesCenters, append(me, cp))
+    end for
+    return edgesCenters
+end function
+ 
+function getEdgePoints(sequence inputPoints, edgesFaces, facePoints)
+    sequence edgePoints = repeat(0, length(edgesFaces))
+    for i=1 to length(edgesFaces) do
+        sequence edge = edgesFaces[i],
+                 cp = edge[5],
+                 fp1 = facePoints[edge[3]],
+                 fp2 = iff(edge[4]=-1?fp1:facePoints[edge[4]]),
+                 cfp = centerPoint(fp1, fp2)
+        edgePoints[i] = centerPoint(cp, cfp)
+    end for
+    return edgePoints
+end function
+ 
+function getAvgFacePoints(sequence inputPoints, inputFaces, facePoints)
+    integer numPoints = length(inputPoints)
+    sequence tempPoints = repeat(newPointEx(),numPoints)
+    for faceNum=1 to length(inputFaces) do
+        sequence fp = facePoints[faceNum]
+        for i=1 to length(inputFaces[faceNum]) do
+            integer pointNum = inputFaces[faceNum][i]
+            sequence tp = tempPoints[pointNum][1]
+            tempPoints[pointNum][1] = sq_add(tp, fp)
+            tempPoints[pointNum][2] += 1
+        end for
+    end for
+    sequence avgFacePoints = repeat(0, numPoints)
+    for i=1 to length(tempPoints) do
+        sequence tp = tempPoints[i]
+        avgFacePoints[i] = sq_div(tp[1], tp[2])
+    end for
+    return avgFacePoints
+end function
+ 
+function getAvgMidEdges(sequence inputPoints, edgesFaces)
+    integer numPoints = length(inputPoints)
+    sequence tempPoints = repeat(newPointEx(), numPoints)
+    for i=1 to length(edgesFaces) do
+        sequence edge = edgesFaces[i],
+                 cp = edge[5]
+        for edx=1 to 2 do
+            integer pointNum = edge[edx]
+            sequence tp = tempPoints[pointNum][1]
+            tempPoints[pointNum][1] = sq_add(tp, cp)
+            tempPoints[pointNum][2] += 1
+        end for
+    end for
+    sequence avgMidEdges = repeat(0, length(tempPoints))
+    for i=1 to length(tempPoints) do
+        sequence tp = tempPoints[i]
+        avgMidEdges[i] = sq_div(tp[1], tp[2])
+    end for
+    return avgMidEdges
+end function
+ 
+function getPointsFaces(sequence inputPoints, inputFaces)
+    integer numPoints = length(inputPoints)
+    sequence pointsFaces = repeat(0, numPoints)
+    for faceNum=1 to length(inputFaces) do
+        for i=1 to length(inputFaces[faceNum]) do
+            integer pointNum = inputFaces[faceNum][i]
+            pointsFaces[pointNum] += 1
+        end for
+    end for
+    return pointsFaces
+end function
+ 
+function getNewPoints(sequence inputPoints, pointsFaces, avgFacePoints, avgMidEdges)
+    sequence newPoints = repeat(0, length(inputPoints))
+    for pointNum=1 to length(inputPoints) do
+        integer n = pointsFaces[pointNum]
+        sequence p1 = sq_mul(inputPoints[pointNum], (n-3)/n),
+                 p2 = sq_mul(avgFacePoints[pointNum], 1/n),
+                 p3 = sq_mul(avgMidEdges[pointNum], 2/n)
+        newPoints[pointNum] = sq_add(sq_add(p1, p2), p3)
+    end for
+    return newPoints
+end function
+ 
+function switchNums(sequence pointNums)
+    if pointNums[1] < pointNums[2] then
+        return pointNums
+    end if
+    return {pointNums[2], pointNums[1]}
+end function
+ 
+function cmcSubdiv(sequence inputPoints, inputFaces)
+    sequence facePoints = getFacePoints(inputPoints, inputFaces),
+             edgesFaces = getEdgesFaces(inputPoints, inputFaces),
+             edgePoints = getEdgePoints(inputPoints, edgesFaces, facePoints),
+             avgFacePoints = getAvgFacePoints(inputPoints, inputFaces, facePoints),
+             avgMidEdges = getAvgMidEdges(inputPoints, edgesFaces),
+             pointsFaces = getPointsFaces(inputPoints, inputFaces),
+             newPoints = getNewPoints(inputPoints, pointsFaces, avgFacePoints, avgMidEdges),
+             facePointNums = {}
+    integer nextPointNum = length(newPoints)+1
+    for i=1 to length(facePoints) do
+        sequence facePoint = facePoints[i]
+        newPoints = append(newPoints, facePoint)
+        facePointNums = append(facePointNums, nextPointNum)
+        nextPointNum += 1
+    end for
+    integer edgePointNums = new_dict()
+    for edgeNum=1 to length(edgesFaces) do
+        integer {pointNum1,pointNum2} = edgesFaces[edgeNum]
+        sequence edgePoint = edgePoints[edgeNum]
+        newPoints = append(newPoints, edgePoint)
+        setd({pointNum1, pointNum2},nextPointNum,edgePointNums)
+        nextPointNum += 1
+    end for
+    sequence newFaces = {}
+    for oldFaceNum=1 to length(inputFaces) do
+        sequence oldFace = inputFaces[oldFaceNum]
+        if length(oldFace) == 4 then
+            integer {a, b, c, d} := oldFace,
+                    facePointAbcd := facePointNums[oldFaceNum],
+                    edgePointAb := getd(switchNums({a, b}),edgePointNums),
+                    edgePointDa := getd(switchNums({d, a}),edgePointNums),
+                    edgePointBc := getd(switchNums({b, c}),edgePointNums),
+                    edgePointCd := getd(switchNums({c, d}),edgePointNums)
+            newFaces = append(newFaces, {a, edgePointAb, facePointAbcd, edgePointDa})
+            newFaces = append(newFaces, {b, edgePointBc, facePointAbcd, edgePointAb})
+            newFaces = append(newFaces, {c, edgePointCd, facePointAbcd, edgePointBc})
+            newFaces = append(newFaces, {d, edgePointDa, facePointAbcd, edgePointCd})
+        end if
+    end for
+    return {newPoints, newFaces}
+end function
+ 
+constant inputPoints = {{-1, 1, 1},
+                        {-1,-1, 1},
+                        { 1,-1, 1},
+                        { 1, 1, 1},
+                        { 1,-1,-1},
+                        { 1, 1,-1},
+                        {-1,-1,-1},
+                        {-1, 1,-1}},
+          inputFaces = {{0, 1, 2, 3},
+                        {3, 2, 4, 5},
+                        {5, 4, 6, 7},
+                        {7, 0, 3, 5},
+                        {7, 6, 1, 0},
+                        {6, 1, 2, 4}}
+ 
+sequence outputPoints = inputPoints,
+          outputFaces = sq_add(inputFaces,1)
+integer iterations = 1
+for i=1 to iterations do
+    {outputPoints, outputFaces} = cmcSubdiv(outputPoints, outputFaces)
+end for
+ppOpt({pp_Nest,1,pp_FltFmt,"%7.4f",pp_IntFmt,"%7.4f",pp_IntCh,false})
+pp(outputPoints)
+pp(sq_sub(outputFaces,1),{pp_IntFmt,"%2d"})
+?"done"
+{} = wait_key()
+--/*
+{{out}}
+<pre>
+{{-0.5556, 0.5556, 0.5556},
+ {-0.5556,-0.5556, 0.5556},
+ { 0.5556,-0.5556, 0.5556},
+ { 0.5556, 0.5556, 0.5556},
+ { 0.5556,-0.5556,-0.5556},
+ { 0.5556, 0.5556,-0.5556},
+ {-0.5556,-0.5556,-0.5556},
+ {-0.5556, 0.5556,-0.5556},
+ { 0.0000, 0.0000, 1.0000},
+ { 1.0000, 0.0000, 0.0000},
+ { 0.0000, 0.0000,-1.0000},
+ { 0.0000, 1.0000, 0.0000},
+ {-1.0000, 0.0000, 0.0000},
+ { 0.0000,-1.0000, 0.0000},
+ {-0.7500, 0.0000, 0.7500},
+ { 0.0000, 0.7500, 0.7500},
+ {-0.7500, 0.7500, 0.0000},
+ { 0.0000,-0.7500, 0.7500},
+ {-0.7500,-0.7500, 0.0000},
+ { 0.7500, 0.0000, 0.7500},
+ { 0.7500,-0.7500, 0.0000},
+ { 0.7500, 0.7500, 0.0000},
+ { 0.7500, 0.0000,-0.7500},
+ { 0.0000,-0.7500,-0.7500},
+ { 0.0000, 0.7500,-0.7500},
+ {-0.7500, 0.0000,-0.7500}}
+{{ 0,14, 8,15},
+ { 1,17, 8,14},
+ { 2,19, 8,17},
+ { 3,15, 8,19},
+ { 3,19, 9,21},
+ { 2,20, 9,19},
+ { 4,22, 9,20},
+ { 5,21, 9,22},
+ { 5,22,10,24},
+ { 4,23,10,22},
+ { 6,25,10,23},
+ { 7,24,10,25},
+ { 7,16,11,24},
+ { 0,15,11,16},
+ { 3,21,11,15},
+ { 5,24,11,21},
+ { 7,25,12,16},
+ { 6,18,12,25},
+ { 1,14,12,18},
+ { 0,16,12,14},
+ { 6,18,13,23},
+ { 1,17,13,18},
+ { 2,20,13,17},
+ { 4,23,13,20}}
+</pre>
+--*/
 
--- https://rosettacode.org/wiki/Catmull_Clark_subdivision_surface.exw
-
+--/*
 --#include <stdio.h>
 --#include <stdlib.h>
 --#include <string.h>
@@ -776,3 +1049,4 @@ int main(int c, char **v)
  
         return 0;
 }
+--*/

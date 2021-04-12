@@ -3,7 +3,7 @@
 -- =========
 --
 
-global function columnize(sequence source, object columns = {}, object defval = 0)
+global function columnize(sequence source, object columns={}, defval=0)
 --
 -- Convert a set of sequences into a set of columns.
 --

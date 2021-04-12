@@ -26,6 +26,20 @@
         such as file i/o, locking, video_config, allocate/peek/poke, open_dll, task_create, create_thread, ...
         <br>
         <br>
+        Say bye-bye to:<br>
+        User defined types, and structs/classes<br>
+        Exception handling<br>
+        Include statements[*]<br>
+        Trace and profile[*]<br>
+        Format directives, shared libraries, c_func[*]<br>
+        File i/o, including console input[*]<br>
+        Command_line, system and system_exec[*]<br>
+        Allocate/peek/poke<br>
+        delete_routine<br>
+        Multi-tasking and multi-threading<br>
+        
+        <br>
+        <br>
         In general, pwa/p2js favours the newer IupFlatXxxx() components over their more platform-specific counterparts.
         <br>
         <br>
@@ -165,6 +179,13 @@ locking, video_config,  ...
         Likewise, realistically pwa/pGUI.js probably only actually supports around 1% of pGUI.e - but hopefully the good/right/necessary bits.
         <br>
         <br>
+        Note that blank lines are one of the hardest things to preserve during transpilation: there is no token, and therefore no place to put 
+        a line number, and also in say "function f() ... end function" &lt;==&gt; "function f { ... }" the closing "end/}" are implicit in the 
+        parse tree, again with nowhere to store a line number. Hence subsequent lines do not have a previous line to compare against, making 
+        the decision of when to emit a blank line somewhat tricky. Comments, on which we can and do store a line number tend to help a bit.
+        Attempts to improve matters tend to introduce several undesirable side effects, and are therefore quickly backed out.
+        <br>
+        <br>
         Also note that mid-statement comment handling proved somewhat problematical: while most things are now correctly handled, when
         processing (say) if-then-else, what I&rsquo;d like to do is insert "skip_comments()" calls before the checks for 'then' and 'else',
         however since we are building an abstract syntax <i>tree</i>, it ain&rsquo;t quite that simple. In some cases you may need to move 
@@ -172,10 +193,10 @@ locking, video_config,  ...
         <br>
         <br>
         The annotations below are written in a JavaScript-esque style.<br>
-        Since JavaScript is typeless, p2js converts eg "integer a" into "/* integer */ a", ie comments out any type.<br>
-        &nbsp;&nbsp;&nbsp;<small>(I initially tried that style here, but not surprisingly it quickly became completely unreadable.)</small><br>
-        Phix sequences, which use {}, become JavaScript arrays, which use [], rather than {} of JavaScript objects, <br>
-        which are more like a <a href="dict.htm">dictonary</a>, with unordered (or alphanumerically ordered) non-integer keys.
+        Since JavaScript is typeless, p2js converts eg "integer a" into "let /*integer*/ a", ie comments out any type.<br>
+        &nbsp;&nbsp;&nbsp;<small>(I initially tried that style here in the docs, but not surprisingly it quickly became completely unreadable.)</small><br>
+        Phix sequences, which use {}, become JavaScript arrays, which use [], rather than the {} of JavaScript objects, <br>
+        which are more like a <a href="dict.htm">dictonary</a>, with unordered non-integer keys (or alphanumerically ordered, so "9" is after "10").
         <br>
         <br>
         The following standard builtins are supported via p2js.js
@@ -237,7 +258,8 @@ locking, video_config,  ...
          </div>
          <div>
             <small>Note that within JavaScript, (eg) atom(a) is a normal test yielding true/false whereas atom(a,"a") is an explicit typecheck<br>
-             - the latter as emitted by p2js rather than something it will accept or you can write, you understand.</small>
+             - the latter as emitted by p2js rather than something it will accept or you can write, you understand.<br>
+            Also note that typechecking in transpiled JavaScript is somewhat sporadic at best.</small>
          </div>
         </div>
         <br>
@@ -529,6 +551,25 @@ locking, video_config,  ...
          <div>
             Optimised to literal (WEB==4) by p2js in much the same way as the desktop version, and no code is emitted for irrelevant if-branches.<br>
             Note the presence of an "else" without an explicit WEB(/JS/JAVASCRIPT) branch triggers a transpile-time error.<br> <!-- DEV -->
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <small><i>procedure&nbsp;</i></small>
+         </div>
+         <div>
+            <nobr><a href="pp.htm">pp</a>(</nobr>
+         </div>
+         <div>
+            <nobr>o,</nobr> <nobr>options=[]);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Note that since wait_key() has no effect under pwa/p2js, neither does pp_Pause. [DEV finish documenting this, ppOpt, ppf()]
          </div>
         </div>
         <br>
@@ -873,8 +914,9 @@ locking, video_config,  ...
             &nbsp;&nbsp;
          </div>
          <div>
-            Dummy function, returns null. Note that (say) dlg = IupDestroy(dlg) after an IupMainLoop() would otherwise spanner the
-            whole show, and hence, like the IupMainLoop(), subsequent calls need to end up inside an `if platform()!=JS then` guard.
+            Dummy function, returns null. Note that (say) dlg = IupDestroy(dlg) after an <span class="illegal">IupMainLoop</span>() 
+            would otherwise spanner the whole show, and hence, like the <span class="illegal">IupMainLoop</span>(), subsequent calls 
+            need to end up inside an <code>if platform()!=JS then</code> guard.
          </div>
         </div>
         <br>
@@ -996,6 +1038,7 @@ locking, video_config,  ...
             Untested: ACTIVE, DROPFILESTARGET, ELLIPSIS, FGCOLOR, IMAGE, IMINACTIVE, 
                       PADDING, CPADDING, SEPARATOR, WORDWRAP  <br>
             Unsupported: MARKUP
+            <a name=IupMainLoop></a>
          </div>
         </div>
         <br>
@@ -1005,7 +1048,7 @@ locking, video_config,  ...
             <small><i>procedure&nbsp;</i></small>
          </div>
          <div>
-            <nobr><a href="IupMainLoop.htm">IupMainLoop</a>(</nobr>
+            <nobr><a href="IupMainLoop.htm"><span class="illegal">IupMainLoop</span></a>(</nobr>
          </div>
          <div>
             <nobr>);</nobr>
@@ -1014,8 +1057,13 @@ locking, video_config,  ...
             &nbsp;&nbsp;
          </div>
          <div>
-            Invalid: we simply rely on the JavaScript event loop instead, and hence any IupMainLoop() needed for the desktop
-            along with any subsequent IupDestroy() <i>must</i> be placed inside an `if <a href="platform.htm">platform</a>()!=JS then` guard.
+            Invalid: we simply rely on the JavaScript event loop instead, and hence any <span class="illegal">IupMainLoop</span>() 
+            needed for the desktop along with any subsequent IupDestroy() and IupClose() <i>must</i> be placed inside an 
+            <code>if <a href="platform.htm">platform</a>()!=JS then</code> guard.<br>
+            It would of course be perfectly feasible/trivial to add a null-op IupMainLoop() to pGUI.js but leaving it undefined,
+            and syntax colouring it illegal, except when it detects an immediately preceding 
+            <code>if platform()!=JS then</code> (where JS can also be JAVASCRIPT or WEB) or 
+            <code>if (platform()!=JS) {</code>, is an obvious way to ensure that such a guard is put in place and not forgotten.
          </div>
         </div>
         <br>
@@ -1034,7 +1082,7 @@ locking, video_config,  ...
             &nbsp;&nbsp;
          </div>
          <div>
-            <small><i>(Performs some important initialisation.)</i></small>
+            <small><i>(No known issues, performs some important initialisation, same as the desktop nothing works if this is not called.)</i></small>
          </div>
         </div>
         <br>
@@ -1205,15 +1253,40 @@ locking, video_config,  ...
           </a>
          </td>
          <td>
-          <small>
           <sup>1</sup> (regarding ES6 compatibility) The highly esteemed and ever capable Mr Donald Trump Snr, Grand 
             Ex-President of the United States of America, has agreed to use his special little tiny hands to write any 
             polyfills needed to get this running on IE 11 (wow, what a great piece of software) all the way back to IE 
-            6 (can I just say, all American, you know, built by one of the greatest companies - no <i>the</i> greatest 
-            company this world has ever seen, in Redmond, Washington State (a beautiful, beautiful state, by the way, 
-            with lovely trees, and great, great people), let me tell you, all American, no Chinese there, good old 
-            fashioned American software at it&rsquo;s finest, that&rsquo;s for sure). <small><i>(not)</i></small>
-          </small>  
+            6, can I just say, all American, you know, built by one of the greatest companies - no <i>the</i> greatest 
+            company the world has ever seen, in Redmond, Washington State - a beautiful, beautiful state, by the way, 
+            with lovely trees, and great, great people, let me tell you, all American, no Chinese there, good old 
+            fashioned American software at it&rsquo;s finest, that&rsquo;s for sure. <small><i>(not)</i></small>
+          <br>
+          <br>
+          There is (currently) a limit on how far p2js_emit.e will go to preserve indentation. See demo\pGUI\submenu.exw
+          for an example of one way to reduce nesting levels so it copes, and/or something to restore and improve on.
+          It is more than fair to say that p2js_emit.e is a bit of a ropey first stab and deserves a complete rewite.
+          It is the polar opposite of well designed, and was written with a "just deal with it" mindset, where "it" 
+          was never particularly well defined in the first place, and in fact "it" was/is changed as needed, by going
+          back and (almost literally) hacking away at p2js_parse.e, and that on day 1 the input would be completely
+          and utterly wrong and useless, which "it" was. <a href="parse_tree.htm">parse_tree.htm</a> is my attempt to 
+          reverse-design things.
+          <br>
+          <br>
+          While true/false are 1/0 in Phix they are distinct in JavaScript, although type coercion will often paper over
+          the cracks. In particular, t04unary needed a couple of tweaks: <code>(not 0)==1</code> needed to be changed to
+          <code>(not 0)==true</code>, ie <code>true===1</code> (and <code>1===true</code>) fails, but thankfully such 
+          explicit comparisons of booleans to 0/1 are fairly rare. Whilst not exactly recommended, the use of true/false 
+          to increment or decrement seems OK.
+          <br>
+          <br>
+          Some effort is spent checking that (Phix ==&gt; JavaScript ==&gt; Phix) produces runnable code.<br>
+          It will never be character-perfect:<br>
+          Some mid-expression comments may be dropped, due to difficulties storing them in the parse tree.<br>
+          Parenthesis is re-constituted, some unnecessary may be dropped and some clarifying may be added.<br>
+          Likewise indentation goes through a whole slew of (undocumented/ad-hoc) rules of its own.<br>
+          a &= b ==&gt; a = $conCat(a,b) ==&gt; a = a & b<br>
+          #1234 ==&gt; 0x1234 ==&gt; 0x1234, and the same for all other non-decimal bases, eg 0b, etc.<br>
+          
          </td>
         </tr>
        </table>

@@ -5,6 +5,8 @@
 --
 global procedure assert(bool condition, string msg="", sequence args={})
     if not condition then
+        crash("assertion failure:"&msg,args,2)
+--/* (replaced for pwa/p2js)
         if length(args) then msg = sprintf(msg,args) end if
         -- <similar to crash callstack-1 msg:>
         #ilASM{
@@ -22,6 +24,7 @@ global procedure assert(bool condition, string msg="", sequence args={})
                 mov al,119                  -- e119af(edi), "assertion failure %s"
                 jmp :!fatalN
                 int3 }
+--*/
     end if
 end procedure
 

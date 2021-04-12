@@ -13,15 +13,21 @@
           <b>Definition:</b>
          </td>
          <td>
-            <a href="object.htm">object</a> res = trim(<a href="object.htm">object</a> source, <a href="object.htm">object</a> what=" \t\r\n", <a href="integer.htm">integer</a> ret_index=0)
+            <a href="object.htm">object</a> res = trim(<a href="object.htm">object</a> source, 
+                                                       <a href="object.htm">object</a> what=" \t\r\n", 
+                                                       <a href="integer.htm#bool">bool</a> return_index=false)
             <br>
             <i>or ...</i>
             <br>
-            <a href="object.htm">object</a> res = trim_head(<a href="object.htm">object</a> source, <a href="object.htm">object</a> what=" \t\r\n", <a href="integer.htm">integer</a> ret_index=0)
+            <a href="object.htm">object</a> res = trim_head(<a href="object.htm">object</a> source, 
+                                                            <a href="object.htm">object</a> what=" \t\r\n", 
+                                                            <a href="integer.htm#bool">bool</a> return_index=false)
             <br>
             <i>-- or --</i>
             <br>
-            <a href="object.htm">object</a> res = trim_tail(<a href="object.htm">object</a> source, <a href="object.htm">object</a> what=" \t\r\n", <a href="integer.htm">integer</a> ret_index=0)
+            <a href="object.htm">object</a> res = trim_tail(<a href="object.htm">object</a> source, 
+                                                            <a href="object.htm">object</a> what=" \t\r\n", 
+                                                            <a href="integer.htm#bool">bool</a> return_index=false)
          </td>
         </tr>
         <tr>
@@ -34,7 +40,7 @@
             <br>
             source: object (string) to be trimmed.<br>
             what: elements (characters) to be removed.<br>
-            ret_index: if non-zero, return {startpos,endpos} (trim), startpos (trim_head), or endpos (trim_tail) respectively.
+            return_index: if true return {startpos,endpos} (trim), startpos (trim_head), or endpos (trim_tail) respectively.
          </td>
         </tr>
         <tr>
@@ -45,14 +51,17 @@
             Can theoretically be used for other purposes besides trimming whitespace, perhaps to trim unused entries from a table.
             <br>
             <br>
-            When ret_index is non-zero, the result is {startpos,endpos} (trim), startpos (trim_head), or endpos (trim_tail).
+            When return_index is true, the result is {startpos,endpos} (trim), startpos (trim_head), or endpos (trim_tail).
             <br>
             <br>
             To simplify processing, if source is not a <a href="sequence.htm">sequence</a>/<a href="string.htm">string</a>, but instead 
             something like EOF (ie -1), it is returned unaltered.<br>
-            Note however that feature is certainly <i>not</i> intended for use when working with indexes (ret_index!=0), since treating
-            a -1 (or whatever) result as an index would probably be quite wrong! Instead it is usually easier to test whether the source 
-            is a sequence and avoid the call, rather than struggle to interpret the result correctly (that is, when ret_index is non-zero).
+            Note however that feature is certainly <i>not</i> intended for use when working with indexes (return_index=true), since treating
+            the -1 (or whatever!) result as an index would probably be quite wrong! Instead it is usually easier to avoid the call when
+            source is not a sequence, rather than struggle to interpret the result correctly.<br>
+            In other words, <code>integer {s,e} = trim(5,x,true)</code> will fail trying to extract {s,e} from 5, and likewise(-ish)
+            <code>integer e = trim_head/tail(5,x,true)</code> will succeed however some subsequent [5] usage will almost certainly fail.<br>
+            In both cases it is simply easier to avoid the call rather than test/ignore the bogus results.
          </td>
         </tr>
         <tr>
@@ -90,8 +99,8 @@
             Crops longer output, eg shorten(repeat('1',9999)) returns "1111111111111111111...1111111111111111111 (9,999 digits)". <br>
             The original text is returned unaltered if it is already shorter than 2*ml, or if it would be longer with "..." and the suffix.<br>
             Obviously you might want to replace "digits" with "chars"/"elements"/etc, and keep more/less of the first/last,<br>
-            eg shorten(repeat('1',9999),"nines",9) returns "111111111...111111111 (9,999 nines)". <br>
-            If what is specified as "" then there is no suffix, eg shorten("shorten","",1) returns "s...n". 
+            eg shorten(repeat('1',9999),"ones",9) returns "111111111...111111111 (9,999 ones)". <br>
+            If what is specified as "" then there is no suffix, eg shorten("0123456789","",1) returns "0...9". 
             <br>
             <br>
             If s is not a string then a sequence of strings is assumed, the "..." and final suffix are inserted as string elements, more suitable

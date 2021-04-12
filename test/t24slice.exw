@@ -10,8 +10,6 @@ Runs on Phix only, not RDS Eu
  (if sq=sq, variable length slice assignment, negative indexes, etc).
 --*/
 
-procedure Abort(string msg) puts(1,msg) if getc(0) then end if abort(1) end procedure
-
 constant UseSprintf = 0-- set to 0 if sprintf is not yet working
 constant showprogress = 0
 
@@ -24,41 +22,41 @@ object O,P
 
     if showprogress then puts(1,"slice1\n") end if
     O = {3}
-    P = O
+    P = O   -- p2js: P = $deepCopy(O);
     O[1] = 5
-    if P!={3} then Abort("P!={3}\n") end if
-    if O!={5} then Abort("O!={5}\n") end if
+    if P!={3} then crash("P!={3}\n") end if
+    if O!={5} then crash("O!={5}\n") end if
 
     if showprogress then puts(1,"slice2\n") end if
     s = "feed"
     s[2..3] = 'o'
-    if s!="food" then Abort("s!=food\n") end if
+    if s!="food" then crash("s!=food\n") end if
     s[2..3] = "on"
-    if s!="fond" then Abort("s!=fond\n") end if
+    if s!="fond" then crash("s!=fond\n") end if
     i = 2
     s[i+1] = 'l'
-    if s!="fold" then Abort("s!=fold\n") end if
+    if s!="fold" then crash("s!=fold\n") end if
 
     if showprogress then puts(1,"slice3\n") end if
 
     s[2..3] = "e"
-    if s!="fed" then Abort("s!=fed\n") end if
+    if s!="fed" then crash("s!=fed\n") end if
     s[2..1] = "east"
-    if s!="feasted" then Abort("s!=feasted\n") end if
+    if s!="feasted" then crash("s!=feasted\n") end if
 --if O2 then
 --  s[8..7]=" on"
 --else
     s[0..-1] = " on"
 --end if
-    if s!="feasted on" then Abort("s!=feasted on\n") end if
+    if s!="feasted on" then crash("s!=feasted on\n") end if
     s[1..0] = "they "
-    if s!="they feasted on" then Abort("s!=they feasted on\n") end if
+    if s!="they feasted on" then crash("s!=they feasted on\n") end if
 --if O2 then
 --  s[4..14]=""
 --else
     s[4..-2] = ""
 --end if
-    if s!="then" then Abort("s!=then\n") end if
+    if s!="then" then crash("s!=then\n") end if
 
     if showprogress then puts(1,"slice4\n") end if
 
@@ -67,48 +65,48 @@ object O,P
         if showprogress then puts(1,"slice5\n") end if
 
         s = "skip"
-        if s!="skip" then Abort("s!=skip\n") end if
+        if s!="skip" then crash("s!=skip\n") end if
         i = s[1]
-        if i!='s' then Abort("i!='s'\n") end if
+        if i!='s' then crash("i!='s'\n") end if
         s[2] = 'n'
-        if s!="snip" then Abort("s!=snip\n") end if
+        if s!="snip" then crash("s!=snip\n") end if
     end for
 
     if showprogress then puts(1,"slice6\n") end if
 
     s[1..0] = 'a' -- test replace null slice with an atom
-    if s!="snip" then Abort("s!=snip(2)\n") end if
+    if s!="snip" then crash("s!=snip(2)\n") end if
     t = s[1..0]
-    if t!="" then Abort("snip[1..0]!=\"\"\n") end if
+    if t!="" then crash("snip[1..0]!=\"\"\n") end if
 
     t = s[5..4]
-    if t!="" then Abort("snip[5..4]!=\"\"\n") end if
+    if t!="" then crash("snip[5..4]!=\"\"\n") end if
     t = s[2..3]
-    if t!="ni" then Abort("t!=ni\n") end if
+    if t!="ni" then crash("t!=ni\n") end if
     p = {1,"skip",3}
     p[2][2] = 'n'
-    if p[2]!="snip" then Abort("p[2]!=snip\n") end if
-    if p!={1,"snip",3} then Abort("p!={1,snip,3}\n") end if
+    if p[2]!="snip" then crash("p[2]!=snip\n") end if
+    if p!={1,"snip",3} then crash("p!={1,snip,3}\n") end if
 
     if showprogress then puts(1,"slice7\n") end if
 
     p = s
     p[1] = -5
-    if p!={-5,'n','i','p'} then Abort("p!=-5nip\n") end if
+    if p!={-5,'n','i','p'} then crash("p!=-5nip\n") end if
 --if O2 then
 --  p[1..4]=1.65+0
 --else
     p[1..-1] = 1.65+0
 --end if
-    if p!={1.65,1.65,1.65,1.65} then Abort("p!={1.65,1.65,1.65,1.65}\n") end if
+    if p!={1.65,1.65,1.65,1.65} then crash("p!={1.65,1.65,1.65,1.65}\n") end if
     s[2..3] = "la"
-    if s!="slap" then Abort("s!=slap\n") end if
+    if s!="slap" then crash("s!=slap\n") end if
     s[2..3] = 'e' -- test replace slice with an atom
-    if s!="seep" then Abort("s!=seep\n") end if
+    if s!="seep" then crash("s!=seep\n") end if
     s[4..4] = "king"
-    if s!="seeking" then Abort("s!=seeking\n") end if
+    if s!="seeking" then crash("s!=seeking\n") end if
     s[2..3] = "07890" -- Stretch: Not RDS Eu
-    if s!="s07890king" then Abort("s!=s07890king\n") end if
+    if s!="s07890king" then crash("s!=s07890king\n") end if
 
     if showprogress then puts(1,"slice8\n") end if
 
@@ -117,46 +115,46 @@ object O,P
 --else
     s[2..-2] = "ha" -- Shrink: Not RDS Eu
 --end if
-    if s!="shag" then Abort("s!=ship\n") end if
+    if s!="shag" then crash("s!=ship\n") end if
     t[2..2] = "x"
-    if t!="nx" then Abort("t!=nx\n") end if
+    if t!="nx" then crash("t!=nx\n") end if
     t[1..1] = "j"
-    if t!="jx" then Abort("t!=jx\n") end if
+    if t!="jx" then crash("t!=jx\n") end if
     t[1..1] = "abc" -- Stretch: Not RDS Eu
-    if t!="abcx" then Abort("t!=abcx\n") end if
+    if t!="abcx" then crash("t!=abcx\n") end if
     t[4..4] = "def" -- Stretch: Not RDS Eu
 
     if showprogress then puts(1,"slice9\n") end if
 
-    if t!="abcdef" then Abort("t!=abcdef\n") end if
+    if t!="abcdef" then crash("t!=abcdef\n") end if
     t[2..5] = ""        -- Shrink: Not RDS Eu
-    if t!="af" then Abort("t!=af\n") end if
+    if t!="af" then crash("t!=af\n") end if
     t[2..2] = ""        -- Shrink: Not RDS Eu
-    if t!="a" then Abort("t!=a\n") end if
+    if t!="a" then crash("t!=a\n") end if
     t[1..1] = ""        -- Shrink: Not RDS Eu
-    if t!="" then Abort("t!=\"\"\n") end if
+    if t!="" then crash("t!=\"\"\n") end if
 
     if showprogress then puts(1,"slice10\n") end if
 
     s = "fred"
 --  t=s[1]  -- type error, good
     i = s[1]
-    if i!='f' then Abort("i!=f\n") end if
-    if i!=s[1] then Abort("i!=s[1]\n") end if
-    if s[1]!=i then Abort("s[1]!=i\n") end if
+    if i!='f' then crash("i!=f\n") end if
+    if i!=s[1] then crash("i!=s[1]\n") end if
+    if s[1]!=i then crash("s[1]!=i\n") end if
 
     if showprogress then puts(1,"slice11\n") end if
 
     s[4] = 'e'
-    if s!="free" then Abort("s!=free\n") end if
-    if s[4..4]!="e" then Abort("s[4..4]!=\"e\"\n") end if
-    if s[4]!='e' then Abort("s[4]!=\'e\'\n") end if
+    if s!="free" then crash("s!=free\n") end if
+    if s[4..4]!="e" then crash("s[4..4]!=\"e\"\n") end if
+    if s[4]!='e' then crash("s[4]!=\'e\'\n") end if
     s[3..4] = "og"
-    if s!="frog" then Abort("s!=frog\n") end if
-    if "frog"!=s then Abort("frog!=s\n") end if
+    if s!="frog" then crash("s!=frog\n") end if
+    if "frog"!=s then crash("frog!=s\n") end if
     t = s[2..3]
-    if t!="ro" then Abort("t!=ro\n") end if
-    if s[2..3]!="ro" then Abort("s[2..3]t!=ro\n") end if
+    if t!="ro" then crash("t!=ro\n") end if
+    if s[2..3]!="ro" then crash("s[2..3]t!=ro\n") end if
 
     if showprogress then puts(1,"slice12\n") end if
 
@@ -165,29 +163,29 @@ object O,P
     else
         s[-1] = 't'
     end if
-    if s!="frot" then Abort("s!=frot\n") end if
+    if s!="frot" then crash("s!=frot\n") end if
 --  t=s[-1] -- type error, good
     if O2 then
         i = s[4]
     else
         i = s[-1]
     end if
-    if i!='t' then Abort("i!=t\n") end if
+    if i!='t' then crash("i!=t\n") end if
 
     if showprogress then puts(1,"slice13\n") end if
 
     p = {1,2,3,4,5}
     p[3..5] = {8,7,6}
-    if p[1]!=1 then Abort("p[1]!=1\n") end if
-    if 1!=p[1] then Abort("1!=p[1]\n") end if
-    if p[2]!=2 then Abort("p[2]!=2\n") end if
-    if 2!=p[2] then Abort("2!=p[2]\n") end if
-    if p[3]!=8 then Abort("p[3]!=8\n") end if
-    if 8!=p[3] then Abort("8!=p[3]\n") end if
-    if p[5]!=6 then Abort("p[5]!=6\n") end if
-    if 6!=p[5] then Abort("6!=p[5]\n") end if
+    if p[1]!=1 then crash("p[1]!=1\n") end if
+    if 1!=p[1] then crash("1!=p[1]\n") end if
+    if p[2]!=2 then crash("p[2]!=2\n") end if
+    if 2!=p[2] then crash("2!=p[2]\n") end if
+    if p[3]!=8 then crash("p[3]!=8\n") end if
+    if 8!=p[3] then crash("8!=p[3]\n") end if
+    if p[5]!=6 then crash("p[5]!=6\n") end if
+    if 6!=p[5] then crash("6!=p[5]\n") end if
     q = p[2..4]
-    if not equal(q,{2,8,7}) then Abort("not equal(q,{2,8,7}\n") end if
+    if not equal(q,{2,8,7}) then crash("not equal(q,{2,8,7}\n") end if
 
     if showprogress then puts(1,"slice14\n") end if
 
@@ -195,51 +193,51 @@ object O,P
     p[1] = 5
     p[2][1] = 6
     O = p[1]
-    if O!=5 then Abort("O!=5\n") end if
+    if O!=5 then crash("O!=5\n") end if
     q = {O}
     q = {p[1]}
 
     if showprogress then puts(1,"slice15\n") end if
 
     if UseSprintf then
-        if "5"!=sprintf("%d",{p[1]}) then Abort("5!=sprintf p[1]\n") end if
+        if "5"!=sprintf("%d",{p[1]}) then crash("5!=sprintf p[1]\n") end if
         if showprogress then puts(1,"slice15a\n") end if
         O = {'A','B','C'}
         if showprogress then puts(1,"slice15b\n") end if
-        if "ABC"!=sprintf("%s",{O}) then Abort("ABC!=sprintf{{O})\n") end if
+        if "ABC"!=sprintf("%s",{O}) then crash("ABC!=sprintf{{O})\n") end if
         if showprogress then puts(1,"slice15c\n") end if
-        if "ABC"!=sprintf("%s",{{'A','B','C'}}) then Abort("ABC!=sprintf{{'A','B','C'})\n") end if
+        if "ABC"!=sprintf("%s",{{'A','B','C'}}) then crash("ABC!=sprintf{{'A','B','C'})\n") end if
         if showprogress then puts(1,"slice15d\n") end if
-        if sprintf("%s=%s",{O,O})!="ABC=ABC" then Abort("sprintf{{O,O})!=ABCABC\n") end if
+        if sprintf("%s=%s",{O,O})!="ABC=ABC" then crash("sprintf{{O,O})!=ABCABC\n") end if
         if showprogress then puts(1,"slice15e\n") end if
 --      t=O -- Type error (correct)
         t = "ABC"
 
         if showprogress then puts(1,"slice16\n") end if
 
-        if sprintf("%s",{t})!="ABC" then Abort("sprintf{t)!=ABC\n") end if
+        if sprintf("%s",{t})!="ABC" then crash("sprintf{t)!=ABC\n") end if
         i = p[1]
-        if sprintf("%d",{i})!="5" then Abort("sprintf{{i})!=5\n") end if
+        if sprintf("%d",{i})!="5" then crash("sprintf{{i})!=5\n") end if
 
-        if sprintf("%d",{p[2][1]})!="6" then Abort("sprintf{{p[2][1]})!=6\n") end if
+        if sprintf("%d",{p[2][1]})!="6" then crash("sprintf{{p[2][1]})!=6\n") end if
         i = p[2][1]
-        if sprintf("%d",{i})!="6" then Abort("sprintf{{i})!=6\n") end if
+        if sprintf("%d",{i})!="6" then crash("sprintf{{i})!=6\n") end if
         q = p[1..2]
         i = q[1]
 
         if showprogress then puts(1,"slice17\n") end if
 
-        if sprintf("%d",{q[1]})!="5" then Abort("sprintf{{q[1]})!=5\n") end if
-        if sprintf("%d",{i})!="5" then Abort("sprintf{{i})!=5\n") end if
+        if sprintf("%d",{q[1]})!="5" then crash("sprintf{{q[1]})!=5\n") end if
+        if sprintf("%d",{i})!="5" then crash("sprintf{{i})!=5\n") end if
 
-        if sprintf("%d",{p[2][1]})!="6" then Abort("sprintf{{p[2][1]})!=6\n") end if
+        if sprintf("%d",{p[2][1]})!="6" then crash("sprintf{{p[2][1]})!=6\n") end if
         i = p[2][1]
-        if sprintf("%d",{i})!="6" then Abort("sprintf{{i})!=6(2)\n") end if
+        if sprintf("%d",{i})!="6" then crash("sprintf{{i})!=6(2)\n") end if
         q[1..2] = {3,4}
-        if sprintf("%d",{q[1]})!="3" then Abort("sprintf{{q[1]})!=3\n") end if
-        if sprintf("%d",{q[2]})!="4" then Abort("sprintf{{q[2]})!=4\n") end if
+        if sprintf("%d",{q[1]})!="3" then crash("sprintf{{q[1]})!=3\n") end if
+        if sprintf("%d",{q[2]})!="4" then crash("sprintf{{q[2]})!=4\n") end if
         q[2..2] = p[1..1]
-        if sprintf("%d",{q[2]})!="5" then Abort("sprintf{{q[2]})!=5\n") end if
+        if sprintf("%d",{q[2]})!="5" then crash("sprintf{{q[2]})!=5\n") end if
     end if
 
     if showprogress then puts(1,"slice18\n") end if
@@ -252,19 +250,19 @@ object O,P
     else
         i = p[-2]
     end if
-    if i!=5 then Abort("i!=5\n") end if
+    if i!=5 then crash("i!=5\n") end if
     q = p[-2..-2]
-    if q[1]!=5 then Abort("q[1]!=5\n") end if
+    if q[1]!=5 then crash("q[1]!=5\n") end if
     p[1..-2] = {7}
-    if p[1]!=7 then Abort("p[1]!=7\n") end if
+    if p[1]!=7 then crash("p[1]!=7\n") end if
     if O2 then
         i = p[2][1]
     else
         i = p[-1][-1]
     end if
-    if i!=6 then Abort("i!=6\n") end if
+    if i!=6 then crash("i!=6\n") end if
     q = p[2..2]
-    if q[1][1]!=6 then Abort("q[1][1]!=6\n") end if
+    if q[1][1]!=6 then crash("q[1][1]!=6\n") end if
 
     if showprogress then puts(1,"slice19\n") end if
 
@@ -295,6 +293,11 @@ function f3()
     return -3
 end function
 
+if platform()!=JS then
+    -- p2js gets {{1,1,1},{1,1,1},{1,-3,1}}, for both cases, which is also a valid 
+    --      (albeit not entirely expected) interpretation of "undefined behaviour". 
+    --      It (js) is taking a copy of a before f2/3() but i after, even after it
+    --      has been fed through f1(), which admittedly /is/ a bit weird...
     --
     -- Note that both the following results are technically valid (the now
     -- defunct Posetf worked differently). This test is only here to trigger
@@ -303,16 +306,15 @@ end function
     a[i][f2()] = f3()
 --  if not equal(a,{{3,-3,3},{3,3,3},{3,3,3}}) then -- A possible result
     if not equal(a,{{3,3,3},{3,3,3},{3,-3,3}}) then -- A possible result
-        Abort("a!={{3,3,3},{3,3,3},{3,-3,3}}\n")
-        abort(1)
+        crash("a!={{3,3,3},{3,3,3},{3,-3,3}}\n")
     end if
     i = 1
     a[f1()][f2()] = f3()
 --  if not equal(a,{{3,3,3},{3,3,3},{3,-3,3}}) then -- A possible result
     if not equal(a,{{3,-3,3},{3,3,3},{3,3,3}}) then -- A possible result
-        Abort("a!={{3,3,3},{3,3,3},{3,-3,3}}\n")
-        abort(1)
+        crash("a!={{3,3,3},{3,3,3},{3,-3,3}}\n")
     end if
+end if
 
 --sequence a,b,c
     a = {1,2,3}
@@ -320,12 +322,12 @@ end function
     c = {b,b,b}
     c[1][1][1] = 4
     if UseSprintf then
-        if sprint(a)!="{1,2,3}" then Abort("a!={1,2,3}\n") end if
-        if sprint(b)!="{{1,2,3},{1,2,3},{1,2,3}}" then Abort("b!={{1,2...3}}\n") end if
+        if sprint(a)!="{1,2,3}" then crash("a!={1,2,3}\n") end if
+        if sprint(b)!="{{1,2,3},{1,2,3},{1,2,3}}" then crash("b!={{1,2...3}}\n") end if
         if sprint(c)!="{{{4,2,3},{1,2,3},{1,2,3}},"&
            "{{1,2,3},{1,2,3},{1,2,3}},"&
            "{{1,2,3},{1,2,3},{1,2,3}}}" then
-            Abort("c!={{{4,2...3}}}\n")
+            crash("c!={{{4,2...3}}}\n")
         end if
     end if
 
@@ -345,21 +347,21 @@ sequence A, B
 -- sequence op:
 --  A[1]=A[1]+1
 --  A[1]+=1
---  if A!={{3,3},2,3} then Abort("A!={{3,3},2,3}\n") end if
+--  if A!={{3,3},2,3} then crash("A!={{3,3},2,3}\n") end if
     A[1][1] = A[1][1]+1
     A[1][1] += 1
---  if A!={{5,3},2,3} then Abort("A!={{5,3},2,3}\n") end if
-    if not equal(A,{{3,1},2,3}) then Abort("A!={{3,1},2,3}\n") end if
+--  if A!={{5,3},2,3} then crash("A!={{5,3},2,3}\n") end if
+    if not equal(A,{{3,1},2,3}) then crash("A!={{3,1},2,3}\n") end if
 --  A[1..2]=A[1..2]+1
---  if A!={{6,4},3,3} then Abort("A!={{6,4},3,3}\n") end if
+--  if A!={{6,4},3,3} then crash("A!={{6,4},3,3}\n") end if
 --DEV sequence ops not supported
 --  A[1..2]+=1
---  if A!={{7,5},4,3} then Abort("{{7,5},4,3}\n") end if
+--  if A!={{7,5},4,3} then crash("{{7,5},4,3}\n") end if
 --  A[1][1]=2
---  if A!={{2,5},4,3} then Abort("A!={{2,5},4,3}\n") end if
+--  if A!={{2,5},4,3} then crash("A!={{2,5},4,3}\n") end if
     A = {1,2}
     A[1..2] = A[1..2]
-    if not equal(A,{1,2}) then Abort("A!={1,2}\n") end if
+    if not equal(A,{1,2}) then crash("A!={1,2}\n") end if
 --  A[1..2]&=1  --good, caught as error.
 
 -- Bugfix: auto-expansion of string under slice assignment
@@ -368,7 +370,9 @@ sequence P
     P = "{   }\n"
     P[2..4] = {34,80,34}
 --  puts(1,P)   -- output is {"P"}\n (ie exactly 6 characters, one of which is invisible)
-    if P!="{\"P\"}\n" then puts(1,"P!=\"{\\\"P\\\"}\\n\"\n") ?9/0 end if
+--p2js:
+--  if P!="{\"P\"}\n" then puts(1,"P!=\"{\\\"P\\\"}\\n\"\n") ?9/0 end if
+    if not equal(P,"{\"P\"}\n") then puts(1,"P!=\"{\\\"P\\\"}\\n\"\n") ?9/0 end if
     P = ""
 
 -- Bugfix: slice replacement created circular reference:
@@ -378,9 +382,7 @@ sequence LineTab
     LineTab[1..2] = -2  -- was acting as LineTab[1..2]=LineTab (in an illegal circular manner, see below)
     LineTab[2] = 0
     if not equal(LineTab,{-2,0,-1,-1}) then
-        puts(1,"not equal(LineTab,{-2,0,-1,-1})\n")
-        if getc(0) then end if
-        abort(1)
+        crash("not equal(LineTab,{-2,0,-1,-1})\n")
     end if
 
 -- illegal on RDS Eu, dies with "lengths do not match on assignment to slice (2 != 4)",
@@ -388,9 +390,7 @@ sequence LineTab
 --  ie same as/shorthand for: LineTab = LineTab[1..0] & LineTab & LineTab[3..4]
     LineTab[1..2] = LineTab
     if not equal(LineTab,{-2,0,-1,-1,-1,-1}) then
-        puts(1,"not equal(LineTab,{-2,0,-1,-1,-1,-1})\n")
-        if getc(0) then end if
-        abort(1)
+        crash("not equal(LineTab,{-2,0,-1,-1,-1,-1})\n")
     end if
 
 --from Eu ticket 639 (never was a problem on Phix)

@@ -1917,7 +1917,9 @@ end if
             if siNTyp>=S_Type then
 --              if i>T_Bin and and_bits(siState,S_fwd) then
                 if i>T_Asm and and_bits(siState,S_fwd) then
-                    if and_bits(siState,S_used) then
+--                  if and_bits(siState,S_used) then
+                    if and_bits(siState,S_used) 
+                    and (not repl or integer(si[S_Name])) then
 -- test 14/2/14:
 ttidx = si[S_Name]
 N = InTable(-InAny)
@@ -3145,7 +3147,12 @@ integer state
 --if dest=388 then trace(1) end if
     if dest<=0 then ?9/0 end if     -- sanity check
     sd = symtab[dest]
+if repl then
+    object name = sd[S_Name]
+    dname = iff(not string(name)?name:iff(name="-1"?-1:0))
+else
     dname = sd[S_Name]  -- for testing whether dest is a temp
+end if
 --  if 0 then   --DEV not a good idea...
 --      vroot = rootType(sd[S_vtype])
 --      if getLocal(dest) then
@@ -6451,7 +6458,11 @@ end if
 ----                                exit
 --                          end if
                         elsif (switch_flags or switchable>8) -- based on test/swtime results
-                          and smax-smin <= 20*switchable then
+--2/3/21 (pwa/p2js.exw genuinely needed 116+... (so it's now 0.5% populated)
+--24/3/21                                                    0.25%
+--                        and smax-smin <= 20*switchable then
+--                        and smax-smin <= 200*switchable then
+                          and smax-smin <= 400*switchable then
 --trace(1)
 if 0 then   -- should be 0 for release!
     dbg = symtab[vi]
@@ -6482,7 +6493,9 @@ end if
                         end if
                     end if
 
+--2/3/2021 (!!) - it certainly //looks// like it should have always been thus....
                     if switch_flags then
+--                  if swecode then
                         fileno = symtab[vi][S_FPno]
 --DEV make this a subroutine in pmsg.e?
                         if equal(expandedYet[fileno],0) then
@@ -6499,7 +6512,8 @@ end if
                         if swecode=8 then
                             details = "[default not at end]"
                         else
-                            details = sprintf("[swecode=%d,npc=%d,opcode=%d(%s)]",{swecode,npc,opcode,opNames[opcode]})
+--                          details = sprintf("[swecode=%d,npc=%d,opcode=%d(%s)]",{swecode,npc,opcode,opNames[opcode]})
+                            details = sprintf("[swecode=%d,npc=%d,opcode=%d(%s),smin=%d,smax=%d]",{swecode,npc,opcode,opNames[opcode],smin,smax})
                         end if                              
                         Abort("cannot create jump table "&details)
                     end if
@@ -15188,7 +15202,9 @@ ltDiagMsg(sprintf("opLchk,N=%d,typ=%d,line %d\n",{p1,mtype,s5[pc+3]}))
                 flags = glblused[lblidx]
                 -- erm, can't actually happen...
                 if not and_bits(flags,G_declared) then ?9/0 end if
+if not repl then
                 if and_bits(flags,G_set) then ?9/0 end if
+end if
 --?glblused
                 glblused[lblidx] = flags+G_set
 --?glblused
@@ -16452,6 +16468,9 @@ integer lastop, lastln
     end if
     pc = 1
     while 1 do
+if repl then
+    if not integer(s5[pc]) then exit end if
+end if
         opcode = s5[pc]
 --if opcode=opInit then trace(1) end if
         if dumpil then

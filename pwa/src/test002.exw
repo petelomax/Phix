@@ -1,0 +1,74 @@
+--
+-- pwa/src/test002.exw
+-- ===================
+--
+--  From: https://rosettacode.org/wiki/Modular_arithmetic#Phix
+--
+--  Seems like a reasonable first test for type/scope handling.
+--   (the original throw() were replaced with crash(), and
+--    given unique numbers, since crash already implemented.)
+--  
+--  Expected output (in the browser!):
+--
+--      x^100 + x + 1 for x == 10 is 1e+100
+--      x^100 + x + 1 for x == modint(10,13) is modint(1,13)
+--
+type mi(object m)
+    return sequence(m) and length(m)=2 and integer(m[1]) and integer(m[2])
+end type
+ 
+type mii(object m)
+    return mi(m) or atom(m)
+end type
+ 
+function mi_one(mii a)
+    if atom(a) then a=1 else a[1] = 1 end if
+    return a
+end function
+ 
+function mi_add(mii a, mii b)
+    if atom(a) then
+        if not atom(b) then crash("error1") end if
+        return a+b
+    end if
+    if a[2]!=b[2] then crash("error2") end if
+    a[1] = mod(a[1]+b[1],a[2])
+    return a
+end function
+ 
+function mi_mul(mii a, mii b)
+    if atom(a) then
+        if not atom(b) then crash("error3") end if
+        return a*b
+    end if
+    if a[2]!=b[2] then crash("error4") end if
+    a[1] = mod(a[1]*b[1],a[2])
+    return a
+end function
+ 
+function mi_power(mii x, integer p)
+    mii res = mi_one(x)
+    for i=1 to p do
+        res = mi_mul(res,x)
+    end for
+    return res
+end function
+ 
+function mi_print(mii m)
+    return sprintf(iff(atom(m)?"%g":"modint(%d,%d)"),m)
+end function
+ 
+function f(mii x)
+    return mi_add(mi_power(x,100),mi_add(x,mi_one(x)))
+end function
+ 
+procedure test(mii x)
+    printf(1,"x^100 + x + 1 for x == %s is %s\n",{mi_print(x),mi_print(f(x))})
+end procedure
+test(10)
+test({10,13})
+
+if platform()!=JS then
+    ?"done"
+    {} = wait_key()
+end if

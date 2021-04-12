@@ -4,7 +4,7 @@
 --
 --  standard includes, constants, globals, and utility routines for ../../pwa.exw
 --
---without debug -- (keep the ex.err reasonably clear, comment out if/when needed)
+without debug -- (keep the ex.err reasonably clear, comment out if/when needed)
 include pGUI.e
 -- (while autoincludes,    """    for all these too:)
 include builtins\VM\pcmdlnN.e
@@ -30,41 +30,47 @@ global constant pwadir = join_path({get_file_path(get_interpreter()),`pwa`})
 --?pwadir
 
 global string current_file
-integer ext
-global string text
-global integer lt   -- ==length(text)
+global string builtindir -- set in tokstack_clean()
+global integer ext
+--global string text
+global string src
+global integer lt   -- ==length(src)
 global sequence textlines   -- (temp/debug)
 sequence TOKTYPES
 global sequence tokens
+global integer src_offset   -- (for js embeddded in html)
+global integer tdx -- index to tokens[]/terminate parser
+global sequence clines
 
 -- aside: pwa/p2js (as per the docs) does not support nested constants.
 --/* -- backtrack, see p2js.exw
-enum PHIX, HTML, CSS, JSS, C, PYTH
+enum PHIX, JSS, HTML, C --, CSS, PYTH
 constant extensions = {{PHIX, {"exw","ex","e","eu"}},
-                       {HTML, {"html","htm"}},
-                       {CSS, {"css"}},
                        {JSS, {"js"}},
+                       {HTML, {"html","htm"}},
                        {C, {"c"}}}
+--                     {CSS, {"css"}}}
 --*/
-global constant ext_names = {"phix","html","css","js","go","c","python"}
-constant extensions = {{PHIX :=1, {"exw","ex","e","eu","ew"}},
-                       {HTML :=2, {"html","htm"}},
-                       {CSS  :=3, {"css"}},
-                       {JSS  :=4, {"js"}}, -- (avoid clash with platform()'s JS)
-                       {GO   :=5, {"go"}},
-                       {C    :=6, {"c"}},
-                       {PYTH :=7, {"py"}}}
+--global constant ext_names = {"phix","js","html","c","css","go","python"},
+global constant ext_names = {"phix","js","html","c"},
+                extensions = {{PHIX :=1, {"exw","ex","e","eu","ew"}},
+                              {JSS  :=2, {"js"}}, -- (avoid clash with platform()'s JS)
+                              {HTML :=3, {"html","htm"}},
+                              {C    :=4, {"c"}}}
+--                            {CSS  :=4, {"css"}},
+--                            {GO   :=6, {"go"}},
+--                            {PYTH :=7, {"py"}}}
 --
 -- note that both the tokeniser and the parser have a local phix_only() routine
 --      that invokes is_phix(), before going on to invoke their own xxx_error().
 --
-global function is_phix() return ext=PHIX end function
-global function is_html() return ext=HTML end function
-global function is_css()  return ext=CSS  end function
-global function is_js()   return ext=JSS  end function
-global function is_go()   return ext=GO   end function
-global function is_C()    return ext=C    end function
-global function is_py()   return ext=PYTH end function
+global function is_phix() return ext==PHIX              end function
+global function is_js()   return ext==JSS or ext==HTML  end function
+global function is_html() return ext==HTML              end function
+--global function is_css()  return ext==CSS                 end function
+--global function is_go()   return ext==GO                  end function
+global function is_C()    return ext==C                 end function
+--global function is_py()   return ext==PYTH                end function
 
 --/*
 -- don't think this helped... (the better plan is html -> xml,
@@ -110,17 +116,28 @@ global function find_extension(string e)
 end function
 
 global function load_text(string txt, integer edx)
-    text = txt
+    src = txt
     ext = edx
--- temp/debug[?]:
-textlines = split(text,"\r\n")
-    lt = length(text)
+-- temp/debug[?]: (maybe not...)
+--  textlines = split(src,"\r\n")
+    textlines = split(substitute(src,"\r\n","\n"),'\n',false)
+--?{"length(textlines)",length(textlines)}
+--integer h = length(textlines)
+--while h>1 do
+--  h = floor(h/2)
+--  printf(1,"line %d:%s\n",{h,textlines[h]})
+--end while
+    lt = length(src)
     return true
 end function
 
-global function load_file(string filename)
+global procedure save_filename(string filename)
     current_file = filename -- (store for debugging purposes)
-?{"current_file",current_file}
+--?{"current_file",current_file}
+end procedure
+
+global function load_file(string filename)
+    save_filename(filename)
     object txt = get_text(filename,GT_WHOLE_FILE)
     if not string(txt) then
         return fatal("unable to open "&filename)
@@ -135,10 +152,11 @@ end function
 --
 -- common to tokeniser and parser:
 --
-global enum TOKTYPE, TOKSTART, TOKFINISH, TOKLINE, TOKCOL, TOKTTIDX, TOKENDLINE=$ -- (one token)
-            -- TOKTYPE is as per vslice(TOKTYPES,1) below
-            -- TOKTTIDX is only set on LETTER tokens
+global enum TOKTYPE, TOKSTART, TOKFINISH, TOKLINE, TOKCOL, TOKALTYPE=$, TOKTTIDX, TOKENDLINE=$ -- (one token)
+            -- TOKTYPE as below, if integer use tok_name(toktype) to get a human-readable string
+            -- TOKTTIDX is only set on LETTER tokens and can be compared to T_integer, etc.
             -- TOKENDLINE only on '`' (aka `"""`) and BLK_CMT (no other tokens span lines)
+            -- TOKALTYPE = TOKCOL is only/also used on parse tree LETTER/DIGIT/SYMBOL tokens.
 --DEV/SUG
             -- note that [TOKFINISH] can be a string, for debugging purposes:
 --/*
@@ -164,13 +182,7 @@ C:\Program Files (x86)\Phix\pwa\src\p2js_parse.e:1113 --  integer {toktype,start
 --*/
 
 -- nb keep this enum and TOKTYPES in perfect step/exact same order.
-global enum EOL, SPACE, /*MINUS,*/ /*FWDSLASH,*/ /*DIVIDE=$,*/ --ELLIPSE, --SPREAD,
-            /*BRACES,*/
---          ORB, OSB, OCB, CCB, CSB, CRB, 
---          ORB = '(', OSB, OCB, CCB, CSB, CRB, 
---          HEXDEC, --BINDEC, --SQUOTE, --DQUOTE, 
-            /*FLOAT,*/
-            DIGIT, LETTER, COMMENT, BLK_CMT, ILLEGAL, SYMBOL, TOKMAX=$
+global enum EOL, SPACE, DIGIT, LETTER, COMMENT, BLK_CMT, ILLEGAL, SYMBOL, TOKMAX=$
 --SUG: (will it help or confuse?)
 --          EOL = '\n', SPACE = ' ', DIGIT = '0', LETTER = 'A', COMMENT = '-', BLK_CMT = '*', ILLEGAL='?', SYMBOL = '$'
 --if ILLEGAL>=' ' then ?9/0 end if
@@ -186,25 +198,9 @@ global enum EOL, SPACE, /*MINUS,*/ /*FWDSLASH,*/ /*DIVIDE=$,*/ --ELLIPSE, --SPRE
 -- (sequence TOKTYPES itself is defined earlier, for debug reasons)
 TOKTYPES = {{EOL,"EOL",false},      -- End of line
             {SPACE,"SPACE",false},  -- Spaces & tabs
---          {MINUS,"MINUS",false},  -- Minus sign '-' (/comment)
---          {FWDSLASH,"FWDSLASH",false}, -- Forward slash   (   ""   )
---          {ELLIPSE,"ELLIPSE",false}, -- '..'
---          {SPREAD,"SPREAD",false}, -- '...'
 -- BAND, BOR, MEQ, PEQ, TEQ, DEQ, BEQ, EEQ, EEEQ, LE, GE, LSHIFT, RSHIFT.
 -- &&  , || , -= , += , *= , /= , := , == , === , <=, >=, <<    , >>    (and ...where's &= anyway)
 --  (I accept that all multi-char SYMBOL need their own special TOKTYPE, btw)
---X         {BRACES,"BRACES",false},    -- ()[]{}
---          {ORB,"(",false},            -- opening round bracket
---          {OSB,"[",false},            -- opening square bracket
---          {OCB,"{",false},            -- opening curly bracket
---          {CCB,"}",false},            -- closing curly bracket
---          {CSB,"]",false},            -- closing square bracket
---          {CRB,")",false},            -- closing round bracket
---          {HEXDEC,"HEXDEC",false},    -- Hexadecimal (#) mark     -- DEV '#' instead?
---          {BINDEC,"BINDEC",false},    -- 0bNNN format digit
---          {SQUOTE,"SQUOTE",false},    -- Single quotation mark    -- DEV '\'' instead?
---          {DQUOTE,"DQUOTE",false},    -- Double quotation mark    -- DEV '"' instead?
---          {FLOAT,"FLOAT",false},  -- float, eg 1.0 or 1e4 (may yet be desired?)
             {DIGIT,"DIGIT",false},  -- 0..9
             {LETTER,"LETTER",false}, -- A..Z,a..z
 --          {HEXSTR,"HEXSTR",false},    -- Hexadecimal Byte String [NO, already added to docs]
@@ -217,8 +213,9 @@ TOKTYPES = {{EOL,"EOL",false},      -- End of line
 --?{tok_chk,tok_names,show_tok}  {} = wait_key()
 --if tok_chk!=tagset(TOKMAX) then ?9/0 end if
 if vslice(TOKTYPES,1)!=tagset(TOKMAX) then ?9/0 end if
-constant tok_names = vslice(TOKTYPES,2)
-constant show_toks = vslice(TOKTYPES,3)
+constant tok_names = vslice(TOKTYPES,2),
+         show_toks = vslice(TOKTYPES,3)
+global constant show_any = find(true,show_toks)!=0
 
 function set_chars(sequence s)
     -- (once-only set routine)
@@ -262,35 +259,20 @@ function set_chars(sequence s)
     return charset
 end function
 
-global constant string charset = set_chars({{"\r\n",EOL},
-                                            {" \t",SPACE},
---                                          {`!&|*+,.:;<=>?~\$%`,SYMBOL},
-                                            {`!&|*/+-,.:;<=>?~\$%([{}])`,SYMBOL},
--- nah, just use eg '?' for QU, etc
--- BANG, AMPERSAND, BAR, TIMES, PLUS, COMMA, DOT, COLON, SEMICOLON, LT, EQ, GT, QU, TILDE, BKSLASH, DOLLAR, PERCENT,
---                                          {'-', MINUS},
---                                          {'/', FWDSLASH},
---
---                                          {'"', DQUOTE},
-                                            {'"', '"'},
-                                            {'`', '`'},
---                                          {'#', HEXDEC},
-                                            {'#', '#'},
---                                          {'\'', SQUOTE},
-                                            {'\'', '\''},
---                                          {'(',ORB},
---                                          {'[',OSB},
---                                          {'{',OCB},
---                                          {'}',CCB},
---                                          {']',CSB},
---                                          {')',CRB},
---                                          {"([{}])",BRACES},
-                                            {{'0','9'}, DIGIT},
-                                            {{'A','Z'}, LETTER},
-                                            {{'a','z'}, LETTER},
-                                            {{#80,#BF}, LETTER},
-                                            {{#C2,#F4}, LETTER},
-                                            {'_', LETTER}})
+global string charset = set_chars({{"\r\n",EOL},
+                                   {" \t",SPACE},
+                                   {`!&|*/+-,.:;<=>?~\$%([{}])`,SYMBOL},
+--                                 {'$', LETTER}, -- iff is_js() in tokenise()
+                                   {'"', '"'},
+                                   {'`', '`'},
+                                   {'#', '#'},
+                                   {'\'', '\''},
+                                   {{'0','9'}, DIGIT},
+                                   {{'A','Z'}, LETTER},
+                                   {{'a','z'}, LETTER},
+                                   {{#80,#BF}, LETTER},
+                                   {{#C2,#F4}, LETTER},
+                                   {'_', LETTER}})
 
 --/*
 JavaScript escape sequences (I think we're ok):
@@ -309,9 +291,11 @@ JavaScript escape sequences (I think we're ok):
 
 global enum PASGN,      -- := += -= *= /= &&= ||=
             PANDO,      -- and  or  xor
-            PBITS,      -- && ||
+--23/2/21...
+--          PBITS,      -- && ||
             PCOMP,      -- =  !=
             PRELA,      -- < > <= >=
+            PBITS,      -- && ||
             PAMPS,      -- &
             PSHFT,      -- << >> >>>
             PADDS,      -- + -
@@ -335,25 +319,25 @@ global constant precedences = {{BEQ     := 129, `:=`,   PASGN},
                                {AND     := 145, `and`,  PANDO},
                                {OR      := 147, `or`,   PANDO},
                                {XOR     := 149, `xor`,  PANDO},
-                               {ANDBIT  := 151, `&&`,   PBITS},
-                               {ORBIT   := 153, `||`,   PBITS},
+                               {ANDBIT  := 151, `&&`,   PBITS}, -- PANDO for js
+                               {ORBIT   := 153, `||`,   PBITS}, -- PANDO for js
 --                             {EQ      := 155, `=`,    PCOMP},
 --                             {EQ      := '=', `=`,    PCOMP},
-                               {           '=', `=`,    PCOMP},
+                               {/*#3D=61*/ '=', `=`,    PCOMP},
                                {EEQ     := 157, `==`,   PCOMP},
                                {EEE     := 159, `===`,  PCOMP},
                                {NE      := 161, `!=`,   PCOMP},
                                {NEE     := 163, `!==`,  PCOMP},
 --                             {LT      := 165, `<`,    PRELA},
 --                             {LT      := '<', `<`,    PRELA},
-                               {           '<', `<`,    PRELA},
+                               {/*#3C=60*/ '<', `<`,    PRELA},
                                {LE      := 167, `<=`,   PRELA},
                                {GE      := 169, `>=`,   PRELA},
 --                             {GT      := 171, `>`,    PRELA},
 --                             {GT      := '>', `>`,    PRELA},
                                {           '>', `>`,    PRELA},
 --                             {AMPSND  := 173, `&`,    PAMPS},
-                               {           `&`, `&`,    PAMPS},
+                               {           '&', `&`,    PAMPS}, -- PBITS for js
                                {RSH     := 175, `>>`,   PSHFT},
                                {LSH     := 177, `<<`,   PSHFT},
                                {RUSH    := 179, `>>>`,  PSHFT},
@@ -363,7 +347,6 @@ global constant precedences = {{BEQ     := 129, `:=`,   PASGN},
                                {           '-', `-`,    PADDS},
 --                             {MULT    := 185, `*`,    PMORD},
                                {           '*', `*`,    PMORD},
---                             {DIVIDE  := 187, `/`,    PMORD},
                                {           '/', `/`,    PMORD},
 --                             {MOD     := 189, `%`,    PMORD},
                                {           '%', `%`,    PMORD},
@@ -373,8 +356,15 @@ global constant precedences = {{BEQ     := 129, `:=`,   PASGN},
                                {NOT     := 193, `not`,  PUNY},
                                {NEW     := 195, `new`,  PUNY},
                                {SPREAD  := 197, `...`,  PUNY},
-                               {ELLIPSE := 199, `..`,   PSBSC}}
+--                             {ELLIPSE := 199, `..`,   PSBSC},
+                               {ELLIPSE := 199, `..`,   PASGN},
+                               {MASS    := 201, `{`,    0},
+                               {ARGS    := 203, `{`,    0}}
+--                             {TRIQUOT := 203, `"""`,	0}}	-- nah, use '`'
 global constant {mstoktypes,multisym,msprec} = columnize(precedences)
+global sequence T_keywords,     -- ie {"if", "then", etc}
+                T_toktypes,     -- ie TYPI..TYPR, see below
+                T_reserved      -- ie {T_if, T_then, etc}
 
 global function tok_name(integer toktype)
     if toktype>SYMBOL then
@@ -382,9 +372,20 @@ global function tok_name(integer toktype)
         if k and string(multisym[k]) then
             return multisym[k]
         end if
-        return toktype&""
+        k = find(toktype, T_reserved)
+        if k then
+            return T_keywords[k]
+        end if
+        return toktype&"" -- eg '-' ==> "-"
     end if
     return tok_names[toktype]
+end function
+
+global function tok_string(sequence tok)
+--  integer {toktype, tokstart, tokfinish, line} = tok
+    integer {?, tokstart, tokfinish} = tok
+--  tokline = line
+    return src[tokstart..tokfinish]
 end function
 
 --global function show_tok(integer toktype)
@@ -402,7 +403,7 @@ global procedure show_token(sequence tok, string prefix="")
 --  else
 --      tok[TOKTYPE] &= ""
 --  end if
-        tok = append(tok,shorten(text[start..finish]))
+        tok = append(tok,shorten(src[start..finish]))
 --  if length(prefix) then      -- (parser only)
 --      tok = prepend(tok,prefix)
 --  end if
@@ -417,7 +418,6 @@ global procedure show_token(sequence tok, string prefix="")
     end if
 end procedure
 
---global constant INCLUDETOKS = `\/.<>`&'`'&DQUOTE&LETTER&ELLIPSE&DIGIT
 global constant INCLUDETOKS = `\/.<>"*`&'`'&LETTER&ELLIPSE&DIGIT
 
 -- to show in ex.err as a useful lookup table during debugging:
@@ -428,14 +428,15 @@ sequence precedence_table = precedences
 --Python:  := //[==floor division] and singles: | ^ & @[==matrix multiplication] % :(==slicing)
 --C: ++ -- -> %= <<= >>= ^= |=
 --JS: ?. ** >>> === !== ?? **= >>>= ??=
-/*
+    {"args",                    T_args                      := 536},
+/!*
 == equal value
 === equal value and equal type
 != not equal value
 !== not equal value or not equal type
 < lexically ordered before
 > lexically ordered after
-*/
+*!/
 --*/
 
 -- <   >   <=  >=   =   !=   
@@ -463,4 +464,41 @@ sequence precedence_table = precedences
 2:                              and  or  xor
 
 --*/
-
+--
+-- Note that TYP2..TY14 are perfectly valid as propagated types, 
+-- however you cannot explicitly define variables of those types.
+--
+global constant TYPES = {{TYPI := 0b00000001,   "TYPI"},    -- 1: integer (aka int)
+                         {TYP2 := 0b00000010,   "TYP2"},    -- 2: non-integer atom (constants only, aka flt)
+                         {TYPN := 0b00000011,   "TYPN"},    -- 3: atom (flt|int)
+                         {TYPQ := 0b00000100,   "TYP4"},    -- 4: dseq aka non-string sequence (TYPQ?)
+                         {TYP5 := 0b00000101,   "TYP5"},    -- 5: int|dseq
+                         {TYP6 := 0b00000110,   "TYP6"},    -- 6: ? (flt|dseq)
+                         {TYP7 := 0b00000111,   "TYP7"},    -- 6: atom|dseq (aka int|flt|dseq)
+                         {TYPS := 0b00001000,   "TYPS"},    -- 8: string (aka str)
+                         {TYP9 := 0b00001001,   "TYP9"},    -- 9: nullable string (TYPNS?, aka int|str)
+                         {TY10 := 0b00001010,   "TY10"},    -- 10: ? (flt|str)
+--                       {TYPM := 0b00001011,   "TY11"},    -- 11: atom string (TYPM?, aka int|flt|str)
+                         {TY11 := 0b00001011,   "TY11"},    -- 11: atom string (TYPM?, aka int|flt|str)
+                         {TYPP := 0b00001100,   "TYPP"},    -- 12: sequence (aka dseq|str)
+                         {TY13 := 0b00001101,   "TY13"},    -- 13: dseq|str|int
+                         {TY14 := 0b00001110,   "TY14"},    -- 13: ? (dseq|str|flt)
+                         {TYPO := 0b00001111,   "TYPO"},    -- 15: object (aka (int|flt|str|dseq)
+--DEV cleanup?
+                         {TY16 := 0b00010000,   "TY16"},    -- 16: ?
+                         {TYPE := 0b00010001,   "TYPE"},    -- 17: type (/integer,0b10001)
+                         {TY18 := 0b00010010,   "TY18"},    -- 18: ?
+                         {TYPF := 0b00010011,   "TYPF"},    -- 19: func (/integer,0b10011)
+                         {TY20 := 0b00010100,   "TY20"},    -- 20: ?
+                         {TYPK := 0b00010101,   "TYPK"},    -- 21: keyword (0b10101)
+                         {TY22 := 0b00010110,   "TY22"},    -- 22: ?
+                         {TYPR := 0b00010111,   "TYPR"},    -- 23: proc (/integer,0b10111)
+                         {BADT := 0b00011000,   "BADT"},    -- >=24 or <=0: bad type
+                         {TYP0 := 0b00011000,   "TYP0"}}    -- 24: bad type/not supported
+--/* (SUG)
+                         {TYPE := 0b00010000,   "TYPE"},    -- 16: type (/integer,0b10000)
+                         {TYPF := 0b00010001,   "TYPF"},    -- 17: func (/integer,0b10001)
+                         {TYPR := 0b00010010,   "TYPR"},    -- 18: proc (/integer,0b10010)
+                         {TYPK := 0b00010011,   "TYPK"},    -- 19: keyword       (0b10011)
+                         {BADT := 0b00010100,   "BADT"}}    -- >=20 or <=0: bad type
+--*/

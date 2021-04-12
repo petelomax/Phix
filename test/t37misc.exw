@@ -15,51 +15,51 @@ type string(object s) return sequence(s) end type
 
 constant showprogress=0
 
-procedure Abort(string msg) puts(1,msg) if getc(0) then end if abort(1) end procedure
-
 if showprogress then puts(1,"1\n") end if
-if not equal(floor(-1/100),-1) then Abort("floor(-1/100)!=-1\n") end if
-if not equal(floor(-1/-100),0) then Abort("floor(-1/-100)!=0\n") end if
-if not equal(floor(1/-100),-1) then Abort("floor(1/-100)!=-1\n") end if
-if not equal(floor(1/100),0) then Abort("floor(1/100)!=0\n") end if
-if not equal(floor(-1.1/100),-1) then Abort("floor(-1.1/100)!=-1\n") end if
-if not equal(floor(-1.1/-100),0) then Abort("floor(-1.1/-100)!=0\n") end if
-if not equal(floor(1.1/-100),-1) then Abort("floor(1.1/-100)!=-1\n") end if
-if not equal(floor(1.1/100),0) then Abort("floor(1.1/100)!=0\n") end if
+if not equal(floor(-1/100),-1) then crash("floor(-1/100)!=-1\n") end if
+if not equal(floor(-1/-100),0) then crash("floor(-1/-100)!=0\n") end if
+if not equal(floor(1/-100),-1) then crash("floor(1/-100)!=-1\n") end if
+if not equal(floor(1/100),0) then crash("floor(1/100)!=0\n") end if
+if not equal(floor(-1.1/100),-1) then crash("floor(-1.1/100)!=-1\n") end if
+if not equal(floor(-1.1/-100),0) then crash("floor(-1.1/-100)!=0\n") end if
+if not equal(floor(1.1/-100),-1) then crash("floor(1.1/-100)!=-1\n") end if
+if not equal(floor(1.1/100),0) then crash("floor(1.1/100)!=0\n") end if
 --DEV (these get optimised away by the 32-bit compiler, may hit problems on the 64-bit compiler, as below:)
-if not equal(floor(1/0.4),2) then Abort("not equal(floor(1/0.4),2)\n") end if
-if not equal(floor(2/0.4),5) then Abort("not equal(floor(2/0.4),5)\n") end if
-if not equal(floor(3/0.4),7) then Abort("not equal(floor(3/0.4),7)\n") end if
+if not equal(floor(1/0.4),2) then crash("not equal(floor(1/0.4),2)\n") end if
+if not equal(floor(2/0.4),5) then crash("not equal(floor(2/0.4),5)\n") end if
+if not equal(floor(3/0.4),7) then crash("not equal(floor(3/0.4),7)\n") end if
 --DEV. 64-bit issues... use 0.375 as that can be held exactly.
 ----/**/    if not equal(sq_floor_div({1,2,3},0.4),{2,5,7}) then    --/* -- Phix
 --      if not equal(floor({1,2,3}/0.4),{2,5,7}) then           --*/ -- RDS
---          Abort("not equal(floor({1,2,3}/0.4),{2,5,7})\n")
+--          crash("not equal(floor({1,2,3}/0.4),{2,5,7})\n")
 --      end if
 ----/**/    if not equal(sq_floor_div({1,2,3},-0.4),{-3,-5,-8}) then    --/* -- Phix
 --      if not equal(floor({1,2,3}/-0.4),{-3,-5,-8}) then           --*/ -- RDS
 ----?sq_floor_div({1,2,3},-0.4)
---          Abort("not equal(floor({1,2,3}/-0.4),{-3,-5,-8})\n")
+--          crash("not equal(floor({1,2,3}/-0.4),{-3,-5,-8})\n")
 --      end if
 --
 --/**/  if not equal(sq_floor_div({1,2,3},0.375),{2,5,8}) then  --/* -- Phix
         if not equal(floor({1,2,3}/0.375),{2,5,8}) then         --*/ -- RDS
-            Abort("not equal(floor({1,2,3}/0.375),{2,5,8})\n")
+            crash("not equal(floor({1,2,3}/0.375),{2,5,8})\n")
         end if
 --/**/  if not equal(sq_floor_div({1,2,3},-0.375),{-3,-6,-8}) then  --/* -- Phix
         if not equal(floor({1,2,3}/-0.375),{-3,-6,-8}) then         --*/ -- RDS
 --?sq_floor_div({1,2,3},-0.375)
-            Abort("not equal(floor({1,2,3}/-0.375),{-3,-6,-8})\n")
+            crash("not equal(floor({1,2,3}/-0.375),{-3,-6,-8})\n")
         end if
 
 
 if showprogress then puts(1,"2\n") end if
 
-if not equal(sprint(power(2.3,4.7)),"50.13266932") then Abort("power(2.3,4.7))!=50.13266932\n") end if 
-if power(2,3)!=8 then Abort("power(2,3)!=8\n") end if
+--pwa/p2js:
+--if not equal(sprint(power(2.3,4.7)),"50.13266932") then crash("power(2.3,4.7))!=50.13266932\n") end if 
+if not find(sprint(power(2.3,4.7)),{"50.13266932","50.1326693191"}) then crash("power(2.3,4.7))!=50.13266932\n") end if 
+if power(2,3)!=8 then crash("power(2,3)!=8\n") end if
 --DEV opPow only supports atoms:
 --if not equal(power({2,3,4},{4,5,6}),{16,243,4096}) then 
---   Abort("power({2,3,4},{4,5,6})!={16,243,4096}\n") abort(0) end if
-if not equal(power(2,4),16) then Abort("power(2,4)!=16\n") end if
+--   crash("power({2,3,4},{4,5,6})!={16,243,4096}\n") end if
+if not equal(power(2,4),16) then crash("power(2,4)!=16\n") end if
 -- removed 10/1/16: exact on 32bit, ~+1e-17 out on 64bit, not important (comment below moved from pHeap.e).
 --DEV test/fix this on 64-bit (hopefully not an issue) [still is 10/1/16, but removed from t37 anyway]
 --  However while power(3,5) is exactly 243 in 64-bit mode, it is one bit 
@@ -71,54 +71,59 @@ if not equal(power(2,4),16) then Abort("power(2,4)!=16\n") end if
 --  mode for no good reason?) The really confusing thing was of course the
 --  way that 243.0 + 1 was getting stored as an integer... ie the _reload_
 --  of 243.0 cleared bits 64..80 compared to when it was first stored.
---if not equal(power(3,5),243) then Abort("power(3,5)!=243\n") end if
-if not equal(power(4,6),4096) then Abort("power(4,6)!=4096\n") end if
+--if not equal(power(3,5),243) then crash("power(3,5)!=243\n") end if
+if not equal(power(4,6),4096) then crash("power(4,6)!=4096\n") end if
 if showprogress then puts(1,"3\n") end if
-if not equal(sprint(power(-0.8,-2)),"1.5625") then Abort("power(-0.8,-2)!=1.5625\n") end if
-if not equal(sprint(power(-0.8,-3)),"-1.953125") then Abort("power(-0.8,-3)!=-1.953125\n") end if
+if not equal(sprint(power(-0.8,-2)),"1.5625") then crash("power(-0.8,-2)!=1.5625\n") end if
+if not equal(sprint(power(-0.8,-3)),"-1.953125") then crash("power(-0.8,-3)!=-1.953125\n") end if
 --  a = power(-0.8,2.1) -- attempt to raise negative number to non-integer power (tick!)
-if not equal(sprint(power(-0.8,2)),"0.64") then Abort("power(-0.8,2)!=0.64\n") end if
-if not equal(sprint(power(-0.8,3)),"-0.512") then Abort("power(-0.8,3)!=-0.512\n") end if
+if not equal(sprint(power(-0.8,2)),"0.64") then crash("power(-0.8,2)!=0.64\n") end if
+if not equal(sprint(power(-0.8,3)),"-0.512") then crash("power(-0.8,3)!=-0.512\n") end if
 
-if not equal(sprint(log(10)),"2.302585093") then Abort("sprint(log(10))!=2.302585093\n") end if
+if not equal(sprint(log(10)),"2.302585093") then crash("sprint(log(10))!=2.302585093\n") end if
 
 if showprogress then puts(1,"4\n") end if
 
+if platform()!=JS then
 --Warning: sprint shows strings when it can (in this case "ñpØ?"). [DEV use &0 to inhibit that]
 -- [I'm confused here: {164,112,157,63} or {241,112,216,163}??]
---  if sprint(atom_to_float32(1.23))!="{164,112,157,63}" then Abort("atf32(1.23) error\n") end if
+--  if sprint(atom_to_float32(1.23))!="{164,112,157,63}" then crash("atf32(1.23) error\n") end if
 --?atom_to_float32(1.25)&-1
 --?sprint({0,0,160,63})
 --?sprint(atom_to_float32(1.25))
---if not equal(sprint(atom_to_float32(1.25)),"{0,0,160,63}") then Abort("atf32(1.25) error\n") end if
-if not equal(sprint(atom_to_float32(1.25)&-1),"{0,0,160,63,-1}") then Abort("atf32(1.25) error\n") end if
-if not equal(sprint(float32_to_atom({164,112,157,63})),"1.230000019") then Abort("f32ta1.23 error\n") end if
+--if not equal(sprint(atom_to_float32(1.25)),"{0,0,160,63}") then crash("atf32(1.25) error\n") end if
+--?sprint(atom_to_float32(1.25)&-1)
+--if not equal(sprint(atom_to_float32(1.25)&-1),"{0,0,160,63,-1}") then crash("atf32(1.25) error\n") end if
+if not equal(sprint(atom_to_float32(1.25)&-1),"{0,0,160,63'?',-1}") then crash("atf32(1.25) error\n") end if
+if not equal(sprint(float32_to_atom({164,112,157,63})),"1.230000019") then crash("f32ta1.23 error\n") end if
 --Warning: sprint shows strings when it can (in this case "ú+Ùà¾¦ß").
 --?atom_to_float64(1e308)&-1
 --if not equal(sprint(atom_to_float64(1e308)&-1),
 --           "{160,200,235,133,243,204,225,127,-1}") then
 --           "{163,200,235,133,243,204,225,127,-1}") then
---  Abort("atf641e308 error\n")
+--  crash("atf641e308 error\n")
 --end if
 --?atom_to_float64(1e307)&-1
 --if not equal(sprint(atom_to_float64(1e307)&-1),
 --           "{55,116,172,60,31,123,172,127,-1}") then
 ----             "{51,116,172,60,31,123,172,127,-1}") then
---  Abort("atf641e307 error\n")
+--  crash("atf641e307 error\n")
 --end if
 --DEV: [FIXED 17/1/16]
 --?atom_to_float64(#FFFFFFFF)&-1    -- 32:{0,0,224,255,255,255,239,65,-1}, 64: {0,0,0,0,0,0,240,191,-1}...
 --?float64_to_atom(atom_to_float64(#FFFFFFFF))  -- 32: 4294967295, 64: -1...
+--?sprint(atom_to_float64(#FFFFFFFF)&-1)
 if not equal(sprint(atom_to_float64(#FFFFFFFF)&-1),
-             "{0,0,224,255,255,255,239,65,-1}") then
-    Abort("atf64#FF error\n")
+--           "{0,0,224,255,255,255,239,65,-1}") then
+             "{0,0,224,255,255,255,239,65'A',-1}") then
+    crash("atf64#FF error\n")
 end if
 
 if showprogress then puts(1,"5\n") end if
 
 --?float64_to_atom({160,200,235,133,243,204,225,127})
 if not equal(sprint(float64_to_atom({163,200,235,133,243,204,225,127})),"1e+308") then
-    Abort("f64ta1e308 error\n")
+    crash("f64ta1e308 error\n")
 end if
 
 if showprogress then puts(1,"6\n") end if
@@ -127,20 +132,20 @@ atom a, b
 integer ip
     a = allocate(12)
     poke(a,15)
-    if peek(a)!=15 then Abort("peek(a)!=15\n") end if
+    if peek(a)!=15 then crash("peek(a)!=15\n") end if
     ip=peek(a)
-    if ip!=15 then Abort("ip!=15\n") end if
+    if ip!=15 then crash("ip!=15\n") end if
     poke(a,{-1,0,255})
-    if not equal(peek({a,3}),{255,0,255}) then Abort("peek({a,3})!={-1,0,255}\n") end if
+    if not equal(peek({a,3}),{255,0,255}) then crash("peek({a,3})!={-1,0,255}\n") end if
 
 if showprogress then puts(1,"7\n") end if
 
     mem_set(a,12,12)
-    if not equal(peek({a,12}),repeat(12,12)) then Abort("not equal(peek({a,12}),repeat(12,12))\n") end if
+    if not equal(peek({a,12}),repeat(12,12)) then crash("not equal(peek({a,12}),repeat(12,12))\n") end if
     mem_set(a,4,4)
-    if not equal(peek({a,5}),{4,4,4,4,12}) then Abort("not equal(peek({a,5}),{4,4,4,4,12})\n") end if
+    if not equal(peek({a,5}),{4,4,4,4,12}) then crash("not equal(peek({a,5}),{4,4,4,4,12})\n") end if
     mem_set(a,7,0)
-    if not equal(peek({a,3}),{4,4,4}) then Abort("not equal(peek({a,3}),{4,4,4})\n") end if
+    if not equal(peek({a,3}),{4,4,4}) then crash("not equal(peek({a,3}),{4,4,4})\n") end if
 
 if showprogress then puts(1,"8\n") end if
 
@@ -156,8 +161,8 @@ if showprogress then puts(1,"8\n") end if
 --  --      but at runtime #0000_0000_3FFF_FFFF..#3FFF_FFFF_FFFF_FFFF are integers, and hence
 --  --      the old float!=int kicks in. Maybe we should have a t37misc64.exw for completeness,
 --  --      that is only compiled/interpreted under machine_bits()=64 (and uses bigger values?).
---  if not equal(peek4u({aa,16}),fto0) then Abort("peek4u({aa,16}) error\n") end if
---  if not equal(peek4s({aa,16}),fto0s) then Abort("peek4s({aa,16}) error\n") end if
+--  if not equal(peek4u({aa,16}),fto0) then crash("peek4u({aa,16}) error\n") end if
+--  if not equal(peek4s({aa,16}),fto0s) then crash("peek4s({aa,16}) error\n") end if
 --end if
 
 if showprogress then puts(1,"9\n") end if
@@ -175,39 +180,44 @@ if showprogress then puts(1,"9\n") end if
     mem_copy(a,b,1)     -- a=1234
     mem_set(b,0,4)      -- b=0000
     mem_copy(a,b,0)     -- a unchanged
-    if not equal(peek({a,4}),{1,2,3,4}) then Abort("not equal(peek({a,4}),{1,2,3,4})\n") end if
+    if not equal(peek({a,4}),{1,2,3,4}) then crash("not equal(peek({a,4}),{1,2,3,4})\n") end if
     free(a)
     free(b)
+end if
 
 if showprogress then puts(1,"10\n") end if
 
 --24/5/20:
---if not equal(sprint(cos(99)),"0.03982088039") then Abort("cos(99) error\n") end if
-if not equal(sprint(cos(99)),"0.0398208804") then Abort("cos(99) error\n") end if
-if not equal(sprint(sin(99)),"-0.9992068342") then Abort("sin(99) error\n") end if
-if not equal(sprint(sqrt(99)),"9.949874371") then Abort("sqrt(99) error\n") end if
-if not equal(sprint(tan(99)),"-25.09253498") then Abort("tan(99) error\n") end if
-if not equal(sprint(arctan(99)),"1.56069566") then Abort("arctan(99) error\n") end if
-if not equal(int_to_bytes(104732),{28,153,1,0}) then Abort("int_to_bytes error\n") end if
-if not equal(bytes_to_int({28,153,1,0}),104732) then Abort("bytes_to_int error\n") end if
-if not equal(int_to_bits(177,8),{1,0,0,0,1,1,0,1}) then Abort("int_to_bits error\n") end if
-if not equal(bits_to_int({1,0,0,0,1,1,0,1}),177) then Abort("bits_to_int error\n") end if
+--if not equal(sprint(cos(99)),"0.03982088039") then crash("cos(99) error\n") end if
+--pwa/p2js
+--if not equal(sprint(cos(99)),"0.0398208804") then crash("cos(99) error\n") end if
+if not find(sprint(cos(99)),{"0.0398208804","0.03982088039"}) then crash("cos(99) error\n") end if
+if not equal(sprint(sin(99)),"-0.9992068342") then crash("sin(99) error\n") end if
+if not equal(sprint(sqrt(99)),"9.949874371") then crash("sqrt(99) error\n") end if
+if not equal(sprint(tan(99)),"-25.09253498") then crash("tan(99) error\n") end if
+if not equal(sprint(arctan(99)),"1.56069566") then crash("arctan(99) error\n") end if
+if platform()!=JS then
+if not equal(int_to_bytes(104732),{28,153,1,0}) then crash("int_to_bytes error\n") end if
+if not equal(bytes_to_int({28,153,1,0}),104732) then crash("bytes_to_int error\n") end if
+if not equal(int_to_bits(177,8),{1,0,0,0,1,1,0,1}) then crash("int_to_bits error\n") end if
+if not equal(bits_to_int({1,0,0,0,1,1,0,1}),177) then crash("bits_to_int error\n") end if
+end if
 
 if showprogress then puts(1,"11\n") end if
 if not RDS then -- standard RDS routines mangle atoms...
-    if lower({74.5, 104.01})!={74.5,104.01} then Abort("leave lower alone! ;-))\n") end if
-    if upper({74.5, 104.01})!={74.5,104.01} then Abort("leave upper alone! ;-))\n") end if
+    if lower({74.5, 104.01})!={74.5,104.01} then crash("leave lower alone! ;-))\n") end if
+    if upper({74.5, 104.01})!={74.5,104.01} then crash("leave upper alone! ;-))\n") end if
 end if
-if lower('@')!='@' then Abort("lower('@')!='@'\n") end if
-if lower('A')!='a' then Abort("lower('A')!='a'\n") end if
-if lower('Z')!='z' then Abort("lower('Z')!='a'\n") end if
-if lower('[')!='[' then Abort("lower('[')!='['\n") end if
-if upper('`')!='`' then Abort("upper('`')!='`'\n") end if
-if upper('a')!='A' then Abort("upper('a')!='A'\n") end if
-if upper('z')!='Z' then Abort("upper('z')!='Z'\n") end if
-if upper('{')!='{' then Abort("upper('{')!='{'\n") end if
-if not equal(lower("FRED"),"fred") then Abort("lower(FRED)!=fred\n") end if
-if not equal(upper("fred"),"FRED") then Abort("upper(fred)!=FRED\n") end if
+if lower('@')!='@' then crash("lower('@')!='@'\n") end if
+if lower('A')!='a' then crash("lower('A')!='a'\n") end if
+if lower('Z')!='z' then crash("lower('Z')!='a'\n") end if
+if lower('[')!='[' then crash("lower('[')!='['\n") end if
+if upper('`')!='`' then crash("upper('`')!='`'\n") end if
+if upper('a')!='A' then crash("upper('a')!='A'\n") end if
+if upper('z')!='Z' then crash("upper('z')!='Z'\n") end if
+if upper('{')!='{' then crash("upper('{')!='{'\n") end if
+if not equal(lower("FRED"),"fred") then crash("lower(FRED)!=fred\n") end if
+if not equal(upper("fred"),"FRED") then crash("upper(fred)!=FRED\n") end if
 constant
    SPECIAL_UPPER = "ÄÖÜ",   -- {196,214,220}
    SPECIAL_LOWER = "äöü"    -- {228,246,252}
@@ -216,17 +226,17 @@ if not RDS then -- standard rds routines only deal with A..Z
 --?SPECIAL_LOWER
 --?upper(SPECIAL_LOWER)
 --?lower(SPECIAL_UPPER)
-if not equal(SPECIAL_UPPER,upper(SPECIAL_LOWER)) then Abort("upper(SPECIAL) error\n") trace(1) end if
-if SPECIAL_UPPER!=upper(SPECIAL_LOWER) then Abort("upper(SPECIAL) error\n") trace(1) end if
-if not equal(SPECIAL_LOWER,lower(SPECIAL_UPPER)) then Abort("lower(SPECIAL) error\n") trace(1) end if
-if SPECIAL_LOWER!=lower(SPECIAL_UPPER) then Abort("lower(SPECIAL) error\n") trace(1) end if
+if not equal(SPECIAL_UPPER,upper(SPECIAL_LOWER)) then crash("upper(SPECIAL) error\n") trace(1) end if
+if SPECIAL_UPPER!=upper(SPECIAL_LOWER) then crash("upper(SPECIAL) error\n") trace(1) end if
+if not equal(SPECIAL_LOWER,lower(SPECIAL_UPPER)) then crash("lower(SPECIAL) error\n") trace(1) end if
+if SPECIAL_LOWER!=lower(SPECIAL_UPPER) then crash("lower(SPECIAL) error\n") trace(1) end if
 end if
 if showprogress then puts(1,"12\n") end if
 
 integer i i=5
 function f1() return i+1 end function
 constant k=f1()
-if k!=6 then Abort("k!=6\n") end if
+if k!=6 then crash("k!=6\n") end if
 
 if showprogress then puts(1,"13\n") end if
 
@@ -241,7 +251,7 @@ sequence s
     end for
 --DEV re-try this (2/2/16)
 --if machine_bits()!=64 then --DEV as above
---  if result!=1342242816 then Abort("result!=1342242816\n") end if
+--  if result!=1342242816 then crash("result!=1342242816\n") end if
 --end if
     -- same, shown in hex:
     s = {#40000000,#10000000,0,#10000}
@@ -250,7 +260,7 @@ sequence s
         result = or_bits(result, s[idx])
     end for
 --if machine_bits()!=64 then --DEV as above
---  if result!=#50010000 then Abort("result!=#50010000\n") end if
+--  if result!=#50010000 then crash("result!=#50010000\n") end if
 --end if
 --? result
 --machine_proc(60,1)    -- flush(1)
@@ -268,21 +278,29 @@ if showprogress then puts(1,"15\n") end if
 function f(integer i)
     return i
 end function
-    if f(1)+f(2)+f(3) != 6 then Abort("f(1)+f(2)+f(3)!=6") end if
---/**/  if g(1)+g(2)+g(3) != 6 then Abort("g(1)+g(2)+g(3)!=6") end if
+    if f(1)+f(2)+f(3) != 6 then crash("f(1)+f(2)+f(3)!=6") end if
+-- added for pwa/p2js... [DEV]
+--forward function g(integer i) -- [NOJOY]
+puts(1,"WARNING: forward call tests commented out temporarily (for pwa/p2js)...\n")
+if platform()!=JS then sleep(1) end if
+--/*
+--/**/  if g(1)+g(2)+g(3) != 6 then crash("g(1)+g(2)+g(3)!=6") end if
 function g(integer i)
     return i
 end function
+--*/
 
 if showprogress then puts(1,"16\n") end if
 
-object d, e = iff(platform()=WINDOWS?"C:\\":"/usr/local")
+if platform()!=JS then
+    object d, e = iff(platform()=WINDOWS?"C:\\":"/usr/local")
     d=current_dir()
-    if not chdir(e) then Abort(sprintf("not chdir(\"%s\")\n",{e})) end if
-    if not equal(current_dir(),e) then Abort(sprintf("not equal(current_dir()[%s],\"%s\")\n",{current_dir(),e})) end if
+    if not chdir(e) then crash(sprintf("not chdir(\"%s\")\n",{e})) end if
+    if not equal(current_dir(),e) then crash(sprintf("not equal(current_dir()[%s],\"%s\")\n",{current_dir(),e})) end if
     -- (hint: notice that the next two lines have no quotes and a full stop)
-    if not chdir(d) then Abort(sprintf("not chdir(%s).\n",{d})) end if
-    if not equal(current_dir(),d) then Abort(sprintf("not equal(current_dir()[%s],%s).\n",{current_dir(),d})) end if
+    if not chdir(d) then crash(sprintf("not chdir(%s).\n",{d})) end if
+    if not equal(current_dir(),d) then crash(sprintf("not equal(current_dir()[%s],%s).\n",{current_dir(),d})) end if
+end if
 
 if showprogress then puts(1,"17\n") end if
 
@@ -308,64 +326,65 @@ procedure setYZ(object a, object b)
 end procedure
 setYZ(2,2.5)
     x = y*5         -- opMuli
-if x!=10 then Abort("x!=10\n") end if
+if x!=10 then crash("x!=10\n") end if
 --  x = z*5         --   ""  error handling test 
     x = 8/2         -- opDivi2
-if x!=4 then Abort("x!=4\n") end if
+if x!=4 then crash("x!=4\n") end if
 --  x = 7/2         --   ""  error handling test
     y = 8/4         -- opDiviii
-if y!=2 then Abort("y!=2\n") end if
+if y!=2 then crash("y!=2\n") end if
 --  y = 7/3         --   ""  error handling test
 
 if showprogress then puts(1,"20\n") end if
 object o
     o=2
     x=14/o          -- opDivi
-if x!=7 then Abort("x!=7\n") end if
+if x!=7 then crash("x!=7\n") end if
 --  x=14/17         --   ""  error handling test
 
 if showprogress then puts(1,"21\n") end if
-if not_bits(-1)!=0 then Abort("not_bits(-1)!=0\n") end if
-if not_bits(0)!=-1 then Abort("not_bits(0)!=-1\n") end if
---if not equal(and_bits(not_bits({#0FFFFFFF, #7000, #05}), #0000FFFF),{#00000000, #00008FFF, #0000FFFA}) then Abort("?9/0(0)") end if
+if not_bits(-1)!=0 then crash("not_bits(-1)!=0\n") end if
+if not_bits(0)!=-1 then crash("not_bits(0)!=-1\n") end if
+--if not equal(and_bits(not_bits({#0FFFFFFF, #7000, #05}), #0000FFFF),{#00000000, #00008FFF, #0000FFFA}) then crash("?9/0(0)") end if
 --/**/ o = sq_and_bits(sq_not_bits({#0FFFFFFF, #7000, #05}), #0000FFFF)     --/*
        o = and_bits(not_bits({#0FFFFFFF, #7000, #05}), #0000FFFF)           --*/
-if not equal(o,{#00000000, #00008FFF, #0000FFFA}) then Abort("?9/0(1)\n") end if
-if not equal(and_bits(not_bits(#0FFFFFFF), #0000FFFF),#00000000) then Abort("?9/0(2)\n") end if
-if not equal(and_bits(not_bits(#7000), #0000FFFF),#00008FFF) then Abort("?9/0(3)\n") end if
-if not equal(and_bits(not_bits(#05), #0000FFFF), #0000FFFA) then Abort("?9/0(4)\n") end if
+if not equal(o,{#00000000, #00008FFF, #0000FFFA}) then crash("?9/0(1)\n") end if
+if not equal(and_bits(not_bits(#0FFFFFFF), #0000FFFF),#00000000) then crash("?9/0(2)\n") end if
+if not equal(and_bits(not_bits(#7000), #0000FFFF),#00008FFF) then crash("?9/0(3)\n") end if
+if not equal(and_bits(not_bits(#05), #0000FFFF), #0000FFFA) then crash("?9/0(4)\n") end if
 
 if showprogress then puts(1,"22\n") end if
 -- Number bases (not supported on RDS Eu!)
 --/**/  if #f!=15 then ?9/0 end if
---/**/  if #ffffffff!=#FFFFFFFF then Abort("#ffffffff!=#FFFFFFFF") end if
---/**/  if 0(16)ffffffff!=#FFFFFFFF then Abort("?0(16)ffffffff!=#FFFFFFFF") end if
---/**/  if 0o37777777777!=#FFFFFFFF then Abort("?0o37777777777!=#FFFFFFFF") end if
---/**/  if 0(8)37777777777!=#FFFFFFFF then Abort("?0(8)37777777777!=#FFFFFFFF") end if
---/**/  if 0ob377377377377!=#FFFFFFFF then Abort("?0ob377377377377!=#FFFFFFFF") end if
---/**/  if 0b11111111111111111111111111111111!=#FFFFFFFF then Abort("?0b11111111111111111111111111111111!=#FFFFFFFF") end if
---/**/  if 0(2)11111111111111111111111111111111!=#FFFFFFFF then Abort("?0(2)11111111111111111111111111111111!=#FFFFFFFF") end if
---/**/  if 0b111!=7 then Abort("?0b111!=7") end if
---/**/  if 255!=255 then Abort("!=255") end if
---/**/  if #FF!=255 then Abort("#FF!=255") end if
---/**/  if 0xFF!=255 then Abort("0xFF!=255") end if
---/**/  if 0(16)FF!=255 then Abort("0(16)FF!=255") end if
---/**/  if 0b11111111!=255 then Abort("0b11111111!=255") end if
---/**/  if 0(2)11111111!=255 then Abort("0(2)11111111!=255") end if
---/**/  if 0o377!=255 then Abort("0o377!=255") end if
---/**/  if 0ob377!=255 then Abort("0ob377!=255") end if
---/**/  if 0(8)377!=255 then Abort("0(8)377!=255") end if
---/**/  if 0(10)255!=255 then Abort("0(10)255!=255") end if
---/**/  if 0d255!=255 then Abort("0d255!=255") end if
---/**/  if #ff!=255 then Abort("#ff!=255") end if
---/**/  if #fF!=255 then Abort("#fF!=255") end if
---/**/  if #Ff!=255 then Abort("#Ff!=255") end if
---/**/  if 0xff!=255 then Abort("0xff!=255") end if
---/**/  if 0xfF!=255 then Abort("0xfF!=255") end if
---/**/  if 0xFf!=255 then Abort("0xFf!=255") end if
---/**/  if 0(16)ff!=255 then Abort("0(16)ff!=255") end if
---/**/  if 0(16)fF!=255 then Abort("0(16)fF!=255") end if
---/**/  if 0(16)Ff!=255 then Abort("0(16)Ff!=255") end if
+--/**/  if #ffffffff!=#FFFFFFFF then crash("#ffffffff!=#FFFFFFFF") end if
+--/**/  if 0(16)ffffffff!=#FFFFFFFF then crash("?0(16)ffffffff!=#FFFFFFFF") end if
+--/**/  if 0o37777777777!=#FFFFFFFF then crash("?0o37777777777!=#FFFFFFFF") end if
+--/**/  if 0(8)37777777777!=#FFFFFFFF then crash("?0(8)37777777777!=#FFFFFFFF") end if
+--pwa/p2js (bytewise octal not supported)
+--!/**/ if 0ob377377377377!=#FFFFFFFF then crash("?0ob377377377377!=#FFFFFFFF") end if
+--/**/  if 0b11111111111111111111111111111111!=#FFFFFFFF then crash("?0b11111111111111111111111111111111!=#FFFFFFFF") end if
+--/**/  if 0(2)11111111111111111111111111111111!=#FFFFFFFF then crash("?0(2)11111111111111111111111111111111!=#FFFFFFFF") end if
+--/**/  if 0b111!=7 then crash("?0b111!=7") end if
+--/**/  if 255!=255 then crash("!=255") end if
+--/**/  if #FF!=255 then crash("#FF!=255") end if
+--/**/  if 0xFF!=255 then crash("0xFF!=255") end if
+--/**/  if 0(16)FF!=255 then crash("0(16)FF!=255") end if
+--/**/  if 0b11111111!=255 then crash("0b11111111!=255") end if
+--/**/  if 0(2)11111111!=255 then crash("0(2)11111111!=255") end if
+--/**/  if 0o377!=255 then crash("0o377!=255") end if
+--!/**/ if 0ob377!=255 then crash("0ob377!=255") end if
+--/**/  if 0(8)377!=255 then crash("0(8)377!=255") end if
+--/**/  if 0(10)255!=255 then crash("0(10)255!=255") end if
+--/**/  if 0d255!=255 then crash("0d255!=255") end if
+--/**/  if #ff!=255 then crash("#ff!=255") end if
+--/**/  if #fF!=255 then crash("#fF!=255") end if
+--/**/  if #Ff!=255 then crash("#Ff!=255") end if
+--/**/  if 0xff!=255 then crash("0xff!=255") end if
+--/**/  if 0xfF!=255 then crash("0xfF!=255") end if
+--/**/  if 0xFf!=255 then crash("0xFf!=255") end if
+--/**/  if 0(16)ff!=255 then crash("0(16)ff!=255") end if
+--/**/  if 0(16)fF!=255 then crash("0(16)fF!=255") end if
+--/**/  if 0(16)Ff!=255 then crash("0(16)Ff!=255") end if
 --/**/  --?0(1)10   -- not supported
 if showprogress then puts(1,"23\n") end if
 
@@ -373,43 +392,45 @@ if showprogress then puts(1,"23\n") end if
 -- Fair enough there is probably very limited use for ten of the bases, but who knows someone might have
 -- a lock with 7 cylinders in a hotel with 5 stories.
 
---/**/  if 0(2)10!=2 then Abort("0(2)10!=2") end if
---/**/  if 0(3)10!=3 then Abort("0(3)10!=3") end if
---/**/  if 0(4)10!=4 then Abort("0(4)10!=4") end if
---/**/  if 0(5)10!=5 then Abort("0(5)10!=5") end if
---/**/  if 0(6)10!=6 then Abort("0(6)10!=6") end if
---/**/  if 0(7)10!=7 then Abort("0(7)10!=7") end if
---/**/  if 0(8)10!=8 then Abort("0(8)10!=8") end if
---/**/  if 0(9)10!=9 then Abort("0(9)10!=9") end if
---/**/  if 0(10)10!=10 then Abort("0(10)10!=10") end if
---/**/  if 0(11)10!=11 then Abort("0(11)10!=11") end if
---/**/  if 0(12)10!=12 then Abort("0(12)10!=12") end if
---/**/  if 0(13)10!=13 then Abort("0(13)10!=13") end if
---/**/  if 0(14)10!=14 then Abort("0(14)10!=14") end if
---/**/  if 0(15)10!=15 then Abort("0(15)10!=15") end if
---/**/  if 0(16)10!=16 then Abort("0(16)10!=16") end if
---/**/  if 0(2)11111111!=255 then Abort("0(2)11111111!=255") end if
---/**/  if 0(3)100110!=255 then Abort("0(3)100110!=255") end if
---/**/  if 0(4)3333!=255 then Abort("0(4)3333!=255") end if
---/**/  if 0(5)2010!=255 then Abort("0(5)2010!=255") end if
---/**/  if 0(6)1103!=255 then Abort("0(6)1103!=255") end if
---/**/  if 0(7)513!=255 then Abort("0(7)513!=255") end if
---/**/  if 0(8)377!=255 then Abort("0(8)377!=255") end if
---/**/  if 0(9)313!=255 then Abort("0(9)313!=255") end if
---/**/  if 0(10)255!=255 then Abort("0(10)255!=255") end if
---/**/  if 0(11)212!=255 then Abort("0(11)212!=255") end if
---/**/  if 0(12)193!=255 then Abort("0(12)193!=255") end if
---/**/  if 0(13)168!=255 then Abort("0(13)168!=255") end if
---/**/  if 0(14)143!=255 then Abort("0(14)143!=255") end if
---/**/  if 0(15)120!=255 then Abort("0(15)120!=255") end if
---/**/  if 0(16)FF!=255 then Abort("0(16)FF!=255") end if
+--/**/  if 0(2)10!=2 then crash("0(2)10!=2") end if
+--/**/  if 0(3)10!=3 then crash("0(3)10!=3") end if
+--/**/  if 0(4)10!=4 then crash("0(4)10!=4") end if
+--/**/  if 0(5)10!=5 then crash("0(5)10!=5") end if
+--/**/  if 0(6)10!=6 then crash("0(6)10!=6") end if
+--/**/  if 0(7)10!=7 then crash("0(7)10!=7") end if
+--/**/  if 0(8)10!=8 then crash("0(8)10!=8") end if
+--/**/  if 0(9)10!=9 then crash("0(9)10!=9") end if
+--/**/  if 0(10)10!=10 then crash("0(10)10!=10") end if
+--/**/  if 0(11)10!=11 then crash("0(11)10!=11") end if
+--/**/  if 0(12)10!=12 then crash("0(12)10!=12") end if
+--/**/  if 0(13)10!=13 then crash("0(13)10!=13") end if
+--/**/  if 0(14)10!=14 then crash("0(14)10!=14") end if
+--/**/  if 0(15)10!=15 then crash("0(15)10!=15") end if
+--/**/  if 0(16)10!=16 then crash("0(16)10!=16") end if
+--/**/  if 0(2)11111111!=255 then crash("0(2)11111111!=255") end if
+--/**/  if 0(3)100110!=255 then crash("0(3)100110!=255") end if
+--/**/  if 0(4)3333!=255 then crash("0(4)3333!=255") end if
+--/**/  if 0(5)2010!=255 then crash("0(5)2010!=255") end if
+--/**/  if 0(6)1103!=255 then crash("0(6)1103!=255") end if
+--/**/  if 0(7)513!=255 then crash("0(7)513!=255") end if
+--/**/  if 0(8)377!=255 then crash("0(8)377!=255") end if
+--/**/  if 0(9)313!=255 then crash("0(9)313!=255") end if
+--/**/  if 0(10)255!=255 then crash("0(10)255!=255") end if
+--/**/  if 0(11)212!=255 then crash("0(11)212!=255") end if
+--/**/  if 0(12)193!=255 then crash("0(12)193!=255") end if
+--/**/  if 0(13)168!=255 then crash("0(13)168!=255") end if
+--/**/  if 0(14)143!=255 then crash("0(14)143!=255") end if
+--/**/  if 0(15)120!=255 then crash("0(15)120!=255") end if
+--/**/  if 0(16)FF!=255 then crash("0(16)FF!=255") end if
 --/**/  --?0(17)10  -- not supported
 if showprogress then puts(1,"24\n") end if
 
 -- embedded hex chars in strings (and not really necessary, squotes to match)
---/**/  if not equal("st\#72ing\n","string\n") then Abort("#72!=r") end if
+if platform()!=JS then
+--/**/  if not equal("st\#72ing\n","string\n") then crash("#72!=r") end if
+end if
 -- (remove for pwa/p2js?:)
---/**/  if not equal('\#62'&"e cool","be cool") then Abort("#62!=b") end if
+--/**/  if not equal('\#62'&"e cool","be cool") then crash("#62!=b") end if
 if showprogress then puts(1,"25\n") end if
 
 
@@ -464,7 +485,7 @@ if showprogress then puts(1,"27\n") end if
 --  (DEV oops, broke -test (pie))
 --with profile
 with trace
-
+if platform()!=JS then
 atom xSystemTime
 
     xSystemTime = allocate(4)
@@ -481,6 +502,7 @@ sequence res
            peek2uX(xSystemTime)}
 if res!={2011,2011} then ?9/0 end if
 --without profile
+end if
 
 if showprogress then puts(1,"28\n") end if
 
@@ -497,9 +519,14 @@ if r_click_OpenRecentFile!=routine_id("click_OpenRecentFile") then ?9/0 end if
 if showprogress then puts(1,"29\n") end if
 
 --24/1/17:
+puts(1,"WARNING: serialize temporarily removed for pwa/p2js...\n")
+--(make this an autoinclude, or remove from p2js_keywords?)
+if platform()!=JS then sleep(1) end if
+--/*
 include builtins\serialize.e
 s = {"Pete",{1,0,-1},PI,-PI}
 if s!= deserialize(serialize(s)) then ?9/0 end if
+--*/
 
 if showprogress then puts(1,"30\n") end if
 
@@ -526,9 +553,10 @@ if sq_round(x1,100)!={0.13,0.38,0.63,0.88} then ?9/0 end if
 if showprogress then puts(1,"32\n") end if
 
 --20/06/2020 (nested constant declarations)
-function ff(object o) return o end function
-constant xx = {AA:=1, ff({BB:=2}), {CC:={DD:=3,4}}}
-if {xx,AA,BB,CC,DD}!={{1,{2},{{3,4}}},1,2,{3,4},3} then ?9/0 end if
+--DEV pwa/p2js...
+--function ff(object o) return o end function
+--constant xx = {AA:=1, ff({BB:=2}), {CC:={DD:=3,4}}}
+--if {xx,AA,BB,CC,DD}!={{1,{2},{{3,4}}},1,2,{3,4},3} then ?9/0 end if
 
 if showprogress then puts(1,"33\n") end if
 

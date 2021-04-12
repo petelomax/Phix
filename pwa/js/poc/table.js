@@ -68,8 +68,8 @@ function hasClass(elm,findclass) {
 }
 function changeClass(elm,oldclass,newclass) {
     if (!elm) return null;
-    var c = elm.className.split(' ');
-    for (var i=0;i<c.length;i++) {
+    let c = elm.className.split(' ');
+    for (let i=0;i<c.length;i++) {
         c[i] = trim(c[i]);
         if (c[i]==oldclass || c[i]==newclass || c[i]=='') c.splice(i,1);
     }
@@ -77,7 +77,7 @@ function changeClass(elm,oldclass,newclass) {
     elm.className = trim(c.join(' '));
 }
 function elementIndex(elm) {
-    for (var i=0;i<this.elements.length;i++) {
+    for (let i=0;i<this.elements.length;i++) {
         if (this.elements[i]==elm) return i;
     }
     return -1;
@@ -92,7 +92,7 @@ function select(elm) {
 }
 function deselect(elm) {
     changeClass(elm,'selrow','');
-    for (var i=0;i<selectedElements.length;i++) {
+    for (let i=0;i<selectedElements.length;i++) {
         if (selectedElements[i]==elm) selectedElements.splice(i,1);
     }
 }
@@ -102,9 +102,9 @@ function selectRange(elm1) {
         select(elm1);
         return false;
     }
-    var elm0 = selectedElements[selectedElements.length-1];
-    var d = (elementIndex(elm0) < elementIndex(elm1));
-    var elm = elm0;
+    let elm0 = selectedElements[selectedElements.length-1];
+    let d = (elementIndex(elm0) < elementIndex(elm1));
+    let elm = elm0;
     if (selected(elm1)) {if (selected(elm0)) deselect(elm0);}
     else {if (!selected(elm0)) select(elm0);}
     do {
@@ -115,7 +115,7 @@ function selectRange(elm1) {
     return true;
 }
 function cleanselect() {
-    for (var i=0;i<this.elements.length;i++) {
+    for (let i=0;i<this.elements.length;i++) {
         if (selected(this.elements[i])) deselect(this.elements[i]);
     }
     selectedElements = new Array();
@@ -125,10 +125,10 @@ function getEventElement(e) {
     return (e.target)? e.target : e.srcElement;
 }
 function callBodyClick(e) {
-    var elm = getEventElement(e);
-    var st = SortedTable.getSortedTable(elm);
+    let elm = getEventElement(e);
+    let st = SortedTable.getSortedTable(elm);
     if (!st) return false;
-    var elm = st.findParent(elm,'tr');
+    let elm = st.findParent(elm,'tr');
     if (e.shiftKey && allowMultiple) {
         selectRange(elm);
     } else if (selected(elm)) {
@@ -150,13 +150,13 @@ let s = document.getElementsByTagName('style');
 
 /*
 function performTask(items, numToProcess, processItem) {
-    var pos = 0;
+    let pos = 0;
     // This is run once for every numToProcess items.
     function iteration() {
         // Calculate last position.
-        var j = Math.min(pos + numToProcess, items.length);
+        let j = Math.min(pos + numToProcess, items.length);
         // Start at current position and loop to last position.
-        for (var i = pos; i < j; i++) {
+        for (let i = pos; i < j; i++) {
             processItem(items, i);
         }
         // Increment current position.

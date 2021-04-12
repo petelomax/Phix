@@ -36,15 +36,16 @@ procedure add_block()
 end procedure
 
 -- replaced with much faster version in pfactors.e:
---global function is_prime(atom p)
---  if sieved=0 then init_sieve() end if
---  while sieved<p do
---      add_block()
---  end while
---  return binary_search(p,primes)>0
---end function
+global function is_prime2(atom p)
+    if sieved=0 then init_sieve() end if
+    while sieved<p do
+        add_block()
+    end while
+    return binary_search(p,primes)>0
+end function
 
 global function get_prime(integer n)
+    if n=0 then return 0 end if
     if sieved=0 or n=-1 then init_sieve() end if
     while length(primes)<n do
         add_block()
@@ -60,7 +61,9 @@ global function get_maxprime(atom p)
     while sieved<p do
         add_block()
     end while
-    return abs(binary_search(p,primes))
+    p = binary_search(p,primes)
+    if p<0 then p = abs(p)-1 end if
+    return p
 end function
 
 global function get_primes(integer count=0)
@@ -72,5 +75,16 @@ global function get_primes(integer count=0)
     if count<0 then
         res = res[1..abs(count)]
     end if
+    return res
+end function
+
+global function get_primes_le(integer hi)
+    if sieved=0 then init_sieve() end if
+    while primes[$]<hi do
+        add_block()
+    end while
+    hi = binary_search(hi,primes)
+    if hi<0 then hi = abs(hi)-1 end if
+    sequence res = primes[1..hi]
     return res
 end function

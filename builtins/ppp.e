@@ -20,7 +20,7 @@
 -- Version 2.0.1
 --   05/06/04: float format default changed to %g (was %3.2g)
 --
---/**/without debug -- keep ex.err clean (remove to debug!)
+--!/**/without debug -- keep ex.err clean (remove to debug!)
 --!/**/with debug
 --  NB: the "without debug" in pdiag.e overshadows the one here; you may
 --      need to "with debug" here to get a listing, or use -nodiag.
@@ -208,42 +208,28 @@
 --DEV wrong one for newEmit
 --!/**/include builtins\pprntf.e -- (not strictly necessary, but saves on opCallOnce/fwd calls/onDeclaration)
 
-integer ppp_Maxlen      -- break lines longer than this
-        ppp_Maxlen = 78
-integer ppp_Indent      -- auto-indent all lines this much
-        ppp_Indent = 0
-object  ppp_Nest        -- nest level
---      ppp_Nest=0
-integer ppp_Pause       -- pause display after this many lines
---      ppp_Pause = 23  -- 0=never pause
-        ppp_Pause = 0   -- 0=never pause
---integer ppp_StrFmt        -- 0=text as strings, -1 without quotes,
---      ppp_StrFmt = 0  -- -2=text as strings, chars number only,
---                      -- 1 as numbers, 3 as number&text
-integer ppp_StrFmt      -- 0=text as strings, -1 without quotes,
-        ppp_StrFmt = 0  -- 3 as numbers [each as per pp_IntCh]
---added 22/6/19:
-integer ppp_IntCh = true    -- ints as eg 65'A' (false=just 65, (-1 and ' '..'~')=just 'A')
+integer ppp_Maxlen = 78     -- break lines longer than this
+integer ppp_Indent = 0      -- auto-indent all lines this much
+object  ppp_Nest = 0        -- nest level
+integer ppp_Pause = 0       -- pause display after this many lines, 0=never pause
+integer ppp_StrFmt = 0      -- 0=text as strings, -1 without quotes,
+                            -- 3 as numbers [each as per pp_IntCh]
+--3/4/21
+--integer ppp_IntCh = true  -- ints as eg 65'A' (false=just 65, (-1 and ' '..'~')=just 'A')
+integer ppp_IntCh = false   -- ints as eg 65 (true=65'A', (-1 with ' '..'~')=just 'A')
 
-integer ppp_Init   ppp_Init    =  0
+integer ppp_Init =  0
 
-object  ppp_Ascii       -- low ascii [ranges]
---      ppp_Ascii={#20,#7D}
-sequence ppp_IntFmt     -- integer display format
---       ppp_IntFmt="%d"
-sequence ppp_FltFmt     -- float display format
---       ppp_FltFmt="%.10g"
-sequence ppp_Date       -- date handling
---       ppp_Date=""
-sequence ppp_Br         -- Bracket characters
---       ppp_Br="{}"
-integer ppp_Q22         -- Show quotes as #22 (default 0)
-        ppp_Q22 = 0
+object  ppp_Ascii --={#20,#7D}  -- low ascii [ranges]
+sequence ppp_IntFmt --="%d"     -- integer display format
+sequence ppp_FltFmt --="%.10g"  -- float display format
+sequence ppp_Date  --=""        -- date handling
+sequence ppp_Br --="{}"         -- Bracket characters
+integer ppp_Q22 = 0     -- Show quotes as #22 (default 0)
 
 sequence ascii
 
-integer ppp_File
-        ppp_File = 1        -- default: display to Screen
+integer ppp_File = 1        -- default: display to Screen
 
 --!/**/  string ppp_result --/*
 sequence ppp_result         -- print result if ppp_File is 0
@@ -271,9 +257,9 @@ global constant pp_File     = 1,
 --!/**/ string pline --/*
 sequence pline          -- output line, as built by sput()
 --!*/
-integer  plen   plen  = 0       -- used part of pline; rest is garbage
-integer  sline  sline = 0       -- counter for screen line
-integer  nindent                -- indent increment when nesting
+integer  plen  = 0      -- used part of pline; rest is garbage
+integer  sline = 0      -- counter for screen line
+integer  nindent        -- indent increment when nesting
 
 procedure spurge()
 --
@@ -298,8 +284,7 @@ procedure sput(object txt)
 --
 -- bundle "puts(1," calls together for output one line at a time.
 --
-integer p
-    p = plen+1
+    integer p = plen+1
     if atom(txt) then
         plen += 1
     else
@@ -356,16 +341,14 @@ end function
 
 without warning -- suppress short-circuit warning
 
-integer cl1q            -- cl[1] was '"'
-        cl1q = 0
-integer cllq            -- cl[-1] was '"'
-        cllq = 0
+integer cl1q = 0        -- cl[1] was '"'
+integer cllq = 0        -- cl[-1] was '"'
 
 function prnf(object cl, integer col, integer indent, integer prnt, integer nestlvl)
-integer len, iplus1, k, ch
-integer aschar, asbacktick
-sequence sep,txt
-object chint
+    integer len, iplus1, k, ch
+    integer aschar, asbacktick
+    sequence sep,txt
+    object chint
     if sequence(cl) then
 --23/11/19: (I just never want to see {"this",{9,10}} as {"this","\t\n"} ever again, thank you very much!)
 --      if ppp_StrFmt<=0 then
@@ -616,16 +599,15 @@ procedure fatal(string msg, integer level)
           }
 --  ?9/0
 --*/
-    crash(msg,nFrames:=level)
+--  crash(msg,nFrames:=level)
+    crash(msg,{},level) -- pwa/p2js: JavaScript does not support named parameters...
 end procedure
 
 procedure setAscii()
-object minasc,maxasc
     ascii = repeat(0,255)
     if length(ppp_Ascii)!=2 then fatal("length(ascii) must be 2",4) end if
-    minasc = ppp_Ascii[1]
+    object {minasc,maxasc} = ppp_Ascii
     if not sequence(minasc) then minasc = {minasc} end if
-    maxasc = ppp_Ascii[2]
     if not sequence(maxasc) then maxasc = {maxasc} end if
     if length(minasc)!=length(maxasc) then fatal("length(minasc)!=length(maxasc)",4) end if
     if find(0,minasc) or find(0,maxasc) then fatal("find(0,minasc) or find(0,maxasc)",4) end if
@@ -660,8 +642,8 @@ procedure pp_Init()
 end procedure
 
 function setOpt(sequence options)
-integer f, ip1, flvl = 4
-object tmp
+    integer f, ip1, flvl = 4
+    object tmp
     if not ppp_Init then pp_Init() end if
     if and_bits(1,length(options)) then fatal("length(options) not even",flvl) end if
     for i=1 to length(options) by 2 do

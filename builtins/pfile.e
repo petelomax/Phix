@@ -7,10 +7,12 @@
 
 --#withtype bool
 
-atom finit = 0, W, xGetFileAttributes, xMoveFile, xDeleteFile, xCopyFile, 
+--atom finit = 0, W, xGetFileAttributes, xMoveFile, xDeleteFile, xCopyFile, 
+atom finit = 0, W, xMoveFile, xDeleteFile, xCopyFile, 
      xCreateDirectory, xRemoveDirectory, xGetLogicalDriveStrings, xGetDriveType, 
      xCreateFileA, xSetFilePointer, xSetEndOfFile, xSetFileTime, xGetSystemTime,
      xSystemTimeToFileTime, xCloseHandle, xGetLastError
+--,x40
 
 --Windows only constants for MoveFileEx:
 constant MOVEFILE_REPLACE_EXISTING  = #01,  -- (Not allowed for directories)
@@ -23,8 +25,9 @@ procedure initf()
 --  atom lib = open_dll(iff(W?"kernel32":""))   -- libc.so? libc.dylib?
     enter_cs()
     atom lib = open_dll(iff(W?"kernel32":"libc.so"))
-    xGetFileAttributes      = iff(W?define_c_func(lib, "GetFileAttributesA", {C_PTR}, C_INT)
-                                   :define_c_func(lib, "access", {C_PTR, C_INT}, C_INT))
+--  xGetFileAttributes      = iff(W?define_c_func(lib, "GetFileAttributesA", {C_PTR}, C_INT)
+----    xGetFileAttributes      = iff(W?define_c_func(lib, "GetFileAttributesExA", {C_PTR,C_INT,C_PTR}, C_INT)
+--                                 :define_c_func(lib, "access", {C_PTR, C_INT}, C_INT))
     xMoveFile               = iff(W?define_c_func(lib, "MoveFileExA", {C_PTR, C_PTR, C_INT}, C_BOOL)
                                    :define_c_func(lib, "rename", {C_PTR, C_PTR}, C_INT))
     xDeleteFile             = iff(W?define_c_func(lib, "DeleteFileA", {C_PTR}, C_BOOL)
@@ -56,6 +59,7 @@ procedure initf()
                                    :-1)             -- (not used)
     xGetLastError           = iff(W?define_c_func(lib, "GetLastError", {}, C_INT)
                                    :-1)             -- (windows only)
+--x40 = allocate(40)
     leave_cs()
     finit = 1
 end procedure
@@ -64,9 +68,21 @@ global function file_exists(string name)
 -- (if you want to know that is is a file and not a directory, use 
 --  file_exists(name) and get_file_type(name)=FILETYPE_FILE, or
 --  just get_file_type(name)=FILETYPE_FILE)
+--reverted to older method 24/3/21 (/pagefile.sys reported as does not exist - ???!!)
+    object d = dir(name)
+    return sequence(d)
+/*
     if not finit then initf() end if
-    return iff(W?c_func(xGetFileAttributes, {name})>0
-                :c_func(xGetFileAttributes, {name, 0})=0)
+-- temp/debug
+    integer res = iff(W?c_func(xGetFileAttributes, {name})
+--  integer res = iff(W?c_func(xGetFileAttributes, {name,1,x40})
+                       :c_func(xGetFileAttributes, {name, 0}))
+?res
+    return iff(W?res>0
+                :res=0)
+--  return iff(W?c_func(xGetFileAttributes, {name})>0
+--              :c_func(xGetFileAttributes, {name, 0})=0)
+*/
 end function
 
 --DEV needs testing on Linux (get_proper_path)
@@ -126,10 +142,24 @@ global function get_file_base(string path)
     return path
 end function
 
-global function get_file_path(string path, integer dropslash=1)
+global function get_file_path(string path, bool dropslash=true)
     if not finit then initf() end if
     path = get_proper_path(path)
     return path[1..rfind(SLASH, path)-dropslash]
+end function
+
+global function get_file_path_and_name(string filepath, bool dropslash=true)
+    if not finit then initf() end if
+    filepath = get_proper_path(filepath)
+    integer k = rfind(SLASH, filepath)
+    string path = filepath[1..k-dropslash],
+           name = filepath[k+1..$]
+    return {path,name}
+end function
+
+global function get_file_name_and_path(string filepath, bool dropslash=true)
+    string {path,name} = get_file_path_and_name(filepath, dropslash)
+    return {name,path}
 end function
 
 --/* Now defined in psym.e:

@@ -13,7 +13,8 @@
           <b>Definition:</b>
          </td>
          <td>
-         <a href="sequence.htm">sequence</a> res = vslice(<a href="sequence.htm">sequence</a> source, <a href="integer.htm">integer</a> column)
+         <a href="sequence.htm">sequence</a> res = vslice(<a href="sequence.htm">sequence</a> source, 
+                                                          <a href="object.htm">object</a> column, error_control=0)
          </td>
         </tr>
         <tr>
@@ -21,16 +22,14 @@
           <b>Description:</b>
          </td>
          <td>
-            Return the specified column of every element of source.<br>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <b>Comments:</b>
-         </td>
-         <td>
-            This is sometimes also known as a vertical slice, although that is not entirely correct since you can only extract a single column,
-            so 'vertical subscript' might have been better, but in that case this routine would probably have been named 'vsubscript'.
+            Extract a specified column or vertical slice from a sequence.<br>
+            source: the sequence from which to extract a vertical column.<br>
+            column: positive integer or pair of integers (latter is not Euphoria-compatible).<br>
+            error_control: 0 =&gt; crash, integer =&gt; return short, sequence =&gt; replacement[s].
+            <br>
+            <br>
+            Returns a sequence or string of at most length(source). The result will be a string if column is an integer and
+            source is either a list of strings or each element extracted happens to be an integer(/character) in the range 0..255.
          </td>
         </tr>
         <tr>
@@ -41,17 +40,25 @@
 <!--eucode>
 sequence s = {{5,1},
               {5,2},
-              {5,3}}
-?vslice(s,2) -- prints {1,2,3}
-?vslice(s,1) -- prints {5,5,5}
+              {5,3},
+              4}
+?vslice(s,2,1)          -- prints {1,2,3} -- (omitting error_control crashes)
+?vslice(s,1,1)          -- prints {5,5,5}           --  ""
+?vslice(s,{1,2},1)      -- prints {{5,1},{5,2},{5,3}} --   ""
+?vslice(s,{1,2},{1})    -- prints {{5,1},{5,2},{5,3},1} --   ""
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#004080">sequence</font><font color="#000000"> s</font><font color="#0000FF"> = {</font><font color="#800000">{</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#800000">}</font><font color="#0000FF">,
-</font><font color="#800000">              {</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#800000">}</font><font color="#0000FF">,
-</font><font color="#800000">              {</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#800000">}</font><font color="#0000FF">}
-?</font><font color="#7060A8">vslice</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">)</font><font color="#000080"><i> -- prints {1,2,3}
-</i></font><font color="#0000FF">?</font><font color="#7060A8">vslice</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">)</font><font color="#000080"><i> -- prints {5,5,5}</i></font>
+<font color="#004080">sequence</font><font color="#000000"> s</font><font color="#0000FF"> = {</font><font color="#800000">{</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#800000">}</font><font color="#0000FF">,</font>
+<font color="#800000">              {</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#800000">}</font><font color="#0000FF">,</font>
+<font color="#800000">              {</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#800000">}</font><font color="#0000FF">,</font>
+<font color="#000000">              4</font><font color="#0000FF">}
+?</font><font color="#7060A8">vslice</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">)         </font><font color="#000080"><i> -- prints {1,2,3} -- (omitting error_control crashes)</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">vslice</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">)         </font><font color="#000080"><i> -- prints {5,5,5}           --  ""</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">vslice</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">)     </font><font color="#000080"><i> -- prints {{5,1},{5,2},{5,3}} --   ""</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">vslice</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#800000">}</font><font color="#0000FF">)   </font><font color="#000080"><i> -- prints {{5,1},{5,2},{5,3},1} --   ""</i></font>
 </pre>
+            <small>(Technically the first two results are binary strings that <a href="qu.htm">?</a> prettifies to look like dword-sequences,
+            as opposed to "\x01\x02\x03", x"010203", "\x05\x05\x05", or x"050505".)</small>
          </td>
         </tr>
         <tr>
@@ -77,15 +84,14 @@ sequence s = {{5,1},
           </a>
          </td>
          <td>
-            Unlike the Euphoria version, there is no third 'error_control' parameter.
-            <br>
-            <br>
-            This routine is provided mainly for compatibility with Euphoria.<br>
-            Should you require any error handling at all, simply create a renamed and application-specific version of that routine.
+            For compatibility with Euphoria, error_control can be a non-length-1 sequence of replacements which are taken cyclically,
+            for reasons I cannot even begin to fathom - personally I would just use say {-1} or {"missing"}.
             <br>
             <br>
             I initially planned to write this as a mini wrapper for columnize using the integer column as the second parameter, but
-            it turned out so trivial that doing so would be complete overkill.
+            it turned out so trivial that doing so would be complete overkill. There is a fair bit of overlap between vslice() and
+            columnize(), this being simpler and slightly faster especially for slices, and that being much better for transposing
+            the whole thing.
          </td>
         </tr>
        </table>

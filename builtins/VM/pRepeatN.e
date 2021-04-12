@@ -1,6 +1,6 @@
 --
--- pRepeatN.e
--- ==========
+-- builtins/VM/pRepeatN.e
+-- ======================
 --
 --without debug
 include builtins\VM\pHeap.e     -- :%pAllocStr, :%pAllocSeq

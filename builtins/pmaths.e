@@ -16,7 +16,7 @@
 --  it, unless you want a namespace.
 --
 without trace
-include VM\pTrig.e  -- (not strictly necessary)
+--include VM\pTrig.e    -- (not strictly necessary)
 
 global function abs(atom o)
     if o<0 then

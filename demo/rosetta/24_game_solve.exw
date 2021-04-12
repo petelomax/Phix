@@ -21,6 +21,14 @@ constant expressions = {"1+(2-(3*4))",
                         "((1+2)-3)*4"}  -- (equivalent to "1+2-3*4")
 --TODO: I'm sure there is a simple (recursive) way to programatically
 --      generate the above (for n=2..9) but I'm not seeing it yet...
+--AH, the penny (partially) drops. something recursive along the lines of
+--      if length=2 then
+--          res &= abc
+--      else
+--          for i=2 to $-1 do
+--              res = recurse(res,s[1..i],s[i+1..$])
+--          end for
+--      end if
 
 -- The above represented as three sequential operations (the result gets 
 --  left in <(map)1>, ie vars[perms[operations[i][3][1]]] aka vars[lhs]):
@@ -30,13 +38,13 @@ constant operations = {{{3,'*',4},{2,'-',3},{1,'+',2}}, --3*=4; 2-=3; 1+=2
                        {{2,'-',3},{1,'+',2},{1,'*',4}}, --2-=3; 1+=2; 1*=4
                        {{1,'+',2},{1,'-',3},{1,'*',4}}} --1+=2; 1-=3; 1*=4
 --TODO: ... and likewise for parsing "expressions" to yield "operations".
+--maybe: make the above res into trees, and simply walk them two ways.
 
-function evalopset(sequence opset, sequence perms, sequence ops, sequence vars)
+function evalopset(sequence opset, perms, ops, vars)
 -- invoked 5*24*64 = 7680 times, to try all possible expressions/vars/operators
 -- (btw, vars is copy-on-write, like all parameters not explicitly returned, so
 --       we can safely re-use it without clobbering the callee version.)
-integer lhs,op,rhs
-atom inf
+    integer lhs,op,rhs
     for i=1 to length(opset) do
         {lhs,op,rhs} = opset[i]
         lhs = perms[lhs]
@@ -49,21 +57,7 @@ atom inf
         elsif op='*' then
             vars[lhs] *= vars[rhs]
         elsif op='/' then
---          if vars[rhs]=0 then inf = 1e300*1e300 return inf end if
-            if vars[rhs]=0 then
-                inf = 1e300*1e300
---DEV make INF a builtin, like PI.
-                #ilASM{ fld1
-                        fldz
-                        fdivp
-                    [32]
-                        lea edi,[inf]
-                    [64]
-                        lea rdi,[inf]
-                    []
-                        call :%pStoreFlt }
-                return inf
-            end if
+            if vars[rhs]=0 then return 1e300*1e300 end if
             vars[lhs] /= vars[rhs]
         end if
     end for
@@ -73,10 +67,9 @@ end function
 integer nSolutions
 sequence xSolutions
 
-procedure success(string expr, sequence perms, sequence ops, sequence vars, atom r)
-integer ch
+procedure success(string expr, sequence perms, ops, vars, atom r)
     for i=1 to length(expr) do
-        ch = expr[i]
+        integer ch = expr[i]
         if ch>='1' and ch<='9' then
             expr[i] = vars[perms[ch-'0']]+'0'
         else
@@ -96,11 +89,10 @@ integer ch
     end if
 end procedure
 
-procedure tryperms(sequence perms, sequence ops, sequence vars)
-atom r
+procedure tryperms(sequence perms, ops, vars)
     for i=1 to length(operations) do
         -- 5 parse expressions
-        r = evalopset(operations[i], perms, ops, vars)
+        atom r = evalopset(operations[i], perms, ops, vars)
         r = round(r,1e9) -- fudge tricky 8/(3-(8/3)) case
         if r=24 then
             success(expressions[i], perms, ops, vars, r)
@@ -108,19 +100,19 @@ atom r
     end for
 end procedure
 
-include builtins/factorial.e
-include builtins/permute.e
-procedure tryops(sequence ops, sequence vars)
+procedure tryops(sequence ops, vars)
     for p=1 to factorial(4) do
         -- 24 var permutations
         tryperms(permute(p,{1,2,3,4}),ops, vars)
     end for
 end procedure
 
---TODO I suppose we could have a combination() builtin to match (the new) permute()... [DEV]
 global procedure solve24(sequence vars)
     nSolutions = 0
     xSolutions = {}
+--  for c = 1 to power(length(vars),3) do
+--      tryops(combination(c,3,OPS),vars)
+--  end for
     for op1=1 to 4 do
         for op2=1 to 4 do
             for op3=1 to 4 do
@@ -133,11 +125,9 @@ global procedure solve24(sequence vars)
     printf(1,"\n%d solutions\n",{nSolutions})
 end procedure
 
---if 0 then
---  solve24({1,1,2,7})
---  solve24({6,4,6,1})
---  solve24({3,3,8,8})
-    solve24({6,9,7,4})
-    if getc(0) then end if
---end if
+solve24({1,1,2,7})
+--solve24({6,4,6,1})
+--solve24({3,3,8,8})
+--solve24({6,9,7,4})
+{} = wait_key()
 

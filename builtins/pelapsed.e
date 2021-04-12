@@ -7,7 +7,7 @@
 --  results/formatting, leave this be, crib what you like, and start afresh.
 --
 
-function elaps(integer v, string d, r="")
+function elaps(atom v, string d, r="")
 -- private helper function.
 -- formats v and pluralises d by adding an "s", or not,
 -- finally if length>0 appends r with a ", " separator.
@@ -22,7 +22,7 @@ function elaps(integer v, string d, r="")
 end function
 
 function elapsdwy(atom d, string res)
-    integer y,w 
+    atom y,w 
     y = floor(d/365)
     d = remainder(d,365)
     w = floor(d/7)

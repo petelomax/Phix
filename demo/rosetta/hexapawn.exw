@@ -30,23 +30,23 @@ include pGUI.e
 -- A board is held as eg {"WWW","...","BBB"} (nb displayed upside down)
 -- A move is held as {{{y1,x1},{y2,x2}},colour} where x/y are 1..3.
 
-enum BOARD, MOVES, BLACK, WHITE 
+enum BOARD, MOVES, BLACKS, WHITES 
 -- nb the above correspond to board_canvas .. white_canvas.
 -- nb BOARD|MOVES also apply within each of the above, that is
 --    data[BOARD][BOARD], data[BOARD][MOVES], data[MOVES][BOARD],
---    etc are all valid uses, however data[BOARD][BLACK] isn't.
+--    etc are all valid uses, however data[BOARD][BLACKS] isn't.
 
 sequence data = {{{},{}},   -- BOARD    -- (current)
                  {{},{}},   -- MOVES    -- (game log)
-                 {{},{}},   -- BLACK    -- (training data)
-                 {{},{}}}   -- WHITE    -- (training data)
+                 {{},{}},   -- BLACKS   -- (training data)
+                 {{},{}}}   -- WHITES   -- (training data)
 
 -- data[BOARD][BOARD] is always a sequence of length 1, for consistency,
 --                    whereas [other][BOARD] can contain 0..19 of them,
 --                    where that 19 is just from the highest yet seen.
 -- data[BOARD][MOVES] is {} or one move, depending on the mouse hover.
 -- data[MOVES][MOVES] has one move per board, except last which is {}.
--- data[BLACK/WHITE][MOVES] can contain 0-3 possible moves, obviously.
+-- data[BLACKS/WHITES][MOVES] can contain 0-3 possible moves, obviously.
 
 bool game_over = false
 integer bw = 0, ww = 0  -- win counts
@@ -56,7 +56,7 @@ enum HUMAN, COMPUTER
 -- The next five values flip on every move:
 integer player, opponent,           -- 'W' <==> 'B'
         player_type, opponent_type, -- HUMAN/COMPUTER
-        traindx = WHITE             -- or BLACK, top-level index to data
+        traindx = WHITES            -- or BLACKS, top-level index to data
 
 function possible_moves(sequence board)
     sequence moves = {}
@@ -163,7 +163,7 @@ procedure play_move(sequence move)
         data[MOVES][MOVES] &= {{{}}}
         {player, opponent} = {opponent, player}
         {player_type, opponent_type} = {opponent_type, player_type}
-        traindx = WHITE+BLACK - traindx -- (toggle b/w)
+        traindx = WHITES+BLACKS - traindx -- (toggle b/w)
         sequence board = data[BOARD][BOARD][1]
         if y2!=2 -- (must be "third row" then, ie 1|3)
         or not find(player,flatten(board))
@@ -207,7 +207,7 @@ procedure new_game()
     {player_type,opponent_type} = {HUMAN,COMPUTER} -- (or any)
 --  {player_type,opponent_type} = {COMPUTER,COMPUTER} -- (or any)
 --  {player_type,opponent_type} = {HUMAN,HUMAN} -- (or any)
-    traindx = WHITE
+    traindx = WHITES
     {} = find_board(data[BOARD][BOARD][1])  -- (init training data)
 end procedure
 
@@ -231,7 +231,7 @@ procedure train_rec()
 end procedure
 
 -- === ott gui version ===
--- Displays full training data (for black and white), and last game history.
+-- Displays full training data (for blacks and whites), and last game history.
 -- Mouse-operated gameplay (hover for arrow then click).
 
 -- To do: Show a little more enthusiasm when someone wins, and say who did.
@@ -307,7 +307,7 @@ procedure draw_board(cdCanvas cddbuffer, integer dx, i, px, py, mx)
     end for
 end procedure
  
-function redraw_cb(Ihandle ih, integer /*posx*/, integer /*posy*/)
+function redraw_cb(Ihandle ih, integer /*posx*/, /*posy*/)
     integer dx = IupGetInt(ih,"DATA"),
             {cw,ch} = IupGetIntInt(ih, "DRAWSIZE")
     --
@@ -519,8 +519,8 @@ procedure main()
  
     Ihandle board_canvas = IupGLCanvas("DATA=%d,RASTERSIZE=50x50",{BOARD}),
             moves_canvas = IupGLCanvas("DATA=%d,RASTERSIZE=50x50",{MOVES}),
-            black_canvas = IupGLCanvas("DATA=%d,RASTERSIZE=50x50",{BLACK}),
-            white_canvas = IupGLCanvas("DATA=%d,RASTERSIZE=50x50",{WHITE}),
+            black_canvas = IupGLCanvas("DATA=%d,RASTERSIZE=50x50",{BLACKS}),
+            white_canvas = IupGLCanvas("DATA=%d,RASTERSIZE=50x50",{WHITES}),
             board_frame = IupFrame(board_canvas,"TITLE=Board"),
             moves_frame = IupFrame(moves_canvas,`TITLE="Game log"`),
             black_frame = IupFrame(black_canvas,"TITLE=Black"),

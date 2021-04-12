@@ -14,7 +14,7 @@
          </td>
          <td>
           include cffi.e<br>
-          set_struct_field(<a href="integer.htm">integer</a> id, <a href="atom.htm">atom</a> pStruct, <a href="string.htm">atom_string</a> field, <a href="atom.htm">atom</a> v)
+          set_struct_field(<a href="integer.htm">integer</a> id, <a href="atom.htm">atom</a> pStruct, <a href="string.htm">atom_string</a> field, v)
          </td>
         </tr>
         <tr>
@@ -29,9 +29,6 @@
             pStruct: a result from <a href="allocate_struct.htm">allocate_struct</a>().<br>
             field: a string name or, caveat emptor, a numeric index.<br>
             v: the value to be set.
-            <br>
-            <br>
-            <b>Note</b>: This functionality is now wrapped by <a href="cstruct.htm">c-struct</a>, which you may find slightly easier to use.
          </td>
         </tr>
         <tr>
@@ -39,10 +36,16 @@
           <b>Comments:</b>
          </td>
          <td>
-            The parameter v is an atom. You may need to use 
-            <a href="allocate_string.htm">allocate_string</a>(),
+            The parameter v should be an atom except for TCHAR[128] and similar fields. You may need to use 
+            <a href="allocate_string.htm">allocate_[w]string</a>(),
             <a href="allocate_struct.htm">allocate_struct</a>(), or <a href="allocate.htm">allocate</a>() to set lpsz and other
             pointer members, and call <a href="free.htm">free</a>() once the memory is no longer needed.
+            <br>
+            <br>
+            Note that it is your responsibility to pass short-enough strings in v, since cffi.e cannot check that for you, and only when 
+            the target field is TCHAR[] or similar, and likewise add trailing zeroes (or &rsquo;\0&rsquo;) or spaces where needed.<br>
+            Under set_unicode(1) a string in v is assumed to be utf8 and is converted to utf16. Additional steps may be required to 
+            ensure any surrogate pairs that introduces do not make it exceed the available space.
          </td>
         </tr>
         <tr>
@@ -65,18 +68,18 @@ free(pCaption)
 free(pTitle)
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> cffi.e
-</font><font color="#008080">constant</font><font color="#000000"> idMBP</font><font color="#0000FF"> =</font><font color="#5E005E"> define_struct</font><font color="#0000FF">(...)
-</font><font color="#004080">atom</font><font color="#000000"> pMBP</font><font color="#0000FF"> =</font><font color="#5E005E"> allocate_struct</font><font color="#0000FF">(</font><font color="#000000">idMBP</font><font color="#0000FF">)
-..
-</font><font color="#004080">atom</font><font color="#000000"> pTitle</font><font color="#0000FF"> =</font><font color="#5E005E"> allocate_string</font><font color="#0000FF">(</font><font color="#008000">"title"</font><font color="#0000FF">)
-</font><font color="#004080">atom</font><font color="#000000"> pCaption</font><font color="#0000FF"> =</font><font color="#5E005E"> allocate_string</font><font color="#0000FF">(</font><font color="#008000">"caption"</font><font color="#0000FF">)
-</font><font color="#5E005E">set_struct_field</font><font color="#0000FF">(</font><font color="#000000">idMBP</font><font color="#0000FF">,</font><font color="#000000">pMBP</font><font color="#0000FF">,</font><font color="#008000">"lpszText"</font><font color="#0000FF">,</font><font color="#000000">pTitle</font><font color="#0000FF">)
-</font><font color="#5E005E">set_struct_field</font><font color="#0000FF">(</font><font color="#000000">idMBP</font><font color="#0000FF">,</font><font color="#000000">pMBP</font><font color="#0000FF">,</font><font color="#008000">"lpszCaption"</font><font color="#0000FF">,</font><font color="#000000">pCaption</font><font color="#0000FF">)
-</font><font color="#5E005E">set_struct_field</font><font color="#0000FF">(</font><font color="#000000">idMBP</font><font color="#0000FF">,</font><font color="#000000">pMBP</font><font color="#0000FF">,</font><font color="#008000">"dwStyle"</font><font color="#0000FF">,</font><font color="#004600">MB_OK</font><font color="#0000FF">)
-..
-</font><font color="#7060A8">free</font><font color="#0000FF">(</font><font color="#000000">pCaption</font><font color="#0000FF">)
-</font><font color="#7060A8">free</font><font color="#0000FF">(</font><font color="#000000">pTitle</font><font color="#0000FF">)</font>
+<font color="#008080">include</font><font color="#000000"> cffi.e</font>
+<font color="#008080">constant</font><font color="#000000"> idMBP</font><font color="#0000FF"> =</font><font color="#5E005E"> define_struct</font><font color="#0000FF">(...)</font>
+<font color="#004080">atom</font><font color="#000000"> pMBP</font><font color="#0000FF"> =</font><font color="#5E005E"> allocate_struct</font><font color="#0000FF">(</font><font color="#000000">idMBP</font><font color="#0000FF">)
+..</font>
+<font color="#004080">atom</font><font color="#000000"> pTitle</font><font color="#0000FF"> =</font><font color="#5E005E"> allocate_string</font><font color="#0000FF">(</font><font color="#008000">"title"</font><font color="#0000FF">)</font>
+<font color="#004080">atom</font><font color="#000000"> pCaption</font><font color="#0000FF"> =</font><font color="#5E005E"> allocate_string</font><font color="#0000FF">(</font><font color="#008000">"caption"</font><font color="#0000FF">)</font>
+<font color="#5E005E">set_struct_field</font><font color="#0000FF">(</font><font color="#000000">idMBP</font><font color="#0000FF">,</font><font color="#000000">pMBP</font><font color="#0000FF">,</font><font color="#008000">"lpszText"</font><font color="#0000FF">,</font><font color="#000000">pTitle</font><font color="#0000FF">)</font>
+<font color="#5E005E">set_struct_field</font><font color="#0000FF">(</font><font color="#000000">idMBP</font><font color="#0000FF">,</font><font color="#000000">pMBP</font><font color="#0000FF">,</font><font color="#008000">"lpszCaption"</font><font color="#0000FF">,</font><font color="#000000">pCaption</font><font color="#0000FF">)</font>
+<font color="#5E005E">set_struct_field</font><font color="#0000FF">(</font><font color="#000000">idMBP</font><font color="#0000FF">,</font><font color="#000000">pMBP</font><font color="#0000FF">,</font><font color="#008000">"dwStyle"</font><font color="#0000FF">,</font><font color="#004600">MB_OK</font><font color="#0000FF">)
+..</font>
+<font color="#7060A8">free</font><font color="#0000FF">(</font><font color="#000000">pCaption</font><font color="#0000FF">)</font>
+<font color="#7060A8">free</font><font color="#0000FF">(</font><font color="#000000">pTitle</font><font color="#0000FF">)</font>
 </pre>
          </td>
         </tr>

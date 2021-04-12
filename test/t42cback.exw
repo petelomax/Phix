@@ -62,12 +62,7 @@
 --
 
 --/**/with console
-constant showprogress=01
-procedure Abort(sequence msg)
-    puts(1,msg)
-    if getc(0) then end if
-    abort(1)
-end procedure
+constant showprogress=0
 
 --/* Not required for Phix:
 include ..\builtins\machine.e   -- allocate()
@@ -125,7 +120,7 @@ constant cb_h0 = call_back(r_h0)
 object e
 type obj(object o)
     if showprogress then ?o ?e end if
-    if not equal(o,e) then Abort("not equal(o,e)\n") end if
+    if not equal(o,e) then crash("not equal(o,e)\n") end if
     return 1
 end type
 obj o
@@ -186,13 +181,13 @@ function cb1(integer x)
     return x+1
 end function
 
-constant x0 = cb1(0)    if x0!=1 then Abort("x0!=1\n") end if
+constant x0 = cb1(0)    if x0!=1 then crash("x0!=1\n") end if
 e = 3
 --if showprogress then puts(1,"\nhere1\n") end if
-o = cb1(2)              if o!=3 then Abort("o!=3\n") end if
+o = cb1(2)              if o!=3 then crash("o!=3\n") end if
 --if showprogress then puts(1,"\nhere2\n") end if
 o = c_func(define_c_func({},call_back(routine_id("cb1")),{C_INT},C_INT),{2})
-                        if o!=3 then Abort("o!=3(2)\n") end if
+                        if o!=3 then crash("o!=3(2)\n") end if
 --if showprogress then puts(1,"\nhere3\n") end if
 
 function handler(atom a1, atom a2, atom a3, atom a4)
@@ -217,7 +212,7 @@ o = c_func(cbhf,{1,2,3,4})
 --          printf(1,"%d [#%08x]\n",o)
 --      end if
 --  end if
---  if not equal(o,e) then Abort("objz:not equal(o,e)\n") end if
+--  if not equal(o,e) then crash("objz:not equal(o,e)\n") end if
 --  return 1
 --end type
 --objz z
@@ -285,7 +280,8 @@ sequence msg
 
 sequence add_code
 integer r, x, w 
-atom y, z
+--atom y, z
+atom z
 
 if machine_bits()=32 then
 --if 01 then
@@ -375,7 +371,7 @@ msg = sprintf("  the result of %d + %d is: %d\n", {x, w, z})
 free(code_space)
 
 if not equal(msg,"  the result of -17 + 80 is: 63\n") then
-    Abort(msg)
+    crash(msg)
 end if
 
 -- removed 3/2/21:  Based on incorrect understanding of lnx x64 calling conventions.
@@ -436,7 +432,7 @@ end if
     free(code_space)
 
     if not equal(msg,"  the result of 7 * 8.50 is: 59.5\n") then
-        Abort(msg)
+        crash(msg)
     end if
 --end if
     
@@ -508,14 +504,14 @@ constant r_test = routine_id("test")
 constant cb_test = call_back(r_test)
 constant f_test = define_c_func({},cb_test,{C_POINTER},C_INT)
 
---/**/  if c_func(f_test,{"fred"})!=0 then Abort("c_func(f_test,{\"fred\"})!=0\n") end if
---/**/  if not string(res) then Abort("not string(res)\n") end if
+--/**/  if c_func(f_test,{"fred"})!=0 then crash("c_func(f_test,{\"fred\"})!=0\n") end if
+--/**/  if not string(res) then crash("not string(res)\n") end if
 --/*
 constant mem = allocate(5)
     poke(mem,"fred"&0)
-    if c_func(f_test,{mem})!=0 then Abort("c_func(f_test,{mem})!=0\n") end if
+    if c_func(f_test,{mem})!=0 then crash("c_func(f_test,{mem})!=0\n") end if
 --*/
-    if not equal(res,"fred") then Abort("not equal(res,\"fred\")\n") end if
+    if not equal(res,"fred") then crash("not equal(res,\"fred\")\n") end if
 
 --removed 11/09/16: this is now a fatal error (e88atcfpmbaos)
 --/*
@@ -523,16 +519,16 @@ sequence q
     q = "john"
     q &= -1         -- force conversion to T_Dsq
     q = q[1..4]
---/**/  if string(q) then Abort("string(q)\n") end if
+--/**/  if string(q) then crash("string(q)\n") end if
 
---/**/  if c_func(f_test,{q})!=0 then Abort("c_func(f_test,{q})!=0\n") end if
---/**/  if not string(res) then Abort("not string(res)\n") end if
+--/**/  if c_func(f_test,{q})!=0 then crash("c_func(f_test,{q})!=0\n") end if
+--/**/  if not string(res) then crash("not string(res)\n") end if
 --/*
     poke(mem,q&0)
-    if c_func(f_test,{mem})!=0 then Abort("c_func(f_test,{mem})!=0\n") end if
+    if c_func(f_test,{mem})!=0 then crash("c_func(f_test,{mem})!=0\n") end if
 --*/
 --?res
 --?length(res)
-    if not equal(res,"john") then Abort("not equal(res,\"john\")\n") end if
+    if not equal(res,"john") then crash("not equal(res,\"john\")\n") end if
 --*/
 

@@ -1,0 +1,128 @@
+--
+-- viewppma.exw
+-- Arwen32Dib demo: demonstrates loading a ppm file and the scale-function
+--  Written by Pete Lomax
+
+include ..\Arwen32dibdemo\a32dgeom.ew  -- only the core- and geometric manipulation-library are necessary
+
+constant win = create(Window, "viewppm", 0, 0, Default, Default, 600, 600, 0)
+
+integer scale = 0
+
+sequence ppmfiles = dir("*.ppm")
+integer ppmidx = 1
+    -- start on the most recent:
+    for i=2 to length(ppmfiles) do
+        if ppmfiles[i][D_YEAR..D_SECOND]>ppmfiles[ppmidx][D_YEAR..D_SECOND] then
+            ppmidx = i
+        end if
+    end for
+
+a32Dib0 dib, scale_dib = 0
+
+function CreateDibFromPPM(sequence filename)
+a32Dib0 dib
+integer fn, width, height
+atom addr
+sequence line
+integer maxcolor
+    fn = open(filename, "rb")
+    if fn<0 then
+        return -1 -- unable to open
+    end if
+    line = gets(fn)
+    if line!="P6\n" then
+        return -1 -- only ppm6 files are supported
+    end if
+    while 1 do
+        line = gets(fn)
+        if line[1]!='#' then exit end if
+    end while
+    {{width,height}} = scanf(line,"%d %d%s")
+    line = gets(fn)
+    {{maxcolor}} = scanf(line,"%d%s")
+    dib = newDib(width,height)
+    if not a32Dib(dib) then
+        return -1
+    end if
+    line = repeat(0,width*3)
+    addr = dib[DibMemory]
+    for y=1 to height do
+        for x=1 to width*3 by 3 do
+            line[x+2] = getc(fn)
+            line[x+1] = getc(fn)
+            line[x] = getc(fn)
+        end for
+        poke(addr,line)
+        addr += dib[DibBytesPerLine]
+    end for
+    close(fn)
+    return dib
+end function
+
+procedure loadPPM()
+string name = ppmfiles[ppmidx][D_NAME]
+    dib = CreateDibFromPPM(name)
+    if not sequence(dib) then
+        void = message_box("Can't load bitmap "&name, "Error", MB_ICONERROR)
+        abort(0)
+    end if
+    setText(win,sprintf("viewppm - %s [%d of %d]",{name,ppmidx,length(ppmfiles)}))
+end procedure
+
+integer wX, wY
+procedure scaledib()
+    scale_dib = scaleDib(dib, wX, wY, False)
+end procedure
+
+--help:
+-- S toggles image scaling of the image to fit the window
+
+function winHandler(integer id, integer msg, atom wParam, object lParam)
+object vdib
+    if id or wParam or object(lParam) then end if -- suppress warnings
+    if msg=WM_PAINT then
+        if scale and atom(scale_dib) then scaledib() end if
+        vdib = iff(scale?scale_dib:dib)
+        if sequence(vdib) then
+            drawDib(win, vdib, 0, 0, 0, 0, vdib[DibWidth]-1, vdib[DibHeight]-1)
+        end if
+    elsif msg=WM_SIZE then
+        {?,?,wX,wY} = getClientRect(win)
+        if sequence(scale_dib) then killDib(scale_dib) end if
+        scale_dib = 0
+        repaintWindow(win,False)
+    elsif msg=WM_CHAR then
+        if wParam=VK_ESCAPE then
+            closeWindow(win)
+        elsif lower(wParam)='s' then
+            scale = 1-scale
+            repaintWindow(win,True)
+        end if
+    elsif msg=WM_KEYDOWN then
+        if find(wParam,{VK_LEFT,VK_RIGHT}) then
+            if wParam=VK_LEFT then
+                ppmidx -= 1
+                if ppmidx<1 then
+                    ppmidx = length(ppmfiles)
+                end if
+            else --wParam=VK_RIGHT
+                ppmidx += 1
+                if ppmidx>length(ppmfiles) then
+                    ppmidx = 1
+                end if
+            end if
+            loadPPM()
+            scale_dib = 0
+            repaintWindow(win,True)
+        end if
+    end if
+    return 0
+end function
+setHandler({win},routine_id("winHandler"))
+
+loadPPM()
+WinMain(win, SW_NORMAL)
+killDib(dib)
+if sequence(scale_dib) then killDib(scale_dib) end if
+

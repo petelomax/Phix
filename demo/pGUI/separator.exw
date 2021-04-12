@@ -1,190 +1,40 @@
--- IupSeparator: Example in C 
+--
+-- demo\pGUI\IupSeparator
+--
 --   Creates a dialog with a menu and some items. A IupSeparator was used to separate the menu items.
-
--- IUP libraries include  
-
+--
 include pGUI.e
 
-function esc_close(Ihandle /*ih*/, atom c)
--- (I like all my demos to close when escape is keyed)
-    return iff(c=K_ESC?IUP_CLOSE:IUP_CONTINUE)
-end function
-
---*****************************************************************************
--- Function:                                                                 --
--- Show message                                                              --
---                                                                           --
--- Description:                                                              --
--- Shows a message saying that the this item performs no operation           --
---                                                                           --
--- Value returned:                                                           --
--- IUP_DEFAULT                                                               --
---**************************************************************************** 
-function show_message(object void)
-    if object(void) then end if
-    IupMessage("Warning", "This item performs no operation\nIt is here only to compose")
-    return 1
-end function
-
---*****************************************************************************
--- Function:                                                                 --
--- Item new callback                                                         --
---                                                                           --
--- Description:                                                              --
--- Shows a message saying that the this item performs no operation           --
---                                                                           --
--- Value returned:                                                           --
--- IUP_DEFAULT                                                               --
---**************************************************************************** 
-function item_new_cb(object void)
-    if object(void) then end if
-    {} = show_message("hello euphoria")
+function item_cb(object ih)
+    string title = IupGetAttribute(ih,"TITLE")
+    IupMessage("menu item clicked", title)
     return IUP_DEFAULT
 end function
+constant cb_item = Icallback("item_cb")
 
---*****************************************************************************
--- Function:                                                                 --
--- Item open callback                                                        --
---                                                                           --
--- Description:                                                              --
--- Shows a message saying that the this item performs no operation           --
---                                                                           --
--- Value returned:                                                           --
--- IUP_DEFAULT                                                               --
---**************************************************************************** 
-function item_open_cb(object void)
-    if object(void) then end if
-    {} = show_message("hello euphoria")
-    return IUP_DEFAULT
-end function
-
---*****************************************************************************
--- Function:                                                                 --
--- Item close callback                                                       --
---                                                                           --
--- Description:                                                              --
--- Shows a message saying that the this item performs no operation           --
---                                                                           --
--- Value returned:                                                           --
--- IUP_DEFAULT                                                               --
---**************************************************************************** 
-function item_close_cb(object void)
-    if object(void) then end if
-    {} = show_message("hello euphoria")
-    return IUP_DEFAULT
-end function
-
---*****************************************************************************
--- Function:                                                                 --
--- Item page setup callback                                                  --
---                                                                           --
--- Description:                                                              --
--- Shows a message saying that the this item performs no operation           --
---                                                                           --
--- Value returned:                                                           --
--- IUP_DEFAULT                                                               --
---**************************************************************************** 
-function item_pagesetup_cb(object void)
-    if object(void) then end if
-    {} = show_message("hello euphoria")
-    return IUP_DEFAULT
-end function
-
---*****************************************************************************
--- Function:                                                                 --
--- Item print callback                                                       --
---                                                                           --
--- Description:                                                              --
--- Shows a message saying that the this item performs no operation           --
---                                                                           --
--- Value returned:                                                           --
--- IUP_DEFAULT                                                               --
---**************************************************************************** 
-function item_print_cb(object void)
-    if object(void) then end if
-    {} = show_message("hello euphoria")
-    return IUP_DEFAULT
-end function
-
---*****************************************************************************
--- Function:                                                                 --
--- Item exit callback                                                        --
---                                                                           --
--- Description:                                                              --
--- Exits the program                                                         --
---                                                                           --
--- Value returned:                                                           --
--- IUP_DEFAULT                                                               --
---**************************************************************************** 
-function item_exit_cb(object void)
-    if object(void) then end if
+function exit_cb(object /*ih*/)
     return IUP_CLOSE
 end function
+constant cb_exit = Icallback("exit_cb")
 
---IUP identifiers  
-Ihandle dlg
-Ihandle text
-Ihandle menu, menu_file
-Ihandle submenu_file
-Ihandle item_new, item_open, item_close, item_pagesetup, item_print, item_exit
-
-    -- Initializes IUP  
-    IupOpen()
-
-    -- Program begin    
-
-    -- Creates a text  
---  text = IupText()
-    text = IupText(`VALUE = "This text is here only to compose", EXPAND = HORIZONTAL`)
-
-    -- Sets value of the text and turns on expand   
---  IupSetAttributes(text, `VALUE = "This text is here only to compose", EXPAND = HORIZONTAL`)
-
-    -- Creates six items    
-    item_new = IupMenuItem("New", NULL)
-    item_open = IupMenuItem("Open", NULL)
-    item_close = IupMenuItem("Close", NULL)
-    item_pagesetup = IupMenuItem("Page Setup", NULL)
-    item_print = IupMenuItem("Print", NULL)
-    item_exit = IupMenuItem("Exit", NULL)
-
-    -- Registers callbacks  
-    IupSetCallback(item_new, "ACTION", Icallback("item_new_cb"))
-    IupSetCallback(item_open, "ACTION", Icallback("item_open_cb"))
-    IupSetCallback(item_close, "ACTION", Icallback("item_close_cb"))
-    IupSetCallback(item_pagesetup, "ACTION", Icallback("item_pagesetup_cb"))
-    IupSetCallback(item_print, "ACTION", Icallback("item_print_cb"))
-    IupSetCallback(item_exit, "ACTION", Icallback("item_exit_cb"))
-
-    -- Creates file menu    
-    menu_file = IupMenu({item_new, item_open, item_close, IupSeparator(), item_pagesetup, item_print, IupSeparator(), item_exit})
-
-    -- Creates file submenu  
-    submenu_file = IupSubmenu("File", menu_file)
-
-    -- Creates main menu with file menu  
-    menu = IupMenu({submenu_file})
-
-    -- Associates handle "menu" with menu  
---  IupSetHandle("menu", menu)
-
-    -- Creates dialog with a text  
-    dlg = IupDialog(text)
-
-    -- Sets title and size of the dialog and associates a menu to it    
---  IupSetAttributes(dlg, `TITLE="IupSeparator Example", SIZE = QUARTERxEIGHTH, MENU = menu`)
-    IupSetAttributes(dlg, `TITLE="IupSeparator Example", SIZE = QUARTERxEIGHTH`)
-    IupSetAttributeHandle(dlg,"MENU",menu)
-    IupSetCallback(dlg, "K_ANY", Icallback("esc_close"));
-    IupSetAttributeHandle(NULL,"PARENTDIALOG",dlg)
-
-    -- Shows dialog in the center of the screen  
-    IupShowXY(dlg, IUP_CENTER, IUP_CENTER)
-
-    -- Initializes IUP main loop    
+IupOpen()
+Ihandle text = IupText(`VALUE = "This text is here only to compose", EXPAND = HORIZONTAL`)
+        -- obviously you can declare menu entries separately instead of nesting like this.
+sequence menu_items = {IupMenuItem("New", cb_item), 
+                       IupMenuItem("Open", cb_item),
+                       IupMenuItem("Close", cb_item),
+                       IupSeparator(),
+                       IupMenuItem("Page Setup", cb_item),
+                       IupMenuItem("Print", cb_item),
+                       IupSeparator(),
+                       IupMenuItem("Exit", cb_exit)}
+Ihandle menu = IupMenu({IupSubmenu("File", IupMenu(menu_items))}),
+        dlg = IupDialog(text,`TITLE="IupSeparator Example", SIZE = QUARTERxEIGHTH`)
+IupSetAttributeHandle(dlg,"MENU",menu)
+IupSetAttributeHandle(NULL,"PARENTDIALOG",dlg)
+IupShow(dlg)
+if platform()!=JS then
     IupMainLoop()
-
-    -- Finishes IUP  
     IupClose()
-
+end if
 

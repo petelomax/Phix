@@ -274,7 +274,7 @@ integer msign, base = 0, tokvalid = 1
         ch = s[sidx]
         if N=0 then -- check for 0x/o/b/d formats
 --          base = find(ch,"toxbd(")
-            base = find(ch,iff(inbase>10?"toxxx(":"toxbd("))
+            base = find(lower(ch),iff(inbase>10?"toxxx(":"toxbd("))
             if base then
                 if base>1 then
                     base -= 1

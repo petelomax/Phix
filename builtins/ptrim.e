@@ -24,34 +24,19 @@
 --      that subsequently treating that -1 as an index will work out at all well...
 --
 
-global function trim(object source, object what=" \t\r\n", integer ret_index=0)
-integer rpos
-integer lpos
-
+global function trim(object source, object what=" \t\r\n", bool return_index=false)
     if sequence(source) then
-        lpos = 1
-        rpos = length(source)
+        integer lpos = 1,
+                rpos = length(source)
         if atom(what) then
-            while lpos<=rpos
-              and source[lpos]=what do
-                lpos += 1
-            end while
-            while rpos>lpos
-              and source[rpos]=what do
-                rpos -= 1
-            end while
+            while lpos<=rpos and source[lpos]=what do lpos += 1 end while
+            while rpos>lpos  and source[rpos]=what do rpos -= 1 end while
         else
-            while lpos<=rpos
-              and find(source[lpos], what) do
-                lpos += 1
-            end while
-            while rpos>lpos
-              and find(source[rpos], what) do
-                rpos -= 1
-            end while
+            while lpos<=rpos and find(source[lpos], what) do lpos += 1 end while
+            while rpos>lpos  and find(source[rpos], what) do rpos -= 1 end while
         end if
 
-        if ret_index then
+        if return_index then
             return {lpos, rpos}
 
         elsif lpos!=1
@@ -62,14 +47,11 @@ integer lpos
     return source
 end function
 
-global function trim_head(object source, object what=" \t\r\n", integer ret_index=0)
-sequence s
-integer lpos
-
+global function trim_head(object source, object what=" \t\r\n", bool return_index=false)
     if sequence(source) then
-        s = trim(source,what,1)
-        lpos = s[1]
-        if ret_index then
+        sequence s = trim(source,what,true)
+        integer lpos = s[1]
+        if return_index then
             return lpos
 
         elsif lpos!=1 then
@@ -80,15 +62,11 @@ integer lpos
     return source
 end function
 
-global function trim_tail(object source, object what=" \t\r\n", integer ret_index=0)
-sequence s
-integer lpos, rpos
-
+global function trim_tail(object source, object what=" \t\r\n", bool return_index=false)
     if sequence(source) then
-        s = trim(source,what,1)
-        lpos = s[1]
-        rpos = s[2]
-        if ret_index then
+        sequence s = trim(source,what,true)
+        integer {lpos,rpos} = s
+        if return_index then
             return rpos
 
         elsif lpos>rpos then

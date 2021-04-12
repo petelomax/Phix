@@ -28,9 +28,11 @@ global function hi_word( atom pData)
 return w32hi_word(pData)
 end function
 
+--/* Not Phix (builtin)
 global function abs( object a )
 return w32abs(a)
 end function
+--*/
 
 global function shortInt( atom i )
 return w32shortInt(i)
@@ -102,7 +104,7 @@ global procedure store( atom pStruct, sequence s, object o )
 w32store(pStruct,s,o)
 end procedure
 
---/*
+--/*  Not Phix (builtin)
 global function peek_string(atom a)
 return w32peek_string(a)
 end function
@@ -120,14 +122,17 @@ global function new_memset()
 return w32new_memset()
 end function
 
+--/*  Not Phix (builtin)
 global function trim(sequence pSource)
 return w32trim(pSource)
 end function
+--*/
 
-
+--/*  Not Phix (builtin)
 global function split(sequence pSource, object pDelim)
 return w32split(pSource, pDelim)
 end function
+--*/
 
 global function lookup(object pItem, sequence pSource, sequence pTarget)
 return w32lookup(pItem, pSource, pTarget)

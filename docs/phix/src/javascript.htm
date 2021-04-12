@@ -18,9 +18,9 @@
         <br>
         <br>
         Apart from an initial trawl, entries are likely to be added on an ad-hoc basis, as I realise it is
-        now the <i>N</i>th time I&rsquo;ve had to go to 
+        now the <i>Nth</i> time I&rsquo;ve had to go to 
         <a href="javascript:ExternalLink('ext606','https://developer.mozilla.org/en-US/docs/Web/API/Document_Object_Model');"
-           id="ext606" style="color:#9B5565" >MDN</a> (the definititive fount of all knowledge) or. 
+           id="ext606" style="color:#9B5565" >MDN</a> (the definititive fount of all knowledge) or 
         <a href="javascript:ExternalLink('ext707','https://www.w3schools.com/js/default.asp');"
            id="ext707" style="color:#9B5565" >w3schools</a> (what it lacks in detail it makes up for in 
         navigability). Things I use very rarely or are easily cribbed are unlikely to get a mention in
@@ -55,7 +55,7 @@
         `s.splice(i-1,i,String.fromCharCode(65))`. Note that for this to work you may need to be more
         explicit with the string type, eg "initial = table[i][NAME][1]" won&rsquo;t work and instead you
         will need to code "string name = table[i][NAME]; initial = name[1]". Obviously you can store and
-        retrieve strings deep inside other structures, but any manipulation/subscripting/slicing, and even
+        retrieve strings deep inside other structures, but any manipulation, subscripting, slicing, and even
         perhaps concatenating, should be performed on a plain string variable, like that 'name' above.
         <br>
         <br>
@@ -64,7 +64,7 @@
         since that can be expensive it should scan the AST (abstract syntax tree) to see if it can be avoided
         - obviously if it is not being modified, but also if it is reassigned when the function returns. 
         I toyed with a = ...b before realising the spread operator only does a shallow copy, so now it uses 
-        a = $deepcopy(b);
+        a = $deepCopy(b);
         <br>
         <br>
         Obviously, p2js.js and pGUI.js should only expose identifiers that would normally be considered
@@ -72,15 +72,17 @@
         read <i>so much</i> hand-wringing and whining and moaning about this, I thought it was going to be
         difficult, turns out it is trivial and you simply don&rsquo;t need any of that anonymous iife drivel
         (don&rsquo;t ask). There are however a <i>tiny</i> number that would be useful, and thankfully 
-        JavaScript allows $ in identifier names, so any of $_apply, (and $PROC, $FUNC,) $_concat, $deepcopy, 
-        $docbody, $paranormalise, $prefer_backtick, $seed, $store_attr, $topzindex, or $tce 
+        JavaScript allows $ in identifier names, so any of $conCat, $deepCopy, $docBody, $paranormalise, 
+        $prefer_backtick, $seed, $storeAttr, $topZindex, or $typeCheckError 
         [told you it was a fairly short list] are just things we don&rsquo;t want to interfere with or be 
         accidentally accessible from transpiled user-code-land.
+<!-- needs more thought, would I ever actually use it anyway??...
         <br>
         <br>
-        A DOM element such as <code>&lt;div id="myDiv"&gt;&lt;/div&gt;</code>, due to an obsolete quirk of IE
-        being propagated into all modern browsers, sets the variable myDiv in the global namespace, allowing a 
-        bare <code>myDiv</code> to act the same as <code>document.getElementById('myDiv')</code>.
+        Due to an obsolete quirk of IE being propagated into all modern browsers (for compatibility, but 
+        quite wrongly in almost everyone&rsquo;s opinions), a DOM element with an id such as 
+        <code>&lt;div id="myDiv"&gt;&lt;/div&gt;</code> sets the variable myDiv in the global namespace, 
+        allowing a bare <code>myDiv</code> to act the same as <code>document.getElementById('myDiv')</code>.
         While some would say this is a bad idea, it leads to shorter code, pwa/p2js.exw should really check 
         anyway that no such global clashes are occurring, and the true culprit is clearly in <i>any</i> use 
         of id, besides, clashing ids can and will go just as wrong with getElementById() anyway.
@@ -88,6 +90,7 @@
         shorthand version. Should it ever bite, pwa/p2js probably needs more checking, not more concealing,
         plus phix generally allows &gt;1 of anything simultaneously on-screen, which kinda rules out most
         uses of id anyway.
+-->
         <br>
         <br>
 <!--
@@ -132,9 +135,9 @@ initValidation.validate( "hello" );
             &nbsp;&nbsp;
          </div>
          <div>
-            Self explanatory: create a real Array from something array-like, such as a NodeList, or maybe a string (in p2js.js, both 
-            compare() and equal() do just that, when one argument is a string and the other is an Array, since you cannot subscript 
-            strings [in the same way as Arrays] in JavaScript).<br>
+            Self explanatory: create a real Array from something array-like, such as a NodeList. Note that Array.from(string)
+            produces lots of diddy-strings whereas $charArray (see below) produces the array of charCodeAt I was expecting, 
+            and eg both compare() and equal() use that internally, when one argument is a string and the other is an Array.
          </div>
         </div>
         <br>
@@ -342,7 +345,9 @@ toLowerCase
          </div>
          <div>
             Self explanatory. Needed because JavaScript has no character type, and coerces eg "A" + 65 to "A65" rather than "AA".<br>
-            String.fromCharCode(65) is "A", String.fromCharCode(65,66,67) is "ABC".
+            String.fromCharCode(65) is "A", String.fromCharCode(65,66,67) is "ABC". Always use String.fromCharCode() as opposed
+            to s.fromCharCode(). Note that the numbers are UTF-16 code units, rather than UTF-32, should that ever matter, and
+            perhaps String.fromCodePoint() would be easier and better.
          </div>
         </div>
         <br>
@@ -1071,10 +1076,39 @@ toLowerCase
          </tr>
          <tr>
             <td>
-             $deepcopy()
+             $charArray()
             </td>
             <td>
-              Needed because JavaScript has the polar opposite of the copy-on-write semantics of Phix.
+              Needed because Array.from(string) produces lots of diddy-strings, whereas this produces the array of charCodeAt I was expecting.<br>
+              Should only ever be passed a string argument, and crashes when that is not the case. Note that res[0] is "sequence".<br>
+              Only used in p2js.js, should not be emitted in generated code.
+            </td>
+         </tr>
+         <tr>
+            <td>
+             $conCat()
+            </td>
+            <td>
+              Replacement for the & operator of Phix, uses += for strings and array.concat(slice) for sequences.<br>
+              Will be emitted in generated code.
+            </td>
+         </tr>
+         <tr>
+            <td>
+             $deepCopy()
+            </td>
+            <td>
+              Needed because JavaScript has the polar opposite of the copy-on-write semantics of Phix (pass-by-sharing semantics).<br>
+              May be emitted in generated code (but is not so far).
+            </td>
+         </tr>
+         <tr>
+            <td>
+             $docBody
+            </td>
+            <td>
+              Set to document.body for normal/stand-alone use, but the output panel when running in the <a href="interface.htm">online repl</a>.<br>
+              Only used in p2js.js (for puts) and pGUI.js, should not be emitted in generated code.
             </td>
          </tr>
          <tr>
@@ -1082,18 +1116,118 @@ toLowerCase
              <nobr>$paranormalise()</nobr>
             </td>
             <td>
-              A hand-translated version of the (private) <a href="paranormal.htm">paranormalise</a>() routine from pGUI.e.
+              A hand-translated version of the (private) <a href="paranormal.htm">paranormalise</a>() routine from pGUI.e.<br>
+              Only used in pGUI.js, should not be emitted in generated code.
             </td>
          </tr>
          <tr>
             <td>
-             $store_attr[]
+             $repe(s,idx,x,idii)
             </td>
             <td>
-              element-specific attribute handlers/setters, eg $store_attr["dialog"]["TITLE"] is set_dialog, a (private) routine
-              (defined in pGUI.js) for setting the dialog title.
+              Replacement for subscript assignment, uses String.fromCharCode(x) for string(s), $deepCopy(x) for sequences. <br>
+              The first three parameters, s, idx, and x should be self-explanatory (s[idx] := x). <br>
+              The optional fourth parameter, idii, is a sequence of nested subscripts, eg/ie s[i][j][k] = x maps to 
+              $repe(s,k,x,["sequence",i,j]).<br>
+<!--
+              Note: at the time of writing, subscripts in the parse tree are nested, and therefore may appear
+              as such instead of using idii.<br>
+-->
+              Will be emitted in generated code. Note this takes advantage of JavaScript&rsquo;s pass-by-sharing semantics.
+<!--             Note that s[i][j][k] produces nested calls to this routine. -->
+             <!-- I am not overly adamant about the "sequence" part. Defined in p2js.js. -->
+              <!--Note that $deepCopy() is invoked when the result is an array.  [DEV??]-->
             </td>
          </tr>
+         <tr>
+            <td>
+             $repss(s,ss,se,x,idii)
+            </td>
+            <td>
+              Replacement for slice assignment, uses String.from??slice(ss-1,se) for strings (as in JavaScript they are 0-based), but 
+              ??Array.slice(ss,se+1) for dword-sequences (since we&rsquo;ve put a "sequence" in at s[0]). <br>
+              The first four parameters, s, ss, se, and x, should be self-explanatory (s[ss..se] = x). <br>
+              The optional fifth parameter, idii, is a sequence of nested subscripts, eg/ie s[i][j][k][ss..se] maps to 
+              $repss(s,ss,se,x,["sequence",i,j,k]).<br>
+<!--
+              Note: at the time of writing, subscripts in the parse tree are nested, and therefore may appear
+              as such instead of using idii.<br>
+-->
+              Will be emitted in generated code. Note this takes advantage of JavaScript&rsquo;s pass-by-sharing semantics.
+<!--            Note that s[i][j][k][ss..se] just uses nested $subse calls.-->
+            </td>
+         </tr>
+         <tr>
+            <td>
+             $sidii(s,idii)
+            </td>
+            <td>
+              Common code for $repe(), $repss(), $subse(), and $subss(). Also handles negative subscripts, as do those four.<br>
+              Only used in p2js.js, should not be emitted in generated code.
+            </td>
+         </tr>
+         <tr>
+            <td>
+             $storeAttr[]
+            </td>
+            <td>
+              element-specific attribute handlers/setters, eg $storeAttr["dialog"]["TITLE"] is set_dialog, a (private) routine
+              (defined in pGUI.js) for setting the dialog title.<br>
+              Only used in pGUI.js, should not be emitted in generated code.
+            </td>
+         </tr>
+         <tr>
+            <td>
+             $subse(s,idx)
+            </td>
+            <td>
+              Replacement for subscripting, uses s.charCodeAt(idx-1) for strings, s[idx] for sequences. <br>
+<!--
+              The first two parameters, s and idx should be self-explanatory. <br>
+              The optional third parameter, idii, is a sequence of nested subscripts, eg/ie s[i][j][k] maps to 
+              $subse(s,k,["sequence",i,j]).<br>
+              Note: at the time of writing, subscripts in the parse tree are nested, and therefore may appear
+              as such instead of using idii.<br>
+-->
+              Will be emitted in generated code. Note that s[i][j][k] produces nested calls to this routine.
+             <!-- I am not overly adamant about the "sequence" part. Defined in p2js.js. -->
+              <!--Note that $deepCopy() is invoked when the result is an array.  [DEV??]-->
+            </td>
+         </tr>
+         <tr>
+            <td>
+             $subss(s,ss,se)
+            </td>
+            <td>
+              Replacement for slicing, uses String.slice(ss-1,se) for strings (as in JavaScript they are 0-based), but 
+              Array.slice(ss,se+1) for dword-sequences (since we&rsquo;ve put a "sequence" in at s[0]). <br>
+<!--
+              The first three parameters, s, ss, and se, should be self-explanatory. <br>
+              The optional fourth parameter, idii, is a sequence of nested subscripts, eg/ie s[x][y][z][ss..se] maps to 
+              $subss(s,ss,se,["sequence",x,y,z]).<br>
+              Note: at the time of writing, subscripts in the parse tree are nested, and therefore may appear
+              as such instead of using idii.<br>
+-->
+              Will be emitted in generated code. Note that s[i][j][k][ss..se] just uses nested $subse calls.
+            </td>
+         </tr>
+         <tr>
+            <td>
+             <nobr>$typeCheckError()</nobr>
+            </td>
+            <td>
+              Common code for integer()/atom()/string()/sequence()/object(). If the optional second parameter is passed it should be 
+              a string holding the variable name and triggers a fatal runtime error, if omitted then false can be returned.
+              In p2js.js the standard five types just named also accept an optional second (name) parameter.
+              Generally the fatal option is only used (by hand) on a few selected builtins, at the very top of the routine,
+              and the usual desktop practice of checking after assignment is omitted.<br>
+              Will not be emitted in generated code, except indirectly as above (and thus far without a name).
+            </td>
+         </tr>
+<!--
+        JavaScript allows $ in identifier names, so any of $, $paranormalise, 
+        $prefer_backtick, $seed, $storeAttr, $topZindex, or $typeCheckError 
+-->
         </table>
         <br>
         <br>

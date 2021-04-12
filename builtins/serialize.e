@@ -52,27 +52,27 @@ constant MIN1B = -9,
 --       MAX8B =  power(2, 63)-1
 
 function getonebyte(object sf, integer pos)
-integer byte
+    integer onebyte
     if sequence(sf) then
-        byte = sf[pos]
+        onebyte = sf[pos]
         pos += 1
     elsif pos<0 then
-        byte = peek(sf-pos-1)
+        onebyte = peek(sf-pos-1)
         pos -= 1
     else
-        byte = getc(sf)
+        onebyte = getc(sf)
     end if
-    return {byte,pos}
+    return {onebyte,pos}
 end function
 
 function getint(object sf, integer n, integer pos)
 -- read an n-byte signed integer from the file or sequence
-integer byte
+integer onebyte
 atom res = 0, 
      mult = 1 -- then #100, #10000, #1000000, etc
     for i=1 to n do
-        {byte,pos} = getonebyte(sf,pos)
-        res += byte*mult
+        {onebyte,pos} = getonebyte(sf,pos)
+        res += onebyte*mult
         mult *= #100
     end for
     return {res,pos}
@@ -81,10 +81,10 @@ end function
 function getflt(object sf, integer n, integer pos)
 -- return a 4, 8, or 10 byte sequence, for passing to floatNN_to_atom()
 string floatseq = repeat('0',n) -- (binary, not human readable)
-integer byte
+integer onebyte
     for i=1 to n do
-        {byte,pos} = getonebyte(sf,pos)
-        floatseq[i] = byte
+        {onebyte,pos} = getonebyte(sf,pos)
+        floatseq[i] = onebyte
     end for
     return {floatseq,pos}
 end function

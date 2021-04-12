@@ -29,10 +29,10 @@
 --# For each set of three input characters:
 --#    (from writing out the bits longhand)
 --#
---# out[1]=                   in[1]/4
---# out[2]=in[1] rem 4 * 16 + in[2]/16
---# out[3]=in[2] rem 16 * 4 + in[3]/64
---# out[4]=in[3] rem 64 * 1 
+--# out[1]=                    src[1]/4
+--# out[2]=src[1] rem 4 * 16 + src[2]/16
+--# out[3]=src[2] rem 16 * 4 + src[3]/64
+--# out[4]=src[3] rem 64 * 1 
 --#
 --#
 --# When decoding the last four characters,
@@ -43,9 +43,9 @@
 --# For each set of four input characters:
 --#    (from writing out the bits longhand)
 --#
---# out[1]=in[1]        * 4  + in[2]/16
---# out[2]=in[2] rem 16 * 16 + in[3]/4   
---# out[3]=in[3] rem  4 * 64 + in[4]
+--# out[1]=src[1]        * 4  + src[2]/16
+--# out[2]=src[2] rem 16 * 16 + src[3]/4     
+--# out[3]=src[3] rem  4 * 64 + src[4]
 --#
 
 bool binit = false
@@ -63,21 +63,19 @@ procedure initb()
     --# invert aleph to a decode table
     --#
     ccha = repeat(0, 256)
-    for i=1 to 64 do
+    for i=1 to length(aleph) do
         ccha[aleph[i]] = i-1
     end for
     binit = true
 end procedure
 
-global function encode_base64(sequence in, integer wrap_column=0)
+global function encode_base64(sequence src, integer wrap_column=0)
 --
 -- encodes to base64.
 --
--- The in parameter should be a string or sequence of bytes, ie no float/string/sequence elements
+-- The src parameter should be a string or sequence of bytes, ie no float/string/sequence elements
 -- The result should be broken into lines of no more than 76 characters before transmission.
 --
-integer len, oidx, prev, case4, tmp, inch
-string result
 sequence ediv = {4, 16, 64,  0},
          erem = {0,  4, 16, 64},
          emul = {0, 16,  4,  1},
@@ -90,29 +88,30 @@ sequence ediv = {4, 16, 64,  0},
     --# start with a full-length sequence of pads;
     --# then decrement oidx to leave rqd pads in place
     --#
-    len = length(in)
-    oidx = floor((len+2)/3)*4
-    result = repeat('=', oidx)
+    integer len = length(src),
+            oidx = floor((len+2)/3)*4
+    string result = repeat('=', oidx)
     if remainder(len,3)!=0 then
         oidx = oidx+remainder(len,3)-3
     end if
 
-    case4 = 1
-    inch  = 1
+    integer case4 = 1,
+            sdx = 1,
+            prev, tmp
     for i=1 to oidx do
         --#
-        --# out[1]=                   in[1]/4
-        --# out[2]=in[1] rem 4 * 16 + in[2]/16
-        --# out[3]=in[2] rem 16 * 4 + in[3]/64
-        --# out[4]=in[3] rem 64 * 1 
+        --# out[1]=                    src[1]/4
+        --# out[2]=src[1] rem 4 * 16 + src[2]/16
+        --# out[3]=src[2] rem 16 * 4 + src[3]/64
+        --# out[4]=src[3] rem 64 * 1 
         --#
         --# ediv = {4,16,64, 0}
         --# erem = {0, 4,16,64}
         --# emul = {0,16, 4, 1}
         --#
         tmp = 0
-        if ediv[case4]>0 and inch<=len then
-            integer ch = in[inch]
+        if ediv[case4]>0 and sdx<=len then
+            integer ch = src[sdx]
             if ch<0 or ch>#FF then ?9/0 end if  -- bytes only!
             tmp = floor(ch/ediv[case4])
         end if
@@ -120,10 +119,10 @@ sequence ediv = {4, 16, 64,  0},
             tmp += remainder(prev, erem[case4])*emul[case4]
         end if
         result[i] = aleph[tmp+1] --# and encode it
-        if inch<=len then
-            prev = in[inch]
+        if sdx<=len then
+            prev = src[sdx]
         end if
-        inch += next[case4]
+        sdx += next[case4]
         case4 = nc4[case4]
     end for
 
@@ -150,11 +149,11 @@ sequence ediv = {4, 16, 64,  0},
 end function
 
 
-global function decode_base64(sequence in)
+global function decode_base64(sequence src)
 --
 -- decodes from base64.
 --
--- The in parameter should be a string or sequence of characters with a length 
+-- The src parameter should be a string or sequence of characters with a length 
 --  which is a multiple of 4 between 4 and 76 (inclusive).
 --
 -- The result is a string, but it may contain binary rather than text.
@@ -166,8 +165,6 @@ global function decode_base64(sequence in)
 --  is 3/4 or 75% of the size of the encoded form. However there may be cases
 --  such as splitting an already joined line, that tip things the other way.
 --
-integer len, oidx, case3, tmp
-string result
 sequence drem = {64, 16,  4},
          dmul = { 4, 16, 64},
          ddiv = {16,  4,  1},
@@ -176,35 +173,33 @@ sequence drem = {64, 16,  4},
 
     if not binit then initb() end if
 
-    in = substitute(in,"\r\n","")
-    in = substitute(in,"\r","")
-    in = substitute(in,"\n","")
+    src = substitute_all(src,{"\r\n","\r","\n"},{"","",""})
 
-    len = length(in)
+    integer len = length(src)
     if remainder(len, 4)!=0 then ?9/0 end if
 
-    oidx = (len/4)*3
-    case3 = 3
+    integer oidx = (len/4)*3,
+            case3 = 3, tmp
 
-    while in[len]='=' do    --# should only happen 0 1 or 2 times
+    while src[len]='=' do   --# should only happen 0 1 or 2 times
         oidx -= 1
         case3 = nc3[case3]
         len -= 1
     end while
 
-    result = repeat('?', oidx)
+    string result = repeat('?', oidx)
     for i=oidx to 1 by -1 do
         --#
-        --# out[1]=in[1]        * 4  + in[2]/16
-        --# out[2]=in[2] rem 16 * 16 + in[3]/4   
-        --# out[3]=in[3] rem  4 * 64 + in[4]
+        --# out[1]=src[1]        * 4  + src[2]/16
+        --# out[2]=src[2] rem 16 * 16 + src[3]/4     
+        --# out[3]=src[3] rem  4 * 64 + src[4]
         --#
         --# drem = {64,16, 4}
         --# dmul = { 4,16,64}
         --# ddiv = {16, 4, 1}
         --#
-        tmp = remainder(ccha[in[len-1]], drem[case3])*dmul[case3]
-        tmp += floor(ccha[in[len]]/ddiv[case3])
+        tmp = remainder(ccha[src[len-1]], drem[case3])*dmul[case3]
+        tmp += floor(ccha[src[len]]/ddiv[case3])
         result[i] = tmp
         len -= ldrop[case3]
         case3 = nc3[case3]

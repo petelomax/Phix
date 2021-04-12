@@ -8,223 +8,7 @@
 --                
 --format PE32
 --format PE64
--- DEV this might need to be in pHeap.e (:%pGetMCHK?): (so that pAlloc can store 0 in the era)
---  it may also want to be "with memory_leak_checking/full_memory_leak_checking"
-
---global constant NEWRETSLOT = 01       -- nb toggle in tandem with pStack/opRetf
-
-global constant MARKTYPES = 0
-global constant K_RIDT_UDTS = false -- added 28/02/19
-global constant NEWGSCAN = false -- added 01/03/19 (note: if set, K_RIDT_UDTS is ignored, check MARKTYPES as well)
--- (for NEWGSCAN; move these to pglobals.e when done:)
-global sequence g_scan, kridt_scan
--- g_scan is created as repeat(0,length(symtab)) on each iteration (actually kridt_scan, see below).
---  As we encounter each opFrame/opTchk, in routine vi [initially T_maintls==21], if g_scan[rtn]=0 
---  then insert into chain, ie g_scan[rtn]:=g_scan[vi]; g_scan[vi]:=rtn.
--- However some "scannables" need to be more permanent, specifically when K_ridt is set on them.
--- The same principle is applied to (both g_scan and) kridt_scan, and in fact we re-initialise
---  g_scan from kridt_scan at the start of each iteration, rather than all-zero it.
--- This replaces (some) prior use of [S_Slink] and fixes the type-routine issue, as well as 
---  doing a much better job of excluding routines due to constant propagtion effects.
--- Note that g_scan[T_maintls] (ditto kridt_scan) is initially "-1" as the chain terminator.
---  (It uses a string to prevent any chance of accidentally treating it as symtab[$].)
-
-global constant NEWCATCH = 01
-
-global constant NESTEDFUNC = 01
-
-global constant FWARN = 01
-
---global constant useFLOAT = 01
-global constant MCHK = 0        -- 0 = off, 1 = on
-
---  Note that MCHK is ignored if opLntpcalled!=0 or length(ptab)!=0, as otherwise
---                            opLnp/t will leave random floats etc on the "wrong heap"
---                            and therefore trigger spurious memory leak errors.
-
-global constant ORAC = 1    -- adds int/eger seq/uence ~/length to/.. features.
-                            -- note this disables s[end], just use s[$] instead
-
---SUG: check types and side-effects on auto-includes.
---
--- Programming notes:   (some general tips regarding bugs etc in p.exw itself)
--- =================
---  index out of bounds caused by opstack[opsidx[-1/2/3]] of 0: if emitON is 0, there
---                      is probably a missing "if emitON then" wrapper at that point.
---                      The missing entry from the test set is "constant DEBUG=0" with
---                      "if DEBUG then <any & all possible code constructs> end if",
---                      which ought to do nothing except compile cleanly.
---  try "p p -cp" when "p -cp" fails. Certainly any change to the calling convention for
---                      the backend VM (usually) requires this, similar build problems 
---                      have occured with #ilasm/updates to iload in pttree.e, and with
---                      some changes to #isginfo handling.
---erm:
---  stuff I rule out includes: goto: see notes/alternative in pops.e
---                             preprocessing/macros: make the compiler smarter rather
---                              than make it handle two different interlaced languages.
---                             no proven gain: don't care about "want", need proof.
---                              try whacky ideas yourself, be not premature with them.
---                             because C does it like that: so what? Go use C then.
---  open-source forks of the compiler are welcome, closed source ones are forbidden.
---
--- For a description of with/without console/gui, see file:docs/pfeat.htm#console
---
---DEV temp. removed (as it now triggers use of new emit, try putting back once pth works!)
---!/**/format "p.fmt"
-----with gui 4.0        -- pw.exe/see verify_build() etc below
---!/**/with console 4.0     -- p.exe (this program does not run on RDS Eu!)
---DEV (this wants to be in a common file for p.exw/pth.exw)
---format PE32 4.0
---version { "FileDescription","Phix Programming Language",
---        "LegalCopyright","Pete Lomax",
---        "FileVersion","0.6.3",
---        "ProductName","Phix Programming Language",
---        "ProductVersion","0.6.3",
---        "OriginalFilename","pw.exe" }
-
---
--- Warning: it is not wise to trace/profile the compiler whilst that is also
---          trying to trace/profile a user app. In particular, "p p test" may
---          crash (error code 91) when one of these is enabled.
---          Update: I have stopped attempts to "share" a copy of pdebug.e and
---          as long as pdiag.e (which remains "shared") has "without debug",
---          this now seems better, albeit the sanity remains questionable...
---
---with profile_time
---with profile
-
---include demo\arwen\arwen.ew
---include demo\arwen\axtra.ew
---include builtins\timestamp.ew
-
---without trace
---without type_check
---with trace
---with type_check
---without debug -- no gain
-
---!/**/without licence      -- Disable licencing, since it quite deliberately cripples 
---                          --  most of the core compiler/interpreter functionality.
---                          -- (You may freely share modified compiler sources, with a
---                          --   an "official" p.exe binary to recompile them, however
---                          --   you may NOT ship a pre-built/closed source p.exe.)
---                          -- (TIP: If you add a language construct, think twice before
---                          --       using it in p.exw itself, otherwise you may need to
---                          --       ship two versions of the modified compiler source.
---                          --       Not that running p temp\pold -cp is a major burden
---                          --       over "p -cp", as a one-time installation task.)
-
-global integer bind = 0         -- set by -c, -listing command line options (create .exe file)
-
-global integer repl = 0         -- set by -repl command line option (read eval print loop)
-
-global integer testall = 0
-global integer pauseOnWarnings = 01     -- only used if testall!=0 (which it is for final file)
-
--- note there is a "copy" of this in pdiag.e:
-global integer batchmode = 0    -- set by -batch command line option
-                                -- 1=suppress displays/prompts [incomplete]
-
-global integer safemode = false -- if true, running under -safe command line option.
-
-global integer norun = 0        -- set by -norun, -listing command line options
-
-global integer nodiag = 0       -- set by -nodiag command line option
-                                --  (can make list.asm easier to follow)
-
-global integer listing = 0      -- set by -listing command line option (also sets norun & bind)
-                                --  (aka -d, -dump, -l, -list, command line option)
-                                -- -1 indiates -d! (interpretive dump) listing
---DEV should no longer need this (rsn)
-global integer listimports = 0  -- set by -import(s) command line option
-                                -- 1 just dumps the import section to screen
-
-global constant suppressopRetf = 0 -- debug aid, should be 0 in all releases
-if suppressopRetf then
-    puts(1,"warning (p.exw line 107): suppressopRetf is ON\n")
-end if
-
---DEV this is not properly implemented yet; needs to do a full gvar_scan in pemit.e,
---      process #isginfo/opGchk properly, etc. (pltype.e should be OK)
---  (btw, apart from completely ignoring "without warning", this would/should not 
---        give you any more info than -c already does...)
-global integer lint = 0         -- set by -lint command line option
-                                --  (nb all x[i] = c_func will give warnings)
-
-global integer dumpil = 0       -- set by -dumpil command line option
-                                --  (nb only suitable for small programs/compiler debugging,
-                                --      and also: not all errors/warnings will be displayed.)
-global integer dilfn = 1        -- for use with dumpil option, output file "ildump.txt"
-                                --  (opened here, written in pilx86, closed in pemit.e)
-
-global integer minus_e = false  -- if true, -e "pgm"; ie no source file.
-
-global constant showfileprogress = 0    -- show files, times, etc.
-
-global constant collectstats = 0        -- see opStat, profile.e, eg emitHex5(), Branch().
-                                        -- WARNING: this (=1) is currently broken.
-
-global constant countTransTmpFer = 0    -- if set, writes a table of instructions which
-                                        -- might be suitable for tmptransfer, sorted in
-                                        -- order of occurrence, to ildump.txt only.
-                                        -- NB: does nowt else, and collects "consumers"
-                                        --  only, not potential producers (see pilx86.e).
-global constant showOpCounts = 0        -- if set, writes a table of opcodes in order
-                                        -- of number of times ilxlate() processed them.
-if countTransTmpFer then
-    if showOpCounts then ?9/0 end if    -- these (debug) options are mutually exclusive!
-end if
-
-
-global constant AutoIncWarn = 01        -- If 1, warn when files are auto-included.
-                                        -- NB only has effect under -lint.
-
 include builtins\pcase.e as pcase -- upper(), lower()
-
---include pcore.e
---include p6core.e
---
--- pcore.e
---
---  common incudeset for p.exw and pgui.exw
---
-include pglobals.e
-
-include builtins\ppp.e
-
-include pops.e  -- opcode table
-
-include pttree.e    -- ternary tree
-
-include pmsgs.e -- Warnings/Warn/Abort/Duplicate/Expected/Fatal/Undefined
-
-include ptok.e  -- tokeniser: getToken()
---include p6tok.e   -- tokeniser: getToken()
-
-include pltype.e    -- localtypes handling
-
-include psym.e      -- symbol table handler.
---include p6sym.e -- symbol table handler.
-
-include pilx86.e    -- ilxlate(), (also includes psched.e)
-
---7/4/16:
---global sequence code_section
-global string code_section
-global integer CSvsize, DSvsize
---25/4/16: (pHeap.e now using mmap)
---global integer CSvaddr, DSvaddr, ImageBase, VMvaddr, VMraddr, DVraddr, VMvsize        --DEV temp, for listing
-global atom CSvaddr, DSvaddr, ImageBase, VMvaddr, VMraddr, DVraddr, VMvsize     --DEV temp, for listing
-global string divm  -- used by p2asm.e if dumpVM=1
-global sequence VMep -- used by p2asm.e [DEV]
-
---include pemit.e
---include p6emit.e
-include pEmit2.e
-
---DEV this does not appear in Edita's project tree... (Finc thing??)
---include pdebug.e  -- trace routines
-include VM\pTrace.e -- trace routines
 
 include pmain.e     -- main parser
 
@@ -1889,6 +1673,13 @@ integer ntokens
 
 -- <ends>
 
+procedure Interpret()
+--DEVrepl: output some warnings if we need this...
+    close(-9)
+    symtab[T_cmdlnflg] = 2 -- in command_line(), get stuff from symtab[T_fileset]
+
+end procedure
+
 with trace
 function main()
 object savepath
@@ -1952,6 +1743,7 @@ t0 = t
     --22/12/20 (getter/setter)
     {} = get_routine_info(-9)   -- (disable symtab stomping!)
 
+--DEVrepl:
     fileno=0
     resetOptions()
     initFilePathSet()
@@ -2187,8 +1979,11 @@ end if
             end if
         else -- interpret
 
-            close(-9)
-            symtab[T_cmdlnflg] = 2 -- in command_line(), get stuff from symtab[T_fileset]
+            Interpret()
+--DEVrepl: output some warnings if we need this...
+--          close(-9)
+--          symtab[T_cmdlnflg] = 2 -- in command_line(), get stuff from symtab[T_fileset]
+
             wasEBP = symtab[T_EBP]
             #ilASM{
                 -- set ebp4,esp4,pst4 (from ebp,esp,symtabptr)
@@ -2266,38 +2061,27 @@ if MCHK and length(ptab)=0 and opLntpcalled=0 then
                     call :%pNewGtcbChain
                     mov [ntcb4],eax         -- temp save
 --                  mov [frst4],ecx         -- temp save
---                  mov eax,[symtab]
                     mov esi,[symtab]
                     mov ecx,[CSvaddr4]
---                  shl eax,2
                     shl esi,2
                     shl ecx,2
---                  mov [ds+8],eax          -- symtabptr
                     call :%pSetSymPtr
                     push ecx
                     call :%pNewStack
---DEV (diagnostics)
---                  pop ecx
-mov ecx,[esp]
+                    mov ecx,[esp]           -- (keep for diagnostics)
                     call ecx
-pop ecx
+                    pop ecx
 --DEV store errorcode? (same deal 3-place else)
                     call :%RunCleanup
 
 --                  mov eax,[ds+8]
                     call :%pGetSymPtr
---                  mov edx,[eax+84]        -- symtab[T_EBP=22]
-                    mov edx,[esi+84]        -- symtab[T_EBP=22]
-                    -- in case it helps, the next two lines should work just as well:
-    --              mov eax,[symtab]
-    --              mov edx,[ebp+eax*4+84]  -- symtab[T_EBP]
+                    mov edx,[esi+21*4]      -- symtab[T_EBP=22]
                     mov eax,[ebx+edx*4]     -- symtab[T_EBP][1] = ebp4
                     mov ecx,[ebx+edx*4+4]   -- symtab[T_EBP][2] = esp4
---                  mov edx,[ebx+edx*4+8]   -- symtab[T_EBP][3] = pst4
                     mov esi,[ebx+edx*4+8]   -- symtab[T_EBP][3] = pst4
                     shl eax,2
                     shl ecx,2
---                  shl edx,2
                     shl esi,2
                     mov ebp,eax             -- restore ebp
                     mov esp,ecx             -- restore esp
@@ -2323,11 +2107,9 @@ pop ecx
                     call :%pSetSymPtr
                     push rcx
                     call :%pNewStack
---DEV (diagnostics)
---                  pop rcx
-mov rcx,[rsp]
+                    mov rcx,[rsp]           -- (keep for diagnostics)
                     call rcx
-pop rcx
+                    pop rcx
                     call :%RunCleanup
 
 --                  mov rax,[ds+8]
@@ -2357,27 +2139,20 @@ pop rcx
             check_heap(ntcb4)
 else -- not MCHK
 --puts(1,"not MCHK\n")
+--DEVrepl factor this out, into pmain.e:
+--          InterpreXt()
             #ilASM{
                 [32]
---                  mov eax,[symtab]
                     mov esi,[symtab]
                     mov ecx,[CSvaddr4]
---                  shl eax,2
                     shl esi,2
                     shl ecx,2
---                  mov [ds+8],eax          -- symtabptr
                     call :%pSetSymPtr
---pNewStack??
---DEV not safe...
---push ebp
---              T_EBP       = 22,   -- spare (DEV T_level/T_EBP) -- compiled=0, interpreted={ebp4,esp4,sym4,gvar4?,level}
                     push ecx
                     call :%pNewStack
---DEV (diagnostics)
---                  pop ecx
-mov ecx,[esp]
+                    mov ecx,[esp]           -- (keep for diagnostics)
                     call ecx
-pop ecx
+                    pop ecx
 --                }
 --          call(CSvaddr4)
 --          #ilASM{
@@ -2388,23 +2163,15 @@ pop ecx
 --           given that we need pst4 here anyway, it makes more sense to restore everything here.
 --                  mov eax,[ds+8]
                     call :%pGetSymPtr
---                  mov edx,[eax+84]        -- symtab[T_EBP=22]
---                  mov edx,[esi+84]        -- symtab[T_EBP=22]
                     mov edx,[esi+21*4]      -- symtab[T_EBP=22]
-                    -- in case it helps, the next two lines should work just as well:
-    --              mov eax,[symtab]
-    --              mov edx,[ebp+eax*4+84]  -- symtab[T_EBP]
                     mov eax,[ebx+edx*4]     -- symtab[T_EBP][1] = ebp4
                     mov ecx,[ebx+edx*4+4]   -- symtab[T_EBP][2] = esp4
---                  mov edx,[ebx+edx*4+8]   -- symtab[T_EBP][3] = pst4
                     mov esi,[ebx+edx*4+8]   -- symtab[T_EBP][3] = pst4
                     shl eax,2
                     shl ecx,2
---                  shl edx,2
                     shl esi,2
                     mov ebp,eax             -- restore ebp
                     mov esp,ecx             -- restore esp
---                  mov [ds+8],edx          -- restore symtabptr
                     call :%pSetSymPtr
                 [64]
 --                  pop al
@@ -2418,16 +2185,11 @@ pop ecx
                     call :%pSetSymPtr
                     push rcx
                     call :%pNewStack
---DEV (diagnostics)
---                  pop rcx
-mov rcx,[rsp]
+                    mov rcx,[rsp]           -- (keep for diagnostics)
                     call rcx
-pop rcx
-
+                    pop rcx
 --                  mov rax,[ds+8]
                     call :%pGetSymPtr
---                  mov rdx,[rax+168]           -- symtab[T_EBP=22]
---                  mov rdx,[rsi+168]           -- symtab[T_EBP=22]
                     mov rdx,[rsi+21*8]          -- symtab[T_EBP=22]
                     -- in case it helps, the next two lines should work just as well:
     --              mov rax,[symtab]
@@ -2544,6 +2306,7 @@ object wasEBP   -- integer(0) = compiled, else ({ebp4,esp4,pst4}) = interpreted
 
 bool bInit = true
 
+--?{"currRtn",currRtn} -- 1
     t = time()
 
 --tt_save_init()
@@ -2551,11 +2314,25 @@ bool bInit = true
     resetOptions()
     initFilePathSet()
     tokinit()
-    syminit()
-while 1 do  -- main loop
+    syminit() -- this does an increaseScope() and a dropScope()
+--?{"currRtn",currRtn} -- 1
+DSvaddr = 0
+    filenames = {{1,""}} --append(filenames,{pathno,file})
+--?pathset
+    fileno = 1 --length(filenames)
+    allfiles = {""}
+    allpfiles = {""}
+    exptext = {0}--append(exptext,0)
+    expandedYet = {0}--append(expandedYet,0)
+    unresolved_routine_ids = {0}--append(unresolved_routine_ids,0)
+
 
     puts(1,"Warning: the repl is brand new, experimental, incomplete, and liable to crash!\n")
     puts(1,"Enter a statement such as \"?remainder(floor(250/8),8)\" or \"puts(1,\"Hi\")\"\n")
+
+while 1 do  -- main loop
+    fileno = 1
+
 --SUG: use batchmode and "+>" until we have a block that compiles cleanly, cleanout symtab[21].
 --      allow symtab entries to be overwritten (esp routines)
 --      sequence s ?s should print <no value>... pp(s) should crash, but return to the prompt.
@@ -2563,18 +2340,26 @@ while 1 do  -- main loop
 --      (the help system is tied into Edix, not the repl, but you could easily add "help xxx")
 --      no point sending repl errors to Edita/Edix...
 --while 1 do    -- main loop
-    puts(1,"\n>")
     text = ""
+    bool bMultiLine = false
     while 1 do  -- read line loop
+        puts(1,iff(bMultiLine?"\n+>":"\n>"))
         line = trim(gets(0))
         if atom(line) then exit end if
         if length(line)=0 then exit end if
-        if line[$]!='\\' then
-            text &= line
+        if line="{{{" and not bMultiLine then
+            bMultiLine = true
+        elsif bMultiLine and line="}}}" then
+--          bMultiLine = false
             exit
+        elsif line[$]='\\' then
+            line[$] = '\n'
+            text &= line
+        else
+            text &= line
+            if not bMultiLine then exit end if
+            text &= '\n'
         end if
-        line[$] = ' '
-        text &= line
     end while
     if length(text)<=4 and find(lower(text),{"q","quit","exit"}) then exit end if
     if length(text)=0 then
@@ -2584,11 +2369,11 @@ while 1 do  -- main loop
 --trace(1)
         text = append(text,'\n')
         ltl = length(text)
-        allfiles = {text}--append(allfiles,text)
-        allpfiles = {text}--append(allpfiles,text)
-        exptext = {0}--append(exptext,0)
-        expandedYet = {0}--append(expandedYet,0)
-        unresolved_routine_ids = {0}--append(unresolved_routine_ids,0)
+        allfiles[1] = text
+        allpfiles[1] = text
+        exptext[1] = 0
+        expandedYet[1] = 0
+        unresolved_routine_ids[1] = 0
 --      finalOptWarn = append(finalOptWarn,optset[OptWarning])
         finalOptWarn = {optset[OptWarning]}
 --      if length(filenames)=0 then
@@ -2596,12 +2381,17 @@ while 1 do  -- main loop
 --          mainpath = thispath
 --          mainfile = file
 --      end if
-        filenames = {{0,""}} --append(filenames,{pathno,file})
-        fileno = 1 --length(filenames)
         col = 0
 --trace(1)
+sequence symsave = symtab
+--try
+--?{"currRtn",currRtn} -- 1
+--?{"scopelevel",scopelevel} -- 0
         Compile(bInit)
-        bInit = false
+--?{"currRtn",currRtn} -- 21
+--?{"scopelevel",scopelevel} -- 1
+--      bInit = false -- (now done after the end try)
+symsave = symtab
         --
         -- Interpret
         --
@@ -2631,14 +2421,16 @@ while 1 do  -- main loop
             end if
         end if
 
-        symtab[T_cmdlnflg] = 2 -- in command_line(), get stuff from symtab[T_fileset]
+--      symtab[T_cmdlnflg] = 2 -- in command_line(), get stuff from symtab[T_fileset]
 
 --if newEmit then
 --          ?9/0 -- (repl)  -- crib from main() [again]
                             -- might be better to rewrite this as main(integer repl)
 
-            close(-9)
-            symtab[T_cmdlnflg] = 2 -- in command_line(), get stuff from symtab[T_fileset]
+--DEVrepl:
+        Interpret()
+--          close(-9)
+--          symtab[T_cmdlnflg] = 2 -- in command_line(), get stuff from symtab[T_fileset]
             wasEBP = symtab[T_EBP]
             #ilASM{
                 -- set ebp4,esp4,pst4 (from ebp,esp,symtabptr)
@@ -2694,16 +2486,11 @@ while 1 do  -- main loop
                     call :%pSetSymPtr
                     push ecx
                     call :%pNewStack
---DEV (diagnostics)
---                  pop ecx
-mov ecx,[esp]
+                    mov ecx,[esp]           -- (keep for diagnostics)
                     call ecx
-pop ecx
+                    pop ecx
                     call :%pGetSymPtr
                     mov edx,[esi+21*4]      -- symtab[T_EBP=22]
-                    -- in case it helps, the next two lines should work just as well:
-    --              mov eax,[symtab]
-    --              mov edx,[ebp+eax*4+84]  -- symtab[T_EBP]
                     mov eax,[ebx+edx*4]     -- symtab[T_EBP][1] = ebp4
                     mov ecx,[ebx+edx*4+4]   -- symtab[T_EBP][2] = esp4
                     mov esi,[ebx+edx*4+8]   -- symtab[T_EBP][3] = pst4
@@ -2721,12 +2508,9 @@ pop ecx
                     call :%pSetSymPtr
                     push rcx
                     call :%pNewStack
---DEV (diagnostics)
---                  pop rcx
-mov rcx,[rsp]
+                    mov rcx,[rsp]           -- (keep for diagnostics)
                     call rcx
-pop rcx
-
+                    pop rcx
                     call :%pGetSymPtr
                     mov rdx,[rsi+21*8]          -- symtab[T_EBP=22]
                     -- in case it helps, the next two lines should work just as well:
@@ -2749,9 +2533,9 @@ pop rcx
             errorcode = 0   --DEV
 --DEV also elsewhere?
             free(CSvaddr)
-            free(DSvaddr)
---added 29/10/16: (probbly not rqd)
-            close(-9)
+--          free(DSvaddr)
+--added 29/10/16: (probably not rqd)
+--          close(-9)
 
 --else
 ----if 0 then -- helpful to skip this when profiling the compiler [esp under -test]
@@ -2778,19 +2562,53 @@ pop rcx
 --  end if  -- no norun
 --  Warnings(1)
 --  currtls = T_maintls
+--?{"currRtn",currRtn} -- (varies...) [Not sure why...]
+--  currRtn = T_maintls
+--if currRtn != T_maintls then
+--      currRtn = dropScope(0,S_File)
 --?{"currRtn",currRtn}
-        currRtn = dropScope(0,S_File)
---?{"currRtn",currRtn}
+if scopelevel != 1 then ?9/0 end if
+
+--/*
+catch e
+--  ?e
+    string file = e[E_FILE], name = e[E_NAME], err = e[E_USER]
+    if file!="pmsgs.e"
+    or name!="Abort"
+    or err!="abort(1)" then
+        printf(1,"%s%s line %d in %s: %s\n",{e[E_PATH], file, e[E_LINE], name, err})
+    end if
+--/*
+{42,29791650,518,3632,"Abort","pmsgs.e",`C:\Program Files (x86)\Phix\`,"abort(1)"}
+{42,29791650,518,3632,"Abort","pmsgs.e",`C:\Program Files (x86)\Phix\`,"abort(1)"}
+1 E_CODE (atom) hardware and operating system exceptions usually have bit #800000000 set, user exceptions can be any atom value, even 0. 
+2 E_ADDR (atom) a machine address indicating where the exception ocurred.
+3 E_LINE (integer, optional) the source code line matching E_ADDR in E_RTN.
+4 E_RTN (integer, optional) equivalent to routine_id(), an index to the symbol table identifying the routine.
+5 E_NAME (string|integer, optional) the human-readable name of E_RTN.
+6 E_FILE (string|integer, optional) the source filename containing E_NAME.
+7 E_PATH (string|integer, optional) the directory containing E_FILE.
+8 E_USER (object, optional) user defined/application specific content in e[8..$]. 
+--*/
+end try
+--*/
+        bInit = false
+currRtn = T_maintls
+
+--end if
+--?scopelevel
 scopelevel = 1
-        symtab[T_pathset] = -999
-        symtab[T_fileset] = -999
+--      symtab[T_pathset] = -999
+--      symtab[T_fileset] = -999
+symtab = symsave
     end if -- length(text)=0
 
 --  tt_init()
 --  ResetResourceSectionDefaults()
 
 end while
-g0close()
+close(-9)
+--g0close()
 end procedure
 
 

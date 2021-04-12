@@ -8,7 +8,7 @@
 --
 
 global function sum(object a)
-atom res = 0
+    atom res = 0
     if atom(a) then
         res = a
     else
@@ -20,16 +20,14 @@ atom res = 0
 end function
 
 global function product(object a)
-atom res = 0
+    atom res = 1
     if atom(a) then
         res = a
     elsif length(a) then
-        res = 1
         for i=1 to length(a) do
             res *= product(a[i])
         end for
     end if
     return res
 end function
-
 

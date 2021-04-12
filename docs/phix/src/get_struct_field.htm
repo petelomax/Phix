@@ -15,6 +15,9 @@
          <td>
           include cffi.e<br>
           <a href="atom.htm">atom</a> v = get_struct_field(<a href="integer.htm">integer</a> id, <a href="atom.htm">atom</a> pStruct, <a href="string.htm">atom_string</a> field)
+          <br><i>-- or --</i><br>
+          <a href="string.htm">string</a> s = get_struct_string(<a href="integer.htm">integer</a> id, <a href="atom.htm">atom</a> pStruct, <a href="string.htm">string</a> field,
+                                                                <a href="integer.htm">integer</a> len)
          </td>
         </tr>
         <tr>
@@ -28,10 +31,15 @@
             <br>
             id: a result from <a href="define_struct.htm">define_struct</a>().<br>
             pStruct: a result from <a href="allocate_struct.htm">allocate_struct</a>().<br>
-            field: a string name or, caveat emptor, a numeric index.
+            field: a string name or, caveat emptor, a numeric index (the latter mainly for the benefit of <a href="cstruct.htm">c-structs</a>).
             <br>
             <br>
-            <b>Note</b>: This functionality is now wrapped by <a href="cstruct.htm">c-struct</a>, which you may find slightly easier to use.
+            The get_struct_string() routine should (only) be used when the field is TCHAR[] or similar. Note that it is your responsibility to pass in the right length, 
+            since cffi.e cannot check that for you, and likewise trim trailing zeroes (or &rsquo;\0&rsquo;) or spaces where needed. There may also be cases where some
+            unknown C code replaces say &quot;some long message&quot; with &quot;error 7\0g message&quot;, again that&rsquo;s your problem not mine. <br>
+            Under set_unicode(1), the retrieved widestring is converted to utf8 before being returned. Also, a TCHAR[128] should still get a len of 128 (characters/16-bit 
+            unicode points), even though it will actually allocate/occupy 256 bytes.<br>
+            Lastly, since such fields are not supported by <a href="cstruct.htm">c-structs</a> the option to specify an integer field index has deliberately been removed.
          </td>
         </tr>
         <tr>
@@ -39,8 +47,7 @@
           <b>Comments:</b>
          </td>
          <td>
-            The return value is always an atom. You may need to use say <a href="peek_string.htm">peek_string</a>() or even
-            get_struct_field() itself again, on some results.
+            You may need to use say <a href="peek_string.htm">peek_[w]string</a>() or even get_struct_field() itself again, on some atom results, eg an lpszText.
          </td>
         </tr>
         <tr>
@@ -57,11 +64,11 @@ atom pTitle = get_struct_field(idMBP,pMBP,"lpszText")
 ?peek_string(pTitle)
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> cffi.e
-</font><font color="#008080">constant</font><font color="#000000"> idMBP</font><font color="#0000FF"> =</font><font color="#5E005E"> define_struct</font><font color="#0000FF">(...)
-</font><font color="#004080">atom</font><font color="#000000"> pMBP</font><font color="#0000FF"> =</font><font color="#5E005E"> allocate_struct</font><font color="#0000FF">(</font><font color="#000000">idMBP</font><font color="#0000FF">)
-.. &lt;</font><font color="#000000">set contents of pMBP</font><font color="#0000FF">&gt;
-</font><font color="#004080">atom</font><font color="#000000"> pTitle</font><font color="#0000FF"> =</font><font color="#5E005E"> get_struct_field</font><font color="#0000FF">(</font><font color="#000000">idMBP</font><font color="#0000FF">,</font><font color="#000000">pMBP</font><font color="#0000FF">,</font><font color="#008000">"lpszText"</font><font color="#0000FF">)
+<font color="#008080">include</font><font color="#000000"> cffi.e</font>
+<font color="#008080">constant</font><font color="#000000"> idMBP</font><font color="#0000FF"> =</font><font color="#5E005E"> define_struct</font><font color="#0000FF">(...)</font>
+<font color="#004080">atom</font><font color="#000000"> pMBP</font><font color="#0000FF"> =</font><font color="#5E005E"> allocate_struct</font><font color="#0000FF">(</font><font color="#000000">idMBP</font><font color="#0000FF">)
+.. &lt;</font><font color="#000000">set contents of pMBP</font><font color="#0000FF">&gt;</font>
+<font color="#004080">atom</font><font color="#000000"> pTitle</font><font color="#0000FF"> =</font><font color="#5E005E"> get_struct_field</font><font color="#0000FF">(</font><font color="#000000">idMBP</font><font color="#0000FF">,</font><font color="#000000">pMBP</font><font color="#0000FF">,</font><font color="#008000">"lpszText"</font><font color="#0000FF">)
 ?</font><font color="#5E005E">peek_string</font><font color="#0000FF">(</font><font color="#000000">pTitle</font><font color="#0000FF">)</font>
 </pre>
          </td>

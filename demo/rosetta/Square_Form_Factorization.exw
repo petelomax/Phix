@@ -1,0 +1,103 @@
+--
+-- demo\rosetta\Square_Form_Factorization.exw
+-- ==========================================
+--
+--  For https://rosettacode.org/mw/index.php?title=Square_Form_Factorization#Phix
+--
+--  This task has the honour of being the first that pwa/p2js successfully transpiled.
+--
+--  Amusingly, the (64bit) Raku version of this takes 15hours 40 mins to run! (vs 0.2s!!)
+--  I raised concerns with the author, only to be told... [DEV server down]
+--
+--requires(64) -- (decided to limit 32-bit explicitly instead)
+atom t0 = time()
+constant MxN = power(2,iff(machine_bits()=32?53:63)),
+         m = {1, 3, 5, 7, 11}
+ 
+function squfof(atom N)
+    -- square form factorization
+ 
+    integer h, a=0, b, c, u=0, v, w, rN, q, r, t
+ 
+    if remainder(N,2)==0 then return 2 end if
+    h = floor(sqrt(N) + 0.5)
+    if h*h==N then return h end if
+ 
+    for k=1 to length(m) do
+        integer mk = m[k]
+        if mk>1 and remainder(N,mk)==0 then return mk end if
+        //check overflow m * N
+        if N>MxN/mk then exit end if
+        atom mN = N*mk
+        r = floor(sqrt(mN))
+        if r*r>mN then r -= 1 end if
+        rN = r
+ 
+        //principal form
+        {b,a} = {r,1}
+        h = floor((rN+b)/a)*a-b
+        c = floor((mN-h*h)/a)
+ 
+        for i=2 to floor(sqrt(2*r)) * 4-1 do
+            //search principal cycle
+ 
+            {a,c,t} = {c,a,b}
+            q = floor((rN+b)/a)
+            b = q*a-b
+            c += q*(t-b)
+ 
+            if remainder(i,2)==0 then
+                r = floor(sqrt(c)+0.5)
+ 
+                if r*r==c then
+                    //square form found
+ 
+                    //inverse square root
+                    q = floor((rN-b)/r)
+                    v = q*r+b
+                    w = floor((mN-v*v)/r)
+ 
+                    //search ambiguous cycle
+                    u = r
+                    while true do
+                        {u,w,r} = {w,u,v}
+                        q = floor((rN+v)/u)
+                        v = q*u-v
+                        if v==r then exit end if
+                        w += q*(r-v)
+                    end while
+ 
+                    //symmetry point
+                    h = gcd(N,u)
+                    if h!=1 then return h end if
+                end if
+            end if
+        end for
+   end for
+   return 1
+end function
+ 
+constant tests = {2501, 12851, 13289, 75301, 120787, 967009, 997417, 7091569, 5214317, 20834839, 
+                  23515517, 33409583, 44524219, 13290059, 223553581, 42854447, 223553581, 2027651281, 
+                  11111111111, 100895598169, 1002742628021, -- (prime/expected to fail)
+                  60012462237239, 287129523414791, 9007199254740931, 32, -- (limit of 32-bit)
+                  11111111111111111, 314159265358979323, 384307168202281507, 419244183493398773,
+                  658812288346769681, 922337203685477563, 1000000000000000127, 1152921505680588799,
+                  1537228672809128917, 4611686018427387877}
+ 
+printf(1,"N                      f          N/f\n")
+printf(1,"======================================\n")
+for i=1 to length(tests) do
+    atom N = tests[i]
+    if N=32 then
+        if machine_bits()=32 then exit end if
+    else
+        atom f = squfof(N)
+        printf(1,"%-22d %s\n",{N,iff(f=1?"fail":sprintf("%-10d %d",{f,N/f}))})
+    end if
+end for
+
+?elapsed(time()-t0) -- 0.2s on 64 bit, 0.1s on 32 bit
+if platform()!=JS then
+    {} = wait_key()
+end if

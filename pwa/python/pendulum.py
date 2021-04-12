@@ -36,6 +36,7 @@ def Animation(root):
     rod = cnv.create_line(ra,rb,rc,rd,fill='dodger blue',width=6)
  
     def animate():
+        nonlocal angle, da
         if abs(angle) > math.pi / 2:
             da = - da
         angle += da

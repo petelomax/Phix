@@ -1,3 +1,3 @@
 global integer z
 z=1
-if z!=1 then puts(1,"z!=1") abort(1) end if
+if z!=1 then crash("z!=1") end if

@@ -6,11 +6,6 @@
 --
 
 constant showprogress=0
-procedure Abort(sequence msg)
-    puts(1,msg)
-    if getc(0) then end if
-    abort(1)
-end procedure
 
 --forward procedure c(integer c5)
 integer r_a,r_b,r_c
@@ -22,8 +17,8 @@ integer a2
         a2 = 2
 --      c(5)
         call_proc(r_c,{5})
-        if a1 != 1 then Abort("a1 != 1\n") end if
-        if a2 != 2 then Abort("a2 != 2\n") end if
+        if a1 != 1 then crash("a1 != 1\n") end if
+        if a2 != 2 then crash("a2 != 2\n") end if
     end if
 end procedure
 r_a = routine_id("a")
@@ -36,8 +31,8 @@ integer b4
     call_proc(r_a,{0})
 --  c(4)
     call_proc(r_c,{4})
-    if b3 != 3 then Abort("b3 != 3\n") end if
-    if b4 != 4 then Abort("b4 != 4\n") end if
+    if b3 != 3 then crash("b3 != 3\n") end if
+    if b4 != 4 then crash("b4 != 4\n") end if
 end procedure
 r_b = routine_id("b")
 
@@ -48,12 +43,12 @@ integer c6
         c6 = 6
 --      b(3)
         call_proc(r_b,{3})
-        if c5 != 5 then Abort("c5 != 5\n") end if
-        if c6 != 6 then Abort("c6 != 6\n") end if
+        if c5 != 5 then crash("c5 != 5\n") end if
+        if c6 != 6 then crash("c6 != 6\n") end if
     elsif c5 then
         c6 = c5-1
         c(c6)
-        if c6 != c5-1 then Abort("c6 != c5-1\n") end if
+        if c6 != c5-1 then crash("c6 != c5-1\n") end if
         if showprogress then ?{c5,c6} end if
     end if
 end procedure
@@ -69,7 +64,7 @@ end function
 
 integer rid
     rid = routine_id("xxx")
-    if call_func(rid,{3})+call_func(rid,{4})!=7 then puts(1,"call_func:3+4!=7\n") abort(1) end if
+    if call_func(rid,{3})+call_func(rid,{4})!=7 then crash("call_func:3+4!=7\n") end if
 
 procedure A()
 --  puts(1,{"hello pete\n"}[1])
@@ -110,9 +105,9 @@ function p(sequence s)
 end function
 constant rp = routine_id("p")
 call_proc(rh,{})
-if call_func(rp,{"pete\n"})!=4 then puts(1,"call_func(rp)!=4\n") abort(1) end if
+if call_func(rp,{"pete\n"})!=4 then crash("call_func(rp)!=4\n") end if
 h()
-if p("pete\n")!=4 then puts(1,"p(\"pete\\n\")!=4\n") abort(1) end if
+if p("pete\n")!=4 then crash("p(\"pete\\n\")!=4\n") end if
 --abort(1)
 --!/**/without debug
 --constant showprogress=0
@@ -130,7 +125,7 @@ constant Q=routine_id("X")
 --?Q
 X()
 if not RDS then
-    if P=-1 then Abort("P=-1\n") end if
+    if P=-1 then crash("P=-1\n") end if
     call_proc(P,{})
 end if
 call_proc(Q,{})
@@ -148,29 +143,35 @@ function handler (atom a1, atom a2, atom a3, atom a4)
 end function
 rid=routine_id("handler")
 
-if handler(1,2,3,4)!=10 then puts(1,"handler(1,2,3,4)!=10\n") abort(1) end if
-if call_func(rid,{1,2,3,4})!=10 then puts(1,"call_func(rid,{1,2,3,4})!=10\n") abort(1) end if
-if handler(1,2.2,3.3,4.4)!=10.9 then puts(1,"handler(1,2.2,3.3,4.4)!=10.9\n") abort(1) end if
-if call_func(rid,{1,2.2,3.3,4.4})!=10.9 then puts(1,"call_func(rid,{1,2.2,3.3,4.4})!=10.9\n") abort(1) end if
---if handler(1.1,2.2,3.3,4.4)!=11 then puts(1,"handler(1.1,2.2,3.3,4.4)!=11\n") abort(1) end if
---if sprint(handler(1.2,2.4,3.6,4.8))!="12" then puts(1,"handler(1.2,2.4,3.6,4.8)!=12\n") abort(1) end if
-if not find(sprint(handler(1.2,2.4,3.6,4.8)),{"12","12.0"}) then puts(1,"handler(1.2,2.4,3.6,4.8)!=12\n") abort(1) end if
---if call_func(rid,{1.1,2.2,3.3,4.4})!=11 then puts(1,"call_func(rid,{1.1,2.2,3.3,4.4})!=11\n") abort(1) end if
---if sprint(call_func(rid,{1.2,2.4,3.6,4.8}))!="12" then puts(1,"call_func(rid,{1.2,2.4,3.6,4.8})!=12\n") abort(1) end if
-if not find(sprint(call_func(rid,{1.2,2.4,3.6,4.8})),{"12","12.0"}) then puts(1,"call_func(rid,{1.2,2.4,3.6,4.8})!=12\n") abort(1) end if
+if handler(1,2,3,4)!=10 then crash("handler(1,2,3,4)!=10\n") end if
+if call_func(rid,{1,2,3,4})!=10 then crash("call_func(rid,{1,2,3,4})!=10\n") end if
+if handler(1,2.2,3.3,4.4)!=10.9 then crash("handler(1,2.2,3.3,4.4)!=10.9\n") end if
+if call_func(rid,{1,2.2,3.3,4.4})!=10.9 then crash("call_func(rid,{1,2.2,3.3,4.4})!=10.9\n") end if
+--if handler(1.1,2.2,3.3,4.4)!=11 then crash("handler(1.1,2.2,3.3,4.4)!=11\n") end if
+--if sprint(handler(1.2,2.4,3.6,4.8))!="12" then crash("handler(1.2,2.4,3.6,4.8)!=12\n") end if
+if not find(sprint(handler(1.2,2.4,3.6,4.8)),{"12","12.0"}) then crash("handler(1.2,2.4,3.6,4.8)!=12\n") end if
+--if call_func(rid,{1.1,2.2,3.3,4.4})!=11 then crash("call_func(rid,{1.1,2.2,3.3,4.4})!=11\n") end if
+--if sprint(call_func(rid,{1.2,2.4,3.6,4.8}))!="12" then crash("call_func(rid,{1.2,2.4,3.6,4.8})!=12\n") end if
+if not find(sprint(call_func(rid,{1.2,2.4,3.6,4.8})),{"12","12.0"}) then crash("call_func(rid,{1.2,2.4,3.6,4.8})!=12\n") end if
 
+--pwa/p2js:
+--/!*
 include t10inc4b.e as Z
-if z()!=3 then puts(1,"z()!=3\n") end if
+--include t10inc4b.e
+if z()!=3 then crash("z()!=3\n") end if
 integer z1,z2
 z1 = routine_id("z")
-if call_func(z1,{})!=3 then puts(1,"call_func(z1,{})!=3\n") end if
+if call_func(z1,{})!=3 then crash("call_func(z1,{})!=3\n") end if
 z2 = routine_id("Z:z")  -- should be resolved at compile-time
-if call_func(z2,{})!=3 then puts(1,"call_func(z2,{})!=3\n") end if
-if z1!=z2 then puts(1,"z1!=z2\n") end if
+if call_func(z2,{})!=3 then crash("call_func(z2,{})!=3\n") end if
+if z1!=z2 then crash("z1!=z2\n") end if
+--*!/
 
 --/* Not needed for Phix:
 include ..\builtins\ppp.e
 --*/
-pp(command_line())
+if platform()!=JS then
+    pp(command_line())
+end if
 --if getc(0) then end if
 

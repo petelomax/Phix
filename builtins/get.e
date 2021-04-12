@@ -20,24 +20,22 @@ global constant GET_SUCCESS = 0,
                 GET_FAIL = 1
 --*/
 
-constant TRUE = 1
+--constant TRUE = 1
 
 type natural(integer x)
     return x>=0
 end type
 
-type char(integer x)
+type character(integer x)
     return x>=-1 and x<=255
 end type
 
 natural input_file -- file to be read from
 
 object input_string -- string to be read from
-natural string_next
-        string_next = 0
+natural string_next = 0
 
-char ch -- the current character
-     ch = 0
+character ch = 0    -- the current character
 
 global function active_ch()
     return ch
@@ -82,11 +80,9 @@ end procedure
 constant ESCAPE_CHARS = "nt'\"\\r",
          ESCAPED_CHARS = "\n\t'\"\\\r"
 
-function escape_char(char c)
+function escape_char(character c)
 -- return escape character
-natural i
-
-    i = find(c, ESCAPE_CHARS)
+    natural i = find(c, ESCAPE_CHARS)
     if i=0 then
         return GET_FAIL
     else
@@ -97,10 +93,8 @@ end function
 function get_qchar()
 -- get a single-quoted character
 -- ch is "live" at exit
-char c
-
     get_ch()
-    c = ch
+    character c = ch
     if ch='\\' then
         get_ch()
         c = escape_char(ch)
@@ -122,9 +116,7 @@ end function
 function get_string()
 -- get a double-quoted character string
 -- ch is "live" at exit
-sequence text
-
-    text = ""
+    sequence text = ""
     while TRUE do
         get_ch()
         if ch=GET_EOF or ch='\n' then
@@ -162,15 +154,9 @@ end function
 function get_number()
 -- read a number
 -- ch is "live" at entry and exit
-plus_or_minus n_sign, e_sign
-natural ndigits
-integer hex_digit
-atom mantissa, fraction, dec
-integer e_mag
-
-    n_sign = +1
-    mantissa = 0
-    ndigits = 0
+    plus_or_minus n_sign = +1
+    natural ndigits = 0
+    atom mantissa = 0
 
     -- process sign
     if ch='-' then
@@ -188,8 +174,7 @@ integer e_mag
         -- process hex integer and return
         get_ch()
         while TRUE do
---          hex_digit = find(ch, HEX_DIGITS)-1
-            hex_digit = find(ch,"0123456789ABCDEF")-1
+            integer hex_digit = find(ch,"0123456789ABCDEF")-1
             if hex_digit>=0 then
                 ndigits += 1
                 mantissa = mantissa*16+hex_digit
@@ -214,8 +199,8 @@ integer e_mag
     if ch='.' then
         -- get fraction
         get_ch()
-        dec = 1
-        fraction = 0
+        atom dec = 1,
+             fraction = 0
         while ch>='0' and ch<='9' do
             ndigits += 1
             fraction = fraction*10 + ch-'0'
@@ -233,8 +218,8 @@ integer e_mag
 
     if ch='e' or ch='E' then
         -- get exponent sign
-        e_sign = +1
-        e_mag = 0
+        integer e_sign = +1,
+                e_mag = 0
         get_ch()
         if ch='-' then
             e_sign = -1
@@ -274,8 +259,7 @@ end function
 function Get()
 -- read a data object as a string of characters and return {error_flag, value}
 -- Note: ch is "live" at entry and exit of this routine
-sequence s, e
-integer e1
+    sequence e
 
     skip_blanks()
 
@@ -296,7 +280,7 @@ integer e1
 
         elsif ch='{' then
             -- process a sequence
-            s = {}
+            sequence s = {}
             get_ch()
             skip_blanks()
             if ch='}' then -- empty sequence
@@ -307,7 +291,7 @@ integer e1
             while 1 do -- read: comment(s), element, comment(s), comma and so on till it terminates or errors out
                 while 1 do -- read zero or more comments and an element
                     e = Get() -- read next element, using standard function
-                    e1 = e[1]
+                    integer e1 = e[1]
                     if e1=GET_SUCCESS then
                         s = append(s, e[2])
                         exit  -- element read and added to result
@@ -377,17 +361,13 @@ end function
 global function prompt_number(sequence prompt, sequence range={})
 -- Prompt the user to enter a number. 
 -- A range of allowed values may be specified.
-integer error_status
-object answer
-
     while 1 do
         puts(1, prompt)
-        answer = gets(0) -- make sure whole line is read
+        object answer = gets(0) -- make sure whole line is read
         puts(1, '\n')
 
---      {error_status,answer} = value(answer)
         answer = value(answer)
-        error_status = answer[1]
+        integer error_status = answer[1]
         answer = answer[2]
         if error_status!=GET_SUCCESS 
         or sequence(answer) then
@@ -407,10 +387,8 @@ end function
 --global function prompt_string(string prompt)
 global function prompt_string(sequence prompt)
 -- Prompt the user to enter a string
-object answer
-
     puts(1, prompt)
-    answer = gets(0)
+    object answer = gets(0)
     puts(1, '\n')
     if sequence(answer) and length(answer)>0 then
         return answer[1..length(answer)-1] -- trim the \n
@@ -426,25 +404,22 @@ global function get_bytes(integer fn, integer n)
 -- If n > 0 and fewer than n bytes are returned, 
 -- you've reached the end of file.
 -- This function is normally used with files opened in binary mode.
-sequence s
-integer c, first, last
-
     if n=0 then
         return {}
     end if
 
-    c = getc(fn)
+    integer c = getc(fn)
     if c=GET_EOF then
         return {}
     end if
 
-    s = repeat(c, n)
+    sequence s = repeat(c, n)
 
-    last = 1
+    integer last = 1
     while last<n do
         -- for speed, read a chunk without checking for EOF
-        first = last+1
-        last = last+CHUNK
+        integer first = last+1
+        last += CHUNK
         if last>n then
             last = n
         end if

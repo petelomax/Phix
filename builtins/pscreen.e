@@ -44,7 +44,7 @@ xGetConsoleScreenBufferInfo,xGetLastError,
 xSetConsoleCursorInfo
 
 
-object void
+--object void
 
 atom stdout
 --, stdin, stderr
@@ -126,7 +126,7 @@ procedure initI()
             C_INT)      -- DWORD
 --#with reformat
 
-        void = c_func(xAllocConsole,{}) -- if we already have one, fail, we don't care.
+        {} = c_func(xAllocConsole,{}) -- if we already have one, fail, we don't care.
 --      stdin = c_func(xGetStdHandle,{STD_INPUT_HANDLE})
         stdout = c_func(xGetStdHandle,{STD_OUTPUT_HANDLE})
 --      stderr = c_func(xGetStdHandle,{STD_ERROR_HANDLE})
@@ -327,7 +327,7 @@ global procedure cursor(integer style)
         else                   style = 100
         end if
         poke4(xCCI+CCI_dwSize,style)
-        void = c_func(xSetConsoleCursorInfo,{stdout,xCCI})
+        {} = c_func(xSetConsoleCursorInfo,{stdout,xCCI})
         free(xCCI)
     elsif platform()=LINUX then
         -- Documented as doing nothing on Linux (==OE)

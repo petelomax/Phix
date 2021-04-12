@@ -169,15 +169,15 @@ global function from_polar(atom rho, theta)
     return res
 end function
 
-global function with_theta(complex this, atom theta)
+global function with_theta(complex c, atom theta)
 -- creates new complex with same magnitude but different angle
-    complex res = from_polar(complex_rho(this),theta)
+    complex res = from_polar(complex_rho(c),theta)
     return res
 end function
 
-global function with_rho(complex this, atom rho)
+global function with_rho(complex c, atom rho)
 -- creates new complex with same angle but different magnitude
-    complex res = from_polar(rho,complex_theta(this))
+    complex res = from_polar(rho,complex_theta(c))
     return res
 end function
 
@@ -217,6 +217,7 @@ end function
 global function complex_power(complexn a, p)
     complex result
     if atom(a) then a = {a,0} end if
+    if sequence(p) and p[2]=0 then p = p[1] end if
     if integer(p) then
         bool inverse = false
         if p<0 then

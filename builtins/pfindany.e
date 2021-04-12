@@ -7,7 +7,7 @@
 --  it, unless you want a namespace.
 --
 
-global function find_any(sequence needles, sequence haystack, integer start=1)
+global function find_any(sequence needles, haystack, integer start=1)
     for i=start to length(haystack) do
         if find(haystack[i],needles) then
             return i

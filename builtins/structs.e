@@ -633,7 +633,14 @@ global procedure struct_start(integer flags, string struct_name, integer rid=rou
 
     if stype=S_CFFI then
         if and_bits(flags,S_ABSTRACT) then ?9/0 end if
-        bdx = cffi:define_struct(base_name)
+--19/2/21:
+--      bdx = cffi:define_struct(base_name)
+        try
+            bdx = cffi:define_struct(base_name)
+        catch e
+--          crash(e[E_USER],{},1)
+            throw(e[E_USER])
+        end try
     else
         if base_name!="" then
             if find(base_name,{"class","struct","sequence"}) then ?9/0 end if

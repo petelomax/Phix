@@ -67,7 +67,7 @@ global function factors(atom n, integer include1=0)
     return lfactors & hfactors
 end function
 
-include primes.e
+--include primes.e
 
 global function prime_factors(atom n, bool duplicates=false, integer maxprime=100)
 -- returns a list of all prime factors <=get_prine(maxprime) of n
@@ -131,7 +131,7 @@ end function
 
 global function is_prime(atom n)
     if n=0 then return false end if
-    check(n,"is_prime2")
+    check(n,"is_prime")
     integer pn = 1,
             p = get_prime(pn), 
             lim = floor(sqrt(n))

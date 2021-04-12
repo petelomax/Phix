@@ -6,7 +6,7 @@
 --
 without debug -- keep ex.err clean (overshadowed by same in pdiag.e)
 
-integer cinit cinit = 0
+integer caseinit = 0
 string toUpper, toLower
 
 procedure initcase()
@@ -40,13 +40,13 @@ integer i32
     toUpper[#9A] = #8A
     toUpper[#9C] = #8C
     toUpper[#FF] = #9F
-    cinit = 1
+    caseinit = 1
 end procedure
 
 global function upper(object x)
 object o
 integer c
-    if not cinit then initcase() end if
+    if not caseinit then initcase() end if
     if sequence(x) then
         for i=1 to length(x) do
             o = x[i]
@@ -72,7 +72,7 @@ end function
 global function lower(object x)
 object o
 integer c
-    if not cinit then initcase() end if
+    if not caseinit then initcase() end if
     if sequence(x) then
         for i=1 to length(x) do
             o = x[i]
@@ -95,12 +95,12 @@ integer c
 end function
 
 global function isupper(integer ch)
-    if not cinit then initcase() end if
+    if not caseinit then initcase() end if
     return (ch>0 and ch<=255 and ch!=toLower[ch])
 end function
 
 global function islower(integer ch)
-    if not cinit then initcase() end if
+    if not caseinit then initcase() end if
     return (ch>0 and ch<=255 and ch!=toUpper[ch])
 end function
 
@@ -230,7 +230,7 @@ bool eos = true,        -- end of sentence flag
      lowit = false,     -- change it?
      highit = false     -- change it?
 
-    if not cinit then initcase() end if
+    if not caseinit then initcase() end if
     if mi=0 then crash("proper(s,\"%s\"): invalid method parameter",{method}) end if
     for i=1 to length(s) do
         ch := s[i]

@@ -2,50 +2,38 @@
 -- demo\rosetta\Bitmap_Histogram.exw
 -- =================================
 --
--- Author Pete Lomax, October 2015
+--  Author Pete Lomax, October 2015
 --
---  Requires read_ppm() from [[Bitmap/Read_a_PPM_file#Phix|Read_a_PPM_file]], write_ppm() from [[Bitmap/Write_a_PPM_file#Phix|Write_a_PPM_file]]. 
---  Uses lena.ppm, which you will have to find/download to demo/rosetta yourself.
---  Included as demo\rosetta\Bitmap_Histogram.exw, results may be verified with demo\rosetta\viewppm.exw
+--  Uses demo\rosetta\lena.ppm, which is included in the distribution.
+--  Results may be verified with demo\rosetta\viewppm.exw
 
--- Some colour constants:
-constant black = #000000,
---       blue  = #0000FF,
---       green = #00FF00
---       red   = #FF0000,
---       red = 0xff2020,
---       yellow = 0xffdf20 --,
-         white = #FFFFFF
-
-include ppm.e
+include ppm.e   -- black, white, read_ppm(), write_ppm()
 
 function to_bw(sequence image)
-sequence color
-integer lum
-sequence hist = repeat(0,256) 
-integer l = 1, r = 256
-integer ltot, rtot
-    for i=1 to length(image) do
-        for j=1 to length(image[i]) do
-            color = sq_div(sq_and_bits(image[i][j], {#FF0000,#FF00,#FF}),
-                                                    {#010000,#0100,#01})
-            lum = floor(0.2126*color[1] + 0.7152*color[2] + 0.0722*color[3])
-            image[i][j] = lum
+    sequence hist = repeat(0,256) 
+    for x=1 to length(image) do
+        for y=1 to length(image[x]) do
+            integer pixel = image[x][y]          -- red,green,blue
+            sequence r_g_b  =  sq_and_bits(pixel,{#FF0000,#FF00,#FF})
+            integer {r,g,b} = sq_floor_div(r_g_b,{#010000,#0100,#01}),
+                    lum = floor(0.2126*r + 0.7152*g + 0.0722*b)
+            image[x][y] = lum
             hist[lum+1] += 1
         end for 
     end for 
-    ltot = hist[l]
-    rtot = hist[r]
-    while l!=r do
+    integer lo = 1, hi = 256,
+            ltot = hist[lo],
+            rtot = hist[hi]
+    while lo!=hi do
         if ltot<rtot then
-            l += 1
-            ltot += hist[l]
+            lo += 1
+            ltot += hist[lo]
         else
-            r -= 1
-            rtot += hist[r]
+            hi -= 1
+            rtot += hist[hi]
         end if
     end while
-    lum = l
+    integer lum = lo
     for i=1 to length(image) do
         for j=1 to length(image[i]) do
             image[i][j] = iff(image[i][j]<lum?black:white)
@@ -55,8 +43,8 @@ integer ltot, rtot
 end function
 
 sequence img = read_ppm("Lena.ppm")
-    img = to_bw(img)
-    write_ppm("LenaBW.ppm",img)
+img = to_bw(img)
+write_ppm("LenaBW.ppm",img)
 
 --{} = wait_key()
 

@@ -1,128 +1,146 @@
 --
--- viewppm.exw
--- Arwen32Dib demo: demonstrates loading a ppm file and the scale-function
---  Written by Pete Lomax
+-- demo/rosetta/viewppm.exw
+-- ========================
+--
+--  Demonstrates loading a ppm file and image scaling/resizing
+--  Translated from arwen (wiewppma.exw) 3/3/21 by Pete Lomax
+--
+--?"eh?"
+requires("0.8.4") -- vslice, KEY_CB
+include pGUI.e
 
-include ..\Arwen32dibdemo\a32dgeom.ew  -- only the core- and geometric manipulation-library are necessary
+Ihandle win, label
+Ihandln image = NULL
+sequence ppmfiles = dir("*.ppm"),
+         pixels -- (original size, which image may not be)
+-- start on the most recent:
+integer ppmidx = largest(vslice(ppmfiles,{D_YEAR,D_SECOND}),true),
+        width, height  -- originals, match pixels not image
+string name -- set/kept to ppmfiles[ppmidx][D_NAME]
 
-constant win = create(Window, "viewppm", 0, 0, Default, Default, 600, 600, 0)
-
-integer scale = 0
-
-sequence ppmfiles = dir("*.ppm")
-integer ppmidx = 1
-    -- start on the most recent:
-    for i=2 to length(ppmfiles) do
-        if ppmfiles[i][D_YEAR..D_SECOND]>ppmfiles[ppmidx][D_YEAR..D_SECOND] then
-            ppmidx = i
-        end if
-    end for
-
-a32Dib0 dib, scale_dib = 0
-
-function CreateDibFromPPM(sequence filename)
-a32Dib0 dib
-integer fn, width, height
-atom addr
-sequence line
-integer maxcolor
-    fn = open(filename, "rb")
-    if fn<0 then
-        return -1 -- unable to open
+procedure set_image(bool bResize=true)
+    IupSetAttributeHandle(label, "IMAGE", NULL)
+    image = IupDestroy(image)
+    image = IupImageRGB(width,height,pixels)
+    IupSetAttributeHandle(label, "IMAGE", image)
+    IupSetStrAttribute(win,"TITLE","viewppm - %s [%d of %d]",
+                                    {name,ppmidx,length(ppmfiles)})
+    if bResize then
+        IupSetStrAttribute(win,"CLIENTSIZE","%dx%d",{max(width,360),height})
+        IupRefresh(win)
     end if
-    line = gets(fn)
-    if line!="P6\n" then
-        return -1 -- only ppm6 files are supported
-    end if
-    while 1 do
-        line = gets(fn)
-        if line[1]!='#' then exit end if
-    end while
-    {{width,height}} = scanf(line,"%d %d%s")
-    line = gets(fn)
-    {{maxcolor}} = scanf(line,"%d%s")
-    dib = newDib(width,height)
-    if not a32Dib(dib) then
-        return -1
-    end if
-    line = repeat(0,width*3)
-    addr = dib[DibMemory]
-    for y=1 to height do
-        for x=1 to width*3 by 3 do
-            line[x+2] = getc(fn)
-            line[x+1] = getc(fn)
-            line[x] = getc(fn)
-        end for
-        poke(addr,line)
-        addr += dib[DibBytesPerLine]
-    end for
-    close(fn)
-    return dib
+end procedure
+
+include ppm.e
+
+procedure LoadPPM()
+    name = ppmfiles[ppmidx][D_NAME]
+    {width,height,pixels} = read_ppm(name,true)
+    set_image()
+end procedure
+
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
+    -- Destroy and recreate the image, else repeated bilinear
+    -- interpolation rather rapidly degrades it (to all black)
+    set_image(false) -- (no resize from here!)
+    sequence wh = IupGetIntInt(win,"CLIENTSIZE")
+    IupSetStrAttribute(image,"RESIZE","%dx%d",wh)
+    return IUP_DEFAULT
 end function
 
-procedure loadPPM()
-string name = ppmfiles[ppmidx][D_NAME]
-    dib = CreateDibFromPPM(name)
-    if not sequence(dib) then
-        void = message_box("Can't load bitmap "&name, "Error", MB_ICONERROR)
+function key_cb(Ihandle /*ih*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if
+    if c=K_LEFT then
+        ppmidx = iff(ppmidx=1?length(ppmfiles):ppmidx-1)
+        LoadPPM()
+    elsif c=K_RIGHT then
+        ppmidx = iff(ppmidx=length(ppmfiles)?1:ppmidx+1)
+        LoadPPM()
+    elsif c=K_cS then
+-- png wins the size war...
+--string file = "test.bmp", fmt = "BMP" -- massive!
+--string file = "test.jpg", fmt = "JPEG"
+--string file = "test.jpeg", fmt = "JPG" -- nope
+--string file = "test.gif", fmt = "GIF" -- not supported
+--string file = "test.tiff", fmt = "TIFF"
+string file = "test.png", fmt = "PNG" -- best!
+--string file = "test.pnm", fmt = "PNM" -- bmp but /worse/
+--string file = "test.pcx", fmt = "PCX" -- ok but meh
+--string file = "test.ico", fmt = "ICO" -- not supported(!!)
+--"BMP", "JPEG", "GIF", "TIFF", "PNG", "PNM", "PCX", "ICO", etc. 
+        object res = IupSaveImage(image, file, fmt)
+        if res=1 then res = "Saved as "&file end if
+        IupMessage("Save image",res)
+--test:
+--/*
+Ihandln ih = IupLoadImage(file)
+--?IupGetAttribute(ih,"BPP")
+?IupGetInt(ih,"BPP")
+--ppm = sprintf("P6\n%d %d\n255\n",{width,height})
+atom wid = IupGetAttributePtr(ih,"WID")
+string pix2 = peek({wid,width*height*3})
+?length(pix2)
+?length(pixels)
+?pix2=pixels -- true for bmp, tiff, png, pnm, pcx; false for jpg
+ih = IupDestroy(ih)
+?"done"
+--BPP  (read-only) returns the number of bits per pixel in the image. Images created with IupImage returns 8, with IupImageRGB returns 24 and with IupImageRGBA returns 32. (since 3.0)  
+--*/
+    end if
+    return IUP_CONTINUE
+end function
+
+include builtins\serialize.e
+
+IupOpen()
+sequence cl = command_line()
+if length(cl)>2 then
+    if cl[3]="-save" then
+        string file = cl[4],
+               fmt = upper(get_file_extension(file)),
+               input = ""
+        if fmt="JPG" then fmt = "JPEG" end if
+        while true do
+            integer byte = getc(0)
+            if byte=-1 then exit end if
+            input &= byte
+        end while
+        {width,height,pixels} = deserialize(input)
+        image = IupImageRGB(width,height,pixels)
+        object res = IupSaveImage(image, file, fmt)
+        if res=1 then res = "Saved as "&file end if
+        puts(1,res)
+--      {} = wait_key() -- (bad idea with redirected inupt...)
+        sleep(1)
         abort(0)
+    elsif cl[3]="-load" then
+        string file = cl[4]
+        image = IupLoadImage(file)
+        width = IupGetInt(image,"WIDTH")
+        height = IupGetInt(image,"HEIGHT")
+        string ppm = sprintf("P6\n%d %d\n255\n",{width,height})
+        atom wid = IupGetAttributePtr(image,"WID")
+        ppm &= peek({wid,width*height*3})
+--      puts(1,serialize(ppm))
+        puts(1,ppm)
+        abort(0)
+--?length(pix2)
+--?length(pixels)
+--?pix2=pixels -- true for bmp, tiff, png, pnm, pcx; false for jpg
+--ih = IupDestroy(ih)
+--?"done"
+--      write_ppm(1, image)
+    else
+        crash("unrecognised command line")
     end if
-    setText(win,sprintf("viewppm - %s [%d of %d]",{name,ppmidx,length(ppmfiles)}))
-end procedure
-
-integer wX, wY
-procedure scaledib()
-    scale_dib = scaleDib(dib, wX, wY, False)
-end procedure
-
---help:
--- S toggles image scaling of the image to fit the window
-
-function winHandler(integer id, integer msg, atom wParam, object lParam)
-object vdib
-    if id or wParam or object(lParam) then end if -- suppress warnings
-    if msg=WM_PAINT then
-        if scale and atom(scale_dib) then scaledib() end if
-        vdib = iff(scale?scale_dib:dib)
-        if sequence(vdib) then
-            drawDib(win, vdib, 0, 0, 0, 0, vdib[DibWidth]-1, vdib[DibHeight]-1)
-        end if
-    elsif msg=WM_SIZE then
-        {?,?,wX,wY} = getClientRect(win)
-        if sequence(scale_dib) then killDib(scale_dib) end if
-        scale_dib = 0
-        repaintWindow(win,False)
-    elsif msg=WM_CHAR then
-        if wParam=VK_ESCAPE then
-            closeWindow(win)
-        elsif lower(wParam)='s' then
-            scale = 1-scale
-            repaintWindow(win,True)
-        end if
-    elsif msg=WM_KEYDOWN then
-        if find(wParam,{VK_LEFT,VK_RIGHT}) then
-            if wParam=VK_LEFT then
-                ppmidx -= 1
-                if ppmidx<1 then
-                    ppmidx = length(ppmfiles)
-                end if
-            else --wParam=VK_RIGHT
-                ppmidx += 1
-                if ppmidx>length(ppmfiles) then
-                    ppmidx = 1
-                end if
-            end if
-            loadPPM()
-            scale_dib = 0
-            repaintWindow(win,True)
-        end if
-    end if
-    return 0
-end function
-setHandler({win},routine_id("winHandler"))
-
-loadPPM()
-WinMain(win, SW_NORMAL)
-killDib(dib)
-if sequence(scale_dib) then killDib(scale_dib) end if
+end if
+label = IupLabel("EXPAND=BOTH")
+win = IupDialog(label)
+IupSetAttributeHandle(NULL,"PARENTDIALOG",win)
+LoadPPM()
+IupShow(win)
+IupSetCallback(win,"RESIZE_CB",Icallback("redraw_cb"))
+IupSetCallback(win,"KEY_CB",Icallback("key_cb"))
+IupMainLoop()
+IupClose()
 

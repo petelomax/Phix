@@ -2,9 +2,41 @@
 -- demo\rosetta\Colour_bars.exw
 -- ============================
 --
-
 --#withtype Ihandle
 --#withtype cdCanvas
+include pGUI.e
+
+constant colours = {CD_BLACK, CD_RED, CD_GREEN, CD_BLUE, CD_MAGENTA, CD_CYAN, CD_YELLOW, CD_WHITE}
+
+Ihandle dlg, canvas
+cdCanvas cdcanvas
+
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
+    integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE"),
+            x = 0, lc = length(colours)
+    cdCanvasActivate(cdcanvas)
+    for i=1 to lc do
+        integer w = floor((width-x)/(lc-i+1))
+        cdCanvasSetForeground(cdcanvas, colours[i])
+        cdCanvasBox(cdcanvas, x, x+w, 0, height)
+        x += w
+    end for
+    cdCanvasFlush(cdcanvas)
+    return IUP_DEFAULT
+end function
+
+IupOpen()
+canvas = IupCanvas(Icallback("redraw_cb"),"RASTERSIZE=600x400") -- initial size
+dlg = IupDialog(canvas,`TITLE="Colour bars"`)
+IupMap(dlg)
+cdcanvas = cdCreateCanvas(CD_IUP, canvas)
+IupShow(dlg)
+IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release the minimum limitation
+IupMainLoop()
+IupClose()
+
+--/* previous version:
+-- (kept because more complex apps might benefit from being based on this instead, with it's double buffer and proper unmap)
 
 include pGUI.e
 
@@ -13,10 +45,10 @@ constant colours = {CD_BLACK, CD_RED, CD_GREEN, CD_BLUE, CD_MAGENTA, CD_CYAN, CD
 Ihandle dlg, canvas
 cdCanvas cddbuffer, cdcanvas
 
-function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
+    integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE"),
+            x = 0, lc = length(colours)
     cdCanvasActivate(cddbuffer)
-    integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
-    integer x = 0, lc = length(colours)
     for i=1 to lc do
         integer w = floor((width-x)/(lc-i+1))
         cdCanvasSetForeground(cddbuffer, colours[i])
@@ -39,28 +71,20 @@ function unmap_cb(Ihandle /*ih*/)
     return IUP_DEFAULT
 end function
 
-procedure main()
-    IupOpen()
+IupOpen()
 
-    canvas = IupCanvas(NULL)
-    IupSetAttribute(canvas, "RASTERSIZE", "600x400") -- initial size
+canvas = IupCanvas(NULL)
+IupSetAttribute(canvas, "RASTERSIZE", "600x400") -- initial size
 
-    IupSetCallback(canvas, "MAP_CB",    Icallback("map_cb"))
-    IupSetCallback(canvas, "UNMAP_CB",  Icallback("unmap_cb"))
+IupSetCallback(canvas, "MAP_CB",    Icallback("map_cb"))
+IupSetCallback(canvas, "UNMAP_CB",  Icallback("unmap_cb"))
 
-    dlg = IupDialog(canvas)
-    IupSetAttribute(dlg, "TITLE", "Colour bars")
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+dlg = IupDialog(canvas)
+IupSetAttribute(dlg, "TITLE", "Colour bars")
+IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
 
-    IupMap(dlg)
-    IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release the minimum limitation
-
-    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
-
-    IupMainLoop()
-
-    IupClose()
-end procedure
-
-main()
-
+IupShow(dlg)
+IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release the minimum limitation
+IupMainLoop()
+IupClose()
+--*/

@@ -16,7 +16,7 @@
 const IUP_DEFAULT = -2;
 
 //DEV/SUG split into/manage both handlers and valid/supported values?
-let $store_attr = {};   // element-specific attribute handlers/setters
+let $storeAttr = {};    // element-specific attribute handlers/setters
 
 function IupOpen() {
 
@@ -43,10 +43,10 @@ function IupOpen() {
                 if (typeof(name) !== "string") {
                     crash("invalid name");
                 }
-                if (!$store_attr.hasOwnProperty(elem)) {
-                    $store_attr[elem] = {};
+                if (!$storeAttr.hasOwnProperty(elem)) {
+                    $storeAttr[elem] = {};
                 }
-                $store_attr[elem][name] = fn;
+                $storeAttr[elem][name] = fn;
             }
         }
     }
@@ -78,7 +78,8 @@ function IupOpen() {
 
     function class_name(ih, check) {
         if (!ih) { crash("invalid handle"); }
-        let cn = ih.className;
+//      let cn = ih.className;
+        let cn = ih.classList[0];
 //      let sp = cn.indexOf(' ');
 ////hmmm, can we be sure it stays first??
 //      if (sp !== -1) { cn = cn.slice(0,cn); }
@@ -267,15 +268,16 @@ function IupOpen() {
 
 //(Ihandle ih, string name, nullable_string val, sequence args={}) 
 function IupSetStrAttribute(ih, name, v, args = []) {
-    let t = ih.className;
+//  let t = ih.className;
+    let t = ih.classList[0];
 //  let t = class_name(ih);
-    if (!t || !$store_attr.hasOwnProperty(t)) {
+    if (!t || !$storeAttr.hasOwnProperty(t)) {
         crash("invalid type");
     }
-    if (typeof(name) !== "string" || !$store_attr[t].hasOwnProperty(name)) {
+    if (typeof(name) !== "string" || !$storeAttr[t].hasOwnProperty(name)) {
         crash("invalid attr name (%s for %s)",["sequence",name,t]);
     }
-    let fn = $store_attr[t][name];
+    let fn = $storeAttr[t][name];
     if (typeof(fn) !== "function") {
         crash("invalid fn");
     }
@@ -298,8 +300,8 @@ function IupGetIntInt(ih, name) {
 //  if (typeof(name) !== "string" ...??
     let val = ih[name];
 //aw bollocks, it's a *lot* more involved than this...
-//  if (!val || $store_attr[t].hasOwnProperty(name)) {
-//      val = $store_attr[t][name];
+//  if (!val || $storeAttr[t].hasOwnProperty(name)) {
+//      val = $storeAttr[t][name];
 //  }
     if (typeof(val) === "string") {
         // convert eg "225x75" to ["sequence",225,75]
@@ -415,7 +417,7 @@ function IupSetAttributes(ih, attributes, args = []) {
                     IupStoreAttribute(ih, name, val);
 //                  let s = "IupStoreAttribute(ih, \"" + name + "\", \"" + val + "\")<br>";
 //                  document.body.insertAdjacentHTML("beforeend", s);
-//                  $docbody.insertAdjacentHTML("beforeend", s);
+//                  $docBody.insertAdjacentHTML("beforeend", s);
                 }
                 if (bEnd) { return; }
                 name = null;
@@ -524,7 +526,7 @@ sqeq($paranormalise(null,tcb,"x",[1]),[null,tcb,"x",[1]]);  // 6
 
 */
 
-function $topzindex(dlg) {
+function $topZindex(dlg) {
     // make dlg the topmost dialog [also done before removal]
     const dlgs = document.getElementsByClassName("dialog"),
           maxz = dlgs.length,
@@ -658,7 +660,7 @@ function IupDialog(child, attributes = "", args = [], bEsc = true) {
           maxsvg = maxbtn.children[0];
 
     function maxWindow() {
-        $topzindex(dialog);
+        $topZindex(dialog);
         if (dialog.classList.toggle("window-maximized")) {
             dialog.wastop = dialog.style.top;
             dialog.wasleft = dialog.style.left;
@@ -684,10 +686,10 @@ function IupDialog(child, attributes = "", args = [], bEsc = true) {
     header.ondblclick = maxWindow;
 //  header.ondragstart = function ds() { return false; }
 //  clsbtn.onclick = function hd() { IupHide(dialog); }
-//  dialog.onmousedown = function md() { $topzindex(dialog); }
+//  dialog.onmousedown = function md() { $topZindex(dialog); }
     function ds() { return false; }
     function hd() { IupHide(dialog); }
-    function md() { $topzindex(dialog); }
+    function md() { $topZindex(dialog); }
     header.ondragstart = ds;
     clsbtn.onclick = hd;
     dialog.onmousedown = md;
@@ -771,7 +773,7 @@ function IupDialog(child, attributes = "", args = [], bEsc = true) {
 
         document.documentElement.addEventListener("mousemove", doSize, false);
         document.documentElement.addEventListener("mouseup", stopSize, false);
-        $topzindex(dialog);
+        $topZindex(dialog);
     }
 
     // add eight resizers, and all their handling, to the dialog window
@@ -819,7 +821,7 @@ function IupDialog(child, attributes = "", args = [], bEsc = true) {
     // Then, almost last, make it top dog, and add it to the DOM.
     dialog.style.zIndex = document.getElementsByClassName("dialog").length;
 //  document.body.appendChild(dialog);
-    $docbody.appendChild(dialog);
+    $docBody.appendChild(dialog);
 
     // Originally, dragging a window behaved rather differently before and
     // after resizing the window, hence this...
@@ -837,7 +839,7 @@ function IupDialog(child, attributes = "", args = [], bEsc = true) {
 //let s = sprintf("%v\n",[intint("225x75")]);   // (NB: I had to move it to test it)
 //puts(2,s);
 //document.body.insertAdjacentHTML("afterbegin", s);
-//$docbody.insertAdjacentHTML("afterbegin", s);
+//$docBody.insertAdjacentHTML("afterbegin", s);
 //minsize: {208,202}
 //minsize: {142,202}
 
@@ -847,7 +849,7 @@ function IupDialog(child, attributes = "", args = [], bEsc = true) {
 function IupShow(ih) {
     // Make it top dog, and add it to the DOM.
     ih.style.zIndex = document.getElementsByClassName("dialog").length;
-    $docbody.appendChild(ih);
+    $docBody.appendChild(ih);
 
     // Originally, dragging a window behaved rather differently before and
     // after resizing the window, hence this...
@@ -882,7 +884,7 @@ function IupHide(ih) {
 //          window.top.close();
 //      }
 //      setTimeout(function(){ closeWin() }, 1000);
-//      $docbody.innerHTML = "";
+//      $docBody.innerHTML = "";
 //      puts(1,"\n\n\n\n");
 //      puts(1,"                                                 Oh dear.\n\n");
 //      puts(1,"                      With all of their usual infinite lack of wisdom,\n\n");
@@ -893,8 +895,8 @@ function IupHide(ih) {
 //      puts(1,"Try using an older and therefore less bug-ridden browser version, maybe.\n\n");
 //      puts(1,"PS: Any resemblance of the above to a dog's turd is entirely coincidental.\n\n");
     } else {
-        $topzindex(ih); // (specifically, fixup the rest)
-        $docbody.removeChild(ih);
+        $topZindex(ih); // (specifically, fixup the rest)
+        $docBody.removeChild(ih);
     }
 //  ih.style.display = 'none';
 }
@@ -928,7 +930,9 @@ function IupHbox(children, attributes = "", args = []) {
     const ih = document.createElement("div");
     ih.setAttribute('class', 'hbox');
 //  ih.className = "hbox";
-    for (let i = 0; i < children.length; i += 1) {
+//9/4/21:
+//  for (let i = 0; i < children.length; i += 1) {
+    for (let i = 1, l = length(children); i <= l; i += 1) {
         let ci = children[i];
 // ?    if (ci.className === "fill") {
 //          IupSetAttribute(ci,"EXPAND","HORIZONTAL");
@@ -948,7 +952,7 @@ function IupVbox(children, attributes = "", args = []) {
     const ih = document.createElement("div");
     ih.setAttribute('class', 'vbox');
 //  ih.className = "vbox";
-    for (let i = 1; i <= length(children); i += 1) {
+    for (let i = 1, l = length(children); i <= l; i += 1) {
         let ci = children[i];
 // ?    if (ci.className === "fill") {
 //          IupSetAttribute(ci,"EXPAND","VERTICAL");
@@ -1075,8 +1079,12 @@ function IupTable(columns, data, visible=10, attributes="", args=[]) {
     }
 
     function xSorter(i, j) {
-        if (i==="sequence") { return -1; }
-        if (j==="sequence") { return +1; }
+//$share:
+//      if (i==="sequence") { return -1; }
+//      if (j==="sequence") { return +1; }
+        if (typeof(i) !== "number") { return -1; }
+        if (typeof(j) !== "number") { return +1; }
+
 //maybe:
 //      let cmp = compare(data[1][i][sort_col],
 //                        data[1][j][sort_col])
@@ -1617,7 +1625,7 @@ function addContextMenu(elem) {
 }
 
 // to attach a context menu to all divs, you can do this:
-var divs = document.querySelectorAll(".div");
+let divs = document.querySelectorAll(".div");
 
 //divs.forEach(function(d) { addContextMenu(d); });
 divs.forEach(addContextMenu);

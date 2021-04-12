@@ -1,0 +1,140 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">tokens</h1>
+      <div id="mainSection">
+        This documents the internal structure of the tokens used by pwa/p2js. It is of no help whatsoever
+        to anyone actually using pwa/p2js, only those seeking to improve, extend, or fix some bug in it. The
+        structure of an individual token is quite unlikely to change significantly ever again, however at
+        the moment p2js_tok creates a complete table of them for the entire source code, but it is reasonably
+        likely that might change to a one-at-a-time, on demand mechanism, should that offer any performance 
+        or memory savings, in which case the next seven constants will probably be replaced by equivalent but
+        lower-case seven global variables, and obviously far less subscripting.
+        <br>
+        <br>
+        All token fields are integer-only and must be handled both by p2js.exw:syntax_colour() and
+        pwa\src\p2js_parse.e:parse().
+        <br>
+        <br>
+        Each token can/should be accessed using the following constants (as defined in pwa\src\p2js_basics.e)
+        <br><small>
+<!--eucode>
+global enum TOKTYPE, TOKSTART, TOKFINISH, TOKLINE, TOKCOL, TOKTTIDX, TOKENDLINE=$ -- (one token)
+        -- TOKTYPE as per table below, use tok_name() to get a human-readable string
+        -- TOKTTIDX is only set on LETTER tokens, "", and can be compared to T_integer, etc.
+        -- TOKENDLINE only on '`' (aka `"""`) and BLK_CMT (no other tokens span lines)
+        -- TOKALTYPE = TOKCOL is only/also used on parse tree LETTER tokens.
+</eucode-->
+<pre>
+<font color="#008080">global enum</font><font color="#000000"> TOKTYPE</font><font color="#0000FF">,</font><font color="#000000"> TOKSTART</font><font color="#0000FF">,</font><font color="#000000"> TOKFINISH</font><font color="#0000FF">,</font><font color="#000000"> TOKLINE</font><font color="#0000FF">,</font><font color="#000000"> TOKCOL</font><font color="#0000FF">,</font><font color="#000000"> TOKTTIDX</font><font color="#0000FF">,</font><font color="#000000"> TOKENDLINE</font><font color="#0000FF">=</font><font color="#000000">$</font><font color="#000080"><i> -- (one token)
+        -- TOKTYPE as per table below, use tok_name() to get a human-readable string
+        -- TOKTTIDX is only set on LETTER tokens, "", and can be compared to T_integer, etc.
+        -- TOKENDLINE only on '`' (aka `"""`) and BLK_CMT (no other tokens span lines)
+        -- TOKALTYPE = TOKCOL is only/also used on parse tree LETTER tokens.</i></font>
+</pre>
+        </small>
+        The source code is retrieved as a single string with embedded '\n'. We identify, for instance, a block 
+        comment using {start,finish} as opposed to {start_line,start_col,finish_line,finish_col}.
+        Since we find line and col independently useful, we keep those as well, so there is no real saving
+        of the suggested 2 vs. 4 variety, there is however a gain in a single read and not splitting.
+        Most tokens have 5 elements, except LETTER, BLK_CMT, and '`' (used for both backtick and triple quote 
+        strings), all three of which have 6 elements.
+        <br>
+        <br>
+        Just to keep you on your toes, TOKLINE is 1-based but TOKCOL is 0-based, simply because the main usage
+        of TOKCOL is prefix with repeat(' ',tok[TOKCOL]) when reporting an error, and obviously we want 0 spaces
+        when pointing at column 1.
+        <br>
+        To clarify the examples below, imagine the following is line 10 in the source code, starting on byte 401:
+        <br>
+<!--eucode>
+integer count = 21; count += 123; ?{count,"abc"}
+12345678901234567890123456789012345678901234567890
+         10        20        30        40        50
+</eucode-->
+<pre>
+<font color="#004080">integer</font><font color="#000000"> count</font><font color="#0000FF"> =</font><font color="#000000"> 21</font><font color="#0000FF">;</font><font color="#000000"> count</font><font color="#0000FF"> +=</font><font color="#000000"> 123</font><font color="#0000FF">; ?{</font><font color="#000000">count</font><font color="#0000FF">,</font><font color="#008000">"abc"</font><font color="#0000FF">}</font>
+<font color="#000000">12345678901234567890123456789012345678901234567890
+         10        20        30        40        50</font>
+</pre>
+        <div style="clear:both;height:1px;"> </div>
+        <table>
+         <tr>
+            <th>TOKTYPE</th>
+            <th>Meaning</th>
+         </tr>
+         <tr>
+            <td>
+             DIGIT&nbsp;(3), LETTER&nbsp;(4),<br>
+             COMMENT&nbsp;(5), BLK_CMT&nbsp;(6)<br>
+            </td>
+            <td>
+              For example, 123 on line 10 column 30 might be {3,430,432,10,29}, where src[430] is '1' and src[432] is '3',
+              and a known identifier such as integer might be {4,401,407,10,0,T_integer}.
+            </td>
+         </tr>
+         <tr>
+            <td>
+             33..126
+            </td>
+            <td>
+              Single character operators, one of `!"#$%&'()*+,-./:;&lt;=&gt;?[\]{|}~` or '`'.<br>
+              In the case of quotes and #, the token is of course the whole literal string or hex constant, eg
+              '=' might be {61,415,415,10,14} and "abc" might be {34,443,437,10,42}.<br>
+            </td>
+         </tr>
+         <tr>
+            <td>
+             odd numbers 129..201
+            </td>
+            <td>
+              Multiple character operators, eg `+=` might be {PLUSEQ(=131),427,428,10,26}.<br>
+              Note the definition of PLUSEQ in p2js_basics.e is mixed in with values for node not token use.<br>
+              For instance a token of '{' may lead to a node with that on the right side of a statement, but<br>
+              a node with MASS(=201) when on the left, ie a multiple assignment statement.
+<!--              Some of these are further explained below, eg MASS (=201).<br>-->
+            </td>
+         </tr>
+<!--
+              Note that T_string (=24) is not part of this range.
+except for T_nullable_string (=88). O
+, plus and/or/xor/not/new
+              (Some potential confusion: TWIDDLE (191) vs '~' (126) - I <i>think</i> the token is 126 and the parse tree node is 191...)
+         <tr>
+            <td>
+             even numbers > 128<br>
+             and T_string (24),<br>
+             T_nullable_string (88)
+            </td>
+            <td>
+              T_keywords, see pwa/src/p2js_keywords.e - note that p2js.exw will (prompt and) overwrite p2js_keywords.e before
+              automatically restarting itself, should any keywords be added, edited, or removed (such that the numbers change).<br>
+              Again, several of these are further explained below, eg T_if.
+            </td>
+         </tr>
+         <tr>
+            <td>
+             ...
+            </td>
+            <td>
+              TBC...
+            </td>
+         </tr>
+-->
+        </table>
+        <div style="clear:both;height:1px;"> </div>
+        <br>
+        As you can see, tokens really are simplicity personified, but it won&rsquo;t necessarily feel like that when you&rsquo;re 
+        staring at a wall of numbers.
+        <br>
+        <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

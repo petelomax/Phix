@@ -154,6 +154,7 @@ global function write_to_pipe(atom hPipe, atom_string x)
     integer l = length(x)
     bool bSuccess = iff(platform()=WINDOWS?c_func(xWrite,{hPipe, x, l, pWr, NULL})
                                  /*LINUX*/:c_func(xWrite,{hPipe, x, l})!=-1)
+--?{"write_to_pipe:",peek4u(pWr),length(x)}
     return bSuccess
 end function
 
