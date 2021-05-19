@@ -2046,7 +2046,7 @@ global procedure IupSetStrAttributeId2(Ihandle ih, string name, integer lin, col
     c_proc(xIupSetStrAttributeId2, {ih,name,lin,col,v})
 end procedure
 
-global procedure IupSetInt(Ihandles ih, string name, integer v)
+global procedure IupSetInt(Ihandles ih, string name, atom v)
     if sequence(ih) then
         for i=1 to length(ih) do
             Ihandle ihi = ih[i]     -- (deliberate typecheck)
@@ -2509,21 +2509,25 @@ global procedure IupSetCallback(Ihandles ih, string name, cbfunc func)
             IupSetCallback(ihi,name,func)
         end for
     else
-        if name="K_ANY" and func!=NULL then
-            -- verify func takes the right args
-            -- Trapped specially because it is particularly irksome to have a
-            -- program run fine for ages then suddenly crash just because you
-            -- have (accidentally) hit a funny key.
-            integer rid = rid_from_cb(func)
-            sequence ri = get_routine_info(rid,false)
---          if ri[1]!=2 then ?9/0 end if
---          if ri[2]!=2 then ?9/0 end if
---          if ri[3][1]!='F' then ?9/0 end if
---          if ri[3][3]!='N' then ?9/0 end if
---          if ri[1..3]!={2,2,"FIN"} then
-            if ri!={2,2,"FIN"} then
-                crash("K_ANY callback must have func(Ihandle,ATOM) sig",nFrames:=2)
+        if name="K_ANY"
+        or name="KEY_CB" then
+            if func!=NULL then
+                -- verify func takes the right args
+                -- Trapped specially because it is particularly irksome to have a
+                -- program run fine for ages then suddenly crash just because you
+                -- have (accidentally) hit a funny key.
+                integer rid = rid_from_cb(func)
+                sequence ri = get_routine_info(rid,false)
+--              if ri[1]!=2 then ?9/0 end if
+--              if ri[2]!=2 then ?9/0 end if
+--              if ri[3][1]!='F' then ?9/0 end if
+--              if ri[3][3]!='N' then ?9/0 end if
+--              if ri[1..3]!={2,2,"FIN"} then
+                if ri!={2,2,"FIN"} then
+                    crash(name&" callback must have func(Ihandle,ATOM) sig",nFrames:=2)
+                end if
             end if
+            name = "K_ANY"
         end if
         atom prev = c_func(xIupSetCallback, {ih, name, func})
     end if
@@ -2542,9 +2546,14 @@ global procedure IupSetCallbacks(Ihandles ih, sequence namefuncpairs)
 end procedure
 
 global function IupGetCallback(Ihandle ih, string name)
-atom func = c_func(xIupGetCallback, {ih, name})
+    if name="KEY_CB" then name = "K_ANY" end if
+    atom func = c_func(xIupGetCallback, {ih, name})
     return func
 end function
+
+global procedure IupHide(Ihandle ih)
+    c_proc(xIupHide, {ih})
+end procedure
 
 function key_cb(Ihandle dlg, atom c)
 --?dlg
@@ -3077,7 +3086,7 @@ end function
 --  xIupPopup   = iup_c_func(iup, "IupPopup", {P,I,I},I),
 --  xIupShow    = iup_c_func(iup, "IupShow", {P},I),
 --  xIupShowXY  = iup_c_func(iup, "IupShowXY", {P,I,I},I),
---  xIupHide    = iup_c_proc(iup, "IupHide", {P})
+--X xIupHide    = iup_c_proc(iup, "IupHide", {P})
 
 --global function IupDialog(Ihandln child=NULL, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
 --  {action,func,attributes,data} = paranormalise(action,func,attributes,data)
@@ -3130,10 +3139,6 @@ global procedure IupShowXY(Ihandle ih, integer x=IUP_CURRENT, y=IUP_CURRENT)
     integer err = c_func(xIupShowXY, {ih, x, y})
     if err!=IUP_NOERROR then ?9/0 end if
     IupSetAttribute(ih,"RASTERSIZE",NULL)
-end procedure
-
-global procedure IupHide(Ihandle ih)
-    c_proc(xIupHide, {ih})
 end procedure
 
 global function IupAlarm(string title, string msg, string b1, nullable_string b2=NULL, nullable_string b3=NULL)
@@ -10626,6 +10631,7 @@ integer next
 end function
 
 global procedure IupTreeAddNodes(Ihandle tree, sequence tree_nodes, integer id=-1)
+    IupSetInt(tree,"AUTOREDRAW",false)
     if id=-1 then
         IupSetAttributeId(tree,"DELNODE",0,"ALL")
         {} = iupTreeAddNodesRec(tree, tree_nodes, id)
@@ -10638,6 +10644,7 @@ global procedure IupTreeAddNodes(Ihandle tree, sequence tree_nodes, integer id=-
             {} = iupTreeAddNodesRec(tree, children[i], id)
         end for
     end if
+    IupSetInt(tree,"AUTOREDRAW",true)
 end procedure
 
 global function IupTreeView(sequence tree_nodes, atom branchopen_cb=NULL, string attributes="", sequence args={})
@@ -12447,4 +12454,5 @@ imProcessZeroCrossing
 -------------------------------------------
 --/*
 --*/
-
+--28/3/21
+include IupFileList.e
