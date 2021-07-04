@@ -18,15 +18,32 @@
 without trace
 --include VM\pTrig.e    -- (not strictly necessary)
 
-global function abs(atom o)
-    if o<0 then
-        o = -o
+global function abs(atom a)
+    if a<0 then
+        a = -a
     end if
-    return o
+    return a
 end function
 
-global function exp(atom x)
-    return power(E,x)
+global function sign(atom a)
+    if a>0 then
+        a = +1
+    elsif a<0 then
+        a = -1
+    end if
+    return a
+end function
+
+global function even(atom a)
+    return and_bits(a,1)=0
+end function
+
+global function odd(atom a)
+    return and_bits(a,1)=1
+end function
+
+global function exp(atom a)
+    return power(E,a)
 end function
 
 --bool bUseBankersRounding = false
@@ -72,15 +89,6 @@ end function
 
 global function ceil(atom o)
     o = -floor(-o)
-    return o
-end function
-
-global function sign(atom o)
-    if o>0 then
-        o = +1
-    elsif o<0 then
-        o = -1
-    end if
     return o
 end function
 

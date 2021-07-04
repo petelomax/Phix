@@ -11,9 +11,10 @@ global function to_string(object data_in, integer string_quote=0, integer embed_
             return data_in
         end if
         data_in = match_replace(`\`, data_in, `\\`)
-        data_in = match_replace("\r", data_in, `\r`)    -- rocco's
-        data_in = match_replace("\n", data_in, `\n`)    -- nasty
-        data_in = match_replace("\t", data_in, `\t`)    -- teens!!
+        data_in = match_replace("\r", data_in, `\r`)
+        data_in = match_replace("\n", data_in, `\n`)
+--p2js (tough... I previously recommended using sprint() or printf(%v) instead in the docs anyway)
+--      data_in = match_replace("\t", data_in, `\t`)
         data_in = match_replace({string_quote}, data_in, `\` & string_quote)
         return string_quote & data_in & string_quote
     end if

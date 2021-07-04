@@ -99,7 +99,7 @@
 --  (Note these routines respect/implement a limit of #10FFFF, 
 --   making the last two lines of that table irrelevant.)
 --
---/**/include builtins\VM\pMath.e   -- (not strictly necessary)
+--!/**/include builtins\VM\pMath.e  -- (not strictly necessary)
 
 constant INVALID_UTF8 = #FFFD
 

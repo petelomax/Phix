@@ -1,0 +1,146 @@
+--
+-- demo/rosetta/Longest_palindromic_substrings.exw
+-- ===============================================
+--
+--Translation of: Raku
+with javascript_semantics
+function longest_palindromes(string s)
+--  s = lower/strip_spaces_and_punctuation/utf8_to_utf32, if rqd
+    integer longest = 2 -- (do not treat length 1 as palindromic)
+--  integer longest = 1 -- (do not treat length 0 as palindromic) [works just fine too]
+    sequence res = {}
+    for i=1 to length(s) do
+        for j=0 to iff(i>1 and s[i-1]=s[i]?2:1) do
+            integer rev = j,
+                    fwd = 1
+            while rev<i and i+fwd<=length(s) and s[i-rev]=s[i+fwd] do
+                rev += 1
+                fwd += 1
+            end while
+            string p = s[i-rev+1..i+fwd-1]
+            integer lp = length(p)
+            if lp>=longest then
+                if lp>longest then
+                    longest = lp
+                    res = {p}
+                elsif not find(p,res) then -- (or just "else")
+                    res = append(res,p)
+                end if
+            end if
+        end for
+    end for
+    return res -- (or "sort(res)" or "unique(res)", as needed)
+end function
+ 
+constant tests = {"babaccd","rotator","reverse","forever","several","palindrome","abaracadaraba","abbbc"}
+for i=1 to length(tests) do
+    printf(1,"%s: %v\n",{tests[i],longest_palindromes(tests[i])})
+end for
+
+?"done"
+{} = wait_key()
+
+--printf(1,"%s: %v\n",{s,longest_palindromes_raku(piStr)})
+--s = "abbbc"
+--printf(1,"%s: %v\n",{s,longest_palindromes_raku(s)})
+
+-- my original attempt, O(n^2)
+--/*
+with javascript_semantics
+function longest_palindromes(string s)
+--  s = lower/strip_spaces_and_punctuation/utf8_to_utf32, if rqd
+    integer longest = 2 -- (do not treat length 1 as palindromic)
+--  integer longest = 1 -- (do not treat length 0 as palindromic) [works just fine too]
+    sequence res = {}
+    for i=1 to length(s) do
+        for e=length(s) to i+longest-1 by -1 do
+            if s[e]=s[i] then
+                string p = s[i..e]
+                integer lp = length(p)
+                if lp>=longest and p=reverse(p) then
+                    if lp>longest then
+                        longest = lp
+                        res = {p}
+                    elsif not find(p,res) then -- (or just "else")
+                        res = append(res,p)
+                    end if
+                end if
+            end if
+        end for
+    end for
+    return res -- (or "sort(res)" or "unique(res)", as needed)
+end function
+ 
+constant tests = {"babaccd","rotator","reverse","forever","several","palindrome","abaracadaraba"}
+for i=1 to length(tests) do
+    printf(1,"%s: %v\n",{tests[i],longest_palindromes(tests[i])})
+end for
+--*/
+
+--my second attempt:
+--/*
+function Manacher(string text) 
+    -- Manacher's algorithm (linear time)
+    -- based on https://www.geeksforgeeks.org/manachers-algorithm-linear-time-longest-palindromic-substring-part-4
+    -- but with a few tweaks, renames, and bugfixes (in particular the < (positions-1), which I later found LIJIE already said)
+    sequence res = {}
+    integer positions = length(text)*2+1
+    if positions>1 then
+        sequence LPS = repeat(0,positions)
+                 LPS[2] = 1
+        integer centerPosition = 1,
+                centerRightPosition = 2,
+                maxLPSLength = 0
+ 
+        for currentRightPosition=2 to positions-1 do
+            integer lcp = LPS[currentRightPosition+1],
+                    diff = centerRightPosition - currentRightPosition
+            -- If currentRightPosition is within centerRightPosition
+            if diff >= 0 then
+                -- get currentLeftPosition iMirror for currentRightPosition
+                integer iMirror = 2*centerPosition-currentRightPosition + 1
+                lcp = min(LPS[iMirror], diff)
+            end if
+ 
+            -- Attempt to expand palindrome centered at currentRightPosition
+            -- Here for odd positions, we compare characters and  
+            -- if match then increment LPS Length by ONE 
+            -- If even position, we just increment LPS by ONE without  
+            -- any character comparison
+            while ((currentRightPosition + lcp) < (positions-1) and (currentRightPosition - lcp) > 0) and
+                  ((remainder(currentRightPosition+lcp+1, 2) == 0) or
+                   (text[floor((currentRightPosition+lcp+1)/2)+1] == text[floor((currentRightPosition-lcp-1)/2)+1] )) do
+                lcp += 1
+            end while
+            LPS[currentRightPosition+1] = lcp
+            maxLPSLength = max(lcp,maxLPSLength)
+ 
+            // If palindrome centered at currentRightPosition
+            // expand beyond centerRightPosition, 
+            // adjust centerPosition based on expanded palindrome. 
+            if (currentRightPosition + lcp) > centerRightPosition then
+                centerPosition = currentRightPosition
+                centerRightPosition = currentRightPosition + lcp
+            end if
+        end for
+        for p=1 to positions do
+            if LPS[p] = maxLPSLength then
+                integer start = floor((p-1 - maxLPSLength)/2) + 1,
+                        finish = start + maxLPSLength - 1
+                string r = text[start..finish]
+                if not find(r,res) then
+                    res = append(res,r)
+                end if
+            end if
+        end for
+    end if
+    return res
+end function
+ 
+include mpfr.e
+mpfr pi = mpfr_init(0,-10001) -- (set precision to 10,000 dp, plus the "3.")
+mpfr_const_pi(pi)
+string piStr =  mpfr_sprintf("%.10000Rf", pi),
+       s = shorten(piStr)
+printf(1,"%s: %v\n",{s,Manacher(piStr)})
+--*/

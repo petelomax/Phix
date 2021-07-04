@@ -228,8 +228,10 @@ integer first, last
     if first>last or not n[SIGN] then
         n = BA_ZERO
     else
+        n = deep_copy(n,1)
         n[DIGITS]  = mantissa[first..last]
-        n[EXPONENT] -= first-1
+--      n[EXPONENT] -= first-1
+        n[EXPONENT] = n[EXPONENT] - (first-1)
     end if
 
     return n
@@ -285,19 +287,16 @@ end function
 -- Returns a bigatom with the value of an integer (integer)
 --
 function int_to_bigatom(integer i)
-integer sgn = SG_PLUS
-sequence s
+    integer sgn = SG_PLUS
     if i<0 then
         sgn = SG_MINUS
     end if
-    s = sprintf("%+d", i)
+    sequence s = sprintf("%+d", i)
     s[1] = -1   -- (force expansion to dword-sequence)
     s = s[2..$]
     s = sq_sub(s,'0')
-
     return normalize({sgn, length(s)-1, s})
 end function
---
 
 --
 -- Returns a bigatom equivalent to an integer or atom or, better yet, string.
@@ -365,8 +364,6 @@ integer pos = 0, sflag = 0
         end if
     end if
 
-    big = NO_VALUE  -- {SG_NOVALUE, 0, {}}  (NB: exponent is zero (PL))
-
     -- eliminates valid separators (underline)
     -- any invalid character causes NO_VALUE to be returned
     for i=1 to length(N) do
@@ -394,6 +391,8 @@ integer pos = 0, sflag = 0
     end for
     if pos=0 or find(N[pos],"+-.e") then return NO_VALUE end if
     N = N[1..pos]
+
+    big = deep_copy(NO_VALUE)   -- {SG_NOVALUE, 0, {}}  (NB: exponent is zero (PL))
 
 --DEV (spotted in passing) this probably does not handle eg "1e5e50" elegantly... (same result as "1e5"??)
 --      (in this context, a fatal crash is "more elegant" than a wrong result)
@@ -435,7 +434,8 @@ integer pos = 0, sflag = 0
     big[DIGITS] = snum
 --  end if
 
-    return normalize(big)
+    big = normalize(big)
+    return big
 end function
 --
 
@@ -489,6 +489,8 @@ integer carry = 0, digit
         b = repeat(0, len-lenb) & b
     end if
 
+    a = deep_copy(a)
+
 --  result = sq_add(a,b)
 --  result = a
 
@@ -532,6 +534,7 @@ integer digit, neg = 0
 
 --  result = sq_sub(a,b)
 --  result = a
+    a = deep_copy(a)
 
     for i=len to 1 by -1 do
 --      digit = result[i]-neg
@@ -600,10 +603,11 @@ end function
 -- expand a bigatom with all its digits
 --
 function expand(sequence N)
-sequence digits = N[DIGITS]
+sequence digits = deep_copy(N[DIGITS])
 integer exponent = N[EXPONENT]
 integer len = length(digits)-1
 
+    N = deep_copy(N,1)
     if exponent<0 then
         digits = repeat(0, -exponent) & digits
         N[EXPONENT] = 0
@@ -634,7 +638,7 @@ end function
 --        If one, adds the decimal point and zeros up to the number of decimal places, 
 --        and if greater than one the DFCHAR character is used instead of zeros.
 --
-function make_string(sequence N, integer sign = 0, integer decs = -1, integer zsign = 0, integer all = 0)
+function make_string(sequence N, integer sgn = 0, integer decs = -1, integer zsign = 0, integer all = 0)
 integer sg, exponent
 sequence digits, dcopy
 integer decsN
@@ -694,9 +698,9 @@ integer dp
     -- put sign
     if sg=SG_MINUS then
         digits = prepend(digits, SMINUS)
-    elsif sg and (sign or zsign) then
+    elsif sg and (sgn or zsign) then
         digits = prepend(digits, SPLUS)
-    else   --  if sign then
+    else   --  if sgn then
         digits = prepend(digits, SZERO)
     end if
 
@@ -878,6 +882,7 @@ integer len
             -- exponential format
             expfmt = 1+(c='E')
             exponent = N[EXPONENT]
+            N = deep_copy(N,1)
             N[EXPONENT] = 0
             all = 1
         end if
@@ -987,6 +992,8 @@ integer last
 
     {?, expA, digsA} = A
     {?, expB, digsB} = B
+    digsA = deep_copy(digsA)
+    digsB = deep_copy(digsB)
 
     -- put zeros to the left
     offset = expA-expB
@@ -1011,6 +1018,8 @@ integer last
     while last and digsA[last]=0 and digsB[last]=0 do
         last -= 1
     end while
+    A = deep_copy(A,1)
+    B = deep_copy(B,1)
     A[DIGITS] = digsA[1..last]
     B[DIGITS] = digsB[1..last]
     A[EXPONENT] = expA
@@ -1054,6 +1063,7 @@ global function ba_add(object A, B)
         A[SIGN] = SG_PLUS
         return ba_sub(B, A)
     else -- signB = SG_MINUS
+        B = deep_copy(B)
         B[SIGN] = SG_PLUS
         return ba_sub(A, B)
     end if
@@ -1094,6 +1104,7 @@ global function ba_sub(object A, B)
 
     if signA=SG_MINUS 
     or signB=SG_MINUS then
+        B = deep_copy(B)
         B[SIGN] = -signB
         return ba_add(A, B)
     end if
@@ -1197,7 +1208,7 @@ end function
 -- returns the integer part of a bigatom
 --
 global function ba_trunc(object N)
-    if not bigatom(N) then N = ba_new(N) end if
+    if not bigatom(N) then N = ba_new(N) else N = deep_copy(N) end if
     if N[SIGN]=SG_NOVALUE then return NO_VALUE end if
     if N[EXPONENT]<0      then return BA_ZERO end if
 
@@ -1269,7 +1280,8 @@ global function ba_idiv(object A, B)
         integer expR = -1
 
         for i=1 to length(digsA) do
-            partial[DIGITS] &= digsA[i]
+--          partial[DIGITS] &= digsA[i]
+            partial[DIGITS] = deep_copy(partial[DIGITS]) & digsA[i]
             partial[EXPONENT] += 1
             quotient &= 0
             expR += 1
@@ -1278,6 +1290,7 @@ global function ba_idiv(object A, B)
                 quotient[$] += 1
                 partial = ba_sub(partial, B)
             end while
+partial = deep_copy(partial)
             partial[SIGN] = SG_PLUS -- if it has zeroed
             partial = expand(partial)
         end for
@@ -1298,8 +1311,8 @@ end function
 -- Supports Atoms, bigatoms and representation of numbers in a string
 --
 global function ba_divide(object A, B, bool bRound=false)
-    if not bigatom(A) then A = ba_new(A) end if
-    if not bigatom(B) then B = ba_new(B) end if
+    if not bigatom(A) then A = ba_new(A) else A = deep_copy(A) end if
+    if not bigatom(B) then B = ba_new(B) else B = deep_copy(B) end if
 
     integer signA = A[SIGN],
             signB = B[SIGN]
@@ -1375,7 +1388,7 @@ end function
 -- returns the absolute value of a bigatom
 --
 global function ba_abs(object N)
-    if not bigatom(N) then N = ba_new(N) end if
+    if not bigatom(N) then N = ba_new(N) else N = deep_copy(N) end if
     if N[SIGN]=SG_MINUS then
         N[SIGN] = SG_PLUS
     end if
@@ -1389,6 +1402,7 @@ end function
 --
 global function ba_uminus(object N)
     if not bigatom(N) then N = ba_new(N) end if
+    N = deep_copy(N)
     N[SIGN] *= -1
     return N
 end function
@@ -2559,31 +2573,31 @@ if 0 then
     ba = ba_sqrt(n)
 --?ba
     string s2 = ba_sprintf("%.100aB", ba)
-    printf(1, "The square root of %d with %d decimals is:\n\t%s\n\n",{n, decs, s2})
+    printf(1, "The square root of %d with %d decimals is:\n    %s\n\n",{n, decs, s2})
 --0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
     ba = ba_root(n, 3)
-    ba_printf(1, "And the cube root is:\n\t%.100aB\n\n", ba)
+    ba_printf(1, "And the cube root is:\n    %.100aB\n\n", ba)
     ba = ba_log(n)
-    ba_printf(1, "Its natural logarithm is:\n\t%.100aB\n\n", ba)
+    ba_printf(1, "Its natural logarithm is:\n    %.100aB\n\n", ba)
     ba = ba_logb(n, 10)
-    ba_printf(1, "And its logarithm is:\n\t%.100aB\n\n", ba)
+    ba_printf(1, "And its logarithm is:\n    %.100aB\n\n", ba)
     decs = 843
     {} = ba_scale(decs)
     ba = ba_exp("1")
     string edec = ba_sprint(ba)
-    printf(1, "And that 'e' with %d decimals is:\n\t%s\n", {decs, edec})
+    printf(1, "And that 'e' with %d decimals is:\n    %s\n", {decs, edec})
 --end ifdef
 
 --ifdef TEST2 then
     {} = ba_scale(100, 1)
     t0 = time()
     -- exp = -1 and cut
-    ba_printf(1,"\nba_log10('9999999999999999'):\n\t%B\n", ba_log10("9999999999999999"))
+    ba_printf(1,"\nba_log10('9999999999999999'):\n    %B\n", ba_log10("9999999999999999"))
     t1 = time()
     printf(1, "in: %.3f sec.\n\n", t1-t0)
     -- exp = 0 
 --commented out above...
---   ba_printf(1,"ba_log10_2('9999999999999999'):\n\t%B\n", ba_log10_2("9999999999999999"))
+--   ba_printf(1,"ba_log10_2('9999999999999999'):\n    %B\n", ba_log10_2("9999999999999999"))
 --   printf(1, "in: %.3f sec.\n", time() - t1) 
 end if
 --end ifdef

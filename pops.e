@@ -120,7 +120,9 @@ global constant
         --  clearer, and it triggers should I accidentally add such code.
 --opTchk2 = 13,
 --opTcFail2 = 14,
-    -- 14,15,16 spare
+--  opWithJS = 14,
+    opDeSeq = 14,   -- (re)set ma_ip flag in pRepeN.e
+    -- 15,16 spare
     --
     -- opFor,init,ctl,step,limit,tgt/x86loc
     -- opFor checks control var/init/limit/step are integer and sets C flag if
@@ -399,7 +401,7 @@ global constant
     opApnd = 132,       -- a = append(b,c)
     opPpnd = 133,       -- a = prepend(b,c)
     opConcat = 134,     -- a = b&c, see also opConcatN
-    opRepeat = 135,     -- a = repeat(b,c)
+--  opRepeat = 135,     -- a = repeat(b,c)
     opCurrDir = 136,    -- a = current_dir()
 --DEV delete for newEBP (or rewrite)
     opCatsi = 137,      -- p1 &= p2, when p1 is a gvar-scan-proven sequence of integer
@@ -575,7 +577,7 @@ global constant
 --  opFildMem = 220,    -- opFildMem,reg,var (in ilasm only)
 --  opObort = 219,      -- test/temp
 --219 spare
-    opRepCh = 220,
+--  opRepCh = 220,
 
     opFor2 = 221,
     
@@ -652,7 +654,11 @@ global constant
     opName("opUnassigned",opUnassigned,2)
 --  opName("opCallOnceYeNot",opCallOnceYeNot,0)
 --  opName("opAllocStr",opAllocStr,2)   -- opAllocStr,res,len (only called from ilASM, so far)
-    opUsed += 4 -- spare/opCallOnceYeNot?
+--  opUsed += 4 -- spare/opCallOnceYeNot?
+    opUsed += 1 -- spare/opCallOnceYeNot?
+    opName("opDeSeq",opDeSeq,2)
+--  opName("opWithJS",opWithJS,1)
+    opUsed += 2 -- spare
 
 --  opName("opFor",opFor,6)             -- opFor,init,ctl,step,limit,tgt/x86loc (see notes below)
                                         -- (29/12/2011: "end" on the opLoopTop should now be used
@@ -794,7 +800,8 @@ global constant
     opName("opApnd",opApnd,4)
     opName("opPpnd",opPpnd,4)
     opName("opConcat",opConcat,4)
-    opName("opRepeat",opRepeat,4)
+--  opName("opRepeat",opRepeat,4)
+    opUsed += 1
 --  opName("opAto32",opAto32,3)
 --  opName("opAto64",opAto64,3)
 --  opUsed += 2 -- spare
@@ -926,8 +933,8 @@ global constant
 --  opName("opDealloc",opDealloc,1) -- used to link to :%pDealloc in VM\pHeap.e, should never actually occur in IL
     opUsed += 2
 --  opName("opObort",opObort,2)     -- opObort,N
-    opName("opRepCh",opRepCh,4)     -- opRepCh,dest,item,count
---  opUsed += 1
+--  opName("opRepCh",opRepCh,4)     -- opRepCh,dest,item,count
+    opUsed += 1
 --DEV to go?
 --  opName("opLoadMem",opLoadMem,5) -- opLoadMem,reg,var (see loadMem in pilx86.e)
 --  opName("opLeaMov",opLeaMov,5)   -- opLeaMov,reg,var (see leamov in pilx86.e)

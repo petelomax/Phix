@@ -4,13 +4,16 @@
 --
 -- plain ASCII version of the more human-readable pcase8.e, see that for comments.
 --
-without debug -- keep ex.err clean (overshadowed by same in pdiag.e)
+--without debug -- keep ex.err clean (overshadowed by same in pdiag.e)
 
 integer caseinit = 0
 string toUpper, toLower
+sequence str_methods
+enum LOWER = 1, UPPER = 2, CAPITALISE = 3, SENTENCE = 4, INVERT = 5
 
 procedure initcase()
-integer i32
+    str_methods = {"LOWER","UPPER","CAPITALISE","SENTENCE","INVERT"}
+    integer i32
     toUpper = repeat(255,255)
     toLower = repeat(255,255)
     for i=1 to 254 do
@@ -204,9 +207,6 @@ end function
 --end function
 --*/
 
-constant str_methods = {"LOWER","UPPER","CAPITALISE","SENTENCE","INVERT"}
-enum LOWER = 1, UPPER = 2, CAPITALISE = 3, SENTENCE = 4, INVERT = 5
-
 global function proper(string s, method="CAPITALISE")
 --
 -- LOWER:       "this is England. so there" -> "this is england. so there"
@@ -244,13 +244,15 @@ bool eos = true,        -- end of sentence flag
             case INVERT then lowit := ishigh
                             highit := islow
             case CAPITALISE then
-                        if find(pc," \t\r\n\"\'`") then
+--                      if find(pc," \t\r\n\"\'`") then
+                        if find(pc," \r\n\"\'`"&9) then
                             highit := islow
                         else
                             lowit := ishigh
                         end if  
             case SENTENCE then
-                    if find(pc," \t\r\n") then
+--                  if find(pc," \t\r\n") then
+                    if find(pc," \r\n"&9) then
                         if eos then
                             highit := islow
                             eos := False
@@ -262,7 +264,8 @@ bool eos = true,        -- end of sentence flag
                     end if
                     if find(ch,".!?") then
                         eos := True
-                    elsif not find(ch," \t\r\n") then
+--                  elsif not find(ch," \t\r\n") then
+                    elsif not find(ch," \r\n"&9) then
                         eos := False
                     end if
                     if ch='\"' then

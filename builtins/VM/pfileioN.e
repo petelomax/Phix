@@ -647,7 +647,8 @@ procedure initF()
 --  GENERIC_READ             = #80000000    -- Too big for forward init!
 --  GENERIC_WRITE            = #40000000    -- ""
 --*/
-    fdtbl = {}
+--  fdtbl = {}
+    fdtbl = repeat(0,0)
 --  filenames = {}
     fdcs = init_cs()
 --  pDword = allocate(4)    --DEV /4?

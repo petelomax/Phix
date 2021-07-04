@@ -13,7 +13,8 @@ global atom N_DIST = 75.0,
 
 constant DIST_FACTOR = 1.0/100.0
 
-global enum B_X, B_Y, B_Z, B_XV, B_YV, B_ZV, B_ELEMENTS = B_ZV
+--global enum B_X, B_Y, B_Z, B_XV, B_YV, B_ZV, B_ELEMENTS = B_ZV
+global enum B_X, B_Y, B_Z, B_XV, B_YV, B_ZV, B_ELEMENTS = $
 
 global sequence boidsn, boidsnp1
 --, obstacles
@@ -53,11 +54,11 @@ sequence n, nid, ndist
 
     if bid=1 then
         n_id = repeat("", BOIDS)
-        n_dist = n_id
+        n_dist = deep_copy(n_id)
     end if
 
-    nid = n_id[bid]
-    ndist = n_dist[bid]
+    nid = deep_copy(n_id[bid])
+    ndist = deep_copy(n_dist[bid])
     n = repeat({}, BOIDS)
     ix = 0
     for i=1 to length(n_id[bid]) do
@@ -70,8 +71,10 @@ sequence n, nid, ndist
         if dist<=distance then
             ix += 1
             n[ix] = {i,dist}
-            n_id[i] &= bid
-            n_dist[i] &= dist
+--          n_id[i] &= bid
+            n_id[i] = deep_copy(n_id[i]) & bid
+--          n_dist[i] &= dist
+            n_dist[i] = deep_copy(n_dist[i]) & dist
         end if
     end for
 
@@ -80,23 +83,21 @@ end function
 
 procedure maintain_distance(integer bid, sequence n)
 -- alter a boids velocity to try to stay at least DIST away from other boids
-atom dx, dy, dz
-sequence this, other
 
-    dx = 0.0
-    dy = 0.0
-    dz = 0.0
+    atom dx = 0.0,
+         dy = 0.0,
+         dz = 0.0
 
-    this = boidsn[bid]
+    sequence bbid = boidsn[bid], other
 
     for i=1 to length(n) do
         if n[i][2]<DIST then
 
             other = boidsn[n[i][1]]
 
-            dx -= (other[B_X]-this[B_X])*2
-            dy -= (other[B_Y]-this[B_Y])*2
-            dz -= (other[B_Z]-this[B_Z])*2
+            dx -= (other[B_X]-bbid[B_X])*2
+            dy -= (other[B_Y]-bbid[B_Y])*2
+            dz -= (other[B_Z]-bbid[B_Z])*2
 
         end if
 
@@ -106,34 +107,37 @@ sequence this, other
     dy *= DIST_FACTOR
     dz *= DIST_FACTOR
 
-    boidsnp1[bid][B_XV] += dx
-    boidsnp1[bid][B_YV] += dy
-    boidsnp1[bid][B_ZV] += dz
+--  boidsnp1[bid][B_XV] += dx
+--  boidsnp1[bid][B_YV] += dy
+--  boidsnp1[bid][B_ZV] += dz
+    bbid = deep_copy(boidsnp1[bid])
+    bbid[B_XV] += dx
+    bbid[B_YV] += dy
+    bbid[B_ZV] += dz
+    boidsnp1[bid] = bbid
 end procedure
 
 procedure avoid_walls(integer bid)
 -- avoid the boundaries of MAX and MIN for each dimension (X, Y, Z)
-sequence this
-atom dx, dy, dz, t
-    dx = 0.0
-    dy = 0.0
-    dz = 0.0
-    this = boidsn[bid]
-    t = this[B_X]
+    sequence bbid = boidsn[bid]
+    atom dx = 0.0,
+         dy = 0.0,
+         dz = 0.0,
+         t = bbid[B_X]
     if t<DIST+X_MIN then
         dx += 1
     elsif t>X_MAX-DIST then
         dx -= 1
     end if
 
-    t = this[B_Y]
+    t = bbid[B_Y]
     if t<DIST+Y_MIN then
         dy += 1
     elsif t>Y_MAX-DIST then
         dy -= 1
     end if
 
-    t = this[B_Z]
+    t = bbid[B_Z]
     if t<DIST+Z_MIN then
         dz += 1
     elsif t>Z_MAX-DIST then
@@ -147,14 +151,12 @@ end procedure
 
 procedure match_velocity(integer bid, sequence n)
 -- try to match the velocity of a boid to its neighbors
-atom dx, dy, dz
-sequence this, other
 
     if length(n) then
-        dx = 0.0
-        dy = 0.0
-        dz = 0.0
-        this = boidsn[bid]
+        atom dx = 0.0,
+             dy = 0.0,
+             dz = 0.0
+        sequence bbid = boidsn[bid], other
 
         for i=1 to length(n) do
             other = boidsn[n[i][1]]
@@ -168,9 +170,9 @@ sequence this, other
         dy /= length(n)
         dz /= length(n)
 
-        dx -= this[B_XV]
-        dy -= this[B_YV]
-        dz -= this[B_ZV]
+        dx -= bbid[B_XV]
+        dy -= bbid[B_YV]
+        dz -= bbid[B_ZV]
 
         dx *= DIST_FACTOR
         dy *= DIST_FACTOR
@@ -184,12 +186,11 @@ end procedure
 
 procedure move_to_center(integer bid, sequence n)
 -- try to move a boid toward the center of its neighbors
-atom x, y, z
-sequence other
+    sequence other
     if length(n) then
-        x = 0.0
-        y = 0.0
-        z = 0.0
+        atom x = 0.0,
+             y = 0.0,
+             z = 0.0
         for i=1 to length(n) do
             other = boidsn[n[i][1]]
             x += other[B_X]
@@ -239,9 +240,9 @@ procedure move(integer bid)
 end procedure
 
 global procedure setup()
-atom mag
-    boidsn = repeat(repeat(0.0, B_ELEMENTS), BOIDS)
-    boidsnp1 = boidsn
+--  boidsn = repeat(repeat(0.0, B_ELEMENTS), BOIDS)
+    boidsnp1 = repeat(repeat(0.0, B_ELEMENTS), BOIDS)
+--  boidsnp1 = boidsn
 
     -- place them randomly
     for boid=1 to BOIDS do
@@ -253,7 +254,7 @@ atom mag
         boidsnp1[boid][B_YV] = V_MAX-rand(2*V_MAX)
         boidsnp1[boid][B_ZV] = V_MAX-rand(2*V_MAX)
 
-        mag = magnitude3(boidsnp1[boid])/V_MAX
+        atom mag = magnitude3(boidsnp1[boid])/V_MAX
 
         if mag>1.0 then
             boidsnp1[boid][B_XV..B_ZV] = sq_div(boidsnp1[boid][B_XV..B_ZV],mag)
@@ -265,7 +266,8 @@ atom mag
 --      obstacles[o] = {rand(X_MAX), rand(Y_MAX), rand(Z_MAX), 30}
 --  end for
 
-    boidsn = boidsnp1
+--  boidsn = boidsnp1
+    boidsn = deep_copy(boidsnp1)
 
 end procedure
 
@@ -280,6 +282,6 @@ sequence n
         constrain(boid)
         move(boid)
     end for
-    boidsn = boidsnp1
+    boidsn = deep_copy(boidsnp1)
 end procedure
 

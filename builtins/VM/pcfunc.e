@@ -456,10 +456,13 @@ procedure Tinit()
     -- Note: this /should/ be thread safe, because pThread.e calls it!
     tinit = 1
     tcs = init_cs()
-    table = {}
+--  table = {}
+    table = repeat(0,0)
     tmax = 0
-    previd = {}
-    prevcb = {}
+--  previd = {}
+    previd = repeat(0,0)
+--  prevcb = {}
+    prevcb = repeat(0,0)
 --DEV tryme (and get rid of :%SetCCleanup) [erm, will not work because not "final"...]
 --  table = delete_routine(table,routine_id("c_cleanup"))
 --!/*
@@ -1106,6 +1109,9 @@ integer esp4
     if machine_bits()=64 then
         --DEV actually, this should be more like pHeap.e/pGetMem... (nah, this shd be fine...)
         la = length(args)
+--added 9/6/21: (mpfr.e opening dlls under with js)
+        args = deep_copy(args)
+        argdefs = deep_copy(argdefs)
         if platform()=WINDOWS then
             if la<5 then
                 args &= repeat(0,5-la)

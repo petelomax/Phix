@@ -156,7 +156,11 @@ object res
                     if c<I2B then
                         res[i] = c+MIN1B
                     else
-                        {res[i],pos} = deserialize_object(sf, c, pos)
+--p2js(?)
+--                      {res[i],pos} = deserialize_object(sf, c, pos)
+                        sequence rip = deserialize_object(sf, c, pos)
+                        res[i] = rip[1]
+                        pos = rip[2]
                     end if
                 end for
             end if

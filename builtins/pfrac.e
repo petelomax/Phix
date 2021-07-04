@@ -11,8 +11,8 @@
 --SUG:
 constant USE_MPQ = false
 
---constant USE_MPZ = true
-constant USE_MPZ = false
+constant USE_MPZ = true
+--constant USE_MPZ = false
 
 
 include mpfr.e
@@ -89,13 +89,15 @@ if USE_MPZ then
     end if
     return false
 --*/
-else
---  return sequence(r) and integer(r[NUMER]) and integer(r[DENOM]) and length(r)=2
+elsif USE_BIGATOM then
     return sequence(r) 
        and length(r)=FRACLEN
        and (integer(r[NUMER]) or bigatom(r[NUMER]))
        and (integer(r[DENOM]) or bigatom(r[DENOM]))
        and ba_compare(r[DENOM],BA_ZERO)!=0
+else
+--  return sequence(r) and integer(r[NUMER]) and integer(r[DENOM]) and length(r)=2
+    return sequence(r) and atom(r[NUMER]) and atom(r[DENOM]) and length(r)=2
 end if
 end type
 
@@ -189,6 +191,7 @@ global function frac_uminus(frac r)
 if USE_MPZ then
     mpz rn = mpz_init_set(r[FRAC_NUMER])
     mpz_neg(rn,rn)
+    r = deep_copy(r)
     r[FRAC_NUMER] = rn
     return r
 elsif not USE_BIGATOM then

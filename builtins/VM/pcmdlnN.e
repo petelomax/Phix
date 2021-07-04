@@ -79,8 +79,11 @@ atom xKernel32, xGetCommandLine, xSearchPath,
 --include builtins\dll.e
 --include builtins\machine.e
 
-include builtins\pcase.e as pcase
-include builtins\peekstr.e as pstr
+--p2js:
+--include builtins\pcase.e as pcase
+--include builtins\peekstr.e as pstr
+include builtins\pcase.e
+include builtins\peekstr.e
 
 --/**/-- not strictly necessary, but reduces opCallOnce/fwd calls/onDeclaration
 --!/!*!*!/!include builtins\machine.e -- allocate_string()
@@ -214,7 +217,8 @@ integer pArg4,W,N
         --
         -- First, get the basic command string:
         --
-        plainstr = pstr:peek_string(c_func(xGetCommandLine,{}))
+--      plainstr = pstr:peek_string(c_func(xGetCommandLine,{}))
+        plainstr = peek_string(c_func(xGetCommandLine,{}))
 --pp(plainstr)
         --
         -- Then parse it into chunks.
@@ -344,7 +348,8 @@ integer pArg4,W,N
     -- If the first entry is ex[u|w[c]][.exe] (ie sources of Phix being
     --  run on RDS Eu) then trash it.
     --
-    plainstr = pcase:lower(res[1])
+--  plainstr = pcase:lower(res[1])
+    plainstr = lower(res[1])
 --puts(1,"plainstr:\n")
 --pp(plainstr)
 

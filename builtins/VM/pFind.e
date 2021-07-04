@@ -6,7 +6,7 @@
 --  There is an equivalent commented-out backend/asm version in pJcc.e, conversion of which is yet to be completed.
 --
 without trace
-without debug
+--without debug
 
 global function find(object needle, sequence haystack, integer start=1)
     if start<0 then start += length(haystack)+1 end if

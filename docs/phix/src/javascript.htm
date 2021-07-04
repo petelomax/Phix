@@ -8,6 +8,7 @@
       <div id="mainSection">
         Obviously more complete references can be found easily enough - the whole point of this is to hook
         into the Edita/Edix F1 Help system, and that way speed up the development of pwa/p2js itself.
+        Again, this is of no particular help to anyone actually using pwa/p2js.
         <br>
         <br>
         There may be some subtle implications of using these routines from an imperative mindset (as
@@ -64,7 +65,7 @@
         since that can be expensive it should scan the AST (abstract syntax tree) to see if it can be avoided
         - obviously if it is not being modified, but also if it is reassigned when the function returns. 
         I toyed with a = ...b before realising the spread operator only does a shallow copy, so now it uses 
-        a = $deepCopy(b);
+        a = deep_copy(b);
         <br>
         <br>
         Obviously, p2js.js and pGUI.js should only expose identifiers that would normally be considered
@@ -72,10 +73,9 @@
         read <i>so much</i> hand-wringing and whining and moaning about this, I thought it was going to be
         difficult, turns out it is trivial and you simply don&rsquo;t need any of that anonymous iife drivel
         (don&rsquo;t ask). There are however a <i>tiny</i> number that would be useful, and thankfully 
-        JavaScript allows $ in identifier names, so any of $conCat, $deepCopy, $docBody, $paranormalise, 
-        $prefer_backtick, $seed, $storeAttr, $topZindex, or $typeCheckError 
-        [told you it was a fairly short list] are just things we don&rsquo;t want to interfere with or be 
-        accidentally accessible from transpiled user-code-land.
+        JavaScript allows $ in identifier names, so any of $conCat, $docBody, $paranormalise, $prefer_backtick, 
+        $seed, $storeAttr, $topZindex, or $typeCheckError [told you it was a fairly short list] are just things 
+        we don&rsquo;t want to interfere with or be accidentally accessible from transpiled user-code-land.
 <!-- needs more thought, would I ever actually use it anyway??...
         <br>
         <br>
@@ -963,10 +963,10 @@ toLowerCase
             event.srcElement was the name used for this in IE6-8 and should be replaced without hesitation.
          </div>
         </div>
+        <div style="clear:both;height:1px;"> </div>
         <br>
 
         <a name=typeof></a>
-        <div style="clear:both;height:1px;"> </div>
         <div class="flexbox">
          <div>
             <nobr>/*string*/ res =&nbsp;</nobr>
@@ -1066,6 +1066,8 @@ toLowerCase
          </tr>
          <!-- https://www.joshwcomeau.com/operator-lookup/ -->
         </table>
+        <div style="clear:both;height:1px;"> </div>
+        <a name=globals></a>
         <br>
         &nbsp;
         <br>
@@ -1073,6 +1075,18 @@ toLowerCase
          <tr>
             <th>Globals</th>
             <th>Meaning</th>
+         </tr>
+         <tr>
+            <td>
+             $catch()
+            </td>
+            <td>
+              In Javascript a catch(e) can receive a string, number, boolean, or object, this just quietly maps such to
+              a more desktop/Phix compatible sequence, so that a subsequent e[E_USER] (for example) does not crash.
+              Obviously you won&rsquo;t get much in the way of source file and line number out of the browser, at best 
+              it will correspond to the transpiler output rather than it&rsquo;s input, which if nothing else should 
+              teach you to debug things properly on the desktop first.
+            </td>
          </tr>
          <tr>
             <td>
@@ -1086,13 +1100,24 @@ toLowerCase
          </tr>
          <tr>
             <td>
+             $class_name()
+            </td>
+            <td>
+              Simple sanity checking, for instance we can close a dialog but it makes no sense to try and close a button. Of more use to 
+              ensure that internally everything was hooked up correctly, than to catch user code calling the wrong thing.<br>
+              Only used in pGUI.js, should not be emitted in generated code.
+            </td>
+         </tr>
+         <tr>
+            <td>
              $conCat()
             </td>
             <td>
-              Replacement for the & operator of Phix, uses += for strings and array.concat(slice) for sequences.<br>
+              Replacement for the & operator of Phix, which internally uses += for strings and array.concat(slice) for sequences.<br>
               Will be emitted in generated code.
             </td>
          </tr>
+<!--
          <tr>
             <td>
              $deepCopy()
@@ -1102,6 +1127,7 @@ toLowerCase
               May be emitted in generated code (but is not so far).
             </td>
          </tr>
+-->
          <tr>
             <td>
              $docBody
@@ -1125,10 +1151,15 @@ toLowerCase
              $repe(s,idx,x,idii)
             </td>
             <td>
-              Replacement for subscript assignment, uses String.fromCharCode(x) for string(s), $deepCopy(x) for sequences. <br>
+              Replacement for subscript assignment, uses String.fromCharCode(x) and zero-based indexes for string(s), 1-based slices for sequences. <br>
               The first three parameters, s, idx, and x should be self-explanatory (s[idx] := x). <br>
-              The optional fourth parameter, idii, is a sequence of nested subscripts, eg/ie s[i][j][k] = x maps to 
-              $repe(s,k,x,["sequence",i,j]).<br>
+              The optional fourth parameter, idii, is a sequence of nested subscripts, eg/ie 
+<!--
+              s[i][j][k] = x maps to $repe(s,k,x,["sequence",i,j]).<br>
+-->
+              <code>s[g][h][i] = x</code> maps to <code>$repe(s,i,x,["sequence",h,g])</code>
+              <small>(a "backwards" idii proved a tiny smidgen easier but that&rsquo;s not set in stone)</small>.<br>
+            
 <!--
               Note: at the time of writing, subscripts in the parse tree are nested, and therefore may appear
               as such instead of using idii.<br>
@@ -1136,7 +1167,6 @@ toLowerCase
               Will be emitted in generated code. Note this takes advantage of JavaScript&rsquo;s pass-by-sharing semantics.
 <!--             Note that s[i][j][k] produces nested calls to this routine. -->
              <!-- I am not overly adamant about the "sequence" part. Defined in p2js.js. -->
-              <!--Note that $deepCopy() is invoked when the result is an array.  [DEV??]-->
             </td>
          </tr>
          <tr>
@@ -1144,11 +1174,11 @@ toLowerCase
              $repss(s,ss,se,x,idii)
             </td>
             <td>
-              Replacement for slice assignment, uses String.from??slice(ss-1,se) for strings (as in JavaScript they are 0-based), but 
-              ??Array.slice(ss,se+1) for dword-sequences (since we&rsquo;ve put a "sequence" in at s[0]). <br>
+              Replacement for slice assignment, uses String.slice(ss-1,se) (as in JavaScript they are 0-based), but 
+              Array.slice(ss,se+1) for dword-sequences (since we put a "sequence" in at s[0]). <br>
               The first four parameters, s, ss, se, and x, should be self-explanatory (s[ss..se] = x). <br>
               The optional fifth parameter, idii, is a sequence of nested subscripts, eg/ie s[i][j][k][ss..se] maps to 
-              $repss(s,ss,se,x,["sequence",i,j,k]).<br>
+              $repss(s,ss,se,x,["sequence",k,j,i]) <small>(ditto "backwards" idii)</small>.<br>
 <!--
               Note: at the time of writing, subscripts in the parse tree are nested, and therefore may appear
               as such instead of using idii.<br>
@@ -1191,7 +1221,6 @@ toLowerCase
 -->
               Will be emitted in generated code. Note that s[i][j][k] produces nested calls to this routine.
              <!-- I am not overly adamant about the "sequence" part. Defined in p2js.js. -->
-              <!--Note that $deepCopy() is invoked when the result is an array.  [DEV??]-->
             </td>
          </tr>
          <tr>

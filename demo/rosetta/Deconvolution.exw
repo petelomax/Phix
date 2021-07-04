@@ -8,6 +8,7 @@
 --
 --  Contains the full test set: note that 5D takes a minute or two to complete.
 --
+with javascript_semantics
 
 function m_size(sequence m)
 --
@@ -19,17 +20,6 @@ function m_size(sequence m)
         res &= length(me)
         me = me[1]
     end while
-    return res
-end function
- 
-function product(sequence s)
---
--- multiply all elements of s together
---
-    integer res = s[1]
-    for i=2 to length(s) do
-        res *= s[i]
-    end for
     return res
 end function
  
@@ -101,6 +91,7 @@ function toRREF(sequence m)
 integer lead = 1,
         rows = length(m),
         cols = length(m[1])
+    m = deep_copy(m)
     for r=1 to rows do
         if lead>=cols then exit end if
         integer i = r
@@ -113,8 +104,10 @@ integer lead = 1,
                 if lead=cols then return m end if
             end if
         end while
-        -- nb m[i] is assigned before m[r], which matters when i=r:
-        {m[r],m[i]} = {sq_div(m[i],m[i][lead]),m[r]}
+        sequence mi = deep_copy(m[r]),
+                 mr = sq_div(m[i],m[i][lead])
+        m[i] = mi
+        m[r] = mr
         for j=1 to rows do
             if j!=r then
                 m[j] = sq_sub(m[j],sq_mul(m[j][lead],m[r]))
@@ -127,6 +120,7 @@ end function
  
 function lset(sequence h, sequence idx, object v)
 -- helper routine: store v somewhere deep inside h
+    h = deep_copy(h)
     integer i1 = idx[1]+1
     if length(idx)=1 then
         h[i1] = v

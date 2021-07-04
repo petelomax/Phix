@@ -279,16 +279,14 @@ function f(integer i)
     return i
 end function
     if f(1)+f(2)+f(3) != 6 then crash("f(1)+f(2)+f(3)!=6") end if
--- added for pwa/p2js... [DEV]
---forward function g(integer i) -- [NOJOY]
-puts(1,"WARNING: forward call tests commented out temporarily (for pwa/p2js)...\n")
-if platform()!=JS then sleep(1) end if
---/*
+--p2js: seems fine now (29/6/21)
+forward function g(integer i)
+--puts(1,"WARNING: forward call tests commented out temporarily (for pwa/p2js)...\n")
+--if platform()!=JS then sleep(1) end if
 --/**/  if g(1)+g(2)+g(3) != 6 then crash("g(1)+g(2)+g(3)!=6") end if
 function g(integer i)
     return i
 end function
---*/
 
 if showprogress then puts(1,"16\n") end if
 
@@ -429,7 +427,7 @@ if showprogress then puts(1,"24\n") end if
 if platform()!=JS then
 --/**/  if not equal("st\#72ing\n","string\n") then crash("#72!=r") end if
 end if
--- (remove for pwa/p2js?:)
+
 --/**/  if not equal('\#62'&"e cool","be cool") then crash("#62!=b") end if
 if showprogress then puts(1,"25\n") end if
 
@@ -490,16 +488,16 @@ atom xSystemTime
 
     xSystemTime = allocate(4)
     poke4(xSystemTime,2011)
-
---DEV... (compiler blow up without the X, with "type check failure, opcode is {213,..}")
-function peek2uX(atom addr)
-    return peek(addr)+peek(addr+1)*256
-end function
-
-sequence res
-
-    res = {peek2uX(xSystemTime),
-           peek2uX(xSystemTime)}
+--end if
+--
+----DEV... (compiler blow up without the X, with "type check failure, opcode is {213,..}")
+--function peek2uX(atom addr)
+--  return peek(addr)+peek(addr+1)*256
+--end function
+--
+--if platform()!=JS then
+sequence res = {peek2u(xSystemTime),
+                peek2u(xSystemTime)}
 if res!={2011,2011} then ?9/0 end if
 --without profile
 end if
@@ -519,14 +517,14 @@ if r_click_OpenRecentFile!=routine_id("click_OpenRecentFile") then ?9/0 end if
 if showprogress then puts(1,"29\n") end if
 
 --24/1/17:
-puts(1,"WARNING: serialize temporarily removed for pwa/p2js...\n")
+--puts(1,"WARNING: serialize temporarily removed for pwa/p2js...\n")
 --(make this an autoinclude, or remove from p2js_keywords?)
-if platform()!=JS then sleep(1) end if
---/*
-include builtins\serialize.e
-s = {"Pete",{1,0,-1},PI,-PI}
-if s!= deserialize(serialize(s)) then ?9/0 end if
---*/
+--made it an autoinclude 29/6, but not supported on p2js since it uses atom_to_float32/64/80() etc.
+if platform()!=JS then
+--include builtins\serialize.e
+    s = {"Pete",{1,0,-1},PI,-PI}
+    if s!= deserialize(serialize(s)) then ?9/0 end if
+end if
 
 if showprogress then puts(1,"30\n") end if
 
@@ -553,10 +551,10 @@ if sq_round(x1,100)!={0.13,0.38,0.63,0.88} then ?9/0 end if
 if showprogress then puts(1,"32\n") end if
 
 --20/06/2020 (nested constant declarations)
---DEV pwa/p2js...
---function ff(object o) return o end function
---constant xx = {AA:=1, ff({BB:=2}), {CC:={DD:=3,4}}}
---if {xx,AA,BB,CC,DD}!={{1,{2},{{3,4}}},1,2,{3,4},3} then ?9/0 end if
+--30/06/2021 (now works on p2js, added DD+2)
+function ff(object o) return o end function
+constant xx = {AA:=1, ff({BB:=2}), {CC:={DD:=3,4,DD+2}}}
+if {xx,AA,BB,CC,DD}!={{1,{2},{{3,4,5}}},1,2,{3,4,5},3} then ?9/0 end if
 
 if showprogress then puts(1,"33\n") end if
 

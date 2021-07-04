@@ -36,6 +36,7 @@ global function join_by(sequence s, integer step, integer n, object step_pad="  
     sequence res = {}, js
     integer nmax = n,
             ls = length(s)
+    s = deep_copy(s)
     ls += remainder(ls,step)
     while length(s)>=step do
 --  while length(s)>step do     -- (needed for auto-widthwise partial<=step)

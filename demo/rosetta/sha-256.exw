@@ -2,6 +2,8 @@
 -- demo\rosetta\sha-256.exw
 -- ========================
 --
+with javascript_semantics
+
 -- fairly faithful rendition of https://en.wikipedia.org/wiki/SHA-2
 --  with slightly improved names (eg s0 -> sigma0) from elsewhere.
 --  See also sha-256asm.exw for a faster inline asm version, and 
@@ -28,25 +30,16 @@ constant k = {
    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2}
 
 function pad64(integer v)
--- round v up to multiple of 64
+    -- round v up to multiple of 64
     return floor((v+63)/64)*64
 end function
 
-constant m4 = allocate(4)   -- scratch area, for uint32
-
 function uint32(atom v)
---
--- (note: I have experimented to call this as few times as possible. 
---        It wouldn't hurt to perform this on every maths op, but a
---        few leading bits in a few work fields doen't matter much.)
---
---  return and_bits(v,#FFFFFFFF)    -- no!
-    poke4(m4,v)
-    return peek4u(m4)
+    return and_bitsu(v,#FFFFFFFF)
 end function
 
 function sq_uint32(sequence s)
--- apply uint32 to all elements of s
+    -- apply uint32 to all elements of s
     for i=1 to length(s) do
         s[i] = uint32(s[i])
     end for
@@ -54,7 +47,7 @@ function sq_uint32(sequence s)
 end function
 
 function dword(string msg, integer i)
--- get dword as big-endian
+    -- get dword as big-endian
     return msg[i]*#1000000+msg[i+1]*#10000+msg[i+2]*#100+msg[i+3]
 end function
 
@@ -132,8 +125,9 @@ atom h0 = 0x6a09e667,
     return join(res)
 end function
 
-string res = sha256("Rosetta code")
-?res
+?sha256("Rosetta code")
+--string res = sha256("Rosetta code")
+--?res
 --"764FAF5C 61AC315F 1497F9DF A5427139 65B785E5 CC2F707D 6468D7D1 124CDFCF"
 --764faf5c61ac315f1497f9dfa542713965b785e5cc2f707d6468d7d1124cdfcf
 

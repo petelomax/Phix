@@ -24,7 +24,8 @@
 --      that subsequently treating that -1 as an index will work out at all well...
 --
 
-global function trim(object source, object what=" \t\r\n", bool return_index=false)
+--global function trim(object source, object what=" \t\r\n", bool return_index=false)
+global function trim(object source, object what={' ','\t','\r','\n'}, bool return_index=false)
     if sequence(source) then
         integer lpos = 1,
                 rpos = length(source)
@@ -47,7 +48,8 @@ global function trim(object source, object what=" \t\r\n", bool return_index=fal
     return source
 end function
 
-global function trim_head(object source, object what=" \t\r\n", bool return_index=false)
+--global function trim_head(object source, object what=" \t\r\n", bool return_index=false)
+global function trim_head(object source, object what={' ','\t','\r','\n'}, bool return_index=false)
     if sequence(source) then
         sequence s = trim(source,what,true)
         integer lpos = s[1]
@@ -62,7 +64,8 @@ global function trim_head(object source, object what=" \t\r\n", bool return_inde
     return source
 end function
 
-global function trim_tail(object source, object what=" \t\r\n", bool return_index=false)
+--global function trim_tail(object source, object what=" \t\r\n", bool return_index=false)
+global function trim_tail(object source, object what={' ','\t','\r','\n'}, bool return_index=false)
     if sequence(source) then
         sequence s = trim(source,what,true)
         integer {lpos,rpos} = s
@@ -89,7 +92,9 @@ global function shorten(sequence s, string what="digits", integer ml=20)
             s[ml+1..-ml-1] = "..."
             if length(ls) then s &= ls end if
         else
-            s[ml+1..-ml-1] = {"..."}
+--p2js:
+--          s[ml+1..-ml-1] = {"..."}
+            s = s[1..ml] & {"..."} & s[-ml..-1]
             if length(ls) then s = append(s,ls) end if
         end if
     end if

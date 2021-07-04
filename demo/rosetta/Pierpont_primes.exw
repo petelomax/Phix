@@ -9,6 +9,7 @@
 -- In truth, I only kept/distribute this because I did not want to throw away
 --  the (slower) priority queue implementation.
 --
+with javascript_semantics
 include mpfr.e
  
 function pierpont(integer n)
@@ -16,7 +17,6 @@ function pierpont(integer n)
              s = {mpz_init(1)}
     integer i2 = 1, i3 = 1
     mpz {n2, n3, t} = mpz_inits(3)
-    randstate state = gmp_randinit_mt()
     atom t1 = time()+1
     while min(length(p[1]),length(p[2])) < n do
         mpz_mul_si(n2,s[i2],2)
@@ -31,11 +31,11 @@ function pierpont(integer n)
         if mpz_cmp(t,s[$]) > 0 then
             s = append(s, mpz_init_set(t))
             mpz_add_ui(t,t,1)
-            if length(p[1]) < n and mpz_probable_prime_p(t,state) then
+            if length(p[1]) < n and mpz_prime(t) then
                 p[1] = append(p[1],mpz_init_set(t))
             end if
             mpz_sub_ui(t,t,2)
-            if length(p[2]) < n and mpz_probable_prime_p(t,state) then
+            if length(p[2]) < n and mpz_prime(t) then
                 p[2] = append(p[2],mpz_init_set(t))
             end if
         end if
@@ -49,8 +49,8 @@ function pierpont(integer n)
 end function
  
 --constant limit = 2000         -- 2 mins
-constant limit = 1000       -- 8.1s
---constant limit = 250          -- 0.1s
+--constant limit = 1000     -- 8.1s
+constant limit = 250            -- 0.1s
 atom t0 = time()
 sequence p = pierpont(limit)
 constant fs = {"first","second"}
@@ -58,7 +58,7 @@ constant fs = {"first","second"}
 for i=1 to length(fs) do
     printf(1,"First 50 Pierpont primes of the %s kind:\n",{fs[i]})
     for j=1 to 50 do
-        mpfr_printf(1,"%8Zd ", p[i][j])
+        printf(1,"%8s ", {mpz_get_str(p[i][j])})
         if mod(j,10)=0 then printf(1,"\n") end if
     end for
     printf(1,"\n")
@@ -126,7 +126,6 @@ include mpfr.e
 integer pqid = pq_new(MIN_HEAP, routine_id("mpz_cmp"))
 pq_add({0,mpz_init(1)},pqid)
 sequence p = {{},{}}
-randstate state = gmp_randinit_mt()
 mpz y, z
 atom t0 = time()
 atom t1 = time()+1
@@ -136,14 +135,14 @@ while length(p[1])<limit
     if length(p[1])<limit then
         y = mpz_init()
         mpz_add_ui(y,z,1)
-        if mpz_probable_prime_p(y,state) then
+        if mpz_prime(y) then
             p[1] = append(p[1],y)
         end if
     end if
     if length(p[2])<limit then
         y = mpz_init()
         mpz_sub_ui(y,z,1)
-        if mpz_probable_prime_p(y,state) then
+        if mpz_prime(y) then
             p[2] = append(p[2],y)
         end if
     end if
@@ -174,7 +173,7 @@ constant fs = {"first","second"}
 for i=1 to length(fs) do
     printf(1,"First 50 Pierpont primes of the %s kind:\n",{fs[i]})
     for j=1 to 50 do
-        mpfr_printf(1,"%8Zd ", p[i][j])
+        printf(1,"%8s ", {mpz_get_str(p[i][j])})
         if mod(j,10)=0 then printf(1,"\n") end if
     end for
     printf(1,"\n")

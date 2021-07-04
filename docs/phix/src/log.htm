@@ -4,7 +4,7 @@
    <these>
     <get>
      <stripped>
-      <h1 class="title">log</h1>
+      <h1 class="title">log / exp / E / sqrt / power</h1>
       <div id="mainSection">
        <table>
         <col style="width: 5%"/>
@@ -22,13 +22,29 @@
           <i>-- or --</i>
           <br>
           <a href="atom.htm">atom</a> res = log2(<a href="atom.htm">atom</a> x)
+          <br>
+          <i>-- or --</i>
+          <br>
+          <a href="atom.htm">atom</a> res = exp(<a href="atom.htm">atom</a> x)
+          <br>
+          <i>-- or --</i>
+          <br>
+          <a href="atom.htm">atom</a> res = sqrt(<a href="atom.htm">atom</a> x)
+          <br>
+          <i>-- or --</i>
+          <br>
+          <a href="atom.htm">atom</a> res = power(<a href="atom.htm">atom</a> x, y)
          </td>
         </tr>
         <tr>
          <td>
           <b>Description:</b>
          </td>
-         <td>Return the natural or base 10/2 logarithm of x.
+         <td>
+            log[10/2]() returns the natural or base 10/2 logarithm of x.<br>
+            exp() returns the inverse of log(), implemented trivially as power(E,x).<br>
+            sqrt() returns the square root of x. x must not be negative.<br>
+            power() returns the x raised to the power y.<br>
          </td>
         </tr>
         <tr>
@@ -36,8 +52,8 @@
           <b>Comments:</b>
          </td>
          <td>
-            This function may be applied to an <a href="atom.htm">atom</a> or sq_log[10/2]() to all elements of a <a href="sequence.htm">sequence</a>. The rules for
-            <a href="seqops.htm">sequence operations</a> apply.
+            These functions may be applied to an <a href="atom.htm">atom</a> or sq_log[10/2](), sq_sqrt(), sq_power() to all 
+            elements of a <a href="sequence.htm">sequence</a>. The rules for <a href="seqops.htm">sequence operations</a> apply.
           <br>
           <br>
             Note that log is only defined for positive numbers. Your program will abort with a message if you
@@ -51,22 +67,56 @@
             and perhaps slightly more accurate.
             <br>
             <br>
-            The builtin function <b>exp</b>(<a href="atom.htm">atom</a> x) is the inverse of log(), and is implemented simply as return <a href="power.htm">power</a>(E,x).<br>
-            There is no similar builtin function for the inverse of log10(); you are expected to use <a href="power.htm">power</a>(10,x) directly, likewise log2().
+            The builtin function <b>exp</b>(<a href="atom.htm">atom</a> x) is the inverse of log(), and is implemented simply as return <a href="log.htm">power</a>(E,x).<br>
+            There is no similar builtin function for the inverse of log10(); you are expected to use <a href="log.htm">power</a>(10,x) directly, likewise log2().<br>
+            Also, there is currently no sq_exp() function, it has simply never been needed or asked for (plus it don&rsquo;t fit in <a href="seqops.htm">seqops</a>).
+            <br>
+            <br>
+            Powers of 2 are calculated very efficiently.
+            <br>
+            <br>
+            Other languages have a ** or ^ operator to perform the same action as <a href="log.htm">power</a>(), although in some languages ^ is the xor function.
+            <br>
+            <br>
+            Theoretically the result of power(0,0) is undefined, however for consistency with other programming languages, the result is 1.<br>
+            However, in Phix (the same as python), attempting to raise any value &lt;=0 to any negative or non integer power causes a fatal runtime error.<br>
+            Obvious workarounds exist, for instance should you require a function that returns the cubic root of negative (and positive) numbers:
+            <br>
+            <br>
+<!--eucode>
+function cube_root(atom c)
+    return iff(c>=0?power(c,1/3):-power(-c,1/3))
+--  return iff(c>=0?1:-1)*power(abs(c),1/3))    -- (also fine)
+--  return compare(c,0)*power(abs(c),1/3)       -- (ditto)
+end function
+</eucode-->
+<pre>
+<font color="#008080">function</font><font color="#000000"> cube_root</font><font color="#0000FF">(</font><font color="#004080">atom</font><font color="#000000"> c</font><font color="#0000FF">)</font>
+<font color="#008080">    return</font><font color="#7060A8"> iff</font><font color="#0000FF">(</font><font color="#000000">c</font><font color="#0000FF">&gt;=</font><font color="#000000">0</font><font color="#0000FF">?</font><font color="#7060A8">power</font><font color="#800000">(</font><font color="#000000">c</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">/</font><font color="#000000">3</font><font color="#800000">)</font><font color="#0000FF">:-</font><font color="#7060A8">power</font><font color="#800000">(</font><font color="#0000FF">-</font><font color="#000000">c</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">/</font><font color="#000000">3</font><font color="#800000">)</font><font color="#0000FF">)</font>
+<font color="#000080"><i>--  return iff(c&gt;=0?1:-1)*power(abs(c),1/3))    -- (also fine)
+--  return compare(c,0)*power(abs(c),1/3)       -- (ditto)</i></font>
+<font color="#008080">end function</font>
+</pre>
          </td>
         </tr>
         <tr>
          <td>
-          <b>Example:</b>
+          <b>Examples:</b>
          </td>
          <td>
 <!--eucode>
-a = log(100)    -- a is 4.60517
-b = log10(100)  -- b is 2.0 (approx)
+?log(100)   -- prints 4.605170186
+?log10(100) -- prints 2.0 (approx)
+?log2(8)    -- prints 3.0 (approx)
+?sqrt(16)   -- prints 4
+?power(5,2) -- prints 25
 </eucode-->
 <pre>
-<font color="#000000">a</font><font color="#0000FF"> =</font><font color="#7060A8"> log</font><font color="#0000FF">(</font><font color="#000000">100</font><font color="#0000FF">)   </font><font color="#000080"><i> -- a is 4.60517
-</i></font><font color="#000000">b</font><font color="#0000FF"> =</font><font color="#5E005E"> log10</font><font color="#0000FF">(</font><font color="#000000">100</font><font color="#0000FF">) </font><font color="#000080"><i> -- b is 2.0 (approx)</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">log</font><font color="#0000FF">(</font><font color="#000000">100</font><font color="#0000FF">)  </font><font color="#000080"><i> -- prints 4.605170186</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">log10</font><font color="#0000FF">(</font><font color="#000000">100</font><font color="#0000FF">)</font><font color="#000080"><i> -- prints 2.0 (approx)</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">log2</font><font color="#0000FF">(</font><font color="#000000">8</font><font color="#0000FF">)   </font><font color="#000080"><i> -- prints 3.0 (approx)</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">sqrt</font><font color="#0000FF">(</font><font color="#000000">16</font><font color="#0000FF">)  </font><font color="#000080"><i> -- prints 4</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">power</font><font color="#0000FF">(</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">)</font><font color="#000080"><i> -- prints 25</i></font>
 </pre>
          </td>
         </tr>
@@ -75,20 +125,13 @@ b = log10(100)  -- b is 2.0 (approx)
           <b>Implementation:</b>
          </td>
          <td>
-            log(): via :%opLog in builtins\VM\pTrig.e (an autoinclude)<br>
-            log10() and log2(): see builtins\log10.e (an autoinclude) for details of the actual implementation.
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <b>See Also:</b>
-         </td>
-         <td>
-          <a href="sin.htm">sin</a>,
-          <a href="cos.htm">cos</a>,
-          <a href="tan.htm">tan</a>,
-          <a href="sqrt.htm">sqrt</a>,
-          <a href="power.htm">power</a>
+            log(): via :%opLog in builtins\VM\pTrig.e (an autoinclude).<br>
+            log10() and log2(): see builtins\log10.e (an autoinclude) for details of the actual implementation.<br>
+            exp(): see builtins\pmaths.e (an autoinclude) for details of the actual implementation.<br>
+            sqrt(): via :%opSqrt in builtins\VM\pTrig.e (an autoinclude).<br>
+            power(): via :%opPow in builtins\VM\pPower.e (an autoinclude). <br>
+            The constant <b>E</b> is defined in psym.e/syminit(), part of the compiler, as 2.7182818284590452, the 
+            last two digits of which are of course irrelevant on 32-bit.
          </td>
         </tr>
        </table>

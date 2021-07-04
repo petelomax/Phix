@@ -19,6 +19,15 @@ include builtins\VM\pHeap.e     -- :%pDealloc
 
 include builtins\VM\pFixup.e    -- negative and floating point index handling (:%fixupIndex)
 
+bool ma_ip = false      -- Set true under with js during {a,b} = x operations, to catch any
+                        -- attempts to part-modify strings, as in {s[i]} := {ch}, since the
+                        -- otherwise excellent JavaScript desequencing will just not cope,
+                        -- because strings are immutable in JavaScript. (For eg s[i] = ch
+                        -- when not part of multiple assignment, it gets transpiled into
+                        -- s=$repe(s,i,ch) which uses substring + fromCharCode + substring 
+                        -- in order to get round the whole immutable strings thingymajig.)
+                        -- (shadows the one in opRepeN.e via :%pDeSeqip2)
+
 #ilASM{ jmp :%opRetf
 
 --DEV FIXME: (and the :!bang labels below)
@@ -42,6 +51,29 @@ include builtins\VM\pFixup.e    -- negative and floating point index handling (:
     []
         jmp :!iDiag
         int3
+
+--Fine, tested:
+    [32]
+     ::e52jsdnssd
+        pop edx
+        xor eax,eax
+        call :%pDeSeqip
+        mov al,52           -- e52jsdnssd
+        sub edx,1
+--      mov [ma_ip],ebx
+        jmp :!iDiag
+        int3
+    [64]
+     ::e52jsdnssd
+        pop rdx
+        xor rax,rax
+        call :%pDeSeqip
+        mov al,52           -- e52jsdnssd
+        sub rdx,1
+--      mov [ma_ip],rbx
+        jmp :!iDiag
+        int3
+    []
 
 --/*
 procedure :%pSubse(:%)
@@ -145,6 +177,8 @@ end procedure -- (for Edita/CtrlQ)
                                 -- (ditto note above)
             pop eax
        @@:
+        cmp [ma_ip],ebx
+        jne :e52jsdnssd
         add edi,eax
         xor eax,eax
         mov edx,[ecx]
@@ -256,6 +290,8 @@ end procedure -- (for Edita/CtrlQ)
                                 -- (ditto note above)
             pop rax
        @@:
+        cmp [ma_ip],rbx
+        jne :e52jsdnssd
         add rdi,rax
         xor rax,rax
         mov rdx,[rcx]
@@ -307,10 +343,13 @@ end procedure -- (for Edita/CtrlQ)
             jmp :!iDiag
             int3
       @@:
+        cmp [ma_ip],ebx
+        jne :e52jsdnssd
         xor eax,eax
         mov edx,[ecx]
         mov al,[esi+edi]
         jmp @f
+
       ::opSubse1Seq
         mov eax,[esi+edi*4]
         mov edx,[ecx]           -- prev(res)
@@ -359,6 +398,8 @@ end procedure -- (for Edita/CtrlQ)
             jmp :!iDiag
             int3
       @@:
+        cmp [ma_ip],rbx
+        jne :e52jsdnssd
         xor rax,rax
         mov rdx,[rcx]
         mov al,[rsi+rdi]
@@ -429,6 +470,8 @@ end procedure -- (for Edita/CtrlQ)
             int3
 
       ::opSubse1iCh
+        cmp [ma_ip],ebx
+        jne :e52jsdnssd
         mov al,[esi+edi]
     @@:
         mov [ecx],eax
@@ -471,6 +514,8 @@ end procedure -- (for Edita/CtrlQ)
             int3
 
       ::opSubse1iCh
+        cmp [ma_ip],rbx
+        jne :e52jsdnssd
         mov al,[rsi+rdi]
     @@:
         mov [rcx],rax
@@ -545,6 +590,8 @@ end procedure -- (for Edita/CtrlQ)
             mov al,2+1          -- [era] @ [esp+4], "reading from"
             call :%fixupIndex   -- idx-1 in edi, len in edx, (not idx addr in ebx), al set
       @@:
+        cmp [ma_ip],ebx
+        jne :e52jsdnssd
         mov al,[esi+edi]
         ret
     [64]
@@ -564,9 +611,23 @@ end procedure -- (for Edita/CtrlQ)
             mov al,2+1          -- [era] @ [rsp+8], "reading from"
             call :%fixupIndex   -- idx-1 in rdi, len in rdx, (not idx addr in rbx), al set
       @@:
+        cmp [ma_ip],rbx
+        jne :e52jsdnssd
         mov al,[rsi+rdi]
         ret
     []
+
+    :%pDeSeqip2         -- [ma_ip]:=e/rax. A multiple assigment (aka desequence/destructure)
+---------------         --                 operation is in progress under with js therefore
+                        --                 string subscript (/replacements) are now illegal,
+                        --                 that is at least when [ma_ip] is non-zero.
+                        --                  (Called from pRepeN.e)
+    [32]
+        mov [ma_ip],eax
+    [64]
+        mov [ma_ip],rax
+    []
+        ret
 
       }
 

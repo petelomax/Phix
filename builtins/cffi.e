@@ -227,11 +227,11 @@ end function
 --*/
 include builtins/ptypes.e   -- atom_string
 
-procedure err(string msg)
+procedure cffi_error(string msg)
 --19/2/21:
 --  puts(1,msg)
 --  ?9/0
-    throw(msg)
+    crash(msg)
 end procedure
 
 string s
@@ -242,7 +242,7 @@ procedure nch(object msg="eof")
     sidx += 1
     if sidx>length(s) then
         if string(msg) then
-            err(msg)
+            cffi_error(msg)
         else
             ch = -1
         end if
@@ -254,11 +254,12 @@ end procedure
 procedure skipspaces(object msg="eof")
 integer k
     while 1 do
-        while find(ch," \t\r\n")!=0 do nch(msg) end while
+--      while find(ch," \t\r\n")!=0 do nch(msg) end while
+        while find(ch," \r\n"&9)!=0 do nch(msg) end while
         if ch!='/' then exit end if
         if match("/*",s,sidx)=sidx then
             k = match("*/",s,sidx+2)
-            if k=0 then err("missing closing comment") end if
+            if k=0 then cffi_error("missing closing comment") end if
             sidx = k+1
             nch(msg)
         else
@@ -270,7 +271,7 @@ end procedure
 
 function stoken()
 integer tokstart, tokend
-    if ch=-1 then err("eof") end if
+    if ch=-1 then cffi_error("eof") end if
 --  skipspaces()
     tokstart = sidx
     if find(ch,"{;*}[]:,()")!=0 then
@@ -279,7 +280,8 @@ integer tokstart, tokend
     else
         while 1 do
             nch()
-            if find(ch," \t\r\n{;*}[]:,()")!=0 then exit end if
+--          if find(ch," \t\r\n{;*}[]:,()")!=0 then exit end if
+            if find(ch," \r\n{;*}[]:,()"&9)!=0 then exit end if
         end while
         tokend = sidx-1
     end if
@@ -358,7 +360,7 @@ integer ch, n
         n = 0
         for i=1 to length(txt) do
             ch = txt[i]
-            if ch<'0' or ch>'9' then err("number expected") end if
+            if ch<'0' or ch>'9' then cffi_error("number expected") end if
             n = n*10+ch-'0'
         end for
     end if
@@ -408,6 +410,7 @@ function do_type(string mtype, integer machine)
 --
 integer substruct = 0, k, size, align, signed = 1
 string mname
+bool bFunc = false
 
 --?{"do_type",mtype}
 --11/5/19:
@@ -438,7 +441,9 @@ string mname
         else
             k = find(mtype,UnicodeNames)
             if k then
-                if unicode=-1 then err(mtype&": set_unicode() has not been called") end if
+                if unicode=-1 then
+                    cffi_error(mtype&": set_unicode() has not been called")
+                end if
 --23/6/19!!
 --              k = UnicodeAs[unicode+1][k]
                 k = UnicodeAs[k][unicode+1]
@@ -453,8 +458,21 @@ string mname
                 k = find(mtype,SizeNames)
                 mname = stoken()
                 if k=0 then
+--10/5/21:
+                    if mname="(" then
+                        mname = stoken()
+                        bFunc = true
+                    end if
+--                      while true do
+--                          string ftok = stoken()
+--?{ftok,ch}
+--              if ftok=")" then
+--                  if ch!='(' then exit end if
+--              end if
+--          end while
+
                     if mname!="*" then
-                        err("unknown size "&mtype)
+                        cffi_error("unknown size "&mtype)
                     end if
                 else
                     if equal(mtype,"long") then
@@ -468,7 +486,7 @@ string mname
                                 mname = stoken()
                             end if
                         elsif equal(mname,"double") then
-                            err("not supported (size=10/8/12/16?, align=8/2/4/16?!! !! !!)")
+                            cffi_error("not supported (size=10/8/12/16?, align=8/2/4/16?!! !! !!)")
                         end if
                     elsif equal(mtype,"short") then
                         if equal(mname,"int") then          -- "short int" -> "short"
@@ -478,7 +496,7 @@ string mname
 --                  elsif equal(mtype,"FAR") then
 --                      mname = stoken()
 --                      if mname!="*" then
---                          err("* expected, not "&mtype)
+--                          cffi_error("* expected, not "&mtype)
 --                      end if
                     end if
                 end if
@@ -498,7 +516,7 @@ string mname
     if equal(mname,"FAR") then
         mname = stoken()
         if mname!="*" then
-            err("* expected, not "&mtype)
+            cffi_error("* expected, not "&mtype)
         end if
     end if
     if equal(mname,"*") then    -- "&"? (would need '&' adding twice in stoken())
@@ -509,6 +527,25 @@ string mname
         end if
         if equal(mname,"*") then
             mname = stoken()
+        end if
+--10/5/21: (handle "void *(*bzalloc)(void *,int,int);")
+--             and "void (*bzfree)(void *,void *);" (via earlier bFunc)
+        if mname="(" then
+            mname = stoken()
+            if mname!="*" then cffi_error("* expected") end if
+            mname = stoken()
+            if bFunc then ?9/0 end if
+            bFunc = true
+        end if
+        if bFunc then
+            while true do
+                string ftok = stoken()
+--?{ftok,ch}
+                if ftok=")" then
+                    if ch!='(' then exit end if
+                end if
+            end while
+--trace(1)
         end if
         mtype = "ptr"
 --<     size = Sizes[as_ptr][machine]
@@ -561,7 +598,7 @@ sequence res
     if ch!='{' then
         name = stoken()
     end if
-    if ch!='{' then err("{ expected") end if
+    if ch!='{' then cffi_error("{ expected") end if
     {} = stoken()
     while 1 do
         signed = 1
@@ -603,7 +640,9 @@ sequence res
                 {mname,substruct,mtype,size,align,signed} = do_type(mtype,machine)
 
 --if mname="FAR" then ?9/0 end if
-                if equal(mname,";") then err("member name expected") end if
+                if equal(mname,";") then
+                    cffi_error("member name expected")
+                end if
                 mult = 1
                 if ch='[' then
                     nch()
@@ -618,14 +657,16 @@ sequence res
                             mult = toInt(stoken())
 --                      end if
                     end if
-                    if ch!=']' then err("] expected") end if
+                    if ch!=']' then cffi_error("] expected") end if
                     nch()
-                    if ch='[' then err("multi-dimensional arrays are not (yet) supported") end if
+                    if ch='[' then
+                        cffi_error("multi-dimensional arrays are not (yet) supported")
+                    end if
                 elsif ch=':' then
-                    err("bitfields are not (yet) supported")
+                    cffi_error("bitfields are not (yet) supported")
                 end if
                 token = stoken()
---              if not equal(token,";") then err("; expected") end if
+--              if not equal(token,";") then cffi_error("; expected") end if
                 if size>widest then
                     widest = size
                 end if
@@ -651,7 +692,7 @@ sequence res
                 end if
                 if not equal(token,",") then exit end if
             end while
-            if not equal(token,";") then err("; expected") end if
+            if not equal(token,";") then cffi_error("; expected") end if
         end if
         if ch='}' then exit end if
     end while
@@ -662,7 +703,7 @@ sequence res
     {} = stoken()   -- discard '}'
     if ch!=-1 then
         if ch!=';' then
-            if ch='*' then err("name of *") end if
+            if ch='*' then cffi_error("name of *") end if
             name = stoken()
             while ch=',' do
                 {} = stoken()   -- discard ','
@@ -679,7 +720,7 @@ sequence res
             end while
         end if
         if ch!=-1 then
-            if ch!=';' then err("; expected") end if
+            if ch!=';' then cffi_error("; expected") end if
             {} = stoken()
         end if
     end if
@@ -1005,7 +1046,9 @@ sequence res
         typedef = 1
         token = stoken()
     end if
-    if not equal(token,"struct") then err("struct expected") end if
+    if not equal(token,"struct") then
+        cffi_error("struct expected")
+    end if
 --?"pcs"
 -- 19/2/21
     res = parse_c_struct(1,machine,0)
@@ -1167,7 +1210,7 @@ integer rid
     if find(name,{"WINAPI","WSAAPI"}) then
         name = stoken()
     end if
-    if ch!='(' then err("( expected") end if
+    if ch!='(' then cffi_error("( expected") end if
     {} = stoken()
     while ch!=')' do
         mtype = stoken()
@@ -1188,7 +1231,7 @@ integer rid
         ptype = C_CONSTS[find({size,signed},C_SIZES)]
         args = append(args,ptype)
         if ch=')' then exit end if
-        if ch!=',' then err(", expected") end if
+        if ch!=',' then cffi_error(", expected") end if
         {} = stoken()
         if ch=')' then ?9/0 end if
     end while
@@ -1205,8 +1248,8 @@ integer rid
         rid = define_c_proc(lib,name,args)
     end if
     if rid=-1 then
---      if unicode=-1 then crash(`"%s" not found (unicode still -1)`,{name},3) end if
-        if unicode=-1 then throw(`"%s" not found (unicode still -1)`,{name}) end if
+        if unicode=-1 then crash(`"%s" not found (unicode still -1)`,{name},3) end if
+--      if unicode=-1 then throw(`"%s" not found (unicode still -1)`,{name}) end if
 --      name &= AW[unicode+1] -- (errors out if unicode still -1)
         name &= "AW"[unicode+1] -- (errors out if unicode still -1)
         if func then
@@ -1215,8 +1258,8 @@ integer rid
             rid = define_c_proc(lib,name,args)
         end if
 --      if rid=-1 then ?9/0 end if
---      if rid=-1 then crash(`"%s" not found`,{name[1..-2]},3) end if
-        if rid=-1 then throw(`"%s" not found`,{name[1..-2]}) end if
+        if rid=-1 then crash(`"%s" not found`,{name[1..-2]},3) end if
+--      if rid=-1 then throw(`"%s" not found`,{name[1..-2]}) end if
     end if
     return rid
 end function

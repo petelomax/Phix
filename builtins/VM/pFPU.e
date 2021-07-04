@@ -24,7 +24,7 @@
 --      C1 = 0x020 = ?
 --      C0 = 0x010 = C flag
 --
-without debug
+--without debug
 
 -- fpu round/precision control: (these are treated as 16-bit words)
 integer near53 = 0  -- usual/default setting for 32-bit

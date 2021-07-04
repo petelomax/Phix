@@ -39,14 +39,24 @@
                  <td style="border:none;">&</td>
                  <td style="border:none;"><i><small>(pConcat = 6)</small></i></td></tr>
              <tr><td style="border:none;"></td>
+                 <td style="border:none;">&& ||</td>
+                 <td style="border:none;"><i><small>(pBitops = 5)</small></i></td></tr>
+             <tr><td style="border:none;"></td>
+                 <td style="border:none;">&lt;  &gt;  &lt;=  &gt;=</td>
+                 <td style="border:none;"><i><small>(pRelops = 4)</small></i></td></tr>
+             <tr><td style="border:none;"></td>
+                 <td style="border:none;">= !=</td>
+                 <td style="border:none;"><i><small>(pEqorne = 3)</small></i></td></tr>
+<!--
+             <tr><td style="border:none;"></td>
                  <td style="border:none;">&lt;  &gt;  &lt;=  &gt;=</td>
                  <td style="border:none;"><i><small>(pRelops = 5)</small></i></td></tr>
              <tr><td style="border:none;"></td>
                  <td style="border:none;">= !=</td>
-                 <td style="border:none;"><i><small>(pEqorne = 4)</small></i></td></tr>
-             <tr><td style="border:none;"></td>
+                 <td style="border:none;"><i><small>(pEqorne = 4)</small></i></td></tr>          <tr><td style="border:none;"></td>
                  <td style="border:none;">&& ||</td>
                  <td style="border:none;"><i><small>(pBitops = 3)</small></i></td></tr>
+-->
              <tr><td style="border:none;"></td>
                  <td style="border:none;">and   or  xor</td>
                  <td style="border:none;"><i><small>(pLogop = 2)</small></i></td></tr>
@@ -73,15 +83,16 @@
        <blockquote>
         In many other languages '=' <b><i>is</i></b> an operator that returns the result of the assignment, allowing and encouraging the 
         infamous and notorious <nobr><small><code>if(a=b)</code></small></nobr> slip-up, an otherwise legal but often mis-typed 
-        <nobr><small><code>if(a==b)</code></small></nobr>, which has lead many a programmer <i>desperately</i> resorting to coding all 
+        <nobr><small><code>if(a==b)</code></small></nobr>, which has made many a programmer <i>desperately</i> resort to coding all 
         their tests in an awkward and un-natural 'backward' style, eg <nobr><small><code>if('Y'==ch)</code></small></nobr>, which 
         obviously cannot possibly help one iota when comparing two variables anyway.<br>
         In contrast, the only way to achieve an assignment mid-expression in phix would be via a function call, which <i>cannot</i> 
         modify local variables, and due to <a href="shortcircuit.htm">short-circuit evaluation</a> may <i>not even get called</i>. <br>
         Hence that sort of thing is generally discouraged, that is when aiming for clear, intuitive, and readable code. I would also
-        note that it is easier to debug <nobr><small><code>integer tmp = <i>&lt;expr&gt;</i>; if tmp</code></small></nobr> and (with 
+        note that it is easier to debug <nobr><small><code>integer tmp = <i>&lt;expr&gt;</i>; if tmp</code></small></nobr>, plus (with 
         a better name) it can be easier/faster to comprehend, while having no real additional overhead compared to the un-named temp 
-        that the compiler would otherwise quietly use anyway.
+        that the compiler would otherwise quietly use anyway - the <i>only</i> overhead is that some symbol table entry will have
+        say "padding" rather than -1 as a name, and any ex.err will/may have an extra potentially helpful line(s).
        <br>
        <br>
         In practice, for instance, pLogop causes parsing of <nobr><small><code>a and b and c</code></small></nobr> to pause at the 
@@ -94,14 +105,30 @@
         Conversely, the (usually) equivalent <nobr><small><code>hi << 16 || lo</code></small></nobr> works the same as 
         <nobr><small><code>(hi << 16) || lo</code></small></nobr> even without the parenthesis, and likewise
         <nobr><small><code>lo || hi << 16</code></small></nobr> is the same as 
-        <nobr><small><code>lo || (hi << 16)</code></small></nobr>. Aside: watch out for <nobr><small><code>||</code></small></nobr> 
-        hitting 32-bit limits that <nobr><small><code>+</code></small></nobr> does not.
+        <nobr><small><code>lo || (hi << 16)</code></small></nobr>.<br>
+<!--
+         Another one you may or may not expect is that
+        <nobr><small><code>a && b != c</code></small></nobr> is <nobr><small><code>a && (b != c)</code></small></nobr> rather than
+        <nobr><small><code>(a && b) != c</code></small></nobr> - for some unknown reason although I <i>would</i> expect
+        <nobr><small><code>a != b and c != d</code></small></nobr> to be <nobr><small><code>(a != b) and (c != d)</code></small></nobr>,
+        my brain simply wants to disagree with Python/C/JavaScript precedences when it sees && or &...
+--or:
+-->
+        Note that <nobr><small><code>a && b != c </code></small></nobr> is <nobr><small><code>(a && b) != c </code></small></nobr> as
+        per Python, rather than <nobr><small><code>a && (b != c)</code></small></nobr> as per C/JavaScript.<br>
+        Aside: watch out for <nobr><small><code>||</code></small></nobr> hitting 32-bit limits (ie truncating/masking inputs) that 
+        <nobr><small><code>+</code></small></nobr> does not.
         <br>
         <br>
         The eagle-eyed may have spotted the leap from 0 to 2 over a missing 1. Originally it was intended for "and" to have a 
         slightly different precedence than "or" (/"xor") but in the end I decided that forcing parenthesis was simply better.<br>
-        <small>(and even now with Python/C/JavaScript tables to hand, I <i>still</i> can&rsquo;t quite say which should be lower/higher.
-        Don&rsquo;t tell me. No, seriously, don&rsquo;t bother telling me.)</small>
+        <small>(and even now with Python/C/JavaScript operator percedence tables to hand, I <i>still</i> can&rsquo;t quite say which 
+        should be lower/higher. Don&rsquo;t tell me. No, seriously, don&rsquo;t bother telling me.)</small>
+        <br>
+        <br>
+        Should you ever need to refer to this table to figure out what something means or should do, then for the love of Pete please
+        add the appropriate paranthesis to the code in question. Extra parenthesis will never make anything slower, except where doing
+        the right thing is slower than doing the wrong thing.
        </blockquote>
 <!--
 DEV:<br>
@@ -175,6 +202,12 @@ DEV:<br>
         as <small><code>a != b</code></small> is not particularly helpful, so Phix don&rsquo;t do dat. Mind you, it&rsquo;s not quite as whacky
         as PHP and Ruby having <small><code>&&</code></small> and <small><code>and</code></small>, likewise <small><code>||</code></small> and 
         <small><code>or</code></small>, as two (pairs of two) operators with the same meaning but different precedences <i>(wow!)</i>.
+        [In Phix, & is the concatenation operator, there are no | or ^ or ** operators and no single-character alternatives to and/or/xor.
+         The && is bitwise whereas "and" is logical, likewise || and "or".]
+        <br>
+        <br>
+        Technically the ellipsis operator (..) within a slice has the lowest possible precedence, so that eg <code>s[i-1..i+1]</code> is 
+        <code>s[(i-1)..(i+1)]</code> and <i>not</i> some nonsense like <code>s[i-((1..i)+1)]</code> which is of course meaningless and illegal.
         <br>
         <br>
         On a related note, <small><code>"a*(b/c)"</code></small> and <small><code>"(a*b)/c"</code></small> are mathematically equivalent, however 
@@ -182,8 +215,8 @@ DEV:<br>
         the floating point hardware limits.
         In practice the compiler treats <small><code>"a*b/c"</code></small> as <small><code>"(a*b)/c"</code></small>, however in general that is an 
         implementation detail that should not be overly relied on - should one day some bright spark invent a safe and simple method to automatically 
-        minimise precision loss in the un-parenthesised case, I would take it. (I did once work with an actual Dr Watson (PhD in Nuclear Physics, no
-        less) who spent many weeks on almost exactly such a routine, that I never quite managed to understand, but it&rsquo;s all long gone now.)
+        minimise precision loss in the un-parenthesised case, I would take it. (I did once work with an actual Dr Watson, PhD in Nuclear Physics, no
+        less, who spent many weeks on almost exactly such a routine, that I never quite managed to understand, but it&rsquo;s all long gone now.)
        <br>
        <br>
         Other programming languages may have subtle differences in precedence. For instance, in python 'or' has a lower precedence than 'and', 

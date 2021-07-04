@@ -15,8 +15,10 @@
 with trace
 
 constant vartypes = {T_integer,T_atom,T_string,T_sequence,T_object,
-                     T_bool,T_int,T_Ihandle,T_Ihandln,T_cdCanvas,T_atom_string,
-                     T_nullable_string,T_timedate,T_constant,T_static},
+                     T_bool,T_boolean,T_dictionary,T_int,
+                     T_Ihandle,T_Ihandln,T_cdCanvas,T_atom_string,
+--                   T_nullable_string,T_timedate,T_constant,T_static},
+                     T_nullable_string,T_constant,T_static,T_mpq,T_mpz,T_mpfr},
          jstypes = {T_const,T_let,T_var}
 --DEV something in p2js_scope instead:
 sequence udts = {}
@@ -230,12 +232,16 @@ end function
 
 forward function expr(integer p, skip=0)
 
+integer calling_the_rtn = 0
+
 function rcall(object fp, sequence tok)
 --  sequence res = {"PCALL",tok}
 --  sequence res = {fp,tok}
     sequence res = {tok}
     integer ttidx = tok[TOKTTIDX]
     if ttidx=T_iif then ttidx = T_iff end if
+    integer was_calling_the_rtn = calling_the_rtn
+    calling_the_rtn = ttidx
     expectt('(')
 --  while toktype[tdx][TOKTYPE]=LETTER do
 --      args = append(args,vardef(tdx,1))
@@ -259,6 +265,7 @@ function rcall(object fp, sequence tok)
             tdx += 1
         end while
     end if
+    calling_the_rtn = was_calling_the_rtn
     expectt(')')
 --  return {{fp,res}}
     return {fp,res}
@@ -282,10 +289,19 @@ end function
 --DEV relocate?
 include p2js_scope.e
 
+bool allow_nested_constants = false,
+     found_nested_constants = false,
+     getting_lhs = false    -- eg/ie {<--true-->} = <--false-->
+                            -- so no "vars" like "string" on the lhs,
+                            -- in other words catch parse slip-ups &
+                            -- a couple of coding constructs we are
+                            -- not allowing, eg "{a, {atom b}} = x".
+
 --precedence climbing:
 
 function factor()
-    sequence tok = tokens[tdx]
+--  sequence tok = tokens[tdx]
+    sequence tok = deep_copy(tokens[tdx])
     tdx += 1
     integer {toktype,start,finish,line} = tok
 --DEV (debug)
@@ -296,11 +312,22 @@ string tt = tok_name(toktype),
         case DIGIT,
              '\'',
              '"',
+             HEXSTR,
              '`',
              '#',
              'b',
              '?',
              '$':
+                    break
+
+        case '.':   if tdx>=length(tokens) 
+                    or tokens[tdx][TOKTYPE]!=DIGIT
+                    or tokens[tdx][2]!=start+1 then
+                        return parse_error(tok,"factor expected")
+                    end if
+                    tok = deep_copy(tokens[tdx])
+                    tok[2] -= 1
+                    tdx += 1
                     break
 
         case COMMENT,
@@ -309,24 +336,43 @@ string tt = tok_name(toktype),
                     return factor()
 --                  break
         case LETTER:
-                    if finish-start=2
-                    and src[start..finish]=`not` then
+--19/6/21 (just a thought... for eg "{a, {atom b}} = x")
+                    integer ttidx = tok[TOKTTIDX]
+                    if getting_lhs
+                    and is_phix()
+                    and (find(ttidx,vartypes) or
+                         find(ttidx,udts)) then
+                        return parse_error(tok,"unexpected type")
+                    end if
+--19/6 (spotted in passing, *2)
+--                  if finish-start=2
+--                  and src[start..finish]=`not` then
+                    if ttidx=T_not then
                         tok = {T_not,{factor()}}
                     elsif not is_phix()
-                      and finish-start=2
-                      and src[start..finish]=`new` then
+--                    and finish-start=2
+--                    and src[start..finish]=`new` then
+                      and ttidx=T_new then
 --trace(1)
                         tok = {T_new,expr(0)}
                     else
-                        integer idtype = get_id_type(tok[TOKTTIDX])
+                        integer idtype = get_id_type(ttidx)
                         if idtype=0 then
---                          trace(1)
---                          return {parse_error(tok,"unrecognised")}
---                      end if                          
-    warn(tok,"warning: unrecognised")
+                            bool bEq = tokens[tdx][TOKTYPE]==BEQ
+                            if calling_the_rtn=0 or not bEq
+                            or get_named_param_idx(calling_the_rtn,ttidx)=0 then
+if allow_nested_constants and bEq then
+    found_nested_constants = true
+    if add_local(ttidx, TYPO)!=1 then ?9/0 end if
+--                              warn(tok,"fatal: already declared")
 else
-                        tok[TOKALTYPE] = idtype
+--if not allow_nested_constants or not bEq then
+                                warn(tok,"warning: unrecognised")
 end if
+                            end if
+                        else
+                            tok[TOKALTYPE] = idtype
+                        end if
                         if tdx<=length(tokens) then
 --sequence tokdbg = tokens[tdx]
                             toktype = tokens[tdx][TOKTYPE]
@@ -343,11 +389,9 @@ end if
 --                  break
         case '(':
                     tok = expr(0)
---                  if not expect(')') then return {} end if
                     expectt(')')
 --                  break
         case '-':
---                  tok = {'-',expr(PUNY)}
                     tok = {'-',{expr(PUNY)}}
 --                  break
         case '+':
@@ -363,9 +407,9 @@ end if
                     tok = {SPREAD,{expr(PUNY)}}
 --                  break
         case '~':
-                    if not is_phix() then
-                        return parse_error(tokens[tdx],"factor expected")
-                    end if
+--                  if not is_phix() then
+--                      return parse_error(tokens[tdx],"factor expected")
+--                  end if
 --                  tok = {TWIDDLE,factor()}
 --                  tok = {TWIDDLE,expr(PUNY)}
 --                  tok = {TWIDDLE,{expr(PUNY)}}
@@ -382,7 +426,7 @@ end if
                         if toktype!=',' then
 -- DEV :=
                             if toktype!=':' then exit end if
---DEVviolation...
+--DEVviolation... (also, should this not be BEQ?)
                             tok[$] = {":=",tok[$],expr(0,1)}
 --                          toktype = tokens[tdx][TOKTYPE]
                             toktype = skip_comments()
@@ -391,6 +435,9 @@ end if
                         tdx += 1
                         {} = skip_comments()
                     end while
+                    if length(tok) and tok[$][TOKTYPE]='$' then
+                        tok = tok[1..$-1]
+                    end if
                     expectt('}')
                     tok = {'{',tok}
 --                  tok = {'{',{tok}}
@@ -462,7 +509,9 @@ end if
             if toktype='.' then
                 tdx += 1
 --              tok = {toktype,tok,factor()}
-                tok = {toktype,factor()}
+--5/5/21
+--              tok = {toktype,factor()}
+                tok = {toktype,{tok,factor()}}
                 wastdx = tdx
             end if
             exit
@@ -531,7 +580,20 @@ function expr(integer p, skip=0)
         if op=LETTER then
             op = tokens[tdx][TOKTTIDX]
         end if
-        res = {op,{res,expr(np,1)}}
+        sequence rhs = expr(np,1)
+--      if rhs[1]="TERNARY" then
+        if rhs[1]=T_iff then
+--          rhs = rhs[2]
+--          rhs[1] = {op,{res,rhs[1]}}
+--          res = {T_iff,rhs}
+--          res = {T_iff & rhs}
+--          res = {T_iff & rhs}
+            rhs[2][1] = {op,{res,rhs[2][1]}}
+--          rhs[1] = T_iff
+            res = rhs
+        else
+            res = {op,{res,rhs}}
+        end if
     end while   
 -- on a hunch, 20/3/21...
 --  if p=0 and not is_phix() then
@@ -542,10 +604,16 @@ function expr(integer p, skip=0)
             sequence cond = res
             expectt('?') 
             sequence truthy = expr(0)
+--5/5/21:
+            integer toktype = skip_comments()
             expectt(':') 
             sequence falsy = expr(0)
 --          return {`TERNARY`,{cond,truthy,falsy}}
-            res = {`TERNARY`,{cond,truthy,falsy}}
+--trace(1)
+--          res = {`TERNARY`,{cond,truthy,falsy}}
+            res = {T_iff,{cond,truthy,falsy}}
+--trace(1)
+--?9/0
 --function exprt(integer t) expectt(t) return expr(0) end function
 --          res = {`TERNARY`,{res,exprt('?'),exprt(':')}}
         end if
@@ -579,24 +647,98 @@ tokeniser: tokens ==> tokens,comments (which the parser can then pick off, flag,
 sequence comflags = repeat(1,length(comments)) ... comflags[cdx] = 0 ... integer ucom = sum(comflags); printf(1,"Unhandled comments:%d\n",ucom)
 --*/
 
---/* from wp:
-parse_expression()
-    return parse_expression_1(parse_primary(), 0)
-parse_expression_1(lhs, min_precedence)
-    lookahead := peek next token
-    while lookahead is a binary operator whose precedence is >= min_precedence
-        op := lookahead
-        advance to next token
-        rhs := parse_primary ()
-        lookahead := peek next token
-        while lookahead is a binary operator whose precedence is greater
-                 than op's, or a right-associative operator
-                 whose precedence is equal to op's
-            rhs := parse_expression_1 (rhs, lookahead's precedence)
-            lookahead := peek next token
-        lhs := the result of applying op with operands lhs and rhs
-    return lhs
---*/
+function get_multi_set(integer vtype)
+    sequence ast = {}
+    sequence tok = tokens[tdx]
+    integer toktype = tok[TOKTYPE]
+    tdx += 1
+    integer ot = toktype, et = iff(is_phix()?'}':']')
+    if not is_phix() and tokens[tdx][TOKTYPE]=',' then tdx += 1 end if
+    while tokens[tdx][TOKTYPE]!=et do
+        if tokens[tdx][TOKTYPE]='?' then
+            ast = append(ast,tokens[tdx])
+            tdx += 1
+        else
+            while true do
+                tok = tokens[tdx]
+                toktype = tok[TOKTYPE]
+                if toktype!=COMMENT and toktype!=BLK_CMT then exit end if
+                ast = append(ast,tok)
+                tdx += 1
+            end while
+            if toktype=et then exit end if
+            if toktype!=',' then
+                if toktype=LETTER then
+                    integer ttidx = tok[TOKTTIDX],
+                            alres = add_local(ttidx, vtype)
+                    if alres!=1 then
+?{"p2js_parse.e line 649, add_local(",ttidx,"=",get_ttname(ttidx),")=",alres}
+--                       ?9/0 
+                    end if
+                elsif toktype=ot then
+                    tok = {'{',get_multi_set(vtype)}
+                else
+                    return parse_error(tok,"unrecognised")
+                end if
+                ast = append(ast,tok)
+                tdx += 1
+            end if
+        end if
+        if tokens[tdx][TOKTYPE]!=',' then exit end if
+        tdx += 1
+    end while
+    if tokens[tdx][TOKTYPE]!=et then
+        expectt(et)
+    end if
+    return ast
+end function
+
+function extract_nested_constants(sequence res, aod)
+    --
+    -- convert eg {A:=1, "string"} to res &= {A,1}, {A,"string"}
+    -- ie/eg
+    --  aod = {'{',{{129,{{4,53,53,3,14,17584},{3,56,56,3,17}}},{'"',59,61,3,20}}}
+    -- to
+    --  res &= {{4,53,53,3,14,17584},{3,56,56,3,17}}
+    --  aod = {'{',{{4,53,53,3,14,17584},{'"',59,61,3,20}}}
+    --
+    -- likewise (using recursion) {{A:=1,"string"}} to res &= {A,1}, {{A,"string"}}
+    -- ie/eg
+    --  aod = {'{',{{'{',{{129,{{4,79,79,4,15,17588},{3,82,82,4,18}}},{'"',85,87,4,21}}}}}
+    -- to
+    --  res &= {{4,79,79,4,15,17588},{3,82,82,4,18}}
+    --  aod = {'{',{{'{',{{4,79,79,4,15,17588},{'"',85,87,4,21}}}}}
+    -- (returning all the bits needed for the vardef node)
+    --
+    -- Be warned this has been through a fair few iterations to get this far, and
+    -- I consider it probably still incomplete, the ?9/0 are just placeholders[?]
+    --
+    if length(aod)=2 and aod[TOKTYPE]='{' then
+        integer la2 = length(aod[2])
+        res = deep_copy(res)
+        aod = deep_copy(aod)
+        for i=1 to la2 do
+            sequence a2i = aod[2][i]
+            aod[2][i] = 0
+            object toktype = a2i[TOKTYPE]
+            if toktype=BEQ then
+                if length(a2i[2])!=2 then ?9/0 end if
+                if a2i[2][1][TOKTYPE]!=LETTER then ?9/0 end if
+                {res,a2i[2][2]} = extract_nested_constants(res,a2i[2][2])
+                res &= a2i[2] -- (id & cleaned(expr))
+                a2i = a2i[2][1] -- (just keep id)
+            elsif toktype='{' then
+                {res,a2i} = extract_nested_constants(res,a2i)
+            elsif toktype=`PROC` then
+                {res,a2i[2][2]} = extract_nested_constants(res,a2i[2][2])
+--          elsif not find(toktype,{DIGIT,LETTER}) then -- (I gave up on '+')
+--              ?9/0
+            end if
+            aod[2][i] = a2i
+        end for
+    end if
+    return {res,aod}
+end function
 
 function vardef(integer thistdx, skip=0, iForPar=0)
 --
@@ -605,24 +747,31 @@ function vardef(integer thistdx, skip=0, iForPar=0)
 -- iForPar of 4 is a for loop (pun intended)
 --
     tdx += skip
-    sequence res = {tokens[thistdx]}, ast
---  integer vtype = get_global_type(tokens[thistdx][TOKTTIDX])
-    integer ttidx = tokens[thistdx][TOKTTIDX],
+    sequence tok = tokens[thistdx],
+--  sequence tok = deep_copy(tokens[thistdx]),
+--           res = {tok}, ast
+             res = {deep_copy(tok)}, ast
+    integer ttidx = tok[TOKTTIDX],
             vtype = iff(iForPar=4?TYPI:get_global_type(ttidx))
 --  if vtype=0 and iForPar!=4 then ?9/0 end if
     res[1][TOKALTYPE] = vtype
     if vtype=TYPK and ttidx=T_constant then
         vtype=TYPO
+        if iForPar=0 then
+            allow_nested_constants = true
+            found_nested_constants = false
+        end if
     elsif vtype<TYPI or vtype>TYPO then
-        warn(tokens[thistdx],"vtype=0b%04b, TYPO assumed",{vtype})
+        if ext=PHIX then
+            warn(tok,"vtype=0b%04b, TYPO assumed",{vtype})
+        end if
         vtype = TYPO
     end if
     integer last_comma
     bool bEq = false
     while true do
-        sequence tok = tokens[tdx],
---               ntok = tok,
-                 ntok = "",
+        tok = tokens[tdx]
+        sequence ntok = "",
                  aod = {}
         integer {toktype,start,finish} = tok
         string name = ""
@@ -642,82 +791,20 @@ function vardef(integer thistdx, skip=0, iForPar=0)
         if toktype=LETTER then
 --bit premature...
 --          if add_local(tok[TOKTTIDX], vtype)!=1 then ?9/0 end if
-            ntok = tok
+--          ntok = tok
+            ntok = deep_copy(tok)
             ntok[TOKALTYPE] = vtype
         end if
         if iForPar!=2 or (toktype!=',' and toktype!=')') then
             if iForPar=0
             and ((is_phix() and toktype='{') or
                  (not is_phix() and toktype='[')) then
---              ?9/0
---              get_multi_set()
---              return parse_error(tok,"not yet supported (p2js_parse.e line 508)")
---              ast = {'{'}
-                ast = {}
-                tdx += 1
---              while tokens[tdx][TOKTYPE]!='}' do
-                integer ot = toktype, et = iff(is_phix()?'}':']')
-                if not is_phix() and tokens[tdx][TOKTYPE]=',' then tdx += 1 end if
-                while tokens[tdx][TOKTYPE]!=et do
-                    if tokens[tdx][TOKTYPE]='?' then
-                        ast = append(ast,tokens[tdx])
-                        tdx += 1
-                    else
-                        while true do
-                            tok = tokens[tdx]
-                            toktype = tok[TOKTYPE]
-                            if toktype!=COMMENT and toktype!=BLK_CMT then exit end if
-                            ast = append(ast,tok)
-                            tdx += 1
-                        end while
-                        if toktype=et then exit end if
-                        if toktype!=',' then
-                            if toktype=LETTER then
-                                if add_local(tok[TOKTTIDX], vtype)!=1 then ?9/0 end if
---/*
--- DEV nested declarations... as far as I got.
---  attempting to use vardef() recursively is probably a mistake... 
---  a separate recdef() might prove to be a whole lot easier...
-
-                            elsif toktype=ot then
-                                tok = {}
-                                integer localtdx = thistdx
-                                while tokens[tdx][TOKTYPE]!=et do
-                                    if is_phix()
-                                    and tokens[tdx][TOKTYPE]=LETTER
-                                    and (find(tokens[tdx][TOKTTIDX],vartypes) or
-                                         find(tokens[tdx][TOKTTIDX],udts)) then
-                                        localtdx = tdx
-                                        tdx += 1
-                                    end if
-                                    tok = append(tok,vardef(localtdx))
-                                    if tokens[tdx][TOKTYPE]!=',' then exit end if
-                                    tdx += 1
-                                end while
-                                expectt(et)
--- (untried)                    tok = {ot,tok}
-                                tok = {'{',tok}
---*/
-                            else
-                                return parse_error(tok,"unrecognised")
-                            end if
-                            ast = append(ast,tok)
-                            tdx += 1
-                        end if
-                    end if
-                    if tokens[tdx][TOKTYPE]!=',' then exit end if
-                    tdx += 1
-                end while
-                ast = {'{',ast}
-                if tokens[tdx][TOKTYPE]!=et then
-                    expectt(et)
+                ast = {'{',get_multi_set(vtype)}
+                if found_nested_constants then
+                    ?{"fnc",ast}
+                    found_nested_constants = false
+?9/0 -- placeholder???
                 end if
---              expectt('}')
---              toktype = tokens[tdx][TOKTYPE]
---              if not find(toktype,"=+-") then
---                  return parse_error(tok,"assignment operator expected")
---              end if
---              ast &= {toktype,expr(0,1)}
                 bEq = true
             elsif toktype!=LETTER then
                 return parse_error(tok,"variable name expected")
@@ -732,7 +819,6 @@ function vardef(integer thistdx, skip=0, iForPar=0)
                     tdx = last_comma
                     exit
                 end if
---              if find(ttidx,tt_reserved) then
                 if find(ttidx,T_reserved) then
 --              if find(ttidx,T_reserved) and ttidx!=T_args then
                     return parse_error(tok,"illegal use of reserved word")
@@ -745,6 +831,7 @@ function vardef(integer thistdx, skip=0, iForPar=0)
                 end if
                 integer r = add_local(tok[TOKTTIDX], vtype)
                 if r!=1 then
+--?{"r!=1 line 906 p2js_parse.e",tok}
                     return parse_error(tok,iff(r=-1?"illegal":"already defined"))
                  end if
             end if
@@ -755,7 +842,8 @@ function vardef(integer thistdx, skip=0, iForPar=0)
             tok = tokens[tdx]
             {toktype,start,finish} = tok
 --          if toktype=SYMBOL and src[start]='=' then
-            if toktype='=' then
+            if toktype='='
+            or toktype=BEQ then
 --              ?9/0
 --              tdx += 1
 --              aod = expression(0)
@@ -764,6 +852,11 @@ function vardef(integer thistdx, skip=0, iForPar=0)
             elsif iForPar=4 or bEq then
                 expectt('=')
             end if
+--13/5/21: [account for eg function multitext_valuechanged_cb(Ihandle /*multitext*/),
+--          ie perform arg_idx += 1 so that it will match the later def_idx += 1's.]
+--      elsif iForPar=2 and find(toktype,",)") then
+        else
+            {} = add_local(0, vtype) -- (keep arg_idx in step with future def_idx)
         end if
         if bEq then
 --          res &= {{ast,aod}}
@@ -771,6 +864,10 @@ function vardef(integer thistdx, skip=0, iForPar=0)
 --SUG:
 --          res = append(res,{"{=}",{ast,aod}})
             bEq = false
+        elsif found_nested_constants then
+            {res,aod} = extract_nested_constants(res,aod)
+            res &= {ntok,aod}
+            found_nested_constants = false
         else
 --8/3/21:
 --          res &= {name,aod}
@@ -797,6 +894,7 @@ function vardef(integer thistdx, skip=0, iForPar=0)
             exit
         end if
     end while
+    allow_nested_constants = false
 --?tdx
 --?tokens[tdx]
 --  if tokens[tdx][TOKTYPE]=',' then ?9/0 end if
@@ -805,15 +903,17 @@ function vardef(integer thistdx, skip=0, iForPar=0)
 --puts(1,"Warning: VARIABLE line 632 p2js_parse.e\n") -- (wrong, it needs to be like T_for, or something...)
 --  return {VARIABLE,res}
 --  return {"vardef",thistdx,res}   -- nb covers constants!
-    return {"vardef",res}   -- nb covers constants!
+    res = {"vardef",res}    -- nb covers constants!
+--?res
+    return res              -- nb covers constants!
 end function
 
 forward function block(integer skip=0, bool bOpt=false)
 
---integer in_rtn_def = false    -- or 'F' or 'P'
 integer in_rtn_def = 0  -- or TYPF or TYPR or TYPE
 
 bool bForward = false
+sequence forwards = {}
 
 --function rtndef(string rtype)
 function rtndef(integer ttidx)
@@ -822,11 +922,9 @@ function rtndef(integer ttidx)
     sequence tok = tokens[tdx],
              args = {},
              body = {},
-             res = {ttidx,{tok,args,body}}
---  in_rtn_def = "FPF"[rdx]
+--           res = {ttidx,{tok,args,body}}
+             res = {ttidx,deep_copy({tok,args,body})}
     in_rtn_def = {TYPF,TYPR,TYPE}[rdx]
---  while true do
---  tdx += 1
     integer {toktype,start,finish} = tok
     if toktype!=LETTER then
         return parse_error(tok,"name expected")
@@ -834,8 +932,8 @@ function rtndef(integer ttidx)
     integer rtnttidx = tok[TOKTTIDX]
 --erm, or later??
     if ttidx=T_type then
-        udts &= tok[TOKTTIDX]
---      udts &= rtnttidx
+--      udts &= tok[TOKTTIDX]
+        udts &= rtnttidx
     end if
 --string name = src[start..finish] --DEV/debug
     tdx += 1
@@ -849,31 +947,43 @@ function rtndef(integer ttidx)
         if tokens[tdx][TOKTYPE]!=LETTER then
             ?9/0
         end if
-        integer ttype = get_global_type(tokens[tdx][TOKTTIDX])
-        if ttype=0 then
+        in_rtn_def = get_global_type(tokens[tdx][TOKTTIDX])
+        if in_rtn_def=0 then
             ?9/0
         end if
-        res[2][1][TOKALTYPE] = ttype
---      if add_global(ttidx,ttype)!=1 then
-        integer rag = add_global(rtnttidx,ttype)
-        if rag!=1 then
---          ?9/0
-            return parse_error(tok,"add_global!=1")
-        end if
-    else
+--      res[2][1][TOKALTYPE] = ttype
+----        if add_global(ttidx,ttype)!=1 then
+--      rag = add_global(rtnttidx,ttype)
+--      if rag!=1 then
+----            ?9/0
+--          return parse_error(tok,"add_global!=1")
+--      end if
+    end if
+--  else
         res[2][1][TOKALTYPE] = in_rtn_def
-        if add_global(rtnttidx,in_rtn_def)!=1 then
+        integer rag = add_global(rtnttidx,in_rtn_def)
+        if rag!=1 then
 --erm, not if doing autoincludes...
 --          ?9/0
-            return parse_error(tok,"add_global!=1")
+            integer fwdx = find(rtnttidx,forwards)
+            if not bForward and fwdx!=0 then
+                forwards[fwdx..fwdx] = {}
+--          else
+            elsif not find(rtnttidx,{T_dictionary}) then
+                return parse_error(tok,"add_global!=1")
+            end if
+        elsif bForward then
+            forwards &= rtnttidx
         end if
-    end if
-    add_scope()
+--  end if
+    add_scope(rtnttidx)
     if tokens[tdx][TOKTYPE]!=')' then
         while true do
 --          args &= vardef(tdx,1,2)
 --          args &= vardef(tdx,is_phix(),2)
+            {} = skip_comments()
             args = append(args,vardef(tdx,is_phix(),2))
+            set_arg_default(args[$])
             if tokens[tdx][TOKTYPE]!=',' then exit end if
             tdx += 1
 --          while find(tokens[tdx][TOKTYPE],{COMMENT,BLK_CMT}) do
@@ -888,31 +998,24 @@ function rtndef(integer ttidx)
     res[2][2] = {ARGS,args}
 --trace(1)
     expectt(')')
+    clear_arg_rtn()
 --  if is_js() then
 --      expectt('{')
 --  end if
     if bForward then
         bForward = false
     else
---      body = block()
         body = {T_block,block()}
---?{"body",length(body)}
---      body &= block()
---      body &= block()[1] -- what the fuck is bastard well going on????
         if is_phix() then
             if not expects({T_end,ttidx}) then return false end if
 --      else
 --          expectt('}')
         end if
     end if
---  res[2][2] = body
     res[2][3] = body
---  in_rtn_def = false
     in_rtn_def = was_in_rtn_def
---  return {ttidx,args,body}
     drop_scope()
     return res
---  return {res}
 end function
 
 bool in_switch = false
@@ -922,7 +1025,8 @@ function statement()
     sequence ast = {}, aste
 --  string s    -- (scratch)
     while tdx<=length(tokens) do
-        sequence tok = tokens[tdx]
+--      sequence tok = tokens[tdx]
+        sequence tok = deep_copy(tokens[tdx])
         integer {toktype,start,finish,line} = tok,
 --DEV?? (maybe we /will/ have some kind of TOKDX entry, specific for each toktype??)
                 thistdx = tdx
@@ -941,6 +1045,7 @@ function statement()
             case LETTER:
                 integer ttidx = tok[TOKTTIDX]
                 switch ttidx do
+--              switch ttidx without jump_table do
                     -- note: there shouldn't be any "hits" > T_xor here
                     --  (otherwise compiler moans jump table too big/sparse)
                     case T_include,
@@ -951,14 +1056,12 @@ function statement()
 --?"include!"
 --DEV.. (local)
 --                      phix_only()
---/!*
                         if not is_phix()
                         and not is_C() then -- (#include really)
 --                      and not is_py() then -- (from)
 --                          return parse_error(tok,"phix/c/py only")
                             return parse_error(tok,"phix/c only")
                         end if
---*!/
                         aste = tok
                         string filename = ""
                         integer toktype2, line2
@@ -968,16 +1071,23 @@ function statement()
                             if line2!=line
                             or not find(toktype2,INCLUDETOKS) then
                                 exit
+                            elsif toktype2=LETTER
+                              and tok[TOKTTIDX]=T_as then
+                                return parse_error(tok,"not supported")
                             end if
                             filename &= src[start..finish]
                             tdx += 1
                         end while
 
+                        filename = strip_builtin(filename)
 --DEV (erm, scope handling means we have to process but not output...)
 --    (far easier, methinks, for phix->phix to just expand includes)
 --                      if ttidx=T_include then
                         if ttidx=T_include
-                        and filename!="pGUI.e" then
+                        and filename!="pGUI.e"
+                        and filename!="mpfr.e"
+                        and filename!="sha256.e"
+                        and filename!="timedate.e" then
                             -- sanity checks:
                             if parse_bad!=0 then ?9/0 end if
                             if in_rtn_def!=0 then ?9/0 end if
@@ -990,11 +1100,16 @@ function statement()
                             or tok_error() then
 --                              return parse_error(0,"include error")
 --trace(1)
-                                {} = parse_error(tok,"include error")
+--                              {} = parse_error(tok,"include error")
+                                {} = parse_error(aste,"include error")
                                 return ast
                             elsif incres!="ALREADY DONE" then
                                 ast = append(ast,incres)
                             end if
+                        elsif ttidx=T_without
+                          and find(filename,{"js","javascript","javascript_semantics"}) then
+                            {} = parse_error(aste,"explicitly tagged as non-transpilable")
+                            return ast
                         else
 --?{toktype,filename}
 -- spotted in passing...: [ DEV these are ALL just going to be LETTER!! ]
@@ -1034,9 +1149,11 @@ function statement()
                             if toktype!=LETTER then
                                  return parse_error(tok,"name expected")
                             end if
-                            sequence onem = tok
+                            sequence onem = deep_copy(tok)
                             integer rag = add_global(onem[TOKTTIDX],TYPI)
-                            if rag!=1 then ?9/0 end if
+                            if rag!=1 then
+                                return parse_error(tok,"add_global!=1")
+                            end if
                             onem[TOKALTYPE] = TYPI
                             tdx += 1
                             if tdx>length(tokens) then exit end if
@@ -1069,22 +1186,11 @@ function statement()
                         end while
                         ast = append(ast,{T_enum,aste})
 
---                  case T_function,T_procedure:    -- nb no type (or error in rtndef()?)
                     case T_function,T_procedure,T_type:
---                      ast = append(ast,rtndef(s))
---                      ast = append(ast,rtndef(tok))
                         ast = append(ast,rtndef(ttidx))
 
                     case T_if:
---                      sequence cond = expression(0)
---trace(1)
---                      sequence cond = expr(0)
---  ast = {392,{61'=',{8,3061,3062,97'a',11,1004},{5,3064,3066,97'a',14}}}
---if tok[TOKLINE]=141 then trace(1) end if
---                      ast = {T_if,expr(0)}
---                      if ast!={} then ?9/0 end if
                         aste = {expr(0)}
---?cond
                         if is_phix() then
                             if not expect(T_then) then exit end if
 --                      else
@@ -1092,10 +1198,7 @@ function statement()
                         end if
                         add_scope()
 --                      sequence b = block()
---                      aste = append(aste,block())
                         aste = append(aste,{T_then,block()})
---                      aste = append(aste,T_then&block())
---                      aste &= block()
                         drop_scope()
                         while tdx<=length(tokens) do
                             tok = tokens[tdx]
@@ -1111,15 +1214,11 @@ function statement()
                             end if
                             -- aside: on non-phix, this quietly consumes (),
                             --                    rather than enforcing them
---                          aste &= {T_elsif,expr(0,1)}
---                          aste = append(aste,{T_elsif,expr(0,1)})
                             aste = append(aste,{T_elsif,{expr(0,1)}})
                             if is_phix() then
---                              if not expect(T_then) then exit end if
                                 if not expect(T_then) then ?9/0 end if
                             end if
                             add_scope()
---                          aste = append(aste,block())
                             aste = append(aste,{T_then,block()})
                             drop_scope()
                         end while
@@ -1131,21 +1230,16 @@ function statement()
                             tok = tokens[tdx]
                             if tok[TOKTYPE]=LETTER 
                             and tok[TOKTTIDX]=T_else then
---                              aste &= {T_else,block(1)}
                                 add_scope()
                                 aste = append(aste,{T_else,block(1)})
                                 drop_scope()
                             end if
                         end if
+                        if parse_bad then exit end if
                         if is_phix() then
                             if not expects({T_end,T_if}) then exit end if
                         end if
---                      {} = expects({T_end,T_if})
---                      if not expect(T_end) then exit end if
---                      if not expect(T_if) then exit end if
---                      ast = {{T_if,ast}}
                         ast = append(ast,{T_if,aste})
---                      ast = {T_if,ast}
 
                     case T_iff, T_iif:
                         expectt('(')
@@ -1160,7 +1254,8 @@ function statement()
                     case T_for:
 --DEV very different for js...
 --                      bool bLet = false
-                        bool bNoVar = false
+                        bool bNoVar = false,
+                             bPreDef = false
                         if not is_phix() then
                             expectt('(')
                             if tokens[tdx][TOKTYPE]=';' then
@@ -1172,12 +1267,18 @@ function statement()
                                 tdx += 1
                             end if
                         end if
+tok = tokens[tdx]
 --if tokens[tdx][TOKLINE]<3 then trace(1) end if
-integer ctt = get_local_type(tokens[tdx][TOKTTIDX])
-if ctt!=0 then return parse_error(tok,"already defined") end if
+if not bNoVar then
+    integer ctt = get_local_type(tok[TOKTTIDX])
+--  if ctt!=0 then return parse_error(tok,"already defined") end if
+    if ctt!=0 then bPreDef = true end if
+end if
 
                         add_scope()
+--19/5/21 (spotted in passing, we may have just done a tdx +=1 above...)
                         sequence ctrl = iff(bNoVar?{}:vardef(thistdx,0,4))
+--                      sequence ctrl = iff(bNoVar?{}:vardef(tdx,0,4))
                         if is_phix() then
                             if not expect(T_to) then exit end if
                         else
@@ -1197,39 +1298,31 @@ if ctt!=0 then return parse_error(tok,"already defined") end if
                             step = expr(0)
                             expectt(')')
                         end if
---                      sequence body = block()
                         sequence body = {T_block,block()}
                         if is_phix() then
                             if not expects({T_end,T_for}) then exit end if
---                          {} = expects({T_end,T_for})
---                          if not expect(T_end) then exit end if
---                          if not expect(T_for) then exit end if
                         end if
-                        ast = append(ast,{T_for,{ctrl,lim,step,body}})
+                        ast = append(ast,{T_for,{ctrl,bPreDef,lim,step,body}})
                         drop_scope()
 
                     case T_while:
---                      ast = {T_while,expr(0)}
                         aste = {expr(0)}
                         if is_phix() then
                             if not expect(T_do) then exit end if
-                        else
-                            expectt('{')
+--                      else
+--                          expectt('{')
                         end if
---                      aste = append(aste,block())
+                        add_scope()
                         aste = append(aste,{T_block,block()})
                         if is_phix() then
                             if not expects({T_end,T_while}) then exit end if
---                          if not expect(T_end) then exit end if
---                          if not expect(T_while) then exit end if
-                        else
-                            expectt('}')
+--                      else
+--                          expectt('}')
                         end if
---                      ast = {{T_while,ast}}
                         ast = append(ast,{T_while,aste})
+                        drop_scope()
 
                     case T_switch:
---                      aste = {T_switch,expr(0)}
                         aste = {expr(0)}
                         integer was_in_switch = in_switch
                         in_switch = true
@@ -1241,6 +1334,9 @@ if ctt!=0 then return parse_error(tok,"already defined") end if
                         end if
                         while true do
                             sequence cases = {}
+                            while tokens[tdx][TOKTYPE]=COMMENT do
+                                tdx += 1
+                            end while
                             tok = tokens[tdx]
                             if tok[TOKTYPE]=='}' then exit end if
                             ttidx = tok[TOKTTIDX]
@@ -1276,14 +1372,8 @@ if ctt!=0 then return parse_error(tok,"already defined") end if
                             or (toktype=LETTER and tokens[tdx][TOKTTIDX]=T_then) then
                                 tdx += 1
                             end if
---                          aste = append(aste,{ttidx,cases,block(0,true)})
---                          aste = append(aste,{ttidx,{cases,block(0,true)}})
---                          aste = append(aste,{ttidx,{cases,{T_block,block(0,true)}}})
---                          aste = append(aste,{{ttidx,cases},{T_block,block(0,true)}})
---                          aste = append(aste,{ttidx,{cases}})  --DEV bad on p2js_tok, tree [bug in pDiagN.e, fixed 1/3/21]
                             aste = append(aste,{ttidx,cases})
                             aste = append(aste,{T_block,block(0,true)})
---                          aste = append(aste,block(1))
                         end while
                         if is_phix() then
                             if not expects({T_end,T_switch}) then exit end if
@@ -1313,22 +1403,15 @@ if ctt!=0 then return parse_error(tok,"already defined") end if
                         if is_phix() and not in_switch then
                             return parse_error(tok,"illegal")
                         end if
---                      ast = {ttidx}
                         ast = append(ast,{ttidx,line})
                         
                     case T_return:
                         if not in_rtn_def then
                             return parse_error(tok,"illegal")
---                      elsif in_rtn_def='F'
                         elsif in_rtn_def!=TYPR
                           and tokens[tdx][TOKTYPE]!=';' then
---                          ast = {T_return,expr(0)}
---                          ast = {{T_return,{expr(0)}}}
                             ast = append(ast,{T_return,{expr(0)}})
-                        else --'P'
---                          ast = {T_return}
---                          ast = {{T_return}}
---                          ast = append(ast,{T_return,tokens[tdx][TOKLINE]})
+                        else
                             ast = append(ast,{T_return,line})
                         end if
 
@@ -1344,23 +1427,37 @@ if ctt!=0 then return parse_error(tok,"already defined") end if
                         exit
 
                     case T_exit:
---                      ast = {T_exit}
                         ast = append(ast,{T_exit,line})
 
+                    case T_continue:
+                        ast = append(ast,{T_continue,line})
+                    
                     case T_try:
                         if not is_phix() then
                             return parse_error(tok,"illegal")
                         end if
                         aste = {T_block,block(0,true)}
                         if not expect(T_catch) then exit end if
+                        tok = deep_copy(tokens[tdx])
                         if tokens[tdx][TOKTYPE]!=LETTER then
                             return parse_error(tok,"illegal")
                         end if
-                        aste = append(aste,{T_catch,tokens[tdx]})
+                        add_scope()
+                        integer r = add_local(tok[TOKTTIDX], TYPQ)
+                        if r!=1 then
+--?{"r!=1 line 1553 p2js_parse.e",tok}
+                            return parse_error(tok,iff(r=-1?"illegal":"already defined"))
+                         end if
+--                      integer ctt = get_local_type(tok[TOKTTIDX])
+--                      if ctt!=0 then return parse_error(tok,"already defined") end if
+--                      aste = append(aste,{T_catch,vardef(tdx,0,4)})
+                        tok[TOKALTYPE] = TYPQ
+                        aste = append(aste,{T_catch,tok})
                         tdx += 1
                         aste = append(aste,{T_block,block(0,true)})
                         if not expects({T_end,T_try}) then exit end if
                         ast = append(ast,{T_try,aste})
+                        drop_scope()
 
                     default:
 --                      integer idtype = get_id_type(tok[TOKTTIDX])
@@ -1369,11 +1466,11 @@ if ctt!=0 then return parse_error(tok,"already defined") end if
 --                          trace(1)
 --                          return {parse_error(tok,"unrecognised")}
 --                      end if                          
-    warn(tok,"unrecognised")
-else
+                            warn(tok,"unrecognised")
+                        else
 --?{"idtype",sprintf("0b%04b",idtype),tok_string(tok),tok}
-                        tok[TOKALTYPE] = idtype
-end if
+                            tok[TOKALTYPE] = idtype
+                        end if
 --DEV via p2js_scope...
 --                      integer ttype = get_id_type(ttidx)
 --?{"idtype",idtype,"ttype",ttype} -- they are the same.
@@ -1392,6 +1489,7 @@ end if
 --                              tok[TOKALTYPE] = TYPO
                             end if
                             ast = append(ast,vardef(thistdx))
+--?ast
 --                          ast = append(ast,vardef(tdx,1))
                             break
                         end if
@@ -1426,33 +1524,36 @@ end if
                             ast = append(ast,{toktype,{tok,expr(0,1)}})
 --                          ast = {"ASSIGN",expr(0,1)}
                         elsif toktype='[' then
+                            integer wastdx = tdx
                             tdx -= 1
---                          ast = {"SASS",factor()}
-                            aste = {factor()}
---                          ast = append(ast,{factor()})
---                          ast = factor()
---?{"SASS1",ast}
---tok = tokens[tdx]
+                            sequence f = factor()
+--  f = {91'[',{{4,1537,1537,48'0',12,25956},{4,1539,1541,48'0',1,25968}}}
+--      {91'[',{{4,13920,13920,424,15,27304},{199,{{4,13922,13924,424,1,27376},{4,13927,13929,424,1,27376}}}}}
+                            bool bOK = true
+                            if length(f[2])!=2 then
+                                bOK = false
+                            else
+                                toktype = f[2][2][TOKTYPE]
+                                if not find(toktype,{DIGIT,LETTER,'$'})
+                                and (toktype!=ELLIPSE or 
+                                     not find(f[2][2][2][1][TOKTYPE],{DIGIT,LETTER}) or
+                                     not find(f[2][2][2][2][TOKTYPE],{DIGIT,LETTER})) then
+                                    bOK = false
+                                end if
+                            end if
+                            aste = {f}
                             toktype = tokens[tdx][TOKTYPE]
---                          if not find(toktype,"=+-&:") then
                             if not find(toktype,{'=',PLUSEQ,MNUSEQ,MULTEQ,DIVDEQ,AMPSEQ,BEQ}) then
                                 return parse_error(tok,"assignment operator expected")
+                            elsif toktype!='=' and toktype!=BEQ and not bOK then
+?f
+                                return parse_error(tokens[wastdx],"sorry, p2js cannot name the required temp for that")
                             end if
---                          aste &= {toktype,expr(0,1)}
---                          aste = append(aste,{toktype,expr(0,1)})
                             aste = append(aste,{toktype,{expr(0,1)}})
---                          aste = append(aste,{{toktype,expr(0,1)}})
---?{"SASS2",ast}
---                          aste = {"SASS",{ast,{toktype,expr(0,1)}}}
                             ast = append(ast,{"SASS",aste})
---                          aste = {"SASS",ast}
---                          aste = {"SASS",{"fuck","this"}}
---?{"SASS3",ast}
                         elsif toktype='.' and not is_phix() then
                             tdx += 1
---                          ast = {'.',tok,statement()}
---                          ast = {'.',statement()}
-                            ast = append(ast,{'.',statement()})
+                            ast = append(ast,{'.',{tok,statement()[1]}})
                         else
 --                          trace(1)
                             return parse_error(tok,"unrecognised")
@@ -1486,8 +1587,10 @@ end if
             case '{','[':
 --              aste = {'{'}
                 aste = {}
+--trace(1)
 --              while tokens[tdx][TOKTYPE]!='}' do
                 integer et = iff(is_phix()?'}':']')
+                getting_lhs = true
                 while tokens[tdx][TOKTYPE]!=et do
                     if is_phix()
                     and tokens[tdx][TOKTYPE]=LETTER
@@ -1495,19 +1598,38 @@ end if
                          find(tokens[tdx][TOKTTIDX],udts)) then
 --trace(1)
 --?{111,tdx}
+                        if length(aste) and aste[1][1]!="vardef" then
+--                          return parse_error(tok,"nested vardef error")
+                            return parse_error(tokens[tdx],"nested vardef error")
+                        end if
                         aste = append(aste,vardef(tdx,1,2))
+--?aste
 --?{222,tdx,tokens[tdx]}
                     else    
-                        aste = append(aste,expr(0))
+--?tokens[tdx]
+                        sequence e0 = expr(0)
+--nope, I'm bouncing this back to p2js_emit:
+--                      if not is_phix()
+--                      and find(e0[2][2][TOKTYPE],"$-") then
+--                          return parse_error(e0[2][2],"unsupported by JavaScript Array destructuring")
+--                      end if
+                        aste = append(aste,e0)
+--DEV/SUG:              violation(tokens[tdx][TOKLINE],"???")
+                        if parse_bad then exit end if
                     end if
                     if tokens[tdx][TOKTYPE]!=',' then exit end if
                     tdx += 1
                 end while
+--              if parse_bad then trace(1) exit end if
+                if parse_bad then exit end if
 --              expectt('}')
                 expectt(et)
+                getting_lhs = false
+
                 if not find(tokens[tdx][TOKTYPE],{'=','+','-',BEQ}) then
 --sequence tokt = tokens[tdx]
-                    return parse_error(tok,"assignment operator expected")
+--                  return parse_error(tok,"assignment operator expected")
+                    return parse_error(tokens[tdx],"assignment operator expected")
                 end if
 --              aste = {toktype,aste,expr(0,1)}
 --              aste = {toktype,{aste,expr(0,1)}}
@@ -1614,6 +1736,7 @@ global function parse()
     udts = {}
     parse_bad = false
 ween = {}
+    forwards = {}
 --trace(1)
     while not parse_error() do
         if tdx>length(tokens) then
@@ -1623,7 +1746,9 @@ ween = {}
             sequence incres = tokstack_pop()
             if incres="NO MORE" then
                 final_scope_check()
-?{"autoincludes:",get_autoincludes()}
+--?{"autoincludes:",get_autoincludes()}
+--dump_globals()
+--dump_named_args()
                 exit
             end if
             ast = append(ast,incres)

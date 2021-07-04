@@ -96,8 +96,8 @@ global function complex_mul(complexn a, b)
 --  if atom(b) then b = {b,0} end if
 --  return {a[REAL] * b[REAL] - a[IMAG] * b[IMAG],
 --          a[REAL] * b[IMAG] + a[IMAG] * b[REAL]}
-    atom {ar,ai} = iff(atom(a)?{a,0}:a),
-         {br,bi} = iff(atom(b)?{b,0}:b)
+    atom {ar,ai} = iff(atom(a)?{a,0}:a)
+    atom {br,bi} = iff(atom(b)?{b,0}:b)
     complex res = {ar*br - ai*bi, ar*bi + ai*br}
     return res
 end function
@@ -120,8 +120,8 @@ global function complex_div(complexn a, b)
 --  atom bn = complex_norm(b)
 --  return {(a[REAL]*b[REAL] + a[IMAG]*b[IMAG])/bn,
 --          (a[IMAG]*b[REAL] - a[REAL]*b[IMAG])/bn}
-    atom {ar,ai} = iff(atom(a)?{a,0}:a),
-         {br,bi} = iff(atom(b)?{b,0}:b)
+    atom {ar,ai} = iff(atom(a)?{a,0}:a)
+    atom {br,bi} = iff(atom(b)?{b,0}:b)
     if bi=0 then
         return {ar/br, ai/br}
     end if

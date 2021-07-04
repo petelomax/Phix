@@ -18,7 +18,7 @@
 --    prime_factors(12345) is {3,5,823}
 --
 
-procedure check(atom n, string rtn)
+procedure check_limits(atom n, string rtn)
     if n<1 or n!=floor(n) then
         crash("argument to %s() must be a positive integer",{rtn})
     elsif n>power(2,iff(machine_bits()=32?53:64)) then
@@ -43,7 +43,7 @@ global function factors(atom n, integer include1=0)
 --  if include1 is -1 the result contains 1 but not n
 --  
     if n=0 then return {} end if
-    check(n,"factors")
+    check_limits(n,"factors")
     sequence lfactors = {}, hfactors = {}
     atom hfactor
     integer p = 2,
@@ -73,7 +73,7 @@ global function prime_factors(atom n, bool duplicates=false, integer maxprime=10
 -- returns a list of all prime factors <=get_prine(maxprime) of n
 --  if duplicates is true returns a true decomposition of n (eg 8 --> {2,2,2})
     if n=0 then return {} end if
-    check(n,"prime_factors")
+    check_limits(n,"prime_factors")
     if maxprime=-1 then maxprime = get_maxprime(n) end if
     sequence pfactors = {}
     integer pn = 1,
@@ -110,7 +110,7 @@ global function square_free(atom n, integer maxprime=100)
 -- returns true if prime_factors(n,duplicates:=true,maxprime) would contain no duplicates
 --  (but terminating early and without building any unnecessary internal lists)
     if n=0 then return true end if
-    check(n,"square_free")
+    check_limits(n,"square_free")
     if maxprime=-1 then maxprime = get_maxprime(n) end if
     integer pn = 1,
             p = get_prime(pn), 
@@ -131,7 +131,7 @@ end function
 
 global function is_prime(atom n)
     if n=0 then return false end if
-    check(n,"is_prime")
+    check_limits(n,"is_prime")
     integer pn = 1,
             p = get_prime(pn), 
             lim = floor(sqrt(n))

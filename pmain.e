@@ -286,11 +286,13 @@ sequence opstack, opstype, opsltrl, opsline, opstcol
 --  but rather the same (opstype[]=-1) as opSubse.
 
 -- verify that the compiler is setting these as "sequence of integer":
---/**/  #isginfo{opstack,0b0100,MIN,MAX,integer,-2}
---/**/  #isginfo{opstype,0b0100,MIN,MAX,integer,-2}
---/**/  #isginfo{opsltrl,0b0100,MIN,MAX,integer,-2}
---/**/  #isginfo{opsline,0b0100,MIN,MAX,integer,-2}
---/**/  #isginfo{opstcol,0b0100,MIN,MAX,integer,-2}
+--DEV broken 23/4/21 (repeat.e) - fixme!
+--!/**/ #isginfo{opstack,0b0100,MIN,MAX,integer,-2}
+--       ^ gInfo is {10394,12,-1073741824,1073741823,15,-2}
+--!/**/ #isginfo{opstype,0b0100,MIN,MAX,integer,-2}
+--!/**/ #isginfo{opsltrl,0b0100,MIN,MAX,integer,-2}
+--!/**/ #isginfo{opsline,0b0100,MIN,MAX,integer,-2}
+--!/**/ #isginfo{opstcol,0b0100,MIN,MAX,integer,-2}
 --               var,    type,  min,max,etype, len
 -- #isginfo emits no code or otherwise alters compiler behaviour, it 
 --  just verifies the result of gvar_scan. See pemit.e for details.
@@ -388,9 +390,11 @@ sequence plecol, pleline, pletruth
     pletruth = repeat(0,4)
 
 -- verify compiler gets these right:
---/**/  #isginfo{plecol,0b0100,MIN,MAX,integer,-2}
---/**/  #isginfo{pleline,0b0100,MIN,MAX,integer,-2}
---/**/  #isginfo{pletruth,0b0100,MIN,MAX,integer,-2}
+--DEV broken 23/4/21 (repeat.e) - fixme!
+--!/**/ #isginfo{plecol,0b0100,MIN,MAX,integer,-2}
+--       ^ gInfo is {10422,12,-1073741824,1073741823,15,-2}
+--!/**/ #isginfo{pleline,0b0100,MIN,MAX,integer,-2}
+--!/**/ #isginfo{pletruth,0b0100,MIN,MAX,integer,-2}
 
 
 procedure add_ple(integer truth)
@@ -431,6 +435,9 @@ procedure Abork(sequence msg, integer k)
     Aborp(msg)
 end procedure
 
+bool not_js = false     -- catch "with js" occurring too late...
+string nj_reason
+
 constant WITH=1, WITHOUT=0, FROMROUTINE=1
 procedure DoWithOptions(integer OptOn, integer fromroutine=0)
 integer k
@@ -470,7 +477,12 @@ integer k
 --*/
             elsif k=OptWarning then
                 finalOptWarn[fileno] = OptOn
+--11/5/21:
+--          elsif k=OptTrace and OptOn and with_js=1 then
+--              Aborp("cannot mix with trace and with js")
             end if
+--p2js:
+            optset = deep_copy(optset)
             optset[k] = OptOn
 --10/10/2020:
 --          if k=OptDebug and not OptOn and not fromroutine then
@@ -522,6 +534,24 @@ end if
                or ttidx=T_inline then
                 -- (OpenEuphoria only, ignored by Phix)
                 getToken()
+                return
+            elsif ttidx=T_js
+               or ttidx=T_javascript
+               or ttidx=T_js_semantics then
+--?"with js"
+                if with_js!=2 and with_js!=OptOn then
+                    Aborp("cannot mix with and without js")
+                elsif with_js=2 and OptOn and not_js then
+                    Aborp("p2js violation already skipped ("&nj_reason&")")
+                end if
+--11/5/21:
+--              if optset[OptTrace] and OptOn then
+--                  Aborp("cannot mix with js and with trace")
+--              end if
+                with_js = OptOn
+                getToken()
+-- no need, done directly in p.exw/main():
+--              s5 &= {opWithJS,flag}
                 return
             end if
         end if
@@ -613,21 +643,25 @@ constant allowTempReuse = -1    -- Yes value
 
 --without trace
 procedure freeTmp(integer howmany)
-object si
-integer N
     if reusetmps then
         while howmany do
             if opsltrl[opsidx]=allowTempReuse then
 --and opstype[opsidx]!=-1 (maybe?)
-                N = opstack[opsidx]
+                integer N = opstack[opsidx]
                 if N then
-                    si = symtab[N]
+                    object si = symtab[N]
                     if si[S_NTyp]=S_TVar                        -- a tvar (doh!)
                     and equal(si[S_Name],-1)                    -- unnamed
                     and not and_bits(si[S_State],K_Fres) then   -- but not a return var
                         si = si[S_vtype]    -- (also kills refcount on symtab[N], btw)
-                        symtab[N][S_Nlink] = freetmplists[si]
-                        symtab[N][S_ltype] = si     -- bugfix 9/4/9 (ltype:=vtype)
+--p2js:
+--                      symtab[N][S_Nlink] = freetmplists[si]
+--                      symtab[N][S_ltype] = si     -- bugfix 9/4/9 (ltype:=vtype)
+                        sequence sN = deep_copy(symtab[N])
+                        sN[S_Nlink] = freetmplists[si]
+                        sN[S_ltype] = si
+                        symtab[N] = sN
+--</p2js>
                         freetmplists[si] = N
                     end if
                     opsltrl[opsidx] = 0
@@ -670,10 +704,9 @@ integer oktoinit    -- avoid marking vars init in short-circuit cases
 
 --without trace
 function oneInitialisedInt(integer N, integer markInit)
-sequence symtabN
     oIItype = 0
     if not emitON then return 0 end if  --DEV would 1 be better?
-    symtabN = symtab[N]                 -- (do this once not 4 times below)
+    sequence symtabN = symtab[N] -- (do this once not 4 times below)
     constInt = (symtabN[S_NTyp]=S_Const)
     if not symtabN[S_Init] then
         -- non-init S_Const are treated as init vars
@@ -865,6 +898,28 @@ sequence symtabN
     end if  -- emitON
 end procedure
 
+procedure zero_temp(integer tmp)
+    if tmp!=0 
+    and symtab[tmp][S_Name]=-1 
+--  and not and_bits(symtab[tmp][S_State],K_noclr) then
+    and not and_bits(symtab[tmp][S_State],K_noclr+K_Fres) then
+        -- (Not entirely sure why the K_noclr check was needed, but t57masgn 
+        --  crashed without it, setting dmin to "22" in pilx86.e/getDest().)
+        -- Could not get the reusetmps part to work either, then again since
+        -- it was never doing it before anyway, I guess it's alright...
+        -- (ah, probably because freeTmp(-1) has already been called?)
+        emitHexMov(opMovsi,tmp,T_const0)
+--/*
+        if reusetmps then
+            opsidx += 1
+            opstack[opsidx] = tmp
+            opsltrl[opsidx] = allowTempReuse
+            freeTmp(-1)
+        end if
+--*/
+    end if
+end procedure
+
 --without trace
 constant NOTINTS=0,
          INTSTOO=1,
@@ -960,7 +1015,7 @@ integer calltokcol  calltokcol = 0      -- saved position of "fred" in fred({1,2
 integer calltokline calltokline = 0
 
 function sq_able()
--- returns 1 if we can auto-convert eg floor into sq_floor
+-- returns true if we can auto-convert eg floor into sq_floor
 --  (after we detect it has incompatible parameters for the builtin)
 integer opcode, state
 sequence pmsg, symtabN
@@ -983,10 +1038,10 @@ sequence pmsg, symtabN
                 symtabN[S_State] = state
                 symtab[routineNo] = symtabN
             end if
-            return 1
+            return true
         end if
     end if
-    return 0
+    return false
 --          return T_sequence
 --trace(1)
 --          Abork("arguments to power must be atoms (use sq_power instead)",opsidx)
@@ -1113,9 +1168,14 @@ integer rootAct, rootSig
         and not and_bits(rootAct,T_sequence)) then  --      and act is an atom)
         if routineNo<=T_sequence then
             add_ple(0)  -- probable logic error (always false)
-        elsif not sq_able() then
-            Abork("incompatible type for routine signature",opsidx)
+        else
+            bool bSq = sq_able()
+            if not bSq or with_js=1 then
+                Abork("incompatible type for routine signature",opsidx)
+            end if
         end if
+        not_js = true
+        nj_reason = "1178"
     elsif routineNo=T_object then
 --3/4/15: DEV only if param is init...
 --      add_ple(1)  -- probable logic error (always true)
@@ -1732,8 +1792,8 @@ end if
 
         elsif scode=opApnd
            or scode=opPpnd
-           or scode=opRepeat
-           or scode=opRepCh
+--         or scode=opRepeat
+--         or scode=opRepCh
            or scode=opOpen
            or scode=opCallFunc
            or scode=opSeek then
@@ -1760,7 +1820,9 @@ end if
                             N = newTempVar(STyp,Shared)
                         end if
 --DEV one like that 20/11/2011 right here?
-                    elsif symtab[p2][S_Name]=-1 and symtab[p2][S_NTyp]=S_TVar and N!=p3 then
+--29/6/21:
+--                  elsif symtab[p2][S_Name]=-1 and symtab[p2][S_NTyp]=S_TVar and N!=p3 then
+                    elsif symtab[p2][S_Name]=-1 and symtab[p2][S_NTyp]!=S_Const and N!=p3 then
                         -- replace b=append(tmp,x) with b=tmp tmp=0 b=append(b,x):
                         -- (function results are treated as tmp in this regard)
                         emitHexMov(opMove, N, p2)
@@ -2264,7 +2326,9 @@ end if
                     -- replace a=atm&seq with a=prepend(seq,atm)...
 
 --DEV !=S_Const?
-                    if symtab[p3][S_Name]=-1 and symtab[p3][S_NTyp]=S_TVar and N!=p2 then
+--21/6/21 
+--                  if symtab[p3][S_Name]=-1 and symtab[p3][S_NTyp]=S_TVar and N!=p2 then
+                    if symtab[p3][S_Name]=-1 and symtab[p3][S_NTyp]!=S_Const and N!=p2 then
                         -- ... and replace b=prepend(tmp,x) with b=tmp tmp=0 b=prepend(b,x):
                         -- (function results are treated as tmp in this regard)
                         emitHexMov(opMove, N, p3)   -- gets the Tvar/temp treatment
@@ -2280,7 +2344,8 @@ end if
 
                 else
 --DEV ditto
-                    if symtab[p2][S_Name]=-1 and symtab[p2][S_NTyp]=S_TVar and N!=p3 then
+--                  if symtab[p2][S_Name]=-1 and symtab[p2][S_NTyp]=S_TVar and N!=p3 then
+                    if symtab[p2][S_Name]=-1 and symtab[p2][S_NTyp]!=S_Const and N!=p3 then
                         -- replace b=tmp&x with b=tmp tmp=0 b=b&x:
                         -- (function results are treated as tmp in this regard)
                         emitHexMov(opMove, N, p2)   -- gets the Tvar/tmp treatment
@@ -3159,7 +3224,7 @@ integer asConst = -1    -- else isGlobal
 
 --27/10/19:
 --procedure DoSequence()
-procedure DoSequence(integer och='{', len=0)
+procedure DoSequence(integer och='{', len=0, bAllConst=false)
 -- Process a sequence
 integer N, t
 object v
@@ -3178,7 +3243,10 @@ integer nestedConst = 0, wastokcol
 --  MatchChar('{',float_valid:=true)
     MatchChar(och,float_valid:=true)
 --  allconst = 1
-    allconst = (och='{' and len=0)
+--p2js:
+--  allconst = (och='{' and len=0)
+--  allconst = false
+    allconst = bAllConst
     etype = 0
     constseq = {}
 --isRID = {}
@@ -3821,7 +3889,9 @@ object Default
         Default = addUnnamedConstant(Tok9, T_integer)
         getToken()
     elsif toktype='{' then
-        DoSequence()
+--p2js:
+--      DoSequence()
+        DoSequence('{',0,true)
         if opTopIsOp then
             Aborp("unsupported")
         end if
@@ -3869,8 +3939,11 @@ integer SNtyp
 --broke 1/12/19 (type is now seq/str, etype is now T_object...)
 -- verify compiler gets this right:
 --!/**/ #isginfo{signature,0b0100,MIN,MAX,integer,-2}
---/**/  #isginfo{signature,0b1100,MIN,MAX,object,-2}    --DEV (broken)
+--p2js: following line broke this...
+--!/**/ #isginfo{signature,0b1100,MIN,MAX,object,-2}    --DEV (broken)
 
+--p2js:
+    signature = deep_copy(signature)
 --  signature = {}
 --  nParams = 0
     nParams = length(signature)
@@ -4239,8 +4312,9 @@ end if
         elsif routineNo=T_repeat then
 --25/10/19:
 --          if newEmit and toktype=SQUOTE then
-            if newEmit and toktype=SQUOTE and Ch=',' then
-                routineNo = T_repch
+--          if newEmit and toktype=SQUOTE and Ch=',' then
+            if toktype=SQUOTE and Ch=',' then
+                routineNo = T_repeatch
             end if
         end if -- routineNo=T_routine/T_repeat
         while toktype!=')' do
@@ -7255,6 +7329,15 @@ function sqopNeeded(integer two)
     return 0
 end function
 
+procedure p2jssqv(string op, integer line, col)
+    if with_js=1 then
+        Abort("p2js violation: "&op&"() must be used here")
+    end if
+    not_js = true
+    nj_reason = op&"() assumed"
+    Warn(nj_reason,line,col,SQ_WARN)
+end procedure
+
 --<old notes>
 -- somewhere, I also want the following mapping:
 --  (by somewhere I might have meant opJeq etc in Branch()...)
@@ -7440,9 +7523,7 @@ object sig
                 opTopIsOp += 10     -- SubscriptOp -> NotSubscriptOp; BltinOp ->NotBltinOp
                 etype = 0
             elsif sqopNeeded(1) then
---              if sqopWarn then
-                Warn("sq_not() assumed",notumline,notumcol,SQ_WARN)
---              end if
+                p2jssqv("sq_not",notumline,notumcol)
                 N = sqAble[opNot]
                 sig = symtab[N][S_sig]
                 Call(N,sig,FUNC,true)
@@ -7535,7 +7616,9 @@ object sig
 --                      end if
                     end if
 --27/10/19: (first-class routine_ids)
-                elsif sig=T_integer and Ch='(' then
+--23/5/21 (remove the integer check)
+--              elsif sig=T_integer and Ch='(' then
+                elsif Ch='(' then
 --SUG:              DoFirstClassRid(FUNC)
 --;  35 call_proc(r_show,{})
 --  mov eax,[#0040293C] (r_show)          ;#004270A5: 241 3C294000               uv 01 00  1   4      
@@ -7664,9 +7747,7 @@ if isLit then ?9/0 end if   -- I think we shd just use false!
 --validate_opstack()
                     etype = 0
                 elsif sqopNeeded(1) then
---                  if sqopWarn then
-                    Warn("sq_uminus() assumed",notumline,notumcol,SQ_WARN)
---                  end if
+                    p2jssqv("sq_uminus",notumline,notumcol)
                     N = sqAble[opUminus]
                     sig = symtab[N][S_sig]
                     Call(N,sig,FUNC,true)
@@ -7973,9 +8054,7 @@ object sig
                         k = 8
                     end if
                     ZZdesc = "sq_"&ZZlong[k]
---                  if sqopWarn then
-                    Warn(ZZdesc&"() assumed",sqline,sqcol,SQ_WARN)
---                  end if
+                    p2jssqv(ZZdesc,sqline,sqcol)
 --                  sqopNo = get_Sqop(ZZdesc)
                     sqopNo = sqAble[ZZopcodes[k]]
                     sig = symtab[sqopNo][S_sig]
@@ -8260,9 +8339,7 @@ end if
                 if LogicTok=T_xor then
                     if opTopIsOp then PopFactor() end if
                     if sqopNeeded(2) then
---                      if sqopWarn then
-                        Warn("sq_xor() assumed",sqline,sqcol,SQ_WARN)
---                      end if
+                        p2jssqv("sq_xor",sqline,sqcol)
                         sqopNo = sqAble[opXor]
                         sig = symtab[sqopNo][S_sig]
                         Call(sqopNo,sig,FUNC,true)
@@ -8411,7 +8488,9 @@ integer pstype, etype, petype, fN, s, const
             if opsidx!=0 then ?9/0 end if
         end if
     end if
+--p2js: (erm, undone without further testing, due to "= {}" ten lines down...)
     symtabN = symtab[tidx]
+--  symtabN = deep_copy(symtab[tidx])
     snNtyp = symtabN[S_NTyp]
     if snNtyp=S_Const then
         Aborp("may not change the value of a constant")
@@ -8955,9 +9034,8 @@ end if -- emitON
             end if
         else
             if sqopNeeded(2) then
---              if sqopWarn then
-                Warn("sq_"&compoundlongs[CompoundAssignment]&"() assumed",eqline,eqcol,SQ_WARN)
---              end if
+                string clca = "sq_"&compoundlongs[CompoundAssignment]
+                p2jssqv(clca,eqline,eqcol)
                 sqopNo = sqAble[compoundops[CompoundAssignment]]
                 Call(sqopNo,symtab[sqopNo][S_sig],FUNC,true)
                 opstype[opsidx] = T_sequence
@@ -9148,6 +9226,8 @@ if newEmit then
                     agcheckop(opRepe1)
 end if
                     apnds5({opRepe1,tidx,p2,p3})    -- opRepe1,dest,idx,rep
+--15/5/21:
+                    zero_temp(p3)
 
                 else -- noofsubscripts!=1
                     --
@@ -9169,6 +9249,9 @@ end if
                     apnds5({opRepe,noofsubscripts})     -- ref[idx1]..[idxn]=rep
                     idii &= tidx
                     apnds5(idii)
+--15/5/21:
+                    zero_temp(idii[1])
+--                  zero_temp(idii[-2])
                 end if
             end if  -- emitON
         else
@@ -9194,7 +9277,10 @@ end if
         statemod = S_set
         if opsidx=1 then
             RHStype = opstype[1]
+--p2js: (gave up at this point, for now)
             symtabN = symtab[tidx]  -- get latest update, eg/ie setUsed in psym2.e
+--          symtab[tidx] = 0
+--          symtabN = deep_copy(symtab[tidx])   -- get latest update, eg/ie setUsed in psym2.e
             state = symtabN[S_State]
 --added 28/04/2010:
             LHStype = symtabN[S_vtype]
@@ -12150,6 +12236,11 @@ end if
                 if isDeclaration!=0 then
                     Aborp("illegal")
                 end if
+--11/5/21:
+--              if with_js=1 and returnvar=-1 then
+----                    Aborp("not supported under with js")
+--                  Aborp("only allowed inside routine definitions under with js")
+--              end if
                 rtype = symtab[varno][S_vtype]
                 if rtype>T_object then rtype = rootType(rtype) end if
 --4/11/19 (structs)
@@ -12258,6 +12349,12 @@ end if
                     else
                         if toktype=ELLIPSE
                         or (ORAC and not wasdot and toktype=LETTER and ttidx=T_to) then
+--16/5/21:
+                            if with_js=1 then
+                                Aborp("p2js violation: JavaScript does not support slice destructuring")
+                            end if
+                            not_js = true
+                            nj_reason = "slice destructure"
                             getToken(float_valid:=true)
                             Expr(pAllops,asBool)
 --DEV replace x[..length(x)] with x[..-1] as per DoSubScripts()...?
@@ -12340,8 +12437,11 @@ integer ntype
 integer lprev
 --integer lblidx
 --integer tidx
+sequence rhs_stack
 
     assignset = GetMultiAssignSet({},isDeclaration,Typ)
+    integer la = length(assignset)
+--?assignset
     SpecialHandling('@', SYMBOL)
     MatchChar('}',float_valid:=false)
     SpecialHandling('@', ILLEGAL)
@@ -12356,6 +12456,7 @@ integer lprev
 
     wastokline = tokline
     wastokcol = tokcol
+    integer wasopsidx = opsidx
     Expr(pAllops,asBool)
 --17/11/13:
     get_from_stack = 0
@@ -12372,7 +12473,10 @@ integer lprev
                 varno = ai[1]
                 if find(varno,rhstack) then get_from_stack = 0 exit end if
                 localsubscripts = ai[2]
-                if localsubscripts!=0 then get_from_stack = 0 exit end if
+--18/5/21 (why was this ever??) [at first I cancelled it but T_store_field was needed for t64...]
+--              if localsubscripts!=0 then get_from_stack = 0 exit end if
+                if localsubscripts=T_store_field then get_from_stack = 0 exit end if
+-- (I /think/ this is for {{f},d} = x...)
                 subscripts = ai[4]
                 noofsubscripts = length(subscripts)
                 if noofsubscripts!=1 then get_from_stack = 0 exit end if
@@ -12380,9 +12484,13 @@ integer lprev
             if get_from_stack then
                 for i=length(assignset) to 1 by -1 do
                     assignset[i][4] = {}
+--                  assignset[i][4] = assignset[i][4][1..$-1]
                 end for
                 opsidx -= 2
                 opTopIsOp = 0
+                rhs_stack = opstack[wasopsidx+1..opsidx]
+                if length(rhs_stack)!=la then ?9/0 end if
+                opsidx = wasopsidx
             end if
         end if
     end if
@@ -12396,9 +12504,19 @@ integer lprev
     and not and_bits(opstype[opsidx],T_sequence) then
         Abork("type error (sequence expected)",opsidx)
     end if
-    tmp = opstack[opsidx]
+--23/5/21: (move the with_js check into pilx86.e)
+--16/5/21:
+--  if with_js=1 then
+    if la and emitON then
+        apnds5({opDeSeq,T_const1})
+    end if
+--  else
+--      not_js = true
+--      nj_reason = "opDeSeq omitted"
+--  end if
 --8/2/18:
     if not get_from_stack then
+        tmp = opstack[opsidx]
 --  if emitON and not get_from_stack then
         tmpN = 0
         opsidx -= 1
@@ -12456,7 +12574,7 @@ integer lprev
     for i=length(assignset) to 1 by -1 do
         ai = assignset[i] -- {varno, localsubscripts, noofsubscripts, subscripts}
         varno = ai[1]
-        if varno=tmp and i>1 then
+        if not get_from_stack and varno=tmp and i>1 then
 --          tokline = wastokline
 --          tokcol  = wastokcol
 --          Aborp("in {..}=x, can only assign x in the leftmost lhs element")
@@ -12494,6 +12612,7 @@ integer lprev
             end if
             noofsubscripts = length(subscripts)
             if noofsubscripts then
+                if get_from_stack then ?9/0 end if -- sanity check
                 if localsubscripts=0 then
                     tmpI = varno    -- store directly,
                     varno = 0       -- and signal that we have
@@ -12545,8 +12664,13 @@ end if
                 end if
             else
                 if get_from_stack then
-                    tmpI = opstack[opsidx]
-                    freeTmp(-1)
+--18/5/21
+--                  tmpI = opstack[opsidx]
+--more??
+--                  freeTmp(-1)
+--                  opsidx -= 1
+                    tmpI = rhs_stack[$]
+                    rhs_stack = rhs_stack[1..$-1]
                 else
                     tmpI = tmp
                 end if
@@ -12690,6 +12814,10 @@ end if
 --*/
             end if -- emitON
         end if -- not SliceOp or SubscriptOp
+--18/5/21:
+        if get_from_stack then
+            zero_temp(tmpI)
+        end if
 --4/1/15:
         ntype = symtab[varno][S_vtype]
 -- added 16/1/15:
@@ -12718,6 +12846,19 @@ end if
         end if -- NOLT
     end for
     VAmask = 0
+--23/5/21 ditto (move the with_js check to pilx86.e).
+--16/5/21:
+--  if with_js=1 then
+    if la and emitON then
+        apnds5({opDeSeq,T_const0})
+    end if
+--  end if
+--27/4/21:
+    if get_from_stack then
+        if length(rhs_stack)!=0 then ?9/0 end if
+    else
+        zero_temp(tmp)
+    end if
 --/*
 
 --
@@ -12920,7 +13061,9 @@ integer N, isLit, etype
 --end if
 --27/10/19: (first-class routine_ids)
 --          elsif Type=T_integer and toktype='(' then
-            elsif Type=T_integer and Ch='(' then
+--23/5/21:
+--          elsif Type=T_integer and Ch='(' then
+            elsif Ch='(' then
 --SUG:          DoFirstClassRid(PROC)
 --;  35 call_proc(r_show,{})
 --  mov eax,[#0040293C] (r_show)          ;#004270A5: 241 3C294000               uv 01 00  1   4      
@@ -13196,7 +13339,9 @@ integer SNtyp
                         else
                             scope = localscopes[scopelevel]
                         end if
-                        symtabN = symtab[N]
+--p2js:
+--                      symtabN = symtab[N]
+                        symtabN = deep_copy(symtab[N])
                         symtab[N] = 0
                         symtabN[S_Name] = wasttidx
                         symtabN[S_FPno] = fileno
@@ -13347,6 +13492,11 @@ integer k, kp1, ln, emitcol, N, reinclude, newfile, wasttidx, qch
 --dbg=4
     k = match(" as",name)
     if k then
+        if with_js=1 then
+            Abort("namespaces are not supported under with js")
+        end if
+        not_js = true
+        nj_reason = "namespace detected"
         kp1 = k+4
         while kp1<=ln and name[kp1]=' ' do
             kp1 += 1
@@ -13418,6 +13568,11 @@ integer k, kp1, ln, emitcol, N, reinclude, newfile, wasttidx, qch
 --if 01 then
     if reinclude=0 then
         if ttidx=T_namespace then
+            if with_js=1 then
+                Abort("namespaces are not supprted under with js")
+            end if
+            not_js = true
+            nj_reason = "namespace detected"
             getToken()
             if toktype!=LETTER then
                 Aborp("a name is expected here")
@@ -13558,6 +13713,11 @@ bool prevset = false
     nxt = 1
     MatchString(T_enum)
     if ttidx=T_type then
+        if with_js=1 then
+            Aborp("invalid under with js")
+        end if
+        not_js = true
+        nj_reason = "enum type"
         getToken()
         if toktype!=LETTER then
             Aborp("a name is expected here")
@@ -13586,6 +13746,7 @@ bool prevset = false
         getToken()
     end if
     if ttidx=T_by then
+--DEV test under pwa/p2js:
         --
         -- Aside: we don't support non-integer step, but it is still
         --      getToken(float_valid:=true) to reject them properly!
@@ -14119,12 +14280,16 @@ string filename
 end procedure
 
 procedure DoNameSpace()
-integer k
+    if with_js=1 then
+        Abort("namespaces are not supoprted under with js")
+    end if
+    not_js = true
+    nj_reason = "namespace detected"
     getToken()
     if toktype!=LETTER then
         Aborp("a name is expected here")
     end if
-    k = addSymEntry(ttidx,0,S_Nspc,fileno,0,0)
+    integer k = addSymEntry(ttidx,0,S_Nspc,fileno,0,0)
     getToken()
 end procedure
 
@@ -14208,6 +14373,8 @@ global procedure Compile(bool bInit = true)
 --  resetOptions()
 --trace(1)
         profileon = 0
+        with_js = 2 -- (2=="any/without")
+        not_js = false
         probable_logic_error = 0
         default_namespaces = {}
         APIlibs = {}

@@ -61,24 +61,22 @@ end procedure
 --global function reverse_subset(sequence s, integer from_dx = 1, integer to_dx = -1)
 --global function reverse(sequence s, integer from_dx = 1, integer to_dx = -1)
 global function reverse(sequence src, sequence from_to = {1,-1})
---integer {from_dx,to_dx} = from_to, len = length(src)
-integer from_dx = from_to[1], to_dx = from_to[2], len = length(src)
-integer uppr, midpoint
-sequence res
+--  integer {from_dx,to_dx} = from_to, len = length(src)
+    integer from_dx = from_to[1],
+              to_dx = from_to[2],
+            len = length(src)
 
-    if from_dx<0 then
-        from_dx = len+1+from_dx
-    end if
-    if to_dx<0 then
-        to_dx = len+1+to_dx
-    end if
+    if from_dx<0 then from_dx += len+1 end if
+    if   to_dx<0 then   to_dx += len+1 end if
     if len<2 or from_dx=to_dx then
         return src
     end if
 
-    midpoint = floor((from_dx+to_dx-1)/2)
-    res = src
-    uppr = to_dx
+--  sequence res = src
+    sequence res = repeat(iff(string(src)?' ':0),length(src))
+    integer midpoint = floor((from_dx+to_dx-1)/2),
+            uppr = to_dx
+    res[midpoint+1] = src[midpoint+1]
     for lowr=from_dx to midpoint do
         res[uppr] = src[lowr]
         res[lowr] = src[uppr]
@@ -155,7 +153,8 @@ end function
 --*/
 
 -- now in builtins/pretty.e:
-include builtins\pretty.e
+-- removed 31/3/21 (p2js):
+--include builtins\pretty.e
 ---- pretty print variables
 --integer pretty_end_col,   -- max width, default 78 (options[4])
 --      pretty_chars,       -- line length

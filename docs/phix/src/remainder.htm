@@ -4,7 +4,7 @@
    <these>
     <get>
      <stripped>
-      <h1 class="title">remainder</h1>
+      <h1 class="title">remainder / mod</h1>
       <div id="mainSection">
        <table>
         <col style="width: 5%"/>
@@ -13,7 +13,11 @@
           <b>Definition:</b>
          </td>
          <td>
-         <a href="atom.htm">atom</a> a3 = remainder(<a href="atom.htm">atom</a> a1, <a href="atom.htm">atom</a> a2)
+         <a href="atom.htm">atom</a> res = remainder(<a href="atom.htm">atom</a> x, y)
+          <br>
+          <i>-- or --</i>
+          <br>       
+         <a href="atom.htm">atom</a> res = mod(<a href="atom.htm">atom</a> x, y)
          </td>
         </tr>
         <tr>
@@ -21,82 +25,60 @@
           <b>Description:</b>
          </td>
          <td>
-            Compute the remainder after dividing a1 by a2.<br>
-            The result will have the same sign as a1, and the magnitude of the result will be less than the magnitude of a2.
+            Compute the remainder after dividing x by y, using floored division in the case of mod().<br>
+            The result of remainder() will have the same sign as x, and the magnitude of the result will be less than the magnitude of y.<br>
+            When the two operands have the same sign, mod() returns the same result as <a href="remainder.htm">remainder</a>().<br>
+            When the signs are different the mod() function rounds away from zero whereas remainder() rounds towards zero.<br>
+            The result of mod() has the same sign as y, whereas the result of <a href="remainder.htm">remainder</a>() has the same sign as x.
          </td>
         </tr>
         <tr>
          <td>
           <b>Comments:</b>
          </td>
-         <td>This function may be applied to an <a href="atom.htm">atom</a> or sq_rmdr() to all elements
-             of a <a href="sequence.htm">sequence</a>. The rules for
-          <a href="seqops.htm">sequence operations</a> apply.
-          <br>
-          <br>
-          Note that remainder(i,2) is 0 for all even numbers, 1 for all positive odd numbers, and -1 for all negative odd numbers,
-          whereas <a href="mod.htm">mod</a>(1,2) is 0 for all even numbers and 1 for <i>all</i> odd numbers, and therefore the
-          latter is logically a better choice for odd/even testing. Implementation concerns may however mean that remainder(i,2)
-          being = or != to 0 may turn out faster.
+         <td>
+            These functions may be applied to an <a href="atom.htm">atom</a> or sq_rmdr(), sq_mod() to all elements
+            of a <a href="sequence.htm">sequence</a>. The rules for <a href="seqops.htm">sequence operations</a> apply.
+            <br>
+            <br>
+            The Phix implementation of mod() tries to yield the same results as plain C, however if you look at the
+            table of Modulo operators in various programming languages on 
+          <a href="javascript:ExternalLink('ext426','https://en.wikipedia.org/wiki/Modulo_operation#In_programming_languages');"
+             id="ext426" style="color:#9B5565"      >https://en.wikipedia.org/wiki/Modulo_operation</a>
+            you will see that the modulus operation is just about as far from a standard thing as anything could ever be.
+            <small><i>(I wasn&rsquo;t expecting that, either!)</i></small>
+            <br>
+            <br>
+            Note that remainder(i,2) is 0 for all even numbers, 1 for all positive odd numbers, and -1 for all negative odd numbers,
+            whereas <a href="remainder.htm">mod</a>(1,2) is 0 for all even numbers and 1 for <i>all</i> odd numbers, and therefore the
+            latter is logically a better choice for odd/even testing. Implementation concerns may however mean that remainder(i,2)
+            being = or != to 0 may turn out faster, with and_bits(i,1) being even better.
          </td>
         </tr>
         <tr>
          <td>
-          <b>Example 1:</b>
+          <b>Examples:</b>
          </td>
          <td>
 <!--eucode>
-a = remainder(9, 4)
--- a is 1
+               x,y: -9,-4  -9,+4  +9,-4  +9,+4
+    remainder(x,y):    -1     -1     +1     +1
+          mod(x,y):    -1     +3     -3     +1      -- (matches the C % operator)
+
+?sq_rmdr({81,-3.5,-9,5.5}, {8,-1.7,2,-4})   -- {1,-0.1,-1,1.5}
+?sq_mod( {81,-3.5,-9,5.5}, {8,-1.7,2,-4})   -- {1,-0.1,1,-2.5}
+?sq_rmdr({17,12,34}, 16)                    -- {1,12,2} -- (ditto mod)
+?sq_rmdr(16, {2,3,5})                       -- {0,1,1}  -- (ditto mod)
 </eucode-->
 <pre>
-<font color="#000000">a</font><font color="#0000FF"> =</font><font color="#7060A8"> remainder</font><font color="#0000FF">(</font><font color="#000000">9</font><font color="#0000FF">,</font><font color="#000000"> 4</font><font color="#0000FF">)
-</font><font color="#000080"><i>-- a is 1</i></font>
-</pre>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <b>Example 2:</b>
-         </td>
-         <td>
-<!--eucode>
-s = sq_rmdr({81, -3.5, -9, 5.5}, {8, -1.7, 2, -4})
--- s is {1, -0.1, -1, 1.5}
-</eucode-->
-<pre>
-<font color="#000000">s</font><font color="#0000FF"> =</font><font color="#5E005E"> sq_rmdr</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">81</font><font color="#0000FF">, -</font><font color="#000000">3.5</font><font color="#0000FF">, -</font><font color="#000000">9</font><font color="#0000FF">,</font><font color="#000000"> 5.5</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">8</font><font color="#0000FF">, -</font><font color="#000000">1.7</font><font color="#0000FF">,</font><font color="#000000"> 2</font><font color="#0000FF">, -</font><font color="#000000">4</font><font color="#800000">}</font><font color="#0000FF">)
-</font><font color="#000080"><i>-- s is {1, -0.1, -1, 1.5}</i></font>
-</pre>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <b>Example 3:</b>
-         </td>
-         <td>
-<!--eucode>
-s = sq_rmdr({17, 12, 34}, 16)
--- s is {1, 12, 2}
-</eucode-->
-<pre>
-<font color="#000000">s</font><font color="#0000FF"> =</font><font color="#5E005E"> sq_rmdr</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">17</font><font color="#0000FF">,</font><font color="#000000"> 12</font><font color="#0000FF">,</font><font color="#000000"> 34</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000"> 16</font><font color="#0000FF">)
-</font><font color="#000080"><i>-- s is {1, 12, 2}</i></font>
-</pre>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <b>Example 4:</b>
-         </td>
-         <td>
-<!--eucode>
-s = sq_rmdr(16, {2, 3, 5})
--- s is {0, 1, 1}
-</eucode-->
-<pre>
-<font color="#000000">s</font><font color="#0000FF"> =</font><font color="#5E005E"> sq_rmdr</font><font color="#0000FF">(</font><font color="#000000">16</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000"> 3</font><font color="#0000FF">,</font><font color="#000000"> 5</font><font color="#800000">}</font><font color="#0000FF">)
-</font><font color="#000080"><i>-- s is {0, 1, 1}</i></font>
+<font color="#000000">               x</font><font color="#0000FF">,</font><font color="#000000">y</font><font color="#0000FF">: -</font><font color="#000000">9</font><font color="#0000FF">,-</font><font color="#000000">4 </font><font color="#0000FF"> -</font><font color="#000000">9</font><font color="#0000FF">,+</font><font color="#000000">4 </font><font color="#0000FF"> +</font><font color="#000000">9</font><font color="#0000FF">,-</font><font color="#000000">4 </font><font color="#0000FF"> +</font><font color="#000000">9</font><font color="#0000FF">,+</font><font color="#000000">4</font>
+<font color="#7060A8">    remainder</font><font color="#0000FF">(</font><font color="#000000">x</font><font color="#0000FF">,</font><font color="#000000">y</font><font color="#0000FF">):    -</font><font color="#000000">1    </font><font color="#0000FF"> -</font><font color="#000000">1    </font><font color="#0000FF"> +</font><font color="#000000">1    </font><font color="#0000FF"> +</font><font color="#000000">1</font>
+<font color="#5E005E">          mod</font><font color="#0000FF">(</font><font color="#000000">x</font><font color="#0000FF">,</font><font color="#000000">y</font><font color="#0000FF">):    -</font><font color="#000000">1    </font><font color="#0000FF"> +</font><font color="#000000">3    </font><font color="#0000FF"> -</font><font color="#000000">3    </font><font color="#0000FF"> +</font><font color="#000000">1     </font><font color="#000080"><i> -- (matches the C % operator)
+</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">sq_rmdr</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">81</font><font color="#0000FF">,-</font><font color="#000000">3.5</font><font color="#0000FF">,-</font><font color="#000000">9</font><font color="#0000FF">,</font><font color="#000000">5.5</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">8</font><font color="#0000FF">,-</font><font color="#000000">1.7</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">,-</font><font color="#000000">4</font><font color="#800000">}</font><font color="#0000FF">)  </font><font color="#000080"><i> -- {1,-0.1,-1,1.5}</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">sq_mod</font><font color="#0000FF">(</font><font color="#800000"> {</font><font color="#000000">81</font><font color="#0000FF">,-</font><font color="#000000">3.5</font><font color="#0000FF">,-</font><font color="#000000">9</font><font color="#0000FF">,</font><font color="#000000">5.5</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">8</font><font color="#0000FF">,-</font><font color="#000000">1.7</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">,-</font><font color="#000000">4</font><font color="#800000">}</font><font color="#0000FF">)  </font><font color="#000080"><i> -- {1,-0.1,1,-2.5}</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">sq_rmdr</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">17</font><font color="#0000FF">,</font><font color="#000000">12</font><font color="#0000FF">,</font><font color="#000000">34</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000"> 16</font><font color="#0000FF">)                   </font><font color="#000080"><i> -- {1,12,2} -- (ditto mod)</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">sq_rmdr</font><font color="#0000FF">(</font><font color="#000000">16</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#800000">}</font><font color="#0000FF">)                      </font><font color="#000080"><i> -- {0,1,1}  -- (ditto mod)</i></font>
 </pre>
          </td>
         </tr>
@@ -105,7 +87,8 @@ s = sq_rmdr(16, {2, 3, 5})
           <b>Implementation:</b>
          </td>
          <td>
-            via :%opRmdr in builtins\VM\pRmdr.e (an autoinclude)
+            remainder(): via :%opRmdr in builtins\VM\pRmdr.e (an autoinclude)<br>
+            mod(): see builtins\pmaths.e (an autoinclude) for details of the actual implementation.
          </td>
         </tr>
         <tr>
@@ -113,8 +96,7 @@ s = sq_rmdr(16, {2, 3, 5})
           <b>See Also:</b>
          </td>
          <td>
-          <a href="floor.htm">floor</a>,
-          <a href="mod.htm">mod</a>
+          <a href="floor.htm">floor</a>
          </td>
         </tr>
        </table>

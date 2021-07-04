@@ -561,8 +561,9 @@ global integer schidx -- see schend.e
 --  so again some of the flag bits may therefore end up being set on bytes 2 and 3.
 --
 
-integer reginfo     -- "in use" part of mloc/mreg (see below).
-        reginfo = 0 -- (makes emptying the table nice and quick)
+integer reginfo = 0,-- "in use" part of mloc/mreg (see below).
+                    -- (makes emptying the table nice and quick)
+        pfileno = 0
 
 --with trace --DEV (otherwise we get a memory leak!)
 --constant m4 = allocate(4),
@@ -572,21 +573,35 @@ integer reginfo     -- "in use" part of mloc/mreg (see below).
 
 procedure emitHexDword(atom v)
 -- break up a dword constant into 4 bytes
-string s
-atom m4 = allocate(4)
+--  if v<-#80000000 or v>#7FFFFFFF then ?9/0 end if
+    if v<-#80000000 or v>#FFFFFFFF then ?9/0 end if
+--  if v<-#80000000 or v>#FFFFFFFF then ?{"emitHexDword",v,sprintf("%08x",v),"emitline",emitline,"pfileno",pfileno} end if
+    atom m4 = allocate(4)
     poke4(m4, v) -- faster than doing divides etc. (idea from database.e)
---DEV 30/11/09: (typesafe x86)
---if 1 then
---  s = peek(m44)
-    s = peek({m4,4})
+    string s = peek({m4,4})
     free(m4)
+--DEV tryme (ditto below)
+--  x86 &= s
     for i=1 to 4 do
         x86 &= s[i]
     end for
---else
---  x86 &= peek(m44)
---end if
 end procedure
+
+procedure emitHexQuadword(atom v)
+-- break up a dword constant into 8 bytes
+--DEV we should really check this is only invoked for 64-bit.
+--    (above check stands for 32-bit, but the solution would 
+--     not be to call this, instead emit a proper float-ref.)
+    atom m8 = allocate(8)
+    poke8(m8, v) -- faster than doing divides etc. (idea from database.e)
+    string s = peek({m8,8})
+    free(m8)
+--  x86 &= s
+    for i=1 to 8 do
+        x86 &= s[i]
+    end for
+end procedure
+
 
 procedure emitHexWord(atom v)
 -- break up a word constant into 2 bytes
@@ -718,7 +733,6 @@ integer thisDbg
 forward procedure emitHex5callG(integer opcode, integer lblidx=0)
 forward procedure movRegImm32(integer reg, atom v)
 
-integer pfileno
 --with trace
 --global -- used by psched.e    [DEV]
 procedure lineinfo()
@@ -1071,8 +1085,12 @@ sequence jump_G
 --              x86 &= {call_rel32,isJmpG,0,0,lblidx}
 --procedure emitHex5jmpG(integer lblidx)
 procedure emitHex5jmpG(integer opcode)
-integer lblidx = tt[aatidx[opcode]+EQ]
-    if lblidx=0 then ?9/0 end if
+--integer lblidx = tt[aatidx[opcode]+EQ]
+    integer ato = aatidx[opcode],
+            lblidx = tt[ato+EQ]
+    if lblidx=0 then ?9/0 end if    -- (means that no #ilASM{} actually defined that label...
+                                    --  check for things commented out, in one case there was
+                                    --  a missing [], so it would only work on 64-bit...)
 if not newEmit then ?9/0 end if
     -- Jump to an opcode(global label). ?Used for opRetf and in tandem with emitHex5addr.
 --  if not sched then
@@ -1307,7 +1325,8 @@ end procedure
 --       j4 = {isJmp,0,0,0}
 procedure emitHex6j(sequence op2, integer offset)
 -- emit a 6 byte jump (auto-packed to 2 bytes when possible, see pemit.e/scanforShortJmp)
---/**/  #isginfo{op2,0b0100,MIN,MAX,integer,2}  -- sequence of integer length 2
+--broken 24/4/21 (p2js)
+--!/**/ #isginfo{op2,0b0100,MIN,MAX,integer,2}  -- sequence of integer length 2
     if length(op2)!=2 then ?9/0 end if  -- compiler should optimise this away!
     --we could, if we wanted, further test op2(see jo..jg_rel32):
     --  if op2[1]!=#0F then ?9/0 end if
@@ -2106,7 +2125,9 @@ integer ls, w
     n -= 1
     ls = length(set)
     res = repeat(0,ls)
-    rem = set -- remaining set is initially full set
+--p2js:
+--  rem = set -- remaining set is initially full set
+    rem = deep_copy(set) -- remaining set is initially full set
     for i=ls to 1 by -1 do
         w = remainder(n,i)+1
         res[i] = rem[w]
@@ -2179,7 +2200,9 @@ integer s4,     -- for setting state4
         transit = repeat(0,4)
         snartit = repeat(0,4)
         for j=1 to 4 do         -- for promoting each entry to 1
-            work = states[i]    -- (uses four fresh copies)
+--p2js:
+--          work = states[i]    -- (uses four fresh copies)
+            work = deep_copy(states[i]) -- (uses four fresh copies)
             wj = work[j]
             for k=1 to 4 do     -- map <wj by +1 ...
                 wk = work[k]
@@ -2196,7 +2219,9 @@ integer s4,     -- for setting state4
 
             transit[j] = find(work,states)
 
-            work = states[i]    -- (uses four fresh copies)
+--p2js:
+--          work = states[i]    -- (uses four fresh copies)
+            work = deep_copy(states[i]) -- (uses four fresh copies)
             wj = work[j]
             for k=1 to 4 do     -- map >wj by -1 ...
                 wk = work[k]
@@ -3714,7 +3739,9 @@ procedure reg_src2()
 --  on reg using src2 (already getSrc2()'d)
 --DEV 6/4/16:
 --  if slroot2=T_integer and smin2=smax2 then
-    if slroot2=T_integer and smin2=smax2 and integer(smin2) then
+--30/5/21:
+--  if slroot2=T_integer and smin2=smax2 and integer(smin2) then
+    if slroot2=T_integer and smin2=smax2 and integer(smin2) and smin2<=#FFFFFFFF then
         -- (dev: trouble here if it's a K_rtn)
         regimm365(smin2)                            -- <op> reg,imm
     else
@@ -4236,7 +4263,7 @@ end if
 --      and nextop!=opApnd  -- ""                                       ( 7)
 --      and nextop!=opMul                                               ( 7)
 --      and nextop!=opFind                                              ( 7)
---      and nextop!=opRepeat                                            ( 4)
+--X     and nextop!=opRepeat                                            ( 4)
 --      and nextop!=opPow                                               ( 4)
 --      and nextop!=opAndBits                                           ( 4)
 --      and nextop!=opSubiii                                            ( 4)
@@ -5916,7 +5943,13 @@ end if
                 end if
                 baseLoad632(eax,edi,k)                          -- mov eax,[edi+imm]
                 if ltype!=T_integer then
-                    if pbr=2 then
+--26/4/21
+--                  if pbr=2 then
+--!/!*
+                    if (symtab[src][S_Name]=-1 and symtab[src][S_NTyp]=S_GVar2)
+--                  or (symtab[src][S_NTyp]=S_TVar and (isFresDst or onDeclaration=2 or symtab[src][S_Name]=-1)) then
+                    or (symtab[src][S_NTyp]=S_TVar and (pbr=2 or symtab[src][S_Name]=-1)) then
+--!*!/
 if X64 then
 --done, but [DEV] needs r15 handling in pcfunc.e, cbhandler, etc..
 --  printf(1,"pbr=2 incomplete line 5565 in pilx86.e, emitline=%d\n",{emitline})
@@ -6460,9 +6493,12 @@ end if
                         elsif (switch_flags or switchable>8) -- based on test/swtime results
 --2/3/21 (pwa/p2js.exw genuinely needed 116+... (so it's now 0.5% populated)
 --24/3/21                                                    0.25%
+--2/5/21                                                     0.125%
+--DEV is there not a point where we should just do a find?
 --                        and smax-smin <= 20*switchable then
 --                        and smax-smin <= 200*switchable then
-                          and smax-smin <= 400*switchable then
+--                        and smax-smin <= 400*switchable then
+                          and smax-smin <= 800*switchable then
 --trace(1)
 if 0 then   -- should be 0 for release!
     dbg = symtab[vi]
@@ -7238,6 +7274,7 @@ end if
 --3/10/10: (breaks t52)
 --                          if bind and ssNTyp1=S_Const and and_bits(state1,K_noclr) then
                             if not newEmit and ssNTyp1=S_Const and and_bits(state1,K_noclr) then
+?9/0
                                 emitHex6constrefcount(inc_mem32, src)           -- inc dword[#xxxxxxxx]
                                 if symtab[dest][S_NTyp]=S_TVar then
 --DEV storeconstref(dest,src)?
@@ -7256,6 +7293,30 @@ end if
                                     emitHex10constref(mov_m32_imm32, dest, src) -- mov [dest],#xxxxxxxx
                                 end if
                                 clearMem(dest)
+
+--24/5/21: (p2js special handling of {} as param default)
+--/*
+  11:  opTchk,1213,1,1162,                   opTchk,varno,wasOptTypeCheck,d_efault
+ 136:  opMkSq,0,1213,                        opMkSq,N,dest,eN..e1
+symtab[630]:{-1,S_Const,3,(S_used+S_set+K_sqr+K_noclr+K_lit),0,171/#004022BC,T_Dsq,{}}
+--symtab[1162]:{-1,S_TVar,0,(S_set),0,0,T_Dsq,{T_Dsq,MININT,MAXINT,object,2},[esp-12]}
+symtab[1162]:{-1,S_Const,2,(S_used+S_set+K_sqr+K_noclr+K_lit),0,236/#0079DC88,T_Dsq,{}}
+--if name=-1 and S_Const and K+noclr+K_lit and value={} then
+--*/
+                            elsif symtab[src][S_Name]=-1
+                              and ssNTyp1=S_Const 
+                              and and_bits(state1,K_noclr+K_lit)=K_noclr+K_lit
+                              and sudt=T_Dsq
+                              and symtab[src][S_value]={} then
+                                leamov(eax,dest)
+                                emitHex2s(xor_edx_edx)              -- mov edx,noofitems (0)
+                                raoffset = emitHex5addr()           -- push <return addr> [backpatched below]
+                                emitHex1(push_eax)                  -- push dest addr (leamov'd above)
+                                loadToReg(edi,dest)                 -- mov edi,[dest] (prev)
+                                emitHex5jmpG(opMkSq)
+                                x86[raoffset] = length(x86)-raoffset
+                                reginfo = 0 -- all regs trashed     -- <return addr>:
+
                             else -- K_noclr S_Const
                                 loadToReg(reg,src)                      -- mov reg,[src]
                                 storeReg(reg,dest,1,1)                  -- mov [dest],reg
@@ -9898,7 +9959,7 @@ end if
                 src2 = s5[pc]
                 getSrc2()
                 setyp = or_bits(setyp,slroot2)
-                if setyp=T_object then
+                if setyp=T_object then -- (full set of bits, that further or_bits will not change)
                     pc += noofitems
                     exit
                 end if
@@ -9952,8 +10013,15 @@ end if
                             -- a known integer value
                             if smin>=-128 and smin<=127 then
                                 emitHex2(push_imm8,smin)
-                            else
+                            elsif smin>=-#80000000 and smin<=#7FFFFFFF then
                                 emitHex5w(push_imm32,smin)          -- push imm32
+                            else
+--?"pilxl86.e line 10003 just sayin hi"
+--                              emit ??
+--      x86 &= {#49,#BF,0,0,0,0,0,0,0,#40}  -- mov r15,h4   (10 byte ins)
+                                x86 &= {#48,#B8}
+                                emitHexQuadword(smin)
+                                emitHex1(push_eax)
                             end if
                         else
                             reg = loadReg(src,NOLOAD)               -- is [src] already loaded?
@@ -9963,8 +10031,11 @@ end if
                                 pushvar(src)                        -- push dword[src]
                             end if
                         end if
-                    elsif ssNTyp1=S_TVar
+--25/4/21:
+--                  elsif ssNTyp1=S_TVar
+                    elsif (ssNTyp1=S_TVar or ssNTyp1=S_GVar2)
                       and symtab[src][S_Name]=-1 then
+--                  elsif symtab[src][S_Name]=-1 then
 --DEV may need some more work here if we don't automatically saveFunctionResultVars all the time in pmain.e...
                         -- a temp or function return var:
                         reg = loadReg(src,NOLOAD)                   -- is [src] already loaded?
@@ -11522,6 +11593,7 @@ end while
             end if
             pc += 3
 
+--/* -- (now in builtins/repeat.e)
         elsif opcode=opRepeat
            or opcode=opRepCh then
 --if newEmit then ?9/0 end if
@@ -11600,7 +11672,7 @@ end while
                 emitHex5callG(opcode)                           -- call opRepeat/opRepCh
                 reginfo = 0 -- all regs trashed
             end if
-
+--*/
         elsif opcode=opFloor then       -- 82
             dest = s5[pc+1]
             src = s5[pc+2]
@@ -11905,7 +11977,6 @@ end if -- tmpd
             --else
             if not isGscan then
                 markConstUseds({dest,src,src2})
-                --DEV merge with opRepeat etc (needs mods to backend)
 --              if sched then
 --                  sch00n = schoon
 --                  schedule(0,0,edibit,pUV,0,0)
@@ -13934,6 +14005,25 @@ end if
                 pc += 1
             end if
 
+        elsif opcode=opDeSeq then
+            if not isGscan 
+            and with_js=1 then
+                src = s5[pc+1]                                  -- T_const0 or T_const1
+                if src=T_const0 then
+                    if X64 then
+                        emitHex1(#48)
+                    end if
+                    emitHex2s(xor_eax_eax)                      -- xor eax,eax (eax:=0)
+                else
+                    movRegImm32(eax,1)                          -- mov eax,1
+                end if
+--              movRegImm32(eax,v)
+--              loadToReg(eax,src)                              -- mov eax,[src]
+                emitHex5callG(opDeSeq)                          -- call :%opXxxx
+                clearReg(eax)
+            end if
+            pc += 2
+
         elsif opcode=opReps then        -- 18
             --
             -- opReps is n (noofsubscripts), rep, sliceend, idxn..1, ref    -- ref[idx1]~[idxn..sliceend] := rep
@@ -15135,7 +15225,9 @@ printf(1,"warning: emitHex5call(%d=%s) skipped for newEmit, pilx86.e line 15009\
 --DEV added 11/12/2011, should (perhaps) be a temporary measure (newEBP) {warning not error, that is)
 --DEV output p1[2] as eg 0b1101, MIN/MAX etc...
                         slen = s5[pc+6]
-                        if slen<0 and gi[gLen]<0 and gi[1..gEtyp]=symk[1..gEtyp] then
+--27/4/21
+--                      if slen<0 and gi[gLen]<0 and gi[1..gEtyp]=symk[1..gEtyp] then
+                        if slen<0 and gi[gLen]<0 and length(symk)>=gEtyp and gi[1..gEtyp]=symk[1..gEtyp] then
                             Warn(sprintf("gInfo is {%d,%d,%d,%d,%d,%d}",p1&gi),tokline,tokcol,0)
                         else
                             Abort(sprintf("gInfo is {%d,%d,%d,%d,%d,%d}",p1&gi))
@@ -15985,7 +16077,7 @@ end procedure
 --  opGetc/OpenDLL  [src]           dest
 --  opWhere etc     [src]   dest
 --  opRmdr          [src]   [src2]                  dest
---  opRepeat        src*    dest                    src2*
+--X opRepeat        src*    dest                    src2*
 --  opCos etc                       src*            dest
 --  opPeeki         <dest>                          [src]
 --  opWaitKey etc                                   src*/dest
@@ -16127,7 +16219,7 @@ string options
     jdesc[opPpnd] = "opPpnd,dest,seq,item\n"
     jdesc[opConcat] = "opConcat,dest,a,b\n"
     jdesc[opConcatN] = "opConcatN,N,ref1..refN,res\n"
-    jdesc[opRepeat] = "opRepeat,dest,item,count\n"
+--  jdesc[opRepeat] = "opRepeat,dest,item,count\n"
     jdesc[opRepe] = "opRepe,N,rep,idxN..idx1,ref\n"
     jdesc[opRepe1] = "opRepe1,dest,idx,rep\n"
 -- isCompound is 1 for eg s[i] += x; in the s[i+j] += (etc) case, we refer to

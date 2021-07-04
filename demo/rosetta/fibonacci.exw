@@ -6,6 +6,7 @@
 --
 --  The first five attempts were fine but not great.
 --
+with javascript_semantics
 
 --/*
 function fibonanal(integer n)           -- analytic
@@ -102,6 +103,7 @@ puts(1,"\n")
 --0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987, 1597, 2584, 4181, 6765, 10946, 17711, 28657, 46368, 75025, 121393, 196418, 317811, 514229, 832040
 
 --!/*
+puts(1,"\n\nbigatom:\n")
 include builtins\bigatom.e
 
 sequence fcacheba = {BA_ONE,BA_ONE}
@@ -158,7 +160,7 @@ integer lastn
 atom t0 = time()
 
 function fibonampz(integer n) -- resumable, works for -ve numbers, yields mpz
-integer absn = abs(n)
+    integer absn = abs(n)
     if res=NULL or absn!=abs(lastn)+1 then
         if res=NULL then
             prev = mpz_init(0)
@@ -200,9 +202,7 @@ n = fibonampz(4784969)
 --?elapsed(time()-t0)
 --mpz_fib_ui(n,4784969)                         -- 0.1s (see note)
 string s = mpz_get_str(n)                       -- (2s)
-integer l = length(s)
-s[40..-40] = "..."
-?{l,s}
+?shorten(s)
 ?elapsed(time()-t0)
 
 -- Note that mpz_fib_ui() is intended for isolated values only; while an isolated mpz_fib_ui(4784969) 
@@ -213,3 +213,101 @@ s[40..-40] = "..."
 -- seems to be a much better approach.
 
 {} = wait_key()
+
+--/*
+--couple of original versions, now in mpfr.js (in transpiled form):
+procedure Mpz_fib2_ui(mpz fn, fnsub1, integer n)
+    n -= 1
+    --
+    -- (manually) translated from the fastFibonacciDoubling() method off of
+    -- https://www.nayuki.io/res/fast-fibonacci-algorithms/FastFibonacci.java
+    -- original desktop version used for testing and that this was transpiled
+    -- from can be found in demo\rosetta\fibonacci.exw, as Mpz_fib2_ui()
+    --
+    if n<0 then
+        mpz_set_si(fnsub1,1)
+        mpz_set_si(fn,0)
+    else
+        mpz_set_si(fnsub1,0)
+        mpz_set_si(fn,1)
+        integer bit = 0, m = n
+        while m do
+            m = floor(m/2)
+            bit = iff(bit=0?1:2*bit)
+        end while
+        mpz d = mpz_init()
+        while bit do    
+            // Loop invariant: fnsub1 = F(m), fn = F(m+1)
+            --  assert fnsub1.equals(slowFibonacci(m));
+            --  assert fn.equals(slowFibonacci(m+1));
+                        
+            // Double it
+            -- d := fnsub1 * (fn*2 - fnsub1)
+            mpz_mul_si(d,fn,2)
+            mpz_sub(d,d,fnsub1)
+            mpz_mul(d,fnsub1,d)
+            -- e := fnsub1*fnsub1 + fn*fn
+            mpz_mul(fnsub1,fnsub1,fnsub1)
+            mpz_mul(fn,fn,fn)
+            mpz_add(fn,fn,fnsub1)
+            -- fnsub1 = d;
+            -- fn = e;
+            mpz_set(fnsub1,d)
+            m *= 2;
+            --  assert fnsub1.equals(slowFibonacci(m));
+            --  assert fn.equals(slowFibonacci(m+1));
+                        
+            // Advance by one conditionally
+            if and_bits(n,bit) then
+                --  {fnsub1,fn} = {fn,fnsub1+fn}
+                --  d := fnsub1 + fn
+                mpz_add(d,fnsub1,fn)
+                mpz_set(fnsub1,fn)
+                mpz_set(fn,d)
+                m += 1
+                --  assert fnsub1.equals(slowFibonacci(m));
+                --  assert fn.equals(slowFibonacci(m+1));
+            end if
+            bit = floor(bit/2)
+        end while
+    end if
+end procedure
+
+procedure Mpz_fib_ui(mpz fn, integer n)
+    --
+    -- algorithm 3 from https://arxiv.org/pdf/2008.08822.pdf
+    -- see also https://gmplib.org/manual/Fibonacci-Numbers-Algorithm
+    -- original desktop version used for testing and that this was transpiled
+    -- from can be found in demo\rosetta\fibonacci.exw, as Mpz_fib_ui()
+    --
+    if n<2 then
+        if n<0 then ?9/0 end if
+        mpz_set_si(fn,n)
+    else
+        mpz c = mpz_init(3)
+        mpz {a,b} = mpz_inits(2)
+        if remainder(n,2)=0 then
+            mpz_set_si(a,0)
+            mpz_set_si(b,1)
+        else
+            mpz_set_si(a,1)
+            mpz_set_si(b,-1)
+        end if
+        n = floor(n/2)
+        while n>1 do
+            if remainder(n,2)=0 then
+                mpz_mul(b,b,c)
+                mpz_add(b,a,b)
+            else    
+                mpz_mul(a,a,c)
+                mpz_add(a,b,a)
+            end if
+            mpz_mul(c,c,c)
+            mpz_sub_si(c,c,2)
+            n = floor(n/2)
+        end while
+        mpz_mul(a,a,c)
+        mpz_add(fn,b,a)
+    end if
+end procedure
+--*/

@@ -151,7 +151,8 @@ end function
 
 global function keyvalues(sequence source, object pair_delim = ";,",
                           object kv_delim = ":=", object quotes =  "\"'`",
-                          object whitespace = " \t\n\r", integer haskeys = 1)
+--                        object whitespace = " \t\n\r", integer haskeys = 1)
+                          object whitespace = {' ','\t','\n','\r'}, integer haskeys = 1)
 
 sequence lEndBracket
 sequence lBracketed
@@ -162,8 +163,8 @@ sequence lBracketed
     end if
 
     if atom(pair_delim) then    pair_delim = {pair_delim}   end if
-    if atom(kv_delim) then      kv_delim = {kv_delim}       end if
-    if atom(quotes) then        quotes = {quotes}           end if
+    if atom(kv_delim)   then      kv_delim = {kv_delim}     end if
+    if atom(quotes)     then        quotes = {quotes}       end if
     if atom(whitespace) then    whitespace = {whitespace}   end if
 
     sequence all_delim = whitespace & pair_delim & kv_delim,

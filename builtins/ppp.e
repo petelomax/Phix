@@ -573,15 +573,15 @@ function prnf(object cl, integer col, integer indent, integer prnt, integer nest
 end function
 with warning
 
---procedure fatal(sequence msg)
---  puts(1,"ppp.e: fatal: "&msg&"\nPress d for diagnostics...")
+--procedure pp_fatal(sequence msg)
+--  puts(1,"ppp.e: pp_fatal: "&msg&"\nPress d for diagnostics...")
 --  if find(getc(0),"dD") then ?9/0 end if
 ----    if find(getc(0),"dD") then crash("?9/0") end if
 --  abort(1)
 --end procedure
 --bool warned = false
 --procedure warn(string msg)
-procedure fatal(string msg, integer level)
+procedure pp_fatal(string msg, integer level)
 --  puts(1,msg)
 --  warned = true
 --18/12/20:
@@ -599,18 +599,18 @@ procedure fatal(string msg, integer level)
           }
 --  ?9/0
 --*/
---  crash(msg,nFrames:=level)
-    crash(msg,{},level) -- pwa/p2js: JavaScript does not support named parameters...
+    crash(msg,nFrames:=level)
+--  crash(msg,{},level) -- pwa/p2js: JavaScript does not support named parameters... [but p2js now does!]
 end procedure
 
 procedure setAscii()
     ascii = repeat(0,255)
-    if length(ppp_Ascii)!=2 then fatal("length(ascii) must be 2",4) end if
+    if length(ppp_Ascii)!=2 then pp_fatal("length(ascii) must be 2",4) end if
     object {minasc,maxasc} = ppp_Ascii
     if not sequence(minasc) then minasc = {minasc} end if
     if not sequence(maxasc) then maxasc = {maxasc} end if
-    if length(minasc)!=length(maxasc) then fatal("length(minasc)!=length(maxasc)",4) end if
-    if find(0,minasc) or find(0,maxasc) then fatal("find(0,minasc) or find(0,maxasc)",4) end if
+    if length(minasc)!=length(maxasc) then pp_fatal("length(minasc)!=length(maxasc)",4) end if
+    if find(0,minasc) or find(0,maxasc) then pp_fatal("find(0,minasc) or find(0,maxasc)",4) end if
     for i=1 to length(minasc) do
         ascii[minasc[i]..maxasc[i]] = 1
     end for
@@ -633,7 +633,9 @@ procedure pp_Init()
     ppp_FltFmt = "%.10g"
     ppp_Date = ""
     ppp_Br = "{}"
-    escBytes = "\t\n\r\\\"\'\e\E"
+--  escBytes = "\t\n\r\\\"\'\e\E"
+--  escBytes = {'\t','\n','\r','\\','\"','\'','\e','\E'}
+    escBytes = {9,'\n','\r','\\','\"','\'','\e','\E'}
     escChars = "tnr\\\"\'eE"
 --DEV you should have to explicitly load this sort of thing with a ppOpt() call...
     constants = {-1.295837195871e307,"NOVALUE"}
@@ -645,7 +647,8 @@ function setOpt(sequence options)
     integer f, ip1, flvl = 4
     object tmp
     if not ppp_Init then pp_Init() end if
-    if and_bits(1,length(options)) then fatal("length(options) not even",flvl) end if
+    if and_bits(1,length(options)) then pp_fatal("length(options) not even",flvl) end if
+    options = deep_copy(options)
     for i=1 to length(options) by 2 do
         f = options[i]
         ip1 = i+1
@@ -667,11 +670,11 @@ function setOpt(sequence options)
             options[ip1] = ppp_StrFmt
             ppp_StrFmt = tmp
             if tmp=-2 then
-                fatal("pp_StrFmt,-2 deprecated: use pp_IntCh,false instead",flvl)
+                pp_fatal("pp_StrFmt,-2 deprecated: use pp_IntCh,false instead",flvl)
             elsif tmp=-3 then
-                fatal("pp_StrFmt,-3 deprecated: use pp_StrFmt,-1,pp_IntCh,false instead",flvl)
+                pp_fatal("pp_StrFmt,-3 deprecated: use pp_StrFmt,-1,pp_IntCh,false instead",flvl)
             elsif tmp=1 then
-                fatal("pp_StrFmt,1 behaves as 3: use pp_StrFmt,3,pp_IntCh,false instead",flvl)
+                pp_fatal("pp_StrFmt,1 behaves as 3: use pp_StrFmt,3,pp_IntCh,false instead",flvl)
             end if
 --             -2:  as 0, but chars number-only like +1                 [DEPRECATED: use pp_IntCh,false instead]
 --             -3:  as -1, ""                                           [ "" (and pp_StrFmt,-1)]

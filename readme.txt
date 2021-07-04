@@ -48,6 +48,11 @@ Version 1.0.0
 03/03/2021: vslice() can now accept a pair of column indices, so it can now
             take an actual slice as it always should have been able to.
             (Needed/wanted for a rewrite of demo/rosetta/viewppm.exw)
+23/05/2021: Removed the pointless restriction that rid() only worked when
+            rid was specifically of type integer, which means you can now
+            do things like s[FUNC](1,2,3) - and of course we can rely on
+            call_func/proc() to crash when s[FUNC] ain't an integer/rid, 
+            so it is not about to "do weird things" as initially feared.
 
 
 Version 0.8.3

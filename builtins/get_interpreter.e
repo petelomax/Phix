@@ -172,7 +172,9 @@ global function get_interpreter(bool bQuote=false, object mb=machine_bits(), int
     sequence cpaths = split_path(res)
     string crun = cpaths[$]
     cpaths = cpaths[1..$-1]
-    cpaths = cpaths[1..find("demo",lower(cpaths))-1]
+--p2js
+--  cpaths = cpaths[1..find("demo",lower(cpaths))-1]
+    cpaths = cpaths[1..find("demo",lower(deep_copy(cpaths)))-1]
     res = join_path(cpaths,1)   -- eg/ie ../Phix/demo/pGUI/ -> ../Phix/
 
 --  sequence vset = reorderW(vsets[plat])
@@ -231,6 +233,8 @@ global procedure requires(object x, bool bPrefW=false)
 -- x: should be eg "0.8.2" for a version() requirement, or a
 --                  WINDOWS/LINUX/WEB platform() check, or
 --                  32/64 for a machine_bits() check.
+--
+-- Note there is a hand-translated version of this in p2js.js
 --
     if not vinit then initv() end if
     if string(x) then

@@ -1839,6 +1839,8 @@ end procedure -- (for Edita/CtrlQ)
             jle :justret
                 shr edx,2                       -- ebp4
                 push eax                        --[1] lineno
+                xor eax,eax
+                call :%pWithJS
                 mov [ebp4],edx                  -- (nb saved pre-pDebugN.e/show_trace())
                 mov edx,routine_id(show_trace)  -- mov edx,imm32 (sets K_ridt)
                 mov ecx,$_Ltot                  -- mov ecx,imm32 (=symtab[show_trace][S_Ltot])
@@ -1872,6 +1874,8 @@ end procedure -- (for Edita/CtrlQ)
             jle :justret
                 shr rdx,2                       -- ebp4
                 push rax                        --[1] lineno
+                xor rax,rax
+                call :%pWithJS
                 mov [ebp4],rdx                  -- (nb saved pre-pDebugN.e/show_trace())
                 mov rdx,routine_id(show_trace)  -- mov rdx,imm32 (sets K_ridt)
                 mov rcx,$_Ltot                  -- mov rcx,imm32 (=symtab[show_trace][S_Ltot])

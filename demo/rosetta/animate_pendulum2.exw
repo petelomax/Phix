@@ -65,7 +65,11 @@ end function
 function map_cb(Ihandle ih)
     atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
     IupGLMakeCurrent(canvas)
-    cdcanvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    if platform()=JS then
+        cdcanvas = cdCreateCanvas(CD_IUP, canvas)
+    else
+        cdcanvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    end if
     cdCanvasSetBackground(cdcanvas, CD_PARCHMENT)
     return IUP_DEFAULT
 end function
@@ -93,8 +97,10 @@ procedure main()
 
     IupShow(dlg)
     IupSetAttribute(canvas, "RASTERSIZE", NULL)
-    IupMainLoop()
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

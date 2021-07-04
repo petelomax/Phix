@@ -234,10 +234,9 @@ function upgradedParentPriorities(integer parent, integer newPriority)
 --   this new file (6), assuming it finds no X in file 6, must 
 --   demand a namespace if it finds >1 X in files 3,4,5.)
 --
-sequence res
-integer parentPriority
-    res = priorities[parent]
-    parentPriority = parent*2
+--p2js:
+    sequence res = deep_copy(priorities[parent])
+    integer parentPriority = parent*2
     if res[parent]!=parentPriority then ?9/0 end if
     for i=1 to parent-1 do
         -- any re-includes?
@@ -659,6 +658,8 @@ end if
                 effects = sc[S_Efct]
             end if
             symtab[currtls] = 0
+--p2js:
+            sc = deep_copy(sc)
             sc[S_il] = s5
             symtab[currtls] = sc
 
@@ -1308,8 +1309,7 @@ procedure AutoGlabel(integer opcode, string glabel, sequence filename)
 --  needs VM\pHeap.e). :%opRetf (always rqd) is also defined in VM\pStack.e.
 -- Note that there is /no/ corresponding symtab entry. 
 -- Contrast with getc()/:%opGetc which is handled via AutoAsm().
-integer fno
-    fno = find(filename,agfiles)
+    integer fno = find(filename,agfiles)
     if fno=0 then
         agfiles = append(agfiles,filename)
         agfdone = append(agfdone,-1)
@@ -1682,8 +1682,8 @@ global procedure syminit()
 -- (untried)
     symlimit += 1                                   -- [23] T_ds4
     initialConstant("-1",-1)                        -- [24]
-    initialConstant("0",0)                          -- [25]
-    initialConstant("1",1)                          -- [26]
+    initialConstant("0",0)                          -- [25] T_const0
+    initialConstant("1",1)                          -- [26] T_const1
 
 --maybe?:
 --  symlimit = addUnnamedConstant("",T_string)
@@ -2275,6 +2275,7 @@ if newEmit then
     AutoGlabel(opRepe1,     "%pRepe1",      "VM\\pRepeN.e")
     AutoGlabel(opRepe1ip,   "%pRepe1ip",    "VM\\pRepeN.e")
     AutoGlabel(opRepe1is,   "%pRepe1is",    "VM\\pRepeN.e")
+    AutoGlabel(opDeSeq,     "%pDeSeqip",    "VM\\pRepeN.e")
     AutoGlabel(opReps,      "%pReps",       "VM\\pRepsN.e")
     AutoGlabel(opMkSq,      "%pMkSq",       "VM\\pMkSqN.e")
 --  AutoGlabel(opDiv0,      "%e02atdb0",    "VM\\pDiagN.e")
@@ -2385,8 +2386,8 @@ if newEmit then
     AutoGlabel(opSetRand,   "%opSetRand",   "VM\\pRand.e")
     AutoGlabel(opRand,      "%opRand",      "VM\\pRand.e")
     AutoGlabel(opSleep,     "%opSleep",     "VM\\pSleep.e")
-    AutoGlabel(opRepeat,    "%opRepeat",    "VM\\pRepeatN.e")
-    AutoGlabel(opRepCh,     "%opRepCh",     "VM\\pRepeatN.e")
+--  AutoGlabel(opRepeat,    "%opRepeat",    "VM\\pRepeatN.e")
+--  AutoGlabel(opRepCh,     "%opRepCh",     "VM\\pRepeatN.e")
     AutoGlabel(opInstance,  "%opInstance",  "VM\\pInstance.e")
     AutoGlabel(opProfile,   "%opProfile",   "VM\\pProfile.e")
     AutoGlabel(opProfout,   "%opProfout",   "VM\\pProfile.e")
@@ -2460,8 +2461,8 @@ if newEmit then
     AutoAsm("append",           S_Func,"FOO",   "VM\\pApnd.e",      opApnd,     "%opApnd",      E_none,T_sequence)  Z_append = symlimit
     AutoAsm("prepend",          S_Func,"FOO",   "VM\\pApnd.e",      opPpnd,     "%opApnd",      E_none,T_sequence)  Z_prepend = symlimit
                                                                             -- (:%opApnd is used for both append and prepend)
-    AutoAsm("repeat",           S_Func,"FOI",   "VM\\pRepeatN.e",   opRepeat,   "%opRepeat",    E_none,T_sequence)  T_repeat = symlimit
-    AutoAsm("repeatch",         S_Func,"FII",   "VM\\pRepeatN.e",   opRepCh,    "%opRepCh",     E_none,T_string)    T_repch = symlimit      -- (209)
+--  AutoAsm("repeat",           S_Func,"FOI",   "VM\\pRepeatN.e",   opRepeat,   "%opRepeat",    E_none,T_sequence)  T_repeat = symlimit
+--  AutoAsm("repeatch",         S_Func,"FII",   "VM\\pRepeatN.e",   opRepCh,    "%opRepCh",     E_none,T_string)    T_repch = symlimit      -- (209)
     AutoAsm("get_position",     S_Func,"F",     "VM\\pfileioN.e",   opGetPos,   "%opGetPos",    E_none,T_sequence)
 
     -- the following functions return an object:
@@ -2677,6 +2678,8 @@ end if
     initialAutoEntry("task_create",             S_Func,"FIP",   "VM\\pTask.e",0,E_other)
     initialAutoEntry("task_self",               S_Func,"F",     "VM\\pTask.e",0,E_none)
     initialAutoEntry("task_status",             S_Func,"FI",    "VM\\pTask.e",0,E_none)
+--DEV (needs MARKTYPES)
+--  initialAutoEntry("timedate",                S_Type,"TO",    "timedate.e",0,E_none)
     initialAutoEntry("to_integer",              S_Func,"FSI",   "to_int.e",0,E_none,1)
     initialAutoEntry("save_bitmap",             S_Func,"FPP",   "image.e",0,E_other)
 --DEV document/test/remove:
@@ -2710,6 +2713,7 @@ end if
     initialAutoEntry("call_back",               S_Func,"FO",    "VM\\pcfunc.e",0,E_none)
     initialAutoEntry("create_thread",           S_Func,"FIPI",  "VM\\pThreadN.e",0,E_other,2)
     initialAutoEntry("define_c_var",            S_Func,"FNS",   "VM\\pcfunc.e",0,E_none)
+    initialAutoEntry("even",                    S_Func,"FN",    "pmaths.e",0,E_none)
     initialAutoEntry("exp",                     S_Func,"FN",    "pmaths.e",0,E_none)
     initialAutoEntry("float32_to_atom",         S_Func,"FP",    "VM\\pFloatN.e",0,E_none)
     initialAutoEntry("float64_to_atom",         S_Func,"FP",    "VM\\pFloatN.e",0,E_none)
@@ -2752,17 +2756,18 @@ end if
     initialAutoEntry("log2",                    S_Func,"FN",    "log10.e",0,E_none)
     initialAutoEntry("mod",                     S_Func,"FNN",   "pmaths.e",0,E_none)
     initialAutoEntry("not_bitsu",               S_Func,"FN",    "ubits.e",0,E_none)
+    initialAutoEntry("odd",                     S_Func,"FN",    "pmaths.e",0,E_none)
     initialAutoEntry("or_all",                  S_Func,"FO",    "porall.e",0,E_none)
     initialAutoEntry("or_allu",                 S_Func,"FO",    "porall.e",0,E_none)
     initialAutoEntry("or_bitsu",                S_Func,"FNN",   "ubits.e",0,E_none)
     initialAutoEntry("poke_string",             S_Func,"FNIP",  "pokestr.e",0,E_other)
     initialAutoEntry("poke_wstring",            S_Func,"FNIP",  "pokestr.e",0,E_other)
-    initialAutoEntry("product",                 S_Func,"FO",    "psum.e",0,E_none)
+    initialAutoEntry("product",                 S_Func,"FON",   "psum.e",0,E_none,1)
     initialAutoEntry("prompt_number",           S_Func,"FSP",   "get.e",0,E_other,1)
     initialAutoEntry("rnd",                     S_Func,"F",     "prnd.e",0,E_none)
     initialAutoEntry("round",                   S_Func,"FNN",   "pmaths.e",0,E_none,1)
     initialAutoEntry("sign",                    S_Func,"FN",    "pmaths.e",0,E_none)
-    initialAutoEntry("sum",                     S_Func,"FO",    "psum.e",0,E_none)
+    initialAutoEntry("sum",                     S_Func,"FON",   "psum.e",0,E_none,1)
 --  initialAutoEntry("sysexec",                 S_Func,"FP",    "syswait.ew",0,E_other)
     initialAutoEntry("system_exec",             S_Func,"FPI",   "syswait.ew",0,E_other,1)
     initialAutoEntry("system_wait",             S_Func,"FP",    "syswait.ew",0,E_other)
@@ -2806,6 +2811,7 @@ end if
     initialAutoEntry("peek_string",             S_Func,"FN",    "peekstr.e",0,E_none)
     initialAutoEntry("prompt_string",           S_Func,"FS",    "get.e",0,E_other)
     initialAutoEntry("proper",                  S_Func,"FSS",   "pcase.e",0,E_none,1)
+    initialAutoEntry("repeatch",                S_Func,"FIII",  "repeat.e",0,E_other,2)     T_repeatch = symlimit
     initialAutoEntry("shorten",                 S_Func,"FPSI",  "ptrim.e",0,E_other,1)
     initialAutoEntry("sprintf",                 S_Func,"FPO",   "VM\\pprntfN.e",0,E_none,1)
 --  initialAutoEntry("sprint",                  S_Func,"FOII",  "VM\\psprintN.e",0,E_none,1)
@@ -2844,7 +2850,8 @@ end if
 --sequence/string result:
     initialAutoEntry("hll_append",              S_Func,"FOO",   "hll_stubs.e",0,E_none)     hll_stubs[Z_append] = symlimit
     initialAutoEntry("hll_prepend",             S_Func,"FOO",   "hll_stubs.e",0,E_none)     hll_stubs[Z_prepend] = symlimit
-    initialAutoEntry("hll_repeat",              S_Func,"FOI",   "hll_stubs.e",0,E_none)     hll_stubs[T_repeat] = symlimit
+--(killed off early)
+--  initialAutoEntry("hll_repeat",              S_Func,"FOI",   "hll_stubs.e",0,E_none)     hll_stubs[T_repeat] = symlimit
     initialAutoEntry("join",                    S_Func,"FPO",   "pflatten.e",0,E_none,1)
     initialAutoEntry("join_by",                 S_Func,"FPIIOO","pflatten.e",0,E_none,3)
     initialAutoEntry("join_path",               S_Func,"FPI",   "pflatten.e",0,E_none,1)
@@ -2869,8 +2876,9 @@ end if
     initialAutoEntry("match_all",               S_Func,"FOPIII","match.e",0,E_none,2)
     initialAutoEntry("match_replace",           S_Func,"FOPOI", "matchrepl.e",0,E_none,3)
     initialAutoEntry("new",                     S_Func,"FOP",   "structs.e",0,E_other,1)        T_new = symlimit
-    initialAutoEntry("pad_head",                S_Func,"FPIO",  "pseqc.e",0,E_none,2)
-    initialAutoEntry("pad_tail",                S_Func,"FPIO",  "pseqc.e",0,E_none,2)
+    initialAutoEntry("pad",                     S_Func,"FSISI", "pseqc.e",0,E_none,2)
+    initialAutoEntry("pad_head",                S_Func,"FSII",  "pseqc.e",0,E_none,2)
+    initialAutoEntry("pad_tail",                S_Func,"FSII",  "pseqc.e",0,E_none,2)
     initialAutoEntry("peek_wstring",            S_Func,"FN",    "peekstr.e",0,E_none)
     initialAutoEntry("permute",                 S_Func,"FIP",   "permute.e",0,E_none)
     initialAutoEntry("peep_dict",               S_Func,"FII",   "dict.e",0,E_none,0)
@@ -2882,8 +2890,11 @@ end if
     initialAutoEntry("remove",                  S_Func,"FPNN",  "pseqc.e",0,E_none,2)
     initialAutoEntry("remove_all",              S_Func,"FOP",   "premoveall.e",0,E_none)
     initialAutoEntry("replace",                 S_Func,"FPONN", "pseqc.e",0,E_none,3)
+    initialAutoEntry("repeat",                  S_Func,"FOI",   "repeat.e",0,E_other)       T_repeat = symlimit
+    initialAutoEntry("replace",                 S_Func,"FPONN", "pseqc.e",0,E_none,3)
     initialAutoEntry("reverse",                 S_Func,"FPP",   "misc.e",0,E_none,1)
     initialAutoEntry("scanf",                   S_Func,"FSS",   "scanf.e",0,E_none)
+    initialAutoEntry("serialize",               S_Func,"FO",    "serialize.e",0,E_none)
     initialAutoEntry("shuffle",                 S_Func,"FP",    "shuffle.e",0,E_none)
     initialAutoEntry("sort",                    S_Func,"FPI",   "sort.e",0,E_none,1)
     initialAutoEntry("splice",                  S_Func,"FPOI",  "pseqc.e",0,E_none)
@@ -2891,8 +2902,8 @@ end if
     initialAutoEntry("split_any",               S_Func,"FPOII", "psplit.e",0,E_none,1)
     initialAutoEntry("split_by",                S_Func,"FPI",   "psplit.e",0,E_none)
     initialAutoEntry("split_path",              S_Func,"FPI",   "psplit.e",0,E_none,1)
-    initialAutoEntry("substitute",              S_Func,"FPPPI", "substitute.e",0,E_none,3)
-    initialAutoEntry("substitute_all",          S_Func,"FPPP",  "substitute.e",0,E_none)
+    initialAutoEntry("substitute",              S_Func,"FPOOI", "substitute.e",0,E_none,3)
+    initialAutoEntry("substitute_all",          S_Func,"FPOO",  "substitute.e",0,E_none)
     initialAutoEntry("tagset",                  S_Func,"FIIII", "ptagset.e",0,E_none,1)
     initialAutoEntry("tail",                    S_Func,"FPN",   "pseqc.e",0,E_none,1)
     initialAutoEntry("task_list",               S_Func,"F",     "VM\\pTask.e",0,E_none)
@@ -2922,11 +2933,13 @@ end if
     initialAutoEntry("day_of_week",         S_Func,"FIIII", "pdates.e",0,E_none,3)
     initialAutoEntry("db_record_data",      S_Func,"FI",    "database.e",0,E_none)
     initialAutoEntry("db_record_key",       S_Func,"FI",    "database.e",0,E_none)
+    initialAutoEntry("deep_copy",           S_Func,"FOII",  "repeat.e",0,E_other,1)
 if newEmit then
 --  initialAutoEntry("delete_routine",      S_Func,"FOI",   "VM\\pDeleteN.e",0,E_other)
 else
     initialAutoEntry("delete_routine",      S_Func,"FOI",   "pdelete.e",0,E_other)
 end if
+    initialAutoEntry("deserialize",         S_Func,"FOII",  "serialize.e",0,E_none,1)
     initialAutoEntry("dir",                 S_Func,"FPI",   "pdir.e",0,E_none,1)
     initialAutoEntry("fetch_field",         S_Func,"FPS",   "structs.e",0,E_none)       T_fetch_field = symlimit
     initialAutoEntry("ffree",               S_Func,"FO",    "pAlloc.e",0,E_other)       T_ffree = symlimit
@@ -3010,6 +3023,8 @@ end if
     initialAutoEntry("sq_round",            S_Func,"FOO",   "psqop.e",0,E_none,1)
     initialAutoEntry("sq_ceil",             S_Func,"FO",    "psqop.e",0,E_none)
     initialAutoEntry("sq_cmp",              S_Func,"FOO",   "psqop.e",0,E_none)
+    initialAutoEntry("sq_odd",              S_Func,"FO",    "psqop.e",0,E_none)
+    initialAutoEntry("sq_even",             S_Func,"FO",    "psqop.e",0,E_none)
     initialAutoEntry("sq_sign",             S_Func,"FO",    "psqop.e",0,E_none)
     initialAutoEntry("sq_mod",              S_Func,"FOO",   "psqop.e",0,E_none)
     initialAutoEntry("sq_trunc",            S_Func,"FO",    "psqop.e",0,E_none)
@@ -3134,6 +3149,7 @@ end if
     initialAutoEntry("pq_add",              S_Proc,"PPI",   "pqueue.e",0,E_other,1)
     initialAutoEntry("pq_destroy",          S_Proc,"PIII",  "pqueue.e",0,E_other,0)
     initialAutoEntry("progress",            S_Proc,"PSP",   "progress.e",0,E_other,1)
+    initialAutoEntry("putd",                S_Proc,"POOI",  "dict.e",0,E_other,2)
     initialAutoEntry("resume_thread",       S_Proc,"PN",    "VM\\pThreadN.e",0,E_other)
     initialAutoEntry("requires",            S_Proc,"POI",   "get_interpreter.e",0,E_other,1)
     initialAutoEntry("suspend_thread",      S_Proc,"PN",    "VM\\pThreadN.e",0,E_other)
@@ -3146,7 +3162,7 @@ end if
     initialAutoEntry("set_test_pause",      S_Proc,"PI",    "unit_test.e",0,E_other)
     initialAutoEntry("set_test_verbosity",  S_Proc,"PI",    "unit_test.e",0,E_other)
     initialAutoEntry("setd",                S_Proc,"POOI",  "dict.e",0,E_other,2)
-    Alias("putd", symlimit)
+--  Alias("putd", symlimit)
     initialAutoEntry("setd_default",        S_Proc,"POI",   "dict.e",0,E_other)
     initialAutoEntry("store_field",         S_Proc,"PPOO",  "structs.e",0,E_other)              T_store_field = symlimit
     initialAutoEntry("struct_add_field",    S_Proc,"PSIOI", "structs.e",0,E_other,2)            T_struct_field = symlimit

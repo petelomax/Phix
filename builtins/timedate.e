@@ -311,8 +311,8 @@ constant ktz = {{"ADT", "HAA"},
 --              {"BIOT","IOT"},
                 {"CST", "CT" },
                 {"MST", "MT" },
-                $},
-        {alttzkeys,alttz} = columnize(ktz)
+                $}
+constant {alttzkeys,alttz} = columnize(ktz)
 if sequence(alttzkeys) or sequence(alttz) then end if
 
 sequence validtd = repeat(0,DT_DSTZ)    -- (say it out loud!)
@@ -362,7 +362,7 @@ integer vmin, vmax
     end if
     return 0
 end type
-with trace
+--with trace
 
 global function timedelta(atom weeks=0, atom days=0, atom hours=0, atom minutes=0, atom seconds=0, atom milliseconds=0, atom microseconds=0)
 --
@@ -428,7 +428,7 @@ end function
 --         single quotes treated as one single quote, eg "'Today''''s date is 'DD/MM/YYYY.") which
 --         yields/parses eg "Today's date is 14/09/2015."
 --         Feel free to print fragments, eg "dst", "Mmmm", "tz", and post-process/stitch together.
---         At the moment ordinals (1st/2nd/3rd/4th/etc) are only supported in/for english.
+--         At the moment td_ordinals (1st/2nd/3rd/4th/etc) are only supported in/for english.
 --         Minutes and seconds <10 cannot be printed without a leading 0, but month/day/hours can.
 --         DD/dd/mm/MM will refuse to parse single digit inputs, however d/D/h/H/m/M/s will.
 --         lowercase/uppercase actually match any case input, whereas capitalised is more strict;
@@ -448,9 +448,9 @@ end function
 --          no separating space, use "sstz" instead.
 --
 
-constant true = (1=1), false = not true
+--constant true = (1=1), false = not true
 
-enum LITERAL,
+enum TD_LITERAL,
      YEAR,
      MONTH,
      DAY,
@@ -470,9 +470,9 @@ enum en,
 integer currlang = en
 
 sequence months      = repeat(0,langmax),
-         days        = repeat(0,langmax),
+         day_names   = repeat(0,langmax),
 --       shortdaylen = repeat(3,langmax),
-         ordinals    = repeat({""},langmax),
+         td_ordinals = repeat({""},langmax),
          ampm        = repeat(0,langmax)
 
 --DEV
@@ -496,33 +496,33 @@ sequence months      = repeat(0,langmax),
 months[en] = {"January","February","March","April","May","June","July",
               "August","September","October","November","December"}
 --12/1/2020:
---days[en] = {"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"}
-days[en] = {"Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"}
+--day_names[en] = {"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"}
+day_names[en] = {"Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"}
 --Google Translate:
 --months[de] = {"Januar","Februar","März","April","Mai","Juni","Juli",
 --              "August","September","Oktober","November","Dezember"}
---days[de] = {"Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"}
+--day_names[de] = {"Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"}
 --months[es] = {"Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio",
 --              "Agosto","Septiembre","Octubre","Noviembre","Diciembre"}
---days[es] = {"Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"}
+--day_names[es] = {"Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"}
 --months[fi] = {"Tammikuu","Helmikuu","Maaliskuu","Huhtikuu","Toukokuu","Kesäkuu",
 --              "Heinäkuu","Elokuu","Syyskuu","Lokakuu","Marraskuu","Joulukuu"}
---days[fi] = {"maanantai","tiistai","keskiviikko","torstai","perjantai","lauantai"}
+--day_names[fi] = {"maanantai","tiistai","keskiviikko","torstai","perjantai","lauantai"}
 --months[fr] = {"Janvier","Février","Mars","Avril","Mai","Juin","Juillet",
 --              "Août","Septembre","Octobre","Novembre","Décembre"}
---days[fr] = {"Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"}
+--day_names[fr] = {"Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"}
 --months[it] = {"Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio",
 --              "Agosto","Settembre","Ottobre","Novembre","Dicembre"}
---days[it] = {"domenica","lunedì","martedì","mercoledì","giovedì","venerdì","sabato
+--day_names[it] = {"domenica","lunedì","martedì","mercoledì","giovedì","venerdì","sabato
 --months[nl] = {"Januari","februari","maart","april","mei","juni","juli",
 --              "augustus","september","oktober","november","december"}
---days[nl] = {"zondag","maandag","dinsdag","woensdag","donderdag","vrijdag","zaterdag"}
+--day_names[nl] = {"zondag","maandag","dinsdag","woensdag","donderdag","vrijdag","zaterdag"}
 --months[pt] = {"Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho",
 --              "Agosto","Setembro","Outubro","Novembro","Dezembro"}
---days[pt] = {"domingo","segunda","terça","quarta","quinta","sexta","sábado"}
+--day_names[pt] = {"domingo","segunda","terça","quarta","quinta","sexta","sábado"}
 
-ordinals[en] = {"st","nd","rd","th"}
---ordinals[fr] = {"er","e"} --??
+td_ordinals[en] = {"st","nd","rd","th"}
+--td_ordinals[fr] = {"er","e"} --??
 
 --DEV (only non-3 are rqd)
 --shortdaylen[de] = 2
@@ -778,6 +778,8 @@ global function adjust_timedate(sequence td, atom delta)
 integer y, m, d, dsrule, tz, stz
     atom secs = timedate_to_seconds(td)
     secs += delta
+--p2js
+    td = deep_copy(td)
     td[1..7] = seconds_to_timedate(secs)
     delta = 0
     if length(td)=DT_DSTZ then
@@ -858,6 +860,8 @@ global function set_timezone(timedate td, string newtz)
 integer tz = find(newtz,timezones),
         dsrule = tzDSR[tz]
 --  if tz=0 then ?9/0 end if    -- (above line will crash anyway!)
+--p2js:
+    td = deep_copy(td)
     if length(td)>=DT_TZ then
         if td[DT_TZ]!=0 then return td end if
     else
@@ -904,6 +908,8 @@ atom hourdelta = 0
     tz = find(newtz,timezones)
 --  if tz=0 then ?9/0 end if    -- (next line will crash anyway!)
     hourdelta = tzadjs[tz]
+--p2js:
+    td = deep_copy(td)
     if length(td)>=DT_TZ then
         prevtz = td[DT_TZ]
         if prevtz!=0 then
@@ -1108,7 +1114,7 @@ integer closequote
                     end if
                     break
         case '\'':
-                    ftyp = LITERAL
+                    ftyp = TD_LITERAL
                     closequote = 0
                     for i=fmtdx+1 to length(fmt) do
                         if fmt[i]='\'' then
@@ -1128,7 +1134,7 @@ integer closequote
 --DEV ditto
                         ecxtra = "ch is "&ch
                     else
-                        ftyp = LITERAL
+                        ftyp = TD_LITERAL
                     end if
     end switch
     if ftyp=0 then
@@ -1141,7 +1147,8 @@ end function
 function to_space(string s)
 -- error messsage helper. shrink s to first space
     for i=2 to length(s) do
-        if find(s[i]," \t\r\n") then
+--      if find(s[i]," \t\r\n") then
+        if find(s[i]," \r\n"&9) then
             s = s[1..i-1]
             exit
         end if
@@ -1149,7 +1156,7 @@ function to_space(string s)
     return s
 end function
 
-function get_number(string s, integer idx, integer nsize)
+function td_get_number(string s, integer idx, integer nsize)
 -- an nsize of 1..3 means 1 or 2 or 3, above that must be exact
 integer ch, n, asize = 1, sidx = idx+1
     ch = s[sidx]
@@ -1214,7 +1221,7 @@ function parse_one(string s, string fmt, integer partial)
 -- see parse_date_string()
 integer sdx = 0,    -- chars processed in s
         fmtdx = 0,  -- chars processed in fmt
-        ftyp,       -- LITERAL..AM
+        ftyp,       -- TD_LITERAL..AM
         pftyp = 0,  -- previous value of ftyp
         fcase,      -- 0=lower, 1=upper
         fsize,      -- 1 (1 or 2)
@@ -1256,7 +1263,7 @@ integer sdx = 0,    -- chars processed in s
         if ecode!=0 then exit end if
 
         switch ftyp do
-            case LITERAL:
+            case TD_LITERAL:
                 if fsize=1 then
                     if nxtch(s,sdx,ch,0,1)=0 then
                         ecode = 1
@@ -1292,8 +1299,8 @@ integer sdx = 0,    -- chars processed in s
 --              end if
                 switch fsize do
                     case 1,2:
---                      {ecode,sdx,year} = get_number(s,sdx,fsize)
-                        {ecode,sdx,year} = get_number(s,sdx,2)
+--                      {ecode,sdx,year} = td_get_number(s,sdx,fsize)
+                        {ecode,sdx,year} = td_get_number(s,sdx,2)
 --                      if fsize=2 then
 --                      if fsize=2 
 --                      or (fsize=4 and year>=0 and year<=99) then
@@ -1320,7 +1327,7 @@ integer sdx = 0,    -- chars processed in s
 --                      end if
 --                      year -= 1900            -- to match date()
                     case 4:
-                        {ecode,sdx,year} = get_number(s,sdx,fsize)
+                        {ecode,sdx,year} = td_get_number(s,sdx,fsize)
                     default:
                         ?9/0    -- should never happen
                 end switch
@@ -1331,8 +1338,8 @@ integer sdx = 0,    -- chars processed in s
                 end if
                 switch fsize do
                     case 1,2:
---                      {ecode,sdx,month} = get_number(s,sdx,fsize)
-                        {ecode,sdx,month} = get_number(s,sdx,2)
+--                      {ecode,sdx,month} = td_get_number(s,sdx,fsize)
+                        {ecode,sdx,month} = td_get_number(s,sdx,2)
                     case 3,4:
                         {ecode,sdx,month} = get_any(s,sdx,months[currlang],fsize,fcase,"month")
                     default:
@@ -1347,8 +1354,8 @@ integer sdx = 0,    -- chars processed in s
             case DAY:
                 switch fsize do
                     case 1,2:
---                      {ecode,sdx,day} = get_number(s,sdx,fsize)
-                        {ecode,sdx,day} = get_number(s,sdx,2)
+--                      {ecode,sdx,day} = td_get_number(s,sdx,fsize)
+                        {ecode,sdx,day} = td_get_number(s,sdx,2)
                     default:
                         ?9/0    -- should never happen
                 end switch
@@ -1361,15 +1368,15 @@ integer sdx = 0,    -- chars processed in s
             case DOW:
                 switch fsize do
                     case 3,4:
-                        {ecode,sdx,dayofweek} = get_any(s,sdx,days[currlang],fsize,fcase,"day")
+                        {ecode,sdx,dayofweek} = get_any(s,sdx,day_names[currlang],fsize,fcase,"day")
                     default:
                         ?9/0    -- should never happen
                 end switch
             case DOY:
-                {ecode,sdx,dayofyear} = get_number(s,sdx,3)
+                {ecode,sdx,dayofyear} = td_get_number(s,sdx,3)
             case HOUR:
---              {ecode,sdx,hour} = get_number(s,sdx,fsize)
-                {ecode,sdx,hour} = get_number(s,sdx,2)
+--              {ecode,sdx,hour} = td_get_number(s,sdx,fsize)
+                {ecode,sdx,hour} = td_get_number(s,sdx,2)
                 if ecode=0 then
                     if hour<0 or hour>23 then
                         ecode = 11
@@ -1383,8 +1390,8 @@ integer sdx = 0,    -- chars processed in s
                     ecxtra = ""
                     return {ecode,edescs[ecode],ecxtra}
                 end if
---              {ecode,sdx,minute} = get_number(s,sdx,fsize)
-                {ecode,sdx,minute} = get_number(s,sdx,2)
+--              {ecode,sdx,minute} = td_get_number(s,sdx,fsize)
+                {ecode,sdx,minute} = td_get_number(s,sdx,2)
                 if ecode=0 then
                     if minute<0 or minute>59 then
                         ecode = 13
@@ -1396,8 +1403,8 @@ integer sdx = 0,    -- chars processed in s
                     ecode = 20
                     exit
                 end if
---              {ecode,sdx,second} = get_number(s,sdx,fsize)
-                {ecode,sdx,second} = get_number(s,sdx,2)
+--              {ecode,sdx,second} = td_get_number(s,sdx,fsize)
+                {ecode,sdx,second} = td_get_number(s,sdx,2)
                 if ecode=0 then
                     if second<0 or second>59 then
                         ecode = 14
@@ -1405,7 +1412,7 @@ integer sdx = 0,    -- chars processed in s
                     end if
                 end if
             case MSEC:
-                {ecode,sdx,msecs} = get_number(s,sdx,3)
+                {ecode,sdx,msecs} = td_get_number(s,sdx,3)
                 if ecode=0 then
                     if msecs<0 or msecs>999 then
                         ecode = 22
@@ -1454,12 +1461,14 @@ integer sdx = 0,    -- chars processed in s
                     ecxtra = ""
                     exit
                 end if
---              {ecode,sdx,{}} = get_any(s,sdx,ordinals[currlang],2,1,"ordinal suffix")
-                {ecode,sdx,{}} = get_any(s,sdx,ordinals[currlang],4,1,"ordinal suffix")
+--              {ecode,sdx,{}} = get_any(s,sdx,td_ordinals[currlang],2,1,"ordinal suffix")
+--p2js:
+--              {ecode,sdx,{}} = get_any(s,sdx,td_ordinals[currlang],4,1,"ordinal suffix")
+                {ecode,sdx} = get_any(s,sdx,td_ordinals[currlang],4,1,"ordinal suffix")
             default:
                 ?9/0    -- should never happen...
         end switch
-        if ftyp!=LITERAL then
+        if ftyp!=TD_LITERAL then
             pftyp = ftyp
         end if
     end while   
@@ -1467,7 +1476,8 @@ integer sdx = 0,    -- chars processed in s
     and not partial
     and sdx!=length(s) then
         for i=sdx+1 to length(s) do
-            if not find(s[i]," \t\r\n") then
+--          if not find(s[i]," \t\r\n") then
+            if not find(s[i]," \r\n"&9) then
                 ecxtra = "remaining text is:"&s[i..$]
                 ecode = 18
                 exit
@@ -1612,7 +1622,7 @@ global function format_timedate(timedate td, string fmt=default_format)
 --
 string res = ""
 integer fmtdx = 0,
-        ftyp,       -- LITERAL..AM
+        ftyp,       -- TD_LITERAL..AM
         fcase,      -- 0=lower/12-hour, 1=upper/24-hour, 2=capitalise
         fsize,      -- 1 (1 or 2)
                     -- 2 (2)
@@ -1660,7 +1670,7 @@ object x
         if ecode!=0 then exit end if
 
         switch ftyp do
-            case LITERAL:
+            case TD_LITERAL:
                     if fsize=1 then
                         x = ch
                     else
@@ -1749,7 +1759,7 @@ end if
 --              end if
                 switch fsize do
                     case 3,4:
-                        x = days[currlang][dayofweek]
+                        x = day_names[currlang][dayofweek]
                         if fsize=3 then
                             x = x[1..3]
                         end if
@@ -1878,11 +1888,11 @@ end if
                 if day<5 or day>20 then
                     day = remainder(day,10)
                 end if
-                l = length(ordinals[currlang])
+                l = length(td_ordinals[currlang])
                 if day=0 or day>l then
                     day = l
                 end if
-                x = ordinals[currlang][day]
+                x = td_ordinals[currlang][day]
                 if fcase then
                     x = upper(x)
                 end if
@@ -1890,7 +1900,7 @@ end if
                 ?9/0    -- should never happen
         end switch
         res &= x
-        if ftyp!=LITERAL then
+        if ftyp!=TD_LITERAL then
             pftyp = ftyp
         end if
     end while   

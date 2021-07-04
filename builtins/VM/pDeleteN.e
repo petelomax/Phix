@@ -602,9 +602,11 @@ end procedure -- (for Edita/CtrlQ)
                     jmp :!iDiag
                     int3
               @@:
-                shl rcx,8
+--              shl rcx,8
+                mov rdx,rcx
+                shl rdx,8
                 jz @f
-                    mov rcx,[rbx+rsi*4-8]   -- type/delete_routine
+--                  mov rcx,[rbx+rsi*4-8]   -- type/delete_routine
                     shr rcx,56
                     shl rcx,56
                     cmp rax,0

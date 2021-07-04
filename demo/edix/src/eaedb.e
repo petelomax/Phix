@@ -441,7 +441,8 @@ sequence r
     SelectTable(Tfiles)
     f = db_find_key({k,name}) -- key is {uniq[dir],file}
     if f<=0 then
-        DBfatal("file unrecognised",CRASH)
+?"file unrecognised eaedb.e line 444"
+--      DBfatal("file unrecognised",CRASH)
         return
     end if
     datum = db_record_data(f)   -- {uniq,size,filedate,s,i,b}

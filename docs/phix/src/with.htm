@@ -6,33 +6,79 @@
      <stripped>
       <h1 class="title">with / without</h1>
       <div id="mainSection">
-         These special statements affect the way that Phix
-         translates your program into internal form. They are not meant to
-         change the logic of your program, but they may affect the diagnostic
-         information that you get from running your program.
-         See <a href="debugging.htm">Debugging and Profiling</a> for more information.
-       <dl>
-        <dt>
-           <b>with</b>
-        </dt>
-        <dd>
-         This turns <b>on</b> one of the options: <b>profile</b>, <b>profile_time</b>, 
-         <b>trace</b>, <b>warning</b> or <b>type_check</b>.
-         Options <b>warning</b> and <b>type_check</b> are initially on, while
-         <b>profile</b>, <b>profile_time</b> and <b>trace</b> are initially off.
-        </dd>
-       </dl>
-         Any warnings that are issued will appear on your screen after your
-         program has finished execution. Warnings indicate very minor problems.
-         A warning will never stop your program from executing.
-       <dl>
-        <dt>
-           <b>without</b>
-        </dt>
-        <dd>
-         This turns <b>off</b> one of the above options.
-        </dd>
-       </dl>
+        These special statements affect the way that Phix compiles your program.
+        They are not meant to change the logic of your program, but may affect the 
+        diagnostic information that you get from running your program.
+        See <a href="debugging.htm">Debugging and Profiling</a> for more information.
+        <br>
+        <br>
+        <b>without debug</b> prevents the creation of diagnostic and tracing information.
+        Default: on, ie <b>with debug</b> only has any effect if there has already been an earlier 
+        without debug. This is typically used in the builtins/VM parts of Phix to help avoid
+        cluttering up any ex.err with excessive and often unhelpful information, especially when
+        said pertains to thoroughly tested routines that have not been altered for many years.
+        One trick I often use is to wrap a bunch of include statements in without/with debug and
+        that way obtain much easier to use ex.err reports, at least temporarily, but I would not
+        recommend that be left in for released software.
+        The without debug directive also causes any error to be reported on the calling line rather 
+        than within the routine itself, a classic example is <a href="printf.htm">printf</a>(), and 
+        trust me you would far rather be taken to the line where you have just entered an incorrect 
+        format than the line deep within builtins\VM\pprntfN.e that discovered it.
+        <br>
+        <br>
+        <b>with js</b> disables/traps the underlying copy-on-write mechanisms, triggering fatal runtime 
+        errors when running code on desktop/Phix that would fail should it be transpiled to JavaScript by 
+        <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a> and subsequently run in a browser.
+        Default: off/any, ie <b>without js</b> has no effect on desktop/Phix, unless the compiler detects
+        both with and without which is treated as an error, and without js will also stop 
+        <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a> dead in it&rsquo;s tracks. Both of
+        those errors could potentially save someone from wasting their time, for instance trying to read 
+        dictionary.txt, or attempt to use a dll/so, or something equally illegal from within a browser,
+        or maybe (as yet there are none) a component could be specifically marked as browser-only.
+        See the <a href="notp2js.htm">Incompatibilities section of pwa/p2js</a> for more information.<br>
+        Also aliased to <b>javascript</b> and <b>javascript_semantics</b>: obviously "js" is far easier to 
+        type, however a search for that on say rosettacode is likely to yield less useful results than one 
+        for the longest form, and admittedly the middle-length variety is probably no good for either, but
+        there are times in the documentation and examples where that is simply the readability king.
+        <br>
+        <br>
+        <b>with profile</b> enables execution count profiling, which is written to ex.pro when the program
+        terminates. Default: off, ie <b>without profile</b> only has any effect if there has already been 
+        an earlier with profile, and that can eliminate some noise or hotspots that might be making it 
+        difficult to see what is goiung on elsewhere. Attempts to enable profile and profile_time at any 
+        point in the same program triggers a fatal error, even when they do not overlap.
+        <br>
+        <br>
+        <b>with profile_time</b> enables execution time profiling, otherwise the same as above.
+        Default: off, ie <b>without profile_time</b> works he same way as above too.
+        <br>
+        <br>
+        <b>with trace</b> enables single-stepping through the code as it executes, or creating a ctrace.out 
+        file as it runs. Default: off, ie <b>without trace</b> only has any effect if there has already 
+        been an earlier with trace, and those can be used in pairs to select which parts of your program 
+        are available for tracing, as above eliminating regions you do not want to accidentally step into, 
+        though you can still step in/over/out using F7/8F9.
+        Note that with trace effectively does nothing by itself: it marks regions of the code that can be 
+        traced, but you also need call(s) to <a href="trace.htm">trace</a>() to actually start(/stop) it.
+        Typically I would add with trace at the top, then trace(1) somewhere lower down, when it actually
+        gets round to doing that pesky item[57] or whatever it is that is going wrong.
+        <br>
+        <br>
+        <b>without type_check</b> disables user defined type checking, which can improve performance.
+        Default: on, ie <b>with type_check</b> only has any effect if there has already been an earlier 
+        without type_check, and generally speaking that is quite a rare thing to (need or want to) do.
+        <br>
+        <br>
+        <b>without warning</b> disables selected compile-time warnings such as unused parameters.
+        Default: on, ie <b>with warning</b> only has any effect if there has already been an earlier 
+        without warning, though in this case it is quite common to use a without/with pair to remove
+        a single specific warning while letting earlier and subsequent ones be seen. Note this option
+        predates the introduction of <a href="procedures.htm#unnamedparams">un-named parameters</a>
+        and I believe there is no longer any case where you actually need to use without warning.
+        <br>
+        <br>
+        Any warnings that are issued will appear on your screen after your program has finished execution. <br>
+        Warnings indicate very minor problems, and will never stop your program from executing.
 <!--
         <b>Note</b>: Phix ships "<b>with <i>without warning</i> disabled</b>", since it is far easier to get code written for Euphoria to work
         on Phix when the compiler is allowed to issue a few helpful warnings. However, I needed without warning for "p -test", and if you feel the
@@ -41,10 +87,12 @@
         <br>
         <br>
 -->
-        There was once also a special <b>with</b> <i>number</i> option.
-        This is no longer used and can safely be deleted.
-       <br>
-       <br>
+        <br>
+        <br>
+        There was once also a special <b>with</b> <i>number</i> option, which is no longer used and can safely be deleted.<br>
+        Phix also allows <b>console/gui</b>: this is deprecated, see <a href="format.htm">format</a>.
+        <br>
+        <br>
 <!--
         You can select any combination of settings, and you can change the settings,
         but the changes must occur
@@ -63,11 +111,7 @@
         but currently displays an error for ifdef tags (with/without define).
        <br>
        <br>
-        Phix also allows <b>with/without debug</b> and (deprecated, see <a href="format.htm">format</a>) <b>console/gui</b>.
-       <br>
-       <br>
-        An
-        <b>included file</b> inherits the <b>with/without</b> settings in effect at the point where it is included.
+        An <b>included file</b> inherits the <b>with/without</b> settings in effect at the point where it is included.
         An included file can change these settings, but they will revert back to their original state at the end of the included file.
         For instance, an included file might turn off warnings for itself and (initially) for any files that it includes,
         but this will not turn off warnings for the main file.

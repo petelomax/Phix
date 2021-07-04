@@ -15,13 +15,6 @@
 //  simply crash if any of these are accidentally thrown at them, as per
 //  the usual "get it working on desktop/Phix before trying p2js" mantra.
 //
-// DOCS: Note that where z is an mpz/mpfr/mpq variable, on desktop/Phix
-//  atom(z) will return true (and integer(z) sometimes true) whereas on
-//  pwa/p2js atom(z) will always return false. Otherwise the types are
-//  "strong" since they are properly tagged on both systems, in other
-//  words the usual <a href="usingtypes.htm#can">unsafe warning</a> does 
-//  *not* apply to explicit invocations of mpz(), mpfr(), or mpq().
-//
 // MPFR$XXX - various "private" constants and routines in builtins\mpfr.js
 // pwa/p2js: Work on an mpfr.js replacement for mpfr.e is in progress.
 //           Some of the notes below may give the false impression it is
@@ -103,11 +96,30 @@ function mpir_get_versions() {
     return ["sequence","JavaScript","mpfr.js","n/a"];
 }
 
+function MPFR$replace_e(/*string*/ s) {
+// allow strings such as "1e200" or even "2.5e1" (as long as integer overall)
+//  s = lower(substitute(s,"_",""));
+    s = s.toLowerCase();
+    let /*integer*/ e = find(0X65,s);
+    if (e) {
+//      [,s,e] = ["sequence",$subss(s,1,e-1),to_number($subss(s,e+1,-1))];
+        [,s,e] = ["sequence",$subss(s,1,e-1),parseInt($subss(s,e+1,-1))];
+        let /*integer*/ d = find(0X2E,s);
+        if (d) {
+            e -= length(s)-d;
+            s = $repss(s,d,d,"");
+        }
+        s = $conCat(s, repeat(0X30,e)); // (-ve e is expected to crash)
+    }
+    return s;
+}
+
 function mpz_init(v=0) {
     // v can be integer/atom/string/mpz
     if (string(v)) {
         const us = new RegExp("_","g");
         v = v.replace(us,"");
+        v = MPFR$replace_e(v);
     } else if (mpz(v)) {
         v = v[MPZ$B];
     }
@@ -280,6 +292,12 @@ function mpz_even(op1) {
 
 function mpz_neg(/*mpz*/ rop, op) {
     rop[MPZ$B] = -op[MPZ$B];
+}
+
+function mpz_abs(/*mpz*/ rop, op) {
+    let n = op[MPZ$B];
+    if (n < 0n) { n = -n; }
+    rop[MPZ$B] = n;
 }
 
 function mpz_pow_ui(rop, base, exponent) {
@@ -926,18 +944,20 @@ function mpz_factorstring(/*sequence*/ s) {
     if (equal(s,["sequence"])) { return "0"; } // (rather than ""/crash)
     if (equal(s,["sequence",["sequence",2,0]])) { return "1"; } // (rather than "2^0")
     let /*string*/ res = "";
-    let /*boolean*/ inexact = equal(length($subse(s,-1)),1);
-    for (let i=1, i$lim=length(s)-inexact; i<=i$lim; i+=1) {
-        let [,/*atom*/ p,/*integer*/ e] = $subse(s,i);
+    for (let i=1, i$lim=length(s); i<=i$lim; i+=1) {
         if (length(res)) { res = $conCat(res, "*"); }
-        res = $conCat(res, sprintf("%d",p));
-        if (e!==1) {
-            res = $conCat(res, sprintf("^%d",["sequence",e]));
+        let /*object*/ si = $subse(s,i);
+        if (string(si)) {
+            res = $conCat(res, si);
+        } else if (equal(length(si),1)) {
+            res = $conCat(res, $subse(si,1));
+        } else {
+            let [,/*atom*/ p,/*integer*/ e] = $subse(s,i);
+            res = $conCat(res, sprintf("%d",p));
+            if (e!==1) {
+                res = $conCat(res, sprintf("^%d",["sequence",e]));
+            }
         }
-    }
-    if (inexact) {
-        if (length(res)) { res = $conCat(res, "*"); }
-        res = $conCat(res, $subse($subse(s,-1),1));
     }
     return res;
 }
@@ -962,6 +982,156 @@ function mpz_re_compose(/*mpz*/ rop, /*sequence*/ s) {
         }
         pn = mpz_free(pn);
     }
+}
+
+function mpz_pollard_rho(/*mpz_or_string*/ s, /*bool*/ bAsStrings=false) {
+//
+// Note that unlike mpz_prime_factors() the result is a list of strings, eg 
+//  mpz_pollard_rho("151740406071813") ==> {"3","13","13","54833","5458223"}
+// Update: that now only be true if bAsStrings is true, by default you will
+//  now get matching integer {prime,pow} entries when bAsStrings is false,
+//  at least for bits that pass mpz_fits_integer/atom() [I forget which].
+//
+    function merge(/*sequence*/ p, s, /*bool*/ bAsStrings) {
+    //
+    // private routine for mpz_pollard_rho()
+    // s has {prime,pow} or {string} elements, as per mpz_prime_factors().
+    // p the same unless bAsStrings is true, iwc it should be string-only.
+    // result is slightly flattened with {prime,pow} or string elements
+    //  (note I did not say {string} elements), in correct numeric order.
+    //    (both p and s are expected to be in the right order on entry)
+    //  (any strings we get are expected to have failed mpz_fits_integer)
+    // eg merge({"123"},{{2,2},{"321"}},true) ==> {"2","2","123","321"}
+    //    merge({"123"},{{2,2},{"321"}},false) ==> {{2,2},"123","321"}
+    // Note we are coping with {"321"} in "s" because mpz_prime_factors()
+    //  spits that out, but as it stands a plain "321" shd be ok too.
+    //
+        function compare_strings(/*string*/ p, s) {
+        // private routine for merge(): return true to pick p over s
+        //  (could be nested but I'm not quite confident enough yet)
+            return compare(length(p),length(s))<0 || ((equal(length(p),length(s))) && p<s);
+        }
+        let /*sequence*/ res = ["sequence"];
+        let /*atom*/ prime;
+        let /*integer*/ pwr;
+        let /*bool*/ which;
+        if (bAsStrings) {
+            // p should already be string-only (as a prior result of this routine)
+            for (let i=1, i$lim=length(s); i<=i$lim; i+=1) {
+                let /*sequence*/ si = $subse(s,i);
+                if (equal(length(si),1)) {
+                    res = append(res,$subse(si,1));
+                } else {
+                    [,prime,pwr] = si;
+                    si = sprintf("%d",prime);
+                    for (let j=1; j<=pwr; j+=1) {
+                        res = append(res,si);
+                    }
+                }
+            }
+            if (length(p)) {
+                s = res;
+                res = ["sequence"];
+                while (length(p) && length(s)) {
+                    let /*string*/ ps = $subse(p,1), 
+                                   ss = $subse(s,1);
+                    which = compare_strings(ps,ss);
+                    if (which) {
+                        res = append(res,ps);
+                        p = $subss(p,2,-1);
+                    } else {
+                        res = append(res,ss);
+                        s = $subss(s,2,-1);
+                    }
+                }
+                res = $conCat(res, p);
+                res = $conCat(res, s);
+            }
+        } else {
+            let /*object*/ p1, s1;
+            while (length(p) && length(s)) {
+                p1 = $subse(p,1);
+                s1 = $subse(s,1);
+                if (length(s1) === 1) { s1 = $subse(s1,1); }
+                if (string(p1)) {
+                    if (string(s1)) {
+                        which = compare_strings(p1,s1);
+                    } else {
+                        [,prime,pwr] = s1;
+                        which = compare_strings(p1,sprintf("%d",prime));
+                    }
+                } else if (string(s1)) {
+                    [,prime,pwr] = p1;
+                    which = compare_strings(sprintf("%d",prime),s1);
+                } else {
+                    [,prime,pwr] = s1;
+                    if ($subse(p1,1) === prime) {
+                        p1 = deep_copy(p1);
+                        p1 = $repe(p1,2,$subse(p1,2)+pwr); // (merge)
+                        s = $subss(s,2,-1);
+                        which = true;
+                    } else {
+                        which = compare($subse(p1,1),prime)<0;
+                    }
+                }
+                if (which) {
+                    res = append(res,p1);
+                    p = $subss(p,2,-1);
+                } else {
+                    res = append(res,s1);
+                    s = $subss(s,2,-1);
+                }
+            }
+            res = $conCat(res, p);
+    //      res &= s
+            for (let i=1, i$lim=length(s); i<=i$lim; i+=1) {
+                s1 = $subse(s,i);
+                if (length(s1) === 1) { s1 = $subse(s1,1); }
+                res = append(res,s1);
+            }
+        }
+        return res;
+    }
+
+    let /*mpz*/ n = ((string(s)) ? mpz_init(s) : mpz_init_set(s));
+    let /*sequence*/ res = ["sequence"];
+    while (mpz_cmp_si(n,100000000) > 0) {
+        if (mpz_prime(n)) {
+            if (!bAsStrings && mpz_fits_atom(n)) {
+                res = append(res,["sequence",mpz_get_atom(n),1]);
+            } else {
+                res = append(res,mpz_get_str(n));
+            }
+            mpz_set_si(n,1);
+            break;
+        }
+        let /*mpz*/ x = mpz_init(2), 
+                    y = mpz_init(2), 
+                    f = mpz_init(1); // factor
+        let /*integer*/ size = 2;
+        while (mpz_cmp_si(f,1) === 0) {
+            for (let count=1; count<=size; count+=1) {
+                mpz_mul(x,x,x);
+                mpz_add_si(x,x,1);
+                mpz_mod(x,x,n);
+                mpz_sub(f,x,y);
+                mpz_abs(f,f);
+                mpz_gcd(f,f,n);
+                if (mpz_cmp_si(f,1) !== 0) { break; }
+            }
+            size *= 2;
+            mpz_set(y,x);
+        }
+        if (mpz_cmp(f,n) === 0) { break; }
+        res = merge(res,mpz_prime_factors(f,1230),bAsStrings);
+        // aside: 1230 makes sense below, as (only check) all factors
+        //        less than 10_000, but not entirely sure about prev.
+        mpz_fdiv_q(n,n,f); // n := floor(n/f)
+    }
+    if (mpz_cmp_si(n,1) > 0) {
+        res = merge(res,mpz_prime_factors(n,1230),bAsStrings);
+    }
+    return res;
 }
 
 function mpz_min(/*sequence*/ s, /*boolean*/ return_index=false) {
@@ -1228,7 +1398,9 @@ function mpq_set_str(/*mpq*/ tgt, /*string*/ s, /*integer*/ base=0) {
     }
     let res = ["mpq",BigInt(s),BigInt(ds)];
 */
-    let res = ["mpq",BigInt(MPFR$PREFIX(s,base)),dn];
+//  let res = ["mpq",BigInt(MPFR$PREFIX(s,base)),dn];
+    tgt[MPQ$N] = BigInt(MPFR$PREFIX(s,base));
+    tgt[MPQ$D] = dn;
     mpq_canonicalize(tgt);
 }
 
@@ -1402,8 +1574,8 @@ function mpq_div(/*mpq*/ rquotient, dividend, divisor) {
 
 function mpq_div_2exp(/*mpq*/ rop, op, /*integer*/ bits) {
 // set rop to op / 2^bits
-    rop[MPQ$N] = op[MPQ$N] >> BigInt(bits);
-    rop[MPQ$D] = op[MPQ$D];
+    rop[MPQ$N] = op[MPQ$N];
+    rop[MPQ$D] = op[MPQ$D] << BigInt(bits);
     mpq_canonicalize(rop);
 }
 
@@ -1444,6 +1616,15 @@ end procedure
 let MPFR$default_precision = -17,
     MPFR$default_rounding = MPFR_RNDN;
 
+function MPFR$precision_in_binary(/*integer*/ precision) {
+    if (precision < 0n) {
+        let /*mpz*/ nines = mpz_init(repeat(0X39,-precision));
+        precision = mpz_sizeinbase(nines,2);
+        nines = mpz_free(nines);
+    }
+    return precision;
+}
+
 function MPFR$precision_in_dp(/*integer*/ precision) {
 //<<<
 // (internal) convert a (-ve) precision specified in decimal places to binary bits
@@ -1470,19 +1651,15 @@ function MPFR$precision_in_dp(/*integer*/ precision) {
 function mpfr_set_default_precision(/*integer*/ precision) {
     // set the default precision in binary bits or (if -ve) decimal places. 
 //  if (precision >= 0) { precision = MPFR$precision_in_dp(precision); } else { precision -= 2; }
-    MPFR$default_precision = MPFR$precision_in_dp(precision);
-}
-
-function MPFR$precision_in_binary(/*integer*/ precision) {
-    let /*mpz*/ nines = mpz_init(repeat(0X39,precision));
-    precision = mpz_sizeinbase(nines,2);
-    nines = mpz_free(nines);
-    return precision;
+//  MPFR$default_precision = MPFR$precision_in_dp(precision);
+    MPFR$default_precision = MPFR$precision_in_binary(precision);
 }
 
 function mpfr_get_default_precision(/*boolean*/ decimal=false) {
-    let precision = -MPFR$default_precision;
-    if (!decimal) { precision = MPFR$precision_in_binary(precision); }
+//  let precision = -MPFR$default_precision;
+    let precision = MPFR$default_precision;
+//  if (!decimal) { precision = MPFR$precision_in_binary(precision); }
+    if (decimal) { precision = MPFR$precision_in_dp(precision); }
     return precision;
 }
 
@@ -1516,7 +1693,8 @@ function mpfr_set_precision(/*mpfr*/ x, /*integer*/ precision) {
 // precision is the number of bits required for the mantissa
 //
 //  if x=NULL then ?9/0 end if
-    if (precision > 0) { precision = MPFR$precision_in_dp(precision); }
+//  if (precision > 0) { precision = MPFR$precision_in_dp(precision); }
+    precision = MPFR$precision_in_binary(precision);
     x[MPFR$N] = 0n;
     x[MPFR$D] = 1n;
     x[MPFR$P] = precision;
@@ -1528,7 +1706,7 @@ function mpfr_set(/*mpfr*/ tgt, src, rounding=MPFR$default_rounding) {
     tgt[MPFR$D] = src[MPFR$D];
     tgt[MPFR$E] = src[MPFR$E];
     tgt[MPFR$R] = rounding;
-    tgt[MPFR$P] = MPFR$default_precision;
+//  tgt[MPFR$P] = MPFR$default_precision;
 }
 
 function mpfr_set_si(/*mpfr*/ tgt, /*integer*/ i, rounding=MPFR$default_rounding) {
@@ -1538,7 +1716,7 @@ function mpfr_set_si(/*mpfr*/ tgt, /*integer*/ i, rounding=MPFR$default_rounding
     tgt[MPFR$D] = 1n;
     tgt[MPFR$E] = 0;
     tgt[MPFR$R] = rounding;
-    tgt[MPFR$P] = MPFR$default_precision;
+//  tgt[MPFR$P] = MPFR$default_precision;
 }
 
 function mpfr_set_str(/*mpfr*/ tgt, /*string*/ s, /*integer*/ rounding=MPFR$default_rounding) {
@@ -1573,7 +1751,7 @@ function mpfr_set_str(/*mpfr*/ tgt, /*string*/ s, /*integer*/ rounding=MPFR$defa
     tgt[MPFR$D] = d;
     tgt[MPFR$E] = 0;
     tgt[MPFR$R] = rounding;
-    tgt[MPFR$P] = MPFR$default_precision;
+//  tgt[MPFR$P] = MPFR$default_precision;
 }
 
 function mpfr_set_d(/*mpfr*/ tgt, /*atom*/ a, /*integer*/ rounding=MPFR$default_rounding) {
@@ -1586,7 +1764,8 @@ function mpfr_init(/*object*/ v=0, /*integer*/ precision=MPFR$default_precision,
 // example: mpfr x = mpfr_init()
 // Invoke x = mpfr_free(x) when the variable is no longer needed, see below.
 //
-    precision = MPFR$precision_in_dp(precision);
+//  precision = MPFR$precision_in_dp(precision);
+    precision = MPFR$precision_in_binary(precision);
     let res = ["mpfr",0n,1n,0,rounding,precision];
     if (integer(v)) {
         // (aside: note, as per docs, the default here /is/ 0 rather than the nan of the raw C api)
@@ -1613,6 +1792,7 @@ function mpfr_inits(/*integer*/ n, /*object*/ v=0, precision=MPFR$default_precis
 // Invoke {x,y,z} = mpfr_free({x,y,z}) when the variables are no longer needed, see below (will occur automatically).
 //
     let /*sequence*/ res = repeat(0,n);
+    precision = MPFR$precision_in_binary(precision);    // (may as well convert it just the once)
     if (sequence(v) && !string(v)) {
         if (length(v)!=n) { crash("?9/0"); }
         for (let i = 1; i <= n; i += 1) {
@@ -1647,6 +1827,12 @@ function mpfr_set_z(/*mpfr*/ tgt, /*mpz*/ z, /*integer*/ rounding=MPFR$default_r
     tgt[MPFR$R] = rounding;
 }
 
+function mpfr_init_set_q(/*mpq*/ q, /*integer*/ rounding=MPFR$default_rounding) {
+    let /*mpfr*/ res = mpfr_init();
+    mpfr_set_q(res,q,rounding);
+    return res;
+}
+
 function mpfr_init_set_z(/*mpz*/ z, /*integer*/ rounding=MPFR$default_rounding) {
     let /*mpfr*/ res = mpfr_init();
     mpfr_set_z(res,z,rounding);
@@ -1659,6 +1845,7 @@ function MPFR$normalise(/*mpfr*/ rop, /*BigInt*/ n,d) {
     // DEV/SUG what I'd really like here is to set d to 1n, honouring MPFR$P/R, and adjust MPFR$E...
     //      (also, while d is a power of 10, just increase MPFR$E)
     //      (as is, this is just a copy of mpq_canonicalize)
+/*
     if (d !== 1n) {
         let g = MPFR$GCD(n,d);
         if (g > 1n) {
@@ -1668,6 +1855,41 @@ function MPFR$normalise(/*mpfr*/ rop, /*BigInt*/ n,d) {
         if (d < 0n) {
             n = -n;
             d = -d;
+        }
+    }
+*/
+//DEV might be worth cacheing/making this a function...
+    let precision = rop[MPFR$P]
+    if (precision <= 0) { crash("uh?"); }
+//DEV MPFR$P should always be +ve (/binary)
+//  let limn = precision<0 ? 10n**BigInt(-precision) : 1n << BigInt(precision);
+    let limn = 1n << BigInt(precision);
+
+    while (true) {
+        if (d !== 1n) {
+            let g = MPFR$GCD(n,d);
+            if (g > 1n) {
+                n = n/g;
+                d = d/g;
+            }
+            if (d < 0n) {
+                n = -n;
+                d = -d;
+            }
+        }
+
+        let un = n;
+        if (un < 0n) { un = -un; }
+        if (un === 0n) { d = 1n; }
+        if (d <= limn && un <= limn) { break; }
+
+        if (d !== 1n) {
+            n >>= 1n;
+            d >>= 1n;
+        } else {
+//DEV MPFR$E is not properly used, and there should probably be a {d/=10 -1} for un<=limn
+            n /= 10n
+            rop[MPFR$E] += 1;
         }
     }
     rop[MPFR$N] = n;
@@ -1882,11 +2104,15 @@ function mpfr_get_d(/*mpfr*/ op, /*integer*/ rounding=MPFR$default_rounding) {
 function mpfr_sqrt(/*mpfr*/ rop, op, /*integer*/ rounding=MPFR$default_rounding) {
 // rop:=sqrt(op)
 //  mpfr_rootn_ui(rop,op,2,rounding);
-    // The idea here is to calculate some BigInt n such that n/10^precision is the right answer...
+    // The idea here is to calculate some BigInt n such that n/(10^precision) is the right answer...
     // I suspect I may be mixing up the notion of precision with decimal places, quite wrongly...
     // If by any chance this seems to work, I'll just add a note in the docs [DEV]:
 //Note: pwa/p2js assumes precision means the number of decimal places after the decimal point.
-    let precision = -rop[MPFR$P],
+//      The mechanisms for precision and rounding are quite different in gmp and pwa/p2js, so
+//      you should expect a few little glitches, especially in the first few releases.
+//Alt, possibly: https://rosettacode.org/wiki/Square_root_by_hand#Phix
+//  let precision = -rop[MPFR$P],
+    let precision = -MPFR$precision_in_dp(rop[MPFR$P]),
         p10 = 10n**BigInt(precision),
         p102 = 10n**BigInt(precision*2),
         n = op[MPFR$N],
@@ -1896,6 +2122,39 @@ function mpfr_sqrt(/*mpfr*/ rop, op, /*integer*/ rounding=MPFR$default_rounding)
     MPFR$normalise(rop,n,p10);
 }
 
+function mpfr_const_pi(/*mpfr*/ x, /*integer*/ rounding=MPFR$default_rounding) {
+// pi is the sum of (1/16**k)(4/(8k+1)-2/(8k+4)-1/(8k+5)-1/(8k+6)) for k=0 to the no of hex digits required.
+    let /*integer*/ precision = mpfr_get_precision(x), k = 0;
+    let /*mpq*/ [,final_pi,pi_term] = mpq_inits(2);
+    while (precision>=0) {
+        mpq_set_si(pi_term,4,8*k+1);
+        mpq_add_si(pi_term,pi_term,-2,8*k+4);
+        mpq_add_si(pi_term,pi_term,-1,8*k+5);
+        mpq_add_si(pi_term,pi_term,-1,8*k+6);
+        mpq_div_2exp(pi_term,pi_term,4*k);
+        mpq_add(final_pi,final_pi,pi_term);
+        precision -= 4; // (one digit/nibble)
+        k += 1;
+    }
+    mpfr_set_q(x,final_pi,rounding);
+}
+// original (w/o rounding):
+//  procedure MPFR_const_pi(mpfr x)
+//  -- pi is the sum of (1/16**k)(4/(8k+1)-2/(8k+4)-1/(8k+5)-1/(8k+6)) for k=0 to the no of hex digits required.
+//      integer precision = mpfr_get_precision(x), k = 0
+//      mpq {final_pi,pi_term} = mpq_inits(2)
+//      while precision>=0 do
+//          mpq_set_si(pi_term, 4, 8*k+1)
+//          mpq_add_si(pi_term, pi_term, -2, 8*k+4)
+//          mpq_add_si(pi_term, pi_term, -1, 8*k+5)
+//          mpq_add_si(pi_term, pi_term, -1, 8*k+6)
+//          mpq_div_2exp(pi_term, pi_term, 4*k)
+//          mpq_add(final_pi,final_pi,pi_term)
+//          precision -= 4  -- (one digit/nibble)
+//          k += 1
+//      end while
+//      mpfr_set_q(x,final_pi)
+//  end procedure
 
 //mpfr_get_str(
 //sequence res =     mpfr_get_str(mpfr x, integer base=10, n=0, rounding=default_rounding) --  

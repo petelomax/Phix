@@ -4,7 +4,7 @@
    <these>
     <get>
      <stripped>
-      <h1 class="title">rand</h1>
+      <h1 class="title">rand / get|set_rand / rnd</h1>
       <div id="mainSection">
        <table>
         <col style="width: 5%"/>
@@ -14,6 +14,18 @@
          </td>
          <td>
           <a href="atom.htm">atom</a> res = rand(<a href="atom.htm">atom</a> range)
+          <br>
+          <i>-- or --</i>
+          <br>
+          <a href="atom.htm">atom</a> seed = get_rand()
+          <br>
+          <i>-- or --</i>
+          <br>
+          set_rand(<a href="atom.htm">atom</a> seed)
+          <br>
+          <i>-- or --</i>
+          <br>
+          <a href="atom.htm">atom</a> res = rnd()
          </td>
         </tr>
         <tr>
@@ -21,12 +33,10 @@
           <b>Description:</b>
          </td>
          <td>
-            Return a random integer from 1 to range, where range may be from 1 to the largest <a href="machine_bits.htm">machine_word</a>()-sized 
-            value, ie #FFFFFFFF on 32 bit and #FFFFFFFFFFFFFFFF on 64 bit.
-            <br>
-            <br>
-            Note that you can specify -1 to achieve that, whereas a value of 0 in range triggers a fatal error, and as usual to store >31/63 bit
-            integers, you (may) need to use atom variables.
+            rand() returns a random integer from 1 to range inclusive.<br>
+            get_rand() obtains the current random number generator seed.<br>
+            set_rand() sets the current random number generator seed.<br>
+            rnd() returns a random floating point number in the range 0.0 to 1.0 inclusive.
          </td>
         </tr>
         <tr>
@@ -34,19 +44,14 @@
           <b>Comments:</b>
          </td>
          <td>
-            This function may be applied to an <a href="atom.htm">atom</a> or sq_rand() to all elements
+            These functions may be applied to an <a href="atom.htm">atom</a> or sq_rand() to all elements
             of a <a href="sequence.htm">sequence</a>. The rules for <a href="seqops.htm">sequence operations</a> apply.
             <br>
             <br>
-            In order to get reproducible results from this function, you should
-            call <a href="set_rand.htm">set_rand</a>() with a reproducible value prior to calling this.
-            <br>
-            <br>
-            You should note that the implementation is trivial (see builtins\VM\pRand.e) 
-            and you should not assume that the results will be perfectly distributed or 
-            cryptographically secure. Many other random number generators can be found 
-            in the RDS Eu archive, let me know of any that you think should be included 
-            in the standard distribution.
+            The range parameter may be from 1 to the largest 
+            <a href="machine_bits.htm">machine_word</a>()-sized  value, ie #FFFFFFFF on 32 bit and #FFFFFFFFFFFFFFFF on 64 bit.<br>
+            Note that you can specify -1 to achieve that, whereas a value of 0 in range triggers a fatal error, 
+            and as usual to store &gt;31/63 bit integers, you (may) need to use atom variables.
             <br>
             <br>
             In stark contrast to the usual way arguments are handled, all negative integers in the range parameter are treated as unsigned. 
@@ -55,8 +60,35 @@
             <br>
             <br>
             Also note that any fractional part of range is completely ignored.
+            <br>
+            <br>
+            Use set_rand() to get a repeatable series of random numbers on subsequent calls to rand()/rnd().
+            <br>
+            <br>
+            Normally the numbers returned by the rand() function are totally unpredictable, and will be different each time you run your
+            program. Sometimes however you may wish to be given the same series of numbers, for instance when debugging a program.
+            <br>
+            <br>
+            Sometimes, a program only crashes every 10<small><sup>th</sup></small> or 20<small><sup>th</sup></small> time it is run.<br>
+            A suitably placed "atom save = get_rand()" can make it much easier to replicate and debug the problem by retrieving such 
+            a saved seed from the ex.err file.
+            <br>
+            <br>
+            Fairly obviously, <a href="rand.htm">set_rand</a>(get_rand()) is not going to achieve anything, then again it is not going 
+            to hurt anyone either.
+            <br>
+            <br>
+            You should note that the implementation is trivial and you should not assume that the results will be perfectly distributed or 
+            cryptographically secure. Many other random number generators can be found in (the Euphoria archive or) <a id="ext217" 
+            style="color:#9B5565" href="javascript:ExternalLink('ext217','http://phix.x10.mx/pmwiki/pmwiki.php');">PCAN</a>, let me know 
+            of any that you think should be included in the standard distribution.
+            <br>
+            <br>
+            Note that if more that one thread invokes the rand() function, the results are likely to be unpredictable whether or not the
+            set_rand() function has been called.
          </td>
         </tr>
+<!--
         <tr>
          <td>
           <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
@@ -65,18 +97,39 @@
             Supported.
          </td>
         </tr>
+-->
         <tr>
          <td>
           <b>Example:</b>
          </td>
          <td>
 <!--eucode>
-s = rand(10)
--- s might be any number between 1 and 10 inclusive.
+?rand(10)       -- any number between 1 and 10 inclusive.
+?rnd()          -- any number bwtween 0.0 and 1.0 inclusive.
+set_rand(1001)
+?rnd()          -- 0.4817850515
+?rand(10)       -- 4
+?get_rand()     -- 914554926
+set_rand(914554926)
+?rand(10)       -- 9
+?rand(10)       -- 1
+set_rand(914554926)
+?rand(10)       -- 9
+?rand(10)       -- 1
 </eucode-->
 <pre>
-<font color="#000000">s</font><font color="#0000FF"> =</font><font color="#7060A8"> rand</font><font color="#0000FF">(</font><font color="#000000">10</font><font color="#0000FF">)
-</font><font color="#000080"><i>-- s might be any number between 1 and 10 inclusive.</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">rand</font><font color="#0000FF">(</font><font color="#000000">10</font><font color="#0000FF">)      </font><font color="#000080"><i> -- any number between 1 and 10 inclusive.</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">rnd</font><font color="#0000FF">()         </font><font color="#000080"><i> -- any number bwtween 0.0 and 1.0 inclusive.</i></font>
+<font color="#7060A8">set_rand</font><font color="#0000FF">(</font><font color="#000000">1001</font><font color="#0000FF">)
+?</font><font color="#5E005E">rnd</font><font color="#0000FF">()         </font><font color="#000080"><i> -- 0.4817850515</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">rand</font><font color="#0000FF">(</font><font color="#000000">10</font><font color="#0000FF">)      </font><font color="#000080"><i> -- 4</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">get_rand</font><font color="#0000FF">()    </font><font color="#000080"><i> -- 914554926</i></font>
+<font color="#7060A8">set_rand</font><font color="#0000FF">(</font><font color="#000000">914554926</font><font color="#0000FF">)
+?</font><font color="#7060A8">rand</font><font color="#0000FF">(</font><font color="#000000">10</font><font color="#0000FF">)      </font><font color="#000080"><i> -- 9</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">rand</font><font color="#0000FF">(</font><font color="#000000">10</font><font color="#0000FF">)      </font><font color="#000080"><i> -- 1</i></font>
+<font color="#7060A8">set_rand</font><font color="#0000FF">(</font><font color="#000000">914554926</font><font color="#0000FF">)
+?</font><font color="#7060A8">rand</font><font color="#0000FF">(</font><font color="#000000">10</font><font color="#0000FF">)      </font><font color="#000080"><i> -- 9</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">rand</font><font color="#0000FF">(</font><font color="#000000">10</font><font color="#0000FF">)      </font><font color="#000080"><i> -- 1</i></font>
 </pre>
          </td>
         </tr>
@@ -85,15 +138,8 @@ s = rand(10)
           <b>Implementation:</b>
          </td>
          <td>
-            See :%opRand in builtins\VM\pRand.e (an autoinclude) for details of the actual implementation.
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <b>See Also:</b>
-         </td>
-         <td>
-          <a href="set_rand.htm">set_rand</a>
+            rand(), set_rand(): see :%opRand, :%opSetRand in builtins\VM\pRand.e (an autoinclude).<br>
+            get_rand(), rnd(): see builtins\prnd.e (an autoinclude).
          </td>
         </tr>
        </table>

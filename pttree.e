@@ -1249,6 +1249,8 @@ global constant T_Icallback     = 5572  tt_stringF("Icallback",T_Icallback)
 global constant T_Icallbacki    = 5580  tt_stringF("Icallbacki",T_Icallbacki)
 global constant T_until         = 5604  tt_stringF("until",T_until)
 global constant T_goto          = 5620  tt_stringF("goto",T_goto)
+global constant T_javascript    = 5656  tt_stringF("javascript",T_javascript)
+global constant T_js_semantics  = 5700  tt_stringF("javascript_semantics",T_js_semantics)
 
 --          elsif ttidx=T_indirect_includes
 --             or ttidx=T_inline then

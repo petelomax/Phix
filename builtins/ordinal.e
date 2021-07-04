@@ -61,12 +61,15 @@ function hundred(integer n)
 end function
  
 function thousand(integer n, string withand)
+    -- (aside: p2js.exw/insert_dollars() 
+    --  must not hundred -> $hundred this:)
+    constant sphun = " hundred"
     if n<100 then
         return withand & hundred(n)
     elsif mod(n,100)=0 then
-        return withand & twenty(floor(n/100))&" hundred"
+        return withand & twenty(floor(n/100)) & sphun
     end if
-    return twenty(floor(n/100)) & " hundred and " & hundred(mod(n,100))
+    return twenty(floor(n/100)) & sphun & " and " & hundred(mod(n,100))
 end function
  
 function triplet(atom n)
@@ -121,11 +124,12 @@ global function ordinal(atom n, bool bJustSpell=false)
     if not oinit then inito() end if
     string s = spell(n)
     if not bJustSpell then -- default: "one" => "first", etc
-        integer i
-        for i=length(s) to 1 by -1 do
+        integer i=length(s)
+        while i do
             integer ch = s[i]
             if ch=' ' or ch='-' then exit end if
-        end for
+            i -= 1
+        end while
         integer k = find(s[i+1..$],irregs)
         if k then
             s = s[1..i]&ordinals[k]

@@ -208,6 +208,7 @@ sequence printstack -- each element contains 3 items:
                     --  text    - the formatted value
 
 procedure addtostack(sequence idii, integer idxr, string name, string text)
+    idii = deep_copy(idii)
     idii[$] = idxr
 --  if idii={11} then ?9/0 end if
     printstack = append(printstack,{idii,name,text})
@@ -398,7 +399,8 @@ integer newprst,                -- Scratch/innner version of prst.
             dotdot = 1
         end if
         for i=1 to length(o) do -- (nb not lo)
-            {newprst,this} = cdi(namedx,this,newprst,i,o[i],idii&i)
+--          {newprst,this} = cdi(namedx,this,newprst,i,o[i],idii&i)
+            {newprst,this} = cdi(namedx,this,newprst,i,o[i],deep_copy(idii)&i)
         end for
         if newprst>1
         or (length(idii) and
@@ -420,7 +422,8 @@ integer newprst,                -- Scratch/innner version of prst.
                 if dotdot then
                     this &= ".."
                 end if
-                addtostack(idii&newprst,newprst,name,this)
+--              addtostack(idii&newprst,newprst,name,this)
+                addtostack(deep_copy(idii)&newprst,newprst,name,this)
             end if
             return {prdx+1,""}
         end if
@@ -466,6 +469,7 @@ integer newprst,                -- Scratch/innner version of prst.
             name = sprintf("%s[%d]",{name,prdx})
         end if
         newprst = 1
+        idii = deep_copy(idii)
         idii &= 1
         lo = length(o)
         while lo-newprst+length(name)+13>MAXLINELEN do
@@ -501,17 +505,35 @@ string s
     if OLDSTYLE then
         printf(fn,"    %s = %s\n",{name,ppExf(o,{pp_Indent,length(name)+7})})
     else
-        printstack = {}
+--      printstack = {}
+        printstack = repeat(0,0)
 --4/2/21:
 cdi_varname = name
         {prst,s} = cdi(name,"",1,-1,o,{})
         if length(s) then
             addtostack({prst},prst,name,s)
         end if
+--/* ah... it must be local!
+--DEV erm...
+        printstack = deep_copy(printstack)
+if length(printstack)>1 then
+sequence dbg = repeat("pDiagN.e",1)
+dbg = sort(dbg)
         printstack = sort(printstack)
+end if
         for i=1 to length(printstack) do
             printf(fn,"    %s = %s\n",printstack[i][2..3])
         end for
+--*/
+        if length(printstack) then
+            sequence l_printstack = deep_copy(printstack)
+--29/6/21:
+--          l_printstack = deep_copy(l_printstack)
+            l_printstack = sort(l_printstack)
+            for i=1 to length(l_printstack) do
+                printf(fn,"    %s = %s\n",l_printstack[i][2..3])
+            end for
+        end if
     end if
 end procedure
 
@@ -604,459 +626,6 @@ without type_check  -- NB. This code is just too low-level.
 --      ern is 3186
 
 constant swod = 0 -- 1=show without debug routines and vars
-
---
--- *NB* These must be kept in very strict order, never delete or insert entries.
---
-constant msgs =
-{
- "type check failure, %s is %s\n",                              -- e01tcf
-    -- As called from opTchk, when var-id is known (idx in ecx).
-    -- See also e110tce, called when var_id not known (addr in ecx).
-    -- Note: s[i+1] gives a type check failure with a ???[S_name]=0
-    --  if i is #3FFFFFFF, as unnamed temporary index sums are given 
-    --  an integer type (for performance reasons). Obviously that is
-    --  less than ideal and ought to be fixed one day. [DEV]
- "attempt to divide by 0\n",                                    -- e02atdb0
- "true/false condition must be an ATOM\n",                      -- e03tfcmbaa
-    -- Usually only happens on "if x then" where x is not 
-    -- a relational expression (eg a=b) but is either a 
-    -- single variable or a function result. (unlike RDS)
-    -- see also e14soa. Note this message may not occur
-    -- on subscripted items when a program is compiled, eg
-    -- if x is {1,2,"fred",4} then "if x[3] then" is just 
-    -- treated as true (not zero), though you should get
-    -- an error when the same code is interpreted. This is
-    -- a deliberate optimisation.
---DEV maybe we shouldn't inline unless it's a sequence of integer?
- "attempt to subscript an atom\n",                              -- e04atsaa
- "subscript is not an atom\n",                                  -- e05sinaa
- "index %d out of bounds, assigning to sequence length %d\n",   -- e06ioob
- "slice start is less than 1 (%d)\n",                           -- e07ssilt1
-    -- Note that the value shown is that after adjustment 
-    -- for negative indexes, eg if length(x) is 10, then
-    -- x[-11..10] will complain ssilt1 (0) as -11 maps to 0.
-    -- see e10sspeos. In fact e07ssilt1 only ocurs for 0. [Erm? DEV test that]
-    -- Obviously if the slice start is a variable, rather
-    -- than an expression, the "true" value can be found
-    -- elsewhere in the ex.err file.
- "slice end is not an integer\n",                               -- e08seinai
- "slice length is negative [%d..%d]\n",                         -- e09slin
-    -- values shown are as adjusted for negative indexes, [DEV?]
-    --  eg if length(s)=4, then s[-1..-3] shows as [4..2]
-    -- see also comments against e07ssilt1.
- "slice starts past end of sequence (%d > %d)\n",               -- e10sspeos
-    -- or slice start(%d) less than negative length(%d), see below
- "slice ends past end of sequence (%d > %d)\n",                 -- e11sepeos
-    -- or slice end(%d) less than negative length(%d), see below
- "program aborted\n",                                           -- e12pa
-    -- Operator has typed '!' in the trace() window.
- "attempt to exit a function without returning a value\n",      -- e13ateafworav
-    -- For an example of why this cannot/should not be trapped 
-    -- as a compile-time error, see isChecked() in arwen.ew.
- "sequence op (%s) attempted (use sq_%s?)\n",                   -- e14soa
-    -- Phix does not support implicit/infix sequence ops;
-    -- you must use explicit function-style calls, ie/eg
-    -- replace "{1,2}+3" with "sq_add({1,2},3)" to get {4,5}.
-    --  (Acutally, in the name of compatibility with legacy code,
-    --   it will replace some of the most blatently obvious cases,
-    --   see sqopWarn in p.exw/pmain.e)
-    -- Note that name="Pete" yields 1 or 0 (True/False) on Phix,
-    -- instead of eg {0,1,0,1}, "sequence lengths not the same",
-    -- or the infamous "true/false condition must be an ATOM".
-    -- (the latter can still happen, just nowhere near as often)
-    -- Forcing "+" to be replaced with "sq_add" is better, IMNSHO, than
-    -- forcing "=" to be replaced with "equal", as happens with RDS Eu.
-    -- (nb some legacy code may need "=" to be replaced with "sq_eq")
-    -- Also the compile-time errors "type error (use sq_add?)" et al
-    -- catch a significant number of cases before it gets to this.
-    -- Lastly, there is no sense, for example, in changing the infix
-    -- relational ops (<,<=,=,!=,>=,>) to always return a boolean but
-    -- still allowing maths ops (+,-,*,/) to do sequence ops. This 
-    -- would spanner all legacy code even more, for example the old
-    -- upper/lower would work fine on chars but leave all sequences/
-    -- strings completely unchanged. It is far more helpful to sound
-    -- this alarm than silently go wrong.
- "unrecognised c_func return type\n",                           -- e15ucfrt
-    -- Note that C_FLOAT, E_INTEGER, E_ATOM, and E_OBJECT have not
-    --  been attempted/tested and hence report this error.
-    -- (for the latter 3 I require a suitable RDS-Eu-compiled DLL)  --DEV
-    -- BTW: E_INTEGER, E_ATOM, E_SEQUENCE, and E_OBJECT are only
-    --  used for RDS-Eu-compiled DLLs, new values (P_XXX?) will
-    --  have to be devised for Phix-compiled DLLs, if/when that
-    --  becomes possible.
- "call_backs cannot have optional parameters\n",                -- e16cbchop
-    -- There is no way for Phix to determine how many parameters
-    --  some C/asm/other language has pushed onto the stack, shy 
-    --  of entire program dissassembly/analysis that is, and not
-    --  that I have ever seen a callback with anything other than
-    --  a fixed number of parameters (and if I ever did, then my
-    --  answer would be a separate "call_back_var_args" routine).
-    -- If you want optional/defaulted parameters for the benefit
-    --  of other Phix code, then you may need a "thin wrapper":
-    --  function varfunc(a=?, b=?,...)
-    --      ....
-    --  end function
-    --  ---nono = call_back(routine_id("varfunc")) -- this error
-    --  function fixfunc(a,b,...)
-    --      return varfunc(a,b,...) -- a "thin wrapper"
-    --  end function
-    --  cb_xx = call_back(routine_id("fixfunc"))
-    -- Hence you can call varfunc with more or less parameters,
-    --  whereas cb_xx is always invoked with a known fixed set.
- "sequence op (mul) attempted (use sq_mul?)\n",                 -- e17soma      -- """"""""""""""" --
- "sequence op (remainder) attempted (use sq_remainder?)\n",     -- e18sora      -- """"""""""""""" --
- "sequence op (floor) attempted (use sq_floor?)\n",             -- e19sofa      -- """"""""""""""" --
- "invalid match start index\n",                                 -- e20imsi
- "invalid find start index\n",                                  -- e21ifsi
-    -- In find('3',"123",s), s of 1..3 and -1..-3 yield 3,
-    --  4 yields 0, but all other values, including non-atoms,
-    --  unassigned variables, 0, and s<=-4, yield this error.
-    --  Of course -1, being shorthand for length(), is the 
-    --  same as 3 in the above, and -3 is the same as 1.
-    -- Aside: find('.',filename,-5) could be used to quickly
-    --  find a file extension of 4 or less characters. While
-    --  length+1 can be helpful, as resuming on lastresult+1
-    --  is a common idiom, there is no similar equivalent for
-    --  negative subscripts. It may turn out that just simply
-    --  ignoring bad (integer) starts and returning 0 makes
-    --  for an easier life, I could easily do that if the 
-    --  common consus suggests it would be better, though it
-    --  seems to me more likely to catch bugs/typos this way.
- "invalid mem_copy length\n",                                   -- e22imcl
-    -- number of bytes to copy is negative
- "invalid mem_set length\n",                                    -- e23imsl
-    -- number of bytes to set is negative
-    --  (ditto)
- "invalid mem_copy memory address\n",                           -- e24imcma
-    -- a machine exception occurred in a mem_copy operation
- "invalid mem_set memory address\n",                            -- e25imsma
-    -- a machine exception occurred in a mem_set operation
- "invalid argument type for integer := peek()\n",               -- e26iatfpi
-    -- Occurs, for example, in integer i = peek(x), when x is
-    --  assigned to something like {addr,4}.
-    -- The compiler emits opPeeki rather than opPeek because 
-    --  the result is an integer, however opPeeki does not
-    --  have any code to deal with a sequence argument, and 
-    --  even if it did, a typecheck on i would occur anyway.
- "argument to rand() must be >= 1\n",                           -- e27atrmbge1
-    -- (Acutally this only triggers for 0; -1 is treated as
-    --  MAXUINT, which has turned out to be quite handy.)
- "argument to %s() must be an atom (use sq_%s?)\n",             -- e28NNatXmbausq
--- no longer used (e48atlmmba triggers instead)
--- "argument to set_rand() must be an atom\n",                  -- e29atsrmba
- -1,
- "fatal exception %s at #%08x\n",                               -- e30ume
-    -- Unknown machine error.
-    --
-    -- It is pretty much the job of this program, with help
-    -- from the back end, to map such errors in Phix hll
-    -- code to human-readable form. As per the note above,
-    -- when an error occurs in some dll/asm code, this is
-    -- about the best I can do (with a line no of "-1", unless
-    -- it is part of a #ilasm statement), and hopefully there 
-    -- are enough clues later on in the ex.err to guide you 
-    -- towards solving the problem. However this message should 
-    -- not occur for "pure hll code".
-    --
-    -- There are literally thousands of places in the backend 
-    -- where it catches/maps exceptions, and without any doubt
-    -- there will be several left that were accidentally missed.
-    --
-    -- Generally speaking, addresses in the range #00400000 
-    -- to #0040C000 indicate a problem in the back-end, please
-    -- contact the author (Pete Lomax) for assistance, and/or
-    -- see plist.e, flag dumpVM/the list2.asm that creates.
-    --
- "memory corruption: eax is #%08x, edx is #%08x\n",             -- e31mce
-    -- only occurs on debug builds
- "heap corruption [era=%08x, edi=%08x]\n",                      -- e32hc(era,edi)
-    -- oh dear...
--- "argument to arctan() must be atom (use sq_arctan?)\n",      -- e33atatmba   -- no longer in use (see e28)
- "memory allocation failure\n",                                 -- e33maf
-    -- oh dear...
- "power() function underflow\n",                                -- e34pfu
-    -- result is less than -1.7976931348623146e308
-    -- (technically the term underflow is usually
-    --  used to mean "too near zero", btw, which
-    --  just makes power() quietly return a zero.)
- "power() function overflow\n",                                 -- e35pfo
-    -- result is more than +1.7976931348623146e308
- "length of an atom is not defined\n",                          -- e36loaaind
- "argument to allocate() must be positive integer\n",           -- e37atambpi
---DEV e38 no longer used?
- "argument to free() must be an atom\n",                        -- e38atfmba
- "arguments to mem_copy() must be atoms\n",                     -- e39atmcmba
- "arguments to mem_set() must be atoms\n",                      -- e40atmsmba
- "first argument to poke() must be atom\n",                     -- e41fatpmba
---no longer used:
--- "first argument to poke4() must be atom\n",                  -- e42fatp4mba
--- -1,
- "abort(%d)\n",                                                 -- e42a(ecx)
-    -- only invoked when an error hander is present.
-    -- normally abort(n) terminates the application,
-    -- however inside a try block (or with a handler
-    -- detected somewhere higher up in the stack) it 
-    -- is mapped to throw(42,"abort(%d)").
-    -- Note that e87acmbi may be triggered first.
- "argument to peek() must be atom or sequence of two atoms\n",  -- e43atpmbaoso2a
- "peek size must be 1|2|4|8\n",                                 -- e44psmb1248
- "attempt to get square root of negative number\n",             -- e45atgsqronn
-
- "argument to float32_to_atom() must be sequence of length 4\n", -- e46atf32tambsol4
- "argument to float64_to_atom() must be sequence of length 8\n", -- e47atf64tambsol8
-    -- btw, the above messages occur for an unassigned argument, rather
-    --  than the usual e92/"variable xxx has not been assigned a value".
--- "argument to chdir() must be string\n",                      -- e48atcdmbs
--- -1,                                                          -- no longer in use
- "argument to :%LoadMint must be an atom\n",                    -- e48atlmmba
- "argument to atom_to_float32() must be atom\n",                -- e49atatf32mba
- "argument to atom_to_float64() must be atom\n",                -- e50atatf64mba
- "HeapFree error code [%08x]\n",                                -- e51hfec
-    -- Should not happen. Suggests that your program has
-    -- corrupted memory, the operating system free chain, 
-    -- for instance. Try using safe.e (see that file for
-    -- instructions) and/or a debug version of p.exe. -- DEV
-    -- Make a copy of the program source, then repeatedly
-    -- delete as many lines as possible while the error
-    -- still occurs. If you can get it to under 100 lines
-    -- (program no longer has to do anything useful, btw)
-    -- then you can submit it for further investigation.
- "repeat count must be non negative integer\n",                 -- e52rcmbnni
--- -1,--"for loop error\n",                                     -- e53fle           --DEV see e120,1
- "memory corruption at #%08x (pGtcb*4=#%08x, diff=#%08x)\n",    -- e53mcat(esi,ecx)
-    -- internal error. If you can reproduce this problem,
-    -- ideally on a compiled program with a listing file,
-    -- and get a consistent diff then it should be fairly
-    -- easy to trap after pGtcb has been set and predict
-    -- the memory location that needs trapping. If you do
-    -- not get a consistent diff, or intermittent errors,
-    -- this will likely be very difficult to track down.
- "attempt to raise negative number to non-integer power\n",     -- e54atrnntnip
-    -- mathematically, power(-3,-3) is an imaginary number.
- "unhandled exception\n",                                       -- e55ue
-    -- from throw.e - which contains discussion and code to
-    -- report the error on the throw statement (default) or 
-    -- within the throw() routine itself.
--- -1,--"first argument to append() must be sequence\n",                -- e55fatambs
-    -- You may mean a&b instead of append(a,b)
-    -- Note that append("one","two") is {'o','n','e',"two"},
-    -- whereas "one"&"two" is "onetwo", although they 
-    -- give the same results if b is an atom.
--- -1,--"first argument to prepend() must be sequence\n",           -- e56fatpmbs
-    -- You may mean b&a instead of prepend(a,b)
-    -- Note that prepend("two","one") is {"one",'t','w','o'},
-    -- whereas "one"&"two" is "onetwo", although they 
-    -- give the same results if b is an atom.
- -1, -- spare (dict.e now invokes crash(msg,args,3))
--- "invalid dictionary id\n",                                   -- e56idi
-    -- triggered from builtins\dict.e via :!fatalN so that
-    -- the error occurs on the calling statement.
- "invalid file name\n",                                         -- e57ifn
-    -- A common cause of this is using append instead of &:
-    --  append(`C:\test\`,"fred.txt") returns the nested
-    --  {'C',':','\','t','e','s','t','\',"fred.txt"}, whereas
-    --  `C:\test\`&"fred.txt" returns `C:\test\fred.txt`.
-    -- Remember that "append(s,x)" always returns a sequence (or 
-    --  string) of length(s)+1, whereas "s&x" returns a sequence 
-    --  (or string) of length(s)+length(x) [that is, except when 
-    --  x is an atom, in which case they are equivalent].
- "invalid file number (%d)\n",                                  -- e58bfn(edi) [e58ifn...]
-    -- file must be open for getc, puts, seek, where, etc.
- "wrong file mode for attempted operation\n",                   -- e59wfmfao
-    -- eg attempt to read a file after open(x,"w").
- "file number is not an integer\n",                             -- e60fninai
-    -- this error is also common for unassigned vars.
- "invalid open mode\n",                                         -- e61iom
-    -- second parameter to open must be (r|w|a|u)[b].
-    -- BTW, Phix allows single-character modes, eg 'r',
-    -- whereas RDS Eu does not.
- "file number %d is not open\n",                                -- e62fnnino
- "second parameter of seek() must be an atom\n",                -- e63sposmba
- "seek fail on open append\n",                                  -- e64sfooa
-    -- after successfully opening a file for append
-    -- (fn=open(xxx,"a")), it automatically seeks to
-    -- the end of file. This seek has failed.
-    -- This should not happen, maybe you found a bug,
-    -- or maybe your hard drive has errors.
- "sequence found in character string\n",                        -- e65sfics
-    -- second parameter to puts or [s]printf may not
-    -- contain nested sequences.
-    -- Try using pp(), ppf(), ?, or [s]print().
- "invalid lock type\n",                                         -- e66ilt
- "byterange must be {} or pair of atoms\n",                     -- e67bre
--- -1,--"argument to dir() must be string\n",                   -- e68atcdmbs (not actually used/see pdir.e)
-    -- See e73atodmbs
- "crash(%s)\n",                                                 -- e68crash
-    -- crash() invoked inside a try block
- "error in format string\n",                                    -- e69eifs (see pprntf.e/badfmt())
-    -- Missing or unrecognised format character after a '%',
-    --  eg "%", "%3.2", "%q". See also e73atodmbs.
- "insufficient values for (s)printf()\n",                       -- e70ivfpf
--- -1,--"argument to getenv() must be string",                  -- e71atgmbs (not actually used/see penv.e)
-    -- See e73atodmbs
- "call_func/proc parameter error\n",                            -- e71cfppe
-    -- The second argument ("params") is not a sequence.
- "invalid routine_id(%d)\n",                                    -- e72iri(edi)
-    -- The first argument to call_proc/func, or call_back (which
-    -- can also accept {'+',rtnid} as the first argument) is not
-    -- an integer, is not in the range 1..length(symtab), or
-    -- symtab[i] is not a type, function, or procedure. Usually 
-    -- occurs after a previous call to routine_id, define_c_func, 
-    -- etc returned -1.
-    -- Also invoked directly from delete_routine() aka :%opDelRtn.
---DEV++
- "argument to open_dll() must be string\n",                     -- e73atodmbs
-    -- Either the parameter is not a sequence, or some element
-    -- of it is not a character. Note that strings and flat
-    -- dword sequences are equally acceptable, eg/ie "kernel32"
-    -- or {'k','e','r','n','e','l','3','2'} work the same.
- "define_c_func/proc parameter error\n",                        -- e74dcfpe
-    -- the first argument to define_c_func/proc is:
-    --   an atom, and the second is either unassigned,
-    --                       a sequence of length zero,
-    --               or a sequence containing non-chars, or
-    --   a sequence, with non-zero length, or the second
-    --               parameter is unassigned or sequence.
-    -- ie the legal forms of define_c_func/proc are:
-    --      define_c_func/proc(atom,name,...)
-    --      define_c_func/proc({},addr,...)
- "call back routine parameters must all be atoms\n",            -- e75cbrpmaba
- "%c requires an atom value\n",                                 -- e76pcraav
- "program has run out of memory\n",                             -- e77phroom
- "attempt to get_text() >1GB file\n",                           -- e78atgtgt1gbf
-    -- Very large files can (obviously) be read line-by-line, or 
-    --  byte-by-byte, or via seeks, but you may *not* load the 
-    --  whole thing into memory at once (1GB ~=300 bibles).
-    --  get_text() is not really suitable for files >5MB.
- "argument to rand() must be an atom\n",                        -- e79atrmba
- "call_back returned non-atom\n",                               -- e80cbrna(esi)
-    -- note this error occurs after the callback has returned,
-    -- hence none of the parameters or locals can be shown.
- "insufficient parameters in call_func/proc()\n",               -- e81ipicfp
-    -- second argument to call_func/proc must be a sequence
-    -- containing at least the number of non-defaluted elements 
-    -- declared as parameters for the specified routine.
- "argument to call() must be atom\n",                           -- e82atcmba                --DEV 8/6/15: I suspect this is no longer in use...
-    -- Note that Phix allows a call() to a call_back()
-    -- whereas RDS Eu suffers a machine exception.
- "arguments to position() must be integer\n",                   -- e83atpmbi
- "call_back parameter must be routine_id or {'+',routine_id}\n", -- e84cbpmbropr
- "unknown type byte (not 0x12, 0x80, or 0x82)\n",               -- e85utb
-    -- usually caused by memory corruption, has also occurred
-    -- due to compiler emitting invalid refs & fixup failures.
- "argument to trace() must be integer 0..3\n",                  -- e86attmbi03
-    -- technically -1 is also valid, and implements the same as
-    -- keying 'Q' in the trace() window, ie permanently off.
- "abort() code must be integer\n",                              -- e87acmbi
- "arguments to c_%sc() must be atoms or strings\n",             -- e88atcfpmbaos(edi)
-    -- (edi=1 -> c_func, else c_proc)
- "too many parameters in call_func/proc()\n",                   -- e89tmpicfp
- "argument to profile() must be 0 or 1\n",                      -- e90atpmb01
--- "profile internal error\n",                                  -- e91pie   [DEV]
- "variable %s has not been assigned a value\n",                 -- e91vhnbaav(ecx)
-    -- or_ecx is var no
- "variable %s has not been assigned a value\n",                 -- e92vhnbaav(esi)
-    -- or_esi is var no
- "variable %s has not been assigned a value\n",                 -- e93vhnbaav(edi) [:%opPpndSA]
-    -- or_edi is var address
- "variable %s has not been assigned a value\n",                 -- e94vhnbaav(edx,esi)  [if integer(esi), report as e04atsaa]
-    -- or_edx is var no
---DEV these appear untested:::
- "text_color error [%08x]\n",                                   -- e95tce
- "bk_color error [%08x]\n",                                     -- e96bce
- "heap error [%s]\n",                                           -- e97he
- "flush error [%s]\n",                                          -- e98fiofe
-    -- internal kernel32 WriteFile failure when writing the
-    -- contents of a file buffer. Code is from Microsoft.
-    -- Unlikely, should not happen, maybe a scandisk
-    -- is needed, maybe your hard drive is failing...
- "invalid peek memory address\n",                               -- e99ipma
-    -- A MEMORY VIOLATION (#C0000005) exception occured when
-    --  trying to read from the supplied memory address.
-    -- Can occur on peek[(2|4|8)(u|s)]() calls, if they are
-    --  passed a bad location or an impossible (-ve) length.
- "invalid poke memory address\n",                               -- e100ipma
-    -- A MEMORY VIOLATION (#C0000005) exception occured when
-    --  trying to write to the supplied memory address.
-    -- Can occur in poke[(1|2|4|8)]() calls, if they are 
-    --  passsed a bad location or an invalid length.
- "attempt to allocate string of negative length\n",             -- e101atasonl
-    -- internal error in the back end. The only way application
-    -- code could attempt something similar is repeat(' ',-n),
-    -- which is caught as e52rcmbnni before getting this far,
-    -- and, e37atambpi handles -ve values passed to allocate().
-    -- NB: a line no of -1 is expected should this occur; there
-    --     is no known way to deliberately cause this error.
-    -- (this message was added to catch bugs in gets().)
- "attempt to raise 0 to power <= 0\n",                          -- e102cr0tple0
- "attempt to get remainder of a number divided by 0\n",         -- e103atgrondb0
- "call back error?\n",                                          -- e104cbe [DEV no longer used]
- "not enough format strings to print data\n",                   -- e105nefstpd (pprntf.e only)
-    -- May be removed for compatibility reasons, see pprntf.e.
- "index %d out of bounds, reading sequence length %d\n",        -- e106ioob
-    -- (edi,edx)
- "invalid free memory address\n",                               -- e107ifma
- "position error [%d]\n",                                       -- e108pe(edi)
-    -- Maybe the co-ordinates specified are outside the boundaries
-    -- of the (Windows) screen buffer. See also e83atpmbi, which
-    -- occurs for attempts to position at negative coordinates.
-    -- Note this error is used by get_position() and postion().
- "clear_screen error\n",                                        -- e109cse
-    -- Internal error, should not happen (and in fact this
-    --  message has never been successfully triggered)
- "type check failure, %s is %s\n",                              -- e110tce(ecx)
-    -- as e01tcf but ecx is var addr not idx
- "bitwise operations are limited to 32-bit numbers\n",          -- e111bolt32b
-    -- DEV: it may be sensible to permit and_bits(x,#FFFFFFFF),
-    -- or in fact any and_bits op where either param is 32-bit:
-    -- In the case of and_bits, this message only occurs if both
-    -- arguments are larger than 32 bits.
- "second argument of find() must be a sequence\n",              -- e112saofmbs
- "second argument of match() must be a sequence\n",             -- e113saommbs
- "sequence to be poked must only contain atoms\n",              -- e114stbpmoca
- "argument to sleep() must be atom\n",                          -- e115atsmba
- "routine requires %d parameters, not %d\n",                    -- e116rrnp
-    -- either the define_c_func/proc statement is wrong, or
-    --  the c_func/proc statement is wrong.
- "routine does not return a value\n",                           -- e117rdnrav
-    -- typically this means the program is using c_func
-    --  to invoke a routine defined using define_c_proc
- "routine returns a value\n",                                   -- e118rrav
-    -- typically this means the program is using c_proc
-    --  to invoke a routine defined using define_c_func
- "assertion failure%s\n",                                       -- e119af(edi)
-    -- an assertion has failed, doh
- "for loop error, %s is %s\n",                                  -- e120fle
-    -- Phix does not permit floating point for loops, since
-    -- they do not work (eg on RDS Eu, try for x=1.1 to 1.3 
-    -- by 0.1 do ?x end for; you only get 1.1 and 1.2 output).
-    -- Replace eg 'for x=1.0 to 2.0 by 0.1 do ... end for'
-    -- with 'atom x=1.0 for j=10 to 20 do ... x+=0.1 end for'
-    -- Can also be triggered by using large integers.
-    -- The "illegal expression type" compile-time error also 
-    -- helps to catch most such problems in legacy code.
-    -- NB: ep1 is init value (not var no)
- "for loop error, limit is %s, step is %s\n",                   -- e121flelimstep
-    -- As above, Phix does not permit floating point for loops.
-    -- This extends to final values, for example if you get
-    --  for loop error, limit is 900,000,000, step is 800,000,000
-    -- then it is because 1,700,000,000 is > 1,073,741,823.
-    -- NB: ep1 is limit value, ep2 is step value (no var nos)
- "invalid poke size\n",                                         -- e122ips
- "delete_routine already set\n",                                -- e123dras
- -1}
-
-                                                                -- e14soa(edi:)
-constant e14ops = {"add","sub","div","mul",                     -- 1,2,3,4
-                   "remainder","floor","unary minus","not",     -- 5,6,7,8
-                   "and_bits","or_bits","xor_bits","not_bits",  -- 9,10,11,12
-                   "power","xor"}                               -- 13,14
---              ,
---       e28ops = {"rand","cos","sin","tan","arctan","log","sqrt"}
-
---DEV use NTdesc from pglobals.e?: (no, we don't have that here!)
-constant rtndescs = {"type","function", "procedure"}
 
 --
 -- Symbol table constants/structure
@@ -2340,9 +1909,486 @@ string msg2
 atom symtabptr
 atom gvarptr
 
+--9/6/21:
+    #ilASM{
+        [32]
+            xor eax,eax
+            call :%pWithJS
+            call :%pDeSeqip
+        [64]
+            xor rax,rax
+            call :%pWithJS
+            call :%pDeSeqip
+        []
+          }
+
 --20/2/2021
     cdi_filename = ""
     cdi_varname = ""
+
+--26/4/2021 (moved from constants to inner, due to p2js-related changes to pmain.e/DoSequence().)
+--
+-- *NB* These must be kept in very strict order, never delete or insert entries.
+--
+sequence msgs =
+{
+ "type check failure, %s is %s\n",                              -- e01tcf
+    -- As called from opTchk, when var-id is known (idx in ecx).
+    -- See also e110tce, called when var_id not known (addr in ecx).
+    -- Note: s[i+1] gives a type check failure with a ???[S_name]=0
+    --  if i is #3FFFFFFF, as unnamed temporary index sums are given 
+    --  an integer type (for performance reasons). Obviously that is
+    --  less than ideal and ought to be fixed one day. [DEV]
+ "attempt to divide by 0\n",                                    -- e02atdb0
+ "true/false condition must be an ATOM\n",                      -- e03tfcmbaa
+    -- Usually only happens on "if x then" where x is not 
+    -- a relational expression (eg a=b) but is either a 
+    -- single variable or a function result. (unlike RDS)
+    -- see also e14soa. Note this message may not occur
+    -- on subscripted items when a program is compiled, eg
+    -- if x is {1,2,"fred",4} then "if x[3] then" is just 
+    -- treated as true (not zero), though you should get
+    -- an error when the same code is interpreted. This is
+    -- a deliberate optimisation.
+--DEV maybe we shouldn't inline unless it's a sequence of integer?
+ "attempt to subscript an atom\n",                              -- e04atsaa
+ "subscript is not an atom\n",                                  -- e05sinaa
+ "index %d out of bounds, assigning to sequence length %d\n",   -- e06ioob
+ "slice start is less than 1 (%d)\n",                           -- e07ssilt1
+    -- Note that the value shown is that after adjustment 
+    -- for negative indexes, eg if length(x) is 10, then
+    -- x[-11..10] will complain ssilt1 (0) as -11 maps to 0.
+    -- see e10sspeos. In fact e07ssilt1 only ocurs for 0. [Erm? DEV test that]
+    -- Obviously if the slice start is a variable, rather
+    -- than an expression, the "true" value can be found
+    -- elsewhere in the ex.err file.
+ "slice end is not an integer\n",                               -- e08seinai
+ "slice length is negative [%d..%d]\n",                         -- e09slin
+    -- values shown are as adjusted for negative indexes, [DEV?]
+    --  eg if length(s)=4, then s[-1..-3] shows as [4..2]
+    -- see also comments against e07ssilt1.
+ "slice starts past end of sequence (%d > %d)\n",               -- e10sspeos
+    -- or slice start(%d) less than negative length(%d), see below
+ "slice ends past end of sequence (%d > %d)\n",                 -- e11sepeos
+    -- or slice end(%d) less than negative length(%d), see below
+ "program aborted\n",                                           -- e12pa
+    -- Operator has typed '!' in the trace() window.
+ "attempt to exit a function without returning a value\n",      -- e13ateafworav
+    -- For an example of why this cannot/should not be trapped 
+    -- as a compile-time error, see isChecked() in arwen.ew.
+ "sequence op (%s) attempted (use sq_%s?)\n",                   -- e14soa
+    -- Phix does not support implicit/infix sequence ops;
+    -- you must use explicit function-style calls, ie/eg
+    -- replace "{1,2}+3" with "sq_add({1,2},3)" to get {4,5}.
+    --  (Acutally, in the name of compatibility with legacy code,
+    --   it will replace some of the most blatently obvious cases,
+    --   see sqopWarn in p.exw/pmain.e)
+    -- Note that name="Pete" yields 1 or 0 (True/False) on Phix,
+    -- instead of eg {0,1,0,1}, "sequence lengths not the same",
+    -- or the infamous "true/false condition must be an ATOM".
+    -- (the latter can still happen, just nowhere near as often)
+    -- Forcing "+" to be replaced with "sq_add" is better, IMNSHO, than
+    -- forcing "=" to be replaced with "equal", as happens with RDS Eu.
+    -- (nb some legacy code may need "=" to be replaced with "sq_eq")
+    -- Also the compile-time errors "type error (use sq_add?)" et al
+    -- catch a significant number of cases before it gets to this.
+    -- Lastly, there is no sense, for example, in changing the infix
+    -- relational ops (<,<=,=,!=,>=,>) to always return a boolean but
+    -- still allowing maths ops (+,-,*,/) to do sequence ops. This 
+    -- would spanner all legacy code even more, for example the old
+    -- upper/lower would work fine on chars but leave all sequences/
+    -- strings completely unchanged. It is far more helpful to sound
+    -- this alarm than silently go wrong.
+ "unrecognised c_func return type\n",                           -- e15ucfrt
+    -- Note that C_FLOAT, E_INTEGER, E_ATOM, and E_OBJECT have not
+    --  been attempted/tested and hence report this error.
+    -- (for the latter 3 I require a suitable RDS-Eu-compiled DLL)  --DEV
+    -- BTW: E_INTEGER, E_ATOM, E_SEQUENCE, and E_OBJECT are only
+    --  used for RDS-Eu-compiled DLLs, new values (P_XXX?) will
+    --  have to be devised for Phix-compiled DLLs, if/when that
+    --  becomes possible.
+ "call_backs cannot have optional parameters\n",                -- e16cbchop
+    -- There is no way for Phix to determine how many parameters
+    --  some C/asm/other language has pushed onto the stack, shy 
+    --  of entire program dissassembly/analysis that is, and not
+    --  that I have ever seen a callback with anything other than
+    --  a fixed number of parameters (and if I ever did, then my
+    --  answer would be a separate "call_back_var_args" routine).
+    -- If you want optional/defaulted parameters for the benefit
+    --  of other Phix code, then you may need a "thin wrapper":
+    --  function varfunc(a=?, b=?,...)
+    --      ....
+    --  end function
+    --  ---nono = call_back(routine_id("varfunc")) -- this error
+    --  function fixfunc(a,b,...)
+    --      return varfunc(a,b,...) -- a "thin wrapper"
+    --  end function
+    --  cb_xx = call_back(routine_id("fixfunc"))
+    -- Hence you can call varfunc with more or less parameters,
+    --  whereas cb_xx is always invoked with a known fixed set.
+ "sequence op (mul) attempted (use sq_mul?)\n",                 -- e17soma      -- """"""""""""""" --
+ "sequence op (remainder) attempted (use sq_remainder?)\n",     -- e18sora      -- """"""""""""""" --
+ "sequence op (floor) attempted (use sq_floor?)\n",             -- e19sofa      -- """"""""""""""" --
+ "invalid match start index\n",                                 -- e20imsi
+ "invalid find start index\n",                                  -- e21ifsi
+    -- In find('3',"123",s), s of 1..3 and -1..-3 yield 3,
+    --  4 yields 0, but all other values, including non-atoms,
+    --  unassigned variables, 0, and s<=-4, yield this error.
+    --  Of course -1, being shorthand for length(), is the 
+    --  same as 3 in the above, and -3 is the same as 1.
+    -- Aside: find('.',filename,-5) could be used to quickly
+    --  find a file extension of 4 or less characters. While
+    --  length+1 can be helpful, as resuming on lastresult+1
+    --  is a common idiom, there is no similar equivalent for
+    --  negative subscripts. It may turn out that just simply
+    --  ignoring bad (integer) starts and returning 0 makes
+    --  for an easier life, I could easily do that if the 
+    --  common consus suggests it would be better, though it
+    --  seems to me more likely to catch bugs/typos this way.
+ "invalid mem_copy length\n",                                   -- e22imcl
+    -- number of bytes to copy is negative
+ "invalid mem_set length\n",                                    -- e23imsl
+    -- number of bytes to set is negative
+    --  (ditto)
+ "invalid mem_copy memory address\n",                           -- e24imcma
+    -- a machine exception occurred in a mem_copy operation
+ "invalid mem_set memory address\n",                            -- e25imsma
+    -- a machine exception occurred in a mem_set operation
+ "invalid argument type for integer := peek()\n",               -- e26iatfpi
+    -- Occurs, for example, in integer i = peek(x), when x is
+    --  assigned to something like {addr,4}.
+    -- The compiler emits opPeeki rather than opPeek because 
+    --  the result is an integer, however opPeeki does not
+    --  have any code to deal with a sequence argument, and 
+    --  even if it did, a typecheck on i would occur anyway.
+ "argument to rand() must be >= 1\n",                           -- e27atrmbge1
+    -- (Acutally this only triggers for 0; -1 is treated as
+    --  MAXUINT, which has turned out to be quite handy.)
+ "argument to %s() must be an atom (use sq_%s?)\n",             -- e28NNatXmbausq
+-- no longer used (e48atlmmba triggers instead)
+-- "argument to set_rand() must be an atom\n",                  -- e29atsrmba
+ -1,
+-- "with/without js conflict\n",                                    -- e29wojsc
+    -- something said with js, something else said without js.
+    -- (a compile-time error, non-catchable except by p.exw itself)
+    -- (in the end, this was done directly in pmain.e/DoWith())
+ "fatal exception %s at #%08x\n",                               -- e30ume
+    -- Unknown machine error.
+    --
+    -- It is pretty much the job of this program, with help
+    -- from the back end, to map such errors in Phix hll
+    -- code to human-readable form. As per the note above,
+    -- when an error occurs in some dll/asm code, this is
+    -- about the best I can do (with a line no of "-1", unless
+    -- it is part of a #ilasm statement), and hopefully there 
+    -- are enough clues later on in the ex.err to guide you 
+    -- towards solving the problem. However this message should 
+    -- not occur for "pure hll code".
+    --
+    -- There are literally thousands of places in the backend 
+    -- where it catches/maps exceptions, and without any doubt
+    -- there will be several left that were accidentally missed.
+    --
+    -- Generally speaking, addresses in the range #00400000 
+    -- to #0040C000 indicate a problem in the back-end, please
+    -- contact the author (Pete Lomax) for assistance, and/or
+    -- see plist.e, flag dumpVM/the list2.asm that creates.
+    --
+ "memory corruption: eax is #%08x, edx is #%08x\n",             -- e31mce
+    -- only occurs on debug builds
+ "heap corruption [era=%08x, edi=%08x]\n",                      -- e32hc(era,edi)
+    -- oh dear...
+-- "argument to arctan() must be atom (use sq_arctan?)\n",      -- e33atatmba   -- no longer in use (see e28)
+ "memory allocation failure\n",                                 -- e33maf
+    -- oh dear...
+ "power() function underflow\n",                                -- e34pfu
+    -- result is less than -1.7976931348623146e308
+    -- (technically the term underflow is usually
+    --  used to mean "too near zero", btw, which
+    --  just makes power() quietly return a zero.)
+ "power() function overflow\n",                                 -- e35pfo
+    -- result is more than +1.7976931348623146e308
+ "length of an atom is not defined\n",                          -- e36loaaind
+ "argument to allocate() must be positive integer\n",           -- e37atambpi
+--DEV e38 no longer used?
+ "argument to free() must be an atom\n",                        -- e38atfmba
+ "arguments to mem_copy() must be atoms\n",                     -- e39atmcmba
+ "arguments to mem_set() must be atoms\n",                      -- e40atmsmba
+ "first argument to poke() must be atom\n",                     -- e41fatpmba
+--no longer used:
+-- "first argument to poke4() must be atom\n",                  -- e42fatp4mba
+-- -1,
+ "abort(%d)\n",                                                 -- e42a(ecx)
+    -- only invoked when an error hander is present.
+    -- normally abort(n) terminates the application,
+    -- however inside a try block (or with a handler
+    -- detected somewhere higher up in the stack) it 
+    -- is mapped to throw(42,"abort(%d)").
+    -- Note that e87acmbi may be triggered first.
+ "argument to peek() must be atom or sequence of two atoms\n",  -- e43atpmbaoso2a
+ "peek size must be 1|2|4|8\n",                                 -- e44psmb1248
+ "attempt to get square root of negative number\n",             -- e45atgsqronn
+
+ "argument to float32_to_atom() must be sequence of length 4\n", -- e46atf32tambsol4
+ "argument to float64_to_atom() must be sequence of length 8\n", -- e47atf64tambsol8
+    -- btw, the above messages occur for an unassigned argument, rather
+    --  than the usual e92/"variable xxx has not been assigned a value".
+-- "argument to chdir() must be string\n",                      -- e48atcdmbs
+-- -1,                                                          -- no longer in use
+ "argument to :%LoadMint must be an atom\n",                    -- e48atlmmba
+ "argument to atom_to_float32() must be atom\n",                -- e49atatf32mba
+ "argument to atom_to_float64() must be atom\n",                -- e50atatf64mba
+ "HeapFree error code [%08x]\n",                                -- e51hfec
+    -- Should not happen. Suggests that your program has
+    -- corrupted memory, the operating system free chain, 
+    -- for instance. Try using safe.e (see that file for
+    -- instructions) and/or a debug version of p.exe. -- DEV
+    -- Make a copy of the program source, then repeatedly
+    -- delete as many lines as possible while the error
+    -- still occurs. If you can get it to under 100 lines
+    -- (program no longer has to do anything useful, btw)
+    -- then you can submit it for further investigation.
+-- "repeat count must be non negative integer\n",               -- e52rcmbnni
+ "p2js violation: JavaScript does not support string subscript destructuring\n",    -- e52jsdnssd
+-- -1,--"for loop error\n",                                     -- e53fle           --DEV see e120,1
+ "memory corruption at #%08x (pGtcb*4=#%08x, diff=#%08x)\n",    -- e53mcat(esi,ecx)
+    -- internal error. If you can reproduce this problem,
+    -- ideally on a compiled program with a listing file,
+    -- and get a consistent diff then it should be fairly
+    -- easy to trap after pGtcb has been set and predict
+    -- the memory location that needs trapping. If you do
+    -- not get a consistent diff, or intermittent errors,
+    -- this will likely be very difficult to track down.
+ "attempt to raise negative number to non-integer power\n",     -- e54atrnntnip
+    -- mathematically, power(-3,-3) is an imaginary number.
+ "unhandled exception\n",                                       -- e55ue
+    -- from throw.e - which contains discussion and code to
+    -- report the error on the throw statement (default) or 
+    -- within the throw() routine itself.
+-- -1,--"first argument to append() must be sequence\n",                -- e55fatambs
+    -- You may mean a&b instead of append(a,b)
+    -- Note that append("one","two") is {'o','n','e',"two"},
+    -- whereas "one"&"two" is "onetwo", although they 
+    -- give the same results if b is an atom.
+-- -1,--"first argument to prepend() must be sequence\n",           -- e56fatpmbs
+    -- You may mean b&a instead of prepend(a,b)
+    -- Note that prepend("two","one") is {"one",'t','w','o'},
+    -- whereas "one"&"two" is "onetwo", although they 
+    -- give the same results if b is an atom.
+-- -1, -- spare (dict.e now invokes crash(msg,args,3))
+-- "invalid dictionary id\n",                                   -- e56idi
+    -- triggered from builtins\dict.e via :!fatalN so that
+    -- the error occurs on the calling statement.
+ "p2js violation: relies on copy on write semantics\n",         -- e56rocow
+    -- something needs a rewrite or deep_copy()...
+    -- this (runtime) error is deemed non-catchable.
+ "invalid file name\n",                                         -- e57ifn
+    -- A common cause of this is using append instead of &:
+    --  append(`C:\test\`,"fred.txt") returns the nested
+    --  {'C',':','\','t','e','s','t','\',"fred.txt"}, whereas
+    --  `C:\test\`&"fred.txt" returns `C:\test\fred.txt`.
+    -- Remember that "append(s,x)" always returns a sequence (or 
+    --  string) of length(s)+1, whereas "s&x" returns a sequence 
+    --  (or string) of length(s)+length(x) [that is, except when 
+    --  x is an atom, in which case they are equivalent].
+ "invalid file number (%d)\n",                                  -- e58bfn(edi) [e58ifn...]
+    -- file must be open for getc, puts, seek, where, etc.
+ "wrong file mode for attempted operation\n",                   -- e59wfmfao
+    -- eg attempt to read a file after open(x,"w").
+ "file number is not an integer\n",                             -- e60fninai
+    -- this error is also common for unassigned vars.
+ "invalid open mode\n",                                         -- e61iom
+    -- second parameter to open must be (r|w|a|u)[b].
+    -- BTW, Phix allows single-character modes, eg 'r',
+    -- whereas RDS Eu does not.
+ "file number %d is not open\n",                                -- e62fnnino
+ "second parameter of seek() must be an atom\n",                -- e63sposmba
+ "seek fail on open append\n",                                  -- e64sfooa
+    -- after successfully opening a file for append
+    -- (fn=open(xxx,"a")), it automatically seeks to
+    -- the end of file. This seek has failed.
+    -- This should not happen, maybe you found a bug,
+    -- or maybe your hard drive has errors.
+ "sequence found in character string\n",                        -- e65sfics
+    -- second parameter to puts or [s]printf may not
+    -- contain nested sequences.
+    -- Try using pp(), ppf(), ?, or [s]print().
+ "invalid lock type\n",                                         -- e66ilt
+ "byterange must be {} or pair of atoms\n",                     -- e67bre
+-- -1,--"argument to dir() must be string\n",                   -- e68atcdmbs (not actually used/see pdir.e)
+    -- See e73atodmbs
+ "crash(%s)\n",                                                 -- e68crash
+    -- crash() invoked inside a try block
+ "error in format string\n",                                    -- e69eifs (see pprntf.e/badfmt())
+    -- Missing or unrecognised format character after a '%',
+    --  eg "%", "%3.2", "%q". See also e73atodmbs.
+ "insufficient values for (s)printf()\n",                       -- e70ivfpf
+-- -1,--"argument to getenv() must be string",                  -- e71atgmbs (not actually used/see penv.e)
+    -- See e73atodmbs
+ "call_func/proc parameter error\n",                            -- e71cfppe
+    -- The second argument ("params") is not a sequence.
+ "invalid routine_id(%d)\n",                                    -- e72iri(edi)
+    -- The first argument to call_proc/func, or call_back (which
+    -- can also accept {'+',rtnid} as the first argument) is not
+    -- an integer, is not in the range 1..length(symtab), or
+    -- symtab[i] is not a type, function, or procedure. Usually 
+    -- occurs after a previous call to routine_id, define_c_func, 
+    -- etc returned -1.
+    -- Also invoked directly from delete_routine() aka :%opDelRtn.
+--DEV++
+ "argument to open_dll() must be string\n",                     -- e73atodmbs
+    -- Either the parameter is not a sequence, or some element
+    -- of it is not a character. Note that strings and flat
+    -- dword sequences are equally acceptable, eg/ie "kernel32"
+    -- or {'k','e','r','n','e','l','3','2'} work the same.
+ "define_c_func/proc parameter error\n",                        -- e74dcfpe
+    -- the first argument to define_c_func/proc is:
+    --   an atom, and the second is either unassigned,
+    --                       a sequence of length zero,
+    --               or a sequence containing non-chars, or
+    --   a sequence, with non-zero length, or the second
+    --               parameter is unassigned or sequence.
+    -- ie the legal forms of define_c_func/proc are:
+    --      define_c_func/proc(atom,name,...)
+    --      define_c_func/proc({},addr,...)
+ "call back routine parameters must all be atoms\n",            -- e75cbrpmaba
+ "%c requires an atom value\n",                                 -- e76pcraav
+ "program has run out of memory\n",                             -- e77phroom
+ "attempt to get_text() >1GB file\n",                           -- e78atgtgt1gbf
+    -- Very large files can (obviously) be read line-by-line, or 
+    --  byte-by-byte, or via seeks, but you may *not* load the 
+    --  whole thing into memory at once (1GB ~=300 bibles).
+    --  get_text() is not really suitable for files >5MB.
+ "argument to rand() must be an atom\n",                        -- e79atrmba
+ "call_back returned non-atom\n",                               -- e80cbrna(esi)
+    -- note this error occurs after the callback has returned,
+    -- hence none of the parameters or locals can be shown.
+ "insufficient parameters in call_func/proc()\n",               -- e81ipicfp
+    -- second argument to call_func/proc must be a sequence
+    -- containing at least the number of non-defaluted elements 
+    -- declared as parameters for the specified routine.
+ "argument to call() must be atom\n",                           -- e82atcmba                --DEV 8/6/15: I suspect this is no longer in use...
+    -- Note that Phix allows a call() to a call_back()
+    -- whereas RDS Eu suffers a machine exception.
+ "arguments to position() must be integer\n",                   -- e83atpmbi
+ "call_back parameter must be routine_id or {'+',routine_id}\n", -- e84cbpmbropr
+ "unknown type byte (not 0x12, 0x80, or 0x82)\n",               -- e85utb
+    -- usually caused by memory corruption, has also occurred
+    -- due to compiler emitting invalid refs & fixup failures.
+ "argument to trace() must be integer 0..3\n",                  -- e86attmbi03
+    -- technically -1 is also valid, and implements the same as
+    -- keying 'Q' in the trace() window, ie permanently off.
+ "abort() code must be integer\n",                              -- e87acmbi
+ "arguments to c_%sc() must be atoms or strings\n",             -- e88atcfpmbaos(edi)
+    -- (edi=1 -> c_func, else c_proc)
+ "too many parameters in call_func/proc()\n",                   -- e89tmpicfp
+ "argument to profile() must be 0 or 1\n",                      -- e90atpmb01
+-- "profile internal error\n",                                  -- e91pie   [DEV]
+ "variable %s has not been assigned a value\n",                 -- e91vhnbaav(ecx)
+    -- or_ecx is var no
+ "variable %s has not been assigned a value\n",                 -- e92vhnbaav(esi)
+    -- or_esi is var no
+ "variable %s has not been assigned a value\n",                 -- e93vhnbaav(edi) [:%opPpndSA]
+    -- or_edi is var address
+ "variable %s has not been assigned a value\n",                 -- e94vhnbaav(edx,esi)  [if integer(esi), report as e04atsaa]
+    -- or_edx is var no
+--DEV these appear untested:::
+ "text_color error [%08x]\n",                                   -- e95tce
+ "bk_color error [%08x]\n",                                     -- e96bce
+ "heap error [%s]\n",                                           -- e97he
+ "flush error [%s]\n",                                          -- e98fiofe
+    -- internal kernel32 WriteFile failure when writing the
+    -- contents of a file buffer. Code is from Microsoft.
+    -- Unlikely, should not happen, maybe a scandisk
+    -- is needed, maybe your hard drive is failing...
+ "invalid peek memory address\n",                               -- e99ipma
+    -- A MEMORY VIOLATION (#C0000005) exception occured when
+    --  trying to read from the supplied memory address.
+    -- Can occur on peek[(2|4|8)(u|s)]() calls, if they are
+    --  passed a bad location or an impossible (-ve) length.
+ "invalid poke memory address\n",                               -- e100ipma
+    -- A MEMORY VIOLATION (#C0000005) exception occured when
+    --  trying to write to the supplied memory address.
+    -- Can occur in poke[(1|2|4|8)]() calls, if they are 
+    --  passsed a bad location or an invalid length.
+ "attempt to allocate string of negative length\n",             -- e101atasonl
+    -- internal error in the back end. The only way application
+    -- code could attempt something similar is repeat(' ',-n),
+    -- which is caught as e52rcmbnni before getting this far,
+    -- and, e37atambpi handles -ve values passed to allocate().
+    -- NB: a line no of -1 is expected should this occur; there
+    --     is no known way to deliberately cause this error.
+    -- (this message was added to catch bugs in gets().)
+ "attempt to raise 0 to power <= 0\n",                          -- e102cr0tple0
+ "attempt to get remainder of a number divided by 0\n",         -- e103atgrondb0
+ "call back error?\n",                                          -- e104cbe [DEV no longer used]
+ "not enough format strings to print data\n",                   -- e105nefstpd (pprntf.e only)
+    -- May be removed for compatibility reasons, see pprntf.e.
+ "index %d out of bounds, reading sequence length %d\n",        -- e106ioob
+    -- (edi,edx)
+ "invalid free memory address\n",                               -- e107ifma
+ "position error [%d]\n",                                       -- e108pe(edi)
+    -- Maybe the co-ordinates specified are outside the boundaries
+    -- of the (Windows) screen buffer. See also e83atpmbi, which
+    -- occurs for attempts to position at negative coordinates.
+    -- Note this error is used by get_position() and postion().
+ "clear_screen error\n",                                        -- e109cse
+    -- Internal error, should not happen (and in fact this
+    --  message has never been successfully triggered)
+ "type check failure, %s is %s\n",                              -- e110tce(ecx)
+    -- as e01tcf but ecx is var addr not idx
+ "bitwise operations are limited to 32-bit numbers\n",          -- e111bolt32b
+    -- DEV: it may be sensible to permit and_bits(x,#FFFFFFFF),
+    -- or in fact any and_bits op where either param is 32-bit:
+    -- In the case of and_bits, this message only occurs if both
+    -- arguments are larger than 32 bits.
+ "second argument of find() must be a sequence\n",              -- e112saofmbs
+ "second argument of match() must be a sequence\n",             -- e113saommbs
+ "sequence to be poked must only contain atoms\n",              -- e114stbpmoca
+ "argument to sleep() must be atom\n",                          -- e115atsmba
+ "routine requires %d parameters, not %d\n",                    -- e116rrnp
+    -- either the define_c_func/proc statement is wrong, or
+    --  the c_func/proc statement is wrong.
+ "routine does not return a value\n",                           -- e117rdnrav
+    -- typically this means the program is using c_func
+    --  to invoke a routine defined using define_c_proc
+ "routine returns a value\n",                                   -- e118rrav
+    -- typically this means the program is using c_proc
+    --  to invoke a routine defined using define_c_func
+ "assertion failure%s\n",                                       -- e119af(edi)
+    -- an assertion has failed, doh
+ "for loop error, %s is %s\n",                                  -- e120fle
+    -- Phix does not permit floating point for loops, since
+    -- they do not work (eg on RDS Eu, try for x=1.1 to 1.3 
+    -- by 0.1 do ?x end for; you only get 1.1 and 1.2 output).
+    -- Replace eg 'for x=1.0 to 2.0 by 0.1 do ... end for'
+    -- with 'atom x=1.0 for j=10 to 20 do ... x+=0.1 end for'
+    -- Can also be triggered by using large integers.
+    -- The "illegal expression type" compile-time error also 
+    -- helps to catch most such problems in legacy code.
+    -- NB: ep1 is init value (not var no)
+ "for loop error, limit is %s, step is %s\n",                   -- e121flelimstep
+    -- As above, Phix does not permit floating point for loops.
+    -- This extends to final values, for example if you get
+    --  for loop error, limit is 900,000,000, step is 800,000,000
+    -- then it is because 1,700,000,000 is > 1,073,741,823.
+    -- NB: ep1 is limit value, ep2 is step value (no var nos)
+ "invalid poke size\n",                                         -- e122ips
+ "delete_routine already set\n",                                -- e123dras
+ -1}
+
+                                                                -- e14soa(edi:)
+sequence e14ops = {"add","sub","div","mul",                     -- 1,2,3,4
+                   "remainder","floor","unary minus","not",     -- 5,6,7,8
+                   "and_bits","or_bits","xor_bits","not_bits",  -- 9,10,11,12
+                   "power","xor"}                               -- 13,14
+--              ,
+--       e28ops = {"rand","cos","sin","tan","arctan","log","sqrt"}
+
+--DEV use NTdesc from pglobals.e?: (no, we don't have that here!)
+sequence rtndescs = {"type","function", "procedure"}
+
+
 --/*
     This will definitely never work on RDS Eu!
 --*/
@@ -2662,14 +2708,20 @@ X               mov qword[rbp+32],:rbidsret
     -- First create a vmap to allow gvar idx/addr to be mapped to symtab
     --
     if vmax=0 then
-        vmap = {}
+--      vmap = {}
+        vmap = repeat(0,0)
         for i=length(symtab) to T_maintls by -1 do
             si = symtab[i]
             if sequence(si)
             and si[S_NTyp]<=S_GVar2 then
                 c = si[S_Slink]
                 if c>vmax then
-                    vmap &= repeat(0,c-vmax)
+--                  vmap &= repeat(0,c-vmax)
+                    if vmax=0 then
+                        vmap = repeat(0,c)
+                    else
+                        vmap &= repeat(0,c-vmax)
+                    end if
                     vmax = c
                 end if
                 vmap[c] = i
@@ -3115,7 +3167,9 @@ bool error_handler
             mov [error_handler],rax
           }
     if error_handler 
-    and msg_id!=12 then -- not e12pa ('!' keyed in trace window)
+--  and msg_id!=12 then -- not e12pa ('!' keyed in trace window)
+    and msg_id!=12      -- not e12pa ('!' keyed in trace window)
+    and msg_id!=56 then -- not e56rocow (also non-catchable)
         msg = trim(msg)
         sr = symtab[rtn]
         lineno = convert_offset(or_era,sr)
@@ -3338,7 +3392,8 @@ else
 --                  filename = {pathset[2],"pcallfunc.e",":cc_retaddr"}
                     sr[S_Name] = -1
                 else
-                    filename = sfs[srfn][1..2]
+--                  filename = sfs[srfn][1..2]
+                    filename = deep_copy(sfs[srfn][1..2])
                     filename[1] = pathset[filename[1]]
                 end if
                 if lineno=-1 then
@@ -3543,7 +3598,7 @@ end if
                     fpno = si[S_FPno]
                     if fileno!=fpno then
                         fileno = fpno
-                        filename = symtab[T_fileset][fileno][1..2]
+                        filename = deep_copy(symtab[T_fileset][fileno][1..2])
                         filename[1] = pathset[filename[1]]
                         printf(fn,"\n %s%s:\n",filename)
 --4/2/21:

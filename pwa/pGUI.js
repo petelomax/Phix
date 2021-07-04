@@ -13,10 +13,48 @@
 //  will still allow us to do some interesting and useful things, and 
 //  pretty much everywhere.
 //
-const IUP_DEFAULT = -2;
+requires(JS);
+
+const CD_BLACK = "#000000",
+      CD_BLUE = "blue",
+      CD_CYAN = "cyan",
+      CD_DARK_GREEN = "green",
+      CD_DBUFFER = 2,
+      CD_FILL = 0,
+      CD_GL = "CD_GL",
+      CD_GREY = "#C0C0C0",
+//    CD_IUP = 1,
+      CD_IUP = "CD_IUP",
+//    CD_PARCHMENT = "parchment",
+      CD_PARCHMENT = "#FFFFE0",
+      CD_RED = "#FF0000",
+      CD_WHITE  = "#FFFFFF",
+      IUP_CENTER = 0xFFFF, /* 65535 */
+      IUP_CONTINUE  = -4,   
+      IUP_CLOSE    = -3,
+      IUP_DEFAULT = -2,
+      IUP_IGNORE = -1,
+      IUP_MASK_UINT = "/d+",
+      IUP_MASK_INT = "[+/-]?/d+";
 
 //DEV/SUG split into/manage both handlers and valid/supported values?
 let $storeAttr = {};    // element-specific attribute handlers/setters
+
+//DEV rename/doc...
+function $class_name(ih, check) {
+    if (!ih) { crash("invalid handle"); }
+    let cn = ih.classList[0];
+    if (typeof(check) === "string") {
+        if (check !== cn) {
+            crash("wrong class (not " + check + ")");
+        }
+    } else {
+        if (!Array.isArray(check)) { crash("uh??"); }
+        if (check.indexOf(cn) === -1) {
+            crash("wrong class (" + cn + " not in " + check + ")");
+        }
+    }
+}
 
 function IupOpen() {
 
@@ -27,6 +65,8 @@ function IupOpen() {
     //           it should permit(/or warn about) on the desktop (!!!).
     //           [done whenever file modified!=last analysed date&time]
     //
+//  function pxFloat(s) { return parseFloat(s.replace("px", "")); }
+    
     function store_attrs(elems, names, fn) {
         if (!Array.isArray(elems) ||
             !Array.isArray(names) ||
@@ -38,13 +78,13 @@ function IupOpen() {
             if (typeof(elem) !== "string") {
                 crash("invalid elem");
             }
+            if (!$storeAttr.hasOwnProperty(elem)) {
+                $storeAttr[elem] = {};
+            }
             for (let n = 0; n < names.length; n += 1) {
                 let name = names[n];
                 if (typeof(name) !== "string") {
                     crash("invalid name");
-                }
-                if (!$storeAttr.hasOwnProperty(elem)) {
-                    $storeAttr[elem] = {};
                 }
                 $storeAttr[elem][name] = fn;
             }
@@ -55,10 +95,10 @@ function IupOpen() {
         if (typeof(val) === "string") {
             // convert eg "225x75" to [225,75]
             //  (ie a js Array of length 2)
-            let x = val.indexOf('x');
+            let x = val.indexOf('x'), y;
             if (x) {
-                let y = Number(val.slice(x+1));
-                    x = Number(val.slice(0,x));
+                y = Number(val.slice(x+1));
+                x = Number(val.slice(0,x));
                 if (Number.isInteger(x) &&
                     Number.isInteger(y)) {
                     val = [x,y];
@@ -76,25 +116,43 @@ function IupOpen() {
         return val;
     }
 
-    function class_name(ih, check) {
-        if (!ih) { crash("invalid handle"); }
-//      let cn = ih.className;
-        let cn = ih.classList[0];
-//      let sp = cn.indexOf(' ');
-////hmmm, can we be sure it stays first??
-//      if (sp !== -1) { cn = cn.slice(0,cn); }
-//      if (check && check !== cn) {
-        if (check !== cn) {
-//      if (!ih.classList.contains(check)) {    // [untried]
-            crash("wrong class (not " + check + ")");
-        }
-//      return cn
+//  function class_name(ih, check) {
+//      if (!ih) { crash("invalid handle"); }
+////        let cn = ih.className;
+//      let cn = ih.classList[0];
+////        let sp = cn.indexOf(' ');
+//////hmmm, can we be sure it stays first??
+////        if (sp !== -1) { cn = cn.slice(0,cn); }
+////        if (check && check !== cn) {
+//      if (typeof(check)==="string") {
+//          if (check !== cn) {
+////            if (!ih.classList.contains(check)) {    // [untried]
+//              crash("wrong class (not " + check + ")");
+//          }
+//      } else if (Array.isArray(check)) {
+//          if (check.indexOf(cn)===-1) {
+//              crash("wrong class (" + cn + " not in " + check + ")");
+//          }
+//      } else {
+//          crash("class_name(" + check + ")???");
+//      }
+////        return cn
+//  }
+
+    function set_style(ih,sname,val) {
+        let [w,h] = intint(val);
+        w += "px";
+        h += "px";
+        ih.style[sname+"Top"] = h;
+        ih.style[sname+"Left"] = w;
+        ih.style[sname+"Right"] = w;
+        ih.style[sname+"Bottom"] = h;
     }
 
     function rastersize(ih, name, val) {
         // applies to dialog, label
         if (name !== "RASTERSIZE") { crash("RASTERSIZE expected!"); }
-        if (val!==null) {
+        if ((val !== null) && (val !== NULL)) {
             let [w, h] = intint(val);
             if (w) { ih.style.width = w + "px"; }
             if (h) { ih.style.height = h + "px"; }
@@ -105,7 +163,7 @@ function IupOpen() {
 //      if (ih.className !== "dialog") {
 //          crash("wrong class (not IupDialog)");
 //      }
-        class_name(ih, "dialog");
+        $class_name(ih, "dialog");
         if (name === "TITLE") {
             const hdrs = ih.getElementsByClassName("dialog-handle");
             if (hdrs.length !== 1) {
@@ -115,12 +173,14 @@ function IupOpen() {
             hdrs[0].innerHTML = val;
         } else if (name === "MINSIZE") {
             let [w, h] = intint(val);
-            if (ih.style.width < w)  { ih.style.width = w + "px"; }
-            if (ih.style.height < h) { ih.style.height = h + "px"; }
+//          if (ih.style.width < w)  { ih.style.width = w + "px"; }
+//          if (ih.style.height < h) { ih.style.height = h + "px"; }
             ih.minimumWidth = w;
             ih.minimumHeight = h;
 //      } else if (name === "MARGIN" || name === "GAP") {
         } else if (name === "MARGIN") {
+//DEV tryme:
+//          set_style(ih,"margin",val);
             let [w, h] = intint(val);
             if (h) {
                 ih.style.marginTop = h;
@@ -134,11 +194,15 @@ function IupOpen() {
         } else if (name === "GAP") {
             let g = Number(val);
             ih.style.margin = g;
+        } else if (name === "RESIZE") {
+//YES/NO/1/0...
+//          let g = Number(val);
+//          ih.style.margin = g;
         } else {
             crash("IupStoreAttribute(IupDialog,\"" + name + "\") not yet implemented");
         }
     }
-    store_attrs(["dialog"], ["TITLE","MINSIZE","MARGIN","GAP"], set_dialog);    // (common-up when appropriate)
+    store_attrs(["dialog"], ["TITLE","MINSIZE","MARGIN","GAP","RESIZE"], set_dialog);   // (common-up when appropriate)
     store_attrs(["dialog"], ["RASTERSIZE"], rastersize);                        // (... like this)
 //  store_attrs(["dialog","label"], ["RASTERSIZE"], rastersize);                // (...  or this)
 //  store_values("MINSIZE",[["%d"],"x",["%d"]])
@@ -150,10 +214,16 @@ function IupOpen() {
     function crastersize(ih, name, val) {
         // applies to canvas
         if (name !== "RASTERSIZE") { crash("RASTERSIZE expected!"); }
-        if (val!==null) {
+        if ((val!==null) && (val !== NULL)) {
             let [w, h] = intint(val);
+//DEV + "px"??
+//NO: this is actually right, the trouble is the containing dialog does not expand to hold this...
             if (w) { ih.width = w; }
+//          if (w) { ih.style.width = w; }
+//          if (w) { ih.style.width = w + "px"; }
             if (h) { ih.height = h; }
+//          if (h) { ih.style.height = h; }
+//          if (h) { ih.style.height = h + "px"; }
 //      } else {
 //          ih.width = 0;
 //          ih.height = 0;
@@ -163,13 +233,7 @@ function IupOpen() {
     }
     store_attrs(["canvas"], ["RASTERSIZE"], crastersize);
 
-
-//Ihandle lbl = IupLabel("World","EXPAND=YES, ALIGNMENT=ACENTER"),
-    function set_label(ih, name, val) {
-        class_name(ih,"label");
-        if (name === "TITLE") {
-            ih.innerHTML = val;
-        } else if (name === "EXPAND") {
+    function expand(ih,val) {
 //Value: "YES" (both directions), "HORIZONTAL", "VERTICAL", "HORIZONTALFREE", "VERTICALFREE" or "NO".
 //Default: "NO". For containers the default is "YES".
 //Affects: All elements, except menus. 
@@ -188,7 +252,9 @@ function IupOpen() {
             } else {
                 crash("IupStoreAttribute(IupLabel,\"EXPAND\", \"" + val + "\"??)");
             }
-        } else if (name === "ALIGNMENT") {
+    }
+
+    function align(ih,val,elem) {
 //ALIGNMENT  (non inheritable) horizontal and vertical alignment. 
 //              Possible values: "ALEFT", "ACENTER" and "ARIGHT", combined to "ATOP", "ACENTER" and "ABOTTOM". 
 //              Default: "ALEFT:ACENTER". 
@@ -211,7 +277,7 @@ function IupOpen() {
 //                  ih.classList.add("expandv");
 //                  ih.classList.remove("expandh");
                 } else {
-                    crash("IupStoreAttribute(IupLabel,\"ALIGNMENT\", \":" + vtb + "\"??)");
+                    crash("IupStoreAttribute(" + elem + ",\"ALIGNMENT\", \":" + vtb + "\"??)");
                 }
 //              puts(1,"IupStoreAttribute(IupLabel,\"ALIGNMENT\", \":" + vtb + "\" not yet implemented)");
             }
@@ -227,21 +293,41 @@ function IupOpen() {
 //                  ih.style.placeItems = "end";    // (btm right)
                     ih.style.justifyContent = "flex-end";
                 } else {
-                    crash("IupStoreAttribute(IupLabel,\"ALIGNMENT\", \"" + val + "\"??)");
+                    crash("IupStoreAttribute(" + elem + ",\"ALIGNMENT\", \"" + val + "\"??)");
                 }
             }
+    }   
+    
+//Ihandle lbl = IupLabel("World","EXPAND=YES, ALIGNMENT=ACENTER"),
+    function set_label(ih, name, val) {
+        $class_name(ih,"label");
+        if (name === "TITLE") {
+            ih.innerHTML = val;
+        } else if (name === "EXPAND") {
+            expand(ih,val);
+        } else if (name === "ALIGNMENT") {
+            align(ih,val,"IupLabel");
+        } else if (name === "PADDING") {
+            set_style(ih,"padding",val);
+//          let [w, h] = intint(val);
+//          ih.style.paddingTop = h + "px";
+//          ih.style.paddingBottom = h + "px";
+//          ih.style.paddingLeft = w + "px";
+//          ih.style.paddingRight = w + "px";
         } else {
-            crash("IupStoreAttribute(IupLabel,\"" + name + "\") not yet implemented");
+            crash("IupStoreAttribute(IupLabel,\"" + name + "\") not yet implemented\n");
         }
     }
-    store_attrs(["label"], ["TITLE","EXPAND","ALIGNMENT","MARGIN"], set_label);
+    store_attrs(["label"], ["TITLE","EXPAND","ALIGNMENT","MARGIN","PADDING"], set_label);
     store_attrs(["label"], ["RASTERSIZE"], rastersize);
 //  store_values("EXPAND",[["YES","NO","HORIZONTAL","HORIZONTALFREE","VERTICAL","VERTICALFREE"]])
 //  store_values("ALIGNMENT",[["ALEFT","ACENTER","ARIGHT"],":",["ATOP","ACENTER","ABOTTOM"]])
+
     function set_vbox(ih, name, val) {
-        class_name(ih,"vbox");
+        $class_name(ih,["vbox","hbox"]);
 //DEV common up??
         if (name === "MARGIN") {
+//          set_style(ih,"margin",val);
             let [w, h] = intint(val);
             if (w) {
                 ih.style.marginLeft = w + 'px';
@@ -253,12 +339,93 @@ function IupOpen() {
             }
         } else if (name === "TABTITLE") {
             ih.TABTIITLE = val;
+        } else if (name === "ALIGNMENT") {
+            align(ih,val,"IupH/Vbox");
+        } else if (name === "PADDING") {
+            set_style(ih,"padding",val);
+//          puts(1,"IupH/Vbox(PADDING...)\n"); // placeholder
+        } else if (name === "NORMALIZESIZE") {
+            puts(1,"IupH/Vbox(NORMALIZESIZE...)\n"); // placeholder
+        } else if (name === "GAP") {
+//          puts(1,"IupH/Vbox(GAP...)\n"); // placeholder
+//for now do nothing...
         } else {
             crash("IupStoreAttribute(IupVbox,\"" + name + "\") not yet implemented");
         }
     }
-    store_attrs(["vbox"], ["MARGIN","TABTITLE"], set_vbox);
+    store_attrs(["vbox","hbox"], ["MARGIN","TABTITLE","ALIGNMENT","PADDING","NORMALIZESIZE","GAP"], set_vbox);
 
+    function set_text(ih, name, val) {
+        $class_name(ih,"text");
+        if (name === "VALUE") {
+//          ih.innerHTML = val;
+            ih.value = val;
+        } else if (name === "EXPAND") {
+            expand(ih,val);
+        } else if (name === "MASK") {
+//          puts(1,"IupText(MASK)??\n"); // placeholder
+            ih.type = "number";
+//          ih.type = "text";
+            ih.pattern = val;
+        } else if (name === "PADDING") {
+            set_style(ih,"margin",val);
+        } else if (name === "SPIN") {
+            puts(1,"IupText(SPIN)??\n"); // placeholder
+        } else if (name === "SPINMIN") {
+            puts(1,"IupText(SPINMIN)??\n"); // placeholder
+        } else if (name === "SPINMAX") {
+            puts(1,"IupText(SPINMAX)??\n"); // placeholder
+        } else if (name === "RASTERSIZE") {
+            puts(1,"IupText(RASTERSIZE)??\n"); // placeholder
+        } else {
+            crash("IupStoreAttribute(IupText,\"" + name + "\") not yet implemented\n");
+        }
+    }
+    store_attrs(["text"], ["VALUE","EXPAND","MASK","PADDING","SPIN","SPINMIN","SPINMAX","RASTERSIZE"], set_text);
+
+    function set_toggle(ih, name, val) {
+        $class_name(ih,"toggle");
+        if (name === "VALUE") {
+            ih.innerHTML = val;
+//      } else if (name === "EXPAND") {
+//          expand(ih,val);
+//      } else if (name === "MASK") {
+//          puts(1,"IupText(MASK)??\n"); // placeholder
+//      } else if (name === "SPIN") {
+//          puts(1,"IupText(SPIN)??\n"); // placeholder
+//      } else if (name === "SPINMIN") {
+//          puts(1,"IupText(SPINMIN)??\n"); // placeholder
+//      } else if (name === "SPINMAX") {
+//          puts(1,"IupText(SPINMAX)??\n"); // placeholder
+//      } else if (name === "RASTERSIZE") {
+//          puts(1,"IupText(RASTERSIZE)??\n"); // placeholder
+        } else {
+            crash("IupStoreAttribute(IupToggle,\"" + name + "\") not yet implemented\n");
+        }
+    }
+    store_attrs(["toggle"], ["VALUE"], set_toggle);
+
+    function set_button(ih, name, val) {
+        $class_name(ih,"button");
+        if (name === "GAP") {
+//          ih.innerHTML = val;
+//      } else if (name === "EXPAND") {
+//          expand(ih,val);
+//      } else if (name === "MASK") {
+            puts(1,"IupButton(GAP)??\n"); // placeholder
+//      } else if (name === "SPIN") {
+//          puts(1,"IupText(SPIN)??\n"); // placeholder
+//      } else if (name === "SPINMIN") {
+//          puts(1,"IupText(SPINMIN)??\n"); // placeholder
+//      } else if (name === "SPINMAX") {
+//          puts(1,"IupText(SPINMAX)??\n"); // placeholder
+//      } else if (name === "RASTERSIZE") {
+//          puts(1,"IupText(RASTERSIZE)??\n"); // placeholder
+        } else {
+            crash("IupStoreAttribute(IupButton,\"" + name + "\") not yet implemented\n");
+        }
+    }
+    store_attrs(["button"], ["GAP"], set_button);
 //ToDo: (found while surfin)
 //button.setAttribute("disabled", "true");
 //button.removeAttribute("disabled");
@@ -266,11 +433,19 @@ function IupOpen() {
 //[attribute=value]     [target=_blank] Selects all elements with target="_blank"       (PL: eg [type=button] ??)
 }
 
+function IupSetGlobal(name, v) {
+    if (name === "UTF8MODE") {
+        // do nothing...
+    } else {
+        crash("IupSetGlobal(" + name + ")...");
+    }
+}
+
 //(Ihandle ih, string name, nullable_string val, sequence args={}) 
 function IupSetStrAttribute(ih, name, v, args = []) {
 //  let t = ih.className;
     let t = ih.classList[0];
-//  let t = class_name(ih);
+//  let t = $class_name(ih);
     if (!t || !$storeAttr.hasOwnProperty(t)) {
         crash("invalid type");
     }
@@ -292,12 +467,47 @@ const IupSetAttribute = IupSetStrAttribute;
 
 function IupSetInt(ih, name, v) {
 //  if (typeof(v) !== "number") crash("?");
-    IupSetStrAttribute(ih,name,v?"YES":"NO");
+//  IupSetStrAttribute(ih,name,v?"YES":"NO");
+    IupSetStrAttribute(ih,name,v);
 }
 
-/* (untried)
+function IupGetAttribute(ih, name) {
+    let t = ih.classList[0];
+    if (t === "text") {
+        if (name === "VALUE") {
+            return ih.value;
+        }
+    } else if (t === "button") {
+        if (name === "TITLE") {
+            return ih.innerText;
+        }
+    }
+    crash("IupGetAttribute(%s,%s) not supported",["sequence",t,name]);
+}   
+
+function IupGetInt(ih, name) {
+    let t = ih.classList[0];
+    if (t === "text") {
+        if (name === "VALUE") {
+            if (ih.value === "") { return 0; }
+            return parseInt(ih.value);
+        }
+    }
+    crash("IupGetInt(%s,%s) not supported",["sequence",t,name]);
+}   
+
 function IupGetIntInt(ih, name) {
 //  if (typeof(name) !== "string" ...??
+    let t = ih.classList[0];
+    if (t === "canvas") {
+        if (name === "DRAWSIZE") {
+            return ["sequence",ih.width,ih.height];
+        }
+    }
+//  if (!t || !$storeAttr.hasOwnProperty(t)) {
+//      crash("invalid type");
+//  }
+/*
     let val = ih[name];
 //aw bollocks, it's a *lot* more involved than this...
 //  if (!val || $storeAttr[t].hasOwnProperty(name)) {
@@ -321,9 +531,19 @@ function IupGetIntInt(ih, name) {
 //      val = ["sequence",0,0];
     }
     return val;
+*/
+    crash("IupGetIntInt(%s,%s) not supported",["sequence",t,name]);
 }
 
-*/
+function IupGetDouble(ih, name) {
+    let t = ih?ih.classList[0]:"NULL";
+    if (ih === NULL) {
+        if (name === "SCREENDPI") {
+            return window.devicePixelRatio * 96;
+        }
+    }
+    crash("IupGetDouble(%s,%s) not supported",["sequence",t,name]);
+}
 
 // translated from iup_attrib.c:
 function IupSetAttributes(ih, attributes, args = []) {
@@ -368,7 +588,8 @@ function IupSetAttributes(ih, attributes, args = []) {
                     break;
 
                 case ' ':
-                case '\t':
+//              case '\t':
+//              case 0X9:
                 case '\n':
                 case '\r':
                 case '\f':
@@ -390,7 +611,8 @@ function IupSetAttributes(ih, attributes, args = []) {
                     if (c > " ") {                          // identifier
                         i -= 1;                             // unget first character of env_buffer
 //                      iAttribCapture("=, \t\n\r\f\v");    // get env_buffer until delimiter
-                        iAttribCapture("=, \t\n\r\f");      // get env_buffer until delimiter
+//                      iAttribCapture("=, \t\n\r\f");      // get env_buffer until delimiter
+                        iAttribCapture("=, \n\r\f");        // get env_buffer until delimiter
                         i -= 1;                             // unget delimiter
                         return IUPLEX_TK_NAME;
                     }
@@ -414,7 +636,13 @@ function IupSetAttributes(ih, attributes, args = []) {
                 bEnd = 1;
             case IUPLEX_TK_COMMA:
                 if (name) {
-                    IupStoreAttribute(ih, name, val);
+                    if (sequence(ih)) {
+                        for (let i=length(ih); i >= 1; i -= 1) {
+                            IupStoreAttribute(ih[i], name, val);
+                        }
+                    } else {
+                        IupStoreAttribute(ih, name, val);
+                    }
 //                  let s = "IupStoreAttribute(ih, \"" + name + "\", \"" + val + "\")<br>";
 //                  document.body.insertAdjacentHTML("beforeend", s);
 //                  $docBody.insertAdjacentHTML("beforeend", s);
@@ -451,7 +679,9 @@ function IupSetCallback(ih, name, func) {
 function $paranormalise(action, func, attributes, args) {
 // (see pGUI.e or the help docs for more details)
 // ([DOC] named parameters are not [generally] permitted in pwa/p2js, except perhaps for eg timedelta()/as individually hand-coded in p2js.e)
-    if (action !== null && typeof(action) !== "string") {
+    if (action === NULL) { action = null; }
+    if (func === NULL) { func = null; }
+    if ((action !== null) && (typeof(action) !== "string")) {
         if (typeof(action) === "function") {
             if (attributes && Array.isArray(attributes) && attributes.length) {
                 args = attributes;
@@ -470,7 +700,7 @@ function $paranormalise(action, func, attributes, args) {
             action = null;
         }
     } else if (func === null) {
-        if ((typeof(attributes) !== "string" || attributes.length === 0) && action !== null) {
+        if ((typeof(attributes) !== "string" || attributes.length === 0) && (action !== null)) {
             attributes = action;
             action = null;
         }
@@ -618,6 +848,8 @@ function IupDialog(child, attributes = "", args = [], bEsc = true) {
 //  dlgbod.innerHTML = "Move<br>this<br>div<br>";
     dlgbod.appendChild(child);
     dialog.className = "dialog";
+//26/5 (see if this helps with boids...)
+//  dialog.setAttribute("data-sizing","intrinsic");
     dialog.appendChild(headiv);
     dialog.appendChild(dlgbod);
 
@@ -846,7 +1078,31 @@ function IupDialog(child, attributes = "", args = [], bEsc = true) {
     return dialog;
 } // (IupDialog() ends...)
 
+function IupMap(ih) {
+    let action = ih["MAP_CB"];
+    if (action) { 
+        action(ih); 
+        ih["MAP_CB"] = null;
+    }
+    let children = ih.childNodes,
+        l = children.length;
+    for (let i=0; i<l; i += 1) { IupMap(children[i]); }
+}
+
+function IupRedraw(ih) {
+//  let action = ih["REDRAW_CB"];
+    let action = ih["ACTION"];
+    if (action) { 
+        action(ih); 
+//      ih["MAP_CB"] = null;
+    }
+    let children = ih.childNodes,
+        l = children.length;
+    for (let i=0; i<l; i += 1) { IupRedraw(children[i]); }
+}
+
 function IupShow(ih) {
+    IupMap(ih);
     // Make it top dog, and add it to the DOM.
     ih.style.zIndex = document.getElementsByClassName("dialog").length;
     $docBody.appendChild(ih);
@@ -855,7 +1111,9 @@ function IupShow(ih) {
     // after resizing the window, hence this...
     const rect = ih.getBoundingClientRect(),    // (nb: recalc in DOM)
              w = rect.width,
+//           w = floor(rect.width),
              h = rect.height;
+//           h = floor(rect.height);
     ih.style.width = w + "px";
     ih.style.height = h + "px";
     // It may be possible to allow some squishing, not entirely sure...
@@ -867,7 +1125,11 @@ function IupShow(ih) {
 //  ih.dispatchEvent(event);
 //  window.setTimeout(ih.dispatchEvent,10,event);
 //  window.setTimeout(function() { ih.dispatchEvent(event); }, 100);
+    IupRedraw(ih);
 }
+
+//TEMP:
+let IupShowXY = IupShow;
 
 function IupHide(ih) {
     const dialogs = document.getElementsByClassName("dialog");
@@ -901,6 +1163,62 @@ function IupHide(ih) {
 //  ih.style.display = 'none';
 }
 
+function IupText(action=null, func=null, attributes = "", args = []) {
+    const ih = document.createElement("input");
+    ih.setAttribute('class', 'text');
+    [action,func,attributes,args] = $paranormalise(action,func,attributes,args);
+    if (func) {
+        if (action === "VALUECHANGED_CB") {
+            printf(1,"warning: IupText(VALUECHANGED_CB) not yet supported\n");
+        } else {
+            if (action !== null && action !== "ACTION") { crash("?9/0"); }
+//          if (!action) { action = "ACTION"; }
+            function action_cb(event) {
+                puts(1,"action_cb");    // placeholder...
+//              let c = ??,
+//                  pNewValue = ??,
+//                  res = func(/*Ihandle*/ ih, /*integer*/ c, /*atom*/ pNewValue);
+//              if (res===IUP_IGNORE) {
+//              }
+            }
+            ih.addEventListener('keyup', action_cb);
+        }
+    }
+    IupSetAttributes(ih, attributes, args);
+    return ih;
+}       
+
+function IupToggle(title=null, action=null, func=null, attributes = "", args = []) {
+    const ih = document.createElement("div");
+    ih.setAttribute('class', 'toggle');
+    if (title) {
+//      ih.innerHTML = title;
+        ih.innerHTML = "<nobr>" + title + "</nobr>";
+//DEV:
+//      IupSetAtribute(ih,"TITLE",title);
+    }
+    [action,func,attributes,args] = $paranormalise(action,func,attributes,args);
+    if (func) {
+        if (action === "VALUECHANGED_CB") {
+            printf(1,"warning: IupToggle(VALUECHANGED_CB) not yet supported\n");
+        } else {
+            if (action !== null && action !== "ACTION") { crash("?9/0"); }
+//          if (!action) { action = "ACTION"; }
+            function action_cb(event) {
+                puts(1,"action_cb");    // placeholder...
+//              let c = ??,
+//                  pNewValue = ??,
+//                  res = func(/*Ihandle*/ ih, /*integer*/ c, /*atom*/ pNewValue);
+//              if (res===IUP_IGNORE) {
+//              }
+            }
+            ih.addEventListener('keyup', action_cb);
+        }
+    }
+    IupSetAttributes(ih, attributes, args);
+    return ih;
+}       
+
 //IupFlatLabel?? (mnemonics not supported...???)
 function IupLabel(title=null, attributes = "", args = []) {
     const ih = document.createElement("div");
@@ -932,7 +1250,8 @@ function IupHbox(children, attributes = "", args = []) {
 //  ih.className = "hbox";
 //9/4/21:
 //  for (let i = 0; i < children.length; i += 1) {
-    for (let i = 1, l = length(children); i <= l; i += 1) {
+    let l = length(children);
+    for (let i = 1; i <= l; i += 1) {
         let ci = children[i];
 // ?    if (ci.className === "fill") {
 //          IupSetAttribute(ci,"EXPAND","HORIZONTAL");
@@ -952,7 +1271,8 @@ function IupVbox(children, attributes = "", args = []) {
     const ih = document.createElement("div");
     ih.setAttribute('class', 'vbox');
 //  ih.className = "vbox";
-    for (let i = 1, l = length(children); i <= l; i += 1) {
+    let l = length(children);
+    for (let i = 1; i <= l; i += 1) {
         let ci = children[i];
 // ?    if (ci.className === "fill") {
 //          IupSetAttribute(ci,"EXPAND","VERTICAL");
@@ -972,6 +1292,15 @@ function IupFill(attributes = "", args = []) {
     return ih;
 }
 
+function IupGetDialog(ih) {
+//  while (true) {
+//      ih = ih.parentNode;
+    ih = ih.offsetParent;
+//      if (ih.!="dialog") { crash("uh?"); }
+    $class_name(ih, "dialog");
+    return ih;
+}
+
 //IupButton(nullable_string title=NULL,[[nullable_string action=NULL,] cbfunc func=NULL,] string attributes="", sequence args={}) 
 function IupButton(title = null, action = null, func = null, attributes = "", args = []) {
     const ih = document.createElement("button");
@@ -988,7 +1317,14 @@ function IupButton(title = null, action = null, func = null, attributes = "", ar
         if (action !== null && action !== "ACTION") { crash("?9/0"); }
 //      IupSetCallback(ih, action, func)
 //      btn.addEventListener('click', toggleHide);
-        ih.addEventListener('click', func);
+        function click(event) {
+            let res = func(event.currentTarget);
+            if (res === IUP_CLOSE) {
+                let dialog = IupGetDialog(ih);
+                IupHide(dialog);
+            }
+        }
+        ih.addEventListener('click', click);
     }
     IupSetAttributes(ih, attributes, args);
     return ih;
@@ -1008,8 +1344,21 @@ function IupTable(columns, data, visible=10, attributes="", args=[]) {
     function eHeight(elem) { return pxFloat(getComputedStyle(elem).height); }
     //function eWidth(elem) { return pxFloat(getComputedStyle(elem).width); }
 
+//DEV now don't be silly... (if we need pGUI.js then make sure tagset.js is in the list...)
+//  function my_tagset(n) {
+//      // (in preference to forcing pwa/p2js to include pwa/builtins/tagset.js...)
+////        let tags = repeat(0,n);
+//      let tags = [];
+//      for (let i = 1; i <= n; i += 1) { 
+////        for (let i = 0; i < n; i += 1) { 
+//        tags[i] = i;
+//      }
+//      return tags;
+//  }
+
     let nColumns = length(columns),
         nRows = length(data[1]),
+//      tags = my_tagset(nRows),
         tags = tagset(nRows),
         sort_col = 1,
         sort_dir = 1,
@@ -1055,7 +1404,10 @@ function IupTable(columns, data, visible=10, attributes="", args=[]) {
         //      and for the first display to be near-instantaneous,
         //      at least, that is, post-buildDummyData() timings.
         let last = Math.min(updated+100, nRows);
-        for (; updated<last; updated += 1) {
+//p2js:
+//      for (; updated<last; updated += 1) {
+        for (let i=updated; i<last; i += 1) {
+            updated = i;
             update_item(iObservedNodes[updated]);
         }
         // let UI update / do next block in 0.01s:
@@ -1101,7 +1453,8 @@ function IupTable(columns, data, visible=10, attributes="", args=[]) {
             ad = th.getAttribute('data-sorted'),
             ths = th.parentNode.querySelectorAll('th');
         for (let i=0; i<ths.length; i += 1) {
-            ths[i].removeAttribute('data-sorted');
+            let ti = ths[i];
+            ti.removeAttribute('data-sorted');
         }
         ad = ad==='A' ? 'D' : 'A';
         sort_col = Number(th.id);
@@ -1113,17 +1466,27 @@ function IupTable(columns, data, visible=10, attributes="", args=[]) {
 
     function set_intersection_observer() {
         function iob_handler(entries, iObserver) {
+//p2js:
+/*
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
                     update_item(entry.target);
                 }
             });
+*/
+            let l = entries.length;
+            for (let i=0; i < l; i += 1) {
+                let entry = entries[i];
+                if (entry.isIntersecting) {
+                    update_item(entry.target);
+                }
+            }
         }
         iObserver = new IntersectionObserver(iob_handler, {});
     }
 
     function trHide(trOld) {
-        if (trOld) trOld.classList.remove('trActive');
+        if (trOld) { trOld.classList.remove('trActive'); }
         return false;
     }
 
@@ -1137,7 +1500,7 @@ function IupTable(columns, data, visible=10, attributes="", args=[]) {
         let tbody = trNew.parentNode,
             tableHeight = eHeight(tbody);
         if (bPageKey) {
-            if (typeof(bPageKey)==="string") return true; // ditto
+            if (typeof(bPageKey)==="string") { return true; } // ditto
             tbody.scrollTop += bPageKey*tableHeight+bPageKey;
             return false;
         }
@@ -1227,7 +1590,10 @@ function IupTable(columns, data, visible=10, attributes="", args=[]) {
         }
 //      for (let i=1; i<=nRows; i++) { // (now in timslices)
         let last = Math.min(created+100-0, nRows);
-        for (; created<last; created += 1) {
+//p2js:
+//      for (; created<last; created += 1) {
+        for (let i=created; i<=last; i += 1) {
+            created = i;
             let tr = document.createElement('tr');
             for (let c=1; c<=nColumns; c += 1) {
                 tr.appendChild(document.createElement('td'));
@@ -1238,8 +1604,8 @@ function IupTable(columns, data, visible=10, attributes="", args=[]) {
             iObserver.observe(tr);
             iObservedNodes.push(tr);
         }
-        if (created<nRows) setTimeout(populate_table, 10);
-        if (bRefresh) refresh_observer();
+        if (created<nRows) { setTimeout(populate_table, 10); }
+        if (bRefresh) { refresh_observer(); }
     }
 
     function createResizeDivs() {
@@ -1254,7 +1620,7 @@ function IupTable(columns, data, visible=10, attributes="", args=[]) {
             leftPos = 0,
             colIndex;
 
-        function mouseDown(event) {
+        function rd_mouseDown(event) {
             dragActive = true;
             startX = event.pageX;
             resizer = event.currentTarget;
@@ -1292,12 +1658,12 @@ function IupTable(columns, data, visible=10, attributes="", args=[]) {
             dragActive = false;
         }
 
-        for (let i=1; i<table_th.length-1; i++) {
+        for (let i=1; i<table_th.length-1; i += 1) {
             let resizer = document.createElement("div");
             resizer.className = "column_resizer";
             leftPos += pxWidth(table_th[i-1])+11;
             resizer.style.left = (leftPos-3)+"px";
-            resizer.addEventListener("mousedown", mouseDown);
+            resizer.addEventListener("mousedown", rd_mouseDown);
             container.appendChild(resizer);
             resizer_array.push(resizer);
         }
@@ -1322,7 +1688,9 @@ function IupTreeGetUserId(tree, id) {
     return id;
 }
 
-function IupTreeAddNodes(/*Ihandle*/ tree, /*sequence*/ tree_nodes, /*integer*/ id=-1) {
+//p2js [DEV/temp]
+//function IupTreeAddNodes(/*Ihandle*/ tree, /*sequence*/ tree_nodes, /*integer*/ id=-1) {
+function IupTreeAddNodes(tree, tree_nodes, id=-1) {
 
     function createTVelem(tagname, classname, innerhtml) {
         let res = document.createElement(tagname);
@@ -1332,7 +1700,9 @@ function IupTreeAddNodes(/*Ihandle*/ tree, /*sequence*/ tree_nodes, /*integer*/ 
     }
     if (tree==="createTVelem") { return createTVelem; } // for IupTreeView
 
-    function iupTreeSetNodeAttributes(leaf, /*sequence*/ attrs) {
+//p2js [DEV/temp]
+//  function iupTreeSetNodeAttributes(leaf, /*sequence*/ attrs) {
+    function iupTreeSetNodeAttributes(leaf, attrs) {
         // (internal routine, leaf should be an li)
         for (let i=1; i<=length(attrs); i += 2) {
             let /*string*/ name = attrs[i];
@@ -1364,7 +1734,9 @@ function IupTreeAddNodes(/*Ihandle*/ tree, /*sequence*/ tree_nodes, /*integer*/ 
         }
     }
 
-    function iupTreeAddNodesRec(/*Ihandle*/ tree, /*sequence*/ tree_nodes, /*bool*/ bRoot=true) {
+//p2js [DEV/temp]
+//  function iupTreeAddNodesRec(/*Ihandle*/ tree, /*sequence*/ tree_nodes, /*bool*/ bRoot=true) {
+    function iupTreeAddNodesRec(tree, tree_nodes, bRoot=true) {
         //
         // internal routine, the guts of IupTreeAddNodes, less the initial clear
         // Here, tree is the immediate parent that we're adding the [subtree] tree_nodes to.
@@ -1436,7 +1808,9 @@ function IupTreeAddNodes(/*Ihandle*/ tree, /*sequence*/ tree_nodes, /*integer*/ 
     }
 }
 
-function IupTreeView(/*sequence*/ tree_nodes, /*atom*/ branchopen_cb=null, /*string*/ attributes="", /*sequence*/ args=[]) {
+//p2js [DEV/temp]
+//function IupTreeView(/*sequence*/ tree_nodes, /*atom*/ branchopen_cb=null, /*string*/ attributes="", /*sequence*/ args=[]) {
+function IupTreeView(tree_nodes, branchopen_cb=null, attributes="", args=[]) {
 //
 // Creates an IupFlatTree from a recursive [callback] data structure.
 //
@@ -1448,7 +1822,7 @@ function IupTreeView(/*sequence*/ tree_nodes, /*atom*/ branchopen_cb=null, /*str
     let /*Ihandle*/ tree = createTVelem('ul', 'tree');
 //  let /*Ihandle*/ tree = IupTreeAddNodes.createTVelem('ul', 'tree'); // does not work...
 
-    tree.addEventListener('click', function(event) {
+    function clickHandler(event) {
         let leaf = event.target, // an a.leafLabel or span.treeToggle
             tcl = leaf.classList,
             pcl = leaf.parentNode.classList; // always an li.leaf
@@ -1486,7 +1860,8 @@ function IupTreeView(/*sequence*/ tree_nodes, /*atom*/ branchopen_cb=null, /*str
                 }
             }
         }
-    });
+    }
+    tree.addEventListener('click', clickHandler);
 
 /*
     tree.addEventListener('keydown', e => {
@@ -1560,6 +1935,181 @@ function IupDestroy(/* Ihandlns */ dlg) {
 //  return null;  //DEV would be good for ih, fatal for non-if-not-JS-wrapped (main)dlg=IupDestroy(dlg)...
     return dlg;
 }
+
+function IupCanvas(action = null, func = null, attributes = "", args = []) {
+    let ih = document.createElement("canvas");
+    ih.setAttribute('class', 'canvas');
+    [action,func,attributes,args] = $paranormalise(action,func,attributes,args);
+    //DEV/temp...
+//  canvas.onload = func; // nope...
+//  canvas.onloadstart = func;
+//  canvas.onresize = func;
+    if (attributes) {
+        IupSetAttributes(ih, attributes, args);
+    }
+//  if (func) { func(ih); }
+    if (func) {
+        function func_closure() { func(ih); }
+        window.requestAnimationFrame(func_closure);
+    }
+    return ih;
+}
+let IupGLCanvas = IupCanvas;
+
+
+function cdCanvasActivate(ctx) {
+// (moved to cdCanvasClear...)
+//  ctx.fillStyle = "white";
+    ctx.fillRect(0,0,ctx.canvas.clientWidth,ctx.canvas.clientHeight);
+}
+
+function cdCanvasPixel(ctx,x,y,colour) {
+/// let fs = ctx.fillStyle;
+//  ctx.fillStyle = colour;
+//  ctx.fillRect(x,ctx.canvas.clientHeight-y,1,1);
+//  ctx.fillStyle = fs;
+//  ctx.strokeStyle = colour;
+    if (integer(colour)) { colour = sprintf("#%06x",colour); }
+    ctx.strokeStyle = colour;
+    ctx.strokeRect(x,ctx.canvas.clientHeight-y,1,0);
+}
+
+function cdCanvasClear(ctx) {
+//  ctx.fillStyle = "white";
+    ctx.fillRect(0,0,ctx.canvas.clientWidth,ctx.canvas.clientHeight);
+}
+
+function cdCanvasFlush() {}
+
+function cdCreateCanvas(context, ih) {
+    if (context===CD_DBUFFER ||
+        context===CD_IUP) {
+        if (typeof(ih.getContext) === "function") {
+            let ctx = ih.getContext("2d");
+            ctx.fillStyle = "white";
+            return ctx;
+        }
+        return ih;
+//  } else if (context===CD_GL) {
+//      crash("CD_GL not supported by JavaScript");
+    }
+    crash("cdCreateCanvas(" + context + ",...) not supported");
+}
+
+function cdCanvasSetForeground(canvas, colour) {
+    if (integer(colour)) { colour = sprintf("#%06x",colour); }
+    canvas.strokeStyle = colour;
+}
+
+function cdCanvasSetBackground(canvas, colour) {
+    if (integer(colour)) { colour = sprintf("#%06x",colour); }
+    canvas.fillStyle = colour;
+}
+
+function cdCanvasBegin(ctx, mode) {
+    ctx.beginPath();
+    ctx["MODE"] = mode;
+}
+
+function cdCanvasVertex(ctx, x, y) {
+    let h = ctx.canvas.clientHeight;
+    ctx.lineTo(x, h-y);
+}
+
+function cdCanvasEnd(ctx) {
+    let mode = ctx["MODE"];
+    if (mode === CD_FILL) {
+        let fs = ctx.fillStyle;
+        ctx.fillStyle = ctx.strokeStyle;
+        ctx.fill();
+        ctx.fillStyle = fs;
+    } else {
+        crash("unsupported mode");
+    }
+}
+
+
+function cdCanvasLine(ctx, x1, y1, x2, y2) {
+    let h = ctx.canvas.clientHeight;
+    ctx.beginPath();
+    ctx.moveTo(x1, h-y1);
+    ctx.lineTo(x2, h-y2);
+    ctx.stroke();
+}
+
+//cdCanvasSector(cdCanvas canvas, atom xc, yc, w, h, angle1, angle2) 
+function cdCanvasSector(ctx, xc, yc, w, h, angle1, angle2) {
+    let ch = ctx.canvas.clientHeight;
+    let fs = ctx.fillStyle;
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.beginPath();
+    ctx.arc(xc,ch-yc,w/2,angle1*Math.PI/180,angle2*Math.PI/180);
+    ctx.fill();
+    ctx.fillStyle = fs;
+}
+
+function IupTimer(/*cbfunc*/ func=NULL, /*integer*/ msecs=0, /*boolean*/ active=true) {
+    let timer;
+    const /*TIMER=0, FUNC=1, MSECS=2,*/ ACTIVE=3, ID=4
+    function action_cb() {
+        if (!timer[ACTIVE]) { 
+            window.clearInterval(timer[ID]);
+        } else {
+            let res = func(timer); // (it has to be able to IupSetAttribute(ih,"RUN")...)
+//DEV: IupSetAttribute has to check for Array[0] of "timer" and name of RUN/TIME(/WID?).
+//          if (res === IUPCLOSE) { uh?? }
+        }
+    }
+    let id = window.setInterval(action_cb,msecs);
+    timer = ["timer",func,msecs,active,id];
+    return timer;
+}
+
+function IupUpdate(ih) {
+//IupRedraw
+//  let action = ih["ACTION"]
+//  if (action) { action(ih); }
+    function redraw() { IupRedraw(ih); }
+    setTimeout(redraw, 100);
+}
+
+function IupGLMakeCurrent() {
+}
+
+function IupMessage(title=NULL, msg=NULL, args=[], bWrap=true) {
+    if (args.length) {
+        msg = sprintf(msg, args);
+    }
+    if (title) { msg = title + "\n\n" + msg;}
+    alert(msg);
+}
+
+/*
+<!DOCTYPE html>
+<html>
+<body>
+<p>A script on this page starts this clock:</p>
+<p id="demo"></p>
+<p id="demo2"></p>
+<script>
+var myVar = setInterval(myTimer, 1000);
+function myTimer() {
+  var d = new Date();
+  var t = d.toLocaleTimeString();
+  document.getElementById("demo").innerHTML = t;
+}
+var myVar2 = setInterval(myTimer2, 2000);
+function myTimer2() {
+  var d = new Date();
+  var t = d.toLocaleTimeString();
+  document.getElementById("demo2").innerHTML = t;
+}
+</script>
+</body>
+</html>
+*/
+
+
 
 // (cbfunc/Ihandles/Ihandlns/cdCanvas/imImage/cdContext?)
 // IupRawStringPtr?/IupSetCallback[s]/IupGetAttribute/IupGetInt/IupS/GetGlobal/IupVersion?

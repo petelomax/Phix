@@ -7,20 +7,278 @@
       <h1 class="title">Incompatibilities</h1>
       <div id="mainSection">
         Obviously there are significant restrictions on what can be run in the browser compared to a desktop application.<br>
-        This page summarises the desktop-only features of phix than cannot be used in pwa/p2js.
+        This page summarises the desktop-only features of Phix that cannot be used in pwa/p2js.
+        <br>
+        <br>
+        Lists such as the following usually come across as a catalog of doom and gloom, but in reality I am chuffed to
+        bits <!--and very pleased with myself that -->this list is as short & clean as it is!
+        <br>
+        <br>
+        Please do not misinterpret my fastidious attention to detail as some kind of warning or deterrent. Sure, I need 
+        to manage expectations and spell out that you cannot, say, read and write files from a browser, but the list of 
+        <a href="javascript:ExternalLink('ext125','https://rosettacode.org/mw/index.php?search=phixonline');" id="ext125" 
+        style="color:#9B5565" >rosettacode entries that work in pwa/p2js</a> is steadily growing and even impresses me!
+        (<i>what? <b>four hundred?</b> That&rsquo;s insane!</i>)
+<!--
+        <br>
+        It might also be wise to "keep your gunpowder dry" and refrain from excitedly raving on about things until there 
+        are at least a dozen decent, interesting, and genuinely useful GUI examples, hopefully reasonably soon, since few 
+        will be very impressed by a bit of text in small courier font showing up in a browser.
+-->
         <br>
         <br>
         You <i>must</i> understand and accept the following before using pwa/p2js:
         <ol>
-        <li><b>true!==1</b> and <b>false!==0</b>. The JavaScript equality operators are simply weird, for
-        instance 2==="2" yields false, whereas 2=="2" yields true (and 2="2" is an invalid assignment 
-        statement). Since we/Phix could never work with ==, we use === exclusively. In almost all other 
-        respects, true is 1 and false is 0, for instance 1+true evaluates to 2, just like Phix. It is only
-        direct comparison for equality using an infix operator which fails, and that is simply something 
-        you just have to live with. There is no such issue with equal() and compare().<br><br></li>
+        <li><b>true !== 1</b> and <b>false !== 0</b>, a very specific glitch. The JavaScript equality operators are simply 
+        weird<sup><small><a href="#weird">1</a></small></sup>. In almost all other respects, true is 1 and false is 0, for 
+        instance 1+true evaluates to 2, just like Phix. It is only direct comparison for equality of booleans and numbers 
+        using an infix operator which fails, and that is simply something you just have to live with. Besides, it is not
+        exactly very difficult or particularly unnatural to (manually) convert <code>c==0</code>, for any condition c, to 
+        <code>not c</code> or <code>c==false</code>, likewise <code>c==1</code> to <code>c</code> or <code>c==true</code>. 
+        <br>
+        <br>
+        There is no such issue with <a href="equal.htm">equal</a>() and <a href="compare.htm">compare</a>(), which of course 
+        you can use, and pwa/p2js automatically maps to when needed, that is except for bool vs number, which is difficult 
+        because in Phix those are the same thing. 
+        Thankfully, there are very few places anyone ever actually compares bools against 0 and 1 using an infix operator.
+        <br> 
+        <br> 
+        In a similar vein, desktop/Phix sometimes goes a bit overboard to ensure that "fred" == {'f','r','e','d'}. 
+        I am pretty sure that is (usually/sometimes) broken under pwa/p2js, however I am not particularly keen to fix it, 
+        especially since replacing an infix operator with equal() or compare() almost certainly does the job. 
+<!--
+        Apparently some JavaScript implementations honour the subtle distinction between 0 and -0, but I have been unable
+        to detect that occurring in practice.
+-->
+        There is also a similar issue with null!=0, but thankfully there happens to be a perfectly valid workaround for that, 
+        described below. I have also just noticed that print(1,a=b) prints true or false under pwa/p2js whereas desktop/Phix
+        prints 1 or 0: obviously it would be better if I could change the desktop but that is simply not possible, and I will 
+        simply not bother to "fix" the browser without a really good reason - besides using printf(1,"%d",a=b) instead would 
+        give the exact same 1 or 0 on both anyway, and "%t" the exact same true or false.
+        <br>
+        <br>
+        Anyway, either apply equal() <i>fanatically</i> and slow everything down, for a handful of rare cases, or force you 
+        lot to cope, the latter easily won.
+        <br>
+        <br>
+        The following example illustrates, and also emphasies the subtlety of the issue (no difference whatsoever if c, d, 
+        e, f are defined as bool):
+        <small>
+<!--eucode>
+                    for i=1 to 3 do
+                        integer c = (i==2),         -- fine
+                                d = (c==1),         -- oops
+                                e = (c==true),      -- fine
+                                f = equal(c,1)      -- fine, ditto equal(c,true)
 
-        <li><b>pass by sharing</b> is the underlying semantic nature of JavaScript, in contrast with the
-        pass by reference with copy on write semantics of Phix (arguably somewhat quirky, and certainly 
+                        printf(1,"%d==2:%5t(%d) ==1:%5t, eq1:%5t, ==true:%5t\n",
+                                  {i,     c, c,       d,       e,          f})
+                    end for
+</eucode-->
+<pre>
+<font color="#008080">                    for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#000000"> 3</font><font color="#008080"> do</font>
+<font color="#004080">                        integer</font><font color="#000000"> c</font><font color="#0000FF"> = (</font><font color="#000000">i</font><font color="#0000FF">==</font><font color="#000000">2</font><font color="#0000FF">),        </font><font color="#000080"><i> -- fine</i></font>
+<font color="#000000">                                d</font><font color="#0000FF"> = (</font><font color="#000000">c</font><font color="#0000FF">==</font><font color="#000000">1</font><font color="#0000FF">),        </font><font color="#000080"><i> -- oops</i></font>
+<font color="#000000">                                e</font><font color="#0000FF"> = (</font><font color="#000000">c</font><font color="#0000FF">==</font><font color="#004600">true</font><font color="#0000FF">),     </font><font color="#000080"><i> -- fine</i></font>
+<font color="#000000">                                f</font><font color="#0000FF"> =</font><font color="#7060A8"> equal</font><font color="#0000FF">(</font><font color="#000000">c</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">)     </font><font color="#000080"><i> -- fine, ditto equal(c,true)
+</i></font>
+<font color="#5E005E">                        printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"%d==2:%5t(%d) ==1:%5t, eq1:%5t, ==true:%5t\n"</font><font color="#0000FF">,</font>
+<font color="#800000">                                  {</font><font color="#000000">i</font><font color="#0000FF">,    </font><font color="#000000"> c</font><font color="#0000FF">,</font><font color="#000000"> c</font><font color="#0000FF">,      </font><font color="#000000"> d</font><font color="#0000FF">,      </font><font color="#000000"> e</font><font color="#0000FF">,         </font><font color="#000000"> f</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#008080">                    end for</font>
+</pre>
+ <pre>
+ <font color="#000080"><i>      --
+        -- output on desktop/Phix: 1==2:false(0) ==1:false, eq1:false, ==true:false
+        --                         2==2: true(1) ==1: true, eq1: true, ==true: true
+        --                         3==2:false(0) ==1:false, eq1:false, ==true:false
+        --
+        -- output on pwa/p2js:     1==2:false(0) ==1:false, eq1:false, ==true:false
+        --                         2==2: true(1) ==1:<font color="#FF0000">false</font>, eq1: true, ==true: true
+        --                         3==2:false(0) ==1:false, eq1:false, ==true:false
+        --</i></font>
+ </pre>
+        </small></li>
+
+        <li><b>pass by sharing</b> is the underlying semantic nature of JavaScript, in contrast to the pass by 
+        reference with copy on write semantics of Phix. Faking either in the other would be utter madness, but 
+        thankfully also quite unnecessary. It turns out neither really depend on that sort of thing as much as 
+        we think they do, and <i>banning both</i> is not only perfectly reasonable, but also rather helpfully 
+        occurs on the exact same trigger points, so to speak.
+        <br>
+        <br>
+        Consider <code>sequence s=repeat(repeat(0,100),100)</code>. Phix/cow uses 800ish bytes and one 
+        refcount of 100, whereas JavaScript, and Phix after a bit more setup, uses 40,000. However while
+        that 800ish bytes might improve startup a fraction, it is otherwise a <i>fake saving</i>, and 
+        probably actually <i>costs</i> due to refcount updates, and that could even be measurable if the 
+        original drops out of cache and needs reloading up to 99 times for each copy/decref.<br>
+        Yes, it was a lovely idea, but I probably won&rsquo;t miss it. <small>[repeat() has been modified, 
+        but other benefits of pass by reference have been retained, fear not.]</small>
+        <br>
+        <br>
+        A different case is that someproc(s) can safely doodle in s, whereas similar JavaScript would 
+        scramble the original. Should it need to clone, JavaScript cannot, so what we want and need is to 
+        trigger a violation, and that way <i>force</i> the programmer to use a different approach.
+        <br>
+        <br>
+        Simply adding "<b>with js</b>" (aka javascript[_semantics]) to a program disables both semantics equally.<br>
+        <small>(I don&rsquo;t expect anyone to type out "with javascript_semantics" when they can just use "with js",
+        however searching for the latter on rosettacode is [not] going to be very productive.)</small><br>
+        The only real downside is the browser/JavaScript may fail silently, whereas desktop/Phix does a
+        crash("p2js violation: relies on copy on write semantics"), that obviously you have to fix, and in so
+        doing make the other stop failing too. Should you not need something to run in the browser, do not specify 
+        "with js", and then you won&rsquo;t get any copy on write violations (that is, assuming I added no bugs). 
+        Likewise if you need help with a tricky violation, you can temporarily disable with js and at least continue 
+        developing on the desktop while waiting for a response.
+        <br>
+        <br>
+        The whole of builtins/psqop.e needed a complete rewrite, and is all the better for it. In stark contrast 
+        and quite amazingly I have not found a single thing that needed changing in pGUI.e, not that it is ever
+        transpiled itself, pGUI.js is a hand-written replacement, but it has been and will continue to get tested 
+        under with js quite a bit. (Full disclosure: I <i>have</i> added a few new p2js-related things to pGUI.e, 
+        eg <a href="IupTreeView.htm">IupTreeView</a>, just not changed any old code.)<br>
+        Sometimes an inner repeat() suffices, other times a <a href="deep_copy.htm">deep_copy</a>() 
+        is needed (a new builtin). Using <code>o = f(o)</code> where o is a local variable may help.<br>
+        Conversely, "without js" triggers an error message when an attempt is made to transpile it, which 
+        could save wasted effort on an impossible task, such as trying to read unixdict.txt or invoke c_func 
+        or otherwise use a dll/so from within a browser (see note below regarding mpfr/gmp).
+        <br>
+        <br>
+        Several consequences have arisen:
+        <br>
+        <br>
+        <ol>
+        <li>A statement such as <code>s = {}</code> was trying rather hard to use a shared constant, beginning with 
+        allconst in pmain.e/DoSequence(), which was the only thing actually changed, and finishing off in pEmit2.e 
+        and pbinary.e with a fair bit of careful collating and packaging. <br>
+        However, that caused far too many non-1 reference counts, so it now does an opMkSq: the code is a bit 
+        bigger, but on the plus side it is slightly more thread safe (for sequences of integer only, and not 
+        that threads actually have anything to do with p2js). A similar change applies to {} as a parameter
+        default, but not to other parameter defaults.</li>
+<!--DEV I am now beginning to seriously doubt this, though Aborp() do exist to enforce it...-->
+        <li>A knock-on effect is that you can no longer use nested sequences as parameter defaults - a 
+        shame, but unlikely to cause much pain, and the fix is as clear as day (compile
+        <code>procedure p(sequence s={{}})</code> to see). Note that predeclaring a constant
+        for that <code>{{}}</code> and using that as a default is still perfectly fine, bar
+        the facts that said constant might not yet be properly set up in some forward call situations, and
+        that it will need a deep_copy() before it can be modified, as do all non-{} sequence defaults.</li>
+        <li>There was a nice little refcount cleanup exposed in opMkSq, so it is now a bit <i>more</i> 
+        efficient due to these changes. </li>
+        <li>There was a bug in parameter passing within a routine whereby it was incref&rsquo;ing an unnamed
+        temp rather than clearing it, which these changes also exposed, another worthwhile improvement. </li>
+        <li>Another nice find/fix was that eg <code>{a,b} = table[i]</code> was creating an unnamed temp to 
+        hold table[i], but never releasing the reference count. </i>
+        <li>The same thing was also occuring for <code>table[i] = {a,b}</code>, another very welcome fix.</i>
+        <li>And another: <code>b = append(tmp,atm)</code> was correctly being replaced with
+        <code>b = tmp; b = append(b,atm)</code> but when <code>tmp&atm</code> was similarly being replaced 
+        it was not getting quite the same treatment (was testing for =S_Tvar, now does !=S_Const).</i>
+        <li>I also fixed a looong-standing issue whereby {s[i],s[j]} = {s[j],s[i]} was significantly slower 
+        than a longhand version using a temp, woo-hoo (see get_from_stack/rhs_stack in pmain.e).</li>
+        <li>A mini optimisation that <code>{} & p</code> would just return p with an incref had to go, it 
+        now copies over the elements of p just as it does for a non-empty left-hand sequence. 
+        In the vast majority of cases that was always a very minor optimisation, and the case of
+        <code>p = {} & p</code> is still properly optimised away to "do nothing" (that is when detected
+        at runtime as opposed to when spotted during compilation). Likewise <b><code>r = p[1..$]</code></b>
+        where r!=p now has to make a proper copy rather than returning an incref&rsquo;d p, which probably
+        made very little if any practical difference, and again <code>p = p[1..$]</code> is still optimised 
+        away to "do nothing" when detected at runtime, and <code>p = p[i..j]</code> will still clip in-situ 
+        when it can (not that p2js.js can manage or even attempts those particular feats).</li>
+        <li><b>a = append(b,c)</b> (ditto prepend) where a!=b may need to be replaced with (say) 
+        <code>a = append(deep_copy(b),c)</code>
+        which is fairly rare, and thankfully it is usually pretty obvious what you need to do. You may also
+        get a similar straightforward error with the likes of <code>tbl[i] = append(tbl[i],x)</code>,
+        unless tbl is local and pbr optimisation can be applied. I admit that may be a bit unnecessary but
+        it is not exactly the end of the world, nor is it particularly common.</li>
+        <li><b>return p & q</b> is usually wrong, and typically needs to be replaced with either
+        <code>p &= q; return p</code> or perhaps <code>return deep_copy(p) & q</code>.</li>
+        <li><b>s[i] &= t</b>, thankfully pretty rare, sometimes becomes invalid under with js.
+        If <code>object o = s[i]; o &= t;</code> triggers a cow-violation, so too will the above.
+        Replace it with eg <code>s[i] = deep_copy(s[i]) & t</code>, just like you would with
+        <code>o = deep_copy(s[i]); o &= t</code>, or maybe break it down into four lines:
+        <code>si = s[i]; s[i] = 0; si &= t; s[i] = si;</code>.</li>
+        <li><b>{s[i]} = {ch}</b> becomes illegal when s is a string. JavaScript has some pretty decent Array
+        destructuring operations, but also immutable strings and no char (see below), so in order to be able
+        to use/emit faster and more elegant code it is not permitted to modify individual characters as part
+        of a multiple assignment statement. 
+        A crash("p2js violation: JavaScript does not support string subscript destructuring") occurs should
+        such an invalid operation be attempted on desktop/Phix when with js is in force, which obviously you 
+        will have to fix, but of course <code>s[i] = ch</code> and similar are still all perfectly fine when 
+        <i>not</i> part of a destructuring operation, and handled differently behind the scenes.</li>
+        <li><b>{ch1,ch2} = s</b> likewise becomes illegal when s is a string under with js, fairly rare and 
+        easily replaced with <code>ch1 = s[1], ch2 = s[2]</code>. Note however there is (as yet) no runtime 
+        checking for this on either desktop/Phix or pwa/p2js, and the latter <i>will</i> just fail silently, 
+        with ch1 and ch2 being set to out-by-one length 1 strings instead of the charCodeAt() they would get 
+        when outside of a multiple assignment aka Array destructuring statement. A fix for that (as in a
+        proper runtime error) is probably best married in with adding threads/webworker support and making 
+        ma_ip thread-safe, as mentioned below.</li>
+        <li><b>{s[i..j]} = {x}</b> also becomes illegal, for both strings and dword sequences. JavaScript 
+        handles slices using Array.s[p]lice() which is not a valid destructuring target in JavaScript, nor 
+        would anything similar be valid on desktop/Phix, such as <code>{a,slice(b),c} := xyz</code>.<br>
+        A "p2js violation: JavaScript does not support slice destructuring" compilation error is emitted 
+        in desktop/Phix for attempts to perform slices during a destructuring operation when with js is in 
+        force. <br>
+        Again <code>s[i..j] = x</code> etc are all totally fine outside of multiple assignment.</li>
+        <li><b>{s[$]} = x</b> and in fact any other negative subscripts simply do not work in JavaScript
+        Array destructuring operations, despite them otherwise being pretty decent.<br>
+        You can however still use $ and negative subscripts in non-destructuring operations, so eg<br>
+        <small>
+<!--eucode>
+        sequence s = {1,2,3,4}
+        --{s[1],s[$]} = {s[$],s[1]}     -- fail (4,2,3,4)
+        integer l = length(s)
+        {s[1],s[l]} = {s[$],s[1]}       -- good (4,2,3,1)
+</eucode-->
+<pre>
+<font color="#004080">        sequence</font><font color="#000000"> s</font><font color="#0000FF"> = {</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">}</font>
+<font color="#000080"><i>        --{s[1],s[$]} = {s[$],s[1]}     -- fail (4,2,3,4)</i></font>
+<font color="#004080">        integer</font><font color="#000000"> l</font><font color="#0000FF"> =</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">)
+        {</font><font color="#000000">s</font><font color="#800000">[</font><font color="#000000">1</font><font color="#800000">]</font><font color="#0000FF">,</font><font color="#000000">s</font><font color="#800000">[</font><font color="#000000">l</font><font color="#800000">]</font><font color="#0000FF">} = {</font><font color="#000000">s</font><font color="#800000">[</font><font color="#000000">$</font><font color="#800000">]</font><font color="#0000FF">,</font><font color="#000000">s</font><font color="#800000">[</font><font color="#000000">1</font><font color="#800000">]</font><font color="#0000FF">}      </font><font color="#000080"><i> -- good (4,2,3,1)</i></font>
+</pre>
+        </small>
+        is something else you&rsquo;ll just have to learn to live with. Of course if you prefer to be
+        consistent and replace the $ on the rhs as well, that&rsquo;s perfectly fine and understandable.<br>
+        Note that while I can and do trap [$] and [-literal] during transpilation, there is no run-time 
+        checking for negative subscripts in [var] form during destructuring on either desktop/Phix or 
+        pwa/p2js, and the latter <i>will</i> just fail silently, again adding a proper message (at least
+        that is to desktop/Phix) is probably best attempted alongside the planned ma_ip changes.</li>
+        <li><b>{a,b} @= c</b> forms of multiple assignment were deemed unnecessary and remain unsupported,
+        and can normally be replaced with either an explicit <code>{a,b} = repeat(c,2)</code>, or breaking
+        it down into individual statements/declarations such as <code>a = c [,] b = c</code> or similar.</li>
+        </ol>
+
+        <br>
+        Everything (else) I have encountered so far suggests this approach is adequate and sufficient. <br>
+        The <a href="javascript:ExternalLink('ext616','https://rosettacode.org/wiki/Cramer\'s_rule#Phix');"
+        id="ext616" style="color:#9B5565" >rosettacode entry for Cramer&rsquo;s rule</a> both relied on and
+        proudly promoted the benefits of copy-on-write semantics. Admittedly it found a bug in the p2js.js
+        version of deep_copy() but otherwise was trivial to get working under "with js" and in the browser.<br>
+        Even getting p2js itself to run under "with js" (just on the desktop, for now) was no big deal,
+        despite the fact that over 90% of that was written before I had any idea at all that deep_copy() 
+        would be needed. The "with js" did it&rsquo;s job perfectly and forced me to make around a dozen
+        fairly trivial changes, all with clear no-nonsense messages, albeit ones I pre-understood. Two or
+        three took me maybe three or four minutes, but that was about the worst of it.<br>
+        <small>(That is not the same as saying that six or seven changes from the above table were not 
+        downright tricky, they were, but once done that was that, for them.)</small>
+        <br>
+        <br>
+        Example:
+        <small>
+<!--eucode>
+        O:={3}; P:=O;            O[1]:=5;   -- when transpiled to JavaScript: ARGH, P != {3} !!!
+        O:={3}; P:=deep_copy(O); O[1]:=5;   -- when transpiled to JavaScript: ahhh, P == {3}
+</eucode-->
+<pre>
+<font color="#000000">        O</font><font color="#0000FF">:={</font><font color="#000000">3</font><font color="#0000FF">};</font><font color="#000000"> P</font><font color="#0000FF">:=</font><font color="#000000">O</font><font color="#0000FF">;           </font><font color="#000000"> O</font><font color="#0000FF">[</font><font color="#000000">1</font><font color="#0000FF">]:=</font><font color="#000000">5</font><font color="#0000FF">;  </font><font color="#000080"><i> -- when transpiled to JavaScript: ARGH, P != {3} !!!</i></font>
+<font color="#000000">        O</font><font color="#0000FF">:={</font><font color="#000000">3</font><font color="#0000FF">};</font><font color="#000000"> P</font><font color="#0000FF">:=</font><font color="#5E005E">deep_copy</font><font color="#0000FF">(</font><font color="#000000">O</font><font color="#0000FF">);</font><font color="#000000"> O</font><font color="#0000FF">[</font><font color="#000000">1</font><font color="#0000FF">]:=</font><font color="#000000">5</font><font color="#0000FF">;  </font><font color="#000080"><i> -- when transpiled to JavaScript: ahhh, P == {3}</i></font>
+</pre>
+        </small>
+        Yes, that might sometimes be very painful, but far more often it should be really quite easy and simple.<br>
+        You would normally rely on desktop/Phix fatal messages to figure out where/when <a href="deep_copy.htm">deep_copy</a>() is needed.<br>
+        You should not expect things inadequately tested on desktop/Phix (under "with js") to work in the browser, in that regard.<br>
+        Fears this may carry an unacceptable performance hit have not yet materialised, but cannot be ruled out altogether.<br>
+        There has been a noticeable increase in running p -test, around 25% or 0.8s in total, which averages out at just over 0.01s per 
+        test file, mainly attributed as above to startup times of using opMkSq over shared constants and slightly larger code.<br><br></li>
+<!--
+         (arguably somewhat quirky, and certainly 
         unique, bar Euphoria). Precariously perching a counterfeit copy-on-write semantics scheme on top 
         of the JavaScript copy-by-sharing semantics unfortunately lies somewhere between frankly insane 
         and outrageously ridiculous. Short of an out-and-out interpreter which would run many hundreds of 
@@ -29,7 +287,7 @@
         assignment are effectively the same thing) is <code>O={3}; P=O; O[1]=5; ==&gt; P!={3}</code>. 
         Because of pass by sharing, P gets updated too. I always imagined I would be really upset by that 
         sort of thing, but it turns out that I&rsquo;m really not all that bothered, surprised me too. 
-        One simple solution is just to replace that <code>P=O;</code> with <code>P=$deepCopy(O);</code>. 
+        One simple solution is just to replace that <code>P=O;</code> with <code>P=deep_copy(O);</code>. 
         There is not as yet any mechanism to do that. Several times now I have modified code so that it 
         does not rely on copy-on-write semantics, most noticeably in builtins/psqop.e:sq_eq(), and it 
         turns out to be quite straightforward. So what I&rsquo;m planning to do, and I never thought 
@@ -41,86 +299,571 @@
         aka "with javascript_semantics" which ensures code does not rely on the implicit behaviour of 
         <i>either</i> semantic model, and crashes on the desktop when a violation occurs, with a human 
         readable error of course (probably "Blah blah semantic, had a little BLAM."). Yet to do.<br><br></li>
+
+-->
 <!-- p2js violation: relies on copy on write semantics -->
 
-        <li><b>no include (scope)</b> Apart from multiple <code>&lt;script src="..."&&gt;&lt;/script&gt;</code>
-        JavaScript does not really do include files, and does not grant different scopes to each file.
-        Although pwa/p2js handles p2js.js, pGUI.js, and the autoincludes in builtins/ as separate 
-        script tags, it bundles all other sources into a single script tag. Any clashes are detected
-        and reported as an error. Using multiple script tags would not solve anything. There is also
-        no support for namespaces in JavaScript, so any "as" on an include statement is bluntly rejected,
-        as is a standalone namespace directive within an include file itself, along with any attempt to
-        use namespaces anywhere else in the code.<br><br></li>
+        <li><b>s[<i>expr</i>] += x</b> where <i>expr</i> is not an integer or plain variable and 
+        similar raise a transpilation error "sorry, p2js cannot name the required temp for that".<br>
+        Such statements are/must be transpiled to (say) 
+        <code>s = $repe(r,<i>expr</i>,$subse(r,<i>expr</i>)+x);</code>.
+        On desktop/Phix this triggers the creation of an unnamed temp, however there is no sensible
+        mechanism for doing that (automatically) in JavaScript (mostly my fault for transpiling it 
+        that way, but immutable strings in JavaScript should also shoulder some of the blame, even when
+        s is not a string). You must instead use eg <code>integer sdx = <i>expr</i>; s[sdx] += x</code>,
+        but I&rsquo;m sure you&rsquo;ll cope, somehow.
+        <small>(To be honest <i>probably</i> fixable but currently lacking sufficient motivation.)</small>
+        <br><br></li>
 
-        <li><b>no typechecking</b> There is some limited parameter typechecking withing p2js.js itself,
-        for instance <code><a href="puts.htm">puts</a>(fn,x)</code> begins with 
+        <li><b>{a, atom b} = x</b> where a has already declared raises the transpilation error 
+        "nested vardef error". <small>(Ditto <i>probably</i> fixable.)</small><br>
+        Such statements w/could be transpiled to (say) <code>let [,a, b] = x;</code> but JavaScript 
+        (quite reasonably) complains that a has already been declared. Were it transpiled instead to
+        <code>[,a, let /*atom*/ b] = x;</code> then JavaScript would (rather unhelpfully) raise an
+        "Uncaught SyntaxError: Unexpected strict mode reserved word" error, so we can&rsquo;t do that
+        either. In short, such mid-lhs declarations are a Phix-only thing, easily fixed by replacing
+        with (say) <code>atom b; {a,b} = x</code>. There are probably some other similar forms that 
+        are not yet properly caught. One I have spotted is <code>{a, {atom b}} = x</code> which now
+        raises an "unexpected type" error, though I might yet have to remove that, should it start
+        to trigger when not wanted.<br><br></li>
+
+        <li><b>no include scope</b> Apart from allowing multiple 
+        <code>&lt;script src="..."&&gt;&lt;/script&gt;</code> tags, JavaScript does not really do include 
+        files, and certainly does <b><i>not</i></b> grant a different scope to each file.
+        Although pwa/p2js handles p2js.js, pGUI.js, and the autoincludes in pwa/builtins as separate 
+        script tags, it bundles all other sources into a single script tag. Any clashes are detected
+        and reported as an error. Using multiple script tags would <i>not</i> solve anything.
+        <br>
+        <br>
+        One thing I <i>have</i> done is to automatically replace all (`base64_init`, `aleph`, `ccha`, 
+        `init_base64`) in pwa/builtins/base64.js with (`$base64_init`, `$aleph`, `$ccha`, `$init_base64`), 
+        along with checking that any such entries in p2js_depend.e do not clash with any other, and that 
+        way ensured that none of the builtins "leak" any of their private identifiers, similar to what I 
+        did manually in p2js.js and pGUI.js with eg $charArray and $storeAttr (see full list
+        <a href="javascript.htm#globals">here</a>).
+        <br>
+        <br>
+        Rather belatedly I have realised that I could (build and) prefix a similar list of identifiers in 
+        user-land includes with say $N$, where N is a sequentially allocated number for each include file. 
+        Took me a while to figure that one out, it&rsquo;s now on my list...
+<!--
+        However performing that sort of static clash check on user-land includes would make no practical 
+        difference to the current error handling. [DEV test that]
+-->
+        <br><br></li>
+        <li><b>no namespaces</b> There is absolutely no support for namespaces in JavaScript, so any "as" 
+        on an include statement is bluntly rejected, likewise standalone namespace directives within an 
+        include file itself, along with any attempt to use namespaces anywhere else in the code.
+        <br>
+        <br>
+<!-- utter twaddle:
+        As above, another belated realisation is that if I can fake file scopes, I can fake namespaces...<br>
+        Right now, of course, the focus is on getting small examples to run, so namespaces v2.0 or later (if ever).
+-->
+        Note the above belatedly realised fake file scopes have <i>zero</i> overlap with namespaces, really
+        absolutely <i>none at all</i>, and (indirect) sub-include handling grants a whole new level of meaning 
+        to the word "impossible" when everything gets lumped into a single file, and as I said above, multiple 
+        script tags would <i>not solve anything</i>. I mean there is a slim possibility that pwa/p2js could
+        decipher all the namespace shenanigans and perform a frenetic renaming exercise on <i>everything</i>
+        to keep JavaScript happy, but let&rsquo;s just not go there.
+<!--
+        There should be no surprise that I am gleefully happy about that, and any kickback should be
+        directed at JavaScript, rather than me/p2js. <img src="images/ksk-smile.png" alt="smile" /><br>
+        <small>(As I have said many times before, namespaces are (were) great for resolving conflicts 
+        in 3rd party files <i>without</i> having to edit them (sadly no more), but using namespaces to 
+        <i>deliberately introduce ambiguity</i>, even though they might simultaneously resolve any such 
+        conflict, is simply <i>not</i> a particularly clever idea, or help-file-friendly.)</small>
+        <br>
+        <br>
+        AW SHUCKS: 
+-->     
+        <br><br></li>
+
+        <li><b>implicit forward calls</b> are not supported, instead an explicit forward definition is
+        required, eg:
+        <small>
+<!--eucode>
+        forward procedure Buzz(integer i)       -- <== i.e. this line...
+        
+        procedure Fizz(integer i)
+            ...
+            if mod(i,5)=0 then
+                Buzz(i/5)                       -- ...avoids an error here
+            end if
+            ...
+        end procedure
+        
+        procedure Buzz(integer i)
+            ...
+            if mod(i,3)=0 then
+                Fizz(i/3)
+            end if
+            ...
+        end procedure       
+</eucode-->
+<pre>
+<font color="#008080">        forward procedure</font><font color="#000000"> Buzz</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> i</font><font color="#0000FF">)      </font><font color="#000080"><i> -- &lt;== i.e. this line...</i></font>
+<font color="#C0C0C0">        </font>
+<font color="#008080">        procedure</font><font color="#000000"> Fizz</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> i</font><font color="#0000FF">)
+            ...</font>
+<font color="#008080">            if</font><font color="#5E005E"> mod</font><font color="#0000FF">(</font><font color="#000000">i</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">)=</font><font color="#000000">0</font><font color="#008080"> then</font>
+<font color="#000000">                Buzz</font><font color="#0000FF">(</font><font color="#000000">i</font><font color="#0000FF">/</font><font color="#000000">5</font><font color="#0000FF">)                      </font><font color="#000080"><i> -- ...avoids an error here</i></font>
+<font color="#008080">            end if</font>
+<font color="#0000FF">            ...</font>
+<font color="#008080">        end procedure</font>
+<font color="#C0C0C0">        </font>
+<font color="#008080">        procedure</font><font color="#000000"> Buzz</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> i</font><font color="#0000FF">)
+            ...</font>
+<font color="#008080">            if</font><font color="#5E005E"> mod</font><font color="#0000FF">(</font><font color="#000000">i</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">)=</font><font color="#000000">0</font><font color="#008080"> then</font>
+<font color="#000000">                Fizz</font><font color="#0000FF">(</font><font color="#000000">i</font><font color="#0000FF">/</font><font color="#000000">3</font><font color="#0000FF">)</font>
+<font color="#008080">            end if</font>
+<font color="#0000FF">            ...</font>
+<font color="#008080">        end procedure       </font>
+</pre>
+        </small>
+        This may be addressed in a future release but for now the effort (see p2js_scope.e) is focused on 
+        detecting clashes between different include files, keyword abuse, type inferencing and propagation,
+        named parameter support, etc. Besides, any errors thrown up are trivial to fix manually.<br><br></li>
+
+        <li><b>static variables</b> are not supported, since JavaScript does not support them except via the somewhat
+        convoluted syntax of <code><small>if (typeof this.staticvar === 'undefined') { this.staticvar = 0; }</small></code>
+        and always needing a this (or the function name) prefix. Not entirely impossible, but for now at least they must 
+        be hoisted into global (aka file-level) scope and any consequential conflicts manually resolved, eg:
+        <small>
+<!--eucode>
+        sequence tau_cache = {1}                -- ok
+        function tau(integer n)
+            --static sequence tau_cache = {1}   -- not ok
+            ...
+        end function
+</eucode-->
+<pre>
+<font color="#004080">        sequence</font><font color="#000000"> tau_cache</font><font color="#0000FF"> = {</font><font color="#000000">1</font><font color="#0000FF">}               </font><font color="#000080"><i> -- ok</i></font>
+<font color="#008080">        function</font><font color="#000000"> tau</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> n</font><font color="#0000FF">)</font>
+<font color="#000080"><i>            --static sequence tau_cache = {1}   -- not ok</i></font>
+<font color="#0000FF">            ...</font>
+<font color="#008080">        end function</font>
+</pre>
+        </small>
+        In contrast routine-local constants do not have any such problem and are fully supported.
+        <br><br></li>
+        
+        <li><b>no typechecking</b> There is the <i>tiniest smigden</i> of manual parameter typechecking 
+        within p2js.js itself, for instance <code><a href="puts.htm">puts</a>(fn,x)</code> begins with 
         <code><a href="integer.htm">integer</a>(fn,"fn");</code>, where the optional second parameter to
-        integer (on the browser only) makes it a fatal typecheck, however that is not widely applied. 
-        While you can define user defined types and variables and invoke them explicitly, pwa/p2js simply 
-        maps them to the builtin types, and JavaScript will <i>never</i> invoke them implicitly (ie on 
-        assignment). You can still (mostly) use types to aid development on the desktop, but once a 
+        integer (in the browser only) makes it a fatal typecheck, however that is <b>not</b> widely applied.
+        <br>
+        <br>
+        While you can declare user defined types and variables and invoke them explicitly, pwa/p2js simply 
+        maps them to the builtin types, and JavaScript will <b><i>never</i></b> invoke them implicitly (ie 
+        on assignment). You can still (mostly) use types to aid development on the desktop, but once a 
         program is debugged and run through the transpiler, much of that is largely lost. If you are 
         expecting run-time type checks in a typeless language, or worse are abusing types and expecting 
         side effects on assignment, you will be sorely disappointed. However, if you are simply using 
-        types to make the code a bit more self-documenting, and/or using them to control logic flow, as
-        as noted in a <a href="usingtypes.htm#can">somewhat unsafe manner</a>, that&rsquo;s fine.
+        types to make the code a bit more self-documenting, using them to control logic flow (in a
+        potentially <a href="usingtypes.htm#can">unsafe manner</a>), or debug things (before they hit the 
+        browser), that&rsquo;s fine.<br><br></li>
+
+        <li><b>enum type</b> is not supported, and must be manually replaced as follows (essentially what
+        desktop/Phix does/did automatically):
+        <small>
+<!--eucode>
+--enum type ternary T, M, F end type
+enum T, M, F
+type ternary(integer t) return find(t,{T,M,F}) end type
+</eucode-->
+<pre>
+<font color="#000080"><i>--enum type ternary T, M, F end type</i></font>
+<font color="#008080">enum</font><font color="#000000"> T</font><font color="#0000FF">,</font><font color="#000000"> M</font><font color="#0000FF">,</font><font color="#000000"> F</font>
+<font color="#008080">type</font><font color="#000000"> ternary</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> t</font><font color="#0000FF">)</font><font color="#008080"> return</font><font color="#7060A8"> find</font><font color="#0000FF">(</font><font color="#000000">t</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">T</font><font color="#0000FF">,</font><font color="#000000">M</font><font color="#0000FF">,</font><font color="#000000">F</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#008080"> end type</font>
+</pre>
+        </small>
+        I rather doubt that enum types are widely used enough to warrant wasting any effort on them, and
+        besides you get a very clear compilation error on desktop/Phix under with js when it hits one.<br><br></li>
+
+        <li><b>no delete_routine</b> JavaScript does not (even) have class destructors, and trying to place 
+        any kind of event listener on a JavaScript object would require a reference, which would in turn 
+        prevent it from ever being garbage collected, which is of course the very event you would like/need 
+        to trap. <br><br></li>
+
+        <li><b>file i/o</b> is simply not possible from within a browser, or rather insanely difficult and
+        triggers every stupid CORS restriction<sup><small><a href="#cors">2</a></small></sup> ever invented.<br>
+        <!--The transpiler <i>should</i> barf. -->
+        Storage, database, security, and similar mechanisms have all yet to be devised.
+        <small>(Perhaps I could make pwa/p2js on desktop/Phix also act as a server...)</small><br>
+        Actually, I think this is where I should stick my hand up and say <i>HELP!</i>.
         <br><br></li>
 
-        <li><b>structs/classes</b> are (on the desktop) based on user defined types ...
-        (At the moment I don&rsquo;t even try to parse such things, more investigation would be needed to 
-        see if there is any possible mapping to js.)<br><br></li>
+        <li><b>allocate</b> along with anything from <a href="machine.htm">Machine Level Interface</a> and
+        <a href="ccall.htm">Calling C Functions</a> is simply not possible from within a browser.
+        <small>[Four that are available are <a href="int_to_bits.htm">int_to_bits</a>(),
+        <a href="int_to_bytes.htm">int_to_bytes</a>(), <a href="bits_to_int.htm">bits_to_int</a>(), and 
+        <a href="bytes_to_int.htm">bytes_to_int</a>(), exceptions that prove the rule.]</small>
+        <br><br></li>
 
-        <li><b>file i/o</b> is simply not possible from within a browser. The transpiler <i>should</i> barf.
-        Storage, database, security, and similar mechanisms have all yet to be devised.<br><br></li>
+        <li><b>console input</b> and everything else in <a href="cgraphics.htm">Console Graphics</a> is not 
+        supported. Likewise <a href="progress.htm">progress</a>() would have no effect until the process goes 
+        idle, and in fact the GUI is not updated at all while JavaScript is running. Of course a browser is 
+        itself a GUI, and the idea of stopping JavaScript for input is at odds with the underlying event loop. 
+        To cut a long story short, if you want any interaction, it <i>has</i> to be GUI not console style.
+<!--
+        It is much better to have a proper GUI label or even an IupProgressBar. 
+        An example of adapting a long-running task can be found in the syntax colouring code in p2js itself. 
+        Keyboard input is of course possible, but either via a callback such as KEY_CB or with a standard 
+        GUI input field. 
+        You must wrap any progress() calls and the like in <code><small>if platform()!=JS then</small></code> 
+        or similar, that is if you are not prepared to remove them altogether. There is in fact a dummy 
+        "do nothing" <a href="wait_key.htm">wait_key</a>() in p2js, but in truth calls to that also deserve 
+        to be wrapped in such a test.
+-->
+        <br><br></li>
 
-        <li><b>progress</b>() is not supported. The JavaScript event loop is not suitable for long-running
-        console-based applications, and invoking something like <a href="progress.htm">progress</a>() will
-        have no effect until the process goes idle. A GUI application with an IupProgressBar updated from
-        a re-entrant idle handler that processes things in smaller chunks or similar is much more suited,
-        for example the syntax colouring code in p2js itself.<br>
-        You must wrap any progress() calls in <code>if platform()!=JS then</code> or similar.<br><br></li>
+        <li><b>no tab</b>. According to JavaScript the tab, along with backspace, form feed, newline, carriage 
+        return, and vertical tab, <i>&ldquo;were originally designed to control typewriters, teletypes, and 
+        fax machines, and do not make any sense in HTML&rdquo;</i>. In practice, should you invoke say 
+        <small><code>f("&nbsp;&nbsp;&nbsp;&nbsp","\t","\x09")</code></small> then f receives three identical 
+        parameters of 4 spaces each. Pretty crazy, huh? There is absolutely nothing we can do but ban it and/or 
+        raise an error, at least within strings. You can still define a single tab character as '\t', which is
+        covered by the "no char" workaround below and mapped to 0X9, it is tabs within strings that are banned.
+        It is not quite so mental on the other control characters. p2js maps \#HH to \xHH, and as far as I am 
+        aware, JavaScript does not support \0, \e, \u or \U in strings. Various builtins have had some strings 
+        changed to dword-sequences to accomodate this, for instance <a href="trim.htm">trim</a>() used to have
+        a default of " \t\r\n" but that has (had to) become {' ','\t','\r','\n'}.<br><br></li>
 
-        <li><b>no tab</b>. Accoring to JavaScript the tab, and backspace, form feed, newline, carriage 
-        return, and vertical tab characters, were originally designed to control typewriters, teletypes, 
-        and fax machines, and do not make any sense in HTML. In practice, should you invoke say 
-        f("&nbsp;&nbsp;&nbsp;&nbsp","\t") then f receives two identical parameters of 4 spaces each. 
-        There is absolutely nothing we can do but ban it/raise an error. 
-        It is not quite so mental on the other control characters.<br><br></li>
+        <li><b>keywords</b>. Must be extended to cover both Phix and JavaScript, so identifiers such as this, 
+        in, new, super, etc. must all be renamed. The transpiler should point &rsquo;em out, and I also added 
+        a <a href="declarations.htm">table of them</a> to the docs for you, and wrote a draft outline for a 
+        code minimiser, which if ever implemented w/could make that unnecessary.<br><br></li>
 
-        <li><b>keywords</b>. Must be extended to cover both Phix and JavaScript, so identifiers such as
-        this, in, void, byte, etc. must all be renamed. The transpiler should point &rsquo;em out.<br><br></li>
+        <li><b>goto</b> is not supported in JavaScript, so despite only recently adding goto to Phix, in fact 
+        in the same release as p2js, the latter does <i>not</i> support it.<br><br></li>
 
-        <li><b>20 year old code</b> is not likely to run under pwa/p2js. Changes should be kept minimal,
-        however it is probably best to consider p2js as effectively a brand new language and something
-        that will only run brand new code written specifically for it.</li>
+        <li><b>20 year old code</b> is not likely to run under pwa/p2js. Changes should be fairly minimal,
+        however it is probably wise to consider p2js as effectively a brand new language and something
+        that will only run brand new code written specifically for it, doubly so GUI-wise.
+<!--
+        There may also be times where a (subtle) change in coding style will lead to improved performance. 
+-->
+        Attempts to transpile legacy code without first testing it under "with js" on desktop/Phix deserve a 
+        <i>very serious spanking!</i></li>
         </ol>
-        <br>
-        <br>
-        The following workarounds are used in the transpiler:
-        <ol>
-        <li><b>no char</b>. You do not have to look very far to find JavaScript that looks like it is using 
-        characters, there is even some in p2js.js, but trust me it&rsquo;s all strings. In Phix, '2'+1 is '3', 
-        in JavaScript it&rsquo;s '21'. The transpiler converts eg 'A' to 0X41 to avoid this issue.<br><br></li>
 
+        The following workarounds are used in the transpiler (selected highlights of far too many to mention, I guess):
+        <ol>
+<!--
+        <li><b>true !== 1</b>, <b>false !== 0</b>, and <b>null !== 0</b>. The JavaScript equality operators are simply 
+        weird<sup><small><a href="#weird">1</a></small></sup>. In almost all other respects, true is 1 and false 
+        is 0, for instance 1+true evaluates to 2, just like Phix. It is only direct comparison for equality of 
+        booleans (etc) and numbers using an infix operator which fails, but thankfully there is a trivially easy
+        workaround: the transpiler maps true to TRUE, false to FALSE, and null to NULL, and explicitly defines
+        the uppercase variants as the numbers we need. Not entirely surprisingly, attempting to define the 
+        lowercase variants triggers a syntax error in JavaScript. Just in case you were unaware, desktop/Phix
+        defines the uppercase variants as aliases of the lowercase ones in psym.e/syminit().<br><br></li>
+-->
+        <li><b>null !== 0</b>. Much like the true !== 1 issue above, however in this case there is a trivial 
+        workaround: the transpiler maps null to NULL, and explicitly defines the uppercase variant as 0. 
+        The big difference is we are in complete control of which routines return null, and can map them
+        all, whereas unfortunately we cannot guarantee the same for routines returning true and false.
+        In fact the transpiler maps TRUE and True to true, and FALSE and False to false, the other way
+        around, otherwise that aforementioned glitch would just be even more inconsistent and confusing,
+        since without that mapping <code>c=true</code> would work but <code>c=TRUE</code> would not.
+        Not entirely surprisingly, attempting to define the lowercase variant(s) triggers a syntax error  
+        in JavaScript. Just in case you were unaware, desktop/Phix defines the uppercase variant (NULL) as 
+        an alias of the lowercase one (null) in psym.e/syminit().<br><br></li>
+
+        <li><b>no char</b>. You do not have to look very far to find JavaScript that <i>looks</i> like it is 
+        using characters, there is even some in p2js.js, but trust me it&rsquo;s all strings. In Phix, '2'+1 
+        is '3', in JavaScript it is '21'. The transpiler converts eg '2' to 0X32 to neatly sidestep this issue, 
+        rather successfully I might add.<br><br></li>
+
+        <li><b>mutable strings</b> are provided seamlessly. While technically JavaScript has immutable strings,
+        the transpiler converts eg <code>s[i] = x</code> to <code>s = $repe(s,i,x)</code> which handles both
+        strings and dword sequences seamlessly, even with their 0-based and 1-based subscripts respectively. 
+        The same can also be said for append() and prepend(), and the infix & operator, which is transpiled to
+        <a href="javascript.htm#globals">$conCat</a>() calls, which also takes care of that messy '+' operator
+        overloading business of JavaScript. It also relies on desktop/Phix crashing should a '+' operator be
+        attempted on a string when <a href="seqops.htm">sq_add</a>() should have been used. Whereas previous
+        versions of desktop/Phix would sometimes substitute a '+' with sq_add(etc) and issue a warning, that 
+        is now treated as a compilation error whenever with js is in force.<br><br></li>
+
+        <li><b>named parameters</b> are not supported by JavaScript, therefore we map them to positional 
+        arguments inside p2js, eg <code>timedelta(days:=1)</code> ==&gt; <code>timedelta(0,1);</code>. 
+        Some of the work that was needed for the builtins might well deserve to be back-ported to 
+        desktop/Phix.<br><br></li>
+
+        <li><b>enum</b> is not supported by JavaScript 
+        <small><i>&lt;Sybil Fawlty&gt;Oh I know, .. yes I know&lt;/Sybil Fawlty&gt;</i></small>, 
+        therefore p2js translates them to standard constants.<br><br></li>
+
+        <li><b>nested constant</b> declarations are not supported by JavaScript, therefore p2js extracts them 
+        into standard constant definitions <small><i>(recursively! irreversibly!)</i></small>.<br><br></li>
+
+        <li><b>unescaped strings</b> like Phix backticks or treble quotes are not supported by JavaScript, so p2js 
+        valiantly tries to correct for that on output, though I may have missed a trick or two, especially with
+        some of the nuances of leading whitespace.<br><br></li>
+
+        <li><b>hexadecimal strings</b> such as x"123_456" are automatically mapped to a JavaScript-compatible
+        format, in this case "\x12\x03\x45\x06", applying the equivalent nibble-rules to desktop/Phix.<br><br></li>
+<!--
         <li><b>repeated</b>().Since repeat() is not a hll routine (see builtins/VM/pRepeatN.e) it would have 
         difficulty invoking deep_copy() as-is. Ideally in the long term we might move deep_copy() into asm 
         proper, and :%opRepCh/:%opRepeat into pHeap.e for direct access to the flag that "with js" sets, 
         along with deep_copy() itself, to tidy up some refcount=1 checking. For now you may have to replace 
         some repeat() with repeated() under "with js".<br><br></li>
+-->
         </ol>
-        
+
+        Improvements warranted
+<!--
+         (include scope and namespaces probably deserve to be in this list):
+-->
+        <ol>
+
+<!-- should now be fixed...
+        <li><b>constant a = x, b = y</b> is (often) not handled properly and it is much happier with 
+        <code>constant a = x constant b = y</code>.<br>
+        Update: <code>integer {team1,team2} = {1,2}, {points1,points2} = {1,2}</code> also seems to
+        trigger the same bug.<br>
+        I somehow doubt that will be terribly difficult to fix, but right now...<br><br></li>
+
+        <li><b>nested comments</b> are not supported by Javascript. There are some efforts in p2js_emit.e 
+        to replace offending /* and */ with (eg) /@* and *@/ but some are still slipping through. 
+        I suspect I commented out something for some long forgotten reason and plain forgot to put it back in.<br><br></li>
+-->
+<!--
+        <li><b>{s[i],s[j]} = {s[j],s[i]}</b> and the like are a little bit problematical.<br>
+        Strings and sequences have 0- and 1-based subscripts internally/respectively <small>[no need to panic, 
+        all taken care of]</small>, so for <code>s[i] = x</code> to support both strings and dword sequences it 
+        is transpiled to <code>s = $repe(s,i,x)</code>, which is not a valid destructuring target in JavaScript, 
+        nor would a similar inline function be valid on desktop/Phix. At times my early decision to whack a 
+        "sequence" in [0] on dword-sequences feels like it has not really helped, but in reality the fact that
+        JavaScript strings are immutable and the no char thing (above) makes all that rather moot anyway.<br>
+        While JavaScript does indeed support both nested and subscripted array destructuring <small>[pretty cool 
+        stuff compared to some of the rest of the language!]</small>, I simply cannot use that if there is any  
+        chance of any string subscripts being a possible target.
+        For now at least, it allocates a new $massN variable where N is incremented per scope, and breaks the 
+        thing up into several admittedly fairly tortuous-looking lines:<br><br><small>
+        <code>&nbsp;&nbsp;&nbsp;let /*sequence*/ $mass1 = ["sequence",$subse(s,j),$subse(s,i)];</code><br>
+        <code>&nbsp;&nbsp;&nbsp;s = $repe(s,i,$subse($mass1,1));</code><br>
+        <code>&nbsp;&nbsp;&nbsp;s = $repe(s,j,$subse($mass1,2));</code><br><br></small>
+        If only I can find a way to outright ban string subscripts in such constructs, on desktop/Phix that is,
+        such that say <code>{firstname,lastname} = capitalise_all({firstname,lastname})</code> would be fine 
+        but <code>{firstname[1],lastname[1]} = {upper(firstname[1]),upper(lastname[1])}</code> would be illegal, 
+        maybe crash("p2js violation: JavaScript does not support string subscript destructuring"), then I could 
+        (more widely) use the much more sensible and probably much faster native JavaScript destructuring.<br>
+        It is perhaps the only reason I have not started on a complete rewrite of p2js_emit.e (it really needs
+        it), but for now you should expect various (untested) constructs to suddenly fail, hopefully in a
+        rather violent and obvious way rather than a subtle and hard to find way, which should not then be 
+        particularly difficult to fix individually.<br><br></li>
+-->
+        <li><b>error handling</b> is generally pretty poor, often a plain crash (independently of and in 
+        addition to the constant CRASH at the top of p2js.exw). Note that pwa/p2js copes with several things 
+        on the assumption they are inside a platform()!=JS test or similar, and (at least in the fullness
+        of time) is expected to deal with Phix, JavaScript, HTML, CSS, C, etc. None of $repe(), $repss(), 
+        $subse(), or $subss() perform bounds checking yet, but they should and will. Note however that 
+        <a href="javascript:ExternalLink('ext832','https://rosettacode.org/wiki/Law_of_cosines_-_triples#Phix');"
+        id="ext832" style="color:#9B5565" >https://rosettacode.org/wiki/Law_of_cosines_-_triples#Phix</a> 
+        relies on a "sparse array" trick and will crash if we actually initialise an array of 100,000,000 
+        items or apply stricter bounds checking. It is the only such one I know of though, and could probably
+        be modified to use a dictionary on js, then again is bounds checking in js actually useful?.<br>
+        Right now the target is simply to deal with bug-and-syntax-error-free code, and it would be unwise to
+        expect too much in the way of proper error handling, or warnings that you are trying to use a feature
+        that a browser will never support, etc, though of course I&rsquo;m sure that will gradually improve.
+        <br><br></li>
+
+        <li><b>structs/classes</b> ... at the moment I do not even try to parse such things. JavaScript 
+        classes cannot be abstract and have no specific support for public/private, and also there is a 
+        constructor() which must be present and any super() must always be called. Fields must be set in
+        constructor() rather than declared and class methods have no "function". Obviously there is no 
+        support for c_structs, and all JavaScript classes are what Phix would dub "dynamic". Overall I
+        would say there probably <i>is</i> a fairly easy and straightforward mapping, but no promises.<br>
+        Update: I had to disable test\t64structs.e during p2js testing and builtins\structs.e will need
+        to disable "with js" using #ilASM{ xor eax,eax; call :%pWithJS; mov [rest_js],ecx } followed by
+        #ilASM{ mov eax,[rest_js]; call :%pWithJS } to re-enable it, and pHeap.e changed to set e/rcx.
+        Messy but at least that part of it is doable.<br><br></li>
+
+        <li><b>pGUI.js</b> is still very much at the proof of concept stage and only works for about half 
+        a dozen fairly trivial examples. The biggest difficulty is likely to be a consistent mapping between 
+        the GAP/PADDING/MARGIN/SIZE/EXPAND/SHRINK etc attributes of the IUP container model and the required
+        CSS settings of the browser box model, not easy but I cannot think of anything that would be.
+        Only a tiny handful of elements/containers have even been started, but most have been fairly easy,
+        that is apart from the spacing/layout aspects, which have in contrast been quite frustrating.
+        I don&rsquo;t know whether demo/pGUI/pGUIC.e would make anything easier, ditto for irv&rsquo;s new 
+        GTK wrapper if/when that becomes available (which like pGUI.e also passes the first critical test of 
+        working on both Windows and Linux with Phix), or whether we&rsquo;d be better off using pGUI/iGTK or
+        some restricted subset of one of those to emulate a box model on the desktop. Not a trivial task, no
+        matter whatever route is taken.
+        <br><br></li>
+
+<!-- now done
+        <li><b>try/catch</b>. Almost properly parsed, apart from incorrectly demanding that e be pre-defined
+        (which is illegal/ignored in JavaScript anyway), however the emit side still throws a complete wobbly.
+        In Javascript a catch(e) can receive a string, number, boolean, or object, so I would probably want 
+        to quietly emit something like e = $catch(e); to make it a more desktop/Phix compatible sequence. 
+        Naturally you are unlikely to get meaningful line numbers (or even source file names) and I have no 
+        plans to add a finally clause just because JavaScript happens to have one.
+        Not very high on my to-do list.<br><br></li>
+-->
+
+        <li><b>multithreading</b> in JavaScript is done with webworkers, a completely different interface to
+        the existing <a href="mthread.htm">multithreaded</a> capabilities of desktop/Phix. The fact that we
+        need separate files for JavaScript (or Blob doobries with a separate scope) strongly suggests that
+        we would be far better off adding a webworker compatible api to desktop/Phix than trying to emulate 
+        <a href="create_thread.htm">create_thread</a>() and friends in the browser, but beyond that simple 
+        thought I got nothing much. One possibility is that "w = webworker filename.e" would be hauntingly 
+        similar to "include filename.e" except for granting it a new separate clean and empty scope, or a
+        new (just like <a href="class.htm">class</a>) "webworker w ... end webworker" construct to much the 
+        same effect, the critical point being that desktop/Phix would not have any access to variables or
+        routines that a JavaScript webworker as transpiled from that code would not. Aside: the ma_ip flag
+        added to pRepeN.e and pSubseN.e is not thread safe and would need migrating to the opcode/stack.
+        <br>
+        <br>
+        I will also state that attempting to emulate <a href="mtask.htm">multitasking</a> in the browser is 
+        almost certainly a terrible idea: were it in any way reasonably possible there would be dozens of 
+        js libraries offering that functionality by now and I have never heard of any. Besides which all of
+        that critical section locking stuff goes out the window with a webworker api anyway, which would be
+        the only reason anyone would ever use tasks over threads in the first place.<br><br></li>
+<!--
+        <li><b>{s[i]} = {x}</b>. Subscripted multiple assignment/destructuring proved difficult, so at least
+        for now it is treated as a syntax error. The main problem is that for s[i] = x to support both strings
+        and dword sequences, it is transpiled to s = $repe(s,i,x), which is not a valid destructuring target in
+        JavaScript, nor would a similar inline function be valid in Phix. It may be possible to improve this 
+        (see "subscripts_invalid" in p2js_parse.e), but it is mighty difficult, so don&rsquo;t be holding your 
+        breath. One ray of hope is that way back in 2013 I enhanced pmain.e/MuptipleAssignment() to spot the
+        opMkSq for the {x} still on the opstack and instead of doing that peeled entiries off individually,
+        effectively converting {a,b,c} = {d,e,f} into three plain assignments (with plenty of checks and a few
+        caveats); maybe I can pull off a similar trick in p2js_parse.e or p2js_emit.e, perhaps. <br>
+        Then again, that code is fraught with refcount isues anyway, so maybe not. <br>
+        Also, "@=" forms of multiple assignment were deemed unnecessary for 1.0.0 and remain unsupported. <br>
+        For some possible replacements see tests/t57masgn.exw and search for p2js.<br><br></li>
+
+        <li><b>s[i] &= t</b>. As mentioned above but worth repeating, must be replaced with 
+        <code>s[i] = deep_copy(s[i]) & t</code>, or similar. In the first place it would be desktop/Phix that
+        needed enhancement. An s[i] = 0 could trigger a typecheck, it has to support s[i] &= s[i] (for legacy
+        code, even if I ban that sort of thing under with js) which pretty much rules out any fancy tricks 
+        with refcounts, so it probably <i>would</i> be automating that deep_copy() call. Very rarely happens,
+        very easily fixed manually, at the very bottom of the list, that one.<br><br></li>
+-->
+<!-- fixed!!!
+        <li><b>trace() violates with js</b>. Hardly surprising really, but you (would, were it allowed) get 
+        an era/line number of -1 since the code that&rsquo;s crashing isn&rsquo;t in the application&rsquo;s 
+        symbol table, but in builtins/VM/pTrace.e which has previously been built into p.exe. Maybe slightly 
+        better clues can be had running things as "p p test", maybe I can turn it off in pTrace.e, or maybe 
+        I can figure something out using test/trace.exw or a special build of p.exe, but for now I will just 
+        say you have no choice but to comment out with js into order to use trace(), and in fact desktop/Phix
+        throws a compilation error on the offending with statement.<br><br></li>
+-->
+        <li><b>mpfr/gmp</b> dlls cannot be used directly, however (and in preference to all that WASM nonsense)
+        JavaScript now has a native BigInt in nearly 90% of all browsers in use (see 
+        <a href="javascript:ExternalLink('ext626','https://caniuse.com/?search=bigint');"
+        id="ext626" style="color:#9B5565" >https://caniuse.com/?search=bigint</a>, and note that several of 
+        those nice green boxes are 2021), so a replacement mpfr.js has been manually crafted as a drop-in 
+        replacement.<br>
+        Likewise there may or may not be alternatives we ("we", huh...) can cobble together for the likes
+        of database/pSQLite, libcurl, librsvg, and sockets, but I would be very surprised if there is 
+        anything for ipc, LiteZip, pipeio, or of course cffi. Just to complete the picture, I don&rsquo;t
+        see any problems with using the existing base64, complex, dict, json, ordinal, ppp, pqueue, regex,
+        sets, timedate, unit_test, utfconv, or xml components, which should all be usable right now, not
+        very well tested mind you, although serialize.e uses atom_to_float32/64/80 etc and would therefore
+        need replacing with a simplified mini JSON.stringify/parse wrapper of some sort.
+        <br><br></li>
+
+        <li><b>1.23MB all in</b> for the (first, broken, self-host of the) transpiler (813K) and all other 
+        support files (416K), which includes excessive comments and no attempt at any kind of minimisation. 
+        A simple zip of the 290K builtins was 90K. For comparison, the median fully optimised sizes for 
+        Vue/React/Angular pages are 460K..1.14MB. A hello world Blazor WASM app is apparently 1.6MB. I have
+        also had the joy of downloading and running 75MB WASM files once or twice, never that again please.
+        Obviously it is generally speaking utterly ridiculous to compare my little 3-bit toy against those... 
+        and those median sizes probably contain several images... 
+        Beyond that, I have absolutely no idea what the final tallies will be, and not particularly worried:
+        it will not be free or near zero, and far more likely to go down than start bloating from now on.
+        Of course smaller is better and faster, but in all honesty these days even a previously unthinkable 
+        10MB is actually acceptable, just about and not that I plan on ever getting anywhere near that.
+        <br><br></li>
+
+        <li><b>Inline JavaScript</b> might very well be handy. Just as inline assembly uses a #ilASM{}
+        construct with embedded guards [32], [64], [PE], [ELF] (and pairings) to emit the right assembly
+        for each target architecture, we could have a [JS] guard around embedded inline javascript.
+        Admittedly it is slightly odd to lump javascript in with assembly, but probably the right thing
+        to do. Just as most people (for good reason) steer well clear of inline assembly, I would expect
+        most to steer well clear of inline javascript as well.<br><br></li>
+
+        <li><b>Generating C code</b> instead of JavaScript is probably reasonably straightforward, however
+        things totally outside my comfort zone include installing a C compiler and applying the estimated
+        10<small><sup>47</sup></small> compiler flags and configuration settings actually needed in order
+        to make it work, along with a manually crafted p2js.c equivalent for p2js.js, and for the 
+        exceptionally brave and stupid, using IUP and mpfr C sources directly instead of pre-built dlls. 
+        Happy to help where I can, as long as I&rsquo;m not put in charge.<br><br></li>
+<!--
+        <li>Replacing as follows often helps, but really the original should play nicer with refcounts.
+        <small>
+< ! --eucode>
+            -- s[i] &= t
+            sequence si = s[i]
+            s[i] = 0
+            si &= t
+            s[i] = si
+</eucode-- >
+<pre>
+<font color="#000080"><i>            --integer {a,b} = tbl[i]</i></font>
+<font color="#004080">            object</font><font color="#000000"> ti</font><font color="#0000FF"> =</font><font color="#000000"> tbl</font><font color="#0000FF">[</font><font color="#000000">i</font><font color="#0000FF">]</font>
+<font color="#004080">            integer</font><font color="#0000FF"> {</font><font color="#000000">a</font><font color="#0000FF">,</font><font color="#000000">b</font><font color="#0000FF">} =</font><font color="#000000"> ti
+            ti</font><font color="#0000FF"> =</font><font color="#000000"> 0</font>
+</pre>
+        </small>
+        <br>
+        The problem with the one-liner is it uses an unnamed temp to do the job of si, and that carries a 
+        refcount... The real problem is it has to support things like s[i] &= s[i] on desktop/Phix (which
+        is an absolute no-no under with js), so not having a refcount on the unnamed temp simply would not
+        work, and replicating that s[i] = 0 could trigger unexpected typechecks in legacy code. Thankfully
+        appending to a subscritped element is a fairly rare thing.
+        </li>
+< ! --
+        <li>Replacing as follows often helps, but really the original should play nicer with refcounts.
+        <small>
+< ! --eucode>
+            --integer {a,b} = tbl[i]
+            object ti = tbl[i]
+            integer {a,b} = ti
+            ti = 0
+</eucode-- >
+<pre>
+<font color="#000080"><i>            --integer {a,b} = tbl[i]</i></font>
+<font color="#004080">            object</font><font color="#000000"> ti</font><font color="#0000FF"> =</font><font color="#000000"> tbl</font><font color="#0000FF">[</font><font color="#000000">i</font><font color="#0000FF">]</font>
+<font color="#004080">            integer</font><font color="#0000FF"> {</font><font color="#000000">a</font><font color="#0000FF">,</font><font color="#000000">b</font><font color="#0000FF">} =</font><font color="#000000"> ti
+            ti</font><font color="#0000FF"> =</font><font color="#000000"> 0</font>
+</pre>
+        </small>
+        </li>
+-- >
+-->
+        </ol>
+
+        As stated above, that list might look pretty dreadful, but actually there aren&rsquo;t any really big 
+        show-stoppers in there, and plenty not-mentioned works just fine.
+        <br>
+        <br>
+        Performance seems pretty decent, that is in the browser, in fact 
+        <a href="javascript:ExternalLink('ext627','https://rosettacode.org/wiki/Attractive_numbers#Phix');"
+        id="ext627" style="color:#9B5565" >Attractive_numbers</a> is actually (reported as) faster in the 
+        browser than on the desktop, though of course it is usually the other way round, with some around 
+        20 times slower in the browser, for instance one particular and hopefully fairly rare bad case is 
+        <a href="javascript:ExternalLink('ext628','https://rosettacode.org/wiki/Extra_primes#Phix');"
+        id="ext628" style="color:#9B5565" >Extra_primes</a>. <br>
+        Calls to <a href="deep_copy.htm">deep_copy</a>() may not be the overhead you think they are: sure 
+        there is an additional function call but the actual work it does, at least on a flat sequence or 
+        when you decide it is ok to limit the depth appropriately, is (often) exactly the same work it 
+        always had to do quietly behind the scenes for you anyway. <br>
+        The only real difference may be in making that explicit for the benefit of JavaScript.
+        <br>
+        <br>
+<!--
         Say bye-bye to:<br>
-        User defined types, and structs/classes<br>
         Exception handling<br>
-        Include statements[*]<br>
         Trace and profile[*]<br>
         Format directives, shared libraries, c_func[*]<br>
-        File i/o, including console input[*]<br>
-        Command_line, system and system_exec[*]<br>
-        Allocate/peek/poke<br>
-        delete_routine<br>
-        Multi-tasking and multi-threading<br>
-        
+        <br>
+
         <br>
         <br>
         All runtime error handling, once it has been transpiled to JavaScript, is delegated to the browser development tools.<br>
@@ -136,6 +879,7 @@ strength. Then again, such window decorations simply waste too much real estate 
 uncomment out the HIDEHEADERS setting (which pGUI.e simply ignores) then the window is maximised and the window
 decorations are removed, in this case leaving a fairly lonely-looking "World" in the middle of an otherwise blank screen.
 Note however that would not be reactive, whereas this would: ...
+-->     
 <!--
 SUG: in IupSetAttributes, if not found then [] = IupAttrError(ih,name,v,INT|TXT):
 function IupAttrError(ih, name, v, flags)
@@ -151,6 +895,7 @@ function IupAttrError(ih, name, v, flags)
     static_flags = 0;
 }
 -->
+<!--
         <br>
         <br>
         Note that pwa/p2js does <b><i>not</i></b> support:<br>
@@ -161,6 +906,7 @@ function IupAttrError(ih, name, v, flags)
         tasks/threads.<br>
         routine_id, other than as first class use (which on 0.8.2+ is, vs. implicit, quite unnecessary anyway).<br>
         &nbsp;&nbsp;&nbsp;<small>(ie/eg no routine_id(expr), as opposed to routine_id("<i>string</i>"))</small>
+-->
 <!-- dev?? - you do know JavaScript is a pretty capabable language, right?
         routine_id, other than as first class use.<br>
         &nbsp;&nbsp;&nbsp;<small><i>(ie/eg instead of <code>fn = routine_id("myfunc"), call_func(fn,args)</code> just use <code>fn = myfunc; fn(...args)</code>)</a></small><br>
@@ -169,1056 +915,43 @@ function IupAttrError(ih, name, v, flags)
 <!--
 locking, video_config,  ...
 -->     
-        <br>
-        <br>
-        Likewise, realistically pwa/pGUI.js probably only actually supports around 1% of pGUI.e - but hopefully the good/right/necessary bits.
-        <br>
-        <br>
-        The annotations below are written in a JavaScript-esque style.<br>
-        Since JavaScript is typeless, p2js converts eg "integer a" into "let /*integer*/ a", ie comments out any type.<br>
-        &nbsp;&nbsp;&nbsp;<small>(I initially tried that style here in the docs, but not surprisingly it quickly became completely unreadable.)</small><br>
-        Phix sequences, which use {}, become JavaScript arrays, which use [], rather than the {} of JavaScript objects, <br>
-        which are more like a <a href="dict.htm">dictonary</a>, with unordered non-integer keys (or alphanumerically ordered, so "9" is after "10").
-        <br>
-        <br>
-        The following standard builtins are not supported under p2js.
-        <br>
-        <br>
-        <style type="text/css">
-          .flexbox { display: flex; }
-        </style>
-        <div class="flexbox">
-         <div>
-            <nobr>res =&nbsp;</nobr>
-         </div>
-         <div>
-            <nobr><a href="allocate.htm">allocate</a>(</nobr>
-         </div>
-         <div>
-            <nobr>b);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            <small><i>(No known issues.)</i></small>
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <small><i>procedure&nbsp;</i></small>
-         </div>
-         <div>
-            <nobr><a href="assert.htm">assert</a>(</nobr>
-         </div>
-         <div>
-            <nobr>condition,</nobr> <nobr>msg="");</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            <small><i>(No known issues.)</i></small>
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <nobr>res =&nbsp;</nobr>
-         </div>
-         <div>
-            <nobr><a href="atom.htm">atom</a>(</nobr>
-         </div>
-         <div>
-            <nobr>a,</nobr> <nobr>name="");</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            <small>Note that within JavaScript, (eg) atom(a) is a normal test yielding true/false whereas atom(a,"a") is an explicit typecheck<br>
-             - the latter as emitted by p2js rather than something it will accept or you can write, you understand.<br>
-            Also note that typechecking in transpiled JavaScript is somewhat sporadic at best.</small>
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <nobr>res =&nbsp;</nobr>
-         </div>
-         <div>
-            <nobr><a href="compare.htm">compare</a>(</nobr>
-         </div>
-         <div>
-            <nobr>a,</nobr> <nobr>b);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            <small><i>(No known issues.)</i></small>
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <small><i>procedure&nbsp;</i></small>
-         </div>
-         <div>
-            <nobr><a href="crash.htm">crash</a>(</nobr>
-         </div>
-         <div>
-            <nobr>msg,</nobr> <nobr>args=[]);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            Displays an error at the top of the document, and throws an exception.<br>
-            Error handling is responsibility of browser development tools.<br>
-            <small>(Note that any nFrames parameter is simply ignored.)</small>
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <nobr>res =&nbsp;</nobr>
-         </div>
-         <div>
-            <nobr><a href="equal.htm">equal</a>(</nobr>
-         </div>
-         <div>
-            <nobr>a,</nobr> <nobr>b);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            <small><i>(No known issues.)</i></small>
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <nobr>res =&nbsp;</nobr>
-         </div>
-         <div>
-            <nobr><a href="factors.htm">factors</a>(</nobr>
-         </div>
-         <div>
-            <nobr>n,</nobr> <nobr>include1=0);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            <small><i>(No known issues.)</i></small>
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <nobr>res =&nbsp;</nobr>
-         </div>
-         <div>
-            <nobr><a href="find.htm">find</a>(</nobr>
-         </div>
-         <div>
-            <nobr>needle,</nobr> <nobr>haystack,</nobr> <nobr>start=1);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            <small><i>(No known issues.)</i></small>
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <nobr>res =&nbsp;</nobr>
-         </div>
-         <div>
-            <nobr><a href="get_rand.htm">get_rand</a>();</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            <small><i>(No known issues.)</i></small>
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <nobr>res =&nbsp;</nobr>
-         </div>
-         <div>
-            <nobr><a href="integer.htm">integer</a>(</nobr>
-         </div>
-         <div>
-            <nobr>i,</nobr> <nobr>name="");</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            <small>Note that within JavaScript, (eg) integer(fn) is a normal test yielding true/false whereas integer(fn,"fn") is an explicit typecheck<br>
-             - the latter as emitted by p2js rather than something it will accept or you can write, you understand.<br>
-            Also, javascript integers are +/-9,007,199,254,740,992 (ie 2^53) rather than -1073741824..+1073741823 (ie 31-bit), or 63-bit.</small>
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <nobr>res =&nbsp;</nobr>
-         </div>
-         <div>
-            <nobr><a href="length.htm">length</a>(</nobr>
-         </div>
-         <div>
-            <nobr>s);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            <small><i>(No known issues.)</i></small>
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <nobr>res =&nbsp;</nobr>
-         </div>
-         <div>
-            <nobr><a href="match.htm">match</a>(</nobr>
-         </div>
-         <div>
-            <nobr>needle,</nobr> <nobr>haystack,</nobr> <nobr>start=1,</nobr> <nobr>case_sensitive=true);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            <small>Note that under p2js this only works for strings.</small>
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <nobr>res =&nbsp;</nobr>
-         </div>
-         <div>
-            <nobr><a href="object.htm">object</a>(</nobr>
-         </div>
-         <div>
-            <nobr>o,</nobr> <nobr>name="");</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            <small>Note that within JavaScript, (eg) object(p) is a normal test yielding true/false whereas object(o,"o") is an explicit typecheck<br>
-             - the latter as emitted by p2js rather than something it will accept or you can write, you understand. <br>
-            On the desktop, unassigned variables trigger that specific error before an object typecheck, but that is not necessarily so under p2js.</small>
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <nobr>res =&nbsp;</nobr>
-         </div>
-         <div>
-            <nobr><a href="prepend.htm">prepend</a>(</nobr>
-         </div>
-         <div>
-            <nobr>a,</nobr> <nobr>b);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            <small><i>(No known issues.)</i></small><br>
-            <small>Note however that the desktop prepend() is highly optimised, with a gap at the start and a sliding header, <br>
-                   whereas JavaScript Arrays [as used by p2js.js] aren&rsquo;t, and excessive prepending on long sequences<br>
-                   will eventually get exponentially slower. No point panicking for < 1000 items though.</small>
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <small><i>procedure&nbsp;</i></small>
-         </div>
-         <div>
-            <nobr><a href="print.htm">print</a>(</nobr>
-         </div>
-         <div>
-            <nobr>fn,</nobr> <nobr>x);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            <small><i>Uses sprint() and puts(), so the same applies here too.</i></small>
-         </div>
-        </div>
-        <!-- (deliberately hard against each other) -->
-        <div class="flexbox">
-         <div>
-            <small><i>procedure&nbsp;</i></small>
-         </div>
-         <div>
-            <nobr><a href="printf.htm">printf</a>(</nobr>
-         </div>
-         <div>
-            <nobr>fn,</nobr> <nobr>fmt,</nobr> <nobr>args=[]);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            <small><i>Uses sprintf() and puts(), ditto.</i></small>
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <nobr>res =&nbsp;</nobr>
-         </div>
-         <div>
-            <nobr><a href="sum.htm">product</a>(</nobr>
-         </div>
-         <div>
-            <nobr>x);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            <small><i>(No known issues.)</i></small>
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <nobr>res =&nbsp;</nobr>
-         </div>
-         <div>
-            <nobr><a href="platform.htm">platform</a>(</nobr>
-         </div>
-         <div>
-            <nobr>);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            Optimised to literal (WEB==4) by p2js in much the same way as the desktop version, and no code is emitted for irrelevant if-branches.<br>
-            Note the presence of an "else" without an explicit WEB(/JS/JAVASCRIPT) branch triggers a transpile-time error.<br> <!-- DEV -->
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <small><i>procedure&nbsp;</i></small>
-         </div>
-         <div>
-            <nobr><a href="pp.htm">pp</a>(</nobr>
-         </div>
-         <div>
-            <nobr>o,</nobr> <nobr>options=[]);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            Note that since wait_key() has no effect under pwa/p2js, neither does pp_Pause. [DEV finish documenting this, ppOpt, ppf()]
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <small><i>procedure&nbsp;</i></small>
-         </div>
-         <div>
-            <nobr><a href="puts.htm">puts</a>(</nobr>
-         </div>
-         <div>
-            <nobr>fn,</nobr> <nobr>x);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            fn must be 1 (append to document body) or 2 (prepend to document body), as text not html.<br>
-            Any '\n' in x are automatically replaced with '&lt;br&gt;', <br>
-            likewise <small>(beforehand, so they appear normal)</small> '&amp;|&lt;|&gt;' ==&gt; '&amp;amp|lt|gt;', <br>
-            and should you want to show say '&amp;amp;' you&rsquo;ll have to output '&amp;amp;amp;'.<br>
-            <small>(TIP: do NOT look at docs\phix\src\p2js.htm for that: my txt->chm bears little or no resemblence to your txt->puts->browser!)</small>
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <nobr>res =&nbsp;</nobr>
-         </div>
-         <div>
-            <nobr><a href="rand.htm">rand</a>(</nobr>
-         </div>
-         <div>
-            <nobr>range);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            <small><i>(No known issues.)</i></small>
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <nobr>res =&nbsp;</nobr>
-         </div>
-         <div>
-            <nobr><a href="repeat.htm">repeat</a>(</nobr>
-         </div>
-         <div>
-            <nobr>item,</nobr> <nobr>count);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            <small>Note that strings of length 1 are treated as chars
-                    (unlike phix, in js there is no difference between "a" and 'a')</small>
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <nobr>res =&nbsp;</nobr>
-         </div>
-         <div>
-            <nobr><a href="rnd.htm">rnd</a>();</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            <small><i>(No known issues.)</i></small>
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <nobr>res =&nbsp;</nobr>
-         </div>
-         <div>
-            <nobr><a href="sequence.htm">sequence</a>(</nobr>
-         </div>
-         <div>
-            <nobr>p,</nobr> <nobr>name="");</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            <small>Note that within JavaScript, (eg) sequence(p) is a normal test yielding true/false whereas sequence(p,"p") is an explicit typecheck<br>
-             - the latter as emitted by p2js rather than something it will accept or you can write, you understand.</small>
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <small><i>procedure&nbsp;</i></small>
-         </div>
-         <div>
-            <nobr><a href="set_rand.htm">set_rand</a>(</nobr>
-         </div>
-         <div>
-            <nobr>seed);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            <small><i>(No known issues.)</i></small>
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <nobr>res =&nbsp;</nobr>
-         </div>
-         <div>
-            <nobr><a href="sprint.htm">sprint</a>(</nobr>
-         </div>
-         <div>
-            <nobr>x);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            Uses JavaScript .toString(), which instead of eg "{1,{2,3}}" just yields (a flattened) "1,2,3". <br>
-            I have however artificially glued on an outer top-level "{" and "}" for respectability&rsquo;s sake.<br>
-            There is no maxlen parameter (anything provided will simply be ignored).
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <nobr>res =&nbsp;</nobr>
-         </div>
-         <div>
-            <nobr><a href="sprintf.htm">sprintf</a>(</nobr>
-         </div>
-         <div>
-            <nobr>fmt,</nobr> <nobr>args=[]);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            Should give a reasonable approximation to the desktop builtin, but unlikely to ever be perfect...<br>
-            Expect occasional [] instead of {}, some minor rounding differences, %g picks %f or %e differently. <br>
-            <small><i>Uses puts(), so the same applies here too. See also pwa\printf_tests.html</i></small>
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <nobr>res =&nbsp;</nobr>
-         </div>
-         <div>
-            <nobr><a href="string.htm">string</a>(</nobr>
-         </div>
-         <div>
-            <nobr>s,</nobr> <nobr>name="");</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            <small>Note that within JavaScript, (eg) string(s) is a normal test yielding true/false whereas string(s,"s") is an explicit typecheck<br>
-             - the latter as emitted by p2js rather than something it will accept or you can write, you understand.</small>
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <nobr>res =&nbsp;</nobr>
-         </div>
-         <div>
-            <nobr><a href="sum.htm">sum</a>(</nobr>
-         </div>
-         <div>
-            <nobr>x);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            <small><i>(No known issues.)</i></small>
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <nobr>[] =&nbsp;</nobr>
-         </div>
-         <div>
-            <nobr><a href="wait_key.htm">wait_key</a>(</nobr>
-         </div>
-         <div>
-            <nobr>);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            Dummy routine, returns [] for the {} = wait_key() case.<br>
-            I am assuming it is being used to allow the console to be read before it vanishes, which the browser is not too likely to do
-            <small>(although it does close the tab when you close the last window)</small>, rather than as a pause before something scrolls 
-            off screen because of reams and reams of further (console) output.
-         </div>
-        </div>
-        <br>
-        <br>
-        The following constants, routines, elements, and containers of <a href="pGUI.htm">pGUI</a> are supported/imitated/emulated in pGUI.js<br>
-        pGUI.js fully supports the <a href="paranormal.htm">paranormalised functions</a> of pGUI.e [some of them anyway].
-        <br>
-        <br>
-        <div class="flexbox">
-         <div>
-            <nobr>res =&nbsp;</nobr>
-         </div>
-         <div>
-            <nobr><a href="Icallback.htm">Icallback</a>(</nobr>
-         </div>
-         <div>
-            <nobr>func);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            Dummy function, returns it&rsquo;s argument unaltered. <br>
-            <small>(Exists primariliy so that phix &lt;==&gt; js can be bi-directional, for testing purposes.)</small>
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <nobr>ih =&nbsp;</nobr>
-         </div>
-         <div>
-            <nobr><a href="IupButton.htm">IupButton</a>(</nobr>
-         </div>
-         <div>
-            <nobr>title=NULL,</nobr> <nobr>[[action=NULL,]</nobr> <nobr>func=NULL,]</nobr> <nobr>attributes="",</nobr> <nobr>args=[]);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            IupFlatButton() is treated identically.<br>
-            Supported attributes: <br>
-            Untested: ALIGNMENT, BGCOLOR, CANFOCUS, PROPAGATEFOCUS, FLAT, FGCOLOR, IMAGE, 
-                      IMINACTIVE, IMPRESS, IMPRESSBORDER, IMAGEPOSITION, PADDING,
-                      CPADDING, SPACING, CSPACING, TITLE  <br>
-            Unsupported: MARKUP
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <small><i>constant&nbsp;</i></small>
-         </div>
-         <div>
-            <nobr><a href="callbacks.htm#IUP_DEFAULT">IUP_DEFAULT</a></nobr>
-         </div>
-         <div>
-            <nobr> = -2;</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <small><i>procedure&nbsp;</i></small>
-         </div>
-         <div>
-            <nobr><a href="IupClose.htm">IupClose</a>(</nobr>
-         </div>
-         <div>
-            <nobr>);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            Dummy routine. (Doesn&rsquo;t really appear to do very much on the desktop, anyway.)
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <small><i>procedure&nbsp;</i></small>
-         </div>
-         <div>
-            <nobr><a href="IupClose.htm">IupCloseOnEscape</a>(</nobr>
-         </div>
-         <div>
-            <nobr>dlg);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            <small><i>(No known issues. Now invoked by default from IupDialog() anyway, in both pGUI.e and pGUI.js.)</i></small>
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <nobr>res =&nbsp;</nobr>
-         </div>
-         <div>
-            <nobr><a href="IupDestroy.htm">IupDestroy</a>(</nobr>
-         </div>
-         <div>
-            <nobr>dlg);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            Dummy function, returns null. Note that (say) dlg = IupDestroy(dlg) after an <span class="illegal">IupMainLoop</span>() 
-            would otherwise spanner the whole show, and hence, like the <span class="illegal">IupMainLoop</span>(), subsequent calls 
-            need to end up inside an <code>if platform()!=JS then</code> guard.
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <nobr>ih =&nbsp;</nobr>
-         </div>
-         <div>
-            <nobr><a href="IupDialog.htm">IupDialog</a>(</nobr>
-         </div>
-         <div>
-            <nobr>child,</nobr> <nobr>attributes="",</nobr> <nobr>args=[]);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            Supported attributes: GAP[?], MARGIN, MINSIZE, RASTERSIZE, TITLE
-                                  <br>
-            Untested: ACTIVE, ACTIVEWINDOW, BACKGROUND, BGCOLOR, BORDER, BORDERSIZE, BRINGFRONT, CHILDOFFSET, CLIENTSIZE, 
-                      CURSOR, DEFAULTENTER, DEFAULTESC, DIALOGFRAME, EXPAND, FONT, ICON, 
-                      MAXBOX, MAXIMIZED, MAXSIZE, MENU, MENUBOX, MINBOX, MINIMIZED, MODAL, 
-                      NACTIVE, NAME, PARENTDIALOG, PLACEMENT, RESIZE, SCREENPOSITION,
-                      SHRINK, SIMULATEMODAL, SIZE, STARTFOCUS, TIP, TOOLBOX, TOPMOST, VISIBLE, ZORDER
-                      <br>
-            Unsupported: COMPOSITED, CONTROL, CUSTOMFRAME, CUSTOMFRAMECAPTION, CUSTOMFRAMECAPTIONHEIGHT, CUSTOMFRAMECAPTIONLIMITS, CUSTOMFRAMEDRAW, CUSTOMFRAMESIMULATE, 
-                         DIALOGHINT, DROPFILESTARGET, FULLSCREEN, HELPBUTTON, HIDETASKBAR, HIDETITLEBAR, HWND, MAXIMIZEATPARENT, 
-                         MDIACTIVATE, MDIACTIVE, MDIARRANGE, MDICHILD, MDICLIENT, MDICLOSEALL, MDIFRAME, MDIMENU, MDINEXT,
-                         NATIVEPARENT, OPACITY, OPACITYIMAGE, SAVEUNDER, SHAPEIMAGE, SHOWMINIMIZENEXT, SHOWNOACTIVE, SHOWNOFOCUS,
-                         TASKBARBUTTON, TASKBARPROGRESS, TASKBARPROGRESSSTATE, TASKBARPROGRESSVALUE, 
-                         TRAY, TRAYIMAGE, TRAYTIP, TRAYTIPBALLOON, TRAYTIPBALLOONDELAY, TRAYTIPBALLOONTITLE, TRAYTIPBALLOONTITLEICON, TRAYTIPMARKUP,
-                         WID, XWINDOW
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <nobr>ih =&nbsp;</nobr>
-         </div>
-         <div>
-            <nobr><a href="IupFill.htm">IupFill</a>(</nobr>
-         </div>
-         <div>
-            <nobr>attributes="",</nobr> <nobr>args=[]);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            Supported attributes: <br>
-            Untested: EXPAND, FONT, MINSIZE, MAXSIZE, NAME, POSITION, RASTERSIZE, SIZE 
-                      <br>
-            Unsupported: WID
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <nobr>ih =&nbsp;</nobr>
-         </div>
-         <div>
-            <nobr><a href="IupHbox.htm">IupHbox</a>(</nobr>
-         </div>
-         <div>
-            <nobr>children,</nobr> <nobr>attributes="",</nobr> <nobr>args=[]);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            Supported attributes: <br>
-            Untested: ALIGNMENT, CLIENTSIZE, CLIENTOFFSET, EXPAND, EXPANDCHILDREN, EXPANDWEIGHT, 
-                      FLOATING, FONT, GAP, CGAP, NGAP, NCGAP, HOMOGENEOUS, MARGIN, CMARGIN, NMARGIN, NCMARGIN, 
-                      MINSIZE, MAXSIZE, NAME, NORMALIZESIZE, POSITION, ORIENTATION, SIZE, RASTERSIZE, 
-                      <br>
-            Unsupported: WID
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <small><i>procedure&nbsp;</i></small>
-         </div>
-         <div>
-            <nobr><a href="IupHide.htm">IupHide</a>(</nobr>
-         </div>
-         <div>
-            <nobr>ih);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            When then last window is hidden/closed, the browser tab is automatically closed.
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <nobr>ih =&nbsp;</nobr>
-         </div>
-         <div>
-            <nobr><a href="IupLabel.htm">IupLabel</a>(</nobr>
-         </div>
-         <div>
-            <nobr>title=NULL,</nobr> <nobr>attributes="",</nobr> <nobr>args=[]);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            IupFlatLabel() is treated identically.<br>
-            Supported attributes: ALIGNMENT, EXPAND, TITLE<br>
-            Untested: ACTIVE, DROPFILESTARGET, ELLIPSIS, FGCOLOR, IMAGE, IMINACTIVE, 
-                      PADDING, CPADDING, SEPARATOR, WORDWRAP  <br>
-            Unsupported: MARKUP
-            <a name=IupMainLoop></a>
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <small><i>procedure&nbsp;</i></small>
-         </div>
-         <div>
-            <nobr><a href="IupMainLoop.htm"><span class="illegal">IupMainLoop</span></a>(</nobr>
-         </div>
-         <div>
-            <nobr>);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            Invalid: we simply rely on the JavaScript event loop instead, and hence any <span class="illegal">IupMainLoop</span>() needed for the desktop
-            along with any subsequent IupDestroy() <i>must</i> be placed inside an <code>if <a href="platform.htm">platform</a>()!=JS then</code> guard.
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <small><i>procedure&nbsp;</i></small>
-         </div>
-         <div>
-            <nobr><a href="IupOpen.htm">IupOpen</a>(</nobr>
-         </div>
-         <div>
-            <nobr>);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            <small><i>(No known issues, performs some important initialisation, same as the desktop nothing works if this is not called.)</i></small>
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <small><i>procedure&nbsp;</i></small>
-         </div>
-         <div>
-            <nobr><a href="IupSetStrAttribute.htm">IupSetStrAttribute</a>(</nobr>
-         </div>
-         <div>
-            <nobr>ih,</nobr> <nobr>name,</nobr> <nobr>v,</nobr> <nobr>args=[]);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            <small><i>(No known issues, beyond being rather limited in what attributes are actually supported.)</i></small><br>
-            IupStoreAttribute() and IupSetAttribute() are treated identically, also [DEV?] IupSetInt(). 
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <small><i>procedure&nbsp;</i></small>
-         </div>
-         <div>
-            <nobr><a href="IupSetAttributes.htm">IupSetAttributes</a>(</nobr>
-         </div>
-         <div>
-            <nobr>ih,</nobr> <nobr>attributes,</nobr> <nobr>args=[]);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            <small><i>(No known issues, beyond being rather limited in what attributes are actually supported.)</i></small><br>
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <small><i>procedure&nbsp;</i></small>
-         </div>
-         <div>
-            <nobr><a href="IupSetCallback.htm">IupSetCallback</a>(</nobr>
-         </div>
-         <div>
-            <nobr>ih,</nobr> <nobr>name,</nobr> <nobr>func);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            <small><i>(No known issues.)</i></small><br>
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <small><i>procedure&nbsp;</i></small>
-         </div>
-         <div>
-            <nobr><a href="IupShow.htm">IupShow</a>(</nobr>
-         </div>
-         <div>
-            <nobr>ih);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            <small><i>(No known issues.)</i></small>
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <nobr>ih =&nbsp;</nobr>
-         </div>
-         <div>
-            <nobr><a href="IupTable.htm">IupTable</a>(</nobr>
-         </div>
-         <div>
-            <nobr>columns,</nobr> <nobr>data,</nobr> <nobr>visible=10,</nobr> <nobr>attributes="",</nobr> <nobr>args=[]);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            <small><i>(No known issues.)</i></small>
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <small><i>procedure&nbsp;</i></small>
-         </div>
-         <div>
-            <nobr><a href="IupTreeAddNodes.htm">IupTreeAddNodes</a>(</nobr>
-         </div>
-         <div>
-            <nobr>tree,</nobr> <nobr>tree_nodes,</nobr> <nobr>id=-1);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            <small><i>(No known issues.)</i></small><br>
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <nobr>ih =&nbsp;</nobr>
-         </div>
-         <div>
-            <nobr><a href="IupTable.htm">IupTreeView</a>(</nobr>
-         </div>
-         <div>
-            <nobr>tree_nodes,</nobr> <nobr>branchopen_cb=NULL,</nobr> <nobr>attributes="",</nobr> <nobr>args=[]);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            <small><i>(No known issues.)</i></small>
-         </div>
-        </div>
-        <br>
-        <div class="flexbox">
-         <div>
-            <nobr>ih =&nbsp;</nobr>
-         </div>
-         <div>
-            <nobr><a href="IupHbox.htm">IupHbox</a>(</nobr>
-         </div>
-         <div>
-            <nobr>children,</nobr> <nobr>attributes="",</nobr> <nobr>args=[]);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            Supported attributes: <i>&lt;none&gt;</i><br>
-            Untested: ALIGNMENT, CLIENTSIZE, CLIENTOFFSET, EXPAND, EXPANDCHILDREN, EXPANDWEIGHT, 
-                      FLOATING, FONT, GAP, CGAP, NGAP, NCGAP, HOMOGENEOUS, MARGIN, CMARGIN, NMARGIN, NCMARGIN, 
-                      MINSIZE, MAXSIZE, NAME, NORMALIZESIZE, POSITION, ORIENTATION, SIZE, RASTERSIZE 
-                      <br>
-            Unsupported: WID
-         </div>
-        </div>
+
+        <h5>Footrants</h5>
+
+        <a name=weird></a><small><sup>1</sup></small> (JavaScript equality operators are simply weird) For instance 2==="2" yields 
+        false, whereas 2=="2" yields true (and 2="2" is an invalid assignment statement). <br>
+        Fairly obviously Phix could never ever work with those crazy == rules, and so we use/p2js always emits the === form.<br>
+        JavaScript supporters are prone to saying things like "it's not weird, you just don't understand it". <br>
+        When I read <a href="javascript:ExternalLink('ext606','https://262.ecma-international.org/5.1/#sec-11.9.3');"
+        id="ext606" style="color:#9B5565" >section 11.9.3</a>, I say &ldquo;When I see an equality comparison, or any other operator, 
+        I want a pin-sharp crystal-clear image in my mental model of how it works, not a half-baked hodge-podge of 10 (<i>ten! ... 
+        erm, what do you mean ten? that&rsquo;s at least 16 anyway, so ... <b>sixteen??!!</b> ...</i>) edge conditions I have to 
+        consider on each and every frakkin&rsquo; statement...&rdquo; In truth, "weird" is the kind way of saying it. To be fair,
+        the Phix equality operators, albeit arguably more logically consistent, are not exactly simple either, and I am more than
+        confident that someone somewhere will say <i>&ldquo;what? "fred"=={'f','r','e','d'}??? utter madness!&rdquo;</i>
        <br>
-       <table>
-        <col style="width: 8%"/>
-        <tr id="Technicalia" style="display:none;">
-         <td>
-          <a href="glossary.htm#technicalia">
-           <b>Technicalia</b>
-          </a>
-         </td>
-         <td>
-          <sup>1</sup> (regarding ES6 compatibility) The highly esteemed and ever capable Mr Donald Trump Snr, Grand 
-            Ex-President of the United States of America, has agreed to use his special little tiny hands to write any 
-            polyfills needed to get this running on IE 11 (wow, what a great piece of software) all the way back to IE 
-            6, can I just say, all American, you know, built by one of the greatest companies - no <i>the</i> greatest 
-            company the world has ever seen, in Redmond, Washington State - a beautiful, beautiful state, by the way, 
-            with lovely trees, and great, great people, let me tell you, all American, no Chinese there, good old 
-            fashioned American software at it&rsquo;s finest, that&rsquo;s for sure. <small><i>(not)</i></small>
-          <br>
-          <br>
-          There is (currently) a limit on how far p2js_emit.e will go to preserve indentation. See demo\pGUI\submenu.exw
-          for an example of one way to reduce nesting levels so it copes, and/or something to restore and improve on.
-          It is more than fair to say that p2js_emit.e is a bit of a ropey first stab and deserves a complete rewite.
-          It is the polar opposite of well designed, and was written with a "just deal with it" mindset, where "it" 
-          was never particularly well defined in the first place, and in fact "it" was/is changed as needed, by going
-          back and (almost literally) hacking away at p2js_parse.e, and that on day 1 the input would be completely
-          and utterly wrong and useless, which "it" was. <a href="parse_tree.htm">parse_tree.htm</a> is my attempt to 
-          reverse-design things.
-          <br>
-          <br>
-          While true/false are 1/0 in Phix they are distinct in JavaScript, although type coercion will often paper over
-          the cracks. In particular, t04unary needed a couple of tweaks: <code>(not 0)==1</code> needed to be changed to
-          <code>(not 0)==true</code>, ie <code>true===1</code> (and <code>1===true</code>) fails, but thankfully such 
-          explicit comparisons of booleans to 0/1 are fairly rare. Whilst not exactly recommended, the use of true/false 
-          to increment or decrement seems OK.
-          <br>
-          <br>
-          Some effort is spent checking that (Phix ==&gt; JavaScript ==&gt; Phix) produces runnable code.<br>
-          It will never be character-perfect:<br>
-          Some mid-expression comments may be dropped, due to difficulties storing them in the parse tree.<br>
-          Parenthesis is re-constituted, some unnecessary may be dropped and some clarifying may be added.<br>
-          Likewise indentation goes through a whole slew of (undocumented/ad-hoc) rules of its own.<br>
-          a &= b ==&gt; a = $conCat(a,b) ==&gt; a = a & b<br>
-          #1234 ==&gt; 0x1234 ==&gt; 0x1234, and the same for all other non-decimal bases, eg 0b, etc.<br>
-          
-         </td>
-        </tr>
-       </table>
-       <img src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <br>
+        <a name=cors></a><small><sup>2</sup></small> (CORS) Of course I get why we need it, just don&rsquo;t necessarily agree with
+        all of it, or the implementation of it. My ignorance on these matters is as follows:<br> 
+        Mapping file: to the server, because they could not possibly get away without doing that, but adamantly and arrogantly 
+        asserting that it <i>cannot</i> be mapped to localhost, because it breaks the <i>exact same rule</i>, is what I classify 
+        as cretinous. To be clear: it is not necessarily the CORS specification itself, for missing out that all important 
+        "unless they resolve to the same thing" clause, but every browser implementation, or jobsworth-types kicking up a 
+        fuss<sup><small><a href="#fuss">3</a></small></sup>. 
+        I know, I <i>can</i> just run a server, and then reconfigure and restart it 20 times or so. Sure, downloading some random 
+        html/js and running it locally <i>might</i> be deemed a security risk, but then saying that uploading that exact same file 
+        to your server and running it there is all suddenly somehow <b><i>not</i></b> a security risk, do me a favour!
+       <br>
+       <br>
+        <a name=fuss></a><small><sup>3</sup></small> (workaround for localhost) It seems like every browser had one at least once, 
+        that presumably triggered some ridiculous backlash from idiots thinking that they knew better, and consequently been removed.
+        Or maybe Google cannot make quite as much money if developers can test their work offline. The Firefox browser is streets
+        ahead (or behind in the removal process) of all the other players in these silly little games, but still far from perfect.<br>
+        Update: of the two features I relied on in Firefox, one remains, the other was rudely ripped out in mid-March 2021. 
+        <small><i>Sigh.</i></small> Of course what probably happens is they get a serious security breach, so someone disables the 
+        localhost loophole, doesn&rsquo;t make the blindest bit of difference, and four or five days later when they fix the real 
+        problem either no-one asks about re-enabling it or gets shouted at or fired when they do...
+       <br>
        <br>
       </div>
      </stripped>

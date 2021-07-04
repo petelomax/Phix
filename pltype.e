@@ -730,7 +730,10 @@ ltAddshowmapsymtab = v
     -- Reuse SET entry for this var, if a SET one exists late enough.
     --  (btw, we never reuse TEST entries, as they get flipped etc.)
     --
+--14/6/21: (problems with qchat)
+if length(symtab[v])>=S_maxlv then
     ldx = symtab[v][S_maxlv]
+--  ldx = iff(length(symtab[v])>=S_maxlv?symtab[v][S_maxlv]:0)
 --07/03/2017: (see readme)
 --  if flag=SET
 --  and ldx
@@ -758,7 +761,9 @@ ltAddshowmapsymtab = v
         lslen = append(lslen,Lslen)
         lflag = append(lflag,flag)
         ls5i = append(ls5i,s5idx)
+--14/6/21:
         if flag=SET then    -- keep (F)TEST entries out of this chain
+--      if flag=SET and ldx!=0 then -- keep (F)TEST entries out of this chain
             lpldx = append(lpldx,ldx)
             symtab[v][S_maxlv] = length(lvno)
             if diag then
@@ -767,6 +772,7 @@ ltAddshowmapsymtab = v
         else
             lpldx = append(lpldx,0)
         end if
+end if
 --  end if
     if diag then
         showdiag()

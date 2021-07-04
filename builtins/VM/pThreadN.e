@@ -553,12 +553,16 @@ global function thread_safe_string(string s)
 -- create a thread-safe version of the passed string.
 -- result is only thread safe when it is stored in a 
 -- variable that only one thread uses and refcounts.
+--1/5/21:
+--/*
     if length(s)=0 then
         s = repeat(' ',0)
     else
         s[1] = s[1]     -- (force a clone)
     end if
     return s
+--*/
+    return deep_copy(s)
 end function
 
 --DEV remaining routines are untested (and undocumented)

@@ -1675,6 +1675,7 @@ end if
                     stateDesc("K_ridt",K_ridt)
                     stateDesc("K_dlft",K_dlft)
                     stateDesc("K_drid",K_drid)
+                    stateDesc("K_asmm",K_asmm)
 --                  stateDesc("K_struc",K_struc)
                     if siState then
                         sState &= sprintf(" + *** #%x ***??",siState)

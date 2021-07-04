@@ -14,14 +14,10 @@
         there should be no shortage of examples.
        <br>
        <br>
-        I have seen some performance improvements in my time, but this absolutely has to take the (chocolate covered triple-choc) biscuit.
-       <br>
-        For demo\rosetta\Ackermann, translating the Go code to calculate ack(3,1e6), which has over 300,000 digits:
-       <br>
-        Using bigatom.e (as originally submitted by cargoan) took so long that I just had to kill it....
-       <br>
-        Using bigint.e (wot I wrote meself): 5 minutes to calculate and then 32 minutes to print (gulp).
-       <br>
+        I have seen some performance improvements in my time, but this absolutely has to take the (chocolate covered triple-choc) biscuit.<br>
+        For demo\rosetta\Ackermann, translating the Go code to calculate ack(3,1e6), which has over 300,000 digits:<br>
+        Using bigatom.e (as originally submitted by cargoan) took so long that I just had to kill it....<br>
+        Using bigint.e (wot I wrote meself): 5 minutes to calculate and then 32 minutes to print (gulp).<br>
         Using gmp: 0.1s for the lot! (Do I feel humiliated and then some or what?!)
        <br>
        <br>
@@ -29,38 +25,37 @@
         <a href="javascript:ExternalLink('ext273','http://phix.x10.mx/pmwiki/pmwiki.php?n=Main.Mpfr');"
            id="ext273" style="color:#9B5565" >PCAN</a> or perhaps
         <a href="javascript:ExternalLink('ext272','http://www.atelierweb.com/mpir-and-mpfr');"
-           id="ext272" style="color:#9B5565"      >http://www.atelierweb.com/mpir-and-mpfr</a>
+           id="ext272" style="color:#9B5565"      >directly</a>
        <br>
-        You should get a readable and straightforward error message when the required dlls cannot be opened.
-       <br>
-        It is entirely up to you whether to install (simple copy) them to system32/syswow64, builtins, or the application directory.
-       <br>
+        You should get a readable and straightforward error message when the required dlls cannot be opened.<br>
+        It is entirely up to you whether to install (simple copy) them to system32/syswow64, builtins, or the application directory.<br>
         A future release of Phix may offer to download and install them (to builtins) as part of installation, however you would still 
-        be responsible for shipping them along with a finished application.
-       <br>
+        be responsible for shipping them along with a finished application.<br>
         Let me know if any newer pre-built dlls are uploaded to atelierweb, or elsewhere.
        <br>
        <br>
-        Version: mpfr: 3.1.5, mpir:2.7.2, two dlls, 733K (32 bit, 308K zipped), 936K (64 bit, 373K zipped)
+        There is also a hand-crafted drop-in replacement in Phix/pwa/builtins/mpfr.js which is handled automatically for you
+        by <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a>, and obviously that does not need any dlls. <br>
+        Note that mpfr are effectively implemented as (limited precision) mpq and transcendental functions such as mpfr_sin(),
+        mpfr_log(), mpfr_exp(), and mpfr_gamma() are <i>not</i> supported.
        <br>
+       <br>
+        Version: mpfr: 3.1.5, mpir:2.7.2, two dlls, 733K (32 bit, 308K zipped), 936K (64 bit, 373K zipped)<br>
         Version 3.1.0-p3 was already installed my Ubuntu box, though I also needed to install mpfr-dev, in order to compile the 
         recommended version check, which was just the one click via the ubuntu software centre, at least after typing "mpfr" 
         into the search box and picking the one that I needed.
        <br>
        <br>
         Be warned: mpfr/mpir/gmp are built for speed and are generally very unforgiving, hanging or 
-        terminating silently without any clues as to what went wrong - good old-fashioned C for ya!
+        terminating silently without any clues as to what went wrong - good old-fashioned C for ya!<br>
+        Making (for example) <span class="illegal">mpfr_clear</span>() private/internal, and wrapping the C mpfr_init() 
+        functions and hence effectively making them non-optional is the least/best I could do to help, and these days 
+        (quite unlike the first couple of versions) I very rarely suffer a sudden unexplained crash and almost always 
+        get a proper human-readable error message.
        <br>
-        Making (for example) <span class="illegal">mpfr_clear</span>() private/internal, and wrapping the C mpfr_init() functions and hence 
-        effectively making them non-optional is the least/best I could do to help, and these days (quite unlike
-        the first couple of versions) I very rarely suffer a sudden unexplained crash and almost always get a
-        proper human-readable error message.
        <br>
-       <br>
-        Use the mpfr_xxx() routines for your ridiculously accurate floats (with ridiculously big exponents).
-       <br>
-        Use the mpz_xxx() routines for your ridiculously big (and perfectly exact) integers.
-       <br>
+        Use the mpfr_xxx() routines for your ridiculously accurate floats (with ridiculously big exponents).<br>
+        Use the mpz_xxx() routines for your ridiculously big (and perfectly exact) integers.<br>
         Use the mpq_xxx() routines for rational numbers (aka fractions, ie n/m&rsquo;ths, where n and m are mpz internally).
        <br>
        <br>
@@ -74,10 +69,17 @@
         Once you understand how to create and display mpfr/mpz/mpq variables, the rest is all pretty straightforward.
        <br>
        <br>
-        Note however that mpz/mpfr/mpq/randstate declare reference variables, as opposed to the copy-on-write semantics
-        of standard phix types, eg after <code>mpz a=mpz_init(3),b=a; mpz_add_ui(b,b,1)</code> both a and b are 4, whereas
-        after <code>mpz a=mpz_init(3), b=mpz_init_set(a); mpz_add_ui(b,b,1)</code> then a is 3 and b is 4. In short you 
-        need an mpz_init or similar for every distinct value that needs to be held simultaneously.
+        Note that where z is an mpz/mpfr/mpq variable, on desktop/Phix atom(z) will return true (and integer(z) sometimes 
+        true) whereas on <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a> atom(z) will always return false. 
+        Otherwise the types are "strong" since they <i>are</i> properly tagged on both systems, in other words the usual 
+        <a href="usingtypes.htm#can">unsafe warning</a> does <i><b>not</b></i> apply to explicit invocations of mpz(), 
+        mpfr(), or mpq().
+        <br>
+        <br>
+        Also mpz/mpfr/mpq<!--/randstate--> declare reference variables, as opposed to the copy-on-write semantics of standard 
+        phix types, eg after <code>mpz a=mpz_init(3),b=a; mpz_add_ui(b,b,1)</code> both a and b are 4, whereas after 
+        <code>mpz a=mpz_init(3), b=mpz_init_set(a); mpz_add_ui(b,b,1)</code> then a is 3 and b is 4. In short you need 
+        an mpz_init or similar for every distinct value that needs to be held simultaneously.
        <br>
        <h3>Example:</h3>
        <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
@@ -191,7 +193,7 @@ end for
         official mpfr/mpir/gmp documentation, and/or search demo/rosetta for examples.
        <br>
        <br>
-        Types mpfr, mpq, mpz, and randstate are optional, you can just use atom if preferred, though when debug_types is 
+        Types mpfr, mpq, and mpz are optional, you can just use atom if preferred, though when debug_types is 
         true (it is) these also perform some extra anti-corruption checks. They all allow NULL.
        <br>
        <br>
@@ -222,8 +224,7 @@ dl {
             <td align="right" class="nob">
           td.nob {padding:0;border-style:none;}
 -->
-        <a name=mpz></a>
-       <h3>mpz (integer)</h3>
+       <h3>general</h3>
        <div id="nopad" class="nopad" align="center">
         <table cellspacing="0" cellpadding="0" border="0" style="padding: 0; border-style: none;">
          <tr>
@@ -238,7 +239,8 @@ dl {
             <dd class="pad">
             If only using mpz routines, you can get by with only opening/distributing the mpir dll(s), and should set the optional flag to true, and in that
             case mpir_open_dll() becomes non-optional. Conversely, attempts to load the mpfr dll/so, without loading the mpir one first, fail at the OS level.<br>
-            If dll/so are missing, and you have not used this, any and all of the following routines below will terminate with a fatal error.
+            If dll/so are missing, and you have not used this, any and all of the following routines below will terminate with a fatal error.<br>
+            The <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a> version simply always returns "" (and ignores any parameters).
             </dd>
            </dl>
           </td>
@@ -256,11 +258,21 @@ dl {
             <dd class="pad">
             Note that on windows 64 bit, the mpfr.e wrapper assumes mpir is version 2.6.0 or later, with 64 bit integer arguments for _ui and _si routines, but
             does not explicitly check that, which may cause subtle problems should you obtain and use an older dll build (not from me).<br>
-            If mpir_open_dll() was invoked with mpir_only=true, the first element of the result will be "mpfr_dll==NULL".
+            If mpir_open_dll() was invoked with mpir_only=true, the first element of the result will be "mpfr_dll==NULL".<br>
+            The <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a> version (effectively) returns {"JavaScript","mpfr.js","n/a"}, ignoring bAsNumSeq,
+            and is therefore acceptable for display but not version checking (obviously an "if platform()!=JS then" is advised).
             </dd>
            </dl>
           </td>
          </tr>
+        </table>
+       </div>
+       <div style="clear:both;height:1px;"> </div>
+
+        <a name=mpz></a>
+       <h3>mpz (integer)</h3>
+       <div id="nopad" class="nopad" align="center">
+        <table cellspacing="0" cellpadding="0" border="0" style="padding: 0; border-style: none;">
          <tr>
           <td align="right" style="padding: 0; border-style: none;">
             mpz res =&nbsp;
@@ -268,21 +280,21 @@ dl {
           <td align="left" style="padding: 0; border-style: none;">
            <dl>
             <dt>
-            <b>mpz_init</b>(object v=0, integer bitcount=0) - Initialise. v can be integer/atom/string, but <i>not</i> mpz.
+            <b>mpz_init</b>(object v=0, integer bitcount=0) - Initialise. v can be integer/atom/string, but <i>not</i> mpz, for that use mpz_init_set().
             </dt>
             <dd class="pad">
-            Note that a string value in v may <i>not</i> use exponentiation, such as "1e200" (as per the C api, sorry).<br>
+<!--            Note that a string value in v may <i>not</i> use exponentiation, such as "1e200" (as per the C api, sorry).<br>-->
+            As of 1.0.0 you <i>can</i> use exponentiation, such as "1e200" or even "2.5e1" (but not "2.5" or "2.55e1" aka non-integer).<br>
             Unlike the nans of C&rsquo;s mpfr_init(), the defaulted v=0 of mpz_init() matches the C api behaviour.<br>
             Covers the C functions mpz_init(), <span class="illegal">mpz_init2</span>(), 
             <span class="illegal">mpz_init_set_d</span>(), <span class="illegal">mpz_init_set_si</span>(), and 
-            <span class="illegal">mpz_init_set_str</span>() 
-            - note the latter three <i>can</i> take a bitcount in mpfr.e.<br>
-            However v may <i>not</i> be another existing mpz, for that use mpz_init_set() as described below.<br>
+            <span class="illegal">mpz_init_set_str</span>().<br> 
+            Note the latter three <i>can</i> take a bitcount in mpfr.e (albeit completely ignored in mpfr.js).<br>
             The bitcount is only the initial space, ie/eg mpz_init(1) happily stores it in one dword, a later 
             store of 2^16000 reallocates it to 16000 bits (about/whatever 500 dwords). A non-zero bitcount
-            makes it possible to avoid such reallocations if a maximum size is known in advance.<br>
-            You could use mpz_sizeinbase(x,2), in some prior test run, to determine a suitable (initial) bitcount
-            (and see whether or not it actually makes the thing any faster).<br>
+            makes it possible to avoid such reallocations if a suitable size is known in advance.<br>
+            You c/should use (eg) mpz_sizeinbase(x,2) in some prior test run to determine an initial bitcount
+            (and check it actually makes the thing faster).<br>
             Invoking res = mpz_free(res) when no longer needed is recommended, but occurs automatically if forgotten.
             </dd>
            </dl>
@@ -300,7 +312,7 @@ dl {
             <dd class="pad">
             Note the method signature differs significantly from the C function of the same name.<br>
             Can also be coded as eg mpz {x,y,z} = mpz_inits(3).<br>
-            v may be an integer, atom, string, or a sequence of length n of said.<br>
+            v may be an integer, atom, string, (but not mpz), or a sequence of length n of said.<br>
             </dd>
            </dl>
           </td>
@@ -320,13 +332,7 @@ dl {
             and likewise there is no practical way to guard against that, you just get meaningless results. In fact
             mpz_init_set() can and does test it got an mpz, it is mpz_init() that simply cannot perform the inverse
             useful test that makes sure it has <i>not</i> been passed an mpz.
-             <small>(Even if it maintained a dirty 
-            great list, what&rsquo;s to say an actual value will not coincide with an allocated memory address?)
-             </small>
-             <br>
-             <!-- [DEV]
-            The test if [not] mpz(1) dies horribly, with an invalid peek memory address error.
--->
+             <small>(The problem being that an actual value <i>could</i> coincide with an allocated memory address.)</small>
             </dd>
            </dl>
           </td>
@@ -362,7 +368,9 @@ dl {
             <b>mpz_set_si</b>(mpz rop, integer op) -- "" except op is a phix integer, -1GB..+1GB.<br>
             <b>mpz_set_d</b>(mpz rop, atom op) -- "" except op is a phix <a href="atom.htm">atom</a>.<br>
             <b>mpz_set_str</b>(mpz rop, string s, integer base=0) -- set x from s in the specified base. See also mpz_init.<br>
-            If base is zero, bases 2 and 16 can be auto-detected (after a leading +/-) by '0b', '0B', '0x' or '0X', otherwise base 10 is assumed.<br>
+            If base is zero, bases 2 and 16 can be auto-detected (after a leading +/-) by '0b', '0B', '0x' or '0X', otherwise base 10 is assumed.
+            Note that only bases 2, 8, 10, and 16 are currently supported under <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a>,
+            though I have some code somewhere that will convert (strings) between bases.
             </dd>
            </dl>
           </td>
@@ -384,7 +392,8 @@ dl {
             The most significant nails bits of each word are skipped, this can be 0 to use the full words.<br>
             There is no sign taken from the data, rop will simply be a positive integer.<br>
             An application can handle any sign itself, and apply it for instance with mpz_neg.<br>
-            There are no data alignment restrictions on op, any address is allowed.
+            There are no data alignment restrictions on op, any address is allowed.<br>
+            Not supported under <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a>.
             </dd>
            </dl>
           </td>
@@ -413,7 +422,8 @@ dl {
             Since mpz_sizeinbase always returns at least 1, count here will be at least one, though if op is zero no space at all is actually needed (or written).<br>
             numb = 8*size - nail<br>
             count = floor((mpz_sizeinbase (op, 2) + numb-1) / numb)<br>
-            pMem = allocate(count * size)
+            pMem = allocate(count * size)<br>
+            Not supported under <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a>.
             </dd>
            </dl>
           </td>
@@ -658,6 +668,21 @@ dl {
            <!-- procedure -->
           </td>
           <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
+            <b>mpz_nthroot</b>(mpz rop, op, integer n) - rop:=trunc(power(op,1/n)).
+            </dt>
+            <dd class="pad">
+            Set rop to the truncated integer part of the nth root of op.
+            </dd>
+           </dl>
+          </td>
+         </tr>
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+           <!-- procedure -->
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
             <b>mpz_sqrt</b>(mpz rop, op) - rop := floor(sqrt(op))
           </td>
          </tr>
@@ -773,14 +798,15 @@ dl {
          </tr>
          <tr>
           <td align="right" style="padding: 0; border-style: none;">
-           mpz res =&nbsp;
+           <!-- procedure -->
           </td>
           <td align="left" style="padding: 0; border-style: none;">
            <dl>
             <dt>
-            <b>mpz_binom</b>(integer n, k) - calculate n choose k, ie n!/((n-k)!*k!)<br>
+            <b>mpz_bin_uiui</b>(mpz rop, integer n, k) - calculate n choose k, ie n!/((n-k)!*k!)<br>
             <dd class="pad">
-            Equivalent, for small n and k, and bar the mpz result, to <a href="factorial.htm">choose</a>(n,k)
+            Equivalent, for small n and k, and bar the mpz parameter, to <a href="factorial.htm">choose</a>(n,k)<br>
+            <small>(replaces a non-standard mpz_binom() function in the previous release)</small>
             </dd>
             </dt>
            </dl>
@@ -888,6 +914,7 @@ dl {
            </dl>
           </td>
          </tr>
+<!--
          <tr>
           <td align="right" style="padding: 0; border-style: none;">
             boolean res =&nbsp;
@@ -906,15 +933,18 @@ dl {
             on n and so n has NO divisors &lt;= div.<br>
             (The default of 0 informs the function that no trial division has been done.)<br>
             The variable state must have been initialized by calling one of the gmp_randinit functions.<br>
-            This function interface is preliminary and may change in the future.
+            This function interface is preliminary and may change in the future.<br>
+            Not supported under <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js</b></span></a>, use 
+            <a href="mpfr.htm#mpz_prime">mpz_prime</a>() instead.
             </dd>
            </dl>
           </td>
          </tr>
+-->
         </table>
        </div>
        <div style="clear:both;height:1px;"> </div>
-
+<!--
         <a name=mpzrand></a>
        <h3>random integers</h3>
        <div id="nopad" class="nopad" align="center">
@@ -929,7 +959,7 @@ dl {
          </tr>
          <tr>
           <td align="right" style="padding: 0; border-style: none;">
-           <!-- procedure -->
+           <!X-X-X procedure X-X-X>
           </td>
           <td align="left" style="padding: 0; border-style: none;">
            <dl>
@@ -939,7 +969,7 @@ dl {
             <dd class="pad">
             If mpz_seed is NULL then a random 200-digit seed is generated internally (and properly disposed of after use),
             otherwise mpz_seed must be a valid/init mpz variable (and absolutely <i>not</i> a phix integer/atom/string).<br>
-            Just like <a href="set_rand.htm">set_rand</a>(), using a fixed value gives repeatable results.
+            Just like <a href="rand.htm">set_rand</a>(), using a fixed value gives repeatable results.
             </dd>
            </dl>
           </td>
@@ -955,7 +985,7 @@ dl {
          </tr>
          <tr>
           <td align="right" style="padding: 0; border-style: none;">
-           <!-- procedure -->
+           <x!x-x- procedure -x-x>
           </td>
           <td align="left" style="padding: 0; border-style: none;">
             <b>mpz_urandomm</b>(mpz rop, randstate state, mpz n) - Generate a uniform random integer in the range 0 to n-1 inclusive, and store it in rop.
@@ -964,13 +994,15 @@ dl {
         </table>
        </div>
        <div style="clear:both;height:1px;"> </div>
+-->
 
         <a name=mpzextras></a>
        <h3>extras</h3>
         The following routines are mpfr.e-specific and not part of the C api, hence there is probably not much point in googling them.<br>
-        Some were largely written for simple convenience, rather than absolute performance, although I would say that mpz_prime_factors is
-        (I think) exceptionally efficient at what it does best, unless/until you push it too far, as detailed below. Also, some routines
-        (the integer/atom ones) are deliberately renamed because they have slightly different upper limits.
+        Some were largely written for simple convenience, rather than absolute performance, although I would say that 
+        <a href="mpfr.htm#mpz_prime_factors">mpz_prime_factors</a>() is (I think) exceptionally efficient at what it does best, 
+        unless/until you push it too far, as detailed below. Also, some routines (the integer/atom ones) are deliberately renamed 
+        because they have slightly different upper limits.
        <br>
        <br>
        <div id="nopad" class="nopad" align="center">
@@ -1012,10 +1044,16 @@ dl {
             boolean res =&nbsp;
           </td>
           <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
             <b>mpz_fits_integer</b>(mpz op) - Return non-zero if the value of op fits in a (signed) phix integer, otherwise, return zero.<br>
+            </dt>
+            <dd class="pad">
             Note that the C routines <span class="illegal">mpz_fits_slong_p</span>() and <span class="illegal">mpz_fits_ulong_p</span>() are 
             (deliberately) not available in mpfr.e, and<br>
             this routine tests for slightly smaller limits, in fact (on 32 bit) +/-#3FFFFFFF with -#40000000 being deemed out-of-range.
+            </dd>
+           </dl>
           </td>
          </tr>
          <tr>
@@ -1023,14 +1061,23 @@ dl {
             boolean res =&nbsp;
           </td>
           <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
             <b>mpz_fits_atom</b>(mpz op, boolean tztrim=false) - Return non-zero if the value of op fits in a (signed) phix atom, otherwise, return zero.<br>
-            Note that (on 32 bit) 9,007,199,254,740,992 is deemed out-of-range, since that is the first value that "accidentally" fits, 
-            by ending in a binary 0, that is when tztrim is false.<br>
-            When tztrim is true it returns true for that and 9,007,199,254,740,994 but obviously false for 9,007,199,254,740,993.<br>
+            </dt>
+            <dd class="pad">
+            Note that (on 32 bit) 9,007,199,254,740,992 is deemed just-out-of-range, since that is the first value that "accidentally" fits, by ending in 
+            a binary 0, that is when tztrim is false, otherwise it returns true for that and 9,007,199,254,740,994 but false for 9,007,199,254,740,993, in 
+            other words tztrim=true makes it start returning true for every 2<small>nd</small>, 4<small>th</small>, 8<small>th</th>, etc integer value.<br>
             Obviously that 994 is technically out of range, but would not be altered by a round trip into and back out of an atom, which
             is what that tztrim (trim trailing binary zeroes) parameter effectively implements.<br>
             While on 32-bit there is a huge difference between 31-bit integers and 53-bit atoms, on 64-bit there is only 1 bit of difference  
-            between mpz_fits_integer (63 bits) and mpz_fits_atom (64 bits), at least when tztrim is false.
+            between mpz_fits_integer (63 bits) and mpz_fits_atom (64 bits), at least when tztrim is false.<br>
+            While mpz_fits_integer() is somewhat of a compatibility fudge, in that under pwa/p2js it artificially recreates a boundary that does not 
+            technically exist, mpz_fits_atom() is in contrast an absolutely perfect fit: you could not design a more appropriate routine for JavaScript 
+            even if you tried.
+            </dd>
+           </dl>
           </td>
          </tr>
          <tr>
@@ -1065,6 +1112,7 @@ dl {
           </td>
           <td align="left" style="padding: 0; border-style: none;">
             <b>mpz_or_string</b> - I trust this is self explanatory, and obviously integer/atom are <i><b>not</b></i> allowed.
+            <a name=mpz_prime_factors></a>
           </td>
          </tr>
          <tr>
@@ -1104,10 +1152,37 @@ dl {
           <td align="left" style="padding: 0; border-style: none;">
            <dl>
             <dt>
+            <b>mpz_pollard_rho</b>(mpz_or_string s, bool bAsStrings=false) - find factors of s, usually significantly faster than mpz_prime_factors().
+            </dt>
+            <dd class="pad">
+            Uses a pollard rho method for s greater than 100,000,000 and mpz_prime_factors() with maxprime of 10,000 aka primes&lt;=100,000 else/fail.<br>
+            The result is a slightly flattened version of that from mpz_prime_factors(), eg {{2,2},"837568909977835437"}, or all strings if asked for.<br>
+            <small>(In other words mpz_pollard_rho("8",true) yeilds {"2","2","2"} whereas mpz_pollard_rho("8") yields {{2,3}}.)</small><br>
+            Any factors which fail mpz_fits_atom() will certainly be returned as strings, however some smaller (but &gt; 100,000) may also slip through.<br>
+            <small>(In other words you might get "456773" instead of 456773, but I&rsquo;m sure you&rsquo;ll cope, and unlike mpz_prime_factors() there
+            may be multiple strings in the result, even when bAsStrings is false.)</small><br>
+            It is planned, but not a high priority, to further improve this routine using the code from
+            <a href="javascript:ExternalLink('ext732','https://rosettacode.org/wiki/Factors_of_a_Mersenne_number#Phix');"
+               id="ext732" style="color:#9B5565" >rosettacode/Factors_of_a_Mersenne_number</a>.<br>
+            Since this routine invokes <a href="mpfr.htm#mpz_prime">mpz_prime</a>() in the main loop anyway, there is not likely to be much benefit from 
+            calling it first.<br>
+            Obviously mpz_prime_factors() remains a better choice should you not be interested in factors over 10,000 and maybe 100,000.
+            </dd>
+           </dl>
+          </td>
+         </tr>
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+            string res =&nbsp;
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
             <b>mpz_factorstring</b>(sequence s) - converts eg {{2,2},{3,3}} to "2^2*3^3", or {{2,5},{3,2},{5,1},{7,1}} to "2^5*3^2*5*7".
             </dt>
             <dd class="pad">
-            s is typically from mpz_prime_factors(), but does not have to be, and s[$] may be {string} (ie unfactored/able).
+            s is typically from <a href="mpfr.htm#mpz_prime_factors">mpz_prime_factors</a>(), but does not have to be, 
+            and s[$] may be {string} (ie unfactored/able).
             </dd>
            </dl>
           </td>
@@ -1123,6 +1198,7 @@ dl {
             </dt>
             <dd class="pad">
             The same origins and contents of parameter s as noted with mpz_factorstring() above apply equally here.
+            <a name=mpz_prime></a>
             </dd>
            </dl>
           </td>
@@ -1134,11 +1210,63 @@ dl {
           <td align="left" style="padding: 0; border-style: none;">
            <dl>
             <dt>
-            <b>mpz_prime</b>(mpz p) - simple wrapper to mpz_probable_prime_p() that generates a (non-overrideable) state parameter on-demand.
+            <b>mpz_prime</b>(mpz p, integer prob=5) - Determine whether p is a probable prime with the chance of error being at most 1 in 2^prob.
             </dt>
             <dd class="pad">
-            The prob and div parameters are currently fixed at 5 and 0 respectively, unless someone can give me a good reason otherwise.<br>
+<!--
+            The div parameter is currently fixed at 0, unless someone can give me a good reason otherwise.<br>
             Should you ever need to, perhaps when hunting down a memory leak, mpz_prime(NULL) releases any internally generated state and returns NULL.
+-->
+            The return value is true (1) if p is probably prime, or false (0) if p is definitely composite.<br>
+            Replaces <span class="illegal">mpz_probable_prime_p</span>() which has been deprecated in version 1.0.0, as have the randstate functions 
+            <span class="illegal">gmp_randinit_mt</span>(), <span class="illegal">gmp_randseed</span>(), and <span class="illegal">gmp_randclear</span>().<br>
+            Note that desktop/Phix still uses (a now private) mpz_probable_prime_p(), whereas <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a>
+            uses a transpiled version of <b>mpz_prime_mr</b>(), which is possibly slower and might yield slightly different results. The latter can
+            however be invoked under that name equally on both, with parameters as above, and is deterministic to 3,317,044,064,679,887,385,961,981 
+            whereas the gmp docs do not appear to make any such guarantee. By deterministic I mean that all numbers up to that limit yield perfectly 
+            correct results, and there is no point or gain/loss specifying a prob other than 1 for any p below or equal to that limit. To be crystal 
+            clear: mpz_prime() does slow down with a larger prob, mpz_prime_mr() does not, that is when passed a p below that limit, hence mpz_prime() 
+            [on desktop/Phix] could be around twice as fast as mpz_prime_mr(), but could also be much slower.
+            </dd>
+           </dl>
+          </td>
+         </tr>
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+           <!-- procedure -->
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
+            <b>mpz_rand</b>(mpz n, range) - set n to a random number 0..range-1
+            </dt>
+           </dl>
+          </td>
+         </tr>
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+           <!-- procedure -->
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
+            <b>mpz_rand_ui</b>(mpz n, integer range) - set n to a random number 0..range-1
+            </dt>
+            <dd class="pad">
+            mpz_rand(n,r) is equivalent to mpz_set_ui(n,rand(mpz_get_integer(r))-1), and <br>
+            mpz_rand_ui(n,i) is actually implemented as mpz_set_ui(n,i); mpz_rand(n,n).<br>
+            Obviously you should just use <a href="rand.htm">rand</a>() for small numbers 
+            (&lt;= machine-word) you don&rsquo;t actually need to be stored in an mpz.<br>
+            Note that mpz_rand[_ui](n,n) yields 0..n-1 whereas rand(n) yields 1..n.
+            Also, rand() is maybe 64 times faster than mpz_rand(), and neither should
+            be considered cryptographically secure. In the case of rand() that would
+            be down to a trivial algorithm, in the case of mpz_rand() that would be
+            down to non-linear timings, with both possibly containing other faults.<br>
+            Lastly, <span class="illegal">mpz_urandomm</span>() has been deprecated, due to
+            <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a> difficulties, and 
+            mpz_rand[_ui]() should now be used instead (admittedly from a gmp perspective
+            that means reverting to a single shared randstate, and conversely p2js.js relies
+            on Math.random, the lack of a randstate being the difficultly mentioned above).
             </dd>
            </dl>
           </td>
@@ -1166,16 +1294,19 @@ dl {
           <td align="left" style="padding: 0; border-style: none;">
            <dl>
             <dt>
-            <b>mpfr_get_default_prec</b>(boolean decimal=false) - yields the default floating point precision in bits, initially 53 to match IEEE-754 (approx 15dp).<br>
-            <b>mpfr_set_default_prec</b>(integer precision) - set the default precision in binary bits or (if -ve) decimal places.
+            <b>mpfr_get_default_precision</b>(boolean decimal=false) - yields the default floating point precision in bits or decimal places.<br>
+            <b>mpfr_set_default_precision</b>(integer precision) - set the default precision in binary bits or (if -ve) decimal places.
             </dt>
             <dd class="pad">
+            Initially the precision is 53 to match IEEE-754 (approx 15dp).<br>
             Internally the decimal precision always adds a couple extra to cater for various intermediate values, sometimes you may need a few more.<br>
-            If decimal is true, mpfr_get_default_prec() returns the minimum number of decimal digits that would be required to distinguish all possible
+            If decimal is true, mpfr_get_default_precision() returns the minimum number of decimal digits that would be required to distinguish all possible
             values in the actual binary representation, rather than the number of decimal places that are actually held. For example if we were storing 
             in 8 bits, we could hold -128..127 and need 3 d.p, but could not hold 128..999 [at least, that is, not <i>exactly</i> - remember that it is
             using extended IEEE-754 internally, and would never go as low as 8 bits]. As above, the +2 on setting means that things should always be 
             sufficient to obtain the desired results/accuracy.<br>
+            <span class="illegal">mpfr_get_default_prec</span>() has been renamed mpfr_get_default_precision() in 1.0.0<br>
+            <span class="illegal">mpfr_set_default_prec</span>() has been renamed mpfr_set_default_precision() in 1.0.0<br>
             </dd>
            </dl>
           </td>
@@ -1225,6 +1356,7 @@ dl {
             </dt>
             <dd class="pad">
             Note the method signature differs significantly from the C function of the same name. Can also be coded as eg mpfr {x,y,z} = mpfr_inits(3).<br>
+            v may be an integer, atom, string, (but not mpfr), or a sequence of length n of said.<br>
             </dd>
            </dl>
           </td>
@@ -1244,13 +1376,9 @@ dl {
             and likewise there is no practical way to guard against that, you just get meaningless results. In fact
             mpfr_init_set() can and does test it got an mpfr, it is mpfr_init() that simply cannot perform the inverse
             useful test that makes sure it has <i>not</i> been passed an mpfr.
-             <small>(Even if it maintained a dirty 
-            great list, what&rsquo;s to say an actual value will not coincide with an allocated memory address?)
-             </small>
-             <!-- [DEV] - this has now been fixed
-            The test if [not] mpfr(1) dies horribly, with an invalid peek memory address error.
--->
-            The functions <b>mpfr_init_set_q</b>() and <b>mpfr_init_set_z</b>() behave as mpfr_set_q and mpfr_set_z, but returning res rather than being passed tgt.
+             <small>(Since an actual value <i>could</i> coincide with an allocated memory address)</small><br>
+            The functions <b>mpfr_init_set_q</b>() and <b>mpfr_init_set_z</b>() behave as mpfr_set_q and mpfr_set_z, but 
+            returning res rather than being passed tgt.
             </dd>
            </dl>
           </td>
@@ -1272,6 +1400,9 @@ dl {
             If base is zero, bases 2 and 16 can be auto-detected (after a leading +/-) by '0b', '0B', '0x' or '0X', otherwise base 10 is assumed.<br>
             The exponent prefix can be 'e' or 'E' for bases up to 10, or '@' in any base, or 'p' or 'P' for bases 2 and 16.<br>
             The value of an exponent is always written in base 10. A '.' is always accepted as a decimal point (as well as the current locale).<br>
+            Note that under <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a>, mpfr_set_str() allows eg "1/10", since mpfr are implemented 
+            in an mpq-like fashion, but not in desktop/Phix, and conversely p2js does not (yet) support @pP exponent prefixes, or current locale.<br>
+            Fairly obviously those differences also "bleed through" to the likes of mpfr_init(), etc.<br>
             <b>mpfr_set_q</b>(mpfr tgt, mpq q, integer rounding=default_rounding) - set tgt from an mpq (rational, see below).<br>
             <b>mpfr_set_z</b>(mpfr tgt, mpz z, integer rounding=default_rounding) - set tgt from an mpz (integer, see above).
             </dd>
@@ -1302,26 +1433,15 @@ dl {
           <td align="left" style="padding: 0; border-style: none;">
            <dl>
             <dt>
-            <b>mpfr_get_prec</b>(mpfr x, boolean decimal=false) - retrieve the current precision of a specific variable.
+            <b>mpfr_get_precision</b>(mpfr x, boolean decimal=false) - retrieve the current precision of a specific variable.
             </dt>
             <dd class="pad">
             See mpfr_get_default_precision() above for more details about the decimal parameter.<br>
-            <b>mpfr_set_prec</b>(mpfr x, integer precision) - precision is the number of bits required for the mantissa, see mpfr_set_default_prec() above.
-            </dd>
-           </dl>
-          </td>
-         </tr>
-         <tr>
-          <td align="right" style="padding: 0; border-style: none;">
-           <!-- procedure -->
-          </td>
-          <td align="left" style="padding: 0; border-style: none;">
-           <dl>
-            <dt>
-            <b>mpfr_const_pi</b>(mpfr x, integer rounding=default_rounding) - x := PI
-            </dt>
-            <dd class="pad">
-            As precise as needed/specified in some prior mpfr_set_prec(x) or the x = mpfr_init() call.
+            <b>mpfr_set_precision</b>(mpfr x, integer precision) - precision is the number of bits required for the mantissa, see mpfr_set_default_precision() above.<br>
+            <span class="illegal">mpfr_get_prec</span>() has been renamed mpfr_get_precision() in 1.0.0<br>
+            <span class="illegal">mpfr_set_prec</span>() has been renamed mpfr_set_precision() in 1.0.0<br>
+            Note that on desktop/Phix, mpfr_set_precision() sets x to NaN, whereas pwa/p2js sets it to 0, not likely to be an issue since it
+            would normally be set immediately afterwards anyway.
             </dd>
            </dl>
           </td>
@@ -1336,7 +1456,8 @@ dl {
          </tr>
          <tr>
           <td align="right" style="padding: 0; border-style: none;">
-            sequence res =&nbsp;
+<!--            sequence res =&nbsp;-->
+            string res =&nbsp;
           </td>
           <td align="left" style="padding: 0; border-style: none;">
            <dl>
@@ -1344,9 +1465,28 @@ dl {
             <b>mpfr_get_str</b>(mpfr x, integer base=10, n=0, rounding=default_rounding) -- print x in the specified base (2..62) to precision n(0=full).
             </dt>
             <dd class="pad">
-            res is {string digits, integer exponent}. Does <b>not</b> print a decimal point; mpfr_sprintf() [see next] may be a better choice.<br>
+<!--            res is {string digits, integer exponent}. Does <b>not</b> print a decimal point; mpfr_sprintf() [see next] may be a better choice.<br> -->
+            Prior to version 1.0.0 this routine returned {string digits, integer exponent} and digits did <b>not</b> contain a decimal point.<br>
             Also note the parameters are quite different, C: mpfr_get_str(?, ?, b, n, x, r) ==&gt; Phix: mpfr_get_str(x, b, n, r).<br>
-            For the obvious reason of a FILE* argument, use this or mpfr_sprintf instead of <span class="illegal">mpfr_out_str</span>.
+            For the obvious reason of a FILE* argument, use this or mpfr_sprintf instead of <span class="illegal">mpfr_out_str</span>.<br>
+            Note this routine is <i>not</i> supported under <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a>, use mpfr_get_fixed() [see next] instead.
+            </dd>
+           </dl>
+          </td>
+         </tr>
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+            string res =&nbsp;
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
+            <b>mpfr_get_fixed</b>(mpfr x, integer dp=6) -- print x in the specified number of decimal places.
+            </dt>
+            <dd class="pad">
+            A negative dp is allowed, which causes <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a> to print those as trailing zeroes,
+            so eg 11111.111 with -3 yeilds "11000", though for now (1.0.0) (at least) desktop/Phix just prints it as an integer ("11111").<br>
+            Rounding issues have not yet been addressed/attempted, best to assume truncation, I think.
             </dd>
            </dl>
           </td>
@@ -1367,6 +1507,7 @@ dl {
             A 'Z' should be followed by one of "dxX", or possibly (untested) one of "aceEfigGo".<br>
             Currently the only other routine of similar note that has been wrapped is mpz_get_str(), which can be used as an alternative for 
             'Z' conversion specifications.<br>
+            Note this routine is <i>not</i> supported under <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a>, use mpfr_get_fixed() [see above] instead.
             </dd>
            </dl>
           </td>
@@ -1383,6 +1524,8 @@ dl {
             <dd class="pad">
             Note this differs from the C function of the same name, in having a file number as the first parameter (like C&rsquo;s 
             <span class="illegal">mpfr_fprintf</span>), plus the phix version only accepts/permits a single mpfr or mpz variable at a time.<br>
+            Obviously this routine is <i>not</i> supported under <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a>, since you cannot
+            perform file/io from within a browser (although you <i>might</i> be able to ask a server to do that for you).
             </dd>
            </dl>
           </td>
@@ -1456,8 +1599,8 @@ dl {
             </dt>
             <dd class="pad">
             <b>mpfr_div_si</b>(mpfr rop, op1, integer op2, integer rounding=default_rounding) - ""  except op2 is a phix integer, -1GB..+1GB<br>
-            <b>mpfr_si_div</b>(mpfr rop, integer op1, mpfr op2, integer rounding=default_rounding) - "" except op1 is a phix integer, -1GB..+1GB
-            <b>mpfr_div_z</b>(mpfr rop, op1, mpz op2, integer rounding=default_rounding) - "" except this time it is rop := mpfr/mpz
+            <b>mpfr_si_div</b>(mpfr rop, integer op1, mpfr op2, integer rounding=default_rounding) - "" except op1 is also ""<br>
+            <b>mpfr_div_z</b>(mpfr rop, op1, mpz op2, integer rounding=default_rounding) - "" except rop := mpfr/mpz
             </dd>
            </dl>
           </td>
@@ -1502,7 +1645,7 @@ dl {
             Set rop to op1 raised to op2, rounded in the specified direction.<br>
             Note that mpfr_pow_si must be used instead of <span class="illegal">mpfr_pow_ui</span> (no benefit to be had), whereas there are no 
             C mpfr_si_pow[_si] functions.<br>
-            0^0 is 1 (as per the standard phix <a href="power.htm">power</a>() function), see mpfr.e for more specific details of +/-0/Inf/NaN handling.
+            0^0 is 1 (as per the standard phix <a href="log.htm">power</a>() function), see mpfr.e for more specific details of +/-0/Inf/NaN handling.
             </dd>
            </dl>
           </td>
@@ -1515,6 +1658,7 @@ dl {
             <b>mpfr_neg</b>(mpfr rop, op, integer rounding=default_rounding) - rop := -op with specified rounding<br>
             <dd class="pad">
             Just changes the sign if rop and op are the same variable, otherwise rounding can occur when the precision of rop is less than that of op.
+            <a name=mpfr_const_pi></a>
             </dd>
           </td>
          </tr>
@@ -1523,7 +1667,45 @@ dl {
            <!-- procedure -->
           </td>
           <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
+            <b>mpfr_const_pi</b>(mpfr x, integer rounding=default_rounding) - x := PI
+            </dt>
+            <dd class="pad">
+            As precise as needed/specified in some prior mpfr_set_precision(x) or the x = mpfr_init() call.<br>
+            Unfortunately trying to print more than about 42,000 digits of pi crashes (in the dll) on desktop/Phix.<br>
+            Note that in pwa/p2js, mpfr_const_pi() uses a very simple 
+            <a href="javascript:ExternalLink('ext357','https://en.wikipedia.org/wiki/Bailey-Borwein-Plouffe_formula');"
+               id="ext357" style="color:#9B5565" >BPP</a> based method, which yields 12,000 digits in 4.5s, without 
+            any attempt at optimisation, however it should probably not be used for more than say 1000 decimal digits 
+            (and in fact I have limited use on rosettacode to 1000 digits), plus it makes no attempt to cache results. 
+            In contrast, the gmp routine invoked by desktop/Phix uses a state-of-the-art 
+            <a href="javascript:ExternalLink('ext375','https://en.wikipedia.org/wiki/Chudnovsky_algorithm');"
+               id="ext375" style="color:#9B5565" >Chudnovsky</a> method - should anyone want to contribute a (normal 
+            hll Phix, or even JavaScript) version of that, feel free. Note however that generating a 100,000 digit string
+            in a browser is going to cause it significantly more grief than a 100,000,000 digit string does desktop/Phix,
+            so there are other already fairly close limits to how useful any such effort could be, somewhere between 4 and
+            8 times as many digits at best I would guess.
+<!--
+            It is probably fair to say that desktop/Phix suffers more problems (stack overflows somehere deep in the 
+            supplied dlls) than pwa/p2js, that is when generating ridiculously long strings, for instance mpz_get_str() 
+            in mpfr.e resorts to chunks of 20000 digits, but there is no equivalent code in any version of mpfr_get_str(), 
+            mpfr_get_fixed(), or mpfr_(s)printf(). 
+            Also, I can verify digits on desktop/Phix significantly (sic) easier than on pwa/p2js.
+-->
+            </dd>
+           </dl>
+          </td>
+         </tr>
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+           <!-- procedure -->
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
             <b>mpfr_sin</b>(mpfr rop, op, integer rounding=default_rounding) - rop := sin(op) with specified rounding
+            <dd class="pad">
+            Not supported under <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a>.
+            </dd>
           </td>
          </tr>
          <tr>
@@ -1533,9 +1715,10 @@ dl {
           <td align="left" style="padding: 0; border-style: none;">
             <b>mpfr_log</b>(mpfr rop, op, integer rounding=default_rounding) - rop := log(op) with specified rounding
             <dd class="pad">
-            Set rop to the natural logarithm of op, rounded in the direction rnd. <br>
+            Set rop to the natural logarithm of op, rounded in the specified direction. <br>
             Set rop to +0 if op is 1 (in all rounding modes), for consistency with the ISO C99 and IEEE 754-2008 standards. <br>
-            Set rop to -Inf if op is +/-0 (i.e., the sign of the zero has no influence on the result).
+            Set rop to -Inf if op is +/-0 (i.e., the sign of the zero has no influence on the result).<br>
+            Not supported under <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a>.
             </dd>
           </td>
          </tr>
@@ -1545,6 +1728,9 @@ dl {
           </td>
           <td align="left" style="padding: 0; border-style: none;">
             <b>mpfr_exp</b>(mpfr rop, op, integer rounding=default_rounding) - rop := exponential(op) with specified rounding
+            <dd class="pad">
+            Not supported under <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a>.
+            </dd>
           </td>
          </tr>
          <tr>
@@ -1553,6 +1739,9 @@ dl {
           </td>
           <td align="left" style="padding: 0; border-style: none;">
             <b>mpfr_gamma</b>(mpfr rop, op, integer rounding=default_rounding) - rop := Gamma(op) with specified rounding
+            <dd class="pad">
+            Not supported under <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a>.
+            </dd>
           </td>
          </tr>
          <tr>
@@ -1596,7 +1785,16 @@ dl {
            <nobr>mpq res =&nbsp;</nobr>
           </td>
           <td align="left" style="padding: 0; border-style: none;">
-            <b>mpq_init</b>() - Initialise a single mpq, set to 0/1. Invoking res = mpq_free(res) when no longer needed is recommended, but occurs automatically if forgotten.
+           <dl>
+            <dt>
+            <b>mpq_init</b>(object v=0) - Initialise a single mpq, by default set to 0/1. 
+            </dt>
+            <dd class="pad">
+            Invoking res = mpq_free(res) when no longer needed is recommended, but occurs automatically if forgotten.<br>
+            v may be an integer or string, (but <i>not</i> a non-integer atom or mpq), or a sequence of length n of said.<br>
+            Note that mpq_init_set_si() can set a non-1 denominator in a way this routine (when passed an integer) simply cannot.
+            </dd>
+           </dl>
           </td>
          </tr>
          <tr>
@@ -1604,7 +1802,33 @@ dl {
            <nobr>sequence res =&nbsp;</nobr>
           </td>
           <td align="left" style="padding: 0; border-style: none;">
-            <b>mpq_inits</b>(integer count) - Returns a sequence of count mpq ({} if count=0), set to 0/1, eg mpq {y,z} = mpq_inits(2). (ditto mpq_free)
+           <dl>
+            <dt>
+            <b>mpq_inits</b>(integer count, object v) - Returns a sequence of count mpq ({} if count=0), set to 0/1, eg mpq {y,z} = mpq_inits(2). (ditto mpq_free)
+            </dt>
+            <dd class="pad">
+            v may be an integer or string, or a sequence of length count of said (ditto no non-integer atom(s) or mpq).<br>
+            </dd>
+           </dl>
+          </td>
+         </tr>
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+            object x =&nbsp;
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
+            <b>mpq_free</b>(object x) - Clear and deallocate any variables created from mpq_init(), eg x = mpq_free(x), or {y,z} = mpq_free({y,z}).
+            </dt>
+            <dd class="pad">
+            NB: lhs==rhs intentionally (not actually enforced but you should pretend it is). <br>
+            Should you forget to invoke this routine, mpfr.e will do so automatically.<br>
+            <span class="illegal">mpq_clear[s]</span> is not publicly available, since incorrect use can lead to sudden and mysterious program termination
+             <small>(admittedly that can still happen if you break the lhs==rhs rule)</small> - 
+            use mpfr_free() instead, which releases <i>both</i> mpir.dll <i>and</i> mpfr.e allocated memory.
+            </dd>
+           </dl>
           </td>
          </tr>
          <tr>
@@ -1636,37 +1860,23 @@ dl {
             <b>mpq_set_str</b>(mpq tgt, string s, integer base=0) - Set tgt from a string such as "41" or "41/152".<br>
             </dt>
             <dd class="pad">
-            If base is zero, bases 2 and 16 can be auto-detected (after a leading +/-) by '0b', '0B', '0x' or '0X', otherwise base 10 is assumed.<br>
-            Note that is done separately for the numerator and denominator, so for instance "0xEF/100" is 239/100, whereas "0xEF/0x100" is 239/256.
+            If base is zero, bases 2 and 16 can be auto-detected (after a leading +/-) by '0b', '0B', '0x' or '0X', otherwise base 10 is assumed.
+            That is done separately for the numerator and denominator, so for instance "0xEF/100" is 239/100, whereas "0xEF/0x100" is 239/256.
             </dd>
            </dl>
           </td>
          </tr>
          <tr>
           <td align="right" style="padding: 0; border-style: none;">
-           <!-- procedure -->
-          </td>
-          <td align="left" style="padding: 0; border-style: none;">
-            <b>mpq_canonicalize</b>(mpq op) - Remove any factors that are common to the numerator and denominator of op, 
-            and make the denominator positive.<br>
-            This is performed automatically for mpq_set_si/str and mpq_set_z with a non-null d
-          </td>
-         </tr>
-         <tr>
-          <td align="right" style="padding: 0; border-style: none;">
-            object x =&nbsp;
+           string res =&nbsp;
           </td>
           <td align="left" style="padding: 0; border-style: none;">
            <dl>
             <dt>
-            <b>mpq_free</b>(object x) - Clear and deallocate any variables created from mpq_init(), eg x = mpq_free(x), or {y,z} = mpq_free({y,z}).
+            <b>mpq_get_str</b>(mpq op, integer base=10, boolean comma_fill=false) - Return op as a string in the specified base (2..62).<br>
             </dt>
             <dd class="pad">
-            NB: lhs==rhs intentionally (not actually enforced but you should pretend it is). <br>
-            Should you forget to invoke this routine, mpfr.e will do so automatically.<br>
-            <span class="illegal">mpq_clear[s]</span> is not publicly available, since incorrect use can lead to sudden and mysterious program termination
-             <small>(admittedly that can still happen if you break the lhs==rhs rule)</small> - 
-            use mpfr_free() instead, which releases <i>both</i> mpir.dll <i>and</i> mpfr.e allocated memory.
+            The result will be of the form "num/den", or if the denominator is 1 then just "num".
             </dd>
            </dl>
           </td>
@@ -1685,15 +1895,33 @@ dl {
            <!-- procedure -->
           </td>
           <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
+            <b>mpq_canonicalize</b>(mpq op) - Remove any factors that are common to the numerator and denominator of op, 
+            and make the denominator positive.<br>
+            </dt>
+            <dd class="pad">
+            This is performed automatically by mpq_set_si/str and mpq_set_z with a non-null d, and by most of the
+            following routines.
+            </dd>
+           </dl>
+          </td>
+         </tr>
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+           <!-- procedure -->
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
             <b>mpq_add</b>(mpq rsum, addend1, addend2) - set rsum to addend1 + addend2.<br>
+            <b>mpq_add_si</b>(mpq rsum, addend1, integer n, d=1) - set rsum to addend1 + n/d.<br>
             <b>mpq_sub</b>(mpq rdifference, minuend, subtrahend) - set rdifference to minuend - subtrahend.<br>
             <b>mpq_mul</b>(mpq rproduct, multiplier, multiplicand) - set rproduct to multiplier * multiplicand.<br>
             <b>mpq_div</b>(mpq rquotient, dividend, divisor) - set rquotient to dividend / divisor.<br>
             <b>mpq_mul_2exp</b>(mpq rop, op, integer bits) - set rop to op * 2^bits.<br>
             <b>mpq_div_2exp</b>(mpq rop, op, integer bits) - set rop to op / 2^bits.<br>
-            <b>mpq_neg</b>(mpq negated_operand, operand) - set negated_operand to -operand.<br>
+            <b>mpq_neg</b>(mpq rop, op) - set rop to -op.<br>
             <b>mpq_abs</b>(mpq rop, op) - set rop to the absolute value of op.<br>
-            <b>mpq_inv</b>(mpq inverted_number, number) - set inverted_number to 1/number. If the new denominator is zero, this routine will divide by zero.<br>
+            <b>mpq_inv</b>(mpq rop, op) - set rop to 1/op. If the new denominator is zero, this routine will divide by zero.<br>
           </td>
          </tr>
          <tr>
@@ -1718,11 +1946,11 @@ dl {
           <td align="left" style="padding: 0; border-style: none;">
            <dl>
             <dt>
-            <b>mpq_cmp_si</b>(mpq op1, integer num2, den2) - compare op1 and num2/den2. Return +1|0|-1 for &gt;|=|&lt; respectively.<br>
+            <b>mpq_cmp_si</b>(mpq op1, integer n, d=1) - compare op1 and n/d. Return +1|0|-1 for &gt;|=|&lt; respectively.<br>
             </dt>
             <dd class="pad">
-            num2 and den2 are allowed to have common factors. mpq_cmp_si must be used instead of <span class="illegal">mpq_cmp_ui</span>, 
-            den2 may not be negative.<br>
+            n and d are allowed to have common factors. mpq_cmp_si must be used instead of <span class="illegal">mpq_cmp_ui</span>, 
+            d may not be zero or negative.<br>
             Note the mpfr.e wrapper explicitly converts the C +ve/0/-ve result to +1/0/-1 using <a href="sign.htm">sign</a>().
             </dd>
            </dl>
@@ -1748,7 +1976,9 @@ dl {
        <br>
         More routines (many more) will be added as needed - there are several hundred (maybe even thousands) of them and, at least in my opinion, 
         it is just simply not worthwhile without something that actually uses and therefore tests them. Each one is usually quite straightforward,
-        but of course this document and Edita/Edix syntax and lookup files also need to be updated.
+        but of course this document and Edita/Edix syntax and lookup files also need to be updated. Likewise there may be a few still missing from 
+        mpfr.js but so far any such have proved remarkably easy to add, with the trivial updates to js.syn and p2js_keywords.e being as fiddly if 
+        not moreso than the new code itself.
        <br>
        <br>
         Note that mpz/mpfr/mpq_clear() are <i>not</i> publically available, use xxx_free() instead, which free both mpf/ir.dll and mpfr.e allocated memory.
@@ -1757,7 +1987,9 @@ dl {
        <br>
         Also, in contrast, mpr_free_str() and mpz_free_string() are invoked internally for you, so when translating code you can just delete those statements.
        <br>
-        Lastly note that all mpf_xxx functions have deliberately been expunged in favour of mpfr_ ones.
+        Lastly note that all mpf_xxx functions have deliberately been expunged in favour of mpfr_ ones (the latter can I believe start small and grow whereas 
+        the former are always allocated their maximum size) and likewise the low-level mpn_xxx functions (which require the exact number of "limbs" to be
+        specified on every call and as started in the gmp docs have a deliberately "non-coherent calling interface") are not wrapped either.
        <br>
        <br>
       </div>

@@ -24,13 +24,12 @@ include builtins\get_interpreter.e
 include builtins\syswait.ew
 with debug
 
---global constant pwadir = join_path({include_path(""),`pwa`})
-global constant pwadir = join_path({get_file_path(get_interpreter()),`pwa`})
---global constant pwadir = `C:\Program Files (x86)\pwa`
---?pwadir
+global constant rootpath = get_file_path(get_interpreter()),
+                builtindir = join_path({rootpath,"builtins"}),
+                builtinVM = join_path({builtindir,"VM"}),
+                pwadir = join_path({rootpath,"pwa"})
 
 global string current_file
-global string builtindir -- set in tokstack_clean()
 global integer ext
 --global string text
 global string src
@@ -105,6 +104,7 @@ global function fatal(string msg)
 end function
 
 global function find_extension(string e)
+    -- map eg "exw" to PHIX
     integer res = 0
     for i=1 to length(extensions) do
         if find(e,extensions[i][2]) then
@@ -113,6 +113,18 @@ global function find_extension(string e)
         end if
     end for
     return res
+end function
+
+global function strip_builtin(string s)
+    -- tidy eg "builtins/mpfr.e" to just "mpfr.e", which
+    --  will obviously simplify any subsequent testing.
+    if length(s) then
+        sequence p = split_path(s)
+        if p[1] = "builtins" then
+            s = join_path(p[2..$])
+        end if
+    end if
+    return s
 end function
 
 global function load_text(string txt, integer edx)
@@ -260,8 +272,10 @@ function set_chars(sequence s)
 end function
 
 global string charset = set_chars({{"\r\n",EOL},
-                                   {" \t",SPACE},
-                                   {`!&|*/+-,.:;<=>?~\$%([{}])`,SYMBOL},
+--                                 {" \t",SPACE},
+                                   {' ',SPACE},
+                                   {0x9,SPACE},
+                                   {`!&|*/+-,.:;<=>?~\$%([{}])^`,SYMBOL},
 --                                 {'$', LETTER}, -- iff is_js() in tokenise()
                                    {'"', '"'},
                                    {'`', '`'},
@@ -328,6 +342,7 @@ global constant precedences = {{BEQ     := 129, `:=`,   PASGN},
                                {EEE     := 159, `===`,  PCOMP},
                                {NE      := 161, `!=`,   PCOMP},
                                {NEE     := 163, `!==`,  PCOMP},
+                               {NEE           , `<>`,   PCOMP},
 --                             {LT      := 165, `<`,    PRELA},
 --                             {LT      := '<', `<`,    PRELA},
                                {/*#3C=60*/ '<', `<`,    PRELA},
@@ -338,6 +353,8 @@ global constant precedences = {{BEQ     := 129, `:=`,   PASGN},
                                {           '>', `>`,    PRELA},
 --                             {AMPSND  := 173, `&`,    PAMPS},
                                {           '&', `&`,    PAMPS}, -- PBITS for js
+                               {           '^', `^`,    PAMPS}, -- PBITS for js
+                               {           '|', `|`,    PAMPS}, -- PBITS for js
                                {RSH     := 175, `>>`,   PSHFT},
                                {LSH     := 177, `<<`,   PSHFT},
                                {RUSH    := 179, `>>>`,  PSHFT},
@@ -350,6 +367,7 @@ global constant precedences = {{BEQ     := 129, `:=`,   PASGN},
                                {           '/', `/`,    PMORD},
 --                             {MOD     := 189, `%`,    PMORD},
                                {           '%', `%`,    PMORD},
+                               {HEXSTR  := 189, `\x`,   PUNY},
 --                             {DOT     := 191, `.`,    PUNY},
                                {           '.', `.`,    PUNY},
                                {TWIDDLE := 191, `~`,    PUNY},
@@ -396,6 +414,7 @@ global procedure show_token(sequence tok, string prefix="")
     -- (diagnostic routine)
 --object finish
     integer {toktype,start,finish,line,col} = tok
+    tok = deep_copy(tok)
     if length(prefix) or show_toks[min(toktype,SYMBOL)] then
         tok[TOKTYPE] = tok_name(toktype)
 --  if toktype<=TOKMAX then

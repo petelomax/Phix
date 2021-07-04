@@ -141,6 +141,9 @@ end procedure -- (for Edita/CtrlQ)
         cmp edi,h4
 --      jle :pSubssp1leh4
 --    ::pSubssp1leh4    -- ref p1 <= h4         (first test)
+--killed p2js (25/5/21):
+        jle :pSubssNewSeq
+/*
         jg @f
             -- if new length = length(p2) then incref p2 -> p1, exit/all done
             cmp edx,[esi-12]
@@ -156,10 +159,13 @@ end procedure -- (for Edita/CtrlQ)
             mov [edi],eax               -- (no need to dealloc)
             ret
       @@:
+*/
         shl edi,2
         cmp dword[edi-8],1              -- refcount of 1
 --      jne :pSubssp2rcn1
 --    ::pSubssp2rcn1    -- refcount(esi/p2)!=1  (second test)
+        jne :pSubssNewSeq
+/*
         je @f
             cmp edi,esi
             jne :pSubssp2nep1
@@ -171,8 +177,11 @@ end procedure -- (for Edita/CtrlQ)
             add esp,8                   -- discard slice start and addr res
             ret
       @@:
+*/
         cmp edi,esi
 --      jne :pSubssp2nep1
+        jne :pSubssNewSeq
+/*
         je @f
           ::pSubssp2nep1    -- edi!=esi             (third test)
             cmp edx,[esi-12]                -- if lengths match
@@ -193,6 +202,7 @@ end procedure -- (for Edita/CtrlQ)
             ret
 
       @@:
+*/
         -- (this is the x:=x[i..j] case, with a refcount of 1)
         push ecx                        --[?] save new length
         xor ebx,ebx
@@ -522,6 +532,9 @@ end procedure -- (for Edita/CtrlQ)
         -- can we do things in-situ?
         --
         cmp rdi,r15
+--killed p2js (25/5/21):
+        jle :pSubssNewSeq
+--/*
         jg @f
             -- if new length = length(p2) then incref p2 -> p1, exit/all done
             cmp rdx,[rsi-24]
@@ -537,8 +550,11 @@ end procedure -- (for Edita/CtrlQ)
             mov [rdi],rax               -- (no need to dealloc)
             ret
       @@:
+--*/
         shl rdi,2
         cmp qword[rdi-16],1             -- refcount of 1
+        jne :pSubssNewSeq
+/*
         je @f
             cmp rdi,rsi
             jne :pSubssp2nep1
@@ -549,7 +565,10 @@ end procedure -- (for Edita/CtrlQ)
             add rsp,16                  -- discard slice start and addr res
             ret
       @@:
+*/
         cmp rdi,rsi
+        jne :pSubssNewSeq
+/*
         je @f
           ::pSubssp2nep1    -- rdi!=rsi             (third test)
             cmp rdx,[rsi-24]                -- if lengths match
@@ -570,6 +589,7 @@ end procedure -- (for Edita/CtrlQ)
             ret
 
       @@:
+*/
         -- (this is the x:=x[i..j] case, with a refcount of 1)
         push rcx                        --[?] save new length
         xor rbx,rbx

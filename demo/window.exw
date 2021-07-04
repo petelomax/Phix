@@ -4,48 +4,9 @@
 --
 -- A Standard Windows Window coded at the primitive API level
 -- Most Phix programmers should simply use Arwen or similar (was:Win32Lib, wxWidgets, EuGTK or EuIUP!)
--- See winwire.exw for a simpler way: use cffi for 32<->64 bit compatibility
 --
-
---?"hello"
---{} = wait_key()
-
---/*
-include std/os.e
-include std/machine.e
-include std/dll.e
---*/
-
---DEV use cffi:
-constant cbSize = 0,
-         style  = 4,
-         lpfnWndProc = 8,
-         cbClsExtra = 12,
-         cbWndExtra = 16,
-         hInstance  = 20,
-         hIcon      = 24,
-         hCursor    = 28,
-         hbrBackground = 32,
-         lpszMenuName  = 36,
-         lpszClassName = 40,
-         hIconSm = 44,
-         SIZE_OF_WNDCLASS = 48
-
-constant cbSize64           = 0,
-         style64            = 4,
-         lpfnWndProc64      = 8,
-         cbClsExtra64       = 16,
-         cbWndExtra64       = 20,
-         hInstance64        = 24,
-         hIcon64            = 32,
-         hCursor64          = 40,
-         hbrBackground64    = 48,
-         lpszMenuName64     = 56,
-         lpszClassName64    = 64,
-         hIconSm64          = 72,
-         SIZE_OF_WNDCLASS64 = 80
---/*
-
+include builtins\cffi.e
+constant tWNDCLASSEX = """
 typedef struct tagWNDCLASSEX {
   UINT      cbSize;
   UINT      style;
@@ -60,45 +21,19 @@ typedef struct tagWNDCLASSEX {
   LPCTSTR   lpszClassName;
   HICON     hIconSm;
 } WNDCLASSEX, *PWNDCLASSEX;
+"""
+constant idWNDCLASSEX = define_struct(tWNDCLASSEX)
 
-struct  WNDCLASSEX64
-        cbSize                  rd      1
-        style                   rd      1
->       lpfnWndProc             rq      1
-        cbClsExtra              rd      1
-        cbWndExtra              rd      1
->       hInstance               rq      1
-        hIcon                   rq      1
-        hCursor                 rq      1
-        hbrBackground           rq      1
-        lpszMenuName            rq      1
-        lpszClassName           rq      1
-        hIconSm                 rq      1
-ends
-  style         dd 0
-  lpfnWndProc   dd WindowProc
-  cbClsExtra    dd 0
-  cbWndExtra    dd 0
-  hInstance     dd NULL
-  hIcon         dd NULL
-  hCursor       dd NULL
-  hbrBackground dd COLOR_BTNFACE+1
-  lpszMenuName  dd NULL
-  lpszClassName dd _class
-;ends
+constant tPOINT = """
+typedef struct tagPOINT {
+  LONG x;
+  LONG y;
+} POINT, *PPOINT;
+"""
+--constant idPOINT = define_struct(tPOINT)
+{} = define_struct(tPOINT)
 
---*/
-
-constant SIZE_OF_MESSAGE = 28
-constant SIZE_OF_MESSAGE64 = 48
-
---/*
-
-struct  POINT64
-        x                       rd      1
-        y                       rd      1
-ends
-
+constant tMESSAGE = """
 typedef struct tagMSG {
   HWND   hwnd;
   UINT   message;
@@ -107,67 +42,51 @@ typedef struct tagMSG {
   DWORD  time;
   POINT  pt;
 } MSG, *PMSG, *LPMSG;
-;  msg MSG 
+"""
+constant idMESSAGE = define_struct(tMESSAGE)
 
-struct  MSG64
-        hwnd                    rq      1
-        message                 rq      1       <<?? (align??)
-        wParam                  rq      1
-        lParam                  rq      1
-        time                    rd      1
-                                rd      1       ; padding
-        pt                      POINT64
-ends
+constant tRECT = """
+typedef struct _RECT {
+  LONG left;
+  LONG top;
+  LONG right;
+  LONG bottom;
+} RECT, *PRECT;
+"""
+constant idRECT = define_struct(tRECT)         
 
-label msg
-  msg.hwnd dd ?
-  msg.message dd ?
-  msg.wParam dd ?
-  msg.lParam dd ?
-  msg.time dd ?
-  msg.ptx dd ?
-  msg.pty dd ?
-
-
---*/
+constant tPAINTSTRUCT = """
+typedef struct tagPAINTSTRUCT {
+  HDC  hdc;
+  BOOL fErase;
+  RECT rcPaint;
+  BOOL fRestore;
+  BOOL fIncUpdate;
+  BYTE rgbReserved[32];
+} PAINTSTRUCT, *PPAINTSTRUCT;
+"""
+constant idPAINTSTRUCT = define_struct(tPAINTSTRUCT)
 
 constant CS_HREDRAW = 2,
-         CS_VREDRAW = 1
-
-constant SW_SHOWNORMAL = 1
-
-constant WM_CREATE = #01,
+         CS_VREDRAW = 1,
+         SW_SHOWNORMAL = 1,
+         WM_CREATE = #01,
          WM_PAINT  = #0F,
          WM_DESTROY = #02,
          WM_CHAR = 258,
-         VK_ESCAPE = 27
-
-constant SND_FILENAME = #00020000,
-         SND_ASYNC    = #00000001
-
-constant DT_SINGLELINE = #0020,
+         VK_ESCAPE = 27,
+         SND_FILENAME = #00020000,
+         SND_ASYNC    = #00000001,
+         DT_SINGLELINE = #0020,
          DT_CENTER     = #0001,
-         DT_VCENTER    = #0004
-
-function or_all(sequence s)
--- or together all elements of a sequence
-atom result
-
-    result = 0
-    for i=1 to length(s) do
-        result = or_bits(result, s[i])
-    end for
-    return result
-end function
-
-constant WS_OVERLAPPED  = #00000000,
+         DT_VCENTER    = #0004,
+         WS_OVERLAPPED  = #00000000,
          WS_CAPTION     = #00C00000,
          WS_SYSMENU     = #00080000,
          WS_THICKFRAME  = #00040000,
          WS_MINIMIZEBOX = #00020000,
-         WS_MAXIMIZEBOX = #00010000
-
-constant IDC_ARROW = 32512,
+         WS_MAXIMIZEBOX = #00010000,
+         IDC_ARROW = 32512,
          WHITE_BRUSH = 0,
          CW_USEDEFAULT = #80000000,
          WS_OVERLAPPEDWINDOW = or_all({WS_OVERLAPPED, WS_CAPTION, WS_SYSMENU,
@@ -183,39 +102,37 @@ integer xLoadIcon, xLoadCursor, xGetStockObject, xRegisterClassEx,
         xGetLastError
 
 procedure not_found(sequence name)
-    puts(1, "Couldn't find " & name & '\n')
-    abort(1)
+    crash("Couldn't find " & name)
 end procedure
 
 function link_dll(sequence name)
--- dynamically link a dll
-atom lib = open_dll(name)
+    -- dynamically link a dll
+    atom lib = open_dll(name)
     if lib=NULL then not_found(name) end if
     return lib
 end function
 
 function link_c_func(atom dll, sequence name, sequence args, atom result)
--- dynamically link a C routine as a Euphoria function
-integer handle = define_c_func(dll, name, args, result)
+    -- dynamically link a C routine as a function
+    integer handle = define_c_func(dll, name, args, result)
     if handle=-1 then not_found(name) end if
     return handle
 end function
 
 function link_c_proc(atom dll, sequence name, sequence args)
--- dynamically link a C routine as a Euphoria function
-integer handle = define_c_proc(dll, name, args)
+    -- dynamically link a C routine as a procedure
+    integer handle = define_c_proc(dll, name, args)
     if handle=-1 then not_found(name) end if
     return handle
 end function
 
 procedure link_dll_routines()
--- get handles to all dll routines that we need
-atom user32, gdi32, winmm, kernel32
+    -- get handles to all dll routines that we need
 
-    user32 = link_dll("user32.dll")
-    gdi32 = link_dll("gdi32.dll")
-    winmm = link_dll("winmm.dll")
-    kernel32 = link_dll("kernel32.dll")
+    atom user32 = link_dll("user32.dll"),
+         gdi32 = link_dll("gdi32.dll"),
+         winmm = link_dll("winmm.dll"),
+         kernel32 = link_dll("kernel32.dll")
 
     xLoadIcon = link_c_func(user32, "LoadIconA", {C_POINTER, C_INT}, C_INT)
     xLoadCursor = link_c_func(user32, "LoadCursorA", {C_POINTER, C_INT}, C_INT)
@@ -244,189 +161,91 @@ end procedure
 
 link_dll_routines()
 
-global function WndProc(atom hwnd, atom iMsg, atom wParam, atom lParam)
--- callback routine to handle Window class
-atom hdc, wav_file, Euphoria, ps, rect
+function WndProc(atom hwnd, iMsg, wParam, lParam)
+    -- callback routine to handle Window class
 
-    if iMsg=WM_CREATE then
-        wav_file = allocate_string(`\Windows\Media\tada.wav`)
-        c_proc(xPlaySound, {wav_file,NULL,SND_FILEASYNC})
-        free(wav_file)
-        return 0
-
-    elsif iMsg=WM_PAINT then
---DEV use cffi:
-if machine_bits()=32 then
-        ps = allocate(64)
-else
-        ps = allocate(72)
-end if
---/*
-struct PAINTSTRUCT
-  hdc         dd ?
-  fErase      dd ?
-  rcPaint     RECT
-  fRestore    dd ?
-  fIncUpdate  dd ?
-  rgbReserved db 32 dup (?)
-ends
-
-struct PAINTSTRUCT64
-  hdc         dq ?
-  fErase      dd ?
-  rcPaint     RECT
-  fRestore    dd ?
-  fIncUpdate  dd ?
-  rgbReserved db 36 dup (?)
-ends
-
-struct RECT
-  left   dd ?
-  top    dd ?
-  right  dd ?
-  bottom dd ?
-ends
-
-struct RECT64
-  left   dd ?
-  top    dd ?
-  right  dd ?
-  bottom dd ?
-ends
---*/
---DEV use cffi:
-        rect = allocate(16)
-        hdc = c_func(xBeginPaint, {hwnd, ps})
-        c_proc(xGetClientRect, {hwnd, rect})
-        Euphoria = allocate_string("A Plain Vanilla Window using Euphoria!")
-        c_proc(xDrawText, {hdc, Euphoria, -1, rect,DT_SINGLECENTER})
-        free(Euphoria)
-        c_proc(xEndPaint, {hwnd, ps})
-        free(ps)
-        free(rect)
-        return 0
-
-    elsif iMsg=WM_DESTROY or (iMsg=WM_CHAR and wParam=VK_ESCAPE) then
-        c_proc(xPostQuitMessage, {0})
-        return 0
-
+    if iMsg=WM_CHAR and wParam=VK_ESCAPE then
+        iMsg = WM_DESTROY
     end if
+    switch iMsg do
 
-    return c_func(xDefWindowProc, {hwnd, iMsg, wParam, lParam})
+        case WM_CREATE:
+
+            atom wav_file = allocate_string(`\Windows\Media\tada.wav`)
+            c_proc(xPlaySound, {wav_file,NULL,SND_FILEASYNC})
+            free(wav_file)
+
+        case WM_PAINT:
+
+            atom pPAINTSTRUCT = allocate_struct(idPAINTSTRUCT),
+                 pRECT = allocate_struct(idRECT),
+                 hdc = c_func(xBeginPaint, {hwnd, pPAINTSTRUCT}),
+                 Phix = allocate_string("A Plain Vanilla Window using Phix!")
+            c_proc(xGetClientRect, {hwnd, pRECT})
+            c_proc(xDrawText, {hdc, Phix, -1, pRECT, DT_SINGLECENTER})
+            c_proc(xEndPaint, {hwnd, pPAINTSTRUCT})
+            free({Phix,pPAINTSTRUCT,pRECT})
+
+        case WM_DESTROY:
+
+            c_proc(xPostQuitMessage, {0})
+
+        default:
+
+            return c_func(xDefWindowProc, {hwnd, iMsg, wParam, lParam})
+
+    end switch
+    return 0
 end function
 
-procedure WinMain()
-atom wndclass
-atom szAppName
-integer id
-atom WndProcAddress
-atom hwnd
-atom msg
-atom class
-atom icon_handle
-atom my_title
+procedure win_main()
 
-if machine_bits()=32 then
-    wndclass = allocate(SIZE_OF_WNDCLASS)
-else
-    wndclass = allocate(SIZE_OF_WNDCLASS64)
-end if
-    szAppName = allocate_string("HelloWin")
+    atom pWndclass = allocate_struct(idWNDCLASSEX),
+         szAppName = allocate_string("HelloWin"),
+         WndProcAddress = call_back(WndProc),
+         icon_handle = c_func(xLoadIcon, {instance(), 10})
 
-    id = routine_id("WndProc")
-    if id<=0 then crash("routine_id failed!\n") end if
-    WndProcAddress = call_back(id) -- get 32-bit address for callback
+    set_struct_field(idWNDCLASSEX,pWndclass,"cbSize",get_struct_size(idWNDCLASSEX))
+    set_struct_field(idWNDCLASSEX,pWndclass,"style",or_bits(CS_HREDRAW, CS_VREDRAW))
+    set_struct_field(idWNDCLASSEX,pWndclass,"lpfnWndProc",WndProcAddress)
+    set_struct_field(idWNDCLASSEX,pWndclass,"hIcon",icon_handle)
+    set_struct_field(idWNDCLASSEX,pWndclass,"hIconSm",icon_handle)
+    set_struct_field(idWNDCLASSEX,pWndclass,"hCursor",c_func(xLoadCursor, {NULL, IDC_ARROW}))
+    set_struct_field(idWNDCLASSEX,pWndclass,"hbrBackground",c_func(xGetStockObject, {WHITE_BRUSH}))
+    set_struct_field(idWNDCLASSEX,pWndclass,"lpszClassName",szAppName)
 
-if machine_bits()=32 then
-    poke4(wndclass+cbSize, SIZE_OF_WNDCLASS)
-    poke4(wndclass+style, or_bits(CS_HREDRAW, CS_VREDRAW))
-    poke4(wndclass+lpfnWndProc, WndProcAddress)
-    poke4(wndclass+cbClsExtra, 0)
-    poke4(wndclass+cbWndExtra, 0)
-    poke4(wndclass+hInstance, 0) --hInstance
-else --machine_bits()=64
-    poke4(wndclass+cbSize64, SIZE_OF_WNDCLASS64)
-    poke4(wndclass+style64, or_bits(CS_HREDRAW, CS_VREDRAW))
-    poke8(wndclass+lpfnWndProc64, WndProcAddress)
-    poke4(wndclass+cbClsExtra64, 0)
-    poke4(wndclass+cbWndExtra64, 0)
-    poke8(wndclass+hInstance64, 0) --hInstance
-end if
-
-    -- set icon in top-left of window
-    icon_handle = c_func(xLoadIcon, {instance(), 10})
-if machine_bits()=32 then
-    poke4(wndclass+hIcon, icon_handle)
-    poke4(wndclass+hIconSm, icon_handle)
-else
-    poke8(wndclass+hIcon64, icon_handle)
-    poke8(wndclass+hIconSm64, icon_handle)
-end if
-
-    -- Wolfgang Fritz observes that you can set an icon dynamically using:
-    -- junk = sendMessage(hwnd, WM_SETICON, 1, icon_handle) 
-    -- where WM_SETICON is 128, 1=big icon, 0 for small icon
-
-if machine_bits()=32 then
-    poke4(wndclass+hCursor, c_func(xLoadCursor, {NULL, IDC_ARROW}))
-    poke4(wndclass+hbrBackground, c_func(xGetStockObject, {WHITE_BRUSH}))
-    poke4(wndclass+lpszMenuName, NULL)
-    poke4(wndclass+lpszClassName, szAppName)
-else
-    poke8(wndclass+hCursor64, c_func(xLoadCursor, {NULL, IDC_ARROW}))
-    poke8(wndclass+hbrBackground64, c_func(xGetStockObject, {WHITE_BRUSH}))
-    poke8(wndclass+lpszMenuName64, NULL)
-    poke8(wndclass+lpszClassName64, szAppName)
-end if
-
-    class = c_func(xRegisterClassEx, {wndclass})
-    free(szAppName)
-    free(wndclass)
-    if class=0 then
-        puts(1, "Couldn't register class\n")
---5 (ERROR_ACCESS_DENIED) [occurred when SIZE_OF_WNDCLASS64 was wrong/padded]
-        ?c_func(xGetLastError,{})
-        abort(1)
+    if c_func(xRegisterClassEx, {pWndclass})=0 then
+        crash("RegisterClassEx error #%08x",{c_func(xGetLastError,{})})
     end if
-    my_title = allocate_string("Euphoria for WIN32")
-    hwnd = c_func(xCreateWindowEx, {
-                                    0,                   -- extended style
-                                    class,               -- window class name
-                                    my_title,            -- window caption
-                                    WS_OVERLAPPEDWINDOW, -- window style
-                                    CW_USEDEFAULT,       -- initial x position
-                                    CW_USEDEFAULT,       -- initial y position
-                                    CW_USEDEFAULT,       -- initial x size
-                                    CW_USEDEFAULT,       -- initial y size
-                                    NULL,                -- parent window handle
-                                    NULL,                -- window menu handle
-                                    0 ,                  -- hInstance // program instance handle
-                                    NULL})               -- creation parameters
-    free(my_title)
+
+    sequence cwargs = {0,                   -- extended style
+                       szAppName,           -- window class name
+                       "Phix for Windows",  -- window caption
+                       WS_OVERLAPPEDWINDOW, -- window style
+                       CW_USEDEFAULT,       -- initial x position
+                       CW_USEDEFAULT,       -- initial y position
+                       CW_USEDEFAULT,       -- initial x size
+                       CW_USEDEFAULT,       -- initial y size
+                       NULL,                -- parent window handle
+                       NULL,                -- window menu handle
+                       0,                   -- hInstance // program instance handle
+                       NULL}
+    atom hwnd = c_func(xCreateWindowEx,cwargs)
     if hwnd=0 then
-        puts(1, "Couldn't CreateWindow\n")
---5 (ERROR_ACCESS_DENIED)
-        ?c_func(xGetLastError,{})
-        abort(1)
+        crash("CreateWindowEx error #%08x",{c_func(xGetLastError,{})})
     end if
+    free({szAppName,pWndclass})
+
     c_proc(xShowWindow, {hwnd, SW_SHOWNORMAL})
     c_proc(xUpdateWindow, {hwnd})
 
-if machine_bits()=32 then
-    msg = allocate(SIZE_OF_MESSAGE)
-else
-    msg = allocate(SIZE_OF_MESSAGE64)
-end if
-    while c_func(xGetMessage, {msg, NULL, 0, 0}) do
-        c_proc(xTranslateMessage, {msg})
-        c_proc(xDispatchMessage, {msg})
+    atom pMSG = allocate_struct(idMESSAGE)
+    while c_func(xGetMessage, {pMSG, NULL, 0, 0}) do
+        c_proc(xTranslateMessage, {pMSG})
+        c_proc(xDispatchMessage, {pMSG})
     end while
-    free(msg)
+    free(pMSG)
 end procedure
 
-WinMain()
-
---added to prevent false positives... [DEV, reported]
---include ..\test\t01type.exw
---include ..\test\t02parms.exw
+win_main()
 

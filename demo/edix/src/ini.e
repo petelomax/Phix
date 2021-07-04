@@ -821,11 +821,12 @@ if length(filecursel)!=length(prevcursel) then ?9/0 end if
                 IupRefresh(tabs)
                 appUpdateRender()
             end if
-            prevfiles[i] = 0
+--          prevfiles[i] = 0
         else
---?"oops, ini.e line 799"
-?9/0
+?{"oops, ini.e line 826",prevfiles[i]}
+--?9/0
         end if
+        prevfiles[i] = 0
         return true
     end if
     return false

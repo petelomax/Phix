@@ -29,10 +29,10 @@ global constant newEBP = 04 -- 4=on, 0=off(ie old style/working)
 --global constant pxversion = {0,7,8},  -- 0.7.8    -- 13/03/18
 --global constant pxversion = {0,7,9},  -- 0.7.9    -- 13/04/18
 --global constant pxversion = {0,8,0},  -- 0.8.0    -- 05/04/19 (uploaded 21/04/19)
---global constant pxversion = {0,8,1},  -- 0.8.1    -- 23/03/20 (retrospectively deemed version 1.0)
---global constant pxversion = {0,8,2},  -- 0.8.2    -- 24/11/20 (retrospectively deemed version 1.0.2)
+--global constant pxversion = {0,8,1},  -- 0.8.1    -- 23/03/20
+--global constant pxversion = {0,8,2},  -- 0.8.2    -- 24/11/20
 --global constant pxversion = {0,8,3},  -- 0.8.3    -- 02/02/21
-global constant phixversion = {0,8,4},  -- 0.8.4    -- 0?/02/21
+global constant phixversion = {1,0,0},  -- 1.0.0    -- 29/05/21
                 phixverstr = sprintf("%d.%d.%d",phixversion)
 sequence phixver = phixversion  -- (debug aid, otherwise unused)
 if sequence(phixver) then end if
@@ -238,7 +238,9 @@ global constant S_used = #000001,   -- bit for not used warnings
 --DEV (24/11/15)
                 K_drid = #080000,   -- defaulted routine_id (must be resolved at compile-time)
                                     -- ie/eg gbl func Icallback(str name, int rid = rtn_id(name))
---              K_struc = #0100000, -- a structure type or variable (see builtins/structs.e)
+                K_asmm = #100000,   -- asm-modified: assume [S_gNew] becomes "anything", within
+                                    --               reason, ie still matching [S_vtype].
+--              K_struc = #200000, -- a structure type or variable (see builtins/structs.e)
 $
 
 -- symtab[i][S_Efct] values:
@@ -652,8 +654,8 @@ global integer T_linux          T_linux = 0
 global integer T_Bin            T_Bin = 0
 global integer T_Asm            T_Asm = 0
 global integer T_abort          T_abort = 0
-global integer T_repeat         T_repeat = 0
-global integer T_repch          T_repch = 0
+global integer T_repeat = 0,
+               T_repeatch = 0
 global integer T_Ainc           T_Ainc = 0
 global integer T_AInt           T_AInt = 0
 global integer T_AAtm           T_AAtm = 0
@@ -1097,3 +1099,4 @@ global integer mapEndToMinusOne         -- 0=no, -ve = $ only (-1..-4 signal whe
                mapEndToMinusOne=0       -- +ve = $ and end, set to T_end/'$' when triggered.
                                         -- (oops, only set to '$' from -1/DoConstant)
 
+global integer with_js = 2      -- 0: without js, 1: with js, 2: default/any, treat as 0

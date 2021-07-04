@@ -4,6 +4,7 @@
 -- Phix tests:  Indexing and slicing, strings and sequences.
 --              The majority of these tests are illegal in RDS Eu
 --
+with javascript_semantics
 constant O2 = 1 -- set 1 for testing under -O2
 --/*
 Runs on Phix only, not RDS Eu
@@ -22,7 +23,9 @@ object O,P
 
     if showprogress then puts(1,"slice1\n") end if
     O = {3}
-    P = O   -- p2js: P = $deepCopy(O);
+--p2js:
+--  P = O
+    P = deep_copy(O)
     O[1] = 5
     if P!={3} then crash("P!={3}\n") end if
     if O!={5} then crash("O!={5}\n") end if
@@ -312,6 +315,7 @@ if platform()!=JS then
     a[f1()][f2()] = f3()
 --  if not equal(a,{{3,3,3},{3,3,3},{3,-3,3}}) then -- A possible result
     if not equal(a,{{3,-3,3},{3,3,3},{3,3,3}}) then -- A possible result
+        ?a
         crash("a!={{3,3,3},{3,3,3},{3,-3,3}}\n")
     end if
 end if
@@ -320,6 +324,8 @@ end if
     a = {1,2,3}
     b = {a,a,a}
     c = {b,b,b}
+--p2js:
+    c = deep_copy(c)
     c[1][1][1] = 4
     if UseSprintf then
         if sprint(a)!="{1,2,3}" then crash("a!={1,2,3}\n") end if
@@ -360,9 +366,11 @@ sequence A, B
 --  A[1][1]=2
 --  if A!={{2,5},4,3} then crash("A!={{2,5},4,3}\n") end if
     A = {1,2}
+--p2js (erm..) [seems fine w/o, 29/6/21, probably 'cos it now opMkSq's the above]
     A[1..2] = A[1..2]
+--  A[1..2] = deep_copy(A[1..2])
     if not equal(A,{1,2}) then crash("A!={1,2}\n") end if
---  A[1..2]&=1  --good, caught as error.
+--  A[1..2]&=1  --good, caught as compilation error.
 
 -- Bugfix: auto-expansion of string under slice assignment
 -- may want to comment out puts here for early tests...
@@ -370,9 +378,7 @@ sequence P
     P = "{   }\n"
     P[2..4] = {34,80,34}
 --  puts(1,P)   -- output is {"P"}\n (ie exactly 6 characters, one of which is invisible)
---p2js:
---  if P!="{\"P\"}\n" then puts(1,"P!=\"{\\\"P\\\"}\\n\"\n") ?9/0 end if
-    if not equal(P,"{\"P\"}\n") then puts(1,"P!=\"{\\\"P\\\"}\\n\"\n") ?9/0 end if
+    if P!="{\"P\"}\n" then puts(1,"P!=\"{\\\"P\\\"}\\n\"\n") ?9/0 end if
     P = ""
 
 -- Bugfix: slice replacement created circular reference:
@@ -388,7 +394,9 @@ sequence LineTab
 -- illegal on RDS Eu, dies with "lengths do not match on assignment to slice (2 != 4)",
 -- whereas on Phix two elements of LineTab are replaced with four:
 --  ie same as/shorthand for: LineTab = LineTab[1..0] & LineTab & LineTab[3..4]
-    LineTab[1..2] = LineTab
+--p2js:
+--  LineTab[1..2] = LineTab
+    LineTab[1..2] = deep_copy(LineTab)
     if not equal(LineTab,{-2,0,-1,-1,-1,-1}) then
         crash("not equal(LineTab,{-2,0,-1,-1,-1,-1})\n")
     end if

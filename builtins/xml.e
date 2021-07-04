@@ -53,7 +53,7 @@ constant eg1 = """
 """
 ppOpt({pp_Nest,5,pp_Pause,0})
 pp(xml_parse(eg1))
---/*
+--/!*
 {"document",                    -- XML_DOCUMENT
  {`<?xml version="1.0" ?>`},    -- XML_PROLOGUE
  {"root",                       -- XML_CONTENTS[XML_TAGNAME]
@@ -69,7 +69,7 @@ pp(xml_parse(eg1))
 --it, whereas any and all more deeply nested elements always have two, ie "{{".
 --Obviously XML_CONTENTS[XML_TAGNAME] means that XML_CONTENTS is a sequence of length
 --3 starting at that point, and XML_TAGNAME is the first element of that.
---*/
+--*!/
 constant eg2 = """
 <Address>
   <Number Flat="b">2</Number>
@@ -79,7 +79,7 @@ constant eg2 = """
 </Address>
 """
 pp(xml_parse(eg2))
---/*
+--/!*
 {"document",                    -- XML_DOCUMENT
  {},                            -- XML_PROLOGUE
  {"Address",                    -- XML_CONTENTS[XML_TAGNAME]
@@ -98,7 +98,7 @@ pp(xml_parse(eg2))
     {},                         --   XML_ATTRIBUTES
     "Bush"}}},                  --   XML_CONTENTS
  {}}                            -- XML_EPILOGUE
---*/
+--*!/
 --*/
 
 --XML_PROLOGUE aka "XML declaration"
@@ -125,51 +125,53 @@ global constant XML_DECODE = #0001, -- convert eg &gt; to '>'
                 HTML_INPUT = #0004, -- input is html
                 CRASHFATAL = #1000
 
-string text
-integer ch, col, textlen
+string xml_text
+integer xml_ch, xml_col, xml_textlen
 
 procedure xml_skip_spaces()
-    while ch=' ' 
-       or ch='\t' 
-       or ch='\n'
-       or ch='\r'
-       or ch=#A0 do     -- non-breaking space
-        col += 1
-        if col>textlen then
-            ch = -1
+    while xml_ch=' ' 
+       or xml_ch='\t' 
+       or xml_ch='\n'
+       or xml_ch='\r'
+       or xml_ch=#A0 do     -- non-breaking space
+        xml_col += 1
+        if xml_col>xml_textlen then
+            xml_ch = -1
             return
         end if
-        ch = text[col]
+        xml_ch = xml_text[xml_col]
     end while
 end procedure
 
 procedure xml_next_ch(integer options)
-    if col<=textlen then
-        ch = text[col]
+    if xml_col<=xml_textlen then
+        xml_ch = xml_text[xml_col]
         if not and_bits(options,HTML_INPUT) then
             xml_skip_spaces()
         end if
     else
-        ch = -1
+        xml_ch = -1
     end if
 end procedure
 
 function xml_fatal(string msg, integer options)
 --todo: add line number, etc. [DONE, untested]
     integer line = 1, linestart = 1, column
-    for i=1 to col do
-        if text[i]='\n' then
+    for i=1 to xml_col do
+        if xml_text[i]='\n' then
             line += 1
             linestart = i+1
         end if
     end for
-    string rtext = text[linestart..find('\n',text,col)-1]
+--  if xml_col>80 then linestart -= xml_col-60 end if
+    string rtext = xml_text[linestart..find('\n',xml_text,xml_col)-1]
+    if (xml_col-linestart)>80 then rtext = rtext[xml_col-linestart-20..$] end if
     if length(rtext)>80 then rtext = rtext[1..80] end if
 --?9/0
-    column = col-linestart
+    column = xml_col-linestart
 --3/10/19: (helped, but real cause was using html not text in parse_html()...)
---  ch = -1
-    sequence res = {-1, msg, line, column, rtext, col}
+--  xml_ch = -1
+    sequence res = {-1, msg, line, column, rtext, xml_col}
     --
     -- By default, a parse failure wipes out successes and just yields the error.
     -- Deliberately crashing here preserves such, and all of the callstack and 
@@ -193,26 +195,28 @@ global function xml_error(sequence x)
     return sprintf("Error :%s (line %d column %d)\n%s\n",x[2..-2])
 end function
 
+with trace
 function xml_match(string x, integer options)
     for i=1 to length(x) do
-        if col>textlen or text[col]!=x[i] then return false end if
-        col += 1
+        if xml_col>xml_textlen or xml_text[xml_col]!=x[i] then return false end if
+        xml_col += 1
     end for
     xml_next_ch(options)
     return true
 end function
 
-constant {entities,entitych} = columnize({{"&lt;",'<'},
-                                          {"&gt;",'>'},
-                                          {"&amp;",'&'},
-                                          {"&apos;",'\''},
-                                          {"&quot;",'\"'}})
+constant entch = {{"&lt;",'<'},
+                  {"&gt;",'>'},
+                  {"&amp;",'&'},
+                  {"&apos;",'\''},
+                  {"&quot;",'\"'}}
+constant {entities,entitych} = columnize(entch)
 
 -- not sure we really need this... (warning, largely untested)
 -- also note there is no intention to encode these back, ever.
 --  [the latter would require utf8_to_utf32(full string), then
 --   process that, and a full utf32_to_utf8() back at the end.]
-constant {extended,extendedch} = columnize({
+constant extch = {
     {"&Aacute;",    193},   {"&aacute;",    225},   {"&Acirc;",     194},
     {"&acirc;",     226},   {"&acute;",     180},   {"&AElig;",     198},
     {"&aelig;",     230},   {"&Agrave;",    192},   {"&agrave;",    224},
@@ -269,7 +273,8 @@ constant {extended,extendedch} = columnize({
     {"&Uuml;",      220},   {"&uuml;",      252},   {"&Xi;",        926},
     {"&xi;",        958},   {"&Yacute;",    221},   {"&yacute;",    253},
     {"&yen",        165},   {"&Yuml;",      159},   {"&yuml;",      255},
-    {"&Zeta;",      918},   {"&zeta;",      950}})
+    {"&Zeta;",      918},   {"&zeta;",      950}}
+constant {extended,extendedch} = columnize(extch)
 
 global function xml_decode(string s)
 -- convert all eg &lt; to '<'
@@ -371,114 +376,118 @@ global function xml_encode(string s)
 end function
 
 function xml_parse_attributes(integer options)
---  if ch='<' then return xml_fatal("'<' *un*expected",options) end if
-    if ch='<' then ?9/0 end if -- internal error
+--  if xml_ch='<' then return xml_fatal("'<' *un*expected",options) end if
+    if xml_ch='<' then ?9/0 end if -- internal error
     sequence attributes = {{},{}}
-    integer namestart = col
+    integer namestart = xml_col
     while true do
-        if ch='=' then
-            string name = text[namestart..col-1]
+        if xml_ch='=' then
+            string name = xml_text[namestart..xml_col-1]
             attributes[XML_ATTRNAMES] = append(attributes[XML_ATTRNAMES],name)
-            col += 1
+            xml_col += 1
 --          xml_next_ch(options)
             xml_next_ch(NULL)
             integer valuestart, valueend, wasquote = 1
-            if ch!='\"' and ch!='\'' then
+            if xml_ch!='\"' and xml_ch!='\'' then
                 if not and_bits(options,HTML_INPUT) then
                     return xml_fatal("quote expected",options)
                 end if
-                valuestart = col
-                for valueend = col to textlen do
-                    if find(text[valueend]," \r\n\t/><") then exit end if
+                valuestart = xml_col
+                for valueend = xml_col to xml_textlen do
+--                  if find(xml_text[valueend]," \r\n\t/><") then exit end if
+                    if find(xml_text[valueend],{' ','\r','\n','\t','/','>','<'}) then exit end if
                 end for
                 wasquote = 0
             else
-                valuestart = col+1
-                valueend = find(ch,text,valuestart)
+                valuestart = xml_col+1
+                valueend = find(xml_ch,xml_text,valuestart)
                 if valueend=0 then return xml_fatal("missing closing quote",options) end if
             end if
-            string attr_value = text[valuestart..valueend-1]
+            string attr_value = xml_text[valuestart..valueend-1]
             if and_bits(options,XML_DECODE) then
                 attr_value = xml_decode(attr_value)
             end if
             attributes[XML_ATTRVALUES] = append(attributes[XML_ATTRVALUES],attr_value)
---          col = valueend+1
-            col = valueend+wasquote
+--          xml_col = valueend+1
+            xml_col = valueend+wasquote
 --          xml_next_ch(options)
             xml_next_ch(NULL)
-            if find(ch,">/<") then exit end if
-            namestart = col
-        elsif ch=-1 or find(ch," \t\r\n>/<") then
+            if find(xml_ch,">/<") then exit end if
+            namestart = xml_col
+--      elsif xml_ch=-1 or find(xml_ch," \t\r\n>/<") then
+        elsif xml_ch=-1 or find(xml_ch,{' ','\t','\r','\n','>','/','<'}) then
             return xml_fatal("'=' expected",options)
         else
-            col += 1
+            xml_col += 1
 --          xml_next_ch(options)
             xml_next_ch(NULL)
         end if
     end while       
     if not and_bits(options,HTML_INPUT) then
-        if ch='<' then return xml_fatal("'<' *not* expected",options) end if
-        if not find(ch,">/") then ?9/0 end if -- internal error
+        if xml_ch='<' then return xml_fatal("'<' *not* expected",options) end if
+        if not find(xml_ch,">/") then ?9/0 end if -- internal error
     end if
     return attributes
 end function
 
 function xml_parse_tag(integer options)
-    if ch!='<' then return xml_fatal("'<' expected",options) end if
-    integer tagstart = col+1
+    if xml_ch!='<' then return xml_fatal("'<' expected",options) end if
+    integer tagstart = xml_col+1
     while true do
-        col += 1
+        xml_col += 1
 --      xml_next_ch(options)    -- NO!
-        ch = text[col]
-        if find(ch," \t\r\n/>") then exit end if
---      if ch<#20
-        if ch<' '
-        or find(ch,"!\"#$%&'()*+,/;<=>?@[\\]^`{|}~") then
+        xml_ch = xml_text[xml_col]
+--      if find(xml_ch," \t\r\n/>") then exit end if
+        if find(xml_ch,{' ','\t','\r','\n','/','>'}) then exit end if
+--      if xml_ch<#20
+        if xml_ch<' '
+        or find(xml_ch,"!\"#$%&'()*+,/;<=>?@[\\]^`{|}~") then
             return xml_fatal("illegal character in tag name",options)
         end if
     end while
-    string tagname = text[tagstart..col-1]
-    if find(tagname[1],"-.0123456789") then
+    string tagname = xml_text[tagstart..xml_col-1]
+--  if find(tagname[1],"-.0123456789") then
+    if length(tagname) and find(tagname[1],"-.0123456789") then
         return xml_fatal("illegal tag start character",options)
     end if
     xml_skip_spaces()
     sequence attributes = {}
-    if not find(ch,"/>") then
+    if not find(xml_ch,"/>") then
         attributes = xml_parse_attributes(options)
         if is_xml_fatal(attributes) then return attributes end if
     end if
     sequence contents = {}
-    if ch='/' then  -- self-closing tag
-        col += 1
+    if xml_ch='/' then  -- self-closing tag
+        xml_col += 1
         xml_next_ch(options)
     else
-        if ch!='>' then return xml_fatal("'>' expected",options) end if
-        col += 1
+        if xml_ch!='>' then return xml_fatal("'>' expected",options) end if
+        xml_col += 1
         xml_next_ch(options)
-        if ch='<' then
+        if xml_ch='<' then
             while true do
                 object tag = xml_parse_tag(options)
                 if is_xml_fatal(tag) then return tag end if
                 contents = append(contents,tag)
-                if ch=-1 or ch='>' then exit end if
-                if ch='<' and text[col+1]='/' then exit end if
+                if xml_ch=-1 or xml_ch='>' then exit end if
+                if xml_ch='<' and xml_text[xml_col+1]='/' then exit end if
             end while               
         else
-            integer cstart = col
+            integer cstart = xml_col
             while true do
-                col += 1
+                xml_col += 1
                 xml_next_ch(options)
-                if ch=-1 or find(ch,"<>") then exit end if
-                if ch='/' and text[col+1]='>' then exit end if
+                if xml_ch=-1 or find(xml_ch,"<>") then exit end if
+                if xml_ch='/' and xml_text[xml_col+1]='>' then exit end if
             end while
-            contents = text[cstart..col-1]
-            if ch='/' then col+= 1 end if
+            contents = xml_text[cstart..xml_col-1]
+            if xml_ch='/' then xml_col+= 1 end if
         end if
         string endtag = "</"&tagname
         if not xml_match(endtag,options) then return xml_fatal(endtag&"> expected",options) end if
     end if
-    if ch!='>' then return xml_fatal("'>' expected",options) end if
-    col += 1
+    if xml_ch!='>' then return xml_fatal("'>' expected",options) end if
+    xml_col += 1
     xml_next_ch(options)
     return {tagname,attributes,contents}
 end function
@@ -486,14 +495,14 @@ end function
 function xml_parse_comments(integer options)
     sequence comments = {}
     while true do
-        integer comment_start = col,
-                comment_end = match("-->",text,col)
+        integer comment_start = xml_col,
+                comment_end = match("-->",xml_text,xml_col)
         if comment_end=0 then return xml_fatal("--> missing",options) end if
-        col = comment_end+2
-        comments = append(comments,text[comment_start..col])
-        col += 1
+        xml_col = comment_end+2
+        comments = append(comments,xml_text[comment_start..xml_col])
+        xml_col += 1
         xml_next_ch(options)
-        if ch!='<' or text[col+1]!='!' then exit end if
+        if xml_ch!='<' or xml_text[xml_col+1]!='!' then exit end if
     end while
     return comments
 end function
@@ -517,12 +526,12 @@ global function xml_parse(string xml, integer options=NULL)
 -- even better yet == "document".
 --
     sequence res = {"document",{},{},{}}
-    text = xml
-    textlen = length(text)
-    ch = ' '
-    col = 0
+    xml_text = xml
+    xml_textlen = length(xml_text)
+    xml_ch = ' '
+    xml_col = 0
     xml_skip_spaces()
-    if ch!='<' then
+    if xml_ch!='<' then
 --/*
 -- SUG: convert utf16 to utf8?
 constant 
@@ -533,30 +542,30 @@ constant
     UTF32LE = "\#FF\#FE\#00\#00",
 --*/
         -- allow "UTF-8 lead bytes" (0xef 0xbb 0xbf):
-        if ch=#EF and text[col+1]=#BB and text[col+2]=#BF then
+        if xml_ch=#EF and xml_text[xml_col+1]=#BB and xml_text[xml_col+2]=#BF then
             --SUG: prolog &= "encoding="utf-8"?
-            col += 3
+            xml_col += 3
             xml_next_ch(options)
         end if
-        if ch!='<' then return xml_fatal("'<' expected",options) end if
+        if xml_ch!='<' then return xml_fatal("'<' expected",options) end if
     end if
-    while text[col+1]='?' do
-        integer prologue_start = col
-        col = match("?>",text,col+2)
-        if col=0 then return xml_fatal("?> missing",options) end if
-        res[XML_PROLOGUE] = append(res[XML_PROLOGUE],text[prologue_start..col+1])
-        col += 2
+    while xml_text[xml_col+1]='?' do
+        integer prologue_start = xml_col
+        xml_col = match("?>",xml_text,xml_col+2)
+        if xml_col=0 then return xml_fatal("?> missing",options) end if
+        res[XML_PROLOGUE] = append(res[XML_PROLOGUE],xml_text[prologue_start..xml_col+1])
+        xml_col += 2
         xml_next_ch(options)
     end while
-    if text[col+1]='!' then
+    if xml_text[xml_col+1]='!' then
         res[XML_PROLOGUE] = append(res[XML_PROLOGUE],xml_parse_comments(options))
     end if
     object contents = xml_parse_tag(options)
     if is_xml_fatal(contents) then return contents end if
     res[XML_CONTENTS] = contents
-    if ch!=-1 then
+    if xml_ch!=-1 then
         res[XML_EPILOGUE] = xml_parse_comments(options)
-        if ch!=-1 then return xml_fatal("unrecognised",options) end if
+        if xml_ch!=-1 then return xml_fatal("unrecognised",options) end if
     end if
     if length(res)!=XML_DOCLEN then ?9/0 end if
     return res
@@ -565,8 +574,8 @@ end function
 function xml_sprint_contents(sequence xml, integer nest, options)
     if length(xml)!=XML_ELEMLEN then ?9/0 end if
     string name = xml[XML_TAGNAME],
-           pad = repeat(' ',nest*2),
-           res = pad&"<"&name
+           padding = repeat(' ',nest*2),
+           res = padding&"<"&name
     sequence contents = xml[XML_CONTENTS]
     if xml[XML_ATTRIBUTES]!={} then
         sequence {n,v} = xml[XML_ATTRIBUTES]
@@ -600,7 +609,7 @@ function xml_sprint_contents(sequence xml, integer nest, options)
         for i=1 to length(contents) do
             res &= xml_sprint_contents(contents[i],nest+1,options)
         end for
-        res &= pad&"</"&name&">\n"
+        res &= padding&"</"&name&">\n"
     end if
     return res
 end function
@@ -769,7 +778,8 @@ global constant HTML_TAGNAME = 1,
 function ns_append(sequence content, string what)--, integer options)
 -- (not used on <script> contents)
     for i=1 to length(what) do
-        if not find(what[i]," \r\n\t") then
+--      if not find(what[i]," \r\n\t") then
+        if not find(what[i],{' ','\r','\n','\t'}) then
             content = append(content,what)
             exit
         end if
@@ -777,25 +787,28 @@ function ns_append(sequence content, string what)--, integer options)
     return content
 end function
 
+--with trace
 function html_parse_tag(integer options)
-    if ch!='<' then return xml_fatal("'<' expected[0]",options) end if
-    integer tagstart = col+1, tagend
+    if xml_ch!='<' then return xml_fatal("'<' expected[0]",options) end if
+    integer tagstart = xml_col+1, tagend
+--if tagstart>634 then trace(1) end if
     while true do
-        col += 1
+        xml_col += 1
 --      xml_next_ch(options)    -- NO!
-        ch = text[col]
-        if find(ch," \t\r\n/>") then exit end if
+        xml_ch = xml_text[xml_col]
+--      if find(xml_ch," \t\r\n/>") then exit end if
+        if find(xml_ch,{' ','\t','\r','\n','/','>'}) then exit end if
         -- split eg <!-----> (as a comment of just one "-"), but keep <!--eucode>...
-        if col=tagstart+3 and ch!='e' and text[tagstart..tagstart+2]="!--" then exit end if
-        if ch<' '
-        or find(ch,"!\"#$%&'()*+,/;<=>?@[\\]^`{|}~") then
-            if ch!='!' or col!=tagstart then
+        if xml_col=tagstart+3 and xml_ch!='e' and xml_text[tagstart..tagstart+2]="!--" then exit end if
+        if xml_ch<' '
+        or find(xml_ch,"!\"#$%&'()*+,/;<=>?@[\\]^`{|}~") then
+            if xml_ch!='!' or xml_col!=tagstart then
                 return xml_fatal("illegal character in tag name",options)
             end if
         end if
     end while
-    string tagname = text[tagstart..col-1]
-    if tagname="" and ch = '/' then
+    string tagname = xml_text[tagstart..xml_col-1]
+    if tagname="" and xml_ch = '/' then
         return xml_fatal("unexpected closing tag",options)
     end if
     if find(tagname[1],"-.0123456789") then
@@ -804,79 +817,89 @@ function html_parse_tag(integer options)
     sequence attributes = {},
              contents = {}
     if tagname="!--eucode"
-    and ch='>' then
-        integer ee = match("</eucode-->",text,tagstart+10)
+    and xml_ch='>' then
+        integer ee = match("</eucode-->",xml_text,tagstart+10)
         if ee=0 then return xml_fatal("missing </eucode-->",options) end if
-        contents = append(contents,text[tagstart+10..ee-1])
-        col = ee+10
---      ch = text[col]
+        contents = append(contents,xml_text[tagstart+10..ee-1])
+        xml_col = ee+10
+--      xml_ch = xml_text[xml_col]
     elsif tagname="pre" then
-        if ch!='>' then return xml_fatal("> expected",options) end if
-        integer pe = match("</pre>",text,tagstart+4)
+        if xml_ch!='>' then return xml_fatal("> expected",options) end if
+        integer pe = match("</pre>",xml_text,tagstart+4)
         if pe=0 then return xml_fatal("missing </pre>",options) end if
-        contents = append(contents,text[tagstart+4..pe-1])
-        col = pe+5
+        contents = append(contents,xml_text[tagstart+4..pe-1])
+        xml_col = pe+5
     elsif tagname="code" then
-        if ch!='>' then return xml_fatal("> expected",options) end if
-        integer pe = match("</code>",text,tagstart+5)
+        if xml_ch!='>' then return xml_fatal("> expected",options) end if
+        integer pe = match("</code>",xml_text,tagstart+5)
         if pe=0 then return xml_fatal("missing </code>",options) end if
-        contents = append(contents,text[tagstart+5..pe-1])
-        col = pe+6
+        contents = append(contents,xml_text[tagstart+5..pe-1])
+        xml_col = pe+6
     elsif match("!--",tagname)=1 then
-        integer ce = match("-->",text,tagstart+4)
+        integer ce = match("-->",xml_text,tagstart+4)
         if ce=0 then return xml_fatal("missing -->",options) end if
-        contents = append(contents,text[tagstart+3..ce-1])
-        col = ce+3
-    elsif tagname=`!DOCTYPE` then
-        tagend = match(">",text,tagstart+9)
-        contents = append(contents,text[tagstart+9..tagend-1])
-        col = tagend+1
+        contents = append(contents,xml_text[tagstart+3..ce-1])
+        xml_col = ce+3
+    elsif upper(tagname)=`!DOCTYPE` then
+        tagend = match(">",xml_text,tagstart+9)
+        contents = append(contents,xml_text[tagstart+9..tagend-1])
+        xml_col = tagend+1
     else
         xml_skip_spaces()
-        if not find(ch,"/>") then
---?"ch is "&ch
+        if not find(xml_ch,"/>") then
+--?"xml_ch is "&xml_ch
             attributes = xml_parse_attributes(options)
             if is_xml_fatal(attributes) then return attributes end if
         end if
-        if ch='/' then  -- self-closing tag
-            col += 1
+        if xml_ch='/' then  -- self-closing tag
+            xml_col += 1
             xml_next_ch(options)
 -- and style??
         elsif tagname=`script` then
-            tagend = match("</script>",text,col)
-            contents = append(contents,text[col+1..tagend-1])
---?{"script",col,contents[$]}
-            col = tagend+9
+            tagend = match("</"&"script>",xml_text,xml_col)
+            contents = append(contents,xml_text[xml_col+1..tagend-1])
+--?{"script",xml_col,contents[$]}
+            xml_col = tagend+9
         elsif not find(tagname,{"hr","br","wbr"}) then
-            if ch!='>' then return xml_fatal("'>' expected[1]",options) end if
-            col += 1
+            if xml_ch!='>' then return xml_fatal("'>' expected[1]",options) end if
+--          integer wasxml_col = xml_col
+            xml_col += 1
             xml_next_ch(options)
-            while ch!=-1 do
-                if ch='<' then
-                    if text[col+1]='/' then exit end if
+            while xml_ch!=-1 do
+                if xml_ch='<' then
+                    if xml_text[xml_col+1]='/' then exit end if
                     object tag = html_parse_tag(options)
                     if is_xml_fatal(tag) then return tag end if
                     contents = append(contents,tag)
-                    if ch=-1 or ch='>' then exit end if
-                    if ch='<' and text[col+1]='/' then exit end if
+                    if xml_ch=-1 or xml_ch='>' then exit end if
+                    if xml_ch='<' and xml_text[xml_col+1]='/' then exit end if
                 else
-                    integer cstart = col
+                    integer cstart = xml_col
                     while true do
-                        col += 1
+                        xml_col += 1
                         xml_next_ch(options)
-                        if ch=-1 or find(ch,"<>") then exit end if
-                        if ch='/' and text[col+1]='>' then exit end if
+                        if xml_ch=-1 or find(xml_ch,"<>") then exit end if
+                        if xml_ch='/' and xml_text[xml_col+1]='>' then exit end if
                     end while
-                    contents = ns_append(contents,text[cstart..col-1])
---                  if ch='/' then col+= 1 end if
+                    contents = ns_append(contents,xml_text[cstart..xml_col-1])
+--                  if xml_ch='/' then xml_col+= 1 end if
                 end if
             end while               
             string endtag = "</"&tagname
-            if not xml_match(endtag,options) then return xml_fatal(endtag&"> expected",options) end if
+--if tagname="head" then trace(1) end if
+            if not xml_match(endtag,options) then
+                if find(tagname,{"meta","link","input"}) then
+                    xml_ch = '>'
+--                  xml_col = wasxml_col
+                    while xml_text[xml_col]!=xml_ch do xml_col -= 1 end while
+                else
+                    return xml_fatal(endtag&"> expected",options)
+                end if
+            end if
         end if
-        if ch!='>' then return xml_fatal("'>' expected[2]",options) end if
+        if xml_ch!='>' then return xml_fatal("'>' expected[2]",options) end if
     end if
-    col += 1
+    xml_col += 1
     xml_next_ch(options)
     return {tagname,attributes,contents}
 end function
@@ -887,28 +910,28 @@ global function strict_html_parse(string html, integer options=NULL)
 --
     options = or_bits(options,HTML_INPUT)
     sequence res = {}
-    text = html
-    textlen = length(text)
-    ch = ' '
-    col = 0
+    xml_text = html
+    xml_textlen = length(xml_text)
+    xml_ch = ' '
+    xml_col = 0
     xml_skip_spaces()
-    while ch!=-1 do
-        if ch!='<' then
-            integer k = find('<',text,col+1)
+    while xml_ch!=-1 do
+        if xml_ch!='<' then
+            integer k = find('<',xml_text,xml_col+1)
             if k=0 then
---              res = append(res,{text[col..$]})
-                res = ns_append(res,text[col..$])
+--              res = append(res,{xml_text[xml_col..$]})
+                res = ns_append(res,xml_text[xml_col..$])
                 exit
             end if
---          res = append(res,{text[col..k-1]})
-            res = ns_append(res,text[col..k-1])
-            col = k
-            ch = '<'
+--          res = append(res,{xml_text[xml_col..k-1]})
+            res = ns_append(res,xml_text[xml_col..k-1])
+            xml_col = k
+            xml_ch = '<'
         end if
 --      sequence this = html_parse_tag(HTML_INPUT+CRASHFATAL)
-        sequence this = html_parse_tag(options)
-        if is_xml_fatal(this) then return this end if
-        res = append(res,this)
+        sequence item = html_parse_tag(options)
+        if is_xml_fatal(item) then return item end if
+        res = append(res,item)
     end while
     return res
 end function

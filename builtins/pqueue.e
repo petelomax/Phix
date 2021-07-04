@@ -109,7 +109,7 @@
 -- It should now be clear that those operations are very low cost, and in fact both
 -- insertion and removal are O(log2(n)) operations.
 --
-enum DATA, PRIORITY
+enum PDATA, PRIORITY
 
 --global enum MIN_HEAP = -1, MAX_HEAP = +1  -- now in psym.e
 
@@ -120,19 +120,21 @@ integer freelist = 0
 function pq_compare(object priority1, priority2)
     return compare(priority1,priority2)
 end function
-constant PQ_COMPARE = routine_id("pq_compare")
+--constant PQ_COMPARE = routine_id("pq_compare")
 
 procedure pq_init()
     pq = {{}}
     pqtype = {MIN_HEAP}
 --26/9/19:
 --  pqcrid = {-1}
-    pqcrid = {PQ_COMPARE}
+    pqcrid = {pq_compare}
     pqinit = true
 end procedure
 
-global function pq_new(integer t=MIN_HEAP, crid=PQ_COMPARE)
+--global function pq_new(integer t=MIN_HEAP, crid=pq_compare)
+global function pq_new(integer t=MIN_HEAP, crid=-2)
     if t!=MIN_HEAP and t!=MAX_HEAP then ?9/0 end if
+    if crid=-2 then crid = pq_compare end if
     if not pqinit then pq_init() end if
     integer pqid
     if freelist=0 then
@@ -150,9 +152,11 @@ global function pq_new(integer t=MIN_HEAP, crid=PQ_COMPARE)
     return pqid
 end function
 
-global procedure pq_destroy(integer pqid=1, bool justclear=false, integer crid=PQ_COMPARE)
+--global procedure pq_destroy(integer pqid=1, bool justclear=false, integer crid=pq_compare)
+global procedure pq_destroy(integer pqid=1, bool justclear=false, integer crid=-2)
     if not pqinit then pq_init() end if
     if not sequence(pq[pqid]) then ?9/0 end if
+    if crid=-2 then crid = pq_compare end if
     if pqid=1 or justclear then
         pq[pqid] = {}
         pqcrid[pqid] = crid
@@ -181,14 +185,21 @@ global procedure pq_add(sequence item, integer pqid=1)
             m = floor(n/2),
             heap_type = pqtype[pqid],
             crid = pqcrid[pqid]
-    pq[pqid] &= 0
+--  pq[pqid] &= 0
+--  pq[pqid] = deep_copy(pq[pqid]) & 0
+    sequence pqp = deep_copy(pq[pqid]) & 0
+--  pq[pqid] = deep_copy(pq[pqid] & 0)
     -- append at end, then up heap
-    while m>0 and call_func(crid,{item[PRIORITY],pq[pqid][m][PRIORITY]})=heap_type do
-        pq[pqid][n] = pq[pqid][m]
+--  while m>0 and call_func(crid,{item[PRIORITY],pq[pqid][m][PRIORITY]})=heap_type do
+    while m>0 and call_func(crid,{item[PRIORITY],pqp[m][PRIORITY]})=heap_type do
+--      pq[pqid][n] = pq[pqid][m]
+        pqp[n] = pqp[m]
         n = m
         m = floor(m/2)
     end while
-    pq[pqid][n] = item
+--  pq[pqid][n] = item
+    pqp[n] = item
+    pq[pqid] = pqp
 end procedure
  
 global function pq_pop(integer pqid=1)
@@ -215,7 +226,7 @@ global function pq_pop(integer pqid=1)
 end function
 
 global function pq_pop_data(integer pqid=1)
-    return pq_pop(pqid)[DATA]
+    return pq_pop(pqid)[PDATA]
 end function
 
 global function pq_peek(integer pqid=1)

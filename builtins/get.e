@@ -397,43 +397,19 @@ global function prompt_string(sequence prompt)
     end if
 end function
 
-constant CHUNK = 100
-
 global function get_bytes(integer fn, integer n)
 -- Return a sequence of n bytes (maximum) from an open file.
 -- If n > 0 and fewer than n bytes are returned, 
 -- you've reached the end of file.
 -- This function is normally used with files opened in binary mode.
-    if n=0 then
-        return {}
-    end if
-
-    integer c = getc(fn)
-    if c=GET_EOF then
-        return {}
-    end if
-
-    sequence s = repeat(c, n)
-
-    integer last = 1
-    while last<n do
-        -- for speed, read a chunk without checking for EOF
-        integer first = last+1
-        last += CHUNK
-        if last>n then
-            last = n
+    string s = repeat('\0', n)
+    for i=1 to n do
+        integer ch = getc(fn)
+        if ch=GET_EOF then
+            s = s[1..i-1]
+            exit
         end if
-        for i=first to last do
-            s[i] = getc(fn)
-        end for
-        -- check for EOF after each chunk
-        if s[last]=GET_EOF then
-            -- trim the EOF's and return
-            while s[last]=GET_EOF do
-                last -= 1
-            end while
-            return s[1..last]
-        end if
-    end while
+        s[i] = ch
+    end for
     return s
 end function

@@ -4,7 +4,7 @@
 -- Phix implementation of match_replace (auto-include)
 --
 
-global function match_replace(object needle, sequence haystack, object replacement, integer max=0)
+global function match_replace(object needle, sequence haystack, object replacement, integer maxr=0)
 integer posn, needle_len, replacement_len
         
     if atom(needle) then
@@ -21,8 +21,8 @@ integer posn, needle_len, replacement_len
     while posn do
         haystack[posn..posn+needle_len-1] = replacement
         posn = match(needle, haystack, posn + replacement_len)
-        max -= 1
-        if max=0 then exit end if
+        maxr -= 1
+        if maxr=0 then exit end if
     end while
 
     return haystack

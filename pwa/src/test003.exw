@@ -10,3 +10,350 @@ procedure test(string ch)
     printf(1,"%s => %s => %s\n",{ch,hx,hx2ch(hx)})
 end procedure
 papply({"'A'","'Z'","' '","'~'"},test)
+
+--/*
+        <div style="clear:both;height:1px;"> </div>
+        <table>
+         <tr>
+            <th>Phix</th>
+            <th>JavaScript</th>
+         </tr>
+         <tr>
+            <td>
+<code><pre>
+sequence s = {1,2,3}</pre></code>
+            </td>
+            <td>
+<code><pre>
+let /*sequence*/ s = ["sequence",1,2,3];</pre></code>
+            </td>
+         </tr>
+         <tr>
+            <td>
+<code><pre>
+integer i [= ...]
+atom a [= ...]
+string s [= ...]
+object o [= ...]</pre></code>
+            </td>
+            <td>
+<code><pre>
+let /*integer*/ i [= ...]
+let /*atom*/ a [= ...]
+let /*string*/ s [= ...]
+let /*object*/ o [= ...]</pre></code>
+            </td>
+         </tr>
+         <tr>
+            <td>
+<code><pre>
+{a,b,c} = d</pre></code>
+            </td>
+            <td>
+<code><pre>
+[,a,b,c] = d;  <small>// (leading comma quite deliberate)</small></pre></code>
+            </td>
+         </tr>
+         <tr>
+            <td>
+<code><pre>
+integer {i,j,k} = ...</pre></code>
+            </td>
+            <td>
+<code><pre>
+let /*integer*/ [,i,j,k] = ...</pre></code>
+            </td>
+         </tr>
+         <tr>
+            <td>
+<code><pre>
+{string s, integer i} = ...</pre></code>
+            </td>
+            <td>
+<code><pre>
+let [,/*string*/ s, /*integer*/ i] = ...</pre></code>
+            </td>
+         </tr>
+         <tr>
+            <td>
+<code><pre>
+=, :=, ==</pre></code>
+            </td>
+            <td>
+<code><pre>
+=, ===, equal() <small>// (depending on context, equal() is not reverted)</small>
+                <small>// (in JavaScript, [1]===[1] yields false...)</small>
+                <small>// (uses === when either side is atom or string, see note)</small></pre></code>
+            </td>
+         </tr>
+         <tr>
+            <td>
+<code><pre>
+#7F <small>-- (ditto 0b01111111)</small></pre></code>
+            </td>
+            <td>
+<code><pre>
+0x7F; <small>// (non-reversed, especially 0b)</small></pre></code>
+            </td>
+         </tr>
+         <tr>
+            <td>
+<code><pre>
+00 <small>-- (etc)</small></pre></code>
+            </td>
+            <td>
+<code><pre>
+0 <small>// (else JavaScript says octal literals not allowed)</small></pre></code>
+            </td>
+         </tr>
+         <tr>
+            <td>
+<code><pre>
+'A'
+0X41
+"\#41"</pre></code>
+            </td>
+            <td>
+<code><pre>
+0X41   <small>// (JavaScript has no char type)</small>
+0x41   <small>// (0XHH reversed, 0xHH not)</small>
+"\x41" <small>// (JavaScript knows not \#, not reversed)</small></pre></code>
+            </td>
+         </tr>
+         <tr>
+            <td>
+<code><pre>
+a &amp; b</pre></code>
+            </td>
+            <td>
+<code><pre>
+$conCat(a,b)  <small>// (defined in p2js.js)</small></pre></code>
+            </td>
+         </tr>
+         <tr>
+            <td>
+<code><pre>
+res = res & start
+res &= start</pre></code>
+            </td>
+            <td>
+<code><pre>
+res = $conCat(res, start);
+res = $conCat(res, start);<small> // (reversed to 1st form)</small></pre></code>
+            </td>
+         </tr>
+         <tr>
+            <td>
+<code><pre>
+s[i]
+s[i..j]
+s[g][h][i]
+s[g][h][i..j]</pre></code>
+            </td>
+            <td>
+<code><pre>
+$subse(s,i)
+$subss(s,i,j)
+$subse(s,i,["sequence",h,g])
+$subss(s,i,j,["sequence",h,g])</pre></code>
+             <br>
+             <small>(I am not overly adamant about "sequence", or innermost first)</small>
+            </td>
+         </tr>
+         <tr>
+            <td>
+<code><pre>
+s[i] = x
+s[i..j] = x
+s[g][h][i] = x
+s[g][h][i..j] = x</pre></code>
+            </td>
+            <td>
+<code><pre>
+s = $repe(s,i,x)
+s = $repss(s,i,j,x)
+s = $repe(s,i,x,["sequence",h,g])
+s = $repss(s,i,j,x,["sequence",h,g])</pre></code>
+             <br>
+             <small>(nb relies somewhat on JavaScript pass-by-sharing semantics...)</small><br>
+             <small>(inevitably += etc can get a tad messy/may not yet be fully supported)</small>
+            </td>
+         </tr>
+         <tr>
+            <td>
+<code><pre>
+iff(a &lt; b ? a : b)</pre></code>
+            </td>
+            <td>
+<code><pre>
+(a &lt; b) ? a : b</pre></code>
+            </td>
+         </tr>
+         <tr>
+            <td>
+<code><pre>
+if a = b then
+elsif c or d then
+elsif e and not f then
+elsif g xor h then
+else
+end if</pre></code>
+            </td>
+            <td>
+<code><pre>
+if (a === b) {
+} else if (c || d) {
+} else if (e && !f) {
+} else if (xor(g,h)) { <small>// (xor() is defined in p2js.js)</small>
+} else {
+}</pre></code>
+            </td>
+         </tr>
+         <tr>
+            <td>
+<code><pre>
+for i=1 to 5 do end for
+for i=1 to N do end for
+for i=N to 1 by -1 do end for
+for j=1 to N by p do end for
+for k=N to 1 by -p do end for</pre></code>
+            </td>
+            <td>
+<code><pre>
+for (let i=1; i&lt;=5; i+=1) { }
+for (let i=1, i$lim=N; i&lt;=i$lim; i+=1) { }
+for (let i=N; i&gt;=1; i-=1) { }
+for (let j=1, j$lim=N; j&lt;=j$lim; j+=p) { }<small> // (nb assumes p>0)</small>
+for (let k=N; k&gt;=1; k-=p) { }<small> // (   "", ie -p<0)</small></pre></code>
+                <br><small>
+                The i$lim is needed because otherwise JavaScript would re-evaluate the expression on every iteration,
+                whereas Phix does not. We can avoid introducing the i$lim variable when it is a fixed literal integer,
+                but avoiding the same for 'N' would require careful analysis not just of the loop body but also any
+                routines it might invoke, along with some messy scope considerations, and besides, anything like say
+                length(s) is faster with the $lim approach. We can be certain that i$lim is a valid non-conflicting
+                identifier as long as i was (and it checks that). The $lim versions are not (yet) reversible.
+                <br>
+                <br>
+                Be advised that when faced with "for i=init to lim by step", where init/lim and in particular step 
+                are dynamically defined, desktop/phix emits generic code that copes: pwa/p2js does not and never 
+                will (cope), except perhaps to get half or maybe only a quarter of them right by sheer luck. When
+                step may or may not be negative, you <i>will</i> have to replace the construct with a more explicit
+                while loop. (When step is omitted, both desktop and p2js equally assume +1 and &lt;=.)</small>
+            </td>
+         </tr>
+         <tr>
+            <td>
+<code><pre>
+global procedure p(atom a)
+end procedure</pre></code>
+            </td>
+            <td>
+<code><pre>
+/*global*/ function p(/*atom*/ a) {
+}</pre></code>
+             <br>
+             <small>(reversal not yet - will depend on T_return scan/analysis)</small><br>
+             <small>(or maybe [/*global*/] /*procedure*/ function vs. /*function*/ function...)</small>
+            </td>
+         </tr>
+         <tr>
+            <td>
+<code><pre>
+function action_cb(Ihandle /*ih*/, integer i)
+    return IUP_DEFAULT
+end function</pre></code>
+            </td>
+            <td>
+<code><pre>
+function action_cb(/*Ihandle*/ /*ih*/, /*integer*/ i) {
+    return IUP_DEFAULT;
+}</pre></code>
+            </td>
+         </tr>
+         <tr>
+            <td>
+<code><pre>
+type <i>t</i>(<i>ptype pt</i>)...</pre></code>
+            </td>
+            <td>
+<code><pre>
+<i>/*type*/ function t(/*ptype*/ pt)...</i> <small>// (t aliased to ptype)</small></pre></code>
+            </td>
+         </tr>
+         <tr>
+            <td>
+<code><pre>
+?9/0
+?e</pre></code>
+            </td>
+            <td>
+<code><pre>
+crash("9/0"); <small>// (non-reversed)</small>
+print(1,e);   <small>//       ""</small></pre></code>
+            </td>
+         </tr>
+         <tr>
+            <td>
+<code><pre>
+timedelta(hours:=4,seconds:=6)</pre></code>
+            </td>
+            <td>
+<code><pre>
+timedelta(0,0,4,0,6);</pre></code>
+                <br><small>
+                (Named parameters are mapped to positional parameters, with defaults inserted)</small>
+<?!?--(timedelta(,,4,,6) c/should work in JavaScript & may be better) [DEV/SUG]--?>
+            </td>
+         </tr>
+         <tr>
+            <td>
+<code><pre>
+constant a = {b:=2, "b"},
+         c = {{d:=3, "d"}}</pre></code>
+            </td>
+            <td>
+<code><pre>
+const b = 2, a = ["sequence",b, "b"], 
+      d = 3, c = ["sequence", ["sequence",d, "d"]];</pre></code>
+                <br><small>
+                (irreversibly!)</small>
+            </td>
+         </tr>
+         <tr>
+            <td>
+             ???
+            </td>
+            <td>
+              To be continued...
+            </td>
+         </tr>
+        </table>
+        <div style="clear:both;height:1px;"> </div>
+        <br>
+        <br>
+        Within reason, most of the above should be reversible: while obviously secondary to the primary task of transpilation,
+        and often lagging some steps behind, it has actually proved quite useful for testng and debugging purposes. However,
+        feeding this some random snippet of JavaScript found elsewhere, as opposed to its own output, is quite likely to crash.
+        I have some hopes for the IUP C examples (at least not crashing), but that&rsquo;s a distant tertiary consideration.
+        <br>
+        <br>
+        The JavaScript % operator maps to the Phix remainder() function, rather than the mod() function, and both of
+        those are defined in p2js.js (note that mapping remainder() to % would open up all manner of precedence issues).
+        <br>
+        <br>
+        Aside: while investigating the peculiarities of the JavaScript === operator, one person said <i>&ldquo;it looks like 
+        arrays use reference equality which is what you&rsquo;d expect. It&rsquo;d be pretty awful if you couldn&rsquo;t 
+        do that&rdquo;</i>, and it just struck me I have been coding in Phix and before that Euphoria for nearly 20 years and 
+        never <i>once</i> wanted that, apart from applying that idea as a petty optimisation a couple of times in the backend. 
+        It would in fact be pretty trivial for me to add a === operator to Phix, and pass it unaltered through transpilation 
+        to JavaScript, I simply cannot think of any good reason to... Besides, JavaScript, being JavaScript, does <i>not</i> 
+        use reference equality on strings, or floats, which means that operator would not be anything like as trivial as it 
+        seemed at first glance, plus it would make (mainly for testing) any round trip phix->js->phix completely impossible 
+        (except perhaps via [yet even more] ugly comment-hints).
+        <br>
+        <br>
+        One thing I have had to abandon is that "a"=={'a'} yields true, however equal("a",{'a'}) is fine. In other words
+        you must use the equal() syntax in those rare cases where comparing a string against a dword-sequence is important,
+        but you <i>can</i> still use the infix = operator for two strings or two dword-sequences, or indeed any two objects
+        where neither is explicitly typed as string (a literal would be), which is probably not far off 99.9% of the time.
+--*/        

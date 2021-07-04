@@ -24,9 +24,6 @@
 -- It might be a good excuse to switch to a one-at-a-time tokeniser...
 -- Why not: the tokeniser should deal with include files (push/pop style) [DONE]
 
---global 
---enum BUILTINS,    -- (re-usable, set from p2js_keywords, etc)
---   GLOBALS        -- oh, no such thing in JavaScript.....
 -- Note that Phix adds a new scope for an include statement whereas pwa/p2js does not.
 -- Since JavaScript does not have an include statement, pwa/p2js inlines the code and
 -- therefore may trigger identifier clashes that separate files would not.
@@ -38,10 +35,43 @@ enum BUILTINS,  -- (re-usable, set from p2js_keywords in init_scope just below)
      GLOBALS    -- (not that there's really such a thing in JavaScript........)
 constant integer T_high = T_reserved[$]
 sequence referenced
-sequence zeroes -- DEV temp
+--sequence zeroes -- DEV temp
 
 include p2js_auto.e
 sequence {auto_names, auto_procfunc, auto_sigs, auto_files} = columnize(p2js_auto)
+integer named_args,     -- key is {arg_rtn,ttidx}, 
+                        -- data is {arg_idx,vartype}
+        arg_defs        -- key is {arg_rtn,arg_idx},
+                        -- data is "{}/ident/string/number" (always string)
+                        -- nb no support for eg length(),platform() etc yet.    [ length now done ]
+
+function unfudge(sequence s)
+    -- remove some unnecessary nesting in p2js_depend, 
+    --  which was added purely for aesthetic reasons.
+    s = deep_copy(s)
+    for i=1 to length(s) do
+        s[i][2] = s[i][2][1]
+        s[i][3] = s[i][3][1]
+    end for
+    return s
+end function
+
+include p2js_depend.e
+sequence {autoincludes,dependencies,globals,arg_names} = columnize(unfudge(p2js_depend)),
+          rtn_names = join(apply(true,vslice,{arg_names,1}),""),
+          rtn_args  = join(apply(true,vslice,{arg_names,2}),"")
+
+--traverse_dict(integer rid, object user_data=0, integer tid=1, bool rev=false)
+-->{{"traverse_dict",{"integer","rid","?"},
+--                   {"object","user_data","0"},
+--                   {"integer","tid","1"},
+--                   {"bool","rev","false"}}}
+--  "traverse_dict" must exist in auto_names: {`traverse_dict`, `Proc`, `PIOII`, `dict.e`},
+--  raise an error if length(auto_sigs[k]) does not match [that is, assuming auto_sigs is
+--              fresh outa psym.e and args is from a fresh transpilation, so, yes, crash.]
+--  TYPI..TYPO might be easier/all round better than "integer".."object".
+
+--sequence sna, sad -- DEV/temp
 
 global procedure init_scope()
 --?{"init_scope",T_high}
@@ -49,10 +79,14 @@ global procedure init_scope()
         integer builtins = new_dict(),
                 globals = new_dict()
         scopes = {builtins,globals}
+        named_args = new_dict()
+        arg_defs = new_dict()
 --DEV we probably shouldn't do this for autoincludes??
 --better: we should build a repeat(false,length(T_keywords)) and []=true anything < T_reserved[$] [DONE]
 --?auto_names
         for i=1 to length(T_reserved) do
+if not match("complex",T_keywords[i])
+and not find(T_keywords[i],{"from_polar","with_theta","with_rho"}) then
             setd(T_reserved[i],T_toktypes[i],builtins)
 --          setd({'[',T_reserved[i]},i,builtins)
             integer k = find(T_keywords[i],auto_names)
@@ -62,6 +96,7 @@ global procedure init_scope()
 --elsif i<50 then
 --  ?{"?",T_keywords[i]}
             end if
+end if
         end for
     else
         -- cleanup any mess left from a previous run...
@@ -70,6 +105,8 @@ global procedure init_scope()
             scopes = scopes[1..$-1]
         end while
         destroy_dict(scopes[GLOBALS], justclear:=true)
+        destroy_dict(named_args, justclear:=true)
+        destroy_dict(arg_defs, justclear:=true)
     end if
     referenced = repeat(false,length(p2js_auto))
 --?T_keywords -- {"string","nullable_string",...
@@ -78,16 +115,28 @@ global procedure init_scope()
 --  T_keywords = vslice(defs,1)
 --  T_toktypes = vslice(defs,2)
 --  T_reserved = vslice(defs,3)
-zeroes = {}
+--sna = {}
+--sad = {}
+--zeroes = {}
 end procedure
 
-global procedure add_scope()
+integer arg_rtn = 0,
+        arg_idx,
+        def_idx
+
+global procedure add_scope(integer rtnttidx=0)
 --?"add_scope"
     scopes &= new_dict()    
+    arg_rtn = rtnttidx  -- (0 for file scope)
+    arg_idx = 0
+    def_idx = 0
+end procedure
+
+global procedure clear_arg_rtn()
+    arg_rtn = 0
 end procedure
 
 global procedure drop_scope()
---?"drop_scope"
     if length(scopes)<=GLOBALS then ?9/0 end if
     integer d = scopes[$]
     destroy_dict(d)
@@ -99,7 +148,10 @@ global procedure final_scope_check()
 end procedure
 
 function add_id(integer ttidx, vartype, scope)
---?{"add_id",ttidx,vartype,scope}
+--if ttidx=27056 then
+--  if find(scope,scopes)=2 then ?9/0 end if
+--  ?{"add_id",ttidx,vartype,scope,find(scope,scopes)}
+--end if
     if getd(ttidx,scopes[BUILTINS])!=NULL then
 --/*
 {"?find",                       TYPF,   T_find                          := 3284},
@@ -110,20 +162,31 @@ T_keywords[140] = `find`
 T_reserved[140] = 3284
 tokstack[1..2] = {{`C:\Program Files (x86)\Phix\builtins`},{`C:\Program Files (x86)\Phix`}}
 --*/
-        string path = get_file_path(current_file)
+        string {path,file} = get_file_path_and_name(current_file)
         if path=builtindir then
+--/*
             integer k = find(ttidx,T_reserved)
             if k then
                 integer l = find(T_keywords[k],auto_names)
                 if l then
-                    string file = get_file_name(current_file)
                     if file=auto_files[l] then return 1 end if
                 end if
+            end if
+--*/
+            return 1
+        elsif path=pwadir then
+            if find(file,{"p2js.js","pGUI.js"}) then
+                return 1 -- assume legal
             end if
         end if
         return -1 -- illegal
     end if
     if getd(ttidx,scope)!=NULL then
+--DEV we need to save source file and line numbers... [for a proper error message]
+        if not find(vartype,{TYPF,TYPR}) then
+            ?{"Already defined (p2js_scope.e line 186)",ttidx,get_ttname(ttidx)}
+--          ?9/0
+        end if
         return 0 -- already defined
     end if
     setd(ttidx,vartype,scope)
@@ -131,14 +194,182 @@ tokstack[1..2] = {{`C:\Program Files (x86)\Phix\builtins`},{`C:\Program Files (x
 end function
 
 global function add_global(integer ttidx, vartype)
+    -- note: global here means file-level, not "global"...
     return add_id(ttidx,vartype,scopes[GLOBALS])
 end function
 
 global function add_local(integer ttidx, vartype)
+--?{"add_local",ttidx,vartype}
     -- catch/warn this before the call, eg see p2js_parse.e/vardef()
 --  if not find(vartype,{TYPI,TYP2,TYPN,TYPQ,TYPS,TYP9,TYPM,TYPP,TYPO}) then ?9/0 end if
     if not find(vartype,{TYPI,TYP2,TYPN,TYPQ,TYPS,TYP9,TY11,TYPP,TYPO}) then ?9/0 end if
+    if arg_rtn then
+        arg_idx += 1
+        if ttidx=0 then return 1 end if
+        setd({arg_rtn,ttidx},{arg_idx,vartype},named_args)
+--      sna = append(sna,{{arg_rtn,ttidx},{arg_idx,vartype}})
+    end if
     return add_id(ttidx,vartype,scopes[$])
+end function
+
+global function get_named_param_idx(integer fttidx,ttidx)
+    object it = getd({fttidx,ttidx},named_args)
+    if it=0 then -- ?9/0
+--/*
+C:\Program Files (x86)\Phix\pwa\src\p2js_scope.e:199 in function get_named_param_idx()
+attempt to divide by 0
+    fttidx = 3220
+    ttidx = 53492
+    it = 0
+    rtn_name = `destroy_dict`
+    var_name = `justclear`
+    idx = <novalue>
+    t = <novalue>
+k = 6
+adx = 4
+Global & Local Variables
+ C:\Program Files (x86)\Phix\pwa\src\p2js_scope.e:
+    auto_names[1..9] = {`assert`,`decode_base64`,`encode_base64`,`binary_search`,`deld`,`destroy_dict`,`dict_name`,`dict_size`,`getd`}
+                                                                                         ^^^^^^^^^^^^
+    auto_sigs[1..19] = {`PISP`,`FP`,`FPI`,`FOP`,`POI`,`PII`,`FI`,`FI`,`FOI`,`FI`,`FII`,`FOI`,`FOII`,`FOOI`,`FI`,`FS`,`FOI`,`FII`,`FII`}
+                                                        ^^
+    auto_files[1..11] = {`assert.e`,`base64.e`,`base64.e`,`bsearch.e`,`dict.e`,`dict.e`,`dict.e`,`dict.e`,`dict.e`,`dict.e`,`dict.e`}
+                                                                                ^^^^^^
+    autoincludes[1..10] = {`assert.e`,`base64.e`,`bsearch.e`,`dict.e`,`factorial.e`,`find.e`,`findrepl.e`,`gcd.e`,`log10.e`,`match.e`}
+                                                             ^^^^^^^
+    dependencies[1..9] = {{},{`pflatten.e`,`substitute.e`},{},{`pmaths.e`},{},{},{`find.e`},{`pmaths.e`},{}}
+    arg_names[4][1..2] = {{`deld`,{{`tid`,`1`},{`key`,`?`}}},{`destroy_dict`,{{`tid`,`?`},{`justclear`,`false`}}}}
+                                                               ^^^^^^^^^^^^                 ^^^^^^^^^^^^^^^^^^
+--oh crud...
+    autoincludes[20..28] = {`permute.e`,`pextract.e`,`pfactors.e`,`pfindall.e`,`pfindany.e`,`pflatten.e`,`pGUI.e`,`porall.e`,`ppp.e`}
+                                                                                                          ^^^^^^
+    arg_names[26][1] = {`IupTableSetData`,{{`table`,`?`},{`data`,`?`},{`bReset`,`true`}}}
+    arg_names[26][2] = {`IupErm2`,{{`path_elements`,`?`},{`trailsep`,`0`}}}
+--*/
+        string rtn_name = get_ttname(fttidx),
+               var_name = get_ttname(ttidx)
+--      integer k = find(rtn_name,auto_names)
+        integer k = find(rtn_name,rtn_names)
+        if k then
+--          string sig = auto_sigs[k],
+--                 file = auto_files[k]
+--          integer adx = find(file,autoincludes)
+--          sequence args = arg_names[adx]
+            sequence args = rtn_args[k]
+--?9/0
+--          integer rdx = find(rtn_name,vslice(args,1))
+--          args = args[rdx][2]
+            integer pdx = find(var_name,vslice(args,1))
+--                  sp = sig[pdx+1],
+--                  pt = {TYPI}[find(sp,"I")]
+--we might want to set args[pdx][2] as a default??? or all of them???
+--          return {pdx,pt}
+--          return {pdx,TYPO}
+            return pdx
+--          ?9/0
+        end if
+        return 0
+    end if
+    integer {idx,t} = it
+    return idx
+end function
+
+function arg_rec(sequence node)
+    string res = "?"
+    if length(node) then    
+        object toktype = node[TOKTYPE]
+        if find(toktype,{DIGIT,LETTER,'\"','\'',BLK_CMT}) then
+            res = tok_string(node)
+        elsif toktype='-' then
+            res = "-" & arg_rec(node[2][1])
+        elsif toktype=`PROC` then
+            res = tok_string(node[2][1]) & "("
+            for i=2 to length(node[2]) do
+                if i>2 then res &= "," end if
+                res &= arg_rec(node[2][i])
+            end for
+            res &= ")"
+        elsif toktype='{' then
+            res = "{"
+            for i=1 to length(node[2]) do
+                if i>1 then res &= "," end if
+                res &= arg_rec(node[2][i])
+            end for
+            res &= "}"
+        elsif toktype='+'
+          and length(node[2])=1
+          and find(node[2][1][TOKTYPE],{DIGIT,LETTER}) then
+            res = "+" & tok_string(node[2][1])
+        else
+            ?9/0    -- placeholder for more code...
+        end if
+    end if
+    return res
+end function
+
+global procedure set_arg_default(sequence vardef)
+--?vardef
+    if vardef[1]!=`vardef` then ?9/0 end if
+--  sequence v23 = vardef[2][3]
+--  string def = "0"
+--  string def = "?"
+--  vardef = {`vardef`,{{4,139,144,7,15,464},{4,146,151,7,15,17764},{}}}
+    for k = 3 to length(vardef[2]) by 2 do
+        string def = arg_rec(vardef[2][k])
+--/*
+    if v23!={} then
+        object toktype = v23[TOKTYPE]
+--  v23 = {`PROC`,{{4,3055,3060,78'N',19,6628},{4,3062,3069,78'N',12,17560}}}
+        if toktype=`PROC` 
+        and v23[2][1][TOKTYPE]=LETTER
+        and v23[2][1][TOKTTIDX]=T_length
+        and v23[2][2][TOKTYPE]=LETTER then
+            def = "length(" & tok_string(v23[2][2]) & ")"
+        elsif find(toktype,{DIGIT,LETTER,'"'}) then
+            def = tok_string(v23)
+        elsif toktype='{' and length(v23[2])=0 then
+            def = "{}"
+--  v23 = {123'{',{{3,1729,1729,63'?',58':'},{45'-',{{3,1732,1732,63'?',61'='}}}}}
+        elsif toktype='{' and length(v23[2])=2
+--       then
+--          sequence {v2321, v2322} = v23[2]
+--  v2321 = {3,1729,1729,63'?',58':'}
+--  v2322 = {45'-',{{3,1732,1732,63'?',61'='}}}
+          and v23[2][1][TOKTYPE]=DIGIT
+          and v23[2][2][TOKTYPE]='-'
+          and v23[2][2][2][1][TOKTYPE]=DIGIT then
+            def = "{" & tok_string(v23[2][1]) & ",-" & tok_string(v23[2][2][2][1]) & "}"
+        elsif toktype='-' and length(v23)=2 and v23[2][1][1]=DIGIT then
+--  v23 = {45'-',{{3,471,471,18,71'G'}}}
+            def = "-" & tok_string(v23[2][1])
+        else
+            ?9/0    -- placeholder for more code...
+        end if
+    end if
+--*/
+        def_idx += 1
+--?{"sad",{arg_rtn,def_idx},def}
+        setd({arg_rtn,def_idx},def,arg_defs)
+    end for
+--/*
+`C:\Program Files (x86)\Phix\pwa\src\test.exw`
+{"9/0: def_idx!=arg_idx",1,0}
+{"vardef",{{4,578,584,21,3,388},{6,586,598,21,43'+',21},"",{}}}
+function multitext_valuechanged_cb(Ihandle /*multitext*/)
+--*/
+    if def_idx!=arg_idx then ?{"9/0: def_idx!=arg_idx",def_idx,arg_idx} ?vardef end if
+--  sad = append(sad,{{arg_rtn,arg_idx},def})
+end procedure
+
+global function get_arg_default(integer fttidx,idx)
+    string def = getdd({fttidx,idx},"",arg_defs)
+    if def="" then
+        string rtn_name = get_ttname(fttidx)
+        integer k = find(rtn_name,rtn_names)
+        sequence args = rtn_args[k]
+        def = args[idx][2]
+    end if
+    return def
 end function
 
 function get_type(integer ttidx, scope, downto=1)
@@ -156,10 +387,10 @@ function get_type(integer ttidx, scope, downto=1)
         end if
     end for
 --temp:
-if res=0 and downto=1 and not find(ttidx,zeroes) then
-zeroes &= ttidx
-?{"get_type",ttidx,scope,"==>",res}
-end if
+--if res=0 and downto=1 and not find(ttidx,zeroes) then
+--zeroes &= ttidx
+--?{"get_type",ttidx,scope,"==>",res}
+--end if
     return res -- (NULL/0 == not found)
 --  return TYPO
 end function
@@ -195,13 +426,10 @@ constant unsupported = {"pcfunc.e","pTask.e","pThreadN.e","structs.e","syswait.e
 "hll_stubs.e","pfile.e","pchdir.e","pincpathN.e","isatty.e","hasdel.e","msgbox.e",
 "pFloatN.e","dll.e","hash.e","pokestr.e","pcurrdir.e","pgetpath.e","peekstr.e",
 "pcmdlnN.e","get_routine_info.e","pdir.e","pdelete.e","ldap.e","pScrollN.e","penv.e",
-"graphics.e","get.e","machine.e","procedure initialAutoEntry(",
---??
-"ubits.e",
+"graphics.e","get.e","machine.e","progress.e","procedure initialAutoEntry(",
 -- supported differently (see/directly in p2js.js)
-"printf","pprntfN.e","pdate.e","pApply.e","pFilter.e","pCrashN.e","progress.e",
-"prnd.e","prtnidN.e"}
-
+"printf","pprntfN.e","pdate.e","pApply.e","pFilter.e","pCrashN.e","prnd.e","prtnidN.e",
+"repeat.e","ubits.e",`serialize.e`}
 --??"procedure",
 
 function initialAutoEntries(string line)
@@ -347,6 +575,9 @@ global constant p2js_auto = """,
 --234567890123456789012345678 -- (hence indent of 28)
          dfmt = "Mmmm d yyyy h:mm:sspm"
 
+--DEV not sure when bet to put this...
+global sequence rebuild_required = {}
+
 procedure check_builtins()
     string psymname = get_proper_path(join_path({"..","psym.e"}))
     if not file_exists(psymname) then crash("Cannot open "&psymname) end if
@@ -380,11 +611,13 @@ procedure check_builtins()
         printf(1,"\nOverwrite %s and restart?",{filename})
         if not find(upper(wait_key()),{'Q','N',#1B}) then
             puts(1,"\n")
-            integer fn = open(filename,"w")
-            if fn=-1 then crash("cannot open "&filename) end if
             string content = sprintf(auto,{format_timedate(date(),dfmt)})
             sequence s = apply(filter(get_text("../psym.e",GT_LF_STRIPPED),initialAutoEntries),clean)
-            content &= ppf(sort_columns(s,{4,1}),{pp_Nest,1,pp_Indent,28,pp_Maxlen,120})
+--          content &= ppf(sort_columns(s,{4,1}),{pp_Nest,1,pp_Indent,28,pp_Maxlen,120})
+            s = sort_columns(s,{4,1})
+            content &= ppf(s,{pp_Nest,1,pp_Indent,28,pp_Maxlen,120})
+            integer fn = open(filename,"w")
+            if fn=-1 then crash("cannot open "&filename) end if
             puts(fn,content)
             close(fn)
             requires(-machine_bits(),false) -- restart
@@ -393,47 +626,198 @@ procedure check_builtins()
     end if
 --  {names,fp,sigs,files} = columize(p2js_auto)
 --{`find`, `Func`, `FOPI`, `VM\\pFind.e`},
+
+--12/5/21:
+    for i=1 to length(autoincludes) do
+        string ai = strip_builtin(autoincludes[i])
+        if ai!="pGUI.e"
+        and ai!="mpfr.e"
+        and ai!="sha256.e" then
+            string aj = substitute(ai,".e",".js"),
+                   pb = get_proper_path(join_path({"..","builtins",ai})),
+                   jb = get_proper_path(join_path({"builtins",aj}))
+            if not file_exists(pb) then crash("Cannot open "&pb) end if
+            if not file_exists(jb) then
+                printf(1,"%s is missing/will be created\n",{aj})
+--erm... (a log file would be good...) [DEV]
+--          IupSetStrAttribute(lbl_statusbar,"TITLE","overwriting %s\n",{pwabpath})
+                rebuild_required = append(rebuild_required,ai)
+            else
+                sequence pd = get_file_date(pb),
+                         jd = get_file_date(jb)
+                delta = timedate_diff(jd,pd)
+                if delta>0 then
+                    if delta>60 then
+                        integer term = iff(delta>timedelta(days:=1)?DT_DAY:DT_MINUTE)
+                        delta = timedate_diff(pd,jd,term) 
+                    end if
+--                  string lp = format_timedate(pd,dfmt),
+--                         lj = format_timedate(jd,dfmt)
+--                  ?{pb,lp,jb,lj,elapsed(delta)}
+--                  ?{ai,elapsed(delta)}
+                    printf(1,"%s is %s newer than %s\n",{ai,elapsed(-delta),aj})
+                    rebuild_required = append(rebuild_required,ai)
+                end if
+            end if
+--else ?ai
+        end if
+    end for 
 end procedure
 
 if platform()!=JS then check_builtins() end if
 
---DEV currently manually maintained...
+--DEV currently manually maintained... [FIXED]
+--p2js_depend.e similar to p2js_auto.e, but quietly rewritten (since we update our copy anyway)
+--/*
 constant ad = {{"assert.e",{}},
+               {"base64.e",{`??`}},
                {"bsearch.e",{}},
-               {"dict.e",{"pmaths.e"}},
+               {"dict.e",{"pmarths.e"}},
                {"factorial.e",{}},
                {"find.e",{}},
+               {"findrepl.e",{`??`}},
                {`gcd.e`,{`pmaths.e`}},
                {`log10.e`,{}},
                {"match.e",{"find.e","pcase.e","pfindall.e"}},
+               {"matchrepl.e",{`??`}},
                {`misc.e`,{}},
+               {`ordinal.e`,{`??`}},
                {`pmaths.e`,{}},
                {"pcase.e",{"find.e"}},
                {"pcolumn.e",{}},
+               {"pdates.e",{}},
+               {"pdecodeflags.e",{`??`}},
                {"pelapsed.e",{"match.e","pmaths.e"}},
+               {"permute.e",{}},
                {"pextract.e",{}},
                {"pfactors.e",{"bsearch.e","pmaths.e","primes.e"}},
                {"pfindall.e",{"find.e"}},
                {"pfindany.e",{"find.e"}},
                {"pflatten.e",{"find.e"}},
+               {"porall.e",{"??"}},
                {"ppp.e",{"find.e"}},
+               {"pqueue.e",{"??"}},
+               {"premoveall.e",{"??"}},
                {"primes.e",{"bsearch.e","pmaths.e"}},
                {"pseqc.e",{"pmaths.e"}},
+               {"pseries.e",{"??"}},
+               {"psmall.e",{"??"}},
                {"psplit.e",{"find.e","match.e","pfindany.e"}},
                {"psqop.e",{"pmaths.e","log10.e","misc.e"}},
                {"psum.e",{}},
                {"ptagset.e",{"pmaths.e"}},
                {"ptrim.e",{"find.e","psqop.e","psum.e"}},
                {"punique.e",{"dict.e","sort.e"}},
+               {"pvlookup.e",{"??"}},
                {"scanf.e",{"find.e","match.e","pcase.e"}},
+               {"shift_bits.e",{`??`}},
+               {"shuffle.e",{`??`}},
                {"sort.e",{}},
                {"substitute.e",{"match.e"}},
---  res = {`match.e`,`substitute.e`,`==`,`find.e`,`pcase.e`,`pfindall.e`}
-               {"wildcard.e",{"find.e","match.e","pcase.e"}}},
-         {autoincludes,dependencies} = columnize(ad)
+               {"to_int.e",{`??`}},
+               {"to_str.e",{`??`}},
+               {"unit_test.e",{`??`}},
+               {"utfconv.e",{}},
+               {"vslice.e",{`??`}},
+               {"wildcard.e",{"find.e","match.e","pcase.e"}}}
+--*/
+--sequence {autoincludes,dependencies} = columnize(ad)
+--,globals  = repeat({},length(autoincludes))
+--globals[find("dict.e",autoincludes)] = {"KEY","DATA","LEFT","HEIGHT","RIGHT","trees","treenames","roots","sizes","defaults","freelists","free_trees",
+-- "initd","dinit","dictionary","check","newNode","height","setHeight","rotate","getBalance","insertNode",
+-- "getNode","getKey","minValueNode","deleteNode","traverse","traverse_key","traverser","peekpop"}
+--,arg_names = repeat({},length(autoincludes))
+
+constant depend = """
+--
+-- p2js_depend.e (nb automatically over-written in/by p2js_scope.e, all comments get trashed)
+--
+-- Each entry is {"builtin.e",{dependencies, if any},{locals, if any},{{routine,{args}}}} 
+-- Rebuild builtins (Ctrl R) verifies no locals clash, and renames them with a $-prefix.
+-- Note that "pGUI.e"/"mpfr.e"/"timedate.e" are manually maintained, the rest auto-built.
+--
+global sequence p2js_depend = 
+"""
+--23456789012345678901234567890 -- (hence indent of 30)
+
+function get_named_args()
+--integer named_args,   -- key is {arg_rtn,ttidx}, 
+--                      -- data is {arg_idx,vartype}
+--      arg_defs        -- key is {arg_rtn,arg_idx},
+--                      -- data is "{}/ident/string/number" (always string)
+--                      -- nb no support for eg length(),platform() etc yet.    [ length now done ]
+--"dump_named_args"
+--{{{3584,17748},{1,15}},{{3584,17752},{2,3}},{{6820,17764},{1,15}},{{6820,17768},{2,3}}}
+--"defaults"
+--{{{3584,1},"?"},{{3584,2},"0"},{{6820,1},"?"},{{6820,2},"0"}}
+--T_gcd = 3584, T_lcm = 6820
+--"dump_named_args"
+--{{`gcd`, {{`u`, `?`}, {{`v`, `0`}}}}, {`lcm`, {{`m`, `?`}, {{`n`, `0`}}}}}
+    sequence s = getd_all_keys(named_args),
+             res = {}
+    integer last_rtn = 0, bAdd
+    for i=1 to length(s) do
+        integer {arg_rtn,ttidx} = s[i]
+        if arg_rtn!=last_rtn then
+            last_rtn = arg_rtn
+            string rtn_name = get_ttname(arg_rtn)
+            bAdd = find(rtn_name,auto_names)
+            if bAdd then
+                res = append(res,{rtn_name,{}})
+            end if
+        end if
+        if bAdd then
+            integer {arg_idx,arg_typ} = getd(s[i],named_args)
+--      --DEV didn't expect anything to be missing... probably worth investigating at some stage [FIXED, I think]
+--          object ad = getd({arg_rtn,arg_idx},arg_defs)
+            string arg_name = get_ttname(ttidx),
+                   arg_dflt = getd({arg_rtn,arg_idx},arg_defs)
+--                 arg_dflt = iff(string(ad)?ad:`?????`)
+--                 arg_dflt = iff(string(ad)?ad:`?`)
+--          sequence arg = {{arg_name,arg_dflt}}
+--      if arg_rtn!=last_rtn then
+--          last_rtn = arg_rtn
+--          res = append(res,{rtn_name,arg})
+--      else
+--          res[$][2] &= {arg}  -- (added to docs)
+            sequence r2 = res[$][2]
+            res[$][2] = 0   -- (or use deep_copy)
+--          r2 = append(r2,{arg_name,arg_dflt})
+            while length(r2)<arg_idx do
+                r2 = append(r2,0)
+            end while
+            r2[arg_idx] = {arg_name,arg_dflt}
+            res[$][2] = r2
+--untried:
+--X         res[$][2] = deep_copy(res[$][2]) & {{arg_name,arg_dflt}}
+        end if
+    end for
+    return res
+end function
+
+procedure clash(sequence gi, gj)
+    for i=1 to length(gj) do
+        if find(gj[i],gi) then ?{"clash",gj[i]} end if
+    end for
+end procedure
+
+function fudge(sequence s)
+    --
+    -- add a bit of nesting to p2js_depend, for purely aesthetic reasons only.
+    -- ie/eg `base64.e` wants decode_base64 and encode_base64 on separate lines,
+    --   but pflatten.e, substitute.e, and base64_init, aleph, etc on one line,
+    --   that is, as that entry is output, via ppf(), to p2js_depends.e.
+    --
+    integer l = length(s)
+    sequence res = repeat(0,l)
+    for i=1 to l do
+        res[i] = {s[i]}
+    end for
+    return res
+end function
 
 global function get_autoincludes()
-    sequence res = {}
+    sequence res = {}, gk = {}, dk, nk
     string prev = ""
     for i=1 to length(referenced) do
         if referenced[i] and p2js_auto[i][4]!=prev then
@@ -441,12 +825,58 @@ global function get_autoincludes()
             res = append(res,prev)
         end if
     end for
+    string cf = get_file_name(current_file)
+    integer k = find(cf,autoincludes)
+    if k and platform()!=JS then
+        gk = apply(getd_all_keys(scopes[GLOBALS]),get_ttname)
+        dk = deep_copy(res)
+        nk = get_named_args()
+        if length(dk) and dk[1]=cf then dk = dk[2..$] end if
+        if dk!=dependencies[k]
+        or gk!=globals[k]
+        or nk!=arg_names[k] then
+            dependencies[k] = dk
+            globals[k] = gk
+            arg_names[k] = nk
+            sequence p = include_paths(),
+                     f = include_files()
+            integer fdx = include_file()
+            if f[fdx][2]!=`p2js_scope.e` then ?9/0 end if -- (sanity check)
+            printf(1,"Overwriting p2js_depend.e (for %s)...\n",{autoincludes[k]})
+            sequence s = columnize({autoincludes,fudge(dependencies),fudge(globals),arg_names})
+            string content = depend & ppf(s,{pp_Nest,3,pp_Indent,0,pp_Maxlen,132}) & "\n\n",
+                   filename = join_path({p[f[fdx][1]],"p2js_depend.e"})
+--if k=1 then ?9/0 end if
+            integer fn = open(filename,"w")
+            if fn=-1 then crash("cannot open "&filename) end if
+            puts(fn,content)
+            close(fn)
+        end if
+        --
+        -- check for any internal clashes
+        --
+        sequence std_globals = {`catch`,`charArray`,`conCat`,`docBody`,`paranormalise`,`repe`,
+                                `repss`,`sidii`,`storeAttr`,`subse`,`subss`,`typeCheckError`}
+        for i=1 to length(globals) do
+            sequence gi = globals[i]
+            if length(gi) then
+                clash(std_globals,gi)
+                for j=1 to length(globals) do
+                    if j!=i then clash(gi,globals[j]) end if
+                end for
+            end if
+        end for
+    end if
+--?9/0
     res = append(res,"==")  -- (debug aid)
     integer rdx = 1
     while rdx<=length(res) do  -- (process all indirects as well)
         string rr = res[rdx]
         if rr!="==" then
-            integer k = find(rr,autoincludes)
+            k = find(rr,autoincludes)
+--DEV
+--          printf(1,"transpiling %s...\n",{rr})
+-- or maybe return {"!!",rr}
             if k=0 then crash("dependencies not defined for "&rr) end if
             sequence d = dependencies[k]
             for j=1 to length(d) do
@@ -458,13 +888,142 @@ global function get_autoincludes()
         end if
         rdx += 1
     end while
+    res = {res,gk}
     return res
 end function
 
+-- may want/need to be in p2js_scope or p2_basics... [erm, seems ok 26/3/21] [moved here 2/5/21]
+sequence tokstack,
+         tokseen,
+         sources
+
+global procedure tokstack_clean(string filename)
+    string {path,file} = get_file_path_and_name(filename)
+    tokstack = {{builtindir},
+                {rootpath},
+                {path,filename,1}}
+    tokseen = {file}
+    sources = {}
+--pp(tokstack)
+end procedure
+
+global function tokstack_push(string filename, integer line)
+-- gotta handle relative directory includes... activepaths...
+--/*
+--  C:\Program Files (x86)\Phix\pwa\src\p2js_tok.e:467 in function tokstack_push()
+--  crash(ok)
+--      filename = `C:\Program Files (x86)\Phix\test\t05inc0b.e`
+--      found = `C:\Program Files (x86)\Phix\test\t05inc0b.e`
+--      t = 3
+--      fntest = `C:\Program Files (x86)\Phix\test\t05inc0b.e`
+--      filepath = `C:\Program Files (x86)\Phix\test`
+--  Global & Local Variables
+--   C:\Program Files (x86)\Phix\pwa\src\p2js_tok.e:
+--      tokstack[1..2] = {{`C:\Program Files (x86)\Phix\builtins`},{`C:\Program Files (x86)\Phix`}}
+--      tokstack[3] = {`C:\Program Files (x86)\Phix\test`,`C:\Program Files (x86)\Phix\test\t05inc0.exw`}
+--      tokseen = {`C:\Program Files (x86)\Phix\test\t05inc0.exw`}
+--   C:\Program Files (x86)\Phix\pwa\src\p2js_parse.e:
+--      udts = {}
+--  --  tdx = 26
+--  --  clines
+--   C:\Program Files (x86)\Phix\pwa\p2js.exw:
+--      src[1..113] = "--\n-- t05inc0.exw\n--\n--without warning -- lots of unused stuff in here\nputs(1,\"inc0a\\n\")\n\nglobal integer z, p\nz=1"
+--      src[114..226] = " p=2\ninclude t05inc0b.e  -- another z(=3), and q(=4)\nif z!=1 then crash(\"z!=1\\n\") end if\nif p!=2 then crash(\"p!=2"
+--      src[227..292] = "\\n\") end if\nif q!=4 then crash(\"q!=4\\n\") end if\nputs(1,\"inc0\\n\")\n\n"
+--  --  fdx = 0
+--  --  fokens = {}
+--  --  fsrc = ``
+--  --  fstacked = {}
+--*/
+    if src_offset!=0 then ?9/0 end if   -- sanity check
+--  filename = get_proper_path(filename)
+    if find(filename[1],{'`','"'}) then
+        filename = filename[2..$-1]
+    end if
+--?{"tokstack_push",filename}
+    if not file_exists(filename) then
+--?tokseen
+--?{"tokstack",tokstack}
+--?filename
+        string found = ""
+        for t=length(tokstack) to 1 by -1 do
+            string fntest = join_path({tokstack[t][1],filename})
+            if file_exists(fntest) then
+                found = fntest
+                exit
+            end if
+--?fntest
+        end for
+        if length(found)=0 then return "NOT FOUND" end if
+        filename = found
+    end if
+    filename = get_proper_path(filename)
+    string {filepath,nameonly} = get_file_path_and_name(filename)
+    if find(filename,tokseen)
+    or (filepath=builtindir and 
+        (find(nameonly,autoincludes) or
+         find(nameonly,{`pdate.e`,`pcurrdir.e`,`peekstr.e`,`pgetpath.e`,`pfile.e`,
+                        `get_routine_info.e`,`pdir.e`,`penv.e`,`get_interpreter.e`,
+                        `syswait.ew`})))
+    or filepath=builtinVM then
+        return "ALREADY DONE"
+    end if
+--  tokseen = append(tokseen,{filename})
+    tokseen = append(tokseen,filename)
+    if sources={} then
+        sources = append(sources,src)
+    end if
+    src = get_text(filename)
+    sources = append(sources,src)
+    integer srcdx = length(sources)
+    tokstack = append(tokstack,{filepath,filename,srcdx,tdx,tokens,clines,textlines,current_file})
+--?src
+    lt = length(src)
+    textlines = split(substitute(src,"\r\n","\n"),'\n',false) -- DEV common up? (p2js_basics.e:121)
+    current_file = filename
+    tokenise()
+    tdx = 1
+--crash("ok")
+--load_text(string txt, ext)--integer edx)
+--      return false
+    return {T_include,{filename,srcdx,line}}
+end function
+
+global function tokstack_pop()
+    if length(tokstack)>3 then
+        integer srcdx
+        {?,?,srcdx,tdx,tokens,clines,textlines,current_file} = tokstack[$]
+--      src = sources[srcdx]
+        tokstack = tokstack[1..$-1]
+        srcdx = tokstack[$][3]
+        src = sources[srcdx]
+        return {T_include,{"",srcdx}}
+    end if
+    return "NO MORE"
+end function
+
+global procedure restore_source(integer srcdx)
+    src = sources[srcdx]
+    current_file = tokseen[srcdx]
+end procedure
+--/*
+{"autoincludes:",{"dict.e","pmaths.e","=="}}
+{"KEY","DATA","LEFT","HEIGHT","RIGHT","trees","treenames","roots","sizes","defaults","freelists","free_trees",
+ "initd","dinit","dictionary","check","newNode","height","setHeight","rotate","getBalance","insertNode",
+ "getNode","getKey","minValueNode","deleteNode","traverse","traverse_key","traverser","peekpop"}
+--*/
+--global procedure dump_globals()
+----    return add_id(ttidx,vartype,scopes[GLOBALS])
+--  sequence s = apply(getd_all_keys(scopes[GLOBALS]),get_ttname)
+--  ?s
+--end procedure
+
+--global procedure dump_named_args()
+--  ?"dump_named_args"
+--  pp(get_named_args())
+--end procedure
 --?length(s) -- 413
 --pp(s)
-
---p2js_builtins.e, or p2js_auto.e?
 
 --pp(sort_columns(s,{4,1}),{pp_Nest,1})
 --papply(true,printf,{1,{`{"%s",%d,"%s"
@@ -720,8 +1279,8 @@ C:\Program Files (x86)\Phix\builtins\json.e:24 --                       second a
 C:\Program Files (x86)\Phix\builtins\json.e:27 --                      and the rest any of these types. Note the subscript of the 
 C:\Program Files (x86)\Phix\builtins\map.e:75 global type map(object x)
 C:\Program Files (x86)\Phix\builtins\map.e:77 end type
-C:\Program Files (x86)\Phix\builtins\misc.e:369 --/**/  type trig_range(atom x)
-C:\Program Files (x86)\Phix\builtins\misc.e:372 --/**/  end type
+C:\Program Files (x86)\Phix\builtins\misc.e:369 --/!**!/    type trig_range(atom x)
+C:\Program Files (x86)\Phix\builtins\misc.e:372 --/!**!/    end type
 C:\Program Files (x86)\Phix\builtins\misc.e:375 type trig_range(object x)
 C:\Program Files (x86)\Phix\builtins\misc.e:387 end type
 C:\Program Files (x86)\Phix\builtins\pcase.e:221 -- to correct something just typed in with the wrong caps lock setting.

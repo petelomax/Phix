@@ -18,6 +18,10 @@ global function sort(sequence x, integer order=ASCENDING)
 integer gap, j, first, last
 object tempi, tempj
 
+--DEV temp!
+--?"sort deep_copy..."
+--?x
+--x = deep_copy(x)
     last = length(x)
     gap = floor(last/10)+1
     while 1 do
@@ -71,9 +75,9 @@ global function custom_sort(object custom_compare, sequence x, object data = {},
     sequence args = {0,0}
     if atom(data) then
         args &= data
---DEV... (broke self hosting... wtf??) [it ain't psym... afaict anyway]
---  elsif data!={} then
-    elsif length(data)!=0 then
+--DEV... (broke self hosting... wtf??) [it ain't psym... afaict anyway] [seems to have righted itself 14/4/21...]
+    elsif data!={} then
+--  elsif length(data)!=0 then
         if length(data)!=1 then ?9/0 end if
         args = append(args, data[1])
     elsif sequence(custom_compare) then
@@ -81,7 +85,7 @@ global function custom_sort(object custom_compare, sequence x, object data = {},
         --             and/or implement that column_tagsort?
         if data!={} or order!=ASCENDING then ?9/0 end if
         args = append(args,custom_compare)
-        custom_compare = routine_id("tagsort")
+        custom_compare = tagsort
     end if
 
     last = length(x)
@@ -180,6 +184,7 @@ end function
 --   [[:compare]], [[:sort]]
 
 global function sort_columns(sequence x, sequence column_list)
-    return custom_sort(routine_id("column_compare"), x, {column_list})
+    x = custom_sort(column_compare, x, {column_list})
+    return x
 end function
 

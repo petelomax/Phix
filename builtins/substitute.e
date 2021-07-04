@@ -1,16 +1,14 @@
 --
 -- substitute.e
 --
---  Phix implementation of substitute (auto-include)
+--  Phix implementation of substitute[_all] (auto-include)
 --
-
---global function substitute(string text, string s, string r, integer limit=-1)
-global function substitute(sequence text, s, r, integer limit=-1)
+global function substitute(sequence text, object s, r, integer limit=-1)
 -- replace all instances of s in text with r
-integer k = 1, 
-        l = length(s),
-        startidx = 1
-sequence chunks = {}
+    integer k = 1, 
+            l = iff(atom(s)?1:length(s)),
+            startidx = 1
+    sequence chunks = {}
     while limit=-1 or length(chunks)<limit do
         k = match(s,text,k)
         if k=0 then exit end if
@@ -29,7 +27,6 @@ sequence chunks = {}
     return text
 end function
 
---global function substitute_all(string text, sequence strings, sequence replacements)
 global function substitute_all(sequence text, strings, replacements)
     for i=1 to length(strings) do
         if string(strings) then

@@ -160,12 +160,21 @@ function is_symbol(integer c)
 end function
 
 procedure tt_keywords(sequence defs)
-    integer bRebuild = false, errcount = 0
+    integer bRebuild = false, errcount = 0, errskip = 0, pctd = 0
     sequence lq = repeat("",length(defs))
+    defs = deep_copy(defs)
     for i=1 to length(defs) do
-        {sequence txt,integer typ, integer chk} = defs[i]
+--p2js:
+        object di = defs[i]
+--      {sequence txt,integer typ, integer chk} = defs[i]
+        {sequence txt,integer typ, integer chk} = di
+        di = 0
         -- (A leading ? just means untested. Preserve 'em.)
-        if txt[1]='?' then lq[i]="?" txt = txt[2..$] defs[i][1] = txt end if
+        if txt[1]='?' then
+            lq[i]="?"
+            txt = txt[2..$]
+            defs[i][1] = txt
+        end if
         if chk<=TOKMAX then ?9/0 end if
         if is_symbol(chk) then ?9/0 end if
         -- ^^
@@ -178,10 +187,15 @@ procedure tt_keywords(sequence defs)
         if chk!=ttidx then
             bRebuild = true
             defs[i][3] = ttidx
-            errcount += 1
-            if errcount<=5 then
-                string ts = iff(ttidx>=32 and ttidx<128?sprintf("('%c')",ttidx):"")
-                printf(2,"%s should be %d%s, not %d\n",{src,ttidx,ts,chk})
+            if chk-ttidx!=pctd then
+                pctd = chk-ttidx
+                errcount += 1
+                if errcount<=5 then
+                    string ts = iff(ttidx>=32 and ttidx<128?sprintf("('%c')",ttidx):"")
+                    printf(2,"%s should be %d%s, not %d\n",{src,ttidx,ts,chk})
+                end if
+            else
+                errskip += 1
             end if
         end if
 --      -- you need to correct the (recently-added/moved) 
@@ -190,7 +204,9 @@ procedure tt_keywords(sequence defs)
 --      {} = wait_key()
     end for
     if bRebuild then
-        if errcount>5 then printf(2,"(%d similar skipped)\n",errcount-5) end if
+        if errcount>5 then
+            printf(2,"(%d similar skipped, plus %d knock-ons)\n",{errcount-5,errskip})
+        end if
         --
         -- Aside: While edita/edix/notepad/etc might keep old values,
         --        it should not really matter, apart from the list of
@@ -222,13 +238,17 @@ procedure tt_keywords(sequence defs)
         content[$] = '\n'
 
         content &= contk
+        content &= "    -- types:\n"
+        sequence sections = {"illegal keywords","keywords","supported routines","unsupported routines","constants"}
         integer clen = 0
         for i=1 to length(defs) do
             {string n, integer t, integer c} = defs[i]
             string nq = `"` & lq[i] & n & `",`,
                    tq = TYPES[t][2]
             if n[1]='$' then n = n[2..$] end if
-            string ci = sprintf(`    {%-30s %4s,   T_%-29s := %d},`,{nq,tq,n,c})
+            if n[$]='$' then n = n[1..$-1] end if
+--          string ci = sprintf(`    {%-30s %4s,   T_%-29s := %d},`,{nq,tq,n,c})
+            string ci = sprintf(`    {%-34s %4s,   T_%-33s := %d},`,{nq,tq,n,c})
             if c>=32 and c<128 then
                 if clen=0 then
                     clen = length(ci)+4
@@ -236,8 +256,12 @@ procedure tt_keywords(sequence defs)
                 ci &= repeat(' ',clen-length(ci))&sprintf("-- '%c'",c)
             end if
             ci &= '\n'
-            if find(n,{"object","volatile","xor","yield","wait_key"}) then
+--          if find(n,{"object","volatile","xor","yield","wait_key"}) then
+--          if find(n,{"object","try","xor","xor_bits","yield"}) then
+            if find(n,{"object","try","xor","zIndex","yield"}) then
                 ci &= '\n'
+                ci &= "    -- " & sections[1] & ":\n"
+                sections = sections[2..$]
             end if
             content &= ci
         end for
@@ -350,13 +374,17 @@ tt_keywords(p2js_keywords)
     {"Icallback",       T_Icallback         := 5572},
     {"Icallbacki",      T_Icallbacki        := 5580},
     {"until",           T_until             := 5604},
+
+removed:
 --*/
 
-constant tt_init = tt,
+--constant tt_init = tt,
+constant tt_init = deep_copy(tt),
          tt_used = used
 
 global procedure tt_reset()
-    tt = tt_init
+--  tt = tt_init
+    tt = deep_copy(tt_init)
     used = tt_used
 end procedure
 

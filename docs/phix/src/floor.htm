@@ -4,7 +4,7 @@
    <these>
     <get>
      <stripped>
-      <h1 class="title">floor</h1>
+      <h1 class="title">floor / round / ceil / trunc</h1>
       <div id="mainSection">
        <table>
         <col style="width: 5%"/>
@@ -13,14 +13,30 @@
           <b>Definition:</b>
          </td>
          <td>
-          <a href="atom.htm">atom</a> x2 = floor(<a href="atom.htm">atom</a> x1)
+          <a href="atom.htm">atom</a> res = floor(<a href="atom.htm">atom</a> x)
+          <br>
+          <i>-- or --</i>
+          <br>       
+          <a href="atom.htm">atom</a> res = round(<a href="atom.htm">atom</a> x, <a href="atom.htm">atom</a> inverted_precision=1)
+          <br>
+          <i>-- or --</i>
+          <br>       
+          <a href="atom.htm">atom</a> res = ceil(<a href="atom.htm">atom</a> x)
+          <br>
+          <i>-- or --</i>
+          <br>       
+          <a href="atom.htm">atom</a> res = trunc(<a href="atom.htm">atom</a> x)
          </td>
         </tr>
         <tr>
          <td>
           <b>Description:</b>
          </td>
-         <td>Return the greatest integer less than or equal to x1. (Round down to an integer, towards -infinity.)
+         <td>
+            floor() returns the greatest integer less than or equal to x. (Round down to an integer, towards -infinity.)<br>
+            round() returns the x rounded to the specified precision.<br>
+            ceil() returns the smallest integer greater than or equal to x. (Round up to an integer, towards +infinity.)<br>
+            trunc() returns the integer portion of x. (Round down to an integer, towards 0.)<br>
          </td>
         </tr>
         <tr>
@@ -28,7 +44,7 @@
           <b>Comments:</b>
          </td>
          <td>
-            This function may be applied to an <a href="atom.htm">atom</a> or sq_floor() to all elements of a 
+            These functions may be applied to an <a href="atom.htm">atom</a> or sq_floor(), sq_round(), sq_ceil(), sq_trunc() to all elements of a 
             <a href="sequence.htm">sequence</a>. The rules for <a href="seqops.htm">sequence operations</a> apply.
             <br>
             <br>
@@ -36,20 +52,94 @@
             intermediate/parameter when the fractional part gets discarded immediately. There is a corresponding 
             sq_floor_div() sequence operation to match that performance enhancement, which yields exactly the same 
             results as sq_floor(sq_div()), only faster.
+            <br>
+            <br>
+            The precision is the inverse of what you might have expected, for example:<br>
+            to round a number to the nearest 0.1, specify an inverted precision of 10, <br>
+            to round a number to the nearest 1000, specify an inverted precision of 0.001.
+            <br>
+            <br>
+            For non-integers, ceil() is one more than <a href=floor.htm>floor</a>(), and for integers ceil() 
+            returns the same result as <a href=floor.htm>floor</a>(), namely the input value unaltered.
+            <br>
+            <br>
+            The result of ceil() is rounded towards plus infinity. Note that while <a href="floor.htm">trunc</a>() rounds 
+            towards zero, there is no complimentary builtin function that rounds negative fractions away from zero.
+            <br>
+            <br>
+            The result of trunc() is always truncated towards zero, whereas <a href=floor.htm>floor</a> truncates towards minus infinity.
          </td>
         </tr>
         <tr>
          <td>
-          <b>Example:</b>
+          <b>Auxillary Function</b>
+         </td>
+         <td>
+            <a href="integer.htm">integer</a> pennies = <b>bankers_rounding</b>(<a href="atom.htm">atom</a> pence, 
+                                                                                <a href="integer.htm">integer</a> precison=1)
+            <br>
+            <br>
+            In the standard round() function, exact .5s are rounded up (matching Euphoria) whereas banker&rsquo;s rounding yields the nearest even number, eg:
+            <br>
+            <br>
+<!--eucode>
+function precision100(atom x) return bankers_rounding(x*100,100) end function
+constant x = {-4.5, -3.5, -2.5, -1.5, -0.5, 0.5, 1.5, 2.5, 3.5, 4.5}
+?apply(x,round)             -- {-4,-3,-2,-1,0,1,2,3,4,5}
+?apply(x,bankers_rounding)  -- {-4,-4,-2,-2,0,0,2,2,4,4}
+?apply(x,precision100)      -- {-400,-400,-200,-200,0,0,200,200,400,400}
+</eucode-->
+<pre>
+<font color="#008080">function</font><font color="#000000"> precision100</font><font color="#0000FF">(</font><font color="#004080">atom</font><font color="#000000"> x</font><font color="#0000FF">)</font><font color="#008080"> return</font><font color="#5E005E"> bankers_rounding</font><font color="#0000FF">(</font><font color="#000000">x</font><font color="#0000FF">*</font><font color="#000000">100</font><font color="#0000FF">,</font><font color="#000000">100</font><font color="#0000FF">)</font><font color="#008080"> end function
+constant</font><font color="#000000"> x</font><font color="#0000FF"> = {-</font><font color="#000000">4.5</font><font color="#0000FF">, -</font><font color="#000000">3.5</font><font color="#0000FF">, -</font><font color="#000000">2.5</font><font color="#0000FF">, -</font><font color="#000000">1.5</font><font color="#0000FF">, -</font><font color="#000000">0.5</font><font color="#0000FF">,</font><font color="#000000"> 0.5</font><font color="#0000FF">,</font><font color="#000000"> 1.5</font><font color="#0000FF">,</font><font color="#000000"> 2.5</font><font color="#0000FF">,</font><font color="#000000"> 3.5</font><font color="#0000FF">,</font><font color="#000000"> 4.5</font><font color="#0000FF">}
+?</font><font color="#5E005E">apply</font><font color="#0000FF">(</font><font color="#000000">x</font><font color="#0000FF">,</font><font color="#5E005E">round</font><font color="#0000FF">)            </font><font color="#000080"><i> -- {-4,-3,-2,-1,0,1,2,3,4,5}</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">apply</font><font color="#0000FF">(</font><font color="#000000">x</font><font color="#0000FF">,</font><font color="#5E005E">bankers_rounding</font><font color="#0000FF">) </font><font color="#000080"><i> -- {-4,-4,-2,-2,0,0,2,2,4,4}</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">apply</font><font color="#0000FF">(</font><font color="#000000">x</font><font color="#0000FF">,</font><font color="#000000">precision100</font><font color="#0000FF">)     </font><font color="#000080"><i> -- {-400,-400,-200,-200,0,0,200,200,400,400}</i></font>
+</pre>
+            <br>
+            The reason you might want to use banker&rsquo;s rounding is so that the average of the rounded numbers is as close as possible to 
+            the average of the original numbers (ditto total), whereas always rounding up obviously introduces a systemic bias. <br>
+            Above, the standard rounding average is out by 0.1, whereas the average x and the average bankers are both exactly zero, not
+            that it would be difficult to construct a deliberately biased x such that the opposite were true; you only get better outputs
+            for evenly-dispersed/unbiased inputs.
+            <br>
+            <br>
+            Note that this is only possible when working in whole (integer) pennies/cents (and above), <i>not</i> pounds/dollars to 2dp, and the 
+            precision is <i>not</i> inverted (see Technicalia). Should you want to store things in 2dp format, that&rsquo;s fine as long as you 
+            round(*100) to get exact whole integer penny/cent values back out when you retrieve them, that is prior to attempting any subsequent 
+            calculations that are likely to end up requiring any further banker&rsquo;s rounding, but of course you don&rsquo;t need to do that
+            if all you&rsquo;re going to do is print or add and subtract them. It should make no difference whatsoever if you use round() or
+            bankers_rounding() to retrieve the whole integer penny/cent values.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Examples:</b>
          </td>
          <td>
 <!--eucode>
-y = sq_floor({0.5, -1.6, 9.99, 100})
--- y is {0, -2, 9, 100}
+?sq_floor({0.5, -1.6, 9.99, 100}) -- {0, -2, 9, 100}
+?round(1.4)         -- 1
+?round(1.6)         -- 2
+?round(8.136,100)   -- 8.14
+?ceil(1.4)          -- 2
+?ceil(-1.4)         -- -1
+?trunc(1.4)         --  1
+?floor(1.4)         --  1
+?trunc(-1.4)        -- -1
+?floor(-1.4)        -- -2
 </eucode-->
 <pre>
-<font color="#000000">y</font><font color="#0000FF"> =</font><font color="#5E005E"> sq_floor</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">0.5</font><font color="#0000FF">, -</font><font color="#000000">1.6</font><font color="#0000FF">,</font><font color="#000000"> 9.99</font><font color="#0000FF">,</font><font color="#000000"> 100</font><font color="#800000">}</font><font color="#0000FF">)
-</font><font color="#000080"><i>-- y is {0, -2, 9, 100}</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">sq_floor</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">0.5</font><font color="#0000FF">, -</font><font color="#000000">1.6</font><font color="#0000FF">,</font><font color="#000000"> 9.99</font><font color="#0000FF">,</font><font color="#000000"> 100</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#000080"><i> -- {0, -2, 9, 100}</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">round</font><font color="#0000FF">(</font><font color="#000000">1.4</font><font color="#0000FF">)        </font><font color="#000080"><i> -- 1</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">round</font><font color="#0000FF">(</font><font color="#000000">1.6</font><font color="#0000FF">)        </font><font color="#000080"><i> -- 2</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">round</font><font color="#0000FF">(</font><font color="#000000">8.136</font><font color="#0000FF">,</font><font color="#000000">100</font><font color="#0000FF">)  </font><font color="#000080"><i> -- 8.14</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">ceil</font><font color="#0000FF">(</font><font color="#000000">1.4</font><font color="#0000FF">)         </font><font color="#000080"><i> -- 2</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">ceil</font><font color="#0000FF">(-</font><font color="#000000">1.4</font><font color="#0000FF">)        </font><font color="#000080"><i> -- -1</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">trunc</font><font color="#0000FF">(</font><font color="#000000">1.4</font><font color="#0000FF">)        </font><font color="#000080"><i> --  1</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">floor</font><font color="#0000FF">(</font><font color="#000000">1.4</font><font color="#0000FF">)        </font><font color="#000080"><i> --  1</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">trunc</font><font color="#0000FF">(-</font><font color="#000000">1.4</font><font color="#0000FF">)       </font><font color="#000080"><i> -- -1</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">floor</font><font color="#0000FF">(-</font><font color="#000000">1.4</font><font color="#0000FF">)       </font><font color="#000080"><i> -- -2</i></font>
 </pre>
          </td>
         </tr>
@@ -58,7 +148,8 @@ y = sq_floor({0.5, -1.6, 9.99, 100})
           <b>Implementation:</b>
          </td>
          <td>
-            via :%opFloor in builtins\VM\pUnary.e (an autoinclude)
+            floor(): via :%opFloor in builtins\VM\pUnary.e (an autoinclude)<br>
+            round(), bankers_rounding(), ceil(), trunc(): see builtins\pmaths.e (an autoinclude) for details of the actual implementation.
          </td>
         </tr>
         <tr>
@@ -66,12 +157,44 @@ y = sq_floor({0.5, -1.6, 9.99, 100})
           <b>See Also:</b>
          </td>
          <td>
-          <a href="remainder.htm">remainder</a>,
-          <a href="ceil.htm">ceil</a>,
-          <a href="trunc.htm">trunc</a>
+          <a href="apply.htm">apply</a>,
+          <a href="remainder.htm">remainder</a>
+         </td>
+        </tr>
+        <tr id="Technicalia" style="display:none;">
+         <td>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+            The precision is specified in inverted form for a simple practical reason: atoms cannot hold the 
+            <a href="accuracy.htm">exact</a> value of a decimal fraction such as 0.01, which is particularly 
+            significant when attempting to round values near to the accuracy limits of the physical hardware, 
+            where a small deviation in the input can easily manifest as a large discrepancy in the result. 
+            <br>
+            <br>
+            While much the same effect can be observed both when rounding to the nearest very small amount as 
+            when rounding to the nearest very large amount, any discrepancy in the latter is percentagewise 
+            insignificant, and less likely to be multiplied by a very big number, and therefore less critical.
+            <br>
+            <br>
+            Since eg 0.045 cannot be held exactly in an IEEE 754 floating point, it would be rather difficult 
+            to coerce it to (almost) 0.04 rather than (almost) 0.05 - it would instead naturally fall depending 
+            on whether the nearest admissible representation was out by +/-epsilon. An abs(frac-0.5)<1e-13 or 
+            similar rather than frac=0.5 (see pmaths.e) might work, but could introduce another (small) bias of 
+            the very same kind that we are trying to eliminate. Best to just stick with integers. There is of
+            course nothing to stop you taking a copy of bankers_rounding() and creating a (renamed) application
+            specific version of it, tweaked however you like.
+            <br>
+            <br>
+            Likewise if bankers_rounding() had an inverted precision, inaccuracies in the representation of 
+            (eg) 0.01 could totally spanner it, hence it has an non-inverted and integer precision.<br>
+            The integer return type of bankers_rounding() is quite deliberate.
          </td>
         </tr>
        </table>
+       <img src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
        <br>
        <br>
       </div>

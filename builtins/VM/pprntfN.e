@@ -21,7 +21,7 @@
 --  (which is something prepend, as opposed to append, /always/ does)
 --  which causes a fatal error, eg see 'elsif fmt[i]='s' then'.
 
---/**/without debug -- remove to debug (just keeps ex.err clutter-free)
+--!/**/without debug -- remove to debug (just keeps ex.err clutter-free)
 --!/**/with debug
 --  NB the "without debug" in both pdiag.e and ppp.e overshadow the one
 --      here; use "with debug" and/or "-nodiag" to get a listing.
@@ -458,7 +458,8 @@ function allascii(string x, integer enquote='q')
 -- before printing it as a string.
 integer c
 bool backtick = (enquote='q')
-sequence bsi = {}
+--sequence bsi = {}
+sequence bsi = repeat(0,0)
     for i=length(x) to 1 by -1 do
         c = x[i]
 --31/1/15:
@@ -509,6 +510,8 @@ sequence bases
 --integer r_len = 0
 bool unicode_align = false
 
+--forward function sprint(object x, integer asCh=false, maxlen=-1, nest=0)
+
 --without trace
 function sprintf_(sequence fmt, object args)
 integer i, fi, fidx
@@ -558,9 +561,15 @@ integer tmp
             nan = 3.245673689e243   --   RDS --*/
 
             bases = {10,16,8,2}
-            hexchar = "0123456789ABCDEFabcdef"
+--          hexchar = "0123456789ABCDEFabcdef"
+--          hexchar = tagset('9','0') & tagset('Z','A') & tagset('z','a')
+            hexchar = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+--  ?hexchar
+--  ?hexchar[1+10]&""       -- 'A'
+--  ?hexchar[1+10+26]&""    -- 'a'
+
 --          dxoetc = "dxobscvefgEXG"
-            dxoetc = "dxobstcvefgEXG"
+            dxoetc = "dxobstcvVefgEXG"
             init2 = 1
         end if
         leave_cs()
@@ -643,67 +652,89 @@ integer tmp
                 -- 12/1/19 'v' added
                 -- 11/12/19 't' added
                 -- 16/11/20 'q' and 'Q' added
-                if fi='q' or fi='Q' then
-                    enquote = fi
-                    fi = 's'
-                end if
---              fidx = find(fi,"dxobstcvefgEXG")
-                fidx = 0
-                for dx=1 to length(dxoetc) do
-                    if fi=dxoetc[dx] then
-                        fidx = dx
-                        exit
+                -- 22/05/21 'a' and 'A' added
+                if fi='a' or fi='A' then
+                    lowerHex = fi='a'
+                    fidx = 0
+                    bool bBad = atom(args) or nxt>length(args)
+                    if not bBad then
+                        o = args[nxt]
+                        bBad = atom(o) or length(o)!=2 or not integer(o[1]) or not atom(o[2])
+                        if not bBad then
+                            {base,work} = o
+                            bBad = base<2 or base>iff(lowerHex?36:62)
+                        end if
                     end if
-                end for
-                if fi='X' then
-                    --
-                    -- Yup, I know it's a wee bit confusing, but for compatibility
-                    --  reasons, %x is upper case hex and %X is lower case hex!
-                    -- Assuming any objections from the backwards compatibility crowd 
-                    --  are drowned out by many more from the logical behaviour crowd,
-                    --  set lowerHex to 1/0 rather than the 0/1 it is now.
-                    --
-                    lowerHex = 1
-                    fidx = 2
-                end if
+                    if bBad then
+                        crash("%%%c requires {base,num}",fi,3)
+                    end if
+                else
 
-                if fidx=0
---              or (showcommas and find(fi,"df")=0) then
-                or (showcommas and fi!='d' and fi!='f') then
-                    badfmt()
-                end if
-                if not atom(args) and nxt>length(args) then
---/**/              #ilASM{
---!/**/                 [32]
---/**/                      mov al,70                           -- Phix
---!/**/                     xor edi,edi         -- ep1 unused   -- Phix
---!/**/                     xor esi,esi         -- ep2 unused   -- Phix
---!/**/                 [64]
---!/**/                     call :%pRTErn }     -- fatal error  -- Phix
---/**/                      mov ecx,2                           -- Phix
---/**/                      jmp :!fatalN                        -- Phix
---/**/                      int3 }                              -- Phix
+                    if fi='q' or fi='Q' then
+                        enquote = fi
+                        fi = 's'
+                    end if
+--                  fidx = find(fi,"dxobstcvefgEXG")
+                    fidx = find(fi,dxoetc)
+--                  fidx = 0
+--                  for dx=1 to length(dxoetc) do
+--                      if fi=dxoetc[dx] then
+--                          fidx = dx
+--                          exit
+--                      end if
+--                  end for
+                    if fi='X' then
+                        --
+                        -- Yup, I know it's a wee bit confusing, but for compatibility
+                        --  reasons, %x is upper case hex and %X is lower case hex!
+                        -- Assuming any objections from the backwards compatibility crowd 
+                        --  are drowned out by many more from the logical behaviour crowd,
+                        --  set lowerHex to 1/0 rather than the 0/1 it is now.
+                        --
+                        lowerHex = 1
+                        fidx = 2
+                    end if
+
+                    if fidx=0
+--                  or (showcommas and find(fi,"df")=0) then
+                    or (showcommas and fi!='d' and fi!='f') then
+                        badfmt()
+                    end if
+                    if not atom(args) and nxt>length(args) then
+--/**/                  #ilASM{
+--!/**/                     [32]
+--/**/                          mov al,70                           -- Phix
+--!/**/                         xor edi,edi         -- ep1 unused   -- Phix
+--!/**/                         xor esi,esi         -- ep2 unused   -- Phix
+--!/**/                     [64]
+--!/**/                         call :%pRTErn }     -- fatal error  -- Phix
+--/**/                          mov ecx,2                           -- Phix
+--/**/                          jmp :!fatalN                        -- Phix
+--/**/                          int3 }                              -- Phix
 --/**/                                                  --/*    -- Phix
-                    puts(1,"insufficient values for sprintf\n") -- RDS
-                    if getc(0) then end if                      -- RDS
-                    abort(1)                                    -- RDS --*/
+                        puts(1,"insufficient values for sprintf\n") -- RDS
+                        if getc(0) then end if                      -- RDS
+                        abort(1)                                    -- RDS --*/
+                    end if
                 end if
                 if fidx<=4 then -- dxob
-                    base = bases[fidx]  --{10,16,8,2}
-                    o = args
-                    work = 0
-                    if atom(o) then
-                        if o!=nan and o!=-nan and o!=inf then
-                            work = floor(o)
-                        end if
-                    else
-                        o = args[nxt]
+                    if fidx!=0 then
+                        base = bases[fidx]  --{10,16,8,2}
+                        o = args
+                        work = 0
                         if atom(o) then
                             if o!=nan and o!=-nan and o!=inf then
                                 work = floor(o)
                             end if
                         else
-                            o = 0
+                            o = args[nxt]
+                            if atom(o) then
+                                if o!=nan and o!=-nan and o!=inf then
+                                    work = floor(o)
+                                end if
+                            else
+                                o = 0
+                            end if
                         end if
                     end if
                     if work then
@@ -731,7 +762,8 @@ end if
 --20/3/2013:
 --                          if hc=0 then exit end if
                             if lowerHex and hc>10 then
-                                hc += 6
+--                              hc += 6
+                                hc += 26
                             end if
                             if showcommas and showcommas=length(r1) then
                                 r1 = append(r1,',')
@@ -780,7 +812,7 @@ end if
                             r1 = repeat('0',1)
                         end if
                     end if
-                elsif fidx<=8 then  -- 's' or 't' or 'c' or 'v'
+                elsif fidx<=9 then  -- 's' or 't' or 'c' or 'v'
                     if showplus then badfmt() end if
                     if atom(args) then
                         o = args
@@ -796,8 +828,10 @@ end if
                     end if
                     if fi='v' then
                         o = sprint(o)
+                    elsif fi='V' then
+                        o = sprint(o,-1)
                         -- aside: in the following if construct, only the  
-                        -- last (ie precision) branch is revelant to %v.
+                        -- last (ie precision) branch is relevant to %v.
                     elsif fi='t' then
                         o = iff(o?"true":"false")
                     elsif enquote then
@@ -874,7 +908,8 @@ end if
                     if showcommas then -- ('f' only)
 --19/09/2020 bugfix (caused by the introduction of %t)
 --                      if fidx!=9 then badfmt() end if
-                        if fidx!=10 then badfmt() end if
+--                      if fidx!=10 then badfmt() end if
+                        if fidx!=11 then badfmt() end if
                         showcommas = find('.',r1)
                         if showcommas=0 then showcommas = length(r1)+1 end if
 --19/09/2020 bugfix ("-999" -> "-,999")
@@ -969,29 +1004,39 @@ global procedure printf(integer fn, sequence fmt, object args={})
     end if
 end procedure
 
---global function sprint(object x)
-global function sprint(object x, integer maxlen=-1, integer nest=0)
+global function sprint(object x, integer asCh=false, maxlen=-1, nest=0)
 -- Return the string representation of any data object. 
 -- This is the same as the output from print(1, x) or '?', 
 --  but returned as a string sequence rather than printed.
+-- asCh: true: print eg 65 as 65'A', 
+--       false: not top-level,
+--           -1: sticky false
+-- maxlen, nest: see docs
 -- Alternative: see ppp.e (ppf/ppOpt/ppExf).
 object s, xi
 
     if atom(x) then
---      s = sprintf("%.10g", x)
-        string fmt = '%'&'.'&'1'&'0'&'g'
-        s = sprintf(fmt,x)
-        if not integer(x)
+--      if asCh and integer(x) and ((x>=' ' and x<='~') or find(x,"\r\n\t"))
+        if asCh=true    -- (not false or -1)
+        and integer(x) 
+        and (x>=' ' and x<='~') then
+            s = sprintf("%d'%c'",x)
+        else
+--          s = sprintf("%.10g", x)
+            string fmt = '%'&'.'&'1'&'0'&'g'
+            s = sprintf(fmt,x)
+            if not integer(x)
 --removed 3/11/15 (so that eg 2000000000 gets the ".0")
---      and integer(floor(x))
-        and not find('.',s)
-        and not find('e',s)         -- eg 1e308
-        and not find('n',s) then    -- (inf/nan)
-            -- make sure you can tell 5 and 5.00000000001 
-            --  apart in ex.err, trace, ?x, and the like.
---          s &= ".0"
-            s &= '.'
-            s &= '0'
+--          and integer(floor(x))
+            and not find('.',s)
+            and not find('e',s)         -- eg 1e308
+            and not find('n',s) then    -- (inf/nan)
+                -- make sure you can tell 5 and 5.00000000001 
+                --  apart in ex.err, trace, ?x, and the like.
+--              s &= ".0"
+                s &= '.'
+                s &= '0'
+            end if
         end if
         return s
     end if
@@ -1023,15 +1068,16 @@ object s, xi
     end if
 --  s = "{"
     s = repeat('{',1)
+    if asCh=false then asCh=true end if -- (nb -1 and true left as-is)
     for i=1 to length(x) do
 --      s &= sprint(x[i])
         xi = x[i]
         if maxlen=-1 then
 --          s &= sprint(xi)
-            s &= sprint(xi,-1,nest+1)
+            s &= sprint(xi,asCh,-1,nest+1)
         else
             if maxlen>length(s) then
-                s &= sprint(xi,maxlen-length(s),nest+1)
+                s &= sprint(xi,asCh,maxlen-length(s),nest+1)
             end if
             if length(s)>=maxlen then
                 if nest=0 then
@@ -1055,8 +1101,8 @@ object s, xi
 end function
 
 --DEV move this to pfileioN.e:
-global procedure print(integer fn, object x, integer maxlen=-1)
+global procedure print(integer fn, object x, integer asCh=false, maxlen=-1)
 -- Print a string representation of any data object.
 -- Alternative: see ppp.e (pp/ppOpt/ppEx).
-    puts(fn,sprint(x,maxlen))
+    puts(fn,sprint(x,asCh,maxlen))
 end procedure

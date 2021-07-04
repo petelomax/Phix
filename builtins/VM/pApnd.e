@@ -457,9 +457,12 @@ end procedure -- (for Edita/CtrlQ)
         push ecx                --[1] save new element
 --      cmp edi,[esp]           -- must be pbr-optimise (x=append(x,..)) [BUG! (push ecx)]
         cmp edi,[esp+4]         -- must be pbr-optimise (x=append(x,..)) (cmp addr p2, addr p1)
-        jne :ApndNewSeq
+--11/5/21:
+--      jne :ApndNewSeq
+        jne :ApndNewSeqClone
         cmp dword[esi-8],1      -- check ref count of 1
-        jne :ApndNewSeq
+        jne :ApndNewSeqClone    -- (opAlloClone then pAllocSeq)
+--      jne :ApndNewSeq
 --      cmp edi,[esp+8]         -- and not circular (x=append(x,x)) [BUG! (push ecx)]
         cmp edi,[esp+12]        -- and not circular (x=append(x,x)) (cmp addr p2, addr p3)
         je :ApndNewSeq
@@ -498,9 +501,12 @@ end procedure -- (for Edita/CtrlQ)
         push rcx                --[1] save new element
 --      cmp edi,[esp]           -- must be pbr-optimise (x=append(x,..)) [BUG! (push ecx)]
         cmp rdi,[rsp+8]         -- must be pbr-optimise (x=append(x,..)) (cmp addr p2, addr p1)
-        jne :ApndNewSeq
+--11/5/21:
+--      jne :ApndNewSeq
+        jne :ApndNewSeqClone
         cmp qword[rsi-16],1     -- check ref count of 1
-        jne :ApndNewSeq
+        jne :ApndNewSeqClone    -- (pAlloClone then pAllocSeq)
+--      jne :ApndNewSeq
 --      cmp edi,[esp+8]         -- and not circular (x=append(x,x)) [BUG! (push ecx)]
         cmp rdi,[rsp+24]        -- and not circular (x=append(x,x)) (cmp addr p2, addr p3)
         je :ApndNewSeq
@@ -869,6 +875,18 @@ end procedure -- (for Edita/CtrlQ)
         jmp :%pFreePool         -- free rcx bytes at rax (ignoring any delete_routine)
     []
 
+  ::ApndNewSeqClone
+    [32]
+        mov ecx,edx
+        mov edx,[esp+20]        -- era
+        call :%pAlloClone       -- damages eax only
+        mov edx,ecx
+    [64]
+        mov rcx,rdx
+        mov rdx,[rsp+40]        -- era
+        call :%pAlloClone       -- damages eax only
+        mov rdx,rcx
+    []
   ::ApndNewSeq
 --------------
     [32]
@@ -888,6 +906,7 @@ end procedure -- (for Edita/CtrlQ)
         shl edi,2               --              ...->dword
         add ecx,1               -- increase length by 1
         mov edx,[esp+20]        -- era
+--X     call :%pAlloClone       -- (done above)
         call :%pAllocSeq        -- damages eax only
         push eax                --[2] save new ref
         lea edi,[edi+eax*4]     -- edi -> new[1] for append, or new[2] for prepend
@@ -942,6 +961,7 @@ end procedure -- (for Edita/CtrlQ)
         shl rdi,3               --              ...->qword
         add rcx,1               -- increase length by 1
         mov rdx,[rsp+40]        -- era
+--X     call :%pAlloClone       -- (done above)
         call :%pAllocSeq        -- damages eax only
         push rax                --[2] save new ref
         lea rdi,[rdi+rax*4]     -- rdi -> new[1] for append, or new[2] for prepend
@@ -1093,6 +1113,10 @@ end procedure -- (for Edita/CtrlQ)
             -- if p1==p3 then just return
             cmp edx,[esp+8]
             je :CCret
+--p2js 25/4/21: (causes too many non-1 refcounts)
+            cmp byte[ecx-1],0x80
+            je @f
+--</p2js>
             lea eax,[ecx+1]
             add dword[ecx-8],1      -- increment refcount of p3.
             ror eax,2
@@ -1212,7 +1236,8 @@ end if
 
   ::CCtwoSeq
 ------------
-        -- p2 is a dword-sequence, and p3 is a seq/str. Neither are length 0
+--X     -- p2 is a dword-sequence, and p3 is a seq/str. Neither are length 0
+        -- p2 is a dword-sequence, and p3 is a seq/str. NB p2 can be length 0
         -- recap:
         --  addr p1,p2,p3,flag @ [esp],[esp+4],[esp+8],[esp+12]
         --  edi is the new length
@@ -1223,7 +1248,8 @@ end if
         cmp edx,[esp+4]         -- p1==p2?
         jne :CCnewSeq
         cmp dword[esi-8],1          -- refcount 1?
-        jne :CCnewSeq
+        jne :CCnewSeqClone
+--      jne :CCnewSeq
         mov edx,[esi-16]        -- maxlen
         sub edx,[esi-20]        -- slack (we make no attempt to use that here)
         sub edx,20
@@ -1232,6 +1258,7 @@ end if
 -- advice taken, 30/1/15:
 --jg?
 --      jl :CCnewSeq
+--DEV not call :%pAlloClone...: (we are also doing a bunch of pointless increfs)
         jg :CCnewSeq
         mov edx,[esi-12]        -- length(p2)
         cmp byte[ecx-1],#82
@@ -1267,9 +1294,13 @@ end if
         add esp,16
         ret
 
+  ::CCnewSeqClone
+        mov edx,[esp+16]            -- era
+        call :%pAlloClone
   ::CCnewSeq
 ------------
-        -- p2 is a dword-sequence, and p3 is a seq/str. Neither are length 0
+--X     -- p2 is a dword-sequence, and p3 is a seq/str. Neither are length 0
+        -- p2 is a dword-sequence, and p3 is a seq/str. NB p2 can be length 0
         -- recap:
         --  addr p1,p2,p3,flag,era @ [esp],[esp+4],[esp+8],[esp+12],[esp+16]
         --  edi is the new length
@@ -1281,11 +1312,14 @@ end if
         mov edx,[esp+16]            -- era
         push ecx
         mov ecx,edi
-        call :%pAllocSeq
+--X     call :%pAlloClone       -- (done above)
+        call :%pAllocSeq        -- damages eax only
         pop edx
         lea edi,[ebx+eax*4]
         push eax
         mov ecx,[esi-12]
+        cmp ecx,0
+        je :CCnsp2empty
       ::CCnsClonep2Loop 
         lodsd
         stosd
@@ -1295,6 +1329,7 @@ end if
       @@:
         sub ecx,1
         jnz :CCnsClonep2Loop
+      ::CCnsp2empty
         mov ecx,[edx-12]            -- length p3
         mov esi,edx
         cmp byte[edx-1],#82
@@ -1322,7 +1357,8 @@ end if
     
   ::CCstrSeq
 ------------
-        -- p2 is a string, p3 is a dword-sequence. Neither are length 0
+--X     -- p2 is a string, p3 is a dword-sequence. Neither are length 0
+        -- p2 is a string, p3 is a dword-sequence. NB p2 can be length 0
         -- recap:
         --  addr p1,p2,p3,flag,era @ [esp],[esp+4],[esp+8],[esp+12],[esp+16]
         --  edi is the new length
@@ -1340,11 +1376,14 @@ end if
         push eax
         mov ecx,[esi-12]
         xor eax,eax
+        cmp ecx,0
+        je :CCnss2empty
       ::CCssExpandp2Loop 
         lodsb
         stosd
         sub ecx,1
         jnz :CCssExpandp2Loop
+      ::CCnss2empty
         mov ecx,[edx-12]            -- length p3
         mov esi,edx
         jmp :CCnsClonep3Loop
@@ -1389,6 +1428,10 @@ end if
             -- if p1==p3 then just return
             cmp rdx,[rsp+16]        -- DEV might refs (rather that addrs) be better?
             je :CCret64
+--p2js 25/4/21: (causes too many non-1 refcounts)
+            cmp byte[rcx-1],#80
+            je @f
+--</p2js>
             lea rax,[rcx+1]
             add qword[rcx-16],1     -- increment refcount of p3.
             ror rax,2
@@ -1479,7 +1522,8 @@ end if
 
   ::CCtwoSeq64
 --------------
-        -- p2 is a dword-sequence, and p3 is a seq/str. Neither are length 0
+--X     -- p2 is a dword-sequence, and p3 is a seq/str. Neither are length 0
+        -- p2 is a dword-sequence, and p3 is a seq/str. NB p2 can be length 0
         -- recap:
         --  addr p1,p2,p3,flag @ [rsp],[rsp+8],[rsp+16],[rsp+24]
         --  rdi is the new length
@@ -1490,7 +1534,8 @@ end if
         cmp rdx,[rsp+8]         -- p1==p2?
         jne :CCnewSeq64
         cmp qword[rsi-16],1         -- refcount 1?
-        jne :CCnewSeq64
+        jne :CCnewSeq64Clone
+--      jne :CCnewSeq64
         mov rdx,[rsi-32]        -- maxlen
         sub rdx,[rsi-40]        -- slack (we make no attempt to use that here)
         sub rdx,40
@@ -1499,6 +1544,7 @@ end if
 --advice belatedly taken (to match 32-bit) 28/8/15..
 --jg?
 --      jl :CCnewSeq64
+--dev not :%pAlloClone      -- (we are also doing a bunch of pointless incref)
         jg :CCnewSeq64
         mov rdx,[rsi-24]        -- length(p2)
         cmp byte[rcx-1],#82
@@ -1536,9 +1582,13 @@ end if
         add rsp,32
         ret
 
+  ::CCnewSeq64Clone
+        mov rdx,[rsp+32]            -- era
+        call :%pAlloClone
   ::CCnewSeq64
 --------------
-        -- p2 is a dword-sequence, and p3 is a seq/str. Neither are length 0
+--X     -- p2 is a dword-sequence, and p3 is a seq/str. Neither are length 0
+        -- p2 is a dword-sequence, and p3 is a seq/str. NB p2 can be length 0
         -- recap:
         --  addr p1,p2,p3,flag,era @ [rsp],[rsp+8],[rsp+16],[rsp+24],[rsp+32]
         --  rdi is the new length
@@ -1550,11 +1600,14 @@ end if
         mov rdx,[rsp+32]            -- era
         push rcx
         mov rcx,rdi
-        call :%pAllocSeq
+--X     call :%pAlloClone           -- (done above)
+        call :%pAllocSeq            -- damages eax only
         pop rdx
         lea rdi,[rbx+rax*4]
         push rax
         mov rcx,[rsi-24]
+        cmp rcx,0
+        je :CCnsp2empty64
       ::CCnsClonep2Loop64
         lodsq
         stosq
@@ -1564,6 +1617,7 @@ end if
       @@:
         sub rcx,1
         jnz :CCnsClonep2Loop64
+      ::CCnsp2empty64
 --      mov rcx,[rdx-12]            -- length p3
         mov rcx,[rdx-24]            -- length p3
         mov rsi,rdx
@@ -1592,7 +1646,8 @@ end if
     
   ::CCstrSeq64
 --------------
-        -- p2 is a string, p3 is a dword-sequence. Neither are length 0
+--X     -- p2 is a string, p3 is a dword-sequence. Neither are length 0
+        -- p2 is a string, p3 is a dword-sequence. NB p2 can be length 0
         -- recap:
         --  addr p1,p2,p3,flag,era @ [rsp],[rsp+8],[rsp+16],[rsp+24],[rsp+32]
         --  rdi is the new length
@@ -1610,11 +1665,14 @@ end if
         push rax
         mov rcx,[rsi-24]
         xor rax,rax
+        cmp rcx,0
+        je :CCnss2empty
       ::CCssExpandp2Loop64
         lodsb
         stosq
         sub rcx,1
         jnz :CCssExpandp2Loop64
+      ::CCnss2empty
         mov rcx,[rdx-24]            -- length p3
         mov rsi,rdx
         jmp :CCnsClonep3Loop64
@@ -1911,7 +1969,8 @@ end procedure -- (for Edita/CtrlQ)
         cmp edi,h4                  -- check for int=int&... case (covers "")
         jle :opConcatNnewSeq
         cmp dword[ebx+edi*4-8],1    -- refcount
-        jne :opConcatNnewSeq
+--      jne :opConcatNnewSeq
+        jne :opConcatNnewSeqClone
         cmp byte[ebx+edi*4-1],#80   -- type byte
         jne :opConcatNnewSeq
         mov ecx,[ebx+edi*4-16]      -- maxlen
@@ -1935,12 +1994,20 @@ end procedure -- (for Edita/CtrlQ)
         sub ecx,1                   -- process one less entry
         jmp :opConcatNSeqLoop
 
+      ::opConcatNnewSeqClone
+        mov ecx,edx
+        mov edx,[esp]
+        mov edx,[esp+edx*4+8]
+        call :%pAlloClone
+        jmp @f
+
       ::opConcatNnewSeq
         mov ecx,edx
 --DEV wronG!! (2/8/15)
 --      mov edx,[esp+edx*4]         -- era
         mov edx,[esp]
         mov edx,[esp+edx*4+8]
+      @@:
         call :%pAllocSeq            -- damages eax only
         pop ecx                     -- re-load N
         pop edx                     -- target address (nb must remain undamaged for a long time)
@@ -2139,7 +2206,8 @@ end procedure -- (for Edita/CtrlQ)
         cmp rdi,r15                 -- check for int=int&... case (covers "")
         jle :opConcatNnewSeq64
         cmp qword[rbx+rdi*4-16],1   -- refcount
-        jne :opConcatNnewSeq64
+        jne :opConcatNnewSeqClone64
+--      jne :opConcatNnewSeq64
         cmp byte[rbx+rdi*4-1],#80   -- type byte
         jne :opConcatNnewSeq64
         mov rcx,[rbx+rdi*4-32]      -- maxlen
@@ -2164,12 +2232,20 @@ end procedure -- (for Edita/CtrlQ)
         sub rcx,1                   -- process one less entry
         jmp :opConcatNSeqLoop64
 
+      ::opConcatNnewSeqClone64
+        mov rcx,rdx
+        mov rdx,[rsp]
+        mov rdx,[rsp+rdx*8+16]
+        call :%pAlloClone
+        jmp @f
+
       ::opConcatNnewSeq64
         mov rcx,rdx
 --DEV wronG!! (2/8/15)
 --      mov rdx,[rsp+rdx*8]         -- era
         mov rdx,[rsp]
         mov rdx,[rsp+rdx*8+16]
+      @@:
         call :%pAllocSeq            -- damages eax only
         pop rcx                     -- re-load N
         pop rdx                     -- target address (nb must remain undamaged for a long time)

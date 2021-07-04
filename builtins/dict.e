@@ -23,28 +23,31 @@ sequence trees,
          defaults,
          freelists
 integer free_trees = 0,
-        initd = 0
+        init_dict = 0
 
-procedure dinit()
+procedure dict_init()
     trees = {{}}
+--  trees = repeat(repeat(0,0),0)
     treenames = {"1"}
     roots = {0}
     sizes = {0}
     defaults = {NULL}
     freelists = {0}
-    initd = 1
+    init_dict = 1
 end procedure
 
 --DEV/SUG: (requires forward type [erm, may already be working, just not yet tried in psym/init]) ...needs MARKTYPES...
 global type dictionary(integer tid)
-    return tid=1 or (initd and tid>=1 and tid<=length(roots) and sequence(trees[tid]))
+    return tid=1 or (init_dict and tid>=1 and tid<=length(roots) and sequence(trees[tid]))
+--  return tid=1 or (init_dict and tid>=1 and tid<=length(roots))
 end type
 
 global function is_dict(object tid)
-    return tid=1 or (initd and integer(tid) and tid>=1 and tid<=length(roots) and sequence(trees[tid]))
+    return tid=1 or (init_dict and integer(tid) and tid>=1 and tid<=length(roots) and sequence(trees[tid]))
+--  return tid=1 or (init_dict and integer(tid) and tid>=1 and tid<=length(roots))
 end function
 
-procedure check(integer tid)
+procedure check_tid(integer tid)
 --28/10/20: (even though p2js.js may yet choose a completely different approach for dictionaries...)
     if not is_dict(tid) then crash("invalid dictionary id (%d)",{tid},3) end if
 --  if not is_dict(tid) then
@@ -53,12 +56,14 @@ procedure check(integer tid)
 --              jmp :!fatalN        -- fatalN(level,errcode,ep1,ep2)
 --            }
 --  end if
-    if not initd then dinit() end if
+    if not init_dict then dict_init() end if
 end procedure
 
 function newNode(object key, object data, integer tid)
-integer node = freelists[tid]
+    integer node = freelists[tid]
     if node=0 then
+--p2js: (NOT QUITE SURE HERE...)
+--/*
         node = length(trees[tid])+1
 --      trees[tid] &= {key,data,NULL,1,NULL}
         -- much faster:
@@ -67,15 +72,22 @@ integer node = freelists[tid]
         trees[tid] = append(trees[tid],NULL)
         trees[tid] = append(trees[tid],1)
         trees[tid] = append(trees[tid],NULL)
+--*/
         -- no measurable gain:
---      sequence treet = trees[tid]
---      trees[tid] = 0
---      treet = append(treet,key)
---      treet = append(treet,data)
---      treet = append(treet,NULL)
---      treet = append(treet,1)
---      treet = append(treet,NULL)
---      trees[tid] = treet
+        sequence treet = trees[tid]
+        if length(treet)=0 then
+            treet = {key,data,NULL,1,NULL}
+            node = 1
+        else
+            trees[tid] = 0
+            treet = append(treet,key)
+            node = length(treet)
+            treet = append(treet,data)
+            treet = append(treet,NULL)
+            treet = append(treet,1)
+            treet = append(treet,NULL)
+        end if
+        trees[tid] = treet
 --      node = length(treet)
     else
         freelists[tid] = trees[tid][node]
@@ -95,9 +107,9 @@ procedure setHeight(integer node, integer tid)
 end procedure
 
 function rotate(integer node, integer direction, integer tid)
-integer idirection = LEFT+RIGHT-direction
-integer pivot = trees[tid][node+idirection]
-integer temp2 = trees[tid][pivot+direction]
+    integer idirection = LEFT+RIGHT-direction,
+            pivot = trees[tid][node+idirection],
+            temp2 = trees[tid][pivot+direction]
     trees[tid][pivot+direction] = node
     trees[tid][node+idirection] = temp2
     setHeight(node,tid)
@@ -136,9 +148,13 @@ function insertNode(integer node, object key, object data, integer tid)
     return node
 end function
 
-global procedure setd(object key, object data, integer tid=1)   -- (aka putd)
-    check(tid)
+global procedure setd(object key, object data, integer tid=1)
+    check_tid(tid)
     roots[tid] = insertNode(roots[tid], key, data, tid)
+end procedure
+
+global procedure putd(object key, object data, integer tid=1)
+    setd(key, data, tid=1)
 end procedure
 
 -- (old name) now handled via psym.e/syminit()/Alias():
@@ -147,7 +163,7 @@ end procedure
 --end procedure
 
 global procedure setd_default(object o, integer tid)
-    check(tid)
+    check_tid(tid)
     defaults[tid] = o
 end procedure
 
@@ -162,12 +178,12 @@ function getNode(integer node, object key, dflt, integer tid)
 end function
 
 global function getd(object key, integer tid=1)
-    check(tid)
+    check_tid(tid)
     return getNode(roots[tid], key, defaults[tid], tid)
 end function
 
 global function getdd(object key, dflt, integer tid=1)
-    check(tid)
+    check_tid(tid)
     return getNode(roots[tid], key, dflt, tid)
 end function
 
@@ -182,12 +198,12 @@ function getKey(integer node, object key, integer tid)
 end function
 
 global function getd_index(object key, integer tid=1)
-    check(tid)
+    check_tid(tid)
     return getKey(roots[tid], key, tid)
 end function
 
 global function getd_by_index(integer node, integer tid=1)
-    check(tid)
+    check_tid(tid)
     if node=0 then return 0 end if
     return trees[tid][node+DATA]
 end function
@@ -202,11 +218,10 @@ function minValueNode(integer node, tid, direction)
 end function
 
 function deleteNode(integer root, object key, integer tid)
-integer c, left, right
     if root=NULL then return root end if
-    c = compare(key,trees[tid][root+KEY])
-    left = trees[tid][root+LEFT]
-    right = trees[tid][root+RIGHT]
+    integer c = compare(key,trees[tid][root+KEY]),
+            left = trees[tid][root+LEFT],
+            right = trees[tid][root+RIGHT]
     if c=-1 then
         trees[tid][root+LEFT] = deleteNode(left, key, tid)
     elsif c=+1 then
@@ -247,16 +262,17 @@ integer c, left, right
 end function
 
 global procedure deld(object key, integer tid=1)
-    check(tid)
+    check_tid(tid)
     roots[tid] = deleteNode(roots[tid],key,tid)
 end procedure
 
 function traverse(integer node, integer rid, object user_data, integer tid, bool rev)
-sequence tt = trees[tid]
-object key = tt[node+KEY],
-       data = tt[node+DATA]
-integer left = tt[node+LEFT],
-        right = tt[node+RIGHT]
+    object tt = trees[tid],
+           key = tt[node+KEY],
+           data = tt[node+DATA]
+    integer left = tt[node+LEFT],
+            right = tt[node+RIGHT]
+    tt = 0
     if rev then
         {left,right} = {right,left}
     end if
@@ -271,19 +287,20 @@ integer left = tt[node+LEFT],
 end function
 
 global procedure traverse_dict(integer rid, object user_data=0, integer tid=1, bool rev=false)
-    check(tid)
+    check_tid(tid)
     if roots[tid]!=0 then
         {} = traverse(roots[tid], rid, user_data, tid, rev)
     end if
 end procedure
 
 function traverse_key(integer node, integer rid, object pkey, object user_data, integer tid, bool rev)
-sequence tt = trees[tid]
-object key = tt[node+KEY],
-       data = tt[node+DATA]
-integer left = tt[node+LEFT],
-        right = tt[node+RIGHT]
-integer c = compare(key,pkey)
+    object tt = trees[tid],
+           key = tt[node+KEY],
+           data = tt[node+DATA]
+    integer left = tt[node+LEFT],
+            right = tt[node+RIGHT],
+            c = compare(key,pkey)
+    tt = 0
     if rev then
         {left,right} = {right,left}
         c = -c
@@ -301,7 +318,7 @@ integer c = compare(key,pkey)
 end function
 
 global procedure traverse_dict_partial_key(integer rid, object pkey, object user_data=0, integer tid=1, bool rev=false)
-    check(tid)
+    check_tid(tid)
     if roots[tid]!=0 then
         {} = traverse_key(roots[tid], rid, pkey, user_data, tid, rev)
     end if
@@ -316,12 +333,13 @@ end procedure
 --constant r_gpkv = routine_id("gpk_visitor")
 
 function traverser(sequence res, integer node, bool partial, object pkey, integer tid, bool rev)
-    sequence tt = trees[tid]
     if node!=NULL then
-        object key = tt[node+KEY],
+        object tt = trees[tid],
+               key = tt[node+KEY],
                data = tt[node+DATA]
         integer left = tt[node+LEFT],
                 right = tt[node+RIGHT]
+        tt = 0
         integer c = iff(partial?compare(key,pkey):0)
         if rev then
             {left,right} = {right,left}
@@ -340,7 +358,7 @@ function traverser(sequence res, integer node, bool partial, object pkey, intege
 end function
 
 global function getd_partial_key(object pkey, integer tid=1, bool rev=false)
-    check(tid)
+    check_tid(tid)
 --if 0 then
 --  gpk = defaults[tid]
 --  if roots[tid]!=0 then
@@ -358,12 +376,16 @@ global function getd_partial_key(object pkey, integer tid=1, bool rev=false)
 end function
 
 global function getd_all_keys(integer tid=1)
-    check(tid)
-    return traverser({}, roots[tid], false, NULL, tid, false)
+    check_tid(tid)
+--p2js:
+--  return traverser({}, roots[tid], false, NULL, tid, false)
+    sequence res = {}
+    res = traverser(res, roots[tid], false, NULL, tid, false)
+    return res
 end function
 
 global function dict_size(integer tid=1)
-    check(tid)
+    check_tid(tid)
     return sizes[tid]
 end function
 
@@ -387,7 +409,7 @@ global function pop_dict(integer tid=1, bool rev=false)
 end function
 
 global function dict_name(integer tid=1)
-    check(tid)
+    check_tid(tid)
     return treenames[tid]
 end function
 
@@ -406,7 +428,7 @@ global function new_dict(object kd_pairs = {}, integer pool_only=0)
 --if "abc"="def" then object x=f(1) x=f(1.5); x=f(""); x=f({1,1.5,"",{x}}) end if
 --kd_pairs = f(kd_pairs)
 --pool_only = f(pool_only)
-    if not initd then dinit() end if
+    if not init_dict then dict_init() end if
     integer tid = free_trees
     if tid!=0 then
         free_trees = trees[free_trees]
@@ -418,6 +440,7 @@ global function new_dict(object kd_pairs = {}, integer pool_only=0)
         freelists[tid] = 0
     elsif pool_only=0 then
         trees = append(trees,{})
+--      trees = append(trees,repeat(0,0))
         treenames = append(treenames,"")
         roots &= NULL
         sizes &= 0
@@ -449,8 +472,9 @@ global function new_dict(object kd_pairs = {}, integer pool_only=0)
         end for
     else
         integer copy_tid = kd_pairs
-        check(copy_tid)     
-        trees[tid] = trees[copy_tid]
+        check_tid(copy_tid)     
+--      trees[tid] = trees[copy_tid]
+        trees[tid] = deep_copy(trees[copy_tid])
         freelists[tid] = freelists[copy_tid]
         -- programming note: the above is not really a copy, but 
         --                   of course the cow-semantics of phix
@@ -469,11 +493,12 @@ global procedure destroy_dict(integer tid, bool justclear=false)
 --       In contrast, destroy_dict(5) is fatal when 5 is not a valid dictionary, or
 --       (equivalently) was the recent subject of a destroy_dict() call.
 --
-    check(tid)
+    check_tid(tid)
     if tid=1 or justclear then
         -- just empty the default, but leave it still available
         -- (this also means that new_dict() can never return 1)
         trees[tid] = {}
+--      trees[tid] = repeat(0,0)
         roots[tid] = NULL
         sizes[tid] = 0
         defaults[tid] = NULL

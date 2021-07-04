@@ -855,6 +855,18 @@ constant diffis = ", diff="
 --constant psssob = " ("
 --constant pssccr = ")\n"
 
+--/*
+integer withjs = 3  -- for with[out] js/javascript[_semantics]:
+                    --  0b01: without js
+                    --  0b10: with js
+                    --  0b11: default/without js/reset
+                    -- 1 <==> 2 is error, but 3 <==> 1 | 2 | 3 is fine.
+                    --  (uses test[aka bitwise and]!=0 for validity)
+                    --  (:%opAlloClone crashes if bit 01 is not set)
+--*/
+integer withjs = 0  -- with(1) / without(0) js/javascript[_semantics]
+                    -- treat 2 (meaning any) as 0 (aka without)
+
 --DEV:
 #ilASM{ jmp :!opCallOnceYeNot
 --#ilASM{ jmp :fin
@@ -3481,6 +3493,69 @@ end procedure -- (for Edita/CtrlQ)
         ror rax,2                       -- rotated,
     []
         ret
+
+    :%pWithJS
+-------------
+        --
+        --  mov e/rax flag  (1 for without js, 2 for with js, 3 to reset)
+        --  call :%opWithJS
+        --  e/rcx contains prev, should you need it (mov to e/rax and re-call to preserve)
+        --  e/rdx trashed
+        --
+    [32]
+--      and eax,1
+--      mov ecx,[withjs]
+--      mov edx,[esp]
+        mov [withjs],eax
+--      sub edx,1
+--      test eax,ecx
+    [64]
+--      and rax,1
+--      mov rcx,[withjs]
+--      mov rdx,[rsp]
+        mov [withjs],rax
+--      sub rdx,1
+--      test rax,rcx
+    []
+--      jnz @f
+--          mov al,29       -- e29wojsc
+--          jmp :!iDiag
+--          int3
+--    @@:
+        ret
+
+    :%pAlloClone
+----------------
+    --
+    -- About to clone a sequence because its refcount!=1.
+    -- If withjs is in force, terminate in error.
+    -- e/rdx should be set to era on entry, all registers preserved
+    --  
+--DEV ... (fixes needed in pilasm)
+--      test [withjs],1
+    [32]
+        mov eax,[withjs]
+        test eax,1
+    [64]
+        mov rax,[withjs]
+        test rax,1
+    []
+--</dev>
+        jz @f
+            mov al,56           -- e56rocow, "p2js violation: relies on copy on write semantics"
+    [32]
+            sub edx,1
+            mov [withjs],ebx
+    [64]
+            sub rdx,1
+            mov [withjs],rbx
+    []
+            jmp :!iDiag
+            int3
+      @@:       
+--*/
+        ret
+
 
 --/*
 procedure :%pAllocSeq(:%)

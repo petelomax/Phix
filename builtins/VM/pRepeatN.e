@@ -1,3 +1,4 @@
+DEAD - replaced with builtins/repeat.e
 --
 -- builtins/VM/pRepeatN.e
 -- ======================

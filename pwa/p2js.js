@@ -1,13 +1,19 @@
 "use strict";
 //
-// Part 1: utilities puts(), crash(), and [s]printf().
-// ==================================================
+// p2js.js: core language
+// ======================
 //
-// Aside: js allows $ in identifiers; we use that fact to effectively
-//        "hide" things from p2js.exw generated code. For instance,
-//        statics like $docBody, $prefer_backtick, and $seed, as well 
-//        as internal/private helpers such as $typeCheckError(), and 
-//        general use routines such as $conCat() and $deepCopy().
+//  Implements: standard constants, at least those that are useful,
+//              utilities such as puts(), crash(), and [s]printf(),
+//              types integer/atom/string/sequence/object (see docs),
+//              all the usual builtins like length(), append(), etc,
+//              but not "transpilables" such as tagset(), join_by().
+//
+//  Aside: js allows $ in identifiers; we use that fact to effectively
+//         "hide" things from p2js.exw generated code. For instance,
+//         statics like $docBody, $prefer_backtick, and $seed, as well 
+//         as internal/private helpers such as $typeCheckError(), and 
+//         general use routines such as $conCat().
 //
 // Style conventions
 // =================
@@ -22,87 +28,90 @@
 //  outnumber camelCase here, simply because the vast majority /are/
 //  based on something in phix.
 //
-// Quickref:   
-// =========
-//[DEV see phix.chm\Other Libraries\pwa/p2js\JavaScript in pwa/p2js]
-//  array.slice(start,end): [nb: shallow copy...] **DEV***
-//      if a is ["sequence",1,2,3,4], a.slice(3) is [3,4],
-//                                and a.slice(1,2) is [1].
-//  array.splice(start,deleteCount,item...):
-//      let a = ['a', 'b', 'c'],
-//          r = a.splice(1, 1, 'ache', 'bug');
-//      a is ['a', 'ache', 'bug', 'c']
-//      r is ['b']
-//
-//  "ABC".charAt(0) is "A" (a length-1 string)
-//      equiv to "ABC".slice(0, 1);
-//  "ABC".charCodeAt(0) is 65
-//  String.fromCharCode(65) is "A"
-//  String.fromCharCode(65,66,67) is "ABC" [?spread ... operator ?]
-//
 let $docBody = document.body;   // (override if required, eg like
                                 //  the result panel on codepen.)
 
+const NULL = 0,     // nb !=null, see docs
+//    TRUE = 1,     // nb mapped to true, see docs
+//    FALSE = 0,    // nb mapped to false, see docs
+      WINDOWS = 2,
+      LINUX = 3,
+      WEB = 4,
+      JS = WEB,
+      JAVASCRIPT = WEB,
+      PI = Math.PI,
+      E = Math.E,
+      E_USER = 8,
+      INVLN10 = 0.43429448190325182765,
+//    INVLN10 = 1/Math.LN10,    // NO!!
+      DT_YEAR = 1,
+      DT_MONTH = 2,
+      DT_DAY = 3,
+      DT_HOUR = 4,
+      DT_MINUTE = 5,
+      DT_SECOND = 6,
+      DT_DOW = 7,
+      DT_MSEC = 7,
+      DT_DOY = 8,
+      DT_GMT = -1,
+      pp_File = 1,
+      pp_Maxlen = 2,
+      pp_Pause = 3,
+      pp_StrFmt = 4,
+      pp_IntFmt = 5,
+      pp_FltFmt = 6,
+      pp_Nest = 7,
+      pp_Ascii =  8,
+      pp_Date = 9,
+      pp_Brkt = 10,
+      pp_Indent = 11,
+      pp_Q22 = 12,
+      pp_IntCh = 13,
+      ASCENDING = -1,
+      NORMAL_ORDER = -1,
+      DESCENDING = +1,
+      REVERSE_ORDER = +1,
+      MIN_HEAP = -1,
+      MAX_HEAP = +1,
+      HSIEH30 = -6,
+      SLASH = 0x2f,
+      TEST_QUIET = 0,
+      TEST_SUMMARY = 1,
+      TEST_SHOW_FAILED = 2,
+      TEST_SHOW_ALL = 3,
+      TEST_ABORT = 1,
+      TEST_CRASH = -1,
+      TEST_PAUSE = 1,
+      TEST_PAUSE_FAIL = -1
+
 function puts(fn, text) {
-
-/*
-    function cleanup(text) {
-        if (typeof(text) === "number") { text = String.fromCharCode(text); }
-        const am = new RegExp("&","g"),
-              lt = new RegExp("[<]","g"),
-              gt = new RegExp("[>]","g"),
-//            sp = new RegExp("[ ][ ]","g"),
-              sp = new RegExp("[ ]","g"),
-              lf = new RegExp("\\n","g");
-        text = text.replace(am,"&amp;")
-                   .replace(lt,"&lt;")
-                   .replace(gt,"&gt;")
-//                 .replace(sp,"&nbsp;&nbsp;")
-                   .replace(sp,"&ensp;")
-                   .replace(lf,"<br>");
-        return text;
-    }
-    if (fn==="cleanup") { return cleanup; } // for progress()
-*/
-
     integer(fn,"fn");
 //  string(text,"text");
-    if (fn !== 1 && fn !== 2) { crash("fn must be 1 or 2"); }
-//  text = cleanup(text);
+    if ((fn !== 1) && (fn !== 2)) { crash("fn must be 1 or 2"); }
     if (typeof(text) === "number") { text = String.fromCharCode(text); }
     const am = new RegExp("&","g"),
           lt = new RegExp("[<]","g"),
           gt = new RegExp("[>]","g"),
-//        sp = new RegExp("[ ][ ]","g"),
           sp = new RegExp("[ ]","g"),
           lf = new RegExp("\\n","g");
     text = text.replace(am,"&amp;")
                .replace(lt,"&lt;")
                .replace(gt,"&gt;")
-//             .replace(sp,"&nbsp;&nbsp;")
                .replace(sp,"&ensp;")
                .replace(lf,"<br>");
-    let where = (fn === 2 ? "afterbegin" : "beforeend");
+    let where = fn === 2 ? "afterbegin" : "beforeend";
+//  text = `<span style="font-family: monospace;">` + text + `<\span>`;
     $docBody.insertAdjacentHTML(where, text);
 //  $docBody.insertAdjacentText(where, text);
 }
 
-//const lf = /(\n)/g;
-//puts(2,lf.toString());
-
 function crash(msg, args = []) {
 //  string(msg,"msg");
 //  object(args,"args");
-    if (!Array.isArray(args) || args.length !== 0) {
+    if (!Array.isArray(args) || (args.length !== 0)) {
         // ^ ie treat sprintf(fmt,5) as sprintf(fmt,{5})
         msg = sprintf(msg,args);
     }
-//  let s = "***ERROR***: " + msg + "<br>"
-//  let s = "crash: " + msg + "\n"
-//  document.body.insertAdjacentHTML("beforeend", s);
-//  document.body.insertAdjacentHTML("afterbegin", s);
-//  $docBody.insertAdjacentHTML("afterbegin", s);
-//  puts(2,s);
     msg += "\n";
     puts(2,msg);
     throw(new Error(msg));
@@ -110,12 +119,16 @@ function crash(msg, args = []) {
 //  puts(2,"this should not occur");
 }
 
+function abort(i) {
+    crash("abort(%d)",["sequence",i])
+}
+
 function $typeCheckError(name, x) {
     if (name.length !== 0) {
         if (x === 'undefined') {
-            crash('variable %s has not been assigned a value.',[name]);
+            crash('variable %s has not been assigned a value.',["sequence",name]);
         } else {
-            crash('typecheck error, %s is %v',[name,x]);
+            crash('typecheck error, %s is %v',["sequence",name,x]);
         }
     }
     return false;
@@ -123,16 +136,16 @@ function $typeCheckError(name, x) {
 
 function integer(i, name = "") {
 //
-// invoke as (eg) integer(fn) to test, integer(fn,"fn") to typecheck.
+// invoke as (eg) integer(fn) to test, integer(fn,"fn") to typecheck [from js only].
 //
-    if (!Number.isSafeInteger(i)) {
+    if ((typeof(i) !== "boolean") && (typeof(i) !== "function") && !Number.isSafeInteger(i)) {
         return $typeCheckError(name,i);
     }
     return true;
 }
 
 function atom(a, name = "") {
-    if ((typeof(a) !== "boolean") && (typeof(a) !== "number" || !isFinite(a))) {
+    if ((typeof(a) !== "boolean") && (typeof(a) !== "function") && (typeof(a) !== "number" || !isFinite(a))) {
         return $typeCheckError(name,a);
     }
     return true;
@@ -147,10 +160,7 @@ function string(s, name = "") {
 
 function sequence(p, name = "") {
     if (typeof(p) !== "string") {
-//$share()/refcount:
         if (!Array.isArray(p) || p[0] !== "sequence") {
-//      if (!Array.isArray(p) || (p[0] !== "sequence" && p[0] !== "sequense")) {
-//      if (!Array.isArray(p) || !(p[0]==="sequence"||(Array.isArray(p[0]) && p[0].length===2 && p[0][0]==="sequence"))) {
             return $typeCheckError(name,p);
         }
     }
@@ -159,9 +169,7 @@ function sequence(p, name = "") {
 
 function object(o, name = "") {
     if (typeof(o) === "undefined") {
-//      return $typeCheckError(name,o);
         return $typeCheckError(name,"undefined");
-//      return false;
     }
     return true;
 }
@@ -175,40 +183,23 @@ function length(o) {
     crash("length of an atom is not defined");
 }
 
-//function $share(p) {
-//  if (Array.isArray(p)) { p[0] = "sequense"; }
-//  return p;
-//}
-
-
-function deep_copy(p, depth/*, bIfNeeded*/) {
-    // (we got no refcount here, so must ignore asks for bIfNeeded)
+function deep_copy(p, depth=-1) {
+    // (we got no refcount here, so must ignore bIfNeeded)
     if (Array.isArray(p)) {
         p = p.slice();
-        depth -= 1;
         if (depth) {
-            let l = p.length;
-            for (let i = 1; i < l; i += 1) {
-                p[i] = $deepCopy(p[i],depth);
+            depth -= 1;
+            let pl = p.length;
+            for (let i = 1; i < pl; i += 1) {
+                p[i] = deep_copy(p[i],depth);
             }
         }
     }
     return p;
 }
 
-function $deepCopy(p) {
-    if (Array.isArray(p)) {
-        p = p.slice();
-        let l = p.length;
-        for (let i = 1; i < l; i += 1) {
-            p[i] = $deepCopy(p[i]);
-        }
-    }
-    return p;
-}
-
 function $charArray(s) {
-// Needed because Array.from(string) produces lots of diddy-strings....
+// Needed because Array.from(string) produces lots of diddy-strings...
 //  whereas this produces the array of charCodeAt I was expecting.
     string(s,"s");
     let l = s.length;
@@ -219,7 +210,6 @@ function $charArray(s) {
     }
     return res;
 }
-
 
 let $prefer_backtick = false;
 
@@ -244,18 +234,7 @@ function sprintf(fmt, args = []) {
     //      See also pwa\printf_tests.html
     //
     string(fmt,"fmt");
-//  if (typeof(fmt) !== "string") {
-////        return "invalid fmt";
-//      crash("invalid fmt");
-//  }
-//DEV/temp(?): (or, maybe, i=0)
-//  if (Array.isArray(args) && args[0] === "sequence") { args = args.slice(1); }
-    let i = -1;
-//  string(fmt,"fmt");
-//  object(args,"args");
-//  let i = 0;
-//  if (Array.isArray(args) && args.length>0 && args[0] === "sequence") { i = 0; }
-    if (sequence(args)) { i = 0; }
+    let i = sequence(args) ? 0 : -1;
 
     // First, some private helper routines to get i'th arg as string/int/float:
     function argi() {
@@ -304,26 +283,74 @@ function sprintf(fmt, args = []) {
     }
     function inti(unsigned = false) {
         let res = argi();
-        if (!Number.isInteger(res)) {
-            if (typeof(res) !== "number") {
-                crash('Invalid (integer expected)');
+        if (typeof(res) == "boolean") {
+            res = res ? 1 : 0;
+        } else {
+            if (!Number.isInteger(res)) {
+                if (typeof(res) !== "number") {
+                    crash('Invalid (integer expected)');
+                }
+                res = Math.floor(res);
+//              res = Math.round(res - res % 1); // (maybe..)
             }
-            res = Math.floor(res);
-//          res = Math.round(res - res % 1); // (maybe..)
-        }
-        if (unsigned) {
-            res = res >>> 0; // (casts -ve to +ve)
-//          res = Math.abs(res);
+            if (unsigned) {
+                res = res >>> 0; // (casts -ve to +ve)
+//              res = Math.abs(res);
+            }
         }
         return res;
     }
+    function remove_scientific(num) {
+        // JavaScript prints numbers > 1e21 using scientific notation:
+        // since we have explicitly asked for %d, undo things.
+//      let numStr = String(num);
+        let numStr = num.toString(10);
+        if (Math.abs(num) < 1.0) {
+//          let e = parseInt(num.toString().split('e-')[1]);
+            let e = parseInt(numStr.split('e-')[1]);
+            if (e) {
+                let negative = num < 0;
+                if (negative) num *= -1
+                num *= Math.pow(10, e - 1);
+                numStr = '0.' + (new Array(e)).join('0') + num.toString().substring(2);
+                if (negative) numStr = "-" + numStr;
+            }
+        } else {
+//          let e = parseInt(num.toString().split('+')[1]);
+            let e = parseInt(numStr.split('+')[1]);
+            if (e > 20) {
+                e -= 20;
+                num /= Math.pow(10, e);
+                numStr = num.toString(10) + (new Array(e + 1)).join('0');
+            }
+        }
+        return numStr;
+    }
+// possible alternative + 94 test cases, see 
+// https://stackoverflow.com/questions/1685680/how-to-avoid-scientific-notation-for-large-numbers-in-javascript
+//  function eToNumber(num) {
+//    let sign = "";
+//    (num += "").charAt(0) == "-" && (num = num.substring(1), sign = "-");
+//    let arr = num.split(/[e]/ig);
+//    if (arr.length < 2) return sign + num;
+//    let n = arr[0], exp = +arr[1];
+//    let w = (n = n.replace(/^0+/, '')).replace('.', ''),
+//      pos = n.split('.')[1] ? n.indexOf('.') + exp : w.length + exp,
+//      L = pos - w.length, s = "" + BigInt(w);
+//    function r() {return w.replace(new RegExp(`^(.{${pos}})(.)`), `$1.$2`)}
+//    w = exp >= 0 ? (L >= 0 ? s + "0".repeat(L) : r()) : (pos <= 0 ? "0." + "0".repeat(Math.abs(pos)) + s : r());
+//    if (!+w) w = 0;
+//    return sign + w;
+//  }
     function flti(precision) {
         let res = argi();
-        if (typeof(res) !== "number") {
+        if (typeof(res) === "boolean" ) {
+            res = res ? 1 : 0;
+        } else if (typeof(res) !== "number") {
             crash('Invalid (number expected)');
         }
 //function RoundNum(num, length) { 
-//  var number = Math.round(num * Math.pow(10, length)) / Math.pow(10, length);
+//  let number = Math.round(num * Math.pow(10, length)) / Math.pow(10, length);
 //  return number;
 //}
 //function round(num, precision) {
@@ -339,26 +366,29 @@ function sprintf(fmt, args = []) {
 */
         return res;
     }
-//  function eorf(precision: number): number {  // (ie "%g") // NO!
-//  function eorf(precision/*: number*/)/*: string*/ {  // (ie "%g")
-    function eorf(/* integer */ precision) {    // (ie "%g")
-//  function eorf(precision) {  // (ie "%g")
 
-        let eres = flti(precision).toExponential(precision);
+    function eorf(/*integer*/ precision) {  // (ie "%g")
+
+        let fp = flti(precision),
+            eres = fp.toExponential(precision);
         const zeroE = new RegExp("([.][0]+e|[0]+e)");
         const Ezero = new RegExp("(e\\+0$)");
         eres = eres.replace(zeroE,"e");             // eg "1.000000e14" -> "1e14"
         eres = eres.replace(Ezero,"");              // eg        "1e+0" -> "1"
 
-        let fres = flti(precision).toFixed(precision);
-        if (fres.indexOf('.') != -1) {
+        let fres = fp.toFixed(precision),
+            fdot = fres.indexOf('.');
+        if (fdot != -1) {
+            if (fdot<precision) {
+                fres = fp.toFixed(precision-fdot);
+            }
             const Fzero = new RegExp("([.]?[0]+$)");    // eg "10.2300" -> "10.23"
             fres = fres.replace(Fzero,"");              // or "1023.00" -> "1023"
         }
 
         // note this will often disagree with the Phix/Eu output/choice
         //  (they pick %e for "(exponent>=precision or exponent<-4)")
-        let res = eres.length<fres.length || parseFloat(fres) === 0 ? eres : fres;
+        let res = (eres.length<fres.length) || (parseFloat(fres) === 0) ? eres : fres;
         return res;
     }
 
@@ -372,11 +402,12 @@ function sprintf(fmt, args = []) {
 //                  bsi &= i
                     bsi.push(i);
                 } else {
-//                  x[i..i] = '\\'&c    -- NB does not work on RDS Eu/OpenEuphoria
+//                  x[i..i] = '\\'&c
                     x = x.slice(0,i) + '\\' + x.slice(i);
                 }
             } else if (c<' ' || c>'~') {
-                if (c === '\t') { c='t'; }
+//              if (c === '\t') { c='t'; }
+                if (c === 0X9) { c='t'; }
                 else if (c === '\n') { c='n'; }
                 else if (c === '\r') { c='r'; }
                 else if (c === '\0') { c='0'; }
@@ -389,7 +420,7 @@ function sprintf(fmt, args = []) {
                     }
                     backtick = false;
                 }
-//              x[i..i] = '\\'&c    -- NB does not work on RDS Eu/OpenEuphoria
+//              x[i..i] = '\\'&c
                 x = x.slice(0,i) + '\\' + x.slice(i);
             }
         }
@@ -399,6 +430,13 @@ function sprintf(fmt, args = []) {
             x = '"' + x + '"';
         }
         return x;
+    }
+
+    function inbase(bn) {
+//      if (!sequence(bn) || length(bn)!=2 ...
+        let [,b,n] = bn;
+        if (b > 36) { crash("p2js.js: printf(%A) does not support base > 36"); }
+        return n.toString(b);
     }
 
     function callback(expr, sign, size, dot, precision, specifier) {
@@ -414,7 +452,8 @@ function sprintf(fmt, args = []) {
         if (expr === '%%') { return '%'; }  // (aka specifier === '%')
         i += 1;
         precision = precision ? parseInt(precision,10) : dot ? 0 : 6;
-        if (precision>15) { precision = 15; }
+//      if (precision>15) { precision = 15; }
+        if (precision>16) { precision = 16; }
         let res = "";
         switch (specifier) {
             case 's': res = stri(); break;
@@ -424,11 +463,14 @@ function sprintf(fmt, args = []) {
             case 'c': res = String.fromCharCode(argi()); break;
             case 'v': res = stri(true); break;
             case 'V': res = stri(-1); break;
-            case 'd': res = inti().toString(10); break;
+//          case 'd': res = inti().toString(10); break;
+            case 'd': res = remove_scientific(inti()); break;
             case 'b': res = inti().toString(2); break;
             case 'o': res = inti().toString(8); break;
             case 'x': res = inti(true).toString(16).toUpperCase(); break;
             case 'X': res = inti(true).toString(16); break; //^yep===Phix
+            case 'a': res = inbase(argi()); break;
+            case 'A': res = inbase(argi()).toUpperCase(); break;
             case 'e': res = flti(precision).toExponential(precision); break;
             case 'E': res = flti(precision).toExponential(precision).toUpperCase(); break;
             case 'f': res = flti(precision).toFixed(precision); break;
@@ -447,8 +489,7 @@ function sprintf(fmt, args = []) {
                 showcommas -= 3;
                 res = res.slice(0,showcommas) + ',' + res.slice(showcommas);
             }
-        }
-        else if (sign === '+' && res[0] !== '-') {
+        } else if (sign === '+' && res[0] !== '-') {
             res = '+' + res;
         }
         if (size) {
@@ -470,10 +511,7 @@ function sprintf(fmt, args = []) {
     // Replace each %[sign][[0]size][.[precision]]specifier (eg "%,7.2f") in turn
     //  (where sign is one of "-+=|," or undefined)
     //
-//  const regex = /%([-+=|,])?(0?[0-9]+)?([.]([0-9]+)?)?([stcvdboxXeEfgG%])/g;
-//puts(2,regex.toString());
-//  const regex = new RegExp('/%([-+=|,])?(0?[0-9]+)?([.]([0-9]+)?)?([stcvdboxXeEfgG%])/g');
-    const regex = new RegExp("%([-+=|,])?(0?[0-9]+)?([.]([0-9]+)?)?([sqQtcvVdboxXeEfgG%])",'g');
+    const regex = new RegExp("%([-+=|,])?(0?[0-9]+)?([.]([0-9]+)?)?([sqQtcvVdboxXaAeEfgG%])",'g');
     if (string(args)) {
         if (fmt.match(regex).length>1) { args = $charArray(args); }
     }
@@ -498,12 +536,9 @@ function printf(fn, fmt, args = []) {
     }
 }
 
-// DEV/DOC: this is flattened...
-//print(1,[[[[1,3]]],"this",3.1425,[5,7],11]) // (flattened...!)
 function sprint(o,asCh) {
 //  object(o,"o");
     let res;
-//  if (typeof(o) === "string") {
     if (string(o)) {
 //      let all_ascii = true;
         let l = o.length;
@@ -526,17 +561,13 @@ function sprint(o,asCh) {
                 res += "\\r";
             } else {
 //              all_ascii = false;
-//bollocks!             o = ["sequence",...Array.from(o)];
                 o = $charArray(o);
                 return sprint(o,asCh);
             }
         }   
         res += "\"";
-//  } else if (Array.isArray(o)) {
     } else if (sequence(o)) {
         let l = o.length-1;
-//      res = "{" + res + "}";
-//      res = "{" + res.splice(1).toString + "}";
         res = "{";
         if (asCh===false) { asCh = true; } // (nb -1 and true left as-is)
         for (let i=1; i<=l; i+=1) {
@@ -545,7 +576,7 @@ function sprint(o,asCh) {
         }
         res += "}";
     } else if (asCh===true && integer(o) && o>=32 && o<127) {
-        res += "'" + String.fromCharCode(o) + "'";
+        res = "'" + String.fromCharCode(o) + "'";
     } else if (integer(o)) {
         res = o.toString();
     } else if (o === null) {
@@ -553,14 +584,14 @@ function sprint(o,asCh) {
     } else {
         function cut_tz(v) {
             if (v.indexOf('.') !== -1) {
-                let cutFrom = v.length - 1
+                let cutFrom = v.length - 1;
                 while (v[cutFrom] === '0') {
-                    cutFrom--
+                    cutFrom -= 1;
                 }
                 if (v[cutFrom] === '.') {
-                    cutFrom--
+                    cutFrom -= 1;
                 }
-                v = v.substr(0, cutFrom + 1)
+                v = v.substr(0, cutFrom + 1);
             }
             return v;
         }
@@ -576,29 +607,9 @@ function print(fn, o) {
     puts(fn,sprint(o) + "\n");
 }
 
-/* it'll never work...
-function progress(msg, args = []) {
-    const cleanup = puts("cleanup");
-/@*
-    let progress_div = $docBody.querySelector(".progress");
-    if (!progress_div) {
-//      progress_div = $docBody.createElement("div");
-        progress_div = document.createElement("div");
-        progress_div.classList.add('progress');
-        $docBody.appendChild(progress_div);
-    }
-*@/
-    if (!Array.isArray(args) || args.length !== 0) {
-        // ^ ie treat progress(fmt,5) as progress(fmt,{5})
-        msg = sprintf(msg,args);
-    }
-    msg = cleanup(msg);
-//  progress_div.innerHTML = "<nobr>" + msg + "</nobr>";
-//  setInterval(function() { progress_div.innerHTML = "<nobr>" + msg + "</nobr>"; }, 1000);
-    window.statusbar.innerHTML = "<nobr>" + msg + "</nobr>";
-}
-*/
 function progress() {
+    // (it would never work: the browser will not update while JavaScript is running)
+    //  (anything using progress() should be rewritten to gui/timer/idle processing)
     crash("progress does not work under p2js");
 }
 
@@ -606,7 +617,7 @@ function progress() {
 function factors(num, include1 = 0) {
 //  atom(num,"num");
 //  integer(include1,"include1");
-    let n_factors = [],
+    let n_factors = ["sequence"],
         h_factors = [],
         i0 = include1 === 0 ? 2 : 1;
  
@@ -615,88 +626,77 @@ function factors(num, include1 = 0) {
             n_factors.push(i);
             let ni = num/i;
             if ((ni !== i) && (ni !== num || include1 === 1)) {
-//              n_factors.push(ni);
                 h_factors.push(ni);
             }
         }
     }
-//  n_factors.sort(function(a, b){return a - b;});  // numeric sort
     n_factors = n_factors.concat(h_factors.reverse());
     return n_factors;
 }
  
-//print(1,factors(45,1));  // [1,3,5,9,15,45] 
-//print(1,factors(53,1));  // [1,53] 
-//print(1,factors(64,1));  // [1,2,4,8,16,32,64]
-
 //DEV why not just use builtins\psum.e, transpiled?
+//DEV use sequence(), 1 to length(x), should sum("string") work? [YES!]
 function sum(x) {
 //  object(x,"x");
-    if (!Array.isArray(x)) {
-        if (typeof(x) === "number") { return x; }
-        crash("argument to sum() must be a number or array");
-    }
-    let total = 0;
-    for (let i = 0; i < x.length; i += 1) {
-        let xi = x[i];
-        if (Array.isArray(xi)) {
-            xi = sum(xi);
+    if (atom(x)) { return x; }
+    let total = 0,
+        xl = length(x);
+    if (string(x)) {
+        for (let i = 0; i < xl; i += 1) {
+            total += x.charCodeAt(i);
         }
-        total += xi;
+    } else {
+        for (let i = 1; i <= xl; i += 1) {
+            let xi = x[i];
+            if (!atom(xi)) { xi = sum(xi); }
+            total += xi;
+        }
     }
     return total;
 }
 
 function product(x) {
 //  object(x,"x");
-    if (!Array.isArray(x)) {
-        if (typeof(x) === "number") { return x; }
-        crash("argument to product() must be a number or array");
-    }
-    let res = 1;
-    for (let i = 0; i < x.length; i += 1) {
-        let xi = x[i];
-        if (Array.isArray(xi)) {
-            xi = product(xi);
+    if (atom(x)) { return x; }
+    let res = 1,
+        xl = length(x);
+    if (string(x)) {
+        for (let i = 0; i < xl; i += 1) {
+            res *= x.charCodeAt(i);
         }
-        res *= xi;
+    } else {
+        for (let i = 1; i <= xl; i += 1) {
+            let xi = x[i];
+            if (!atom(xi)) { xi = product(xi); }
+            res *= xi;
+        }
     }
     return res;
 }
 
-//let s = [1,2,3,4,5];
-//printf(1,"sum is %d\n",sum(s));
-//printf(1,"prod is %d\n",product(s));
-
 function append(a, x) {
 //  object(a,"a");
 //  object(x,"x");
-//  if (typeof(a) === "string") {
     if (string(a)) {
         if (integer(x) && x>=0 && x<=255) {
             a += String.fromCharCode(x);
         } else {
-//          a = $charArray(a).push(x);
             a = $charArray(a);
             a.push(x);
         }
     } else {
-//      if (!Array.isArray(a)) {
         if (atom(a)) {
-//          a = [a];
             a = ["sequence",a,x];
         } else {
             a.push(x);
         }
     }
-//  a.push(newElement); === a = append(a,newElement);
     return a;
 }
 
 function prepend(a, x) {
 //  object(a,"a");
 //  object(x,"x");
-//  if (typeof(a) === "string") {
     if (string(a)) {
         if (integer(x) && x>=0 && x<=255) {
             a = String.fromCharCode(x) + a;
@@ -706,12 +706,9 @@ function prepend(a, x) {
             a.unshift("sequence");
         }
     } else {
-//      if (!Array.isArray(a)) {
         if (atom(a)) {
-//          a = [a];
             a = ["sequence",x,a];
         } else {
-//          a = [x].concat(a);
             a[0] = x;
             a.unshift("sequence");
         }
@@ -719,24 +716,22 @@ function prepend(a, x) {
     return a;
 }
 
-//let s = [1,2,3,4,5];
-//print(1,append(s,6));
-//print(1,prepend(s,0));
-
 function wait_key() {
     // specifically for "{} = wait_key()", do nothing
+    // (as per docs, you simply cannot "stop JavaScript"
+    //  while waiting for keyboard input, no way Hose.)
     return [];
 }
 
-// undocumented below here...
-// none of these have been tested either...
-
 function compare(a, b) {
-    if (string(a) && string(b)) { return a.localeCompare(b); }
+//  if (string(a) && string(b)) { return a.localeCompare(b); }
+    if (string(a) && string(b)) { return a < b ? -1 : a === b ? 0 : +1; }
     if (typeof(a) === "string") { a = $charArray(a); }
     if (typeof(b) === "string") { b = $charArray(b); }
-    if (Array.isArray(a)) {
-        if (!Array.isArray(b)) { return 1; }
+//  if (Array.isArray(a)) {
+    if (sequence(a)) {
+//      if (!Array.isArray(b)) { return 1; }
+        if (!sequence(b)) { return 1; }
         let la = length(a),
             lb = length(b),
             ml = Math.min(la, lb);
@@ -745,7 +740,8 @@ function compare(a, b) {
             if (c !== 0) { return c; }
         }
         return compare(la,lb);
-    } else if (Array.isArray(b)) {
+//  } else if (Array.isArray(b)) {
+    } else if (sequence(b)) {
         return -1;
     }
     if (typeof(a)==="boolean") { a = a ? 1 : 0; }
@@ -760,9 +756,9 @@ function compare(a, b) {
 }
 
 function equal(a, b) {
-    if (Array.isArray(a) || typeof(a) === "string") {
+    if (sequence(a)) {
         let la = length(a);
-        if (!(Array.isArray(b) || typeof(b) === "string") || la !== length(b)) {
+        if (!sequence(b) || la !== length(b)) {
             return false;
         }
         if (typeof(a) === "string") {
@@ -778,6 +774,7 @@ function equal(a, b) {
         return true;
     }
     // aside: a, b may be function, since routine_id/Icallback are dummy...
+    //        they may also be mpq or mpz, with undefined consequences...
     if (typeof(a)==="boolean") { a = a ? 1 : 0; }
     if (typeof(b)==="boolean") { b = b ? 1 : 0; }
     return (a === b);
@@ -787,7 +784,7 @@ function equal(a, b) {
 //DEV would the hll versions be fine???
 //DOC: not strings: (nah, just fix it!)
 //***NB*** these all need thorough testing for eg start vs. start-1, etc... [not that we build sequences proper like yet...]
-/*
+//!*
 function find(needle, haystack, start = 1) {
 //  if (!Array.isArray(haystack) || haystack[0] !== "sequence") {
 ////        if (typeof(haystack) === "string") {
@@ -796,8 +793,13 @@ function find(needle, haystack, start = 1) {
 //      crash("second argument to find() must be a sequence");
 //  }
     sequence(haystack,"haystack");
+//  let idx;
+    if (string(haystack)) { haystack = $charArray(haystack); }
+//      idx = haystack.indexOf(String.fromCharCode(needle), start-1)+1;
+//  } else {
     let idx = haystack.indexOf(needle, start);
     if (idx === -1) { idx = 0; }
+//  }
     return idx; // 1-based
 }
 
@@ -806,6 +808,7 @@ function rfind(needle, haystack, start = -1) {
 //      crash("second argument to find() must be a sequence");
 //  }
     sequence(haystack,"haystack");
+    if (string(haystack)) { haystack = $charArray(haystack); }
     // aside: haystack.length includes [0] aka +1:
     if (start < 0) { start += haystack.length; }
     let idx = haystack.lastIndexOf(needle,start);
@@ -831,15 +834,10 @@ function match(needle, haystack, start = 1, case_sensitive = true) {
     if (idx === -1) { idx = 0; }
     return idx; // 1-based
 }
-*/
+//*!/
 
-function $deepCopy(src) {
-  return JSON.parse(JSON.stringify(src));
-}
-
-// (equivalent to phix's infix & operator [I hope!])
-//$conCat()? <==> &
 function $conCat(a, b) {
+    // equivalent to the Phix infix & operator (js overloads +)
     if (integer(a) && a>=0 && a<=255) {
         if (integer(b) && b>=0 && b<=255) {
             return String.fromCharCode(a) + String.fromCharCode(b);
@@ -848,42 +846,33 @@ function $conCat(a, b) {
         } else if (!sequence(b)) {
             return ["sequence",a,b];
         }
-        b = $deepCopy(b);
+        b = deep_copy(b);
         b[0] = a;
         b.unshift("sequence");
         return b
     } else if (string(a)) {
-    //      if (typeof(b) === "string") {
         if (string(b)) {
             return a + b;
         }
         if (integer(b) && b>=0 && b<=255) {
             return a + String.fromCharCode(b);
         }
-//      a = ["sequence",...Array.from(a)];
         a = $charArray(a);
-//  } else if (!Array.isArray(a)) {
     } else if (!sequence(a)) {
         a = ["sequence",a];
     }
-//  if (typeof(b) === "string") {
     if (string(b)) {
-//      a = a.concat(Array.from(b));
         b = $charArray(b);
     }
-//  if (Array.isArray(b)) {
     if (sequence(b)) {
         // (creates a new array)
         a = a.concat(b.slice(1));
     } else {
-//      a = a.concat(b);
         a.push(b);
     }
     return a;
 }
 
-//DOC note that strings of length 1 are treated as chars (NO)
-//      (unlike phix, in js there is no difference between "a" and 'a')
 function repeat(item, count) {
 //  if (typeof(item) === "string" && item.length === 1) {
 //      let res = item.repeat(count);
@@ -895,8 +884,7 @@ function repeat(item, count) {
     let res = ["sequence"];
     if (Array.isArray(item)) {
         for (let i = 1; i <= count; i += 1) {
-//          res[i] = [...item];
-            res[i] = $deepCopy(item);
+            res[i] = deep_copy(item);
         }
     } else {
         res.length = count+1;
@@ -905,7 +893,12 @@ function repeat(item, count) {
     return res;
 }
 
-// hopefully we can rely on builtins\psqop.e (/transpile it automatcially to psqop.js)
+function repeatch(ch,count) {
+    if (!integer(ch) || ch < 0 || ch > 255) {
+        crash("repeatch not passed a character");
+    }
+    return String.fromCharCode(ch).repeat(count);
+}   
 
 function assert(condition, msg = "") {
     if (!condition) { crash(msg); }
@@ -954,12 +947,8 @@ function apply(s, fn, userdata = ["sequence"], bFunc = true) {
                 }
                 if (bFunc) {
                     res[i] = fn(...args);
-//                  res[i] = fn(args);
                 } else {
-//DEV untested/while I try to parse this thing...
-// (decided it is [probably] better to put unhandled operators into the ast...)
                     fn(...args);
-//                  fn(args);
                 }
             }
             return res;
@@ -970,15 +959,14 @@ function apply(s, fn, userdata = ["sequence"], bFunc = true) {
                 if (typeof(ui) === "number" ||
                     typeof(ui) === "string") {
                     ui = [ui];
+                } else {
+                    ui = ui.slice(1);
                 }
 
                 if (bFunc) {
                     res[i] = fn(...ui);
-//                  res[i] = fn(ui);
                 } else {
                     fn(...ui);
-//??                fn(...ui.slice(1));
-//                  fn(ui);
                 }
             }
             return res;
@@ -993,10 +981,8 @@ function apply(s, fn, userdata = ["sequence"], bFunc = true) {
     let res = bFunc?repeat(0,ls):0;
     for (let i = 1; i <= ls; i += 1) {
         if (bFunc) {
-//          s[i] = fn(s[i],userdata);
             res[i] = fn(s[i],...userdata.slice(1));
         } else {
-//          fn(s[i],userdata);
             fn(s[i],...userdata.slice(1));
         }
     }
@@ -1011,8 +997,10 @@ function filter(s, rs, userdata = ["sequence"], rangetype = "") {
 //
 // Select only those elements from a sequence that pass a specified test.
 //
-    let idx = 0;
-    let si;
+    let res = (string(s) ? "" : ["sequence"]),
+        ls = length(s);
+    if (string(s)) { s = $charArray(s); }
+    if (string(userdata)) { userdata = $charArray(userdata); }
     if (typeof(rs) === "string") {
         // built-in handling
         let inout = find(rs,["sequence","in","out"]);
@@ -1020,12 +1008,11 @@ function filter(s, rs, userdata = ["sequence"], rangetype = "") {
             inout = (inout === 1); // in: true, out: false
             if (rangetype === "") {
                 // set handling
-                for (let i = 1; i <= length(s); i += 1) {
-                    si = s[i];
-                    let f = find(si,userdata);
+                for (let i = 1; i <= ls; i += 1) {
+                    let si = s[i],
+                        f = find(si,userdata);
                     if ((f !== 0) === inout) {
-                        idx += 1;
-                        s[idx] = si;
+                        res = append(res,si);
                     }
                 }
             } else {
@@ -1040,13 +1027,12 @@ function filter(s, rs, userdata = ["sequence"], rangetype = "") {
                 }
                 let lo = userdata[1],
                     hi = userdata[2];
-                for (let i = 1; i <= length(s); i += 1) {
-                    si = s[i];
-                    let lc = compare(si,lo),
+                for (let i = 1; i <= ls; i += 1) {
+                    let si = s[i],
+                        lc = compare(si,lo),
                         hc = compare(si,hi);
                     if (((lc >= xl) && (hc <= xh)) === inout) {
-                        idx += 1;
-                        s[idx] = si;
+                        res = append(res,si);
                     }
                 }
             }
@@ -1062,39 +1048,39 @@ function filter(s, rs, userdata = ["sequence"], rangetype = "") {
             }
             let ne = (ct === 4);
             ct -= (ct >= 4);
-//          let ok = ["sequence",["sequence",-1],["sequence",-1,0],["sequence",0],["sequence",0,1],["sequence",1]][ct];
             let ok = ["sequence",[-1],[-1,0],[0],[0,1],[1]][ct];
-            for (let i = 1; i <= length(s); i += 1) {
-                si = s[i];
-                let c = compare(si,userdata);
-//              if ((find(c,ok) !== 0) !== ne) {
-//haystack.indexOf(needle,start);
+            for (let i = 1; i <= ls; i += 1) {
+                let si = s[i], c = compare(si,userdata);
                 if ((ok.indexOf(c) !== -1) !== ne) {
-                    idx += 1;
-                    s[idx] = si;
+                    res = append(res,si);
                 }
             }
         }
-        s = s.slice(0,idx+1);
-        return s;
+        return res;
     }
 
     // user-defined function handling
     if (rangetype !== "") { crash("invalid rangetype"); }
-    let fn = rs;
-    let r = (string(s) ? "" : ["sequence"]);
+    let fn = rs,
+        maxp = fn.length;
+    if (maxp<1) { crash("filter routine must accept 1..3 parameters"); }
     if (string(s)) { s = $charArray(s); }
-    let ls = length(s),
-        lu = length(userdata);
+    let mt = equal(userdata,["sequence"]);
+    if (maxp===1 && !mt) { crash("filter routine must accept 2..3 parameters"); }
     for (let i = 1; i <= ls; i += 1) {
-        si = s[i];
-//      if (fn(si, i, userdata === [] ? s : userdata)) {
-//      if (fn(si, i, equal(userdata,["sequence"]) ? s : userdata)) {
-        if (fn(si, i, lu===0 ? s : userdata)) {
-            r = append(r,si);
+        let si = s[i], bAdd;
+        if (mt) {
+            bAdd = fn(si,i,s);
+        } else if (maxp === 3) {
+            bAdd = fn(si,s,userdata);
+        } else {
+            bAdd = fn(si,userdata);
+        }
+        if (bAdd) {
+            res = append(res,si);
         }
     }
-    return r;
+    return res;
 }
 
 let $seed = Date.now();
@@ -1107,6 +1093,13 @@ function rnd() {
 }
 
 function rand(n) {
+    if (n<=0) {
+        if (n === -1) {
+            n = 0xFFFFFFFF;
+        } else {
+            crash("argument to rand() must be >= 1");
+        }
+    }
     return ((n*rnd()) >>> 0)+1;
 }
 
@@ -1117,58 +1110,6 @@ function get_rand() {
 function set_rand(new_seed) {
     $seed = new_seed;
 }
-
-/*
-Math.abs(x)                 Returns the absolute value of x.
-Math.acos(x)                Returns the arccosine of x.
-Math.acosh(x)               Returns the hyperbolic arccosine of x.
-Math.asin(x)                Returns the arcsine of x.
-Math.asinh(x)               Returns the hyperbolic arcsine of a number.
-//Math.atan(x)              Returns the arctangent of x.
-Math.atanh(x)               Returns the hyperbolic arctangent of x.
-Math.atan2(y, x)            Returns the arctangent of the quotient of its arguments.
-Math.ceil(x)                Returns the smallest integer greater than or equal to x.
-//Math.cos(x)               Returns the cosine of x.
-Math.cosh(x)                Returns the hyperbolic cosine of x.
-Math.exp(x)                 Returns Ex, where x is the argument, and E is Euler's constant (2.718…, the base of the natural logarithm).
-Math.expm1(x)               Returns subtracting 1 from exp(x).
-//Math.floor(x)             Returns the largest integer less than or equal to x.
-Math.fround(x)              Returns the nearest single precision float representation of x.
-Math.hypot([x[, y[, ...]]]) Returns the square root of the sum of squares of its arguments.
-Math.imul(x, y)             Returns the result of the 32-bit integer multiplication of x and y.
-//Math.log(x)               Returns the natural logarithm (㏒e; also, ㏑) of x.
-Math.log1p(x)               Returns the natural logarithm (㏒e; also ㏑) of 1 + x for the number x.
-Math.log10(x)               Returns the base-10 logarithm of x.
-Math.log2(x)                Returns the base-2 logarithm of x.
-Math.max([x[, y[, ...]]])   Returns the largest of zero or more numbers.
-Math.min([x[, y[, ...]]])   Returns the smallest of zero or more numbers.
-//Math.pow(x, y)            Returns base x to the exponent power y (that is, xy).
-//Math.random()             Returns a pseudo-random number between 0 and 1.
-Math.round(x)               Returns the value of the number x rounded to the nearest integer.
-Math.sign(x)                Returns the sign of the x, indicating whether x is positive, negative, or zero.
-//Math.sin(x)               Returns the sine of x.
-Math.sinh(x)                Returns the hyperbolic sine of x.
-//Math.sqrt(x)              Returns the positive square root of x.
-//Math.tan(x)               Returns the tangent of x.
-Math.tanh(x)                Returns the hyperbolic tangent of x.
-Math.trunc(x)               Returns the integer portion of x, removing any fractional digits.
-*/
-//seems fine:
-//for (let i = 1; i <= 10; i += 1) {
-//  printf(1,"%v\n",rnd());
-//  printf(1,"%d:%v\n",[i,rand(i)]);
-//}
-
-//DEV auto-xlate?
-/*
-function tagset(n) {
-    let tags = repeat(0,n);
-    for (let i = 1; i <= n; i += 1) { 
-      tags[i] = i;
-    }
-    return tags;
-}
-*/
 
 function floor(n) {
     return Math.floor(n);
@@ -1181,12 +1122,11 @@ function reverse(src, from_to = ["sequence",1,-1]) {
     if (lo < 0) { lo += len; }
     if (hi < 0) { hi += len; }
     let res = [...src];
-    if (len > 1 && lo < hi) {
+    if (len > 2 && lo < hi) {
         let mid = floor((lo+hi-1)/2);
-        for (; lo <= mid; lo += 1) {
-//      for (lo=lo; lo <= mid; lo += 1) {
-            res[hi] = src[lo];
-            res[lo] = src[hi];
+        for (let lx = lo; lx <= mid; lx += 1) {
+            res[hi] = src[lx];
+            res[lx] = src[hi];
             hi -= 1;
         }
     }
@@ -1194,20 +1134,19 @@ function reverse(src, from_to = ["sequence",1,-1]) {
 }
 
 function routine_id(rtn_name) {
-    if (typeof(rtn_name)=== "function") { return rtn_name; }
+    if (typeof(rtn_name) === "function") { return rtn_name; }
     let rtn = window[rtn_name];
-    if (typeof(rtn)!=="function") { return -1; }
+    if (typeof(rtn) !== "function") { return -1; }
     return rtn;
 }
-//function routine_id(rtn) {
-//  return rtn;
-//}
+
 function call_func(rid,params) {
-    if (typeof(rid)!=="function") { crash("invalid routine_id"); }
+    if (typeof(rid) !== "function") { crash("invalid routine_id"); }
     return rid(...params.slice(1));
 }
+
 function call_proc(rid,params) {
-    if (typeof(rid)!=="function") { crash("invalid routine_id"); }
+    if (typeof(rid) !== "function") { crash("invalid routine_id"); }
     rid(...params.slice(1));
 }
 
@@ -1215,14 +1154,15 @@ function xor(a,b) {
 //  return ( a || b ) && !( a && b );
 //  return ( a && !b ) || ( !a && b );
   return (!a != !b) ? 1 : 0;
+//  return (!a != !b) ? true : false;   // maybe...
 }
 
 function time() {
-    return new Date().valueOf()/1000;
+    let d = new Date();
+    return d.valueOf()/1000;
 }
 
 function mod(a,b) {
-//  return a % b;
     return ((a % b ) + b ) % b;
 }
 
@@ -1234,6 +1174,53 @@ function machine_bits() {
     return 32;
 }
 
+function machine_word() {
+    return 4;
+}
+
+function version() {
+    return "1.0.0";
+}
+
+function platform() {
+    return JS;
+}
+
+function requires(x) {  // (hand translated)
+//
+// x: should be eg "0.8.2" for a version() requirement, or a
+//                  WINDOWS/LINUX/WEB platform() check, or
+//                  32/64 for a machine_bits() check.
+//
+    if (string(x)) {
+        let v = version(),
+            reqs = x.split('.').map(Number),
+            acts = v.split('.').map(Number);
+        if (reqs.length !== 3 || 
+            acts.length !== 3 || 
+            reqs[0] > acts[0] ||
+           (reqs[0]===acts[0] && reqs[1] > acts[1]) ||
+           (reqs[0]===acts[0] && reqs[1]===acts[1] && reqs[2] > acts[2])) {
+            crash("requires %s, this is %s",["sequence",x,v]);
+        }
+    } else if (x >= 0 && x < 31) {
+        if (x !== platform()) {
+            if (x<6 || x>8) {
+                let platforms = ["DOS32","WINDOWS","LINUX","JAVASCRIPT",
+                                 "WINDOWS or LINUX",                // 5
+                                 "WINDOWS or JAVASCRIPT",           // 6
+                                 "WINDOWS or LINUX or JAVASCRIPT",  // 7
+                                 "LINUX or JAVASCRIPT"],            // 8
+                    that = platforms[x-1];
+                crash("requires %s, this is JS",["sequence",that]);
+            }
+        }
+    } else if (x !== machine_bits()) {
+        crash("requires %d bit (JS is inherently 32 bit)...",["sequence",x]);
+    }
+}
+requires(JS);
+
 function power(a, b) {
 //  return a ** b;
     return Math.pow(a,b);
@@ -1243,77 +1230,32 @@ function sqrt(a) {
     return Math.sqrt(a);
 }
 
-const WINDOWS = 2,
-      LINUX = 3,
-      WEB = 4,
-      JS = WEB,
-      JAVASCRIPT = WEB,
-      PI = Math.PI,
-      E = Math.E,
-//    INVLN10 = 0.43429448190325182765,
-      INVLN10 = 1/Math.LN10,
-      DT_YEAR = 1,
-      DT_MONTH = 2,
-      DT_DAY = 3,
-      DT_HOUR = 4,
-      DT_MINUTE = 5,
-      DT_SECOND = 6,
-      DT_DOW = 7,
-      DT_MSEC = 7,
-      DT_DOY = 8,
-      DT_GMT = -1,
-      pp_File = 1,
-      pp_Maxlen = 2,
-      pp_Pause = 3,
-      pp_StrFmt = 4,
-      pp_IntFmt = 5,
-      pp_FltFmt = 6,
-      pp_Nest = 7,
-      pp_Ascii =  8,
-      pp_Date = 9,
-      pp_Brkt = 10,
-      pp_Indent = 11,
-      pp_Q22 = 12,
-      pp_IntCh = 13,
-      ASCENDING = -1,
-      NORMAL_ORDER = -1,
-      DESCENDING = +1,
-      REVERSE_ORDER = +1,
-      MIN_HEAP = -1,
-      MAX_HEAP = +1,
-      HSIEH30 = -6,
-      SLASH = 0x2f,
-      TEST_QUIET = 0,
-      TEST_SUMMARY = 1,
-      TEST_SHOW_FAILED = 2,
-      TEST_SHOW_ALL = 3,
-      TEST_ABORT = 1,
-      TEST_CRASH = -1,
-      TEST_PAUSE = 1,
-      TEST_PAUSE_FAIL = -1
-
-function platform() {
-    return JS;
-}
-
 function $sidii(s,idii,skip=0,t) {
     // note this is only ever dealing with dword-sequence subscripts,
     //      and should never ever be asked to subscript a string.
     if (idii) { 
-        let l = length(idii)-skip;
-        for (let i=1; i<=l; i+=1) {
+//      let l = length(idii)-skip;
+        let l = length(idii);
+//      for (let i=1; i<=l; i+=1) {
+        for (let i=l; i>skip; i-=1) {
             let idx = floor(idii[i]);
             if (idx<0) { idx += length(s)+1; }
             if (string(s) || atom(s)) { crash("attempt to subscript an atom"); }
             s = s[idx];
         }
-        if (skip) { s[idii[l+1]] = t; }
+//12/5/21 (!!)
+//      if (skip) { s[idii[l+1]] = t; }
+        if (skip) { s[idii[1]] = t; }
     }
     if (!sequence(s)) { crash("attempt to subscript an atom"); }
+    // note: sometimes (see "shudder" below) this is invoked to effect
+    //       pass-by-sharing-semantics-side-effects, and the return 
+    //       value is ignored / not the result you are looking for...
     return s;
 }
 
 function $subse(s, idx, idii) {
+    // A Phix compatible res := s[[idii]][idx] for strings and sequences
     sequence(s,"s");
     atom(idx,"idx");
     idx = floor(idx);
@@ -1326,6 +1268,7 @@ function $subse(s, idx, idii) {
 }   
 
 function $subss(s, ss, se, idii) {
+    // A Phix compatible res := s[[idii]][ss..se] for strings and sequences
     sequence(s,"s");
     atom(ss,"ss");
     atom(se,"se");
@@ -1337,51 +1280,40 @@ function $subss(s, ss, se, idii) {
     if (typeof(s) === "string") {
         return s.slice(ss-1,se);
     }
-//  return s.slice(ss-1,se);
     s = s.slice(ss-1,se+1);
     s[0] = "sequence";
     return s;
-//  return $deepCopy(s.slice(ss,se+1));
 }
 
 function $repe(s, idx, x, idii) {
-    // nb relies on JavaScript pass-by-sharing semantics.
-    // implements s[[idii]][idx] := x
+    // A Phix compatible s[[idii]][idx] := x for strings and sequences
+    // nb this relies on JavaScript pass-by-sharing semantics internally.
     sequence(s,"s");
     atom(idx,"idx");
     idx = floor(idx);
     let t = $sidii(s,idii);
     if (idx<0) { idx += length(t)+1; }
-//  if (typeof(s) === "string") {
     if (string(t)) {
         if (integer(x) && x>=0 && x<=255) {
-//
-//          return s.slice() + String.fromCharCode(x) + s.slice();
-//this.substr(0, index) + replacement + this.substr(index + replacement.length);
-//substring
-//function setCharAt(str,index,chr) {
-//  if(index > str.length-1) return str;
-//          return s.substring(0,idx) + String.fromCharCode(x) + s.substring(idx+1);
             t = t.substring(0,idx-1) + String.fromCharCode(x) + t.substring(idx);
             if (!idii) { return t; }
             t = $sidii(s,idii,1,t);
             return s;
         }
         t = $charArray(t);
-//      /*t =*/ $sidii(s,idii,1,t);
     }
     t[idx] = x;
     if (string(s) || !idii) { return t; }
     // ooh-uh-ooh-uh (/shudder), these pass-by-sharing semantics make me right queasy...
+    // ('s ok, I just prefer code to say what it is doing, rather than do & make me guess.)
     /*t =*/ $sidii(s,idii,1,t);
-//  return s[idx];
     return s;
 }
 
 function $repss(s, ss, se, x, idii) {
-    // nb relies on JavaScript pass-by-sharing semantics.
-    // implements s[[idii]][ss..se] := x 
+    // A Phix compatible s[[idii]][ss..se] := x for strings and sequences
     //  (including variable length slice assignment)
+    // nb this relies on JavaScript pass-by-sharing semantics internally.
     sequence(s,"s");
     atom(ss,"ss");
     atom(se,"se");  
@@ -1430,8 +1362,8 @@ function $repss(s, ss, se, x, idii) {
     }
     if (string(s) || !idii) { return t; }
     // ooh-uh-ooh-uh (/shudder), these pass-by-sharing semantics make me right queasy...
+    // ('s ok, I just prefer code to say what it is doing, rather than do & make me guess.)
     /*t =*/ $sidii(s,idii,1,t);
-//  s.splice()
     return s;
 }
 
@@ -1439,16 +1371,32 @@ function and_bits(a, b) {
     return a & b;
 }
 
+function and_bitsu(a, b) {
+    return (a & b) >>> 0;
+}
+
 function or_bits(a, b) {
     return a | b;
+}
+
+function or_bitsu(a, b) {
+    return (a | b) >>> 0;
 }
 
 function xor_bits(a, b) {
     return a ^ b;
 }
 
+function xor_bitsu(a, b) {
+    return (a ^ b) >>> 0;
+}
+
 function not_bits(a) {
     return ~a;
+}
+
+function not_bitsu(a) {
+    return (~a) >>> 0;
 }
 
 function log(a) {
@@ -1471,6 +1419,130 @@ function arctan(a) {
     return Math.atan(a);
 }
 
+function date(bMSecs = false) {
+    let D = new Date(),
+        y = D.getFullYear(),    // Get the year as a four digit number (yyyy)
+        m = D.getMonth()+1,     // Get the month as a number (1-12),
+        d = D.getDate(),        // Get the day as a number (1-31)
+        dot = ["sequence",0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334],
+        leap = (remainder(y,4)===0) && ((remainder(y,100)!==0) || (remainder(y,400)===0)),
+        doy = d+dot[m]+(m>2 && leap);
+    let s = ["sequence",
+             y,
+             m,
+             d,
+             D.getHours(),              // Get the hour (0-23)
+             D.getMinutes(),            // Get the minute (0-59)
+             D.getSeconds(),            // Get the second (0-59)
+             bMSecs?D.getMilliseconds() // Get the millisecond (0-999)
+                   :D.getDay()+1,       // Get the weekday as a number (1-7)
+             doy
+            ]
+    return s;
+}
+
+function get_routine_info(fn) {
+    return ["sequence",fn.length,0,"",fn.name];
+}
+
+// (transpiled directly from machine.e, *2)
+function int_to_bits(/*atom*/ x, /*integer*/ nbits=0) {
+// Returns the low-order nbits bits of x as a sequence of 1's and 0's. 
+// Note that the least significant bits come first. You can use 
+// sq_and/or/not operators on sequences of bits. You can also subscript, 
+// slice, concatenate and so on to manipulate bits.
+    let /*sequence*/ bits;
+    let /*integer*/ mask = 1;
+    if (nbits<=0) {
+        // (not intended to be fast, or ever timed as slow, just more conventient)
+        if (!integer(x) || x<0) { crash("int_to_bits(x,0): x must be integer >=0",2); }
+        bits = ["sequence"];
+        while (true) {
+            bits = $conCat(bits, and_bits(x,1));
+            x = floor(x/2);
+            if (x===0) { break; }
+        }
+    } else {
+        bits = repeat(0,nbits);
+        if (integer(x) && nbits<30) {
+            // faster method
+            for (let i=1, i$lim=nbits; i<=i$lim; i+=1) {
+                bits = $repe(bits,i,and_bits(x,mask) && 1);
+                mask *= 2;
+            }
+        } else {
+            // slower, but works for large x and large nbits
+            if (x<0) {
+                x += power(2,nbits); // for 2's complement bit pattern
+            }
+            for (let i=1, i$lim=nbits; i<=i$lim; i+=1) {
+                bits = $repe(bits,i,remainder(x,2));
+                x = floor(x/2);
+            }
+        }
+    }
+    return bits;
+}
+
+function bits_to_int(/*sequence*/ bits) {
+// get the (positive) value of a sequence of "bits"
+    let /*atom*/ val, p;
+    val = 0;
+    p = 1;
+    for (let i=1, i$lim=length(bits); i<=i$lim; i+=1) {
+        if ($subse(bits,i)) {
+            val += p;
+        }
+        p += p;
+    }
+    return val;
+}
+    
+function int_to_bytes(a, size=4) {
+    let res = repeat(0,size);
+    for (let i = 1; i <= size; i += 1) {
+        let byte = a & 0xff;
+        res[i] = byte
+        a = (a-byte) / 0x100;
+    }
+    return res;
+}
+
+//DEV signed not used/tested...
+function bytes_to_int(s, signed=true) {
+    let res = 0;
+    for (let i = length(s); i >= 1; i -= 1) {
+        res = (res * 0x100) + s[i];
+    }
+    return res;
+}
+
+function $catch(e) {
+    // In Javascript a catch(e) can receive a string, number, boolean, or object,
+    // so this simply massages that into a slightly more compatible Phix sequence.
+    if (string(e) || !sequence(e)) {
+        if (typeof(e) === "object") { e = e.message; }
+        e = ["sequence",0,0,0,0,"","","",e];
+    }
+    return e;
+}
+
+/*
+maybe we /can/ have sleep()...
+const delay = (n) => {
+  return new Promise((resolve) => {
+    setTimeout(()=> resolve(n), n)
+  })
+}
+async function main() {
+  const delays = [100, 200, 300].map(n => delay(n))
+  print("waiting…")
+  const res = await Promise.all(delays)
+  print("done. result is " + res)
+}
+main()
+*/    
+
 /*
 From Douglas Crockford (or just transpile builtins/sort.e)
 let m = ['aa', 'bb', 'a', 4, 8, 15, 16, 23, 42];
@@ -1490,6 +1562,3 @@ m.sort(function (a, b) {
 //printf(1,'123 !== "123" :%t\n',123 !== "123")
 ////printf(1,'123 !=== "123" :%t\n',123 !=== "123")
 
-//sin, cos, tan, arctan, log, floor, remainder, mod?, sqrt, power, PI, and/or/xor/not_bits, 
-//time, date, version, requires?, clear_screen?, dict?, timedate? progress?
-//everything else in builtins/pdate.e, or move them away from the #ilASM{}-using date().

@@ -31,6 +31,9 @@ integer k
 
     if not sequence(columns) then
         columns = {columns}
+----p2js: (untried)
+--  else
+--      columns = deep_copy(columns)
     end if
 
     ncolumns = length(columns)
@@ -47,9 +50,11 @@ integer k
                 if ncolumns<k then ncolumns = k end if
             end if
         end for
-        for i=1 to ncolumns do
-            columns &= i
-        end for
+--p2js:
+--      for i=1 to ncolumns do
+--          columns &= i
+--      end for
+        columns = tagset(ncolumns)
     end if
 
     result = repeat(repeat(defval,length(source)), ncolumns)

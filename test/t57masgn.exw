@@ -3,6 +3,7 @@
 --
 -- Phix tests for multiple assignment
 --
+with js
 
 function fn(sequence x)
 --  return x*x + 2*x + length(x) -- (RDSEu/OpenEuphoria style)
@@ -133,7 +134,11 @@ if testemitONis0 then
     s = s[1..$-1]
     s = prepend(s,a)
 else
-    {s[1],s[2..$]} = {s[$],s[1..$-1]}
+--for pwa/p2js:
+--  {s[1],s[2..$]} = {s[$],s[1..$-1]}
+    a = s[$]
+    s[2..$] = s[1..$-1]
+    s[1] = a
 end if
 
 if verbose then ?s end if
@@ -147,7 +152,10 @@ if testemitONis0 then
     s[1] = s[$]
     s[$] = a
 else
-    {s[1],s[$]} = {s[$],s[1]}
+    -- p2js:
+--  {s[1],s[$]} = {s[$],s[1]}
+    integer l = length(s)
+    {s[1],s[l]} = {s[$],s[1]}
 end if
 if verbose then ?s end if
 
@@ -197,9 +205,8 @@ if s!={1,2,3,$} then ?9/0 end if        -- /   but what the hey)
 s = {{1,{2,{3},4}}}
     {s[1][2][3]} = {9}
 if s!={{1,{2,{3},9}}} then ?9/0 end if
-s = {{1,{2,{3},4}}}
-    s[1][2][3] = 9
-if s!={{1,{2,{3},9}}} then ?9/0 end if
+    s[1][2][3] = 8
+if s!={{1,{2,{3},8}}} then ?9/0 end if
 
 -- Added 2/6/14:
 constant {{F},D} = {{"f1"},"d1"}

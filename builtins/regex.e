@@ -90,6 +90,8 @@ function addthread(sequence q, sequence code, integer gen, integer pc, string in
                 q = addthread(q, code, gen, code[pc+2], input, sp, saved)
             case SAVE:
                 integer k = code[pc+1]
+--p2js:
+                saved = deep_copy(saved)
                 saved[k] = sp
                 q = addthread(q, code, gen, pc+2, input, sp, saved)
             case BOL:
@@ -125,6 +127,8 @@ function addthread(sequence q, sequence code, integer gen, integer pc, string in
                     if length(reactivate)<l then
                         reactivate &= repeat({},l-length(reactivate))
                     end if
+--p2js:
+                    reactivate = deep_copy(reactivate)
                     reactivate[l] = append(reactivate[l],{pc+2, saved})
                 end if
             else
@@ -238,6 +242,8 @@ function backtrackingvm(sequence code, string input, integer strtndx)
                     pc = code[pc+1] -- continue current thread
                 case SAVE:
                     integer k = code[pc+1]
+--p2js:
+                    saved = deep_copy(saved)
                     saved[k] = sp
                     pc += 2
                 case CLASS:
@@ -354,9 +360,13 @@ function nextch(string src, integer idx, bool allow_class=true)
         if ch='x' then
             {idx,ch} = hexch(src, idx)
         else
-            integer k = find(ch,"nrt0")
+            integer k = find(ch,"0nrt")
             if k then
-                ch = "\n\r\t\0"[k]
+                if k=4 then
+                    ch = 9 -- Tab (\t is illegal under p2js)
+                else
+                    ch = "0\n\r"[k]
+                end if
             end if
         end if
     end if
@@ -430,7 +440,8 @@ bool negated
                         negated = not negated
                     end if
 -- </new code>
-                    pairs &= {"09","  \n\n\r\r\t\t","azAZ09__"}[k]
+--                  pairs &= {"09","  \n\n\r\r\t\t","azAZ09__"}[k]
+                    pairs &= {"09","  \n\n\r\r"&9&9,"azAZ09__"}[k]
 --                  idx += 1
                     {idx, ch} = nextch(src, idx, true)
                 else
@@ -470,13 +481,15 @@ bool negated
                 return {idx, res}
             elsif ch='s' or ch='S' then
                 negated = ch='S'
-                res = {CLASS, negated, "  \n\n\r\r\t\t"}
+--              res = {CLASS, negated, "  \n\n\r\r\t\t"}
+                res = {CLASS, negated, "  \n\n\r\r"&9&9}
                 idx += 1
                 return {idx, res}
             elsif ch='h' or ch='H' then
                 negated = ch='H'
                 -- Unicode space separator?
-                res = {CLASS, negated, "  \t\t"}
+--              res = {CLASS, negated, "  \t\t"}
+                res = {CLASS, negated, "  "&9&9}
                 idx += 1
                 return {idx, res}
             elsif ch='v' or ch='V' then
@@ -521,7 +534,8 @@ bool negated
             else
                 integer k = find(ch,"nrt0")
                 if k then
-                    ch = "\n\r\t\0"[k]
+--                  ch = "\n\r\t\0"[k]
+                    ch = {'\n','\r',9,'\0'}[k]
                 elsif not find(ch,".^$[]()") then
                     Abort("unknown escape", src, idx)
                     return {0,{}}
@@ -545,7 +559,7 @@ bool negated
     return {0,{}}
 end function
 
-forward function expr(string src, integer idx)
+forward function expression(string src, integer idx)
 
 function atm(string src, integer idx)
 --
@@ -573,7 +587,11 @@ sequence res
             group_number += 1
             res = {GROUP,group_number,nil}
         end if
-        {idx,res[3]} = expr(src, idx)
+--p2js:
+--      {idx,res[3]} = expression(src, idx)
+        object r3
+        {idx,r3} = expression(src, idx)
+        res[3] = r3
         if idx=0 then return {0,{}} end if
         if idx>length(src) or src[idx]!=')' then
             Abort("')' expected", src, idx)
@@ -674,13 +692,13 @@ integer ch, optmin, optmax, greedy
                 greedy = 0
                 idx += 1
             end if
-            res = {OPT_MN,optmin,optmax,greedy,res}     -- expanded in concat()
+            res = {OPT_MN,optmin,optmax,greedy,res}     -- expanded in concatenate()
         end if
     end if
     return {idx,res}
 end function
 
-function concat(string src, integer idx)
+function concatenate(string src, integer idx)
 --
 -- parse sequential elements eg abc -> {SEQ,a,b,c}
 --
@@ -705,18 +723,18 @@ sequence res = {SEQ}, res2
     return {idx,res}
 end function
 
-function expr(string src, integer idx)
+function expression(string src, integer idx)
 --
 -- parse a full expression (using recursive descent)
 --
 sequence res
-    {idx,res} = concat(src,idx)
+    {idx,res} = concatenate(src,idx)
     if idx=0 then return {0,{}} end if
     if idx<=length(src) then
         integer ch = src[idx]
         if ch='|' then
             sequence left=res, right
-            {idx,right} = expr(src,idx+1)
+            {idx,right} = expression(src,idx+1)
             if idx=0 then return {0,{}} end if
             --aside: this produces a right tree, but I think that's ok...
             res = {SPLIT, left, right}
@@ -734,7 +752,7 @@ function regexp_parse(string src)
     sequence res
 --  group_number = 0
     group_number = 1
-    {idx,res} = expr(src,1)
+    {idx,res} = expression(src,1)
     if idx=0 then return {} end if
     if idx<=length(src) then
         Abort("incomplete parse", src, idx)
@@ -932,11 +950,16 @@ function escape(string s)
 string res = ""
     for i=1 to length(s) do
         integer ch = s[i],
-                k = find(ch,"\n\r\t\0")
+--              k = find(ch,"\n\r\t\0")
+                k = find(ch,{'\n','\r',9,'\0'})
         if k then
-            res &= `\`&"nrt0"[k]
+--DEV p2js/fixme:
+--          res &= `\`&"nrt0"[k]
+            res &= '\\'&"nrt0"[k]
         elsif ch<' ' or ch>#7E then
-            res &= sprintf(`\x%02x`,ch)
+--DEV p2js/fixme:
+--          res &= sprintf(`\x%02x`,ch)
+            res &= sprintf("\\x%02x",ch)
         else
             res &= ch
         end if
@@ -975,9 +998,9 @@ integer i = 4
     end while
 
     integer l = 1
-    for i=1 to length(labels) do
-        if labels[i]!=0 then
-            labels[i] = sprintf("L%d",{l})
+    for ldx=1 to length(labels) do
+        if labels[ldx]!=0 then
+            labels[ldx] = sprintf("L%d",{l})
             l += 1
         end if
     end for
@@ -987,8 +1010,8 @@ integer i = 4
         string r = iff(labels[i]!=0 ? labels[i] & ":" : "")
         switch code[i] do
             case CHAR:
-                string char = escape(code[i+1]&"")
-                printf(1,"%03d %-6s%-8s'%s'\n",{i, r, "char", char})
+                string ch = escape(code[i+1]&"")
+                printf(1,"%03d %-6s%-8s'%s'\n",{i, r, "char", ch})
                 i += 2
             case BOL:
                 printf(1,"%03d %-6s%s\n",{i, r, "bol(^)"})

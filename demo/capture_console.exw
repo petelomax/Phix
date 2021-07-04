@@ -3,22 +3,24 @@
 --
 --  see also child.ex
 --  DEV: not quite right on linux: doubles-up on output, hangs on eof (fudge below [find '!'])
+--       Update 18/2/21: it is now quite badly broken on Linux; there have been significant
+--                       changes to c_func() and the like on linux in the past 3 months...
 --
 include builtins\pipeio.e
 
-procedure WriteToPipe(integer infd, atom stdin_wr)
--- Read from a file and write its contents to the pipe for the child's STDIN.
+procedure WriteToPipe(integer infd, atom hPipe)
+-- Read from a file and write its contents to the pipe for the child's stdin.
 -- Stop when there is no more data. 
     while true do
         object x = gets(infd)
         if atom(x) then exit end if
-        if not write_to_pipe(stdin_wr,x) then exit end if
+        if not write_to_pipe(hPipe,x) then exit end if
     end while
 end procedure
 
 procedure ReadFromPipe(atom hPipe, hProc) 
--- Read output from the child process's pipe for STDOUT
--- and write to the parent process's pipe for STDOUT. 
+-- Read output from the child process's pipe for stdout
+-- and write to (the parent process's pipe for) stdout. 
 -- Stop when there is no more data. 
     while true do
         object buff = read_from_pipe(hPipe,hProc)

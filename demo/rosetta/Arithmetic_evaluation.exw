@@ -8,6 +8,7 @@
 --  which of course by now is thousands of lines spread over several files,
 --  plus in Phix it is not actually an AST but a cross-linked flat IL.
 --
+with javascript_semantics
 
 sequence opstack = {}       -- atom elements are literals,
                             -- sequence elements are subexpressions
@@ -41,7 +42,7 @@ procedure nxtch(object msg="eof")
 end procedure
 
 procedure skipspaces()
-    while find(ch," \t\r\n")!=0 do nxtch(0) end while
+    while find(ch,{' ','\t','\r','\n'})!=0 do nxtch(0) end while
 end procedure
 
 procedure get_token()
@@ -176,7 +177,7 @@ integer k, thisp
     end while
 end procedure
 
-function eval(object s)
+function evaluate(object s)
 object lhs, rhs
 string op
     if atom(s) then
@@ -189,8 +190,8 @@ string op
     else -- -1                  -- p_p_op
         {lhs,rhs,op} = s
     end if
-    if sequence(lhs) then lhs = eval(lhs) end if
-    if sequence(rhs) then rhs = eval(rhs) end if
+    if sequence(lhs) then lhs = evaluate(lhs) end if
+    if sequence(rhs) then rhs = evaluate(rhs) end if
     if op="+" then
         return lhs+rhs
     elsif op="-" then
@@ -261,7 +262,7 @@ puts(1,"AST (flat): ")
 puts(1,"AST (tree):\n")
 ppEx(opstack[1],{pp_Nest,9999})
 puts(1,"result: ")
-?eval(opstack[1])
+?evaluate(opstack[1])
 {} = wait_key()
 
 --/*

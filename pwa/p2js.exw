@@ -8,22 +8,25 @@
 --
 --  NOTE: The structure of the Parse Tree is ad-hoc/slap-dash and subject to change...
 --
+--with js
+--with javascript_semantics
+--
 -- TODO (prioritised):
 --  About -> Written in [[http://phix.x10.mx|Phix]]
 --bugger: iff needs to short-circuit... [NAH, DONE]
 --                      let /*string*/ t4 = iff(i+3<=lt,text[i..i+3],"");
 -- ah:                  let /*string*/ t4 = (i+3<=lt) ? text[i..i+3] : "";
 -- (and we'll have to parse that as well...)
--- (and that text[] needs to be .slice, so we need scope-with-type as well...)
+-- (and that text[] needs to be .slice, so we need scope-with-type as well...) [DONE in a different way]
 --  output some js! [DONE]
---  Have a copy option that does mediawiki: every line must start with spaces and eg 
+--  Have a copy option that does mediawiki: every line must start with spaces and eg    [DONE, ctrl M]
 --      <span style="color: #CC0000;">IupMainLoop</span>
 --   --> now, where was I doing that before???
 --   -- I /think/ I was using tools/htmlise eucode and then manually adding leading spaces.
 --   Or, instead of copy option/pop-up, use say Ctrl M (Mediawiki) or Ctrl D (meDiawiki) or Ctrl K (mediawiKi).
---  make a start on the options pop-up. (then the copy pop-up)
+--  make a start on the options pop-up. (then the copy pop-up [ie original/mediawiki/output(html/js/...)])
 --  menu, list, tree.
---  scope: [easily removable] links in the ttree.... all the basics from p2js.js and pGUI.e pre-loaded...
+--  scope: [easily removable] links in the ttree.... all the basics from p2js.js and pGUI.e pre-loaded...   [DONE]
 --         [presumably addScope() and dropScope()...]
 --  get the basic parser working...
 --    *** STOP TRYING TO PRESERVE COMMENTS! *** (mid-statement/expression ones anyway,      [OK, panic over!]
@@ -41,12 +44,13 @@
 --  add a basic letter-only ternary tree... (p2js_ttree.e, charwise, no take-backs) [DONE]
 --  make a reactive sample, with resize_cb setting HIDEHEADERS depending on width.
 --  make a menu sample, see also C:\Program Files (x86)\Phix\pwa\phix\budget\budget.exw (plus includes)
---  sort out the final directory structure, add to phix7zip.lst, etc.
+--  sort out the final directory structure, add to phix7zip.lst, etc. [DONE]
 --  (tabs/)toggle-able panes: source [scrollable with cross-hairs], tokens, ast, output... 
 --  start on the GUI (run itself in browser, albeit with fixed samples and cut/paste/copy only, no direct file i/o.)
 --                   (also: no result pane on the desktop, and the run button does something quite different...)
 --                   [options] Minimise: X off, X css, X css+js, X all. Split lines : 0+/- (max 132 or 512?)
 --                             Phix metalink: X (<meta Written in Phix - http://phix.x10.mx />
+--                                                  <meta name="generator" content="FrontPage 4.0">
 --  revisit plade.exw: (only) deal with working samples/controls, get it going in the browser...
 --  minifier: create/test pGUI.min.js and pGUI.min.css (and pwa.min.html?)
 --  reindenter: exw -> AST, twiddle a few numbers on the AST, AST -> exw, maybe...
@@ -63,7 +67,268 @@
 --  proper error handling: {T_error, ...[msg/line/col/snippet]} in[stead of] ast, as display-able as anything else!
 --      (where practical, it could try to carry on parsing, as long as first error stays first & is immediately visible)
 --  console.log(1/2); (phew!)
+-- Review file:///E:/downloads/misc/js/vanillajs/winbox-master/index.html
 --
+
+--/*
+-- other things to avoid... (5/5/21)
+add
+addEventListener
+alignItems
+appendChild
+Array
+atan
+background
+bottom
+BRANCHOPEN_CB
+charCodeAt
+children
+classList
+className
+clientHeight
+clientWidth
+clientX
+clientY
+contains
+createElement
+createElementNS
+currentTarget
+Date
+disconnect
+display
+documentElement
+Error
+fill
+firstChild
+firstElementChild
+forEach
+fromCharCode
+getAttribute
+getBoundingClientRect
+getComputedStyle
+getDate
+getDay
+getElementsByClassName
+getFullYear
+getHours
+getMilliseconds
+getMinutes
+getMonth
+getSeconds
+hasChildNodes
+hasOwnProperty
+height
+id
+indexOf
+innerHTML
+innerHeight
+innerText
+innerWidth
+insertAdjacentHTML
+IntersectionObserver
+isArray
+isFinite
+isInteger
+isIntersecting
+isSafeInteger
+justifyContent
+key
+lastElementChild
+lastIndexOf
+left
+localeCompare
+map
+margin
+marginBottom
+marginLeft
+marginRight
+marginTop
+Math
+maxWidth
+minimumHeight
+minimumWidth
+name
+nextElementSibling
+nextSibling
+now
+Number
+observe
+offsetHeight
+offsetLeft
+offsetTop
+offsetWidth
+onclick
+ondblclick
+ondragstart
+onkeydown
+onmousedown
+pageX
+pageY
+parentNode
+parseFloat
+parseInt
+pow
+preventDefault
+previousElementSibling
+push
+querySelector
+querySelectorAll
+RegExp
+removeAttribute
+removeChild
+removeEventListener
+right
+scrollTop
+setAttribute
+setTimeout
+slice
+String
+style
+substr
+substring
+TABTIITLE
+target
+textAlign
+textContent
+title
+toExponential
+toFixed
+toLowerCase
+toPrecision
+toString
+toUpperCase
+toggle
+top
+unshift
+valueOf
+washeight
+wasleft
+wastop
+waswidth
+width
+window
+xm
+ym
+zIndex
+
+--DEV taken back out:
+    {"key",                         BADT,   T_key                           := 9212},
+    {"name",                        BADT,   T_name                          := 9936},
+    {"add",                         BADT,   T_add                           := 1460},
+    {"pow",                         BADT,   T_pow                           := 10856},
+    {"left",                        BADT,   T_left                          := 9368},
+    {"target",                      BADT,   T_target                        := 13824},
+    {"xm",                          TYPF,   T_xm                            := 15244},
+    {"ym",                          TYPF,   T_ym                            := 15440},
+    {"double",                      BADT,   T_double                        := 16376},
+    {"right",                       TYPF,   T_right                         := 11948},
+    {"height",                      BADT,   T_height                        := 6148},
+    {"width",                       BADT,   T_width                         := 15100},
+    {"id",                          BADT,   T_id                            := 6136},
+    {"children",                    BADT,   T_children                      := 2748},
+    {"fill",                        BADT,   T_fill                          := 16436},
+    {"title",                       BADT,   T_title                         := 14164},
+    {"byte",                        BADT,   T_byte                          := 15680},
+
+just in case:
+pwa\builtins\bsearch.js
+pwa\builtins\dict.js
+pwa\builtins\factorial.js
+pwa\builtins\find.js
+pwa\builtins\gcd.js
+pwa\builtins\log10.js
+pwa\builtins\match.js
+pwa\builtins\misc.js
+pwa\builtins\pcase.js
+pwa\builtins\pcolumn.js
+pwa\builtins\pdates.js
+pwa\builtins\pelapsed.js
+pwa\builtins\pextract.js
+pwa\builtins\pfactors.js
+pwa\builtins\pfindall.js
+pwa\builtins\pfindany.js
+pwa\builtins\pflatten.js
+pwa\builtins\pmaths.js
+pwa\builtins\ppp.js
+pwa\builtins\primes.js
+pwa\builtins\pseqc.js
+pwa\builtins\psplit.js
+pwa\builtins\psqop.js
+pwa\builtins\psum.js
+pwa\builtins\ptagset.js
+pwa\builtins\ptrim.js
+pwa\builtins\punique.js
+pwa\builtins\scanf.js
+pwa\builtins\sort.js
+pwa\builtins\substitute.js
+pwa\builtins\utfconv.js
+
+--*/
+
+--/*
+constant limz = {1,1,8,9,18,64} -- found by experiment
+ 
+procedure untouchable(integer n, cols=0, tens=0)
+    atom t0 = time(), t1 = t0+1
+    bool tell = n>0
+    n = abs(n)
+    sequence sums = repeat(0,n+3)
+    for i=1 to n do
+        integer p = get_prime(i)
+        if p>n then exit end if
+        sums[p+1] = 1
+        sums[p+3] = 1
+    end for
+    sums[5] = 0
+ 
+    integer m = floor(log10(n))
+    integer lim = limz[m]*n
+    for j=2 to lim do
+        integer y = sum(factors(j,-1))
+        if y<=n then
+            sums[y] = 1
+        end if
+        if platform()!=JS and time()>t1 then
+            progress("j:%,d/%,d (%3.2f%%)\r",{j,lim,(j/lim)*100})
+            t1 = time()+1
+        end if
+    end for
+    if platform()!=JS then progress("") end if
+    if tell then
+        printf(1,"The list of all untouchable numbers <= %d:\n",{n})
+    end if
+    string line = "       2       5"
+    integer cnt = 2
+    for t=6 to n by 2 do
+        if sums[t]=0 then
+            cnt += 1
+            if tell then
+                line &= sprintf("%,8d",t)
+                if remainder(cnt,cols)=0 then
+                    printf(1,"%s\n",line)
+                    line = ""
+                end if
+            end if
+        end if
+    end for
+    if tell then
+        if line!="" then
+            printf(1,"%s\n",line)
+        end if
+        printf(1,"\n")
+    end if
+    t0 = time()-t0
+--  string t = iff(t0>1?elapsed(t0,fmt:=" (%s)"),"")
+    string t = iff(t0>1?elapsed(t0,0," (%s)"),"")
+    printf(1,"%,20d untouchable numbers were found <= %,d%s\n",{cnt,n,t})
+    for p=1 to tens do
+        untouchable(-power(10,p))
+    end for
+end procedure
+ 
+untouchable(2000, 10, 6-(platform()==JS))
+--*/
+
 --  Hmm. This works but is probably going down the wrong path:
 --      for (let i=length(res); i>=1; i-=1) {
 --  //      let /*integer*/ ch = res[i-1];
@@ -306,16 +571,16 @@ end procedure
 --transpile(`C:\Program Files (x86)\Phix\test\t21ret1.exw`)                                                                 -- good!!!
 --transpile(`C:\Program Files (x86)\Phix\test\t22cmp.exw`)                                                                  -- good!!!
 --transpile(`C:\Program Files (x86)\Phix\test\t23subsc.exw`)    -- OK                                                       -- good!!!
---transpile(`C:\Program Files (x86)\Phix\test\t24slice.exw`)    -- ** O={3}; P=O; O[1]=5; ==> P!={3}....                    -- **BAD** (a $deepCopy will fix it)
+--transpile(`C:\Program Files (x86)\Phix\test\t24slice.exw`)    -- ** O={3}; P=O; O[1]=5; ==> P!={3}....                    -- **BAD** (a deep_copy will fix it)
 --transpile(`C:\Program Files (x86)\Phix\test\t25rmdr.exw`)                                                                 -- good!!!
---transpile(`C:\Program Files (x86)\Phix\test\t26aprnd.exw`)    -- needs a dest = $deepCopy(dest); in z(), then good.
+--transpile(`C:\Program Files (x86)\Phix\test\t26aprnd.exw`)    -- needs a dest = deep_copy(dest); in z(), then good.
 --transpile(`C:\Program Files (x86)\Phix\test\t27rpeat.exw`)                                                                -- good!!!
 --transpile(`C:\Program Files (x86)\Phix\test\t28prntf.exw`)                                                                -- good!!!
 --transpile(`C:\Program Files (x86)\Phix\test\t29for.exw`)      -- OK                                                       -- good (skipping negative step)
 --transpile(`C:\Program Files (x86)\Phix\test\t30prime.exw`)                                                                -- good!!!
 --transpile(`C:\Program Files (x86)\Phix\test\t31sce.exw`)      -- (more mods similar to sq_eq probably rqd)                -- good!!! 
 --transpile(`C:\Program Files (x86)\Phix\test\t32sprnt.exw`)                                                                -- good!!!
---transpile(`C:\Program Files (x86)\Phix\test\t33seqop.exw`)                                                                -- **BAD** (a $deepCopy will fix it)
+--transpile(`C:\Program Files (x86)\Phix\test\t33seqop.exw`)                                                                -- **BAD** (a deep_copy will fix it)
 --transpile(`C:\Program Files (x86)\Phix\test\t34andor.exw`)                                                                -- good!!!
 --transpile(`C:\Program Files (x86)\Phix\test\t35cncat.exw`)                                                                -- good!!!
 --transpile(`C:\Program Files (x86)\Phix\test\t36match.exw`)                                                                -- good!!!
@@ -343,9 +608,9 @@ end procedure
 --Xtranspile(`C:\Program Files (x86)\Phix\test\t55incinc.exw`)  -- (ditto)
 --transpile(`C:\Program Files (x86)\Phix\test\t56inc.exw`)      -- forward call (ignore)
 --transpile(`C:\Program Files (x86)\Phix\test\t56inca.e`)
---transpile(`C:\Program Files (x86)\Phix\test\t57masgn.exw`)    -- OK
---transpile(`C:\Program Files (x86)\Phix\test\t58rtxt.exw`)                                             -- XX NO (file i/o)
---Xtranspile(`C:\Program Files (x86)\Phix\test\t59mri.exw`)
+--transpile(`C:\Program Files (x86)\Phix\test\t57masgn.exw`)                                                                -- good!!!
+--transpile(`C:\Program Files (x86)\Phix\test\t58rtxt.exw`)     -- XX NO (file i/o)
+--Xtranspile(`C:\Program Files (x86)\Phix\test\t59mri.exw`)     -- XX (include "as")
 --Xtranspile(`C:\Program Files (x86)\Phix\test\inc8/t59a.e`)    -- namespaces
 --Xtranspile(`C:\Program Files (x86)\Phix\test\inc8/t59b.e`)
 --note that namespaces are not supported by pwa/p2js: fairly obviously javascript is never going to support namespaces.
@@ -355,22 +620,22 @@ end procedure
 --hmm, on namespaces, I could (perhaps!) just map a:b to aXb, where X is \u02D0 (utf16) aka \#CB\#90 (utf8), a triangular colon...
 --  (I would of course have to scan for consistency and apply the same to the original unadorned name, precisely just the once)
 --  (We could also just map a:b to a$b, or maybe a__b, but a single underscore wouldn't be reversible.)
---transpile(`C:\Program Files (x86)\Phix\test\t60.exw`)         -- OK (erm, puts1.e)
---transpile(`C:\Program Files (x86)\Phix\test\t60td.exw`)       -- OK (erm, include VM\pRand.e, include builtins\pdate.e)
---transpile(`C:\Program Files (x86)\Phix\test\t61cffi.exw`)     -- OK (erm, include builtins\cffi.e?)
---transpile(`C:\Program Files (x86)\Phix\test\t62utf.exw`)
---transpile(`C:\Program Files (x86)\Phix\test\t63regex.exw`)
+--transpile(`C:\Program Files (x86)\Phix\test\t60.exw`)         -- OK (NO, puts1.e)
+--transpile(`C:\Program Files (x86)\Phix\test\t60td.exw`)       -- OK                                                       -- good!!!
+--transpile(`C:\Program Files (x86)\Phix\test\t61cffi.exw`)     -- NO (include builtins\cffi.e, could be cleaner...)
+--transpile(`C:\Program Files (x86)\Phix\test\t62utf.exw`)                                                                  -- good!!!
+--transpile(`C:\Program Files (x86)\Phix\test\t63regex.exw`)    -- **needs forward definitions...**
 --transpile(`C:\Program Files (x86)\Phix\test\t64struct.exw`)   -- no: class (erm, include builtins\structs.e, cffi:namespaces)
--- there should actually be reasonable mapping between structs and javascript objects...
---transpile(`C:\Program Files (x86)\Phix\test\t65filter.exw`)
---transpile(`C:\Program Files (x86)\Phix\test\t66prec.exw`)     -- OK
---transpile(`C:\Program Files (x86)\Phix\test\t96jtyp.exw`)     -- OK
+-- there could actually be reasonable mapping between structs and javascript objects...
+--transpile(`C:\Program Files (x86)\Phix\test\t65filter.exw`)                                                               -- good!!!
+--transpile(`C:\Program Files (x86)\Phix\test\t66prec.exw`)     -- OK                                                       -- good!!!
+--transpile(`C:\Program Files (x86)\Phix\test\t96jtyp.exw`)     -- OK                                                       -- good!!!
 --Xtranspile(`C:\Program Files (x86)\Phix\test\t97mleak.exw`)   -- #ilASM{}
 --transpile(`C:\Program Files (x86)\Phix\test\t98locks.exw`)    -- sleep(.1)...
 --Xtranspile(`C:\Program Files (x86)\Phix\test\t99errs.exw`)    -- top-level abort(0) trick, don't go there...
 --transpile(`C:\Program Files (x86)\Phix\test\terror.exw`)      -- OK ?database.e(ok), dll.e(ok), machine.e(ok), syswait.ew
 --Xtranspile(`C:\Program Files (x86)\Phix\test\terrorX.exw`)    -- arwen
---transpile(`C:\Program Files (x86)\Phix\test\trace.exw`)       -- OK
+--transpile(`C:\Program Files (x86)\Phix\test\trace.exw`)       -- NO (uses inc7 which has clashes)
 --https://rosettacode.org/wiki/Tetris/Phix
 --demo\rosetta\Tetrominoes.exw
 --file:///E:/downloads/misc/js/AbelianSandpile.html
@@ -407,7 +672,11 @@ Ihandle main_dlg, choose_file, chosen, ctype, multitext, lbl_statusbar, otype,
 Ihandln config
 Ihandln tok_dlg = NULL, tok_table,
         tree_dlg = NULL, tree,
-        show_dlg = NULL, show_text, lbl_show
+        show_dlg = NULL, show_text, lbl_show,
+        opt_dlg = NULL, single_src, minimise, 
+                        show_tokens_button, show_parse_button, 
+                        show_collapsed, preserve_comments,
+                        close_opts
 
 function set_extensions(Ihandle ih, integer bar=0)
     for i=1 to length(ext_names)-bar do
@@ -427,6 +696,7 @@ end procedure
 
 --with trace
 function get_script(sequence xml, tags, res = {})
+res = deep_copy(res)    --DEV (not particularly happy with that...)
     string tag = tags[1]
     tags = tags[2..$]
     for i=1 to length(xml) do
@@ -442,6 +712,7 @@ function get_script(sequence xml, tags, res = {})
                 res = get_script(xmli[3],tags,res)
             elsif length(xmli[2])=0 then -- (not src=...)
                 res = append(res,xmli[3])
+--              res = append(res,deep_copy(xmli[3]))
             end if
         end if
     end for
@@ -450,7 +721,7 @@ end function
 
 --global string src -- now in p2js_basics...
 --integer src_offset    -- (for js embeddded in html) [ now in p2js_basics]
-bool pGUI
+bool pGUI, pMPFR, pSHA256, pTIMEDATE
 
 --function load(string src="", integer ext=0)
 --function load(string what)
@@ -461,6 +732,9 @@ function load_tokens(Ihandle mle=multitext, mtype=ctype)
     src = IupGetAttribute(mle, "VALUE")
     src_offset = 0
     pGUI = false
+    pMPFR = false
+    pSHA256 = false
+    pTIMEDATE = false
 --  integer ext = IupGetInt(ctype,"VALUE")
     integer ext = IupGetInt(mtype,"VALUE")
 --  elsif ext=0 then
@@ -498,6 +772,9 @@ function load_tokens(Ihandle mle=multitext, mtype=ctype)
             string pre = src[1..match(js[1][1],src)]
             src_offset = length(split(pre,'\n'))-1
             pGUI = match("pGUI.js",pre)!=0
+            pMPFR = match("mpfr.js",pre)!=0
+            pSHA256 = match("sha256.js",pre)!=0
+            pTIMEDATE = match("timedate.js",pre)!=0
             src = js[1][1]
             ext = find_extension("js")
             if not load_text(src,ext) then
@@ -535,7 +812,7 @@ string show_caret = ""
 
 function idle_action()
     --
-    -- note: this is the bit that is horrendously slow!
+    -- note: the ADDFORMATTAG_HANDLE call itself is the bit that is horrendously slow!
     --
     Ihandln formattags = IupUser("BULK=YES")
     if fdx=1 then
@@ -611,13 +888,18 @@ function idle_action()
                 colour = IUP_BLUE
             elsif toktype<=T_object then        -- types
                 colour = "#004080"
-            elsif toktype<=T_volatile then      -- dodgy keywords
+--          elsif toktype<=T_volatile then      -- dodgy keywords
+--          elsif toktype<=T_try then           -- dodgy keywords
+            elsif toktype<=T_trace then         -- dodgy keywords
                 colour = IUP_RED
             elsif toktype<=T_xor then           -- keywords
                 colour = IUP_TEAL
-            elsif toktype<=T_yield then         -- buitlins
+--          elsif toktype<=T_yield then         -- buitlins
+--          elsif toktype<=T_xor_bitsu then         -- buitlins
+            elsif toktype<=T_zIndex then        -- buitlins
                 colour = "#7060A8"
-            elsif toktype<=T_wait_key then      -- not pwa/p2js
+--          elsif toktype<=T_wait_key then      -- not pwa/p2js
+            elsif toktype<=T_yield then         -- not pwa/p2js
 --DEV oh shit: if platform()!=WEB then ... end if - not violation...
 --          (which suggests we should syntax colour off the back of a parse tree...)
 --          (or, maybe, retro-apply from parse tree back onto the tokens...)
@@ -771,6 +1053,10 @@ function syntax_colour(Ihandle mle=multitext, mtype=ctype)
     return IUP_IGNORE -- (for key_cb)
 end function
 
+procedure set_otype(integer ext)
+    IupSetInt(otype,"VALUE",iff(ext==PHIX?HTML:iff(ext==JSS?JSS:PHIX)))
+end procedure       
+
 include builtins/read_file.e
 procedure open_file(string filename)
 --  object str = read_file(filename)
@@ -788,12 +1074,36 @@ procedure open_file(string filename)
                 files = append(files,filename)
                 pdx  = length(files)
             end if
+--3/5/21: (nice idea, but unworkable, removed 9/5/21)
+--/*
+            for j=pdx to 2 by -1 do
+                files[j] = files[j-1]
+                if j<=IupGetInt(chosen,"VISIBLEITEMS") then
+                    IupSetAttributeId(chosen,"",j,files[j])
+                end if
+            end for
+            pdx = 1
+            files[pdx] = filename
+--</3/5/21>
+--*/
+--17/5/21
+            integer vis = IupGetInt(chosen,"VISIBLEITEMS")-1
+            if pdx>vis then
+--?{pdx,vis,filename}
+--vis -= 1
+                files[pdx] = files[vis]
+                files[vis] = filename
+                pdx = vis
+--              IupSetAttribute(chosen,"VISIBLEITEMS",pdx+1)
+            end if
             IupSetAttributeId(chosen,"",pdx,filename)
             IupSetInt(chosen,"VALUE",pdx)
         end if
         integer ext = find_extension(get_file_extension(filename))
         IupSetInt(ctype,"VALUE",ext)
-        IupSetInt(otype,"VALUE",iff(ext==PHIX?HTML:PHIX))
+--      IupSetInt(otype,"VALUE",iff(ext==PHIX?HTML:PHIX))
+--      IupSetInt(otype,"VALUE",iff(ext==PHIX?HTML:iff(ext==JSS?JSS:PHIX)))
+        set_otype(ext)
         IupSetInt(run_btn,"ACTIVE",true)
 --      IupSetStrAttribute(multitext, "FILENAME", filename)
         IupSetAttribute(multitext,"CARET","1,1")
@@ -827,6 +1137,8 @@ procedure load_ini()
     object lines = get_text(inifile,GT_LF_STRIPPED)
     if lines!=-1 then
 --      integer pdx = 0
+        sequence d = {}
+        integer vi = 1
         for i=1 to length(lines) do
             if lines[i]!="" then
                 string {lt,li} = apply(split(lines[i],":",true,2),trim)
@@ -835,8 +1147,19 @@ procedure load_ini()
                         crash("duplicate project")
                     end if
                     files = append(files,li)
+                    string fp = get_file_path(li)
+                    integer k = find(fp,d)
 --  integer pdx = IupGetInt(chosen,"VALUE")
-                    IupSetAttributeId(chosen,"",length(files),li)
+                    if length(files)<=10 or k=0 then
+                        if k=0 then
+                            d = append(d,fp)
+                            files[$] = files[vi]
+                            files[vi] = li
+                        end if
+--                      IupSetAttributeId(chosen,"",length(files),li)
+                        IupSetAttributeId(chosen,"",vi,li)
+                        vi += 1
+                    end if
 --      IupSetInt(chosen,"VALUE",pdx)
 --      files = append(files,{})
 --      IupSetInt(chosen,"VALUE",1)
@@ -847,8 +1170,7 @@ procedure load_ini()
                 end if
             end if
         end for
---?{"VISIBLEITEMS",length(files)+1}
-        IupSetInt(chosen,"VISIBLEITEMS",length(files)+1) -- (no idea why +1 helps)
+        IupSetInt(chosen,"VISIBLEITEMS",vi) -- (no idea why +1 helps)
     end if
 --DEV on reflection, we might/probably want to do this without a gui... [laters]
 --  (then again, length 3 might be just this, ie you need -run/build/out to...)
@@ -875,24 +1197,28 @@ procedure save_ini()
 --  if pdx>1 then tags[1..pdx] = tags[pdx]&tags[1..pdx-1] end if
     if pdx then
         sequence tags = tagset(length(files))
-        integer tp = tags[pdx]
-        while pdx>1 do
-            tags[pdx] = tags[pdx-1]
-            pdx -= 1
-        end while
-        tags[1] = tp
+--      integer tp = tags[pdx]
+--      while pdx>1 do
+--          tags[pdx] = tags[pdx-1]
+--          pdx -= 1
+--      end while
+--      tags[1] = tp
+        tags[1] = pdx
+        for i=2 to pdx do tags[i] = i-1 end for
         integer fn = open(inifile,"w")
         if fn=-1 then crash("cannot open "&inifile) end if
-        sequence d10 = {}
+--1/5/21: keep the lot, for Ctrl T, and instead limit what we load into chosen
+--      sequence d10 = {}
         for i=1 to length(tags) do
             integer ti = tags[i]
-            string fi = files[ti],
-                   fp = get_file_path(fi)
-            integer k = find(fp,d10)
-            if i<=10 or k=0 then
-                if k=0 then d10 = append(d10,fp) end if
-                printf(fn,"file: %s\n",fi)
-            end if
+--          string fi = files[ti],
+--                 fp = get_file_path(fi)
+--          integer k = find(fp,d10)
+--          if i<=10 or k=0 then
+--              if k=0 then d10 = append(d10,fp) end if
+--              printf(fn,"file: %s\n",fi)
+                printf(fn,"file: %s\n",files[ti])
+--          end if
         end for
         close(fn)
     end if
@@ -908,6 +1234,7 @@ function multitext_valuechanged_cb(Ihandle /*multitext*/)
     if not platform_is_js() then
 --      IupSetAttribute(chosen,"TITLE","")
         IupSetInt(chosen,"VALUE",NULL)
+        current_file = ""
 /*
         if length(lastfile) and not find(lastfile[$],`/\`) then
             lastfile = get_file_path(lastfile)
@@ -986,7 +1313,8 @@ end function
 
 function ctype_cb(Ihandle /*ctype*/, atom /*pText*/, integer /*item*/, /*state*/)
     ext = IupGetInt(ctype,"VALUE")
-    IupSetInt(otype,"VALUE",iff(ext==PHIX?HTML:PHIX))
+--  IupSetInt(otype,"VALUE",iff(ext==PHIX?HTML:PHIX))
+    set_otype(ext)
     IupSetInt(run_btn,"ACTIVE",true)
     return syntax_colour()
 end function
@@ -1075,17 +1403,18 @@ function treeify(sequence ast, bool bRoot=true)
 -- The parse tree is not set in stone: if this or any 
 -- other part can be simplified, just go for it!
 --
-?9/0
+--?9/0
     if length(ast)!=2 then ?9/0 end if
 --  if length(ast)!=2 then ?ast end if
-    {object nodetype, sequence children} = ast
+--  {object nodetype, sequence children} = ast
+    object {nodetype, children} = ast
     if integer(nodetype) then
         if nodetype=T_with
         or nodetype=T_without then
             children = children[1..1]
         elsif nodetype=T_include then
 --          children = children[1..1]&sprint(childre
-if children[1]!="pGUI.e" then
+if not find(strip_builtin(children[1]),{"pGUI.e","mpfr.e","sha256.e","timedate.e"}) then
             restore_source(children[2])
 end if
             children[2] = sprint(children[2])
@@ -1095,10 +1424,16 @@ end if
         nodetype = substitute(tok_name(nodetype),"&","&&")
     end if
     sequence res = {nodetype,iff(bRoot?{}:SC),{}}
+    if nodetype="new" and not is_phix() then
+        if length(children)!=2 or children[1]!="PROC" then ?9/0 end if
+--      children = {`PROC`,{{4,2859,2864,73'I',24,16200},{34'"',2866,2868,73'I',26},{34'"',2870,2872,73'I',30}}}
+        children = children[2]
+    end if
     if string(children) then
 ?{"can this happen anymore?? (treeify)",ast}
         res[$] = {children}
-    elsif nodetype!="global" then
+    elsif nodetype!="global"
+      and nodetype!="use strict" then
         integer cdx=1
         while cdx<=length(children) do
             object child = children[cdx]
@@ -1160,6 +1495,7 @@ end function
 
 function close_sub_cb(Ihandle dlg)
     -- close (hide) a sub-window
+    if opt_dlg!=null and dlg=close_opts then dlg = opt_dlg end if
     if not platform_is_js() then
 --      string dlg_name = IupGetAttribute(dlg,"DLG_NAME")
         string dlg_name = substitute(IupGetAttribute(dlg,"TITLE")," ","")
@@ -1174,6 +1510,7 @@ include src\p2js_emit.e
 
 procedure copy(string s)
     Ihandln ih = IupClipboard() 
+    IupSetAttribute(ih,"TEXT",NULL) -- 6/5/21 (otherwise Edita [etc] stubbornly copies the old Unicode text)
     IupSetAttribute(ih,"TEXT",s)
     ih = IupDestroy(ih)
 end procedure
@@ -1196,15 +1533,27 @@ procedure test(string filename, src, cmd)
         if find(' ',filename) then
             filename = '"' & filename & '"'
         end if
-        integer mode = iff(match(".exe",cmd)?2:4)
+--      integer mode = iff(match(".exe",cmd)?2:4)
+        integer mode = iff(match(".exe",cmd)?8:4)
         cmd = sprintf(`%s %s`,{cmd,filename})
         if length(cmd)>5 
         and cmd[1..5]="open " then  -- (note the space)
             cmd = cmd[6..$]
         end if
-?{cmd,mode}
+--?{cmd,mode}
         atom res = system_exec(cmd,mode)
+--      atom res = system_exec(cmd,4)
+--      atom res = system_exec(cmd,0)
+--      atom res = system_exec(cmd,12)
+--      atom res = system_exec(cmd,8)
+--?res
+--      system(cmd)
+--?"done"
     end if
+end procedure
+
+procedure cannot_run(string ext)
+    printf(1,"Cannot run .%s files\n",{ext})
 end procedure
 
 procedure run(string src, Ihandle mtype)
@@ -1246,14 +1595,224 @@ procedure run(string src, Ihandle mtype)
 --?ext
         ext = extensions[IupGetInt(mtype,"VALUE")][2][1]
     end if
-    if platform_is_js() and ext="js" then
-        puts(1,"run() not implemented")
-    elsif platform()!=JS and ext="exw" then
-        test(testexw,src,get_interpreter(bQuote:=false,bPrefW:=true))
-    elsif platform()!=JS and ext="html" then
-        test(testhtm,src,"open")
+    if platform_is_js() then
+        if ext="js" then
+            puts(1,"run() not implemented")
+        else
+            cannot_run(ext)
+        end if
     else
-        printf(1,"Cannot run .%s files\n",{ext})
+        if ext="exw" then
+--          test(testexw,src,get_interpreter(bQuote:=false,bPrefW:=true))
+            test(testexw,src,get_interpreter(true,machine_bits(),platform(),true))
+--get_interpreter(bool bQuote=false, object mb=machine_bits(), integer plat=platform(), bool bPrefW=false)
+        elsif ext="html" then
+            test(testhtm,src,"open")
+        else
+            cannot_run(ext)
+        end if
+    end if
+end procedure
+
+function single_src_cb(Ihandle /*single_src*/, integer state)
+--ih: identifier of the element that activated the event.
+--state: 1 if the toggle’s state was shifted to on; 0 if it was shifted to off. 
+--  if state then
+--  else
+--  end if
+    IupConfigSetVariableInt(config,"Options","single_src",state)
+    IupSetInt(minimise,"VALUE",iff(state?IupConfigGetVariableInt(config,"Options","minimise",false):false))
+    IupSetInt(minimise,"ACTIVE",state)
+    return IUP_DEFAULT
+end function
+
+function minimise_cb(Ihandle /*minimise*/, integer state)
+    IupConfigSetVariableInt(config,"Options","minimise",state)
+    IupSetInt(preserve_comments,"ACTIVE",not state)
+    return IUP_DEFAULT
+end function
+
+function show_tokens_button_cb(Ihandle /*show_tokens_button*/, integer state)
+    IupConfigSetVariableInt(config,"Options","show_tokens_button",state)
+    return IUP_DEFAULT
+end function
+
+function show_parse_button_cb(Ihandle /*show_parse_button*/, integer state)
+    IupConfigSetVariableInt(config,"Options","show_parse_button",state)
+    return IUP_DEFAULT
+end function
+
+function show_collapsed_cb(Ihandle /*show_collapsed*/, integer state)
+    IupConfigSetVariableInt(config,"Options","show_collapsed",state)
+    return IUP_DEFAULT
+end function
+
+function preserve_comments_cb(Ihandle /*preserve_comments*/, integer state)
+    IupConfigSetVariableInt(config,"Options","preserve_comments",state)
+    return IUP_DEFAULT
+end function
+
+--procedure rebuild()
+--end procedure
+
+function insert_dollars(string text, sequence gk)
+    --
+    -- prefix private identifiers in pwa/builtins/.js files with a $,
+    -- to ensure that they clash not with anything in user-code-land.
+    -- eg (local constant) "PDATA" in builtins/pqueue.js ==> "$PDATA".
+    -- text is the generated js, gk is the list of local identifiers.
+    -- note that a gk of eg {"pq","pq_compare"} must not dbl-whammy,
+    --      nor must that "pq" mangle "pq_size", "init_pq", etc.
+    -- one missed was "hundred" -> "$hundred" in builtins\ordinal.e,
+    -- so it now also checks for lead/trail '"'/'`', but of course
+    -- (say) the string " hundred and " might still get mangled....
+    --
+    integer lg = length(gk)
+    if lg=0 then ?9/0 end if
+    sequence dollars = {}
+    for i=1 to lg do
+        string gki = gk[i]
+        integer lk = length(gki)
+        sequence di = match_all(gki,text)
+        for j=1 to length(di) do
+            integer dij = di[j],
+                    idx = dij+lk
+            if idx<=length(text) then
+                integer nextch = text[idx],
+                        chtype = charset[nextch]
+                if not find(chtype,{'"','`',DIGIT,LETTER}) then
+                    integer prevch = text[max(1,dij-1)]
+                    chtype = charset[prevch]
+                    if not find(chtype,{'"','`',DIGIT,LETTER}) then
+                        dollars &= dij
+                    end if
+                end if
+            end if
+        end for
+    end for
+    dollars = sort(dollars)
+    for i=2 to length(dollars) do
+        -- sanity check for double-whammies
+        if dollars[i] = dollars[i-1] then ?9/0 end if
+    end for
+    -- now insert a $ at all places we have decided on.
+    string res = ""
+    integer startidx = 1
+    for i=1 to length(dollars) do
+        integer di = dollars[i]
+        res &= text[startidx..di-1]
+        res &= '$'
+        startidx = di
+    end for
+    res &= text[startidx..$]
+    return res
+end function
+
+function verify(string generated, against)
+    sequence gl = split(generated,"\n",false),
+             ta = get_text(against,GT_LF_STRIPPED)
+    bool bActual = false
+    if length(gl)=length(ta)+1 and gl[$]=`` then
+        gl = gl[1..$-1]
+    end if
+    if length(gl)!=length(ta) then
+        printf(1,"incorrect lengths (%s)\n",{against})
+        bActual = true
+    else
+        for i=1 to length(gl) do
+            if gl[i]!=ta[i] then
+                printf(1,"%s\n%s\nmismatch: %s line %d\n",{gl[i],ta[i],against,i})
+                bActual = true
+                exit
+            end if
+        end for
+    end if
+    if bActual then
+        string actual = substitute_all(against,{"test.","exw.","js."},{"actual.","",""})
+        integer fn = open(actual,"w")
+        printf(fn,"Expected/generated output of %s\n",{against})
+        puts(fn,generated)
+        close(fn)
+        printf(1,"see %s\n",{actual})
+    end if
+    return not bActual
+end function
+
+function validate(string testname, integer itype)
+    string test     = join_path({pwadir,"src",testname}),
+           test_js  = join_path({pwadir,"src",testname & ".js"}),
+           test_exw = join_path({pwadir,"src",testname & ".exw"})
+    init_scope()
+--?test
+    open_file(test)
+    IupSetStrAttribute(lbl_statusbar,"TITLE","testing %s\n",{test})
+    IupFlush()
+    IupSetInt(ctype,"VALUE",itype)
+    IupSetInt(otype,"VALUE",JSS)
+    if not load_tokens() then ?9/0 end if
+    sequence ast = parse()
+    if parse_error() then ?9/0 end if
+    if not verify(generate_source(ast,JSS,0,false,false,false,false),test_js) then
+        return false
+    end if
+    IupSetInt(otype,"VALUE",PHIX)
+    return verify(generate_source(ast,PHIX,0,false,false,false,false),test_exw)
+end function
+
+procedure rebuild_builtins_and_run_tests()
+    integer waschosen = IupGetInt(chosen,"VALUE"),
+            wasotype = IupGetInt(otype,"VALUE"),
+            wasctype = IupGetInt(ctype,"VALUE")
+--DEV set a flag to prevent reordering... [if we're still doing that in open_file() etc]
+    string builtindir = join_path({get_file_path(get_interpreter()),"builtins"}),
+           pwabuiltins = join_path({pwadir,"builtins"})
+    for i=1 to length(rebuild_required) do
+        string ri = strip_builtin(rebuild_required[i])
+        if find(ri,{"pGUI.e","mpfr.e","sha256.e"}) then
+            -- [see p2js_scope.e/check_builtins()]
+            ?"rebuild_required includes "&ri&"..."
+        else
+            string filepath = join_path({builtindir,ri}),
+                   pwabpath = join_path({pwabuiltins,substitute(ri,".e",".js")})
+            init_scope()
+            open_file(filepath)
+--          open_file(filepath,bQuiet:=true)
+            IupSetStrAttribute(lbl_statusbar,"TITLE","overwriting %s\n",{pwabpath})
+            IupFlush()
+--5/5 (spotted in passing...)
+--          IupSetInt(otype,"VALUE",JS)
+            IupSetInt(otype,"VALUE",JSS)
+            if not load_tokens() then ?9/0 end if
+            sequence ast = parse()
+            if parse_error() then ?9/0 end if
+            string output = generate_source(ast,JSS,0,false,false,false,false)
+            sequence gk = get_autoincludes()[2] -- (overwrite p2js_depends.e if needed)
+            if length(gk) then
+                output = insert_dollars(output,gk)
+            end if
+            integer fn = open(pwabpath,"w")
+            puts(fn,output)
+            close(fn)
+        end if
+    end for
+--  ?"run_tests"
+--/*
+On startup (desktop only) pwa/src/test.exw is transpiled to js and compared line-by-line to test.exw.js
+and the same file is also "transpiled" to phix (iyswim) and compared line-by-line to test.exw.exw.
+Likewise pwa/src/test.js is transpiled to phix/js and compared line-by-line to test.js.exw and test.js.js. 
+--*/
+    testing = true  -- let p2js_emit.e know...
+    if validate("test.exw",PHIX) then
+        {} = validate("test.js",JSS)
+    end if
+    testing = false -- let p2js_emit.e know...
+    init_scope()
+
+    IupSetInt(otype,"VALUE",wasotype)
+    IupSetInt(ctype,"VALUE",wasctype)
+    if waschosen then
+        IupSetInt(chosen,"VALUE",waschosen)
+        open_file(files[waschosen])
     end if
 end procedure
 
@@ -1278,11 +1837,63 @@ function show_stuff(string what)
 
         -- [hint: get_file_name_and_path(string filepath, bool dropslash=true), but we want the slash]
         sequence {filepaths, filenames} = columnize(apply(true,get_file_path_and_name,{files,false}))
-        IupFileList(filenames, filepaths, openFile, main_dlg, config)
+        IupFileList(filenames, filepaths, openFile, main_dlg, config, "Recent Files")
 
     elsif what="CTRLF5" then
 
         run(IupGetAttribute(multitext,"VALUE"),ctype)
+
+    elsif what="OPTIONS" then
+
+--                   [options] Minimise: X off, X css, X css+js, X all. Split lines : 0+/- (max 132 or 512?)
+-- show tokens and tree buttons (default no)
+-- "show tree collapsed?"
+-- preserve comments
+--  preserve comments in builtins (or are we going to manually copy the lot into p2js.js?)
+-- minify
+--  embed p2js/pGUI.js/mpfr.js?
+-- maybe: ctype/otype as radio buttons?
+-- copy pop-up
+--+++
+--  return IUP_DEFAULT
+--?"options"
+        if opt_dlg=NULL then
+            single_src = IupToggle("Single source",Icallback("single_src_cb"))
+            minimise = IupToggle("Minimise",Icallback("minimise_cb"))
+            preserve_comments = IupToggle("Preserve comments",Icallback("preserve_comments_cb"))
+            show_tokens_button = IupToggle("Show tokens button",Icallback("show_tokens_button_cb"))
+            show_parse_button = IupToggle("Show parse tree button",Icallback("show_parse_button_cb"))
+            show_collapsed = IupToggle("Show tree collapsed",Icallback("show_collapsed_cb"))
+            integer ss = IupConfigGetVariableInt(config,"Options","single_src",false),
+                    mm = IupConfigGetVariableInt(config,"Options","minimise",false),
+                    pc = IupConfigGetVariableInt(config,"Options","preserve_comments",true),
+                    kb = IupConfigGetVariableInt(config,"Options","show_tokens_button",false),
+                    pb = IupConfigGetVariableInt(config,"Options","show_parse_tree_button",false),
+                    tc = IupConfigGetVariableInt(config,"Options","show_parse_tree_collapsed",true)
+            IupSetInt(single_src,"VALUE",ss)
+            IupSetInt(minimise,"VALUE",iff(ss?mm:false))
+            IupSetInt(minimise,"ACTIVE",ss)
+            IupSetInt(preserve_comments,"VALUE",pc)
+            IupSetInt(preserve_comments,"ACTIVE",not ss or not mm)
+            IupSetInt(show_tokens_button,"VALUE",kb)
+            IupSetInt(show_parse_button,"VALUE",pb)
+            IupSetInt(show_collapsed,"VALUE",tc)
+            close_opts = IupButton("Close",Icallback("close_sub_cb"))
+            Ihandle opt_vbox = IupVbox({IupHbox({single_src,minimise,preserve_comments}),
+                                        IupHbox({show_tokens_button,show_parse_button}),
+                                        IupHbox({show_collapsed}),
+                                        IupHbox({IupFill(),close_opts})},
+--                                      IupHbox({IupFill(),close_opts,IupFill()})},
+--                                      IupHbox({close_opts})},
+                                       "GAP=5, MARGIN=5x5")
+            opt_dlg = IupDialog(opt_vbox) 
+--          IupSetAttribute(opt_dlg,"RASTERSIZE","800x534") -- (see note)
+            IupSetAttribute(opt_dlg,"TITLE","Options")
+            IupSetAttributeHandle(opt_dlg,"PARENTDIALOG",main_dlg)
+            IupSetCallback(opt_dlg, "CLOSE_CB", Icallback("close_sub_cb"))
+        end if
+        IupConfigDialogShow(config, opt_dlg, "Options")
+        IupPopup(opt_dlg)
 
     elsif load_tokens() then
 
@@ -1343,10 +1954,11 @@ function show_stuff(string what)
             else
 
                 integer oval = IupGetInt(otype,"VALUE")
-                string output = generate_source(ast,oval,src_offset,pGUI)
+                string output = generate_source(ast,oval,src_offset,pGUI,pMPFR,pSHA256,pTIMEDATE)
 
                 if what="OUTPUT" then
 
+--DEV (spotted in passing... use the thingy)
                     if platform()!=JS then
                         -- quietly save...
 --                      string ext = extensions[oval][2][1]
@@ -1438,22 +2050,11 @@ end function
 --end function
 
 function run_cb(Ihandle /*run_btn*/)
-?"run_cb"
     return show_stuff("RUN")
 end function
 
 function options_cb(Ihandle /*opt_btn*/)
-?"options_cb"
--- show tokens and tree buttons (default no)
--- "show tree collapsed?"
--- preserve comments
---  preserve comments in builtins (or are we going to manually copy the lot into p2js.js?)
--- minify
---  embed p2js/pGUI.js?
--- maybe: ctype/otype as radio buttons?
--- copy pop-up
---+++
-    return IUP_DEFAULT
+    return show_stuff("OPTIONS")
 end function
 
 --The aim of the transpiler is to get new stuff working in the browser,
@@ -1461,14 +2062,18 @@ end function
 
 constant TITLE = `pwa\p2js - Phix to JavaScript transpiler`,
          help_text = """
-Choose File opens a standard file dialog.
+Choose File or Ctrl O opens a standard file dialog.
 Alternatively select a recent file or demo from the drop-down next to it.
-Alternatively drag and drop a file or paste (or type) into the edit area.
-If necessary, specify the source type using the top right drop-down.
+Or press Ctrl T to open a filterable recent files popup. Note that the 
+dropdown is limited to 10 files plus one per directory, to keep things
+sensible, whereas the filterable popup has a much longer memory.
+You can also drag and drop a file or paste (or type) into the edit area.
+After pasting or typing, you may need to specify the source type, via the
+top right downdown, which is otherwise set from the file extension.
 
 Obviously the transpiler cherry-picks desktop features to emulate in the
-browser alongside browser functionality to replicate on the desktop: it
-is *NOT* designed or intended to run 20-year-old code w/out changes.
+browser alongside browser functionality to replicate on the desktop, 
+and is *NOT* designed to run 20-year-old code without any changes.
 That said, any error messages should be made as clear as possible.
 
 Note the edit area is just a simple mle, NOT a full-fledged editor.
@@ -1488,7 +2093,12 @@ Output type, Show, Copy, Run, Help, Close should be self explanatory.
 Note that Copy has (will have) an option to show a detailed pop-up.
 Changing output type won't correct input errors(!), top right may.
 
-Options (desktop only?) is not yet implemented.
+Options (desktop only) should be pretty self-explanatory, although 
+at the moment only the rebuild builtins button is implemented.
+You canno minimise unless generating single source, and you cannot
+preserve comments if minimising. The show tokens and parse tree
+buttons are development aids that most users do not need to see,
+and besides Ctrl K/P show those windows anyway.
 
 Non-phix-to-js is permitted, but should be considered experimental.
 For instance c->phix is not meant to "work", but should save some time
@@ -1545,20 +2155,26 @@ function key_cb(Ihandle main_dlg, atom c)
 --case '!': ?9/0
         case K_F1:  return help_cb(main_dlg)
         case K_cO:  return choose_cb(choose_file)
-        case K_cS:  return syntax_colour()
-        case K_cM:  return show_stuff("MEDIAWIKI")
+        case K_cS:  return syntax_colour() -- (nb not save)
+        case K_cM:  return show_stuff("MEDIAWIKI") -- (copy)
+        case K_cN:  return show_stuff("OPTIONS")
         case K_cT:  return show_stuff("FILELIST")
         case K_cK:  return show_stuff("TOKENS")
         case K_cP:  return show_stuff("PARSETREE")
         case K_cW:  return show_stuff("OUTPUT")
 --      case K_cC:  return show_stuff("COPY") -- NO! (cW/cA/cC is just fine)
         case K_F5:  return show_stuff("RUN")
-        case K_cF5: return show_stuff("CTRLF5")
+        case K_cF5: return show_stuff("CTRLF5") -- (run original input)
         case K_ESC: return close_main_cb(main_dlg)
     end switch
     return IUP_CONTINUE
 end function
 
+function unnul(sequence s)
+    s = filter(s,"out",{null})
+    return s
+end function
+    
 procedure create_main_dialog()
 
     choose_file = IupButton("Choose File",Icallback("choose_cb"))--,"PADDING=5x0, CANFOCUS=NO")
@@ -1611,8 +2227,8 @@ procedure create_main_dialog()
     Ihandle opt_btn = IupButton("Options",Icallback("options_cb"))
     Ihandle help_btn = IupButton("Help",Icallback("help_cb"))
     Ihandle exit_btn = IupButton("Exit",Icallback("close_main_cb"))
-    IupSetAttributes({choose_file,show_tokens,parse_tree,violations,
-                      show_btn,copy_btn,run_btn,opt_btn,help_btn,exit_btn},
+    IupSetAttributes(unnul({choose_file,show_tokens,parse_tree,violations,
+                      show_btn,copy_btn,run_btn,opt_btn,help_btn,exit_btn}),
                      "PADDING=5x0, CANFOCUS=NO")
 --  IupSetAttributes({violations,copy_btn,run_btn},"ACTIVE=NO")
     IupSetAttributes({violations,run_btn},"ACTIVE=NO")
@@ -1642,6 +2258,8 @@ procedure create_main_dialog()
     else
         load_ini()
         IupConfigDialogShow(config, main_dlg, "MainWindow")
+--?"rebuild_builtins_and_run_tests() disabled p2js.exw line 2195"
+        rebuild_builtins_and_run_tests()
     end if
 
     IupSetAttribute(multitext,"RASTERSIZE",NULL)
@@ -2043,7 +2661,7 @@ p {
   <div id="gallery"></div>
 </div>
 
-<script>
+<scr!ipt>
 let dropArea = document.querySelector('#drop-area');
 ;['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
   dropArea.addEventListener(eventName, preventDefaults, false)
@@ -2168,19 +2786,6 @@ A similar, perhaps more familiar, example is the flex property.
 It only works if the element is a direct child of an element with the display: flex declaration.
 *!/
 
--- some simple basic html:
-<div class="row">
-  <div class="col">
-    <p>default</p>
-    <p><input type="text" size="40" placeholder="type=&quot;text&quot;" /></p>
-    <p><textarea cols="50" rows="10" placeholder="textarea" ></textarea></p>
-    <p><input type="radio" name="gender-1" value="male" checked="checked" />♂　<input type="radio" name="gender-1" value="female" />♀</p>
-    <p><input type="checkbox" name="like-1" value="Music" />Music　<input type="checkbox" name="like-1" value="Movie" />Movie　<input type="checkbox" name="like-1" value="Sport" />Sport　<input type="checkbox" name="like-1" value="Book" />Book</p>
-    <p><select name="blood-1"><option value="" selected>Blood Type</option><option value="A">A</option><option value="B">B</option><option value="O">O</option><option value="AB">AB</option></select></p>
-    <p><input type="submit" value="Submit" /></p>
-    <p><button>Button</button></p>
-  </div>
-</div>
 --*/
 
 -- borken: file:///C:/Program%20Files%20(x86)/Phix/pwa/adp.html
@@ -2316,8 +2921,8 @@ end for
 --  function $throw(e,args) { if (length(args)) { e = sprintf(e,args); } throw new Error(e); }
 --Note: <!DOCTYPE html> is self-closing, no "/>", parses as {`!DOCTYPE`, {}, {`html`}}. 
 --      note that <meta charset='utf-8'/> parses as {{`meta`, {{`charset`}, {`utf-8`}}, {}},
---      conversely, <script src="pGUI.js"></scr!ipt> parses as {`script`, {{`src`}, {`pGUI.js`}}, {``}},
---      **but** <script src="pGUI.js"/> is illegal/unrecognised... (oh, they /are/ actually different...)
+--      conversely, <scr!ipt src="pGUI.js"></scr!ipt> parses as {`script`, {{`src`}, {`pGUI.js`}}, {``}},
+--      **but** <scr!ipt src="pGUI.js"/> is illegal/unrecognised... (oh, they /are/ actually different...)
 -- Erm: if platform()... [els...] end if <==> /* if platform()... */ <js> /* [els...] end if */ (error out if "else" but no explicit js branch)
 --routine_id
 --/* apparently this is legal in ES6...:
@@ -2361,7 +2966,7 @@ order.html:
 <html>
  <body>
 
-  <script language="javascript" type="text/javascript">
+  <scr!ipt language="javascript" type="text/javascript">
 function ajaxFunction(){
     let ajaxRequest = new XMLHttpRequest();
     // Create a function that will receive data sent from the server
@@ -2574,7 +3179,7 @@ echo $display_string;
 
 <p id="demo"></p>
 
-<script>
+<scr!ipt>
 function isKeyPressed(event) {
   let x = document.getElementById("demo");
   if (event.altKey) {
@@ -2625,7 +3230,7 @@ https://www.w3schools.com/JSREF/obj_keyboardevent.asp
 altKey/charCode/code/ctrlKey/getModifierState()/key/keyCode/shiftKey/which...
 onkeydown/onkeypress/onkeyup.
 
-<script type="text/javascript">
+<scr!ipt type="text/javascript">
 document.onkeydown = clickRadio;
 
 function clickRadio(e) {
@@ -3415,230 +4020,7 @@ main()
 --That's all folks!
 
 -- things you'll miss:
---  no user-defined types
---  hex numbers must be written 0xNNN, rather than #NNN (erm, that's easily fixable! [do -#NN too])
---  octal numbers (in js, 010 is decimal 8, ugh)
 --  binary/octal/general numbers bases in 0bNN, 0oNN, 0tNN, o(2..36)NN formats.
---  single quoted characters ('a' is a length-1 string in js, same as "a")
---  escapes: \', \", \r, \n, \t, \b, \\, but **NOT** \0, \e, \E, \#, \x, \u, \U.
---  nested comments!
-
---/*
--- demo\rosetta\Arithmetic_evaluation.exw
-sequence opstack = {}       -- atom elements are literals,
-                            -- sequence elements are subexpressions
-                            -- on completion length(opstack) should be 1
-object token
- 
-constant op_p_p = 0         --  1: expressions stored as op,p1,p2
-    --   p_op_p             --  0: expressions stored as p1,op,p2
-    --   p_p_op             -- -1: expressions stored as p1,p2,op
- 
-object op = 0   -- 0 if none, else "+", "-", "*", "/", "^", "%", or "u-"
- 
-string s        -- the expression being parsed
-integer ch
-integer sidx
- 
-procedure err(string msg)
-    printf(1,"%s\n%s^ %s\n\nPressEnter...",{s,repeat(' ',sidx-1),msg})
-    {} = wait_key()
-    abort(0)
-end procedure
- 
-procedure nxtch(object msg="eof")
-    sidx += 1
-    if sidx>length(s) then
-        if string(msg) then err(msg) end if
-        ch = -1
-    else
-        ch = s[sidx]
-    end if
-end procedure
- 
-procedure skipspaces()
-    while find(ch," \t\r\n")!=0 do nxtch(0) end while
-end procedure
- 
-procedure get_token()
-atom n, fraction
-integer dec
-    skipspaces()
-    if ch=-1 then token = "eof" return end if
-    if ch>='0' and ch<='9' then
-        n = ch-'0'
-        while 1 do
-            nxtch(0)
-            if ch<'0' or ch>'9' then exit end if
-            n = n*10+ch-'0'
-        end while
-        if ch='.' then
-            dec = 1
-            fraction = 0
-            while 1 do
-                nxtch(0)
-                if ch<'0' or ch>'9' then exit end if
-                fraction = fraction*10 + ch-'0'
-                dec *= 10
-            end while
-            n += fraction/dec
-        end if
---      if find(ch,"eE") then   -- you get the idea
---      end if
-        token = n
-        return
-    end if
-    if find(ch,"+/-*()^%")=0 then err("syntax error") end if
-    token = s[sidx..sidx]
-    nxtch(0)
-    return
-end procedure
- 
-procedure Match(string t)
-    if token!=t then err(t&" expected") end if
-    get_token()
-end procedure
- 
-procedure PopFactor()
-    object p1, p2 = opstack[$]
-    if op="u-" then
-        p1 = 0
-    else
-        opstack = opstack[1..$-1]
-        p1 = opstack[$]
-    end if
-    if op_p_p=1 then                        -- op_p_p
-        opstack[$] = {op,p1,p2}
-    elsif op_p_p=0 then                     -- p_op_p
-        opstack[$] = {p1,op,p2}
-    else -- -1                              -- p_p_op
-        opstack[$] = {p1,p2,op}
-    end if
-    op = 0
-end procedure
- 
-procedure PushFactor(atom t)
-    if op!=0 then PopFactor() end if
-    opstack = append(opstack,t)
-end procedure
- 
-procedure PushOp(string t)
-    if op!=0 then PopFactor() end if
-    op = t
-end procedure
- 
-procedure Factor()
-    if atom(token) then
-        PushFactor(token)
-        if ch!=-1 then
-            get_token()
-        end if
-    elsif token="-" then
-        get_token()
---      Factor()
-        Expr(3) -- makes "-3^2" yield -9 (ie -(3^2)) not 9 (ie (-3)^2).
-        if op!=0 then PopFactor() end if
-        if integer(opstack[$]) then
-            opstack[$] = -opstack[$]
-        else
-            PushOp("u-")
-        end if
-    elsif token="(" then
-        get_token()
-        Expr(0)
-        Match(")")
-    elsif token="+" then -- (ignore)
-        nxtch()
-        Factor()
-    else
-        err("syntax error")
-    end if
-end procedure
- 
-constant {operators,
-          precedence,
-          associativity} = columnize({{"^",3,0},
-                                      {"%",2,1},
-                                      {"*",2,1},
-                                      {"/",2,1},
-                                      {"+",1,1},
-                                      {"-",1,1},
-                                      $})
- 
-procedure Expr(integer p)
---
--- Parse an expression, using precedence climbing.
---
--- p is the precedence level we should parse to, eg/ie
---      4: Factor only (may as well just call Factor)
---      3: "" and ^
---      2: "" and *,/,%
---      1: "" and +,-
---      0: full expression (effectively the same as 1)
---  obviously, parentheses override any setting of p.
---
-integer k, thisp
-    Factor()
-    while 1 do
-        k = find(token,operators) -- *,/,+,-
-        if k=0 then exit end if
-        thisp = precedence[k]
-        if thisp<p then exit end if
-        get_token()
-        Expr(thisp+associativity[k])
-        PushOp(operators[k])
-    end while
-end procedure
- 
-function eval(object s)
-object lhs, rhs
-string op
-    if atom(s) then
-        return s
-    end if
-    if op_p_p=1 then            -- op_p_p
-        {op,lhs,rhs} = s
-    elsif op_p_p=0 then         -- p_op_p
-        {lhs,op,rhs} = s
-    else -- -1                  -- p_p_op
-        {lhs,rhs,op} = s
-    end if
-    if sequence(lhs) then lhs = eval(lhs) end if
-    if sequence(rhs) then rhs = eval(rhs) end if
-    if op="+" then
-        return lhs+rhs
-    elsif op="-" then
-        return lhs-rhs
-    elsif op="*" then
-        return lhs*rhs
-    elsif op="/" then
-        return lhs/rhs
-    elsif op="^" then
-        return power(lhs,rhs)
-    elsif op="%" then
-        return remainder(lhs,rhs)
-    elsif op="u-" then
-        return -rhs
-    else
-        ?9/0
-    end if
-end function
- 
-s = "3+4+5+6*7/1*5^2^3"
-sidx = 0
-nxtch()
-get_token()
-Expr(0)
-if op!=0 then PopFactor() end if
-if length(opstack)!=1 then err("some error") end if
-puts(1,"AST (flat): ")
-?opstack[1]
-puts(1,"AST (tree):\n")
-ppEx(opstack[1],{pp_Nest,6})
-puts(1,"result: ")
-?eval(opstack[1])
-{} = wait_key()
---*/
 
 -- v0:
 --/*
@@ -3817,766 +4199,7 @@ C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Hello_world\Graphical.raw:2510
 C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Hello_world\Graphical.raw:2511 <lang Phix>include pGUI.e
 */
 --/*
--- pwa\phix\hello_world.exw:
-// auto-generated by pwa/p2js
-//
-// pwa\phix\hello_world.exw
-// ========================
-//
-//include pGUI.e
-IupOpen();
-let /!* Ihandle *!/ lbl = IupLabel("World");
-//let /!* Ihandle *!/ lbl = IupFlatLabel("World");
-//let /!* Ihandle *!/ lbl = IupFlatLabel("World","EXPAND=YES, ALIGNMENT=ACENTER");
-let /!* Ihandln *!/ dlg = IupDialog(lbl,'TITLE="Hello", MINSIZE=225x75');
-IupCloseOnEscape(dlg);
-IupShow(dlg);
-//IupMainLoop();
-//dlg = IupDestroy(dlg);
-//IupClose();
-Esprima:
-{
-  "type": "Program",
-  "body": [
-    {
-      "type": "ExpressionStatement",
-      "expression": {
-        "type": "CallExpression",
-        "callee": {
-          "type": "Identifier",
-          "name": "IupOpen",
-          "range": [
-            110,
-            117
-          ],
-          "loc": {
-            "start": {
-              "line": 8,
-              "column": 0
-            },
-            "end": {
-              "line": 8,
-              "column": 7
-            }
-          }
-        },
-        "arguments": [],
-        "range": [
-          110,
-          119
-        ],
-        "loc": {
-          "start": {
-            "line": 8,
-            "column": 0
-          },
-          "end": {
-            "line": 8,
-            "column": 9
-          }
-        }
-      },
-      "range": [
-        110,
-        120
-      ],
-      "loc": {
-        "start": {
-          "line": 8,
-          "column": 0
-        },
-        "end": {
-          "line": 8,
-          "column": 10
-        }
-      },
-      "leadingComments": [
-        {
-          "type": "Line",
-          "value": " auto-generated by pwa/p2js",
-          "range": [
-            0,
-            29
-          ],
-          "loc": {
-            "start": {
-              "line": 1,
-              "column": 0
-            },
-            "end": {
-              "line": 1,
-              "column": 29
-            }
-          }
-        },
-        {
-          "type": "Line",
-          "value": "",
-          "range": [
-            30,
-            32
-          ],
-          "loc": {
-            "start": {
-              "line": 2,
-              "column": 0
-            },
-            "end": {
-              "line": 2,
-              "column": 2
-            }
-          }
-        },
-        {
-          "type": "Line",
-          "value": " pwa\\phix\\hello_world.exw",
-          "range": [
-            33,
-            60
-          ],
-          "loc": {
-            "start": {
-              "line": 3,
-              "column": 0
-            },
-            "end": {
-              "line": 3,
-              "column": 27
-            }
-          }
-        },
-        {
-          "type": "Line",
-          "value": " ========================",
-          "range": [
-            61,
-            88
-          ],
-          "loc": {
-            "start": {
-              "line": 4,
-              "column": 0
-            },
-            "end": {
-              "line": 4,
-              "column": 27
-            }
-          }
-        },
-        {
-          "type": "Line",
-          "value": "",
-          "range": [
-            89,
-            91
-          ],
-          "loc": {
-            "start": {
-              "line": 5,
-              "column": 0
-            },
-            "end": {
-              "line": 5,
-              "column": 2
-            }
-          }
-        },
-        {
-          "type": "Line",
-          "value": "include pGUI.e",
-          "range": [
-            92,
-            108
-          ],
-          "loc": {
-            "start": {
-              "line": 6,
-              "column": 0
-            },
-            "end": {
-              "line": 6,
-              "column": 16
-            }
-          }
-        }
-      ]
-    },
-    {
-      "type": "VariableDeclaration",
-      "declarations": [
-        {
-          "type": "VariableDeclarator",
-          "id": {
-            "type": "Identifier",
-            "name": "lbl",
-            "range": [
-              139,
-              142
-            ],
-            "loc": {
-              "start": {
-                "line": 9,
-                "column": 18
-              },
-              "end": {
-                "line": 9,
-                "column": 21
-              }
-            }
-          },
-          "init": {
-            "type": "CallExpression",
-            "callee": {
-              "type": "Identifier",
-              "name": "IupLabel",
-              "range": [
-                145,
-                153
-              ],
-              "loc": {
-                "start": {
-                  "line": 9,
-                  "column": 24
-                },
-                "end": {
-                  "line": 9,
-                  "column": 32
-                }
-              }
-            },
-            "arguments": [
-              {
-                "type": "Literal",
-                "value": "World",
-                "raw": "\"World\"",
-                "range": [
-                  154,
-                  161
-                ],
-                "loc": {
-                  "start": {
-                    "line": 9,
-                    "column": 33
-                  },
-                  "end": {
-                    "line": 9,
-                    "column": 40
-                  }
-                }
-              }
-            ],
-            "range": [
-              145,
-              162
-            ],
-            "loc": {
-              "start": {
-                "line": 9,
-                "column": 24
-              },
-              "end": {
-                "line": 9,
-                "column": 41
-              }
-            }
-          },
-          "range": [
-            139,
-            162
-          ],
-          "loc": {
-            "start": {
-              "line": 9,
-              "column": 18
-            },
-            "end": {
-              "line": 9,
-              "column": 41
-            }
-          },
-          "leadingComments": [
-            {
-              "type": "Block",
-              "value": " Ihandle ",
-              "range": [
-                125,
-                138
-              ],
-              "loc": {
-                "start": {
-                  "line": 9,
-                  "column": 4
-                },
-                "end": {
-                  "line": 9,
-                  "column": 17
-                }
-              }
-            }
-          ]
-        }
-      ],
-      "kind": "let",
-      "range": [
-        121,
-        163
-      ],
-      "loc": {
-        "start": {
-          "line": 9,
-          "column": 0
-        },
-        "end": {
-          "line": 9,
-          "column": 42
-        }
-      },
-      "trailingComments": [
-        {
-          "type": "Line",
-          "value": "let /!* Ihandle *!/ lbl = IupFlatLabel(\"World\");",
-          "range": [
-            164,
-            212
-          ],
-          "loc": {
-            "start": {
-              "line": 10,
-              "column": 0
-            },
-            "end": {
-              "line": 10,
-              "column": 48
-            }
-          }
-        },
-        {
-          "type": "Line",
-          "value": "let /!* Ihandle *!/ lbl = IupFlatLabel(\"World\",\"EXPAND=YES, ALIGNMENT=ACENTER\");",
-          "range": [
-            213,
-            293
-          ],
-          "loc": {
-            "start": {
-              "line": 11,
-              "column": 0
-            },
-            "end": {
-              "line": 11,
-              "column": 80
-            }
-          }
-        }
-      ]
-    },
-    {
-      "type": "VariableDeclaration",
-      "declarations": [
-        {
-          "type": "VariableDeclarator",
-          "id": {
-            "type": "Identifier",
-            "name": "dlg",
-            "range": [
-              312,
-              315
-            ],
-            "loc": {
-              "start": {
-                "line": 12,
-                "column": 18
-              },
-              "end": {
-                "line": 12,
-                "column": 21
-              }
-            }
-          },
-          "init": {
-            "type": "CallExpression",
-            "callee": {
-              "type": "Identifier",
-              "name": "IupDialog",
-              "range": [
-                318,
-                327
-              ],
-              "loc": {
-                "start": {
-                  "line": 12,
-                  "column": 24
-                },
-                "end": {
-                  "line": 12,
-                  "column": 33
-                }
-              }
-            },
-            "arguments": [
-              {
-                "type": "Identifier",
-                "name": "lbl",
-                "range": [
-                  328,
-                  331
-                ],
-                "loc": {
-                  "start": {
-                    "line": 12,
-                    "column": 34
-                  },
-                  "end": {
-                    "line": 12,
-                    "column": 37
-                  }
-                }
-              },
-              {
-                "type": "Literal",
-                "value": "TITLE=\"Hello\", MINSIZE=225x75",
-                "raw": "'TITLE=\"Hello\", MINSIZE=225x75'",
-                "range": [
-                  332,
-                  363
-                ],
-                "loc": {
-                  "start": {
-                    "line": 12,
-                    "column": 38
-                  },
-                  "end": {
-                    "line": 12,
-                    "column": 69
-                  }
-                }
-              }
-            ],
-            "range": [
-              318,
-              364
-            ],
-            "loc": {
-              "start": {
-                "line": 12,
-                "column": 24
-              },
-              "end": {
-                "line": 12,
-                "column": 70
-              }
-            }
-          },
-          "range": [
-            312,
-            364
-          ],
-          "loc": {
-            "start": {
-              "line": 12,
-              "column": 18
-            },
-            "end": {
-              "line": 12,
-              "column": 70
-            }
-          },
-          "leadingComments": [
-            {
-              "type": "Block",
-              "value": " Ihandln ",
-              "range": [
-                298,
-                311
-              ],
-              "loc": {
-                "start": {
-                  "line": 12,
-                  "column": 4
-                },
-                "end": {
-                  "line": 12,
-                  "column": 17
-                }
-              }
-            }
-          ]
-        }
-      ],
-      "kind": "let",
-      "range": [
-        294,
-        365
-      ],
-      "loc": {
-        "start": {
-          "line": 12,
-          "column": 0
-        },
-        "end": {
-          "line": 12,
-          "column": 71
-        }
-      },
-      "leadingComments": [
-        {
-          "type": "Line",
-          "value": "let /!* Ihandle *!/ lbl = IupFlatLabel(\"World\");",
-          "range": [
-            164,
-            212
-          ],
-          "loc": {
-            "start": {
-              "line": 10,
-              "column": 0
-            },
-            "end": {
-              "line": 10,
-              "column": 48
-            }
-          }
-        },
-        {
-          "type": "Line",
-          "value": "let /!* Ihandle *!/ lbl = IupFlatLabel(\"World\",\"EXPAND=YES, ALIGNMENT=ACENTER\");",
-          "range": [
-            213,
-            293
-          ],
-          "loc": {
-            "start": {
-              "line": 11,
-              "column": 0
-            },
-            "end": {
-              "line": 11,
-              "column": 80
-            }
-          }
-        }
-      ]
-    },
-    {
-      "type": "ExpressionStatement",
-      "expression": {
-        "type": "CallExpression",
-        "callee": {
-          "type": "Identifier",
-          "name": "IupCloseOnEscape",
-          "range": [
-            366,
-            382
-          ],
-          "loc": {
-            "start": {
-              "line": 13,
-              "column": 0
-            },
-            "end": {
-              "line": 13,
-              "column": 16
-            }
-          }
-        },
-        "arguments": [
-          {
-            "type": "Identifier",
-            "name": "dlg",
-            "range": [
-              383,
-              386
-            ],
-            "loc": {
-              "start": {
-                "line": 13,
-                "column": 17
-              },
-              "end": {
-                "line": 13,
-                "column": 20
-              }
-            }
-          }
-        ],
-        "range": [
-          366,
-          387
-        ],
-        "loc": {
-          "start": {
-            "line": 13,
-            "column": 0
-          },
-          "end": {
-            "line": 13,
-            "column": 21
-          }
-        }
-      },
-      "range": [
-        366,
-        388
-      ],
-      "loc": {
-        "start": {
-          "line": 13,
-          "column": 0
-        },
-        "end": {
-          "line": 13,
-          "column": 22
-        }
-      }
-    },
-    {
-      "type": "ExpressionStatement",
-      "expression": {
-        "type": "CallExpression",
-        "callee": {
-          "type": "Identifier",
-          "name": "IupShow",
-          "range": [
-            389,
-            396
-          ],
-          "loc": {
-            "start": {
-              "line": 14,
-              "column": 0
-            },
-            "end": {
-              "line": 14,
-              "column": 7
-            }
-          }
-        },
-        "arguments": [
-          {
-            "type": "Identifier",
-            "name": "dlg",
-            "range": [
-              397,
-              400
-            ],
-            "loc": {
-              "start": {
-                "line": 14,
-                "column": 8
-              },
-              "end": {
-                "line": 14,
-                "column": 11
-              }
-            }
-          }
-        ],
-        "range": [
-          389,
-          401
-        ],
-        "loc": {
-          "start": {
-            "line": 14,
-            "column": 0
-          },
-          "end": {
-            "line": 14,
-            "column": 12
-          }
-        }
-      },
-      "range": [
-        389,
-        402
-      ],
-      "loc": {
-        "start": {
-          "line": 14,
-          "column": 0
-        },
-        "end": {
-          "line": 14,
-          "column": 13
-        }
-      },
-      "trailingComments": [
-        {
-          "type": "Line",
-          "value": "IupMainLoop();",
-          "range": [
-            403,
-            419
-          ],
-          "loc": {
-            "start": {
-              "line": 15,
-              "column": 0
-            },
-            "end": {
-              "line": 15,
-              "column": 16
-            }
-          }
-        },
-        {
-          "type": "Line",
-          "value": "dlg = IupDestroy(dlg);",
-          "range": [
-            420,
-            444
-          ],
-          "loc": {
-            "start": {
-              "line": 16,
-              "column": 0
-            },
-            "end": {
-              "line": 16,
-              "column": 24
-            }
-          }
-        },
-        {
-          "type": "Line",
-          "value": "IupClose();",
-          "range": [
-            445,
-            458
-          ],
-          "loc": {
-            "start": {
-              "line": 17,
-              "column": 0
-            },
-            "end": {
-              "line": 17,
-              "column": 13
-            }
-          }
-        }
-      ]
-    }
-  ],
-  "sourceType": "script",
-  "range": [
-    110,
-    402
-  ],
-  "loc": {
-    "start": {
-      "line": 8,
-      "column": 0
-    },
-    "end": {
-      "line": 14,
-      "column": 13
-    }
-  }
-}
-/!* -----
-SVG Icons - svgicons.sparkk.fr
------ *!/
+//SVG Icons - svgicons.sparkk.fr
 .svg-icon {
   width: 1em;
   height: 1em;
@@ -4683,4 +4306,21 @@ const solution = (arr) => {
     if (left<right) { return "Right"; }
     return "";
 }
+
+Searching for: @=
+ Files scanned 1195, Directories scanned 88, Lines 1224474
+C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Barnsley_fern.htm:342 <pre class="text highlighted_source">--<br />-- demo\rosetta\BarnsleyFern.exw<br />--<br />include pGUI.e<br />&#160;<br />Ihandle d
+C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Color_wheel.htm:211 <pre class="text highlighted_source">-- demo\rosetta\Colour_wheel.exw<br />include pGUI.e<br />&#160;<br />Ihandle dlg, canvas<br />
+C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Conway%27s_Game_of_Life.htm:2189 <pre class="text highlighted_source">--<br />-- demo\rosetta\Conways_Game_of_Life.exw<br />--<br />include pGUI.e<br />&#160;<br />I
+C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\K-means%2B%2B_clustering.htm:361 <pre class="text highlighted_source">-- demo\rosetta\K_means_clustering.exw<br />--  Press F5 to restart<br />include pGUI.e<br />&#
+C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Matrix_chain_multiplication.htm:338 <pre class="text highlighted_source">function optimal_chain_order(int i, int j, sequence s)<br />    if i==j then<br />        retur
+C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Mind_boggling_card_trick.htm:447 <pre class="text highlighted_source">constant n = 52,<br />         pack = shuffle(repeat('r',n/2)&amp;repeat('b',n/2))<br />&#160;<
+C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\N-body_problem.htm:2178 <pre class="text highlighted_source">sequence origin = {0,0,0}<br />&#160;<br />constant nbody = &quot;&quot;&quot;<br />0.01 3 20<b
+C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\P-value_correction.htm:1036 <pre class="text highlighted_source">enum UP, DOWN<br />&#160;<br />function ratchet(sequence p, integer direction)<br />    atom m 
+C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Paraffins.htm:1175 <pre class="text highlighted_source">constant MAX_N = 32,<br />         BRANCH = 4<br />&#160;<br />sequence {rooted,unrooted} @= re
+C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Polynomial_regression.htm:597 <pre class="text highlighted_source">constant x = {0,1,2,3,4,5,6,7,8,9,10}<br />constant y = {1,6,17,34,57,86,121,162,209,262,321}<b
+C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Ramsey%27s_theorem.htm:453 <pre class="text highlighted_source">sequence a = repeat(repeat('0',17),17),<br />         idx = repeat(0,4)<br />&#160;<br />functi
+C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Strong_and_weak_primes.htm:391 <pre class="text highlighted_source">while sieved&lt;10_000_000 do add_block() end while<br />sequence {strong, weak} @= {}<br />for
+C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Thiele%27s_interpolation_formula.htm:1472 <pre class="text highlighted_source">constant N = 32,<br />         N2 = (N * (N - 1) / 2),<br />         STEP = 0.05<br />&#160;<br
+C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Tic-tac-toe.htm:1759 <pre class="text highlighted_source">sequence board = repeat(' ',9)  -- {' '/'X'/'O'}<br />&#160;<br />constant wins = {{1,2,3},{4,5
 */

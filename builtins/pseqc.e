@@ -45,44 +45,39 @@ integer l = length(src)
     return src[l-size+1..l]
 end function
 
-global function pad_head(sequence src, integer size, object ch=' ')
+global function pad_head(string src, integer size, ch=' ')
 -- <same as pad(src,size,"HEAD"[,ch])>
-    if size<=length(src) then
-        return src
+    size -= length(src)
+    if size>0 then
+        src = repeat(ch,size) & src
     end if
-    return repeat(ch, size-length(src)) & src
+    return src
 end function
 
-global function pad_tail(sequence src, integer size, object ch=' ')
+global function pad_tail(string src, integer size, ch=' ')
 -- <same as pad(src,size,"TAIL"[,ch])>
-    if size<=length(src) then
-        return src
+    size -= length(src)
+    if size>0 then
+        src = src & repeat(ch,size)
     end if
-    return src & repeat(ch, size-length(src))
+    return src
 end function
 
-global function pad(sequence src, integer size, string method="BOTH", object ch=' ')
-    if size>length(src) then
+global function pad(string src, integer size, string method="BOTH", integer ch=' ')
+    size -= length(src)
+    if size>0 then
         if method="BOTH" then
-            size = max(0,floor((size-length(src))/2))
-        else
-            size -= length(src)
-        end if
-        string pad = repeat(ch,size)
-        if method="BOTH" then
-            src = pad & src & pad
+            src = repeat(ch,floor(size/2)) & src & repeat(ch,size-floor(size/2))
         elsif method="HEAD" then
-            src = pad & src
+            src = repeat(ch,size) & src
         elsif method="TAIL" then
-            src = src & pad
+            src = src & repeat(ch,size)
         else
             ?9/0 -- unknown method
         end if
     end if
     return src
 end function
-
-
 
 global function remove(sequence src, integer start, integer stop=start)
     src[start..stop] = ""

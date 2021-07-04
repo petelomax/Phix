@@ -391,7 +391,8 @@ integer res
     return res
 end function
 
-function get_mem(integer permitted, integer size)
+--function get_mem(integer permitted, integer size)
+function get_mem(integer permitted, integer size, bool bSet)
 -- see get_operand. (factored out for "[]" and "dword[]" etc handling)
 integer scale = 0
 integer idx = 0
@@ -636,14 +637,17 @@ integer rex
         if N<=0 then Undefined() end if
         symtabN = symtab[N]
         vtype = symtabN[S_vtype]
-        if not integer(vtype) then
+        if not integer(vtype) then  -- (ie a proc/func/type)
             Aborp("illegal")
         end if
         state = symtabN[S_State]
         if and_bits(state,K_Fres) then ?9/0 end if      -- internal error
---DEV should set/used be a param [integer hllstateflag]? (spotted in passing)
-        if not and_bits(state,S_set) then
-            state += S_set
+--DEV should set/used be a param [integer hllstateflag]? (spotted in passing) [done as bSet/K_asmm, 24/4/21]
+--      if not and_bits(state,S_set) then
+        integer mask = iff(bSet ? S_set+K_asmm : S_set)
+        if and_bits(state,mask)!=mask then
+--          state += S_set
+            state = or_bits(state,mask)
             symtab[N] = 0   -- kill refcount
             symtabN[S_State] = state
             symtab[N] = symtabN
@@ -779,7 +783,8 @@ end if
             if Ch!='[' then
                 Expected("'['")
             end if
-            return get_mem(P_MEM,0)
+--          return get_mem(P_MEM,0)
+            return get_mem(P_MEM,0,false)
         end if
         reg = find(ttidx,REZ32)
         if reg then
@@ -813,7 +818,8 @@ end if
     end if
 end function
 
-function get_operand(integer permitted)
+--function get_operand(integer permitted)
+function get_operand(integer permitted, bool bSet)
 --
 -- Get an operand, allowed permission bits of:
 --  P_REG (#01):    reg32,   (implies dword)
@@ -863,7 +869,7 @@ integer state
 
     skipSpacesAndComments()
     if Ch='[' then
-        return get_mem(permitted,0)
+        return get_mem(permitted,0,bSet)
     end if
     if Ch=':' then
         if not and_bits(permitted,P_LBL) then
@@ -882,7 +888,7 @@ integer state
             size = SIZE[size]
             skipSpacesAndComments()
             if Ch='[' then
-                return get_mem(permitted,size)
+                return get_mem(permitted,size,bSet)
             end if
             getToken()
         else
@@ -1382,11 +1388,11 @@ procedure jcc(integer cc)
 
     skipSpacesAndComments()
     if Ch=':' then
-        jlabel(get_operand(P_LBL),cc)
+        jlabel(get_operand(P_LBL,false),cc)
 --  elsif bHllGoto then
 --      Aborp("invalid...")
     elsif Ch='[' then
-        jlabel(get_mem(P_MEM+P_LBL,0),cc)
+        jlabel(get_mem(P_MEM+P_LBL,0,false),cc)
     elsif Ch='%' then -- opcode
 --if newEmit then
 --DEV (eventually, drop the whole %opXxxx syntax... [or start a new VMep])
@@ -1456,7 +1462,7 @@ integer reg
 integer xrm
 integer sib
 
-    {p1type,p1size,reg} = get_operand(P_REG)
+    {p1type,p1size,reg} = get_operand(P_REG,false)
     if emitON then
         if p1size=1 then
             -- 0o017 (0o220..0o237) 0o30r       -- eg setl r8
@@ -1478,7 +1484,7 @@ integer idx
 integer base
 integer offset
 --integer rex
-    {p1type,?,p1details} = get_operand(P_MEM)
+    {p1type,?,p1details} = get_operand(P_MEM,false)
     if p1type=P_MEM then
         --/*
             Not supported:  
@@ -1643,7 +1649,7 @@ if bHllGoto then
     else
 --      getToken()
         skipSpacesAndComments()
-        sequence slop = iff(Ch=':'?get_operand(P_LBL):get_label())
+        sequence slop = iff(Ch=':'?get_operand(P_LBL,false):get_label())
 --?1
 --      if toktype=':' then ?2 MatchChar(':',false) end if
 --      if toktype=':' then getCh() end if
@@ -1933,7 +1939,7 @@ end if
                 end if
             elsif ttidx=T_lea then
 --if emitON then trace(1) end if
-                {p1type,p1size,p1details} = get_operand(P_REG)
+                {p1type,p1size,p1details} = get_operand(P_REG,false)
                 rex = 0
                 if p1size=8 then
                     if Z64!=1 then ?9/0 end if
@@ -1954,7 +1960,7 @@ end if
                     Aborp("invalid")
                 end if
                 comma()
-                {p2type,p2size,p2details} = get_operand(P_MLS)
+                {p2type,p2size,p2details} = get_operand(P_MLS,true)
                 if emitON then
                     if p2type=P_MEM 
                     or p2type=P_RAW then
@@ -2076,7 +2082,7 @@ end if
 --end if
                 op = ttidx
                 mod = find(ttidx,{T_add,T_or,T_adc,T_sbb,T_and,T_sub,T_xor,T_cmp})-1
-                {p1type,p1size,p1details} = get_operand(P_RM)
+                {p1type,p1size,p1details} = get_operand(P_RM,true)
                 comma()
                 if and_bits(p1type,P_MV) then
                     permitted = P_RLI
@@ -2119,7 +2125,7 @@ end if
 --                  {p2type,p2size,p2details} = {P_IMM,4,ridLtot}
                     {p2type,p2size,p2details} = {P_IMM,p1size,ridLtot}
                 else
-                    {p2type,p2size,p2details} = get_operand(permitted)
+                    {p2type,p2size,p2details} = get_operand(permitted,false)
                 end if
 
 
@@ -2975,11 +2981,12 @@ end if
                                 s5 &= xrm
                                 xrm = 0o005+reg*8 -- 0o0r5
                                 s5 &= xrm
-if X64=1 then
-                                s5 &= {isVar4,0,0,N}
-else
+--30/5/21!!! (we is not about to output a 4 byte literal next...!)
+--if X64=1 then
+--                              s5 &= {isVar4,0,0,N}
+--else
                                 s5 &= {isVar,0,0,N}
-end if
+--end if
 --          cmp [AllowBreak],ebx
 --00429B01   #39 0o035 6C2A4000 CMP DWORD PTR DS:[402A6C],EBX
 --00429B01   0o071 0o035 6C2A4000   CMP DWORD PTR DS:[402A6C],EBX
@@ -3027,6 +3034,7 @@ end if
                                     end if
                                 end if
                             elsif sType=S_TVar then
+--DEV does not cope with "test [withjs],1"... (24/4/21)
                                 if op=T_mov then
                                     -- 0o307 0o105 d8 imm32                         -- mov [ebp+d8],imm32
                                     -- 0o307 0o205 d32 imm32                        -- mov [ebp+d32],imm32
@@ -3085,7 +3093,7 @@ end if
                or ttidx=T_bt then
 --if emitON then trace(1) end if
                 mod = find(ttidx,{T_rol,T_ror,T_rcl,T_rcr,T_shl,T_shr,-1,T_sar,T_bt})-1 -- (0..7)
-                {p1type,p1size,p1details} = get_operand(P_REG)
+                {p1type,p1size,p1details} = get_operand(P_REG,true)
                 reg = p1details-1
                 if p1type!=P_REG then ?9/0 end if -- sanity check (or are there 8/16 bit register shifts?)
 --              if p1size!=4 then
@@ -3097,7 +3105,7 @@ end if
                 end if
                 comma()
 --DEV should allow cl:
-                {p2type,p2size,p2details} = get_operand(P_IMM)
+                {p2type,p2size,p2details} = get_operand(P_IMM,false)
                 if emitON then
                     if p2type=P_IMM then
                         rex = 0
@@ -3183,7 +3191,7 @@ bt eax,5        0FBAE005    (0o017 0o272 0o340 #05)
             elsif ttidx=T_inc
                or ttidx=T_dec then
                 mod = find(ttidx,{T_inc,T_dec})-1
-                {p1type,p1size,p1details} = get_operand(P_RM)
+                {p1type,p1size,p1details} = get_operand(P_RM,true)
                 if emitON then
 --                  if Z64=1 then
                     if X64 then
@@ -3217,7 +3225,7 @@ bt eax,5        0FBAE005    (0o017 0o272 0o340 #05)
                 end if
             elsif ttidx=T_push then
                 -- 64bit: pop ds/es/ss and push cs/ds/es/ss invalid, but this never supported them anyway
-                {p1type,p1size,p1details} = get_operand(P_RMLI)
+                {p1type,p1size,p1details} = get_operand(P_RMLI,false)
                 if not find(p1size,{0,1,4,8}) then ?9/0 end if  -- sanity check (should never trigger)
                 if emitON then
                     rex = 0
@@ -3308,7 +3316,7 @@ bt eax,5        0FBAE005    (0o017 0o272 0o340 #05)
                     end if
                 end if -- emitON
             elsif ttidx=T_pop then
-                {p1type,p1size,p1details} = get_operand(P_RM)
+                {p1type,p1size,p1details} = get_operand(P_RM,true)
                 if emitON then
                     if p1size=1 then Aborp("invalid (guard instruction)") end if
                     if p1type=P_REG then
@@ -3394,7 +3402,7 @@ end if
                 skipSpacesAndComments()
 --if emitON then trace(1) end if
                 if Ch=':' then
-                    {p1type,p1size,lblidx} = get_operand(P_LBL)
+                    {p1type,p1size,lblidx} = get_operand(P_LBL,false)
                     if p1type=P_GBL then
                         if emitON then
                             -- 0o350 offset32
@@ -3559,7 +3567,7 @@ end if
                 skipSpacesAndComments()
                 if line=tokline and Ch!='}' then
                     -- 0o302 imm16              -- ret imm16
-                    {p1type,p1size,p1details} = get_operand(P_IMM)
+                    {p1type,p1size,p1details} = get_operand(P_IMM,false)
                     if emitON then
                         s5 &= 0o302
                         apnds5word(p1details)
@@ -3617,7 +3625,7 @@ end if
                or ttidx=T_setg then
                 setcc(#0F)
             elsif ttidx=T_fld then
-                {p1type,p1size,p1details} = get_operand(P_MEM+P_FPU)
+                {p1type,p1size,p1details} = get_operand(P_MEM+P_FPU,false)
                 if p1type=P_VAR then
                     -- Phix hll vars do not hold floats like this! (it is qword[ref*4],
                     --  eg/ie atom a ... mov eax,[a]; fld qword[ebx+eax*4]; NOT fld[a])
@@ -3719,7 +3727,7 @@ end if
                 else -- T_fstp
                     mod = 3
                 end if
-                {p1type,p1size,p1details} = get_operand(P_MEM+P_FPU)
+                {p1type,p1size,p1details} = get_operand(P_MEM+P_FPU,false)
                 if p1type=P_VAR then
                     -- Phix hll vars do not hold floats like this! (it is qword[ref*4])
                     Aborp("not permitted")
@@ -3748,7 +3756,7 @@ end if
                     end if
                 end if
             elsif ttidx=T_fild then
-                {p1type,p1size,p1details} = get_operand(P_MEM)
+                {p1type,p1size,p1details} = get_operand(P_MEM,false)
                 if emitON then
                     if p1type=P_VAR then
                         {N,sType} = p1details
@@ -3817,7 +3825,7 @@ end if
             elsif ttidx=T_fist
                or ttidx=T_fistp then
                 op = ttidx
-                {p1type,p1size,p1details} = get_operand(P_MEM)
+                {p1type,p1size,p1details} = get_operand(P_MEM,false)
                 if p1type=P_VAR then
                     -- (use opStoreFlt instead)
                     Aborp("not permitted")
@@ -3867,7 +3875,7 @@ end if
                or ttidx=T_fidiv
                or ttidx=T_fidivr then
                 mod = find(ttidx,{T_fiadd,T_fimul,T_ficom,T_ficomp,T_fisub,T_fisubr,T_fidiv,T_fidivr})-1
-                {p1type,p1size,p1details} = get_operand(P_MEM)
+                {p1type,p1size,p1details} = get_operand(P_MEM,false)
                 if p1size=8 then
                     Aborp("16 or 32 bit only (in h/w); use fild/fadd etc")
                 end if
@@ -4031,7 +4039,7 @@ if 0 then -- old code 10/5/15
                 end if
 
 else
-                {p1type,p1size,p1details} = get_operand(P_MEM+P_FPU)
+                {p1type,p1size,p1details} = get_operand(P_MEM+P_FPU,false)
                 if p1type=P_VAR then
                     -- Phix hll vars do not hold floats like this! (it is qword[ref*4])
                     Aborp("not permitted")
@@ -4039,7 +4047,7 @@ else
                 if p1type=P_FPU then
                     -- (this does not (yet) allow eg "fsub stn" to be an alias of "fsub st0,stn")
                     comma()
-                    {p2type,p2size,p2details} = get_operand(P_FPU)
+                    {p2type,p2size,p2details} = get_operand(P_FPU,false)
 --004099A9    0o330 0o300           FADD ST,ST
 --004099AB    0o330 0o301           FADD ST,ST(1)
 --004099AD    0o330 0o302           FADD ST,ST(2)
@@ -4118,7 +4126,7 @@ if 0 then -- old code 9/5/15
                     if reg=0 then Aborp("unrecognised") end if
                     xrm += (reg-2)  -- remove st1 default and add actual reg
 else
-                    {p1type,p1size,p1details} = get_operand(P_MEM+P_FPU)
+                    {p1type,p1size,p1details} = get_operand(P_MEM+P_FPU,false)
                     if p1type=P_VAR then
                         -- Phix hll vars do not hold floats like this! (it is qword[ref*4])
                         Aborp("not permitted")
@@ -4153,10 +4161,10 @@ end if
                 end if
             elsif ttidx=T_fmul then
 if 0 then -- old code
-                {p1type,p1size,p1details} = get_operand(P_FPU)
+                {p1type,p1size,p1details} = get_operand(P_FPU,false)
                 if p1type!=P_FPU then ?9/0 end if
                 comma()
-                {p2type,p2size,p2details} = get_operand(P_FPU)
+                {p2type,p2size,p2details} = get_operand(P_FPU,false)
                 if p2type!=P_FPU then ?9/0 end if
                 if p1details=1 then -- st0
                     if emitON then
@@ -4174,7 +4182,7 @@ if 0 then -- old code
                 end if
 else -- new code 11/5/15
 -- at least one of them should be st0
-                {p1type,p1size,p1details} = get_operand(P_MEM+P_FPU)
+                {p1type,p1size,p1details} = get_operand(P_MEM+P_FPU,false)
                 if p1type=P_VAR then
                     -- Phix hll vars do not hold floats like this! (it is qword[ref*4])
                     Aborp("not permitted")
@@ -4182,7 +4190,7 @@ else -- new code 11/5/15
                 if p1type=P_FPU then
                     -- (this does not (yet) allow eg "fsub stn" to be an alias of "fsub st0,stn")
                     comma()
-                    {p2type,p2size,p2details} = get_operand(P_FPU)
+                    {p2type,p2size,p2details} = get_operand(P_FPU,false)
 --004099A9   0o330 0o311            FMUL ST,ST(1)
 --004099AB   0o330 0o310            FMUL ST,ST
 --004099AD   0o334 0o311            FMUL ST(1),ST
@@ -4260,10 +4268,10 @@ end if
             elsif ttidx=T_movsd then
                 skipSpacesAndComments()
                 if line=tokline and Ch!='}' then
-                    {p1type,p1size,p1details} = get_operand(P_XMMM)
+                    {p1type,p1size,p1details} = get_operand(P_XMMM,true)
                     comma()
                     if p1type=P_XMM then
-                        {p2type,p2size,p2details} = get_operand(P_MEM)
+                        {p2type,p2size,p2details} = get_operand(P_MEM,false)
                         if p2type!=P_MEM then ?9/0 end if
                         if emitON then
                             {scale,idx,base,offset} = p2details
@@ -4272,7 +4280,7 @@ end if
                             emit_xrm_sib(reg,scale,idx,base,offset)
                         end if
                     elsif p1type=P_MEM then
-                        {p2type,p2size,p2details} = get_operand(P_XMM)
+                        {p2type,p2size,p2details} = get_operand(P_XMM,false)
                         if p2type!=P_XMM then ?9/0 end if
                         if emitON then
                             {scale,idx,base,offset} = p1details
@@ -4385,13 +4393,13 @@ end if
                 op = ttidx
 -- sorry, too messy atm... only supporting shld reg,reg,imm|cl for now
 --              {p1type,p1size,p1details} = get_operand(P_RM)
-                {p1type,p1size,p1details} = get_operand(P_REG)
+                {p1type,p1size,p1details} = get_operand(P_REG,false)
                 comma()
-                {p2type,p2size,p2details} = get_operand(P_REG)
+                {p2type,p2size,p2details} = get_operand(P_REG,false)
                 if p2type!=P_REG then ?9/0 end if -- sanity check
                 reg = p2details-1
                 comma()
-                {p2type,p1size,p2details} = get_operand(P_RI)
+                {p2type,p1size,p2details} = get_operand(P_RI,false)
                 if p2type=P_REG then
                     if p1size!=1 or p2details!=2 then ?9/0 end if   --(must be cl)
                 end if
@@ -4451,7 +4459,7 @@ end if
                     ?9/0
                 end if
                 -- only doing regs for now...
-                {p1type,p1size,p1details} = get_operand(P_REG)
+                {p1type,p1size,p1details} = get_operand(P_REG,false)
                 if emitON then
                     rex = 0
                     if p1size=8 then
@@ -4488,7 +4496,7 @@ end if
                 else
                     ?9/0
                 end if
-                {p1type,p1size,p1details} = get_operand(P_REG)
+                {p1type,p1size,p1details} = get_operand(P_REG,false)
                 if emitON then
                     rex = 0
                     if p1size=8 then
@@ -4529,10 +4537,10 @@ end if
                     s5 &= {0o017,0o005}
                 end if
             elsif ttidx=T_movups then
-                {p1type,p1size,p1details} = get_operand(P_XMMM)
+                {p1type,p1size,p1details} = get_operand(P_XMMM,true)
                 comma()
                 if p1type=P_XMM then
-                    {p2type,p2size,p2details} = get_operand(P_MEM)
+                    {p2type,p2size,p2details} = get_operand(P_MEM,false)
                     if p2type!=P_MEM then ?9/0 end if
                     if emitON then
                         {scale,idx,base,offset} = p2details
@@ -4541,7 +4549,7 @@ end if
                         emit_xrm_sib(reg,scale,idx,base,offset)
                     end if
                 elsif p1type=P_MEM then
-                    {p2type,p2size,p2details} = get_operand(P_XMM)
+                    {p2type,p2size,p2details} = get_operand(P_XMM,false)
                     if p2type!=P_XMM then ?9/0 end if
                     if emitON then
                         {scale,idx,base,offset} = p1details
@@ -4566,10 +4574,10 @@ end if
 --; F2  0F  11  r   MOVSD   xmm/m64     xmm         Move Scalar Double-FP Value
 
             elsif ttidx=T_movntps then
-                {p1type,p1size,p1details} = get_operand(P_MEM)
+                {p1type,p1size,p1details} = get_operand(P_MEM,true)
                 comma()
                 if p1type=P_MEM then
-                    {p2type,p2size,p2details} = get_operand(P_XMM)
+                    {p2type,p2size,p2details} = get_operand(P_XMM,false)
                     if p2type!=P_XMM then ?9/0 end if
                     if emitON then
                         {scale,idx,base,offset} = p1details
@@ -4587,10 +4595,10 @@ end if
 --; 66  0F  2B  r   MOVNTPD m128        xmm         Store Packed Double-FP Values Using Non-Temporal Hint
 
             elsif ttidx=T_movaps then
-                {p1type,p1size,p1details} = get_operand(P_XMM)
+                {p1type,p1size,p1details} = get_operand(P_XMM,true)
                 comma()
                 if p1type=P_XMM then
-                    {p2type,p2size,p2details} = get_operand(P_MEM)
+                    {p2type,p2size,p2details} = get_operand(P_MEM,false)
                     if p2type!=P_MEM then ?9/0 end if
                     if emitON then
                         {scale,idx,base,offset} = p2details
@@ -4624,10 +4632,10 @@ movdqu... (64 bit only?)
 --000000000040131A | 66 0F 6E 0o330             | movd xmm3,eax                           |
 --                   66 0F 6E 04 24             | movd xmm0,dword[rsp]
 --constant XMM = {T_xmm0,T_xmm1,T_xmm2,T_xmm3,T_xmm4,T_xmm5,T_xmm6,T_xmm7}
-                {p1type,p1size,p1details} = get_operand(P_XMM)
+                {p1type,p1size,p1details} = get_operand(P_XMM,true)
                 comma()
                 if p1type=P_XMM then
-                    {p2type,p2size,p2details} = get_operand(P_RM)
+                    {p2type,p2size,p2details} = get_operand(P_RM,false)
                     if p2size!=4 then ?9/0 end if   -- 32 bit floats only...
                     if emitON then
                         if p2type=P_MEM then
@@ -4650,7 +4658,7 @@ movdqu... (64 bit only?)
                     ?9/0 -- placeholder for more code/error message
                 end if
             elsif ttidx=T_prefetchnta then
-                {p1type,p1size,p1details} = get_operand(P_MEM)
+                {p1type,p1size,p1details} = get_operand(P_MEM,true)
 --              if not find(p1size,{0,1,4,8}) then ?9/0 end if  -- sanity check (should never trigger)
                 if emitON then
                     rex = 0
@@ -4671,7 +4679,7 @@ movdqu... (64 bit only?)
                     s5 &= {0o017,0o061}
                 end if
             elsif ttidx=T_bswap then
-                {p1type,p1size,p1details} = get_operand(P_REG)
+                {p1type,p1size,p1details} = get_operand(P_REG,false)
                 if emitON then
                     rex = 0
                     if p1size=8 then
@@ -4707,7 +4715,7 @@ movdqu... (64 bit only?)
 --; 127             bsr r8,rdx 
 --                  bsr r8d,rdx           ;#0044BE0D: 4C:017275302               np 00 104 71 111      
 
-                {p1type,p1size,p1details} = get_operand(P_REG)
+                {p1type,p1size,p1details} = get_operand(P_REG,false)
                 rex = 0
                 if p1size=8 then
                     if Z64!=1 then ?9/0 end if
@@ -4725,7 +4733,7 @@ movdqu... (64 bit only?)
                     Aborp("invalid")
                 end if
                 comma()
-                {p2type,p2size,p2details} = get_operand(P_REG)
+                {p2type,p2size,p2details} = get_operand(P_REG,false)
                 if p2type=P_REG then
                     if emitON then
                         if p2details>8 then
@@ -4758,7 +4766,7 @@ movdqu... (64 bit only?)
             elsif ttidx=T_fnstsw then
                 -- note: Ollydbg does not understand fnstsw, and incorrectly encodes fstsw 
                 --       without an fwait (#9B), which makes it an fnstsw...
-                {p1type,p1size,p1details} = get_operand(P_REG)
+                {p1type,p1size,p1details} = get_operand(P_REG,false)
                 if emitON then
                     if p1type=P_REG then
                         -- only ax permitted:
@@ -4783,7 +4791,7 @@ movdqu... (64 bit only?)
             elsif ttidx=T_jmp_table_entry then
                 skipSpacesAndComments()
                 if Ch=':' then
-                    {p1type,p1size,lblidx} = get_operand(P_LBL)
+                    {p1type,p1size,lblidx} = get_operand(P_LBL,false)
                     if p1type=P_GBL
                     or lblidx!=length(lblchain)
                     or lblchain[$]!=0 then
@@ -4813,7 +4821,7 @@ movdqu... (64 bit only?)
                 end if
             elsif ttidx=T_int then
                 skipSpacesAndComments()
-                {p1type,p1size,p1details} = get_operand(P_IMM)
+                {p1type,p1size,p1details} = get_operand(P_IMM,false)
                 if emitON then
                     -- ELF32 only:
                     if PE then ?9/0 end if
@@ -4827,12 +4835,12 @@ movdqu... (64 bit only?)
                     s5 &= 0o360
                 end if
             elsif ttidx=T_xchg then
-                {p1type,p1size,p1details} = get_operand(P_RM)
+                {p1type,p1size,p1details} = get_operand(P_RM,true)
                 comma()
                 if p1type=P_REG then
-                    {p2type,p2size,p2details} = get_operand(P_RM)
+                    {p2type,p2size,p2details} = get_operand(P_RM,true)
                 else
-                    {p2type,p2size,p2details} = get_operand(P_REG)
+                    {p2type,p2size,p2details} = get_operand(P_REG,false)
                 end if
                 if p1size and p2size and p1size!=p2size then
                     Aborp("incompatible sizes")
@@ -4913,9 +4921,9 @@ movdqu... (64 bit only?)
                 end if
 
             elsif ttidx=T_cmpxchg then
-                {p1type,p1size,p1details} = get_operand(P_RM)
+                {p1type,p1size,p1details} = get_operand(P_RM,true)
                 comma()
-                {p2type,p2size,p2details} = get_operand(P_REG)
+                {p2type,p2size,p2details} = get_operand(P_REG,false)
                 if p1size and p2size and p1size!=p2size then
                     Aborp("incompatible sizes")
                 end if
@@ -4960,7 +4968,7 @@ movdqu... (64 bit only?)
 --; rdrand ecx      0FC7F1      (0o017 0o307 0o361)
 --; rdrand rax      480FC7F0    (#48 0o017 0o307 0o360)
 --; rdrand dx       660FC7F2    (#66 0o017 0o307 0o362)
-                {p1type,p1size,p1details} = get_operand(P_REG)
+                {p1type,p1size,p1details} = get_operand(P_REG,false)
                 if emitON then
                     rex = 0
                     if p1size=8 then
@@ -5007,7 +5015,7 @@ movdqu... (64 bit only?)
                or ttidx=T_fnstcw
                or ttidx=T_fldcw then
                 op = ttidx
-                {p1type,p1size,p1details} = get_operand(P_MEM)
+                {p1type,p1size,p1details} = get_operand(P_MEM,true)
                 if emitON then
                     s5 &= {0o331}
                     mod = 7

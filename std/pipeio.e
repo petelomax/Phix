@@ -10,6 +10,7 @@
 -- so that they can be used directly alongside other file/socket/other-streams with a
 -- ##stream_select## function.
 --
+--/**/ **NOT PHIX COMPATIBLE!** [instead see builtins/pipeio.e]
 
 namespace pipeio
 

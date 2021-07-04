@@ -8,7 +8,8 @@
 --
 constant {hchars,hsubs} = columnize({{"<","&lt;"},
 --                                   {">","&gt;"},
-                                     {">","&gt;"}})
+                                     {">","&gt;"},
+                                     {"'\\''","<nowiki>'\\''</nowiki>"}})
 --                                   {"&","&amp;"},
 --                                   {`"`,"&quot;"},
 --                                   {`'`,"&apos;"}})
@@ -39,7 +40,8 @@ end function
 
 global function htmlise(string hsrc, sequence hokens)
 --  string output = " "
-    string output = "<!--<lang Phix>-->\n ", colour, prev_colour = ""
+--  string output = "<!--<lang Phix>-->\n ", colour, prev_colour = ""
+    string output = "<!--<lang Phix>(phixonline)-->\n ", colour, prev_colour = ""
     integer done = 0, hdx = 1
     while hdx<=length(hokens) do
         integer {toktype, tokstart, tokfinish} = hokens[hdx] 
@@ -97,9 +99,12 @@ global function htmlise(string hsrc, sequence hokens)
                 colour = "#004080"
             elsif toktype<=T_xor then           -- keywords
                 colour = IUP_TEAL
-            elsif toktype<=T_yield then         -- buitlins
+--          elsif toktype<=T_yield then         -- builtins
+--          elsif toktype<=T_xor_bitsu then     -- builtins
+            elsif toktype<=T_zIndex then        -- builtins
                 colour = "#7060A8"
-            elsif toktype<=T_wait_key then      -- not pwa/p2js
+--          elsif toktype<=T_wait_key then      -- not pwa/p2js
+            elsif toktype<=T_yield then         -- not pwa/p2js
 --              colour = IUP_RED
                 if find(toktype,{T_try,T_catch}) then
                     colour = IUP_TEAL

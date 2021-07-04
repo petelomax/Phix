@@ -29,13 +29,14 @@ include builtins/VM/pStack.e    -- :%opGetST
 --  (include pglobals.e is not on as it introduces a bunch of compiler-
 --   related global variables that do not belong in application code.)
 constant S_Name  = 1,   -- const/var/rtn name
---       S_NTyp  = 2,   -- Const/GVar/TVar/Nspc/Type/Func/Proc
+         S_NTyp  = 2,   -- Const/GVar/TVar/Nspc/Type/Func/Proc
          S_FPno  = 3,   -- File and Path number
          S_State = 4,   -- state flag. S_fwd/S_used/S_set
 --       S_Nlink = 5,   -- name chain (see below)
          S_Slink = 6,   -- scope/secondary chain (see below)
 -- constants and variables [S_NTyp<=S_TVar]
-         S_vtype = 7    -- variable type or namespace fileno
+         S_vtype = 7,   -- variable type or namespace fileno
+         S_GVar2 = 2    -- global or static variable
 
 constant
 --       S_Nspc = 4, S_Type = 6,                -- [S_NTyp] settings
@@ -43,6 +44,14 @@ constant
          T_maintls = 21,
 --       T_callstk = 20,
          T_nslink = 18
+
+function prev_gvar(sequence symtab, integer idx)
+    while true do
+        idx -= 1
+        if idx=0 or symtab[idx][S_NTyp]=S_GVar2 then exit end if
+    end while
+    return idx
+end function
 
 --DEV 
 --global function routine_id_p(sequence s, integer parentscope)
@@ -52,7 +61,8 @@ constant
 --  return routine_id_p(s,0)
 --end function
 
-global function routine_id(sequence s)
+--global function routine_id(sequence s)
+function get_id(string s, bool bVar=false)
 --
 -- returns a routine number (actually an index into symtab), or
 --  -1 if the routine cannot be found (anywhere/in specified namespace)
@@ -139,6 +149,8 @@ sequence name_space     -- eg "fred" when "fred:thing" is passed as parameter.
             mov edi,[ebp+20]    -- prev_ebp
 --DEV (16/03/2013) if we add parentscope to routine_id then we must add locals, see pemit.e
 --          mov edi,[edi+20]    -- prev_ebp
+--2/3/21
+            mov edi,[edi+20]    -- prev_ebp
             mov edi,[edi+8]     -- calling routine no
             mov [rtn],edi
         [64]
@@ -148,6 +160,8 @@ sequence name_space     -- eg "fred" when "fred:thing" is passed as parameter.
 --          xor rcx,rcx         -- mov ecx,0    (unused)
             call :%opGetST      -- [rdi]=symtab (ie our local:=the real symtab)
             mov rdi,[rbp+40]    -- prev_ebp
+--2/3/21
+            mov rdi,[rdi+40]    -- prev_ebp
             mov rdi,[rdi+16]    -- calling routine no
             mov [rtn],rdi
         []
@@ -180,7 +194,11 @@ sequence name_space     -- eg "fred" when "fred:thing" is passed as parameter.
     end if
 
     if res!=-3 then
-        clink = symtab[T_maintls][S_Slink]      -- follow the (special) routines chain, speedwise
+        if bVar then
+            clink = prev_gvar(symtab, length(symtab)+1)
+        else
+            clink = symtab[T_maintls][S_Slink]      -- follow the (special) routines chain, speedwise
+        end if
         while clink do
             si = symtab[clink]
             si_name = si[S_Name]
@@ -220,7 +238,11 @@ sequence name_space     -- eg "fred" when "fred:thing" is passed as parameter.
                     exit
                 end if
             end if
-            clink = si[S_Slink]
+            if bVar then
+                clink = prev_gvar(symtab, clink)
+            else
+                clink = si[S_Slink]
+            end if
         end while
     end if
 --  if res<0 then res = 0 end if    -- added 17/8/19 (and docs updated)
@@ -233,3 +255,10 @@ sequence name_space     -- eg "fred" when "fred:thing" is passed as parameter.
     return res
 end function
 
+global function routine_id(string s)
+    return get_id(s)
+end function
+
+global function var_id(string s)
+    return get_id(s,true)
+end function

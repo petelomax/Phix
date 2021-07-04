@@ -7,10 +7,10 @@
 --
 
 global function split(sequence source, object delimiter=' ', bool no_empty=true, integer limit=0)
-sequence ret = {}
-integer start
-integer pos
---integer k
+    sequence ret = {}
+    integer start
+    integer pos
+    bool add_empties = not no_empty
 
     if length(source)!=0 then
 
@@ -34,7 +34,8 @@ integer pos
             while start<=length(source) do
                 pos = match(delimiter, source, start)
                 if pos=0 then exit end if
-                if no_empty=0 or pos-1>=start then
+--              if no_empty=0 or pos-1>=start then
+                if add_empties or pos-1>=start then
                     limit -= 1
                     if limit=0 then exit end if
                     ret = append(ret, source[start..pos-1])
@@ -46,7 +47,8 @@ integer pos
             while start<=length(source) do
                 pos = find(delimiter, source, start)
                 if pos=0 then exit end if
-                if no_empty=0 or pos-1>=start then
+--              if no_empty=0 or pos-1>=start then
+                if add_empties or pos-1>=start then
                     limit -= 1
                     if limit=0 then exit end if
                     ret = append(ret, source[start..pos-1])
@@ -55,26 +57,10 @@ integer pos
             end while
         end if
 
-        if no_empty=0 or start<=length(source) then
+--      if no_empty=0 or start<=length(source) then
+        if add_empties or start<=length(source) then
             ret = append(ret, source[start..$])
         end if
-
---      k = length(ret)
---      if no_empty then
---          k = 0
---          for i=1 to length(ret) do
---              if length(ret[i])!=0 then
---                  k += 1
---                  if k!=i then
---                      ret[k] = ret[i]
---                  end if
---              end if
---          end for
---      end if
---
---      if k<length(ret) then
---          ret = ret[1..k]
---      end if
     end if
     return ret
 end function
@@ -82,7 +68,8 @@ end function
 --changed 5/12/2020:
 --global function split_any(sequence source, object delimiters=", \t|", bool no_empty=false, integer limit=0)
 --global function split_any(sequence source, object delimiters=", \t|", bool no_empty=true, integer limit=0)
-global function split_any(sequence source, object delimiters=", \t|")
+--global function split_any(sequence source, object delimiters=", \t|")
+global function split_any(sequence source, object delimiters={',',' ','\t','|'})
 sequence ret = {}
 integer start = 1, pos
 --, k
@@ -111,22 +98,6 @@ integer start = 1, pos
         ret = append(ret, source[start..$])
     end if
 
---  k = length(ret)
---  if no_empty then
---      k = 0
---      for i=1 to length(ret) do
---          if length(ret[i])!=0 then
---              k += 1
---              if k!=i then
---                  ret[k] = ret[i]
---              end if
---          end if
---      end for
---  end if
---
---  if k<length(ret) then
---      ret = ret[1..k]
---  end if
     return ret
 end function
 

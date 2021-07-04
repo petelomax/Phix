@@ -2058,6 +2058,8 @@ if MCHK and length(ptab)=0 and opLntpcalled=0 then
 
             #ilASM{
                 [32]
+                    mov eax,[with_js]
+                    call :%pWithJS
                     call :%pNewGtcbChain
                     mov [ntcb4],eax         -- temp save
 --                  mov [frst4],ecx         -- temp save
@@ -2092,8 +2094,11 @@ if MCHK and length(ptab)=0 and opLntpcalled=0 then
                     call :%pRestoreGtcbChain
                     mov [ntcb4],edx
 --                  mov [frst4],edi
-
+                    xor eax,eax
+                    call :%pWithJS
                 [64]
+                    mov rax,[with_js]
+                    call :%pWithJS
                     call :%pNewGtcbChain
                     mov [ntcb4],rax         -- temp save
 --                  mov [frst4],rcx         -- temp save
@@ -2133,6 +2138,8 @@ if MCHK and length(ptab)=0 and opLntpcalled=0 then
                     call :%pRestoreGtcbChain
                     mov [ntcb4],rdx
 --                  mov [frst4],rdi
+                    xor rax,rax
+                    call :%pWithJS
                 []
                   }
 --          check_heap(ntcb4,frst4)
@@ -2143,6 +2150,8 @@ else -- not MCHK
 --          InterpreXt()
             #ilASM{
                 [32]
+                    mov eax,[with_js]
+                    call :%pWithJS
                     mov esi,[symtab]
                     mov ecx,[CSvaddr4]
                     shl esi,2
@@ -2173,7 +2182,11 @@ else -- not MCHK
                     mov ebp,eax             -- restore ebp
                     mov esp,ecx             -- restore esp
                     call :%pSetSymPtr
+                    xor eax,eax
+                    call :%pWithJS
                 [64]
+                    mov rax,[with_js]
+                    call :%pWithJS
 --                  pop al
 --                  mov rax,[symtab]
                     mov rsi,[symtab]
@@ -2206,6 +2219,8 @@ else -- not MCHK
                     mov rsp,rcx                 -- restore rsp
 --                  mov [ds+8],rdx              -- restore symtabptr
                     call :%pSetSymPtr
+                    xor rax,rax
+                    call :%pWithJS
                 []
                   }
 --puts(1,"not MCHK(2)\n")
@@ -2642,7 +2657,12 @@ if testall then
         and (mainfile!="t49ginfo.exw" or machine_bits()!=64 or not bind)
         and (mainfile!="t61cffi.exw" or platform()!=LINUX) then
             printf(1,"Testing[%d]: %s%s\n",{i,mainpath,mainfile})
+--          atom ti = time()
+--          printf(1,"Testing[%d]: %s%s",{i,mainpath,mainfile})
+--          printf(1,"Testing[%d]: %s%s (%3.2fs)\n",{i,mainpath,mainfile,time()-alltime})
             eres = main()
+--          printf(1,"Testing[%d]: %s%s (%3.2fs)\n",{i,mainpath,mainfile,time()-ti})
+--          printf(1," (%3.2fs)\n",{time()-ti})
             if eres!=0 then exit end if
             tt_init()
             ResetResourceSectionDefaults()

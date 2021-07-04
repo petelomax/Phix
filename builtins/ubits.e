@@ -8,7 +8,8 @@
 --  However many (esp cryptographic) functions require unsigned results, which is 
 --  where these routines can come in handy.
 --
-
+--  These routines are implemented directly in p2js.js, using ">>>0" rather than poke/peek.
+--
 constant W = machine_word()
 atom pMem = NULL
 

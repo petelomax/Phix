@@ -4,6 +4,7 @@
 --
 -- [DEV] if I can draw a rotating rubics cube, I can draw the lines that python does...
 --
+with javascript_semantics
 function newPoint() return {0,0,0} end function
 function newPointEx() return {newPoint(),0} end function
  
@@ -43,22 +44,24 @@ function getEdgesFaces(sequence inputPoints, inputFaces)
             eIndex = 1
     sequence mergedEdges ={}
     while eIndex<=numEdges do
-        sequence e1 = edges[eIndex]
+        sequence e1 = deep_copy(edges[eIndex])
         integer e4 = -1
         if eIndex<=numEdges-1
         and e1[1..2]==edges[eIndex+1][1..2] then
             e4 = edges[eIndex+1][3]
             eIndex += 1
         end if
-        mergedEdges = append(mergedEdges, e1&e4)
+        e1 &= e4
+        mergedEdges = append(mergedEdges, e1)
         eIndex += 1
     end while
     sequence edgesCenters = {}
     for i=1 to length(mergedEdges) do
-        sequence me = mergedEdges[i],
+        sequence me = deep_copy(mergedEdges[i]),
                  cp = centerPoint(inputPoints[me[1]], 
                                   inputPoints[me[2]])
-        edgesCenters = append(edgesCenters, append(me, cp))
+        me = append(me,cp)
+        edgesCenters = append(edgesCenters, me)
     end for
     return edgesCenters
 end function

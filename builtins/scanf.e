@@ -67,15 +67,15 @@ function parse_fmt(string fmt)
 --
 integer fmtdx = 1, 
         litstart = 1
-integer ch, 
+integer scan_ch, 
         ftyp, 
         last = NONE
 sequence res = {}
 
     if length(fmt)=0 then crash("length(fmt) is 0") end if
     while fmtdx<=length(fmt) do
-        ch = fmt[fmtdx]
-        if ch='%' then
+        scan_ch = fmt[fmtdx]
+        if scan_ch='%' then
             if litstart<fmtdx then
                 if last=LITERAL then
                     res[$] &= fmt[litstart..fmtdx-1]
@@ -86,14 +86,14 @@ sequence res = {}
             end if
             fmtdx += 1
             if fmtdx>length(fmt) then crash("bad format") end if
-            ch = fmt[fmtdx]
+            scan_ch = fmt[fmtdx]
             -- skip any maxwidth/precision/zerofill/justify etc:
-            while (ch>='0' and ch<='9') or find(ch,"+-.,")!=0 do
+            while (scan_ch>='0' and scan_ch<='9') or find(scan_ch,"+-.,")!=0 do
                 fmtdx += 1
                 if fmtdx>length(fmt) then crash("bad format") end if
-                ch = fmt[fmtdx]
+                scan_ch = fmt[fmtdx]
             end while
-            switch lower(ch) do
+            switch lower(scan_ch) do
                 case 's','c':           ftyp = STRING
 --              case 'd','x','o','b':   ftyp = INTEGER
                 case 'd':               ftyp = DECIMAL
@@ -136,9 +136,10 @@ sequence res = {}
     return res  
 end function
 
-constant bases = {8,16,2,10}    -- NB: oxbd order
+--constant bases = {8,16,2,10}  -- NB: oxbd order
 
 string baseset
+sequence bases
 integer binit = 0
 
 procedure initb()
@@ -146,14 +147,16 @@ procedure initb()
     for i=0 to 9 do
         baseset['0'+i] = i
     end for
-    for i=10 to 15 do
+--  for i=10 to 15 do
+    for i=10 to 35 do
         baseset['A'+i-10] = i
         baseset['a'+i-10] = i
     end for
+    bases = {8,16,2,10}  -- NB: oxbd order
     binit = 1
 end procedure
 
-integer ch
+integer scan_ch
 
 --NB code from ptok.e relies on there being a \n at the end.
 
@@ -164,7 +167,7 @@ integer exponent
 integer esigned
 atom fraction
 
-    if ch='.' then
+    if scan_ch='.' then
         tokvalid = 0
 --      dec = 10
         dec = 1
@@ -172,12 +175,12 @@ atom fraction
         while 1 do
 --          sidx += 1
             if sidx>length(s) then exit end if
-            ch = s[sidx]
-            if ch!='_' then
-                if ch<'0' or ch>'9' then exit end if
+            scan_ch = s[sidx]
+            if scan_ch!='_' then
+                if scan_ch<'0' or scan_ch>'9' then exit end if
 --27/10/15
---              N += (ch-'0') / dec
-                fraction = fraction*10+(ch-'0')
+--              N += (scan_ch-'0') / dec
+                fraction = fraction*10+(scan_ch-'0')
                 dec *= 10
                 tokvalid = 1
             end if
@@ -189,24 +192,24 @@ atom fraction
         sidx -= 1
     end if
     exponent = 0
-    if ch='e' or ch='E' then
+    if scan_ch='e' or scan_ch='E' then
         tokvalid = 0
         esigned = 0
         while 1 do
             sidx += 1
             if sidx>length(s) then exit end if
-            ch = s[sidx]
-            if ch<'0' or ch>'9' then
-                if ch!='_' then
+            scan_ch = s[sidx]
+            if scan_ch<'0' or scan_ch>'9' then
+                if scan_ch!='_' then
                     if tokvalid=1 then exit end if -- ie first time round only
-                    if ch='-' then
+                    if scan_ch='-' then
                         esigned = 1
-                    elsif ch!='+' then
+                    elsif scan_ch!='+' then
                         exit
                     end if
                 end if
             else
-                exponent = exponent*10 + ch-'0'
+                exponent = exponent*10 + scan_ch-'0'
                 tokvalid = 1
             end if
 --          sidx += 1
@@ -247,34 +250,34 @@ atom fraction
 end function
 
 function get_number(string s, integer sidx, inbase=10)
-integer ch2
+integer scan_ch2
 atom N
 integer msign, base = 0, tokvalid = 1
 
 --  sidx += 1
     if sidx>length(s) then return {} end if
-    ch = s[sidx]
+    scan_ch = s[sidx]
     msign = 1
-    if ch='-' then
+    if scan_ch='-' then
         sidx += 1
         if sidx>length(s) then return {} end if
-        ch = s[sidx]
+        scan_ch = s[sidx]
         msign = -1
-    elsif ch='+' then
+    elsif scan_ch='+' then
         sidx += 1
         if sidx>length(s) then return {} end if
-        ch = s[sidx]
+        scan_ch = s[sidx]
     end if
---  if  ch>='0' 
---  and ch<='9' then
-    N = baseset[ch]
+--  if  scan_ch>='0' 
+--  and scan_ch<='9' then
+    N = baseset[scan_ch]
     if N<inbase then
         sidx += 1
         if sidx>length(s) then return {N*msign,sidx} end if
-        ch = s[sidx]
+        scan_ch = s[sidx]
         if N=0 then -- check for 0x/o/b/d formats
---          base = find(ch,"toxbd(")
-            base = find(lower(ch),iff(inbase>10?"toxxx(":"toxbd("))
+--          base = find(scan_ch,"toxbd(")
+            base = find(lower(scan_ch),iff(inbase>10?"toxxx(":"toxbd("))
             if base then
                 if base>1 then
                     base -= 1
@@ -284,11 +287,11 @@ integer msign, base = 0, tokvalid = 1
                     while 1 do
                         sidx += 1
                         if sidx>length(s) then return {} end if
-                        ch = s[sidx]
-                        if ch<'0' or ch>'9' then exit end if
-                        base = base*10 + ch-'0'
+                        scan_ch = s[sidx]
+                        if scan_ch<'0' or scan_ch>'9' then exit end if
+                        base = base*10 + scan_ch-'0'
                     end while
-                    if base<2 or base>16 or ch!=')' then
+                    if base<2 or base>16 or scan_ch!=')' then
                         return {}
                     end if
                 else
@@ -296,52 +299,52 @@ integer msign, base = 0, tokvalid = 1
                 end if
                 sidx += 1
                 if sidx>length(s) then return {} end if
-                ch = s[sidx]
+                scan_ch = s[sidx]
                 tokvalid = 0
-                if base=8 and ch='b' then   -- getByteWiseOctal()
+                if base=8 and scan_ch='b' then  -- getByteWiseOctal()
                     sidx += 1
                     if sidx>length(s) then return {} end if
-                    ch = s[sidx]
+                    scan_ch = s[sidx]
                     -- groups of 3:
                     while 1 do
                         -- first char 0..3
-                        ch = baseset[ch]
-                        if ch>3 then exit end if
+                        scan_ch = baseset[scan_ch]
+                        if scan_ch>3 then exit end if
                         tokvalid = 0
-                        N = N*4 + ch
+                        N = N*4 + scan_ch
                         sidx += 1
                         if sidx>length(s) then return {} end if
-                        ch = s[sidx]
+                        scan_ch = s[sidx]
                         -- second char 0..7
-                        ch = baseset[ch]
-                        if ch>7 then return {} end if
-                        N = N*8 + ch
+                        scan_ch = baseset[scan_ch]
+                        if scan_ch>7 then return {} end if
+                        N = N*8 + scan_ch
                         sidx += 1
                         if sidx>length(s) then return {} end if
-                        ch = s[sidx]
+                        scan_ch = s[sidx]
                         -- third char 0..7
-                        ch = baseset[ch]
-                        if ch>7 then return {} end if
-                        N = N*8 + ch
+                        scan_ch = baseset[scan_ch]
+                        if scan_ch>7 then return {} end if
+                        N = N*8 + scan_ch
                         tokvalid = 1
                         sidx += 1
                         if sidx>length(s) then exit end if
-                        ch = s[sidx]
+                        scan_ch = s[sidx]
                     end while
                     if tokvalid=0 then return {} end if
                     return {N*msign,sidx}
                 end if
 --              else
 --                  while 1 do
---                      if ch!='_' then     -- allow eg 1_000_000 to mean 1000000 (any base)
---                          ch = baseset[ch]
---                          if ch>=base then exit end if    
---                          N = N*base + ch
+--                      if scan_ch!='_' then    -- allow eg 1_000_000 to mean 1000000 (any base)
+--                          scan_ch = baseset[scan_ch]
+--                          if scan_ch>=base then exit end if   
+--                          N = N*base + scan_ch
 --                          tokvalid = 1
 --                      end if
 --                      sidx += 1
 --                      if sidx>length(s) then exit end if
---                      ch = s[sidx]
+--                      scan_ch = s[sidx]
 --                  end while
 --              end if
 --              if tokvalid=0 then return {} end if
@@ -351,37 +354,37 @@ integer msign, base = 0, tokvalid = 1
         if base=0 then base=inbase end if
 
         while 1 do
---          if ch<'0' or ch>'9' then
---              if ch!='_' then exit end if     -- allow eg 1_000_000 to mean 1000000
+--          if scan_ch<'0' or scan_ch>'9' then
+--              if scan_ch!='_' then exit end if    -- allow eg 1_000_000 to mean 1000000
 --          else
---              N = N*10 + ch-'0'
+--              N = N*10 + scan_ch-'0'
 --          end if
-            if ch!='_' then     -- allow eg 1_000_000 to mean 1000000 (any base)
+            if scan_ch!='_' then    -- allow eg 1_000_000 to mean 1000000 (any base)
 --31/7/19:
-                if ch='.' then exit end if
-                ch2 = baseset[ch]
-                if ch2>=base then exit end if   
-                N = N*base + ch2
+                if scan_ch='.' then exit end if
+                scan_ch2 = baseset[scan_ch]
+                if scan_ch2>=base then exit end if  
+                N = N*base + scan_ch2
                 tokvalid = 1
             end if
             sidx += 1
             if sidx>length(s) then exit end if
-            ch = s[sidx]
+            scan_ch = s[sidx]
         end while
         if sidx<length(s) then
             sidx = sidx+1
-            ch2 = s[sidx]
-            if ch!='.' then
+            scan_ch2 = s[sidx]
+            if scan_ch!='.' then
                 -- allow eg 65'A' to be the same as 65:
 --DEV could probably do with some more bounds checking here (spotted in passing)
-                if ch='\'' and s[sidx]=N and s[sidx+2]='\'' then
+                if scan_ch='\'' and s[sidx]=N and s[sidx+2]='\'' then
                     sidx += 3
                     return {N*msign,sidx}
                 end if
-                ch2 = '.'
+                scan_ch2 = '.'
             end if
-            if ch2!='.'                             -- fraction but not ellipse
-            or (ch='e' or ch='E') then              -- exponent ahead
+            if scan_ch2!='.'                            -- fraction but not ellipse
+            or (scan_ch='e' or scan_ch='E') then                -- exponent ahead
                 return completeFloat(s,sidx,N,msign)
             end if
             sidx -= 1
@@ -389,27 +392,27 @@ integer msign, base = 0, tokvalid = 1
             return {}
         end if
         return {N*msign,sidx}
-    elsif ch='.' then
+    elsif scan_ch='.' then
         sidx += 1
         if sidx>length(s) then return {} end if
-        ch = s[sidx]
-        if ch>='0' and ch<='9' then -- ".4" is a number
+        scan_ch = s[sidx]
+        if scan_ch>='0' and scan_ch<='9' then -- ".4" is a number
 --          sidx -= 1
-            ch = '.'
+            scan_ch = '.'
             return completeFloat(s,sidx,0,msign)
         end if
         return {}
-    elsif ch='#' then
+    elsif scan_ch='#' then
         tokvalid = 0 -- ensure followed by >=1 hex digit
         N = 0
         while 1 do
             sidx += 1
             if sidx>length(s) then exit end if
-            ch = s[sidx]
-            if ch!='_' then
-                ch = baseset[ch]
-                if ch>16 then exit end if
-                N = N*16 + ch
+            scan_ch = s[sidx]
+            if scan_ch!='_' then
+                scan_ch = baseset[scan_ch]
+                if scan_ch>16 then exit end if
+                N = N*16 + scan_ch
                 tokvalid = 1
             end if
         end while
@@ -420,13 +423,17 @@ integer msign, base = 0, tokvalid = 1
 end function
 
 global function to_number(string s, object failure={}, integer inbase=10)
-sequence r
-atom N
-integer sidx
+    atom N
+    integer sidx = 1
     if not binit then initb() end if
-    r = get_number(s,1,inbase)
+    if length(s)>=2 and s[1..2]="0(" then
+        {inbase,sidx} = get_number(s,3,10)
+        if s[sidx]!=')' then return failure end if
+        sidx += 1
+    end if
+    sequence r = get_number(s,sidx,inbase)
     if length(r) then
-        {N,sidx} = r
+        {N, sidx} = r
         if sidx>length(s) then
             return N
         end if
@@ -468,10 +475,12 @@ atom N
                 sidx = match(ffi,s,sidx)
                 if sidx=0 then exit end if
                 res[$] = s[start..sidx-1]
-                tries = scanff(res,s,sidx+length(ffi),fmts,fidx)
+--              tries = scanff(res,s,sidx+length(ffi),fmts,fidx)
+                tries = scanff(deep_copy(res),s,sidx+length(ffi),fmts,fidx)
                 if length(tries) then
                     resset &= tries
                 end if
+--              tries = 0
                 sidx += 1
             end while
             res = resset
@@ -517,7 +526,10 @@ end function
 
 global function scanf(string s, string fmt)
 --  return scanff({},s,1,parse_fmt(fmt),1)
-    sequence res = scanff({},s,1,parse_fmt(fmt),1)
+--p2js:
+--  sequence res = scanff({},s,1,parse_fmt(fmt),1)
+    sequence res = {}
+    res = scanff(res,s,1,parse_fmt(fmt),1)
     if length(res)>1 then
         -- filter multiple results to exact matches
         integer goodres = 0

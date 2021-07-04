@@ -26,11 +26,28 @@
         </tr>
         <tr>
          <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+          Prior to version 1.0.0 the repeat function would perform a bulk refcount update and rely on subsequent copy-on-write 
+          semantics. For example, <code>repeat(repeat(0,100),100)</code> would use 800ish bytes and an internal refcount of
+          100, whereas JavaScript and other programming languages, and in fact Phix itself in probably fairly short order,
+          would use 40,000 bytes. While that was a nice idea, and occasionally might improve startup times a tiny fraction,
+          on deeper reflection it is a completely <i>fake saving</i>, and probably reduces overall performance, especially 
+          if anything needs reloading to cache just for the clone, as well as being wholly and utterly incompatible with
+          the pass-by-sharing semantics of JavaScript, and hence <a href="p2js.htm">pwa/p2js</a>. Hence it now performs a
+          <a href="deep_copy.htm">deep_copy</a>(x) when needed, and I have yet to notice any significant performance loss.
+          For more details see the <a href="notp2js.htm">Incompatibilities</a> section of the p2js documentation.
+         </td>
+        </tr>
+        <tr>
+         <td>
           <b>Comments:</b>
          </td>
          <td>
-            When you repeat a <a href="sequence.htm">sequence</a> or a floating-point number the interpreter does not actually 
-            make multiple copies in memory, instead a single copy is "pointed to" a number of times.
+            When you repeat a <a href="string.htm">string</a> or a floating-point number the interpreter does not actually 
+            make multiple copies in memory, instead a single copy is "pointed to" a number of times, though as above nested
+            <a href="sequence.htm">sequence</a> elements are now <a href="deep_copy.htm">deep_copy</a>()&rsquo;d.
           <br>
           <br>
             For efficiency reasons, if the item to be repeated appears to be a character, ie is an integer in the range 7 to 255, 
@@ -48,6 +65,7 @@
             at source, rather than ten minutes later when the sequence turns out to be one element too short.
          </td>
         </tr>
+<!--
         <tr>
          <td>
           <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
@@ -56,6 +74,7 @@
             Supported.
          </td>
         </tr>
+-->
         <tr>
          <td>
           <b>Example 1:</b>
@@ -104,7 +123,10 @@ repeat('=', 10)     -- "=========="  (a string)
           <b>Implementation:</b>
          </td>
          <td>
-            See builtins\VM\pRepeatN.e (an autoinclude) for details of the actual implementation.
+<!--            See builtins\VM\pRepeatN.e (an autoinclude) for details of the actual implementation.-->
+            See builtins\repeat.e (an autoinclude) for details of the actual implementation. [Moved from VM\pRepeatN.e in 1.0.0]<br>
+            There is also a different hand-crafted version in p2js.js which obviously uses native JavaScript functions instead
+            of %:pAllocSeq, etc.
          </td>
         </tr>
         <tr>
@@ -132,6 +154,10 @@ repeat('=', 10)     -- "=========="  (a string)
             and poke every time we run anything. Note that explicitly calling repeatch, which is not available on Euphoria, performs 
             an implicit "non-integer agnostic" low-level and_bits(x,#FF), and hence yields incorrect results if x is not an integer 
             or outside the range 0..255, rather than an error, so if you must use repeatch(), do so sparingly and carefully. 
+            <br>
+            <br>
+            repeatch() has an optional third parameter, nFrames, for the benefit of repeat(), so that the runtime error message 
+            "repeat count must not be nagative" always points at user code rather than within builtins/repeat.e itself.
          </td>
         </tr>
        </table>

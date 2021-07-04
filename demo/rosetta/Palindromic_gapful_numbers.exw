@@ -112,7 +112,7 @@ function palindromicgapfuls(sequence pals, string lhs, atom palcount, to_skip, c
 --
     sequence key = {l,r,p,dd}
     integer node = getd_index(key,skipd)
-    atom skip = iff(node==null?count:getd_by_index(node,skipd))
+    atom skip = iff(node==null?count:getd_by_index(node,skipd)), skipn
     if node!=null and (palcount+skip)<to_skip then
         palcount += skip
     else
@@ -129,7 +129,7 @@ function palindromicgapfuls(sequence pals, string lhs, atom palcount, to_skip, c
                     end if
                 end if
             else
-                {pals,palcount,atom skipn} = palindromicgapfuls(pals, lhs&(d+'0'), palcount, to_skip, count, l-2, r2, p+1, dd)
+                {pals,palcount,skipn} = palindromicgapfuls(pals, lhs&(d+'0'), palcount, to_skip, count, l-2, r2, p+1, dd)
                 skip += skipn
             end if
             if palcount==count then exit end if
@@ -152,31 +152,32 @@ function collect(integer digit, atom count, keep)
     return pals
 end function
 
-constant tests = {{20,20,1},{100,15,1},{1000,10,1},{10_000,5,1},
-                  {100_000,1,1},{1_000_000,1,1},{10_000_000,1,1},
-                  {100_000_000,1,9},{1000_000_000,1,9},{10_000_000_000,1,9},
-                  {100_000_000_000,1,9},{1000_000_000_000,1,9},
-                  {10_000_000_000_000,1,9},{100_000_000_000_000,1,9},
-                  {1000_000_000_000_000,1,9},
-                  {10_000_000_000_000_000_000,1,9}} -- 64 bit only
+constant tests = {{20,20,1,9},{100,15,1,9},{1000,10,1,9},{10_000,5,1,9},
+                  {100_000,1,1,9},{1_000_000,1,1,9},{10_000_000,1,1,9},
+                  {100_000_000,1,9,9},{1000_000_000,1,9,9},{10_000_000_000,1,9,9},
+                  {100_000_000_000,1,9,9},{1000_000_000_000,1,9,9},
+                  {10_000_000_000_000,1,9,9},{100_000_000_000_000,1,9,9},
+                  {1_000_000_000_000_000,1,9,9},
+--                {1_000_000_000_000_000,1,2,4}, -- (matches AppleScript)
+                  {10_000_000_000_000_000_000,1,9,9}} -- 64 bit only
 --constant tests = {{20,20},{100,15},{1000,10},{1_000_000,1},
 --                {1000_000_000,1},{1000_000_000_000,1},
 --                {1000_000_000_000_000,1},
 --                {10_000_000_000_000_000_000,1}} -- 64 bit only
                  -- (any further and you'd need mpfr just to hold counts)
 
-atom t0 = time(), count, keep, start
+atom t0 = time(), count, keep, start, finish
 for i=1 to length(tests)-(machine_bits()!=64) do
-    {count, keep, start} = tests[i]
+    {count, keep, start, finish} = tests[i]
 --  {count, keep} = tests[i]
-    atom from = count-keep+1
+--  atom from = count-keep+1
     string r = iff(count==keep?sprintf("First %d",{count}):
                     iff(keep>1?sprintf("Last %d of first %,d",{keep,count})
                               :sprintf("%,dth",{count}))),
            s = iff(keep=1?"":"s")
     printf(1,"%s palindromic gapful number%s ending with:\n", {r,s})
-    sequence tags = tagset(9,start),
---  sequence tags = tagset(9,iff(i<4?1:9)),
+    sequence tags = tagset(finish,start),
+--  sequence tags = tagset(finish,iff(i<4?1:9)),
              res = apply(true,collect,{tags,count,keep})
     string fmt = sprintf("%%%ds",max(apply(join(res,{}),length)))
     for j=1 to length(res) do
@@ -206,7 +207,7 @@ printf(1,"Completed in %s\n",elapsed(time()-t0))
 
 --printf(1,"%d\n",power(2,53))
 --?dict_size(skipd) -- 17579 (32 bit)
-?dict_size(skipd) -- 17579 (32 bit)
+--?dict_size(skipd) -- 24791 (64 bit)
 
 --?remainder(9459549,99)
 --?remainder(sum(apply(true,remainder,{{9000009,400040,50500,9000},99})),99)

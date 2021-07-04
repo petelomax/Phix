@@ -51,5 +51,5 @@ global function hll_rand(atom a) return rand(a) end function
 --sequence/string result:
 global function hll_append(object a,b) return append(a,b) end function
 global function hll_prepend(object a,b) return prepend(a,b) end function
-global function hll_repeat(object o, integer i) return repeat(o,i) end function
+--global function hll_repeat(object o, integer i) return repeat(o,i) end function
 

@@ -26,10 +26,28 @@
             args: the object(s) to be printed.
             <br>
             <br>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+          Supported, with some minor differences (see <a href="sprintf.htm">sprintf</a>), and no support for unicode_align 
+          (which was really only ever meant to align terminal output anyway).
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Comments:</b>
+         </td>
+         <td>
             If args is an <a href="atom.htm">atom</a> then all formats in fmt are applied to it. <br>
             If args is a <a href="sequence.htm">sequence</a>, then formats in fmt are applied to successive elements.<br>
             Note that printf() takes <i>at most</i> 3 arguments, however the length of the last argument, containing the 
-            values to be printed, can vary. <br>
+            values to be printed, can vary.
+            <br>
+            <br>
             The basic formats are:
           <br>
           <br>
@@ -45,6 +63,9 @@
           <br>
  %v - print the string result from <a href="sprint.htm">sprint</a>(args[i])
           <br>
+ %V - as %v but without characters. Prints {65,66,67} as-is, whereas %v prints {65'A',66'B',67'C'}.
+<!--print the string result from ppf(args[i]), with any prior <a href="ppOpt.htm">ppOpt</a>() settings.-->
+          <br>
  %d - print an atom as a decimal integer (nb. truncated rather than rounded)
           <br>
  %x - print an atom as a hexadecimal integer (0..9 and A..F)
@@ -54,6 +75,10 @@
  %o - print an atom as an octal integer
           <br>
  %b - print an atom as a binary integer
+          <br>
+ %a - print in base 2..36 using 0-9, a-z. Corresponding argument must be a {base,num} pair.
+          <br>
+ %A - print in base 2..62(|36) using 0-9, A-Z, a-z, ditto. %A(2..36)===upper(%a), p2js.js base > 36 crashes.
           <br>
  %e - print an atom as a floating point number with exponential notation
           <br>
@@ -96,18 +121,13 @@
             Likewise '0' and '+' are also mutually exclusive, however '+' can co-exist with '-=|' as long as it is specified first, 
             whereas ',' can be used with any ('0+-=|') , as long as it is specified last.<br>
             You can actually zero-fill the string formats ('s','c', and 'v') if you want, not that I can think of any good reason to.
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <b>Comments:</b>
-         </td>
-         <td>
+            <br>
+            <br>
             A statement such as printf(1,"%s","John Smith") should by rights just print 'J', as the
-            %s should apply to the first element of args, which in this case is 'J'. <br>
+            %s should apply to the first element of args, which in this case is 'J'. 
             The correct statement is printf(1,"%s",{"John Smith"}) where no such confusion can arise. <br>
             However this is such an easy mistake to make that in Phix it is caught specially (args is
-            <i>a</i> string and fmt has only one %-format, ignoring any %%) and the full name printed. <br>
+            a single string and fmt has only one %-format, apart from any %%) and the full name printed. <br>
             Note however that Euphoria will just print 'J'.
           <br>
           <br>
@@ -127,7 +147,17 @@
             <a href="utf16_to_utf32.htm#utf16_to_utf8">utf16_to_utf8</a>() respectively.
           <br>
           <br>
-            Lastly, %x and %X are "the wrong way round" for historical/compatibility reasons.
+            Note that %x and %X are "the wrong way round" for historical/compatibility reasons.
+          <br>
+          <br>
+            The argument for %a/%A must be a {base,num} pair, eg printf(1,"%d is %a in base %d",{i,{b,i},b}).<br>
+            Note that while eg sprintf("%d",i) works like sprintf("%d",{i}), and also sprintf("%d (%08x, %b)",i) 
+            works like sprintf("%d (%08x, %b)",{i,i,i}), the same trick(s) cannot be applied to %a/%A. 
+          <br>
+          <br>
+            Should you have gotten used to these in some other language&rsquo;s version of (s)printf(), be advised
+            that "%#x" is not supported, use "0x%x" instead, likewise replace "%#o" with "0%o", ie  explicitly 
+            provide any required (fixed) prefix yourself, then print the number normally.
          </td>
         </tr>
         <tr>
@@ -173,14 +203,6 @@
             Then again, while I have tried my best to make printf() as thread-safe as possible, it should 
             probably be avoided in a background worker thread if at all possible, or perhaps only performed 
             under the protection of a critical section.
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
-         </td>
-         <td>
-          supported, with some minor differences, and no support for unicode_align above (which was really only ever meant to align terminal output anyway).
          </td>
         </tr>
         <tr>

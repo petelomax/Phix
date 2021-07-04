@@ -18,6 +18,14 @@ include builtins\VM\pHeap.e     -- :%pDealloc, :%pAllocStr, :%pAllocSeq
 
 include builtins\VM\pFixup.e    -- negative and floating point index handling (:%fixupIndex)
 
+bool ma_ip = false      -- Set true under with js during {a,b} = x operations, to catch any
+                        -- attempts to part-modify strings, as in {s[i]} := {ch}, since the
+                        -- otherwise excellent JavaScript desequencing will just not cope,
+                        -- because strings are immutable in JavaScript. (For eg s[i] = ch
+                        -- when not part of multiple assignment, it gets transpiled into
+                        -- s=$repe(s,i,ch) which uses substring + fromCharCode + substring 
+                        -- in order to get round the whole immutable strings thingymajig.)
+
 #ilASM{ jmp :%opRetf
 
 --DEV FIXME: (and the :!bang labels below)
@@ -31,6 +39,37 @@ include builtins\VM\pFixup.e    -- negative and floating point index handling (:
         int3
     ::e110Repe1is
         int3
+
+--Fine, tested:
+    [32]
+     ::e52jsdnssd8
+        add esp,4
+     ::e52jsdnssd4
+        add esp,4
+     ::e52jsdnssd
+        pop edx
+        xor eax,eax
+        call :%pDeSeqip
+        mov al,52           -- e52jsdnssd
+        sub edx,1
+--      mov [ma_ip],ebx
+        jmp :!iDiag
+        int3
+    [64]
+     ::e52jsdnssd16
+        add rsp,8
+     ::e52jsdnssd8
+        add rsp,8
+     ::e52jsdnssd
+        pop rdx
+        xor rax,rax
+        call :%pDeSeqip
+        mov al,52           -- e52jsdnssd
+        sub rdx,1
+--      mov [ma_ip],rbx
+        jmp :!iDiag
+        int3
+    []
 
 --/*
 procedure :%pRepe(:%)
@@ -92,8 +131,10 @@ end procedure -- (for Edita/CtrlQ)
         mov edi,[esp+8]         --[1] (ref addr, leaving it on the stack)
 --      mov ecx,edx
         push edx
-        mov edx,[esp+ecx*4+20]  -- era
+--      mov edx,[esp+ecx*4+20]  -- era
+        mov edx,[esp+ecx*4+16]  -- era
         mov ecx,[esp]
+        call :%pAlloClone
         call :%pAllocSeq        -- damages eax only
         pop edx
         mov [edi],eax           -- Replace the ref at the original address
@@ -147,6 +188,8 @@ end procedure -- (for Edita/CtrlQ)
       @@:
         sub ecx,1
         jnz :e04atsaa9          -- must be last index, era @ [esp+ecx*4+4]
+        cmp [ma_ip],ebx
+        jne :e52jsdnssd8
         mov ecx,[esp+4]         -- replacement
         xor ebx,ebx
         cmp ecx,255
@@ -262,8 +305,10 @@ end procedure -- (for Edita/CtrlQ)
         mov rdi,[rsp+16]        --[1] (ref addr, leaving it on the stack)
 --      mov rcx,rdx
         push rdx
-        mov rdx,[rsp+rcx*8+40]  -- era
+--      mov rdx,[rsp+rcx*8+40]  -- era
+        mov rdx,[rsp+rcx*8+32]  -- era
         mov rcx,[rsp]
+        call :%pAlloClone
         call :%pAllocSeq        -- damages rax only
         pop rdx
         mov [rdi],rax           -- Replace the ref at the original address
@@ -319,6 +364,8 @@ end procedure -- (for Edita/CtrlQ)
       @@:
         sub rcx,1
         jnz :e04atsaa9          -- must be last index, era @ [esp+ecx*4+4] [??]
+        cmp [ma_ip],rbx
+        jne :e52jsdnssd16
         mov rcx,[rsp+8]         -- replacement (from calling convention)
         xor rbx,rbx
         cmp rcx,255
@@ -408,6 +455,8 @@ end procedure -- (for Edita/CtrlQ)
         lea eax,[ebx+esi*4]
         cmp byte[ebx+esi*4-1],0x80  -- type byte
         jbe :opRepe1Sequence
+        cmp [ma_ip],ebx
+        jne :e52jsdnssd4
         cmp ecx,255
         ja :opRepe1ExpandString
         add esp,4
@@ -500,6 +549,10 @@ end procedure -- (for Edita/CtrlQ)
       @@:
         cmp byte[ebx+esi*4-1],0x80  -- type byte
         jbe :opRepe1CloneSequence
+        cmp [ma_ip],ebx
+--27/6/21:
+--      jne :e52jsdnssd4
+        jne :e52jsdnssd8
         cmp ecx,255
         ja :opRepe1CloneExpandStr
 --  mov ecx,[esp+4]             -- return addr
@@ -537,6 +590,7 @@ mov al, byte[ebx+esi*4-1]   -- type byte
             int3
       @@:
         mov edx,[esp+8]             -- era
+        call :%pAlloClone
         call :%pAllocSeq            -- damages eax only
         mov edx,[esp+4]             -- [0]
 --  mov ecx,[ecx-9]             -- ref addr
@@ -626,6 +680,8 @@ mov al, byte[ebx+esi*4-1]   -- type byte
         lea rax,[rbx+rsi*4]
         cmp byte[rbx+rsi*4-1],0x80  -- type byte
         jbe :opRepe1Sequence
+        cmp [ma_ip],rbx
+        jne :e52jsdnssd8
         cmp rcx,255
         ja :opRepe1ExpandString
         add rsp,8
@@ -712,6 +768,10 @@ mov al, byte[ebx+esi*4-1]   -- type byte
       @@:
         cmp byte[rbx+rsi*4-1],0x80  -- type byte
         jbe :opRepe1CloneSequence
+        cmp [ma_ip],rbx
+--27/6/21:
+--      jne :e52jsdnssd8
+        jne :e52jsdnssd16
         cmp rcx,255
         ja :opRepe1CloneExpandStr
         mov rcx,rdx
@@ -742,6 +802,7 @@ mov al,byte[rbx+rsi*4-1]    -- type byte
           int3
       @@:
         mov rdx,[rsp+16]            -- era
+        call :%pAlloClone
         call :%pAllocSeq            -- damages rax only
 --      mov rdx,[rsp+4]             -- [0]
         mov rdx,[rsp+8]             -- [0]
@@ -851,6 +912,7 @@ end procedure -- (for Edita/CtrlQ)
         push ecx                    --[1] save rep
         mov ecx,edx
         mov edx,[esp+8]             -- era
+        call :%pAlloClone
         call :%pAllocSeq            -- damages eax only
         mov edx,[esp+4]             --[0]
         lea edi,[eax+edi]           -- after shl2 below will effectively be ...
@@ -906,6 +968,7 @@ end procedure -- (for Edita/CtrlQ)
         push rcx                    --[1] save rep
         mov rcx,rdx
         mov rdx,[rsp+16]            -- era
+        call :%pAlloClone
         call :%pAllocSeq            -- damages rax only
         mov rdx,[rsp+8]             --[0]
         lea rdi,[rax+rdi*2]         -- after shl2 below will effectively be ...
@@ -942,6 +1005,8 @@ end procedure -- (for Edita/CtrlQ)
         --  call :%pRepe1is     -- ref[idx]:=rep, aka esi[edi]:=cl
         sub edi,1                   -- idx -= 1
         mov edx,[ebx+esi*4-12]      -- get length
+        cmp [ma_ip],ebx
+        jne :e52jsdnssd
         cmp edi,edx                 -- if idx is -ve/float/oob then longhand
         jb @f
             push eax
@@ -990,6 +1055,8 @@ end procedure -- (for Edita/CtrlQ)
         --  call :%pRepe1is     -- ref[idx]:=rep, aka rsi[rdi]:=cl
         sub rdi,1                   -- idx -= 1
         mov rdx,[rbx+rsi*4-24]      -- get length
+        cmp [ma_ip],rbx
+        jne :e52jsdnssd
         cmp rdi,rdx                 -- if idx is -ve/float/oob then longhand
         jb @f
             push rax
@@ -1028,5 +1095,17 @@ end procedure -- (for Edita/CtrlQ)
         mov [rdx],al
         ret
     []
+
+    :%pDeSeqip          -- [ma_ip]:=e/rax. A multiple assigment (aka desequence/destructure)
+--------------          --                 operation is in progress under with js therefore
+                        --                 string subscript (/replacements) are now illegal,
+                        --                 that is at least when [ma_ip] is non-zero.
+    [32]
+        mov [ma_ip],eax
+    [64]
+        mov [ma_ip],rax
+    []
+        jmp :%pDeSeqip2 -- and mirror the copy in pSubseN.e
+
       }
 

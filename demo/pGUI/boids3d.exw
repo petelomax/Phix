@@ -7,6 +7,7 @@
 --
 -- This is one of the "cool" demos.
 --
+with js
 include pGUI.e
 include boids3d.e
 
@@ -65,7 +66,7 @@ procedure draw_lines(sequence coords)
     atom x1, y1, x2, y2
     for i = 1 to length(coords) do
         object ci = coords[i]
-        if atom(ci) then
+        if atom(ci) or (string(ci) and length(ci)=7 and ci[1]='#') then
             cdCanvasSetForeground(cddbuffer, ci)
         else
             if length(ci)=4 then
@@ -181,15 +182,17 @@ sequence y, yhat, z, u
     if equal(z, null_u) then
         return {1,1,0}
     end if
-    return z & 0
+--  return z & 0
+    z &= 0
+    return z
 end function
 
 function timer_cb(Ihandle /*ih*/)
-sequence in, boid, pt, v, v1, v2, v3, sv
+sequence boid, pt, v, v1, v2, v3, sv
 
     move_boids()
 
-    in = boidsnp1
+    sequence bin = boidsnp1
 
     if length(colors)=0 then
         colors = repeat(0, BOIDS)
@@ -203,7 +206,7 @@ sequence in, boid, pt, v, v1, v2, v3, sv
     verts = repeat("", BOIDS)
     for i=1 to BOIDS do
 
-        boid = in[i]
+        boid = bin[i]
 
         pt = boid[B_X..B_Z]
         v = boid[B_XV..B_ZV]
@@ -228,7 +231,8 @@ sequence in, boid, pt, v, v1, v2, v3, sv
         end for
         if draw_shadows then
             for j=6 to 8 do
-                pt = verts[i][j]
+                pt = deep_copy(verts[i][j])
+--              verts[i][j] = 0
                 pt[2] = 0.0
                 verts[i][j] = project_point(pt)
             end for
@@ -237,16 +241,17 @@ sequence in, boid, pt, v, v1, v2, v3, sv
     end for
 
     -- sort by distance, so nearer boids clip those that are more distant   
-    verts = sort(verts)
+--  verts = sort(verts)
+    verts = sort(deep_copy(verts))
 
     IupUpdate(canvas)
     return IUP_IGNORE
 end function
 
 function add_boids(integer num)
-sequence boid = repeat(0, B_ELEMENTS)
     if num>BOIDS then
         for i=BOIDS+1 to num do
+            sequence boid = repeat(0, B_ELEMENTS)
             boid[B_X] = rand(X_MAX)
             boid[B_Y] = rand(Y_MAX)
             boid[B_Z] = rand(Z_MAX)
@@ -296,7 +301,13 @@ Ihandle hbox
 
     IupOpen()
 
+if platform()=JS then
+--  canvas = IupCanvas("RASTERSIZE=445x490")
+    canvas = IupCanvas("RASTERSIZE=945x490")
+--  canvas = IupCanvas("RASTERSIZE=625x690")
+else
     canvas = IupCanvas("RASTERSIZE=625x690")
+end if
     IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
     IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
 
@@ -328,19 +339,22 @@ Ihandle hbox
                     IupVbox({radius_label,radius_txt},"NORMALIZESIZE=HORIZONTAL"),
                     IupVbox({boids_label,boids_txt},"NORMALIZESIZE=HORIZONTAL"),
                     IupVbox({shadow_check,restart},"NORMALIZESIZE=HORIZONTAL")})
+if platform()!=JS then
     {} = IupDestroy(IupNormalizer({speed_label,shadow_check},"NORMALIZE=VERTICAL"))
+end if
     dialog = IupDialog(IupVbox({canvas,hbox}, "MARGIN=5x5, GAP=5"),"MINSIZE=455x170")
     IupSetAttribute(dialog,"TITLE",TITLE)
 
     Ihandle hTimer = IupTimer(Icallback("timer_cb"), 40)
     setup()
     set_observer()
-    {} = timer_cb(hTimer)
     IupShow(dialog)
+    {} = timer_cb(hTimer)
     IupSetAttribute(canvas, "RASTERSIZE", NULL)
-
-    IupMainLoop()
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 main()
 

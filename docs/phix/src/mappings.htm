@@ -10,6 +10,7 @@
         <br>
         <br>
         Mainly for reference, and partly to help clear up any confusion over what it should be doing.<br>
+        Again, this is of no particular help to anyone actually using pwa/p2js.<br>
         Everything here should be either pretty obvious, or previously explained.
         <br>
         <br>
@@ -58,6 +59,16 @@ let /*object*/ o [= ...]</pre></code>
          <tr>
             <td>
 <code><pre>
+{} = f()</pre></code>
+            </td>
+            <td>
+<code><pre>
+/*[] =*/ f();  <small>// (special case, MDN sometimes lies...)</small></pre></code>
+            </td>
+         </tr>
+         <tr>
+            <td>
+<code><pre>
 integer {i,j,k} = ...</pre></code>
             </td>
             <td>
@@ -82,9 +93,9 @@ let [,/*string*/ s, /*integer*/ i] = ...</pre></code>
             </td>
             <td>
 <code><pre>
-=, ===, equal() <small>// (depending on context, equal() is not reverted)</small></pre></code>
-             <small>(in JavaScript, [1]===[1] yields false...)</small><br>
-             <small>(uses === when either side is atom or string, see note)</small>
+=, ===, equal() <small>// (depending on context, equal() is not reverted)</small>
+                <small>// (in JavaScript, [1]===[1] yields false...)</small>
+                <small>// (uses === when either side is atom or string, see note)</small></pre></code>
             </td>
          </tr>
          <tr>
@@ -111,18 +122,20 @@ let [,/*string*/ s, /*integer*/ i] = ...</pre></code>
             <td>
 <code><pre>
 'A'
-0X41</pre></code>
+0X41
+"\#41"</pre></code>
             </td>
             <td>
 <code><pre>
-0X41  <small>// (JavaScript has no char type)</small>
-0x41  <small>// (0XHH reversed, 0xHH not)</small></pre></code>
+0X41   <small>// (JavaScript has no char type)</small>
+0x41   <small>// (0XHH reversed, 0xHH not)</small>
+"\x41" <small>// (JavaScript knows not \#, not reversed)</small></pre></code>
             </td>
          </tr>
          <tr>
             <td>
 <code><pre>
-a&amp;b</pre></code>
+a &amp; b</pre></code>
             </td>
             <td>
 <code><pre>
@@ -146,17 +159,17 @@ res = $conCat(res, start);<small> // (reversed to 1st form)</small></pre></code>
 <code><pre>
 s[i]
 s[i..j]
-s[i][j][k]
-s[f][g][h][i..j]</pre></code>
+s[g][h][i]
+s[g][h][i..j]</pre></code>
             </td>
             <td>
 <code><pre>
 $subse(s,i)
 $subss(s,i,j)
-$subse(s,k,["sequence",i,j])
-$subss(s,i,j,["sequence",f,g,h])</pre></code>
+$subse(s,i,["sequence",h,g])
+$subss(s,i,j,["sequence",h,g])</pre></code>
              <br>
-             <small>(I am not overly adamant about the "sequence" parts, btw)</small>
+             <small>(I am not overly adamant about "sequence", or innermost first)</small>
             </td>
          </tr>
          <tr>
@@ -164,15 +177,15 @@ $subss(s,i,j,["sequence",f,g,h])</pre></code>
 <code><pre>
 s[i] = x
 s[i..j] = x
-s[i][j][k] = x
-s[f][g][h][i..j] = x</pre></code>
+s[g][h][i] = x
+s[g][h][i..j] = x</pre></code>
             </td>
             <td>
 <code><pre>
 s = $repe(s,i,x)
 s = $repss(s,i,j,x)
-s = $repe(s,k,x,["sequence",i,j])
-s = $repss(s,i,j,x,["sequence",f,g,h])</pre></code>
+s = $repe(s,i,x,["sequence",h,g])
+s = $repss(s,i,j,x,["sequence",h,g])</pre></code>
              <br>
              <small>(nb relies somewhat on JavaScript pass-by-sharing semantics...)</small><br>
              <small>(inevitably += etc can get a tad messy/may not yet be fully supported)</small>
@@ -181,11 +194,11 @@ s = $repss(s,i,j,x,["sequence",f,g,h])</pre></code>
          <tr>
             <td>
 <code><pre>
-iff(a&lt;b ? a : b)</pre></code>
+iff(a &lt; b ? a : b)</pre></code>
             </td>
             <td>
 <code><pre>
-(a&lt;b) ? a : b</pre></code>
+(a &lt; b) ? a : b</pre></code>
             </td>
          </tr>
          <tr>
@@ -234,7 +247,7 @@ for (let k=N; k&gt;=1; k-=p) { }<small> // (   "", ie -p<0)</small></pre></code>
                 <br>
                 <br>
                 Be advised that when faced with "for i=init to lim by step", where init/lim and in particular step 
-                are dynamically defined, desktop-phix emits generic code that copes: pwa/p2js does not and never 
+                are dynamically defined, desktop/phix emits generic code that copes: pwa/p2js does not and never 
                 will (cope), except perhaps to get half or maybe only a quarter of them right by sheer luck. When
                 step may or may not be negative, you <i>will</i> have to replace the construct with a more explicit
                 while loop. (When step is omitted, both desktop and p2js equally assume +1 and &lt;=.)</small>
@@ -272,11 +285,11 @@ function action_cb(/*Ihandle*/ /*ih*/, /*integer*/ i) {
          <tr>
             <td>
 <code><pre>
-type <i>t</i>(<i>ptype pt</i>)...</pre></code>
+type <i>t</i>(<i>ptype</i> pt)...</pre></code>
             </td>
             <td>
 <code><pre>
-<i>/*type*/ function t(/*ptype*/ pt)...*/</i> <small>// (t aliased to ptype)</small></pre></code>
+<i>/*/@*type*@/ function t(/*ptype*/ pt)...*/</i> <small>// (t aliased to ptype)</small></pre></code>
             </td>
          </tr>
          <tr>
@@ -293,6 +306,33 @@ print(1,e);   <small>//       ""</small></pre></code>
          </tr>
          <tr>
             <td>
+<code><pre>
+timedelta(hours:=4,seconds:=6)</pre></code>
+            </td>
+            <td>
+<code><pre>
+timedelta(0,0,4,0,6);</pre></code>
+                <br><small>
+                (Named parameters are mapped to positional parameters, with defaults inserted)</small>
+<!--(timedelta(,,4,,6) c/should work in JavaScript & may be better) [DEV/SUG]-->
+            </td>
+         </tr>
+         <tr>
+            <td>
+<code><pre>
+constant a = {b:=2, "b"},
+         c = {{d:=3, "d"}}</pre></code>
+            </td>
+            <td>
+<code><pre>
+const b = 2, a = ["sequence",b, "b"], 
+      d = 3, c = ["sequence", ["sequence",d, "d"]];</pre></code>
+                <br><small>
+                (irreversibly!)</small>
+            </td>
+         </tr>
+         <tr>
+            <td>
              ???
             </td>
             <td>
@@ -300,6 +340,7 @@ print(1,e);   <small>//       ""</small></pre></code>
             </td>
          </tr>
         </table>
+        <div style="clear:both;height:1px;"> </div>
         <br>
         <br>
         Within reason, most of the above should be reversible: while obviously secondary to the primary task of transpilation,
@@ -309,18 +350,18 @@ print(1,e);   <small>//       ""</small></pre></code>
         <br>
         <br>
         The JavaScript % operator maps to the Phix remainder() function, rather than the mod() function, and both of
-        those are defined in p2js.js (besides, mapping remainder() to % would open up all manner of precedence issues).
+        those are defined in p2js.js (note that mapping remainder() to % would open up all manner of precedence issues).
         <br>
         <br>
         Aside: while investigating the peculiarities of the JavaScript === operator, one person said <i>&ldquo;it looks like 
         arrays use reference equality which is what you&rsquo;d expect. It&rsquo;d be pretty awful if you couldn&rsquo;t 
-        do that&rdquo;</i>, and it just struck me that apart from a couple of places in the backend, I have been coding in Phix
-        and before that Euphoria for nearly 20 years and never <i>once</i> wanted that. It would in fact be pretty trivial for 
-        me to add a === operator to Phix, and pass it unaltered through transpilation to JavaScript, I just can&rsquo;t think
-        of any good reason to... Besides, JavaScript, being JavaScript, does <i>not</i> use reference equality on strings, or 
-        floats, which means that operator would not be anything like as trivial as it seemed at first glance, plus it would 
-        make (mainly for testing) any round trip phix->js->phix completely impossible (except perhaps via [yet even more] ugly
-        comment-hints).
+        do that&rdquo;</i>, and it just struck me I have been coding in Phix and before that Euphoria for nearly 20 years and 
+        never <i>once</i> wanted that, apart from applying that idea as a petty optimisation a couple of times in the backend. 
+        It would in fact be pretty trivial for me to add a === operator to Phix, and pass it unaltered through transpilation 
+        to JavaScript, I simply cannot think of any good reason to... Besides, JavaScript, being JavaScript, does <i>not</i> 
+        use reference equality on strings, or floats, which means that operator would not be anything like as trivial as it 
+        seemed at first glance, plus it would make (mainly for testing) any round trip phix->js->phix completely impossible 
+        (except perhaps via [yet even more] ugly comment-hints).
         <br>
         <br>
         One thing I have had to abandon is that "a"=={'a'} yields true, however equal("a",{'a'}) is fine. In other words

@@ -32,6 +32,61 @@
         </tr>
         <tr>
          <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+            Supported, although as of 0.8.2 a bare <code>action_cb</code> is equivalent to <code>routine_id("action_cb")</code>, 
+            and is recommended. Be advised that JavaScript is fundamentally a function-scoped language and there are no namespaces 
+            or different scopes for different include files.
+            
+<!--
+            <br>
+            <br>
+DEV test, then delete:
+            In practice, pwa/p2js.exw tries to strip any unnecessary routine_id calls, routine_id() in p2js.js is a dummy routine
+            that returns a string result, and call_func/proc
+          <b><i>Partially</i> not supported</b> - 
+            Since there is no symbol table as such in JavaScript, the ability to "stitch together" and lookup a routine name is not 
+            possible, for instance <code>routine_id(module&"_"&action&iff(bCallback?"_cb":""))</code>, and it is specifically that 
+            part which is <b>"not supported"</b>. 
+            fixed literal strings. Note however that in 0.8.2 and later, routine_id("<i>name</i>") 
+            and <i>name</i> not followed by '(' are the same, so obviously the latter is recommended - and one less thing 
+            for pwa/p2js to potentially get wrong! 
+                         In short, if the compiler can
+            figure it out at compile-time, it&rsquo;s fine, whereas 
+            is not supported.has
+            to be able to fu, routine_id("<i>name</i>") and <i>name</i> not followed by '(' are the same. The latter
+            (a bare identifier) is fine and recommended, pwa/p2js.exw may or may not succeed in stripping the routine_id("") parts,
+            but it certainly won&rsquo;t put them back on in any reverse trip and would therefore fail some reversibility tests.<br>
+            Standard/Sane use should be fine.<br>
+            <small>(You know what, it might just be fine, I might rescind all that...)</small>
+it is: window["functionName"](arguments);
+-->
+            <br>
+            <br>
+<!--
+            Also note that get_routine_info() is not supported by p2js: the one place it was really needed, in the heart of 
+            <a href="apply.htm">apply</a>(), is coded somewhat differently in p2js.js (with considerably relaxed error checking).
+            JavaScript does in fact have an fn.length property, which can be used to determine maxp, however there is no minp,
+            obviously no sig in a typeless language, and the routine name would be a fiddly regex on fn.toString;
+            <br>
+            <br>
+            Likewise s-->
+            Since core components are coded without inline assembly in p2js.js there is no need for hll_stubs.
+            <br>
+            <br>
+            On a related note, <a href="Icallback">Icallback</a>() is in fact a dummy function in pGUI.js which does not attempt to
+            replicate the safety/sanity checks of <a href="Icallback">cbfunc</a>() - of course that is still valuable when developing
+            on the desktop, and of course if you forego testing things first on the desktop and switch to a direct edit/browser mode
+            of development instead, that&rsquo;s on you. 
+<!--
+            It would be perfectly possible and fairly straightforward for p2js.js to 
+            contain a similar dummy routine_id(), just in that case utterly pointless.
+-->
+         </td>
+        </tr>
+        <tr>
+         <td>
           <b>Comments:</b>
          </td>
          <td>
@@ -57,57 +112,6 @@
           <br>
              Note that C routines, callable by Phix, also have (non-first-class) routine ids, but from
              <a href="define_c_proc.htm">define_c_proc</a>() and <a href="define_c_func.htm">define_c_func</a>(), not this.
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
-         </td>
-         <td>
-            Supported (mostly). Note however that in 0.8.2 and later, routine_id("<i>name</i>") and <i>name</i> not followed by '(' 
-            are the same, so obviously the latter is recommended - and one less thing for pwa/p2js to potentially get wrong!
-            Be advised that JavaScript is not likely to match the scope rules of Phix particularly closely, and that any wierd
-            cases you can dream up such as <code>routine_id(module&"_"&action&iff(bCallback?"_cb":""))</code> are on you. Since
-            pwa/p2js.exw is expected to merge multiple Phix includes (and some builtins) into a single html/js file, multiple
-            instances of <i>any</i> identifier are likely (but not guaranteed) to trigger a fatal transpile-time error, bar
-            of course anything protected by function-level scope. ES6 does some block-scope via let/const, but I wouldn&rsquo;t 
-            overly rely on that if I were you, since Javascript is still fundamentally a function-scoped language.
-<!--
-DEV test, then delete:
-            In practice, pwa/p2js.exw tries to strip any unnecessary routine_id calls, routine_id() in p2js.js is a dummy routine
-            that returns a string result, and call_func/proc
-          <b><i>Partially</i> not supported</b> - straightforward and sane use such as <code>routine_id("action_cb")</code> is fine,
-            although as of 0.8.2 a bare <code>action_cb</code> would be equivalent, and is recommended.
-            <br>
-            <br>
-            Since there is no symbol table as such in JavaScript, the ability to "stitch together" and lookup a routine name is not 
-            possible, for instance <code>routine_id(module&"_"&action&iff(bCallback?"_cb":""))</code>, and it is specifically that 
-            part which is <b>"not supported"</b>. 
-
-                         In short, if the compiler can
-            figure it out at compile-time, it&rsquo;s fine, whereas 
-            is not supported.has
-            to be able to fu, routine_id("<i>name</i>") and <i>name</i> not followed by '(' are the same. The latter
-            (a bare identifier) is fine and recommended, pwa/p2js.exw may or may not succeed in stripping the routine_id("") parts,
-            but it certainly won&rsquo;t put them back on in any reverse trip and would therefore fail some reversibility tests.<br>
-            Standard/Sane use should be fine.<br>
-            <small>(You know what, it might just be fine, I might rescind all that...)</small>
-it is: window["functionName"](arguments);
--->
-            <br>
-            <br>
-            Also note that get_routine_info() is not supported by p2js: the one place it was really needed, in the heart of 
-            <a href="apply.htm">apply</a>(), is coded somewhat differently in p2js.js (with considerably relaxed error checking).
-            <br>
-            <br>
-            Likewise since core components are coded without inline assembly in p2js.js there is no need for hll_stubs.
-            <br>
-            <br>
-            On a related note, <a href="Icallback">Icallback</a>() is in fact a dummy function in pGUI.js which does not attempt to
-            replicate the safety/sanity checks of <a href="Icallback">cbfunc</a>() - of course that is still valuable when developing
-            on the desktop, and of course if you forego testing things first on the desktop and switch to a direct edit/browser mode
-            of development instead, that&rsquo;s on you. It would be perfectly possible and fairly straightforward for p2js.js to 
-            contain a similar dummy routine_id(), just in that case utterly pointless.
             <a name=aux></a>
          </td>
         </tr>
@@ -131,6 +135,11 @@ it is: window["functionName"](arguments);
             with bName=true coerces the run-time into populating the symbol table with actual names, which may make startup a fraction 
             of a second slower when interpreting, especially on larger programs - hopefully not quite enough for anyone to actually 
             notice, but if you don&rsquo;t need the name there is not a lot of point asking for it.
+            <br>
+            <br>
+            Under <a href="p2js.htm">pwa/p2js</a> minp is always 0 and sig is always "" (hardly surprising in a typeless language), 
+            but maxp and name are fine, and unlike desktop/Phix there is no associated penalty of populating the symbol table names, 
+            so a bName of false is ignored and name is always returned.
             <br>
             <br>
             Note that p.exw deliberately invokes get_routine_info(-9) to permanently disable it, that is within p.exe itself, since 

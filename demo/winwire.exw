@@ -1,4 +1,7 @@
-
+--
+-- demo\winwire.exw
+-- ================
+--
                 ----------------------------
                 -- 3-D Wire Frame Picture --
                 --  * * WIN32 Version * * --
@@ -20,7 +23,7 @@ include ..\builtins\wildcard.e
 
 function link_c(atom dll, sequence name, object args, atom result)
 -- dynamically link a C library or routine
-atom handle
+    atom handle
 
     if atom(args) then
         handle = open_dll(name)
@@ -30,11 +33,9 @@ atom handle
         handle = define_c_func(dll, name, args, result)
     end if
     if handle = -1 then
-        puts(1, "Couldn't find " & name & '\n')
-        abort(1)
-    else
-        return handle
+        crash("Couldn't find " & name)
     end if
+    return handle
 end function
 
 -- get handles to all dll routines that we need:
@@ -42,7 +43,7 @@ constant
     user32 = link_c(0,"user32.dll",0,0),
     gdi32 = link_c(0,"gdi32.dll",0,0),
     winmm = link_c(0,"winmm.dll",0,0),
-    
+    kernel32 = link_c(0,"kernel32.dll",0,0),
 
 --/*
 -- (Now I could use cffi on the function definitions, but they don't change for 32<->64bit)
@@ -86,6 +87,7 @@ HICON WINAPI LoadIcon(
     xCreatePen = link_c(gdi32, "CreatePen", {C_INT, C_INT, C_DWORD}, C_HANDLE),
     xGetStockObject = link_c(gdi32, "GetStockObject", {C_INT}, C_HANDLE),
     xSendMessage = link_c(user32,"SendMessageA",{C_HWND,C_UINT,C_PTR,C_PTR},0),
+    xGetLastError = link_c(kernel32,"GetLastError",{},C_INT),
     $
 
 constant X = 1, Y = 2, Z = 3
@@ -523,24 +525,6 @@ typedef struct tagPAINTSTRUCT {
 """
 constant idPAINTSTRUCT = define_struct(tPAINTSTRUCT)
 
---/*
---constant cbSize = 0,
---       style  = 4,
---       lpfnWndProc = 8,
---       cbClsExtra = 12,
---       cbWndExtra = 16,
---       hInstance  = 20,
---       hIcon      = 24,
---       hCursor    = 28,
---       hbrBackground = 32,
---       lpszMenuName  = 36,
---       lpszClassName = 40,
---       hIconSm = 44,
---       SIZE_OF_WNDCLASS = 48 -- (to be safe) 48
-
---constant SIZE_OF_MESSAGE = 40 -- (to be safe) 28
---*/
-
 constant CS_HREDRAW = 2,
          CS_VREDRAW = 1
 
@@ -672,40 +656,11 @@ global function WndProc(atom hwnd, atom iMsg, atom wParam, atom lParam)
 end function
 
 procedure WinMain()
--- main routine 
-atom szAppName
-atom hwnd
---atom msg
-atom pMSG
---atom wndclass
-atom pWndclass
-atom WndProcAddress
-atom class
-integer id
-sequence cwp    -- CreateWindow params
     
---  wndclass = allocate(SIZE_OF_WNDCLASS)
-    pWndclass = allocate_struct(idWNDCLASSEX)
---  msg = allocate(SIZE_OF_MESSAGE)
-    pMSG = allocate_struct(idMESSAGE)
-    szAppName = allocate_string("HelloWin")
-    
-    id = routine_id("WndProc")
-    if id<=0 then crash("routine_id failed!\n") end if
-    WndProcAddress = call_back(id) -- get 32-bit address for callback
-    
---  poke4(wndclass + cbSize, SIZE_OF_WNDCLASS)
---  poke4(wndclass + style, or_bits(CS_HREDRAW, CS_VREDRAW))
---  poke4(wndclass + lpfnWndProc, WndProcAddress)
---  poke4(wndclass + cbClsExtra, 0)
---  poke4(wndclass + cbWndExtra, 0)
---  poke4(wndclass + hInstance, 0) --hInstance
---  poke4(wndclass + hIcon, c_func(xLoadIcon, {NULL, IDI_APPLICATION}))
---  poke4(wndclass + hCursor, c_func(xLoadCursor, {NULL, IDC_ARROW}))
---  poke4(wndclass + hbrBackground, c_func(xGetStockObject, {WHITE_BRUSH}))
---  poke4(wndclass + lpszMenuName, NULL)
---  poke4(wndclass + lpszClassName, szAppName)
---  poke4(wndclass + hIconSm, c_func(xLoadIcon, {NULL, IDI_APPLICATION}))
+    atom pWndclass = allocate_struct(idWNDCLASSEX),
+         pMSG = allocate_struct(idMESSAGE),
+         szAppName = allocate_string("HelloWin"),
+         WndProcAddress = call_back(WndProc)
     
     set_struct_field(idWNDCLASSEX,pWndclass,"cbSize",get_struct_size(idWNDCLASSEX))
     set_struct_field(idWNDCLASSEX,pWndclass,"style",or_bits(CS_HREDRAW, CS_VREDRAW))
@@ -716,25 +671,24 @@ sequence cwp    -- CreateWindow params
     set_struct_field(idWNDCLASSEX,pWndclass,"lpszClassName",szAppName)
     set_struct_field(idWNDCLASSEX,pWndclass,"hIconSm",c_func(xLoadIcon, {NULL, IDI_APPLICATION}))
 
-    class = c_func(xRegisterClassEx, {pWndclass})
-    if class = 0 then
-        puts(1, "Couldn't register class\n")
-        abort(1)
+    atom hClass = c_func(xRegisterClassEx, {pWndclass})
+    if hClass = 0 then
+        crash("RegisterClassEx error #%08x",{c_func(xGetLastError,{})})
     end if
     -- CreateWindow parameters
-    cwp = { 0,                       -- extended style
-            szAppName,               -- window class name
-            "Phix winwire demo",     -- window caption
-            WS_OVERLAPPEDWINDOW,     -- window style
-            CW_USE_DEFAULT,          -- initial x position
-            CW_USE_DEFAULT,          -- initial y position
-            CW_USE_DEFAULT,          -- initial x size
-            CW_USE_DEFAULT,          -- initial y size
-            NULL,                    -- parent window handle
-            NULL,                    -- window menu handle
-            0 ,                      -- hInstance // program instance handle
-            NULL }                   -- creation parameters
-    hwnd = c_func(xCreateWindowEx, cwp)
+    sequence cwargs = { 0,                       -- extended style
+                        szAppName,               -- window class name
+                        "Phix winwire demo",     -- window caption
+                        WS_OVERLAPPEDWINDOW,     -- window style
+                        CW_USE_DEFAULT,          -- initial x position
+                        CW_USE_DEFAULT,          -- initial y position
+                        CW_USE_DEFAULT,          -- initial x size
+                        CW_USE_DEFAULT,          -- initial y size
+                        NULL,                    -- parent window handle
+                        NULL,                    -- window menu handle
+                        0,                       -- hInstance // program instance handle
+                        NULL }                   -- creation parameters
+    atom hwnd = c_func(xCreateWindowEx, cwargs)
     if hwnd = 0 then
         puts(1, "Couldn't CreateWindow\n")
         abort(1)

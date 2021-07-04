@@ -17,7 +17,7 @@ include p2js_tree.e     -- simple ternary tree for fast identifier lookup
 
 integer i,  -- to src[]
 --      lt, -- length(src)
-        ch, -- src[i]
+        tok_ch, -- src[i]
         line,
         linestart,
         tokstart,
@@ -49,27 +49,28 @@ global function tok_error(string reason="", integer e=i)
     --
     -- tok_error("why") displays why, sets flag and returns false.
     -- tok_error() returns false or true if "" has happened.
-    -- note: ch!=-1 is oft as good as or better than tok_error().
+    -- note: tok_ch!=-1 is oft as good as or better than tok_error().
     --       return tok_error("why") should be standard practice.
     --
     -- e can/shd be used to set "shown code snippet's final char"
     --
     if length(reason) then
-        string lpad = repeat(' ',e-linestart)
-        if e=i then
+--      string lpad = repeat(' ',e-linestart)
+        string lpad = repeat(' ',max(e-linestart,0))
+--      if e=i then
             while e<length(src) and src[e+1]>=' ' do
                 e += 1
             end while
-        end if
+--      end if
 --DEV filename?
         string ltxt = src[linestart..e],
 --      string ltxt = src[linestart-100..e],
-                msg = sprintf("token error on line %d:\n%s\n%s^%s\n",
-                              {line+src_offset,ltxt,lpad,reason})
+                msg = sprintf("token error in %s on line %d:\n%s\n%s^%s\n",
+                              {current_file,line+src_offset,ltxt,lpad,reason})
         if CRASH then crash(msg) end if
         puts(1,msg)
         tok_bad = true
-        ch = -1
+        tok_ch = -1
     end if
     return tok_bad
 end function
@@ -101,19 +102,19 @@ procedure block_comment(integer tokstart,adj)
             {} = tok_error("no closing comment",tokstart)
             return 
         end if
-        ch = src[i]
+        tok_ch = src[i]
         integer cn = iff(i<lt?src[i+1]:'\0')
-        if ch='*' and cn='/' then
+        if tok_ch='*' and cn='/' then
             i += 1
             nest -= 1
             if nest=0 then exit end if
             src[i-1] = '@'
-        elsif ch='/' and cn='*' then
+        elsif tok_ch='/' and cn='*' then
             if phix_only(i+1,"nnc") then return end if
             i += 1
             src[i] = '@'
             nest += 1
-        elsif ch='\n' then
+        elsif tok_ch='\n' then
             line += 1
             linestart = i+1
         end if
@@ -143,8 +144,8 @@ procedure line_comment()
     while i<=length(src) and charset[src[i]]!=EOL do
         i += 1 -- (GT_WHOLE_FILE ensures we'll hit \n)
 --      if i>length(src) then exit end if
---      ch = src[i]
---      toktype = charset[ch]
+--      tok_ch = src[i]
+--      toktype = charset[tok_ch]
 --      if toktype = EOL then exit end if
 ----        if charset[src[i]] = EOL then exit end if
     end while
@@ -164,20 +165,20 @@ global procedure tokenise()
 --  {} = tok_error("just_clear_tok_bad",0)
     tok_bad = false 
     i = 1
-    ch = ' '
+    tok_ch = ' '
     line = 1
     linestart = 1
     tokens = {}
 --  charset['$'] = iff(is_js()?LETTER:SYMBOL)
     charset['$'] = iff(is_js()?LETTER:'$')
 
-    while i<=lt and ch!=-1 do
+    while i<=lt and tok_ch!=-1 do
         tokstart = i
-        ch = src[i]
-        toktype = charset[ch]
+        tok_ch = src[i]
+        toktype = charset[tok_ch]
         switch toktype
             case EOL:
-                line += (ch='\n')
+                line += (tok_ch='\n')
 --if line=58 then trace(1) end if
                 linestart = i+1
             case SPACE:
@@ -185,7 +186,7 @@ global procedure tokenise()
             case '-', '/':
                 if i<lt then
                     integer cn = src[i+1]
-                    if cn=ch then
+                    if cn=tok_ch then
                         -- comment
                         string t4 = iff(i+3<=lt?src[i..i+3]:"")
                         if t4="--/*" then
@@ -204,7 +205,7 @@ global procedure tokenise()
                     end if
                 end if
                 fallthrough
-            case '?','+','*','!','=',';',',','.','|','<','&',':','>','\\','$','%','~':
+            case '?','+','*','!','=',';',',','.','|','<','&',':','>','\\','$','%','~','^':
                 while i<lt 
                   and charset[src[i+1]]>SYMBOL do
                     integer sdx = find(src[tokstart..i+1],multisym)
@@ -223,8 +224,8 @@ global procedure tokenise()
 --                  break
 --              end if
                 i += 1
-                ch = src[i]
-                if ch='i' then
+                tok_ch = src[i]
+                if tok_ch='i' then
                     if not is_C() -- allow "#include"
                     or i+6>lt 
                     or src[i..i+6]!="include" then
@@ -236,13 +237,14 @@ global procedure tokenise()
                     toktype = LETTER
                     std_ident()
                 else
-                    while find(upper(ch),"0123456789ABCDEF_") do
+                    while find(upper(tok_ch),"0123456789ABCDEF_") do
                         i += 1
-                        ch = src[i]
+                        if i>length(src) then tok_ch = ' ' exit end if
+                        tok_ch = src[i]
                     end while
                     i -= 1
                     if i<=tokstart
-                    or find(charset[ch],{'#','\'','"','`',DIGIT,LETTER}) then
+                    or find(charset[tok_ch],{'#','\'','"','`',DIGIT,LETTER}) then
                         {} = tok_error("unrecognised",i+1)
                         return
                     end if
@@ -256,32 +258,33 @@ global procedure tokenise()
                     --             '\n'       ''
                     --                        'ab'
                     i += 1
-                    ch = src[i]             -- (safe)
-                    if ch='\\' then
+                    tok_ch = src[i]             -- (safe)
+                    if tok_ch='\\' then
                         i += 1
-                        ch = src[i]         -- (safe)
-                        if ch='#' then
+                        tok_ch = src[i]         -- (safe)
+                        if tok_ch='#' then
                             -- eg '\#62'    -- (treat as #62)
                             toktype = '#'
                             tokstart += 2
                             for k=1 to 2 do
                                 i += 1
-                                ch = src[i] -- (safe)
-                                if not find(upper(ch),"0123456789ABCDEF") then
+                                tok_ch = src[i] -- (safe)
+                                if not find(upper(tok_ch),"0123456789ABCDEF") then
                                     {} = tok_error("hex digit expected")
                                     return
                                 end if
                             end for
 --                          std_token()
-                        elsif ch='t' then
-                            {} = tok_error("tab character:illegal",i-1)
+--2/5/21 let p2js_emit.e deal with it instead:
+--                      elsif tok_ch='t' then
+--                          {} = tok_error("tab character:illegal",i-1)
                         end if
-                    elsif ch='\'' then
+                    elsif tok_ch='\'' then
                         {} = tok_error("illegal")
                         return
                     end if
                     i += 1
-                    if charset[ch]=EOL
+                    if charset[tok_ch]=EOL
                     or src[i]!='\'' then    -- (safe)
                         {} = tok_error(`' expected`)
                         return
@@ -295,20 +298,20 @@ global procedure tokenise()
                     end if
                     break
                 end if
---              ch = '\'' -- (still is)
+--              tok_ch = '\'' -- (still is)
                 fallthrough
             case '"', '`':
-                integer cq = ch, startline = line, midlinestart = linestart
+                integer cq = tok_ch, startline = line, midlinestart = linestart
                 while true do
                     i += 1
-                    ch = src[i]
-                    if ch='\\' and cq!='`' then
+                    tok_ch = src[i]
+                    if tok_ch='\\' and cq!='`' then
                         i += 1
-                        ch = src[i]
-                        if ch='t' then
+                        tok_ch = src[i]
+                        if tok_ch='t' then
                             {} = tok_error("tab character:illegal",i-1)
                         end if
-                    elsif ch=cq then
+                    elsif tok_ch=cq then
                         if i=tokstart+1 
 --(28/2/21 taken out for inside script tags)
 --                      and is_phix()
@@ -325,17 +328,17 @@ global procedure tokenise()
                                     {} = tok_error("missing closing quote",tokstart+3)
                                     return
                                 end if
-                                ch = src[i]
-                                if ch=cq then
+                                tok_ch = src[i]
+                                if tok_ch=cq then
                                     cqc += 1
                                     if cqc=3 then exit end if
                                 else
                                     cqc = 0
 --doh (28/3/21)
---                                  i += (ch='\\')
+--                                  i += (tok_ch='\\')
 --10/2/21:
---                                  line += (ch='\n')
-                                    if ch='\n' then
+--                                  line += (tok_ch='\n')
+                                    if tok_ch='\n' then
                                         line += 1
                                         midlinestart = i+1
                                     end if
@@ -357,12 +360,12 @@ global procedure tokenise()
                             return
                         end if
 --10/2/21
---                      line += (ch='\n')
-                        if ch='\n' then
+--                      line += (tok_ch='\n')
+                        if tok_ch='\n' then
                             line += 1
                             midlinestart = i+1
                         end if
-                    elsif charset[ch]=EOL then
+                    elsif charset[tok_ch]=EOL then
                         {} = tok_error("missing closing quote")
                         return
                     end if
@@ -378,24 +381,24 @@ global procedure tokenise()
                 while true do
                     i += 1
                     if i>lt then exit end if
-                    ch = src[i]
-                    toktype = charset[ch]
-                    if toktype!=DIGIT and ch!='_' then
+                    tok_ch = src[i]
+                    toktype = charset[tok_ch]
+                    if toktype!=DIGIT and tok_ch!='_' then
 --DEV 0o, 0t, 0x, 0(bb)...
---                      if ch='b' and i=tokstart+1 and src[tokstart]='0' then
+--                      if tok_ch='b' and i=tokstart+1 and src[tokstart]='0' then
 --                      if i=tokstart+1 and src[tokstart]='0' then
-                        if (ch='b' or lower(ch)='x' or ch='o' or ch='d')
+                        if (tok_ch='b' or lower(tok_ch)='x' or tok_ch='o' or tok_ch='d')
                         and i=tokstart+1 and src[tokstart]='0' then
                             -- 0bNNNN or 0xNNNN format number
-                            string valid = iff(ch='b'?"01_":
-                                           iff(ch='o'?"01234567_":
-                                           iff(ch='d'?"0123456789_"
-                                                     :"0123456789ABCDEF_")))
+                            string valid = iff(tok_ch='b'?"01_":
+                                           iff(tok_ch='o'?"01234567_":
+                                           iff(tok_ch='d'?"0123456789_"
+                                                         :"0123456789ABCDEF_")))
                             while true do
                                 i += 1
                                 if i>length(src) then exit end if
-                                ch = src[i]
-                                if not find(upper(ch),valid) then exit end if
+                                tok_ch = src[i]
+                                if not find(upper(tok_ch),valid) then exit end if
                             end while
                             i -= 1
                             if i<tokstart+2 then
@@ -416,32 +419,32 @@ global procedure tokenise()
                             std_token()
 --                          i = wasi
                             break
-                        elsif ch='(' and i=tokstart+1 and src[tokstart]='0' then
+                        elsif tok_ch='(' and i=tokstart+1 and src[tokstart]='0' then
                             -- 0(bb)NNNN format number
 --                          i += 1
                             integer base = 0
                             while true do
                                 i += 1
                                 if i>length(src) then exit end if
-                                ch = src[i]
-                                if not find(upper(ch),"0123456789") then exit end if
-                                base = base*10+ch-'0'
+                                tok_ch = src[i]
+                                if not find(tok_ch,"0123456789") then exit end if
+                                base = base*10+tok_ch-'0'
                             end while
-                            if base=0 or base>16 then
+                            if base=0 or base>36 then
                                 {} = tok_error("invalid base")
                                 return
                             end if
-                            if ch!=')' then
+                            if tok_ch!=')' then
                                 {} = tok_error(") expected")
                                 return
                             end if
-                            string valid = "0123456789ABCDEF"[1..base]
+                            string valid = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[1..base]
                             integer actstart = i
                             while true do
                                 i += 1
                                 if i>length(src) then exit end if
-                                ch = src[i]
-                                if not find(upper(ch),valid) then exit end if
+                                tok_ch = src[i]
+                                if not find(upper(tok_ch),valid) then exit end if
                             end while
                             i -= 1
                             if i=actstart then
@@ -455,14 +458,14 @@ global procedure tokenise()
                         end if
                         for x=1 to 2 do
                             integer xc = ".e"[x]
-                            if lower(ch)=xc and (x=2 or src[i+1]!='.') then
+                            if lower(tok_ch)=xc and (x=2 or src[i+1]!='.') then
                                 integer i0 = i
                                 while true do
                                     i += 1
-                                    ch = src[i]
-                                    toktype = charset[ch]
+                                    tok_ch = src[i]
+                                    toktype = charset[tok_ch]
                                     if toktype!=DIGIT
-                                    and ((i!=i0+1) or not find(ch,"-+")) then
+                                    and ((i!=i0+1) or not find(tok_ch,"-+")) then
                                         if i=i0+1 then
                                             -- eg "2. ", "3e "
                                             {} = tok_error("digit expected")
@@ -483,15 +486,36 @@ global procedure tokenise()
                 while true do
                     i += 1
                     if i>length(src) then exit end if
-                    ch = src[i]
-                    toktype = charset[ch]
+                    tok_ch = src[i]
+                    toktype = charset[tok_ch]
 --20/3/21 put back now charset updated above... (remove in a couple of weeks time...)
                     if toktype!=LETTER and toktype!=DIGIT then exit end if
 --                  if toktype!=LETTER and toktype!=DIGIT and (toktype!='$' or not is_js()) then exit end if
                 end while
-                toktype = LETTER
-                i -= 1
-                std_ident()
+                if tok_ch='"' and i=tokstart+1 and src[tokstart]='x' then
+                    tokstart += 2 -- (skip the `x"`)
+                    while true do
+                        i += 1
+                        if i>length(src) then
+                            {} = tok_error("unexpected eof")
+                            exit
+                        end if
+                        tok_ch = src[i]
+                        if tok_ch='"' then exit end if
+                        if not find(upper(tok_ch)," 0123456789ABCDEF_") then
+                            {} = tok_error("unexpected char:"&tok_ch)
+                            exit
+                        end if
+                    end while
+                    toktype = HEXSTR
+                    i -= 1  -- (omit closing dblquote)
+                    std_token()
+                    i += 1  -- (but treat it as done)
+                else
+                    toktype = LETTER
+                    i -= 1
+                    std_ident()
+                end if
             default: -- (including ILLEGAL)
                 {} = tok_error("unrecognised")
                 return
@@ -501,117 +525,6 @@ global procedure tokenise()
     -- (result in global tokens)
 end procedure
 
--- may want/need to be in p2js_scope or p2_basics... [erm, seems ok 26/3/21]
-sequence tokstack,
-         tokseen,
-         sources
-
-global procedure tokstack_clean(string filename)
-    string rootpath = get_file_path(get_interpreter()),
-           filepath = get_file_path(filename)
-    builtindir = join_path({rootpath,"builtins"})
-    tokstack = {{builtindir},
-                {rootpath},
-                {filepath,filename,1}}
---  tokseen = {filename}
-    tokseen = {get_proper_path(filename)}
-    sources = {}
---pp(tokstack)
-end procedure
-
-global function tokstack_push(string filename, integer line)
--- gotta handle relative directory includes... activepaths...
---/*
-C:\Program Files (x86)\Phix\pwa\src\p2js_tok.e:467 in function tokstack_push()
-crash(ok)
-    filename = `C:\Program Files (x86)\Phix\test\t05inc0b.e`
-    found = `C:\Program Files (x86)\Phix\test\t05inc0b.e`
-    t = 3
-    fntest = `C:\Program Files (x86)\Phix\test\t05inc0b.e`
-    filepath = `C:\Program Files (x86)\Phix\test`
-Global & Local Variables
- C:\Program Files (x86)\Phix\pwa\src\p2js_tok.e:
-    tokstack[1..2] = {{`C:\Program Files (x86)\Phix\builtins`},{`C:\Program Files (x86)\Phix`}}
-    tokstack[3] = {`C:\Program Files (x86)\Phix\test`,`C:\Program Files (x86)\Phix\test\t05inc0.exw`}
-    tokseen = {`C:\Program Files (x86)\Phix\test\t05inc0.exw`}
- C:\Program Files (x86)\Phix\pwa\src\p2js_parse.e:
-    udts = {}
---  tdx = 26
---  clines
- C:\Program Files (x86)\Phix\pwa\p2js.exw:
-    src[1..113] = "--\n-- t05inc0.exw\n--\n--without warning -- lots of unused stuff in here\nputs(1,\"inc0a\\n\")\n\nglobal integer z, p\nz=1"
-    src[114..226] = " p=2\ninclude t05inc0b.e  -- another z(=3), and q(=4)\nif z!=1 then crash(\"z!=1\\n\") end if\nif p!=2 then crash(\"p!=2"
-    src[227..292] = "\\n\") end if\nif q!=4 then crash(\"q!=4\\n\") end if\nputs(1,\"inc0\\n\")\n\n"
---  fdx = 0
---  fokens = {}
---  fsrc = ``
---  fstacked = {}
---*/
-    if src_offset!=0 then ?9/0 end if   -- sanity check
---  filename = get_proper_path(filename)
-    if find(filename[1],{'`','"'}) then
-        filename = filename[2..$-1]
-    end if
---?{"tokstack_push",filename}
-    if not file_exists(filename) then
---?tokseen
---?{"tokstack",tokstack}
---?filename
-        string found = ""
-        for t=length(tokstack) to 1 by -1 do
-            string fntest = join_path({tokstack[t][1],filename})
-            if file_exists(fntest) then
-                found = fntest
-                exit
-            end if
---?fntest
-        end for
-        if length(found)=0 then return "NOT FOUND" end if
-        filename = found
-    end if
-    filename = get_proper_path(filename)
-    if find(filename,tokseen) then
-        return "ALREADY DONE"
-    end if
-    string filepath = get_file_path(filename)
---  tokseen = append(tokseen,{filename})
-    tokseen = append(tokseen,filename)
-    if sources={} then
-        sources = append(sources,src)
-    end if
-    src = get_text(filename)
-    sources = append(sources,src)
-    integer srcdx = length(sources)
-    tokstack = append(tokstack,{filepath,filename,srcdx,tdx,tokens,clines,textlines,current_file})
---?src
-    lt = length(src)
-    textlines = split(substitute(src,"\r\n","\n"),'\n',false) -- DEV common up? (p2js_basics.e:121)
-    current_file = filename
-    tokenise()
-    tdx = 1
---crash("ok")
---load_text(string txt, ext)--integer edx)
---      return false
-    return {T_include,{filename,srcdx,line}}
-end function
-
-global function tokstack_pop()
-    if length(tokstack)>3 then
-        integer srcdx
-        {?,?,srcdx,tdx,tokens,clines,textlines,current_file} = tokstack[$]
---      src = sources[srcdx]
-        tokstack = tokstack[1..$-1]
-        srcdx = tokstack[$][3]
-        src = sources[srcdx]
-        return {T_include,{"",srcdx}}
-    end if
-    return "NO MORE"
-end function
-
-global procedure restore_source(integer srcdx)
-    src = sources[srcdx]
-    current_file = tokseen[srcdx]
-end procedure
 --/*
 string
 ts = """

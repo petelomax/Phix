@@ -743,6 +743,8 @@ global procedure struct_add_field(string name, integer tid, field_flags=0, objec
     sequence sn = {sdx,name}
     integer fdx = length(structs[sdx][S_FIELDS])+1,
             pfx = getd(sn,vtable)
+--p2js:
+--  structs[sdx] = deep_copy(structs[sdx])
     if pfx!=NULL then
         -- redefinition: valid on methods, but an error on fields.
         --  (the latter should be caught in DoStruct(), not here)
@@ -1024,6 +1026,8 @@ global function new(object sdx, sequence imm={})
                     if not valid_type(fields[i][S_TID],ii) then
                         crash("imm[%d] invalid type: %v (%v)\n",{i,ii,fields[i]},2)
                     end if
+--p2js:
+--                  dflts = deep_copy(dflts)
                     dflts[i] = ii
                 end if
             end for
@@ -1136,6 +1140,12 @@ global procedure store_field(struct s, string field_name, object v, context=0)
         end if
         if stype<=S_CLASS then
             integer cdx = s[I_DATA]
+--p2js: (DEV completely unacceptable...)
+--          instances[sdx][C_INSTANCES][cdx] = deep_copy(instances[sdx][C_INSTANCES][cdx])
+--          instances[sdx][C_INSTANCES] = deep_copy(instances[sdx][C_INSTANCES])
+--          instances[sdx] = deep_copy(instances[sdx])
+--?"structs.e line 1145"
+--          instances = deep_copy(instances)
             instances[sdx][C_INSTANCES][cdx][fdx] := v
         elsif stype=S_DYNAMIC then
             tid = s[I_DATA]

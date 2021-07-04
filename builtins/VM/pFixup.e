@@ -21,8 +21,6 @@ include builtins\VM\pFPU.e
         or al,#10
         jmp :e06ioobWhat
 --      int3
-    ::e05sinaae10
-        int3
 
     ::e06ioobp1WhatN
     [32]
@@ -119,6 +117,10 @@ include builtins\VM\pFPU.e
             mov al,106          -- index %d(edi) out of bounds, reading from a sequence of length %d(esi)
             jmp :!iDiag
             int3
+
+    ::e05sinaae10
+        mov al,5
+        jmp @f
 
 --    ::e06ioobp1WhatN
 --      int3

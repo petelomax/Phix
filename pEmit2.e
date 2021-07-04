@@ -2365,7 +2365,8 @@ integer skt     -- verify sk[S_vtype], check for rescan
         for i=1 to l do
             si = s[i]
 --          if not integer(si) then
-            if sequence(si) or isFLOAT(si) then
+--DEV spotted in passing... cleanup suggestion (24/5/21) [get rid of outer test and replace else??]
+--          if sequence(si) or isFLOAT(si) then
                 if sequence(si) then
                     tidx = si[1]
                     skt = T_Dsq
@@ -2389,7 +2390,9 @@ integer skt     -- verify sk[S_vtype], check for rescan
                         end if
                     end if
                     s[i] = sk[S_value]
-                else
+-- (24/5/21)
+--              else
+                elsif isFLOAT(si) then
                     tidx = si-0.5
                     k = tt[tidx+EQ]
                     sk = symtab[k]
@@ -2399,7 +2402,7 @@ integer skt     -- verify sk[S_vtype], check for rescan
                     end if
                     s[i] = sk[S_value]
                 end if
-            end if
+--              end if
         end for
 --printf(1,"ReconstructSequence: fixup on %d, ",node) ?s
 --if getc(0) then end if
@@ -3699,7 +3702,9 @@ end if
                     siNTyp = si[S_NTyp]
                     if siNTyp <= S_TVar
                     and (siNTyp!=S_Const or not and_bits(si[S_State],K_lit+K_rtn)) then
-                        xi = si[S_gNew]
+--24/4/21:
+--                      xi = si[S_gNew]
+                        xi = iff(and_bits(si[S_State],K_asmm)?{si[S_vtype],MAXINT,MININT,T_object,-2}:si[S_gNew])
                         if sequence(xi) then
                             vtype = si[S_vtype]
 sv = si[S_Name]

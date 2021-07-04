@@ -1,0 +1,1493 @@
+--
+-- demo/rosetta/blackjack.exw
+-- ==========================
+--{{trans|Go}}
+with javascript_semantics
+ 
+function NewDeck()
+    return {4, 4, 4, 4, 4, 4, 4, 4, 4, 16, 52}
+end function
+ 
+function dealerProbs(integer upCard, sequence startDeck)
+--
+-- Returns probabilities of dealer eventually getting:
+-- 1: 17, 2: 18, 3: 19, 4: 20, 5: 21 (non-blackjack), 6: blackjack (nil), 7: bust.
+-- It is assumed that the dealer has already checked for blackjack, that one deck is used
+-- and that the dealer stands on 'soft' 17.
+--
+    sequence res := repeat(0.0, 7)  // results
+    sequence decks := repeat({}, 9) // decks for each level
+    sequence scores := repeat(0, 9) // scores for each level
+    sequence elevens := repeat(0, 9)    // number of aces for each level scored as 11
+    sequence probs := repeat(0.0, 9) // probs for each level
+    decks[1] = startDeck
+    scores[1] = upCard
+    if upCard == 1 then // an ace
+        scores[1] = 11
+        elevens[1] = 1
+    end if
+    probs[1] = 1.0
+    integer lev = 1
+    sequence cs = repeat(0,9)
+    while lev do
+        cs[lev] += 1
+        integer c = cs[lev]
+        if c>10 then
+            lev -= 1
+        elsif decks[lev][c]!=0 then -- card still present in deck
+            // temporary variables for current level
+            sequence deck := deep_copy(decks[lev])
+            integer score := scores[lev]
+            integer eleven := elevens[lev]
+            atom prob := probs[lev]
+            score += c  // add card to score
+            if c == 1 then // score all aces initially as 11
+                score += 10
+                eleven += 1
+            end if
+            prob *= deck[c]/deck[11]
+            if score > 21 and eleven > 0 then
+                score -= 10 // bust but can demote an ace
+                eleven -= 1
+            end if
+            if lev == 1 and ((upCard == 1 and c == 10) or (upCard == 10 and c == 1)) then
+                res[6] += prob // blackjack, allow for now
+            elsif score >= 17 and score <= 21 then
+                res[score-16] += prob // 17 to (non-blackjack) 21
+            elsif score > 21 and eleven == 0 then
+                res[7] += prob // bust
+            else
+                deck[c] -= 1 // remove card from deck
+                deck[11] -= 1 // decrement deck size
+                lev += 1
+                decks[lev] = deck
+                scores[lev] = score
+                elevens[lev] = eleven
+                probs[lev] = prob
+                -- get another card:
+                cs[lev] = 0
+            end if
+        end if
+    end while
+    // but can't have blackjack, so adjust probabilities accordingly
+    atom pnbj := 1 - res[6]
+    for i=1 to 7 do 
+        res[i] /= pnbj
+    end for
+    res[6] = 0
+    return res
+end function
+
+procedure dealerChart()
+    // Prints chart of dealer probabilities (as a check against an external source).
+    printf(1,"Dealer Probabilities, Stands on Soft 17, 1 Deck, U.S Rules\n")
+    printf(1,"Up Card     17        18        19        20        21       Bust\n")
+    printf(1,"-------------------------------------------------------------------\n")
+    sequence deck := NewDeck()
+    deck[11] = 51
+    for uc=1 to 10 do
+        sequence deck2 := deep_copy(deck)
+        deck2[uc] -= 1
+        sequence dp := dealerProbs(uc, deck2)
+        if uc > 1 then
+            printf(1,"%3d      ", uc)
+        else
+            printf(1,"Ace      ")
+        end if
+        dp[6] = dp[7]
+        printf(1,"%f  %f  %f  %f  %f  %f\n", dp)
+    end for
+end procedure
+ 
+// Calculates gain per unit staked for a given scenario (helper function).
+function calcGain(integer pscore, sequence dp)
+    atom eg := 0.0
+    switch pscore do
+    case 17:
+        eg += dp[7]                         // dealer is bust
+        eg -= dp[2] + dp[3] + dp[4] + dp[5] // dealer has 18 to 21
+    case 18:
+        eg += dp[1] + dp[7]         // dealer has 17 or is bust
+        eg -= dp[3] + dp[4] + dp[5] // dealer has 19 to 21
+    case 19:
+        eg += dp[1] + dp[2] + dp[7] // dealer has 17, 18 or is bust
+        eg -= dp[4] + dp[5]         // dealer has 20 or 21
+    case 20:
+        eg += dp[1] + dp[2] + dp[3] + dp[7] // dealer has 17 to 19 or is bust
+        eg -= dp[5]                         // dealer has (non-blackjack) 21
+    case 21:
+        eg += dp[1] + dp[2] + dp[3] + dp[4] + dp[7] // dealer has 17 to 20 or is bust
+    case 22: // notional
+        eg += 1.5 // player blackjack
+    case 23: // notional
+        eg -= 1 // player bust, loses stake irrespective of what dealer has
+    default: // player has less than 17
+        eg += dp[7]       // dealer is bust
+        eg -= (1 - dp[7]) // dealer isn't bust
+    end switch
+    return eg
+end function
+ 
+function playerGain(integer card1, card2, uc, sequence startDeck)
+// Returns player's expected gain per unit staked after hitting once and then standing.
+    atom eg := 0.0
+    sequence deck := startDeck
+    integer score := card1 + card2
+    bool eleven := false
+    if card1 == 1 or card2 == 1 then // an ace
+        score += 10
+        eleven = true
+    end if
+    for c=1 to 10 do // get another card
+        if deck[c] != 0 then // card still present in deck
+            // temporary variables for current card
+            sequence deck2 := deep_copy(deck)
+            integer score2 := score
+--DEV shouldn't this be false?
+            bool eleven2 := eleven
+            score2 += c // add card to score
+            if c == 1 then // score all aces initially as 11
+                score2 += 10
+                eleven2 = true
+            end if
+            atom prob := deck2[c] / deck2[11]
+            deck2[c] -= 1 // remove card from deck
+            deck2[11] -= 1 // decrement deck size
+            if score2 > 21 and eleven2 then
+                score2 -= 10 // bust but can demote an ace
+            end if
+            if score2 <= 21 then
+                sequence dp := dealerProbs(uc, deck2)
+                eg += calcGain(score2, dp) * prob
+            else  // bust
+                eg -= prob
+            end if
+        end if
+    end for
+    return eg
+end function
+ 
+function playerGain2(integer card1, card2, uc, sequence startDeck)
+// Returns player's expected gain per unit staked after hitting once and then continuing in accordance
+// with the tables for rounds >= 2.
+    atom eg := 0.0                  // result
+    sequence decks := repeat({}, 9) // decks for each level
+    sequence scores := repeat(0, 9) // scores for each level
+    sequence elevens := repeat(0, 9)    // number of aces for each level scored as 11
+    sequence probs := repeat(0.0, 9) // probs for each level
+    decks[1] = startDeck
+    scores[1] = card1 + card2
+    if card1 == 1 or card2 == 1 then // an ace
+        scores[1] += 10
+        elevens[1] = 1
+    end if
+    probs[1] = 1.0
+    integer lev = 1
+    sequence cs = repeat(0,9)
+    while lev do
+        cs[lev] += 1
+        integer c = cs[lev]
+        if c>10 then
+            lev -= 1
+        elsif decks[lev][c]!=0 then -- card still present in deck
+            // temporary variables for current level
+            sequence deck := deep_copy(decks[lev])
+            integer score := scores[lev]
+            integer eleven := elevens[lev]
+            atom prob := probs[lev]
+            score += c  // add card to score
+            if c == 1 then // score all aces initially as 11
+                score += 10
+                eleven += 1
+            end if
+            prob *= deck[c] / deck[11]
+            if score > 21 and eleven > 0 then
+                score -= 10 // bust but can demote an ace
+                eleven -= 1
+            end if
+            deck[c] -= 1 // remove card from deck
+            deck[11] -= 1 // decrement deck size
+            if ((eleven == 0 and (score >= 17 or (score >= 13 and uc < 7))) or
+                (eleven == 0 and score == 12 and uc >= 4 and uc <= 6) or
+                (eleven > 0 and score == 18 and uc != 9 and uc != 10) or
+                (eleven > 0 and score >= 19)) and score <= 21 then
+                sequence dp := dealerProbs(uc, deck)
+                eg += calcGain(score, dp) * prob
+            elsif score > 21 and eleven == 0 then // bust
+                eg -= prob
+            else
+                lev += 1
+                decks[lev] = deck
+                scores[lev] = score
+                elevens[lev] = eleven
+                probs[lev] = prob
+                // get another card:
+                cs[lev] = 0
+            end if
+        end if
+    end while
+    return eg
+end function
+ 
+function stand(integer card1, card2)
+// Returns player's expected gains per unit staked, for each dealer up-card, after standing.
+    sequence deck := NewDeck()
+    deck[card1] -= 1
+    deck[card2] -= 1
+    deck[11] = 50
+    integer pscore := card1 + card2 // player score
+    if card1 == 1 or card2 == 1 then
+        pscore += 10
+    end if
+    sequence egs = repeat(0,10)          // results
+    for uc=1 to 10 do // dealer's up-card
+        sequence deck2 := deep_copy(deck)
+        deck2[uc] -= 1
+        deck2[11] -= 1
+        sequence dp := dealerProbs(uc, deck2)
+        atom eg := calcGain(pscore, dp) // expected gain for this up-card
+        if uc > 1 then
+            egs[uc-1] = eg
+        else  // dealer has Ace
+            egs[10] = eg // ace comes last in tables
+        end if
+    end for
+    return egs
+end function
+ 
+function hit(integer card1, card2, bool once)
+// Returns player's expected gains per unit staked, for each dealer up-card, after hitting once and
+// then either standing (once == true) or continuing as per the round >= 2 tables (once == false).
+    sequence deck := NewDeck()
+    deck[card1] -= 1
+    deck[card2] -= 1
+    deck[11] = 50
+    sequence egs =repeat(0,10)       // results
+    for uc=1 to 10 do // dealer's up-card
+        sequence deck2 := deep_copy(deck)
+        deck2[uc] -= 1
+        deck2[11] = 49
+        atom peg // player's expected gain for this up-card
+        if once then
+            peg = playerGain(card1, card2, uc, deck2)
+        else
+            peg = playerGain2(card1, card2, uc, deck2)
+        end if
+        if uc > 1 then
+            egs[uc-1] = peg
+        else  // dealer has Ace
+            egs[10] = peg
+        end if
+    end for
+    return egs
+end function
+ 
+function double(integer card1, card2)
+// Returns player's expected gains per unit oiginally staked, for each dealer up-card, after
+// doubling i.e. hitting once and then standing with a doubled stake.
+    sequence egs := hit(card1, card2, true) // hit once and then stand
+    for i=1 to 10 do
+        egs[i] *= 2
+    end for
+    return egs
+end function
+
+// Computed strategy tables.
+sequence hTable = repeat(repeat("",10),15) // hard strategy table (round 1)
+sequence sTable = repeat(repeat("",10),8)  // soft strategy table (round 1)
+sequence pTable = repeat(repeat("",10),10) // pairs strategy table (round 1)
+sequence hTable2 = repeat(repeat("",10),18) // hard strategy table (round >= 2, no doubling)
+sequence sTable2 = repeat(repeat("",10),10) // soft strategy table (round >= 2, no doubling)
+ 
+function splitt(integer card)
+// Returns player's expected gains per unit originally staked, for each dealer up-card, after
+// splitting a pair and doubling the stake, getting a second card for each hand  and then continuing
+// in accordace with the rounds >= 2 tables. It is assumed that a player cannot double or re-split
+// following a split. It is also assumed (in the interests of simplicity) that the expected gains
+// for each split hand (after calculating the gains for the first hand as though the second hand
+// is not completed) are exactly the same.
+    sequence deck := NewDeck()
+    deck[card] -= 2 // must be a pair
+    deck[11] = 50
+    sequence egs = repeat(0,10) // overall results
+ 
+    // now play a single hand
+    integer score := card,
+            eleven := 0
+    if card == 1 then // an ace
+        score = 11
+        eleven = 1
+    end if
+    for uc=1 to 10 do // collect results for each dealer up-card
+        if deck[uc] != 0 then // card still present in deck
+            sequence deck2 := deep_copy(deck)
+            deck2[uc] -= 1
+            deck2[11] -= 1
+            integer ix := uc - 1
+            if ix == 0 then
+                ix = 10 // in tables ace comes last
+            end if
+            atom peg = 0 // player expected gain for this up-card
+            // get second player card
+            for c=1 to 10 do
+                if deck2[c] != 0 then // card still present in deck
+                    atom prob := deck2[c] / deck2[11]
+                    sequence deck3 := deep_copy(deck2)
+                    deck3[c] -= 1
+                    deck3[11] -= 1
+                    integer score2 := score + c,
+                            eleven2 := eleven
+                    if c == 1 then // score all aces initially as 11
+                        score2 += 10
+                        eleven2 += 1
+                    end if
+                    if score2 == 21 then // player has blackjack & we know dealer hasn't
+                        peg += 1.5 * prob
+                    else
+                        if score2 > 21 and eleven2 > 0 then
+                            score2 -= 10 // bust but can demote an ace
+                            eleven2 -= 1
+                        end if
+                        string action
+                        if eleven2 > 0 then
+                            action = sTable2[score2-11][ix] // use soft strategy table, no doubling
+                        else  // including pairs as no re-splitting
+                            action = hTable2[score2-3][ix] // use hard strategy table, no doubling
+                        end if
+                        atom peg2
+                        if action == "S" then
+                            sequence dp := dealerProbs(uc, deck3)
+                            peg2 = calcGain(score2, dp)
+                        else
+                            peg2 = playerGain2(card, c, uc, deck3)
+                        end if
+                        peg += peg2 * prob
+                    end if
+                end if
+            end for
+            if uc > 1 then
+                egs[uc-1] = peg * 2 // allow for both hands in overall results
+            else
+                egs[10] = peg * 2 // ditto
+            end if
+        end if
+    end for
+    return egs
+end function
+
+function bestAction(sequence ags)
+// Returns the action with the highest expected gain.
+    atom best := ags[1][2]
+    integer besti := 1
+    for i=2 to length(ags) do
+        if ags[i][2] > best then
+            best = ags[i][2]
+            besti = i
+        end if
+    end for
+    return ags[besti][1]
+end function
+ 
+procedure printHeader(string title)
+// Prints title and header for a given chart.
+    printf(1,"%s\n",title)
+    printf(1,"P/D     2      3      4      5      6      7      8      9      T      A\n")
+    printf(1,"--------------------------------------------------------------------------\n")
+end procedure
+ 
+procedure printPair(integer c)
+// Prints header for a pair of cards.
+    c = "A23456789T"[c]
+    printf(1,"%c%c   ",c)
+end procedure
+
+sequence cards, fscores
+integer next, score, aces, uc
+string action
+
+function dealerPlay(integer pscore, sequence d)
+// Simulates a dealer's play for a given player's hand and state of deck.
+// Returns the player's gain (positive or negative) per unit staked.
+    integer dscore := d[1] + d[2],
+            aces := 0
+    if d[1] == 1 or d[2] == 1 then // dealer has an ace
+        dscore += 10
+        aces += 1
+    end if
+    while true do
+        if dscore > 21 and aces > 0 then
+            dscore -= 10 // bust but we can demote an ace
+            aces -= 1
+        end if
+        if dscore > 21 then
+            return 1 // dealer is bust and player gains stake
+        end if
+        if dscore >= 17 then // dealer must stick on 17 or above, hard or not
+            if dscore > pscore then
+                return -1 // dealer wins and player loses stake
+            elsif dscore == pscore then
+                exit // player breaks even
+            else
+                return 1 // dealer loses and player gains stake
+            end if
+        end if
+        integer nc := cards[next] // get new card from pack
+        next += 1
+        dscore += nc
+        if nc == 1 then // count aces initially as 11
+            dscore += 10
+            aces += 1
+        end if
+    end while
+    return 0
+end function
+
+
+procedure h(integer hand)
+    // simulate a 'hit'
+    while true do
+        integer nc := cards[next] // get new card from pack
+        next += 1
+        score += nc
+        if nc == 1 then // count aces initially as 11
+            score += 10
+            aces += 1
+        end if
+        if score > 21 and aces > 0 then
+            score -= 10 // bust but we can demote an ace
+            aces -= 1
+        end if
+        if score > 21 then
+            fscores[hand] = 22 // player is bust and loses stake
+            return
+        end if
+        if action == "D" then
+            fscores[hand] = score
+            return
+        end if
+        // get further strategy and act accordingly
+        if aces == 0 then
+            action = hTable2[score-3][uc]
+        else
+            action = sTable2[score-11][uc]
+        end if
+        if action == "S" then // stand
+            fscores[hand] = score
+            return
+        end if
+    end while
+end procedure
+
+function playerPlay()
+// Simulates the playing of a random player's hand according to the strategy tables.
+// Returns both the gain (positive or negative) and the stake (1 or 2).
+    sequence perm = shuffle(tagset(52)) // randomizes integers from 1 to 52 inclusive
+    cards := repeat(0,52)
+    for i=1 to length(perm) do
+        integer r = perm[i]
+        integer card := floor((r-1)/4) + 1
+        if card > 10 then
+            card = 10
+        end if
+        cards[i] = card
+    end for
+    sequence p = {}, d = {} // player and dealer hands
+    // initial deal
+    for i=1 to 4 do
+        if i <= 2 then
+            p = append(p, cards[i])
+        else
+            d = append(d, cards[i])
+        end if
+    end for
+    next := 5 // index of next card to be dealt
+ 
+    // check if dealer and/or player have blackjack
+    bool dbj := (d[1] == 1 and d[2] == 10) or (d[1] == 10 and d[2] == 1),
+         pbj := (p[1] == 1 and p[2] == 10) or (p[1] == 10 and p[2] == 1)
+    if dbj then
+        if pbj then
+            return {0.0, 1.0} // player neither wins nor loses
+        end if
+        return {-1.0, 1.0} // player loses stake
+    end if
+    if pbj then
+        return {1.5, 1.0} // player wins 1.5 x stake
+    end if
+ 
+    uc := d[1] // dealer's up-card for accessing tables
+    if uc == 1 then
+        uc = 10 // move ace to last place
+    else
+        uc -= 1 // move others down 1
+    end if
+    atom stake := 1.0      // player's initial stake
+    fscores = {0,0} // final player scores (one or, after split, two hands)
+ 
+    score = p[1] + p[2]
+    aces = 0
+    // get kind of player hand: hard, soft, pair
+    string kind
+    if p[1] == p[2] then
+        kind = "pair"
+    elsif p[1] == 1 or p[2] == 1 then
+        kind = "soft"
+    else
+        kind = "hard"
+    end if
+    switch kind do
+    case "hard":
+        action = hTable[score-4][uc]
+    case "soft": // includes one ace
+        integer otherCard := p[1]
+        if otherCard == 1 then
+            otherCard = p[2]
+        end if
+        score += 10
+        aces = 1
+        action = sTable[otherCard-1][uc]
+    case "pair":
+        if p[1] == 1 then // pair of aces
+            score += 10
+            aces = 2
+        end if
+        action = pTable[p[1]][uc]
+    end switch
+    switch action do
+    case "S": // stand
+        fscores[1] = score
+    case "H": // hit
+        h(1)
+    case "D": // double
+        h(1)
+        stake = 2
+    case "P": // split
+        for hand=1 to 2 do
+            score = p[1]
+            aces = 0
+            if score == 1 then // count aces initially as 11
+                score = 11
+                aces += 1
+            end if
+            h(hand)
+        end for
+    end switch
+    atom tot := 0.0
+    if fscores[1] < 22 then
+        tot += dealerPlay(fscores[1], d) * stake
+    else
+        tot -= 1 * stake // this hand is bust
+    end if
+    if fscores[2] > 0 then // pair
+        if fscores[1] < 22 then
+            tot += dealerPlay(fscores[2], d)
+        else
+            tot -= 1 // this hand is bust
+        end if
+        stake = 2
+    end if
+    return {tot, stake}
+end function
+ 
+procedure simulate(integer perDay, days)
+// Simulates 'perDay' blackjack games for 'days' days.
+    integer winDays = 0, loseDays = 0, evenDays = 0
+    atom bigWin = 0.0, bigLoss = 0.0,
+         totalGain = 0.0, totalStake = 0.0
+    for d=1 to days do
+        atom dailyGain = 0.0, dailyStake = 0.0
+        for p=1 to perDay do
+            atom {gain, stake} := playerPlay()
+            dailyGain += gain
+            dailyStake += stake
+        end for
+        if dailyGain > 0 then
+            winDays += 1
+        elsif dailyGain < 0 then
+            loseDays += 1
+        else
+            evenDays += 1
+        end if
+        if dailyGain > bigWin then
+            bigWin = dailyGain
+        elsif -dailyGain > bigLoss then
+            bigLoss = -dailyGain
+        end if
+        totalGain += dailyGain
+        totalStake += dailyStake
+    end for
+    printf(1,"\nAfter playing %d times a day for %d days:\n", {perDay, days})
+    printf(1,"Winning days   :%d\n", winDays)
+    printf(1,"Losing days    :%d\n", loseDays)
+    printf(1,"Breakeven days :%d\n", evenDays)
+    printf(1,"Biggest win    :%.2f\n", bigWin)
+    printf(1,"Biggest loss   :%.2f\n", bigLoss)
+    if totalGain < 0 then
+        printf(1,"Total loss     :%.2f\n", -totalGain)
+        printf(1,"Total staked   :%.2f\n", totalStake)
+        printf(1,"Loss %% staked  : %0.3f\n", -totalGain/totalStake*100)
+    else
+        printf(1,"Total win      :%.2f\n", totalGain)
+        printf(1,"Total staked   :%.2f\n", totalStake)
+        printf(1,"Win %% staked   : %0.3f\n", totalGain/totalStake*100)
+    end if
+end procedure
+ 
+procedure main()
+    // print dealer probabilities chart
+    dealerChart()
+ 
+    // for hard scores (i.e. different cards, no aces)
+    sequence tuples := {
+        {2, 3},
+        {2, 4},
+        {2, 5}, {3, 4},
+        {2, 6}, {3, 5},
+        {2, 7}, {3, 6}, {4, 5},
+        {2, 8}, {3, 7}, {4, 6},
+        {2, 9}, {3, 8}, {4, 7}, {5, 6},
+        {2, 10}, {3, 9}, {4, 8}, {5, 7},
+        {3, 10}, {4, 9}, {5, 8}, {6, 7},
+        {4, 10}, {5, 9}, {6, 8},
+        {5, 10}, {6, 9}, {7, 8},
+        {6, 10}, {7, 9},
+        {7, 10}, {8, 9},
+        {8, 10},
+        {9, 10},
+    }
+    // number of tuples for each player score from 5 to 19
+    sequence counts := {1, 1, 2, 2, 3, 3, 4, 4, 4, 3, 3, 2, 2, 1, 1}
+    // expected gains for each player score & for each dealer up-card
+    sequence segs := repeat(repeat(0,10),15) // if stands
+    sequence hegs := repeat(repeat(0,10),15) // if hits
+    sequence degs := repeat(repeat(0,10),15) // if doubles
+    for t = 1 to length(tuples) do
+        if platform()!=JS then
+            progress("%d/%d\r",{t,length(tuples)})
+        end if
+        sequence tuple := tuples[t]
+        integer i := tuple[1] + tuple[2]
+        sequence sg := stand(tuple[1], tuple[2])
+        sequence hg := hit(tuple[1], tuple[2], false)
+        sequence dg := double(tuple[1], tuple[2])
+        for j=1 to 10 do
+            segs[i-4][j] += sg[j]
+            hegs[i-4][j] += hg[j]
+            degs[i-4][j] += dg[j]
+        end for
+    end for
+    if platform()!=JS then
+        progress("")
+    end if
+    // calculate the average per tuple for each score
+    for i=1 to 15 do
+        for j=1 to 10 do
+            segs[i][j] /= counts[i]
+            hegs[i][j] /= counts[i]
+            degs[i][j] /= counts[i]
+        end for
+    end for
+ 
+    printHeader("\nHard Chart - Player Expected Gains per unit (Stand)")
+    for i=5 to 19 do
+        printf(1,"%2d   ", i)
+        for j=1 to 10 do
+            printf(1,"%6.3f ", segs[i-4][j])
+        end for
+        printf(1,"\n")
+    end for
+ 
+    printHeader("\nHard Chart - Player Expected Gains per unit (Hit)")
+    for i=5 to 19 do
+        printf(1,"%2d   ", i)
+        for j=1 to 10 do
+            printf(1,"%6.3f ", hegs[i-4][j])
+        end for
+        printf(1,"\n")
+    end for
+ 
+    printHeader("\nHard Chart - Player Expected Gains per original unit (Double)")
+    for i=5 to 19 do
+        printf(1,"%2d   ", i)
+        for j=1 to 10 do
+            printf(1,"%6.3f ", degs[i-4][j])
+        end for
+        printf(1,"\n")
+    end for
+ 
+    printHeader("\nHard Chart - Player Strategy (Round 1)")
+    for i=5 to 19 do
+        printf(1,"%2d   ", i)
+        for j=1 to 10 do
+            sequence ags := {{"S", segs[i-4][j]}, {"H", hegs[i-4][j]}, {"D", degs[i-4][j]}}
+            string action := bestAction(ags)
+            hTable[i-4][j] = action
+            printf(1,"%4s   ", action)
+        end for
+        printf(1,"\n")
+    end for
+ 
+    // for hard scores (no aces) - after round 1 (no doubling or splitting)
+    // based on hard table figures (round 1) with scores of 4, 20, and 21 added
+    sequence segs2 := repeat(repeat(0,10),18) // expected gains if stands
+    sequence hegs2 := repeat(repeat(0,10),18) // expected gains if hits
+    for i=5 to 19 do
+        segs2[i-3] = segs[i-4]
+        hegs2[i-3] = hegs[i-4]
+    end for
+    sequence sg4 = stand(2, 2), hg4 = hit(2, 2, false),
+             sg20 = stand(10, 10), hg20 = hit(10, 10, false),
+             sg21 = stand(1, 10), hg21 = hit(1, 10, false)
+    for j=1 to 10 do
+        segs2[1][j] += sg4[j]
+        hegs2[1][j] += hg4[j]
+        segs2[17][j] += sg20[j]
+        hegs2[17][j] += hg20[j]
+        segs2[18][j] += sg21[j]
+        hegs2[18][j] += hg21[j]
+    end for
+ 
+    printHeader("\nHard Chart - Player Strategy (Round >= 2, No Doubling)")
+    for i=4 to 21 do
+        printf(1,"%2d   ", i)
+        for j=1 to 10 do
+            string action := "S"
+            if hegs2[i-3][j] > segs2[i-3][j] then
+                action = "H"
+            end if
+            hTable2[i-3][j] = action
+            printf(1,"%4s   ", action)
+        end for
+        printf(1,"\n")
+    end for
+ 
+    // for soft scores (i.e. including exactly one ace)
+ 
+    // expected gains for each player second card (2 to 9) & for each dealer up-card
+    sequence segs3 = repeat(repeat(0,10),8), // if stands
+             hegs3 = repeat(repeat(0,10),8), // if hits
+             degs3 = repeat(repeat(0,10),8)  // if doubles
+    for c=2 to 9 do
+        sequence sg := stand(1, c),
+                 hg := hit(1, c, false),
+                 dg := double(1, c)
+        for j=1 to 10 do
+            segs3[c-1][j] += sg[j]
+            hegs3[c-1][j] += hg[j]
+            degs3[c-1][j] += dg[j]
+        end for
+    end for
+ 
+    printHeader("\nSoft Chart - Player Expected Gains per unit (Stand)")
+    for c=2 to 9 do
+        printf(1,"A%d   ", c)
+        for j=1 to 10 do
+            printf(1,"%6.3f ", segs3[c-1][j])
+        end for
+        printf(1,"\n")
+    end for
+ 
+    printHeader("\nSoft Chart - Player Expected Gains per unit (Hit)")
+    for c=2 to 9 do
+        printf(1,"A%d   ", c)
+        for j=1 to 10 do
+            printf(1,"%6.3f ", hegs3[c-1][j])
+        end for
+        printf(1,"\n")
+    end for
+ 
+    printHeader("\nSoft Chart - Player Expected Gains per original unit (Double)")
+    for c=2 to 9 do
+        printf(1,"A%d   ", c)
+        for j=1 to 10 do
+            printf(1,"%6.3f ", degs3[c-1][j])
+        end for
+        printf(1,"\n")
+    end for
+ 
+    printHeader("\nSoft Chart - Player Strategy (Round 1)")
+    for c=2 to 9 do
+        printf(1,"A%d   ", c)
+        for j=1 to 10 do
+            sequence ags := {{"S", segs3[c-1][j]}, {"H", hegs3[c-1][j]}, {"D", degs3[c-1][j]}}
+            string action := bestAction(ags)
+            sTable[c-1][j] = action
+            printf(1,"%4s   ", action)
+        end for
+        printf(1,"\n")
+    end for
+ 
+    // for soft scores (at least one ace) - after round 1 (no doubling or splitting)
+    // based on soft table figures (round 1) with scores of 12 and 21 added
+    // assumes one ace counted as 11
+    sequence segs4 := repeat(repeat(0,10),10), // expected gains if stands
+             hegs4 := repeat(repeat(0,10),10)  // expected gains if hits
+    for i=2 to 9 do
+        segs4[i] = segs3[i-1]
+        hegs4[i] = hegs3[i-1]
+    end for
+    sequence sg12 = stand(1, 1), hg12 = hit(1, 1, false)
+    for j=1 to 10 do
+        segs4[1][j] += sg12[j]
+        hegs4[1][j] += hg12[j]
+        segs4[10][j] += sg21[j]
+        hegs4[10][j] += hg21[j]
+    end for
+ 
+    printHeader("\nSoft Chart - Player Strategy (Round >= 2, No Doubling)")
+    for i=12 to 21 do
+        printf(1,"%2d   ", i)
+        for j=1 to 10 do
+            string action := "S"
+            if hegs4[i-11][j] > segs4[i-11][j] then
+                action = "H"
+            end if
+            sTable2[i-11][j] = action
+            printf(1,"%4s   ", action)
+        end for
+        printf(1,"\n")
+    end for
+ 
+    // for pairs
+ 
+    // expected gains for each pair (A to 10) & for each dealer up-card
+    sequence segs5 := repeat(repeat(0,10),10), // if stands
+             hegs5 := repeat(repeat(0,10),10), // if hits
+             degs5 := repeat(repeat(0,10),10), // if doubles
+             pegs5 := repeat(repeat(0,10),10)  // if splits
+    for c=1 to 10 do
+        if platform()!=JS then
+            progress("%d/10",{c})
+        end if
+        sequence sg := stand(c, c),
+                 hg := hit(c, c, false),
+                 dg := double(c, c),
+                 pg := splitt(c)
+        for j=1 to 10 do
+            segs5[c][j] += sg[j]
+            hegs5[c][j] += hg[j]
+            degs5[c][j] += dg[j]
+            pegs5[c][j] += pg[j]
+        end for
+    end for
+    if platform()!=JS then
+        progress("")
+    end if 
+
+    printHeader("\nPairs Chart - Player Expected Gains per unit (Stand)")
+    for c=1 to 10 do
+        printPair(c)
+        for j=1 to 10 do
+            printf(1,"%6.3f ", segs5[c][j])
+        end for
+        printf(1,"\n")
+    end for
+ 
+    printHeader("\nPairs Chart - Player Expected Gains per unit (Hit)")
+    for c=1 to 10 do
+        printPair(c)
+        for j=1 to 10 do
+            printf(1,"%6.3f ", hegs5[c][j])
+        end for
+        printf(1,"\n")
+    end for
+ 
+    printHeader("\nPairs Chart - Player Expected Gains per original unit (Double)")
+    for c=1 to 10 do
+        printPair(c)
+        for j=1 to 10 do
+            printf(1,"%6.3f ", degs5[c][j])
+        end for
+        printf(1,"\n")
+    end for
+ 
+    printHeader("\nPairs Chart - Player Expected Gains per original unit (Split)")
+    for c=1 to 10 do
+        printPair(c)
+        for j=1 to 10 do
+            printf(1,"%6.3f ", pegs5[c][j])
+        end for
+        printf(1,"\n")
+    end for
+ 
+    printHeader("\nPairs Chart - Player Strategy (Round 1)")
+    for c=1 to 10 do
+        printPair(c)
+        for j=1 to 10 do
+            sequence ags := {{"S", segs5[c][j]}, {"H", hegs5[c][j]}, {"D", degs5[c][j]}, {"P", pegs5[c][j]}}
+            string action := bestAction(ags)
+            pTable[c][j] = action
+            printf(1,"%4s   ", action)
+        end for
+        printf(1,"\n")
+    end for
+
+    // do 10 years of simulations
+    for i=1 to 10 do
+        printf(1,"\nSimulation for Year %d:\n", i)
+        simulate(50, 365)
+    end for
+end procedure
+main()
+?"done"
+{} = wait_key()
+
+--/*
+Dealer Probabilities, Stands on Soft 17, 1 Deck, U.S Rules
+Up Card     17        18        19        20        21       Bust
+-------------------------------------------------------------------
+Ace      0.183786  0.190890  0.188680  0.191692  0.075137  0.169815
+  2      0.138976  0.131762  0.131815  0.123948  0.120526  0.352973
+  3      0.130313  0.130946  0.123761  0.123345  0.116047  0.375588
+  4      0.130973  0.114163  0.120679  0.116286  0.115096  0.402803
+  5      0.119687  0.123483  0.116909  0.104694  0.106321  0.428905
+  6      0.166948  0.106454  0.107192  0.100705  0.097878  0.420823
+  7      0.372345  0.138583  0.077334  0.078897  0.072987  0.259854
+  8      0.130857  0.362989  0.129445  0.068290  0.069791  0.238627
+  9      0.121886  0.103921  0.357391  0.122250  0.061109  0.233442
+ 10      0.124156  0.122486  0.124421  0.356869  0.039570  0.232499
+Hard Chart - Player Expected Gains per unit (Stand)
+P/D     2      3      4      5      6      7      8      9      T      A
+--------------------------------------------------------------------------
+ 5   -0.293 -0.248 -0.176 -0.104 -0.122 -0.469 -0.513 -0.533 -0.546 -0.659
+ 6   -0.291 -0.232 -0.172 -0.101 -0.119 -0.467 -0.522 -0.533 -0.547 -0.659
+ 7   -0.283 -0.229 -0.163 -0.098 -0.117 -0.471 -0.521 -0.537 -0.547 -0.658
+ 8   -0.276 -0.229 -0.162 -0.100 -0.130 -0.478 -0.523 -0.539 -0.549 -0.648
+ 9   -0.277 -0.224 -0.160 -0.108 -0.134 -0.480 -0.528 -0.543 -0.542 -0.646
+10   -0.279 -0.227 -0.172 -0.120 -0.146 -0.484 -0.531 -0.539 -0.537 -0.644
+11   -0.277 -0.231 -0.175 -0.123 -0.147 -0.488 -0.529 -0.537 -0.537 -0.646
+12   -0.286 -0.241 -0.185 -0.134 -0.151 -0.485 -0.526 -0.535 -0.533 -0.655
+13   -0.282 -0.236 -0.181 -0.133 -0.156 -0.488 -0.529 -0.537 -0.534 -0.649
+14   -0.282 -0.238 -0.188 -0.134 -0.159 -0.489 -0.529 -0.533 -0.536 -0.651
+15   -0.280 -0.239 -0.190 -0.144 -0.169 -0.494 -0.531 -0.536 -0.531 -0.648
+16   -0.287 -0.250 -0.194 -0.152 -0.179 -0.495 -0.526 -0.540 -0.530 -0.648
+17   -0.147 -0.120 -0.074 -0.044 -0.011 -0.122 -0.405 -0.414 -0.402 -0.459
+18    0.119  0.144  0.164  0.202  0.268  0.389  0.096 -0.196 -0.155 -0.082
+19    0.385  0.384  0.404  0.448  0.484  0.610  0.577  0.264  0.103  0.308
+Hard Chart - Player Expected Gains per unit (Hit)
+P/D     2      3      4      5      6      7      8      9      T      A
+--------------------------------------------------------------------------
+ 5   -0.131 -0.098 -0.041  0.022  0.019 -0.119 -0.181 -0.262 -0.309 -0.417
+ 6   -0.151 -0.107 -0.055  0.009  0.014 -0.164 -0.234 -0.305 -0.349 -0.443
+ 7   -0.111 -0.072 -0.013  0.053  0.064 -0.069 -0.223 -0.295 -0.332 -0.401
+ 8   -0.015  0.021  0.084  0.136  0.148  0.092 -0.056 -0.213 -0.253 -0.275
+ 9    0.090  0.137  0.181  0.226  0.235  0.194  0.111 -0.052 -0.148 -0.128
+10    0.215  0.246  0.277  0.314  0.319  0.277  0.211  0.119  0.030  0.030
+11    0.272  0.296  0.327  0.361  0.362  0.293  0.222  0.146  0.107  0.113
+12   -0.256 -0.232 -0.206 -0.181 -0.179 -0.241 -0.308 -0.380 -0.378 -0.413
+13   -0.315 -0.293 -0.270 -0.252 -0.251 -0.301 -0.362 -0.389 -0.423 -0.440
+14   -0.363 -0.353 -0.337 -0.315 -0.313 -0.346 -0.366 -0.426 -0.455 -0.460
+15   -0.419 -0.414 -0.406 -0.392 -0.383 -0.351 -0.406 -0.466 -0.496 -0.487
+16   -0.461 -0.460 -0.454 -0.448 -0.397 -0.376 -0.426 -0.481 -0.510 -0.497
+17   -0.534 -0.536 -0.538 -0.493 -0.484 -0.450 -0.475 -0.529 -0.558 -0.546
+18   -0.633 -0.634 -0.597 -0.591 -0.586 -0.567 -0.565 -0.593 -0.624 -0.630
+19   -0.750 -0.713 -0.712 -0.709 -0.707 -0.699 -0.697 -0.698 -0.712 -0.740
+Hard Chart - Player Expected Gains per original unit (Double)
+P/D     2      3      4      5      6      7      8      9      T      A
+--------------------------------------------------------------------------
+ 5   -0.587 -0.497 -0.352 -0.209 -0.244 -0.938 -1.025 -1.066 -1.093 -1.318
+ 6   -0.560 -0.446 -0.324 -0.186 -0.215 -0.870 -1.023 -1.045 -1.074 -1.295
+ 7   -0.415 -0.317 -0.186 -0.066 -0.059 -0.555 -0.851 -0.936 -0.956 -1.127
+ 8   -0.165 -0.081  0.032  0.143  0.157 -0.140 -0.433 -0.697 -0.743 -0.802
+ 9    0.114  0.193  0.286  0.380  0.393  0.175  0.007 -0.281 -0.442 -0.409
+10    0.428  0.492  0.554  0.628  0.638  0.446  0.313  0.164  0.007  0.025
+11    0.542  0.592  0.654  0.722  0.724  0.479  0.341  0.223  0.164  0.198
+12   -0.511 -0.463 -0.413 -0.362 -0.358 -0.556 -0.690 -0.811 -0.789 -0.827
+13   -0.630 -0.587 -0.541 -0.503 -0.503 -0.651 -0.775 -0.807 -0.862 -0.880
+14   -0.727 -0.706 -0.673 -0.630 -0.627 -0.723 -0.759 -0.862 -0.915 -0.921
+15   -0.838 -0.829 -0.812 -0.783 -0.767 -0.716 -0.826 -0.937 -0.992 -0.973
+16   -0.921 -0.920 -0.908 -0.896 -0.793 -0.751 -0.853 -0.961 -1.019 -0.995
+17   -1.069 -1.072 -1.076 -0.985 -0.967 -0.901 -0.949 -1.058 -1.116 -1.092
+18   -1.265 -1.267 -1.195 -1.182 -1.172 -1.135 -1.130 -1.186 -1.248 -1.260
+19   -1.499 -1.425 -1.423 -1.417 -1.414 -1.397 -1.395 -1.396 -1.425 -1.481
+Hard Chart - Player Strategy (Round 1)
+P/D     2      3      4      5      6      7      8      9      T      A
+--------------------------------------------------------------------------
+ 5      H      H      H      H      H      H      H      H      H      H
+ 6      H      H      H      H      H      H      H      H      H      H
+ 7      H      H      H      H      H      H      H      H      H      H
+ 8      H      H      H      D      D      H      H      H      H      H
+ 9      D      D      D      D      D      H      H      H      H      H
+10      D      D      D      D      D      D      D      D      H      H
+11      D      D      D      D      D      D      D      D      D      D
+12      H      H      S      S      S      H      H      H      H      H
+13      S      S      S      S      S      H      H      H      H      H
+14      S      S      S      S      S      H      H      H      H      H
+15      S      S      S      S      S      H      H      H      H      H
+16      S      S      S      S      S      H      H      H      H      H
+17      S      S      S      S      S      S      S      S      S      S
+18      S      S      S      S      S      S      S      S      S      S
+19      S      S      S      S      S      S      S      S      S      S
+Hard Chart - Player Strategy (Round >= 2, No Doubling)
+P/D     2      3      4      5      6      7      8      9      T      A
+--------------------------------------------------------------------------
+ 4      H      H      H      H      H      H      H      H      H      H
+ 5      H      H      H      H      H      H      H      H      H      H
+ 6      H      H      H      H      H      H      H      H      H      H
+ 7      H      H      H      H      H      H      H      H      H      H
+ 8      H      H      H      H      H      H      H      H      H      H
+ 9      H      H      H      H      H      H      H      H      H      H
+10      H      H      H      H      H      H      H      H      H      H
+11      H      H      H      H      H      H      H      H      H      H
+12      H      H      S      S      S      H      H      H      H      H
+13      S      S      S      S      S      H      H      H      H      H
+14      S      S      S      S      S      H      H      H      H      H
+15      S      S      S      S      S      H      H      H      H      H
+16      S      S      S      S      S      H      H      H      H      H
+17      S      S      S      S      S      S      S      S      S      S
+18      S      S      S      S      S      S      S      S      S      S
+19      S      S      S      S      S      S      S      S      S      S
+20      S      S      S      S      S      S      S      S      S      S
+21      S      S      S      S      S      S      S      S      S      S
+Soft Chart - Player Expected Gains per unit (Stand)
+P/D     2      3      4      5      6      7      8      9      T      A
+--------------------------------------------------------------------------
+A2   -0.283 -0.241 -0.186 -0.119 -0.114 -0.462 -0.508 -0.517 -0.539 -0.662
+A3   -0.284 -0.240 -0.170 -0.116 -0.112 -0.460 -0.505 -0.527 -0.538 -0.661
+A4   -0.283 -0.224 -0.166 -0.113 -0.109 -0.458 -0.514 -0.526 -0.538 -0.659
+A5   -0.266 -0.221 -0.164 -0.111 -0.108 -0.468 -0.515 -0.525 -0.537 -0.659
+A6   -0.132 -0.093 -0.037  0.005  0.010 -0.090 -0.385 -0.407 -0.418 -0.483
+A7    0.136  0.167  0.204  0.222  0.262  0.412  0.121 -0.179 -0.186 -0.101
+A8    0.402  0.420  0.415  0.461  0.482  0.615  0.608  0.288  0.064  0.290
+A9    0.656  0.644  0.654  0.682  0.694  0.773  0.785  0.766  0.555  0.681
+Soft Chart - Player Expected Gains per unit (Hit)
+P/D     2      3      4      5      6      7      8      9      T      A
+--------------------------------------------------------------------------
+A2    0.039  0.071  0.110  0.159  0.168  0.107  0.039 -0.014 -0.090 -0.184
+A3    0.017  0.044  0.091  0.137  0.147  0.060  0.035 -0.060 -0.124 -0.216
+A4   -0.012  0.022  0.061  0.108  0.120  0.034 -0.035 -0.114 -0.172 -0.256
+A5   -0.032 -0.003  0.038  0.082  0.116 -0.024 -0.084 -0.167 -0.229 -0.296
+A6    0.007  0.036  0.077  0.140  0.133  0.060 -0.065 -0.135 -0.189 -0.242
+A7    0.065  0.093  0.156  0.175  0.192  0.175  0.047 -0.087 -0.140 -0.160
+A8    0.120  0.173  0.187  0.227  0.241  0.222  0.158  0.005 -0.087 -0.081
+A9    0.191  0.196  0.230  0.268  0.280  0.243  0.172  0.096  0.007 -0.008
+Soft Chart - Player Expected Gains per original unit (Double)
+P/D     2      3      4      5      6      7      8      9      T      A
+--------------------------------------------------------------------------
+A2   -0.042  0.028  0.115  0.212  0.230 -0.157 -0.312 -0.373 -0.478 -0.586
+A3   -0.047  0.011  0.109  0.204  0.222 -0.175 -0.254 -0.394 -0.479 -0.588
+A4   -0.070  0.003  0.085  0.175  0.201 -0.141 -0.314 -0.422 -0.495 -0.613
+A5   -0.082 -0.019  0.063  0.148  0.217 -0.189 -0.333 -0.452 -0.536 -0.649
+A6    0.013  0.074  0.155  0.280  0.266  0.014 -0.230 -0.345 -0.433 -0.522
+A7    0.128  0.189  0.313  0.349  0.385  0.240 -0.015 -0.254 -0.322 -0.359
+A8    0.237  0.346  0.373  0.453  0.483  0.325  0.190 -0.060 -0.226 -0.200
+A9    0.380  0.392  0.459  0.536  0.560  0.351  0.230  0.111 -0.055 -0.055
+Soft Chart - Player Strategy (Round 1)
+P/D     2      3      4      5      6      7      8      9      T      A
+--------------------------------------------------------------------------
+A2      H      H      D      D      D      H      H      H      H      H
+A3      H      H      D      D      D      H      H      H      H      H
+A4      H      H      D      D      D      H      H      H      H      H
+A5      H      H      D      D      D      H      H      H      H      H
+A6      D      D      D      D      D      H      H      H      H      H
+A7      S      D      D      D      D      S      S      H      H      S
+A8      S      S      S      S      D      S      S      S      S      S
+A9      S      S      S      S      S      S      S      S      S      S
+Soft Chart - Player Strategy (Round >= 2, No Doubling)
+P/D     2      3      4      5      6      7      8      9      T      A
+--------------------------------------------------------------------------
+12      H      H      H      H      H      H      H      H      H      H
+13      H      H      H      H      H      H      H      H      H      H
+14      H      H      H      H      H      H      H      H      H      H
+15      H      H      H      H      H      H      H      H      H      H
+16      H      H      H      H      H      H      H      H      H      H
+17      H      H      H      H      H      H      H      H      H      H
+18      S      S      S      S      S      S      S      H      H      S
+19      S      S      S      S      S      S      S      S      S      S
+20      S      S      S      S      S      S      S      S      S      S
+21      S      S      S      S      S      S      S      S      S      S
+Pairs Chart - Player Expected Gains per unit (Stand)
+P/D     2      3      4      5      6      7      8      9      T      A
+--------------------------------------------------------------------------
+AA   -0.274 -0.232 -0.178 -0.130 -0.104 -0.452 -0.500 -0.511 -0.531 -0.663
+22   -0.291 -0.251 -0.192 -0.107 -0.125 -0.471 -0.515 -0.523 -0.547 -0.660
+33   -0.295 -0.246 -0.160 -0.101 -0.119 -0.467 -0.510 -0.542 -0.546 -0.660
+44   -0.290 -0.214 -0.152 -0.095 -0.114 -0.463 -0.529 -0.543 -0.547 -0.656
+55   -0.256 -0.206 -0.146 -0.090 -0.112 -0.484 -0.531 -0.541 -0.545 -0.653
+66   -0.262 -0.211 -0.152 -0.102 -0.165 -0.493 -0.536 -0.549 -0.552 -0.617
+77   -0.268 -0.219 -0.164 -0.156 -0.174 -0.502 -0.539 -0.555 -0.510 -0.631
+88   -0.275 -0.228 -0.215 -0.165 -0.178 -0.503 -0.551 -0.516 -0.518 -0.644
+99    0.137  0.123  0.167  0.203  0.265  0.401  0.065 -0.196 -0.133 -0.055
+TT    0.627  0.636  0.645  0.674  0.697  0.765  0.783  0.744  0.583  0.650
+Pairs Chart - Player Expected Gains per unit (Hit)
+P/D     2      3      4      5      6      7      8      9      T      A
+--------------------------------------------------------------------------
+AA    0.095  0.120  0.142  0.182  0.200  0.158  0.093 -0.003 -0.048 -0.075
+22   -0.113 -0.082 -0.035  0.036  0.032 -0.092 -0.141 -0.222 -0.277 -0.395
+33   -0.153 -0.118 -0.047  0.008  0.014 -0.164 -0.231 -0.310 -0.346 -0.444
+44   -0.013  0.028  0.098  0.154  0.175  0.111 -0.055 -0.206 -0.246 -0.268
+55    0.224  0.254  0.295  0.347  0.362  0.279  0.207  0.119  0.032  0.042
+66   -0.253 -0.222 -0.190 -0.162 -0.194 -0.265 -0.322 -0.386 -0.386 -0.411
+77   -0.406 -0.388 -0.369 -0.370 -0.367 -0.389 -0.408 -0.475 -0.516 -0.510
+88   -0.454 -0.450 -0.461 -0.453 -0.397 -0.374 -0.426 -0.487 -0.512 -0.490
+99   -0.627 -0.638 -0.597 -0.590 -0.587 -0.566 -0.566 -0.595 -0.626 -0.621
+TT   -0.847 -0.846 -0.846 -0.846 -0.845 -0.843 -0.843 -0.842 -0.840 -0.882
+Pairs Chart - Player Expected Gains per original unit (Double)
+P/D     2      3      4      5      6      7      8      9      T      A
+--------------------------------------------------------------------------
+AA   -0.019  0.055  0.137  0.216  0.248 -0.137 -0.296 -0.421 -0.468 -0.591
+22   -0.582 -0.501 -0.384 -0.214 -0.249 -0.942 -1.030 -1.047 -1.094 -1.320
+33   -0.567 -0.472 -0.302 -0.184 -0.215 -0.871 -1.000 -1.065 -1.072 -1.298
+44   -0.185 -0.082  0.044  0.162  0.193 -0.108 -0.447 -0.701 -0.741 -0.802
+55    0.446  0.510  0.590  0.695  0.724  0.466  0.323  0.175  0.014  0.042
+66   -0.505 -0.444 -0.380 -0.325 -0.387 -0.599 -0.711 -0.817 -0.803 -0.823
+77   -0.813 -0.777 -0.738 -0.741 -0.734 -0.823 -0.858 -0.978 -1.035 -1.019
+88   -0.908 -0.900 -0.922 -0.906 -0.793 -0.747 -0.853 -0.974 -1.024 -0.980
+99   -1.255 -1.277 -1.194 -1.181 -1.173 -1.132 -1.133 -1.189 -1.252 -1.242
+TT   -1.693 -1.693 -1.693 -1.691 -1.690 -1.686 -1.685 -1.684 -1.681 -1.764
+Pairs Chart - Player Expected Gains per original unit (Split)
+P/D     2      3      4      5      6      7      8      9      T      A
+--------------------------------------------------------------------------
+AA    1.192  1.223  1.265  1.321  1.344  1.308  1.201  1.039  0.860  0.921
+22   -0.128 -0.070 -0.007  0.128  0.126 -0.054 -0.213 -0.383 -0.463 -0.566
+33   -0.202 -0.128  0.009  0.117  0.112 -0.115 -0.265 -0.418 -0.509 -0.579
+44   -0.236 -0.127 -0.013  0.095  0.083 -0.223 -0.343 -0.493 -0.580 -0.623
+55   -0.232 -0.150 -0.038  0.068  0.056 -0.299 -0.448 -0.608 -0.685 -0.695
+66   -0.219 -0.135 -0.028  0.068 -0.011 -0.270 -0.413 -0.570 -0.652 -0.660
+77   -0.163 -0.084  0.016  0.039  0.053 -0.123 -0.423 -0.564 -0.634 -0.635
+88    0.017  0.077  0.106  0.188  0.234  0.202 -0.100 -0.430 -0.464 -0.378
+99    0.170  0.170  0.253  0.339  0.359  0.341  0.179 -0.112 -0.268 -0.109
+TT    0.412  0.465  0.518  0.596  0.619  0.576  0.447  0.276  0.146  0.140
+Pairs Chart - Player Strategy (Round 1)
+P/D     2      3      4      5      6      7      8      9      T      A
+--------------------------------------------------------------------------
+AA      P      P      P      P      P      P      P      P      P      P
+22      H      P      P      P      P      P      H      H      H      H
+33      H      H      P      P      P      P      H      H      H      H
+44      H      H      H      D      D      H      H      H      H      H
+55      D      D      D      D      D      D      D      D      H      D
+66      P      P      P      P      P      H      H      H      H      H
+77      P      P      P      P      P      P      H      H      S      H
+88      P      P      P      P      P      P      P      P      P      P
+99      P      P      P      P      P      S      P      P      S      S
+TT      S      S      S      S      S      S      S      S      S      S
+"done"
+Dealer Probabilities, Stands on Soft 17, 1 Deck, U.S Rules
+Up Card     17        18        19        20        21       Bust
+-------------------------------------------------------------------
+Ace      0.183786  0.190890  0.188680  0.191692  0.075137  0.169815
+  2      0.138976  0.131762  0.131815  0.123948  0.120526  0.352973
+  3      0.130313  0.130946  0.123761  0.123345  0.116047  0.375588
+  4      0.130973  0.114163  0.120679  0.116286  0.115096  0.402803
+  5      0.119687  0.123483  0.116909  0.104694  0.106321  0.428905
+  6      0.166948  0.106454  0.107192  0.100705  0.097878  0.420823
+  7      0.372345  0.138583  0.077334  0.078897  0.072987  0.259854
+  8      0.130857  0.362989  0.129445  0.068290  0.069791  0.238627
+  9      0.121886  0.103921  0.357391  0.122250  0.061109  0.233442
+ 10      0.124156  0.122486  0.124421  0.356869  0.039570  0.232499
+Hard Chart - Player Expected Gains per unit (Stand)
+P/D     2      3      4      5      6      7      8      9      T      A
+--------------------------------------------------------------------------
+ 5   -0.293 -0.248 -0.176 -0.104 -0.122 -0.469 -0.513 -0.533 -0.546 -0.659 
+ 6   -0.291 -0.232 -0.172 -0.101 -0.119 -0.467 -0.522 -0.533 -0.547 -0.659 
+ 7   -0.283 -0.229 -0.163 -0.098 -0.117 -0.471 -0.521 -0.537 -0.547 -0.658 
+ 8   -0.276 -0.229 -0.162 -0.100 -0.130 -0.478 -0.523 -0.539 -0.549 -0.648 
+ 9   -0.277 -0.224 -0.160 -0.108 -0.134 -0.480 -0.528 -0.543 -0.542 -0.646 
+10   -0.279 -0.227 -0.172 -0.120 -0.146 -0.484 -0.531 -0.539 -0.537 -0.644 
+11   -0.277 -0.231 -0.175 -0.123 -0.147 -0.488 -0.529 -0.537 -0.537 -0.646 
+12   -0.286 -0.241 -0.185 -0.134 -0.151 -0.485 -0.526 -0.535 -0.533 -0.655 
+13   -0.282 -0.236 -0.181 -0.133 -0.156 -0.488 -0.529 -0.537 -0.534 -0.649 
+14   -0.282 -0.238 -0.188 -0.134 -0.159 -0.489 -0.529 -0.533 -0.536 -0.651 
+15   -0.280 -0.239 -0.190 -0.144 -0.169 -0.494 -0.531 -0.536 -0.531 -0.648 
+16   -0.287 -0.250 -0.194 -0.152 -0.179 -0.495 -0.526 -0.540 -0.530 -0.648 
+17   -0.147 -0.120 -0.074 -0.044 -0.011 -0.122 -0.405 -0.414 -0.402 -0.459 
+18    0.119  0.144  0.164  0.202  0.268  0.389  0.096 -0.196 -0.155 -0.082 
+19    0.385  0.384  0.404  0.448  0.484  0.610  0.577  0.264  0.103  0.308 
+Hard Chart - Player Expected Gains per unit (Hit)
+P/D     2      3      4      5      6      7      8      9      T      A
+--------------------------------------------------------------------------
+ 5   -0.131 -0.098 -0.041  0.022  0.019 -0.119 -0.181 -0.262 -0.309 -0.417 
+ 6   -0.151 -0.107 -0.055  0.009  0.014 -0.164 -0.234 -0.305 -0.349 -0.443 
+ 7   -0.111 -0.072 -0.013  0.053  0.064 -0.069 -0.223 -0.295 -0.332 -0.401 
+ 8   -0.015  0.021  0.084  0.136  0.148  0.092 -0.056 -0.213 -0.253 -0.275 
+ 9    0.090  0.137  0.181  0.226  0.235  0.194  0.111 -0.052 -0.148 -0.128 
+10    0.215  0.246  0.277  0.314  0.319  0.277  0.211  0.119  0.030  0.030 
+11    0.272  0.296  0.327  0.361  0.362  0.293  0.222  0.146  0.107  0.113 
+12   -0.256 -0.232 -0.206 -0.181 -0.179 -0.241 -0.308 -0.380 -0.378 -0.413 
+13   -0.315 -0.293 -0.270 -0.252 -0.251 -0.301 -0.362 -0.389 -0.423 -0.440 
+14   -0.363 -0.353 -0.337 -0.315 -0.313 -0.346 -0.366 -0.426 -0.455 -0.460 
+15   -0.419 -0.414 -0.406 -0.392 -0.383 -0.351 -0.406 -0.466 -0.496 -0.487 
+16   -0.461 -0.460 -0.454 -0.448 -0.397 -0.376 -0.426 -0.481 -0.510 -0.497 
+17   -0.534 -0.536 -0.538 -0.493 -0.484 -0.450 -0.475 -0.529 -0.558 -0.546 
+18   -0.633 -0.634 -0.597 -0.591 -0.586 -0.567 -0.565 -0.593 -0.624 -0.630 
+19   -0.750 -0.713 -0.712 -0.709 -0.707 -0.699 -0.697 -0.698 -0.712 -0.740 
+Hard Chart - Player Expected Gains per original unit (Double)
+P/D     2      3      4      5      6      7      8      9      T      A
+--------------------------------------------------------------------------
+ 5   -0.587 -0.497 -0.352 -0.209 -0.244 -0.938 -1.025 -1.066 -1.093 -1.318 
+ 6   -0.560 -0.446 -0.324 -0.186 -0.215 -0.870 -1.023 -1.045 -1.074 -1.295 
+ 7   -0.415 -0.317 -0.186 -0.066 -0.059 -0.555 -0.851 -0.936 -0.956 -1.127 
+ 8   -0.165 -0.081  0.032  0.143  0.157 -0.140 -0.433 -0.697 -0.743 -0.802 
+ 9    0.114  0.193  0.286  0.380  0.393  0.175  0.007 -0.281 -0.442 -0.409 
+10    0.428  0.492  0.554  0.628  0.638  0.446  0.313  0.164  0.007  0.025 
+11    0.542  0.592  0.654  0.722  0.724  0.479  0.341  0.223  0.164  0.198 
+12   -0.511 -0.463 -0.413 -0.362 -0.358 -0.556 -0.690 -0.811 -0.789 -0.827 
+13   -0.630 -0.587 -0.541 -0.503 -0.503 -0.651 -0.775 -0.807 -0.862 -0.880 
+14   -0.727 -0.706 -0.673 -0.630 -0.627 -0.723 -0.759 -0.862 -0.915 -0.921 
+15   -0.838 -0.829 -0.812 -0.783 -0.767 -0.716 -0.826 -0.937 -0.992 -0.973 
+16   -0.921 -0.920 -0.908 -0.896 -0.793 -0.751 -0.853 -0.961 -1.019 -0.995 
+17   -1.069 -1.072 -1.076 -0.985 -0.967 -0.901 -0.949 -1.058 -1.116 -1.092 
+18   -1.265 -1.267 -1.195 -1.182 -1.172 -1.135 -1.130 -1.186 -1.248 -1.260 
+19   -1.499 -1.425 -1.423 -1.417 -1.414 -1.397 -1.395 -1.396 -1.425 -1.481 
+Hard Chart - Player Strategy (Round 1)
+P/D     2      3      4      5      6      7      8      9      T      A
+--------------------------------------------------------------------------
+ 5      H      H      H      H      H      H      H      H      H      H   
+ 6      H      H      H      H      H      H      H      H      H      H   
+ 7      H      H      H      H      H      H      H      H      H      H   
+ 8      H      H      H      D      D      H      H      H      H      H   
+ 9      D      D      D      D      D      H      H      H      H      H   
+10      D      D      D      D      D      D      D      D      H      H   
+11      D      D      D      D      D      D      D      D      D      D   
+12      H      H      S      S      S      H      H      H      H      H   
+13      S      S      S      S      S      H      H      H      H      H   
+14      S      S      S      S      S      H      H      H      H      H   
+15      S      S      S      S      S      H      H      H      H      H   
+16      S      S      S      S      S      H      H      H      H      H   
+17      S      S      S      S      S      S      S      S      S      S   
+18      S      S      S      S      S      S      S      S      S      S   
+19      S      S      S      S      S      S      S      S      S      S   
+Hard Chart - Player Strategy (Round >= 2, No Doubling)
+P/D     2      3      4      5      6      7      8      9      T      A
+--------------------------------------------------------------------------
+ 4      H      H      H      H      H      H      H      H      H      H   
+ 5      H      H      H      H      H      H      H      H      H      H   
+ 6      H      H      H      H      H      H      H      H      H      H   
+ 7      H      H      H      H      H      H      H      H      H      H   
+ 8      H      H      H      H      H      H      H      H      H      H   
+ 9      H      H      H      H      H      H      H      H      H      H   
+10      H      H      H      H      H      H      H      H      H      H   
+11      H      H      H      H      H      H      H      H      H      H   
+12      H      H      S      S      S      H      H      H      H      H   
+13      S      S      S      S      S      H      H      H      H      H   
+14      S      S      S      S      S      H      H      H      H      H   
+15      S      S      S      S      S      H      H      H      H      H   
+16      S      S      S      S      S      H      H      H      H      H   
+17      S      S      S      S      S      S      S      S      S      S   
+18      S      S      S      S      S      S      S      S      S      S   
+19      S      S      S      S      S      S      S      S      S      S   
+20      S      S      S      S      S      S      S      S      S      S   
+21      S      S      S      S      S      S      S      S      S      S   
+Soft Chart - Player Expected Gains per unit (Stand)
+P/D     2      3      4      5      6      7      8      9      T      A
+--------------------------------------------------------------------------
+A2   -0.283 -0.241 -0.186 -0.119 -0.114 -0.462 -0.508 -0.517 -0.539 -0.662 
+A3   -0.284 -0.240 -0.170 -0.116 -0.112 -0.460 -0.505 -0.527 -0.538 -0.661 
+A4   -0.283 -0.224 -0.166 -0.113 -0.109 -0.458 -0.514 -0.526 -0.538 -0.659 
+A5   -0.266 -0.221 -0.164 -0.111 -0.108 -0.468 -0.515 -0.525 -0.537 -0.659 
+A6   -0.132 -0.093 -0.037  0.005  0.010 -0.090 -0.385 -0.407 -0.418 -0.483 
+A7    0.136  0.167  0.204  0.222  0.262  0.412  0.121 -0.179 -0.186 -0.101 
+A8    0.402  0.420  0.415  0.461  0.482  0.615  0.608  0.288  0.064  0.290 
+A9    0.656  0.644  0.654  0.682  0.694  0.773  0.785  0.766  0.555  0.681 
+Soft Chart - Player Expected Gains per unit (Hit)
+P/D     2      3      4      5      6      7      8      9      T      A
+--------------------------------------------------------------------------
+A2    0.039  0.071  0.110  0.159  0.168  0.107  0.039 -0.014 -0.090 -0.184 
+A3    0.017  0.044  0.091  0.137  0.147  0.060  0.035 -0.060 -0.124 -0.216 
+A4   -0.012  0.022  0.061  0.108  0.120  0.034 -0.035 -0.114 -0.172 -0.256 
+A5   -0.032 -0.003  0.038  0.082  0.116 -0.024 -0.084 -0.167 -0.229 -0.296 
+A6    0.007  0.036  0.077  0.140  0.133  0.060 -0.065 -0.135 -0.189 -0.242 
+A7    0.065  0.093  0.156  0.175  0.192  0.175  0.047 -0.087 -0.140 -0.160 
+A8    0.120  0.173  0.187  0.227  0.241  0.222  0.158  0.005 -0.087 -0.081 
+A9    0.191  0.196  0.230  0.268  0.280  0.243  0.172  0.096  0.007 -0.008 
+Soft Chart - Player Expected Gains per original unit (Double)
+P/D     2      3      4      5      6      7      8      9      T      A
+--------------------------------------------------------------------------
+A2   -0.042  0.028  0.115  0.212  0.230 -0.157 -0.312 -0.373 -0.478 -0.586 
+A3   -0.047  0.011  0.109  0.204  0.222 -0.175 -0.254 -0.394 -0.479 -0.588 
+A4   -0.070  0.003  0.085  0.175  0.201 -0.141 -0.314 -0.422 -0.495 -0.613 
+A5   -0.082 -0.019  0.063  0.148  0.217 -0.189 -0.333 -0.452 -0.536 -0.649 
+A6    0.013  0.074  0.155  0.280  0.266  0.014 -0.230 -0.345 -0.433 -0.522 
+A7    0.128  0.189  0.313  0.349  0.385  0.240 -0.015 -0.254 -0.322 -0.359 
+A8    0.237  0.346  0.373  0.453  0.483  0.325  0.190 -0.060 -0.226 -0.200 
+A9    0.380  0.392  0.459  0.536  0.560  0.351  0.230  0.111 -0.055 -0.055 
+Soft Chart - Player Strategy (Round 1)
+P/D     2      3      4      5      6      7      8      9      T      A
+--------------------------------------------------------------------------
+A2      H      H      D      D      D      H      H      H      H      H   
+A3      H      H      D      D      D      H      H      H      H      H   
+A4      H      H      D      D      D      H      H      H      H      H   
+A5      H      H      D      D      D      H      H      H      H      H   
+A6      D      D      D      D      D      H      H      H      H      H   
+A7      S      D      D      D      D      S      S      H      H      S   
+A8      S      S      S      S      D      S      S      S      S      S   
+A9      S      S      S      S      S      S      S      S      S      S   
+Soft Chart - Player Strategy (Round >= 2, No Doubling)
+P/D     2      3      4      5      6      7      8      9      T      A
+--------------------------------------------------------------------------
+12      H      H      H      H      H      H      H      H      H      H   
+13      H      H      H      H      H      H      H      H      H      H   
+14      H      H      H      H      H      H      H      H      H      H   
+15      H      H      H      H      H      H      H      H      H      H   
+16      H      H      H      H      H      H      H      H      H      H   
+17      H      H      H      H      H      H      H      H      H      H   
+18      S      S      S      S      S      S      S      H      H      S   
+19      S      S      S      S      S      S      S      S      S      S   
+20      S      S      S      S      S      S      S      S      S      S   
+21      S      S      S      S      S      S      S      S      S      S   
+Pairs Chart - Player Expected Gains per unit (Stand)
+P/D     2      3      4      5      6      7      8      9      T      A
+--------------------------------------------------------------------------
+AA   -0.274 -0.232 -0.178 -0.130 -0.104 -0.452 -0.500 -0.511 -0.531 -0.663 
+22   -0.291 -0.251 -0.192 -0.107 -0.125 -0.471 -0.515 -0.523 -0.547 -0.660 
+33   -0.295 -0.246 -0.160 -0.101 -0.119 -0.467 -0.510 -0.542 -0.546 -0.660 
+44   -0.290 -0.214 -0.152 -0.095 -0.114 -0.463 -0.529 -0.543 -0.547 -0.656 
+55   -0.256 -0.206 -0.146 -0.090 -0.112 -0.484 -0.531 -0.541 -0.545 -0.653 
+66   -0.262 -0.211 -0.152 -0.102 -0.165 -0.493 -0.536 -0.549 -0.552 -0.617 
+77   -0.268 -0.219 -0.164 -0.156 -0.174 -0.502 -0.539 -0.555 -0.510 -0.631 
+88   -0.275 -0.228 -0.215 -0.165 -0.178 -0.503 -0.551 -0.516 -0.518 -0.644 
+99    0.137  0.123  0.167  0.203  0.265  0.401  0.065 -0.196 -0.133 -0.055 
+TT    0.627  0.636  0.645  0.674  0.697  0.765  0.783  0.744  0.583  0.650 
+Pairs Chart - Player Expected Gains per unit (Hit)
+P/D     2      3      4      5      6      7      8      9      T      A
+--------------------------------------------------------------------------
+AA    0.095  0.120  0.142  0.182  0.200  0.158  0.093 -0.003 -0.048 -0.075 
+22   -0.113 -0.082 -0.035  0.036  0.032 -0.092 -0.141 -0.222 -0.277 -0.395 
+33   -0.153 -0.118 -0.047  0.008  0.014 -0.164 -0.231 -0.310 -0.346 -0.444 
+44   -0.013  0.028  0.098  0.154  0.175  0.111 -0.055 -0.206 -0.246 -0.268 
+55    0.224  0.254  0.295  0.347  0.362  0.279  0.207  0.119  0.032  0.042 
+66   -0.253 -0.222 -0.190 -0.162 -0.194 -0.265 -0.322 -0.386 -0.386 -0.411 
+77   -0.406 -0.388 -0.369 -0.370 -0.367 -0.389 -0.408 -0.475 -0.516 -0.510 
+88   -0.454 -0.450 -0.461 -0.453 -0.397 -0.374 -0.426 -0.487 -0.512 -0.490 
+99   -0.627 -0.638 -0.597 -0.590 -0.587 -0.566 -0.566 -0.595 -0.626 -0.621 
+TT   -0.847 -0.846 -0.846 -0.846 -0.845 -0.843 -0.843 -0.842 -0.840 -0.882 
+Pairs Chart - Player Expected Gains per original unit (Double)
+P/D     2      3      4      5      6      7      8      9      T      A
+--------------------------------------------------------------------------
+AA   -0.019  0.055  0.137  0.216  0.248 -0.137 -0.296 -0.421 -0.468 -0.591 
+22   -0.582 -0.501 -0.384 -0.214 -0.249 -0.942 -1.030 -1.047 -1.094 -1.320 
+33   -0.567 -0.472 -0.302 -0.184 -0.215 -0.871 -1.000 -1.065 -1.072 -1.298 
+44   -0.185 -0.082  0.044  0.162  0.193 -0.108 -0.447 -0.701 -0.741 -0.802 
+55    0.446  0.510  0.590  0.695  0.724  0.466  0.323  0.175  0.014  0.042 
+66   -0.505 -0.444 -0.380 -0.325 -0.387 -0.599 -0.711 -0.817 -0.803 -0.823 
+77   -0.813 -0.777 -0.738 -0.741 -0.734 -0.823 -0.858 -0.978 -1.035 -1.019 
+88   -0.908 -0.900 -0.922 -0.906 -0.793 -0.747 -0.853 -0.974 -1.024 -0.980 
+99   -1.255 -1.277 -1.194 -1.181 -1.173 -1.132 -1.133 -1.189 -1.252 -1.242 
+TT   -1.693 -1.693 -1.693 -1.691 -1.690 -1.686 -1.685 -1.684 -1.681 -1.764 
+Pairs Chart - Player Expected Gains per original unit (Split)
+P/D     2      3      4      5      6      7      8      9      T      A
+--------------------------------------------------------------------------
+AA    1.192  1.223  1.265  1.321  1.344  1.308  1.201  1.039  0.860  0.921 
+22   -0.128 -0.070 -0.007  0.128  0.126 -0.054 -0.213 -0.383 -0.463 -0.566 
+33   -0.202 -0.128  0.009  0.117  0.112 -0.115 -0.265 -0.418 -0.509 -0.579 
+44   -0.236 -0.127 -0.013  0.095  0.083 -0.223 -0.343 -0.493 -0.580 -0.623 
+55   -0.232 -0.150 -0.038  0.068  0.056 -0.299 -0.448 -0.608 -0.685 -0.695 
+66   -0.219 -0.135 -0.028  0.068 -0.011 -0.270 -0.413 -0.570 -0.652 -0.660 
+77   -0.163 -0.084  0.016  0.039  0.053 -0.123 -0.423 -0.564 -0.634 -0.635 
+88    0.017  0.077  0.106  0.188  0.234  0.202 -0.100 -0.430 -0.464 -0.378 
+99    0.170  0.170  0.253  0.339  0.359  0.341  0.179 -0.112 -0.268 -0.109 
+TT    0.412  0.465  0.518  0.596  0.619  0.576  0.447  0.276  0.146  0.140 
+Pairs Chart - Player Strategy (Round 1)
+P/D     2      3      4      5      6      7      8      9      T      A
+--------------------------------------------------------------------------
+AA      P      P      P      P      P      P      P      P      P      P   
+22      H      P      P      P      P      P      H      H      H      H   
+33      H      H      P      P      P      P      H      H      H      H   
+44      H      H      H      D      D      H      H      H      H      H   
+55      D      D      D      D      D      D      D      D      H      D   
+66      P      P      P      P      P      H      H      H      H      H   
+77      P      P      P      P      P      P      H      H      S      H   
+88      P      P      P      P      P      P      P      P      P      P   
+99      P      P      P      P      P      S      P      P      S      S   
+TT      S      S      S      S      S      S      S      S      S      S   
+Simulation for Year 1:
+After playing 50 times a day for 365 days:
+Winning days   : 170
+Losing days    : 185
+Breakeven days : 10
+Biggest win    : 20
+Biggest loss   : 20.5
+Total loss     : 263
+Total staked   : 20498
+Loss % staked  : 1.283
+Simulation for Year 2:
+After playing 50 times a day for 365 days:
+Winning days   : 171
+Losing days    : 184
+Breakeven days : 10
+Biggest win    : 18.5
+Biggest loss   : 22.5
+Total loss     : 332.5
+Total staked   : 20515
+Loss % staked  : 1.621
+Simulation for Year 3:
+After playing 50 times a day for 365 days:
+Winning days   : 154
+Losing days    : 204
+Breakeven days : 7
+Biggest win    : 28
+Biggest loss   : 24
+Total loss     : 339.5
+Total staked   : 20461
+Loss % staked  : 1.659
+Simulation for Year 4:
+After playing 50 times a day for 365 days:
+Winning days   : 164
+Losing days    : 191
+Breakeven days : 10
+Biggest win    : 26.5
+Biggest loss   : 26.5
+Total loss     : 211.5
+Total staked   : 20587
+Loss % staked  : 1.027
+Simulation for Year 5:
+After playing 50 times a day for 365 days:
+Winning days   : 175
+Losing days    : 186
+Breakeven days : 4
+Biggest win    : 18
+Biggest loss   : 21.5
+Total loss     : 162
+Total staked   : 20493
+Loss % staked  : 0.791
+Simulation for Year 6:
+After playing 50 times a day for 365 days:
+Winning days   : 179
+Losing days    : 177
+Breakeven days : 9
+Biggest win    : 25.5
+Biggest loss   : 26
+Total win      : 55.5
+Total staked   : 20495
+Win % staked   : 0.271
+Simulation for Year 7:
+After playing 50 times a day for 365 days:
+Winning days   : 162
+Losing days    : 190
+Breakeven days : 13
+Biggest win    : 26.5
+Biggest loss   : 27
+Total loss     : 274
+Total staked   : 20545
+Loss % staked  : 1.334
+Simulation for Year 8:
+After playing 50 times a day for 365 days:
+Winning days   : 165
+Losing days    : 192
+Breakeven days : 8
+Biggest win    : 21
+Biggest loss   : 25.5
+Total loss     : 329
+Total staked   : 20536
+Loss % staked  : 1.602
+Simulation for Year 9:
+After playing 50 times a day for 365 days:
+Winning days   : 169
+Losing days    : 186
+Breakeven days : 10
+Biggest win    : 18.5
+Biggest loss   : 26.5
+Total loss     : 241
+Total staked   : 20549
+Loss % staked  : 1.173
+Simulation for Year 10:
+After playing 50 times a day for 365 days:
+Winning days   : 173
+Losing days    : 183
+Breakeven days : 9
+Biggest win    : 23
+Biggest loss   : 19
+Total loss     : 370
+Total staked   : 20541
+Loss % staked  : 1.801
+--*/

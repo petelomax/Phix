@@ -7,6 +7,7 @@
 -- It can still be used as a checksum to verify data integrity, but only against unintentional corruption.
 -- Originally written by Davi Tassinari de Figueiredo
 --
+with javascript_semantics
 
 function uxor(atom data1,atom data2)
 atom result = xor_bits(data1,data2)
@@ -50,9 +51,9 @@ sequence words
 
 function divide_in_words(sequence message)
 -- Divides the string into words (32-bit numbers)
-sequence res
-    res = repeat(0,length(message)/4)
-    for word=1 to length(message)/4 do
+    integer l = floor(length(message)/4)
+    sequence res = repeat(0,l)
+    for word=1 to l do
         res[word] = bytes_to_int(message[word*4-3..word*4])
     end for
     return res
@@ -102,6 +103,7 @@ atom a,b,c,d
     end for
 
     -- Update the words
+    words = deep_copy(words)
     words[1] = r32(words[1]+a)
     words[2] = r32(words[2]+b)
     words[3] = r32(words[3]+c)
@@ -111,12 +113,14 @@ end procedure
 function pad_message(sequence message)
 -- Add bytes to the end of the message so it can be divided
 -- in an exact number of 64-byte blocks.
-integer bytes_to_add
-    bytes_to_add = 64-remainder(length(message)+9,64)
+    integer l = length(message),
+            bytes_to_add = 64-remainder(l+9,64)
     if bytes_to_add=64 then bytes_to_add = 0 end if
 
-    message = message&#80&repeat(0,bytes_to_add)&
-              int_to_bytes(length(message)*8)&{0,0,0,0}
+    message = deep_copy(message)
+    message &= #80
+    message &= repeat(0,bytes_to_add)
+    message &= int_to_bytes(l*8)&{0,0,0,0}
 
     return message
 end function
@@ -183,7 +187,7 @@ end function
    1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 
 --*/
 
-if include_file()=1 then
+if platform()=JS or include_file()=1 then
     string fmt  = "0x%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X\n"
     --                  1   2   3   4   5   6   7   8   9   0   1   2   3   4   5   6
 

@@ -193,4 +193,22 @@ global function rmatch(object needle, sequence haystack, integer start=length(ha
     return 0
 end function
 
+global function match_all(object needle, sequence haystack, integer start=1, bool case_sensitive=true, overlap=false)
+    if not case_sensitive then
+        needle = lower(needle)
+        haystack = lower(haystack)
+    end if
+    if atom(needle) then
+        return find_all(needle,haystack,start)
+    end if
+    sequence res = {}
+    while 1 do
+        start = match(needle,haystack,start)
+        if start=0 then exit end if
+        res = append(res,start)
+        start += iff(overlap?1:length(needle))
+    end while
+    return res
+end function
+
 

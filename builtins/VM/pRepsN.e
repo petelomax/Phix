@@ -135,6 +135,7 @@ end procedure -- (for Edita/CtrlQ)
         mov ecx,edx
         mov edi,[esp+8]         --[1] (ref addr, leaving it on the stack)
         mov edx,eax             -- era
+        call :%pAlloClone
         call :%pAllocSeq        -- damages eax only
         mov [edi],eax           -- Replace ref at original address [no dealloc rqd]
         lea edi,[ebx+eax*4]
@@ -390,7 +391,7 @@ end procedure -- (for Edita/CtrlQ)
             jl @f
                 lea eax,[ebx+edi*4]
                 test byte[ebx+edi*4-1],0x80
-                jnz :opRepsSeqMRSeqStr
+                jnz :opRepsSeqMRSeqStrClone
                 add dword[ebx+edi*4-8],ecx    -- bulk ref update (float)
           @@:                       -- replacement is an atom
             cmp ecx,0               -- check for zero length slice replacement
@@ -398,6 +399,7 @@ end procedure -- (for Edita/CtrlQ)
             mov ecx,edx
             mov edx,[esp+24]        -- era
             mov edi,[esp+12]        -- addr ref
+            call :%pAlloClone
             call :%pAllocSeq        -- damages eax only
             mov [edi],eax           -- Replace the ref at the original address
             sub dword[esi-8],1      -- non-1 so no need to dealloc
@@ -454,6 +456,15 @@ end procedure -- (for Edita/CtrlQ)
             add esp,24
             ret
 
+      ::opRepsSeqMRSeqStrClone
+            sub edx,ecx                 -- original length-slicelength
+            mov ecx,dword[eax-12]       -- replacement length
+            add ecx,edx
+            mov edi,[esp+12]            -- addr ref
+            mov edx,[esp+24]            -- era
+            call :%pAlloClone
+            jmp @f
+
       ::opRepsSeqMRSeqStr
 -------------------------
             --
@@ -479,6 +490,7 @@ end procedure -- (for Edita/CtrlQ)
 --          mov edx,[esp+12]            -- addr ref
             mov edi,[esp+12]            -- addr ref
             mov edx,[esp+24]            -- era
+          @@:
             call :%pAllocSeq            -- damages eax only
 --          mov edi,[edx]               -- original ref
             mov edx,[edi]               -- original ref
@@ -930,6 +942,7 @@ end procedure -- (for Edita/CtrlQ)
         mov rcx,rdx
         mov rdi,[rsp+16]        --[1] (ref addr, leaving it on the stack)
         mov rdx,rax             -- era
+        call :%pAlloClone
         call :%pAllocSeq        -- damages rax only
         mov [rdi],rax           -- Replace ref at original address [no dealloc rqd]
         lea rdi,[rbx+rax*4]
@@ -1204,7 +1217,7 @@ end procedure -- (for Edita/CtrlQ)
             jl @f
                 lea rax,[rbx+rdi*4]
                 test byte[rbx+rdi*4-1],0x80
-                jnz :opRepsSeqMRSeqStr64
+                jnz :opRepsSeqMRSeqStrClone64
                 add qword[rbx+rdi*4-16],rcx   -- bulk ref update (float)
           @@:                       -- replacement is an atom
             cmp rcx,0               -- check for zero length slice replacement
@@ -1213,6 +1226,7 @@ end procedure -- (for Edita/CtrlQ)
 --          mov rdx,[rsp+24]        -- addr ref
             mov rdi,[rsp+24]        -- addr ref
             mov rdx,[rsp+48]        -- era
+            call :%pAlloClone
             call :%pAllocSeq        -- damages rax only
 --          mov [rdx],rax           -- Replace the ref at the original address
             mov [rdi],rax           -- Replace the ref at the original address
@@ -1272,6 +1286,15 @@ end procedure -- (for Edita/CtrlQ)
             add rsp,48
             ret
 
+      ::opRepsSeqMRSeqStrClone64
+            sub rdx,rcx                 -- original length-slicelength
+            mov rcx,qword[rax-24]       -- replacement length
+            add rcx,rdx
+            mov rdi,[rsp+24]            -- addr ref
+            mov rdx,[rsp+48]            -- era
+            call :%pAlloClone
+            jmp @f
+
       ::opRepsSeqMRSeqStr64
 ---------------------------
             --
@@ -1297,6 +1320,7 @@ end procedure -- (for Edita/CtrlQ)
 --          mov rdx,[rsp+24]            -- addr ref
             mov rdi,[rsp+24]            -- addr ref
             mov rdx,[rsp+48]            -- era
+          @@:
             call :%pAllocSeq            -- damages rax only
 --          mov rdi,[rdx]               -- original ref
             mov rdx,[rdi]               -- original ref

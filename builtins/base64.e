@@ -48,12 +48,12 @@
 --# out[3]=src[3] rem  4 * 64 + src[4]
 --#
 
-bool binit = false
+bool base64_init = false
 sequence aleph
 sequence ccha   -- inverted decode table
 
 
-procedure initb()
+procedure init_base64()
     aleph = {'A','B','C','D','E','F','G','H','I','J','K','L','M',
              'N','O','P','Q','R','S','T','U','V','W','X','Y','Z',
              'a','b','c','d','e','f','g','h','i','j','k','l','m',
@@ -66,7 +66,7 @@ procedure initb()
     for i=1 to length(aleph) do
         ccha[aleph[i]] = i-1
     end for
-    binit = true
+    base64_init = true
 end procedure
 
 global function encode_base64(sequence src, integer wrap_column=0)
@@ -82,7 +82,7 @@ sequence ediv = {4, 16, 64,  0},
          nc4  = {2,  3,  4,  1}, --# 1234123412341234...
          next = {1,  1,  1,  0} --# increment by 3 every 4 iterations
 
-    if not binit then initb() end if
+    if not base64_init then init_base64() end if
 
     --#
     --# start with a full-length sequence of pads;
@@ -171,7 +171,7 @@ sequence drem = {64, 16,  4},
          nc3  = { 3,  1,  2},   --# 321321321321...
          ldrop = {2,  1,  1}    --# to drop len by 4 every 3 output
 
-    if not binit then initb() end if
+    if not base64_init then init_base64() end if
 
     src = substitute_all(src,{"\r\n","\r","\n"},{"","",""})
 

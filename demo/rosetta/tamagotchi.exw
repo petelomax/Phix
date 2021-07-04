@@ -1,0 +1,141 @@
+﻿--
+-- demo/rosetta/tamagotchi.exw
+-- ===========================
+--
+-- DEV/fixme: p2js: GAP on IupHbox, IupGetAttribute undefined, ignore IupSetGlobal(UTF8MODE).
+--            Also, gameplay is a bit harsh, almost impossible to keep it alive....
+--              (almost certainly due to putting that wait() call in status()...)
+--            Also, editing this wih Edix (saving it) spanners all the UTF8 characters...
+--
+include pGUI.e
+
+string name = "Fluffy",
+       chat = ""
+integer age = 0,
+        bored = 0,
+        food = 0,
+        poop = 0
+Ihandle stabel
+
+constant verbs = {"Ask", "Ban", "Bash", "Bite", "Break", "Build",
+                  "Cut", "Dig", "Drag", "Drop", "Drink", "Enjoy",
+                  "Eat", "End", "Feed", "Fill", "Force", "Grasp",
+                  "Gas", "Get", "Grab", "Grip", "Hoist", "House",
+                  "Ice", "Ink", "Join", "Kick", "Leave", "Marry",
+                  "Mix", "Nab", "Nail", "Open", "Press", "Quash",
+                  "Rub", "Run", "Save", "Snap", "Taste", "Touch",
+                  "Use", "Vet", "View", "Wash", "Xerox", "Yield"},
+         nouns = {"arms", "bugs", "boots", "bowls", "cabins", "cigars",
+                  "dogs", "eggs", "fakes", "flags", "greens", "guests",
+                  "hens", "hogs", "items", "jowls", "jewels", "juices",
+                  "kits", "logs", "lamps", "lions", "levers", "lemons",
+                  "maps", "mugs", "names", "nests", "nights", "nurses",
+                  "orbs", "owls", "pages", "posts", "quests", "quotas",
+                  "rats", "ribs", "roots", "rules", "salads", "sauces",
+                  "toys", "urns", "vines", "words", "waters", "zebras"},
+         boredIcons = {"💤", "💭", "❓"},
+         foodIcons = {"🍼", "🍔", "🍟", "🍰", "🍜"},
+         poopIcons = {"💩"},
+         sickIcons = {{"😄", "😃", "😀", "😊", "😎", "👍"}, // ok
+                      {"😪", "😥", "😰", "😓"}, // ailing
+                      {"😩", "😫"}, // bad
+                      {"😡", "😱"}, // very bad
+                      {"❌", "💀", "👽", "😇"}}, // dead
+        sicklevel = {1,1,1,2,2,3,3,4,4,4,4,5},
+        fmt = "%s %s (🎂 %d/42)  %s %d  %s"
+
+procedure feed()
+    food += 1
+end procedure
+ 
+procedure play()
+    // may or may not help with boredom
+    bored = max(0, bored-rand(2))
+end procedure
+ 
+procedure talk()
+    string verb = verbs[rand(length(verbs))],
+           noun = nouns[rand(length(nouns))]
+    bored = max(0, bored-1)
+    chat = verb & " the " & noun & ". "
+end procedure
+ 
+procedure clean()
+    poop = max(0, poop-1)
+end procedure
+ 
+procedure wait()
+    // get older / eat food / get bored / poop
+    age += 1
+    bored += rand(2)
+    food = max(0, food-2)
+    poop += rand(2)-1
+end procedure
+
+function sickness()
+    // dies at age 42 at the latest
+    // too much boredom / food / poop
+    return poop + bored + max(0, age-32) + abs(food-2)
+end function
+  
+function alive()
+    return sickness() <= 10
+end function
+
+function randn(sequence s, integer n)
+    string res = ""
+    for i=1 to n do
+        res &= s[rand(length(s))]
+    end for
+    return res
+end function
+
+procedure status()
+    wait()
+    // get health status from sickness level
+    integer s = sickness(),
+            sl = sicklevel[min(s+1,12)]
+    string health = randn(sickIcons[sl],1)
+    // get boredom / food / poop icons
+    string state = " R.I.P"
+    if alive() then
+        string b = randn(boredIcons,bored),
+               f = randn(foodIcons,food),
+               p = randn(poopIcons,poop)
+        state = sprintf("{ %s } { %s } { %s }", {b, f, p})
+    end if
+    IupSetStrAttribute(stabel,"TITLE",fmt,{chat,name,age,health,s,state})
+    chat = ""
+end procedure
+ 
+function button_cb(Ihandle ih)
+    string title = IupGetAttribute(ih,"TITLE")
+    call_proc(routine_id(title),{})
+    status()
+    return IUP_DEFAULT
+end function
+constant cb_button = Icallback("button_cb")
+
+function buttons()
+    sequence b = {"feed","play","talk","clean","wait"}
+    for i=1 to length(b) do
+        b[i] = IupButton(b[i],cb_button)
+    end for
+    Ihandle res = IupHbox(b,`GAP=35x10`)
+    return res
+end function
+
+IupOpen()
+if platform()!=JS then
+    IupSetGlobal("UTF8MODE","YES")
+end if
+stabel = IupLabel("","EXPAND=YES")
+Ihandle vbox = IupVbox({stabel,buttons()},`MARGIN=5x5`),
+        dlg = IupDialog(vbox,`TITLE=tamagotchi`)
+IupShow(dlg)
+status()
+if platform()!=JS then
+    IupMainLoop()
+    IupClose()
+end if
+

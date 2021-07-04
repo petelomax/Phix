@@ -1,0 +1,240 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">bzstream</h1>
+      <div id="mainSection">
+        The file builtins/bzstream.e (not an autoinclude) contains routines for in memory bzip handlng,
+        using any block size (all the way down to just 1 byte).
+        <br>
+        <br>
+        The distribution includes builtins/bz32.dll and builtins/bz64.dll however while I foresee no problems
+        it has not been tested on Linux and the equivalent .so files must be obtained by other means, perhaps
+        by downloading and compiling the bzip sources from (say) <a id="ext593" style="color:#9B5565" 
+        href="javascript:ExternalLink('ext593','https://gitlab.com/federicomenaquintero/bzip2');"
+                                               >https://gitlab.com/federicomenaquintero/bzip2</a>.
+        <br>
+        <br>
+        Used in and expressly written for <a id="ext786" style="color:#9B5565" 
+        href="javascript:ExternalLink('ext786','https://rosettacode.org/wiki/WiktionaryDumps_to_words#Phix');"
+                                               >https://rosettacode.org/wiki/WiktionaryDumps_to_words#Phix</a>.
+        At the point of writing that is the only example, and as good as anything else I could write.
+        <br>
+        <br>
+        Please refer to that example or the official bzip documents for more details regarding the use of
+        these routines, and possibly make suggestions for what (if anything) should be added here.
+        <br>
+        <br>
+        I would suggest it is probably not worthwhile bothering with or fretting over
+        blockSize100k, verbosity, workFactor, or sml settings and just rely on the defaults.
+        <br>
+        <br>
+        Designed to work on a single (internal) stream, but you can (/should be able to) create multiple 
+        streams easily enough (eg unpack from one straight into another) [by stream I just mean any source 
+        of bytes, manually handled, rather than some weird opaque thing that does some weird thing using 
+        some weird kind of syntax].
+        <br>
+        <br>
+        Mainly it is a case of keeping a sharp eye on avail_in and avail_out, sometimes
+        next_in and next_out might be easier, to know when it wants more input and/or
+        when you have to deal with some output, plus BZ_RUN/BZ_FINISH for BZ2_bzCompress.
+        Quite when it will spit out a block is of course a total mystery, until it does.
+        <br>
+        <br>
+        Depends on <a href="cffi.htm">cffi</a> internally, and, fairly obviously then, none of these routines 
+        are supported by <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js</b></span></a> (which does not
+        even bother to try and syntax colour them).
+        <br>
+        <br>
+        <a name=constants></a>
+        <h2>constants</h2>
+        <style type="text/css">
+          dl {margin:0;padding:0;}
+          dt {margin:0;padding:0;}
+          dd {margin:0;padding:0;}
+          dd.pad {padding-left:8em;}
+        </style>
+        <div id="images" class="images" align="center">
+         <table cellspacing="0" cellpadding="0" border="0" style="padding: 0; border-style: none;">
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <nobr>id_bzs&nbsp;</nobr>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            struct id for a stream
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            p_bzs&nbsp;
+          </td><td align="left" style="padding: 0; border-style: none;">
+            the default stream
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            BZ_RUN&nbsp;
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 0 -- (an action)
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            BZ_FLUSH&nbsp;
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 1 -- ("")
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            BZ_FINISH&nbsp;
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 2 -- ("")
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            BZ_OK&nbsp;
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 0 -- (success result code)
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            BZ_RUN_OK&nbsp;
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 1
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            BZ_FLUSH_OK&nbsp;
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 2
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            BZ_FINISH_OK&nbsp;
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 3
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            BZ_STREAM_END&nbsp;
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 4
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <nobr>BZ_SEQUENCE_ERROR&nbsp;</nobr>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = -1
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            BZ_PARAM_ERROR&nbsp;
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = -2
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            BZ_MEM_ERROR&nbsp;
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = -3
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            BZ_DATA_ERROR&nbsp;
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = -4
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <nobr>BZ_DATA_ERROR_MAGIC&nbsp;</nobr>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = -5
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            BZ_IO_ERROR&nbsp;
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = -6
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            BZ_UNEXPECTED_EOF&nbsp;
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = -7
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            BZ_OUTBUFF_FULL&nbsp;
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = -8
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            BZ_CONFIG_ERROR&nbsp;
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = -9
+          </td></tr>
+         </table>
+        </div>
+        <div style="clear:both;height:1px;"> </div>
+        <a name=routines></a>
+        <h2>routines</h2>
+        <div id="nopad" class="nopad" align="center">
+         <table cellspacing="0" cellpadding="0" border="0" style="padding: 0; border-style: none;">
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=BZ2_desc></a>
+            <nobr>string res =&nbsp;</nobr>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>BZ2_desc</b>(integer r) -- get string version of result code
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=BZ2_bzCompressInit></a>
+           <!-- procedure -->
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>BZ2_bzCompressInit</b>(atom strm=p_bzs, integer blockSize100k=9, verbosity=0, workFactor=0) -- initialise compress operation
+            </dt><dd class="pad">
+            terminates on error.
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=BZ2_bzCompress></a>
+            <nobr>integer res =&nbsp;</nobr>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>BZ2_bzCompress</b>(atom strm=p_bzs, integer action=BZ_RUN) -- main compress routine
+            </dt><dd class="pad">
+            returns BZ_STREAM_END, BZ_FINISH_OK, or BZ_RUN_OK, else terminates in error
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=BZ2_bzCompressEnd></a>
+           <!-- procedure -->
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>BZ2_bzCompressEnd</b>(atom strm=p_bzs) -- finish compress operation
+            </dt><dd class="pad">
+            terminates on error.
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=BZ2_bzDecompressInit></a>
+           <!-- procedure -->
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>BZ2_bzDecompressInit</b>(atom strm=p_bzs, integer verbosity=0, sml=0) -- initialise decompress operation
+            </dt><dd class="pad">
+            terminates on error.
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=BZ2_bzDecompress></a>
+            <nobr>integer res =&nbsp;</nobr>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>BZ2_bzDecompress</b>(atom strm=p_bzs) -- main decompress routine
+            </dt><dd class="pad">
+            returns BZ_OK or BZ_STREAM_END, else terminates in error
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=BZ2_bzDecompressEnd></a>
+           <!-- procedure -->
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>BZ2_bzDecompressEnd</b>(atom strm=p_bzs) -- finish decompress operation
+            </dt><dd class="pad">
+            terminates on error.
+            </dd></dl>
+          </td></tr>
+         </table>
+        </div>
+        <div style="clear:both;height:1px;"> </div>
+        <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

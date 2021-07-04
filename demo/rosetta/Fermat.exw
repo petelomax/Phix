@@ -2,6 +2,7 @@
 -- demo/rosetta/Fermat.exw
 -- =======================
 --
+with javascript_semantics
 atom t0 = time()
 include mpfr.e
  
@@ -11,17 +12,13 @@ procedure fermat(mpz res, integer n)
     mpz_add_si(res,res,1)
 end procedure
  
---function shorten(string s)
---  integer l = length(s)
---  if l>40 then s[10..-10]=sprintf("...<%,d digits>...",l) end if
---  return s
---end function
- 
 mpz fn = mpz_init()
---for i=0 to 29 do -- (see note)
-for i=0 to 9 do -- (see note)
+
+constant lim = iff(platform()=JS?18:29), -- (see note)
+         print_lim = iff(platform()=JS?16:20)
+for i=0 to lim do
     fermat(fn,i)
-    if i<=20 then
+    if i<=print_lim then
         printf(1,"F%d = %s\n",{i,shorten(mpz_get_str(fn))})
     else -- (since printing it takes too long...)
         printf(1,"F%d has %,d digits\n",{i,mpz_sizeinbase(fn,10)})
@@ -29,9 +26,8 @@ for i=0 to 9 do -- (see note)
 end for
  
 printf(1,"\n")
-randstate state = gmp_randinit_mt()
---for i=0 to 13 do
-for i=0 to 9 do
+constant flimit = iff(platform()=JS?11:13)
+for i=0 to flimit do
     atom t = time()
     fermat(fn,i)
     sequence f = mpz_prime_factors(fn, 200000)
@@ -40,16 +36,17 @@ for i=0 to 9 do
            ts = elapsed(t)
     if length(f[$])=1 then -- (as per docs)
         mpz_set_str(fn,f[$][1])
-        if not mpz_probable_prime_p(fn, state) then
+        if not mpz_prime(fn) then
             if length(f)=1 then
                 fs = " (not prime)"
             else
                 fs = " (last factor is not prime)"
             end if
         end if
+        f = deep_copy(f)
         f[$][1] = shorten(f[$][1])
     elsif length(f)=1
-      and mpz_probable_prime_p(fn, state) then
+      and mpz_prime(fn) then
         fs = " (prime)"
     end if
     fs = mpz_factorstring(f)&fs

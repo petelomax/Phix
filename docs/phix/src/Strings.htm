@@ -118,6 +118,10 @@
         single character, it is in fact a 3-byte (UTF-8) string, and therefore cannot be single quoted, even in
         WYSIWYG-style - the phix compiler supports plain ansi or utf-8 source files, but not utf-32 or utf-16. 
         See also the <a href="utfconv.htm">Unicode Library Routines</a>.
+        <br>
+        <br>
+        Note that JavaScript does not support \t in particular, nor \0, \e, \u, or \U, and therefore neither does 
+        <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a>.
        <blockquote>
         <b>Technical note</b>:
         Internally that string data example ("ABCDEFG") occupies 24 bytes whereas the sequence of (4-byte) integers 
@@ -206,10 +210,6 @@ string\thing`
 <font color="#000000">ts</font><font color="#0000FF"> =</font><font color="#008000"> "this\nstring\\thing"</font>
 </pre>
         which are all equivalent.
-<!--
-         Note however that triplequotes are not permitted in <a href="p2js.htm"><span class="pwap2js">pwap2js</span></a>,
-        for which you must use use backticks instead.
--->
         <br>
         <br>
         Tip: If you accidentally start with a quadruple quote (and similarly a quintuple, though a sextuplet is the same as "" anyway), instead of a 
@@ -223,12 +223,12 @@ string\thing`
         Phix also supports <b>hexadecimal strings</b>, eg:
 <!--eucode>
 x"1 2 34 5678_AbC" -- same as {0x01, 0x02, 0x34, 0x56, 0x78, 0xAB, 0x0C}
-                   -- note however it displays as {1,2,52,86,120,171,12}
+                   -- note it displays as {1,2,52'4',86'V',120'x',171,12}
                    -- whereas x"414243" displays as "ABC" (as all chars)
 </eucode-->
 <pre>
 <font color="#000000">x</font><font color="#008000">"1 2 34 5678_AbC"</font><font color="#000080"><i> -- same as {0x01, 0x02, 0x34, 0x56, 0x78, 0xAB, 0x0C}
-                   -- note however it displays as {1,2,52,86,120,171,12}
+                   -- note it displays as {1,2,52'4',86'V',120'x',171,12}
                    -- whereas x"414243" displays as "ABC" (as all chars)</i></font>
 </pre>
         A hexadecimal string begins with the pair x&ldquo; (for 1 byte codes, u&ldquo;/U&ldquo; for 2/4 byte codes) and ends with a 
@@ -238,7 +238,7 @@ x"1 2 34 5678_AbC" -- same as {0x01, 0x02, 0x34, 0x56, 0x78, 0xAB, 0x0C}
         Whitespace delimits individual values. Underscores are treated as whitespace, unlike Euphoria, which treats them as if they were never there - 
         quite wrongly, imo, since that makes both x"12" and x"1_2" yield {18}, whereas on Phix the latter yields (the string equivalent of) {1,2}. 
         It makes no difference if underscores are ignored or treated as delimeters when they are at even positions (relative to any prior delimeters), 
-        however Phix treats x"123_456" as {#12,#3,#4,#56} (or perhaps more accurately as "\x12\x03\x04\x56", length 4) whereas Euphoria treats it as 
+        however Phix treats x"123_456" as {#12,#3,#45,#6} (or perhaps more accurately as "\x12\x03\x45\x06", length 4) whereas Euphoria treats it as 
         {#12,#34,#56} (or "\x12\x34\x56", length 3).<br>
         Each pair of contiguous hex digits represents a single sequence element with a value from 0 to 255.<br>
         The value is in fact always an 8-bit string, though as above it may be displayed like a dword_sequence if it contains any 
@@ -269,8 +269,9 @@ b"1 10 11_0100 01010110_01111000" == {0x01, 0x02, 0x34, 0x5678}
 -->
         Note, however, that Phix does <b><i>not</i></b> currently support Euphoria&rsquo;s binary strings, such as 
         b"1 10 11_0100 01010110_01111000" == {0x01, 0x02, 0x34, 0x5678} - so far I have not found any practical use, 
-        or any actual code that actually uses that feature. Also note that JavaScript does not support binary or
-        hexadecimal strings, so neither does <a href="p2js.htm"><span class="pwap2js">pwap2js</span></a>.
+        or any actual code that actually uses that feature. Also note that since JavaScript does not support such
+        hexadecimal strings, in that format, <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a> automatically 
+        maps them, for example x"123_456" ==> "\x12\x03\x45\x06".
        <br>
        <br>
         On a practical note, as long as you have at least 2GB of physical memory, you 

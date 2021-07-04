@@ -18,7 +18,7 @@
 --demo\pGUI\win32\iupmatrixex.dll
 --demo\pGUI\win64\iupmatrixex.dll
 
-global type Ihandle(integer i)
+global type Ihandle(atom i)
     return i>0
 end type
 
@@ -32,7 +32,7 @@ global type Ihandles(object o)
     return 1
 end type
 
-global type Ihandln(integer i)
+global type Ihandln(atom i)
     return i>=0
 end type
 
@@ -326,7 +326,7 @@ type atoms(object o)
 end type
 
 function iup_ptr_array(atoms pointers)
-    sequence p0 = pointers & 0
+    sequence p0 = deep_copy(pointers) & 0
     atom pList = allocate(length(p0)*W)
     pokeN(pList, p0, W)
     return pList
@@ -2523,7 +2523,9 @@ global procedure IupSetCallback(Ihandles ih, string name, cbfunc func)
 --              if ri[3][1]!='F' then ?9/0 end if
 --              if ri[3][3]!='N' then ?9/0 end if
 --              if ri[1..3]!={2,2,"FIN"} then
-                if ri!={2,2,"FIN"} then
+--              if  ri!={2,2,"FIN"}
+--              and ri!={2,2,"FNN"} then
+                if ri!={2,2,"FNN"} then
                     crash(name&" callback must have func(Ihandle,ATOM) sig",nFrames:=2)
                 end if
             end if

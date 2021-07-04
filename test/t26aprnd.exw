@@ -5,7 +5,7 @@
 -- append() and prepend() testing.
 --
 -- Do not try running this on RDS Eu (unless you want to put equal() everywhere)
-
+with javascript_semantics
 constant showprogress=0
 
 sequence res
@@ -401,10 +401,15 @@ if showprogress then puts(1,"aprpnd9\n") end if
 -- bug found 18/06/08:
 sequence kNewDC, vDCs
     kNewDC = 0 & repeat({}, 5)
-    vDCs = append({}, kNewDC)
+--p2js:
+--  vDCs = append({}, kNewDC)
+    vDCs = {}
+    vDCs = append(vDCs, kNewDC)
     if not equal(vDCs,{{0,{},{},{},{},{}}}) then
         crash("not equal(vDCs,{{0,{},{},{},{},{}}})\n")
     end if
+--p2js:
+    vDCs = deep_copy(vDCs)
     vDCs[1][1] = 5
     if not equal(vDCs,{{5,{},{},{},{},{}}}) then
         crash("not equal(vDCs,{{5,{},{},{},{},{}}})\n")
@@ -413,7 +418,8 @@ sequence kNewDC, vDCs
 -- enhancement 12/05/09:
 function z(sequence dest,object x, integer what)
 -- these should all generate the same code (under -d):
---p2js:     dest = $deepCopy(dest);
+--p2js: 
+    dest = deep_copy(dest)
     if what=1 then
         dest = append(dest,x)
     elsif what=2 then

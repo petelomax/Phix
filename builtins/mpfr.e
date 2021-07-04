@@ -8,14 +8,13 @@
 --  there should be no shortage of examples.
 --
 --  Download the dlls from: http://www.atelierweb.com/mpir-and-mpfr/
---                 or PCAN: DEV
---  Version: mpfr: 3.1.5, mpir:2.7.2, two dlls, 733K (32 bit), 936K (64 bit)
+--                 or PCAN: http://phix.x10.mx/pmwiki/pmwiki.php?n=Main.Mpfr
+--  Version: mpfr: 3.1.5, mpir:2.7.2, two dlls: 32 bit: 733K (308K zipped), 
+--                                              64 bit: 936K (373K zipped)
 --  Version 3.1.0-p3 was already installed my Ubuntu box, though I also needed 
 --  to install mpfr-dev, in order to compile the recommended version check, 
 --  which was just the one click via the ubuntu software centre, at least after 
 --  typing "mpfr" into the search box and picking the one that I needed.
---
---  This may end up in builtins\, see how we go...
 --
 --  As usual, docs will be build in tandem with this wrapper.
 --
@@ -355,6 +354,22 @@ global procedure mpz_set_d(mpz rop, atom op)
 end procedure
 if "abc"="def" then mpz_set_d(NULL,0) end if    --DEV/temp
 
+function replace_e(string s)
+-- allow strings such as "1e200" or even "2.5e1" (as long as integer overall)
+    s = lower(substitute(substitute(s,",",""),"_",""))
+    integer e = find('e',s)
+    if e then
+        {s,e} = {s[1..e-1],to_number(s[e+1..$])}
+        integer d = find('.',s)
+        if d then
+            e -= (length(s)-d)
+            s[d..d] = ""
+        end if
+        s &= repeat('0',e)  -- (-ve e is expected to crash)
+    end if
+    return s
+end function
+
 integer x_mpz_set_str = NULL
 
 global procedure mpz_set_str(mpz rop, string s, integer base=0)
@@ -363,6 +378,7 @@ global procedure mpz_set_str(mpz rop, string s, integer base=0)
     if x_mpz_set_str=NULL then
         x_mpz_set_str = link_c_func(mpir_dll, "+__gmpz_set_str", {P,P,I},I)
     end if
+    s = replace_e(s)
     if c_func(x_mpz_set_str,{rop,s,base})!=0 then ?9/0 end if
 end procedure
 --DEV (NEWGSCAN)
@@ -404,6 +420,7 @@ end function
 
 integer x_gmp_init = NULL,
         x_gmp_init2 = NULL,
+--      x_gmp_init_set = NULL,
         x_gmp_init_set_d = NULL,
         x_gmp_init_set_si = NULL,
         x_gmp_init_set_str = NULL
@@ -415,6 +432,7 @@ procedure _mpz_init2(atom x, object v=0, integer bitcount=0)
         if mpir_dll=NULL then open_mpir_dll() end if
         x_gmp_init = link_c_proc(mpir_dll, "+__gmpz_init", {P})
         x_gmp_init2 = link_c_proc(mpir_dll, "+__gmpz_init2", {P,I})
+--      x_gmp_init_set = link_c_proc(mpir_dll, "+__gmpz_init_set", {P,P})
         x_gmp_init_set_d = link_c_proc(mpir_dll, "+__gmpz_init_set_d", {P,D})
         x_gmp_init_set_si = link_c_proc(mpir_dll, "+__gmpz_init_set_si", {P,I})
         x_gmp_init_set_str = link_c_func(mpir_dll, "+__gmpz_init_set_str", {P,P,I},I)
@@ -424,11 +442,14 @@ procedure _mpz_init2(atom x, object v=0, integer bitcount=0)
         -- (Ah, now I understand why the C lib doesn't permit a bitcount..)
         -- (The first version of this incorrectly invoked gmp_init's twice)
         if v!=0 then
+--          if mpz(v) then                  -- NO!!
+--              mpz_set(x,v)
             if integer(v) then
                 mpz_set_si(x,v)
             elsif atom(v) then
                 mpz_set_d(x,v)
             elsif string(v) then
+                v = substitute(v,"_","")
                 mpz_set_str(x,v)
             else
                 ?9/0 -- what's v??
@@ -437,11 +458,14 @@ procedure _mpz_init2(atom x, object v=0, integer bitcount=0)
     else
         if v=0 then
             c_proc(x_gmp_init,{x})
+--      elsif mpz(v) then                   -- NO!!
+--          c_proc(x_gmp_init_set,{x,v})
         elsif integer(v) then
             c_proc(x_gmp_init_set_si,{x,v})
         elsif atom(v) then
             c_proc(x_gmp_init_set_d,{x,v})
         elsif string(v) then
+            v = replace_e(v)
             if c_func(x_gmp_init_set_str,{x,v,0})!=0 then ?9/0 end if
         else
             ?9/0 -- what's v??
@@ -492,7 +516,7 @@ global function mpz_inits(integer n, object v=0)
 -- Eg: mpz {x,y,z} = mpz_init(3)
 --
 --  Initialise n variables to v.
---  v may be integer, atom, string, or a sequence of length n of said.
+--  v may be integer, atom, string, mpz, or a sequence of length n of said.
 --  Obviously the result may be stored in a sequence.
 --
 -- Invoke {x,y,z} = mpz_free({x,y,z}) when the variables are no longer needed, see below (will occur automatically).
@@ -518,6 +542,7 @@ global function mpz_init_set(mpz src)
     atom res = mpz_init()
     c_proc(x_gmp_init_set,{res,src})
     return res
+--  return mpz_init(src)        -- NO!!
 end function
 
 --global function mpz_clear(object x)
@@ -1144,6 +1169,19 @@ global function mpz_root(mpz rop, op, integer n)
     return bExact
 end function
 
+integer x_mpz_nthroot = NULL
+
+global procedure mpz_nthroot(mpz rop, op, integer n)
+--Set rop to the truncated integer part of the nth root of op.
+    if rop=NULL then ?9/0 end if
+    if op=NULL then ?9/0 end if
+    if n<1 then ?9/0 end if
+    if x_mpz_nthroot=NULL then
+        x_mpz_nthroot = link_c_proc(mpir_dll, "+__gmpz_nthroot", {P,P,I})
+    end if
+    c_proc(x_mpz_nthroot,{rop,op,n})
+end procedure
+
 integer x_mpz_sqrt = NULL
 
 global procedure mpz_sqrt(mpz rop, op)
@@ -1409,7 +1447,7 @@ end function
 global function mpz_fits_integer(mpz op)
 -- Return true iff the value of op fits in a (signed) integer, otherwise, return false.
 -- Note this actually returns false for -#40000000, which technically fits, but true
--- for -#40000001..#3FFFFFFF, and false for (+)#40000000 (on 32-bit).
+-- for -#3FFFFFFF..#3FFFFFFF, and false for (+)#40000000 (on 32-bit).
     if op=NULL then ?9/0 end if
 --  integer res = c_func(x_mpz_fits_slong_p,{op})
     return mpz_sizeinbase(op,2)<machine_bits()-1
@@ -1418,7 +1456,8 @@ end function
 global function mpz_fits_atom(mpz op, boolean tztrim=false)
 -- Return true iff the value of op fits in a phix atom, otherwise, return false.
 -- Note: this returns false for 9007199254740992 (on 32 bit), since that is
---       the first value that "accidentally" fits, by ending in a binary 0.
+--       the first value that "accidentally" fits, by ending in a binary 0,
+--       that is, when tztrim is false.
     integer n = mpz_sizeinbase(op,2),
             lim = iff(machine_bits()=32?53:64)
     if tztrim and n>lim then
@@ -1517,9 +1556,11 @@ while e_size<300000 do
 end while
 --*/
 
+--DEV to go*6...
+
 integer x_mpz_probable_prime_p = NULL
 
-global function mpz_probable_prime_p(mpz n, randstate state, integer prob=5, div=0)
+function mpz_probable_prime_p_(mpz n, randstate state, integer prob=5, div=0)
 --
 -- Determine whether n is a probable prime with the chance of error being at most 1 in 2^prob.
 -- return value is 1 if n is probably prime, or 0 if n is definitely composite.
@@ -1545,7 +1586,7 @@ end function
 
 integer x_gmp_randseed = NULL
 
-global procedure gmp_randseed(randstate state, atom mpz_seed=NULL)
+procedure gmp_randseed_(randstate state, atom mpz_seed=NULL)
 -- Set an initial seed value into state.
     if state=NULL then ?9/0 end if
     if x_gmp_randseed=NULL then
@@ -1568,7 +1609,7 @@ end procedure
 
 integer x_gmp_randclear = NULL
 
-global function gmp_randclear(randstate state)
+function gmp_randclear_(randstate state)
 -- Free all memory occupied by state.
     if state=NULL then ?9/0 end if
     if x_gmp_randclear=NULL then
@@ -1581,14 +1622,14 @@ end function
 
 procedure free_randstate(atom state)
 -- (internal, delete_routine)
-    if peek4s(state+5*W)=MPZ_R then {} = gmp_randclear(state) end if
+    if peek4s(state+5*W)=MPZ_R then {} = gmp_randclear_(state) end if
     free(state)
 end procedure
 constant r_free_randstate = routine_id("free_randstate")
 
 integer x_gmp_randinit_mt = NULL
 
-global function gmp_randinit_mt()
+function gmp_randinit_mt_()
 -- Initialize state for a Mersenne Twister algorithm.
     if x_gmp_randinit_mt=NULL then
         if mpir_dll=NULL then open_mpir_dll() end if
@@ -1598,23 +1639,18 @@ global function gmp_randinit_mt()
     poke4(state+5*W,MPZ_R)
     state = delete_routine(state,r_free_randstate)
     c_proc(x_gmp_randinit_mt,{state})
-    gmp_randseed(state)
+    gmp_randseed_(state)
     return state
 end function
 
 atom state = NULL
-global function mpz_prime(mpz p)
-    if p!=NULL then
-        if state=NULL then state = gmp_randinit_mt() end if
-        return mpz_probable_prime_p(p,state)
-    end if
-    if state!=NULL then state = gmp_randclear(state) end if
-    return NULL
-end function
 
 integer x_mpz_urandomm = NULL
 
-global procedure mpz_urandomm(mpz rop, randstate state, mpz n)
+// deprecated/made private 7/6/21 (due to randstate not being available/possible in p2js.js)
+--global 
+--procedure mpz_urandomm_(mpz rop, randstate state, mpz n)
+procedure mpz_urandomm_(mpz rop, mpz n)
 --
 --  Generate a uniform random integer in the range 0 to n - 1, inclusive.
 --  The variable state must be initialized by calling one of the gmp_randinit functions
@@ -1631,8 +1667,141 @@ end procedure
 
 include builtins\primes.e -- (an autoinclude, but why not)
 
-randstate pf_state=NULL
-integer pfs_cs = 0
+global procedure mpz_rand(mpz n, range)
+    if state=NULL then state = gmp_randinit_mt_() end if
+--  if pf_state=NULL then
+--      enter_cs()
+--      if pf_state=NULL then
+--          pf_state = gmp_randinit_mt_()
+--          pfs_cs = init_cs()
+--      end if
+--      leave_cs()
+--  end if
+--  enter_cs(pfs_cs)
+--  mpz_urandomm(n,pf_state,range)
+    mpz_urandomm_(n,range)
+--  leave_cs(pfs_cs)
+end procedure
+
+global procedure mpz_rand_ui(mpz n, integer range)
+    mpz_set_si(n,range)
+    mpz_rand(n, n)
+end procedure
+
+global function mpz_prime(mpz p, integer prob=5)
+    if p!=NULL then
+        if state=NULL then state = gmp_randinit_mt_() end if
+        return mpz_probable_prime_p_(p,state, prob)
+    end if
+    if state!=NULL then state = gmp_randclear_(state) end if
+    return NULL
+end function
+
+-- this is transpiled (then manually copied) to mpz_prime() in mpfr.js:
+mpz modp47 = NULL, w
+sequence witness_ranges
+global function mpz_prime_mr(mpz p, integer k = 10)
+    -- deterministic to 3,317,044,064,679,887,385,961,981
+    constant primes = {2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47}
+    if mpz_cmp_si(p,primes[$])<=0 then
+        return find(mpz_get_integer(p),primes)!=0
+    end if
+    if modp47=NULL then
+        modp47 = mpz_init("614_889_782_588_491_410") -- === product(primes), largest < 2^64
+        w = mpz_init()
+        -- Best known deterministic witnesses for given range and set of bases
+        -- https://miller-rabin.appspot.com/
+        -- https://en.wikipedia.org/wiki/Miller%E2%80%93Rabin_primality_test
+        witness_ranges = {{"341_531",{"9345883071009581737"}},
+                          {"1_050_535_501",{"336781006125",
+                                            "9639812373923155"}},
+                          {"350_269_456_337",{"4230279247111683200",
+                                              "14694767155120705706",
+                                              "16641139526367750375"}},
+                          {"55_245_642_489_451",{"2", "141889084524735",
+                                                 "1199124725622454117",
+                                                 "11096072698276303650"}},
+                          {"7_999_252_175_582_851",{"2", "4130806001517",
+                                                    "149795463772692060",
+                                                    "186635894390467037", 
+                                                    "3967304179347715805"}},
+                          {"585_226_005_592_931_977",{"2", "123635709730000",
+                                                      "9233062284813009",
+                                                      "43835965440333360",
+                                                      "761179012939631437",
+                                                      "1263739024124850375"}},
+                          {"18_446_744_073_709_551_615",{"2", "325", "9375",
+                                                         "28178", "450775",
+                                                         "9780504", "1795265022"}},
+                          {"318_665_857_834_031_151_167_461",{"2", "3", "5", "7", "11",
+                                                              "13", "17", "19", "23", 
+                                                              "29", "31", "37"}},
+                          {"3_317_044_064_679_887_385_961_981",{"2", "3", "5", "7", "11", 
+                                                                "13", "17", "19", "23", 
+                                                                "29", "31", "37", "41"}}}
+        for i=1 to length(witness_ranges) do
+            witness_ranges[i][1] = mpz_init(witness_ranges[i][1])
+            for j=1 to length(witness_ranges[i][2]) do
+                witness_ranges[i][2][j] = mpz_init(witness_ranges[i][2][j])
+            end for
+        end for
+    end if
+    mpz_gcd(w,p,modp47)
+    if mpz_cmp_si(w,1)!=0 then
+        return false    -- eliminates 86.2% of all integers
+    end if
+    --
+    -- Choose input witness bases:
+    --
+    sequence witnesses
+    if mpz_cmp(p,witness_ranges[$][1])>=0 then
+        witnesses = repeat(0,k)
+        for i=1 to k do
+            mpz a = mpz_init()
+            mpz_sub_ui(a, p, 2)
+            mpz_rand(a,a)       -- a := 0..a-1 (cf rand(n) yields 1..n)
+            mpz_add_ui(a, a, 2)
+            witnesses[i] = a
+        end for
+    else
+        for i=1 to length(witness_ranges) do
+            if mpz_cmp(p,witness_ranges[i][1])<0 then
+                witnesses = witness_ranges[i][2]
+                exit
+            end if
+        end for
+    end if
+    mpz d = mpz_init()
+    mpz_sub_ui(d,p,1)
+    mpz nm1 = mpz_init_set(d)
+--    d >>= 4 while (d & 0xf) == 0                  # suck out factors of 2
+--    (d >>= (d & 3)^2; d >>= (d & 1)^1) if d.even? # 4 bits at a time
+    while mpz_even(d) do
+        mpz_fdiv_q_2exp(d, d, 1)
+    end while
+    
+    for i=1 to length(witnesses) do
+        mpz b = witnesses[i]
+        if not mpz_divisible_p(b,p) then -- skip multiples of input
+            mpz s = mpz_init_set(d),
+                y = mpz_init()
+            mpz_powm(y, b, d, p)        -- y := b^d % p
+            while mpz_cmp_si(y,1)!=0 
+              and mpz_cmp(y,nm1)!=0 
+              and mpz_cmp(s,nm1)!=0 do
+                mpz_powm_ui(y, y, 2, p)     -- y := y^2 mod p
+                mpz_mul_2exp(s, s, 1)       -- s << 1
+            end while
+            if mpz_cmp(y,nm1)!=0 then
+                if mpz_even(s) then return false end if
+            end if
+        end if
+      end for
+      return true
+end function
+
+--randstate pf_state=NULL
+--integer pfs_cs = 0
 
 global function mpz_prime_factors(mpz_or_string s, integer maxprime=100)
 --
@@ -1673,43 +1842,45 @@ global function mpz_prime_factors(mpz_or_string s, integer maxprime=100)
         --                           and prime_factors(1)==>{1})
         res = iff(c<0?{}:{{2,0}})
     else    
---      if pf_state=NULL then pf_state = gmp_randinit_mt() end if       
-        if pf_state=NULL then
-            enter_cs()
-            if pf_state=NULL then
-                pf_state = gmp_randinit_mt()
-                pfs_cs = init_cs()
-            end if
-            leave_cs()
-        end if
-        enter_cs(pfs_cs)
-        boolean is_prime = mpz_probable_prime_p(n,pf_state,20)
-        leave_cs(pfs_cs)
-        if not is_prime then
+--      if pf_state=NULL then pf_state = gmp_randinit_mt_() end if      
+--      if pf_state=NULL then
+--          enter_cs()
+--          if pf_state=NULL then
+--              pf_state = gmp_randinit_mt_()
+--              pfs_cs = init_cs()
+--          end if
+--          leave_cs()
+--      end if
+--      enter_cs(pfs_cs)
+--      boolean bPrime = mpz_probable_prime_p_(n,pf_state,20)
+--      leave_cs(pfs_cs)
+        boolean bPrime = mpz_prime(n,20)
+        if not bPrime then
             for d=1 to maxprime do
-                enter_cs(pfs_cs)
+--              enter_cs(pfs_cs)
                 p = get_prime(d)
-                leave_cs(pfs_cs)
+--              leave_cs(pfs_cs)
                 if mpz_divisible_ui_p(n, p) then
                     mpz_set_si(f,p)
                     integer e = mpz_remove(n, n, f)
                     res = append(res,{p,e})
                     if mpz_cmp_si(n,1)=0 then exit end if
-                    enter_cs(pfs_cs)
-                    is_prime = mpz_probable_prime_p(n,pf_state,20)
-                    leave_cs(pfs_cs)
-                    if is_prime then exit end if
+--                  enter_cs(pfs_cs)
+--                  bPrime = mpz_probable_prime_p_(n,pf_state,20)
+--                  leave_cs(pfs_cs)
+                    bPrime = mpz_prime(n,20)
+                    if bPrime then exit end if
                 end if
             end for
         end if
         if mpz_cmp_si(n,1)!=0 then
 --          boolean fits = mpz_fits_integer(n)
             boolean fits = mpz_fits_atom(n)
-            if fits and not is_prime then
+            if fits and not bPrime then
 --              mpz_ui_pow_ui(f, get_prime(maxprime), 2)
-                enter_cs(pfs_cs)
+--              enter_cs(pfs_cs)
                 p = get_prime(maxprime)
-                leave_cs(pfs_cs)
+--              leave_cs(pfs_cs)
                 mpz_ui_pow_ui(f, p, 2)
                 if mpz_cmp(n,f)>0 then
                     fits = false
@@ -1793,19 +1964,26 @@ global function mpz_factorstring(sequence s)
     if s={} then return "0" end if      -- (rather than ""/crash)
     if s={{2,0}} then return "1" end if -- (rather than "2^0")
     string res = ""
-    boolean inexact = length(s[$])=1
-    for i=1 to length(s)-inexact do
-        {atom p, integer e} = s[i]
+--  boolean inexact = length(s[$])=1
+    for i=1 to length(s) do
         if length(res) then res &= "*" end if
-        res &= sprintf("%d",p)
-        if e!=1 then
-            res &= sprintf("^%d",{e})
+        object si = s[i]
+        if string(si) then
+            res &= si
+        elsif length(si)=1 then
+            res &= si[1]
+        else
+            {atom p, integer e} = s[i]
+            res &= sprintf("%d",p)
+            if e!=1 then
+                res &= sprintf("^%d",{e})
+            end if
         end if
     end for
-    if inexact then
-        if length(res) then res &= "*" end if
-        res &= s[$][1]
-    end if
+--  if inexact then
+--      if length(res) then res &= "*" end if
+--      res &= s[$][1]
+--  end if
     return res
 end function
 
@@ -1831,17 +2009,245 @@ global procedure mpz_re_compose(mpz rop, sequence s)
     end if
 end procedure
 
+function compare_strings(string p, s)
+-- private routine for merge(): return true to pick p over s
+--  (could be nested but I'm not quite confident enough yet)
+    return length(p)<length(s)
+       or (length(p)=length(s) and p<s)
+end function
+
+function merge(sequence p, s, bool bAsStrings)
+--
+-- private routine for mpz_pollard_rho()
+-- s has {prime,pow} or {string} elements, as per mpz_prime_factors().
+-- p the same unless bAsStrings is true, iwc it should be string-only.
+-- result is slightly flattened with {prime,pow} or string elements
+--  (note I did not say {string} elements), in correct numeric order.
+--    (both p and s are expected to be in the right order on entry)
+--  (any strings we get are expected to have failed mpz_fits_integer)
+-- eg merge({"123"},{{2,2},{"321"}},true) ==> {"2","2","123","321"}
+--    merge({"123"},{{2,2},{"321"}},false) ==> {{2,2},"123","321"}
+-- Note we are coping with {"321"} in "s" because mpz_prime_factors()
+--  spits that out, but as it stands a plain "321" shd be ok too.
+--
+    sequence res = {}
+    atom prime
+    integer pow
+    bool which
+    if bAsStrings then
+        -- p should already be string-only (as a prior result of this routine)
+        for i=1 to length(s) do
+            sequence si = s[i]
+            if length(si)=1 then
+                res = append(res,si[1])
+            else
+                {prime,pow} = si
+                si = sprintf("%d",prime)
+                for j=1 to pow do
+                    res = append(res,si)
+                end for
+            end if
+        end for
+        if length(p) then
+            s = res
+            res = {}
+            while length(p) and length(s) do
+                string ps = p[1],
+                       ss = s[1]
+                which = compare_strings(ps,ss)
+                if which then
+                    res = append(res,ps)
+                    p = p[2..$]
+                else
+                    res = append(res,ss)
+                    s = s[2..$]
+                end if
+            end while
+            res &= p
+            res &= s
+        end if
+    else
+        object p1,s1
+        while length(p) and length(s) do
+            p1 = p[1]
+            s1 = s[1]
+            if length(s1)=1 then s1=s1[1] end if
+            if string(p1) then
+                if string(s1) then
+                    which = compare_strings(p1,s1)
+                else    
+                    {prime,pow} = s1
+                    which = compare_strings(p1,sprintf("%d",prime))
+                end if
+            elsif string(s1) then
+                {prime,pow} = p1
+                which = compare_strings(sprintf("%d",prime),s1)
+            else
+                {prime,pow} = s1
+                if p1[1] = prime then
+                    p1 = deep_copy(p1)
+                    p1[2] += pow    -- (merge)
+                    s = s[2..$]
+                    which = true
+                else
+                    which = p1[1]<prime 
+                end if
+            end if
+            if which then
+                res = append(res,p1)
+                p = p[2..$]
+            else
+                res = append(res,s1)
+                s = s[2..$]
+            end if
+        end while
+        res &= p
+--      res &= s
+        for i=1 to length(s) do
+            s1 = s[i]
+            if length(s1)=1 then s1=s1[1] end if
+            res = append(res,s1)
+        end for
+    end if
+    return res
+end function
+
+--/*
+-- unit tests for merge:
+if merge({},{{2,1}},true)!={"2"} then ?9/0 end if
+if merge({},{{2,1}},false)!={{2,1}} then ?9/0 end if
+if merge({},{{2,2}},true)!={"2","2"} then ?9/0 end if
+if merge({},{{2,2}},false)!={{2,2}} then ?9/0 end if
+if merge({},{{2,1},{11,1}},true)!={"2","11"} then ?9/0 end if
+if merge({},{{2,2},{11,1}},true)!={"2","2","11"} then ?9/0 end if
+if merge({},{{2,1},{11,1}},false)!={{2,1},{11,1}} then ?9/0 end if
+if merge({},{{2,2},{11,1}},false)!={{2,2},{11,1}} then ?9/0 end if
+if merge({"11"},{{911,1}},true)!={"11","911"} then ?9/0 end if
+if merge({"11"},{{911,1}},false)!={"11",{911,1}} then ?9/0 end if
+if merge({{11,1}},{{911,1}},false)!={{11,1},{911,1}} then ?9/0 end if
+if merge({"911"},{{11,1}},true)!={"11","911"} then ?9/0 end if
+if merge({"911"},{{11,1}},false)!={{11,1},"911"} then ?9/0 end if
+if merge({{911,1}},{{11,1}},false)!={{11,1},{911,1}} then ?9/0 end if
+if merge({"3","3"},{{3,1}},true)!={"3","3","3"} then ?9/0 end if
+if merge({{3,2}},{{3,1}},false)!={{3,3}} then ?9/0 end if
+if merge({{3,2}},{{2,1}},false)!={{2,1},{3,2}} then ?9/0 end if
+if merge({"123"},{{2,2},{"321"}},true)!={"2","2","123","321"} then ?9/0 end if
+if merge({"123"},{{2,2},{"321"}},false)!= {{2,2},"123","321"} then ?9/0 end if
+-- the following should never actually happen in practice (it is ok to kill it)
+if merge({"123"},{{2,2},"321"},false)!= {{2,2},"123","321"} then ?9/0 end if
+-- (obviously feel free to add more)
+--*/
+
+global function mpz_pollard_rho(mpz_or_string s, bool bAsStrings=false)
+--
+-- Note that unlike mpz_prime_factors() the result is a list of strings, eg 
+--  mpz_pollard_rho("151740406071813") ==> {"3","13","13","54833","5458223"}
+-- Update: that now only be true if bAsStrings is true, by default you will
+--  now get matching integer {prime,pow} entries when bAsStrings is false,
+--  at least for bits that pass mpz_fits_atom().
+--
+    mpz n = iff(string(s)?mpz_init(s):mpz_init_set(s))
+    sequence res = {}
+    while mpz_cmp_si(n,100_000_000)>0 
+      and not mpz_prime(n) do
+        mpz x = mpz_init(2),
+            y = mpz_init(2),
+            f = mpz_init(1)  -- factor
+        integer size = 2
+        while mpz_cmp_si(f,1)=0 do
+            for count=1 to size do
+                mpz_mul(x,x,x)
+                mpz_add_si(x,x,1)
+                mpz_mod(x,x,n)
+                mpz_sub(f,x,y)
+                mpz_abs(f,f)
+                mpz_gcd(f,f,n)
+                if mpz_cmp_si(f,1)!=0 then exit end if
+            end for
+            size *= 2;
+            mpz_set(y,x)
+        end while
+        if mpz_cmp(f,n)=0 then exit end if
+        res = merge(res,mpz_prime_factors(f,10000),bAsStrings)
+--?res
+        mpz_fdiv_q(n,n,f) -- n := floor(n/f)
+    end while
+    if mpz_cmp_si(n,1)>0 then
+        res = merge(res,mpz_prime_factors(n,10000),bAsStrings)
+    end if
+--?{"res",res}
+    return res
+end function
+
+--/* other version...
+procedure g(mpz x, n)
+    mpz_mul(x,x,x)
+    mpz_add_si(x,x,1)
+    mpz_mod(x,x,n)
+end procedure
+
+function pollard_rho0(mpz n)
+    if mpz_prime(n) then return NULL end if
+--?{"mpz_pollard_rho",mpz_get_str(n)}
+--atom t0 = time()
+--  var g = Fn.new { |x, y| (x*x + BigInt.one) % n }
+    mpz x = mpz_init(2),
+        y = mpz_init(2),
+        z = mpz_init(1),
+        d = mpz_init(1)
+    integer count = 0
+--sequence seenz = {}
+    while true do
+--      x = g.call(x, n)
+        g(x,n)
+--      y = g.call(g.call(y, n), n)
+        g(y,n)
+        g(y,n)
+--      d = (x - y).abs % n
+        mpz_sub(d,x,y)
+        mpz_abs(d,d)
+        mpz_mod(d,d,n)
+--      z = z * d
+        mpz_mul(z,z,d)
+        count += 1
+        if count=100 then
+--          d = BigInt.gcd(z, n)
+--?{"mpz_gcd",mpz_get_str(d),mpz_get_str(z),mpz_get_str(n)}
+            mpz_gcd(d,z,n)
+--?{"mpz_gcd",mpz_get_str(d),mpz_get_str(z),mpz_get_str(n)}
+--?{"d",mpz_get_str(d)}
+--          if (d != BigInt.one) break
+            if mpz_cmp_si(d,1)!=0 then exit end if
+--string zs = mpz_get_str(z)
+--if find(zs,seenz) then ?9/0 end if
+--seenz = append(seenz,zs)
+--          z = BigInt.one
+            mpz_set_si(z,1)
+            count = 0
+        end if
+    end while
+--?{"pollard_rho done",elapsed(time()-t0)}
+    if mpz_cmp(d,n)=0 then return NULL end if
+--  if mpz_cmp(d,n)=0 then 
+--      ?{"pollard_rho done","NULL"}
+--      return NULL
+--  end if
+    return d
+end function
+--*/
+
 --DEV erm, I think this should be mpz_bin_uiui()...
-global function mpz_binom(integer n, k)
+--global function mpz_binom(integer n, k)
+global procedure mpz_bin_uiui(mpz rop, integer n, k)
 -- equivalent, for small n and k, to builtins/factorial.e's choose()
-    mpz r = mpz_init(1)
+--  mpz r = mpz_init(1)
+    mpz_set_si(rop,1)
     for i=1 to k do
 --      r := (r*(n-i+1))/i
-        mpz_mul_si(r,r,n-i+1)
-        if mpz_fdiv_q_ui(r,r,i)!=0 then ?9/0 end if
+        mpz_mul_si(rop,rop,n-i+1)
+        if mpz_fdiv_q_ui(rop,rop,i)!=0 then ?9/0 end if
     end for
-    return r
-end function
+end procedure
 
 --SUG:
 --/*
@@ -1864,19 +2270,19 @@ mpz_binom(r,10,4)
 --?k_perm(10,4)
 ?choose(10,4)
 
-function mpz_vecprod(sequence s, object zls=1)
+function mpz_vecprod(sequence s, object zlr=1)
 --
 -- Fast vector multiplication.
 -- Multiplying the vector elements in pairs is much faster for essentially 
 --  much the same reason that merge sort is faster than insertion sort.
 --  Improved rosettacode/Primorial_numbers from 6 minutes to 6 seconds!!!!
 -- NB: Input sequence s (must all be mpz) is damaged. Returns an mpz.
---     Obviously zls allows you to specify the result when {} is passed,
+--     Obviously zlr allows you to specify the result when {} is passed,
 --     since I imagine there'll be cases where you'd rather get a zero,
---     and just like mpz_init(), zls can be an integer, atom, or string.
+--     and just like mpz_init(), zlr can be an integer, atom, or string.
 --
     if s={} then
-        return mpz_init(zls)
+        return mpz_init(zlr)
     end if
     while length(s)>1 do
         for i=1 to floor(length(s)/2) do
@@ -1887,7 +2293,7 @@ function mpz_vecprod(sequence s, object zls=1)
     return s[1]
 end function
 
-function mpz_vecprod_si(sequence s, object zls=1)
+function mpz_vecprod_si(sequence s, object zlr=1)
 --
 -- As above except input sequence s must all be integer. Unlike above, 
 --  s is not damaged, and this entry point is expected to be used more 
@@ -1907,7 +2313,7 @@ function mpz_vecprod_si(sequence s, object zls=1)
         s[j] = two
     end for
     s = s[1..j] 
-    return mpz_vecprod(s,zls)
+    return mpz_vecprod(s,zlr)
 end function
 --*/
 
@@ -1935,7 +2341,7 @@ function precision_in_decimal(integer precision)
     return precision
 end function
 
-global function mpfr_get_default_prec(boolean decimal=false)
+global function mpfr_get_default_precision(boolean decimal=false)
     if x_mpfr_get_default_prec=NULL then
         if mpfr_dll=NULL then open_mpir_dll() end if
         x_mpfr_get_default_prec = link_c_func(mpfr_dll, "+mpfr_get_default_prec", {}, I)
@@ -1950,13 +2356,13 @@ function precision_in_dp(integer precision)
 -- (internal) convert a (-ve) precision specified in decimal places to binary bits
     if precision>=0 then ?9/0 end if
     mpz nines = mpz_init(repeat('9',-precision))
-    precision = mpz_sizeinbase(nines,2) + 2 -- (+2 as documented in phix.chm/mpfr_set_default_prec)
+    precision = mpz_sizeinbase(nines,2) + 2 -- (+2 as documented in phix.chm/mpfr_set_default_precision)
 --  precision = mpz_sizeinbase(nines,2)
     nines = mpz_free(nines)
     return precision
 end function
 
-global procedure mpfr_set_default_prec(integer precision)
+global procedure mpfr_set_default_precision(integer precision)
     if x_mpfr_set_default_prec=NULL then
         if mpfr_dll=NULL then open_mpir_dll() end if
         x_mpfr_set_default_prec = link_c_proc(mpfr_dll, "+mpfr_set_default_prec", {I})
@@ -2125,6 +2531,8 @@ global function mpfr_init(object v=0, integer precision=default_precision, round
     end if
     if precision<1 then precision = precision_in_dp(precision) end if
     c_proc(x_mpfr_init2,{res,precision})
+--  if mpfr(v) then                             -- NO!!
+--      mpfr_set(res,v,rounding)
     if integer(v) then
         -- (aside: note, as per docs, the default here /is/ 0 rather than the nan of the raw C api)
         mpfr_set_si(res,v,rounding)
@@ -2147,13 +2555,18 @@ global function mpfr_inits(integer n, object v=0, precision=default_precision, r
 -- Invoke {x,y,z} = mpfr_free({x,y,z}) when the variables are no longer needed, see below (will occur automatically).
 --
     sequence res = repeat(0,n)
-    for i=1 to n do res[i] = mpfr_init(v,precision,rounding) end for
+    if sequence(v) and not string(v) then
+        if length(v)!=n then ?9/0 end if
+        for i=1 to n do res[i] = mpfr_init(v[i],precision,rounding) end for
+    else
+        for i=1 to n do res[i] = mpfr_init(v,precision,rounding) end for
+    end if
     return res
 end function
 
 integer x_mpfr_get_prec = NULL
 
-global function mpfr_get_prec(mpfr x, boolean decimal=false)
+global function mpfr_get_precision(mpfr x, boolean decimal=false)
     if x=NULL then ?9/0 end if
     if x_mpfr_get_prec=NULL then
         x_mpfr_get_prec = link_c_func(mpfr_dll, "+mpfr_get_prec", {P}, I)
@@ -2165,7 +2578,8 @@ end function
 
 global function mpfr_init_set(mpfr src, integer rounding=default_rounding)
     if src=NULL then ?9/0 end if
-    integer precision = mpfr_get_prec(src)
+    integer precision = mpfr_get_precision(src)
+--  atom res = mpfr_init(src,precision,rounding)    -- NO!!
     atom res = mpfr_init(0,precision,rounding)
     mpfr_set(res,src)
     return res  
@@ -2218,7 +2632,7 @@ end function
 
 integer x_mpfr_set_prec = NULL
 
-global procedure mpfr_set_prec(mpfr x, integer precision)
+global procedure mpfr_set_precision(mpfr x, integer precision)
 --
 -- Reset the precision of x to be exactly prec bits, and set its value to NaN. 
 -- The previous value stored in x is lost. It is equivalent to a call to mpfr_clear(x) 
@@ -2282,13 +2696,47 @@ global function mpfr_get_str(mpfr x, integer base=10, n=0, rounding=default_roun
         if mpfr_dll=NULL then open_mpir_dll() end if
         x_mpfr_get_str = link_c_func(mpfr_dll, "+mpfr_get_str", {P,P,I,I,P,I}, P)
     end if
+    bool bztrim = n<=0  -- (also added 15/6/21)
+    if bztrim then n = -n end if
     atom pExponent = allocate(W)
     atom pString = c_func(x_mpfr_get_str,{NULL,pExponent,base,n,x,rounding})
     string res = peek_string(pString)
-    integer exponent = peek4u(pExponent)
+    integer exponent = peek4s(pExponent)
     free(pExponent)
     _mpfr_free_str(pString)
-    return {res,exponent}
+--15/6/21:
+--  return {res,exponent}
+    if exponent>0 then
+        exponent += (res[1]='-')
+        integer l = length(res)
+        if exponent>=l then
+            res &= repeat('0',exponent-l) -- (may add 0 '0's)
+        else
+            string rest = res[exponent+1..$]
+            res = res[1..exponent]
+            while bztrim and length(rest) and rest[$]='0' do
+                rest = rest[1..$-1]
+            end while
+            if length(rest) then
+                res &= "." & rest
+            end if
+        end if
+    else
+        string sgn = ""
+        if res[1]='-' then
+            sgn = "-"
+            res = res[2..$]
+        end if
+        while bztrim and length(res) and res[$]='0' do
+            res = res[1..$-1]
+        end while
+        if length(res) then
+            res = sgn & "0." & repeat('0',-exponent) & res -- (~ditto)
+        else
+            res = "0"
+        end if
+    end if
+    return res
 end function
 
 integer x_mpfr_asprintf = NULL
@@ -2327,6 +2775,13 @@ end function
 global procedure mpfr_printf(integer fn, string fmt, atom x)
     puts(fn,mpfr_sprintf(fmt,x))
 end procedure
+
+global function mpfr_get_fixed(mpfr x, integer dp=6)
+--global function mpfr_get_fixed(mpfr x, integer base=10, dp=6, rounding=default_rounding)
+--  string fmt = iff(dp<=0?"%.0Rf":sprintf("%%.%dRf",dp))
+    string fmt = sprintf("%%.%dRf",max(0,dp))
+    return mpfr_sprintf(fmt,x)
+end function
 
 integer x_mpfr_floor = NULL
 
@@ -2442,7 +2897,7 @@ end procedure
 
 integer x_mpfr_div_si = NULL
 
-global procedure mpfr_div_si(mpfr rop, op1, integer op2, integer rounding=default_rounding)
+global procedure mpfr_div_si(mpfr rop, op1, integer op2, rounding=default_rounding)
 -- rop := op1/op2
     if rop=NULL then ?9/0 end if
     if op1=NULL then ?9/0 end if
@@ -2475,6 +2930,20 @@ global procedure mpfr_si_div(mpfr rop, integer op1, mpfr op2, integer rounding=d
         x_mpfr_si_div = link_c_proc(mpfr_dll, "+mpfr_si_div", {P,P,I,I})
     end if
     c_proc(x_mpfr_si_div,{rop,op1,op2,rounding})
+end procedure
+
+integer x_mpfr_rootn_ui = NULL
+
+global procedure mpfr_rootn_ui(mpfr rop, op, integer k, rounding=default_rounding)
+--Set rop to the kth root of op rounded in the direction rnd. For k = 0, set rop to NaN (or crash). 
+--For k odd (resp. even) and op negative (including -Inf), set rop to a negative number (resp. NaN). 
+--If op is zero, set rop to zero with the sign obtained by the usual limit rules, i.e., the same sign as op if k is odd, and positive if k is even.
+    if rop=NULL then ?9/0 end if
+    if op=NULL then ?9/0 end if
+    if x_mpfr_rootn_ui=NULL then
+        x_mpfr_rootn_ui = link_c_proc(mpfr_dll, "+mpfr_rootn_ui", {P,P,I,I})
+    end if
+    c_proc(x_mpfr_rootn_ui,{rop,op,k,rounding})
 end procedure
 
 integer x_mpfr_sqr = NULL
@@ -2762,44 +3231,6 @@ procedure free_mpq(atom x)
 end procedure
 constant r_free_mpq = routine_id("free_mpq")
 
-integer x_mpq_init = NULL
-
-global function mpq_init()
-    object res = allocate(7*W) -- (extra dword for MPZ_Q)
-    if x_mpq_init=NULL then
-        if mpir_dll=NULL then open_mpir_dll() end if
-        x_mpq_init = link_c_proc(mpir_dll, "+__gmpq_init", {P})
-    end if
-    c_proc(x_mpq_init,{res})
-    res = delete_routine(res,r_free_mpq)
-    poke4(res+6*W,MPZ_Q)
-    return res  
-end function
-
-global function mpq_inits(integer count)
-    object res = repeat(0,count)
-    for i=1 to count do res[i] = mpq_init() end for
-    return res  
-end function
-
-integer x_mpq_set = NULL
-
-global procedure mpq_set(mpq tgt, q)
--- tgt := q
-    if tgt=NULL then ?9/0 end if
-    if q=NULL then ?9/0 end if
-    if x_mpq_set=NULL then
-        x_mpq_set = link_c_proc(mpir_dll, "+__gmpq_set", {P,P})
-    end if
-    c_proc(x_mpq_set,{tgt,q})
-end procedure
-
-global function mpq_init_set(mpq q)
-    mpq res = mpq_init()
-    mpq_set(res,q)
-    return res
-end function
-
 global function mpq_free(object x)
 --?{"mpq_free",x}
     if sequence(x) then
@@ -2813,6 +3244,154 @@ global function mpq_free(object x)
         x = NULL
     end if
     return x
+end function
+
+
+integer x_mpq_set = NULL
+
+global procedure mpq_set(mpq tgt, src)
+-- tgt := src
+    if tgt=NULL then ?9/0 end if
+    if src=NULL then ?9/0 end if
+    if x_mpq_set=NULL then
+        x_mpq_set = link_c_proc(mpir_dll, "+__gmpq_set", {P,P})
+    end if
+    c_proc(x_mpq_set,{tgt,src})
+end procedure
+
+integer x_mpq_canonicalize = NULL
+
+global procedure mpq_canonicalize(mpq op)
+-- Remove any factors that are common to the numerator and denominator of op, 
+-- and make the denominator positive.
+    if op=NULL then ?9/0 end if
+    if x_mpq_canonicalize=NULL then
+        x_mpq_canonicalize = link_c_proc(mpir_dll, "+__gmpq_canonicalize", {P})
+    end if
+    c_proc(x_mpq_canonicalize,{op})
+end procedure
+
+integer x_mpq_set_si = NULL
+
+global procedure mpq_set_si(mpq tgt, integer n, d=1)
+-- tgt := n/d
+    if tgt=NULL then ?9/0 end if
+    if d<=0 then ?9/0 end if
+    if x_mpq_set_si=NULL then
+        x_mpq_set_si = link_c_proc(mpir_dll, "+__gmpq_set_si", {P,I,I})
+--      x_mpq_set_si = link_c_proc(mpir_dll, "+__gmpq_set_ui", {P,I,I})
+    end if
+    c_proc(x_mpq_set_si,{tgt,n,d})
+    if d!=1 then
+        mpq_canonicalize(tgt)
+    end if
+end procedure
+
+integer x_mpq_set_str = NULL
+
+global procedure mpq_set_str(mpq tgt, string s, integer base=0)
+-- tgt := s
+    if tgt=NULL then ?9/0 end if
+    if base<0 or base=1 or base>62 then ?9/0 end if
+    if x_mpq_set_str=NULL then
+        x_mpq_set_str = link_c_proc(mpir_dll, "+__gmpq_set_str", {P,P,I})
+    end if
+    c_proc(x_mpq_set_str,{tgt,s,base})
+    mpq_canonicalize(tgt)
+end procedure
+
+integer x_mpq_init = NULL
+
+global function mpq_init(object v=0)
+    object res = allocate(7*W) -- (extra dword for MPZ_Q)
+    if x_mpq_init=NULL then
+        if mpir_dll=NULL then open_mpir_dll() end if
+        x_mpq_init = link_c_proc(mpir_dll, "+__gmpq_init", {P})
+    end if
+    c_proc(x_mpq_init,{res})
+    if v!=0 then
+--      if mpq(v) then              -- NO!!
+--          mpq_set(res, v)
+--      elsif mpz(v) then           -- NO!!
+--          mpq_set_z(res, v)
+        if integer(v) then
+            mpq_set_si(res, v)
+        elsif string(v) then
+            mpq_set_str(res, v)
+        else
+            ?9/0    -- what's v then?? (non-integer atom is invalid)
+        end if
+    end if
+    res = delete_routine(res,r_free_mpq)
+    poke4(res+6*W,MPZ_Q)
+    return res  
+end function
+
+integer x_mpq_div = NULL
+
+global procedure mpq_div(mpq rquotient, dividend, divisor)
+-- set rquotient to dividend / divisor.
+    if rquotient=NULL then ?9/0 end if
+    if dividend=NULL then ?9/0 end if
+    if divisor=NULL then ?9/0 end if
+    if x_mpq_div=NULL then
+        x_mpq_div = link_c_proc(mpir_dll, "+__gmpq_div", {P,P,P})
+    end if
+    c_proc(x_mpq_div,{rquotient,dividend,divisor})
+end procedure
+
+integer x_mpq_set_z = NULL
+
+global procedure mpq_set_z(mpq tgt, mpz n, d=NULL)
+-- tgt := op/1
+    if tgt=NULL then ?9/0 end if
+    if n=NULL then ?9/0 end if
+    if x_mpq_set_z=NULL then
+        x_mpq_set_z = link_c_proc(mpir_dll, "+__gmpq_set_z", {P,P})
+    end if
+    c_proc(x_mpq_set_z,{tgt,n})
+    if d!=NULL then
+        mpq dq = mpq_init()
+        mpq_set_z(dq,d)
+        mpq_div(tgt,tgt,dq)
+        dq = mpq_free(dq) -- (not really rqd)
+        mpq_canonicalize(tgt)
+    end if
+end procedure
+
+global function mpq_init_set_z(mpz n, d=null)
+    mpq res = mpq_init()
+    mpq_set_z(res,n,d)
+    return res
+end function
+
+global function mpq_init_set_si(integer n, d=1)
+    mpq res = mpq_init()
+    mpq_set_si(res, n, d)
+    return res
+end function
+
+global function mpq_init_set_str(string s, integer base=0)
+    mpq res = mpq_init()
+    mpq_set_str(res,s,base)
+    return res
+end function
+
+global function mpq_inits(integer count, object v=0)
+    object res = repeat(0,count)
+    if sequence(v) and not string(v) then
+        if length(v)!=count then ?9/0 end if
+        for i=1 to count do res[i] = mpq_init(v[i]) end for
+    else
+        for i=1 to count do res[i] = mpq_init(v) end for
+    end if
+    return res  
+end function
+
+global function mpq_init_set(mpq q)
+    mpq res = mpq_init()
+    mpq_set(res,q)
+    return res
 end function
 
 integer x_mpq_get_num = NULL
@@ -2908,19 +3487,6 @@ global procedure mpq_mul_2exp(mpq rop, op, integer bits)
     c_proc(x_mpq_mul_2exp,{rop,op,bits})
 end procedure
 
-integer x_mpq_div = NULL
-
-global procedure mpq_div(mpq rquotient, dividend, divisor)
--- set rquotient to dividend / divisor.
-    if rquotient=NULL then ?9/0 end if
-    if dividend=NULL then ?9/0 end if
-    if divisor=NULL then ?9/0 end if
-    if x_mpq_div=NULL then
-        x_mpq_div = link_c_proc(mpir_dll, "+__gmpq_div", {P,P,P})
-    end if
-    c_proc(x_mpq_div,{rquotient,dividend,divisor})
-end procedure
-
 integer x_mpq_div_2exp = NULL
 
 global procedure mpq_div_2exp(mpq rop, op, integer bits)
@@ -2936,14 +3502,14 @@ end procedure
 
 integer x_mpq_neg = NULL
 
-global procedure mpq_neg(mpq negated_operand, operand)
--- set negated_operand to -operand.
-    if negated_operand=NULL then ?9/0 end if
-    if operand=NULL then ?9/0 end if
+global procedure mpq_neg(mpq rop, op)
+-- set rop to -op.
+    if rop=NULL then ?9/0 end if
+    if op=NULL then ?9/0 end if
     if x_mpq_neg=NULL then
         x_mpq_neg = link_c_proc(mpir_dll, "+__gmpq_neg", {P,P})
     end if
-    c_proc(x_mpq_neg,{negated_operand,operand})
+    c_proc(x_mpq_neg,{rop,op})
 end procedure
 
 integer x_mpq_abs = NULL
@@ -2960,89 +3526,31 @@ end procedure
 
 integer x_mpq_inv = NULL
 
-global procedure mpq_inv(mpq inverted_number, number)
--- set inverted number to 1/number. If the new denominator is zero, this routine will divide by zero.
-    if inverted_number=NULL then ?9/0 end if
-    if number=NULL then ?9/0 end if
+global procedure mpq_inv(mpq rop, op)
+-- set rop to 1/op. If the new denominator is zero, this routine will divide by zero.
+    if rop=NULL then ?9/0 end if
+    if op=NULL then ?9/0 end if
     if x_mpq_inv=NULL then
         x_mpq_inv = link_c_proc(mpir_dll, "+__gmpq_inv", {P,P})
     end if
-    c_proc(x_mpq_inv,{inverted_number,number})
+    c_proc(x_mpq_inv,{rop,op})
 end procedure
 
-integer x_mpq_canonicalize = NULL
-
-global procedure mpq_canonicalize(mpq op)
--- Remove any factors that are common to the numerator and denominator of op, 
--- and make the denominator positive.
-    if op=NULL then ?9/0 end if
-    if x_mpq_canonicalize=NULL then
-        x_mpq_canonicalize = link_c_proc(mpir_dll, "+__gmpq_canonicalize", {P})
-    end if
-    c_proc(x_mpq_canonicalize,{op})
+global procedure mpq_add_si(mpq rsum, addend1, integer n, d=1)
+    mpq addend2 = mpq_init_set_si(n,d)
+    mpq_add(rsum, addend1, addend2)
+    addend2 = mpq_free(addend2)
 end procedure
 
-integer x_mpq_set_z = NULL
-
-global procedure mpq_set_z(mpq tgt, mpz n, d=NULL)
--- tgt := op/1
-    if tgt=NULL then ?9/0 end if
-    if n=NULL then ?9/0 end if
-    if x_mpq_set_z=NULL then
-        x_mpq_set_z = link_c_proc(mpir_dll, "+__gmpq_set_z", {P,P})
+global function mpq_get_str(mpq op, integer base=10, boolean comma_fill=false)
+    mpz nd = mpz_init()
+    mpq_get_num(nd, op)
+    string res = mpz_get_str(nd,base,comma_fill)
+    mpq_get_den(nd, op)
+    if mpz_cmp_si(nd,1)!=0 then
+        res &= "/" & mpz_get_str(nd,base,comma_fill)
     end if
-    c_proc(x_mpq_set_z,{tgt,n})
-    if d!=NULL then
-        mpq dq = mpq_init()
-        mpq_set_z(dq,d)
-        mpq_div(tgt,tgt,dq)
-        dq = mpq_free(dq) -- (not really rqd)
-        mpq_canonicalize(tgt)
-    end if
-end procedure
-
-integer x_mpq_set_si = NULL
-
-global procedure mpq_set_si(mpq tgt, integer n, d=1)
--- tgt := op1/op2
-    if tgt=NULL then ?9/0 end if
-    if d<=0 then ?9/0 end if
-    if x_mpq_set_si=NULL then
-        x_mpq_set_si = link_c_proc(mpir_dll, "+__gmpq_set_si", {P,I,I})
---      x_mpq_set_si = link_c_proc(mpir_dll, "+__gmpq_set_ui", {P,I,I})
-    end if
-    c_proc(x_mpq_set_si,{tgt,n,d})
-    mpq_canonicalize(tgt)
-end procedure
-
-integer x_mpq_set_str = NULL
-
-global procedure mpq_set_str(mpq tgt, string s, integer base=0)
--- tgt := s
-    if tgt=NULL then ?9/0 end if
-    if base<0 or base=1 or base>62 then ?9/0 end if
-    if x_mpq_set_str=NULL then
-        x_mpq_set_str = link_c_proc(mpir_dll, "+__gmpq_set_str", {P,P,I})
-    end if
-    c_proc(x_mpq_set_str,{tgt,s,base})
-    mpq_canonicalize(tgt)
-end procedure
-
-global function mpq_init_set_z(mpz n, d=null)
-    mpq res = mpq_init()
-    mpq_set_z(res,n,d)
-    return res
-end function
-
-global function mpq_init_set_si(integer n, d=1)
-    mpq res = mpq_init()
-    mpq_set_si(res, n, d)
-    return res
-end function
-
-global function mpq_init_set_str(string s, integer base=0)
-    mpq res = mpq_init()
-    mpq_set_str(res,s,base)
+    nd = mpz_free(nd)
     return res
 end function
 
@@ -3062,14 +3570,14 @@ end function
 
 integer x_mpq_cmp_si = NULL
 
-global function mpq_cmp_si(mpq op1, integer num2, den2)
+global function mpq_cmp_si(mpq op1, integer n, d=1)
     if op1=NULL then ?9/0 end if
-    if den2<0 then ?9/0 end if
+    if d<0 then ?9/0 end if
     if x_mpq_cmp_si=NULL then
         x_mpq_cmp_si = link_c_func(mpir_dll, "+__gmpq_cmp_si", {P,I,I},I)
 --      x_mpq_cmp_si = link_c_func(mpir_dll, "+__gmpq_cmp_ui", {P,I,I},I)
     end if
-    integer res = c_func(x_mpq_cmp_si,{op1,num2,den2})
+    integer res = c_func(x_mpq_cmp_si,{op1,n,d})
 --if not find(res,{-1,0,+1}) then ?9/0 end if
     res = sign(res)
     return res
@@ -3856,7 +4364,7 @@ __gmpz_n_pow_ui
 --__gmpz_neg
 __gmpz_next_prime_candidate
 __gmpz_nextprime
-__gmpz_nthroot
+--__gmpz_nthroot
 __gmpz_oddfac_1
 __gmpz_out_raw
 __gmpz_out_str
@@ -6707,8 +7215,8 @@ Chapter 5: Integer Functions 35
 --int mpz_root (mpz_t rop, mpz_t op, mpir_ui n) 
 --Set rop to the truncated integer part of the nth root of op. Return non-zero if the
 --computation was exact, i.e., if op is rop to the nth power.
-void mpz_nthroot (mpz_t rop, mpz_t op, mpir_ui n) 
-Set rop to the truncated integer part of the nth root of op.
+--void mpz_nthroot (mpz_t rop, mpz_t op, mpir_ui n) 
+--Set rop to the truncated integer part of the nth root of op.
 void mpz_rootrem (mpz_t root, mpz_t rem, mpz_t u, mpir_ui n) 
 Set root to the truncated integer part of the nth root of u. Set rem to the remainder, (u - root^n).
 --void mpz_sqrt (mpz_t rop, mpz_t op) 
