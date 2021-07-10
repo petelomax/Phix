@@ -1087,13 +1087,15 @@ function get_smembers(integer id)
 end function
 
 --global procedure set_struct_field(integer id, atom pStruct, string fieldname, atom v)
-global procedure set_struct_field(integer id, atom pStruct, atom_string field, atom_string v)
+--global procedure set_struct_field(integer id, atom pStruct, atom_string field, atom_string v)
+global procedure set_struct_field(integer id, atom pStruct, atom_string field, object v)
     sequence {membernames,details} = get_smembers(id)
     integer k = iff(string(field)?find(field,membernames):field)
     integer {?,size,offset} = details[k]
     if atom(v) then
         pokeN(pStruct+offset,v,size)
     else
+        if not string(v) then ?9/0 end if
         -- (the following should never trigger, since something similar
         --  when defining the TCHAR[] should have already have happened.)
         if unicode=-1 then ?9/0 end if
