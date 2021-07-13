@@ -4,6 +4,7 @@
 
 namespace graphcst
 
+--/* -- now in psym.e:
 public enum
     BMP_SUCCESS,
     BMP_OPEN_FAILED,
@@ -25,6 +26,7 @@ public enum
     VC_PAGES,
     VC_SCRNLINES,
     VC_SCRNCOLS
+--*/
 
 -- COLOR values -- for characters and pixels
     --** in graphics modes BLACK is "transparent"
@@ -176,8 +178,10 @@ public type mixture(object s)
     return 1
 end type
 
+--/*
 constant
     M_VIDEO_CONFIG   = 13
+--*/
 
 --**
 -- Return a description of the current video configuration:

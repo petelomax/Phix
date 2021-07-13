@@ -18,7 +18,7 @@ include std/map.e
 --*/
 public include std/graphcst.e
 
-
+--/*
 -- machine() commands
 constant
         M_WAIT_KEY    = 26,
@@ -32,7 +32,7 @@ constant
         M_HAS_CONSOLE = 99,
         M_KEY_CODES   = 100,
         $
-
+--*/
 
 --****
 -- === Information
@@ -1034,6 +1034,7 @@ end function
 --****
 -- === Cross Platform Text Graphics
 
+--/*
 type positive_atom(atom x)
     return x>=1
 end type
@@ -1042,6 +1043,7 @@ type text_point(sequence p)
     return length(p)=2 and p[1]>=1 and p[2]>=1
            and p[1]<=200 and p[2]<=500 -- rough sanity check
 end type
+--*/
 
 public type positive_int(object x)
     if integer(x) and x>=1 then
