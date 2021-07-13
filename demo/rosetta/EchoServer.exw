@@ -1,0 +1,226 @@
+--
+-- demo\rosetta\EchoServer.exw
+-- ===========================
+--
+--  Windows only for now (should be relatively straightforward to get it working on linux)
+--                       (it is the routines in builtins\sockets.e that are windows-only.)
+--
+--  Once this is running, open http://localhost:8080/ in your browser, or run
+--  "curl http://localhost:8080" (that is, assuming you have installed curl).
+-- 
+free_console() -- (as per docs, ensures output not hidden when running on Edix/Edita)
+include builtins\sockets.e      -- added for 0.8.1
+constant ESCAPE         = #1B
+--/*
+constant MAX_QUEUE      = 100,
+         ESCAPE         = #1B,
+         response = substitute("""
+HTTP/1.1 200 OK
+Content-Type: text/html; charset=UTF-8
+<!DOCTYPE html>
+<html>
+ <head>
+  <title>Bye-bye baby bye-bye</title>
+  <style>
+   body { background-color: #111 }
+   h1 { font-size:4cm; text-align: center; color: black;
+        text-shadow: 0 0 2mm red}
+  </style>
+ </head>
+ <body>
+  <h1>Goodbye, world!</h1>
+ </body>
+</html>
+""","\n","\r\n")
+puts(1,"server started, open http://localhost:8080/ in browser or curl, press Esc or Q to quit\n")
+atom sock = socket(AF_INET,SOCK_STREAM,NULL),
+     pSockAddr = sockaddr_in(AF_INET, "", 8080)
+if bind(sock, pSockAddr)=SOCKET_ERROR then crash("bind (%v)",{get_socket_error()}) end if
+if listen(sock,MAX_QUEUE)=SOCKET_ERROR then crash("listen (%v)",{get_socket_error()}) end if
+while not find(get_key(),{ESCAPE,'q','Q'}) do
+    {integer code} = select({sock},{},{},250000)    -- (0.25s)
+    if code=SOCKET_ERROR then crash("select (%v)",{get_socket_error()}) end if
+    if code>0 then  -- (not timeout)
+        atom peer = accept(sock),
+             ip = getsockaddr(peer)
+        {integer len, string request} = recv(peer)
+?{len,request}
+        printf(1,"Client IP: %s\n%s\n",{ip_to_string(ip),request})
+        if length(request)>3 and request[1..4]="GET " then
+            integer bytes_sent = send(peer,response)
+            printf(1,"%d bytes successfully sent\n",bytes_sent)
+        end if
+--      shutdown(peer, SD_SEND) -- tell curl it's over
+        closesocket(peer)  --   (as does this)
+    end if
+end while
+closesocket(sock)
+WSACleanup()
+?"finished"
+{} = wait_key()
+--*/
+
+/*  Global constants  */
+--#define MAX_LINE         (1000)
+--#define LISTENQ      (1024)   /*  Backlog for listen()   */
+/*  Read a line from a socket  */
+--ssize_t Readline(int sockd, void *vptr, size_t maxlen) {
+procedure echo(atom sockd)
+    ?{"socket opened",sockd}
+    string buffer = ""
+--  char    c;
+--  buffer = vptr;
+--  for ( n = 1; n < maxlen; n++ ) {
+    integer bytes_sent
+    bool first = true
+    while true do
+--      sequence res = recv(sockd)
+        {integer len, string s} = recv(sockd)
+--      if len=0 then return 0 end if
+--      if len=SOCKET_ERROR then ?9/0 end if
+        if len<=0 then exit end if
+        ?{len,s}
+--      if len then
+        if first then
+            bytes_sent = send(sockd, s) -- partial echo, see note
+            first = false
+        end if
+        buffer &= s
+        if s[$]='\n' then
+            bytes_sent = send(sockd, buffer)
+            buffer = ""
+        end if
+--      else
+--      end if
+--      integer rc = read(sockd, &c, 1)
+--      if rc == 1 then
+--          buffer &= c
+--          if c=='\n' then exit end if
+--      else
+--          ?9/0
+--          if rc==0 then
+--          if buffer=="" then
+--              return 0;
+--          else
+--              break;
+--      }
+--      else {
+--          if ( errno == EINTR )
+--              continue;
+--          return -1;
+--      end if
+    end while
+--  *buffer = 0;
+--  return n;
+--  closesocket(sockd)
+    ?{"socket disconnected",sockd}
+--  return buffer
+--end function
+end procedure
+
+/*  Write a line to a socket  */
+--ssize_t Writeline(int sockd, const void *vptr, size_t n) {
+--procedure Writeline(atom sockd, string buffer)
+--  size_t      nleft;
+--  ssize_t     nwritten;
+--  const char *buffer;
+--  buffer = vptr;
+--  nleft  = n;
+--  while ( nleft > 0 ) {
+--      if ( (nwritten = write(sockd, buffer, nleft)) <= 0 ) {
+--          if ( errno == EINTR )
+--              nwritten = 0;
+--          else
+--              return -1;
+--      }
+--      nleft  -= nwritten;
+--      buffer += nwritten;
+--  }
+--  return n;
+--}
+--int main(int argc, char *argv[]) {
+--  int       list_s;                /*  listening socket          */
+--  int       conn_s;                /*  connection socket         */
+--  short int port;                  /*  port number               */
+--  struct    sockaddr_in servaddr;  /*  socket address structure  */
+--  char      buffer[1000];          /*  character buffer          */
+--  char     *endptr;                /*  for strtol()              */
+--  port = 12321;
+        
+    /*  Create the listening socket  */
+--  list_s = socket(AF_INET, SOCK_STREAM, 0)
+atom list_s = socket(AF_INET,SOCK_STREAM,NULL),
+--   pSockAddr = sockaddr_in(AF_INET, "", port)
+     pSockAddr = sockaddr_in(AF_INET, "", 12321)
+if list_s<0 then ?9/0 end if
+--  if ( list_s < 0 ) {
+--      fprintf(stderr, "ECHOSERV: Error creating listening socket.\n");
+--      exit(EXIT_FAILURE);
+--  }
+    /*  Set all bytes in socket address structure to
+        zero, and fill in the relevant data members   */
+--  memset(&servaddr, 0, sizeof(servaddr));
+--  servaddr.sin_family      = AF_INET;
+--  servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+--  servaddr.sin_port        = htons(port);
+    /*  Bind our socket addresss to the listening socket, and call listen()  */
+if bind(list_s, pSockAddr)=SOCKET_ERROR then crash("bind (%v)",{get_socket_error()}) end if
+--  if ( bind(list_s, (struct sockaddr *) &servaddr, sizeof(servaddr)) < 0 ) {
+--      fprintf(stderr, "ECHOSERV: Error calling bind()\n");
+--      exit(EXIT_FAILURE);
+--  }
+--if listen(sock,MAX_QUEUE)=SOCKET_ERROR then crash("listen (%v)",{get_socket_error()}) end if
+if listen(list_s,100)=SOCKET_ERROR then crash("listen (%v)",{get_socket_error()}) end if
+--  if ( listen(list_s, LISTENQ) < 0 ) {
+--      fprintf(stderr, "ECHOSERV: Error calling listen()\n");
+--      exit(EXIT_FAILURE);
+--  }
+    
+puts(1,"echo server started, press escape or q to exit\n")
+    /*  Enter an infinite loop to respond
+        to client requests and echo input  */
+while not find(get_key(),{ESCAPE,'q','Q'}) do
+    {integer code} = select({list_s},{},{},250000)  -- (0.25s)
+    if code=SOCKET_ERROR then crash("select (%v)",{get_socket_error()}) end if
+    if code>0 then  -- (not timeout)
+--      /*  Wait for a connection, then accept() it  */
+        atom conn_s = accept(list_s)
+        if conn_s=SOCKET_ERROR then ?9/0 end if
+        atom hThread = create_thread(echo,{conn_s})
+--      if ( conn_s < 0 ) {
+--          fprintf(stderr, "ECHOSERV: Error calling accept()\n");
+--          exit(EXIT_FAILURE);
+--      }
+--create_thread??
+        /*  Retrieve an input line from the connected socket
+            then simply write it back to the same socket.     */
+--      string buffer = Readline(conn_s)
+--      Writeline(conn_s, buffer, strlen(buffer));
+--      Writeline(conn_s, buffer)
+--      integer bytes_sent = send(conn_s, buffer)   
+        /*  Close the connected socket  */
+--      closesocket(conn_s)
+--      if ( close(conn_s) < 0 ) {
+--          fprintf(stderr, "ECHOSERV: Error calling close()\n");
+--          exit(EXIT_FAILURE);
+--      }
+--      atom peer = accept(sock),
+--           ip = getsockaddr(peer)
+--      {integer len, string request} = recv(peer)
+--?{len,request}
+--      printf(1,"Client IP: %s\n%s\n",{ip_to_string(ip),request})
+--      if length(request)>3 and request[1..4]="GET " then
+--          integer bytes_sent = send(peer,response)
+--          printf(1,"%d bytes successfully sent\n",bytes_sent)
+--      end if
+----        shutdown(peer, SD_SEND) -- tell curl it's over
+--      closesocket(peer)  --   (as does this)
+    end if
+end while
+closesocket(list_s)
+WSACleanup()
+?"finished"
+{} = wait_key()
+
+-- Note: when testing using telnet on windows, keying "abc" did not echo anything
+--       until the return, so I added a partial echo: remove if not needed/wanted.

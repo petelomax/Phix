@@ -1805,7 +1805,7 @@ end function
 
 global function mpz_prime_factors(mpz_or_string s, integer maxprime=100)
 --
--- Attempts to decompse the integer s into powers of small primes.
+-- Attempts to decompose the integer s into powers of small primes.
 -- returns eg 108 ==> {{2,2},{3,3}}  (ie 2^2*3^3==4*27==108)
 --         or 10080 ==> {{2,5},{3,2},{5,1},{7,1}}
 --         or 1196836 ==> {{2,2},{"299209"}}

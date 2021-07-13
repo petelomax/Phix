@@ -2156,6 +2156,18 @@ function mpfr_const_pi(/*mpfr*/ x, /*integer*/ rounding=MPFR$default_rounding) {
 //      mpfr_set_q(x,final_pi)
 //  end procedure
 
+//BPP-like formula for transcendental functions on rationals...
+// I am getting close to finishing my drop-in replacement for gmp using JavaScript BigInt.
+// I am emulating mpfr (float) using mpq (rational): [performance quite probably sucks but] it fits my needs.
+// I have written a trival BPP estimation of PI that manages 12,000 digits in 4.5s: rubbish by (m)any standards:
+// (Should anyone care to see it, there is also a surprisingly trivial solution for sqrt: httpxxx.
+// The final missing bits are log/sin, etc.
+//exp(x) = sum for i=0 to ~(x^i/i!)
+//ln(x) = sum for i=0 to ~((x-1)^i/i) [-1<(x-1)<=1]...
+//sin(x) = sum for n=1 to ~(((-1)^(n-1)*x^(2n-1))/(2n-1)!
+//cos(x) = sum for n=1 to ~(((-1)^n*x^(2n-1))/(2n)!
+//arctan(x) = sum for n=1 to ~(((-1)^n*x^(2n+1))/(2n+1) [covergence extremely slow as x approaches 1]
+
 //mpfr_get_str(
 //sequence res =     mpfr_get_str(mpfr x, integer base=10, n=0, rounding=default_rounding) --  
   /**
