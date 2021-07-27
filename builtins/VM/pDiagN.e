@@ -2749,6 +2749,7 @@ X               mov qword[rbp+32],:rbidsret
     elsif msg_id=30 then    -- e30ume
         -- Map any machine exceptions that occur on add1 (refcount) 
         --  followed by a "helper" cmp eax,<varno>; ==> to e92:
+if machine_bits()=32 then
 --17/11/16 afaik, we still use cmp eax,imm32, not cmp rax, but I think we got rid of all inc.
 --      if machine_bits()=32 then
 --4/7/17:
@@ -2776,6 +2777,29 @@ X               mov qword[rbp+32],:rbidsret
                     msg = msgs[92]
                 end if
             end if
+else
+            x6 = peek({or_era,7})
+--?{"x6 (64 bit)",x6}
+--eg:
+--  add qword[rbx+rcx*4-16],1             ;#00452707: 48:203104213 F0 01         u  00 0A  3   6      
+--  cmp eax,1186                          ;#0045270D: 075 A2040000               vu 00 01  1   8      
+--vs:
+--  add dword[ebx+ecx*4-8],1              ;#0042ED50: 203104213 F8 01            u  00 0A  3   5      
+--  cmp eax,1182                          ;#0042ED55: 075 9E040000               vu 00 01  1   7      
+            if x6[1]=#48
+            and x6[2]=0o203
+            and x6[3]=0o104
+            and and_bits(x6[4],0o307)=0o203         -- sib(maybe!) of 0o2s3,
+            and x6[5]=#F0                           -- displacement is -8
+            and x6[6]=#01 then                      -- literal imm8 of 1
+    --DEV 64-bit
+                if x6[7]=cmp_eax_imm32 then
+                    or_esi = peek4u(or_era+7)
+                    msg_id = 92
+                    msg = msgs[92]
+                end if
+            end if
+end if
 --      else
 ----    add qword[rbx+rcx*4-16],1             ;#0042D0E9: 48:203104213 F0 01         u  00 0A  3   6      
 ----    cmp eax,662                           ;#0042D0EF: 075 96020000               vu 00 01  1   8      
