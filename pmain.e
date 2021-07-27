@@ -596,8 +596,7 @@ constant pbrON=1
 --
 
 integer lhspos  -- locates the onDeclaration flag
-integer lhsvar
-        lhsvar = 0
+integer lhsvar = 0
 
 --
 -- The core workspace. Expresssions get pushed on here in Reverse Polish
@@ -1577,6 +1576,10 @@ end if
             if scode=opLen then
                 if emitON then
                     p2 = opstack[opsidx]
+-- 24/7/21(!!)
+                    if p2=lhsvar then
+                        lhsvar = 0
+                    end if
                     sytmp = symtab[p2]
                     isInit = sytmp[S_Init]
 if newEmit then
@@ -1594,6 +1597,10 @@ end if
             elsif scode>=opInt then -- opINSPO
                 if emitON then
                     p2 = opstack[opsidx]
+-- 24/7/21(!!)
+                    if p2=lhsvar then
+                        lhsvar = 0
+                    end if
                     sytmp = symtab[p2]
                     isInit = sytmp[S_Init]
 --18/1/2013:
@@ -1626,6 +1633,11 @@ end if
                     opsidxm1 = opsidx-1
                     p2 = opstack[opsidxm1]
                     p3 = opstack[opsidx]
+-- 24/7/21(!!)
+                    if p2=lhsvar
+                    or p3=lhsvar then
+                        lhsvar = 0
+                    end if
                     if scode=opSeq then
 
                         apnds5({scode,N,p2,p3,0,0})
@@ -1650,6 +1662,10 @@ end if
            or scode=opGetc then
             if emitON then
                 p2 = opstack[opsidx]
+-- 24/7/21(!!)
+                if p2=lhsvar then
+                    lhsvar = 0
+                end if
                 if scode=opFloor
                 and symtab[p2][S_NTyp]=S_Const
                 and symtab[p2][S_vtype]=T_atom then
@@ -1689,6 +1705,10 @@ end if
 
             if emitON then
                 p2 = opstack[opsidx]
+-- 24/7/21(!!)
+                if p2=lhsvar then
+                    lhsvar = 0
+                end if
                 if scode=opNotBits then
                     if opstype[opsidx]=T_integer then
                         -- not_bits(integer) is always an integer
@@ -1724,6 +1744,11 @@ end if
                 opsidxm1 = opsidx-1
                 p2 = opstack[opsidxm1]
                 p3 = opstack[opsidx]
+-- 24/7/21(!!)
+                if p2=lhsvar
+                or p3=lhsvar then
+                    lhsvar = 0
+                end if
                 if scode=opRmdr or scode=opPow then
 
 --if newEmit then
@@ -1802,6 +1827,11 @@ end if
                 opsidxm1 = opsidx-1
                 p2 = opstack[opsidxm1]
                 p3 = opstack[opsidx]
+-- 24/7/21(!!)
+                if p2=lhsvar
+                or p3=lhsvar then
+                    lhsvar = 0
+                end if
 
                 if scode=opApnd
                 or scode=opPpnd then
@@ -1880,6 +1910,10 @@ end if
 
             if emitON then
                 p2 = opstack[opsidx]
+-- 24/7/21(!!)
+                if p2=lhsvar then
+                    lhsvar = 0
+                end if
                 agcheckop(scode)
                 apnds5({scode,N,p2})
             end if
@@ -1926,7 +1960,10 @@ end if
                 end if
 
                 p2 = opstack[opsidx]
-
+-- 24/7/21(!!)
+                if p2=lhsvar then
+                    lhsvar = 0
+                end if
 if newEmit then
                 if not symtab[p2][S_Init] then
                     Unassigned(p2)
@@ -1940,6 +1977,11 @@ end if
                     p3 = p2 
                     p2 = opstack[opsidx-1]
                     p1 = opstack[opsidx-2]
+-- 24/7/21(!!)
+                    if p2=lhsvar
+                    or p1=lhsvar then
+                        lhsvar = 0
+                    end if
                     if not symtab[p2][S_Init] then
                         Unassigned(p2)
                     end if
@@ -1967,7 +2009,12 @@ end if
                 p4 = opstack[opsidx]
                 p3 = opstack[opsidxm1]
                 p2 = opstack[opsidxm2]
-
+-- 24/7/21(!!)
+                if p2=lhsvar
+                or p3=lhsvar
+                or p4=lhsvar then
+                    lhsvar = 0
+                end if
                 apnds5({opLock,N,p2,p3,p4})
 
             end if  -- emitON
@@ -1991,6 +2038,10 @@ end if
            or scode=opTextRows then
             if emitON then
                 p2 = opstack[opsidx]
+-- 24/7/21(!!)
+                if p2=lhsvar then
+                    lhsvar = 0
+                end if
                 if not symtab[p2][S_Init] then
                     Unassigned(p2)
                 end if
@@ -2013,6 +2064,11 @@ end if
                 and p3!=T_const0
                 and and_bits(symtab[p3][S_State],K_rtn)=0 then
                     Aborp("routine_id expected")
+                end if
+-- 24/7/21(!!)
+                if p2=lhsvar
+                or p3=lhsvar then
+                    lhsvar = 0
                 end if
                 if not symtab[p3][S_Init] then
                     Unassigned(p3)
@@ -2038,6 +2094,13 @@ end if
                 p5 = opstack[opsidx]
                 if not symtab[p5][S_Init] then
                     Unassigned(p5)
+                end if
+-- 24/7/21(!!)
+                if p2=lhsvar
+                or p3=lhsvar
+                or p4=lhsvar
+                or p5=lhsvar then
+                    lhsvar = 0
                 end if
                 agcheckop(scode)
                 apnds5({opDcfunc,N,p2,p3,p4,p5})
@@ -2086,10 +2149,15 @@ end if
             if noofsubscripts=1 then
                 opsidxm1 = opsidx-1
                 p1 = opstack[opsidxm1]      -- ref
-                if p1=lhsvar then
-                    lhsvar = 0              -- (added 14/8/15)
-                end if
+--              if p1=lhsvar then
+--                  lhsvar = 0              -- (added 14/8/15)
+--              end if
                 p2 = opstack[opsidx]        -- idx
+-- 24/7/21(!!)
+                if p1=lhsvar
+                or p2=lhsvar then
+                    lhsvar = 0
+                end if
                 --
                 -- opSubse1 is res, ref, idx:   res:=ref[idx], aka N=p1[p2].
                 --
@@ -2142,6 +2210,10 @@ end if
                 idii = {}
                 for j=opsidx to k by -1 do
                     p1 = opstack[j]
+-- 24/7/21(!!)
+                    if p1=lhsvar then
+                        lhsvar = 0
+                    end if
                     if not symtab[p1][S_Init] then
                         Unassigned(p1)
                     end if
@@ -2203,6 +2275,11 @@ end if
 
         p3 = opstack[opsidxm1]
         p2 = opstack[opsidxm2]
+--added 24/7/21(!!)
+        if p2=lhsvar
+        or p3=lhsvar then
+            lhsvar = 0
+        end if
 
 --23/8/14: (/before/ twoInitInts gets called!)
         if emitON then
@@ -2317,6 +2394,11 @@ end if
             end if
             p2 = opstack[opsidxm2]
             p3 = opstack[opsidxm1]
+-- 24/7/21(!!)
+            if p2=lhsvar
+            or p3=lhsvar then
+                lhsvar = 0
+            end if
 
             if emitON then
 
@@ -2408,6 +2490,10 @@ end if
                 idii = {}
                 for j=opsidx to k by -1 do
                     p1 = opstack[j]
+-- 24/7/21(!!)
+                    if p1=lhsvar then
+                        lhsvar = 0
+                    end if
                     if not symtab[p1][S_Init] then
                         Unassigned(p1)
                     end if
@@ -2457,6 +2543,11 @@ end if
             end if
             p2 = opstack[opsidxm2]
             p3 = opstack[opsidxm1]
+-- 24/7/21(!!)
+            if p2=lhsvar
+            or p3=lhsvar then
+                lhsvar = 0
+            end if
             tii = twoInitInts(eJmp[scode])  -- eq/ne are EITHER, lt/le/gt/ge are BOTH
             scode = Scde[scode]
 if newEmit then
@@ -2512,6 +2603,10 @@ end if
             idii = {}
             for j=opsidx to k+1 by -1 do
                 p1 = opstack[j]
+-- 24/7/21(!!)
+                if p1=lhsvar then
+                    lhsvar = 0
+                end if
                 if not symtab[p1][S_Init] then
                     Unassigned(p1)
                 end if
@@ -2555,6 +2650,10 @@ end if
                 NTyp = RHStype
             end if
             p2 = opstack[opsidxm1]
+-- 24/7/21(!!)
+            if p2=lhsvar then
+                lhsvar = 0
+            end if
 if newEmit then
             if not symtab[p2][S_Init] then
                 Unassigned(p2)
@@ -2594,6 +2693,11 @@ end if
             end if
             p2 = opstack[opsidxm2]
             p3 = opstack[opsidxm1]
+-- 24/7/21(!!)
+            if p2=lhsvar
+            or p3=lhsvar then
+                lhsvar = 0
+            end if
 --DEV extend with init flags?
 if newEmit then
             agcheckop(opXor)
@@ -2624,6 +2728,10 @@ end if
 --added 21/09/2013:
             for i=noofitems to 1 by -1 do
                 p1 = opstack[opsidx-noofitems+i]
+-- 24/7/21(!!)
+                if p1=lhsvar then
+                    lhsvar = 0
+                end if
                 if not symtab[p1][S_Init] then
                     k = symtab[p1][S_vtype]
                     k = rootType(k)
@@ -4744,6 +4852,9 @@ if newEBP then
 --DEV if fRes then apnds5({opPopVar,-9}); dpos=length(s5) if v=lhsvar then ?9/0 --mcode=opPopVar
                             ltype = symtab[v][S_ltype]
                             if ltype>T_object then ltype = rootType(ltype) end if
+--if fileno=1 then
+--  ?{"onDeclaration",onDeclaration}
+--end if
                             apnds5({opFrst,-9,v,ltype,onDeclaration})
                             dpos = length(s5)-3  -- lodate that -9 (for later replacement)
                             mcode = opFrst
@@ -4826,6 +4937,9 @@ end if
                             ltype = symtab[v][S_ltype]
                             if ltype>T_object then ltype = rootType(ltype) end if
 --DEV pbr
+--if fileno=1 then
+--  ?{"pthis",pthis,"onDeclaration",onDeclaration}
+--end if
                             apnds5({opFrst,pthis,v,ltype,onDeclaration})
 if newEBP then
                             if pbrON then
@@ -8948,6 +9062,8 @@ end if -- emitON
 --added 2/6/14:
                     for j=1 to opsidx do
                         if opstack[j]=lhsvar then
+-- 24/7/21(!!) [should now have been caught already?? or is this the "not StoreVar()" case??]
+--?"pmain.e/Assignment() line 9066: lhsvar!=0??"    -- "" - it sure is!!
                             lhspos = 0
                             exit
                         end if
@@ -14536,4 +14652,5 @@ end if
     --    which also does the equivalent of one last dropScope().
 
 end procedure
+
 
