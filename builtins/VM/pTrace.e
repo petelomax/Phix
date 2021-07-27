@@ -738,12 +738,12 @@ end function
 function getValueX(integer symidx, integer limit)
 object  o,
         ss   -- SymTab[symidx]
-object si
+--object si
 integer nTyp, tidx
 
     lc = limit
     showellipse = 0
-    si = SymTab[symidx]
+--  si = SymTab[symidx]
     -- obviously none of these should ever happen, but if they do then leave
     --  as many clues as you can in the ex.err to help resolve things.
     if symidx<0 or symidx>length(SymTab) then
@@ -761,12 +761,15 @@ integer nTyp, tidx
     if nTyp=S_TVar then
         tidx = ss[S_Tidx]
 --      o = getVal(ebp+tidx*4)
-        o = getVal(ebp4*4+tidx*4)
+--      o = getVal(ebp4*4+tidx*4)
+        o = getVal(ebp4*4+tidx*machine_word())
     else
         tidx = ss[S_Slink]
 --      o = getVal(static_base+tidx*4-4)
 --      o = getVal(ds4*4+tidx*4-4)
-        o = getVal(ds4*4+tidx*4+16)
+--      o = getVal(ds4*4+tidx*4+16)
+        o = iff(machine_bits()=32?16:24)
+        o = getVal(ds4*4+tidx*machine_word()+o)
     end if
     if not novalue then
 --DEV try that new routine here...?
