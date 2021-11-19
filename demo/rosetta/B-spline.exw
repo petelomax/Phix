@@ -1,0 +1,94 @@
+--
+-- demo\rosetta\B-spline.exw
+-- =========================
+--
+--  Use +/- to change the order between k = 1 and k = 4.
+--{{trans|Wren}}
+--
+with javascript_semantics
+include pGUI.e
+include IupGraph.e
+
+constant ctrl_points = {{171, 171}, {185, 111}, {202, 109}, {202, 189}, {328, 160}, {208, 254},
+                        {241, 330}, {164, 252}, { 69, 278}, {139, 208}, { 72, 148}, {168, 172}}
+integer k = 2, n
+sequence t
+
+function w(integer i, k, x)  // B-spline helper function
+    return iff(t[i+k]!=t[i] ? (x-t[i])/(t[i+k]-t[i]) : 0 )
+end function
+
+function b(integer i, k, x)  // B-spline function
+    if k==1 then return iff(t[i]<=x and x<t[i+1] ? 1 : 0) end if
+    return w(i,k-1,x)*b(i,k-1,x) + (1-w(i+1,k-1,x))*b(i+1,k-1,x)
+end function
+
+function b_spline(Ihandle graph)
+    n = length(ctrl_points)
+    t = tagset(n+1+k) // use a uniform knot vector, delta = 1
+    assert(k<=n+1 and k>=1,"k (= %d) cannot be more than %d or less than 1.",{k,n+1})
+
+    sequence px = {}, py = {}
+    for x=t[k] to t[n+1] do
+        atom sumX = 0,
+             sumY = 0
+        for i=1 to n do
+            atom f = b(i,k,x)
+            sumX += f*ctrl_points[i][1]
+            sumY += f*ctrl_points[i][2]
+        end for
+        px &= round(sumX)
+        py &= round(sumY)
+    end for
+
+    integer xtick = 40,
+            ytick = 40,
+            xmin = trunc(min(px)/xtick)*xtick,
+            xmax = ceil(max(px)/xtick)*xtick,
+            ymin = trunc(min(py)/ytick)*ytick,
+            ymax = ceil(max(py)/ytick)*ytick
+
+    IupSetInt(graph,"XTICK",xtick)
+    IupSetInt(graph,"XMIN",xmin)
+    IupSetInt(graph,"XMAX",xmax)
+    IupSetInt(graph,"YTICK",ytick)
+    IupSetInt(graph,"YMIN",ymin)
+    IupSetInt(graph,"YMAX",ymax)
+--  cdCanvas cd_canvas = IupGetAttributePtr(graph,"CD_CANVAS")
+--  cdCanvasFont(cd_canvas,"Helvetica",CD_PLAIN,9)
+
+    sequence graphdata = {{px,py,CD_BLUE}}
+--  sequence graphdata = {{px,py,CD_BLUE,"Helvetica",CD_PLAIN,9}}
+--  sequence graphdata = {{"Helvetica",CD_PLAIN,9},{px,py,CD_BLUE}}
+    return graphdata
+end function
+
+procedure set_title(Ihandle dlg)
+    IupSetStrAttribute(dlg, "TITLE", "B-spline curve (order k = %d)",{k})
+end procedure
+
+function key_cb(Ihandle dlg, atom c)
+    if c=K_ESC then return IUP_CLOSE end if
+    if c='+' then k = min(k+1,4) end if
+    if c='-' then k = max(k-1,1) end if
+    set_title(dlg)
+    IupRedraw(dlg)
+    return IUP_IGNORE
+end function
+
+procedure main()
+    IupOpen()
+    Ihandle graph = IupGraph(b_spline,`RASTERSIZE=600x600`)
+--  IupSetAttributePtr(graph,"BGCOLOR",CD_PARCHMENT) -- (o/ride CD_WHITE)
+    Ihandle dlg = IupDialog(graph)
+    IupSetCallback(dlg, "KEY_CB", Icallback("key_cb"))
+    set_title(dlg)
+    IupShow(dlg)
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
+end procedure
+
+main()
+

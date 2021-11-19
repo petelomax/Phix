@@ -1,5 +1,5 @@
 --
--- demo/rosetta/ppm.e
+-- demo\rosetta\ppm.e
 -- ==================
 --  Common code for several bitmap tasks
 --

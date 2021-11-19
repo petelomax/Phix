@@ -17,11 +17,6 @@ constant output_html = false,
 
 function open_download(string filename, url)
     bool refetch = true
-    if get_file_type("rc_cache")!=FILETYPE_DIRECTORY then
-        if not create_directory("rc_cache") then
-            crash("cannot create rc_cache directory")
-        end if
-    end if
     filename = join_path({"rc_cache",filename})
     if file_exists(filename) then
         -- use existing file if <= refresh_cache (1 day) old
@@ -67,11 +62,56 @@ function correct_name(string language_name)
 end function
 --*/
 
+function html_clean(string ri)
+    ri = substitute(ri,`&quot;`,`"`)
+    ri = substitute(ri,`&#039;`,`'`)
+    ri = substitute(ri,"\xE2\x80\x99","'")
+    ri = substitute(ri,"\xC3\xB6","o")
+    ri = substitute(ri,"%3A",":")
+    ri = substitute(ri,"%E2%80%93","-")
+    ri = substitute(ri,"%E2%80%99","'")
+    ri = substitute(ri,"%27","'")
+    ri = substitute(ri,"%2B","+")
+    ri = substitute(ri,"%C3%A8","e")
+    ri = substitute(ri,"%C3%A9","e")
+    ri = substitute(ri,"%C3%B6","o")
+    ri = substitute(ri,"%C5%91","o")
+    ri = substitute(ri,"%22",`"`)
+    ri = substitute(ri,"%2A","*")
+    ri = substitute(ri,"\xC2\xB5","u")
+    ri = substitute(ri,"\xC3\xA0","a")
+    ri = substitute(ri,"\xC3\xA6","a")
+    ri = substitute(ri,"\xC3\xA9","e")
+    ri = substitute(ri,"\xC3\xB4","o")
+    ri = substitute(ri,"\xC5\x8D","o")
+    ri = substitute(ri,"\xCE\x9C","u")
+    ri = substitute(ri,"\xD0\x9C\xD0\x9A","MK")
+    ri = substitute(ri,"\xE0\xAE\x89\xE0\xAE\xAF\xE0\xAE\xBF\xE0\xAE\xB0\xE0\xAF\x8D/","")
+    ri = substitute(ri,"APEX","Apex")
+    ri = substitute(ri,"uC++ ","UC++")
+    ri = substitute(ri,`CASIO BASIC`,`Casio BASIC`)
+    ri = substitute(ri,`Visual BASIC`,`Visual Basic`)
+    ri = substitute(ri,`INTERCAL`,`Intercal`)
+    ri = substitute(ri,`SETL4`,`Setl4`)
+    ri = substitute(ri,`QBASIC`,`QBasic`)
+    ri = substitute(ri,`RED`,`Red`)
+    ri = substitute(ri,`OCTAVE`,`Octave`)
+    ri = substitute(ri,`OoREXX`,`OoRexx`)
+    return ri
+end function
+
+include builtins/sets.e
+
 constant cat_title = `title="Category:`
 
 function extract_names()
 sequence results = {} -- {rank,count,name}
 
+    if get_file_type("rc_cache")!=FILETYPE_DIRECTORY then
+        if not create_directory("rc_cache") then
+            crash("cannot create rc_cache directory")
+        end if
+    end if
     -- 1) extract languages from eg title="Category:Phix"
     sequence language_names = {}
     string langs = open_download("languages.htm",languages),
@@ -85,9 +125,10 @@ sequence results = {} -- {rank,count,name}
         k += length(cat_title)
         start = find('"',langs,k)
 --      language_name = correct_name(langs[k..start-1])
-        language_name = langs[k..start-1]
+        language_name = html_clean(langs[k..start-1])
         language_names = append(language_names,language_name)
     end while
+--  printf(1,"%d lanbguages found\n",length(language_names))    -- 842
 
     -- 2) extract results from eg title="Category:Phix">Phix</a>?? (997 members)</li>
     --     but obviously only when we have found that language in the phase above.
@@ -100,12 +141,12 @@ sequence results = {} -- {rank,count,name}
         k += length(cat_title)
         start = find('"',cats,k)
 --      language_name = correct_name(cats[k..start-1])
-        language_name = cats[k..start-1]
+        language_name = html_clean(cats[k..start-1])
         start = match("</a>",cats,start)+4
         if output_users then
             if length(language_name)>5 
             and language_name[-5..-1] = " User" then
-                language_name = language_name[1..-6]
+                language_name = html_clean(language_name[1..-6])
             else
                 language_name = ""
             end if
@@ -119,6 +160,41 @@ sequence results = {} -- {rank,count,name}
             results = append(results,{0,res[1][1],language_name})
         end if      
     end while
+--/* gave up (too many annoying little fiddly differences, got "d" down to 2 entries)...
+    string rcpop = open_download("RC_POP.OUT","http://rosettacode.org/wiki/RC_POP.OUT"),
+           second = `Edit section: output, sorted by programming language`,
+           starter = `(total) number of entries (solutions) detected`
+    integer edit = match(second,rcpop),
+            begin = match(starter,rcpop,edit),
+            finish = match(`</pre>`,rcpop,begin)
+    if edit=0 or start=0 or finish=0 then ?9/0 end if
+    rcpop = rcpop[begin+length(starter)..finish]
+    sequence lines = split(rcpop,'\n')[1..$-2],
+             langz = vslice(results,3)
+    for i=1 to length(lines) do
+        integer m = match(`entries)  `,lines[i])
+        if m=0 then
+            m = match(`entry)    `,lines[i])
+            if m=0 then ?9/0 end if
+        end if
+        lines[i] = html_clean(lines[i][m+10..$])
+    end for
+    lines = sort(lines)
+    langz = sort(langz)
+    if lines!=langz then
+        sequence d = difference(lines,langz) -- {`Perl 6`,`uC++`}
+        ?d
+        results = {}
+        langs = ""
+        cats = ""
+        rcpop = ""
+        ?9/0
+    end if
+    printf(1,"%d languages found\n",length(lines)-1)    -- 814
+--?9/0
+--?shorten(lines)
+--  printf(1,"%d languages found\n",length(results))    -- 815
+--*/
     results = sort_columns(results,{-2,3}) -- (descending 2nd column, then asc 3rd)
 
     --3) assign rank

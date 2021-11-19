@@ -4,6 +4,7 @@
 --
 --  Draws a peano curve. Space key toggles between switchback and meander curves.
 --
+with javascript_semantics
 include pGUI.e
 
 Ihandle dlg, canvas
@@ -101,7 +102,7 @@ function map_cb(Ihandle ih)
     return IUP_DEFAULT
 end function
 
-function k_any(Ihandle /*ih*/, atom c)
+function key_cb(Ihandle /*ih*/, atom c)
     if c=K_ESC then return IUP_CLOSE end if
     if c=' ' then
         meander = not meander
@@ -114,21 +115,17 @@ end function
 
 procedure main()
     IupOpen()
-    
-    canvas = IupCanvas(NULL)
-    IupSetAttribute(canvas, "RASTERSIZE", "822x822") -- initial size
-    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
-
-    dlg = IupDialog(canvas)
-    IupSetAttribute(dlg, "TITLE", "Peano Curve")
+    canvas = IupCanvas("RASTERSIZE=822x822")
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "ACTION", Icallback("redraw_cb")})
+    dlg = IupDialog(canvas,`TITLE="Peano Curve"`)
     IupSetAttribute(dlg, "DIALOGFRAME", "YES")  -- no resize here
-    IupSetCallback(dlg, "K_ANY", Icallback("k_any"))
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
-
-    IupMap(dlg)
-    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
-    IupMainLoop()
-    IupClose()
+    IupSetCallback(dlg, "KEY_CB", Icallback("key_cb"))
+    IupShow(dlg)
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

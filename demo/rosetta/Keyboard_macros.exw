@@ -1,0 +1,37 @@
+--
+-- demo\rosetta\Keyboard_macros.exw
+--
+with javascript_semantics -- note that F3 performs "Find in page", F11 "full screen mode" (unlike desktop/Phix)
+                            -- also, no attempt has yet been made to implement K_C or K_c (etc), & may never be.
+include pGUI.e
+ 
+function C_Keyed(Ihandle /*ih*/, atom /*c*/)
+-- (Note without K_c below this does not respond to 'c', just 'C')
+    ?"you pressed C"
+    return IUP_DEFAULT
+end function
+ 
+procedure F2_keyed()
+    ?"you pressed F2"
+end procedure
+ 
+function key_cb(Ihandle /*ih*/, atom c)
+    printf(1,"key_cb(%d[#%x])\n",{c,c})
+    if c=K_F2 then F2_keyed()
+    elsif c>=K_F1 and c<=K_F12 then printf(1,"you pressed F%d\n",c-K_F1+1)
+    elsif c=K_ESC then return IUP_CLOSE
+    end if
+    return IUP_DEFAULT
+end function
+ 
+IupOpen()
+Ihandle dlg = IupDialog(IupLabel("hello"),"TITLE=\"Press F2\"")
+IupSetCallback(dlg, "K_C", Icallback("C_Keyed"))
+--IupSetCallback(dlg, "K_c", Icallback("C_Keyed"))
+IupSetCallback(dlg, "K_ANY", Icallback("key_cb"))
+IupShow(dlg)
+if platform()!=JS then
+    IupMainLoop()
+    IupClose()
+end if
+

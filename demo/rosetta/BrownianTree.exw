@@ -1,66 +1,113 @@
 --
 -- demo\rosetta\BrownianTree.exw
+-- =============================
 --
 -- As-is, runs in about 2s, but can be very slow when bigger or (even worse) resize-able.
-
+--
+with javascript_semantics
+constant title = "Brownian Tree"
 include pGUI.e
 
 Ihandle dlg, canvas
 cdCanvas cddbuffer, cdcanvas
 
 function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
-integer x,y,ox,oy
-integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
-sequence grid = repeat(repeat(0,width),height)
-integer xy = floor(width*height*0.8)
---atom t = time()+1
+atom t0 = time()
+    atom t1 = time()+1
+    integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE"),
+--  integer {width, height} = sq_div(IupGetIntInt(canvas, "DRAWSIZE"),2),
+--  integer {width, height} = sq_div(IupGetIntInt(canvas, "DRAWSIZE"),3),
+--  integer {width, height} = sq_div(IupGetIntInt(canvas, "DRAWSIZE"),4),
+            xy = floor(width*height*0.8)
+    sequence grid = repeat(repeat(0,width),height)
     grid[floor(width/2)][floor(height/2)] = 1
     cdCanvasActivate(cddbuffer)
     cdCanvasClear(cddbuffer)
+cdCanvasFlush(cddbuffer)
+--  cdCanvasSetForeground(cddbuffer,CD_LIGHT_GREEN)
     for i=1 to xy do
-        x = rand(width) y = rand(height)
-        ox = x          oy = y
+        integer x = rand(width), y = rand(height),
+               ox = x,          oy = y
         while x>=1 and x<=width 
           and y>=1 and y<=height do
             if grid[y][x] then
+--if grid[oy][ox] = 0 then
                 grid[oy][ox] = 1
-                cdCanvasPixel(cddbuffer, ox, oy, #00FF00) 
+                cdCanvasPixel(cddbuffer, ox, oy, CD_LIGHT_GREEN) 
+--              cdCanvasBox(cddbuffer, ox, ox, oy, oy)
+--              cdCanvasBox(cddbuffer, ox*2, ox*2+1, oy*2, oy*2+1)
+--              cdCanvasBox(cddbuffer, ox*4, ox*4+3, oy*4, oy*4+3)
+--end if
                 exit
             end if
-            ox = x  x += rand(3)-2
-            oy = y  y += rand(3)-2
+            ox = x  x += rand(3)-2  -- ie -1/0/+1
+            oy = y  y += rand(3)-2  --     ""
         end while
 --      -- if making the canvas bigger/resizeable, 
 --      --  put this in so that you can kill it.
 --      if time()>=t then
 --          ?{i,xy}
 --          t = time()+1
+        if time()>t1 then
+            -- Let the user know we aren't completely dead just yet
+            IupSetStrAttribute(dlg,"TITLE","%s (%d%%)",{title,100*i/xy})
+--/*
+            for y=1 to height do
+                sequence gy = grid[y]
+                for x=1 to width do
+--                  if grid[y][x] then
+                    if gy[x] then
+                        cdCanvasPixel(cddbuffer, x, y, CD_LIGHT_GREEN) 
+                    end if
+                end for
+            end for
+--*/
+            cdCanvasFlush(cddbuffer)
+            t1 = time()+1
+            -- (as per DeathStar.exw, prevent "(Not Responding)" nonsense)
+            if platform()!=JS then
+                if IupLoopStep()=IUP_CLOSE then
+                    IupExitLoop()
+                    exit
+                end if
+            end if
+        end if
 --      end if
     end for
     cdCanvasFlush(cddbuffer)
+    IupSetStrAttribute(dlg,"TITLE","%s (%s)",{title,elapsed(time()-t0)})
+--  IupSetStrAttribute(dlg,"TITLE","%s",{title})
+--?{width,height,elapsed(time()-t0)}
+--{398,398,"26.2s"}
+--{298,298,"8.8s"}
+--{200,200,"2.1s"}
+--{198,198,"2.0s"}
+--{98,98,"0.2s"}
     return IUP_DEFAULT
 end function
 
 function map_cb(Ihandle ih)
     cdcanvas = cdCreateCanvas(CD_IUP, ih)
     cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
-    cdCanvasSetBackground(cddbuffer, CD_WHITE)
-    cdCanvasSetForeground(cddbuffer, CD_RED)
+--  cdCanvasSetBackground(cddbuffer, CD_WHITE)
+    cdCanvasSetBackground(cddbuffer, CD_PARCHMENT)
+--  cdCanvasSetForeground(cddbuffer, CD_RED)
     return IUP_DEFAULT
 end function
 
 procedure main()
     IupOpen()
-
-    canvas = IupCanvas(NULL)
-    IupSetAttribute(canvas, "RASTERSIZE", "200x200") -- fixed size
-    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
-
-    dlg = IupDialog(canvas, "RESIZE=NO")
-    IupSetAttribute(dlg, "TITLE", "Brownian Tree")
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
-
-    IupMap(dlg)
+--  canvas = IupCanvas("RASTERSIZE=402x402")
+--  canvas = IupCanvas("RASTERSIZE=400x400")
+    canvas = IupCanvas("RASTERSIZE=302x302")
+--  canvas = IupCanvas("RASTERSIZE=300x300")
+--  canvas = IupCanvas("RASTERSIZE=202x202")
+--  canvas = IupCanvas("RASTERSIZE=200x200")
+--  canvas = IupCanvas("RASTERSIZE=102x102")
+--  canvas = IupCanvas("RASTERSIZE=100x100")
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "ACTION", Icallback("redraw_cb")})
+    dlg = IupDialog(canvas, `TITLE="%s",RESIZE=NO`,{title})
     IupShow(dlg)
     if platform()!=JS then
         IupMainLoop()

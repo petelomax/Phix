@@ -8,6 +8,10 @@
 --
 --{{trans|Go}}
 constant language = "Phix",
+--       language = "Go",
+--       language = "Julia",
+--       language = "Python",
+--       language = "Wren",
          base_query = "http://rosettacode.org/mw/api.php?action=query"&
                       "&format=xml&list=categorymembers&cmlimit=100"
 
@@ -51,42 +55,79 @@ part += 1
     return res
 end function
 
-sequence languages = {}
-procedure store_lang(string language)
-    languages = append(languages,language)
-end procedure
-constant r_store_lang = routine_id("store_lang")
+function html_clean(string ri)
+    ri = substitute(ri,`&quot;`,`"`)
+    ri = substitute(ri,`&#039;`,`'`)
+    ri = substitute(ri,"\xE2\x80\x99","'")
+    ri = substitute(ri,"\xC3\xB6","o")
+    ri = substitute(ri,"%3A",":")
+    ri = substitute(ri,"%E2%80%93","-")
+    ri = substitute(ri,"%E2%80%99","'")
+    ri = substitute(ri,"%27","'")
+    ri = substitute(ri,"%2B","+")
+    ri = substitute(ri,"%C3%A8","e")
+    ri = substitute(ri,"%C3%A9","e")
+    ri = substitute(ri,"%C3%B6","o")
+    ri = substitute(ri,"%C5%91","o")
+    ri = substitute(ri,"%22",`"`)
+    ri = substitute(ri,"%2A","*")
+    return ri
+end function
 
-integer unimplemented_count = 0
-procedure print_unimplemented(string language)
-    if not find(language,languages) then
-        printf(1,"%s\n",{language})
+sequence titles = {}
+procedure store_title(string title)
+    titles = append(titles,title)
+end procedure
+
+integer unimplemented_count = 0,
+        task_count = 0
+procedure print_unimplemented(string title)
+    if not find(title,titles) then
+        title = html_clean(title)
+        printf(1,"%s\n",{title})
         unimplemented_count += 1
     end if
+    task_count += 1
 end procedure
-constant r_print = routine_id("print_unimplemented")
 
 procedure main()
-    -- get and store language members
+    printf(1,"Loading implemented tasks list...\n")
+    -- get and store task itles
     string lang_query := base_query & "&cmtitle=Category:" & language,
-           continue_at := req(lang_query, r_store_lang)
+           continue_at := req(lang_query, store_title)
     while continue_at!="" do
-        continue_at = req(lang_query&"&cmcontinue="&continue_at, r_store_lang)
+        continue_at = req(lang_query&"&cmcontinue="&continue_at, store_title)
     end while
+--printf(1,"%d tasks found.\n",length(titles))  -- 1438...
  
     -- a quick check to avoid long output
-    if length(languages)==0 then
+    if length(titles)==0 then
         printf(1,"no tasks implemented for %s\n", {language})
         return
     end if
  
     -- get tasks, print as we go along
+    printf(1,"Tasks:\n")
     string task_query := base_query & "&cmtitle=Category:Programming_Tasks"
-    continue_at = req(task_query, r_print)
+    continue_at = req(task_query, print_unimplemented)
     while continue_at!="" do
-        continue_at = req(task_query&"&cmcontinue="&continue_at, r_print)
+        continue_at = req(task_query&"&cmcontinue="&continue_at, print_unimplemented)
     end while
     printf(1,"%d unimplemented tasks found for %s.\n",{unimplemented_count,language})
+
+    integer full_tasks = unimplemented_count
+    printf(1,"Draft tasks:\n")
+    task_query := base_query & "&cmtitle=Category:Draft_Programming_Tasks"
+    continue_at = req(task_query, print_unimplemented)
+    while continue_at!="" do
+        continue_at = req(task_query&"&cmcontinue="&continue_at, print_unimplemented)
+    end while
+    integer draft_tasks = unimplemented_count-full_tasks
+    printf(1,"%d unimplemented draft tasks found for %s.\n",{draft_tasks,language})
+
+    printf(1,"%d unimplemented tasks in total found for %s (out of %d).\n",{unimplemented_count,language,task_count})
+
+--printf(1,"%d tasks found.\n",task_count)  -- 1441...
 end procedure
 main()
 

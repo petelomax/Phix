@@ -1,11 +1,13 @@
 --
--- demo/rosetta/mastermind.exw
+-- demo\rosetta\mastermind.exw
 -- ===========================
 --
 --  A configurable version of the board game Mastermind, with a Knuth solver.
 --
 --  Recommended reading: http://www.antonellaperucca.net/FioreLangPerucca.pdf
 --
+--with javascript_semantics
+without javascript_semantics -- needs IupSetGlobalFunction("IDLE_ACTION"..), plus IupText("SPIN=Yes") and IupToggle() properly done
 constant SET_LIMIT = 1_000_000  -- above this, it uses random sampling.
 
 constant help_text = """
@@ -60,10 +62,8 @@ include builtins\pretty.e
 include builtins\factorial.e
 include builtins\VM\pTime.e
 with debug
---#withtype Ihandle
---#withtype cdCanvas
 
-Ihandle dlg, colours, codelen, maxgoes, repeats, progress, 
+Ihandle dlg, colours, codelen, maxgoes, repeats, progres, 
         usehint, game_canvas, colour_canvas
 integer ncolours, ncodelen, nmaxgoes
 bool brepeats
@@ -80,6 +80,8 @@ sequence secret = {},
 function get_score(sequence guess, goal)
 integer blacks = 0, -- (right colour & place)
         whites = 0  -- ("" but wrong place)
+    guess = deep_copy(guess)
+    goal = deep_copy(goal)
     for i=1 to length(guess) do
         if guess[i]=goal[i] then
             blacks += 1
@@ -127,7 +129,7 @@ procedure create_initial_set()
         excluded = is_len+1 -- (ie none)
         sequence next = iff(brepeats?repeat(1,ncodelen):tagset(ncodelen))
         for i=1 to is_len do
-            initial_set[i] = next
+            initial_set[i] = deep_copy(next)
             for ndx=length(next) to 1 by -1 do
                 integer n = next[ndx]
                 while n<=ncolours do
@@ -220,7 +222,7 @@ function idle_action()
                 end if
             end for
             if length(counts)=0 then
-                IupSetStrAttribute(progress,"TITLE","[answer not in %,d%s]",{SET_LIMIT,samp})
+                IupSetStrAttribute(progres,"TITLE","[answer not in %,d%s]",{SET_LIMIT,samp})
                 return IUP_IGNORE   -- (stop idle)
             end if
             integer k = largest(counts,return_index:=true),
@@ -234,12 +236,12 @@ function idle_action()
         end if
     
         if done=length(initial_set) then
-            IupSetStrAttribute(progress,"TITLE","%,d/%,d%s (100%%)",{is_done,to_do,samp})
+            IupSetStrAttribute(progres,"TITLE","%,d/%,d%s (100%%)",{is_done,to_do,samp})
             return IUP_IGNORE   -- (stop idle)
         end if
         if time()>t1 then exit end if
     end for
-    IupSetStrAttribute(progress,"TITLE","%,d/%,d%s (%d%%)",{is_done,to_do,samp,100*(is_done/to_do)})
+    IupSetStrAttribute(progres,"TITLE","%,d/%,d%s (%d%%)",{is_done,to_do,samp,100*(is_done/to_do)})
     return IUP_DEFAULT
 end function
 constant idle_action_cb = Icallback("idle_action")
@@ -248,7 +250,7 @@ procedure start_idle()
     done = 0
     is_done = 0
     best = length(initial_set)+1
-    IupSetAttribute(progress,"TITLE","-")
+    IupSetAttribute(progres,"TITLE","-")
     IupSetInt(usehint,"ACTIVE",false)
     IupSetGlobalFunction("IDLE_ACTION",idle_action_cb)
 end procedure
@@ -370,7 +372,7 @@ function redraw_cb(Ihandle ih, integer /*posx*/, /*posy*/)
         if length(scores)=nmaxgoes
         or guesses[$]=secret then
             ch -= floor(mx/2)
-            {} = cdCanvasTextAlignment(cddbuffer, CD_CENTER)
+            cdCanvasSetTextAlignment(cddbuffer, CD_CENTER)
             string wl = iff(guesses[$]=secret?"WIN":"LOSE"),
                    msg = sprintf("GAME OVER - YOU %s",{wl})
             cdCanvasText(cddbuffer, cw/2, ch/2, msg) 
@@ -426,8 +428,13 @@ end function
 
 function map_cb(Ihandle ih)
     IupGLMakeCurrent(ih)
-    atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
-    cdCanvas cddbuffer = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    cdCanvas cddbuffer
+    if platform()=JS then
+        cddbuffer = cdCreateCanvas(CD_IUP, ih)
+    else
+        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+        cddbuffer = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    end if
     IupSetAttributePtr(ih,"DBUFFER",cddbuffer)
     cdCanvasSetBackground(cddbuffer, CD_PARCHMENT)
     return IUP_DEFAULT
@@ -446,7 +453,7 @@ procedure redraw_all()
 end procedure
 
 procedure undo_move()
--- Called from button_cb and from K_DEL, but latter may be invalid.
+    -- Called from button_cb and from K_DEL, but latter may be invalid.
     if length(guesses[$])!=0 then
         guesses[$] = guesses[$][1..$-1]
         redraw_all()
@@ -560,7 +567,7 @@ procedure main()
     codelen = IupText("SPIN=Yes, SPINMIN=1, SPINMAX=10, VALUE=4, RASTERSIZE=34x")
     maxgoes = IupText("SPIN=Yes, SPINMIN=1, SPINMAX=20, VALUE=7, RASTERSIZE=34x")
     repeats = IupToggle("Repeatable?","VALUE=YES, RIGHTBUTTON=YES, PADDING=5x4")
-    progress = IupLabel("-","EXPAND=HORIZONTAL, PADDING=5x4")
+    progres = IupLabel("-","EXPAND=HORIZONTAL, PADDING=5x4")
     usehint = IupButton("Use",Icallback("usehint_cb"),"PADDING=5x4, ACTIVE=NO")
     game_canvas = IupGLCanvas("RASTERSIZE=200x")
     colour_canvas = IupGLCanvas("RASTERSIZE=x200")
@@ -571,7 +578,7 @@ procedure main()
                             IupHbox({IupLabel("Code Length (1-10)","PADDING=5x4"),codelen}),
                             IupHbox({IupLabel("Guesses (1-20)","PADDING=5x4"),maxgoes}),
                             IupHbox({repeats},"MARGIN=10x5"),
-                            IupHbox({progress}),
+                            IupHbox({progres}),
                             IupHbox({usehint,newgame,help,quit})},"MARGIN=5x5"),
             game_frame = IupFrame(IupHbox({game_canvas},"MARGIN=3x3"),"TITLE=Game"),
             option_frame = IupFrame(vbox,"TITLE=Options"),
@@ -583,16 +590,19 @@ procedure main()
                                                   "RESIZE_CB", Icallback("canvas_resize_cb"),
                                                   "BUTTON_CB", Icallback("button_cb")})
     dlg = IupDialog(IupHbox({full},"MARGIN=3x3"),"TITLE=Mastermind")
-    IupSetCallback(dlg, "K_ANY", Icallback("key_cb"))
+    IupSetCallback(dlg, "KEY_CB", Icallback("key_cb"))
     IupSetAttributeHandle(dlg,"DEFAULTENTER", usehint)
+    IupSetAttributeHandle(NULL,"PARENTDIALOG",dlg)
 
     new_game()
 
-    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
+    IupShow(dlg)
     IupSetAttribute(dlg, "RASTERSIZE", NULL)
     IupSetStrAttribute(dlg, "MINSIZE", IupGetAttribute(dlg,"RASTERSIZE"))
-    IupMainLoop()
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
  
 main()

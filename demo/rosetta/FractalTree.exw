@@ -2,17 +2,18 @@
 -- demo\rosetta\FractalTree.exw
 -- ============================
 --
+with javascript_semantics
 include pGUI.e
 
 Ihandle dlg, canvas
 cdCanvas cddbuffer, cdcanvas
 
-procedure drawTree(integer level, atom angle, atom len, integer x, integer y)
-integer xn = x + floor(len*cos(angle))
-integer yn = y + floor(len*sin(angle))
-integer red = 255-level*8
-integer grn = level*12+100
-    cdCanvasSetForeground(cddbuffer, red*#10000 + grn*#100)
+procedure drawTree(integer level, atom angle, len, integer x, y)
+    integer xn = x + floor(len*cos(angle)),
+            yn = y + floor(len*sin(angle)),
+            red = 255-level*8,
+            green = level*12+100
+    cdCanvasSetForeground(cddbuffer, red*#10000 + green*#100)
     cdCanvasSetLineWidth(cddbuffer,floor(5-level/3))
     cdCanvasLine(cddbuffer, x, 480-y, xn, 480-yn)
     if level<12 then
@@ -39,17 +40,18 @@ end function
 procedure main()
     IupOpen()
 
-    canvas = IupCanvas(NULL)
-    IupSetAttribute(canvas, "RASTERSIZE", "640x480")
-    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+    canvas = IupCanvas("RASTERSIZE=640x480")
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "ACTION", Icallback("redraw_cb")})
 
     dlg = IupDialog(canvas,"RESIZE=NO")
     IupSetAttribute(dlg, "TITLE", "Fractal Tree")
 
     IupShow(dlg)
-    IupMainLoop()
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

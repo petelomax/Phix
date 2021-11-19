@@ -4,8 +4,10 @@
 --
 --  Draws a hilbert curve.
 --
+with javascript_semantics
 include pGUI.e
 
+constant title = "Hilbert Curve"
 Ihandle dlg, canvas
 cdCanvas cddbuffer, cdcanvas
 
@@ -50,17 +52,17 @@ end function
 procedure main()
     hilbert(0, 0, width, 0, 0)
     IupOpen()
-    canvas = IupCanvas(NULL)
-    IupSetAttribute(canvas, "RASTERSIZE", "655x655")
-    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
-    dlg = IupDialog(canvas)
-    IupSetAttribute(dlg, "TITLE", "Hilbert Curve")
-    IupSetAttribute(dlg, "DIALOGFRAME", "YES")  -- no resize here
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
-    IupMap(dlg)
-    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
-    IupMainLoop()
-    IupClose()
+    canvas = IupCanvas("RASTERSIZE=655x655")
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "ACTION", Icallback("redraw_cb")})
+    dlg = IupDialog(canvas,`TITLE="%s"`, {title})
+    -- no resize here (since width is the constant 64...)
+    IupSetAttribute(dlg, "DIALOGFRAME", "YES")
+    IupShow(dlg)
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

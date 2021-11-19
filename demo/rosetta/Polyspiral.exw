@@ -7,6 +7,7 @@
 -- accept arguments in radians not degrees (and mod 2*PI changes nothing), producing 
 -- non-true polyspirals, but quite interesting nevertheless.
 --
+with javascript_semantics
 include pGUI.e
 
 Ihandle dlg, canvas, timer
@@ -18,8 +19,8 @@ atom incr = 0
 bool mod360 = false
 
 procedure Polyspiral(atom x1, y1)
-atom angle = incr
-integer len = 5
+    atom angle = incr
+    integer len = 5
     incr += 0.05
     if mod360 then
         incr = mod(incr,360)
@@ -63,7 +64,7 @@ function map_cb(Ihandle ih)
     return IUP_DEFAULT
 end function
 
-function k_any(Ihandle /*ih*/, atom c)
+function key_cb(Ihandle /*ih*/, atom c)
     if c=K_ESC then return IUP_CLOSE end if
     if c=' ' then
         IupSetInt(timer,"RUN",not IupGetInt(timer,"RUN"))
@@ -80,22 +81,18 @@ end function
 
 procedure main()
     IupOpen()
-
-    canvas = IupCanvas(NULL)
-    IupSetAttribute(canvas, "RASTERSIZE", "640x640")
-    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
-
+    canvas = IupCanvas("RASTERSIZE=640x640")
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "ACTION", Icallback("redraw_cb")})
     timer = IupTimer(Icallback("timer_cb"), 20)
-
-    dlg = IupDialog(canvas)
-    IupSetAttribute(dlg, "TITLE", TITLE)
-    IupSetCallback(dlg, "K_ANY", Icallback("k_any"))
-
+    dlg = IupDialog(canvas,`TITLE="%s"`, {TITLE})
+    IupSetCallback(dlg, "KEY_CB", Icallback("key_cb"))
     IupShow(dlg)
     IupSetAttribute(canvas, "RASTERSIZE", NULL)
-    IupMainLoop()
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

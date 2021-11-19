@@ -5,19 +5,17 @@
 -- credits: http://petercollingridge.appspot.com/3D-tutorial/rotating-objects
 --          https://github.com/ssloy/tinyrenderer/wiki/Lesson-4:-Perspective-projection
 --
+-- Aside: low CPU usage, at least when using a 30ms timer (33 FPS, which is plenty).
+--
+with javascript_semantics
 include pGUI.e
 
--- For Edita/Tools/Re-indent source:
---#withtype Ihandle
---#withtype cdCanvas
-
-Ihandle canvas
+constant title = "Draw a Rotating Cube"
+Ihandle dlg, canvas
 cdCanvas cd_canvas
 
-constant USE_OPENGL = 01
-
 --
--- define 8 corners equidistant from {0,0,0}:
+-- First, define 8 corners equidistant from {0,0,0}:
 --
 --          6-----2
 --      5-----1   3
@@ -25,26 +23,38 @@ constant USE_OPENGL = 01
 --
 -- ie the right face is 1-2-3-4 clockwise, and the left face
 --  is 5-6-7-8 counter-clockwise (unless using x-ray vision).
+-- (since this is not drawing textures, clockwise-ness does 
+--  not matter, as shown by the corrected orange face, but
+--  it will if you (figure out how to) apply any textures.)
+-- (a quick (online) study of opengl texture documentation
+--  should convince you that stuff is best left to opengl.)
 --
 enum X, Y, Z
 constant l = 100
-constant corners = {{+l,+l,+l},
-                    {+l,+l,-l},
-                    {+l,-l,-l},
-                    {+l,-l,+l},
-                    {-l,+l,+l},
-                    {-l,+l,-l},
-                    {-l,-l,-l},
-                    {-l,-l,+l}}
+constant corners = {{+l,+l,+l},     -- 1 (front top right)
+                    {+l,+l,-l},     -- 2 (back top "right")
+                    {+l,-l,-l},     -- 3 (back btm "right")
+                    {+l,-l,+l},     -- 4 (front btm right)
+                    {-l,+l,+l},     -- 5 (front top left)
+                    {-l,+l,-l},     -- 6 (back top "left")
+                    {-l,-l,-l},     -- 7 (back btm "left")
+                    {-l,-l,+l}}     -- 8 (front btm left)
+-- I put left/right in quotes for the back face as a reminder
+-- those match the above diagram, but of course they would be
+-- swapped were you looking "at" the face/rotated it by 180.
 
 constant faces = {{CD_RED,          1,2,3,4},   -- right
                   {CD_YELLOW,       1,5,6,2},   -- top
                   {CD_DARK_GREEN,   1,4,8,5},   -- front
                   {CD_BLUE,         2,3,7,6},   -- back
-                  {CD_WHITE,        3,4,8,7},   -- btm
-                  {CD_ORANGE,       5,6,7,8}}   -- left
+                  {CD_WHITE,        3,4,8,7},   -- bottom
+--                {CD_ORANGE,       5,6,7,8}}   -- left
+                  {CD_ORANGE,       8,7,6,5}}   -- left
 
-atom ry=0 -- rotation angle, 0..359, on a timer
+-- rotation angles, 0..359, on a timer
+atom rx = 45,   -- initially makes cube like a H
+     ry = 35,   --     "	   "    "	italic H
+     rz = 0
 
 constant naxes = {{Y,Z},    -- (rotate about the X-axis)
                   {X,Z},    -- (rotate about the Y-axis)
@@ -61,8 +71,8 @@ function rotate(sequence points, atom angle, integer axis)
     for i=1 to length(points) do
         atom x = points[i][nx],
              y = points[i][ny]
-        points[i][nx] = x * cos_t - y * sin_t
-        points[i][ny] = y * cos_t + x * sin_t
+        points[i][nx] = x*cos_t - y*sin_t
+        points[i][ny] = y*cos_t + x*sin_t
     end for
     return points
 end function
@@ -84,141 +94,131 @@ function nearest(sequence points)
 --
 -- return the index of the nearest point (highest z value)
 --
-    integer np = 1
-    atom maxz = points[1][Z]
-    for i=2 to length(points) do
-        atom piz = points[i][Z]
-        if piz>maxz then
-            maxz = piz
-            np = i
-        end if
-    end for
-    return np
+    return largest(vslice(points,Z),true)
 end function
 
-procedure vertices(integer wx, wh, sequence points, face)
--- (common code for line/fill drawing)
-    for i=2 to length(face) do
-        integer fi = face[i]
-        cdCanvasVertex(cd_canvas,wx+points[fi][X],wh-points[fi][Y])
-    end for
-end procedure
-
-procedure draw_cube(integer wx, wh)
-    sequence points = corners
-    points = rotate(points,45,X)    -- (cube should now look like a H)
-    atom zr = 90-arctan(sqrt(2))*CD_RAD2DEG -- (about 35 degrees)
-    points = rotate(points,zr,Z)    -- (cube should now look like an italic H)
-    points = rotate(points,ry,Y)    -- (timed, two corners should remain static)
+procedure draw_cube(integer cx, cy)
+    -- {cx,cy} is the centre point of the canvas
+    sequence points = deep_copy(corners)
+    points = rotate(points,rx,X)
+    points = rotate(points,ry,Y)
+    points = rotate(points,rz,Z)
     points = projection(points,1000)
     integer np = nearest(points)
     --
     -- find the three faces that contain the nearest point,
-    -- then order by/draw them furthest diag away first.
-    --  (one of them, and theoretically two but not at the
-    --   rotations in use, may be completely obscured, due 
+    -- then for each of those faces let diag be the point
+    -- that is diagonally opposite said nearest point, and
+    -- order by/draw those faces furthest diag away first.
+    --  (one or two of them may be completely obscured due 
     --   to the effects of the perspective projection.)
+    --  (you could of course draw all six faces, as long as
+    --   the 3 furthest are draw first/obliterated, which
+    --   is what that commented-out "else" would achieve.)
     --
     sequence faceset = {}
     for i=1 to length(faces) do
         sequence fi = faces[i]
-        integer k = find(np,fi)
+        integer k = find(np,fi)       -- k:=2..5, or 0
         if k then
-            integer diag = mod(k,4)+2
-            diag = fi[diag]
+            integer diag = mod(k,4)+2 -- {2,3,4,5} --> {4,5,2,3}
+                                      -- aka swap 2<=>4 & 3<=>5
+            diag = fi[diag] -- 1..8, diagonally opp. np
             faceset = append(faceset,{points[diag][Z],i})
+--      else
+--          faceset = append(faceset,{-9999,i})
         end if
     end for
     faceset = sort(faceset)
     for i=1 to length(faceset) do
-        integer fdx = faceset[i][2]
-        sequence fi = faces[fdx]
-        cdCanvasSetForeground(cd_canvas,fi[1])
-        -- draw edges (anti-aliased)
-        cdCanvasBegin(cd_canvas,CD_CLOSED_LINES)
-        vertices(wx,wh,points,fi)
-        cdCanvasEnd(cd_canvas)
-        -- fill sides (else would get bresenham edges)
-        cdCanvasBegin(cd_canvas,CD_FILL)
-        vertices(wx,wh,points,fi)
-        cdCanvasEnd(cd_canvas)
+        sequence face = faces[faceset[i][2]]
+        cdCanvasSetForeground(cd_canvas,face[1])
+        -- first fill sides (with bresenham edges), then
+        -- redraw edges, but anti-aliased aka smoother
+        sequence modes = {CD_FILL,CD_CLOSED_LINES}
+        for m=1 to length(modes) do
+            cdCanvasBegin(cd_canvas,modes[m])
+            for fdx=2 to 5 do
+                sequence pt = points[face[fdx]]
+                cdCanvasVertex(cd_canvas,cx+pt[X],cy-pt[Y])
+            end for
+            cdCanvasEnd(cd_canvas)
+        end for
     end for
 end procedure
 
 function canvas_action_cb(Ihandle canvas)
---  if USE_OPENGL then
---      IupGLMakeCurrent(canvas)    -- (no diff?)
---  end if
     cdCanvasActivate(cd_canvas)
     cdCanvasClear(cd_canvas)
-    integer {wx, wh} = sq_floor_div(IupGetIntInt(canvas, "DRAWSIZE"),2)
-    draw_cube(wx,wh)
+    integer {w, h} = IupGetIntInt(canvas, "DRAWSIZE")
+    draw_cube(floor(w/2),floor(h/2))
     cdCanvasFlush(cd_canvas)
---  if USE_OPENGL then
---      IupGLSwapBuffers(canvas)    -- (no diff?)
---  end if
     return IUP_DEFAULT
 end function
 
 function canvas_map_cb(Ihandle canvas)
-    if USE_OPENGL then
-        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
-        IupGLMakeCurrent(canvas)    -- *** BIG DIFFERENCE! ***
-        cd_canvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    IupGLMakeCurrent(canvas)
+    if platform()=JS then
+        cd_canvas = cdCreateCanvas(CD_IUP, canvas)
     else
-        cd_canvas = cdCreateCanvas(CD_IUPDBUFFER, canvas)
+        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+        cd_canvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
     end if
     cdCanvasSetBackground(cd_canvas, CD_PARCHMENT)
---  cdCanvasSetBackground(cd_canvas, CD_BLACK)
---  cdCanvasSetForeground(cd_canvas, CD_BLUE)
-    return IUP_DEFAULT
-end function
-
-function canvas_unmap_cb(Ihandle canvas)
-    cdKillCanvas(cd_canvas)
     return IUP_DEFAULT
 end function
 
 function canvas_resize_cb(Ihandle /*canvas*/)
-    if USE_OPENGL then
-        integer {canvas_width, canvas_height} = IupGetIntInt(canvas, "DRAWSIZE")
-        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
---      IupGLMakeCurrent(canvas)    -- (no diff?)
-        cdCanvasSetAttribute(cd_canvas, "SIZE", "%dx%d %g", {canvas_width, canvas_height, res})
-    end if
+    integer {canvas_width, canvas_height} = IupGetIntInt(canvas, "DRAWSIZE")
+    atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+    cdCanvasSetAttribute(cd_canvas, "SIZE", "%dx%d %g", {canvas_width, canvas_height, res})
     return IUP_DEFAULT
 end function
 
-function timer_cb(Ihandle /*ih*/)
+--atom t1 = time()+1
+--integer fps = 0 -- (about 1150 under idle_action, 32 under a 30ms timer)
+
+function timer_cb(Ihandln /*ih*/)
+    -- (feel free to add a bit more randomness here, maybe)
+    rx = mod(rx+359,360)
     ry = mod(ry+359,360)
+    rz = mod(rz+359,360)
+--  fps += 1
+--  if time()>t1 then
+--      IupSetStrAttribute(dlg,"TITLE","%s (%d FPS)",{title,fps})
+--      t1 = time()+1
+--      fps = 0
+--  end if
     IupRedraw(canvas)
     return IUP_IGNORE
 end function
 
+--/*
+function idle_action()
+    {} = timer_cb(NULL)
+    return IUP_DEFAULT
+end function
+constant idle_action_cb = Icallback("idle_action")
+--*/
+
 procedure main()
     IupOpen()
---  IupImageLibOpen()
---  if USE_OPENGL then
---      IupGLCanvasOpen()   -- (no diff)
---  end if
-    if USE_OPENGL then
-        canvas = IupGLCanvas()
---      IupSetAttribute(canvas, "BUFFER", "DOUBLE") -- (no diff?)
-    else
-        canvas = IupCanvas()
-    end if
-    IupSetAttribute(canvas, "RASTERSIZE", "640x480")
-    IupSetCallback(canvas, "ACTION", Icallback("canvas_action_cb"))
-    IupSetCallback(canvas, "MAP_CB", Icallback("canvas_map_cb"))
-    IupSetCallback(canvas, "UNMAP_CB", Icallback("canvas_unmap_cb"))
-    IupSetCallback(canvas, "RESIZE_CB", Icallback("canvas_resize_cb"))
-    Ihandle dlg = IupDialog(IupVbox({canvas}))
-    IupSetAttribute(dlg,"TITLE","Draw a Rotating Cube");
+    canvas = IupGLCanvas("RASTERSIZE=640x480")
+    IupSetCallbacks(canvas, {"ACTION", Icallback("canvas_action_cb"),
+                             "MAP_CB", Icallback("canvas_map_cb"),
+                             "RESIZE_CB", Icallback("canvas_resize_cb")})
+    dlg = IupDialog(canvas,`TITLE="%s"`,{title})
     IupShow(dlg)
     IupSetAttribute(canvas, "RASTERSIZE", NULL)
-    Ihandle hTimer = IupTimer(Icallback("timer_cb"), 40)
-    IupMainLoop()
-    IupClose()
+--if 01 then -- low cpu, maybe 1%:
+    Ihandle hTimer = IupTimer(Icallback("timer_cb"), 30)
+--else -- obvs 100% cpu:
+--  IupSetGlobalFunction("IDLE_ACTION",idle_action_cb)
+--end if
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

@@ -1,0 +1,248 @@
+--
+-- demo\rosetta\NumberTripletsGame.exw
+-- ===================================
+--
+with javascript_semantics
+without debug
+include pGUI.e
+include builtins\VM\pcfunc.e
+include builtins\pfile.e
+include builtins\VM\pprntfN.e
+include builtins\get_routine_info.e
+include builtins\scanf.e
+include builtins\pdir.e
+include builtins\penv.e
+with debug
+Ihandle dlg, canvas
+cdCanvas cdcanvas
+
+constant title = "Number Triplets Game",
+         background = {"BBBBBBBBB",
+                       "KYPYPYPYK",
+                       "KYPYPYPYK",
+                       "KYPYPYPYK",
+                       "KYPYPYPYK"},
+         ccc = {{'B',CD_BLUE},
+                {'K',CD_BLACK},
+                {'Y',CD_YELLOW},
+                {'P',CD_PARCHMENT},
+                {'R',CD_RED}},
+         {colour_codes,colours} = columnize(ccc),
+         target = {"         ",
+                   "         ",
+                   " 1 2 3 4 ",
+                   " 1 2 3 4 ",
+                   " 1 2 3 4 "}
+sequence board, -- (as per target)
+         board_row_centres,
+         board_col_centres
+integer cursor_row,
+        cursor_col
+bool bTileSelected,
+     bGameOver
+
+procedure new_game()
+    board = deep_copy(target)
+    string s = shuffle("111222333444")
+    integer sdx = 1
+    for row=3 to 5 do
+        for col=2 to 8 by 2 do
+            board[row][col] = s[sdx]
+            sdx += 1
+        end for
+    end for
+    cursor_row = 1
+    cursor_col = 1
+    bTileSelected = false
+    bGameOver = false
+    board_row_centres = {}
+    board_col_centres = {}
+    IupSetStrAttribute(dlg,"TITLE",title)
+end procedure
+
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
+    integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE"),
+            tilew = floor(width/9)-1,
+            tileh = floor(height/5)-1,
+            leftm = floor((width-(tilew*9+10))/2),
+            topm = floor((height-(tileh*5+6))/2)
+    cdCanvasActivate(cdcanvas)
+    cdCanvasSetBackground(cdcanvas, CD_DARK_GREY)
+    cdCanvasClear(cdcanvas)
+    cdCanvasFont(cdcanvas, "Helvetica", CD_BOLD, -floor(tileh/2))
+    cdCanvasSetTextAlignment(cdcanvas,CD_CENTER)
+    board_row_centres = repeat(0,5)
+    board_col_centres = repeat(0,9)
+    for row=1 to 5 do
+        integer y = height-(topm+tileh*(row-1)+row),
+                y2 = y-tileh,
+                cy = y-floor(tileh/2)
+        board_row_centres[row] = cy
+        for col=1 to 9 do
+            integer clr = background[row][col]
+            if board[row][col]!=' ' then
+                clr = 'R'
+            end if
+            clr = colours[find(clr,colour_codes)]
+            cdCanvasSetForeground(cdcanvas, clr)
+            integer x = leftm+tilew*(col-1)+col,
+                    x2 = x+tilew,
+                    cx = x+floor(tilew/2)
+            board_col_centres[col] = cx
+--          cdCanvasBox(cdcanvas,x,x2,y,y2)
+            cdCanvasBox(cdcanvas,x,x2,y2,y)
+            bool bCurrent = (row==cursor_row and col==cursor_col)
+            if bCurrent then
+                cdCanvasSetForeground(cdcanvas, CD_GREEN)
+                cdCanvasSetLineWidth(cdcanvas, 4)
+                cdCanvasRect(cdcanvas,x+4,x2-5,y-5,y2+4)
+            end if
+            integer ch = board[row][col]
+            if ch!=' ' then
+                clr = iff(bCurrent and bTileSelected?CD_ORANGE:CD_PARCHMENT)
+                cdCanvasSetForeground(cdcanvas, clr)
+                cdCanvasText(cdcanvas,cx,cy,""&ch)
+            end if
+        end for
+    end for
+    cdCanvasFlush(cdcanvas)
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle /*ih*/)
+    atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+    IupGLMakeCurrent(canvas)
+    if platform()=JS then
+        cdcanvas = cdCreateCanvas(CD_IUP, canvas)
+    else
+        cdcanvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    end if
+    cdCanvasSetBackground(cdcanvas, CD_PARCHMENT)
+    return IUP_DEFAULT
+end function
+
+function canvas_resize_cb(Ihandle /*canvas*/)
+    integer {canvas_width, canvas_height} = IupGetIntInt(canvas, "DRAWSIZE")
+    atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+    cdCanvasSetAttribute(cdcanvas, "SIZE", "%dx%d %g", {canvas_width, canvas_height, res})
+    return IUP_DEFAULT
+end function
+
+procedure move(integer dy, dx, bool bValid)
+    if not bValid then
+        bTileSelected = false
+    else
+        integer ny = cursor_row+dy,
+                nx = cursor_col+dx
+        if bTileSelected then
+            integer tile = board[cursor_row][cursor_col]
+            if board[ny][nx]!=' ' then
+                bTileSelected = false
+            else
+                board[cursor_row][cursor_col] = ' '
+                board[ny][nx] = tile
+                bGameOver = board=target
+                if bGameOver then
+                    IupSetStrAttribute(dlg,"TITLE",title & " - GAME OVER")
+                    bTileSelected = false
+                end if
+            end if
+        end if
+        cursor_row = ny
+        cursor_col = nx
+    end if
+end procedure
+
+function key_cb(Ihandle /*ih*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if
+    if not bGameOver then
+        if    c=K_LEFT  then move( 0,-1, cursor_row=1 and cursor_col>1 )
+        elsif c=K_RIGHT then move( 0, 1, cursor_row=1 and cursor_col<9 )
+        elsif c=K_DOWN  then move( 1, 0, cursor_row<5 and even(cursor_col) )
+        elsif c=K_UP    then move(-1, 0, cursor_row>1 )
+        elsif c=K_SP then
+            if bTileSelected then
+                bTileSelected = false
+            elsif board[cursor_row][cursor_col]!=' ' then
+                bTileSelected = true
+            end if
+        end if
+    elsif c=K_SP then
+        new_game()
+    end if
+    IupRedraw(canvas)
+    return IUP_CONTINUE
+end function
+
+function check_position(integer px, py)
+--
+-- convert x,y mouse move/click to row/col
+--
+    if not bGameOver 
+    and board_row_centres!={} then -- (when started with mouse cursor on-board)
+        integer myrow = 1,
+                mxcol = 9
+        for row=1 to 4 do
+            if py>(board_row_centres[row]+board_row_centres[row+1])/2 then
+                myrow = 6-row
+                exit
+            end if
+        end for
+        for col=1 to 8 do
+            if px<(board_col_centres[col]+board_col_centres[col+1])/2 then
+                mxcol = col
+                exit
+            end if
+        end for
+        return {myrow, mxcol}
+    end if
+    return {0,0}
+end function
+
+function motion_cb(Ihandle canvas, integer x, y, atom /*pStatus*/)
+    integer {myrow, mxcol} = check_position(x,y),
+            dy = cursor_row-myrow,
+            dx = cursor_col-mxcol
+    if (dy=0 and abs(dx)=1)
+    or (dx=0 and abs(dy)=1) then
+        integer c = iff(dy=0?iff(dx=+1?K_LEFT:K_RIGHT)
+                            :iff(dy=-1?K_DOWN:K_UP))
+        return key_cb(canvas, c)
+    end if  
+    return IUP_CONTINUE
+end function
+
+function button_cb(Ihandle canvas, integer button, pressed, x, y, atom /*pStatus*/)
+    if button=IUP_BUTTON1 and not pressed then      -- (left button released)
+        integer {myrow, mxcol} = check_position(x,y)
+        if myrow = cursor_row
+        and mxcol = cursor_col then
+            return key_cb(canvas, K_SP)     -- pickup/drop
+        else
+            -- fallback in case no hover, eg on tablet/phone(?)
+            return motion_cb(canvas,x,y,NULL)
+        end if
+    end if
+    return IUP_CONTINUE
+end function
+
+procedure main()
+    IupOpen()
+    canvas = IupGLCanvas("RASTERSIZE=640x340")
+    sequence cb = {"MAP_CB", Icallback("map_cb"),
+                   "ACTION", Icallback("redraw_cb"),
+                   "RESIZE_CB", Icallback("canvas_resize_cb"),
+                   "MOTION_CB", Icallback("motion_cb"),
+                   "BUTTON_CB", Icallback("button_cb")}
+    IupSetCallbacks(canvas, cb)
+    dlg = IupDialog(canvas,`TITLE="%s"`,{title})
+    IupSetCallback(dlg, "KEY_CB", Icallback("key_cb"))
+    new_game()
+    IupShow(dlg)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL) -- (allow full resize)
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
+end procedure
+main()

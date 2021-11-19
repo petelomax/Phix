@@ -3,24 +3,25 @@
 -- ===============================
 --
 -- updated 28/9/18 to draw leaves last (extra arg dd) for better symmetry
-
+--
+with javascript_semantics
 include pGUI.e
 
+constant title = "Pythagoras Tree"
 Ihandle dlg, canvas
 cdCanvas cddbuffer, cdcanvas
 
 enum FILL, BORDER
 
 procedure drawTree(atom x1, y1, x2, y2, integer depth, dd)
-atom dx = x2 - x1
-atom dy = y1 - y2
-
-atom x3 = x2 - dy
-atom y3 = y2 - dx
-atom x4 = x1 - dy
-atom y4 = y1 - dx
-atom x5 = x4 + 0.5 * (dx - dy)
-atom y5 = y4 - 0.5 * (dx + dy)
+    atom dx = x2 - x1,
+         dy = y1 - y2,
+         x3 = x2 - dy,
+         y3 = y2 - dx,
+         x4 = x1 - dy,
+         y4 = y1 - dx,
+         x5 = x4 + 0.5 * (dx - dy),
+         y5 = y4 - 0.5 * (dx + dy)
  
     if depth=dd then
         integer r = 250-depth*20
@@ -28,7 +29,8 @@ atom y5 = y4 - 0.5 * (dx + dy)
         for draw=FILL to BORDER do
             -- one square... 
             cdCanvasSetForeground(cddbuffer, iff(draw=FILL?rgb(r,#FF,0):CD_GRAY))
-            cdCanvasBegin(cddbuffer,iff(draw=FILL?CD_FILL:CD_CLOSED_LINES))
+            integer mode = iff(draw=FILL?CD_FILL:CD_CLOSED_LINES)
+            cdCanvasBegin(cddbuffer,mode)
             cdCanvasVertex(cddbuffer, x1, 640-y1)
             cdCanvasVertex(cddbuffer, x2, 640-y2)
             cdCanvasVertex(cddbuffer, x3, 640-y3)
@@ -38,6 +40,7 @@ atom y5 = y4 - 0.5 * (dx + dy)
             if draw=FILL then 
                 cdCanvasSetForeground(cddbuffer, rgb(r-depth*10,#FF,0))
             end if
+            cdCanvasBegin(cddbuffer,mode)
             cdCanvasVertex(cddbuffer, x3, 640-y3)
             cdCanvasVertex(cddbuffer, x4, 640-y4)
             cdCanvasVertex(cddbuffer, x5, 640-y5)
@@ -68,18 +71,15 @@ end function
 
 procedure main()
     IupOpen()
-
-    canvas = IupCanvas(NULL)
-    IupSetAttribute(canvas, "RASTERSIZE", "640x640")
-    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
-
-    dlg = IupDialog(canvas,"RESIZE=NO")
-    IupSetAttribute(dlg, "TITLE", "Pythagoras Tree")
-
+    canvas = IupCanvas("RASTERSIZE=640x640")
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "ACTION", Icallback("redraw_cb")})
+    dlg = IupDialog(canvas,`RESIZE=NO, TITLE="%s"`,{title})
     IupShow(dlg)
-    IupMainLoop()
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

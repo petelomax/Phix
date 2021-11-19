@@ -6,6 +6,8 @@
 --
 bool yellow_orange = true   -- false = magenta on black, outlines only
 
+with javascript_semantics
+constant title = "Penrose tiling"
 include pGUI.e
 
 Ihandle dlg, canvas
@@ -98,11 +100,15 @@ function map_cb(Ihandle ih)
     return IUP_DEFAULT
 end function
 
-function k_any(Ihandle /*ih*/, atom c)
+function key_cb(Ihandle /*ih*/, atom c)
     if c=K_ESC then return IUP_CLOSE end if
     if c=' ' then
-        triangles = subdivide(triangles)
-        IupUpdate(canvas)
+        if length(triangles)<=6100 then -- sane limit
+            triangles = subdivide(triangles)
+            IupUpdate(canvas)
+        else
+            IupSetAttribute(dlg,"TITLE",title & " (sane limit reached)")
+        end if
     elsif upper(c)='C' then
         yellow_orange = not yellow_orange
         IupUpdate(canvas)
@@ -112,21 +118,17 @@ end function
 
 procedure main()
     IupOpen()
-    
-    canvas = IupCanvas(NULL)
-    IupSetAttribute(canvas, "RASTERSIZE", "600x600") -- initial size
-    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
-
-    dlg = IupDialog(canvas)
-    IupSetAttribute(dlg, "TITLE", "Penrose tiling")
-    IupSetCallback(dlg, "K_ANY", Icallback("k_any"))
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
-
-    IupMap(dlg)
+    canvas = IupCanvas("RASTERSIZE=600x600")
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "ACTION", Icallback("redraw_cb")})
+    dlg = IupDialog(canvas, `TITLE="%s"`,{title})
+    IupSetCallback(dlg, "KEY_CB", Icallback("key_cb"))
+    IupShow(dlg)
     IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release the minimum limitation
-    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
-    IupMainLoop()
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

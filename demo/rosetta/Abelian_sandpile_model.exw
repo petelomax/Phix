@@ -8,7 +8,11 @@
 -- The redraw logic originally cribbed from Morpion Solitaire.
 -- The version posted to rosettacode is pixel_mode only.
 --
+-- While this works under p2js it is terribly slow... [DEV]
+-- On a hunch I tried using mlen instead of appending to and
+-- then slicing moves, but it made absolutely no difference.
 --
+with javascript_semantics
 constant help_text = """
 Any "pile" that has 4 or more sand particles on it collapses, 
 resulting in four particles being subtracted from the pile and 
@@ -32,10 +36,9 @@ include pGUI.e
 --include builtins\factorial.e
 --include builtins\VM\pTime.e
 --with debug
---#withtype Ihandle
---#withtype cdCanvas
 
 Ihandle dlg, canvas, timer
+cdCanvas cddbuffer
 
 sequence board = {{0,0,0},
                   {0,0,0},
@@ -51,8 +54,6 @@ function redraw_cb(Ihandle ih, integer /*posx*/, /*posy*/)
             bw = length(board[1]),
             bh = length(board)
     
-    cdCanvas cddbuffer = IupGetAttributePtr(ih,"DBUFFER")
-    IupGLMakeCurrent(ih)
     cdCanvasActivate(cddbuffer)
     cdCanvasClear(cddbuffer)
     integer mx = min(floor(cw/bw),floor(ch/bh)),
@@ -73,7 +74,7 @@ function redraw_cb(Ihandle ih, integer /*posx*/, /*posy*/)
                 cy -= mx
             end while
             if show_text and mx>=20 then    
-                {} = cdCanvasTextAlignment(cddbuffer, CD_CENTER) 
+                cdCanvasSetTextAlignment(cddbuffer, CD_CENTER) 
             end if
         else
             t += 1
@@ -110,31 +111,50 @@ function redraw_cb(Ihandle ih, integer /*posx*/, /*posy*/)
     return IUP_DEFAULT
 end function
 
-function map_cb(Ihandle ih)
-    IupGLMakeCurrent(ih)
-    atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
-    cdCanvas cddbuffer = cdCreateCanvas(CD_GL, "10x10 %g", {res})
-    IupSetAttributePtr(ih,"DBUFFER",cddbuffer)
+function map_cb(Ihandle /*canvas*/)
+    IupGLMakeCurrent(canvas)
+    if platform()=JS then
+        cddbuffer = cdCreateCanvas(CD_IUP, canvas)
+    else
+        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+        cddbuffer = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    end if
     cdCanvasSetBackground(cddbuffer, CD_PARCHMENT)
     return IUP_DEFAULT
 end function
 
 function canvas_resize_cb(Ihandle canvas)
-    cdCanvas cddbuffer = IupGetAttributePtr(canvas,"DBUFFER")
     integer {canvas_width, canvas_height} = IupGetIntInt(canvas, "DRAWSIZE")
     atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
     cdCanvasSetAttribute(cddbuffer, "SIZE", "%dx%d %g", {canvas_width, canvas_height, res})
     return IUP_DEFAULT
 end function
 
+--integer maxmlen = 100
+--constant nd = {{0,-1},{0,+1},{-1,0},{+1,0}}
 procedure drop(integer x, y)
     sequence moves = {}
+--  integer mlen = 0
     while true do
-        board[y,x] += 1
-        if board[y,x]>=4 then
-            board[y,x] -= 4
-            moves &= {{y,x-1},{y,x+1},{y-1,x},{y+1,x}}
+        integer byx = board[y,x]
+        byx += 1
+        if byx>=4 then
+            byx -= 4
+            moves &= deep_copy({{y,x-1},{y,x+1},{y-1,x},{y+1,x}})
+--/*
+            for i=1 to 4 do
+--              integer {dx,dy} = nd[i]
+                integer {dy,dx} = {{0,-1},{0,+1},{-1,0},{+1,0}}[i]
+                mlen += 1
+                if mlen>length(moves) then
+                    moves = append(moves,{y+dy,x+dx})
+                else
+                    moves[mlen] = {y+dy,x+dx}
+                end if
+            end for
+--*/
         end if
+        board[y,x] = byx
         -- extend board if rqd (maintain a border of zeroes)
         if x=1 then
             -- extend left
@@ -153,17 +173,26 @@ procedure drop(integer x, y)
         -- (copy the undamaged lines from the other end...)
         if y=1 then
             -- extend up
-            board = prepend(board,board[$])
+            board = prepend(board,deep_copy(board[$]))
             for i=1 to length(moves) do
                 moves[i][1] += 1
             end for
         elsif y=length(board) then
             -- extend down
-            board = append(board,board[1])
+            board = append(board,deep_copy(board[1]))
         end if
         if length(moves)=0 then exit end if
+--/*
+        if mlen=0 then exit end if
+if mlen>maxmlen then
+    ?mlen
+    maxmlen = mlen
+end if
+--*/
         {y,x} = moves[$]
+--      {y,x} = moves[mlen]
         moves = moves[1..$-1]
+--      mlen -= 1
     end while   
     IupUpdate(canvas)
 end procedure
@@ -216,8 +245,10 @@ procedure main()
     IupSetAttribute(dlg, "RASTERSIZE", NULL)
     IupSetStrAttribute(dlg, "MINSIZE", IupGetAttribute(dlg,"RASTERSIZE"))
     timer = IupTimer(Icallback("timer_cb"), 1000)
-    IupMainLoop()
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
  
 main()

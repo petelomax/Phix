@@ -1,0 +1,46 @@
+--
+-- demo\rosetta\Draw_pixel_2.exw
+--
+with javascript_semantics
+include pGUI.e
+
+Ihandle dlg, canvas
+cdCanvas cddbuffer, cdcanvas
+
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
+    atom {w,h} = IupGetIntInt(canvas, "DRAWSIZE")
+    cdCanvasActivate(cddbuffer)
+    cdCanvasClear(cddbuffer)
+    cdCanvasPixel(cddbuffer, rand(w), rand(h), CD_YELLOW)
+    cdCanvasFlush(cddbuffer)
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle ih)
+    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    cdCanvasSetBackground(cddbuffer, CD_BLACK)
+    return IUP_DEFAULT
+end function
+
+function timer_cb(Ihandle /*ih*/)
+    IupUpdate(canvas)
+    return IUP_IGNORE
+end function
+
+procedure main()
+    IupOpen()
+    canvas = IupCanvas("RASTERSIZE=240x250")
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "ACTION", Icallback("redraw_cb")})
+    dlg = IupDialog(canvas,`TITLE="Draw pixel"`)
+    IupShow(dlg)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL)
+    Ihandle timer = IupTimer(Icallback("timer_cb"), 500) -- (2 fps)
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
+end procedure
+
+main()

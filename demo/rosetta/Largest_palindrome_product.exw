@@ -1,0 +1,463 @@
+--
+-- demo\rosetta\Largest_palindrome_product.exw
+-- ===========================================
+--
+-- https://rosettacode.org/wiki/Largest_palindrome_product
+--
+with javascript_semantics
+requires("1.0.1") -- (mpz_fdiv_qr(), mpz_si_sub() added to mpfr.js, mpz_mod_ui(), mpz_fdiv_q_ui(), mpz_fdiv_r(), mpz_fdiv_ui() fixed)
+include mpfr.e
+
+function ispalindrome(mpz x)
+    string s = mpz_get_str(x)
+    return s == reverse(s)
+end function
+
+function inverse(mpz x, integer m)
+-- Compute the modular inverse of x modulo power(10,m).
+-- Return -1 if the inverse does not exist.
+-- This function uses Hensel lifting.
+    integer a = {-1, 1, -1, 7, -1, -1, -1, 3, -1, 9}[mpz_fdiv_ui(x,10)+1],
+            sanity_count = 0
+    if a!=-1 then
+        mpz ax = mpz_init()
+        while true do
+            mpz_mul_si(ax,x,a)
+            {} = mpz_mod_ui(ax,ax,m)
+--printf(1,"inverse(%s,%d): ax=%s, a=%d\n",{mpz_get_str(x),m,mpz_get_str(ax),a})
+            if mpz_cmp_si(ax,1)==0 then exit end if
+            mpz_si_sub(ax,2,ax)
+            mpz_mul_si(ax,ax,a)
+            a = mpz_fdiv_q_ui(ax,ax,m)
+            // [following added when fixing mpz_mod_ui() and mpz_fdiv_q_ui()]
+            sanity_count += 1
+            if sanity_count>3 then ?9/0 end if
+        end while
+    end if
+    return a
+end function
+
+function pal2(integer n)
+    assert(n>1)
+
+    mpz {best,factor,y,r} = mpz_inits(4)
+    if even(n) then
+        mpz_ui_pow_ui(factor,10,n/2)
+        mpz_sub_si(factor,factor,1)
+        mpz_ui_pow_ui(best,10,n/2*3)
+        mpz_mul(best,best,factor)
+        mpz_add(best,best,factor)
+        assert(ispalindrome(best))
+        mpz_ui_pow_ui(factor,10,n)
+        mpz_sub_si(factor,factor,1)
+        assert(ispalindrome(factor))
+    else
+        // Get a lower bound:
+        integer k = floor(n/2)
+        mpz {maxf,maxf11,minf,x,t,maxy,p} = mpz_inits(7)
+        while true do
+            mpz_ui_pow_ui(maxf,10,n)
+            mpz_sub_si(maxf,maxf,1)
+            mpz_sub_si(maxf11,maxf,11)
+            {} = mpz_fdiv_q_ui(maxf11,maxf11,22)
+            mpz_mul_si(maxf11,maxf11,22)
+            mpz_add_si(maxf11,maxf11,11)
+            mpz_ui_pow_ui(minf,10,n-k)
+            mpz_sub(minf,maxf,minf)
+            mpz_add_si(minf,minf,2)
+            mpz_mul(best,minf,minf)
+            mpz_set_si(factor,0)
+            // This palindrome starts with k 9's.
+            // Hence the largest palindrom must also start with k 9's and
+            // therefore end with k 9's.
+            // Thus, if p = x * y is the solution then
+            // x * y + 1 is divisible by m.
+            integer m = power(10,k) -- (should not exceed 1e8)
+            mpz_set(x,maxf11)
+            while mpz_cmp_si(x,1)>=0 do
+                mpz_mul(t,x,maxf)
+                if mpz_cmp(t,best)=-1 then exit end if
+                integer ry = inverse(x, m)
+                if ry!=-1 then
+                    mpz_add_si(maxy,maxf,1-ry)
+                    mpz_mul(p,maxy,x)
+                    while mpz_cmp(p,best)>0 do
+                        if ispalindrome(p) then
+                            mpz_set(best,p)
+                            mpz_set(factor,x)
+                        end if
+                        mpz_mul_si(t,x,m)
+                        mpz_sub(p,p,t)
+                    end while
+                end if
+                mpz_sub_si(x,x,22)
+            end while
+            if mpz_cmp_si(factor,0)!=0 then exit end if
+            k -= 1
+        end while
+    end if
+    mpz_fdiv_qr(y,r,best,factor)
+    assert(mpz_cmp_si(r,0)=0)
+    return {best, factor, y}
+end function
+
+constant fmt = "Largest palindromic product of two %d-digit integers: %s = %s x %s (%s)\n"
+for n=2 to 12 do
+--for n=5 to 5 do
+    atom t1 = time()
+    mpz {p,x,y} = pal2(n)
+    string sp = mpz_get_str(p),
+           sx = mpz_get_str(x),
+           sy = mpz_get_str(y),
+            e = elapsed(time()-t1)
+    printf(1,fmt,{n,sp,sx,sy,e})
+end for
+
+--/* first integer-only version, saved for posterity
+--include mpfr.e
+function ispalindrome(atom x)
+--function ispalindrome(mpz x)
+    string s = sprintf("%d",x)
+--  string s = mpz_get_str(x)
+    return s == reverse(s)
+end function
+
+function inverse(atom x,m)
+--function inverse(mpz x, integer m)
+-- Compute the modular inverse of x modulo power(10,m).
+-- Return -1 if the inverse does not exist.
+-- This function uses Hensel lifting.
+--integer res = mpz_fdiv_ui(mpz n, integer d) - returns mod(n,d) - n and d remain unaltered, d is a phix integer, 0..1GB.  
+    integer a = {-1, 1, -1, 7, -1, -1, -1, 3, -1, 9}[remainder(x,10)+1]
+--  integer a = {-1, 1, -1, 7, -1, -1, -1, 3, -1, 9}[mpz_fdiv_ui(x,10)+1]
+    if a!=-1 then
+        while true do
+--          atom ax = remainder(a*x,m)
+            atom ax = mod(a*x,m)
+            if ax==1 then exit end if
+--          a = remainder(a*(2-ax),m)
+            a = mod(a*(2-ax),m)
+        end while
+    end if
+    return a
+end function
+
+function pal2(integer n)
+    assert(n>1)
+
+--  mpz {best,factor,y,r} = mpz_inits(4)
+--/* this works, test later for speed...
+    if even(n) then
+        mpz_ui_pow_ui(factor,10,n/2)
+        mpz_sub_si(factor,factor,1)
+        mpz_ui_pow_ui(best,10,n/2*3)
+        mpz_mul(best,best,factor)
+        mpz_add(best,best,factor)
+        assert(ispalindrome(best))
+        mpz_ui_pow_ui(factor,10,n)
+        mpz_sub_si(factor,factor,1)
+        assert(ispalindrome(factor))
+--      printf(1,"n=%2d best=%s, factor=%s\n",{n,mpz_get_str(best),mpz_get_str(factor)})
+        
+--/*
+n=2  9009 = 99 x 91
+n=4  99000099 = 9999 x 9901
+n=6  999000000999 = 999999 x 999001
+n=8  9999000000009999 = 99999999 x 99990001
+n=10 99999000000000099999 = 9999999999 x 9999900001
+--   99999000000000099999   9999999999   9999900001
+n=12 999999000000000000999999 = 999999999999 x 999999000001
+n=14 9999999000000000000009999999 = 99999999999999 x 99999990000001
+n=16 99999999000000000000000099999999 = 9999999999999999 x 9999999900000001
+"done"
+
+digs    factor   factor            palindrome
+  2         91 x 99         =         9009
+  3        913 x 993        =        906609
+  4       9901 x 9999       =       99000099
+  5      99979 x 99681      =      9966006699
+  6     999001 x 999999     =     999000000999
+  7    9997647 x 9998017    =    99956644665999
+  8   99990001 x 99999999   =   9999000000009999
+  9  999920317 x 999980347  =  999900665566009999
+ 10 9999900001 x 9999999999 = 99999000000000099999
+2.1622142 sec
+Wow! how did that go so fast? The results for the even-number-of-digit factors were manufactured by string manipulation instead of calculation (since the pattern was obvious). This algorithm can easily be adapted to BigIntegers for higher n-digit factors, but the execution time is unspectacular.
+--*/
+    else
+--*/
+        // Get a lower bound:
+        // If n is even then we can construct a first palindrome.
+        // If n is odd we simply guess
+        integer k = floor(n/2)
+        atom best, factor
+--      mpz {maxf,maxf11,minf,x,t} = mpz_inits(5)
+        while true do
+            atom maxf = power(10,n) - 1,
+--          mpz_ui_pow_ui(maxf,10,n)
+--          mpz_sub_si(maxf,maxf,1)
+--                maxf11 = (maxf - 11) // 22 * 22 + 11
+--               maxf11 = maxf - 11, // 22 * 22 + 11
+                 maxf11 = floor((maxf-11)/22)*22+11,
+--          mpz_sub(maxf11,maxf,11)
+--          {} = mpz_fdiv_q_ui(maxf11,maxf11,22)
+--          mpz_mul_si(maxf11,maxf11,22)
+--          mpz_add_si(maxf11,maxf11,11)
+                 minf = power(10,n) - power(10,n-k) + 1
+--          mpz_ui_pow_ui(minf,10,n-k)
+--          mpz_sub(minf,maxf,minf)
+--          mpz_add_si(minf,minf,2)
+--if k>-40 then
+--  printf(1,"maxf=%d, minf=%d, k=%d\n",{maxf,minf,k})
+--end if
+            if 2*k == n then
+                best = maxf * minf
+--              mpz_mul(best,maxf,minf)
+----            factor = (maxf, minf)
+                factor = maxf
+--              mpz_set(factor,maxf)
+                assert(ispalindrome(best))
+            else
+                best = minf * minf
+--              mpz_mul(best,minf,minf)
+                factor = 0
+--              mpz_set_si(factor,0)
+            end if
+            // This palindrome starts with k 9's.
+            // Hence the largest palindrom must also start with k 9's and
+            // therefore end with k 9's.
+            // Thus, if p = x * y is the solution then
+            // x * y + 1 is divisible by m.
+--          atom m = power(10,k)
+            integer m = power(10,k) -- (should not exceed 1e8)
+--          mpz_ui_pow_ui(m,10,k)
+--          for x in range(maxf11, 1, -22):
+            for x=maxf11 to 1 by -22 do
+--          mpz_set(x,maxf11)
+--          while mpz_cmp_si(x,1)>=0 do
+--if k>-40 then
+--              printf(1,"x=%d\n",x)
+--end if
+--??
+--          for x=maxf11 to 2 by -22 do
+--              if x * maxf < best then exit end if
+                if (x * maxf) < best then exit end if
+--              mpz_mul(t,x,maxf)
+--              if mpz_cmp(t,best)=-1 then exit end if
+                integer ry = inverse(x, m)
+--?ry
+                if ry!=-1 then
+                    atom maxy = maxf+1-ry
+--                  for p in range(maxy * x, best, -x * m):
+--                  for p=maxy*x to best by -x*m do
+                    atom p = maxy*x
+                    while p>best do
+--if k>-40 then
+--                      printf(1,"p=%d\n",p)
+--end if
+
+                        if ispalindrome(p) then
+--                          if p>best then
+                                best = p
+                                factor = x
+--                          end if
+                        end if
+--                  end for
+                        p -= x*m
+                    end while
+                end if
+            end for
+--              mpz_sub(x,x,22)
+--          end while
+            if factor then exit end if
+            k -= 1
+        end while
+--  end if
+--  mpz_fdiv_qr(y,r,best,factor)
+--  printf(1,"best=%s, factor=%s, y=%s, r=%s\n",{mpz_get_str(best),mpz_get_str(factor),mpz_get_str(y),mpz_get_str(r)})
+--  assert(mpz_cmp_si(r,0)=0)
+--  return {best, factor, y}
+    return {best, factor}
+end function
+
+--for n in range(2,20):
+--for n=2 to 20 do
+for n=2 to 7 do
+--for n=2 to iff(machine_bits()=32?15:16) do
+--for n=2 to 16 by 2 do
+--for n=3 to 4 do
+--  mpz {p,x,y} = pal2(n)
+    atom {p,x} = pal2(n),
+         y = p/x
+    printf(1,"n=%-2d %d = %d x %d\n",{n,p,x,y})
+--  printf(1,"n=%-2d %s = %s x %s\n",{n,mpz_get_str(p),mpz_get_str(x),mpz_get_str(y)})
+end for
+--*/
+
+--/*
+n=2  9009 = 99 x 91
+n=3  906609 = 913 x 993
+n=4  99000099 = 9999 x 9901
+n=5  9966006699 = 99979 x 99681
+n=6  999000000999 = 999999 x 999001
+n=7  99956644665999 = 9997647 x 9998017
+"done"
+--*/
+
+--
+--{{trans|Wren}}
+--/*
+with javascript_semantics
+--include mpfr.e
+function reverse_number(integer n)
+    integer r = 0 
+    while n>0 do
+        r = r*10 + remainder(n,10)
+        n = floor(n/10)
+    end while
+    return r
+end function
+ 
+integer pow = 10
+--mpz {p,q} = mpz_inits(2)
+--for n=2 to iff(machine_bits()=64?8:7) do
+for n=2 to 7 do
+    integer low = pow * 9
+    pow *= 10
+    integer high = pow - 1
+    printf(1,"Largest palindromic product of two %d-digit integers: ",n)
+    bool nextN = false
+    for i=high to low by -1 do
+        integer j = reverse_number(i)
+        atom p = i * pow + j
+--      mpz_set_si(p,i)
+--      mpz_mul_si(p,p,pow)
+--      mpz_add_si(p,p,j)
+        // k cannot be even nor end in 5 to produce a product ending in 9
+        integer k = high
+        while k>low do
+            if remainder(k,10)!=5 then
+                integer l = floor(p/k)
+--              integer rem = mpz_fdiv_q_ui(mpz q, n, integer d) - {q,res} := {floor(n/d),remainder(n,d)}
+--              integer rem = mpz_fdiv_q_ui(q, p, k)
+                if l>high then exit end if
+--              if mpz_cmp_si(q,high)=1 then exit end if
+                if remainder(p,k)==0 then
+--              if rem==0 then
+                    printf(1,"%d x %d = %d\n",{k,l,p})
+--                  printf(1,"%d x %s = %s\n",{k,mpz_get_str(q),mpz_get_str(p)})
+                    nextN = true
+                    exit
+                end if
+            end if
+            k -= 2
+        end while
+        if nextN then exit end if
+    end for
+end for
+--*/
+
+?"done"
+{} = wait_key()
+
+/* from project euler (python), on which the final (top) version is based
+I have a few more solutions for different sizes:
+
+# n=2  9009 = 91 * 99
+# n=3  906609 = 913 * 993
+# n=4  99000099 = 9901 * 9999
+# n=5  9966006699 = 99681 * 99979
+# n=6  999000000999 = 999001 * 999999
+# n=7  99956644665999 = 9997647 * 9998017
+# n=8  9999000000009999 = 99990001 * 99999999
+# n=9  999900665566009999 = 999980347 * 999920317
+# n=10 99999834000043899999 = 9999996699 * 9999986701
+# n=11 9999994020000204999999 = 99999996349 * 99999943851
+# n=12 999999000000000000999999 = 999999999999 * 999999000001
+# n=13 99999963342000024336999999 = 9999999993349 * 9999996340851
+# n=14 9999999000000000000009999999 = 99999999999999 * 99999990000001
+# n=15 999999974180040040081479999999 = 999999998341069 * 999999975838971
+# n=16 99999999000000000000000099999999 = 9999999999999999 * 9999999900000001
+# n=18 999999999470552640046255074999999999 = 999999999889625119 * 999999999580927521
+# n=19 99999999988837057200275073888999999999 = 9999999999632783059 * 9999999999250922661
+# n=20 9999999999694448232002328444969999999999 = 99999999998547088359 * 99999999998397393961
+
+The following code find the largest palindrom for all n <= 16 in less than 1 minute. 
+
+
+# Using python 3.0
+
+def ispalindrome(x):
+    s = str(x)
+    return s == s[::-1]
+
+
+def inverse(x,mod):
+    """Compute the modular inverse of x modulo a power of 10.
+    Return None if the inverse does not exist.
+    This function uses Hensel lifting."""
+    a = [None, 1, None, 7, None, None, None, 3, None, 9][x%10]
+    if a == None: return a
+    while True:
+        ax = a*x % mod
+        if ax == 1: return a
+        a = (a * (2 - ax)) % mod
+
+def pal2(n):
+    assert n > 2
+
+    # Get a lower bound:
+    # If n is even then we can construct a first palindrome.
+    # If n is odd we simply guess
+    k = n//2
+    while True:
+      maxf = 10**n - 1
+      maxf11 = (maxf - 11) // 22 * 22 + 11
+      minf = 10**n - 10**(n-k) + 1
+      if 2*k == n:
+        best = maxf * minf
+        factors = (maxf, minf)
+        assert ispalindrome(best)
+      else:
+        best = minf * minf
+        factors = None
+      # This palindrome starts with k 9's.
+      # Hence the largest palindrom must also start with k 9's and
+      # therefore end with k 9's.
+      # Thus, if p = x * y is the solution then
+      # x * y + 1 is divisible by mod.
+      mod = 10**k
+      for x in range(maxf11, 1, -22):
+        if x * maxf < best:
+            break
+        ry = inverse(x, mod)
+        if ry == None:
+            continue
+        maxy = maxf + 1 - ry
+        for p in range(maxy * x, best, -x * mod):
+            if ispalindrome(p):
+                if p > best: 
+                    best = p
+                    y = p//x
+                    factors = (x, y)
+      if factors:
+        return best, factors
+      else: k-=1
+--*/
+
+--/*
+Ah (python) I think this is what I was thinking of: (leave it!)
+
+def largest_palindrome(largest_number): # 999 for example for all 3 digit numbers
+    a = largest_number
+    largest = 0 # Holds largest palindrome so far
+    while a * largest_number > largest: # Keep searching until a*999 is less than result
+        for b in range(a, largest_number + 1):
+            val = a*b
+            if is_palindrome(val) and val > largest:
+                largest = val
+        a -= 1
+    return largest
+--*/
+
+

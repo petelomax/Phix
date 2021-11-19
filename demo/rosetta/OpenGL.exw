@@ -1,0 +1,134 @@
+--
+-- demo\rosetta\OpenGL.exw
+-- =======================
+--
+--  Translation of http://rosettacode.org/wiki/OpenGL#JavaScript
+--  Converted to pGUI by Pete Lomax
+--
+--{{trans|JavaScript}}
+--This can be run online <here>, and also works on desktop/Phix
+with javascript_semantics
+requires("1.0.1")
+include pGUI.e
+--include ..\pGUI\opengl.e
+include opengl.e
+
+Ihandln dlg
+Ihandle canvas
+
+constant fragment_shader = """
+precision highp float;
+varying vec4 v_color;
+void main(void) {
+    // "Varying" variables are implicitly interpolated across triangles.
+    gl_FragColor = v_color;
+}""",
+         vertex_shader = """
+attribute vec3 a_position;
+attribute vec4 a_color;
+varying vec4 v_color;
+void main(void) {
+    gl_Position = vec4(a_position, 1.0);
+    v_color = a_color;
+}"""
+
+function get_shader(string src, integer stype)
+    integer shader = glCreateShader(stype)
+    glShaderSource(shader, src)
+    glCompileShader(shader)
+    if not glGetShaderParameter(shader, GL_COMPILE_STATUS) then
+        crash(glGetShaderInfoLog(shader))
+    end if
+    return shader
+end function
+
+constant vertices = { -0.5, -0.5, 0,    -- (bl)
+                      +0.5, -0.5, 0,    -- (br)
+                      -0.5, +0.5, 0 },  -- (tl)
+--                    +0.5, +0.5, 0 },  -- (tr)
+         colours = { 1, 0, 0, 1,    -- red (bl)
+                     0, 1, 0, 1,    -- green (br)
+                     0, 0, 1, 1 }   -- blue (tl)
+
+procedure set_shader()
+    IupGLMakeCurrent(canvas)
+    integer shaderProgram = glCreateProgram()
+    glAttachShader(shaderProgram, get_shader(vertex_shader,GL_VERTEX_SHADER))
+    glAttachShader(shaderProgram, get_shader(fragment_shader,GL_FRAGMENT_SHADER))
+    glLinkProgram(shaderProgram)
+    if not glGetProgramParameter(shaderProgram, GL_LINK_STATUS) then
+        crash(glGetProgramInfoLog(shaderProgram))
+    end if
+    glUseProgram(shaderProgram)
+    // Get the indexes to communicate vertex attributes to the program.
+    integer positionAttr = glGetAttribLocation(shaderProgram, "a_position"),
+            colorAttr = glGetAttribLocation(shaderProgram, "a_color")
+
+    // And specify that we will be actually delivering data to those attributes.
+    glEnableVertexAttribArray(positionAttr)
+    glEnableVertexAttribArray(colorAttr)
+
+    // Store vertex positions and colors in array buffer objects.
+    integer positionBuffer = glCreateBuffer()
+    glBindBuffer(GL_ARRAY_BUFFER, positionBuffer)
+    {integer size, atom pData} = glFloat32Array(vertices)
+    glBufferData(GL_ARRAY_BUFFER, size, pData, GL_STATIC_DRAW)
+    glEnableVertexAttribArray(positionBuffer)
+    integer colorBuffer = glCreateBuffer()
+    glBindBuffer(GL_ARRAY_BUFFER, colorBuffer)
+    {size, pData} = glFloat32Array(colours)
+    glBufferData(GL_ARRAY_BUFFER, size, pData, GL_STATIC_DRAW)
+    glEnableVertexAttribArray(colorBuffer)
+    glEnable(GL_DEPTH_TEST)
+    //   Specify the array data to render. 
+    //   3 and 4 are the lengths of the vectors (3 for XYZ, 4 for RGBA).
+    glBindBuffer(GL_ARRAY_BUFFER, positionBuffer)
+    glVertexAttribPointer(positionAttr, 3, GL_FLOAT, false, 0, 0)
+    glEnableVertexAttribArray(positionAttr)
+    glBindBuffer(GL_ARRAY_BUFFER, colorBuffer)
+    glVertexAttribPointer(colorAttr, 4, GL_FLOAT, false, 0, 0)
+    glEnableVertexAttribArray(colorAttr)
+end procedure
+
+bool drawn = false
+
+function action(Ihandle /*ih*/)
+    if not drawn or platform()!=JS then
+        glClearColor(0.3, 0.3, 0.3, 1.0)
+        integer {w,h} = IupGetIntInt(canvas,"DRAWSIZE")
+        glViewport(0, 0, w, h)
+        glClear(GL_COLOR_BUFFER_BIT || GL_DEPTH_BUFFER_BIT)
+
+        // Draw triangles using the specified arrays.
+        integer numVertices = length(vertices)/3  // 3 coordinates per vertex
+        glDrawArrays(GL_TRIANGLES, 0, numVertices)
+
+        // Check for errors.
+        while true do
+            integer e = glGetError()
+            if e=GL_NO_ERROR then exit end if
+            printf(1,"GL error %d\n", e)
+        end while
+
+        glFlush()
+        drawn = true
+    end if
+    return IUP_DEFAULT
+end function
+
+procedure main()
+    IupOpen()
+--  IupGLCanvasOpen()
+    canvas = IupGLCanvas(Icallback("action"), "RASTERSIZE=640x480")
+    dlg = IupDialog(canvas, "TITLE=OpenGLShader, SHRINK=YES")
+    IupMap(dlg)
+    set_shader()
+    IupShow(dlg)
+    if platform()!=JS then
+        IupMainLoop()
+        dlg = IupDestroy(dlg)
+        IupClose()
+    end if
+end procedure
+main()
+

@@ -1,0 +1,46 @@
+--
+-- demo\rosetta\Polynomial_derivative.exw
+--
+with javascript_semantics
+function derivative(sequence p)
+    if p={} then return {} end if
+    sequence r = repeat(0,length(p)-1)
+    for i=1 to length(r) do
+        r[i] = i*p[i+1]
+    end for
+    return r
+end function
+
+function poly(sequence si)
+-- display helper, copied from demo\rosetta\Polynomial_long_division.exw
+    string r = ""
+    for t=length(si) to 1 by -1 do
+        integer sit = si[t]
+        if sit!=0 then
+            if sit=1 and t>1 then
+                r &= iff(r=""? "":" + ")
+            elsif sit=-1 and t>1 then
+                r &= iff(r=""?"-":" - ")
+            else
+                if r!="" then
+                    r &= iff(sit<0?" - ":" + ")
+                    sit = abs(sit)
+                end if
+                r &= sprintf("%d",sit)
+            end if
+            r &= iff(t>1?"x"&iff(t>2?sprintf("^%d",t-1):""):"")
+        end if
+    end for
+    if r="" then r="0" end if
+    return r
+end function
+
+constant tests = {{5},{4,-3},{-1,6,5},{-4,3,-2,1},{1,1,0,-1,-1}}
+for i=1 to length(tests) do
+    sequence t = tests[i],
+             r = derivative(t)
+    printf(1,"%20s ==> %16s   (internally %V -> %V)\n",{poly(t),poly(r),t,r})
+end for
+
+?"done"
+{} = wait_key()

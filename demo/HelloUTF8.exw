@@ -314,6 +314,96 @@ if not c_func(xWriteConsole,{hConsole,pMem,length(utf16delta),NULL,NULL}) then
 end if
 free(pMem)
 
+--/*
+with javascript_semantics
+constant {ending,endings} = columnize({{"āre",split("ō ās at āmus ātis ant")},
+                                       {"ēre",split("eō ēs et ēmus ētis ent")},
+                                       {"ere",split("ō is it imus itis unt")},
+                                       {"īre",split("iō īs it īmus ītis iunt")}}),
+         pronouns = {"I %s", "you %s", "he %ss, she %ss, it %ss", "we %s", "you all %s", "they %s"}
+
+procedure conjugate(sequence ie)
+    string {infinitive,english} = ie
+    sequence utf32 = utf8_to_utf32(infinitive)
+    assert(length(utf32)>3,"Infinitive is too short for a regular verb.")
+    string stem = utf32_to_utf8(utf32[1..-4]),
+           last3 = utf32_to_utf8(utf32[-3..-1])
+    integer edx = find(last3,ending)
+    assert(edx!=0,"Infinitive ending -%s not recognized.",{last3}) 
+    printf(1,"Present active indicative conjugations of '%s' (%s):\n",ie)
+    for i=1 to length(endings[edx]) do
+        string c = sprintf("%s%s",{stem,endings[edx][i]}),
+               e = substitute(pronouns[i],"%s",english)
+        printf(1,"  %-7s  %s\n",{c,e})
+    end for
+    printf(1,"\n")
+end procedure
+ 
+printf(0,"",{"unicode_align",true})
+papply({{"amāre","love"},{"dāre","give"},{"vidēre","see"},{"dūcere","lead"},{"audīre","hear"}},conjugate)
+
+?"done"
+{} = wait_key()
+abort(0)
+--*/
+
+--/*
+with javascript_semantics
+function spid(string u)
+    sequence u32 = utf8_to_utf32(u),
+             c32 = utf8_to_utf32("♜♞♝♛♚♖♘♗♕♔"),
+             s32 = substitute_all(u32,c32,"RNBQKRNBQK")
+    string s = utf32_to_utf8(s32)
+
+    if sort(s)!="BBKNNQRR" then return -1 end if
+    if filter(s,"in","RK")!="RKR" then return -1 end if
+    sequence b = find_all('B',s)
+    if even(sum(b)) then return -1 end if
+    integer {n1,n2} = find_all('N',filter(s,"out","QB")),
+            N = {-2,1,3,4}[n1]+n2,
+            Q = find('Q',filter(s,"!=",'N'))-1,
+            D = filter(b,odd)[1]-1, -- (nb not/2)
+            L = filter(b,even)[1]/2-1
+    return 96*N + 16*Q + 2*D + L
+end function
+
+procedure test(string s)
+    printf(1,"%s : %d\n",{s,spid(s)})
+end procedure
+
+test("QNRBBNKR")
+test("RNBQKBNR")
+test("♕♘♖♗♗♘♔♖")
+test("♖♘♗♕♔♗♘♖")
+--*/
+
+--?"done"
+--{} = wait_key() 
+--abort(0)
+
+--"QNRBBNKR"
+--{9820,9822,9821,9819,9818,9814,9816,9815,9813,9812}
+--"QNRBBNKR"
+--{81'Q',78'N',82'R',66'B',66'B',78'N',75'K',82'R',-1}
+--QNRBBNKR : 105
+--"RNBQKBNR"
+--{9820,9822,9821,9819,9818,9814,9816,9815,9813,9812}
+--"RNBQKBNR"
+--{82'R',78'N',66'B',81'Q',75'K',66'B',78'N',82'R',-1}
+--RNBQKBNR : 518
+--{9813,9816,9814,9815,9815,9816,9812,9814}
+--{9820,9822,9821,9819,9818,9814,9816,9815,9813,9812}
+--{81'Q',78'N',82'R',66'B',66'B',78'N',75'K',82'R'}
+--{81'Q',78'N',82'R',66'B',66'B',78'N',75'K',82'R',-1}
+--♕♘♖♗♗♘♔♖ : 105
+--{9814,9816,9815,9813,9812,9815,9816,9814}
+--{9820,9822,9821,9819,9818,9814,9816,9815,9813,9812}
+--{82'R',78'N',66'B',81'Q',75'K',66'B',78'N',82'R'}
+--{82'R',78'N',66'B',81'Q',75'K',66'B',78'N',82'R',-1}
+--♖♘♗♕♔♗♘♖ : 518
+--"done"
+--
+
 puts(1,"           $ , 4 < \n")
 sequence lc = {}, uc = {}
 for ch=1 to 255 do
@@ -351,6 +441,7 @@ puts(1,s)
 --?utf8_to_utf32("-�")
 
 --note these required hacks to ptok.e and ptree.e to get working (search for rosettacode/unicode)
+/*
 constant � = 3.14
 printf(1,"�=%g\n",{�})
 constant  = "root"
@@ -359,6 +450,7 @@ constant � = "lambda"
 printf(1,"�=%s\n",{�})
 constant � = "sum"
 printf(1,"�=%s\n",{�})
+*/
 --printf(1,"\u221B")
 --
 --?"\u2502 "
@@ -435,7 +527,8 @@ function poker(string hand)
     end for
     integer straight = match({1,1,1,1,1},ranks) 
     if not straight then 
-        straight = sort(ranks)[$]=1 and match({0,0,0,0,0,0,0,0},ranks)
+--      straight = sort(ranks)[$]=1 and match({0,0,0,0,0,0,0,0},ranks)
+        straight = sort(deep_copy(ranks))[$]=1 and match({0,0,0,0,0,0,0,0},ranks)
     end if
     integer _flush = (max(suits)+jokers = 5)
     integer _pairs = max(ranks)+jokers
@@ -552,7 +645,8 @@ for i=1 to length(hands) do
     hands[i][1] = poker(hands[i][2])
 end for
 ppOpt({pp_Ascii,{#20,#FF}})
-pp(reverse(sort(hands)))
+--pp(reverse(sort(hands)))
+pp(reverse(sort(deep_copy(hands))))
 
 
 ? "hello"        -- PLAIN TEXT  

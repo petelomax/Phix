@@ -1,7 +1,9 @@
 --
 -- demo\rosetta\Raster_bars.exw
 --
-constant N = 10,
+with javascript_semantics
+constant title = "Raster bars",
+         N = 10,
          nColours = floor(255/N)
 integer offset = 0, clast = nColours
 
@@ -59,26 +61,19 @@ end function
 
 procedure main()
     IupOpen()
- 
-    canvas = IupCanvas(NULL)
-    IupSetAttribute(canvas, "RASTERSIZE", "600x400")
- 
-    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
-    IupSetCallback(canvas, "UNMAP_CB", Icallback("unmap_cb"))
- 
-    dlg = IupDialog(canvas)
-    IupSetAttribute(dlg, "TITLE", "Raster bars")
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+    canvas = IupCanvas("RASTERSIZE=600x400")
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "UNMAP_CB", Icallback("unmap_cb"),
+                             "ACTION", Icallback("redraw_cb")})
+    dlg = IupDialog(canvas,`TITLE="%s"`, {title})
     Ihandle hTimer = IupTimer(Icallback("timer_cb"), 10)
- 
-    IupMap(dlg)
+    IupShow(dlg)
     IupSetAttribute(canvas, "RASTERSIZE", NULL)
  
-    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
- 
-    IupMainLoop()
- 
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
  
 main()

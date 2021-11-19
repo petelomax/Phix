@@ -1,0 +1,208 @@
+--
+-- demo\rosetta\ElevatorSimulation.exw
+-- ===================================
+--
+-- Even dumber than a real lift - clicking 16161616 ties it up for ages...
+--
+with javascript_semantics
+include pGUI.e
+Ihandle dlg, canvas, timer
+cdCanvas cdcanvas
+
+constant title = "Elevator Simulation",
+         CD_DARKER_GREY = #383838,      -- (darker than CD_DARK_GREY)
+         CD_LIGHTER_ORANGE = #FFA500,   -- (lighter than CD_ORANGE)
+         CD_PALE_BLUE = #98C5DA,        -- (lighter than CD_LIGHT_BLUE)
+         CD_MEDIUM_BLUE = #759EB4,      -- (darker than CD_LIGHT_BLUE)
+         panels = {{195,30,45,12},      -- indicator
+                   {380,150,50,90},     -- up/down
+                   {380,465,100,210},   -- main 
+                   {625,330,75,25},     -- restart
+                   {625,530,75,25}},    -- exit
+         buttons = {{380,110,"^"},
+                    {380,190,"v"},
+                    {335,305,"5"},{420,305,"6"},
+                    {335,385,"3"},{420,385,"4"},
+                    {335,465,"1"},{420,465,"2"},
+                    {380,540,"GF"},
+                    {380,630,">|<"}}
+
+integer cur_floor,  -- 0..6
+        wait_sign   -- "", -1 if none
+bool door_open
+
+sequence actions = {}   -- (see timer_cb)
+
+procedure new_game()
+    cur_floor = rand(7)-1
+    wait_sign = rand(7)-1
+    door_open = rand(2)==1
+end procedure
+
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
+    integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
+    cdCanvasActivate(cdcanvas)
+    cdCanvasSetBackground(cdcanvas, CD_DARKER_GREY)
+    cdCanvasClear(cdcanvas)
+    cdCanvasSetForeground(cdcanvas, CD_LIGHTER_ORANGE)
+    cdCanvasSetInteriorStyle(cdcanvas, CD_SOLID)
+    for i=1 to length(panels) do
+        integer {cx,cy,hw,hh} = panels[i]
+        cdCanvasRoundedBox(cdcanvas,cx-hw,cx+hw,height-(cy+hh),height-(cy-hh),5,4)
+        // (a filled box has no antialiasing, so overwrite with an outline box too:)
+        cdCanvasRoundedRect(cdcanvas,cx-hw,cx+hw,height-(cy+hh),height-(cy-hh),5,4)
+    end for
+    cdCanvasSetForeground(cdcanvas, CD_BLACK)
+    cdCanvasFont(cdcanvas, "Helvetica", CD_PLAIN, 16)
+    cdCanvasSetTextAlignment(cdcanvas,CD_CENTER)
+    integer {cx,cy} = panels[1]
+    string floor_text = iff(cur_floor=0?"GF":sprintf("%d",cur_floor))
+    cdCanvasText(cdcanvas,cx,height-cy,floor_text)
+    cy += 75
+    for i=6 to 0 by -1 do
+        integer minx = cx-40,
+                maxx = cx+40,
+                miny = height-(cy+45),
+                maxy = height-(cy-40)
+        cdCanvasSetForeground(cdcanvas, CD_PARCHMENT)
+        cdCanvasBox(cdcanvas,minx,maxx,miny,maxy)
+        if i=cur_floor then
+            if i=wait_sign then wait_sign = -1 end if
+            cdCanvasSetForeground(cdcanvas, CD_MEDIUM_BLUE)
+            cdCanvasBox(cdcanvas,minx,maxx,miny,maxy)
+            cdCanvasSetForeground(cdcanvas, CD_PALE_BLUE)
+            cdCanvasBox(cdcanvas,minx+5,maxx-5,miny,maxy)
+            if door_open then
+                cdCanvasSetForeground(cdcanvas, CD_CYAN)
+                cdCanvasBox(cdcanvas,minx+8,maxx-8,miny,maxy)
+            else
+                cdCanvasSetForeground(cdcanvas, CD_MEDIUM_BLUE)
+                cdCanvasLine(cdcanvas,cx,miny,cx,maxy)
+            end if
+        elsif i=wait_sign then
+            integer y3 = height-cy-3
+            for j=1 to 2 do
+                cdCanvasSetForeground(cdcanvas, {CD_YELLOW,CD_BLACK}[j])
+                cdCanvasBegin(cdcanvas,{CD_FILL,CD_CLOSED_LINES}[j])
+                cdCanvasVertex(cdcanvas, cx, miny+3)
+                cdCanvasVertex(cdcanvas, maxx-2, y3)
+                cdCanvasVertex(cdcanvas, cx, maxy-4)
+                cdCanvasVertex(cdcanvas, minx+1, y3)
+                cdCanvasEnd(cdcanvas)
+            end for
+            cdCanvasText(cdcanvas,cx,y3,"WAIT")
+        end if
+        cy += 90
+    end for
+    cdCanvasFont(cdcanvas, "Helvetica", CD_PLAIN, 20)
+    for i=1 to length(buttons) do
+        {cx,cy,floor_text} = buttons[i]
+        cy = height-cy
+        cdCanvasSetForeground(cdcanvas, CD_SILVER)
+        cdCanvasCircle(cdcanvas, cx, cy, 60, true)
+        cdCanvasSetForeground(cdcanvas, CD_BLACK)
+        cdCanvasCircle(cdcanvas, cx, cy, 50)
+        cdCanvasCircle(cdcanvas, cx, cy, 60)
+        cdCanvasSetTextOrientation(cdcanvas, iff(i=1?180:0)) 
+        cdCanvasText(cdcanvas,cx,cy,iff(i=1?"v":floor_text))
+    end for
+    cdCanvasFont(cdcanvas, "Helvetica", CD_PLAIN, 16)
+    cdCanvasSetForeground(cdcanvas, CD_BLACK)
+    {cx,cy} = panels[4]
+    cdCanvasText(cdcanvas,cx,height-cy,"Restart")
+    {cx,cy} = panels[5]
+    cdCanvasText(cdcanvas,cx,height-cy,"Exit")
+    cdCanvasFlush(cdcanvas)
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle ih)
+    atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+    IupGLMakeCurrent(canvas)
+    if platform()=JS then
+        cdcanvas = cdCreateCanvas(CD_IUP, canvas)
+    else
+        cdcanvas = cdCreateCanvas(CD_GL, "798x698 %g", {res})
+    end if
+    cdCanvasSetBackground(cdcanvas, CD_PARCHMENT)
+    return IUP_DEFAULT
+end function
+
+function button_cb(Ihandle canvas, integer button, pressed, x, y, atom /*pStatus*/)
+    if button=IUP_BUTTON1 and pressed then
+        integer cx,cy,hw,hh
+        string floor_text
+        for i=1 to length(buttons) do
+            {cx,cy,floor_text} = buttons[i]
+            {cx,cy} = {cx-x,cy-y}
+            if cx*cx+cy*cy<=3600 then -- (the button radius is 60)
+                actions &= floor_text[1] -- (let timer_cb sort it out)
+                IupSetInt(timer,"RUN",true)
+                exit
+            end if
+        end for
+        for i=4 to 5 do
+            {cx,cy,hw,hh} = panels[i]
+            if x>=cx-hw and x<=cx+hw
+            and y>=cy-hh and y<=cy+hh then  
+                if i=5 then return IUP_CLOSE end if
+                new_game()
+                IupRedraw(dlg)
+                exit    
+            end if
+        end for
+    end if
+    return IUP_CONTINUE
+end function
+
+function timer_cb(Ihandle /*ih*/)
+    if length(actions)=0 then
+        IupSetInt(timer,"RUN",false)
+    else
+        integer action -- 'G'==='0', '<' is open, '>' is close.
+        {action,actions} = {actions[1],actions[2..$]}
+        switch action do
+            case 'G': action = '0'; fallthrough
+            case '0','1','2','3','4','5','6':
+                integer d = action-'0'-cur_floor
+                if d!=0 then
+                    actions = repeat(sign(d),abs(d)) & '<' & actions
+                    if door_open then actions = prepend(actions,'>') end if
+                elsif not door_open then
+                    actions = prepend(actions,'<')
+                end if
+            case -1,+1:
+                cur_floor += action
+            case '>','<':
+                door_open = action=='<'
+            case '^','v':
+                if wait_sign!=-1 
+                and compare(cur_floor,wait_sign)==compare(action,'_') then
+                    -- (hint: in ascii, '^' < '_' whereas 'v' > '_' ...
+                    ---       plus action ain't ever gonna be '_' here.)
+                    actions = prepend(actions,wait_sign+'0')
+                end if
+            default: ?9/0 -- unknown action?
+        end switch
+        IupRedraw(dlg)
+    end if
+    return IUP_IGNORE
+end function
+
+procedure main()
+    IupOpen()
+    canvas = IupGLCanvas("RASTERSIZE=800x700")
+    sequence cb = {"MAP_CB", Icallback("map_cb"),
+                   "ACTION", Icallback("redraw_cb"),
+                   "BUTTON_CB", Icallback("button_cb")}
+    IupSetCallbacks(canvas, cb)
+    dlg = IupDialog(canvas,`TITLE="%s", RESIZE=NO`,{title})
+    new_game()
+    IupShow(dlg)
+    timer = IupTimer(Icallback("timer_cb"),500,false)
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
+end procedure
+main()

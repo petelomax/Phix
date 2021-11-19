@@ -1,14 +1,14 @@
 --
 -- demo\rosetta\FibonacciFractal.exw
 --
-
+with javascript_semantics
 include pGUI.e
 
 Ihandle dlg, canvas
 cdCanvas cddbuffer, cdcanvas
 
 procedure drawFibonacci(integer x, y, dx, dy, n)
-string prev = "1", word = "0"
+    string prev = "1", word = "0"
     for i=3 to n do {prev,word} = {word,word&prev} end for
     for i=1 to length(word) do
         cdCanvasLine(cddbuffer, x, y, x+dx, y+dy)
@@ -37,19 +37,15 @@ end function
 
 procedure main()
     IupOpen()
-
-    canvas = IupCanvas(NULL)
-    IupSetAttribute(canvas, "RASTERSIZE", "620x450")
-    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
-
-    dlg = IupDialog(canvas, "RESIZE=NO")
-    IupSetAttribute(dlg, "TITLE", "Fibonacci Fractal")
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
-
-    IupMap(dlg)
-    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
-    IupMainLoop()
-    IupClose()
+    canvas = IupCanvas("RASTERSIZE=620x450")
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "ACTION", Icallback("redraw_cb")})
+    dlg = IupDialog(canvas, `RESIZE=NO, TITLE="Fibonacci Fractal"`)
+    IupShow(dlg)
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

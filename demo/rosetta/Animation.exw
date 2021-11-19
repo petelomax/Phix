@@ -4,6 +4,7 @@
 --
 -- Author Pete Lomax, August 2015
 --
+with javascript_semantics
 include pGUI.e
 
 string hw = "Hello World!     "
@@ -18,12 +19,8 @@ function button_cb(Ihandle /*ih*/, integer /*button*/, pressed, /*x*/, /*y*/, at
 end function
 
 function timer_cb(Ihandle /*ih*/)
---  hw = iff(direction?hw[$]&hw[1..-2]:hw[2..$]&hw[1])
-    if direction then
-        hw = hw[$] & hw[1..-2]
-    else
-        hw = hw[2..$] & hw[1]
-    end if
+    hw = iff(direction ? hw[$] & hw[1..-2]
+                       : hw[2..$] & hw[1])
     IupSetAttribute(label,"TITLE",hw)
     return IUP_IGNORE
 end function
@@ -35,8 +32,10 @@ procedure main()
     Ihandle dlg = IupDialog(label,"TITLE=Animation, DIALOGFRAME=YES, CHILDOFFSET=70x40, SIZE=200x80")
     IupShow(dlg)
     Ihandle hTimer = IupTimer(Icallback("timer_cb"), 160)
-    IupMainLoop()
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

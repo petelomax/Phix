@@ -1,0 +1,52 @@
+--
+-- demo\rosetta\Own_digits_power_sum.exw
+-- =====================================
+--
+with javascript_semantics
+
+atom minps, maxps
+sequence pdn, results
+
+procedure own_digit_power_sum(integer n, taken=0, at=0, atom cps=0, son=0)
+--
+-- looking for n digit numbers, taken is the number of digits collected so far,
+-- any further digits must be "at" or higher. cps is the current power sum and
+-- son is the smallest ordered number from those digits (eg 47 not 407).
+-- results collected in son order eg 370 407 153 371 (from 37 47 135 137).
+--
+    if taken=n then
+        if cps>=minps
+        and cps>=son then
+            string scps = sprintf("%d",cps),
+                   tcps = trim_head(sort(scps),"0"),
+                   sson = sprintf("%d",son)
+            if tcps=sson then
+                results = append(results, scps)
+            end if
+        end if
+    else
+        taken += 1
+        for d=at to 9 do
+            atom ncps = cps+pdn[d+1]
+            if ncps>maxps then exit end if
+            own_digit_power_sum(n,taken,d,ncps,son*10+d)
+        end for
+    end if
+end procedure
+
+atom t0 = time()
+for n=3 to iff(machine_bits()=64?17:14) do
+    minps = power(10,n-1)   -- eg 100
+    maxps = power(10,n)-1   -- eg 999
+    pdn = sq_power(tagset(9,0),n)
+    results = {}
+    own_digit_power_sum(n)
+    if length(results) then
+        printf(1,"%d digits: %s\n",{n,join(sort(deep_copy(results))," ")})
+    end if
+end for
+?elapsed(time()-t0)
+
+?"done"
+{} = wait_key()
+

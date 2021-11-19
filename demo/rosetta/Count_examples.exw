@@ -6,24 +6,16 @@
 --  Since downloading all the pages can be very slow, this uses a cache.
 --  Limiting (notdone) by "Phix" fairly obviously speeds it up tenfold :-)
 --
+without js -- (obviously this will never ever run in a browser!)
 constant include_drafts = true,
          sort_by_count = false,
-         notlang = "Phix" -- or "" (ie a zero length string) for all
+--       notlang = "Phix" -- or "" (ie a zero length string) for all
 --       notlang = "Go"
---       notlang = ""
-
-integer lp = 0
-procedure progress(string msg, sequence args = {})
-    if length(args) then msg = sprintf(msg,args) end if
-    integer lm = length(msg)
-    if lm<lp then msg[$..$] = repeat(' ',lp-lm)&msg[$] end if
-    puts(1,msg)
-    lp = iff(msg[$]='\r'?lm:0)
-end procedure
+         notlang = ""
 
 include builtins\timedate.e
---integer refresh_cache = timedelta(days:=365) -- 0 for always
-integer refresh_cache = timedelta(days:=21) -- 0 for always [NB refresh_cache += timedelta(days:=1) below]
+integer refresh_cache = timedelta(days:=9365) -- 0 for always
+--integer refresh_cache = timedelta(days:=21) -- 0 for always [NB refresh_cache += timedelta(days:=1) below]
 
 include builtins\libcurl.e
 atom curl = NULL
@@ -38,11 +30,6 @@ constant write_cb = call_back({'+', routine_id("write_callback")})
 
 function open_download(string filename, url)
     bool refetch = true
-    if get_file_type("rc_cache")!=FILETYPE_DIRECTORY then
-        if not create_directory("rc_cache") then
-            crash("cannot create rc_cache directory")
-        end if
-    end if
     filename = join_path({"rc_cache",filename})
     if file_exists(filename) then
         -- use existing file if <= refresh_cache (365 days) old
@@ -134,6 +121,11 @@ function html_clean(string s)
 end function
 
 function count_tasks()
+    if get_file_type("rc_cache")!=FILETYPE_DIRECTORY then
+        if not create_directory("rc_cache") then
+            crash("cannot create rc_cache directory")
+        end if
+    end if
     -- note this lot use web scraping (as cribbed from a similar task) ...
     sequence tasks = dewiki(open_category("Programming_Tasks"))
     if include_drafts then
@@ -244,4 +236,40 @@ Stack 126
 Zig-zag_matrix 99
 Zumkeller_numbers 8
 Total: 65185
+
+--As of 20/9/21: (with notlang=="")
+1441 tasks found
+100_doors 332
+100_prisoners 66
+Closest-pair_problem 72
+Feigenbaum_constant_calculation 41
+K-d_tree 21
+Nonoblock 30
+Rate_counter 53
+Stack 143
+Web_scraping 84
+Zig-zag_matrix 110
+Zumkeller_numbers 36
+Total: 83050
+"done"
+
+with notlang of Phix:
+13 tasks found
+15_puzzle_game_in_3D 3
+Audio_overlap_loop 7
+B-spline 4
+IPC_via_named_pipe 9
+IRC_gateway 2
+Rosetta_Code/Run_examples 9
+Runtime_evaluation 69
+Runtime_evaluation/In_an_environment 57
+Sierpinski_pentagon 28
+URL_shortener 7
+Uno_(Card_Game) 0
+Using_the_Meetup.com_API 4
+XML_validation 16
+Total: 215
+"done"
+
+
 --*/

@@ -21,15 +21,6 @@ function write_callback(atom pData, integer size, integer nmemb, integer fn)
 end function
 constant write_cb = call_back({'+', routine_id("write_callback")})
 
-integer lp = 0 -- (last \r'd progress message length)
-procedure progress(string msg, sequence args = {})
-    if length(args) then msg = sprintf(msg,args) end if
-    integer lm = length(msg)
-    if lm<lp then msg[$..$] = repeat(' ',lp-lm)&msg[$] end if
-    puts(1,msg)
-    lp = iff(msg[$]='\r'?lm:0)
-end procedure
-
 include builtins\timedate.e
 -- for [Draft_]Programming_Tasks aka non-.hist files only:
 integer refresh_cache = timedelta(days:=31) -- 0 for always
@@ -127,6 +118,11 @@ end function
 constant history_user = `<span class='history-user'><a href="`
 
 function count_tasks()
+    if get_file_type("rc_cache")!=FILETYPE_DIRECTORY then
+        if not create_directory("rc_cache") then
+            crash("cannot create rc_cache directory")
+        end if
+    end if
     sequence tasks = dewiki(open_category("Programming_Tasks",1,2))
                    & dewiki(open_category("Draft_Programming_Tasks",2,2))
     integer ntasks = length(tasks)
@@ -137,6 +133,9 @@ function count_tasks()
     for i=1 to ntasks do
         string ti = tasks[i],
                url = sprintf("http://rosettacode.org/mw/index.php?title=%s&action=history&dir=prev&limit=1",{ti}),
+--no help:
+--             url = sprintf("http://rosettacode.org/mw/index.php?title=%s&action=history&dir=prev&limit=1&format=json",{ti}),
+--             url = sprintf("http://rosettacode.org/mw/index.php?title=%s&format=json&action=history&dir=prev&limit=1",{ti}),
                contents = open_download(ti&".hist",url,i,ntasks)
 -- look for and extract "name" from the appropriate <a href="..">name</a>, eg:
 -- <span class='history-user'><a href="/mw/index.php?title=User:Daxim&amp;action=edit&amp;redlink=1" class="new mw-userlink" title="User:Daxim (page does not exist)">Daxim</a>

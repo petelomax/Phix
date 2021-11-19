@@ -44,6 +44,7 @@
 --  * next_hint() duplicates some of the code in redraw_cb(), it might make
 --    some sense for sequence edges to be more permanent instead.
 --
+with javascript_semantics
 constant title = "Black Box",
 help_text = """
 Discover the location of objects/atoms using the fewest probes/rays.
@@ -437,7 +438,7 @@ procedure explore_hints(integer new_hinted)
         or k<minmaxcount then
             minmaxcount = k
             k = maxsq(counts,true)
-            minmaxmove = rxy[k]
+            minmaxmove = deep_copy(rxy[k])
             minmaxmove[3] = -2
         end if
         new_hinted = size*4+1-new_hinted  -- unflip
@@ -470,15 +471,13 @@ include builtins\pfile.e
 include builtins\scanf.e
 include builtins\pdir.e
 include builtins\penv.e
-include builtins\pretty.e
 include builtins\factorial.e
 include builtins\VM\pTime.e
 with debug
---#withtype Ihandle
---#withtype cdCanvas
 
 Ihandle dlg, game_canvas, gridsize, atoms, score, hints, debug, 
-        progress, declare
+        progress_label, declare
+cdCanvas cddbuffer
 
 constant colour_table = {CD_RED,
                          CD_LIGHT_GREEN,
@@ -544,13 +543,13 @@ function idle_action()
     if new_hinted then
         title &= sprintf(", move %d/%d",{new_hinted,size*4})
     end if
-    IupSetStrAttribute(progress,"TITLE",title)
+    IupSetStrAttribute(progress_label,"TITLE",title)
     return IUP_DEFAULT
 end function
 constant idle_action_cb = Icallback("idle_action")
 
 procedure start_idle()
-    IupSetAttribute(progress,"TITLE","-")
+    IupSetAttribute(progress_label,"TITLE","-")
     IupSetGlobalFunction("IDLE_ACTION",idle_action_cb)
 end procedure
 
@@ -634,7 +633,7 @@ else
 end if
     IupSetInt(declare, "ACTIVE", active)
     if active then
-        guessxy = hidden
+        guessxy = deep_copy(hidden)
         guessclr = repeat(CD_BLUE,length(guessxy))
     end if
     hints_used = (IupGetInt(hints,"VALUE") and not active)
@@ -655,8 +654,6 @@ function redraw_cb(Ihandle ih, integer /*posx*/, /*posy*/)
     mx = floor((w-wh*(s2))/2)
     my = floor((h-wh*(s2))/2)
     
-    cdCanvas cddbuffer = IupGetAttributePtr(ih,"DBUFFER")
-    IupGLMakeCurrent(ih)
     cdCanvasActivate(cddbuffer)
     cdCanvasClear(cddbuffer)
 
@@ -707,8 +704,8 @@ function redraw_cb(Ihandle ih, integer /*posx*/, /*posy*/)
             end if
         end for
     end for
-    sequence gxy = guessxy,
-             gclr = guessclr
+    sequence gxy = deep_copy(guessxy),
+             gclr = deep_copy(guessclr)
     if IupGetInt(hints,"VALUE") then
         for i=1 to length(knowns) do
             sequence ki = knowns[i]
@@ -732,19 +729,21 @@ function redraw_cb(Ihandle ih, integer /*posx*/, /*posy*/)
     return IUP_DEFAULT
 end function
 
-function map_cb(Ihandle ih)
-    IupGLMakeCurrent(ih)
-    atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
-    cdCanvas cddbuffer = cdCreateCanvas(CD_GL, "10x10 %g", {res})
-    IupSetAttributePtr(ih,"DBUFFER",cddbuffer)
+function map_cb(Ihandle /*game_canvas*/)
+    IupGLMakeCurrent(game_canvas)
+    if platform()=JS then
+        cddbuffer = cdCreateCanvas(CD_IUP, game_canvas)
+    else
+        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+        cddbuffer = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    end if
     cdCanvasSetBackground(cddbuffer, CD_PARCHMENT)
-    {} = cdCanvasTextAlignment(cddbuffer, CD_CENTER)
+    cdCanvasSetTextAlignment(cddbuffer, CD_CENTER)
     return IUP_DEFAULT
 end function
 
-function canvas_resize_cb(Ihandle canvas)
-    cdCanvas cddbuffer = IupGetAttributePtr(canvas,"DBUFFER")
-    integer {canvas_width, canvas_height} = IupGetIntInt(canvas, "DRAWSIZE")
+function canvas_resize_cb(Ihandle /*game_canvas*/)
+    integer {canvas_width, canvas_height} = IupGetIntInt(game_canvas, "DRAWSIZE")
     atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
     cdCanvasSetAttribute(cddbuffer, "SIZE", "%dx%d %g", {canvas_width, canvas_height, res})
     return IUP_DEFAULT
@@ -801,7 +800,7 @@ function button_cb(Ihandle canvas, integer button, pressed, x, y, atom /*pStatus
             IupSetInt(declare, "ACTIVE", bActive)
             if IupGetInt(debug,"VALUE")
             and length(guessxy)=count then
-                hidden = guessxy
+                hidden = deep_copy(guessxy)
                 gameboard = repeat(0,size*size)
                 for i=1 to count do
                     {x,y} = hidden[i]
@@ -881,7 +880,7 @@ procedure main()
     hints = IupToggle("  Show Hints?","VALUE=YES, RIGHTBUTTON=YES, PADDING=5x4")
 --  debug = IupToggle("Debug Mode?","VALUE=NO, RIGHTBUTTON=YES, PADDING=5x4")
     debug = IupToggle("Debug Mode?","VALUE=YES, RIGHTBUTTON=YES, PADDING=5x4")
-    progress = IupLabel("-","EXPAND=HORIZONTAL, PADDING=5x4")
+    progress_label = IupLabel("-","EXPAND=HORIZONTAL, PADDING=5x4")
     declare = IupButton("Declare",Icallback("declare_cb"),"PADDING=5x4, ACTIVE=NO")
     game_canvas = IupGLCanvas("RASTERSIZE=400x400")
     Ihandle newgame = IupButton("New Game",Icallback("new_game_cb"),"PADDING=5x4"),
@@ -891,7 +890,7 @@ procedure main()
                                      IupFill(),
                                      IupLabel("Atoms","PADDING=5x4"),atoms}),
                             IupHbox({hints,IupFill(),debug}),
-                            IupHbox({progress}),
+                            IupHbox({progress_label}),
                             IupHbox({IupLabel("Score","PADDING=5x4"),score}),
                             IupHbox({declare,newgame,help,quit})},"MARGIN=5x5"),
             game_frame = IupFrame(IupHbox({game_canvas},"MARGIN=3x3"),"TITLE=Game"),
@@ -910,15 +909,18 @@ procedure main()
     new_game()
 
     IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
+--  IupShow(dlg)
     IupSetAttribute(dlg, "RASTERSIZE", NULL)
     IupSetStrAttribute(dlg, "MINSIZE", IupGetAttribute(dlg,"RASTERSIZE"))
-    sequence fixsize = {score,progress}
+    sequence fixsize = {score,progress_label}
     for i=1 to length(fixsize) do
         Ihandle fi = fixsize[i]
         IupSetAttributes(fi, "RASTERSIZE=%s, EXPAND=NO", {IupGetAttribute(fi,"RASTERSIZE")})
     end for
-    IupMainLoop()
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
  
 main()

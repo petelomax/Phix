@@ -1,0 +1,111 @@
+--
+-- demo\rosetta\IPC_via_named_pipe.exw
+-- ===================================
+--
+-- Note: uses a single bidirectional pipe, Windows only, and no attempt has been
+-- made to avoid blocking, this sort of code should be put in a separate thread.
+--
+-- Running normally starts this as a server which automatically creates a client.
+--
+-- Several additional Windows-only routines have been added to builtins/pipeio.e 
+-- which will not be formally documented until they are fully Linux-compatible.
+--
+-- Almost forgot: open(szPipename,"u") actually works too (add to docs whenever)
+--                actually, test whether that is also true/possible on Linux....
+--
+requires("1.0.1")
+requires(WINDOWS)
+without js -- (obviously this will never ever run in a browser!)
+include builtins/pipeio.e
+
+constant szPipename = `\\.\pipe\mynamedpipe`,
+         cl = command_line()
+
+function rand_string()
+    string res = repeat(' ',rand(100))
+    for i=1 to length(res) do
+        res[i] = rand_range('A','Z')
+    end for
+    return res
+end function
+
+if not find("-client",cl) then
+    puts(1,"Server\n")
+    integer dwPipeMode = or_all({PIPE_TYPE_MESSAGE,PIPE_READMODE_MESSAGE,PIPE_WAIT}),
+            totalsofar = 0
+    atom pBuffer = allocate(1024),
+         pBytesRead = allocate(4),
+         pBytesWritten = allocate(4),
+         hPipe = create_named_pipe(szPipename,PIPE_ACCESS_DUPLEX,dwPipeMode)
+    {} = system_exec(sprintf(`"%s" "%s" -client`,cl),8)
+    while true do
+        integer res = connect_named_pipe(hPipe)
+        if res>1 then ?9/0 end if
+        res = read_pipe(hPipe,pBuffer,1024,pBytesRead)
+        if not res then
+            puts(1,"\nsleep??\n")
+            sleep(0.25)
+        else
+            integer bytesread = peek4s(pBytesRead)
+            string msg = peek({pBuffer,bytesread})
+            if bytesread=4 and msg="quit" then
+                puts(1,"\nquit recieved, quitting\n")
+                exit
+            end if
+            totalsofar += bytesread
+            progress("bytesread:%,d  total so far:%,d ",{bytesread,totalsofar})
+            string reply = sprintf("%,d",totalsofar)
+            res = write_pipe(hPipe,reply,pBytesWritten)
+            if not res or peek4s(pBytesWritten)!=length(reply) then ?9/0 end if
+            flush_pipe(hPipe)
+        end if
+        disconnect_pipe(hPipe)
+    end while
+    free({pBytesWritten,pBuffer,pBytesRead})
+    close_handle(hPipe)
+else
+    puts(1,"Client\n")
+    puts(1,"Press Escape or Q to quit\n")
+    integer running_total = 0
+ if false then
+    -- works fine too!!
+    integer fn = open(szPipename,"u")
+    puts(fn,"123")
+    ?gets(fn)
+    close(fn)
+ else
+    while not find(get_key(),{'q','Q',#1B}) do
+        string msg = rand_string(),
+             reply = call_named_pipe(szPipename,msg)
+        running_total += length(msg)
+        bool bOK = (reply==sprintf("%,d",running_total))
+        progress("set %d bytes, reply:%s, running_total:%,d  (same:%t)",
+                 {length(msg),     reply,     running_total,     bOK})
+        if not bOK then
+            puts(1,"\nsome error, quitting...\n")
+            exit
+        end if
+    end while
+ end if
+    {} = call_named_pipe(szPipename,"quit")
+end if
+puts(1,"\ndone\n")
+{} = wait_key()
+
+--Sample output:
+--/*
+<pre>
+Server
+bytesread:79  total so far:1,702,504
+quit recieved, quitting
+
+done
+</pre>
+and in a second terminal, pressing Q after about 5 seconds
+<pre>
+Client
+Press Escape or Q to quit
+set 79 bytes, reply:1,702,504, running_total:1,702,504  (true)
+done
+</pre>
+--*/

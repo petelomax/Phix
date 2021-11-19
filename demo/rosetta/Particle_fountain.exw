@@ -1,0 +1,125 @@
+--
+-- demo\rosetta\Particle_fountain.exw
+-- ==================================
+--
+with javascript_semantics
+include pGUI.e
+
+Ihandle dlg, canvas
+cdCanvas cddbuffer, cdcanvas
+
+constant title = "Particle fountain"
+constant help_text = """
+Uparrow increases the saturation of the particle colors,
+downarrow decreases saturation until they all become white.
+PageUp sprays the particles out at a wider angle/spread,
+PageDown makes the jet narrower.
+Space toggles reciprocation (wobble) on and off (straight up).
+qLeft arrow decreases the angle range for reciprocation,
+right arrow increases the angle range for reciprocation.
+Press the "q" key to quit.
+"""
+
+constant particlenum = 3000
+-- each particle is {x,y,color,life,dx,dy}
+sequence particles = repeat({0,0,0,0,0,0},particlenum)
+atom t1 = time()+1
+integer fps = 0
+bool reciprocate = true
+atom range = 1.5,
+     spread = 1.5,
+     saturation = 0.4,
+     start = time(),
+     df = 0.0001
+
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
+    integer {w, h} = IupGetIntInt(canvas, "DRAWSIZE")
+    cdCanvasActivate(cddbuffer)
+    cdCanvasClear(cddbuffer)
+    for i=1 to length(particles) do
+        atom {x,y,color,life} = particles[i]
+        if life>0 then
+            cdCanvasPixel(cddbuffer, x, h/10-y, color) 
+        end if
+    end for
+    cdCanvasFlush(cddbuffer)
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle ih)
+    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    cdCanvasSetBackground(cddbuffer, CD_BLACK)
+    return IUP_DEFAULT
+end function
+
+function timer_cb(Ihandle /*ih*/)
+    integer {w, h} = IupGetIntInt(canvas, "DRAWSIZE")
+    fps += 1
+    df = time()-start
+    start = time()
+    for i=1 to particlenum do
+        atom {x,y,color,life,dx,dy} = particles[i]
+        if life<=0 then
+            if rnd()<df then
+                life = 2.5          -- time to live
+                x = w/2             -- starting position x
+                y = h/10            --               and y
+                -- randomize velocity so points reach different heights:
+                atom r = iff(reciprocate?range*sin(time()):0)
+                dx = (spread*rnd()-spread/2+r)*50   -- starting velocity x
+                dy = (rnd()-2.9) * h/20.5           --               and y 
+                color = hsv_to_rgb(round(remainder(time(),5)/5,100), saturation, 1)
+            end if
+        else
+            if y>h/10 and dy>0 then
+                dy *= -0.3  -- "bounce"
+            end if
+            dy += (h/10)*df -- adjust velocity
+            x += dx*df      -- adjust position x
+            y += dy*df*8    --             and y
+            life -= df
+        end if
+        particles[i] = {x,y,color,life,dx,dy}
+    end for
+    IupRedraw(canvas)
+    if time()>t1 then
+        IupSetStrAttribute(dlg,"TITLE","%s (%d, %d fps/s [%dx%d])",{title,particlenum,fps,w,h})
+        t1 = time()+1
+        fps = 0
+    end if
+    return IUP_DEFAULT
+end function
+
+function key_cb(Ihandle /*dlg*/, atom c)
+    if c=K_ESC or lower(c)='q' then return IUP_CLOSE
+    elsif c=K_F1 then   IupMessage(title,help_text)
+    elsif c=K_UP then   saturation = min(saturation+0.1,1)
+    elsif c=K_DOWN then saturation = max(saturation-0.1,0)
+    elsif c=K_PGUP then spread = min(spread+0.1,5)
+    elsif c=K_PGDN then spread = max(spread-0.1,0.2)
+    elsif c=K_RIGHT then range = min(range+0.1,2)
+    elsif c=K_LEFT then range = max(range-0.1,0.1)
+    elsif c=K_SP then reciprocate = not reciprocate
+    end if
+    return IUP_CONTINUE
+end function
+
+procedure main()
+    IupOpen()
+    canvas = IupGLCanvas("RASTERSIZE=400x300")
+    IupSetCallbacks({canvas}, {"ACTION", Icallback("redraw_cb"),
+                               "MAP_CB", Icallback("map_cb")})
+    dlg = IupDialog(canvas,`TITLE="%s"`,{title})
+    IupSetCallback(dlg, "KEY_CB", Icallback("key_cb"))
+    Ihandle timer = IupTimer(Icallback("timer_cb"), 1000/25)
+    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL)
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
+end procedure
+
+main()
+

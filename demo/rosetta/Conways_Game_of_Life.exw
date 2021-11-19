@@ -2,101 +2,117 @@
 -- demo\rosetta\Conways_Game_of_Life.exw
 -- =====================================
 --
+--      (obvs. double check the rc page specs first)
+with javascript_semantics
 include pGUI.e
 
-Ihandle dlg, canvas, hTimer
-cdCanvas cddbuffer, cdcanvas
+constant title = "Conway's Game of Life"
+Ihandle dlg, canvas
+Ihandln hTimer = NULL
+cdCanvas cddbuffer
 
 sequence c = {},    -- cells
          cn,        -- new cells
          cl         -- last cells
 
 procedure draw(integer what)
-integer lx = length(c)
-integer ly = length(c[1])
-integer x = floor(lx/2)
-integer y = floor(ly/2)
+    integer x = floor(length(c)/2)+1,
+            y = floor(length(c[1])/2)
     switch what do
-        case ' ' : -- Clear
-            c = sq_mul(c,0)
-        case '+' : -- Blinker
-            {c[x-1,y],c[x,y],c[x+1,y]} @= 1
-        case 'G' : -- Glider
-            {                      c[x+1,y+4],
-             c[x+2,y+2],           c[x+2,y+4],
-                        c[x+3,y+3],c[x+3,y+4]} @= 1
-        case 'T' : -- Thunderbird
-            {c[x-1,y+1],c[x,y+1],c[x+1,y+1],
-             c[x,y+3],c[x,y+4],c[x,y+5]} @= 1
-        case 'X' : -- Cross
-            for x=2 to lx-1 do
-                y = floor(ly*x/lx)
-                if y>1 then
-                    {c[x,y],c[x,ly-y]} @= 1
-                end if
-            end for
+        case ' ': c = sq_mul(c,0)                                   -- Clear
+        case '+': c[x][y-1..y+1] = repeat(1,3)                      -- Blinker
+        case 'G': {                    c[x+1,y+4],
+                   c[x+2,y+2],         c[x+2,y+4],
+                           c[x+3,y+3], c[x+3,y+4]} = repeat(1,5)    -- Glider
+        case 'T': {c[x-1,y+1],c[x,y+1],c[x+1,y+1],
+                   c[x  ,y+3],c[x,y+4],c[x  ,y+5]} = repeat(1,6)    -- Thunderbird
+        case 'X': for i=0 to min(x,y)-1 do
+                    {c[x-i,y+i],c[x+i,y+i],
+                     c[x-i,y-i],c[x+i,y-i]} = repeat(1,4)           -- Cross
+                  end for
     end switch
 end procedure
 
-atom t0 = time()
+atom t1 = time()+1
+integer fps = 0
 
 function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
-integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
-integer colour, cnxy, live, alive = 0
-    if length(c)!=height
-    or length(c[1])!=width then
-        c = repeat(repeat(0,height),width)
-        cn = c
-        cl = c
+    integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE"),
+            -- limit to 10K cells (performance target of 10fps)
+            -- n here is the cell size in pixels (min of 1x1)
+            n = ceil(sqrt(width*height/10000)),
+            w = floor(width/n)+2, -- (see cx below)
+            h = floor(height/n)+2,
+            alive = 0
+    -- keep w, h odd for symmetry (plus I suspect the 
+    --  "Cross" code above may now crash without this)
+    w -= even(w)
+    h -= even(h)
+    if length(c)!=w
+    or length(c[1])!=h then
+        c = repeat(repeat(0,h),w)
+        cn = deep_copy(c)
+        cl = deep_copy(c)
         draw('X')
+        if hTimer!=NULL then
+            IupStoreAttribute(hTimer, "RUN", "YES")
+        end if
     end if
     cdCanvasActivate(cddbuffer)
-    for y=2 to height-1 do
-        for x=2 to width-1 do
-            integer  xm1 = x-1,              xp1 = x+1,
-                     ym1 = y-1,              yp1 = y+1
-            cnxy = c[xm1,ym1] + c[x,ym1] + c[xp1,ym1] + 
-                   c[xm1,y]              + c[xp1,y] +
-                   c[xm1,yp1] + c[x,yp1] + c[xp1,yp1]
-            if c[x,y]=1 then
-                live = (cnxy>=2 and cnxy<=3)
-            else 
-                live = (cnxy=3)
-            end if
+    --
+    -- There is a "dead border" of 1 cell all around the edge of c (etc) which
+    -- we never display or update. If we have got this right/an exact fit, then 
+    -- w*n should be exactly 2n too wide, whereas in the worst case there is an
+    -- (2n-1) pixel border, which we split between left and right, ditto cy.
+    --
+    integer cx = n+floor((width-w*n)/2)
+    for x=2 to w-1 do
+        integer cy = n+floor((height-h*n)/2)
+        for y=2 to h-1 do
+            integer cxy = c[x,y],
+                    clxy = cl[x,y],
+                    cnxy = -cxy
+            for i=x-1 to x+1 do
+                for j=y-1 to y+1 do
+                    cnxy += c[i,j]
+                end for
+            end for
+            integer live = iff(cxy?cnxy>=2 and cnxy<=3:cnxy==3),
+            colour = iff(live?iff(cxy?iff(clxy?CD_PURPLE    -- adult
+                                              :CD_GREEN)    -- newborn
+                                     :iff(clxy?CD_RED       -- old
+                                              :CD_YELLOW))  -- shortlived
+                             :CD_BLACK)
             cn[x,y] = live
             alive += live
-            if live then
-                if c[x,y] then
-                    colour = iff(cl[x,y]?CD_PURPLE  -- adult
-                                        :CD_GREEN)  -- newborn
-                else 
-                    colour = iff(cl[x,y]?CD_RED     -- old
-                                        :CD_YELLOW) -- shortlived
-                end if 
-            else
-                colour = CD_BLACK
-            end if
-            cdCanvasPixel(cddbuffer, x, y, colour) 
+            cdCanvasSetForeground(cddbuffer,colour)
+            cdCanvasBox(cddbuffer, cx, cx+n-1, cy, cy+n-1)
+            cy += n
         end for
+        cx += n
     end for
     cdCanvasFlush(cddbuffer)
     if not alive then
         IupStoreAttribute(hTimer, "RUN", "NO")
         IupStoreAttribute(dlg, "TITLE", "died")
---  elsif cl=cn then -- (made blinker stable)
     elsif c=cn then
         IupStoreAttribute(hTimer, "RUN", "NO")
         IupStoreAttribute(dlg, "TITLE", "stable")
     else
         cl = c
-        c = cn
-        IupSetStrAttribute(dlg, "TITLE", "%3.2f", {time()-t0})
+        c = deep_copy(cn)
+        fps += 1
+        if time()>=t1 then
+            IupSetStrAttribute(dlg,"TITLE","%s (%d FPS)",{title,fps})
+            t1 = time()+1
+            fps = 0
+        end if
     end if
     return IUP_DEFAULT
 end function
 
 function map_cb(Ihandle ih)
-    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cdCanvas cdcanvas = cdCreateCanvas(CD_IUP, ih)
     cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
     cdCanvasSetBackground(cddbuffer, CD_WHITE)
     cdCanvasSetForeground(cddbuffer, CD_RED)
@@ -111,7 +127,6 @@ function key_cb(Ihandle /*ih*/, atom c)
     elsif find(c,"xX")  then draw('X')  -- Cross
     end if
     IupStoreAttribute(hTimer, "RUN", "YES")
-    IupStoreAttribute(dlg, "TITLE", "Life")
     if c=K_ESC then return IUP_CLOSE end if
     return IUP_CONTINUE
 end function
@@ -123,23 +138,20 @@ end function
 
 procedure main()
     IupOpen()
-
-    canvas = IupCanvas(NULL)
-    IupSetAttribute(canvas, "RASTERSIZE", "200x200") -- initial size
-    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
-
-    dlg = IupDialog(canvas)
-    IupSetAttribute(dlg, "TITLE", "Conway's Game of Life")
-    IupSetCallback(dlg, "K_ANY",     Icallback("key_cb"))
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
-
-    hTimer = IupTimer(Icallback("timer_cb"), 30)
-
-    IupMap(dlg)
-    IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release the minimum limitation
-    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
-    IupMainLoop()
-    IupClose()
+    canvas = IupCanvas("RASTERSIZE=390x390")
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "ACTION", Icallback("redraw_cb")})
+    dlg = IupDialog(canvas,`TITLE="%s", MINSIZE=350x55`, {title})
+      -- (above MINSIZE prevents the title from getting squished)
+    IupSetCallback(dlg, "KEY_CB", Icallback("key_cb"))
+    IupShow(dlg)
+    IupSetAttribute(canvas,"RASTERSIZE",NULL)
+--  hTimer = IupTimer(Icallback("timer_cb"),40) -- 25fps (maybe)
+    hTimer = IupTimer(Icallback("timer_cb"),100) -- 10fps
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

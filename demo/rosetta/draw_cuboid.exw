@@ -12,21 +12,22 @@
 --
 --  Note this uses simple orthogonal projection;
 --            there is no perspective here!
+--            (For that see DrawRotatingCube.exw)
 --
--- For Edita/Tools/Re-indent source:
---#withtype Ihandle
---#withtype cdCanvas
---
+with javascript_semantics
 include pGUI.e
 
+constant title = "Draw Cuboid"
 Ihandle dlg, canvas, hTimer
 cdCanvas cd_canvas
 
 -- arrays: 3D coordinates of vertices
 sequence x = {-2.0, +2.0, +2.0, -2.0,  -2.0, +2.0, +2.0, -2.0},
          y = {-1.5, -1.5, +1.5, +1.5,  -1.5, -1.5, +1.5, +1.5},
-         z = {-1.0, -1.0, -1.0, -1.0,  +1.0, +1.0, +1.0, +1.0},
-         Segment = {1,2, 2,3, 3,4, 4,1, 5,6, 6,7, 7,8, 8,5, 1,5, 2,6, 3,7, 4,8}
+         z = {-1.0, -1.0, -1.0, -1.0,  +1.0, +1.0, +1.0, +1.0}
+
+constant segments = {{1,2}, {2,3}, {3,4}, {4,1}, {5,6}, {6,7},
+                     {7,8}, {8,5}, {1,5}, {2,6}, {3,7}, {4,8}}
 
 atom Size = 50.0,       -- drawing size 
      Sz = 0.008,        -- tumbling speeds
@@ -34,28 +35,18 @@ atom Size = 50.0,       -- drawing size
      Sy = 0.005,        -- ""
      S = 2
 
-procedure draw_cube(integer wx, wh)
-    atom farthest = 0.0             -- find the farthest vertex
-    integer farv, v1, v2, c, style
-    for i=1 to 8 do
-        if z[i]>farthest then farthest = z[i]  farv = i end if
-    end for
-    for v=1 to 2*12 by 2 do         -- for all the vertices...
-        v1 = Segment[v]             -- get vertex number
-        v2 = Segment[v+1]
-        c = CD_RED
-        style = CD_CONTINUOUS
-        if v1=farv or v2=farv then 
---          c = CD_GREY
-            c = CD_BLUE
-            style = CD_DASHED
-        end if
-        cdCanvasSetForeground(cd_canvas, c)
-        cdCanvasSetLineStyle(cd_canvas, style)  
-        atom x1 = x[v1]*Size+wx,
-             y1 = y[v1]*Size+wh,
-             x2 = x[v2]*Size+wx,
-             y2 = y[v2]*Size+wh
+procedure draw_cube(integer cx, cy)
+    -- {cx,cy} is the centre point of the canvas
+    integer farthest = largest(z,true)
+    for s=1 to length(segments) do
+        integer {va,vb} = segments[s],
+                  bNear = not find(farthest,segments[s])
+        cdCanvasSetForeground(cd_canvas, iff(bNear?CD_RED:CD_BLUE))
+        cdCanvasSetLineStyle(cd_canvas, iff(bNear?CD_CONTINUOUS:CD_DASHED)) 
+        atom x1 = x[va]*Size+cx,
+             y1 = y[va]*Size+cy,
+             x2 = x[vb]*Size+cx,
+             y2 = y[vb]*Size+cy
         cdCanvasLine(cd_canvas,x1,y1,x2,y2)
     end for
 end procedure
@@ -63,16 +54,20 @@ end procedure
 function canvas_action_cb(Ihandle canvas)
     cdCanvasActivate(cd_canvas)
     cdCanvasClear(cd_canvas)
-    integer {wx, wh} = sq_floor_div(IupGetIntInt(canvas, "DRAWSIZE"),2)
-    draw_cube(wx,wh)
+    integer {w, h} = IupGetIntInt(canvas, "DRAWSIZE")
+    draw_cube(floor(w/2),floor(h/2))
     cdCanvasFlush(cd_canvas)
     return IUP_DEFAULT
 end function
 
 function canvas_map_cb(Ihandle canvas)
-    atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
     IupGLMakeCurrent(canvas)
-    cd_canvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    if platform()=JS then
+        cd_canvas = cdCreateCanvas(CD_IUP, canvas)
+    else
+        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+        cd_canvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    end if
 --  cdCanvasSetBackground(cd_canvas, CD_PARCHMENT)
     cdCanvasSetBackground(cd_canvas, CD_BLACK)
     return IUP_DEFAULT
@@ -90,37 +85,37 @@ function canvas_resize_cb(Ihandle /*canvas*/)
     return IUP_DEFAULT
 end function
 
-function k_any(Ihandle /*ih*/, atom c)
+function key_cb(Ihandle /*ih*/, atom c)
     if c=K_ESC then 
         return IUP_CLOSE
     elsif c=K_UP then
         for i=1 to 8 do
-            y[i] = y[i]+z[i]*Sx*S   -- rotate vertices in Y-Z plane
-            z[i] = z[i]-y[i]*Sx*S
+            y[i] += z[i]*Sx*S   -- rotate vertices in Y-Z plane
+            z[i] -= y[i]*Sx*S
         end for
     elsif c=K_DOWN then
         for i=1 to 8 do
-            y[i] = y[i]-z[i]*Sx*S   -- rotate vertices in Y-Z plane
-            z[i] = z[i]+y[i]*Sx*S
+            y[i] -= z[i]*Sx*S   -- rotate vertices in Y-Z plane
+            z[i] += y[i]*Sx*S
         end for
     elsif c=K_LEFT then
         for i=1 to 8 do
-            x[i] = x[i]+z[i]*Sy*S   -- rotate vertices in X-Z plane
-            z[i] = z[i]-x[i]*Sy*S
+            x[i] += z[i]*Sy*S   -- rotate vertices in X-Z plane
+            z[i] -= x[i]*Sy*S
         end for
     elsif c=K_RIGHT then
         for i=1 to 8 do
-            x[i] = x[i]-z[i]*Sy*S   -- rotate vertices in X-Z plane
-            z[i] = z[i]+x[i]*Sy*S
+            x[i] -= z[i]*Sy*S   -- rotate vertices in X-Z plane
+            z[i] += x[i]*Sy*S
         end for
     elsif c='+' then
-        Size += 5
+        Size = min(500,Size+5)
     elsif c='-' then
-        Size = max(10,Size-5)
+        Size = max( 10,Size-5)
     elsif c=' ' then
         IupSetInt(hTimer,"RUN",not IupGetInt(hTimer,"RUN"))
     end if
-    IupRedraw(canvas)
+    IupUpdate(canvas)
     return IUP_CONTINUE
 end function
 
@@ -139,22 +134,21 @@ end function
 
 procedure main()
     IupOpen()
---  IupImageLibOpen()
-    canvas = IupGLCanvas()
-    IupSetAttribute(canvas, "RASTERSIZE", "640x480")
-    IupSetCallback(canvas, "ACTION", Icallback("canvas_action_cb"))
-    IupSetCallback(canvas, "MAP_CB", Icallback("canvas_map_cb"))
-    IupSetCallback(canvas, "UNMAP_CB", Icallback("canvas_unmap_cb"))
-    IupSetCallback(canvas, "RESIZE_CB", Icallback("canvas_resize_cb"))
-    dlg = IupDialog(IupVbox({canvas}))
-    IupSetAttribute(dlg, "TITLE", "Draw Cuboid")
-    IupSetCallback(dlg, "K_ANY",  Icallback("k_any"))
+    canvas = IupGLCanvas("RASTERSIZE=640x480")
+    IupSetCallbacks(canvas, {"ACTION", Icallback("canvas_action_cb"),
+                             "MAP_CB", Icallback("canvas_map_cb"),
+                             "UNMAP_CB", Icallback("canvas_unmap_cb"),
+                             "RESIZE_CB", Icallback("canvas_resize_cb")})
+--  dlg = IupDialog(IupVbox({canvas}),`TITLE="%s"`,{title})
+    dlg = IupDialog(canvas,`TITLE="%s"`,{title})
+    IupSetCallback(dlg, "KEY_CB",  Icallback("key_cb"))
     IupShow(dlg)
     IupSetAttribute(canvas, "RASTERSIZE", NULL)
     hTimer = IupTimer(Icallback("timer_cb"), 40)
-
-    IupMainLoop()
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

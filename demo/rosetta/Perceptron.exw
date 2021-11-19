@@ -9,10 +9,13 @@
 --  non-linear line to f() (case 5) was perhaps not such a great idea given how 
 --  much it sometimes struggles with some of the other straight lines anyway.
 --
+with javascript_semantics   -- DEV graph needs titles and axis labels...
+                            -- IupList: NAME, DROPDOWN, VISIBLEITEMS, VALUE
+                            -- (since NAME is not handled, valuechanged_cb() obvs. won't work...)
+                            -- IupLabel(SEPARATOR,HORIZONTAL) (currently ends up as a 0x0 element)
+--without javascript_semantics  -- IupPlot (replace with IupGraph...) [DONE, mostly]
 include pGUI.e
---#withtype Ihandle
---#withtype Ihandles
---#withtype cdCanvas
+include IupGraph.e
 
 constant help_txt = """
 A perceptron is the simplest possible neural network, consisting of just one neuron
@@ -44,8 +47,10 @@ function help_cb(Ihandln /*help*/)
     return IUP_DEFAULT
 end function
 
-Ihandle dlg, plot, canvas, timer, vbox,
+Ihandle dlg, graph, canvas, vbox,
+--Ihandle dlg, plot, canvas, timer, vbox,
         iteration, accuracy, w1, w2, w3
+Ihandln timer = NULL
 cdCanvas cddbuffer, cdcanvas
 
 integer line_alg = 1
@@ -149,22 +154,25 @@ function draw(bool bDraw=true)
     return correct
 end function
  
-bool re_plot = true
-atom plot0
-sequence plotx = repeat(0,19),
-         ploty = repeat(0,19)
-integer imod = 1,   -- keep every 1, then 10, then 100, ...
-        pidx = 1
+sequence plotx = {}, ploty = {} -- (max length of 56)
+integer imod = 1    -- keep every 1, then 10, then 100, ...
+
+function get_data(Ihandle graph)
+    IupSetInt(graph,"XMAX",max_iterations)
+    IupSetInt(graph,"XTICK",max_iterations)
+    return {{plotx,ploty,CD_RED}}
+end function
 
 function restart_cb(Ihandln /*restart*/)
     last_wh = IupGetIntInt(canvas, "DRAWSIZE")
     new_perceptron(3)
     imod = 1
-    pidx = 1
     total_iterations = 0
-    plot0 = (draw(false)/points)*100
-    re_plot = true
-    IupSetInt(timer,"RUN",1)
+    plotx = {0}
+    ploty = {(draw(false)/points)*100}
+    if timer then
+        IupSetInt(timer,"RUN",true)
+    end if
     return IUP_DEFAULT
 end function
 
@@ -178,27 +186,20 @@ function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
     integer correct = draw()
     cdCanvasFlush(cddbuffer)
 
-    if re_plot then
-        re_plot = false
-        IupSetAttribute(plot, "CLEAR", NULL)
-        IupPlotBegin(plot)
-        IupPlotAdd(plot, 0, plot0)
-        for i=1 to pidx-1 do
-            IupPlotAdd(plot, plotx[i], ploty[i])
-        end for
-        {} = IupPlotEnd(plot)
-        IupSetAttribute(plot, "REDRAW", NULL)
-    end if
-    
     IupSetStrAttribute(iteration,"TITLE","iteration: %d",{total_iterations})
     IupSetStrAttribute(w1,"TITLE","%+f",{perceptron[WEIGHTS][1]})
     IupSetStrAttribute(w2,"TITLE","%+f",{perceptron[WEIGHTS][2]})
     IupSetStrAttribute(w3,"TITLE","%+f",{perceptron[WEIGHTS][3]})
     IupSetStrAttribute(accuracy,"TITLE","accuracy: %.4g%%",{(correct/points)*100})
     IupRefreshChildren(vbox)    -- (force label resize)
-    if correct=points then
-        IupSetInt(timer,"RUN",0)                -- stop at 100%
+    if correct=points and timer!=NULL then
+        if ploty[$]!=100 then -- ensure/add final entry of 100%
+            plotx &= total_iterations
+            ploty &= 100
+        end if
+        IupSetInt(timer,"RUN",false) -- stop at 100%
     end if
+    IupUpdate(graph)
     return IUP_DEFAULT
 end function
 
@@ -228,33 +229,23 @@ function timer_cb(Ihandle /*timer*/)
         total_iterations += 1
         integer c = mod(total_iterations,points)+1
         train(perceptron[TRAINING][c][INPUTS], perceptron[TRAINING][c][ANSWER])
-        if mod(total_iterations,imod)=0 then
-            -- save 1,2..10, then 20,30,..100, then 200,300,..1000, etc
-            re_plot = true
-            plotx[pidx] = total_iterations
-            ploty[pidx] = (draw(false)/points)*100
-            if pidx=10 or pidx=19 then
-                if pidx=19 then
-                    -- drop (eg) 1,2,..9, replace with 10,20,..90,
-                    -- next time replace 10,20..90 with 100,200..900, etc
-                    plotx[1..10] = plotx[10..19]
-                    ploty[1..10] = ploty[10..19]
-                end if
+        if remainder(total_iterations,imod)=0 then
+            plotx &= total_iterations
+            ploty &= (draw(false)/points)*100
+            if total_iterations>=imod*10 then
+                -- save 1,2..10, then 20,30,..100, then 200,300,..1000, etc
                 imod *= 10
-                pidx = 11
-            else
-                pidx += 1
             end if
         end if      
     end for
     if total_iterations>=max_iterations then
-        IupSetInt(timer,"RUN",0)
+        IupSetInt(timer,"RUN",false)
     end if
     IupUpdate(canvas)
     return IUP_IGNORE
 end function
 
-function k_any(Ihandle /*ih*/, atom c)
+function key_cb(Ihandle /*ih*/, atom c)
     if c=K_ESC then return IUP_CLOSE end if
     if c=K_F1 then return help_cb(NULL) end if
     if c=K_F5 then return restart_cb(NULL) end if
@@ -280,7 +271,6 @@ end function
 
 procedure main()
     IupOpen()
-    IupControlsOpen()
 
     Ihandle settings_lbl = IupHbox({IupFill(),IupLabel("Settings"),IupFill()}),
             line = settings("line","line",{"x*0.7 + 40","300 - 0.3*x","x*0.75","2*x + 1","x/2+sin(x/100)*100+100"}),
@@ -305,7 +295,12 @@ procedure main()
                     IupHbox({iteration}), weights, IupHbox({accuracy})})
     IupSetAttributes(vbox,"GAP=4");
 
-    plot = IupPlot("MENUITEMPROPERTIES=Yes")
+    graph = IupGraph(get_data,"RASTERSIZE=320x360")
+    IupSetAttributes(graph,"XTICK=1e5,XMIN=0,XMAX=1e6")
+    IupSetAttributes(graph,"YTICK=20,YMIN=0,YMAX=100")
+/*
+    -- Yet to be handled by/implemented in IupGraph.e: (no biggie, hopefully) [DEV]
+    plot = IupPlot()
     IupSetAttribute(plot, "TITLE", "Learning Curve");
     IupSetAttribute(plot, "TITLEFONTSIZE", "10");
     IupSetAttribute(plot, "TITLEFONTSTYLE", "ITALIC");
@@ -315,28 +310,22 @@ procedure main()
     IupSetAttribute(plot, "AXS_YLABEL", "% correct");
     IupSetAttribute(plot, "AXS_XFONTSTYLE", "ITALIC");
     IupSetAttribute(plot, "AXS_YFONTSTYLE", "ITALIC");
-    IupSetAttribute(plot, "AXS_XTICKNUMBER", "No");
-    IupSetAttribute(plot, "AXS_YAUTOMIN", "No");
-    IupSetAttribute(plot, "AXS_YAUTOMAX", "No");
-    IupSetInt(plot, "AXS_YMIN", 0)
-    IupSetInt(plot, "AXS_YMAX", 100)
-    IupSetAttribute(plot,"RASTERSIZE", "320x360") -- initial size
-
+*/
     canvas = IupCanvas(NULL)
     IupSetAttribute(canvas, "RASTERSIZE", "320x360") -- initial size
     IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
     IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
 
-    Ihandle hbox = IupHbox({vbox, plot, canvas},"MARGIN=4x4, GAP=10")
-    dlg = IupDialog(hbox);
-    IupSetCallback(dlg, "K_ANY", Icallback("k_any"))
-    IupSetAttribute(dlg, "TITLE", "Perceptron")
+    Ihandle hbox = IupHbox({vbox, graph, canvas},"MARGIN=4x4, GAP=10")
+    dlg = IupDialog(hbox,"TITLE=Perceptron")
+    IupSetCallback(dlg, "KEY_CB", Icallback("key_cb"))
     IupShow(dlg)
-    IupSetAttribute(plot, "RASTERSIZE", NULL) -- release limitation
     IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release limitation
-    timer = IupTimer(Icallback("timer_cb"), 100) -- (was 1 sec, now 0.1s)
-    IupMainLoop()
-    IupClose()
+    timer = IupTimer(Icallback("timer_cb"), 100) -- (every 0.1s)
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

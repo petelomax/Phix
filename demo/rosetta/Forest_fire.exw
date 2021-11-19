@@ -7,35 +7,52 @@
 --  A tree ignites with probability F even if no neighbor is burning
 --  An empty space fills with a tree with probability P
 --
+--  Draws bigger "pixels" when it feels the need to.
+--
+with javascript_semantics
 include pGUI.e
-
 Ihandle dlg, canvas, hTimer
 cdCanvas cddbuffer, cdcanvas
 
-constant TITLE = "Forest Fire"
-
-sequence f = {}     -- the forest
-
-atom P = 0.03       -- probability of new tree growing
-atom F = 0.00003    -- probability of new fire starting
+constant TITLE = "Forest Fire",
+         P = 0.03,      -- probability of new tree growing
+         F = 0.00003    -- probability of new fire starting
 
 enum EMPTY,TREE,FIRE    -- (1,2,3)
 constant colours = {CD_BLACK,CD_GREEN,CD_YELLOW}
+
+sequence f = {}     -- the forest
 
 function randomf()
     return rand(1000000)/1000000    -- returns 0.000001..1.000000
 end function
 
 function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
-integer {w, h} = IupGetIntInt(canvas, "DRAWSIZE")
+    integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE"),
+            -- limit to 40K cells, otherwise it gets too slow.
+            -- n here is the cell size in pixels (min of 1x1)
+            -- Note you still get some setTimeout violations 
+            -- in js even with the limit reduced to just 5K..
+            n = ceil(sqrt(width*height/40000)),
+            w = floor(width/n)+2, -- (see cx below)
+            h = floor(height/n)+2
+
     cdCanvasActivate(cddbuffer)
-    if length(f)!=w+2
-    or length(f[1])!=h+2 then
-        f = sq_rand(repeat(repeat(2,h+2),w+2))  -- (EMPTY or TREE)
+    if length(f)!=w
+    or length(f[1])!=h then
+        f = sq_rand(repeat(repeat(2,h),w))  -- (EMPTY or TREE)
     end if
-    sequence fn = f
-    for x = 2 to w+1 do
-        for y = 2 to h+1 do
+    sequence fn = deep_copy(f)
+    --
+    -- There is a "dead border" of 1 cell all around the edge of f (& fn) which
+    -- we never display or update. If we have got this right/an exact fit, then 
+    -- w*n should be exactly 2n too wide, whereas in the worst case there is an
+    -- (2n-1) pixel border, which we split between left and right, ditto cy.
+    --
+    integer cx = n+floor((width-w*n)/2)
+    for x=2 to w-1 do
+        integer cy = n+floor((height-h*n)/2)
+        for y=2 to h-1 do
             integer fnxy
             switch f[x,y] do
                 case EMPTY:
@@ -51,8 +68,11 @@ integer {w, h} = IupGetIntInt(canvas, "DRAWSIZE")
                     fnxy = EMPTY
             end switch
             fn[x,y] = fnxy
-            cdCanvasPixel(cddbuffer, x-2, y-2, colours[fnxy])
+            cdCanvasSetForeground(cddbuffer,colours[fnxy])
+            cdCanvasBox(cddbuffer, cx, cx+n-1, cy, cy+n-1)
+            cy += n
         end for
+        cx += n
     end for
     f = fn
     cdCanvasFlush(cddbuffer)
@@ -72,22 +92,17 @@ end function
 
 procedure main()
     IupOpen()
-
-    canvas = IupCanvas(NULL)
-    IupSetAttribute(canvas, "RASTERSIZE", "225x100") -- initial size
-    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
-
-    dlg = IupDialog(canvas)
-    IupSetAttribute(dlg, "TITLE", TITLE)
-    IupSetAttribute(dlg, "MAXSIZE", "800x400")  -- (too slow any bigger)
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
-
-    hTimer = IupTimer(Icallback("timer_cb"), 100)
-
+    canvas = IupCanvas("RASTERSIZE=225x100")
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "ACTION", Icallback("redraw_cb")})
+    dlg = IupDialog(canvas, `TITLE="%s", MINSIZE=245x140`, {TITLE})
+        -- (above MINSIZE prevents the title from getting squished)
     IupShow(dlg)
-    IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release min limitation
-    IupMainLoop()
-    IupClose()
+    hTimer = IupTimer(Icallback("timer_cb"), 100)   -- (10 fps)
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

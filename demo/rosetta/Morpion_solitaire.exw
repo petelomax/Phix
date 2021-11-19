@@ -8,9 +8,12 @@
 --  Download http://www.morpionsolitaire.com/Grid5T178Rosin.txt and
 --  save it to the current directory, if you want this to replay it.
 --
+--DEV needs IupList() support in pwa/p2js completed...
+with javascript_semantics
 --DEV fix/duplicate that timer unassigned bug...
-constant p178file = "Grid5T178Rosin.txt"
+--constant p178file = "Grid5T178Rosin.txt"
 --constant p178file = `demo\rosetta\Grid5T178Rosin.txt`
+include Grid5T178Rosin.e
 
 --TO-DO:
 --  Ctrl C copy the game history to the clipboard (in text format).
@@ -63,7 +66,7 @@ The play-178 button is disabled if it cannot open Grid5T178Rosin.txt
 in the current directory. Use +/- to speed up/slow down the playback.
 """
 
-without debug
+--without debug
 include pGUI.e
 include builtins\VM\pprntfN.e
 include builtins\VM\pcfunc.e
@@ -74,14 +77,13 @@ include builtins\penv.e
 include builtins\pretty.e
 include builtins\factorial.e
 include builtins\VM\pTime.e
-with debug
---#withtype Ihandle
---#withtype cdCanvas
+--with debug
 
 --DEV first is not properly caught... (when timer is left unassigned)
 Ihandle dlg, canvas, hframe, history, play178, timer
 --Ihandle dlg, canvas, hframe, history, play178
 --Ihandln timer = NULL
+cdCanvas cddbuffer
 
 sequence board
 --
@@ -130,8 +132,6 @@ function redraw_cb(Ihandle ih, integer /*posx*/, /*posy*/)
             bw = length(board[1]),
             bh = length(board)
     
-    cdCanvas cddbuffer = IupGetAttributePtr(ih,"DBUFFER")
-    IupGLMakeCurrent(ih)
     cdCanvasActivate(cddbuffer)
     cdCanvasClear(cddbuffer)
     integer mx = min(floor(cw/((bw+1)/2)),floor(ch/((bh+1)/2)))
@@ -236,7 +236,7 @@ end if
 
     if <game over> then
         ch -= floor(mx/2)
-        {} = cdCanvasTextAlignment(cddbuffer, CD_CENTER)
+        cdCanvasSetTextAlignment(cddbuffer, CD_CENTER)
         string msg = "GAME OVER - NO MORE MOVES"
         cdCanvasText(cddbuffer, cw/2, ch/2, msg) 
     end if
@@ -247,15 +247,17 @@ end function
 
 function map_cb(Ihandle ih)
     IupGLMakeCurrent(ih)
-    atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
-    cdCanvas cddbuffer = cdCreateCanvas(CD_GL, "10x10 %g", {res})
-    IupSetAttributePtr(ih,"DBUFFER",cddbuffer)
+    if platform()=JS then
+        cddbuffer = cdCreateCanvas(CD_IUP, ih)
+    else
+        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+        cddbuffer = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    end if
     cdCanvasSetBackground(cddbuffer, CD_PARCHMENT)
     return IUP_DEFAULT
 end function
 
 function canvas_resize_cb(Ihandle canvas)
-    cdCanvas cddbuffer = IupGetAttributePtr(canvas,"DBUFFER")
     integer {canvas_width, canvas_height} = IupGetIntInt(canvas, "DRAWSIZE")
     atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
     cdCanvasSetAttribute(cddbuffer, "SIZE", "%dx%d %g", {canvas_width, canvas_height, res})
@@ -355,7 +357,8 @@ procedure find_valid_moves()
             end if
         end for
     end for
-    valid_moves = sort(valid_moves) -- (entirely optional, helps debug)
+--  valid_moves = sort(valid_moves) -- (entirely optional, helps debug)
+    valid_moves = sort(deep_copy(valid_moves)) -- (entirely optional, helps debug)
 end procedure
 
 procedure redraw_all()
@@ -385,16 +388,21 @@ end procedure
 
 procedure make_move(integer i)
     sequence vmi = valid_moves[i]
-    integer {x, y, {c}, d} = vmi
+    integer x, y, d
+    string c
+--  integer {x, y, {c}, d} = vmi
+    {x, y, c, d} = vmi
     IupSetStrAttribute(history,"APPENDITEM","%v",{vmi})
-    played = append(played,vmi)
+--  played = append(played,vmi)
+    played = append(played,deep_copy(vmi))
 --  place move...
 --?{"make_move",vmi}
     board[y][x] = 'O'
 --  sequence ? = vslice(directions,3)
 --  for i=1 to length(directions) do
 --      integer {dy, dx, l, nl} = directions[i]
-        integer {dy, dx, l, nl} = directions[find(c,vslice(directions,3))]
+--      integer {dy, dx, l, nl} = directions[find(c,vslice(directions,3))]
+        integer {dy, dx, l, nl} = directions[find(c[1],vslice(directions,3))]
 --      if l=c then
             integer {ul,dr} = {d*2-3,d*2+3}
                     -- "" are 1..7, -1..5, -3..3, -5..1, -7..-1
@@ -568,7 +576,8 @@ function help_cb(Ihandln /*ih*/)
 end function
 
 function play178_cb(Ihandln /*ih*/)
-    sequence text = get_text(p178file,GT_LF_STRIPPED),
+--  sequence text = get_text(p178file,GT_LF_STRIPPED),
+    sequence text = Grid5T178Rosin,
              res = {}, r
     integer dx, dy
     bool first = true
@@ -640,6 +649,7 @@ sequence move = playback[1]
 end function
 
 function key_cb(Ihandle /*dlg*/, atom c)
+--?{"key_cb:",c}
     if c=K_ESC then return IUP_CLOSE
     elsif c=K_F1 then return help_cb(NULL)
     elsif find(c,{K_DEL,K_BS}) then undo_move()
@@ -691,25 +701,29 @@ procedure main()
 --          full = IupHbox({canvas,IupVbox({option_frame})})
             full = IupHbox({canvas,IupVbox({hframe,buttons})})
 --          full = IupHbox({canvas,vbox})
-    IupSetInt(play178,"ACTIVE",file_exists(p178file))
+--  IupSetInt(play178,"ACTIVE",file_exists(p178file))
+    IupSetInt(play178,"ACTIVE",true)
     IupSetCallbacks({canvas}, {"ACTION", Icallback("redraw_cb"),
                                "MAP_CB", Icallback("map_cb"),
                                "RESIZE_CB", Icallback("canvas_resize_cb"),
                                "BUTTON_CB", Icallback("button_cb")})
     dlg = IupDialog(IupHbox({full},"MARGIN=3x3"),`TITLE="Morpion Solitaire"`)
     IupSetCallback(dlg, "K_ANY", Icallback("key_cb"))
+    IupSetAttributeHandle(NULL,"PARENTDIALOG",dlg)
 
     new_game()
 
-    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
+    IupShow(dlg)
     IupSetAttribute(dlg, "RASTERSIZE", NULL)
     IupSetStrAttribute(dlg, "MINSIZE", IupGetAttribute(dlg,"RASTERSIZE"))
 --DEV fix/duplicate...
 --  Ihandle 
     timer = IupTimer(Icallback("timer_cb"), 1000, active:=false)
 --  timer = NULL
-    IupMainLoop()
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
  
 main()

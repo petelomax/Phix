@@ -1,5 +1,5 @@
 --
--- demo/rosetta/Extensible_prime_generator.exw
+-- demo\rosetta\Extensible_prime_generator.exw
 --
 --  Allows a new (and discard-able) sieve block to extend the list of already known primes. 
 --  By starting with 1..10 done, we can then filter properly up to 100, so the next(/first) 
@@ -17,7 +17,9 @@
 --  unroll a 2-3 wheel, it seems far better just to avoid even numbers altogether (hence, 
 --  I believe, this achieves 66 of those 77% savings).
 
-free_console()
+with javascript_semantics
+--/*
+if platform()!=JS then free_console() end if
 sequence primes = {2,3,5,7}
 atom sieved = 10
  
@@ -46,7 +48,7 @@ sequence sieve = repeat(1,N)    -- sieve[i] is really i+sieved
     sieved += N
 end procedure
  
-function is_prime(integer n)
+function is_prime2(integer n)
     while sieved<n do
         add_block()
     end while
@@ -66,10 +68,10 @@ end for
 printf(1,"The primes between 100 and 150 are: ")    ?s
 s = {}
 for i=7700 to 8000 do
-    if is_prime(i) then s&=i end if
+    if is_prime2(i) then s&=i end if
 end for
 printf(1,"There are %d primes between 7700 and 8000.\n",length(s))
-for i=1 to 8 do
+for i=1 to iff(platform()=JS?7:8) do
     integer k = power(10,i)
     while length(primes)<k do
         add_block()
@@ -77,7 +79,24 @@ for i=1 to 8 do
     printf(1,"The %,dth prime is : %d\n",{k,primes[k]})
 end for
 ?time()-t0
-{} = wait_key()
+if platform()!=JS then {} = wait_key() end if
+--*/
+--Using the builtins, for comparison only, output is identical though there is a marginal improvement in performance:
+--/!*
+with javascript_semantics
+atom t0 = time()
+printf(1,"The first 20 primes are: %V\n",{get_primes(-20)})
+sequence s = get_primes_le(150)[length(get_primes_le(100))+1..$]
+printf(1,"The primes between 100 and 150 are: %V\n",{s})
+integer n7700to8000 = length(get_primes_le(8000))-length(get_primes_le(7700))
+printf(1,"There are %d primes between 7700 and 8000.\n",n7700to8000)
+for i=1 to iff(platform()=JS?7:8) do
+    integer k = power(10,i)
+    printf(1,"The %,dth prime is : %d\n",{k,get_prime(k)})
+end for
+?time()-t0
+if platform()!=JS then {} = wait_key() end if
+--*!/
 --/*
 output:
 The first 20 primes are: {2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71}

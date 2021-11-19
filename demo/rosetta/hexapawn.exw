@@ -1,5 +1,5 @@
 --
--- demo/rosetta/hexapawn.exw
+-- demo\rosetta\hexapawn.exw
 -- =========================
 --
 -- From reading the 1962 pdf, I felt the only thing that would do it justice would be to show a graphic 
@@ -13,19 +13,25 @@
 -- underneath it, click on the sector to select.
 -- Note that clicking outside a piece or on an invalid sector of a piece has no effect, you have to click 
 -- on that part of the arrow within the piece to move it.
-
---without debug
+--
+-- Technical note/update:
+--  I got this to work under pwa/p2js by loading my blunderbus with as many deep_copy() as would fit, and
+--  liberally blasted it all over the shop. In particular train_rec() keeps, and makes multiple copies of
+--  all kinds of boards and move sets, so the p2js violations were(/felt) rather vague. It would probably
+--  have ended up nicer had this originally been written under with javascript_semantics, but it predated 
+--  all of that. Nevertheless it was all done and dusted in about half an hour I would guess, that is for
+--  running without p2js violations on desktop/Phix - (re)size issues may yet take quite a bit longer.
+--
+with javascript_semantics   -- nb lots of (re)size issues..., 500Kx900K pixel canvii, MINMAX
+without debug
 include pGUI.e
---include builtins\VM\pprntfN.e
---include builtins\VM\pcfunc.e
---include builtins\pfile.e
---include builtins\scanf.e
---include builtins\pdir.e
---include builtins\penv.e
---include builtins\pretty.e
---with debug
---#withtype Ihandle
---#withtype cdCanvas
+include builtins\VM\pprntfN.e
+include builtins\VM\pcfunc.e
+include builtins\pfile.e
+include builtins\scanf.e
+include builtins\pdir.e
+include builtins\penv.e
+with debug
 
 -- A board is held as eg {"WWW","...","BBB"} (nb displayed upside down)
 -- A move is held as {{{y1,x1},{y2,x2}},colour} where x/y are 1..3.
@@ -106,7 +112,8 @@ function find_board(sequence board)
 -- (Also used to init training data, ie show the 
 --  starting board, with all moves valid/grey.)
 --
-    sequence mb = mirror(board)
+--  sequence mb = mirror(board)
+    sequence mb = mirror(deep_copy(board))
     bool is_mirror = (mb==board), flip = false
     if mb<board then
         board = mb
@@ -115,8 +122,11 @@ function find_board(sequence board)
     integer k = find(board,data[traindx][BOARD])
     if k=0 then
         sequence moves = possible_moves(board)
-        data[traindx][BOARD] &= {board}
-        data[traindx][MOVES] &= {moves}
+--      data[traindx][BOARD] &= {board}
+--      data[traindx][BOARD] &= {deep_copy(board)}
+        data[traindx][BOARD] = deep_copy(data[traindx][BOARD]) & {deep_copy(board)}
+--      data[traindx][MOVES] &= {moves}
+        data[traindx][MOVES] = deep_copy(data[traindx][MOVES]) & {moves}
         k = length(data[traindx][BOARD])
     end if
     return {k,flip,is_mirror}
@@ -133,10 +143,13 @@ procedure train(integer mdx)
 --    and simply play more games to complete the training.
 --
     data[MOVES][MOVES][mdx][1][2] = CD_RED  -- (just the game log)
-    sequence board = data[MOVES][BOARD][mdx],
-             move = data[MOVES][MOVES][mdx][1]
+--  sequence board = data[MOVES][BOARD][mdx],
+    sequence board = deep_copy(data[MOVES][BOARD][mdx]),
+--           move = data[MOVES][MOVES][mdx][1]
+             move = deep_copy(data[MOVES][MOVES][mdx][1])
     {integer k, bool flip, bool is_mirror} = find_board(board)
-    sequence moves = data[traindx][MOVES][k]
+--  sequence moves = data[traindx][MOVES][k]
+    sequence moves = deep_copy(data[traindx][MOVES][k])
     if flip then move = mirror_move(move) end if
     integer m = find(move[1],vslice(moves,1))
     if moves[m][2]!=CD_RED then
@@ -158,13 +171,20 @@ procedure play_move(sequence move)
         integer {{{y1,x1},{y2,x2}}/*,colour*/} = move
         data[BOARD][BOARD][1][y1][x1] = '.'
         data[BOARD][BOARD][1][y2][x2] = player
+//DEV (??)
+--data[MOVES][MOVES] = deep_copy(data[MOVES][MOVES])
+data[MOVES] = deep_copy(data[MOVES])
         data[MOVES][MOVES][$] = {move}  -- (fill in game log)
-        data[MOVES][BOARD] &= data[BOARD][BOARD]
-        data[MOVES][MOVES] &= {{{}}}
+--      data[MOVES][BOARD] &= data[BOARD][BOARD]
+--      data[MOVES][BOARD] &= deep_copy(data[BOARD][BOARD])
+        data[MOVES][BOARD] = deep_copy(data[MOVES][BOARD]) & deep_copy(data[BOARD][BOARD])
+--      data[MOVES][MOVES] &= {{{}}}
+        data[MOVES][MOVES] = deep_copy(data[MOVES][MOVES]) & {{{}}}
         {player, opponent} = {opponent, player}
         {player_type, opponent_type} = {opponent_type, player_type}
         traindx = WHITES+BLACKS - traindx -- (toggle b/w)
-        sequence board = data[BOARD][BOARD][1]
+--      sequence board = data[BOARD][BOARD][1]
+        sequence board = deep_copy(data[BOARD][BOARD][1])
         if y2!=2 -- (must be "third row" then, ie 1|3)
         or not find(player,flatten(board))
         or possible_moves(board)={} then
@@ -184,24 +204,29 @@ procedure opponent_play()
 --
     if not game_over
     and player_type=COMPUTER then
-        sequence board = data[BOARD][BOARD][1]
+--      sequence board = data[BOARD][BOARD][1]
+        sequence board = deep_copy(data[BOARD][BOARD][1])
         {integer k, bool flip, bool is_mirror} = find_board(board)
-        sequence moves = data[traindx][MOVES][k], not_red = {}
+--      sequence moves = data[traindx][MOVES][k], not_red = {}
+        sequence moves = deep_copy(data[traindx][MOVES][k]), not_red = {}
         for m=1 to length(moves) do
             if moves[m][2]!=CD_RED then
                 not_red = append(not_red,moves[m])
             end if
         end for
         if length(not_red) then moves = not_red end if
-        sequence move = moves[rand(length(moves))]
+--      sequence move = moves[rand(length(moves))]
+        sequence move = deep_copy(moves[rand(length(moves))])
         if flip then move = mirror_move(move) end if
-        play_move(move)
+--      play_move(move)
+        play_move(deep_copy(move))
     end if
 end procedure
 
 procedure new_game()
     data[BOARD] = {{{"WWW","...","BBB"}},{{}}}
-    data[MOVES] = data[BOARD]
+--  data[MOVES] = data[BOARD]
+    data[MOVES] = deep_copy(data[BOARD])
     game_over = false
     {player,opponent} = "WB"
     {player_type,opponent_type} = {HUMAN,COMPUTER} -- (or any)
@@ -209,6 +234,7 @@ procedure new_game()
 --  {player_type,opponent_type} = {HUMAN,HUMAN} -- (or any)
     traindx = WHITES
     {} = find_board(data[BOARD][BOARD][1])  -- (init training data)
+--  {} = find_board(deep_copy(data[BOARD][BOARD][1]))   -- (init training data)
 end procedure
 
 procedure train_rec()
@@ -216,16 +242,21 @@ procedure train_rec()
 -- Note this might require some more looping if train() is changed
 -- to respect max-one-per-round original rules, as mentioned above
 --
-    sequence board = data[BOARD][BOARD][1],
+--  sequence board = data[BOARD][BOARD][1],
+    sequence board = deep_copy(data[BOARD][BOARD][1]),
              moves = possible_moves(board),
-             plopt = {player, opponent, traindx, data[MOVES]},
+--           plopt = {player, opponent, traindx, data[MOVES]},
+             plopt = {player, opponent, traindx, deep_copy(data[MOVES])},
              bwww = {bw,ww}
     for i=1 to length(moves) do
-        play_move(moves[i])
+--      play_move(moves[i])
+        play_move(deep_copy(moves[i]))
         if not game_over then train_rec() end if
         game_over = false
-        data[BOARD][BOARD][1] = board
-        {player, opponent, traindx, data[MOVES]} = plopt
+--      data[BOARD][BOARD][1] = board
+        data[BOARD][BOARD][1] = deep_copy(board)
+--      {player, opponent, traindx, data[MOVES]} = plopt
+        {player, opponent, traindx, data[MOVES]} = deep_copy(plopt)
     end for
     {bw,ww} = bwww
 end procedure
@@ -243,9 +274,10 @@ Ihandle dlg
 sequence board_centres = {}
 integer board_radius2 = 0
 
-procedure draw_board(cdCanvas cddbuffer, integer dx, i, px, py, mx)
-    sequence board = data[dx][BOARD][i],
-             centres = board    -- (fully overwritten in draw pieces step)
+procedure draw_board(cdCanvas cddbuffer, integer dx, idx, px, py, mx)
+    sequence board = data[dx][BOARD][idx],
+--           centres = board    -- (fully overwritten in draw pieces step)
+             centres = deep_copy(board) -- (fully overwritten in draw pieces step)
     integer diameter = floor(mx/5),
             gap = floor(mx/8),  -- (squares are twice the gap)
             rhs = 7*gap         -- (lhs==gap, rhs/lhs==top/btm)
@@ -285,7 +317,7 @@ procedure draw_board(cdCanvas cddbuffer, integer dx, i, px, py, mx)
     -- draw arrows
     --
     cdCanvasSetLineWidth(cddbuffer,2)
-    sequence arrows = data[dx][MOVES][i]
+    sequence arrows = data[dx][MOVES][idx]
     for i=1 to length(arrows) do
         if length(arrows[i])=0 then exit end if
         integer {{{x1,y1},{x2,y2}},colour} = arrows[i]
@@ -310,6 +342,7 @@ end procedure
 function redraw_cb(Ihandle ih, integer /*posx*/, /*posy*/)
     integer dx = IupGetInt(ih,"DATA"),
             {cw,ch} = IupGetIntInt(ih, "DRAWSIZE")
+    assert(dx!=0) -- (for p2js)
     --
     -- first, calculate the best nw*nh way to fit them all in:
     --
@@ -325,8 +358,8 @@ function redraw_cb(Ihandle ih, integer /*posx*/, /*posy*/)
     --
     -- now draw all the boards
     --
-    cdCanvas cddbuffer = IupGetAttributePtr(ih,"DBUFFER")
     IupGLMakeCurrent(ih)
+    cdCanvas cddbuffer = IupGetAttributePtr(ih,"DBUFFER")
     cdCanvasActivate(cddbuffer)
     cdCanvasClear(cddbuffer)
     integer px = floor((cw-nw*mx)/2), -- (set margin)
@@ -347,11 +380,16 @@ function redraw_cb(Ihandle ih, integer /*posx*/, /*posy*/)
     return IUP_DEFAULT
 end function
 
-function map_cb(Ihandle ih)
-    IupGLMakeCurrent(ih)
-    atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
-    cdCanvas cddbuffer = cdCreateCanvas(CD_GL, "10x10 %g", {res})
-    IupSetAttributePtr(ih,"DBUFFER",cddbuffer)
+function map_cb(Ihandle canvas)
+    IupGLMakeCurrent(canvas)
+    cdCanvas cddbuffer
+    if platform()=JS then
+        cddbuffer = cdCreateCanvas(CD_IUP, canvas)
+    else
+        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+        cddbuffer = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    end if
+    IupSetAttributePtr(canvas,"DBUFFER",cddbuffer)
     cdCanvasSetBackground(cddbuffer, CD_PARCHMENT)
     return IUP_DEFAULT
 end function
@@ -456,6 +494,7 @@ end function
 constant help_text = """
 Hexapawn may be the simplest game for which a self-learning game AI 
 is not completely and utterly trivial, or at least non-obvious.
+(and yes, even simpler than noughts and crosses in that regard)
 
 Pieces can move forward into an empty square or diagonally to take
 an opponent's piece (no initial double or en passant moves). 
@@ -558,16 +597,18 @@ procedure main()
     IupSetAttribute(dlg, "TITLE", "Triangle overlap")
     IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
 --*/
-    IupSetCallback(dlg, "K_ANY", Icallback("key_cb"))
+    IupSetCallback(dlg, "KEY_CB", Icallback("key_cb"))
     IupSetAttributeHandle(NULL,"PARENTDIALOG",dlg)      -- WOW!!
 
     new_game()
 
 --  IupMap(dlg)
 --  IupSetAttribute(canvas, "RASTERSIZE", NULL)
-    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
-    IupMainLoop()
-    IupClose()
+    IupShow(dlg)
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
  
 main()
@@ -579,9 +620,8 @@ main()
 -- == console version ==
 --nb lightly tested (eg/ie only {player_type,opponent_type}=={HUMAN,COMPUTER},
 --   although training does not actually depend on that/also works just fine.)
-
+without javascript_semantics    -- uses wait_key().
 constant fromtos = {{1,1},{1,2},{1,3},{2,1},{2,2},{2,3},{3,1},{3,2},{3,3}}
-if 0 then
 
 puts(1,"Hexapawn\n")
 new_game()
@@ -593,7 +633,7 @@ while true do
         puts(1,"Y\n")
         new_game()
     else    
-        integer c = upper(wait_key())
+        integer c = upper(wait_key()) -- (nb not p2js compatible..)
         if c=#1B or c='Q' then
             exit
         elsif c='T' then
@@ -604,7 +644,7 @@ while true do
         elsif c>='1' and c<='9' then
             integer fdx = c-'0'
             printf(1,"%v to ",{fromtos[fdx]})
-            c = wait_key()
+            c = wait_key()                      -- (ditto)
             if c>='1' and c<='9' then
                 c -= '0'
                 printf(1,"%v\n",{fromtos[c]})
@@ -624,8 +664,7 @@ while true do
         end if
     end if
 end while
-    ?"done"
-    abort(0)
-
-end if
+?"done"
+{} = wait_key()
+abort(0)
 --*/

@@ -2,41 +2,58 @@
 -- demo\rosetta\Draw_a_sphere.exw
 -- ==============================
 --
+with javascript_semantics
 include pGUI.e
 
+constant title = "Draw a sphere"
 Ihandle dlg, canvas
 cdCanvas cddbuffer, cdcanvas
 
-function dot(sequence x, sequence y)
+function dot(sequence x, y)
     return sum(sq_mul(x,y))
 end function
 
 function normalize(sequence v)
     atom len = sqrt(dot(v, v))
-    if len=0 then return {0,0,0} end if
-    return sq_mul(v,1/len)
+    return iff(len=0?{0,0,0}:sq_mul(v,1/len))
 end function
 
-procedure drawSphere(integer width, height, atom k, atom amb, sequence direction)
-integer r = floor((min(width,height)-20)/2)
-integer cx = floor(width/2)
-integer cy = floor(height/2)
-integer lum
+procedure drawSphere(integer width, height, atom k, amb, sequence direction)
+    atom t0 = time()+1, t1 = t0,
+         lmul = 255/(1+amb)
+    integer r = floor((min(width,height)-20)/2),
+           cx = floor(width/2),
+           cy = floor(height/2)
     for x=-r to r do
+        if time()>t1 then
+            -- Let the user know we aren't completely dead just yet
+            IupSetStrAttribute(dlg,"TITLE","%s - drawing (%d%%)",{title,100*(x+r)/(2*r)})
+            t1 = time()+1
+            -- (as per DeathStar.exw, prevent "(Not Responding)" nonsense)
+            if platform()!=JS then
+                if IupLoopStep()=IUP_CLOSE then
+                    IupExitLoop()
+                    exit
+                end if
+            end if
+        end if
         for y=-r to r do
-            integer z = r*r-x*x-y*y
+            integer z = r*r-(x*x+y*y)
             if z>=0 then
-                atom s = dot(direction, normalize({x,y,sqrt(z)}))
-                lum = and_bits(#FF,255*(iff(s<0?0:power(s,k))+amb)/(1+amb))
-                lum += lum*#100+lum*#10000
-                cdCanvasPixel(cddbuffer, x+cx, y+cy, lum)
+                atom s = dot(direction, normalize({x,y,sqrt(z)})),
+                     l = iff(s<=0?0:power(s,k))
+                integer lum = and_bits(#FF,lmul*(l+amb))
+                cdCanvasPixel(cddbuffer, x+cx, y+cy, lum*#10101)
             end if
         end for
     end for
+    if t1!=t0 then
+        IupSetStrAttribute(dlg,"TITLE",title)
+    end if
 end procedure
 
 function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
-integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
+    integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
     cdCanvasActivate(cddbuffer)
     cdCanvasClear(cddbuffer) 
     drawSphere(width,height,1.5,0.2,normalize({-30,-30,50}))
@@ -54,19 +71,16 @@ end function
 procedure main()
     IupOpen()
 
-    canvas = IupCanvas(NULL)
-    IupSetAttribute(canvas, "RASTERSIZE", "340x340") -- initial size
-    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
-
-    dlg = IupDialog(canvas)
-    IupSetAttribute(dlg, "TITLE", "Draw a sphere")
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
-
-    IupMap(dlg)
+    canvas = IupCanvas("RASTERSIZE=340x340")
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "ACTION", Icallback("redraw_cb")})
+    dlg = IupDialog(canvas,`TITLE="%s"`,{title})
+    IupShow(dlg)
     IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release the minimum limitation
-    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
-    IupMainLoop()
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

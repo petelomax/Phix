@@ -5,11 +5,11 @@
 -- Start/stop rotation by pressing space. Resizeable.
 -- ZXYV stop any rotation and orient up/down/left/right.
 --
---free_console()
+with javascript_semantics
 include pGUI.e
 
 Ihandle dlg, canvas, timer
-cdCanvas cddbuffer, cdcanvas
+cdCanvas cdcanvas
 
 integer rot = 0
 enum FILL,BORDER
@@ -23,37 +23,35 @@ function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
             cx = floor(w/2),
             cy = floor(h/2),
             radius = floor(min(cx,cy)*0.9)
-    cdCanvasActivate(cddbuffer)
-    cdCanvasClear(cddbuffer)
-    cdCanvasSetFillMode(cddbuffer, CD_WINDING)
-    cdCanvasSetLineWidth(cddbuffer, round(radius/100)+1) 
+    cdCanvasActivate(cdcanvas)
+    cdCanvasClear(cdcanvas)
+    cdCanvasSetFillMode(cdcanvas, CD_WINDING)
+    cdCanvasSetLineWidth(cdcanvas, round(radius/100)+1) 
     for mode=FILL to BORDER do
-        cdCanvasSetForeground(cddbuffer,colours[mode])
-        cdCanvasBegin(cddbuffer,modes[mode])
+        cdCanvasSetForeground(cdcanvas,colours[mode])
+        cdCanvasBegin(cdcanvas,modes[mode])
 --if 01 then
 --      for i=1 to length(pts) do
 --          atom {x,y} = pts[i]
---          cdCanvasVertex(cddbuffer, x, y)
+--          cdCanvasVertex(cdcanvas, x, y)
 --      end for
 --else
         for a=90 to 666 by 144 do
             atom r = (a+rot)*CD_DEG2RAD,
                  x = floor(radius*cos(r)+cx),
                  y = floor(radius*sin(r)+cy)
-            cdCanvasVertex(cddbuffer, x, y)
+            cdCanvasVertex(cdcanvas, x, y)
         end for
 --end if
-        cdCanvasEnd(cddbuffer)
+        cdCanvasEnd(cdcanvas)
     end for
-    cdCanvasFlush(cddbuffer)
+    cdCanvasFlush(cdcanvas)
     return IUP_DEFAULT
 end function
 
 function map_cb(Ihandle ih)
     cdcanvas = cdCreateCanvas(CD_IUP, ih)
---  cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
-    cddbuffer = cdcanvas
-    cdCanvasSetBackground(cddbuffer, CD_PARCHMENT)
+    cdCanvasSetBackground(cdcanvas, CD_PARCHMENT)
     return IUP_DEFAULT
 end function
 
@@ -63,7 +61,7 @@ function timer_cb(Ihandle /*ih*/)
     return IUP_IGNORE
 end function
 
-function k_any(Ihandle /*ih*/, atom c)
+function key_cb(Ihandle /*ih*/, atom c)
     if c=K_ESC then return IUP_CLOSE end if
     c = upper(c)
     if c=' ' then
@@ -81,21 +79,18 @@ end function
 
 procedure main()
     IupOpen()
-
-    canvas = IupCanvas(NULL)
-    IupSetAttribute(canvas, "RASTERSIZE", "640x640")
+    canvas = IupCanvas("RASTERSIZE=640x640")
     IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
     IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
-
-    dlg = IupDialog(canvas)
-    IupSetAttribute(dlg, "TITLE", "Pentagram")
-    IupSetCallback(dlg, "K_ANY", Icallback("k_any"))
-
+    dlg = IupDialog(canvas,`TITLE="Pentagram"`)
+    IupSetCallback(dlg, "KEY_CB", Icallback("key_cb"))
     IupShow(dlg)
     IupSetAttribute(canvas, "RASTERSIZE", NULL)
     timer = IupTimer(Icallback("timer_cb"), 80, active:=false)
-    IupMainLoop()
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

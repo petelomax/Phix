@@ -1,0 +1,46 @@
+--
+-- demo\rosetta\GUI_component_interaction.exw
+--
+--with javascript_semantics
+without javascript_semantics    -- needs IupAlarm, plus it has a peek_string()...
+include pGUI.e
+ 
+Ihandle txt, inc_btn, rnd_btn, hbx, vbx, dlg
+ 
+function action_cb(Ihandle /*txt*/, integer /*ch*/, atom pNewValue)
+--?peek_string(pNewValue)
+--?IupGetAttribute(txt,"VALUE")
+    if not is_integer(peek_string(pNewValue)) then
+        return IUP_IGNORE
+    end if
+    return IUP_CONTINUE
+end function
+ 
+function inc_btn_cb(Ihandle /*inc_btn*/)
+    integer v = IupGetInt(txt,"VALUE")
+    if integer(v+1) then
+        IupSetInt(txt,"VALUE",v+1)
+    end if
+    return IUP_CONTINUE
+end function
+ 
+function rnd_btn_cb(Ihandle /*ih*/)
+    if IupAlarm("Confirm","Replace with random value?","Yes","No")=1 then
+        IupSetInt(txt,"VALUE",rand(1000))
+    end if
+    return IUP_CONTINUE
+end function
+ 
+IupOpen()
+txt = IupText(Icallback("action_cb"),"EXPAND=YES")
+inc_btn = IupButton("increment",Icallback("inc_btn_cb"))
+rnd_btn = IupButton("random",Icallback("rnd_btn_cb"))
+hbx = IupHbox({inc_btn,rnd_btn},"MARGIN=0x10, GAP=20")
+vbx = IupVbox({txt,hbx},"MARGIN=40x20")
+dlg = IupDialog(vbx,`TITLE="GUI component interaction"`)
+IupShow(dlg)
+if platform()!=JS then
+     IupMainLoop()
+     IupClose()
+end if
+

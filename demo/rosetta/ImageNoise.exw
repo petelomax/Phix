@@ -2,6 +2,8 @@
 -- demo\rosetta\ImageNoise.exw
 -- ===========================
 --
+--with javascript_semantics
+without js -- (needs cdCanvasPutImageRectRGB [DEV/maybe...])
 include pGUI.e
 
 Ihandle dlg, canvas, timer
@@ -14,7 +16,7 @@ integer fps = 129   -- (typical value)
 function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
     integer {w, h} = IupGetIntInt(canvas, "DRAWSIZE")
     cdCanvasActivate(cddbuffer)
---/!*
+if 01 then
     sequence bw = repeat(0,w*h)
     for x=0 to w-1 do
         for y=0 to h-1 do
@@ -22,11 +24,12 @@ function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
         end for
     end for
     cdCanvasPutImageRectRGB(cddbuffer, w, h, {bw,bw,bw})
---*!/
---  sequence r = sq_rand(repeat(255,w*h)),
---           g = sq_rand(repeat(255,w*h)),
---           b = sq_rand(repeat(255,w*h))
---  cdCanvasPutImageRectRGB(cddbuffer, w, h, {r,g,b})
+else
+    sequence r = sq_rand(repeat(255,w*h)),
+             g = sq_rand(repeat(255,w*h)),
+             b = sq_rand(repeat(255,w*h))
+    cdCanvasPutImageRectRGB(cddbuffer, w, h, {r,g,b})
+end if
     cdCanvasFlush(cddbuffer)
 --?time()
     fps += 1
@@ -43,12 +46,12 @@ function timer_cb(Ihandle /*ih*/)
         t1 = time()+1
     end if
 --?time()
---  IupUpdate(canvas)
---  IupRedraw(canvas)
-    {} = redraw_cb(canvas,0,0)
---  IupUpdate(cddbuffer)
---  IupUpdate(cdcanvas)
---  IupUpdate(dlg)
+--  IupUpdate(canvas)   -- (max 63 fps?)
+--  IupRedraw(canvas)   -- ""
+    {} = redraw_cb(canvas,0,0) -- ""
+--  IupUpdate(cddbuffer)    -- (nope..)
+--  IupUpdate(cdcanvas)     -- (nope..)
+--  IupUpdate(dlg)          -- (nope..)
     return IUP_IGNORE
 end function
 
@@ -61,20 +64,22 @@ end function
 procedure main()
     IupOpen()
 
-    canvas = IupCanvas(NULL)
-    IupSetAttribute(canvas, "RASTERSIZE", "320x240")
-    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+    canvas = IupCanvas("RASTERSIZE=320x240")
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "ACTION", Icallback("redraw_cb")})
 
-    timer = IupTimer(Icallback("timer_cb"), 1000)
+--  timer = IupTimer(Icallback("timer_cb"), 1000)   -- 1fps
+--  timer = IupTimer(Icallback("timer_cb"), 100)    -- 10 fps
+    timer = IupTimer(Icallback("timer_cb"), 20)     -- 32 fps
+--  timer = IupTimer(Icallback("timer_cb"), 1)      -- 129 fps (sometimes...)
 
-    dlg = IupDialog(canvas)
-    IupSetAttribute(dlg, "TITLE", TITLE)
-
+    dlg = IupDialog(canvas,`TITLE="%s"`, {TITLE})
     IupShow(dlg)
     IupSetAttribute(canvas, "RASTERSIZE", NULL)
-    IupMainLoop()
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

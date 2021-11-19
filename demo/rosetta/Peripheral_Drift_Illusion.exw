@@ -1,0 +1,87 @@
+--
+-- demo\rosetta\Peripheral_Drift_Illusion.exw
+-- ==========================================
+--
+-- Generates and displays a Peripheral Drift Illusion
+--
+-- The image appears to be moving even though it is perfectly static.
+--
+-- Converted from https://codepen.io/josetxu/pen/rNmXjrq
+--
+with javascript_semantics
+include pGUI.e
+Ihandle dlg, canvas
+cdCanvas cdcanvas
+
+constant title = "Peripheral Drift Illusion",
+         CD_LIGHT_OLIVE = #d3d004,
+         CD_PALE_BLUE = #3250ff,
+         dxy = {{45,45},{0,45},{0,0},{45,0},{45,45},{0,45}}
+
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
+    integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
+    cdCanvasActivate(cdcanvas)
+    cdCanvasSetBackground(cdcanvas, CD_LIGHT_OLIVE)
+    cdCanvasClear(cdcanvas)
+    integer c = 0,
+            cy = floor(height/2)*2-81
+    while cy>100 do
+        integer d = c,
+                cx = 81
+        while cx<width-100 do
+            cdCanvasSetForeground(cdcanvas, CD_WHITE)
+            cdCanvasBox(cdcanvas, cx, cx+45, cy, cy-45)
+            cdCanvasSetForeground(cdcanvas, CD_BLACK)
+            cdCanvasBegin(cdcanvas, CD_FILL)
+            for i=4 to 6 do
+                integer {dy,dx} = dxy[i-d]
+                cdCanvasVertex(cdcanvas, cx+dx, cy-dy)
+            end for
+            cdCanvasEnd(cdcanvas)
+            cdCanvasSetForeground(cdcanvas, CD_PALE_BLUE)
+            cdCanvasBox(cdcanvas, cx+4, cx+41, cy-4, cy-41)
+            d = remainder(d+(odd(cx)==odd(cy)),4)
+            cx += 63
+        end while
+        c = remainder(c+4-even(cy),4)
+        cy -= 63
+    end while
+    cdCanvasFlush(cdcanvas)
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle ih)
+    atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+--  IupGLMakeCurrent(canvas)
+    if platform()=JS then
+        cdcanvas = cdCreateCanvas(CD_IUP, canvas)
+    else
+        IupGLMakeCurrent(canvas)
+        cdcanvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    end if
+    cdCanvasSetBackground(cdcanvas, CD_PARCHMENT)
+    return IUP_DEFAULT
+end function
+
+function canvas_resize_cb(Ihandle /*canvas*/)
+    integer {cw, ch} = IupGetIntInt(canvas, "DRAWSIZE")
+    atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+    cdCanvasSetAttribute(cdcanvas, "SIZE", "%dx%d %g", {cw, ch, res})
+    return IUP_DEFAULT
+end function
+
+procedure main()
+    IupOpen()
+    canvas = IupGLCanvas("RASTERSIZE=780x600") -- (sensible restore size)
+    sequence cb = {"MAP_CB", Icallback("map_cb"),
+                   "ACTION", Icallback("redraw_cb"),
+                   "RESIZE_CB", Icallback("canvas_resize_cb")}
+    IupSetCallbacks(canvas, cb)
+    dlg = IupDialog(canvas,`TITLE="%s",PLACEMENT=MAXIMIZED`,{title})
+    IupShow(dlg)
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
+end procedure
+main()

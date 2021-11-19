@@ -2,7 +2,11 @@
 -- demo\rosetta\Matrix_Digital_Rain.exw
 -- ====================================
 --
+--  Note this is quite CPU-intensive, which is almost entirely caused by asking
+--  cdCanvasText() to draw unicode characters. It uses less than a tenth of the
+--  resources when displaying a random A-Z character, as shown commented out.
 --
+with javascript_semantics
 sequence sushii = {},   -- w x h of unicode char strings
          colours,       --  """  of their fading colours
          droplets       -- w column droplets, or zeroes
@@ -19,6 +23,7 @@ procedure rain(integer w,h)
             if y<h then
                 droplets[x] = y+1
                 sushii[y+1][x] = utf32_to_utf8({0x30A0 + rand(96)})
+--              sushii[y+1][x][1] = 'A'+rand(26)-1
                 colours[y+1][x] = CD_WHITE
             end if
             if y then
@@ -28,13 +33,14 @@ procedure rain(integer w,h)
                     clear_droplet = false
                     y -= 1
                 end if
-                for y=y to 1 by -1 do
+                while y>=1 do
                     integer cy = colours[y][x]
                     if cy=0 then exit end if
                     clear_droplet = false
                     cy -= #000800
                     colours[y][x] = cy
-                end for
+                    y -= 1
+                end while
                 if clear_droplet then
                     droplets[x] = 0
                 end if
@@ -59,8 +65,10 @@ function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
     rain(w,h)
     for x=1 to w do
         for y=1 to h do
-            cdCanvasSetForeground(cddbuffer, colours[y][x])
-            cdCanvasText(cddbuffer,x*dx, (h-y)*dy, sushii[y][x]) 
+            if colours[y][x] then
+                cdCanvasSetForeground(cddbuffer, colours[y][x])
+                cdCanvasText(cddbuffer,x*dx, (h-y)*dy, sushii[y][x]) 
+            end if
         end for
     end for
     cdCanvasFlush(cddbuffer)
@@ -83,20 +91,20 @@ procedure main()
     IupOpen()
     IupSetGlobal("UTF8MODE","YES") 
 
-    canvas = IupCanvas(NULL)
-    IupSetAttribute(canvas, "RASTERSIZE", "640x480")
-    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+    canvas = IupCanvas("RASTERSIZE=640x480")
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "ACTION", Icallback("redraw_cb")})
 
     timer = IupTimer(Icallback("timer_cb"), 50)
 
-    dlg = IupDialog(canvas)
-    IupSetAttribute(dlg, "TITLE", "Matrix Digital Rain")
+    dlg = IupDialog(canvas,`TITLE="Matrix Digital Rain"`)
 
     IupShow(dlg)
     IupSetAttribute(canvas, "RASTERSIZE", NULL)
-    IupMainLoop()
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

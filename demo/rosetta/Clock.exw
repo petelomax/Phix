@@ -2,23 +2,21 @@
 -- demo\rosetta\Clock.exw
 -- ======================
 --
+with javascript_semantics
 include pGUI.e
-
-constant USE_OPENGL = 01
-
 Ihandle dlg, canvas, hTimer
 cdCanvas cd_canvas
 
 procedure draw_hand(atom degrees, atom r, baseangle, baselen, cx, cy)
-    atom a = PI-(degrees+90)*PI/180
-    -- tip
-    atom x1 = cos(a)*(r)
-    atom y1 = sin(a)*(r)
-    -- base
-    atom x2 = cos(a+PI-baseangle)*baselen
-    atom y2 = sin(a+PI-baseangle)*baselen
-    atom x3 = cos(a+PI+baseangle)*baselen
-    atom y3 = sin(a+PI+baseangle)*baselen
+    atom a = PI-(degrees+90)*PI/180,
+         -- tip
+         x1 = cos(a)*(r),
+         y1 = sin(a)*(r),
+         -- base
+         x2 = cos(a+PI-baseangle)*baselen,
+         y2 = sin(a+PI-baseangle)*baselen,
+         x3 = cos(a+PI+baseangle)*baselen,
+         y3 = sin(a+PI+baseangle)*baselen
     cdCanvasSetLineWidth(cd_canvas,1)
     cdCanvasLine(cd_canvas,cx+x1,cy+y1,cx+x2,cy+y2)
     cdCanvasLine(cd_canvas,cx+x2,cy+y2,cx+x3,cy+y3)
@@ -31,8 +29,9 @@ procedure draw_hand(atom degrees, atom r, baseangle, baselen, cx, cy)
 end procedure
 
 procedure draw_clock(atom cx, cy, d)
-atom w = 2+floor(d/25)
+    atom w = 2+floor(d/25)
     cdCanvasFont(cd_canvas, "Helvetica", CD_PLAIN, floor(d/15))
+--  cdCanvasFont(cd_canvas, "Helvetica", CD_ITALIC, floor(d/15))
     cdCanvasSetLineWidth(cd_canvas, w) 
     cdCanvasArc(cd_canvas, cx, cy, d, d, 0, 360) 
     d -= w+8
@@ -40,9 +39,9 @@ atom w = 2+floor(d/25)
     for i=6 to 360 by 6 do
         integer h = remainder(i,30)=0
         cdCanvasSetLineWidth(cd_canvas, max(floor(w*(1+h)/3),1)) 
-        atom a = PI-(i+90)*PI/180
-        atom x1 = cos(a)*d/2, x2 = cos(a)*(d/2-w*(2+h)*.66)
-        atom y1 = sin(a)*d/2, y2 = sin(a)*(d/2-w*(2+h)*.66)
+        atom a = PI-(i+90)*PI/180,
+             x1 = cos(a)*d/2, x2 = cos(a)*(d/2-w*(2+h)*.66),
+             y1 = sin(a)*d/2, y2 = sin(a)*(d/2-w*(2+h)*.66)
         cdCanvasLine(cd_canvas, cx+x1, cy+y1, cx+x2, cy+y2) 
         if h then
             x1 = cos(a)*(d/2-w*4.5)
@@ -68,10 +67,10 @@ atom w = 2+floor(d/25)
 end procedure
 
 function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
-integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
-integer r = floor(min(width,height)*0.9)
-integer cx = floor(width/2)
-integer cy = floor(height/2)
+    integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE"),
+            r = floor(min(width,height)*0.9),
+            cx = floor(width/2),
+            cy = floor(height/2)
     cdCanvasActivate(cd_canvas)
     cdCanvasClear(cd_canvas) 
     draw_clock(cx,cy,r)
@@ -85,51 +84,44 @@ function timer_cb(Ihandle /*ih*/)
 end function
 
 function map_cb(Ihandle ih)
-    if USE_OPENGL then
-        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
-        IupGLMakeCurrent(canvas)
-        cd_canvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    IupGLMakeCurrent(canvas)
+    if platform()=JS then
+        cd_canvas = cdCreateCanvas(CD_IUP, canvas)
     else
-        cd_canvas = cdCreateCanvas(CD_IUPDBUFFER, canvas)
+        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+        cd_canvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
     end if
     cdCanvasSetBackground(cd_canvas, CD_WHITE)
     cdCanvasSetForeground(cd_canvas, CD_BLACK)
-    {} = cdCanvasTextAlignment(cd_canvas, CD_CENTER) 
+    cdCanvasSetTextAlignment(cd_canvas, CD_CENTER) 
     return IUP_DEFAULT
 end function
 
 function canvas_resize_cb(Ihandle /*canvas*/)
-    if USE_OPENGL then
-        integer {canvas_width, canvas_height} = IupGetIntInt(canvas, "DRAWSIZE")
-        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
-        cdCanvasSetAttribute(cd_canvas, "SIZE", "%dx%d %g", {canvas_width, canvas_height, res})
-    end if
+    integer {canvas_width, canvas_height} = IupGetIntInt(canvas, "DRAWSIZE")
+    atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+    cdCanvasSetAttribute(cd_canvas, "SIZE", "%dx%d %g", {canvas_width, canvas_height, res})
     return IUP_DEFAULT
 end function
 
 procedure main()
     IupOpen()
 
-    if USE_OPENGL then
-        canvas = IupGLCanvas()
-    else
-        canvas = IupCanvas()
-    end if
-    IupSetAttribute(canvas, "RASTERSIZE", "350x350") -- initial size
-    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
-    IupSetCallback(canvas, "RESIZE_CB", Icallback("canvas_resize_cb"))
+    canvas = IupGLCanvas("RASTERSIZE=350x350")
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "ACTION", Icallback("redraw_cb"),
+                             "RESIZE_CB", Icallback("canvas_resize_cb")})
 
     hTimer = IupTimer(Icallback("timer_cb"), 40)    -- smooth secs
 --  hTimer = IupTimer(Icallback("timer_cb"), 1000)  -- tick seconds
 
-    dlg = IupDialog(canvas)
-    IupSetAttribute(dlg, "TITLE", "Clock")
-
-    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
+    dlg = IupDialog(canvas, "TITLE=Clock")
+    IupShow(dlg)
     IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release the minimum limitation
-    IupMainLoop()
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

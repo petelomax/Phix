@@ -2,10 +2,12 @@
 -- demo\rosetta\DeathStar.exw
 -- ==========================
 --
---  Translated from Go. Something is not quite right at fullscreen...
+--  Translated from Go.
 --
+with javascript_semantics
 include pGUI.e
 
+constant title = "Death Star"
 Ihandle dlg, canvas
 cdCanvas cddbuffer, cdcanvas
 
@@ -21,7 +23,7 @@ end function
 
 enum X,Y,Z
 
-function hit(sequence s, atom x, y, atom r)
+function hit(sequence s, atom x, y, r)
     x -= s[X]
     y -= s[Y]
     atom zsq := r*r - (x*x + y*y)
@@ -33,38 +35,59 @@ function hit(sequence s, atom x, y, atom r)
 end function
  
 procedure deathStar(integer width, height, atom k, atom amb, sequence direction)
-integer lum
-sequence vec
-integer r = floor((min(width,height)-40)/2)
-integer cx = floor(width/2)
-integer cy = floor(height/2)
-sequence pos = {0,0,0},
-         neg = {r*-3/4,r*-3/4,r*-1/4}
 
-    for y = pos[Y]-r to pos[Y]+r do
-        for x = pos[X]-r to pos[X]+r do
+    atom t0 = time()+1, t1 = t0,
+         lmul = 255/(1+amb)
+    integer r = floor((min(width,height)-40)/2),
+           cx = floor(width/2),
+           cy = floor(height/2)
+    sequence pos = {0,0,0},
+             neg = {r*-3/4,r*-3/4,r*-1/4}
+
+    for y = -r to +r do
+        if time()>t1 then
+            -- Let the user know we aren't completely dead just yet
+            IupSetStrAttribute(dlg,"TITLE","%s - drawing (%d%%)",{title,100*(y+r)/(2*r)})
+            t1 = time()+1
+            --
+            -- Hmm, not entirely sure why this is needed, but without it 
+            --  after ~7 seconds the window gets a "(Not Responding)" and
+            --  then something decides to force a full repaint, which at 
+            --  fullscreen will never finish in < 7s on this ancient box.
+            -- I suppose this is the corrollary to the above, this time
+            --  letting Windows 10 know the process is not quite dead...
+            --  Currently and possibly forever neither of these routines
+            --  exist in pGUI.js, the browser is more forgiving anyway.
+            --
+            if platform()!=JS then
+                if IupLoopStep()=IUP_CLOSE then
+                    IupExitLoop()
+                    exit
+                end if
+            end if
+        end if
+        for x = -r to +r do
             atom {zb1, zb2, hit1} := hit(pos, x, y, r)
             if hit1 then
                 atom {zs1, zs2, hit2} := hit(neg, x, y, r/2)
                 if not hit2 or zs2<=zb2 then
-                    if hit2 and zs1<=zb1 then
-                        vec = {neg[X] - x, neg[Y] - y, neg[Z] - zs2}
-                    else
-                        vec = {x - pos[X], y - pos[Y], zb1 - pos[Z]}
---                      vec = {x, y, zb1}
-                    end if
-                    atom s = dot(direction, normalize(vec))
-                    lum = and_bits(#FF,255*(iff(s<0?0:power(s,k))+amb)/(1+amb))
-                    lum += lum*#100+lum*#10000
-                    cdCanvasPixel(cddbuffer, cx+x, cy-y, lum)
+                    bool dish = hit2 and zs1<=zb1
+                    sequence vec = iff(dish?sq_sub(neg,{x,y,zs2}):{x,y,zb1})
+                    atom s = dot(direction, normalize(vec)),
+                         l = iff(s<=0?0:power(s,k))
+                    integer lum = and_bits(#FF,lmul*(l+amb))
+                    cdCanvasPixel(cddbuffer, cx+x, cy-y, lum*#10101)
                 end if
             end if
         end for
     end for
+    if t1!=t0 then
+        IupSetStrAttribute(dlg,"TITLE",title)
+    end if
 end procedure
- 
+
 function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
-integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
+    integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
     cdCanvasActivate(cddbuffer)
     cdCanvasClear(cddbuffer) 
     deathStar(width, height, 1.5, 0.2, normalize({20, -40, -10}))
@@ -81,20 +104,18 @@ end function
 
 procedure main()
     IupOpen()
-
-    canvas = IupCanvas(NULL)
-    IupSetAttribute(canvas, "RASTERSIZE", "340x340") -- initial size
-    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
-
-    dlg = IupDialog(canvas)
-    IupSetAttribute(dlg, "TITLE", "Draw a sphere")
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+    canvas = IupCanvas("RASTERSIZE=340x340")
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "ACTION", Icallback("redraw_cb")})
+    dlg = IupDialog(canvas,`TITLE="%s"`,{title})
 
     IupMap(dlg)
     IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release the minimum limitation
-    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
-    IupMainLoop()
-    IupClose()
+    IupShow(dlg)
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

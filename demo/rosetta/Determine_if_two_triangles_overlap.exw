@@ -1,0 +1,124 @@
+--
+-- demo\rosetta\Determine_if_two_triangles_overlap.exw
+--
+with javascript_semantics
+include pGUI.e
+
+Ihandle dlg, canvas
+cdCanvas cddbuffer, cdcanvas
+
+constant triangles = {{{{0,0},{5,0},{0,5}},{{0,0},{5,0},{0,6}}},
+                      {{{0,0},{0,5},{5,0}},{{0,0},{0,5},{5,0}}},
+                      {{{0,0},{5,0},{0,5}},{{-10,0},{-5,0},{-1,6}}},
+                      {{{0,0},{5,0},{2.5,5}},{{0,4},{2.5,-1},{5,4}}},
+                      {{{0,0},{1,1},{0,2}},{{2,1},{3,0},{3,2}}},
+                      {{{0,0},{1,1},{0,2}},{{2,1},{3,-2},{3,4}}},
+                      {{{0,0},{1,0},{0,1}},{{1,0},{2,0},{1,1}}},
+                      {{{0,0},{1,0},{0,1}},{{1,0},{2,0},{1,1}}}}
+
+procedure draw_triangle(sequence t, integer cx,cy, c)
+    cdCanvasSetForeground(cddbuffer, c)
+    cdCanvasBegin(cddbuffer,CD_CLOSED_LINES)
+    for c=1 to 3 do
+        atom {x,y} = t[c]
+        cdCanvasVertex(cddbuffer, cx+x*10, cy+y*10)
+    end for
+    cdCanvasEnd(cddbuffer)
+end procedure
+
+function det2D(sequence triangle)
+   atom {{p1x,p1y},{p2x,p2y},{p3x,p3y}} := triangle
+   return p1x*(p2y-p3y) + p2x*(p3y-p1y) + p3x*(p1y-p2y)
+end function
+
+bool bReversed
+function checkWinding(sequence triangle, bool allowReversed)
+    atom detTri := det2D(triangle);
+    if detTri<0.0 then
+        if allowReversed then
+            bReversed = true
+            triangle = extract(triangle,{1,3,2})
+        else
+            throw("triangle has wrong winding direction")
+        end if
+    end if
+    return triangle
+end function
+
+function overlap(sequence t1, t2, atom epsilon=0.0, bool allowReversed=false, onBoundary=true)
+    -- Trangles must be expressed anti-clockwise
+    bReversed = false
+    t1 = checkWinding(t1, allowReversed)
+    t2 = checkWinding(t2, allowReversed)
+ 
+    for t=1 to 2 do                     -- check t1 then t2
+        for edge=1 to 3 do              -- check each edge
+            sequence p1 = t1[edge],
+                     p2 = t1[mod(edge,3)+1]
+            -- Check all points of trangle 2 lay on the external side 
+            -- of the edge E. If they do, the triangles do not collide.
+            integer onside = 0
+            for k=1 to 3 do
+                integer c = compare(det2D({p1,p2,t2[k]}),epsilon)
+                if onBoundary then
+                    if not (c<0) then exit end if
+                else
+                    if not (c<=0) then exit end if
+                end if
+--              -- (the following incomprehensible one-liner is equivalent:)
+--              if compare(det2D({p1,p2,t2[k]}),epsilon)>-onBoundary then exit end if
+                onside += 1
+            end for
+            if onside=3 then
+                return iff(onBoundary?"no overlap":"no overlap (no boundary)")
+            end if
+        end for
+        {t2,t1} = {t1,t2}           -- flip and re-test
+    end for
+    return iff(bReversed?"overlap (reversed)":"overlap")
+end function
+
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
+    cdCanvasActivate(cddbuffer)
+    integer cy = 200, cx = 100
+    for i=1 to length(triangles) do
+        sequence {t1,t2} = triangles[i]
+        draw_triangle(t1,cx,cy,CD_RED)
+        integer s = (i<=2)  -- (smudge tests[1..2] by one 
+                            --  pixel to show them better)
+        draw_triangle(t2,cx+s,cy+s,CD_BLUE)
+        cdCanvasSetForeground(cddbuffer, CD_BLACK)
+        cdCanvasText(cddbuffer,cx+10,cy-40,overlap(t1,t2,0,i=2,i!=8))
+        if i=4 then
+            cy = 100
+            cx = 100
+        else
+            cx += 300
+        end if
+    end for
+    cdCanvasFlush(cddbuffer)
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle ih)
+    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    cdCanvasSetBackground(cddbuffer, CD_WHITE)
+    return IUP_DEFAULT
+end function
+
+procedure main()
+    IupOpen()
+    canvas = IupCanvas("RASTERSIZE=1250x300")
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "ACTION", Icallback("redraw_cb")})
+    dlg = IupDialog(canvas,`RESIZE=NO, TITLE="Triangle overlap"`)
+    IupShow(dlg)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL)
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
+end procedure
+
+main()

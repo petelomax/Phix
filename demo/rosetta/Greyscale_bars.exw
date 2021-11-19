@@ -2,20 +2,22 @@
 -- demo\rosetta\Greyscale_bars.exw
 -- ===============================
 --
--- Resizeable. Use of nx avoids rounding/misalignment errors
-
---#withtype Ihandle
---#withtype cdCanvas
-
+-- Resizeable. Use of nx avoids rounding/misalignment errors, ditto (4-row)*h
+--
+with javascript_semantics
 include pGUI.e
 
 Ihandle dlg, canvas
 cdCanvas cddbuffer, cdcanvas
 
+integer quit = 1
+bool refire = false
+
 function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
     cdCanvasActivate(cddbuffer)
     integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
-    integer h = ceil(height/4)
+    integer h = floor(height/4)
+    height -= 1
     for row=1 to 4 do
         integer x = 0, p2 = power(2,row+2), c = floor(255/(p2-1))
         for n=0 to p2-1 do
@@ -23,10 +25,10 @@ function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
             if and_bits(row,1)=0 then colour = xor_bits(colour,#FFFFFF) end if
             cdCanvasSetForeground(cddbuffer, colour)
             integer nx = ceil(width*(n+1)/p2)
-            cdCanvasBox(cddbuffer, x, nx, height-h, height)
+            cdCanvasBox(cddbuffer, x, nx-1, (4-row)*h, height)
             x = nx
-      end for
-      height -= h
+        end for
+        height = (4-row)*h-1
     end for
     cdCanvasFlush(cddbuffer)
     return IUP_DEFAULT
@@ -46,26 +48,124 @@ end function
 
 procedure main()
     IupOpen()
-
-    canvas = IupCanvas(NULL)
-    IupSetAttribute(canvas, "RASTERSIZE", "600x400")
-
-    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
-    IupSetCallback(canvas, "UNMAP_CB", Icallback("unmap_cb"))
-
-    dlg = IupDialog(canvas)
-    IupSetAttribute(dlg, "TITLE", "Greyscale bars")
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
-
-    IupMap(dlg)
+    canvas = IupCanvas("RASTERSIZE=600x400")
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "UNMAP_CB", Icallback("unmap_cb"),
+                             "ACTION", Icallback("redraw_cb")})
+    dlg = IupDialog(canvas, `TITLE="Greyscale bars"`)
+    IupShow(dlg)
     IupSetAttribute(canvas, "RASTERSIZE", NULL)
-
-    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
-
-    IupMainLoop()
-
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()
+
+--/* debugging version (some more work may yet be rqd on cdCanvasBox)
+Ihandle dlg, canvas
+,timer
+cdCanvas cddbuffer, cdcanvas
+
+integer quit = 1
+bool refire = false
+
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
+    cdCanvasActivate(cddbuffer)
+cdCanvasSetBackground(cddbuffer, CD_BLUE)
+cdCanvasClear(cddbuffer)
+    integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
+--  integer h = ceil(height/4)
+    integer h = floor(height/4)
+--?{"height",height,h,h*4}
+--height = 4*h
+height -= 1
+quit += 1
+integer cq = 0
+    for row=1 to 4 do
+        integer x = 0, p2 = power(2,row+2), c = floor(255/(p2-1))
+--?{height,height-h}
+        for n=0 to p2-1 do
+            integer colour = c*n*#010101
+            if and_bits(row,1)=0 then colour = xor_bits(colour,#FFFFFF) end if
+            cdCanvasSetForeground(cddbuffer, colour)
+            integer nx = ceil(width*(n+1)/p2)
+--          cdCanvasBox(cddbuffer, x, nx, height-h, height)
+--          cdCanvasBox(cddbuffer, x, nx-1, height-h, height) -- still good
+            cdCanvasBox(cddbuffer, x, nx-1, (4-row)*h, height) -- still good (final)
+--          cdCanvasBox(cddbuffer, x, nx-1, (4-row)*h, height-1) -- high gap
+--          cdCanvasBox(cddbuffer, x, nx-1, (4-row)*h+1, height) -- low gap
+--          cdCanvasBox(cddbuffer, x, nx-2, (4-row)*h, height) -- rhs vertical gap
+--          cdCanvasBox(cddbuffer, x+1, nx-1, (4-row)*h, height) -- lhs vertical gap
+--          cdCanvasBox(cddbuffer, x, nx-1, height, height-h) -- still good
+--          cdCanvasBox(cddbuffer, x, nx-1, height, height-h-1) -- still good
+--          cdCanvasBox(cddbuffer, x, nx-2, height, height-h) -- rhs vertical gap
+--          cdCanvasBox(cddbuffer, x+1, nx-1, height, height-h) -- lhs vertical gap
+--          cdCanvasBox(cddbuffer, x, nx-1, height-1, height-h) -- still good
+
+--          cdCanvasBox(cddbuffer, x, nx-1, height-h+1, height) -- horiz gap
+--          cdCanvasBox(cddbuffer, x, nx-1, height-h, height-1) -- horiz gap
+cq += 1
+if cq>=quit then exit end if
+--sleep(1)
+            x = nx
+--          x = (nx+1)
+      end for
+if cq>=quit then exit end if
+--    height -= h
+--    height -= (h+1)
+        height = (4-row)*h-1
+--    height -= (h+2)
+    end for
+--?{"cq",cq,"quit",quit,height}
+    cdCanvasFlush(cddbuffer)
+--if cq>quit then IupUpdate(canvas) end if
+--if cq>quit then refire = true end if
+refire = cq==quit
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle ih)
+    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    return IUP_DEFAULT
+end function
+
+function unmap_cb(Ihandle /*ih*/)
+    cdKillCanvas(cddbuffer)
+    cdKillCanvas(cdcanvas)
+    return IUP_DEFAULT
+end function
+
+function timer_cb(Ihandle timer)
+    if not refire then
+--?{"dead",quit}
+        IupSetAttribute(timer,"RUN","NO")
+    else
+        IupUpdate(canvas)
+    end if
+    return IUP_IGNORE
+end function
+
+procedure main()
+    IupOpen()
+
+    canvas = IupCanvas("RASTERSIZE=600x400")
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "UNMAP_CB", Icallback("unmap_cb"),
+                             "ACTION", Icallback("redraw_cb")})
+    dlg = IupDialog(canvas, `TITLE="Greyscale bars"`)
+    IupShow(dlg)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL)
+    timer = IupTimer(Icallback("timer_cb"), 100)
+    
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
+end procedure
+
+main()
+*/
 

@@ -4,6 +4,7 @@
 --
 -- Author Pete Lomax, May 2017
 --
+with javascript_semantics
 constant TITLE = "Galton Box"
 
 include pGUI.e
@@ -48,11 +49,12 @@ function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
 end function
 
 function timer_cb(Ihandle ih)
-integer x, y=9, dx
+    integer x, y=9, dx
     if length(balls) then
         {x,y,dx} = balls[1]
         if y>20 then
-            bins[(x+18)/4] += 1
+            integer bindx = (x+18)/4
+            bins[bindx] += 1
             balls = balls[2..$]
         end if
     end if
@@ -86,20 +88,20 @@ end function
 procedure main()
     IupOpen()
 
-    canvas = IupCanvas(NULL)
-    IupSetAttribute(canvas, "RASTERSIZE", "360x600")
-    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+    canvas = IupCanvas("RASTERSIZE=360x600")
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "ACTION", Icallback("redraw_cb")})
 
     timershow = IupTimer(Icallback("timer_cb"), 80)
 
-    dlg = IupDialog(canvas)
-    IupSetAttribute(dlg, "TITLE", TITLE)
+    dlg = IupDialog(canvas, `TITLE="%s"`, {TITLE})
 
     IupShow(dlg)
     IupSetAttribute(canvas, "RASTERSIZE", NULL)
-    IupMainLoop()
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

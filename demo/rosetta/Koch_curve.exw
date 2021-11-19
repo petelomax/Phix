@@ -2,6 +2,7 @@
 -- demo\rosetta\Koch_curve.exw
 -- ===========================
 --
+with javascript_semantics
 include pGUI.e
 
 Ihandle dlg, canvas
@@ -59,18 +60,18 @@ end function
 procedure main()
     IupOpen()
     
-    canvas = IupCanvas(NULL)
-    IupSetAttribute(canvas, "RASTERSIZE", "512x512") -- initial size
-    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
+    canvas = IupCanvas("RASTERSIZE=512x512")
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "ACTION", Icallback("redraw_cb")})
 
-    dlg = IupDialog(canvas)
-    IupSetAttribute(dlg, "TITLE", "Koch curve")
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+    dlg = IupDialog(canvas,`TITLE="Koch curve"`)
 
-    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
+    IupShow(dlg)
     IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release the minimum limitation
-    IupMainLoop()
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

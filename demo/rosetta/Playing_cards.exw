@@ -3,12 +3,19 @@
 -- ==============================
 --
 -- Includes both ascii (for a console) and unicode (for a gui) displays
+--
+with javascript_semantics
 
 function deal(sequence deck, integer nhands, integer ncards)
-sequence hands = repeat({},nhands)
+    sequence hands = repeat({},nhands)
     for n=1 to ncards do
         for h=1 to nhands do
-            hands[h] &= deck[1]
+--          hands[h] &= deck[1]
+--          hands[h] = deep_copy(hands[h]) & deck[1]
+            sequence hh = hands[h]
+            hands[h] = 0
+            hh &= deck[1]
+            hands[h] = hh
             deck = deck[2..$]
         end for
     end for
@@ -29,7 +36,8 @@ sequence deck, hands
 procedure console_show()
     for i=1 to length(hands) do
         printf(1,"hand%d:\n",{i})
-        show_cards(sort(hands[i]))
+--      show_cards(sort(hands[i]))
+        show_cards(sort(deep_copy(hands[i])))
     end for
     printf(1,"remaining cards(%d):\n",{length(deck)})
     show_cards(deck)
@@ -59,8 +67,10 @@ procedure gui_show()
 
     Ihandles lh = {}
     for i=1 to length(hands) do
+        string hand = cards_to_utf8(sort(deep_copy(hands[i])))
         Ihandle l = IupLabel(sprintf("hand%d:",{i}))
-        Ihandle h = IupLabel(cards_to_utf8(sort(hands[i])),FONT)
+--      Ihandle h = IupLabel(cards_to_utf8(sort(hands[i])),FONT)
+        Ihandle h = IupLabel(hand,FONT)
         lh &= l&h
     end for
     lh &= IupLabel("remaining cards:")
@@ -77,7 +87,8 @@ end procedure
 constant DECKSIZE=52
 deck = shuffle(tagset(DECKSIZE))
 show_cards(deck)
-{deck,hands} = deal(deck,2,9)
+--{deck,hands} = deal(deck,2,9)
+{deck,hands} = deal(deep_copy(deck),2,9)
 console_show()
 gui_show()
 

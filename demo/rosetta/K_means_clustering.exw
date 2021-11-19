@@ -12,6 +12,8 @@
 --{{trans|Go}}
 --  I nicked the initial dataset creation from Go, as an alternative
 --
+--with javascript_semantics
+without javascript_semantics -- needs cdCanvasPutImageRectRGB, otherwise shd be fine
 include pGUI.e
 
 Ihandle dlg, canvas, timer
@@ -24,8 +26,8 @@ constant useGoInitialData = false       -- (not very well centered)
 constant N = 30000,                     -- number of points
          K = 16                         -- number of clusters
 
-sequence {Px, Py, Pc} @= repeat(0,N),   -- coordinates of points and their cluster
-         {Cx, Cy} @= repeat(0,K)        -- coordinates of centroid of cluster
+sequence {Px, Py, Pc} = repeat(repeat(0,N),3),  -- coordinates of points and their cluster
+         {Cx, Cy} = repeat(repeat(0,K),2)       -- coordinates of centroid of cluster
 
 constant colours = {CD_RED, CD_DARK_RED, CD_LIGHT_BLUE, CD_BLUE, CD_DARK_BLUE, 
                     CD_CYAN, CD_DARK_CYAN, CD_GREEN, CD_DARK_GREEN, CD_MAGENTA, CD_DARK_MAGENTA, 
@@ -128,7 +130,7 @@ function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
             for i=1 to K do {Cx[i],Cy[i]} = rand_xy() end for   -- random set of cluster centroids
         end if
     end if
-    sequence {r,g,b} @ = repeat(0,w*h)
+    sequence {r,g,b} = repeat(repeat(0,w*h),3)
     Voronoi()
     bool change := Centroid()
     for i=1 to N do
@@ -139,7 +141,8 @@ function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
         integer idx = Cx[i]+(Cy[i]-1)*w
         {r[idx],g[idx],b[idx]} = cdDecodeColor(CD_WHITE)
     end for
-    cdCanvasPutImageRectRGB(cddbuffer, w, h, {r,g,b})
+--  cdCanvasPutImageRectRGB(cddbuffer, w, h, {r,g,b})
+?"cdCanvasPutImageRectRGB(cddbuffer, w, h, {r,g,b})"
     cdCanvasFlush(cddbuffer)
     if change then
         iteration += 1
@@ -162,7 +165,7 @@ function map_cb(Ihandle ih)
     return IUP_DEFAULT
 end function
 
-function k_any(Ihandle /*ih*/, atom c)
+function key_cb(Ihandle /*ih*/, atom c)
     if c=K_ESC then return IUP_CLOSE end if
     if c=K_F5 then
         iteration = 0
@@ -174,21 +177,21 @@ end function
 procedure main()
     IupOpen()
 
-    canvas = IupCanvas(NULL)
-    IupSetAttribute(canvas, "RASTERSIZE", "640x480")
-    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+    canvas = IupCanvas("RASTERSIZE=640x480")
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "ACTION", Icallback("redraw_cb")})
 
     timer = IupTimer(Icallback("timer_cb"), 100)
 
-    dlg = IupDialog(canvas,"DIALOGFRAME=YES")
-    IupSetAttribute(dlg, "TITLE", TITLE)
-    IupSetCallback(dlg, "K_ANY", Icallback("k_any"))
+    dlg = IupDialog(canvas,`DIALOGFRAME=YES, TITLE="%s"`, {TITLE})
+    IupSetCallback(dlg, "KEY_CB", Icallback("key_cb"))
 
     IupShow(dlg)
     IupSetAttribute(canvas, "RASTERSIZE", NULL)
-    IupMainLoop()
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

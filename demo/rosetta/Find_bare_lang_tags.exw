@@ -7,16 +7,8 @@
 --
 constant include_drafts = true,
          sort_by_task = false,
+--       sort_by_task = true,
          sort_by_lang = not sort_by_task    -- (one or t'other)
-
-integer lp = 0
-procedure progress(string msg, sequence args = {})
-    if length(args) then msg = sprintf(msg,args) end if
-    integer lm = length(msg)
-    if lm<lp then msg[$..$] = repeat(' ',lp-lm)&msg[$] end if
-    puts(1,msg)
-    lp = iff(msg[$]='\r'?lm:0)
-end procedure
 
 include builtins\timedate.e
 integer refresh_cache = timedelta(days:=365) -- 0 for always
@@ -35,11 +27,6 @@ constant write_cb = call_back({'+', routine_id("write_callback")})
 
 function open_download(string filename, url)
     bool refetch = true
-    if get_file_type("rc_cache")!=FILETYPE_DIRECTORY then
-        if not create_directory("rc_cache") then
-            crash("cannot create rc_cache directory")
-        end if
-    end if
     filename = join_path({"rc_cache",filename})
     if file_exists(filename) then
         -- use existing file if <= refresh_cache (365 days) old
@@ -178,6 +165,11 @@ function multi_task(sequence s, tasks)
 end function
 
 function find_bare_lang_tags()
+    if get_file_type("rc_cache")!=FILETYPE_DIRECTORY then
+        if not create_directory("rc_cache") then
+            crash("cannot create rc_cache directory")
+        end if
+    end if
     -- note this lot use web scraping (as cribbed from a similar task) ...
     sequence tasks = dewiki(open_category("Programming_Tasks"))
     if include_drafts then
