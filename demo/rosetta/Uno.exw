@@ -1,0 +1,643 @@
+--
+-- demo\rosetta\Uno.exw
+-- ====================
+--
+-- Single player game against 3 bots. No doubt some bugs remain...
+--  (To report an issue, press !, restart with the given randseed,
+--   and note the exact actions needed to reproduce the problem.
+--   If running online, you will have to save a local copy and 
+--   edit that, obviously as html/js rather than original Phix.)
+--
+-- Technical note: There are quite a few deep_copy() calls below,
+-- all added in response to runtime p2js violations which told me
+-- exactly where to add them, and (only) that way make everything
+-- (also) work just fine in a browser, as well as on the desktop.
+--
+with javascript_semantics
+without debug   -- ([optional] keep any ex.err clear of these)
+include pGUI.e
+include builtins\VM\pcfunc.e
+include builtins\pfile.e
+include builtins\VM\pprntfN.e
+include builtins\get_routine_info.e
+include builtins\scanf.e
+include builtins\pdir.e
+include builtins\penv.e
+with debug
+Ihandle dlg, canvas, timer, sort_timer
+cdCanvas cdcanvas
+
+constant title = "Uno (press F1 for help)",
+         stacking = true,   -- (a house rule)
+         debug_mode = false,
+         help_text = """
+Click on a card in your hand to play it. Click on the stack to challenge (w4 only).
+Click on the deck to draw a card, then again on the deck to play it, or anywhere 
+below to add it to your hand. Obviously once it has been flipped the top card cannot 
+be unflipped but must either be played or added to your hand.
+
+When playing a wildcard click on the quadrant you want to declare as the next 
+colour to match. 
+
+Almost by accident, cards are "shrunk" until they fit, which means they also "grow" 
+as cards are played, kinda excitingly. Sometimes that messes up the display a bit, 
+but at least you can always resize the window until any such overlaps are gone.
+
+More deliberately, it uses a secondary timer to slowly sort player 4 (your) hand, 
+mainly to enhance the penalty effect. Some caution/patience may be needed to avoid
+clicking a wrong card while they are in motion.
+
+Game history is shown top left and scores top right: 1 left, 2 top, 3 right,
+4(you) bottom, in red when that player is on uno. It is only your turn when
+none of the bots are "thinking" (which they do deliberately slowly), and of
+course when the game/history gets round to showing "your turn".
+
+Call out UNO if you want, only puzzled neighbours will ever hear you.
+"""
+
+constant colours = "wBRYG", -- (w is wild/initial deal condition)
+         cd_colours = {CD_BLACK,CD_BLUE,CD_RED,CD_DARK_YELLOW,CD_GREEN}
+
+integer player,             -- human is always 4, 1/2/3 are bots.
+        direction,          -- +/-1
+        colour,             -- from playing a wildcard, or an initial 'w'
+        penalty_active,     -- (can be >1 when stacking is true)
+        previous_player,    -- (for wF challenges)
+        previous_colour,    -- (        ""       )
+        sorted              -- for player 4's hand slow sorting effect
+
+bool bFlipped,      -- top of deck visible (player4/HUMAN only)
+     bGameOver      -- do you really need me to explain this?
+
+sequence deck, hands, stack, scores, history -- ""
+
+function valid_card(string card)
+--
+-- nb challenges use a simpler colour-only test,
+--  stricter rules of wF are *not* applied here.
+--
+    integer stack_suit = stack[$][1],
+            stack_rank = stack[$][2],
+            card_suit = card[1], 
+            card_rank = card[2]
+    if stack_suit='w' then
+        if stack_rank='F' and penalty_active then
+            return stacking and card="wF"
+        end if
+        stack_suit=colour
+        if stack_suit='w' -- (first card rule)
+        or card_suit=stack_suit then
+            return true
+        end if
+    elsif stack_rank='d' and penalty_active then
+        return stacking and card_rank='d'
+    end if
+    if stack_suit=card_suit or card_suit='w' then return true end if
+    if stack_rank=card_rank then return true end if
+    return false 
+end function
+
+integer hpcheck -- (internal: history player check)
+
+procedure advance_player(string /*diag*/)
+    -- (obvs. while diag is no longer used, it was quite
+    --  helpful during debugging, and not worth removing)
+    string topcard = stack[$]
+    bool bSkip = (topcard[2]=='s')
+    integer d = 2+(1+(penalty_active and bSkip))*direction
+    player = {3,4,1,2,3,4,1,2}[player+d]
+    if bSkip then penalty_active = 0 end if
+    string pns = sprintf("p%d %s",{player,topcard}),
+           hand = join(hands[player],""),
+           play = iff(player=4?"your turn":"thinking")
+    history = history[2..$] & {{pns,hand,play}}
+    hpcheck = player
+    IupSetInt(timer,"RUN",player!=4 and not bGameOver)
+end procedure
+
+integer last_dealer -- (debug aid)
+atom randseed = get_rand() -- ""
+--set_rand(1234946788) -- (eg, see key_cb)
+
+procedure new_game(integer dealer)
+    randseed = get_rand()
+    deck = repeat("w ",4)   -- normal wildcards, &
+         & repeat("wF",4)   -- four wildcard fours
+    for c=2 to length(colours) do
+        integer suit = colours[c]
+        for rank=1 to 13 do
+            string card = suit & "1234567890srd"[rank]
+            deck = append(deck,card)
+            if rank!=10 then -- (only 1 '0')
+                deck = append(deck,card)
+            end if          
+        end for
+    end for
+    deck = shuffle(deck)
+    hands = repeat(repeat(0,7),4)
+    integer nxt = 1
+    for i=1 to 7 do
+        for player=1 to 4 do
+            hands[player][i] = deck[nxt]
+            nxt += 1
+        end for
+    end for
+    for i=1 to 4 do hands[i] = sort(deep_copy(hands[i])) end for
+    sorted = 7
+    deck = deck[nxt..$]
+    while deck[1]="wF" do deck = shuffle(deck) end while -- (as per the rules)
+    {stack,deck} = {{deck[1]},deck[2..$]}
+    colour = stack[$][1]    -- ('w' is wild)
+    bFlipped = false
+    player = dealer
+    last_dealer = dealer
+    direction = +1
+    if history[$][3]="thinking" then
+        -- (last hand ended with a penalty [not] being taken)
+        history[$] = {"new game","",""}
+    else
+        history = history[2..$] & {{"new game","",""}}
+    end if
+    penalty_active = 0
+    integer rank = stack[$][2]
+    if rank='r' then
+        direction = -1      -- (dealer plays first rule)
+        player = dealer+1   -- (for advance_player()...)
+    else
+        penalty_active = (rank>'9')
+    end if
+    bGameOver = false
+    advance_player("new_game")
+    IupSetAttribute(dlg,"TITLE",title)
+end procedure
+
+integer w, h          -- \
+atom dw, dh           --  > (saved for mouse handling)
+sequence card_centres -- |
+
+procedure display_one_card(string card, integer x, y)
+    integer suit = card[1], 
+            rank = card[2],
+            clr = cd_colours[find(suit,colours)],
+            fontsize = -2*h,
+            w8 = floor(w/8)
+    string rankstr = ""&rank
+    if suit='w' and card_centres={} then -- ie displaying the stack
+        clr = cd_colours[find(colour,colours)]
+    end if
+    cdCanvasSetForeground(cdcanvas, clr)
+    cdCanvasBox(cdcanvas,x-2*w,x+2*w,y-2*h,y+2*h)
+    if suit='w' and rank!='u' then -- wildcards (not face-down deck)
+        integer angle = -5
+        for i=2 to 5 do
+            -- draw four blue/red/yellow/green quadrants
+            cdCanvasSetForeground(cdcanvas, cd_colours[i])
+            cdCanvasSector(cdcanvas,x,y,3*w,3*h,angle,angle+90)
+            angle += 90
+        end for
+        -- and two anti-aliased separating lines 
+        cdCanvasSetForeground(cdcanvas, CD_BLACK)
+        atom t = tan(5/2*CD_DEG2RAD),
+             t2 = t*t,
+             d1 = 3*(1-t2)/(1+t2)/2,
+             d2 = 3*t/(1+t2)
+        dh = round(2*h*t)
+        dw = round(2*w*t)
+        integer hx = round(w*d1),
+                vx = round(w*d2),
+                hy = round(h*d2),
+                vy = round(h*d1)
+        cdCanvasLine(cdcanvas,x-hx,y+hy,x+hx,y-hy)
+        cdCanvasLine(cdcanvas,x+vx,y+vy,x-vx,y-vy)
+        clr = CD_BLACK           
+        cdCanvasSetForeground(cdcanvas, clr)
+        if rank='F' then rankstr = "4" end if
+    else
+        cdCanvasSetForeground(cdcanvas, iff(rank='u'?CD_RED:CD_WHITE))
+        cdCanvasSector(cdcanvas,x,y,3*w,3*h,0,360)
+        cdCanvasSetForeground(cdcanvas, clr)
+        if rank>'9' then
+            clr = CD_BLACK
+            if rank='s' then    -- (skip)
+                rankstr = "!"
+            elsif rank='r' then -- (reverse)
+                rankstr = "~"
+            elsif rank='d' then -- (a draw 2 card)
+                fontsize = -h
+                rankstr = "d2"
+            elsif rank='u' then -- (face down deck)
+                fontsize = -h/2
+                rankstr = "UNO"
+                w8 = 0
+            else
+                ?9/0            -- (unknown action card?)
+            end if
+        end if
+    end if
+    cdCanvasArc(cdcanvas,x,y,3*w,3*h,0,360) -- (antialiased)
+    cdCanvasFont(cdcanvas, "Helvetica", CD_ITALIC, fontsize)
+    cdCanvasSetForeground(cdcanvas, clr)
+    cdCanvasText(cdcanvas,x-w8,y,rankstr)
+    card_centres = append(card_centres,{x,y,card})
+end procedure
+
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
+    sequence hand = hands[4]
+    integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE"),
+            rows = 2
+    -- first, increase rows until everything fits
+    while true do
+        h = floor(height/(rows*10+2))*2
+        w = floor(h/2)
+        if (w*8*ceil(length(hand)/(rows-1))+4)<=width then exit end if
+        rows += 1
+    end while
+    cdCanvasActivate(cdcanvas)
+    cdCanvasSetBackground(cdcanvas, CD_PARCHMENT)
+    cdCanvasClear(cdcanvas)
+    cdCanvasSetTextAlignment(cdcanvas,CD_CENTER)
+    card_centres = {}
+    integer x = 6*w, y = (rows*5-2)*h
+    -- display the top of the discard pile
+    display_one_card(stack[$],floor(width/2)-w*4,y)
+    -- and the face down deck, or it's top card flipped
+    display_one_card(iff(bFlipped?deck[$]:"wu"),floor(width/2)+w*4,y)
+    y -= 5*h
+    -- the player's hand
+    for i=1 to length(hand) do
+        display_one_card(hand[i],x,y)
+        x += 8*w
+        if x>width-2*w then
+            x = 6*w
+            y -= 5*h
+        end if
+    end for
+    -- the scores (top right)
+    cdCanvasFont(cdcanvas, "Helvetica", CD_PLAIN, -h)
+    cdCanvasSetForeground(cdcanvas, CD_BLACK)
+    cdCanvasText(cdcanvas,width-w*6,height-h,"Scores")
+    for player=1 to 4 do
+        integer sx = width-{3,2,1,2}[player]*w*3,
+                sy = height-{2,1,2,3}[player]*h-h,
+                clr = iff(length(hands[player])=1?CD_RED:CD_BLACK)
+        cdCanvasSetForeground(cdcanvas, clr)
+        cdCanvasText(cdcanvas,sx,sy,sprintf("%d",scores[player]))
+    end for
+    -- lastly show some game history (top left)
+    cdCanvasSetForeground(cdcanvas, CD_BLACK)
+    cdCanvasFont(cdcanvas, "Helvetica", CD_PLAIN, -14)
+    cdCanvasSetTextAlignment(cdcanvas,CD_WEST)
+    integer hy = height-6
+    for i=1 to length(history) do
+        hy -= 12
+        string {pns,hishand,action} = history[i]
+        cdCanvasText(cdcanvas,10,hy,pns)
+        if debug_mode then
+            cdCanvasText(cdcanvas,60,hy,hishand)
+            cdCanvasText(cdcanvas,300,hy,action)
+        else
+            cdCanvasText(cdcanvas,60,hy,action)
+        end if
+    end for
+    cdCanvasFlush(cdcanvas)
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle ih)
+    atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+    IupGLMakeCurrent(canvas)
+    if platform()=JS then
+        cdcanvas = cdCreateCanvas(CD_IUP, canvas)
+    else
+        cdcanvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    end if
+    cdCanvasSetBackground(cdcanvas, CD_PARCHMENT)
+    return IUP_DEFAULT
+end function
+
+function canvas_resize_cb(Ihandle /*canvas*/)
+    integer {canvas_width, canvas_height} = IupGetIntInt(canvas, "DRAWSIZE")
+    atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+    cdCanvasSetAttribute(cdcanvas, "SIZE", "%dx%d %g", {canvas_width, canvas_height, res})
+    return IUP_DEFAULT
+end function
+
+function key_cb(Ihandle /*ih*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if
+    if c=K_F1 then IupMessage("Uno",help_text) end if
+    if c='!' then crash("randseed:%d",{randseed}) end if -- (debug aid)
+    return IUP_CONTINUE
+end function
+
+integer card = 0, -- (set in button_cb(), used in timer_cb() later)
+        quad = 0  -- (set in button_cb(), used in play_card() later)
+
+function button_cb(Ihandle canvas, integer button, pressed, x, y, atom /*pStatus*/)
+    if button=IUP_BUTTON1 and not pressed then      -- (left button released)
+        integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
+        y = height-y
+        card = 0
+        quad = 0
+        for i=1 to length(card_centres) do
+            integer {cx,cy} = card_centres[i]
+            if  x>=cx-2*w and x<=cx+2*w
+            and y>=cy-2*h and y<=cy+2*h then
+                card = i
+                string c = card_centres[i][3]
+                if c[1]='w' and c[2]!='u' then -- (wildcard not facedown)
+                    -- lx := where ~horizontal line meets cx,
+                    -- ly := where ~vertical line meets cy
+                    atom lx = cx+((y-cy)/(2*h))*dw,
+                         ly = cy-((x-cx)/(2*w))*dh
+                    -- set quad 2..5, matching colours (ie "wBRYG")
+                    quad = iff(y>ly?iff(x<lx?3:2)
+                                   :iff(x<lx?4:5))
+                end if
+                IupSetInt(timer,"RUN",not bGameOver)
+                exit
+            end if
+        end for
+        if card=0 and bFlipped and y<card_centres[2][2]-2*h then
+            -- (if flipped all clicks below the deck add to hand)
+            card = 3
+            IupSetInt(timer,"RUN",not bGameOver)
+        end if
+    end if
+    return IUP_CONTINUE
+end function
+
+procedure update_history(string play, card)
+    assert(player==hpcheck) -- (sanity check)
+    history[$] = deep_copy(history[$])
+    if play="play:" and card[1]='w' then
+        -- obviously a new colour must have already 
+        -- been decided/set before this is called..
+        card &= sprintf("(%c)",colour)
+    end if
+    history[$][3] = play&card
+end procedure
+
+function get_top_card()
+    string c = deck[$]
+    deck = deck[1..$-1]
+    if deck={} then
+        deck = shuffle(stack[1..$-1])
+        stack = {stack[$]}
+    end if
+    return c
+end function
+
+procedure take_penalty(integer extra=0, bool bAdvance=true)
+    -- extra is +1 for failed challenge
+    -- bAdvance is false when round over
+    integer pmul = find(stack[$][2],"dF")*2, -- (2,4)
+            penalty = penalty_active*pmul+extra
+    assert(pmul!=0) -- (sanity check)
+    sequence hp = deep_copy(hands[player])
+    if player=4 then
+        sorted = min(sorted,length(hp))
+        IupSetInt(sort_timer,"RUN",true)
+    end if
+    for i=1 to penalty do
+        hp = append(hp,get_top_card())
+    end for
+    if player!=4 then
+        hands[player] = sort(deep_copy(hp))
+    else
+        hands[player] = hp -- (slowly sorted)
+    end if
+    update_history("penalty:",sprintf("%d",penalty))
+    penalty_active = 0
+    if bAdvance then
+        advance_player("take_penalty")
+    end if
+end procedure
+
+enum DECK, HAND
+enum HUMAN, BOT
+
+function play_card(string c, integer src, iWho)
+--
+-- c is the card being played (eg "B0", "wF" etc)
+-- src should be DECK or HAND
+-- iWho should be HUMAN or BOT (for wildcard colour selection)
+--
+-- returns true if new_game() called or bGameOver got set, so
+--              callee should /not/ do any more faffing about.
+--
+    assert(valid_card(c)) -- (sanity check)
+    previous_player = player
+    previous_colour = colour
+    colour = c[1]
+    if colour='w' then
+        colour = iff(iWho=HUMAN?colours[quad]:colours[1+rand(4)])
+    end if
+    update_history("play:",c)
+    stack = append(stack,c)
+    if src=HAND then
+        integer hdx = find(c,hands[player])
+        assert(hdx!=0)  -- (sanity check)
+        hands[player] = hands[player][1..hdx-1]&hands[player][hdx+1..$]
+    end if
+    integer rank = c[2]
+    if rank>'9' then
+        if rank='r' then
+            direction *= -1             
+        else
+            penalty_active += 1
+        end if
+    elsif penalty_active then
+        ?9/0 -- (sanity check)
+    end if
+    bool bRoundOver = (length(hands[player])=0)
+    if bRoundOver then
+        integer winner = player     -- (winner deals)
+        if penalty_active
+        and stack[$][2]!='s' then   -- (but not skip [or reverse])
+            advance_player("final penalty")
+            take_penalty(0,false)
+        end if
+        for player=1 to 4 do
+            integer score = 0
+            sequence hand = hands[player]
+            for i=1 to length(hand) do
+                integer suit = hand[i][1]; rank = hand[i][2]
+                score += iff(suit='w'?50:iff(rank>'9'?20:rank-'0'))
+            end for
+            scores[player] += score
+        end for
+        if max(scores)>=500 then
+            bGameOver = true
+            IupSetAttribute(dlg,"TITLE","GAME OVER")
+            IupSetInt(timer,"RUN",false)
+            IupUpdate(canvas)
+        else
+            new_game(winner)
+        end if
+    end if
+    return bRoundOver   -- (true means new_game() got called or bGameOver got set)
+end function
+
+procedure challenge()
+--
+-- An incorrect challenge takes 6 cards, cheat takes 4 cards,
+--       or when stacked it is 2+penalty or standard penalty.
+--
+    assert(stack[$]=="wF") -- (sanity check)
+    string {p,h,t} = history[$]
+    history = history[2..$] & {{p,h,t}}
+    history[$-1][3] = "challenge"
+    bool bValid = true
+    sequence previous_hand = hands[previous_player]
+    for i=1 to length(previous_hand) do
+        if previous_hand[i][1]=previous_colour then
+            bValid = false
+            exit
+        end if
+    end for
+    if not bValid then
+        integer cp = player
+        player = previous_player
+        hpcheck = player
+        history[$] = deep_copy(history[$-2])
+        take_penalty()
+        assert(player==cp) -- (sanity check)
+    else
+        take_penalty(+2)
+    end if
+end procedure
+
+enum PLAY, KEEP
+
+procedure draw_card(integer iPlay, iWho)
+--
+-- iPlay (PLAY, KEEP) controls whether to play the card:
+--  Ihe user can flip, then click deck=play, or hand=keep,
+--  whereas bots always play a flipped card if they can.
+--  Obviously invalid cards are always kept and not played.
+--
+-- iWho (HUMAN, BOT) is needed because the user clicks on one 
+--  of the quadrants of a wildcard to play it, setting quad 
+--  and hence the colour, whereas bots call a random colour.
+--
+    string c = get_top_card()
+    if iPlay=PLAY and valid_card(c) then
+        if play_card(c,DECK,iWho) then return end if
+    else -- add to hand
+        if player=4 then
+            sorted = min(sorted,length(hands[player]))
+            hands[player] = append(deep_copy(hands[player]),c)
+            IupSetInt(sort_timer,"RUN",true)
+        else
+            hands[player] = sort(append(deep_copy(hands[player]),c))
+        end if
+        if debug_mode then
+            update_history("take:",c)
+        else
+            update_history("take","")
+        end if
+    end if
+    advance_player("draw card")
+end procedure
+
+procedure bot_move()
+    if penalty_active and stack[$]="wF"
+    and rand(power(2,penalty_active))>1 then
+        -- challenge a single wF 1/2 the time, double 3/4, treble 7/8, etc
+        -- (obviously if stacking is false penalty_active shd never be >1)
+        challenge()
+    else -- ..whilst valid may contain wF that are not actually legal play
+        sequence valid = filter(hands[player],valid_card)
+        if length(valid) then
+            if not play_card(valid[rand(length(valid))],HAND,BOT) then
+                advance_player("bot play") -- [not new deal/gameover]
+            end if
+        elsif penalty_active then
+            take_penalty()
+        else
+            draw_card(PLAY,BOT)
+        end if
+    end if
+end procedure
+
+function timer_cb(Ihandle /*ih*/)
+--
+-- The main gameplay logic lives here.
+-- This callback is [de/re]activated in advance_player() and button_cb().
+--
+    if player!=4 then
+        bot_move()
+    elsif card!=0 then
+        if card=1 then
+            if stack[$]="wF" and penalty_active then
+                challenge()
+            end if
+        elsif card=2 then
+            if penalty_active then
+                take_penalty()
+            else
+                bFlipped = not bFlipped
+                if not bFlipped then -- (so it /was/)
+                    draw_card(PLAY,HUMAN)
+                end if
+            end if
+        elsif bFlipped then
+            draw_card(KEEP,HUMAN)
+            bFlipped = false
+        else
+            string c = hands[player][card-2]
+            if valid_card(c) then
+                if not play_card(c,HAND,HUMAN) then
+                    -- (not new deal/gameover)
+                    advance_player("click>2")
+                end if
+            end if
+        end if
+    end if
+    card = 0 -- (clear any resiudual clicks, aka debounce)
+    IupUpdate(canvas)
+    return IUP_IGNORE
+end function
+
+function sort_timer_cb(Ihandle /*ih*/)
+--
+-- Sort hand gradually, purely for the visual effect
+-- This callback is [re]activated in take_penalty()
+-- and draw_card(), but deactivates itself, here.
+--
+    if sorted<length(hands[4]) then
+        sorted += 1
+        sequence hp = deep_copy(hands[4])
+        hp[1..sorted] = sort(deep_copy(hp[1..sorted]))
+        hands[4] = hp
+        IupUpdate(canvas)
+    else
+        IupSetInt(sort_timer,"RUN",false)
+    end if
+    return IUP_IGNORE
+end function
+
+procedure main()
+    IupOpen()
+    canvas = IupGLCanvas("RASTERSIZE=%dx340",{iff(debug_mode?1000:640)})
+    sequence cb = {"MAP_CB", Icallback("map_cb"),
+                   "ACTION", Icallback("redraw_cb"),
+                   "RESIZE_CB", Icallback("canvas_resize_cb"),
+                   "BUTTON_CB", Icallback("button_cb")}
+    IupSetCallbacks(canvas, cb)
+    dlg = IupDialog(canvas,`TITLE="%s"`,{title})
+    IupSetCallback(dlg, "KEY_CB", Icallback("key_cb"))
+    IupSetAttributeHandle(NULL,"PARENTDIALOG",dlg)
+    timer = IupTimer(Icallback("timer_cb"), 500)
+    sort_timer = IupTimer(Icallback("sort_timer_cb"), 1000)
+    scores = repeat(0,4)
+    history = repeat(repeat("",3),9)
+    new_game(rand(4))
+    IupShow(dlg)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL) -- (allow full resize)
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
+end procedure
+main()

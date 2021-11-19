@@ -1,0 +1,202 @@
+--
+-- demo\rosetta\safe_mode.exw
+-- ==========================
+--
+-- Testbed for https://rosettacode.org/wiki/Untrusted_environment#Phix
+--
+--- Run using p --safe demo\rosetta\safe_mode (nb not "p safe_mode --safe"),
+--  or even better use "with safe_mode" as below, so that you do not leave
+--  a dangerous file lying around to be run in some idle moment much later.
+--
+--  Uncomment various sections to prove the compiler/runtime properly catches 
+--  any and all attempts at malicious activity. Conversely of course you can
+--  remove "with safe_mode" and check everything still works as it should.
+--  (There isn't actually anything remotely dangerous in here, just samples
+--   of tools/facilities which a malicious person would probably employ.)
+--  You can also check safe mode works both when interpreted and compiled.
+--
+-- Standard disclaimer:
+--  Everything this relies on was added for this task in less than 24 hours.
+--  In no way do I even begin to think this is secure or complete, but just
+--  yesterday (at the time of writing) it was 100% totally insecure: there
+--  was no "with safe_mode" option, no -safe command line option, nothing
+--  at all to check or even store that option in the compiler, or runtime.
+--  Should you want this to be improved, simply add more tests below, and
+--  obviously complain if/should they not entirely meet your expectations.
+--
+-- Technical details
+--  A new safemode flag in pHeap along with 4 new entry points to [re]set,
+--  fetch, and check/fail, plus an initial compiler version in pglobals.e
+--  #ilASM{} (inline assembly) not in the Phix root (for the compiler) or
+--  builtins[/VM] is caught at start of pilasm.e, when said flag is set.
+--  File open is specifically trapped within builtins\VM\pfileioN.e
+--  Note that builtins\VM\pDiagN.e has to switch it off, which is trivial
+--  to do but only via #ilASM{}, so a malicious programmer simply cannot.
+--  Most of the fun starts in pcfunc.e: a blanket ban on all use of dlls
+--  quickly proved completely unworkable, while it can block all call()
+--  it has to be quite a bit more selective with c_func/c_proc so now it
+--  tags all defined functions with a safety flag and figures out which
+--  it should allow at the last possible moment. Allowances are made for
+--  mpfr.e and pGUI.e (including VCRUNTIME140.DLL and IupRawStringPtr() 
+--  being moved into builtins to get round the #ilASM{} bar), several
+--  others may either need to follow suit or be explicitly barred, only 
+--  time and testing will tell.
+--
+with safe_mode
+
+sequence cl = command_line()
+?cl
+if find_any({"-safe","--safe"},cl) then ?9/0 end if -- grief saver, as above
+
+-- disallow inline assembly (at compile time):
+--#ilASM{ mov eax,1 }
+
+-- but verify some legal #ilASM{} (ie from builtins\) is still OK:
+sequence r = get_routine_info(routine_id("get_routine_info"))
+if r!={2,1,"FII","get_routine_info"} then ?9/0 end if
+
+-- disallow call() [as per inline assembly, but at runtime]
+atom pMem = allocate(3)         -- fine
+poke(pMem,{0o061,0o300,#C3})    -- fine (xor eax,eax; ret)
+--[OK] (caught by pcfunc.e line 1022)
+--call(pMem)                        -- (runtime error)
+
+
+-- disallow [most other] c_func/proc()
+integer frid = define_c_func({},pMem,{},C_INT),
+        prid = define_c_proc({},pMem,{})
+-- above is fine, below should trigger runtime errors
+--[OK] (caught by pcfunc.e line 1262 *2)
+--?c_func(frid,{}) -- (prints 0, when allowed that is)
+--c_proc(prid,{})
+
+-- disallow file i/o (at runtime, part covered by c_func):
+--[OK] (caught by fopen() in pfileioN.e)
+--?shorten(get_text(cl[2]),"bytes")
+--integer fn = open(cl[2],"r")
+--?gets(fn)
+--close(fn)
+--integer res = copy_file(cl[2],"test_safe_mode.txt",true)
+--?{"copy_file",res}
+--if res then
+--  res = delete_file("test_safe_mode.txt")
+--  ?{"delete",res}
+--end if
+
+-- disallow system() and system_exec() (at runtime, ditto):
+--[OK] (caught by pcfunc.e line 1262 *2)
+--?system_exec(`"dir safe*"`,4)
+--integer rse = routine_id("system_exec")
+--?call_func(rse,{`"dir safe*"`,4})
+
+-- but check call_func() itself is still ok:
+function myfunc() return 42 end function
+if myfunc()!=42 then ?9/0 end if
+if call_func(myfunc,{})!=42 then ?9/0 end if
+if call_func(routine_id("myfunc"),{})!=42 then ?9/0 end if
+
+-- lastly check that pGUI and mpfr are OK (others may follow)
+include mpfr.e
+mpfr pi = mpfr_init()
+mpfr_const_pi(pi)
+--?mpfr_get_str(pi)
+?mpfr_get_fixed(pi,16)
+
+include pGUI.e
+IupOpen()
+Ihandle lbl = IupFlatLabel(mpfr_get_fixed(pi,16),"EXPAND=YES, ALIGNMENT=ACENTER")
+Ihandln dlg = IupDialog(lbl,`TITLE="PI is approx...", MINSIZE=265x95`)
+IupShow(dlg)
+IupMainLoop()
+dlg = IupDestroy(dlg)
+IupClose()
+
+?"done"
+{} = wait_key()
+
+--/*
+Searching for: pSafemode
+ Files scanned 218, Directories scanned 2, Lines 137055
+C:\Program Files (x86)\Phix\builtins\VM\optable.e:123                                      "%pSafemode",
+C:\Program Files (x86)\Phix\builtins\VM\pHeap.e:3532     %pSafemode
+C:\Program Files (x86)\Phix\builtins\VM\pHeap.e:3547             cmp [safemode],0
+
+Searching for: pGetSafe
+ Files scanned 218, Directories scanned 2, Lines 137053
+C:\Program Files (x86)\Phix\builtins\VM\optable.e:124                                      "%pGetSafe",
+C:\Program Files (x86)\Phix\builtins\VM\pcfunc.e:269         call %pGetSafe
+C:\Program Files (x86)\Phix\builtins\VM\pcfunc.e:413         call %pGetSafe
+C:\Program Files (x86)\Phix\builtins\VM\pcfunc.e:697             call %pGetSafe
+C:\Program Files (x86)\Phix\builtins\VM\pHeap.e:3535     %pGetSafe
+
+Searching for: pSafechk
+ Files scanned 218, Directories scanned 2, Lines 137055
+C:\Program Files (x86)\Phix\builtins\VM\optable.e:125                                      "%pSafechk",
+C:\Program Files (x86)\Phix\builtins\VM\pcfunc.e:1015                 call %pSafechk
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:819         call %pSafeChk
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:821 --  #ilASM{ call %pSafechk }   -- (in pcfunc.e)
+C:\Program Files (x86)\Phix\builtins\VM\pHeap.e:3545     %pSafechk
+
+Searching for: 124
+ Files scanned 218, Directories scanned 2, Lines 137136
+C:\Program Files (x86)\Phix\builtins\VM\pcfunc.e:132 constant e124npism      = 124   -- not permitted in safe_mode
+C:\Program Files (x86)\Phix\builtins\VM\pcfunc.e:1253                 fatalN(3,e124npism,rid)
+C:\Program Files (x86)\Phix\builtins\VM\pDiagN.e:2379  "not permitted in safe mode\n",                                -- e124npism
+C:\Program Files (x86)\Phix\builtins\VM\pHeap.e:3549             mov al,124          -- e124npism
+
+
+--OLD:
+Phix makes no attempt to protect anyone from untrusted code or inputs from untrusted users.
+However, in theory it would be reasonably straightforward to build a "crippled" version of phix that makes malicious activity all but impossible.
+
+The most dangerous construct is #ilASM{} (inline assembly), but it should not be difficult to prohibit that except in builtins\ and builtins\VM\ 
+by adding a guard such as "if fileno>2 then ?9/0 end if" at the start of procedure ilASM() in pilasm.e. Obviously you simply never put any untrusted 
+code in either of those directories.
+
+The next most dangerous facility is file I/O, for that I might suggest putting similar but run-time guards in builtins\VM\pFileioN.e which get 
+the calling routine number from the call stack and then the file number from the symbol table (see Stack_traces#Phix), and then check that is <=3, 
+ie the above two and the main phix directory, since obviously you don't want to cripple I/O for the compiler itself, and in turn that means any 
+untrusted code has to be put in some other directory.
+
+Similarly we have system/system_exec(), c_func/proc(), and call(), all of which you would probably want to disable from untrusted code.
+Lastly I would recommend having a think about disabling libcurl, SQLite, etc, but that's a bit beyond my remit, and I should reiterate 
+from the perl entry that a proper physically separate/expendable sandbox is probably the better idea, when possible.
+
+--NEW:
+The --safe command line option effectively "cripples" Phix to make malicious activity all but impossible.<br>
+Even better, a "with safe" mode compiler directive within the source code itself achieves the same effect, 
+so that you do not accidentally leave a dangerous file lying around to be run in some idle moment much later.
+
+It works by disabling inline assembly except in the root (for the compiler itself), builtins\ and builtins\VM\, obviously you simply never 
+put any untrusted code in either of those directories, and also disabling call(), and [more selectively] c_proc() and c_func().<br>
+Everything else, specifically open(), rename/copy/move/delete_file(), clear/remove_directory(), system()/system_exec(), etc is either
+specifically barred or covered by the inability to invoke c_func() under safe mode. Some of the more benign libraries such as pGUI and 
+gmp are however let through, while others may need similar permitting or perhaps specifically barring. 
+Note that arwen and win32lib (etc) are not considered benign, nor indeed are any direct calls to kernel32.dll and similar.
+
+<lang Phix>
+with safe_mode
+#ilASM{ mov eax,1 } -- (some inline assembly)
+</lang>
+{{out}}
+<pre>
+C:\Program Files (x86)\Phix>p demo\rosetta\safe_mode.exw
+
+C:\Program Files (x86)\Phix\demo\rosetta\safe_mode.exw:52
+#ilASM{ mov eax,1 }
+ ^ not permitted under with safe_mode
+
+Press Enter, or d for diagnostics...
+</pre>
+
+See demo\rosetta\safe_mode.exw for a more detailed (grubby little) test harness to verify correct behaviour.
+
+--but so too
+--are several more benign libraries such as pGUI and gmp, at least as things stand - it may be possible to modify builtins\VM\pcfunc.e to
+--let selected libraries through, at your own risk of course.
+--Likewise libraries such as libcurl and pSQLite are automatically disabled, whereas 
+--
+--The following little test harness can be used to verify correct behaviour.
+
+--*/
+

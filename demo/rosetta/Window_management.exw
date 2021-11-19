@@ -2,30 +2,31 @@
 -- demo\rosetta\Window_management.exw
 -- ==================================
 --
+with javascript_semantics
 include pGUI.e
 
 Ihandle dlg
 
-function doFull(Ihandle /*ih*/)
+function full_screen_cb(Ihandle /*ih*/)
     IupSetAttribute(dlg,"FULLSCREEN","YES")
     return IUP_DEFAULT
 end function
  
-function doMax(Ihandle /*ih*/)
+function maximize_cb(Ihandle /*ih*/)
     IupSetAttribute(dlg,"PLACEMENT","MAXIMIZED")
     -- this is a work-around to get the dialog minimised (on win platform)
     IupSetAttribute(dlg,"VISIBLE","YES")
     return IUP_DEFAULT
 end function
  
-function doMin(Ihandle /*ih*/)
+function minimize_cb(Ihandle /*ih*/)
     IupSetAttribute(dlg,"PLACEMENT","MINIMIZED")
     -- this is a work-around to get the dialog minimised (on win platform)
     IupSetAttribute(dlg,"VISIBLE","YES")
     return IUP_DEFAULT
 end function
  
-function doRestore(Ihandle /*ih*/)
+function restore_cb(Ihandle /*ih*/)
     IupSetAttribute(dlg,"OPACITY","255")
     IupSetAttribute(dlg,"FULLSCREEN","NO")
     IupSetAttribute(dlg,"PLACEMENT","NORMAL")
@@ -33,17 +34,18 @@ function doRestore(Ihandle /*ih*/)
     return IUP_DEFAULT
 end function
  
-function doDim(Ihandle /*ih*/)
+function dim_cb(Ihandle /*ih*/)
+    -- nb OPACITY must be set [to eg 255] before map for this to work.
     IupSetAttribute(dlg,"OPACITY","60")
     return IUP_DEFAULT
 end function
  
-function doShow(Ihandle /*ih*/)
+function show_cb(Ihandle /*ih*/)
     IupSetAttribute(dlg,"OPACITY","255")
     return IUP_DEFAULT
 end function
 
-function doMove(Ihandle /*ih*/)
+function move_cb(Ihandle /*ih*/)
     integer {x,y} = IupGetIntInt(dlg,"SCREENPOSITION")
     integer shift = iff(IupGetInt(NULL,"SHIFTKEY")?-10,+10)
     IupShowXY(dlg,x+shift,y+shift)
@@ -52,23 +54,58 @@ end function
  
 procedure main()
     IupOpen()
- 
-    Ihandle hbox = IupHbox({IupButton("restore",    Icallback("doRestore")),
-                            IupButton("full screen",Icallback("doFull")),
-                            IupButton("maximize",   Icallback("doMax")),
-                            IupButton("minimize",   Icallback("doMin")),
-                            IupButton("dim",        Icallback("doDim")),
-                            IupButton("show",       Icallback("doShow")),
-                            IupButton("move",       Icallback("doMove"))})
-    IupSetAttribute(hbox,"MARGIN", "10x10")
-    IupSetAttribute(hbox,"PADDING", "5x5")
- 
-    dlg = IupDialog(hbox)
-    IupSetAttribute(dlg,"OPACITY","255")
+--  sequence buttons = {{"restore",     Icallback("restore_cb")},
+--                      {"full screen", Icallback("full_screen_cb")},
+--                      {"maximize",    Icallback("maximize_cb")},
+--                      {"minimize",    Icallback("minimize_cb")},
+--                      {"dim",         Icallback("dim_cb")},
+--                      {"show",        Icallback("show_cb")},
+--                      {"move",        Icallback("move_cb")}}
+    sequence buttons = {IupButton("restore",    Icallback("restore_cb")),
+                        IupButton("full screen",Icallback("full_screen_cb")),
+                        IupButton("maximize",   Icallback("maximize_cb")),
+                        IupButton("minimize",   Icallback("minimize_cb")),
+                        IupButton("dim",        Icallback("dim_cb")),
+                        IupButton("show",       Icallback("show_cb")),
+                        IupButton("move",       Icallback("move_cb"))}
 
+    -- Note that pwa/p2js does not support window minimise, since that is more likely
+    -- to be the job of the browser, rather than anything on a tab within the browser
+    if platform()=JS then buttons[4..4] = {} end if
+--  if platform()!=JS then buttons[4..4] = {} end if
+
+--  for i=1 to length(buttons) do
+--      string name = buttons[i],
+--             handler = "do"&substitute(proper(name,"CAPITALISE")," ","")
+----uh??
+----        buttons[i] = IupButton(name, Icallback(handler))
+--      buttons[i] = IupButton(name, Icallback(handler,routine_id(handler)))
+--  end for
+--{"restore","restore_cb"}
+--{"full screen","full_screen_cb"}
+--{"maximize","maximize_cb"}
+--{"minimize","minimize_cb"}
+--{"dim","dim_cb"}
+--{"show","show_cb"}
+--{"move","move_cb"}
+
+/*
+    Ihandle hbox = IupHbox({IupButton("restore",    Icallback("restore_cb")),
+                            IupButton("full screen",Icallback("full_screen_cb")),
+                            IupButton("maximize",   Icallback("maximize_cb")),
+                            IupButton("minimize",   Icallback("minimize_cb")),
+                            IupButton("dim",        Icallback("dim_cb")),
+                            IupButton("show",       Icallback("show_cb")),
+                            IupButton("move",       Icallback("move_cb"))},
+                           "MARGIN=10x10,PADDING=5x5")
+*/
+    Ihandle hbox = IupHbox(buttons, "MARGIN=10x10,PADDING=5x5")
+    dlg = IupDialog(hbox,`TITLE="Window management demo",OPACITY=255`)
     IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
-    IupMainLoop()
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 main()
 

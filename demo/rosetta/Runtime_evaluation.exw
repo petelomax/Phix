@@ -1,0 +1,41 @@
+--
+-- demo\rosetta\Runtime_evaluation.exw
+-- ===================================
+--
+without javascript_semantics
+requires("1.0.1")
+include eval.e  -- (not an autoinclude, pulls in around 90% of the interpreter/compiler proper)
+
+string code = """
+integer i = 0
+bool r_init = false
+sequence r
+if not r_init then r = {} end if
+for k=1 to 4 do
+    i += k
+    r &= k
+end for
+"""
+?eval(code,{"i","r"})                           -- prints {10,{1,2,3,4}}
+?eval(code,{"r"},{{"r_init",true},{"r",{5}}})   -- prints {5,1,2,3,4}
+?eval(code,{"i"},{{"i",15}})                    -- prints {25}
+{} = eval(`puts(1,"Hello World\n")`)            -- prints Hello World
+
+--/*
+{{out}}
+<pre>
+{10,{1,2,3,4}}
+{{5,1,2,3,4}}
+{25}
+Hello World
+</pre>
+--*/
+
+function eval_expression(string expr)
+    object {res} = eval(sprintf("object x = %s",{expr}),{"x"})
+    return res
+end function
+?eval_expression("3+4") -- prints 7
+
+?"done"
+{} = wait_key()

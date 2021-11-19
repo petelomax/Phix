@@ -1,0 +1,782 @@
+with javascript_semantics
+--/*
+Actually a fake console in the browser should be fairly easy.
+I keep circulating back to JavaScript in #ilASM{} and have to keep reminding myself how silly
+and potentially difficult that would be compared to how trivial it is to maintain pwa/builtins
+files by hand, even if they or bits of them are manually transpiled from Phix code.
+
+Anyway, we need to trigger "console mode" somhow, probably clear_screen() and/or position().
+We just have an array of strings, and a current x,y, and hook/replace puts in p2js.js:
+
+let $console_mode = null;
+...
+    text = text.replace(am,"&amp;")
+               .replace(lt,"&lt;")
+               .replace(gt,"&gt;")
+               .replace(sp,"&ensp;");
+    if ($console_mode!==null) {
+        text = $console_mode(text); 
+        $docBody.innerHTML = text;
+    } else {
+        text = text.replace(lf,"<br>");
+        let where = fn === 2 ? "afterbegin" : "beforeend";
+        $docBody.insertAdjacentHTML(where, text);
+    }
+
+console.js (part manually transpiled):
+
+sequence screen
+integer screen_init = false, x = 1, y = 1
+
+function console_mode(string text)
+    if not screen_init then
+        screen = repeat("",25)
+        screen_init = true
+    end if
+    sequence lines = split(text,'\n')
+    integer n = length(lines)
+    for i=1 to n do
+        string li = lines[i]
+        while y>length(screen) do screen = append(screen,"") end while
+        integer xe = x+length(li)-1
+        if xe>screen[y] then
+            screen[y] = screen[y][1..x-1]&li
+        else
+            screen[y][x..xe] = li
+        end if
+        if i<n then
+            y += 1
+            x = 1
+        else
+            x = xe
+        end if
+    end for
+-- erm, whatever works best... (experiment a bit)
+    if y>100 and y=length(screen) then
+        screen = screen[1..100]
+        y = 100
+    end if
+    return join(screen,"<br>")
+end function
+
+Suddenly all that messy asm shit I've been putting off doing for linux 
+for the past ten years no longer looks particularly difficult (flw).
+
+function position(/*integer*/ line, col) {
+    y = line;
+    x = col;
+}
+
+Of course you've still not got getc/s/_key, progress, sleep, etc, and
+while I can imagine colours not being all that messy, they would most
+certainly be a step too far in the wrong direction.
+--*/
+--
+-- include ..\demo\rosetta\Remote_Agent_Simulator.exw
+-- demo\rosetta\Remote_Agent_Simulator.exw
+-- =======================================
+--
+--include Remote_Agent_Interface.exw
+--
+-- demo\rosetta\Remote_Agent_Interface.exw
+-- =======================================
+--
+-- First, a handful of common constants, just to avoid the duplication:
+global enum North, East, South, West
+global constant dxy = {{0,-1},{1,0},{0,1},{-1,0}}
+-- and some display/progress routines:
+global procedure show_at(integer l,c, string msg, sequence args={})
+    if platform()!=JS then
+        position(l,c)
+    end if
+    printf(1,msg,args)
+end procedure
+constant pause = false
+global procedure show(string what, integer event, yoffset, fn)
+    if fn then
+--      {sequence {board, balls}, integer {x, y, d, ball}} = fn()
+        sequence board, balls
+        integer x, y, d, ball
+        {{board, balls}, {x, y, d, ball}} = fn()
+        show_at(yoffset,1,sprintf("%s  -- x:%2d, y:%2d, ball:%c, d:%d  ",{what,x,y,ball,d}))
+--      board[y+1,x] = "^>v<"[d]    -- (comment this one out when debugging wall detection)
+        balls = deep_copy(balls)
+        balls[y+1,x] = "^>v<"[d]    
+        for i=1 to length(board) do
+--integer l = length(board)
+--      for i=1 to l by 1 do
+            show_at(i+yoffset,1,board[i])
+            show_at(i+yoffset,40,balls[i])
+        end for
+        if event then
+            show_at(20,1,"(after "&event&" accepted by %s)",{what})
+            if pause and platform()!=JS then {} = wait_key() end if
+        end if
+    end if
+end procedure
+global procedure die(string msg)
+    -- (to avoid clobbering the above display)
+    if platform()!=JS then
+        position(35,1)
+    end if
+    crash(msg)
+end procedure
+--
+--  Only one of the following should be included, the other(s) commented out:
+--
+--include Remote_Agent_Interface_Direct.e
+--
+-- demo\rosetta\Remote_Agent_Interface_Direct.e
+-- ============================================
+--
+--include Remote_Agent_Simulator.exw
+--include Remote_Agent_Agent_Logic.exw
+--
+-- demo\rosetta\Remote_Agent_Agent_Logic.exw
+-- =========================================
+--
+--include Remote_Agent_Interface.exw
+--
+-- Initially just four unknowns in all four directions:
+-- slowly poulated with WRGYB (Wall/Red/Green/Yellow/Blue)
+-- note the board can be extended in all four directions
+-- aside: it should not actually matter if the server 
+--        initially points agent in a random direction.
+--
+sequence aboard = {"???",
+                  "???",
+                  "???"},
+         aballs = {"...", -- (meaningless while the
+                  "...", --  equivalent aboard[y][x]
+                  "..."} --  is still set to a '?')
+integer a_x = 2, a_y = 2,
+        face = North,
+        a_ball = '.',
+        last_command,   -- (for sanity checks only)
+        pickup = 0,     -- (once started keep going)
+        putdown = 0     -- (for cases such as RyG Yr,
+                        --  force a drop onto G, and
+                        --  *not* y/r back onto R/Y.)
+function go(integer dn)
+    -- common code to get the correct turn/forward command
+    -- '<' if dn=face+1 mod 4, '^' if dn==face, else '>':
+    -- both face and dn are 1..4 aka NESW, in that order
+    integer command = "<>>^<>>"[face+4-dn] -- (tee hee)
+    if command!='^' then
+        -- 1..4 (ie NESW) ==> first four for '<',
+        --                     last four for '>':
+        face = {4,1,2,3,4,1}[face+command-'<']
+    end if
+    return command
+end function
+bool handshake = true
+function get_command()
+    if handshake then
+        handshake = false
+        return 'A'
+    end if
+    integer command = 0,
+            height = length(aboard),
+            width = length(aboard[1])
+    --
+    --  Playing strategy:
+    --  Use a (marking) breadth-first search to determine the next action.
+    --  Candidate actions are explore further, and pick up or drop a ball.
+    --  Do not pick up balls until you know somewhere they can be dropped.
+    --  Favour "explore first" and forget any "travelling salesman" ideas,
+    --  ie: jumping hoops to save a few moves is not the name of the game.
+    --  Lastly a case such as RyG Yr, which requires moving either to the
+    --  G first must be handled, that is, when no better move is possible.
+    --  Another case to watch out for: Gb..gB, initially you find that Gg
+    --  and set off to pick up the g, but then find bB first, and turn to
+    --  go pick up the b and repeat that forever, so once you decide what
+    --  to do, stick with it, using those pickup and putdown variables.
+    --
+    if find(a_ball,{lower(aboard[a_y][a_x]),putdown}) -- (right or needed wrong)
+    and aballs[a_y][a_x] = '.' then
+        command = '!'               -- drop
+        aballs[a_y][a_x] = a_ball
+        a_ball = '.'
+        putdown = 0
+    else
+        sequence todo = {{a_x,a_y,0}}, next = {}, 
+                 seen = repeat(repeat(false,width),height),
+                 been = deep_copy(seen), -- already in todo/next
+                found = {}, -- balls in wrong sector
+                empty = {}  -- empty sectors
+        been[a_y][a_x] = true
+        while command=0 do
+            if length(todo)=0 then
+                if command=0 and a_ball='.' then
+                    -- look for pair in found/empty (ie rR, gG, yY or bB)
+                    for i=1 to length(found) do
+                        integer {fb,fy,fx,fd} = found[i]
+                        for j=1 to length(empty) do
+                            if fb=empty[j][1] then
+                                if fd=0 then
+                                    if fx!=a_x or fy!=a_y 
+                                    or aballs[a_y][a_x]!=fb then
+                                        die("d=0 not right?")
+                                    end if
+                                    command = '@' -- get
+                                    a_ball = fb
+                                    aballs[a_y][a_x] = '.'
+                                    pickup = 0
+                                    exit
+                                end if
+                                pickup = fb
+                                command = go(fd)
+                                exit
+                            end if
+                        end for
+                        if command!=0 then exit end if
+                    end for
+                end if
+                if command!=0 then exit end if
+                if length(next)=0 then
+                    -- unsolveable or eg RyG Yr case (ie the y blocks
+                    -- a r->R move, and the r is blocking a y->Y move):
+                    if putdown=0 then
+                        -- pick up the nearest wrong'n (which we may be on)
+                        integer {fb,fy,fx,fd} = found[1]
+                        if fy=a_y and fx=a_x then
+                            assert(a_ball=='.')
+                            assert(aballs[a_y][a_x]!='.')
+                            command = '@'                           -- get
+                            a_ball = fb
+                            aballs[a_y][a_x] = '.'
+                            pickup = 0
+                            -- ... and fix the drop cell colour now
+                            putdown = empty[1][1]
+                        else
+                            command = go(fd)
+                        end if
+                    else
+                        integer {eb,ey,ex,ed} = empty[1]
+                        assert(eb==putdown) -- (shd only collect such)
+                        -- drop, or move to where it should be dropped
+                        if ey=a_y and ex=a_x then
+                            assert(a_ball!='.')
+                            assert(lower(aboard[a_y][a_x])==putdown)
+                            assert(aballs[a_y][a_x]=='.')
+                            command = '!'                           -- drop
+                            aballs[a_y][a_x] = a_ball
+                            a_ball = '.'
+                            putdown = 0
+                        else
+                            command = go(ed)
+                        end if
+                    end if
+                    exit
+                end if
+                todo = next
+                next = {}
+            end if
+            integer {cx,cy,d0} = todo[1]
+            todo = todo[2..$]
+            if not seen[cy][cx] then
+                integer cell = aboard[cy][cx],
+                        lowc = lower(cell),
+                        bcyx = aballs[cy][cx]
+                if cell!='?' then
+                    -- add to found/empty
+                    if bcyx='.' then
+                        if a_ball=lowc then
+                            -- sanity: imm drop shd have happened
+                            assert(cx!=a_x or cy!=a_y,"not imm?")
+                            command = go(d0)
+                            exit
+                        end if
+                        if putdown=0 or putdown=lowc then
+                            empty = append(empty,{lowc,cy,cx,d0})
+                        end if
+                    elsif bcyx!=lowc then
+                        if pickup=0 or pickup=bcyx then
+                            found = append(found,{bcyx,cy,cx,d0})
+                        end if
+                    end if
+                    seen[a_y][a_x] = true
+                end if
+            end if
+            for d=North to West do  -- (1..4)
+                integer {dx,dy} = dxy[d],
+                        wall = aboard[cy+dy][cx+dx],
+                        {nx,ny} = {cx+dx*2,cy+dy*2},
+                        dn = iff(d0=0?d:d0)
+                if wall='?' or (wall=' ' and aboard[ny][nx]='?') then
+                    command = go(dn)
+                    exit
+                elsif wall=' ' and not been[ny][nx] then
+                    next = append(next,{nx,ny,dn})
+                    been[ny][nx] = true
+                end if
+            end for
+        end while
+    end if
+    last_command = command -- (for sanity checks only)
+    return command
+end function
+procedure extend_if_needed(integer cell_colour)
+    -- (also sets x and y and the new cell colour)
+    integer {dx,dy} = dxy[face],
+            {fx,fy} = {a_x+dx*2,a_y+dy*2},
+            height = length(aboard),
+            width = length(aboard[1])
+    aboard[a_y+dy][a_x+dx] = ' ' -- (not a wall)
+    if fx=0 then
+        -- extend aboard left (and leave a_x set to 2)
+        for i=1 to height do
+            aboard[i] = "??"&aboard[i]
+            aballs[i] = ".."&aballs[i]
+        end for
+    else
+        a_x = fx
+        if a_x>=width then
+            -- extend aboard right
+            for i=1 to length(aboard) do
+                aboard[i] &= "??"
+                aballs[i] &= ".."
+            end for
+        end if
+    end if
+    if fy=0 then
+        -- extend aboard up (and leave a_y set to 2)
+        aboard = repeat(repeat('?',width),2)&aboard
+        aballs = repeat(repeat('.',width),2)&aballs
+    else
+        a_y = fy
+        if a_y>=height then
+            -- extend aboard down
+            aboard &= repeat(repeat('?',width),2)
+            aballs &= repeat(repeat('.',width),2)
+        end if
+    end if
+    aboard[a_y][a_x] = cell_colour
+end procedure
+procedure accept_event(integer event)
+    -- Note: the logic above does not attempt to pick up a ball
+    --       when it already has one, or when in an empty cell,
+    --       or drop one it does not have, or drop one into an 
+    --       occupied cell, and hence this does /not/ trigger 
+    --       or handle any "SAsa" events, not yet anyway.
+    --       (Fairly obviously this would then have to undo a 
+    --        few things, or defer updates to the stop event.)
+    assert(last_command=='^' or event=='.') -- (optional/deletable)
+    integer {fx,fy} = sq_add({a_x,a_y},dxy[face]),
+            wall = iff(odd(fy)?'-':'|')
+    switch event do
+        case '!':               aboard[fy][fx] = wall       -- bump
+        case '.':               last_command = '.'          -- stop
+        case 'R','G','Y','B':   extend_if_needed(event)     -- cell colour
+        case 'r','g','y','b':   aballs[a_y][a_x] = event    -- ball colour
+        default:                ?9/0      -- (unknown/unhandled event)
+    end switch
+end procedure
+function get_agent()
+    -- (for display only)   
+    -- it does not hurt any to do this...
+    for i=1 to length(aboard) by 2 do
+        for j=1 to length(aboard[i]) by 2 do
+            aboard[i][j] = '+'
+        end for
+    end for
+    return {{aboard,aballs},{a_x,a_y,face,a_ball}}
+end function
+--moved below!
+--register_agent(get_command, accept_event, get_agent)
+integer accept_command=0, get_event, get_world,
+        r_get_command=0, r_accept_event, r_get_agent
+procedure main_event_loop()
+    integer handshake = get_event()
+    if handshake!='A' then ?9/0 end if
+    show_at(1,65,"server handshake recieved")
+    handshake = get_command()
+    if handshake!='A' then ?9/0 end if
+    show_at(2,65,"agent handshake recieved")
+    while true do
+        integer command = get_command()
+        show("agent",0,22,get_agent)
+        accept_command(command) 
+        show("world",command,1,get_world)
+        while true do
+            integer event = get_event()
+            if event='+' then
+                -- game over
+                show("world",0,1,get_world)
+                show("agent",'.',22,get_agent)
+                show_at(5,66,"game over")
+                {} = wait_key()
+                return
+            end if
+            accept_event(event)
+            show("world",0,1,get_world)
+            show("agent",event,22,get_agent)
+            if event='.' then exit end if   -- stop
+        end while
+    end while
+end procedure
+global procedure register_world(integer _accept_command, _get_event, _get_world=NULL)
+    {accept_command, get_event, get_world} = {_accept_command, _get_event, _get_world}
+    if r_get_command!=0 then main_event_loop() end if
+end procedure
+global procedure register_agent(integer _get_command, _accept_event, _get_agent=NULL)
+    {r_get_command, r_accept_event, r_get_agent} = {_get_command, _accept_event, _get_agent}
+    if accept_command!=0 then main_event_loop() end if
+end procedure
+--moved from above!
+register_agent(get_command, accept_event, get_agent)
+--include Remote_Agent_Interface_IPC.e
+--include Remote_Agent_Interface_Xxx.e -- (no such file, see below)
+--
+-- each of the above must implement
+--
+--  global procedure register_world(integer accept_command, get_event, get_world=0)
+--  global procedure register_agent(integer get_command, accept_event, get_agent=0)
+--
+--  The four mandatory and two optional routines to be provided are described below.
+--  Note that Remote_Agent_Interface_Direct returns control immediately,
+--  to one, whereas Remote_Agent_Interface_IPC does not, see below.
+--
+-- Remote_Agent_Interface_Direct.e includes both
+-- Remote_Agent_Simulator.exw and
+-- Remote_Agent_Agent_Logic.exw, and operates as a fully complete and
+--  standalone program whichever of the three .exw files are invoked.
+--  (Running >1 of them effectively runs the same program >1 times.)
+--
+-- Remote_Agent_Interface_IPC.e includes neither, and instead both of
+-- Remote_Agent_Simulator.exw and
+-- Remote_Agent_Agent_Logic.exw must be run separately.
+--  (Running Remote_Agent_Interface.exw does nothing in that case.)
+--
+-- The idea is that further Remote_Agent_Interface_Xxx.e could be written
+--  to implement pipes, sockets, files, etc. and nothing in either of the
+--  other two .exw would need changing for them to work like IPC.e does.
+--
+-- There would of course be no problem with world/agent including those
+--  files directly, as long as they are kept in sync, but of course that
+--  way would lose the "no modification whatsoever to switch" aspect.
+--
+-- The Direct version checks whether both register_world and register_client
+--  have been invoked before starting a single event loop, otherwise returns 
+--  control immediately, effectively terminating one of world/client, whereas 
+--  the IPC way sets up separate event loops in/for both register_world and 
+--  register_client, and only returns control on game over (if even that).
+--
+-- Both world/client must operate reactively and maintain any internal state
+--  that requires. For instance when the server receives a "forward" command 
+--  it cannot send color; send ball; send stop; but must instead rely on 
+--  being later asked for those events, and deliver them in order.
+--
+-- Both get_event() and get_command() must be a parameterless function that
+--  returns a single byte, and both accept_command() and accept_event() must
+--  be a procedure that accepts a single byte. As you should expect you use
+--  () to invoke them, and omit the () when just passing their ids about.
+--  The get_xxxx() routines, if provided, should return the current state
+--  in a suitable format for passing to parameter s of show() above.
+--
+sequence board, -- eg {"+-+-+","|R G|","+-+-+"}, up to 8(h)x11(w)
+         balls, -- eg {".....",".g...","....."}, same size as board 
+         drop = {} -- the allowed set of balls (sum(g)<=sum(G) etc)
+integer x, y, w, h, ball = '.', d = North
+procedure amaze(integer x, integer y)
+    integer c = "RGYB"[rand(4)]
+    board[y][x] = c  -- give cell a colour / mark visited
+    drop &= lower(c)
+    sequence p = shuffle({{x-2,y},{x,y+2},{x+2,y},{x,y-2}})
+    for i=1 to length(p) do
+        integer {nx,ny} = p[i]
+        if nx>1 and nx<=2*w
+        and ny>1 and ny<=2*h
+        and board[ny][nx]='?' then
+            integer mx = (x+nx)/2
+            board[(y+ny)/2][mx] = ' ' -- knock down wall
+            amaze(nx,ny)
+            drop = shuffle(drop)
+            balls[ny][nx] = drop[$] -- (all bar start cell)
+            drop = drop[1..$-1]
+        end if
+    end for
+end procedure
+integer level = 1 -- see create_world (mainly to stage/test development)
+procedure create_world()
+    -- (The distro version has several other tests/examples)
+    if level=1 then
+        -- start simple, must pick up and drop one ball in next/only cell:
+        board = {"+-+-+",
+                 "|R G|",
+                 "+-+-+"}
+        balls = {".....",
+                 ".g...",
+                 "....."} 
+        x = 2
+        y = 2
+    elsif level=2 then
+        -- start simple, must pick up and drop one ball in next/only cell:
+        board = {"+-+",
+                 "|R|",
+                 "+ +",
+                 "|G|",
+                 "+-+"}
+        balls = {"...",
+                 ".g.",
+                 "...",
+                 "...",
+                 "..."} 
+        x = 2
+        y = 2
+    elsif level=3 then
+        -- requires a dummy move:
+        board = {"+-+-+-+",
+                 "|R G Y|",
+                 "+-+-+-+"}
+        balls = {".......",
+                 ".y...r.",
+                 "......."} 
+        x = 2
+        y = 2
+    elsif level=4 then
+        -- from Go:
+        board = {"+-+-+-+-+",
+                 "|R| |R B|",
+                 "+ +-+ + +",
+                 "|G G B G|",
+                 "+ + +-+ |",
+                 "|B G| |R|",
+                 "+-+-+-+-+"}
+        balls = {".........",
+                 ".b...g...",
+                 ".........",
+                 ".........",
+                 ".........",
+                 ".r.....*.",
+                 "........."} 
+        x = 8
+        y = 6
+        if balls[y][x]!='*' then ?9/0 end if
+        balls[y][x] = '.'
+    elsif level=5 then
+        -- from PicoLisp(Simulation/Server):
+        board = {"+-+-+-+-+-+-+-+-+",
+                 "|R Y|B|R R B|R B|",
+                 "+ + + + + +-+-+ |",
+                 "|Y G G G|Y G R|Y|",
+                 "+-+ + + +-+ +-+ +",
+                 "|R Y B R G Y|Y B|",
+                 "+-+-+ + +-+-+ +-+",
+                 "|B R G R|Y Y Y|B|",
+                 "+ +-+-+ +-+ +-+ +",
+                 "|R|R R G B G B Y|",
+                 "+ +-+-+ +-+-+ + +",
+                 "|R R|Y B G|Y B|R|",
+                 "+ + +-+-+-+ + +-+",
+                 "|Y|B|B B G B B Y|",
+                 "+ + + + +-+ +-+ +",
+                 "|R|R G G R G R|G|",
+                 "+-+-+-+-+-+-+-+-+"}
+        balls = {"+-+-+-+-+-+-+-+-+",
+                 "|. .|.|. . r|b r|",
+                 "+ + + + + +-+-+ |",
+                 "|y . . b|. g r|.|",
+                 "+-+ + + +-+ +-+ +",
+                 "|. . . r @ .|. r|",
+                 "+-+-+ + +-+-+ +-+",
+                 "|. y . .|y y .|.|",
+                 "+ +-+-+ +-+ +-+ +",
+                 "|.|. . g . . . .|",
+                 "+ +-+-+ +-+-+ + +",
+                 "|. .|. . .|r .|.|",
+                 "+ + +-+-+-+ + +-+",
+                 "|.|.|. b r . . y|",
+                 "+ + + + +-+ +-+ +",
+                 "|r|. . r . . .|.|",
+                 "+-+-+-+-+-+-+-+-+"} 
+        x = 10
+        y = 6
+        if balls[y][x] != '@' then ?9/0 end if
+        balls[y][x] = '.'
+    elsif level=6 then
+        -- from PicoLisp(Agent Logic):
+        -- (initial position not specified...) [probably better off generating...]
+        board = {"+-+-+-+-+-+-+-+-+",
+                 "|G G Y Y|Y Y G R|",
+                 "+ +-+-+ + +-+-+ +",
+                 "|Y|Y|B G B Y B|G|",
+                 "+-+ + +-+ + + + +",
+                 "|G|G G R B Y|B B|",
+                 "+ +-+ + +-+-+-+ +",
+                 "|R|B G|B|R|B R Y|",
+                 "+ +-+ + + + + + +",
+                 "|B B|G|Y B B|B R|",
+                 "+-+ + +-+ + + + +",
+                 "|G|Y G R|B B B B|",
+                 "+ + +-+-+-+ + +-+",
+                 "|G R B|G Y|B|B B|",
+                 "+-+ +-+ + + + + +",
+                 "|R R G|B|G G R|Y|",
+                 "+-+-+-+-+-+-+-+-+"}
+        balls = {"+-+-+-+-+-+-+-+-+",
+                 "|. . . r . b . .|",
+                 "+ +-+-+ + +-+-+ +",
+                 "|.|.|. y g . .|g|",
+                 "+-+ + +-+ + + + +",
+                 "|b|y . . . .|. g|",
+                 "+ +-+ + +-+-+-+ +",
+                 "|.|. .|.|.|. . g|",
+                 "+ +-+ + + + + + +",
+                 "|. .|.|. . g|g .|",
+                 "+-+ + +-+ + + + +",
+                 "|.|. r .|. . r .|",
+                 "+ + +-+-+-+ + +-+",
+                 "|. r .|y .|g|b .|",
+                 "+-+ +-+ + + + + +",
+                 "|. . b|g|. . .|g|",
+                 "+-+-+-+-+-+-+-+-+"} 
+        x = 2
+        y = 2
+--      balls[y][x] = '.'
+    elsif level=7 then
+        board = {"+-+-+-+-+-+-+-+-+-+-+-+",
+                 "|Y B B R G Y G R R Y B|",
+                 "+ +-+-+-+ +-+-+-+-+-+ +",
+                 "|G B R|B|Y|B G Y|G B R|",
+                 "+ +-+ + + + +-+ + +-+-+",
+                 "|Y R|Y|R Y|B|R G|R|G B|",
+                 "+-+-+ + +-+ + +-+ +-+ +",
+                 "|R Y G|G|G Y|Y|R|Y R G|",
+                 "+ +-+-+-+ +-+ + +-+-+ +",
+                 "|R|G G Y G|G|R|Y Y R|G|",
+                 "+ + +-+-+-+ +-+ +-+-+ +",
+                 "|Y|B|R B Y B|B Y|G Y|B|",
+                 "+ + + +-+ +-+ + + + + +",
+                 "|Y Y|B B|B R B|G|R|Y|R|",
+                 "+-+-+-+ +-+-+-+ + + + +",
+                 "|Y G B R G B B|G B|R B|",
+                 "+-+-+-+-+-+-+-+-+-+-+-+"}
+        balls = {".......................",
+                 ".g.y.g...b.y.b.b.r.b.r.",
+                 ".......................",
+                 ".g.y.r.g.y.b.r.b.y.b.b.",
+                 ".......................",
+                 "...g.r.y.r.y.y.b.b.g.g.",
+                 ".......................",
+                 ".y.b.y.r.r.r...y.y.r.r.",
+                 ".......................",
+                 ".g.r.g.b.r.r...y.y.g.g.",
+                 ".......................",
+                 ".b.g.b.r.y.r.y.y.g.g.g.",
+                 ".......................",
+                 ".g.g.r.r.b.g.b.g.r.b.r.",
+                 ".......................",
+                 ".y.b.b.g.y.b.y.y.y.b.r.",
+                 "......................."}
+        x = 14
+        y = 10
+--      balls[y][x] = '.'
+    elsif level=8 then
+        board = {"+-+-+-+-+-+",
+                 "|G|G G|Y B|",
+                 "+ + + +-+ +",
+                 "|Y|B|B|R G|",
+                 "+ +-+ + + +",
+                 "|Y R G B|G|",
+                 "+-+-+-+-+-+"}
+        balls = {"...........",
+                 ".g.r.g.r.b.",
+                 "...........",
+                 ".g...b.g.g.",
+                 "...........",
+                 ".y.y.b...b.",
+                 "..........."}
+        x = 4
+--      x = 2
+        y = 4
+    elsif level=9 then
+        w = rand(11)
+        h = rand(8)+(w==1)  -- (prohibit 1x1 formations, simply because
+                            --  the gameover check won't trigger right.)
+        x = rand(w)*2
+        y = rand(h)*2 
+        sequence wall = join(repeat("+",w+1),"-")&"\n",
+                 cell = join(repeat("|",w+1),"?")&"\n"
+        board = split(join(repeat(wall,h+1),cell),'\n')
+        balls = repeat(repeat('.',w*2+1),h*2+1)
+        amaze(x,y)
+    else
+        ?9/0
+    end if
+end procedure
+function gameover()
+    for y=2 to length(balls) by 2 do
+        for x=2 to length(balls[y]) by 2 do
+            integer byx = balls[y][x]
+            if byx!='.' then
+                if byx!=lower(board[y][x]) then return false end if
+            end if
+        end for
+    end for
+    return true
+end function
+string event_queue = "A" -- (the initial handshake) [this is a private field]
+procedure p_accept_command(integer command)
+    integer bxy = balls[y][x]
+--  integer bxy
+    switch command do
+        case '^':   -- forward
+                    integer {dx,dy} = dxy[d],
+                            {nx,ny} = {x+dx,y+dy}
+                    if board[ny][nx]!=' ' then
+                        event_queue &= '!'  -- bump
+                    else
+                        {x,y} = {nx+dx,ny+dy}
+                        event_queue &= board[y][x]  -- colour
+--                      integer bxy = balls[y][x]
+                        bxy = balls[y][x]
+                        if bxy!='.' then
+                            event_queue &= bxy  -- ball
+                        end if
+                    end if
+        case '<':   -- turn left    -- NESW(ie 1..4) ==> first four for '<', 
+        case '>':   -- turn right                         last four for '>':
+                    d = {4,1,2,3,4,1}[d+command-'<']
+        case '@':   -- get
+--                  integer bxy = balls[y][x]
+--                  bxy = balls[y][x]
+                    if bxy='.' then
+                        event_queue &= 's'  -- no ball
+                    elsif ball!='.' then
+                        event_queue &= 'A'  -- agent full
+                    else
+                        balls[y][x] = '.'
+                        ball = bxy
+                    end if
+        case '!':   -- drop
+--                  integer bxy = balls[y][x]
+--                  bxy = balls[y][x]
+                    if ball='.' then
+                        event_queue &= 'a'  -- no ball in agent
+                    elsif bxy!='.' then
+                        event_queue &= 'S'  -- sector full
+                    else
+                        balls[y][x] = ball
+                        ball = '.'
+                        if gameover() then
+                            event_queue &= '+'  -- game over
+                        end if
+                    end if
+        default:    crash("uh?") -- unknown command
+    end switch
+    event_queue &= '.'  -- stop
+end procedure
+function f_get_event()
+    if not length(event_queue) then ?9/0 end if
+--  {integer event, event_queue} = {event_queue[1],event_queue[2..$]}
+    integer event
+    {event, event_queue} = {event_queue[1],event_queue[2..$]}
+    return event
+end function
+function f_get_world()
+    -- (for display only)
+    return {{board,balls},{x,y,d,ball}}
+end function
+create_world()
+register_world(p_accept_command, f_get_event, f_get_world)

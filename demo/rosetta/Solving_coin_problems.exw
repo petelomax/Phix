@@ -9,6 +9,16 @@ It just adds unnecessary fiddling, along with the need to add custom assets and 
 Hence this covers 24/28 of the Perl examples (and 14/18 of Go). On the plus side, there is no hard limit on the number of unknowns,
 though all examples below are for 2 and 3 only. A couple (14 and 17) also sail perilously close to getting a divide by zero.
 --*/
+with javascript_semantics
+-- Aside: p2js needed just seven small mods: cleanup_lines() to make words local,
+--                                           two other deep_copy() invocations,
+--                                           rules[j] = 0 in solveN(),
+--                                           rename pad to padcode to avoid builtin clash
+--                                           rename short to shortlen ("", sort of)
+--                                           "{sequence s2," -> "sequence s2 {s2," in parse_sentence()
+-- It was reasonably clear where those were needed, from runtime errors on destop/Phix.
+-- Technically "short" would be ok, but not so for p2c, if that ever gets written, so
+-- even though not strictly needed, it makes no sense to remove it from p2js_keywords.
 
 constant source = """
 If a person has three times as many quarters as dimes and the total amount of money is $5.95, find the number of quarters and dimes.
@@ -130,46 +140,49 @@ vocab = {"times","asmany","quarters","as","dimes","and","total","money","many","
 integer count = 0
 sequence lines = split(substitute_all(source,texts,replacements),"\n"),
          expectations = {},
-         vused = repeat(false,length(vocab)),
-         words
-for i=1 to length(lines) by 2 do
-    string li = lower(lines[i])
-    if match("your uncle",li)=1 then
-        -- note: if you tweak texts/replacements then you may
-        --       need to tweak the uncle constant to match.
-        if match(uncle,li)!=1 then ?9/0 end if
-        li = li[length(uncle)+1..$]
-    end if
-    words = split(li)
-    for n=1 to length(noise) do
-        words = remove_all(noise[n],words)
-    end for
-    if words[$]="." and find(words[$-1],{"dimes","nickels"}) then
-        words[$] = "have?"
-    end if
-    if words[1]="," then words = words[2..$] end if
-    for w=length(words) to 2 by -1 do
-        -- re-join eg "$3" and ".99" (oops)
-        if length(words[w])>1 and words[w][1]='.' then
-            words[w-1..w] = {words[w-1]&words[w]}
+         vused = repeat(false,length(vocab))
+procedure cleanup_lines()
+    sequence words
+    for i=1 to length(lines) by 2 do
+        string li = lower(lines[i])
+        if match("your uncle",li)=1 then
+            -- note: if you tweak texts/replacements then you may
+            --       need to tweak the uncle constant to match.
+            if match(uncle,li)!=1 then ?9/0 end if
+            li = li[length(uncle)+1..$]
         end if
+        words = split(li)
+        for n=1 to length(noise) do
+            words = remove_all(noise[n],words)
+        end for
+        if words[$]="." and find(words[$-1],{"dimes","nickels"}) then
+            words[$] = "have?"
+        end if
+        if words[1]="," then words = words[2..$] end if
+        for w=length(words) to 2 by -1 do
+            -- re-join eg "$3" and ".99" (oops)
+            if length(words[w])>1 and words[w][1]='.' then
+                words[w-1..w] = {words[w-1]&words[w]}
+            end if
+        end for
+        words = match_replace({",","many"},words,{".","many"})
+        words = match_replace({","},words,{})
+        count += 1
+        lines[count] = words
+        li = lines[i+1]
+        if match("--==>expected:",li)!=1 then ?9/0 end if
+        li = li[15..$]
+        li = substitute(li," ,",",")
+        expectations = append(expectations,li)
     end for
-    words = match_replace({",","many"},words,{".","many"})
-    words = match_replace({","},words,{})
-    count += 1
-    lines[count] = words
-    li = lines[i+1]
-    if match("--==>expected:",li)!=1 then ?9/0 end if
-    li = li[15..$]
-    li = substitute(li," ,",",")
-    expectations = append(expectations,li)
-end for
-lines = lines[1..count]
-printf(1,"%d puzzles:\n",count)
-printf(1,"Step 1: remove noise and otherwise simplify (if nothing else, down to a %d-word vocab):\n\n",length(vocab))
-for i=1 to count do
-    printf(1,"%d: %s\n",{i,join(lines[i])})
-end for
+    lines = lines[1..count]
+    printf(1,"%d puzzles:\n",count)
+    printf(1,"Step 1: remove noise and otherwise simplify (if nothing else, down to a %d-word vocab):\n\n",length(vocab))
+    for i=1 to count do
+        printf(1,"%d: %s\n",{i,join(lines[i])})
+    end for
+end procedure 
+cleanup_lines()
 
 function add_unknowns(sequence unknowns, words)
     for i=1 to length(words) do
@@ -195,6 +208,7 @@ sequence sentences = {},
          isnumber = repeat(0,length(words))
 integer k
 bool set_asset_sum = false
+    unknowns = deep_copy(unknowns)
     for w=1 to length(words) do
         string ww = words[w]
         k = find(ww,vocab)
@@ -352,7 +366,9 @@ bool set_asset_sum = false
         sentences = append(sentences,sentence)
     end if
     if length(rest) then
-        {sequence s2,unknowns} = parse_sentence(rest,unknowns)
+--      {sequence s2,unknowns} = parse_sentence(rest,unknowns)
+        sequence s2
+        {s2,unknowns} = parse_sentence(rest,unknowns)
         sentences &= s2
     end if
     return {sentences,unknowns}
@@ -374,7 +390,8 @@ procedure solveN(integer n, sequence rules, unknowns, string expected)
 --
     string res
     sequence sentences = rules, ri, rj
-    integer l = length(rules), rii, rji, i, j
+    integer l = length(rules), rii, rji
+    rules = deep_copy(rules)
     for i=1 to l do
         -- successively eliminate (grow lower left triangle of 0s)
         ri = rules[i]
@@ -400,6 +417,7 @@ procedure solveN(integer n, sequence rules, unknowns, string expected)
             rj = rules[j]
             rji = rj[i+1]
             if rji!=0 then
+                rules[j] = 0
                 rj[1] -= rji*rii
                 rj[i+1] = 0
                 rules[j] = rj
@@ -414,7 +432,7 @@ end procedure
 
 printf(1,"\nStep 2: convert sentences into structures/equations, and solve them:\n")
 for i=1 to count do
-    words = split(lines[i],{"."})
+    sequence words = split(lines[i],{"."})
     sequence sentences = {},
              sentencii, -- (one ...but some still contain "and")
              unknowns = {}
@@ -435,15 +453,15 @@ for i=1 to count do
         -- pad any short equations, eg 3 more nickels than dimes
         -- needs a 0 for quarters, if were not mentioned before.
         sequence ss = sentences[s]
-        integer pad = ss[$]
+        integer padcode = ss[$]
         ss = ss[1..$-1]
-        integer short = length(sentences)+1-length(ss)
-        if short then
-            switch pad do
-                case 0: ss &= repeat(0,short)
-                case 1: ss &= repeat(1,short)
+        integer shortlen = length(sentences)+1-length(ss)
+        if shortlen then
+            switch padcode do
+                case 0: ss &= repeat(0,shortlen)
+                case 1: ss &= repeat(1,shortlen)
                 case 'a':
-                    for u=-short to -1 do
+                    for u=-shortlen to -1 do
                         string uu = unknowns[u]
                         integer k = find(uu,assets)
                         ss &= assetv[k]

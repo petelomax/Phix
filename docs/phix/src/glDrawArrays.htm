@@ -1,0 +1,143 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">glDrawArrays</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td>
+          <b>Definition:</b>
+         </td>
+         <td>
+          include pGUI.e
+          <br>
+          include opengl.e
+          <br>
+          <br>
+          glDrawArrays(<a href="integer.htm">integer</a> mode, first, count)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Description:</b>
+         </td>
+         <td>
+            render primitives from array data
+          <br>
+          <br>
+            mode: Specifies what kind of primitives to render, must be one of the values in the table below. <br>
+            first: Specifies the starting index in the enabled arrays.<br>
+            count: Specifies the number of indices to be rendered.
+          <br>
+          <br>
+            glDrawArrays specifies multiple geometric primitives with very few subroutine calls. <br>
+            Instead of calling a GL procedure to pass each individual vertex attribute, you can use glVertexAttribPointer 
+            to prespecify separate arrays of vertices, normals, and colors and use them to construct a sequence of 
+            primitives with a single call to glDrawArrays.
+            <br>
+            <br>
+            When glDrawArrays is called, it uses count sequential elements from each enabled array to construct a sequence of 
+            geometric primitives, beginning with element first. <br>
+            mode specifies what kind of primitives are constructed and how the array elements construct those primitives:
+            <br>
+            <br>
+            <table>
+            <tr><td>GL_POINTS</td>          <td>Renders one point at a time, eg [1,1, -1,1, 1,-1, -1,-1] renders 4 points.</td></tr>
+            <tr><td>GL_LINES</td>           <td>Each (non-overlapping) pair of elements defines a line, eg [-1,1, 1,1,  1,1, 1,0,  1,-1, -1,-1] for 3 lines.</td></tr>
+            <tr><td>GL_LINE_STRIP</td>      <td>Each overlapping pair of elements defines a line, in effect and even length aside the same as GL_LINES but joined-up.<br>
+                                                eg [-1,1, 1,1, 1,-1, -1,-1] will render 3 lines.</td></tr>
+            <tr><td>GL_LINE_LOOP</td>       <td>As per GL_LINE_STRIP except the first and last vertex are also connected.</td></tr>
+            <tr><td>GL_TRIANGLES</td>       <td>Each (non-overlapping) triplet of elements defines a triangle, eg [-1,1, 1,1, 0,0,   0,0, -1,-1, -1,0]; for 2 triangles.</td></tr>
+            <tr><td>GL_TRIANGLE_STRIP</td>  <td>Each overlapping triplet of elements defines a triangle, with each sharing two points from the previous and next triangle.<br>
+                                                eg [1,1, 0,1, 1,0, 0,0, 1,-1, 0,-1] for 4 triangles, notionally abc, bcd, cde, and def.</td></tr>
+            <tr><td>GL_TRIANGLE_FAN</td>    <td>The first point(/index) is shared by all triangles, eg Each overlapping triplet of elements defines a triangle, with each 
+                                                sharing two points from the previous and next triangle, eg [0.0,0.0, 1.0,0.8, -0.5,1.0, -0.8,0.2, -1.0,-1.0, 1.0,-1.0] 
+                                                draws 4 triangles, notionally abc, acd, ade, and aef.</td></tr>
+            </table>
+            <br>
+            <br>
+            To enable and disable a generic vertex attribute array, call glEnableVertexAttribArray and glDisableVertexAttribArray.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Notes:</b>
+         </td>
+         <td>
+            If the current program object, as set by glUseProgram, is invalid, rendering results are undefined. <br>
+            However, no error is generated for this case.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Errors:</b>
+         </td>
+         <td>
+            GL_INVALID_ENUM is generated if mode is not an accepted value.<br>
+            GL_INVALID_VALUE is generated if count is negative.<br>
+            GL_INVALID_FRAMEBUFFER_OPERATION is generated if the currently bound framebuffer is not framebuffer complete (i.e. the return 
+            value from glCheckFramebufferStatus is not GL_FRAMEBUFFER_COMPLETE).
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Associated Gets:</b>
+         </td>
+         <td>
+            glGet with argument GL_SHADER_COMPILER<br>
+            <a href="glGetShaderInfoLog.htm">glGetShaderInfoLog</a> with argument shader<br>
+            glGetShaderSource with argument shader<br>
+            glIsShader
+         </td>
+        </tr>
+<!--
+Examples
+Render a vertex array (not loaded into OpenGL) using texture UV, color, and normal vertex attributes.
+glEnableVertexAttribArray(texcoord_attrib_index); // Attribute indexes were received from calls to glGetAttribLocation, or passed into glBindAttribLocation.
+glEnableVertexAttribArray(normal_attrib_index);
+glEnableVertexAttribArray(color_attrib_index);
+glEnableVertexAttribArray(position_attrib_index);
+
+glVertexAttribPointer(texcoord_attrib_index, 2, GL_FLOAT, false, 0, texcoords_data); // texcoords_data is a float*, 2 per vertex, representing UV coordinates.
+glVertexAttribPointer(normal_attrib_index, 3, GL_FLOAT, false, 0, normals_data); // normals_data is a float*, 3 per vertex, representing normal vectors.
+glVertexAttribPointer(color_attrib_index, 3, GL_UNSIGNED_BYTE, true, sizeof(unsigned char)*3, colors_data); // colors_data is a unsigned char*, 3 per vertex, representing the color of each vertex.
+glVertexAttribPointer(position_attrib_index, 3, GL_FLOAT, false, 0, vertex_data); // vertex_data is a float*, 3 per vertex, representing the position of each vertex
+
+glDrawArrays(GL_TRIANGLES, 0, vertex_count); // vertex_count is an integer containing the number of indices to be rendered
+
+glDisableVertexAttribArray(position_attrib_index);
+glDisableVertexAttribArray(texcoord_attrib_index);
+glDisableVertexAttribArray(normal_attrib_index);
+glDisableVertexAttribArray(color_attrib_index);
+-->
+        <tr>
+         <td>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="glCompileShader.htm">?</a>,
+          <a href="glEnableVertexAttribArray.htm">glDisableVertexAttribArray</a>,
+          <a href="glCreateShader.htm">W</a>,
+          <a href="glEnableVertexAttribArray.htm">glEnableVertexAttribArray</a>,
+          <a href="glUseProgram.htm">glUseProgram</a>,
+          <a href="glVertexAttribPointer.htm">glVertexAttribPointer</a>
+<br>
+DEV 
+See Also
+glCheckFramebufferStatus, //glDisableVertexAttribArray, glDrawElements, //glEnableVertexAttribArray, //glUseProgram, //glVertexAttribPointer
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

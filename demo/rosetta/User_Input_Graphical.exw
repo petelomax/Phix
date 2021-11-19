@@ -1,12 +1,16 @@
 --
--- demo/rosetta/User_Input_Graphical.exw
+-- demo\rosetta\User_Input_Graphical.exw
 --
+with javascript_semantics -- (some minor spacing issues)
+                            -- PADDING on hbox should apply to children, not itself
+                            -- (maybe we need an all new & unified layout model...)
+                            -- the rhs of input1/2 obliterates the hbox padding too
 include pGUI.e
 
-Ihandle dlg, label1, input1, label2, input2, OK, Cancel
+Ihandle dlg, label1, input1, label2, input2, OK_btn, Cancel
 
 function ok_cb(Ihandle self)
-    if self=OK then
+    if self=OK_btn then
         string in1 = IupGetAttribute(input1,"VALUE")
         integer in2 = IupGetInt(input2,"VALUE")
         string msg = sprintf(`"%s" and %d`,{in1,in2})
@@ -21,15 +25,16 @@ label1 = IupLabel("Please enter a string")
 input1 = IupText(`VALUE="a string", EXPAND=HORIZONTAL`)
 label2 = IupLabel("and the number 75000")
 input2 = IupText("VALUE=75000, EXPAND=HORIZONTAL, MASK="&IUP_MASK_INT)
-OK     = IupButton("OK", "ACTION", Icallback("ok_cb"))
+OK_btn = IupButton("OK", "ACTION", Icallback("ok_cb"))
 Cancel = IupButton("Cancel", "ACTION", Icallback("ok_cb"))
-sequence buttons = {IupFill(),OK,Cancel,IupFill()}
+sequence buttons = {IupFill(),OK_btn,Cancel,IupFill()}
 Ihandle strbox = IupHbox({label1,input1},"ALIGNMENT=ACENTER, PADDING=5"),
         numbox = IupHbox({label2,input2},"ALIGNMENT=ACENTER, PADDING=5"),
         btnbox = IupHbox(buttons,"PADDING=40, NORMALIZESIZE=BOTH"),
         vbox = IupVbox({strbox, numbox, btnbox}, "GAP=5,MARGIN=5x5")
 dlg = IupDialog(vbox, `TITLE="User Input/Graphical"`)
 IupShow(dlg)
-IupMainLoop()
-IupClose()
-
+if platform()!=JS then
+    IupMainLoop()
+    IupClose()
+end if

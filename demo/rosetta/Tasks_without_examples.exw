@@ -12,8 +12,12 @@ constant output_html = false,
          include_drafts = true,
 --       summary = false,
          summary = true,
-         notlang = "Phix" -- or "" (ie a zero length string) for all
---       notlang = ""
+--       notlang = "Phix" -- or "" (ie a zero length string) for all
+--       notlang = "Go"
+--       notlang = "Julia"
+--       notlang = "Python"
+--       notlang = "Wren"
+         notlang = ""
 
 include builtins\timedate.e
 integer refresh_cache = timedelta(days:=30) -- 0 for always
@@ -33,11 +37,6 @@ constant write_cb = call_back({'+', routine_id("write_callback")})
 function open_download(string filename, url)
     bool refetch = true
     string why = ""
-    if get_file_type("rc_cache")!=FILETYPE_DIRECTORY then
-        if not create_directory("rc_cache") then
-            crash("cannot create rc_cache directory")
-        end if
-    end if
     filename = join_path({"rc_cache",filename})
     if file_exists(filename) then
         -- use existing file if <= refresh_cache (30+ days) old
@@ -112,6 +111,11 @@ function dewiki(string s)
 end function
 
 function extract_tasks()
+    if get_file_type("rc_cache")!=FILETYPE_DIRECTORY then
+        if not create_directory("rc_cache") then
+            crash("cannot create rc_cache directory")
+        end if
+    end if
     -- extract tasks from eg `<li><a href="/wiki/100_doors"`
     sequence tasks = dewiki(open_category("Programming_Tasks"))
     if include_drafts then
@@ -164,6 +168,10 @@ function extract_tasks()
 end function
 
 function html_clean(string ri)
+    ri = substitute(ri,`&quot;`,`"`)
+    ri = substitute(ri,`&#039;`,`'`)
+    ri = substitute(ri,"\xE2\x80\x99","'")
+    ri = substitute(ri,"\xC3\xB6","o")
     ri = substitute(ri,"%3A",":")
     ri = substitute(ri,"%E2%80%93","-")
     ri = substitute(ri,"%E2%80%99","'")
@@ -171,6 +179,8 @@ function html_clean(string ri)
     ri = substitute(ri,"%2B","+")
     ri = substitute(ri,"%C3%A8","e")
     ri = substitute(ri,"%C3%A9","e")
+    ri = substitute(ri,"%C3%B6","o")
+    ri = substitute(ri,"%C5%91","o")
     ri = substitute(ri,"%22",`"`)
     ri = substitute(ri,"%2A","*")
     return ri

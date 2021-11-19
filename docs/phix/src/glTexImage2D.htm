@@ -18,8 +18,13 @@
           include opengl.e
           <br>
           <br>
-          glTexImage2D(<a href="integer.htm">integer</a> target, level, components, width, height, border, fmt, typ, 
-                       <a href="atom.htm">atom</a>  pixels)
+          <span class="illegal">glTexImage2D</span>(<a href="integer.htm">integer</a> target, level, internalformat, width, height, border, fmt, datatype, 
+                       <a href="atom.htm">atom</a> pixels)
+          <br>
+          <i>-- or --</i>
+          <br>
+          glTexImage2Dc(<a href="integer.htm">integer</a> target, level, internalformat, width, height, border, fmt, datatype, 
+                       <a href="cdCanvas.htm">cdCanvas</a> canvas)
          </td>
         </tr>
         <tr>
@@ -27,11 +32,21 @@
           <b>Description:</b>
          </td>
          <td>
-            The glTexImage2D function specifies a two-dimensional texture image.
+            specify a two-dimensional texture image
             <br>
             <br>
-            target: The target texture. Must be GL_TEXTURE_2D.<br>
+            target: Specifies the target texture of the active texture unit. Must be GL_TEXTURE_2D.<br>
+<!--
+            , GL_TEXTURE_CUBE_MAP_POSITIVE_X, GL_TEXTURE_CUBE_MAP_NEGATIVE_X, GL_TEXTURE_CUBE_MAP_POSITIVE_Y, 
+            GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, GL_TEXTURE_CUBE_MAP_POSITIVE_Z, or GL_TEXTURE_CUBE_MAP_NEGATIVE_Z.<br>
+-->
+
             level: The level-of-detail number. Level 0 is the base image level. Level n is the n<sup><small>th</small></sup> mipmap reduction image.<br>
+            internalformat: Specifies the internal format of the texture. Must match format, see below.<br>
+<!-- (old)
+            /be one of the following symbolic constants: GL_ALPHA, 
+            GL_LUMINANCE, GL_LUMINANCE_ALPHA, GL_RGB, GL_RGBA.<br>
+
             internalformat: The number of color components in the texture. Must be 1, 2, 3, or 4, or one of the following symbolic constants: <br>
             &nbsp;&nbsp;GL_ALPHA, GL_ALPHA4, GL_ALPHA8, GL_ALPHA12, GL_ALPHA16, <br>
             &nbsp;&nbsp;GL_LUMINANCE, GL_LUMINANCE4, GL_LUMINANCE8, GL_LUMINANCE12, GL_LUMINANCE16, GL_LUMINANCE_ALPHA, <br>
@@ -40,11 +55,30 @@
             &nbsp;&nbsp;GL_INTENSITY, GL_INTENSITY4, GL_INTENSITY8, GL_INTENSITY12, GL_INTENSITY16, <br>
             &nbsp;&nbsp;GL_R3_G3_B2, GL_RGB, GL_RGB4, GL_RGB5, GL_RGB8, GL_RGB10, GL_RGB12, GL_RGB16, <br>
             &nbsp;&nbsp;GL_RGBA, GL_RGBA2, GL_RGBA4, GL_RGB5_A1, GL_RGBA8, GL_RGB10_A2, GL_RGBA12, or GL_RGBA16.<br>
+-->
             width: The width of the texture image. Must be 2n + 2(border) for some integer n.<br>
+<!--
+            width: Specifies the width of the texture image. All implementations support 2D texture images that are at least 64 texels 
+            wide and cube-mapped texture images that are at least 16 texels wide.<br>
+-->
             height: The height of the texture image. Must be 2<sup><small>*m*</small></sup> + 2(border) for some integer m.<br>
+<!--
+            height: Specifies the height of the texture image All implementations support 2D texture images that are at least 64 texels 
+            high and cube-mapped texture images that are at least 16 texels high.<br>
+-->
+            border: Specifies the width of the border. Must be 0.<br>
+<!--
             border: The width of the border. Must be either 0 or 1.<br>
+-->
+<!--
             format: The format of the pixel data. It can assume one of nine symbolic values.<br>
+-->
+            format: Specifies the format of the texel data. Must match internalformat. The following symbolic values are accepted: <br><br>
+<!--
+            GL_ALPHA, GL_RGB, GL_RGBA, GL_LUMINANCE, and GL_LUMINANCE_ALPHA.<br>
+-->
             <table>
+<!--
             <tr><td>GL_COLOR_INDEX</td>     <td>Each element is a single value, a color index. <br>
                                                 It is converted to fixed point (with an unspecified number of 0 bits to the right of the binary point), 
                                                 shifted left or right depending on the value and sign of GL_INDEX_SHIFT, and added to GL_INDEX_OFFSET (see glPixelTransfer). <br>
@@ -62,6 +96,7 @@
                                                 It is converted to floating point and assembled into an RGBA element by attaching 0.0 for red and green, and 1.0 for alpha. <br>
                                                 Each component is then multiplied by the signed scale factor GL_c_SCALE, added to the signed bias GL_c_BIAS, and clamped to the 
                                                 range [0,1] (see glPixelTransfer).</td></tr>
+-->
             <tr><td>GL_ALPHA</td>           <td>Each element is a single red component. <br>
                                                 It is converted to floating point and assembled into an RGBA element by attaching 0.0 for red, green, and blue. <br>
                                                 Each component is then multiplied by the signed scale factor GL_c_SCALE, added to the signed bias GL_c_BIAS, and clamped to the 
@@ -74,12 +109,14 @@
                                                 It is converted to floating point. <br>
                                                 Each component is then multiplied by the signed scale factor GL_c_SCALE, added to the signed bias GL_c_BIAS, and clamped to the 
                                                 range [0,1] (see glPixelTransfer).</td></tr>
+<!--
             <tr><td>GL_BGR_EXT</td>         <td>Each pixel is a group of three components in this order: blue, green, red.<br>
                                                 GL_BGR_EXT provides a format that matches the memory layout of Windows device-independent bitmaps (DIBs). <br>
                                                 Thus your applications can use the same data with Windows function calls and OpenGL pixel function calls.</td></tr>
             <tr><td>GL_BGRA_EXT</td>        <td>Each pixel is a group of four components in this order: blue, green, red, alpha. <br>
                                                 GL_BGRA_EXT provides a format that matches the memory layout of Windows device-independent bitmaps (DIBs). <br>
                                                 Thus your applications can use the same data with Windows function calls and OpenGL pixel function calls.</td></tr>
+-->
             <tr><td>GL_LUMINANCE</td>       <td>Each element is a single luminance value. <br>
                                                 It is converted to floating point, and then assembled into an RGBA element by replicating the luminance value three times for 
                                                 red, green, and blue, and attaching 1.0 for alpha. <br>
@@ -91,29 +128,128 @@
                                                 Each component is then multiplied by the signed scale factor GL_c_SCALE, added to the signed bias GL_c_BIAS, and clamped to the 
                                                 range [0,1] (see glPixelTransfer).</td></tr>
             </table>
+            <br>
+<!--
             type: The data type of the pixel data. The following symbolic values are accepted: <br>
             GL_UNSIGNED_BYTE, GL_BYTE, GL_BITMAP, GL_UNSIGNED_SHORT, GL_SHORT, GL_UNSIGNED_INT, GL_INT, and GL_FLOAT.
             pixels: A pointer to the image data in memory.
-          <br>
-          <br>
-          No error is returned, but on failure the following error codes can be retrieved by <a href="glGetError.htm">glGetError</a>():<br>
-          <a href="glGetError.htm">GL_INVALID_ENUM</a> - target not GL_TEXTURE_2D, or format/type unacceptable.<br>
-          <a href="glGetError.htm">GL_INVALID_VALUE</a> - level/internalformat/width/height/border unacceptable.<br>
-          <a href="glGetError.htm">GL_INVALID_OPERATION</a> - glBegin/glEnd in progress.
+-->
+            datatype: Specifies the data type of the texel data. The following symbolic values are accepted: GL_UNSIGNED_BYTE, 
+            GL_UNSIGNED_SHORT_5_6_5, GL_UNSIGNED_SHORT_4_4_4_4, and GL_UNSIGNED_SHORT_5_5_5_1.<br>
+            pixels: Specifies a pointer to the image data in memory. Not supported under pwa/p2js.<br>
+            canvas: For pwa/p2js a canvas must be specified, and the width, height, and border parameters are ignored, 
+            see glCanvasSpecialText() below. On desktop/Phix (see the implementation in opengl.e) it laboriously extracts the pixels.
+            <br>
+            <br>
+<!--
+
+            Texturing maps a portion of a specified texture image onto each graphical primitive for which texturing is active. <br>
+            Texturing is active when the current fragment shader or vertex shader makes use of built-in texture lookup functions.
+            <br>
+            <br>
+            To define texture images, call glTexImage2D. The arguments describe the parameters of the texture image, such as height, 
+            width, level-of-detail number (see <a href="glTexParameteri.htm">glTexParameteri</a>), and format. <br>
+            The last three arguments describe how the image is represented in memory.
+            <br>
+            <br>
+            Data is read from data as a sequence of unsigned bytes or shorts, depending on type. <br>
+            When type is GL_UNSIGNED_BYTE, each of the bytes is interpreted as one color component. <br>
+            When type is one of GL_UNSIGNED_SHORT_5_6_5, GL_UNSIGNED_SHORT_4_4_4_4, or GL_UNSIGNED_SHORT_5_5_5_1, each unsigned short 
+            value is interpreted as containing all the components for a single texel, with the color components arranged according to format. <br>
+            Color components are treated as groups of one, two, three, or four values, again based on format. Groups of components are referred to as texels.
+            <br>
+            <br>
+            width * height texels are read from memory, starting at location data. <br>
+            By default, these texels are taken from adjacent memory locations, except that after all width texels are read, the 
+            read pointer is advanced to the next four-byte boundary. <br>
+            The four-byte row alignment is specified by glPixelStorei with argument GL_UNPACK_ALIGNMENT, and it can be set to one, 
+            two, four, or eight bytes.
+            <br>
+            <br>
+            The first element corresponds to the lower left corner of the texture image. <br>
+            Subsequent elements progress left-to-right through the remaining texels in the lowest row of the texture image, and then 
+            in successively higher rows of the texture image. <br>
+            The final element corresponds to the upper right corner of the texture image.
+            <br>
+            <br>
+            format determines the composition of each element in data. It can assume one of these symbolic values:
+            <br>
+            <br>
+            GL_ALPHA Each element is a single alpha component. <br>
+            The GL converts it to floating point and assembles it into an RGBA element by attaching 0 for red, green, and blue. <br>
+            Each component is then clamped to the range [0,1].
+            <br>
+            <br>
+            GL_RGB Each element is an RGB triple. <br>
+            The GL converts it to floating point and assembles it into an RGBA element by attaching 1 for alpha. <br>
+            Each component is then clamped to the range [0,1].
+            <br>
+            <br>
+            GL_RGBA Each element contains all four components. <br>
+            The GL converts it to floating point, then each component is clamped to the range [0,1].
+            <br>
+            <br>
+            GL_LUMINANCE Each element is a single luminance value. <br>
+            The GL converts it to floating point, then assembles it into an RGBA element by replicating the luminance value three 
+            times for red, green, and blue and attaching 1 for alpha. <br>
+            Each component is then clamped to the range [0,1].
+            <br>
+            <br>
+            GL_LUMINANCE_ALPHA Each element is a luminance/alpha pair. <br>
+            The GL converts it to floating point, then assembles it into an RGBA element by replicating the luminance value three 
+            times for red, green, and blue. <br>
+            Each component is then clamped to the range [0,1].
+            <br>
+            <br>
+-->
+            Color components are converted to floating point based on the datatype. <br>
+            When datatype is GL_UNSIGNED_BYTE, each component is divided by 2<sup><small>8</small></sup>-1.<br>
+            When type is GL_UNSIGNED_SHORT_5_6_5, GL_UNSIGNED_SHORT_4_4_4_4, or GL_UNSIGNED_SHORT_5_5_5_1, each component is divided 
+            by 2<sup><small>N</small></sup>-1, where N is the number of bits in the bitfield.
+            <br>
+            <br>
+            Note the WebGL version is heavily overloaded, but for desktop compatibility we only support the 9-parameter variant.
          </td>
         </tr>
         <tr>
          <td>
-          <b>Remarks</b>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
          </td>
          <td>
+          The original <span class="illegal">glTexImage2D</span>() requires <a href="allocate.htm">allocate</a>() and
+          some form of <a href="poke.htm">poke</a>(), neither of which are possible in JavaScript (I suppose you could 
+          perhaps create a JavaScript Array, but then it would not be an <a href="atom.htm">atom</a>), and besides
+          JavaScript is much happier using a canvas/image. Hence glTexImage2Dc() has been written for compatibility
+          between desktop/Phix and pwa/p2js, see glCanvasSpecialText() below.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Notes:</b>
+         </td>
+         <td>
+            internalformat must match format. <br>
+            No conversion between formats is supported during texture image processing. <br>
+            datatype may be used as a hint to specify how much precision is desired, but a GL implementation may choose to store 
+            the texture array at any internal resolution it chooses.
+            <br>
+            <br>
+            data may be a null pointer. In this case, texture memory is allocated to accommodate a texture of width width and height height. <br>
+            You can then download subtextures to initialize this texture memory. <br>
+            The image is undefined if the user tries to apply an uninitialized portion of the texture image to a primitive.
+            <br>
+            <br>
+            glTexImage2D specifies a two-dimensional or cube-map texture for the current texture unit, specified with glActiveTexture.<br>
+            glTexImage2Dc specifies a canvas to the same effect.
+<!--
             The glTexImage2D function specifies a two-dimensional texture image. <br>
             Texturing maps a portion of a specified texture image onto each graphical primitive for which texturing is enabled. <br>
             Two-dimensional texturing is enabled and disabled using glEnable and glDisable with argument GL_TEXTURE_2D.
             <br>
             <br>
             Texture images are defined with glTexImage2D. <br>
-            The arguments describe the parameters of the texture image, such as height, width, width of the border, level-of-detail number (see glTexParameter), 
+            The arguments describe the parameters of the texture image, such as height, width, width of the border, level-of-detail number 
+            (see <a href="glTexParameteri.htm">glTexParameteri</a>), 
             and number of color components provided. <br>
             The last three arguments describe the way the image is represented in memory. <br>
             These arguments are identical to the pixel formats used for glDrawPixels.
@@ -143,34 +279,147 @@
             <br>
             A texture image with zero height or width indicates the null texture. <br>
             If the null texture is specified for level-of-detail 0, it is as if texturing were disabled.
+-->
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Utilities:</b>
+         </td>
+         <td>
+            <a href="atom.htm">atom</a> res = <b>glCanvasSpecialText</b>(<a href="Ihandle.htm">Ihandle</a> cd_canvas, 
+                                                                         <a href="atom.htm">atom</a> w, h, fontsize, 
+                                                                         <a href="string.htm">string</a> text) data)<br>
+            This Phix-specific routine was originally written for demo\pGUI\HelloF.exw and if you have not read the detailed notes in that 
+            source I recommend you do so now. On desktop/Phix it uses <a href="cdCanvasText.htm">cdCanvasText</a>() but then has [via
+            glTexImage2Dc] to manually extract all the individual pixels out into a memory array suitable for glTexImage2D() [as in the 
+            original low-level internal routine], whereas under pwa/p2js that is simply not possible (since WebGL does not allow 2d and 
+            webgl contexts on the same canvas) so instead it creates a new temporary canvas (something desktop/Phix refuses to draw on) 
+            and passes that directly to glTexImage2Dc(). All quite messy but at least it works.
             <br>
             <br>
+            Loading images and the like has all been left for another day...
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Errors:</b>
+         </td>
+         <td>
+            No error is returned, but on failure the following error codes can be retrieved by <a href="glGetError.htm">glGetError</a>():<br>
+            GL_INVALID_ENUM is generated if target is not GL_TEXTURE_2D, GL_TEXTURE_CUBE_MAP_POSITIVE_X, GL_TEXTURE_CUBE_MAP_NEGATIVE_X, 
+            GL_TEXTURE_CUBE_MAP_POSITIVE_Y, GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, GL_TEXTURE_CUBE_MAP_POSITIVE_Z, or GL_TEXTURE_CUBE_MAP_NEGATIVE_Z.<br>
+            GL_INVALID_ENUM is generated if format or type is not an accepted value.<br>
+            GL_INVALID_VALUE is generated if target is one of the six cube map 2D image targets and the width and height parameters are not equal.<br>
+            GL_INVALID_VALUE is generated if level is less than 0.<br>
+            GL_INVALID_VALUE may be generated if level is greater than log2(max), where max is the returned value of GL_MAX_TEXTURE_SIZE when 
+            target is GL_TEXTURE_2D or GL_MAX_CUBE_MAP_TEXTURE_SIZE when target is not GL_TEXTURE_2D.<br>
+            GL_INVALID_VALUE is generated if internalformat is not an accepted format.<br>
+            GL_INVALID_VALUE is generated if width or height is less than 0 or greater than GL_MAX_TEXTURE_SIZE when target is GL_TEXTURE_2D or 
+            GL_MAX_CUBE_MAP_TEXTURE_SIZE when target is not GL_TEXTURE_2D.<br>
+            GL_INVALID_VALUE is generated if border is not 0.<br>
+            GL_INVALID_OPERATION is generated if format does not match internalformat.<br>
+            GL_INVALID_OPERATION is generated if type is GL_UNSIGNED_SHORT_5_6_5 and format is not GL_RGB.<br>
+            GL_INVALID_OPERATION is generated if type is GL_UNSIGNED_SHORT_4_4_4_4 or GL_UNSIGNED_SHORT_5_5_5_1 and format is not GL_RGBA.
+<!--
+          No error is returned, but on failure the following error codes can be retrieved by <a href="glGetError.htm">glGetError</a>():<br>
+          <a href="glGetError.htm">GL_INVALID_ENUM</a> - target not GL_TEXTURE_2D, or format/type unacceptable.<br>
+          <a href="glGetError.htm">GL_INVALID_VALUE</a> - level/internalformat/width/height/border unacceptable.<br>
+          <a href="glGetError.htm">GL_INVALID_OPERATION</a> - 
+          <a href="glBegin.htm"><span class="illegal">glBegin</span></a>/<a href="glBegin.htm"><span class="illegal">glEnd</span></a> in progress.
+-->
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Associated Gets:</b>
+         </td>
+         <td>
+            glGet with argument GL_MAX_TEXTURE_SIZE or GL_MAX_CUBE_MAP_TEXTURE_SIZE
+<!--
             The following functions retrieve information related to glTexImage2D:<br>
             glGetTexImage<br>
             glIsEnabled with argument GL_TEXTURE_2D
+-->
          </td>
         </tr>
+<!--
+examples
+Create a framebuffer object with a texture-based color attachment and a texture-based depth attachment. Using texture-based attachments allows sampling of those textures in shaders.
+// fbo_width and fbo_height are the desired width and height of the FBO.
+// For Opengl <= 4.4 or if the GL_ARB_texture_non_power_of_two extension
+// is present, fbo_width and fbo_height can be values other than 2^n for
+// some integer n.
+
+// Build the texture that will serve as the color attachment for the framebuffer.
+GLuint texture_map = glCreateTexture();
+glBindTexture(GL_TEXTURE_2D, texture_map);
+
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+
+glTexImage2Dc(GL_TEXTURE_2D, 0, GL_RGBA, fbo_width, fbo_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+
+glBindTexture(GL_TEXTURE_2D, 0);
+
+// Build the texture that will serve as the depth attachment for the framebuffer.
+GLuint depth_texture = glCreateTexture();
+glBindTexture(GL_TEXTURE_2D, depth_texture);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+glTexImage2Dc(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, fbo_width, fbo_height, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
+glBindTexture(GL_TEXTURE_2D, 0);
+
+// Build the framebuffer.
+GLuint framebuffer;
+glGenFramebuffers(1, &framebuffer);
+glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)framebuffer);
+glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture_map, 0);
+glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depth_texture, 0);
+
+GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+if (status != GL_FRAMEBUFFER_COMPLETE)
+    // Error
+
+glBindFramebuffer(GL_FRAMEBUFFER, 0);
+Create a texture object with linear mipmaps and edge clamping.
+GLuint texture_id = glCreateTexture();
+glBindTexture(GL_TEXTURE_2D, texture_id);
+
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+// texture_data is the source data of your texture, in this case
+// its size is sizeof(unsigned char) * texture_width * texture_height * 4
+glTexImage2Dc(GL_TEXTURE_2D, 0, GL_RGBA, texture_width, texture_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, texture_data);
+glGenerateMipmap(GL_TEXTURE_2D); // Unavailable in OpenGL 2.1, use gluBuild2DMipmaps() insteads.
+
+glBindTexture(GL_TEXTURE_2D, 0);
+-->
         <tr>
          <td>
           <b>See Also:</b>
          </td>
          <td>
-          <a href="glBegin.htm">glBegin</a>,
-          <a href="glEnd.htm">glEnd</a>
-<br>
-[DEV]See also
-//glBegin
-glDrawPixels
-//glEnd
-glFog
-glIsEnabled
-glPixelStore
-glPixelTransfer
-glTexEnv
-glTexGen
-glTexImage1D
-glTexParameter
-
+          <a href="glBindTexture.htm">-</a>,
+          <a href="xor_bits.htm">xor_bits</a>,
+          <a href="glGet.htm">?</a>,
+          <a href="xor_bits.htm">xor_bits</a>,
+          <a href="xor_bits.htm">xor_bits</a>,
+          <a href="xor_bits.htm">xor_bits</a>,
+          <a href="xor_bits.htm">xor_bits</a>,
+          <a href="glTexParameteri.htm">glTexParameteri</a>
+          <br>
+DEV
+See Also
+glActiveTexture, glCompressedTexImage2D, glCompressedTexSubImage2D, glCopyTexImage2D, glCopyTexSubImage2D, glPixelStorei, glTexSubImage2D, //glTexParameter
          </td>
         </tr>
        </table>

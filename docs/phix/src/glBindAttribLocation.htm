@@ -1,0 +1,207 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">glBindAttribLocation</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td>
+          <b>Definition:</b>
+         </td>
+         <td>
+          include pGUI.e
+          <br>
+          include opengl.e
+          <br>
+          <br>
+          glBindAttribLocation(<a href="integer.htm">integer</a> shader, pname, <a href="string.htm">string</a> name)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Description:</b>
+         </td>
+         <td>
+            associate a generic vertex attribute index with a named attribute variable
+          <br>
+          <br>
+            program: Specifies the handle of the program object in which the association is to be made.<br>
+            index: Specifies the index of the generic vertex attribute to be bound.<br>
+            name: Specifies a null terminated string containing the name of the vertex shader attribute variable to which index is to be bound.
+          <br>
+          <br>
+            glBindAttribLocation is used to associate a user-defined attribute variable in the program object specified by 
+            program with a generic vertex attribute index. <br>
+            The name of the user-defined attribute variable is passed as a null terminated string in name. <br>
+            The generic vertex attribute index to be bound to this variable is specified by index. <br>
+            When program is made part of current state, values provided via the generic vertex attribute index will modify 
+            the value of the user-defined attribute variable specified by name.
+            <br>
+            <br>
+            If name refers to a matrix attribute variable, index refers to the first column of the matrix. <br>
+            Other matrix columns are then automatically bound to locations index+1 for a matrix of type mat2; index+1 and 
+            index+2 for a matrix of type mat3; and index+1, index+2, and index+3 for a matrix of type mat4.
+            <br>
+            <br>
+            This command makes it possible for vertex shaders to use descriptive names for attribute variables rather than 
+            generic variables that are numbered from 0 to GL_MAX_VERTEX_ATTRIBS -1. <br>
+            The values sent to each generic attribute index are part of current state, just like standard vertex attributes 
+            such as color, normal, and vertex position. <br>
+            If a different program object is made current by calling glUseProgram, the generic vertex attributes are tracked 
+            in such a way that the same values will be observed by attributes in the new program object that are also bound 
+            to index.
+            <br>
+            <br>
+            Attribute variable name-to-generic attribute index bindings for a program object can be explicitly assigned at 
+            any time by calling glBindAttribLocation. <br>
+            Attribute bindings do not go into effect until glLinkProgram is called. <br>
+            After a program object has been linked successfully, the index values for generic attributes remain fixed (and 
+            their values can be queried) until the next link command occurs.
+            <br>
+            <br>
+            Applications are not allowed to bind any of the standard OpenGL vertex attributes using this command, as they 
+            are bound automatically when needed. <br>
+            Any attribute binding that occurs after the program object has been linked will not take effect until the next 
+            time the program object is linked.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Notes:</b>
+         </td>
+         <td>
+            glBindAttribLocation can be called before any vertex shader objects are bound to the specified program object. <br>
+            It is also permissible to bind a generic attribute index to an attribute variable name that is never used in a vertex shader.
+            <br>
+            <br>
+            If name was bound previously, that information is lost. <br>
+            Thus you cannot bind one user-defined attribute variable to multiple indices, but you can bind multiple user-defined 
+            attribute variables to the same index.
+            <br>
+            <br>
+            Applications are allowed to bind more than one user-defined attribute variable to the same generic vertex attribute index. <br>
+            This is called aliasing, and it is allowed only if just one of the aliased attributes is active in the executable program, or 
+            if no path through the shader consumes more than one attribute of a set of attributes aliased to the same location. <br>
+            The compiler and linker are allowed to assume that no aliasing is done and are free to employ optimizations that work only 
+            in the absence of aliasing. OpenGL implementations are not required to do error checking to detect aliasing. <br>
+            Because there is no way to bind standard attributes, it is not possible to alias generic attributes with conventional ones 
+            (except for generic attribute 0).
+            <br>
+            <br>
+            Active attributes that are not explicitly bound will be bound by the linker when glLinkProgram is called. <br>
+            The locations assigned can be queried by calling glGetAttribLocation.
+            <br>
+            <br>
+            OpenGL copies the name string when glBindAttribLocation is called, so an application may free its copy of the name string 
+            immediately after the function returns.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Errors:</b>
+         </td>
+         <td>
+            GL_INVALID_VALUE is generated if index is greater than or equal to GL_MAX_VERTEX_ATTRIBS.<br>
+            GL_INVALID_OPERATION is generated if name starts with the reserved prefix "gl_".<br>
+            GL_INVALID_VALUE is generated if program is not a value generated by OpenGL.<br>
+            GL_INVALID_OPERATION is generated if program is not a program object.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Associated Gets:</b>
+         </td>
+         <td>
+            glGet with argument GL_MAX_VERTEX_ATTRIBS<br>
+            glGetActiveAttrib with argument program<br>
+            glGetAttribLocation with arguments program and name<br>
+            glIsProgram
+         </td>
+        </tr>
+<!--
+Examples
+Compile a program from a vertex shader and a fragment shader.
+GLuint vshader = glCreateShader(GL_VERTEX_SHADER);
+glShaderSource(vshader, 1, &vertex_shader_source, NULL); // vertex_shader_source is a GLchar* containing glsl shader source code
+glCompileShader(vshader);
+
+GLint vertex_compiled;
+>>glGetShaderParameter
+glGetShaderiv(vshader, GL_COMPILE_STATUS, &vertex_compiled);
+if (vertex_compiled != GL_TRUE)
+{
+    GLsizei log_length = 0;
+    GLchar message[1024];
+    glGetShaderInfoLog(vshader, 1024, &log_length, message);
+    // Write the error to a log
+}
+
+GLuint fshader = glCreateShader(GL_FRAGMENT_SHADER);
+glShaderSource(fshader, 1, &fragment_shader_source, NULL); // fragment_shader_source is a GLchar* containing glsl shader source code
+glCompileShader(fshader);
+
+GLint fragment_compiled;
+>>glGetShaderParameter
+glGetShaderiv(fshader, GL_COMPILE_STATUS, &fragment_compiled);
+if (fragment_compiled != GL_TRUE)
+{
+    GLsizei log_length = 0;
+    GLchar message[1024];
+    glGetShaderInfoLog(fshader, 1024, &log_length, message);
+    // Write the error to a log
+}
+
+GLuint program = glCreateProgram();
+
+// This step is unnecessary if you use the location specifier in your shader
+// e.g. layout (location = 0) in vec3 position;
+glBindAttribLocation(program, 0, "position"); // The index passed into glBindAttribLocation is
+glBindAttribLocation(program, 1, "texcoord"); // used by glEnableVertexAttribArray. "position"
+glBindAttribLocation(program, 2, "normal");   // "texcoord" "normal" and "color" are the names of the
+glBindAttribLocation(program, 3, "color");    // respective inputs in your fragment shader.
+
+glAttachShader(program, vshader);
+glAttachShader(program, fshader);
+glLinkProgram(program);
+
+GLint program_linked;
+>>glGetProgramParameter
+glGetProgramiv(program, GL_LINK_STATUS, &program_linked);
+if (program_linked != GL_TRUE)
+{
+    GLsizei log_length = 0;
+    GLchar message[1024];
+    glGetProgramInfoLog(program, 1024, &log_length, message);
+    // Write the error to a log
+}
+-->
+        <tr>
+         <td>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="glEnableVertexAttribArray.htm">glDisableVertexAttribArray</a>,
+          <a href="glEnableVertexAttribArray.htm">glEnableVertexAttribArray</a>,
+          <a href="glUseProgram.htm">glUseProgram</a>,
+          <a href="glCreateShader.htm">Y</a>,
+          <a href="glGenLists.htm">Z</a>
+<br>
+DEV 
+See Also
+//glDisableVertexAttribArray, //glEnableVertexAttribArray, //glUseProgram, glVertexAttrib, glVertexAttribPointer
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

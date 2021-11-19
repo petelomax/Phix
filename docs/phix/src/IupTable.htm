@@ -64,14 +64,15 @@
             <br>
             <br>
             data[1] contains the master/sortable values.<br>
-            data[2] is reserved for (string) display versions of data[1] or format callbacks:<br>
+            data[2] is reserved for (string) display versions of data[1] or format string/callbacks:<br>
             if data[2] is too short or data[2][col] is 0, then data[1][row][col] is displayed as-is<br>
+            if data[2][col] is a (single) string then sprintf(data[2][col],data[1][row][col]) is displayed.<br>
             if data[2][col] is a non-zero integer it is assumed to be the routine_id of a function
             that will format data[1][row][col] properly for display (see demo/pGUI/IupTable.exw for examples),
-            or data[2][col] can be a sequence of pre-formatted strings, as in the example below.<br>
-            for dates, data[1][row][col] should be eg 20201122 or timedate-format, and data[2][col] a format routine or data[2][col][row] a string.<br>
+            or data[2][col] can be a sequence of pre-formatted strings, as (now commented out) in the example below.<br>
+            for dates, data[1][row][col] should be eg 20201122 or timedate-format, and data[2][col] a format string/routine or data[2][col][row] a string.<br>
             for case-insensitive sorting, data[1][row][col] should be lower/upper(data[2][col][row]).<br>
-            Note that data[1] is one-per-line whereas data[2] is one-per-column (see example below).<br>
+            Note that data[1] is one-per-line whereas data[2] is one-per-column (see example below).
             <br>
             <br>
             If column titles are specified as strings (as per the example below), the width defaults to 80, corresponding
@@ -131,7 +132,9 @@
               </div>
             </div>
             <div style="clear:both;height:1px;"> </div>
+<!--
         <small>(Note the browser image is from a hand-written proof-of-concept rather than actually transpiled code)</small>
+-->
           <br>
         <small>
 <!--eucode>
@@ -142,8 +145,10 @@ constant columns = {"Chq","Date","Amount"},
                   {2,{2020,7,10},3646.86},
                   {3,{2019,3,20},3807.94}},
                  {0,
-                  {`13/01/2020`,`10/07/2020`,`20/03/2019`},
-                  {`1500.89`,`3646.86`,`3807.94`}}}
+--                {`13/07/2020`,`20/01/2020`,`10/03/2019`}, -- (pre-1.0.1)
+                  "%[3]2d/%[2]02/%[1]4d",
+--                {`1500.89`,`3646.86`,`3807.94`}, -- (pre-1.0.1)
+                  "%.2f"}}  -- (see note)
 IupOpen()
 Ihandle table = IupTable(columns,data,3),
         dlg = IupDialog(table) 
@@ -164,8 +169,10 @@ end if
 <font color="#800080">                  {</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#00FF00">{</font><font color="#000000">2020</font><font color="#0000FF">,</font><font color="#000000">7</font><font color="#0000FF">,</font><font color="#000000">10</font><font color="#00FF00">}</font><font color="#0000FF">,</font><font color="#000000">3646.86</font><font color="#800080">}</font><font color="#0000FF">,</font>
 <font color="#800080">                  {</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#00FF00">{</font><font color="#000000">2019</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">20</font><font color="#00FF00">}</font><font color="#0000FF">,</font><font color="#000000">3807.94</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">,</font>
 <font color="#800000">                 {</font><font color="#000000">0</font><font color="#0000FF">,</font>
-<font color="#800080">                  {</font><font color="#008000">`13/01/2020`</font><font color="#0000FF">,</font><font color="#008000">`10/07/2020`</font><font color="#0000FF">,</font><font color="#008000">`20/03/2019`</font><font color="#800080">}</font><font color="#0000FF">,</font>
-<font color="#800080">                  {</font><font color="#008000">`1500.89`</font><font color="#0000FF">,</font><font color="#008000">`3646.86`</font><font color="#0000FF">,</font><font color="#008000">`3807.94`</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">}</font>
+<font color="#000080"><i>--                {`13/07/2020`,`20/01/2020`,`10/03/2019`}, -- (pre-1.0.1)</i></font>
+<font color="#008000">                  "%[3]2d/%[2]02/%[1]4d"</font><font color="#0000FF">,</font>
+<font color="#000080"><i>--                {`1500.89`,`3646.86`,`3807.94`}, -- (pre-1.0.1)</i></font>
+<font color="#008000">                  "%.2f"</font><font color="#800000">}</font><font color="#0000FF">} </font><font color="#000080"><i> -- (see note)</i></font>
 <font color="#5E005E">IupOpen</font><font color="#0000FF">()</font>
 <font color="#5E005E">Ihandle</font><font color="#000000"> table</font><font color="#0000FF"> =</font><font color="#5E005E"> IupTable</font><font color="#0000FF">(</font><font color="#000000">columns</font><font color="#0000FF">,</font><font color="#000000">data</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">),</font>
 <font color="#000000">        dlg</font><font color="#0000FF"> =</font><font color="#5E005E"> IupDialog</font><font color="#0000FF">(</font><font color="#000000">table</font><font color="#0000FF">) </font>
@@ -178,10 +185,12 @@ end if
 <font color="#5E005E">    IupClose</font><font color="#0000FF">()</font>
 <font color="#008080">end if</font>
 </pre>
-          </small>
           <br>
-          In the above, data[2][1] is 0, meaning that values from data[1][1][i] should be displayed for column 1. <br>
-          The dates and amounts all have pre-formatted copies, since strings in data[1] would not not sort correctly.<br>
+          </small>
+          In the above, data[2][1] is 0, meaning that values from data[1][i][1] should be displayed for column 1. <br>
+          Putting pre-formatted strings in data[1] for dates and amounts would not sort correctly so instead we provide a format 
+          string (and prior to 1.0.1 had to supply a complete table of pre-formatted strings). Without that final %.2f format the 
+          amounts could appear with an apparently random number of decimal places, likewise dates as eg "{2020,1,13}".<br>
           Note that while data[2] could contain formatting routines for each column (see demo/pGUI/IupTable.exw for examples), 
           it simply <i>cannot</i>, for instance, "undo" case-insensitive values stored in data[1]. The "double storage" cost
           of case-insensitive columns is deemed a small and rare edge case price to pay for keeping the interface simple.
@@ -193,6 +202,14 @@ end if
           although it isn&rsquo;t really needed. I have also lost several handfuls of hair over trying to force when the
           scrollbars should and should not appear: there are still a few minor hiccups which are beyond my ability to fix,
           see demo/pGUI/pGUI.e routine IupTableResize_cb() for more details.
+          <br>
+          <br>
+          <h4>UPDATE</h4>
+          Creating IupTable() as a p2js-compatible alternative for IupMatrix() was my first foray into such adventures.<br>
+          In the more recent IupGraph() alternative for IupPlot() I took a more sensible approach, namely creating an IupCanvas() 
+          and doing everything by hand, as opposed to wrapping IupPlot() on the desktop and doing things manually only inside
+          pGUI.js. A complete rewite of all this using lessons learnt from the latter is probably in order, but layout/sizing 
+          issues, in general across all containers and controls, have a much higher priority.
          </td>
         </tr>
         <tr>
@@ -213,6 +230,14 @@ end if
             Returns the index of the currently selected line, or 0 if none.<br>
             Note this can subscript the data, whereas the line numbers passed to click_cb and enteritem_cb cannot, at least
             certainly not with column sorting in effect (if needed an IupTableMapLine() function could easily be added).
+            <a name="IupTableClearSelected"></a>
+          <br>
+          <br>
+            <b>IupTableClearSelected</b>(<a href="Ihandle.htm">Ihandle</a> table)<br>
+            table: Identifier of the interface element.
+          <br>
+          <br>
+            Clears currently selected line, if any.
             <a name="IupTableGetData"></a>
           <br>
           <br>

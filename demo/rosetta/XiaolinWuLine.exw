@@ -9,7 +9,10 @@
 --  Also note this blends with BACK rather than the actual pixel,
 --  whereas aaline.exw does it properly.
 --
-constant USE_OPENGL = 01
+with javascript_semantics   -- not really fair: pwa/p2js uses OpenGL
+-- and does not draw bresenham lines anyway/ever, plus the next line 
+-- makes no difference whatsoever when running this in a browser.
+constant USE_OPENGL = 0
 
 constant TITLE = "Xiaolin Wu's line algorithm"
 
@@ -22,12 +25,12 @@ bool wuline = true  -- space toggles, for comparison
                     -- when false, and with USE_OPENGL, lines are still smooth, 
                     --  but a bit thicker - and therefore less "ropey".
                     -- when false, but without USE_OPENGL, it draws bresenham 
-                    --  lines (ie jagged, without any anti-aliasing).
+                    --  lines (ie jagged, without anti-aliasing [desktop only]).
 
 integer BACK = CD_PARCHMENT,
         LINE = CD_BLUE,
-        rB = red(BACK), gB = green(BACK), bB = blue(BACK),
-        rL = red(LINE), gL = green(LINE), bL = blue(LINE)
+        {rB, gB, bB} = to_rgb(BACK),
+        {rL, gL, bL} = to_rgb(LINE)
 
 procedure plot(atom x, y, c, bool steep=false)
 --  plot the pixel at (x, y) with brightness c (where 0 <= c <= 1)
@@ -146,19 +149,18 @@ procedure wu_ellipse(atom cx, cy, w, h, angle1=0, angle2=360)
 end procedure
 
 function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
-    if USE_OPENGL then
-        IupGLMakeCurrent(canvas)
-    end if
     integer {w, h} = sq_sub(IupGetIntInt(canvas, "DRAWSIZE"),10)
     cdCanvasActivate(cddbuffer)
     cdCanvasClear(cddbuffer)
+    if platform()=JS then
+        cdCanvasSetLineWidth(cddbuffer,iff(wuline?1:4))
+    end if
 if wuline then
     wu_line(0,0,200,200)
     wu_line(w,0,200,200)
     wu_line(0,h,200,200)
     wu_line(w,h,200,200)
 else
---  cdCanvasSetLineWidth(cddbuffer,1)   -- (no difference)
     cdCanvasLine(cddbuffer,0,0,200,200)
     cdCanvasLine(cddbuffer,w,0,200,200)
     cdCanvasLine(cddbuffer,0,h,200,200)
@@ -185,16 +187,22 @@ end if
 --/test
     cdCanvasFlush(cddbuffer)
     if USE_OPENGL then
-        IupGLSwapBuffers(canvas)
+        if platform()!=JS then
+            IupGLSwapBuffers(canvas)
+        end if
     end if
     return IUP_DEFAULT
 end function
 
 function map_cb(Ihandle ih)
     if USE_OPENGL then
-        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
         IupGLMakeCurrent(canvas)
-        cdcanvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+        if platform()=JS then
+            cdcanvas = cdCreateCanvas(CD_IUP, canvas)
+        else
+            atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+            cdcanvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+        end if
         cddbuffer = cdcanvas
     else
         cdcanvas = cdCreateCanvas(CD_IUP, ih)
@@ -209,14 +217,13 @@ function canvas_resize_cb(Ihandle /*canvas*/)
     if USE_OPENGL then
         integer {canvas_width, canvas_height} = IupGetIntInt(canvas, "DRAWSIZE")
         atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
---      IupGLMakeCurrent(canvas)    -- (no diff?)
         cdCanvasSetAttribute(cdcanvas, "SIZE", "%dx%d %g", {canvas_width, canvas_height, res})
     end if
     return IUP_DEFAULT
 end function
 
 procedure set_title()
-string title = TITLE
+    string title = TITLE
     if USE_OPENGL then
         title &= iff(wuline?" (wu_line)":" (opengl)")
     else
@@ -225,7 +232,7 @@ string title = TITLE
     IupSetStrAttribute(dlg,"TITLE",title)
 end procedure
 
-function k_any(Ihandle /*ih*/, atom c)
+function key_cb(Ihandle /*ih*/, atom c)
     if c=K_ESC then return IUP_CLOSE end if
     if c=' ' then
         wuline = not wuline
@@ -238,24 +245,25 @@ end function
 procedure main()
     IupOpen()
     if USE_OPENGL then
-        IupGLCanvasOpen()
-        canvas = IupGLCanvas(NULL)
+        canvas = IupGLCanvas()
         IupSetAttribute(canvas, "BUFFER", "DOUBLE")
     else
-        canvas = IupCanvas(NULL)
+        canvas = IupCanvas()
     end if
 
     IupSetAttribute(canvas, "RASTERSIZE", "640x480")
-    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
-    IupSetCallback(canvas, "RESIZE_CB", Icallback("canvas_resize_cb"))
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "ACTION", Icallback("redraw_cb"),
+                             "RESIZE_CB", Icallback("canvas_resize_cb")})
     dlg = IupDialog(canvas)
     set_title()
-    IupSetCallback(dlg, "K_ANY", Icallback("k_any"))
+    IupSetCallback(dlg, "KEY_CB", Icallback("key_cb"))
     IupShow(dlg)
     IupSetAttribute(canvas, "RASTERSIZE", NULL)
-    IupMainLoop()
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

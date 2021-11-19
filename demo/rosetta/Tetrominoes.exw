@@ -18,6 +18,7 @@
 --      be cleared at once the next time a long skinny one comes
 --      around.
 --
+with javascript_semantics
 include pGUI.e
 
 Ihandle canvas, dialog, timer
@@ -40,7 +41,9 @@ constant TITLE = "Tetrominoes",
                       {-1,0}, -- LEFT
                       {+1,0}} -- RIGHT
 
-enum type direction DOWN, LEFT, RIGHT end type
+--enum type direction DOWN, LEFT, RIGHT end type
+enum DOWN, LEFT, RIGHT
+type direction(integer d) return d>=DOWN and d<=RIGHT end type
 
 sequence board, -- (nb 2-based indexing!)
          tile
@@ -49,12 +52,12 @@ integer px, py, preview, level,
         completen, -- (number of    ""     "" s  ""      ""    "" )
         completot  -- (the running total, used to update the level)
 
-function check(sequence this, that, integer nx, ny)
+function check(sequence curr, next, integer nx, ny)
 -- (common code for move and rotate)
     integer tx, ty, what
-    for i=1 to length(that) do  -- check tgt free
-        sequence ti = that[i]
-        if not find(ti,this) then
+    for i=1 to length(next) do  -- check tgt free
+        sequence ti = next[i]
+        if not find(ti,curr) then
             {tx,ty} = ti
             if tx>11 or board[ty,tx]!=' ' then
                 return false
@@ -62,12 +65,12 @@ function check(sequence this, that, integer nx, ny)
         end if
     end for
     for i=1 to 4 do             -- clear current
-        {tx,ty} = this[i]
+        {tx,ty} = curr[i]
         what = board[ty,tx]
         board[ty,tx]=' '
     end for
     for i=1 to 4 do             -- set new position
-        {tx,ty} = that[i]
+        {tx,ty} = next[i]
         board[ty,tx] = what
     end for
     {px,py} = {nx,ny}
@@ -78,28 +81,30 @@ end function
 function move(direction d, bool place=false, what=' ')
 -- returns true/false to allow detection of "game over", drop new, etc
     integer {dx,dy} = directions[d], tx, ty, x, y
-    sequence {this, that} @= repeat({},4)
+    sequence curr = repeat({},4),
+             next = repeat({},4)
     for i=1 to length(tile) do
         {tx,ty} = tile[i]
         {x,y} = {px+tx+1,py+ty+1}
-        this[i] = {x,y}
-        that[i] = {x+dx,y+dy}
+        curr[i] = {x,y}
+        next[i] = {x+dx,y+dy}
         if place then board[y,x] = what end if
     end for
-    return check(this,that,px+dx,py+dy)
+    return check(curr,next,px+dx,py+dy)
 end function
 
 procedure rotate()
 -- 90 degrees anti-clockwise
-    sequence rile = tile, 
-             {this, that} @= repeat({},4)
+    sequence rile = deep_copy(tile), 
+             curr = repeat({},4),
+             next = repeat({},4)
     for i=1 to length(tile) do
         integer {tx,ty} = tile[i]
         rile[i] = {ty,-tx}
-        this[i] = {px+tx+1,py+ty+1}
-        that[i] = {px+ty+1,py-tx+1}
+        curr[i] = {px+tx+1,py+ty+1}
+        next[i] = {px+ty+1,py-tx+1}
     end for
-    if check(this,that,px,py) then
+    if check(curr,next,px,py) then
         tile = rile
     end if
 end procedure
@@ -114,7 +119,10 @@ end procedure
 
 procedure drop(bool bStart=false)
     if bStart then
-        {board,preview,completed,completot} = {init_board,rand(7),0,0}
+        board = deep_copy(init_board)
+        preview = rand(7)
+        completed = 0
+        completot = 0
         set_level(1)
     else
         while move(DOWN) do end while
@@ -228,8 +236,10 @@ procedure main()
     new_game()
     IupShow(dialog)
     IupSetAttribute(canvas, "RASTERSIZE", NULL)
-    IupMainLoop()
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 main()
 

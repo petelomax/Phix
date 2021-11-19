@@ -1,0 +1,90 @@
+--
+-- demo\rosetta\Remote_Agent_Interface.exw
+-- =======================================
+--
+-- First, a handful of common constants, just to avoid the duplication:
+global enum North, East, South, West
+global constant dxy = {{0,-1},{1,0},{0,1},{-1,0}}
+
+-- and some display/progress routines:
+global procedure show_at(integer l,c, string msg, sequence args={})
+    position(l,c)
+    printf(1,msg,args)
+end procedure
+
+constant pause = false
+global procedure show(string what, integer event, yoffset, fn)
+    if fn then
+        {sequence {board, balls}, integer {x, y, d, ball}} = fn()
+        show_at(yoffset,1,sprintf("%s  -- x:%2d, y:%2d, ball:%c, d:%d  ",{what,x,y,ball,d}))
+        balls[y+1,x] = "^>v<"[d]    
+        for i=1 to length(board) do
+            show_at(i+yoffset,1,board[i])
+            show_at(i+yoffset,40,balls[i])
+        end for
+        if event then
+            show_at(20,1,"(after %c accepted by %s)",{event,what})
+            if pause then {} = wait_key() end if
+        end if
+    end if
+end procedure
+
+global procedure die(string msg)
+    -- (to avoid clobbering the above display)
+    position(35,1)
+    crash(msg)
+end procedure
+
+--
+--  Only one of the following should be included, the other(s) commented out:
+--
+include Remote_Agent_Interface_Direct.e
+--include Remote_Agent_Interface_IPC.e
+--include Remote_Agent_Interface_Xxx.e -- (no such file, see below)
+--
+-- each of the above must implement
+--
+--  global procedure register_world(integer accept_command, get_event, get_world=0)
+--  global procedure register_agent(integer get_command, accept_event, get_agent=0)
+--
+--  The four mandatory and two optional routines to be provided are described below.
+--  Note that Remote_Agent_Interface_Direct returns control immediately,
+--  to one, whereas Remote_Agent_Interface_IPC does not, see below.
+--
+-- Remote_Agent_Interface_Direct.e includes both
+-- Remote_Agent_Simulator.exw and
+-- Remote_Agent_Agent_Logic.exw, and operates as a fully complete and
+--  standalone program whichever of the three .exw files are invoked.
+--  (Running >1 of them effectively runs the same program >1 times.)
+--
+-- Remote_Agent_Interface_IPC.e includes neither, and instead both of
+-- Remote_Agent_Simulator.exw and
+-- Remote_Agent_Agent_Logic.exw must be run separately.
+--  (Running Remote_Agent_Interface.exw does nothing in that case.)
+--
+-- The idea is that further Remote_Agent_Interface_Xxx.e could be written
+--  to implement pipes, sockets, files, etc. and nothing in either of the
+--  other two .exw would need changing for them to work like IPC.e does.
+--
+-- There would of course be no problem with world/agent including those
+--  files directly, as long as they are kept in sync, but of course that
+--  way would lose the "no modification whatsoever to switch" aspect.
+--
+-- The Direct version checks whether both register_world and register_client
+--  have been invoked before starting a single event loop, otherwise returns 
+--  control immediately, effectively terminating one of world/client, whereas 
+--  the IPC way sets up separate event loops in/for both register_world and 
+--  register_client, and only returns control on game over (if even that).
+--
+-- Both world/client must operate reactively and maintain any internal state
+--  that requires. For instance when the server receives a "forward" command 
+--  it cannot send color; send ball; send stop; but must instead rely on 
+--  being later asked for those events, and deliver them in order.
+--
+-- Both get_event() and get_command() must be a parameterless function that
+--  returns a single byte, and both accept_command() and accept_event() must
+--  be a procedure that accepts a single byte. As you should expect you use
+--  () to invoke them, and omit the () when just passing their ids about.
+--  The get_xxxx() routines, if provided, should return the current state
+--  in a suitable format for use as per fn() in show() above.
+--

@@ -1,0 +1,266 @@
+--
+-- demo\rosetta\Remote_Agent_Agent_Logic.exw
+-- =========================================
+--
+include Remote_Agent_Interface.exw
+--
+-- Initially just four unknowns in all four directions:
+-- slowly poulated with WRGYB (Wall/Red/Green/Yellow/Blue)
+-- note the board can be extended in all four directions
+-- aside: it should not actually matter if the server 
+--        initially points agent in a random direction.
+--
+sequence board = {"???",
+                  "???",
+                  "???"},
+         balls = {"...", -- (meaningless while the
+                  "...", --  equivalent board[y][x]
+                  "..."} --  is still set to a '?')
+
+integer x = 2, y = 2,
+        face = North,
+        ball = '.',
+        last_command,   -- (for sanity checks only)
+        pickup = 0,     -- (once started keep going)
+        putdown = 0     -- (for cases such as RyG Yr,
+                        --  force a drop onto G, and
+                        --  *not* y/r back onto R/Y.)
+
+function go(integer dn)
+    -- common code to get the correct turn/forward command
+    -- '<' if dn=face+1 mod 4, '^' if dn==face, else '>':
+    -- both face and dn are 1..4 aka NESW, in that order
+    integer command = "<>>^<>>"[face+4-dn] -- (tee hee)
+    if command!='^' then
+        -- 1..4 (ie NESW) ==> first four for '<',
+        --                     last four for '>':
+        face = {4,1,2,3,4,1}[face+command-'<']
+    end if
+    return command
+end function
+
+bool handshake = true
+
+function get_command()
+    if handshake then
+        handshake = false
+        return 'A'
+    end if
+    integer command = 0,
+            height = length(board),
+            width = length(board[1])
+    --
+    --  Playing strategy:
+    --  Use a (marking) breadth-first search to determine the next action.
+    --  Candidate actions are explore further, and pick up or drop a ball.
+    --  Do not pick up balls until you know somewhere they can be dropped.
+    --  Favour "explore first" and forget any "travelling salesman" ideas,
+    --  ie: jumping hoops to save a few moves is not the name of the game.
+    --  Lastly a case such as RyG Yr, which requires moving either to the
+    --  G first must be handled, that is, when no better move is possible.
+    --  Another case to watch out for: Gb..gB, initially you find that Gg
+    --  and set off to pick up the g, but then find bB first, and turn to
+    --  go pick up the b and repeat that forever, so once you decide what
+    --  to do, stick with it, using those pickup and putdown variables.
+    --
+    if find(ball,{lower(board[y][x]),putdown}) -- (right or needed wrong)
+    and balls[y][x] = '.' then
+        command = '!'               -- drop
+        balls[y][x] = ball
+        ball = '.'
+        putdown = 0
+    else
+        sequence todo = {{x,y,0}}, next = {}, 
+                 seen = repeat(repeat(false,width),height),
+                 been = seen, -- already in todo/next
+                found = {}, -- balls in wrong sector
+                empty = {}  -- empty sectors
+        been[y][x] = true
+        while command=0 do
+            if length(todo)=0 then
+                if command=0 and ball='.' then
+                    -- look for pair in found/empty (ie rR, gG, yY or bB)
+                    for i=1 to length(found) do
+                        integer {fb,fy,fx,fd} = found[i]
+                        for j=1 to length(empty) do
+                            if fb=empty[j][1] then
+                                if fd=0 then
+                                    if fx!=x or fy!=y 
+                                    or balls[y][x]!=fb then
+                                        die("d=0 not right?")
+                                    end if
+                                    command = '@' -- get
+                                    ball = fb
+                                    balls[y][x] = '.'
+                                    pickup = 0
+                                    exit
+                                end if
+                                pickup = fb
+                                command = go(fd)
+                                exit
+                            end if
+                        end for
+                        if command!=0 then exit end if
+                    end for
+                end if
+                if command!=0 then exit end if
+                if length(next)=0 then
+                    -- unsolveable or eg RyG Yr case (ie the y blocks
+                    -- a r->R move, and the r is blocking a y->Y move):
+                    if putdown=0 then
+                        -- pick up the nearest wrong'n (which we may be on)
+                        integer {fb,fy,fx,fd} = found[1]
+                        if fy=y and fx=x then
+                            assert(ball=='.')
+                            assert(balls[y][x]!='.')
+                            command = '@'                           -- get
+                            ball = fb
+                            balls[y][x] = '.'
+                            pickup = 0
+                            -- ... and fix the drop cell colour now
+                            putdown = empty[1][1]
+                        else
+                            command = go(fd)
+                        end if
+                    else
+                        integer {eb,ey,ex,ed} = empty[1]
+                        assert(eb==putdown) -- (shd only collect such)
+                        -- drop, or move to where it should be dropped
+                        if ey=y and ex=x then
+                            assert(ball!='.')
+                            assert(lower(board[y][x])==putdown)
+                            assert(balls[y][x]=='.')
+                            command = '!'                           -- drop
+                            balls[y][x] = ball
+                            ball = '.'
+                            putdown = 0
+                        else
+                            command = go(ed)
+                        end if
+                    end if
+                    exit
+                end if
+                todo = next
+                next = {}
+            end if
+            integer {cx,cy,d0} = todo[1]
+            todo = todo[2..$]
+            if not seen[cy][cx] then
+                integer cell = board[cy][cx],
+                        lowc = lower(cell),
+                        bcyx = balls[cy][cx]
+                if cell!='?' then
+                    -- add to found/empty
+                    if bcyx='.' then
+                        if ball=lowc then
+                            -- sanity: imm drop shd have happened
+                            assert(cx!=x or cy!=y,"not imm?")
+                            command = go(d0)
+                            exit
+                        end if
+                        if putdown=0 or putdown=lowc then
+                            empty = append(empty,{lowc,cy,cx,d0})
+                        end if
+                    elsif bcyx!=lowc then
+                        if pickup=0 or pickup=bcyx then
+                            found = append(found,{bcyx,cy,cx,d0})
+                        end if
+                    end if
+                    seen[cy][cx] = true
+                end if
+            end if
+            for d=North to West do  -- (1..4)
+                integer {dx,dy} = dxy[d],
+                        wall = board[cy+dy][cx+dx],
+                        {nx,ny} = {cx+dx*2,cy+dy*2},
+                        dn = iff(d0=0?d:d0)
+                if wall='?' or (wall=' ' and board[ny][nx]='?') then
+                    command = go(dn)
+                    exit
+                elsif wall=' ' and not been[ny][nx] then
+                    next = append(next,{nx,ny,dn})
+                    been[ny][nx] = true
+                end if
+            end for
+        end while
+    end if
+    last_command = command -- (for sanity checks only)
+    return command
+end function
+
+procedure extend_if_needed(integer cell_colour)
+    -- (also sets x and y and the new cell colour)
+    integer {dx,dy} = dxy[face],
+            {fx,fy} = {x+dx*2,y+dy*2},
+            height = length(board),
+            width = length(board[1])
+    board[y+dy][x+dx] = ' ' -- (not a wall)
+    if fx=0 then
+        -- extend board left (and leave x set to 2)
+        for i=1 to height do
+            board[i] = "??"&board[i]
+            balls[i] = ".."&balls[i]
+        end for
+    else
+        x = fx
+        if x>=width then
+            -- extend board right
+            for i=1 to length(board) do
+                board[i] &= "??"
+                balls[i] &= ".."
+            end for
+        end if
+    end if
+    if fy=0 then
+        -- extend board up (and leave y set to 2)
+        board = repeat(repeat('?',width),2)&board
+        balls = repeat(repeat('.',width),2)&balls
+    else
+        y = fy
+        if y>=height then
+            -- extend board down
+            board &= repeat(repeat('?',width),2)
+            balls &= repeat(repeat('.',width),2)
+        end if
+    end if
+    board[y][x] = cell_colour
+end procedure
+
+procedure accept_event(integer event)
+
+    -- Note: the logic above does not attempt to pick up a ball
+    --       when it already has one, or when in an empty cell,
+    --       or drop one it does not have, or drop one into an 
+    --       occupied cell, and hence this does /not/ trigger 
+    --       or handle any "SAsa" events, not yet anyway.
+    --       (Fairly obviously this would then have to undo a 
+    --        few things, or defer updates to the stop event.)
+
+    assert(last_command=='^' or event=='.') -- (optional/deletable)
+
+    integer {fx,fy} = sq_add({x,y},dxy[face]),
+            wall = iff(odd(fy)?'-':'|')
+
+    switch event do
+        case '!':               board[fy][fx] = wall    -- bump
+        case '.':               last_command = '.'      -- stop
+        case 'R','G','Y','B':   extend_if_needed(event) -- cell colour
+        case 'r','g','y','b':   balls[y][x] = event     -- ball colour
+        default:                ?9/0      -- (unknown/unhandled event)
+    end switch
+
+end procedure
+
+function get_agent()
+    -- (for display only)   
+    -- it does not hurt any to do this...
+    for i=1 to length(board) by 2 do
+        for j=1 to length(board[i]) by 2 do
+            board[i][j] = '+'
+        end for
+    end for
+    return {{board,balls},{x,y,face,ball}}
+end function
+
+register_agent(get_command, accept_event, get_agent)
+

@@ -39,8 +39,7 @@
         Typically such desequencing makes much more sense when the rhs is dynamically generated, for instance a function call.
         <br>
         <br>
-        Phix also allows nested constant declarations via the ':=' operator, as long as they occur at the top 
-        level of a (nested) {} constant declaration<small><sup>1 (see technicalia)</sup></small>, so instead of 
+        Phix also allows nested constant declarations via the ':=' operator, within a (nested) rhs<small><sup>1</sup></small> sequence constant declaration, so instead of 
 <!--eucode>
     constant WSAEINTR  = 10004,
              WSAEACCES = 10013
@@ -55,7 +54,7 @@
 <font color="#800000">            {</font><font color="#800080">{</font><font color="#000000">WSAEINTR</font><font color="#0000FF">, </font><font color="#008000"> "WSAEINTR"</font><font color="#0000FF">, </font><font color="#008000"> "Interrupted function call."</font><font color="#800080">}</font><font color="#0000FF">,</font>
 <font color="#800080">             {</font><font color="#000000">WSAEACCES</font><font color="#0000FF">,</font><font color="#008000"> "WSAEACCES"</font><font color="#0000FF">,</font><font color="#008000"> "Permission denied."</font><font color="#800080">}</font><font color="#800000">}</font>
 </pre>
-        which gets more and more error prone and tedious as the table grows in size, you can define them all together like this:
+        which gets more and more error prone and tedious as the table grows in size, you can define them like this:
 <!--eucode>
     constant {ERROR_NO, ERROR_NAME, ERROR_SHORT} = columnize(
             {{WSAEINTR  := 10004, "WSAEINTR",  "Interrupted function call."},
@@ -91,41 +90,38 @@
         LOCK_SHARED, LOCK_EXCLUSIVE, BLACK, GREEN, BLUE, DB_OK, DB_OPEN_FAIL, DB_EXISTS_ALREADY, MB_OK, MB_OKCANCEL, IDOK, IDCANCEL,
         IDYES, IDNO, SEEK_OK, and many more besides.
        <br>
-        <a name=static></a>
        <br>
-        <h3>Static declarations.</h3>
-        <b>NB</b> static variables are not supported by <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js</b></span></a>, though local 
-        constants are.<br>
-        A handful of constants and static variables may be declared grouped together at the start of a routine, eg
+<!--    <h3>Static declarations.</h3> -->
+        <h3>Local constants.</h3>
+<!--    <b>NB</b> static variables are not supported by <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js</b></span></a>, though local 
+        constants are.<br> -->
+        A handful of constants <!--and static variables--> may be declared grouped together at the start of a routine, eg
 <!--eucode>
 procedure p1()
     constant string c = "p1a"
-    static string s = "p1b"
     ...
 end procedure
 </eucode-->
 <pre>
 <font color="#008080">procedure</font><font color="#000000"> p1</font><font color="#0000FF">()</font>
 <font color="#008080">    constant</font><font color="#004080"> string</font><font color="#000000"> c</font><font color="#0000FF"> =</font><font color="#008000"> "p1a"</font>
-<font color="#008080">    static</font><font color="#004080"> string</font><font color="#000000"> s</font><font color="#0000FF"> =</font><font color="#008000"> "p1b"</font>
 <font color="#0000FF">    ...</font>
 <font color="#008080">end procedure</font>
 </pre>
         Internally, apart from scope handling as discussed below, the above is treated as
 <!--eucode>
 constant string c = "p1a"
-string s = "p1b"
 procedure p1()
     ...
 end procedure
 </eucode-->
 <pre>
 <font color="#008080">constant</font><font color="#004080"> string</font><font color="#000000"> c</font><font color="#0000FF"> =</font><font color="#008000"> "p1a"</font>
-<font color="#004080">string</font><font color="#000000"> s</font><font color="#0000FF"> =</font><font color="#008000"> "p1b"</font>
 <font color="#008080">procedure</font><font color="#000000"> p1</font><font color="#0000FF">()
     ...</font>
 <font color="#008080">end procedure</font>
 </pre>
+<!--
         Note that static variables (whose private values persist when the routine exits, and are available for when it is next called) 
         must be assigned on declaration, just like constants.<br>
         While static variables are not exactly constants, there is a great deal of similarity in terms of scope rules and enforced assignment 
@@ -133,27 +129,66 @@ end procedure
         and if the compiler treats them as brethren, then maybe you should too.
         <br>
         <br>
+-->
         <b><i>WARNING</i></b>: except for literal integer constants, a pure forward call may result in the constant being unassigned.<br>
-        Should that happen, you may have to hoist the constant declaration(s) not just out of the routine, but to before the call.<br>
-        Several auto-includes in builtins/ use local variables instead of constants, and hoist their assignment into an initx/xinit() construct.<br>
-        Said construct works because initx is assigned a literal integer constant at compile-time, with xinit() assigning any non-integers.<br>
+        This should not be an issue if you have already invoked, for instance, a top-level main() after all points of call/declaration.<br>
+        Should an error occur, you may have to hoist the constant declaration(s) not just out of the routine, but to before the call.<br>
+        Several builtins/ files use local variables instead of constants, and hoist their assignment into an initx/xinit() construct,<br>
+        setting initx to a literal integer constant (eg false) at compile-time, with xinit() resetting it and assigning any non-integers,<br>
+        so for example this should work, albeit negating much of the benefits of both "local" and "constant":
+<!--eucode>
+integer p1init = false
+string p1c
+procedure p1()
+    if not p1init then
+        p1c = "p1c"
+    end if
+    ...
+end procedure
+</eucode-->
+<pre>
+<font color="#004080">integer</font><font color="#000000"> p1init</font><font color="#0000FF"> =</font><font color="#004600"> false</font>
+<font color="#004080">string</font><font color="#000000"> p1c</font>
+<font color="#008080">procedure</font><font color="#000000"> p1</font><font color="#0000FF">()</font>
+<font color="#008080">    if not</font><font color="#000000"> p1init</font><font color="#008080"> then</font>
+<font color="#000000">        p1c</font><font color="#0000FF"> =</font><font color="#008000"> "p1c"</font>
+<font color="#008080">    end if</font>
+<font color="#0000FF">    ...</font>
+<font color="#008080">end procedure</font>
+</pre>
+<!--
         As noted above, statics may exhibit similar behaviour, though in that case you can/should re-do initial assignment in a local if-construct.<br>
-        This should not be an issue if you have already invoked, for instance, a top-level main() after all points of call/declaration.
+-->
+        
 <!-- [DEV] why?? before you even try??
         <br>
         <br>
         <b><i>NB</i></b>: static variables are not supported by <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js</b></span></a>, 
         since there is no JavaScript equivalent, however local constants are fine.
 -->
-        <br>
-        <br>
-        Types are optional on constant declarations whereas they are mandatory on static declarations. <br>
-        While a type check <i>can</i> occur on a constant declaration, it is more likely there just for clarification. <br>
+        <a name=static></a>
+        <small>
+          <dl>
+           <dt>Aside:</dt>
+           <dd>
+            Version 0.8.2 introduced an ill-conceived and pooly implemented <span class="illegal">static</span> routine-level declaration, 
+            which only ever worked for integers and bools assigned to a literal or pre-existing file-level constant (not a parameter), and 
+            proved incompatible with p2js, hence the whole sad and sorry mess was removed in the 1.0.1 release. Given the sheer number of
+            problems found when re-examined, I very much doubt that "static" saw any significant active service at all.
+           </dd>
+          </dl>
+        </small>
+
+        Types are optional on constant declarations, whether global, file-level, or local. <br>
+        While a type check <i>can</i> occur on a constant declaration, it is more likely there just for clarification.
+<!--
+         <br>
         Obviously you are never going to reassign a constant and that way trigger a runtime typecheck error, <br>
         whereas you <i>do</i> without doubt want assignment-time type checks on static variables.
+-->
         <br>
         <br>
-        Static and constant declarations must be grouped together at the start of any routine. <br>
+        <!--Static and c-->Constant declarations must be grouped together at the start of any routine. <br>
         The reason for this is that the [implicit] return decrefs a range of the symtab, so either <br>
         the run-time must start checking every symtab entry (slowing everything down) or <br>
         DoRoutineDef() has to perform a potentially messy re-numbering operation (slowing everything down). <br>
@@ -174,7 +209,7 @@ end procedure
 <font color="#008080">    constant</font><font color="#000000"> c1</font><font color="#0000FF"> =</font><font color="#008000"> "p1a"</font>
 <font color="#008080">end procedure</font>
 </pre>
-        However the compiler issues duplicate errors over c1 (ditto static declarations).<br>
+        However the compiler issues duplicate errors over c1.<br><!-- (ditto static declarations)-->
 <!-- nope...
         After some consideration I decided to leave it like that, because the c1 does not appear
         in the call stack part of any ex.err, ie grouped with the parameters and local variables, 
@@ -187,14 +222,12 @@ end procedure
 <!--eucode>
 procedure p1()
     constant c = "p1a"
-    static string s = "p1b"
-    ?{c,s}
+    ?c
 end procedure
 
 procedure p2()
     constant c = "p2a"
-    static string s = "p2b"
-    ?{c,s}
+    ?c
 end procedure
 
 p1()
@@ -203,21 +236,19 @@ p2()
 <pre>
 <font color="#008080">procedure</font><font color="#000000"> p1</font><font color="#0000FF">()</font>
 <font color="#008080">    constant</font><font color="#000000"> c</font><font color="#0000FF"> =</font><font color="#008000"> "p1a"</font>
-<font color="#008080">    static</font><font color="#004080"> string</font><font color="#000000"> s</font><font color="#0000FF"> =</font><font color="#008000"> "p1b"</font>
-<font color="#0000FF">    ?{</font><font color="#000000">c</font><font color="#0000FF">,</font><font color="#000000">s</font><font color="#0000FF">}</font>
+<font color="#0000FF">    ?</font><font color="#000000">c</font>
 <font color="#008080">end procedure
 
 procedure</font><font color="#000000"> p2</font><font color="#0000FF">()</font>
 <font color="#008080">    constant</font><font color="#000000"> c</font><font color="#0000FF"> =</font><font color="#008000"> "p2a"</font>
-<font color="#008080">    static</font><font color="#004080"> string</font><font color="#000000"> s</font><font color="#0000FF"> =</font><font color="#008000"> "p2b"</font>
-<font color="#0000FF">    ?{</font><font color="#000000">c</font><font color="#0000FF">,</font><font color="#000000">s</font><font color="#0000FF">}</font>
+<font color="#0000FF">    ?</font><font color="#000000">c</font>
 <font color="#008080">end procedure
 </font>
 <font color="#000000">p1</font><font color="#0000FF">()</font>
 <font color="#000000">p2</font><font color="#0000FF">()</font>
 </pre>
-        Since c and s drop out of scope at the end procedure (ditto function/type) there is no name
-        clash. Be warned however that while ex.err files do not contain constants, they will show
+        Since the c drop out of scope at the end procedure (ditto function/type) there is no name clash.
+        <!--Be warned however that while ex.err files do not contain constants, they will show
         both static s, which could potentially be quite misleading when debugging. A future version
         of the compiler might retain lists of all such "hoisted" statics by file, just so that it
         could issue the appropriate errors. However I suspect there will forever be some forms of
@@ -229,7 +260,7 @@ procedure</font><font color="#000000"> p2</font><font color="#0000FF">()</font>
         <br>
         To re-iterate, I think that compilation/running should be fine, it is in debugging where 
         these issues may arise, and of course when they are kept dirt-simple they&rsquo;ll (as in
-        local constants and static variables) not need much debugging.
+        local constants and static variables) not need much debugging.-->
        <br>
        <br>
        <table>
@@ -258,18 +289,18 @@ procedure</font><font color="#000000"> p2</font><font color="#0000FF">()</font>
           <dl>
            <dt>aside:</dt>
            <dd>
-            When first planning nested constant declarations, I (bizarrely) assumed it would be changes to GetMultiAssignSet(), but of course
-            <br>
+            When first planning nested constant declarations, I (bizarrely) assumed it would be changes to GetMultiAssignSet(), but of course<br>
             <nobr><code>constant {C1:=1,...} = <i>&lt;expr&gt;</i></code></nobr> would (ill-)logically define C1 as 1 and them immediately try 
-            to re-assign something to C1.
-            <br>
+            to re-assign something to it.<br>
             In other words there are strict limitations on nested declarations that are not always immediately obvious. They are specifically 
             only permitted within rhs sequences, so for instance <code>constant X = f({Y:=1})</code> is fine but <code>constant X = f(Y:=1)</code>
-            is not, and besides the latter would encroach on <a href="procedures.htm#namedparams">named parameter</a> syntax anyway.
+            is not, and besides the latter would encroach on <a href="procedures.htm#namedparams">named parameter</a> syntax, and obviously the
+            {} in the former prevents that kind of misinterpretation. Any error messages should however be crystal clear, and their absence taken 
+            as a clear indication that everything is fine.
            </dd>
           </dl>
-          It is not possible to micro-manage global status of nested declarations: either ERROR_NO, ERROR_NAME, ERROR_SHORT, WSAEINTR, and 
-          WSAEACCES are all global, or none of them are. However you can of course split the above definition as say
+            It is not possible to micro-manage global status of nested declarations: ERROR_NO, ERROR_NAME, ERROR_SHORT, WSAEINTR, and WSAEACCES 
+            are either <i>all</i> global, or <i>none</i> of them are. However you can of course split the above definition as follows
             <br>
             <br>
 <!--eucode>

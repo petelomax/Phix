@@ -2,6 +2,7 @@
 -- demo\rosetta\Sunflower.exw
 -- ==========================
 --
+with javascript_semantics
 constant numberofseeds = 3000
 
 include pGUI.e
@@ -38,20 +39,16 @@ end function
 
 procedure main()
     IupOpen()
-    
-    canvas = IupCanvas(NULL)
-    IupSetAttribute(canvas, "RASTERSIZE", "602x502") -- initial size
-    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
-
-    dlg = IupDialog(canvas)
-    IupSetAttribute(dlg, "TITLE", "Sunflower")
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
-
-    IupMap(dlg)
+    canvas = IupCanvas("RASTERSIZE=602x502")
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "ACTION", Icallback("redraw_cb")})
+    dlg = IupDialog(canvas,"TITLE=Sunflower")
+    IupShow(dlg)
     IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release the minimum limitation
-    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
-    IupMainLoop()
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

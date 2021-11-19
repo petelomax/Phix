@@ -1,0 +1,171 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">glCreateTexture</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td>
+          <b>Definition:</b>
+         </td>
+         <td>
+          include pGUI.e
+          <br>
+          include opengl.e
+          <br>
+          <br>
+<!--
+//        sequence textures = glGenTextures(<a href="integer.htm">integer</a> n=1)
+-->
+          <a href="integer.htm">integer</a> res = glCreateTexture()
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Description:</b>
+         </td>
+         <td>
+            generate a texture name.
+<!--
+            <br>
+            <br>
+            n: The number of texture names to be generated.
+            <br>
+            <br>
+
+            Returns a sequence of texture names (aka unique integer ids) of length n.<br>
+            Terminates in error if n is negative [with <a href="glGetError.htm">GL_INVALID_VALUE</a>] or 
+            this routine invoked between a call to <a href="glBegin.htm"><span class="illegal">glBegin</span></a>() and the corresponding call to 
+            <a href="glBegin.htm"><span class="illegal">glEnd</span></a>() [with <a href="glGetError.htm">GL_INVALID_OPERATION</a>].
+-->
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Remarks</b>
+         </td>
+         <td>
+            The glCreateTexture() function wraps the C api <span class="illegal">glGenTextures</span>() function to match the WebGL api.
+            <br>
+            <br>
+            The returned texture name will not have been in use immediately prior to calling the glCreateTexture function. <br>
+            The generated texture assumes the dimensionality of the texture target to which it is first bound with the 
+            <a href="glBindTexture.htm">glBindTexture</a>() function. <br>
+            A texture name returned by glCreateTexture is not returned by subsequent calls to glCreateTexture unless it is first deleted 
+            by calling glDeleteTextures().
+            <br>
+            <br>
+            You cannot include glCreateTexture in display lists.
+            <br>
+            <br>
+            The following function retrieves information related to glCreateTexture:<br>
+            <!--DEV: a href="glIsTexture.htm"-->glIsTexture<!--/a-->
+         </td>
+        </tr>
+<!--
+examples
+Create a framebuffer object with a texture-based color attachment and a texture-based depth attachment. Using texture-based attachments allows sampling of those textures in shaders.
+// fbo_width and fbo_height are the desired width and height of the FBO.
+// For Opengl <= 4.4 or if the GL_ARB_texture_non_power_of_two extension
+// is present, fbo_width and fbo_height can be values other than 2^n for
+// some integer n.
+
+// Build the texture that will serve as the color attachment for the framebuffer.
+GLuint texture_map = clCreateTexture();
+glBindTexture(GL_TEXTURE_2D, texture_map);
+
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+
+glTexImage2Dc(GL_TEXTURE_2D, 0, GL_RGBA, fbo_width, fbo_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+
+glBindTexture(GL_TEXTURE_2D, 0);
+
+// Build the texture that will serve as the depth attachment for the framebuffer.
+GLuint depth_texture = glCreateTexture();
+glBindTexture(GL_TEXTURE_2D, depth_texture);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+glTexImage2Dc(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, fbo_width, fbo_height, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
+glBindTexture(GL_TEXTURE_2D, 0);
+
+// Build the framebuffer.
+GLuint framebuffer;
+glGenFramebuffers(1, &framebuffer);
+glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)framebuffer);
+glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture_map, 0);
+glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depth_texture, 0);
+
+GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+if (status != GL_FRAMEBUFFER_COMPLETE)
+    // Error
+
+glBindFramebuffer(GL_FRAMEBUFFER, 0);
+Create a texture object with linear mipmaps and edge clamping.
+GLuint texture_id = glCreateTexture();
+glBindTexture(GL_TEXTURE_2D, texture_id);
+
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+// texture_data is the source data of your texture, in this case
+// its size is sizeof(unsigned char) * texture_width * texture_height * 4
+glTexImage2Dc(GL_TEXTURE_2D, 0, GL_RGBA, texture_width, texture_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, texture_data);
+glGenerateMipmap(GL_TEXTURE_2D); // Unavailable in OpenGL 2.1, use gluBuild2DMipmaps() insteads.
+
+glBindTexture(GL_TEXTURE_2D, 0);
+-->
+        <tr>
+         <td>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="glBegin.htm"><span class="illegal">glBegin</span></a>,
+          <a href="glBindTexture.htm">glBindTexture</a>,
+          <a href="xor_bits.htm">xor_bits</a>,
+          <a href="glBegin.htm"><span class="illegal">glEnd</span></a>,
+          <a href="glGet.htm">glGet</a>,
+          <a href="xor_bits.htm">xor_bits</a>,
+          <a href="xor_bits.htm">xor_bits</a>,
+          <a href="xor_bits.htm">xor_bits</a>,
+          <a href="glTexImage2D.htm">glTexImage2Dc</a>,
+          <a href="glTexParameteri.htm">glTexParameteri</a>
+          <br>
+DEV
+See also
+//glBegin
+//glBindTexture
+glDeleteTextures
+//glEnd
+//glGet
+glGetTexParameter
+glIsTexture
+glTexImage1D
+//glTexImage2D
+//glTexParameter
+<br>
+See Also
+//glBindTexture, glCopyTexImage2D, glDeleteTextures, //glGet, glGetTexParameter, //glTexImage2D, //glTexParameter
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

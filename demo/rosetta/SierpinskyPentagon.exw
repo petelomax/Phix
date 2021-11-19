@@ -2,584 +2,96 @@
 -- demo\rosetta\SierpinskyPentagon.exw
 -- ===================================
 --
---  Four-way:
---  1: standard pGUI drawing
---  2: create svg, convert to png via librsvg [windows only as coded, ie ".dll"], load and show
---  3: embed svg in a html page and open in browser.
---  4: from an ast (same for both) generate 4a) phix code, embed in template and run, and
---                                          4b) javascript, "" but then open in a browser.
---      The differences are expected to be relatively minor, eg "then .. end if" <=> "{ .. }".
---      The templates are not expected to be particularly generic, for instance just replace
---      a single "%draw(w,h)%"; leaving things like resize and +/- key handling done by hand 
---      in each template for now, and just assume the pre-existence of cddbuffer etc as rqd.
---      [The final beast may in fact be limited to a fairly small set of available templates.]
---      Likewise feel free to write mini-shims, eg cdCanvasBegin(cddbuffer) <==> ctx.beginPath.
---      [Such shims to become permanent fixtures of phix.js, and not written out every time.]
---      You should be able to recreate the ast from the output code fragment. In fact the ast,
---      generator, and parser should probably all be developed/designed in parallel anyway.
---      The javascript output can either display directly or generate an inline svg, apart from
---      suspecting the latter might prove easier I have no real preference, and obviously there
---      is no suggestion the javascript should write svg/html/parse/create ast or invoke librsvg,
---      and likwise in a similar fashion the /generated/ phix code should be kept quite simple.
---      First step, obvs, is to get phix/js codes working manually, and as-alike-as-possible.
---
--- The distributed version also contains a fledgling transpiler, able to generate [[this page]].
-
 --{{trans|Kotlin}}
+with javascript_semantics
 include pGUI.e
 
-Ihandle dlg, canvas, label
-cdCanvas cddbuffer, cdcanvas
+Ihandle dlg, canvas
+cdCanvas cddbuffer
+
+constant title = "Sierpinski Pentagon",
+         scale_factor = 1/(2+cos(2*PI/5)*2),
+         side_factor = 1+cos(2*PI/5)*2,
+         angles = sq_mul(2*PI/5,tagset(7,3)),
+         cosangles = apply(angles,cos),
+         sinangles = apply(angles,sin)
+
 integer level = 3
 
---
--- After scaling we'll have 2 sides plus a gap occupying the length of
--- a side before scaling. The gap is the base of an isosceles triangle
--- with a base angle of 72 degrees.
---
-constant TITLE = "Sierpinski Pentagon",
-         _72_degrees = 72*CD_DEG2RAD,   -- exterior angle
---       _72_degrees = 72*PI/180,   -- exterior angle
---       _72_degrees = 72*Math.PI/180,  -- exterior angle
-         starting_angle = 3*_72_degrees,
-         cos_72_degrees = cos(_72_degrees),
-         scaleFactor = 1/(2+cos_72_degrees*2)
-
-integer svgfn = -1
---bool javascript = false
-
 procedure drawPentagon(atom x, y, side, w, h, integer depth)
-    atom angle = starting_angle, distance
---  atom angle = 3*72*CD_DEG2RAD
---  if depth==0 then
-    if depth==0 and svgfn!=0 then
-        if svgfn!=-1 then
-            printf(svgfn,`<polygon points="`)
-        else
-            cdCanvasBegin(cddbuffer,CD_FILL)
-        end if
-        -- draw from the top
+    if depth=0 then
+        cdCanvasBegin(cddbuffer,CD_FILL)
         for i=1 to 5 do
-            x += cos(angle) * side
-            y -= sin(angle) * side
-            if svgfn!=-1 then
-                printf(svgfn,"%.3f %.3f ",{x,y})
-            else
-                cdCanvasVertex(cddbuffer, w+x, h-y)
-            end if
-            angle += _72_degrees
+            x += cosangles[i] * side
+            y -= sinangles[i] * side
+            cdCanvasVertex(cddbuffer, w+x, h-y)
         end for
-        if svgfn!=-1 then
---          printf(svgfn,"\" transform=\"translate(10,-10) rotate(0)\"/>\n")
-            printf(svgfn,"\" />\n")
-        else
-            cdCanvasEnd(cddbuffer)
-        end if
+        cdCanvasEnd(cddbuffer)
     else
-        if depth=0 then
-            distance = side
-            cdCanvasBegin(cddbuffer,CD_FILL)
-        else
-            side *= scaleFactor
-            /* Starting at the top of the highest pentagon, calculate
-               the top vertices of the other pentagons by taking the
-               length of the scaled side plus the length of the gap. */
-            distance = side + side * cos_72_degrees * 2.0
-        end if
-        /* The top positions form a virtual pentagon of their own,
-           so simply move from one to the other by changing direction. */
+        side *= scale_factor
+        atom distance = side*side_factor
         for i=1 to 5 do
-            x += cos(angle) * distance
-            y -= sin(angle) * distance
-            if depth=0 then
-                cdCanvasVertex(cddbuffer, w+x, h-y)
-            else
-                drawPentagon(x, y, side, w, h, depth-1)
-            end if
-            angle += _72_degrees
+            x += cosangles[i] * distance
+            y -= sinangles[i] * distance
+            drawPentagon(x, y, side, w, h, depth-1)
         end for
-        if depth=0 then
-            cdCanvasEnd(cddbuffer)
-        end if
     end if
-end procedure
-
-procedure draw(integer w,h)
---DEV does not properly shrink vertically, or center on html...
-    atom hw = min(w/2,h/2),
-         margin = 20,
-         radius = hw - 2*margin,
-         side = radius * sin(PI/5) * 2
-    cdCanvasSetBackground(cddbuffer, CD_PARCHMENT)
-    cdCanvasSetForeground(cddbuffer, CD_BLUE)
-    cdCanvasClear(cddbuffer)
-    drawPentagon(hw, 3*margin, side, w/2-radius-2*margin, h, level)
 end procedure
 
 function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
     integer {w, h} = IupGetIntInt(canvas, "DRAWSIZE")
-    cdCanvasActivate(cddbuffer)
-    draw(w,h)
-    cdCanvasFlush(cddbuffer)
-    IupSetStrAttribute(dlg, "TITLE", "%s (level %d)",{TITLE,level})
-    return IUP_DEFAULT
-end function
-
-function map_cb(Ihandle ih)
-    cdcanvas = cdCreateCanvas(CD_IUP, ih)
-    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
-    return IUP_DEFAULT
-end function
-
-include builtins\librsvg.e          -- experimental...
-set_librsvg_dir(`C:\gtkX\bin`)  -- ok!!
---set_librsvg_dir(`C:\gtk\bin`) -- no
---set_librsvg_dir(`C:\Program Files (x86)\p6\demo\eucairo\gtk-2.12.9-win32-2\bin`)  -- no
---set_librsvg_dir(`C:\Program Files (x86)\p6\demo\gtkold\gtk2\demos`)   -- no
---set_librsvg_dir(`C:\Users\Pete\.julia\packages\WinRPM\Y9QdZ\deps\usr\i686-w64-mingw32\sys-root\mingw\bin`)    -- ok!!
---set_librsvg_dir(`C:\Users\Pete\.julia\packages\WinRPM\Y9QdZ\deps\usr\x86_64-w64-mingw32\sys-root\mingw\bin`)  -- ok!! (64-bit!!)
---set_librsvg_dir(`C:\Program Files (x86)\Phix98\demo\eugtk_w32\pygi-aio-3.4.2rev11\gtk`)   -- ok!!
---set_librsvg_dir(`C:\Program Files (x86)\Phix98\demo\gtk+-bundle_3.6.4-20130921_win32\bin`)    -- ok!! (same version as C:\gtkX\bin)
-
---C:\GTK\bin\libgobject-2.0-0.dll 334.00 KB 19/07/2011 08:53:01
---C:\gtkX\bin\libgobject-2.0-0.dll 367.00 KB 21/09/2013 14:43:36
---C:\msys64\mingw64\bin\libgobject-2.0-0.dll 317.00 KB 22/05/2019 06:47:14
---C:\Program Files\GTK3-Runtime Win64\bin\libgobject-2.0-0.dll 306.00 KB 12/06/2018 11:06:22
---C:\Program Files\Racket\lib\libgobject-2.0-0.dll 429.00 KB 27/07/2018 17:33:54
---C:\Program Files (x86)\p6\demo\eucairo\gtk-2.12.9-win32-2\bin\libgobject-2.0-0.dll 217.00 KB 16/04/2008 19:53:54
---C:\Program Files (x86)\p6\demo\EuGTK_4.3.2\EuGTK_Win_Aug10\eugtkdem\gtk2\libgobject-2.0-0.dll 217.00 KB 16/04/2008 18:53:54
---C:\Program Files (x86)\p6\demo\EuGTK_4.3.2\EuGTK_Win_Aug10\eugtkdem\qemu\libgobject-2.0-0.dll 334.00 KB 28/07/2016 17:36:48
---C:\Program Files (x86)\p6\demo\gtkold\gtk2\demos\libgobject-2.0-0.dll 217.00 KB 16/04/2008 18:53:54
---C:\Program Files (x86)\Phix98\demo\eugtk_w32\pygi-aio-3.4.2rev11\gtk\libgobject-2.0-0.dll 232.00 KB 08/03/2013 10:32:17
---C:\Program Files (x86)\Phix98\demo\gtk+-bundle_3.6.4-20130921_win32\bin\libgobject-2.0-0.dll 367.00 KB 21/09/2013 14:43:36
---C:\Users\Pete\.julia\packages\WinRPM\Y9QdZ\deps\usr\i686-w64-mingw32\sys-root\mingw\bin\libgobject-2.0-0.dll 389.00 KB 19/04/2013 20:48:28
---C:\Users\Pete\.julia\packages\WinRPM\Y9QdZ\deps\usr\x86_64-w64-mingw32\sys-root\mingw\bin\libgobject-2.0-0.dll 475.00 KB 20/04/2013 04:43:38
-
-
-constant html_intro = """
-<!DOCTYPE html>
-<html><head><meta charset="UTF-8">
-<title>%s</title></head>
-<body>
-"""
-
---DEV full screen???
---canvas {
---  border: 1px solid black;
---  width: 100%;
---  height: 100%;
---}
---/* DEV:
---If the window resizes we need to recalculate the canvas width as well, 
---using a debounce to avoid calling too many times our canvas resizing 
---(the resize event can be called hundreds of times as you move the window with the mouse, for example):
-
-const debounce = (func) => {
-  let timer
-  return (event) => {
-    if (timer) { clearTimeout(timer) }
-    timer = setTimeout(func, 100, event)
-  }
-}
-
-window.addEventListener('resize', debounce(() => {
-  canvas.width = window.innerWidth
-  canvas.height = window.innerHeight
-}))
---*/
-constant script_intro = """
-<canvas id="cvsid" width="100%" height="100%"></canvas>
-<script>
-let cvs = document.getElementById("cvsid")
-cvs.width = window.innerWidth
-cvs.height = window.innerHeight
-let ctx = cvs.getContext("2d"),
-    w=cvs.width, h=cvs.height
-"""
-
-constant phix_code = """
-procedure drawPentagon(atom x, y, side, w, h, integer depth)
-    atom angle = starting_angle, distance
-    if depth=0 then
-        distance = side
-        cdCanvasBegin(cddbuffer,CD_FILL)
-    else
-        side *= scaleFactor
-        /* Starting at the top of the highest pentagon, calculate
-           the top vertices of the other pentagons by taking the
-           length of the scaled side plus the length of the gap. */
-        distance = side + side * cos_72_degrees * 2.0
-    end if
-    /* The top positions form a virtual pentagon of their own,
-       so simply move from one to the other by changing direction. */
-    for i=1 to 5 do
-        x += cos(angle) * distance
-        y -= sin(angle) * distance
-        if depth=0 then
-            cdCanvasVertex(cddbuffer, w+x, h-y)
-        else
-            drawPentagon(x, y, side, w, h, depth-1)
-        end if
-        angle += _72_degrees
-    end for
-    if depth=0 then
-        cdCanvasEnd(cddbuffer)
-    end if
-end procedure
-
-procedure draw(integer w,h)
     atom hw = min(w/2,h/2),
          margin = 20,
          radius = hw - 2*margin,
          side = radius * sin(PI/5) * 2
-    cdCanvasSetBackground(cddbuffer, CD_PARCHMENT)
+    cdCanvasActivate(cddbuffer)
     cdCanvasClear(cddbuffer)
+    drawPentagon(hw, 3*margin, side, w/2-radius-2*margin, h, level)
+    cdCanvasFlush(cddbuffer)
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle ih)
+    cdCanvas cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    cdCanvasSetBackground(cddbuffer, CD_PARCHMENT)
     cdCanvasSetForeground(cddbuffer, CD_BLUE)
-    drawPentagon(hw, 3*margin, side, w/2-radius-2*margin, h, level)
+    return IUP_DEFAULT
+end function
+
+procedure set_dlg_title()
+    IupSetStrAttribute(dlg, "TITLE", "%s (level %d)",{title,level})
 end procedure
-"""
-if string(phix_code) then end if    --DEV unused as yet
 
---DEV one idea is to transpile phix_code to js_code 
---   (and possibly vice versa, but that would really 
---    only be a means of ironing out a few more bugs.)
---   (I would not expect comments to be preserved??)
---   (See demo/rosetta/Compiler for some ideas???)
-constant js_code = """
-//let _72_degrees = 72*CD_DEG2RAD,  // exterior angle
-const _72_degrees = 72*Math.PI/180, // exterior angle
-      starting_angle = 3*_72_degrees,
-      cos_72_degrees = Math.cos(_72_degrees),
-      scaleFactor = 1/(2+cos_72_degrees*2)
-let level = 1
-
-function drawPentagon(x, y, side, w, h, depth) {
-    let angle = starting_angle, distance
-    if (depth==0) {
-        distance = side
-//      cdCanvasBegin(cddbuffer,CD_FILL)
-        ctx.beginPath()
-    } else {
-        side *= scaleFactor
-        /* Starting at the top of the highest pentagon, calculate
-           the top vertices of the other pentagons by taking the
-           length of the scaled side plus the length of the gap. */
-        distance = side + side * cos_72_degrees * 2.0
-    }
-    /* The top positions form a virtual pentagon of their own,
-       so simply move from one to the other by changing direction. */
-    for(let i=1; i<=5; i++) {
-        x += Math.cos(angle) * distance
-        y -= Math.sin(angle) * distance
-        if (depth==0) {
-            ctx.lineTo(x, y)
-        } else {
-            drawPentagon(x, y, side, w, h, depth-1)
-        }
-        angle += _72_degrees
-    }
-    if (depth==0) {
-//      cdCanvasEnd(cddbuffer,CD_FILL)
-        ctx.fill()
-    }
-}
-
-function draw(w,h) {
-//  atom hw = min(w/2,h/2),
-    let hw = w<h ? w/2 : h/2,
-        margin = 20,
-        radius = hw - 2*margin,
-        side = radius * Math.sin(Math.PI/5) * 2
-//  cdCanvasSetBackground(cddbuffer, CD_PARCHMENT)
-//  cdCanvasClear(cddbuffer)
-//  cdCanvasSetForeground(cddbuffer, CD_BLUE)
-
-//  ctx.clearRect(0,0,w,h)
-//    ctx.fillStyle='parchment' // nope...
-//  CD_PARCHMENT    = #FFFFE0,
-//    ctx.fillStyle='white'
-    ctx.fillStyle='#FFFFE0'  // excellento!!
-    ctx.fillRect(0,0,w,h)
-    ctx.fillStyle='blue' 
-    drawPentagon(hw, 3*margin, side, w/2-radius-2*margin, h, level)
-}
-draw(w,h)
-"""
-
---test (works fine)
---constant wikipedia_svg = """
---<?xml version="1.0" encoding="UTF-8" ?>
---<svg width="391" height="391" viewBox="-70.5 -70.5 391 391" xmlns="http://www.w3.org/2000/svg">
---  <rect x="25" y="25" width="200" height="200" fill="lime" stroke-width="4" stroke="pink" />
---  <circle cx="125" cy="125" r="75" fill="orange" />
---  <polyline points="50,150 50,200 200,200 200,100" stroke="red" stroke-width="4" fill="none" />
---  <line x1="50" y1="50" x2="200" y2="200" stroke="blue" stroke-width="4" />
---</svg>
---"""
-
-function k_any(Ihandle /*ih*/, atom c)
+function key_cb(Ihandle /*ih*/, atom c)
     if c=K_ESC then return IUP_CLOSE end if
     if find(c,"+-") then
-        c = ','-c -- iff(c='+'?+1:-1)
-        level = max(0,min(5,level+c))
-        IupRedraw(canvas)
-    else
-        c = upper(c)
-        if find(c,"SHJ") then
-            -- S: create svg, convert using librsvg, load and display
-            -- H: create html with embedded svg, and open in browser
-            -- J: create html with javascript, and open in browser
-            string filename = "pentagon"&iff(c='S'?".svg":".htm")
-            svgfn = open(filename,"w")
-            if c!='S' then
-                printf(svgfn,html_intro,{TITLE})
-            end if
-            if c='J' then
---              printf(svgfn,"<div ...>") -- (as needed)
-                puts(svgfn,script_intro)
-                printf(svgfn,js_code)
-                printf(svgfn,"</script>\n")
-            else
---              if c='H' then
---                  printf(svgfn,"<!DOCTYPE html>\n")
---                  printf(svgfn,`<html><head><meta charset="UTF-8">`)
---                  printf(svgfn,"<title>%s</title></head>\n",{TITLE})
---                  printf(svgfn,`<body onLoad="draw(500,500)"><script>`)
---                  printf(svgfn,"<body>\n")
---                  printf(svgfn,html_intro,{TITLE})
---              if c='J' then
---                  javascript = true
---              end if
---  if svgfn!=-1 then
---      if javascript then
---          printf(svgfn,"code")
---          return
---      end if
-                integer w = 500, h = 500 
-                printf(svgfn,`<svg width="%d" height="%d" `,{w,h})
-                printf(svgfn,`style="fill:blue" version="1.1" `)
-                printf(svgfn,`xmlns="http://www.w3.org/2000/svg">`&"\n")
---  end if
-                draw(w,h)
---  if svgfn!=-1 then
-                printf(svgfn,"</svg>\n")
---  end if
-            end if
-            if c!='S' then
-                printf(svgfn,"</body>\n</html>\n")
-            end if
-            close(svgfn)
-            svgfn = -1
-            if c='S' then
---              ?"librsvg"  -- (see below)
---              string pngname = rasterize_svg_file(filename)
---              {} = rasterize_svg_text(text,pngname) -- maybe... or ...
---              atom pixbuf = rasterize_svg_text(text) -- maybe...  [NO]
---filename = `C:\Users\Pete\Documents\Phix256.svg`
---filename = `C:\Users\Pete\Documents\Phix256 (1).svg`
---filename = `C:\Users\Pete\Documents\Phix32.svg`
---?get_text(filename)
-                atom pGdkPixbuf = rasterize_svg_pixbuf(get_text(filename))
---              atom pGdkPixbuf = rasterize_svg_pixbuf(wikipedia_svg)
-                Ihandln image = IupGetAttributeHandle(label, "IMAGE")
-                if image!=NULL then
-                    IupSetAttributeHandle(label, "IMAGE", NULL)
-                    image = IupDestroy(image)
-                end if
---              image = IupLoadImage(filename)  -- (double-checked, nope)
---              image = IupLoadImage(pngname) 
---              atom pGdkPixbuf = gdk_pixbuf_get_pixels(atom pGdkPixbuf)
---              atom pixbuf = gdk_pixbuf_get_pixels(atom pGdkPixbuf)
-                integer w = gdk_pixbuf_get_width(pGdkPixbuf),
-                        h = gdk_pixbuf_get_height(pGdkPixbuf)
-                if not gdk_pixbuf_get_has_alpha(pGdkPixbuf) then ?9/0 end if
-                if gdk_pixbuf_get_colorspace(pGdkPixbuf)!=GDK_COLORSPACE_RGB then ?9/0 end if
-                if gdk_pixbuf_get_rowstride(pGdkPixbuf)!=w*4 then ?9/0 end if
-                if gdk_pixbuf_get_n_channels(pGdkPixbuf)!=4 then ?9/0 end if
-                if gdk_pixbuf_get_bits_per_sample(pGdkPixbuf)!=8 then ?9/0 end if
-                atom pixbuf = gdk_pixbuf_get_pixels(pGdkPixbuf)
---              image = IupImage(w,h,pixbuf)
---              image = IupImageRGB(w,h,pixbuf)
-                image = IupImageRGBA(w,h,pixbuf)        -- yeah!!
-                g_object_unref(pGdkPixbuf)
-
---librsvg pixbuf questions
---I have written a trivial wrapper for librsvg to convert svg (text) to png, invoking
---rsvg_handle_new_from_data() and rsvg_handle_get_pixbuf(), and then
---gdk_pixbuf_save() followed by IupLoadImage().
---Can I use the pixbuf directly rather than saving to disk?
---Should I be freeing the result from rsvg_handle_get_pixbuf?
-
---              if image=NULL then crash("error opening "&pngname) end if
-                if image=NULL then crash("error loading svg") end if
-                IupSetAttributeHandle(label, "IMAGE", image)
-                IupSetInt(label, "VISIBLE", true)
-                IupSetAttribute(label,"SIZE",NULL)
-                IupSetAttribute(canvas, "SIZE", IupGetAttribute(canvas,"SIZE"))
-                IupSetAttribute(dlg,"SIZE",NULL)
-                IupRefresh(dlg)
-                IupSetAttribute(canvas, "SIZE", NULL)
---DEV (not just yet...)
---          elsif c='H' then
-            else
---              system(filename)
---sug/not tried:
---              {} = system_exec(filename,8)
-                system_open(filename)
-            end if
+        if c='+' then
+            level = min(5,level+1)
+        elsif c='-' then
+            level = max(0,level-1)
         end if
+        set_dlg_title()
+        IupRedraw(canvas)
     end if
     return IUP_CONTINUE
 end function
 
 procedure main()
     IupOpen()
-    IupImageLibOpen()
-
-    canvas = IupCanvas(NULL)
-    IupSetAttribute(canvas, "RASTERSIZE", "640x640")
-    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
-    label = IupLabel()
-    IupSetAttribute(label, "IMAGE", "IUP_MediaStop")
-    IupSetInt(label, "VISIBLE", false)
-
-    dlg = IupDialog(IupHbox({canvas,label}))
-    IupSetAttribute(dlg, "TITLE", TITLE)
-    IupSetCallback(dlg, "K_ANY", Icallback("k_any"))
-
+    canvas = IupCanvas("RASTERSIZE=640x640")
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "ACTION", Icallback("redraw_cb")})
+    dlg = IupDialog(canvas)
+    IupSetCallback(dlg, "KEY_CB", Icallback("key_cb"))
+    set_dlg_title()
     IupShow(dlg)
     IupSetAttribute(canvas, "RASTERSIZE", NULL)
-    IupMainLoop()
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()
 
---/*
-
-?"begin"
---string pngname = rasterize_svg_file("fts3_doclist2.svg")
---string pngname = rasterize_svg_file("fts3_doclist2.svg","test.png")
-string pngname = rasterize_svg_file("inkscape.svg","test.png")  -- (partial of next - excellent, given it was rudely cropped/aka "..."'d, but error handling sucked)
---string pngname = rasterize_svg_file(`C:\Users\Pete\Documents\GitHub\Inkscape_Logo_Standard_square.svg`,"test.png") -- ok
---string pngname = rasterize_svg_file(`C:\Downloads\css\bootstrap-3.3.7\dist\fonts\glyphicons-halflings-regular.svg`,"test.png") --?? (result=NULL but error also ==0??) [==O/E/IE/GC]
--- (as below...)
---string pngname = rasterize_svg_file(`C:\Downloads\css\bootstrap-3.3.7\docs\assets\brand\bootstrap-outline.svg`,"test.png") -- ok
---string pngname = rasterize_svg_file(`C:\Program Files\Racket\doc\teachpack\pict_10.svg`,"test.png") -- ok
---string pngname = rasterize_svg_file(`C:\ldc\dmd2\html\d\images\orgs-using-d\sarc.svg`,"test.png") -- ugh (ok-ish, looks much better in GC)
---string pngname = rasterize_svg_file(`C:\Program Files\GTK3-Runtime Win64\share\icons\Adwaita\scalable\actions\address-book-new-symbolic.svg`,"test.png") -- ok
---string pngname = rasterize_svg_file(`C:\Program Files\TortoiseHg\contrib\logo-droplets.svg`,"test.png") -- ok
---string pngname = rasterize_svg_file(`C:\Program Files (x86)\p6\demo\EuGTK4.11.10\demos\glade\glade.svg`,"test.png") -- ok (despite font warning)
---string pngname = rasterize_svg_file(`C:\Program Files (x86)\p6\demo\EuGTK4.11.10\demos\thumbnails\glade.svg`,"test.png") -- ok ""
---string pngname = rasterize_svg_file(`C:\Program Files (x86)\p6\demo\EuGTK4.11.10\demos\thumbnails\thunderbird.svg`,"test.png") -- ok
---string pngname = rasterize_svg_file(`C:\Program Files (x86)\p6\demo\EuGTK4.11.10\demos\thumbnails\preferences-color.svg`,"test.png") -- ok
---string pngname = rasterize_svg_file(`C:\Program Files (x86)\Phix\demo\libcurlx\gdax-tt-5bd349bc467a969abe06804da9aa5cbaf6b0cf95\docs\css\fonts\fontawesome-webfont.svg`,"test.png") -- ?? [==GC]
---string pngname = rasterize_svg_file(`C:\Program Files (x86)\Phix\demo\libcurlx\gdax-tt-5bd349bc467a969abe06804da9aa5cbaf6b0cf95\docs\fonts\fontawesome-webfont.svg`,"test.png") -- ?? [==GC]
---string pngname = rasterize_svg_file(`C:\Program Files (x86)\Phix\docs\cd-5.9_Docs\screenshots\cd_svg.svg`,"test.png") -- ok (despite font warning)
---string pngname = rasterize_svg_file(`C:\Users\Pete\.multirust\toolchains\stable-x86_64-pc-windows-msvc\share\doc\rust\html\book\2018-edition\_FontAwesome\fonts\fontawesome-webfont.svg`,"test.png") -- ?? [==GC]
---string pngname = rasterize_svg_file(`C:\Users\Pete\AppData\Local\lxss\rootfs\usr\share\byobu\pixmaps\byobu.svg`,"test.png") -- ok
---string pngname = rasterize_svg_file(`C:\Users\Pete\AppData\Local\lxss\rootfs\usr\share\icons\HighContrast\scalable\apps\byobu.svg`,"test.png") -- ok
---string pngname = rasterize_svg_file(`C:\Users\Pete\Downloads\eu\qb\SVGDigitalClock.svg`,"test.png") -- ok-ish (not anitmated!)
---string pngname = rasterize_svg_file(`E:\downloads\misc\The Profitable Programmer Portfolio\The-Profitable-Programmer-Portfolio\final\assets\fonts\foundation-icons\foundation-icons.svg`,"test.png") -- ?? [==GC]
---  Ah: the above is pure defs, no actual svg at all...
---string pngname = rasterize_svg_file(`test.svg`,"test.png") -- ok
---string pngname = rasterize_svg_file(`C:\Program Files\Racket\doc\teachpack\pict_16.svg`,"test.png") -- ok
---string pngname = rasterize_svg_file(`C:\Program Files\Racket\doc\teachpack\pict_18.svg`,"test.png") -- ok
---string pngname = rasterize_svg_file(`C:\Program Files\Racket\doc\teachpack\pict_20.svg`,"test.png") -- ok
---string pngname = rasterize_svg_file(`C:\Program Files\Racket\doc\teachpack\pict_24.svg`,"test.png") -- ok
---string pngname = rasterize_svg_file(`C:\Program Files\Racket\doc\teachpack\pict_25.svg`,"test.png") -- ok (1,188 KB!)
---string pngname = rasterize_svg_file(`C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\ad.svg`,"test.png") -- ick
---string pngname = rasterize_svg_file(`C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\ai.svg`,"test.png") -- ick
---string pngname = rasterize_svg_file(`C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\bo.svg`,"test.png") -- ick
---string pngname = rasterize_svg_file(`C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\bt.svg`,"test.png") -- ick
---string pngname = rasterize_svg_file(`C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\bz.svg`,"test.png") -- ick
---string pngname = rasterize_svg_file(`C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\do.svg`,"test.png") -- ick
---string pngname = rasterize_svg_file(`C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\es.svg`,"test.png") -- ick
---string pngname = rasterize_svg_file(`C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\fj.svg`,"test.png") -- ick
---string pngname = rasterize_svg_file(`C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\fk.svg`,"test.png") -- ick
---string pngname = rasterize_svg_file(`C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\gs.svg`,"test.png") -- ick
---string pngname = rasterize_svg_file(`C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\gt.svg`,"test.png") -- ick
---string pngname = rasterize_svg_file(`C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\hr.svg`,"test.png") -- ick
---string pngname = rasterize_svg_file(`C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\me.svg`,"test.png") -- ick
---string pngname = rasterize_svg_file(`C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\mx.svg`,"test.png") -- ick
---string pngname = rasterize_svg_file(`C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\rs.svg`,"test.png") -- ick
---string pngname = rasterize_svg_file(`C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\sh.svg`,"test.png") -- ick
---string pngname = rasterize_svg_file(`C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\st.svg`,"test.png") -- ok?
---string pngname = rasterize_svg_file(`C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\sv.svg`,"test.png") -- ick
---string pngname = rasterize_svg_file(`C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\tm.svg`,"test.png") -- ick
---string pngname = rasterize_svg_file(`C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\va.svg`,"test.png") -- ok?
---string pngname = rasterize_svg_file(`animation.svg`,"test.png") -- ok (not animated!)
---string pngname = rasterize_svg_file(`dragon.svg`,"test.png") -- nope... (heavy defs use... not to worry)
---string pngname = rasterize_svg_file(`clock.svg`,"test.png") -- ok (not animated!)
---string pngname = rasterize_svg_file(`yinandyang.svg`,"test.png") -- ok
---string pngname = rasterize_svg_file(`C:\Users\Pete\AppData\Local\Microsoft\OneDrive\19.070.0410.0005\images\darkTheme\acm_low_disk_space_online_only.svg`,"test.png") -- yuk
---string pngname = rasterize_svg_file(`C:\Users\Pete\AppData\Local\Microsoft\OneDrive\19.070.0410.0005\images\darkTheme\vaultIntro.svg`,"test.png") -- erm
---string pngname = rasterize_svg_file(`C:\Users\Pete\AppData\Local\Microsoft\OneDrive\19.070.0410.0005\images\lightTheme\acm_low_disk_space_online_only.svg`,"test.png") -- yuk
---string pngname = rasterize_svg_file(`C:\Users\Pete\AppData\Local\Microsoft\OneDrive\19.070.0410.0005\images\lightTheme\vaultIntro.svg`,"test.png") -- erm
---string pngname = rasterize_svg_file(`C:\Users\Pete\go\src\github.com\go-gl\glfw3\glfw-3.2.1.bin.WIN64\docs\html\spaces.svg`,"test.png") -- nice
---string pngname = rasterize_svg_file("","test.png") -- 
-
-include pGUI.e
-IupOpen()
-
---atom pError = allocate(machine_word())
-imImage im1 = imFileImageLoadBitmap(pngname,0,pError)
-if im1=NULL then crash("error opening "&pngname) end if
-Ihandln image1 = IupImageFromImImage(im1),
-        label1 = IupLabel()
-IupSetAttributeHandle(label1, "IMAGE", image1)
-Ihandle dlg = IupDialog(label1,`TITLE="SVG Viewer"`)
-IupShow(dlg)
-
-IupMainLoop()
-IupClose()
-
-
---/*
---C:\Downloads\css\bootstrap-3.3.7\dist\fonts\glyphicons-halflings-regular.svg 107.00 KB 25/07/2016 16:51:55
---C:\Program Files\Racket\doc\teachpack\pict_16.svg 137.00 KB 27/07/2018 17:34:14
---C:\Program Files\Racket\doc\teachpack\pict_18.svg 115.00 KB 27/07/2018 17:34:14
---C:\Program Files\Racket\doc\teachpack\pict_20.svg 115.00 KB 27/07/2018 17:34:14
---C:\Program Files\Racket\doc\teachpack\pict_24.svg 395.00 KB 27/07/2018 17:34:14
---C:\Program Files\Racket\doc\teachpack\pict_25.svg 1,188.00 KB 27/07/2018 17:34:14
---C:\Program Files (x86)\p6\demo\EuGTK4.11.10\demos\glade\glade.svg 75.00 KB 26/05/2015 16:26:10
---C:\Program Files (x86)\p6\demo\EuGTK4.11.10\demos\thumbnails\glade.svg 75.00 KB 26/05/2015 16:26:10
---C:\Program Files (x86)\p6\demo\EuGTK4.11.10\demos\thumbnails\preferences-color.svg 62.00 KB 26/05/2015 16:26:10
---C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\ad.svg 56.00 KB 13/11/2016 09:54:48
---C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\ai.svg 55.00 KB 13/11/2016 09:54:48
---C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\bo.svg 186.00 KB 13/11/2016 09:54:50
---C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\bt.svg 41.00 KB 13/11/2016 09:54:50
---C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\bz.svg 77.00 KB 13/11/2016 09:54:50
---C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\do.svg 456.00 KB 13/11/2016 09:54:52
---C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\es.svg 142.00 KB 13/11/2016 09:54:52
---C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\fj.svg 44.00 KB 13/11/2016 09:54:52
---C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\fk.svg 44.00 KB 13/11/2016 09:54:54
---C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\gs.svg 46.00 KB 13/11/2016 09:54:54
---C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\gt.svg 59.00 KB 13/11/2016 09:54:54
---C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\hr.svg 78.00 KB 13/11/2016 09:54:54
---C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\me.svg 106.00 KB 13/11/2016 09:54:56
---C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\mx.svg 48.00 KB 13/11/2016 09:54:56
---C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\rs.svg 184.00 KB 13/11/2016 09:54:58
---C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\sh.svg 48.00 KB 13/11/2016 09:54:58
---C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\sv.svg 127.00 KB 13/11/2016 09:54:58
---C:\Users\Pete\AppData\Local\Google\Chrome\User Data\Default\Extensions\gkojfkhlekighikafcpjkiklfbnlmeio\1.122.621_0\js\svc\pub\img\flag\svg_4x3\tm.svg 45.00 KB 13/11/2016 09:54:58
---C:\Users\Pete\AppData\Local\lxss\rootfs\usr\share\byobu\pixmaps\byobu.svg 43.00 KB 14/02/2017 19:31:53
---C:\Users\Pete\AppData\Local\lxss\rootfs\usr\share\icons\HighContrast\scalable\apps\byobu.svg 96.00 KB 14/02/2017 19:33:32
---C:\Users\Pete\AppData\Local\Microsoft\OneDrive\19.070.0410.0005\images\darkTheme\acm_low_disk_space_online_only.svg 45.00 KB 22/05/2019 17:37:03
---C:\Users\Pete\AppData\Local\Microsoft\OneDrive\19.070.0410.0005\images\darkTheme\vaultIntro.svg 47.00 KB 22/05/2019 17:37:05
---C:\Users\Pete\AppData\Local\Microsoft\OneDrive\19.070.0410.0005\images\lightTheme\acm_low_disk_space_online_only.svg 45.00 KB 22/05/2019 17:37:05
---C:\Users\Pete\AppData\Local\Microsoft\OneDrive\19.070.0410.0005\images\lightTheme\vaultIntro.svg 47.00 KB 22/05/2019 17:37:06
---C:\Users\Pete\go\src\github.com\go-gl\glfw3\glfw-3.2.1.bin.WIN64\docs\html\spaces.svg 110.00 KB 18/08/2016 12:52:39
-
---*/
-
---*/
-
---/*
-What perl did:
-<svg height="500" width="500" style="fill:blue" version="1.1" xmlns="http://www.w3.org/2000/svg">
-<polygon points="250.000 0.000 248.595 1.933 246.323 1.195 246.323 -1.195 248.595 -1.933" transform="translate(250,250) rotate(-18)"/>
-<...snip 6,460-ish similar lines...>
-</svg>
---*/

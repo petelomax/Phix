@@ -1,0 +1,202 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">glBufferData</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td>
+          <b>Definition:</b>
+         </td>
+         <td>
+          include pGUI.e
+          <br>
+          include opengl.e
+          <br>
+          <br>
+          glBufferData(<a href="integer.htm">integer</a> target, size, <a href="atom.htm">atom</a> pData, integer usage)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Description:</b>
+         </td>
+         <td>
+            create and initialize a buffer object's data store
+          <br>
+          <br>
+            target: Specifies the target buffer object. The symbolic constant must be GL_ARRAY_BUFFER or GL_ELEMENT_ARRAY_BUFFER.<br>
+            size, pData: Specifies the size in bytes of and a pointer the buffer object&rsquo;s new data store. See glFloat32Array() below.<br>
+            usage: Specifies the expected usage pattern of the data store. The symbolic constant must be GL_STREAM_DRAW, GL_STATIC_DRAW, or GL_DYNAMIC_DRAW.
+          <br>
+          <br>
+            glBufferData creates a new data store for the buffer object currently bound to target. <br>
+            Any pre-existing data store is deleted. The new data store is created with the specified size in bytes and usage. <br>
+            If data is not NULL, the data store is initialized with data from this pointer.
+            <br>
+            <br>
+            usage is a hint to the GL implementation as to how a buffer object's data store will be accessed. <br>
+            This enables the GL implementation to make more intelligent decisions that may significantly impact buffer object performance. <br>
+            It does not, however, constrain the actual usage of the data store. <br>
+            usage can be broken down into two parts: first, the frequency of access (modification and usage), and second, the nature of that access. <br>
+            The frequency of access may be one of these:<br>
+            STREAM The data store contents will be modified once and used at most a few times.<br>
+            STATIC The data store contents will be modified once and used many times.<br>
+            DYNAMIC The data store contents will be modified repeatedly and used many times.
+            <br>
+            <br>
+            The nature of access must be:<br>
+            DRAW The data store contents are modified by the application, and used as the source for GL drawing and image specification commands.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Notes:</b>
+         </td>
+         <td>
+            If pData is NULL, a data store of the specified size is still created, but its contents remain uninitialized and thus undefined.
+            <br>
+            <br>
+            Clients must align data elements consistent with the requirements of the client platform, with an additional base-level 
+            requirement that an offset within a buffer to a datum comprising N bytes be a multiple of N.
+            <br>
+            <br>
+            Typically the count parameter of <a href="glDrawArrays.htm">glDrawArrays</a>() ultimately determines precisely how many entries 
+            OpenGL/WebGL will examine/expect.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Utilities:</b>
+         </td>
+         <td>
+            {<a href="integer.htm">integer</a> size, <a href="atom.htm">atom</a> pData} = <b>glFloat32Array</b>(<a href="sequence.htm">sequence</a> data)<br>
+            While in the C api it is natural to use the (address of) an array, opengl.e must explicitly allocate, poke, and eventually
+            free memory, whereas WebGL specifies that "new Float32Array" should be used, so that&rsquo;s what opengl.js does. <br>
+            This Phix-specific routine abstracts away any such differences. <br>
+            A need for further variations for non-float32 arrays may yet arise. <br>
+            The possibility of a NULL pData mentioned above does not extend to this routine (and in any case has not been needed or tested).
+            <br>
+            <br>
+            <a href="sequence.htm">sequence</a> res = <b>glSimpleA7texcoords</b>(<a href="integer.htm">integer</a> faces)<br>
+            This Phix-specific routine was originally written for demo\pGUI\HelloF.exw and if you have not read the detailed notes in that 
+            source I recommend you do so now. As it mentions there are 144 different ways to draw a single rectangle using two triangles,
+            and low-level libraries such as OpenGL and CanvasDraw have a strong tendency to store their data (/pixels) differently and apply 
+            different coordinate systems to them, so if you are not careful things come out upside down and/or back-to-front. I therefore 
+            invented the "A7" format as {bl,tl,br,tl,tr,br}, ie the six points (aka two triangles) needed to draw it, when looking at it 
+            from the texture side and orientated the right way up for that, as a way to simplify things. The following diagram should help.
+            <br>
+            <br>
+            <img src="images/A7format.png"/>
+            <br>
+            <br>
+            Drawing the first triangle is a bit like writing a capital A, in reverse italic and without the cross bar, and the second
+            triangle is a bit like drawing a 7. Obviously 2 and 4 are really the same point, as are 3 and 6. As long as you have defined 
+            all your (rectangular) faces consistently, then you can appply the same texture mapping to all of them, and at the same time 
+            iron out any discrepancies between desktop/Phix and pwa/p2js, which is precisely what glSimpleA7texcoords does.
+            <br>
+            <br>
+            In practice, demo\pGUI\opengl.e as is used on desktop/Phix repeats {1,0, 1,1, 0,0,  1,1, 0,1, 0,0} 
+                whereas pwa\builtins\opengl.js as is used via pwa/p2js repeats {1,1, 1,0, 0,1,  1,0, 0,0, 0,1}, which immediately 
+                illustrates the problem glSimpleA7texcoords() solves.<br>
+            The texture coordinates that OpenGL needs must be a one-to-one mapping between all the 3D points in the model and the
+            corresponding 2D points on the texture, specifying the x and y coordinates as a floating point number between 0 and 1.<br>
+            Note that internally this routine specifically requests a dword-sequence result from <a href="flatten.htm">flatten</a>().
+            <br>
+            <br>
+            Over time I expect further minor variations of this trivial routine to emerge. Note that glSimpleA7texcoords() is exclusively
+            designed for use with GL_TRIANGLES whereas GL_TRIANGLE_STRIP and GL_TRIANGLE_FAN offer more compact representations.
+            <br>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Errors:</b>
+         </td>
+         <td>
+            GL_INVALID_ENUM is generated if target is not GL_ARRAY_BUFFER or GL_ELEMENT_ARRAY_BUFFER.<br>
+            GL_INVALID_ENUM is generated if usage is not GL_STREAM_DRAW, GL_STATIC_DRAW, or GL_DYNAMIC_DRAW.<br>
+            GL_INVALID_VALUE is generated if size is negative.<br>
+            GL_INVALID_OPERATION is generated if the reserved buffer object name 0 is bound to target.<br>
+            GL_OUT_OF_MEMORY is generated if the GL is unable to create a data store with the specified size.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Associated Gets:</b>
+         </td>
+         <td>
+            glGetBufferParameteriv with argument GL_BUFFER_SIZE or GL_BUFFER_USAGE
+         </td>
+        </tr>
+<!--
+Examples
+Load an index buffer into OpenGL for later rendering.
+// data_size_in_bytes is the size in bytes of your vertex data.
+// data_indices is an array of integer offsets into your vertex data.
+
+GLuint index_buffer; // Save this for later rendering
+glGenBuffers(1, &index_buffer);
+glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer);
+glBufferData(GL_ELEMENT_ARRAY_BUFFER, data_size_in_bytes, 0, GL_STATIC_DRAW);
+glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, data_size_in_bytes, data_indices);
+
+GLint size = 0;
+glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
+if(data_size_in_bytes != size)
+{
+    glDeleteBuffers(1, &index_buffer);
+    // Log the error
+    return;
+}
+
+// Success
+
+Load a vertex buffer into OpenGL for later rendering.
+// data_size_in_bytes is the size in bytes of your vertex data.
+// data_vertices is your actual vertex data, probably a huge array of floats
+
+GLuint vertex_buffer; // Save this for later rendering
+glGenBuffers(1, &vertex_buffer);
+glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
+glBufferData(GL_ARRAY_BUFFER, data_size_in_bytes, 0, GL_STATIC_DRAW);
+glBufferSubData(GL_ARRAY_BUFFER, 0, data_size_in_bytes, data_vertices);
+
+GLint size = 0;
+glGetBufferParameteriv(GL_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
+if(data_size_in_bytes != size)
+{
+    glDeleteBuffers(1, &vertex_buffer);
+    // Log the error
+    return;
+}
+
+// Success
+-->
+        <tr>
+         <td>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="glCompileShader.htm">Y</a>,
+          <a href="glCreateShader.htm">Z</a>
+<br>
+DEV 
+See Also
+glBindBuffer, glBufferSubData
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

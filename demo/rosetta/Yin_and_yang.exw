@@ -2,6 +2,7 @@
 -- demo\rosetta\Yin_and_yang.exw
 -- =============================
 --
+with javascript_semantics
 include pGUI.e
 
 Ihandle dlg, canvas
@@ -25,10 +26,10 @@ procedure yinyang(atom  cx, cy, r)
 end procedure
 
 function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
-integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
-integer r = min(width,height)-40
-integer cx = floor(width/2)
-integer cy = floor(height/2)
+    integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE"),
+             r = min(width,height)-40,
+            cx = floor(width/2),
+            cy = floor(height/2)
     cdCanvasActivate(cd_canvas)
     cdCanvasClear(cd_canvas) 
     yinyang(cx-r*.43,cy+r*.43,r/6)
@@ -38,9 +39,13 @@ integer cy = floor(height/2)
 end function
 
 function map_cb(Ihandle ih)
-    atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
     IupGLMakeCurrent(canvas)
-    cd_canvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    if platform()=JS then
+        cd_canvas = cdCreateCanvas(CD_IUP, canvas)
+    else
+        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+        cd_canvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    end if
     cdCanvasSetBackground(cd_canvas, CD_WHITE)
     cdCanvasSetForeground(cd_canvas, CD_BLACK)
     return IUP_DEFAULT
@@ -55,21 +60,17 @@ end function
 
 procedure main()
     IupOpen()
-
-    canvas = IupGLCanvas()
-    IupSetAttribute(canvas, "RASTERSIZE", "340x340") -- initial size
-    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
-    IupSetCallback(canvas, "RESIZE_CB", Icallback("canvas_resize_cb"))
-
-    dlg = IupDialog(canvas)
-    IupSetAttribute(dlg, "TITLE", "Yin and Yang")
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
-
-    IupMap(dlg)
+    canvas = IupGLCanvas("RASTERSIZE=340x340")
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "RESIZE_CB", Icallback("canvas_resize_cb"),
+                             "ACTION", Icallback("redraw_cb")})
+    dlg = IupDialog(canvas, `TITLE="Yin and Yang"`)
+    IupShow(dlg)
     IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release the minimum limitation
-    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
-    IupMainLoop()
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

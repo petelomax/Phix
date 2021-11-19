@@ -5,6 +5,7 @@
 -- Can resize, double or halve the number of sites (press +/-), and toggle 
 --  between Euclid, Manhattan, and Minkowski (press e/m/w).
 --
+with javascript_semantics
 include pGUI.e
 
 Ihandle dlg, canvas, timer
@@ -27,7 +28,7 @@ integer dmode = EUCLID,
         drawn = 0       -- (last dmode actually shown)
 
 function distance(integer x1, integer y1, integer x2, integer y2)
-atom d
+    atom d
     x1 -= x2
     y1 -= y2
     switch dmode do
@@ -41,9 +42,9 @@ end function
 sequence nearestIndex, dist
 
 function checkRow(integer site, integer x, integer height)
-bool res = false
-atom dxSquared
-integer x1 = siteX[site]-x
+    bool res = false
+    atom dxSquared
+    integer x1 = siteX[site]-x
     switch dmode do
         case EUCLID:    dxSquared = x1*x1
         case MANHATTAN: dxSquared = abs(x1)
@@ -68,7 +69,7 @@ integer x1 = siteX[site]-x
 end function
 
 function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
-integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
+    integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
     if width!=last_width
     or height!=last_height
     or nsites!=length(siteX) then
@@ -84,6 +85,7 @@ integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
     and not timer_active then   -- (drawing when rug moved..)
         drawn = dmode
         cdCanvasActivate(cddbuffer)
+        cdCanvasClear(cddbuffer)
         atom t0 = time(), t1
         t1 = time()+0.25
         nearestIndex = repeat(repeat(1,height),width)
@@ -150,7 +152,7 @@ function map_cb(Ihandle ih)
     return IUP_DEFAULT
 end function
 
-function k_any(Ihandle /*ih*/, atom c)
+function key_cb(Ihandle /*ih*/, atom c)
     if c=K_ESC then return IUP_CLOSE end if
     integer wasdmode = dmode
     switch c do
@@ -180,22 +182,20 @@ end function
 procedure main()
     IupOpen()
     
-    canvas = IupCanvas(NULL)
-    IupSetAttribute(canvas, "RASTERSIZE", "600x400") -- initial size
-    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
+    canvas = IupCanvas("RASTERSIZE=600x400")
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "ACTION", Icallback("redraw_cb")})
 
     timer = IupTimer(Icallback("timer_cb"), 100, 0) -- (inactive)
 
-    dlg = IupDialog(canvas)
-    IupSetAttribute(dlg, "TITLE", "Voronoi diagram")
-    IupSetCallback(dlg, "K_ANY",     Icallback("k_any"))
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
-
-    IupMap(dlg)
+    dlg = IupDialog(canvas,`TITLE="Voronoi diagram"`)
+    IupSetCallback(dlg, "KEY_CB", Icallback("key_cb"))
+    IupShow(dlg)
     IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release the minimum limitation
-    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
-    IupMainLoop()
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

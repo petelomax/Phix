@@ -1,0 +1,62 @@
+--
+-- demo\rosetta\Simulate_mouse_input.exw
+--
+-- Note that CURSORPOS, SCREENPOSITION, and MOUSEBUTTON are known to be a little flaky and/or system-dependent, ymmv.
+--
+without js -- you'd better hope this sort of thing ain't possible in a browser!
+requires("1.0.1") -- (IupGetGlobalIntInt)
+include pGUI.e
+include timedate.e
+ 
+integer delay = 16  -- (4s @ 250ms)
+Ihandle dlg, btn
+
+function action_cb(Ihandle /*btn*/)
+    string t = format_timedate(date(),"hh:mm:sspm")
+    IupSetStrAttribute(btn,"TITLE","Clicked at %s",{t})
+    return IUP_DEFAULT
+end function
+
+integer cx, cy
+
+function timer_cb(Ihandle timer)
+    if delay then
+        IupSetStrAttribute(btn,"TITLE","%3.2f",{delay/4})
+        delay -= 1
+        {cx,cy} = IupGetGlobalIntInt("CURSORPOS")
+    else
+        integer {xb,yb} = IupGetIntInt(btn,"SCREENPOSITION"),
+                {wb,hb} = IupGetIntInt(btn,"RASTERSIZE"),
+                {dx,dy} = {xb+floor(wb/2),yb+floor(hb/2)}
+        if {dx,dy}!={cx,cy} then
+            if IupGetInt(timer,"TIME")=250 then
+                IupSetInt(timer,"TIME",40)
+                IupSetInt(timer,"RUN",false)
+                IupSetInt(timer,"RUN",true)
+            end if
+            for i=1 to 15 do
+                if cx<dx then cx += 1 end if
+                if cx>dx then cx -= 1 end if
+                if cy<dy then cy += 1 end if
+                if cy>dy then cy -= 1 end if
+            end for
+            string cxcy = sprintf("%dx%d ",{cx,cy})
+            IupSetGlobal("CURSORPOS",cxcy)
+        else
+            string s = sprintf("%dx%d 1 2",{dx,dy})
+            IupSetStrGlobal("MOUSEBUTTON", s)  
+            IupSetAttribute(timer,"RUN","NO")
+        end if
+    end if
+    return IUP_CONTINUE
+end function
+ 
+IupOpen()
+btn = IupButton("button",Icallback("action_cb"),"SIZE=100x12")
+dlg = IupDialog(btn,`TITLE="Simulate mouse input", CHILDOFFSET=10x40, SIZE=200x80`)
+IupShow(dlg)
+Ihandle timer = IupTimer(Icallback("timer_cb"), 250)
+if platform()!=JS then -- (just for consistency)
+    IupMainLoop()
+    IupClose()
+end if

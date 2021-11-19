@@ -7,6 +7,7 @@
 --  Resizing the window, as it turns out, achieves much the same effect 
 --  as +/-, only much quicker (by increasing/decreasing the spacing).
 --
+with javascript_semantics
 integer numrects = 125  -- (max non-touching for a height of 500)
 
 include pGUI.e
@@ -43,7 +44,7 @@ function timer_cb(Ihandle /*ih*/)
     return IUP_IGNORE
 end function
 
-function k_any(Ihandle /*ih*/, atom c)
+function key_cb(Ihandle /*ih*/, atom c)
     if c=K_ESC then return IUP_CLOSE end if
     if c='+' or (c='-' and numrects>3) then
         numrects -= c-','
@@ -55,22 +56,18 @@ end function
 
 procedure main()
     IupOpen()
-    
-    canvas = IupCanvas(NULL)
-    IupSetAttribute(canvas, "RASTERSIZE", "602x502") -- initial size
-    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
-
-    dlg = IupDialog(canvas)
-    IupSetAttribute(dlg, "TITLE", "Vibrating Rectangles")
-    IupSetCallback(dlg, "K_ANY",     Icallback("k_any"))
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
-
-    IupMap(dlg)
+    canvas = IupCanvas("RASTERSIZE=602x502")
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "ACTION", Icallback("redraw_cb")})
+    dlg = IupDialog(canvas,`TITLE="Vibrating Rectangles"`)
+    IupSetCallback(dlg, "KEY_CB",    Icallback("key_cb"))
+    IupShow(dlg)
     IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release the minimum limitation
-    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
     Ihandle timer = IupTimer(Icallback("timer_cb"), 40)
-    IupMainLoop()
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

@@ -2,8 +2,9 @@
 -- demo\rosetta\wordsearch.exw
 -- ===========================
 --
+with javascript_semantics
 string message = "ROSETTACODE"
-sequence words, solution="", placed
+sequence words = unix_dict(), solution="", placed
 
 constant grid = split("""
 X  0  1  2  3  4  5  6  7  8  9  X
@@ -36,7 +37,7 @@ procedure wordsearch(sequence grid, integer rqd, integer left, sequence done)
                     integer {dx,dy} = {DX[rd[d]],DY[rd[d]]},
                             {nx,ny} = {sx,sy},
                             chcount = length(word)
-                    sequence newgrid = grid
+                    sequence newgrid = deep_copy(grid)
                     for c=1 to length(word) do
                         integer ch = grid[nx][ny]
                         if ch!=' ' then
@@ -52,7 +53,8 @@ procedure wordsearch(sequence grid, integer rqd, integer left, sequence done)
                     end for
                     if chcount!=-1 then
                         sequence posinfo = {sx-2,(sy-4)/3,nx-dx-2,(ny-dy-4)/3},
-                                 newdone = {append(done[1],word),append(done[2],posinfo)}
+                                 newdone = {append(deep_copy(done[1]),word),
+                                            append(deep_copy(done[2]),posinfo)}
                         if rqd<=1 and left-chcount=length(message) then
                             {solution, placed} = {newgrid, newdone}
                             return
@@ -79,9 +81,6 @@ function valid_word(string word)
     return true
 end function
 
-integer fn = open(join_path({"..","unixdict.txt"}),"r")
-words = get_text(fn,GT_LF_STRIPPED)
-close(fn)
 for i=length(words) to 1 by -1 do
     if not valid_word(words[i]) then
         words[i] = words[$]

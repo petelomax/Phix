@@ -1,0 +1,200 @@
+--
+-- demo\rosetta\Simple_turtle_graphics.exw
+-- =======================================
+--
+with javascript_semantics
+without debug                       --  (optional)
+include pGUI.e
+include builtins\VM\pcfunc.e        --   vv""vv
+include builtins\pfile.e            --
+include builtins\VM\pprntfN.e       --   (keeps
+include builtins\get_routine_info.e --     any
+include builtins\scanf.e            --    ex.err
+include builtins\pdir.e             --    clean)
+include builtins\penv.e             --
+with debug                          --   ^^""^^
+Ihandle canvas, dlg
+cdCanvas cdcanvas
+
+atom x = 0,
+     y = 0,
+     direction = 0
+bool pen_down = true
+
+procedure walk(atom distance)
+    //
+    // Move forward by distance pixels.
+    //
+    atom start_x = x,
+         start_y = y,
+         angle = direction*PI/180
+    x += distance*sin(angle)
+    y += distance*cos(angle)
+    if pen_down then
+        cdCanvasLine(cdcanvas,start_x,start_y,x,y)
+    end if
+end procedure
+
+procedure right(atom angle)
+    direction = remainder(direction+angle,360)
+end procedure
+
+procedure left(atom angle)
+    right(360-angle)
+end procedure
+
+procedure penup()
+    pen_down = false
+end procedure
+
+procedure pendown(atom colour=CD_BLACK)
+    pen_down = true
+    cdCanvasSetForeground(cdcanvas, colour) 
+end procedure
+
+procedure move(sequence s)
+    -- s is a list of angles (odd elements)
+    --        and distances (even elements)
+    for i=1 to length(s) do
+        if odd(i) then
+            right(s[i])
+        else
+            walk(s[i])
+        end if
+    end for
+end procedure
+
+procedure rectangle(atom width, height)
+    move({0,height,90,width,90,height,90,width,90})
+end procedure
+
+procedure draw_house(atom width, height)
+    //
+    // Draw a house at the current x,y
+    // direction must be 0 for house to be upright
+--  left(10) -- (deliberately wonky works fine too)
+    //       -- (as long as you undo it at the end)
+    // house walls
+    rectangle(width, height)
+    // door (maybe some windows too would be nice...)
+    penup()
+    move({90,width/7,-90})
+    pendown(CD_BLUE)
+    rectangle(width/8,height/2.5)
+    penup()
+    move({-90,width/7,90})
+    // roof
+    walk(height)
+    pendown(CD_RED)
+    atom a = arctan(width/height)*CD_RAD2DEG,
+         d = sqrt(width*width+height*height)/2
+    move({a,d,180-a*2,d})
+    penup()
+    // return to origin({qw,qh}) and direction 0:
+    move({90+a,width,-90,height,180})
+--  right(10)
+end procedure
+
+procedure draw_barchart(sequence nums, atom w, h)
+    // draw a barchart occupying the middle 60% of w,h
+    // nums can contain +ve and/or -ve values.
+--  right(10) -- (ditto)
+    integer n = length(nums)
+    atom mx = max(max(nums),0),
+         mn = min(min(nums),0),
+         r = mx-mn,                 -- range
+         zl = abs(mn)/r*h*0.6+h/5,  -- zero line
+         bw = w*0.6/n               -- bar width
+    move({90,w/5,-90,zl})
+    pendown()
+    for i=1 to n do
+        atom ni = nums[i]/r*h*0.6
+        if ni>0 then
+            rectangle(bw,ni)
+        else
+            pendown(CD_RED)
+            right(90)
+            rectangle(-ni,bw)
+            left(90)
+            pendown(CD_BLACK)
+        end if
+        move({90,bw,-90})
+    end for
+    penup()
+    // return to origin({w/2,0}) and direction 0:
+    move({180,zl,90,w/5+bw*n,90})
+--  left(10)
+end procedure
+
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
+--function redraw_cb()
+    integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
+    cdCanvasActivate(cdcanvas)
+    cdCanvasClear(cdcanvas)
+    atom qw = width/4,
+         qh = height/4
+    penup()
+    move({0,qh,90,qw,-90})
+    pendown()
+
+    draw_house(qw,qh)       -- (at current x,y)
+
+    penup()
+    move({180,qh,90,qw,90}) -- return to {0,0}
+
+    move({90,width/2,-90})  -- barchart in the right half
+
+    draw_barchart({0.5, -4/3, 2, 1.3, 0.5},width/2,height)
+
+    move({-90,width/2,90})  -- return to {0,0}
+
+    -- sanity checks
+    if round(x)!=0 then ?9/0 end if
+    if round(y)!=0 then ?9/0 end if
+    if round(direction)!=0 then ?9/0 end if
+
+    cdCanvasFlush(cdcanvas)
+    return IUP_DEFAULT
+end function
+
+IupOpen()
+canvas = IupCanvas(Icallback("redraw_cb"),"RASTERSIZE=600x400")
+dlg = IupDialog(canvas,`TITLE="Simple turtle graphics"`)
+IupMap(dlg)
+cdcanvas = cdCreateCanvas(CD_IUP, canvas)
+IupShow(dlg)
+IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release the minimum limitation
+if platform()!=JS then
+    IupMainLoop()
+    IupClose()
+end if
+
+--/*
+--A pre-out-of-date-comments-purge version of walk(), kept for posterity.
+--It seemed to help a few things, before proving unneccessary, but maybe
+--it could solve something else in the future, and hence end up back in.
+procedure walk(atom distance)
+    //
+    // Move forward by distance pixels.
+    //
+    // Aside: We jump though a few rounding hoops to ensure that
+    //        eg +149.5 then -149.5 goes back to where it started.
+    //        Only really an issue for peskily perfect .5s, however 
+    //        rounding to 0 dp introduces a whole different set of
+    //        problems (as would rounding to nearest 10 pixels) so
+    //        we round to 3dp just to be sure...
+    //
+    atom start_x = x,
+         start_y = y,
+         angle = direction*PI/180
+--       dx = distance*sin(angle),
+--       dy = distance*cos(angle)
+--  x += sign(dx)*round(abs(dx),1000)
+    x += distance*sin(angle)
+--  y += sign(dy)*round(abs(dy),1000)
+    y += distance*cos(angle)
+    if pen_down then
+        cdCanvasLine(cdcanvas,start_x,start_y,x,y)
+    end if
+end procedure
+--*/

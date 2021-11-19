@@ -1,0 +1,170 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">eval</h1>
+      <div id="mainSection">
+        The file Phix/eval.e is part of the compiler/interpreter, but since Phix is a self-hosted language
+        that very same file (not an autoinclude) can also be used for runtime evaluation.
+        <br>
+        <br>
+        The eval function accepts at least 1 and up to 4 parameters:
+        <br>
+        <br>
+        include eval.e<br>
+        <a href="sequence.htm">sequence</a> res = eval(<a href="string.htm">string</a> code, <a href="sequence.htm">sequence</a> rset={}, iset={}, ival={})
+        <br>
+        <br>
+        code: the source code fragment to be interpreted (without backslash interpretation)<br>
+        rset: a list of string names of (static) result variable identifiers<br>
+        iset: a list of string names of (static) variables to initialise<br>
+        ival: a list of values matching iset<br>
+        Alternatively ival can be omitted and iset provided as a list of {name,value} pairs.
+        <br>
+        <br>
+        The code provided must be valid in a standalone sense, apart from unassigned variables covered by iset/ival,
+        and it cannot directly reference any external identifiers. 
+        Any existing data that needs to be accessed must be provided via the ival/iset parameters, results explicitly 
+        requested via the rset parameter, and any updates applied/extracted once eval() returns.
+        Some refcount management may be warranted, as detailed in the second example below.
+        <br>
+        <br>
+        Just as you cannot reference existing data within a new eval() context (other than by passing it in and pulling
+        the modified version back out), you cannot invoke existing routines, or rely on passing routine_ids in/out. 
+        The first option around that would be to add any such routines to the code in source code form, and anyone
+        concerned about performance issues with that approach should in the first place consider the overheads of 
+        invoking eval(<i>one_line</i>) and realise that eval(<i>five_thousand_lines</i>) is probably around about 1%
+        additional cost. A second option could be more like res = eval(<i>phase1</i>); res = existing_routines(res);
+        res = eval(<i>phase2</i>,res), and again passing data back and forth is probably not the overhead you should
+        be most concerned about. A third (untested) option might be to pass callbacks to the eval() routine, with the
+        stanard restriction of all parameters and returns being atom. It may even be possible (again, untested) to
+        pass routine_ids from the eval context to the callbacks, but not the other way around (unless that&rsquo;s
+        where they originated from) and no internally-generated callback could ever survive the return from eval().
+        Any such callbacks would also be prohibited from using any "native" routine_ids, since the wrong symbol table
+        c/would be current at that point, so it might (say) accidentally invoke delete_file() instead of trim().
+        <br>
+        <br>
+        Strings such as `\n` (length 2) must be passed to eval, as opposed to "\n" (length 1), 
+        otherwise you&rsquo;ll get errors such as "missing closing quote". You can use backticks 
+        or triple-quotes to prevent backslash interpretation, or build the code strings manually.
+        <br>
+        <br>
+        Note that assignment on declaration within code occurs at compile-time for integers (and bools),
+        but at run-time for floating points, strings, and sequences, which occurs <i>after</i> 
+        any values specified in iset/ival have been applied:
+        <br>
+<!--eucode>
+include eval.e
+string code = """
+integer i = 1       -- overridable via ival/iset
+atom f = 1.5,       -- non-overridable
+     g              -- can be set via ival/iset
+string s = "s",     -- non-overridable
+       t            -- can be set via ival/iset
+sequence p = {"p"}, -- non-overridable
+         q          -- can be set via ival/iset
+bool q_init = false -- overridable via ival/iset
+if not q_init then q = {} end if
+"""
+sequence rset = {"i","f","g","s","t","p","q"},
+         iset = {{"i",0},           -- fine/optional
+                 {"f",2.5},         -- ignored/clobbered
+                 {"g",3.5},         -- fine/mandatory
+                 {"s","noeffect"},  -- ignored/clobbered
+                 {"t","t"},         -- fine/mandatory
+                 {"p",{"not_p"}},   -- ignored/clobbered
+                 {"q_init",true},   -- else next line useless
+                 {"q",{"q"}}}
+?eval(code,rset,iset)
+-- output is {0,1.5,3.5,"s","t",{"p"},{"q"}}
+</eucode-->
+<pre>
+<font color="#008080">include</font><font color="#000000"> eval.e</font>
+<font color="#004080">string</font><font color="#000000"> code</font><font color="#0000FF"> =</font><font color="#008000"> """
+integer i = 1       -- overridable via ival/iset
+atom f = 1.5,       -- non-overridable
+     g              -- can be set via ival/iset
+string s = "s",     -- non-overridable
+       t            -- can be set via ival/iset
+sequence p = {"p"}, -- non-overridable
+         q          -- can be set via ival/iset
+bool q_init = false -- overridable via ival/iset
+if not q_init then q = {} end if
+"""</font>
+<font color="#004080">sequence</font><font color="#000000"> rset</font><font color="#0000FF"> = {</font><font color="#008000">"i"</font><font color="#0000FF">,</font><font color="#008000">"f"</font><font color="#0000FF">,</font><font color="#008000">"g"</font><font color="#0000FF">,</font><font color="#008000">"s"</font><font color="#0000FF">,</font><font color="#008000">"t"</font><font color="#0000FF">,</font><font color="#008000">"p"</font><font color="#0000FF">,</font><font color="#008000">"q"</font><font color="#0000FF">},</font>
+<font color="#000000">         iset</font><font color="#0000FF"> = {</font><font color="#800000">{</font><font color="#008000">"i"</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#800000">}</font><font color="#0000FF">,          </font><font color="#000080"><i> -- fine/optional</i></font>
+<font color="#800000">                 {</font><font color="#008000">"f"</font><font color="#0000FF">,</font><font color="#000000">2.5</font><font color="#800000">}</font><font color="#0000FF">,        </font><font color="#000080"><i> -- ignored/clobbered</i></font>
+<font color="#800000">                 {</font><font color="#008000">"g"</font><font color="#0000FF">,</font><font color="#000000">3.5</font><font color="#800000">}</font><font color="#0000FF">,        </font><font color="#000080"><i> -- fine/mandatory</i></font>
+<font color="#800000">                 {</font><font color="#008000">"s"</font><font color="#0000FF">,</font><font color="#008000">"noeffect"</font><font color="#800000">}</font><font color="#0000FF">, </font><font color="#000080"><i> -- ignored/clobbered</i></font>
+<font color="#800000">                 {</font><font color="#008000">"t"</font><font color="#0000FF">,</font><font color="#008000">"t"</font><font color="#800000">}</font><font color="#0000FF">,        </font><font color="#000080"><i> -- fine/mandatory</i></font>
+<font color="#800000">                 {</font><font color="#008000">"p"</font><font color="#0000FF">,</font><font color="#800080">{</font><font color="#008000">"not_p"</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">,  </font><font color="#000080"><i> -- ignored/clobbered</i></font>
+<font color="#800000">                 {</font><font color="#008000">"q_init"</font><font color="#0000FF">,</font><font color="#004600">true</font><font color="#800000">}</font><font color="#0000FF">,  </font><font color="#000080"><i> -- else next line useless</i></font>
+<font color="#800000">                 {</font><font color="#008000">"q"</font><font color="#0000FF">,</font><font color="#800080">{</font><font color="#008000">"q"</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">}
+?</font><font color="#5E005E">eval</font><font color="#0000FF">(</font><font color="#000000">code</font><font color="#0000FF">,</font><font color="#000000">rset</font><font color="#0000FF">,</font><font color="#000000">iset</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- output is {0,1.5,3.5,"s","t",{"p"},{"q"}}</i></font>
+</pre>
+        In particular note the use of q_init to suppress the defaulting of q, and
+        that providing a default for q/making it optional is what makes it messy.<br>
+        Obviuously failing to provide settings for g, t, and (q when q_init set)
+        would trigger the usual run-time errors of the unassigned variety, and of
+        course q would be just like g and t if all the q_init stuff were deleted.
+        <br>
+        <br>
+        Copying large tables into and out of an eval context is itself very efficient,
+        however making the original NULL or similar over the call may significantly
+        improve performance, best achieved using a function to generate ival/iset:
+<!--eucode>
+function get_iset()
+    sequence iset = {{"table",original}}
+    original = NULL -- (or {}, kill refcount)
+    return iset
+end function
+sequence {original} = eval(code,{"table"},get_iset())
+-- or maybe
+sequence res = eval(code,{"table"},get_iset())
+original = res[1]
+res = {} -- (kill hidden refcount)
+</eucode-->
+<pre>
+<font color="#008080">function</font><font color="#000000"> get_iset</font><font color="#0000FF">()</font>
+<font color="#004080">    sequence</font><font color="#000000"> iset</font><font color="#0000FF"> = {</font><font color="#800000">{</font><font color="#008000">"table"</font><font color="#0000FF">,</font><font color="#000000">original</font><font color="#800000">}</font><font color="#0000FF">}</font>
+<font color="#000000">    original</font><font color="#0000FF"> =</font><font color="#004600"> NULL</font><font color="#000080"><i> -- (or {}, kill refcount)</i></font>
+<font color="#008080">    return</font><font color="#000000"> iset</font>
+<font color="#008080">end function</font>
+<font color="#004080">sequence</font><font color="#0000FF"> {</font><font color="#000000">original</font><font color="#0000FF">} =</font><font color="#5E005E"> eval</font><font color="#0000FF">(</font><font color="#000000">code</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">"table"</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000">get_iset</font><font color="#800000">()</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- or maybe</i></font>
+<font color="#004080">sequence</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#5E005E"> eval</font><font color="#0000FF">(</font><font color="#000000">code</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">"table"</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000">get_iset</font><font color="#800000">()</font><font color="#0000FF">)</font>
+<font color="#000000">original</font><font color="#0000FF"> =</font><font color="#000000"> res</font><font color="#0000FF">[</font><font color="#000000">1</font><font color="#0000FF">]</font>
+<font color="#000000">res</font><font color="#0000FF"> = {}</font><font color="#000080"><i> -- (kill hidden refcount)</i></font>
+</pre>
+        The code can contain a "with safe_mode" directive to limit the damage it can do, however at the time of writing any
+        errors that generates may produce a rather garbled error message. Compiling the program, as opposed to interpreting 
+        it, may produce slightly better/more readable error messages.
+        <br>
+        <br>
+        Lastly note that include eval.e is not an autoinclude or a builtin or a single file, but pulls in about 90% of the 
+        interpreter/compiler. Obviously that exposes almost all of the compiler innards to your application and care must
+        be taken not to accidentally reference or worse stomp on anything it relies on: you may wish to periodically 
+        comment out both the include eval.e and the eval() call and ensure it compiles cleanly, maybe/probably taking 
+        advantage of the -norun command line option. In total there are about 1,220 such identifiers, the majority being 
+        constants or routine names. None of this is supported by pwa/p2js, however that is an entirely new backend for 
+        which I have vague plans of both getting to work online and introducing a new machine code generator, and maybe, 
+        just maybe, that sort of thing could open up all new kinds of possibilities, half-incidentally that is, one of
+        which may or may not be to dramatically reduce the number of internals exposed.
+        <br>
+        <br>
+        See also procedure REPL() in p.exw: instead of using eval() it saves/restores the symbol table,
+        allowing for incremental compilation and an extendable context. While there is no official
+        wrapper as yet, a quick comparison of that code and the implementation of eval() should convince
+        you that said might be slightly tricky but certainly not impossible. My apologies for the mess.
+        <br>
+        <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

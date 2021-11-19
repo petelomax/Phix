@@ -1,5 +1,5 @@
 --
--- demo/rosetta/Solve15puzzle_simple.exw
+-- demo\rosetta\Solve15puzzle_simple.exw
 --
 --  The basic algorithm (credit Nigel Galloway) is just
 --   let all moves which do not increase the manhattan cost be regarded as "free".
@@ -8,8 +8,13 @@
 --   while (not solveable_with_at_most_n_non_free_moves(n)) n++
 --      -- (clearly optimal by exhaustively disproving all lesser n)
 --
+with javascript_semantics -- NB 8.5s on desktop/Phix with progress, but
+                            -- 37.5s under p2js, without progress msgs.
+--with profile_time
+
 enum left, down, up, right  -- (nb 5-move flips it)
 
+--/*
 constant valid_moves = {{ 0, 0, 5, 2}, { 1, 0, 6, 3}, { 2, 0, 7, 4}, { 3, 0, 8, 0},
                         { 0, 1, 9, 6}, { 5, 2,10, 7}, { 6, 3,11, 8}, { 7, 4,12, 0},
                         { 0, 5,13,10}, { 9, 6,14,11}, {10, 7,15,12}, {11, 8,16, 0},
@@ -32,76 +37,103 @@ constant zero_cost = {{0b000000000000000,0b000000000000000,0b000000000001111,0b0
                       {0b100110011001100,0b111000000000000,0b000000000000000,0b111011101110111},
                       {0b000100010001000,0b111000000000000,0b000000000000000,0b000000000000000}}
 
-constant masks      = {0b000000000000001,0b000000000000010,0b000000000000100,0b000000000001000,
+constant piecemasks = {0b000000000000001,0b000000000000010,0b000000000000100,0b000000000001000,
                        0b000000000010000,0b000000000100000,0b000000001000000,0b000000010000000,
                        0b000000100000000,0b000001000000000,0b000010000000000,0b000100000000000,
                        0b001000000000000,0b010000000000000,0b100000000000000}
+--*/
+
+constant N = 4,
+--constant N = 3,   -- (nb only valid for the next "build those with code" part)
+         N2 = N*N
 
 -- Or, if you prefer to build those with code (but I really wanted to show the above bitmasks):
---/*
-sequence valid_moves = repeat(repeat(0,4),16),
-         zero_cost   = repeat(repeat(0,4),16)
-constant masks = sq_power(2,tagset(14,0))
-for square=1 to 16 do
-    integer s_row = floor((square+3)/4),
-            s_col = remainder((square-1),4)+1
+--/!*
+sequence valid_moves = repeat(repeat(0,4),N2),
+         zero_cost   = repeat(repeat(0,4),N2)
+constant piecemasks = sq_power(2,tagset(N2-2,0))
+for square=1 to N2 do
+    integer s_row = floor((square+N-1)/N),
+            s_col = remainder((square-1),N)+1
     --?{square,s_row,s_col}
     for move=left to right do -- (via up/down)
         if (move=left  and s_col>1)
         or (move=down  and s_row>1)
-        or (move=up    and s_row<4)
-        or (move=right and s_col<4) then
-            integer origin = square+{-1,-4,+4,+1}[move],
-                    o_row = floor((origin+3)/4),
-                    o_col = remainder((origin-1),4)+1
+        or (move=up    and s_row<N)
+        or (move=right and s_col<N) then
+            integer origin = square+{-1,-N,+N,+1}[move],
+                    o_row = floor((origin+N-1)/N),
+                    o_col = remainder((origin-1),N)+1
             --?{"ldur"[move]&"",origin,o_row,o_col}
             valid_moves[square][move] = origin
-            for piece=1 to 15 do
-                integer t_row = floor((piece+3)/4),
-                        t_col = remainder((piece-1),4)+1,
+            for piece=1 to N2-1 do -- (aka target)
+                integer t_row = floor((piece+N-1)/N),
+                        t_col = remainder((piece-1),N)+1,
                         p_md = abs(t_row-o_row)+abs(t_col-o_col),
                         n_md = abs(t_row-s_row)+abs(t_col-s_col)
                 --?{piece,t_row,t_col,p_md,n_md}
                 if n_md<=p_md then
-                    zero_cost[square][move] += masks[piece]
+                    zero_cost[square][move] += piecemasks[piece]
                 end if
             end for
         end if
     end for
 end for
---pp(valid_moves,{pp_IntFmt,"%2d",pp_Maxlen,70})
---pp(zero_cost,{pp_IntFmt,"%015b"})
---pp(masks,{pp_IntFmt,"%015b",pp_IntCh,false})
---*/
+string movefmt = iff(N=4?"%2d":"%d"),
+       maskfmt = iff(N=4?"%015b":"%08b")
+pp(valid_moves,{pp_IntFmt,movefmt,pp_Maxlen,(N+3)*10})
+pp(zero_cost,{pp_IntFmt,maskfmt})
+pp(piecemasks,{pp_IntFmt,maskfmt,pp_IntCh,false,pp_Maxlen,(N-1)*20})
+--*!/
 if up or down then end if -- (suppress unused warnings, since the above commented out)
 
 string moves = ""
-sequence board = {15,14, 1, 6, 
-                   9,11, 4,12,
-                   0,10, 7, 3, 
-                  13, 8, 5, 2}
-integer space = 9
+--/!*
+sequence board = iff(N=4?{15,14, 1, 6,      -- (needs nfree of 8, 8.5s)
+                           9,11, 4,12,
+                           0,10, 7, 3, 
+                          13, 8, 5, 2}
+                        :{2,3,5,
+                          7,8,0,
+                          6,1,4})
+--*!/
 ----extra credit: (try again when iterative/inline assembly...)
---sequence board = { 0,12, 9,13,
---                15,11,10,14,
---                 3, 7, 2, 5,
---                 4, 8, 6, 1}
---integer space = 1
---sequence board = { 1, 2, 3, 4,
+--nfree=0 failed (0s), trying 1
+--nfree=1 failed (0s), trying 2
+--nfree=2 failed (0s), trying 3
+--nfree=3 failed (0s), trying 4
+--nfree=4 failed (0.1s), trying 5
+--nfree=5 failed (1.8s), trying 6
+--nfree=6 failed (22.5s), trying 7
+--nfree=7 failed (4 minutes and 16s), trying 8
+--nfree=8 failed (44 minutes and 44s), trying 9
+--nfree=9 failed (7 hours, 5 minutes and 29s), trying 10
+--<gave up>
+--/*
+sequence board = { 0,12, 9,13,
+                  15,11,10,14,
+                   3, 7, 2, 5,
+                   4, 8, 6, 1}
+--*/
+--/*
+sequence board = { 1, 2, 3, 4,
+                   5, 6, 7, 8,
+                   9,10,11,12,
+                  13,14,0,15}
+--*/
+--/*
+sequence board = { 1, 2, 3, 4,
+                   5, 6, 7, 8,
+                   9,10,11, 0,
+                  13,14,15,12}
+--*/
+integer space = find(0,board)
+
+constant goal = tagset(N2-1)&0 
+--constant goal = { 1, 2, 3, 4,
 --                5, 6, 7, 8,
 --                9,10,11,12,
---               13,14,0,15}
---integer space = 15
---sequence board = { 1, 2, 3, 4,
---                 5, 6, 7, 8,
---                 9,10,11, 0,
---                13,14,15,12}
---integer space = 12
-
-constant goal = { 1, 2, 3, 4,
-                  5, 6, 7, 8,
-                  9,10,11,12,
-                 13,14,15, 0}
+--               13,14,15, 0}
 
 atom t1 = time()+1
 
@@ -109,21 +141,23 @@ atom t1 = time()+1
 function solve(integer nfree, space, mdx=1, skip_move=0)
 --
 -- nfree is the number of non-free moves we can yet make
--- space is the location of the space (duh), [1..16] 
+-- space is the location of the space (duh), [1..N2] 
 -- mdx is just the move index for building the solution
 -- skip_move significantly narrows search space (1000 or 
 --  more times faster, believe it or not, simply by not 
 --  allowing the immediate undoing of the last move)
 --
     for move=left to right do -- (via up/down)
+if move!=skip_move then
         integer new_space = valid_moves[space][move]
-        if move!=skip_move and new_space then
+--      if move!=skip_move and new_space then
+        if new_space then
 --      if new_space and move!=skip_move then
 --      if move!=skip_move then end if
 --      if new_space then -- ~1100 times slower !!!
             integer piece = board[new_space],
                     zcsmv = zero_cost[space][move],
-                    maskp = masks[piece],
+                    maskp = piecemasks[piece],
                     zcost = (and_bits(zcsmv,maskp)=0) -- (0==free, 1==not)
             if nfree>=zcost then
                 if mdx>length(moves) then moves &= '?' end if
@@ -131,8 +165,9 @@ function solve(integer nfree, space, mdx=1, skip_move=0)
                 moves[mdx] = "ludrLUDR"[move+zcost*4]
                 board[space] = piece
                 board[new_space] = 0
-                if time()>t1 then
-                    printf(1,"%s\r",{moves})
+                if time()>t1 and platform()!=JS then
+--                  printf(1,"%s\r",{moves})
+                    progress("%s\r",{moves})
                     t1 = time()+1
                 end if
                 if space=piece and board=goal then
@@ -147,23 +182,33 @@ function solve(integer nfree, space, mdx=1, skip_move=0)
 --              moves[mdx] = ' '
             end if
         end if
+end if
     end for
     return false
 end function
 
-pp(board,{pp_IntFmt,"%2d",pp_Maxlen,17})
+pp(board,{pp_IntFmt,movefmt,pp_Maxlen,N2})
 
 atom t0 = time()
 integer n = 0
-while not solve(n,space) do n += 1 end while
+--while not solve(n,space) do n += 1 end while
+while not solve(n,space) do
+    string e = elapsed(time()-t0)
+    progress("nfree=%d failed (%s), trying %d\n",{n,e,n+1})
+    n += 1
+end while
 printf(1,"solution of %d moves found in %s: %s \n",
          {length(moves),elapsed(time()-t0),moves})
 
+--estimate of the really hard 4x4 one?... [NOPE!]
 --?((2*60+36)*60+21)/8.5
+--?elapsed(((2*60+36)*60+21)/8.5)
 
-?"done"
-{} = wait_key()
-abort(0)
+if platform()!=JS then
+    ?"done"
+    {} = wait_key()
+    abort(0)
+end if
 
 --output:
 ----uppercase indicates the non-free moves (in manhattan cost terms).

@@ -1,0 +1,760 @@
+--
+-- demo\rosetta\Run_examples.exw
+-- =============================
+--
+-- Full GUI, supports Go, Julia, Phix, Python, and Wren (those I've installed).
+--
+-- Uses much of the same code as Count_Examples.exw, along with 130MB+ of ".raw"
+--  downloaded files, thankfully cached, and not surprising given that program
+--  reports there are 83,050 entires, which averages out at 1662 bytes per...
+-- It can of course take some time to download 1440 tasks at not much under 100K
+--  each, but once in the cache it only takes a few seconds to load everything.
+--
+-- Should you only want to run Phix programs, demo/pGUI/pdemo.exw offers many
+--  other non-rosettacode demo programs, and many but not all 1440 rc tasks.
+--
+--  No attempt has been made for the "Extra credit" (report which tasks failed
+--  to run) or "More credit" (save output and compare with expected) - for the
+--  latter you might want to look at test/terror[X].exw and if I'm having that
+--  much trouble just on Phix with only things that I actually wrote, well...
+--
+-- To do: Entries such as Boids just get "See [[Boids/Go]]" with that link not
+--        even being downloaded into rc_cache at all..... Exactly the same o/c 
+--        for both the Julia and Phix entries for Boids, that is not counting
+--        the additional screenshot link on the Phix entry.
+--
+--        The table and codetext are not shrinking as I would like (help?).
+--
+without js -- (obviously this will never ever run in a browser!)
+include pGUI.e
+requires(WINDOWS) -- currently windows-only, unless you can munge the following
+
+-- Without any doubt these will need editing, or perhaps just commenting out
+--  There are no hard-coded lengths and buttons etc are generated from this
+constant gopath = `C:\Program Files\Go\bin\`,
+         jspath = getenv("TEMP"), 
+      juliapath = `E:\downloads\misc\wren\julia-1.6.2-win64\julia-1.6.2\bin\`,
+       phixpath = `C:\Program Files (x86)\Phix\`, 
+         pypath = `C:\Program Files (x86)\Python37-32\`,
+       wrenpath = `E:\downloads\misc\wren\wren_cli-windows-0.3.0\`,
+        gopause = "var s string\nfmt.Printf(\"done\")\nfmt.Scan(&s)\n",
+      phixpause = "?\"done\"\n{}=wait_key()\n",
+--        jsrun = {`pw.exe`, `runjs.exw`}
+      cliordome = {`wren_cli-0.3.0.exe`,`dome.exe`},
+      -- it should be pretty straightforward to comment out any that you don't want,
+      -- and/or insert similar entries for other programming languages that you do:
+      languages = {{`Go`,         gopath, `go.exe`,    `.go`, `"%s" run "%s"`, gopause},
+                   {`JavaScript`, jspath, `open`,    `.html`, `"%s"`,``},
+                   {`Julia`,   juliapath, `julia.exe`, `.jl`, `"%s" "%s"`, ``},
+                   {`Phix`,     phixpath, `pw.exe`,   `.exw`, `"%s" "%s"`, phixpause},
+                   {`Python`,     pypath, `python.exe`,`.py`, `"%s" "%s"`, ``},
+                   {`Wren`,     wrenpath,  cliordome,`.wren`, `"%s" "%s"`, ``}},
+          langs = vslice(languages,1)
+
+Ihandle langsel, taskfilter, textsearch, table, add_pause, codetext, statusbar, clipboard
+sequence langchks = {},
+         radioset = {},
+         disabled = repeat(false,length(languages))
+
+constant help_text = """
+Note you will have to edit the language table in the source code with directories of
+executables you have previously installed. The status bar will show a list of any 
+entries that need editing, when the program is first run, and the corresponding 
+checkboxes and radio buttons will be permanently disabled if the executables cannot 
+be found.
+
+Selecting a language via the dropdown and/or the checkboxes filters the list of tasks
+to those with implementations in the selected language(s). You can actually achieve
+much the same effects just by the checkboxes and ignoring the dropdown, or even by 
+sorting the table by column, apart from the full text search described next.
+
+Text entered into the Filter box excludes all task names that do not match. The search
+text option is only enabled when a language has been selected in the main dropdown, and
+will also search all entries for that language for the specified string as well. The
+latter can be a bit slow, hence the main table and the radios under it are deliberately 
+disabled while filtering to avoid strange crashes caused by clicking on things changing
+underneath your feet, such as selecting a table entry that will be removed in about ten
+seconds.
+
+Selecting an entry in the main task table populates the lower half of the screen and
+enables/disables the radio butons appropriately.
+
+Selecting a language via the radio buttons shows the text of any entry or entries found.
+
+When the first line shows "<1 of n>" use left and right arrows to select.
+
+Press F5 to run the code shown, which you can edit as needed though it will not be saved,
+except in an often-overwritten rcre.<ext> in the executable directory. Note that if you
+delete the "<n of m>" then left and right will no longer cycle through them until it has
+been restored, manually or via selecting table entries or clicking radio buttons.
+
+Note that JavaScript runs html in the browser, making no attempt to run anything under
+node.js (not my thing), and Wren automatically switches to dome.exe when it spots an 
+"import dome", as well as checking that all other imports can be found.
+
+Also note that I am assuming you have write permissions to all the bin directories, for
+said rcre.<ext> files.
+
+The add pause checkbox appends a "done", pause to the end of the code (for some only).
+
+Alternatively F6 copies the command to the clipboard so it can be run in a terminal
+(you may need to cd <bin directory> for that to work).
+
+It should not be spectacularly difficult to run this on Linux, he says.
+
+Lastly, this was written with a fully-populated rc_cache (from previously running
+Count_examples.exw) so I have no real handle on how long that might take to re-
+populate, and hopefully pretty obviously, should you leave this running and something 
+else updates rc_cache, then it will all go horribly wrong.
+"""
+--DEV/SUG: ^^ I suppose you could always put date/time/size in the main task_table
+--         and then obviously check and reload the individual entries as needed...
+
+function help()
+    IupMessage("Run examples",help_text)
+    return IUP_IGNORE
+end function
+
+function get_selected_language()
+    for i=1 to length(radioset) do
+        if IupGetInt(radioset[i],"VALUE") then
+            return i
+        end if
+    end for
+    -- oops?
+end function
+
+function run(atom c)
+    string text = IupGetAttribute(codetext,"VALUE"), cmd
+    if length(text) then
+        if text[1]='<' then
+            -- remove any `<n of m>` at the start
+            integer k = find('>',text)
+            string nofm = text[1..k]
+            if match(` of `,nofm) then
+                text = trim_head(text[k+1..$])
+            end if
+        end if
+        integer ldx = get_selected_language(), 
+                mode = 8 -- (no result/wait, no redirect)
+        sequence {name,d,exe,ext,fmt} = languages[ldx]
+        string filename = join_path({d,"rcre"&ext})
+        if name="Wren" then
+            exe = exe[iff(match(`import "dome"`,text)?2:1)]
+            sequence lines = split(text,"\n"),
+                   missing = {}
+            for i=1 to length(lines) do
+                string li = lines[i]
+                if length(li)>7 and li[1..7]="import " then
+                    string lib = trim(li[8..find(' ',li,9)-1],". \"/")
+                    lib &= iff(lib="dome"?".exe":".wren")
+                    string libpath = join_path({d,lib})
+                    if not file_exists(libpath) then
+                        missing = append(missing,lib)
+                    end if
+                end if
+            end for
+            if length(missing) then
+                missing = "NOT INSTALLED:"&join(missing,",")
+                IupSetStrAttribute(statusbar,"TITLE",missing)
+                return IUP_IGNORE
+            end if
+        elsif name="JavaScript" then
+            if not match("<html>",text) then
+                IupSetStrAttribute(statusbar,"TITLE","<html> only")
+                return IUP_IGNORE
+            end if
+            cmd = sprintf(fmt,{filename})
+            mode = 4
+        end if
+        if mode=8 then
+            string execname = join_path({d,exe})
+            cmd = sprintf(fmt,{execname,filename})
+        end if
+-- erm, does not work, but you do have to be in the right directory.
+--      if c=K_F6 and name="Wren" then
+--          cmd = sprintf("cd \"%s\"; %s",{directory,cmd})
+--      end if
+        integer fn = open(filename,"w")
+        -- you may need to add write permissons for this...
+        if fn=-1 then crash("error opening "&filename) end if
+        puts(fn,text)
+        if IupGetInt(add_pause,"VALUE") then
+            -- I suppose you could check that Go imports fmt,
+            -- and maybe append this thing much earlier on,
+            -- and maybe disable add_pause when length==0.
+            sequence pauses = vslice(languages,6)
+            puts(fn,pauses[ldx])
+        end if
+        close(fn)
+        -- (clear CF_UNICODETEXT etc first, as per IupClipboard() docs)
+        IupSetAttribute(clipboard,"TEXT",NULL)
+        IupSetAttribute(clipboard,"TEXT",cmd)
+        IupSetStrAttribute(statusbar, "TITLE", cmd)
+        if c=K_F5 then
+            string prevd = current_dir()
+            if not chdir(d) then
+                crash("cannot chdir to "&d)
+            end if
+            {} = system_exec(cmd,mode) 
+            if not chdir(prevd) then
+                crash("cannot chdir back to "&prevd)
+            end if
+        end if
+    end if
+    return IUP_IGNORE -- (for key_cb)
+end function
+
+include builtins\timedate.e
+integer refresh_cache = timedelta(days:=21) -- 0 for always
+--  [NB refresh_cache += timedelta(days:=1) below]
+
+include builtins\libcurl.e
+atom curl = NULL
+atom pErrorBuffer
+
+function write_callback(atom pData, integer size, integer nmemb, integer fn)
+    integer bytes_written = size * nmemb
+    puts(fn,peek({pData,bytes_written}))
+    return bytes_written
+end function
+constant write_cb = call_back({'+', routine_id("write_callback")})
+
+-- don't clobber any "NEED EDITING" or Downloading... messages:
+string wastitle = ""
+
+function open_download(string filename, url, integer i=0, t=0)
+    bool refetch = true
+    filename = join_path({"rc_cache",filename})
+    if file_exists(filename) then
+        -- use existing file if <= refresh_cache (365 days) old
+        sequence last_mod = get_file_date(filename)     -- (0.8.1+)
+        atom delta = timedate_diff(last_mod,date())
+        refetch = (delta>refresh_cache) or get_file_size(filename)=0
+    else
+        string directory = get_file_path(filename)
+        if get_file_type(directory)!=FILETYPE_DIRECTORY then
+            if not create_directory(directory,make_parent:=true) then
+                crash("cannot create %s directory",{directory})
+            end if
+        end if
+    end if
+    object text
+    if not refetch then
+        text = trim(get_text(filename))
+        refetch = (not sequence(text)) or (length(text)<10)
+    end if
+    if refetch then
+        wastitle = "x" -- don't clobber
+        string title = "Downloading "
+        if t then
+            title &= sprintf(" (%d/%d, %.1f%%) ",{i,t,i/t*100})
+        end if
+        IupSetStrAttribute(statusbar, "TITLE", title&filename)
+        if curl=NULL then
+            curl_global_init()
+            curl = curl_easy_init()
+            pErrorBuffer = allocate(CURL_ERROR_SIZE)
+            curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, pErrorBuffer)
+            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb)
+        end if
+        url = substitute(url,"%3A",":")
+        url = substitute(url,"%2A","*")
+        curl_easy_setopt(curl, CURLOPT_URL, url)
+        integer fn = open(filename,"wb")
+        if fn=-1 then ?9/0 end if
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, fn)
+        while true do
+            CURLcode res = curl_easy_perform(curl)
+            if res=CURLE_OK then exit end if
+            string error = sprintf("%d",res)
+            if res=CURLE_COULDNT_RESOLVE_HOST then
+                error &= " [CURLE_COULDNT_RESOLVE_HOST]"
+            end if
+            error = sprintf("Error %s downloading file, retry?",{error})
+            if IupMessageAlarm(NULL, "Error", error, "YESNO")!=1 then
+                abort(0)
+            end if
+        end while
+        close(fn)
+        refresh_cache += timedelta(days:=1) -- did I mention it is slow?
+        text = get_text(filename)
+    end if
+    return text
+end function
+
+function open_category(string filename)
+    return open_download(filename&".htm","http://rosettacode.org/wiki/Category:"&filename)
+end function
+
+function dewiki(string s)
+    -- extract tasks from eg `<li><a href="/wiki/100_doors"`
+    sequence tasks = {}
+    integer start = 1, finish = match(`<div class="printfooter">`,s)
+    s = s[1..finish-1]
+    while true do
+        start = match(`<li><a href="/wiki/`,s,start)
+        if start=0 then exit end if
+        start += length(`<li><a href="/wiki/`)
+        finish = find('"',s,start)
+        string task = s[start..finish-1]
+        task = substitute_all(task,{"*",":"},{"%2A","%3A"})
+        tasks = append(tasks,task)
+        start = finish+1
+    end while
+    return tasks
+end function
+
+constant {hex,ascii} = columnize({{"%2A","*"},
+                                  {"%3A",":"},
+                                  {"%27","'"},
+                                  {"%2B","+"},
+                                  {"%22",`"`},
+                                  {"%E2%80%93","-"},
+                                  {"%E2%80%99","'"},
+                                  {"%C3%A8","e"},
+                                  {"%C3%A9","e"}})
+
+function html_clean(string s)
+    return substitute_all(s,hex,ascii)
+end function
+
+constant cleanups = {{`<!--<lang Phix>(phixonline)-->`,`<lang Phix>`},
+                     {`<!--<lang Phix>(notonline)-->`,`<lang Phix>`},
+                     {`<!--<lang Phix>-->`,`<lang Phix>`},
+                     {`<!--</lang>-->`,`</lang>`},
+                     {`<span style="color: #008080;">`,``},
+                     {`<span style="color: #000000;">`,``},
+                     {`<span style="color: #0000FF;">`,``},
+                     {`<span style="color: #7060A8;">`,``},
+                     {`<span style="color: #008000;">`,``},
+                     {`<span style="color: #004080;">`,``},
+                     {`<span style="color: #004600;">`,``},
+                     {`<span style="color: #000080;font-style:italic;">`,``},
+                     {`</span>`,``},
+                     {`&gt;`,`>`},
+                     {`&lt;`,`<`}},
+         {cleanstrs,cleanreps} = columnize(cleanups)
+
+function cleanup(string s)
+    if match(`<!--<lang Phix>`,s) then
+        -- (Phix "manual" syntax colouring inserts a
+        --  space at the start of every single line,
+        --  otherwise blank lines break code blocks.)
+        s = substitute(s,"\n ","\n")
+    end if
+    return substitute_all(s,cleanstrs,cleanreps)
+end function
+
+sequence task_table -- [[<task_name>,...langYN,"file.raw",starts,finishes]]
+-- eg [["100 doors","Y","Y","Y","Y","Y","100_doors.raw",
+--      {176247,209655,257786,287434,358111},
+--      {177928,210102,262527,288564,358644}],...]
+-- Each entry is length(languages)+4 long, starts and finishes are
+--  nested tables of length(languages) each. In theory the Y/N could
+--  be removed and starts[idx]!=0 relied on instead, except that we
+--  use/need them for the IupTable() form, as next.
+
+sequence data,  -- task_table in IupTable() form, and filtered
+         blocks -- for the selected language
+integer blockn, -- <1 of n> handling
+        data_idx = 0 -- selected table entry
+
+procedure set_blocks(sequence di, integer i)
+    sequence starts = di[$-1],
+             finishes = di[$]
+    integer start = starts[i],
+           finish = finishes[i]
+    string filename = join_path({"rc_cache",di[$-2]})
+    string text = trim(get_text(filename))
+    -- (above is full text, below is language-only)
+    -- (assumes rc_cache not edited since load_tasks)
+    text = cleanup(text[start..finish])
+    blocks = {}
+    start = 1
+    while true do
+        start = match(`<lang `,text,start)
+        if start=0 then exit end if
+        start = find('>',text,start)+1
+        if start=1 then ?9/0 end if
+        finish = match(`</lang>`,text,start)
+        blocks = append(blocks,trim_head(text[start..finish-1]))
+        start = finish+7
+    end while
+    -- eg "See [[Boids/Go]]" cases (flag as un-runnable?)
+    if blocks = {} then blocks = {text} end if
+end procedure
+
+function set_codetext(integer n=0)
+    if data_idx!=0 then
+        string text
+        if n=0 then
+            sequence di = data[1][data_idx]
+            integer ldx = get_selected_language()
+            set_blocks(data[1][data_idx],ldx)
+            n = 1
+        else
+            text = IupGetAttribute(codetext,"VALUE")
+            if length(text) 
+            and text[1]!='<' then   -- manually removed?
+                return IUP_DEFAULT  -- allow manual edits then
+            end if
+        end if
+        blockn = n
+        if length(blocks)=1 then
+            text = blocks[1]
+        else
+            text = sprintf("<%d of %d>\n%s",{n,length(blocks),blocks[n]})
+        end if
+        IupSetAttribute(codetext,"VALUE",text)
+    end if
+    return IUP_IGNORE -- (for key_cb)
+end function
+
+procedure disable_radios()
+    for i=1 to length(radioset) do
+        IupSetInt(radioset[i],"ACTIVE",false)
+    end for
+end procedure
+
+bool inIdle = false  -- [so we can IupLoopStep()/quit on esc]
+bool bFilter = false -- (once set, load_tasks() performs filtering)
+
+integer ttdx = 1    -- re-entrant filter index
+
+function load_tasks()
+    if not bFilter then
+        if inIdle then return IUP_DEFAULT end if
+        inIdle = true
+        -- don't clobber any "NEED EDITING" message:
+        wastitle = IupGetAttribute(statusbar, "TITLE")
+        if get_file_type("rc_cache")!=FILETYPE_DIRECTORY then
+            if not create_directory("rc_cache") then
+                crash("cannot create rc_cache directory")
+            end if
+        end if
+        sequence tasks = sort(dewiki(open_category("Programming_Tasks"))&
+                              dewiki(open_category("Draft_Programming_Tasks")))
+        task_table = {}
+        atom t1 = time()+0.2
+        for i=1 to length(tasks) do
+            string ti = tasks[i],
+                   url = sprintf("http://rosettacode.org/mw/index.php?title=%s&action=raw",{ti}),
+                   contents = open_download(ti&".raw",url,i,length(tasks)),
+                   prev = "", curr
+            integer count = 0, start = 1, finishk = 0
+            sequence found = repeat("N",length(langs)),
+                     starts = repeat(0,length(langs)),
+                     finishes = repeat(length(contents),length(langs))
+            while true do
+                -- Note this must handle (from Animation.raw):
+                -- ==[[header|JavaScript]] + [[header|HTML]]==
+                -- ==[[header|JavaScript]] + [[header|SVG]]==
+                start = match(`=={`&`{header|`,contents,start)
+                if start=0 then exit end if
+                integer finish = match(`}`&`}`,contents,start+1)
+                curr = contents[start+11..finish-1]
+                if curr!=prev then
+                    if finishk then
+                        finishes[finishk] = start-3
+                        finishk = 0
+                    end if
+                    integer k = find(curr,langs)
+                    if k then
+                        found[k] = "Y"
+                        starts[k] = finish+5
+                        finishk = k
+                    end if
+                    count += 1
+                end if
+                prev = curr
+                start += length(`{`&`{header|`)
+            end while
+            if find("Y",found) then
+                assert(find(true,sq_lt(finishes,starts))=0)
+                found = prepend(found,substitute(html_clean(tasks[i]),'_',' '))
+                found = append(found,ti&".raw")
+                found = append(found,starts)
+                found = append(found,finishes)
+                task_table = append(task_table,found)
+            end if
+            if platform()!=JS             -- (fat chance! - but code consistently)
+            and IupLoopStep()=IUP_CLOSE then -- (nb requires that inIdle handling)
+                return IUP_CLOSE
+            end if
+            if time()>t1 and wastitle="" then
+                IupSetStrAttribute(statusbar, "TITLE", "Processing %d/%d (%.1f%%)\r",
+                                                {i,length(tasks),i/length(tasks)*100})
+                t1 = time()+0.2
+            end if
+        end for
+        if curl!=NULL then
+            curl_easy_cleanup(curl)
+            free(pErrorBuffer)
+            curl = NULL
+            pErrorBuffer = NULL
+        end if
+        if wastitle="" then
+            IupSetStrAttribute(statusbar, "TITLE", "%d tasks loaded",{length(task_table)})
+        end if
+        ttdx = 1
+        bFilter = true
+        return IUP_DEFAULT  -- (brb)
+    end if
+    -- filtering:
+    integer ls = IupGetInt(langsel,"VALUE")
+    sequence cs = repeat(-1,length(langchks))
+    for i=1 to length(langchks) do
+        cs[i] = IupGetInt(langchks[i],"VALUE")
+    end for
+    string tf = IupGetAttribute(taskfilter,"VALUE")
+    integer ts = IupGetInt(textsearch,"VALUE"),
+            bcount = 0
+    if ttdx=1 then data = {} end if
+    data_idx = 0
+    IupTableClearSelected(table)
+    IupSetInt(table,"ACTIVE",false)
+    disable_radios()
+    for i=ttdx to length(task_table) do
+        sequence ti = task_table[i],
+                 starts = ti[$-1],
+                 finishes = ti[$]
+        if ls=1 or (ls>1 and starts[ls-1]!=0) then
+            bool bHas = true
+            for c=1 to length(langchks) do
+                bHas = (starts[c]!=0 or not cs[c])
+                if not bHas then exit end if
+            end for
+            if bHas then
+                bool bText = (tf=="")
+                if not bText then
+                    bText = match(tf,ti[1],case_sensitive:=false)!=0
+                    if not bText and ls>1 and ts then
+                        bcount += 1
+--                      if bcount>=10 then exit end if
+                        if bcount>=25 then exit end if -- (marginally better)
+--                      if bcount>=50 then exit end if
+                        set_blocks(ti,ls-1)
+                        for b=1 to length(blocks) do
+                            bText = match(tf,blocks[b],case_sensitive:=false)
+                            if bText then exit end if
+                        end for
+                    end if
+                end if  
+                if bText then
+                    data = append(data,ti)
+                end if
+            end if
+        end if
+        ttdx += 1
+    end for
+    string title
+    integer res = IUP_DEFAULT,
+            ltt = length(task_table)
+    if ttdx>ltt then
+        title = sprintf("%d/%d tasks filtered",{length(data),ltt})
+        data = {data,{}}
+        IupTableSetData(table, data)
+        IupSetInt(table,"ACTIVE",true)
+--      enable_radios(true) -- no, when user (re-) selects an entry
+        res = IUP_IGNORE    -- remove callback
+    else
+        title = sprintf("filtering %d/%d",{ttdx,ltt})
+    end if
+    IupSetStrAttribute(statusbar, "TITLE", title)
+    return res
+end function
+
+procedure apply_filters()
+    ttdx = 1
+    IupSetGlobalFunction("IDLE_ACTION", Icallback("load_tasks"))
+end procedure
+
+function valuechanged_cb(Ihandle ih)
+    integer v = IupGetInt(ih,"VALUE")
+    if ih=langsel then
+        bool bActive = v>1 and not disabled[v-1]
+        IupSetInt(textsearch,"ACTIVE",bActive)
+        if bActive then
+            -- mark/unmark and disable/enable
+            -- eg if the dropdown is(/was) Go then that checkbox
+            --    would be checked and disabled; if I then change
+            --    it to Julia, then enable Go and disable Julia, 
+            --    and also uncheck Go (why not) and check Julia.
+            v -= 1
+            integer sanity_count = 0
+            for i=1 to length(langchks) do
+                if not disabled[i]
+                and IupGetInt(langchks[i],"ACTIVE")=(i=v) then
+                    IupSetInt(langchks[i],"VALUE",(i=v))
+                    IupSetInt(langchks[i],"ACTIVE",(i!=v))
+                    sanity_count += 1
+                end if
+            end for
+            if sanity_count>2 then ?9/0 end if -- what?!
+        elsif v=1 then
+            -- re-enable and uncheck, when "<any>" re-selected.
+            for i=1 to length(langchks) do
+                if not disabled[i]
+                and not IupGetInt(langchks[i],"ACTIVE") then
+                    IupSetInt(langchks[i],"ACTIVE",true)
+                    IupSetInt(langchks[i],"VALUE",false)
+                end if
+            end for
+        end if
+    end if
+    apply_filters()
+    return IUP_DEFAULT
+end function
+constant cb_valuechanged = Icallback("valuechanged_cb")
+
+function enteritem_cb(Ihandle table, integer lin, col)
+    {} = IupTableEnterItem_cb(table,lin,col) -- as per docs
+    data_idx = IupTableGetSelected(table)
+    if data_idx then
+        -- enable/disable radio buttons and if necessary
+        -- transfer selected to something which is legal.
+        sequence di = data[1][data_idx],
+                 starts = di[$-1]
+        integer badx = 0, validx = 0
+        for i=1 to length(radioset) do
+            if not disabled[i] then
+                bool bActive = (starts[i]!=0)
+--              bool bActive = (di[i+1]=="Y") -- (same)
+                IupSetInt(radioset[i],"ACTIVE",bActive)
+                if bActive then
+                    if badx!=0 then
+                        -- unset that by setting this
+                        IupSetInt(radioset[i],"VALUE",1)
+                        badx = 0 -- (not really needed)
+                    elsif validx=0 then
+                        -- unset future by setting this
+                        validx = i
+                    end if
+                elsif IupGetInt(radioset[i],"VALUE") then
+                    if validx!=0 then
+                        -- unset by setting prior
+                        IupSetInt(radioset[validx],"VALUE",1)
+                    else
+                        -- set future to unset this
+                        badx = i
+                    end if
+                end if
+            end if
+        end for
+        {} = set_codetext()
+    end if
+    return IUP_DEFAULT
+end function
+
+function radiochanged_cb(Ihandle ih)
+    if IupGetInt(ih,"VALUE") then -- (ignore the automatic "unsets")
+        {} = set_codetext()
+    end if
+    return IUP_DEFAULT
+end function
+constant cb_radiochanged = Icallback("radiochanged_cb")
+
+function filter_action_cb(Ihandle /*ih*/)
+    apply_filters()
+    return IUP_DEFAULT
+end function
+constant cb_filter_action = Icallback(routine_id("filter_action_cb"))
+
+function key_cb(Ihandle /*ih*/, atom c)
+    if    c=K_F1 then return help()
+    elsif c=K_F5 or c=K_F6 then return run(c)
+    elsif c=K_LEFT then return set_codetext(max(1,blockn-1))
+    elsif c=K_RIGHT then return set_codetext(min(blockn+1,length(blocks)))
+    end if
+    return iff(c=K_ESC?IUP_CLOSE:IUP_CONTINUE)
+end function
+
+procedure main()
+    IupOpen()
+    IupSetGlobal("UTF8MODE","YES")
+    langsel = IupList("DROPDOWN=YES, 1=<any>, VALUE=1")
+    IupSetCallback(langsel,"VALUECHANGED_CB",cb_valuechanged)
+    sequence status_msgs = {}
+    for i=1 to length(langs) do
+        {string lang, string d, sequence cmd} = languages[i]
+        IupSetStrAttributeId(langsel,"",i+1,lang)
+        Ihandle checkbox = IupToggle(lang),
+                radiobtn = IupToggle(lang)
+        bool bOK = true
+        if cmd!="open" then
+            bOK = (get_file_type(d)==FILETYPE_DIRECTORY)
+            if bOK then
+                if string(cmd) then
+                    bOK = file_exists(join_path({d,cmd}))
+                else
+                    for c=1 to length(cmd) do
+                        bOK = file_exists(join_path({d,cmd[c]}))
+                        if not bOK then exit end if
+                    end for
+                end if
+            end if
+            if not bOK then
+                disabled[i] = true
+                status_msgs = append(status_msgs,lang)
+            end if
+        end if
+        IupSetInt({checkbox,radiobtn},"ACTIVE",bOK)
+        langchks = append(langchks,checkbox)
+        radioset = append(radioset,radiobtn)
+    end for
+    IupSetCallback(langchks,"VALUECHANGED_CB",cb_valuechanged)
+    IupSetCallback(radioset,"VALUECHANGED_CB",cb_radiochanged)
+    IupSetInt(langsel,"VISIBLEITEMS",length(langs)+2)
+    sequence langset = {IupLabel("Language:"),langsel,
+                        IupLabel("and:")} & langchks
+    codetext = IupMultiLine(`VISIBLELINES=20, VISIBLECOLUMNS=80`)
+    IupSetAttributes(codetext,`EXPAND=YES, FONT="Courier, 10"`)
+    taskfilter = IupText("EXPAND=HORIZONTAL")
+    textsearch = IupToggle("search text","ACTIVE=NO")
+    IupSetCallback(taskfilter,"VALUECHANGED_CB",cb_filter_action)
+    IupSetCallback(textsearch,"VALUECHANGED_CB",cb_valuechanged)
+    add_pause = IupToggle("add pause")
+    sequence columns = {{"Task",200,"ALEFT"}}
+    for i=1 to length(langs) do
+        columns = append(columns,{langs[i],40,"ACENTER"})
+    end for
+    table = IupTable(columns,{{},{}})
+    statusbar = IupLabel("","EXPAND=HORIZONTAL, PADDING=10x5")
+    Ihandle hbfilt = IupHbox({IupLabel("Filter:"),taskfilter,textsearch},
+                             "NORMALIZESIZE=VERTICAL"),
+            hlangs = IupHbox(langset,"GAP=20, NORMALIZESIZE=VERTICAL"),
+            radios = IupRadio(IupHbox(radioset)),
+            hradio = IupHbox({radios,IupFill(),add_pause},
+                             "NORMALIZESIZE=VERTICAL"),
+            dlg = IupDialog(IupVbox({hlangs,
+                                     hbfilt,
+                                     table,
+                                     hradio,
+                                     codetext,
+                                     statusbar}),
+                            "MARGIN=10x10, GAP=5, SHRINK=YES") 
+    IupSetCallback(table,"ENTERITEM_CB",Icallback("enteritem_cb"))
+    IupSetAttribute(dlg,"TITLE","Run examples")
+    IupSetCallback(dlg,"KEY_CB",Icallback("key_cb"))
+    IupSetAttributeHandle(NULL,"PARENTDIALOG",dlg)
+    IupSetInt(radioset,"ACTIVE",false)
+    for i=1 to length(radioset) do
+        if not disabled[i] then
+            IupSetInt(radioset[i],"VALUE",1)
+            exit
+        end if
+    end for
+    clipboard = IupClipboard()
+    IupShow(dlg)
+    if length(status_msgs) then
+        string msg = "***NEED EDITING***: "&join(status_msgs,",")
+        IupSetStrAttribute(statusbar, "TITLE", msg)
+    end if
+    apply_filters() -- (set load_tasks() as the idle action)
+    if platform()!=JS then -- (no chance, but code consistently)
+        IupMainLoop()
+        IupClose()
+    end if
+end procedure
+main()

@@ -6,17 +6,19 @@
 --  Press +/- to change hi, shift +/- to change lo.
 --  ("=_" are also mapped to "+-", for the non-numpad +/-)
 --
+with javascript_semantics
 include pGUI.e
 
 Ihandle dlg, canvas
 cdCanvas cddbuffer, cdcanvas
 
 integer width, height,
+        lm = 0, tm = 0, -- left and top margins
         lo = 1, hi = 1
 atom cx, cy, h
 
 procedure lineTo(atom newX, newY)
-    cdCanvasVertex(cddbuffer, newX-width/2+h, height-newY+2*h)
+    cdCanvasVertex(cddbuffer, newX-width/2+h+lm, height-newY+2*h+tm)
     cx = newX
     cy = newY
 --?{cx,cy}
@@ -31,6 +33,11 @@ procedure lineNW() lineTo(cx-h,cy-h) end procedure
 procedure lineNE() lineTo(cx+h,cy-h) end procedure
 procedure lineSE() lineTo(cx+h,cy+h) end procedure
 procedure lineSW() lineTo(cx-h,cy+h) end procedure
+
+forward procedure sierN(integer level)
+forward procedure sierE(integer level)
+forward procedure sierS(integer level)
+forward procedure sierW(integer level)
 
 procedure sierN(integer level)
    if level=1 then
@@ -89,6 +96,15 @@ end procedure
 
 function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
     {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
+    if width>height then
+        lm = floor((width-height)/2)
+        tm = 0
+        width = height
+    else
+        lm = 0
+        tm = floor((height-width)/2)
+        height = width
+    end if
     cdCanvasActivate(cddbuffer)
     for level=lo to hi do
         cx = width/2
@@ -110,6 +126,10 @@ function map_cb(Ihandle ih)
     return IUP_DEFAULT
 end function
 
+procedure set_dlg_title()
+    IupSetStrAttribute(dlg, "TITLE", "Sierpinski curve (%d..%d)",{lo,hi})
+end procedure
+
 function key_cb(Ihandle /*ih*/, atom c)
     if c=K_ESC then return IUP_CLOSE end if
     if find(c,"+=-_") then
@@ -127,7 +147,7 @@ function key_cb(Ihandle /*ih*/, atom c)
                 hi = max(lo,hi-1)
             end if
         end if
-        IupSetStrAttribute(dlg, "TITLE", "Sierpinski curve (%d..%d)",{lo,hi})
+        set_dlg_title()
         cdCanvasClear(cddbuffer)
         IupUpdate(canvas)
     end if
@@ -136,20 +156,18 @@ end function
 
 procedure main()
     IupOpen()
-    
-    canvas = IupCanvas(NULL)
-    IupSetAttribute(canvas, "RASTERSIZE", "770x770")
-    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
-
+    canvas = IupCanvas("RASTERSIZE=770x770")
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "ACTION", Icallback("redraw_cb")})
     dlg = IupDialog(canvas)
-    IupSetAttribute(dlg, "TITLE", "Sierpinski curve (1..1)")
-    IupSetCallback(dlg, "K_ANY", Icallback("key_cb"))
-
-    IupMap(dlg)
-    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
-    IupMainLoop()
-    IupClose()
+    IupSetCallback(dlg, "KEY_CB", Icallback("key_cb"))
+    set_dlg_title()
+    IupShow(dlg)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL)
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

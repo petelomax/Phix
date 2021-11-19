@@ -1,0 +1,28 @@
+--
+-- demo\rosetta\Simulate_keyboard_input.exw
+--
+without js -- you'd better hope this sort of thing ain't possible in a browser!
+            -- erm, there /is/ a `Window.simulateKeyPress("<Ctrl F>")` ... [DEV]
+include pGUI.e
+ 
+string hw = "Look ma no hands! "
+ 
+function timer_cb(Ihandle ih)
+    if length(hw) then
+        IupSetGlobalInt("KEY",hw[1])
+        hw = hw[2..$]
+    else
+        IupSetInt(ih,"RUN",false)
+    end if
+    return IUP_CONTINUE
+end function
+ 
+IupOpen()
+Ihandle txt = IupText("SIZE=170x10")
+Ihandle dlg = IupDialog(txt,`TITLE="Simulate input", CHILDOFFSET=10x40, SIZE=200x80`)
+IupShow(dlg)
+Ihandle hTimer = IupTimer(Icallback("timer_cb"), 250)
+if platform()!=JS then
+    IupMainLoop()
+    IupClose()
+end if

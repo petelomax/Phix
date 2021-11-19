@@ -9,13 +9,14 @@
 --   that, and instead assume the file will only ever be read by the same program/with matching settings. </rant>)
 --  (see also demo\edix\src\tabs.e\ExpandTabs() for what you'd need if you knew what the tab chars really meant.)
 --
-/* -- default description:
+with javascript_semantics
+constant default_description = """
 tH.........
 .___.
 ___...
 .___.
 Ht.. ......
-*/
+"""
 sequence lines, counts
 integer longest
 
@@ -37,15 +38,20 @@ function valid_line(string line, integer l=0)
 end function
 
 procedure load_desc()
-    string filename = substitute(command_line()[$],".exe",".exw")
-    integer fn = open(filename,"r")
-    if fn=-1 then
-        printf(1,"error opening %s\n",{filename})
-        {} = wait_key()
-        abort(0)
+    sequence text
+    if platform()=JS then
+        text = split(default_description,"\n")
+    else
+        string filename = substitute(command_line()[$],".exe",".exw")
+        integer fn = open(filename,"r")
+        if fn=-1 then
+            printf(1,"error opening %s\n",{filename})
+            {} = wait_key()
+            abort(0)
+        end if
+        text = get_text(fn,GT_LF_STRIPPED)
+        close(fn)
     end if
-    sequence text = get_text(fn,GT_LF_STRIPPED)
-    close(fn)
     lines = {}
     for i=1 to length(text) do
         string line = text[i]
@@ -63,7 +69,7 @@ procedure load_desc()
             exit
         end if
     end for
-    counts = lines
+    counts = deep_copy(lines)
 end procedure
 
 constant dxy = {{-1,-1}, {-1,+0}, {-1,+1},
@@ -91,6 +97,7 @@ end procedure
 
 include pGUI.e
 
+constant title = "Wireworld"
 Ihandle dlg, canvas, timer
 cdCanvas cddbuffer, cdcanvas
 
@@ -142,20 +149,20 @@ procedure main()
     load_desc()
     IupOpen()
 
-    canvas = IupCanvas(NULL)
-    IupSetAttribute(canvas, "RASTERSIZE", "300x180")
-    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+    canvas = IupCanvas("RASTERSIZE=300x180")
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "ACTION", Icallback("redraw_cb")})
 
     timer = IupTimer(Icallback("timer_cb"), 500)
 
-    dlg = IupDialog(canvas)
-    IupSetAttribute(dlg, "TITLE", "Wireworld")
+    dlg = IupDialog(canvas,`TITLE="%s"`, {title})
 
     IupShow(dlg)
     IupSetAttribute(canvas, "RASTERSIZE", NULL)
-    IupMainLoop()
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

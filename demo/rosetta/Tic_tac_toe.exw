@@ -6,6 +6,253 @@
 --
 -- AI copied from C. User goes first, as does loser. After a draw the start player alternates.
 
+with javascript_semantics   -- DEV MINSIZE not yet working
+--without debug
+include pGUI.e
+--include builtins\VM\pprntfN.e
+--include builtins\VM\pcfunc.e
+--include builtins\pfile.e
+--include builtins\scanf.e
+--include builtins\pdir.e
+--include builtins\penv.e
+--with debug
+
+constant title = "Tic Tac Toe"
+sequence board = repeat(' ',9)  -- {' '/'X'/'O'}
+bool human = false  -- (flipped in new_game)
+bool game_over = false
+constant play_dumb = false
+Ihandle dlg
+
+-- saved in redraw_cb() for check_position():
+integer cw,ch,  -- board centre
+        d,      -- tile spacing
+        h       -- tile size/radius
+
+function redraw_cb(Ihandle ih, integer /*posx*/, /*posy*/)
+    {cw,ch} = IupGetIntInt(ih, "DRAWSIZE")
+    d = floor(min(cw,ch)/8)
+    h = floor(d*2/3)
+    cw = floor(cw/2)
+    ch = floor(ch/2)
+
+    IupGLMakeCurrent(ih)
+    cdCanvas cddbuffer = IupGetAttributePtr(ih,"DBUFFER")
+    cdCanvasActivate(cddbuffer)
+    cdCanvasClear(cddbuffer)
+    cdCanvasSetForeground(cddbuffer,CD_BLUE)
+    cdCanvasSetLineWidth(cddbuffer,10)
+    integer d3 = 3*d
+    cdCanvasLine(cddbuffer,cw-d,ch-d3,cw-d,ch+d3)
+    cdCanvasLine(cddbuffer,cw+d,ch-d3,cw+d,ch+d3)
+    cdCanvasLine(cddbuffer,cw-d3,ch-d,cw+d3,ch-d)
+    cdCanvasLine(cddbuffer,cw-d3,ch+d,cw+d3,ch+d)
+    integer pdx = 1
+    for y=+1 to -1 by -1 do
+        integer my = ch+y*2*d
+        for x=-1 to +1 do
+            integer mx = cw+x*2*d
+            integer mark = board[pdx]
+            if mark='X' then
+                cdCanvasLine(cddbuffer,mx-h,my-h,mx+h,my+h)
+                cdCanvasLine(cddbuffer,mx-h,my+h,mx+h,my-h)
+            elsif mark='O' then
+                cdCanvasCircle(cddbuffer,mx,my,2*h)
+            end if
+            pdx += 1
+        end for
+    end for
+    cdCanvasFlush(cddbuffer)
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle canvas)
+    IupGLMakeCurrent(canvas)
+    cdCanvas cddbuffer
+    if platform()=JS then
+        cddbuffer = cdCreateCanvas(CD_IUP, canvas)
+    else
+        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+        cddbuffer = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    end if
+    IupSetAttributePtr(canvas,"DBUFFER",cddbuffer)
+    cdCanvasSetBackground(cddbuffer, CD_PARCHMENT)
+    return IUP_DEFAULT
+end function
+
+function canvas_resize_cb(Ihandle canvas)
+    cdCanvas cddbuffer = IupGetAttributePtr(canvas,"DBUFFER")
+    integer {canvas_width, canvas_height} = IupGetIntInt(canvas, "DRAWSIZE")
+    atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+    cdCanvasSetAttribute(cddbuffer, "SIZE", "%dx%d %g", {canvas_width, canvas_height, res})
+    return IUP_DEFAULT
+end function
+
+constant wins = {{1,2,3},{4,5,6},{7,8,9},{1,4,7},{2,5,8},{3,6,9},{1,5,9},{3,5,7}}
+
+function check_winner()
+    for w=1 to length(wins) do
+        integer {i,j,k} = wins[w],
+                  mark = board[i]
+        if mark!=' ' and mark=board[j] and mark=board[k] then
+            return mark
+        end if
+    end for
+    return 0
+end function
+
+integer best_i
+
+function test_move(integer mark, depth)
+    integer score = check_winner(),
+            best = -1, changed = 0
+    if score!=0 then return iff(score=mark?1:-1) end if
+    for i=1 to 9 do
+        if board[i]=' ' then 
+            changed = mark
+            board[i] = mark
+            score = -test_move('O'+'X'-mark, depth + 1)
+            board[i] = ' '
+            if score>best then
+                if depth=0 then
+                    best_i = i;
+                end if
+                best = score;
+            end if
+        end if
+    end for
+    return iff(changed!=0?best:0)
+end function
+
+procedure check_game_over()
+    integer win = check_winner()
+    if win or not find(' ',board) then
+        string winner = iff(win='O'?"You win!",
+                        iff(win='X'?"Computer wins"
+                                   :"Draw"))
+        IupSetStrAttribute(dlg,"TITLE","%s - %s",{title,winner})
+        game_over = true
+    end if
+end procedure
+
+procedure play_move(integer move)
+    if move then
+        assert(board[move]=' ')
+        board[move] = 'O'
+        check_game_over()
+        if not game_over then
+            human = false
+            if play_dumb then
+                sequence s = find_all(' ',board)
+                best_i = s[rand(length(s))]
+            else
+                {} = test_move('X', 0)
+                assert(board[best_i]=' ')
+            end if
+            board[best_i] = 'X'
+            check_game_over()
+            human = not game_over
+        end if
+    end if
+end procedure
+
+procedure new_game()
+    board = repeat(' ',9)
+    human = not human
+    if not human then
+        board[rand(9)] = 'X'
+        human = true
+    end if
+end procedure
+
+function check_position(integer px, py)
+--
+-- check if x,y is on a legal move.
+-- uses ch,cw,d,h as saved by redraw_cb().
+--
+    integer pdx = 1
+    for y=-1 to +1 do
+        integer my = ch+y*2*d
+        for x=-1 to +1 do
+            integer mx = cw+x*2*d
+            if  px>=mx-h and px<=mx+h
+            and py>=my-h and py<=my+h then
+                integer mark = board[pdx]
+                return iff(mark==' '?pdx:0)
+            end if
+            pdx += 1
+        end for
+    end for
+    return 0
+end function
+
+function button_cb(Ihandle /*canvas*/, integer button, pressed, x, y, atom /*pStatus*/)
+    if button=IUP_BUTTON1 and not pressed then      -- (left button released)
+        if game_over then
+            game_over = false
+            new_game()
+        else
+            play_move(check_position(x,y))
+        end if
+        IupRedraw(dlg)
+    end if
+    return IUP_CONTINUE
+end function
+
+function exit_cb(Ihandle /*ih*/)
+    return IUP_CLOSE
+end function
+
+constant help_text = """
+Tic Tac Toe, also known as Noughts and Crosses.
+
+The aim is to get three Os (or Xs) in a row.
+
+Human(O) plays first, as does loser. After a draw first player alternates.
+Computer(X) plays a random move first, to make it more interesting.
+Setting the constant play_dumb to true disables the internal AI.
+
+Once a game is over click anywhere on the board to start a new game.
+"""
+
+function help_cb(Ihandln /*ih*/)
+    IupMessage(title,help_text)
+    return IUP_DEFAULT
+end function
+
+-- Other possible keys:
+-- Q - quit (end program) [==X?]
+-- C - concede (start new game)
+function key_cb(Ihandle /*dlg*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if
+    if c=K_F1 then return help_cb(NULL) end if
+    return IUP_CONTINUE
+end function
+
+procedure main()
+    IupOpen()
+    Ihandle canvas = IupGLCanvas("RASTERSIZE=800x800")
+    dlg = IupDialog(canvas,`TITLE="%s",MINSIZE=245x180`,{title})
+    IupSetCallbacks(canvas,{"MAP_CB",Icallback("map_cb"),
+                            "ACTION",Icallback("redraw_cb"),
+                            "RESIZE_CB", Icallback("canvas_resize_cb"),
+                            "BUTTON_CB", Icallback("button_cb")})
+    IupSetCallback(dlg, "KEY_CB", Icallback("key_cb"))
+    IupSetAttributeHandle(NULL,"PARENTDIALOG",dlg)
+    new_game()
+    IupShow(dlg)
+    IupSetAttribute(canvas,"RASTERSIZE",NULL)
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
+end procedure
+ 
+main()
+
+--/* console version
+without js  -- uses wait_key()
+
 sequence board = repeat(' ',9)  -- {' '/'X'/'O'}
 
 constant wins = {{1,2,3},{4,5,6},{7,8,9},{1,4,7},{2,5,8},{3,6,9},{1,5,9},{3,5,7}}
@@ -13,9 +260,9 @@ constant wins = {{1,2,3},{4,5,6},{7,8,9},{1,4,7},{2,5,8},{3,6,9},{1,5,9},{3,5,7}
 function check_winner()
     for w=1 to length(wins) do
         integer {i,j,k} = wins[w],
-                boardi = board[i]
-        if boardi!=' ' and boardi=board[j] and boardi=board[k] then
-            return boardi
+                  mark = board[i]
+        if mark!=' ' and mark=board[j] and mark=board[k] then
+            return mark
         end if
     end for
     return 0
@@ -26,13 +273,15 @@ procedure showboard()
 end procedure
 
 integer best_i
+
 function test_move(integer val, integer depth)
-integer score = check_winner()
-integer best = -1, changed = 0
+    integer score = check_winner(),
+            best = -1, changed = 0
     if score!=0 then return iff(score=val?1:-1) end if
     for i=1 to 9 do
         if board[i]=' ' then 
-            {changed,board[i]} @= val
+            changed = val
+            board[i] = val
             score = -test_move('O'+'X'-val, depth + 1)
             board[i] = ' '
             if score>best then
@@ -49,7 +298,7 @@ end function
 integer user = 1
 
 function game()
-integer key, k, win
+    integer key, k, win
     board = repeat(' ',9)
  
     printf(1,"Board postions are numbered so:\n1 2 3\n4 5 6\n7 8 9\n");
@@ -91,6 +340,7 @@ while 1 do
     puts(1,res)
     if res="Quit" then exit end if
 end while
+--*/
 
 --/*
 Sample game (after a draw), with the boards cut/pasted into the horizontal

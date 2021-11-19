@@ -1,0 +1,54 @@
+--
+-- demo\rosetta\Yellowstone_sequence.exw
+--
+with javascript_semantics
+
+function yellowstone(integer N)
+    sequence a = {1, 2, 3},
+             b = repeat(true,3)
+    integer i = 4
+    while length(a) < N do
+        if (i>length(b) or b[i]=false)
+        and gcd(i,a[$])=1
+        and gcd(i,a[$-1])>1 then
+            a &= i
+            if i>length(b) then
+                b &= repeat(false,i-length(b))
+            end if
+            b[i] = true
+            i = 4
+        end if
+        i += 1
+    end while
+    return a
+end function
+  
+printf(1,"The first 30 entries of the Yellowstone permutation:\n%V\n", {yellowstone(30)})
+
+-- a simple plot:
+include pGUI.e
+include IupGraph.e
+
+function get_data(Ihandle graph)
+    sequence y500 = yellowstone(500)
+    integer {w,h} = IupGetIntInt(graph,"DRAWSIZE")
+    IupSetInt(graph,"XTICK",iff(w<640?iff(h<300?100:50):20))
+    IupSetInt(graph,"YTICK",iff(h<250?iff(h<140?iff(h<120?700:350):200):100))
+    return {{tagset(500),y500,CD_RED}}
+end function
+
+IupOpen()
+Ihandle graph = IupGraph(get_data,"RASTERSIZE=960x600")
+IupSetAttributes(graph,`GTITLE="Yellowstone Numbers"`)
+IupSetInt(graph,"TITLESTYLE",CD_ITALIC)
+IupSetAttributes(graph,`XNAME="n", YNAME="a(n)"`)
+IupSetAttributes(graph,"XTICK=20,XMIN=0,XMAX=500")
+IupSetAttributes(graph,"YTICK=100,YMIN=0,YMAX=1400")
+Ihandle dlg = IupDialog(graph,`TITLE="Yellowstone Names"`)
+IupSetAttributes(dlg,"MINSIZE=290x140")
+IupShow(dlg)
+if platform()!=JS then
+    IupMainLoop()
+    IupClose()
+end if
+

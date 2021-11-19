@@ -1,0 +1,392 @@
+--
+-- demo\rosetta\Wordiff.exw
+-- ========================
+--
+with javascript_semantics       -- DEV not yet, IupList, IupFrame, plus:
+--/*
+IupText(SPIN)??
+IupText(SPINMIN)??
+IupText(RASTERSIZE)??
+IupLabel(ACTIVE)??
+IupText(ACTIVE)??
+IupLabel(VISIBLE)??
+IupButton(PADDING)??
+IupH/Vbox(NORMALIZESIZE...)
+IupDialog(SIZE)??
+and likely IupClipboard, APPENDITEM, REMOVEITEM, TOPITEM, COUNT, KILLFOCUS_CB, GETFOCUS_CB, ...
+IupList maybe a select element, with a size if not drop-down?
+var x = document.createElement("select");
+  //x.setAttribute("size","12");
+--very different without the size=4:
+<select id="mySelect" size="4">
+  <option>Apple</option>
+  <option>Pear</option>
+  <option>Banana</option>
+  <option>Orange</option>
+</select>
+SPIN: <input type="number" id="b" value="50">
+IupFrame could be:
+<fieldset>
+  <legend id="myLegend">Personalia:</legend>
+  Name: <input type="text">     // (or whatever)
+</fieldset>
+
+While I'm here... (not that we need progress or use ids)
+<progress id="myProgress" value="75" max="100"></progress>
+<script>
+function myFunction() {
+  document.getElementById("myProgress").value -= 1;
+  var x = document.getElementById("myProgress").value;
+
+radio, anyone?
+<label id="myLabel" for="male">Male</label>
+<input type="radio" name="sex" id="male" value="male">
+<label id="myLabel2" for="male">Female</label>
+<input type="radio" name="sex" id="female" value="female"><br>
+--*/
+--without debug
+include pGUI.e
+--include builtins\VM\pprntfN.e
+--include builtins\VM\pcfunc.e
+--include builtins\pfile.e
+--include builtins\scanf.e
+--include builtins\pdir.e
+--include builtins\penv.e
+--include builtins\pretty.e
+--include builtins\factorial.e
+--include builtins\VM\pTime.e
+--with debug
+
+Ihandle dlg, playerset, playtime, current, remain, turn, input, numbox,
+        help, quit, hframe, history, timer
+--DEV t unassigned... won't catch it proper in timer_cb...
+--atom t0, t
+atom t0, t1, t=0
+
+constant title = "Wordiff game",
+     help_text = """
+Allows single or multi-player modes.
+Enter eg "Pete" to play every round yourself,
+"Computer" for the computer to play itself,
+"Pete,Computer" (or vice versa) to play against the computer,
+"Pete,Sue" for a standard two-payer game, or 
+"Pete,Computer,Sue,Computer" for auto-plays between each human.
+Words must be 3 letters or more, and present in the dictionary,
+and not already used. You must key return (not tab) to finish
+entering your move. The winner is the fastest average time, if
+the timer is running (/non-zero), otherwise play continues 
+until player elimination leaves one (or less) remaining.
+NB: Pressing tab or clicking on help will restart or otherwise
+mess up the gameplay.
+"""
+function help_cb(Ihandln /*ih*/)
+    IupMessage(title,help_text)
+    IupSetFocus(dlg)
+    return IUP_DEFAULT
+end function
+
+function over2(string word) return length(word)>2 end function
+function less5(string word) return length(word)<5 end function
+
+sequence words = filter(unix_dict(),over2),
+         valid = {},
+         used = {}
+
+string word
+integer lw
+
+sequence players, eliminated, times, averages
+integer player
+constant hard = true
+
+function levenshtein1(string w)
+    bool res = false
+    integer l = length(w)
+    if not find(w,used) and abs(l-lw)<=1 then
+        sequence costs = tagset(l+1,0)
+        for i=1 to lw do
+            costs[1] = i
+            integer newcost = i-1, pj = i
+            for j=1 to l do
+                integer cj = costs[j+1],
+                        ne = word[i]!=w[j],
+                        nc = newcost+ne
+                pj = min({pj+1, cj+1, nc})
+                costs[j+1] = pj
+                newcost = cj
+            end for
+        end for
+        res = costs[$-1]==1
+    end if
+    return res
+end function
+
+procedure game_over()
+    IupSetAttribute(history,"APPENDITEM","GAME OVER:")
+    if length(valid) then
+        string valids = "You could have had "&join(valid,", ")
+        IupSetAttribute(history,"APPENDITEM",valids)
+    end if
+    string winner = "nobody"
+    atom best = -1
+    for i=1 to length(players) do
+        string player = players[i], msg
+        if eliminated[i] then
+            msg = ": eliminated"
+        else
+            atom average = averages[i]
+            if average=-1 then
+                msg = ": no times"
+            else
+                msg = sprintf(": %.3f",average)
+                if best=-1 or average<best then
+                    winner = player
+                    best = average
+                end if
+            end if
+        end if
+        IupSetAttribute(history,"APPENDITEM",player&msg)
+    end for
+    IupSetAttribute(history,"APPENDITEM","And the winner is: "&winner)
+    IupSetInt(history,"TOPITEM",IupGetInt(history,"COUNT"))
+    IupSetInt(timer,"RUN",false)
+end procedure
+
+procedure score(string move)
+    times[player] = append(times[player],time()-t1)
+    averages[player] = sum(times[player])/length(times[player])
+    used = append(used,move)
+    word = move
+    lw = length(word)
+    valid = filter(words,levenshtein1)
+    IupSetStrAttribute(current,"TITLE","Current word: "&word)
+end procedure
+
+procedure advance_player()
+    while true do
+        player = mod(player,length(players))+1
+--DEV odd debug msg, probably should be a compiletime error:
+--      if not eliminated(player) then exit end if
+        if not eliminated[player] then exit end if
+    end while
+    IupSetStrAttribute(turn,"TITLE",players[player]&"'s turn:")
+    IupSetStrAttribute(input,"VALUE",word)
+    IupRefreshChildren(numbox)
+    t1 = time()
+end procedure
+
+procedure autoplay()
+    while true do
+        if length(valid)=0 then
+            IupSetAttribute(history,"APPENDITEM","no more moves possible")
+            game_over()
+            exit
+        end if
+        if proper(players[player])!="Computer" then exit end if
+        integer r = rand(length(valid))
+        if hard then
+            integer best = -1
+            for i=1 to length(valid) do
+                word = valid[i]
+                lw = length(word)
+                sequence v = filter(words,levenshtein1)
+                integer lv = length(valid)
+                if best=-1 or lv<best then
+                    best = lv
+                    r = i
+                end if
+            end for
+        end if
+        string move = valid[r]
+        IupSetStrAttribute(history,"APPENDITEM","%s's move: %s\n",
+                           {players[player],move})  
+        IupSetInt(history,"TOPITEM",IupGetInt(history,"COUNT"))
+        score(move)
+        advance_player()
+    end while
+end procedure
+
+procedure new_game(bool bStart=true)
+    bool bActive = length(players)!=0
+    IupSetInt(turn,"ACTIVE",bActive)
+    IupSetInt(input,"ACTIVE",bActive)
+    if bActive and bStart then
+        sequence w34 = filter(words,less5)
+        while true do
+            integer r = rand(length(w34))
+            word = w34[r]
+            lw = length(word)
+            used = {word}
+            valid = filter(words,levenshtein1)
+            if length(valid)!=0 then exit end if
+--          printf(1,"%s eliminated\n",{word})
+            w34[r..r] = {}
+--          r = find(word,words)
+--          words[r..r] = {}
+        end while
+        IupSetStrAttribute(current,"TITLE","Current word: "&word)
+        IupSetStrAttribute(turn,"TITLE",players[player]&"'s turn:")
+        IupSetStrAttribute(input,"VALUE",word)
+        IupRefreshChildren(numbox)
+        IupSetAttribute(history,"REMOVEITEM","ALL")
+        IupSetAttribute(history,"APPENDITEM","Initial word: "&word)
+        IupSetInt(history,"TOPITEM",IupGetInt(history,"COUNT"))
+        integer l = length(players)
+        eliminated = repeat(false,l)
+        times = repeat({},l)
+        averages = repeat(-1,l)
+        t0 = time()
+        t1 = time()
+        IupSetInt(timer,"RUN",t!=0)
+        autoplay()
+    end if
+end procedure
+
+function players_cb(Ihandln /*playerset*/)
+    players = split(IupGetAttribute(playerset,"VALUE"),",")
+    player = 1
+    new_game(false)
+    return IUP_DEFAULT
+end function
+
+function playtime_cb(Ihandle /*playtime*/)
+    t = IupGetInt(playtime, "VALUE")
+    if t then
+        IupSetInt(remain,"VISIBLE",true)
+        IupSetStrAttribute(remain,"TITLE","Remaining: %.1fs",{t})
+    else
+        IupSetInt(remain,"VISIBLE",false)
+    end if
+    IupRefreshChildren(remain)
+--X new_game()
+    return IUP_DEFAULT
+end function
+
+function focus_cb(Ihandle /*input*/)
+--  new_game(IupGetFocus()=input)
+    new_game(true)
+    return IUP_DEFAULT
+end function
+
+procedure verify_move()
+    string move = IupGetAttribute(input,"VALUE"),
+           okstr = "ok" 
+    bool ok = not find(move,used)
+    if not ok then
+        okstr = "already used"
+    else
+        ok = find(move,words)
+        if not ok then
+            okstr = "not in dictionary"
+        else
+            ok = find(move,valid)
+            if not ok then
+                okstr = "more than one change"
+            else
+                used = append(used,move)
+            end if
+        end if
+    end if
+    if not ok then
+        okstr &= ", player eliminated"
+    end if
+    IupSetStrAttribute(history,"APPENDITEM","%s's move: %s %s\n",
+                       {players[player],move,okstr})    
+    IupSetInt(history,"TOPITEM",IupGetInt(history,"COUNT"))
+    if not ok then
+        eliminated[player] = true
+        if length(players)-sum(eliminated)<=1 then
+            game_over()
+            return
+        end if
+    else
+        score(move)
+    end if  
+    advance_player()
+    autoplay()
+end procedure
+
+function timer_cb(Ihandle /*timer*/)
+    atom e = time()-t0
+    if e>=t then
+        IupSetStrAttribute(remain,"TITLE","Remaining: 0s")
+        IupSetInt(turn,"ACTIVE",false)
+        IupSetInt(input,"ACTIVE",false)
+        game_over()
+    else
+        IupSetStrAttribute(remain,"TITLE","Remaining: %.1fs",{t-e})
+    end if
+    return IUP_DEFAULT
+end function
+
+function quit_cb(Ihandle /*ih*/)
+    return IUP_CLOSE
+end function
+
+function key_cb(Ihandle /*dlg*/, atom c)
+    if c=K_ESC then return IUP_CLOSE
+    elsif c=K_CR then
+        Ihandln focus = IupGetFocus()
+        if focus=playerset then
+            IupSetFocus(playtime)
+        elsif focus=playtime then
+            IupSetFocus(input)
+            new_game()
+--          autoplay()
+        elsif focus=input then
+            verify_move()
+--      else
+--          ?"unknown control"
+--          ?9/0
+        end if
+    elsif c=K_F1 then return help_cb(NULL)
+    elsif c=K_cC then
+        integer n = IupGetInt(history,"COUNT")
+        sequence hist = repeat(0,n)
+        for i=1 to n do
+            hist[i] = IupGetAttributeId(history,"",i)
+        end for
+        hist = join(hist,"\n")
+        Ihandln clip = IupClipboard()
+        IupSetAttribute(clip,"TEXT",hist)
+        clip = IupDestroy(clip)
+    end if
+    return IUP_CONTINUE
+end function
+
+IupOpen()
+constant acp = "ALIGNMENT=ACENTER, PADDING=5"
+playerset = IupText(`EXPAND=HORIZONTAL`)
+playtime = IupText(`SPIN=Yes, SPINMIN=0, RASTERSIZE=48x`)
+IupSetCallback({playerset,playtime},"KILLFOCUS_CB",Icallback("players_cb"))
+IupSetCallback(playtime,"VALUECHANGED_CB",Icallback("playtime_cb"))
+turn = IupLabel("turn","ACTIVE=NO")
+input = IupText("EXPAND=HORIZONTAL, ACTIVE=NO")
+numbox = IupHbox({turn,input},acp)
+IupSetCallback(input,"GETFOCUS_CB",Icallback("focus_cb"))
+current = IupLabel("Current word:","EXPAND=HORIZONTAL")
+remain = IupLabel("Remaining time:0s","VISIBLE=NO")
+history = IupList("VISIBLELINES=10, EXPAND=YES, CANFOCUS=NO")
+--history = IupFlatList("VISIBLELINES=10, EXPAND=YES, CANFOCUS=NO")
+hframe = IupFrame(history,"TITLE=History, PADDING=5x4")
+help = IupButton("Help (F1)",Icallback("help_cb"),"PADDING=5x4")
+quit = IupButton("Close", Icallback("quit_cb"))
+timer = IupTimer(Icallback("timer_cb"),100,false)
+sequence buttons = {IupFill(),help,IupFill(),quit,IupFill()}
+Ihandle settings = IupHbox({IupLabel("Contestant name(s)"),
+                            playerset,
+                            IupLabel("Timer (seconds)"),
+                            playtime},acp),
+        currbox = IupHbox({current,remain},acp),
+        btnbox = IupHbox(buttons,"PADDING=40, NORMALIZESIZE=BOTH"),
+        vbox = IupVbox({settings,
+                        currbox,
+                        numbox, hframe, btnbox}, "GAP=5,MARGIN=5x5")
+dlg = IupDialog(vbox, `TITLE="%s", SIZE=500x220`, {title})
+IupSetCallback(dlg, "K_ANY", Icallback("key_cb"))
+IupShow(dlg)
+if platform()!=JS then
+    IupMainLoop()
+    IupClose()
+end if
+

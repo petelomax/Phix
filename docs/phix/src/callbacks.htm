@@ -338,21 +338,33 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
             If you create a loop or an operation that takes a long time to complete inside a callback of your application then 
             the user interface message loop processing is interrupted until the callback returns, so the user can not click on 
             any control of the application. But there are ways to handle that:
-            <br>
-            <br>
-            call <a href="IupLoopStep.htm">IupLoopStep</a> or <a href="IupFlush.htm">IupFlush</a> inside the application callback when it is performing long time operations. <br>
-            This will allow the user to click on a cancel button for instance, because the user interface message loop will be processed.
-            <br>
-            <br>
-            split the operation in several parts that are processed by the Idle function when no messages are left to be processed for the user interface message loop. <br>
-            This will make a heavy use of the CPU, even if the callback is doing nothing. 
-            <br>
-            <br>
-            split the operation in several parts but use a Timer to process each part. <br>
+            <ul>
+            <li>call <a href="IupLoopStep.htm">IupLoopStep</a> or <a href="IupFlush.htm">IupFlush</a> inside the application callback when it is performing long time operations. <br>
+            This will allow the user to click on a cancel button for instance, because the user interface message loop will be processed.</li>
+
+            <li>split the operation in several parts that are processed by the Idle function when no messages are left to be processed for the user interface message loop. <br>
+            This will make a heavy use of the CPU, even if the callback is doing nothing. </li>
+
+            <li>split the operation in several parts but use a Timer to process each part. </li>
+            </ul>
             If you just want to do something simple as a background redraw of an <a href="IupCanvas.htm">IupCanvas</a>, 
             then a better idea is to handle the "idle" state yourself. <br>
             For example, register a timer for a small time like 500ms, and reset the timer in all the mouse and keyboard callbacks of the <a href="IupCanvas.htm">IupCanvas</a>. <br>
             If the timer is trigged then you are in idle state. If the <a href="IupCanvas.htm">IupCanvas</a> loses its focus then stop the timer.
+            <br>
+            <br>
+            <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a> Uses window.requestIdleCallback() which is marked on 
+            <a href="javascript:ExternalLink('ext373','https://developer.mozilla.org/en-US/docs/Web/API/Window/requestIdleCallback');"
+            id="ext373" style="color:#9B5565" >MDN</a> as experimental, but that has not changed since 2015. Note that according to 
+            <a href="javascript:ExternalLink('ext382','https://caniuse.com/requestidlecallback');"
+            id="ext382" style="color:#9B5565" >caniuse.com</a> for this to work in Safari you (and/or you users) must enable requestIdleCallback 
+            in Experimental (Webkit) Features, and the same may be true for Chrome on macOS (not that desktop/Phix works on macOS, yet).<br>
+            Also note I am not quite sure what "current loop will be closed" above means for IUP_CLOSE returns, so IUP_CLOSE and IUP_IGNORE do
+            the same thing, which is in fact <i>don&rsquo;t</i> re-apply requestIdleCallback.<br>
+            If at all possible you should strive to return within 50ms/break up idle processing into chucks of work shorter than that, to
+            avoid (otherwise fairly harmless) JavaScript violation messages being logged to the (hidden) console. A future version may
+            incorporate a means to get <code>(deadline.timeRemaining() > 0 || deadline.didTimeout)</code> in pwa/p2js, with a matching
+            mechanism to get <code>true</code> on desktop/Phix, should that ever be desired/requested.
             <br>
             <br>
             See Also: <a href="IupSetGlobalFunction.htm">IupSetGlobalFunction</a>, <a href="IupTimer.htm">IupTimer</a>.
@@ -443,6 +455,11 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
             <br>
             ih: the element that activated the event.<br>
             c: the typed key. Possible values are listed below.
+            <br>
+            <br>
+            In previous versions of pGUI.e defining c as type integer would work, until an alt or sys key was entered, at which
+            point they would fail with a run-time typecheck. Newer versions of pGUI.e now check for such a "time-bomb" signature
+            and raise an error much earlier in the process, which significantly helps to avoid shipping code with that problem.
             <br>
             <br>
             IUP defines several hundred key constants, most of which are available in pGUI:<br>

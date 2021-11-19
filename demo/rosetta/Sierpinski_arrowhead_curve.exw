@@ -2,17 +2,19 @@
 -- demo\rosetta\Sierpinski_arrowhead_curve.exw
 -- ===========================================
 --
---  Draws curves lo to hi (simultaneously), initially {6,6}, max {10,10}
+--  Draws curves lo to hi (simultaneously), initially {6,6}, max {10,10}, min {1,1}
 --  Press +/- to change hi, shift +/- to change lo.
 --  ("=_" are also mapped to "+-", for the non-numpad +/-)
 --
+with javascript_semantics
 include pGUI.e
 
 Ihandle dlg, canvas
 cdCanvas cddbuffer, cdcanvas
 
 integer width, height,
-        lo = 6, hi = 6
+--      lo = 6, hi = 6
+        lo = 1, hi = 1
 atom cx, cy, h, theta
 
 integer iy = +1
@@ -52,6 +54,8 @@ end procedure
 
 function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
     {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
+--  if height<sqrt(3)*width/2 then
+--width+=floor(width/5)
     cdCanvasActivate(cddbuffer)
     for order=lo to hi do
         cx = width/2
@@ -75,6 +79,10 @@ function map_cb(Ihandle ih)
     return IUP_DEFAULT
 end function
 
+procedure set_dlg_title()
+    IupSetStrAttribute(dlg, "TITLE", "Sierpinski arrowhead curve (%d..%d)",{lo,hi})
+end procedure
+
 function key_cb(Ihandle /*ih*/, atom c)
     if c=K_ESC then return IUP_CLOSE end if
     if find(c,"+=-_") then
@@ -92,29 +100,27 @@ function key_cb(Ihandle /*ih*/, atom c)
                 hi = max(lo,hi-1)
             end if
         end if
-        IupSetStrAttribute(dlg, "TITLE", "Sierpinski arrowhead curve (%d..%d)",{lo,hi})
+        set_dlg_title()
         cdCanvasClear(cddbuffer)
         IupUpdate(canvas)
     end if
-    return IUP_CONTINUE
+    return IUP_DEFAULT
 end function
 
 procedure main()
     IupOpen()
-    
-    canvas = IupCanvas(NULL)
-    IupSetAttribute(canvas, "RASTERSIZE", "770x770")
-    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
-
+    canvas = IupCanvas("RASTERSIZE=770x770")
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "ACTION", Icallback("redraw_cb")})
     dlg = IupDialog(canvas)
-    IupSetAttribute(dlg, "TITLE", "Sierpinski arrowhead curve (6..6)")
-    IupSetCallback(dlg, "K_ANY", Icallback("key_cb"))
-
-    IupMap(dlg)
-    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
-    IupMainLoop()
-    IupClose()
+    IupSetCallback(dlg, "KEY_CB", Icallback("key_cb"))
+    set_dlg_title()
+    IupShow(dlg)
+--  IupSetAttribute(canvas, "RASTERSIZE", NULL)
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

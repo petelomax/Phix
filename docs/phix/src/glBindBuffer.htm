@@ -1,0 +1,205 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">glBindBuffer</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td>
+          <b>Definition:</b>
+         </td>
+         <td>
+          include pGUI.e
+          <br>
+          include opengl.e
+          <br>
+          <br>
+          glBindBuffer(<a href="integer.htm">integer</a> target, buffer)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Description:</b>
+         </td>
+         <td>
+            bind a named buffer object
+          <br>
+          <br>
+            target: Specifies the target to which the buffer object is bound. The symbolic constant must be GL_ARRAY_BUFFER or GL_ELEMENT_ARRAY_BUFFER.<br>
+            buffer: Specifies the name of a buffer object.
+          <br>
+          <br>
+            glBindBuffer lets you create or use a named buffer object. <br>
+            Calling glBindBuffer with target set to GL_ARRAY_BUFFER or GL_ELEMENT_ARRAY_BUFFER and buffer set to the name of the new 
+            buffer object binds the buffer object name to the target. <br>
+            When a buffer object is bound to a target, the previous binding for that target is automatically broken.
+            <br>
+            <br>
+            Buffer object names are unsigned integers. <br>
+            The value zero is reserved, but there is no default buffer object for each buffer object target. <br>
+            Instead, buffer set to zero effectively unbinds any buffer object previously bound, and restores client memory usage for that buffer object target. <br>
+            Buffer object names and the corresponding buffer object contents are local to the shared object space of the current GL rendering context.
+            <br>
+            <br>
+            You may use glGenBuffers to generate a set of new buffer object names.
+            <br>
+            <br>
+            The state of a buffer object immediately after it is first bound is a zero-sized memory buffer with GL_STATIC_DRAW usage.
+            <br>
+            <br>
+            While a non-zero buffer object name is bound, GL operations on the target to which it is bound affect the bound buffer object, 
+            and queries of the target to which it is bound return state from the bound buffer object. <br>
+            While buffer object name zero is bound, as in the initial state, attempts to modify or query state on the target to which it 
+            is bound generates an GL_INVALID_OPERATION error.
+            <br>
+            <br>
+            When vertex array pointer state is changed by a call to glVertexAttribPointer, the current buffer object binding (GL_ARRAY_BUFFER_BINDING) is 
+            copied into the corresponding client state for the vertex attrib array being changed, one of the indexed GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDINGs. <br>
+            While a non-zero buffer object is bound to the GL_ARRAY_BUFFER target, the vertex array pointer parameter that is traditionally interpreted as 
+            a pointer to client-side memory is instead interpreted as an offset within the buffer object measured in basic machine units.
+            <br>
+            <br>
+            While a non-zero buffer object is bound to the GL_ELEMENT_ARRAY_BUFFER target, the indices parameter of glDrawElements that is traditionally 
+            interpreted as a pointer to client-side memory is instead interpreted as an offset within the buffer object measured in basic machine units.
+            <br>
+            <br>
+            A buffer object binding created with glBindBuffer remains active until a different buffer object name is bound to the same target, or until 
+            the bound buffer object is deleted with glDeleteBuffers.
+            <br>
+            <br>
+            Once created, a named buffer object may be re-bound to any target as often as needed. <br>
+            However, the GL implementation may make choices about how to optimize the storage of a buffer object based on its initial binding target.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Notes:</b>
+         </td>
+         <td>
+            If data is NULL, a data store of the specified size is still created, but its contents remain uninitialized and thus undefined.
+            <br>
+            <br>
+            Clients must align data elements consistent with the requirements of the client platform, with an additional base-level 
+            requirement that an offset within a buffer to a datum comprising N bytes be a multiple of N.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Errors:</b>
+         </td>
+         <td>
+            GL_INVALID_ENUM is generated if target is not one of the allowable values.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Associated Gets:</b>
+         </td>
+         <td>
+            glGet with argument GL_ARRAY_BUFFER_BINDING<br>
+            glGet with argument GL_ELEMENT_ARRAY_BUFFER_BINDING
+         </td>
+        </tr>
+<!--
+Examples
+Load an index buffer into OpenGL for later rendering.
+// data_size_in_bytes is the size in bytes of your vertex data.
+// data_indices is an array of integer offsets into your vertex data.
+
+GLuint index_buffer; // Save this for later rendering
+glGenBuffers(1, &index_buffer);
+glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer);
+glBufferData(GL_ELEMENT_ARRAY_BUFFER, data_size_in_bytes, 0, GL_STATIC_DRAW);
+glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, data_size_in_bytes, data_indices);
+
+GLint size = 0;
+glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
+if(data_size_in_bytes != size)
+{
+    glDeleteBuffers(1, &index_buffer);
+    // Log the error
+    return;
+}
+
+// Success
+
+Load a vertex buffer into OpenGL for later rendering.
+// data_size_in_bytes is the size in bytes of your vertex data.
+// data_vertices is your actual vertex data, probably a huge array of floats
+
+GLuint vertex_buffer; // Save this for later rendering
+glGenBuffers(1, &vertex_buffer);
+glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
+glBufferData(GL_ARRAY_BUFFER, data_size_in_bytes, 0, GL_STATIC_DRAW);
+glBufferSubData(GL_ARRAY_BUFFER, 0, data_size_in_bytes, data_vertices);
+
+GLint size = 0;
+glGetBufferParameteriv(GL_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
+if(data_size_in_bytes != size)
+{
+    glDeleteBuffers(1, &vertex_buffer);
+    // Log the error
+    return;
+}
+
+// Success
+Render an indexed buffer object using texture UV and normal vertex attributes.
+glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer); // vertex_buffer is retrieved from glGenBuffers
+glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer); // index_buffer is retrieved from glGenBuffers
+
+glEnableVertexAttribArray(texcoord_attrib_index); // Attribute indexes were received from calls to glGetAttribLocation, or passed into glBindAttribLocation.
+glEnableVertexAttribArray(normal_attrib_index);
+glEnableVertexAttribArray(position_attrib_index);
+
+// vertex_stride is the size of bytes of each vertex in the buffer object
+// vertex_position_offset and kin are the offset in bytes of the position data
+// in each vertex. For example if your vertex structure is
+// [ position, texcoord, normal ] then position vertex_position_offset will
+// have offset 0, vertex_texcoord_offset is 12 (position is 3 * sizeof(float)
+// bytes large, and texcoord comes just after) and vertex_normal_offset is
+// 20 = 5 * sizeof(float).
+GLintptr vertex_texcoord_offset = 3 * sizeof(float);
+GLintptr vertex_normal_offset = 5 * sizeof(float);
+GLintptr vertex_position_offset = 0 * sizeof(float);
+
+glVertexAttribPointer(texcoord_attrib_index, 2, GL_FLOAT, false, vertex_stride, (GLvoid*)vertex_texcoord_offset);
+glVertexAttribPointer(normal_attrib_index, 3, GL_FLOAT, false, vertex_stride, (GLvoid*)vertex_normal_offset);
+glVertexAttribPointer(position_attrib_index, 3, GL_FLOAT, false, vertex_stride, (GLvoid*)vertex_position_offset);
+
+// num_vertices is the number of verts in your vertex_data.
+// index_data is an array of unsigned int offsets into vertex_data.
+glDrawElements(GL_TRIANGLES, num_vertices, GL_UNSIGNED_INT, NULL);
+
+glDisableVertexAttribArray(position_attrib_index);
+glDisableVertexAttribArray(texcoord_attrib_index);
+glDisableVertexAttribArray(normal_attrib_index);
+-->
+        <tr>
+         <td>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="glCompileShader.htm">W</a>,
+          <a href="glCompileShader.htm">X</a>,
+          <a href="glGet.htm">glGet</a>,
+          <a href="glCreateShader.htm">Z</a>
+<br>
+DEV 
+See Also
+glDeleteBuffers, glGenBuffers, //glGet, glIsBuffer
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>
