@@ -4,7 +4,7 @@
 --
 -- plain ASCII version of the more human-readable pcase8.e, see that for comments.
 --
---without debug -- keep ex.err clean (overshadowed by same in pdiag.e)
+without debug -- keep ex.err clean (overshadowed by same in pdiag.e)
 
 integer caseinit = 0
 string toUpper, toLower

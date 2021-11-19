@@ -1,13 +1,13 @@
 --
--- boids3d.exw
--- ===========
+-- demo\pGUI\boids3d.exw
+-- =====================
 --
 -- Originally by by Matt Lewis
 -- Ported from arwen to pGUI, Pete Lomax June 2017
 --
 -- This is one of the "cool" demos.
 --
-with js
+with javascript_semantics -- min/max needs a bit of work...[DEV], NORMALIZE[SIZE]
 include pGUI.e
 include boids3d.e
 
@@ -192,7 +192,8 @@ sequence boid, pt, v, v1, v2, v3, sv
 
     move_boids()
 
-    sequence bin = boidsnp1
+--  sequence bin = boidsnp1
+    sequence bin = deep_copy(boidsnp1)
 
     if length(colors)=0 then
         colors = repeat(0, BOIDS)
@@ -262,7 +263,8 @@ function add_boids(integer num)
             boidsnp1 = append(boidsnp1, boid)
             colors &= rand(#FFFFFF)
         end for
-        boidsn = boidsnp1
+--      boidsn = boidsnp1
+        boidsn = deep_copy(boidsnp1)
     end if
     return num
 end function
@@ -301,15 +303,9 @@ Ihandle hbox
 
     IupOpen()
 
-if platform()=JS then
---  canvas = IupCanvas("RASTERSIZE=445x490")
     canvas = IupCanvas("RASTERSIZE=945x490")
---  canvas = IupCanvas("RASTERSIZE=625x690")
-else
-    canvas = IupCanvas("RASTERSIZE=625x690")
-end if
-    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "ACTION", Icallback("redraw_cb")})
 
     speed_label = IupLabel("Max Speed","PADDING=0x4")
     speed_txt = IupText("VALUECHANGED_CB", cb_valuechanged, 
@@ -332,15 +328,17 @@ end if
     IupSetInt(boids_txt,"VALUE",BOIDS)
 
     shadow_check = IupToggle("Draw Shadows","ACTION",Icallback("shadow_cb"),"VALUE=ON")
-    restart = IupButton("Restart","ACTION",Icallback("restart_cb"),"GAP=0x14")
+    restart = IupButton("Restart","ACTION",Icallback("restart_cb"))
 
     hbox = IupHbox({IupVbox({speed_label,speed_txt},"NORMALIZESIZE=HORIZONTAL"),
                     IupVbox({dist_label,dist_txt},"NORMALIZESIZE=HORIZONTAL"),
                     IupVbox({radius_label,radius_txt},"NORMALIZESIZE=HORIZONTAL"),
                     IupVbox({boids_label,boids_txt},"NORMALIZESIZE=HORIZONTAL"),
                     IupVbox({shadow_check,restart},"NORMALIZESIZE=HORIZONTAL")})
+--DEV/SUG: (If I'm going to implement this in pGUI.js, I may as well improve it)
 if platform()!=JS then
     {} = IupDestroy(IupNormalizer({speed_label,shadow_check},"NORMALIZE=VERTICAL"))
+--  IupNormalize({speed_label,shadow_check},"VERTICAL")
 end if
     dialog = IupDialog(IupVbox({canvas,hbox}, "MARGIN=5x5, GAP=5"),"MINSIZE=455x170")
     IupSetAttribute(dialog,"TITLE",TITLE)

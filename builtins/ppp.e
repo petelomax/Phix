@@ -107,7 +107,7 @@
 --                         -3:  as -1, ""                                           [ "" (and pp_StrFmt,-1)]
 --                          1: as number only, eg {97, 98, 99}                      [DEPRECATED: use pp_StrFmt,3,pp_IntCh,false instead]
 --                          3: as number&text, eg {97a, 98b, 99c}
---          pp_IntCh        show ints as eg 65'A', default true (false==just 65)
+--          pp_IntCh        show ints as eg 65'A', default false (==just 65)
 --          pp_IntFmt       Integer format, default "%d"
 --                          NB: applies to pp_StrFmt 1 as well.
 --          pp_FltFmt       Float format, default "%.10g"
@@ -250,8 +250,6 @@ global constant pp_File     = 1,
                 pp_Q22      = 12,
                 pp_IntCh    = 13
 --*/
---DEV temp:
---constant pp_IntCh  = 13
 
 --DEV:
 --!/**/ string pline --/*
@@ -731,7 +729,7 @@ global procedure ppOpt(sequence options)
 --                     -3:  as -1, ""                                           [ "" (and pp_StrFmt,-1)]
 --                      1: as number only, eg {97, 98, 99}                      [DEPRECATED: use pp_StrFmt,3,pp_IntCh,false instead]
 --                      3: as number&text, eg {97a, 98b, 99c}
---      pp_IntCh        show ints as eg 65'A', default true (false==just 65)
+--      pp_IntCh        show ints as eg 65'A', default false (==just 65)
 --      pp_IntFmt       integer format, default "%d"
 --                      NB: applies to pp_StrFmt 1 as well.
 --      pp_FltFmt       float format, default "%g"

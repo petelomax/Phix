@@ -247,7 +247,7 @@ constant tdaDD = {{"UTC", "Coordinated Universal Time"          ,+0,    0,  ""},
                   {"PDT", "Pacific Daylight Time"               ,-7,    US, "PST"},
                   {"PST", "Pacific Standard Time"               ,-8,    0,  "PDT"},
 --                {"PMDT","Pierre & Miquelon Daylight Time"     ,-2,    0,  "PMST"},
---                {"PMST","Pierre & Miquelon Standard Time"     ,-3,    0,  "PMDT"},    -- [[UTC-03:00]] (PMST) — [[French Guiana]], [[Saint Pierre and Miquelon]] 
+--                {"PMST","Pierre & Miquelon Standard Time"     ,-3,    0,  "PMDT"},    -- [[UTC-03:00]] (PMST) - [[French Guiana]], [[Saint Pierre and Miquelon]] 
                   {"WGST","Western Greenland Summer Time"       ,-2,    EU, "WGT"},
                   {"WGT", "West Greenland Time"                 ,-3,    0,  "WGST"},
 --                {"IST", "India Standard Time"                 ,+5.5,  0,  ""},        -- Note: collision with Irish Standard Time
@@ -269,25 +269,25 @@ constant tdaDD = {{"UTC", "Coordinated Universal Time"          ,+0,    0,  ""},
 sequence {timezones, tzdescs, tzadjs, tzDSR, tzDSL} = columnize(tdaDD)
 
 --some other leftovers that may be helpful (or not):
--- [[UTC-09:00]] ([[Alaska Time Zone|AKT]]) — most of the state of [[Alaska]]
+-- [[UTC-09:00]] ([[Alaska Time Zone|AKT]]) - most of the state of [[Alaska]]
 -- [[UTC-03:00]] ([[Time in Argentina|ART]])
 -- [[UTC+02:00]] ([[Central Africa Time|CAT]])
--- [[UTC+10:00]] ([[Chamorro Time Zone|ChT]]) — [[Guam]] and the [[Northern Mariana Islands]]
--- [[UTC+07:00]] ([[Christmas Island Time|CXT]]) — [[Christmas Island]]
+-- [[UTC+10:00]] ([[Chamorro Time Zone|ChT]]) - [[Guam]] and the [[Northern Mariana Islands]]
+-- [[UTC+07:00]] ([[Christmas Island Time|CXT]]) - [[Christmas Island]]
 -- [[UTC+03:00]] ([[East Africa Time|EAT]])
 -- [[UTC+03:00]] ([[Further-eastern European Time|FET]])
--- [[UTC-03:00]] ([[Falkland Islands Standard Time|FKST]]) — [[Falkland Islands]]
--- [[UTC-06:00]] ([[Galápagos Time|GALT]]) — [[Galápagos Province, Ecuador|Galápagos Province]]
--- [[UTC-10:00]] ([[Hawaii–Aleutian Time Zone|HAT]]) —  [[Hawaii]], most of the [[Aleutian Islands]], and [[Johnston Atoll]]
+-- [[UTC-03:00]] ([[Falkland Islands Standard Time|FKST]]) - [[Falkland Islands]]
+-- [[UTC-06:00]] ([[Galapagos Time|GALT]]) - [[Galapagos Province, Ecuador|Galapagos Province]]
+-- [[UTC-10:00]] ([[Hawaii-Aleutian Time Zone|HAT]]) -  [[Hawaii]], most of the [[Aleutian Islands]], and [[Johnston Atoll]]
 -- [[UTC+08:00]] ([[Hong Kong Time|HKT]])
 -- [[UTC+03:30]] ([[Iran Standard Time|IRST]])
 -- [[UTC+09:00]] ([[Japan Standard Time|JST]])
--- [[UTC+11:30]] ([[Norfolk (Island) Time|NFT]]) — [[Norfolk Island]]
+-- [[UTC+11:30]] ([[Norfolk (Island) Time|NFT]]) - [[Norfolk Island]]
 -- [[UTC-05:00]] ([[Time in Peru|PET]])
 -- [[UTC+08:00]] ([[Philippine Standard Time|PHT]])
 -- [[UTC+05:30]] ([[Sri Lanka Standard Time|SLST]])
 -- [[UTC+08:00]] ([[Singapore Standard Time|SST]])
--- [[UTC-11:00]] ([[Samoa Time Zone|ST]]) — [[American Samoa]], [[Jarvis Island]], [[Kingman Reef]], [[Midway Atoll]] and [[Palmyra Atoll]]
+-- [[UTC-11:00]] ([[Samoa Time Zone|ST]]) - [[American Samoa]], [[Jarvis Island]], [[Kingman Reef]], [[Midway Atoll]] and [[Palmyra Atoll]]
 -- [[UTC+01:00]] ([[West Africa Time|WAT]])
 
 --DEV unused as yet...
@@ -498,28 +498,28 @@ months[en] = {"January","February","March","April","May","June","July",
 --12/1/2020:
 --day_names[en] = {"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"}
 day_names[en] = {"Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"}
---Google Translate:
---months[de] = {"Januar","Februar","März","April","Mai","Juni","Juli",
+--Google Translate (manually re-ascii-fied):
+--months[de] = {"Januar","Februar","Marz","April","Mai","Juni","Juli",
 --              "August","September","Oktober","November","Dezember"}
 --day_names[de] = {"Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"}
 --months[es] = {"Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio",
 --              "Agosto","Septiembre","Octubre","Noviembre","Diciembre"}
---day_names[es] = {"Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"}
---months[fi] = {"Tammikuu","Helmikuu","Maaliskuu","Huhtikuu","Toukokuu","Kesäkuu",
---              "Heinäkuu","Elokuu","Syyskuu","Lokakuu","Marraskuu","Joulukuu"}
+--day_names[es] = {"Domingo","Lunes","Martes","Miercoles","Jueves","Viernes","Sabado"}
+--months[fi] = {"Tammikuu","Helmikuu","Maaliskuu","Huhtikuu","Toukokuu","Kesakuu",
+--              "Heinakuu","Elokuu","Syyskuu","Lokakuu","Marraskuu","Joulukuu"}
 --day_names[fi] = {"maanantai","tiistai","keskiviikko","torstai","perjantai","lauantai"}
---months[fr] = {"Janvier","Février","Mars","Avril","Mai","Juin","Juillet",
---              "Août","Septembre","Octobre","Novembre","Décembre"}
+--months[fr] = {"Janvier","Fevrier","Mars","Avril","Mai","Juin","Juillet",
+--              "Aout","Septembre","Octobre","Novembre","Decembre"}
 --day_names[fr] = {"Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"}
 --months[it] = {"Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio",
 --              "Agosto","Settembre","Ottobre","Novembre","Dicembre"}
---day_names[it] = {"domenica","lunedì","martedì","mercoledì","giovedì","venerdì","sabato
+--day_names[it] = {"domenica","lunedi","martedi","mercoledi","giovedi","venerdi","sabato
 --months[nl] = {"Januari","februari","maart","april","mei","juni","juli",
 --              "augustus","september","oktober","november","december"}
 --day_names[nl] = {"zondag","maandag","dinsdag","woensdag","donderdag","vrijdag","zaterdag"}
---months[pt] = {"Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho",
+--months[pt] = {"Janeiro","Fevereiro","Marco","Abril","Maio","Junho","Julho",
 --              "Agosto","Setembro","Outubro","Novembro","Dezembro"}
---day_names[pt] = {"domingo","segunda","terça","quarta","quinta","sexta","sábado"}
+--day_names[pt] = {"domingo","segunda","terca","quarta","quinta","sexta","sabado"}
 
 td_ordinals[en] = {"st","nd","rd","th"}
 --td_ordinals[fr] = {"er","e"} --??
@@ -1577,15 +1577,16 @@ global function parse_date_string(string s, sequence fmts=default_parse_fmts, in
 --
 -- The partial parameter controls whether to ignore excess text; if set the most detailed 
 --  format should be first. For example if the input is "03/09/15 6pm Customer was not happy", 
---  you want try "DD/MM/YY ham tz" and fail before "DD/MM/YY ham" and pass.
+--  you want try "DD/MM/YY ham tz"(full) and fail before "DD/MM/YY ham"(part) and pass.
 --
-string fmti     -- (gives an earlier/better typecheck and thus simplifies debugging)
-sequence res = {}
+-- A minor point is that p2js will not support omitting fmts and using a named parameter to 
+-- provide partial. (maybe using `$default_parse_fmts` in p2js_depends.e would work...)
+--
+    sequence res = {}
     for i=1 to length(fmts) do
-        fmti = fmts[i]
+        string fmti = fmts[i] -- (delib typecheck)
         res = parse_one(s,fmti,partial)
         if length(res)!=3 then return res end if
---?res
     end for
     return res  -- fail the lot
 end function

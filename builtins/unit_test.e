@@ -42,11 +42,10 @@ object module = 0,          -- (set to string by set_test_module)
        prev_module = 0      -- (    ""           show_module)
 
 procedure test_log(string fmt, sequence args={})
-    integer fn = 2
-    for i=1 to 2-(log_fn==0) do -- ({stderr} or {stderr,log_fn})
-        printf(fn, fmt, args)
-        fn = log_fn
-    end for
+    printf(2, fmt, args)
+    if log_fn!=0 then
+        printf(log_fn, fmt, args)
+    end if
 end procedure
 
 procedure show_module()
@@ -85,8 +84,10 @@ end function
 global procedure set_test_logfile(string filename)
 -- (closed by test_summary([true]))
     if log_fn!=0 then ?9/0 end if
-    log_fn = open(filename,"w")
-    if log_fn=-1 then ?9/0 end if
+    if platform()!=JS then
+        log_fn = open(filename,"w")
+        if log_fn=-1 then ?9/0 end if
+    end if
 end procedure
 
 global function get_test_logfile()
@@ -105,8 +106,11 @@ global procedure test_summary(bool close_log=true)
                  {tests_run, tests_passed, tests_failed, passpc})
         if pause_summary=TEST_PAUSE
         or (pause_summary=TEST_PAUSE_FAIL and tests_failed>0) then
-            puts(1,"Press any key to continue...")
-            {} = wait_key()
+            if platform()!=JS then
+                puts(1,"Press any key to continue...")
+                {} = wait_key()
+                puts(1,"\n")
+            end if
         end if
     end if
     if close_log and log_fn>0 then
@@ -162,10 +166,9 @@ end procedure
 --  set_test_module(name)
 --end procedure
 
-constant fmts = {"  failed: %s: %v should %sequal %v\n",
-                 "  failed: %s\n"}
-
 procedure test_result(bool success, sequence args, integer fdx, level)
+    string fmt = iff(fdx=1?"  failed: %s: %v should %sequal %v\n"
+                          :"  failed: %s\n")
     tests_run += 1
     if success then
         if verbosity=TEST_SHOW_ALL and args[1]!="" then
@@ -176,7 +179,7 @@ procedure test_result(bool success, sequence args, integer fdx, level)
     else
         if verbosity>=TEST_SHOW_FAILED then
             show_module()
-            test_log(fmts[fdx], args)
+            test_log(fmt, args)
         end if
         if abort_on_fail=TEST_CRASH then
             crash("unit test failure (%s)",args,level)

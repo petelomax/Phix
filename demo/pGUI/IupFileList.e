@@ -17,9 +17,6 @@
 --
 --  Not (yet) documented, might never be...
 --
---#withtype Ihandle
---#withtype Ihandln
-
 Ihandln filelist_dlg = NULL, 
         fd_config = NULL
 Ihandle matrix, bt_help, lbl_fill, filter, bt_ok, bt_cancel

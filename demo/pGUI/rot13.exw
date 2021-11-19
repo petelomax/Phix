@@ -3,19 +3,13 @@
 --
 -- This file is part of Phix. Originally copied from EuIup.
 --
-
+with javascript_semantics   -- some layout/spacing issues remain, no IupHelp(as in launch browser), IupFileDlg(doh/erm), etc.
 include pGUI.e
-include builtins\read_file.e
-
-function esc_close(Ihandle /*ih*/, atom c)
--- (I like all my demos to close when escape is keyed)
-    return iff(c=K_ESC?IUP_CLOSE:IUP_CONTINUE)
-end function
+include builtins\read_file.e    -- (somewhat unexpectedly p2js-safe, just so long as you don't actually call it!)
 
 function rot13(string s)
-integer ch
     for i=1 to length(s) do
-        ch = s[i]
+        integer ch = s[i]
         if ch>='a' and ch<='z' then
             s[i] = remainder(ch-('a'-13),26)+'a'
         elsif ch>='A' and ch<='Z' then
@@ -25,23 +19,23 @@ integer ch
     return s
 end function
 
-Ihandle hDialog, hText
+Ihandle dlg, hText
 
 function OnLoad(atom /*pHandle*/)
-sequence data
-Ihandln hDlg = IupFileDlg()
---?hDlg
-    IupSetAttributes(hDlg, "ALLOWNEW=NO,DIALOGTYPE=OPEN,TITLE=Open")
-    IupSetAttributeHandle(hDlg, "PARENTDIALOG", hDialog)
-    IupPopup(hDlg, IUP_CENTER, IUP_CENTER)
-    if IupGetInt(hDlg, "STATUS")= -1 then
-        hDlg = IupDestroy(hDlg) -- (no help)
---      return IUP_IGNORE
-        return IUP_DEFAULT  -- PL 26/2: IUP_IGNORE effectively disabled the Load button (but not the menu entry)
+    if platform()!=JS then  -- (then again, see pwa/js/poc/drop.html and/or IupCodeText.exw...?)
+        Ihandln hDlg = IupFileDlg()
+        IupSetAttributes(hDlg, "ALLOWNEW=NO,DIALOGTYPE=OPEN,TITLE=Open")
+        IupSetAttributeHandle(hDlg, "PARENTDIALOG", dlg)
+        IupPopup(hDlg, IUP_CENTER, IUP_CENTER)
+        if IupGetInt(hDlg, "STATUS")= -1 then
+            hDlg = IupDestroy(hDlg) -- (no help)
+--          return IUP_IGNORE
+            return IUP_DEFAULT  -- PL 26/2: IUP_IGNORE effectively disabled the Load button (but not the menu entry)
+        end if
+        sequence data = read_file(IupGetAttribute(hDlg, "VALUE"))
+        IupStoreAttribute(hText, "VALUE", data)
+        hDlg = IupDestroy(hDlg)
     end if
-    data = read_file(IupGetAttribute(hDlg, "VALUE"))
-    IupStoreAttribute(hText, "VALUE", data)
-    hDlg = IupDestroy(hDlg)
 --  return IUP_IGNORE
     return IUP_DEFAULT
 end function
@@ -52,26 +46,25 @@ function OnRotate(atom pHandle)
     return IUP_DEFAULT
 end function
 
-function OnQuit(Ihandle ih)
-    if ih then end if
+function OnQuit(Ihandle /*ih*/)
     return IUP_CLOSE
 end function
 
-function OnAboutPhix(Ihandle ih)
-    if ih then end if
---  {} = IupHelp("http://phix.is-great.org")
-    {} = IupHelp("http://phix.x10.mx")
+function OnAboutPhix(Ihandle /*ih*/)
+    if platform()!=JS then
+        {} = IupHelp("http://phix.x10.mx")
+    end if
     return IUP_DEFAULT
 end function
 
-function OnAboutIup(Ihandle ih)
-    if ih then end if
-    {} = IupHelp("http://www.tecgraf.puc-rio.br/iup/")
+function OnAboutIup(Ihandle /*ih*/)
+    if platform()!=JS then
+        {} = IupHelp("http://www.tecgraf.puc-rio.br/iup/")
+    end if
     return IUP_DEFAULT
 end function
 
-function OnAboutRot13(Ihandle ih)
-    if ih then end if
+function OnAboutRot13(Ihandle /*ih*/)
     IupMessage("About", "A simple example showing off Iup for Phix")
     return IUP_DEFAULT
 end function
@@ -105,11 +98,12 @@ Ihandle hMainBox = IupVbox({
                                     })
                            }, "GAP=5,MARGIN=5x5")
 
-hDialog = IupDialog(hMainBox)
-IupStoreAttribute(hDialog, "TITLE", "Rot 13")
-IupSetAttributeHandle(hDialog, "MENU", hMenu)
-IupSetCallback(hDialog, "K_ANY", Icallback("esc_close"));
-IupShow(hDialog)
-
-IupMainLoop()
-IupClose()
+dlg = IupDialog(hMainBox)
+IupStoreAttribute(dlg, "TITLE", "Rot 13")
+IupSetAttributeHandle(dlg, "MENU", hMenu)
+IupShow(dlg)
+IupSetAttributeHandle(NULL, "PARENTDIALOG", dlg)
+if platform()!=JS then
+    IupMainLoop()
+    IupClose()
+end if

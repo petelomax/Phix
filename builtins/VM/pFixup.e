@@ -257,9 +257,13 @@ end procedure -- (for Edita/CtrlQ)
         jl :opfixupNegativeIdx
         -- but it might be a float:
         cmp edi,h4
+--11/8/21: (NO!)
         jl :e06ioobWhat             -- 0 or >length
+--      jle :e06ioobWhat            -- 0 or >length
 --DEV use [ebx+edi*2-1] instead... :%LoadMint?
         shl edi,2
+--11/8/21: (abortive attempt on 
+        jz :e06ioobWhat             -- h4, I assume
 --DEV
 --    :!fixupIdxe92                 -- exception here mapped to e92vhnbaavEbxe06feh (see pdiagN.e)
         cmp byte[edi-1],0x12

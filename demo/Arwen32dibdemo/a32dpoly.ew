@@ -8,45 +8,45 @@
 
 include a32dcore.ew
 
-global procedure drawDibTransformedPolygon(a32Dib dib_dest, a32Dib dib_src, sequence pol_dst, sequence pol_src)
--- Draws the polygon with coordinates pol_src from bitmap dib_src on bitmap dib_dest, transformed to the polygon
+global procedure drawDibTransformedPolygon(a32Dib dib_dst, a32Dib dib_src, sequence pol_dst, sequence pol_src)
+-- Draws the polygon with coordinates pol_src from bitmap dib_src on bitmap dib_dst, transformed to the polygon
 --  with coordinates pol_dst. pol_dst and pol_src look like {{x1, y1}, {x2, y2}, ...} and need to have an equal
 --  amount of points. If you pass an empty sequence {} for pol_dst or pol_src, then the bounding rectangle of
 --  that bitmap will be used. Both polygons need to be convex.
-atom src_memory, dest_memory, dest_addr, src_height, src_width
-integer dest_width, dest_height, ymin, ymax, rows, src_bytes_per_line, dest_bytes_per_line
-integer x1, x2, y1, y2, u1, u2, v1, v2, points, len, yi, y, i1, i2, j1, j2
+atom dest_addr
+integer rows
+integer x1, x2, y1, y2, u1, u2, v1, v2, len, yi, y, i1, i2, j1, j2
 integer m, f, ex, eu, ev, dx, du, dv, dx2, du2, dv2
 integer no_clip_src, no_clip_dest
 sequence xx, xs, xs1, xs2
 
-    src_memory = dib_src[DibMemory]
-    src_bytes_per_line = dib_src[DibBytesPerLine]
-    dest_memory = dib_dest[DibMemory]
-    dest_bytes_per_line = dib_dest[DibBytesPerLine]
+    atom src_memory = dib_src[DibMemory],
+        dest_memory = dib_dst[DibMemory]
+    integer src_bytes_per_line = dib_src[DibBytesPerLine],
+            src_width = dib_src[DibWidth],
+            src_height = dib_src[DibHeight],
+            dest_bytes_per_line = dib_dst[DibBytesPerLine],
+            dest_width = dib_dst[DibWidth],
+            dest_height = dib_dst[DibHeight]
 
-    dest_width = dib_dest[DibWidth]
-    dest_height = dib_dest[DibHeight]
     if length(pol_dst)=0 then
         pol_dst = {{0, 0}, {dest_width-1, 0}, {dest_width-1, dest_height-1}, {0, dest_height-1}}
     end if
 
-    src_width = dib_src[DibWidth]
-    src_height = dib_src[DibHeight]
     if length(pol_src)=0 then
         pol_src = {{1, 1}, {src_width-1, 1}, {src_width-1, src_height-1}, {1, src_height-1}}
     end if
 
-    if length(pol_dst)<length(pol_src) then pol_src = pol_src[1..length(pol_dst)]
+    if    length(pol_dst)<length(pol_src) then pol_src = pol_src[1..length(pol_dst)]
     elsif length(pol_dst)>length(pol_src) then pol_dst = pol_dst[1..length(pol_src)]
     end if
-    points = length(pol_dst)
+    integer points = length(pol_dst)
 
 --/**/  pol_dst = sq_floor(pol_dst)     --/* -- Phix
         pol_dst = floor(pol_dst)        --*/ -- RDS
 --/**/  pol_src = sq_floor(pol_src)     --/* -- Phix
         pol_src = floor(pol_src)        --*/ -- RDS
-    ymin = pol_dst[1][2]  ymax = ymin
+    integer ymin = pol_dst[1][2],  ymax = ymin
     for i=2 to points do
         y = pol_dst[i][2]
         if y<ymin then ymin = y end if
@@ -180,32 +180,30 @@ global procedure drawShadedPolygonToDib(a32Dib dib_dest, sequence coords_dest, s
 --  and colors colors_dest {{b1, g1, r1}, {b2, g2, r2}, ...}. Each color in colors_dest corresponds to
 --  a coordinate in coords_dest. The polygon defined by coords_dest must be convex.
 --  If you pass an empty sequence {} for coords_dest, then the bounding rectangle of the bitmap will be used.
-atom dest_memory, dest_addr
-integer dest_width, dest_height, ymin, ymax, rows, dest_bytes_per_line
-integer x1, x2, y1, y2, b1, b2, g1, g2, r1, r2, points, len, yi, y, i1, i2, j1, j2
+atom dest_addr
+integer x1, x2, y1, y2, b1, b2, g1, g2, r1, r2, len, yi, y, i1, i2, j1, j2
 integer m, f, ex, eb, eg, er, dx, db, dg, dr, dx2, db2, dg2, dr2
 integer no_clip_dest
-sequence xx, xs, xs1, xs2
+sequence xs, xs1, xs2
 
-    dest_memory = dib_dest[DibMemory]
-    dest_bytes_per_line = dib_dest[DibBytesPerLine]
-
-    dest_width = dib_dest[DibWidth]
-    dest_height = dib_dest[DibHeight]
+    atom dest_memory = dib_dest[DibMemory]
+    integer dest_bytes_per_line = dib_dest[DibBytesPerLine],
+            dest_width = dib_dest[DibWidth],
+            dest_height = dib_dest[DibHeight]
     if length(coords_dest)=0 then
         coords_dest = {{0, 0}, {dest_width-1, 0}, {dest_width-1, dest_height-1}, {0, dest_height-1}}
     end if
 
-    if length(coords_dest)<length(colors_dest) then colors_dest = colors_dest[1..length(coords_dest)]
+    if    length(coords_dest)<length(colors_dest) then colors_dest = colors_dest[1..length(coords_dest)]
     elsif length(coords_dest)>length(colors_dest) then coords_dest = coords_dest[1..length(colors_dest)]
     end if
-    points = length(coords_dest)
+    integer points = length(coords_dest)
 
 --/**/  coords_dest = sq_floor(coords_dest)     --/* -- Phix
         coords_dest = floor(coords_dest)        --*/ -- RDS
 --/**/  colors_dest = sq_floor(colors_dest)     --/* -- Phix
         colors_dest = floor(colors_dest)        --*/ -- RDS
-    ymin = coords_dest[1][2]  ymax = ymin
+    integer ymin = coords_dest[1][2],  ymax = ymin
     for i=2 to points do
         y = coords_dest[i][2]
         if y<ymin then ymin = y end if
@@ -216,8 +214,8 @@ sequence xx, xs, xs1, xs2
 
     if ymin<0 or ymax>=dest_height then no_clip_dest = 0 else no_clip_dest = 1 end if
 
-    rows = ymax-ymin+1
-    xx = repeat({0, 0}, rows)
+    integer rows = ymax-ymin+1
+    sequence xx = repeat({0, 0}, rows)
 
     x2 = coords_dest[points][1]  y2 = coords_dest[points][2]-ymin+1
     b2 = colors_dest[points][1]  g2 = colors_dest[points][2]  r2 = colors_dest[points][3]

@@ -10,17 +10,11 @@
 --  Maybe it just absolutely has to be double-buffered or something...
 --  Update: see buffer.exw for a solution.
 -- It might be nice to have a key toggle bw/colour ("" methinks).
+--DEV is this the IupLoopStep thing? (probably not, it's a timer...)
 --
 
---#withtype Ihandle
---#withtype cdCanvas
-
+with javascript_semantics
 include pGUI.e
-
-function esc_close(Ihandle /*ih*/, atom c)
--- (I like all my demos to close when escape is keyed)
-    return iff(c=K_ESC?IUP_CLOSE:IUP_CONTINUE)
-end function
 
 Ihandle hDialog, hIupCanvas, hCdCanvas, hTimer
 
@@ -29,27 +23,28 @@ constant BW=0   -- 0 = colour, 1 = black and white
 integer x = 1
 
 function timer_cb(Ihandle /*ih*/)
-atom przelx = 3/800
-atom przely = 2/600
-
-atom a, b, c, x2, y2, a2, b2, z, pixclr, g
+--?{"timer",x}
+    atom przelx = 3/800,
+         przely = 2/600
 
     -- aside: the value of 40 (vertical lines) is quite arbitrary: 1 is ok but slightly slower,
     --        whereas values of 100 and above are noticeably less responsive (to keying escape).
     --        I cannot really tell any difference between 10 and 40, but you might be able to.
-    for xt=1 to 40 do
+--  for xt=1 to 40 do   -- (draw max 40 lines per time-slot)
+    for xt=1 to 2 do    -- (draw max 2 lines per time-slot [avoid js setInterval violations])
         for y=1 to 600 do
-            a = 0
-            b = 0
-            c = 0
-            x2 = (przelx*x)-2
-            y2 = (przely*y)-1
+            atom a = 0,
+                 b = 0,
+                 c = 0,
+                 x2 = (przelx*x)-2,
+                 y2 = (przely*y)-1,
+                 pixclr 
             while 1 do
-                a2 = a*a-b*b
-                b2 = 2*a*b
+                atom a2 = a*a-b*b,
+                     b2 = 2*a*b
                 a = a2+x2
                 b = b2+y2
-                z = a*a+b*b
+                atom z = a*a+b*b
                 if z<4 and c<255 then
                     c = c+1
                 else
@@ -59,7 +54,7 @@ atom a, b, c, x2, y2, a2, b2, z, pixclr, g
             if c=255 then
                 pixclr = cdEncodeColor(0, 0, 0)
             else
-                g = 255-c
+                atom g = 255-c
                 if BW then  -- monochrome
                     pixclr = cdEncodeColor(g, g, g)
                 else        -- colour
@@ -69,7 +64,7 @@ atom a, b, c, x2, y2, a2, b2, z, pixclr, g
             cdCanvasPixel(hCdCanvas, x, y, pixclr)
         end for
         x += 1
-        if x>800 then
+        if x>800 then   --DEV width...
             IupStoreAttribute(hTimer, "RUN", "NO")
             IupStoreAttribute(hDialog, "TITLE", "Mandelbrot Set (%s)", {iff(BW?"monchrome":"colour")})
             exit
@@ -86,10 +81,9 @@ procedure main()
 --  IupSetAttribute(hIupCanvas, "BGCOLOR", "255 255 255") -- ""
 --  IupSetAttribute(hIupCanvas, "SCROLLBAR", "YES") -- no help
     IupSetAttribute(hIupCanvas, "EXPAND", "NO") -- helps a lot!
-    hDialog = IupDialog(hIupCanvas)
+    hDialog = IupDialog(hIupCanvas,"RESIZE=NO")
     IupStoreAttribute(hDialog, "TITLE", "Mandelbrot Set")
-    IupSetCallback(hDialog, "K_ANY", Icallback("esc_close"));
-    IupShowXY(hDialog, IUP_CENTER, IUP_CENTER)
+    IupShow(hDialog)
     hCdCanvas = cdCreateCanvas(CD_IUP, hIupCanvas)
     if not hCdCanvas then
         puts(1, "cdCreateCanvas() failed\n")
@@ -97,9 +91,11 @@ procedure main()
         abort(1)
     end if
     hTimer = IupTimer(Icallback("timer_cb"), 10)
-    IupMainLoop()
-    cdKillCanvas(hCdCanvas)
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        cdKillCanvas(hCdCanvas)
+        IupClose()
+    end if
 end procedure
 
 main()

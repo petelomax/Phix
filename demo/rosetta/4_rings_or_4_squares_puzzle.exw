@@ -1,0 +1,72 @@
+--
+-- demo/rosetta/4_rings_or_4_squares_puzzle.exw
+-- ============================================
+--
+--  Replace a, b, c, d, e, f, and g with the decimal digits LOW .. HIGH such that the
+--  sum of the letters inside of each of the four large squares add up to the same sum.
+--
+--          ################      ################
+--          #              #      #              #
+--          #      a       #      #      e       #
+--          #              #      #              #
+--          #          +---#------#---+      +---#---------+
+--          #          |   #      #   |      |   #         |
+--          #          | b #      # d |      | f #         |
+--          #          |   #      #   |      |   #         |
+--          #          |   #      #   |      |   #         |
+--          ################      ################         |
+--                     |       c      |      |      g      |
+--                     |              |      |             |
+--                     |              |      |             |
+--                     +--------------+      +-------------+
+--
+--    Show all solutions for each letter being unique with LOW=1, HIGH=7
+--    Show all solutions for each letter being unique with LOW=3, HIGH=9
+--    Show only the number of solutions when each letter can be non-unique with LOW=0, HIGH=9
+--
+with javascript_semantics
+integer solutions
+ 
+procedure check(sequence set, bool show)
+    integer {a,b,c,d,e,f,g} = set, ab = a+b
+    if ab=b+d+c and ab=d+e+f and ab=f+g then
+        solutions += 1
+        if show then
+            ?set
+        end if
+    end if
+end procedure
+ 
+procedure foursquares(integer lo, hi, bool uniq, show)
+    sequence set = repeat(lo,7)
+    solutions = 0
+    if uniq then
+        for i=1 to 7 do
+            set[i] = lo+i-1
+        end for
+        for i=1 to factorial(7) do
+            check(permute(i,set),show)
+        end for
+    else
+        integer done = 0
+        while not done do
+            check(set,show)
+            for i=1 to 7 do
+                set[i] += 1
+                if set[i]<=hi then exit end if
+                if i=7 then
+                    done = 1
+                    exit
+                end if
+                set[i] = lo
+            end for
+        end while
+    end if
+    printf(1,"%d solutions\n",solutions)
+end procedure
+foursquares(1,7,uniq:=true,show:=true)
+foursquares(3,9,true,true)
+foursquares(0,9,false,false)
+
+{} = wait_key()
+

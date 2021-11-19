@@ -19,6 +19,7 @@ global function substitute(sequence text, object s, r, integer limit=-1)
     if length(chunks) then
         chunks = append(chunks,text[startidx..$])
         text = chunks[1]
+        chunks[1] = 0
         for i=2 to length(chunks) do
             text &= r
             text &= chunks[i]

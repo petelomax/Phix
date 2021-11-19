@@ -1,9 +1,10 @@
 --
--- teselation.exw
--- ==============
+-- demo\pGUI\teselation.exw
+-- ========================
 --
 --  Translated (from lua) by Pete Lomax 01/03/2017.
 --
+without js -- (glu.e, file i/o, Open GL 1.0)
 
 ----------------Opengl teselation sample begin
 --require("iuplua")
@@ -25,10 +26,7 @@ constant heightfac = sqrt(3)*0.5 -- ratio from height to side in equilateral tri
 
 object texture = 0
 
-Ihandle dlg
-
-IupOpen()
-Ihandle cnv = IupGLCanvas("BUFFER=DOUBLE, RASTERSIZE=640x480")
+Ihandle dlg, cnv
 
 function cnv_resize_cb(Ihandle /*cnv*/, integer width, integer height)
     IupGLMakeCurrent(cnv)
@@ -45,7 +43,6 @@ function cnv_resize_cb(Ihandle /*cnv*/, integer width, integer height)
     glLoadIdentity()            -- Reset The Model View Matrix
     return IUP_DEFAULT
 end function
-IupSetCallback(cnv, "RESIZE_CB", Icallback("cnv_resize_cb"))
 
 --procedure EQtriang(dummy,wi)
 procedure EQtriang(atom wi)
@@ -86,7 +83,7 @@ atom w = wi*power(2,lev)
     glPopMatrix()
 
     glPushMatrix()
- --glLoadIdentity()          -- Reset The Current Modelview Matrix
+--glLoadIdentity()       -- Reset The Current Modelview Matrix
     glTranslate(1.5*w,heightfac*w,0)
     glRotate(-120,0,0,1)
 -- fu(fun,wi,lev-1)
@@ -119,7 +116,7 @@ atom endwide = h*2/sqrt(3)+w
 atom cellwide = max(10,mouseX)
 integer iters = floor(log(endwide/cellwide)/log(2))
  --print(w,h,endwide,iters)
-    IupGLMakeCurrent(cnv)
+--  IupGLMakeCurrent(cnv)
 -- glClear("COLOR_BUFFER_BIT,DEPTH_BUFFER_BIT") -- Clear Screen And Depth Buffer
     glClear(or_bits(GL_COLOR_BUFFER_BIT, GL_DEPTH_BUFFER_BIT))
     glLoadIdentity()               -- Reset The Current Modelview Matrix
@@ -135,7 +132,6 @@ integer iters = floor(log(endwide/cellwide)/log(2))
  --print("drawtime",os.clock()-timebegin)
     return IUP_DEFAULT
 end function
-IupSetCallback(cnv, "ACTION", Icallback("cnv_action_cb"))
 
 --nostatus=(" "):rep(10)
 constant nostatus = repeat(' ',10)
@@ -148,9 +144,8 @@ function cnv_motion_cb(Ihandle /*cnv*/, integer x, integer y, atom pStatus)
     end if
     return IUP_DEFAULT;
 end function
-IupSetCallback(cnv, "MOTION_CB", Icallback("cnv_motion_cb"))
 
-function cnv_k_any(Ihandle /*ih*/, atom c)
+function cnv_key_cb(Ihandle /*ih*/, atom c)
     if c==K_q or c==K_ESC then
         return IUP_CLOSE
     elsif c==K_F1 then
@@ -166,7 +161,6 @@ function cnv_k_any(Ihandle /*ih*/, atom c)
     end if
     return IUP_CONTINUE
 end function
-IupSetCallback(cnv, "K_ANY", Icallback("cnv_k_any"))
 
 --/*
 function read_file(string filename)
@@ -186,29 +180,29 @@ imImage image = imFileImageLoadBitmap(fileName,0,pError)
 integer r
     free(pError)
     if image=NULL then
-        printf(1,"Unnable to open the file: %d\n",{fileName})
---  os.exit()
-        abort(0)
+        crash("Unnable to open the file: %d\n",{fileName})
     end if
 --DEV
 --?"imImageGetOpenGLData(image,"
 --?imImageGetOpenGLData(image,
 --  local gldata, glformat = image:GetOpenGLData()
-    atom gldata = allocate(machine_word())
-    atom glformat = allocate(machine_word())
-    imImageGetOpenGLData(image,glformat)
+--  atom gldata = allocate(machine_word())
+--  atom glformat = allocate(machine_word())
+    atom gldata = imImageGetOpenGLData(image)
+--  imImageGetOpenGLData(image,glformat)
 --  gl.PixelStore(gl.UNPACK_ALIGNMENT, 1)
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
     --  glu.Build2DMipmaps(image:Depth(), image:Width(), image:Height(), glformat, gl.UNSIGNED_BYTE, gldata)
-    poke4(gldata,image)
+--  poke4(gldata,image)
 --  ?1
 --0 indicates success...
-    r = gluBuild2DMipmaps(GL_TEXTURE_2D, im_depth(image), im_width(image), im_height(image), peek4u(glformat), GL_UNSIGNED_BYTE, image)
+--  r = gluBuild2DMipmaps(GL_TEXTURE_2D, im_depth(image), im_width(image), im_height(image), peek4u(glformat), GL_UNSIGNED_BYTE, image)
+    r = gluBuild2DMipmaps(GL_TEXTURE_2D, im_depth(image), im_width(image), im_height(image), gldata, GL_UNSIGNED_BYTE, image)
     if r!=0 then ?9/0 end if
   -- gldata will be destroyed when the image object is destroyed
     image = imImageDestroy(image)
-    free(gldata)
-    free(glformat)
+--  free(gldata)
+--  free(glformat)
 end procedure
 
 --constant junk_space = allocate(4*16)
@@ -220,7 +214,8 @@ function cnv_map_cb(Ihandle /*cnv*/)
 --  texture = gl.GenTextures(1)  -- Create The Texture
 --  glGenTextures(1,junk_space)  -- Create The Texture
 --  texture = peek4u(junk_space)
-    {texture} = glGenTextures(1) -- Create The Texture
+--  {texture} = glGenTextures(1) -- Create The Texture
+    texture = glCreateTexture() -- Create The Texture
 
   -- Typical Texture Generation Using Data From The Bitmap
 --  glBindTexture(GL_TEXTURE_2D, texture[1])
@@ -233,7 +228,14 @@ function cnv_map_cb(Ihandle /*cnv*/)
     LoadImage(filename)
     return IUP_DEFAULT
 end function
-IupSetCallback(cnv, "MAP_CB", Icallback("cnv_map_cb"))
+
+IupOpen()
+cnv = IupGLCanvas("BUFFER=DOUBLE, RASTERSIZE=640x480")
+IupSetCallbacks(cnv, {"ACTION", Icallback("cnv_action_cb"),
+                      "RESIZE_CB", Icallback("cnv_resize_cb"),
+                      "MOTION_CB", Icallback("cnv_motion_cb"),
+                      "KEY_CB", Icallback("cnv_key_cb"),
+                      "MAP_CB", Icallback("cnv_map_cb")})
 --if arg[1] ~= nil then
 --if arg[1] != nil then
 --  fileName = arg[1]

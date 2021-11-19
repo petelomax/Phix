@@ -21,13 +21,9 @@
 -- You should have received a copy of the GNU Lesser General Public
 -- License along with EuIup.  If not, see <http://www.gnu.org/licenses/>.
 --
-
+--with javascript_semantics
+without javascript_semantics -- needs cdCanvasVectorTextDirection, cdCanvasPutImageRectRGB, ...
 include pGUI.e
-
-function esc_close(Ihandle /*ih*/, atom c)
--- (I like all my demos to close when escape is keyed)
-    return iff(c=K_ESC?IUP_CLOSE:IUP_CONTINUE)
-end function
 
 --/*
 puts(1, cdVersion() & '\n')
@@ -44,11 +40,10 @@ IupOpen()
 
 Ihandle hDialog, hIupCanvas, hCdCanvas, hTimer
 
-function OnTimer(atom h)
-integer n, draw, mode
-atom color, line_width, line_style
+function timer_cb(Ihandle /*hTimer*/)
+    integer n, draw, mode
+    atom color, line_width, line_style
 
-    if h then end if
     color = rand(255)*power(2, 24)+rand(255)*65536+rand(256)
     line_width = rand(5)
     line_style = rand(5)-1
@@ -81,10 +76,8 @@ end function
 
 procedure main()
     hIupCanvas = IupCanvas("RASTERSIZE=400x400, BORDER=NO, DRAWSIZE=400x400")
-    hDialog = IupDialog(hIupCanvas)
-    IupStoreAttribute(hDialog, "TITLE", "Canvas Draw Test")
-    IupSetCallback(hDialog, "K_ANY", Icallback("esc_close"));
-    IupShowXY(hDialog, IUP_CENTER, IUP_CENTER)
+    hDialog = IupDialog(hIupCanvas,`TITLE="Canvas Draw Test"`)
+    IupShow(hDialog)
 --/*
     printf(1, "CD_IUP context caps=%x\n", cdContextCaps(CD_IUP))
 --*/
@@ -142,11 +135,12 @@ procedure main()
     wdCanvasViewport(hCdCanvas, 100, 200, 100, 200)
     ? wdCanvasGetViewport(hCdCanvas)
 --*/
-    hTimer = IupTimer(Icallback("OnTimer"), 300)
-
-    IupMainLoop()
-    cdKillCanvas(hCdCanvas)
-    IupClose()
+    hTimer = IupTimer(Icallback("timer_cb"), 300)
+    if platform()!=JS then
+        IupMainLoop()
+        cdKillCanvas(hCdCanvas)
+        IupClose()
+    end if
 end procedure
 
 ?""

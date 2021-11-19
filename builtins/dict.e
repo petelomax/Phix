@@ -154,7 +154,9 @@ global procedure setd(object key, object data, integer tid=1)
 end procedure
 
 global procedure putd(object key, object data, integer tid=1)
-    setd(key, data, tid=1)
+--21/10/21...
+--  setd(key, data, tid=1)
+    setd(key, data, tid)
 end procedure
 
 -- (old name) now handled via psym.e/syminit()/Alias():

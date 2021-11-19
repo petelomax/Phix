@@ -1,31 +1,21 @@
 --
--- triangle.exw
--- ============
+-- demo\pGUI\triangle.exw
+-- ======================
 --
 --  Translation of http://rosettacode.org/wiki/OpenGL#Lua
 --
 --  Converted to pGUI by Pete Lomax
+--  desktop/Phix only: demo/rosetta/OpenGL.exw is a p2js-compatible version
 --
-
+--{{trans|Lua}}
+-- 02/10/21:
+--  tried adding "(script src="js/poc/glsim.js")(/script) after opengl.js
+--  added "let gls = new GLSim(canvas);" after canvas had been created (in test.htm).
+--  ==> stuck on glShadeModel() [undefined]
+--with javascript_semantics
+without javascript_semantics    -- (not OpenGL ES 2.0 compatible)
 include pGUI.e
 include opengl.e
-
---#withtype Ihandle
-
-function resize_cb(Ihandle /*ih*/, integer width, integer height)
-    glViewport(0, 0, width, height)
-    glMatrixMode(GL_PROJECTION)
-    glLoadIdentity()
-    glOrtho(-30.0, 30.0, -30.0, 30.0, -30.0, 30.0)
-    glMatrixMode(GL_MODELVIEW)
-    return IUP_DEFAULT
-end function
-
-function esc_close(Ihandle /*ih*/, atom c)
--- (I like all my demos to close when escape is keyed)
-    if c=K_ESC then return IUP_CLOSE end if
-    return IUP_CONTINUE
-end function
 
 function action(Ihandle /*ih*/)
 
@@ -51,14 +41,22 @@ function action(Ihandle /*ih*/)
     return IUP_DEFAULT
 end function
 
+function resize_cb(Ihandle /*ih*/, integer width, integer height)
+    glViewport(0, 0, width, height)
+    glMatrixMode(GL_PROJECTION)
+    glLoadIdentity()
+    glOrtho(-30.0, 30.0, -30.0, 30.0, -30.0, 30.0)
+    glMatrixMode(GL_MODELVIEW)
+    return IUP_DEFAULT
+end function
+
 Ihandln dialog
 Ihandle canvas
 
 function map_cb(Ihandle /*ih*/)
     IupGLMakeCurrent(canvas)
     integer {width, height} = IupGetIntInt(dialog, "RASTERSIZE")
-    {} = resize_cb(dialog, width, height)
-    return IUP_DEFAULT
+    return resize_cb(dialog, width, height)
 end function
 
 procedure main()
@@ -70,13 +68,13 @@ procedure main()
 
     dialog = IupDialog(canvas, "TITLE=Triangle, SHRINK=YES")
     IupSetCallback(dialog, "MAP_CB", Icallback("map_cb"))
-    IupSetCallback(dialog, "K_ANY",  Icallback("esc_close"))
 
     IupShow(dialog)
-    IupMainLoop()
-    dialog = IupDestroy(dialog)
-    IupClose()
+--  if platform()!=JS then  -- (no chance, see demo/rosetta/OpenGL.exw)
+        IupMainLoop()
+        dialog = IupDestroy(dialog)
+        IupClose()
+--  end if
 end procedure
 main()
-
 

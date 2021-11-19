@@ -11,12 +11,11 @@
 --
 -- Sorry about the mess, not only bits of the original C but also most of glcanvas_cube.exw remain...
 --
-
+--with javascript_semantics
+without javascript_semantics    -- no attempt yet to handle 'include glu.e'
 include pGUI.e
 include opengl.e
 include glu.e
-
---#withtype Ihandle
 
 --/*
 --typedef GLfloat flt;
@@ -318,7 +317,8 @@ end procedure
  
 --void boid_think(boid_t *b)
 procedure boid_think(integer bi)
-    boid_t b = boids[bi]
+--  boid_t b = boids[bi]
+    boid_t b = deep_copy(boids[bi])
 --  atom g = ground_height(b->position.x[0], b->position.x[1]);
     atom g = ground_height(b[POSITION][X], b[POSITION][Y])
  
@@ -835,9 +835,10 @@ function close_cb(Ihandle /*ih*/)
     return IUP_CLOSE
 end function
 
-function esc_close(Ihandle /*ih*/, atom c)
+function esc_close(Ihandle ih, atom c)
 -- (I like all my demos to close when escape is keyed)
-    if c=K_ESC then return IUP_CLOSE end if
+--  if c=K_ESC then return IUP_CLOSE end if
+    if c=K_ESC then return close_cb(ih) end if
     return IUP_CONTINUE
 end function
 
@@ -847,14 +848,10 @@ end function
 constant cb_timer = Icallback("timer_cb")
 
 procedure main()
-Ihandle dialog, box
 
 puts(1,"")  -- (console before/below window, also ensures we can ctrl-c it)
     IupOpen();
-    IupGLCanvasOpen();
-
-    box = IupVbox({});
-    IupSetAttribute(box, "MARGIN", "5x5");
+--  IupGLCanvasOpen();
 
     canvas = IupGLCanvas();
     IupSetCallback(canvas, "ACTION", Icallback("action"));
@@ -865,10 +862,10 @@ puts(1,"")  -- (console before/below window, also ensures we can ctrl-c it)
     IupSetAttribute(canvas, "BUFFER", "DOUBLE");
     IupSetAttribute(canvas, "BORDER", "NO");
     IupSetAttribute(canvas, "RASTERSIZE", "400x400");
-    IupAppend(box, canvas);
 
-    dialog = IupDialog(box);
-    IupSetAttribute(dialog, "TITLE", "Boids")
+    Ihandle box = IupVbox({canvas}, "MARGIN=5x5")
+
+    Ihandln dialog = IupDialog(box,"TITLE=Boids")
 
     IupMap(dialog);
 
@@ -883,15 +880,12 @@ puts(1,"")  -- (console before/below window, also ensures we can ctrl-c it)
     IupSetCallback(dialog, "K_ANY",  Icallback("esc_close"))
     IupSetCallback(dialog, "CLOSE_CB",  Icallback("close_cb"))
 
-    IupShowXY(dialog, IUP_CENTER, IUP_CENTER);
-
-    IupMainLoop();
-
-    dialog = IupDestroy(dialog);
-
-?"IupClose"
-    IupClose();
-
+    IupShow(dialog)
+    if platform()!=JS then
+        IupMainLoop()
+        dialog = IupDestroy(dialog)
+        IupClose()
+    end if
 end procedure
 main()
 

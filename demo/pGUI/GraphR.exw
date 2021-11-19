@@ -1,12 +1,13 @@
 --
--- GraphR.exw
--- ==========
+-- demo\pGUI\GraphR.exw
+-- ====================
 --
 -- Displays a simple staggered rainbow graph. 
 --
 -- Uses the clipboard text if it begins with "GraphR:{" and ends with "}":
 --  between those it should contain a comma-separated list of elements,
 --  each of which is a sub-sequence of "{description,start,size}", all of 
+--UPDATE: using scanf() [for the benefit of p2js]
 --  which is processed using value() (from builtins\get.e). For an example
 --  see default_text. Note that eg "red" is a description not a colour in 
 --  constant default_text, which happens to match the colours in rainbow.
@@ -20,13 +21,15 @@
 --  of numbers in no particular order, especially with not only different
 --  file and virtual addresses, but also those tricky RVA offset thingies.
 --
-
---#withtype Ihandle
---#withtype cdCanvas
---#withtype cdCanvan
-
+with javascript_semantics
+--without javascript_semantics -- needs cdCanvasVectorTextSize, ...
+--                                  cdCanvasMultiLineVectorText aka cdCanvasVectorText;
+--                                  cdCanvasVectorTextDirection
+--                                  IupClipboard
+--                              -- have "platform()!=JS"'d out those (for now?)
 include pGUI.e
 
+--test with (in the clipboard): GraphR:{{"red",0,20},{"orange",30,50}}
 --constant default_text = `GraphR:{{"red",0,20},`&
 --                              `{"orange",10,30},`&
 --                              `{"yellow",20,40},`&
@@ -51,6 +54,17 @@ constant rainbow = { CD_RED , CD_ORANGE , CD_YELLOW , CD_GREEN , CD_BLUE , CD_IN
 
 Ihandle dlg, canvas
 cdCanvas cddbuffer, cdcanvas
+
+function negate_colour(object colour)
+    if string(colour) then  -- pwa/p2js
+        colour = to_integer(colour,0,16)
+        colour = xor_bits(colour,#FFFFFF)
+        colour = sprintf("#%06x",colour)
+    else
+        colour = xor_bits(colour,#FFFFFF)
+    end if
+    return colour
+end function
 
 function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
     cdCanvasActivate(cddbuffer)
@@ -78,16 +92,21 @@ function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
                 cdCanvasBox(cddbuffer, x1, x2, y, y2) 
             else
                 integer {twidth, theight} = cdCanvasGetTextSize(cddbuffer, text)
-if twidth>x2-x1 then
-                cdCanvasSetForeground(cddbuffer, CD_BLACK)
-                cdCanvasText(cddbuffer, x1, y-theight/2, text)
-else
-                cdCanvasSetForeground(cddbuffer, xor_bits(rainbow[cidx],#FFFFFF))
+--3/11/21 no longer sure what this was trying to achieve...
+--if twidth>x2-x1 then
+--              cdCanvasSetForeground(cddbuffer, CD_BLACK)
+--              cdCanvasText(cddbuffer, x1, y-theight/2, text)
+--else
+--              cdCanvasSetForeground(cddbuffer, xor_bits(rainbow[cidx],#FFFFFF))
+                cdCanvasSetForeground(cddbuffer, negate_colour(rainbow[cidx]))
 --              cdCanvasSetForeground(cddbuffer, text_clr[cidx])
                 cdCanvasText(cddbuffer, x1, y-theight/2, text)
+    if platform()!=JS then
                 cdCanvasVectorTextSize(cddbuffer, twidth, theight, text)
-                cdCanvasMultiLineVectorText(cddbuffer, x1+3, y-theight, text)
-end if
+--              cdCanvasMultiLineVectorText(cddbuffer, x1+3, y-theight, text)
+                cdCanvasVectorText(cddbuffer, x1+3, y-theight, text)
+    end if
+--end if
             end if
             y -= 20
             cidx += 1
@@ -95,9 +114,7 @@ end if
         end for
     end for
 
---  cdText(15, height-15, "string text") --DEV broken
 --  cdCanvasText(cddbuffer, 15, height-15, "string text") 
---  cdCanvasText(cdActiveCanvas(), 15, height-15, "string text") 
 
     cdCanvasFlush(cddbuffer)
 
@@ -110,7 +127,9 @@ function map_cb(Ihandle ih)
     cdCanvasSetBackground(cddbuffer, CD_WHITE)
     cdCanvasSetForeground(cddbuffer, CD_BLACK)
     cdCanvasFont(cddbuffer, "Helvetica", CD_PLAIN, 8)
-    cdCanvasVectorTextDirection(cddbuffer, 1, 1, 1, 0)
+    if platform()!=JS then
+        cdCanvasVectorTextDirection(cddbuffer, 1, 1, 1, 0)
+    end if
     return IUP_DEFAULT
 end function
 
@@ -120,16 +139,11 @@ function unmap_cb(Ihandle /*ih*/)
     return IUP_DEFAULT
 end function
 
-function esc_close(Ihandle /*ih*/, atom c)
-    if c=K_ESC then return IUP_CLOSE end if
-    return IUP_CONTINUE
-end function
-
 procedure main()
-integer error_status, 
-        x, 
-        width, 
-        right
+--  integer --error_status, 
+--          x, 
+--          width, 
+--          right
 
     IupOpen()
 
@@ -142,17 +156,24 @@ integer error_status,
         v = default_v
     else
 --  end if
+--/*
         text = text[8..$] -- strip the "GraphR:", leaving "{...}"
         {error_status,v} = value(text)
         if error_status!=GET_SUCCESS then
             IupMessage("error",text)
             abort(0)
         end if
+--*/
+        text = text[10..$-2] -- strip the "GraphR:{{", and final "}}"
+        v = split(text,"},{")
+        for i=1 to length(v) do
+            v[i] = scanf(v[i],`"%s",%d,%d`)[1]
+        end for
     end if
     maxright = 0
     for i=1 to length(v) do
-        {text,x,width} = v[i]
-        right = x+width
+        integer {?,x,width} = v[i],
+                right = x+width
         if right>maxright then maxright = right end if
     end for
 --  for i=1 to length(rainbow) do
@@ -166,27 +187,20 @@ integer error_status,
 --      text_clr[i] = iff(l>0.5?CD_BLACK:CD_WHITE)
 --  end for
 
-    canvas = IupCanvas(NULL)
-    IupSetAttribute(canvas, "RASTERSIZE", "600x400") -- initial size
+    canvas = IupCanvas("RASTERSIZE=600x400")
 
-    IupSetCallback(canvas, "MAP_CB",    Icallback("map_cb"))
-    IupSetCallback(canvas, "UNMAP_CB",  Icallback("unmap_cb"))
+    IupSetCallbacks(canvas, {"MAP_CB",  Icallback("map_cb"),
+                             "UNMAP_CB",    Icallback("unmap_cb"),
+                             "ACTION", Icallback("redraw_cb")})
 
-    dlg = IupDialog(canvas)
-    IupSetAttribute(dlg, "TITLE", "GraphR")
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
-    IupSetCallback(dlg, "K_ANY",     Icallback("esc_close"))
+    dlg = IupDialog(canvas, "TITLE=GraphR")
 
---  IupMap(dlg)
---  IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release the minimum limitation
-
---  IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
     IupShow(dlg)
     IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release the minimum limitation
-
-    IupMainLoop()
-
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

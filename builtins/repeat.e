@@ -10,6 +10,8 @@
 --
 --  Also implements deep_copy(), for the benefit of pwa/p2js.
 --
+--without debug
+--
 --  Since JavaScript has pass-by-sharing semantics, whereas Phix has pass-by-reference-with-copy-on-write semantics,
 --  and implementing either in the other is sheer madness, this enables software depending on neither to be written.
 --
@@ -41,15 +43,6 @@
 --      Apart from the changes to repeat, which should be neglible and may even represent a saving, that is from
 --      fewer potential cache misses during some delayed internal clones, there should not be any significant 
 --      performance impact of any of this on non-with-js code (he says hopefully).
---DEV deleteme:
---      About a dozen selected call :%pAllocSeq have been replaced with call :%pAlloClone
---      which performs the same job after a quick check on whether with js is in force.
---      The performance impact on non-with-js is therefore utterly neglible.
---      Obviously with js sets a flag in pHeap.e and pAlloClone checks/crashes on that.
---      There is a new :%pWithJS entry point to set/reset the flag just mentioned, and
---      "without js" will crash if it has been set whereas the backend calls reset in a
---      slightly different way to reset the flag without crashing, for eg p -test.
---      Note that with[out] js is technically more a statement than compiler directive.
 --
 --  Usage
 --  =====

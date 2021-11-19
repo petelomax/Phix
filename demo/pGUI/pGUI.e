@@ -306,13 +306,6 @@ if paranormalise(func:=tcb)!={NULL,tcb,"",{}} then ?9/0 end if
 if paranormalise(attributes:="x")!={NULL,NULL,"x",{}} then ?9/0 end if
 --*/
 
---DEV (make this a builtin)
-global function rand_range(integer lo, integer hi)
-    if lo>hi then {lo,hi} = {hi,lo} end if
-    lo -= 1
-    return lo+rand(hi-lo)
-end function
-
 constant W = machine_word()
 
 -- (This is an example of an application-specific variation of OpenEuphoria's allocate_pointer_array)
@@ -333,12 +326,10 @@ function iup_ptr_array(atoms pointers)
 end function
 
 global function iup_peek_double(object pDouble)
-sequence doubles
-
     if atom(pDouble) then
         return float64_to_atom(peek({pDouble,8}))
     else
-        doubles = {}
+        sequence doubles = {}
         for i=1 to pDouble[2] do
             doubles &= float64_to_atom(peek({pDouble[1]+8*(i-1),8}))
         end for
@@ -385,27 +376,7 @@ atom pstr
     return strings
 end function
 
-global function IupRawStringPtr(string s)
---
--- Returns a raw string pointer for s, somewhat like allocate_string(s), but using the existing memory.
--- NOTE: The return is only valid as long as the value passed as the parameter remains in scope.
---       In particular, callbacks must make a semi-permanent copy somewhere other than locals/temps.
---
-atom res
-    #ilASM{
-        [32]
-            mov eax,[s]
-            lea edi,[res]
-            shl eax,2
-        [64]
-            mov rax,[s]
-            lea rdi,[res]
-            shl rax,2
-        []
-            call :%pStoreMint
-          }
-    return res
-end function
+include builtins\IupRawStringPtr.e  -- (moved there for safe_mode handling)
 
 --DEV should this allocate too? (spotted in passing)
 procedure iup_poke_string_pointer_array(atom ptr, sequence strings)
@@ -418,6 +389,17 @@ procedure iup_poke_string_pointer_array(atom ptr, sequence strings)
         ptr += W
     end for
 end procedure
+
+global function iup_string_pointer_array(sequence strings)
+    atom pArray = allocate(length(strings)*W,true),
+         ptr = pArray
+    for i=1 to length(strings) do
+        string si = strings[i]
+        pokeN(ptr,IupRawStringPtr(si),W)
+        ptr += W
+    end for
+    return pArray
+end function
 
 --DEV from IUP docs:
 --/*
@@ -476,23 +458,23 @@ global function iup_XkeySys( atom _c)
 end function
 --*/
 
-global function alpha(atom color)
-    color = and_bits(color, #FF000000)
-    color = floor(color/#1000000)
-    return 255-color
-end function
-
-global function red(atom color)
-    return floor(and_bits(color, #FF0000)/#10000)
-end function
-
-global function green(atom color)
-    return floor(and_bits(color, #FF00)/#100)
-end function
-
-global function blue(atom color)
-    return remainder(color, #100)
-end function
+--global function alpha_component(atom color)
+--  color = and_bits(color, #FF000000)
+--  color = floor(color/#1000000)
+--  return 255-color
+--end function
+--
+--global function red_component(atom color)
+--  return floor(and_bits(color, #FF0000)/#10000)
+--end function
+--
+--global function green_component(atom color)
+--  return floor(and_bits(color, #FF00)/#100)
+--end function
+--
+--global function blue_component(atom color)
+--  return remainder(color, #100)
+--end function
 
 global function rgb(atom red, green, blue, alpha=0)
 --  return and_bits(r,#FF) + and_bits(g,#FF)*#100 + and_bits(b,#FF)*#10000
@@ -504,10 +486,40 @@ global function rgb(atom red, green, blue, alpha=0)
     return colour
 end function
 
-global function to_rgb(atom colour)
-    return {red(colour),green(colour),blue(colour),alpha(colour)}
-end function    
+global function hsv_to_rgb(atom h, s, v, a=0)
+    integer i = floor(h*6)
+    atom f = h*6-i,
+         p = v*(1-s),
+         q = v*(1-s*f),
+         t = v*(1-s*(1-f)),
+         r,g,b
+    switch i do
+        case 0,
+             6: {r,g,b} = {v, t, p}
+        case 1: {r,g,b} = {q, v, p}
+        case 2: {r,g,b} = {p, v, t}
+        case 3: {r,g,b} = {p, q, v}
+        case 4: {r,g,b} = {t, p, v}
+        case 5: {r,g,b} = {v, p, q}
+    end switch
+    return rgb(r*255, g*255, b*255, a)
+end function
 
+global function to_rgb(atom colour)
+--  return {red_component(colour),
+--        green_component(colour),
+--         blue_component(colour),
+--        alpha_component(colour)}
+--  integer red = floor(and_bits(colour,#FF0000)/#10000),
+--        green = floor(and_bits(colour,#FF00)/#100),
+--         blue =       and_bits(colour,#FF),
+--        alpha = floor(and_bits(colour,#FF000000)/#1000000)
+    integer red = and_bits(colour,#FF0000)/#10000,
+          green = and_bits(colour,#FF00)/#100,
+           blue = and_bits(colour,#FF),
+          alpha = and_bits(colour,#FF000000)/#1000000
+    return {red,green,blue,255-alpha}
+end function    
 
 global constant
     -- Common Flags and Return Values
@@ -1076,8 +1088,7 @@ include builtins\VM\pcmdlnN.e       -- command_line()
 include builtins\pgetpath.e         -- get_proper_dir()
 
 procedure iup_link_error(sequence name)
-    puts(1,"link error: "&name&"\n")
-    ?9/0
+    crash("link error: "&name)
 end procedure
 
 global -- for iup_layoutdlg.e
@@ -2299,9 +2310,9 @@ global procedure IupResetAttribute(Ihandle ih, string name)
     c_proc(xIupResetAttribute, {ih,name})
 end procedure
 
-global function IupGetAttribute(Ihandln ih, string name)
+global function IupGetAttribute(Ihandln ih, string name, dflt="")
     atom ptr = c_func(xIupGetAttribute, {ih, name})
-    if ptr=NULL then return "" end if
+    if ptr=NULL then return dflt end if
     return peek_string(ptr)
 end function
 
@@ -2361,14 +2372,16 @@ global function IupGetHandle(string name)
     return ih
 end function
 
-global function IupGetInt(Ihandln ih, string name)
-    atom res = c_func(xIupGetInt, {ih, name})
-    return res
+--DEV docs
+global function IupGetInt(Ihandln ih, string name, integer dflt=0)
+    atom result = c_func(xIupGetInt, {ih, name})
+    if result=0 then result = dflt end if
+    return result
 end function
 
 global function IupGetInt2(Ihandle ih, string name)
-    atom res = c_func(xIupGetInt2, {ih, name})
-    return res
+    atom result = c_func(xIupGetInt2, {ih, name})
+    return result
 end function
 
 global function IupGetIntInt(Ihandln ih, string name)
@@ -2376,9 +2389,9 @@ global function IupGetIntInt(Ihandln ih, string name)
     mem_set(pTwoInts,0,8)
     integer count = c_func(xIupGetIntInt, {ih,name,pTwoInts,pTwoInts+4})
 --  if count!=2 then ?9/0 end if
-    sequence res = peek4s({pTwoInts,2})
+    sequence result = peek4s({pTwoInts,2})
     free(pTwoInts)
-    return res
+    return result
 end function
 
 global function IupGetIntId(Ihandle ih, string name, integer id)
@@ -2406,8 +2419,10 @@ global function IupGetFloatId2(Ihandle ih, string name, integer lin, integer col
     return result
 end function
 
-global function IupGetDouble(Ihandln ih, string name)
+--DEV docs
+global function IupGetDouble(Ihandln ih, string name, atom dflt=0)
     atom result = c_func(xIupGetDouble, {ih,name})
+    if result=0 then result = dflt end if
     return result
 end function
 
@@ -2476,6 +2491,11 @@ global function IupGetGlobalInt(string name)
     return IupGetInt(NULL,name)
 end function
 
+global function IupGetGlobalIntInt(string name)
+    return IupGetIntInt(NULL,name)
+end function
+
+
 global procedure IupSetLanguage(string language_name)
     c_proc(xIupSetLanguage, {language_name})
 end procedure
@@ -2541,7 +2561,7 @@ global function IupSetCallbackf(Ihandles ih, string name, cbfunc func)
 end function
 
 global procedure IupSetCallbacks(Ihandles ih, sequence namefuncpairs)
-    if and_bits(length(namefuncpairs),1) then ?9/0 end if
+    assert(even(length(namefuncpairs)))
     for i=1 to length(namefuncpairs) by 2 do
         IupSetCallback(ih,namefuncpairs[i],namefuncpairs[i+1])
     end for
@@ -2865,14 +2885,14 @@ global function IupNormalizer(Ihandles ih_list, string attributes="", sequence a
     return ih
 end function
 
+global function IupNormaliser(Ihandles ih_list, string attributes="", sequence args={})
+    return IupNormalizer(ih_list, attributes, args)
+end function
+
 -- only used by IupView.exw, and deliberately not documented.
 global function iupObjectCheck(Ihandle ih)
     boolean res = c_func(xiupObjectCheck,{ih})
     return res
-end function
-
-global function IupNormaliser(Ihandles ih_list, string attributes="", sequence args={})
-    return IupNormalizer(ih_list, attributes, args)
 end function
 
 global function IupCbox(Ihandles children={}, string attributes="", sequence args={})
@@ -2897,7 +2917,7 @@ global function IupSizeBox(Ihandln child=NULL, string attributes="", sequence ar
     return IupSbox(child, attributes, args)
 end function
 
-global function IupSplit(Ihandln child1=NULL, Ihandln child2=NULL, string attributes="", sequence args={})
+global function IupSplit(Ihandln child1=NULL, child2=NULL, string attributes="", sequence args={})
     Ihandle ih = c_func(xIupSplit, {child1,child2})
     if length(attributes) then
         IupSetAttributes(ih, attributes, args)
@@ -3009,8 +3029,15 @@ global function IupGetNextChild(Ihandln ih, Ihandln child)
     return nextchild
 end function
 
-global function IupGetBrother(Ihandle ih)
-    Ihandln brother = c_func(xIupGetBrother, {ih})
+global function IupGetBrother(Ihandle ih, bool bPrev)
+    Ihandln brother
+    if bPrev then
+        Ihandle parent = IupGetParent(ih)
+        integer pos = IupGetChildPos(parent,ih)
+        brother = IupGetChild(parent,pos-1)
+    else
+        brother = c_func(xIupGetBrother, {ih})
+    end if
     return brother
 end function
 
@@ -3206,8 +3233,16 @@ global function IupColorDlg()
     return ih
 end function
 
-global function IupDatePick(string attributes="", sequence args={})
+--global function IupDatePick(string attributes="", sequence args={})
+global function IupDatePick(object action=NULL, object func=NULL, sequence attributes="", dword_seq args={})
     Ihandle ih = c_func(xIupDatePick, {})
+    {action,func,attributes,args} = paranormalise(action,func,attributes,args)
+    if func!=NULL then
+        if action=NULL then
+            action = "VALUECHANGED_CB"
+        end if
+        IupSetCallback(ih, action, func)
+    end if
     if length(attributes) then
         IupSetAttributes(ih, attributes, args)
     end if
@@ -3549,7 +3584,7 @@ global function IupSpinbox(Ihandln child=NULL, object action=NULL, object func=N
 end function
 
 global function IupTabs(Ihandles children={}, sequence attributes="", dword_seq args={})
-atom pChildren = iup_ptr_array(children)
+    atom pChildren = iup_ptr_array(children)
     Ihandle ih = c_func(xIupTabsv, {pChildren})
     free(pChildren)
     if length(attributes) then
@@ -4015,6 +4050,7 @@ string semiperm -- (return value of IupTableValue_cb must outlive it)
 function IupTableValue_cb(Ihandle table, integer l, integer c)
 -- internal, for IupTable (VALUE_CB, non-overrideable)
     if c>0 then
+--if l!=0 and c=2 then trace(1) end if
         integer dsidx = IupGetInt(table,"DSIDX")
         sequence data = table_datasets[dsidx]
         if l>length(data[1]) then return NULL end if
@@ -4027,7 +4063,11 @@ function IupTableValue_cb(Ihandle table, integer l, integer c)
         object dlc = dl[c]
         if c<=length(data[2]) then
             object d2c = data[2][c]
-            if sequence(d2c) then
+            if string(d2c) then
+--              return sprintf(d2c,data[1][ti][c]);
+                semiperm = sprintf(d2c,dlc)
+                return IupRawStringPtr(semiperm)
+            elsif sequence(d2c) then
                 dlc = d2c[l]
             elsif d2c!=0 then
                 integer fn = d2c
@@ -4064,6 +4104,10 @@ global function IupTableGetSelected(Ihandle table)
     return idx 
 end function
 
+global procedure IupTableClearSelected(Ihandle table)
+    IupSetAttribute(table,"FOCUSCELL",NULL)
+end procedure
+
 integer dsidx = 0 -- (for gui-thread-only use)
 
 function by_column(integer i, integer j)
@@ -4085,13 +4129,14 @@ function by_column(integer i, integer j)
     return c
 end function
 
-global function IupTableClick_cb(Ihandle table, integer l, integer c, atom pStatus)
+global function IupTableClick_cb(Ihandle table, integer l, c, atom /*pStatus*/)
 -- default CLICK_CB for IupTable (callable directly, when overridden)
     integer numcol = IupGetInt(table,"NUMCOL")
     if l=0 and c>0 and c<=numcol then
         dsidx = IupGetInt(table,"DSIDX")
         sequence data = table_datasets[dsidx],
-                 cols = table_sortcols[dsidx]
+--               cols = table_sortcols[dsidx]
+                 cols = deep_copy(table_sortcols[dsidx])
         integer sel = IupTableGetSelected(table),
                   k = find(c,cols)
         integer sortcol = iff(length(cols)?cols[1]:0)
@@ -4102,7 +4147,8 @@ global function IupTableClick_cb(Ihandle table, integer l, integer c, atom pStat
                 table_sortcols[dsidx][k..k] = {}
                 table_sortdirs[dsidx][k..k] = {}
             end if
-            table_sortcols[dsidx] = prepend(table_sortcols[dsidx],c)
+--          table_sortcols[dsidx] = prepend(table_sortcols[dsidx],c)
+            table_sortcols[dsidx] = prepend(deep_copy(table_sortcols[dsidx]),c)
             table_sortdirs[dsidx] = prepend(table_sortdirs[dsidx],1)
         end if
         if sortcol!=0 and sortcol!=c then
@@ -4110,7 +4156,8 @@ global function IupTableClick_cb(Ihandle table, integer l, integer c, atom pStat
         end if
         integer sortdir = iff(IupGetAttributeId(table,"SORTSIGN",c)="DOWN"?-1:1)
         IupSetAttributeId(table,"SORTSIGN",c,iff(sortdir=-1?"UP":"DOWN"))
-        table_tagsets[dsidx] = custom_sort(routine_id("by_column"),table_tagsets[dsidx])
+--      table_tagsets[dsidx] = custom_sort(routine_id("by_column"),table_tagsets[dsidx])
+        table_tagsets[dsidx] = custom_sort(routine_id("by_column"),deep_copy(table_tagsets[dsidx]))
         IupSetAttribute(table,"REDRAW","ALL")
         -- restore selection - it stays off-screen, but user can use up/down
         --  to force it into the viewport, should they be inclined to do so.
@@ -4214,7 +4261,8 @@ function IupTableMap_cb(Ihandle table)
         grandp = IupGetParent(parent)
     end while
 --*/
-    Ihandle parent = IupGetDialog(table)
+--  Ihandle parent = IupGetDialog(table)
+    Ihandle parent = IupGetParent(table)
 --?{table,parent}
     IupSetAttributePtr(parent,"TABLE",table)
     IupSetCallback(parent, "RESIZE_CB", Icallback("IupTableResize_cb"))
@@ -4883,7 +4931,11 @@ global procedure iupImageStockLoadAll()
     c_proc(xiupImageStockLoadAll,{})
 end procedure
 
---DEV not tested (*14):
+global procedure IupDrawArc(Ihandle ih, integer x1, y1, x2, y2, atom a1, a2)
+    iup_image_init()
+    c_proc(xIupDrawArc,{ih,x1,y1,x2,y2,a1,a2})
+end procedure
+
 global procedure IupDrawBegin(Ihandle ih)
     iup_image_init()
     c_proc(xIupDrawBegin,{ih})
@@ -4894,6 +4946,41 @@ global procedure IupDrawEnd(Ihandle ih)
     c_proc(xIupDrawEnd,{ih})
 end procedure
 
+global function IupDrawGetSize(Ihandle ih)
+    iup_image_init()
+    atom pWH = allocate(8)
+    c_proc(xIupDrawGetSize,{ih,pWH,pWH+4})
+    sequence wh = peek4s({pWH,2})
+    free(pWH)
+    return wh -- {width,height}
+end function
+
+global function IupDrawGetTextSize(Ihandle ih, string str)
+    iup_image_init()
+    atom pWH = allocate(2*W)
+    c_proc(xIupDrawGetTextSize,{ih,str,length(str),pWH,pWH+W})
+    sequence wh = peekns({pWH,2})
+    free(pWH)
+    return wh -- {width,height}
+end function
+
+global procedure IupDrawLine(Ihandle ih, integer x1, y1, x2, y2)
+    iup_image_init()
+    c_proc(xIupDrawLine,{ih,x1,y1,x2,y2})
+end procedure
+
+global procedure IupDrawRectangle(Ihandle ih, integer x1, y1, x2, y2)
+    iup_image_init()
+    c_proc(xIupDrawRectangle,{ih,x1,y1,x2,y2})
+end procedure
+
+global procedure IupDrawText(Ihandle ih, string text, integer x, y, w=0, h=0)
+    iup_image_init()
+    integer len = length(text)
+    c_proc(xIupDrawText,{ih,text,len,x,y,w,h})
+end procedure
+
+--DEV not tested (*7):
 global procedure IupDrawSetClipRect(Ihandle ih, integer x1, y1, x2, y2)
     iup_image_init()
     c_proc(xIupDrawSetClipRect,{ih,x1,y1,x2,y2})
@@ -4918,21 +5005,6 @@ global procedure IupDrawParentBackground(Ihandle ih)
     c_proc(xIupDrawParentBackground,{ih})
 end procedure
 
-global procedure IupDrawLine(Ihandle ih, integer x1, y1, x2, y2)
-    iup_image_init()
-    c_proc(xIupDrawLine,{ih,x1,y1,x2,y2})
-end procedure
-
-global procedure IupDrawRectangle(Ihandle ih, integer x1, y1, x2, y2)
-    iup_image_init()
-    c_proc(xIupDrawRectangle,{ih,x1,y1,x2,y2})
-end procedure
-
-global procedure IupDrawArc(Ihandle ih, integer x1, y1, x2, y2, atom a1, a2)
-    iup_image_init()
-    c_proc(xIupDrawArc,{ih,x1,y1,x2,y2,a1,a2})
-end procedure
-
 global procedure IupDrawPolygon(Ihandle ih, sequence points)
     iup_image_init()
     integer count = length(points)
@@ -4940,12 +5012,6 @@ global procedure IupDrawPolygon(Ihandle ih, sequence points)
     poke4(pPoints, points)
     c_proc(xIupDrawPolygon,{ih,pPoints,count})
     free(pPoints)
-end procedure
-
-global procedure IupDrawText(Ihandle ih, string text, integer x, y, w=0, h=0)
-    iup_image_init()
-    integer len = length(text)
-    c_proc(xIupDrawText,{ih,text,len,x,y,w,h})
 end procedure
 
 --global procedure IupDrawImage(Ihandle ih, string name, boolean make_inactive, integer x, y)
@@ -4964,24 +5030,6 @@ global procedure IupDrawFocusRect(Ihandle ih, integer x1, y1, x2, y2)
     iup_image_init()
     c_proc(xIupDrawFocusRect,{ih,x1,y1,x2,y2})
 end procedure
-
-global function IupDrawGetSize(Ihandle ih)
-    iup_image_init()
-    atom pWH = allocate(8)
-    c_proc(xIupDrawGetSize,{ih,pWH,pWH+4})
-    sequence wh = peek4s({pWH,2})
-    free(pWH)
-    return wh -- {width,height}
-end function
-
-global function IupDrawGetTextSize(Ihandle ih, string str)
-    iup_image_init()
-    atom pWH = allocate(2*W)
-    c_proc(xIupDrawGetTextSize,{ih,str,length(str),pWH,pWH+W})
-    sequence wh = peekns({pWH,2})
-    free(pWH)
-    return wh -- {width,height}
-end function
 
 global function IupDrawGetImageInfo(string name)
     iup_image_init()
@@ -5289,9 +5337,14 @@ MAP images are converted to RGB, and BINARY images are converted to GRAY.
 Alpha channel is considered and Transparency* attributes are converted to alpha channel. 
 So calculate depth from glformat, not from image depth.
 --*/
-global procedure imImageGetOpenGLData(imImage image, atom pRes)
+--global procedure imImageGetOpenGLData(imImage image, atom pRes)
+global function imImageGetOpenGLData(imImage image)
+    atom pRes = allocate(machine_word())
     c_proc(ximImageGetOpenGLData,{image,pRes})
-end procedure
+    atom pData = peek4u(pRes)
+    free(pRes)
+    return pData
+end function
 
 global enum --  imDataType { 
   IM_BYTE=0, IM_SHORT, IM_USHORT, IM_INT, 
@@ -5732,9 +5785,9 @@ global constant
     CD_SOUTH_EAST = 6,
     CD_SOUTH_WEST = 7,
     CD_CENTER = 8,
-    CD_BASE_LEFT = 9,
-    CD_BASE_CENTER = 10,
-    CD_BASE_RIGHT = 11,
+    CD_BASE_LEFT = 9,       -- == CD_SOUTH_WEST???
+    CD_BASE_CENTER = 10,    -- == CD_SOUTH???
+    CD_BASE_RIGHT = 11,     -- == CD_SOUTH_EAST???
     --
     -- Style Constants
     --
@@ -5898,6 +5951,7 @@ global constant
     CD_DARK_GREEN   = #008000,
     CD_DARK_MAGENTA = #800080,  -- (not the best...)
     CD_DARK_RED     = #800000,  -- (not the best...)
+    CD_DARK_YELLOW  = #EBEB00,
     CD_GRAY         = #C0C0C0,
     CD_GREY         = #C0C0C0,
     CD_GREEN        = #3cb44b,
@@ -5931,6 +5985,7 @@ global constant
     IUP_DARK_GREEN   = "#008000",
     IUP_DARK_MAGENTA = "#800080",   -- (not the best...)
     IUP_DARK_RED     = "#800000",   -- (not the best...)
+    IUP_DARK_YELLOW  = "#EBEB00",
     IUP_GRAY         = "#C0C0C0",
     IUP_GREY         = "#C0C0C0",
     IUP_GREEN        = "#3cb44b",
@@ -5955,6 +6010,102 @@ global constant
     IUP_YELLOW       = "#FFFF00",
     $
 
+/*
+--some more suggestions:
+    // CSS1
+    this.grey        = #808080;
+    this.gray        = #808080;
+    this.maroon      = #800000;
+    this.red         = #FF0000;
+    this.purple      = #800080;
+    this.fuchsia     = #ff00ff;
+    this.green       = #008000;
+    this.lime        = #00ff00;
+    this.olive       = #808000;
+    this.yellow      = #FFFF00;
+    this.navy        = #000080;
+    this.blue        = #0000FF;
+    this.teal        = #008080;
+    this.aqua        = #00ffff;
+
+    // CSS2
+    this.orange         = #FFA500;
+    this.aliceblue      = #f0f8ff;
+    this.antiquewhite   = #faebd7;
+    this.aquamarine     = #7fffd4;
+    this.azure          = #f0ffff;
+    this.beige          = #f5f5dc;
+    this.bisque         = #ffe4c4;
+    this.blanchedalmond = #ffebcd;
+    this.blueviolet     = #8a2be2;
+    this.brown          = #a52a2a;
+    this.burlywood      = #deb887;
+    this.cadetblue      = #5f9ea0;
+    this.chartreuse     = #7fff00;
+    this.chocolate      = #d2691e;
+    this.coral          = #ff7f50;
+    this.cornflowerblue = #6495ed;
+    this.cornsilk       = #fff8dc;
+    this.crimson        = #dc143c;
+    this.cyan           = #00FFFF;
+    this.darkblue       = #00008b;
+    this.darkcyan       = #008b8b;
+    this.darkgoldenrod  = #b8860b;
+    this.darkgrey       = #a9a9a9;
+    this.darkgreen      = #006400;
+    this.darkkhaki      = #bdb76b;
+    this.darkmagenta    = #8b008b;
+    this.darkolivegreen = #556b2f;
+    this.darkorange     = #ff8c00;
+    this.darkorchid     = #9932cc;
+    this.darkred        = #8b0000;
+    this.darksalmon     = #e9967a;
+    this.darkseagreen   = #8fbc8f;
+    this.darkslateblue  = #483d8b;
+    this.darkslategrey  = #2f4f4f;
+    this.darkturquoise  = #00ced1;
+    this.darkviolet     = #9400d3;
+    this.deeppink       = #ff1493;
+    this.dimgrey        = #696969;
+    this.dodgerblue     = #1e90ff;
+    this.firebrick      = #b22222;
+    this.floralwhite    = #fffaf0;
+    this.forestgreen    = #228b22;
+    this.gainsboro      = #dcdcdc;
+    this.ghostwhite     = #f8f8ff;
+    this.gold           = #ffd700;
+    this.goldenrod      = #daa520;
+    this.greenyellow    = #adff2f;
+    this.honeydew       = #f0fff0;
+    this.hotpink        = #ff69b4;
+    this.indianred      = #cd5c5c;
+    this.indigo         = #4b0082;
+    this.ivory          = #fffff0;
+    this.khaki          = #f0e68c;
+    this.lavender       = #e6e6fa;
+    this.lavenderblush  = #fff0f5;
+    this.lawngreen      = #7cfc00;
+    this.lemonchiffon   = #fffacd;
+    this.lightblue      = #add8e6;
+    this.lightcoral     = #f08080;
+    this.lightcyan      = #e0ffff;
+    this.lightgoldenrodyellow   = #fafad2;
+
+    // CSS3
+    this.lightgrey      = #d3d3d3;
+    this.lightgreen     = #90ee90;
+    this.lightpink      = #ffb6c1;
+    this.lightsalmon    = #ffa07a;
+    this.lightseagreen  = #20b2aa;
+    this.lightskyblue   = #87cefa;
+    this.lightslategray = #778899;
+    this.lightsteelblue = #b0c4de;
+    this.lightyellow    = #ffffe0;
+    this.linen          = #faf0e6;
+    this.magenta        = #ff00ff;
+    this.pink           = #ffc0cb;
+*/
+
 --SUG/DOC:
 --global function CD2IUP(atom CD_COLOR)
 --  return sprintf("%06x",CD_COLOR)
@@ -5975,7 +6126,6 @@ atom
     xcdKillCanvas,
     xcdCanvasGetContext,
     xcdCanvasActivate,
-    xcdActiveCanvas,
     xcdCanvasDeactivate,
     xcdUseContextPlus,
     xcdInitContextPlus,
@@ -6067,7 +6217,6 @@ atom
     xcdCanvasSimulate,
     xcdCanvasFlush,
     xcdCanvasClear,
-    xcdClear,
     xcdCanvasSaveState,
     xcdCanvasRestoreState,
     xcdReleaseState,
@@ -6119,7 +6268,6 @@ atom
     xcdCanvasPixel,
     xcdCanvasMark,
     xcdCanvasLine,
-    xcdLine,
     xcdCanvasBegin,
     xcdCanvasVertex,
     xcdCanvasEnd,
@@ -6130,7 +6278,6 @@ atom
     xcdCanvasSector,
     xcdCanvasChord,
     xcdCanvasText,
-    xcdText,
 
     --
     -- primitives with double as arguments instead of integer
@@ -6151,8 +6298,6 @@ atom
     xcdCanvasSetBackground,
     xcdCanvasForeground,
     xcdCanvasBackground,
-    xcdForeground,
-    xcdBackground,
     xcdCanvasBackOpacity,
     xcdCanvasWriteMode,
     xcdCanvasLineStyle,
@@ -6170,9 +6315,7 @@ atom
     xcdCanvasFont,
     xcdCanvasGetFont,
     xcdCanvasNativeFont,
-    xcdNativeFont,
     xcdCanvasTextAlignment,
-    xcdTextAlignment,
     xcdCanvasTextOrientation,
     xcdCanvasMarkType,
     xcdCanvasMarkSize,
@@ -6363,7 +6506,6 @@ procedure iup_init_cd()
         xcdKillCanvas       = iup_c_proc(hCd, "cdKillCanvas", {P})
         xcdCanvasGetContext = iup_c_func(hCd, "cdCanvasGetContext", {P}, P)
         xcdCanvasActivate   = iup_c_func(hCd, "cdCanvasActivate", {P}, I)
-        xcdActiveCanvas     = iup_c_func(hCd, "cdActiveCanvas", {}, P)
         xcdCanvasDeactivate = iup_c_proc(hCd, "cdCanvasDeactivate", {P})
         xcdUseContextPlus   = iup_c_proc(hCd, "cdUseContextPlus", {I})
         xcdInitContextPlus  = define_c_proc(hCd, "cdInitContextPlus", {})   -- (-1 is handled OK)
@@ -6471,7 +6613,6 @@ end if
         xcdCanvasSimulate       = iup_c_func(hCd, "cdCanvasSimulate", {P,I},I)
         xcdCanvasFlush          = iup_c_proc(hCd, "cdCanvasFlush", {P})
         xcdCanvasClear          = iup_c_proc(hCd, "cdCanvasClear", {P})
-        xcdClear                = iup_c_proc(hCd, "cdClear", {})
         xcdCanvasSaveState      = iup_c_func(hCd, "cdCanvasSaveState", {P},P)
         xcdCanvasRestoreState   = iup_c_proc(hCd, "cdCanvasRestoreState", {P,P})
         xcdReleaseState         = iup_c_proc(hCd, "cdReleaseState", {P})
@@ -6526,7 +6667,6 @@ end if
         xcdCanvasPixel      = iup_c_proc(hCd, "cdCanvasPixel", {P,I,I,I})
         xcdCanvasMark       = iup_c_proc(hCd, "cdCanvasMark", {P,I,I})
         xcdCanvasLine       = iup_c_proc(hCd, "cdCanvasLine", {P,I,I,I,I})
-        xcdLine             = iup_c_proc(hCd, "cdLine", {I,I,I,I})
         xcdCanvasBegin      = iup_c_proc(hCd, "cdCanvasBegin", {P,I})
         xcdCanvasVertex     = iup_c_proc(hCd, "cdCanvasVertex", {P,I,I})
         xcdCanvasEnd        = iup_c_proc(hCd, "cdCanvasEnd", {P})
@@ -6537,7 +6677,6 @@ end if
         xcdCanvasSector     = iup_c_proc(hCd, "cdCanvasSector", {P,I,I,I,I,D,D})
         xcdCanvasChord      = iup_c_proc(hCd, "cdCanvasChord", {P,I,I,I,I,D,D})
         xcdCanvasText       = iup_c_proc(hCd, "cdCanvasText", {P,I,I,P})
-        xcdText             = iup_c_proc(hCd, "cdText", {I,I,P})
 
         --
         -- primitives with double as arguments instead of integer
@@ -6558,8 +6697,6 @@ end if
         xcdCanvasSetBackground   = iup_c_proc(hCd, "cdCanvasSetBackground", {P,I})
         xcdCanvasForeground      = iup_c_func(hCd, "cdCanvasForeground", {P,L}, L)
         xcdCanvasBackground      = iup_c_func(hCd, "cdCanvasBackground", {P,L}, L)
-        xcdForeground            = iup_c_proc(hCd, "cdForeground", {L})
-        xcdBackground            = iup_c_proc(hCd, "cdBackground", {L})
         xcdCanvasBackOpacity     = iup_c_func(hCd, "cdCanvasBackOpacity", {P,I}, I)
         xcdCanvasWriteMode       = iup_c_func(hCd, "cdCanvasWriteMode", {P,I}, I)
         xcdCanvasLineStyle       = iup_c_func(hCd, "cdCanvasLineStyle", {P,I}, I)
@@ -6577,9 +6714,7 @@ end if
         xcdCanvasFont            = iup_c_proc(hCd, "cdCanvasFont", {P,P,I,I})
         xcdCanvasGetFont         = iup_c_proc(hCd, "cdCanvasGetFont", {P,P,P,P})
         xcdCanvasNativeFont      = iup_c_func(hCd, "cdCanvasNativeFont", {P,P}, P)
-        xcdNativeFont            = iup_c_func(hCd, "cdNativeFont", {P}, P)
         xcdCanvasTextAlignment   = iup_c_func(hCd, "cdCanvasTextAlignment", {P,I}, I)
-        xcdTextAlignment         = iup_c_func(hCd, "cdTextAlignment", {I}, I)
         xcdCanvasTextOrientation = iup_c_func(hCd, "cdCanvasTextOrientation", {P,D}, D)
         xcdCanvasMarkType        = iup_c_func(hCd, "cdCanvasMarkType", {P,I}, I)
         xcdCanvasMarkSize        = iup_c_func(hCd, "cdCanvasMarkSize", {P,I}, I)
@@ -6625,7 +6760,8 @@ end if
         --
         -- client images 
         --
-        xcdCanvasGetImageRGB        = iup_c_proc(hCd, "cdCanvasGetImageRGB", {P,P,P,P,I,I,I,I})
+--      xcdCanvasGetImageRGB        = iup_c_proc(hCd, "cdCanvasGetImageRGB", {P,P,P,P,I,I,I,I})
+        xcdCanvasGetImageRGB        = iup_c_proc(hCd, "cdCanvasGetImageRGB", {P,P,P,P,P,I,I,I,I})
         xcdCanvasPutImageRectRGB    = iup_c_proc(hCd, "cdCanvasPutImageRectRGB", {P,I,I,P,P,P,I,I,I,I,I,I,I,I})
         xcdCanvasPutImageRectRGBA   = iup_c_proc(hCd, "cdCanvasPutImageRectRGBA", {P,I,I,P,P,P,P,I,I,I,I,I,I,I,I})
         xcdCanvasPutImageRectMap    = iup_c_proc(hCd, "cdCanvasPutImageRectMap", {P,I,I,P,P,I,I,I,I,I,I,I,I})
@@ -6817,7 +6953,6 @@ end function
 --  xcdKillCanvas       = iup_c_proc(hCd, "cdKillCanvas", {P}),
 --  xcdCanvasGetContext = iup_c_func(hCd, "cdCanvasGetContext", {P}, P),
 --  xcdCanvasActivate   = iup_c_func(hCd, "cdCanvasActivate", {P}, I),
---  xcdActiveCanvas     = iup_c_func(hCd, "cdActiveCanvas", {}, P),
 --  xcdCanvasDeactivate = iup_c_proc(hCd, "cdCanvasDeactivate", {P}),
 --  xcdUseContextPlus   = iup_c_proc(hCd, "cdUseContextPlus", {I}),
 
@@ -6843,12 +6978,6 @@ end function
 global procedure cdCanvasActivate(cdCanvas canvas)
     if c_func(xcdCanvasActivate, {canvas})!=CD_OK then ?9/0 end if
 end procedure
-
-global function cdActiveCanvas()
-    iup_init_cd()
-    cdCanvas res = c_func(xcdActiveCanvas,{})
-    return res
-end function
 
 global procedure cdCanvasDeactivate(cdCanvas canvas)
     c_proc(xcdCanvasDeactivate, {canvas})
@@ -6884,6 +7013,42 @@ global function cdContextRegisterCallback(cdContext context, integer cb, atom cb
     return c_func(xcdContextRegisterCallback, {cd_context(context), cb, cbFunc})
 end function
 
+--/* SUG for use with decode_flags - or maybe just put this in docs in a "Copy" box?
+-- - then again, I cannot think of a single case when this would actually be useful?
+global constant CD_CAP_FLAGSET = {{CD_CAP_NONE,             "CD_CAP_NONE"},
+                                  {CD_CAP_FLUSH,            "CD_CAP_FLUSH"},
+                                  {CD_CAP_CLEAR,            "CD_CAP_CLEAR"},
+                                  {CD_CAP_PLAY,             "CD_CAP_PLAY"},
+                                  {CD_CAP_YAXIS,            "CD_CAP_YAXIS"},
+                                  {CD_CAP_CLIPAREA,         "CD_CAP_CLIPAREA"},
+                                  {CD_CAP_CLIPPOLY,         "CD_CAP_CLIPPOLY"},
+                                  {CD_CAP_REGION,           "CD_CAP_REGION"},
+                                  {CD_CAP_RECT,             "CD_CAP_RECT"},
+                                  {CD_CAP_CHORD,            "CD_CAP_CHORD"},
+                                  {CD_CAP_IMAGERGB,         "CD_CAP_IMAGERGB"},
+                                  {CD_CAP_IMAGERGBA,        "CD_CAP_IMAGERGBA"},
+                                  {CD_CAP_IMAGEMAP ,        "CD_CAP_IMAGEMAP"},
+                                  {CD_CAP_GETIMAGERGB ,     "CD_CAP_GETIMAGERGB"},
+                                  {CD_CAP_IMAGESRV,         "CD_CAP_IMAGESRV"},
+                                  {CD_CAP_BACKGROUND ,      "CD_CAP_BACKGROUND"},
+                                  {CD_CAP_BACKOPACITY ,     "CD_CAP_BACKOPACITY"},
+                                  {CD_CAP_WRITEMODE ,       "CD_CAP_WRITEMODE"},
+                                  {CD_CAP_LINESTYLE ,       "CD_CAP_LINESTYLE"},
+                                  {CD_CAP_LINEWITH ,        "CD_CAP_LINEWITH"},
+                                  {CD_CAP_FPRIMTIVES,       "CD_CAP_FPRIMTIVES"},
+                                  {CD_CAP_HATCH ,           "CD_CAP_HATCH"},
+                                  {CD_CAP_STIPPLE ,         "CD_CAP_STIPPLE"},
+                                  {CD_CAP_PATTERN ,         "CD_CAP_PATTERN"},
+                                  {CD_CAP_FONT ,            "CD_CAP_FONT"},
+                                  {CD_CAP_FONTDIM,          "CD_CAP_FONTDIM"},
+                                  {CD_CAP_TEXTSIZE,         "CD_CAP_TEXTSIZE"},
+                                  {CD_CAP_TEXTORIENTATION,  "CD_CAP_TEXTORIENTATION"},
+                                  {CD_CAP_PALETTE,          "CD_CAP_PALETTE"},
+                                  {CD_CAP_LINECAP ,         "CD_CAP_LINECAP"},
+                                  {CD_CAP_LINEJOIN,         "CD_CAP_LINEJOIN"},
+                                  {CD_CAP_PATH ,            "CD_CAP_PATH"},
+                                  {CD_CAP_BEZIER ,          "CD_CAP_BEZIER"}}
+--*/
 global function cdContextCaps(cdContext context)
     iup_init_cd()
     atom res = c_func(xcdContextCaps, {cd_context(context)})
@@ -6942,10 +7107,6 @@ end procedure
 
 global procedure cdCanvasFlush(cdCanvas canvas)
     c_proc(xcdCanvasFlush, {canvas})
-end procedure
-
-global procedure cdClear()
-    c_proc(xcdClear,{})
 end procedure
 
 --global function canvas_save_state(cdCanvas canvas)
@@ -7260,186 +7421,6 @@ global procedure cdCanvasRegionCombineMode(cdCanvas canvas, integer mode)
     {} = c_func(xcdCanvasRegionCombineMode, {canvas, mode})
 end procedure
 
---------------------------------------------------------------------------------------------
-----
----- drawing primitives
-----
---------------------------------------------------------------------------------------------
---constant
---  xcdCanvasPixel  = iup_c_proc(hCd, "cdCanvasPixel", {P,I,I,I}),
---  xcdCanvasMark   = iup_c_proc(hCd, "cdCanvasMark", {P,I,I}),
---  xcdCanvasLine   = iup_c_proc(hCd, "cdCanvasLine", {P,I,I,I,I}),
---  xcdLine         = iup_c_proc(hCd, "cdLine", {I,I,I,I}),
---  xcdCanvasBegin  = iup_c_proc(hCd, "cdCanvasBegin", {P,I}),
---  xcdCanvasVertex = iup_c_proc(hCd, "cdCanvasVertex", {P,I,I}),
---  xcdCanvasEnd    = iup_c_proc(hCd, "cdCanvasEnd", {P}),
---  xcdCanvasRect   = iup_c_proc(hCd, "cdCanvasRect", {P,I,I,I,I}),
---  xcdCanvasBox    = iup_c_proc(hCd, "cdCanvasBox", {P,I,I,I,I}),
---  xcdCanvasArc    = iup_c_proc(hCd, "cdCanvasArc", {P,I,I,I,I,D,D}),
---  xcdCanvasSector = iup_c_proc(hCd, "cdCanvasSector", {P,I,I,I,I,D,D}),
---  xcdCanvasChord  = iup_c_proc(hCd, "cdCanvasChord", {P,I,I,I,I,D,D}),
---  xcdCanvasText   = iup_c_proc(hCd, "cdCanvasText", {P,I,I,P}),
---  xcdText         = iup_c_proc(hCd, "cdText", {I,I,P})
-
-global procedure cdCanvasPixel(cdCanvas canvas, atom x, y, integer color)
-    c_proc(xcdCanvasPixel, {canvas, x, y, color})
-end procedure
-
-global procedure cdCanvasMark(cdCanvas canvas, atom x, y)
-    c_proc(xcdCanvasMark, {canvas, x, y})
-end procedure
-
-global procedure cdCanvasLine(cdCanvas canvas, atom x1, y1, x2, y2)
-    c_proc(xcdCanvasLine, {canvas, x1, y1, x2, y2})
-end procedure
-
-global procedure cdLine(atom x1, y1, x2, y2)
-    c_proc(xcdLine, {x1, y1, x2, y2})
-end procedure
-
-global procedure cdCanvasBegin(cdCanvas canvas, integer mode)
-    c_proc(xcdCanvasBegin, {canvas, mode})
-end procedure
-
-global procedure cdCanvasVertex(cdCanvas canvas, atom x, y)
-    c_proc(xcdCanvasVertex, {canvas, x, y})
-end procedure
-
-global procedure cdCanvasEnd(cdCanvas canvas)
-    c_proc(xcdCanvasEnd, {canvas})
-end procedure
-
-global procedure cdCanvasPathSet(cdCanvas canvas, integer action)
-    c_proc(xcdCanvasPathSet, {canvas, action})
-end procedure
-
-global procedure cdCanvasRect(cdCanvas canvas, atom xmin, xmax, ymin, ymax)
-    c_proc(xcdCanvasRect, {canvas, xmin, xmax, ymin, ymax})
-end procedure
-
-global procedure cdCanvasBox(cdCanvas canvas, atom xmin, xmax, ymin, ymax)
-    c_proc(xcdCanvasBox, {canvas, xmin, xmax, ymin, ymax})
-end procedure
-
-global procedure cdCanvasArc(cdCanvas canvas, atom xc, atom yc, atom w, atom h, atom angle1, atom angle2)
-    c_proc(xcdCanvasArc, {canvas, xc, yc, w, h, angle1, angle2})
-end procedure
-
-global procedure cdCanvasSector(cdCanvas canvas, atom xc, atom yc, atom w, atom h, atom angle1, atom angle2)
-    c_proc(xcdCanvasSector, {canvas, xc, yc, w, h, angle1, angle2})
-end procedure
-
-global procedure cdCanvasCircle(cdCanvas canvas, atom x, y, r, boolean filled=false)
-    if filled then
-        cdCanvasSector(canvas,x,y,r,r,0,360)
-    else
-        cdCanvasArc(canvas,x,y,r,r,0,360)
-    end if
-end procedure
-
-global procedure cdCanvasRoundedBox(cdCanvas canvas, atom xmin, atom xmax, atom ymin, atom ymax, atom width, atom height) 
-    -- first draw the filled rectangle with straight-clipped corners (aka an octagon)
-    cdCanvasBegin(canvas,CD_FILL)
-    cdCanvasVertex(canvas,xmin+width,ymin)
-    cdCanvasVertex(canvas,xmax-width,ymin)
-    cdCanvasVertex(canvas,xmax,ymin+height)
-    cdCanvasVertex(canvas,xmax,ymax-height)
-    cdCanvasVertex(canvas,xmax-width,ymax)
-    cdCanvasVertex(canvas,xmin+width,ymax)
-    cdCanvasVertex(canvas,xmin,ymax-height)
-    cdCanvasVertex(canvas,xmin,ymin+height)
-    cdCanvasEnd(canvas)
-    -- then round/fill in the corners using cdCanvasSector
---  cdCanvasSector(cdCanvas canvas, atom xc, atom yc, atom w, atom h, atom angle1, atom angle2) 
---  cdCanvasSetForeground(cddbuffer, CD_RED)
-    cdCanvasSector(canvas, xmin+width,ymin+height,width*2,height*2,180,270)     -- btm left
-    cdCanvasSector(canvas, xmax-width,ymin+height,width*2,height*2,270,0)       -- btm right
-    cdCanvasSector(canvas, xmin+width,ymax-height,width*2,height*2,90,180)      -- top left
-    cdCanvasSector(canvas, xmax-width,ymax-height,width*2,height*2,0,90)        -- top right
-end procedure
-
-global procedure cdCanvasRoundedRect(cdCanvas canvas, atom xmin, atom xmax, atom ymin, atom ymax, atom width, atom height) 
-    -- first draw four edges, not-quite-meeting
-    cdCanvasLine(canvas,xmin+width,ymin,xmax-width,ymin)
-    cdCanvasLine(canvas,xmax,ymin+height,xmax,ymax-height)
-    cdCanvasLine(canvas,xmax-width,ymax,xmin+width,ymax)
-    cdCanvasLine(canvas,xmin,ymax-height,xmin,ymin+height)
-    -- then round/connect the corners using cdCanvasArc
---  cdCanvasArc(cdCanvas canvas, atom xc, atom yc, atom w, atom h, atom a1, atom a2) 
---  cdCanvasSetForeground(cddbuffer, CD_RED)
-    cdCanvasArc(canvas, xmin+width,ymin+height,width*2,height*2,180,270)
-    cdCanvasArc(canvas, xmax-width,ymin+height,width*2,height*2,270,0)
-    cdCanvasArc(canvas, xmin+width,ymax-height,width*2,height*2,90,180)
-    cdCanvasArc(canvas, xmax-width,ymax-height,width*2,height*2,0,90)
-end procedure
-
-global procedure cdCanvasChord(cdCanvas canvas, atom xc, atom yc, atom w, atom h, atom a1, atom a2)
-    c_proc(xcdCanvasChord, {canvas, xc, yc, w, h, a1, a2})
-end procedure
-
-global procedure cdCanvasText(cdCanvas canvas, atom x, atom y, string text)
-    c_proc(xcdCanvasText, {canvas, x, y, text})
-end procedure
-
-global procedure cdText(atom x, atom y, string text)
-    c_proc(xcdText, {x, y, text})
-end procedure
-
------------------------------------------------------------------------------------------
-----
----- primitives with double as arguments instead of integer
-----
--------------------------------------------------------------------------------------------
---constant
---  xcdfCanvasLine      = iup_c_proc(hCd, "cdfCanvasLine", {P,D,D,D,D}),
---  xcdfCanvasVertex    = iup_c_proc(hCd, "cdfCanvasVertex", {P,D,D}),
---  xcdfCanvasRect      = iup_c_proc(hCd, "cdfCanvasRect", {P,D,D,D,D}),
---  xcdfCanvasBox       = iup_c_proc(hCd, "cdfCanvasBox", {P,D,D,D,D}),
---  xcdfCanvasArc       = iup_c_proc(hCd, "cdfCanvasArc", {P,D,D,D,D,D,D}),
---  xcdfCanvasSector    = iup_c_proc(hCd, "cdfCanvasSector", {P,D,D,D,D,D,D}),
---  xcdfCanvasChord     = iup_c_proc(hCd, "cdfCanvasChord", {P,D,D,D,D,D,D}),
---  xcdfCanvasText      = iup_c_proc(hCd, "cdfCanvasText", {P,D,D,P})
-
---global procedure f_canvas_line(cdCanvas canvas, atom x1, atom y1, atom x2, atom y2)
-----global procedure cdfCanvasLine(cdCanvas canvas, atom x1, atom y1, atom x2, atom y2)
---  c_proc(xcdfCanvasLine, {canvas, x1, y1, x2, y2})
---end procedure
-
---global procedure f_canvas_vertex(cdCanvas canvas, atom x1, atom y1)
-----global procedure cdfCanvasVertex(cdCanvas canvas, atom x1, atom y1)
---  c_proc(xcdfCanvasVertex, {canvas, x1, y1})
---end procedure
-
---global procedure f_canvas_rect(cdCanvas canvas, atom xmin, atom ymin, atom xmax, atom ymax)
-----global procedure cdfCanvasRect(cdCanvas canvas, atom xmin, atom ymin, atom xmax, atom ymax)
---  c_proc(xcdfCanvasRect, {canvas, xmin, ymin, xmax, ymax})
---end procedure
-
---global procedure f_canvas_box(cdCanvas canvas, atom xmin, atom ymin, atom xmax, atom ymax)
-----global procedure cdfCanvasBox(cdCanvas canvas, atom xmin, atom ymin, atom xmax, atom ymax)
---  c_proc(xcdfCanvasBox, {canvas, xmin, ymin, xmax, ymax})
---end procedure
-
---global procedure f_canvas_arc(cdCanvas canvas, atom xc, atom yc, atom w, atom h, atom angle1, atom angle2)
-----global procedure cdfCanvasArc(cdCanvas canvas, atom xc, atom yc, atom w, atom h, atom angle1, atom angle2)
---  c_proc(xcdfCanvasArc, {canvas, xc, yc, w, h, angle1, angle2})
---end procedure
-
---global procedure f_canvas_sector(cdCanvas canvas, atom xc, atom yc, atom w, atom h, atom angle1, atom angle2)
-----global procedure cdfCanvasSector(cdCanvas canvas, atom xc, atom yc, atom w, atom h, atom angle1, atom angle2)
---  c_proc(xcdfCanvasSector, {canvas, xc, yc, w, h, angle1, angle2})
---end procedure
-
---global procedure f_canvas_chord(cdCanvas canvas, atom xc, atom yc, atom w, atom h, atom angle1, atom angle2)
-----global procedure cdfCanvasChord(cdCanvas canvas, atom xc, atom yc, atom w, atom h, atom angle1, atom angle2)
---  c_proc(xcdfCanvasChord, {canvas, xc, yc, w, h, angle1, angle2})
---end procedure
-
---global procedure f_canvas_text(cdCanvas canvas, atom x1, atom y1, string text)
-----global procedure cdfCanvasText(cdCanvas canvas, atom x1, atom y1, string text)
---  c_proc(xcdfCanvasText, {canvas, x1, y1, text})
---end procedure
-
 ------------------------------------------------------------------------------------------
 ----
 ---- attributes
@@ -7447,11 +7428,9 @@ end procedure
 --------------------------------------------------------------------------------------------
 --constant
 --  xcdCanvasSetForeground   = iup_c_proc(hCd, "cdCanvasSetForeground", {P,I}),
---  xcdCanvasSetBackground   = iup_c_proc(hCd, "cdCanvasSetBackground", {P,I}),
+--X xcdCanvasSetBackground   = iup_c_proc(hCd, "cdCanvasSetBackground", {P,I}),
 --  xcdCanvasForeground      = iup_c_func(hCd, "cdCanvasForeground", {P,L}, L),
 --  xcdCanvasBackground      = iup_c_func(hCd, "cdCanvasBackground", {P,L}, L),
---  xcdForeground            = iup_c_proc(hCd, "cdForeground", {L}),
---  xcdBackground            = iup_c_proc(hCd, "cdBackground", {L}),
 --  xcdCanvasBackOpacity     = iup_c_func(hCd, "cdCanvasBackOpacity", {P,I}, I),
 --  xcdCanvasWriteMode       = iup_c_func(hCd, "cdCanvasWriteMode", {P,I}, I),
 --  xcdCanvasLineStyle       = iup_c_func(hCd, "cdCanvasLineStyle", {P,I}, I),
@@ -7469,9 +7448,7 @@ end procedure
 --  xcdCanvasFont            = iup_c_proc(hCd, "cdCanvasFont", {P,P,I,I}),
 --  xcdCanvasGetFont         = iup_c_proc(hCd, "cdCanvasGetFont", {P,P,P,P}),
 --  xcdCanvasNativeFont      = iup_c_func(hCd, "cdCanvasNativeFont", {P,P}, P),
---  xcdNativeFont            = iup_c_func(hCd, "cdNativeFont", {P}, P),
 --  xcdCanvasTextAlignment   = iup_c_func(hCd, "cdCanvasTextAlignment", {P,I}, I),
---  xcdTextAlignment         = iup_c_func(hCd, "cdTextAlignment", {I}, I),
 --  xcdCanvasTextOrientation = iup_c_func(hCd, "cdCanvasTextOrientation", {P,D}, D),
 --  xcdCanvasMarkType        = iup_c_func(hCd, "cdCanvasMarkType", {P,I}, I),
 --  xcdCanvasMarkSize        = iup_c_func(hCd, "cdCanvasMarkSize", {P,I}, I)
@@ -7485,15 +7462,6 @@ global function cdCanvasGetForeground(cdCanvas canvas)
     return color
 end function
 
-global procedure cdSetForeground(atom color)
-    iup_init_cd()
-    c_proc(xcdForeground, {color})
-end procedure
-
-global function cdGetForeground()
-    return cdCanvasGetForeground(cdActiveCanvas())
-end function
-
 global procedure cdCanvasSetBackground(cdCanvas canvas, atom color)
     c_proc(xcdCanvasSetBackground, {canvas, color})
 end procedure
@@ -7502,21 +7470,13 @@ global function cdCanvasGetBackground(cdCanvas canvas)
     return c_func(xcdCanvasBackground, {canvas, CD_QUERY})
 end function
 
-global procedure cdSetBackground(atom color)
-    c_proc(xcdBackground, {color})
-end procedure
-
-global function cdGetBackground()
-    return cdCanvasGetBackground(cdActiveCanvas())
-end function
-
 --global function cdCanvasBackOpacity(cdCanvas canvas, atom opacity)
 global procedure cdCanvasSetBackOpacity(cdCanvas canvas, integer opacity)
     opacity = c_func(xcdCanvasBackOpacity, {canvas, opacity})
 end procedure
 
 global function cdCanvasGetBackOpacity(cdCanvas canvas)
-    integer opacity = c_func(xcdCanvasBackOpacity, {canvas, opacity})
+    integer opacity = c_func(xcdCanvasBackOpacity, {canvas, CD_QUERY})
     return opacity
 end function
 
@@ -7547,6 +7507,8 @@ global function cdCanvasGetLineWidth(cdCanvas canvas)
 end function
 
 global procedure cdCanvasSetLineStyle(cdCanvas canvas, integer style)
+--  {} = c_func(xcdCanvasLineStyle, {canvas, CD_CONTINUOUS})
+--  c_proc(xcdCanvasLineStyleDashes, {canvas, NULL, 0})
     style = c_func(xcdCanvasLineStyle, {canvas, style})
 end procedure
 
@@ -7660,8 +7622,6 @@ global function cdCanvasGetPattern(cdCanvas canvas)
     return {w, h, pattern}
 end function
 
---global function canvas_fill_mode(cdCanvas canvas, atom mode)
---global function cdCanvasFillMode(cdCanvas canvas, integer mode)
 global procedure cdCanvasSetFillMode(cdCanvas canvas, integer mode)
     mode = c_func(xcdCanvasFillMode, {canvas, mode})
 end procedure
@@ -7697,40 +7657,217 @@ global function cdCanvasGetNativeFont(cdCanvas canvas)
     return font
 end function
 
-global procedure cdSetNativeFont(string font)
-    atom pFont = c_func(xcdNativeFont, {font})
+global procedure cdCanvasSetTextAlignment(cdCanvas canvas, integer alignment)
+    {} = c_func(xcdCanvasTextAlignment, {canvas, alignment})
 end procedure
 
-global function cdGetNativeFont()
-    atom pFont = c_func(xcdNativeFont, {CD_QUERY})
-    string font = peek_string(pFont)
-    return font
-end function
-
-global function cdCanvasTextAlignment(cdCanvas canvas, integer alignment)
-    integer prev_alignment = c_func(xcdCanvasTextAlignment, {canvas, alignment})
+global function cdCanvasGetTextAlignment(cdCanvas canvas)
+    integer prev_alignment = c_func(xcdCanvasTextAlignment, {canvas, CD_QUERY})
     return prev_alignment
 end function
 
-global function cdTextAlignment(integer alignment)
-    integer prev_alignment = c_func(xcdTextAlignment, {alignment})
-    return prev_alignment
+global procedure cdCanvasSetTextOrientation(cdCanvas canvas, atom angle)
+    {} = c_func(xcdCanvasTextOrientation, {canvas, angle})
+end procedure
+
+global function cdCanvasGetTextOrientation(cdCanvas canvas)
+    return c_func(xcdCanvasTextOrientation, {canvas, CD_QUERY})
 end function
 
---global function canvas_text_orientation(cdCanvas canvas, atom angle)
-global function cdCanvasTextOrientation(cdCanvas canvas, atom angle)
-    return c_func(xcdCanvasTextOrientation, {canvas, angle})
-end function
-
---global function canvas_mark_type(cdCanvas canvas, atom mtype)
 global function cdCanvasMarkType(cdCanvas canvas, atom mtype)
     return c_func(xcdCanvasMarkType, {canvas, mtype})
 end function
 
---global function canvas_mark_size(cdCanvas canvas, atom msize)
 global function cdCanvasMarkSize(cdCanvas canvas, atom msize)
     return c_func(xcdCanvasMarkSize, {canvas, msize})
 end function
+
+--------------------------------------------------------------------------------------------
+----
+---- drawing primitives
+----
+--------------------------------------------------------------------------------------------
+--constant
+--  xcdCanvasPixel  = iup_c_proc(hCd, "cdCanvasPixel", {P,I,I,I}),
+--  xcdCanvasMark   = iup_c_proc(hCd, "cdCanvasMark", {P,I,I}),
+--  xcdCanvasLine   = iup_c_proc(hCd, "cdCanvasLine", {P,I,I,I,I}),
+--  xcdCanvasBegin  = iup_c_proc(hCd, "cdCanvasBegin", {P,I}),
+--  xcdCanvasVertex = iup_c_proc(hCd, "cdCanvasVertex", {P,I,I}),
+--  xcdCanvasEnd    = iup_c_proc(hCd, "cdCanvasEnd", {P}),
+--  xcdCanvasRect   = iup_c_proc(hCd, "cdCanvasRect", {P,I,I,I,I}),
+--  xcdCanvasBox    = iup_c_proc(hCd, "cdCanvasBox", {P,I,I,I,I}),
+--  xcdCanvasArc    = iup_c_proc(hCd, "cdCanvasArc", {P,I,I,I,I,D,D}),
+--  xcdCanvasSector = iup_c_proc(hCd, "cdCanvasSector", {P,I,I,I,I,D,D}),
+--  xcdCanvasChord  = iup_c_proc(hCd, "cdCanvasChord", {P,I,I,I,I,D,D}),
+--  xcdCanvasText   = iup_c_proc(hCd, "cdCanvasText", {P,I,I,P}),
+
+global procedure cdCanvasPixel(cdCanvas canvas, atom x, y, color)
+    c_proc(xcdCanvasPixel, {canvas, x, y, color})
+end procedure
+
+global procedure cdCanvasMark(cdCanvas canvas, atom x, y)
+    c_proc(xcdCanvasMark, {canvas, x, y})
+end procedure
+
+global procedure cdCanvasLine(cdCanvas canvas, atom x1, y1, x2, y2)
+    c_proc(xcdCanvasLine, {canvas, x1, y1, x2, y2})
+end procedure
+
+global procedure cdCanvasBegin(cdCanvas canvas, integer mode)
+    c_proc(xcdCanvasBegin, {canvas, mode})
+end procedure
+
+global procedure cdCanvasVertex(cdCanvas canvas, atom x, y)
+    c_proc(xcdCanvasVertex, {canvas, x, y})
+end procedure
+
+global procedure cdCanvasEnd(cdCanvas canvas)
+    c_proc(xcdCanvasEnd, {canvas})
+end procedure
+
+global procedure cdCanvasPathSet(cdCanvas canvas, integer action)
+    c_proc(xcdCanvasPathSet, {canvas, action})
+end procedure
+
+global procedure cdCanvasRect(cdCanvas canvas, atom xmin, xmax, ymin, ymax)
+    c_proc(xcdCanvasRect, {canvas, xmin, xmax, ymin, ymax})
+end procedure
+
+global procedure cdCanvasBox(cdCanvas canvas, atom xmin, xmax, ymin, ymax)
+    c_proc(xcdCanvasBox, {canvas, xmin, xmax, ymin, ymax})
+end procedure
+
+global procedure cdCanvasArc(cdCanvas canvas, atom xc, atom yc, atom w, atom h, atom angle1, atom angle2)
+    c_proc(xcdCanvasArc, {canvas, xc, yc, w, h, angle1, angle2})
+end procedure
+
+global procedure cdCanvasSector(cdCanvas canvas, atom xc, atom yc, atom w, atom h, atom angle1, atom angle2)
+    c_proc(xcdCanvasSector, {canvas, xc, yc, w, h, angle1, angle2})
+end procedure
+
+global procedure cdCanvasCircle(cdCanvas canvas, atom x, y, r, boolean filled=false)
+    if filled then
+        cdCanvasSector(canvas,x,y,r,r,0,360)
+    else
+        cdCanvasArc(canvas,x,y,r,r,0,360)
+    end if
+end procedure
+
+global procedure cdCanvasRoundedBox(cdCanvas canvas, atom xmin, xmax, ymin, ymax, w, h) 
+    -- first draw the filled rectangle with straight-clipped corners (aka an octagon)
+    cdCanvasBegin(canvas,CD_FILL)
+    cdCanvasVertex(canvas,xmin+w,ymin)
+    cdCanvasVertex(canvas,xmax-w,ymin)
+    cdCanvasVertex(canvas,xmax,ymin+h)
+    cdCanvasVertex(canvas,xmax,ymax-h)
+    cdCanvasVertex(canvas,xmax-w,ymax)
+    cdCanvasVertex(canvas,xmin+w,ymax)
+    cdCanvasVertex(canvas,xmin,ymax-h)
+    cdCanvasVertex(canvas,xmin,ymin+h)
+    cdCanvasEnd(canvas)
+    -- then round/fill in the corners using cdCanvasSector
+--  cdCanvasSector(cdCanvas canvas, atom xc, yc, w, h, angle1, angle2) 
+--  cdCanvasSetForeground(cddbuffer, CD_RED)
+    cdCanvasSector(canvas, xmin+w,ymin+h,w*2,h*2,180,270)   -- btm left
+    cdCanvasSector(canvas, xmax-w,ymin+h,w*2,h*2,270,0)     -- btm right
+    cdCanvasSector(canvas, xmin+w,ymax-h,w*2,h*2,90,180)    -- top left
+    cdCanvasSector(canvas, xmax-w,ymax-h,w*2,h*2,0,90)      -- top right
+end procedure
+
+global procedure cdCanvasRoundedRect(cdCanvas canvas, atom xmin, xmax, ymin, ymax, w, h) 
+    -- first draw four edges, not-quite-meeting
+    cdCanvasLine(canvas,xmin+w,ymin,xmax-w,ymin)
+    cdCanvasLine(canvas,xmax,ymin+h,xmax,ymax-h)
+    cdCanvasLine(canvas,xmax-w,ymax,xmin+w,ymax)
+    cdCanvasLine(canvas,xmin,ymax-h,xmin,ymin+h)
+    -- then round/connect the corners using cdCanvasArc
+--  cdCanvasArc(cdCanvas canvas, atom xc, yc, w, h, a1, a2) 
+--  cdCanvasSetForeground(cddbuffer, CD_RED)
+    cdCanvasArc(canvas, xmin+w,ymin+h,w*2,h*2,180,270)
+    cdCanvasArc(canvas, xmax-w,ymin+h,w*2,h*2,270,0)
+    cdCanvasArc(canvas, xmin+w,ymax-h,w*2,h*2,90,180)
+    cdCanvasArc(canvas, xmax-w,ymax-h,w*2,h*2,0,90)
+end procedure
+
+global procedure cdCanvasChord(cdCanvas canvas, atom xc, atom yc, atom w, atom h, atom a1, atom a2)
+    c_proc(xcdCanvasChord, {canvas, xc, yc, w, h, a1, a2})
+end procedure
+
+global procedure cdCanvasText(cdCanvas canvas, atom x, y, string text)
+    c_proc(xcdCanvasText, {canvas, x, y, text})
+end procedure
+
+//DEV docs glCanvasSpecialText() is a special function I made to get demo\pGUI\HelloF.exw working
+//          (the point being is that the version of this in pGUI.js is all rather different..)
+global function glCanvasSpecialText(Ihandle cd_canvas, atom w, h, fontsize, string text)
+
+    cdCanvasSetBackground(cd_canvas, CD_GREY)
+    cdCanvasSetTextAlignment(cd_canvas, CD_CENTER) 
+    cdCanvasFont(cd_canvas,"Courier",CD_PLAIN,fontsize)
+    cdCanvasActivate(cd_canvas)
+    cdCanvasClear(cd_canvas)
+    --
+    -- Of course you could do all sorts of other (2D) stuff here.
+    -- Just don't look at me, should loading images trigger CORS.
+    --
+    cdCanvasText(cd_canvas,w/2,h/2,text)
+    -- see also glTexImage2Dc() in opengl.e for the second half of the processing required on desktop/Phix...
+    return cd_canvas
+end function
+-----------------------------------------------------------------------------------------
+----
+---- primitives with double as arguments instead of integer
+----
+-------------------------------------------------------------------------------------------
+--constant
+--  xcdfCanvasLine      = iup_c_proc(hCd, "cdfCanvasLine", {P,D,D,D,D}),
+--  xcdfCanvasVertex    = iup_c_proc(hCd, "cdfCanvasVertex", {P,D,D}),
+--  xcdfCanvasRect      = iup_c_proc(hCd, "cdfCanvasRect", {P,D,D,D,D}),
+--  xcdfCanvasBox       = iup_c_proc(hCd, "cdfCanvasBox", {P,D,D,D,D}),
+--  xcdfCanvasArc       = iup_c_proc(hCd, "cdfCanvasArc", {P,D,D,D,D,D,D}),
+--  xcdfCanvasSector    = iup_c_proc(hCd, "cdfCanvasSector", {P,D,D,D,D,D,D}),
+--  xcdfCanvasChord     = iup_c_proc(hCd, "cdfCanvasChord", {P,D,D,D,D,D,D}),
+--  xcdfCanvasText      = iup_c_proc(hCd, "cdfCanvasText", {P,D,D,P})
+
+--global procedure f_canvas_line(cdCanvas canvas, atom x1, atom y1, atom x2, atom y2)
+----global procedure cdfCanvasLine(cdCanvas canvas, atom x1, atom y1, atom x2, atom y2)
+--  c_proc(xcdfCanvasLine, {canvas, x1, y1, x2, y2})
+--end procedure
+
+--global procedure f_canvas_vertex(cdCanvas canvas, atom x1, atom y1)
+----global procedure cdfCanvasVertex(cdCanvas canvas, atom x1, atom y1)
+--  c_proc(xcdfCanvasVertex, {canvas, x1, y1})
+--end procedure
+
+--global procedure f_canvas_rect(cdCanvas canvas, atom xmin, atom ymin, atom xmax, atom ymax)
+----global procedure cdfCanvasRect(cdCanvas canvas, atom xmin, atom ymin, atom xmax, atom ymax)
+--  c_proc(xcdfCanvasRect, {canvas, xmin, ymin, xmax, ymax})
+--end procedure
+
+--global procedure f_canvas_box(cdCanvas canvas, atom xmin, atom ymin, atom xmax, atom ymax)
+----global procedure cdfCanvasBox(cdCanvas canvas, atom xmin, atom ymin, atom xmax, atom ymax)
+--  c_proc(xcdfCanvasBox, {canvas, xmin, ymin, xmax, ymax})
+--end procedure
+
+--global procedure f_canvas_arc(cdCanvas canvas, atom xc, atom yc, atom w, atom h, atom angle1, atom angle2)
+----global procedure cdfCanvasArc(cdCanvas canvas, atom xc, atom yc, atom w, atom h, atom angle1, atom angle2)
+--  c_proc(xcdfCanvasArc, {canvas, xc, yc, w, h, angle1, angle2})
+--end procedure
+
+--global procedure f_canvas_sector(cdCanvas canvas, atom xc, atom yc, atom w, atom h, atom angle1, atom angle2)
+----global procedure cdfCanvasSector(cdCanvas canvas, atom xc, atom yc, atom w, atom h, atom angle1, atom angle2)
+--  c_proc(xcdfCanvasSector, {canvas, xc, yc, w, h, angle1, angle2})
+--end procedure
+
+--global procedure f_canvas_chord(cdCanvas canvas, atom xc, atom yc, atom w, atom h, atom angle1, atom angle2)
+----global procedure cdfCanvasChord(cdCanvas canvas, atom xc, atom yc, atom w, atom h, atom angle1, atom angle2)
+--  c_proc(xcdfCanvasChord, {canvas, xc, yc, w, h, angle1, angle2})
+--end procedure
+
+--global procedure f_canvas_text(cdCanvas canvas, atom x1, atom y1, string text)
+----global procedure cdfCanvasText(cdCanvas canvas, atom x1, atom y1, string text)
+--  c_proc(xcdfCanvasText, {canvas, x1, y1, text})
+--end procedure
 
 -----------------------------------------------------------------------------------------
 ----
@@ -7741,12 +7878,11 @@ end function
 --  xcdCanvasVectorText             = iup_c_proc(hCd, "cdCanvasVectorText", {P,I,I,P}),
 --  xcdCanvasMultiLineVectorText    = iup_c_proc(hCd, "cdCanvasMultiLineVectorText", {P,I,I,P})
 
---global procedure canvas_vector_text(cdCanvas canvas, atom x, atom y, string text)
-global procedure cdCanvasVectorText(cdCanvas canvas, atom x, atom y, string text)
+global procedure cdCanvasVectorText(cdCanvas canvas, atom x, y, string text)
     c_proc(xcdCanvasVectorText, {canvas, x, y, text})
 end procedure
 
-global procedure cdCanvasMultiLineVectorText(cdCanvas canvas, atom x, atom y, string text)
+global procedure cdCanvasMultiLineVectorText(cdCanvas canvas, atom x, y, string text)
     c_proc(xcdCanvasMultiLineVectorText, {canvas, x, y, text})
 end procedure
 
@@ -7784,7 +7920,7 @@ end function
 
 --DEV cdCanvasVectorTextBox
 
-global procedure cdCanvasVectorTextDirection(cdCanvas canvas, integer x1, integer y1, integer x2, integer y2)
+global procedure cdCanvasVectorTextDirection(cdCanvas canvas, integer x1, y1, x2, y2)
     c_proc(xcdCanvasVectorTextDirection, {canvas, x1, y1, x2, y2})
 end procedure
 
@@ -7805,7 +7941,7 @@ global function cdCanvasVectorTextTransform(cdCanvas canvas, sequence matrix)
     return matrix
 end function
 
-global procedure cdCanvasVectorTextSize(cdCanvas canvas, atom w, atom h, string text)
+global procedure cdCanvasVectorTextSize(cdCanvas canvas, atom w, h, string text)
     c_proc(xcdCanvasVectorTextSize, {canvas, w, h, text})
 end procedure
 
@@ -7946,20 +8082,28 @@ end procedure
 --  xcdCanvasPutImageRectRGBA   = iup_c_proc(hCd, "cdCanvasPutImageRectRGBA", {P,I,I,P,P,P,P,I,I,I,I,I,I,I,I}),
 --  xcdCanvasPutImageRectMap    = iup_c_proc(hCd, "cdCanvasPutImageRectMap", {P,I,I,P,P,I,I,I,I,I,I,I,I})
 
-global function cdCanvasGetImageRGB(cdCanvas canvas, atom x, atom y, atom w, atom h)
+--29/10/21 added a(lpha), which seems to stop some crashes [I need to revisit the online docs]
+global function cdCanvasGetImageRGB(cdCanvas canvas, atom x, y, w, h)
     integer l = w*h
     atom pR = allocate(l),
          pG = allocate(l),
-         pB = allocate(l)
+         pB = allocate(l),
+         pA = allocate(l)
+--24/10/21..
+    iup_init_cd()
 --?pR
 --?{xcdCanvasGetImageRGB,canvas,x,y,w,h}
-    c_proc(xcdCanvasGetImageRGB, {canvas, pR, pG, pB, x, y, w, h})
+--  c_proc(xcdCanvasGetImageRGB, {canvas, pR, pG, pB, x, y, w, h})
+    c_proc(xcdCanvasGetImageRGB, {canvas, pR, pG, pB, pA, x, y, w, h})
 --?pR
-    sequence r = peek({pR, w*h}),
-             g = peek({pG, w*h}),
-             b = peek({pB, w*h})
-    free({pR,pG,pB})
-    return {r,g,b}
+    sequence r = peek({pR,l}),
+             g = peek({pG,l}),
+             b = peek({pB,l}),
+             a = peek({pB,l})
+--  free({pR,pG,pB})
+    free({pR,pG,pB,pA})
+--  return {r,g,b}
+    return {r,g,b,a}
 end function
 
 global procedure cdCanvasPutImageRectRGB(cdCanvas canvas, atom iw, ih, sequence rgb3, 
@@ -8299,7 +8443,10 @@ global function cdDecodeColor(atom color)
          pG = pR+1,
          pB = pG+1
     c_proc(xcdDecodeColor, {color, pR, pG, pB})
-    sequence rgb_tuple = peek({pR, 3})
+--pwa/p2js:
+--  sequence rgb_tuple = peek({pR, 3})
+    sequence rgb_tuple = peek1s({pR, 3})
+--  sequence rgb_tuple = {peek(pR),peek(pG),peek(pB)}
     free(pR)
     return rgb_tuple
 end function
@@ -8310,7 +8457,8 @@ global function cdDecodeColorAlpha(atom color)
          pB = pG+1,
          pA = pB+1
     c_proc(xcdDecodeColor, {color, pR, pG, pB, pA})
-    sequence rgb_quad = peek({pR, 4})
+--  sequence rgb_quad = peek({pR, 4})
+    sequence rgb_quad = peek1s({pR, 4})
     free(pR)
     return rgb_quad
 end function
@@ -9513,9 +9661,11 @@ global function IupGLCanvas(object action=NULL, object func=NULL, sequence attri
     return ih
 end function
 
-global procedure IupGLMakeCurrent(Ihandle ih)
-    iup_init_iupgl()
-    c_proc(xIupGLMakeCurrent, {ih})
+global procedure IupGLMakeCurrent(Ihandln ih)
+    if ih!=NULL then    -- (for the benefit of pGUI.js)
+        iup_init_iupgl()
+        c_proc(xIupGLMakeCurrent, {ih})
+    end if
 end procedure
 
 global function IupGLIsCurrent(Ihandle ih)
@@ -11670,7 +11820,7 @@ cdCanvasSetForeground
 cdCanvasSimulate
 cdCanvasStipple
 cdCanvasText
-cdCanvasTextAlignment
+--cdCanvasTextAlignment
 cdCanvasTextOrientation
 cdCanvasTransform
 cdCanvasTransformMultiply
@@ -11764,7 +11914,7 @@ cdFillMode
 cdFlush
 cdFont
 cdFontDim
-cdForeground
+--cdForeground
 cdfRotatePoint
 cdfRotatePointY
 cdfSimArc
@@ -11821,7 +11971,7 @@ cdMarkSize
 cdMarkType
 cdMM2Pixel
 cdMultiLineVectorText
-cdNativeFont
+--cdNativeFont
 cdOffsetRegion
 cdOrigin
 cdPalette
@@ -11868,7 +12018,7 @@ cdStrEqualNoCasePartial
 cdStrIsAscii
 cdStrTmpFileName
 cdText
-cdTextAlignment
+--cdTextAlignment
 cdTextBounds
 cdTextBox
 cdTextOrientation

@@ -66,6 +66,7 @@ global function union(sequence s1, object s2=-1)
     --  that should be sequences are in fact atoms.
     -- Strings (char sets) are perfectly fine too.
     --
+    s1 = deep_copy(s1)
     if s2!=-1 then
         -- assume union(s1,s2) style invocation
         if not set_type(s1) then ?9/0 end if

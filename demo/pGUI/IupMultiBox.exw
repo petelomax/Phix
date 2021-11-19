@@ -3,6 +3,66 @@
 --
 include pGUI.e
 
+function IupGetChildren(Ihandle ih)
+    integer count = IupGetChildCount(ih)
+    sequence res = repeat(0,count)
+    for i=1 to count do
+        res[i] = IupGetChild(ih,i-1)
+    end for
+    return res
+end function
+
+--/* may yet be useful...
+procedure IupSetInt2(Ihandle ih, string name, integer v)
+    IupSetStrAttribute(ih,name,sprintf("0x%d",v))
+end procedure
+
+procedure IupSetIntInt(Ihandle ih, string name, integer v1, v2)
+    IupSetStrAttribute(ih,name,sprintf("%dx%d",{v1,v2}))
+end procedure
+--*/
+
+procedure IupNormalize(Ihandles ih, string direction="VERTICAL")
+    if atom(ih) then ih = IupGetChildren(ih) end if
+--X -- note: sets d such that bit #1:=horizontal, bit #2:=vertical.
+    integer d = find(direction,{"HORIZONTAL","VERTICAL","BOTH"})
+    assert(d!=0)
+if platform()=JS then
+--may still be good for pGUI.js:
+    integer l = length(ih)
+    sequence widths = repeat(0,l),
+             heights = repeat(0,l)
+    for i=1 to l do
+        {widths[i],heights[i]} = IupGetIntInt(ih[i],"RASTERSIZE")
+    end for
+?{widths,heights,d}
+--  integer maxw = max(widths),
+--          maxh = max(heights)
+    integer maxw = iff(and_bits(d,#01)?max(widths):0),
+            maxh = iff(and_bits(d,#02)?max(heights):0)
+    string v = sprintf("%dx%d",{maxw,maxh})
+?v
+    for i=1 to l do
+        IupSetAttribute(ih[i],"RASTERSIZE",v)
+--      Ihandle ihi = ih[i]
+--      switch d do
+--          case 1: IupSetInt(ihi,"RASTERSIZE",maxw)
+--          case 2: IupSetInt2(ihi,"RASTERSIZE",maxh)
+--          case 2: IupSetIntInt(ihi,"RASTERSIZE",maxw,maxh)
+--      end switch
+--      if and_bits(d,1) then
+    end for
+else
+--?ih
+    {} = IupDestroy(IupNormaliser(ih,"NORMALIZE="&direction))
+end if
+end procedure
+
+--procedure IupNormalizeChildren(Ihandle ih, string direction="VERTICAL")
+--  IupNormalize(IupGetChildren(mbox),direction)
+--end procedure
+    
+
 procedure MultiBoxTest()
     Ihandle dlg, fr1, mbox
 
@@ -11,19 +71,27 @@ procedure MultiBoxTest()
                         IupLabel("element 3", "FONTSTYLE=Bold"),
 
                         IupLabel("very long element 4", "FONTSTYLE=Bold"),
-                        IupLabel("elem 5", "XSIZE=50x12"),
-                        IupButton("element 6", "XSIZE=50, LINEBREAK=Yes"),
+--                      IupLabel("elem 5", "SIZE=50x12"),
+                        IupLabel("elem 5"),
+--                      IupButton("element 6", "SIZE=50, LINEBREAK=Yes"),
+                        IupButton("element 6", "SIZE=50x, LINEBREAK=Yes"),
 
                         IupLabel("label 7", "FONTSTYLE=Bold"),
-                        IupLabel("label 8", "XSIZE=x12"),
-                        IupButton("another button", "XEXPAND=Horizontal"),
+                        IupLabel("label 8"),
+                        IupButton("another button"),
 
                         IupLabel("label", "FONTSTYLE=Bold"),
-                        IupLabel("label large", "XSIZE=x12"),
+                        IupLabel("label large"),
                         IupButton("button large")})
 
+--  {} = IupDestroy(IupNormalizer(IupGetChildren(mbox),"NORMALIZE=VERTICAL"))
+--  IupNormalize(IupGetChildren(mbox),"VERTICAL")
+--  IupNormalizeChildren(mbox,"VERTICAL")
+--  IupNormalizeChildren(mbox)
+    IupNormalize(mbox)
+
 //  fr1 = IupScrollBox
-    fr1 = IupFrame(mbox)
+    fr1 = IupFrame(mbox,`TITLE="IupMultiBox frame"`)
   
 //  IupSetAttribute(mbox, "ORIENTATION", "VERTICAL")
 //  IupSetAttribute(mbox, "SIZE", "70x")
@@ -47,6 +115,7 @@ end procedure
 
 IupOpen()
 MultiBoxTest()
-IupMainLoop()
-IupClose()
-
+if platform()!=JS then
+    IupMainLoop()
+    IupClose()
+end if

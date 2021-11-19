@@ -384,6 +384,18 @@ end procedure
 --DEV (NEWGSCAN)
 if "abc" = "def" then mpz_set_str(NULL,"") end if
 
+global procedure mpz_set_v(mpz rop, object v)
+    if integer(v) then
+        mpz_set_si(rop,v)
+    elsif atom(v) then
+        mpz_set_d(rop,v)
+    elsif string(v) then
+        mpz_set_str(rop,v)
+    else
+        ?9/0
+    end if
+end procedure
+
 integer x_mpz_import = NULL
 
 global procedure mpz_import(mpz rop, integer count, order, size, endian, nails, atom_string op)
@@ -449,7 +461,8 @@ procedure _mpz_init2(atom x, object v=0, integer bitcount=0)
             elsif atom(v) then
                 mpz_set_d(x,v)
             elsif string(v) then
-                v = substitute(v,"_","")
+--(spotted in passing 6/11/21, should be done internally now anyway)
+--              v = substitute(v,"_","")
                 mpz_set_str(x,v)
             else
                 ?9/0 -- what's v??
@@ -743,7 +756,13 @@ global procedure mpz_mul_d(mpz rop, op1, atom op2)
 --maybe/untested:
 --if integer(op2) then
 --  mpz_mul_si(rop,op1,op2)
+--elsif rop!=op1 then
+--  mpz_set_d(rop,op2)
+--  mpz_mul(rop,op1,rop)
 --else
+--  op2 = mpz_init(op2)
+--  mpz_mul(rop,op1,op2)
+--  mpz_free(op2)
     if muld=NULL then
         muld = mpz_init(op2)
     else
@@ -971,6 +990,19 @@ global function mpz_mod_ui(mpz r, n, integer d)
     integer res = c_func(x_mpz_mod_ui,{r,n,d})
     return res
 end function
+
+integer x_mpz_and = NULL
+
+global procedure mpz_and(mpz rop, op1, op2)
+--rop := and_bits(op1,op2)
+    if rop=NULL then ?9/0 end if
+    if op1=NULL then ?9/0 end if
+    if op2=NULL then ?9/0 end if
+    if x_mpz_and=NULL then
+        x_mpz_and = link_c_proc(mpir_dll, "+__gmpz_and", {P,P,P})
+    end if
+    c_proc(x_mpz_and,{rop,op1,op2})
+end procedure
 
 integer x_mpz_xor = NULL
 
@@ -1320,6 +1352,22 @@ global procedure mpz_lcm_ui(mpz rop, op1, integer op2)
     end if
     c_proc(x_mpz_lcm_ui,{rop,op1,op2})
 end procedure
+
+integer x_mpz_invert = NULL
+
+global procedure mpz_invert(mpz rop, op1, op2)
+--Compute the inverse of op1 modulo op2 and put the result in rop. If the inverse exists, the
+--return value is non-zero and rop will satisfy 0 <= rop < op2. If an inverse doesn’t exist the
+--return value is zero and rop is undefined.
+    if rop=NULL then ?9/0 end if
+    if op1=NULL then ?9/0 end if
+    if op2=NULL then ?9/0 end if
+    if x_mpz_invert=NULL then
+        x_mpz_invert = link_c_proc(mpir_dll, "+__gmpz_invert", {P,P,P})
+    end if
+    c_proc(x_mpz_invert,{rop,op1,op2})
+end procedure
+
 
 integer x_mpz_fac_ui = NULL
 
@@ -3377,13 +3425,13 @@ global function mpq_init_set_str(string s, integer base=0)
     return res
 end function
 
-global function mpq_inits(integer count, object v=0)
-    object res = repeat(0,count)
+global function mpq_inits(integer n, object v=0)
+    object res = repeat(0,n)
     if sequence(v) and not string(v) then
-        if length(v)!=count then ?9/0 end if
-        for i=1 to count do res[i] = mpq_init(v[i]) end for
+        if length(v)!=n then ?9/0 end if
+        for i=1 to n do res[i] = mpq_init(v[i]) end for
     else
-        for i=1 to count do res[i] = mpq_init(v) end for
+        for i=1 to n do res[i] = mpq_init(v) end for
     end if
     return res  
 end function
@@ -4515,9 +4563,9 @@ MPFR_VERSION_NUM(MPFR_VERSION_MAJOR,MPFR_VERSION_MINOR,MPFR_VERSION_PATCHLEVEL)
 
 #include <gmp.h>
 
-/* Avoid some problems with macro expansion if the user defines macros
-   with the same name as keywords. By convention, identifiers and macro
-   names starting with mpfr_ are reserved by MPFR. */
+-- Avoid some problems with macro expansion if the user defines macros
+-- with the same name as keywords. By convention, identifiers and macro
+-- names starting with mpfr_ are reserved by MPFR.
 typedef void            mpfr_void;
 typedef int             mpfr_int;
 typedef unsigned int    mpfr_uint;
@@ -4525,12 +4573,12 @@ typedef long            mpfr_long;
 typedef unsigned long   mpfr_ulong;
 typedef size_t          mpfr_size_t;
 
-/* Global (possibly TLS) flags. Might also be used in an mpfr_t in the
-   future (there would be room as mpfr_sign_t just needs 1 byte).
-   TODO: The tests currently assume that the flags fits in an unsigned int;
-   this should be cleaned up, e.g. by defining a function that outputs the
-   flags as a string or by using the flags_out function (from tests/tests.c
-   directly). */
+-- Global (possibly TLS) flags. Might also be used in an mpfr_t in the
+-- future (there would be room as mpfr_sign_t just needs 1 byte).
+-- TODO: The tests currently assume that the flags fits in an unsigned int;
+-- this should be cleaned up, e.g. by defining a function that outputs the
+-- flags as a string or by using the flags_out function (from tests/tests.c
+-- directly).
 typedef unsigned int    mpfr_flags_t;
 
 /* Flags macros (in the public API) */
@@ -4547,35 +4595,7 @@ typedef unsigned int    mpfr_flags_t;
                         MPFR_FLAGS_ERANGE    | \
                         MPFR_FLAGS_DIVBY0)
 
---/* Definition of rounding modes (DON'T USE MPFR_RNDNA!).
---   Warning! Changing the contents of this enum should be seen as an
---   interface change since the old and the new types are not compatible
---   (the integer type compatible with the enumerated type can even change,
---   see ISO C99, 6.7.2.2#4), and in Makefile.am, AGE should be set to 0.
---
---   MPFR_RNDU must appear just before MPFR_RNDD (see
---   MPFR_IS_RNDUTEST_OR_RNDDNOTTEST in mpfr-impl.h).
---
---   If you change the order of the rounding modes, please update the routines
---   in texceptions.c which assume 0=RNDN, 1=RNDZ, 2=RNDU, 3=RNDD, 4=RNDA.
---*/
---typedef enum {
---  MPFR_RNDN=0,    /* round to nearest, with ties to even */
---  MPFR_RNDZ,  /* round toward zero */
---  MPFR_RNDU,  /* round toward +Inf */
---  MPFR_RNDD,  /* round toward -Inf */
---  MPFR_RNDA,  /* round away from zero */
---  MPFR_RNDF,  /* faithful rounding */
---  MPFR_RNDNA=-1 /* round to nearest, with ties away from zero (mpfr_round) */
---} mpfr_rnd_t;
---
---/* kept for compatibility with MPFR 2.4.x and before */
---#define GMP_RNDN MPFR_RNDN
---#define GMP_RNDZ MPFR_RNDZ
---#define GMP_RNDU MPFR_RNDU
---#define GMP_RNDD MPFR_RNDD
-
-/* Define precision: 1 (short), 2 (int) or 3 (long) (DON'T USE IT!) */
+-- Define precision: 1 (short), 2 (int) or 3 (long) (DON'T USE IT!)
 #ifndef _MPFR_PREC_FORMAT
 # if __GMP_MP_SIZE_T_INT
 #  define _MPFR_PREC_FORMAT 2
@@ -4584,8 +4604,7 @@ typedef unsigned int    mpfr_flags_t;
 # endif
 #endif
 
-/* Define exponent: 1 (short), 2 (int), 3 (long) or 4 (intmax_t)
-   (DON'T USE IT!) */
+-- Define exponent: 1 (short), 2 (int), 3 (long) or 4 (intmax_t) (DON'T USE IT!)
 #ifndef _MPFR_EXP_FORMAT
 # define _MPFR_EXP_FORMAT _MPFR_PREC_FORMAT
 #endif
@@ -4594,9 +4613,9 @@ typedef unsigned int    mpfr_flags_t;
 # error "mpfr_prec_t must not be larger than int"
 #endif
 
-/* Let's make mpfr_prec_t signed in order to avoid problems due to the
-   usual arithmetic conversions when mixing mpfr_prec_t and int
-   in an expression (for error analysis) if casts are forgotten. */
+-- Let's make mpfr_prec_t signed in order to avoid problems due to the
+-- usual arithmetic conversions when mixing mpfr_prec_t and int
+-- in an expression (for error analysis) if casts are forgotten.
 #if   _MPFR_PREC_FORMAT == 1
 typedef short mpfr_prec_t;
 typedef unsigned short mpfr_uprec_t;

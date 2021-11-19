@@ -4,7 +4,8 @@
 
 global function extract(sequence source, indexes, bool invert=false)
     integer l = length(indexes), ii
-    sequence res = repeat(0,l)
+--  sequence res = repeat(0,l)
+    sequence res = repeat(iff(string(source)?' ':0),l)
     if invert then
         sequence inverse = repeat(0,l)
         for i=1 to l do

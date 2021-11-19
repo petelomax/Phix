@@ -1847,6 +1847,7 @@ end procedure -- (for Edita/CtrlQ)
         cmp eax,h4
         jl @f                   -- (Z=0), act on it
     :!Jife92                    -- exception here mapped to e94vhnbaav(edx)
+        je :e91vhnbaavedx       -- 6/9/21 (test in pDiagN.e marked as not working)
         test byte[ebx+eax*4-1],0x80
         jnz :e03tfcmbaa         -- true/false condition must be an ATOM
 --20/7/15:
@@ -1854,6 +1855,14 @@ end procedure -- (for Edita/CtrlQ)
         test eax,eax            -- (set Z to 0, and act on it)
       @@:
         ret
+
+    ::e91vhnbaavedx
+        mov ecx,edx
+        pop edx
+        mov al,91       -- e91vhnbaav(ecx)
+        sub edx,1
+        jmp :!iDiag
+        int3
 
     [64]
         --calling convention
@@ -1869,6 +1878,7 @@ end procedure -- (for Edita/CtrlQ)
         cmp rax,r15
         jl @f                   -- (Z=0), act on it
     :!Jife92                    -- exception here mapped to e94vhnbaav(edx)
+        je :e91vhnbaavedx       -- 6/9/21 (test in pDiagN.e marked as not working)
         test byte[rbx+rax*4-1],0x80
         jnz :e03tfcmbaa         -- true/false condition must be an ATOM
 --20/7/15:
@@ -1876,6 +1886,15 @@ end procedure -- (for Edita/CtrlQ)
         test rax,rax            -- (set Z to 0, and act on it)
       @@:
         ret
+
+    ::e91vhnbaavedx
+        mov rcx,rdx
+        pop rdx
+        mov al,91       -- e91vhnbaav(ecx)
+        sub rdx,1
+        jmp :!iDiag
+        int3
+
     []
 
 --DEV might yet need this...

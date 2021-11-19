@@ -9,7 +9,7 @@ constant tests = {{{16,  3}, {12, 17}, { 0,  6}, {-4, -6}, {16,  6},
                   {{16,  3}, {12, 17}, { 0,  6}, {-4, -6}, {16,  6},
                    {16, -7}, {16, -3}, {17, -4}, { 5, 19}, {19, -8},
                    { 3, 16}, {12, 13}, { 3, -4}, {17,  5}, {-3, 15},
-                   {-3, -9}, { 0, 11}, {-9, -3}, {-4, -2}, {12, 10}, {,-9}, {1,-9}},
+                   {-3, -9}, { 0, 11}, {-9, -3}, {-4, -2}, {12, 10}, {1,-9}, {1,-9}},
                   {{0,0}, {5,5}, {5,0}, {0,5}},
                   {{0,0}, {0,1}, {0,2},
                    {1,0}, {1,1}, {1,2},
@@ -77,15 +77,11 @@ Convex Hull is: {{-8,-8}, {16,-8}, {16,16}, {-8,16}}
 
 -- plots the test points in red and the convex hull in green
 include pGUI.e
---#withtype Ihandle
 
 Ihandle dlg, plot
 
-procedure set_title()
-    IupSetStrAttribute(dlg, "TITLE", "Marks Mode (%d/%d)", {t, length(tests)})
-end procedure
-
 procedure set_plots()
+    IupSetStrAttribute(dlg, "TITLE", "Marks Mode (%d/%d)", {t, length(tests)})
     sequence tt = tests[t],
              ch = convex_hull(tt)
 --/!* -- (used to visualise the (erroneous) Raku output, reported on the talk page)
@@ -106,6 +102,7 @@ end if
     end for
     {} = IupPlotEnd(plot)
     IupSetAttribute(plot, "DS_MODE", "MARK")
+--/!*
     IupSetAttribute(plot, "DS_MARKSTYLE", "HOLLOW_CIRCLE")
 
     IupPlotBegin(plot)
@@ -117,8 +114,8 @@ end if
     IupPlotAdd(plot, x, y)
     {} = IupPlotEnd(plot)
     IupSetAttribute(plot, "DS_MODE", "MARKLINE")
-end procedure
-
+--*!/
+end procedurem
 function key_cb(Ihandle /*ih*/, atom c)
     if c=K_ESC then return IUP_CLOSE end if
     if c=K_LEFT then t = iff(t=1?length(tests):t-1) end if
@@ -131,10 +128,10 @@ IupOpen()
 plot = IupPlot("AXS_XAUTOMIN=NO, AXS_XAUTOMAX=NO, AXS_YAUTOMIN=NO, AXS_YAUTOMAX=NO")
 IupSetAttributes(plot, "AXS_XMIN=-12, AXS_XMAX=20, AXS_YMIN=-12, AXS_YMAX=20")
 IupSetAttributes(plot, "AXS_XTICKFORMAT=%1.3f, LEGENDSHOW=YES, LEGENDPOS=BOTTOMRIGHT")
+--IupSetAttributes(plot, "AXS_XTICKFORMAT=%1.3f")
 dlg = IupDialog(plot)
 IupSetAttributes(dlg, "RASTERSIZE=640x480")
 IupSetCallback(dlg, "K_ANY", Icallback("key_cb"))
-set_title()
 set_plots()
 IupShow(dlg)
 IupMainLoop()

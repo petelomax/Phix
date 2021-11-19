@@ -46,7 +46,7 @@ end procedure
 
 global function get_rand()
 --  if not rinit then initr() end if
-atom seed
+    atom seed
     #ilASM{
             mov eax,dword[ds+4]
         [32]
@@ -62,7 +62,7 @@ end function
 
 --DEV to do: (replace opRand) [NB incomplete! (no StoreMint)]
 global function rand2(atom range)
-atom res
+    atom res
 --  if not rinit then initr() end if
 --grr:
     if 0 then res=range end if
@@ -398,3 +398,10 @@ function rnd(object shape=1)
 --  return r*shape
 end function
 --*/
+
+global function rand_range(integer lo, hi)
+    if lo>hi then {lo,hi} = {hi,lo} end if
+    lo -= 1
+    return lo+rand(hi-lo)
+end function
+

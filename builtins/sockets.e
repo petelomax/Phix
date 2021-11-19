@@ -687,7 +687,7 @@ global procedure shutdown(atom sock, integer how)
     if res!=0 then d2ie("shutdown") end if
 end procedure
 
-global procedure closesocket(atom sock)
+global function closesocket(atom sock)
 --
 -- Closes an existing socket.
 -- Returns zero if successful, otherwise returns SOCKET_ERROR.
@@ -695,8 +695,10 @@ global procedure closesocket(atom sock)
     if sock!=0 and sock!=SOCKET_ERROR then
         integer res = c_func(xCloseSocket, {sock})
         if res!=0 then d2ie("shutdown") end if
+        return 0
     end if
-end procedure
+    return SOCKET_ERROR
+end function
 
 integer xWSACleanup = 0
 

@@ -106,6 +106,51 @@ global function prime_factors(atom n, bool duplicates=false, integer maxprime=10
     return pfactors
 end function
 
+global function prime_powers(atom n)
+--
+-- Decompose n into powers of small primes.
+-- returns eg 108 ==> {{2,2},{3,3}}  (ie 2^2*3^3==4*27==108)
+--         or 10080 ==> {{2,5},{3,2},{5,1},{7,1}}
+--         or 1196836 ==> {{2,2},{547,2}}
+--         or 1196837 ==> {{1196837,1}} (for it be prime)
+-- Each element of the result is a {prime,power} pair.
+-- Note this will persevere all the way on up to 16/20 digit numbers,
+--  and may get rather slow towards the upper end, of power(2,53|64).
+-- This is closer to mpz_prime_factors() than prime_factors() is,
+--  maybe I should rename the former as mpz_prime_powers()...
+--
+    if n=0 then return {} end if
+    if n=1 then return {1,0} end if
+    check_limits(n,"prime_powers")
+    sequence res = {}
+    if not is_prime(n) then
+        integer maxprime = get_maxprime(n),
+                mp = get_prime(maxprime),
+                pn = 1,
+                p = get_prime(pn), 
+                lim = min(floor(sqrt(n)),mp)
+
+        while p<=lim do
+            integer e = 0
+            while remainder(n,p)=0 do
+                n = floor(n/p)
+                e += 1
+            end while
+            if e then
+                res = append(res,{p,e})
+                if n<=p or is_prime(n) then exit end if
+                lim = min(floor(sqrt(n)),mp)
+            end if
+            pn += 1
+            p = get_prime(pn)
+        end while 
+    end if
+    if n!=1 then
+        res = append(res,{n,1})
+    end if
+    return res
+end function
+
 global function square_free(atom n, integer maxprime=100)
 -- returns true if prime_factors(n,duplicates:=true,maxprime) would contain no duplicates
 --  (but terminating early and without building any unnecessary internal lists)

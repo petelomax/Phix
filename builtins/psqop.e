@@ -85,6 +85,7 @@
 --         eg/ie '+', '-', '*', ... 'f', 'g', 'l', ... etc.
 --
 include builtins\pmaths.e   -- (not strictly necessary)
+--with debug
 
 procedure sq_fatal(sequence a, sequence b)
     printf(1,"sequence lengths not the same (%d!=%d)!\n",{length(a),length(b)})

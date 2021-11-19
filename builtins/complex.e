@@ -297,7 +297,7 @@ global function complex_cos(complexn a)
 end function
 
 global function complex_round(complex a, atom inverted_precision=1)
-    if atom(a) then a = {a,0} end if
+    if atom(a) then a = {a,0} else a = deep_copy(a) end if
     a[REAL] = round(a[REAL],inverted_precision)
     a[IMAG] = round(a[IMAG],inverted_precision)
     return a

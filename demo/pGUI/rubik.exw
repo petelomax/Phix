@@ -1,6 +1,8 @@
 --
--- rubik.exw
+-- demo\pGUI\rubik.exw
+-- ===================
 --
+with javascript_semantics   -- (some things are a few pixels off...)
 --?"started"
 --ppOpt({pp_Pause,0})
 --DEV revisit http://kociemba.org/twophase.htm ::
@@ -262,8 +264,8 @@ end function
 --DEV global?
 function pack_moves()
 -- (aside: this reduces the average from 16.03 to 15.57 on the test set)
-string moves = ""
-integer n = 0, this, last, last_rpt
+    string moves = ""
+    integer n = 0, move, last, last_rpt
     if history_idx!=0 then
         -- add a dummy move to trigger the last move print:
         last = xor_bits(history_mov[history_idx],1) -- F<->B, etc
@@ -273,14 +275,14 @@ integer n = 0, this, last, last_rpt
         last = history_mov[1]
         last_rpt = 0
         for i=1 to history_idx do
-            this = history_mov[i]
-            if this!=last then
+            move = history_mov[i]
+            if move!=last then
                 -- coalesce eg F1F2 to F' (unless you wanna fix do_search()!)
                 if last_rpt then
                     moves &= "FBRLUD"[last+1] & {"","2","'"}[last_rpt]
                     n += 1
                 end if
-                last = this
+                last = move
                 last_rpt = history_rpt[i]+1
             else
                 last_rpt = mod(last_rpt+history_rpt[i]+1,4)
@@ -357,6 +359,7 @@ bool single_stage = false
 --bool collect_stages = false
 
 
+--/* DEV (p2js failure)
 string init ="""
 _____________---YYY--------
              ---YYY--------
@@ -369,6 +372,19 @@ _____________---YYY--------
              ------WWW-----
              
              """
+--*/
+string init ="""
+---YYY--------
+---YYY--------
+---YYY--------
+BBBRRRGGGOOO--
+BBBRRRGGGOOO--
+BBBRRRGGGOOO--
+------WWW-----
+------WWW-----
+------WWW-----
+
+"""
 -- numbering:
 --  1..15:   ---456--------\n
 --  16..30:  ---901--------\n   -- U
@@ -481,7 +497,8 @@ if 0 then
     --"UF UR UB UL DF DR DB DL FR FL BR BL UFR URB UBL ULF DRF DFL DLB DBR" (tick)
 end if
 
-enum U=1,Lx=2,F=3,R=4,B=5,D=6,Dbl=#08,Shift=#10
+--enum U=1,Lx=2,F=3,R=4,B=5,D=6,Dbl=#08,Shift=#10
+constant U=1,Lx=2,F=3,R=4,B=5,D=6,Dbl=#08,Shift=#10
 constant U2 = U+Dbl, L2x = Lx+Dbl, F2 = F+Dbl, R2 = R+Dbl, B2 = B+Dbl, D2 = D+Dbl,
          Us = U+Shift, Fs = F+Shift, Bs = B+Shift, Rs = R+Shift, Ds = D+Shift
 
@@ -1216,12 +1233,6 @@ include pGUI.e
 --  assign colours/input cube
 --  (omgg..)
 
-
--- For Edita/Tools/Re-indent source:
---#withtype Ihandle
---#withtype Ihandln
---#withtype cdCanvas
-
 Ihandle dlg, canvas, timer
 cdCanvas cd_canvas
 
@@ -1479,6 +1490,7 @@ function projection(sequence points, atom d)
 end function
 
 function rotate_and_project(sequence points)
+    points = deep_copy(points)
     for i=1 to length(view_rotations) do
         {integer axis, atom angle} = view_rotations[i]
         points = rotate(points,angle,axis)
@@ -1628,7 +1640,7 @@ integer mask
     cpoints = rotate_and_project(CENTRES)
 --  if rotcode then
     if rangle then
-        rpoints = rotate(CENTRES,rangle,raxis)
+        rpoints = rotate(deep_copy(CENTRES),rangle,raxis)
         rpoints = rotate_and_project(rpoints)
     end if
 
@@ -1734,7 +1746,7 @@ sequence xyz0 = xyz
 end procedure
 
 procedure draw_ulc_swatches(integer h)
-sequence cube9 = split(cube,'\n')
+    sequence cube9 = split(cube,'\n')
     cdCanvasSetForeground(cd_canvas,CD_BLACK)
     cdCanvasBox(cd_canvas, 37, 71, h+1, h-33) 
     cdCanvasBox(cd_canvas, 4, 137, h-32, h-66) 
@@ -1767,11 +1779,15 @@ function canvas_action_cb(Ihandle canvas)
 end function
 
 function canvas_map_cb(Ihandle canvas)
-    atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
     IupGLMakeCurrent(canvas)
-    cd_canvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    if platform()=JS then
+        cd_canvas = cdCreateCanvas(CD_IUP, canvas)
+    else
+        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+        cd_canvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    end if
     cdCanvasSetBackground(cd_canvas, CD_PARCHMENT)
-    {} = cdCanvasTextAlignment(cd_canvas, CD_CENTER) 
+    cdCanvasSetTextAlignment(cd_canvas, CD_CENTER) 
     return IUP_DEFAULT
 end function
 
@@ -1887,7 +1903,9 @@ function key_cb(Ihandle ih, atom c)
         integer base = upper(iup_XkeyBase(c))
 --      integer ctrl = iup_isCtrlXkey(c)
 --      integer shift = iup_isShiftXkey(c) (no!!)
-        integer shift = find('S',IupGetGlobal("MODKEYSTATE"))!=0
+--      integer shiftX = find('S',IupGetGlobal("MODKEYSTATE"))!=0
+        integer shift = IupGetInt(NULL,"SHIFTKEY")
+--if shiftX!=shift then ?9/0 end if
 --      integer alt = iup_isAltXkey(c)
 
         integer rot_type = 0
@@ -2081,6 +2099,13 @@ function exit_cb(Ihandle /*ih*/)
     return IUP_CLOSE
 end function
 
+function t(string s)
+    -- sidestep \t errors in p2js [hmmm...]
+    integer k = rfind('(',s)
+    s[k-1] = '\t'
+    return s
+end function
+
 procedure main()
     IupOpen()
 --  IupImageLibOpen()
@@ -2092,34 +2117,36 @@ procedure main()
                              IupMenuItem("&Scramble", Icallback("scramble_cb")),
 --tests
 --rotate (to show keystrokes, mainly) - NAH, do that in the help text...
-                             IupMenuItem("Solve\t(Shift F5)", Icallback("solve_cb")),
-                             IupMenuItem("Solve (single-step)\t(F5)", Icallback("single_cb")),
+                             IupMenuItem(t("Solve (Shift F5)"), Icallback("solve_cb")),
+                             IupMenuItem(t("Solve (single-step) (F5)"), Icallback("single_cb")),
                              IupMenuItem("E&xit", Icallback("exit_cb"))
                             }),
             hmenu = IupMenu({
 --settings
-                             IupMenuItem("&Settings\t(F2)", Icallback("settings_cb")),
-                             IupMenuItem("&About\t(F1)", Icallback("help_cb"))
+                             IupMenuItem(t("&Settings (F2)"), Icallback("settings_cb")),
+                             IupMenuItem(t("&About (F1)"), Icallback("help_cb"))
                             }),
             menu = IupMenu({IupSubmenu("&Cube",cmenu),
                             IupSubmenu("&Help",hmenu)})
 
-    canvas = IupGLCanvas()
-    IupSetAttribute(canvas, "RASTERSIZE", "640x480")
-    IupSetCallback(canvas, "ACTION", Icallback("canvas_action_cb"))
-    IupSetCallback(canvas, "MAP_CB", Icallback("canvas_map_cb"))
-    IupSetCallback(canvas, "UNMAP_CB", Icallback("canvas_unmap_cb"))
-    IupSetCallback(canvas, "RESIZE_CB", Icallback("canvas_resize_cb"))
+    canvas = IupGLCanvas("RASTERSIZE=640x480")
+    IupSetCallbacks(canvas, {"ACTION", Icallback("canvas_action_cb"),
+                             "MAP_CB", Icallback("canvas_map_cb"),
+                             "UNMAP_CB", Icallback("canvas_unmap_cb"),
+                             "RESIZE_CB", Icallback("canvas_resize_cb")})
     dlg = IupDialog(IupVbox({canvas}))
 --  IupSetAttribute(dlg,"TITLE","Cube Help")
     IupSetAttribute(dlg,"TITLE","Rubiks Cube")
     IupSetAttributeHandle(dlg, "MENU", menu)
-    IupSetCallback(dlg, "K_ANY",  Icallback("key_cb"))
+    IupSetCallback(dlg, "KEY_CB",  Icallback("key_cb"))
     IupShow(dlg)
     IupSetAttribute(canvas, "RASTERSIZE", NULL)
     timer = IupTimer(Icallback("timer_cb"), 40, 0)
-    IupMainLoop()
-    IupClose()
+    IupSetAttributeHandle(NULL, "PARENTDIALOG", dlg)
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

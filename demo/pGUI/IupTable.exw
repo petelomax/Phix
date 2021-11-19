@@ -29,10 +29,14 @@
 --  now nearly as long and complicated, that's only because I'm trying to
 --  show/test as much as possible, whereas the cut-down version in the docs
 --  is clearly quite nicely short and sweet.
-
+--
+with javascript_semantics -- work rqd: most of the usual resize problems,
+                          --           one extra blank entry from s/where
+                          --           column resizers completely kaput,
+                          --           CLICK_CB callback also """  """ ,
+                          --           things marked as tested below were 
+                          --           tested on desktop/Phix & not p2js.
 include pGUI.e
---#withtype Ihandle
---#withtype Ihandles
 
 constant columns = {{"Chq#",40,"ARIGHT"},
                     {"Date",60,"ACENTER"},
@@ -46,8 +50,9 @@ constant MAX = 50000
 
 function buildDummyData()
     -- data is length 2: {raw/sortable,null/display columns}
-    sequence data = repeat(0,MAX)
-    data = {data,{0,data,data}}
+--  sequence data = repeat(0,MAX)
+--  data = {data,{0,data,data}}
+    sequence data = {repeat(0,MAX),{0,repeat(0,MAX),repeat(0,MAX)}}
     for i=1 to MAX do
         sequence dt = {2018+rand(2),rand(12),rand(28)}
         atom cheque = i,
@@ -63,6 +68,7 @@ function buildDummyData()
     return data
 end function
 sequence data = buildDummyData()
+--?data
 
 procedure showselected(Ihandle table)
     -- (private test routine, optional)
@@ -147,7 +153,7 @@ IupSetAttribute(dlg, "TITLE", "IupTable demo")
 IupSetCallback(table, "CLICK_CB", Icallback("click_cb")) --(optional)
 IupSetAttributeHandle(NULL,"PARENTDIALOG",dlg)
 IupShow(dlg)
-if platform()!=WEB then
+if platform()!=JS then
     IupMainLoop()
     IupClose()
 end if

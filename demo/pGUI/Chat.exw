@@ -1,5 +1,5 @@
 --
--- Chat.exw
+-- demo\pGUI\Chat.exw
 --
 -- Author:  Pete Lomax
 --     Translated from a win32lib demo by Brett A. Pantalone
@@ -27,10 +27,12 @@
 --     GNU General Public License for more details.
 --
 -- TODO: Use ipc, invoke a second instance and get the listeners right
---         (as opposed to just "guessing" that port+1 will be useful).
+--         (as opposed to just "guessing" that port+1 will be useful)
+--         (purely to make the demonstration slicker, you understand)
 --       Add colour to the output (see IupUser in the IupText docs, and
---         replace all the commented-out setFont() calls left in below).
+--         replace all the commented-out setFont() calls left in below)
 --
+without js -- (sockets)
 include builtins/sockets.e
 include pGUI.e
 
@@ -38,7 +40,7 @@ Ihandln dlg
 Ihandle hlbl, htxt, plbl, ptxt, cbtn, chat, mtxt, sbtn, vbox, hTimer
 
 enum DISCONNECTED = 0, LISTEN = 1, CONNECTED = 2
-atom hSockListen = 0, hSockConnect = 0, sock_state = DISCONNECTED
+atom hSockListen = 0, hSockConnect = SOCKET_ERROR, sock_state = DISCONNECTED
 
 procedure handleError()
     {integer err, string id, string short} = get_socket_error()
@@ -154,7 +156,7 @@ procedure checkReceiveBuffer()
         -- Fetch the received data
         {integer len, string buffer} = recv(hSockConnect)
         if len=0 then -- indicates the connection was closed
-            closesocket(hSockConnect)
+            hSockConnect = closesocket(hSockConnect)
             gotoStateDisconnect("Connection Closed by Peer\r\n")
             return
         elsif len>0 then -- number of bytes received
@@ -166,7 +168,7 @@ procedure checkReceiveBuffer()
     end if
 
     handleError()
-    closesocket(hSockConnect)
+    hSockConnect = closesocket(hSockConnect)
     gotoStateDisconnect("Receive Error; Connection Closed\r\n")
 end procedure
 
@@ -177,7 +179,7 @@ function connect_cb(Ihandle /*self*/)
 --
     if sock_state=CONNECTED then
         -- Disconnect the existing socket
-        closesocket(hSockConnect)
+        hSockConnect = closesocket(hSockConnect)
         gotoStateDisconnect("Connection Terminated by User\r\n")
         return IUP_DEFAULT
     end if
@@ -202,7 +204,7 @@ function connect_cb(Ihandle /*self*/)
     end if
 
     handleError()
-    closesocket(hSockConnect)
+    hSockConnect = closesocket(hSockConnect)
     gotoStateDisconnect("Connect Error; Connection Aborted\r\n")
     return IUP_DEFAULT
 end function
@@ -243,8 +245,8 @@ end function
 
 function close_cb(Ihandle /*ih*/)
     IupSetInt(hTimer,"RUN",0)
-    closesocket(hSockListen)
-    closesocket(hSockConnect)
+    hSockListen = closesocket(hSockListen)
+    hSockConnect = closesocket(hSockConnect)
     WSACleanup()
     return IUP_CLOSE
 end function

@@ -2,7 +2,8 @@
 -- sample.exw
 --
 --  DEV - could do with some improvements, especially the menus
-
+without js -- see IupSampleDialog.exw instead (which removes images, IupExpander, IupRecord/PlayInput, background toggles, 
+--                                              IupTree->TreeView, IupLink, SINGLEINSTANCE, adds IupTable/Graph/Calendar)
 include pGUI.e
 --include iup_layoutdlg.e
 
@@ -345,11 +346,6 @@ end function
 --  printf(1,"GLOBALWHEEL_CB(delta=%g, x=%d, y=%d, status=%s)\n",{delta, x, y, peek_string(pStatus)});
 --end procedure
 
-function esc_close(Ihandle /*ih*/, atom c)
--- (I like all my demos to close when escape is keyed)
-    return iff(c=K_ESC?IUP_CLOSE:IUP_CONTINUE)
-end function
-
 -- This shows how to defer-load nodes on expand/demand:
 -- Obviously would probably be more dynamically set in a real app,
 -- and of course elements can be more than plain-string leaf nodes,
@@ -421,22 +417,24 @@ Ihandle mnu, menu1, backmenu, hbox_1, cnv_1, vbox_1, img,
     frm_1, frm_2, frm_3, frm_4, frm_5, val, tabs,
     list_1, list_2, list_3, text_1, ml_1, tree;
 
-    IupSetGlobal("UTF8MODE","YES")
---  img = IupImage(32,32, img_bits1);
---  IupSetHandle ("img1", img); 
---  IupSetAttribute (img, "0", "0 0 0"); 
---  IupSetAttribute (img, "1", "BGCOLOR");
---  IupSetAttribute (img, "2", "255 0 0");
+    if platform()!=JS then
+        IupSetGlobal("UTF8MODE","YES")
+--      img = IupImage(32,32, img_bits1);
+--      IupSetHandle ("img1", img); 
+--      IupSetAttribute (img, "0", "0 0 0"); 
+--      IupSetAttribute (img, "1", "BGCOLOR");
+--      IupSetAttribute (img, "2", "255 0 0");
 
-    img = load_image_Tecgraf();
-    IupSetHandle("img1", img);
+        img = load_image_Tecgraf();
+        IupSetHandle("img1", img);
 
-    img = IupImage(32,32, img_bits2);
-    IupSetHandle("img2", img);
-    IupSetAttribute(img, "0", "0 0 0");
-    IupSetAttribute(img, "1", "0 255 0");
-    IupSetAttribute(img, "2", "BGCOLOR");
-    IupSetAttribute(img, "3", "255 0 0");
+        img = IupImage(32,32, img_bits2);
+        IupSetHandle("img2", img);
+        IupSetAttribute(img, "0", "0 0 0");
+        IupSetAttribute(img, "1", "0 255 0");
+        IupSetAttribute(img, "2", "BGCOLOR");
+        IupSetAttribute(img, "3", "255 0 0");
+    end if
 
     menu1 = IupMenu({IupMenuItem("IupMenuItem 1 Checked", "VALUE=ON"),
                      IupSeparator(),
@@ -450,7 +448,8 @@ Ihandle mnu, menu1, backmenu, hbox_1, cnv_1, vbox_1, img,
                    IupSubmenu("Background",backmenu),
                    IupMenuItem("About", cb_about)});
 
-    IupSetHandle("mnu",mnu);
+--not p2js: [DEV?]
+--  IupSetHandle("mnu",mnu);
 
     btn_1 = IupButton("Button Text", "PADDING=5x5")
     btn_2 = IupButton("Text", Icallback("text_click_cb"), "IMAGE=img1, PADDING=5x5")
@@ -612,7 +611,8 @@ IupSetCallback(bb_1, "SCROLL_CB", Icallback("scroll_cb"))
     dlg = IupDialog(vbox_1);
 --end if
     IupSetHandle("dlg",dlg);
-    IupSetAttribute(dlg,"MENU","mnu");
+--  IupSetAttribute(dlg,"MENU","mnu");
+    IupSetAttributeHandle(dlg,"MENU",mnu);
     IupSetAttribute(dlg,"TITLE","Iup Sample Dialog");
 --  IupSetAttribute(dlg,"COMPOSITED","YES");   /* Windows Only */
 --  IupSetAttribute(dlg, "OPACITY", "192");
@@ -640,8 +640,6 @@ IupSetCallback(bb_1, "SCROLL_CB", Icallback("scroll_cb"))
   --IupSetFunction("GLOBALMOTION_CB", Icallback("globalmotion_cb"));
   --IupSetFunction("GLOBALBUTTON_CB", Icallback("globalbutton_cb"));
   --IupSetFunction("GLOBALWHEEL_CB", Icallback("globalwheel_cb"));
-
-    IupSetCallback(dlg, "K_ANY", Icallback("esc_close"));
 
     IupMap(dlg);
 
@@ -706,13 +704,16 @@ end procedure
 
 procedure main()
     IupOpen()
-    IupSetGlobal("SINGLEINSTANCE", "Iup Sample");
-    if IupGetGlobal("SINGLEINSTANCE")!="" then
-        SampleTest();
-
-        IupMainLoop();
+    if platform()!=JS then
+        IupSetGlobal("SINGLEINSTANCE", "Iup Sample")
+        if IupGetGlobal("SINGLEINSTANCE")!="" then
+            SampleTest()
+            IupMainLoop()
+        end if
+        IupClose()
+    else
+        SampleTest()
     end if
-    IupClose();
 end procedure
 main()
 

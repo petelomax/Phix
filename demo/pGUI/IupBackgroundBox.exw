@@ -3,7 +3,10 @@
 --
 --  from http://webserver2.tecgraf.puc-rio.br/iup/en/func/iupdraw.html
 --
---#withtype Ihandle
+without js -- no IupBackgroundBox in pGUI.js as yet.
+            -- I had a half-hearted bash at replacing/aliasing
+            -- IupBackgroundBox as IupCanvas, but gave up at the
+            -- "DRAWDRIVER" point (nowt found in any of my docs)
 include pGUI.e
 
 function canvas_action(Ihandle ih)
@@ -11,8 +14,10 @@ function canvas_action(Ihandle ih)
     integer {w,h} = IupDrawGetSize(ih);
 
     /* white background */
-    IupSetAttribute(ih, "DRAWCOLOR", "255 255 255");
-//  IupSetAttribute(ih, "DRAWCOLOR", "255 0 255"); /* pink */
+--  IupSetAttribute(ih, "DRAWCOLOR", "255 255 255");
+    IupSetAttribute(ih, "DRAWCOLOR", "#FFFFFF");
+--  IupSetAttribute(ih, "DRAWCOLOR", "255 0 255"); /* pink */
+--  IupSetAttribute(ih, "DRAWCOLOR", "#FF00FF"); /* pink */
     IupSetAttribute(ih, "DRAWSTYLE", "FILL");
     IupDrawRectangle(ih, 0, 0, w - 1, h - 1);
 
@@ -99,10 +104,12 @@ function canvas_action(Ihandle ih)
     IupDrawLine(ih, 10, 110 + 20, 100, 110 + 20);
 
 --DEV these have not been set...
+--/*
     IupDrawImage(ih, "Test8bpp", 110, 10,-1,-1);
     IupDrawImage(ih, "Test24bpp", 110, 40, -1, -1);
     IupDrawImage(ih, "Test32bpp", 110, 70, -1, -1);
 --  IupDrawImage(ih, "Test32bpp", 110, 70, 60, 60);
+--*/
 
     IupSetAttribute(ih, "DRAWFONT", "Helvetica, Bold -15");
 --  IupDrawText(ih, IupGetAttribute(ih, "DRAWDRIVER"), -1, 70, 135, -1, -1);
@@ -115,6 +122,7 @@ end function
 IupOpen()
 
 Ihandle bgb = IupBackgroundBox()
+--Ihandle bgb = IupCanvas()
 IupSetAttribute(bgb, "SIZE", "200x100")
 --IupSetAttribute(bgb, "RASTERSIZE", "300x200")
 --IupSetAttribute(bgb, "EXPAND", "NO")
@@ -125,12 +133,12 @@ Ihandle dlg = IupDialog(bgb)
 --Ihandle dlg = IupDialog(bgb,"SIZE=100x100")
 IupSetAttribute(dlg, "TITLE", "IupBackgroundBox Test")
 
-IupMap(dlg)
+--IupMap(dlg)
 --IupSetAttribute(bgb, "RASTERSIZE", NULL) -- release the minimum limitation
 
-IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
-
-IupMainLoop()
-
-IupClose()
-
+IupShow(dlg)
+--IupSetAttribute(bgb, "RASTERSIZE", NULL) -- release the minimum limitation
+if platform()!=JS then
+    IupMainLoop()
+    IupClose()
+end if

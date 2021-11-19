@@ -1,16 +1,17 @@
 --
--- glcanvas_cube.exw
+-- demo\pGUI\glcanvas_cube.exw
 --
 -- From https://sourceforge.net/p/iup/iup/1530/tree/tags/iup_2_7_1/iup2/test/iupgl/glcanvas_cube.c
 -- (simplified version of iup3Dctrls.exw)
 -- Translated to Phix by Pete Lomax
 --
-
+without js -- (no glu.e, plus this is all OpenGL 1.0 not 2.0)
+            -- better things already exist anyway, see eg 
+            --  demo\rosetta\DrawRotatingCube.exw or
+            --  demo\rosetta\15_puzzle_game_in_3D.exw
 include pGUI.e
 include opengl.e
 include glu.e
-
---#withtype Ihandle
 
 constant R = 1, G = 2, B = 3
 type color3D(object c)
@@ -22,11 +23,12 @@ procedure add_color_vertex(color3D c)
     glVertex3d(c)
 end procedure
 
-procedure draw_cube_face(color3D c1, color3D c2, color3D c3, color3D c4)
-atom r = (c1[R]+c2[R]+c3[R]+c4[R])/4
-atom g = (c1[G]+c2[G]+c3[G]+c4[G])/4
-atom b = (c1[B]+c2[B]+c3[B]+c4[B])/4
-color3D cm = {r,g,b}
+--procedure draw_cube_face(color3D c1, color3D c2, color3D c3, color3D c4)
+procedure draw_cube_face(color3D c1, c2, c3, c4)
+    atom r = (c1[R]+c2[R]+c3[R]+c4[R])/4,
+         g = (c1[G]+c2[G]+c3[G]+c4[G])/4,
+         b = (c1[B]+c2[B]+c3[B]+c4[B])/4
+    color3D cm = {r,g,b}
 
     add_color_vertex(cm)
     add_color_vertex(c1)
@@ -85,10 +87,10 @@ procedure init()
     glClearDepth(1.0)
 end procedure
 
-procedure unproject(atom x2, atom y2, atom p3)
-atom mv = allocate(16*8)                -- 16 doubles
-atom pm = allocate(16*8)                -- 16 doubles
-atom vp = allocate(4*machine_word())    -- 4 ints
+procedure unproject(atom x2, y2, p3)
+    atom mv = allocate(16*8),               -- 16 doubles
+         pm = allocate(16*8),               -- 16 doubles
+         vp = allocate(4*machine_word())    -- 4 ints
 
     glGetDoublev(GL_MODELVIEW_MATRIX,  mv)
     glGetDoublev(GL_PROJECTION_MATRIX, pm)
@@ -101,11 +103,11 @@ atom vp = allocate(4*machine_word())    -- 4 ints
     free(vp)
 end procedure
 
-integer pos_x, pos_y
-integer move = 0
+integer pos_x, 
+        pos_y,
+        move = 0
 
-function button_cb(Ihandle /*ih*/, integer but, integer pressed, integer x, integer y, atom /*pStatus*/)
---?"button-cb"
+function button_cb(Ihandle /*ih*/, integer but, pressed, x, y, atom /*pStatus*/)
     if but==IUP_BUTTON1 then
         if pressed then
             pos_x = x
@@ -119,49 +121,39 @@ function button_cb(Ihandle /*ih*/, integer but, integer pressed, integer x, inte
 end function
 
 function peek_double(object pDouble)
-sequence doubles
-
     if atom(pDouble) then
         return float64_to_atom(peek({pDouble,8}))
-    else
-        doubles = {}
-
-        for i=1 to pDouble[2] do
-            doubles &= float64_to_atom(peek({pDouble[1]+8*(i-1),8}))
-        end for
-
-        return doubles
     end if
+    sequence doubles = {}
+    for i=1 to pDouble[2] do
+        doubles &= float64_to_atom(peek({pDouble[1]+8*(i-1),8}))
+    end for
+    return doubles
 end function
 
 function motion_cb(Ihandle ih, integer x, integer y, atom /*pStatus*/)
     if move then
-        atom dif_x, dif_y
-        atom dx, dy, dz
         atom pxyz = allocate(3*8)               -- 3 doubles
-        atom x1, y1, z1
-        atom x2, y2, z2
-        atom angle, norma
         integer height = IupGetInt2(ih, "RASTERSIZE")
 
         IupGLMakeCurrent(ih)
 
-        dif_x = x-pos_x
-        dif_y = y-pos_y
+        atom dif_x = x-pos_x,
+             dif_y = y-pos_y
 
         pos_x = x
         pos_y = y
 
-        angle = sqrt(dif_x*dif_x+dif_y*dif_y)
+        atom angle = sqrt(dif_x*dif_x+dif_y*dif_y)
 
         unproject(pos_x,height-y,pxyz)
-        {x1,y1,z1} = peek_double({pxyz,3})
+        atom {x1,y1,z1} = peek_double({pxyz,3})
         unproject(dif_y+pos_x, dif_x+(height-y), pxyz)
-        {x2,y2,z2} = peek_double({pxyz,3})
-        dx = x2-x1
-        dy = y2-y1
-        dz = z2-z1
-        norma = sqrt(dx*dx+dy*dy+dz*dz)
+        atom {x2,y2,z2} = peek_double({pxyz,3}),
+             dx = x2-x1,
+             dy = y2-y1,
+             dz = z2-z1,
+             norma = sqrt(dx*dx+dy*dy+dz*dz)
         dx /= norma
         dy /= norma
         dz /= norma
@@ -190,12 +182,6 @@ function action(Ihandle ih)
     return IUP_DEFAULT
 end function
 
-function esc_close(Ihandle /*ih*/, atom c)
--- (I like all my demos to close when escape is keyed)
-    if c=K_ESC then return IUP_CLOSE end if
-    return IUP_CONTINUE
-end function
-
 IupOpen()
 IupGLCanvasOpen()
 
@@ -218,10 +204,10 @@ printf(1,"Vendor: %s\n", glGetString(GL_VENDOR))
 printf(1,"Renderer: %s\n", glGetString(GL_RENDERER))
 printf(1,"Version: %s\n", glGetString(GL_VERSION))
 IupSetAttribute(canvas, "RASTERSIZE", NULL)
-IupSetCallback(dialog, "K_ANY",  Icallback("esc_close"))
 
-IupShowXY(dialog, IUP_CENTER, IUP_CENTER)
-IupMainLoop()
-dialog = IupDestroy(dialog)
-IupClose()
-
+IupShow(dialog)
+if platform()!=JS then  -- fat chance!
+    IupMainLoop()
+    dialog = IupDestroy(dialog)
+    IupClose()
+end if

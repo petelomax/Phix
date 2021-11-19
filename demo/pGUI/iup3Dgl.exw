@@ -1,5 +1,5 @@
 --
--- iup3Dgl.exw
+-- demo\pGUI\iup3Dgl.exw
 --
 --  Simple example of use of 3D OpenGL and IUP.
 -- 
@@ -8,12 +8,10 @@
 --  Author:  Marcelo Gattass, Nov 9 2009. 
 --  Translated to Phix by Pete Lomax, May 25 2016
 --
-
+without js -- (no glu.e, plus this is all OpenGL 1.0 not 2.0)
 include pGUI.e
 include opengl.e
 include glu.e
-
---#withtype Ihandle
 
 Ihandle canvas;                 /* canvas handle */
 integer width = 640,            /* width and height of the canvas  */
@@ -27,7 +25,7 @@ atom t = 0;                     /* animation time */
 constant vertices = {{-1,-1, 1}, {-1, 1, 1}, {1, 1, 1}, {1,-1, 1},
                      {-1,-1,-1}, {-1, 1,-1}, {1, 1,-1}, {1,-1,-1}};
 
-procedure polygon(integer a, integer b, integer c, integer d)
+procedure polygon(integer a, b, c, d)
     glBegin(GL_POLYGON);
     glVertex3d(vertices[a+1]);
     glVertex3d(vertices[b+1]);
@@ -91,7 +89,7 @@ end function
 
 
 /* function called in the event of changes in the width or in the height of the canvas */
-function resize_cb(Ihandle self, integer new_width, integer new_height)
+function resize_cb(Ihandle self, integer new_width, new_height)
 
     IupGLMakeCurrent(self);  /* Make the canvas current in OpenGL */
 
@@ -133,19 +131,15 @@ end function
 
 function initDialog()
 
-Ihandle dialog;  /* dialog containing the canvas */
-
-    canvas = IupGLCanvas("repaint_cb", Icallback("repaint_cb")); /* create _canvas and define its repaint callback */
+    canvas = IupGLCanvas("repaint_cb", Icallback("repaint_cb"));
 
 --  IupSetAttribute(canvas,"IUP_RASTERSIZE","640x480");   /* define the size in pixels */
 --  IupSetAttribute(canvas,"IUP_BUFFER","IUP_DOUBLE");    /* define that this OpenGL _canvas has double buffer (front and back) */
 --  IupSetAttribute(canvas,"BUFFER","DOUBLE");    /* define that this OpenGL _canvas has double buffer (front and back) */
 
-    /* bind callback actions with callback functions */
     IupSetCallback(canvas, "RESIZE_CB",Icallback("resize_cb"));
 
-    /* create the dialog and set its attributes */
-    dialog = IupDialog(canvas, "SIZE=640x480");
+    Ihandle dialog = IupDialog(canvas, "SIZE=640x480");
     IupSetAttribute(dialog, "TITLE", "IUP_3D_OpenGL");
 
     IupSetCallback(dialog, "CLOSE_CB", Icallback("exit_cb"));
@@ -156,19 +150,14 @@ Ihandle dialog;  /* dialog containing the canvas */
 end function
 
 procedure main()
-
-Ihandle dialog;
-
-    IupOpen();                                  /* opens the IUP lib */
-
-    IupGLCanvasOpen();                          /* enable use of OpenGL to draw in canvas */
-
-    dialog = initDialog();                      /* create the dialog and canvas */
-    IupShowXY(dialog, IUP_CENTER, IUP_CENTER);  /* show in the center of screen */
-
-    IupMainLoop();                              /* give program control to IUP until a return IUP_CLOSE */
-
-    IupClose();                                 /* closes the IUP lib */
+    IupOpen()
+--  IupGLCanvasOpen()
+    Ihandle dialog = initDialog()
+    IupShowXY(dialog, IUP_CENTER, IUP_CENTER)
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

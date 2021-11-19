@@ -71,7 +71,9 @@ end function
 
 --** reads a 24-bit BMP into memory **--
 function read24bit()
+--?"read24"
     atom bmpMem = allocate(qbiH*qbiW*3) --** allocate memory for the image **--
+--  atom bmpMem = allocate(qbiH*qbiW*4) --** allocate memory for the image **--
     if seek(bmpFn,qbfOffsBits)!=SEEK_OK then ?9/0 end if    --** jump to start of image data **--
     integer diffr = (bpr-(qbiW*3))
     for i=1 to qbiH do          --** height of bitmap in pixels **--
@@ -82,7 +84,8 @@ function read24bit()
                 bmpChar = getc(bmpFn)
                 --** BMPs are stored upside down, hence the complex formula **--
 --              poke((bmpMem+(qbiH*qbiW*3)-1)-(i*qbiW*3)+((j-1)*3)+(4-k),bmpChar)
-                poke(bmpMem+(j+i*qbiW)*3+k,bmpChar)
+                poke(bmpMem+(j-1+i*qbiW)*3+k,bmpChar)
+--              poke(bmpMem+(j-1+i*qbiW)*4+k,bmpChar)
             end for
         end for
         if diffr>0 then
@@ -98,6 +101,7 @@ end function
 
 --** reads an 8-bit BMP into memory **--
 global function read8bit()
+--?"read8"
     pal = repeat({0,0,0},256)       --** create a palette **--
     atom bmpMem = allocate(qbiW*qbiH)
     integer diffr = (bpr-qbiW)
@@ -169,8 +173,10 @@ global function load_bmp(sequence filen)
         if qbfType="BM" then
             bpr = floor(((qbiBitCount*qbiW)+31)/32)*4
             if qbiBitCount=24 then
+--?"read24bit" --(lesson6)
                 retVal = read24bit()
             elsif qbiBitCount=8 then
+--?"read8bit"
                 retVal = read8bit()
             else
                 retVal = {-1,BMPbitCountError,0,0}

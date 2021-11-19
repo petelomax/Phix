@@ -27,10 +27,8 @@ constant ROT_180 = create(PushButton, "Rotate 180" , 0, TEST,  410,225,75,35,BS_
 constant ROT_270 = create(PushButton, "Rotate 270" , 0, TEST,  410,265,75,35,BS_MULTILINE)
 constant STATUS = create(StatusBar, "" , 0, TEST,  0,0,350,20,0)
 
-integer dib
-        dib = createDib(400, 400, 32)
-integer bak_dib
-        bak_dib = createDib(400, 400, 32)
+integer dib = createDib(400, 400, 32),
+    bak_dib = createDib(400, 400, 32)
 
 integer num_lines
 sequence LineColours
@@ -40,14 +38,12 @@ procedure line(integer x, integer y, integer xx, integer yy, integer color)
     drawDibLine(bak_dib, x, y, xx, yy, color)
 end procedure
 
-integer which_background
-        which_background = 1
+integer which_background = 1
 
 procedure make_Bak_dib()
-atom x
-integer c
+--integer c
     blankDib(bak_dib, 0)
-    x = time()
+    atom x = time()
     num_lines = 0
 
     which_background += 1
@@ -170,12 +166,8 @@ function view(point view_point)
 -- compute initial view
 --matrix t1, t2, t3, t4, n
 matrix n
-atom cos_theta, sin_theta, hyp
---, a_b
-,sc_theta
-atom x,y,z
 
-    {x,y,z} = view_point
+    atom {x,y,z} = view_point
 
 -- change origin
 --  t1 = {{1, 0, 0, 0},
@@ -197,9 +189,10 @@ atom x,y,z
 --        { x,-z, y, 1}}
 
     -- rotate so Ze points properly     -- (DEV what is Ze?)
-    hyp = sqrt(x*x + y*y)
-    sin_theta = x/hyp
-    cos_theta = y/hyp
+    atom hyp = sqrt(x*x + y*y),
+         sin_theta = x/hyp,
+         cos_theta = y/hyp,
+         sc_theta = -sin_theta*cos_theta
 --  t3 = {{cos_theta, 0, sin_theta, 0},
 --        {0, 1,         0, 0},
 --        {-sin_theta,0, cos_theta, 0},
@@ -244,7 +237,6 @@ atom x,y,z
 --{{-0.8,-0.36,-0.48,0},{0.6,-0.48,-0.64,0},{0,0.8,-0.6,0},{0,0,5.681818182,1}}
 --
 --?product({t3,t4})
-    sc_theta = -sin_theta*cos_theta
 --  t4 = {{-cos_theta, -sin_theta*sin_theta, sc_theta, 0},
 --        {sin_theta, sc_theta, -cos_theta*cos_theta, 0},
 --        {0, cos_theta, -sin_theta, 0},
@@ -273,20 +265,15 @@ atom x,y,z
     return n
 end function
 
-function new_coords(sequence overall, sequence shape)
+function new_coords(sequence overall, shape)
 -- compute the screen coordinates from the 3-D coordinates
-sequence screen_coords
-atom x,y,z
-point p
-atom x2, y2
-
-    x2 = floor(getDibWidth(dib)/2)
-    y2 = floor(getDibHeight(dib)/2)
-    screen_coords = repeat({0, 0, 0}, length(shape))
+    atom x2 = floor(getDibWidth(dib)/2),
+         y2 = floor(getDibHeight(dib)/2)
+    sequence screen_coords = repeat({0, 0, 0}, length(shape))
     for i=1 to length(shape) do
         for j=1 to 2 do
-            p = shape[i][j]
-            {x,y,z} = vector_product(p & 1, overall)
+            point p = shape[i][j]
+            atom {x,y,z} = vector_product(p & 1, overall)
             screen_coords[i][j] = {x2*(x/z+1), y2*(y/z+1)}
         end for
         screen_coords[i][3] = shape[i][3]
@@ -296,11 +283,10 @@ end function
 
 function compute_rotate(integer axis, sequence shape)
 -- rotate a shape
-atom x,y,z
-sequence sij
     for i = 1 to length(shape) do
         for j = 1 to 2 do
-            {x,y,z} = shape[i][j]
+            atom {x,y,z} = shape[i][j]
+            sequence sij
             if axis = X then
                 sij = {x, y*cos_angle + z*sin_angle, z*cos_angle - y*sin_angle}
             elsif axis = Y then
@@ -344,7 +330,7 @@ end function
 
 
 function cube()
-sequence apex
+--sequence apex
 
     reset()
 
@@ -374,9 +360,8 @@ end function
 
 
 function pyramid(atom h)
-sequence apex
 
-    apex = {0.5,h,0.5}
+    sequence apex = {0.5,h,0.5}
 
     reset()
 
@@ -404,11 +389,9 @@ end function
 
 
 function trimid()
-atom side
-sequence apex
 
-    side = 0.866
-    apex = {0.5, side, side/2}
+    atom side = 0.866
+    sequence apex = {0.5, side, side/2}
 
     reset()
 
@@ -426,10 +409,9 @@ end function
 
 
 function jewel(atom h)
-sequence apex, apex2
 
-    apex = {0.5,h,0.5}
-    apex2 = {0.5,-h,0.5}
+    sequence apex = {0.5, h,0.5},
+            apex2 = {0.5,-h,0.5}
 
     reset()
 
@@ -458,13 +440,12 @@ end function
 
 
 function makeRandom()
-sequence s,tmp
-atom x, y, z
+--sequence s,tmp
+--atom x, y, z
 
-    s = repeat({{40,40,40},{40,40,40}, BRIGHTCYAN}, NUM_LINES)
-    s = sq_rand(s)
+    sequence s = repeat({{40,40,40},{40,40,40}, BRIGHTCYAN}, NUM_LINES)
 
-    s = sq_div(sq_sub(s,20),15)
+    s = sq_div(sq_sub(sq_rand(s),20),15)
 
     return s
 
@@ -473,15 +454,15 @@ end function
 
 
 function makeRegular()
-sequence s,t,temp, point1, point2, disp, trans, move
-atom x, y, z
+--sequence s,t,temp
+--atom x, y, z
 
     lines = {}
-    point1 = {100,120,100}
-    point2 = sq_mul(point1,{1,-1,1})
-    disp = {100,0,100}
-    trans = {1,1,1}
-    move = {0,200,0}
+    sequence point1 = {100,120,100},
+             point2 = sq_mul(point1,{1,-1,1}),
+             disp = {100,0,100},
+             trans = {1,1,1},
+             move = {0,200,0}
 
     for i=0 to 200 by 40 do
 
@@ -523,12 +504,11 @@ function rand_offset()
 end function
 
 function makeShapes()
-sequence shape, shapes
 
-    shapes = {}
+    sequence shapes = {}
 
     for i=1 to 10 do
-        shape = sq_div(cube(),2+rand(4))
+        sequence shape = sq_div(cube(),2+rand(4))
         shape = centre(shape, rand_offset())
         shapes &= shape
 
@@ -562,15 +542,13 @@ sequence shape, shapes
 end function
 
 
-sequence coords, overall
-point view_point
+sequence coords
 integer r
-atom rot_speed
 sequence shape
 
-view_point = sq_div({6, 8, 7.5},2.2)
-overall = view(view_point)
-rot_speed = 0.09
+point view_point = sq_div({6, 8, 7.5},2.2)
+sequence overall = view(view_point)
+atom rot_speed = 0.09
 sin_angle = sin(rot_speed)
 cos_angle = cos(rot_speed)
 axis = Z
@@ -610,7 +588,7 @@ end procedure
 
 
 function handler_TEST(integer id, integer msg, atom wParam, object lParam)
-integer colour
+--integer colour
     if msg=WM_PAINT then
         copyToScreen(wParam)
     elsif msg=WM_MOUSEMOVE then

@@ -18,14 +18,9 @@
 --     - Alpha for colors
 --     - Area Selection
 
-include pGUI.e
+without js
 
--- For Edita/Tools/Re-indent source:
---#withtype Ihandle
---#withtype Ihandln
---#withtype imImage
---#withtype cdCanvas
---#withtype cdCanvan
+include pGUI.e
 
 Ihandle dlg, canvas, toolbar, statusbar, main_menu, zoom_lbl, size_lbl, status_lbl, zoom_val,
         item_toolbar, item_statusbar, item_revert, item_save, item_paste, item_zoomgrid, item_toolbox,
@@ -812,8 +807,7 @@ integer {r, g, b} = IupGetRGB(toolcolor_btn, "BGCOLOR")
     elsif tool_index==7 then  -- Oval
         cdCanvasSector(cd_canvas, (end_x+start_x)/2, (end_y+start_y)/2, abs(end_x-start_x), abs(end_y-start_y), 0, 360)
     elsif tool_index==8 then  -- Text
-        {} = cdCanvasTextAlignment(cd_canvas, CD_SOUTH_WEST)
---      cdCanvasNativeFont(cd_canvas, IupGetAttribute(toolbox, "TOOLFONT"))
+        cdCanvasSetTextAlignment(cd_canvas, CD_SOUTH_WEST)
         cdCanvasSetNativeFont(cd_canvas, IupGetAttribute(toolbox, "TOOLFONT"))
         cdCanvasText(cd_canvas, end_x, end_y, IupGetAttribute(toolbox, "TOOLTEXT"))
     end if
@@ -857,6 +851,7 @@ string background = IupConfigGetVariableStr(config, "Canvas", "Background", "208
         -- we force NEAREST so we can see the pixel boundary in zoom in
         -- an alternative would be to set BILINEAR when zoom out
         cdCanvasSetAttribute(cd_canvas, "IMGINTERP", "NEAREST")  -- affects only drivers that have this attribute
+--cdCanvasTransformRotate(cd_canvas, 3) -- just 2d...
         cdCanvasPutImImage(cd_canvas, image, x, y, view_width, view_height)
 
         if IupConfigGetVariableInt(config, "Canvas", "ZoomGrid") then
@@ -888,6 +883,7 @@ string background = IupConfigGetVariableStr(config, "Canvas", "Background", "208
             atom scale_x = view_width/im_width(image)
             atom scale_y = view_height/im_height(image)
 
+--cdCanvasTransformRotate(cd_canvas, 3)
             -- offset and scale drawing in screen to match the image
             if scale_x>1 or scale_y>1 then
                 -- also draw at the center of the pixel when zoom in
@@ -896,6 +892,7 @@ string background = IupConfigGetVariableStr(config, "Canvas", "Background", "208
                 cdCanvasTransformTranslate(cd_canvas, x, y)
             end if
             cdCanvasTransformScale(cd_canvas, scale_x, scale_y)
+--cdCanvasTransformRotate(cd_canvas, 3)
 
             tool_draw_overlay(cd_canvas, start_x, start_y, end_x, end_y)
 

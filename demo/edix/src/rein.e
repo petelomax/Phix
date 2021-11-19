@@ -3142,7 +3142,8 @@ integer wasmapEndToMinusOne, wascursorY
     errtext = ""
     nWarns = 0
     also = {0}
-    vartypes = {"atom","integer","int","bool","sequence","seq","string","object","Ihandle","Ihandln","cdCanvas","cdCanvan","nullable_string","imImage"}
+    vartypes = {"atom","integer","int","bool","sequence","seq","string","object",
+                "Ihandle","Ihandln","Ihandles","cdCanvas","cdCanvan","nullable_string","imImage"}
     vartypes = append(vartypes,"enum") -- DEV...
     withdefs = {}
     textlen = length(filetext[currfile])

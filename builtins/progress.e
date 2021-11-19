@@ -8,6 +8,7 @@
 --
 --  See docs for a couple of demos and gui alternatives.
 --
+without js
 
 integer lp = 0 -- (last progress length, to be wiped out)
 

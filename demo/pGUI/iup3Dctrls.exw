@@ -1,16 +1,14 @@
 --
--- iup3Dctrls.exw
+-- demo\pGUI\iup3Dctrls.exw
 --
 -- A demo found on the web whose source looked interesting...
 -- Translated to Phix by Pete Lomax
 -- (you can find a copy of the original source by googling c3D_cian)
 --
-
+without js -- (no glu.e, plus this is all OpenGL 1.0 not 2.0)
 include pGUI.e
 include opengl.e
 include glu.e
-
---#withtype Ihandle
 
 constant img_close =
 {
@@ -153,13 +151,12 @@ procedure add_color_vertex(color3D c)
     glVertex3d(c)
 end procedure
 
-procedure draw_cube_face(color3D c1, color3D c2, color3D c3, color3D c4)
+procedure draw_cube_face(color3D c1, c2, c3, c4)
 --DEV fix the e01 (VM/pMath.e/e01tcfeaxplusedxoverecxedi)
 --  integer r,g,b
-atom r,g,b
-    r = (c1[R]+c2[R]+c3[R]+c4[R])/4
-    g = (c1[G]+c2[G]+c3[G]+c4[G])/4
-    b = (c1[B]+c2[B]+c3[B]+c4[B])/4
+    atom r = (c1[R]+c2[R]+c3[R]+c4[R])/4,
+         g = (c1[G]+c2[G]+c3[G]+c4[G])/4,
+         b = (c1[B]+c2[B]+c3[B]+c4[B])/4
     color3D c = {r,g,b}
 
     add_color_vertex(c)
@@ -227,10 +224,10 @@ procedure init()
     end if
 end procedure
 
-integer pos_x, pos_y
-integer move = 0
+integer pos_x, pos_y,
+        move = 0
 
-function button_cb(Ihandle /*ih*/, integer but, integer pressed, integer x, integer y, atom /*pStatus*/)
+function button_cb(Ihandle /*ih*/, integer but, pressed, x, y, atom /*pStatus*/)
     if but==IUP_BUTTON1 then
         if pressed then
             pos_x = x
@@ -245,33 +242,23 @@ end function
 
 --DEV (is this 64-bit always?? [I think so]) make me a builtin (and peek_long_double?)
 function peek_double(object pDouble)
-sequence doubles
-
     if atom(pDouble) then
         return float64_to_atom(peek({pDouble,8}))
-    else
-        doubles = {}
-
-        for i=1 to pDouble[2] do
-            doubles &= float64_to_atom(peek({pDouble[1]+8*(i-1),8}))
-        end for
-
-        return doubles
     end if
+    sequence doubles = {}
+    for i=1 to pDouble[2] do
+        doubles &= float64_to_atom(peek({pDouble[1]+8*(i-1),8}))
+    end for
+    return doubles
 end function
 
 function motion_cb(Ihandle ih, integer x, integer y, atom /*pStatus*/)
     if move then
-        atom dif_x, dif_y
-        atom dx, dy, dz
-        atom pxyz = allocate(3*8)               -- 3 doubles
-        atom x1, y1, z1
-        atom x2, y2, z2
-        atom angle, norma
         integer height = IupGetInt2(ih, "RASTERSIZE")
-        atom mv = allocate(16*8)                -- 16 doubles
-        atom pm = allocate(16*8)                -- 16 doubles
-        atom vp = allocate(4*machine_word())    -- 4 ints
+        atom pxyz = allocate(3*8),              -- 3 doubles
+             mv = allocate(16*8),               -- 16 doubles
+             pm = allocate(16*8),               -- 16 doubles
+             vp = allocate(4*machine_word())    -- 4 ints
 
         IupGLMakeCurrent(ih)
 
@@ -279,8 +266,8 @@ function motion_cb(Ihandle ih, integer x, integer y, atom /*pStatus*/)
         glGetDoublev(GL_PROJECTION_MATRIX, pm)
         glGetIntegerv(GL_VIEWPORT, vp)
 
-        dif_x = x-pos_x
-        dif_y = y-pos_y
+        atom dif_x = x-pos_x,
+             dif_y = y-pos_y
 
         if dif_x==0 and dif_y==0 then
             return IUP_DEFAULT
@@ -289,16 +276,16 @@ function motion_cb(Ihandle ih, integer x, integer y, atom /*pStatus*/)
         pos_x = x
         pos_y = y
 
-        angle = sqrt(dif_x*dif_x+dif_y*dif_y)
+        atom angle = sqrt(dif_x*dif_x+dif_y*dif_y)
 
         gluUnProject(pos_x,height-y, 0.0, mv, pm, vp, pxyz, pxyz+8, pxyz+16)
-        {x1,y1,z1} = peek_double({pxyz,3})
+        atom {x1,y1,z1} = peek_double({pxyz,3})
         gluUnProject(dif_y+pos_x, dif_x+(height-y), 0.0, mv, pm, vp, pxyz, pxyz+8, pxyz+16)
-        {x2,y2,z2} = peek_double({pxyz,3})
-        dx = x2-x1
-        dy = y2-y1
-        dz = z2-z1
-        norma = sqrt(dx*dx+dy*dy+dz*dz)
+        atom {x2,y2,z2} = peek_double({pxyz,3}),
+             dx = x2-x1,
+             dy = y2-y1,
+             dz = z2-z1,
+             norma = sqrt(dx*dx+dy*dy+dz*dz)
         dx /= norma
         dy /= norma
         dz /= norma
@@ -356,7 +343,7 @@ function expand_cb(Ihandle ih)
     return IUP_DEFAULT
 end function
 
-function extrabutton_cb(Ihandle ih, integer button, integer pressed)
+function extrabutton_cb(Ihandle ih, integer button, pressed)
     printf(1,"EXTRABUTTON_CB(%s, but=%d, press=%d)\n", {IupGetClassName(ih), button, pressed})
     return IUP_DEFAULT
 end function

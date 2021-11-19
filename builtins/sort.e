@@ -3,6 +3,7 @@
 
 -- Sort the elements of a sequence into ascending order, using "Shell" sort.
 
+without debug
 --DEV wrong one for newEmit
 --!/**/include builtins\pcfunc.e
 
@@ -24,12 +25,12 @@ object tempi, tempj
 --x = deep_copy(x)
     last = length(x)
     gap = floor(last/10)+1
-    while 1 do
+    while true do
         first = gap+1
         for i=first to last do
             tempi = x[i]
             j = i-gap
-            while 1 do
+            while true do
                 tempj = x[j]
 --              if tempi >= tempj then
 --              if compare(tempi, tempj)>=0 then
@@ -184,7 +185,7 @@ end function
 --   [[:compare]], [[:sort]]
 
 global function sort_columns(sequence x, sequence column_list)
-    x = custom_sort(column_compare, x, {column_list})
+    x = custom_sort(column_compare, deep_copy(x), {column_list})
     return x
 end function
 

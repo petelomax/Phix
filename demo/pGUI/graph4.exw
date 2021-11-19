@@ -1,0 +1,38 @@
+--
+-- demo/pGUI/graph4.exw
+-- ====================
+--
+with javascript_semantics
+include pGUI.e
+include IupGraph.e
+
+--  IupSetAttribute(plot4, "DS_COLOR", "100 100 200");
+--  IupSetAttribute(plot4, "DS_MODE", "BAR");
+
+constant months = {"jan","feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"},
+         data = {10,20,30,40,50,60,70,80,90,0,10,20}
+
+function xformat(integer m)
+    return months[m]
+end function
+
+function get_data(Ihandle /*graph*/)
+    return {{"XRID",xformat},
+--          {"BARMODE","VERTICAL"},     -- (works too)
+            {tagset(12),data,CD_BLUE}}
+end function
+
+IupOpen()
+Ihandle graph = IupGraph(get_data,"RASTERSIZE=640x480")
+Ihandle dlg = IupDialog(graph,`TITLE="Bar Mode"`)
+--IupSetAttributes(dlg,"MINSIZE=320x340") -- (nb not raster units/pixels)
+IupSetAttributes(graph,"XTICK=1,XMIN=1,XMAX=12")
+IupSetAttributes(graph,"YTICK=10,YMIN=0,YMAX=90")
+IupSetAttributes(graph,`BARMODE=VERTICAL, GRID=NO`)
+--IupSetAttributes(graph,`BARMODE=HORIZONTAL`)
+IupShow(dlg)
+IupSetAttribute(graph,`RASTERSIZE`,NULL)
+if platform()!=JS then
+    IupMainLoop()
+    IupClose()
+end if

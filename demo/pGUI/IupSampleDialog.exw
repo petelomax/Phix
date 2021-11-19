@@ -1,0 +1,308 @@
+--
+-- demo\pGUI\IupSampleDialog.exw
+--
+-- simplification and cleanup of demo\pGUI\sample.exw, plus an IupTable() and IupGraph().
+--
+--  add a statusbar, messages -> statusbar (also added, as a nod to demo\arwen\arwendemo.exw)
+--  move val/progress into new frame under button/label/toggle, and IupNormalise them. [DONE]
+--  add IupTable, IupGraph, IupCalendar to the IupTabs (making them larger) [DONE]
+--  rename calendar.exw as IupCalendar.exw [DONE], get that working copy it here. (I only managed IupDatePick, which I don't want here)
+--  DOCS: move IupTreeView to top, mark Iup[Flat]Tree as non-p2js
+--  move pwa/phix/IupTreeView.exw to demo/pGUI/IupTreeView.exw
+--  add this to 7z.lst [DONE]
+--
+with javascript_semantics
+--without js -- IupCalendar(), IupValuator(), Iup/cdVersion[Date](), IupGetClassName(),
+/* and:
+IupMenuItem(VALUE,ON)??
+IupMenuItem(ACTIVE,NO)??
+IupButton(BGCOLOR,#FF0080)??
+IupText(MULTILINE,YES)?? -- (and maybe not at all...)
+IupList(VALUE,1)??
+IupList(TIP,List 1)??
+IupList(DROPDOWN,YES)??
+IupList(EDITBOX,YES)??
+IupH/Vbox(NORMALIZESIZE,HORIZONTAL)
+IupSetCallback(tree,SELECTION_CB)??
+IupCanvas(EXPAND,HORIZONTAL)??
+*/
+-- would probably also benefit from a fixed size on tabs... (or just get that "NORMALIZESIZE=HORIZONTAL" working properly!?)
+-- IupProgressBar comes out wrong size (plus all the usual craziness on resize!)
+include pGUI.e
+include IupGraph.e
+
+Ihandle dlg
+--, statusbar
+
+function valuechanged_cb(Ihandle ih)
+    printf(1,"VALUECHANGED_CB(%s)=%s\n",{IupGetClassName(ih), IupGetAttribute(ih, "VALUE")})
+    return IUP_DEFAULT
+end function
+
+procedure set_valuechanged_cb(Ihandles ih)
+    IupSetCallback(ih, "VALUECHANGED_CB", Icallback("valuechanged_cb"))
+end procedure
+
+function text_click_cb(Ihandle /*ih*/)
+    return IUP_DEFAULT
+end function
+
+function action2_cb(Ihandle /*ih*/)
+    printf(1,"ACTION2\n")
+    return IUP_DEFAULT
+end function
+
+function action3_cb(Ihandle /*ih*/)
+    printf(1,"ACTION3\n")
+    return IUP_DEFAULT
+end function
+
+Ihandle pbar
+integer pval = 0
+function timer_cb(Ihandle /*ih*/)
+    IupSetStrAttribute(pbar, "VALUE", "%2.1f",{pval/10})
+    if pval=11 then -- (needed an extra 1 to let it complete...)
+        pval = 0
+    else
+        pval += 1
+    end if
+    return IUP_IGNORE
+end function
+
+constant columns = {{"Chq",40,"ARIGHT"},{"Date",80,"ACENTER"},{"Amount",70,"ARIGHT"}},
+         data = {{{1,{2020,1,13},1500.89},
+                  {2,{2020,7,10},3646.86},
+                  {3,{2019,3,20},3807.94}},
+                 {0,
+                  "%[3]02d/%[2]02d/%[1]4d",
+                  "%.2f"}},
+         x = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
+         y = {2.7, 2.8, 31.4, 38.1, 58.0, 76.2, 100.5, 130.0, 149.3, 180.0},
+         tree_nodes = {"Figures",               -- (branch with 5 children)
+                       {"Other",                -- (leaf)
+                        {"triangle",            -- (branch with 3 children)
+                         {"STATE","COLLAPSED"},
+                         {"equilateral",
+                          {"isoceles",          -- (branch with 2 children)
+                           {"STATE","COLLAPSED"},
+                           {"acute",
+                            "obtuse"}},
+                          "scalenus"}
+                        },
+                        {"parallelogram",       -- (branch with 2 children)
+                         {"square",
+                          "diamond"}},
+                        "2D",                   -- (leaf)
+                        {"3D",                  -- (branch)
+                         {"STATE","COLLAPSED"}, -- (needed here)
+                         {}},                   -- (empty)
+                        {"4D",
+                         {"STATE","COLLAPSED"},
+                         {"some",
+                          "other",
+                          "branch"},
+                         {"random data"}        -- (iff attr and children present)
+                        }
+                       }
+                      }
+
+function get_data(Ihandle /*graph*/) return {{x,y,CD_BLUE}} end function
+
+function selection_cb(Ihandle ih, integer id, status)
+    ?{"selection_cb",ih, id, status}
+    return IUP_DEFAULT
+end function
+
+function about_cb(Ihandle /*ih*/)
+    string help_text = sprintf("IupVersion: %s %s\nCdVersion: %s %s",
+        {IupVersion(),IupVersionDate(),cdVersion(),cdVersionDate()})
+    IupMessage("About",help_text)
+    return IUP_DEFAULT
+end function
+constant cb_about = Icallback("about_cb")
+
+procedure SampleTest()
+Ihandle mnu, menu1, hbox_1, vbox_1, cnv_1, hbox_2, /*hbox_3,*/ vbox_2,
+    btn_1, btn_2, btn_3,  
+    tgl_1, tgl_2, tgl_3, 
+    frm_1, frm_2, frm_3, frm_4, frm_5, frm_6, val, tabs, graph,
+    list_1, list_2, list_3, text_1, ml_1, tree
+
+--  if platform()!=JS then
+        IupSetGlobal("UTF8MODE","YES")
+--  end if
+
+    menu1 = IupMenu({IupMenuItem("IupMenuItem 1 Checked", "VALUE=ON"),
+                     IupSeparator(),
+                     IupMenuItem("IupMenuItem 2 Disabled", "ACTIVE=NO")})
+    mnu = IupMenu({IupSubmenu("IupSubmenu 1", menu1),
+                   IupMenuItem("IupMenuItem 3", NULL),
+                   IupMenuItem("IupMenuItem 4", NULL),
+                   IupMenuItem("About", cb_about)})
+
+    btn_1 = IupButton("Button Text", "PADDING=5x5")
+    btn_2 = IupButton("Text", Icallback("text_click_cb"), "PADDING=5x5")
+    btn_3 = IupButton(NULL, Icallback("action3_cb"), `BGCOLOR="#FF0080", SIZE=20x10`)
+    frm_1 = IupFrame(IupVbox({btn_1,btn_2,btn_3}),"TITLE=IupButton")
+
+    frm_2 = IupFrame(IupVbox({IupLabel("Label Text"),
+--                            IupLabel(NULL,"SEPARATOR=HORIZONTAL, MAXSIZE=150"),
+                              IupLabel(NULL,"SEPARATOR=HORIZONTAL"),
+--                            IupLink("http://google.co.uk"),
+                              IupLabel("Another label")}),
+                     "TITLE=IupLabel")
+
+    tgl_1 = IupToggle("Toggle Text", "VALUE=ON")
+--DEV?
+--  tgl_1 = IupToggle("Toggle Text", "VALUE=ON, 3STATE=YES")
+    tgl_2 = IupToggle("Toggle Text")
+    tgl_3 = IupToggle("Toggle Text")
+    set_valuechanged_cb({tgl_1,tgl_2,tgl_3})
+
+    frm_3 = IupFrame(IupRadio(IupVbox({tgl_2,tgl_3})), "TITLE=IupRadio")
+
+    frm_4 = IupFrame(IupVbox({tgl_1,frm_3}))
+    IupSetAttribute(frm_4,"TITLE","IupToggle")
+
+    text_1 = IupText()
+    IupSetAttribute(text_1,"VALUE","Single Line of Text")
+    IupSetAttribute(text_1,"SIZE","80x")
+
+    ml_1 = IupMultiLine()
+--  ml_1 = IupText()
+--  IupSetAttribute(ml_1, "MULTILINE", "YES")
+    IupSetAttribute(ml_1,"VALUE","Multiline Text\nSecond Line\nThird Line\nUnicode\u279CText")
+    IupSetAttribute(ml_1,"EXPAND","YES")
+    IupSetAttribute(ml_1,"SIZE","80x40")
+--  IupSetAttribute(ml_1,"FONT","Courier, 8")
+
+    set_valuechanged_cb({text_1,ml_1})
+
+    frm_5 = IupFrame(IupVbox({text_1,ml_1}))
+    IupSetAttribute(frm_5,"TITLE","IupText")
+
+    list_1 = IupList()
+--  IupSetAttribute(list_1,"EXPAND","YES")
+    IupSetAttribute(list_1,"VALUE","1")
+    IupSetAttribute(list_1,"1","Item 1 Text")
+    IupSetAttribute(list_1,"2","Item 2 Text")
+    IupSetAttribute(list_1,"3","Item 3 Text")
+    IupSetAttribute(list_1,"TIP","List 1")
+
+    list_2 = IupList()
+    IupSetAttribute(list_2,"DROPDOWN","YES")
+--  IupSetAttribute(list_2,"EXPAND","YES")
+    IupSetAttribute(list_2,"VALUE","2")
+    IupSetAttribute(list_2,"1","Item 1 Text")
+    IupSetAttribute(list_2,"2","Item 2 Text")
+    IupSetAttribute(list_2,"3","Item 3 Text")
+    IupSetAttribute(list_2,"TIP","List 2")
+
+    list_3 = IupList()
+    IupSetAttribute(list_3,"EDITBOX","YES")
+--  IupSetAttribute(list_3,"EXPAND","YES")
+    IupSetAttribute(list_3,"VALUE","3")
+    IupSetAttribute(list_3,"1","Item 1 Text")
+    IupSetAttribute(list_3,"2","Item 2 Text")
+    IupSetAttribute(list_3,"3","Item 3 Text")
+    IupSetAttribute(list_3,"TIP","List 3")
+
+    set_valuechanged_cb({list_1,list_2,list_3})
+    frm_6 = IupFrame(IupVbox({list_1,list_2,list_3}))
+    IupSetAttribute(frm_6,"TITLE","IupList")
+
+--  val = IupValuator()
+    val = IupLabel("IupValuator() [DEV]")
+    set_valuechanged_cb(val)
+
+    pbar = IupProgressBar()
+--  pbar = IupProgressBar("DASHED=YES") -- (still no effect on windows 10)
+--  pbar = IupLabel("IupProgressBar() [DEV]")
+--  IupSetAttribute(pbar, "VALUE", "0")
+--  IupSetAttribute(pbar, "DASHED", "YES") -- (no effect on windows 10)
+--  IupSetAttribute(pbar, "MARQUEE", "YES")
+
+--  {} = IupDestroy(IupNormalizer({val,pbar},"NORMALIZE=HORIZONTAL"))
+--DEV (implement and add to docs)
+--  IupNormalize({val,pbar},"HORIZONTAL")
+
+    hbox_1 = IupHbox({frm_1,frm_2,frm_4})
+    vbox_1 = IupVbox({hbox_1,val,pbar},"NORMALIZESIZE=HORIZONTAL")
+    hbox_2 = IupHbox({vbox_1,frm_5,frm_6})
+
+    Ihandle hTimer = IupTimer(Icallback("timer_cb"), 300)
+
+--DEV IupTable, IupGraph, IupCalendar
+    graph = IupGraph(get_data,"RASTERSIZE=300x200")
+--  graph = IupGraph(get_data)
+--  graph = IupGraph(get_data,"XTICK=1,XMIN=0,XMAX=9,YTICK=20,YMIN=0,YMAX=180")
+    IupSetAttributes(graph,"XTICK=1,XMIN=0,XMAX=9")
+    IupSetAttributes(graph,"YTICK=20,YMIN=0,YMAX=180")
+
+--  tabs = IupTabs({IupVbox({IupLabel()}),
+    Ihandle datepick = IupDatePick()
+    set_valuechanged_cb(datepick)
+    tabs = IupTabs({IupVbox({IupTable(columns,data,3)},"TABTITLE=IupTable"),
+--                  IupVbox({IupFill()}),
+                    IupVbox({graph},"TABTITLE=IupGraph"),
+--                  IupVbox({IupFill()},"TABTITLE=IupCalendar")})
+                    IupVbox({datepick},"TABTITLE=IupCalendar")})
+--DEV:
+--                  IupVbox({IupCalendar()},"TABTITLE=IupCalendar")})
+--DEV not currently supported by pwa/p2js...
+--  IupSetAttribute(tabs,"TABTITLE0","IupTable")
+--  IupSetAttribute(tabs,"TABTITLE1","IupGraph")
+--  IupSetAttribute(tabs,"TABTITLE2","Tab Title 2")
+--  IupSetAttribute(tabs,"TABTITLE2","IupCalendar")
+--  IupSetAttribute(tabs,"RASTERSIZE","300x50")
+--  IupSetAttribute(tabs,"EXPAND","YES")
+--  hbox_3 = IupHbox({tabs})
+--  {} = IupDestroy(IupNormalizer({hbox_2,hbox_3},"NORMALIZE=HORIZONTAL"))
+--DEV (implement and add to docs)
+--  IupNormalize({hbox_2,tabs},"HORIZONTAL")
+
+--DEV should be TABCHANGE_CB or TABCHANGEPOS_CB
+--  set_valuechanged_cb(tabs)
+
+    tree = IupTreeView(tree_nodes)
+--  IupSetAttribute(tree,"RASTERSIZE","100x150")
+--DEV check this:
+--  set_valuechanged_cb(tree)
+    IupSetCallback(tree, "SELECTION_CB", Icallback("selection_cb"))
+
+    cnv_1 = IupCanvas()
+--  IupSetAttribute(cnv_1,"BGCOLOR","128 255 0")
+    IupSetAttribute(cnv_1,"BGCOLOR",IUP_PARCHMENT)
+--  IupSetAttribute(cnv_1,"SCROLLBAR","YES")
+    IupSetAttribute(cnv_1,"EXPAND","HORIZONTAL")
+    IupSetAttribute(cnv_1,"RASTERSIZE","x100")
+--  IupSetAttribute(cnv_1,"CANFOCUS","NO")
+
+    vbox_2 = IupVbox({hbox_2,
+--                    IupHbox({IupFrame(IupHbox({val}), "TITLE=IupVal"),
+--                             IupFrame(IupHbox({pbar}), "TITLE=IupProgressBar"),
+--                             IupFrame(IupHbox({tabs}), "TITLE=IupTabs")}),
+                      IupHbox({IupFrame(IupHbox({tabs}), "TITLE=IupTabs")}),
+--                    IupHbox({IupFrame(hbox_3, "TITLE=IupTabs")}),
+                      IupHbox({IupFrame(IupHbox({cnv_1}), "TITLE=IupCanvas"),
+                               IupFrame(IupHbox({tree}), "TITLE=IupTreeView")})},
+                     "NORMALIZESIZE=HORIZONTAL")
+    IupSetAttribute(vbox_2,"MARGIN","5x5")
+    IupSetAttribute(vbox_2,"GAP","5")
+
+    dlg = IupDialog(vbox_2)
+--  IupSetHandle("dlg",dlg)
+    IupSetAttributeHandle(NULL,"PARENTDIALOG", dlg)
+    IupSetAttributeHandle(dlg,"MENU",mnu)
+    IupSetAttribute(dlg,"TITLE","Iup Sample Dialog")
+
+    IupShow(dlg)
+end procedure
+
+IupOpen()
+SampleTest()
+if platform()!=JS then
+    IupMainLoop()
+    IupClose()
+end if
+

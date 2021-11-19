@@ -867,6 +867,10 @@ integer withjs = 3  -- for with[out] js/javascript[_semantics]:
 integer withjs = 0  -- with(1) / without(0) js/javascript[_semantics]
                     -- treat 2 (meaning any) as 0 (aka without)
 
+integer safemode = 1    -- (see also safe_mode in pglobals.e)
+                        -- 1: treat everything as safe (default)
+                        -- 0: with safe_mode or -safe cmdln option.
+
 --DEV:
 #ilASM{ jmp :!opCallOnceYeNot
 --#ilASM{ jmp :fin
@@ -3523,6 +3527,63 @@ end procedure -- (for Edita/CtrlQ)
 --          int3
 --    @@:
         ret
+
+--5/10/21 (safe_mode)
+    :%pSafemode
+            -- Set safe_mode ON (ie by default now nothing is safe, was "all safe")
+            mov [safemode],0
+            ret
+    :%pSafeOff
+            -- Of course if a malicious programmer finds any way to invoke this, they
+            -- have successfully defeated safe_mode, but hopefully they can't, since
+            -- any and all #ilASM{} outside of builtins\ should be fully prohibited.
+            mov [safemode],1
+            ret
+    :%pGetSafe
+        [32]
+            mov eax,[safemode]
+            mov [edi],eax
+        [64]
+            mov rax,[safemode]
+            mov [rdi],rax   
+        []
+          @@:
+            ret
+    :%pSafechk
+            -- cl set on entry
+            cmp [safemode],0
+            jne @b
+            mov al,124          -- e124npism
+            mov [safemode],1    -- allow ex.err to be written
+        [32]
+          @@:
+--          mov edx,[ebp+28]    -- era
+            mov edx,[ebp+12]    -- called from 
+            mov ebp,[ebp+20]    -- prev_ebp
+--          mov edi,[ebp+20]    -- prev_ebp
+--          test edi,edi
+--          jz :keepebp
+--              mov ebp,edi
+--        ::keepebp
+            sub cl,1
+            jg @b
+            sub edx,1
+        [64]
+          @@:
+--          mov rdx,[rbp+56]    -- era
+            mov rdx,[rbp+24]    -- called from
+            mov rbp,[rbp+40]    -- prev_ebp
+--          mov rdi,[rbp+40]    -- prev_ebp
+--          test rdi,rdi
+--          jz :keeprbp
+--              mov rbp,rdi
+--        ::keeprbp
+            sub cl,1
+            jg @b
+            sub rdx,1
+        []
+            jmp :!iDiag         -- fatal error (see pdiagN.e)
+            int3
 
     :%pAlloClone
 ----------------

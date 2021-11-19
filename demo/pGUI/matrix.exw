@@ -5,7 +5,8 @@
 --  Experiments with an IupMatrix control, in particular to emulate a listview control
 --  
 -- BUG: after selecting a line with the mouse, cursor moves from last position  -- fixed by [1], but only when HIDEFOCUS=YES
-
+--
+without js
 include pGUI.e
 
 function esc_close(Ihandle /*ih*/, atom c)
@@ -637,19 +638,22 @@ function edition_cb(Ihandle self, integer lin, integer col, integer mode)
   return IUP_DEFAULT;
 end function
 
-function draw_cb(Ihandle /*ih*/, integer lin, integer col, integer x1, integer x2, integer y1, integer y2)
-  if lin<4 then
+function draw_cb(Ihandle /*ih*/, integer lin, col, x1, x2, y1, y2, cdCanvas cnv)
+    if lin<4 then
+        return IUP_IGNORE;
+    end if
+
+--DEV broken...
+if 0 then
+    cdCanvasSetForeground(cnv,CD_RED);
+    cdCanvasLine(cnv, x1, y1, x2, y2);
+    cdCanvasLine(cnv, x1, y2, x2, y1);
+    cdCanvasSetTextAlignment(cnv,CD_CENTER);
+    cdCanvasText(cnv,(x1+x2)/2, (y1+y2)/2, sprintf("%d:%d", {lin, col}))
+end if
+
+--  return IUP_DEFAULT;
     return IUP_IGNORE;
-  end if
-
-  cdSetForeground(CD_RED);
-  cdLine(x1, y1, x2, y2);
-  cdLine(x1, y2, x2, y1);
-
-    {} = cdTextAlignment(CD_CENTER);
-    cdText((x1+x2)/2, (y1+y2)/2, sprintf("%d:%d", {lin, col}))
-
-  return IUP_DEFAULT;
 end function
 
 function action_cb(Ihandle ih, integer /*c*/, integer lin, integer col, integer active, atom after)

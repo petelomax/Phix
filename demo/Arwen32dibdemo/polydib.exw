@@ -3,65 +3,53 @@
 
 include a32dpoly.ew  -- only the core- and polygon-library are necessary
 
-a32Dib0 dib, screen_dib
-integer dx, dy, dw, dh, frames
-atom t
-
-    dib = loadDib("demo.bmp")
-    if not sequence(dib) then
-        if message_box("Can't load bitmap 'demo.bmp'.", "Error", MB_ICONERROR) then end if
-        abort(0)
-    end if
-    screen_dib = 0
-    dx = 0  dy = 0  dw = 0  dh = 0
+a32Dib0 dib = loadDib("demo.bmp"), screen_dib = 0
+assert(sequence(dib),"Cannot load demo.bmp")
+integer dx = 0, dy = 0, dw = 0, dh = 0, frames = 0
+atom t2 = time()+2
 
 constant win = create(Window, "Arwen32Dib bitmap polygon mapping demo", 0, 0, Default, Default, 480, 300, 0)
 
 procedure IdleHandler()
-integer x1, y1, x2, y2, x3, y3, x4, y4
-    x1 = rand(dx)           y1 = rand(dy)
-    x2 = dw-rand(dx)        y2 = rand(dy)
-    x3 = dw-rand(dx)        y3 = dh-rand(dy)
-    x4 = rand(dx)           y4 = dh-rand(dy)
     if sequence(screen_dib) then
+        integer x1 = rand(dx),          y1 = rand(dy),
+                x2 = dw-rand(dx),       y2 = rand(dy),
+                x3 = dw-rand(dx),       y3 = dh-rand(dy),
+                x4 = rand(dx),          y4 = dh-rand(dy)
         clearDib(screen_dib, {255, 255, 0})
         drawDibTransformedPolygon(screen_dib, dib, {{x1, y1}, {x2, y2}, {x3, y3}, {x4, y4}}, {})
     end if
     frames += 1
-    if time()-t>2 then
+    if time()>t2 then
         setText(win, sprintf("%g FPS", frames/2))
         frames = 0
-        t = time()
+        t2 = time()+2
     end if
     repaintWindow(win,False)
 --sleep(1)
 end procedure
 setHandler(IDLE, routine_id("IdleHandler"))
 
-integer firsttime = 1
+bool firsttime = true
 
-function winHandler(integer id, integer msg, atom wParam, object lParam)
-sequence rect
-    if id or wParam or object(lParam) then end if -- suppress warnings
+function winHandler(integer /*id*/, msg, atom wParam, object /*lParam*/)
     if msg=WM_PAINT then
         if sequence(screen_dib) then
             drawDib(win, screen_dib, 0, 0, 0, 0, screen_dib[DibWidth]-1, screen_dib[DibHeight]-1)
         end if
     elsif msg=WM_SIZE then
-        rect = getClientRect(win)
-        dx = floor(rect[3]/4)+1
-        dy = floor(rect[4]/4)+1
+        sequence rect = getClientRect(win)
         dw = rect[3]
         dh = rect[4]
+        dx = floor(dw/4)+1
+        dy = floor(dh/4)+1
         if sequence(screen_dib) then killDib(screen_dib) end if
         screen_dib = newDib(dw, dh)
     elsif msg=WM_ERASEBKGND then
         return {1} -- suppress erasing the background: eliminates flickering
     elsif firsttime
       and msg=WM_SHOWWINDOW then
-        firsttime = 0
-        t = time()
-        frames = 0
+        firsttime = false
         startIdle(40)
     elsif msg=WM_CHAR 
       and wParam=VK_ESCAPE then
@@ -71,7 +59,7 @@ sequence rect
 end function
 setHandler(win, routine_id("winHandler"))
 
-    WinMain(win, SW_NORMAL)
-    killDib(dib)
-    if sequence(screen_dib) then killDib(screen_dib) end if
+WinMain(win, SW_NORMAL)
+killDib(dib)
+if sequence(screen_dib) then killDib(screen_dib) end if
 

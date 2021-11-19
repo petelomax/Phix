@@ -1913,13 +1913,12 @@ atom gvarptr
     #ilASM{
         [32]
             xor eax,eax
-            call :%pWithJS
-            call :%pDeSeqip
         [64]
             xor rax,rax
+        []
             call :%pWithJS
             call :%pDeSeqip
-        []
+            call :%pSafeOff
           }
 
 --20/2/2021
@@ -2217,8 +2216,8 @@ sequence msgs =
  "byterange must be {} or pair of atoms\n",                     -- e67bre
 -- -1,--"argument to dir() must be string\n",                   -- e68atcdmbs (not actually used/see pdir.e)
     -- See e73atodmbs
- "crash(%s)\n",                                                 -- e68crash
-    -- crash() invoked inside a try block
+ "crash(`%s`)\n",                                               -- e68crash
+    -- crash() invoked (but not caught by a try block)
  "error in format string\n",                                    -- e69eifs (see pprntf.e/badfmt())
     -- Missing or unrecognised format character after a '%',
     --  eg "%", "%3.2", "%q". See also e73atodmbs.
@@ -2235,6 +2234,7 @@ sequence msgs =
     -- occurs after a previous call to routine_id, define_c_func, 
     -- etc returned -1.
     -- Also invoked directly from delete_routine() aka :%opDelRtn.
+    -- Note: a non-integer routine_id appears as -8.
 --DEV++
  "argument to open_dll() must be string\n",                     -- e73atodmbs
     -- Either the parameter is not a sequence, or some element
@@ -2375,6 +2375,7 @@ sequence msgs =
     -- NB: ep1 is limit value, ep2 is step value (no var nos)
  "invalid poke size\n",                                         -- e122ips
  "delete_routine already set\n",                                -- e123dras
+ "not permitted in safe mode\n",                                -- e124npism
  -1}
 
                                                                 -- e14soa(edi:)
@@ -2750,27 +2751,13 @@ X               mov qword[rbp+32],:rbidsret
         -- Map any machine exceptions that occur on add1 (refcount) 
         --  followed by a "helper" cmp eax,<varno>; ==> to e92:
 if machine_bits()=32 then
---17/11/16 afaik, we still use cmp eax,imm32, not cmp rax, but I think we got rid of all inc.
---      if machine_bits()=32 then
---4/7/17:
---DEV the rqd test should be do-able - CSvaddr or [ds+?] or symtab[??]... (two valid ranges, when interpreting)
---      if (or_era>=??? and or_era<=???-5)
---      or (or_era>=??? and or_era<=???-5) then
---try
             x6 = peek({or_era,6})
---catch e
-----  if e[E_CODE]!=#C0000005 then  -- maybe...
---  ?{"warning: peek failure pDiagN.e line 2655",e,or_era}
---  x6 = "123456"
---end try
-    --      --  inc dword[ebx+src*4-8]      377104 2s3 F8
             --  add dword[ebx+src*4-8],1    203104 2s3 F8 01
             if x6[1]=0o203
             and x6[2]=0o104
             and and_bits(x6[3],0o307)=0o203         -- sib(maybe!) of 0o2s3,
             and x6[4]=#F8                           -- displacement is -8
             and x6[5]=#01 then                      -- literal imm8 of 1
-    --DEV 64-bit
                 if x6[6]=cmp_eax_imm32 then
                     or_esi = peek4u(or_era+6)
                     msg_id = 92
@@ -2779,7 +2766,6 @@ if machine_bits()=32 then
             end if
 else
             x6 = peek({or_era,7})
---?{"x6 (64 bit)",x6}
 --eg:
 --  add qword[rbx+rcx*4-16],1             ;#00452707: 48:203104213 F0 01         u  00 0A  3   6      
 --  cmp eax,1186                          ;#0045270D: 075 A2040000               vu 00 01  1   8      
@@ -2790,9 +2776,8 @@ else
             and x6[2]=0o203
             and x6[3]=0o104
             and and_bits(x6[4],0o307)=0o203         -- sib(maybe!) of 0o2s3,
-            and x6[5]=#F0                           -- displacement is -8
+            and x6[5]=#F0                           -- displacement is -16
             and x6[6]=#01 then                      -- literal imm8 of 1
-    --DEV 64-bit
                 if x6[7]=cmp_eax_imm32 then
                     or_esi = peek4u(or_era+7)
                     msg_id = 92
@@ -2800,23 +2785,6 @@ else
                 end if
             end if
 end if
---      else
-----    add qword[rbx+rcx*4-16],1             ;#0042D0E9: 48:203104213 F0 01         u  00 0A  3   6      
-----    cmp eax,662                           ;#0042D0EF: 075 96020000               vu 00 01  1   8      
---          x6 = peek({or_era,7})
---          if x6[1]=#48
---          and x6[2]=0o203
---          and x6[3]=0o104
---          and and_bits(x6[4],0o307)=0o203         -- sib(maybe!) of 0o2s3,
---          and x6[5]=#F0                           -- displacement is -16
---          and x6[6]=#01 then                      -- literal imm8 of 1
---              if x6[7]=cmp_eax_imm32 then
---                  or_esi = peek4u(or_era+7)
---                  msg_id = 92
---                  msg = msgs[92]
---              end if
---          end if
---      end if
         if msg_id=30 then
             if xceptn=#C0000005
             or xceptn=#C0000005-#100000000 then
@@ -4650,6 +4618,7 @@ end procedure -- (for Edita/CtrlQ)
             je :e94vhnbaavedx
             cmp edx,:!Jccp2NotInt
             je :e94vhnbaavedx
+--6/9/21 does not appear to be working:
             cmp edx,:!Jife92
             je :e94vhnbaavedx
             cmp edx,:!opJnotxe92a

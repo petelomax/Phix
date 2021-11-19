@@ -170,6 +170,8 @@ global enum
     FILETYPE_DIRECTORY =  2
 --*/
 
+--object lastd = 0 (diag)
+
 global function get_file_type(string filename)
     if find('*', filename) 
     or find('?', filename) then 
@@ -178,9 +180,18 @@ global function get_file_type(string filename)
 
     if length(filename)=2 and filename[2]=':' then
         filename &= `\`
+--3/10/21: (no help)
+--  elsif find(filename[$],`\/`) then
+--?filename
+--      filename = filename[1..$-1]
     end if
 
     object d = dir(filename)
+--if d!=lastd then
+--  ?filename
+--  ?shorten(d)
+--  lastd = d
+--end if
     if sequence(d)
     and length(d)>0 then
         --

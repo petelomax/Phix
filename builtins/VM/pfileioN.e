@@ -522,7 +522,8 @@ constant F_CLOSED   = #00,  -- file is closed/available for re-use (see flist)
 integer finit
         finit = 0
 
-integer safemode = false -- (aka 0)
+--5/10/21... (this [local] now lives in pHeap.e [and safe_mode in pglobals.e])
+--integer safemode = false -- (aka 0)
 
 procedure initF()
 --/*
@@ -808,9 +809,16 @@ atom fhandle
 integer iThis
 --atom frealposn
 
+--5/10/21...
 --DEV not working as expected: p -safe -test allows t39rndio, t58rtxt, whereas 41/42 (ilASM) /were/ caught & excluded...
 --DOH! I didn't put !SetSafeMode in the optable!!
-    if safemode then safemode=0 ?9/0 end if
+--  if safemode then safemode=0 ?9/0 end if
+    #ilASM{
+--5/10/21 (safe_mode)
+        mov cl,1
+        call :%pSafechk
+          }
+--  #ilASM{ call :%pSafechk }   -- (in pcfunc.e)
     if not finit then initF() end if
     fmode = 0                                   -- assume text mode
     if sequence(openmode) then                  -- allow open(<file>,'r') as well as open(<file>,"r")
@@ -6708,7 +6716,8 @@ string src
 --atom this
 integer iThis
 
-    if safemode then ?9/0 end if
+--5/10/21: (should we even be able to open a file?...)
+--  if safemode then ?9/0 end if
 --DEV/temp:
 bool from_hll = false
 if option>8 then
@@ -8017,17 +8026,20 @@ end procedure
 procedure :!SetSafeMode(:%)
 end procedure -- (for Edita/CtrlQ)
 --*/
-    :!SetSafeMode
-        -- called from processCommandLine()
-        [32]
-            mov eax,[esp]
-            mov [safemode],1 -- (aka true)
-            jmp eax
-        [64]
-            mov rax,[rsp]
-            mov [safemode],1
-            jmp rax
-        []
+--5/10/21:
+--/*
+--  :!SetSafeMode
+--      -- called from processCommandLine()
+--      [32]
+--          mov eax,[esp]
+--          mov [safemode],1 -- (aka true)
+--          jmp eax
+--      [64]
+--          mov rax,[rsp]
+--          mov [safemode],1
+--          jmp rax
+--      []
+--*/
 
 --/*
 procedure :%opOpen(:%)

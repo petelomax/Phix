@@ -1,6 +1,6 @@
 --
--- gears.exw
--- =========
+-- demo\pGUI\gears.exw
+-- ===================
 --
 -- *
 -- * 3-D gear wheels.  This program is in the public domain.
@@ -26,13 +26,17 @@
 --  least the CPU usage drops to 0 instead of 100% (aka 25% with 4 cores).
 --  Use up/down/left/right/z/Z to rotate the gears.
 --
-
+-- 27/9/21:
+--  tried adding "(script src="js/poc/glsim.js")(/script) after opengl.js
+--  added "let gls = new GLSim(canvas);" before the init() call (in test.htm).
+--  removed glEnable(GL_CULL_FACE) below, made no difference to desktop/Phix.
+--  ==> stuck on glGenLists() [undefined]
+--with javascript_semantics -- wishful thinking...
+without javascript_semantics -- glGenLists() is not defined in glsim.js...
 constant usetimer = 01
 
 include pGUI.e
 include opengl.e
-
---#withtype Ihandle
 
 Ihandln dialog
 Ihandle canvas
@@ -253,17 +257,13 @@ end function
 
 -- program & OpenGL initialization
 procedure init()
-sequence argv = command_line()
-integer argc = length(argv)
-sequence pos, red, green, blue
-
-    pos = {5, 5, 10, 0}
-    red = {0.8, 0.1, 0, 1}
-    green = {0, 0.8, 0.2, 1}
-    blue = {0.2, 0.2, 1, 1}
+    sequence pos = {5, 5, 10, 0},
+             red = {0.8, 0.1, 0, 1},
+             green = {0, 0.8, 0.2, 1},
+             blue = {0.2, 0.2, 1, 1}
 
     glLight(GL_LIGHT0, GL_POSITION, pos)
-    glEnable(GL_CULL_FACE)
+--  glEnable(GL_CULL_FACE)
     glEnable(GL_LIGHTING)
     glEnable(GL_LIGHT0)
     glEnable(GL_DEPTH_TEST)
@@ -271,35 +271,38 @@ sequence pos, red, green, blue
     -- make the gears
     gear1 = glGenLists(1)
     glNewList(gear1, GL_COMPILE)
-    glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, red)
+    glMaterial(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, red)
     gear(1, 4, 1, 20, 0.7)
     glEndList()
 
     gear2 = glGenLists(1)
     glNewList(gear2, GL_COMPILE)
-    glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, green)
+    glMaterial(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, green)
     gear(0.5, 2, 2, 10, 0.7)
     glEndList()
 
     gear3 = glGenLists(1)
     glNewList(gear3, GL_COMPILE)
-    glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, blue)
+    glMaterial(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, blue)
     gear(1.3, 2, 0.5, 10, 0.7)
     glEndList()
 
     glEnable(GL_NORMALIZE)
 
-    for i=3 to argc do
-        if equal(argv[i], "-info") then
-            printf(1, "GL_RENDERER   = %s\n", {glGetString(GL_RENDERER)})
-            printf(1, "GL_VERSION    = %s\n", {glGetString(GL_VERSION)})
-            printf(1, "GL_VENDOR     = %s\n", {glGetString(GL_VENDOR)})
-            printf(1, "GL_EXTENSIONS = %s\n", {glGetString(GL_EXTENSIONS)})
-        elsif equal(argv[i], "-exit") then
-            autoexit = 30
-            printf(1, "Auto Exit After %i Seconds.\n", {autoexit})
-        end if
-    end for
+    if platform()!=JS then
+        sequence argv = command_line()
+        for i=3 to length(argv) do
+            if equal(argv[i], "-info") then
+                printf(1, "GL_RENDERER   = %s\n", {glGetString(GL_RENDERER)})
+                printf(1, "GL_VERSION    = %s\n", {glGetString(GL_VERSION)})
+                printf(1, "GL_VENDOR     = %s\n", {glGetString(GL_VENDOR)})
+                printf(1, "GL_EXTENSIONS = %s\n", {glGetString(GL_EXTENSIONS)})
+            elsif equal(argv[i], "-exit") then
+                autoexit = 30
+                printf(1, "Auto Exit After %i Seconds.\n", {autoexit})
+            end if
+        end for
+    end if
 end procedure
 
 function esc_close(Ihandle /*ih*/, atom c)
@@ -376,23 +379,18 @@ Ihandln timer
 
     IupGLMakeCurrent(canvas)
     init()
---  printf(1,"Vendor: %s\n", glGetString(GL_VENDOR))
---  printf(1,"Renderer: %s\n", glGetString(GL_RENDERER))
---  printf(1,"Version: %s\n", glGetString(GL_VERSION))
     IupSetAttribute(canvas, "RASTERSIZE", NULL)
 
     {} = resize_cb(dialog, 500, 500)
 
     IupShowXY(dialog, IUP_CENTER, IUP_CENTER)
 
-    IupMainLoop()
-
-    dialog = IupDestroy(dialog)
-    if usetimer then
-        timer = IupDestroy(timer)
+    if platform()!=JS then
+        IupMainLoop()
+        dialog = IupDestroy(dialog)
+        if usetimer then timer = IupDestroy(timer) end if
+        IupClose()
     end if
-
-    IupClose()
 
 end procedure
 main()

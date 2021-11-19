@@ -148,6 +148,10 @@ enter_cs()
     end if
 leave_cs()
     if si=0 then
+--4/9/21: (Alas I can do no better...)
+        if not integer(rid) then rid = -8 end if
+--      if not integer(rid) then crash("invalid routine_id(%V)",{rid},2) end if     -- still ugly/gibberish
+--      if not integer(rid) then crash("invalid routine_id(%V)",{rid},3) end if     -- too far/wrong line (dang)
         fatalN(2,e72iri,rid)
     end if
 

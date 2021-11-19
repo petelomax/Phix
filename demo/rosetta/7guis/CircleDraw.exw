@@ -2,6 +2,8 @@
 -- demo\rosetta\7guis\CircleDraw.exw
 -- =================================
 --
+--with javascript_semantics
+without js -- needs IupPopup, test ACTIVE, VISIBLE [DEV]
 include pGUI.e
 
 Ihandle dlg, undo, redo, canvas, menu, slider, slabel, scale
@@ -25,9 +27,9 @@ integer drawto = 0,     -- used/active part of circles
         save_d          -- original d, restored on close(slider)
 
 function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
-integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
-integer active, x, y, d
-bool hit = false
+    integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE"),
+            active, x, y, d
+    bool hit = false
     cdCanvasActivate(cd_canvas)
     cdCanvasClear(cd_canvas) 
     for i=1 to drawto do
@@ -51,9 +53,13 @@ bool hit = false
 end function
 
 function map_cb(Ihandle /*ih*/)
-    atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
     IupGLMakeCurrent(canvas)
-    cd_canvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    if platform()=JS then
+        cd_canvas = cdCreateCanvas(CD_IUP, canvas)
+    else
+        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+        cd_canvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    end if
     cdCanvasSetBackground(cd_canvas, CD_WHITE)
     cdCanvasSetForeground(cd_canvas, CD_BLACK)
     return IUP_DEFAULT
@@ -120,8 +126,8 @@ function button_cb(Ihandle /*canvas*/, integer button, pressed, x, y, atom /*pSt
 end function
 
 function motion_cb(Ihandle /*ih*/, integer x, y, atom /*pStatus*/)
-integer best = 0
-atom bestd
+    integer best = 0
+    atom bestd
     if not IupGetInt(slider,"VISIBLE")
     and not IupGetInt(menu,"VISIBLE") then
         for i=1 to drawto do
@@ -165,7 +171,7 @@ function slider_cb(Ihandle /*scale*/)
 end function
 
 function slider_close_cb(Ihandle /*slider*/)
-    sequence circle = circles[C]
+    sequence circle = deep_copy(circles[C])
     circles[C][D] = save_d  -- restore
     circles[C][ACTIVE] = false
     circle[LINK] = C        -- for undo
@@ -173,7 +179,7 @@ function slider_close_cb(Ihandle /*slider*/)
     return IUP_DEFAULT
 end function
 
-function esc_close(Ihandle /*ih*/, atom c)
+function key_cb(Ihandle /*ih*/, atom c)
     if c=K_ESC then
         IupHide(slider)
         return slider_close_cb(slider)
@@ -194,24 +200,28 @@ procedure main()
                         "MIN=10, MAX=400, VALUE=20, EXPAND=HORIZONTAL")
 
     slider = IupDialog(IupVbox({IupHbox({IupFill(),slabel,IupFill()}),scale}),"MARGIN=10x10")
-    IupSetCallback(slider, "K_ANY", Icallback("esc_close"))
-    IupSetCallback(slider, "CLOSE_CB", Icallback("slider_close_cb"));
+    IupSetCallbacks(slider, {"KEY_CB", Icallback("key_cb"),
+                             "CLOSE_CB", Icallback("slider_close_cb")})
 
     canvas = IupGLCanvas("RASTERSIZE=340x340")
-    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
-    IupSetCallback(canvas, "RESIZE_CB", Icallback("resize_cb"))
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
-    IupSetCallback(canvas, "BUTTON_CB", Icallback("button_cb"))
-    IupSetCallback(canvas, "MOTION_CB", Icallback("motion_cb"))
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "RESIZE_CB", Icallback("resize_cb"),
+                             "ACTION", Icallback("redraw_cb"),
+                             "BUTTON_CB", Icallback("button_cb"),
+                             "MOTION_CB", Icallback("motion_cb")})
 
     dlg = IupDialog(IupVbox({IupHbox({IupFill(),undo,redo,IupFill()},"GAP=20"),
                              canvas}),`MARGIN=10x10,TITLE="Circle Draw"`)
     IupSetAttributeHandle(slider, "PARENTDIALOG", dlg)
+--test/DEV:
+--  IupSetAttributeHandle(NULL, "PARENTDIALOG", dlg)
 
     IupShow(dlg)
     IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release the minimum limitation
-    IupMainLoop()
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

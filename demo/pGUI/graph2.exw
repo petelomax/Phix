@@ -1,0 +1,45 @@
+--
+-- demo/pGUI/graph2.exw
+-- ====================
+--
+with javascript_semantics
+include pGUI.e
+include IupGraph.e
+include builtins\timedate.e
+
+constant factor = 1e-6,
+         dayone = parse_date_string("1/1/1999",{"D/M/YYYY"}),
+         oneday = timedelta(days:=1)
+
+function format_as_date(integer d)
+    timedate td = adjust_timedate(dayone,oneday*d)
+    return format_timedate(td,"DD/MM/YYYY")
+end function
+
+function get_data(Ihandle /*graph*/)
+    sequence x = {}, y = {}
+    for i=1 to 7000 do
+        x &= i
+        y &= factor*i*i*i+0.2
+    end for
+    return {{"XRID",format_as_date},
+            {x,y,CD_RED}}
+end function
+
+IupOpen()
+Ihandle graph = IupGraph(get_data,"RASTERSIZE=640x480")
+Ihandle dlg = IupDialog(graph,`TITLE="temperature/moisture"`)
+IupSetAttributes(dlg,"MINSIZE=320x340") -- (nb not raster units/pixels)
+IupSetAttributes(graph,"XTICK=500,XMIN=0,XMAX=7000")
+IupSetAttributes(graph,"YTICK=5e4,YMIN=0,YMAX=3.5e5")
+IupSetAttributes(graph,`YTICKFMT="%.1e"`)
+IupSetAttributes(graph,`XMARGIN=30, XANGLE=90, YMARGIN=45`)
+if platform()=JS then
+    IupSetAttributes(graph,`XYSHIFT=-20`)
+end if
+IupShow(dlg)
+IupSetAttribute(graph,`RASTERSIZE`,NULL)
+if platform()!=JS then
+    IupMainLoop()
+    IupClose()
+end if

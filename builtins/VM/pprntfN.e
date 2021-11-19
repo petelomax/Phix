@@ -26,7 +26,7 @@
 --  NB the "without debug" in both pdiag.e and ppp.e overshadow the one
 --      here; use "with debug" and/or "-nodiag" to get a listing.
 
-without trace -- ditto, plus important this be off when running trace(3)
+--without trace -- ditto, plus important this be off when running trace(3)
 --with trace
 
 -- Bugfix history:
@@ -223,6 +223,7 @@ end for
         if precision>0 then
             result &= '.'
             dotdone = 1
+            atom fadj = 0
 --1/11/15
 --          for i=1 to precision do
             for i=1 to precision-(charflag='g') do
@@ -236,15 +237,19 @@ end for
                         fwk += epwr
                         digit += 1
                     end while
+--30/10/21
+                    fadj = fwk
                 else
                     f = (f-digit)*10
                     digit = floor(f)
+                    fadj = 0
                 end if
 --12/7/16:
                 if digit=10 then exit end if
                 result &= digit+'0'
                 expadj += 1
             end for
+            f -= fadj
         else
             if ewk>0 then
                 f -= fwk
@@ -593,6 +598,15 @@ integer tmp
                 showplus = 0
                 showcommas = 0
                 enquote = 0
+                if fi='[' then
+                    integer e = find(']',fmt,i+1)
+                    if e=0 then badfmt() end if
+                    nxt = to_integer(fmt[i+1..e-1])
+                    if nxt=0 then badfmt() end if
+                    i = e+1
+                    if i>length(fmt) then badfmt() end if
+                    fi = fmt[i]
+                end if
                 -- Note that -=| are mutually exclusive, and cannot co-exist with 0. 
                 -- Likewise 0 and + are also mutually exclusive, however a + can
                 -- co-exist with -=| as long as it is specified first, and , can be
@@ -723,13 +737,13 @@ integer tmp
                         o = args
                         work = 0
                         if atom(o) then
-                            if o!=nan and o!=-nan and o!=inf then
+                            if o!=nan and o!=-nan and o!=inf and o!=-inf then
                                 work = floor(o)
                             end if
                         else
                             o = args[nxt]
                             if atom(o) then
-                                if o!=nan and o!=-nan and o!=inf then
+                                if o!=nan and o!=-nan and o!=inf and o!=-inf then
                                     work = floor(o)
                                 end if
                             else

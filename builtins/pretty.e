@@ -89,7 +89,8 @@ procedure rPrint(object a)
                     if (a >= pretty_ascii_min and a <= pretty_ascii_max) then
                         sbuff = `'`&a&`'`  -- display char only
                     
-                    elsif find(a, "\t\n\r\\") then
+--                  elsif find(a, "\t\n\r\\") then
+                    elsif find(a, "\n\r\\"&9) then
                         sbuff = `'`&esc_char(a)&`'`  -- display char only
                     
                     end if
@@ -118,7 +119,8 @@ procedure rPrint(object a)
             end if
             if not integer(a[i]) or
                (a[i] < pretty_ascii_min and 
-                (pretty_ascii < 2 or not find(a[i], "\t\r\n\\"))) or 
+--              (pretty_ascii < 2 or not find(a[i], "\t\r\n\\"))) or 
+                (pretty_ascii < 2 or not find(a[i], "\r\n\\"&9))) or 
                 a[i] > pretty_ascii_max then
                 all_ascii = 0
             end if

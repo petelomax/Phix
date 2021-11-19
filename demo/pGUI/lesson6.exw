@@ -1,9 +1,11 @@
 --
---  demo/pGUI/lesson6.exw
+--  demo\pGUI\lesson6.exw
+--  =====================
 --
 --  All made by Daniel Kluss(xerox_irs@lvcm.com)
 --  Ported (from win32lib) to pGUI by Pete Lomax.
 --
+without js -- glu.e, winbmp.e, GL 1.0
 constant usetimer = 01
 
 include pGUI.e
@@ -18,8 +20,6 @@ atom xrot = 0,  -- X Rotation
      yrot = 0,  -- Y Rotation
      zrot = 0   -- Z Rotation
 
---sequence textures = {NULL}    -- SUG: different textures/side?
-
 procedure LoadGLTextures()
 -->DEV/DOC/ask about using IupLoadImage()? [NAH]
     sequence TextureImage = load_bmp(`data\NeHe.bmp`)
@@ -28,13 +28,11 @@ procedure LoadGLTextures()
     atom {depth,pMem,width,height} = TextureImage
     if depth=-1 then ?9/0 end if
 
-    atom {texture} = glGenTextures(1)
---  textures = glGenTextures(1)
+    atom texture = glCreateTexture()
 
     -- Typical Texture Generation Using Data From The Bitmap
     glBindTexture(GL_TEXTURE_2D, texture)
 --  glBindTexture(GL_TEXTURE_2D, textures[1])
--->DEV/DOC
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, pMem)
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR)
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR)
@@ -47,6 +45,7 @@ integer fps = 0
 procedure display()
     glClear(GL_COLOR_BUFFER_BIT+GL_DEPTH_BUFFER_BIT)    -- Clear The Screen And The Depth Buffer
     glLoadIdentity()                                    -- Reset The View
+--  glTranslate(18,0,-50)
     glTranslate(0,0,-5)
 
     glRotate(xrot,1,0,0)
@@ -154,6 +153,8 @@ Ihandln timer
 
     if usetimer then
         timer = IupTimer(cb_idle,10)                    -- (~64 fps, 0% CPU)
+--      timer = IupTimer(cb_idle,100)                   -- (~10 fps, 0% CPU)
+--      timer = IupTimer(cb_idle,1000)                  -- (~10 fps, 0% CPU)
     else
         IupSetGlobalFunction("IDLE_ACTION", cb_idle)    -- (~690 fps, 100% CPU)
     end if

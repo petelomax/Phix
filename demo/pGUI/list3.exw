@@ -3,6 +3,7 @@
 --
 --  More experiments with IupList()
 --
+with javascript_semantics -- maybe/incomplete... VISIBLECOLUMNS/VISIBLEITEMS/DROPDOWN/CLOSE_CB
 sequence data
     data = {"BCN-BTC","BELA-BTC","BLK-BTC","BTCD-BTC","BTM-BTC","BTS-BTC","BURST-BTC","CLAM-BTC","DASH-BTC","DGB-BTC",
             "DOGE-BTC","EMC2-BTC","FLDC-BTC","FLO-BTC","GAME-BTC","GRC-BTC","HUC-BTC","LTC-BTC","MAID-BTC","OMNI-BTC","NAV-BTC",
@@ -17,12 +18,9 @@ sequence data
 
 include pGUI.e
 
---#withtype Ihandle
---#withtype Ihandln
-
 Ihandln dlg = NULL
 Ihandle pairname
-Ihandle filter
+Ihandle hfilter
 
 string filter_text = ""
 
@@ -81,7 +79,7 @@ bool count = 0
         if count then exit end if
         filter_text = filter_text[2..$]
     end while
-    IupSetStrAttribute(filter,"TITLE","%s (%d)",{filter_text,count})
+    IupSetStrAttribute(hfilter,"TITLE","%s (%d)",{filter_text,count})
     if count=1 then
         IupSetInt(pairname, "VALUE", 1)
         set_title(1)
@@ -123,9 +121,9 @@ procedure create_order_dialog()
     IupSetCallback(pairname, "VALUECHANGED_CB", cb_pair_valuechanged)
     IupSetCallback(pairname, "K_ANY", cb_key);
 
-    filter = IupLabel("xxxxxxxxxxxxxxxxxxxx")
+    hfilter = IupLabel("xxxxxxxxxxxxxxxxxxxx")
 
-    Ihandle box = IupHbox({pairlbl,pairname,filter},"MARGIN=10x10, GAP=5")
+    Ihandle box = IupHbox({pairlbl,pairname,hfilter},"MARGIN=10x10, GAP=5")
 
     dlg = IupDialog(box)
 
@@ -138,8 +136,9 @@ end procedure
 IupOpen()
 create_order_dialog()
 IupShow(dlg)
-IupSetAttribute(filter, "TITLE", "");
+IupSetAttribute(hfilter, "TITLE", "");
 set_filter(0)
-IupMainLoop()
-IupClose()
-
+if platform()!=JS then
+    IupMainLoop()
+    IupClose()
+end if

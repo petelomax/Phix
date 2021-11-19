@@ -1,5 +1,6 @@
 --
--- buffer.exw
+-- demo\pGUI\buffer.exw
+-- ====================
 --
 --  translation of https://github.com/LuaDist/iup/blob/master/test/cd/canvas_cddbuffer.c
 --  alternate link https://sourceforge.net/p/iup/iup/766/tree/tags/iup_3_2/iup/test/canvas_cddbuffer.c
@@ -15,17 +16,8 @@ SOLVED: 1) make the canvas non-resizable by setting EXPAND=NO (on the IupCanvas)
 Updated 30/5: proper resizable canvas, redraw every time.
 --*/
 
---#withtype Ihandle
---#withtype cdCanvas
---#withtype cdCanvan
-
+with javascript_semantics
 include pGUI.e
-
-function esc_close(Ihandle /*ih*/, atom c)
--- (I like all my demos to close when escape is keyed)
-    if c=K_ESC then return IUP_CLOSE end if
-    return IUP_CONTINUE
-end function
 
 Ihandle dlg, canvas
 cdCanvas cddbuffer, cdcanvas
@@ -67,36 +59,26 @@ function unmap_cb(Ihandle /*ih*/)
     return IUP_DEFAULT
 end function
 
-procedure CanvasCDDBufferTest()
+procedure main()
+    IupOpen()
 
-    canvas = IupCanvas(NULL)
-    IupSetAttribute(canvas, "RASTERSIZE", "300x200") -- initial size
+    canvas = IupCanvas("RASTERSIZE=300x200")
 --  IupSetAttribute(canvas, "EXPAND", "NO")
-
-    IupSetCallback(canvas, "MAP_CB",    Icallback("map_cb"))
-    IupSetCallback(canvas, "UNMAP_CB",  Icallback("unmap_cb"))
-
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "UNMAP_CB", Icallback("unmap_cb"),
+                             "ACTION", Icallback("redraw_cb")})
     dlg = IupDialog(canvas)
---  dlg = IupDialog(canvas,"SIZE=300x200")
     IupSetAttribute(dlg, "TITLE", "CD Double Buffer Test")
-    IupSetCallback(dlg, "K_ANY",     Icallback("esc_close"))
 --  IupSetCallback(dlg, "RESIZE_CB", Icallback("resize_cb"))
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
 
     IupMap(dlg)
     IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release the minimum limitation
 
-    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
-end procedure
-
-procedure main()
-    IupOpen()
-
-    CanvasCDDBufferTest()
-
-    IupMainLoop()
-
-    IupClose()
+    IupShow(dlg)
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()

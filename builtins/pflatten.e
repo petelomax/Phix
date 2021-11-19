@@ -21,11 +21,16 @@ global function flatten(sequence s, res="")
     return res
 end function
 
-global function join(sequence s, object delim=" ")
+global function join(sequence s, object delim=" ", lastdelim=delim)
     sequence res = ""
-    for i=1 to length(s) do
+    integer l = length(s)
+    for i=1 to l do
         if i!=1 then
-            res &= delim
+            if i=l then
+                res &= lastdelim
+            else
+                res &= delim
+            end if
         end if
         res &= s[i]
     end for

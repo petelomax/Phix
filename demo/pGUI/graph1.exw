@@ -1,0 +1,38 @@
+--
+-- demo/pGUI/graph1.exw
+-- ===================
+--
+--  p2js-compatible version of demo/pGUI/plot1.exw
+--  Author: Pete Lomax 30/10/2021
+--
+with javascript_semantics
+include pGUI.e
+include IupGraph.e
+
+constant factor = 1e-6
+
+function get_data(Ihandle /*graph*/)
+    sequence x = {}, y = {}
+    for i=-100 to 100 by 10 do
+        x &= i
+        y &= factor*i*i*i+0.2
+    end for
+    return {{x,y,CD_RED}}
+end function
+
+IupOpen()
+Ihandle graph = IupGraph(get_data,"RASTERSIZE=640x480")
+Ihandle dlg = IupDialog(graph,`TITLE="resize me!"`)
+IupSetAttributes(dlg,"MINSIZE=320x340") -- (nb not raster units/pixels)
+IupSetAttributes(graph,"XTICK=20,XMIN=-100,XMAX=100")
+IupSetAttributes(graph,"YTICK=0.2,YMIN=-0.8,YMAX=1.2")
+IupSetAttributes(graph,`XTICKFMT="%d", YTICKFMT="%.1f"`)
+IupSetAttributes(graph,`XCROSSORIGIN=YES, YCROSSORIGIN=YES`)
+--IupSetInt(graph,`GRID`,false)
+IupShow(dlg)
+IupSetAttribute(graph,`RASTERSIZE`,NULL)
+if platform()!=JS then
+    IupMainLoop()
+    IupClose()
+end if
+

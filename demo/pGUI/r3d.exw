@@ -1,0 +1,102 @@
+--
+-- demo\pGUI\r3d.exw
+-- =================
+--
+--  The classic view from the starship enterprise at warp speed
+--
+--  Quick translation of a demo from 1997 (!!) by Oscar Brynolf
+--  Obviously ported to pGUI, made resizeable, and sufficiently 
+--  optimised/cleaned up to be almost completely unrecognisable.
+--
+with javascript_semantics
+include pGUI.e
+
+Ihandle dlg, canvas
+cdCanvas cd_canvas
+
+constant num = 90,  -- number of lines aka stars
+         speed = 3, -- speed multiplier (higher=faster)
+         dist = 11000,
+         eye = 1450,
+--       X=1,
+--       Y=2, 
+         Z=3,
+         dz = 140*speed 
+
+sequence obj = repeat({0,0,eye+1},num)
+
+function canvas_action_cb(Ihandle canvas)
+    cdCanvasActivate(cd_canvas)
+    cdCanvasClear(cd_canvas)
+    integer {w, h} = sq_sub(IupGetIntInt(canvas, "DRAWSIZE"),10)
+    atom {w2,h2} = {w/2,h/2}
+    for i=1 to num do
+        atom {tx,ty,tz} = obj[i],
+             px = (eye/tz*tx)+w2,
+             py = (eye/tz*ty)+h2,
+             px2 = (eye/(tz+250)*tx)+w2,
+             py2 = (eye/(tz+250)*ty)+h2
+        if tz<eye or abs(px)>w or abs(py)>h then
+            obj[i] = {(rnd()-0.5)*w*2,(rnd()-0.5)*h*2,rand(dist)}
+        else
+            obj[i][Z] = tz-dz
+            cdCanvasSetForeground(cd_canvas,iff(odd(i)?CD_WHITE:CD_YELLOW))
+            cdCanvasLine(cd_canvas,px,py,px2,py2)
+        end if
+    end for
+    cdCanvasFlush(cd_canvas)
+    return IUP_DEFAULT
+end function
+
+function canvas_map_cb(Ihandle canvas)
+    IupGLMakeCurrent(canvas)
+    if platform()=JS then
+        cd_canvas = cdCreateCanvas(CD_IUP, canvas)
+    else
+        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+        cd_canvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    end if
+--  cdCanvasSetBackground(cd_canvas, CD_PARCHMENT)
+    cdCanvasSetBackground(cd_canvas, CD_BLACK)
+--  cdCanvasSetForeground(cd_canvas, CD_BLUE)
+    return IUP_DEFAULT
+end function
+
+function canvas_unmap_cb(Ihandle canvas)
+    cdKillCanvas(cd_canvas)
+    return IUP_DEFAULT
+end function
+
+function canvas_resize_cb(Ihandle /*canvas*/)
+    integer {canvas_width, canvas_height} = IupGetIntInt(canvas, "DRAWSIZE")
+    atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+    cdCanvasSetAttribute(cd_canvas, "SIZE", "%dx%d %g", {canvas_width, canvas_height, res})
+    return IUP_DEFAULT
+end function
+
+function timer_cb(Ihandln /*ih*/)
+    IupRedraw(canvas)
+    return IUP_IGNORE
+end function
+
+procedure main()
+    IupOpen()
+    canvas = IupGLCanvas("RASTERSIZE=640x480")
+    IupSetCallbacks(canvas, {"ACTION", Icallback("canvas_action_cb"),
+                             "MAP_CB", Icallback("canvas_map_cb"),
+                             "UNMAP_CB", Icallback("canvas_unmap_cb"),
+                             "RESIZE_CB", Icallback("canvas_resize_cb")})
+--  dlg = IupDialog(IupVbox({canvas}),`TITLE="Anti-Aliased Lines"`)
+    dlg = IupDialog(canvas,`TITLE="r3d"`)
+    IupShow(dlg)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL)
+    Ihandle hTimer = IupTimer(Icallback("timer_cb"), 30)
+
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
+end procedure
+
+main()
+

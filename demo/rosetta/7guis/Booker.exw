@@ -2,6 +2,7 @@
 -- demo\rosetta\7guis\Booker.exw
 -- =============================
 --
+with javascript_semantics -- but many problems remain [DEV]
 include pGUI.e
 include builtins\timedate.e
 set_timedate_formats({"DD.MM.YYYY"}) -- (add more if rqd)
@@ -18,8 +19,8 @@ sequence d1 = parse_date_string(IupGetAttribute(T1,"VALUE")),
          d2 = parse_date_string(IupGetAttribute(T2,"VALUE"))
 bool b1ok = timedate(d1),
      b2ok = item=1 or (timedate(d2) and d2>=d1)
-    IupSetAttribute(T1,"BGCOLOR",iff(b1ok?"TXTBGCOLOR":"255 0 0"))
-    IupSetAttribute(T2,"BGCOLOR",iff(b2ok?"TXTBGCOLOR":"255 0 0"))
+    IupSetAttribute(T1,"BGCOLOR",iff(b1ok?"TXTBGCOLOR":IUP_RED))
+    IupSetAttribute(T2,"BGCOLOR",iff(b2ok?"TXTBGCOLOR":IUP_RED))
     IupSetInt(T2,"ACTIVE",item=2)
     IupSetInt(B,"ACTIVE",b1ok and b2ok)
 end procedure
@@ -59,8 +60,10 @@ IupSetAttributes({T1,T2},"VALUE=%s,EXPAND=HORIZONTAL",{format_timedate(date())})
 B = IupButton("Book Flight",cb_book,"EXPAND=HORIZONTAL")
 vbox = IupVbox({C,T1,T2,B},"MARGIN=20x10,GAP=10,ALIGNMENT=ACENTER")
 dlg = IupDialog(vbox,`TITLE="Flight Booker"`)
+IupSetAttributeHandle(NULL,"PARENTDIALOG",dlg)
 enable()
 IupShow(dlg)
-IupMainLoop()
-IupClose()
-
+if platform()!=JS then
+    IupMainLoop()
+    IupClose()
+end if

@@ -113,6 +113,7 @@ include builtins\VM\pStack.e    -- :%opFrame etc
 include builtins\VM\pUnassigned.e   -- opCallOnceYeNot etc
 --include builtins\VM\pcallfunc.e
 
+
 #ilASM{ jmp !opCallOnceYeNot }
 
 constant e16cbchop      = 16    -- call_backs cannot have optional parameters
@@ -127,6 +128,8 @@ constant e88atcfpmbaos  = 88    -- arguments to c_func/proc must be atoms or str
 constant e116rrnp       = 116   -- routine requires %d parameters, not %d
 constant e117rdnrav     = 117   -- routine does not return a value
 constant e118rrav       = 118   -- routine returns a value
+--5/10/21 (safe_mode)
+constant e124npism      = 124   -- not permitted in safe_mode
 
 procedure fatalN(integer level, integer errcode, integer ep1=0, integer ep2=0)
 -- level is the number of frames to pop to obtain an era (must be >=2).
@@ -197,6 +200,10 @@ object ch
     return res
 end function
 
+--5/10/21 (safe_mode)
+integer libaninit = 0
+sequence libaddrs, libnames, libsafe
+
 function OpenOneDLL(sequence filename)
 atom res
     if not string(filename) then
@@ -251,6 +258,32 @@ atom res
             call :%pStoreMint   -- [e/rdi]:=e/rax, as float if rqd
         []
           }
+--5/10/21 (safe_mode)
+    integer safe
+    #ilASM{
+        [32]
+            lea edi,[safe]
+        [64]
+            lea rdi,[safe]
+        []
+        call :%pGetSafe
+          }
+    if not safe then
+        safe = find(filename,{"VCRUNTIME140.DLL"})!=0
+--if not safe and not find(filename,{"kernel32","kernel32.dll"}) then
+--?{"filename (pcfunc.e line 275)",filename}
+--end if
+        if libaninit=0 then
+            libaninit = 1
+            libaddrs = {res}
+            libnames = {filename}
+            libsafe = {safe}
+        elsif not find(res,libaddrs) then
+            libaddrs = append(libaddrs,res)
+            libnames = append(libnames,filename)
+            libsafe = append(libsafe,safe)
+        end if
+    end if
     return res
 end function
 
@@ -369,8 +402,23 @@ atom addr
             call :%pStoreMint
         []
           }
+--5/10/21 (safe_mode)
+    integer safe
+    #ilASM{
+        [32]
+            lea edi,[safe]
+        [64]
+            lea rdi,[safe]
+        []
+        call :%pGetSafe
+          }
+    if not safe and libaninit then
+        safe = find(lib,libaddrs)
+        if safe then safe = libsafe[safe] end if
+    end if
 lib += length(name) -- avoids xType=0 messages on lib [DEV, linux only]
-    return addr
+    return {addr,safe}
+--  return addr
 end function
 
 procedure check(object o, integer level)
@@ -410,7 +458,8 @@ constant T_name         = 1,  -- (kept for ref/debugging purposes only)
          T_address      = 2,
          T_args         = 3,
          T_return_type  = 4,
-         T_convention   = 5
+         T_convention   = 5,
+         T_safe         = 6
 
 --DEV (posted as a challenge)
 --if T_name!=1 then ?9/0 end if -- suppress warning (no code is generated)
@@ -597,7 +646,7 @@ global function define_c_func(object lib, object fname, object args, atom return
 --
 integer nlen
 object name
-integer convention
+integer convention, safe
 atom addr
 integer res
 integer level = 2+(return_type=0)
@@ -638,13 +687,24 @@ integer level = 2+(return_type=0)
             fatalN(level,e74dcfpe)
         end if
         addr = name
+--5/10/21 (safe_mode)
+        #ilASM{
+            [32]
+                lea edi,[safe]
+            [64]
+                lea rdi,[safe]
+            []
+            call :%pGetSafe
+          }
     else -- atom(lib)
         if not sequence(name) then
             fatalN(level,e74dcfpe)
         elsif not string(name) then
             name = toString(name,e74dcfpe,3) --DEV better messsage
         end if
-        addr = get_proc_address(lib,name)
+--5/10/21 (safe_mode)
+--      addr = get_proc_address(lib,name)
+        {addr,safe} = get_proc_address(lib,name)
         if addr=NULL then return -1 end if
     end if
 
@@ -661,7 +721,9 @@ integer level = 2+(return_type=0)
     if not tinit then Tinit() end if
 --DEV locking...
     enter_cs(tcs)
-    table = append(table,{name,addr,args,return_type,convention})
+--5/10/21 (safe_mode)
+--  table = append(table,{name,addr,args,return_type,convention})
+    table = append(table,{name,addr,args,return_type,convention,safe})
     tmax = length(table)
     res = tmax
 --15/2/18:
@@ -687,11 +749,12 @@ global function define_c_var(atom lib, sequence name)
 --
 -- Get the address of a public C variable defined in a dll or .so file.
 --
-atom addr
     if not string(name) then
         name = toString(name,e74dcfpe,3)
     end if
-    addr = get_proc_address(lib,name)
+--5/10/21 (safe_mode)
+--  atom addr = get_proc_address(lib,name)
+    atom {addr} = get_proc_address(lib,name)
 -- we may want this?:
 --  if addr=0 then return -1 end if
     return addr
@@ -947,6 +1010,9 @@ global procedure call(atom addr)
 integer prev_ebp4 -- (stored /4)
     #ilASM{
                 e_all                                       -- set "all side-effects"
+--5/10/21 (safe_mode)
+                mov cl,1
+                call :%pSafechk
             [32]
                 -- first, save ebp in case of a callback:
                 mov edx,ebp
@@ -996,12 +1062,38 @@ end procedure
 
 constant FUNC = 1, PROC = 0
 
+-- Obviously these must all be kept in step with pglobals.e:
+constant
+--  S_Name  = 1,    -- const/var/rtn name (now a ttidx number or -1)
+--  S_NTyp  = 2,    -- Const/GVar/TVar/Nspc/Type/Func/Proc
+    S_FPno  = 3     -- File and Path number
+--  S_State = 4,    -- state flag. S_fwd/S_used/S_set etc
+--  S_Nlink = 5,    -- name chain (see below)
+--  S_Slink = 6,    -- scope/secondary chain (see below)
+--  S_sig   = 7     -- routine signature, eg {'F',T_integer} (nb S_sig must be = S_vtype)
+
+--constant
+--  S_Const = 1,    -- a constant
+--  S_GVar2 = 2,    -- global or static variable
+--  S_TVar  = 3,    -- temp or threadstack (local) variable/parameter
+--  S_Nspc  = 4,    -- namespace
+--  S_Rsvd  = 5,    -- Reserved word (with S_State=K_fun modifier)
+--  S_Type  = 6,    -- Type of thermal yellow portable encryptor
+--  S_Func  = 7,    -- Function of finding unusual nonsense comments
+--  S_Proc  = 8,    -- Procedure for private rotating obstacle counter
+--  S_Types = {"const","gvar","tvar","namespace","reserved","type","func","proc"}
+
+constant
+    T_pathset   = 16,
+    T_fileset   = 17
+
+
 function c_common(integer rid, sequence args, integer flag)
 -- common code for c_func and c_proc (validate and process args)
 --  flag is FUNC or PROC accordingly.
 object argdefs
 integer argdefi
-integer convention
+integer convention, safe
 integer la, lad
 object argi
 integer return_type
@@ -1101,8 +1193,73 @@ integer esp4
     argdefs = tr[T_args]
     return_type = tr[T_return_type]
     convention = tr[T_convention]
+--5/10/21 (safe_mode)
+    safe = tr[T_safe]
     tr = 0
     leave_cs(tcs)
+--5/10/21 (safe_mode)
+    if not safe then
+        -- get symtab, hop down call stack...
+        sequence symtab
+        #ilASM{ 
+                [32]
+                    lea edi,[symtab]
+                [64]
+                    lea rdi,[symtab]
+                []
+                    call :%opGetST      -- [e/rdi]=symtab
+              }
+        integer rtn
+        integer fno, pathno
+        for level=1 to 2 do
+            #ilASM{
+                [32]
+                    mov ecx,[level]
+                    mov esi,ebp
+                  @@:
+                    mov esi,[esi+20]    -- prev_ebp
+                    sub ecx,1
+                    jg @b
+                    mov eax,[esi+8]     -- calling routine no
+                    mov [rtn],eax
+                [64]
+                    mov rcx,[level]
+                    mov rsi,rbp
+                  @@:
+                    mov rsi,[rsi+40]    -- prev_ebp
+                    sub rcx,1
+                    jg @b
+                    mov rax,[rsi+16]    -- calling routine no
+                    mov [rtn],rax
+                []
+                  }
+            sequence si = symtab[rtn]
+            fno = si[S_FPno]
+            pathno = symtab[T_fileset][fno][1]
+--          ?{"level",level,"rtn",rtn,"fno",fno,"pathno",pathno,"si",si}
+        end for
+        string file = symtab[T_fileset][fno][2]
+--  string path = symtab[T_pathset][symtab[T_fileset][fno][1]]
+        if pathno>2 
+        or not find(file,{"pcmdlnN.e"}) then
+--if pathno=2 then
+--  ?{"pathno=2, (pcfunc.e line 1254) file is",file}
+--end if
+            string path = symtab[T_pathset][pathno],
+                   bpath = symtab[T_pathset][1],
+                   spath = substitute(path,`demo\pGUI`,`builtins`)
+            if spath!=bpath
+            or not find(file,{"pgetpath.e","pdir.e","penv.e",
+                              "pcurrdir.e","mpfr.e","pGUI.e"}) then
+--?{"path (pcfunc.e line 1262 [FATAL!])",path,"spath",spath,"bpath",bpath,"file",file}
+                fatalN(3,e124npism,rid)
+--else
+--?{"ok[1] (pcfunc.e line 1265)",path,"spath",spath,"bpath",bpath,"file",file}
+            end if
+--else
+--?{"ok[2] (pcfunc.e line 1268)",pathno,"file",file}
+        end if
+    end if
 
     --20/8/15: (ensure shadow space and align)
 --DEV and platform()=WINDOWS??

@@ -31,11 +31,6 @@
 
 include pGUI.e
 
--- For Edita/Tools/Re-indent source:
---#withtype Ihandle
---#withtype Ihandln
---#withtype cdCanvas
-
 Ihandle dlg, canvas
 cdCanvas cd_canvas
 
@@ -49,21 +44,37 @@ sequence pts = {{319,606},{150,86},{591,407},{46,407},{487,86}}
 --*/
 
 function canvas_action_cb(Ihandle canvas)
+?"canvas_action_cb"
 --  if USE_OPENGL then
 --      IupGLMakeCurrent(canvas)    -- (no diff?)
 --  end if
     cdCanvasActivate(cd_canvas)
     cdCanvasClear(cd_canvas)
-    integer {w, h} = sq_sub(IupGetIntInt(canvas, "DRAWSIZE"),10)
+--"640x480")
+--  integer {w, h} = sq_sub(IupGetIntInt(canvas, "DRAWSIZE"),10),
+    integer {w, h} = IupGetIntInt(canvas, "DRAWSIZE"),
+            cx = floor(w/3),
+            cy = floor(h/2),
+            ex = floor(w/2),
+            ey = floor(h/4)
+--?{w,h}
 --  cdCanvasSetBackground(cd_canvas, CD_RED)
+/*
     cdCanvasLine(cd_canvas,0,0,200,200)
     cdCanvasLine(cd_canvas,w,0,200,200)
     cdCanvasLine(cd_canvas,0,h,200,200)
     cdCanvasLine(cd_canvas,w,h,200,200)
     cdCanvasArc(cd_canvas, 200, 200, 200, 200, 0, 360)
+*/
+    cdCanvasLine(cd_canvas,0,0,cx,cy)
+    cdCanvasLine(cd_canvas,w,0,cx,cy)
+    cdCanvasLine(cd_canvas,0,h,cx,cy)
+    cdCanvasLine(cd_canvas,w,h,cx,cy)
+    cdCanvasArc(cd_canvas, cx, cy, cx, cy, 0, 360)
 --  cdCanvasSector(cd_canvas, 200, 200, 200, 200, 0, 360) 
 --  cdCanvasSetForeground(cd_canvas, CD_RED)
-    cdCanvasArc(cd_canvas, 200, 200, 300, 100, 0, 360)
+--  cdCanvasArc(cd_canvas, 200, 200, 300, 100, 0, 360)
+    cdCanvasArc(cd_canvas, cx, cy, ex, ey, 0, 360)
 --  cdCanvasSetBackground(cd_canvas, CD_PARCHMENT)
 --test (note that, w/o the lines, this has bresenham edges)
 --  cdCanvasBegin(cd_canvas,CD_FILL)
@@ -93,8 +104,44 @@ function canvas_action_cb(Ihandle canvas)
         cdCanvasEnd(cd_canvas)
     end for
 --*/
+--sequence {r,g,b,a} = cdCanvasGetImageRGB(cd_canvas,0,0,w,h)
 
     cdCanvasFlush(cd_canvas)
+--DEV need to revisit the online docs...
+--Xsequence {r,g,b} = cdCanvasGetImageRGB(cd_canvas,cx,cy,50,50)
+--XcdCanvasPutImageRectRGB(cd_canvas, cx, cy, {b,r,g}, 50, 50)
+--sequence {r,g,b,a} = cdCanvasGetImageRGB(cd_canvas,0,0,w,h)
+--cdCanvasPutImageRectRGB(cd_canvas, w, h, {b,r,g})
+--cdCanvasPutImageRectRGBA(cd_canvas, w, h, {b,r,g,a})
+--cdCanvasPutImageRectRGBA(cd_canvas, w, h, {r,g,b,a})
+--?length(r)
+--?"leavecanvas_action_cb"
+--  cdCanvasFlush(cd_canvas)
+--sequence {r,g,b} = cdCanvasGetImageRGB(cd_canvas,0,0,w,h)
+--sequence {r,g,b} = cdCanvasGetImageRGB(cd_canvas,0,0,10,10)   -- crashes!
+--sequence {r,g,b} = cdCanvasGetImageRGB(canvas,0,0,5,5)        -- drivel??
+--?{r,g,b}
+--sequence rgb3 = cdCanvasGetImageRGB(cd_canvas,0,0,4,4)
+--sequence rgb3 = cdCanvasGetImageRGB(cd_canvas,cx,cy,4,4)
+--sequence rgb3 = cdCanvasGetImageRGB(cd_canvas,0,0,10,10)      -- crashes!! (sometimes...)
+--pp(rgb3)
+--pp(rgb3,{pp_IntFmt,"#%02x"})
+--/*
+"canvas_action_cb"
+{{#54,#E5,#27,#02,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#80},
+ {#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#80},
+ {#E4,#F4,#27,#02,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#80}}
+"canvas_action_cb"
+{{#54,#E5,#27,#02,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#80},
+ {#34,#ED,#27,#02,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#80},
+ {#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#80}}
+
+"canvas_action_cb"
+{{#00,#80,#FF,#FF,#80,#00,#80,#FF,#FF,#80,#00,#80,#FF,#FF,#80,#00},
+ {#00,#80,#FF,#FF,#80,#00,#80,#FF,#FF,#80,#00,#80,#FF,#FF,#80,#00},
+ {#FF,#EF,#E0,#E0,#EF,#FF,#EF,#E0,#E0,#EF,#FF,#EF,#E0,#E0,#EF,#FF}}
+
+--*/
 --  if USE_OPENGL then
 --      IupGLSwapBuffers(canvas)    -- (no diff?)
 --  end if
@@ -103,11 +150,13 @@ end function
 
 function canvas_map_cb(Ihandle canvas)
     if USE_OPENGL then
---      integer {canvas_width, canvas_height} = IupGetIntInt(canvas, "DRAWSIZE")
---?{{canvas_width,canvas_height}} -- {{8,8}}
-        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
         IupGLMakeCurrent(canvas)    -- *** BIG DIFFERENCE! ***
-        cd_canvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+        if platform()=JS then
+            cd_canvas = cdCreateCanvas(CD_IUP, canvas)
+        else
+            atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+            cd_canvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+        end if
     else
         cd_canvas = cdCreateCanvas(CD_IUPDBUFFER, canvas)
     end if
@@ -150,7 +199,8 @@ procedure main()
     else
         canvas = IupCanvas()
     end if
-    IupSetAttribute(canvas, "RASTERSIZE", "640x480")
+--  IupSetAttribute(canvas, "RASTERSIZE", "640x480")
+    IupSetAttribute(canvas, "RASTERSIZE", "140x50")
     IupSetCallback(canvas, "ACTION", Icallback("canvas_action_cb"))
     IupSetCallback(canvas, "MAP_CB", Icallback("canvas_map_cb"))
     IupSetCallback(canvas, "UNMAP_CB", Icallback("canvas_unmap_cb"))
@@ -160,8 +210,10 @@ procedure main()
     IupSetCallback(dlg, "K_ANY", Icallback("esc_close"))
     IupShow(dlg)
     IupSetAttribute(canvas, "RASTERSIZE", NULL)
-    IupMainLoop()
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()
@@ -389,7 +441,7 @@ if 0 then
     cdCanvasSetForeground(cddbuffer, CD_BLUE)
     cdCanvasFont(cddbuffer, "Times", CD_ITALIC, 24*24)
 --  cdCanvasFont(cddbuffer, "Times", CD_ITALIC, 24*18)
---  {} = cdCanvasTextAlignment(cddbuffer, CD_BASE_LEFT) 
+--  cdCanvasSetTextAlignment(cddbuffer, CD_BASE_LEFT) 
     cdCanvasText(cddbuffer, 20, 20, "hi")
     cdCanvasPutImageRectRGBA(cddbuffer, iw, ih, {r,g,b,a})
 --  cdCanvasPutImageRectRGB(cddbuffer, iw, ih, {r,g,b},80,80)
@@ -536,7 +588,7 @@ Configures the current line style for: CD_MITER, CD_BEVEL or CD_ROUND. Returns t
 --  cdCanvasLine(cddbuffer,10,10,w-3*t, h)
 --  cdCanvasFont(cddbuffer, "Times", CD_ITALIC, 24*24)
 --  cdCanvasFont(cddbuffer, "Helvetica", CD_ITALIC, 24*12)
---  {} = cdCanvasTextAlignment(cddbuffer, CD_BASE_LEFT) 
+--  cdCanvasSetTextAlignment(cddbuffer, CD_BASE_LEFT) 
 --  cdCanvasText(cddbuffer, 20, 20, "hi")
 
 --/*
@@ -793,10 +845,10 @@ function canvas_resize_cb(Ihandle /*canvas*/)
 end function
 
 constant html_intro = """
-<!DOCTYPE html>
-<html><head><meta charset="UTF-8">
-<title>%s</title></head>
-<body>
+[!DOCTYPE html]
+[html][head][meta charset="UTF-8"]
+[title]%s[/title][/head]
+[body]
 """
 
 --DEV full screen???
@@ -974,17 +1026,17 @@ function esc_close(Ihandle /*ih*/, atom c)
                 printf(svgfn,html_intro,{TITLE})
             end if
             if c='J' then
---              printf(svgfn,"<div ...>") -- (as needed)
+--              printf(svgfn,"[div ...]") -- (as needed)
                 puts(svgfn,script_intro)
                 printf(svgfn,js_code)
-                printf(svgfn,"</script>\n")
+                printf(svgfn,"[/script]\n")
             else
 --              if c='H' then
---                  printf(svgfn,"<!DOCTYPE html>\n")
---                  printf(svgfn,`<html><head><meta charset="UTF-8">`)
---                  printf(svgfn,"<title>%s</title></head>\n",{TITLE})
---                  printf(svgfn,`<body onLoad="draw(500,500)"><script>`)
---                  printf(svgfn,"<body>\n")
+--                  printf(svgfn,"[!DOCTYPE html]\n")
+--                  printf(svgfn,`[html][head][meta charset="UTF-8"]`)
+--                  printf(svgfn,"[title]%s[/title][/head]\n",{TITLE})
+--                  printf(svgfn,`[body onLoad="draw(500,500)"][script]`)
+--                  printf(svgfn,"[body]\n")
 --                  printf(svgfn,html_intro,{TITLE})
 --              if c='J' then
 --                  javascript = true
@@ -995,17 +1047,17 @@ function esc_close(Ihandle /*ih*/, atom c)
 --          return
 --      end if
                 integer w = 500, h = 500 
-                printf(svgfn,`<svg width="%d" height="%d" `,{w,h})
+                printf(svgfn,`[svg width="%d" height="%d" `,{w,h})
                 printf(svgfn,`style="fill:blue" version="1.1" `)
-                printf(svgfn,`xmlns="http://www.w3.org/2000/svg">`&"\n")
+                printf(svgfn,`xmlns="http://www.w3.org/2000/svg"]`&"\n")
 --  end if
                 draw(w,h)
 --  if svgfn!=-1 then
-                printf(svgfn,"</svg>\n")
+                printf(svgfn,"[/svg]\n")
 --  end if
             end if
             if c!='S' then
-                printf(svgfn,"</body>\n</html>\n")
+                printf(svgfn,"[/body]\n[/html]\n")
             end if
             close(svgfn)
             svgfn = -1
