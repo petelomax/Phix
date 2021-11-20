@@ -4,8 +4,7 @@
 // Sorting
 
 // Sort the elements of a sequence into ascending order, using "Shell" sort.
-
-//DEV wrong one for newEmit
+/*without debug*/ //DEV wrong one for newEmit
 //!/**/include builtins\pcfunc.e
 
 //defined in psym.e:
@@ -25,12 +24,12 @@
 //x = deep_copy(x)
     last = length(x);
     gap = floor(last/10)+1;
-    while (1) {
+    while (true) {
         first = gap+1;
         for (let i=first, i$lim=last; i<=i$lim; i+=1) {
             tempi = $subse(x,i);
             j = i-gap;
-            while (1) {
+            while (true) {
                 tempj = $subse(x,j);
 //              if tempi >= tempj then
 //              if compare(tempi, tempj)>=0 then
@@ -180,6 +179,6 @@ function $column_compare(/*object*/ a, /*object*/ b, /*sequence*/ cols) {
 //   [[:compare]], [[:sort]]
 
 /*global*/ function sort_columns(/*sequence*/ x, /*sequence*/ column_list) {
-    x = custom_sort($column_compare,x,["sequence",column_list]);
+    x = custom_sort($column_compare,deep_copy(x),["sequence",column_list]);
     return x;
 }

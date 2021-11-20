@@ -6,7 +6,7 @@
 //
 // plain ASCII version of the more human-readable pcase8.e, see that for comments.
 //
-//without debug -- keep ex.err clean (overshadowed by same in pdiag.e)
+/*without debug*/ // keep ex.err clean (overshadowed by same in pdiag.e)
 let /*integer*/ $caseinit = 0;
 let /*string*/ $toUpper, $toLower;
 let /*sequence*/ $str_methods;
