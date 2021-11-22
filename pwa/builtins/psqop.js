@@ -87,7 +87,8 @@
 //         eg/ie '+', '-', '*', ... 'f', 'g', 'l', ... etc.
 //
                             // (not strictly necessary)
-/*with debug*/ function $sq_fatal(/*sequence*/ a, /*sequence*/ b) {
+//with debug
+function $sq_fatal(/*sequence*/ a, /*sequence*/ b) {
     printf(1,"sequence lengths not the same (%d!=%d)!\n",["sequence",length(a),length(b)]);
     crash("9/0");
 }

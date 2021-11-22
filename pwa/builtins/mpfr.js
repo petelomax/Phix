@@ -188,6 +188,10 @@ function mpz_sub_ui(rop, op1, op2) {
 }
 let mpz_sub_si = mpz_sub_ui
 
+function mpz_si_sub(rop, op1, op2) {
+    rop[MPZ$B] = BigInt(op1) - op2[MPZ$B];
+}
+
 function mpz_mul(rop, op1, op2) {
     rop[MPZ$B] = op1[MPZ$B] * op2[MPZ$B];
 }
@@ -273,7 +277,16 @@ function mpz_set_str(rop, s, base=0) {
     }
     rop[MPZ$B] = BigInt(s);
 */
+//DEV spotted in passing 6/11/21 - what about replace_e()?
     rop[MPZ$B] = BigInt(MPFR$PREFIX(s,base));
+}
+
+function mpz_set_v(rop, v) {
+    if (string(v)) {
+        mpz_set_str(rop,v);
+    } else {
+        mpz_set_si(rop, v);
+    }
 }
 
 function mpz_odd(op1) {
@@ -319,25 +332,39 @@ function mpz_fdiv_q_ui(q, n, d) {
     d = BigInt(d);
     n = n[MPZ$B];
     q[MPZ$B] = n / d;
-    return Number(n % d);
+//7/11/21:
+//  return Number(n % d);
+    n = n % d;
+    if (n < 0n) { n += d; }
+    return Number(n);
 }
 
 function mpz_fdiv_r(r, n, d) {
 //mpz_fdiv_r(mpz r, n, d) - r := remainder(n,d)
     d = d[MPZ$B];
     n = n[MPZ$B];
-    r[MPZ$B] = n % d;
+//7/11/21:
+//  r[MPZ$B] = n % d;
+    n = n % d;
+    if (n < 0n) { n += d; }
+    r[MPZ$B] = n;
 }
 
 function mpz_fdiv_ui(n, d) {
 //integer res = mpz_fdiv_ui(mpz n, integer d) - returns mod(n,d) - n and d remain unaltered, d is a phix integer, 0..1GB.  
-    return Number(n[MPZ$B] % BigInt(d));
+//7/11/21:
+//  return Number(n[MPZ$B] % BigInt(d));
+    n = n[MPZ$B];
+    d = BigInt(d)
+    n = n % d;
+    if (n < 0n) { n += d; }
+    return Number(n);
 }
 
 function mpz_mod(r, n, d) {
 // mpz_mod(mpz r, n, d) - r := mod(n,d)
     n = n[MPZ$B];
-    d = d[MPZ$B]
+    d = d[MPZ$B];
 //  let s = n < 0;
 //  if (s) { n = -n; }
 //  n = ((n % d) + n) % d;
@@ -357,7 +384,20 @@ function mpz_mod(r, n, d) {
 
 function mpz_mod_ui(r, n, d) {
 // mpz_mod_ui(mpz r, n, integer d) - "" except op2 is a phix integer, 0..1GB
-    r[MPZ$B] = n[MPZ$B] % BigInt(d);
+//7/11/21:
+//  r[MPZ$B] = n[MPZ$B] % BigInt(d);
+    n = n[MPZ$B];
+    d = BigInt(d);
+    n = n % d;
+    if (n < 0n) { n += d; }
+    r[MPZ$B] = n;
+}
+
+function mpz_fdiv_qr(/*mpz*/ q, r, n, d) {
+// {q,r} := {floor(n/d),remainder(n,d)}
+// {q,r} := {floor(n/d),mod(n,d)}       // dev?? (might be more accurate, update docs and everywhere else...)
+    mpz_fdiv_q(q, n, d);
+    mpz_mod(r, n, d);
 }
 
 function mpz_fdiv_q_2exp(q, n, b) {
@@ -737,6 +777,76 @@ function mpz_lcm_ui(/*mpz*/ rop, op1, /*integer*/ op2) {
     rop[MPZ$B] = a*b/c;
 }
 //lcm = (x,y) => x*y/gcd(x,y);
+
+function mpz_invert(rop, op1, op2) {
+    op1 = op1[MPZ$B];
+    op2 = op2[MPZ$B]
+    let r = op2,
+        t = 0n,
+        newR = (op1 < 0n) ? -op1 : op1,
+        newT = 1n;
+    while (newR !== 0n) {
+        let q = r / newR,
+            lastT = t,
+            lastR = r;
+        t = newT;
+        r = newR;
+        newT = lastT - q*newT;
+        newR = lastR - q*newR;
+    }
+//  if (!r.isUnit) Fiber.abort("%(op1) and %(op2) are not co-prime.")
+    if (t < 0n) { t += op2; }
+    if (op2 < 0n) { t = -t; }
+    rop[MPZ$B] = t;
+}
+/*
+// a possible alternative (needing much work) for mpz_invert:
+function modInverse(a, m) {
+  // validate inputs
+  [a, m] = [Number(a), Number(m)]
+  if (Number.isNaN(a) || Number.isNaN(m)) {
+    return NaN // invalid input
+  }
+  a = (a % m + m) % m
+  if (!a || m < 2) {
+    return NaN // invalid input
+  }
+  // find the gcd
+  const s = []
+  let b = m
+  while(b) {
+    [a, b] = [b, a % b]
+    s.push({a, b})
+  }
+  if (a !== 1) {
+    return NaN // inverse does not exists
+  }
+  // find the inverse
+  let x = 1
+  let y = 0
+  for(let i = s.length - 2; i >= 0; --i) {
+    [x, y] = [y,  x - y * Math.floor(s[i].a / s[i].b)]
+  }
+  return (y % m + m) % m
+}
+
+// Tests
+//??
+console.log(modInverse(2, 5))       // = 3
+console.log(modInverse(3, 5))       // = 2
+//??
+console.log(modInverse(1, 2))       // = 1
+console.log(modInverse(3, 6))       // = NaN
+console.log(modInverse(25, 87))     // = 7
+console.log(modInverse(7, 87))      // = 25
+console.log(modInverse(19, 1212393831))     // = 701912218
+console.log(modInverse(31, 73714876143))    // = 45180085378
+console.log(modInverse(3, 73714876143))     // = NaN
+console.log(modInverse(-7, 87))     // = 62
+console.log(modInverse(-25, 87))    // = 80
+console.log(modInverse(0, 3))       // = NaN
+console.log(modInverse(0, 0))       // = NaN
+*/
 
 function mpz_divisible_p(/*mpz*/ n, d) {
     // returns non-zero if n is exactly divisible by d. n is divisible by d if there exists an integer q satisfying n = qd.
@@ -1260,11 +1370,27 @@ function MPZ$nthroot(/*BigInt*/ op, /*integer*/ n) {
 
 function mpz_nthroot(/*mpz*/ rop, op, /*integer*/ n) {
     op = op[MPZ$B];
-    rop[MPZ$B] = MPZ$_nthroot(op,n);
+    rop[MPZ$B] = MPZ$nthroot(op,n);
 }
 
 function mpz_sqrt(/*mpz*/ rop, op) {
     mpz_nthroot(rop,op,2);
+}
+//from wren (tryme?):
+// isqrt {
+//      if (isNegative) Fiber.abort("Cannot take the square root of a negative number.")
+//      if (isSmall) return BigInt.small_(toSmall.sqrt.floor)
+//      var one = BigInt.one
+//      var a = one << ((bitLength + one) >> one)
+//      while (true) {
+//          var b = (this/a + a) >> one
+//          if (b >= a) return a
+//          a = b
+//      }
+//  } 
+
+function mpz_and(/*mpz*/ rop, op1, op2) {
+    rop[MPZ$B] = op1[MPZ$B] & op2[MPZ$B];
 }
 
 function mpz_xor(/*mpz*/ rop, op1, op2) {
@@ -1275,9 +1401,9 @@ function mpq_init() {
     return ["mpq",0n,1n];
 }
 
-function mpq_inits(count) {
-    let res = repeat(0,count);
-    for (let i = 1; i <= count; i += 1) {
+function mpq_inits(n) {
+    let res = repeat(0,n);
+    for (let i = 1; i <= n; i += 1) {
         res[i] = mpq_init();
     }
     return res;

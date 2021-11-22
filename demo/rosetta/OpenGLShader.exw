@@ -1,157 +1,316 @@
 --
--- OpenGLShader.exw
--- ================
+-- demo\rosetta\OpenGLShader.exw
+-- =============================
 --
---[DEV incomplete - ah, this is a copy of demo\pGUI\triangle.exw for https://rosettacode.org/wiki/OpenGL#Phix but
---      what I'm after is something for https://rosettacode.org/wiki/OpenGL_Pixel_Shader  - for a runnable demo
---      see C:\Program Files (x86)\Phix\demo\libxlsxwriter\js\OpenGL_Pixel_Shader.html ]
-
---  Translation of http://rosettacode.org/wiki/OpenGL#Lua
---
+--  Translation of http://rosettacode.org/wiki/OpenGL_Pixel_Shader#JavaScript
 --  Converted to pGUI by Pete Lomax
 --
-
+--  Works identically to the rc JavaScript entry under pwa/p2js, but on desktop/Phix
+--  the colours cycle round white/blue/orange once per second. Beyond my ken anyway.
+--
+with javascript_semantics
+requires("1.0.1")
 include pGUI.e
-include ..\pGUI\opengl.e
+include opengl.e
 
---#withtype Ihandle
+Ihandln dlg
+Ihandle canvas
 
-function resize_cb(Ihandle /*ih*/, integer width, integer height)
+function resize_cb(Ihandle /*ih*/, integer width, height)
     glViewport(0, 0, width, height)
-    glMatrixMode(GL_PROJECTION)
-    glLoadIdentity()
-    glOrtho(-30.0, 30.0, -30.0, 30.0, -30.0, 30.0)
-    glMatrixMode(GL_MODELVIEW)
     return IUP_DEFAULT
 end function
 
-function action(Ihandle /*ih*/)
+constant fragment_shader = """
+precision highp float;
+uniform float u_time;
+void main(void) {
+    // some gobbledegook
+    vec3 foo = vec3(pow(gl_FragCoord.xy, vec2(1.0 + sin(dot(vec4(1.0, 100.0, 0.0, 0.0), gl_FragCoord)))), 0.0);
+    foo *= mat3(1.2, 3.9, 1.4, 4.1, 0.2, 1.4, 2.5, 1.6, 7.2);
 
-    glClearColor(0.3,0.3,0.3,0.0)
-    glClear(GL_COLOR_BUFFER_BIT+GL_DEPTH_BUFFER_BIT)
+    gl_FragColor = vec4(mod(foo + vec3(u_time), 1.0), 1.0);
+}
+"""
+constant vertex_shader = """
+attribute vec3 a_position;
+attribute vec4 a_color;
+varying vec4 v_color;
+void main(void) {
+    gl_Position = vec4(a_position, 1.0);
+    v_color = a_color;
+}
+"""
 
-    glShadeModel(GL_SMOOTH)
+constant vertices = {
+                      -0.5, -0.5, 0,
+                      +0.5, -0.5, 0,
+                      -0.5, +0.5, 0
+                    }
 
-    glLoadIdentity()
-    glTranslate(-15.0, -15.0, 0.0)
+function getShader(string src, integer shader_type)
+    integer shader = glCreateShader(shader_type)
+    // Compile shader from source
+    glShaderSource(shader, src)
+    glCompileShader(shader)
+    if not glGetShaderParameter(shader, GL_COMPILE_STATUS) then
+        crash(glGetShaderInfoLog(shader))
+    end if
+    return shader
+end function
 
-    glBegin(GL_TRIANGLES)
-    glColor(1.0, 0.0, 0.0)
-    glVertex(0.0, 0.0)
-    glColor(0.0, 1.0, 0.0)
-    glVertex(30.0, 0.0)
-    glColor(0.0, 0.0, 1.0)
-    glVertex(0.0, 30.0)
-    glEnd()
+integer timeUniform
+
+procedure set_shader()
+    IupGLMakeCurrent(canvas)
+    integer prog = glCreateProgram()
+    glAttachShader(prog, getShader(vertex_shader,GL_VERTEX_SHADER))
+    glAttachShader(prog, getShader(fragment_shader,GL_FRAGMENT_SHADER))
+    glLinkProgram(prog)
+    if not glGetProgramParameter(prog, GL_LINK_STATUS) then
+        crash(glGetProgramInfoLog(prog))
+    end if
+    glUseProgram(prog)
+
+    // Get the indexes to communicate vertex attributes to the program.
+    integer positionAttr = glGetAttribLocation(prog, "a_position")
+    // And specify that we will be actually delivering data to those attributes.
+    glEnableVertexAttribArray(positionAttr)
+ 
+    timeUniform = glGetUniformLocation(prog, "u_time")
+
+    // Store vertex positions and colors in array buffer objects.
+    integer positionBuffer = glCreateBuffer()
+    glBindBuffer(GL_ARRAY_BUFFER, positionBuffer)
+    {integer size, atom pData} = glFloat32Array(vertices)
+    glBufferData(GL_ARRAY_BUFFER, size, pData, GL_STATIC_DRAW)
+      
+ 
+    glEnable(GL_DEPTH_TEST);
+
+    //Specify the array data to render. 
+    glBindBuffer(GL_ARRAY_BUFFER, positionBuffer)
+    glVertexAttribPointer(positionAttr, 3, GL_FLOAT, false, 0, 0)
+ 
+end procedure
+
+atom t0 = time()
+
+function timer_cb(Ihandle /*ih*/)
+    glClearColor(0.3, 0.3, 0.3, 1.0)
+    integer {w,h} = IupGetIntInt(canvas,"DRAWSIZE")
+    glViewport(0, 0, w, h)
+    glUniform1f(timeUniform, (time()-t0))
+    glClear(GL_COLOR_BUFFER_BIT || GL_DEPTH_BUFFER_BIT)
+
+    integer numVertices = length(vertices)/3; // 3 coordinates per vertex
+    glDrawArrays(GL_TRIANGLES, 0, numVertices);
 
     glFlush()
 
     return IUP_DEFAULT
 end function
 
-Ihandln dlg
-Ihandle canvas
-
-function map_cb(Ihandle /*ih*/)
-    IupGLMakeCurrent(canvas)
-    integer {width, height} = IupGetIntInt(dlg, "RASTERSIZE")
-    {} = resize_cb(dlg, width, height)
-    return IUP_DEFAULT
-end function
-
 procedure main()
     IupOpen()
     IupGLCanvasOpen()
-
-    canvas = IupGLCanvas(Icallback("action"), "RASTERSIZE=640x480")
-    IupSetCallback(canvas, "RESIZE_CB", Icallback("resize_cb"))
-
-    dlg = IupDialog(canvas, "TITLE=Triangle, SHRINK=YES")
-    IupSetCallback(dlg, "MAP_CB", Icallback("map_cb"))
-
+    canvas = IupGLCanvas("RESIZE_CB", Icallback("resize_cb"), "RASTERSIZE=640x480")
+    dlg = IupDialog(canvas, "TITLE=OpenGLShader, SHRINK=YES")
+    IupMap(dlg)
+    set_shader()
     IupShow(dlg)
-    IupMainLoop()
-    dlg = IupDestroy(dlg)
-    IupClose()
+    Ihandle timer = IupTimer(Icallback("timer_cb"), 1000/20)
+    if platform()!=JS then
+        IupMainLoop()
+        dlg = IupDestroy(dlg)
+        IupClose()
+    end if
 end procedure
 main()
 
 --/*
---C:
---#include <stdio.h>
---#include <stdlib.h>
---#include <GL/glew.h>
---#include <GL/glut.h>
+<html style="margin: 0;">
+  <head>
+    <title>Fragment Shader WebGL Example</title>
+    <!-- This use of <"script"> elements is so that we can have multiline text
+         without quoting it inside of JavaScript; the web browser doesn't
+         actually do anything besides store the text of these. -->
+    <"script" id="shader-fs" type="text/x-fragment_shader">
+      precision highp float;
+      uniform float u_time;
+      void main(void) {
+        // some gobbledegook
+        vec3 foo = vec3(pow(gl_FragCoord.xy, vec2(1.0 + sin(dot(vec4(1.0, 100.0, 0.0, 0.0), gl_FragCoord)))), 0.0);
+        foo *= mat3(1.2, 3.9, 1.4, 4.1, 0.2, 1.4, 2.5, 1.6, 7.2);
  
-GLuint ps, vs, prog, r_mod;
-float angle = 0;
-void render(void)
-{
-        glClear(GL_COLOR_BUFFER_BIT);
-        glUniform1f(r_mod, rand() / (float)RAND_MAX);
+        gl_FragColor = vec4(mod(foo + vec3(u_time), 1.0), 1.0);
+      }
+    </"script">
+    <"script" id="shader-vs" type="text/x-vertex_shader">
+      attribute vec3 a_position;
+      attribute vec4 a_color;
+      varying vec4 v_color;
+      void main(void) {
+        gl_Position = vec4(a_position, 1.0);
+        v_color = a_color;
+      }
+    </"script">
+    <"script" type="text/javascript">
+      function getShader(gl, id) {
+        var scriptElement = document.getElementById(id);
+        // Create shader object
+        var shader;
+        shader= gl.createShader(gl[scriptElement.type.replace('text/x-','').toUpperCase()]);
+        // Compile shader from source
+        gl.shaderSource(shader, scriptElement.textContent);
+        gl.compileShader(shader);
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS))
+          throw new Error(gl.getShaderInfoLog(shader));
+        return shader;
+      }
+    </"script">
+  </head>
+  <body style="margin: 0;">
+    <canvas id="glcanvas" style="border: none; margin: auto; display: block;" width="640" height="480"></canvas>
+    <"script" type="text/javascript">
+      var canvas = document.getElementById("glcanvas");
  
-        glLoadIdentity();
-        glRotatef(angle, angle * .1, 1, 0);
-        glBegin(GL_TRIANGLES);
-                glVertex3f(-1, -.5, 0);
-                glVertex3f(0, 1, 0);
-                glVertex3f(1, 0, 0);
-        glEnd();
-        angle += .02;
-        glutSwapBuffers();
-}
+      // Get WebGL context.
+      var gl = canvas.getContext("webgl")
+            || canvas.getContext("experimental-webgl");
+      if (!gl)
+        throw new Error("WebGL context not found");
  
+      // Create shader program from vertex and fragment shader code.
+      var prog = gl.createProgram();
+      gl.attachShader(prog, getShader(gl, "shader-vs"));
+      gl.attachShader(prog, getShader(gl, "shader-fs"));
+      gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS))
+        throw new Error(gl.getProgramInfoLog(prog));
+ 
+      // Specify to render using that program.
+      gl.useProgram(prog);
+ 
+      // Get the indexes to communicate vertex attributes to the program.
+      var positionAttr = gl.getAttribLocation(prog, "a_position");
+      // And specify that we will be actually delivering data to those attributes.
+      gl.enableVertexAttribArray(positionAttr);
+ 
+      var timeUniform = gl.getUniformLocation(prog, "u_time");
+ 
+      // Store vertex positions and colors in array buffer objects.
+      var vertices;
+      var positionBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices = [
+        -0.5, -0.5, 0,
+        +0.5, -0.5, 0,
+        -0.5, +0.5, 0
+      ]), gl.STATIC_DRAW);
+      var numVertices = vertices.length / 3; // 3 coordinates per vertex
+ 
+      // Set GL state
+      gl.clearColor(0.3, 0.3, 0.3, 1.0);
+      gl.enable(gl.DEPTH_TEST);
+      gl.viewport(0, 0, gl.drawingBufferWidth || canvas.width,
+                        gl.drawingBufferHeight || canvas.height);
+ 
+      //Specify the array data to render. 
+      gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+      gl.vertexAttribPointer(positionAttr, 3, gl.FLOAT, false, 0, 0);
+ 
+      var t0 = Date.now();
+      function frame() {
+        gl.uniform1f(timeUniform, (Date.now() - t0) / 1000);
+ 
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        gl.drawArrays(gl.TRIANGLES, 0, numVertices);
+ 
+        var e;
+        while (e = gl.getError())
+          console.log("GL error", e);
+ 
+      }
+      setInterval(frame, 1000/20);
+    </"script">
+  </body>
+</html>
+--*/
+
+--/* previous version (13/11/21)
+-- demo\rosetta\OpenGLShader.exw
+requires("1.0.1")
+include pGUI.e
+include ..\pGUI\opengl.e
+
+Ihandln dlg
+Ihandle canvas
+integer r_mod
+atom angle = 0
+
+function resize_cb(Ihandle /*ih*/, integer width, integer height)
+    glViewport(0, 0, width, height)
+    return IUP_DEFAULT
+end function
+
+function render()
+    glClear(GL_COLOR_BUFFER_BIT);
+    glUniform1f(r_mod, rnd())
+    glLoadIdentity();
+    glRotatef(angle, angle * .1, 1, 0);
+    glBegin(GL_TRIANGLES);
+    glVertex(-1, -.5, 0);
+    glVertex(0, 1, 0);
+    glVertex(1, 0, 0);
+    glEnd();
+    angle += .02;
+    glFlush()
+    return IUP_DEFAULT
+end function
+
 constant f = """
 varying float x, y, z;
 uniform float r_mod;
 float rand(float s, float r) { return mod(mod(s, r + r_mod) * 112341, 1); }
 void main() {
-    gl_FragColor = vec4(rand(gl_FragCoord.x, x), rand(gl_FragCoord.y, y), rand(gl_FragCoord.z, z), 1);
-}"""
-constant v = """
+  gl_FragColor = vec4(rand(gl_FragCoord.x, x), rand(gl_FragCoord.y, y), rand(gl_FragCoord.z, z), 1);
+}""",
+         v = """
 varying float x, y, z;
 void main() {
-    gl_Position = ftransform();
-    x = gl_Position.x; y = gl_Position.y; z = gl_Position.z;
-    x += y; y -= x; z += x - y;
+  gl_Position = ftransform();
+  x = gl_Position.x; y = gl_Position.y; z = gl_Position.z;
+  x += y; y -= x; z += x - y;
 }"""
 
-void set_shader()
-{
-        vs = glCreateShader(GL_VERTEX_SHADER);
-        ps = glCreateShader(GL_FRAGMENT_SHADER);
-        glShaderSource(ps, 1, &f, 0);
-        glShaderSource(vs, 1, &v, 0);
- 
-        glCompileShader(vs);
-        glCompileShader(ps);
- 
-        prog = glCreateProgram();
-        glAttachShader(prog, ps);
-        glAttachShader(prog, vs);
- 
-        glLinkProgram(prog);
-        glUseProgram(prog);
-        r_mod = glGetUniformLocation(prog, "r_mod");
-}
- 
-int main(int argc, char **argv)
-{
-        glutInit(&argc, argv);
-        glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
-        glutInitWindowSize(200, 200);
-        glutCreateWindow("Stuff");
-        glutIdleFunc(render);
- 
-        glewInit();
-        if (!glewIsSupported("GL_VERSION_2_0")) {
-                fprintf(stderr, "GL 2.0 unsupported\n");
-                return 1;
-        }
- 
-        set_shader();
-        glutMainLoop();
- 
-        return 0;
-}
+procedure set_shader()
+    IupGLMakeCurrent(canvas)
+    integer vs = glCreateShader(GL_VERTEX_SHADER),
+            ps = glCreateShader(GL_FRAGMENT_SHADER)
+    glShaderSource(ps,f)
+    glShaderSource(vs,v)
+    glCompileShader(vs)
+    glCompileShader(ps)
+    integer prog = glCreateProgram()
+    glAttachShader(prog, ps)
+    glAttachShader(prog, vs)
+    glLinkProgram(prog)
+    glUseProgram(prog)
+    r_mod = glGetUniformLocation(prog, "r_mod")
+end procedure
+
+procedure main()
+    IupOpen()
+    IupGLCanvasOpen()
+    canvas = IupGLCanvas("RESIZE_CB", Icallback("resize_cb"), "RASTERSIZE=640x480")
+    dlg = IupDialog(canvas, "TITLE=OpenGLShader, SHRINK=YES")
+    IupShow(dlg)
+    set_shader()
+    IupSetGlobalFunction("IDLE_ACTION",Icallback("render"))
+    IupMainLoop()
+    dlg = IupDestroy(dlg)
+    IupClose()
+end procedure
+main()
 --*/

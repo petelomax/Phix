@@ -3,7 +3,8 @@ function sha256(str) {
     function stringFillArray(str, arr, i = 0) {
         let bString = string(str);
         while(i < ls) {
-            arr[i] = bString?str.charCodeAt(i):str[i+1];
+//          arr[i] = bString?str.charCodeAt(i):str[i+1];
+            arr[i] = bString?str.codePointAt(i):str[i+1];
             i += 1;
         } 
     }

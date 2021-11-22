@@ -86,8 +86,7 @@
 <font color="#800000">                                  {</font><font color="#000000">i</font><font color="#0000FF">,    </font><font color="#000000"> c</font><font color="#0000FF">,</font><font color="#000000"> c</font><font color="#0000FF">,      </font><font color="#000000"> d</font><font color="#0000FF">,      </font><font color="#000000"> e</font><font color="#0000FF">,         </font><font color="#000000"> f</font><font color="#800000">}</font><font color="#0000FF">)</font>
 <font color="#008080">                    end for</font>
 </pre>
- <pre>
- <font color="#000080"><i>      --
+ <pre><font color="#000080"><i>        --
         -- output on desktop/Phix: 1==2:false(0) ==1:false, eq1:false, ==true:false
         --                         2==2: true(1) ==1: true, eq1: true, ==true: true
         --                         3==2:false(0) ==1:false, eq1:false, ==true:false
@@ -143,7 +142,8 @@
         or otherwise use a dll/so from within a browser (see note below regarding mpfr/gmp).
         <br>
         <br>
-        Several consequences have arisen:
+        Several consequences have arisen, where necessary all of these generate a p2js violation or transpilation 
+        error usually right on the offending statement, and most are therefore pretty straightforward to rectify:
         <br>
         <br>
         <ol>
@@ -153,7 +153,7 @@
         However, that caused far too many non-1 reference counts, so it now does an opMkSq: the code is a bit 
         bigger, but on the plus side it is slightly more thread safe (for sequences of integer only, and not 
         that threads actually have anything to do with p2js). A similar change applies to {} as a parameter
-        default, but not to other parameter defaults.</li>
+        default, but not to other parameter defaults. (no error there, just a bit of info)</li>
 <!--DEV I am now beginning to seriously doubt this, though Aborp() do exist to enforce it...-->
         <li>A knock-on effect is that you can no longer use nested sequences as parameter defaults - a 
         shame, but unlikely to cause much pain, and the fix is as clear as day (compile
@@ -166,13 +166,15 @@
         <li>There was a bug in parameter passing within a routine whereby it was incref&rsquo;ing an unnamed
         temp rather than clearing it, which these changes also exposed, another worthwhile improvement. </li>
         <li>Another nice find/fix was that eg <code>{a,b} = table[i]</code> was creating an unnamed temp to 
-        hold table[i], but never releasing the reference count. </i>
-        <li>The same thing was also occuring for <code>table[i] = {a,b}</code>, another very welcome fix.</i>
-        <li>And another: <code>b = append(tmp,atm)</code> was correctly being replaced with
-        <code>b = tmp; b = append(b,atm)</code> but when <code>tmp&atm</code> was similarly being replaced 
+        hold table[i], but never releasing the reference count. Likewise length(table[i]).
+        A similar thing was also occuring for <code>table[i] = {a,b}</code>, another very welcome fix.
+        And another: <code>b = append(tmp,atm)</code> was correctly being replaced with
+        <code>b = tmp; b = append(b,atm)</code> but when <code>tmp&amp;atm</code> was similarly being replaced 
         it was not getting quite the same treatment (was testing for =S_Tvar, now does !=S_Const).</i>
-        <li>I also fixed a looong-standing issue whereby {s[i],s[j]} = {s[j],s[i]} was significantly slower 
-        than a longhand version using a temp, woo-hoo (see get_from_stack/rhs_stack in pmain.e).</li>
+        <li>I also fixed a looong-standing issue whereby <del>{s[i],s[j]} = {s[j],s[i]}</del> &lt;correction&gt;
+        {a,b} = {c,d} - it will still create and subscript a temp sequence if any subscripts are used or if any 
+        lhs var occurs on the right  hand side &lt;/correction&gt; was significantly slower than a longhand 
+        version using a temp, woo-hoo (see get_from_stack/rhs_stack in pmain.e).</li>
         <li>A mini optimisation that <code>{} & p</code> would just return p with an incref had to go, it 
         now copies over the elements of p just as it does for a non-empty left-hand sequence. 
         In the vast majority of cases that was always a very minor optimisation, and the case of
@@ -203,10 +205,11 @@
         such an invalid operation be attempted on desktop/Phix when with js is in force, which obviously you 
         will have to fix, but of course <code>s[i] = ch</code> and similar are still all perfectly fine when 
         <i>not</i> part of a destructuring operation, and handled differently behind the scenes.</li>
+<!-- DEV Did I not just add a runtime error for this?? [NOPE, I did not, this is still true 27/9/21] -->
         <li><b>{ch1,ch2} = s</b> likewise becomes illegal when s is a string under with js, fairly rare and 
         easily replaced with <code>ch1 = s[1], ch2 = s[2]</code>. Note however there is (as yet) no runtime 
         checking for this on either desktop/Phix or pwa/p2js, and the latter <i>will</i> just fail silently, 
-        with ch1 and ch2 being set to out-by-one length 1 strings instead of the charCodeAt() they would get 
+        with ch1 and ch2 being set to out-by-one length 1 strings instead of the codePointAt() they would get 
         when outside of a multiple assignment aka Array destructuring statement. A fix for that (as in a
         proper runtime error) is probably best married in with adding threads/webworker support and making 
         ma_ip thread-safe, as mentioned below.</li>
@@ -242,7 +245,8 @@
         that is to desktop/Phix) is probably best attempted alongside the planned ma_ip changes.</li>
         <li><b>{a,b} @= c</b> forms of multiple assignment were deemed unnecessary and remain unsupported,
         and can normally be replaced with either an explicit <code>{a,b} = repeat(c,2)</code>, or breaking
-        it down into individual statements/declarations such as <code>a = c [,] b = c</code> or similar.</li>
+        it down into individual statements/declarations such as <code>a = c [,] b = c</code> or similar.<br>
+        In fact that construct is now deprecated in version 1.0.1 and later.</li>
         </ol>
 
         <br>
@@ -333,6 +337,8 @@
         Although pwa/p2js handles p2js.js, pGUI.js, and the autoincludes in pwa/builtins as separate 
         script tags, it bundles all other sources into a single script tag. Any clashes are detected
         and reported as an error. Using multiple script tags would <i>not</i> solve anything.
+        Of course JavaScript iframes do not share any scope or screen real estate and hence are not 
+        any kind of useful in this context either.
         <br>
         <br>
         One thing I <i>have</i> done is to automatically replace all (`base64_init`, `aleph`, `ccha`, 
@@ -424,29 +430,32 @@
         This may be addressed in a future release but for now the effort (see p2js_scope.e) is focused on 
         detecting clashes between different include files, keyword abuse, type inferencing and propagation,
         named parameter support, etc. Besides, any errors thrown up are trivial to fix manually.<br><br></li>
-
+<!--
         <li><b>static variables</b> are not supported, since JavaScript does not support them except via the somewhat
         convoluted syntax of <code><small>if (typeof this.staticvar === 'undefined') { this.staticvar = 0; }</small></code>
         and always needing a this (or the function name) prefix. Not entirely impossible, but for now at least they must 
         be hoisted into global (aka file-level) scope and any consequential conflicts manually resolved, eg:
         <small>
-<!--eucode>
-        sequence tau_cache = {1}                -- ok
+<X!X--eucode>
+        sequence tau_cache = {1}            -- ok
         function tau(integer n)
-            --static sequence tau_cache = {1}   -- not ok
+            --static sequence cache = {1}   -- not ok
             ...
         end function
-</eucode-->
+</eucode--X>
 <pre>
-<font color="#004080">        sequence</font><font color="#000000"> tau_cache</font><font color="#0000FF"> = {</font><font color="#000000">1</font><font color="#0000FF">}               </font><font color="#000080"><i> -- ok</i></font>
+<font color="#004080">        sequence</font><font color="#000000"> tau_cache</font><font color="#0000FF"> = {</font><font color="#000000">1</font><font color="#0000FF">}           </font><font color="#000080"><i> -- ok</i></font>
 <font color="#008080">        function</font><font color="#000000"> tau</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> n</font><font color="#0000FF">)</font>
-<font color="#000080"><i>            --static sequence tau_cache = {1}   -- not ok</i></font>
+<font color="#000080"><i>            --static sequence cache = {1}   -- not ok</i></font>
 <font color="#0000FF">            ...</font>
 <font color="#008080">        end function</font>
 </pre>
         </small>
-        In contrast routine-local constants do not have any such problem and are fully supported.
+        In contrast routine-local constants do not have any such problem and are fully supported. Again rather belatedly 
+        I have realised I could extend the idea from "no include scope" and rename such static variables with a $N$R$ 
+        prefix where R is a manually-incremented per-file routine number, but don&rsquo;t hold you breath.
         <br><br></li>
+-->
         
         <li><b>no typechecking</b> There is the <i>tiniest smigden</i> of manual parameter typechecking 
         within p2js.js itself, for instance <code><a href="puts.htm">puts</a>(fn,x)</code> begins with 
@@ -530,6 +539,9 @@ type ternary(integer t) return find(t,{T,M,F}) end type
         changed to dword-sequences to accomodate this, for instance <a href="trim.htm">trim</a>() used to have
         a default of " \t\r\n" but that has (had to) become {' ','\t','\r','\n'}.<br><br></li>
 
+        <li><b>unicode handling</b> is quite different. JavaScript handles utf8 natively, in effect an s[i] is
+        the same as utf8_to_utf32(s)[i]. See the example in <a href="utfconv.htm">utfconv</a>.<br><br></li>
+
         <li><b>keywords</b>. Must be extended to cover both Phix and JavaScript, so identifiers such as this, 
         in, new, super, etc. must all be renamed. The transpiler should point &rsquo;em out, and I also added 
         a <a href="declarations.htm">table of them</a> to the docs for you, and wrote a draft outline for a 
@@ -563,13 +575,15 @@ type ternary(integer t) return find(t,{T,M,F}) end type
         <li><b>null !== 0</b>. Much like the true !== 1 issue above, however in this case there is a trivial 
         workaround: the transpiler maps null to NULL, and explicitly defines the uppercase variant as 0. 
         The big difference is we are in complete control of which routines return null, and can map them
-        all, whereas unfortunately we cannot guarantee the same for routines returning true and false.
+        all, whereas unfortunately we cannot guarantee the same for routines/tests returning true and false.
         In fact the transpiler maps TRUE and True to true, and FALSE and False to false, the other way
         around, otherwise that aforementioned glitch would just be even more inconsistent and confusing,
         since without that mapping <code>c=true</code> would work but <code>c=TRUE</code> would not.
         Not entirely surprisingly, attempting to define the lowercase variant(s) triggers a syntax error  
-        in JavaScript. Just in case you were unaware, desktop/Phix defines the uppercase variant (NULL) as 
-        an alias of the lowercase one (null) in psym.e/syminit().<br><br></li>
+        in JavaScript. Just for info, desktop/Phix defines the uppercase variant (NULL) as an alias of the 
+        lowercase one (null) in psym.e/syminit(), and of course some minor glitches may occur because some
+        bit of code in p2js.js or pGUI.js incorrectly/accidentally uses a null instead of NULL, or perhaps
+        vice versa, hopefully easily fixable, once actually detected and reproduced that is.<br><br></li>
 
         <li><b>no char</b>. You do not have to look very far to find JavaScript that <i>looks</i> like it is 
         using characters, there is even some in p2js.js, but trust me it&rsquo;s all strings. In Phix, '2'+1 
@@ -682,17 +696,27 @@ type ternary(integer t) return find(t,{T,M,F}) end type
         #ilASM{ mov eax,[rest_js]; call :%pWithJS } to re-enable it, and pHeap.e changed to set e/rcx.
         Messy but at least that part of it is doable.<br><br></li>
 
-        <li><b>pGUI.js</b> is still very much at the proof of concept stage and only works for about half 
-        a dozen fairly trivial examples. The biggest difficulty is likely to be a consistent mapping between 
-        the GAP/PADDING/MARGIN/SIZE/EXPAND/SHRINK etc attributes of the IUP container model and the required
-        CSS settings of the browser box model, not easy but I cannot think of anything that would be.
-        Only a tiny handful of elements/containers have even been started, but most have been fairly easy,
-        that is apart from the spacing/layout aspects, which have in contrast been quite frustrating.
+        <li><b>pGUI.js</b> is still somewhat at the proof of concept stage though the number of working 
+        examples is steadily growing. The biggest difficulty is getting a consistent mapping between the
+        GAP/PADDING/MARGIN/SIZE/EXPAND/SHRINK etc attributes of the IUP container model and the required
+        CSS settings of the browser box model, not easy but I cannot think of anything else that would be.
+        Most of the elements/containers that have even been started have been fairly easy, apart from the 
+        spacing/layout aspects, which have in contrast been quite frustrating.
+<!--
         I don&rsquo;t know whether demo/pGUI/pGUIC.e would make anything easier, ditto for irv&rsquo;s new 
         GTK wrapper if/when that becomes available (which like pGUI.e also passes the first critical test of 
         working on both Windows and Linux with Phix), or whether we&rsquo;d be better off using pGUI/iGTK or
         some restricted subset of one of those to emulate a box model on the desktop. Not a trivial task, no
-        matter whatever route is taken.
+        matter whatever route is taken. 
+-->
+        <br>
+        <br>
+        Also note that <a href="IupControls.htm">more complex controls</a> such as 
+        <a href="IupMatrix.htm">IupMatrix</a>() and <a href="IupPlot.htm">IupPlot</a>() are never going 
+        to be supported, see those links for suggested alternatives. It might be fairly reasonable to add 
+        new controls, as per <a href="IupTable.htm">IupTable</a>() and/or maybe IupGraph(), that behave 
+        consistently under pwa/p2js and desktop/Phix, but utter madness to try and replicate every little 
+        nuance and foible of those existing and frankly terrifying tyrannosaurii.
         <br><br></li>
 
 <!-- now done

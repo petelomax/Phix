@@ -379,7 +379,8 @@ dl {
             <b>mpz_set_str</b>(mpz rop, string s, integer base=0) -- set x from s in the specified base. See also mpz_init.<br>
             If base is zero, bases 2 and 16 can be auto-detected (after a leading +/-) by '0b', '0B', '0x' or '0X', otherwise base 10 is assumed.
             Note that only bases 2, 8, 10, and 16 are currently supported under <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a>,
-            though I have some code somewhere that will convert (strings) between bases.
+            though I have some code somewhere that will convert (strings) between bases.<br>
+            <b>mpz_set_v</b>(mpz rop, object v) -- a phix-specific shorthand for the above three (with said decimal assumption)
             </dd>
            </dl>
           </td>
@@ -717,6 +718,18 @@ dl {
           <td align="left" style="padding: 0; border-style: none;">
            <dl>
             <dt>
+            <b>mpz_and</b>(mpz rop, op1, op2) - rop := and_bits(op1,op2)
+            </dt>
+           </dl>
+          </td>
+         </tr>
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+           <!-- procedure -->
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
             <b>mpz_xor</b>(mpz rop, op1, op2) - rop := xor_bits(op1,op2)
             </dt>
            </dl>
@@ -786,6 +799,23 @@ dl {
             <dd class="pad">
             <b>mpz_lcm_ui</b>(mpz rop, op1, integer op2) - "" except op2 is a phix integer, 0..1GB.<br>
              rop is always positive, irrespective of the signs of op1 and op2. rop will be zero if either op1 or op2 is zero.
+            </dd>
+           </dl>
+          </td>
+         </tr>
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+           <!-- procedure -->
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
+            <b>mpz_invert</b>(mpz rop, op1, op2) - Set rop to the inverse of op1 modulo op2.
+            </dt>
+            <dd class="pad">
+            Compute the inverse of op1 modulo op2 and put the result in rop. <br>
+            If the inverse exists, the return value is non-zero and rop will satisfy 0 &lt;= rop &lt; op2. <br>
+            If an inverse doesn&rsquo;t exist the return value is zero and rop is undefined.
             </dd>
            </dl>
           </td>
@@ -1011,7 +1041,8 @@ dl {
         Some were largely written for simple convenience, rather than absolute performance, although I would say that 
         <a href="mpfr.htm#mpz_prime_factors">mpz_prime_factors</a>() is (I think) exceptionally efficient at what it does best, 
         unless/until you push it too far, as detailed below. Also, some routines (the integer/atom ones) are deliberately renamed 
-        because they have slightly different upper limits.
+        because they have slightly different upper limits. Note that mpz_set_v() as documented above more strictly belongs in this
+        section.
        <br>
        <br>
        <div id="nopad" class="nopad" align="center">
@@ -1156,7 +1187,7 @@ dl {
          </tr>
          <tr>
           <td align="right" style="padding: 0; border-style: none;">
-            string res =&nbsp;
+            sequence res =&nbsp;
           </td>
           <td align="left" style="padding: 0; border-style: none;">
            <dl>
@@ -1799,8 +1830,8 @@ dl {
             <b>mpq_init</b>(object v=0) - Initialise a single mpq, by default set to 0/1. 
             </dt>
             <dd class="pad">
+            v may be an integer or string, but <i>not</i> a non-integer atom or mpq.<br>
             Invoking res = mpq_free(res) when no longer needed is recommended, but occurs automatically if forgotten.<br>
-            v may be an integer or string, (but <i>not</i> a non-integer atom or mpq), or a sequence of length n of said.<br>
             Note that mpq_init_set_si() can set a non-1 denominator in a way this routine (when passed an integer) simply cannot.
             </dd>
            </dl>
@@ -1813,10 +1844,10 @@ dl {
           <td align="left" style="padding: 0; border-style: none;">
            <dl>
             <dt>
-            <b>mpq_inits</b>(integer count, object v) - Returns a sequence of count mpq ({} if count=0), set to 0/1, eg mpq {y,z} = mpq_inits(2). (ditto mpq_free)
+            <b>mpq_inits</b>(integer n, object v) - Returns a sequence of n mpq ({} if n=0), set to 0/1, eg mpq {y,z} = mpq_inits(2). (ditto mpq_free)
             </dt>
             <dd class="pad">
-            v may be an integer or string, or a sequence of length count of said (ditto no non-integer atom(s) or mpq).<br>
+            v may be an integer or string, or a sequence of length n of said (ditto no non-integer atom(s) or mpq elements).<br>
             </dd>
            </dl>
           </td>

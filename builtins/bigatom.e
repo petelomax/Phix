@@ -2559,6 +2559,7 @@ end for
 
 */
 
+procedure bigatom_tests(integer flags)
 atom t0, t1
 integer n = 2, decs = 100
 bigatom ba
@@ -2567,7 +2568,7 @@ integer f
 integer count
 
 --ifdef TEST then
-if 0 then
+if flags && 0b1 then
     puts(1, "\nDid you know...\n\n")
     {} = ba_scale(decs)
     ba = ba_sqrt(n)
@@ -2604,7 +2605,7 @@ end if
 
 
 --ifdef TEST3 then
-if 0 then
+if flags && 0b10 then
     -- 10,000 decimals took 0.296s,
     -- 20,000 decimals took 1.061s,
     -- 50,000 decimals took 6.053s,
@@ -2633,4 +2634,7 @@ if 0 then
     close(f)
 end if
 --end ifdef
-
+end procedure
+if 0 then
+    bigatom_tests(0b11)
+end if

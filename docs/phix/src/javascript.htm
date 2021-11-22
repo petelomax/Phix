@@ -52,8 +52,8 @@
         <br>
         <br>
         JavaScript strings are immutable (and 0-based), and JavaScript has no concept of a character, so
-        we have eg `s[i]` &lt;==&gt; `s.charCodeAt(i-1)` and such monstrosities as "s[i] = 'A'" &lt;==&gt; 
-        `s.splice(i-1,i,String.fromCharCode(65))`. Note that for this to work you may need to be more
+        we have eg `s[i]` &lt;==&gt; `s.codePointAt(i-1)` and such monstrosities as "s[i] = 'A'" &lt;==&gt; 
+        `s.splice(i-1,i,String.fromCodePoint(65))`. Note that for this to work you may need to be more
         explicit with the string type, eg "initial = table[i][NAME][1]" won&rsquo;t work and instead you
         will need to code "string name = table[i][NAME]; initial = name[1]". Obviously you can store and
         retrieve strings deep inside other structures, but any manipulation, subscripting, slicing, and even
@@ -136,7 +136,7 @@ initValidation.validate( "hello" );
          </div>
          <div>
             Self explanatory: create a real Array from something array-like, such as a NodeList. Note that Array.from(string)
-            produces lots of diddy-strings whereas $charArray (see below) produces the array of charCodeAt I was expecting, 
+            produces lots of diddy-strings whereas $charArray (see below) produces the array of codePointAt I was expecting, 
             and eg both compare() and equal() use that internally, when one argument is a string and the other is an Array.
          </div>
         </div>
@@ -325,17 +325,18 @@ toLowerCase
 // =========
 //  "ABC".charAt(0) is "A" (a length-one string)
 //      equiv to "ABC".slice(0, 1);
-//  "ABC".charCodeAt(0) is 65
+//  "ABC".codePointAt(0) is 65
 //
 -->
         <a name=fromCharCode></a>
+        <a name=fromCodePoint></a>
         <div style="clear:both;height:1px;"> </div>
         <div class="flexbox">
          <div>
             <nobr>/*string*/ res =&nbsp;</nobr>
          </div>
          <div>
-            <nobr>String.<b>fromCharCode</b>(</nobr>
+            <nobr>String.<b>fromCodePoint</b>(</nobr>
          </div>
          <div>
             <nobr><i>arg1</i>[,</nobr> <nobr>...<i>argN</i>]);</nobr>
@@ -345,9 +346,12 @@ toLowerCase
          </div>
          <div>
             Self explanatory. Needed because JavaScript has no character type, and coerces eg "A" + 65 to "A65" rather than "AA".<br>
-            String.fromCharCode(65) is "A", String.fromCharCode(65,66,67) is "ABC". Always use String.fromCharCode() as opposed
-            to s.fromCharCode(). Note that the numbers are UTF-16 code units, rather than UTF-32, should that ever matter, and
-            perhaps String.fromCodePoint() would be easier and better.
+            String.fromCodePoint(65) is "A", String.fromCodePoint(65,66,67) is "ABC". Always use String.fromCodePoint() as opposed
+            to s.fromCodePoint() (because it is a <i>static method</i> of String, whatever that really means).
+<!--
+             Note that the numbers are UTF-16 code units, rather than UTF-32, should that ever matter, and
+            perhaps String.fromCodePoint() would be easier and better. [YEP, 14/9/21]
+-->
          </div>
         </div>
         <br>
@@ -1093,11 +1097,12 @@ toLowerCase
              $charArray()
             </td>
             <td>
-              Needed because Array.from(string) produces lots of diddy-strings, whereas this produces the array of charCodeAt I was expecting.<br>
+              Needed because Array.from(string) produces lots of diddy-strings, whereas this produces the array of codePointAt I was expecting.<br>
               Should only ever be passed a string argument, and crashes when that is not the case. Note that res[0] is "sequence".<br>
               Only used in p2js.js, should not be emitted in generated code.
             </td>
          </tr>
+<!-- (now private)
          <tr>
             <td>
              $class_name()
@@ -1108,6 +1113,7 @@ toLowerCase
               Only used in pGUI.js, should not be emitted in generated code.
             </td>
          </tr>
+-->
          <tr>
             <td>
              $conCat()
@@ -1117,7 +1123,7 @@ toLowerCase
               Will be emitted in generated code.
             </td>
          </tr>
-<!--
+<!-- (now deep_copy())
          <tr>
             <td>
              $deepCopy()
@@ -1151,7 +1157,7 @@ toLowerCase
              $repe(s,idx,x,idii)
             </td>
             <td>
-              Replacement for subscript assignment, uses String.fromCharCode(x) and zero-based indexes for string(s), 1-based slices for sequences. <br>
+              Replacement for subscript assignment, uses String.fromCodePoint(x) and zero-based indexes for string(s), 1-based slices for sequences. <br>
               The first three parameters, s, idx, and x should be self-explanatory (s[idx] := x). <br>
               The optional fourth parameter, idii, is a sequence of nested subscripts, eg/ie 
 <!--
@@ -1202,7 +1208,7 @@ toLowerCase
             </td>
             <td>
               element-specific attribute handlers/setters, eg $storeAttr["dialog"]["TITLE"] is set_dialog, a (private) routine
-              (defined in pGUI.js) for setting the dialog title.<br>
+              (defined in pGUI.js) for setting the dialog title (and other things).<br>
               Only used in pGUI.js, should not be emitted in generated code.
             </td>
          </tr>
@@ -1211,7 +1217,7 @@ toLowerCase
              $subse(s,idx)
             </td>
             <td>
-              Replacement for subscripting, uses s.charCodeAt(idx-1) for strings, s[idx] for sequences. <br>
+              Replacement for subscripting, uses s.codePointAt(idx-1) for strings, s[idx] for sequences. <br>
 <!--
               The first two parameters, s and idx should be self-explanatory. <br>
               The optional third parameter, idii, is a sequence of nested subscripts, eg/ie s[i][j][k] maps to 

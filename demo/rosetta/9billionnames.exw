@@ -5,11 +5,10 @@
 
 sequence cache = {{1}}
 function cumu(integer n)
-sequence r
     for l=length(cache) to n do
-        r = {0}
+        sequence r = {0}
         for x=1 to l do
-            r = append(r,r[-1]+cache[l-x+1][min(x,l-x)+1])
+            r = append(r,r[$]+cache[l-x+1][min(x,l-x)+1])
         end for
         cache = append(cache,r)
     end for
@@ -17,8 +16,8 @@ sequence r
 end function
 
 function row(integer n)
-sequence r = cumu(n+1)
-sequence res = repeat(0,n)
+    sequence r = cumu(n+1),
+             res = repeat(0,n)
     for i=1 to n do
         res[i] = r[i+1]-r[i]
     end for
@@ -70,48 +69,37 @@ for i=1 to cx[$] do
     end if
 end for
 ?elapsed(time()-t0)
-
-
---A simple plot, using row() from above:
-include pGUI.e
---#withtype Ihandle
---#withtype Ihandles
-
-Ihandle dlg, plot
-
-IupOpen()
-IupControlsOpen()
-plot = IupPlot("MENUITEMPROPERTIES=Yes, SIZE=640x320")
-IupSetAttribute(plot, "TITLE", "9 Billion Names");
-IupSetAttribute(plot, "TITLEFONTSIZE", "10");
-IupSetAttribute(plot, "TITLEFONTSTYLE", "ITALIC");
-IupSetAttribute(plot, "GRIDLINESTYLE", "DOTTED");
-IupSetAttribute(plot, "GRID", "YES");
-IupSetAttribute(plot, "AXS_XLABEL", "x");
-IupSetAttribute(plot, "AXS_YLABEL", "G(x)");
-IupSetAttribute(plot, "AXS_XFONTSTYLE", "ITALIC");
-IupSetAttribute(plot, "AXS_YFONTSTYLE", "ITALIC");
-IupSetAttribute(plot, "AXS_XSCALE", "LOG10");
-IupSetAttribute(plot, "AXS_YSCALE", "LOG10");
-IupSetAttribute(plot, "AXS_YTICKSIZEAUTO", "NO");
-IupSetAttribute(plot, "AXS_YTICKMAJORSIZE", "8");
-IupSetAttribute(plot, "AXS_YTICKMINORSIZE", "0");
-IupPlotBegin(plot)
-for x=1 to 999 do
-    IupPlotAdd(plot, x, sum(row(x)))
-end for
-{} = IupPlotEnd(plot)
-dlg = IupDialog(plot)
-IupSetAttribute(dlg, "TITLE", "9 Billion Names")
-IupMap(dlg)
-IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
-IupMainLoop()
-IupClose()
-
 --{} = wait_key()
 
---/*
+--A simple graph, using row() from above:
+include pGUI.e
+include IupGraph.e
 
+function p10(atom a) return sprintf("%g",power(10,a)) end function
+
+function get_data(Ihandle /*graph*/)
+    sequence x = {}, y = {}
+    for i=1 to 1000 do
+        x &= log10(i)
+        y &= log10(sum(row(i)))
+    end for
+    return {{"XRID",p10},
+            {"YRID",p10},
+            {x,y,CD_RED}}
+end function
+
+IupOpen()
+Ihandle graph = IupGraph(get_data,"RASTERSIZE=960x600"),
+        dlg = IupDialog(graph,`TITLE="9 Billion Names",MINSIZE=270x430`)
+IupSetAttributes(graph,"XTICK=1,XMIN=0,XMAX=3,XMARGIN=25,YTICK=1,YMIN=0,YMAX=32")
+IupShow(dlg)
+IupSetAttribute(graph,`RASTERSIZE`,NULL)
+if platform()!=JS then
+    IupMainLoop()
+    IupClose()
+end if
+
+--/*
 rows:
  1: 1
  2: 1,1

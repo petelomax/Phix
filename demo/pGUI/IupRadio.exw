@@ -1,0 +1,42 @@
+--
+-- demo\pGUI\IupRadio.exw
+--  Creates a dialog for the user to select his/her gender. 
+--  In this case, the radio element is essential to prevent the user from selecting both options.
+--
+include pGUI.e
+
+function action_cb(Ihandle ih, integer state)
+-- This gets the 0 first, then the 1; it works 
+-- just as well without the state test, btw.
+--  ?{iff(ih=male?"MALE":iff(ih=female?"FEMALE":"???")),state}
+--  if state=1 then -- p2js
+    if state then
+        IupSetAttribute(IupGetDialog(ih),"TITLE",IupGetAttribute(ih,"TITLE"))
+    end if
+    return IUP_DEFAULT
+end function
+
+
+IupOpen()
+
+constant TIP = `TIP="Two state button - Exclusive - RADIO"`
+Ihandle male = IupToggle("Male",Icallback("action_cb"),TIP),
+      female = IupToggle("Female",Icallback("action_cb"),TIP),
+   exclusive = IupRadio(IupVbox({male,female})) 
+--IupSetHandle("male", male) 
+--IupSetHandle("female", female) 
+--IupSetAttribute(exclusive, "VALUE", "female") 
+IupSetAttributeHandle(exclusive, "VALUE", female) 
+--IupSetAttribute(male,  "TIP","Two state button - Exclusive - RADIO") 
+--IupSetAttribute(female,"TIP","Two state button - Exclusive - RADIO") 
+--IupSetAttributes({male,female},`TIP="Two state button - Exclusive - RADIO"`) 
+
+Ihandle frame = IupFrame(exclusive, "TITLE=Gender"),
+       dialog = IupDialog(IupHbox({IupFill(),frame,IupFill()}),
+     "TITLE=IupRadio,SIZE=140x55,RESIZE=NO,MINBOX=NO,MAXBOX=NO") 
+IupShow(dialog) 
+if platform()!=JS then
+    IupMainLoop() 
+    IupClose() 
+end if
+

@@ -2710,6 +2710,17 @@ global procedure mpfr_const_pi(mpfr x, integer rounding=default_rounding)
     c_proc(x_mpfr_const_pi,{x,rounding})
 end procedure
 
+integer x_mpfr_const_euler = NULL
+
+global procedure mpfr_const_euler(mpfr x, integer rounding=default_rounding)
+    if x=NULL then ?9/0 end if
+    if x_mpfr_const_euler=NULL then
+        if mpfr_dll=NULL then open_mpir_dll() end if
+        x_mpfr_const_euler = link_c_proc(mpfr_dll, "+mpfr_const_euler", {P,I})
+    end if
+    c_proc(x_mpfr_const_euler,{x,rounding})
+end procedure
+
 integer x_mpfr_free_str = NULL
 
 procedure _mpfr_free_str(atom pString)

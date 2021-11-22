@@ -1,0 +1,53 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">p2js errors</h1>
+      <div id="mainSection">
+        I have not formalised error handling in p2js.exw, so all of this is subject to change.<br>
+        The following error messages are known to be emitted during transpilation. Only error messages 
+        which are specific to pwa/p2js are listed, not any which essentially mirror an (almost-)identical
+        (compilation) error on desktop/Phix. In truth, these messages should really/also be spat out by
+        desktop/Phix whenever "with js" is in force, though I do not consider that a very high priority.
+        <br>
+        <br>
+        <b>"sorry, p2js cannot name the required temp for that"</b>. A statement such as 
+        <code>s[<i>&lt;expr&gt;</i>] += 1</code> in Phix is transpiled to the JavaScript code
+        <code>s = $repe(s,<i>&lt;expr&gt;</i>,$subse(s,<i>&lt;expr&gt;</i>)+1);</code>. The critical point
+        here is that <i>&lt;expr&gt;</i> occurs twice, with potentially disastrous consequences. Maybe some
+        expressions (eg <code>i+j</code>) are innocuous enough to be allowed, but at the moment p2js.exw
+        bans everything except plain vars and fixed literal integers, meaning that such code must be replaced
+        with (say) <code>integer idx = <i>&lt;expr&gt;</i>; s[idx] += 1</code>.
+        Update: in truth this could probably be solved in p2js_parse/emit using something along the lines of
+        "{ let tdx = <expr>; <statement using tdx>; }" but that may prove difficult to reverse, plus there is 
+        some as yet undetermined point where the complexity of expr makes forcing the programmer to improve
+        their code fundamentally a good idea anyway. Quite how I might determine which expressions are in
+        fact "innocuous enough" remains an open question.
+        <br>
+        <br>
+        <b>"sorry, JavaScript does not support `for(i, let i$lim=`"</b>. 
+        <i>To be removed, solution found.. (search for bPreDef)</i>
+<!--
+        pwa/p2js transpiles eg
+        <code>for i=1 to length(s) do</code> to <code>for (let i=1, i$lim=length(s); i<=i$lim; i += 1) {</code>
+        to match the semantics and behaviour of desktop/Phix, and not re-evaluate length(s) on every iteration. 
+        It avoids using an i$lim when the limit is a fixed literal constant, but nothing else (even constants).
+        It also relies on the scope checks for i, in other words if "j" does not clash, neither will "j%lim", 
+        and that is totally guaranteed.
+        so unfortunately "hoisting" the i$lim out of scope, as in
+        <code>let i%lim=length(s); for (i=1; i<=i$lim; i += 1) {</code> <i>could</i> lead to further issues.
+        In general you cannot predefine for loop control vars like you can in phix, my only suggestion is to code 
+        it as <code>for i2=1 to expr do i = i2</code>, that is in cases where "i" must persist beyond the end of 
+        the loop (and then of course you can continue to use i or i2 within the loop body).
+-->
+        <br>
+        <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

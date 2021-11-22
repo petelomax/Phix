@@ -4,15 +4,47 @@
    <these>
     <get>
      <stripped>
-      <h1 class="title">OpenGL</h1>
+      <h1 class="title">OpenGL/WebGL</h1>
       <div id="mainSection">
+        WebGL is not based on OpenGL. It is based on OpenGL ES 2.0. The same OpenGL ES found on Android and iOS.
+        <br>
+        <br>
+        There are significant differences between OpenGL and OpenGL ES. <br>
+        While OpenGL ES is a subset of OpenGL it is missing the old deprecated fixed function pipeline that 
+        so many people continue to use and so many outdated tutorials still teach (like Nehe GL).
+        <br>
+        <br>
+        What is the fixed function pipeline? Anything having to do with glVertex, glColor, glNormal, glLight, 
+        glPushMatrix, glPopMatrix, glMatrixMode, etc... in GLSL using any of the variables that access the 
+        fixed function data like gl_Vertex, gl_Normal, gl_Color, gl_MultiTexCoord, gl_FogCoord, 
+        gl_ModelViewMatrix and the various other matrices from the fixed function pipeline.
+        <br>
+        <br>
+        Those are all removed from OpenGL ES 2.0 and therefore do not exist in WebGL
+        <br>
+        <br>
         OpenGL is a cross-language, cross-platform application programming interface (API) for rendering 2D and 3D vector graphics. <br>
-        pGUI includes a simple OpenGL wrapper. Credit is especially due to Mic, on whose work much of this wrapper is based, particularly the 
+        pGUI includes a simple OpenGL/WebGL wrapper. Credit is especially due to Mic, on whose work much of this wrapper is based, particularly the 
         <a href="javascript:ExternalLink('ext471','http://phix.x10.mx/pmwiki/pmwiki.php?n=Main.OpenglGraphicsForEuphoria');"
            id="ext471" style="color:#9B5565" >euglr9.zip contribution</a>
         of Mar 23/08, and also to Jean-Marc DURO, for making things cross-platform (not that I actually use 
         <a href="javascript:ExternalLink('ext472','http://phix.x10.mx/pmwiki/pmwiki.php?n=Main.Euglfw3WithExamples');"
-           id="ext472" style="color:#9B5565" >glfw</a>, just some opengl bits of that wrapper).
+           id="ext472" style="color:#9B5565" >glfw</a>, just some opengl bits of that wrapper).<br>
+        Further, I have unifed(/am in the process of unifying) OpenGL and WebGL into a single compatible API.
+<!-- one possibility:
+https://math.hws.edu/graphicsbook/source/glsim/glsim-doc.html
+downloaded to C:\Program Files (x86)\Phix\pwa\js\poc\glsim.js
+-->
+        <br>
+        <br>
+        Of course drawing a 3D scene is no mean feat, you can get a glimpse of just how complicated it is by visiting this little 
+        <a href="javascript:ExternalLink('ext932','https://webglfundamentals.org/webgl/lessons/resources/webgl-state-diagram.html');"
+           id="ext932" style="color:#9B5565" >webgl state diagram</a>. If that does not confuse and frighten you, there is something
+        wrong with you. OpenGL/WebGL is quite probably the simplest possible interface to getting the job done, but it inevitably 
+        involves more than just a few steps, though hopefully none of the individual steps should be completely overwhelming.<br>
+        Essentially it is just a matter of poking a bucketload of data and then telling it to go and do it&rsquo;s thing, with the
+        slight compilcation that vertext and fragment shaders are written in a completely different language (as constant strings).<br>
+        Unfortunately I am not the person to ask, and am not going to make any attempt whatsoever to document that other language.
         <br>
         <br>
         This only attempts to document routines and constants actually used in the provided demos. It is not a tutorial, just a quick lookup.
@@ -23,23 +55,77 @@
         <br>
         I should also note that it is not my main intention to create a library suitable for full-screen flat-out gaming; something from
         <a href="javascript:ExternalLink('ext474','http://phix.x10.mx/pmwiki/pmwiki.php?n=Catagory.Graphics');"
-           id="ext474" style="color:#9B5565" >PCAN</a> may be more appropriate for that task. 
-        Instead it is to embed useful graphics capability in a desktop app such as a CAD program, or perhaps a utility to 
+           id="ext474" style="color:#9B5565" >PCAN</a> (and not necessarily p2js compatible) may be more appropriate for that task. 
+        Instead it is to embed useful graphics capability in a desktop or web app such as a CAD program, or perhaps a utility to 
         create/design gaming levels rather than the game itself. 
         I will happily accept reduced performance in return for cross-platform operation, or a simpler and cleaner API. 
         Several of the demos have been modified to minimise CPU usage, which of course would be important on a shared or
-        remote platform, and in the specific instance of <a href="glNormal.htm">glNormal</a>(), pGUI.e offers just two 
-        entry points instead of the ten variants offered in C.
+        remote platform.
+<!--
+        , and in the specific instance of <a href="glNormal.htm"><span class="illegal">glNormal</span></a>(), 
+        pGUI.e offers just two entry points instead of the ten variants offered in C, likewise <span class="illegal">glColor</span>, 
+        <span class="illegal">glVertex</span>, etc.
+-->
+        <br>
+        <br>
+        <h3>Pete&rsquo;s super quick intro to OpenGL/WebGL</h3>
+        First and foremost you need to define all the points/vertices and faces of the model.<br>
+        For a 2D 'F' draw three rectangles, one upright and two rungs. We will treat that as 3 faces.<br>
+        There are four distinct x (left/right) values and five distinct y (up/down) values, and 12 vertices, <br>
+        two of which are the same point (where the upright and the top rung meet).<br>
+        For a 3D 'F' replicate that with a different z (front/back), now we have 24 vertices.<br>
+        The right hand side of the upright needs (splitting into) two faces and the left hand side of both rungs have none, plus<br>
+        the top of the upright and the top of the top rung are merged into a single face.<br>
+        In total we have 16 faces<small><sup>1</sup></small>, each of which we are going to specify as two triangles<small><sup>2</sup></small>.<br>
+        <small>
+        <sup>1</sup> Just to clarify and not of any great significance, 6 of those faces are flat and 5 each are horizonal/vertical edge-on.<br>
+        <sup>2</sup> While OpenGL 1.0&rsquo;s <span class="illegal">glBegin</span>() supported quads and polygons, OpenGL ES 2.0 and WebGL stop at triangles.
+        </small>
+        <br>
+        <br>
+        Let that all sink in. If you cannot imagine or arrange a few suitable things on the desktop in front of you
+        to resemble a 3D 'F', and verify the numbers above (esp 16), then I&rsquo;m afraid to say you are a lost cause.
+        Don&rsquo;t worry about the units: internally OpenGL maps everything to 0.0..1.0 or -1.0..+1.0 as needed anyway, 
+        along with the "camera" position, so just use the numbers you find easiest. Do however bear in mind that we are
+        (probably) going to be rotating about {0,0,0}, so making that the "centre of gravity" usually helps, though of
+        course you can specify things more naturally and then add/subtract some {dx,dy,dz} to/from every point.
+        See sequence F_positions in demo\pGUI\HelloF.exw (these notes are replicated in that source file).
+        <br>
+        <br>
+        It is important to note that each face can be drawn using two triangles in 144 different ways, which could have 
+        a significant impact when it comes to applying textures. There are two diagonals that split a rectangle into two 
+        triangles, but you can start on any one of those four, and draw by starting on any of the three corners of a 
+        triangle and go clockwise or anticlockwise, so 4*3*2*3*2=144. On top of that we have different pixel coordinates 
+        for Canvas Draw and OpenGL, as well as low-level differences between OpenGL (on the desktop) and WebGL (as in a 
+        browser). We need to take the simplest route possible here!
+        <br>
+        <br>
+        Next we want to apply a texture to each of those faces. This is a simple matter of matching each and every 
+        vertex previously specified to the corresponding position on the texture. We can make things much simpler by 
+        declaring the faces in a consistent manner and applying textures using a standard platform-specific approach, 
+        which means opengl.e vs opengl.js in this context.
+        Applying a world map to a sphere needs a bit more math and many more triangles, but it is basically the same. 
+        <br>
+        <br>
+        The rest is fairly standard: store it with glBufferData(), and specify what it all means first by calling
+        glVertexAttribPointer() with the right size, type, and possibly stride settings, and finally glDrawArrays()
+        with the desired mode, here GL_TRIANGLES, not forgetting the total length. Of course there are all sorts of
+        other things to achieve smoothing, rotation, lighting effects, and so on, but the quick intro endeth here.
         <br>
         <br>
         <h3>Further reading</h3>
         Obviously I assume you know how to use 
         <a href="javascript:ExternalLink('ext473','http://lmgtfy.com/?q=opengl');"
            id="ext473" style="color:#9B5565" >google</a> or whatever your favourite search engine might be.
+        Be warned however the vast majority of "OpenGL" stuff is still 1.0, you are probably better off looking for 
+        "WebGL" instead, or maybe "OpenGL ES 2.0". Five out of six links from the previous version of this page have
+        been commented out for that reason. I am not planning on killing off, for instance, demo\pGUI\vol_fog.exw, 
+        but I am not planning on ever supporting that API version under pwa/p2js either.
         <br>
         <br>
+<!--
         There is some archived 
-        <a href="javascript:ExternalLink('ext475','https://msdn.microsoft.com/en-us/library/dd368808(v=vs.85).aspx');"
+        <a href="javascript:ExternalLink('ext475','https://msdn.microsoft.com/en-us/library/dd368808(v=vs.85).aspx');"          -- NO!!!
            id="ext475" style="color:#9B5565" >MSDN documentation</a> based on openGL 1.1, which was officially released 
         on March 4, 1997 (!!). The 
         <a href="javascript:ExternalLink('ext477','https://en.wikipedia.org/wiki/OpenGL');"
@@ -52,45 +138,37 @@
         and a few gems can be found on
         <a href="javascript:ExternalLink('ext479','http://stackoverflow.com/questions/tagged/opengl');"
            id="ext479" style="color:#9B5565"      >http://stackoverflow.com/questions/tagged/opengl</a>
-        though I suspect you will want to narrow that search down (eg [opengl] glBegin).
+        though I suspect you will want to narrow that search down (eg [opengl] glClear).
         <br>
         <br>
+-->
         If I get time, I might translate some of the examples from
         <a href="javascript:ExternalLink('ext497','https://en.wikibooks.org/wiki/OpenGL_Programming');"
            id="ext497" style="color:#9B5565"      >https://en.wikibooks.org/wiki/OpenGL_Programming</a> 
-        and maybe add those tutorials here. Also possibly
+        and maybe add those tutorials here.
+<!--
+         Also possibly
         <a href="javascript:ExternalLink('ext498','http://www.apgardner.karoo.net/gl/demos.html');"
            id="ext498" style="color:#9B5565"      >http://www.apgardner.karoo.net/gl/demos.html</a> 
         (vol_fog already done, and may overlap others)
+-->
         <br>
         <br>
-        <table>
-         <col style="width: 5%"/>
-         <tr>
-          <td>
-           <a href="glBegin.htm">glBegin</a>
-          </td>
-          <td width=10 align=center>-</td>
-          <td>The glBegin() and glEnd() functions delimit the vertices that define a primitive or a group of like primitives.
-          </td>
-         </tr>
-         <tr>
-          <td>
-           <a href="glGetString.htm">glGetString</a>
-          </td>
-          <td width=10 align=center>-</td>
-          <td>returns a string describing the current OpenGL connection.
-          </td>
-         </tr>
-         <tr>
-          <td>
-           <a href="glShadeModel.htm">glShadeModel</a>
-          </td>
-          <td width=10 align=center>-</td>
-          <td>selects flat or smooth shading.
-          </td>
-         </tr>
-        </table>
+        Of course someone is going to say "why don't you use three.js" (or similar)... well, it is <i>not</i> desktop compatible 
+        and even <i>minified</i> it clocks in at a "lightweight" 1.7MB, so that&rsquo;s a firm no thanks from me. That being said,
+        I am always open to handy shortcuts that simplify things.
+        <br>
+        <br>
+        What about Vulkan? Get back to me when you can run it in a browser (ie don&rsquo;t ever get back to me).
+        Again, if a decent enough desktop-only but otherwise cross-platform wrapper crops up I&rsquo;ll be more than
+        happy to host a copy on PCAN and include a link to that from the docs, but I am not likely to be too keen on
+        spending too much time promoting or documenting it, unless it comes with some <i>really</i> cool demos!
+        <br>
+        <br>
+        While opengl.e defines GL_TRUE and GL_FALSE as simple aliases for the standard true and false constants, I would 
+        recommend using the builtins instead (to avoid any suggestion or fear they are somehow different) and in fact 
+        even better replace say <code>expr=GL_TRUE</code> and <code>expr=GL_FALSE</code> with just <code>expr</code> and 
+        <code>not expr</code> respectively, likewise <code>GLboolean</code> with <code>bool</code>.
         <br>
         <br>
       </div>

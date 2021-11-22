@@ -1,0 +1,103 @@
+//
+// demo\pGUI\OpenGL_ES_2.0_Triangle.exw
+// ====================================
+
+integer programObject
+
+function LoadShader(string shaderSrc, integer shader_type)
+    integer shader = glCreateShader(shader_type)
+    if shader!=0 then
+        glShaderSource(shader, shaderSrc)
+        glCompileShader(shader)
+        integer compiled = glGetShaderParameter(shader, GL_COMPILE_STATUS)
+        if not compiled then
+--          integer infoLen = glGetShaderiv(shader, GL_INFO_LOG_LENGTH)
+--          if(infoLen > 1) then
+--              string infoLog = glGetShaderInfoLog(shader, infoLen)
+                string infoLog = glGetShaderInfoLog(shader)
+                printf(1,"Error compiling shader:\n%s\n", infoLog)
+--          end if
+            shader = glDeleteShader(shader)
+        end if
+    end if
+    return shader
+end function
+
+constant vShaderStr = """
+attribute vec4 vPosition;
+void main() {
+ gl_Position = vPosition;
+}
+""",
+         fShaderStr = """
+precision mediump float;
+void main() {
+ gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+}
+"""
+
+function Init()
+--  UserData *userData = esContext->userData;
+    integer vertexShader = LoadShader(GL_VERTEX_SHADER, vShaderStr),
+            fragmentShader = LoadShader(GL_FRAGMENT_SHADER, fShaderStr)
+    programObject = glCreateProgram()
+    if programObject==0 then return false end if
+    glAttachShader(programObject, vertexShader)
+    glAttachShader(programObject, fragmentShader)
+    // Bind vPosition to attribute 0
+    glBindAttribLocation(programObject, 0, "vPosition");
+    glLinkProgram(programObject);
+    integer linked = glGetProgramParameter(programObject, GL_LINK_STATUS)
+    if not linked then
+--      integer infoLen = glGetProgramiv(programObject, GL_INFO_LOG_LENGTH)
+--      if infoLen>1 then
+--          string infoLog = glGetProgramInfoLog(programObject, infoLen)
+            string infoLog = glGetProgramInfoLog(programObject)
+            printf(1,"Error linking program:\n%s\n", infoLog)
+--      end if
+        programObject = glDeleteProgram(programObject)
+        return false
+    end if
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f)
+    return true
+end function
+
+///
+// Draw a triangle using the shader pair created in Init()
+//
+constant vVertices = {0.0,  0.5, 0.0,
+                     -0.5, -0.5, 0.0,
+                      0.5, -0.5, 0.0},
+         {vsize,pVertices} = glFloat32Array(vVertices)
+
+procedure Draw()--ESContext *esContext)
+--  UserData *userData = esContext->userData;
+--  sequence vVertices = {0.0f,  0.5f, 0.0f,
+--                       -0.5f, -0.5f, 0.0f,
+--                        0.5f, -0.5f, 0.0f};
+
+    // Set the viewport
+    glViewport(0, 0, esContext->width, esContext->height);
+
+    // Clear the color buffer
+    glClear(GL_COLOR_BUFFER_BIT);
+    glUseProgram(programObject)
+    // Load the vertex data
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, pVertices);
+    glEnableVertexAttribArray(0);
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+    eglSwapBuffers(esContext->eglDisplay, esContext->eglSurface);
+end procedure
+
+procedure main()
+--  ESContext esContext;
+--  UserData userData;
+--  esInitialize(&esContext);
+--  esContext.userData = &userData;
+--  esCreateWindow(&esContext, "Hello Triangle", 320, 240, ES_WINDOW_RGB);
+
+    if Init() then
+        esRegisterDrawFunc(&esContext, Draw);
+        esMainLoop(&esContext);
+    end if
+end procedure

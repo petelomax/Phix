@@ -93,6 +93,21 @@
  %% - print the '%' character itself
           <br>
           <br>
+            Format specifiers may be explicitly subscripted, which simply modifies the current index into args, which then continues 
+            to increment normally, for example "%d %[3]d %d %[7]d %d" is equivalent to "%[1]d %[3]d %[4]d %[7]d %[8]d", and of course 
+            both will crash should the length of args be less than 8, aka the index be let run beyond the length of args.
+            Negative subscripts are also valid, eg "%[-2]d %d" == "%[-2]d %[-1]d", and again obviously it will crash should the index 
+            be let run to zero. <br>
+            A subscript is specified by an opening '[' immediately after the '%' followed by a fixed integer and then a closing ']'.<br>
+            Whilst not actually implemented in such a manner, an alternative way of describing what happens is that <br>
+            <code>sprintf("%[3]02d/%[2]02d/%[1]4d",args)</code> is functionally equivalent to<br>
+            <code>sprintf("%02d/%02d/%4d",<a href="extract.htm">extract</a>(args,{3,2,1}))</code> and of course you are free to
+            use something more like the latter, however there are situations where that would be more difficult to use.<br>
+            Subscripts [as just shown] can be particularly useful for formatting the output of <a href="date.htm">date</a>() without 
+            having to reorder or <a href="extract.htm">extract</a>() it, and consequentially they can be very h/dandy as 
+            <a href="IupTable.htm">IupTable</a> format strings.
+          <br>
+          <br>
             Field widths can be added to the basic formats, e.g. %5d, %8.2f, %10.4s. <br>
             The number before the decimal point is the minimum field width to be used. <br>
             The number after the decimal point is the precision to be used.
@@ -144,7 +159,7 @@
             result from <a href="utf32_to_utf8.htm">utf32_to_utf8</a>({uchar}).<br>
             To print a utf-32 or utf-16 sequence it should first be passed through 
             <a href="utf32_to_utf8.htm">utf32_to_utf8</a>() or
-            <a href="utf16_to_utf32.htm#utf16_to_utf8">utf16_to_utf8</a>() respectively.
+            <a href="utf16_to_utf32.htm#utf16_to_utf8"><span class="illegal">utf16_to_utf8</span></a>() respectively.
           <br>
           <br>
             Note that %x and %X are "the wrong way round" for historical/compatibility reasons.

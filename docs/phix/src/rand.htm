@@ -4,7 +4,7 @@
    <these>
     <get>
      <stripped>
-      <h1 class="title">rand / get|set_rand / rnd</h1>
+      <h1 class="title">rand / rnd / get|set_rand</h1>
       <div id="mainSection">
        <table>
         <col style="width: 5%"/>
@@ -17,15 +17,19 @@
           <br>
           <i>-- or --</i>
           <br>
+          <a href="integer.htm">integer</a> res = rand_range(<a href="integer.htm">integer</a> lo, hi)
+          <br>
+          <i>-- or --</i>
+          <br>
+          <a href="atom.htm">atom</a> res = rnd()
+          <br>
+          <i>-- or --</i>
+          <br>
           <a href="atom.htm">atom</a> seed = get_rand()
           <br>
           <i>-- or --</i>
           <br>
           set_rand(<a href="atom.htm">atom</a> seed)
-          <br>
-          <i>-- or --</i>
-          <br>
-          <a href="atom.htm">atom</a> res = rnd()
          </td>
         </tr>
         <tr>
@@ -34,9 +38,10 @@
          </td>
          <td>
             rand() returns a random integer from 1 to range inclusive.<br>
+            rand_range() returns a random integer from lo to hi inclusive.<br>
+            rnd() returns a random floating point number in the range 0.0 to 1.0 inclusive.<br>
             get_rand() obtains the current random number generator seed.<br>
             set_rand() sets the current random number generator seed.<br>
-            rnd() returns a random floating point number in the range 0.0 to 1.0 inclusive.
          </td>
         </tr>
         <tr>
@@ -44,14 +49,16 @@
           <b>Comments:</b>
          </td>
          <td>
-            These functions may be applied to an <a href="atom.htm">atom</a> or sq_rand() to all elements
+            The rand() function may be applied to an <a href="atom.htm">atom</a> or sq_rand() to all elements
             of a <a href="sequence.htm">sequence</a>. The rules for <a href="seqops.htm">sequence operations</a> apply.
             <br>
             <br>
-            The range parameter may be from 1 to the largest 
-            <a href="machine_bits.htm">machine_word</a>()-sized  value, ie #FFFFFFFF on 32 bit and #FFFFFFFFFFFFFFFF on 64 bit.<br>
-            Note that you can specify -1 to achieve that, whereas a value of 0 in range triggers a fatal error, 
-            and as usual to store &gt;31/63 bit integers, you (may) need to use atom variables.
+            The range parameter may be from 1 to the largest possible <a href="machine_bits.htm">machine_word</a>()-sized 
+            unsigned native integer, ie #FFFF_FFFF on 32 bit and #FFFF_FFFF_FFFF_FFFF on 64 bit.
+            You can specify -1 to achieve that in a <a href="machine_bits.htm">machine_word</a>()-independent fashion, 
+            whereas a value of 0 in range triggers a fatal error, and as usual should range [potentially] exceed the 
+            31/63 bit integer limit, the result should be stored in an <a href="atom.htm">atom</a> variable, though 
+            in most cases an integer is fine and in fact probably better.
             <br>
             <br>
             In stark contrast to the usual way arguments are handled, all negative integers in the range parameter are treated as unsigned. 
@@ -62,30 +69,7 @@
             Also note that any fractional part of range is completely ignored.
             <br>
             <br>
-            Use set_rand() to get a repeatable series of random numbers on subsequent calls to rand()/rnd().
-            <br>
-            <br>
-            Normally the numbers returned by the rand() function are totally unpredictable, and will be different each time you run your
-            program. Sometimes however you may wish to be given the same series of numbers, for instance when debugging a program.
-            <br>
-            <br>
-            Sometimes, a program only crashes every 10<small><sup>th</sup></small> or 20<small><sup>th</sup></small> time it is run.<br>
-            A suitably placed "atom save = get_rand()" can make it much easier to replicate and debug the problem by retrieving such 
-            a saved seed from the ex.err file.
-            <br>
-            <br>
-            Fairly obviously, <a href="rand.htm">set_rand</a>(get_rand()) is not going to achieve anything, then again it is not going 
-            to hurt anyone either.
-            <br>
-            <br>
-            You should note that the implementation is trivial and you should not assume that the results will be perfectly distributed or 
-            cryptographically secure. Many other random number generators can be found in (the Euphoria archive or) <a id="ext217" 
-            style="color:#9B5565" href="javascript:ExternalLink('ext217','http://phix.x10.mx/pmwiki/pmwiki.php');">PCAN</a>, let me know 
-            of any that you think should be included in the standard distribution.
-            <br>
-            <br>
-            Note that if more that one thread invokes the rand() function, the results are likely to be unpredictable whether or not the
-            set_rand() function has been called.
+            Use set_rand() to get a repeatable series of random numbers on subsequent calls to rand()/rnd() (see technicalia).
          </td>
         </tr>
 <!--
@@ -110,7 +94,6 @@ set_rand(1001)
 ?rnd()          -- 0.4817850515
 ?rand(10)       -- 4
 ?get_rand()     -- 914554926
-set_rand(914554926)
 ?rand(10)       -- 9
 ?rand(10)       -- 1
 set_rand(914554926)
@@ -124,8 +107,7 @@ set_rand(914554926)
 ?</font><font color="#5E005E">rnd</font><font color="#0000FF">()         </font><font color="#000080"><i> -- 0.4817850515</i></font>
 <font color="#0000FF">?</font><font color="#7060A8">rand</font><font color="#0000FF">(</font><font color="#000000">10</font><font color="#0000FF">)      </font><font color="#000080"><i> -- 4</i></font>
 <font color="#0000FF">?</font><font color="#5E005E">get_rand</font><font color="#0000FF">()    </font><font color="#000080"><i> -- 914554926</i></font>
-<font color="#7060A8">set_rand</font><font color="#0000FF">(</font><font color="#000000">914554926</font><font color="#0000FF">)
-?</font><font color="#7060A8">rand</font><font color="#0000FF">(</font><font color="#000000">10</font><font color="#0000FF">)      </font><font color="#000080"><i> -- 9</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">rand</font><font color="#0000FF">(</font><font color="#000000">10</font><font color="#0000FF">)      </font><font color="#000080"><i> -- 9</i></font>
 <font color="#0000FF">?</font><font color="#7060A8">rand</font><font color="#0000FF">(</font><font color="#000000">10</font><font color="#0000FF">)      </font><font color="#000080"><i> -- 1</i></font>
 <font color="#7060A8">set_rand</font><font color="#0000FF">(</font><font color="#000000">914554926</font><font color="#0000FF">)
 ?</font><font color="#7060A8">rand</font><font color="#0000FF">(</font><font color="#000000">10</font><font color="#0000FF">)      </font><font color="#000080"><i> -- 9</i></font>
@@ -142,7 +124,44 @@ set_rand(914554926)
             get_rand(), rnd(): see builtins\prnd.e (an autoinclude).
          </td>
         </tr>
+        <tr id="Technicalia" style="display:none;">
+         <td>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+            The logical counterpart of sq_rand() for rnd() would be sq_rnd(integer n), that yeilds a sequence of length n, but I have
+            yet to imagine or encounter any practial reason for implementing what would undoubtedly be an utterly trivial function.
+            <br>
+            <br>
+            Normally the numbers returned by the rand() function are totally unpredictable, and will be different each time you run your
+            program. Sometimes however you may wish to be given the same series of numbers, for instance when debugging a program.
+            <br>
+            <br>
+            Should a program only crash every 10<small><sup>th</sup></small> or 20<small><sup>th</sup></small> time it is run, a
+            suitably placed "atom randseed = get_rand()" can make it much easier to replicate and debug the problem. Invoke
+            set_rand() with such a value retrieved from the ex.err file, and at least in theory such rare crashes would then 
+            occur consistently every time the program is subsequently re-run.
+            <br>
+            <br>
+            Fairly obviously, set_rand(get_rand()) is not going to achieve anything, then again it is not going to hurt anyone either.
+            <br>
+            <br>
+            You should note that the implementation is trivial and you should not assume that the results will be perfectly distributed or 
+            cryptographically secure. Several other random number generators can be found in <a id="ext217" style="color:#9B5565" 
+            href="javascript:ExternalLink('ext217','http://phix.x10.mx/pmwiki/pmwiki.php');">PCAN</a> (or the Euphoria archive), let me 
+            know of any that you think should be included in the standard distribution, specifically for practical convenience as opposed 
+            to academic curiosity ("good, fast, small: pick any <i>two</i>" may unfortunately apply therein).
+            <br>
+            <br>
+            Also note that repeatable results may only occur locally and for a single version; there is no guarantee that the same 
+            seeds will produce the same results across different releases or operating systems, or for that matter if more than one 
+            thread invokes rand() or rnd(), the results are likely to be unpredictable whether or not set_rand() has been called.
+         </td>
+        </tr>
        </table>
+       <img src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
        <br>
        <br>
       </div>

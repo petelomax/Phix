@@ -85,7 +85,14 @@ end function
 
 global function shorten(sequence s, string what="digits", integer ml=20)
     integer l = length(s),
-            c = iff(string(s) and what="digits"?sum(sq_eq(s,',')):0)
+--pwa.p2js:
+--          c = iff(string(s) and what="digits"?sum(sq_eq(s,',')):0)
+            c = 0
+    if what="digits" then
+        for i=1 to l do
+            c += s[i]==','
+        end for
+    end if
     string ls = iff(length(what)?sprintf(" (%,d %s)",{l-c,what}):"")
     if l>ml*2+iff(string(s)?3+length(ls):2) then
         if string(s) then

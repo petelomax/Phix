@@ -1,0 +1,82 @@
+--
+-- demo\rosetta\XML_Validation.exw
+--
+--  DEV woefully incomplete...
+--
+constant good_xml = `<a>5</a>`,
+         bad_xml = `<a>5<b>foobar</b></a>`,
+--       bad_xml = `<a><b>foobar</b></a>`,
+         xmlschema_markup = """
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <xsd:element name="a" type="xsd:integer"/>
+</xsd:schema>
+"""
+
+constant SCHEMA = """
+<?xml version='1.0'?>
+<xs:schema id='an-element' targetNamespace='example' xmlns:mstns='example' xmlns='example' xmlns:xs='http://www.w3.org/2001/XMLSchema' attributeFormDefault='unqualified' elementFormDefault='qualified'>
+    <xs:element name='an-element'>
+        <xs:complexType>
+            <xs:sequence minOccurs='0' maxOccurs='unbounded'>
+                <xs:element name='another-element' nillable='true'>
+                    <xs:complexType>
+                        <xs:simpleContent>
+                            <xs:extension base='xs:string'>
+                                <xs:attribute name='an-attribute' form='unqualified' type='xs:boolean'/>
+                            </xs:extension>
+                        </xs:simpleContent>
+                    </xs:complexType>
+                </xs:element>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+</xs:schema>
+"""
+ 
+constant DOCUMENT = """
+<?xml version='1.0'?>
+<an-element xmlns='example'>
+    <another-element an-attribute='false'>...</another-element>
+    <another-element an-attribute='wrong'>123</another-element>
+</an-element>
+"""
+
+include xml.e
+pp(xml_parse(good_xml),{pp_Nest,1})
+pp(xml_parse(bad_xml),{pp_Nest,1})
+--?xml_parse(bad_xml,HTML_INPUT)    -- (no help)
+pp(xml_parse(xmlschema_markup),{pp_Nest,1})
+?"==="
+pp(strict_html_parse(good_xml),{pp_Nest,1})
+pp(strict_html_parse(bad_xml),{pp_Nest,1})
+pp(strict_html_parse(xmlschema_markup),{pp_Nest,1})
+?"==="
+--pp(xml_parse(SCHEMA))
+pp(xml_parse(SCHEMA),{pp_Nest,1})
+--pp(xml_parse(DOCUMENT))
+pp(xml_parse(DOCUMENT),{pp_Nest,1})
+--?"===" -- it don't like the <?xml...
+--?strict_html_parse(SCHEMA)
+--?strict_html_parse(DOCUMENT)
+
+?"done"
+{} = wait_key()
+
+--/* Perl output
+Valid.
+Schemas validity error : Element 'a': Element content is not allowed, because the type definition is simple.
+--*/
+--/*
+{"document",{},{"a",{},"5"},{}}
+{-1,"</a> expected",1,5,"<a>5<b>foobar</b></a>",6}
+{"document",{},{"xsd:schema",{{"xmlns:xsd"},{"http://www.w3.org/2001/XMLSchema"}},{{"xsd:element",{{"name","type"},{"a","xsd:integer"}},{}}}},{}}
+"==="
+{{"a",{},{"5"}}}
+{{"a",{},{"5",{"b",{},{"foobar"}}}}}
+{{"xsd:schema",{{"xmlns:xsd"},{"http://www.w3.org/2001/XMLSchema"}},{{"xsd:element",{{"name","type"},{"a","xsd:integer"}},{}}}}}
+"==="
+{"document",{`<?xml version='1.0'?>`},{"xs:schema",{{"id","targetNamespace","xmlns:mstns","xmlns","xmlns:xs","attributeFormDefault","elementFormDefault"},{"an-element","example","example","example","http://www.w3.org/2001/XMLSchema","unqualified","qualified"}},{{"xs:element",{{"name"},{"an-element"}},{{"xs:complexType",{},{{"xs:sequence",{{"minOccurs","maxOccurs"},{"0","unbounded"}},{{"xs:element",{{"name","nillable"},{"another-element","true"}},{{"xs:complexType",{},{{"xs:simpleContent",{},{{"xs:extension",{{"base"},{"xs:string"}},{{"xs:attribute",{{"name","form","type"},{"an-attribute","unqualified","xs:boolean"}},{}}}}}}}}}}}}}}}}}},{}}
+{"document",{`<?xml version='1.0'?>`},{"an-element",{{"xmlns"},{"example"}},{{"another-element",{{"an-attribute"},{"false"}},"..."},{"another-element",{{"an-attribute"},{"wrong"}},"123"}}},{}}
+"done"
+
+--*/
