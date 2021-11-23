@@ -97,6 +97,10 @@ global function htmlise(string hsrc, sequence hokens)
                 colour = IUP_BLUE
             elsif toktype<=T_object then        -- types
                 colour = "#004080"
+--20/10/21: (ah no, this be for rosettacode...)
+--          elsif toktype<=T_trace then         -- keywords
+--          elsif toktype<=T_try then           -- keywords
+--              colour = IUP_RED
             elsif toktype<=T_xor then           -- keywords
                 colour = IUP_TEAL
 --          elsif toktype<=T_yield then         -- builtins

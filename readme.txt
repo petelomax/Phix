@@ -24,6 +24,30 @@ it will create both a new p.exe and a new pw.exe, again automatically for you.
 
 Please note the following entries are probably more for my benefit than yours.
 
+Version 1.0.1
+=============
+26/08/2021: Version 0.8.2 introduced an ill-conceived and pooly implemented 
+            static routine-level declaration. It only ever worked for integers 
+            and bools assigned to a literal or pre-existing file-level constant 
+            (not parameters), and proved incompatible with p2js, hence the whole 
+            sad and sorry mess was removed in the 1.0.1 release). Given the sheer 
+            number of problems encountered when re-examined, I very much doubt it 
+            saw any active service at all.
+04/09/2021: Bugfix: "sequence avail" followed by "if avail(d) then", which should
+            of course been "if avail[d] then" was a) let through, and b) triggered
+            a truly horrid run-time error (typecheck in VM\pcallfunc.e which was
+            pretty ugly compiled, and out-of-symtab gibberish when interpreted).
+            It now says invalid routine_id(-8) but on a much more sensible line, 
+            and if possible the compiler issues a "cannot be routine_id" error.
+            (The -8 is just a made up "not integer", alas I can do no better.)
+06/10/2021: Added (optional) printf format subscript handling, for instance
+            printf(1,"%[3]02d/%[2]02d/%[1]04d",date()) is an easier way to 
+            print a date without reordering and is particularly suited to the
+            (also) new format strings in an IupTable (example in docs).
+30/10/2021: Bugfix: printf(1,"%d is %.1e\n",{150000,150000}) was (astonishly)
+            producing "150000 is 1.6e+5", instead of "150000 is 1.5e+5".
+            Added a (dicey) "fadj" tweak to clean up final digit handling.
+
 Version 1.0.0
 =============
 03/02/2021: Bugfix: IupMessage crashed if msg was NULL. Added bWrap option to

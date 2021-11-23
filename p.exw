@@ -10,14 +10,15 @@
 --format PE64
 include builtins\pcase.e as pcase -- upper(), lower()
 
-include pmain.e     -- main parser
+--include pmain.e   -- main parser
+include eval.e  -- main parser
 
 --include profile.e -- profile, profile_time, and opStats reporting
-include builtins\VM\pProfile.e
+--include builtins\VM\pProfile.e
 
-include plist.e     -- assembly and symbol table dump
+--include plist.e   -- assembly and symbol table dump
 
-include builtins\VM\pMemChk.e   -- check_heap
+--include builtins\VM\pMemChk.e -- check_heap
 
 --DEV find a way to run terror.exw full test... (a stub? two top-level includes?)
 --DEV migrate these into bench.exw???
@@ -1455,6 +1456,8 @@ while 1 do  -- 17/8
             listing = 0
             dumpil = 0
             exit
+        elsif find(x,{"safe","safe_mode"}) then
+            safe_mode = true
         elsif equal(x,"test") then
             if lencl>1 then
                 g0close()
@@ -1496,6 +1499,8 @@ while 1 do  -- 17/8
                     add rsp,8
                 []
                   }
+--removed 5/10/21
+--/*
         elsif equal(x,"safe") then
             safemode = true
             #ilASM{
@@ -1507,6 +1512,7 @@ while 1 do  -- 17/8
                     add rsp,8
                 []
                   }
+--*/
         else
             g0close()
             pemit2free()
@@ -1673,13 +1679,6 @@ integer ntokens
 
 -- <ends>
 
-procedure Interpret()
---DEVrepl: output some warnings if we need this...
-    close(-9)
-    symtab[T_cmdlnflg] = 2 -- in command_line(), get stuff from symtab[T_fileset]
-
-end procedure
-
 with trace
 function main()
 object savepath
@@ -1691,14 +1690,8 @@ sequence outfile
 --  if find(mainfile,{"p","p.exw"}) and bind<=1 then
 --printf(1,"rootpath is %s,\nmainpath is %s\n",{rootpath,mainpath})
 --integer local_ebp
-integer CSvaddr4
-integer ebp4,   -- saved ebp, /4 as it shd be dword-aligned, then fits in an integer
-        esp4,   -- saved esp, ""
-        pst4,   -- saved symtabptr, aka [ds+8] (via :%pGetSymPtr), ""
-        ntcb4   -- saved pGtcb.pNxtcb
---      frst4   -- saved pGtcb.pFirst (/4, which is done by pNew/RestoreGtcbChain)
 --,sym4,level
-object wasEBP   -- integer(0) = compiled, else ({ebp4,esp4,pst4}) = interpreted
+
 --integer dfn
 string pi
 
@@ -1979,258 +1972,16 @@ end if
             end if
         else -- interpret
 
-            Interpret()
---DEVrepl: output some warnings if we need this...
---          close(-9)
---          symtab[T_cmdlnflg] = 2 -- in command_line(), get stuff from symtab[T_fileset]
-
-            wasEBP = symtab[T_EBP]
-            #ilASM{
-                -- set ebp4,esp4,pst4 (from ebp,esp,symtabptr)
-                [32]
-                    mov eax,ebp
-                    mov ecx,esp
---14/8/15:
---                  mov edx,[ds+8]
-                    call :%pGetSymPtr
-                    shr eax,2
-                    shr ecx,2
---                  shr edx,2
-                    shr esi,2
-                    mov [ebp4],eax
-                    mov [esp4],ecx
---                  mov [pst4],edx
-                    mov [pst4],esi
-                [64]
-                    mov rax,rbp
-                    mov rcx,rsp
---                  mov rdx,[ds+8]
-                    call :%pGetSymPtr
-                    shr rax,2
-                    shr rcx,2
---                  shr rdx,2
-                    shr rsi,2
-                    mov [ebp4],rax
-                    mov [esp4],rcx
---                  mov [pst4],rdx
-                    mov [pst4],rsi
-                  }
---  ?       symtab[T_EBP] = {ebp4,esp4,level}
-            -- (note that esp4 is also used in builtins\VM\Stack.e\opAbort) [DEV]
-            symtab[T_EBP] = {ebp4,esp4,pst4}
---if bind then
-            -- added 28/5/15:
-            if not dumpil
-            and not listing 
-            and not some_unresolved_rtnids then
-                rbldrqd = 1
-            end if
---end if
---if newEmit then
---          ?9/0
-            CSvaddr4 = floor(CSvaddr/4)
---          call(CSvaddr)
---DEV create a new heap if we want to perform memory leak checking...
-if MCHK and length(ptab)=0 and opLntpcalled=0 then
---  The interpret code (in p.exw/main) needs something like:
---
---      #ilASM{
---              ...
---              call :%pNewGtcbChain        -- (if analysing)
---              mov [ntcb4],eax             -- temp save
--->             mov [frst4],ecx             -- temp save
---              <existing call :%pNewStack still rqd>
---              <existing call(symtab[T_maintls][S_il])>
---              <existing restore ebp/esp/symtabptr>
--->             mov ecx,[frst4]
---              mov eax,[ntcb4]
---              call :%pRestoreGtcbChain    -- (if analysing)
---              mov [ntcb4],edx             -- analyse later, in hll (and free it)
--->             mov [frst4],edi             -- analyse later, in hll (and free it)
---              ...
---            }
--->     check_heap(ntcb4,frst4)                 -- (if analysing)
---      <carry on with profile, -test, etc>
+            close(-9)
 --
 --  Note: if profiling then analysing should be turned off, otherwise there could be floats
 --  as stored by opLnp[t] etc in the wrong heap/being reported as memory leaks, likewise for
 --  tracing.
-
-            #ilASM{
-                [32]
-                    mov eax,[with_js]
-                    call :%pWithJS
-                    call :%pNewGtcbChain
-                    mov [ntcb4],eax         -- temp save
---                  mov [frst4],ecx         -- temp save
-                    mov esi,[symtab]
-                    mov ecx,[CSvaddr4]
-                    shl esi,2
-                    shl ecx,2
-                    call :%pSetSymPtr
-                    push ecx
-                    call :%pNewStack
-                    mov ecx,[esp]           -- (keep for diagnostics)
-                    call ecx
-                    pop ecx
---DEV store errorcode? (same deal 3-place else)
-                    call :%RunCleanup
-
---                  mov eax,[ds+8]
-                    call :%pGetSymPtr
-                    mov edx,[esi+21*4]      -- symtab[T_EBP=22]
-                    mov eax,[ebx+edx*4]     -- symtab[T_EBP][1] = ebp4
-                    mov ecx,[ebx+edx*4+4]   -- symtab[T_EBP][2] = esp4
-                    mov esi,[ebx+edx*4+8]   -- symtab[T_EBP][3] = pst4
-                    shl eax,2
-                    shl ecx,2
-                    shl esi,2
-                    mov ebp,eax             -- restore ebp
-                    mov esp,ecx             -- restore esp
---                  mov [ds+8],edx          -- restore symtabptr
-                    call :%pSetSymPtr
-                    mov eax,[ntcb4]
---                  mov ecx,[frst4]
-                    call :%pRestoreGtcbChain
-                    mov [ntcb4],edx
---                  mov [frst4],edi
-                    xor eax,eax
-                    call :%pWithJS
-                [64]
-                    mov rax,[with_js]
-                    call :%pWithJS
-                    call :%pNewGtcbChain
-                    mov [ntcb4],rax         -- temp save
---                  mov [frst4],rcx         -- temp save
---                  mov rax,[symtab]
-                    mov rsi,[symtab]
-                    mov rcx,[CSvaddr4]
---                  shl rax,2
-                    shl rsi,2
-                    shl rcx,2
---                  mov [ds+8],rax          -- symtabptr
-                    call :%pSetSymPtr
-                    push rcx
-                    call :%pNewStack
-                    mov rcx,[rsp]           -- (keep for diagnostics)
-                    call rcx
-                    pop rcx
-                    call :%RunCleanup
-
---                  mov rax,[ds+8]
-                    call :%pGetSymPtr
---                  mov rdx,[rax+168]       -- symtab[T_EBP=22]
-                    mov rdx,[rsi+168]       -- symtab[T_EBP=22]
-                    mov rax,[rbx+rdx*4]     -- symtab[T_EBP][1] = ebp4
-                    mov rcx,[rbx+rdx*4+8]   -- symtab[T_EBP][2] = esp4
---                  mov rdx,[rbx+rdx*4+16]  -- symtab[T_EBP][3] = pst4
-                    mov rsi,[rbx+rdx*4+16]  -- symtab[T_EBP][3] = pst4
-                    shl rax,2
-                    shl rcx,2
---                  shl rdx,2
-                    shl rsi,2
-                    mov rbp,rax             -- restore ebp
-                    mov rsp,rcx             -- restore esp
---                  mov [ds+8],rdx          -- restore symtabptr
-                    call :%pSetSymPtr
-                    mov rax,[ntcb4]
---                  mov rcx,[frst4]
-                    call :%pRestoreGtcbChain
-                    mov [ntcb4],rdx
---                  mov [frst4],rdi
-                    xor rax,rax
-                    call :%pWithJS
-                []
-                  }
---          check_heap(ntcb4,frst4)
-            check_heap(ntcb4)
-else -- not MCHK
---puts(1,"not MCHK\n")
---DEVrepl factor this out, into pmain.e:
---          InterpreXt()
-            #ilASM{
-                [32]
-                    mov eax,[with_js]
-                    call :%pWithJS
-                    mov esi,[symtab]
-                    mov ecx,[CSvaddr4]
-                    shl esi,2
-                    shl ecx,2
-                    call :%pSetSymPtr
-                    push ecx
-                    call :%pNewStack
-                    mov ecx,[esp]           -- (keep for diagnostics)
-                    call ecx
-                    pop ecx
---                }
---          call(CSvaddr4)
---          #ilASM{
---DEV Either a) we rely on :%pAbort to restore ebp/esp, or
---           b) we restore ebp/esp here. 
---           in either case we must restore symtabptr here - since abort() may not have been called.
---           While :%pAbort needs to fetch esp4 (aka [ds+8][T_EBP][2]) to locate the return address,
---           given that we need pst4 here anyway, it makes more sense to restore everything here.
---                  mov eax,[ds+8]
-                    call :%pGetSymPtr
-                    mov edx,[esi+21*4]      -- symtab[T_EBP=22]
-                    mov eax,[ebx+edx*4]     -- symtab[T_EBP][1] = ebp4
-                    mov ecx,[ebx+edx*4+4]   -- symtab[T_EBP][2] = esp4
-                    mov esi,[ebx+edx*4+8]   -- symtab[T_EBP][3] = pst4
-                    shl eax,2
-                    shl ecx,2
-                    shl esi,2
-                    mov ebp,eax             -- restore ebp
-                    mov esp,ecx             -- restore esp
-                    call :%pSetSymPtr
-                    xor eax,eax
-                    call :%pWithJS
-                [64]
-                    mov rax,[with_js]
-                    call :%pWithJS
---                  pop al
---                  mov rax,[symtab]
-                    mov rsi,[symtab]
-                    mov rcx,[CSvaddr4]
---                  shl rax,2
-                    shl rsi,2
-                    shl rcx,2
---                  mov [ds+8],rax              -- symtabptr
-                    call :%pSetSymPtr
-                    push rcx
-                    call :%pNewStack
-                    mov rcx,[rsp]           -- (keep for diagnostics)
-                    call rcx
-                    pop rcx
---                  mov rax,[ds+8]
-                    call :%pGetSymPtr
-                    mov rdx,[rsi+21*8]          -- symtab[T_EBP=22]
-                    -- in case it helps, the next two lines should work just as well:
-    --              mov rax,[symtab]
-    --              mov rdx,[rbp+rax*4+21*8]    -- symtab[T_EBP]
-                    mov rax,[rbx+rdx*4]         -- symtab[T_EBP][1] = ebp4
-                    mov rcx,[rbx+rdx*4+8]       -- symtab[T_EBP][2] = esp4
---                  mov rdx,[rbx+rdx*4+16]      -- symtab[T_EBP][3] = pst4
-                    mov rsi,[rbx+rdx*4+16]      -- symtab[T_EBP][3] = pst4
-                    shl rax,2
-                    shl rcx,2
---                  shl rdx,2
-                    shl rsi,2
-                    mov rbp,rax                 -- restore rbp
-                    mov rsp,rcx                 -- restore rsp
---                  mov [ds+8],rdx              -- restore symtabptr
-                    call :%pSetSymPtr
-                    xor rax,rax
-                    call :%pWithJS
-                []
-                  }
---puts(1,"not MCHK(2)\n")
-end if
-
---puts1("returned from call(CSvaddr)!\n")
-            symtab[T_EBP] = wasEBP
+--
+--          bool mchk = MCHK and length(ptab)=0 and opLntpcalled=0
+--          Interpret(mchk)
+            Interpret()
             errorcode = 0   --DEV
---DEV also elsewhere?
-            free(CSvaddr)
             free(DSvaddr)
 --added 29/10/16: (probbly not rqd)
             close(-9)
@@ -2296,12 +2047,6 @@ end if
     elsif listing then
         dump_listing()
     end if  -- no norun
---?{PE,bind,listing,norun}  -- 1,1,1,1...
---  elsif bind then
-----    if errorcode!=0 then
-----        Message(sprintf("\nSome error: %d[#%x]\n",{errorcode,errorcode}))
-----        abort(0)
-----    end if
     Warnings(1)
     return errorcode
 end function
@@ -2310,15 +2055,6 @@ procedure REPL()
 object savepath
 --integer local_ebp
 object line
-integer CSvaddr4
-integer ebp4,   -- saved ebp, /4 as it shd be dword-aligned, then fits in an integer
-        esp4,   -- saved esp, ""
-        pst4    -- saved symtabptr, aka [ds+8] (via :%pGetSymPtr), ""
---      ntcb4   -- saved pGtcb.pNxtcb
---      frst4   -- saved pGtcb.pFirst (/4, which is done by pNew/RestoreGtcbChain)
---,sym4,level
-object wasEBP   -- integer(0) = compiled, else ({ebp4,esp4,pst4}) = interpreted
-
 bool bInit = true
 
 --?{"currRtn",currRtn} -- 1
@@ -2398,7 +2134,7 @@ while 1 do  -- main loop
 --      end if
         col = 0
 --trace(1)
-sequence symsave = symtab
+        sequence symsave = symtab
 --try
 --?{"currRtn",currRtn} -- 1
 --?{"scopelevel",scopelevel} -- 0
@@ -2406,19 +2142,14 @@ sequence symsave = symtab
 --?{"currRtn",currRtn} -- 21
 --?{"scopelevel",scopelevel} -- 1
 --      bInit = false -- (now done after the end try)
-symsave = symtab
+        symsave = symtab
         --
         -- Interpret
         --
         ptab = {}
         opstat = 0
         cl1 = ""
---if newEmit then
         finalfixups2("","",t)
---      ?9/0    -- (there is no opInterp yet! [see pStack.e])
---else
---      finalfixups("","",t)
---end if
 
         errorcode = 0
 
@@ -2436,118 +2167,14 @@ symsave = symtab
             end if
         end if
 
---      symtab[T_cmdlnflg] = 2 -- in command_line(), get stuff from symtab[T_fileset]
-
 --if newEmit then
 --          ?9/0 -- (repl)  -- crib from main() [again]
                             -- might be better to rewrite this as main(integer repl)
 
---DEVrepl:
-        Interpret()
---          close(-9)
---          symtab[T_cmdlnflg] = 2 -- in command_line(), get stuff from symtab[T_fileset]
-            wasEBP = symtab[T_EBP]
-            #ilASM{
-                -- set ebp4,esp4,pst4 (from ebp,esp,symtabptr)
-                [32]
-                    mov eax,ebp
-                    mov ecx,esp
---14/8/15:
---                  mov edx,[ds+8]
-                    call :%pGetSymPtr
-                    shr eax,2
-                    shr ecx,2
---                  shr edx,2
-                    shr esi,2
-                    mov [ebp4],eax
-                    mov [esp4],ecx
---                  mov [pst4],edx
-                    mov [pst4],esi
-                [64]
-                    mov rax,rbp
-                    mov rcx,rsp
---                  mov rdx,[ds+8]
-                    call :%pGetSymPtr
-                    shr rax,2
-                    shr rcx,2
---                  shr rdx,2
-                    shr rsi,2
-                    mov [ebp4],rax
-                    mov [esp4],rcx
---                  mov [pst4],rdx
-                    mov [pst4],rsi
-                  }
---  ?       symtab[T_EBP] = {ebp4,esp4,level}
-            -- (note that esp4 is also used in builtins\VM\Stack.e\opAbort) [DEV]
-            symtab[T_EBP] = {ebp4,esp4,pst4}
---if bind then
-            -- added 28/5/15:
-            if not dumpil
-            and not listing 
-            and not some_unresolved_rtnids then
-                rbldrqd = 1
-            end if
---end if
---if newEmit then
---          ?9/0
-            CSvaddr4 = floor(CSvaddr/4)
---          call(CSvaddr)
-            #ilASM{
-                [32]
-                    mov esi,[symtab]
-                    mov ecx,[CSvaddr4]
-                    shl esi,2
-                    shl ecx,2
-                    call :%pSetSymPtr
-                    push ecx
-                    call :%pNewStack
-                    mov ecx,[esp]           -- (keep for diagnostics)
-                    call ecx
-                    pop ecx
-                    call :%pGetSymPtr
-                    mov edx,[esi+21*4]      -- symtab[T_EBP=22]
-                    mov eax,[ebx+edx*4]     -- symtab[T_EBP][1] = ebp4
-                    mov ecx,[ebx+edx*4+4]   -- symtab[T_EBP][2] = esp4
-                    mov esi,[ebx+edx*4+8]   -- symtab[T_EBP][3] = pst4
-                    shl eax,2
-                    shl ecx,2
-                    shl esi,2
-                    mov ebp,eax             -- restore ebp
-                    mov esp,ecx             -- restore esp
-                    call :%pSetSymPtr
-                [64]
-                    mov rsi,[symtab]
-                    mov rcx,[CSvaddr4]
-                    shl rsi,2
-                    shl rcx,2
-                    call :%pSetSymPtr
-                    push rcx
-                    call :%pNewStack
-                    mov rcx,[rsp]           -- (keep for diagnostics)
-                    call rcx
-                    pop rcx
-                    call :%pGetSymPtr
-                    mov rdx,[rsi+21*8]          -- symtab[T_EBP=22]
-                    -- in case it helps, the next two lines should work just as well:
-    --              mov rax,[symtab]
-    --              mov rdx,[rbp+rax*4+21*8]    -- symtab[T_EBP]
-                    mov rax,[rbx+rdx*4]         -- symtab[T_EBP][1] = ebp4
-                    mov rcx,[rbx+rdx*4+8]       -- symtab[T_EBP][2] = esp4
-                    mov rsi,[rbx+rdx*4+16]      -- symtab[T_EBP][3] = pst4
-                    shl rax,2
-                    shl rcx,2
-                    shl rsi,2
-                    mov rbp,rax                 -- restore rbp
-                    mov rsp,rcx                 -- restore rsp
-                    call :%pSetSymPtr
-                []
-                  }
-
---puts1("returned from call(CSvaddr)!\n")
-            symtab[T_EBP] = wasEBP
+            close(-9)
+--          Interpret(false)
+            Interpret()
             errorcode = 0   --DEV
---DEV also elsewhere?
-            free(CSvaddr)
 --          free(DSvaddr)
 --added 29/10/16: (probably not rqd)
 --          close(-9)
@@ -2569,60 +2196,20 @@ symsave = symtab
 ----end if
 --end if
 
---/*
-    bind = 1/0  -- NB must always bind on RDS Eu (since there is no VM loaded to run things on!)
-                -- OK, I assume you changed bind = 0 above (line 830ish), ... but what you gonna 
-                --      replace that opInterp call with?
---*/
 --  end if  -- no norun
 --  Warnings(1)
---  currtls = T_maintls
---?{"currRtn",currRtn} -- (varies...) [Not sure why...]
---  currRtn = T_maintls
---if currRtn != T_maintls then
---      currRtn = dropScope(0,S_File)
---?{"currRtn",currRtn}
-if scopelevel != 1 then ?9/0 end if
+            if scopelevel != 1 then ?9/0 end if
 
---/*
-catch e
---  ?e
-    string file = e[E_FILE], name = e[E_NAME], err = e[E_USER]
-    if file!="pmsgs.e"
-    or name!="Abort"
-    or err!="abort(1)" then
-        printf(1,"%s%s line %d in %s: %s\n",{e[E_PATH], file, e[E_LINE], name, err})
-    end if
---/*
-{42,29791650,518,3632,"Abort","pmsgs.e",`C:\Program Files (x86)\Phix\`,"abort(1)"}
-{42,29791650,518,3632,"Abort","pmsgs.e",`C:\Program Files (x86)\Phix\`,"abort(1)"}
-1 E_CODE (atom) hardware and operating system exceptions usually have bit #800000000 set, user exceptions can be any atom value, even 0. 
-2 E_ADDR (atom) a machine address indicating where the exception ocurred.
-3 E_LINE (integer, optional) the source code line matching E_ADDR in E_RTN.
-4 E_RTN (integer, optional) equivalent to routine_id(), an index to the symbol table identifying the routine.
-5 E_NAME (string|integer, optional) the human-readable name of E_RTN.
-6 E_FILE (string|integer, optional) the source filename containing E_NAME.
-7 E_PATH (string|integer, optional) the directory containing E_FILE.
-8 E_USER (object, optional) user defined/application specific content in e[8..$]. 
---*/
-end try
---*/
-        bInit = false
-currRtn = T_maintls
+            bInit = false
+            currRtn = T_maintls
 
 --end if
---?scopelevel
-scopelevel = 1
---      symtab[T_pathset] = -999
---      symtab[T_fileset] = -999
-symtab = symsave
-    end if -- length(text)=0
+            scopelevel = 1
+            symtab = symsave
+        end if -- length(text)=0
 
---  tt_init()
---  ResetResourceSectionDefaults()
-
-end while
-close(-9)
+    end while
+    close(-9)
 --g0close()
 end procedure
 
@@ -2633,7 +2220,8 @@ sequence smf, smp   -- save of main file & path [DEV to go]
 -- X64 = 0
 --DLL = 0
     processCommandLine()
-    if bind and safemode then Fatal("-c -safe not supported") end if
+--5/10/21...
+--  if bind and safemode then Fatal("-c -safe not supported") end if
 
 atom eres
      eres = 0
@@ -2653,8 +2241,9 @@ if testall then
     for i=1 to length(testset)-1 do
 --printf(1,"state=%d\n",state)
         mainfile = testset[i]
-        if (not safemode or not find(mainfile,{"t41infan.exw","t42cback.exw"}))
-        and (mainfile!="t49ginfo.exw" or machine_bits()!=64 or not bind)
+--5/10/21...
+--      if (not safemode or not find(mainfile,{"t41infan.exw","t42cback.exw"}))
+        if (mainfile!="t49ginfo.exw" or machine_bits()!=64 or not bind)
         and (mainfile!="t61cffi.exw" or platform()!=LINUX) then
             printf(1,"Testing[%d]: %s%s\n",{i,mainpath,mainfile})
 --          atom ti = time()
@@ -2704,7 +2293,10 @@ if eres then
 --  end if
 --23/12/20:
     if eres = #CFFFFFFF then -- ([too big for abort])
-        crash ("application hang")
+        crash ("application hang (code #CFFFFFFF)")
+--09/08/21:
+    elsif eres = #C0000005 then -- ""
+        crash ("access violation (code #C0000005)")
     else
         abort(eres)
     end if

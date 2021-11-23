@@ -68,6 +68,8 @@
 --      (where practical, it could try to carry on parsing, as long as first error stays first & is immediately visible)
 --  console.log(1/2); (phew!)
 -- Review file:///E:/downloads/misc/js/vanillajs/winbox-master/index.html
+-- SUG: optimise eg x*y + (x+y) to (x+1)*y + x (from https://www.codeproject.com/Articles/5304605/Creating-Shellcode-from-any-Code-Using-Visual-Stud )
+-- online, for ideas: https://algorithm-visualizer.org/ (and obvs codepen, etc)
 --
 
 --/*
@@ -78,7 +80,7 @@ alignItems
 appendChild
 Array
 atan
-background
+--background
 bottom
 BRANCHOPEN_CB
 charCodeAt
@@ -89,6 +91,7 @@ clientHeight
 clientWidth
 clientX
 clientY
+codePointAt
 contains
 createElement
 createElementNS
@@ -103,6 +106,7 @@ firstChild
 firstElementChild
 forEach
 fromCharCode
+fromCodePoint
 getAttribute
 getBoundingClientRect
 getComputedStyle
@@ -138,7 +142,7 @@ lastIndexOf
 left
 localeCompare
 map
-margin
+--margin
 marginBottom
 marginLeft
 marginRight
@@ -212,23 +216,26 @@ ym
 zIndex
 
 --DEV taken back out:
-    {"key",                         BADT,   T_key                           := 9212},
-    {"name",                        BADT,   T_name                          := 9936},
-    {"add",                         BADT,   T_add                           := 1460},
-    {"pow",                         BADT,   T_pow                           := 10856},
-    {"left",                        BADT,   T_left                          := 9368},
-    {"target",                      BADT,   T_target                        := 13824},
-    {"xm",                          TYPF,   T_xm                            := 15244},
-    {"ym",                          TYPF,   T_ym                            := 15440},
-    {"double",                      BADT,   T_double                        := 16376},
-    {"right",                       TYPF,   T_right                         := 11948},
-    {"height",                      BADT,   T_height                        := 6148},
-    {"width",                       BADT,   T_width                         := 15100},
-    {"id",                          BADT,   T_id                            := 6136},
-    {"children",                    BADT,   T_children                      := 2748},
-    {"fill",                        BADT,   T_fill                          := 16436},
-    {"title",                       BADT,   T_title                         := 14164},
-    {"byte",                        BADT,   T_byte                          := 15680},
+    {"key",                             BADT,   T_key                               := 9212},
+    {"name",                            BADT,   T_name                              := 9936},
+    {"add",                             BADT,   T_add                               := 1460},
+    {"pow",                             BADT,   T_pow                               := 10856},
+    {"left",                            BADT,   T_left                              := 9368},
+    {"target",                          BADT,   T_target                            := 13824},
+    {"xm",                              TYPF,   T_xm                                := 15244},
+    {"ym",                              TYPF,   T_ym                                := 15440},
+    {"double",                          BADT,   T_double                            := 16376},
+    {"right",                           TYPF,   T_right                             := 11948},
+    {"height",                          BADT,   T_height                            := 6148},
+    {"width",                           BADT,   T_width                             := 15100},
+    {"id",                              BADT,   T_id                                := 6136},
+    {"children",                        BADT,   T_children                          := 2748},
+    {"fill",                            BADT,   T_fill                              := 16436},
+    {"title",                           BADT,   T_title                             := 14164},
+    {"byte",                            BADT,   T_byte                              := 15680},
+    {"background",                      BADT,   T_background                        := 2068},
+    {"margin",                          BADT,   T_margin                            := 11820},
+
 
 just in case:
 pwa\builtins\bsearch.js
@@ -364,7 +371,7 @@ untouchable(2000, 10, 6-(platform()==JS))
 --  jdesc[opConcat] = "opConcat,dest,a,b\n"
 --  jdesc[opConcatN] = "opConcatN,N,ref1..refN,res\n"
 --
-without debug                   -- (keep ex.err clean)
+--without debug                 -- (keep ex.err clean)
 include builtins\timedate.e
 include builtins\pdates.e
 include builtins\pdate.e
@@ -664,7 +671,10 @@ global constant string initialcurrentdir = get_proper_dir(command_line()[2]),
 --global constant string inifile = join_path({initialcurrentdir,"p2js.ini"})
 string lastfile = ""
 
-sequence files = {}
+--sequence files = {}
+sequence dropfiles = {},
+         droptags = {}
+bool bSaveIni = false
 
 include pGUI.e
 Ihandle main_dlg, choose_file, chosen, ctype, multitext, lbl_statusbar, otype,
@@ -722,6 +732,7 @@ end function
 --global string src -- now in p2js_basics...
 --integer src_offset    -- (for js embeddded in html) [ now in p2js_basics]
 bool pGUI, pMPFR, pSHA256, pTIMEDATE
+--bool pGUI, pOpenGL, pMPFR, pSHA256, pTIMEDATE
 
 --function load(string src="", integer ext=0)
 --function load(string what)
@@ -732,6 +743,7 @@ function load_tokens(Ihandle mle=multitext, mtype=ctype)
     src = IupGetAttribute(mle, "VALUE")
     src_offset = 0
     pGUI = false
+--  pOpenGL = false
     pMPFR = false
     pSHA256 = false
     pTIMEDATE = false
@@ -771,7 +783,9 @@ function load_tokens(Ihandle mle=multitext, mtype=ctype)
             end if
             string pre = src[1..match(js[1][1],src)]
             src_offset = length(split(pre,'\n'))-1
+--aside: js->phix will not resurrect an "include [`..\pGUI\`]opengl.e .. (yet) [or can we do it from comment??]
             pGUI = match("pGUI.js",pre)!=0
+--          pOpenGL = match(`..\pGUI\opengl.e`,pre)!=0 -- ???!
             pMPFR = match("mpfr.js",pre)!=0
             pSHA256 = match("sha256.js",pre)!=0
             pTIMEDATE = match("timedate.js",pre)!=0
@@ -889,8 +903,8 @@ function idle_action()
             elsif toktype<=T_object then        -- types
                 colour = "#004080"
 --          elsif toktype<=T_volatile then      -- dodgy keywords
---          elsif toktype<=T_try then           -- dodgy keywords
-            elsif toktype<=T_trace then         -- dodgy keywords
+--          elsif toktype<=T_trace then         -- dodgy keywords
+            elsif toktype<=T_try then           -- dodgy keywords
                 colour = IUP_RED
             elsif toktype<=T_xor then           -- keywords
                 colour = IUP_TEAL
@@ -1069,10 +1083,21 @@ procedure open_file(string filename)
         if platform_is_js() then
             IupSetStrAttribute(chosen, "TITLE", filename)
         else
-            integer pdx = find(filename,files)
+            integer pdx = find(filename,dropfiles)
             if pdx=0 then
-                files = append(files,filename)
-                pdx  = length(files)
+                dropfiles = append(dropfiles,filename)
+                pdx  = length(dropfiles)
+                droptags = sq_add(droptags,1)&1 -- (ok, not p2js)
+--              droptags = append(droptags,1)
+                bSaveIni = true
+            elsif droptags[pdx]!=1 then
+                for i=1 to length(droptags) do
+                    if droptags[i]<droptags[pdx] then
+                        droptags[i]+= 1
+                    end if
+                end for
+                droptags[pdx] = 1
+                bSaveIni = true
             end if
 --3/5/21: (nice idea, but unworkable, removed 9/5/21)
 --/*
@@ -1086,18 +1111,21 @@ procedure open_file(string filename)
             files[pdx] = filename
 --</3/5/21>
 --*/
---17/5/21
+--17/5/21 removed 30/9/21
+--/*
             integer vis = IupGetInt(chosen,"VISIBLEITEMS")-1
             if pdx>vis then
 --?{pdx,vis,filename}
 --vis -= 1
-                files[pdx] = files[vis]
-                files[vis] = filename
+                dropfiles[pdx] = dropfiles[vis]
+                dropfiles[vis] = filename
                 pdx = vis
 --              IupSetAttribute(chosen,"VISIBLEITEMS",pdx+1)
             end if
+--*/
             IupSetAttributeId(chosen,"",pdx,filename)
             IupSetInt(chosen,"VALUE",pdx)
+            IupSetInt(chosen,"VISIBLEITEMS",length(dropfiles)+1) -- (no idea why +1 helps)
         end if
         integer ext = find_extension(get_file_extension(filename))
         IupSetInt(ctype,"VALUE",ext)
@@ -1133,35 +1161,35 @@ end function
 --*/
 
 procedure load_ini()
-    files = {}
+    dropfiles = {}
     object lines = get_text(inifile,GT_LF_STRIPPED)
     if lines!=-1 then
 --      integer pdx = 0
-        sequence d = {}
+--      sequence d = {}
         integer vi = 1
         for i=1 to length(lines) do
             if lines[i]!="" then
                 string {lt,li} = apply(split(lines[i],":",true,2),trim)
                 if lt="file" then
-                    if find(li,files) then
+                    if find(li,dropfiles) then
                         crash("duplicate project")
                     end if
-                    files = append(files,li)
-                    string fp = get_file_path(li)
-                    integer k = find(fp,d)
+                    dropfiles = append(dropfiles,li)
+--                  string fp = get_file_path(li)
+--                  integer k = find(fp,d)
 --  integer pdx = IupGetInt(chosen,"VALUE")
-                    if length(files)<=10 or k=0 then
-                        if k=0 then
-                            d = append(d,fp)
-                            files[$] = files[vi]
-                            files[vi] = li
-                        end if
---                      IupSetAttributeId(chosen,"",length(files),li)
+--                  if length(dropfiles)<=10 or k=0 then
+--                      if k=0 then
+--                          d = append(d,fp)
+--                          dropfiles[$] = dropfiles[vi]
+--                          dropfiles[vi] = li
+--                      end if
+--                      IupSetAttributeId(chosen,"",length(dropfiles),li)
                         IupSetAttributeId(chosen,"",vi,li)
                         vi += 1
-                    end if
+--                  end if
 --      IupSetInt(chosen,"VALUE",pdx)
---      files = append(files,{})
+--      dropfiles = append(dropfiles,{})
 --      IupSetInt(chosen,"VALUE",1)
 --              elsif lt="output" then
 --                  outputs[pdx] = li
@@ -1171,6 +1199,7 @@ procedure load_ini()
             end if
         end for
         IupSetInt(chosen,"VISIBLEITEMS",vi) -- (no idea why +1 helps)
+        droptags = tagset(length(dropfiles))
     end if
 --DEV on reflection, we might/probably want to do this without a gui... [laters]
 --  (then again, length 3 might be just this, ie you need -run/build/out to...)
@@ -1181,12 +1210,12 @@ procedure load_ini()
         open_file(filename)
 --DEV/SUG
 --  else
---      if length(files)=0 then
---          files = demoset()
+--      if length(dropfiles)=0 then
+--          dropfiles = demoset()
 --      end if
-    elsif length(files) then
+    elsif length(dropfiles) then
         IupSetInt(chosen,"VALUE",1)
-        open_file(files[1])
+        open_file(dropfiles[1])
     end if
 end procedure
 
@@ -1195,32 +1224,71 @@ procedure save_ini()
     integer pdx = IupGetInt(chosen,"VALUE")
 --  if pdx>1 then {tags[1],tags[pdx]} = {pdx,1} end if
 --  if pdx>1 then tags[1..pdx] = tags[pdx]&tags[1..pdx-1] end if
-    if pdx then
-        sequence tags = tagset(length(files))
+--  if pdx then
+    if bSaveIni and pdx then
+--?"save_ini"
+--?dropfiles
+--?droptags
+--      sequence tags = tagset(length(dropfiles))
+        integer l = length(dropfiles),
+                mc = 0
+        assert(sort(droptags)=tagset(l))
+        sequence idroptags = repeat(0,l),
+                 must_have = repeat(false,l),
+                 seen_paths = {}
+        -- invert the tags
+        for i=1 to l do
+            integer t = droptags[i]
+            idroptags[t] = i
+        end for
+        -- keep at least one file from each directory
+        for i=1 to l do
+            integer t = idroptags[i]
+            string fp = get_file_path(dropfiles[t])
+            if not find(fp,seen_paths) then
+                seen_paths = append(seen_paths,fp)
+                must_have[t] = true
+                mc += 1
+            end if
+        end for
+        -- keep at least 5 recent files, and (provided
+        -- the list is that long) at least 10 in total
+        integer mmc = max(10,mc+5)
+        for i=1 to l do
+            integer t = idroptags[i]
+            if not must_have[t] then
+                must_have[t] = true
+                mc += 1
+                if mc>=mmc then exit end if
+            end if
+        end for
 --      integer tp = tags[pdx]
 --      while pdx>1 do
 --          tags[pdx] = tags[pdx-1]
 --          pdx -= 1
 --      end while
 --      tags[1] = tp
-        tags[1] = pdx
-        for i=2 to pdx do tags[i] = i-1 end for
+--      tags[1] = pdx
+--      for i=2 to pdx do tags[i] = i-1 end for
         integer fn = open(inifile,"w")
         if fn=-1 then crash("cannot open "&inifile) end if
 --1/5/21: keep the lot, for Ctrl T, and instead limit what we load into chosen
 --      sequence d10 = {}
-        for i=1 to length(tags) do
-            integer ti = tags[i]
---          string fi = files[ti],
+        for i=1 to l do
+            integer ti = idroptags[i]
+--          string fi = dropfiles[ti],
 --                 fp = get_file_path(fi)
 --          integer k = find(fp,d10)
 --          if i<=10 or k=0 then
 --              if k=0 then d10 = append(d10,fp) end if
 --              printf(fn,"file: %s\n",fi)
-                printf(fn,"file: %s\n",files[ti])
---          end if
+            if must_have[ti] then
+--?{ti,dropfiles[ti]}
+                printf(fn,"file: %s\n",dropfiles[ti])
+            end if
         end for
         close(fn)
+        bSaveIni = false
     end if
 end procedure
 
@@ -1276,17 +1344,17 @@ function choose_cb(Ihandln /*choose_file*/)
     string d = ""
     if platform_is_js() then
         d = IupGetAttribute(chosen,"TITLE")
-    elsif length(files) then
+    elsif length(dropfiles) then
         integer fdx = IupGetInt(chosen,"VALUE")
         if fdx then
-            d = files[fdx]
+            d = dropfiles[fdx]
         else
             d = lastfile
         end if
     end if
 --*/
 --  string d = iff(platform_is_js()?IupGetAttribute(chosen,"TITLE")
---               :iff(length(files)?files[IupGetInt(chosen,"VALUE")]
+--               :iff(length(dropfiles)?dropfiles[IupGetInt(chosen,"VALUE")]
 --                                 :""))
 --  IupSetStrAttribute(filedlg,"DIRECTORY",iff(d!=""?get_file_path(d,true):initialcurrentdir))
     IupSetStrAttribute(filedlg,"DIRECTORY",iff(d!=""?get_file_path(d,true):initialcurrentdir))
@@ -1296,8 +1364,8 @@ function choose_cb(Ihandln /*choose_file*/)
     IupPopup(filedlg)
     if IupGetInt(filedlg, "STATUS")!=-1 then
         string file = IupGetAttribute(filedlg, "VALUE")
---      if not find(file,files) then
---          files = append(files,file)
+--      if not find(file,dropfiles) then
+--          dropfiles = append(dropfiles,file)
 --          APPENDITEM 
 --      end if
         open_file(file)
@@ -1307,7 +1375,7 @@ end function
 
 function chosen_cb(Ihandle /*chosen*/, atom /*pText*/, integer /*item*/, /*state*/)
     integer pdx = IupGetInt(chosen,"VALUE")
-    open_file(files[pdx])
+    open_file(dropfiles[pdx])
     return IUP_DEFAULT
 end function
 
@@ -1414,7 +1482,9 @@ function treeify(sequence ast, bool bRoot=true)
             children = children[1..1]
         elsif nodetype=T_include then
 --          children = children[1..1]&sprint(childre
-if not find(strip_builtin(children[1]),{"pGUI.e","mpfr.e","sha256.e","timedate.e"}) then
+--?children
+--if not find(strip_builtin(children[1]),{"pGUI.e",`..\pGUI\opengl.e`,"mpfr.e","sha256.e","timedate.e"}) then
+if not find(strip_builtin(children[1]),{"pGUI.e","opengl.e","mpfr.e","sha256.e","timedate.e"}) then
             restore_source(children[2])
 end if
             children[2] = sprint(children[2])
@@ -1457,7 +1527,12 @@ end if
 #istype{child,0b1111}
 --*/
             if atom(child) then
-                ?9/0
+                -- 3/8/21 it is now {T_for,{ctrl,bPreDef,lim,step,body}}
+                if nodetype = `for` and cdx=3 and find(child,{true,false}) then
+                    child = sprintf("predef:%f",child)
+                else
+                    ?9/0
+                end if
             elsif length(child)=0 then
                 child = iff(string(child)?`""`:"{}")
             elsif not string(child) then
@@ -1565,16 +1640,16 @@ procedure run(string src, Ihandle mtype)
         if platform_is_js() then
             IupSetStrAttribute(chosen, "TITLE", filename)
         else
-            integer pdx = find(filename,files)
+            integer pdx = find(filename,dropfiles)
             if pdx=0 then
-                files = append(files,filename)
-                pdx  = length(files)
+                dropfiles = append(dropfiles,filename)
+                pdx  = length(dropfiles)
             end if
             IupSetAttributeId(chosen,"",pdx,filename)
             IupSetInt(chosen,"VALUE",pdx)
         end if
         IupSetInt(chosen,"VALUE",1)
-        open_file(files[1])
+        open_file(dropfiles[1])
     integer pdx = IupGetInt(chosen,"VALUE")
 --*/
     string d = lastfile
@@ -1582,10 +1657,10 @@ procedure run(string src, Ihandle mtype)
     string d = ""
     if platform_is_js() then
         d = IupGetAttribute(chosen,"TITLE")
-    elsif length(files) then
+    elsif length(dropfiles) then
         integer fdx = IupGetInt(chosen,"VALUE")
         if fdx then
-            d = files[fdx]
+            d = dropfiles[fdx]
         end if
     end if
 --*/
@@ -1628,6 +1703,8 @@ end function
 
 function minimise_cb(Ihandle /*minimise*/, integer state)
     IupConfigSetVariableInt(config,"Options","minimise",state)
+--SUG (untested)
+--  IupSetInt(preserve_comments,"VALUE",iff(state?IupConfigGetVariableInt(config,"Options","preserve_comments",true):false))
     IupSetInt(preserve_comments,"ACTIVE",not state)
     return IUP_DEFAULT
 end function
@@ -1759,6 +1836,27 @@ function validate(string testname, integer itype)
     return verify(generate_source(ast,PHIX,0,false,false,false,false),test_exw)
 end function
 
+constant unix_text_dot_js = """
+// auto-generated by pwa/p2js, see routine rebuild_builtins_and_run_tests().
+function $min_len(/*string*/ word, /*integer*/ len) {
+    return compare(length(word),len)>=0;
+}
+
+function unix_dict(/*integer*/ minlen=0) {
+    let res = ["sequence",
+%s
+    if (minlen) {
+        res = filter(res,$min_len,minlen);
+    }
+    return res;
+}
+"""
+
+--function enquote(string word)
+--  word = '"' & word & '"'
+--  return word
+--end function
+
 procedure rebuild_builtins_and_run_tests()
     integer waschosen = IupGetInt(chosen,"VALUE"),
             wasotype = IupGetInt(otype,"VALUE"),
@@ -1767,7 +1865,7 @@ procedure rebuild_builtins_and_run_tests()
     string builtindir = join_path({get_file_path(get_interpreter()),"builtins"}),
            pwabuiltins = join_path({pwadir,"builtins"})
     for i=1 to length(rebuild_required) do
-        string ri = strip_builtin(rebuild_required[i])
+        string ri = strip_builtin(rebuild_required[i]), output
         if find(ri,{"pGUI.e","mpfr.e","sha256.e"}) then
             -- [see p2js_scope.e/check_builtins()]
             ?"rebuild_required includes "&ri&"..."
@@ -1779,16 +1877,25 @@ procedure rebuild_builtins_and_run_tests()
 --          open_file(filepath,bQuiet:=true)
             IupSetStrAttribute(lbl_statusbar,"TITLE","overwriting %s\n",{pwabpath})
             IupFlush()
+            if ri="unix_dict.e" then
+--              output = sprintf(unix_text_dot_js,{join_by(apply(unix_dict(),enquote),1,10,",")})
+                output = sprintf(unix_text_dot_js,{ppf(unix_dict(),{pp_Brkt," ]"})})
+            else
 --5/5 (spotted in passing...)
---          IupSetInt(otype,"VALUE",JS)
-            IupSetInt(otype,"VALUE",JSS)
-            if not load_tokens() then ?9/0 end if
-            sequence ast = parse()
-            if parse_error() then ?9/0 end if
-            string output = generate_source(ast,JSS,0,false,false,false,false)
-            sequence gk = get_autoincludes()[2] -- (overwrite p2js_depends.e if needed)
-            if length(gk) then
-                output = insert_dollars(output,gk)
+--              IupSetInt(otype,"VALUE",JS)
+                IupSetInt(otype,"VALUE",JSS)
+                if not load_tokens() then ?9/0 end if
+                sequence ast = parse()
+                if parse_error() then ?9/0 end if
+                output = generate_source(ast,JSS,0,false,false,false,false)
+                ast = {} -- (keep ex.err clean, now we no longer need it)
+                tokens = {} -- ""
+--output = output[20000..$]
+--sequence ou = shorten(unique(output),"",10) -- (DEV/temp for debug/why is it shown as a dword-sequence? [it was non-ascii hyphens, days, months])
+                sequence gk = get_autoincludes()[2] -- (overwrite p2js_depends.e if needed)
+                if length(gk) then
+                    output = insert_dollars(output,gk)
+                end if
             end if
             integer fn = open(pwabpath,"w")
             puts(fn,output)
@@ -1812,12 +1919,14 @@ Likewise pwa/src/test.js is transpiled to phix/js and compared line-by-line to t
     IupSetInt(ctype,"VALUE",wasctype)
     if waschosen then
         IupSetInt(chosen,"VALUE",waschosen)
-        open_file(files[waschosen])
+        open_file(dropfiles[waschosen])
     end if
 end procedure
 
 function show_stuff(string what)
 
+--30/9/21: (before we crash!)
+    if bSaveIni then save_ini() end if
     if what="MEDIAWIKI" then
         bool bOut = show_dlg!=NULL and IupGetInt(show_dlg,"VISIBLE")
         Ihandle {mle,mtype} = iff(bOut?{show_text,otype}:{multitext,ctype})
@@ -1836,7 +1945,7 @@ function show_stuff(string what)
     elsif what="FILELIST" then
 
         -- [hint: get_file_name_and_path(string filepath, bool dropslash=true), but we want the slash]
-        sequence {filepaths, filenames} = columnize(apply(true,get_file_path_and_name,{files,false}))
+        sequence {filepaths, filenames} = columnize(apply(true,get_file_path_and_name,{dropfiles,false}))
         IupFileList(filenames, filepaths, openFile, main_dlg, config, "Recent Files")
 
     elsif what="CTRLF5" then
@@ -1865,7 +1974,147 @@ function show_stuff(string what)
             show_parse_button = IupToggle("Show parse tree button",Icallback("show_parse_button_cb"))
             show_collapsed = IupToggle("Show tree collapsed",Icallback("show_collapsed_cb"))
             integer ss = IupConfigGetVariableInt(config,"Options","single_src",false),
+--minify
                     mm = IupConfigGetVariableInt(config,"Options","minimise",false),
+--minify_libs? full? custom?
+--(for each builtins, allocate a letter, eg
+--/*
+-- No, this isn't going to work. Well, what if we apply common sense/dependencies???
+-- Collect commonly used sets??
+-- Rethink: The stat I want is the single all-in-one.
+--          We /should/ record the sets actually used, somewhere.
+--          A plain flat text file is just bloody well simpler.
+--          Sort(dropfiles) and search, dump/output in most used first order, with count and last date.
+--          Only for named files, if you've pasted in (or running on the web) do nowt.
+--          Start with a simple test in e01. I also want to know (for the docs) how many configs there are.
+--          Have basic validation to ensure we are not insane (eg pGUI.js w/o pmaths/e ==>crash).
+abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012356789
+== ===      = = =======   AB          =  P   ==           
+--p2js.js           {} -- (always)
+--pGUI.js           {"pmaths.e","ptagset.e"}
+a assert.js         {}
+B base64.js         {`pflatten.e`, `substitute.e`}
+b bsearch.js        {}
+d dict.js           {`pmaths.e`}
+< factorial.js      {}  -- move to maths anyway
+f find.js           {}  --**DEV should just be part of p2js.js, really...
+< findrepl.js       {`find.e`} -- move there
+< gcd.js            {`pmaths.e`} -- move there
+< log10.js          {}  -- move in with maths
+< match.js          {`find.e`, `match.e`, `pcase.e`, `pfindall.e`}  -- move to find
+< matchrepl.js      {`match.e`}     -- **move there**
+m misc.js           {}
+M mpfr.js           {`primes.e`} [not really?]
+                    {"primes.e","pmaths.e","ptagset.e","mpfr.e"}
+o ordinal.js        {`find.e`, `ptagset.e`, `pcolumn.e`, `pmaths.e`}
+A pApply.js         {}
+< pcase.js          {`find.e`}
+< pcolumn.js        {`ptagset.e`, `pmaths.e`} -- move in with tagset
+  pdates.js         {}
+  pdecodeflags.js   {}
+e pelapsed.js       {`match.e`, `pmaths.e`}
+  permute.js        {}
+  pextract.js       {}
+  pfactors.js       {`pmaths.e`, `primes.e`}
+< pfindall.js       {`find.e`}
+< pfindany.js       {`find.e`}
+< pflatten.js       {`find.e`, `pflatten.e`}
+  pmaths.js         {} -- see tagset?
+  porall.js         {}
+P ppp.js            {`find.e`, `ppp.e`}
+q pqueue.js         {}
+< premoveall.js     {`find.e`}
+r primes.js         {`bsearch.e`, `pmaths.e`}
+< pseqc.js          {} -- move to psqop?
+< pseries.js        {`psqop.e`}
+  psmall.js         {}
+< psplit.js         {`find.e`, `match.e`, `pfindany.e`}
+s psqop.js          {`log10.e`, `misc.e`, `pmaths.e`, `psqop.e`}
+< psum.js           {} -- move to pmaths
+t ptagset.js        {`pmaths.e`}
+< ptrim.js          {`find.e`, `psqop.e`, `psum.e`, `ptrim.e`}  -- move to psqop?
+u punique.js        {`dict.e`, `punique.e`, `sort.e`}
+  pvlookup.js       {`find.e`, `match.e`, `pcase.e`, `ppp.e`, `ptrim.e`}
+  scanf.js          {`find.e`, `match.e`, `pcase.e`}
+  sha256.js         {}
+< shift_bits.js     {} -- move to pmaths
+  shuffle.js        {}
+s sort.js           {}
+< substitute.js     {`match.e`, `substitute.e`}
+t timedate.js       {`find.e`, `pcase.e`, `pcolumn.e`, `pdates.e`, `pmaths.e`}
+                    {"pcase.e","pdates.e","pmaths.e","ptagset.e","pcolumn.e","timedate.e"}
+  to_int.js         {}
+< to_str.js         {`matchrepl.e`, `pseqc.e`, `ptrim.e`, `to_str.e`} -- move to psqop
+T unit_test.js      {`pflatten.e`, `pmaths.e`, `porall.e`, `psqop.e`, `unit_test.e`}
+  unix_dict.js      {}  -- (not worth minimising)
+U utfconv.js        {}
+v vslice.js         {}
+w wildcard.js       {`find.e`, `match.e`, `pcase.e`, `wildcard.e`}
+-- 56... -20 = 36
+ordered:
+  unix_dict.js      {}  -- (not worth minimising)
+--p2js.js           {} -- (always)
+a assert.js         {}
+b bsearch.js        {}
+< factorial.js      {}  -- move to maths anyway
+f find.js           {}
+< log10.js          {}  -- move in with maths
+m misc.js           {}
+A pApply.js         {}
+  pdates.js         {}
+  pdecodeflags.js   {}
+  permute.js        {}
+  pextract.js       {}
+  pmaths.js         {} -- see tagset?
+  porall.js         {}
+q pqueue.js         {}
+< pseqc.js          {} -- move to psqop?
+  psmall.js         {}
+< psum.js           {} -- move to pmaths
+  sha256.js         {}
+< shift_bits.js     {} -- move to pmaths
+  shuffle.js        {}
+s sort.js           {}
+  to_int.js         {}
+U utfconv.js        {}
+v vslice.js         {}
+2^24
+d dict.js           {`pmaths.e`}
+< gcd.js            {`pmaths.e`}
+t ptagset.js        {`pmaths.e`}
+< findrepl.js       {`find.e`}
+< pcase.js          {`find.e`}
+< pfindall.js       {`find.e`}
+< pfindany.js       {`find.e`}
+< premoveall.js     {`find.e`} 
+P ppp.js            {`find.e`}
+r primes.js         {`bsearch.e`, `pmaths.e`}
+< pflatten.js       {`find.e`, `pflatten.e`}
+--pGUI.js           {"pmaths.e","ptagset.e"}
+M mpfr.js           {`primes.e`} [not really?]
+                    {`find.e`,`pmaths.e`,`primes.e`,`ptagset.e`}
+< match.js          {`find.e`, `pcase.e`, `pfindall.e`}
+< matchrepl.js      {`match.e`}
+< pcolumn.js        {`ptagset.e`, `pmaths.e`}
+e pelapsed.js       {`match.e`, `pmaths.e`}
+  pfactors.js       {`pmaths.e`, `primes.e`}
+< psplit.js         {`find.e`, `match.e`, `pfindany.e`}
+s psqop.js          {`log10.e`, `misc.e`, `pmaths.e`, `psqop.e`}
+< ptrim.js          {`find.e`, `psqop.e`, `psum.e`, `ptrim.e`}  -- move to psqop?
+< pseries.js        {`psqop.e`}
+u punique.js        {`dict.e`, `punique.e`, `sort.e`}
+  pvlookup.js       {`find.e`, `match.e`, `pcase.e`, `ppp.e`, `ptrim.e`}
+  scanf.js          {`find.e`, `match.e`, `pcase.e`}
+< substitute.js     {`match.e`, `substitute.e`}
+< to_str.js         {`matchrepl.e`, `pseqc.e`, `ptrim.e`, `to_str.e`} -- move to psqop
+t timedate.js       {`find.e`, `pcase.e`, `pcolumn.e`, `pdates.e`, `pmaths.e`}
+                    {"pcase.e","pdates.e","pmaths.e","ptagset.e","pcolumn.e","timedate.e"}
+B base64.js         {`pflatten.e`, `substitute.e`}
+o ordinal.js        {`find.e`, `ptagset.e`, `pcolumn.e`, `pmaths.e`}
+T unit_test.js      {`pflatten.e`, `pmaths.e`, `porall.e`, `psqop.e`, `unit_test.e`}
+w wildcard.js       {`find.e`, `match.e`, `pcase.e`, `wildcard.e`}
+
+--*/
                     pc = IupConfigGetVariableInt(config,"Options","preserve_comments",true),
                     kb = IupConfigGetVariableInt(config,"Options","show_tokens_button",false),
                     pb = IupConfigGetVariableInt(config,"Options","show_parse_tree_button",false),
@@ -1955,6 +2204,7 @@ function show_stuff(string what)
 
                 integer oval = IupGetInt(otype,"VALUE")
                 string output = generate_source(ast,oval,src_offset,pGUI,pMPFR,pSHA256,pTIMEDATE)
+--              string output = generate_source(ast,oval,src_offset,pGUI,pOpenGL,pMPFR,pSHA256,pTIMEDATE)
 
                 if what="OUTPUT" then
 
@@ -3317,9 +3567,9 @@ It remains unlikely that everything in pGUI.e will be supported in pGUI.js, ever
 -- Note that Phix's 1-based [idx] is transpiler to js 0-based [idx-1] (where "idx" is any expression).
 -- let a = 'Hi there!';  // using single quotes
 --  document.write(typeof(a.charAt(1)) + "<br>");       -- string
---  document.write(typeof(a.charCodeAt(1)) + "<br>");   -- number
+--  document.write(typeof(a.codePointAt(1)) + "<br>");  -- number
 --  document.write(a.charAt(1) + "<br>");               -- i
---  document.write(a.charCodeAt(1) + "<br>");           -- 105
+--  document.write(a.codePointAt(1) + "<br>");          -- 105
 -- hmm: https://rosettacode.org/wiki/Compiler/lexical_analyzer
 --      C:\Program Files (x86)\Phix\demo\rosetta\Compiler\lex.exw
 --      https://rosettacode.org/wiki/Compiler/lexical_analyzer#JavaScript ( file:E:\downloads\misc\js\lexer.js )

@@ -11540,6 +11540,10 @@ end while
 --          end if
 --
         elsif opcode=opNop then
+--12/8/21 (temp - from a failed s[i] = myfunc(s[i]) attempt.)
+--          if not isGscan then
+--              emitHex1(#90)
+--          end if
             opcode = lastop
             pc += 1
 
@@ -15330,7 +15334,10 @@ if not newEmit then ?9/0 end if
                 integer pushesi = 0
 
                 for lblidx=1 to length(glblused) do
-                    if and_bits(glblused[lblidx],G_init) then
+--5/10/21: (safe_mode)
+--                  if and_bits(glblused[lblidx],G_init) then
+                    if and_bits(glblused[lblidx],G_init)
+                    or (not safe_mode and glblname[lblidx]="%pSafemode") then
 --                      x86 &= {call_rel32,isJmpG,0,0,lblidx}
                         if PE=0 
                         or X64=0 

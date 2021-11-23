@@ -1604,11 +1604,15 @@ integer unrecognised
 --integer opAsmRqd = 0      [DEV]
 -- try also constant useopAsmRqd = 1/0 at the top [DEV (sorry, I'm just too busy right now, shouldn't even be typing this!)]
 
-    if safemode then
+--5/10/21 (was "safemode")
+    if not safe_mode then
         integer pathno = filenames[fileno][1]
         if pathno>3 then
-            safemode=0
-            ?9/0
+--?filenames
+--?filepaths -- {builtins,builtins\VM,Phix}, and then whatever
+--          safe_mode=0
+            Abort("not permitted under with safe_mode")
+--          ?9/0
         end if
     end if
 --trace(1)
@@ -1731,10 +1735,10 @@ end if
                         end if
                     end if
                     gflags = G_declared
-                    if ltype=3 then         gflags += G_init
-                    elsif ltype=4 then      gflags += G_bang
+                    if ltype=3 then         gflags += G_init    -- '>'
+                    elsif ltype=4 then      gflags += G_bang    -- '!'
 --                  elsif ltype=5 then      gflags += G_stop
-                    elsif ltype=5 then      gflags += G_exch
+                    elsif ltype=5 then      gflags += G_exch    -- '<'
                     end if
                     if lblidx then
 --DEV (it might be better to do ltype=5 completely outside glbxx tables)
@@ -2750,12 +2754,13 @@ end if
                                     -- 0o210 0o004 sib          -- mov [b+i*s],r8
                                     -- 0o210 0o1r4 sib d8       -- mov [b+i*s+d8],r8
                                     s5 &= 0o210
-                                elsif mod!=-1 then
+                                elsif mod=-1 then
+                                    -- 0o204 0o1r4 sib d8       -- (add..cmp) byte[b+i*s+d8],r8
+                                    s5 &= 0o204
+                                else
                                     -- 0o0i0 0o1r4 sib d8       -- (add..cmp) byte[b+i*s+d8],r8
                                     xrm = 0o000+mod*8 -- 0o0i0
                                     s5 &= xrm
-                                else
-                                    ?9/0    -- placeholder for more code
                                 end if
                             else
                                 Aborp("size?")

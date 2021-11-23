@@ -382,7 +382,11 @@ end if
 --          or (i<=length(activepaths) and activepaths[i] and not autoInclude) then
                 thispath = filepaths[i]
 --              fn = open(thispath&file,"rb")
+--14/10/21:
+--integer was_safe_mode = safe_mode
+--safe_mode = 1
                 fn = open(thispath&file,"r")
+--safe_mode = was_safe_mode
                 if fn!=-1 then exit end if
                 triedpaths = append(triedpaths,thispath)
             end if

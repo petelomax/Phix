@@ -1,0 +1,59 @@
+--
+-- demo\rosetta\Modified_random_distribution.exw
+--
+with javascript_semantics
+function rng(integer modifier)
+    while true do
+        atom r1 := rnd()
+        if rnd() < modifier(r1) then
+            return r1
+        end if
+    end while
+end function
+ 
+function modifier(atom x)
+    return iff(x < 0.5 ? 2 * (0.5 - x)
+                       : 2 * (x - 0.5))
+end function
+
+constant N              = 100000,
+         NUM_BINS       = 20,
+         HIST_CHAR_SIZE = 125,
+         BIN_SIZE       = 1/NUM_BINS,
+         LO = sq_mul(tagset(NUM_BINS-1,0),BIN_SIZE),
+         HI = sq_mul(tagset(NUM_BINS),BIN_SIZE),
+         LBLS = apply(true,sprintf,{{"[%4.2f,%4.2f)"},columnize({LO,HI})})
+
+sequence bins := repeat(0, NUM_BINS)
+for i=1 to N do
+    integer bindx = floor(rng(modifier) / BIN_SIZE)+1
+    bins[bindx] += 1
+end for
+ 
+printf(1,"Modified random distribution with %,d samples in range [0, 1):\n\n",N)
+for i=1 to NUM_BINS do
+    sequence hist := repeat('#', round(bins[i]/HIST_CHAR_SIZE))
+    printf(1,"%s  %s %,d\n", {LBLS[i], hist, bins[i]})
+end for
+
+--DEV translate this to/replace with IupGraph: (see B-spline.exw and/or Plot_coordinate_pairs.exw)
+--Also kill this, if you can: Note the labels are on the X-axis, so it's <code>v</code>-shaped, not 
+--                            <code><</code>-shaped: IupPlot does not support putting user-supplied 
+--                            labels on the Y-axis. 
+/*
+include pGUI.e
+IupOpen()
+Ihandle plot = IupPlot("GRID=YES, AXS_YAUTOMIN=NO")
+IupPlotBegin(plot, true) -- (true means x-axis are labels)
+for i=1 to length(bins) do
+    IupPlotAddStr(plot, LBLS[i], bins[i]);
+end for
+{} = IupPlotEnd(plot)
+IupSetAttribute(plot,"DS_MODE","BAR")
+IupSetAttribute(plot,"DS_COLOR",IUP_DARK_BLUE)
+IupShow(IupDialog(plot, `TITLE=Histogram, RASTERSIZE=1300x850`))
+if platform()!=JS then
+    IupMainLoop()
+    IupClose()
+end if
+*/

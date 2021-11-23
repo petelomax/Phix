@@ -15,10 +15,13 @@
 with trace
 
 constant vartypes = {T_integer,T_atom,T_string,T_sequence,T_object,
-                     T_bool,T_boolean,T_dictionary,T_int,
-                     T_Ihandle,T_Ihandln,T_cdCanvas,T_atom_string,
---                   T_nullable_string,T_timedate,T_constant,T_static},
-                     T_nullable_string,T_constant,T_static,T_mpq,T_mpz,T_mpfr},
+                     T_bool,T_boolean,T_dictionary,T_int,T_timedate,
+                     T_Ihandle,T_Ihandln,T_Ihandles,
+                     T_cdCanvas,T_cdCanvan,
+                     T_atom_string,T_nullable_string,
+--                   T_timedate,T_constant,T_static},
+--                   T_constant,T_static,T_mpq,T_mpz,T_mpfr},
+                     T_constant,T_mpq,T_mpz,T_mpfr},
          jstypes = {T_const,T_let,T_var}
 --DEV something in p2js_scope instead:
 sequence udts = {}
@@ -64,7 +67,7 @@ global function parse_error(object tok=0, string reason="")
     -- parse_error(tok,"why") displays why, sets flag and returns false.
     -- parse_error() returns false or true if "" has happened.
     --
---  static bool parse_bad = false   -- not supported by p2js [DEV, erm, why not??!!]
+--  static bool parse_bad = false   -- not supported by p2js [ripped out of desktop completely 26/8/21]
 
     if sequence(tok) then
         show_token(tok,reason)
@@ -230,6 +233,21 @@ function expects(sequence s)
     return true
 end function
 
+function skip_comments()
+--DEV make a count somewhere, and tag them onto something???
+--DOC Mid-line comments attached to individual tokens do not appear in the Parse Tree, 
+--    only those comments that appear between statements and declarations are shown.
+    while tdx<=length(tokens) do
+        integer toktype = tokens[tdx][TOKTYPE]
+        if toktype!=COMMENT
+        and toktype!=BLK_CMT then
+            return toktype
+        end if
+        tdx += 1
+    end while
+    return 0 -- EOL?
+end function
+
 forward function expr(integer p, skip=0)
 
 integer calling_the_rtn = 0
@@ -254,7 +272,8 @@ function rcall(object fp, sequence tok)
 --          tok = tokens[tdx+1]
 --          {toktype,start,finish} = tok
 --          if toktype!=',' then exit end if
-            integer ttype = tokens[tdx][TOKTYPE]
+--          integer ttype = tokens[tdx][TOKTYPE]
+            integer ttype = skip_comments()
             if ttype!=',' then
                 if ttidx=T_iff and ttype='?' then
                     ttidx = T_iif
@@ -269,21 +288,6 @@ function rcall(object fp, sequence tok)
     expectt(')')
 --  return {{fp,res}}
     return {fp,res}
-end function
-
-function skip_comments()
---DEV make a count somewhere, and tag them onto something???
---DOC Mid-line comments attached to individual tokens do not appear in the Parse Tree, 
---    only those comments that appear between statements and declarations are shown.
-    while tdx<=length(tokens) do
-        integer toktype = tokens[tdx][TOKTYPE]
-        if toktype!=COMMENT
-        and toktype!=BLK_CMT then
-            return toktype
-        end if
-        tdx += 1
-    end while
-    return 0 -- EOL?
 end function
 
 --DEV relocate?
@@ -582,7 +586,8 @@ function expr(integer p, skip=0)
         end if
         sequence rhs = expr(np,1)
 --      if rhs[1]="TERNARY" then
-        if rhs[1]=T_iff then
+        if rhs[1]=T_iff
+        or rhs[1]=T_iif then
 --          rhs = rhs[2]
 --          rhs[1] = {op,{res,rhs[1]}}
 --          res = {T_iff,rhs}
@@ -684,7 +689,9 @@ function get_multi_set(integer vtype)
                 tdx += 1
             end if
         end if
-        if tokens[tdx][TOKTYPE]!=',' then exit end if
+--14/9/21:
+--      if tokens[tdx][TOKTYPE]!=',' then exit end if
+        if skip_comments()!=',' then exit end if
         tdx += 1
     end while
     if tokens[tdx][TOKTYPE]!=et then
@@ -757,6 +764,8 @@ function vardef(integer thistdx, skip=0, iForPar=0)
     res[1][TOKALTYPE] = vtype
     if vtype=TYPK and ttidx=T_constant then
         vtype=TYPO
+--???
+--      vtype=TYKO
         if iForPar=0 then
             allow_nested_constants = true
             found_nested_constants = false
@@ -829,6 +838,7 @@ function vardef(integer thistdx, skip=0, iForPar=0)
                     warn(tok,"internal error, vtype is 0b%4b, TYPO assumed",{vtype})
                     vtype = TYPO
                 end if
+--DEV mark as constant?? (when/if it is??)
                 integer r = add_local(tok[TOKTTIDX], vtype)
                 if r!=1 then
 --?{"r!=1 line 906 p2js_parse.e",tok}
@@ -856,6 +866,7 @@ function vardef(integer thistdx, skip=0, iForPar=0)
 --          ie perform arg_idx += 1 so that it will match the later def_idx += 1's.]
 --      elsif iForPar=2 and find(toktype,",)") then
         else
+--?{"p2js_parse line 859",res} -- DEV/tmp
             {} = add_local(0, vtype) -- (keep arg_idx in step with future def_idx)
         end if
         if bEq then
@@ -1044,6 +1055,7 @@ function statement()
 
             case LETTER:
                 integer ttidx = tok[TOKTTIDX]
+                if ttidx=T_fallthru then ttidx = T_fallthrough end if
                 switch ttidx do
 --              switch ttidx without jump_table do
                     -- note: there shouldn't be any "hits" > T_xor here
@@ -1085,9 +1097,12 @@ function statement()
 --                      if ttidx=T_include then
                         if ttidx=T_include
                         and filename!="pGUI.e"
+--                      and filename!=`..\pGUI\opengl.e`
+                        and not match("opengl.e",filename)
                         and filename!="mpfr.e"
                         and filename!="sha256.e"
                         and filename!="timedate.e" then
+--?{"filename",filename}
                             -- sanity checks:
                             if parse_bad!=0 then ?9/0 end if
                             if in_rtn_def!=0 then ?9/0 end if
@@ -1129,7 +1144,7 @@ function statement()
                     case T_global:
 --DEV erm, how's it handling the ',' then??? (plus this is not the ast you're looking for)
 --                       T_constant,
---                       T_static:
+--X                      T_static:
 --                      ast = append(ast,{toktype})
 --                      ast = append(ast,{T_global,line})
                         ast = append(ast,{T_global,{tok}})
@@ -1150,11 +1165,14 @@ function statement()
                                  return parse_error(tok,"name expected")
                             end if
                             sequence onem = deep_copy(tok)
+--DEV mark as a constant?
                             integer rag = add_global(onem[TOKTTIDX],TYPI)
+--                          integer rag = add_global(onem[TOKTTIDX],TYKI)
                             if rag!=1 then
                                 return parse_error(tok,"add_global!=1")
                             end if
                             onem[TOKALTYPE] = TYPI
+--                          onem[TOKALTYPE] = TYKI
                             tdx += 1
                             if tdx>length(tokens) then exit end if
                             if tokens[tdx][TOKTYPE]='=' then
@@ -1242,6 +1260,7 @@ function statement()
                         ast = append(ast,{T_if,aste})
 
                     case T_iff, T_iif:
+?"erm? iff?? (line 1250 p2js_parse.e)"
                         expectt('(')
                         aste = {T_iff,expr(0)}
                         expectt('?')
@@ -1279,6 +1298,18 @@ end if
 --19/5/21 (spotted in passing, we may have just done a tdx +=1 above...)
                         sequence ctrl = iff(bNoVar?{}:vardef(thistdx,0,4))
 --                      sequence ctrl = iff(bNoVar?{}:vardef(tdx,0,4))
+--29/9/21
+--?ctrl -- ("for y=y to ... do"
+--{"vardef",{{4,1004,1006,33'!',1,1164},{4,1008,1008,33'!',1,30840},{4,1010,1010,33'!',1,30840}}}
+                        if length(ctrl[2])!=3 then ?9/0 end if
+                        if ctrl[2][1][TOKTYPE]!=LETTER then ?9/0 end if
+                        if ctrl[2][1][TOKTTIDX]!=T_for then ?9/0 end if
+                        if ctrl[2][2][TOKTYPE]!=LETTER then ?9/0 end if
+                        if ctrl[2][3][TOKTYPE]=LETTER
+                        and ctrl[2][3][TOKTTIDX]=ctrl[2][2][TOKTTIDX] then
+                            return parse_error(tok,"illegal")
+--                          ?9/0
+                        end if
                         if is_phix() then
                             if not expect(T_to) then exit end if
                         else
@@ -1289,6 +1320,16 @@ end if
                         sequence lim = expr(0), step = {}
 --                               step = iff(ttidx=T_by?expr(0,1):{})
                         if is_phix() then
+                            if bPreDef and lim[1]!=DIGIT then
+--DEV this is fixable (but in p2js_emit.e's use of bPreDef), eg:
+--/*
+const FIVE = 5;
+let i;  // (assuming that has already been done somewhere else)
+...
+{ let i$lim=FIVE; for (i=1; i<=i$lim; i+=1) { print(1, i); } }
+--*/
+                                return parse_error(tok,"sorry, JavaScript does not support `for(i, let i$lim=`")
+                            end if
                             if tokens[tdx][TOKTTIDX]=T_by then
                                 step = expr(0,1)
                             end if
@@ -1383,9 +1424,10 @@ end if
                         in_switch = was_in_switch
                         ast = append(ast,{T_switch,aste})
 
-                    case T_fallthru:
-                        ttidx = T_fallthrough
-                        fallthrough
+--                  -- avoid compiler grumbles re jump table...
+--                  case T_fallthru:
+--                      ttidx = T_fallthrough
+--                      fallthrough
                     case T_break,
                          T_fallthrough:
                         --
@@ -1430,6 +1472,8 @@ end if
                         ast = append(ast,{T_exit,line})
 
                     case T_continue:
+                        -- issue a (gentle) warning:
+                        printf(1,"Warning: use of 'continue' on line %d\n",{line})
                         ast = append(ast,{T_continue,line})
                     
                     case T_try:
@@ -1530,8 +1574,44 @@ end if
 --  f = {91'[',{{4,1537,1537,48'0',12,25956},{4,1539,1541,48'0',1,25968}}}
 --      {91'[',{{4,13920,13920,424,15,27304},{199,{{4,13922,13924,424,1,27376},{4,13927,13929,424,1,27376}}}}}
                             bool bOK = true
-                            if length(f[2])!=2 then
+--                          if length(f[2])!=2 then
+-- 10/11/21: (kludge, only handles s[i,j], not s[i,j,k] etc)
+                            if length(f[2])=3 and find(f[2][2][TOKTYPE],{DIGIT,LETTER,'$'})
+                                              and find(f[2][3][TOKTYPE],{DIGIT,LETTER,'$'}) then
+-- replace eg   {91'[',{{4,1158,1158,48'0',12,33540},
+--                      {4,1160,1160,48'0',1,33776},
+--                      {4,1162,1162,48'0',1,33804}}}
+--  eith        {91'[',{{91'[',{{4,1158,1158,48'0',12,33540},
+--                              {4,1160,1160,48'0',1,33776}}},
+--                      {4,1163,1163,48'0',1,33804}}}
+--                              f[2] = {'[',{f[2][1],f[2][2]},f[2][3]}
+--?{"f",f}
+                                f = {f[1],{{'[',{f[2][1],f[2][2]}},f[2][3]}}
+--?{"==>",f}
+                            end if
+--          for (let m=1, m$lim=M+1; m<=m$lim; m+=1) {
+--              a = $repe(a,m,$subse(a,m,["sequence",k])+(Y*$subse(a,m,["sequence",j])),["sequence",k]);
+--          }
+---- [i,j] version:
+--          for (let m=1, m$lim=M+1; m<=m$lim; m+=1) {
+--              a = $repe(a,m,$subse(a,m)+(Y*$subse(a,m,["sequence",j])),["sequence",k]);
+--          }
+--{91'[',{{4,442,442,15,12,33580},{4,444,444,15,1,33776}}}
+--{91'[',{{4,487,487,16,12,33520},{4,489,489,16,1,33776}}}
+--{91'[',{{4,616,616,24,12,33540},{4,618,620,24,1,33784},{4,622,624,24,1,33788}}}
+--{91'[',{{4,658,658,26,12,33540},{4,660,662,26,1,33784},{43'+',{{4,664,664,26,15,33764},{3,666,666,26,12}}}}}
+--{91'[',{{4,1027,1027,43'+',12,33540},{4,1029,1029,43'+',1,33792}}}
+                            
+                            if length(f[2])!=2 or not integer(f[2][2][TOKTYPE]) then
+-- 10/11/21 s[i,j] (and s[i,j,k] etc): (failed in the emit stage, resorted to kludge above...)
                                 bOK = false
+--                              if length(f[2])<2 then ?9/0 end if  -- ???
+--                              for idii=2 to length(f[2]) do
+--                                  if not integer(f[2][idii][TOKTYPE]) then
+--                                      bOK = false
+--                                      exit
+--                                  end if
+--                              end for
                             else
                                 toktype = f[2][2][TOKTYPE]
                                 if not find(toktype,{DIGIT,LETTER,'$'})
@@ -1542,10 +1622,12 @@ end if
                                 end if
                             end if
                             aste = {f}
+--?f
                             toktype = tokens[tdx][TOKTYPE]
                             if not find(toktype,{'=',PLUSEQ,MNUSEQ,MULTEQ,DIVDEQ,AMPSEQ,BEQ}) then
                                 return parse_error(tok,"assignment operator expected")
                             elsif toktype!='=' and toktype!=BEQ and not bOK then
+--DEV try "{ let tdx = <expr>; <statement using tdx>; }"... nah, docs updated.
 ?f
                                 return parse_error(tokens[wastdx],"sorry, p2js cannot name the required temp for that")
                             end if
@@ -1599,6 +1681,9 @@ end if
 --trace(1)
 --?{111,tdx}
                         if length(aste) and aste[1][1]!="vardef" then
+--                      if (length(aste) and aste[1][1]!="vardef")
+--                      or true then
+--?9/0
 --                          return parse_error(tok,"nested vardef error")
                             return parse_error(tokens[tdx],"nested vardef error")
                         end if
@@ -1727,6 +1812,7 @@ end function
 
 global function parse()
 --DEV this needs to be nested... (oh, but not toplevel...)
+--?{"parse",current_file}
     tokstack_clean(current_file)
     init_scope()
     sequence ast = {}

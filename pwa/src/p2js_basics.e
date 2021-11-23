@@ -4,7 +4,7 @@
 --
 --  standard includes, constants, globals, and utility routines for ../../pwa.exw
 --
-without debug -- (keep the ex.err reasonably clear, comment out if/when needed)
+--without debug -- (keep the ex.err reasonably clear, comment out if/when needed)
 include pGUI.e
 -- (while autoincludes,    """    for all these too:)
 include builtins\VM\pcmdlnN.e
@@ -122,6 +122,10 @@ global function strip_builtin(string s)
         sequence p = split_path(s)
         if p[1] = "builtins" then
             s = join_path(p[2..$])
+        elsif length(p)>2
+          and p[1..2] = {`..`,`pGUI`} then
+            -- (probably opengl.e)
+            s = join_path(p[3..$])
         end if
     end if
     return s
@@ -503,6 +507,9 @@ global constant TYPES = {{TYPI := 0b00000001,   "TYPI"},    -- 1: integer (aka i
                          {TY13 := 0b00001101,   "TY13"},    -- 13: dseq|str|int
                          {TY14 := 0b00001110,   "TY14"},    -- 13: ? (dseq|str|flt)
                          {TYPO := 0b00001111,   "TYPO"},    -- 15: object (aka (int|flt|str|dseq)
+--SUG:
+--                       {TYKI := 0b00100001,   "TYKI"},    -- 33: constant integer
+--                       {TYKO := 0b00101111,   "TYKO"},    -- 47: constant object
 --DEV cleanup?
                          {TY16 := 0b00010000,   "TY16"},    -- 16: ?
                          {TYPE := 0b00010001,   "TYPE"},    -- 17: type (/integer,0b10001)

@@ -1231,6 +1231,7 @@ end if
     for gidx=1 to length(glblused) do
         if glblabel[gidx]=vi then
 if not repl then
+            -- aside: triggered in "p64 -test" 24/10/21, fixed by running "p -c p64"
             if and_bits(glblused[gidx],G_declared+G_set)!=G_declared+G_set then ?9/0 end if
 end if
             offset = glboffset[gidx]
@@ -3267,7 +3268,13 @@ end if
     for i=1 to length(APINames) do
         {libidx,s} = APINames[i]
         if not norun or not bind then
-            thunk = get_proc_address(APIerrlib[libidx],s)
+--5/10/21 (safe_mode)
+--          thunk = get_proc_address(APIerrlib[libidx],s)
+            {thunk} = get_proc_address(APIerrlib[libidx],s)
+--object thunksq = get_proc_address(APIerrlib[libidx],s)
+--thunk = iff(sequence(thunksq)?thunksq[1]:thunksq)
+--thunk = thunksq
+
             if thunk=NULL then
                 APIerror(i, "no such function")
             end if

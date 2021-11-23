@@ -1,28 +1,169 @@
-include mpfr.e
-function is_perfect(integer num)
-    mpq tot = mpq_init(),
-        fth = mpq_init()
-    sequence f = factors(num,1)
-    for i=1 to length(f) do
-        mpq_set_si(fth,1,f[i])
-        mpq_add(tot,tot,fth)
-    end for
-    return mpq_cmp_si(tot,2,1)=0
-end function
- 
-procedure get_perfect_numbers()
-    atom t0 = time()
-    for i=2 to power(2,19) do
-        if is_perfect(i) then
-            printf(1,"perfect: %d\n",i)
+--
+-- demo\rosetta\Wireworld.exw
+-- ==========================
+--
+--  Invoke with file to read, or let it read the one below (if compiled assumes source is in the same directory)
+--
+--  Note that tabs in description files are not supported - where necessary spaces can be replaced with _ chars.
+--  (tab chars in text files should technically always represent (to-next) 8 spaces, but not many editors respect 
+--   that, and instead assume the file will only ever be read by the same program/with matching settings. </rant>)
+--  (see also demo\edix\src\tabs.e\ExpandTabs() for what you'd need if you knew what the tab chars really meant.)
+--
+with javascript_semantics
+constant default_description = """
+tH.........
+.___.
+___...
+.___.
+Ht.. ......
+"""
+sequence lines, counts
+integer longest
+
+function valid_line(string line, integer l=0)
+    if length(line)=0 then return 0 end if
+    for i=1 to length(line) do
+        integer ch = line[i]
+        if not find(ch," _.tH") then
+            if l and ch='\t' then
+                -- as above
+                printf(1,"error: tab char on line %d\n",{l})
+                {} = wait_key()
+                abort(0)
+            end if
+            return 0
         end if
     end for
-    printf(1,"elapsed: %3.2f seconds\n",time()-t0)
- 
-    integer pn5 = power(2,12)*(power(2,13)-1) -- 5th perfect number
-    if is_perfect(pn5) then
-        printf(1,"perfect: %d\n",pn5)
+    return 1
+end function
+
+procedure load_desc()
+    sequence text
+    if platform()=JS then
+        text = split(default_description,"\n")
+    else
+        string filename = substitute(command_line()[$],".exe",".exw")
+        integer fn = open(filename,"r")
+        if fn=-1 then
+            printf(1,"error opening %s\n",{filename})
+            {} = wait_key()
+            abort(0)
+        end if
+        text = get_text(fn,GT_LF_STRIPPED)
+        close(fn)
+    end if
+    lines = {}
+    for i=1 to length(text) do
+        string line = text[i]
+        if valid_line(line) then
+            lines = {line}
+            longest = length(line)
+            for j=i+1 to length(text) do
+                line = text[j]
+                if not valid_line(line,j) then exit end if
+                lines = append(lines,line)
+                if longest<length(line) then
+                    longest = length(line)
+                end if
+            end for
+            exit
+        end if
+    end for
+    counts = deep_copy(lines)
+end procedure
+
+constant dxy = {{-1,-1}, {-1,+0}, {-1,+1},
+                {+0,-1},          {+0,+1},
+                {+1,-1}, {+1,+0}, {+1,+1}}
+
+procedure set_counts()
+    for y=1 to length(lines) do
+        for x=1 to length(lines[y]) do
+            if lines[y][x]='.' then
+                integer count = 0
+                for k=1 to length(dxy) do
+                    integer {cx,cy} = sq_add({x,y},dxy[k])
+                    if cy>=1 and cy<=length(lines)
+                    and cx>=1 and cx<=length(lines[cy])
+                    and lines[cy][cx]='H' then
+                        count += 1
+                    end if
+                end for
+                counts[y][x] = (count=1 or count=2)
+            end if
+        end for
+    end for
+end procedure
+
+include pGUI.e
+
+constant title = "Wireworld"
+Ihandle dlg, canvas, timer
+cdCanvas cddbuffer, cdcanvas
+
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
+    integer {w, h} = IupGetIntInt(canvas, "DRAWSIZE")
+    integer dx = floor(w/(longest+2))
+    integer dy = floor(h/(length(lines)+2))
+    cdCanvasActivate(cddbuffer)
+    cdCanvasClear(cddbuffer)
+    set_counts()
+    for y=1 to length(lines) do
+        for x=1 to length(lines[y]) do
+            integer c = lines[y][x], colour
+            if find(c," _") then
+                colour = CD_BLACK
+            elsif c='.' then
+                colour = CD_YELLOW
+                if counts[y][x] then
+                    lines[y][x] = 'H'
+                end if
+            elsif c='H' then
+                colour = CD_BLUE
+                lines[y][x] = 't'
+            elsif c='t' then
+                colour = CD_RED
+                lines[y][x] = '.'
+            end if
+            cdCanvasSetForeground(cddbuffer, colour)
+            cdCanvasBox(cddbuffer,x*dx,x*dx+dx,h-y*dy,h-(y*dy+dy))
+        end for
+    end for
+    cdCanvasFlush(cddbuffer)
+    return IUP_DEFAULT
+end function
+
+function timer_cb(Ihandle /*ih*/)
+    IupUpdate(canvas)
+    return IUP_IGNORE
+end function
+
+function map_cb(Ihandle ih)
+    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    cdCanvasSetBackground(cddbuffer, CD_BLACK)
+    return IUP_DEFAULT
+end function
+
+procedure main()
+    load_desc()
+    IupOpen()
+
+    canvas = IupCanvas("RASTERSIZE=300x180")
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "ACTION", Icallback("redraw_cb")})
+
+    timer = IupTimer(Icallback("timer_cb"), 500)
+
+    dlg = IupDialog(canvas,`TITLE="%s"`, {title})
+
+    IupShow(dlg)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL)
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
     end if
 end procedure
- 
-get_perfect_numbers()
+
+main()
+

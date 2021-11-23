@@ -88,7 +88,7 @@ function puts(fn, text) {
     integer(fn,"fn");
 //  string(text,"text");
     if ((fn !== 1) && (fn !== 2)) { crash("fn must be 1 or 2"); }
-    if (typeof(text) === "number") { text = String.fromCharCode(text); }
+    if (typeof(text) === "number") { text = String.fromCodePoint(text); }
     const am = new RegExp("&","g"),
           lt = new RegExp("[<]","g"),
           gt = new RegExp("[>]","g"),
@@ -119,6 +119,10 @@ function crash(msg, args = []) {
 //  puts(2,"this should not occur");
 }
 
+function assert(condition, msg = "", args = []) {
+    if (!condition) { crash(msg,args); }
+}
+
 function abort(i) {
     crash("abort(%d)",["sequence",i])
 }
@@ -138,14 +142,21 @@ function integer(i, name = "") {
 //
 // invoke as (eg) integer(fn) to test, integer(fn,"fn") to typecheck [from js only].
 //
-    if ((typeof(i) !== "boolean") && (typeof(i) !== "function") && !Number.isSafeInteger(i)) {
+    let ti = typeof(i);
+    if ((ti !== "boolean") && (ti !== "function") && !Number.isSafeInteger(i)) {
         return $typeCheckError(name,i);
     }
     return true;
 }
 
 function atom(a, name = "") {
-    if ((typeof(a) !== "boolean") && (typeof(a) !== "function") && (typeof(a) !== "number" || !isFinite(a))) {
+//7/8/21...
+//  if ((typeof(a) !== "boolean") && (typeof(a) !== "function") && (typeof(a) !== "number" || !isFinite(a))) {
+    let ta = typeof(a);
+//23/10/21 (IupMultiBox, atom(ih)...)
+//  if ((ta !== "boolean") && (ta !== "function") && (ta !== "number")) {
+//  if ((ta !== "boolean") && (ta !== "function") && (ta !== "number") && ta !== "object") {
+    if ((ta === "string") || (Array.isArray(a) && a[0] === "sequence")) {
         return $typeCheckError(name,a);
     }
     return true;
@@ -200,12 +211,12 @@ function deep_copy(p, depth=-1) {
 
 function $charArray(s) {
 // Needed because Array.from(string) produces lots of diddy-strings...
-//  whereas this produces the array of charCodeAt I was expecting.
+//  whereas this produces the array of codePointAt I was expecting.
     string(s,"s");
     let l = s.length;
     let res = ["sequence"];
     for (let i=0; i<l; i+=1) {
-        let ch = s.charCodeAt(i);
+        let ch = s.codePointAt(i);
         res[i+1] = ch;
     }
     return res;
@@ -253,41 +264,46 @@ function sprintf(fmt, args = []) {
 //              res = JSON.stringify(res);              // (ie/for "%v")
                 res = sprint(res,bAsV);                 // (ie/for "%v")
             } else {
-                if (Array.isArray(res)) {
+//              if (Array.isArray(res)) {
+                if (sequence(res)) {
                     // compatibility shim: Phix/sprintf() treats eg "ABC",
                     // {'A','B','C'}, and {65[.1],66,67} exactly the same.
                     let allChar = true,
-                        sres = "";
-                    for (let i = 0; i < res.length; i += 1) {
-                        let ch = res[i];
-                        if (typeof(ch) === "string" && ch.length === 1) {
+                        sres = "",
+                        l = length(res);
+//                  for (let i = 0; i < res.length; i += 1) {
+                    for (let i = 1; i <= l; i += 1) {
+                        let ch = res[i],
+                            tch = typeof(ch);
+                        if (tch === "string" && ch.length === 1) {
                             sres += ch;
                         } else {
-                            if (!Number.isInteger(ch) && typeof(ch) === "number") {
+                            if (!Number.isInteger(ch) && tch === "number") {
                                 ch = Math.floor(ch);
                             }
                             if (!Number.isInteger(ch) || ch<0 || ch>255) {
                                 allChar = false;
                                 break;
                             }
-                            sres += String.fromCharCode(ch);
+                            sres += String.fromCodePoint(ch);
                         }   
                     }
                     if (allChar) { return sres; }
                 }
 //              crash('Invalid (string expected)');
-                res = String.fromCharCode(res);
+                res = String.fromCodePoint(res);
             }
         }
         return res;
     }
     function inti(unsigned = false) {
-        let res = argi();
-        if (typeof(res) == "boolean") {
+        let res = argi(),
+            tr = typeof(res);
+        if (tr == "boolean") {
             res = res ? 1 : 0;
         } else {
             if (!Number.isInteger(res)) {
-                if (typeof(res) !== "number") {
+                if (tr !== "number") {
                     crash('Invalid (integer expected)');
                 }
                 res = Math.floor(res);
@@ -343,10 +359,11 @@ function sprintf(fmt, args = []) {
 //    return sign + w;
 //  }
     function flti(precision) {
-        let res = argi();
-        if (typeof(res) === "boolean" ) {
+        let res = argi(),
+            tr = typeof(res);
+        if (tr === "boolean" ) {
             res = res ? 1 : 0;
-        } else if (typeof(res) !== "number") {
+        } else if (tr !== "number") {
             crash('Invalid (number expected)');
         }
 //function RoundNum(num, length) { 
@@ -439,7 +456,8 @@ function sprintf(fmt, args = []) {
         return n.toString(b);
     }
 
-    function callback(expr, sign, size, dot, precision, specifier) {
+//  function callback(expr, sign, size, dot, precision, specifier) {
+    function callback(expr, subscript, sign, size, dot, precision, specifier) {
         //
         // Replaces a single formatting specification:
         // expr is eg "%4.2f" or "%-20s" (the whole thing)
@@ -451,6 +469,24 @@ function sprintf(fmt, args = []) {
         //
         if (expr === '%%') { return '%'; }  // (aka specifier === '%')
         i += 1;
+        if (subscript) {
+            let l = subscript.length-1, j = 1, ssign = +1;
+            i = 0;
+            if (subscript.codePointAt(1) === 0X2D) { ssign = -1; j = 2; } 
+            while (j < l) {
+                let d = subscript.codePointAt(j) - 0X30; // (ie ch-'0')
+// (untested, just a tad too fiddly with the j=2 methinks...)
+// (alternatively, make to_integer() "native" and exclude from transpilation...)
+//              if ((d > 9) || d < (j === 0)) { // (not leading 0)
+                if ((d > 9) || d < 0) {
+                    crash("invalid format specifier subscript");
+                }
+                i = i*10 + d;
+                j += 1;
+            }
+//          i *= ssign;
+            if (ssign === -1) { i = args.length - i; }
+        }
         precision = precision ? parseInt(precision,10) : dot ? 0 : 6;
 //      if (precision>15) { precision = 15; }
         if (precision>16) { precision = 16; }
@@ -460,7 +496,7 @@ function sprintf(fmt, args = []) {
             case 'q': res = allascii(stri(),specifier); break;
             case 'Q': res = allascii(stri(),specifier); break;
             case 't': res = argi()?"true":"false"; break;
-            case 'c': res = String.fromCharCode(argi()); break;
+            case 'c': res = String.fromCodePoint(argi()); break;
             case 'v': res = stri(true); break;
             case 'V': res = stri(-1); break;
 //          case 'd': res = inti().toString(10); break;
@@ -511,7 +547,8 @@ function sprintf(fmt, args = []) {
     // Replace each %[sign][[0]size][.[precision]]specifier (eg "%,7.2f") in turn
     //  (where sign is one of "-+=|," or undefined)
     //
-    const regex = new RegExp("%([-+=|,])?(0?[0-9]+)?([.]([0-9]+)?)?([sqQtcvVdboxXaAeEfgG%])",'g');
+//  const regex = new RegExp("%([-+=|,])?(0?[0-9]+)?([.]([0-9]+)?)?([sqQtcvVdboxXaAeEfgG%])",'g');
+    const regex = new RegExp(`%(\[-?[0-9]+\])?([-+=|,])?(0?[0-9]+)?([.]([0-9]+)?)?([sqQtcvVdboxXaAeEfgG%])`,'g');
     if (string(args)) {
         if (fmt.match(regex).length>1) { args = $charArray(args); }
     }
@@ -523,11 +560,11 @@ function printf(fn, fmt, args = []) {
 //  string(fmt,"fmt");
 //  object(args,"args");
     if (fn === 0 && fmt === "") {
-        for (let i = 0; i < args.length; i += 2) {
+        for (let i = 1; i < args.length; i += 2) {
             if (args[i] === 'prefer_backtick') {
                 $prefer_backtick = args[i+1];
-            } else {
-                // sug: simply ignore 'unicode_align'?
+            } else if (args[i] !== 'unicode_align') {
+                // ( simply ignore 'unicode_align' )
                 crash("unsupported printf option " + args[i]);
             }
         }
@@ -544,7 +581,7 @@ function sprint(o,asCh) {
         let l = o.length;
         res = "\"";
         for (let i=0; i<l; i+=1) {
-            let ch = o.charCodeAt(i);
+            let ch = o.codePointAt(i);
             if (ch===0) {
                 res += "\\0";
             } else if (ch===0X5C) {
@@ -576,13 +613,14 @@ function sprint(o,asCh) {
         }
         res += "}";
     } else if (asCh===true && integer(o) && o>=32 && o<127) {
-        res = "'" + String.fromCharCode(o) + "'";
+        res = "'" + String.fromCodePoint(o) + "'";
     } else if (integer(o)) {
         res = o.toString();
     } else if (o === null) {
         res = "null";
     } else {
         function cut_tz(v) {
+            // remove trailing zeroes
             if (v.indexOf('.') !== -1) {
                 let cutFrom = v.length - 1;
                 while (v[cutFrom] === '0') {
@@ -613,73 +651,12 @@ function progress() {
     crash("progress does not work under p2js");
 }
 
-//DEV why not just use builtins/pfactors.e, transpiled?
-function factors(num, include1 = 0) {
-//  atom(num,"num");
-//  integer(include1,"include1");
-    let n_factors = ["sequence"],
-        h_factors = [],
-        i0 = include1 === 0 ? 2 : 1;
- 
-    for (let i = i0; i <= Math.floor(Math.sqrt(num)); i += 1) {
-        if (num % i === 0) {
-            n_factors.push(i);
-            let ni = num/i;
-            if ((ni !== i) && (ni !== num || include1 === 1)) {
-                h_factors.push(ni);
-            }
-        }
-    }
-    n_factors = n_factors.concat(h_factors.reverse());
-    return n_factors;
-}
- 
-//DEV why not just use builtins\psum.e, transpiled?
-//DEV use sequence(), 1 to length(x), should sum("string") work? [YES!]
-function sum(x) {
-//  object(x,"x");
-    if (atom(x)) { return x; }
-    let total = 0,
-        xl = length(x);
-    if (string(x)) {
-        for (let i = 0; i < xl; i += 1) {
-            total += x.charCodeAt(i);
-        }
-    } else {
-        for (let i = 1; i <= xl; i += 1) {
-            let xi = x[i];
-            if (!atom(xi)) { xi = sum(xi); }
-            total += xi;
-        }
-    }
-    return total;
-}
-
-function product(x) {
-//  object(x,"x");
-    if (atom(x)) { return x; }
-    let res = 1,
-        xl = length(x);
-    if (string(x)) {
-        for (let i = 0; i < xl; i += 1) {
-            res *= x.charCodeAt(i);
-        }
-    } else {
-        for (let i = 1; i <= xl; i += 1) {
-            let xi = x[i];
-            if (!atom(xi)) { xi = product(xi); }
-            res *= xi;
-        }
-    }
-    return res;
-}
-
 function append(a, x) {
 //  object(a,"a");
 //  object(x,"x");
     if (string(a)) {
         if (integer(x) && x>=0 && x<=255) {
-            a += String.fromCharCode(x);
+            a += String.fromCodePoint(x);
         } else {
             a = $charArray(a);
             a.push(x);
@@ -699,7 +676,7 @@ function prepend(a, x) {
 //  object(x,"x");
     if (string(a)) {
         if (integer(x) && x>=0 && x<=255) {
-            a = String.fromCharCode(x) + a;
+            a = String.fromCodePoint(x) + a;
         } else {
             a = $charArray(a);
             a[0] = x;
@@ -780,69 +757,13 @@ function equal(a, b) {
     return (a === b);
 }
 
-
-//DEV would the hll versions be fine???
-//DOC: not strings: (nah, just fix it!)
-//***NB*** these all need thorough testing for eg start vs. start-1, etc... [not that we build sequences proper like yet...]
-//!*
-function find(needle, haystack, start = 1) {
-//  if (!Array.isArray(haystack) || haystack[0] !== "sequence") {
-////        if (typeof(haystack) === "string") {
-////            return haystack.indexOf(x); // 0-based...
-////        }
-//      crash("second argument to find() must be a sequence");
-//  }
-    sequence(haystack,"haystack");
-//  let idx;
-    if (string(haystack)) { haystack = $charArray(haystack); }
-//      idx = haystack.indexOf(String.fromCharCode(needle), start-1)+1;
-//  } else {
-    let idx = haystack.indexOf(needle, start);
-    if (idx === -1) { idx = 0; }
-//  }
-    return idx; // 1-based
-}
-
-function rfind(needle, haystack, start = -1) {
-//  if (!Array.isArray(haystack) || haystack[0] !== "sequence") {
-//      crash("second argument to find() must be a sequence");
-//  }
-    sequence(haystack,"haystack");
-    if (string(haystack)) { haystack = $charArray(haystack); }
-    // aside: haystack.length includes [0] aka +1:
-    if (start < 0) { start += haystack.length; }
-    let idx = haystack.lastIndexOf(needle,start);
-//  if (idx === 0) { idx = -1; }    // (jic)
-    if (idx === -1) { idx = 0; }
-    return idx; // 1-based
-}
-
-//DOC: strings only:
-function match(needle, haystack, start = 1, case_sensitive = true) {
-//  if (typeof(needle) !== "string" ||
-//      typeof(haystack) !== "string" ) {
-//      crash('argumenst to match() must be string');
-//  }
-    string(needle,"haystack");
-    string(haystack,"haystack");
-    if (!case_sensitive) {
-        needle = needle.toLowerCase();
-        haystack = haystack.toLowerCase();
-    }
-//  let idx = haystack.indexOf(needle,start)+1;
-    let idx = haystack.indexOf(needle,start);
-    if (idx === -1) { idx = 0; }
-    return idx; // 1-based
-}
-//*!/
-
 function $conCat(a, b) {
     // equivalent to the Phix infix & operator (js overloads +)
     if (integer(a) && a>=0 && a<=255) {
         if (integer(b) && b>=0 && b<=255) {
-            return String.fromCharCode(a) + String.fromCharCode(b);
+            return String.fromCodePoint(a) + String.fromCodePoint(b);
         } else if (string(b)) {
-            return String.fromCharCode(a) + b;
+            return String.fromCodePoint(a) + b;
         } else if (!sequence(b)) {
             return ["sequence",a,b];
         }
@@ -855,7 +776,7 @@ function $conCat(a, b) {
             return a + b;
         }
         if (integer(b) && b>=0 && b<=255) {
-            return a + String.fromCharCode(b);
+            return a + String.fromCodePoint(b);
         }
         a = $charArray(a);
     } else if (!sequence(a)) {
@@ -879,7 +800,7 @@ function repeat(item, count) {
 //      return res;
 //  }
     if (integer(item) && item>=7 && item<=255) {
-        return String.fromCharCode(item).repeat(count);
+        return String.fromCodePoint(item).repeat(count);
     }
     let res = ["sequence"];
     if (Array.isArray(item)) {
@@ -897,101 +818,10 @@ function repeatch(ch,count) {
     if (!integer(ch) || ch < 0 || ch > 255) {
         crash("repeatch not passed a character");
     }
-    return String.fromCharCode(ch).repeat(count);
+    return String.fromCodePoint(ch).repeat(count);
 }   
 
-function assert(condition, msg = "") {
-    if (!condition) { crash(msg); }
-}
-
-function apply(s, fn, userdata = ["sequence"], bFunc = true) {
-    // apply fn as function (bFunc===true) or procedure (bFunc===false) to all elements of sequence s
-//  if (Number.isInteger(s)) {
-    if (typeof(s)==="boolean") {
-        let l = length(userdata),
-            n = (l>0 ? 1 : 0);
-        if (s === true) {
-            //
-            // userdata specifies multiple arguments:
-            //  if userdata[i] is an atom, it is passed to every call.
-            //  if userdata[i] is length(1), then userdata[i][1] "".
-            //  otherwise length(userdata[i]) must match all other 
-            //            non-atom/length(1) elements of it (==n).
-            //  fn is then invoked n times (can be 0), and always
-            //                with exactly length(userdata) args.
-            //
-            let args = userdata.slice(1), // (sets atoms and length)
-                multi = repeat(false,l);
-            for (let i = 1; i <= l; i += 1) {
-                let ui = userdata[i];
-                if (string(ui)) { userdata[i] = ui = $charArray(ui); }
-                if (Array.isArray(ui)) {
-                    let m = length(ui);
-                    if (m === 1) {
-                        args[i-1] = ui[1];
-                    } else if (n !== 1 && m !== n) {
-                        crash("invalid lengths");
-                    } else {
-                        n = m;
-                        multi[i] = true;
-                    }
-                }
-            }
-
-            let res = (bFunc ? repeat(0,n) : []);
-            for (let i = 1; i <= n; i += 1) {
-                for (let j = 1; j <= l; j += 1) {
-                    if (multi[j]) {
-                        args[j-1] = userdata[j][i];
-                    }
-                }
-                if (bFunc) {
-                    res[i] = fn(...args);
-                } else {
-                    fn(...args);
-                }
-            }
-            return res;
-        } else if (s === false) {
-            let res = (bFunc ? repeat(0,l) : ["sequence"]);
-            for (let i = 1; i <= l; i += 1) {
-                let ui = userdata[i];
-                if (typeof(ui) === "number" ||
-                    typeof(ui) === "string") {
-                    ui = [ui];
-                } else {
-                    ui = ui.slice(1);
-                }
-
-                if (bFunc) {
-                    res[i] = fn(...ui);
-                } else {
-                    fn(...ui);
-                }
-            }
-            return res;
-        } else {
-            crash("first atom argument to crash() must be true or false");
-        }
-    }
-
-    if (string(s)) { s = $charArray(s); }
-    // s is a list of single args
-    let ls = length(s);
-    let res = bFunc?repeat(0,ls):0;
-    for (let i = 1; i <= ls; i += 1) {
-        if (bFunc) {
-            res[i] = fn(s[i],...userdata.slice(1));
-        } else {
-            fn(s[i],...userdata.slice(1));
-        }
-    }
-    return res;
-}
-
-function papply(s, fn, userdata = ["sequence"]) {
-    apply(s, fn, userdata, false);
-}
+//5/8/21 [p]apply() is now auto=transpiled, maybe filter() c/should be too.
 
 function filter(s, rs, userdata = ["sequence"], rangetype = "") {
 //
@@ -1072,7 +902,9 @@ function filter(s, rs, userdata = ["sequence"], rangetype = "") {
         if (mt) {
             bAdd = fn(si,i,s);
         } else if (maxp === 3) {
-            bAdd = fn(si,s,userdata);
+//5/8/21 (for the rc "Text completion" task, do what the docs actually say)
+//          bAdd = fn(si,s,userdata);
+            bAdd = fn(si,i,userdata);
         } else {
             bAdd = fn(si,userdata);
         }
@@ -1101,6 +933,12 @@ function rand(n) {
         }
     }
     return ((n*rnd()) >>> 0)+1;
+}
+
+function rand_range(/*integer*/ lo, hi) {
+    if (lo>hi) { [lo,hi] = [hi,lo]; }
+    lo -= 1;
+    return lo+rand(hi-lo);
 }
 
 function get_rand() {
@@ -1162,10 +1000,6 @@ function time() {
     return d.valueOf()/1000;
 }
 
-function mod(a,b) {
-    return ((a % b ) + b ) % b;
-}
-
 function remainder(a, b) {
     return a % b;
 }
@@ -1179,7 +1013,7 @@ function machine_word() {
 }
 
 function version() {
-    return "1.0.0";
+    return "1.0.1";
 }
 
 function platform() {
@@ -1221,15 +1055,6 @@ function requires(x) {  // (hand translated)
 }
 requires(JS);
 
-function power(a, b) {
-//  return a ** b;
-    return Math.pow(a,b);
-}
-
-function sqrt(a) {
-    return Math.sqrt(a);
-}
-
 function $sidii(s,idii,skip=0,t) {
     // note this is only ever dealing with dword-sequence subscripts,
     //      and should never ever be asked to subscript a string.
@@ -1262,7 +1087,7 @@ function $subse(s, idx, idii) {
     s = $sidii(s,idii);
     if (idx<0) { idx += length(s)+1; }
     if (typeof(s) === "string") {
-        return s.charCodeAt(idx-1);
+        return s.codePointAt(idx-1);
     } //else {
     return s[idx];
 }   
@@ -1295,7 +1120,7 @@ function $repe(s, idx, x, idii) {
     if (idx<0) { idx += length(t)+1; }
     if (string(t)) {
         if (integer(x) && x>=0 && x<=255) {
-            t = t.substring(0,idx-1) + String.fromCharCode(x) + t.substring(idx);
+            t = t.substring(0,idx-1) + String.fromCodePoint(x) + t.substring(idx);
             if (!idii) { return t; }
             t = $sidii(s,idii,1,t);
             return s;
@@ -1399,25 +1224,13 @@ function not_bitsu(a) {
     return (~a) >>> 0;
 }
 
-function log(a) {
-    return Math.log(a);
-}
-
-function cos(a) {
-    return Math.cos(a);
-}
-
-function sin(a) {
-    return Math.sin(a);
-}
-
-function tan(a) {
-    return Math.tan(a);
-}
-
-function arctan(a) {
-    return Math.atan(a);
-}
+const power = Math.pow,
+      sqrt = Math.sqrt,
+      log = Math.log,
+      cos = Math.cos,
+      sin = Math.sin,
+      tan = Math.tan,
+      arctan = Math.atan;
 
 function date(bMSecs = false) {
     let D = new Date(),
@@ -1525,6 +1338,27 @@ function $catch(e) {
         e = ["sequence",0,0,0,0,"","","",e];
     }
     return e;
+}
+
+function utf8_to_utf32(/*string*/ s) {
+    return s;
+}
+
+function utf32_to_utf8(/*string*/ s) {
+    if (Array.isArray(s) && s[0] === "sequence") {
+        let res = "",
+            l = length(s);
+        for (let i = 1; i <= l; i += 1) {
+            res += String.fromCodePoint(s[i]);
+        }
+        s = res;
+    }
+    return s;
+}
+
+function speak(/*string*/ s) {
+    let utterance = new SpeechSynthesisUtterance("This is an example of speech synthesis.");
+    window.speechSynthesis.speak(utterance);
 }
 
 /*

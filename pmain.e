@@ -121,7 +121,8 @@ global integer pauseOnWarnings = 01     -- only used if testall!=0 (which it is 
 global integer batchmode = 0    -- set by -batch command line option
                                 -- 1=suppress displays/prompts [incomplete]
 
-global integer safemode = false -- if true, running under -safe command line option.
+--PL 5/10/21 (moved to pglobals.e/renamed as safe_mode)
+--global integer safemode = false -- if true, running under -safe command line option.
 
 global integer norun = 0        -- set by -norun, -listing command line options
 
@@ -553,6 +554,12 @@ end if
 -- no need, done directly in p.exw/main():
 --              s5 &= {opWithJS,flag}
                 return
+--5/10/21:
+            elsif ttidx=T_safe_mode then
+                if not OptOn then Aborp("meaningless") end if
+                safe_mode = 0
+                getToken()
+                return
             end if
         end if
     elsif toktype=DIGIT
@@ -907,6 +914,8 @@ procedure zero_temp(integer tmp)
         -- Could not get the reusetmps part to work either, then again since
         -- it was never doing it before anyway, I guess it's alright...
         -- (ah, probably because freeTmp(-1) has already been called?)
+--19/10/21
+        onDeclaration = 0
         emitHexMov(opMovsi,tmp,T_const0)
 --/*
         if reusetmps then
@@ -1586,6 +1595,8 @@ if newEmit then
                     agcheckop(opLen)
 end if
                     apnds5({opLen,N,p2,isInit,opstype[opsidx]})
+--29/9/21:
+                    zero_temp(p2)
                 end if  -- emitON
                 freeTmp(-1)
 
@@ -1883,6 +1894,12 @@ if newEmit then
 --          end if
 end if
                 apnds5({scode,N,p2,p3})
+--6/8/21:
+                if symtab[p3][S_Name]=-1 and symtab[p3][S_NTyp]!=S_Const
+                and p3!=N and p3!=p2 then
+                    -- finish off b=append(b,tmp) with tmp=0:
+                    zero_temp(p3)
+                end if
             end if  -- emitON
             freeTmp(-2)
 
@@ -3882,6 +3899,7 @@ object Default
                         k = find(ttidx,paramNames)
                         if k!=0 and k<nParams then
                             -- eg (sequence a, integer b=routine_id(a))
+--3/9/21 (EuOrx, orx_Execute())
                             if k!=nParams-1 
 --                          if (k!=nParams-1 and k!=nParams-2)
                             or paramDflts[k]!=0 then
@@ -4583,6 +4601,7 @@ end if
 -- (bugfix 16/10/10: this call reset forward_call; local fwd added to replace it)
 -- (nope; if we assume sq_rand instead of sq_rand, then it can become forward_call!)
 --4/10/2020 (Icallback->Icallbacki mapping)
+--if wasRoutineNo = N_Icallback and fileno=1 then trace(1) end if -- (docs updated 6/9/21)
 if wasRoutineNo = N_Icallback
 and signature = {8,1}
 and actsig = {}
@@ -5151,7 +5170,7 @@ object dbg -- DEV (temp)
         VAmask = 0
     end if
 
---DEV ripped out 22/10/09 (see e6.exw)
+--DEV ripped out 22/10/09
 --  if fastSubscriptLHS 
 --  and fastSubscriptIcount=0
 --  and rtnNo>=T_command_line
@@ -5228,46 +5247,46 @@ end if
             if opTopIsOp then PopFactor() end if
             if emitON then
                 opcode = symtab[routineNo][S_il]
---/*
--- now a hll in get_interpreter.e:
-                if routineNo=Z_requires then
---?{"requires",opsidx,opsltrl[1]}
-                    integer opst1 = opstype[1]
-                    if opsidx!=1
-                    or opsltrl[1]!=1
-                    or (opst1!=T_string and opst1!=T_integer) then
-                        Abork("must be literal",1)
-                    end if
-                    if opst1=T_string then
-                        string v = substitute(symtab[opstack[1]][S_value],"."," ")
---?{"v",v}
-                        sequence r = scanf(v,"%d %d %d")
-                        if length(r)!=1
-                        or r[1]>phixversion then
-                            Abork("this is "&phixverstr,1)
-                        end if
-                    else
-                        integer b = symtab[opstack[1]][S_value]
---?{"b",b}
-                        if b=32 then
-                            if X64=1 then
-                                -- (You may only have a 32-bit dll...)
-                                Abork("requires 32 bit",1)
-                            end if
-                        elsif b=64 then
-                            if X64=0 then
-                                -- (Much more common than the above, I'll wager...)
-                                Abork("requires 64 bit",1)
-                            end if
-                        else
-                            Abork("only 32 or 64 bit architectures supported",1)
-                        end if
-                    end if
---                  return -- emit nothing!
-                    routineNo = 0 -- (no opCall please!)
---if opcode=opDeleteCS then ?9/0 end if
-                els
---*/
+----/*
+---- now a hll in get_interpreter.e:
+--              if routineNo=Z_requires then
+----?{"requires",opsidx,opsltrl[1]}
+--                  integer opst1 = opstype[1]
+--                  if opsidx!=1
+--                  or opsltrl[1]!=1
+--                  or (opst1!=T_string and opst1!=T_integer) then
+--                      Abork("must be literal",1)
+--                  end if
+--                  if opst1=T_string then
+--                      string v = substitute(symtab[opstack[1]][S_value],"."," ")
+----?{"v",v}
+--                      sequence r = scanf(v,"%d %d %d")
+--                      if length(r)!=1
+--                      or r[1]>phixversion then
+--                          Abork("this is "&phixverstr,1)
+--                      end if
+--                  else
+--                      integer b = symtab[opstack[1]][S_value]
+----?{"b",b}
+--                      if b=32 then
+--                          if X64=1 then
+--                              -- (You may only have a 32-bit dll...)
+--                              Abork("requires 32 bit",1)
+--                          end if
+--                      elsif b=64 then
+--                          if X64=0 then
+--                              -- (Much more common than the above, I'll wager...)
+--                              Abork("requires 64 bit",1)
+--                          end if
+--                      else
+--                          Abork("only 32 or 64 bit architectures supported",1)
+--                      end if
+--                  end if
+----                    return -- emit nothing!
+--                  routineNo = 0 -- (no opCall please!)
+----if opcode=opDeleteCS then ?9/0 end if
+--              els
+----*/
                 if opsidx=0 then
                     if DEBUG then
                         if opcode!=opClrScrn
@@ -6033,8 +6052,10 @@ bool bFromStruct = false
 
 --11/07/20:
 forward procedure DoConstant()
-bool just_static = false
+--bool just_static = false
 forward procedure TopDecls(integer AllowOnDeclaration)
+
+sequence resurrect_for = {}
 
 with trace
 --25/11/19:
@@ -6388,15 +6409,15 @@ end if
         while true do
             if ttidx=T_constant then
                 DoConstant()
-            elsif ttidx=T_static then
-                getToken()
-                tokno = InTable(InAny)
-                if tokno=0 or symtab[tokno][S_NTyp]!=S_Type then
-                    Aborp("a type is expected here")
-                end if
-                just_static = true
-                TopDecls(1)
-                just_static = false
+--          elsif ttidx=T_static then
+--              getToken()
+--              tokno = InTable(InAny)
+--              if tokno=0 or symtab[tokno][S_NTyp]!=S_Type then
+--                  Aborp("a type is expected here")
+--              end if
+--              just_static = true
+--              TopDecls(1)
+--              just_static = false
             else
                 exit
             end if
@@ -6800,6 +6821,7 @@ end if
 --  if bLambda then r_lambda = N end if
     r_lambda = N    -- (also used in DoStruct)
 
+    resurrect_for = {}
 end procedure
 
 --with trace
@@ -7741,6 +7763,12 @@ object sig
 
 --DEV...?
 --          if emitON then
+                    if not and_bits(sig,T_integer) then
+--good, temp. removed while I improve the horrid runtime error...
+-- (-8 for now, see pcallfunc.e line 151, alas I cannot do any better...)
+                        Aborp("cannot be routine_id")
+--?"pmain.e line 7757 cannot be a routine_id: resurrect this error"
+                    end if
                     isLit = (and_bits(symtab[N][S_State],K_lit)=K_lit)
 if isLit then ?9/0 end if   -- I think we shd just use false!
                     PushFactor(N,isLit,T_integer)
@@ -8963,7 +8991,19 @@ else
 --      end if
         if not CompoundAssignment
         and length(struct_fields)=0
+--11/8/21 (wishful thinking... self host breaks, t24 messes up s[i+1] = 'l', 
+--          by first setting s[3] to 0 [since it worked out i+1 is 3], but
+--          then trying to set s[h4] to 'l' [where h4 is from the now unused
+--          temp it never calculated i+1 in... ho-hum]. [ie the plain 'then'])
         and (ttidx=T_append or ttidx=T_prepend) then
+--      then
+--try 2:
+--      and symtab[ttidx][S_NTyp]=S_Func then   -- NO!
+--try 3: (almost: breaks t37misc, t64struct, and t67dicts, but the rest, and self-hosting, are fine...)
+--> Ah, this won't work because ParamList() emits the opFrame/opCall before a) returning here so that
+--  we can perform the ref[idx]=0 (etc) below, and b) also mid-expression, before we know whether it
+--  would in fact be safe to do the ref[idx]=0 (etc) inside ParamList... Version 2.0.0 rewrite maybe.
+--      and toktype=LETTER and Ch='(' then  
 --          if length(struct_fields) then Aborp("not supported") end if -- (erm, can this ever happen?!)
             -- Try to optimise the s[i]=append(s[i],xxx) case, by zeroing
             --  s[i] over the opApnd(/opPpnd) when it is safe to do so.
@@ -8985,6 +9025,9 @@ else
             --DEV 22/10/09:
             ------if opTopIsOp then PopFactor() end if
 if emitON then -- added 18/6/10
+--12/8/21 (temp [now proved not viable anyway as above anyway]):
+--          apnds5({opNop})
+--?{"pmain.e line 9008",fileno,emitline,opTopIsOp,opsidx}
 --trace(1)
             if opstack[opsidx-1]!=tidx then
                 -- kill refcount on original element:
@@ -10419,6 +10462,7 @@ integer lens5
 integer src     -- 13/5/2012
 integer flags
 integer cnTyp
+bool resurrected = false
 
     loopage += 1    -- for DoTry()
     wasSideEffects = SideEffects
@@ -10691,9 +10735,27 @@ integer cnTyp
         cvtype = S_TVar
         if returnvar=-1 then    -- top_level loops need a gvar
             cvtype = S_GVar2
+        else
+            for i=1 to length(resurrect_for) do
+                CN = resurrect_for[i]
+                if symtab[CN][S_Name]=controlvar then
+                    if symtab[CN][S_NTyp]!=S_TVar then ?9/0 end if
+                    if symtab[CN][S_Nlink]!=-2 then ?9/0 end if
+                    if symtab[CN][S_vtype]!=T_integer then ?9/0 end if
+                    if and_bits(symtab[CN][S_State],K_gbl) then ?9/0 end if
+                    if controlvar!=ttidx then ?9/0 end if
+                    resurrected = true
+                    N = CN
+                    symtab[CN][S_Nlink] = tt[ttidx+EQ]
+                    tt[ttidx+EQ] = CN
+                    exit
+                end if
+            end for
         end if
-        N = addSymEntry(controlvar,0,cvtype,T_integer,0,0)
-        CN = symlimit
+        if not resurrected then
+            N = addSymEntry(controlvar,0,cvtype,T_integer,0,0)
+            CN = symlimit
+        end if
     else
         N = CN
     end if
@@ -10746,6 +10808,10 @@ integer cnTyp
         -- hide non-pre-declared for loop control vars
         tt[savettidx+EQ] = symtab[CN][S_Nlink]
         symtab[CN][S_Nlink] = -2
+        if not resurrected
+        and returnvar!=-1 then  -- tvars only
+            resurrect_for &= CN
+        end if
     else
         symtab[CN][S_State] = state-S_for
     end if
@@ -11794,7 +11860,7 @@ integer Typ, rootInt
                 --
 --22/2/17:
                 if toktype=':' and Ch='=' then MatchChar(':',false) end if
-                if just_static and toktype!='=' then MatchChar('=',false) end if -- error
+--              if just_static and toktype!='=' then MatchChar('=',false) end if -- error
                 if  toktype='='
                 or (toktype=LETTER and Name=ttidx) then
                     if toktype=LETTER then
@@ -11814,7 +11880,7 @@ integer Typ, rootInt
             end if
             mapEndToMinusOne = -1
         end while
-        if just_static then exit end if
+--      if just_static then exit end if
 --      Semi()
         if Ch<=0 then exit end if
         if toktype!=LETTER then exit end if
@@ -12563,6 +12629,11 @@ sequence rhs_stack
     SpecialHandling('@', ILLEGAL)
     allequal = false
     if toktype='@' then
+        if with_js=1 then
+            Abort(`p2js violation: JavaScript does not support "all equal" forms of assignment`)
+        else
+            Warn("deprecated/not p2js compatible",tokline,tokcol,0)
+        end if
         allequal = true
         MatchChar('@',float_valid:=false)
     end if
@@ -13188,6 +13259,9 @@ integer N, isLit, etype
 
 --DEV...?
 --          if emitON then
+                if not and_bits(Type,T_integer) then
+                    Aborp("cannot be routine_id")
+                end if
                 isLit = (and_bits(symtab[N][S_State],K_lit)=K_lit)
                 PushFactor(N,isLit,T_integer)
                 getToken()
@@ -13817,7 +13891,9 @@ end function
 --DEV not documented
 --with trace
 procedure DoEnum()
-integer nxt, prev
+--integer nxt, prev
+atom nxt
+integer prev
 integer wasttidx, N, O
 integer wastokcol, rtntokcol, rtntokline
 integer slink, glink, scope, state
@@ -13936,6 +14012,9 @@ bool prevset = false
                 opsidx -= 1
             end if
         else
+            if not integer(nxt) then
+                Aborp("exceeds integer capacity")
+            end if
             O = addUnnamedConstant(nxt, T_integer)
             symtabO = symtab[O]
         end if

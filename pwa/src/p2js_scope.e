@@ -61,6 +61,7 @@ sequence {autoincludes,dependencies,globals,arg_names} = columnize(unfudge(p2js_
           rtn_names = join(apply(true,vslice,{arg_names,1}),""),
           rtn_args  = join(apply(true,vslice,{arg_names,2}),"")
 
+--?autoincludes
 --traverse_dict(integer rid, object user_data=0, integer tid=1, bool rev=false)
 -->{{"traverse_dict",{"integer","rid","?"},
 --                   {"object","user_data","0"},
@@ -308,13 +309,27 @@ function arg_rec(sequence node)
 end function
 
 global procedure set_arg_default(sequence vardef)
---?vardef
+--?{"set_arg_default",vardef}
     if vardef[1]!=`vardef` then ?9/0 end if
 --  sequence v23 = vardef[2][3]
 --  string def = "0"
 --  string def = "?"
 --  vardef = {`vardef`,{{4,139,144,7,15,464},{4,146,151,7,15,17764},{}}}
-    for k = 3 to length(vardef[2]) by 2 do
+    integer was_def_idx = def_idx,
+            k = 2,
+            l = length(vardef[2])
+--22/8/21:
+--  for k = 3 to length(vardef[2]) by 2 do
+--  for k = 3 to length(vardef[2]) by 3 do  -- nope!
+    while k<=l do
+        integer toktype = vardef[2][k][1]
+        if toktype=BLK_CMT then
+            k += 1
+--          toktype = vardef[2][k][1]
+        elsif toktype!=LETTER then
+            ?9/0 -- placeholder for more code??
+        end if
+        k += 1
         string def = arg_rec(vardef[2][k])
 --/*
     if v23!={} then
@@ -350,14 +365,17 @@ global procedure set_arg_default(sequence vardef)
         def_idx += 1
 --?{"sad",{arg_rtn,def_idx},def}
         setd({arg_rtn,def_idx},def,arg_defs)
-    end for
+--?{"for k=",k,"def_idx=",def_idx,"def=",def}
+--  end for
+        k += 1
+    end while
 --/*
 `C:\Program Files (x86)\Phix\pwa\src\test.exw`
 {"9/0: def_idx!=arg_idx",1,0}
 {"vardef",{{4,578,584,21,3,388},{6,586,598,21,43'+',21},"",{}}}
 function multitext_valuechanged_cb(Ihandle /*multitext*/)
 --*/
-    if def_idx!=arg_idx then ?{"9/0: def_idx!=arg_idx",def_idx,arg_idx} ?vardef end if
+    if def_idx!=arg_idx then ?{"9/0: def_idx!=arg_idx",def_idx,{was_def_idx},arg_idx} ?vardef end if
 --  sad = append(sad,{{arg_rtn,arg_idx},def})
 end procedure
 
@@ -428,8 +446,10 @@ constant unsupported = {"pcfunc.e","pTask.e","pThreadN.e","structs.e","syswait.e
 "pcmdlnN.e","get_routine_info.e","pdir.e","pdelete.e","ldap.e","pScrollN.e","penv.e",
 "graphics.e","get.e","machine.e","progress.e","procedure initialAutoEntry(",
 -- supported differently (see/directly in p2js.js)
-"printf","pprntfN.e","pdate.e","pApply.e","pFilter.e","pCrashN.e","prnd.e","prtnidN.e",
-"repeat.e","ubits.e",`serialize.e`}
+--5/8/21:
+--"printf","pprntfN.e","pdate.e","pApply.e","pFilter.e","pCrashN.e","prnd.e","prtnidN.e",
+"printf","pprntfN.e","pdate.e","pFilter.e","pCrashN.e","prnd.e","prtnidN.e",
+"repeat.e","ubits.e",`serialize.e`,`utfconv.e`,`assert.e`}
 --??"procedure",
 
 function initialAutoEntries(string line)
@@ -446,7 +466,7 @@ function initialAutoEntries(string line)
 --     and not match("ptls.ew",line)
 --     and not match("pscreen.e",line)
 --     and not match("pAlloc.e",line)
---     and not match("pApply.e",line)
+--X    and not match("pApply.e",line)
 --     and not match("peekns.e",line)
 --     and not match("pmach.e",line)
 --     and not match("pCrashN.e",line)
@@ -717,7 +737,23 @@ constant ad = {{"assert.e",{}},
                {"to_int.e",{`??`}},
                {"to_str.e",{`??`}},
                {"unit_test.e",{`??`}},
+--DEV:
                {"utfconv.e",{}},
+                             {`utf16_to_utf32`, `Func`, `FP`, `utfconv.e`},
+                             {`utf16_to_utf8`, `Func`, `FP`, `utfconv.e`},
+                             {`utf32_to_utf16`, `Func`, `FP`, `utfconv.e`},
+                             {`utf32_to_utf8`, `Func`, `FPI`, `utfconv.e`},
+                             {`utf8_to_utf16`, `Func`, `FP`, `utfconv.e`},
+                             {`utf8_to_utf32`, `Func`, `FSI`, `utfconv.e`},
+ {`utfconv.e`,
+  {{}},
+  {{`INVALID_UTF8`, `INVALID_UNICODE`}},
+  {{`utf8_to_utf16`, {{`utf8`, `?`}}},
+   {`utf8_to_utf32`, {{`utf8`, `?`}, {`fail_flag`, `0`}}},
+   {`utf16_to_utf8`, {{`utf16`, `?`}}},
+   {`utf16_to_utf32`, {{`utf16`, `?`}}},
+   {`utf32_to_utf8`, {{`utf32`, `?`}, {`fail_flag`, `0`}}},
+   {`utf32_to_utf16`, {{`utf32`, `?`}}}}},
                {"vslice.e",{`??`}},
                {"wildcard.e",{"find.e","match.e","pcase.e"}}}
 --*/
@@ -835,9 +871,13 @@ global function get_autoincludes()
         if dk!=dependencies[k]
         or gk!=globals[k]
         or nk!=arg_names[k] then
+--?9/0
             dependencies[k] = dk
             globals[k] = gk
-            arg_names[k] = nk
+            --31/7/21: (since it is not a proper autoinclude, keep the set I carefully hand-crafted!)
+            if cf!=`timedate.e` then
+                arg_names[k] = nk
+            end if
             sequence p = include_paths(),
                      f = include_files()
             integer fdx = include_file()
@@ -855,8 +895,8 @@ global function get_autoincludes()
         --
         -- check for any internal clashes
         --
-        sequence std_globals = {`catch`,`charArray`,`conCat`,`docBody`,`paranormalise`,`repe`,
-                                `repss`,`sidii`,`storeAttr`,`subse`,`subss`,`typeCheckError`}
+        sequence std_globals = {`catch`,`assert`,`charArray`,`conCat`,`docBody`,`paranormalise`,
+                                `repe`,`repss`,`sidii`,`storeAttr`,`subse`,`subss`,`typeCheckError`}
         for i=1 to length(globals) do
             sequence gi = globals[i]
             if length(gi) then
@@ -902,7 +942,9 @@ global procedure tokstack_clean(string filename)
     tokstack = {{builtindir},
                 {rootpath},
                 {path,filename,1}}
-    tokseen = {file}
+--21/10/21:
+--  tokseen = {file}
+    tokseen = {filename}
     sources = {}
 --pp(tokstack)
 end procedure
@@ -964,7 +1006,8 @@ global function tokstack_push(string filename, integer line)
         (find(nameonly,autoincludes) or
          find(nameonly,{`pdate.e`,`pcurrdir.e`,`peekstr.e`,`pgetpath.e`,`pfile.e`,
                         `get_routine_info.e`,`pdir.e`,`penv.e`,`get_interpreter.e`,
-                        `syswait.ew`})))
+        
+                        `syswait.ew`,`utfconv.e`})))
     or filepath=builtinVM then
         return "ALREADY DONE"
     end if
@@ -1004,6 +1047,7 @@ end function
 
 global procedure restore_source(integer srcdx)
     src = sources[srcdx]
+--?{"restore_source",current_file,tokseen,srcdx}
     current_file = tokseen[srcdx]
 end procedure
 --/*
@@ -1245,6 +1289,7 @@ end procedure
  {`test_pass`, `Proc`, `PS`, `unit_test.e`},
  {`test_summary`, `Proc`, `PI`, `unit_test.e`},
  {`test_true`, `Proc`, `PIS`, `unit_test.e`},
+--to go:
  {`utf16_to_utf32`, `Func`, `FP`, `utfconv.e`},
  {`utf16_to_utf8`, `Func`, `FP`, `utfconv.e`},
  {`utf32_to_utf16`, `Func`, `FP`, `utfconv.e`},

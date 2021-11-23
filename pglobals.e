@@ -32,7 +32,8 @@ global constant newEBP = 04 -- 4=on, 0=off(ie old style/working)
 --global constant pxversion = {0,8,1},  -- 0.8.1    -- 23/03/20
 --global constant pxversion = {0,8,2},  -- 0.8.2    -- 24/11/20
 --global constant pxversion = {0,8,3},  -- 0.8.3    -- 02/02/21
-global constant phixversion = {1,0,0},  -- 1.0.0    -- 04/07/21
+--global constant pxversion = {1,0,0},  -- 1.0.0    -- 04/07/21
+global constant phixversion = {1,0,1},  -- 1.0.1    -- ??/07/21
                 phixverstr = sprintf("%d.%d.%d",phixversion)
 sequence phixver = phixversion  -- (debug aid, otherwise unused)
 if sequence(phixver) then end if
@@ -1100,3 +1101,9 @@ global integer mapEndToMinusOne         -- 0=no, -ve = $ only (-1..-4 signal whe
                                         -- (oops, only set to '$' from -1/DoConstant)
 
 global integer with_js = 2      -- 0: without js, 1: with js, 2: default/any, treat as 0
+
+global integer safe_mode = 1    -- 1: assume everything (ie file i/o, c_func) is safe
+                                -- 0: "with safe_mode" found or -safe cmd line option.
+                                -- Note this is the compiler's copy, there is also a
+                                -- runtime version of this living in pHeap.e (sans _)
+
