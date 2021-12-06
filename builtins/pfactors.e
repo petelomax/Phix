@@ -83,7 +83,7 @@ global function prime_factors(atom n, bool duplicates=false, integer maxprime=10
     while p<=lim do
         if remainder(n,p)=0 then
             pfactors = append(pfactors,p)
-            while 1 do
+            while true do
                 n = n/p
                 if remainder(n,p)!=0 then exit end if
                 if duplicates then

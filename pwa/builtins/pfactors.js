@@ -81,7 +81,7 @@ function $check_limits(/*atom*/ n, /*string*/ rtn) {
     while (p<=lim) {
         if (equal(remainder(n,p),0)) {
             pfactors = append(pfactors,p);
-            while (1) {
+            while (true) {
                 n = n/p;
                 if (!equal(remainder(n,p),0)) { break; }
                 if (duplicates) {

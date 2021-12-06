@@ -24,6 +24,13 @@ it will create both a new p.exe and a new pw.exe, again automatically for you.
 
 Please note the following entries are probably more for my benefit than yours.
 
+Version 1.0.2
+=============
+26/11/2021: Spurious C_PTR in demo\arwen\dll_links.ew caused a cryptic error
+            when running p -c edita, not that I have done anything to better
+            catch that in pmain.e, nor tested it still runs under Euphoria.
+
+
 Version 1.0.1
 =============
 26/08/2021: Version 0.8.2 introduced an ill-conceived and pooly implemented 
@@ -47,6 +54,78 @@ Version 1.0.1
 30/10/2021: Bugfix: printf(1,"%d is %.1e\n",{150000,150000}) was (astonishly)
             producing "150000 is 1.6e+5", instead of "150000 is 1.5e+5".
             Added a (dicey) "fadj" tweak to clean up final digit handling.
+25/11/2021:
+1.0.1:
+builtins\complex.e -- deep_copy rqd (bugfix)
+builtins\dict.e -- putd forwarding "tid=1" instead of just "tid"
+builtins\mpfr.e -- mpz_set_v, mpz_and, mpz_invert, mpfr_get_d_2exp, mpfr_const_euler
+builtins\pApply.e -- now a proper p2js autotranspile
+builtins\extract.e -- now returns string/sequence
+builtins\pfactors.e -- new mpz_prime_powers() routine
+builtins\pflatten.e -- join() now has an optional lastdelim parameter
+builtins\pipeio.e -- windows-only named pipe routines, not yet documented,
+                  --  and will remain so until they also work on Linux.
+builtins\ppp.e -- pp_IntCh now defaults to false, so you get 65 not 65'A'.
+builtins\prnd.e -- new rand_range() function
+builtins\punique.e -- made p2js compatible
+builtins\sockets.e -- closesocket() now a function
+builtins\sort.e -- sort_columns() needed a deep_copy()
+builtins\to_int.e -- to/is_integer() now have optional base=10 parameter
+builtins\unit_test.e -- made p2js compatible
+builtins\VM\pcall(/pc)func.e -- safe_mode mods
+builtins\VM\pDiagN.e -- disable safe_mode on crash
+builtins\VM\pprntfN.e -- %[idx] subscripted arg handling (see docs)
+                      -- eg/esp print a date() w/o having to reorder it.
+new builtins\glmath.e
+new builtins\hmac.e
+new builtins\IupGraph.e
+new builtins\IupRawStringPtr.e -- (moved out of pGUI.e for safe mode handling)
+new builtins\opengl.e -- (stub link to demo\pGUI\opengl.e)
+new builtins\sha1.e
+new builtins\sha512.e
+new builtins\unix_dict.e -- (mainly for the benefit of p2js)
+new demo\pGUI\HelloF.exw -- proper desktop/WebGL demo
+new demo\pGUI\opengl.e
+demo\pGUI\IupSampleDialog.exw -- much work to do, but slowly getting there
+demo\rosetta\15_puzzle_game_in_3D.exw -- p2js compatible
+
+for loop vars are now "resurrected" rather than replicated in the symbol
+table, which means you no longer get ex.err files with 17 'i' entries.
+new eval() function, see docs (if you don't like it, tough)
+significant updates to OpenGL/WebGL docs
+IupGetAttribute() now has a default, mainly for the benefit of p2js
+IupGetBrother() now has a bPrev parameter, to get previous element
+IupGetIntInt() added
+IupTable: data[2] can now contain simple format strings
+"with safe_mode" and/or "p -safe" for running untrusted code
+join() now has optional override for last delimiter, eg ", and "
+p2js: replaced all use of charCodeAt() with codePointAt()
+"static" deprecated (it never worked anyway)
+"continue" is now officially deprecated, although it still works
+            (As Douglas Crockford says "I have never seen a piece of 
+             code that was not improved by refactoring it to remove 
+             the continue statement.", and I have to agree.)
+pwa\p2js.js : replaced factors/sum/product/find/match/apply with their
+              auto-transpiled versions, added dummy utf8_to_utf32 and
+              utf32_to_utf8.
+pwa\pGUI.js : more changes than you can shake a stick at, including:
+    IupsetGlobalFunction(IDLE_ACTION), IupS/GetAttributeId(list_id),
+    IupSetAttributePtr, IupSetDouble, IupSetAttributeHandle(MENU),
+    IupSetCallbacks, IupClipboard(?), IupRefresh[Children], IupText,
+    IupSetFocus, IupGetChild[Count], IupGetClassName, IupGetFocus,
+    IupGetDialogChild, IupGetParent, IupGetBrother, IupDatePick,
+    IupFlush, IupFrame, IupList, Iup[Sub]Menu[Item], IupSeparator,
+    IupMultiBox, IupProgressBar, IupSplit, IupTableGetSelected,
+    IupTableClearSelected, IupTableClick_cb, IupTabs, IupRadio,
+    IupValuator, [[hsv_]to_]rgb, cdCanvasActivate, cdCanvasPixel,
+    cdDe/EncodeColour[Alpha], cdCanvasArc/Sector/Chord/Circle/Clear/
+    Flush/Font/GetSize/GetImageRGB/Line/[Rounded]Box/[Rounded]Rect/
+    SetAttribute,SetFore/Background,SetFillMode,S/GetInteriorStyle,
+    SetLineStyle/SetLineWidth/Text,SpecialText,S/GetTextAlignment,
+    GetTextSize,S/GetTextOrientation,VectorText[Direction/Size],
+    IupTimer,glAttachShader..Viewport, IupDraw*, 
+    and adding but completely messing up the resize handling...
+
 
 Version 1.0.0
 =============

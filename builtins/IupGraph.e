@@ -4,7 +4,7 @@
 -- todo: bar graphs[stacked or side], legend, grid style, line style/mode, marks, piechart, ...
 --
 
-function redraw_graph_cb(Ihandle graph, integer /*posx*/, /*posy*/)
+function redraw_graph_cb(Ihandle graph)
 
     integer drid = IupGetInt(graph,"DRID"),
             grid = IupGetInt(graph,"GRID"),

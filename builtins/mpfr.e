@@ -3177,6 +3177,32 @@ global procedure mpfr_gamma(mpfr rop, op, integer rounding=default_rounding)
     c_proc(x_mpfr_gamma,{rop,op,rounding})
 end procedure
 
+--__MPFR_DECLSPEC int mpfr_sqrt (mpfr_ptr, mpfr_srcptr, mpfr_rnd_t);
+--global procedure mpfr_sqrt(mpfr rop, op, integer rounding=default_rounding)
+--__MPFR_DECLSPEC double mpfr_get_d_2exp (long*, mpfr_srcptr, mpfr_rnd_t);
+--Function: double mpfr_get_d_2exp (long *exp, mpfr_t op, mpfr_rnd_t rnd)
+--Function: long double mpfr_get_ld_2exp (long *exp, mpfr_t op, mpfr_rnd_t rnd)
+--Return d and set exp (formally, the value pointed to by exp) such that 0.5<=abs(d)<1 and d times 2 raised to exp equals op rounded to 
+--double (resp. long double) precision, using the given rounding mode. 
+--If op is zero, then a zero of the same sign (or an unsigned zero, if the implementation does not have signed zeros) is returned, and exp is set to 0. 
+--  If op is NaN or an infinity, then the corresponding double precision (resp. long-double precision) value is returned, and exp is undefined.
+integer x_mpfr_get_d_2exp = NULL
+
+global function mpfr_get_d_2exp(mpfr op, integer rounding=default_rounding)
+    if op=NULL then ?9/0 end if
+    if x_mpfr_get_d_2exp=NULL then
+        x_mpfr_get_d_2exp = link_c_func(mpfr_dll, "+mpfr_get_d_2exp", {P,P,I},D)
+    end if
+--  atom pE = allocate(machine_word()),
+    atom pE = allocate_word(0,true,4),
+         d = c_func(x_mpfr_get_d_2exp,{pE, op, rounding})
+--       e = peekns(pE)
+    integer e = peek4s(pE)
+--       e = peekNS(pE,machine_word(),false)
+--  free(pE)
+    return {d,e}
+end function
+
 integer x_mpfr_get_si = NULL
 
 --DEV mpfr_get/fits_integer/atom??

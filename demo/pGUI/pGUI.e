@@ -2522,7 +2522,12 @@ global procedure IupSetLanguagePack(Ihandln ih)
     c_proc(xIupSetLanguagePack, {ih})
 end procedure
 
-global procedure IupSetCallback(Ihandles ih, string name, cbfunc func)
+global function IupGetClassName(Ihandle ih)
+    atom pClassName = c_func(xIupGetClassName, {ih})
+    return peek_string(pClassName)
+end function
+
+global procedure IupSetCallback(Ihandles ih, string name, cbfunc func, integer nf=2)
     if sequence(ih) then
         for i=1 to length(ih) do
             Ihandle ihi = ih[i]     -- (typecheck deliberate)
@@ -2546,24 +2551,37 @@ global procedure IupSetCallback(Ihandles ih, string name, cbfunc func)
 --              if  ri!={2,2,"FIN"}
 --              and ri!={2,2,"FNN"} then
                 if ri!={2,2,"FNN"} then
-                    crash(name&" callback must have func(Ihandle,ATOM) sig",nFrames:=2)
+                    crash(name&" callback must have func(Ihandle,ATOM) sig",nFrames:=nf)
                 end if
             end if
             name = "K_ANY"
+--27/11/21
+        elsif name="ACTION"
+          and func!=NULL then
+            string cn = IupGetClassName(ih)
+            if cn="canvas"
+            or cn="glcanvas" then
+                -- posx, posy must instead be feteched via IupGetDouble()
+                integer rid = rid_from_cb(func)
+                sequence ri = get_routine_info(rid,false)
+                if ri!={1,1,"FN"} then
+                    crash("canvas ACTION callback must fetch posx,poxy instead",nFrames:=nf)
+                end if
+            end if
         end if
         atom prev = c_func(xIupSetCallback, {ih, name, func})
     end if
 end procedure
 
 global function IupSetCallbackf(Ihandles ih, string name, cbfunc func)
-    IupSetCallback(ih, name, func)
+    IupSetCallback(ih, name, func,3)
     return ih
 end function
 
 global procedure IupSetCallbacks(Ihandles ih, sequence namefuncpairs)
     assert(even(length(namefuncpairs)))
     for i=1 to length(namefuncpairs) by 2 do
-        IupSetCallback(ih,namefuncpairs[i],namefuncpairs[i+1])
+        IupSetCallback(ih,namefuncpairs[i],namefuncpairs[i+1],3)
     end for
 end procedure
 
@@ -2609,11 +2627,6 @@ global function IupGetAllClasses()
     sequence names = iup_peek_string_pointer_array(ptr, n)
     free(ptr)
     return names
-end function
-
-global function IupGetClassName(Ihandle ih)
-    atom pClassName = c_func(xIupGetClassName, {ih})
-    return peek_string(pClassName)
 end function
 
 global function IupGetClassType(Ihandle ih)

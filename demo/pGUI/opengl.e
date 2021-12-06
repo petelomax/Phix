@@ -1673,20 +1673,6 @@ xglGetProcAddress       = iup_c_func(opengl32,sglGetProcAddress, {C_POINTER}, C_
 --WglUseFontOutlines        = iup_c_func(opengl32,"wglUseFontOutlinesA",{C_UINT,C_INT,C_INT,C_INT,C_FLOAT,C_FLOAT,C_INT,C_POINTER},C_INT)
 --xwglCreateContext     = iup_c_func(opengl32,"wglCreateContext",{C_INT},C_INT)
 
---constant gl_vector_buffer = allocate(16384)    
-constant gl_vector_buffer = allocate(128)
-
---global function xglGetProcAddress(string name)    --DEV rename as this/docs:
-global function wglGetProcAddress(string name)
---  poke(gl_vector_buffer, name & 0)
-    atom addr = c_func(xglGetProcAddress,{name})
---  atom addr = c_func(xglGetProcAddress,{gl_vector_buffer})
-    if addr<=0 then
-        crash("Couldn't find " & name)
-    end if
-    return addr
-end function
-
 --1/12/16 (WglUseFontOutlines is Windows-only)
 atom WglUseFontOutlines = NULL
 global function wglUseFontOutlines(atom glhDC, integer first, integer count, atom pFontList, atom deviation, atom extrusion, integer fmt, atom pGMF)
@@ -1697,20 +1683,31 @@ global function wglUseFontOutlines(atom glhDC, integer first, integer count, ato
     return c_func(WglUseFontOutlines,{glhDC,first,count,pFontList,deviation,extrusion,fmt,pGMF})
 end function
 
+--constant gl_vector_buffer = allocate(16384)    
+constant gl_vector_buffer = allocate(128)
+
+global function wglGetProcAddress(string name)
+    atom addr = c_func(xglGetProcAddress,{name})
+--29/11/21
+--  if addr<=0 then
+--      crash("Couldn't find " & name)
+--  end if
+    return addr
+end function
 
 function link_glext_func(string name, sequence args, atom result)
---  atom addr = c_func(xglGetProcAddress,{name})
     atom addr = wglGetProcAddress(name)
---if name="glCreateShader" then
---?{name,addr}
---end if
+    if addr<=3 then
+        return iup_c_func(opengl32, name, args, result)
+    end if
     return define_c_func({},addr,args,result)
 end function
 
-
 function link_glext_proc(string name, sequence args)
---  atom addr = c_func(xglGetProcAddress,{name})
     atom addr = wglGetProcAddress(name)
+    if addr<=3 then
+        return iup_c_proc(opengl32, name, args)
+    end if
     return define_c_proc({},addr,args)
 end function
 
@@ -1836,7 +1833,7 @@ end procedure
 
 global procedure glClearDepth(atom depth)
     c_proc(xglClearDepth,{depth})
-end procedure
+tend procedure
 
 global procedure glColor(atom red, blue, green, alpha=1)
     c_proc(xglColor4d,{red,blue,green,alpha})
@@ -1965,6 +1962,15 @@ global function glDeleteShader(integer shader)
     c_proc(xglDeleteShader,{shader})
     return 0
 end function
+
+integer xglDetachShader = 0
+
+global procedure glDetachShader(integer program, shader)
+    if xglDetachShader=0 then
+        xglDetachShader = link_glext_proc("glDetachShader",{GLuint,GLuint})
+    end if
+    c_proc(xglDetachShader,{program,shader})
+end procedure
 
 global procedure glDepthFunc(integer f)
     c_proc(xglDepthFunc,{f})

@@ -46,6 +46,8 @@ procedure draw_clock(atom cx, cy, d)
         if h then
             x1 = cos(a)*(d/2-w*4.5)
             y1 = sin(a)*(d/2-w*4.5)
+--neato, try it:
+--cdCanvasSetTextOrientation(cd_canvas,-i)
             cdCanvasText(cd_canvas,cx+x1,cy+y1,sprintf("%d",{i/30}))
         end if
     end for
@@ -66,7 +68,7 @@ procedure draw_clock(atom cx, cy, d)
     cdCanvasSetForeground(cd_canvas, CD_BLACK)
 end procedure
 
-function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
+function redraw_cb(Ihandle ih)
     integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE"),
             r = floor(min(width,height)*0.9),
             cx = floor(width/2),
@@ -77,6 +79,7 @@ function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
     cdCanvasFlush(cd_canvas)
     return IUP_DEFAULT
 end function
+constant cb_redraw = Icallback("redraw_cb")
 
 function timer_cb(Ihandle /*ih*/)
     IupUpdate(canvas)
@@ -109,7 +112,8 @@ procedure main()
 
     canvas = IupGLCanvas("RASTERSIZE=350x350")
     IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
-                             "ACTION", Icallback("redraw_cb"),
+--                           "ACTION", Icallback("redraw_cb"),
+                             "ACTION", cb_redraw,
                              "RESIZE_CB", Icallback("canvas_resize_cb")})
 
     hTimer = IupTimer(Icallback("timer_cb"), 40)    -- smooth secs

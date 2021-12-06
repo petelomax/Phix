@@ -1,0 +1,1549 @@
+--
+-- demo\rosetta\LinearScanRegisterAllocation.exw
+-- =============================================
+--
+-- Use live ranges, not live intervals...?
+-- qu: can we extend ranges to load regs as early as possible?
+-- linked list: largest end point first
+-- AH: what we need to be doing here is populating the IR as we go...
+--
+-- Plus, this (and graph colouring) do not take reference types into acount:
+-- Suppose we have object o, then there is a machine-word sized holder for it,
+-- which can contain an integer (top two bits same) or a reference:
+--  mov eax,[o]
+--  cmp eax,h4  -- #40000000    -- *#100000000 on 64 bit, held in r15
+--  jl :an_integer
+--      mov cl,[ebx+eax+4-1]    -- type byte (ebx is 0) [***AGI stall***]
+--      mov ecx,[ebx+eax*4-8]   -- refcount                    ""
+--      mov cl,[eax*4+edx-1]    -- char at s[edx]
+--      mov esi,[eax*4+edx*4-4] -- dword sequence s[edx], more "" [see note 1]
+--      fld qword[ebx+edx*4]    -- atom (tword on 64 bit)
+--      (ret)
+-- ::an_integer     
+--      eax is -#C0000000..+#3FFFFFFF -- (similar just bigger on 64 bit)
+--
+-- note 1: you cannot actually do this, instead either the ref or the index must
+--          be *4/shl2 (or both) first, which causes another potential AGI stall.
+--
+-- Admittedly, reference counted atoms have never really made any sense, except
+--  for uniform treatment considerations. Having, for instance, any modification
+--  to an atom store in a new location is probably no worse (or better) than an
+--  inc/dec on a refcount, except not always knowing when it can be freed.
+--  But I'm talking about a different (p2js compatible) language, really.
+--
+-- Question: are there float32 (don't care) or float64 values which can have a
+--  similar(ish) "first two bits equal" treatment?
+--
+without debug
+include builtins\VM\pprntfN.e
+include builtins\ppp.e
+with debug
+-- code = {{a,b,c,d},   -- 1
+--         {a,e}        -- 2
+--         {c,f}        -- 3
+--         {b}          -- 4
+--         {}           -- 5
+--         {e,f}        -- 6
+--         {}           -- 7
+--         {g,d}        -- 8
+--         {}           -- 9
+--         {g}}         -- 10
+constant vars = {a:='a',
+                 b:='b',
+                 c:='c',
+                 d:='d',
+                 e:='e',
+                 f:='f',
+                 g:='g'}
+sequence varl = repeat(0,length(vars))
+sequence code = {{a,b,c,d,0,0,0},   -- 1
+                 {a,0,0,0,e,0,0},   -- 2
+                 {0,0,c,0,0,f,0},   -- 3
+                 {0,b,0,0,0,0,0},   -- 4
+                 {0,0,0,0,0,0,0},   -- 5
+                 {0,0,0,0,e,f,0},   -- 6
+                 {0,0,0,0,0,0,0},   -- 7
+                 {0,0,0,d,0,0,g},   -- 8
+                 {0,0,0,0,0,0,0},   -- 9
+                 {0,0,0,0,0,0,g}}   -- 10
+sequence lode = sq_mul(code,0)
+
+--sequence intervals    -- kept sorted/created in order of increasing start point 
+--sequence ranges
+enum LI_NAME, LI_STARTPOINT, LI_ENDPOINT, LI_REG, LI_LOCATION, LI_PREV_ACTIVE, LI_NEXT_ACTIVE, LI_PREV_END, LI_NEXT_END
+--sequence intervals = {
+--  {"a", 1, 2, 0, 0, 0, 0, 0, 0},
+--  {"b", 1, 4, 0, 0, 0, 0, 0, 0},
+--  {"c", 1, 3, 0, 0, 0, 0, 0, 0},
+--  {"d", 1, 8, 0, 0, 0, 0, 0, 0},
+--  {"e", 2, 6, 0, 0, 0, 0, 0, 0},
+--  {"f", 3, 6, 0, 0, 0, 0, 0, 0},
+--  {"g", 8, 10, 0, 0, 0, 0, 0, 0}
+--}
+
+--sequence vars = {},
+--       varl = {}
+
+function build_intervals(sequence code)
+    sequence res = {}
+    for i=1 to length(code) do
+        sequence ci = code[i]
+        for j=1 to length(ci) do
+            if ci[j]!=0 then
+--              string var = ci[j]
+                integer var = ci[j]
+                integer k = find(var,vars),
+                        r = varl[k]
+                if r then
+                    res[r][LI_ENDPOINT] = i
+                else
+--                  k = length(res)+1
+--                  vars = append(vars,var)
+--                  varl = append(varl,k)
+                    res = append(res,{var, i, i, 0, 0, 0, 0, 0, 0})
+                    varl[k] = length(res)
+                end if
+            end if
+        end for
+    end for
+    return res
+end function
+-- good, same:
+--?build_intervals(code)
+sequence intervals = build_intervals(code)
+--?intervals
+
+
+--enum R_NAME, R_NXT, R_PRV
+enum R_NAME, R_NEXT
+--sequence registers = {{"eax",2,0},{"ecx",3,1},{"edx",4,2},{"esi",5,3},{"edi",0,4}}
+sequence registers = {{"eax",2},{"ecx",3},{"edx",4},{"esi",5},{"edi",0}}
+--sequence registers = {{"eax",2,0},{"ecx",3,1},{"edx",4,2},{"esi",0,3}}
+--sequence registers = {{"eax",2},{"ecx",3},{"edx",4},{"esi",0}}
+--integer pool = 1
+constant R = length(registers)
+
+integer active = 0,     -- by start point
+        ective = 0,     -- by end point
+        active_len = 0,
+        pool = 1
+
+procedure add_to_active(integer j)
+    integer next, prev = 0,
+            sp = intervals[j][LI_STARTPOINT],
+            ep = intervals[j][LI_ENDPOINT]
+    -- first, the by startpoint list
+    next = active
+    while next and intervals[next][LI_STARTPOINT]<=sp do
+        prev = next
+        next = intervals[prev][LI_NEXT_ACTIVE]
+    end while
+    intervals[j][LI_NEXT_ACTIVE] = next
+    intervals[j][LI_PREV_ACTIVE] = prev
+    if prev then intervals[prev][LI_NEXT_ACTIVE] = j else active = j end if
+    if next then intervals[next][LI_PREV_ACTIVE] = j end if
+    -- then, the by endpoint list
+    next = ective
+    while next and intervals[next][LI_ENDPOINT]>=ep do
+        prev = next
+        next = intervals[prev][LI_NEXT_END]
+    end while
+    intervals[j][LI_NEXT_END] = next
+    intervals[j][LI_PREV_END] = prev
+    if prev then intervals[prev][LI_NEXT_END] = j else ective = j end if
+    if next then intervals[next][LI_PREV_END] = j end if
+    active_len += 1
+end procedure
+
+function remove_from_active(integer j)
+    integer next,prev
+    -- first by startpoint list
+    next = intervals[j][LI_NEXT_ACTIVE]
+    prev = intervals[j][LI_PREV_ACTIVE]
+    intervals[j][LI_NEXT_ACTIVE] = 0
+    intervals[j][LI_PREV_ACTIVE] = 0
+    if next then intervals[next][LI_PREV_ACTIVE] = prev end if
+    if prev then intervals[prev][LI_NEXT_ACTIVE] = next else active = next end if
+    -- then by endpoint list
+    next = intervals[j][LI_NEXT_END]
+    prev = intervals[j][LI_PREV_END]
+    intervals[j][LI_NEXT_END] = 0
+    intervals[j][LI_PREV_END] = 0
+    if next then intervals[next][LI_PREV_END] = prev end if
+    if prev then intervals[prev][LI_NEXT_END] = next else ective = next end if
+    active_len -= 1
+    return next
+end function
+
+procedure ExpireOldIntervals(integer i)
+    -- for each interval j in active, in order of increasing end point do
+    integer j = ective, next, --prev,
+            si = intervals[i][LI_STARTPOINT]
+--  while j do
+--      if intervals[j][LI_ENDPOINT]>=si then exit end if
+    while j and intervals[j][LI_ENDPOINT]<si do
+
+--?{j,intervals[j],"remove(ok)"}
+--{} = wait_key()
+        -- remove j from active
+        next = remove_from_active(j)
+
+        -- add register[j] to pool of free registers
+--      free_reg(j)
+
+        integer rj = intervals[j][LI_REG],
+                var = intervals[j][LI_NAME],
+                kv = find(var,vars)
+?{kv,intervals[j]}
+        lode[si][kv] = -2
+--      registers[rj][R_PRV] = 0
+        registers[rj][R_NEXT] = pool
+--      if pool then    
+--          registers[pool][R_PRV] = rj
+--      end if
+--?{"pool",pool,rj}
+        pool = rj
+--      active_len -= 1 (now done in remove_from_active)
+--?{j,intervals[j]}
+--      j = intervals[j][LI_NEXT_ACTIVE]
+        j = next
+    end while
+end procedure
+
+function get_free_reg()
+    integer res = pool
+--          next = registers[res][R_NEXT]
+--          prev = registers[res][R_PREV]
+    pool := registers[res][R_NEXT]
+--  if prev then 
+    registers[res][R_NEXT] = 0
+--  registers[res][R_PREV] = 0
+    return res
+end function
+
+procedure SpillAtInterval(integer i)
+--  integer spill := last interval in active
+    integer spill := ective,
+            si = intervals[i][LI_STARTPOINT],
+            var = intervals[i][LI_NAME],
+            kv = find(var,vars)
+--  if endpoint[spill] > endpoint[i] then
+    if intervals[spill][LI_ENDPOINT] > intervals[i][LI_ENDPOINT] then
+--              register[i] := register[spill]
+        integer reg = intervals[spill][LI_REG]
+        intervals[i][LI_REG] := reg
+        lode[si][kv] = reg
+--DEV
+--              location[spill] := new stack location
+--?"location?"
+        intervals[spill][LI_LOCATION] := -1
+        kv = find(intervals[spill][LI_NAME],vars)
+        lode[si][kv] = -1
+--              remove spill from active
+        {} = remove_from_active(spill)
+--              add i to active, sorted by increasing end point
+        add_to_active(i)
+    else
+--DEV
+--      location[i] := new stack location
+--?"location2?"
+        intervals[i][LI_LOCATION] := -1
+    end if
+end procedure
+
+
+procedure LinearScanRegisterAllocation()--sequence intervals)
+--procedure LinearScanRegisterAllocation(sequence ranges)
+    active = 0      -- by start point
+    ective = 0      -- by end point
+    active_len = 0
+    pool = 1
+    -- for each live interval i, in order of increasing start point do
+    for i=1 to length(intervals) do
+        ExpireOldIntervals(i)
+        if active_len=R then
+            SpillAtInterval(i)
+        else
+--          register[i] := a register removed from pool of free registers
+            integer reg = get_free_reg(),
+                    si = intervals[i][LI_STARTPOINT],
+                    kv = find(intervals[i][LI_NAME],vars)
+            intervals[i][LI_REG] := reg
+            lode[si][kv] = reg
+--enum R_NAME, R_NXT, R_PRV
+--sequence registers = {{"eax",2,0},{"ecx",3,1},{"edx",4,2},{"esi",5,3},{"edi",0,4}}
+--integer pool = 1
+--          add i to active, sorted by increasing end point
+            add_to_active(i)
+        end if
+    end for
+end procedure
+
+LinearScanRegisterAllocation()
+?"registers"
+?registers
+?{"pool",pool}
+?"intervals"
+pp(intervals,{pp_Nest,1})
+?"code"
+pp(code,{pp_Nest,1,pp_IntFmt,"%3d"})
+?"lode"
+pp(lode,{pp_Nest,1,pp_IntFmt,"%3d"})
+
+
+?"done"
+{} = wait_key()
+abort(0)
+
+LinearScanRegisterAllocation
+    active := {}
+    for each live interval i, in order of increasing start point do
+--      ExpireOldIntervals(i)
+--ExpireOldIntervals(i)
+        for each interval j in active, in order of increasing end point do
+            if endpoint[j] >= startpoint[i] then
+                exit
+            end if
+            remove j from active
+            add register[j] to pool of free registers
+        end for
+        if length(active) = R then
+--          SpillAtInterval(i)
+            spill := last interval in active
+            if endpoint[spill] > endpoint[i] then
+                register[i] := register[spill]
+                location[spill] := new stack location
+                remove spill from active
+                add i to active, sorted by increasing end point
+            else
+                location[i] := new stack location
+            end if
+        else
+            register[i] := a register removed from pool of free registers
+            add i to active, sorted by increasing end point
+        end if
+    end for
+
+type interval =
+  { name: string;
+    reg: regs;
+    location: int;
+    start_point: int;
+    end_point: int;
+  }
+
+let make_interval(name, start, finish) =
+  {
+    name = name;
+    reg = Spilled;
+    location = -1;
+    start_point = start;
+    end_point = finish;
+  }
+
+let intervals = [|
+  make_interval "a" 1 2;
+  make_interval "b" 1 4;
+  make_interval "c" 1 3;
+  make_interval "d" 1 8;
+  make_interval "e" 2 6;
+  make_interval "f" 3 6;
+  make_interval "g" 8 10;
+|]
+
+let () =
+  let glob_pool = ref [EAX; EBX; ECX; EDX] in -- Our available registers, ideally this is passed in by the architecture stage
+  let num_regs = List.length !glob_pool in
+  let glob_active = ref [] in -- Again, I don't love mutable structures, so if anyone has suggestions to make this immutable, I would love to hear them
+  let length = Array.length intervals in
+  for i = 0 to length - 1 in
+    let current = intervals.(i) in
+    let (active, pool) = expire_old_intervals -- Not yet implemented
+    let (active, pool) = match List.length active >= num_regs with -- Assign current interval, and modify active
+      | true -> spill_interval -- not yet implemented
+      | false -> -- Greedily assign a new register
+        let new_reg, pool = get_reg pool in -- Can be a heuristic or a random choice of available registers
+        let new_interval = {current with reg = new_reg} in
+        let () = intervals.(i) <- new_interval in
+          (new_interval, i)::active, pool -- We may need to undo what we've allocated, so we have to store the index to go back to
+    in
+    let () = glob_active := active in
+    glob_pool := pool
+  done;;
+  Array.iter (fun interval -> printf "Interval %s with reg %s at location %d \n" interval.name (name interval.reg) interval.location) interval
+
+let expire_old_intervals(active, current pool) =
+  let still_active j = (fst j).end_point > current.start_point in -- Our active list is of the form interval * int
+  let (new_active, regs_to_free) = List.partition (still_active) active in
+  let rec add pool l = match l with
+    | (head::tail) -> add (free_reg (fst head).reg pool) tail -- free_reg returns the pool with the register added, avoiding duplicates or spilled registers
+    | [] ->  pool
+  in
+  new_active, add pool regs_to_free
+
+let () =
+  ...
+  let (active, pool) = expire_old_intervals !glob_active current !glob_pool
+
+Interval a with reg eax at location -1
+Interval b with reg ebx at location -1
+Interval c with reg ecx at location -1
+Interval d with reg edx at location -1
+Interval e with reg eax at location -1
+Interval f with reg ecx at location -1
+Interval g with reg ebx at location -1
+
+let stack_location = ref 0
+
+let spill_interval current =
+  let current, i = current in
+  let () = intervals.(i) <- {current with location = !stack_location}
+  let () = stack_location := !stack_location + 4
+
+let () =
+  ...
+  let () = spill_interval (current, i) in (active, pool)
+
+let spill_interval active current =
+  let current, i = current in
+  let rev_sort = List.sort (fun a b -> -1 * (compare_endpoint (fst a) (fst b))) active in
+  let spill, index = List.hd rev_sort in -- Latest endpoint in active
+  let tail = List.tl rev_sort in
+  let active = match spill.end_point >= current.end_point with -- Should we spill the old or current interval
+    | true -> -- old
+      let new_interval = {current with reg = spill.reg} in
+      let () = intervals.(index) <- {spill with reg = Spilled; location = !stack_location} in -- Reassign old interval's value
+      let () = intervals.(i) <- new_interval in -- assign new interval a register
+        (new_interval, index)::tail -- remove old interval from active and add current
+    | false -> -- current
+      let () = intervals.(i) <- {current with location = !stack_location} in
+        active
+  in
+  let () = stack_location := !stack_location + 4 in
+  active
+
+let () =
+  ...
+  let (active, pool) = ...
+    (spill_interval active (current, i)), pool
+
+let intervals = [|
+  make_interval "a" 1 10;
+  make_interval "b" 1 4;
+  make_interval "c" 1 3;
+  make_interval "d" 2 8;
+  make_interval "e" 3 6;
+  make_interval "f" 3 10;
+  make_interval "g" 4 8;
+|]
+...
+let glob_pool = ref [EAX; EBX; ECX]
+
+Interval a with reg SPILLED at location 0
+Interval b with reg ebx at location -1
+Interval c with reg ecx at location -1
+Interval d with reg eax at location -1
+Interval e with reg ecx at location -1
+Interval f with reg SPILLED at location 4
+Interval g with reg ebx at location -1
+
+
+Algorithm 1 Linear Scan Register Allocation
+ 1: procedure LSRA(Intervals) -- Intervals is sorted in order of increasing starting points
+ 2:   Active := {}
+ 3:   for LI in Intervals do -- traverse list of live intervals
+ 4:     EXPIREOLDINTERVALS(LI)
+ 5:     if |Active| = K then -- all registers are used, we have to spill
+ 6:       SPILLATINTERVAL(LI)
+ 7:     else -- still registers available, register can be assigned
+ 8:       LIregister := REGISTERPOOLGET()
+ 9:       Active := union(Active,LI)
+10:     end if
+11:   end for
+12: end procedure
+13: procedure EXPIREOLDINTERVALS(CurrentInterval)
+14:   for LI in Active do -- traverse list of active intervals
+15:     if LI.endpoint >= CurrentInterval.startpoint then
+16:       return -- no old intervals anymore
+17:     end if
+18:     Active := Active \ LI -- expire old interval and release register
+19:     REGISTERPOOLADD(LI.register)
+20:   end for
+21: end procedure
+22: procedure SPILLATINTERVAL(Interval)
+23:   Spill := Active.last -- spilling heuristic: widest distance of endpoint
+24:   if Spill.endpoint > Interval.endpoint then -- interval Spill is spilled
+25:     Interval.register := Spill.register
+26:     Spill.location := NEWSTACKLOCATION()
+27:     Active := union((Active \ Spill),Interval)
+28:   else
+29:     Interval.location := NEWSTACKLOCATION() -- passed interval is spilled
+30:   end if
+31: end procedure
+
+-- IR code:
+ 1 A = ...
+ 2 B = ...
+ 3 C = ...
+ 4 ... = A
+ 5 ... = B
+ 6 D = ...
+ 7 E = ...
+ 8 ... = D
+ 9 ... = E
+10 ... = C
+
+A := [1, 4], B := [2, 5], C := [3, 10], D := [6, 8], E := [7, 9]
+
+--> A, B allocated, C spilled, A, B expire, D, E allocated.
+
+--DEV/docs:
+-- since the whole code snippet is compiled at once before execution, it is in a strict sense not an interpreter, but rather a load-run compiler
+
+int bit_count(long x)
+{
+  int n = 0;
+  if (x) do
+    n++;
+  while (0 != (x = x&(x-1)));
+  return(n);
+}
+Figure 3.2: A simple bit counting function in C
+
+000000a0 <bit_count>:
+... [ Prologue ]
+b4: mov r0, #0
+b8: str r0, [fp, #-4]
+bc: ldr r0, [fp, #12]
+c0: teq r0, #0
+c4: beq f8 <bit_count+0x58>
+c8: ldr r0, [fp, #-4]
+cc: mov r1, r0
+d0: add r0, r0, #1
+d4: str r0, [fp, #-4]
+d8: ldr r0, [fp, #12]
+dc: sub r0, r0, #1
+e0: ldr r1, [fp, #12]
+e4: and r0, r1, r0
+e8: str r0, [fp, #12]
+ec: mov r1, #0
+f0: cmp r1, r0
+f4: bne c8 <bit_count+0x28>
+f8: ldr r0, [fp, #-4]
+... [ Epilogue ]
+Figure 3.3: TCC-generated ARM object code for the function bit_count()
+
+Listing 5.2 Function parsing / code generation procedure in our extended TCC
+ 1 static void gen_function(Sym *sym)
+ 2 {
+ 3   [ ... ]
+ 4   IR_Clear();                            // Phase 1: IR code generation
+ 5   IR_AddFuncParams(&sym->type);
+ 6   block(NULL, NULL, NULL, NULL, 0, 0);
+ 7   IR_LivenessAnalysis();                 // Phase 2: Liveness Analysis
+ 8   LS_RegisterAllocation();               // Phase 3: LSRA
+ 9   IR_RegisterAllocationParams();
+10   IR_GenCode();                          // Phase 4: Code generation
+11   [ ... ]
+12 }
+
+(add a vreg field (int) to symbol)
+
+IR operation dest src1 src2 Code generation semantics
+        Data-Processing Instructions
+IR_ADD       X X X dest := src1 + src2
+IR_SUB       X X X dest := src1 - src2
+IR_RSUB      X X X dest := src2 - src1
+IR_MUL       X X X dest := src1 * src2
+IR_AND       X X X dest := src1 & src2
+IR_OR        X X X dest := src1 | src2
+IR_XOR       X X X dest := src1 ^ src2
+IR_SHL       X X X dest := src1 << src2
+IR_SHR       X X X dest := src1 >> src2
+IR_SAR       X X X dest := src1 / (2 ^ src2)
+IR_ASS       X X - dest := src1
+        Conditional Instructions and Branches
+IR_CMP      - X X compare(src1, src2)
+IR_TSTZ     - X - test_for_zero(src1)
+IR_SETIF    X X - dest := (CC == src1) ? 1 : 0
+IR_BRANCHIF X X - if (CC == src1) jump to dest
+IR_JMP      X - - jump to dest
+        Function Call and Return Instructions
+IR_RETVOID  - - - return without value
+IR_RETVAL    - X - return with value src1
+IR_PARAM    - X X set src2 as parameter
+IR_CALLVOID - X - call function src1
+IR_CALLVAL  X X - call function src1, store return value in dest
+IR_PARMVOID - - - void parameter
+        Special Instructions
+IR_STORE    X X - mem[dest] := src1
+Figure 5.1: Overview of IR operations
+
+Figures 5.2 and 5.3 show an example of a small C code snippet and its corresponding IR listing.
+Note that we have only virtual registers and immediate values as operands in this case, where
+local variables are starting with VReg0 and compiler-generated temporaries start with VReg100.
+
+void straight_example()
+{
+  int a, b, c;
+  a = 200;
+  b = (a*4) | b;
+  a = (a+b)*(5+c+8*9);
+  b += a;
+  c += ((b*3-b)<<2) & 0xf0;
+  -!-b;
+}
+Figure 5.2: Straight-line C code snippet
+
+// a <= VR0, b <= VR1, c <= VR2
+01: IR_ASS VR0, #200
+02: IR_SHL VR100, VR0, #2
+03: IR_OR VR1, VR100, VR1
+04: IR_ADD VR102, VR0, VR1
+05: IR_ADD VR103, VR2, #5
+06: IR_ADD VR104, VR103, #72
+07: IR_MUL VR0, VR102, VR104
+08: IR_ADD VR1, VR1, VR0
+09: IR_MUL VR107, VR1, #3
+10: IR_SUB VR108, VR107, VR1
+11: IR_SHL VR109, VR108, #2
+12: IR_AND VR110, VR109, #240
+13: IR_ADD VR2, VR2, VR110
+14: IR_ADD VR1, VR1, #-1
+Figure 5.3: The corresponding IR listing for function straight_example
+
+int test(int a, int b);
+int full_example(int n)
+{
+  int x=0, y=1;
+  while (n-!-) {
+  x += y;
+  y += test(x+5, y-10);
+}
+return y;
+}
+Figure 5.4: C code snippet involving branches and function call
+
+// n <= VR200, x <= VR0, y <= VR1
+01: IR_ASS VR0, #0
+02: IR_ASS VR1, #1
+03: IR_ASS VR100, VR200
+04: IR_ADD VR200, VR100, #-1
+05: IR_TSTZ VR100
+06: IR_BRANCHIF #15, [==]
+07: IR_ADD VR0, VR0, VR1
+08: IR_ADD VR103, VR0, #5
+09: IR_PARAM -, #1, VR103
+10: IR_SUB VR104, VR1, #10
+11: IR_PARAM -, #2, VR104
+12: IR_CALLVAL VR105, [test()]
+13: IR_ADD VR1, VR1, VR105
+14: IR_JMP #3
+15: IR_RETVAL -, VR1
+Figure 5.5: The corresponding IR listing for function full_example
+
+Listing 6.1 Example of a code snippet where our simple live interval calculation fails
+ 1 void foo(...)
+ 2 {
+ 3   int var;
+ 4
+ 5   for (...) {
+ 6     if (...) {
+ 7       var = ...;
+ 8     } else {
+ 9       ... = var;
+10     }
+11   }
+12 }
+
+The first step of our algorithm yields the live interval [7, 9] (using source line numbers, in reality it would be
+the corresponding numbers in the IR, of course). Since the later backwards jump isn't branching
+into this interval, it is not extended, and the final determined live interval is still [7, 9]. This is
+obviously wrong because the content of var can be still needed in a new interation of the loop.
+
+Solution
+We overcome the restriction by a special treatment for intervals that have their first definition
+within an if/else-block within a loop in a third step. In this case the live interval is extended to
+the most outer loop. For the example in Listing 6.1 the algorithm would yield the interval [5, 11].
+The source code snippet for this solution is shown in Listing C.12.
+
+ARM register usage
+R0-R3 argument and return registers
+R4-R10 registers used by LSRA for virtual register substitution
+R11 frame pointer (fp)
+R12 == spilling register 1 (ip)
+R13 stack pointer (sp)
+R14 == spilling register 2 (lr)
+R15 program counter (pc)
+(PL: R14 (lr) can only be used if saved)
+(PL: R0-R3, R12, R14 must be saved by the calling code,
+     R4-11, R13 must be saved/restored in every rtn,
+     obvs eg Figure 9.2 only uses/does 4,5.)
+
+typedef struct {
+unsigned int vreg; /* virtual register */
+unsigned int reg; /* assigned physical register */
+unsigned int loc; /* spilling destination */
+unsigned int start;
+unsigned int end;
+} LiveInterval;
+
+#define MAX_LIVEINTERVALS 100000
+LiveInterval LiveIntervals[MAX_LIVEINTERVALS];
+int nIntervals;
+
+LiveInterval* ActiveSet[K];
+int nActive;
+
+ActiveSet[nActive++] = &someliveinterval;
+qsort(&ActiveSet[0], nActive, sizeof(ActiveSet[0]), licomp_endpoint);
+
+typedef struct {
+ int preg;
+ int offset;
+} VRegReplacement;
+VRegReplacement RegMapping[MAX_VARS+MAX_TEMPS+MAX_PARAMS];
+The array is defined in tccir.c and is filled out by the linear scan module for every live
+interval with the following function:
+void IR_ReplaceVReg(int vreg, int offset, int preg);
+To code generator can simply access the concrete target location of a virtual register vreg
+by accessing RegMapping[vreg].
+
+Then the prolog looks like the following:
+00000000 <prolog_demo>:
+ 0: e1a0c00d mov ip, sp ; step 1
+ 4: e92d0003 push {r0, r1} ; step 2
+ 8: e24dd010 sub sp, sp, #16 ;
+ c: e92d5870 push {r4, r5, r6, fp, ip, lr} ; step 3
+10: e1a0b00d mov fp, sp ; step 4
+14: e24dd00c sub sp, sp, #12 ; step 5
+......
+Epilogue
+The function epilog has the purpose of restoring all the callee-saved registers from the stack
+and jumping back to the caller code (that is, the next instruction after the "branch-and-link"
+instruction). Since the return address is also saved in a register, we can perform this with a
+single block data load instruction:
+.....
+30: e89ba870 ldm fp, {r4, r5, r6, fp, sp, pc}
+.....
+(PL: note the above pushes lr (aka R14) and pops pc (aka R15))
+
+Suppose we have the following general IR three-address code instruction
+Dest → Src1 (op) Src2
+and RSrc1, RSrc2 and RDest describe the physical register of the operands. If an operand RX
+is not stored in a register, RX is set to NIL. Then the IR instruction is translated with the
+following scheme:
+* if RSrc1 = NIL, then
+    generate code to evaluate Src1 into R12 (= spilling register 1)
+    RSrc1 := 12
+* if RSrc2 = NIL, then
+    generate code to evaluate Src2 into R14 (= spilling register 2)
+    RSrc2 := 14
+* if RDest = NIL, then
+    RDest := 14
+* generate code for the data-processing instruction RDest := RSrc1 (op) RSrc2
+* if RDest = 14, then
+    generate code to store R14 into the memory location that is specified in Dest
+This scheme is implemented with the following simplified code (see tccir.c:IR_GenCode()):
+
+dest_reg = OperandInMemory(dest) ? LoadIntoReg(dest, 14) : RegMapping[dest->vreg].preg;
+src1_reg = OperandInMemory(src1) ? LoadIntoReg(src1, 12) : RegMapping[src1->vreg].preg;
+src2_reg = OperandInMemory(src2) ? LoadIntoReg(src2, 14) : RegMapping[src2->vreg].preg;
+// generate ARM instruction with dest_reg, src1_reg and src2_reg
+if (dest_reg == 14) StoreFromReg(dest, 14, 12);
+
+Listing 8.1 correct code for the expression f(10, g(20))
+......
+44: e3a0000a mov r0, #10
+48: e92d0001 push {r0}
+4c: e3a00014 mov r0, #20
+50: ebfffffe bl 0 <g>
+54: e1a04000 mov r4, r0
+58: e8bd0001 pop {r0}
+5c: e1a01004 mov r1, r4
+60: ebfffffe bl 20 <f>
+......
+(PL: compare the above with how Phix currently does it!)
+
+Listing 9.1 Collatz Conjecture Check, C-Code
+ 1 int collatz(int an)
+ 2 {
+ 3   int iters = 1;
+ 4
+ 5   while (an != 1) {
+ 6     /* odd number, a[n] = a[n-1]*3 + 1 */
+ 7     if (an & 1) {
+ 8       an *= 3;
+ 9       an += 1;
+10     }
+11     else /* even number, a[n] = a[n-1]/2 */
+12       an >>= 1;
+13
+14     iters++;
+15   }
+16
+17   return iters;
+18 }
+
+00000000 <collatz>:
+ 0: mov ip, sp
+ 4: push {r0, r1}
+ 8: push {fp, ip, lr}
+ c: mov fp, sp
+10: sub sp, fp, #4
+14: mov r0, #1
+18: str r0, [fp, #-4]
+1c: ldr r0, [fp, #12]
+20: cmp r0, #1
+24: beq 78 <collatz+0x78>
+28: ldr r0, [fp, #12]
+2c: and r0, r0, #1
+30: teq r0, #0
+34: beq 58 <collatz+0x58>
+38: ldr r0, [fp, #12]
+3c: mov r1, #3
+40: mul r0, r1, r0
+44: str r0, [fp, #12]
+48: ldr r0, [fp, #12]
+4c: add r0, r0, #1
+50: str r0, [fp, #12]
+54: b 64 <collatz+0x64>
+58: ldr r0, [fp, #12]
+5c: lsr r0, r0, #1
+60: str r0, [fp, #12]
+64: ldr r0, [fp, #-4]
+68: mov r1, r0
+6c: add r0, r0, #1
+70: str r0, [fp, #-4]
+74: b 1c <collatz+0x1c>
+78: ldr r0, [fp, #-4]
+7c: nop
+80: ldm fp, {fp, sp, pc}
+Figure 9.1: collatz(), tcc
+
+00000000 <collatz>:
+ 0: push {r4, r5, lr}
+ 4: mov r4, #1
+ 8: cmp r0, #1
+ c: beq 3c <collatz+0x3c>
+10: and r5, r0, #1
+14: teq r5, #0
+18: beq 2c <collatz+0x2c>
+1c: mov lr, #3
+20: mul r0, lr, r0
+24: add r0, r0, #1
+28: b 30 <collatz+0x30>
+2c: lsr r0, r0, #1
+30: mov r5, r4
+34: add r4, r5, #1
+38: b 8 <collatz+0x8>
+3c: mov r0, r4
+40: pop {r4, r5, pc}
+Figure 9.2: collatz(), tccls
+
+00000000 <collatz>:
+ 0: mov r3, r0
+ 4: cmp r0, #1
+ 8: beq 30 <collatz+0x30>
+ c: mov r0, #1
+10: tst r3, #1
+14: addne r3, r3, r3, lsl #1
+18: addne r3, r3, #1
+1c: lsreq r3, r3, #1
+20: add r0, r0, #1
+24: cmp r3, #1
+28: bne 10 <collatz+0x10>
+2c: mov pc, lr
+30: mov r0, #1
+34: mov pc, lr
+Figure 9.4: collatz(), gcc -O1
+
+Implementation Code Snippets
+============================
+C.1 IR Generation (tccgen.c / tccir.c)
+======================================
+Listing C.1 Assignment of virtual register to local variables
+ 1 ST_FUNC Sym *sym_push(int v, CType *type, int r, int c)
+ 2 {
+ 3   Sym *s;
+ 4   ...
+ 5   int vreg = -1;
+ 6
+ 7   if (((r & VT_VALMASK) == VT_LOCAL) && (r & VT_LVAL) &&
+ 8       ((type->t & VT_BTYPE) != VT_STRUCT))
+ 9     vreg = IR_GetVregVar();
+10
+11   ... /* after the other assignments to the "s" fields */
+12   s->vreg = vreg;
+13   ...
+14 }
+
+Listing C.2 IR code generation for binary operations
+ 1 static void ir_gen_opi(int op)
+ 2 {
+ 3   int irop;
+ 4
+ 5   switch (op) { /* map token operation code to IR operation code */
+ 6     case '+': irop = IR_OP_ADD; break;
+ 7     case '-': irop = IR_OP_SUB; break;
+ 8     ...
+ 9     case TOK_SAR: irop = IR_OP_SAR; break;
+10
+11     /* ... */
+12   }
+13
+14   SValue dest;
+15   memset(&dest, 0, sizeof(dest));
+16   dest.vreg = IR_GetVregTemp();
+17   dest.type.t = vtop[-1].type.t;
+18   dest.r = 0;
+19
+20   IR_PutOp(irop, &vtop[-1], &vtop[0]);
+21   vtop[-1].vreg = dest.vreg;
+22   vtop[-1].r = 0;
+23   vtop--;
+24 }
+
+Listing C.3 IR code generation for relational operators
+ 1 static void ir_gen_opi(int op)
+ 2 {
+ 3   int irop;
+ 4   ...
+ 5
+ 6   switch (op) { /* map token operation code to IR operation code */
+ 7     ...
+ 8     case TOK_EQ: case TOK_NE:
+ 9     case TOK_LT: case TOK_GT: case TOK_LE: case TOK_GE:
+10     case TOK_ULT: case TOK_UGT: case TOK_ULE: case TOK_UGE:
+11       IR_PutOp(IR_OP_CMP, &vtop[-1], &vtop[0], NULL);
+12       vtop--;
+13       vtop->r = VT_CMP;
+14       vtop->c.i = op;
+15       return;
+16
+17     /* ... */
+18   }
+19   ...
+20 }
+
+Listing C.4 IR code generation for division and modulo operators
+ 1 static void ir_gen_opi(int op)
+ 2 {
+ 3   int irop;
+ 4   ...
+ 5
+ 6   switch (op) { /* map token operation code to IR operation code */
+ 7     ...
+ 8     /* ARM platform specific: substitute / and % ops with function calls */
+ 9     case '/':
+10     case TOK_PDIV:
+11     case TOK_UDIV:
+12     case '%':
+13     case TOK_UMOD:
+14       memset(&num, 0, sizeof(num));
+15       num.vreg = -1;
+16       num.c.i = 1;
+17       IR_PutOp(IR_OP_FUNCPARAM, &vtop[-1], &num, NULL);
+18       num.c.i = 2;
+19       IR_PutOp(IR_OP_FUNCPARAM, &vtop[0], &num, NULL);
+20       if ((op == '/') || (op == TOK_PDIV))
+21         func = TOK___divsi3;
+22       else if (op == TOK_UDIV)
+23         func = TOK___udivsi3;
+24       else if (op == '%')
+25         func = TOK___aeabi_idivmod;
+26       else if (op == TOK_UMOD)
+27         func = TOK___aeabi_uidivmod;
+         end if
+28       vpush_global_sym(&func_old_type, func);
+29
+30       SValue dest;
+31       memset(&dest, 0, sizeof(dest));
+32       dest.vreg = IR_GetVregTemp();
+33       dest.type.t = vtop[-2].type.t;
+34       dest.r = 0;
+35       IR_PutOp(IR_OP_FUNCCALLVAL, &vtop[0], NULL, &dest);
+36       vtop-!-; vtop-!-; vtop-!-;
+37       vpushi(0);
+38       vtop->r = 0;
+39       vtop[0].vreg = dest.vreg;
+40       return;
+41
+42     /* ... */
+43   }
+44   ...
+45 }
+
+Listing C.5 IR code generation for first four parameters in function calls
+ 1 ST_FUNC void unary(void)
+ 2 {
+ 3   ...
+ 4   /* post operations */
+ 5   while (1) {
+ 6     if (tok == TOK_INC || tok == TOK_DEC) {
+ 7       ....
+ 8     } else ... {
+ 9       ...
+10     } else if (tok == '(') {
+11       ...
+12       if (tok != ')') {
+13         SValue num;
+14         memset(&num, 0, sizeof(num));
+15         num.vreg = -1;
+16         for(;;) {
+17           expr_eq();
+18           gfunc_param_typed(s, sa);
+19           if (nb_args < 4) {
+20             IR_PutOp(IR_OP_FUNCPARAM, &vtop[0], &num, NULL);
+21             vtop-!-;
+22           }
+23           nb_args++;
+24           if (sa)
+25             sa = sa->next;
+26           if (tok == ')')
+27             break;
+28           skip(',');
+29         }
+30       }
+31       if (sa)
+32         tcc_error("too few arguments to function");
+33       skip(')');
+34       if (!nocode_wanted) {
+35       }
+36     } else ...
+37   }
+38 }
+
+Listing C.6 IR code generation for parameters 5+ and function calls
+ 1 ST_FUNC void unary(void)
+ 2 {
+ 3   ...
+ 4   /* post operations */
+ 5   while (1) {
+ 6     if (tok == TOK_INC || tok == TOK_DEC) {
+ 7       ....
+ 8     } else ... {
+ 9       ...
+10     } else if (tok == '(') {
+11       int ret_vreg = -1;
+12       ...
+13       if (!nocode_wanted) {
+14         int j;
+15         SValue num;
+16         memset(&num, 0, sizeof(num));
+17         num.vreg = -1;
+18         if (nb_args > 4) {
+19           for (j=0; j<nb_args-4; j++) {
+20             num.c.i = nb_args-j;
+21             IR_PutOp(IR_OP_FUNCPARAM, &vtop[0], &num, NULL);
+22             vtop-!-;
+23           }
+24         }
+25         if (vtop[0].type.t == VT_VOID) {
+26           IR_PutOp(IR_OP_FUNCCALLVOID, &vtop[0], NULL, NULL);
+27         } else {
+28           SValue dest;
+29           memset(&dest, 0, sizeof(dest));
+30
+31           dest.type.t = VT_INT;
+32           dest.vreg = ret_vreg = IR_GetVregTemp();
+33           IR_PutOp(IR_OP_FUNCCALLVAL, &vtop[0], NULL, &dest);
+34         }
+35         vtop-!-;
+36       } else {
+37         vtop -= (nb_args + 1);
+38       }
+39       /* return value */
+40       vsetc(&ret.type, ret.r, &ret.c);
+41       vtop->vreg = ret_vreg;
+42     --}
+43     } else ...
+44   }
+45 }
+
+Listing C.7 Backpatching IR adaption example for the while statement
+(original code is in comments, replacement code is indented)
+ 1 static void block(int *bsym, int *csym, int *case_sym, int *def_sym,
+ 2                   int case_reg, int is_expr)
+ 3 {
+ 4   int a, b, c, d;
+ 5   ...
+ 6   if (tok == TOK_WHILE) {
+ 7     next();
+ 8     // d = ind; /* original */
+ 9     d = IR_GetPC();
+10     skip('(');
+11     gexpr();
+12     skip(')');
+13     // a = gtst(1, 0); /* original */
+14     a = ir_gtst(1, 0);
+15     b = 0;
+16     block(&a, &b, case_sym, def_sym, case_reg, 0);
+17     // gjmp_addr(d); /* original */
+18     SValue dest;
+19     memset(&dest, 0, sizeof(dest));
+20     dest.vreg = -1;
+21     dest.c.i = d;
+22     d = IR_PutOp(IR_OP_JMP, NULL, NULL, &dest);
+23     // gsym(a); /* original */
+24     IR_BackpatchToHere(a);
+25     // gsym_addr(b, d); /* original */
+26     IR_Backpatch(b, d);
+27   } else if (...)
+28   ...
+29 }
+
+Listing C.8 Backpatching functions for IR listing
+ 1 void IR_Backpatch(int t, int target_addr) /* replacement for gsym_addr() */
+ 2 {
+ 3   SValue *cur;
+ 4   while (t) {
+ 5     cur = &(IR[t].dest);
+ 6     t = cur->c.i; /* select next element in linked list */
+ 7     cur->c.i = target_addr; /* patch entry */
+ 8   }
+ 9 }
+10
+11 void IR_BackpatchToHere(int t) /* replacement for gsym() */
+12 {
+13   IR_Backpatch(t, irpc);
+14 }
+
+Listing C.9 Redundant move optimization
+ 1 int IR_PutOp(int op, SValue *src1, SValue *src2, SValue *dest)
+ 2 {
+ 3   ...
+ 4   /* optimization: eliminate redundant moves */
+ 5   if ((op == IR_OP_ASS) && (IR_GetVregType(src1->vreg) == VREG_TEMPORARY) &&
+ 6       (src1->vreg == IR[irpc-1].dest.vreg) &&
+-- 7       (src1->r & VT_LVAL) == 0) && (IR[irpc-1].op != IR_OP_FUNCCALLVAL))
+ 7       (src1->r & VT_LVAL == 0) && (IR[irpc-1].op != IR_OP_FUNCCALLVAL))
+ 8     IR[irpc-1].dest = IR[irpc].dest;
+ 9   ....
+10 }
+
+C.2 Liveness Analysis (tccir.c)
+===============================
+Listing C.10 Determination of basic liveness intervals during IR code generation
+ 1 typedef struct {
+ 2   int start;
+ 3   int end;
+ 4 } VRegInterval;
+ 5
+ 6 /* the basic interval for vreg X can be accessed with BaseIntervals[X] */
+ 7 VRegInterval BaseIntervals[MAX_VARS+MAX_TEMPS+MAX_PARAMS];
+ 8
+ 9 int irpc;
+10
+11 int IR_PutOp(int op, SValue *src1, SValue *src2, SValue *dest)
+12 {
+13   ...
+14   /* destination operand */
+15   if (OP_USES_DEST(op)) {
+16     ...
+17     /* set basic interval start (first usage) */
+18     if (VREG_VALID(dest->vreg) && BaseIntervals[dest->vreg].start == 0)
+19       BaseIntervals[dest->vreg].start = irpc;
+20   }
+21   ...
+22   /* first source operand */
+23   if (OP_USES_SRC1(op)) {
+24     ...
+25     /* extend basic interval end (last usage) */
+26     if (VREG_VALID(src1->vreg))
+27       BaseIntervals[src1->vreg].end = irpc;
+28   }
+29   ...
+30   /* second source operand */
+31   if (OP_USES_SRC2(op)) {
+32     ...
+33     /* extend basic interval end (last usage) */
+34     if (VREG_VALID(src2->vreg))
+35       BaseIntervals[src2->vreg].end = irpc;
+36   }
+37   ...
+38 }
+
+Listing C.11 Implementation of the simple liveness analysis, sets interval for given vreg
+ 1 static int FindLiveInterval(int vreg, unsigned int *start,
+ 2 unsigned int *end, int check_for_backwards_jumps)
+ 3 {
+ 4   int i, retval=0;
+ 5   Quadruple* quad;
+ 6
+ 7   /* lookup basic intervals calculated during IR code generation */
+ 8   *start = BaseIntervals[vreg].start;
+ 9   *end = BaseIntervals[vreg].end;
+10   if (*start > 0 && *end > 0)
+11     retval = 1;
+12
+13   if (!check_for_backwards_jumps)
+14     return retval;
+15
+16   /* extend interval end if there is a later backwards jump
+17      into the the base liveness interval */
+18   i = *end;
+19   quad = &IR[i];
+20   for (;i<irpc;i++) {
+21     if ((quad->op == IR_OP_JMP || quad->op == IR_OP_BRANCHIF) &&
+22         (quad->dest.c.i <= *end) && (quad->dest.c.i > *start)) {
+23       *end = i;
+24     }
+25     quad++;
+26   }
+27   ...
+28   return retval;
+29 }
+
+Listing C.12 Solution for overcoming the simple liveness analysis restriction
+ 1 static int FindLiveInterval(int vreg, unsigned int *start,
+ 2                             unsigned int *end, int check_for_backwards_jumps)
+ 3 {
+ 4   ...
+ 5   /* special treatment for first definitions within conditional:
+ 6      extend interval to outermost loop */
+ 7   if (BaseIntervals[vreg].start_within_if) {
+ 8     quad = &IR[irpc-1];
+ 9     for (i=irpc-1; i>*start; i-!-) {
+10       if ((quad->op == IR_OP_JMP || quad->op == IR_OP_BRANCHIF) &&
+11           (quad->dest.c.i < *start)) {
+12         *start = quad->dest.c.i;
+13         if (i > *end) *end = i;
+14         break;
+15       }
+16       quad-!-;
+17     }
+18     for (i=*start; i<*end; i++) {
+19       quad = &IR[i];
+20       if ((quad->op == IR_OP_JMP || quad->op == IR_OP_BRANCHIF) &&
+21           (quad->dest.c.i < *start)) {
+22         *start = quad->dest.c.i;
+23         break;
+24       }
+25     }
+26   }
+27   ...
+28 }
+
+C.3 Linear Scan Register Allocation (tccls.c)
+=============================================
+Listing C.13 Register pool functions
+ 1 int register_pool[K];
+ 2
+ 3 int RegisterPool_Get()
+ 4 {
+ 5   int i;
+ 6   for (i=0; i<K; i++) {
+ 7     if (register_pool[i]) {
+ 8       register_pool = 0; /* remove register from pool */
+ 9       return i;
+10     }
+11   }
+12   tcc_error("no register available for allocator, should never happen!");
+13 }
+14
+15 void RegisterPool_Add(int reg)
+16 {
+17   register_pool[reg] = 1;
+18 }
+
+Listing C.14 Expiring intervals that are not relevant any more (part of the LSRA algorithm)
+ 1 static void ExpireOldIntervals(int i)
+ 2 {
+ 3   int j, removed_intervals=0;
+ 4   static LiveInterval dirty = {0, 0, 0, 0, ~0};
+ 5
+ 6   /* "foreach interval j in active, in order of increasing end point" */
+ 7   for (j=0; j<nActive; j++) {
+ 8     if (ActiveSet[j]->end >= LiveIntervals[i].start)
+ 9       break;
+10     RegisterPool_Add(ActiveSet[j]->reg);
+11     ActiveSet[j] = &dirty; /* mark as dirty for deletion through sort */
+12     removed_intervals++;
+13   }
+14
+15   /* remove entries from active set */
+16   qsort(&ActiveSet[0], nActive, sizeof(ActiveSet[0]), licomp_endpoint);
+17   nActive -= removed_intervals;
+18 }
+
+Listing C.15 Spilling a certain interval (part of the LSRA algorithm)
+ 1 static void SpillAtInterval(int i)
+ 2 {
+ 3   LiveInterval* Spill = ActiveSet[nActive-1]; /* "last interval in active" */
+ 4   if (Spill->end > LiveIntervals[i].end) {
+ 5     LiveIntervals[i].reg = Spill->reg;
+ 6     Spill->loc = NewStackLocation();
+ 7
+ 8     ActiveSet[nActive-1] = &LiveIntervals[i];
+ 9     /* sort by increasing end point */
+10     qsort(&ActiveSet[0], nActive, sizeof(ActiveSet[0]), licomp_endpoint);
+11   } else {
+12     LiveIntervals[i].loc = NewStackLocation();
+13   }
+14 }
+
+Listing C.16 The core function of the LSRA algorithm
+ 1 void LS_RegisterAllocation()
+ 2 {
+ 3   int i;
+ 4   for (i=0; i<R; i++)
+ 5     register_pool[i] = 1; /* initially, all registers are free */
+ 6
+ 7   nActive = 0; /* empty active set */
+ 8
+ 9   /* sort live intervals in order of increasing starting point */
+10   qsort(&LiveIntervals[0], nIntervals,
+11   sizeof(LiveIntervals[0]), licomp_startpoint);
+12
+13   /* "foreach live interval, in order of increasing start point" */
+14   for (i=0; i<nIntervals; i++) {
+15     ExpireOldIntervals(i);
+16     if (nActive == R) {
+17       SpillAtInterval(i);
+18     } else {
+19       LiveIntervals[i].reg = RegisterPool_Get();
+20       ActiveSet[nActive++] = &LiveIntervals[i];
+21       /* sort by increasing end point */
+22       qsort(&ActiveSet[0], nActive,
+23             sizeof(ActiveSet[0]), licomp_endpoint);
+24     }
+25   }
+26
+27   ...
+28 }
+
+C.4 Code Generation (tccir.c)
+=============================
+Listing C.17 Generation of Prologue and Epilogue code
+ 1 static void GenProlog() {
+ 2   int save_reg_list; /* criterion for optimizing fp and sp away */
+ 3   int ignore_fp_sp = (leaffunc && num_params <= 4 && loc == 0);
+ 4   save_reg_list = ((1 << regs_used)-1) << 4; /* save regs r4-r10 if needed */
+ 5   save_reg_list |= 0x5800; /* save r11=fp, r12=ip (sp), r14=lr (ret. addr.) */
+ 6   if (ignore_fp_sp) {
+ 7     save_reg_list &= ~((1 << 11) | (1 << 12));
+ 8   } else
+ 9     o(0xE1A0C00D); /* mov ip, sp */
+10   if (num_params > 0 && (!leaffunc || num_params > 4)) {
+11     o(0xE92D0000 | param_reg_list); /* push arguments */
+12     o(0xE24DD000 | ((7-regs_used)*4)); /* adapt stack pointer */
+13   }
+14   o(0xE92D0000 | save_reg_list); /* context save */
+15   if (!ignore_fp_sp)
+16     o(0xE1A0B00D); /* mov fp, sp */
+17   if (loc) {
+18     int diff = (-loc + 3) & -4; /* align to multiple of 4 */
+19     if (diff > 255) {
+20       GenConstIntoReg(12, diff);
+21       o(0xE04DD00C); /* substract with ip */
+22     } else
+23       o(0xE24DD000 | diff); /* stack adjustment; */
+24   }
+25 }
+26
+27 static void GenEpilog() {
+28   int restore_reg_list; /* criterion for optimizing fp and sp away */
+29   int ignore_fp_sp = (leaffunc && num_params <= 4 && loc == 0);
+30   restore_reg_list = ((1 << regs_used)-1) << 4; /* rest. regs r4-r10 if needed */
+31   restore_reg_list |= 0xA800; /* restore r11=fp, r13=sp, r15=pc */
+32   if (ignore_fp_sp) {
+33     restore_reg_list &= ~((1 << 11) | (1 << 13));
+34   }
+35
+36   if (!ignore_fp_sp)
+37     o(0xE89B0000 | restore_reg_list); /* context restore */
+38   else
+39     o(0xE8BD0000 | restore_reg_list); /* if fp and sp ignored, directly pop! */
+40 }
+
+Listing C.18 Generation of Data-Processing Instructions
+ 1 static void GenDataProcessingOp(int op, int dest_reg, int src1_reg,
+ 2                                 int src2_reg, int second_const, int cval)
+ 3 {
+ 4   static const int DataProcessingOpMap[] =
+ 5     /* add, sub, and, or, xor, [shl, shr, sar], mov, rsb, cmp, teq */
+ 6     { 4, 2, 0, 12, 1, 13,13,13,13, 3, 10, 9 };
+ 7   uint32_t opc = 0xE0000000; /* unconditional execution */
+ 8   int dpopc = DataProcessingOpMap[op]; /* data-processing opcode */
+ 9
+10   if ((op == IR_OP_CMP) || (op == IR_OP_TSTZ))
+11     opc |= (1<<20); /* set condition codes */
+12   if (op == IR_OP_ASS) { /* source operand for mov must be in op2 field */
+13     src2_reg = src1_reg;
+14     src1_reg = 0;
+15   }
+16
+17   opc |= (dpopc << 21); /* set data-processing opcode [I=0, S=0] */
+18   opc |= (dest_reg << 12); /* set destination register */
+19
+20   if (op == IR_OP_SHL || op == IR_OP_SHR || op == IR_OP_SAR) { /* shifts */
+21     opc |= src1_reg; /* set source register */
+22     if (op == IR_OP_SHR) opc |= 1<<5;
+23     if (op == IR_OP_SAR) opc |= 1<<6;
+24     if (!second_const)
+25       opc |= 1<<4 | (src2_reg << 8);
+26     else
+27       opc |= (cval & 0x1f) << 7;
+28   } else {
+29     opc |= (src1_reg << 16); /* set first source register (0 for mov) */
+30     if (!second_const)
+31       opc |= src2_reg; /* set second source register */
+32     else {
+33       if (cval < 0) { /* negative constants */
+34         if (op == IR_OP_ADD || op == IR_OP_SUB) {
+35           opc ^= 0x00C00000; cval = -cval;
+36         } else if (op == IR_OP_ASS) {
+37           opc ^= 0x00400000; cval = ~cval;
+38         }
+39       }
+40       if (cval > 255 || cval < 0) {
+41         GenConstIntoReg(14, cval);
+42         opc |= 14;
+43       } else {
+44         opc |= 1<<25; /* set I bit */
+45         opc |= cval & 0xff;
+46       }
+47     }
+48   }
+49   o(opc);
+50 }
+
+Listing C.19 Branch instruction patching
+ 1 ...
+ 2 #define MAX_QUADRUPLES 10000
+ 3 ...
+ 4 uint32_t IR_addrs[MAX_QUADRUPLES];
+ 5 ...
+ 6 void IR_GenCode()
+ 7 {
+ 8   /* first pass: generate code */
+ 9   for (i=0; i<irpc; i++) {
+10     IR_addrs[i] = ind;
+11     ...
+12   }
+13
+14   ...
+15   /* second pass: patch branch instructions */
+16   for (i=0; i<irpc; i++) {
+17     op = IR[i].op;
+18     dest = &(IR[i].dest);
+19     if ((op == IR_OP_BRANCHIF) || (op == IR_OP_JMP)) {
+20       int instr_addr = IR_addrs[i];
+21       int target_addr = IR_addrs[dest->c.i];
+22       int offset = (target_addr-instr_addr-8)/4;
+23       uint32_t *instr = &(cur_text_section->data[instr_addr]);
+24       if ((offset >= 0x1000000) || (offset < -0x1000000))
+25         tcc_error("branch offset too large (>=16MB)");
+26       offset &= 0x00ffffff;
+27       *instr |= offset;
+28     }
+29   }
+30 }
+
+Listing C.20 Function calls, parameter handling
+ 1 ...
+ 2 static int call_level; /* -1=not in any function call phase */
+ 3 int num_params_per_level[50];
+ 4 ...
+ 5
+ 6 static void FuncCallParam(int param_num, int src_reg, int isconst, int cval)
+ 7 {
+ 8   /* parameters 5+ are supplied on the stack */
+ 9   if (param_num > 4) {
+10     if (isconst) {
+11       GenConstIntoReg(src_reg=14, cval);
+12     }
+13     o(0xE52D0004|(src_reg<<12)); /* str r,[sp,#-4]! */
+14     return;
+15   }
+16
+17   /* new function call phase starts */
+18   if (param_num == 1) {
+19     call_level++;
+20     /* for nested function calls, save arg regs (r0-r3) in-between */
+21     if (call_level >= 1) {
+22       int args_to_save = num_params_per_level[call_level-1];
+23       if (args_to_save > 4)
+24         args_to_save = 4;
+25       o(0xE92D0000 | ((1<<args_to_save)-1)); /*P=1, U=0, W=1, L=0*/
+26     }
+27   /* special case: void function calls with return value, save r0 */
+28   } else if (param_num == 0) {
+29     call_level++;
+30     if (call_level >= 1)
+31       o(0xE92D0001);
+32     num_params_per_level[call_level] = 1;
+33     return;
+34   }
+35
+36   GenDataProcessingOp(IR_OP_ASS, param_num-1, src_reg, -1, isconst, cval);
+37   num_params_per_level[call_level] = param_num;
+38 }
+39
+40 static void FuncCallAfter()
+41 {
+42   /* restore arg regs (r0-r3) if call was nested */
+43   if (call_level >= 1) {
+44     int args_to_restore = num_params_per_level[call_level-1];
+45     o(0xE8BD0000 | ((1<<args_to_restore)-1)); /*P=0, U=1, W=1, L=1*/
+46   }
+47
+48   call_level--;
+49 }
+
+Just to show what is theoretically possible (that's quite some speedup!): (p2js already achieves 0.2s from the hll code, gulp)
+without javascript_semantics
+function identity(integer x)
+    return x
+end function
+ 
+function total(integer num)
+--/* 6.8s:
+    for i=1 to 100_000_000 do
+        num += odd(i)
+    end for
+--*/
+--/!* 0.3s: (ah, seems it is really all down to the call/return mechanism...)
+    for i=1 to 100_000_000 do
+        num += and_bits(i,1)
+    end for
+--*!/
+--/* 0.2s:
+    for i=1 to 100_000_000 do
+        #ilASM{ mov ecx,[i]
+                mov eax,[num]
+                and ecx,1
+                add eax,ecx
+                mov [num],eax
+              }
+    end for
+--*/
+--/* 0.1s: (proves that for loops are already fast enough)
+    #ilASM{ mov ecx,1
+            mov eax,[num]
+            xor edx,edx
+          @@:
+            mov dl,cl
+            add ecx,1
+            and dl,1
+            add eax,edx
+            cmp ecx,100000000
+            jle @b
+            mov [num],eax
+          } 
+--*/
+    return num
+end function
+
+procedure time_it(integer fn)
+    atom t0 = time()
+    integer res = fn(4)
+    string funcname = get_routine_info(fn)[4]
+    printf(1,"%s(4) = %d, taking %s\n",{funcname,res,elapsed(time()-t0)})
+end procedure
+
+time_it(identity)
+time_it(total)
+
+

@@ -651,7 +651,8 @@ integer dp
 
     N = expand(N)
 
-    {sg, exponent, digits} = N
+--  {sg, exponent, digits} = N
+    {sg, exponent, digits} = deep_copy(N)
     
     -- set the number of decimal requested
     decsN = length(digits)-exponent-1
@@ -1351,7 +1352,8 @@ global function ba_divide(object A, B, bool bRound=false)
         A[EXPONENT] += ndecs+mult
         B[EXPONENT] += ndecs
 
-        res = ba_idivide(A, B)
+--      res = ba_idivide(A, B)
+        res = deep_copy(ba_idivide(A, B))
         res[EXPONENT] -= mult
     end if
 
@@ -1727,6 +1729,7 @@ global function ba_log(object N, bool bRound=false)
             res  = ba_add(res, ba_divide(curr, inc))
             inc  = ba_add(inc, BA_ONE)
         end while
+        prev = {}
     end if
 
     {} = ba_scale(sc)   -- (restore original settings)
@@ -2560,7 +2563,7 @@ end for
 */
 
 procedure bigatom_tests(integer flags)
-atom t0, t1
+atom t0
 integer n = 2, decs = 100
 bigatom ba
 sequence s
@@ -2594,12 +2597,12 @@ if flags && 0b1 then
     t0 = time()
     -- exp = -1 and cut
     ba_printf(1,"\nba_log10('9999999999999999'):\n    %B\n", ba_log10("9999999999999999"))
-    t1 = time()
-    printf(1, "in: %.3f sec.\n\n", t1-t0)
+    printf(1, "in: %s.\n\n", {elapsed(time()-t0)})
+--  t0 = time()
     -- exp = 0 
 --commented out above...
 --   ba_printf(1,"ba_log10_2('9999999999999999'):\n    %B\n", ba_log10_2("9999999999999999"))
---   printf(1, "in: %.3f sec.\n", time() - t1) 
+--   printf(1, "in: %s.\n", {elapsed(time() - t0) })
 end if
 --end ifdef
 
@@ -2615,11 +2618,11 @@ if flags && 0b10 then
     -- I checked the 200,000 digits and as above the last was wrong, so it looks like you
     --  may need to ask for n+1 and throw one away, or have the routine in here do that 
     --  for you automatically, although it seems fine (truncated not rounded) up to 100.
-    decs = 1_000_000
 --  decs = 1_000_000
+    decs = 50_000
     t0 = time()
     s = ba_euler(decs)
-    printf(1, "'e' with %d decimals in: %.3f sec.\n", {decs, time()-t0})
+    printf(1, "'e' with %d decimals in: %s.\n", {decs, elapsed(time()-t0)})
     f = open("e-1millon.txt", "w")
     count = 0
     for i=1 to length(s) do

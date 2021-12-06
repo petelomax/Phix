@@ -1,0 +1,322 @@
+--
+-- demo\rosetta\Eulers_constant.exw
+--
+-- (aka gammma, 0.57721566490153286..., not to be confused with Eulers number aka E, 2.7182818284590452...)
+--
+--  While this may itself be a possible candidate for mpfr_const_euler() in mpfr.js (as in transpile then 
+--  copy and paste it in), note it is a good 10 times slower than the C, and therefore I have deliberately 
+--  ripped out all traces of > 100 d.p. handling. I recommend looking for something better, that is if 
+--  either of the two missing functions are actually ever needed in mpfr.js.
+--
+without js  -- no mpfr_get_d_2exp() or mpfr_const_euler() in mpfr.js as yet
+
+-- part 1, translation of Perl, with the same inaccuracy
+constant C = sum(sq_div(1,tagset(1e6)))-log(1e6)
+printf(1,"gamma %.12f  (max 12d.p. of accuracy)\n",C)
+
+--/!*
+-- part 2, translation of C, from first principles.
+requires("1.0.1") -- mpfr_get_d_2exp(), mpfr_const_euler()
+include mpfr.e
+mpfr u, v, k2;
+integer e, e10, e2
+atom f
+ 
+//log(x/y) with the Taylor series for atanh(x-y/x+y)
+procedure ln(mpfr s, integer x, y)
+    mpfr d = u, q = v;
+    assert((x-y)==1) 
+--  y += x
+--  mpfr_set_si(s, y)
+    mpfr_set_si(s, x+y)
+    mpfr_si_div(s, 1, s)            // s = 1 / (x + y)
+
+    mpfr_mul(k2, s, s)              // k2 = s * s
+    mpfr_set(d, s)
+ 
+    integer k = 1
+    while true do
+        k += 2;
+        mpfr_mul(d, d, k2)          // d *= k2
+        mpfr_div_si(q, d, k)        // q = d / k
+        mpfr_add(s, s, q)           // s += q
+        {f,e} = mpfr_get_d_2exp(q)
+        if abs(e)>=e2 then exit end if
+    end while 
+
+    mpfr_mul_si(s, s, 2)            //s *= 2
+end procedure
+ 
+mpfr a, b
+integer k, 
+        n = 60,     -- (required precision in decimal dp *6/10)
+        n2, 
+        r = 41,
+        s = 30,
+        t = 18;
+
+// n = 2^i * 3^j * 5^k
+ 
+// log(n) = r * log(16/15) + s * log(25/24) + t * log(81/80)
+ 
+// solve linear system for r, s, t
+//  4 -3 -4| i
+// -1 -1  4| j
+// -1  2 -1| k
+ 
+//decimal precision
+e10 = floor(n/0.6)
+//binary precision
+e2 = floor((1 + e10) / 0.30103)
+ 
+mpfr_set_default_precision(e2)
+{a, b, u, v, k2} = mpfr_inits(5)
+ 
+//Compute log terms
+ 
+ln(b, 16, 15)
+ 
+mpfr_mul_si(a, b, r)    // a = r * b
+ 
+ln(b, 25, 24)
+ 
+mpfr_mul_si(u, b, s)    
+mpfr_add (a, a, u)      // a += s * b
+ 
+ln(b, 81, 80)
+ 
+mpfr_mul_si(u, b, t)
+mpfr_add (a, a, u)      // a += t * b
+ 
+mpfr_neg(a, a)          // a = -a
+mpfr_set_si(b, 1)       // b = 1
+mpfr_set (u, a)
+mpfr_set (v, b)
+ 
+k = 0;
+n2 = n * n;
+//k2 = k * k
+mpfr_set_si(k2, 0)
+while true do
+    mpfr_add_si(k2, k2, k*2+1)      // k2 += 2k + 1
+    k += 1;
+ 
+    mpfr_div(b, b, k2)
+    mpfr_mul_si(b, b, n2)           // b = b * n2 / k2
+   
+    mpfr_div_si(a, a, k)
+    mpfr_mul_si(a, a, n2)
+    mpfr_add (a, a, b)
+    mpfr_div_si(a, a, k)            // a = (a * n2 / k + b) / k
+ 
+    mpfr_add(u, u, a)               // u += a
+    mpfr_add(v, v, b)               // v += b
+ 
+    {f,e} = mpfr_get_d_2exp (a)
+    if abs(e)>=e2 then exit end if
+end while
+ 
+mpfr_div(u, u, v)
+string su = mpfr_get_fixed(u,e10)
+printf(1,"gamma %s (maxerr. 1e-%d)\n", {su, e10})
+--*!/
+--/*
+--{{trans|Wren}}
+requires("1.0.1") -- mpfr_get_d_2exp(), mpfr_const_euler()
+include mpfr.e
+?"DEV: this is an abject failure...." -- (crashes on 32 bit, dreadfully slow on 64 bit, as in 1min 30s that shd be ~6s...)
+--function 
+--?1/0.6
+--?10/6
+procedure euler(integer n, r, s, t)
+atom t1 = time()
+--  integer e10 = floor(n/0.6),             // decimal precision
+    integer e10 = floor(n*10/6),                // decimal precision
+--  integer e10 = round(n/0.6),             // decimal precision
+            e2 = round((1+n/0.6)/0.30103)   // binary precision
+--?e10
+--?e2
+    mpfr_set_default_precision(e2)
+--  mpfr_set_default_precision(-e10)
+    mpfr {a,b,u,v,k2} = mpfr_inits(5)
+--  var b = Mpf.new().log(Mpf.from(16).div(15))
+    mpfr_set_si(b,16)
+    mpfr_div_si(b,b,15)
+    mpfr_log(b,b)
+--  var a = b.mul(r)
+    mpfr_mul_si(a,b,r)
+--  b = Mpf.new().log(Mpf.from(25).div(24))
+    mpfr_set_si(b,25)
+    mpfr_div_si(b,b,24)
+    mpfr_log(b,b)
+    mpfr_mul_si(b,b,s)
+    mpfr_add(a,a,b)
+--  b = Mpf.new().log(Mpf.from(81).div(80))
+    mpfr_set_si(b,81)
+    mpfr_div_si(b,b,80)
+    mpfr_log(b,b)
+--  var u = b * t
+    mpfr_mul_si(u,b,t)
+--  a.add(u).neg
+    mpfr_add(a,a,u)
+    mpfr_neg(a,a)
+--  b.set(1)
+    mpfr_set_si(b,1)
+--  u.set(a)
+    mpfr_set(u,a)
+    mpfr_set(v,b)
+--  var v = Mpf.from(b)
+    integer k = 0,
+            n2 = n * n
+--  var k2 = Mpf.zero
+--mpfr_set_si(k2,0)
+    while (true) do
+--      k2.add((k << 1) + 1)
+        mpfr_add_si(k2,k2,k*2+1)
+        k += 1
+--      b.mul(n2).div(k2)
+        mpfr_mul_si(b,b,n2)
+        mpfr_div(b,b,k2)
+--      a.mul(n2).div(k).add(b).div(k)
+        mpfr_mul_si(a,a,n2)
+        mpfr_div_si(a,a,k)
+        mpfr_add(a,a,b)
+        mpfr_div_si(a,a,k)
+--      u.add(a)
+        mpfr_add(u,u,a)
+--      v.add(b)
+        mpfr_add(v,v,b)
+--      var e = Mpf.frexp(a)[1]
+        atom {f,e} = mpfr_get_d_2exp(a)
+--?{f,e}
+        if abs(e)>=e2 then exit end if
+--      if abs(f)>=e2 then exit end if
+    end while
+--  u.div(v)
+    mpfr_div(u,u,v)
+--  printf(1,"gamma %s (maxerr. 1e-%d, k=%d)\n",{mpfr_get_fixed(u,100),e10,k})
+    printf(1,"gamma %s (maxerr. 1e-%d, k=%d, %s)\n",{mpfr_get_fixed(u,50),e10,k,elapsed(time()-t1)})
+--  System.print("k = %(k)")
+end procedure
+ 
+--var start = System.clock
+atom t0 = time()
+euler(60, 41, 30, 18)
+euler(4800, 85, 62, 37)
+euler(9375, 91, 68, 40)
+euler(18750, 98, 73, 43)
+--System.print("\nTook %(System.clock - start) seconds.")
+printf(1,"\nTook %s\n",{elapsed(time()-t0)})
+--*/
+ 
+-- part 3, the easy way
+mpfr gamma = mpfr_init(0,-100)
+mpfr_const_euler(gamma)
+printf(1,"gamma %s (mpfr_const_euler)\n",{mpfr_get_fixed(gamma,100)})
+--printf(1,"gamma %s (mpfr_const_euler)\n",{mpfr_get_fixed(gamma,50)})
+--printf(1,"gamma 0.5772156649015328606065120900824024310421593359399235988057672348848677267776646709369470632917467495 (literal)\n")
+
+?"done"
+{} = wait_key()
+
+--/*
+output:
+gamma 0.577216164901  (max 12d.p. of accuracy)
+gamma 0.5772156649015328606065120900824024310421593359399235988057672348848677267776646709369470632917467494 (maxerr. 1e-100)
+gamma 0.5772156649015328606065120900824024310421593359399235988057672348848677267776646709369470632917467495 (mpfr_const_euler)
+
+trans Wren:
+crashes on 32 bit!:
+C:\Program Files (x86)\Phix>p demo\rosetta\Eulers_constant.exw      [*** at least the k are right!! ***]
+gamma 0.577216164901  (max 12d.p. of accuracy)
+gamma 0.57721566490153286060651209008240243104215933593992 (maxerr. 1e-100, k=255, 0.0s)
+gamma 0.57721566490153286060651209008240243104215933593992 (maxerr. 1e-8000, k=20462, 11.4s)
+gamma 0.57721566490153286060651209008240243104215933593992 (maxerr. 1e-15625, k=39967, 57.7s)
+diag looping, error code is 1, era is #006AC036 (stack overflow deep inside mpfr.dll)
+
+
+C:\Program Files (x86)\Phix>p64 demo\rosetta\Eulers_constant.exw    [*** all the k are wrong!! ***]
+     (fixed by allocate(4) in mpfr_get_d_2exp(), but added 50% to overall time...)
+
+C:\Program Files (x86)\Phix>p64 demo\rosetta\Eulers_constant.exw    [*** all the k now fine!! ***]
+gamma 0.577216164901  (max 12d.p. of accuracy)
+gamma 0.57721566490153286060651209008240243104215933593992 (maxerr. 1e-100, k=255, 0.0s)
+gamma 0.57721566490153286060651209008240243104215933593992 (maxerr. 1e-8000, k=20462, 3.0s)
+gamma 0.57721566490153286060651209008240243104215933593992 (maxerr. 1e-15625, k=39967, 14s)
+gamma 0.57721566490153286060651209008240243104215933593992 (maxerr. 1e-31250, k=79936, 1 minute and 12s)
+
+Took 1 minute and 29s
+gamma 0.57721566490153286060651209008240243104215933593992 (mpfr_const_euler)
+"done"
+
+Wren/target:
+gamma 0.57721566490153286060651209008240243104215933593992 (maxerr. 1e-100, k = 255
+gamma 0.57721566490153286060651209008240243104215933593992 (maxerr. 1e-8000, k = 20462
+gamma 0.57721566490153286060651209008240243104215933593992 (maxerr. 1e-15625, k = 39967
+gamma 0.57721566490153286060651209008240243104215933593992 (maxerr. 1e-31250, k = 79936
+
+Took 2.330538 seconds.
+--*/
+
+/*
+--DEV in my stupid haste I missed this, so there is a mpfr_log() candidate in there, as well as mpfr_get_d_2exp().
+--    also I think we could live with an mpfr_const_euler() that needed n/r/s/t, or a d.p. within bounds?
+--    (oh, I just remembered that I cannot run Wren/gmp... and yep, it is /using/ mpfr_log, nevermind)
+--    (have now tried this above, results were unimpressive to say the least. Maybe mpfr instead of mpf is the culprit?)
+import "./gmp" for Mpf
+ 
+var euler = Fn.new { |n, r, s, t|
+    // decimal precision
+    var e10 = (n/0.6).floor
+ 
+    // binary precision
+    var e2 = ((1 + n/0.6)/0.30103).round
+    Mpf.defaultPrec = e2
+ 
+    var b = Mpf.new().log(Mpf.from(16).div(15))
+    var a = b.mul(r)
+    b = Mpf.new().log(Mpf.from(25).div(24))
+    a.add(b.mul(s))
+    b = Mpf.new().log(Mpf.from(81).div(80))
+    var u = b * t
+    a.add(u).neg
+    b.set(1)
+    u.set(a)
+    var v = Mpf.from(b)
+    var k = 0
+    var n2 = n * n
+    var k2 = Mpf.zero
+    while (true) {
+        k2.add((k << 1) + 1)
+        k = k + 1
+        b.mul(n2).div(k2)
+        a.mul(n2).div(k).add(b).div(k)
+        u.add(a)
+        v.add(b)
+        var e = Mpf.frexp(a)[1]
+        if (e.abs >= e2) break
+    }
+    u.div(v)
+    System.print("gamma %(u.toString(10, 100)) (maxerr. 1e-%(e10))")
+    System.print("k = %(k)")
+}
+ 
+var start = System.clock
+euler.call(60, 41, 30, 18)
+euler.call(4800, 85, 62, 37)
+euler.call(9375, 91, 68, 40)
+euler.call(18750, 98, 73, 43)
+System.print("\nTook %(System.clock - start) seconds.")
+Output:
+gamma 0.5772156649015328606065120900824024310421593359399235988057672348848677267776646709369470632917467495 (maxerr. 1e-100)
+k = 255
+gamma 0.5772156649015328606065120900824024310421593359399235988057672348848677267776646709369470632917467495 (maxerr. 1e-8000)
+k = 20462
+gamma 0.5772156649015328606065120900824024310421593359399235988057672348848677267776646709369470632917467495 (maxerr. 1e-15625)
+k = 39967
+gamma 0.5772156649015328606065120900824024310421593359399235988057672348848677267776646709369470632917467495 (maxerr. 1e-31250)
+k = 79936
+
+Took 2.330538 seconds.
+--*/
+
