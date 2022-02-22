@@ -6,6 +6,8 @@
 -- qu: can we extend ranges to load regs as early as possible?
 -- linked list: largest end point first
 -- AH: what we need to be doing here is populating the IR as we go...
+-- First step: generate some asm (in memory) and time it
+-- Second step: generate some better asm and time it (etc)
 --
 -- Plus, this (and graph colouring) do not take reference types into acount:
 -- Suppose we have object o, then there is a machine-word sized holder for it,
@@ -33,6 +35,23 @@
 --
 -- Question: are there float32 (don't care) or float64 values which can have a
 --  similar(ish) "first two bits equal" treatment?
+--
+-- Question: can we allocate fixed-size float [array]s on the stack?? (as long
+--           as they are not passed on/returned/stored anywhere, that is)
+--
+-- Question: is it worth completely rethinking the symbol table, maybe even
+--           storing it in (and reloading in pDiag.e) a dictionary?
+--
+-- Question: how do we really feel about v2 completely dropping routine_id()?
+--           (I suppose I should post a question on EuForum about that...)
+--           (nb while call_proc/func() technically go, the code behind is
+--            not going anywhere, aka use "rid()" not "call_proc(rid,{})")
+--           (There is also a similar question for define_c_func/proc():
+--            they would become more like compiler directives that actual
+--            run-time code. It would not be possible to compile ... ffs,
+--            the interpreter has to cope...
+--            however c_func/proc() really is going, replaced completely by
+--            compile/load-time-resolved #ilASM{ call "lib","name" } etc...)
 --
 without debug
 include builtins\VM\pprntfN.e
@@ -1546,4 +1565,293 @@ end procedure
 time_it(identity)
 time_it(total)
 
+--/*
+Integer Mod Optimization
+========================
+On most architectures, integer divide is a relatively expensive instruction. Power-of-two integer modulus expressions 
+can be replaced with conditional and shift instructions to avoid the divide and multiply and increase run-time performance.
 
+Example:
+In the function below, the power-of-two integer modulus expression (x % 8) can be replaced with faster instructions.
+
+int f (int x)
+{
+  return x % 8;
+}
+The code fragment below shows the function after the modulus expression has been optimized.
+
+int f (int x)
+{
+  int temp = x & 7;
+  return (x < 0) ? ((temp == 0) ? 0 : (temp | ~7)) : temp;
+}
+© 1990-2012 Nullstone Corporation. All Rights Reserved.
+
+Tail Recursion
+==============
+A tail-recursive call can be replaced with a goto, which avoids the overhead of the call and return and can also reduce stack space usage.
+
+Example:
+In the code fragment below, the tail-recursive call to f() can be replaced with a goto.
+
+int f (int i)
+{
+  if (i > 0)
+    {
+      g (i);
+      return f (i - 1);
+    }
+  else
+    return 0;
+}
+Below is the code fragment after tail recursion.
+
+int f (int i)
+{
+
+ entry:
+
+  if (i > 0)
+    {
+      g (i);
+      i--;
+      goto entry;
+    }
+  else
+    return 0;
+}
+Notes:
+Tail recursion can significantly improve the performance of small recursive benchmarks such as Hanoi.
+
+Although more difficult than simple tail recursion, it is also possible to optimize a() calls b() calls a() tail recursion.
+
+© 1990-2012 Nullstone Corporation. All Rights Reserved.
+
+hmmm:
+int i;
+double val = 2.5, res[10];
+double operation (double value, int i){ 
+    double res;
+    res = value*i + i;
+    return res;
+}
+for(int i = 0; i < 10; i += 1){
+    res[i] = operation(val, i);
+    val = res[i];
+    print(res[i]);
+    print('\n');
+}
+to:
+int i;
+double val = 2.5, res[10];
+for(int i = 0; i < 10; i += 1){
+    val = val*i + i;
+    res[i] = val;
+    print(val);
+    print('\n');
+}
+
+https://steemit.com/utopian-io/@drifter1/writing-a-simple-compiler-on-my-own-implementing-register-allocation-part-1
+    introduces Variable Array, Adjacency Graph, Adjacency List, g_index/reg_name on the symbol table(??) & AST nodes
+
+
+Common subexpression elimination/loop invariant hoisting
+========================================================
+I simply don't believe in this. Even advanced implementations only support a few simple operations, and everything
+has to be done in small steps, for instance to hoist a common subexpression a+b*c out of a loop it first has to
+recognise b*c as loop invariant and hoist/substitute that (tmp:=b*c), then repeat the whole process with a+tmp,
+and of course you cannot do mul then add or vice versa but must check all supported operators on each iteration.
+Why should a compiler encourage the programmer to write sloppy (and longer) code only to slow them down on every
+edit/run cycle, and quite probably fail to recognise things the programmer assumes it will find? For instance,
+why would anyone delierately choose to write this (although, I know, they often do), or encourage it:
+
+insertEdge(temp_rel[g_index], getGraphIndex(temp_rel[left]));
+insertEdge(temp_rel[g_index], getGraphIndex(temp_rel[right]));
+insertEdge(getGraphIndex(temp_rel[left]), getGraphIndex(temp_rel[right]));
+(196 characters)
+
+instead of 
+
+integer t = temp_rel[g_index],
+        l = getGraphIndex(temp_rel[left]),
+        r = getGraphIndex(temp_rel[right]);
+insertEdge(t, l);
+insertEdge(t, r);   
+insertEdge(l, r);
+(150 characters [plus 4 tabs])
+
+Incidentally, very few compilers have the smarts/confidence to recognise/hoist any subscript expressions, or
+for that matter any form of pointer dereferencing or field access. Personally I find the second form is much 
+easier to read (especially with more descriptive names that t/r/l), and always easier to debug, since I can
+actually see what t/l/r are in the ex.err file, instead of having to find temp_rel and mentally perform the
+subscripts as well as (again, mentally perform) the two function calls - speaking of which, no compiler can
+ever hoist/common-up a function call if it has *any* potential side effects, such as throwing an error.
+
+Brazillian Numbers
+==================
+
+function same_digits(integer n, b)
+    integer f = remainder(n,b)
+    n = floor(n/b)
+    while n>0 do
+        if remainder(n,b)!=f then return false end if
+        n = floor(n/b)
+    end while
+    return true
+end function
+ 
+function is_brazilian(integer n)
+    if n>=7 then
+        if remainder(n,2)=0 then return true end if
+        for b=2 to n-2 do
+            if same_digits(n,b) then return true end if
+        end for
+    end if
+    return false
+end function
+ 
+integer n = 7, c = 0
+atom t0 = time(), t1 = time()+1
+while c<100000 do
+    if time()>t1 then
+        printf(1,"checking %d [count:%d]...\r",{n,c})
+        t1 = time()+1
+    end if
+    c += is_brazilian(n)
+    n += 1
+end while
+printf(1,"The %,dth Brazilian number: %d\n", {c,n-1})
+?elapsed(time()-t0)
+
+--*/
+
+--/*
+Benchmarks from RC:
+(The idea here being to craft super-fast #ilASM{} versions, and get reg alloc/Phix v2 as near to that speed as possible...)
+(obviously when I say #ilASM{} what I mean is grabbing a selected chunk from the list.asm and tweaking that.)
+(mpfr might be good for improving cffi handling, whereas xx_primes_xx are probably only good for final tests/progress.)
+(of course c_func() etc was all written before eg #ilASM{ call "kernel32.dll","GetProcAddress" } was valid, iygwim/swiagwt.)
+https://rosettacode.org/wiki/Largest_difference_between_adjacent_primes#Phix    -- 12.7s, mostly get_primes_le()
+https://rosettacode.org/wiki/Find_largest_left_truncatable_prime_in_a_given_base#Phix -- 38s odd, 54mins odd+even (no real rivals, bar F# @ 5hrs!)
+https://rosettacode.org/wiki/Superpermutation_minimisation#Phix (to 11 is ~10s vs Julia 0.4s): 
+--constant nMax = 12,
+constant nMax = 11,
+         validate_to = 7    -- (we need to kill [excessive] validaton, temporarily that is, I think)
+ 
+string superperm
+sequence count
+integer pos
+ 
+function factSum(int n)
+    integer s = 0, f = 1
+    for i=1 to n do
+        f *= i
+        s += f
+    end for
+    return s
+end function
+ 
+function r(int n)
+    if (n == 0) then return false end if
+    integer c = superperm[pos-n+1]
+    count[n] -= 1
+    if count[n]=0 then
+        count[n] = n
+        if not r(n-1) then return false end if
+    end if
+    pos += 1
+    superperm[pos] = c
+    return true
+end function
+ 
+procedure superPerm(int n)
+    string chars = "123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[1..n]
+    pos = n
+    superperm = chars&repeat(' ',factSum(n)-n)
+    count = tagset(n)
+    while r(n) do end while
+    if n=0 then
+        if superperm!="" then ?9/0 end if
+    elsif n<=validate_to then
+        -- (I estimate it would take at least 5 days to validate 
+        --  superPerm(12), feel free to try it on your own time)
+        for i=1 to factorial(n) do
+            if not match(permute(i,chars),superperm) then ?9/0 end if
+        end for
+    end if
+end procedure 
+ 
+puts(1,"") -- (exclude alloc_console time when using pw.exe)
+atom t0 = time()
+for n=0 to nMax do
+    superPerm(n)
+    integer l = length(superperm)
+    if l>40 then superperm[20..-20] = "..." end if
+--  superperm = shorten(superperm,"")
+    string e = elapsed(time()-t0)
+    printf(1,"superPerm(%2d) len = %d  %s (%s)\n", {n, l, superperm, e})
+end for
+
+https://rosettacode.org/wiki/List_rooted_trees#Phix -- 20s, no rivals
+https://rosettacode.org/wiki/Sequence_of_primorial_primes#Phix -- (mainly mpfr) 49s, Julia 9s, Go 11s on tio.
+https://rosettacode.org/wiki/Long_primes#Phix -- slow (59s), fast (0.7s, then 2min vs Pascals 6s)
+https://rosettacode.org/wiki/First_perfect_square_in_base_n_with_n_unique_digits#Phix -- one identified as a good target, has #ilASM bash...
+                                                                                      -- (even then, 7min 20s vs Pascal 12.3s!)
+https://rosettacode.org/wiki/Humble_numbers#Phix -- the original "humbled": 18mins 
+https://rosettacode.org/wiki/Fraction_reduction#Phix -- 10mins 13s vs Go (trans Phix!) 42s
+https://rosettacode.org/wiki/Rare_numbers#Phix -- 10mins 42s vs Go 53s
+https://rosettacode.org/wiki/Super-d_numbers#Phix -- killed at 8 after 3mins 47s, vs Go 11s (then 135s for 9), Julia 38s (then 380s for 9).
+https://rosettacode.org/wiki/Self_numbers%5CPhix (previous bad attempt, 11s vs 2s for Go)
+https://rosettacode.org/wiki/Ulam_numbers#Phix -- 1min 40s vs Go 13.5s                          (*** subscripts, I think ***)
+https://rosettacode.org/wiki/Untouchable_numbers#Phix -- erm, 33mins 55s vs a reported 6.2s for Go...
+https://rosettacode.org/wiki/Strange_unique_prime_triplets#Phix -- 11s ve 0.5 for Julia, C# (ha) 1.8s
+https://rosettacode.org/wiki/Primes_whose_sum_of_digits_is_25#Phix -- (mpfr) 1 min 27s, C++ 10.6s, Go 25s, Julia 29s, Nim 12s, Pascal 9.9s
+https://rosettacode.org/wiki/Steady_Squares#No_Search_Required_using_strings -- f56 &= '0'  -- 99999: 0.8s vs 7mins for the inner loop, F# is 57s   [[***]]
+                                                                                            --        down to 12.2s with a little #ilASM!!!
+https://rosettacode.org/wiki/Brazilian_numbers#Phix - 58s on desktop/Phix, 11s under p2js, Go(v1) about 16s, Go(v2) about 0.041s
+demo\rosetta\knapsack0.exw -- w/o js and not using terminate, the [needed anyway!] deep_copy() takes 5.39s vs 0.91s without it.
+                            -- (Obviously ideally solve by emitting better code for deep_copy(), rather than #ilASM-ing it.)
+https://rosettacode.org/wiki/Composite_numbers_k_with_no_single_digit_factors_whose_factors_are_all_substrings_of_k#slightly_faster
+                            -- Can do better than 47s, surely! Surprisingly using prime n was significantly slower than n += 2...
+demo\rosetta\man_or_boy_test.exw -- v2 is five times faster under pwa/p2js than it is on desktop/Phix... (to 27: 9.4s vs 50s, to 28: 22s vs 1min 50s)
+demo\rosetta\Powers_of_Two.exw -- some terribly slow strings, a fair atom at 5.5s and the exact same algorithm in #ilASM{} at just 0.6s.
+https://rosettacode.org/wiki/Disarium_numbers#stretch -- wothe giving a spin/updating with better times (2 hours 7s [on 64 bit only])
+That'll do for now...
+
+DOH, of course:
+{{{
+mov ecx,[a]
+...
+add eax,ecx
+}}}
+is ***NOT*** any kind of saving over
+{{{
+add eax,[a]
+}}}
+In fact, larger code means slower code...
+Oh dear, what a load of twaddle. That would only be true if eax was not being loaded/calculated **at all**...
+
+
+OK, lets' try this:
+In version 1, the primary focus (in terms of performance) of ir/asm code generation was "flat sequence".
+In other words I was fixated on making the compiler itself fast, rather than the generated code fast.
+A more tree-like structure is required, and all references variables marked as loop invariant when they
+are. Where possible, any such loop invariants should be pre-loaded into a register and shifted (when
+doing so is helpful). In fact, write-only variables (esp floats) could perhaps have the same treatment,
+with an initial load into an fpu register and a proper :%pStoreFloat store at loop end, but could also
+need the latter when performing a return statement. Likewise strings and sequences which are modified 
+but don't change length, or fall foul of cow-semantics.
+Perhaps, for the first draft/to get the ball rolling, we should in fact emulate a CPU, and maybe even
+calculate actual cycles/AGI stalls etc in a way that would be less straightforward were we to use real
+x86 binary. An emulated ARM CPU could also only be a good thing, at this stage. In fact it might be a
+good thing to convert/load real machine code into such an emulator, and make that part of the next
+generation debugger, removing (some) reliance on OllyDbg/fdbg/whatever for ARM, etc. Obviously there 
+is no need to support every possible machine instruction, at least to begin with. I also think (/hope)
+I am way past the point of trying/wanting to do any of this in a crummy console app.
+Actually, there is probably nothing wrong with using a "flat tree" ir (to keep that speed aspect).
+Likewise the generated "ir-asm" (ar) shouldn't be a (flat) jumble of mixed-length binary, but a list 
+of actual instructions that can be re-ordered, etc. I'm favouring an {idx,len,mask...} per each idea,
+where idx is an index into some constant table that (with mask) generates var-length machine code,
+and again if we have consistent lengths we can retain our "flat" performance gains (and trash all of
+that horrible blurph() and scanforShortJmp() nonsense, hopefully). All much easier in a CPU emulator.
+--*/

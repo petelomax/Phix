@@ -1,0 +1,36 @@
+--
+-- demo\rosetta\AudioOverlapLoop.exw
+-- =================================
+--
+constant dl = `Download rosetta\bass\ from http://phix.x10.mx/pmwiki/pmwiki.php?n=Main.Bass`
+assert(get_file_type("bass")=FILETYPE_DIRECTORY,dl)
+include bass\bass.e
+BASS_Init(-1, 44100)
+--sequence channels = repeat(0,5)
+--for i=1 to length(channels) do
+for i=1 to 5 do
+    atom filePlayerHandle = BASS_StreamCreateFile(false, `bass\Scream01.mp3`)
+--  channels[i] = filePlayerHandle
+    BASS_ChannelPlay(filePlayerHandle)
+    sleep(0.2)
+end for
+--The distributed version also has a loop/wait for all channels to finish playing 
+--  before terminating the program, or you could just use sleep() or wait_key().
+
+-- You can use something like the following to determine when playback is complete
+--/*
+while sum(channels) do
+--  ?channels
+    for i=1 to length(channels) do
+        atom chi = channels[i]
+        if chi!=NULL and BASS_ChannelIsActive(chi)=BASS_ACTIVE_STOPPED then
+            BASS_ChannelFree(chi) -- (or specify BASS_STREAM_AUTOFREE above)
+            channels[i] = NULL
+        end if
+        sleep(0.1)
+    end for
+end while
+--*/
+?"done"
+{} = wait_key()
+

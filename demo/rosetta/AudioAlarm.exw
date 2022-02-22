@@ -1,0 +1,128 @@
+--
+-- demo\rosetta\AudioAlarm.exw
+-- ===========================
+--
+--  If duration is checked then eg 1:30 means "perform a 90s countdown",
+--  when unchecked the input is treated as a time of day, so 1:30 means
+--  "at half past one" (am, but you can enter pm, or 13:30), although a
+--  "4" is bluntly ignored until you make it (say) "4pm" or "4:15". You
+--  should always [un]check //before// entering anything, btw.
+--
+--DEV/SUG you could perhaps encode Scream.mp3 as base64 (or something smaller)
+--        and document.write("<meta http-equiv='refresh' content='"+a+";url="+b+".mp3'>") but properly...
+without js
+constant dl = `Download rosetta\bass\ from http://phix.x10.mx/pmwiki/pmwiki.php?n=Main.Bass`
+assert(get_file_type("bass")=FILETYPE_DIRECTORY,dl)
+include bass\bass.e
+BASS_Init(-1, 44100)
+atom filePlayerHandle = BASS_StreamCreateFile(false, `bass\Scream01.mp3`)
+
+include pGUI.e
+include timedate.e
+Ihandle mainwin, clock, count, alarm, durat, vbox1, timer
+
+constant secfmts = {"%d:%d:%d", -- h:m:s
+                    "%d:%d",    --   m:s
+                    "%d"},      --     s
+         pdsfmts = {"hh:mm:ss pm",
+                    "hh:mm:sspm",
+                    "hh:mm pm",
+                    "hh:mmpm",
+                    "hh pm",
+                    "hhpm",
+                    "hh:mm:ss",
+                    "hh:mm"}
+
+integer remain = 0  -- whole seconds (for both duration and at time),
+                    -- with 0 meaning inactive/already triggered.
+
+function alarm_changed_cb(Ihandle /*alarm*/)
+    string txt = IupGetAttribute(alarm,"VALUE")
+    sequence res
+    if IupGetInt(durat,"VALUE") then
+        -- duration in [[h:]m:]s format, eg 1:30 means perform a 90s countdown
+        remain = 0
+        for f=1 to length(secfmts) do
+            res = scanf(txt,secfmts[f])
+            if length(res)=1 then
+                res = res[1]
+                for i=1 to length(res) do
+                    remain = remain*60+res[i]
+                end for
+                exit
+            end if
+        end for
+    else
+        -- time of day in hh[:mm[:ss]][[ ]pm] format, eg 1:30 means "at half past one"
+        res = parse_date_string(txt,pdsfmts)
+        if length(res)!=3 then
+            sequence today = date()
+            res[DT_YEAR..DT_DAY] = today[DT_YEAR..DT_DAY]
+            remain = ceil(timedate_diff(today,res))
+            if remain<0 then remain += timedelta(days:=1) end if
+        end if
+    end if
+    return IUP_DEFAULT
+end function
+
+function get_now()
+    return format_timedate(date(),"hh:mm:sspm Dddd dth Mmmm yyyy")
+end function
+
+function timer_cb(Ihandle /*timer*/)
+    IupSetStrAttribute(clock,"TITLE",get_now())
+    if remain then
+        remain -= 1
+        if remain!=0 then
+            integer hours = floor(remain/(60*60)),
+                    seconds = remainder(remain,60*60),
+                    minutes = floor(seconds/60)
+            seconds = remainder(seconds,60)
+            IupSetStrAttribute(count,"TITLE","%02d:%02d:%02d",{hours,minutes,seconds})
+        else
+            IupSetStrAttribute(count,"TITLE","")
+            BASS_ChannelPlay(filePlayerHandle)
+        end if
+    end if
+    return IUP_IGNORE
+end function
+
+IupOpen()
+clock = IupLabel(get_now(),"EXPAND=HORIZONTAL")
+count = IupLabel("","EXPAND=HORIZONTAL")
+alarm = IupText("VALUECHANGED_CB",Icallback("alarm_changed_cb"))
+durat = IupToggle("duration","VALUE=ON, RIGHTBUTTON=YES")
+vbox1 = IupVbox({IupHbox({IupLabel("Time:"),clock}),
+                 IupHbox({IupLabel("  Left:"),count}),
+                 IupHbox({IupLabel("Alarm:"),alarm,durat},
+                         "NORMALIZESIZE=VERTICAL")},
+                "NMARGIN=10x10,GAP=5")
+mainwin = IupDialog(vbox1, `TITLE="Audio Alarm", RASTERSIZE=320x125`)
+IupShow(mainwin)
+timer = IupTimer(Icallback("timer_cb"), 1000)
+IupMainLoop()
+IupClose()
+
+--?"done"
+--{} = wait_key()
+
+--/*
+--old (rubbish) version:
+-- edit this as necessary!!
+constant dflt = `C:\Program Files (x86)\Phix\demo\libxlsxwriter\euAllegro\Projects\RobotsR\Scream01.mp3`
+integer seconds = prompt_number("Enter a number of seconds: ")
+string mp3file = prompt_string("Enter an mp3 filename: ")
+if mp3file="" then mp3file=dflt end if
+if not file_exists(mp3file) then crash("not found") end if
+sleep(seconds)
+include syswait.ew
+{} = system_open(mp3file)
+
+JavaScript version (with much discussion on the talk page!)
+<title> AudioAlarm </title>
+<script>
+    var a=prompt("Enter a number of seconds", "");
+    var b=prompt("Enter the name of an MP3 file you have installed in the directory (without extension)", "");
+    document.write("<meta http-equiv='refresh' content='"+a+";url="+b+".mp3'>")
+</script>
+--*/

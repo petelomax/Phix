@@ -5,7 +5,8 @@
 -- (my view on unicode handling would be just sling the inputs through utf8_to_utf32() and 
 --  the outputs through utf32_to_utf8, and obviously s/stem/rest would have to be declared 
 --  as sequences instead of strings)
-
+--
+with javascript_semantics
 function pair(sequence stems, sequence brest)
     sequence res = {}
     for i=1 to length(stems) do
@@ -17,26 +18,28 @@ function pair(sequence stems, sequence brest)
 end function
 
 function brarse(string s)
-integer idx = 1
+    integer idx = 1
     while idx<=length(s) do
         integer ch = s[idx]
         if ch='{' then
             sequence alts = {idx}
             idx += 1
             integer l0 = idx
-            bool nest = false
+            bool nest = false, bl0 = false
             integer level = 1
             while idx<=length(s) do
                 switch s[idx] do
                     case '{': level += 1
                               nest = true
                     case '}': level -= 1
-                              if level=0 then exit end if
+-- (not p2js:)                if level=0 then exit end if
+                              bl0 = (level=0)
                     case ',': if level=1 then
                                 alts = append(alts,idx)
                               end if
                     case '\\': idx += 1
                 end switch
+                if bl0 then exit end if
                 idx += 1
             end while
             if length(alts)>1 and level=0 then

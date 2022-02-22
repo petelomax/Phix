@@ -1,0 +1,77 @@
+--
+-- demo\rosetta\BullsAndCows.exw
+-- =============================
+--
+-- (in truth this was only added to distro for pending layout fixes)
+--
+with javascript_semantics -- (DEV lots of resizing issues)
+constant N = 4
+ 
+function mask(integer ch)
+    return power(2,ch-'1')
+end function
+ 
+function score(string guess, goal)
+    integer bits = 0, bulls = 0, cows = 0, b
+    for i=1 to N do
+        b = goal[i]
+        if guess[i]=b then
+            bulls += 1
+        else
+            bits += mask(b)
+        end if
+    end for
+    for i=1 to N do
+        b = mask(guess[i])
+        if and_bits(bits,b)!=0 then
+            cows += 1
+            bits -= b
+        end if
+    end for
+    return {bulls, cows}
+end function
+ 
+include pGUI.e
+
+Ihandle label, guess, res, dlg
+
+string fmt = "   Guess %-2d  (%s)  bulls:%d  cows:%d\n",
+       tgt = shuffle("123456789")[1..N]
+
+integer attempt = 1
+
+function valuechanged_cb(Ihandle /*guess*/)
+    string g = IupGetAttribute(guess,"VALUE")
+    if length(g)=4 and length(unique(g))=4 then
+        integer {bulls, cows} = score(g,tgt)
+        string title = IupGetAttribute(res,"TITLE") &
+                       sprintf(fmt,{attempt,g,bulls,cows})
+        if bulls=N then
+            title &= "\nWell done!"
+            IupSetInt(guess,"ACTIVE",false)
+        else
+            IupSetAttribute(guess,"VALUE","")
+        end if
+        IupSetStrAttribute(res,"TITLE",title)
+        attempt += 1
+        IupSetAttribute(dlg,"SIZE",NULL)
+        IupRefresh(dlg)
+    end if
+    return IUP_DEFAULT
+end function
+
+procedure main()
+    IupOpen()
+    label = IupLabel(sprintf("Enter %d digits 1 to 9 without duplication",{N}))
+    guess = IupText("VALUECHANGED_CB", Icallback("valuechanged_cb"))
+    res = IupLabel("")
+    dlg = IupDialog(IupVbox({IupHbox({label,guess},"GAP=10,NORMALIZESIZE=VERTICAL"),
+                             IupHbox({res})},"MARGIN=5x5"),`TITLE="Bulls and Cows"`)
+    IupShow(dlg)
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
+end procedure
+ 
+main()

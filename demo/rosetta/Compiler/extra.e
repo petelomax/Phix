@@ -3,6 +3,8 @@
 -- =============================
 -- 
 --  Routines to reload human-readable files (deviation from task requirement)
+--
+without js -- (file i/o)
 
 --The following can be used to load .lex files, as created by lex.exw:
 -- (in place of the existing get_tok() in parse.e)

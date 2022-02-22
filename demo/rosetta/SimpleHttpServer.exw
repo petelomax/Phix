@@ -13,10 +13,12 @@ include builtins\sockets.e      -- added for 0.8.1
 
 constant MAX_QUEUE      = 100,
          ESCAPE         = #1B,
-         response = substitute("""
-HTTP/1.1 200 OK
-Content-Type: text/html; charset=UTF-8
-
+--/*
+local headers = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Length: %d\r\n\r\n%s"
+local content = "<!doctype html><html><title>Goodbye, World!</title><h1>Goodbye, World!"
+local server = assert(socket.bind("localhost", 8080))
+--*/
+         content = substitute("""
 <!DOCTYPE html>
 <html>
  <head>
@@ -32,30 +34,56 @@ Content-Type: text/html; charset=UTF-8
  </body>
 </html>
 
-""","\n","\r\n")
+""","\n","\r\n"),
+         response = sprintf(substitute("""
+HTTP/1.1 200 OK
+Content-Type: text/html; charset=UTF-8
+Content-Length: %d
+Content-Encoding: identity
+Connection: close
+
+%s""","\n","\r\n"),{length(content),content})
 
 puts(1,"server started, open http://localhost:8080/ in browser or curl, press Esc or Q to quit\n")
 atom sock = socket(AF_INET,SOCK_STREAM,NULL),
      pSockAddr = sockaddr_in(AF_INET, "", 8080)
 if bind(sock, pSockAddr)=SOCKET_ERROR then crash("bind (%v)",{get_socket_error()}) end if
 if listen(sock,MAX_QUEUE)=SOCKET_ERROR then crash("listen (%v)",{get_socket_error()}) end if
+--?{"sock",sock}
 while not find(get_key(),{ESCAPE,'q','Q'}) do
     {integer code} = select({sock},{},{},250000)    -- (0.25s)
     if code=SOCKET_ERROR then crash("select (%v)",{get_socket_error()}) end if
+--?{"code",code}
     if code>0 then  -- (not timeout)
+--?{"code",code}
         atom peer = accept(sock),
              ip = getsockaddr(peer)
+--?"recv"
+--20/12/21: (no help whatsoever!)
+--while true do
         {integer len, string request} = recv(peer)
+--  if len=0 then exit end if
         printf(1,"Client IP: %s\n%s\n",{ip_to_string(ip),request})
         if length(request)>3 and request[1..4]="GET " then
+--?"send"
             integer bytes_sent = send(peer,response)
             printf(1,"%d bytes successfully sent\n",bytes_sent)
         end if
+--end while
+--?"shutdown"
         shutdown(peer, SD_SEND) -- tell curl it's over
-        closesocket(peer)  --   (as does this)
+-- nice try, makes diddly squat difference....
+--      shutdown(peer, SD_RECEIVE) -- tell curl it's over
+--?"close"
+        peer = closesocket(peer)  --    (as does this)
+--??? (nope, triggers an error...[both])
+--      shutdown(sock, SD_SEND) -- tell curl it's over
+--      shutdown(sock, SD_RECEIVE) -- tell curl it's over
+
+--?"fin"
     end if
 end while
-closesocket(sock)
+sock = closesocket(sock)
 WSACleanup()
 
 ?"finished"

@@ -9,13 +9,12 @@
 without js -- (obviously this will never ever run in a browser!)
 constant include_drafts = true,
          sort_by_count = false,
---       notlang = "Phix" -- or "" (ie a zero length string) for all
+         notlang = "Phix" -- or "" (ie a zero length string) for all
 --       notlang = "Go"
-         notlang = ""
+--       notlang = ""
 
 include builtins\timedate.e
-integer refresh_cache = timedelta(days:=9365) -- 0 for always
---integer refresh_cache = timedelta(days:=21) -- 0 for always [NB refresh_cache += timedelta(days:=1) below]
+integer refresh_cache = timedelta(days:=21) -- 0 for always [NB refresh_cache += timedelta(days:=1) below]
 
 include builtins\libcurl.e
 atom curl = NULL
@@ -132,18 +131,38 @@ function count_tasks()
         tasks &= dewiki(open_category("Draft_Programming_Tasks"))
         tasks = sort(tasks)
     end if
+--?length(tasks)
     if length(notlang) then
         -- filter already done in specified language
         string langurl = "http://rosettacode.org/wiki/Category:"&notlang
         sequence done = dewiki(open_download(notlang&".htm",langurl))
+--?length(done)
         integer k = 0
+--,count = 0
+--,what='P'
         for i=1 to length(tasks) do
-            if not find(tasks[i],done) then
+            string ti = tasks[i]
+--          if not find(tasks[i],done) then
+            integer d = find(ti,done)
+            if not d then
                 k += 1
-                tasks[k] = tasks[i]
+                tasks[k] = ti
+            else
+--              if ti[1]='1' then ?ti end if
+--              if ti[1]='2' then ?ti end if
+--              if ti[1]='4' then ?ti end if
+--              if ti[1]='9' then ?ti end if
+--              if ti[1]='A' then ?ti end if
+--              if ti[1]='B' then ?substitute(ti,'_',' ') end if
+--              if ti[1]='C' then ?substitute(ti,'_',' ') end if
+--              if ti[1]='P' then ?substitute(ti,'_',' ') end if
+--              if ti[1]=what then count += 1 end if
+                done[d..d] = {}
             end if
         end for
+--printf(1,"%c:%d\n",{what,count})
         tasks = tasks[1..k]
+--?done
         done = {}
     end if
     progress("%d tasks found\n",{length(tasks)})

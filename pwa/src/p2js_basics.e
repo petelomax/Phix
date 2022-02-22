@@ -4,7 +4,7 @@
 --
 --  standard includes, constants, globals, and utility routines for ../../pwa.exw
 --
---without debug -- (keep the ex.err reasonably clear, comment out if/when needed)
+without debug -- (keep the ex.err reasonably clear, comment out if/when needed)
 include pGUI.e
 -- (while autoincludes,    """    for all these too:)
 include builtins\VM\pcmdlnN.e

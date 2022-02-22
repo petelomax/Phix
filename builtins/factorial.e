@@ -61,5 +61,14 @@ end function
 --function binom(integer n, k)
 --  return factorial(n)/(factorial(k)*factorial(n-k))
 --end function
+--or (getting complicated here) (for numeric limits not speed)
+--      if n<=k then --(overlap)
+--          numerators = k+1..n-k-1, denominators = 2..n-1
+--      else
+--          numerators = n..n-k-1, denominators = 2..k
+--      while there exists a whole multiple z of den[k=$..1] in num
+--          numerator[z]/=den[$], denom[k..k] = {} (or 1)
+--      where mul_tt() is that "multiple table thing",
+--      return mul_tt(num)/mul_tt(den)
 --*/
 

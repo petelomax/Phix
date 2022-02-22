@@ -215,6 +215,143 @@ elsif ch='b' and ignoreb=0 then
         (OK, I&rsquo;m joking, although chronologically that does actually fit.)
         <br>
         <br>
+        Note that desktop/Phix uses the exit keyword to leave for and while loops, and the break keyword to leave a switch statement, eg
+<!--eucode>
+without js
+--with javascript_semantics
+
+    for i=1 to 7 do
+        switch i do
+            case 1: ?{"switch",i}
+            case 2: if i=2 then break end if        -- [1] (ok)
+                    ?{"switch",i} -- (never printed)
+            case 3: while true do
+                        if i=3 then exit end if     -- [1] (ok)
+                        ?"3" -- (never printed)
+                    end while
+                    ?{"end while",i}
+            case 4: while true do
+                        if i=4 then break end if    -- [2] (not js)
+                        ?"4" -- (never printed)
+                    end while
+                    ?{"end while",i} -- (never printed)
+            case 5: while true do
+                        switch i do
+                            case 5: exit            -- [2] (not js)
+                            default: ?{"wsw",i} -- (never printed)
+                        end switch
+                    end while
+                    ?{"end while",i}
+            case 6: ?{"case",i}
+                    if i=6 then exit end if         -- [2] (not js)
+                    ?{"switch",i} -- (never printed)
+        end switch
+        ?{"end switch",i}
+    end for
+    ?"end for"
+</eucode-->
+<pre>
+<font color="#2C5C2C">without js</font>
+<font color="#000080"><i>--with javascript_semantics
+</i></font>
+<font color="#008080">    for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#000000"> 7</font><font color="#008080"> do
+        switch</font><font color="#000000"> i</font><font color="#008080"> do
+            case</font><font color="#000000"> 1</font><font color="#0000FF">: ?{</font><font color="#008000">"switch"</font><font color="#0000FF">,</font><font color="#000000">i</font><font color="#0000FF">}</font>
+<font color="#008080">            case</font><font color="#000000"> 2</font><font color="#0000FF">:</font><font color="#008080"> if</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">2</font><font color="#008080"> then break end if       </font><font color="#000080"><i> -- [1] (ok)</i></font>
+<font color="#0000FF">                    ?{</font><font color="#008000">"switch"</font><font color="#0000FF">,</font><font color="#000000">i</font><font color="#0000FF">}</font><font color="#000080"><i> -- (never printed)</i></font>
+<font color="#008080">            case</font><font color="#000000"> 3</font><font color="#0000FF">:</font><font color="#008080"> while</font><font color="#004600"> true</font><font color="#008080"> do
+                        if</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">3</font><font color="#008080"> then exit end if    </font><font color="#000080"><i> -- [1] (ok)</i></font>
+<font color="#0000FF">                        ?</font><font color="#008000">"3"</font><font color="#000080"><i> -- (never printed)</i></font>
+<font color="#008080">                    end while</font>
+<font color="#0000FF">                    ?{</font><font color="#008000">"end while"</font><font color="#0000FF">,</font><font color="#000000">i</font><font color="#0000FF">}</font>
+<font color="#008080">            case</font><font color="#000000"> 4</font><font color="#0000FF">:</font><font color="#008080"> while</font><font color="#004600"> true</font><font color="#008080"> do
+                        if</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">4</font><font color="#008080"> then break end if   </font><font color="#000080"><i> -- [2] (not js)</i></font>
+<font color="#0000FF">                        ?</font><font color="#008000">"4"</font><font color="#000080"><i> -- (never printed)</i></font>
+<font color="#008080">                    end while</font>
+<font color="#0000FF">                    ?{</font><font color="#008000">"end while"</font><font color="#0000FF">,</font><font color="#000000">i</font><font color="#0000FF">}</font><font color="#000080"><i> -- (never printed)</i></font>
+<font color="#008080">            case</font><font color="#000000"> 5</font><font color="#0000FF">:</font><font color="#008080"> while</font><font color="#004600"> true</font><font color="#008080"> do
+                        switch</font><font color="#000000"> i</font><font color="#008080"> do
+                            case</font><font color="#000000"> 5</font><font color="#0000FF">:</font><font color="#008080"> exit           </font><font color="#000080"><i> -- [2] (not js)</i></font>
+<font color="#008080">                            default</font><font color="#0000FF">: ?{</font><font color="#008000">"wsw"</font><font color="#0000FF">,</font><font color="#000000">i</font><font color="#0000FF">}</font><font color="#000080"><i> -- (never printed)</i></font>
+<font color="#008080">                        end switch
+                    end while</font>
+<font color="#0000FF">                    ?{</font><font color="#008000">"end while"</font><font color="#0000FF">,</font><font color="#000000">i</font><font color="#0000FF">}</font>
+<font color="#008080">            case</font><font color="#000000"> 6</font><font color="#0000FF">: ?{</font><font color="#008000">"case"</font><font color="#0000FF">,</font><font color="#000000">i</font><font color="#0000FF">}</font>
+<font color="#008080">                    if</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">6</font><font color="#008080"> then exit end if        </font><font color="#000080"><i> -- [2] (not js)</i></font>
+<font color="#0000FF">                    ?{</font><font color="#008000">"switch"</font><font color="#0000FF">,</font><font color="#000000">i</font><font color="#0000FF">}</font><font color="#000080"><i> -- (never printed)</i></font>
+<font color="#008080">        end switch</font>
+<font color="#0000FF">        ?{</font><font color="#008000">"end switch"</font><font color="#0000FF">,</font><font color="#000000">i</font><font color="#0000FF">}</font>
+<font color="#008080">    end for</font>
+<font color="#0000FF">    ?</font><font color="#008000">"end for"</font>
+</pre>
+        <small>(Naturally I don&rsquo;t particularly recommend any of the three [2] constructs/statements above, but it is the way 
+        it works and deserves to be documented.)</small><br>
+        Expected output (desktop/Phix under "without js"):
+<!--eucode>
+{"switch",1}
+{"end switch",1}
+{"end switch",2}
+{"end while",3}
+{"end switch",3}
+{"end switch",4}
+{"end while",5}
+{"end switch",5}
+{"case",6}
+"end for"
+</eucode-->
+<pre>
+<font color="#0000FF">{</font><font color="#008000">"switch"</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">}
+{</font><font color="#008000">"end switch"</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">}
+{</font><font color="#008000">"end switch"</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">}
+{</font><font color="#008000">"end while"</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">}
+{</font><font color="#008000">"end switch"</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">}
+{</font><font color="#008000">"end switch"</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">}
+{</font><font color="#008000">"end while"</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">}
+{</font><font color="#008000">"end switch"</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">}
+{</font><font color="#008000">"case"</font><font color="#0000FF">,</font><font color="#000000">6</font><font color="#0000FF">}</font>
+<font color="#008000">"end for"</font>
+</pre>
+        However JavaScript only has the one keyword (break) for both, and hence simply cannot distinguish between cases 3 and 4, thus
+        the latter construct is prohibited under with js (independently by both desktop/Phix and pwa/p2js). Likewise for case 5, which
+        were that allowed JavaScript would enter an infinite loop, and in case 6, it <i>would</i> print the {"end switch",6}, along
+        with an additional {"end switch",7} that dekstop/Phix would/does not.
+        <br>
+        <br>
+        While it is imperative the two lines marked [1] work as expected, it is not quite as simple as saying you cannot have a break 
+        within a loop or an exit within a switch, they are valid as long as they are sufficiently well nested, whereas the three lines 
+        marked [2] trigger compilation errors under with js, and of course also trigger transpilation errors in pwa/p2js.
+        <br>
+        <br>
+        Aside: The Phix compiler is known to get a little antsy with unconditional exits in a loop, in effect it tries to "optimise away" 
+        the "end while" which royally messes up the zero iterations jump. Likewise "end for" and (probably) "break". So don&rsquo;t do that,
+        and obviously that&rsquo;s why I&rsquo;ve used the "if i=2" etc in the above demo.
+        <br>
+        <br>
+        Should you comment out cases 4, 5, and 6 then it should compile/transpile cleanly (the former with or without js) and output
+<!--eucode>
+{"switch",1}
+{"end switch",1}
+{"end switch",2}
+{"end while",3}
+{"end switch",3}
+{"end switch",4}
+{"end switch",5}
+{"end switch",6}
+{"end switch",7}
+"end for"
+</eucode-->
+<pre>
+<font color="#0000FF">{</font><font color="#008000">"switch"</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">}
+{</font><font color="#008000">"end switch"</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">}
+{</font><font color="#008000">"end switch"</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">}
+{</font><font color="#008000">"end while"</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">}
+{</font><font color="#008000">"end switch"</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">}
+{</font><font color="#008000">"end switch"</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">}
+{</font><font color="#008000">"end switch"</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">}
+{</font><font color="#008000">"end switch"</font><font color="#0000FF">,</font><font color="#000000">6</font><font color="#0000FF">}
+{</font><font color="#008000">"end switch"</font><font color="#0000FF">,</font><font color="#000000">7</font><font color="#0000FF">}</font>
+<font color="#008000">"end for"</font>
+</pre>
       </div>
      </stripped>
     </get>

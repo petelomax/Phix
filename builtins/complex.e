@@ -29,8 +29,7 @@ end type
 --  [1]: complex_real, complex_imag, complex_norm, complex_abs, complex_arg
 --       complex_theta (~=complex_arg), and complex_rho (==complex_abs).
 --
---global 
-type complexn(object c)
+global type complexn(object c)
     bool res = atom(c) or complex(c)
     return res
 end type

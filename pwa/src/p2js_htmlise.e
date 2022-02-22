@@ -42,9 +42,20 @@ global function htmlise(string hsrc, sequence hokens)
 --  string output = " "
 --  string output = "<!--<lang Phix>-->\n ", colour, prev_colour = ""
     string output = "<!--<lang Phix>(phixonline)-->\n ", colour, prev_colour = ""
+--20/12/21:
+    if match("without js",hsrc)
+    or match("without javascript",hsrc)
+    or match("without javascript_semantics",hsrc)
+    or match("requires(64)",hsrc)
+    or match("requires(WINDOWS)",hsrc)
+    or match("requires(LINUX)",hsrc)
+    or match("requires(5)",hsrc) then
+        output = "<!--<lang Phix>(notonline)-->\n "
+    end if
     integer done = 0, hdx = 1
     while hdx<=length(hokens) do
         integer {toktype, tokstart, tokfinish} = hokens[hdx] 
+        if toktype=HEXSTR then tokstart -=2 tokfinish += 1 end if
         if done<tokstart-1 then
             output &= space_indent(hsrc[done+1..tokstart-1])
             prev_colour = ""
@@ -58,7 +69,9 @@ global function htmlise(string hsrc, sequence hokens)
                 if hsrc[tokstart-2..tokstart] = "\"\"`"
                 and hsrc[tokfinish..tokfinish+2] = "`\"\"" then
                     -- note this is assuming "is_phix()"/"phix->phix"
-                    if output[-2..-1]!=`""` then ?9/0 end if
+--                  if output[-2..-1]!=`""` then ?9/0 end if
+                    string om2m1 = output[-2..-1]
+                    if om2m1!=`""` then ?9/0 end if
                     output = output[1..-3]
                     hsrc[tokstart] = '"'
                     hsrc[tokfinish] = '"'
@@ -88,6 +101,8 @@ global function htmlise(string hsrc, sequence hokens)
             elsif find(toktype,{'"','\''}) then -- string
                 colour = IUP_DARK_GREEN
                 txt = substitute_all(txt,hchars,hsubs)
+            elsif toktype=HEXSTR then -- string
+                colour = IUP_DARK_GREEN
             elsif toktype<128                   -- symbols
               and toktype!=T_string
               and toktype!=T_nullable_string then

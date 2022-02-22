@@ -3,6 +3,7 @@
 --
 --  Incomplete, windows-only. (should be relatively straightforward to get this working on linux)
 --
+requires(WINDOWS) -- fixme!
 include cffi.e
 --include ptypes.e (already included by cffi)
 
@@ -233,7 +234,7 @@ xGetHostByName      = define_c_func(lib,"gethostbyname",{C_PTR}, C_PTR)
 
 --include builtins\sockerr.e
          
-constant {ERROR_NO, ERROR_NAME, ERROR_SHORT} = columnize(
+global constant _sock_ENS_ = // (we don't really want _sock_ENS_ to be global, oh well...)
 {{WSA_INVALID_HANDLE         :=     6,  "WSA_INVALID_HANDLE",           "Specified event object handle is invalid."},
  {WSA_NOT_ENOUGH_MEMORY      :=     8,  "WSA_NOT_ENOUGH_MEMORY",        "Insufficient memory available."},
  {WSA_INVALID_PARAMETER      :=    87,  "WSA_INVALID_PARAMETER",        "One or more parameters are invalid."},
@@ -328,23 +329,24 @@ constant {ERROR_NO, ERROR_NAME, ERROR_SHORT} = columnize(
  {WSA_QOS_EPSFILTERSPEC      := 11028,  "WSA_QOS_EPSFILTERSPEC",        "Invalid QoS provider-specific filterspec."},
  {WSA_QOS_ESDMODEOBJ         := 11029,  "WSA_QOS_ESDMODEOBJ",           "Invalid QoS shape discard mode object."},
  {WSA_QOS_ESHAPERATEOBJ      := 11030,  "WSA_QOS_ESHAPERATEOBJ",        "Invalid QoS shaping rate object."},
- {WSA_QOS_RESERVED_PETYPE    := 11031,  "WSA_QOS_RESERVED_PETYPE",      "Reserved policy QoS element type."}}),
+ {WSA_QOS_RESERVED_PETYPE    := 11031,  "WSA_QOS_RESERVED_PETYPE",      "Reserved policy QoS element type."}}
 --
 -- Some (known) more appropriate names on Linux, to be extended as needed
 --  (nb ERROR_SHORT overrides deliberately omitted: we do not want any
 --      routine-specific descriptions here, that's what google's for,
 --      and in fact google searching is why this table exists at all.)
 --
-{MAPWSA,LNXNAMES} = columnize({
-{WSAEWOULDBLOCK,        "EWOULDBLOCK"   },
-{WSATRY_AGAIN,          "EAI_AGAIN"     },
-{WSAEINVAL,             "EAI_BADFLAGS"  },
-{WSANO_RECOVERY,        "EAI_FAIL"      },
-{WSAEAFNOSUPPORT,       "EAI_FAMILY"    },
-{WSA_NOT_ENOUGH_MEMORY, "EAI_MEMORY"    },
-{WSAHOST_NOT_FOUND,     "EAI_NONAME"    },
-{WSATYPE_NOT_FOUND,     "EAI_SERVICE"   },
-{WSAESOCKTNOSUPPORT,    "EAI_SOCKTYPE"  }})
+constant {ERROR_NO, ERROR_NAME, ERROR_SHORT} = columnize(_sock_ENS_),
+         {MAPWSA,LNXNAMES} = columnize(
+{{WSAEWOULDBLOCK,        "EWOULDBLOCK"  },
+ {WSATRY_AGAIN,          "EAI_AGAIN"    },
+ {WSAEINVAL,             "EAI_BADFLAGS" },
+ {WSANO_RECOVERY,        "EAI_FAIL"     },
+ {WSAEAFNOSUPPORT,       "EAI_FAMILY"   },
+ {WSA_NOT_ENOUGH_MEMORY, "EAI_MEMORY"   },
+ {WSAHOST_NOT_FOUND,     "EAI_NONAME"   },
+ {WSATYPE_NOT_FOUND,     "EAI_SERVICE"  },
+ {WSAESOCKTNOSUPPORT,    "EAI_SOCKTYPE" }})
 
 integer sock_init = false,
         xWSAStartup = 0,
@@ -657,7 +659,7 @@ global function recv(atom peer, maxlen=2048)
 --     buffer = a (binary) string containing the received bytes.
 --
     string buffer = repeat('\0',maxlen)
-    integer len = c_func (xRecv, {peer, buffer, maxlen, NULL})
+    integer len = c_func(xRecv, {peer, buffer, maxlen, NULL})
     if len = SOCKET_ERROR then
         buffer = ""
     else

@@ -12,11 +12,9 @@
 
 include src/ext.e as extns  -- (for getExtRunWith() namespace)
 
-integer msgcs = 0   -- critical section for queue/count updates
-
-integer rmsg = 0    -- number of messages in queue
-
-integer wcount = 0  -- number of active worker threads
+integer msgcs = 0,  -- critical section for queue/count updates
+        rmsg = 0,   -- number of messages in queue
+        wcount = 0  -- number of active worker threads
                     -- (note: wcount can drop to 0 with rmsg>0)
 
 -- Aside: This message queue is fairly unlikely to ever be longer 
@@ -52,9 +50,8 @@ end procedure
 
 function getmsg()
 -- called by main thread, via listen_cb()
-object res
     enter_cs(msgcs)
-    res = rmsgs[$]
+    object res = rmsgs[$]
     rmsgs = rmsgs[2..$]
     rmsg -= 1
     leave_cs(msgcs)
@@ -102,13 +99,13 @@ function quote(string s)
     return s
 end function
 
-function get_cmd(integer c, integer return_args)
-string name = filenames[c]
-string ext = get_file_extension(name)
-string cmd = extns:getExtRunWith(ext)
+function get_cmd(integer c, bool return_args)
+    string name = filenames[c],
+           ext = get_file_extension(name),
+           cmd = extns:getExtRunWith(ext)
     if length(cmd)!=0 then
-        string path = filepaths[c]
-        string fullpath = path&name
+        string path = filepaths[c],
+               fullpath = path&name
         if match(`"%s"`,cmd) then
             cmd = sprintf(cmd,{fullpath})
         elsif match("%s",cmd) then
@@ -133,7 +130,7 @@ Ihandln run_dlg = NULL,
         t_nrun,
         t_lint
 
-procedure run(string cmd, string path)
+procedure run(string cmd, path)
 -- worker thread (so system_exec() does not stall the whole app)
     {} = chdir(path)
 --  atom res = system_exec(cmd)
@@ -156,7 +153,6 @@ procedure run(string cmd, string path)
     wcount -= 1
     leave_cs(msgcs)
 end procedure
-constant r_run = routine_id("run")
 
 --/*Alternative:
 procedure loop_step()
@@ -174,47 +170,35 @@ might struggle to close Edix and leave any invoked apps running[??].
 string last_cmd = ""
 
 procedure run_currfile(string cmd)
-atom hThread
     if length(cmd)!=0 then
         enter_cs(msgcs)
         wcount += 1
         leave_cs(msgcs)
         IupSetAttribute(listener,"RUN","YES")
 --DEV reindent no likey
---      atom hThread = create_thread(r_run,{cmd,filepaths[currfile]})
+--      atom hThread = create_thread(run,{cmd,filepaths[currfile]})
         last_cmd = cmd
-        hThread = create_thread(r_run,{cmd,filepaths[currfile]})
+        atom hThread = create_thread(run,{cmd,filepaths[currfile]})
     end if
 end procedure
 
 
 procedure set_run_txt()
-sequence args = get_cmd(currfile,1)
+    sequence args = get_cmd(currfile,true)
     if string(args) then
         IupSetStrAttribute(run_txt,"VALUE",args)
         IupSetInt({t_comp,t_list,l_type,t_diag,t_nrun,t_lint},"ACTIVE",0)
     else
         IupSetInt({t_comp,t_list,t_diag,t_nrun,t_lint},"ACTIVE",1)
         IupSetInt(l_type,"ACTIVE",IupGetInt(t_list,"VALUE"))
-        if IupGetInt(t_comp,"VALUE") then
-            args[1] &= " -c"
-        end if
-        if IupGetInt(t_list,"VALUE") then
-            if IupGetInt(l_type,"VALUE")=1 then
-                args[1] &= " -l"
-            else
-                args[1] &= " -dumpil"
-            end if
-        end if
-        if IupGetInt(t_diag,"VALUE") then
-            args[1] &= " -nodiag"
-        end if
-        if IupGetInt(t_nrun,"VALUE") then
-            args[1] &= " -norun"
-        end if
-        if IupGetInt(t_lint,"VALUE") then
-            args[1] &= " -lint"
-        end if
+        string a1 = args[1],
+               ld = iff(IupGetInt(l_type,"VALUE")=1?" -l":" -dumpil")
+        if IupGetInt(t_comp,"VALUE") then a1 &= " -c"       end if
+        if IupGetInt(t_list,"VALUE") then a1 &= ld          end if
+        if IupGetInt(t_diag,"VALUE") then a1 &= " -nodiag"  end if
+        if IupGetInt(t_nrun,"VALUE") then a1 &= " -norun"   end if
+        if IupGetInt(t_lint,"VALUE") then a1 &= " -lint"    end if
+        args[1] = a1
         IupSetStrAttribute(run_txt,"VALUE","%s %s",args)
     end if
 end procedure
@@ -272,7 +256,7 @@ constant cb_help = Icallback("help_cb")
 sequence prior_cmds = {}
 
 function ok_cb(Ihandle /*bt_ok*/)
-string cmd = IupGetAttribute(run_txt, "VALUE")
+    string cmd = IupGetAttribute(run_txt, "VALUE")
     if length(cmd)!=0 then
         -- first, maintain the text dropdown:
         if not find(cmd,prior_cmds) then
@@ -300,7 +284,7 @@ function key_cb(Ihandle /*ih*/, atom c)
 end function
 
 procedure open_rundlg()
-Ihandle run_lbl, buttons, command, box, bt_help, bt_ok, bt_cancel
+    Ihandle run_lbl, buttons, command, box, bt_help, bt_ok, bt_cancel
     if run_dlg=NULL then
 --DEV Run With / Treat as Extension, Always use specified command...
         run_lbl = IupLabel("cmd")
@@ -341,7 +325,7 @@ Ihandle run_lbl, buttons, command, box, bt_help, bt_ok, bt_cancel
     IupPopup(run_dlg, IUP_CENTERPARENT, IUP_CENTERPARENT)
 end procedure
 
-global procedure F5run(integer ctrl, integer shift)--, integer alt)
+global procedure F5run(integer ctrl, shift)--, alt)
 -- called by main thread
 --?"F5run"
     if msgcs=0 then
@@ -360,7 +344,7 @@ global procedure F5run(integer ctrl, integer shift)--, integer alt)
             open_rundlg()
         end if
     else
-        string cmd = get_cmd(currfile,0)
+        string cmd = get_cmd(currfile,false)
         if length(cmd) then
             run_currfile(cmd)
         else

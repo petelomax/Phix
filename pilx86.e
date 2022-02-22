@@ -6330,7 +6330,16 @@ end if
                                     end if
                                 end if
 --17/6/16. triggered in simple_notepad.exw - I added flags[NO_BREAK] to Block() and it went away, so I undid this change
-                                if s5[link-5]!=ifMerge then ?9/0 end if
+--5/1/22 nested switch/loop efforts (hmmm)
+--                              if s5[link-5]!=ifMerge then ?9/0 end if
+                                integer s5lm5 = s5[link-5]
+--                              if s5lm5!=ifMerge then ?9/0 end if
+--                              if s5lm5!=ifMerge then ?{"pilx86 line 6336",s5lm5,"!=",ifMerge} end if
+                                if s5lm5!=ifMerge
+                                and s5lm5!=endIfMerge then
+                                    ?9/0
+--                                  ?{"pilx86 line 6336",s5lm5,"!=",ifMerge,"or",endIfMerge}
+                                end if
 --                              if s5[link-5]!=ifMerge then printf(1,"pilx86.e:6111 s5[link-5](%d)!=ifMerge(%d)\n",{s5[link-5],ifMerge}) end if
 --                              if s5[link-5]!=ifMerge then ?"pilx86.e:6113 if s5[link-5]!=ifMerge" end if
 --25/8/2012: BUG!!!

@@ -227,7 +227,9 @@ function $sq_unary(/*object*/ a, /*integer*/ fn, /*bool*/ recursive=true) {
         return a;
     }
     let /*integer*/ la = length(a);
-    let /*sequence*/ res = repeat(0,la);
+//17/12/21:
+//  sequence res = repeat(0,la)
+    let /*sequence*/ res = repeat(((string(a)) ? 0X20 : 0),la);
     for (let i=1, i$lim=la; i<=i$lim; i+=1) {
         res = $repe(res,i,$sq_unary($subse(a,i),fn));
     }
@@ -259,7 +261,7 @@ function $sq_unary(/*object*/ a, /*integer*/ fn, /*bool*/ recursive=true) {
 /*global*/ function sq_floor_div(/*object*/ a, b) { return $sq_general(a,b,0X66); }
 
 /*global*/ function sq_rmdr(/*object*/ a, b) { return $sq_general(a,b,0X72); }
-
+//global function sq_remainder(object a, b) return $sq_general(a,b,'r') end function -- achieved via psym.e/syminit()
 /*global*/ function sq_mod(/*object*/ a, b) { return $sq_general(a,b,0X6D); }
 
 /*global*/ function sq_and(/*object*/ a, b) { return $sq_general(a,b,0X61); }

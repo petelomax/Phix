@@ -130,6 +130,7 @@ function redraw_graph_cb(Ihandle graph)
                                            iff(yangle=-90?CD_SOUTH:9/0))))
         cdCanvasSetTextOrientation(cd_canvas,yangle)
         string ytext = iff(yrid?yrid(y):sprintf(yfmt,y))
+--?{yrid,ytext,yfmt,y}
         atom tx = 25+xmargin+yxshift+(xcross-1)*dx
 --      atom tx = 25+xmargin+yxshift+(xcross-1+bh)*dx
 --      cdCanvasText(cd_canvas,tx,vy,ytext)

@@ -1,0 +1,63 @@
+--{{trans|C}}
+--
+-- demo\rosetta\Validate_XML.exw
+-- =============================
+--
+requires(32) -- let me know if you can get this to work on 64bit
+requires(WINDOWS) --   ""   if you can get this to work on linux
+constant dl = `Download rosetta\libxml\ from http://phix.x10.mx/pmwiki/pmwiki.php?n=Main.libxml`
+assert(get_file_type("libxml")=FILETYPE_DIRECTORY,dl)
+include libxml\libxml.e
+
+constant XSDFileName = `libxml\shiporder.xsd`, -- (versions 2 & 3 also included in "")
+         XMLFileName = `libxml\shiporder.xml`
+
+xmlLineNumbersDefault(1)
+atom pctxt = xmlSchemaNewParserCtxt(XSDFileName),
+     schema = xmlSchemaParse(pctxt)
+xmlSchemaFreeParserCtxt(pctxt)
+atom doc = xmlReadFile(XMLFileName, NULL, 0)
+if doc=NULL then
+    printf(2, "Could not parse %s\n", {XMLFileName})
+else
+    atom vctxt = xmlSchemaNewValidCtxt(schema)
+    integer ret = xmlSchemaValidateDoc(vctxt, doc)
+    if ret=0 then
+        printf(1,"%s validates\n", {XMLFileName})
+    elsif ret>0 then
+        printf(1,"%s fails to validate\n", {XMLFileName})
+    else
+        printf(1,"%s validation generated an internal error\n", {XMLFileName})
+    end if
+    xmlSchemaFreeValidCtxt(vctxt)
+    xmlFreeDoc(doc)
+end if
+if schema!=NULL then
+    xmlSchemaFree(schema)
+end if
+xmlSchemaCleanupTypes()
+xmlCleanupParser()
+xmlMemoryDump()
+
+?"done"
+{} = wait_key()
+
+--/*
+Note that error handling has been delegated to within libxml.e, specifically 
+xmlSchemaNewParserCtxt() and xmlSchemaNewValidCtxt() assign an internal handler,
+which resorts to xmlGetLastError() and therefore needs to use a bit of cffi, 
+that is rather than using the (odd-looking) error it is actually passed.
+The libxml.e wrapper was penned specifically for this task and is just about as
+bare-bones as it could ever possibly be, and win32-only, for now.
+{{out}}
+<pre>
+libxml\shiporder.xml validates
+</pre>
+Performing the same error handling check as Nim, ie changing orderperson to orderperson1 (twice) results in:
+<pre>
+Error/Warning in line 6
+Element 'orderperson1': This element is not expected. Expected is ( orderperson ).
+libxml\shiporder.xml fails to validate
+</pre>
+All three formats of the xsd file as given on the W3 page give identical results, for both with and without that error.
+--*/

@@ -3,11 +3,15 @@
 -- ============================
 --
 --  Standard declarations and routines used by lex.exw, parse.exw, cgen.exw, and interp.exw
+--  (included in distribution as above, which contains some additional sanity checks)
 --
---
+with javascript_semantics
 global constant EOF = -1, STDIN = 0, STDOUT = 1
 
-global enum type nary NONE=0, UNARY=1, BINARY=2 end type
+--not pwa/p2js (it is easy enough to (re-)split these up by hand):
+--global enum type nary NONE=0, UNARY=1, BINARY=2 end type
+global enum NONE=0, UNARY=1, BINARY=2
+global type nary(integer n) return n=NONE or n=UNARY or n=BINARY end type
 
 global sequence tkNames = {}    -- eg/ie {"Op_multiply","Op_divide",..}
 global sequence precedences = {}
@@ -99,7 +103,7 @@ global object oneline = ""
 constant errfmt = "Line %s column %s:\n%s%s"
 
 function errline()
-    oneline = substitute(trim(oneline,"\r\n"),"\t"," ")
+    oneline = substitute(trim(oneline,"\r\n"),'\t',' ')
     string padding = repeat(' ',tok_col)
     return sprintf("%s\n%s^ ",{oneline,padding})
 end function
@@ -116,9 +120,12 @@ global procedure error(sequence msg, sequence args={})
     abort(1)
 end procedure
 
+include js_io.e -- fake file i/o for running under pwa/p2js
+
 function open_file(string file_name, string mode)
-    integer fn = open(file_name, mode)
-    if fn = -1 then
+    integer fn = iff(platform()=JS?js_open(file_name)
+                                  :open(file_name, mode))
+    if fn<=0 then
         printf(STDOUT, "Could not open %s", {file_name})
         {} = wait_key()
         abort(1)
@@ -136,8 +143,10 @@ global procedure open_files(sequence cl)
 end procedure
 
 global procedure close_files()
-    if input_file!=STDIN then close(input_file) end if
-    if output_file!=STDOUT then close(output_file) end if
+    if platform()!=JS then
+        if input_file!=STDIN then close(input_file) end if
+        if output_file!=STDOUT then close(output_file) end if
+    end if
 end procedure
 
 global function enquote(string s)
@@ -272,7 +281,7 @@ global object oneline = ""
 constant errfmt = "Line %s column %s:\n%s%s"
 
 function errline()
-    oneline = substitute(trim(oneline,"\r\n"),"\t"," ")
+    oneline = substitute(trim(oneline,"\r\n"),'\t',' ')
     string padding = repeat(' ',tok_col)
     return sprintf("%s\n%s^ ",{oneline,padding})
 end function

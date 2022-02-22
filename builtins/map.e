@@ -70,7 +70,8 @@
 
 include dict.e
 
-include get.e as stdget
+--include get.e as stdget
+include get.e
 
 global type map(object x)
     return is_dict(x)
@@ -86,7 +87,8 @@ global procedure put(map m, object key, object val)
     putd(key,val,m)
 end procedure
 
-global function get(map m, object key, object defval=0)
+--global function get(map m, object key, object defval=0)
+global function map_get(map m, object key, object defval=0)
 integer node = getd_index(key,m)
     if node=0 then return defval end if
     return getd_by_index(node,m)
@@ -181,9 +183,11 @@ end function
 
 function load_fatal(object file)
     if string(file) then
-        return sprintf("fatal error loading %s, line %d\n",{file,stdget:get_line_no})
+--      return sprintf("fatal error loading %s, line %d\n",{file,stdget:get_line_no})
+        return sprintf("fatal error loading %s, line %d\n",{file,get_line_no})
     else
-        return sprintf("fatal load_map error, line %d\n",{stdget:get_line_no})
+--      return sprintf("fatal load_map error, line %d\n",{stdget:get_line_no})
+        return sprintf("fatal load_map error, line %d\n",{get_line_no})
     end if
 end function
 
@@ -207,13 +211,18 @@ integer fn
 
     get_line_no = 1
     while 1 do
-        {status,key} = stdget:get(fn)
+--      {status,key} = stdget:get(fn)
+        {status,key} = get(fn)
         if status=GET_EOF then exit end if
-        if status=GET_IGNORE and stdget:active_ch()=-1 then exit end if
+--      if status=GET_IGNORE and stdget:active_ch()=-1 then exit end if
+        if status=GET_IGNORE and active_ch()=-1 then exit end if
         if status!=GET_SUCCESS then return load_fatal(file) end if
-        stdget:skip_blanks()
-        if stdget:active_ch()!='=' then return load_fatal(file) end if
-        {status,val} = stdget:get(fn)
+--      stdget:skip_blanks()
+        skip_blanks()
+--      if stdget:active_ch()!='=' then return load_fatal(file) end if
+        if active_ch()!='=' then return load_fatal(file) end if
+--      {status,val} = stdget:get(fn)
+        {status,val} = get(fn)
         if status!=GET_SUCCESS then return load_fatal(file) end if
         putd(key,val,m)
     end while

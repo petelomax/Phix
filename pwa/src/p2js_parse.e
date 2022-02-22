@@ -1029,9 +1029,13 @@ function rtndef(integer ttidx)
     return res
 end function
 
-bool in_switch = false
+bool in_switch = false,
+     in_loop = false
 
 function statement()
+    integer was_in_switch = in_switch,
+            was_in_loop = in_loop
+
 --integer l0 = -1
     sequence ast = {}, aste
 --  string s    -- (scratch)
@@ -1061,7 +1065,8 @@ function statement()
                     -- note: there shouldn't be any "hits" > T_xor here
                     --  (otherwise compiler moans jump table too big/sparse)
                     case T_include,
-                         T_from,
+--12/1/2022 (???)
+--                       T_from,
                          T_import,
                          T_with,
                          T_without:
@@ -1271,6 +1276,8 @@ function statement()
                         ast = append(ast,aste)
 
                     case T_for:
+                        in_switch = false
+                        in_loop = true
 --DEV very different for js...
 --                      bool bLet = false
                         bool bNoVar = false,
@@ -1323,10 +1330,10 @@ end if
                             if bPreDef and lim[1]!=DIGIT then
 --DEV this is fixable (but in p2js_emit.e's use of bPreDef), eg:
 --/*
-const FIVE = 5;
-let i;  // (assuming that has already been done somewhere else)
-...
-{ let i$lim=FIVE; for (i=1; i<=i$lim; i+=1) { print(1, i); } }
+--const FIVE = 5;
+--let i;    // (assuming that has already been done somewhere else)
+--...
+--{ let i$lim=FIVE; for (i=1; i<=i$lim; i+=1) { print(1, i); } }
 --*/
                                 return parse_error(tok,"sorry, JavaScript does not support `for(i, let i$lim=`")
                             end if
@@ -1345,8 +1352,12 @@ let i;  // (assuming that has already been done somewhere else)
                         end if
                         ast = append(ast,{T_for,{ctrl,bPreDef,lim,step,body}})
                         drop_scope()
+                        in_switch = was_in_switch
+                        in_loop = was_in_loop
 
                     case T_while:
+                        in_switch = false
+                        in_loop = true
                         aste = {expr(0)}
                         if is_phix() then
                             if not expect(T_do) then exit end if
@@ -1362,11 +1373,13 @@ let i;  // (assuming that has already been done somewhere else)
                         end if
                         ast = append(ast,{T_while,aste})
                         drop_scope()
+                        in_switch = was_in_switch
+                        in_loop = was_in_loop
 
                     case T_switch:
-                        aste = {expr(0)}
-                        integer was_in_switch = in_switch
                         in_switch = true
+                        in_loop = false
+                        aste = {expr(0)}
                         if not is_phix() then
                             expectt('{')
                         elsif tokens[tdx][TOKTYPE]=LETTER
@@ -1422,6 +1435,7 @@ let i;  // (assuming that has already been done somewhere else)
                             expectt('}')
                         end if
                         in_switch = was_in_switch
+                        in_loop = was_in_loop
                         ast = append(ast,{T_switch,aste})
 
 --                  -- avoid compiler grumbles re jump table...
@@ -1469,6 +1483,9 @@ let i;  // (assuming that has already been done somewhere else)
                         exit
 
                     case T_exit:
+                        if in_switch or not in_loop then
+                            return parse_error(tok,"illegal")
+                        end if
                         ast = append(ast,{T_exit,line})
 
                     case T_continue:

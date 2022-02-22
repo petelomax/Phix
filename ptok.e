@@ -1202,6 +1202,21 @@ integer oline, ocol
                 SkipBlockComment()
                 col -= 1
             end if
+--31/1/22:
+        elsif Ch='#' then
+            cp1 = col+1
+            ch2 = text[cp1]
+            if ch2='[' then
+--?{"[#",line}
+                col = cp1
+                SkipBlockComment()
+                col -= 1
+            elsif ch2=']' then
+--?{"]#",line}
+                col += 2
+                Ch = text[col]
+                return
+            end if
         end if
     end while
     tokline = oline
@@ -1373,7 +1388,9 @@ global procedure skipSpacesAndComments()
     while 1 do
 --      k = whiteacl[Ch]
         chartype = charset[Ch]
-        if chartype>SYMBOL then exit end if
+--31/1/22
+--      if chartype>SYMBOL then exit end if
+        if chartype>HEXDEC then exit end if
 --      if not k then exit end if
 --      if k=1 then         -- Ch in " \t\r\n"
 --      if Ch<=' ' then
@@ -1389,15 +1406,22 @@ global procedure skipSpacesAndComments()
             Ch = text[col]
 --10/07/20
 --      elsif Ch='-' then   -- check for comment
-        elsif Ch!='-' and Ch!='/' then  -- check for comment
+--31/1/22
+--      elsif Ch!='-' and Ch!='/' then  -- check for comment
+        elsif Ch!='-' and Ch!='/' and Ch!='#' then  -- check for comment
             exit
         else
 --printf(1,"skipSpacesAndComments line 1383, Ch=%c, fileno=%d, col=%d\n",{Ch,fileno,col})
             cp1 = col+1
 --          if text[cp1]!='-' then exit end if
-            if text[cp1]!=Ch then
-                if Ch!='/' then exit end if
-                if text[cp1]!='*' then exit end if
+--31/1/22
+--          if text[cp1]!=Ch then
+            integer nc = text[cp1]
+            if nc!=Ch then
+--31/1/22
+--              if Ch!='/' then exit end if
+--              if text[cp1]!='*' then exit end if
+                if (Ch!='/' or nc!='*') and (Ch!='#' or nc!='[') then exit end if
                 col = cp1
                 SkipBlockComment()
             else
@@ -1409,6 +1433,11 @@ global procedure skipSpacesAndComments()
                 if Ch='/' and text[cp3]='*' and text[cp1]='-' then
                     col = cp3
                     SkipBlockComment()
+--added 15/2/22...
+                elsif Ch='*' and text[cp3]='/' then
+                    tokcol = col
+                    tokline = line
+                    Abort("unexpected end block comment")
                 else
 --26/7/17:
 --/*
@@ -1916,7 +1945,10 @@ global procedure getToken(bool float_valid=false)
                                                 --      if Ch is 0, it should be fixed 
                                                 --      in loadFile [?].
 
-        if toktype>SYMBOL then exit end if
+--31/1/22
+--?{Ch&"",toktype,SYMBOL,SPACE,tokline}
+--      if toktype>SYMBOL then exit end if
+        if toktype>HEXDEC then exit end if
         if toktype<=SPACE then
             col += 1
             if col>ltl then
@@ -1930,7 +1962,10 @@ global procedure getToken(bool float_valid=false)
             Ch = text[col]
 --10/07/20
 --      elsif Ch='-' then   -- check for comment
-        elsif Ch!='-' and Ch!='/' then  -- check for comment
+--31/1/22
+--      elsif Ch!='-' and Ch!='/' then  -- check for comment
+        elsif Ch!='-' and Ch!='/' and Ch!='#' then  -- check for comment
+--?{Ch&"",toktype,tokline}
             exit
         else    
 --printf(1,"getToken line 1920, Ch=%c, fileno=%d, col=%d, line=%d\n",{Ch,fileno,col,line})
@@ -1938,9 +1973,13 @@ global procedure getToken(bool float_valid=false)
 --if fileno=2 then ?9/0 end if
             cp1 = col+1
 --          if text[cp1]!='-' then exit end if
-            if text[cp1]!=Ch then
-                if Ch!='/' then exit end if
-                if text[cp1]!='*' then exit end if
+--31/1/22
+--          if text[cp1]!=Ch then
+            integer nc = text[cp1]
+            if nc!=Ch then
+--              if Ch!='/' then exit end if
+--              if text[cp1]!='*' then exit end if
+                if (Ch!='/' or nc!='*') and (Ch!='#' or nc!='[') then exit end if
                 col = cp1
                 SkipBlockComment()
             else
@@ -2433,11 +2472,6 @@ global procedure MatchChar(integer x, bool float_valid=false)
 --  getToken()
     getToken(float_valid)
 end procedure
-
---global procedure MatchString(integer T_ident)
---global procedure MatchString(integer T_ident, bool parse_dot_as_symbol=false)
--- A parse_dot_as_symbol of true simply means the next token cannot legally be a
---  floating point number. It may or may not be a valid dot-subscript.
 
 global procedure MatchString(integer T_ident, bool float_valid=false)
 --

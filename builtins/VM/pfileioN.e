@@ -6774,8 +6774,11 @@ end if
 --      fatalN(2,e59wfmfao,fn)
         fatalN(2,e58ifn,fn)
     end if
-    if and_bits(fmode,or_bits(F_READ,F_WRITE))!=F_READ then
+--2/2/22!!
+--  if and_bits(fmode,or_bits(F_READ,F_WRITE))!=F_READ then
+    if not and_bits(fmode,F_READ) then
 --      iofatal(59) -- "wrong file mode for attempted operation"
+--?{"fmode",fmode,F_READ,F_WRITE}
         fatalN(2,e59wfmfao,fn)
     end if
 --DEV

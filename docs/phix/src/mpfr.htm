@@ -464,7 +464,8 @@ dl {
             <b>mpz_addmul</b>(mpz rop, op1, op2) - rop := rop + op1 * op2
             </dt>
             <dd class="pad">
-            <b>mpz_addmul_ui</b>(mpz rop, op1, integer op2) - "" except op2 is a phix integer, 0..1GB.
+            <b>mpz_addmul_ui</b>(mpz rop, op1, integer op2) - "" except op2 is a phix integer, 0..1GB.<br>
+            <b>mpz_addmul_si</b>(mpz rop, op1, integer op2) - (an <a href="#mpzextras">extra</a>) "", +/-1GB.
             </dd>
            </dl>
           </td>
@@ -936,6 +937,7 @@ dl {
           </td>
           <td align="left" style="padding: 0; border-style: none;">
             <b>mpz_sizeinbase</b>(mpz op, integer base) - Return the size of op measured in number of digits in the given base.
+            <a name=mpz_get_str></a>
           </td>
          </tr>
          <tr>
@@ -945,10 +947,11 @@ dl {
           <td align="left" style="padding: 0; border-style: none;">
            <dl>
             <dt>
-            <b>mpz_get_str</b>(mpz x, integer base=10, boolean comma_fill=false) - Return x as a string in the specified base (2..62).
+            <b>mpz_get_str</b>(mpz op, integer base=10, boolean comma_fill=false) - Return op as a string in the specified base (2..62).
             </dt>
             <dd class="pad">
-            Note that mpz_free_string() is taken care of automatically for you by mpfr.e.
+            Note that mpz_free_string() is taken care of automatically for you by mpfr.e. 
+            See also <a href="#mpz_get_short_str">mpz_get_short_str</a>().
             </dd>
            </dl>
           </td>
@@ -1038,32 +1041,53 @@ dl {
         <a name=mpzextras></a>
        <h3>extras</h3>
         The following routines are mpfr.e-specific and not part of the C api, hence there is probably not much point in googling them.<br>
-        Some were largely written for simple convenience, rather than absolute performance, although I would say that 
+        Some were largely written for simple convenience, as opposed to any improvements in performance, although I would say that 
         <a href="mpfr.htm#mpz_prime_factors">mpz_prime_factors</a>() is (I think) exceptionally efficient at what it does best, 
         unless/until you push it too far, as detailed below. Also, some routines (the integer/atom ones) are deliberately renamed 
         because they have slightly different upper limits. Note that mpz_set_v() as documented above more strictly belongs in this
         section.
+        <a name=mpz_get_short_str></a>
        <br>
        <br>
        <div id="nopad" class="nopad" align="center">
         <table cellspacing="0" cellpadding="0" border="0" style="padding: 0; border-style: none;">
          <tr>
           <td align="right" style="padding: 0; border-style: none;">
-           <!-- procedure -->
+            string res =&nbsp;
           </td>
           <td align="left" style="padding: 0; border-style: none;">
-<!-- SUG: mpz_add_d, mpz_sub_d, mpz_d_sub -->
-            <b>mpz_add_si</b>(mpz rop, op1, integer op2) - a simple wrapper that invokes either 
-            mpz_add_ui, or mpz_sub_ui with -op2, and will crash if passed -(maxint+1).<br>
-            <b>mpz_sub_si</b>(mpz rop, op1, integer op2) - a simple wrapper that invokes either 
-            mpz_sub_ui, or mpz_add_ui with -op2, and will crash if passed -(maxint+1).<br>
-            <b>mpz_si_sub</b>(mpz rop, integer op1, mpz op2) - a simple wrapper that invokes mpz_sub_si(rop,op2,op1) then mpz_mul_si(rop,rop,-1).<br>
-            <b>mpz_mul_d</b>(mpz rop, op1, atom op2) - as mpz_mul_si() except op2 is a phix <a href="atom.htm">atom</a><br>
+           <dl>
+            <dt>
+            <b>mpz_get_short_str</b>(mpz op, integer ml=20, base=10, boolean comma_fill=false, string what="digits")
+            </dt>
+            <dd class="pad">
+            Equivalent to <a href="trim.htm#aux">shorten</a>(<a href="#mpz_get_str">mpz_get_str</a>(op,base,comma_fill),ml:=ml)) 
+            but much faster, since it does not construct potentially hundreds of thousands of middle digits and just throw them away.
+            Sadly no real impact under pwa/p2js, oh well.<br>
+            Note that ml is expressed in characters, so if you specify comma_fill and a length of 4 then you&rsquo;ll 
+            get (say) "12,3...,678 (nn digits)" back, the commas where they w/should rightly be on a full-length result, 
+            and obviously the trailing part will probably look nicer when ml is 4k-1, ie 3,7,11,15 etc.
+            </dd>
+           </dl>
           </td>
          </tr>
          <tr>
           <td align="right" style="padding: 0; border-style: none;">
-           <nobr>mpz/integer res =&nbsp;</nobr>
+           <!-- procedure -->
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
+<!-- SUG: mpz_add_d, mpz_sub_d, mpz_d_sub -->
+            <b>mpz_add_si</b>(mpz rop, op1, integer op2) - invokes mpz_add_ui() or mpz_sub_ui() with -op2, crashes if op2 is -(maxint+1).<br>
+            <b>mpz_sub_si</b>(mpz rop, op1, integer op2) - invokes mpz_sub_ui() or mpz_add_ui() with -op2, crashes if op2 is -(maxint+1).<br>
+            <b>mpz_si_sub</b>(mpz rop, integer op1, mpz op2) - invokes mpz_sub_si(rop,op2,op1) then mpz_mul_si(rop,rop,-1).<br>
+            <b>mpz_mul_d</b>(mpz rop, op1, atom op2) - as mpz_mul_si() except op2 is a phix <a href="atom.htm">atom</a><br>
+            <b>mpz_addmul_si</b>(mpz rop, op1, integer op2) - as mpz_addmul_ui() except op2 is +/-1GB<br>
+            <b>mpfr_addmul_si</b>(mpfr rop, op1, integer op2, rounding=default_rounding) - to match mpz_addmul_si() (note there is no mpfr_addmul_ui)<br>
+          </td>
+         </tr>
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+           <nobr>mpz/int res =&nbsp;</nobr>
           </td>
           <td align="left" style="padding: 0; border-style: none;">
            <dl>
@@ -1177,7 +1201,8 @@ dl {
              Increasing maxprime to 101 obviously makes a big difference, ie:
              mpz_prime_factors(sprintf("%d",power(2*get_prime(101),2)),101) yields {{2,2},{547,2}}.<br>
              Increasing maxprime to say 100,000,000 is likely to make this excruciatingly slow, yet still only fully handle 20-digit numbers.<br>
-             A length(res[$]) of 1 means it either failed mpz_fits_atom() or is greater than <a href="is_prime.htm">get_prime</a>(maxprime)^2, returned as a (lone) final string.<br>
+             Note that while <a href="factors.htm">prime_factors</a>() accepts a -1 in maxprime there is no such facility here.<br>
+             A length(res[$]) of 1 means it either failed mpz_fits_atom() or is greater than <a href="get_prime.htm">get_prime</a>(maxprime)^2, returned as a (lone) final string.<br>
              Also, while all other elements of res are almost certainly phix integer [pairs], res[$][1] may be atom (1GB..4GB), independently of res[$] being a lone string.<br>
              Finally, two special cases exist: s=0 yields {}, and s=1 yields {{2,0}}, aka 2^0.
              <!-- (Future versions may also accept a non-string s, similar to mpz_init[_set], if there is ever a genuine need for that.)-->
@@ -1592,7 +1617,8 @@ dl {
             <b>mpfr_add</b>(mpfr rop, op1, op2, integer rounding=default_rounding) - rop := op1+op2 with specified rounding
             </dt>
             <dd class="pad">
-            <b>mpfr_add_si</b>(mpfr rop, op1, integer op2, integer rounding=default_rounding) - "" except op2 is a phix integer, -1GB..+1GB
+            <b>mpfr_add_si</b>(mpfr rop, op1, integer op2, rounding=default_rounding) - "" except op2 is a phix integer, -1GB..+1GB<br>
+            <b>mpfr_addmul_si</b>(mpfr rop, op1, integer op2, rounding=default_rounding) - (an <a href="#mpzextras">extra</a>) rop += op1*op2
             </dd>
            </dl>
           </td>

@@ -4,7 +4,7 @@
 --
 --  The reusable part of parse.exw
 --
-
+with javascript_semantics
 include lex.e
 
 sequence tok
@@ -24,7 +24,7 @@ function get_tok()
 end function
 
 procedure expect(string msg, integer s)
-integer tk = tok[3]
+    integer tk = tok[3]
     if tk!=s then
         errd("%s: Expecting '%s', found '%s'\n", {msg, tkNames[s], tkNames[tk]})
     end if
@@ -32,8 +32,8 @@ integer tk = tok[3]
 end procedure
 
 function expr(integer p)
-object x = NULL, node
-integer op = tok[3] 
+    object x = NULL, node
+    integer op = tok[3] 
 
     switch op do
         case tk_LeftParen:
@@ -76,7 +76,7 @@ function paren_expr(string msg)
 end function
 
 function stmt()
-object t = NULL, e, s
+    object t = NULL, e, s
  
     switch tok[3] do
         case tk_if:
@@ -141,7 +141,7 @@ object t = NULL, e, s
 end function
 
 global function parse()
-object t = NULL
+    object t = NULL
     tok = get_tok()
     while 1 do
         object s = stmt()

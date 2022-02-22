@@ -104,13 +104,27 @@ procedure block_comment(integer tokstart,adj)
         end if
         tok_ch = src[i]
         integer cn = iff(i<lt?src[i+1]:'\0')
-        if tok_ch='*' and cn='/' then
+--?{"?:"&tok_ch&cn,line}
+--31/1/22
+--      if tok_ch='*' and cn='/' then
+        if (tok_ch='*' and cn='/')
+        or (tok_ch='#' and cn=']') then
+--?{"-"&tok_ch&cn,line}
             i += 1
             nest -= 1
-            if nest=0 then exit end if
+            if nest=0 then
+                src[i-1..i] = "*/"
+                exit
+            end if
             src[i-1] = '@'
-        elsif tok_ch='/' and cn='*' then
+--31/1/22
+--      elsif tok_ch='/' and cn='*' then
+        elsif (tok_ch='/' and cn='*')
+           or (tok_ch='#' and cn='[') then
+--?{"+"&tok_ch&cn,line}
             if phix_only(i+1,"nnc") then return end if
+            if tok_ch='#' then src[i] = '[' end if
+--          if tok_ch='#' then src[i] = '/' end if
             i += 1
             src[i] = '@'
             nest += 1
@@ -197,9 +211,17 @@ global procedure tokenise()
                             {} = tok_error("unexpected closing comment",i+3)
                             return
                         end if
+--?9/0
+--?{current_file,line}
                         line_comment()
                         break
-                    elsif toktype='/' and cn='*' then
+--31/1/22
+--                  elsif toktype='/' and cn='*' then
+                    elsif (toktype='/' and cn='*')
+                       or (toktype='#' and cn='[') then
+--if toktype='#' then trace(1) end if
+--                      src[i..i+1] = "/?"
+                        if toktype='#' then src[i..i+1] = "/*" end if
                         block_comment(i,2)
                         break
                     end if
@@ -236,6 +258,17 @@ global procedure tokenise()
                     tokstart += 1
                     toktype = LETTER
                     std_ident()
+--31/1/22
+                elsif tok_ch='!' then
+--trace(1)
+                    src[i-1..i] = "//"
+                    line_comment()
+                elsif tok_ch='[' then
+--                  src[i-1..i] = "/!"
+                    src[i-1..i] = "/*"
+                    i -= 1
+--                  src[i-1..i] = "/*"
+                    block_comment(i,2)
                 else
                     while find(upper(tok_ch),"0123456789ABCDEF_") do
                         i += 1
@@ -262,7 +295,8 @@ global procedure tokenise()
                     if tok_ch='\\' then
                         i += 1
                         tok_ch = src[i]         -- (safe)
-                        if tok_ch='#' then
+                        if tok_ch='#'
+                        or tok_ch='x' then
                             -- eg '\#62'    -- (treat as #62)
                             toktype = '#'
                             tokstart += 2

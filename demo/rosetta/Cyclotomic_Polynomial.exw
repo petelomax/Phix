@@ -3,7 +3,7 @@
 --
 --{{trans|Julia}}
 -- some routines nicked from demo\rosetta\Polynomial_long_division.exw:
-
+with javascript_semantics
 function degree(sequence p)
     for i=length(p) to 1 by -1 do
         if p[i]!=0 then return i end if
@@ -24,7 +24,8 @@ function poly_div(sequence n, d)
         quot[k+1] = qk
         sequence d2 = d[1..length(d)-k]
         for i=1 to length(d2) do
-            n[-i] -= d2[-i]*qk
+            integer mi = -i
+            n[mi] -= d2[mi]*qk
 --mops += 1
         end for
         dn = degree(n)
@@ -79,7 +80,7 @@ function cyclotomic(integer n)
             c = -1&repeat(0,n-1)&1
             sequence f = factors(n,-1)
             for i=1 to length(f) do
-                c = poly_div(c,cyclotomic(f[i]))
+                c = poly_div(c,deep_copy(cyclotomic(f[i])))
             end for
         end if
         setd(n,c,cyclotomics)
@@ -100,7 +101,7 @@ sequence fn = repeat(false,10),
          nxt = {105,385,1365,1785,2805,3135,6545,6545,10465,10465}
 atom t1 = time()+1
 puts(1,"\n")
-while found<10 do
+while found<iff(platform()=JS?5:10) do
 --mops = 0
     sequence z = cyclotomic(n)
 --if mops>mmops then
@@ -124,6 +125,7 @@ while found<10 do
         t1 = time()+1
     end if
 end while
+
 
 ?"done"
 {} = wait_key()

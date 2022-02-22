@@ -1,0 +1,170 @@
+--
+-- demo\rosetta\ChatServer.exw
+-- ========================
+--
+-- translation of (qchat) chatServ.exw
+--
+-- Run this first, then ChatClient.exw, see also IRC_Gateway.exw
+--
+-- Note that I've only got a 32-bit windows eulibnet.dll, but it should not
+-- be dificult to use a "real" libnet.dll/so, or something a little newer.
+--
+without js
+include pGUI.e
+constant dl = `Download rosetta\eulibnet\ from http://phix.x10.mx/pmwiki/pmwiki.php?n=Main.Eulibnet`
+assert(get_file_type("eulibnet")=FILETYPE_DIRECTORY,dl)
+include eulibnet/eulibnet.ew
+Ihandle log_list, log_window, statusbar, timer
+
+atom listconn
+constant IP = "127.0.0.1",
+         port = "29029",
+         IPaddress = IP & ":" & port
+constant MAX_MSG = 550
+sequence connections = {},
+         nicknames = {}
+
+constant max_log_len = 300
+
+procedure log_to_window(string txt)
+    integer count = to_number(IupGetAttribute(log_list,"COUNT"))
+    if count > max_log_len then
+        for t=1 to count-max_log_len do
+            IupSetAttribute(log_list,"REMOVEITEM","1")
+        end for
+    end if
+    IupSetAttribute(log_list,"APPENDITEM",txt)
+    IupSetAttribute(log_list,"TOPITEM",IupGetAttribute(log_list,"COUNT"))
+    IupUpdate(log_list)
+end procedure
+
+procedure message(string msg, sequence args={})
+    if length(args) then msg = sprintf(msg,args) end if
+    IupSetStrAttribute(statusbar, "TITLE", msg)
+    log_to_window(msg)
+end procedure
+
+procedure shutDown()
+    message("Shutting down euLibnet...")
+    for i = 1 to length(connections) do
+        if net_closeconn(connections[i]) then crash("Error closing connection!") end if
+    end for
+    if net_closeconn(listconn) then crash("Error closing listconn!") end if
+    if net_shutdown() then crash("Error shutting down euLibnet!") end if
+end procedure
+
+procedure sendToAll(string msg)
+    -- Send msg to all clients
+    for i=1 to length(connections) do
+        atom ci = connections[i]
+        message("Sending to connection %d (%s)",{ci,nicknames[i]})
+        if net_send_rdm(ci, msg) then
+            message("Error sending to connection %d",{ci})
+        end if
+    end for
+end procedure
+
+procedure mainWindow_onOpen()
+    message("Initializing euLibnet...")
+    if net_init() then crash("Error initializing euLibnet!") end if
+    message("done.")
+    message("Initializing driver...")
+    if net_initdriver(NET_DRIVER_WSOCK_WIN) != 1 then
+        crash("Error initializing WinSock driver!")
+    end if
+    message("done.")
+    message("Opening port " & IPaddress & "...")
+    listconn = net_openconn(NET_DRIVER_WSOCK_WIN, IPaddress)
+    if listconn = NULL then
+        crash("Couldn't open connection (server already running?)")
+    end if
+    message("done.")
+    if net_listen(listconn) then
+        crash("Error trying to listen to port")
+    end if
+    message("Listening on port " & IPaddress)
+end procedure
+
+function timer_cb(Ihandle /*timer*/)
+    integer conn = net_poll_listen(listconn)
+    if conn != NULL then
+         connections = append(connections, conn)
+         nicknames = append(nicknames, "")
+         message("New connection open from " & net_getpeer(conn))
+    end if
+
+    -- Check for messages from clients
+    for i = 1 to length(connections) do
+        integer ci = connections[i]
+        if net_query_rdm(ci) > 0 then
+            string ni = nicknames[i]
+            --Get the message
+            sequence msg = net_receive_rdm(ci, MAX_MSG)
+            message("received msg \"%s\" of length %d from %d aka %s",{msg[2],msg[1],ci,ni})
+            if msg[1] < 0 then --Exit on error
+                {} = net_ignore_rdm(ci)
+                sendToAll("Server error: some data may be lost")
+                exit
+            end if
+
+            msg = msg[2]
+            if length(msg) > 4 and equal(msg[1..3], "/n:") then
+                if find(msg[4..length(msg)], nicknames) then
+                    if net_send_rdm(ci, "/nt") then
+                        message("Error sending to %d",{ci})
+                    end if
+                else
+                    string prevname = ni
+                    ni = msg[4..length(msg)]
+                    nicknames[i] = ni
+                    if length(prevname) = 0 then
+                        sendToAll("/j:" & ni & " has joined")
+                        -- send fake "has joined"s to the new joiner,
+                        -- so that it can build a full members list (see allj)
+                        for n=1 to length(nicknames) do
+                            if n!=i then
+                                msg = "/j:" & nicknames[n] & " has joined"
+                                if net_send_rdm(ci, msg) then
+                                    message("Error sending to connection %d",{ci})
+                                    exit
+                                end if
+                            end if
+                        end for
+                    else
+                        sendToAll("/c:" & prevname & " has changed name to " & ni)
+                    end if
+                end if
+            elsif equal(msg, "/d") then
+                msg = "/l:"& ni & " has left"
+                message(msg)
+                nicknames[i..i] = {}
+                connections[i..i] = {}
+                sendToAll(msg)
+                exit
+            -- Aside: bunch of popup and file transfer stuff was here in qchat.exw,
+            --        all ripped out in the name of keeping this short and sweet.
+            else
+                sendToAll(ni & ": " & msg) -- (Add nickname to message)
+            end if
+        end if
+    end for
+    return IUP_IGNORE
+end function
+
+function close_cb(Ihandle /*ih*/)
+    shutDown()
+    return IUP_DEFAULT
+end function
+
+IupOpen()
+log_list = IupList("EXPAND=YES, CANFOCUS=NO, MULTIPLE=YES")
+statusbar = IupLabel("Loading...","EXPAND=HORIZONTAL")
+log_window = IupDialog(IupVbox({log_list,statusbar}),
+            `TITLE="Chat Server", RASTERSIZE=400x400`)
+IupSetCallback(log_window,"CLOSE_CB",Icallback("close_cb"))
+IupShow(log_window)
+mainWindow_onOpen()
+timer = IupTimer(Icallback("timer_cb"), 500)
+IupMainLoop()
+IupClose()
+

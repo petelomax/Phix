@@ -26,7 +26,7 @@
 --
 -- Tested on Phix (0.5.9), RDS Eu 2.4 and 4.0, Windows 7 and XP.
 --
---!/**/without debug
+--/**/without debug
 --
 --/*
 include machine.e

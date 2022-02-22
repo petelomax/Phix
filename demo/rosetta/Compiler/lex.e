@@ -5,6 +5,7 @@
 --  The reusable part of lex.exw
 --  This is only kept separate from core.e for consistency with later modules.
 
+with javascript_semantics
 include core.e
 
 integer ch = ' ',
@@ -24,7 +25,8 @@ function next_ch()
         elsif col>length(oneline) then
             line += 1
             col = 0
-            oneline = gets(input_file)
+            oneline = iff(platform()=JS?js_gets()
+                                       :gets(input_file))
         else
             ch = oneline[col]
             exit
@@ -33,7 +35,9 @@ function next_ch()
     return ch
 end function
 
-constant whitespace = " \t\r\n\x0B\xA0"
+-- for pwa/p2js (JavaScript *really* dislikes tabs in strings):
+--constant whitespace = " \t\r\n\x0B\xA0"
+constant whitespace = {' ','\t','\r','\n',#0B,#A0}
 -- (0x0B is Vertical Tab, 0xA0 is Non-breaking space)
 
 procedure skipspacesandcomments()
@@ -78,8 +82,8 @@ function escape_char(string s)
 end function
 
 function char_lit()
-integer startch = ch
-integer res = next_ch() -- (skip opening quote, save res)
+    integer startch = ch,
+            res = next_ch() -- (skip opening quote, save res)
     if ch=startch then
         error("empty character constant")
     elsif ch='\\' then
@@ -97,8 +101,8 @@ integer res = next_ch() -- (skip opening quote, save res)
 end function
 
 function string_lit()
-integer startch = ch
-string text = ""
+    integer startch = ch
+    string text = ""
     while next_ch()!=startch do
         if ch=EOF
         or ch='\n' then
@@ -112,8 +116,9 @@ string text = ""
     return {tk_String, text}
 end function
 
-function op()
-sequence operator = {ch}
+function get_op()
+--  sequence operator = {ch}
+    string operator = ""&ch
     ch = next_ch()
     while charmap[ch]=OPERATOR
       and find(operator&ch,operators) do
@@ -126,8 +131,8 @@ sequence operator = {ch}
     return {opcodes[k], 0} -- (0 unused)
 end function
 
-function int()
-integer i = 0
+function get_int()
+    integer i = 0
     while charmap[ch]=DIGIT do
         i = i*10 + (ch-'0')
         ch = next_ch()
@@ -138,8 +143,8 @@ integer i = 0
     return {tk_Integer, i}
 end function
 
-function ident()
-string text = ""
+function get_ident()
+    string text = ""
     while find(charmap[ch],{LETTER,DIGIT}) do
         text &= ch
         ch = next_ch()
@@ -151,7 +156,7 @@ string text = ""
     return {tk_Identifier, text}
 end function
 
-function get_tok()
+function get_token()
     skipspacesandcomments()
     tok_line = line
     tok_col  = col
@@ -161,20 +166,20 @@ function get_tok()
         case '"'  then return string_lit()
         else
             switch charmap[ch] do
-                case OPERATOR then return op()
-                case DIGIT then return int()
-                case LETTER then return ident()
+                case OPERATOR then return get_op()
+                case DIGIT then return get_int()
+                case LETTER then return get_ident()
                 else error("unrecognized character: (%d)", {ch})
             end switch
     end switch
 end function
 
 global function lex()
-sequence toks = {}
+    sequence toks = {}
     integer tok = -1
     object v
     while tok!=tk_EOI do
-        {tok,v} = get_tok()
+        {tok,v} = get_token()
         toks = append(toks,{tok_line,tok_col,tok,v})
     end while
     return toks

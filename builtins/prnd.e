@@ -359,10 +359,11 @@ end function
 -- erm: could be put on the std then...
 global function sq_rnd(object shape=1)
     if atom(shape) then return rnd() end if
+    sequence res = repeat(0,length(shape))
     for i=1 to length(shape) do
-        shape[i] = sq_rnd(shape[i])
+        res[i] = sq_rnd(shape[i])
     end for
-    return shape
+    return res
 end function
 
 --better[?]:

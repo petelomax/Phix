@@ -1,7 +1,9 @@
 --
 -- demo\rosetta\Audio_frequency_generator.exw
 --
-without js -- (unless there is/we can find a JavaScript beep() funcion??)
+without js -- (unless there is/we can find a JavaScript beep() funcion?? [DEV])
+--DEV: VALUECHANGED_CB not called, should probably make this fied size,
+--      IupGetInt(SLIDER) not suported, and obvs. beep().
 include pGUI.e
 Ihandle frequency, duration
 atom xBeep=0
@@ -9,6 +11,10 @@ atom xBeep=0
 function button_cb(Ihandle /*playbtn*/)
     integer f = IupGetInt(frequency,"VALUE"),
             d = IupGetInt(duration,"VALUE")
+--DEV new builtin?
+--  beep(f,d)
+--?{"beep",f,d}
+--/!*
     if platform()=WINDOWS then
         if xBeep=0 then
             atom k32 = open_dll("kernel32.dll")
@@ -19,13 +25,15 @@ function button_cb(Ihandle /*playbtn*/)
     else
         system(sprintf("play -n synth %f sine %d", {d/1000, f}))
     end if
+--*!/
     return IUP_DEFAULT
 end function
 
 function valuechanged_cb(Ihandle val)
     -- maintain the labels as the sliders are moved
-    Ihandle parent = IupGetParent(val),
-            lbl = IupGetNextChild(parent, NULL) 
+--  Ihandle parent = IupGetParent(val),
+--          lbl = IupGetNextChild(parent, NULL) 
+    Ihandle lbl = IupGetBrother(val, true)
     integer v = IupGetInt(val,"VALUE")
     IupSetInt(lbl,"TITLE",v)
     return IUP_DEFAULT
@@ -37,9 +45,9 @@ procedure main()
                             "EXPAND=HORIZONTAL, CANFOCUS=NO, MIN=50, MAX=10000, VALUE=2000")
     duration = IupValuator("HORIZONTAL","VALUECHANGED_CB", Icallback("valuechanged_cb"),
                            "EXPAND=HORIZONTAL, CANFOCUS=NO, MIN=100, MAX=3000, VALUE=500")
-    Ihandle flabel = IupLabel("2000","ALIGNMENT=ARIGHT,NAME=val_label,SIZE=20x8"),
+    Ihandle flabel = IupLabel("2000","ALIGNMENT=ARIGHT,SIZE=20x8"),
             frame1 = IupFrame(IupHbox({flabel,frequency}),`TITLE="Frequency (Hz): "`),
-            dlabel = IupLabel("500","ALIGNMENT=ARIGHT,NAME=val_label,SIZE=20x8"),
+            dlabel = IupLabel("500","ALIGNMENT=ARIGHT,SIZE=20x8"),
             frame2 = IupFrame(IupHbox({dlabel,duration}),`TITLE="Duration (ms): "`),
             playbtn = IupHbox({IupFill(),
                                IupButton("Play",Icallback("button_cb"),"PADDING=30x0"),
@@ -49,8 +57,10 @@ procedure main()
                             playbtn}, "MARGIN=10x5, GAP=5"),
             dlg = IupDialog(vbox,`TITLE="Audio Frequency Generator",RASTERSIZE=500x230`)
     IupShow(dlg)
-    IupMainLoop()
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 main()
 

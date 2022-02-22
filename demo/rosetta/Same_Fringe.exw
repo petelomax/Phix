@@ -2,29 +2,32 @@
 -- demo\rosetta\Same_Fringe.exw
 -- ============================
 --
---  Requires 0.7.5 or later (implementation revealed that task_yield did not
---                           have side effects of e_all properly set.)
+--  In some cases it may help to replace the single res with a table, such
+--  that if you have concurrent task pairs {1,2} and {3,4} with a table of
+--  result indexes ridx = {1,1,2,2}, then each updates res[ridx[tidx]]. In
+--  other words if extending tasks[] rather than overwriting it, you would
+--  also extend res[] and ridx[] and sdata[], and need freelist handling.
 --
+without js -- (multitasking)
+
 constant tests = {{0,1,{0,2,0}},
                   {{0,1,0},2,0},
                   {{0,1,0},2,{0,3,0}},
                  }
 
-sequence tasks
-integer res = 0
-sequence sdata = repeat(0,2)
-
-integer active_tasks
-integer show_details = 1
+sequence tasks,
+         sdata = repeat(0,2)
+integer res = 0,
+        active_tasks
+bool show_details = true
 
 procedure scan(sequence tree, integer level, integer tidx)
-object {left,data,right} = tree
+    object {left,data,right} = tree
     if res=0 then
         if left!=0 then scan(left,level+1,tidx) end if
         sdata[tidx] = data
         if show_details then
-            printf(1,"task[%d] sets sdata[%d] to ",tidx)
-            ?data
+            printf(1,"task[%d] sets sdata[%d] to %v\n",{tidx,tidx,data})
         end if
         if res=0 then
             task_suspend(task_self())
@@ -38,45 +41,42 @@ object {left,data,right} = tree
         end if
         active_tasks -= 1
         tasks[tidx] = 0
-        sdata[tidx] = -1 -- (or use a separate flag)
+        sdata[tidx] = -1 -- (or use a separate flag or tasks[tidx])
     end if
 end procedure
 
-?"started"
-procedure test(integer t1, integer t2)
+procedure test(integer t1, t2)
     tasks = {task_create(routine_id("scan"),{tests[t1],1,1}),
              task_create(routine_id("scan"),{tests[t2],1,2})}
     active_tasks = 2
     res = 0
     while active_tasks>0 do
-        if tasks[1] then
-            task_schedule(tasks[1],1)
-            task_yield()
-        end if
-        if tasks[2] then
-            task_schedule(tasks[2],1)
-            task_yield()
-        end if
+        for i=1 to 2 do
+            if tasks[i] then
+                task_schedule(tasks[i],1)
+                task_yield()
+            end if
+        end for
         if res=0 then
+            -- (nb next might only be valid for active_tasks==2)
             res = compare(sdata[1],sdata[2])
             if show_details then
-                ?{res,sdata[1],sdata[2],active_tasks}
+                printf(1,"compare(%v,%v) ==> %d, active tasks:%d\n",
+                         {sdata[1],sdata[2],res,active_tasks})
             end if
         end if
     end while
     printf(1,"test(%d,%d):%d\n",{t1,t2,res})
 end procedure
 
-test(1,1)
-show_details = 0
-test(1,2)
-test(1,3)
-test(2,1)
-test(2,2)
-test(2,3)
-test(3,1)
-test(3,2)
-test(3,3)
+?"started"
+for l=1 to 3 do
+    for r=1 to 3 do
+        test(l,r)
+        show_details = 0
+    end for
+end for
 
+?"done"
 {} = wait_key()
 

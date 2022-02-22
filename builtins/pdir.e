@@ -4,6 +4,7 @@
 --
 -- The Phix dir function.
 --
+without debug
 
 --/**/-- not strictly necessary, but reduces opCallOnce/fwd calls/onDeclaration
 include builtins\wildcard.e -- wildcard_file()

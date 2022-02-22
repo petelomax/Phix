@@ -1,0 +1,86 @@
+--
+-- demo\rosetta\Guess_the_number2.exw
+--
+with javascript_semantics -- (spacing not (yet) great...)
+include pGUI.e
+Ihandle lbl, guess, toohigh, too_low, correct, newgame, dlg
+
+integer Min=0, Max=100, Guess
+constant LTHINK = sprintf("Think of a number between %d and %d.",{Min,Max})
+
+procedure set_active(bool bActive)
+    IupSetInt({toohigh, too_low, correct},"ACTIVE",bActive)
+    IupSetInt(newgame,"ACTIVE",not bActive)
+end procedure
+
+procedure set_guess()
+    Guess = floor((Max+Min)/2)
+    string title = sprintf("My guess is %d, is this too high, too low, or correct?", Guess)
+    if Max<Min then
+        set_active(false)
+        title = "I think something is strange here..."
+    end if
+    IupSetStrAttribute(guess,"TITLE",title)
+    IupRefresh(guess)
+end procedure
+
+function click_cb(Ihandle ih)
+    switch substitute(IupGetAttribute(ih,"TITLE"),"Too ","")[1] do
+        case 'H':   Max = Guess-1  set_guess()
+        case 'L':   Min = Guess+1  set_guess()
+        case 'C':   IupSetStrAttribute(guess,"TITLE","I did it!")
+                    set_active(false)
+        case 'N':   Min = 0  Max = 100  set_guess()
+                    set_active(true)
+    end switch
+    return IUP_DEFAULT
+end function
+
+procedure main()
+    IupOpen()
+    lbl = IupLabel(LTHINK)
+    guess = IupLabel("")
+    toohigh = IupButton("Too High", Icallback("click_cb"))
+    too_low = IupButton("Too Low", Icallback("click_cb"))
+    correct = IupButton("Correct", Icallback("click_cb"))
+    newgame = IupButton("New Game", Icallback("click_cb"), "ACTIVE=NO")
+    dlg = IupDialog(IupVbox({lbl,
+                             guess,
+                             IupHbox({toohigh,too_low,correct,newgame},
+                                     "GAP=10")},
+                            `NMARGIN=15x15,GAP=10`),
+                    `MINSIZE=300x100,TITLE="Guess the number2"`)
+    set_guess()
+    IupShow(dlg)
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
+end procedure
+ 
+main()
+
+--/* previous desktop-only version
+integer Min=0, Max=100, Guess, Response
+printf(1,"Think of a number between %d and %d.\n",{Min,Max})
+while 1 do
+    Guess = floor((Max+Min)/2)
+    printf(1,"My guess is %d, is this too high, too low, or correct? (H/L/C)", Guess)
+    Response = lower(wait_key())
+    puts(1,"\n")
+    if Response='h' then
+        Max = Guess-1
+    elsif Response='l' then
+        Min = Guess+1
+    elsif Response='c' then
+        puts(1,"I did it!\n")
+        exit
+    else
+        puts(1,"I do not understand that...\n")
+    end if
+    if Max<Min then
+        puts(1,"I think something is strange here...\n")
+        exit
+    end if
+end while
+--*/

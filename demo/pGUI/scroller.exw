@@ -6,98 +6,82 @@
 --
 --  This is one of the "cool" demos.
 --
--- TODO: support drag (WM_LBUTTONDOWN/WM_MOUSEMOVE/MK_LBUTTON) and (shift) WM_MOUSEWHEEL.
---  (see edita.exw and possibly scowel.exw, or, of course, mini.chm)
+-- TODO: support drag (mousewheel already works)
 --  A help popup... maybe a second window...
 --  + zoom in
 --  - zoom out
 --  = original zoom
 --  # fit to screen
-
---/*
-SOLVED: 1) make the canvas non-resizable by setting EXPAND=NO (on the IupCanvas)
-        2) and at the same time also remove the RASTERSIZE=NULL ("")
-        3) that means the resize callback has to be moved from canvas to dlg
-        4) cdCanvasGetSize now fixed so use eg IupGetIntInt(dlg,"RASTERSIZE")
-        5) redraw_cb will be called far less often, in fact only when revealing
-           a previously clipped region, which is absolutely fine for what I want.
-
-Updated 30/5: proper resizable canvas, redraw every time.
---*/
-
+--
 with javascript_semantics
 include pGUI.e
 
 Ihandle dlg, canvas
 cdCanvas cddbuffer, cdcanvas
 
-procedure appUpdateRender()
-integer width, height
-    cdCanvasActivate(cddbuffer)
+--constant imageX = 1280,
+constant imageX = 680,
+--       imageY = 960
+         imageY = 560
 
---  cdCanvasClear(cddbuffer)
-
---  {width, height} = IupGetIntInt(dlg, "RASTERSIZE")
-    {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
-    cdCanvasLine(cddbuffer, 0, 0, width-1, height-1)
-    cdCanvasLine(cddbuffer, 0, height-1, width-1, 0)
-    cdCanvasFlush(cddbuffer)
-end procedure
-
---function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
---function redraw_cb(Ihandle /*ih*/, atom posx, posy)
 function redraw_cb(Ihandle /*ih*/)
---atom px = IupGetDouble(canvas,"POSX"),
---   py = IupGetDouble(canvas,"POSY")
---?{"redraw_cb",posx,px,int_to_bytes(posx,8),atom_to_float64(px),
---            posy,py,int_to_bytes(posy,8),atom_to_float64(py)}
---{"redraw_cb",1063675494,1063675494}
---{"redraw_cb",#3F666666,#3F666666}
-    appUpdateRender()
+    integer {w, h} = IupGetIntInt(canvas, "DRAWSIZE"),
+            px = IupGetInt(canvas,"POSX"),
+            py = IupGetInt(canvas,"POSY")
+--?{"redraw",w,h,IupGetIntInt(canvas, "RASTERSIZE")}
+
+    cdCanvasActivate(cddbuffer)
+    cdCanvasClear(cddbuffer)
+    cdCanvasSetForeground(cddbuffer, CD_BLACK)
+    cdCanvasRect(cddbuffer,10-px,floor((imageX-80)/2)-px,h-10+py,h-floor((imageY-130)/2)+py)
+    cdCanvasSetForeground(cddbuffer, CD_RED)
+    cdCanvasRect(cddbuffer,floor(imageX/4)-px,imageX-75-px,h-floor(imageY/4)+py,h-(imageY-75)+py)
+    cdCanvasSetForeground(cddbuffer, CD_GREEN)
+    cdCanvasRect(cddbuffer,5-px,imageX-5-px,h-5+py,h-imageY+5+py)
+    cdCanvasFlush(cddbuffer)
+
     return IUP_DEFAULT
 end function
-constant cb_redraw = Icallback("redraw_cb")
 
---function resize_cb(Ihandle /*ih*/)
---  appUpdateRender()
---  return IUP_DEFAULT
---end function
+function resize_cb(Ihandle /*ih*/)
+?"resize_cb"
+    for twice=1 to 2 do
+        --
+        -- twice in case X/YHIDDEN change (not actually valid here/yet),
+        --   aka re-apply the updated drawsize (which /is/ valid now).
+        --
+        integer {w, h} = IupGetIntInt(canvas, "DRAWSIZE")
+        IupSetInt(canvas,"DX",w)
+        IupSetInt(canvas,"DY",h)
+    end for
+    return IUP_DEFAULT
+end function
 
 function map_cb(Ihandle ih)
+?"map_cb"
     cdcanvas = cdCreateCanvas(CD_IUP, ih)
     cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
-    cdCanvasSetBackground(cddbuffer, CD_WHITE)
+--  cdCanvasSetBackground(cddbuffer, CD_WHITE)
+    cdCanvasSetBackground(cddbuffer, CD_PARCHMENT)
     cdCanvasSetForeground(cddbuffer, CD_RED)
-    return IUP_DEFAULT
-end function
-
-function unmap_cb(Ihandle /*ih*/)
-    cdKillCanvas(cddbuffer)
-    cdKillCanvas(cdcanvas)
     return IUP_DEFAULT
 end function
 
 procedure main()
     IupOpen()
 
---  canvas = IupCanvas("RASTERSIZE=300x200")
-    canvas = IupCanvas("RASTERSIZE=1280x960, SCROLLBAR=YES, XMAX=1280, YMAX=960")
-IupSetDouble(canvas,"POSX",1279.9)
-IupSetDouble(canvas,"POSY",959.9)
+    canvas = IupCanvas("SCROLLBAR=YES, XMAX=%d, YMAX=%d",{imageX,imageY})
+    IupSetAttributes(canvas,"RASTERSIZE=%dx%d",{imageX,imageY})
 
---  IupSetAttribute(canvas, "EXPAND", "NO")
     IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
-                             "UNMAP_CB", Icallback("unmap_cb"),
---                           "ACTION", Icallback("redraw_cb")})
-                             "ACTION", cb_redraw})
-    dlg = IupDialog(canvas,"RASTERSIZE=640x480")
-    IupSetAttribute(dlg, "TITLE", "Virtual Window Demo")
---  IupSetCallback(dlg, "RESIZE_CB", Icallback("resize_cb"))
-
-    IupMap(dlg)
-    IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release the minimum limitation
-
+                             "RESIZE_CB", Icallback("resize_cb"),
+                             "ACTION", Icallback("redraw_cb")})
+    dlg = IupDialog(canvas,`RASTERSIZE=640x480, TITLE="Virtual Window Demo"`)
     IupShow(dlg)
+--  IupRefresh(dlg) -- spanners desktop
+--  IupUpdate(dlg)  -- no help
+--  IupRedraw(dlg)  -- no help
+--  IupRefreshChildren(dlg) -- no help
     if platform()!=JS then
         IupMainLoop()
         IupClose()
@@ -106,6 +90,37 @@ end procedure
 
 main()
 --/*
+Canvas X/YHIDDEN glitch?
+Hi there. I am emulating a 640x480 window on a 1280x960 canvas, all working fine and 
+perfectly happy to leave this as-is, however I just thought I should say something.
+
+function resize_cb(Ihandle /*ih*/)
+    for twice=1 to 2 do
+        --
+        -- twice in case X/YHIDDEN change (not actually valid here/yet),
+        --   aka re-apply the updated drawsize (which /is/ valid now).
+        --
+        integer {w, h} = IupGetIntInt(canvas, "DRAWSIZE")
+        IupSetInt(canvas,"DX",w)
+        IupSetInt(canvas,"DY",h)
+    end for
+    return IUP_DEFAULT
+end function
+
+Prior to the twice loop (which I am still going to need no matter what) I noticed that
+when I had dragged the scrollbar(s) off the 0-position, then maximised and restored the 
+window, XHIDDEN was working but YHIDDEN was not (as in the scrollbars actually being 
+shown on-screen), which I assume is because XHIDDEN is updated by the set of DY, but 
+the latter is not setting its own YHIDDEN properly. I managed to replicate the problem
+on XHIDDEN instead by (removing the twice loop and) swapping the two set lines. Note
+that everything works fine when the scrollbar thumbs are in the 0-position.
+
+You can run an online version at http://phix.x10.mx/p2js/scroller.htm just so you can see 
+roughly what my demo is trying to do, but note that is not actually using any of your code 
+(whereas the desktop version of that same demo does), does not have any scrollbar handling 
+at all yet (so no such glitch), plus it needs a manual max/restore when first run. Also it
+is probably easier to translate that JavaScript code to C than the Phix code it came from.
+
 --
 -- scroller.exw
 -- ============

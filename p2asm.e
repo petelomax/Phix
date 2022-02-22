@@ -1,6 +1,6 @@
 --
 -- p2asm.e
---  Phix: included by plist.e
+--  Phix: included by plist.e, also used in demo/pGUI/filedump.exw
 --
 with trace
 
@@ -20,8 +20,8 @@ with trace
 -- 20/08/2013 Added basic/ad-hoc 64-bit support. NOTE: this largely consisted of scanning
 --            appendix B of AMD[3] and planting lots of ?9/0 in this code. Users familiar 
 --            with 64-bit code may be disappointed to hear there is absolutely no support
---            (as yet) for VEX and XOP prefixes, not that there was ever any support for
---            SIMD/SSE etc instructions in 32-bit mode.
+--            (as yet) for VEX and XOP (AMD only) prefixes, not that there was ever any 
+--            support for SIMD/SSE etc instructions in 32-bit mode.
 -- 25/01/2014 Added a few random sse2 instructions, just enough for the fasm mandel demo.
 --            (there is no equivalent code in pilasm.e as of yet)
 
@@ -1302,7 +1302,7 @@ badprefix = 1
 exit
         elsif machine=64
           and c=#8E then
---          ?9/0    -- XOP prefix (whatever that is!)
+--          ?9/0    -- XOP prefix (whatever that is!) [AMD only]
 printf(1,"p2asm line 891: XOP prefix?: check #%08x\n",addr)
 badprefix = 1
 exit

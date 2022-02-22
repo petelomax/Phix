@@ -4,7 +4,116 @@
 --
 -- https://rosettacode.org/wiki/Free_polyominoes_enumeration
 --
+-- Written for clarity over raw speed.
+--
+with javascript_semantics
+function rotate90(integer x, y) return {y,-x} end function
+function reflectx(integer x, y) return {-x,y} end function
+function rotflect(integer fn, sequence xy) return call_func(fn,xy) end function
+
+function rotationsAndReflections(sequence poly)
+    -- All the plane symmetries of a rectangular region.
+    -- (ie orig plus 3*90 plus reflect and another 3*90)
+    sequence res = repeat(poly,8)
+    for i=2 to 8 do
+        integer fn = iff(i=5?reflectx:rotate90)
+        res[i] = apply(true,rotflect,{fn,res[i-1]})
+    end for
+    return res
+end function
+
+function translateToOrigin(sequence poly)
+    -- Ensure {minx,miny} is/move it to {1,1}
+    integer minx = min(vslice(poly,1))-1,
+            miny = min(vslice(poly,2))-1
+    return unique(apply(true,sq_sub,{poly,{{minx,miny}}}))
+end function
+
+function canonical_poly(sequence poly)
+    -- Returns unique/min representation, eg {{1,1},{1,2}} not {{1,1},{2,1}}
+    return min(apply(rotationsAndReflections(poly),translateToOrigin))
+end function
+
+function contiguous(sequence pt)
+    -- All four points in Von Neumann neighborhood
+    integer {x,y} = pt
+    return {{x-1,y},{x+1,y},{x,y-1},{x,y+1}}
+end function
+
+function new_points(sequence poly)
+    -- Finds all distinct points that can be added to a Polyomino.
+    sequence res = {}
+    for i=1 to length(poly) do
+        res &= contiguous(poly[i])
+    end for
+    res = unique(res)
+    return res
+end function
+ 
+function new_polys(sequence p)
+    -- Finds all polys that can be created by adding one more point.
+    sequence pts = new_points(p),
+             res = {}
+    for i=1 to length(pts) do
+        sequence pt = pts[i]
+        if not find(pt,p) then
+            sequence poly = append(deep_copy(p),pt)
+            res = append(res,canonical_poly(poly))
+--(nope, no faster) [with the two lines below, that is]
+--          res = append(res,poly)
+        end if
+    end for
+    return res
+end function
+
+sequence ranks = {{{{1,1}}}}    -- (rank[1] = a single monomino)
+
+function rank(integer n)
+    if n=0 then return {} end if
+    assert(n>=1)
+    while n>length(ranks) do
+        sequence r = ranks[$],  -- (extend last)
+                 polys = {}
+        for i=1 to length(r) do
+            polys &= new_polys(r[i])
+        end for
+        polys = unique(polys)
+--      polys = apply(polys,canonical_poly)
+--      polys = unique(polys)
+        ranks = append(ranks,polys)
+    end while
+    return ranks[n]
+end function
+
+procedure print_polys(sequence p)
+--  pp(p,{pp_Nest,1})
+    integer n = length(p),
+            l = length(p[1])
+    sequence lines = repeat(repeat(' ',(l+1)*n+2),l)
+    for i=1 to n do
+        sequence pi = p[i]
+        for j=1 to length(pi) do
+            integer {x,y} = pi[j]
+            lines[y][x+(i-1)*(l+1)+2] = '#'
+        end for
+    end for
+    printf(1,"\n%s\n\n",{join(lines,"\n")})
+end procedure
+
+atom t0 = time()
+for i=1 to 10 do
+    sequence ri = rank(i)
+    printf(1,"rank:%d  count:%d\n",{i,length(ri)})
+    if i>0 and i<=5 then print_polys(ri) end if
+end for
+?elapsed(time()-t0) 
+
+?"done"
+{} = wait_key()
+
+--/* old, broken under pwa/p2js...: (no idea why I'm keeping it...)
 --{{trans|C#}} ... but didn't bother with Wrap()
+--with javascript_semantics --DEV broken, re-do from scratch...
 
 integer n, ns,                  -- rank, rank squared
         target,                 -- rank to display
@@ -93,9 +202,11 @@ function toStr(sequence field)
         j += 1
     end while
     sequence t = split(res,'\n')
+?{res,t}
+--  sequence t = split(res,"\n")
     integer nn = 100, m = 0, v, k = 0; -- trim down
-    for i = 1 to length(t) do
-        string s = t[i]
+    for tdx = 1 to length(t) do
+        string s = t[tdx]
         v = find('#',s)
         if v=0 then exit end if
         if v<nn then nn=v end if
@@ -104,8 +215,8 @@ function toStr(sequence field)
         k += 1
     end for
     t = t[1..k]
-    for i=1 to length(t) do
-        t[i] = t[i][nn..m]
+    for tdx=1 to length(t) do
+        t[tdx] = t[tdx][nn..m]
     end for
     if platform()=WINDOWS then return t end if
     res = join(t,'\n')
@@ -115,9 +226,10 @@ end function
 procedure CheckIt(sequence field, integer lv)
     AnyR[lv] += 1
     for i=1 to ns do fChk[i] = 0 end for
-    integer x, y
+    integer x
     bool bail = false
-    for x=n to fWid-1 do
+    for i=n to fWid-1 do
+        x = i
         for y=0 to fSiz-x by fWid do
             bail = and_bits(field[x+y+1],1)=1
             if bail then exit end if
@@ -131,7 +243,10 @@ procedure CheckIt(sequence field, integer lv)
             fChk[mod(t,fWid)+x2+floor(t/fWid)*n+1] = 1
         end if
     end for
-    for of1=1 to length(fChk) do if fChk[of1]!=0 then exit end if end for
+    for i=1 to length(fChk) do
+        of1 = i
+        if fChk[of1]!=0 then exit end if
+    end for
     bool c = true
     for r=2 to 8 do
         for x=0 to n-1 do
@@ -163,6 +278,8 @@ function Recurse(integer lv, sequence field, putlist, integer putno, putlast)
 --   0-based indexing to 1-based simply by adding +1 almost everywhere.)).
     CheckIt(field, lv)
     if n<lv then return {field,putlist} end if
+    field = deep_copy(field)
+    putlist = deep_copy(putlist)
     integer pos
     for i=putno to putlast do
         pos = putlist[i]
@@ -204,7 +321,8 @@ end procedure
 
 procedure main()
     polys = {}
-    n = 11
+--  n = 11
+    n = 5
     target = 5
     printf(1,"Counting polyominoes to rank %d...\n", n)
     clipAt = 120
@@ -219,6 +337,8 @@ procedure main()
             -- Windows consoles not so clever with unicode...
             integer w = 0
             sequence lines = {}
+?polys
+?{length(polys),length(polys[1])}
             for i=1 to length(polys) do
                 for j=1 to length(polys[i]) do
                     if j>length(lines) then
@@ -250,6 +370,7 @@ procedure main()
     {} = wait_key()
 end procedure
 main()
+--*/
 
 --/*
 Counting polyominoes to rank 11...

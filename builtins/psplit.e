@@ -5,6 +5,7 @@
 --
 --  This is an auto-include file; there is no need to manually include it, unless you want a namespace.
 --
+without debug
 
 global function split(sequence source, object delimiter=' ', bool no_empty=true, integer limit=0)
     sequence ret = {}

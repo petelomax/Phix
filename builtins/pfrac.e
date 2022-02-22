@@ -11,8 +11,8 @@
 --SUG:
 constant USE_MPQ = false
 
-constant USE_MPZ = true
---constant USE_MPZ = false
+--constant USE_MPZ = true
+constant USE_MPZ = false
 
 
 include mpfr.e
@@ -37,8 +37,8 @@ integer frac_init = false
 
 enum NUMER = 1, DENOM = 2, FRACLEN=$
 
---constant USE_BIGATOM = true
-constant USE_BIGATOM = false
+constant USE_BIGATOM = true
+--constant USE_BIGATOM = false
 --bool USE_BIGATOM = true
 --bool USE_BIGATOM = false
 --bool USE_BIGINT = false
@@ -101,8 +101,7 @@ else
 end if
 end type
 
---global 
-constant frac_zero = {0,1},
+global constant frac_zero = {0,1},
                 frac_one  = {1,1}
 --global constant FRAC_ZERO = {0,1,FRAC_BI},
 --              FRAC_ONE  = {1,1,FRAC_BI}

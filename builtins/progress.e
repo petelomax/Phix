@@ -8,7 +8,7 @@
 --
 --  See docs for a couple of demos and gui alternatives.
 --
-without js
+--without js (dang, can't do dat, if platform()!=JS then...)
 
 integer lp = 0 -- (last progress length, to be wiped out)
 

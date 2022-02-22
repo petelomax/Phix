@@ -600,7 +600,7 @@ function IupOpen() {
 //Value: "YES" (both directions), "HORIZONTAL", "VERTICAL", "HORIZONTALFREE", "VERTICALFREE" or "NO".
 //Default: "NO". For containers the default is "YES".
 //Affects: All elements, except menus. 
-        if (val === "YES") {
+        if (val === "YES" || val === "BOTH") {
             ih.classList.add("expandv");
             ih.classList.add("expandh");
         } else if (val === "HORIZONTAL") {
@@ -705,9 +705,11 @@ function IupOpen() {
         class_name(ih,"label");
         if (name === "TITLE") {
 //          ih.innerHTML = val;
-            const sp = new RegExp("[ ]","g");
-            val = val.replace(sp,"&ensp;");
-/*
+            const sp = new RegExp("[ ]","g"),
+                  lf = new RegExp("\\n","g");
+            val = val.replace(sp,"&ensp;")
+                     .replace(lf,"<br>");
+/*                   
     const am = new RegExp("&","g"),
           lt = new RegExp("[<]","g"),
           gt = new RegExp("[>]","g"),
@@ -738,7 +740,7 @@ function IupOpen() {
             puts(1,"?!IupLabel(ACTIVE,"+val+")??\n"); // placeholder
         } else if (name === "VISIBLE") {
             puts(1,"IupLabel(VISIBLE,"+val+")??\n"); // placeholder
-        } else if (name === "FONT") {
+        } else if (name === "FONT" || name === "FONTFACE") {
 //DEV       set_font(ih,val);
 //          puts(1,"IupLabel(FONT,"+val+")??\n"); // placeholder
             let face = val, fallback,
@@ -784,9 +786,11 @@ function IupOpen() {
                 face === "Arial") {
                 fallback = "sans_serif";
 //              fallback = "serif";
-//              fallback = "monospace";
+            } else if (face === "Courier") {
+                fallback = "monospace";
             } else {
-                crash("FONT="+val+"??\n");
+//              crash("FONT="+val+"??\n");
+                puts(1,"FONT="+val+"??\n"); // placeholder
             }
             ih.style.fontFamily = `"` + face + `", ` + fallback;
 //font-family: "Tahoma", sans-serif;
@@ -810,7 +814,7 @@ function IupOpen() {
         }
     }
     store_attrs(["label"], ["TITLE","EXPAND","ALIGNMENT","MARGIN","PADDING","ACTIVE","VISIBLE",
-                            "FONT","FONTSTYLE","SEPARATOR"], set_label);
+                            "FONT","FONTFACE","FONTSTYLE","SEPARATOR"], set_label);
 //  store_values("EXPAND",[["YES","NO","HORIZONTAL","HORIZONTALFREE","VERTICAL","VERTICALFREE"]])
 //  store_values("ALIGNMENT",[["ALEFT","ACENTER","ARIGHT"],":",["ATOP","ACENTER","ABOTTOM"]])
 
@@ -1146,6 +1150,14 @@ function IupOpen() {
             ih.DATA = Number(val);
         } else if (name === "FONT") {
             puts(1,"IupCanvas(FONT,"+val+")??\n"); // placeholder
+        } else if (name === "SCROLLBAR") {
+            puts(1,"IupCanvas(SCROLLBAR,"+val+")??\n"); // placeholder
+// gah, null at this point...
+//          ih.parentNode.style.overflow = "scroll";
+        } else if (name === "DX") {
+            puts(1,"IupCanvas(DX,"+val+")??\n"); // placeholder
+        } else if (name === "DY") {
+            puts(1,"IupCanvas(DY,"+val+")??\n"); // placeholder
         } else {
             crash("IupStoreAttribute(IupCanvas,\"" + name + "\") not yet implemented\n");
         }
@@ -1155,7 +1167,7 @@ function IupOpen() {
                              "DRAWCOLOR","DRAWSTYLE","DRAWFONT","DRAWTEXTORIENTATION",
                              "XANGLE","XCROSSORIGIN","XMARGIN","XMAX","XMIN","XRID","XTICK","XTICKFMT","XYSHIFT",
                              "YANGLE","YCROSSORIGIN","YMARGIN","YMAX","YMIN","YRID","YTICK","YTICKFMT","YXSHIFT",
-                             "FONT"], set_canvas);
+                             "FONT","SCROLLBAR","DX","DY"], set_canvas);
 
     function set_datepick(ih, name, val) {
         class_name(ih,"datepick");
@@ -1342,11 +1354,14 @@ function IupOpen() {
         } else if (name === "TIP") {
             puts(1,"IupValuator(TIP,"+val+")??\n"); // placeholder
 //          ih.setAttribute('step', val);
+        } else if (name === "CANFOCUS") {
+            puts(1,"IupValuator(CANFOCUS,"+val+")??\n"); // placeholder
         } else {
             crash("IupStoreAttribute(IupValuator,\"" + name + "\"," + val + ") not yet implemented\n");
         }
     }
-    store_attrs(["slider"], ["ORIENTATION","MAX","MIN","VALUE","STEP","PAGESTEP","EXPAND","TIP"], set_slider);
+    store_attrs(["slider"], ["ORIENTATION","MAX","MIN","VALUE","STEP","PAGESTEP","EXPAND","TIP",
+                             "CANFOCUS"], set_slider);
 
     function set_clipboard(ih, name, val) {
         class_name(ih,"clipboard");
@@ -1516,11 +1531,15 @@ function IupSetAttributeId(ih, name, id, v) {
 function IupSetInt(ih, name, v) {
     let tv = typeof(v);
     if (tv !== "number" && tv !== "boolean" && tv !== "function") { crash("??"); }
-    if ($timer("is",ih)) {
-        $timer("set",ih,name,v);
+    if ($timer("is", ih)) {
+        $timer("set", ih, name, v);
+    } else if (sequence(ih)) {
+        for (let i=length(ih); i >= 1; i -= 1) {
+            IupSetAttribute(ih[i], name, v);
+        }
     } else {
 //      IupSetStrAttribute(ih,name,v?"YES":"NO");
-        IupSetStrAttribute(ih,name,v);
+        IupSetStrAttribute(ih, name, v);
     }
 }
 
@@ -1555,6 +1574,7 @@ function IupGetAttribute(ih, name, dflt) {
     } else if (name === "TITLE") {
         if (t === "button" ||
             t === "toggle" ||
+            t === "label" ||
             t === "menuitem") {
             return ih.innerText;
         } else if (t === "frame") {
@@ -1663,6 +1683,8 @@ function IupGetInt(ih, name, dflt=0) {
         if (name === "DATA" ||
             name === "DRID" ||
             name === "GRID" ||
+            name === "POSX" ||
+            name === "POSY" ||
             name === "TITLESTYLE" ||
             name === "XANGLE" ||
             name === "XCROSSORIGIN" ||
@@ -2538,10 +2560,13 @@ function $resize_children(ih, w, h) {
             prev_h = ih.offsetHeight;
 //          prev_h = ih.offsetHeight-ih.offsetTop;
 //          prev_h = ih.clientHeight;
-            w -= ih.offsetLeft;
+//          w -= ih.offsetLeft;
+            let nw = w-ih.offsetLeft,
+                nh = h-(ih.offsetTop-45);
 //          h += ih.offsetTop;
-            h += ih.offsetTop-45;   // well, it appears to work 21/10/21!! (on drag, that is)
-            if (prev_w !== w || prev_h !== h) {
+//          h += ih.offsetTop-45;   // well, it appears to work 21/10/21!! (on drag, that is)
+//          if (prev_w !== w || prev_h !== h) {
+            if (prev_w !== nw || prev_h !== nh) {
 //              ih.offsetWidth = w;
 //              ih.clientWidth = w;
 //              ih.style.width = w + "px";
@@ -2576,7 +2601,9 @@ function $resize_children(ih, w, h) {
                 action_cb(ih); 
             }
 
-            if (bDoChildren) {
+//28/12/21:
+//          if (bDoChildren) {
+            if (bDoChildren || cn === "dialog" || cn === "dialog-body") {
 //          if (false) {
                 // for eg {button,fill,button,fill,button}, we want {0,1,0,2,0} and v_count of 2.
                 // each non-zero gets (2-1+1)/2, (2-2+1)/1 of the remaining prev_w-w, iyswim.
@@ -2592,7 +2619,10 @@ function $resize_children(ih, w, h) {
                     let ci = children[i],
                         expand = ci.EXPAND,
                         cin = ci.classList[0] || ci.localName;
-                    if (!expand) {
+//28/12/21:
+                    if (cin === "dialog-body") {
+                        expand = "YES";
+                    } else if (!expand) {
                         let ccv = ci.classList.contains("expandv"),
                             cch = ci.classList.contains("expandh");
                         expand = ccv ? (cch ? "YES" : "HORIZONTAL")
@@ -3032,10 +3062,16 @@ function IupMap(ih) {
     if (cn !== "dialog-header" &&   // (there can be no ["MAP_CB"] attached
         cn !== "dialog-resizers") { //  to either, so simplify debugging..)
         let map_cb = ih["MAP_CB"];
+//28/12/21: (decided against)
+//          resize_cb = ih.RESIZE_CB;
         if (map_cb) { 
             map_cb(ih); 
             ih["MAP_CB"] = null;
         }
+//      if (resize_cb) {
+//>>
+//          resize_cb(ih,w,h);
+//      }
         let children = ih.childNodes,
             l = children.length;
         for (let i=0; i<l; i += 1) { IupMap(children[i]); }
@@ -3068,7 +3104,7 @@ function IupShow(ih, x = IUP_CENTER, y = IUP_CENTER) {
 //  $docBody.appendChild(ih);
     $docBody.insertAdjacentElement("afterbegin", ih);
     IupMap(ih);
-
+//$resize_children(ih,ih.clientWidth-2,ih.clientHeight-2);
 
     // Originally, dragging a window behaved rather differently before and
     // after resizing the window, hence this...
@@ -3085,6 +3121,25 @@ function IupShow(ih, x = IUP_CENTER, y = IUP_CENTER) {
         ih.style.left = x + "px";
         ih.style.top = y + "px";
     }
+//28/12/21: (total bust...)
+//  $resize_children(ih, w, h);
+//  const r2 = ih.getBoundingClientRect();
+//  $resize_children(ih, r2.width, r2.height);
+//  IupUpdate(ih);
+//  const dlgbod = ih.querySelector(".dialog-body");
+//  $resize_children(ih,dlgbod.clientWidth-2,dlgbod.clientHeight-2);
+//  $resize_children(ih,ih.clientWidth-2,ih.clientHeight-2);
+//          if (w !== dialog.clientWidth ||
+//              h !== dialog.clientHeight) {
+//              dialog.style.width = w + "px";
+//              dialog.style.height = h + "px";
+//              if (dialog.querySelector('.menuheader')) { h -= 21; }
+//              $resize_children(child,w-4,h-34);
+//
+//  let resize_cb = ih.RESIZE_CB;
+//  if (resize_cb) {
+//      resize_cb(ih,w,h);
+//  }
     // It may be possible to allow some squishing, not entirely sure...
 //26/9/21:
     if (ih.minWidth) { w = ih.minWidth; }
@@ -3099,6 +3154,11 @@ function IupShow(ih, x = IUP_CENTER, y = IUP_CENTER) {
 //  window.setTimeout(function() { ih.dispatchEvent(event); }, 100);
     IupRedraw(ih);
 //  ih.focus();
+//  const r2 = ih.getBoundingClientRect();
+//  $resize_children(ih, r2.width, r2.height);
+// 31/21/21: bingo!!
+    $maxWindow(ih);
+    $maxWindow(ih);
 }
 let IupShowXY = IupShow;
 
@@ -5665,6 +5725,11 @@ let divs = document.querySelectorAll(".div");
 
 //divs.forEach(function(d) { addContextMenu(d); });
 divs.forEach(addContextMenu);
+
+for "CURSORPOS", [GLOBAL]MOTION_CB:
+document.addEventListener('mousemove', function(e){
+  var position = { x: e.clientX, y: e.clientY }
+}
 
 */
 

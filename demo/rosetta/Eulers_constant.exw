@@ -8,15 +8,15 @@
 --  ripped out all traces of > 100 d.p. handling. I recommend looking for something better, that is if 
 --  either of the two missing functions are actually ever needed in mpfr.js.
 --
-without js  -- no mpfr_get_d_2exp() or mpfr_const_euler() in mpfr.js as yet
 
 -- part 1, translation of Perl, with the same inaccuracy
+--with javascript_semantics -- (this part only)
 constant C = sum(sq_div(1,tagset(1e6)))-log(1e6)
 printf(1,"gamma %.12f  (max 12d.p. of accuracy)\n",C)
 
---/!*
 -- part 2, translation of C, from first principles.
-requires("1.0.1") -- mpfr_get_d_2exp(), mpfr_const_euler()
+without js  -- no mpfr_get_d_2exp() in mpfr.js as yet
+requires("1.0.2") -- mpfr_get_d_2exp(), mpfr_addmul_si()
 include mpfr.e
 mpfr u, v, k2;
 integer e, e10, e2
@@ -26,14 +26,10 @@ atom f
 procedure ln(mpfr s, integer x, y)
     mpfr d = u, q = v;
     assert((x-y)==1) 
---  y += x
---  mpfr_set_si(s, y)
     mpfr_set_si(s, x+y)
     mpfr_si_div(s, 1, s)            // s = 1 / (x + y)
-
     mpfr_mul(k2, s, s)              // k2 = s * s
     mpfr_set(d, s)
- 
     integer k = 1
     while true do
         k += 2;
@@ -43,7 +39,6 @@ procedure ln(mpfr s, integer x, y)
         {f,e} = mpfr_get_d_2exp(q)
         if abs(e)>=e2 then exit end if
     end while 
-
     mpfr_mul_si(s, s, 2)            //s *= 2
 end procedure
  
@@ -73,21 +68,10 @@ mpfr_set_default_precision(e2)
 {a, b, u, v, k2} = mpfr_inits(5)
  
 //Compute log terms
- 
-ln(b, 16, 15)
- 
-mpfr_mul_si(a, b, r)    // a = r * b
- 
-ln(b, 25, 24)
- 
-mpfr_mul_si(u, b, s)    
-mpfr_add (a, a, u)      // a += s * b
- 
-ln(b, 81, 80)
- 
-mpfr_mul_si(u, b, t)
-mpfr_add (a, a, u)      // a += t * b
- 
+ln(b, 16, 15)  mpfr_mul_si(a, b, r)     // a = r * b
+ln(b, 25, 24)  mpfr_addmul_si(a, b, s)  // a += s * b
+ln(b, 81, 80)  mpfr_addmul_si(a, b, t)  // a += t * b
+
 mpfr_neg(a, a)          // a = -a
 mpfr_set_si(b, 1)       // b = 1
 mpfr_set (u, a)
@@ -95,8 +79,7 @@ mpfr_set (v, b)
  
 k = 0;
 n2 = n * n;
-//k2 = k * k
-mpfr_set_si(k2, 0)
+mpfr_set_si(k2, 0)      // k2 = k * k (as below)
 while true do
     mpfr_add_si(k2, k2, k*2+1)      // k2 += 2k + 1
     k += 1;
@@ -210,6 +193,9 @@ printf(1,"\nTook %s\n",{elapsed(time()-t0)})
 --*/
  
 -- part 3, the easy way
+without js  -- no mpfr_const_euler() in mpfr.js as yet
+requires("1.0.1") -- mpfr_const_euler()
+include mpfr.e
 mpfr gamma = mpfr_init(0,-100)
 mpfr_const_euler(gamma)
 printf(1,"gamma %s (mpfr_const_euler)\n",{mpfr_get_fixed(gamma,100)})

@@ -3585,6 +3585,10 @@ end procedure -- (for Edita/CtrlQ)
             jmp :!iDiag         -- fatal error (see pdiagN.e)
             int3
 
+--/*
+procedure :%pAlloClone(:%)
+end procedure -- (for Edita/CtrlQ)
+--*/
     :%pAlloClone
 ----------------
     --
@@ -3614,9 +3618,7 @@ end procedure -- (for Edita/CtrlQ)
             jmp :!iDiag
             int3
       @@:       
---*/
         ret
-
 
 --/*
 procedure :%pAllocSeq(:%)

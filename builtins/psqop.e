@@ -178,7 +178,9 @@ function sq_unary(object a, integer fn, bool recursive=true)
         return a
     end if
     integer la = length(a)
-    sequence res = repeat(0,la)
+--17/12/21:
+--  sequence res = repeat(0,la)
+    sequence res = repeat(iff(string(a)?' ':0),la)
     for i=1 to la do
         res[i] = sq_unary(a[i],fn)
     end for
@@ -198,6 +200,7 @@ global function sq_mul(object a, b) return sq_general(a,b,'*') end function
 global function sq_div(object a, b) return sq_general(a,b,'/') end function
 global function sq_floor_div(object a, b) return sq_general(a,b,'f') end function
 global function sq_rmdr(object a, b) return sq_general(a,b,'r') end function
+--global function sq_remainder(object a, b) return sq_general(a,b,'r') end function -- achieved via psym.e/syminit()
 global function sq_mod(object a, b) return sq_general(a,b,'m') end function
 global function sq_and(object a, b) return sq_general(a,b,'a') end function
 global function sq_or(object a, b) return sq_general(a,b,'o') end function

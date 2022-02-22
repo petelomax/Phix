@@ -29,6 +29,17 @@ Version 1.0.2
 26/11/2021: Spurious C_PTR in demo\arwen\dll_links.ew caused a cryptic error
             when running p -c edita, not that I have done anything to better
             catch that in pmain.e, nor tested it still runs under Euphoria.
+04/01/2022: Freed up the temp squence used in v.show(), using zero_temp().
+06/01/2022: Prohibited switch/exit and loop/break under with js, see docs.
+15/02/2022: Added some extra "unexpected end block comment" error checking.
+            While ptok.e/getToken() explictly checked for '*' and '/' after 
+            "--" and issued an "unexpected end block comment" error, the same 
+            was not true in the otherwise nearly identical code of ptok.e/
+            skipSpacesAndComments() which just let it pass by as an ordinary 
+            (single) line comment. Of course it messed up syntax colouring in 
+            the editor. It occurred inside a #ilASM{} and maybe that was the 
+            only way it could have ever escaped unnoticed. Gave me a bit of 
+            a fright, tbh, but probably won't trigger m/any knock-ons...
 
 
 Version 1.0.1

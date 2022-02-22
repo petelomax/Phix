@@ -8,11 +8,12 @@
 --[[Matrix_multiplication#Phix]]
 --See std distro for a complete runnable version.
 --{{trans|Go}}
+with javascript_semantics
 
 function ToReducedRowEchelonForm(sequence m)
-integer lead = 1,
-        rows = length(m),
-        cols = length(m[1])
+    integer lead = 1,
+            rows = length(m),
+            cols = length(m[1])
     for r=1 to rows do
         if lead>=cols then exit end if
         integer i = r
@@ -25,8 +26,9 @@ integer lead = 1,
                 if lead=cols then return m end if
             end if
         end while
-        -- nb m[i] is assigned before m[r], which matters when i=r:
-        {m[r],m[i]} = {sq_div(m[i],m[i][lead]),m[r]}
+        object mr = sq_div(m[i],m[i][lead])
+        m[i] = m[r]
+        m[r] = mr
         for j=1 to rows do
             if j!=r then
                 m[j] = sq_sub(m[j],sq_mul(m[j][lead],m[r]))
@@ -41,7 +43,7 @@ function inverse(sequence mat)
     integer len = length(mat)
     sequence aug = repeat(repeat(0,2*len),len)
     for i=1 to len do
-        if length(mat[i])!=len then ?9/0 end if -- "Not a square matrix"
+        assert(length(mat[i])==len,"Not a square matrix")
         for j=1 to len do
             aug[i][j] = mat[i][j]
         end for
@@ -59,22 +61,24 @@ function inverse(sequence mat)
     return inv
 end function
 
-function matrix_transpose(sequence in)
-sequence out = repeat(repeat(0,length(in)),length(in[1]))
-    for n=1 to length(in) do
-        for m=1 to length(in[1]) do
-            out[m][n] = in[n][m]
+function matrix_transpose(sequence mat)
+    integer h = length(mat),
+            w = length(mat[1])
+    sequence out = repeat(repeat(0,h),w)
+    for n=1 to h do
+        for m=1 to w do
+            out[m][n] = mat[n][m]
         end for
     end for
     return out
 end function
 
-function matrix_mul(sequence a, sequence b)
+function matrix_mul(sequence a, b)
     integer rowsa = length(a),
             colsa = length(a[1]),
             rowsb = length(b),
             colsb = length(b[1])
-    if colsa!=rowsb then ?9/0 end if
+    assert(colsa==rowsb)
     sequence res = repeat(repeat(0,colsb),rowsa)
     for i=1 to rowsa do
         for j=1 to colsb do
@@ -87,13 +91,13 @@ function matrix_mul(sequence a, sequence b)
 end function
 
 function solve(sequence fs, jacob, guesses)
-    integer size := length(fs),
-            maxIter := 12,
-            iter := 0
+    integer size = length(fs),
+            maxIter = 12,
+            iter = 0
     sequence gu1, g, t, f, g1,
-             gu2 := guesses,
-             jac := repeat(repeat(0,size),size)
-    atom tol := 1e-8
+             gu2 = guesses,
+             jac = repeat(repeat(0,size),size)
+    atom tol = 1e-8
     while true do
         gu1 := gu2
         g := matrix_transpose({gu1})
@@ -149,9 +153,9 @@ sequence fs, jacob, guesses
  
        Expected results: x = 1.23332, y = 0.2122
     */
-    fs = {routine_id("f1"),routine_id("f2")}
-    jacob = {{routine_id("j1"),routine_id("j2")},
-             {routine_id("j3"),routine_id("j4")}}
+    fs = {f1,f2}
+    jacob = {{j1,j2},
+             {j3,j4}}
     guesses := {1.2, 1.2}
     printf(1,"Approximate solutions are x = %.7f,  y = %.7f\n\n", solve(fs, jacob, guesses))
  
@@ -168,15 +172,16 @@ sequence fs, jacob, guesses
        Expected results: x = 0.893628, y = 0.894527, z = -0.0400893
     */
  
-    fs = {routine_id("f3"), routine_id("f4"), routine_id("f5")}
-    jacob = {{routine_id("j11"),routine_id("j12"),routine_id("j13")},
-             {routine_id("j21"),routine_id("j22"),routine_id("j23")},
-             {routine_id("j31"),routine_id("j32"),routine_id("j33")}}
+    fs = {f3, f4, f5}
+    jacob = {{j11,j12,j13},
+             {j21,j22,j23},
+             {j31,j32,j33}}
     guesses = {1, 1, 0}
     printf(1,"Approximate solutions are x = %.7f,  y = %.7f,  z = %.7f\n", solve(fs, jacob, guesses))
 
 end procedure
 main()
+
 ?"done"
 {} = wait_key()
 --/*

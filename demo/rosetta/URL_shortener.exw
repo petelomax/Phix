@@ -1,0 +1,155 @@
+--
+-- demo\rosetta\URL_shortener.exw
+-- ==============================
+--
+-- Uses a routine originally written for a code minifier, so were you to run this 
+-- for a long time, you'd get 52 one-character short urls, ie a..z and A..Z, then 
+-- 3,224 (=52*62) two-character short urls, as 2nd char on can also be 0..9, then 
+-- 199,888 (=52*62*62) three-character short urls, and so on. The dictionary used
+-- is not [yet] saved/reloaded between runs. No attempt is made to re-produce the 
+-- same short url if the same long url is passed in twice. Nothing remotely like
+-- any form of error handling, as per the usual "for clarity".
+--
+-- Windows only for now (should be straightforward to get it working on linux)
+--                      (routines in builtins\sockets.e that be windows-only.)
+--
+-- See sample session output (in a separate terminal) for usage instructions.
+-- 
+without js
+include builtins\sockets.e
+include builtins\json.e
+
+constant MAX_QUEUE      = 100,
+         ESCAPE         = #1B,
+         shortened = substitute("""
+HTTP/1.1 200 OK
+Content-Type: text/plain; charset=utf-8
+Content-Length: %d
+
+The shortened URL: http://localhost:8080/%s
+
+""","\n","\r\n"),
+         redirect = substitute("""
+HTTP/1.1 302 Found
+Content-Type: text/html; charset=UTF-8
+Content-Length: %d
+Location: %s
+
+<a href="%s">Found</a>.
+
+""","\n","\r\n"),
+         not_found = substitute("""
+HTTP/1.1 404 Not Found
+Content-Type: text/plain; charset=utf-8
+Content-Length: %d
+
+No such shortened url: http://localhost:8080/%s
+
+""","\n","\r\n")
+
+integer shurl = new_dict()
+string response, lnk, url
+
+constant alphabet = tagset('z','a')&tagset('Z','A')&tagset('9','0')
+function short_id(integer n)
+    string res = ""
+    integer base = 52 -- (first char azAZ)
+    while n do
+        res &= alphabet[remainder(n-1,base)+1]
+        n = floor((n-1)/base)
+        base = 62 -- (subsequent chars azAZ09)
+    end while
+    return res
+end function
+
+puts(1,"server started, open http://localhost:8080/ in browser or curl, press Esc or Q to quit\n")
+atom sock = socket(AF_INET,SOCK_STREAM,NULL),
+     pSockAddr = sockaddr_in(AF_INET, "", 8080)
+if bind(sock, pSockAddr)=SOCKET_ERROR then crash("bind (%v)",{get_socket_error()}) end if
+if listen(sock,MAX_QUEUE)=SOCKET_ERROR then crash("listen (%v)",{get_socket_error()}) end if
+while not find(get_key(),{ESCAPE,'q','Q'}) do
+    {integer code} = select({sock},{},{},250000)
+    if code=SOCKET_ERROR then crash("select (%v)",{get_socket_error()}) end if
+    if code>0 then  -- (not timeout)
+        atom peer = accept(sock),
+             ip = getsockaddr(peer)
+        {integer len, string request} = recv(peer)
+        printf(1,"Client IP: %s\n%s\n",{ip_to_string(ip),request})
+        if length(request)>5 and request[1..5]="POST " then
+            string json = request[find('{',request)..$]
+            object json_data = parse_json(json)
+            url = extract_json_field(json_data,"long")
+            lnk = short_id(dict_size(shurl)+1)
+            setd(lnk,url,shurl)
+            response = sprintf(shortened,{length(lnk)+45,lnk})
+        elsif length(request)>4 and request[1..4]="GET " then
+            lnk = request[6..find(' ',request,6)-1]
+            integer node = getd_index(lnk,shurl)
+            if node then
+                url = getd_by_index(node,shurl)
+                response = sprintf(redirect,{length(url)+23,url,url})
+            else
+                response = sprintf(not_found,{length(lnk)+49,lnk})
+            end if
+        else
+            ?9/0 -- uh?
+        end if
+        integer bytes_sent = send(peer,response)
+        printf(1,"%d bytes successfully sent\n",bytes_sent)
+        shutdown(peer, SD_SEND) -- tell curl it's over
+        peer = closesocket(peer)  --    (as does this)
+    end if
+end while
+sock = closesocket(sock)
+WSACleanup()
+
+--?"finished"
+--{} = wait_key()
+
+--/*
+{{out}}
+Sample session output:
+<pre>
+C:\Program Files (x86)\Phix>curl http://localhost:8080/X
+No such shortened url: http://localhost:8000/X
+
+C:\Program Files (x86)\Phix>curl -X POST "localhost:8080" -H "Content-Type: application/json" -d "{\"long\":\"https://www.cockroachlabs.com/docs/stable/build-a-go-app-with-cockroachdb.html\"}"
+The shortened URL: http://localhost:8000/a
+
+C:\Program Files (x86)\Phix>curl http://localhost:8080/a
+<a href="https://www.cockroachlabs.com/docs/stable/build-a-go-app-with-cockroachdb.html">Found</a>.
+</pre>
+Of course if you paste http://localhost:8080/a into a browser (with URL_shortener.exw still running!) it goes to the right place.<br>
+Meanwhile, in a separate terminal (with * replaced by $ to avoid comment issues) we get:
+<pre>
+server started, open http://localhost:8080/ in browser or curl, press Esc or Q to quit
+Client IP: 127.0.0.1
+GET /a HTTP/1.1
+Host: localhost:8080
+User-Agent: curl/7.55.1
+Accept: $/$
+
+
+137 bytes successfully sent
+Client IP: 127.0.0.1
+POST / HTTP/1.1
+Host: localhost:8080
+User-Agent: curl/7.55.1
+Accept: $/$
+Content-Type: application/json
+Content-Length: 89
+
+{"long":"https://www.cockroachlabs.com/docs/stable/build-a-go-app-with-cockroachdb.html"}
+126 bytes successfully sent
+Client IP: 127.0.0.1
+GET /a HTTP/1.1
+Host: localhost:8080
+User-Agent: curl/7.55.1
+Accept: $/$
+
+
+276 bytes successfully sent
+</pre>
+
+--*/
+

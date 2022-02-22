@@ -4,6 +4,7 @@
 --
 --  Ripped from std/filesys.e, and a few other places
 --
+without debug
 
 --#withtype bool
 
@@ -211,25 +212,19 @@ global function get_file_type(string filename)
     end if
 end function
 
-integer sw = -1 -- (+1 really)
-string bfmt,    -- no d.p, no suffix (size in bytes)    default: "%1.0f"
-       sfmt,    -- no d.p, but with suffix              default: "%1.0f%s"
-       dpsfmt   -- with decimal places and suffix       default: "%1.2f%s"
-
-global function file_size_k(atom size, integer width=sw)
+--11/2/22 (removed silly "stickness")
+global function file_size_k(atom size, integer width=1)
 --
 -- Trivial routine to convert a size in bytes to a human-readable string, such as "2GB".
 -- The width setting is also "sticky", ie whatever is set becomes the new default.
 --
-    if width!=sw or sw=-1 then
-        sw = max(width,1)
-        bfmt = sprintf("%%%d.0f%%s",sw)         -- eg "%11.0f%s" (the %s gets ""...)
-        if sw>=3 then sw -= 2 end if
-        sfmt = sprintf("%%%d.0f%%s",sw)         -- eg "%9.0f%s" (this %s gets eg "KB")
-        dpsfmt = sprintf("%%%d.2f%%s",sw)       -- eg "%9.2f%s" (        ""          )
-    end if
-    string res, fmt = bfmt, suffix = ""
-    integer fdx = 0
+    integer sw = max(width,1),
+            s2 = iff(sw>=3?sw-2:sw),
+            fdx = 0
+    string fmt = sprintf("%%%d.0f%%s",sw),      -- eg "%11.0f%s" (the %s gets ""...)
+           sfmt = sprintf("%%%d.0f%%s",s2),     -- eg "%9.0f%s" (this %s gets eg "KB")
+           dpsfmt = sprintf("%%%d.2f%%s",s2),   -- eg "%9.2f%s" (        ""          )
+           res, suffix = ""
     while fdx<=3 do
         atom rsize = round(size/1024,100)       -- (to 2 d.p.)
         if rsize<1 then exit end if
@@ -243,7 +238,8 @@ global function file_size_k(atom size, integer width=sw)
     return res
 end function
 
-global function get_file_size(string filename, bool asStringK=false, integer width=sw)
+--global function get_file_size(string filename, bool asStringK=false, integer width=sw)
+global function get_file_size(string filename, bool asStringK=false, integer width=1)
     -- (aside: directories get a length(d) of >=2, 
     --         ie "." and ".." and whatever else,
     --         and in that way this yields -1.)
@@ -516,6 +512,7 @@ atom ret
 end function
 
 global function delete_file(string filename)
+
     if not finit then initf() end if
     integer res = c_func(xDeleteFile, {filename})
     if platform()=LINUX then
@@ -525,13 +522,10 @@ global function delete_file(string filename)
 end function
 
 global function create_directory(string name, integer mode=0o700, bool make_parent=true)
-bool ret
+
     if not finit then initf() end if
 
-    if length(name)=0 then
-        ?9/0
-    end if
-
+    assert(length(name)!=0)
     name = get_proper_path(name)
 
     -- Remove any trailing slash.
@@ -544,7 +538,7 @@ bool ret
         if pos!=0 then
             string parent = name[1..pos-1]
             if file_exists(parent) then
-                if file_type(parent)!=FILETYPE_DIRECTORY then ?9/0 end if
+                assert(file_type(parent)==FILETYPE_DIRECTORY)
             else
                 if not create_directory(parent, mode, make_parent) then
                     return 0
@@ -553,6 +547,7 @@ bool ret
         end if
     end if
 
+    bool ret
     if platform()=LINUX then
 
         ret = not c_func(xCreateDirectory, {name, mode})

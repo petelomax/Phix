@@ -14,19 +14,20 @@
          </td>
          <td>
          <a href="sequence.htm">sequence</a> res = pad(<a href="string.htm">string</a> src,
-                                                          <a href="integer.htm">integer</a> size,
-                                                          <a href="string.htm">string</a> method="BOTH",
-                                                          <a href="integer.htm">integer</a> ch=' ')
+                                                       <a href="integer.htm">integer</a> size,
+                                                       <a href="string.htm">string</a> method="BOTH",
+                                                       <a href="integer.htm">integer</a> ch=' ')
          <br>
          <i>-- or --</i>
          <br>
          <a href="sequence.htm">sequence</a> res = pad_head(<a href="string.htm">string</a> src,
-                                                               <a href="integer.htm">integer</a> size, ch=' ')
+                                                            <a href="integer.htm">integer</a> size, ch=' ')
          <br>
          <i>-- or --</i>
          <br>
-         <a href="sequence.htm">sequence</a> res = pad_tail(<a href="string.htm">string</a> src,
-                                                               <a href="integer.htm">integer</a> size, ch=' ')
+         <a href="sequence.htm">sequence</a> res = pad_tail(<a href="sequence.htm">sequence</a> src,
+                                                            <a href="integer.htm">integer</a> size,
+                                                            <a href="object.htm">object</a> ch=' ')
          </td>
         </tr>
         <tr>
@@ -38,10 +39,10 @@
             as to meet a minimum length condition.
             <br>
             <br>
-            src: the <a href="string.htm">string</a> to pad.<br>
+            src: the <a href="string.htm">string</a> to pad (or general <a href="sequence.htm">sequence</a> for pad_tail).<br>
             size: the minimum length of the result.<br>
-            method: one of "BOTH", "HEAD", or "TAIL" (case sensitive).<br>
-            ch: the character to pad with (defaults to a space).
+            method: one of "HEAD", "TAIL", "BOTH", or "BLOTH" (case sensitive).<br>
+            ch: the character to pad with (or any object for pad_tail, defaults to a space).
             <br>
             <br>
             Returns src unaltered when it was already long enough, or extended to be of length size by inserting the 
@@ -57,13 +58,17 @@
             If length(src) is greater than or equal to size, simply returns src unaltered.
             <br>
             <br>
-            pad_head() is obviously the same as pad(src,size,"HEAD"[,ch]), and<br>
-            pad_tail() is obviously the same as pad(src,size,"TAIL"[,ch])<br>
-            Should pad("BOTH") need to add an odd number of ch, there will be one more after than before.
+            pad_head() is the same as pad(src,size,"HEAD"[,ch]), and<br>
+            pad_tail() is the same as pad(src,size,"TAIL"[,ch]), except as noted below.<br>
+            Should pad("BOTH") need to add an odd number of ch, there will be one more after than before,
+            you can also call pad("BLOTH") which adds one more before than after, when needed/uneven.
             <br>
             <br>
-            Compatibility note: there is no Euphoria pad() function, and its pad_head() and pad_tail() functions also 
-            work on dword-sequences with an object ch, both of which I deemed unhelpful.
+            Compatibility note: there is no Euphoria pad() function, and its pad_head() function also works on 
+            dword-sequences with an object ch, which I deemed unhelpful (on both pad_head and pad), whereas 
+            pad_tail() is much more likely to be useful on a dword-sequence, so that has the less restrictive 
+            parameter types. Note however that it will (deliberately) crash on entry if src is a string but ch 
+            is not an 8-bit character, 0..255.
             <br>
             <br>
             See <a href="head.htm">head</a>() or <a href="tail.htm">tail</a>() should you wish to truncate long sequences.
@@ -71,16 +76,20 @@
         </tr>
         <tr>
          <td>
-          <b>Example:</b>
+          <b>Examples:</b>
          </td>
          <td>
 <!--eucode>
 s = pad_head("ABC", 6)              -- s is "   ABC"
 s = pad_head("ABC", 6, '-')         -- s is "---ABC"
+s = pad("X",4,"BOTH",'.')           -- s is ".X.."
+s = pad("X",4,"BLOTH",'.')          -- s is "..X."
 </eucode-->
 <pre>
 <font color="#000000">s</font><font color="#0000FF"> =</font><font color="#5E005E"> pad_head</font><font color="#0000FF">(</font><font color="#008000">"ABC"</font><font color="#0000FF">,</font><font color="#000000"> 6</font><font color="#0000FF">)             </font><font color="#000080"><i> -- s is "   ABC"</i></font>
 <font color="#000000">s</font><font color="#0000FF"> =</font><font color="#5E005E"> pad_head</font><font color="#0000FF">(</font><font color="#008000">"ABC"</font><font color="#0000FF">,</font><font color="#000000"> 6</font><font color="#0000FF">,</font><font color="#008000"> '-'</font><font color="#0000FF">)        </font><font color="#000080"><i> -- s is "---ABC"</i></font>
+<font color="#000000">s</font><font color="#0000FF"> =</font><font color="#5E005E"> pad</font><font color="#0000FF">(</font><font color="#008000">"X"</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#008000">"BOTH"</font><font color="#0000FF">,</font><font color="#008000">'.'</font><font color="#0000FF">)          </font><font color="#000080"><i> -- s is ".X.."</i></font>
+<font color="#000000">s</font><font color="#0000FF"> =</font><font color="#5E005E"> pad</font><font color="#0000FF">(</font><font color="#008000">"X"</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#008000">"BLOTH"</font><font color="#0000FF">,</font><font color="#008000">'.'</font><font color="#0000FF">)         </font><font color="#000080"><i> -- s is "..X."</i></font>
 </pre>
          </td>
         </tr>

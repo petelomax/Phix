@@ -1,0 +1,116 @@
+--
+-- demo\rosetta\RecursiveDescentParser.exw
+-- =======================================
+--
+with javascript_semantics
+string src
+integer ch, sdx
+sequence tok
+ 
+procedure skip_spaces()
+    while 1 do
+        if sdx>length(src) then exit end if
+        ch = src[sdx]
+        if not find(ch,{' ','\t','\r','\n'}) then exit end if
+        sdx += 1
+    end while
+end procedure
+ 
+procedure next_token()
+-- yeilds one of:
+--  {"SYMBOL",ch} where ch is one of "()+-/*", or
+--  {"IDENT",string}, or {"EOF"}
+    skip_spaces()
+    integer tokstart = sdx
+    if sdx>length(src) then
+        tok = {"EOF"}
+    elsif find(ch,"()+-/*") then
+        sdx += 1
+        tok = {"SYMBOL",ch&""}
+    elsif (ch>='a' and ch<='z')
+       or (ch>='A' and ch<='Z') then
+        while true do
+            sdx += 1
+            if sdx>length(src) then exit end if
+            ch = src[sdx]
+            if ch!='_' 
+            and (ch<'a' or ch>'z')
+            and (ch<'A' or ch>'Z')
+            and (ch<'0' or ch>'9') then
+                exit
+            end if
+        end while
+        tok = {"IDENT",src[tokstart..sdx-1]}
+    else
+        ?9/0
+    end if
+end procedure
+ 
+forward function sum_expr()
+ 
+function primary()
+    sequence res
+    if tok[1]="IDENT" then
+        res = tok
+        next_token()
+    elsif tok={"SYMBOL","("} then
+        next_token()
+        res = sum_expr()
+        if tok!={"SYMBOL",")"} then ?9/0 end if
+        next_token()
+    else
+        ?9/0
+    end if
+    return res
+end function
+ 
+function mul_expr()
+    sequence res = primary()
+    while true do
+        if tok[1]!="SYMBOL" or not find(tok[2],{"*","/"}) then exit end if
+        res = {tok,res,NULL}
+        next_token()
+        res[3] = primary()
+    end while
+    return res
+end function
+ 
+function sum_expr()
+    sequence res = mul_expr()
+    while true do
+        if tok[1]!="SYMBOL" or not find(tok[2],{"+","-"}) then exit end if
+        res = {tok,res,NULL}
+        next_token()
+        res[3] = mul_expr()
+    end while
+    return res
+end function
+ 
+integer nxt = 1
+function show_ast(sequence ast) 
+    if ast[1][1]="SYMBOL" then
+        string op = ast[1][2],
+               lhs = show_ast(ast[2]),
+               rhs = show_ast(ast[3]),
+               nid = sprintf("_%04d",nxt)
+        printf(1,"%s = %s %s %s\n",{nid,lhs,op,rhs})
+        nxt += 1
+        return nid
+    elsif ast[1]="IDENT" then
+        return ast[2]
+    end if
+    ?9/0
+end function    
+ 
+procedure parse(string source)
+    src = source
+    sdx = 1
+    next_token()
+    sequence ast = sum_expr()
+    if tok!={"EOF"} then ?9/0 end if
+    pp(ast,{pp_Nest,4})
+    {} = show_ast(ast)
+end procedure
+ 
+parse("(one + two) * three - four * five")
+{} = wait_key()

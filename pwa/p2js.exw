@@ -235,6 +235,11 @@ zIndex
     {"byte",                            BADT,   T_byte                              := 15680},
     {"background",                      BADT,   T_background                        := 2068},
     {"margin",                          BADT,   T_margin                            := 11820},
+    {"map",                             BADT,   T_map                               := 13856},
+    {"from",                            BADT,   T_from                              := 24056},
+    {"style",                           BADT,   T_style                             := 20892},
+    {"top",                             BADT,   T_top                               := 21720},
+    {"bind",                            BADT,   T_bind                              := 22956},
 
 
 just in case:
@@ -371,7 +376,7 @@ untouchable(2000, 10, 6-(platform()==JS))
 --  jdesc[opConcat] = "opConcat,dest,a,b\n"
 --  jdesc[opConcatN] = "opConcatN,N,ref1..refN,res\n"
 --
---without debug                 -- (keep ex.err clean)
+without debug               -- (keep ex.err clean)
 include builtins\timedate.e
 include builtins\pdates.e
 include builtins\pdate.e
@@ -836,7 +841,7 @@ function idle_action()
     while fdx<=length(fokens) do
         Ihandle formattag = IupUser()
         count += 1
-        integer {toktype, tokstart, tokfinish, l1, c1} = fokens[fdx], 
+        integer {toktype, tokstart, tokfinish, l1, c1} = fokens[fdx],
                 l2 = l1, c2 = tokfinish-tokstart+c1
         string colour
         if toktype=COMMENT
@@ -872,6 +877,10 @@ function idle_action()
                 colour = IUP_BLACK
             elsif find(toktype,{'"','\''}) then -- string
                 colour = IUP_DARK_GREEN
+            elsif toktype=HEXSTR then
+                colour = IUP_DARK_GREEN
+                c1 -= 2
+                c2 += 1
             elsif toktype='`' then              -- multi-line string
                 l2 = fokens[fdx][TOKENDLINE]
                 if l2>l1 then
@@ -2391,6 +2400,32 @@ function close_main_cb(Ihandle /*main_dlg or exit_btn*/)
     return IUP_CLOSE -- (for key_cb)
 end function
 
+--DEV move this... to???
+--global Ihandle dlg
+include ..\demo\edix\src\withjs.e
+
+procedure set_js_line(integer line, bool bInsert, string s)
+--?{"set_js_line", line, bInsert, s}
+    if bInsert then
+        assert(length(s)!=0)
+        textlines[line..line-1] = {s}
+    elsif length(s)=0 then
+        textlines[line..line] = {}
+    else
+        textlines[line] = s
+    end if
+    src = join(textlines,"\n")
+    IupSetAttribute(multitext, "VALUE", src)
+    {} = syntax_colour()
+end procedure
+
+function set_js_option()
+    src = IupGetAttribute(multitext, "VALUE")
+    textlines = split(substitute(src,"\r\n","\n"),'\n',false)
+    set_js(set_js_line,main_dlg,textlines)
+    return IUP_DEFAULT
+end function
+
 function key_cb(Ihandle main_dlg, atom c)
     --
     -- Aside: a quick recap on those return values:
@@ -2412,6 +2447,8 @@ function key_cb(Ihandle main_dlg, atom c)
         case K_cK:  return show_stuff("TOKENS")
         case K_cP:  return show_stuff("PARSETREE")
         case K_cW:  return show_stuff("OUTPUT")
+--      case K_cJ:  return set_js(set_js_line,filetext[currfile])
+        case K_cJ:  return set_js_option()
 --      case K_cC:  return show_stuff("COPY") -- NO! (cW/cA/cC is just fine)
         case K_F5:  return show_stuff("RUN")
         case K_cF5: return show_stuff("CTRLF5") -- (run original input)
@@ -2488,6 +2525,8 @@ procedure create_main_dialog()
 
     Ihandle vbox = IupVbox({ch_box,multitext,lbl_statusbar,show_box},"MARGIN=5x0")
     main_dlg = IupDialog(vbox,"RASTERSIZE=700x700")
+--DEV temp: (for withjs.e)
+--dlg = main_dlg
 --  IupCloseOnEscape(main_dlg,false)
     IupSetCallback(main_dlg, "DROPFILES_CB", Icallback("dropfiles_cb"))
     IupSetCallback(main_dlg, "CLOSE_CB", Icallback("close_main_cb"))
@@ -2576,7 +2615,7 @@ function short_id(integer n)
 -- 3,224 two character ids, 
 -- 199,888 three character ids,
 -- 12,393,056 four character ids (that'll do!)
--- we do however have to avoid already used, keywords: i, by, to, do, in
+-- we do however have to avoid already used, keywords: i, as, by, to, do, in
 -- it simply isn't worth trying to use any more than once, as it were,
 -- and most common first is clearly the better strategy.
 -- Also figure out the minimum conditions for needing to insert a space.
@@ -2829,6 +2868,14 @@ ORw0KGgoAAAANSUhEUgAAABAAAAAQAQMAAAAlPW0iAAAABlBMVEU\
 AAAD///+l2Z/dAAAAM0lEQVR4nGP4/5/h/1+G/58ZDrAz3D/McH8\
 yw83NDDeNGe4Ug9C9zwz3gVLMDA/A6P9/AFGGFyjOXZtQAAAAAEl\
 FTkSuQmCC') no-repeat scroll left top;
+}
+and/or:
+<img id="img" src="" />
+document.getElementById("img").src = "data:image/png;base64, iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg=="
+data:image/jpeg;charset=utf-8;base64,
+https://jakearchibald.github.io/svgomg/
+img {
+ filter: url('url("data:image/svg+xml;utf8,<svg%20xmlns='http://www.w3.org/2000/svg'><filter%20id='grayscale'><feColorMatrix%20type='matrix'%20values='0.3333%200.3333%200.3333%200%200%200.3333%200.3333%200.3333%200%200%200.3333%200.3333%200.3333%200%200%200%200%200%201%200'/></filter></svg>#grayscale");')
 }
 
 graphs:

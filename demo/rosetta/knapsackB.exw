@@ -14,7 +14,7 @@
 -- trivially adjusted (as shown) to meet particular circumstances, should they ever trigger.
 --
 -- I have deliberately used space in place of weight: obviously solutions which are dependent 
--- on two more factors (eg weight and space) create a 3D-cobblestone terrain in which simple 
+-- on two or more factors (eg weight and space) create a 3D-cobblestone terrain in which simple 
 -- ranges would not suffice (polygons might).
 --
 -- The implementation of the range memoiser below is not psychopathically efficient: it assumes
@@ -47,7 +47,8 @@
 -- naive version of the cache ended up with separate entries for 
 -- weights of 15.783, 15.784, 15.785, and everything inbetween).
 --
-?"started"
+with javascript_semantics
+if platform()!=JS then progress("started") end if -- (only needed for CACHE_NONE)
 atom t0 = time()
 
 enum HI,PTS,ACTW,SOLN
@@ -69,7 +70,7 @@ integer cache_entries = 0
 -- convinced that would always be correct.
 
 procedure add_range(integer at, atom weight, atom actual_weight, atom points, sequence soln)
-    if actual_weight>weight then ?9/0 end if
+    assert(actual_weight<=weight)
     for i=length(range_cache)+1 to at do -- (while too small do)
         if i=at then
             range_cache = append(range_cache,{{weight,points,actual_weight,soln}})
@@ -82,28 +83,28 @@ procedure add_range(integer at, atom weight, atom actual_weight, atom points, se
     for i=1 to length(range_cache[at]) do
         sequence rcati = range_cache[at][i]
         if weight=rcati[ACTW] then
-            if rcati[PTS..SOLN]!={points,actual_weight,soln} then ?9/0 end if
+            assert(rcati[PTS..SOLN]=={points,actual_weight,soln})
             return
         elsif weight<rcati[ACTW] then
             -- (we cannot extend an existing range down...)
-            if soln=rcati[SOLN] then ?9/0 end if
+            assert(soln!=rcati[SOLN])
             -- insert a new range
             range_cache[at][i..i-1] = {{weight,points,actual_weight,soln}}
             cache_entries += 1
             return
         elsif soln=rcati[SOLN] then
 --      elsif points=rcati[PTS] then    -- (and delete next line)
-            if rcati[PTS..SOLN]!={points,actual_weight,soln} then ?9/0 end if
+            assert(rcati[PTS..SOLN]=={points,actual_weight,soln})
             if weight>rcati[HI] then        -- extend existing range up
                 rcati = {}
                 range_cache[at][i][HI] = weight
             end if
             return
         elsif weight<=rcati[HI] then
-            ?9/0        -- duplicate solution?? (or discard as below)
+            crash("duplicate solution??")   -- (or discard as below)
 --          return                          -- (discard)
         end if
-        if rcati[ACTW]<=lastHI then ?9/0 end if
+        assert(rcati[ACTW]>lastHI)
         lastHI = rcati[HI]
     end for
     range_cache[at] = append(range_cache[at],{weight,points,actual_weight,soln})
@@ -182,8 +183,8 @@ function knapsack(integer max_weight, integer at)
             end if
         elsif CACHE_METHOD=CACHE_NONE then
             -- show progress
-            if time()>t1 then
-                ?{max_weight,at}
+            if time()>t1 and platform()!=JS then
+                progress("max_weight:%g, at=%d\r",{max_weight,at})
                 t1 = time()+1
             end if
         end if
@@ -197,7 +198,7 @@ function knapsack(integer max_weight, integer at)
             points += i*pitem
             if points>best_points then
                 best_points = points
-                best_choices = choices&i
+                best_choices = deep_copy(choices)&i
                 act_weight = sub_weight+i*witem
             end if
         end for
@@ -211,6 +212,7 @@ function knapsack(integer max_weight, integer at)
 end function
  
 sequence res = knapsack(400, length(goodies))   -- {points,act_weight,choices}
+if platform()!=JS then progress("") end if
  
 atom weight = 0, witem
 atom points = 0, pitem
@@ -225,13 +227,9 @@ for i=1 to length(goodies) do
         points += c*pitem
     end if
 end for
-if points!=res[1] then ?9/0 end if  -- sanity check
-if weight!=res[2] then ?9/0 end if  -- sanity check
---if {points,weight}!=res[1..2] then ?{"9/0",points,res} ?goodies ?{length(res[3]),length(goodies)} end if
+assert({points,weight}==res[1..2]) -- sanity check
 printf(1,"Value %d, weight %g [%3.2fs]:\n",{points,weight,time()-t0})
 
---ppOpt({pp_Pause,0})
---pp(range_cache,{pp_Nest,1})
 if CACHE_METHOD=CACHE_SIMPLE then
     cache_entries = dict_size(cache_simple)
 end if

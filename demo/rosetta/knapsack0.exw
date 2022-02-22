@@ -4,12 +4,14 @@
 --
 -- Trivial simplification of knapsackB (optimisation on)
 --
-integer terminate=0
+with javascript_semantics
+
+bool terminate = false
 
 integer attempts = 0
 function knapsack(sequence res, goodies, atom points, weight, at=1, sequence chosen={})
-    atom {witem,pitem} = goodies[at][2]
-    integer n = (witem<=weight)
+    atom {?,witem,pitem} = goodies[at]
+    integer n = iff(witem<=weight?1:0)
     chosen &= n
     points += n*pitem   -- increase value
     weight -= n*witem   -- decrease weight left
@@ -21,10 +23,10 @@ function knapsack(sequence res, goodies, atom points, weight, at=1, sequence cho
         end if
         terminate = (n=1)
     else
-        -- proposed optimisation:
---      while n>=0 do
-        while n>=0 and not terminate do
-            res = knapsack(res,goodies,points,weight,at+1,chosen)
+--      while n>=0 do -- full exhaustive search
+        while n>=0 and not terminate do -- optimised
+            res = knapsack(res,goodies,points,weight,at+1,deep_copy(chosen))
+--          res = knapsack(res,goodies,points,weight,at+1,chosen) -- (see Linear scan register allocation)
             n -= 1
             chosen[$] = n
             points -= pitem
@@ -36,34 +38,34 @@ end function
 
 function byweightedvalue(object a, b)
     -- sort by weight/value
-    return compare(a[2][1]/a[2][2],b[2][1]/b[2][2])
+    return compare(a[2]/a[3],b[2]/b[3])
     -- nb other sort orders break the optimisation
 end function
 
-constant goodies = custom_sort(routine_id("byweightedvalue"),{
+constant goodies = custom_sort(byweightedvalue,{
 -- item                     weight value
-{"map",                     {9,     150}},
-{"compass",                 {13,    35 }},
-{"water",                   {153,   200}},
-{"sandwich",                {50,    160}},
-{"glucose",                 {15,    60 }},
-{"tin",                     {68,    45 }},
-{"banana",                  {27,    60 }},
-{"apple",                   {39,    40 }},
-{"cheese",                  {23,    30 }},
-{"beer",                    {52,    10 }},
-{"suntan cream",            {11,    70 }},
-{"camera",                  {32,    30 }},
-{"T-shirt",                 {24,    15 }},
-{"trousers",                {48,    10 }},
-{"umbrella",                {73,    40 }},
-{"waterproof trousers",     {42,    70 }},
-{"waterproof overclothes",  {43,    75 }},
-{"note-case",               {22,    80 }},
-{"sunglasses",              {7,     20 }},
-{"towel",                   {18,    12 }},
-{"socks",                   {4,     50 }},
-{"book",                    {30,    10 }}})
+{"map",                      9,     150},
+{"compass",                  13,    35 },
+{"water",                    153,   200},
+{"sandwich",                 50,    160},
+{"glucose",                  15,    60 },
+{"tin",                      68,    45 },
+{"banana",                   27,    60 },
+{"apple",                    39,    40 },
+{"cheese",                   23,    30 },
+{"beer",                     52,    10 },
+{"suntan cream",             11,    70 },
+{"camera",                   32,    30 },
+{"T-shirt",                  24,    15 },
+{"trousers",                 48,    10 },
+{"umbrella",                 73,    40 },
+{"waterproof trousers",      42,    70 },
+{"waterproof overclothes",   43,    75 },
+{"note-case",                22,    80 },
+{"sunglasses",               7,     20 },
+{"towel",                    18,    12 },
+{"socks",                    4,     50 },
+{"book",                     30,    10 }})
 
 atom t0 = time()
 object {points,weight,counts} = knapsack({},goodies,0,400)

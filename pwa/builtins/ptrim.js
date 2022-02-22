@@ -39,6 +39,7 @@
             while (rpos>lpos && find($subse(source,rpos),what)) { rpos -= 1; }
         }
         if (return_index) {
+            if (lpos>rpos) { rpos = 0; }        // 15/2/22
             return ["sequence",lpos,rpos];
         } else if ((lpos!==1) || (!equal(rpos,length(source)))) {
             source = $subss(source,lpos,rpos);
@@ -77,13 +78,17 @@
 
 /*global*/ function shorten(/*sequence*/ s, /*string*/ what="digits", /*integer*/ ml=20) {
     let /*integer*/ l = length(s), 
+//PL 17/2/22: could find no reason not to, so undone (p2js*2).
+//            [maybe I've since fixed $repss() or sq_eq()?]
 //pwa.p2js:
-//          c = iff(string(s) and what="digits"?sum(sq_eq(s,',')):0)
-                    c = 0;
+                    c = ((string(s) && (what==="digits")) ? sum(sq_eq(s,0X2C)) : 0);
+//          c = 0
     if (what==="digits") {
-        for (let i=1, i$lim=l; i<=i$lim; i+=1) {
-            c += equal($subse(s,i),0X2C);
-        }
+//      for i=1 to l do
+//          c += s[i]==','
+//      end for
+//29/1/22: (subtract [another] 1 from l in the case of a leading +/-)
+        if (l && find($subse(s,1),"+-")) { c += 1; }
     }
     let /*string*/ ls = ((length(what)) ? sprintf(" (%,d %s)",["sequence",l-c,what]) : "");
     if (compare(l,ml*2+((string(s)) ? 3+length(ls) : 2))>0) {
@@ -92,8 +97,8 @@
             if (length(ls)) { s = $conCat(s, ls); }
         } else {
 //p2js:
-//          s[ml+1..-ml-1] = {"..."}
-            s = $conCat($conCat($subss(s,1,ml), ["sequence","..."]), $subss(s,-ml,-1));
+            s = $repss(s,ml+1,-ml-1,["sequence","..."]);
+//          s = s[1..ml] & {"..."} & s[-ml..-1]
             if (length(ls)) { s = append(s,ls); }
         }
     }

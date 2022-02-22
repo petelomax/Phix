@@ -1061,6 +1061,7 @@ global function ba_add(object A, B)
     if signA=signB then
         sgn = signA
     elsif signA=SG_MINUS then
+        A = deep_copy(A)
         A[SIGN] = SG_PLUS
         return ba_sub(B, A)
     else -- signB = SG_MINUS

@@ -4,7 +4,7 @@
 --
 --  The reusable part of cgen.exw
 --
-
+without js -- (machine code!)
 include parse.e
 
 global sequence vars = {},
@@ -318,6 +318,7 @@ include builtins/VM/puts1.e -- low-level console i/o routines
 
 function setbuiltins()
 atom printc,printi,prints
+--/*
     #ilASM{ 
         jmp :setbuiltins
     ::printc
@@ -346,6 +347,7 @@ atom printc,printi,prints
         lea edi,[prints]
         call :%pStoreMint
           }
+--*/
     return {printc,printi,prints}
 end function
 
@@ -361,12 +363,14 @@ function RawStringPtr(integer n)    -- (based on IupRawStringPtr from pGUI.e)
 --
 atom res
     string s = strings[n]
+--/*
     #ilASM{
             mov eax,[s]
             lea edi,[res]
             shl eax,2
             call :%pStoreMint
           }
+--*/
     stringptrs[n] = res
     return res
 end function

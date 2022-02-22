@@ -2565,7 +2565,9 @@ global procedure IupSetCallback(Ihandles ih, string name, cbfunc func, integer n
                 integer rid = rid_from_cb(func)
                 sequence ri = get_routine_info(rid,false)
                 if ri!={1,1,"FN"} then
-                    crash("canvas ACTION callback must fetch posx,poxy instead",nFrames:=nf)
+--                  crash("canvas ACTION callback have func(Ihandle) sig",nFrames:=nf)
+                    crash("canvas ACTION callback have func(Ihandle) sig and fetch posx/y instead",nFrames:=nf)
+--                  crash("canvas ACTION callback must fetch posx,poxy instead",nFrames:=nf)
                 end if
             end if
         end if
@@ -5113,8 +5115,9 @@ Loads an image from file, but forces the image to be a bitmap. Open, loads and c
 index specifies the image number between 0 and image_count-1. 
 Returns NULL if failed. Attributes from the file will be stored at the image. See also imErrorCodes.
 --*/
-global function imFileImageLoadBitmap(string filename, integer index, atom pError)
+global function imFileImageLoadBitmap(string filename, integer index=0, atom pError=NULL)
     iup_image_init()
+    if pError=NULL then pError = allocate(machine_word(),true) end if
     imImage image = c_func(ximFileImageLoadBitmap,{filename,index,pError})
     return image
 end function
@@ -5310,7 +5313,7 @@ Returns IM_ERR_NONE, IM_ERR_DATA or IM_ERR_COUNTER, see also imErrorCodes.
 See also imColorSpace, imColorModeConfig and Color Mode Utilities.
 --*/
 global procedure imConvertColorSpace(imImage src_image, imImage dst_image)
-integer err = c_func(ximConvertColorSpace,{src_image,dst_image})
+    integer err = c_func(ximConvertColorSpace,{src_image,dst_image})
     if err!=IM_ERR_NONE then ?9/0 end if
 end procedure
 
@@ -6773,8 +6776,8 @@ end if
         --
         -- client images 
         --
---      xcdCanvasGetImageRGB        = iup_c_proc(hCd, "cdCanvasGetImageRGB", {P,P,P,P,I,I,I,I})
-        xcdCanvasGetImageRGB        = iup_c_proc(hCd, "cdCanvasGetImageRGB", {P,P,P,P,P,I,I,I,I})
+        xcdCanvasGetImageRGB        = iup_c_proc(hCd, "cdCanvasGetImageRGB", {P,P,P,P,I,I,I,I})
+--      xcdCanvasGetImageRGB        = iup_c_proc(hCd, "cdCanvasGetImageRGB", {P,P,P,P,P,I,I,I,I})
         xcdCanvasPutImageRectRGB    = iup_c_proc(hCd, "cdCanvasPutImageRectRGB", {P,I,I,P,P,P,I,I,I,I,I,I,I,I})
         xcdCanvasPutImageRectRGBA   = iup_c_proc(hCd, "cdCanvasPutImageRectRGBA", {P,I,I,P,P,P,P,I,I,I,I,I,I,I,I})
         xcdCanvasPutImageRectMap    = iup_c_proc(hCd, "cdCanvasPutImageRectMap", {P,I,I,P,P,I,I,I,I,I,I,I,I})
@@ -8096,27 +8099,28 @@ end procedure
 --  xcdCanvasPutImageRectMap    = iup_c_proc(hCd, "cdCanvasPutImageRectMap", {P,I,I,P,P,I,I,I,I,I,I,I,I})
 
 --29/10/21 added a(lpha), which seems to stop some crashes [I need to revisit the online docs]
+-- reverted 31/12/21 (HelloF went badly wrong, PhixLogo is the only other likely candidate I could find...)
 global function cdCanvasGetImageRGB(cdCanvas canvas, atom x, y, w, h)
     integer l = w*h
     atom pR = allocate(l),
          pG = allocate(l),
-         pB = allocate(l),
-         pA = allocate(l)
+         pB = allocate(l)
+--       pA = allocate(l)
 --24/10/21..
     iup_init_cd()
 --?pR
 --?{xcdCanvasGetImageRGB,canvas,x,y,w,h}
---  c_proc(xcdCanvasGetImageRGB, {canvas, pR, pG, pB, x, y, w, h})
-    c_proc(xcdCanvasGetImageRGB, {canvas, pR, pG, pB, pA, x, y, w, h})
+    c_proc(xcdCanvasGetImageRGB, {canvas, pR, pG, pB, x, y, w, h})
+--  c_proc(xcdCanvasGetImageRGB, {canvas, pR, pG, pB, pA, x, y, w, h})
 --?pR
     sequence r = peek({pR,l}),
              g = peek({pG,l}),
-             b = peek({pB,l}),
-             a = peek({pB,l})
---  free({pR,pG,pB})
-    free({pR,pG,pB,pA})
---  return {r,g,b}
-    return {r,g,b,a}
+             b = peek({pB,l})
+--           a = peek({pB,l})
+    free({pR,pG,pB})
+--  free({pR,pG,pB,pA})
+    return {r,g,b}
+--  return {r,g,b,a}
 end function
 
 global procedure cdCanvasPutImageRectRGB(cdCanvas canvas, atom iw, ih, sequence rgb3, 

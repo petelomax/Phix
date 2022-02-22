@@ -1521,13 +1521,13 @@ end function
 
 integer x_mpz_get_str = NULL
 
-global function mpz_get_str(mpz x, integer base=10, boolean comma_fill=false)
+global function mpz_get_str(mpz op, integer base=10, boolean comma_fill=false)
 --
 -- Note this always allocates memory for the first argument to the C function,
 -- and the other two arguments are swapped for default value reasons.
 --
---      ie     C: mpz_get_str(0, 10, x)
---      ==> phix: string s = mpz_get_str(x[,10])
+--      ie     C: mpz_get_str(0, 10, op)
+--      ==> phix: string s = mpz_get_str(op[,10])
 --
 --      (nb the C API does not have the comma_fill argument or anything similar)
 --
@@ -1544,29 +1544,32 @@ global function mpz_get_str(mpz x, integer base=10, boolean comma_fill=false)
 -- NB: Only tested to 300,000 digits (which is just 15 such blocks).
 --     I also tested that block sizes of 1,2,3,..10 work as well.
 --
-    if x=NULL then ?9/0 end if
+    if op=NULL then ?9/0 end if
     if base<2 or base>62 then ?9/0 end if
     if x_mpz_get_str=NULL then
         if mpir_dll=NULL then open_mpir_dll() end if
         x_mpz_get_str = link_c_func(mpir_dll, "+__gmpz_get_str", {P,I,P}, P)
     end if
-    integer l = mpz_sizeinbase(x, base)
+--18/2/22:
+    bool neg = mpz_cmp_si(op,0)<0
+    if neg then mpz_abs(op,op) end if -- (don't worry that's very fast)
+    integer l = mpz_sizeinbase(op, base)
     atom pString = allocate(min(l+2,20002))
     sequence chunks = {}
     if l>20000 then
 --      atom d = mpz_init("1e20000"), r = mpz_init()
         atom d = mpz_init(), r = mpz_init()
         mpz_ui_pow_ui(d,10,20000)
-        x = mpz_init_set(x) -- copy for modification, relies on auto-free.
+        op = mpz_init_set(op) -- copy for modification, relies on auto-free.
         while true do
-            mpz_fdiv_qr(x,r,x,d) -- {x,r} := {floor(x/d),remainder(x,d)}
+            mpz_fdiv_qr(op,r,op,d) -- {op,r} := {floor(op/d),remainder(op,d)}
             pString = c_func(x_mpz_get_str,{pString,base,r})
             chunks = prepend(chunks,peek_string(pString))
             l -= 20000
             if l<=20000 then exit end if
         end while
     end if      
-    pString = c_func(x_mpz_get_str,{pString,base,x})
+    pString = c_func(x_mpz_get_str,{pString,base,op})
     string res = peek_string(pString)
     free(pString)   
     for i=1 to length(chunks) do
@@ -1581,6 +1584,7 @@ global function mpz_get_str(mpz x, integer base=10, boolean comma_fill=false)
 --      res = reverse(join_by(reverse(res),1,3,"",","))[2..$]
         res = reverse(join_by(reverse(res),1,3,repeat(' ',0),repeat(',',1)))[2..$]
     end if
+    if neg then res = "-"&res; mpz_neg(op,op) end if -- (ditto)
     return res
 end function
 
@@ -1603,6 +1607,38 @@ while e_size<300000 do
     end if
 end while
 --*/
+
+global function mpz_get_short_str(mpz op, integer ml=20, base=10, boolean comma_fill=false, string what="digits")
+-- equivalent to shorten(mpz_get_str(op,base,comma_fill),ml:=ml) but much faster, since it does not
+-- construct potentially hundreds of thousands of the middle digits before just throwing them away.
+    bool neg = mpz_cmp_si(op,0)<0
+    if neg then mpz_abs(op,op) end if -- (don't worry that's very fast)
+    integer l = mpz_sizeinbase(op,base)
+    string ls = sprintf(" (%,d %s)",{l,what}), res
+    if l>ml*2+3+length(ls) then
+        mpz {tmp,p10} = mpz_inits(2)
+        mpz_ui_pow_ui(p10,10,ml)
+        mpz_fdiv_r(tmp,op,p10)
+        -- get rightmost ml digits [plus any commas]
+        string rml = mpz_get_str(tmp,base,comma_fill)
+        -- for comma_fill, say ml=4, get the "123,456" head, 
+        --  not "123,4", so commas end up logically correct.
+        integer ll = l-ml-iff(comma_fill?remainder(l-ml,3):0)
+        mpz_ui_pow_ui(p10,10,ll)
+        mpz_fdiv_q(tmp,op,p10)
+        -- get leftmost ml [+0..2] digits [ditto]
+        res = mpz_get_str(tmp,base,comma_fill)
+        if comma_fill then
+            res = res[1..ml-neg]
+            rml = rml[-ml..-1]
+        end if
+        res &= "..." & rml & ls
+    else
+        res = mpz_get_str(op,base,comma_fill)
+    end if
+    if neg then res = "-"&res; mpz_neg(op,op) end if -- (ditto)
+    return res
+end function
 
 --DEV to go*6...
 
@@ -2931,7 +2967,7 @@ end procedure
 
 integer x_mpfr_mul_si = NULL
 
-global procedure mpfr_mul_si(mpfr rop, op1, integer op2, integer rounding=default_rounding)
+global procedure mpfr_mul_si(mpfr rop, op1, integer op2, rounding=default_rounding)
 --rop := op1*op2
     if rop=NULL then ?9/0 end if
     if op1=NULL then ?9/0 end if
@@ -2939,6 +2975,13 @@ global procedure mpfr_mul_si(mpfr rop, op1, integer op2, integer rounding=defaul
         x_mpfr_mul_si = link_c_proc(mpfr_dll, "+mpfr_mul_si", {P,P,I,I})
     end if
     c_proc(x_mpfr_mul_si,{rop,op1,op2,rounding})
+end procedure
+
+global procedure mpfr_addmul_si(mpfr rop, op1, integer op2, rounding=default_rounding)
+    mpfr tmp = mpfr_init_set(op1)
+    mpfr_mul_si(tmp,tmp,op2,rounding)
+    mpfr_add(rop,rop,tmp)
+    tmp = mpfr_free(tmp)
 end procedure
 
 integer x_mpfr_div = NULL

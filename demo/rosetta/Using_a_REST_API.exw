@@ -1,0 +1,185 @@
+--
+-- demo\rosetta\Using_a_REST_API.exw
+-- =================================
+--
+-- Uses eventzillaapi.net instead of meetup.com, since unlike the latter it can be done for free.
+-- Unfortunately the API (V2) does not support creating events, so instead this shows how to use
+-- a post method to toggle sales (but see note below).
+--
+without js
+include libcurl.e
+include builtins\json.e
+constant base_url = "https://www.eventzillaapi.net/api/v2/"
+atom curl = NULL, pErrorBuffer = NULL
+
+function get_api_key(string inifile)
+    if file_exists(inifile) then
+        object lines = get_text(inifile,GT_LF_STRIPPED)
+        if sequence(lines) 
+        and length(lines)=1
+        and length(lines[1])=40 then
+            return lines[1]
+        end if
+    end if
+    crash(inifile & " not found or invalid")
+end function
+
+function query(string url, sequence req, string method="GET")
+
+    -- initialize curl handle if required
+    if curl=NULL then
+        curl = curl_easy_init()
+        if pErrorBuffer=NULL then
+            pErrorBuffer = allocate(CURL_ERROR_SIZE)
+        end if
+        curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, pErrorBuffer)
+    else
+        curl_easy_reset(curl)
+    end if
+
+    -- generate the POST data string
+    -- eg {"command","returnBalances",
+    --     "nonce","1515249747606"}
+    -- --> "command=returnBalances&nonce=1515249747606"
+    string post_data = ""
+    for i=1 to length(req) by 2 do
+        if i>1 then post_data &= "&" end if
+        string name = req[i], v = req[i+1]
+        post_data &= name&"="&v
+    end for
+    if method="POST" then
+        curl_easy_setopt(curl, CURLOPT_URL, base_url&url)
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data)
+    else
+        url = base_url&url
+        if length(post_data) then
+            url &= "?"&post_data
+        end if
+        curl_easy_setopt(curl, CURLOPT_URL, url)
+        curl_easy_setopt(curl, CURLOPT_HTTPGET, true)
+    end if
+    -- generate the extra headers
+    string api_key = get_api_key("api_key.txt")
+    atom headers = curl_slist_append(NULL, "x-api-key: "&api_key)
+    api_key = "" -- (generally good idea, avoid showing in ex.err)
+                 -- (obvs. inlining get_api_key() call works too.)
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers)
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, false)
+
+    -- run the query
+    object res = curl_easy_perform_ex(curl)
+    if headers!=NULL then
+        curl_slist_free_all(headers)
+    end if
+    if integer(res) then
+        -- better error/retry handling probably required...
+        ?{"error",res,peek_string(pErrorBuffer),curl_easy_strerror(res)}
+        return false
+    end if
+    object jres = parse_json(res)
+    if jres={JSON_INVALID} then
+        -- ditto...
+        return false
+    end if
+    return jres
+end function
+
+-- as per the task description (but I would swap the args and call query() direct).
+function get_events(sequence details, string url)
+    return query(url,details)
+end function
+
+function toggle_sales(sequence details, string url)
+    return query(url,details,"POST")
+end function
+
+object res = get_events({"status","live"},"events")
+--object res = get_events({},"events")
+puts(1,print_json("",res))
+
+string id = "2138822407",   -- (see note)
+       status = "true"
+if res!={-1,{`message`,`No events found`}} then
+    res = extract_json_field(res,"events_live")
+--  res = extract_json_field(res,"events")
+    id = sprintf("%d",extract_json_field(res[2],"id"))
+    status = extract_json_field(res[2],"status")
+    printf(1,"id:%s, status:%s\n",{id,status})
+    status = iff(status="Live"?"false","true")
+end if
+res = toggle_sales({"eventid",id,"status",status},"events/togglesales")
+puts(1,print_json("",res))
+
+?"done"
+{} = wait_key()
+
+--/*
+Note that toggling sales off makes the (manually created) event invisible to the API, even without 
+the {"status","live"} filter, hence I had to hard-code the event id to permit a second run to turn
+it back on. Also as shown omitting said filter changes the field name on the returned results...
+{{out}}
+<pre>
+{
+ "pagination":[
+               {
+                "offset":0,
+                "limit":20,
+                "total":1,
+                "category":""
+               }
+              ],
+ "events_live":[
+                {
+                 "id":2138822407,
+                 "title":"Phix Programming in the park party",
+                 "description":"Learn how to program while wearing gloves",
+                 "currency":"GBP", // nb: unicode pound symbol replaced manually
+                 "start_date":"2021-12-30T00:00:00",
+                 "start_time":"14:00",
+                 "end_date":"2021-12-30T00:00:00",
+                 "end_time":"14:10",
+                 "time_zone":"(GMT+0000) United Kingdom Time",
+                 "tickets_sold":0,
+                 "tickets_total":4,
+                 "status":"Live",
+                 "show_remaining":false,
+                 "twitter_hashtag":"",
+                 "utc_offset":"+00:00",
+                 "invite_code":"",
+                 "url":"https://events.eventzilla.net/e/phix-programming-in-the-park-party-2138822407",
+                 "logo_url":"",
+                 "bgimage_url":"https://s3.amazonaws.com/ezusrevent/party-small13.jpg",
+                 "venue":"Acacia gardens, London, England, United Kingdom",
+                 "dateid":2138353105,
+                 "categories":"Class, Training, or Workshop",
+                 "language":"en",
+                 "description_html":"<p>Learn how to program while wearing gloves</p>",
+                 "timezone_code":"GMT"
+                }
+               ]
+}
+id:2138822407, status:Live
+{
+ "eventstatus":"unpublished"
+}
+</pre>
+Second/alternate run:
+<pre>
+{
+ "message":"No events found"
+}
+{
+ "eventstatus":"published"
+}
+</pre>
+
+Note that generally speaking I would strongly recommend the use of background worker threads:
+Suppose you want to retrieve customers, orders, products, and prices, which take {1,2,3,4} seconds respectively.
+With traditional imperative sequential processing it would be 10s before you can send the first invoice, and if
+you are sending 50 of them at 1s each the entire process will take 1 minute. In contrast, the use of background
+threads running simultaneously means the loading could finish in 4s, and all 50 invoices could theoretically be
+sent in parallel, so the entire process could be finished in just 5s (ymmv). In a past life I have lost several
+handfuls of hair trying to explain that over and over and over again. It is of course necessary to use flags or
+test for non-null-ness of all four C/O/P/P as each is received, since they may arrive in any order, and further
+that *has* to be done in the main thread and *not* in the background worker threads. </rant>
+--*/

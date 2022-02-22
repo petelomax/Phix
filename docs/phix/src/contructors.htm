@@ -1,0 +1,130 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">contructors</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td>
+          <b>Definition:</b>
+         </td>
+         <td>
+<i>class identifier</i><br>
+&nbsp;&nbsp;&nbsp;&nbsp;function <i>identifier</i>(<i>class this,</i>[args])  <i>-- constructor</i><br>
+&nbsp;&nbsp;&nbsp;&nbsp;procedure <i>~identifier</i>(<i>class this</i>)  <i>-- destructor</i><br>
+<i>end class</i><br>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Description:</b>
+         </td>
+         <td>
+            Classes can also have explicit constructors and/or destructors.
+            <br>
+            <br>
+            There is an automatic <i>this</i> parameter on both constructors and destructors, which should not be explicitly declared, and is
+            only documented in case for some reason (like <a href="structs.htm">builtins\structs.e</a> does) you are invoking these routines 
+            via <a href="call_func.htm">call_func</a>/<a href="call_proc.htm">call_proc</a>().
+            <br>
+            <br>
+            The parameters on the constructor (if any) must be matched by the <a href="structs.htm#new">new</a>() call.
+            <br>
+            <br>
+            The destructor takes no parameters, other than the implicit <i>this</i> described above.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Example:</b>
+         </td>
+         <td>
+<!--eucode>
+without js -- (else cffi namespace error, classes are not supported under pwa/p2js anyway)
+
+class five nullable
+    public integer n = 3
+    function five(integer n = 4)
+        printf(1,"constructor five(%d) called\n",n)
+        this.n = n
+        return this
+    end function
+    procedure ~five()
+        printf(1,"destructor ~five(%d) called\n",n)
+    end procedure
+end class
+five v = new({5})
+if v.n!=5 then ?9/0 end if
+v=NULL
+-- output:
+-- constructor five(5) called
+-- destructor ~five(5) called
+</eucode-->
+<pre>
+<font color="#2C5C2C">without js</font><font color="#000080"><i> -- (else cffi namespace error, classes are not supported under pwa/p2js anyway)
+</i></font>
+<font color="#008080">class</font><font color="#000000"> five</font><font color="#008080"> nullable
+    public</font><font color="#004080"> integer</font><font color="#000000"> n</font><font color="#0000FF"> =</font><font color="#000000"> 3</font>
+<font color="#008080">    function</font><font color="#000000"> five</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> n</font><font color="#0000FF"> =</font><font color="#000000"> 4</font><font color="#0000FF">)</font>
+<font color="#5E005E">        printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"constructor five(%d) called\n"</font><font color="#0000FF">,</font><font color="#000000">n</font><font color="#0000FF">)</font>
+<font color="#000000">        this</font><font color="#0000FF">.</font><font color="#000000">n</font><font color="#0000FF"> =</font><font color="#000000"> n</font>
+<font color="#008080">        return</font><font color="#000000"> this</font>
+<font color="#008080">    end function
+    procedure</font><font color="#0000FF"> &tilde;</font><font color="#000000">five</font><font color="#0000FF">()</font>
+<font color="#5E005E">        printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"destructor &tilde;five(%d) called\n"</font><font color="#0000FF">,</font><font color="#000000">n</font><font color="#0000FF">)</font>
+<font color="#008080">    end procedure
+end class</font>
+<font color="#000000">five v</font><font color="#0000FF"> =</font><font color="#5E005E"> new</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">5</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#008080">if</font><font color="#000000"> v</font><font color="#0000FF">.</font><font color="#000000">n</font><font color="#0000FF">!=</font><font color="#000000">5</font><font color="#008080"> then</font><font color="#0000FF"> ?</font><font color="#000000">9</font><font color="#0000FF">/</font><font color="#000000">0</font><font color="#008080"> end if</font>
+<font color="#000000">v</font><font color="#0000FF">=</font><font color="#004600">NULL</font>
+<font color="#000080"><i>-- output:
+-- constructor five(5) called
+-- destructor &tilde;five(5) called</i></font>
+</pre>
+            <br>
+            If no constructor method is defined, the elements of the parameter of <a href="structs.htm#new">new</a>() are 
+            assigned in order to the internal fields of the class, otherwise they are assigned in order to the constructor 
+            parameters. On entry the implicit <i>this</i> parameter is a fully-formed instance though technically there is
+            nothing to prevent you from completely replacing it, which you might do, for example, in a singleton class.
+            <br>
+            <br>
+            Of course you could instead just write a more traditional new_five() function, as in one outside of any class
+            that invokes <a href="structs.htm#new">new</a>() and returns the result from that, possibly tweaked a little.
+            <br>
+            <br>
+            Also note that destructors such as that ~five() are not necessarily invoked in a timely fashion, or indeed even 
+            guaranteed to be called at all (in particular if the program crashes or aborts suddenly). You should not overly 
+            rely on destructor calls: freeing resources or even estimating time to completion should be fine, but using the
+            destructor to, say, print subtotals on a report, would be nothing short of utter madness and sheer frustration.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Implementation:</b>
+         </td>
+         <td>
+            As per <a href="struct.htm">struct</a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>See Also:</b>
+         </td>
+         <td>
+            <a href="class.htm">class</a>
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

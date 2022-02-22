@@ -28,6 +28,7 @@
     if (!equal(length(replacements),l)) { crash("9/0"); }
 //DEV deep_copy(ifNeeded) may be in order here...
 //  sequence res = repeat(0,length(source))
+    let /*sequence*/ res = deep_copy(source);
     if (invert) {
         let /*sequence*/ inverse = repeat(0,l);
         for (let i=1, i$lim=l; i<=i$lim; i+=1) {
@@ -38,9 +39,9 @@
     }
     for (let i=1, i$lim=l; i<=i$lim; i+=1) {
         ii = $subse(indexes,i);
-//      res[ii] = replacements[i]
-        source = $repe(source,ii,$subse(replacements,i));
+        res = $repe(res,ii,$subse(replacements,i));
+//      source[ii] = replacements[i]
     }
-//  return res
-    return source;
+    return res;
+//  return source
 }

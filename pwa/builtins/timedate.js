@@ -1253,11 +1253,8 @@ function $parse_one(/*string*/ s, /*string*/ fmt, /*integer*/ partial) {
                     default: 
                         crash("9/0"); // should never happen
                 }
-                if (ecode===0) {
-                    if (month<1 || month>12) {
-                        ecode = 5;
-                        break;
-                    }
+                if ((ecode===0) && (month<1 || month>12)) {
+                    ecode = 5;
                 }
                 break;
             case $DAY:
@@ -1269,11 +1266,8 @@ function $parse_one(/*string*/ s, /*string*/ fmt, /*integer*/ partial) {
                     default: 
                         crash("9/0"); // should never happen
                 }
-                if (ecode===0) {
-                    if (day<1 || day>31) {  // (more tests below)
-                        ecode = 6;
-                        break;
-                    }
+                if ((ecode===0) && (day<1 || day>31)) { // (more tests below)
+                    ecode = 6;
                 }
                 break;
             case $DOW:
@@ -1291,11 +1285,8 @@ function $parse_one(/*string*/ s, /*string*/ fmt, /*integer*/ partial) {
             case $HOUR:
 //              {ecode,sdx,hour} = $td_get_number(s,sdx,fsize)
                 [,ecode,sdx,hour] = $td_get_number(s,sdx,2);
-                if (ecode===0) {
-                    if (hour<0 || hour>23) {
-                        ecode = 11;
-                        break;
-                    }
+                if ((ecode===0) && (hour<0 || hour>23)) {
+                    ecode = 11;
                 }
                 break;
             case $MINUTE:
@@ -1306,11 +1297,8 @@ function $parse_one(/*string*/ s, /*string*/ fmt, /*integer*/ partial) {
                 }
 //              {ecode,sdx,minute} = $td_get_number(s,sdx,fsize)
                 [,ecode,sdx,minute] = $td_get_number(s,sdx,2);
-                if (ecode===0) {
-                    if (minute<0 || minute>59) {
-                        ecode = 13;
-                        break;
-                    }
+                if ((ecode===0) && (minute<0 || minute>59)) {
+                    ecode = 13;
                 }
                 break;
             case $SECOND:
@@ -1320,11 +1308,8 @@ function $parse_one(/*string*/ s, /*string*/ fmt, /*integer*/ partial) {
                 }
 //              {ecode,sdx,second} = $td_get_number(s,sdx,fsize)
                 [,ecode,sdx,second] = $td_get_number(s,sdx,2);
-                if (ecode===0) {
-                    if (second<0 || second>59) {
-                        ecode = 14;
-                        break;
-                    }
+                if ((ecode===0) && (second<0 || second>59)) {
+                    ecode = 14;
                 }
                 break;
             case $MSEC:
@@ -1332,10 +1317,10 @@ function $parse_one(/*string*/ s, /*string*/ fmt, /*integer*/ partial) {
                 if (ecode===0) {
                     if (msecs<0 || msecs>999) {
                         ecode = 22;
-                        break;
+                    } else {
+                        dayofweek = msecs;
                     }
                 }
-                dayofweek = msecs;
                 break;
             case $AM:
                 if (pftyp===$MONTH) {
@@ -1389,6 +1374,7 @@ function $parse_one(/*string*/ s, /*string*/ fmt, /*integer*/ partial) {
             default: 
                 crash("9/0"); // should never happen...
         }
+        if (ecode!==0) { break; }
         if (ftyp!==$TD_LITERAL) {
             pftyp = ftyp;
         }
@@ -1834,6 +1820,7 @@ let /*string*/ $default_format = "h:mpm Dddd Mmmm ddth, yyyy";
             default: 
                 crash("9/0"); // should never happen
         }
+        if (ecode!==0) { break; }
         res = $conCat(res, x);
         if (ftyp!==$TD_LITERAL) {
             pftyp = ftyp;

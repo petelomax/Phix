@@ -1,0 +1,137 @@
+--
+-- demo\rosetta\man_or_boy_test.exw
+-- ================================
+--
+-- Not (yet) part of distro.
+-- Kept mainly for the performance aspects.
+--
+-- Version 1:
+--/*
+without js -- allocate()
+forward function A(integer k, object x1, x2, x3, x4, x5)
+ 
+function B(sequence s)
+    object {kptr,x1,x2,x3,x4} = s
+    integer k = peek4s(kptr)-1
+    poke4(kptr,k)
+    return A(k,{kptr,x1,x2,x3,x4},x1,x2,x3,x4)
+end function
+ 
+function A(integer k, object x1, x2, x3, x4, x5)
+    if k<=0 then
+        return iff(sequence(x4)?B(x4):x4)+
+               iff(sequence(x5)?B(x5):x5)
+    end if
+    atom kptr = allocate(4,1)
+    poke4(kptr,k)
+    return B({kptr,x1,x2,x3,x4})
+end function
+ 
+for k=0 to 23 do
+    printf(1,"A(%d) = %d\n",{k,A(k,1,-1,-1,1,0)})
+end for
+--*/
+
+--version 2
+--Translation of D (Faster Version), superceded by Go version below.
+--Unusually (**DEV**) this is five times faster under pwa/p2js than it is on desktop/Phix...
+--  (to 27: 9.4s for pwa/p2js vs 50s for desktop/Phix,
+--   to 28: 22s for pwa/p2js vs 1min 50s for desktop/Phix)
+--/*
+with javascript_semantics
+forward function c1(integer k)
+forward function c2(integer k)
+forward function c3(integer k)
+forward function c4(integer k)
+sequence c1c = {0, 0, 0, 1, 2, 3},
+         c2c = {0, 0, 1, 1, 1, 2},
+         c3c = {0, 1, 1, 0, 0, 1},
+         c4c = {1, 1, 0, 0, 0, 0}
+function c1(integer k) if k>5 then return c1(k-1) + c2(k-1)   end if return c1c[k+1] end function
+function c2(integer k) if k>5 then return c2(k-1) + c3(k-1)   end if return c2c[k+1] end function
+function c3(integer k) if k>5 then return c3(k-1) + c4(k)     end if return c3c[k+1] end function
+function c4(integer k) if k>5 then return c1(k-1) + c4(k-1)-1 end if return c4c[k+1] end function
+function c5(integer k) return not not k end function
+
+function A(integer k, x1, x2, x3, x4, x5)
+    return c1(k) * x1 + c2(k) * x2 + c3(k) * x3 + c4(k) * x4 + c5(k) * x5;
+end function
+ 
+for k=0 to 27 do
+    printf(1,"%d %d\n",{k,A(k, 1, -1, -1, 1, 0)})
+end for
+--*/
+
+--version 3
+--While the above(v1) will not run under pwa/p2js, the following translation of <del>D (Faster Version)</del> Go is fine.
+with javascript_semantics
+constant first5 = {1,0,-2,0,1}
+function A(integer k)
+    if k<5 then return first5[k+1] end if
+    atom c0 = 3, c1 = 2, c2 = 1, c3 = 0
+    for j=5 to k-1 do
+        c3 += c0-1
+        c0 += c1
+        c1 += c2
+        c2 += c3
+    end for
+    return c0-c1-c2+c3
+end function
+
+for k=0 to 40 do
+--integer k
+--for k in tagset(10,0)&{20,30,40} do
+    printf(1,"%d %d\n",{k,A(k)})
+end for
+
+--version 4
+--Above using mpfr. Agrees with Go up to 50K digits, then doesn't...
+--/*
+??with javascript_semantics
+include mpfr.e
+constant first5 = {"1","0","-2","0","1"}
+function A(integer k)
+    if k<5 then return first5[k+1] end if
+    mpz c0 = mpz_init(3),
+        c1 = mpz_init(2),
+        c2 = mpz_init(1),
+        c3 = mpz_init(0)
+    for j=5 to k-1 do
+--      c3 += c0-1
+        mpz_add(c3,c3,c0)
+        mpz_sub_si(c3,c3,1)
+--      c0 += c1
+        mpz_add(c0,c0,c1)
+--      c1 += c2
+        mpz_add(c1,c1,c2)
+--      c2 += c3
+        mpz_add(c2,c2,c3)
+    end for
+--  return c0-c1-c2+c3
+    mpz_sub(c0,c0,c1)
+    mpz_sub(c0,c0,c2)
+    mpz_add(c0,c0,c3)
+    return mpz_get_str(c0)
+end function
+
+--for k=0 to 40 do
+requires("1.0.2")
+--integer k
+for k in tagset(10,0)&{20,30,40,500,1e4,6e4} do
+    printf(1,"%d %s\n",{k,shorten(A(k))})
+end for
+//  p(5e4) // ok
+//  p(6e4) // nope...
+//  p(7.5e4)
+//oops:   Go: A(75000) = -50451...55122 (25986 digits)
+//      Phix: 75000 -5045151574796343726...32472998888444944878 (25,986 digits)
+//  p(1e5)
+//oops: Phix:100000 -1464613508632033003...38087107468599064109 (34,649 digits)
+//        go:A(100000) = -14646...35891 (34649 digits)
+//  p(1e6)
+//oops: phix: 1000000 -6734113687026995072...45378245515918804781 (346,497 digits)
+//        go: A(1000000) = -67341...95219 (346497 digits)
+--*/
+
+?"done"
+{} = wait_key()

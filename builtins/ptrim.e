@@ -38,6 +38,7 @@ global function trim(object source, object what={' ','\t','\r','\n'}, bool retur
         end if
 
         if return_index then
+            if lpos>rpos then rpos = 0 end if   -- 15/2/22
             return {lpos, rpos}
 
         elsif lpos!=1
@@ -85,13 +86,17 @@ end function
 
 global function shorten(sequence s, string what="digits", integer ml=20)
     integer l = length(s),
+--PL 17/2/22: could find no reason not to, so undone (p2js*2).
+--            [maybe I've since fixed $repss() or sq_eq()?]
 --pwa.p2js:
---          c = iff(string(s) and what="digits"?sum(sq_eq(s,',')):0)
-            c = 0
+            c = iff(string(s) and what="digits"?sum(sq_eq(s,',')):0)
+--          c = 0
     if what="digits" then
-        for i=1 to l do
-            c += s[i]==','
-        end for
+--      for i=1 to l do
+--          c += s[i]==','
+--      end for
+--29/1/22: (subtract [another] 1 from l in the case of a leading +/-)
+        if l and find(s[1],"+-") then c += 1 end if
     end if
     string ls = iff(length(what)?sprintf(" (%,d %s)",{l-c,what}):"")
     if l>ml*2+iff(string(s)?3+length(ls):2) then
@@ -100,8 +105,8 @@ global function shorten(sequence s, string what="digits", integer ml=20)
             if length(ls) then s &= ls end if
         else
 --p2js:
---          s[ml+1..-ml-1] = {"..."}
-            s = s[1..ml] & {"..."} & s[-ml..-1]
+            s[ml+1..-ml-1] = {"..."}
+--          s = s[1..ml] & {"..."} & s[-ml..-1]
             if length(ls) then s = append(s,ls) end if
         end if
     end if

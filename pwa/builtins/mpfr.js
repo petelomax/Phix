@@ -21,17 +21,16 @@
 //           already finished and available, but it is not.
 // note that bitcount is ignored under pwa/p2js.
 //
-const MPFR$T = 0,
-//    MPFR$S = 1,   // sign (+1 or -1)
-//    MPFR$E = 2,   // exponent (integer)
-//    MPFR$C = 3,   // Array of digits (in base 10, not a sequence) // or bigint??
+const MPFR$T = 0,   // as in ["mpfr",bigint,bigint,int,int,int]
       MPFR$N = 1,   // numerator (a BigInt)
       MPFR$D = 2,   // denominator (a bigInt)
       MPFR$E = 3,   // exponent (integer), aka implied 10^e denominator [???]
       MPFR$R = 4,   // rounding mode (eg MPFR_RNDN) [???]
       MPFR$P = 5,   // precision (-ve integer in decimals)
+
       MPQ$N = 1,    // as in ["mpq",bigint,bigint]
       MPQ$D = 2,
+
       MPZ$B = 1;    // as in ["mpz",bigint]
 
 const MPFR_RNDN = 0,    // round to nearest
@@ -55,16 +54,11 @@ global constant MPFR_RNDN = 0,  -- round to nearest
 
 function mpfr(v) {
     return Array.isArray(v)
-//      && (v.length === 4)
         && (v.length === 6)
         && (v[MPFR$T] === "mpfr")
-//      && ([-1,+1].indexOf(v[MPFR$S]) !== -1)
         && (typeof(v[MPFR$N]) === "bigint")
         && (typeof(v[MPFR$D]) === "bigint")
-//      && find(v[MPFR$S],["sequence",-1,+1])
         && integer(v[MPFR$E])
-//      && (Array.isArray(v[MPFR$C])); // nb not sequence()
-//      && (typeof(v[MPZ$C]) === "bigint"); // ???
         && ([MPFR_RNDN].indexOf(v[MPFR$R]) !== -1) // (more to be added as supported)
         && integer(v[MPFR$P])
         && (v[MPFR$P] < 0);
@@ -74,11 +68,8 @@ function mpq(v) {
     return Array.isArray(v)
         && (v.length === 3)
         && (v[MPFR$T] === "mpq")
-//maybe...
         && (typeof(v[MPQ$N]) === "bigint")
         && (typeof(v[MPQ$D]) === "bigint");
-//      && mpz(v[MPQ$N])
-//      && mpz(v[MPQ$D]);
 }
 
 function mpz(v) {
@@ -98,12 +89,11 @@ function mpir_get_versions() {
 
 function MPFR$replace_e(/*string*/ s) {
 // allow strings such as "1e200" or even "2.5e1" (as long as integer overall)
-//  s = lower(substitute(s,"_",""));
     s = s.toLowerCase();
     let /*integer*/ e = find(0X65,s);
     if (e) {
-//      [,s,e] = ["sequence",$subss(s,1,e-1),to_number($subss(s,e+1,-1))];
-        [,s,e] = ["sequence",$subss(s,1,e-1),parseInt($subss(s,e+1,-1))];
+        e = parseInt($subss(s,e+1,-1));
+        s = $subss(s,1,e-1);
         let /*integer*/ d = find(0X2E,s);
         if (d) {
             e -= length(s)-d;
@@ -167,6 +157,39 @@ function MPFR$COMMAFILL(res) {
 function mpz_get_str(x, base=10, comma_fill=false) {
     let res = x[MPZ$B].toString(base);
     if (comma_fill) { res = MPFR$COMMAFILL(res); }
+    return res;
+}
+
+// (transiled and copied in by hand)
+function mpz_get_short_str(/*mpz*/ op, /*integer*/ ml=20, base=10, /*boolean*/ comma_fill=false, /*string*/ what="digits") {
+// equivalent to shorten(mpz_get_str(op,base,comma_fill),ml:=ml) but much faster, since it is not
+// constructing potentially hundreds of thousands of middle digits that it then just throws away.
+    let /*bool*/ neg = compare(mpz_cmp_si(op,0),0)<0;
+    if (neg) { mpz_abs(op,op); }      // (don't worry that's very fast)
+    let /*integer*/ l = mpz_sizeinbase(op,base);
+    let /*string*/ ls = sprintf(" (%,d %s)",["sequence",l,what]), res;
+    if (compare(l,(ml*2+3)+length(ls))>0) {
+        let /*mpz*/ [,tmp,p10] = mpz_inits(2);
+        mpz_ui_pow_ui(p10,10,ml);
+        mpz_fdiv_r(tmp,op,p10);
+        // get rightmost ml digits [plus any commas]
+        let /*string*/ rml = mpz_get_str(tmp,base,comma_fill);
+        // for comma_fill, say ml=4, get the "123,456" head, 
+        //  not "123,4", so commas end up logically correct.
+        let /*integer*/ ll = (l-ml)-((comma_fill) ? remainder(l-ml,3) : 0);
+        mpz_ui_pow_ui(p10,10,ll);
+        mpz_fdiv_q(tmp,op,p10);
+        // get leftmost ml [+0..2] digits [ditto]
+        res = mpz_get_str(tmp,base,comma_fill);
+        if (comma_fill) {
+            res = $subss(res,1,ml-neg);
+            rml = $subss(rml,-ml,-1);
+        }
+        res = $conCat(res, $conCat($conCat("...", rml), ls));
+    } else {
+        res = mpz_get_str(op,base,comma_fill);
+    }
+    if (neg) { res = $conCat("-", res); mpz_neg(op,op); } // (ditto)
     return res;
 }
 
@@ -263,20 +286,6 @@ function MPFR$PREFIX(s, base) {
 }
 
 function mpz_set_str(rop, s, base=0) {
-/*
-    if (base !== 0 && base !== 10) {
-        if (base === 2) {
-            if (s.substr(0,2) !== "0b") { s = "0b" + s; }
-        } else if (base === 8) {
-            if (s.substr(0,2) !== "0o") { s = "0o" + s; }           
-        } else if (base === 16) {
-            if (s.substr(0,2) !== "0x") { s = "0x" + s; }           
-        } else {
-            crash("unsupported base");
-        }
-    }
-    rop[MPZ$B] = BigInt(s);
-*/
 //DEV spotted in passing 6/11/21 - what about replace_e()?
     rop[MPZ$B] = BigInt(MPFR$PREFIX(s,base));
 }
@@ -719,7 +728,7 @@ let mpz_rand_ui = mpz_rand;
 //    return lowBigInt + randomDifference;
 //  }
 
-function gcd_(a,b) {
+function MPZ$GCD(a,b) {
     if (a < 0n) { a = -a; }
     if (b < 0n) { b = -b; }
     if (b > a) { [a, b] = [b, a]; }
@@ -740,13 +749,13 @@ function gcd_(a,b) {
 function mpz_gcd(/*mpz*/ rop, op1, op2) {
     let a = op1[MPZ$B],
         b = op2[MPZ$B];
-    rop[MPZ$B] = gcd_(a,b);
+    rop[MPZ$B] = MPZ$GCD(a,b);
 }
 
 function mpz_gcd_ui(/*mpz*/ rop, op1, /*integer*/ op2) {
     let a = op1[MPZ$B],
         b = BigInt(op2);
-    a = gcd_(a,b);
+    a = MPZ$GCD(a,b);
     if (rop !== NULL) {
         rop[MPZ$B] = a;
     }
@@ -766,14 +775,14 @@ function mpz_gcd_ui(/*mpz*/ rop, op1, /*integer*/ op2) {
 function mpz_lcm(/*mpz*/ rop, op1, op2) {
     let a = op1[MPZ$B],
         b = op2[MPZ$B],
-        c = gcd_(a,b);
+        c = MPZ$GCD(a,b);
     rop[MPZ$B] = a*b/c;
 }
 
 function mpz_lcm_ui(/*mpz*/ rop, op1, /*integer*/ op2) {
     let a = op1[MPZ$B],
         b = BigInt(op2),
-        c = gcd_(a,b);
+        c = MPZ$GCD(a,b);
     rop[MPZ$B] = a*b/c;
 }
 //lcm = (x,y) => x*y/gcd(x,y);
@@ -880,9 +889,9 @@ function mpz_remove(/*mpz*/ rop, op, f) {
     return count;
 }
 
-// as transpiled from mp_prime_mr() in mpfr.e:
-let /*mpz*/ modp47 = NULL, w;
-let /*sequence*/ witness_ranges;
+// as transpiled from mp_prime_mr() in mpfr.e, with these three manually renamed:
+let /*mpz*/ MPZ$modp47 = NULL, MPZ$w;
+let /*sequence*/ MPZ$witness_ranges;
 function mpz_prime(/*mpz*/ p, /*integer*/ k=10) {
     // deterministic to 3,317,044,064,679,887,385,961,981
     const primes = ["sequence",2n, 3n, 5n, 7n, 11n, 13n, 17n, 19n, 23n, 29n, 31n, 37n, 41n, 43n, 47n];
@@ -890,45 +899,45 @@ function mpz_prime(/*mpz*/ p, /*integer*/ k=10) {
     if (pn<=47n) {
         return find(pn,primes);
     }
-    if (equal(modp47,NULL)) {
-        modp47 = mpz_init("614_889_782_588_491_410"); // === product(primes), largest < 2^64
-        w = mpz_init();
+    if (equal(MPZ$modp47,NULL)) {
+        MPZ$modp47 = mpz_init("614_889_782_588_491_410"); // === product(primes), largest < 2^64
+        MPZ$w = mpz_init();
         // Best known deterministic witnesses for given range and set of bases
         // https://miller-rabin.appspot.com/
         // https://en.wikipedia.org/wiki/Miller%E2%80%93Rabin_primality_test
-        witness_ranges = ["sequence",["sequence","341_531",["sequence","9345883071009581737"]],
-                                     ["sequence","1_050_535_501",["sequence","336781006125","9639812373923155"]],
-                                     ["sequence","350_269_456_337",["sequence","4230279247111683200",
-                                                                "14694767155120705706","16641139526367750375"]],
-                                     ["sequence","55_245_642_489_451",["sequence","2","141889084524735",
-                                                                "1199124725622454117","11096072698276303650"]],
-                                     ["sequence","7_999_252_175_582_851",["sequence","2","4130806001517",
-                                            "149795463772692060","186635894390467037","3967304179347715805"]],
-                                     ["sequence","585_226_005_592_931_977",["sequence","2","123635709730000",
-                                                                "9233062284813009","43835965440333360",
-                                                                "761179012939631437","1263739024124850375"]],
-                                     ["sequence","18_446_744_073_709_551_615",["sequence","2","325","9375",
-                                                                 "28178","450775","9780504","1795265022"]],
-                                     ["sequence","318_665_857_834_031_151_167_461",["sequence","2","3","5",
-                                                            "7","11","13","17","19","23","29","31","37"]],
-                                     ["sequence","3_317_044_064_679_887_385_961_981",["sequence","2","3",
-                                                "5","7","11","13","17","19","23","29","31","37","41"]]];
-        for (let i=1, i$lim=length(witness_ranges); i<=i$lim; i+=1) {
-            witness_ranges = $repe(witness_ranges,1,mpz_init($subse($subse(witness_ranges,i),1)),["sequence",i]);
-            for (let j=1, j$lim=length($subse($subse(witness_ranges,i),2)); j<=j$lim; j+=1) {
-                witness_ranges = $repe(witness_ranges,j,mpz_init($subse($subse($subse(witness_ranges,i),2),j)),["sequence",2,i]);
+        MPZ$witness_ranges = ["sequence",["sequence","341_531",["sequence","9345883071009581737"]],
+                                         ["sequence","1_050_535_501",["sequence","336781006125","9639812373923155"]],
+                                         ["sequence","350_269_456_337",["sequence","4230279247111683200",
+                                                                    "14694767155120705706","16641139526367750375"]],
+                                         ["sequence","55_245_642_489_451",["sequence","2","141889084524735",
+                                                                    "1199124725622454117","11096072698276303650"]],
+                                         ["sequence","7_999_252_175_582_851",["sequence","2","4130806001517",
+                                                "149795463772692060","186635894390467037","3967304179347715805"]],
+                                         ["sequence","585_226_005_592_931_977",["sequence","2","123635709730000",
+                                                                    "9233062284813009","43835965440333360",
+                                                                    "761179012939631437","1263739024124850375"]],
+                                         ["sequence","18_446_744_073_709_551_615",["sequence","2","325","9375",
+                                                                     "28178","450775","9780504","1795265022"]],
+                                         ["sequence","318_665_857_834_031_151_167_461",["sequence","2","3","5",
+                                                                "7","11","13","17","19","23","29","31","37"]],
+                                         ["sequence","3_317_044_064_679_887_385_961_981",["sequence","2","3",
+                                                    "5","7","11","13","17","19","23","29","31","37","41"]]];
+        for (let i=1, i$lim=length(MPZ$witness_ranges); i<=i$lim; i+=1) {
+            MPZ$witness_ranges = $repe(MPZ$witness_ranges,1,mpz_init($subse($subse(MPZ$witness_ranges,i),1)),["sequence",i]);
+            for (let j=1, j$lim=length($subse($subse(MPZ$witness_ranges,i),2)); j<=j$lim; j+=1) {
+                MPZ$witness_ranges = $repe(MPZ$witness_ranges,j,mpz_init($subse($subse($subse(MPZ$witness_ranges,i),2),j)),["sequence",2,i]);
             }
         }
     }
-    mpz_gcd(w,p,modp47);
-    if (!equal(mpz_cmp_si(w,1),0)) {
+    mpz_gcd(MPZ$w,p,MPZ$modp47);
+    if (!equal(mpz_cmp_si(MPZ$w,1),0)) {
         return false;   // eliminates 86.2% of all integers
     }
     //
     // Choose input witness bases:
     //
     let /*sequence*/ witnesses;
-    if (compare(mpz_cmp(p,$subse($subse(witness_ranges,-1),1)),0)>=0) {
+    if (compare(mpz_cmp(p,$subse($subse(MPZ$witness_ranges,-1),1)),0)>=0) {
         witnesses = repeat(0,k);
         for (let i=1, i$lim=k; i<=i$lim; i+=1) {
             let /*mpz*/ a = mpz_init();
@@ -938,9 +947,9 @@ function mpz_prime(/*mpz*/ p, /*integer*/ k=10) {
             witnesses = $repe(witnesses,i,a);
         }
     } else {
-        for (let i=1, i$lim=length(witness_ranges); i<=i$lim; i+=1) {
-            if (compare(mpz_cmp(p,$subse($subse(witness_ranges,i),1)),0)<0) {
-                witnesses = $subse($subse(witness_ranges,i),2);
+        for (let i=1, i$lim=length(MPZ$witness_ranges); i<=i$lim; i+=1) {
+            if (compare(mpz_cmp(p,$subse($subse(MPZ$witness_ranges,i),1)),0)<0) {
+                witnesses = $subse($subse(MPZ$witness_ranges,i),2);
                 break;
             }
         }
@@ -1488,43 +1497,13 @@ function mpq_set_si(/*mpq*/ tgt, /*integer*/ n, d=1) {
     mpq_canonicalize(tgt);
 }
 
-//SUG/DOC BigRational.js allows eg "1_1/2" to generate the same result as "3/2"... [but mpfr.e does not [yet] allow that...]
 function mpq_set_str(/*mpq*/ tgt, /*string*/ s, /*integer*/ base=0) {
-//  let /*integer*/ k = find('/',s), // (erm 0X??)
     let /*integer*/ k = s.indexOf('/'),
-//DEV/SUG: 1n...
-//      /*string*/ ds = "1";
                    dn = 1n; 
-//  if (k) {
     if (k !== -1) {
-//DEV test me...
-//      let ds = s.slice(k+1);
-//      dn = BigInt(s.slice(k+1));
         dn = BigInt(MPFR$PREFIX(s.slice(k+1),base));
-//      s = s.slice(0,k);
-//      s = s.substr(0,k-1);
         s = s.substr(0,k);
     }
-//  s = MPFR$PREFIX(s,base);
-/*
-    if (base && base!=10) {
-//  if (base && base!=10) { s = MPFR$PREFIX(s,base); }
-        if (base === 2) {
-            if (s.substr(0,2) !== "0b") { s = "0b" + s; }
-            if (ds.substr(0,2) !== "0b") { ds = "0b" + s; }
-        } else if (base === 8) {
-            if (s.substr(0,2) !== "0o") { s = "0o" + s; }           
-            if (ds.substr(0,2) !== "0o") { ds = "0o" + s; }         
-        } else if (base === 16) {
-            if (s.substr(0,2) !== "0x") { s = "0x" + s; }           
-            if (ds.substr(0,2) !== "0x") { ds = "0x" + s; }         
-        } else {
-            crash("unsupported base");
-        }       
-    }
-    let res = ["mpq",BigInt(s),BigInt(ds)];
-*/
-//  let res = ["mpq",BigInt(MPFR$PREFIX(s,base)),dn];
     tgt[MPQ$N] = BigInt(MPFR$PREFIX(s,base));
     tgt[MPQ$D] = dn;
     mpq_canonicalize(tgt);
@@ -1564,19 +1543,15 @@ function mpq_init_set_z(/*mpz*/ n, d=NULL) {
 }
 
 function mpq_get_num(/*mpz*/ numerator, /*mpq*/ rational) {
-//  if numerator=NULL then ?9/0 end if
-//  if rational=NULL then ?9/0 end if
     numerator[MPZ$B] = rational[MPQ$N];
 }
 
 function mpq_get_den(/*mpz*/ denominator, /*mpq*/ rational) {
-//  if denominator=NULL then ?9/0 end if
-//  if rational=NULL then ?9/0 end if
     denominator[MPZ$B] = rational[MPQ$D];
 }
 
 function mpq_get_str(/*mpq*/ op, /*integer*/ base=10, /*boolean*/ comma_fill=false) {
-//string res =   mpq_get_str(mpq op, integer base=10, boolean comma_fill=false) - Return op as a string in the specified base (2..62).
+//Return op as a string in the specified base (2..62).
 //The result will be of the form "num/den", or if the denominator is 1 then just "num".  
     let n = op[MPQ$N],
         d = op[MPQ$D],
@@ -1591,8 +1566,6 @@ function mpq_get_str(/*mpq*/ op, /*integer*/ base=10, /*boolean*/ comma_fill=fal
 }
 
 function mpq_cmp(/*mpq*/ op1, op2) {
-//  if op1=NULL then ?9/0 end if
-//  if op2=NULL then ?9/0 end if
     let n1 = op1[MPQ$N],
         d1 = op1[MPQ$D],
         n2 = op2[MPQ$N],
@@ -1607,8 +1580,6 @@ function mpq_cmp(/*mpq*/ op1, op2) {
 }
 
 function mpq_cmp_si(/*mpq*/ op1, /*integer*/ n, d=1) {
-//  if op1=NULL then ?9/0 end if
-//  if d<0 then ?9/0 end if
     let op2 = mpq_init_set_si(n, d);
     return mpq_cmp(op1,op2);
 }
@@ -1638,9 +1609,6 @@ function mpq_inv(/*mpq*/ rop, op) {
 
 function mpq_add(/*mpq*/ rsum, addend1, addend2) {
 //-- set rsum to addend1 + addend2.
-//  if rsum=NULL then ?9/0 end if
-//  if addend1=NULL then ?9/0 end if
-//  if addend2=NULL then ?9/0 end if
     let n1 = addend1[MPQ$N],
         d1 = addend1[MPQ$D],
         n2 = addend2[MPQ$N],
@@ -1662,7 +1630,7 @@ function mpq_add_si(/*mpq*/ rsum, addend1, /*integer*/ n, d=1) {
 }
 
 function mpq_sub(/*mpq*/ rdifference, minuend, subtrahend) {
-    // set rdifference to minuend - subtrahend.
+// set rdifference to minuend - subtrahend.
 //oops, problem when rdifference===minuend:
 //  mpq_neg(rdifference,subtrahend);
 //  mpq_add(rdifference,minuend,rdifference);
@@ -1682,9 +1650,6 @@ function mpq_sub(/*mpq*/ rdifference, minuend, subtrahend) {
     
 function mpq_mul(/*mpq*/ rproduct, multiplier, multiplicand) {
 //-- set rproduct to multiplier * multiplicand.
-//  if rproduct=NULL then ?9/0 end if
-//  if multiplier=NULL then ?9/0 end if
-//  if multiplicand=NULL then ?9/0 end if
     rproduct[MPQ$N] = multiplier[MPQ$N] * multiplicand[MPQ$N];
     rproduct[MPQ$D] = multiplier[MPQ$D] * multiplicand[MPQ$D];
     mpq_canonicalize(rproduct);
@@ -1775,7 +1740,7 @@ function MPFR$precision_in_dp(/*integer*/ precision) {
 }
 
 function mpfr_set_default_precision(/*integer*/ precision) {
-    // set the default precision in binary bits or (if -ve) decimal places. 
+// set the default precision in binary bits or (if -ve) decimal places. 
 //  if (precision >= 0) { precision = MPFR$precision_in_dp(precision); } else { precision -= 2; }
 //  MPFR$default_precision = MPFR$precision_in_dp(precision);
     MPFR$default_precision = MPFR$precision_in_binary(precision);
@@ -1791,8 +1756,7 @@ function mpfr_get_default_precision(/*boolean*/ decimal=false) {
 
 function mpfr_set_default_rounding_mode(/*integer*/ rounding) {
 // Set the default rounding mode. The initial default rounding mode is to nearest (MPFR_RNDN).
-//  if rounding<MPFR_RNDN or rounding>MPFR_RNDA then ?9/0 end if
-    if ([MPFR_RNDN].indexOf(rounding) === -1) { crash("?9/0"); }
+    if ([MPFR_RNDN].indexOf(rounding) === -1) { crash("?9/0"); } // (placeholder)
     MPFR$default_rounding = rounding;
 }
 
@@ -1818,7 +1782,6 @@ function mpfr_set_precision(/*mpfr*/ x, /*integer*/ precision) {
 //
 // precision is the number of bits required for the mantissa
 //
-//  if x=NULL then ?9/0 end if
 //  if (precision > 0) { precision = MPFR$precision_in_dp(precision); }
     precision = MPFR$precision_in_binary(precision);
     x[MPFR$N] = 0n;
@@ -1837,7 +1800,6 @@ function mpfr_set(/*mpfr*/ tgt, src, rounding=MPFR$default_rounding) {
 
 function mpfr_set_si(/*mpfr*/ tgt, /*integer*/ i, rounding=MPFR$default_rounding) {
 // set tgt from a phix integer
-//  if tgt=NULL then ?9/0 end if
     tgt[MPFR$N] = BigInt(i);
     tgt[MPFR$D] = 1n;
     tgt[MPFR$E] = 0;
@@ -1897,11 +1859,8 @@ function mpfr_init(/*object*/ v=0, /*integer*/ precision=MPFR$default_precision,
         // (aside: note, as per docs, the default here /is/ 0 rather than the nan of the raw C api)
         mpfr_set_si(res,v,rounding);
     } else if (atom(v)) {
-//crash("9/0");
         mpfr_set_d(res,v,rounding);
     } else if (string(v)) {
-// should be reasonablky straightforward: strip any eNN part, remove any '.' and set MPFR$N to Bigint, MPFR$D to 1n or 10n**Bigint(dot);
-//crash("9/0");
         mpfr_set_str(res,v,rounding);
     } else {
         crash("?9/0"); // what's v??
@@ -1929,9 +1888,6 @@ function mpfr_inits(/*integer*/ n, /*object*/ v=0, precision=MPFR$default_precis
             res[i] = mpfr_init(v,precision,rounding);
         }
     }
-//  for (let i=1; i<=n; i+=1) {
-//      res = $repe(res,i,mpfr_init(v,precision,rounding));
-//  }
     return res;
 }
 
@@ -1945,12 +1901,16 @@ function mpfr_set_q(/*mpfr*/ tgt, /*mpq*/ q, /*integer*/ rounding=MPFR$default_r
 
 function mpfr_set_z(/*mpfr*/ tgt, /*mpz*/ z, /*integer*/ rounding=MPFR$default_rounding) {
 // set the mpfr rop from an mpz
-//  if tgt=NULL then ?9/0 end if
-//  if z=NULL then ?9/0 end if
     tgt[MPFR$N] = z[MPZ$B];
     tgt[MPFR$D] = 1n;
     tgt[MPFR$E] = 0;
     tgt[MPFR$R] = rounding;
+}
+
+function mpfr_init_set(/*mpfr*/ f, /*integer*/ rounding=MPFR$default_rounding) {
+    let /*mpfr*/ res = mpfr_init();
+    mpfr_set(res,f,rounding);
+    return res;
 }
 
 function mpfr_init_set_q(/*mpq*/ q, /*integer*/ rounding=MPFR$default_rounding) {
@@ -2080,6 +2040,14 @@ function mpfr_mul_si(/*mpfr*/ rop, op1, /*integer*/ op2, rounding=MPFR$default_r
     let n = op1[MPQ$N] * BigInt(op2),
         d = op1[MPQ$D];
     MPFR$normalise(rop,n,d);
+}
+
+function mpfr_addmul_si(/*mpfr*/ rop, op1, /*integer*/ op2, rounding=MPFR$default_rounding) {
+    let n = op1[MPQ$N] * BigInt(op2),
+        d = op1[MPQ$D],
+        p = op1[MPFR$P],
+        tmp = ["mpfr",n,d,0,rounding,p];
+    mpfr_add(rop, rop, tmp, rounding);
 }
 
 function mpfr_div(/*mpfr*/ rop, op1, op2, /*integer*/ rounding=MPFR$default_rounding) {

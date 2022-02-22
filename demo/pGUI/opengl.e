@@ -1833,7 +1833,7 @@ end procedure
 
 global procedure glClearDepth(atom depth)
     c_proc(xglClearDepth,{depth})
-tend procedure
+end procedure
 
 global procedure glColor(atom red, blue, green, alpha=1)
     c_proc(xglColor4d,{red,blue,green,alpha})
@@ -1932,7 +1932,7 @@ global function glCreateTexture()
     return texture
 --  integer e = glGetError()
 --  if e!=GL_NO_ERROR then ?9/0 end if
-    return texture
+--  return texture
 end function
 
 global procedure glCullFace(integer mode)

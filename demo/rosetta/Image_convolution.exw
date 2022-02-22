@@ -4,6 +4,7 @@
 --
 without js -- imImage, im_width, im_height, im_pixel, IupImageRGB, allocate,
             -- imFileImageLoadBitmap, peekNS, wait_key, IupImageFromImImage
+--DEV see https://rosettacode.org/wiki/Image_convolution#JavaScript (maybe)
 include pGUI.e
 
 constant filters = {-- Emboss
@@ -30,14 +31,14 @@ constant filters = {-- Emboss
                      {1,  4,  7,  4, 1}}}
 
 function convolute(imImage img, integer fdx)
-integer width = im_width(img),
-        height = im_height(img)
-sequence original = repeat(repeat(0,width),height),
-         new_image,
-         filterfdx = filters[fdx]
-integer fh = length(filterfdx), hh=(fh-1)/2,
-        fw = length(filterfdx[1]), hw=(fw-1)/2,
-        divisor = max(sum(filterfdx),1)
+    integer width = im_width(img),
+            height = im_height(img)
+    sequence original = repeat(repeat(0,width),height),
+             new_image,
+             filterfdx = filters[fdx]
+    integer fh = length(filterfdx), hh=(fh-1)/2,
+            fw = length(filterfdx[1]), hw=(fw-1)/2,
+            divisor = max(sum(filterfdx),1)
 
     for y=height-1 to 0 by -1 do
         for x=0 to width-1 do
@@ -71,8 +72,8 @@ atom pError = allocate(w)
 --imImage im1 = imFileImageLoadBitmap("Lenna50.jpg",0,pError)
 --imImage im1 = imFileImageLoadBitmap("Lenna100.jpg",0,pError)
 --imImage im1 = imFileImageLoadBitmap("Lena.ppm",0,pError)
---imImage im1 = imFileImageLoadBitmap("Quantum_frog.png",0,pError)
-imImage im1 = imFileImageLoadBitmap("Quantum_frog.512.png",0,pError)
+imImage im1 = imFileImageLoadBitmap("Quantum_frog.png",0,pError)
+--imImage im1 = imFileImageLoadBitmap("Quantum_frog.512.png",0,pError)
 
 if im1=NULL then
     ?{"error opening image",peekNS(pError,w,1)}
@@ -93,7 +94,7 @@ IupSetAttributeHandle(label2, "IMAGE", image2)
 
 function valuechanged_cb(Ihandle /*flt*/)
     IupSetAttribute(dlg,"TITLE","Working...")
-    IupSetAttributeHandle(label2, "IMAGE", NULL)
+--  IupSetAttributeHandle(label2, "IMAGE", NULL)
     image2 = IupDestroy(image2)
     image2 = convolute(im1,IupGetInt(flt,"VALUE"))
     IupSetAttributeHandle(label2, "IMAGE", image2)

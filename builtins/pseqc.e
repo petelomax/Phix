@@ -54,8 +54,11 @@ global function pad_head(string src, integer size, ch=' ')
     return src
 end function
 
-global function pad_tail(string src, integer size, ch=' ')
--- <same as pad(src,size,"TAIL"[,ch])>
+--5/2/22
+--global function pad_tail(string src, integer size, ch=' ')
+global function pad_tail(sequence src, integer size, object ch=' ')
+-- <same as pad(src,size,"TAIL"[,ch])> (but a bit more g.p.)
+    assert(not string(src) or (integer(ch) and ch=and_bits(ch,#FF)))
     size -= length(src)
     if size>0 then
         src = src & repeat(ch,size)
@@ -66,14 +69,19 @@ end function
 global function pad(string src, integer size, string method="BOTH", integer ch=' ')
     size -= length(src)
     if size>0 then
-        if method="BOTH" then
-            src = repeat(ch,floor(size/2)) & src & repeat(ch,size-floor(size/2))
-        elsif method="HEAD" then
+        if method="HEAD" then
             src = repeat(ch,size) & src
         elsif method="TAIL" then
             src = src & repeat(ch,size)
         else
-            ?9/0 -- unknown method
+            integer half = floor(size/2)
+            if method="BOTH" then
+                src = repeat(ch,half) & src & repeat(ch,size-half)
+            elsif method="BLOTH" then
+                src = repeat(ch,size-half) & src & repeat(ch,half)
+            else
+                ?9/0 -- unknown method
+            end if
         end if
     end if
     return src

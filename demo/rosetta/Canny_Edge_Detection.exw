@@ -1,0 +1,63 @@
+--
+-- demo\rosetta\Canny_Edge_Detection.exw
+-- =====================================
+--
+without js -- imImage, im_width, im_height, im_pixel, IupImageRGB, 
+            -- imFileImageLoadBitmap, and IupImageFromImImage()
+include pGUI.e
+constant TITLE = "Canny Edge Detection",
+         IMGFILE = "Valve.png",
+         C_E_D = {{-1, -1, -1},
+                  {-1,  8, -1},
+                  {-1, -1, -1}}
+
+function detect_edges(imImage img)
+    integer width = im_width(img),
+            height = im_height(img)
+    sequence original = repeat(repeat(0,width),height)
+    integer fh = length(C_E_D),  hh=(fh-1)/2,
+            fw = length(C_E_D[1]), hw=(fw-1)/2,
+            divisor = max(sum(C_E_D),1)
+
+    -- read original pixels and make them grey,
+    for y=height-1 to 0 by -1 do
+        for x=0 to width-1 do
+            integer {c1,c2,c3} = im_pixel(img, x, y),
+                    grey = floor((c1*114+c2*587+c3*299)/1000)
+            original[height-y,x+1] = {grey,grey,grey}
+        end for
+    end for
+
+    -- then apply an edge detection filter
+    sequence new_image = original
+    for y=hh+1 to height-hh-1 do
+        for x=hw+1 to width-hw-1 do
+            sequence newrgb = {0,0,0}
+            for i=-hh to +hh do
+                for j=-hw to +hw do
+                    newrgb = sq_add(newrgb,sq_mul(C_E_D[i+hh+1,j+hw+1],original[y+i,x+j]))
+                end for
+            end for
+            new_image[y,x] = sq_max(sq_min(sq_floor_div(newrgb,divisor),255),0)
+        end for
+    end for
+
+    new_image = flatten(new_image) -- (as needed by IupImageRGB)
+    Ihandle new_img = IupImageRGB(width, height, new_image) 
+    return new_img
+end function
+
+IupOpen()
+imImage im1 = imFileImageLoadBitmap(IMGFILE)
+assert(im1!=NULL,"error opening "&IMGFILE)
+
+Ihandle label1 = IupLabel(),
+        label2 = IupLabel()
+IupSetAttributeHandle(label1, "IMAGE", IupImageFromImImage(im1))
+IupSetAttributeHandle(label2, "IMAGE", detect_edges(im1))
+
+Ihandle dlg = IupDialog(IupHbox({label1, label2}),`TITLE="%s"`,{TITLE})
+IupShow(dlg)
+IupMainLoop()
+IupClose()
+

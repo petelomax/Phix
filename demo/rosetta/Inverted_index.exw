@@ -12,6 +12,8 @@
 -- DEV could we make use of this in Edix? 
 --      [Tools/Inverted Index -> select dir, [rescan], enter whole word[s]]
 --  A full recursive scan of Phix\\ takes ~12s, which is rather pleasing - BOLLOCKS - was not recursing!!
+--
+without js -- (file i/o)
 
 integer word_count = 0
 integer word_unique = 0
@@ -20,8 +22,8 @@ sequence filenames = {}
 sequence filetimes = {}
 sequence filecounts = {}
 
-function is_ascii(string txt)
-integer cr=0, lf=0
+function is_ascii(string txt, fullpath)
+    integer cr=0, lf=0
     if length(txt)>=3
     and equal(txt[1..3],{#EF,#BB,#BF}) then
         -- already UTF8
@@ -31,10 +33,13 @@ integer cr=0, lf=0
         integer ch = txt[i]
         if ch='\0' or ch>=#7F then
 --      if ch='\0' or ch>=#FF then
+--      if ch='\0' or ch>#FF then
 --      if ch='\0' then
 --          if not find(ch,"≥æÄ°ÖâãÉπ") then
 --          if not find(ch,"ìîóñ≠íï£äö¿‡ÀÎ÷ˆåú¡·ÃÏ◊˜üˇ¬‚ÕÌÿ¯√„ŒÓŸ˘ƒ‰œÔ⁄˙≈Â–€˚∆Ê—Ò‹¸«Á“Ú›˝»Ë”Ûﬁ˛…È‘Ù Í’ı") then
-                ?{ch,cr,lf}
+--              ?{ch,cr,lf}
+                string clf = iff(lf=cr?"":sprintf(" (counting cr) or %d (counting lf)",lf))
+                printf(1,"character %d found in %s on line %d%s\n",{ch,fullpath,cr,clf})
                 return 0
 --          end if
         elsif ch='\r' then
@@ -74,7 +79,7 @@ end procedure
 sequence exts = {}
 
 procedure load_directory(string directory_name, integer recursive=0)
-sequence d = dir(directory_name)
+    sequence d = dir(directory_name)
     for i=1 to length(d) do
         string name = d[i][D_NAME]
         if find('d',d[i][D_ATTRIBUTES]) then    -- skip directories
@@ -90,6 +95,7 @@ sequence d = dir(directory_name)
                 load_directory(join_path({directory_name,name},1),1)
             end if
         elsif d[i][D_SIZE]<1024*1024*1024 then  -- and files > 1GB
+--/!*
             string ext = get_file_extension(name)
             if not find(ext,{"","a","ani","asm","avi","bin","bmp","bz2","chm","chw","cur","dat","db","dll","doc","docx","dylib","edb","err","exe","exp",
                                 "fas","fpr","gif","glade","hgignore","hlp","icns","ico","img","inc","info","jar","jpeg","jpg","lib","lnk","mid","mo","msi",
@@ -103,9 +109,12 @@ sequence d = dir(directory_name)
                                "pops2.e","abgte.html","p6.exw","p-old.exw","p8.exw","p6tok.e"}) then
 
 if not find(ext,exts) then
-    ?ext
+--  ?ext
     exts = append(exts,ext)
 end if
+--*!/
+--          if get_file_extension(name)="exw"
+--          and find(name,{"Inverted_index.exw","viewppm.exw","AlmostPrime.exw","RockPaperScissors.exw"}) then
 --              integer fn = open(name,"rb")
 --              integer fn = open(directory_name&name,"rb")
                 string fullpath = join_path({directory_name,name})
@@ -113,7 +122,7 @@ end if
                 integer fn = open(fullpath,"rb")
                 sequence txt = lower(get_text(fn))
                 close(fn)
-                integer flag = is_ascii(txt)
+                integer flag = is_ascii(txt,fullpath)
                 if flag!=0 then             -- skip any bitmaps etc
 --?name
 atom t0 = time()
@@ -123,10 +132,11 @@ atom t0 = time()
                     end if
 --                  sequence words = split_any(txt,"\0\r\n\t !\"#$%&\'()*+,-./:;<=>?@[\\]^`{|}~ìîóñ≠íï£◊˜",no_empty:=true,limit:=0)
                     sequence words = split_any(txt,"\0\r\n\t !\"#$%&\'()*+,-./:;<=>?@[\\]^`{|}~ìîóñ≠íï£◊˜")
---                  add_words(name,words,t0)
-                    add_words(fullpath,words,t0)
-else
-    ?fullpath
+                    add_words(name,words,t0)
+--                  add_words(fullpath,words,t0)
+--else
+--  ?fullpath
+--?9/0
                 end if
             end if
         end if
@@ -134,7 +144,7 @@ else
 end procedure
 
 function lookup(sequence words)
-sequence files = {}     -- indexes to filenames
+    sequence files = {}     -- indexes to filenames
     for i=1 to length(words) do
         string word = lower(words[i])
         integer node = getd_index(word)
@@ -166,9 +176,10 @@ integer res = compare(filetimes[i],filetimes[j])
 end function
 
 atom t0 = time()
---load_directory(".")
+load_directory(".")
+--load_directory("*.exw")
 --load_directory(`..\..\`,1)
-load_directory(join_path({"..",".."},1),1)
+--load_directory(join_path({"..",".."},1),1)
 printf(1,"Total %,d words, of which %,d unique, in %d files in %3.2fs\n",{word_count,word_unique,length(filenames),time()-t0})
 --DEV (edix)
 -- Error: file contains non-ansi characters (line nnn)
@@ -183,12 +194,12 @@ if 0 then
         printf(1,"%20s: %3.2fs, %,d words\n",{filenames[ti],filetimes[ti],filecounts[ti]})
     end for
 end if
---?lookup({"load_directory"})   -- should only be this file
---?lookup({"dir"})              -- currently two use this
---?lookup({"lower"})                -- currently four use this
---?lookup({"lower","dir"})      -- currently two use both
---?lookup({"dir","lower"})      -- should be the same two
---?lookup({"ban"&"anafish"})        -- should be none ({})
+?lookup({"load_directory"}) -- should only be this file
+?lookup({"dir"})                -- currently two use this
+?lookup({"lower"})              -- currently four use this
+?lookup({"lower","dir"})        -- currently two use both
+?lookup({"dir","lower"})        -- should be the same two
+?lookup({"ban"&"anafish"})      -- should be none ({})
 --?lookup({"OpenGL"}) -- {}
 --?lookup({"PE64"})
 {} = wait_key()

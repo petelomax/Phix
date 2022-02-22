@@ -4,6 +4,7 @@
 --  Exhaustive search, trims search space to < best so far, newused improves on unique().
 --  Many more examples/testing would be needed before I would trust this the tiniest bit.
 --
+with javascript_semantics
 constant tests = split("""
 0-1 1-2 2-0 3
 1-6 1-7 1-8 2-5 2-7 2-8 3-5 3-6 3-8 4-5 4-6 4-7
@@ -18,6 +19,7 @@ function colour(sequence nodes, links, colours, soln, integer best, next, used=0
 -- On really big graphs I might consider making nodes..best static, esp colours,
 -- in which case you will probably also want a "colours[next] = 0" reset below.
     integer c = 1
+    colours = deep_copy(colours)
     while c<best do
         bool avail = true
         for i=1 to length(links[next]) do
@@ -32,7 +34,8 @@ function colour(sequence nodes, links, colours, soln, integer best, next, used=0
             if next<length(nodes) then
                 {best,soln} = colour(nodes,links,colours,soln,best,next+1,newused)
             elsif newused<best then
-                {best,soln} = {newused,colours}
+--              {best,soln} = {newused,colours}
+                {best,soln} = {newused,deep_copy(colours)}
             end if
         end if
         c += 1
@@ -58,11 +61,16 @@ for t=1 to length(tests) do
     integer linkcount = 0, left, right
     for l=1 to length(lt) do
         sequence ll = split(lt[l],"-")
-        {nodes, links, left} = add_node(nodes,links,ll[1])
+--DEV pmain.e/lhsvar==>sequence?
+--      {nodes, links, left} = add_node(nodes,links,ll[1])
+        {nodes, links, left} = add_node(deep_copy(nodes),deep_copy(links),ll[1])
         if length(ll)=2 then
-            {nodes, links, right} = add_node(nodes,links,ll[2])
-            links[left] &= right
-            links[right] &= left
+--          {nodes, links, right} = add_node(nodes,links,ll[2])
+            {nodes, links, right} = add_node(deep_copy(nodes),deep_copy(links),ll[2])
+--          links[left] &= right
+            links[left] = deep_copy(links[left])&right
+--          links[right] &= left
+            links[right] = deep_copy(links[right])&left
             linkcount += 1
         end if
     end for

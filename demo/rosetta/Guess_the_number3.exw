@@ -1,0 +1,37 @@
+--
+-- demo\rosetta\Guess_the_number3.exw
+--
+with javascript_semantics
+requires("1.0.1") -- (VALUECHANGED_CB fix)
+include pGUI.e
+
+constant lower_limit = 0, upper_limit = 100,
+         secret = rand_range(lower_limit,upper_limit),
+         fmt = "Enter your guess, a number between %d and %d",
+         prompt = sprintf(fmt,{lower_limit,upper_limit})
+
+Ihandle dlg, label, input, state
+ 
+function valuechanged_cb(Ihandle /*input*/)
+    integer guess = IupGetInt(input,"VALUE")
+    string msg = iff(guess<secret?"Too low":
+                 iff(guess=secret?"You got it!":
+                 iff(guess>secret?"Too high":
+                                  "uh?")))
+    IupSetAttribute(state,"TITLE",msg)
+    return IUP_CONTINUE
+end function
+ 
+IupOpen()
+label = IupLabel(prompt)
+input = IupText("VALUE=0, EXPAND=HORIZONTAL, MASK="&IUP_MASK_INT)
+state = IupLabel("","EXPAND=HORIZONTAL")
+IupSetAttributes({label,input,state},"PADDING=0x15")
+IupSetCallback(input,"VALUECHANGED_CB",Icallback("valuechanged_cb"))
+{} = valuechanged_cb(input)
+dlg = IupDialog(IupVbox({label,input,state},"MARGIN=15x15"),`TITLE="Guess the number"`)
+IupShow(dlg)
+if platform()!=JS then
+    IupMainLoop()
+    IupClose()
+end if

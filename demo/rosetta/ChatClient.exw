@@ -1,0 +1,242 @@
+--
+-- demo\rosetta\ChatClient.exw
+-- ===========================
+--
+-- translation of (qchat) QChat.exw
+--
+-- Probably best to run ChatServer.exw before this.
+--
+without js
+constant bool bViaGateway = false
+--constant bool bViaGateway = true  -- see IRC_Gateway.exw
+include pGUI.e
+constant dl = `Download rosetta\eulibnet\ from http://phix.x10.mx/pmwiki/pmwiki.php?n=Main.Eulibnet`
+assert(get_file_type("eulibnet")=FILETYPE_DIRECTORY,dl)
+include eulibnet/eulibnet.ew
+Ihandle about, help, quit, nickle, nickname, login, 
+        memble, members, logle, log_list, 
+        messle, input, statusbar, chat_window, timer
+integer conn = -1,
+        conFlag = 0
+bool allj = true -- (suppress initial flurry of fake "has joined" messages)
+string nick = ""
+string conTextBack = ""
+constant IP = "127.0.0.1",
+         port = iff(bViaGateway?"29030":"29029"), -- See IRC_Gateway.exw
+         timeout = 20,
+         IPaddress = IP & ":" & port,
+         cr = "\r\n",
+         MAX_MSG = 80
+
+constant about_text = """
+Translated by Pete Lomax from qchat by Andrew/Norman (and win32lib ==> pGUI).
+Uses Libnet by George Foot and Chad Catlet as wrapped by Ray Smith."
+"""
+
+function about_cb(Ihandle /*ih*/)
+    IupMessage("About",about_text)
+    return IUP_DEFAULT
+end function
+
+constant help_text = """
+Make sure ChatServer.exw is running first...
+
+Enter a nickname and press the Connect Button (or Return), then
+enter your messages in the message area.
+"""
+
+function help_cb(Ihandln /*ih*/)
+    IupMessage("Chat client",help_text)
+    return IUP_DEFAULT
+end function
+
+procedure message(string message)
+    IupSetStrAttribute(statusbar, "TITLE", message)
+    -- This should probably be cropped once it gets too long...
+    conTextBack &= message & cr 
+    IupSetAttribute(log_list,"VALUE",conTextBack)
+    IupSetInt(log_list,"SCROLLTOPOS",length(conTextBack))
+end procedure
+
+procedure sendMsg(sequence msg)
+    if conFlag = 0 then
+        message("You must be connected to do this")
+        return
+    end if
+    if net_send_rdm(conn, msg) then
+        message("Error sending message \'" & msg & "\'")
+    end if
+end procedure
+
+procedure shutDown()
+    if length(nick) > 0 then
+        message("Disconnecting from server...")
+        if net_send_rdm(conn, "/d") then
+            message("Error disconnecting from server!")
+        end if
+    end if
+    message("Shutting down euLibnet...")
+    if conn > -1 then
+        if net_closeconn(conn) then
+            crash("Error closing connection!")
+        end if
+    end if
+    if net_shutdown() then
+        crash("Error shutting down euLibnet!")
+    end if
+    conFlag = 0
+end procedure
+
+function quit_cb(Ihandle /*ih*/)
+    shutDown()
+    return IUP_CLOSE
+end function
+
+function connect_cb(Ihandle /*ih*/)
+    nick = IupGetAttribute(nickname,"VALUE")
+    if length(nick) then
+        message("Opening connection...")
+        conn = net_openconn(NET_DRIVER_WSOCK_WIN, NULL)
+        if conn = NULL then
+            message("Couldn't open connection.")
+            return IUP_DEFAULT
+        end if
+        message("done.")
+        message("Attempting to connect to chat server...")
+        integer ret = net_connect_wait_time(conn, IPaddress, timeout)
+        if ret < 0 then
+            message("Error trying to establish connection.")
+            return IUP_DEFAULT
+        elsif ret > 0 then
+            message("Timeout trying to establish connection.")
+            return IUP_DEFAULT
+        end if
+        message("done.")
+
+        conFlag = 1
+
+        IupSetStrAttribute(nickname,"VALUE","Chat Client - " & nick)
+        IupSetInt({nickname,login},"ACTIVE",false)
+        sendMsg("/n:" & nick)
+        IupSetInt(timer,"RUN",true)
+        IupSetAttribute(members,"VALUE",nick)
+        message("")
+        IupSetInt(input,"ACTIVE",true)
+        IupSetFocus(input)
+    end if
+    return IUP_DEFAULT
+end function
+
+procedure mainWindow_onOpen()
+    message("Initializing euLibnet...")
+    if net_init() then crash("Error initializing euLibnet!") end if
+    message("done.")
+    message("Initializing driver...")
+    if net_initdriver(NET_DRIVER_WSOCK_WIN) != 1 then
+        crash("Error initializing WinSock driver!")
+    end if
+    message("done.")
+    IupSetFocus(nickname)
+end procedure
+
+procedure member_has_joined(string joiner)
+    string mt = IupGetAttribute(members,"VALUE")
+    sequence ml = split(mt,'\n')
+    mt = join(unique(append(ml,joiner)),'\n')
+    IupSetStrAttribute(members,"VALUE",mt)
+end procedure
+
+procedure member_has_left(string leaver)
+    string mt = IupGetAttribute(members,"VALUE")
+    sequence ml = split(mt,'\n')
+    integer k = find(leaver,ml)
+    ml[k..k] = {}   
+    IupSetStrAttribute(members,"VALUE",join(ml,'\n'))
+end procedure
+
+function timer_cb(Ihandle /*timer*/)
+    if net_query_rdm(conn) > 0 then --Check for message
+        sequence msg = net_receive_rdm(conn, MAX_MSG)
+        if msg[1] < 0 then
+           message("Error receiving message!")
+           {} = net_ignore_rdm(conn)
+        end if
+        msg = msg[2]
+        if equal(msg, "/nt") then
+           message("Nickname " & nick & " already taken")
+           nick &= "b"
+           message("Trying " & nick & " instead")
+           message("Type /n:nickname to try a different one")
+           sendMsg("/n:" & nick)
+        -- As per ChatServer, bunch of popup and file transfer stuff was 
+        -- all ripped out in the name of keeping this short and sweet.
+        else
+            if length(msg)>3 and equal(msg[1..3], "/j:") then
+                member_has_joined(msg[4..match(" has joined",msg)-1])
+                if allj then return IUP_DEFAULT end if
+                msg = msg[4..$]
+            elsif length(msg)>3 and equal(msg[1..3], "/l:") then
+                member_has_left(msg[4..match(" has left",msg)-1])
+                msg = msg[4..$]
+            elsif length(msg)>3 and equal(msg[1..3], "/c:") then
+                string shcnts = " has changed name to "
+                integer k = match(shcnts,msg)
+                member_has_left(msg[4..k-1])
+                member_has_joined(msg[k+length(shcnts)-1..$])
+                msg = msg[4..$]
+            end if
+            message(msg)
+        end if
+        allj = false
+    end if
+    return IUP_DEFAULT
+end function
+
+function key_cb(Ihandle ih, atom c)
+    if c=K_ESC then shutDown() return IUP_CLOSE end if
+    if c=K_F1 then return help_cb(NULL) end if
+    if c='\r' then
+        if ih=input then
+            sendMsg(IupGetAttribute(input,"VALUE"))
+            IupSetAttribute(input,"VALUE","")
+        elsif ih=nickname then
+            return connect_cb(ih)
+        end if
+    end if
+    return IUP_DEFAULT
+end function
+
+IupOpen()
+about = IupButton("About",Icallback("about_cb"))
+help = IupButton("Help",Icallback("help_cb"))
+quit = IupButton("Exit",Icallback("quit_cb"))
+nickle = IupLabel("Nickname")
+nickname = IupText("EXPAND=HORIZONTAL")
+login = IupButton("Connect",Icallback("connect_cb"))
+memble = IupLabel("Members online")
+members = IupText("EXPAND=VERTICAL, CANFOCUS=NO, MULTILINE=YES, SIZE=70x")
+logle = IupLabel("Incoming text")
+log_list = IupText("EXPAND=YES, CANFOCUS=NO, MULTILINE=YES")
+messle = IupLabel("Message")
+input = IupText("EXPAND=HORIZONTAL")
+IupSetCallback({nickname,input},"KEY_CB",Icallback("key_cb"))
+IupSetAttribute(input,"CUEBANNER","This Is Where You Type")
+IupSetInt(input,"NC",72) -- Max 72 characters allowed
+IupSetInt(input,"ACTIVE",false)
+statusbar = IupLabel("Loading...","EXPAND=HORIZONTAL")
+chat_window = IupDialog(IupVbox({IupHbox({about,help,quit,nickle,nickname,login},
+                                      "NORMALIZESIZE=VERTICAL,GAP=10,MARGIN=5x5"),
+                                IupHbox({IupVbox({memble,members}),
+                                         IupVbox({logle,log_list})},
+                                                "NGAP=10,NMARGIN=5x5"),
+                                IupHbox({messle,input},"GAP=10,MARGIN=5x5"),
+                                statusbar}),
+            `TITLE="Chat Client", RASTERSIZE=400x400`)
+IupSetCallback(chat_window,"CLOSE_CB",Icallback("quit_cb"))
+IupSetAttributeHandle(NULL,"PARENTDIALOG",chat_window)
+IupShow(chat_window)
+mainWindow_onOpen()
+timer = IupTimer(Icallback("timer_cb"), 500, false)
+IupMainLoop()
+IupClose()
+

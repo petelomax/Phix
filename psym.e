@@ -1599,6 +1599,7 @@ global procedure syminit()
     --
     symlimit = 0                                                -- #00 / 0b0000   dummy type: unknown
     initialSymEntry("integer",  S_Type,"TI",opInt,  E_none)     -- #01 / 0b0001 integer
+--                                                                            Z_integer = symtab[T_integer][S_Name]
     initialSymEntry(-1,         S_Type,"T", -1,     E_none)     -- #02 / 0b0010   dummy type: flt (atom but not integer)
     initialSymEntry("atom",     S_Type,"TN",opAtom, E_none)     -- #03 / 0b0011 atom (ie flt|int)
     initialSymEntry(-1,         S_Type,"T", -1,     E_none)     -- #04 / 0b0100   dummy type: dseq (sequence but not string)
@@ -1861,7 +1862,7 @@ atom pi, inf, nan
     initialConstant("NAN",nan)
 --*/
     initialConstant("PI",3.141592653589793238)
-    initialConstant("E",2.7182818284590452)
+    initialConstant("EULER",2.7182818284590452)
     initialConstant("INVLN10",0.43429448190325182765)
 --  initialConstant("INVLN2",1.44269504088896340739)
 --sug:  Phi (the golden ratio, = 1.618033988749895)
@@ -2087,6 +2088,9 @@ atom pi, inf, nan
     -- from pqueue.e
     initialConstant("MIN_HEAP",-1)
     initialConstant("MAX_HEAP",+1)
+    initialConstant("ANY_QUEUE",0)
+    initialConstant("FIFO_QUEUE",1)
+    initialConstant("LIFO_QUEUE",2)
 
     -- for hash.e
     initialConstant("HSIEH30",-6)
@@ -2102,7 +2106,6 @@ atom pi, inf, nan
     initialConstant("TEST_PAUSE",1)             -- (always pause)
 --  initialConstant("TEST_QUIET",0)             -- (never pause)
     initialConstant("TEST_PAUSE_FAIL",-1)       -- (pause on failure)
-
 
 --if not newEmit then
 --
@@ -2439,7 +2442,7 @@ if newEmit then
 --  AutoAsm("allocate",         S_Func,"FI",    "VM\\pHeap.e",      opAlloc,    "%pAlloc",      E_none, T_atom)
 --DEV... (not documented either)
 --  AutoAsm("allocate_data",    S_Func,"FI",    "VM\\pHeap.e",      opAlloc,    "%pAlloc",      E_none, T_atom)
-    AutoAsm("remainder",        S_Func,"FNN",   "VM\\pRmdr.e",      opRmdr,     "%opRmdr",      E_none, T_atom)     T_remainder = symlimit
+    AutoAsm("remainder",        S_Func,"FNN",   "VM\\pRmdr.e",      opRmdr,     "%opRmdr",      E_none, T_atom)     T_remainder = symlimit  Alias("rmdr",symlimit)
     AutoAsm("and_bits",         S_Func,"FNN",   "VM\\pMath.e",      opAndBits,  "%opAndBits",   E_none, T_atom)     T_and_bits = symlimit
     AutoAsm("or_bits",          S_Func,"FNN",   "VM\\pMath.e",      opOrBits,   "%opOrBits",    E_none, T_atom)     T_or_bits = symlimit
     AutoAsm("xor_bits",         S_Func,"FNN",   "VM\\pMath.e",      opXorBits,  "%opXorBits",   E_none, T_atom)     T_xor_bits = symlimit
@@ -2653,13 +2656,8 @@ end if
     initialAutoEntry("message_box",             S_Func,"FSSIN", "msgbox.e",0,E_other,2)
     initialAutoEntry("named_dict",              S_Func,"FS",    "dict.e",0,E_other)
     initialAutoEntry("new_dict",                S_Func,"FOI",   "dict.e",0,E_other,0)
-    initialAutoEntry("rand_range",              S_Func,"FII",   "prnd.e",0,E_none)
-    initialAutoEntry("remove_directory",        S_Func,"FSI",   "pfile.e",0,E_other,1)
-    initialAutoEntry("rename_file",             S_Func,"FSSI",  "pfile.e",0,E_other,2)
-    initialAutoEntry("routine_id",              S_Func,"FP",    "VM\\prtnidN.e",0,E_none)   T_routine = symlimit
-    initialAutoEntry("pq_new",                  S_Func,"FII",   "pqueue.e",0,E_other,0)
-    initialAutoEntry("pq_size",                 S_Func,"FI",    "pqueue.e",0,E_none,0)
-    initialAutoEntry("pq_empty",                S_Func,"FI",    "pqueue.e",0,E_none,0)
+    initialAutoEntry("new_queue",               S_Func,"FI",    "pqueue.e",0,E_other,0)
+    initialAutoEntry("new_stack",               S_Func,"F",     "pqueue.e",0,E_other,0)
 --if newEmit then
 --  --(getc is now an AutoAsm)
 ----    initialAutoEntry("open",                S_Func,"FSO",   "VM\\pfileioN.e",0,E_other)
@@ -2673,6 +2671,17 @@ end if
 --  initialAutoEntry("where",                   S_Func,"FI",    "pfileio.e",0,E_other)
 --  initialAutoEntry("lock_file",               S_Func,"FIIP",  "pfileio.e",0,E_other)
 --end if
+    initialAutoEntry("pq_new",                  S_Func,"FII",   "pqueue.e",0,E_other,0)
+    initialAutoEntry("pq_size",                 S_Func,"FI",    "pqueue.e",0,E_none,0)
+    initialAutoEntry("pq_empty",                S_Func,"FI",    "pqueue.e",0,E_none,0)
+    initialAutoEntry("queue_empty",             S_Func,"FI",    "pqueue.e",0,E_other)
+    Alias("stack_empty",symlimit)
+    initialAutoEntry("queue_size",              S_Func,"FI",    "pqueue.e",0,E_other)
+    Alias("stack_size",symlimit)
+    initialAutoEntry("rand_range",              S_Func,"FII",   "prnd.e",0,E_none)
+    initialAutoEntry("remove_directory",        S_Func,"FSI",   "pfile.e",0,E_other,1)
+    initialAutoEntry("rename_file",             S_Func,"FSSI",  "pfile.e",0,E_other,2)
+    initialAutoEntry("routine_id",              S_Func,"FP",    "VM\\prtnidN.e",0,E_none)   T_routine = symlimit
     initialAutoEntry("set_file_date",           S_Func,"FSI",   "pfile.e",0,E_other,1)
     initialAutoEntry("sizeof",                  S_Func,"FI",    "dll.e",0,E_none)
     initialAutoEntry("square_free",             S_Func,"FNI",   "pfactors.e",0,E_none,1)
@@ -2884,11 +2893,12 @@ end if
     initialAutoEntry("new",                     S_Func,"FOP",   "structs.e",0,E_other,1)        T_new = symlimit
     initialAutoEntry("pad",                     S_Func,"FSISI", "pseqc.e",0,E_none,2)
     initialAutoEntry("pad_head",                S_Func,"FSII",  "pseqc.e",0,E_none,2)
-    initialAutoEntry("pad_tail",                S_Func,"FSII",  "pseqc.e",0,E_none,2)
+    initialAutoEntry("pad_tail",                S_Func,"FPIO",  "pseqc.e",0,E_none,2)
     initialAutoEntry("peek_wstring",            S_Func,"FN",    "peekstr.e",0,E_none)
     initialAutoEntry("permute",                 S_Func,"FIP",   "permute.e",0,E_none)
     initialAutoEntry("peep_dict",               S_Func,"FII",   "dict.e",0,E_none,0)
     initialAutoEntry("pop_dict",                S_Func,"FII",   "dict.e",0,E_none,0)
+    initialAutoEntry("popn",                    S_Func,"FIII",  "pqueue.e",0,E_other,2)
     initialAutoEntry("prime_factors",           S_Func,"FNII",  "pfactors.e",0,E_none,1)
     initialAutoEntry("pq_pop",                  S_Func,"FI",    "pqueue.e",0,E_other,0)
     initialAutoEntry("pq_peek",                 S_Func,"FI",    "pqueue.e",0,E_other,0)
@@ -2913,6 +2923,7 @@ end if
     initialAutoEntry("tagset",                  S_Func,"FIIII", "ptagset.e",0,E_none,1)
     initialAutoEntry("tail",                    S_Func,"FPN",   "pseqc.e",0,E_none,1)
     initialAutoEntry("task_list",               S_Func,"F",     "VM\\pTask.e",0,E_none)
+    initialAutoEntry("topn",                    S_Func,"FIII",  "pqueue.e",0,E_other,2)
     initialAutoEntry("unique",                  S_Func,"FPS",   "punique.e",0,E_none,1)
     initialAutoEntry("unix_dict",               S_Func,"FI",    "unix_dict.e",0,E_none,0)
     initialAutoEntry("utf8_to_utf16",           S_Func,"FP",    "utfconv.e",0,E_none)
@@ -2973,6 +2984,7 @@ end if
     initialAutoEntry("minsq",               S_Func,"FPI",   "pmaths.e",0,E_none,1)      T_minsq = symlimit
     initialAutoEntry("peekns",              S_Func,"FOII",  "peekns.e",0,E_other,1)
     initialAutoEntry("peeknu",              S_Func,"FOII",  "peekns.e",0,E_other,1)
+    initialAutoEntry("pop",                 S_Func,"FIIII", "pqueue.e",0,E_other,1)
     initialAutoEntry("pq_pop_data",         S_Func,"FI",    "pqueue.e",0,E_other,0)
     initialAutoEntry("read_bitmap",         S_Func,"FS",    "image.e",0,E_none)
 --  initialAutoEntry("round",               S_Func,"FOO",   "pmaths.e",0,E_none,1)
@@ -2980,6 +2992,7 @@ end if
 --DEV... (delete?? [TlsGetValue])
     initialAutoEntry("TlsGetValue",         S_Func,"FI",    "ptls.ew",0,E_none)
 
+    initialAutoEntry("top",                 S_Func,"FII",   "pqueue.e",0,E_other,1)
     initialAutoEntry("upper",               S_Func,"FO",    "pcase.e",0,E_none)
     initialAutoEntry("lower",               S_Func,"FO",    "pcase.e",0,E_none)
 --if newEmit then
@@ -3026,7 +3039,7 @@ end if
     initialAutoEntry("sq_mul",              S_Func,"FOO",   "psqop.e",opMul,E_none)
     initialAutoEntry("sq_div",              S_Func,"FOO",   "psqop.e",opDiv,E_none)
     initialAutoEntry("sq_floor_div",        S_Func,"FOO",   "psqop.e",opDivf,E_none)    T_sqfloor_div = symlimit
-    initialAutoEntry("sq_rmdr",             S_Func,"FOO",   "psqop.e",opRmdr,E_none)
+    initialAutoEntry("sq_rmdr",             S_Func,"FOO",   "psqop.e",opRmdr,E_none)    Alias("sq_remainder",symlimit)
     initialAutoEntry("sq_floor",            S_Func,"FO",    "psqop.e",opFloor,E_none)   T_sqfloor = symlimit
     initialAutoEntry("sq_round",            S_Func,"FOO",   "psqop.e",0,E_none,1)
     initialAutoEntry("sq_ceil",             S_Func,"FO",    "psqop.e",0,E_none)
@@ -3120,6 +3133,8 @@ end if
 --  initialAutoEntry("delete",              S_Proc,"PO",    "pdelete.e",0,E_other)
 --end if
     initialAutoEntry("destroy_dict",        S_Proc,"PII",   "dict.e",0,E_other,1)
+    initialAutoEntry("destroy_queue",       S_Proc,"PI",    "pqueue.e",0,E_other)
+    Alias("destroy_stack", symlimit)
     initialAutoEntry("display_text_image",  S_Proc,"PPP",   "pscreen.e",0,E_other)
     initialAutoEntry("end_struct",          S_Proc,"P",     "structs.e",0,E_other)              T_end_struct = symlimit
     initialAutoEntry("extend_struct",       S_Proc,"PSS",   "structs.e",0,E_other,1)            T_extend_struct = symlimit
@@ -3157,6 +3172,8 @@ end if
     initialAutoEntry("pq_add",              S_Proc,"PPI",   "pqueue.e",0,E_other,1)
     initialAutoEntry("pq_destroy",          S_Proc,"PIII",  "pqueue.e",0,E_other,0)
     initialAutoEntry("progress",            S_Proc,"PSP",   "progress.e",0,E_other,1)
+    initialAutoEntry("push",                S_Proc,"PIOII", "pqueue.e",0,E_other,2)
+    initialAutoEntry("pushn",               S_Proc,"PIPI",  "pqueue.e",0,E_other,2)
     initialAutoEntry("putd",                S_Proc,"POOI",  "dict.e",0,E_other,2)
     initialAutoEntry("resume_thread",       S_Proc,"PN",    "VM\\pThreadN.e",0,E_other)
     initialAutoEntry("requires",            S_Proc,"POI",   "get_interpreter.e",0,E_other,1)

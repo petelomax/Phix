@@ -9,7 +9,40 @@
 -- Example: Input     Output 
 --           2 2        4 
 --           3 2        5
+--
+with javascript_semantics
+include pGUI.e
+Ihandle lab, tab, res, dlg
 
+function valuechanged_cb(Ihandle tab)
+    string s = IupGetAttribute(tab,"VALUE")
+    sequence r = scanf(s,"%d %d")
+    if length(r)=1 then
+        integer {a,b} = r[1]
+        s = sprintf("%d + %d = %d", {a, b, a+b})
+        IupSetStrAttribute(res,"TITLE",s)
+        IupRefresh(res)
+    end if
+    return IUP_DEFAULT
+end function
+
+procedure main()
+    IupOpen()
+    lab = IupLabel("Enter two numbers separated by a space")
+    tab = IupText("VALUECHANGED_CB", Icallback("valuechanged_cb"),"EXPAND=HORIZONTAL")
+    res = IupLabel("")
+    dlg = IupDialog(IupVbox({IupHbox({lab,tab},"GAP=10,NORMALIZESIZE=VERTICAL"),
+                             IupHbox({res})},"MARGIN=5x5"),`TITLE="A plus B"`)
+    IupShow(dlg)
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
+end procedure
+ 
+main()
+
+--/* console version
 string s = prompt_string("Enter two numbers separated by a space : ")
 sequence r = scanf(s,"%d %d")
 if length(r)=1 then
@@ -21,6 +54,7 @@ else
 end if
 ?"done"
 {} = wait_key()
+--*/
 
 --/* old:
 -- When presented with a problem this simple, I start inventing difficulty

@@ -1,0 +1,69 @@
+--
+-- demo\rosetta\Create2Darray.exw
+-- ==============================
+--
+-- Get two integers from the user, then create a two-dimensional array where the two dimensions have 
+-- the sizes given by those numbers, and which can be accessed in the most natural way possible. 
+-- Write some element of that array, and then output that element. 
+-- Finally destroy the array if not done by the language itself.
+--
+with javascript_semantics -- (layout/spacing leaves a little to be desired...)
+include pGUI.e
+Ihandle lab, tab, res, dlg
+
+function valuechanged_cb(Ihandle tab)
+    string s = IupGetAttribute(tab,"VALUE")
+    sequence r = scanf(s,"%d %d")
+    if length(r)=1 then
+        integer {height,width} = r[1],
+                i = floor(height/2+0.5),
+                j = floor(width/2+0.5)
+        if i>0 and j>0 then
+
+            sequence array = repeat(repeat(0,width),height)
+
+            array[i][j] = height + width
+ 
+            s = sprintf("array[%d][%d] is %d\n", {i,j,array[i][j]})
+
+            IupSetStrAttribute(res,"TITLE",s)
+            IupRefresh(res)
+        end if
+    end if
+    return IUP_DEFAULT
+end function
+
+procedure main()
+    IupOpen()
+    lab = IupLabel("Enter two numbers (>0) separated by a space")
+    tab = IupText("VALUECHANGED_CB", Icallback("valuechanged_cb"),"EXPAND=HORIZONTAL")
+    res = IupLabel("")
+    dlg = IupDialog(IupVbox({IupHbox({lab,tab},"GAP=10,NORMALIZESIZE=VERTICAL"),
+                             IupHbox({res})},"MARGIN=5x5"),`TITLE="Create 2D array"`)
+    IupShow(dlg)
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
+end procedure
+ 
+main()
+
+--/* previous console version
+sequence array
+integer height,width,i,j
+ 
+integer height = floor(prompt_number("Enter height: ")),
+        width = floor(prompt_number("Enter width: ")),
+        i = floor(height/2+0.5),
+        j = floor(width/2+0.5)
+ 
+array = repeat(repeat(0,width),height)
+ 
+array[i][j] = height + width
+ 
+printf(1,"array[%d][%d] is %d\n", {i,j,array[i][j]})
+?"done"
+{} = wait_key()
+--*/
+

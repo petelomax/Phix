@@ -40,7 +40,8 @@
 //
 //  (programming note: %s is all the wildcard-matching we can handle; ? and * are treated as literals.)
 //
-//!/**/without debug -- (keep ex.err clean)
+ /**/ 
+/*without debug*/   // (keep ex.err clean)
 //
 // The real gruntwork here is recognising numbers (if you think this is complicated, google "scanf.c").
 //  Much of $get_number() and $completeFloat() was copied from ptok.e, should really unify I spose, but

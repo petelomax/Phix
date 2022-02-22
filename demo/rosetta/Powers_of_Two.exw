@@ -1,0 +1,645 @@
+--
+-- demo\rosetta\Powers_of_Two.exw
+-- ==============================
+--
+-- As stolen from Project Euler Problem 686 (and given a pretty awful and rather grim page name) by
+-- https://rosettacode.org/mw/index.php?title=First_power_of_2_that_has_leading_decimal_digits_of_12
+--
+-- Define p(l,n) to yield the nth-smallest j such that 2^j (in decimal) begins with the digits of l.
+--
+-- eg power(2,7) is 128, and the first power of 2 that begins with 12, so p(12,1) should return 7.
+-- Likewise p(12,2) is 80, from 2^80 = 1208925819614629174706176 being the second such power of 2.
+-- Find p(12,1), p(12,2), p(123,45), p(123,12345) and p(123,678910).
+--
+-- This task is also noted in LinearScanRegisterAllocation.exw as deserving of attention (since it
+-- has slow strings and a solution at 5.5s with the exact same algorithm in #ilASM{} at just 0.6s).
+--
+--SUG mpz_get_short_str(mpz z, integer ml=10), same as shorten(mpz_get_str(z),ml:=ml) but faster (esp p2js).
+--  See if we can get https://rosettacode.org/mw/index.php?title=First_power_of_2_that_has_leading_decimal_digits_of_12#Phix to run.
+--  note that z is damaged beyond repair.
+--Rework demo\rosetta\Same_Fringe.exw to iterative/reentrant to make it p2js compatible?
+--SUG: when condition statement, shorthand for if condition then statement end if, but
+--      no "then" and no "end when", single statement only. [and single line only?]
+--      [maybe restrict to exit/return [expr]/break...? Then again when i!=0 j/=i perhaps?]
+--/*
+-- what I was after:
+--function rd(string digits)
+----?"rd"
+--  atom res = 0
+----    for i=length(digits) to 1 by -1 do
+--  for i=1 to length(digits) do
+--      res = res*10+(digits[i]-'0')
+--  end for
+--  return res
+--end function
+
+--/*
+procedure simple_add(integer n)
+    printf(1,"simple_add(%v)\n",{iff(n=0?"all",n)})
+    sequence digits = {0}
+    integer count = 0,
+            limit = iff(n=2?36:40)  -- (speedwise when testing)
+    while count<limit do
+        for i=length(digits) to 1 by -1 do
+            integer d = digits[i]
+            if d!=9 then
+                digits[i] = d+1
+                exit
+            end if
+            digits[i] = 0
+            if i=1 then
+                digits = prepend(digits,1)
+            end if
+        end for
+        if n=0 or sum(digits)=n then
+            integer rdd = rd(digits)
+            printf(1,"%d (rem %d)\n",{rdd,remainder(rdd,n)})
+            count += 1
+        end if
+    end while
+end procedure
+--simple_add(0)
+--simple_add(3)
+--simple_add(2)
+simple_add(14)
+--*/
+--/*
+procedure sumple_add(integer n)
+--  if n=0 then return 0 end if -- (avoids invoking remainder(x,0))
+--  if n<=1 then return n end if -- (avoid invoking remainder(x,0|1))
+
+    printf(1,"sumple_add(%d)\n",n)
+    integer l = ceil(n/9)-1,    -- we need l-1 trailing 9s
+            k = n-9*l,          -- ...and this first digit
+--          rem = rmdrc(k,l,n),
+            count = 1
+--  rem += sum(apply(true,rmdrc,{9,tagset(l-1,0),n}))
+--  rem = remainder(rem,n)
+--  for i=1 to l do
+--      rem += rmdrc(9,i-1,n)
+--      rem = remainder(rem,n)
+--  end for
+--,ne = 0
+    sequence digits = k&repeat(9,l) -- eg n=14 -> {5,9} with rem=3
+--  integer rem = rmc(digits,n)
+--?remainder(59,14)
+
+--atom t0 = time()
+--atom t1 = time()+1
+--  while count<20 do
+--  while count<=111111140 do
+    while count<=40 do
+--  while count<=1 do
+--if time()>t1 then
+--if sum(digits)!=n then ?9/0 end if
+        integer rdd = rd(digits),
+                rddr = remainder(rdd,n),
+                rem = rmc(digits,n)
+        string ok = iff(rem=rddr?"ok":"**oops**")
+        printf(1,"%d (rem %d,[%d, %s])\n",{rdd,rem,rddr,ok})
+--      ?{7,9,9,9,9,8,9,9,9,9,9,9,9,9,9,8,0}
+--  t1 = time()+1
+--end if
+        count += 1
+--if not even(digits[$]) then ne += 1 end if
+
+        integer --id = 0, -- incrementable digit position
+                dd = 0, -- decrementable digit position
+                ddd     -- decrementable digit value
+--if digits={2,0} then trace(1) end if
+--if digits={1,2,0} then trace(1) end if
+--if digits={1,2,0} then trace(1) end if
+--if digits={1,1,0} then trace(1) end if
+--if digits={9,5} then trace(1) end if
+--if digits={1,9,4} then trace(1) end if
+--if digits={7,9,9,9,9,8,9,9,9,9,9,9,9,9,9,8} then
+----if digits={7,9,9,9,9,8,9,9,9,9,9,9,9,9,9,8,0} then
+--  ?time()-t0
+----    ?12684060-8989314   -- <4m the hard way, 82 with ne of 75 with 0, meaning just 7!
+--   ?9/0 
+--end if
+--if digits={7,9,9,9,9,8,9,9,9,9,9,9,9,9,9,8} then ?9/0 end if
+        for i=l+1 to 1 by -1 do
+            integer d = digits[i]
+            if dd=0 and d>0 then
+                dd = i
+                ddd = d
+            elsif d<9 and dd then
+                digits[dd] = ddd-1
+--if already in cache then yield it??
+                digits[i+1..$] = reverse(digits[i+1..$])
+                digits[i] = d+1
+                exit
+            end if
+            if i=1 then
+                -- Aside: We have an i{9}dd{0} situation here, where if
+                --        there are no 9s and no 0s it's 2-digit at max
+                --        and anything like ...88x11.. has already been 
+                --        bumped to ..99x00.. long before it gets here.
+                --        Of course dd/x could be (pointing at) a 9.
+--Aside2: Of course at this point (first time) we've just generated all permutes of k=sum(n-digits[1])...
+--        If we store [first of] those keyed on {remainder,k,l} then....
+                digits[dd] = ddd-1
+--if already in cache then yield it??
+                digits = reverse(digits)
+                digits = prepend(digits,1)
+                l += 1
+            end if          
+        end for
+--      if t=n then 
+--      end if
+--      m += 1
+    end while
+end procedure
+
+--sumple_add(14)
+--sumple_add(2)
+--sumple_add(1)
+--sumple_add(3)
+--sumple_add(140)
+--for i=1 to 25 do
+--  sumple_add(i)
+--end for
+--*/
+
+
+--*/
+--/*
+Phix plans
+[quote/fork]
+I suppose it has been a fair while since I've spoken about this.
+
+Immediate plans:
+* Finish testing/classifying rosettacode entries re p2js (currently 64%, up from 47% a month ago)
+* Investigate yet more GUI options (in particular libui-ng at the current moment in time)
+* Either switch to "" or finish pGUI.js (layout and resize handling being the big issue)
+* New for..in construct (in progress, needs far more testing, and equiv p2js support)
+* Continue the neverending search for that special killer app with the wow factor
+(Time to throw in the towel if I ever give up all hope or stop looking for that.)
+
+Mid term plans
+* Get p2js up and running on the web (kinda ties in with Phix 2.0, but needed **now**)
+* Start on Edita2, with whatever cross-platform GUI I end up deciding on
+* Start/get demo/pGUI/PhixLogo.exw to actually do something useful and nice.
+
+Long term plans:
+* Phix 2.0
+** based on the new tokeniser and syntax tree of p2js, aka merge the compiler and p2js
+** a proper register allocator (always rather wanted meself one of those[1])
+** complete overhaul of constant propagation (too hard to debug as it stands)
+** possibly migrate the symtab to a separate support file (just too messy/big)
+** a proper decent flashy gui debugger that (even) my mom would be pround of
+** support the arm architecture (probably targetting the Rasp.Pi at first)
+** ludicrously big job, will take years and years and years of tiny steps...
+
+[1] potentially there could be an eight-fold performance boost for subscripts/maths
+    I have steadliy been collecting examples for/that would benefit from that work.
+
+Trouble is: no fame + no glory + no funding + sole developer === no motiviation.
+
+--*/
+with javascript_semantics
+--/!* 
+----6.3s (well, that's much better, I guess...)
+--5.6s (well, that's much better, I guess...) [0.7s under p2js!!]
+--Divides the power of 2 by 10 (retaining the fractional part) whenever >= ld (where ld is leading 
+--decimal digits sought), so that "begins with ld" becomes just a simple floor(powerof2)==ld test.
+--
+--Note that this, along with any other submissions on this page that use fractions or logs, is an
+--approximation in that should a real power of 2 be say 128[.]999999999999999... ie more trailing 
+--9s than the accuracy of a floating point, it may well get rounded to 129[.]0000000 and that way
+--skip/miss a few, at least in theory and not that any such have been spotted.
+--?5.6/0.6
+--Also note this is ten times faster under pwa/p2js than it is on desktop/Phix and has been marked
+--for further investigation with regard to performance improvements in some future release.
+function p(integer ld, n)
+    integer res = 0
+--/!*
+    atom powerof2 = 1
+--atom t1 = time()+1
+    while true do
+        integer fp2 = floor(powerof2)
+        if fp2>=ld then
+            if fp2=ld then
+                n -= 1
+                if n=0 then exit end if
+            end if
+            powerof2 /= 10
+        end if
+        res += 1
+--if time()>t1 then ?{powerof2,n,res} t1 = time()+1 end if
+        powerof2 *= 2
+--?p2
+    end while
+--{} = wait_key()
+--"uhoh"
+--p(12, 1) = 7
+--p(12, 2) = 80
+--p(123, 45) = 12710
+--p(123, 12345) = 3510491
+--p(123, 678910) = 193060223
+--"5.5s"
+--*!/
+--/*
+--C:\Program Files (x86)\Phix>p e01
+--"wow" (about the same speed as js!)
+--p(12, 1) = 7
+--p(12, 2) = 80
+--p(123, 45) = 12710
+--p(123, 12345) = 3510491
+--p(123, 678910) = 193060223
+--"0.6s"
+    #ilASM{
+        [32]
+            sub esp,8
+            call :%down53
+            mov dword[esp],10   
+            fild dword[esp]
+            fld1
+            xor eax,eax
+            mov edi,[ld]
+            mov ecx,[n]
+          @@:
+                fist dword[esp]
+                cmp edi,[esp]
+                jg :over
+                    jne :note
+                        sub ecx,1
+                        jz @f
+                  ::note
+                    fdiv st0,st1
+              ::over
+                add eax,1
+                fadd st0,st0
+            jmp @b
+          @@:
+            add esp,8
+            mov [res],eax
+            call :%near53
+        [64]
+            sub rsp,8
+            call :%down53
+            mov dword[rsp],10   
+            fild dword[rsp]
+            fld1
+            xor rax,rax
+            mov rdi,[ld]
+            mov rcx,[n]
+          @@:
+                fist dword[rsp]
+                cmp edi,[rsp]
+                jg :over
+                    jne :note
+                        sub rcx,1
+                        jz @f
+                  ::note
+                    fdiv st0,st1
+              ::over
+                add rax,1
+                fadd st0,st0
+            jmp @b
+          @@:
+            add rsp,8
+            mov [res],rax
+            call :%near53
+         []
+        }
+--*/
+    return res
+end function
+--*!/
+
+--/* 
+--string... horrendously slow!!
+function p(integer ld, n)
+?{ld,n}
+--  string td = reverse(sq_sub(sprintf("%d",ld),'0')),
+    string td = reverse(sprintf("%d",ld)),
+--  string td = sq_sub(sprintf("%d",ld),'0'),
+--         p2 = "\x01"  
+           p2 = "1" 
+--  atom p2 = 1
+--  integer ld1 = ld+1, res = 0
+--  integer res = 0
+    integer l = 1, ltd=length(td), res = 0
+atom t1 = time()+1
+--  while n do
+    while true do
+--?{p2,td}
+--{} = wait_key()
+        if l>=ltd and p2[-ltd..-1]=td then
+--      if l>=ltd then
+--          for i=ltd to 1 by -1 do
+--              if p2[-i]!=td[i] then exit end if
+--              if i=1 then
+                    n -= 1
+--              end if
+--          end for
+            if n=0 then exit end if
+        end if
+--?{p2,ld,n,res}
+--/*
+--      if p2>=ld1 then p2/=10 end if
+        integer fp2 = floor(p2)
+--      integer c = compare(floor(p2),ld)
+--      if floor(p2)=ld then
+        if fp2>=ld then
+            if fp2=ld then
+--      if c=0 then
+                n -= 1
+                if n=0 then exit end if
+            end if
+            p2/=10
+        end if
+--      if fp2>=ld then p2/=10 end if
+--      elsif fp2>ld then p2/=10 end if
+--*/
+        res += 1
+--?{p2,ld,n,res}
+--{} = wait_key()
+--/!*
+        integer carry = 0
+        for i=1 to length(p2) do
+            integer d = (p2[i]-'0')*2+carry
+--          integer d = p2[i]*2+carry
+            p2[i] = remainder(d,10)+'0'
+--          p2[i] = remainder(d,10)
+            carry = d>9
+        end for
+        if carry then
+            p2 &= '1'
+--          p2 &= '\x01'
+            l += 1
+if time()>t1 then ?{l,res,n} t1 = time()+1 end if
+        end if
+--*!/
+--if time()>t1 then ?{p2,n,res} t1 = time()+1 end if
+--      p2 *= 2
+--?{res,p2}
+--{} = wait_key()
+    end while
+    return res
+end function
+--*/
+--/*
+--I think this is the same:
+function p(integer ld, n)
+    string td = reverse(sprintf("%d",ld)),
+           p2 = "1" 
+    integer l = 1, ltd=length(td), res = 0
+    while n do
+        if l>=ltd and p2[-ltd..-1]=td then
+            n -= 1
+            if n=0 then exit end if
+        end if
+        res += 1
+        integer carry = 0
+        for i=1 to length(p2) do
+            integer d = (p2[i]-'0')*2+carry
+            p2[i] = remainder(d,10)+'0'
+            carry = d>9
+        end for
+        if carry then
+            p2 &= '1'
+            l += 1
+        end if
+--?{res,p2}
+--{} = wait_key()
+    end while
+    return res
+end function
+--*/
+
+--/*
+with javascript_semantics
+-- meh, 1 min 11s
+function p(integer L, n)
+    atom logof2 = log10(2)
+    integer places = trunc(log10(L)),
+            nfound = 0, i = 1
+    while true do
+        atom a = i * logof2,
+             b = trunc(power(10,a-trunc(a)+places))
+        if L == b then
+            nfound += 1
+            if nfound == n then exit end if
+        end if
+        i += 1
+    end while
+    return i
+end function
+--*/
+ 
+--/*
+constant tests = {{12, 1}, {12, 2}, {123, 45}, {123, 12345}, {123, 678910}}
+include ordinal.e
+include mpfr.e
+--mpz z = mpz_init()
+atom t0 = time()
+for i=1 to length(tests)-(2*(platform()=JS)) do
+    integer {L,n} = tests[i], pln = p(L,n)
+--/*
+    mpz_ui_pow_ui(z,2,pln)
+    integer digits = mpz_sizeinbase(z,10)
+    string st = iff(digits>2e6?sprintf("%,d digits",digits):
+                               shorten(mpz_get_str(z),"digits",5)) 
+    printf(1,"The %d%s power of 2 that starts with %d is %d [i.e. %s]\n",{n,ord(n),L,pln,st})
+--*/
+    printf(1,"The %d%s power of 2 that starts with %d is %d\n",{n,ord(n),L,pln})
+end for
+?elapsed(time()-t0)
+--*/
+
+--/*
+The 1st power of 2 that starts with 12 is 7 [i.e. 128]
+The 2nd power of 2 that starts with 12 is 80 [i.e. 1208925819614629174706176]
+The 45th power of 2 that starts with 123 is 12710 [i.e. 12338...09024 (3,827 digits)]
+The 12345th power of 2 that starts with 123 is 3510491 [i.e. 12317...80448 (1,056,764 digits)]
+The 678910th power of 2 that starts with 123 is 193060223 [i.e. 58,116,919 digits]
+"1 minute and 14s"
+"done"
+--*/
+
+-- 24.7s:
+--/*
+function p(integer l, n)
+    integer test = 0,
+          factor = 1,
+             tmp = l
+    atom logv = log(2)/log(10)
+    while tmp>10 do
+        factor *= 10
+        tmp = floor(tmp/10)
+    end while
+    while n>0 do
+        test += 1
+        integer val = floor(factor * power(10, remainder(test * logv, 1)));
+        if val=l then 
+            n -= 1
+        end if
+    end while
+    return test;
+end function
+--*/
+--/*
+--25.4s
+function p(integer l, n)
+--  integer pwr = 2,
+--   l = Int(abs(l))
+    integer digitcount = floor(log10(l)), firstdigits,
+                raised = -1,
+                 found = 0
+    atom log10pwr = log10(2)
+    while found < n do
+        raised +=1
+        firstdigits = floor(power(10,remainder(log10pwr*raised,1) + digitcount))
+        if firstdigits == l then
+            found += 1
+        end if
+    end while
+    return raised
+end function
+--*/
+
+--/*
+-- meh 40.3s!!
+function p(integer L, n)
+    assert(L > 0 and n > 0)
+    string Ls = sprintf("%d",L)
+    atom ten18 = power(10,18),
+     maxdigits = power(10,18-length(Ls)),
+         probe = 1
+    integer nfound = 0, i = 0
+    while true do
+        probe *= 2
+        i += 1
+        if probe >= ten18 then
+            while true do
+--              if probe >= ten18 then probe /= 10 end if
+                if probe >= ten18 then probe = floor(probe/10) end if
+--              if probe/maxdigits == L then
+                if floor(probe/maxdigits) == L then
+                    nfound += 1
+                    if nfound >= n then
+                        nfound -= 1
+                        exit
+                    end if
+                end if
+                probe *= 2
+                i += 1
+--?probe
+            end while
+        end if
+        string ps = sprintf("%d",probe)
+--?ps
+        integer len = min(length(Ls), length(ps))
+        if ps[1..len] == Ls then
+            nfound += 1
+            if nfound >= n then exit end if
+        end if
+    end while
+    return i
+end function
+--*/
+
+--/* bust:
+with trace
+
+constant Lfloat64 = power(2, 64),
+--constant Lfloat64 = power(2, 31),
+             mask = Lfloat64-1,
+--     Log10_2_64 = floor(Lfloat64 * log10(2))
+       Log10_2_64 = and_bits(Lfloat64 * log10(2),mask)
+--     Log10_2_64 = floor(Lfloat64 * log(2)/log(10))
+ 
+--proc p(number, countLimit: int) =
+function p(integer l, n)
+--trace(1)
+    integer i = l, digits = 1
+    while i>=10 do
+        digits *= 10
+        i = floor(i/10)
+    end while    
+
+    integer lmtLower, lmtUpper = 0
+    atom l1d = (l+1)/digits,
+         log10num = log10(l1d)
+    if log10num >= 0.5 then
+        if l1d<10 then
+--          lmtUpper = floor(log10num * (Lfloat64 * 0.5)) * 2 + floor(log10num * 2)
+            lmtUpper = and_bits((log10num * (Lfloat64 * 0.5)) * 2 + floor(log10num * 2),mask)
+        end if
+        log10num = log10(l/digits)
+--      lmtLower = floor(log10num * (Lfloat64 * 0.5)) * 2 + floor(log10num * 2)
+        lmtLower = and_bits((log10num * (Lfloat64 * 0.5)) * 2 + floor(log10num * 2),mask)
+    else
+--      lmtUpper = floor(log10num * Lfloat64)
+        lmtUpper = and_bits(log10num * Lfloat64,mask)
+--      lmtLower = floor(log10(l / digits) * Lfloat64)
+        lmtLower = and_bits(log10(l / digits) * Lfloat64,mask)
+    end if
+    integer count = 0,
+                p = 0
+    atom frac64 = 0
+    if lmtUpper != 0 then
+        while count<n do
+            p += 1
+--          frac64 += Log10_2_64
+            frac64 = and_bits(frac64+Log10_2_64,mask)
+            if frac64 >= lmtLower
+            and frac64 < lmtUpper then
+                count += 1
+            end if
+        end while
+    else
+--      # Searching for "999...".
+        while count<n do
+            p += 1
+            frac64 += Log10_2_64
+            if frac64 >= lmtLower then
+                count += 1
+            end if
+        end while
+    end if
+    return p
+end function
+--*/
+
+--/*
+--with trace
+--24.5s
+function p(integer l, n)
+--trace(1)
+    integer res = 0,
+            factor = power(10,floor(log10(l)))
+    atom lg = log(2)/log(10)
+--/*
+    integer factor = 1
+            loop = l
+    while (loop > 10) {
+        factor *= 10
+        loop /= 10
+    }
+--*/
+    while n>0 do
+        res += 1
+        integer v = floor(factor * power(10,remainder(res * lg,1)))
+        if v==l then
+            n -= 1
+        end if
+    end while
+    return res
+end function
+--*/
+
+?"uhoh"
+atom t0 = time()
+procedure test(integer l, n)
+    printf(1,"p(%d, %d) = %d\n", {l, n, p(l, n)})
+end procedure
+papply(true,test,columnize({{12, 1}, {12, 2}, {123, 45}, {123, 12345}, {123, 678910}}))
+?elapsed(time()-t0)
+
+?"done"
+{} = wait_key()
+

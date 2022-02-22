@@ -1355,7 +1355,10 @@ integer isSubscript         -- 1 when result is a subscript, hence assume eg (in
 integer isCompound          -- 1 when Assignment finds eg s[i] += x
         isCompound = 0
 
---with trace
+bool fromFor = false    -- special: for x in {a,b,c} do must get the length(), but without  
+                        --          clobbering (/zero_temp) the un-named temp passed to it.
+
+with trace
 procedure StoreVar(integer N, integer NTyp)
 --
 -- Store a variable, applying any final operator as needed.
@@ -1591,12 +1594,14 @@ end if
                     end if
                     sytmp = symtab[p2]
                     isInit = sytmp[S_Init]
+--DEV (spotted in passing) shouldn't we be setting p2 init here??
 if newEmit then
                     agcheckop(opLen)
 end if
                     apnds5({opLen,N,p2,isInit,opstype[opsidx]})
---29/9/21:
-                    zero_temp(p2)
+                    if not fromFor then --29/2/22 (don't clobber)
+                        zero_temp(p2) --29/9/21
+                    end if
                 end if  -- emitON
                 freeTmp(-1)
 
@@ -8598,6 +8603,15 @@ end function
 --with trace
 integer fromTopDecls = 0
 
+-- for DoTry():
+integer in_try = 0,     -- exit/break/continue invalid when >=1...
+        loopage = 0,    -- (used only for setting/comparing against the following)
+                        -- Update: now also used vs switchage (under with js)
+        try_loopage     -- ...and loopage==try_loopage (as at last in_try+=1)
+
+--06/01/2022:
+integer switchage = 0
+
 procedure Assignment(integer tidx, integer Type)--, integer onDeclaration)
 -- Parse and Translate an Assignment Statement
 integer CompoundAssignment
@@ -8759,7 +8773,11 @@ integer pstype, etype, petype, fN, s, const
                             -- save eax if rqd
                             saveFunctionResultVars(opsidx,NOTINTS)
 
-                            if opTopIsOp then PopFactor() end if
+--4/1/22... (since it must be, from DoSequence()...)
+--                          if opTopIsOp then PopFactor() end if
+--                          assert(opTopIsOp==opMkSq) [untried]
+                            assert(opTopIsOp==MkSqOp)
+                            PopFactor()
                             if opsidx!=2 then ?9/0 end if
                             integer p1 = opstack[1],
                                     p2 = opstack[2]
@@ -8771,6 +8789,10 @@ integer pstype, etype, petype, fN, s, const
                             end if
                             agcheckop(opCallProc)
                             apnds5({opCallProc,p1,p2})
+--4/1/22...
+--                          freeTmp(-opsidx)
+                            zero_temp(p2)
+                            opsidx -= 1
                             freeTmp(-opsidx)
                             new_struct = 0
                             return
@@ -9486,7 +9508,9 @@ and opsltrl[1]=1 then
 --  statemod = or_bits(statemod,K_aod)
     statemod = or_bits(statemod,K_aod+K_used)
 end if
-                if exitBP=-1 -- not in a loop
+--06/01/2022 (spotted in passing)
+--              if exitBP=-1 -- not in a loop
+                if loopage=switchage -- not in a loop
 --              and (TableEntry<0 or returnvar=1?)  -- Ah, Gvars can be set by (fwd) function calls...
 --              and snNtyp=S_TVar
                 and (snNtyp=S_TVar or (returnvar=-1 and no_of_fwd_calls=0)) -- [umm, think I meant this/t45aod]
@@ -9636,16 +9660,17 @@ r_Assignment = routine_id("Assignment")
 --constant T_endelseelsif = {T_end,T_else,T_elsif,T_elsedef,T_elsifdef,
 --constant T_endelseelsif = {T_end,T_else,T_elsif,T_case,T_default,T_break}
 constant T_endelseelsif = {T_end,T_else,T_elsif,T_case,T_catch,T_default,T_fallthru,T_fallthrough,T_until}
-constant T_endelseelsifbreak = T_endelseelsif&T_break
+constant T_endelseelsifbreak = T_endelseelsif & T_break
 --(one possible[spotted in passing]: fallthr(u|ough) missing?) -- (added 14/2/11)
 
--- for DoTry():
-integer in_try = 0      -- exit/break/continue invalid when >=1...
-integer loopage = 0,    -- (used only for setting/comparing against the following)
-        try_loopage     -- ...and loopage==try_loopage (as at last in_try+=1)
-
 procedure DoExit()
-    if exitBP=-1 then Aborp("exit statement must be inside a loop") end if
+    if exitBP=-1 then
+        if with_js=1 and breakBP!=-1 and loopage!=switchage then
+            Abort("p2js violation: switch/exit not permitted")
+        else
+            Aborp("exit statement must be inside a loop")
+        end if
+    end if
     if in_try and loopage=try_loopage then
         Aborp("invalid (circumvents try handler reset)")
     end if
@@ -9668,7 +9693,14 @@ procedure DoExit()
 end procedure
 
 procedure DoBreak()
-    if breakBP=-1 then Aborp("break statement must be inside a select") end if
+--  if breakBP=-1 then Aborp("break statement must be inside a select") end if
+    if breakBP=-1 then
+        if with_js=1 and exitBP!=-1 and switchage!=0 then
+            Abort("p2js violation: loop/break not permitted")
+        else
+            Aborp("break statement must be inside a switch statement")
+        end if
+    end if
     if in_try and loopage=try_loopage then
         Aborp("invalid (circumvents try handler reset)")
     end if
@@ -9901,7 +9933,13 @@ integer scode, wasEmit2
                 Aborp("invalid (circumvents try handler reset)")
             end if
             if ttidx=T_exit then
-                if exitBP=-1 then Aborp("exit statement must be inside a loop") end if
+                if exitBP=-1 then
+                    if with_js=1 and breakBP!=-1 and loopage!=switchage then
+                        Abort("p2js violation: switch/exit not permitted")
+                    else
+                        Aborp("exit statement must be inside a loop")
+                    end if
+                end if
                 if opsidx then
                     -- tag any scBP entries onto exitBP chain
                     -- eg/ie: "if a or b then exit"
@@ -9921,7 +9959,14 @@ integer scode, wasEmit2
 
                 MatchString(T_exit)
             elsif ttidx=T_break then
-                if breakBP=-1 then Aborp("break statement must be inside a select") end if
+--              if breakBP=-1 then Aborp("break statement must be inside a select") end if
+                if breakBP=-1 then
+                    if with_js=1 and exitBP!=-1 and switchage!=0 then
+                        Aborp("p2js violation: loop/break not permitted")
+                    else
+                        Aborp("break statement must be inside a switch statement")
+                    end if
+                end if
                 if opsidx then
                     -- tag any scBP entries onto breakBP chain
                     -- eg/ie: "if a or b then break"
@@ -10192,6 +10237,9 @@ integer waslMask
 integer thispt
 --15/10/2020:
 integer wasttidx = ttidx
+--06/01/2022:
+integer wasBreakBP = breakBP    -- (only used under with_js=1)
+    if with_js=1 then breakBP = -1 end if
 
     loopage += 1    -- for DoTry()
 --if fileno=1 then trace(1) end if
@@ -10434,435 +10482,9 @@ end if
     SideEffects = or_bits(SideEffects,wasSideEffects)
     lMask = or_bits(lMask,waslMask)
     loopage -= 1
+--06/01/2022:
+    if with_js=1 then breakBP = wasBreakBP end if
 
-end procedure
-
-
---with trace
-procedure DoFor()
---
--- Parse and Translate a For Statement
---
-integer CN, N, NI, NL, NS
---integer wasLtrlNI, wasLtrlNL, wasLtrlNS -- save opstrl[1..3]
-integer state, newScope
-integer controlvar
-integer cvtype
-integer ftyp    -- copy of opstype[opsidx] used in for loop type checking
-integer bpFor
---, jmpoffset
-integer saveExitBP, saveContinueBP, saveIchain
-integer savettidx, do_ttidx
-integer ivar,tvar,bvar,mcode
---sequence sytmp
---object dbg
-integer wasSideEffects
-integer waslMask
-integer lens5
-integer src     -- 13/5/2012
-integer flags
-integer cnTyp
-bool resurrected = false
-
-    loopage += 1    -- for DoTry()
-    wasSideEffects = SideEffects
-    SideEffects = E_none
-    waslMask = lMask
-    lMask = E_none
-
-    saveIchain = Ichain
-    Ichain = -1
-
-    MatchString(T_for)
-    if toktype!=LETTER then
-        Aborp("a loop variable name is expected here")
-    end if
-    savettidx = ttidx
---23/9/16!!
---  CN = InTable(InTop)
-    CN = InTable(InVeryTop)
-    if CN>0 then
-        -- permit re-use of local variable rather than erroring, but it must be appropriate type.
--- 1/9/14:
-        cnTyp = symtab[CN][S_NTyp]
---      if symtab[CN][S_NTyp]=S_Rsvd then
---          Aborp("illegal use of a reserved word")
-        if cnTyp=S_Const or cnTyp>S_TVar then
-            Aborp("already declared as a "&NTdesc[cnTyp])
---25/5/18:
---      elsif symtab[CN][S_vtype]!=T_integer then
-        else
-            integer cnvtyp = symtab[CN][S_vtype]
-            if cnvtyp>T_object
-            or not and_bits(cnvtyp,T_integer) then
-                Aborp("type error (for loop control variable must be an INTEGER)")
-            end if
-        end if
-        N = CN
-        state = symtab[N][S_State]
-        if and_bits(state,S_for) then
-            Aborp("already in use as control loop variable")
-        end if
---      MarkWritten(CN)
-        newScope = 0
-    else
-        CN = InTable(-InAny)
-        if CN>0 then
---21/01/2021
---          if symtab[CN][S_NTyp]=S_Rsvd then
-            if CN<=T_Asm or symtab[CN][S_NTyp]=S_Rsvd then
-                Aborp("illegal use of a reserved word")
-            end if
-        end if
---added 29/12/2011:
-        CN = 0
---      increaseScope(S_For,-1)
-        newScope = 1
-    end if
--- 19/6/10. Above edited, this removed...
---  if toktype!=LETTER then
---      Aborp("a loop variable name is expected here")
---  end if
-    controlvar = ttidx
-    getToken()
--- added 6/4/2012 (allow ":=" as well as "=")
-    if toktype=':' and Ch='=' then MatchChar(':',false) end if
-    MatchChar('=',float_valid:=true)
-    if opsidx!=0 then ?9/0 end if -- leave in (ie outside if DEBUG then)
---  ?? = tokline
---  ?? = tokcol
-    Expr(pAllops,asBool)
-    flags = 0
-    if opTopIsOp then
---      ivar = newTempVar(T_integer,Private)
---      StoreVar(ivar,T_integer)
---      PushFactor(ivar,false,T_integer)
---      opsltrl[opsidx] = 0--allowTempReuse -- mark for possible re-use
-        PopFactor()
-        flags += #01    -- init is init
-    else
---      ftyp = opstype[1]
---      if not and_bits(ftyp,T_integer) then Abork("illegal expression type",opsidx) end if
---DEV not sure we really need to do this (for tvar & bvar, we do, but since this is only[?]
---                                          used within the opFor, nowt can modify it...)
---      if opsltrl[opsidx] then
-----            if ftyp!=T_integer then checkForType() end if
---          ivar = 0
---      else
---DEV 1/11/2011:
---      if not opsltrl[opsidx] then
---DEV 13/5/2012:
---      if opsltrl[opsidx]!=1 then
-        if opsidx!=1 then ?9/0 end if
-        if opsltrl[1]!=1 then
---          ivar = newTempVar(T_integer,Private)
-            ftyp = opstype[1]
-            ivar = newTempVar(ftyp,Private)
-            src = opstack[1]
-            if ftyp=T_integer then
---DEV 13/5/2012:
---              mcode = opMovbi
-                if symtab[src][S_Init] then
-                    mcode = opMovbi
-                else
-                    mcode = opMovti
-                end if
-            else
---              checkForType()
---DEV why is this commented out??
---              mcode = opMovti
-                mcode = opMove
-            end if
-            constInt = 0
---          emitHexMov(mcode,ivar,opstack[opsidx])
---          emitHexMov(mcode,ivar,opstack[1])
-            emitHexMov(mcode,ivar,src)
---          opstack[opsidx] = ivar
-            opstack[1] = ivar
---validate_opstack()
---          opstype[opsidx] = T_integer
---          opstype[opsidx] = ftyp
---          opsltrl[opsidx] = 0--allowTempReuse -- mark for possible re-use
-            if symtab[src][S_Init] then
-                flags += #01
-            end if
-        else
-            flags += #01
-        end if
-    end if
-    if opsidx!=1 then ?9/0 end if -- leave in
-    ftyp = opstype[1]
-    if not and_bits(ftyp,T_integer) then
---      tokline = >opsline[k]
---      tokcol  = ?opstcol[k]
---      Abork("illegal expression type",opsidx)
-        Abork("illegal expression type",1)
-    end if
-
-    MatchString(T_to,float_valid:=true)
-    Expr(pAllops,asBool)
-    if opTopIsOp then
---      tvar = newTempVar(T_integer,Private)
---      StoreVar(tvar,T_integer)
---      PushFactor(tvar,false,T_integer)
---      opsltrl[opsidx] = 0--allowTempReuse -- mark for possible re-use
-        PopFactor()
-        flags += #02    -- limit is init
-    else
---      ftyp = opstype[2]
---      if not and_bits(ftyp,T_integer) then Abork("illegal expression type",opsidx) end if
---      if opsltrl[opsidx] then
-----            if ftyp!=T_integer then checkForType() end if
---          tvar = 0
---      else
---DEV 1/11/2011:
---      if not opsltrl[opsidx] then
---DEV 13/5/2012:
---      if opsltrl[opsidx]!=1 then
-        if opsidx!=2 then ?9/0 end if
-        if opsltrl[2]!=1 then
---          tvar = newTempVar(T_integer,Private)
-            ftyp = opstype[2]
-            tvar = newTempVar(ftyp,Private)
-            src = opstack[2]
-            if ftyp=T_integer then
---DEV 13/5/2012:
---              mcode = opMovbi
-                if symtab[src][S_Init] then
-                    mcode = opMovbi
-                else
-                    mcode = opMovti
-                end if
-            else
---              checkForType()
---DEV ditto
---              mcode = opMovti
-                mcode = opMove
-            end if
-            constInt = 0
---          emitHexMov(mcode,tvar,opstack[opsidx])
---          emitHexMov(mcode,tvar,opstack[2])
-            emitHexMov(mcode,tvar,src)
---          opstack[opsidx] = tvar
-            opstack[2] = tvar
---validate_opstack()
---          opstype[opsidx] = T_integer
---          opstype[opsidx] = ftyp
---          opsltrl[opsidx] = 0--allowTempReuse -- mark for possible re-use
-            if symtab[src][S_Init] then
-                flags += #02
-            end if
-        else
-            flags += #02
-        end if
-    end if
-    if opsidx!=2 then ?9/0 end if
---  if find(opstype[opsidx],"SPN") then Aborp(iet) end if
-    ftyp = opstype[2]
-    if not and_bits(ftyp,T_integer) then Abork("illegal expression type",opsidx) end if
-    if ttidx=T_by then
-        getToken()
-        Expr(pAllops,asBool)
-        if opTopIsOp then
---          bvar = newTempVar(T_integer,Private)
---          StoreVar(bvar,T_integer)
---          PushFactor(bvar,false,T_integer)
---          opsltrl[opsidx] = 0--allowTempReuse -- mark for possible re-use
-            PopFactor()
-            flags += #04    -- step is init
-        else
---          ftyp = opstype[opsidx]
---          if not and_bits(ftyp,T_integer) then Abork("illegal expression type",opsidx) end if
---          if opsltrl[opsidx] then
---          if opsltrl[opsidx]=1 then
-----                if ftyp!=T_integer then checkForType() end if
---              bvar = 0
---          else
---DEV 1/11/2011:
---          if not opsltrl[opsidx] then
---DEV 13/5/2012:
---          if opsltrl[opsidx]!=1 then
-            if opsidx!=3 then ?9/0 end if
-            if opsltrl[3]!=1 then
---              bvar = newTempVar(T_integer,Private)
-                ftyp = opstype[3]
-                bvar = newTempVar(ftyp,Private)
-                src = opstack[3]
-                if ftyp=T_integer then
---DEV 13/5/2012
---                  mcode = opMovbi
-                    if symtab[src][S_Init] then
-                        mcode = opMovbi
-                    else
-                        mcode = opMovti
-                    end if
-                else
---                  checkForType()
---Ditto
---                  mcode = opMovti
-                    mcode = opMove
-                end if
-                constInt = 0
---              emitHexMov(mcode,bvar,opstack[opsidx])
---              emitHexMov(mcode,bvar,opstack[3])
-                emitHexMov(mcode,bvar,src)
---              opstack[opsidx] = bvar
-                opstack[3] = bvar
---validate_opstack()
---              opstype[opsidx] = T_integer
---              opstype[opsidx] = ftyp
---              opsltrl[opsidx] = 0--allowTempReuse -- mark for possible re-use
-                if symtab[src][S_Init] then
-                    flags += #04
-                end if
-            else
-                flags += #04
-            end if
-        end if
-        if opsidx!=3 then ?9/0 end if   -- may need popFactor() (DEV)
---      if find(opstype[opsidx],"SPN") then Aborp(iet) end if
-        ftyp = opstype[3]
-        if not and_bits(ftyp,T_integer) then Abork("illegal expression type",opsidx) end if
-    else
-        PushFactor(T_const1,true,T_integer) -- literal 1 (symtab[T_const1] is 1)
---      tvar = 0
-        flags += #04    -- step is init
-    end if
-    if opsidx!=3 then ?9/0 end if -- leave in
-    do_ttidx = ttidx -- (13/02/14 save for checking against T_do)
-    if CN=0 then
-        ttidx = savettidx
-        cvtype = S_TVar
-        if returnvar=-1 then    -- top_level loops need a gvar
-            cvtype = S_GVar2
-        else
-            for i=1 to length(resurrect_for) do
-                CN = resurrect_for[i]
-                if symtab[CN][S_Name]=controlvar then
-                    if symtab[CN][S_NTyp]!=S_TVar then ?9/0 end if
-                    if symtab[CN][S_Nlink]!=-2 then ?9/0 end if
-                    if symtab[CN][S_vtype]!=T_integer then ?9/0 end if
-                    if and_bits(symtab[CN][S_State],K_gbl) then ?9/0 end if
-                    if controlvar!=ttidx then ?9/0 end if
-                    resurrected = true
-                    N = CN
-                    symtab[CN][S_Nlink] = tt[ttidx+EQ]
-                    tt[ttidx+EQ] = CN
-                    exit
-                end if
-            end for
-        end if
-        if not resurrected then
-            N = addSymEntry(controlvar,0,cvtype,T_integer,0,0)
-            CN = symlimit
-        end if
-    else
-        N = CN
-    end if
-    state = symtab[CN][S_State]
-    state = or_bits(state,S_for_used_set)
-    symtab[CN][S_State] = state
-
-    if symtab[CN][S_Init]=0 then
-        symtab[CN][S_Init] = saveIchain
-        saveIchain = CN
-    end if
-
-    NI = opstack[1] -- init var
-    NL = opstack[2] -- limit var
-    NS = opstack[3] -- step var
-    saveExitBP = exitBP
-    exitBP = 0  -- valid, end of chain
-    saveContinueBP = continueBP
-    continueBP = 0
-    if emitON then
-        if NOLT=0 or bind or lint then
-            apnds5({opLoopTop,E_vars,E_vars,0}) -- opLoopTop,lmask,gmask,end
-            ltlooptop(length(s5)-3)
-        end if -- NOLT
-        apnds5({opFor2,flags,NI,N,NS,NL,0})
-        bpFor = length(s5)
---hmm 25/10/17: (nope)
---      exitBP = bpFor
-    end if
---  freeTmp(-3) -- hmmm?? (no testing, just panic) [DEV]
---DEV 1/11/2011 (apparently unused [and probably should have been "(opsltrl[n]=1)"])
---  wasLtrlNI = opsltrl[1]
---  wasLtrlNL = opsltrl[2]
---  wasLtrlNS = opsltrl[3]
--- see below...
-    opsidx = 0
-
---  MatchString(T_do)
---13/2/14:
---  getToken()  -- "", except we've clobbered ttidx
-    ttidx = do_ttidx
-    MatchString(T_do)
---if tracefor then trace(1) end if
---trace(1)
-
-    Block()
-
-    emitline = line
-    if newScope then
-        -- hide non-pre-declared for loop control vars
-        tt[savettidx+EQ] = symtab[CN][S_Nlink]
-        symtab[CN][S_Nlink] = -2
-        if not resurrected
-        and returnvar!=-1 then  -- tvars only
-            resurrect_for &= CN
-        end if
-    else
-        symtab[CN][S_State] = state-S_for
-    end if
-
-    if continueBP>0 then
-        if backpatch(continueBP,0,exitMerge) then ?9/0 end if
-    end if
-    continueBP = saveContinueBP
-
-    if emitON then
---  83:  opJmp,3,95,0,                       opJmp,exitMerge,tgt,link
---  87:  opLn,14,                            --: end for
---  89:  opEndFor,17,55,                         opEndFor,END+LOOP,bpFor
---27/9/2019. DEV/Note there is now code in jskip() to perform the backpatch, and hence
---           this may work fine when simply commented out... [GOT IT NOW, PLAIN EXIT]
---      if s5[-4]=opJmp
---      and s5[-3]=exitMerge then
---          -- 25/10/17: unconditional exit immediately preceding end for is not allowed.
-----            Aborp("illegal/unsupported construct.") -- (dotless one in pilx86.e...)
---          ?9/0 -- as above, simply try deleting this test (and add to tests) [DONE]
---      end if
---      apnds5({opCtrl,END+LOOP,bpFor-8,emitline})
-        apnds5({opEndFor,END+LOOP,bpFor})   -- link opEndFor to opFor
-        lens5 = length(s5)
-        s5[bpFor] = lens5                   -- and opFor to opEndFor
-        if NOLT=0 or bind or lint then
-            ltCtrl(lens5)
-            if s5[bpFor-10]!=opLoopTop then ?9/0 end if
-            s5[bpFor-9] = lMask
-            s5[bpFor-8] = SideEffects
-            s5[bpFor-7] = lens5
-        end if -- NOLT
-    end if
-
-    MatchString(T_end)
-    MatchString(T_for)
---  if newScope then
---      dropScope(0)
---  end if
---  LastStatementWasReturn = 0
-
-    if exitBP>0 then
-        if backpatch(exitBP,0,exitMerge) then ?9/0 end if
-    end if
-    exitBP = saveExitBP
-
-    clearIchain(saveIchain)
-
-    SideEffects = or_bits(SideEffects,wasSideEffects)
-    lMask = or_bits(lMask,waslMask)
-    loopage -= 1
 end procedure
 
 --with trace
@@ -11012,6 +10634,10 @@ integer switchtop, ctrlink, elsectrl, ctrltyp, withsaid
 integer N, isLit, etype
 
 integer link
+--06/01/2022:
+integer wasExitBP = exitBP  -- (only used under with_js=1)
+    if with_js=1 then exitBP = -1 end if
+    switchage += 1
 
 --trace(1)
     if opsidx then ?9/0 end if  -- leave in (outside if DEBUG then)
@@ -11459,6 +11085,9 @@ end if
 
     SideEffects = or_bits(SideEffects,wasSideEffects)
     loopage -= 1
+--06/01/2022:
+    if with_js=1 then exitBP = wasExitBP end if
+    switchage -= 1
 
 end procedure
 
@@ -13120,6 +12749,653 @@ end if
 
 --*/
     if opsidx then ?9/0 end if  -- leave in (outside if DEBUG then)
+end procedure
+
+--with trace
+procedure DoFor()
+--
+-- Parse and Translate a For Statement
+--
+integer CN, N, NI, NL, NS
+--integer wasLtrlNI, wasLtrlNL, wasLtrlNS -- save opstrl[1..3]
+integer state, newScope
+integer controlvar
+--integer cvtype
+integer ftyp    -- copy of opstype[opsidx] used in for loop type checking
+integer bpFor
+--, jmpoffset
+integer saveExitBP, saveContinueBP, saveIchain
+integer savettidx, do_ttidx
+integer ivar,tvar,bvar,mcode
+--sequence sytmp
+--object dbg
+integer wasSideEffects
+integer waslMask
+integer lens5
+integer src     -- 13/5/2012
+integer flags
+--integer cnTyp
+bool resurrected = false
+--06/01/2022:
+integer wasBreakBP = breakBP    -- (only used under with_js=1)
+    if with_js=1 then breakBP = wasBreakBP end if
+--08/01/2022:
+bool bForIn = false,
+     bNewEscope = false,
+     bAnondx = false
+--object InElement
+--integer elemtype = T_object,
+--DEV/SUG: EN:
+integer InElement = 0,
+        InEttidx,
+--      elemtype = 0,   -- (0:can pre-exist or created as T_object, else cannot pre-exist)
+        InSequence
+--      , InLtrl, InType
+
+    loopage += 1    -- for DoTry()
+    wasSideEffects = SideEffects
+    SideEffects = E_none
+    waslMask = lMask
+    lMask = E_none
+
+    saveIchain = Ichain
+    Ichain = -1
+
+    MatchString(T_for)
+--?{toktype,LETTER,ttidx,Z_integer}
+--DEV Too simplistic? "for string s" needs bForIn:=true immediately... (maybe...)
+--  bool bInt = (toktype=LETTER and ttidx=Z_integer),
+--       bIntCV = true
+--  if bInt then MatchString(Z_integer) end if
+--  if toktype='{' then
+--  if toktype!='{' then
+--      CN = 0
+--      savettidx = -1
+--      newScope = 1
+--  else
+    if toktype!=LETTER then
+        Aborp("a loop variable name is expected here")
+    end if
+    savettidx = ttidx
+--23/9/16!!
+--  CN = InTable(InTop)
+    CN = InTable(InVeryTop)
+    if CN>0 then
+        -- permit re-use of local variable rather than erroring, but it must be appropriate type.
+-- 1/9/14:
+        integer cnTyp = symtab[CN][S_NTyp],
+                cnvtyp = symtab[CN][S_vtype]
+--      if symtab[CN][S_NTyp]=S_Rsvd then
+--          Aborp("illegal use of a reserved word")
+        if cnTyp=S_Const or cnTyp>S_TVar then
+--DEV... defer, (will trigger on "for e in s" where non-integer e already exists.../must set bForIn)
+--          Aborp("already declared as a "&NTdesc[cnTyp])
+            bForIn = true
+        elsif cnvtyp>T_object
+           or not and_bits(cnvtyp,T_integer) then
+--          Aborp("type error (for loop control variable must be an INTEGER)")
+--          bIntCV = false
+            bForIn = true
+        else
+--      elemtype = cnvtyp
+            state = symtab[CN][S_State]
+            if and_bits(state,S_for) then
+                Aborp("already in use as control loop variable")
+            end if
+        end if
+        N = CN
+--      MarkWritten(CN)
+        newScope = 0
+    else
+        CN = InTable(-InAny)
+        if CN>0 then
+--21/01/2021
+--          if symtab[CN][S_NTyp]=S_Rsvd then
+            if CN<=T_Asm or symtab[CN][S_NTyp]=S_Rsvd then
+                Aborp("illegal use of a reserved word")
+--          elsif bInt then
+--              Aborp("already declared")
+            end if
+        end if
+--added 29/12/2011:
+        CN = 0
+--      increaseScope(S_For,-1)
+        newScope = 1
+    end if
+-- 19/6/10. Above edited, this removed...
+--  if toktype!=LETTER then
+--      Aborp("a loop variable name is expected here")
+--  end if
+    controlvar = ttidx
+    getToken()
+--7/1/22 (for in)
+    if toktype=',' or
+      (toktype=LETTER and ttidx=T_in) then
+        --
+        -- notes: if bInt and ch='{' then it's the "for integer {..} in" case.
+        --        if ch='{' and CN!=-1 then it's a syntax error[??].
+        --
+        if toktype=',' then
+            if bForIn then
+                Aborp("type error (for loop control variable must be an INTEGER)")
+            end if
+            getToken()
+--          if toktype=LETTER then
+--              tokno = InTable(-InAny)
+--              if tokno>0 and symtab[tokno][S_NTyp]=S_Type then
+--                  integer used = symtab[tokno][S_State]
+--                  if not and_bits(used,S_used) then
+--                      symtab[tokno][S_State] = used+S_used
+--                  end if
+--                  if elemtype!=T_object then ?9/0 end if -- sanity check[?]
+--                  elemtype = tokno
+----bMustBeNew = true?
+--                  getToken()
+--              end if
+--          end if
+            if toktype!=LETTER then
+                Aborp("an element name is expected here")
+--              Aborp("a loop variable name is expected here")
+            end if
+            InElement = InTable(InVeryTop)
+            InEttidx = ttidx
+            if InElement>0 then
+--          if InElement<=0 then
+                -- permit re-use of local variable.
+--              ?N = InElement
+                bNewEscope = false
+            else
+                InElement = InTable(-InAny)
+                if InElement>0 then
+                    if CN<=T_Asm or symtab[CN][S_NTyp]=S_Rsvd then
+                        Aborp("illegal use of a reserved word")
+                    end if
+                end if
+                InElement = 0
+                bNewEscope = true
+            end if
+            getToken()
+        else
+            bAnondx = true
+--save/transfer??
+            InElement = CN          
+            bNewEscope = newScope
+--          ?? = controlvar
+--          InEttidx = savettidx
+            InEttidx = controlvar
+--DEV or do we just want a NewTempVar() here?
+            controlvar = -1
+            savettidx = -1
+--          savettidx = 0
+            CN = 0
+            newScope = true
+        end if
+--?9/0
+        PushFactor(T_const1,true,T_integer)
+--X     flags += #01    -- init is init
+        MatchString(T_in)
+        Expr(pAllops,asBool)
+        if opTopIsOp then PopFactor() end if
+        if opsidx!=2 then ?9/0 end if
+        InSequence = opstack[2]
+--      InLtrl = opsltrl[2]
+--      InType = opstype[2]
+--      opsidx = 0
+--Xprobably needed:
+--      PushFactor(InSequence,InLtrl,InType)
+        PushOp(opLen,BltinOp)
+--X     PopFactor() -- (not needed)
+--X         flags += #02    -- limit is init
+        fromFor = true -- no clobbering! (ie when length(unnamed_temp) invoked)
+        PushFactor(T_const1,true,T_integer) -- literal 1 (symtab[T_const1] is 1)
+        fromFor = false
+--X         flags += #04    -- step is init
+        flags = #07     -- (init, limit, step) all init 
+
+--/*
+--  10:  opLn,192,                           --:for integer i=1 to length(s) do
+--  12:  opLen,2299,2295,0,15,               opLen,dest,src,isInit(src),ltype(src, <= T_object)
+--  17:  opLoopTop,0,668992512,65,           opLoopTop,lmask,gmask,end
+--  21:  opFor2,7,26,2300,26,2299,65,        opFor,flags(INIT+LIMIT+STEP),init,ctl,step,limit,tgt
+--  28:  opLn,194,                           --: object e = s[i]
+--  30:  opUnassigned,2295,
+--  32:  opSubse1,2301,2295,2300,2,0,        opSubse1,dest,ref,idx,isInit(ref and idx),isCompound
+
+--; 192 for integer i=1 to length(s) do -- good, triggers error when i already declared
+    mov edi,#0040299C                     ;#00429047: 277 9C294000               uv 80 00  1  14      
+    mov esi,[#00402994] (s)               ;#0042904C: 213065 94294000            vu 40 00  1  14      
+    mov edx,1179                          ;#00429052: 272 9B040000               uv 04 00  1  15      
+    call #00432107 (:%opLen)              ;#00429057: 350 AB900000               v  00 00  1  15      
+    mov [#004029A0] (i), dword 1          ;#0042905C: 307005 A0294000 01000000   uv 00 00  1  16      
+--; 193 --for i=1 to length(s) do
+;   194     object e = s[i]
+    mov eax,[#00402994] (s)               ;#00429066: 241 94294000               vu 01 00  1  16      
+    cmp eax,h4                            ;#0042906B: 075 00000040               uv 00 01  1  17      
+    jne #0042907C                         ;#00429070: 165 0A                     v  00 00  1  17      
+    mov esi,1179                          ;#00429072: 276 9B040000               uv 40 00  1  18      
+    call #00435807 (:%pUnassigned)        ;#00429077: 350 8BC70000               v  00 00  1  18      
+    mov edi,[#004029A0] (i)               ;#0042907C: 213075 A0294000            uv 80 00  1  19      
+    mov ecx,#004029A4                     ;#00429082: 271 A4294000               vu 02 00  1  19      
+    mov esi,eax                           ;#00429087: 211306                     uv 40 01  1  20      
+    mov edx,1179                          ;#00429089: 272 9B040000               vu 04 00  1  20      
+    call #00434100 (:%pSubse1)            ;#0042908E: 350 6DB00000               v  00 00  1  21      
+  
+    if toktype=LETTER then
+        tokno = InTable(-InAny)
+    end if
+--  while 1 do
+        if toktype!=LETTER then exit end if
+        if tokno<=0 then exit end if
+        used = symtab[tokno]
+        if used[S_NTyp]!=S_Type then exit end if
+        used = used[S_State]    -- (also kills a refcount)
+        if not and_bits(used,S_used) then
+            symtab[tokno][S_State] = used+S_used
+        end if
+        Typ = tokno
+        getToken()
+
+            getToken()
+            if toktype=LETTER then
+                tokno = InTable(-InAny)
+                if tokno>0 and symtab[tokno][S_NTyp]=S_Type then exit end if
+            end if
+
+--maybe (from dotry)
+        integer cvtype = S_TVar
+        if returnvar=-1 then    -- (top_level try statements need a gvar)
+            cvtype = S_GVar2
+        end if
+        E = addSymEntry(ttidx,false,cvtype,T_Dsq,0,S_set)
+        savettidx = ttidx
+        newScope = true
+
+--*/
+        bForIn = true
+    else
+        if bForIn then
+            Aborp("type error (for loop control variable must be an INTEGER)")
+        end if
+-- added 6/4/2012 (allow ":=" as well as "=")
+        if toktype=':' and Ch='=' then MatchChar(':',false) end if
+        MatchChar('=',float_valid:=true)
+        if opsidx!=0 then ?9/0 end if -- leave in (ie outside if DEBUG then)
+        Expr(pAllops,asBool)
+        flags = 0
+        if opTopIsOp then
+--          ivar = newTempVar(T_integer,Private)
+--          StoreVar(ivar,T_integer)
+--          PushFactor(ivar,false,T_integer)
+--          opsltrl[opsidx] = 0--allowTempReuse -- mark for possible re-use
+            PopFactor()
+            flags += #01    -- init is init
+        else
+--          ftyp = opstype[1]
+--          if not and_bits(ftyp,T_integer) then Abork("illegal expression type",opsidx) end if
+--DEV not sure we really need to do this (for tvar & bvar, we do, but since this is only[?]
+--                                          used within the opFor, nowt can modify it...)
+--          if opsltrl[opsidx] then
+----                if ftyp!=T_integer then checkForType() end if
+--              ivar = 0
+--          else
+--DEV 1/11/2011:
+--          if not opsltrl[opsidx] then
+--DEV 13/5/2012:
+--          if opsltrl[opsidx]!=1 then
+            if opsidx!=1 then ?9/0 end if
+            if opsltrl[1]!=1 then
+--              ivar = newTempVar(T_integer,Private)
+                ftyp = opstype[1]
+                ivar = newTempVar(ftyp,Private)
+                src = opstack[1]
+                if ftyp=T_integer then
+--DEV 13/5/2012:
+--                  mcode = opMovbi
+                    if symtab[src][S_Init] then
+                        mcode = opMovbi
+                    else
+                        mcode = opMovti
+                    end if
+                else
+--                  checkForType()
+--DEV why is this commented out??
+--                  mcode = opMovti
+                    mcode = opMove
+                end if
+                constInt = 0
+--              emitHexMov(mcode,ivar,opstack[opsidx])
+--              emitHexMov(mcode,ivar,opstack[1])
+                emitHexMov(mcode,ivar,src)
+--              opstack[opsidx] = ivar
+                opstack[1] = ivar
+--validate_opstack()
+--              opstype[opsidx] = T_integer
+--              opstype[opsidx] = ftyp
+--              opsltrl[opsidx] = 0--allowTempReuse -- mark for possible re-use
+                if symtab[src][S_Init] then
+                    flags += #01
+                end if
+            else
+                flags += #01
+            end if
+        end if
+        if opsidx!=1 then ?9/0 end if -- leave in
+        ftyp = opstype[1]
+        if not and_bits(ftyp,T_integer) then
+--          tokline = >opsline[k]
+--          tokcol  = ?opstcol[k]
+--          Abork("illegal expression type",opsidx)
+            Abork("illegal expression type",1)
+        end if
+
+        MatchString(T_to,float_valid:=true)
+        Expr(pAllops,asBool)
+        if opTopIsOp then
+--          tvar = newTempVar(T_integer,Private)
+--          StoreVar(tvar,T_integer)
+--          PushFactor(tvar,false,T_integer)
+--          opsltrl[opsidx] = 0--allowTempReuse -- mark for possible re-use
+            PopFactor()
+            flags += #02    -- limit is init
+        else
+--          ftyp = opstype[2]
+--          if not and_bits(ftyp,T_integer) then Abork("illegal expression type",opsidx) end if
+--          if opsltrl[opsidx] then
+----                if ftyp!=T_integer then checkForType() end if
+--              tvar = 0
+--          else
+--DEV 1/11/2011:
+--          if not opsltrl[opsidx] then
+--DEV 13/5/2012:
+--          if opsltrl[opsidx]!=1 then
+            if opsidx!=2 then ?9/0 end if
+            if opsltrl[2]!=1 then
+--              tvar = newTempVar(T_integer,Private)
+                ftyp = opstype[2]
+                tvar = newTempVar(ftyp,Private)
+                src = opstack[2]
+                if ftyp=T_integer then
+--DEV 13/5/2012:
+--                  mcode = opMovbi
+                    if symtab[src][S_Init] then
+                        mcode = opMovbi
+                    else
+                        mcode = opMovti
+                    end if
+                else
+--                  checkForType()
+--DEV ditto
+--                  mcode = opMovti
+                    mcode = opMove
+                end if
+                constInt = 0
+--              emitHexMov(mcode,tvar,opstack[opsidx])
+--              emitHexMov(mcode,tvar,opstack[2])
+                emitHexMov(mcode,tvar,src)
+--              opstack[opsidx] = tvar
+                opstack[2] = tvar
+--validate_opstack()
+--              opstype[opsidx] = T_integer
+--              opstype[opsidx] = ftyp
+--              opsltrl[opsidx] = 0--allowTempReuse -- mark for possible re-use
+                if symtab[src][S_Init] then
+                    flags += #02
+                end if
+            else
+                flags += #02
+            end if
+        end if
+        if opsidx!=2 then ?9/0 end if
+--      if find(opstype[opsidx],"SPN") then Aborp(iet) end if
+        ftyp = opstype[2]
+        if not and_bits(ftyp,T_integer) then Abork("illegal expression type",opsidx) end if
+        if ttidx=T_by then
+            getToken()
+            Expr(pAllops,asBool)
+            if opTopIsOp then
+--              bvar = newTempVar(T_integer,Private)
+--              StoreVar(bvar,T_integer)
+--              PushFactor(bvar,false,T_integer)
+--              opsltrl[opsidx] = 0--allowTempReuse -- mark for possible re-use
+                PopFactor()
+                flags += #04    -- step is init
+            else
+--              ftyp = opstype[opsidx]
+--              if not and_bits(ftyp,T_integer) then Abork("illegal expression type",opsidx) end if
+--              if opsltrl[opsidx] then
+--              if opsltrl[opsidx]=1 then
+----                    if ftyp!=T_integer then checkForType() end if
+--                  bvar = 0
+--              else
+--DEV 1/11/2011:
+--              if not opsltrl[opsidx] then
+--DEV 13/5/2012:
+--              if opsltrl[opsidx]!=1 then
+                if opsidx!=3 then ?9/0 end if
+                if opsltrl[3]!=1 then
+--                  bvar = newTempVar(T_integer,Private)
+                    ftyp = opstype[3]
+                    bvar = newTempVar(ftyp,Private)
+                    src = opstack[3]
+                    if ftyp=T_integer then
+--DEV 13/5/2012
+--                      mcode = opMovbi
+                        if symtab[src][S_Init] then
+                            mcode = opMovbi
+                        else
+                            mcode = opMovti
+                        end if
+                    else
+--                      checkForType()
+--Ditto
+--                      mcode = opMovti
+                        mcode = opMove
+                    end if
+                    constInt = 0
+--                  emitHexMov(mcode,bvar,opstack[opsidx])
+--                  emitHexMov(mcode,bvar,opstack[3])
+                    emitHexMov(mcode,bvar,src)
+--                  opstack[opsidx] = bvar
+                    opstack[3] = bvar
+--validate_opstack()
+--                  opstype[opsidx] = T_integer
+--                  opstype[opsidx] = ftyp
+--                  opsltrl[opsidx] = 0--allowTempReuse -- mark for possible re-use
+                    if symtab[src][S_Init] then
+                        flags += #04
+                    end if
+                else
+                    flags += #04
+                end if
+            end if
+            if opsidx!=3 then ?9/0 end if   -- may need popFactor() (DEV)
+--          if find(opstype[opsidx],"SPN") then Aborp(iet) end if
+            ftyp = opstype[3]
+            if not and_bits(ftyp,T_integer) then Abork("illegal expression type",opsidx) end if
+        else
+            PushFactor(T_const1,true,T_integer) -- literal 1 (symtab[T_const1] is 1)
+--          tvar = 0
+            flags += #04    -- step is init
+        end if
+    end if
+    if opsidx!=3 then ?9/0 end if -- leave in
+    do_ttidx = ttidx -- (13/02/14 save for checking against T_do)
+    if bAnondx then
+        CN = newTempVar(T_integer,Shared)
+        N = CN
+    else
+        if CN=0 then
+            ttidx = savettidx
+            integer cvtype = S_TVar
+            if returnvar=-1 then    -- top_level loops need a gvar
+                cvtype = S_GVar2
+            else
+--          elsif not bAnondx then
+                for i=1 to length(resurrect_for) do
+                    CN = resurrect_for[i]
+                    if symtab[CN][S_Name]=controlvar then
+                        if symtab[CN][S_NTyp]!=S_TVar then ?9/0 end if
+                        if symtab[CN][S_Nlink]!=-2 then ?9/0 end if
+                        if symtab[CN][S_vtype]!=T_integer then ?9/0 end if
+                        if and_bits(symtab[CN][S_State],K_gbl) then ?9/0 end if
+                        if controlvar!=ttidx then ?9/0 end if
+                        resurrected = true
+                        N = CN
+                        symtab[CN][S_Nlink] = tt[ttidx+EQ]
+                        tt[ttidx+EQ] = CN
+                        exit
+                    end if
+                end for
+            end if
+            if not resurrected then
+                N = addSymEntry(controlvar,0,cvtype,T_integer,0,0)
+                CN = symlimit
+            end if
+        else
+            N = CN
+        end if
+--  if not bAnondx then
+        state = symtab[CN][S_State]
+        state = or_bits(state,S_for_used_set)
+        symtab[CN][S_State] = state
+
+        if symtab[CN][S_Init]=0 then
+            symtab[CN][S_Init] = saveIchain
+            saveIchain = CN
+        end if
+    end if
+    if bForIn then
+        if InElement=0 then
+            if not bNewEscope then ?9/0 end if -- ??
+--          ttidx = InEttidx
+            integer cvtype = iff(returnvar=-1?S_GVar2:S_TVar)
+--          InElement = addSymEntry(?controlvar,0,cvtype,T_object,0,0)
+--          InElement = addSymEntry(ttidx,0,cvtype,T_object,0,0)
+            InElement = addSymEntry(InEttidx,0,cvtype,T_object,0,0)
+        end if
+        state = symtab[InElement][S_State]
+        state = or_bits(state,S_used_and_set)
+        symtab[InElement][S_State] = state
+    end if
+
+    NI = opstack[1] -- init var
+    NL = opstack[2] -- limit var
+    NS = opstack[3] -- step var
+    saveExitBP = exitBP
+    exitBP = 0  -- valid, end of chain
+    saveContinueBP = continueBP
+    continueBP = 0
+    if emitON then
+        if NOLT=0 or bind or lint then
+            apnds5({opLoopTop,E_vars,E_vars,0}) -- opLoopTop,lmask,gmask,end
+            ltlooptop(length(s5)-3)
+        end if -- NOLT
+        apnds5({opFor2,flags,NI,N,NS,NL,0})
+        bpFor = length(s5)
+--hmm 25/10/17: (nope)
+--      exitBP = bpFor
+--08/02/2022:
+        if bForIn then
+--  28:  opLn,194,                           --: object e = s[i]
+--  32:  opSubse1,2301,2295,2300,2,0,        opSubse1,dest,ref,idx,isInit(ref and idx),isCompound
+--  32:  opSubse1,2301,2295,2300,2,0,        opSubse1,InElement,InSequence,CN,3,0
+            apnds5({opSubse1,InElement,InSequence,CN,3,0})  -- e:=s[i]
+--          ?9/0 -- placeholder (add the e:=s[i])
+        end if
+    end if
+--  freeTmp(-3) -- hmmm?? (no testing, just panic) [DEV]
+--DEV 1/11/2011 (apparently unused [and probably should have been "(opsltrl[n]=1)"])
+--  wasLtrlNI = opsltrl[1]
+--  wasLtrlNL = opsltrl[2]
+--  wasLtrlNS = opsltrl[3]
+-- see below...
+    opsidx = 0
+
+--  MatchString(T_do)
+--13/2/14:
+--  getToken()  -- "", except we've clobbered ttidx
+    ttidx = do_ttidx
+    MatchString(T_do)
+--if tracefor then trace(1) end if
+--trace(1)
+
+    Block()
+
+    emitline = line
+    if newScope then
+        if bAnondx then
+            opsidx += 1
+            opstack[opsidx] = CN
+            opsltrl[opsidx] = allowTempReuse
+            freeTmp(-1)
+        else
+            -- hide non-pre-declared for loop control vars
+            tt[savettidx+EQ] = symtab[CN][S_Nlink]
+            symtab[CN][S_Nlink] = -2
+            if not resurrected
+            and returnvar!=-1 then  -- tvars only
+                resurrect_for &= CN
+            end if
+        end if
+    else
+        symtab[CN][S_State] = state-S_for
+    end if
+    if bForIn and bNewEscope then
+        -- hide non-pre-declared for in element var
+--?"pmain.e line 13321"
+        tt[InEttidx+EQ] = symtab[InElement][S_Nlink]
+        symtab[InElement][S_Nlink] = -2
+    end if
+
+    if continueBP>0 then
+        if backpatch(continueBP,0,exitMerge) then ?9/0 end if
+    end if
+    continueBP = saveContinueBP
+
+    if emitON then
+--  83:  opJmp,3,95,0,                       opJmp,exitMerge,tgt,link
+--  87:  opLn,14,                            --: end for
+--  89:  opEndFor,17,55,                         opEndFor,END+LOOP,bpFor
+--27/9/2019. DEV/Note there is now code in jskip() to perform the backpatch, and hence
+--           this may work fine when simply commented out... [GOT IT NOW, PLAIN EXIT]
+--      if s5[-4]=opJmp
+--      and s5[-3]=exitMerge then
+--          -- 25/10/17: unconditional exit immediately preceding end for is not allowed.
+----            Aborp("illegal/unsupported construct.") -- (dotless one in pilx86.e...)
+--          ?9/0 -- as above, simply try deleting this test (and add to tests) [DONE]
+--      end if
+--      apnds5({opCtrl,END+LOOP,bpFor-8,emitline})
+        apnds5({opEndFor,END+LOOP,bpFor})   -- link opEndFor to opFor
+        lens5 = length(s5)
+        s5[bpFor] = lens5                   -- and opFor to opEndFor
+        if NOLT=0 or bind or lint then
+            ltCtrl(lens5)
+            if s5[bpFor-10]!=opLoopTop then ?9/0 end if
+            s5[bpFor-9] = lMask
+            s5[bpFor-8] = SideEffects
+            s5[bpFor-7] = lens5
+        end if -- NOLT
+    end if
+
+    MatchString(T_end)
+    MatchString(T_for)
+--  if newScope then
+--      dropScope(0)
+--  end if
+--  LastStatementWasReturn = 0
+
+    if exitBP>0 then
+        if backpatch(exitBP,0,exitMerge) then ?9/0 end if
+    end if
+    exitBP = saveExitBP
+
+    clearIchain(saveIchain)
+
+    SideEffects = or_bits(SideEffects,wasSideEffects)
+    lMask = or_bits(lMask,waslMask)
+    loopage -= 1
+--06/01/2022:
+    if with_js=1 then breakBP = wasBreakBP end if
 end procedure
 
 --integer Z_format -- T_format until include/code processed

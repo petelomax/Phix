@@ -1016,13 +1016,17 @@ global function tokstack_push(string filename, integer line)
     if sources={} then
         sources = append(sources,src)
     end if
-    src = get_text(filename)
+--31/12/21:
+--  src = get_text(filename)
+    src = get_text(filename,GT_WHOLE_FILE)
+    src = substitute(src,"\r\n","\n")
     sources = append(sources,src)
     integer srcdx = length(sources)
     tokstack = append(tokstack,{filepath,filename,srcdx,tdx,tokens,clines,textlines,current_file})
 --?src
     lt = length(src)
-    textlines = split(substitute(src,"\r\n","\n"),'\n',false) -- DEV common up? (p2js_basics.e:121)
+--  textlines = split(substitute(src,"\r\n","\n"),'\n',false) -- DEV common up? (p2js_basics.e:121)
+    textlines = split(src,'\n',false) -- DEV common up? (p2js_basics.e:121)
     current_file = filename
     tokenise()
     tdx = 1

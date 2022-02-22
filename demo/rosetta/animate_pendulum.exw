@@ -2,6 +2,115 @@
 -- demo\rosetta\animate_pendulum.exw
 -- =================================
 --
+-- Author Pete Lomax, March 2017
+--
+-- Port of animate_pendulum.exw from arwen to pGUI, which is now
+--  preserved as a comment below (in the distro version only).
+--
+-- With help from lesterb, updates now in timer_cb not redraw_cb,
+-- variables better named, and velocity problem sorted, July 2018.
+--
+with javascript_semantics
+include pGUI.e
+
+constant full = false   -- set true for full swing to near-vertical.
+                        -- false performs swing to horizontal only.
+                        -- (adjusts the starting angle, pivot point,
+                        --  and canvas size, only.)
+
+Ihandle dlg, canvas, timer
+cdCanvas cdcanvas
+
+constant g = 50
+
+atom angle = iff(full?PI-0.01:PI/2),  -- (near_vertical | horiz)
+     velocity = 0
+integer w = 0, h = 0, len = 0
+
+function redraw_cb(Ihandle /*ih*/)
+    {w, h} = IupGetIntInt(canvas, "DRAWSIZE")
+    cdCanvasActivate(cdcanvas)
+    cdCanvasClear(cdcanvas)
+    -- new suspension point:
+    integer sX = floor(w/2)
+    integer sY = floor(h/iff(full?2:16))  -- (mid | top)
+    -- repaint:
+    integer eX = floor(len*sin(angle)+sX)
+    integer eY = floor(len*cos(angle)+sY)
+    cdCanvasSetForeground(cdcanvas, CD_CYAN)
+    cdCanvasLine(cdcanvas, sX, h-sY, eX, h-eY)
+    cdCanvasSetForeground(cdcanvas, CD_DARK_GREEN)
+    cdCanvasSector(cdcanvas, sX, h-sY, 5, 5, 0, 360)
+    cdCanvasSetForeground(cdcanvas, CD_BLUE)
+    cdCanvasSector(cdcanvas, eX, h-eY, 35, 35, 0, 360)
+    cdCanvasFlush(cdcanvas)
+    return IUP_DEFAULT
+end function
+
+function timer_cb(Ihandle /*ih*/)
+    if w!=0 then
+        integer newlen = floor(w/2)-30
+        if newlen!=len then
+            len = newlen
+            atom tmp = 2*g*len*(cos(angle))
+            velocity = iff(tmp<0?0:sqrt(tmp)*sign(velocity))
+        end if
+        atom dt = 0.2/w
+        atom acceleration = -len*sin(angle)*g
+        velocity += dt*acceleration
+        angle += dt*velocity
+        IupUpdate(canvas)
+    end if
+    return IUP_IGNORE
+end function
+
+function map_cb(Ihandle /*ih*/)
+    IupGLMakeCurrent(canvas)
+    if platform()=JS then
+        cdcanvas = cdCreateCanvas(CD_IUP, canvas)
+    else
+        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+        cdcanvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    end if
+    cdCanvasSetBackground(cdcanvas, CD_PARCHMENT)
+    return IUP_DEFAULT
+end function
+
+function canvas_resize_cb(Ihandle /*canvas*/)
+    integer {canvas_width, canvas_height} = IupGetIntInt(canvas, "DRAWSIZE")
+    atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+    cdCanvasSetAttribute(cdcanvas, "SIZE", "%dx%d %g", {canvas_width, canvas_height, res})
+    return IUP_DEFAULT
+end function
+
+procedure main()
+    IupOpen()
+
+    canvas = IupGLCanvas()
+    IupSetAttribute(canvas, "RASTERSIZE", iff(full?"640x640":"640x340")) -- (fit 360|180)
+    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
+    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+    IupSetCallback(canvas, "RESIZE_CB", Icallback("canvas_resize_cb"))
+
+    timer = IupTimer(Icallback("timer_cb"), 20)
+
+    dlg = IupDialog(canvas)
+    IupSetAttribute(dlg, "TITLE", "Animated Pendulum")
+
+    IupShow(dlg)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL)
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
+end procedure
+
+main()
+--/*
+--
+-- demo\rosetta\animate_pendulum.exw
+-- =================================
+--
 -- Author Pete Lomax, August 2015
 --
 -- This has now been ported to pGUI, see animate_pendulum2.exw
@@ -103,4 +212,4 @@ end function
 setHandler({main},routine_id("mainHandler"))
 
 WinMain(main, SW_NORMAL)
-
+--*/

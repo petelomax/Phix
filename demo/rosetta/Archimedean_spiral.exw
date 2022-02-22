@@ -13,10 +13,10 @@ function redraw_cb(Ihandle /*ih*/)
             a = 0, b = 5, cx = floor(w/2), cy = floor(h/2)
     cdCanvasActivate(cddbuffer)
     for deg=0 to 360*7 do
-        atom rad = deg*PI/180
-        atom r = rad*b + a
-        integer x = cx + floor(r*cos(rad))
-        integer y = cy + floor(r*sin(rad))
+        atom rad = deg*PI/180,
+             r = rad*b + a
+        integer x = cx + floor(r*cos(rad)),
+                y = cy + floor(r*sin(rad))
         cdCanvasPixel(cddbuffer, x, y, #00FF00) 
     end for
     cdCanvasFlush(cddbuffer)
@@ -33,14 +33,10 @@ end function
 
 procedure main()
     IupOpen()
-    
-    canvas = IupCanvas(NULL)
-    IupSetAttribute(canvas, "RASTERSIZE", "500x500") -- initial size
-    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
-    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
-
-    dlg = IupDialog(canvas)
-    IupSetAttribute(dlg, "TITLE", "Archimedean spiral")
+    canvas = IupCanvas("RASTERSIZE=500x500") -- initial size
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "ACTION", Icallback("redraw_cb")})
+    dlg = IupDialog(canvas,`TITLE="Archimedean spiral"`)
     IupShow(dlg)
     IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release the minimum limitation
     if platform()!=JS then

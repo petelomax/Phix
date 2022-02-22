@@ -89,19 +89,17 @@ end procedure
 
 global procedure makeDibGray(a32Dib dib)
 -- Makes the bitmap gray (black & white)
-atom memory, x
-integer gray, bytes_per_line, width3
-sequence color
-    memory = dib[DibMemory]
-    bytes_per_line = dib[DibBytesPerLine]
-    width3 = dib[DibWidth]*3-3
+    atom memory = dib[DibMemory]
+    integer bytes_per_line = dib[DibBytesPerLine],
+            width3 = dib[DibWidth]*3-3,
+            dbt = dib[DibBytesTotal]
 --  for y = memory to memory + dib[DibBytesTotal] - bytes_per_line by bytes_per_line do
-    for y=0 to dib[DibBytesTotal]-bytes_per_line by bytes_per_line do
+    for y=0 to dbt-bytes_per_line by bytes_per_line do
 --      for x = y to y + width3 by 3 do
         for z=y to y+width3 by 3 do
-            x = memory+z
-            color = peek({x, 3})
-            gray = floor((color[1]*114+color[2]*587+color[3]*299)/1000)
+            atom x = memory+z
+            integer {c1,c2,c3} = peek({x, 3}),
+                    gray = floor((c1*114+c2*587+c3*299)/1000)
             mem_set(x, gray, 3)
         end for
     end for

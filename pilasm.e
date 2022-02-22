@@ -3996,13 +3996,23 @@ end if
                     s5 &= {0o336,xrm}
                 end if
             elsif ttidx=T_fsub
-               or ttidx=T_fadd then
+               or ttidx=T_fadd
+               or ttidx=T_fdiv then
+--; 661 --                  fdiv st0,st1
+--; 662                     fadd st0,st1
+--                          fadd st0,st1  ;#004373D5: 330301                     np 00 00  3  22      
+--; 663                     fsub st0,st1
+--                          fsub st0,st1  ;#004373D7: 330341                     np 00 00  3  25      
+    
                 if ttidx=T_fadd then
                     xrm = 0o310
                     mod = 0
                 elsif ttidx=T_fsub then
                     xrm = 0o350
                     mod = 4
+                elsif ttidx=T_fdiv then
+                    xrm = 0o370
+                    mod = 6
 --              elsif ttidx=T_fmul then
 --?                 xrm = 0o310
 --                  mod = 1

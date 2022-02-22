@@ -9,7 +9,7 @@
 --
 -- Aside: was originally coded in assembler; hll seems more sensible.
 
---!/**/without debug
+--/**/without debug
 
 --include builtins\pcfunc2.e as pcfunc
 

@@ -44,7 +44,7 @@
 }
 
 /*global*/ function exp(/*atom*/ a) {
-    return power(E,a);
+    return power(EULER,a);
 }
 //bool bUseBankersRounding = false
 

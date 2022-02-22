@@ -21,7 +21,7 @@
 --  (which is something prepend, as opposed to append, /always/ does)
 --  which causes a fatal error, eg see 'elsif fmt[i]='s' then'.
 
---!/**/without debug -- remove to debug (just keeps ex.err clutter-free)
+--/**/without debug -- remove to debug (just keeps ex.err clutter-free)
 --!/**/with debug
 --  NB the "without debug" in both pdiag.e and ppp.e overshadow the one
 --      here; use "with debug" and/or "-nodiag" to get a listing.
@@ -311,6 +311,9 @@ end for
                     if precision then
                         result &= '0'
 --24/5/20 (check removed)
+--28/12/21 (check restored... [can no longer remember why it was removed, nowt in the release notes...])
+--06/02/22 (removed again, for demo/pGUI/graph1.exw ["%.1f", -5.55e-17 printing as "-0.00000000000000006"])
+--         (can't be absolutely sure, but I probably made that change for the approximate equality task..)
 --                      if minfieldwidth>0 then
                             precision -= 1
 --                      end if
@@ -321,7 +324,7 @@ end for
             end if
         end if
 
-        while 1 do
+        while true do
             if exponent=-1 then
                 if precision>0 then
                     if not dotdone then
@@ -517,6 +520,47 @@ bool unicode_align = false
 
 --forward function sprint(object x, integer asCh=false, maxlen=-1, nest=0)
 
+procedure init_2()
+-- [DEV] technically this isn't thread safe... (code shown commented out should be enough, once those routines work)
+    -- (uncommented 25/11/16)
+    enter_cs()
+    if not init2 then
+--DEV make INF a builtin (like PI), ditto NAN:
+--      inf = 1e300*1e300
+        #ilASM{ fld1
+                fldz
+                fdivp
+            [32]
+                lea edi,[inf]
+            [64]
+                lea rdi,[inf]
+            []
+                call :%pStoreFlt }
+
+        -- Erm, this one is a bit bizarre...
+        -- On the one hand it seems RDS Eu does not support nan properly, but then it somehow does...
+        -- If you try testing for nan, it seems to go all pear-shaped, but avoiding the tests
+        --  seems to make it happy again, and yet print "nan" and "inf" like a good little boy...
+        -- Of course, you shouldn't be using this code on RDS Eu anyway.
+        --
+--/**/  nan = -(inf/inf)        --/* Phix
+        nan = 3.245673689e243   --   RDS --*/
+
+        bases = {10,16,8,2}
+--      hexchar = "0123456789ABCDEFabcdef"
+--      hexchar = tagset('9','0') & tagset('Z','A') & tagset('z','a')
+        hexchar = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+--  ?hexchar
+--  ?hexchar[1+10]&""       -- 'A'
+--  ?hexchar[1+10+26]&""    -- 'a'
+
+--      dxoetc = "dxobscvefgEXG"
+        dxoetc = "dxobstncvVefgEXG"
+        init2 = 1
+    end if
+    leave_cs()
+end procedure
+
 --without trace
 function sprintf_(sequence fmt, object args)
 integer i, fi, fidx
@@ -539,46 +583,7 @@ integer precision
 --      precision = 0
 integer tmp
 
-    if not init2 then
--- [DEV] technically this isn't thread safe... (code shown commented out should be enough, once those routines work)
-        -- (uncommented 25/11/16)
-        enter_cs()
-        if not init2 then
---DEV make INF a builtin (like PI), ditto NAN:
---          inf = 1e300*1e300
-            #ilASM{ fld1
-                    fldz
-                    fdivp
-                [32]
-                    lea edi,[inf]
-                [64]
-                    lea rdi,[inf]
-                []
-                    call :%pStoreFlt }
-
-            -- Erm, this one is a bit bizarre...
-            -- On the one hand it seems RDS Eu does not support nan properly, but then it somehow does...
-            -- If you try testing for nan, it seems to go all pear-shaped, but avoiding the tests
-            --  seems to make it happy again, and yet print "nan" and "inf" like a good little boy...
-            -- Of course, you shouldn't be using this code on RDS Eu anyway.
-            --
---/**/      nan = -(inf/inf)        --/* Phix
-            nan = 3.245673689e243   --   RDS --*/
-
-            bases = {10,16,8,2}
---          hexchar = "0123456789ABCDEFabcdef"
---          hexchar = tagset('9','0') & tagset('Z','A') & tagset('z','a')
-            hexchar = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
---  ?hexchar
---  ?hexchar[1+10]&""       -- 'A'
---  ?hexchar[1+10+26]&""    -- 'a'
-
---          dxoetc = "dxobscvefgEXG"
-            dxoetc = "dxobstcvVefgEXG"
-            init2 = 1
-        end if
-        leave_cs()
-    end if
+    if not init2 then init_2() end if
     nxt = 1
 --  result = ""
     result = repeat(' ',0)
@@ -689,6 +694,7 @@ integer tmp
                         fi = 's'
                     end if
 --                  fidx = find(fi,"dxobstcvefgEXG")
+--                  fidx = find(fi,"dxobstncvefgEXG")
                     fidx = find(fi,dxoetc)
 --                  fidx = 0
 --                  for dx=1 to length(dxoetc) do
@@ -826,7 +832,7 @@ end if
                             r1 = repeat('0',1)
                         end if
                     end if
-                elsif fidx<=9 then  -- 's' or 't' or 'c' or 'v'
+                elsif fidx<=10 then -- one of "stncvV"
                     if showplus then badfmt() end if
                     if atom(args) then
                         o = args
@@ -840,14 +846,17 @@ end if
                     else
                         o = args[nxt]
                     end if
+--14/01/2022 %v and %V flipped
                     if fi='v' then
-                        o = sprint(o)
-                    elsif fi='V' then
                         o = sprint(o,-1)
+                    elsif fi='V' then
+                        o = sprint(o)
                         -- aside: in the following if construct, only the  
                         -- last (ie precision) branch is relevant to %v.
                     elsif fi='t' then
                         o = iff(o?"true":"false")
+                    elsif fi='n' then
+                        o = iff(o?"\n":"")
                     elsif enquote then
                         o = allascii(o,enquote)
                     end if
@@ -893,22 +902,19 @@ end if
 --                          r1[j] = oj
                             r1[j] = and_bits(oj,#FF)
                         end for
+                    elsif precision!=-1 and precision<length(o) then
+                        r1 = o[1..precision]
                     else
-                        if precision!=-1 and precision<length(o) then
-                            r1 = o[1..precision]
-                        else
-                            r1 = o
-                        end if
+                        r1 = o
                     end if
                 else    -- efg/EG
                     if precision=-1 then
                         precision = 6
                     elsif precision>20 then
                         crash("floating point precision may not exceed 20",{},3)
-                    elsif machine_bits()=32 then
-                        if precision>16 then
-                            precision = 16
-                        end if
+                    elsif machine_bits()=32
+                      and precision>16 then
+                        precision = 16
                     end if
                     if atom(args) then
                         o = args
@@ -1037,8 +1043,11 @@ object s, xi
             s = sprintf("%d'%c'",x)
         else
 --          s = sprintf("%.10g", x)
-            string fmt = '%'&'.'&'1'&'0'&'g'
-            s = sprintf(fmt,x)
+--28/12/21 (get rid of this nonsense and cut out the middleman, why not. [spotted in passing])
+--          string fmt = '%'&'.'&'1'&'0'&'g'
+--          s = sprintf(fmt,x)
+            if not init2 then init_2() end if
+            s = sprintf2(x,'g',/*showplus:=*/0,/*minfieldwidth:=*/0,/*precision:=*/10)
             if not integer(x)
 --removed 3/11/15 (so that eg 2000000000 gets the ".0")
 --          and integer(floor(x))

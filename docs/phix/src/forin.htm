@@ -1,0 +1,204 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">For in Statement</h1>
+      <div id="mainSection">
+        In the simplest case,
+<!--eucode>
+    for e in {1,"two",{3,4.5}} do
+</eucode-->
+<pre>
+<font color="#008080">    for</font><font color="#000000"> e</font><font color="#008080"> in</font><font color="#0000FF"> {</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"two"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">4.5</font><font color="#800000">}</font><font color="#0000FF">}</font><font color="#008080"> do</font>
+</pre>
+        is, apart from s and i being name-less, essentially equivalent to/shorthand for
+<!--eucode>
+    sequence s = {1,"two",{3,4.5}}
+    for i=1 to length(s) do -- (aka 1..3)
+        object e = s[i]
+</eucode-->
+<pre>
+<font color="#004080">    sequence</font><font color="#000000"> s</font><font color="#0000FF"> = {</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"two"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">4.5</font><font color="#800000">}</font><font color="#0000FF">}</font>
+<font color="#008080">    for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">)</font><font color="#008080"> do</font><font color="#000080"><i> -- (aka 1..3)</i></font>
+<font color="#004080">        object</font><font color="#000000"> e</font><font color="#0000FF"> =</font><font color="#000000"> s</font><font color="#0000FF">[</font><font color="#000000">i</font><font color="#0000FF">]</font>
+</pre>
+        The control variable, i, can be omitted - in which case an anonymous temporary variable is used, which may make debugging harder.<br>
+        The element, e, is automatically declared as <a href="object.htm">object</a><small><sup>1</sup></small> and scoped to the loop if 
+        it does not already exist.<small><sup>2</sup></small><br>
+        The target <a href="sequence.htm">sequence</a>, s, can be any legal expression or literal. Other valid forms include but are not limited to:
+<!--eucode>
+    for e in s do
+    for i,e in s do
+    for i,e in s[k] do
+    for word in {"one","two","three"} do
+    for word in filter(unix_dict(),twovowels) do
+    for ch in "word" do
+    for i in tagset(55,5,5) do -- {5,10,15,..55}
+</eucode-->
+<pre>
+<font color="#008080">    for</font><font color="#000000"> e</font><font color="#008080"> in</font><font color="#000000"> s</font><font color="#008080"> do
+    for</font><font color="#000000"> i</font><font color="#0000FF">,</font><font color="#000000">e</font><font color="#008080"> in</font><font color="#000000"> s</font><font color="#008080"> do
+    for</font><font color="#000000"> i</font><font color="#0000FF">,</font><font color="#000000">e</font><font color="#008080"> in</font><font color="#000000"> s</font><font color="#0000FF">[</font><font color="#000000">k</font><font color="#0000FF">]</font><font color="#008080"> do
+    for</font><font color="#000000"> word</font><font color="#008080"> in</font><font color="#0000FF"> {</font><font color="#008000">"one"</font><font color="#0000FF">,</font><font color="#008000">"two"</font><font color="#0000FF">,</font><font color="#008000">"three"</font><font color="#0000FF">}</font><font color="#008080"> do
+    for</font><font color="#000000"> word</font><font color="#008080"> in</font><font color="#5E005E"> filter</font><font color="#0000FF">(</font><font color="#5E005E">unix_dict</font><font color="#800000">()</font><font color="#0000FF">,</font><font color="#000000">twovowels</font><font color="#0000FF">)</font><font color="#008080"> do
+    for</font><font color="#000000"> ch</font><font color="#008080"> in</font><font color="#008000"> "word"</font><font color="#008080"> do
+    for</font><font color="#000000"> i</font><font color="#008080"> in</font><font color="#5E005E"> tagset</font><font color="#0000FF">(</font><font color="#000000">55</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">)</font><font color="#008080"> do</font><font color="#000080"><i> -- {5,10,15,..55}</i></font>
+</pre>
+        The element is just a normal variable, and nothing special happens should it be assigned something else mid-loop 
+        (admittedly modifing some e[k] of an extracted subsequence of s is more than likely to trigger a p2js violation). 
+        To actually modify s[i], do so explicitly, and obviously an index is needed, so use the i,e form, or declare and 
+        maintain an index manually.
+<!--
+        Note: In the first example, for consistency with other declarations, e must not already exist and is declared with type integer, 
+        whereas in the last three examples the element is automatically declared as <a href="object.htm">object</a>, that is when needed 
+        and not overidden. 
+    for integer i,e in s do -- i must not already exist
+    for i, string e in s do -- e must not already exist
+    for i,{j,k} in {{2,3}} do
+    for {i,{j,k}} in {{4,{5,6}}} do
+    for i, {x,y} in points do
+    for {x,y} in points do
+    for atom {x,y} in points do
+    for {string name, integer id} in s do
+        <br>
+        <br>
+        Also note that i is the control variable in the fourth example and will be assigned 1, whereas in the fifth example the control
+        variable is anonymous, i is actually part of e, and will be assigned to the 4.
+-->
+        <br>
+        <br>
+        Since this is just a shorthand notation, pwa/p2js simply writes out the equivalent longhand JavaScript<small><sup>3</sup></small>,
+        using an i$idx identifier when the control variable is omitted, and i$seq when s is not a plain variable, both following in the 
+        footsteps of the already well-proven i$lim approach, and makes no attempt to revert to shorthand form unless either i$idx or i$seq 
+        was in fact required. Likewise, and independently of each other, a "let" will automatically be used or not depending on whether 
+        the index/element has previously been declared or not.
+<!--
+         Note the"i,e" form requires that either both i and e and predefined or
+        neither are. [DEV?? - test this]
+-->
+        There is no connection to any of the various "in" or "forEach" loop flavours of JavaScript, it simply uses the plainest possible
+        standard loop.<br>
+        In particular the Javascript <small><code>for (let x of "one")</code></small> extracts diddy-strings not characters, whereas 
+        <small><code>for (let x in "one")</code></small> sets x to 0 1 2, neither of which seem particularly useful from a desktop/Phix 
+        or pwa/p2js point of view.
+<!-- DEV: test whether "integer i; for i=1 to N do" actually does now get the i$lim thing right... -->
+<!--
+        <br>
+        <br>
+        Bear in mind this "simple shorthand" has proved anything but in practice, and should any problems arise you are expected to
+        report the issue and revert to using longhand notation until it is fixed.
+-->
+        <br>
+        <br>
+<!--
+        One special optimisation applies:
+<x!--eucode>
+    enum Up,Down,Left,Right
+    for d in {Up,Down,Left,Right} do
+</eucode--x>
+<pre>
+<font color="#008080">    enum</font><font color="#000000"> Up</font><font color="#0000FF">,</font><font color="#000000">Down</font><font color="#0000FF">,</font><font color="#000000">Left</font><font color="#0000FF">,</font><font color="#000000">Right</font>
+<font color="#008080">    for</font><font color="#000000"> d</font><font color="#008080"> in</font><font color="#0000FF"> {</font><font color="#000000">Up</font><font color="#0000FF">,</font><font color="#000000">Down</font><font color="#0000FF">,</font><font color="#000000">Left</font><font color="#0000FF">,</font><font color="#000000">Right</font><font color="#0000FF">}</font><font color="#008080"> do</font>
+</pre>
+        is optimised to emit the same as <code>for d=1 to 4 do</code>, that is when it detects an opMkSq with all integers starting 
+        from 1 and each incrementing by 1, it avoids actually building and subscripting a sequence when there is simply no point. 
+        A warning is issued should s be an out-of-order collection of 1..length(s), on the assumption it has been mis-typed, so note 
+        that when it does indeed need to be in a different order, said warning does not occur (no mid-for opMkSq) when coded as
+<x!--eucode>
+    sequence ds = {Up,Right,Down,Left}
+    for d in ds do
+</eucode--x>
+<pre>
+<font color="#004080">    sequence</font><font color="#000000"> ds</font><font color="#0000FF"> = {</font><font color="#000000">Up</font><font color="#0000FF">,</font><font color="#000000">Right</font><font color="#0000FF">,</font><font color="#000000">Down</font><font color="#0000FF">,</font><font color="#000000">Left</font><font color="#0000FF">}</font>
+<font color="#008080">    for</font><font color="#000000"> d</font><font color="#008080"> in</font><font color="#000000"> ds</font><font color="#008080"> do</font>
+</pre>
+        The compiler will however still (but more quitely) attempt to avoid the unnecessary subscripting. The key point here being
+        that the programmer should not be penalised in any way for writing more explicit and intuitive code, at least not deliberately.
+        <br>
+        <br>
+-->
+        There is no range mechanism other than 1..length(s), however you can instead use (say):
+<!--eucode>
+    for e in s[2..5] do
+    for e in extract(s,{3,5,7}) do
+</eucode-->
+<pre>
+<font color="#008080">    for</font><font color="#000000"> e</font><font color="#008080"> in</font><font color="#000000"> s</font><font color="#0000FF">[</font><font color="#000000">2</font><font color="#0000FF">..</font><font color="#000000">5</font><font color="#0000FF">]</font><font color="#008080"> do
+    for</font><font color="#000000"> e</font><font color="#008080"> in</font><font color="#5E005E"> extract</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">7</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#008080"> do</font>
+</pre>
+
+<!--
+        In a similar fashion to above, the compiler is at liberty to optimise away the slice and/or extract(), although it does not yet do so,
+        one reason being that the slice or extract could be employing negative indexes, which would obviously complicate matters.
+--or:
+X       In a similar fashion to above, the compiler may optimise away the slice and extract(), as long as they are actually part of the for in construct.
+        <br>
+        <br>
+-->
+        Likewise for..in does <i>not</i> permit a "by step" clause, a longhand/"to" loop must be used instead<small><sup>4</sup></small>.
+        <br>
+        <br>
+        There is no special handling for dictionaries or maps, however you can instead use (say):
+<!--eucode>
+    integer d = new_dict(...)
+    for key in getd_all_keys(d) do .. end for
+    traverse_dict(rid,user_data,d)
+    include map.e
+    map m = new_map(...)
+    for k in keys(m) do .. end for
+    for v in values(m) do .. end for
+    for kv in pairs(m) do ..end for
+    object res = foreach(m,rid)
+</eucode-->
+<pre>
+<font color="#004080">    integer</font><font color="#000000"> d</font><font color="#0000FF"> =</font><font color="#5E005E"> new_dict</font><font color="#0000FF">(...)</font>
+<font color="#008080">    for</font><font color="#000000"> key</font><font color="#008080"> in</font><font color="#5E005E"> getd_all_keys</font><font color="#0000FF">(</font><font color="#000000">d</font><font color="#0000FF">)</font><font color="#008080"> do</font><font color="#0000FF"> ..</font><font color="#008080"> end for</font>
+<font color="#5E005E">    traverse_dict</font><font color="#0000FF">(</font><font color="#000000">rid</font><font color="#0000FF">,</font><font color="#000000">user_data</font><font color="#0000FF">,</font><font color="#000000">d</font><font color="#0000FF">)</font>
+<font color="#008080">    include</font><font color="#000000"> map.e</font>
+<font color="#5E005E">    map</font><font color="#000000"> m</font><font color="#0000FF"> =</font><font color="#5E005E"> new_map</font><font color="#0000FF">(...)</font>
+<font color="#008080">    for</font><font color="#000000"> k</font><font color="#008080"> in</font><font color="#5E005E"> keys</font><font color="#0000FF">(</font><font color="#000000">m</font><font color="#0000FF">)</font><font color="#008080"> do</font><font color="#0000FF"> ..</font><font color="#008080"> end for
+    for</font><font color="#000000"> v</font><font color="#008080"> in</font><font color="#5E005E"> values</font><font color="#0000FF">(</font><font color="#000000">m</font><font color="#0000FF">)</font><font color="#008080"> do</font><font color="#0000FF"> ..</font><font color="#008080"> end for
+    for</font><font color="#000000"> kv</font><font color="#008080"> in</font><font color="#5E005E"> pairs</font><font color="#0000FF">(</font><font color="#000000">m</font><font color="#0000FF">)</font><font color="#008080"> do</font><font color="#0000FF"> ..</font><font color="#008080">end for</font>
+<font color="#004080">    object</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#000000"> foreach</font><font color="#0000FF">(</font><font color="#000000">m</font><font color="#0000FF">,</font><font color="#000000">rid</font><font color="#0000FF">)</font>
+</pre>
+        <br>
+        <small><i>(Obviously traverse_dict() and foreach() have nothing to do with for .. in, but just belong in that list.)</i></small>
+        <br>
+        <br>
+        <small><sup>1</sup></small> Initially the plan was to allow the type of the element to be explicitly declared, but I fell
+        down the rabbit hole of allowing an explicit "integer" on the index to mean "must not already exist" (on both "in" and 
+        "to" flavours of the loop) then (as next) trying to get all fancy, before realising it was adding absolutely nothing that 
+        a simple two-or-three-liner this is all shorthand for would not already do much better in the first place.
+        <br>
+        <br>
+        <small><sup>2</sup></small> Allowing multiple assignment within the for construct itself was also carefully considered, eg 
+        <small><code>for {x,y} in points do</code></small>, however it added significant complications to parsing and scope handling 
+        (presumably with automatic declaration of nested and individually typed elements and all that jazz) that in the end simply 
+        could not be justified, along with it inevitably leading to uglier and harder to read and/or debug code. A typecheck error 
+        on (say) y, when you have no idea where you are in points, or perhaps even worse no such error because it defaulted to 
+        <a href="object.htm">object</a>, is simply not helpful. 
+        Again, a simple longhand two/three-liner does all of that stuff and more quite easily enough anyway.
+        <br>
+        <br>
+        <small><sup>3</sup></small> Another reason to keep it simple: every change in desktop/Phix must be matched in pwa/p2js.
+        <br>
+        <br>
+        <small><sup>4</sup></small> It is difficult to justify, let alone adequately test, the additional complexities that a by 
+        clause c/would introduce. Think of a step of -1 flipping from 1..length(s) to length(s)..1, then instead of a constant 
+        step a variable expression, with all the extra run-time checks and code that might need, plus never being more than two
+        lines away from explicit expression of intent, and you should understand why I dropped "in".."by" like a hot potato.
+        <br>
+        <br>
+        Although now syntax-coloured as one, technically "in" is <i>not</i> actually a (reserved) keyword, though (as previously 
+        <a href="declarations.htm">documented</a>) pwa/p2js treats it as one.
+        <br>
+        <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

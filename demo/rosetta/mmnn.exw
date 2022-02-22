@@ -1,0 +1,1504 @@
+--
+-- demo\rosetta\mmnn.exw
+--
+-- for https://rosettacode.org/wiki/Minimum_multiple_of_m_where_digital_sum_equals_m#Phix
+--
+with javascript_semantics
+ 
+-- (not in posted version:)
+constant k = """
+  1: 1           1           1           1           1           1           1           1           1           19
+ 11: 19          4           19          19          13          28          28          11          46          199
+ 21: 19          109         73          37          199         73          37          271         172         1333
+ 31: 289         559         1303        847         1657        833         1027        1576        1282        17497
+ 41: 4339        2119        2323        10909       11111       12826       14617       14581       16102       199999
+ 51: 17449       38269       56413       37037       1108909     142498      103507      154981      150661      1333333
+ 61: 163918      322579      315873      937342      1076923     1030303     880597      1469116     1157971     12842857
+ 71: 4084507     5555554     6849163     37027027    13333333    11710513    11686987    11525641    12656962    374999986
+ 81: 12345679    60852439    72168553    82142857    117647047   93022093    103445977   227272726   112247191   1111111111
+ 91: 658010989   652173913   731172043   849893617   2947368421  2083333228  1030927834  3969377551  11101010101 199999999999
+101: 28900990099 5881372549  6796115533  18173076922 27619047619
+106: 18679245283 18691495327 36111111111 44862385321 1090909090909
+111: 79009009009 80356249999 78761061946 87710526307 426086956513
+116: 258620688793 255547008547 414406779661 411756302521 4999999999999
+121: 2809909090909 811475409754 730081300813 2419193548387 5599999999999
+126: 2380873015873 3148818897637 5468749999921 5348836434031 46076923076923
+131: 6106793893129 28030303030303 6766917293233 22388058880597 37037037037037
+136: 44044117647058 56919700729927 36231884057971 49568345323741 571427857142857
+141: 63822694964539 140140838028169 391606993006993 277777777777777 482751724137931
+146: 471917801369863 401360544217687 1081081081081081 536912751677851 13333333333333333
+151: 1258278145629139 3217105263157894 1307189477124183 3830512987012987 5161290322516129
+156: 4423076923076923 3821656050955414 6202531582278481 5660371069181761 124999999999999993
+161: 12415527950310559 12345679012345679 18404907975398773 48773170731707317 430303030303030303
+166: 48186144578313253 53233532874251497 119041666666666666 59165680473372781 588235235294117647
+171: 169590643216374269 290691860465116279 289017341039884393 344827586206895977 1142857142857142857
+176: 511363636363636363 507903954802259887 1123594938202247191 1061452513966424581 11111111111111111111
+181: 2154143646408839779 3845989010989010989 3278142075956284153 5380434239130434782 37027027027027027027
+186: 9677419354838172043 5347053475935828877 20744680845744680851 20105291005291005291 157894731578947368421
+191: 15706806282722513089 41666666666666666614 36269424870466321243 46391752577319535567 153845641025641025641
+196: 147959183673469382653 101517766497461928934 101010101010101010101 201005025125628040201 19999999999999999999999
+201: 293532338308407960199 1900990099009900990099 438374384235960591133 490195588235294117647 1902439024390243902439
+206: 1407766990291213592233 966183574879227052657 2836538461538461538461 10526315784688995215311 23809047619047619047619
+211: 2843601895260663507109 4716933490566037735849 4225305164318779342723 9345794387803738317757 27441855813953488372093
+216: 18518518518518518518518 18433179262672811059447 27518348623848623853211 27397210045662100456621 1090909090909090909090909
+221: 36199049773710407239819 259009009009009009009009 40358744394618834080713 223169642857142857142812 311111111111111111111111
+226: 216371681415929203539823 220264317180615859030837 307017543859649122368421 301310043668117903930131 3043434782608695652173913
+231: 1904329004329004329004329 1293103448275861637931034 429184549351931330472103 1282047008547008547008547 2978723404255319148893617
+236: 2923728813135593220338983 2531223628270042194092827 3361302521008403361302521 3682004184100418410041841 41666666666666666666666662
+241: 4149377593360995846473029 19421487603305785123553719 4115226337448559670781893 20491803278688483606557377 32648979591836734693877551
+246: 35731300813008130081300813 32388258704048582995951417 80604838306451612903225806 35742971887550200803212851 1999999999999999999999999999
+251: 79641434262549800796812749 119047619047619047619047619 260830039525691699604743083 236220472047244094488188937 352941176470196078431372549
+256: 390624999999999999999960898 311284046688715953307392607 348837209301937984496124031 1081003861003861003861003861 11534576923076923076923076923
+261: 766283524904210727969348659 1908014885496183206106870229 1520912547528517110266121673 2992424242424242424242424242 7546792452452830188679245283
+266: 3007481203007518796992481203 3333333295880149812734082397 10820895485074626865671641791 7397769516728620817843866171 37037037037037037037037037037
+271: 31690036900369003690036900369 25735294117647055147058823529 29263003663003663003663003663 29197007299270072992700729927 1126909090909090909090909090909
+276: 36231880434782608695652173913 36101083032490974729238266787 107910071942446039568345323741 71684229390681003584229390681 1428571428571428571428571428571
+281: 209964377188612099644128113879 212765957446808475177304964539 247314487632508833886925795053 352112676056337676056338028169 1052631578947017543859649122807
+286: 1006993006993006993006993006993 1003484320557491289198606271777 1736111111111111111111111111076 1384083041522145328719723183391 13793103448275862068965517237931
+291: 2061512027491374570446735395189 3356164041095890410958904109589 2730375426621160409215017064843 3061224149659863945578231292517 13559322033898305084745762711861
+296: 16858108108108108108108108108108 37003367003367003367003367003367 16744966442919463087248322147651 16655518394648829431438127090301 1333333333333333333333333333333333
+301: 23255813953488372092691029900299 29801324503311258278142384102649 130330033003300330033003300330033 98683881578947368421052631578947 196393442622950819672127868852459
+306: 98039215686241830065359477124183 130293159283061889250814332247557 487012987012987012987012987012987 194174433656925566343042071197411 1935483870964516129032258064516129
+311: 256913183279742765273311897106109 929483974358974358974358974358974 316293929712460063865814696485623 923248407643312101910828025477707 1873015873015873015873015873015873
+316: 1895569303797468354430379746835443 1577287066246056782331198738170347 2201226100628930817610062893081761 10655172413793103448275862065830721 31249999999999999999999999999999684
+321: 2800623052959498442367601246105919 6211177018633540372670807450310559 6188854489164086687306501547987613 12037037037037037037037037037037037 27692276923076923076923076923076923
+326: 15337392638036809815950920245398773 18318012232415902140672782874617737 30457317073170731707317073170731707 24316109422492370820668693009118541 1030303030303030303030303030303030303
+331: 57401812688821751963743202416918429 90331325301204819277108433734939759 203003003003003003003003003003003003 146706586826347305389218562874251497 238805970149253728358208955223880597
+336: 208333333333333333333333333333333333 204747774480712166172106824925815727 266272189348816568044378698224852071 265191740412979351032448377581120941 2941176470587941176470588235294117647
+341: 1612903225806451319648093841642228739 877192953216374269005847953216374269 1165889212827988338192419533527696793 2296511337209302325581395348837209302 2608695652173910144927536231884057971
+346: 2283208092485549132947976878612716763 2305187319884726224783861671469740634 2873563218390804597701146551724137931 2865329512893982808020057306590257851 142856857142857142857142857142857142857
+351: 11392849002849002849002849002849002849 19602272727272727272727272727272727244 14164300283286118980169971671388101983 16949152542372881355932203389802259887 28169014084504225352112676056338028169
+356: 28061797752808988764044943820224719073 22408963585434173389355742296918767507 55586592178770949720670388268156424581 55431754874649025069637883008356545961 833333333333333333333333333333333333333
+361: 135734072022160637119113296398891966759 165690607734806629834254143646408839779 212093663911845730027548209366391184573 217032967032967032967032967032967032967 1095586301369863013698630136986301369863
+366: 270491803278688524590163934425956284153 272479564032425067847411444141689373297 1086956521739130163043478260869565217391 1027100271002710027100271002710027100271
+"""
+function noc(string s) return not find(':',s) end function
+constant known = filter(split(substitute(k,"\n"," ")),noc)
+
+include mpfr.e -- (for the final divide only)
+forward function rackup5(string digits, integer l)
+forward function rackup11(string digits, integer l, bool r5=false)
+forward function nextup11(string digits, integer l)
+
+function mmnn(integer n)
+    --
+    -- minimum multiple of n that sums to n
+    --
+    -- Just as we can emulate normal counting using an array of digits,
+    -- we can count while maintaining a sum of digits, which means we
+    -- have to find both a decrementable and an incrementable digit, 
+    -- moving the former to the end(ish), or if no "" prepend a 1, eg
+    -- 5 -> 14 -> 23 -> 32 -> 41 -> 50 -> 104 -> 113 -> 122 -> 131 ->
+    -- 140 -> 203 .. 230 -> 302 .. 500 -> 1004 .. 10004, etc.
+    -- Another example, this time summing to 14 (the above was to 5!):
+    -- 59 -> 68 .. 95 -> 149 .. 194 -> 239 .. 293 -> 329 .. 392 ->
+    -- 419 .. 491 -> 509 .. 590 -> 608 .. 680 -> 707 .. 770 -> 806
+    -- .. 860 -> 905 .. 950 -> 1049, etc.
+    -- in that last case, what we actually need to do is decrement the
+    -- 5 (->940), then reverse the whole thing, and then prepend a 1,
+    -- likewise if we increment a middle digit, dec then reverse(rest).
+    -- In the extreme case you would want 1 -> 10 -> 100 -> 1000, etc,
+    -- although since 1 passes muster we would never actually do that.
+    --
+    if n=0 then return "0" end if -- avoid remainder(x,0), and tz=inf
+
+    integer l = ceil(n/9)-1,        -- this many trailing 9s...
+            k = n-9*l+'0',          -- ...and this first digit
+            n0 = n
+    string digits = k&repeat('9',l) -- eg n=14 -> "59"
+    l += 1
+
+    -- optimising for trailing zeroes makes a truly *huge* difference
+    while remainder(n0,10)=0 do
+        n0 /= 10
+        digits &= '0' -- (these be static, aka forever past "l")
+    end while
+
+    bool r5 = remainder(n0,5)=0,    -- ten-fold improvement on some
+         r11 = remainder(n0,11)=0   -- took 165 from 1min 25s to 6s,
+                                    -- (even faster now r5 working)
+    if r5 then {digits,l} = rackup5(digits,l) end if
+    if r11 then {digits,l} = rackup11(digits,l,r5) end if
+
+    atom t1 = time()+1
+    while true do
+
+        -- calculate remainder(digits,n) digit-wise; faster than mpz
+        integer rem = 0, rn = 1
+        for i=1 to length(digits) do -- (nb not "l")
+            k = digits[-i]-'0'
+            rem = remainder(rem+rn*k,n)
+            rn = remainder(rn*10,n)
+        end for
+        if rem=0 then exit end if
+        
+        -- (only triggers on eg 202, 222, 271 and higher)
+        if time()>t1 then t1 = time()+1; ?{digits,n} end if
+
+        if not r11 then
+
+            integer d = 0  -- decrementable digit position
+            for i=l to 1 by -1 do
+                if d=0 and digits[i]>'0' then
+                    d = i
+                elsif d and digits[i]<'9' then
+                    digits[d] -= 1
+                    digits[i] += 1
+                    digits[i+1..l] = reverse(digits[i+1..l])
+                    exit
+                elsif i=1 then
+                    -- (so digits[1]=9 or no decrementable)
+                    digits[d] -= 1
+                    digits[1..l] = reverse(digits[1..l])
+                    digits = prepend(digits,'1')
+                    l += 1
+                    exit
+                end if
+            end for
+
+        else
+            -- Same as above but with additional rules
+            {digits,l} = nextup11(digits,l)
+
+        end if
+    end while
+    mpz z = mpz_init(digits)
+    assert(mpz_fdiv_q_ui(z, z, n)=0)
+    string res = mpz_get_str(z)
+    if n<=length(known) then
+        string kn = known[n]
+        assert(kn=res)
+    end if
+    return res
+end function
+
+function rackup5(string digits, integer l)
+    --
+    -- converts digits to next (odd) number divisible by 5, while
+    -- maintaining the exact same sum of digits unaltered.
+    -- Techincally divisible by 5 is ends in 5 or 0, but since we 
+    -- have already dealt with 10s, we know that n0 (above) must 
+    -- be odd and hence digits[1..l] always end in 5, so we play 
+    -- a neat and simple little trick of cropping the length by 1 
+    -- to make the final 5 static, same as we do with trailing 0s.
+    --
+    integer d = digits[l]
+    if d!='5' then
+        assert(d='9')               -- eg 299 -> 295    ie -4
+        digits[l] = '5'             -- or 799 -> 795    ""
+        d = digits[1]
+        if d<='5' then
+            digits[1] = d+4         -- eg 295 -> 695    == +4
+        else
+            digits[1] = '9'
+            digits = d-5 & digits   -- eg 795 -> 2995   ie +2+2
+            l += 1
+        end if
+    end if
+    return {digits,l-1}
+end function
+--/*
+procedure test5(sequence se)
+    string {s, e} = se, a, b
+    integer l = length(s), m
+    {a,l} = rackup5(s,l)
+    {b,m} = rackup5(e,l+1)
+    assert(a==e)
+    assert(a==b)
+end procedure
+papply({{"5","5"},
+        {"69","195"},
+        {"799","2995"},
+        {"8999","39995"},
+        {"99999","499995"},
+        {"1999999","5999995"},
+        {"29999999","69999995"},
+        {"399999999","799999995"},
+        {"4999999999","8999999995"},
+        {"59999999999","99999999995"},
+        {"699999999999","1999999999995"},
+        {"7999999999999","29999999999995"}},test5)
+--*/
+
+function swarpp11(string s)
+    --
+    -- special pairwise swapping/reversal for divisible by 11 numbers, eg:
+    --
+    --  | 7654321 | , | 653421 | , | 54321 | , | 4321 | , | 321 | , | 21 | , | 1 |
+    --  > 1234567 <   > 213465 <   > 12345 <   > 2143 <   > 123 <   > 21 <   > 1 <
+    --
+    -- (ie after bumping some prior digits following the rules (see below), we
+    --  need to make the remaining digits (7 or less in the above) as small as 
+    --  legally possible but obviously without breaking any of the said rules.)
+    --
+    integer l = length(s), i = 1
+    if odd(l) then return reverse(s) end if
+    while l-i>=3 do
+        integer si = s[i], j=l-1
+        s[i] = s[j]
+        s[j] = si   
+        i += 1
+        si = s[i]
+        s[i] = s[l]
+        s[l] = si
+        i += 1
+        l -= 2
+    end while
+    return s
+end function
+--/*
+if swarpp11("999948")!="489999" then ?9/0 end if
+if swarpp11("1234567")!="7654321" then ?9/0 end if
+if swarpp11("123456")!="563412" then ?9/0 end if
+if swarpp11("12345")!="54321" then ?9/0 end if
+if swarpp11("1234")!="3412" then ?9/0 end if
+if swarpp11("123")!="321" then ?9/0 end if
+if swarpp11("12")!="12" then ?9/0 end if
+if swarpp11("1")!="1" then ?9/0 end if
+--*/
+
+function nextup11(string digits, integer l)
+    --
+    -- Divisible by 11 uses the additional rule that the
+    -- sum of odd place digits - sum of even place digits
+    -- must be a multiple of 11 (including zero).
+    -- Hence we look for an odd/even decrementable digit
+    -- that can pair with an odd/even incrementable digit,
+    -- or an odd/even decrementable-by-11 set to pair off
+    -- with an even/odd incrementable-by-11 set/sum.
+    --  (for the latter see the bTransferable11 flag)
+    -- Likewise we use a slightly different method to 
+    -- increase the number of digits, and kick-start 
+    -- things off with the rackup11() routine below.
+    --
+    -- Aside: A variation is probably extendible to 101,
+    -- expressed using alternating pairs of digits, eg:
+    --       74*11 = 814,       8-1+4 = 11
+    --    7242*101 = 731442, 73-14+42 = 101
+    -- (which really is the same rule writ different)
+    -- There is also sum of pairs/triples for 11 and 111:
+    --       74*11 = 814,        8+14 = 22
+    --     237*111 = 26307,    26+307 = 333
+    -- (not entirely sure that can actually be applied)
+    --
+    integer d,          -- a digit
+            dd = 0,     -- decrementable digit position (scratch)
+            ddd,        -- decrementable digit value       """
+            td = 0,     -- total decrementable digits
+            ti = 0,     -- total incrementable digits
+            od = 0,     -- decrementable odd digit position
+            ed = 0,     -- decrementable even digit position
+            dod = 0,    -- decrementable odd digit value
+            ded = 0,    -- decrementable even digit value
+            tod = 0,    -- total odd decrementable digits
+            ted = 0,    -- total even decrementable digits
+            iod = 0,    -- total odd incrementable digits
+            ied = 0     -- total even incrementable digits
+
+    bool bIncAbleFound = false,
+         bTransferable11
+    string wasdig = digits, transdigits
+
+    for i=l to 1 by -1 do
+        d = digits[i]-'0'
+        if odd(i) then
+            tod += d
+            iod += 9-d
+            if od=0 and d>0 then
+                od = i
+                dod = d
+            else
+                dd = od
+                ddd = dod
+                bIncAbleFound = d<9 and dd
+            end if
+            bTransferable11 = iod>=11 and ted>=11
+        else
+            ted += d
+            ied += 9-d
+            if ed=0 and d>0 then
+                ed = i
+                ded = d
+            else
+                dd = ed
+                ddd = ded
+                bIncAbleFound = d<9 and dd
+            end if
+            bTransferable11 = ied>=11 and tod>=11
+        end if
+        if bTransferable11 then
+            {od,ed} = iff(odd(l)=odd(i)?{l,l-1}:{l-1,l})
+            {ti,td} = {11,11}
+            transdigits = digits
+            integer t
+            while ti do
+                assert(od>0)
+                t = min('9'-digits[od],ti)
+                ti -= t
+                transdigits[od] += t
+                od -= 2
+            end while
+            while td do
+                assert(ed>0)
+                t = min(digits[ed]-'0',td)
+                td -= t
+                transdigits[ed] -= t
+                ed -= 2
+            end while
+            transdigits[i+1..l] = swarpp11(transdigits[i+1..l])                 
+            if transdigits<=digits then
+                bTransferable11 = false
+            elsif not bIncAbleFound then
+                digits = transdigits
+                exit
+            end if
+        end if              
+        if bIncAbleFound then
+            digits[dd] = ddd-1+'0'
+            digits[i] = d+'1'
+            digits[i+1..l] = swarpp11(digits[i+1..l])
+            if bTransferable11 and transdigits<digits then
+                digits = transdigits
+            end if
+            exit
+        elsif i=1 then
+            -- (so digits[1]=9 or no o/e decrementable)
+            {dd,ddd} = iff(odd(l)?{ed,ded}:{od,dod})
+            digits[dd] = ddd-1+'0'
+            digits[1..l] = reverse(digits[1..l])
+            digits = prepend(digits,'1')
+            l += 1
+            exit
+        end if
+    end for
+    return {digits,l}
+end function
+
+function rackup11(string digits, integer l, bool r5=false)
+    --
+    -- Converts digits to next number divisible by 11, while
+    -- maintaining the exact same sum of digits unaltered, eg
+    -- 29 -> 209, 499 -> 2299, 6999 -> 42999, 89999 -> 449999,
+    -- 1999999 -> 6499999, 39999999 -> 66999999, 599999999 ->
+    -- 869999999, 7999999999 -> 8899999999, 99999999999 ->
+    -- 1098999999999, 2999999999999 -> 11999999999999.
+    --
+    -- For divisible by 55 we've already got the first divisible by 5 and 
+    -- set that in stone, aka digits[l+1] is 5, so here we must take that 
+    -- quickly into account.
+    --
+    if r5 then l += 1 end if
+    integer od = remainder(sum(sq_sub(extract(digits,tagset(l,1,2)),'0')),11),
+            ed = remainder(sum(sq_sub(extract(digits,tagset(l,2,2)),'0')),11)
+    assert(od+ed=0 or od+ed=11)
+    if r5 then l -= 1 end if
+
+    if od!=ed then
+        --
+        -- Aside: I couldn't quite get my head around the apparently convoluted rules 
+        --        of which way to go, but obviously if od=2 and ed=9 then either:
+        --          add 9 to the odd digits and subtract it from the even digits, or
+        --          add 2 to the even digits and subtract it from the odd digits,
+        --        and then in both cases add prefixes for anything you couldn't do.
+        --        The simplest thing is to just do both and select the smaller,
+        --        plus a couple of quick checks (wood|weod>9) for odd-od busted.
+        --
+        integer d,  -- a digit
+                woed = ed, weed = ed, -- work vars for odd+ed, even-ed
+                wood = od, weod = od, -- work vars for odd-od, even+od
+                loed = l -- new value for l should we switch
+        string odd_ed = digits -- (odd-od done in digits direct)
+        for i=1 to l do
+            if odd(i) then
+                d = min('9'-odd_ed[i],woed)     -- add ed to odd digits
+                odd_ed[i] += d
+                woed -= d
+                d = min(digits[i]-'0',wood)     -- subtract od from ""
+                digits[i] -= d
+                wood -= d
+            else
+                d = min(odd_ed[i]-'0',weed)     -- subtract ed from even
+                odd_ed[i] -= d
+                weed -= d
+                d = min('9'-digits[i],weod)     -- add od to even digits
+                digits[i] += d
+                weod -= d
+            end if
+        end for
+        if woed or weed then
+            odd_ed = weed+'0' & odd_ed
+            loed += 1
+            if woed then
+                odd_ed = woed+'0' & odd_ed
+                loed += 1
+            end if
+        end if
+        if wood or weod then
+            digits = weod+'0' & digits
+            l += 1
+            if wood then
+                digits = wood+'0' & digits
+                l += 1
+            end if
+        end if
+        if loed<l
+        or weod>9 
+        or wood>9 
+        or (loed=l and odd_ed<digits) then
+            digits = odd_ed
+            l = loed
+        end if
+    end if
+    return {digits,l}
+end function
+--/*
+procedure test11(sequence se)
+    string {s, e} = se, a, b
+    integer l = length(s), m, n
+    {a,m} = rackup11(s,l)
+    {b,n} = rackup11(e,m)
+    assert(a==e)
+    assert(a==b)
+end procedure
+papply({{"29","209"},{"499","2299"},{"6999","42999"},
+        {"89999","449999"},{"1999999","6499999"},
+        {"39999999","66999999"},{"599999999","869999999"},
+        {"7999999999","8899999999"},{"99999999999","1098999999999"},
+        {"2999999999999","11999999999999"}},test11)
+--*/
+
+atom t0 = time()
+for n=1 to 200 do -- 0.7s
+--for n=1 to 274 do -- 12.8s, but mmnn(275) takes 2 minutes and 25s
+--for n=1 to 369 do -- 2 minutes 31s, but I gave up on 370
+--for n=1 to 666 do -- 3 minutes 31s, skipping 11 tricky ones
+--if not find(n,{275,370,(404),481,505,518,542,625,629,656,666}) then
+    if remainder(n,iff(n<=100?10:5))=1 then printf(1,"\n%3d:",n) end if
+    printf(1," %-11s",{mmnn(n)})
+--  printf(1,"%d %s\n",{n,mmnn(n)})
+--end if
+end for
+printf(1,"\n1,000,000: %s\n",{shorten(mmnn(1e6))}) -- (0.0s)
+--*!/
+--printf(1,"\n")
+?elapsed(time()-t0)
+
+?"done"
+--?apply({165,185,202,222,271},prime_factors)
+{} = wait_key()
+
+--===much simper, to 1000===
+--Uses dynamic programming, at least I think it does.
+--Maintains a grid of digit sum against remainder in the form of the (final) digit
+--that got us there first (so it's the smallest) along with a (parent) link to the
+--chain of preceding digits that got us there. In effect, we are simply performing
+--a breadth first search of unvisited nodes to get from {0,0} aka "" to {n,0} ie a
+--digital sum of n with no remainder. The clever (ok, obvious if you prefer) maths
+--bit is remainder(<parent's remainder>*10,n) when appending each individual digit.
+--
+--While a fair bit slower on most individual numbers (esp uinder pwa/p2js) it hits 
+--far fewer bottlenecks such as that 275 above, and at least past 200 turns out to 
+--be quite a bit faster. However there is no equivalent trailing zero optimisation 
+--that I can see, and it caps out at 1e4 on 32 bit, 2e4 on 64 bit, for obvious 
+--reasons the square root of the hard limits of the above (assuming a number it 
+--doesn't pick a fight with).
+--
+--Translation of the C++ code on [[oeis:A002998|A002998]] but with the additional
+--final divide for [[oeis:A131382|A131382]] and significantly clearer imnsho.
+
+--Aside: performance under pwa/p2js might be improved significantly if digits were
+--made a sequence [with 0 as "not seen"], so that "digits[drx] = " does not have 
+--to copy several megabytes around in p2js.js/$repe(), as opposed to desktop/Phix
+--updating in situ via builtins\VM\pRepeN.e/:%pRepe1is, though of course "" would
+--then use 4 or 8 times as much memory for digits, further reducing those caps.
+
+with javascript_semantics
+include mpfr.e -- (for the final divide only)
+function mmnn2(integer n)
+    if n<=0 then return "0" end if -- (edge case)
+    string digits = repeat(' ',n*(n+1)), res = "0"
+    sequence parent = repeat(0,n*(n+1)), queue = {}
+    integer dsum = 0, residue = 0, pdx = 0
+    while true do -- (found or queue not empty at end of loop)
+        for digit=0 to 9 do
+            if dsum>n then exit end if
+            if dsum=n and residue=0 then    -- success!!
+                res[1] = '0'+digit
+                while pdx do
+                    res = digits[pdx] & res
+                    pdx = parent[pdx]
+                end while
+                mpz z = mpz_init(res)
+                assert(mpz_fdiv_q_ui(z, z, n)=0)
+                res = mpz_get_str(z)
+                return res
+            end if
+            integer drx = dsum*n+residue+1
+            if digits[drx]=' ' then
+                digits[drx] = '0'+digit
+                parent[drx] = pdx
+                queue = append(queue,{dsum,residue})
+            end if
+            dsum += 1
+            residue = remainder(residue+1,n)
+        end for
+        if length(queue)=0 then return "FAIL" end if
+        {dsum,residue} = queue[1]
+                 queue = queue[2..$]
+        pdx = dsum*n+residue+1
+        residue = remainder(residue*10,n)   
+    end while
+    return "what???"
+end function
+
+puts(1,"")
+--atom t0 = time()
+t0 = time()
+integer llen = 5
+for n=1 to 200 do   -- 1.2s (15.4s under pwa/p2js)
+--for n=1 to 274 do -- 3.1s
+--for n=1 to 369 do -- 7.1s
+--for n=1 to 500 do -- 19s
+--for n=1 to 1000 do -- 2 mins 29s
+    string res = mmnn2(n)
+    llen += length(res)
+    bool bCR = iff(n<=101?remainder(n,10)=1:llen>118)
+    if bCR then printf(1,"\n%3d:",n) llen = 5+length(res) end if
+    printf(1," %-11s",{res})
+--  printf(1,"%d %s\n",{n,mmnn(n)}) // Generate b-file for A131382 (1..1000)
+end for
+--printf(1,"%d %s\n",{1e3,mmnn(1e3)}) -- 0.6s
+--printf(1,"%d %s\n",{1e4,mmnn(1e4)}) -- 1min 8s
+--printf(1,"%d %s\n",{2e4,mmnn(2e4)}) -- crashes on 32 bit, 6 minutes and 18s on 64 bit
+--printf(1,"%d %s\n",{1e6,mmnn(1e6)}) -- not a chance!
+printf(1,"\n")
+?elapsed(time()-t0)
+
+?"done"
+{} = wait_key()
+
+--Update: Actually, I think there is a trailing zero optimisation: let tz be the
+--number of trailing zeroes required, then whenever dsum=n try at most that many 
+--times a "remtz = remainder(remtz*10,n)", see if we can get it down to 0. Draft
+--and completely untested code has been added below, as comments. However, since
+--the caps are down to allocating memory for digits and parent in't first place,
+--I doubt it would change anything much, except the time for 1e4, and only that.
+--Hold on a minute though: My maths skills aren't quite up to it but maybe the
+--trick is simply set residue to some non-zero value at the start??!!!
+
+--Anyway, I had this above before deciding it made the place look messy:
+--/*
+            if dsum=n and residue=0 then    -- success!!
+-- untried/sug:
+--          if dsum=n then
+                res[1] = '0'+digit
+--            if tz and residue!=0 then 
+--              integer remtz = residue
+--              for i=1 to tz do
+--                  remtz = remainder(remtz*10,n)
+--                  if remtz=0 then -- yeah!
+--                      res &= repeat('0',i[??])
+--                      residue = 0
+--                      exit
+--                  end if
+--              end if
+--            end if
+--            if residue=0 then -- success!!
+                while pdx do
+...
+                return res
+--            end if
+--*/
+
+
+--aw...
+--/*
+#include <iostream>
+#include <queue>
+#include <string>
+using namespace std;
+typedef unsigned int uint;
+
+//======================================================================
+const uint maxn = 10000;
+
+//======================================================================
+class State;
+static State* _source = NULL;
+static State* _target = NULL;
+static char* _toDigit = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+class State {
+        State* _parent; 
+        uint _digit;
+public:
+        void set(State* parent, uint digit) {
+                _parent = parent;
+                _digit = digit;
+        }
+        void unset() { _parent = 0; }
+        bool isSet() { return _parent != 0; }
+        State* getParent() const { return _parent; }
+        string getDigit() const { return string("") + _toDigit[_digit]; }
+        uint getSum() const { return (this - _source) / maxn; }
+        uint getResidue() const { return (this - _source) % maxn; }
+--      friend ostream& operator<<(ostream& strm, const State& state);
+};
+
+--//======================================================================
+--ostream& operator<<(ostream& strm, const State& state) {
+--      return strm
+--              << "(" << state.getSum()
+--              << "," << state.getResidue()
+--              << ")";
+--}
+
+//======================================================================
+static State _table[maxn+1][maxn];
+
+//======================================================================
+// Return string for smallest multiple of n with digit sum n
+string f(uint n, uint base = 10) {
+
+    // Bounds checking
+    if (n > maxn || base < 2 || base > 36) return "Unknown";
+
+    // Return solution for n = 0
+    if (n <= 0) return "0";
+
+    // Set source and target states
+    _source = &_table[0][0];
+    _target = &_table[n][0];
+
+    // Clear all states
+    for (uint s = 0; s <= n; s++)
+        for (uint r = 0; r < n; r++)
+            _table[s][r].unset();
+
+    // Set source state
+    _source->set(_source, 0);
+
+    // Add source state to queue
+    queue<State*> stateQueue;
+    stateQueue.push(_source);
+
+    // Loop through queue
+    for (;;) {
+
+        // If queue empty, we failed
+        if (stateQueue.empty()) return "None";
+
+        // Pop parent
+        State* parent = stateQueue.front();
+        stateQueue.pop();
+
+        uint sum = parent->getSum(), 
+             residue = (base*parent->getResidue())%n;
+        // For each digit
+        for (uint digit = 0; digit < base && sum <= n; digit += 1) {
+            // Find child state
+            State* child = &_table[sum][residue];
+
+            // If child already set, skip it
+            if (!child->isSet()) {
+
+                // Set the child
+                child->set(parent, digit);
+
+                // If target is set, go create number
+//              if (_target->isSet()) goto buildAnswer;
+                if (sum==n && reside==0) goto buildAnswer;
+//              if (child==_target) goto buildAnswer;
+
+                // Add child to queue
+                stateQueue.push(child);
+            }
+            sum += 1;
+            residue = (residue+1)%n;
+        }
+    }
+
+    // Build answer
+    buildAnswer:
+    string answer = "";
+    for (State* s = _target; s != _source; s = s->getParent()) {
+        answer = s->getDigit() + answer;
+    }
+    // Return answer
+    return answer;
+}
+
+// Generate b-file for A002998
+int main() {
+    for (uint n = 0; n <= maxn; n++) {
+        cout << n << " " << f(n) << endl;
+    }
+    return 0;
+}
+--*/
+
+--?sq_mul(tagset(10),55)
+--{55,110,165,220,275,330,385,440,495,550}
+--?apply({202,222,271,370,481,505,518,542,625,629,656,666},prime_factors)
+--{{2,101},{2,3,37},{},{2,5,37},{13,37},{5,101},{2,7,37},{2,271},{5},{17,37},{2,41},{2,3,37}}
+
+--/*
+--archived copy of first try, and original output:
+with javascript_semantics
+include mpfr.e -- (for the final divide only)
+
+function mmnn(integer n)
+    --
+    -- minimum multiple of n that sums to n
+    --
+    -- Just as we can emulate normal counting using an array of digits,
+    -- we can count while maintaining a sum of digits, which means we
+    -- have to find both a decrementable and an incrementable digit, 
+    -- moving the former to the end(ish), or if no "" prepend a 1, eg
+    -- 5 -> 14 -> 23 -> 32 -> 41 -> 50 -> 104 -> 113 -> 122 -> 131 ->
+    -- 140 -> 203 .. 230 -> 302 .. 500 -> 1004 .. 10004, etc.
+    -- Another example, this time summing to 14 (the above was to 5!):
+    -- 59 -> 68 .. 95 -> 149 .. 194 -> 239 .. 293 -> 329 .. 392 ->
+    -- 419 .. 491 -> 509 .. 590 -> 608 .. 680 -> 707 .. 770 -> 806
+    -- .. 860 -> 905 .. 950 -> 1049, etc.
+    -- in that last case, what we actually need to do is decrement the
+    -- 5 (->940), then reverse the whole thing, and then prepend a 1,
+    -- likewise if we increment a middle digit, dec then reverse(rest).
+    -- In the extreme case you would want 1 -> 10 -> 100 -> 1000, etc,
+    -- although since 1 passes muster we would never actually do that.
+    --
+    if n=0 then return "0" end if -- avoid remainder(x,0), and tz=inf
+
+    integer l = ceil(n/9)-1,        -- this many trailing 9s...
+            k = n-9*l+'0'           -- ...and this first digit
+    string digits = k&repeat('9',l) -- eg n=14 -> "59"
+    l += 1
+
+    -- optimising for trailing zeroes makes a truly *huge* difference
+    integer n0 = n
+    while remainder(n0,10)=0 do
+        n0 /= 10
+        digits &= '0' -- (these be static, aka forever past "l")
+    end while
+    bool r5 = remainder(n0,10)=5    -- not quite so much (maybe 30%)
+
+    atom t1 = time()+1
+    while true do
+        -- calculate remainder(digits,n) digit-wise; faster than mpz
+        integer rem = 0, rn = 1
+        for i=1 to length(digits) do -- (nb not "l")
+            k = digits[-i]-'0'
+            rem = remainder(rem+rn*k,n)
+            rn = remainder(rn*10,n)
+        end for
+        if rem=0 then exit end if
+
+        if time()>t1 then t1 = time()+1; ?{digits,n} end if
+
+        while true do   -- (r5 optimisation at "end while")
+
+            integer dd = 0, -- decrementable digit position
+                    ddd     -- decrementable digit value
+            bool bIncAbleFound = false
+            for i=l to 1 by -1 do
+                integer d = digits[i]-'0'
+                if dd=0 and d>0 then
+                    dd = i
+                    ddd = d
+                else
+                    bIncAbleFound = d<9 and dd
+                end if
+                if bIncAbleFound or i=1 then
+                    digits[dd] = ddd-1+'0'
+                    if bIncAbleFound then
+                        digits[i] = d+'1'
+                        digits[i+1..l] = reverse(digits[i+1..l])
+                    else -- (i=1, so digits[1]=9 or no decrementable)
+                        digits[1..l] = reverse(digits[1..l])
+                        digits = prepend(digits,'1')
+                        l += 1
+                    end if
+                    exit
+                end if
+            end for
+            if not r5 or find(digits[l],"05") then exit end if
+        end while
+
+    end while
+    mpz z = mpz_init(digits)
+    assert(mpz_fdiv_q_ui(z, z, n)=0)
+    return mpz_get_str(z)
+end function
+
+atom t0 = time()
+for n=1 to 100 do -- 0.4s
+    if remainder(n,10)=1 then printf(1,"\n%3d:",n) end if
+    printf(1," %-11s",{mmnn(n)})
+end for
+for n=101 to 164 do -- 0.7s, but mmnn(165) takes 1mins 25s
+--for n=101 to 274 do -- 1mins 50s (most from 165, gave up on 275)
+    if remainder(n,5)=1 then printf(1,"\n%3d:",n) end if
+    printf(1," %-11s",{mmnn(n)})
+end for
+printf(1,"\n1,000,000: %s\n",{shorten(mmnn(1e6))}) -- (0.0s)
+?elapsed(time()-t0) -- 1.1s
+
+{{out}}
+  1: 1           1           1           1           1           1           1           1           1           19
+ 11: 19          4           19          19          13          28          28          11          46          199
+ 21: 19          109         73          37          199         73          37          271         172         1333
+ 31: 289         559         1303        847         1657        833         1027        1576        1282        17497
+ 41: 4339        2119        2323        10909       11111       12826       14617       14581       16102       199999
+ 51: 17449       38269       56413       37037       1108909     142498      103507      154981      150661      1333333
+ 61: 163918      322579      315873      937342      1076923     1030303     880597      1469116     1157971     12842857
+ 71: 4084507     5555554     6849163     37027027    13333333    11710513    11686987    11525641    12656962    374999986
+ 81: 12345679    60852439    72168553    82142857    117647047   93022093    103445977   227272726   112247191   1111111111
+ 91: 658010989   652173913   731172043   849893617   2947368421  2083333228  1030927834  3969377551  11101010101 199999999999
+101: 28900990099 5881372549  6796115533  18173076922 27619047619
+106: 18679245283 18691495327 36111111111 44862385321 1090909090909
+111: 79009009009 80356249999 78761061946 87710526307 426086956513
+116: 258620688793 255547008547 414406779661 411756302521 4999999999999
+121: 2809909090909 811475409754 730081300813 2419193548387 5599999999999
+126: 2380873015873 3148818897637 5468749999921 5348836434031 46076923076923
+131: 6106793893129 28030303030303 6766917293233 22388058880597 37037037037037
+136: 44044117647058 56919700729927 36231884057971 49568345323741 571427857142857
+141: 63822694964539 140140838028169 391606993006993 277777777777777 482751724137931
+146: 471917801369863 401360544217687 1081081081081081 536912751677851 13333333333333333
+151: 1258278145629139 3217105263157894 1307189477124183 3830512987012987 5161290322516129
+156: 4423076923076923 3821656050955414 6202531582278481 5660371069181761 124999999999999993
+161: 12415527950310559 12345679012345679 18404907975398773 48773170731707317
+1,000,000: 19999999999999999999...99999999999999999999 (111,112 digits)
+"1.1s"
+As shown commented out, it will carry on a bit further, but I gave up on 275, and it looks to me like some quite wierd patterns are starting to appear.
+
+161: 12415527950310559 12345679012345679 18404907975398773 48773170731707317 430303030303030303
+166: 48186144578313253 53233532874251497 119041666666666666 59165680473372781 588235235294117647
+171: 169590643216374269 290691860465116279 289017341039884393 344827586206895977 1142857142857142857
+176: 511363636363636363 507903954802259887 1123594938202247191 1061452513966424581 11111111111111111111
+181: 2154143646408839779 3845989010989010989 3278142075956284153 5380434239130434782 37027027027027027027
+186: 9677419354838172043 5347053475935828877 20744680845744680851 20105291005291005291 157894731578947368421
+191: 15706806282722513089 41666666666666666614 36269424870466321243 46391752577319535567 153845641025641025641
+196: 147959183673469382653 101517766497461928934 101010101010101010101 201005025125628040201 19999999999999999999999
+201: 293532338308407960199 1900990099009900990099 438374384235960591133 490195588235294117647 1902439024390243902439
+206: 1407766990291213592233 966183574879227052657 2836538461538461538461 10526315784688995215311 23809047619047619047619
+211: 2843601895260663507109 4716933490566037735849 4225305164318779342723 9345794387803738317757 27441855813953488372093
+216: 18518518518518518518518 18433179262672811059447 27518348623848623853211 27397210045662100456621 1090909090909090909090909
+221: 36199049773710407239819 259009009009009009009009 40358744394618834080713 223169642857142857142812 311111111111111111111111
+226: 216371681415929203539823 220264317180615859030837 307017543859649122368421 301310043668117903930131 3043434782608695652173913
+231: 1904329004329004329004329 1293103448275861637931034 429184549351931330472103 1282047008547008547008547 2978723404255319148893617
+236: 2923728813135593220338983 2531223628270042194092827 3361302521008403361302521 3682004184100418410041841 41666666666666666666666662
+241: 4149377593360995846473029 19421487603305785123553719 4115226337448559670781893 20491803278688483606557377 32648979591836734693877551
+246: 35731300813008130081300813 32388258704048582995951417 80604838306451612903225806 35742971887550200803212851 1999999999999999999999999999
+251: 79641434262549800796812749 119047619047619047619047619 260830039525691699604743083 236220472047244094488188937 352941176470196078431372549
+256: 390624999999999999999960898 311284046688715953307392607 348837209301937984496124031 1081003861003861003861003861 11534576923076923076923076923
+261: 766283524904210727969348659 1908014885496183206106870229 1520912547528517110266121673 2992424242424242424242424242 7546792452452830188679245283
+266: 3007481203007518796992481203 3333333295880149812734082397 10820895485074626865671641791 7397769516728620817843866171 37037037037037037037037037037
+271: 31690036900369003690036900369 25735294117647055147058823529 29263003663003663003663003663 29197007299270072992700729927
+"1 minute and 50s"
+
+--*/
+
+--/*
+11: 209
+22: 2398
+33: 42999
+44: 479996
+55: 60989995
+66: 67999998
+77: 899897999
+88: 19999999888
+99: 1098999999999
+110: 119999999999990
+121: 339998999999989
+132: 3699999999999996
+143: 55999799999999999
+154: 589898999999999998
+165: 70999999999999999995
+176: 89999999999999999888
+187: 999898999999999999999
+198: 19999999999999999999998
+209: 2199999998999999999999999
+220: 239999999999999999999999980
+231: 439899999999999999999999999
+242: 4699999999999999999899999998
+253: 65989999999999999999999999999
+264: 789999999999999999999999999888
+"1 minute and 26s"
+"done"
+--*/
+
+--/*
+--latest:
+
+  1: 1           1           1           1           1           1           1           1           1           19
+ 11: 19          4           19          19          13          28          28          11          46          199
+ 21: 19          109         73          37          199         73          37          271         172         1333
+ 31: 289         559         1303        847         1657        833         1027        1576        1282        17497
+ 41: 4339        2119        2323        10909       11111       12826       14617       14581       16102       199999
+ 51: 17449       38269       56413       37037       1108909     142498      103507      154981      150661      1333333
+ 61: 163918      322579      315873      937342      1076923     1030303     880597      1469116     1157971     12842857
+ 71: 4084507     5555554     6849163     37027027    13333333    11710513    11686987    11525641    12656962    374999986
+ 81: 12345679    60852439    72168553    82142857    117647047   93022093    103445977   227272726   112247191   1111111111
+ 91: 658010989   652173913   731172043   849893617   2947368421  2083333228  1030927834  3969377551  11101010101 199999999999
+101: 28900990099 5881372549  6796115533  18173076922 27619047619
+106: 18679245283 18691495327 36111111111 44862385321 1090909090909
+111: 79009009009 80356249999 78761061946 87710526307 426086956513
+116: 258620688793 255547008547 414406779661 411756302521 4999999999999
+121: 2809909090909 811475409754 730081300813 2419193548387 5599999999999
+126: 2380873015873 3148818897637 5468749999921 5348836434031 46076923076923
+131: 6106793893129 28030303030303 6766917293233 22388058880597 37037037037037
+136: 44044117647058 56919700729927 36231884057971 49568345323741 571427857142857
+141: 63822694964539 140140838028169 391606993006993 277777777777777 482751724137931
+146: 471917801369863 401360544217687 1081081081081081 536912751677851 13333333333333333
+151: 1258278145629139 3217105263157894 1307189477124183 3830512987012987 5161290322516129
+156: 4423076923076923 3821656050955414 6202531582278481 5660371069181761 124999999999999993
+161: 12415527950310559 12345679012345679 18404907975398773 48773170731707317 430303030303030303
+166: 48186144578313253 53233532874251497 119041666666666666 59165680473372781 588235235294117647
+171: 169590643216374269 290691860465116279 289017341039884393 344827586206895977 1142857142857142857
+176: 511363636363636363 507903954802259887 1123594938202247191 1061452513966424581 11111111111111111111
+181: 2154143646408839779 3845989010989010989 3278142075956284153 5380434239130434782 37027027027027027027
+186: 9677419354838172043 5347053475935828877 20744680845744680851 20105291005291005291 157894731578947368421
+191: 15706806282722513089 41666666666666666614 36269424870466321243 46391752577319535567 153845641025641025641
+196: 147959183673469382653 101517766497461928934 101010101010101010101 201005025125628040201 19999999999999999999999
+201: 293532338308407960199 1900990099009900990099 438374384235960591133 490195588235294117647 1902439024390243902439
+206: 1407766990291213592233 966183574879227052657 2836538461538461538461 10526315784688995215311 23809047619047619047619
+211: 2843601895260663507109 4716933490566037735849 4225305164318779342723 9345794387803738317757 27441855813953488372093
+216: 18518518518518518518518 18433179262672811059447 27518348623848623853211 27397210045662100456621 1090909090909090909090909
+221: 36199049773710407239819 259009009009009009009009 40358744394618834080713 223169642857142857142812 311111111111111111111111
+226: 216371681415929203539823 220264317180615859030837 307017543859649122368421 301310043668117903930131 3043434782608695652173913
+231: 1904329004329004329004329 1293103448275861637931034 429184549351931330472103 1282047008547008547008547 2978723404255319148893617
+236: 2923728813135593220338983 2531223628270042194092827 3361302521008403361302521 3682004184100418410041841 41666666666666666666666662
+241: 4149377593360995846473029 19421487603305785123553719 4115226337448559670781893 20491803278688483606557377 32648979591836734693877551
+246: 35731300813008130081300813 32388258704048582995951417 80604838306451612903225806 35742971887550200803212851 1999999999999999999999999999
+251: 79641434262549800796812749 119047619047619047619047619 260830039525691699604743083 236220472047244094488188937 352941176470196078431372549
+256: 390624999999999999999960898 311284046688715953307392607 348837209301937984496124031 1081003861003861003861003861 11534576923076923076923076923
+261: 766283524904210727969348659 1908014885496183206106870229 1520912547528517110266121673 2992424242424242424242424242 7546792452452830188679245283
+266: 3007481203007518796992481203 3333333295880149812734082397 10820895485074626865671641791 7397769516728620817843866171 37037037037037037037037037037
+271: 31690036900369003690036900369 25735294117647055147058823529 29263003663003663003663003663 29197007299270072992700729927
+1,000,000: 19999999999999999999...99999999999999999999 (111,112 digits)
+"38.5s"
+"done"
+
+--as posted (part 1):
+  1: 1           1           1           1           1           1           1           1           1           19
+ 11: 19          4           19          19          13          28          28          11          46          199
+ 21: 19          109         73          37          199         73          37          271         172         1333
+ 31: 289         559         1303        847         1657        833         1027        1576        1282        17497
+ 41: 4339        2119        2323        10909       11111       12826       14617       14581       16102       199999
+ 51: 17449       38269       56413       37037       1108909     142498      103507      154981      150661      1333333
+ 61: 163918      322579      315873      937342      1076923     1030303     880597      1469116     1157971     12842857
+ 71: 4084507     5555554     6849163     37027027    13333333    11710513    11686987    11525641    12656962    374999986
+ 81: 12345679    60852439    72168553    82142857    117647047   93022093    103445977   227272726   112247191   1111111111
+ 91: 658010989   652173913   731172043   849893617   2947368421  2083333228  1030927834  3969377551  11101010101 199999999999
+101: 28900990099 5881372549  6796115533  18173076922 27619047619
+106: 18679245283 18691495327 36111111111 44862385321 1090909090909
+111: 79009009009 80356249999 78761061946 87710526307 426086956513
+116: 258620688793 255547008547 414406779661 411756302521 4999999999999
+121: 2809909090909 811475409754 730081300813 2419193548387 5599999999999
+126: 2380873015873 3148818897637 5468749999921 5348836434031 46076923076923
+131: 6106793893129 28030303030303 6766917293233 22388058880597 37037037037037
+136: 44044117647058 56919700729927 36231884057971 49568345323741 571427857142857
+141: 63822694964539 140140838028169 391606993006993 277777777777777 482751724137931
+146: 471917801369863 401360544217687 1081081081081081 536912751677851 13333333333333333
+151: 1258278145629139 3217105263157894 1307189477124183 3830512987012987 5161290322516129
+156: 4423076923076923 3821656050955414 6202531582278481 5660371069181761 124999999999999993
+161: 12415527950310559 12345679012345679 18404907975398773 48773170731707317 430303030303030303
+166: 48186144578313253 53233532874251497 119041666666666666 59165680473372781 588235235294117647
+171: 169590643216374269 290691860465116279 289017341039884393 344827586206895977 1142857142857142857
+176: 511363636363636363 507903954802259887 1123594938202247191 1061452513966424581 11111111111111111111
+181: 2154143646408839779 3845989010989010989 3278142075956284153 5380434239130434782 37027027027027027027
+186: 9677419354838172043 5347053475935828877 20744680845744680851 20105291005291005291 157894731578947368421
+191: 15706806282722513089 41666666666666666614 36269424870466321243 46391752577319535567 153845641025641025641
+196: 147959183673469382653 101517766497461928934 101010101010101010101 201005025125628040201 19999999999999999999999
+201: 293532338308407960199 1900990099009900990099 438374384235960591133 490195588235294117647 1902439024390243902439
+206: 1407766990291213592233 966183574879227052657 2836538461538461538461 10526315784688995215311 23809047619047619047619
+211: 2843601895260663507109 4716933490566037735849 4225305164318779342723 9345794387803738317757 27441855813953488372093
+216: 18518518518518518518518 18433179262672811059447 27518348623848623853211 27397210045662100456621 1090909090909090909090909
+221: 36199049773710407239819 259009009009009009009009 40358744394618834080713 223169642857142857142812 311111111111111111111111
+226: 216371681415929203539823 220264317180615859030837 307017543859649122368421 301310043668117903930131 3043434782608695652173913
+231: 1904329004329004329004329 1293103448275861637931034 429184549351931330472103 1282047008547008547008547 2978723404255319148893617
+236: 2923728813135593220338983 2531223628270042194092827 3361302521008403361302521 3682004184100418410041841 41666666666666666666666662
+241: 4149377593360995846473029 19421487603305785123553719 4115226337448559670781893 20491803278688483606557377 32648979591836734693877551
+246: 35731300813008130081300813 32388258704048582995951417 80604838306451612903225806 35742971887550200803212851 1999999999999999999999999999
+251: 79641434262549800796812749 119047619047619047619047619 260830039525691699604743083 236220472047244094488188937 352941176470196078431372549
+256: 390624999999999999999960898 311284046688715953307392607 348837209301937984496124031 1081003861003861003861003861 11534576923076923076923076923
+261: 766283524904210727969348659 1908014885496183206106870229 1520912547528517110266121673 2992424242424242424242424242 7546792452452830188679245283
+266: 3007481203007518796992481203 3333333295880149812734082397 10820895485074626865671641791 7397769516728620817843866171 37037037037037037037037037037
+271: 31690036900369003690036900369 25735294117647055147058823529 29263003663003663003663003663 29197007299270072992700729927
+1,000,000: 19999999999999999999...99999999999999999999 (111,112 digits)
+"1 minute and 50s"
+--*/
+
+-- might still be useful... (I hope not!!)
+--/*
+function rmc(string digits, integer n)
+    integer rem = 0, 
+            l = length(digits),
+            rn = 1
+    for i=1 to l do
+--      integer k = digits[-i]-'0'
+        integer k = digits[-i]
+        rem = remainder(rem + rn*k,n)
+        rn = remainder(rn*10,n)
+    end for
+    return rem
+end function
+
+function rd(string digits)
+--?"rd"
+--  atom res = 0
+    string res = ""
+--  for i=length(digits) to 1 by -1 do
+    for i=1 to length(digits) do
+--      res = res*10+(digits[i]-'0')
+--      res = res*10+digits[i]
+        res &= digits[i]+'0'
+    end for
+    return res
+end function
+
+--*/
+
+--/*
+mod(abs(sum(odds)-sum(evens)),11)=0
+:::Never heard of that rule for numbers divisible by 11 before, certainly sounds like it might be be rather handy.<br>
+:::Here are some preliminary results of a brute force attack (wading through as many billion numbers as it could in a few seconds or so)<br>
+:::Actual results are marked with an asterisk, obviously I've carried on regardless looking for and/or proving any patterns.
+<pre>
+For n=11:
+We can discount all 8 potential 2-digit candidates 29,38,47,56,65,74,83,92 as none are divisible by 11.
+There are only 8 potential 3-digit candidates: 209*,308,407,506,605,704,803,902, and
+there are only 8 potential 4-digit candidates: 2090,3080,4070,5060,6050,7040,8030,9020.
+There are only 61 potential 5-digit candidates: 10109,10208,10307,10406,10505,10604,10703,10802,10901,20009,..90200, again
+there are only 61 potential 6-digit candidates, the same set as 5-digits but with a trailing zero (but not so for n>11).
+there are only 279 potential 7-digit candidates: 1000109..9020000, "" for 8-digit candidates
+there are only 992 potential 9-digit candidates: 100000109..902000000, "" for 10-digit candidates
+The first potential 11 digit candidate is 10000000109
+
+For n=22 (but including all the odd candidates for now):
+There are no potential 2 or 3 digit candidates at all.
+There are only 64 potential 4 digit candidates: 2299,2398*,..2992,3289,..9724,9823,9922.
+There are 509 potential 5 digit candidates: 12199,12298,12397,..12991,13189,..98230,99022,99121,99220.
+There are 4230 potential 6 digit candidates: 101299..992200
+There are 19770 potential 7 digit candidates: 1002199..9922000
+There are 97611 potential 8 digit candidates: 10001299..99220000
+There are 350676 potential 9 digit candidates: 100002199..992200000
+There are 1334740 potential 10 digit candidates: 1000001299..9922000000
+The first potential 11 digit candidate is 10000002199
+
+For n=33 (and dropping the limit by 1 digit as it is starting to crawl):
+There are no potential 2, 3, or 4 digit candidates at all.
+There are only 168 potential 5 digit candidates: 42999*,43989,44979,45969,..99726,99825,99924.
+There are 2730 potential 6 digit candidates: 141999..999240
+There are 41690 potential 7 digit candidates: 1032999..9992400
+There are 331292 potential 8 digit candidates: 10041999..99924000
+There are 2437485 potential 9 digit candidates: 100032999..999240000
+The first potential 10 digit candidate is 1000041999
+
+for n=44:
+There are no potential 2..5 digit candidates at all.
+There are 441 potential 6 digit candidates: 449999..479996*..999944
+There are 12279 potential 7 digit candidates: 1439999..9999440
+There are 292800 potential 8 digit candidates: 10349999..99994400
+There are 3568545 potential 9 digit candidates: 100439999..999944000
+The first potential 10 digit candidate is 1000349999
+
+for n=55 (not counting 5 aka ending in 5 or 0):
+There are no potential 2..6 digit candidates at all.
+There are 420 potential 7 digit candidates: 6499999..9999946
+There are 21180 potential 8 digit candidates: 16399999..60989995*..99999460
+There are 1042440 potential 9 digit candidates: 105499999..999994600
+The first potential 10 digit candidate is 1006399999
+
+for n=66 (and we can just afford to increase the limit again):
+There are no potential 2..7 digit candidates at all.
+There are 400 potential 8 digit candidates: 66999999..67999998*..99999966
+There are 37200 potential 9 digit candidates: 165999999..999999660
+There are 3067425 potential 9 digit candidates: 1056999999..9999996600
+The first potential 11 digit candidate is 10065999999
+
+for n=77:
+There are no potential 2..8 digit candidates at all.
+There are 100 potential 9 digit candidates: 869999999..899897999*..999999968
+There are 17350 potential 10 digit candidates: 1859999999..9999999680
+The first potential 11 digit candidate is 10769999999
+
+for n=88 (ditto):
+There are no potential 2..9 digit candidates at all.
+There are 25 potential 10 digit candidates: 8899999999..9999999988
+There are 14960 potential 11 digit candidates: 18799999999..19999999888*..99999999880
+The first potential 12 digit candidate is 107899999999
+
+for n=99:
+There are no potential 2..12 digit candidates at all.
+The first potential 13 digit candidate is 1098999999999*
+
+for n=110 (without the trailing zero optimisation):
+There are no potential 2..13 digit candidates at all.
+The first potential 14 digit candidate is 11999999999999 (119999999999990*, 15 digits)
+</pre>
+
+11: 209
+22: 2398
+33: 42999
+44: 479996
+55: 60989995
+66: 67999998
+77: 899897999
+88: 19999999888
+99: 1098999999999
+
+First candidates:
+11: *29, 209, 2090, 10109, 101090, 1000109, 10001090, 100000109, 1000001090, 10000000109
+22:     *499, 2299, 12199, 101299, 1002199, 10001299, 100002199, 1000001299, 10000002199
+33:          *6999, 42999, 141999, 1032999, 10041999, 100032999, 1000041999
+44:                *89999, 449999, 1439999, 10349999, 100439999, 1000349999
+55:                      *1999999, 6499999, 16399999, 105499999, 1006399999
+66:                              *39999999, 66999999, 165999999, 1056999999, 10065999999
+77:                                       *599999999, 869999999, 1859999999, 10769999999
+88:                                                 *7999999999, 8899999999, 18799999999, 107899999999
+99:                                                                         *99999999999, 1098999999999
+110:                                                                                     *2999999999999, 11999999999999
+I'm thinking while not valid and n2!=0 do {n1+=1,n2-=1}, then split n1 and repeat...
+
+For multiples of 5 (multiples of 10 already dealt with):
+for n=5:
+There is only 1 potential 1-digit candidate: 5 (5)
+There is only 1 potential 2-digit candidate: 50
+There are only 5 potential 3-digit candidates: 140, 230, 320, 410, and 500
+There are only 15 potential 4-digit candidates: 1040, 1130, 1220, 1310, 1400, 2030, 2120, 2210, 2300, 3020, 3110, 3200, 4010, 4100, and 5000
+There are only 35 potential 5-digit candidates: 10040, 10130, 10220, 10310, 10400, 11030, 11120, 11210, 11300, 12020, 12110, 12200, 13010, 
+                                                13100, 14000, 20030, 20120, 20210, 20300, 21020, 21110, 21200, 22010, 22100, 23000, 30020, 
+                                                30110, 30200, 31010, 31100, 32000, 40010, 40100, 41000, 50000
+There are only 70 potential 6-digit candidates: 100040 .. 500000 (all end in 0)
+The first potential 7 digit candidate is 1000040
+
+for n=15:
+There are no potential 1..2 digit candidates at all. (69)
+There are only 13 potential 3-digit candidates: 195, 285, 375, 465, 555, 645, 690, 735, 780, 825, 870, 915, 960
+                                                (we can only pair/-5 the last digit if the current is <5...)
+There are only 123 potential 4-digit candidates: 1095, 1185, 1275, 1365, 1455, 1545, 1590, 1635, 1680, 1725, 1770, 1815, 1860, 1905, 1950, 
+                                                 2085, 2175, 2265, 2355, 2445, 2490, 2535, 2580, 2625, 2670, 2715, 2760, 2805, 2850, 2940, 
+                                                 3075, 3165, 3255, 3345, 3390, 3435, 3480, 3525, 3570, 3615, 3660, 3705, 3750, 3840, 3930, 
+                                                 4065, 4155, 4245, 4290, 4335, 4380, 4425, 4470, 4515, 4560, 4605, 4650, 4740, 4830, 4920,
+                                                 5055, 5145, 5190, 5235, 5280, 5325, 5370, 5415, 5460, 5505, 5550, 5640, 5730, 5820, 5910,
+                                                 6045, 6090, 6135, 6180, 6225, 6270, 6315, 6360, 6405, 6450, 6540, 6630, 6720, 6810, 6900,
+                                                 7035, 7080, 7125, 7170, 7215, 7260, 7305, 7350, 7440, 7530, 7620, 7710, 7800, 8025, 8070,
+                                                 8115, 8160, 8205, 8250, 8340, 8430, 8520, 8610, 8700, 9015, 9060, 9105, 9150, 9240, 9330,
+                                                 9420, 9510, 9600
+There are only 738 potential 5-digit candidates: 10095, 10185, 10275, 10365, 10455, 10545, 10590, 10635, 10680, 10725, 10770, 10815, 10860, 
+                                                 10905 .. 96000
+There are only 3368 potential 6-digit candidates: 100095 .. 960000
+The first potential 7 digit candidate is 1000095
+
+for n=25:
+There are no potential 1..3 digit candidates at all. (799)
+There are only 42 potential 4-digit candidates: 2995, 3895, 3985, 4795, 4885, 4975, 5695, 5785, 5875, 5965, 6595, 6685, 6775, 6865, 6955, 
+                                                7495, 7585, 7675, 7765, 7855, 7945, 7990, 8395, 8485, 8575, 8665, 8755, 8845, 8890, 8935,
+                                                8980, 9295, 9385, 9475, 9565, 9655, 9745, 9790, 9835, 9880, 9925, 9970
+There are only 939 potential 5-digit candidates: 11995 .. 99700
+There are only 10281 potential 6-digit candidates: 101995 .. 997000
+The first potential 7 digit candidate is 1001995
+
+for n=35:
+There are no potential 1..4 digit candidates at all. (8999)
+There are only 88 potential 5-digit candidates: 39995, 48995, 49895, 49985, 57995, 58895, 58985, 59795, 59885, 59975, 66995, 67895, 67985, 
+                                                68795, 68885, 68975, 69695, 69785, 69875, 69965, 75995, 76895, 76985, 77795, 77885, 77975, 
+                                                78695, 78785, 78875, 78965, 79595, 79685, 79775, 79865, 79955, 84995, 85895, 85985, 86795, 
+                                                86885, 86975, 87695, 87785, 87875, 87965, 88595, 88685, 88775, 88865, 88955, 89495, 89585, 
+                                                89675, 89765, 89855, 89945, 89990, 93995, 94895, 94985, 95795, 95885, 95975, 96695, 96785, 
+                                                96875, 96965, 97595, 97685, 97775, 97865, 97955, 98495, 98585, 98675, 98765, 98855, 98945, 
+                                                98990, 99395, 99485, 99575, 99665, 99755, 99845, 99890, 99935, 99980
+There are only 4154 potential 6-digit candidates: 129995 .. 999800
+The first potential 7 digit candidate is 1029995
+
+for n=45:
+There are no potential 1..5 digit candidates at all. (99999)
+There are only 127 potential 6-digit candidates: 499995, 589995, 598995, 599895, 599985, 679995, 688995, 689895, 689985, 697995, 698895, 
+                                                 698985, 699795, 699885, 699975, 769995, 778995, 779895, 779985, 787995, 788895, 788985, 
+                                                 789795, 789885, 789975, 796995, 797895, 797985, 798795, 798885, 798975, 799695, 799785,
+                                                 799875, 799965, 859995, 868995, 869895, 869985, 877995, 878895, 878985, 879795, 879885,
+                                                 879975, 886995, 887895, 887985, 888795, 888885, 888975, 889695, 889785, 889875, 889965,
+                                                 895995, 896895, 896985, 897795, 897885, 897975, 898695, 898785, 898875, 898965, 899595,
+                                                 899685, 899775, 899865, 899955, 949995, 958995, 959895, 959985, 967995, 968895, 968985,
+                                                 969795, 969885, 969975, 976995, 977895, 977985, 978795, 978885, 978975, 979695, 979785,
+                                                 979875, 979965, 985995, 986895, 986985, 987795, 987885, 987975, 988695, 988785, 988875,
+                                                 988965, 989595, 989685, 989775, 989865, 989955, 994995, 995895, 995985, 996795, 996885,
+                                                 996975, 997695, 997785, 997875, 997965, 998595, 998685, 998775, 998865, 998955, 999495, 
+                                                 999585, 999675, 999765, 999855, 999945, 999990
+There are 12747 potential 7-digit candidates: 1399995 .. 9999900
+The first potential 8 digit candidate is 10399995
+
+for n=55 (not considering 11):
+There are no potential 1..6 digit candidates at all. (1999999)
+There are only 126 potential 7-digit candidates: 5999995, 6899995, 6989995, 6998995, 6999895, 6999985, 7799995 .. 9999955
+There are 29421 potential 8-digit candidates: 14999995 .. 99999910
+The first potential 9 digit candidate is 104999995
+
+for n=55 (considering 11):
+There are no potential 1..7 digit candidates at all.
+There are 1,680 potential 8-digit candidates: 60989995 .. 99999460
+>>>
+sumple_add(55)
+        60989995, 
+           1 0 4
+            4 1 
+          (95989)
+        60999895, 
+         1 0 1 4
+          4 0 2
+        (1599979)
+        61979995, 
+           1 0 4
+            4 1 
+          (85989)
+        61989895, 
+           1 1 4
+            4 2
+          (95979)
+        61999795, 
+         1 0 2 4
+          4 0 3
+        (2599969)
+        62969995,
+           1 0 4
+            4 1
+          (15989) 
+        62979895, 
+        62989795, 
+        62999695, 
+        63959995, 
+63969895, 
+63979795, 
+63989695, 
+<<<
+There are 122,220 potential 9-digit candidates: 109499995 .. 999994600
+The first potential 10 digit candidate is 1050989995
+--  vs 11-but-not-5 55 (so about a potential ten-foLd reduction):
+--  There are 420 potential 7 digit candidates: 6499999..9999946
+--  There are 21,180 potential 8 digit candidates: 16399999..60989995*..99999460
+--  There are 1,042,440 potential 9 digit candidates: 105499999..999994600
+--  The first potential 10 digit candidate is 1006399999
+
+for n=165 (==3*55, perilously close to being all just too much for my brute force approach...):
+There are no potential 1..19 digit candidates at all.
+The first 150 potential 20-digit candidates are: 70999999999999999995, 71989999999999999995, 71999899999999999995, 71999998999999999995, 
+                                                 70999999999999999995* the answer!! (DEV prove that is properly valid?...)
+                                                 71999999989999999995, 71999999999899999995, 71999999999998999995, 71999999999999989995, 
+                                                 71999999999999999895, 72979999999999999995, 72989899999999999995, 72989998999999999995,
+                                                 72989999989999999995, 72989999999899999995, 72989999999998999995, 72989999999999989995,
+                                                 72989999999999999895, 72999799999999999995, 72999898999999999995, 72999899989999999995,
+                                                 72999899999899999995, 72999899999998999995, 72999899999999989995, 72999899999999999895,
+                                                 72999997999999999995, 72999998989999999995, 72999998999899999995, 72999998999998999995,
+                                                 72999998999999989995, 72999998999999999895, 72999999979999999995, 72999999989899999995,
+                                                 72999999989998999995, 72999999989999989995, 72999999989999999895, 72999999999799999995,
+                                                 72999999999898999995, 72999999999899989995, 72999999999899999895, 72999999999997999995,
+                                                 72999999999998989995, 72999999999998999895, 72999999999999979995, 72999999999999989895,
+                                                 72999999999999999795, 73969999999999999995, 73979899999999999995, 73979998999999999995,
+                                                 73979999989999999995, 73979999999899999995, 73979999999998999995, 73979999999999989995,
+                                                 73979999999999999895, 73989799999999999995, 73989898999999999995, 73989899989999999995,
+                                                 73989899999899999995, 73989899999998999995, 73989899999999989995, 73989899999999999895,
+                                                 73989997999999999995, 73989998989999999995, 73989998999899999995, 73989998999998999995,
+                                                 73989998999999989995, 73989998999999999895, 73989999979999999995, 73989999989899999995,
+                                                 73989999989998999995, 73989999989999989995, 73989999989999999895, 73989999999799999995,
+                                                 73989999999898999995, 73989999999899989995, 73989999999899999895, 73989999999997999995,
+                                                 73989999999998989995, 73989999999998999895, 73989999999999979995, 73989999999999989895,
+                                                 73989999999999999795, 73999699999999999995, 73999798999999999995, 73999799989999999995,
+                                                 73999799999899999995, 73999799999998999995, 73999799999999989995, 73999799999999999895,
+                                                 73999897999999999995, 73999898989999999995, 73999898999899999995, 73999898999998999995,
+                                                 73999898999999989995, 73999898999999999895, 73999899979999999995, 73999899989899999995,
+                                                 73999899989998999995, 73999899989999989995, 73999899989999999895, 73999899999799999995,
+                                                 73999899999898999995, 73999899999899989995, 73999899999899999895, 73999899999997999995,
+                                                 73999899999998989995, 73999899999998999895, 73999899999999979995, 73999899999999989895,
+                                                 73999899999999999795, 73999996999999999995, 73999997989999999995, 73999997999899999995,
+                                                 73999997999998999995, 73999997999999989995, 73999997999999999895, 73999998979999999995,
+                                                 73999998989899999995, 73999998989998999995, 73999998989999989995, 73999998989999999895,
+                                                 73999998999799999995, 73999998999898999995, 73999998999899989995, 73999998999899999895,
+                                                 73999998999997999995, 73999998999998989995, 73999998999998999895, 73999998999999979995,
+                                                 73999998999999989895, 73999998999999999795, 73999999969999999995, 73999999979899999995,
+                                                 73999999979998999995, 73999999979999989995, 73999999979999999895, 73999999989799999995,
+                                                 73999999989898999995, 73999999989899989995, 73999999989899999895, 73999999989997999995,
+                                                 73999999989998989995, 73999999989998999895, 73999999989999979995, 73999999989999989895,
+                                                 73999999989999999795, 73999999999699999995, 73999999999798999995, 73999999999799989995,
+                                                 73999999999799999895, 73999999999897999995...
+
+
+
+--*/
+
+--/*
+procedure sumple_add(integer n)
+--  if n=0 then return 0 end if -- (avoids invoking remainder(x,0))
+--  if n<=1 then return n end if -- (avoid invoking remainder(x,0|1))
+
+    printf(1,"sumple_add(%d)\n",n)
+    integer l = ceil(n/9)-1,    -- we need l-1 trailing 9s
+            k = n-9*l,          -- ...and this first digit
+            count = 1,
+--, rdd=-1, lc=1
+            lc=1
+string rdd = ""
+    sequence digits = k&repeat(9,l) -- eg n=14 -> {5,9} with rem=3
+--digits = sq_sub("70999999999999999995",'0')
+digits = sq_sub("88989789798999978798",'0')
+--               70999999999999999995
+
+--GRR...
+--digits = sq_sub("99999999989897969388",'0')
+
+
+l = length(digits)-1
+
+sequence found = {}
+
+bool first = true
+
+--atom t0 = time()
+atom t1 = time()+1
+    while count<=14750 do
+--  while count<=5000 do
+--  while first or l<13 do
+--  while first or l<7 do
+--?digits
+--      integer r11 = rmc(digits,11)
+--      integer r5 = rmc(digits,5)
+        integer r55 = rmc(digits,55)
+--      integer r55 = rmc(digits,3*55)
+--      if r11=0 then
+--      if r5=0 then
+        if r55=0 then
+            rdd = rd(digits)
+            integer r165 = rmc(digits,3*55)
+            string ok165 = " (rem165"&iff(r165?"!=0)":"==0)")
+            found = append(found,rdd&ok165)
+            if first or r165 then
+--          integer --rdd = rd(digits),
+--                  rddr = remainder(rdd,n),
+--                  rem = rmc(digits,n)
+--                  rem = and_bits(rmc(digits,n),1)
+--      string ok = iff(rem=rddr?"ok":"**oops**")
+--      printf(1,"%d (rem %d,[%d, %s])\n",{rdd,rem,rddr,ok})
+--              printf(1,"\"%s\" (rem %d, count=%d)\n",{rdd,rem,count})
+--if count>0 then
+                printf(1,"{\"%s\",%d}\n",{rdd,count})
+--end if
+                first = false
+                lc = count
+            end if
+--      ?{7,9,9,9,9,8,9,9,9,9,9,9,9,9,9,8,0}
+            count += 1
+--      end if
+        elsif time()>t1 then
+            ?{"nope",rd(digits),sum(digits),length(found)}
+            t1 = time()+1
+            integer ch = get_key()
+            if ch!=-1 
+            and ch!=310 then -- shift??
+                if ch='?' then
+                    printf(1,"%d found: %s\n",{length(found),join(found,", ")})
+                else
+                    printf(1,"unknown key:%c (%d)\n",ch)
+                end if
+            end if
+        end if
+
+--if not even(digits[$]) then ne += 1 end if
+
+        integer --id = 0, -- incrementable digit position
+                dd = 0, -- decrementable digit position
+                ddd     -- decrementable digit value
+--if digits={2,0} then trace(1) end if
+--if digits={1,2,0} then trace(1) end if
+--if digits={1,2,0} then trace(1) end if
+--if digits={1,1,0} then trace(1) end if
+--if digits={9,5} then trace(1) end if
+--if digits={1,9,4} then trace(1) end if
+--if digits={7,9,9,9,9,8,9,9,9,9,9,9,9,9,9,8} then
+----if digits={7,9,9,9,9,8,9,9,9,9,9,9,9,9,9,8,0} then
+--  ?time()-t0
+----    ?12684060-8989314   -- <4m the hard way, 82 with ne of 75 with 0, meaning just 7!
+--   ?9/0 
+--end if
+--if digits={7,9,9,9,9,8,9,9,9,9,9,9,9,9,9,8} then ?9/0 end if
+        for i=l+1 to 1 by -1 do
+            integer d = digits[i]
+            if dd=0 and d>0 then
+                dd = i
+                ddd = d
+            elsif d<9 and dd then
+                digits[dd] = ddd-1
+--if already in cache then yield it??
+                digits[i+1..$] = reverse(digits[i+1..$])
+                digits[i] = d+1
+                exit
+            end if
+            if i=1 then
+                -- Aside: We have an i{9}dd{0} situation here, where if
+                --        there are no 9s and no 0s it's 2-digit at max
+                --        and anything like ...88x11.. has already been 
+                --        bumped to ..99x00.. long before it gets here.
+                --        Of course dd/x could be (pointing at) a 9.
+--Aside2: Of course at this point (first time) we've just generated all permutes of k=sum(n-digits[1])...
+--        If we store [first of] those keyed on {remainder,k,l} then....
+                digits[dd] = ddd-1
+--if already in cache then yield it??
+                digits = reverse(digits)
+                digits = prepend(digits,1)
+                l += 1
+--first = true
+if l<15 then first=true end if
+if rdd!="" then
+?{"last",rdd,count-lc}
+end if
+                exit -- (would happen anyway, since i=1)
+            end if          
+        end for
+--      if t=n then 
+--      end if
+--      m += 1
+    end while
+--printf(1,"%d found:\n%s\n",{length(found),join(found,"\n")})
+printf(1,"%d found:\n",{length(found)})
+?"sumple(out)"
+end procedure
+
+--for i=1 to 37 do
+--  sumple_add(i)
+--{} = wait_key()
+--end for
+--sumple_add(5)
+--sumple_add(15)
+--sumple_add(25)
+--sumple_add(35)
+--sumple_add(45)
+--sumple_add(55)
+--sumple_add(3*55)
+
+--sumple_add(165) -- (3*55)
+--sumple_add(275) -- (5*55)
+--sumple_add(385) -- (7*55)
+--sumple_add(495) -- (9*55)
+
+
+--sumple_add(11)
+--sumple_add(22)
+--sumple_add(33)
+--sumple_add(44)
+--sumple_add(55)
+--sumple_add(66)
+--sumple_add(77)
+--sumple_add(88)
+--sumple_add(99)
+--sumple_add(110)
+--sumple_add(14)
+--sumple_add(2)
+--sumple_add(1)
+--sumple_add(3)
+--sumple_add(140)
+--for i=1 to 25 do
+--  sumple_add(i)
+--end for
+--*/
+-- Aside: I've ordered the routines for readability, they could be placed here instead.
+--        (Phix usually needs forward declarations when optional parameters get involved)
+

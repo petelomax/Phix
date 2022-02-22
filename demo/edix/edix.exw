@@ -3360,30 +3360,45 @@ function cmap(integer n)
     return ""   
 end function
 
+include src\withjs.e
+
+procedure set_js_line(integer line, bool bInsert, string s)
+--?{"set_js_line", line, bInsert, s}
+    CursorX = 0
+    CursorY = line-1
+    sequence block = {s,""}
+    if not bInsert then
+        selON = 1
+        selX = ExpLength(filetext[currfile][CursorY+1])
+        selY = CursorY
+        if deleteSelection() then end if        
+        block = {s}
+    end if
+    addAction(INSERTBLOCK,block)
+    InsertBlock(block)
+    paintCursorY()
+    forceCursorOnscreen()
+end procedure
+
 procedure show_as_base(integer base)
---sequence pos, c, hexchar
-sequence pos, hexchar
-string c
-object d
-integer ld, ch, k, leadin, signed, skip
-atom n
---trace(1)
-    pos = DeleteBlockPos()  -- save co-ords
-    d = getSelection(SEL_COPY)
+    sequence pos = DeleteBlockPos() -- save co-ords
+    object d = getSelection(SEL_COPY)
     if sequence(d) and length(d)=1 then     -- (ie {"1234"} is text on one line, length 1)
         d = d[1]
-        ld = length(d)
+        integer ld = length(d)
         if ld then
 --28/1/18:
             if not string(d) then d = utf32_to_utf8(d) end if
-            c = d
-            n = 0
-            signed = 0
+            string c = d
+            sequence hexchar
+            atom n = 0
+            bool signed = false
+            integer ch, k
             
             if base>0 then
 
                 if length(d)>1 and d[1]='-' then
-                    signed = 1
+                    signed = true
                     d = d[2..length(d)]
                 end if
                 if d[1]='#' then
@@ -3450,7 +3465,7 @@ atom n
                 and base!=10 
                 and n<#100000000 then
                     n = #100000000-n
-                    signed = 0
+                    signed = false
                 end if
                 if base=16 then     -- show as hex
 
@@ -3471,7 +3486,7 @@ atom n
 
                     if signed then
                         n = -n
-                        signed = 0
+                        signed = false
                     end if
                     c = sprintf("%d",n)
 
@@ -3510,11 +3525,11 @@ atom n
                     if ch='"' and k='"' then
 --                      c = sprint(d[2..ld-1])
                         c = "{"
-                        leadin = 0
+                        bool leadin = false
                         for i=2 to ld-1 do
                             ch = d[i]
                             if leadin then
-                                leadin = 0
+                                leadin = false
                                 if not find(ch,`"'\`) then
                                     if ch='t' then
                                         ch = '\t'
@@ -3530,7 +3545,7 @@ atom n
                                 end if
                                 c &= sprintf("%d,",ch)
                             elsif ch='\\' then
-                                leadin = 1
+                                leadin = true
                             else
                                 c &= sprintf("%d,",ch)
                             end if
@@ -3548,7 +3563,7 @@ atom n
                         end if
                     elsif ch='{' and k='}' then
                         c = `"`
-                        skip = 0
+                        integer skip = 0
                         for i=2 to ld-1 do
                             if skip then
                                 skip -= 1
@@ -3606,6 +3621,9 @@ atom n
                 restoreBlockPos(pos)
             end if
         end if
+    elsif base=-1 then -- (Ctrl J with nothing selected)
+--DEV only for exw files...?
+        set_js(set_js_line,dlg,filetext[currfile])
     end if
 end procedure
 
@@ -4429,8 +4447,7 @@ end if
     update_statusbar()
 end procedure
 
---function redraw_cb(Ihandle /*ih*/, integer /*x*/, integer /*y*/)
-function redraw_cb(Ihandle /*ih*/, atom /*x*/, atom /*y*/)
+function redraw_cb(Ihandle /*ih*/)
     appUpdateRender()
     return IUP_DEFAULT
 end function
@@ -8119,7 +8136,7 @@ function key_cb(Ihandle ih, atom c)
                 case K_csH: return showfmt_cb(toolm_showf)  -- show_formatting()
                 case K_mI:  caseOp(INVERT)
                 case K_csO: return reopen_cb(file_reopen)
-                case K_cJ:  show_as_base(-1)                -- toggle seq
+                case K_cJ:  show_as_base(-1)                -- toggle seq/js
                 case K_cK:  show_as_base(10)
                 case K_csL: toggle_line_numbers()
                 case K_mL:  caseOp(LOWER)

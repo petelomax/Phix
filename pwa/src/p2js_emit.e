@@ -404,6 +404,7 @@ function emit_expr(sequence expr, integer p, pandtype=0)
                         res = sprintf(`'%c'`,to_number(res))
                     end if
                 else
+                    if res[1]='x' then res[1] = '#' end if -- 30/1/22 (allow '\x03' === '\#03')
 --?res
 --?to_number(res)
                     res = sprintf("0x%x",to_number(res))
@@ -1627,7 +1628,7 @@ end if
                                 e = sprint(eno)
                             else
                                 e = emit_expr(ni[2],0)
-                                ?9/0
+--                              ?9/0
                             end if
                             e = emit_expr(ni[1],0) & " = " & e
                         else

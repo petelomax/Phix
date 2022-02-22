@@ -7,6 +7,7 @@
 --  For demonstration purposes only. 
 --  Not documented, not properly tested, and not an auto-include.
 --
+without js
 
 -- Obviously these must all be kept in step with pglobals.e:
 constant

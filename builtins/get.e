@@ -72,13 +72,15 @@ global procedure skip_blanks()
 -- skip white space
 -- ch is "live" at entry and exit
 
-    while find(ch, " \t\n\r") do
+--  while find(ch, " \t\n\r") do
+    while find(ch, {' ','\t','\r','\n'}) do
         get_ch()
     end while
 end procedure
 
 constant ESCAPE_CHARS = "nt'\"\\r",
-         ESCAPED_CHARS = "\n\t'\"\\\r"
+--       ESCAPED_CHARS = "\n\t'\"\\\r"
+         ESCAPED_CHARS = {'\n','\t','\'','\"','\\','\r',}
 
 function escape_char(character c)
 -- return escape character

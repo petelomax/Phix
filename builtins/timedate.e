@@ -1334,7 +1334,7 @@ integer sdx = 0,    -- chars processed in s
             case MONTH:
                 if pftyp=HOUR then
                     ecode = 20
-                    exit
+                    break
                 end if
                 switch fsize do
                     case 1,2:
@@ -1345,11 +1345,8 @@ integer sdx = 0,    -- chars processed in s
                     default:
                         ?9/0    -- should never happen
                 end switch
-                if ecode=0 then
-                    if month<1 or month>12 then
-                        ecode = 5
-                        exit
-                    end if
+                if ecode=0 and (month<1 or month>12) then
+                    ecode = 5
                 end if
             case DAY:
                 switch fsize do
@@ -1359,11 +1356,8 @@ integer sdx = 0,    -- chars processed in s
                     default:
                         ?9/0    -- should never happen
                 end switch
-                if ecode=0 then
-                    if day<1 or day>31 then -- (more tests below)
-                        ecode = 6
-                        exit
-                    end if
+                if ecode=0 and (day<1 or day>31) then -- (more tests below)
+                    ecode = 6
                 end if
             case DOW:
                 switch fsize do
@@ -1377,11 +1371,8 @@ integer sdx = 0,    -- chars processed in s
             case HOUR:
 --              {ecode,sdx,hour} = td_get_number(s,sdx,fsize)
                 {ecode,sdx,hour} = td_get_number(s,sdx,2)
-                if ecode=0 then
-                    if hour<0 or hour>23 then
-                        ecode = 11
-                        exit
-                    end if
+                if ecode=0 and (hour<0 or hour>23) then
+                    ecode = 11
                 end if
             case MINUTE:
                 if pftyp=DAY
@@ -1392,38 +1383,32 @@ integer sdx = 0,    -- chars processed in s
                 end if
 --              {ecode,sdx,minute} = td_get_number(s,sdx,fsize)
                 {ecode,sdx,minute} = td_get_number(s,sdx,2)
-                if ecode=0 then
-                    if minute<0 or minute>59 then
-                        ecode = 13
-                        exit
-                    end if
+                if ecode=0 and (minute<0 or minute>59) then
+                    ecode = 13
                 end if
             case SECOND:
                 if pftyp=MONTH then
                     ecode = 20
-                    exit
+                    break
                 end if
 --              {ecode,sdx,second} = td_get_number(s,sdx,fsize)
                 {ecode,sdx,second} = td_get_number(s,sdx,2)
-                if ecode=0 then
-                    if second<0 or second>59 then
-                        ecode = 14
-                        exit
-                    end if
+                if ecode=0 and (second<0 or second>59) then
+                    ecode = 14
                 end if
             case MSEC:
                 {ecode,sdx,msecs} = td_get_number(s,sdx,3)
                 if ecode=0 then
                     if msecs<0 or msecs>999 then
                         ecode = 22
-                        exit
+                    else
+                        dayofweek = msecs
                     end if
                 end if
-                dayofweek = msecs
             case AM:
                 if pftyp=MONTH then
                     ecode = 20
-                    exit
+                    break
                 end if
                 {ecode,sdx,pm} = get_any(s,sdx,ampm[currlang],2,1,"am/pm")
                 -- note: "12:00:00pm" is noon, and "12:00:00am" is midnight
@@ -1431,11 +1416,11 @@ integer sdx = 0,    -- chars processed in s
                 --       equate respectively to 0:00..00:59 and 12:00..12:59 on
                 --       a 24 hour clock, and as stored. further, 0/13:00am/pm 
                 --       have no meaning and should raise an error.
-                if ecode!=0 then exit end if
+                if ecode!=0 then break end if
                 if hour<=0 or hour>12 then
                     ecode = 12
                     ecxtra = sprintf("(hour is %d)",{hour})
-                    exit
+                    break
                 end if
                 if pm=1 then    -- am
                     if hour=12 then
@@ -1459,7 +1444,7 @@ integer sdx = 0,    -- chars processed in s
                 if pftyp!=DAY then
                     ecode = 16
                     ecxtra = ""
-                    exit
+                    break
                 end if
 --              {ecode,sdx,{}} = get_any(s,sdx,td_ordinals[currlang],2,1,"ordinal suffix")
 --p2js:
@@ -1468,6 +1453,7 @@ integer sdx = 0,    -- chars processed in s
             default:
                 ?9/0    -- should never happen...
         end switch
+        if ecode!=0 then exit end if
         if ftyp!=TD_LITERAL then
             pftyp = ftyp
         end if
@@ -1696,13 +1682,13 @@ object x
             case MONTH:
                 if pftyp=HOUR then
                     ecode = 20
-                    exit
+                    break
                 end if
                 month = td[DT_MONTH]
                 if month<1 then
                     ecxtra = sprintf("month is %d",month)
                     ecode = 5
-                    exit
+                    break
                 end if
                 switch fsize do
                     case 1:
@@ -1731,14 +1717,14 @@ object x
                 year  = td[DT_YEAR]
                 month = td[DT_MONTH]
 --7/5/20:
-if year>=1752 then
-                if day<1
-                or day>days_in_month(year,month) then
-                    ecxtra = sprintf("day is %d",day)
-                    ecode = 6
-                    exit
+                if year>=1752 then
+                    if day<1
+                    or day>days_in_month(year,month) then
+                        ecxtra = sprintf("day is %d",day)
+                        ecode = 6
+                        break
+                    end if
                 end if
-end if
                 switch fsize do
                     case 1:
                         x = sprintf("%d",day)
@@ -1753,9 +1739,9 @@ end if
 --              if dayofweek=0 then
                     year  = td[DT_YEAR]
                     month = td[DT_MONTH]
-                    if month=0 then ecode = 5 exit end if
+                    if month=0 then ecode = 5 break end if
                     day   = td[DT_DAY]
-                    if day=0 then ecode = 6 exit end if
+                    if day=0 then ecode = 6 break end if
                     dayofweek = day_of_week(year,month,day)
 --              end if
                 switch fsize do
@@ -1779,9 +1765,9 @@ end if
                 if dayofyear=0 then
                     year  = td[DT_YEAR]
                     month = td[DT_MONTH]
-                    if month=0 then ecode = 5 exit end if
+                    if month=0 then ecode = 5 break end if
                     day   = td[DT_DAY]
-                    if day=0 then ecode = 6 exit end if
+                    if day=0 then ecode = 6 break end if
                     dayofyear = day_of_year(year,month,day)
                 end if
                 x = sprintf("%d",dayofyear)
@@ -1803,7 +1789,7 @@ end if
                 if pftyp=DAY
                 or pftyp=YEAR then
                     ecode = 21
-                    exit
+                    break
                 end if
                 minute = td[DT_MINUTE]
                 switch fsize do
@@ -1815,7 +1801,7 @@ end if
             case SECOND:
                 if pftyp=MONTH then
                     ecode = 20
-                    exit
+                    break
                 end if
                 second = td[DT_SECOND]
                 switch fsize do
@@ -1830,7 +1816,7 @@ end if
             case AM:
                 if pftyp=MONTH then
                     ecode = 20
-                    exit
+                    break
                 end if
                 -- note: "12:00:00pm" is noon, and "12:00:00am" is midnight
                 --       (ideally use "noon" and "midnight", when practical)
@@ -1839,7 +1825,7 @@ end if
                 --       on a 12 hour clock.
                 if hidx=0 then
                     ecode = 15
-                    exit
+                    break
                 end if
                 hour = td[DT_HOUR]
                 ispm = (hour>=12)
@@ -1883,7 +1869,7 @@ end if
             case TH:
                 if pftyp!=DAY then
                     ecode = 16
-                    exit
+                    break
                 end if
 --DEV en (english) only?
                 if day<5 or day>20 then
@@ -1900,6 +1886,7 @@ end if
             default:
                 ?9/0    -- should never happen
         end switch
+        if ecode!=0 then exit end if
         res &= x
         if ftyp!=TD_LITERAL then
             pftyp = ftyp

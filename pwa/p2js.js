@@ -40,10 +40,22 @@ const NULL = 0,     // nb !=null, see docs
       JS = WEB,
       JAVASCRIPT = WEB,
       PI = Math.PI,
-      E = Math.E,
       E_USER = 8,
+      EULER = Math.E,
       INVLN10 = 0.43429448190325182765,
 //    INVLN10 = 1/Math.LN10,    // NO!!
+      D_NAME = 1,
+      D_ATTRIBUTES = 2,
+      D_SIZE = 3,
+      D_YEAR = 4,
+      D_MONTH = 5,
+      D_DAY = 6,
+      D_HOUR = 7,
+      D_MINUTE = 8,
+      D_SECOND = 9,
+      D_CREATION = 1,
+      D_LASTACCESS = 2,
+      D_MODIFICATION = 3,
       DT_YEAR = 1,
       DT_MONTH = 2,
       DT_DAY = 3,
@@ -82,7 +94,11 @@ const NULL = 0,     // nb !=null, see docs
       TEST_ABORT = 1,
       TEST_CRASH = -1,
       TEST_PAUSE = 1,
-      TEST_PAUSE_FAIL = -1
+      TEST_PAUSE_FAIL = -1,
+      ANY_QUEUE = 0,
+      FIFO_QUEUE = 1,
+      LIFO_QUEUE = 2
+
 
 function puts(fn, text) {
     integer(fn,"fn");
@@ -281,7 +297,9 @@ function sprintf(fmt, args = []) {
                             if (!Number.isInteger(ch) && tch === "number") {
                                 ch = Math.floor(ch);
                             }
-                            if (!Number.isInteger(ch) || ch<0 || ch>255) {
+//12/1/2022
+//                          if (!Number.isInteger(ch) || ch<0 || ch>255) {
+                            if (!Number.isInteger(ch) || ch<0 || ch>0x10FFFF) {
                                 allChar = false;
                                 break;
                             }
@@ -452,7 +470,17 @@ function sprintf(fmt, args = []) {
     function inbase(bn) {
 //      if (!sequence(bn) || length(bn)!=2 ...
         let [,b,n] = bn;
-        if (b > 36) { crash("p2js.js: printf(%A) does not support base > 36"); }
+        if (b > 36) {
+//          crash("p2js.js: printf(%A) does not support base > 36");
+            const charset = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+            if (n === 0) { return "0"; }
+            let s = [];
+            while (n > 0) {
+              s = [charset[n % 62], ...s];
+              n = Math.floor(n / 62);
+            }
+            return s.join('');
+        }
         return n.toString(b);
     }
 
@@ -461,8 +489,9 @@ function sprintf(fmt, args = []) {
         //
         // Replaces a single formatting specification:
         // expr is eg "%4.2f" or "%-20s" (the whole thing)
+        // subscript is eg "[2]" for positional args, or undefined
         // sign is eg '-' or one of "+,=|", or undefined
-        // size is eg "4" (leading 0 === zero-fill, "")
+        // size is eg "4" (leading 0 === zero-fill), or undefined
         // dot is eg ".2" or "." or undefined
         // precision is eg "2" or undefined
         // specifier is eg 's' or one of "qQtcvVdboxXeEfgG%"
@@ -496,10 +525,11 @@ function sprintf(fmt, args = []) {
             case 'q': res = allascii(stri(),specifier); break;
             case 'Q': res = allascii(stri(),specifier); break;
             case 't': res = argi()?"true":"false"; break;
+            case 'n': res = argi()?"\n":""; break;
             case 'c': res = String.fromCodePoint(argi()); break;
-            case 'v': res = stri(true); break;
-            case 'V': res = stri(-1); break;
-//          case 'd': res = inti().toString(10); break;
+//14/02/22 %v and %V flipped
+            case 'v': res = stri(-1); break;
+            case 'V': res = stri(true); break;
             case 'd': res = remove_scientific(inti()); break;
             case 'b': res = inti().toString(2); break;
             case 'o': res = inti().toString(8); break;
@@ -544,11 +574,10 @@ function sprintf(fmt, args = []) {
         return res;
     }
     //
-    // Replace each %[sign][[0]size][.[precision]]specifier (eg "%,7.2f") in turn
+    // Replace each %[subscript][sign][[0]size][.[precision]]specifier (eg "%,7.2f") in turn
     //  (where sign is one of "-+=|," or undefined)
     //
-//  const regex = new RegExp("%([-+=|,])?(0?[0-9]+)?([.]([0-9]+)?)?([sqQtcvVdboxXaAeEfgG%])",'g');
-    const regex = new RegExp(`%(\[-?[0-9]+\])?([-+=|,])?(0?[0-9]+)?([.]([0-9]+)?)?([sqQtcvVdboxXaAeEfgG%])`,'g');
+    const regex = new RegExp(`%(\[-?[0-9]+\])?([-+=|,])?(0?[0-9]+)?([.]([0-9]+)?)?([sqQtncvVdboxXaAeEfgG%])`,'g');
     if (string(args)) {
         if (fmt.match(regex).length>1) { args = $charArray(args); }
     }
@@ -696,7 +725,7 @@ function prepend(a, x) {
 function wait_key() {
     // specifically for "{} = wait_key()", do nothing
     // (as per docs, you simply cannot "stop JavaScript"
-    //  while waiting for keyboard input, no way Hose.)
+    //  while waiting for keyboard input, no way Jose.)
     return [];
 }
 
@@ -821,7 +850,7 @@ function repeatch(ch,count) {
     return String.fromCodePoint(ch).repeat(count);
 }   
 
-//5/8/21 [p]apply() is now auto=transpiled, maybe filter() c/should be too.
+//5/8/21 [p]apply() is now auto-transpiled, maybe filter() c/should be too.
 
 function filter(s, rs, userdata = ["sequence"], rangetype = "") {
 //
@@ -917,20 +946,55 @@ function filter(s, rs, userdata = ["sequence"], rangetype = "") {
 
 let $seed = Date.now();
 
+function set_rand(new_seed) {
+    $seed = new_seed;
+}
+
+function get_rand() {
+    return $seed;
+}
+
 function rnd() {
-    $seed += 1;
-    let x = Math.sin($seed) * 10000;
-    return x - Math.floor(x);
-//? return Math.random();
+//  $seed += 1;
+//  $seed = ($seed * 185852 + 1) % 34359738337
+//  let x = Math.sin($seed) * 10000;
+//  let x = Math.sin($seed) * 100000;
+//  return x - Math.floor(x);
+//  return Math.random();
+//30/1/22 - better results for https://rosettacode.org/wiki/Monte_Carlo_methods#Phix
+    // Robert Jenkins' 32 bit integer hash function
+    $seed = (($seed + 0x7ED55D16) + ($seed << 12))  & 0xFFFFFFFF;
+    $seed = (($seed ^ 0xC761C23C) ^ ($seed >>> 19)) & 0xFFFFFFFF;
+    $seed = (($seed + 0x165667B1) + ($seed << 5))   & 0xFFFFFFFF;
+    $seed = (($seed + 0xD3A2646C) ^ ($seed << 9))   & 0xFFFFFFFF;
+    $seed = (($seed + 0xFD7046C5) + ($seed << 3))   & 0xFFFFFFFF;
+    $seed = (($seed ^ 0xB55A4F09) ^ ($seed >>> 16)) & 0xFFFFFFFF;
+    return ($seed & 0xFFFFFFF) / 0x10000000;
+}
+
+function sq_rnd(/*object*/ shape=1) {
+    if (atom(shape)) { return rnd(); }
+/* // old
+    let /!*sequence*!/ res = repeat(0,length(shape));
+    for (let i=1, i$lim=length(shape); i<=i$lim; i+=1) {
+        res = $repe(res,i,sq_rnd($subse(shape,i)));
+    }
+//untried (erm, can shape be a string...?):
+*/
+//warning: not yet properly tested...
+    if (string(shape)) { shape = $charArray(shape); }
+    let l = length(shape),
+        res = repeat(0,l);
+    for (let i=1; i<=l; i+=1) {
+        res[i] = sq_rnd(shape[i]);
+    }
+    return res;
 }
 
 function rand(n) {
-    if (n<=0) {
-        if (n === -1) {
-            n = 0xFFFFFFFF;
-        } else {
-            crash("argument to rand() must be >= 1");
-        }
+    if (n <= 0) {
+        if (n !== -1) { crash("argument to rand() must be >= 1"); }
+        n = 0xFFFFFFFF;
     }
     return ((n*rnd()) >>> 0)+1;
 }
@@ -941,17 +1005,9 @@ function rand_range(/*integer*/ lo, hi) {
     return lo+rand(hi-lo);
 }
 
-function get_rand() {
-    return $seed;
-}
-
-function set_rand(new_seed) {
-    $seed = new_seed;
-}
-
-function floor(n) {
-    return Math.floor(n);
-}
+//function floor(n) {
+//  return Math.floor(n);
+//}
 
 function reverse(src, from_to = ["sequence",1,-1]) {
     let lo = from_to[1],
@@ -1013,7 +1069,7 @@ function machine_word() {
 }
 
 function version() {
-    return "1.0.1";
+    return "1.0.2";
 }
 
 function platform() {
@@ -1149,7 +1205,9 @@ function $repss(s, ss, se, x, idii) {
     if (se<0) { se += length(t)+1; }
     if (string(t)) {
         if (integer(x) && x>=0 && x<=255) {
-            t = t.substring(0,ss-1) + repeat(x,se-ss+1) + t.substring(se);
+//21/1/22!!
+//          t = t.substring(0,ss-1) + repeat(x,se-ss+1) + t.substring(se);
+            t = t.substring(0,ss-1) + String.fromCodePoint(x).repeat(se-ss+1) + t.substring(se);
             if (!idii) { return t; }
             t = $sidii(s,idii,1,t);
             return s;
@@ -1168,6 +1226,8 @@ function $repss(s, ss, se, x, idii) {
             t[i] = x;
         }
     } else {
+//17/2/22:
+        if (string(x)) { x = $charArray(x); }
         let l = length(x),
             sl = se-ss+1;
         if (l===sl) {
@@ -1225,6 +1285,7 @@ function not_bitsu(a) {
 }
 
 const power = Math.pow,
+      floor = Math.floor,
       sqrt = Math.sqrt,
       log = Math.log,
       cos = Math.cos,
@@ -1256,6 +1317,32 @@ function date(bMSecs = false) {
 
 function get_routine_info(fn) {
     return ["sequence",fn.length,0,"",fn.name];
+}
+
+// (transpiled directly from pfile.e)
+function file_size_k(/*atom*/ size, /*integer*/ width=1) {
+//
+// Trivial routine to convert a size in bytes to a human-readable string, such as "2GB".
+// The width setting is also "sticky", ie whatever is set becomes the new default.
+//
+    let /*integer*/ sw = max(width,1), 
+                    s2 = ((sw>=3) ? sw-2 : sw), 
+                    fdx = 0;
+    let /*string*/ fmt = sprintf("%%%d.0f%%s",sw),  // eg "%11.0f%s" (the %s gets ""...)
+                   sfmt = sprintf("%%%d.0f%%s",s2),  // eg "%9.0f%s" (this %s gets eg "KB")
+                   dpsfmt = sprintf("%%%d.2f%%s",s2),  // eg "%9.2f%s" (        ""          )
+                   res, suffix = "";
+    while (fdx<=3) {
+        let /*atom*/ rsize = round(size/1024,100); // (to 2 d.p.)
+        if (rsize<1) { break; }
+        size = rsize;
+        fdx += 1;
+        suffix = $conCat($subse("KMGT",fdx), 0X42);
+        fmt = sfmt;
+    }
+    if (!equal(size,trunc(size))) { fmt = dpsfmt; }
+    res = sprintf(fmt,["sequence",size,suffix]);
+    return res;
 }
 
 // (transpiled directly from machine.e, *2)
@@ -1341,10 +1428,16 @@ function $catch(e) {
 }
 
 function utf8_to_utf32(/*string*/ s) {
+//12/1/22:
+    s = ["sequence",...s];
+    let l = length(s);
+    for (let i = 1; i <= l; i += 1) {
+        s[i] = s[i].codePointAt(0);
+    }
     return s;
 }
 
-function utf32_to_utf8(/*string*/ s) {
+function utf32_to_utf8(/*sequence*/ s) {
     if (Array.isArray(s) && s[0] === "sequence") {
         let res = "",
             l = length(s);
@@ -1356,13 +1449,42 @@ function utf32_to_utf8(/*string*/ s) {
     return s;
 }
 
+//DEV experimental...
 function speak(/*string*/ s) {
     let utterance = new SpeechSynthesisUtterance("This is an example of speech synthesis.");
     window.speechSynthesis.speak(utterance);
 }
 
+//if you have another AudioContext class use that one, as some browsers have a limit
+//const $audioCtx = new (window.AudioContext || window.webkitAudioContext || window.audioContext);
+let $audioCtx;
+
+//All arguments are optional:
+
+//duration of the tone in milliseconds. Default is 500
+//frequency of the tone in hertz. default is 440
+//volume of the tone. Default is 1, off is 0.
+//type of tone. Possible values are sine, square, sawtooth, triangle, and custom. Default is sine.
+function beep(duration, frequency, volume, type) {
+    if (!$audioCtx) {
+        $audioCtx = new (window.AudioContext || window.webkitAudioContext || window.audioContext);
+    }
+    let oscillator = $audioCtx.createOscillator(),
+          gainNode = $audioCtx.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect($audioCtx.destination);
+
+    if (volume) { gainNode.gain.value = volume; }
+    if (frequency) { oscillator.frequency.value = frequency; }
+    if (type) { oscillator.type = type; }
+
+    oscillator.start($audioCtx.currentTime);
+    oscillator.stop($audioCtx.currentTime + ((duration || 500) / 1000));
+}
+
 /*
-maybe we /can/ have sleep()...
+[DEV] maybe we /can/ have sleep()...
 const delay = (n) => {
   return new Promise((resolve) => {
     setTimeout(()=> resolve(n), n)

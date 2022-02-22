@@ -18,13 +18,17 @@
         to manage expectations and spell out that you cannot, say, read and write files from a browser, but the list of 
         <a href="javascript:ExternalLink('ext125','https://rosettacode.org/mw/index.php?search=phixonline');" id="ext125" 
         style="color:#9B5565" >rosettacode entries that work in pwa/p2js</a> is steadily growing and even impresses me!
-        (<i>what? <b>four hundred?</b> That&rsquo;s insane!</i>)
+        (<i>what? <b>eight hundred?</b> That&rsquo;s insane!</i>)
 <!--
         <br>
         It might also be wise to "keep your gunpowder dry" and refrain from excitedly raving on about things until there 
         are at least a dozen decent, interesting, and genuinely useful GUI examples, hopefully reasonably soon, since few 
         will be very impressed by a bit of text in small courier font showing up in a browser.
 -->
+        <br>
+        <br>
+        One way to think of it: Surely it would be insane to try and list all the differences between Phix and JavaScript,
+        they are completely different programming languages, but this single page <i>is</i> effectively just that.
         <br>
         <br>
         You <i>must</i> understand and accept the following before using pwa/p2js:
@@ -243,10 +247,63 @@
         checking for negative subscripts in [var] form during destructuring on either desktop/Phix or 
         pwa/p2js, and the latter <i>will</i> just fail silently, again adding a proper message (at least
         that is to desktop/Phix) is probably best attempted alongside the planned ma_ip changes.</li>
+        <li><b>{s[1],s[1]} = {1,2}</b> assigns right-to-left on desktop/Phix, but left-to-right after it
+        has been transpiled to JavaScript, so obviously s[1] ends up 1 on desktop/Phix but 2 in a browser,
+        and unfortunately there is no way to detect or even warn about that. It would be fairly easy to
+        change desktop/Phix to assign left-to-right, but again only at the cost of breaking a few legacy
+        things with no proper warning, and there is very limited value to doing that. A better solution 
+        was found for Reduced_row_echelon_form, where this was first detected, by replacing<br>
+        <small>
+<!--eucode>
+        -- nb m[i] is assigned before m[r], which matters when i=r:
+        {m[r],m[i]} = {sq_div(m[i],m[i][lead]),m[r]}
+</eucode-->
+<pre>
+<font color="#000080"><i>        -- nb m[i] is assigned before m[r], which matters when i=r:</i></font>
+<font color="#0000FF">        {</font><font color="#000000">m</font><font color="#800000">[</font><font color="#000000">r</font><font color="#800000">]</font><font color="#0000FF">,</font><font color="#000000">m</font><font color="#800000">[</font><font color="#000000">i</font><font color="#800000">]</font><font color="#0000FF">} = {</font><font color="#5E005E">sq_div</font><font color="#800000">(</font><font color="#000000">m</font><font color="#800080">[</font><font color="#000000">i</font><font color="#800080">]</font><font color="#0000FF">,</font><font color="#000000">m</font><font color="#800080">[</font><font color="#000000">i</font><font color="#800080">][</font><font color="#000000">lead</font><font color="#800080">]</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#000000">m</font><font color="#800000">[</font><font color="#000000">r</font><font color="#800000">]</font><font color="#0000FF">}</font>
+</pre>
+        </small>
+        with
+        <small>
+<!--eucode>
+        object mr = sq_div(m[i],m[i][lead])
+        m[i] = m[r]
+        m[r] = mr
+</eucode-->
+<pre>
+<font color="#004080">        object</font><font color="#000000"> mr</font><font color="#0000FF"> =</font><font color="#5E005E"> sq_div</font><font color="#0000FF">(</font><font color="#000000">m</font><font color="#800000">[</font><font color="#000000">i</font><font color="#800000">]</font><font color="#0000FF">,</font><font color="#000000">m</font><font color="#800000">[</font><font color="#000000">i</font><font color="#800000">][</font><font color="#000000">lead</font><font color="#800000">]</font><font color="#0000FF">)</font>
+<font color="#000000">        m</font><font color="#0000FF">[</font><font color="#000000">i</font><font color="#0000FF">] =</font><font color="#000000"> m</font><font color="#0000FF">[</font><font color="#000000">r</font><font color="#0000FF">]</font>
+<font color="#000000">        m</font><font color="#0000FF">[</font><font color="#000000">r</font><font color="#0000FF">] =</font><font color="#000000"> mr</font>
+</pre>
+        </small>
+        which is obviously completely compatible, and both much clearer and slightly faster anyway.</li>
         <li><b>{a,b} @= c</b> forms of multiple assignment were deemed unnecessary and remain unsupported,
         and can normally be replaced with either an explicit <code>{a,b} = repeat(c,2)</code>, or breaking
         it down into individual statements/declarations such as <code>a = c [,] b = c</code> or similar.<br>
         In fact that construct is now deprecated in version 1.0.1 and later.</li>
+        <li><b>tree[node+direction] = insertNode(tree[node+direction], key)</b> from the rosettacode AVL
+        task crashed under p2js. As said elsewhere you should never ever attempt to modify the same thing 
+        in the same line twice. Breaking it into <code>atom tnd = insertNode(tree[node+direction], key)</code>
+        and <code>tree[node+direction] = tnd</code> fixed the issue easily enough, however it was by far
+        the hardest thing in this list to track down, failing as it did mysteriously in the browser with a
+        stack overflow that nearly brought the whole thing down, despite working perfectly on the desktop.</li>
+        <li><b>if s[i]=x then</b> internally performs tmp:=s[i] immediately followed by a jump, which can
+        sometimes leave an unwanted refcount for tmp, triggering a p2js violation. Two possible ways around 
+        this are: <code>if deep_copy(s[i])=x then</code> and <code>if is_same(s,i,x) then</code> with 
+        <code>function is_same(sequence s, integer i, object x) return s[i]=x end function</code>, which 
+        (both) work because the tmp used is discarded when the function returns. Thankfully this sort of 
+        problem is fairly and in fact quite surprisingly rather rare. Hopefully in some future release 
+        there will be a flag on or different version of opSubse (etc) that avoids the incref and instead 
+        of an actual tmp just leaves the result in (say) the eax/rax register...</li>
+        <li>Also note that <code>constant powers = 0&{1,2,3}</code> applies the internal optimisation of 
+        mapping opConcat(atom,seq) to prepend(atom,seq), which triggers an internal clone and raises a 
+        p2js violation. Were it <code>constant power1 = {1,2,3}, power0 = 0&power1</code>, then it would
+        perhaps make much more sense, if only a deep_copy(power1) actually helped, however you certainly 
+        cannot just get rid of that optimisation since it makes some desktop/Phix programs exponentially 
+        faster, including the compiler itself. Thankfully rare (7 months before first spotted) there is 
+        no easy fix, either in the form of a low-level backend patch or a foolproof/recommended hll code 
+        change, instead you must just massage away until that knot somehow eases itself out.. One small
+        tip is that append()/prepend() may accept/honour deep_copy() a bit better than "&".</li>
         </ol>
 
         <br>
@@ -330,6 +387,29 @@
         are not yet properly caught. One I have spotted is <code>{a, {atom b}} = x</code> which now
         raises an "unexpected type" error, though I might yet have to remove that, should it start
         to trigger when not wanted.<br><br></li>
+
+        <li><b>switch/exit</b> is not supported, eg:
+        <small>
+<!--eucode>
+        for i=1 to length(s) do
+            switch s[i] do
+                case '!': exit
+            end switch
+        end for
+</eucode-->
+<pre>
+<font color="#008080">        for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">)</font><font color="#008080"> do
+            switch</font><font color="#000000"> s</font><font color="#0000FF">[</font><font color="#000000">i</font><font color="#0000FF">]</font><font color="#008080"> do
+                case</font><font color="#008000"> '!'</font><font color="#0000FF">:</font><font color="#008080"> exit
+            end switch
+        end for</font>
+</pre>
+        </small>
+        In JavaScript the exit(/break) leaves the switch statement, whereas in Phix it exits the for loop.
+        In Phix a break statement leaves the switch statement, but there is no exit statement in JavaScript
+        and hence there is no similar distinction possible between exit and break.
+        The transpiler raises an apppropriate error, as does desktop/Phix under with js.
+        You will have to use a separate flag, most likely, and test it after the end switch.<br><br></li>
 
         <li><b>no include scope</b> Apart from allowing multiple 
         <code>&lt;script src="..."&&gt;&lt;/script&gt;</code> tags, JavaScript does not really do include 
@@ -540,7 +620,11 @@ type ternary(integer t) return find(t,{T,M,F}) end type
         a default of " \t\r\n" but that has (had to) become {' ','\t','\r','\n'}.<br><br></li>
 
         <li><b>unicode handling</b> is quite different. JavaScript handles utf8 natively, in effect an s[i] is
-        the same as utf8_to_utf32(s)[i]. See the example in <a href="utfconv.htm">utfconv</a>.<br><br></li>
+        the same as <a href="utf8_to_utf32.htm">utf8_to_utf32</a>(s)[i], though as per the notes in 
+        <a href="utfconv.htm">utfconv</a> such routines are actually null-ops under p2js. Things will go wrong
+        if you try to play with individual bytes rather than whole code points, but why would you? Likewise
+        the kludge that is "unicode_align" in <a href="printf.htm">printf</a>() is simply ignored under p2js.
+        <br><br></li>
 
         <li><b>keywords</b>. Must be extended to cover both Phix and JavaScript, so identifiers such as this, 
         in, new, super, etc. must all be renamed. The transpiler should point &rsquo;em out, and I also added 

@@ -1,0 +1,40 @@
+--
+-- demo\Arwen32dibdemo\canny_edge_detection.exw
+-- Cut-down version of manip.exw that automatically applies the 
+--  canny edge detection and removes all the menus, ready for
+--  porting to pGUI and posting on rosettacode
+-- Author: Pete Lomax
+--
+--include a32dgeom.ew
+include a32dcolr.ew
+include a32dfltr.ew
+
+a32Dib0 orig_dib = loadDib("Valve.bmp") -- orig_dib is the original bitmap
+
+assert(sequence(orig_dib))
+a32Dib0 manip_dib = copyDib(orig_dib)  -- manip_dib is the manipulated bitmap
+assert(sequence(manip_dib))
+detectDibEdges(manip_dib)
+
+constant win = create(Window, "Arwen32Dib bitmap manipulation demo", 0, 0, Default, Default, 600, 400, 0)
+
+function winHandler(integer id, integer msg, atom wParam, object lParam)
+    if id or wParam or object(lParam) then end if -- suppress warnings
+    if msg=WM_PAINT then
+        integer w = orig_dib[DibWidth],
+                h = orig_dib[DibHeight]
+        drawDib(win, orig_dib, 0, 0, 0, 0, w-1, h-1)
+        drawDib(win, manip_dib, w+5, 0, 0, 0, w-1, h-1)
+    elsif msg=WM_CHAR 
+      and wParam=VK_ESCAPE then
+        closeWindow(win)
+    end if
+    return 0
+end function
+setHandler(win, routine_id("winHandler"))
+
+WinMain(win, SW_NORMAL)
+
+if sequence(orig_dib) then killDib(orig_dib) end if
+if sequence(manip_dib) then killDib(manip_dib) end if -- delete the bitmaps
+
