@@ -26,9 +26,11 @@
 global function hll_atom(object o) return atom(o) end function
 global function hll_compare(object a,b) return compare(a,b) end function
 global function hll_equal(object a,b) return equal(a,b) end function
+global function hll_even(atom a) return even(a) end function
 global function hll_integer(object o) return integer(o) end function
 global function hll_length(sequence s) return length(s) end function
 global function hll_object(object o) without warning return object(o) end function
+global function hll_odd(atom a) return odd(a) end function
 global function hll_sequence(object o) return sequence(o) end function
 global function hll_string(object o) return string(o) end function
 

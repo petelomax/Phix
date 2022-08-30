@@ -1,6 +1,6 @@
 ﻿--
---  cffi.e
---  ======
+--  builtins\cffi.e
+--  ===============
 --
 --      Parse C struct and function definitions, and use them.
 --
@@ -76,7 +76,7 @@
 --              C-style struct to represent that.
 --              typos in field names and the like cause fatal errors in these
 --              routines, rather than returning some kind of error code. It 
---              may be possible to replicate the builtins/VM/pcfunc.e/fatalN
+--              may be possible to replicate the builtins\VM\pcfunc.e\fatalN
 --              mechanism in here to get errors on more appropriate lines. [DEV]
 --
 --
@@ -225,7 +225,7 @@ function machine_bits()
     end ifdef 
 end function
 --*/
-include builtins/ptypes.e   -- atom_string
+include builtins\ptypes.e   -- atom_string
 
 procedure cffi_error(string msg)
 --19/2/21:

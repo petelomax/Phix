@@ -89,9 +89,8 @@ end procedure
 
 --global function get(map m, object key, object defval=0)
 global function map_get(map m, object key, object defval=0)
-integer node = getd_index(key,m)
-    if node=0 then return defval end if
-    return getd_by_index(node,m)
+    integer node = getd_index(key,m)
+    return iff(node=0?defval:getd_by_index(node,m))
 end function
 
 global function has(map m, object key)
@@ -106,36 +105,35 @@ global function size(map m=1)
     return dict_size(m)
 end function
 
-sequence res = {}
+sequence map_res = {}
 
 constant PAIRS = 1, KEYS = 2, VALUES = 3
 function visitor(object key, object val, integer pkv)
-    res = append(res,iff(pkv=PAIRS?{key,val}:iff(pkv=KEYS?key:val)))
+    map_res = append(map_res,iff(pkv=PAIRS?{key,val}:iff(pkv=KEYS?key:val)))
     return 1
 end function
-constant r_visitor = routine_id("visitor")
 
 global function pairs(map m=1)
-    res = {}
-    traverse_dict(r_visitor, PAIRS, m)
-    return res
+    map_res = {}
+    traverse_dict(visitor, PAIRS, m)
+    return map_res
 end function
 
 global function keys(map m=1)
-    res = {}
-    traverse_dict(r_visitor, KEYS, m)
-    return res
+    map_res = {}
+    traverse_dict(visitor, KEYS, m)
+    return map_res
 end function
 
 global function values(map m=1)
-    res = {}
-    traverse_dict(r_visitor, VALUES, m)
-    return res
+    map_res = {}
+    traverse_dict(visitor, VALUES, m)
+    return map_res
 end function
 
 global function for_each(map m, integer rid, object user_data=0)
-object ures
-    res = pairs(m)
+    object ures
+    sequence res = pairs(m)
     for i=1 to length(res) do
         ures = call_func(rid, {res[i][1], res[i][2], user_data, i})
         if ures!=0 then
@@ -160,7 +158,7 @@ end function
 constant r_save_item = routine_id("save_item")
 
 global function save_map(map m, object file)
-integer fn
+    integer fn
 
     if sequence(file) then
         fn = open(file, "w")
@@ -193,10 +191,8 @@ end function
 
 global function load_map(object file)
 -- returns a string error message on failure, otherwise a new map
-integer status
-object val
-object key
-integer fn
+    integer status, fn
+    object val, key
 
     if sequence(file) then
         fn = open(file, "r")

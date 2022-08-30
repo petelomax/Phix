@@ -11,6 +11,7 @@
 --                      Also made msg/title string, style integer, added constants
 --                      to the documentation, and made this source Phix-only.
 
+--requires(WINDOWS) -- (no: can put "if platform()=WINDOWS then" around calls)
 constant P = C_POINTER, I = C_INT
 
 atom mWnd = NULL,
@@ -22,9 +23,9 @@ global procedure set_mb_hwnd(atom hWnd)
 end procedure
 
 global function message_box(sequence msg, sequence title, integer style=MB_OK, atom hWnd=mWnd)
-integer res = 0
-atom pMsg = allocate_string(msg)
-atom pTitle = allocate_string(title)
+    integer res = 0
+    atom pMsg = allocate_string(msg),
+         pTitle = allocate_string(title)
 
     if user32=0 then
         if platform()!=WIN32 then ?9/0 end if   -- (must use eg IupMessage instead)

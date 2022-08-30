@@ -2,6 +2,7 @@
 -- builtins\get_routine_info.e (Phix compatible 0.8.2)
 -- ===========================
 --
+without debug
 include builtins/VM/pStack.e    -- :%opGetST
 
 -- These must match pglobals.e:

@@ -6,6 +6,7 @@
 --  The low-level routines %pAlloc and %pFree in pHeap.e are responsible for allocating and freeing memory,
 --  whereas these hll routines (not part of the VM) are responsible for dealing with delete_routine needs.
 --
+without debug
 --DEV/DOCS: Sort out safe.e: add a constant to pAlloc.e of SAFETY=NORMAL/DYNAMIC/VALIDATE.
 -- NORMAL: best performance, no checking
 -- DYNAMIC: can be enabled per-application (via allocation_safety(bool active=false)

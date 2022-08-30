@@ -1,6 +1,6 @@
 --
---  cffi.2.4.e
---  ==========
+--  builtins\cffi.2.4.e
+--  ===================
 --   (Version I got working on RDS Eu 2.4 before deciding it wasn't a great idea)
 --
 --      Eliminates most of the byte-counting needed when interfacing to C routines.
@@ -72,7 +72,7 @@
 --              C-style struct to represent that.
 --              typos in field names and the like cause fatal errors in these
 --              routines, rather than returning some kind of error code. It 
---              may be possible to replicate the builtins/VM/pcfuncN.e/fatalN
+--              may be possible to replicate the builtins\VM\pcfuncN.e\fatalN
 --              mechanism in here to get errors on more appropriate lines. [DEV]
 --
 --

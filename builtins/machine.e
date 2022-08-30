@@ -213,10 +213,15 @@ end function
 
 global function bytes_to_int(sequence s, bool signed=true)
 -- converts a byte sequence such as that returned from peek() into an integer value.
-integer len = length(s)
-atom mem = allocate(len,1)
+    integer len = length(s)
+?"bytes_to_int(/delete_routine?) broke on linux..." sleep(1)
+--  atom mem = allocate(len,1)
+    atom mem = allocate(len)
     poke(mem, s)
-    return peekNS(mem,len,signed)
+--  return peekNS(mem,len,signed)
+    atom res = peekNS(mem,len,signed)
+    free(mem)
+    return res
 end function
 
 global function int_to_bits(atom x, integer nbits=0)

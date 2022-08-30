@@ -130,7 +130,10 @@ function insertNode(integer node, object key, object data, integer tid)
         trees[tid][node+DATA] = data
     else
         integer direction = HEIGHT+c    -- LEFT or RIGHT
-        trees[tid][node+direction] = insertNode(trees[tid][node+direction], key, data, tid)
+--15/7/22 while apparently not actually needed[?], we may as well copy the AVL bugfix:
+--      trees[tid][node+direction] = insertNode(trees[tid][node+direction], key, data, tid)
+        atom tnd = insertNode(trees[tid][node+direction], key, data, tid)
+        trees[tid][node+direction] = tnd
         setHeight(node,tid)
         integer balance = trunc(getBalance(node,tid)/2) -- +/-1 (or 0)
         if balance then
@@ -515,4 +518,9 @@ global procedure destroy_dict(integer tid, bool justclear=false)
         freelists[tid] = 0
     end if
 end procedure
+
+global function destroy_dictf(integer tid)
+    destroy_dict(tid)
+    return NULL
+end function
 

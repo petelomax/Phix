@@ -603,9 +603,9 @@ end function
 -- expand a bigatom with all its digits
 --
 function expand(sequence N)
-sequence digits = deep_copy(N[DIGITS])
-integer exponent = N[EXPONENT]
-integer len = length(digits)-1
+    sequence digits = deep_copy(N[DIGITS])
+    integer exponent = N[EXPONENT],
+            len = length(digits)-1
 
     N = deep_copy(N,1)
     if exponent<0 then
@@ -2058,8 +2058,7 @@ end function
 -- exact integer exponents
 --
 function intf_power(sequence A, integer exponent)
-sequence res
-sequence factrs
+    sequence res
 
     if exponent=0 then
         return  BA_ONE -- for convenience 0^0 = 1 (the neutral term multiplication)
@@ -2078,10 +2077,10 @@ sequence factrs
         end if
     elsif equal({1}, A[DIGITS]) then
 --DEV surely -1 squared is +1... (mod(exponent,2)=0...)
-        res = A
+        res = deep_copy(A)
         res[EXPONENT] *= exponent
     else
-        factrs = get_factors(exponent)
+        sequence factrs = get_factors(exponent)
         res = A
         for i=1 to length(factrs) do
             res = ipower(res, factrs[i])

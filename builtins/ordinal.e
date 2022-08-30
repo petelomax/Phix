@@ -9,10 +9,8 @@
 --      ordinal(atom n, bool bJustSpell:=true) yields "one", "two", etc.
 --
 
---DEV 10/12/20 (docs not updated)
---global function ord(integer n)
 global function ord(atom n)
-integer r = remainder(n,10)+1
+    integer r = remainder(n,10)+1
     if r<=0 or r>4 or remainder(n,100)=r+9 then r = 1 end if
     string res = {"th","st","nd","rd"}[r]
     return res
@@ -73,8 +71,8 @@ function thousand(integer n, string withand)
 end function
  
 function triplet(atom n)
-atom order, high, low
-string name, res = ""
+    atom order, high, low
+    string name, res = ""
     for i=1 to length(orders) do
         {order,name} = orders[i]
         high = floor(n/order)
@@ -111,7 +109,7 @@ string name, res = ""
 end function
  
 function spell(atom n)
-string res = ""
+    string res = ""
     if n<0 then
         res = "minus "
         n = -n
@@ -141,4 +139,16 @@ global function ordinal(atom n, bool bJustSpell=false)
     end if
     return s
 end function
- 
+
+global function ordinant(atom n)
+    -- returns never, [minus] once, twice, or n,nnn times.
+    string res = ""
+    if n<0 then res = "minus " n = -n end if
+    if n=0 then res &= "never"
+    elsif n=1 then res &= "once"
+    elsif n=2 then res &= "twice"   
+--  else res &= sprintf("%,d times",n)  
+    else res &= ordinal(n,true)&" times"
+    end if
+    return res
+end function

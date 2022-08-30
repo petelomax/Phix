@@ -11,7 +11,7 @@ global function factorial(integer n)
 --  factorial(n): 1 1 2 6 24 120 720 5040 40320 
 -- see also mpz_fac_ui()
 --
-atom res = 1
+    atom res = 1
     if n>0 then
         if not finit then
             fcache = {1}

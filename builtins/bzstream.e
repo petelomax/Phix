@@ -1,5 +1,5 @@
 --
--- builtins/bzstream.e
+-- builtins\bzstream.e
 -- ===================
 --
 --  Not (intended to ever be) an autoinclude.

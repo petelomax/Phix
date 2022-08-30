@@ -1,7 +1,7 @@
 --with profile_time
 --
--- bigint.e
--- ========
+-- builtins\bigint.e
+-- =================
 --
 --  **ABANDONWARE** - totally outclassed by mpfr.e, before the first release.
 --
@@ -3184,7 +3184,7 @@ Primorial(1000000) has 6722809 digits
 --==bigint version==
 --{{trans|FreeBASIC}}
 --Already knowing that bigatom is not exactly fast, I tried copynig the FreeBASIC approach.<br>
---Keep an eye on/out for builtins/bigint.e, which may one day improve on this (inline assembly etc).
+--Keep an eye on/out for builtins\bigint.e, which may one day improve on this (inline assembly etc).
 
 atom t0 = time()
 
@@ -3683,7 +3683,7 @@ May yet form the basis of something useful in builtins. (same output)
 --*/
 
 --/*
-include builtins\bigint.e
+include bigint.e
 bigint n = bi_new(1),
        o = bi_new(1)
 atom ni = 1
@@ -3718,7 +3718,7 @@ end for
 --*/
 
 --/*
-include builtins\bigint.e
+include bigint.e
 --bigint n
 --n = bi_new("1e500")
 --constant lim = 100-0-00-0

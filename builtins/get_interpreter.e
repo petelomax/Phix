@@ -123,7 +123,7 @@ procedure initv()
              {"pw.exe","pw32.exe","pw64.exe","p64.exe","p32.exe","p.exe"}, -- [WINDOWS]
              {"p","p32","p64","pth"}} -- [LINUX]
     -- (must match constants in psym.e)
-    platforms = {"DOS32","WINDOWS","LINUX","JAVASCRIPT"}
+    platforms = {"DOS32","WINDOWS","LINUX","JS"}
     vinit = true
 end procedure
 
@@ -255,14 +255,14 @@ global procedure requires(object x, bool bPrefW=false)
                 x = not find(platform(),{WINDOWS,LINUX})                -- (aka not JS)
                 that = "WINDOWS or LINUX"
             elsif x=6 then -- (validly! 6==JS+WINDOWS)
-                x = not find(platform(),{WINDOWS,JAVASCRIPT})           -- (aka not LINUX)
-                that = "WINDOWS or JAVASCRIPT"
+                x = not find(platform(),{WINDOWS,JS})                   -- (aka not LINUX)
+                that = "WINDOWS or JS"
             elsif x=7 then -- (technically 7==JS+LINUX...)
-                x = not find(platform(),{WINDOWS,LINUX,JAVASCRIPT})     -- (all[?])
-                that = "WINDOWS or LINUX or JAVASCRIPT"
+                x = not find(platform(),{WINDOWS,LINUX,JS})             -- (all[?])
+                that = "WINDOWS or LINUX or JS"
             elsif x=8 then -- (technically 8==WINDOWS+LINUX+JS...)
-                x = not find(platform(),{LINUX,JAVASCRIPT})             -- (aka not WINDOWS)
-                that = "LINUX or JAVASCRIPT"
+                x = not find(platform(),{LINUX,JS})                     -- (aka not WINDOWS)
+                that = "LINUX or JS"
             elsif x=0 then
                 x = 1                                                   -- (aka none)
                 that = "FIXING(!)"

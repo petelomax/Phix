@@ -1,5 +1,5 @@
 --
--- builtins/find.e
+-- builtins\find.e (an autoinclude)
 -- ===============
 --
 --  hll implementation of find()  (replaces builtins/VM/pFind.e)

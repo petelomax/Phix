@@ -1,15 +1,14 @@
 --
--- builtins\base64.e
+-- builtins\base64.e (an autoinclude)
 -- =================
 --
---   Base 64 Encoding and Decoding (autoinclude)
+--   Base 64 Encoding and Decoding
 --
---   Author: Pete Lomax  Jul 3 2002
+--   Author: Pete Lomax, July 3rd 2002
 --
---   Base64 is used to encode binary data into an ASCII string; this allows
---   binary data to be transmitted using media designed to transmit text data only.
---   See http://en.wikipedia.org/wiki/Base64 and the RFC 2045 standard for more
---   information.
+--   Base64 is used to encode binary data into ASCII strings, allowing transmission
+--   of binary data over media designed to transmit text data only. See the RFC 2045 
+--   standard and http://en.wikipedia.org/wiki/Base64 and for more information.
 --
 --#
 --# Pad character is '=' (61)

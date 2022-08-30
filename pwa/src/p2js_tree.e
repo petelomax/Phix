@@ -37,7 +37,7 @@
 --
 --without trace
 --without type_check
-without debug -- (keep ex.err clean, tt gets large and mainly gibberish)
+--without debug -- (keep ex.err clean, tt gets large and mainly gibberish)
 
 include p2js_basics.e   -- (strictly unnecesary/ensure loaded/uses "text")
 
@@ -150,6 +150,10 @@ constant cont0 = """
 --
 global constant p2js_keywords = {
 """,
+        cont_py = """
+for phix.py... [DEV]
+    types = (
+""",
         symbols = sort('`'&`!&|#*/+-,.:;<=>?~\$%([{}])"'0A`)
 --      symbols = `$,<@\|`&'`' -- #24,#2C,#3C,#40,#5C,#7C & #60
 --36,44,60,64,92,96,124
@@ -225,7 +229,18 @@ procedure tt_keywords(sequence defs)
         if f[fdx][2]!=`p2js_tree.e` then ?9/0 end if -- (sanity check)
         string path = p[f[fdx][1]],
                filename = join_path({path,"p2js_keywords.e"}),
-               content = cont0
+               content = cont0,
+               ppycontent = cont_py,
+               cy = "       "
+--/*
+    types = (
+        'atom', 'number', 'int', 'integer', 'string', 'seq', 'sequence', 'object', 
+        'struct', 'class', 'constant', 'enum', 'global'
+    )
+    keywords = (
+        'procedure', 'function', 'type'
+    )
+--*/
         --
         -- clash detection: no symbol (eg '-') can clash with any ttidx.
         --   (you'd get a crash above, and have to re-jig, at random)
@@ -245,8 +260,9 @@ procedure tt_keywords(sequence defs)
             {string n, integer t, integer c} = defs[i]
             string nq = `"` & lq[i] & n & `",`,
                    tq = TYPES[t][2]
-            if n[1]='$' then n = n[2..$] end if
-            if n[$]='$' then n = n[1..$-1] end if
+            bool dollar = false
+            if n[1]='$' then dollar = true; n = n[2..$] end if
+            if n[$]='$' then dollar = true; n = n[1..$-1] end if
 --          string ci = sprintf(`    {%-30s %4s,   T_%-29s := %d},`,{nq,tq,n,c})
             string ci = sprintf(`    {%-34s %4s,   T_%-33s := %d},`,{nq,tq,n,c})
             if c>=32 and c<128 then
@@ -256,16 +272,33 @@ procedure tt_keywords(sequence defs)
                 ci &= repeat(' ',clen-length(ci))&sprintf("-- '%c'",c)
             end if
             ci &= '\n'
+            if not dollar and tq!="BADT" then
+                if length(cy)+length(n)+4>80 then
+                    cy &= '\n'
+                    ppycontent &= cy
+                    cy = sprintf("        '%s',",{n})
+                else
+                    cy &= sprintf(" '%s',",{n})
+                end if
+            end if
 --          if find(n,{"object","volatile","xor","yield","wait_key"}) then
 --          if find(n,{"object","try","xor","xor_bits","yield"}) then
-            if find(n,{"object","try","xor","zIndex","yield"}) then
+--          if find(n,{"object","try","xor","zIndex","yield"}) then
+            if find(n,{"object","trace","xor","zIndex","yield"}) then
                 ci &= '\n'
                 ci &= "    -- " & sections[1] & ":\n"
+                cy[$] = '\n'
+                cy &= "    )\n    " & sections[1] & " = (\n"
+                ppycontent &= cy
+                cy = "       "
                 sections = sections[2..$]
             end if
             content &= ci
         end for
         content[-2] = '}'
+        cy[$] = '\n'
+        cy &= "    )\n"
+        ppycontent &= cy
 
         printf(1,"\nOverwrite %s and restart?",{filename})
         if not find(upper(wait_key()),{'Q','N',#1B}) then
@@ -274,6 +307,13 @@ procedure tt_keywords(sequence defs)
             if fn=-1 then crash("cannot open "&filename) end if
             puts(fn,content)
             close(fn)
+--30/8/22:
+            filename = join_path({path,"phix.py"})
+            fn = open(filename,"w")
+            if fn=-1 then crash("cannot open "&filename) end if
+            puts(fn,ppycontent)
+            close(fn)
+
             requires(-machine_bits(),false) -- restart
         end if
         abort(0)
