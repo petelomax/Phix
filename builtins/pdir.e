@@ -308,7 +308,7 @@ global function dir(sequence path, integer date_type=D_MODIFICATION)
 -- Note that filenames may be in mixed case, so you may need 
 -- to use upper() or lower() before comparing.
 --
---DEV: Optional second parameter.
+--DEV: Optional second parameter. UPDATE 24/3/22 - date_type of NULL now does this
 --DEV: If a second parameter of zero is passed, then dir() will NOT list the
 --DEV: directory contents, but just return info for the directory itself.
 --DEV: This may be useful, for example, if you just want to know whether or
@@ -320,7 +320,7 @@ integer slash, rslash
 atom lpPath, h, size
 sequence res, this, attr
 object pattern
-atom xSystemTime, xLocalFileTime, xFindData
+atom xFindData
 
     if not dinit then initD() end if
     if platform()=WINDOWS then
@@ -395,33 +395,36 @@ atom xSystemTime, xLocalFileTime, xFindData
             return -1
         end if
         res = {}
-        xSystemTime = allocate(STsize)
-        xLocalFileTime = allocate(8)
-        while 1 do
-            this = peek_string(xFindData+FDcFileName)
-            if wildcard_file(pattern,this) then
---              if c_func(xFileTimeToLocalFileTime,{xFindData+FDtLastWriteTime,xLocalFileTime}) then end if
-                integer date_offset = FDtLastWriteTime+{-16,-8,0}[date_type]
-                if c_func(xFileTimeToLocalFileTime,{xFindData+date_offset,xLocalFileTime}) then end if
-                if c_func(xFileTimeToSystemTime,{xLocalFileTime,xSystemTime}) then end if
-                size = peek4s(xFindData+FDnFileSizeHigh)*#100000000+peek4u(xFindData+FDnFileSizeLow)
-                attr = ConvertAttributes(peek4u(xFindData+FDwFileAttributes))
+--24/3/22
+        if date_type!=NULL then
+            atom xSystemTime = allocate(STsize),
+                 xLocalFileTime = allocate(8)
+            while 1 do
+                this = peek_string(xFindData+FDcFileName)
+                if wildcard_file(pattern,this) then
+--                  if c_func(xFileTimeToLocalFileTime,{xFindData+FDtLastWriteTime,xLocalFileTime}) then end if
+                    integer date_offset = FDtLastWriteTime+{-16,-8,0}[date_type]
+                    if c_func(xFileTimeToLocalFileTime,{xFindData+date_offset,xLocalFileTime}) then end if
+                    if c_func(xFileTimeToSystemTime,{xLocalFileTime,xSystemTime}) then end if
+                    size = peek4s(xFindData+FDnFileSizeHigh)*#100000000+peek4u(xFindData+FDnFileSizeLow)
+                    attr = ConvertAttributes(peek4u(xFindData+FDwFileAttributes))
 --DEV root&this?
-                res = append(res,{this,                             -- D_NAME = 1,
-                                  attr,                             -- D_ATTRIBUTES = 2,
-                                  size,                             -- D_SIZE = 3,
-                                  peek2u(xSystemTime+STwYear),      -- D_YEAR = 4,
-                                  peek2u(xSystemTime+STwMonth),     -- D_MONTH = 5,
-                                  peek2u(xSystemTime+STwDay),       -- D_DAY = 6,
-                                  peek2u(xSystemTime+STwHour),      -- D_HOUR = 7,
-                                  peek2u(xSystemTime+STwMinute),    -- D_MINUTE = 8,
-                                  peek2u(xSystemTime+STwSecond)})   -- D_SECOND = 9
-            end if
-            if not c_func(xFindNextFile,{h,xFindData}) then exit end if
-        end while
-        if c_func(xFindClose,{h}) then end if
-        free(xSystemTime)
-        free(xLocalFileTime)
+                    res = append(res,{this,                             -- D_NAME = 1,
+                                      attr,                             -- D_ATTRIBUTES = 2,
+                                      size,                             -- D_SIZE = 3,
+                                      peek2u(xSystemTime+STwYear),      -- D_YEAR = 4,
+                                      peek2u(xSystemTime+STwMonth),     -- D_MONTH = 5,
+                                      peek2u(xSystemTime+STwDay),       -- D_DAY = 6,
+                                      peek2u(xSystemTime+STwHour),      -- D_HOUR = 7,
+                                      peek2u(xSystemTime+STwMinute),    -- D_MINUTE = 8,
+                                      peek2u(xSystemTime+STwSecond)})   -- D_SECOND = 9
+                end if
+                if not c_func(xFindNextFile,{h,xFindData}) then exit end if
+            end while
+            free(xLocalFileTime)
+            free(xSystemTime)
+        end if
+        {} = c_func(xFindClose,{h})
         free(xFindData)
     elsif platform()=LINUX then
 
@@ -447,52 +450,54 @@ atom xSystemTime, xLocalFileTime, xFindData
             name = get_file_name(path)
             attr = ""
         end if 
-         
-        while 1 do
-            if dirp!=NULL then
-                dirent = c_func(xreaddir,{dirp})
-                if dirent=NULL then exit end if
-                name = peek_string(dirent+DIRENT_NAME)
-                string fullpath = join_path({path,name})
-                statres = stat(fullpath, pBuff)
-                integer t = peek(dirent+DIRENT_TYPE)
-                attr = iff(t=DT_DIR?"d":"")
-            end if
---DEV not tried...
---          if wildcard_file(pattern,name) then
-                if statres=0 then
-                    size = 0
-                    seconds = 0
-                    minutes = 0
-                    hour = 0
-                    day = 0
-                    month = 0
-                    year = 0
---          dow = 0
---          doy = 0
-                else
-                    -- Aside: this use on 32bit is noted in the docs of peek8s.
-                    size    = peek8s(pBuff+ST_SIZE)
---                  atom pTime = c_func(xlocaltime,{pBuff+ST_MTIME})
-                    integer date_offset = ST_MTIME+{+8,-8,0}[date_type]
-                    atom pTime = c_func(xlocaltime,{pBuff+date_offset})
-                    seconds = peek4s(pTime+TM_SECS)
-                    minutes = peek4s(pTime+TM_MINS)
-                    hour    = peek4s(pTime+TM_HOUR)
-                    day     = peek4s(pTime+TM_DAY)
-                    month   = peek4s(pTime+TM_MNTH)+1
-                    year    = peek4s(pTime+TM_YEAR)+1900
---          dow     = peek4s(pTime+TM_DOW)
---          doy     = peek4s(pTime+TM_DOY)
+--24/3/22        
+        if date_type!=NULL then
+            while 1 do
+                if dirp!=NULL then
+                    dirent = c_func(xreaddir,{dirp})
+                    if dirent=NULL then exit end if
+                    name = peek_string(dirent+DIRENT_NAME)
+                    string fullpath = join_path({path,name})
+                    statres = stat(fullpath, pBuff)
+                    integer t = peek(dirent+DIRENT_TYPE)
+                    attr = iff(t=DT_DIR?"d":"")
                 end if
-                res = append(res,{name,attr,size,year,month,day,hour,minutes,seconds})
---          end if
---      printf( 1, "%s [%s] ", {name,attr} ) 
---      ?{size,year,month,day,hour,minutes,seconds}--,dow,doy}
---      dirent = readdir( dirp ) 
-            if dirp=NULL then exit end if
---      statres = 0
-        end while 
+--DEV not tried...
+--              if wildcard_file(pattern,name) then
+                    if statres=0 then
+                        size = 0
+                        seconds = 0
+                        minutes = 0
+                        hour = 0
+                        day = 0
+                        month = 0
+                        year = 0
+--                      dow = 0
+--                      doy = 0
+                    else
+                        -- Aside: this use on 32bit is noted in the docs of peek8s.
+                        size    = peek8s(pBuff+ST_SIZE)
+--                      atom pTime = c_func(xlocaltime,{pBuff+ST_MTIME})
+                        integer date_offset = ST_MTIME+{+8,-8,0}[date_type]
+                        atom pTime = c_func(xlocaltime,{pBuff+date_offset})
+                        seconds = peek4s(pTime+TM_SECS)
+                        minutes = peek4s(pTime+TM_MINS)
+                        hour    = peek4s(pTime+TM_HOUR)
+                        day     = peek4s(pTime+TM_DAY)
+                        month   = peek4s(pTime+TM_MNTH)+1
+                        year    = peek4s(pTime+TM_YEAR)+1900
+--                      dow     = peek4s(pTime+TM_DOW)
+--                      doy     = peek4s(pTime+TM_DOY)
+                    end if
+                    res = append(res,{name,attr,size,year,month,day,hour,minutes,seconds})
+--              end if
+--          printf( 1, "%s [%s] ", {name,attr} ) 
+--          ?{size,year,month,day,hour,minutes,seconds}--,dow,doy}
+--          dirent = readdir( dirp ) 
+                if dirp=NULL then exit end if
+--          statres = 0
+            end while 
+        end if
         if dirp!=NULL then
             {} = c_func(xclosedir,{dirp})
         end if

@@ -12,7 +12,9 @@ include builtins\VM\pHeap.e     -- :%pDealloc, :%pAllocStr, :%pAllocSeq
 
 include builtins\VM\pFixup.e    -- negative and floating point index handling (:%fixupIndex)
 
-#ilASM{ jmp :%opRetf
+--26/8/22 (spotted in passing)
+--#ilASM{ jmp :%opRetf
+#ilASM{ jmp :!opCallOnceYeNot
 
 --DEV FIXME: (and the :!bang labels below)
     ::e04atsaa4

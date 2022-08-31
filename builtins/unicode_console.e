@@ -31,7 +31,7 @@ atom k32 = NULL, xGetStdHandle, hConsole, xSetConsoleOutputCP
 global function unicode_console()
 -- initialises the windows console for unicode, and
 -- returns true if unicode is supported, else false.
-bool res = false
+    bool res = false
     if platform()=WINDOWS then
         if k32=NULL then
             puts(1,"")  -- force console to exist
@@ -42,13 +42,17 @@ bool res = false
         end if
         -- following is equivalent to running "chcp 65001":
         res = c_func(xSetConsoleOutputCP,{CP_UTF8})
-    else    -- LINUX
+    elsif platform()=LINUX then
         for i=1 to length(envset) do
             if match("UTF",upper(getenv(envset[i])))!=0 then
                 res = true
                 exit
             end if
         end for
+    elsif platform()=JS then
+        res = true
+    else
+        crash("unsuported platform??")
     end if
     return res
 end function

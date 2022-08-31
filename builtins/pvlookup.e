@@ -2,11 +2,10 @@
 -- builtins/pvlookup.e
 --
 
-global function vlookup(object find_item, sequence grid_data, integer source_col, integer target_col, object def_value = 0)
-object gdi
+global function vlookup(object find_item, sequence grid_data, integer source_col, target_col, object def_value = 0)
 
     for i=1 to length(grid_data) do
-        gdi = grid_data[i]
+        object gdi = grid_data[i]
         if sequence(gdi) 
         and source_col<=length(gdi)
         and equal(find_item, gdi[source_col]) then
@@ -47,7 +46,7 @@ end function
 -- lookup("dog", {"ant","bear","cat"}, {"spider","seal","dog","unknown"}) --> "unknown"
 -- </eucode>
 --
-global function lookup(object find_item, sequence source_list, sequence target_list, object def_value = 0)
+global function lookup(object find_item, sequence source_list, target_list, object def_value = 0)
     integer k = find(find_item, source_list)
     if k>=1 and k<=length(target_list) then
         def_value = target_list[k]
@@ -150,12 +149,13 @@ end function
 -- </eucode>
 
 global function keyvalues(sequence source, object pair_delim = ";,",
-                          object kv_delim = ":=", object quotes =  "\"'`",
---                        object whitespace = " \t\n\r", integer haskeys = 1)
-                          object whitespace = {' ','\t','\n','\r'}, integer haskeys = 1)
+                                                    kv_delim = ":=", 
+                                                      quotes =  "\"'`",
+                                                  whitespace = " \t\n\r",
+                                          integer haskeys = 1)
 
-sequence lEndBracket
-sequence lBracketed
+--sequence lEndBracket -- PL unused??
+--sequence lBracketed -- PL (now defined locally)
 
     source = trim(source)
     if length(source)=0 then
@@ -169,16 +169,14 @@ sequence lBracketed
 
     sequence all_delim = whitespace & pair_delim & kv_delim,
              white_pair = whitespace & pair_delim
-    lEndBracket   = "}])"
+--  lEndBracket   = "}])"
 
     sequence res = {}
     integer sdx = 1
     while sdx<=length(source) do
         -- ignore leading whitespace
-        while sdx<length(source) do
-            if find(source[sdx], whitespace)=0 then
-                exit
-            end if
+        while sdx<=length(source) 
+         and find(source[sdx], whitespace) do
             sdx += 1
         end while
 
@@ -244,7 +242,7 @@ sequence lBracketed
             -- Get value. Ends at any of unquoted whitespace or unquoted delimiter
             quote_ch = 0
             ch = 0
-            lBracketed = {}
+            sequence lBracketed = {}
             while sdx<=length(source) do
                 ch = source[sdx]
                 bpos = find(ch, "{[(")

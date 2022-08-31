@@ -571,7 +571,6 @@ integer
         bracket_level,      -- as per syncolor.e
         bl                  -- BraceLevel[newSyntax]
 
-
 --sequence res
 --integer cM4
 -- 15/4/2010:

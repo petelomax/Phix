@@ -50,7 +50,7 @@ include opengl.e
 --  The rest is fairly standard: store it with glBufferData(), and specify what it all means first by calling glVertexAttribPointer() 
 --  with the right size, type, and possibly stride settings, and finally glDrawArrays() with the desired mode, here GL_TRIANGLES, not 
 --  forgetting the total length. Of course there are all sorts of other things to achieve smoothing, rotation, lighting effects, and 
---  so on, but this quick little intro endeth here. The following notes are all very specifc to this particular program.
+--  so on, but this quick little intro endeth here. The following notes are all very specific to this particular program.
 --
 -- First define a 2D 'F' as follows
 --
@@ -164,7 +164,7 @@ constant faces = {{upbrf,upblf,uptrf,upblf,uptlf,uptrf},    -- left column front
         F_texture_coordinates = glSimpleA7texcoords(length(faces))
 
 Ihandln dlg
-Ihandle canvas
+Ihandle canvas, timer
 cdCanvas cd_canvas
 
 constant fragment_shader = `
@@ -240,7 +240,7 @@ function canvas_action_cb(Ihandle /*canvas*/)
 
         // Create a buffer for the F_positions and fill it
         integer position_buffer = glCreateBuffer()
-        // Bind to ARRAY_BUFFER (think of it as ARRAY_BUFFER = position_buffer)
+        // Bind to ARRAY_BUFFER (think of it as ARRAY_BUFFER:=position_buffer)
         glBindBuffer(GL_ARRAY_BUFFER, position_buffer)
         {integer size, atom pData} = glFloat32Array(F_positions)
         glBufferData(GL_ARRAY_BUFFER, size, pData, GL_STATIC_DRAW)
@@ -252,7 +252,7 @@ function canvas_action_cb(Ihandle /*canvas*/)
         glBufferData(GL_ARRAY_BUFFER, size, pData, GL_STATIC_DRAW)
 
         // Put some text in the center of a canvas/pixel array.
-        // note this is a (bit of a|compete) hack, see docs...
+        // note this is a (bit of a|complete) hack, see docs...
         integer w = 100, h = 26
         atom cdx = glCanvasSpecialText(cd_canvas,w,h,20,"Hello!")
     
@@ -356,14 +356,25 @@ function timer_cb(Ihandle /*ih*/)
     return IUP_DEFAULT
 end function
 
+function key_cb(Ihandle ih, atom c)
+    if c=K_ESC then return IUP_CLOSE end if -- (standard practice for me)
+    if c=K_F5 then return IUP_DEFAULT end if -- (let browser reload work)
+    if c=' ' then
+        IupToggleInt(timer,"RUN")
+        last_time = time() -- (avoids sudden jumping)
+    end if
+    return IUP_CONTINUE
+end function
+
 procedure main()
     IupOpen()
     canvas = IupGLCanvas("RASTERSIZE=640x480")
     IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
-                             "ACTION", Icallback("canvas_action_cb")})
+                             "ACTION", Icallback("canvas_action_cb"),
+                             "KEY_CB", Icallback("key_cb")})
     dlg = IupDialog(canvas, `TITLE="Hello! F", SHRINK=YES, MINSIZE=120x90`)
     IupShow(dlg)
-    Ihandle timer = IupTimer(Icallback("timer_cb"), 1000/40)
+    timer = IupTimer(Icallback("timer_cb"), 1000/40)
     if platform()!=JS then
         IupMainLoop()
         dlg = IupDestroy(dlg)

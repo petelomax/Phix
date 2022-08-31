@@ -1,3 +1,4 @@
+
 --
 -- builtins\pflatten.e
 -- ===================
@@ -21,12 +22,13 @@ global function flatten(sequence s, res="")
     return res
 end function
 
-global function join(sequence s, object delim=" ", lastdelim=delim)
+global function join(sequence s, object delim=" ", lastdelim="", string fmt="")
     sequence res = ""
     integer l = length(s)
+    if length(fmt) then s = apply(true,sprintf,{{fmt},s}) end if
     for i=1 to l do
         if i!=1 then
-            if i=l then
+            if i=l and length(lastdelim) then
                 res &= lastdelim
             else
                 res &= delim
@@ -37,11 +39,12 @@ global function join(sequence s, object delim=" ", lastdelim=delim)
     return res
 end function
 
-global function join_by(sequence s, integer step, integer n, object step_pad="   ", object n_pad="\n")
+global function join_by(sequence s, integer step, n, object step_pad="   ", n_pad="\n", string fmt="")
     sequence res = {}, js
     integer nmax = n,
             ls = length(s)
-    s = deep_copy(s)
+--  s = deep_copy(s)
+    s = iff(length(fmt)?apply(true,sprintf,{{fmt},s}):deep_copy(s))
     ls += remainder(ls,step)
     while length(s)>=step do
 --  while length(s)>step do     -- (needed for auto-widthwise partial<=step)

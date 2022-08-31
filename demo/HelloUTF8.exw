@@ -477,8 +477,7 @@ puts(1,ctest&"\n")
 
 -- this might have a place in builtins/unicode.e, or perhaps not...
 function unicode_reverse(string utf8)
-sequence utf32 = utf8_to_utf32(utf8)
-integer ch
+    sequence utf32 = utf8_to_utf32(utf8)
     --
     -- The assumption is made that <char><comb1><comb2>
     -- and <char><comb2><comb1> would work the same.
@@ -488,7 +487,7 @@ integer ch
     -- (where c1..cN are >=1 combining characters)
     --
     for i=1 to length(utf32) do
-        ch = utf32[i]
+        integer ch = utf32[i]
         if (ch>=0x300 and ch<=0x36f)
         or (ch>=0x1dc0 and ch<=0x1dff)
         or (ch>=0x20d0 and ch<=0x20ff)
@@ -504,7 +503,10 @@ end function
 --ctest = reverse(ctest)
 string rtest = unicode_reverse(ctest)
 puts(1,rtest&"\n")
+string r4 = "as\u203Ddf\u0305",
+       rt = "\n\n"&r4&" reversed is "&unicode_reverse(r4)
 
+with javascript_semantics
 function poker(string hand)
     hand = substitute(hand,"10","t")
     sequence cards = split(hand,no_empty:=1)
@@ -528,7 +530,6 @@ function poker(string hand)
     end for
     integer straight = match({1,1,1,1,1},ranks) 
     if not straight then 
---      straight = sort(ranks)[$]=1 and match({0,0,0,0,0,0,0,0},ranks)
         straight = sort(deep_copy(ranks))[$]=1 and match({0,0,0,0,0,0,0,0},ranks)
     end if
     integer _flush = (max(suits)+jokers = 5)
@@ -591,6 +592,22 @@ sequence hands = {{0,"2e 2f 2c kc qf"},     -- three-of-a-kind (4)
                   {0,"joker  Qf  joker  Af 10f"},   -- straight-flush (9)
                   {0,"joker  2f  2`  joker  qf"}}   -- four-of-a-kind (8)
 
+for i=1 to length(hands) do
+    hands[i][1] = poker(hands[i][2])
+end for
+hands = sort(deep_copy(hands))
+integer rank
+string hand,desc
+for i=1 to length(hands) do
+    {{rank,desc},hand} = hands[i]
+    printf(1,"%d. %s %s\n",{rank,hand,desc})
+end for
+
+
+--ppOpt({pp_Ascii,{#20,#FF}})
+--pp(reverse(sort(hands)))
+--pp(reverse(sort(deep_copy(hands))))
+
 --/*
 
 2H 2D 2C kC qD: three-of-a-kind
@@ -642,12 +659,7 @@ joker  Qf  joker  Af 10f: straight-flush
 joker  2f  2`  joker  qf: four-of-a-kind
 --*/
 
-for i=1 to length(hands) do
-    hands[i][1] = poker(hands[i][2])
-end for
-ppOpt({pp_Ascii,{#20,#FF}})
---pp(reverse(sort(hands)))
-pp(reverse(sort(deep_copy(hands))))
+
 
 
 ? "hello"        -- PLAIN TEXT  
@@ -729,8 +741,7 @@ uc = "\u2D5A"&"E"
 --?length(utf8_to_utf32(sx))
 ----?utf8_to_utf32(sx)&-1
 
-
-    {} = MessageBoxW(lc&"\n"&uc, "Unicode 4 test", MB_OK)
+    {} = MessageBoxW(lc&"\n"&uc&rt, "Unicode 4 test", MB_OK)
 --  {} = MessageBoxW("Hello 4 test of MessageBoxW\n"&ctest&" <==> "&rtest, "Unicode 4 test", MB_OK)
 --str := "�,�"
 -- (I have no idea what 4 might mean, just t'first thing I found on t'internet)
@@ -780,7 +791,7 @@ function poker(string hand)
     end for
     integer straight = match({1,1,1,1,1},ranks) 
     if not straight then 
-        straight = sort(ranks)[$]=1 and match({0,0,0,0,0,0,0,0},ranks)
+        straight = sort(deep_copy(ranks))[$]=1 and match({0,0,0,0,0,0,0,0},ranks)
     end if
     integer _flush = (max(suits)+jokers = 5)
     integer _pairs = max(ranks)+jokers
@@ -846,7 +857,7 @@ for i=1 to length(hands) do
     hands[i][1] = poker(hands[i][2])
 end for
 ppOpt({pp_Ascii,{#20,#FF}})
-pp(reverse(sort(hands)))</lang>
+pp(reverse(sort(deep_copy(hands))))</lang>
 {{out}}
 <pre>
 {{{10, "five of a kind", 7}, "joker  7e  7f  7`  7c"},

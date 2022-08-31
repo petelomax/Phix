@@ -189,3 +189,64 @@ global function unsetenv(string var)
     return setenv(var)
 end function
 
+
+--DEV from https://openeuphoria.org/forum/136916.wc (also, consider #ilASM-ing the windows syscalls)
+--/*
+Here is a function that will get all environment variables and their values on Windows or Linux:
+
+ 
+include std/dll.e 
+include std/machine.e 
+include std/sequence.e 
+ 
+--?
+constant libname = iff(platform()=WINDOWS?"kernel32.dll"
+                                         :"libc.so.6"),
+         lib = open_dll(libname) 
+ifdef WINDOWS then 
+    constant kernel32 = open_dll( "kernel32.dll" ) 
+    constant xGetEnvironmentStrings = define_c_func( 
+        kernel32, "GetEnvironmentStringsA", {}, C_POINTER ) 
+elsifdef LINUX then 
+    constant libc = open_dll( "libc.so.6" ) 
+    constant _environ = define_c_var( libc, "environ" ) 
+end ifdef 
+ 
+public function get_environment_strings() 
+ 
+    sequence vars = {} 
+ 
+    if platform()=WINDOWS then 
+ 
+        -- GetEnvironmentStrings function 
+        -- https://docs.microsoft.com/en-us/windows/win32/api/processenv/nf-processenv-getenvironmentstrings 
+ 
+        atom ptr = c_func( xGetEnvironmentStrings, {} ) 
+        sequence str = peek_string( ptr ) 
+ 
+        while length( str ) do 
+            vars = append( vars, stdseq:split(str,'=',0,2) ) 
+            ptr += length( str ) + 1 
+            str = peek_string( ptr ) 
+        end while 
+ 
+    elsif platform()=LINUX then 
+ 
+        -- environ - user environment 
+        -- https://linux.die.net/man/7/environ 
+ 
+        atom ptr = peek_pointer( _environ ) 
+        object str = peek_pointer( ptr ) 
+ 
+        while str != NULL do 
+            str = peek_string( str ) 
+            vars = append( vars, stdseq:split(str,'=',0,2) ) 
+            ptr += sizeof( C_POINTER ) 
+            str = peek_pointer( ptr ) 
+        end while 
+ 
+    end if
+ 
+    return vars 
+end function 
+--*/

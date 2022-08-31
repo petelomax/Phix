@@ -58,17 +58,31 @@ constant JMP = "JMP",
 --*!/
 
 constant nil = 0
+--29/3/22 (p2js error: replaced strings with sequences, did not actually help... but left in)
+--                    (the actual bug was in passing 1/0 to negated instead of true/false, 
+--                     and/or using != instead of not equal() - did my best to fix both.)
+--constant azAZ09__ = "azAZ09__"
+constant azAZ09__ = {'a','z','A','Z','0','9','_','_'},
+             nech = {'\x00','\xFF'},
+             lnln = {'\n','\n'},
+             lncr = {'\n','\n','\r','\r'},
+         splncrtt = {' ',' ','\n','\n','\r','\r','\t','\t'},
+             sptt = {' ',' ','\t','\t'},
+             ch09 = {'0','9'}
 
-function inclass(integer ch, bool negated, string pairs)
-bool inclass
-    for i=1 to length(pairs) by 2 do
+--function inclass(integer ch, bool negated, string lhpairs)
+function inclass(integer ch, bool negated, sequence lhpairs)
+--  assert(not string(lhpairs)) -- 29/3/22 [p2js]
+    bool inclass
+    for i=1 to length(lhpairs) by 2 do
         if and_bits(options,RE_CASEINSENSITIVE) then
             ch = upper(ch)
         end if
-        inclass = ((ch>=pairs[i]) and (ch<=pairs[i+1]))
+        inclass = ((ch>=lhpairs[i]) and (ch<=lhpairs[i+1]))
         if inclass then exit end if
     end for
-    return (inclass!=negated)
+--  return (inclass!=negated)
+    return not equal(inclass,negated)
 end function
 
 --One possibility (for better backreference handling) is to ditch mark[] in addthread, and instead keep all
@@ -77,9 +91,9 @@ end function
 sequence mark
 sequence reactivate
 
-with trace
+--with trace
 --DEV this is a candidate for a nested function:
-function addthread(sequence q, sequence code, integer gen, integer pc, string input, integer sp, sequence saved)
+function addthread(sequence q, code, integer gen, pc, string input, integer sp, sequence saved)
     if mark[pc]!=gen then
         mark[pc] = gen
         switch code[pc] do
@@ -105,13 +119,13 @@ function addthread(sequence q, sequence code, integer gen, integer pc, string in
             case WORD_BOUND:
                 bool word_bound, negated = code[pc+1]
                 if sp=1 then
-                    word_bound = inclass(input[sp],0,"azAZ09__")
+                    word_bound = inclass(input[sp],false,azAZ09__)
                 else
-                    word_bound = inclass(input[sp-1],0,"azAZ09__")
+                    word_bound = inclass(input[sp-1],false,azAZ09__)
                     if word_bound then
-                        word_bound = sp>length(input) or inclass(input[sp],1,"azAZ09__")
+                        word_bound = sp>length(input) or inclass(input[sp],true,azAZ09__)
                     else
-                        word_bound = sp<=length(input) and inclass(input[sp],0,"azAZ09__")
+                        word_bound = sp<=length(input) and inclass(input[sp],false,azAZ09__)
                     end if
                 end if
                 if word_bound!=negated then
@@ -139,13 +153,9 @@ function addthread(sequence q, sequence code, integer gen, integer pc, string in
 end function
 
 function pikevm_execute(sequence code, string input, integer strtndx)
-    sequence matched = {}
-    sequence run = {}
-    sequence rdy = {}
-    integer pc
-    integer gen = 1
-    integer sp = strtndx
-    sequence saved = repeat(0,code[2]*2)
+    sequence matched = {}, run = {}, rdy = {},
+             saved = repeat(0,code[2]*2)
+    integer pc, gen = 1, sp = strtndx
     reactivate = {}
     mark = repeat(0,length(code))
     run = addthread(run, code, gen, 4, input, sp, saved)
@@ -153,28 +163,29 @@ function pikevm_execute(sequence code, string input, integer strtndx)
         gen += 1
         for i=1 to length(run) do
             {pc,saved} = run[i]
-            switch code[pc] do
-                case CHAR:
-                    if sp<=length(input) then
-                        integer ch = input[sp]
-                        if and_bits(options,RE_CASEINSENSITIVE) then
-                            ch = upper(ch)
-                        end if
-                        if ch==code[pc+1] then
-                            rdy = addthread(rdy, code, gen, pc+2, input, sp+1, saved)
-                        end if
+            string cpc = code[pc]
+            if cpc=CHAR then
+                if sp<=length(input) then
+                    integer ch = input[sp]
+                    if and_bits(options,RE_CASEINSENSITIVE) then
+                        ch = upper(ch)
                     end if
-                case CLASS:
-                    if sp<=length(input)
-                    and inclass(input[sp],code[pc+1],code[pc+2]) then
-                        rdy = addthread(rdy, code, gen, pc+3, input, sp+1, saved)
+                    if ch==code[pc+1] then
+--trace(1)
+                        rdy = addthread(rdy, code, gen, pc+2, input, sp+1, saved)
+--?rdy else ?"nope"
                     end if
-                case MATCH:
-                    matched = saved
-                    exit
-                else
-                    ?9/0
-            end switch
+                end if
+            elsif cpc=CLASS then
+                if sp<=length(input)
+                and inclass(input[sp],code[pc+1],code[pc+2]) then
+                    rdy = addthread(rdy, code, gen, pc+3, input, sp+1, saved)
+                end if
+            else
+                assert(cpc==MATCH)
+                matched = saved
+                exit
+            end if
         end for
         if and_bits(options,RE_EARLY_EXIT) then
             if length(matched) then exit end if
@@ -217,79 +228,78 @@ function backtrackingvm(sequence code, string input, integer strtndx)
         nready -= 1  
         while 1 do
             object opcode = code[pc]
-            switch opcode do
-                case CHAR:
-                    if sp>length(input) then exit end if
-                    integer ch = input[sp]
-                    if and_bits(options,RE_CASEINSENSITIVE) then
-                        ch = upper(ch)
-                    end if
-                    if ch!=code[pc+1] then exit end if
-                    sp += 1
-                    pc += 2
-                case MATCH:
-                    return saved
-                case JMP:
-                    pc = code[pc+1]
-                case SPLIT:
-                    if nready >= MAXTHREAD then
-                        printf(1, "\nregexp overflow\n\n");
-                        return {}
-                    end if
-                    -- queue new thread
-                    ready = append(ready,{code[pc+2],sp,saved})
-                    nready += 1
-                    pc = code[pc+1] -- continue current thread
-                case SAVE:
-                    integer k = code[pc+1]
+            if opcode=CHAR then
+                if sp>length(input) then exit end if
+                integer ch = input[sp]
+                if and_bits(options,RE_CASEINSENSITIVE) then
+                    ch = upper(ch)
+                end if
+                if ch!=code[pc+1] then exit end if
+                sp += 1
+                pc += 2
+            elsif opcode=MATCH then
+                return saved
+            elsif opcode=JMP then
+                pc = code[pc+1]
+            elsif opcode=SPLIT then
+                if nready >= MAXTHREAD then
+                    printf(1, "\nregexp overflow\n\n");
+                    return {}
+                end if
+                -- queue new thread
+                ready = append(ready,{code[pc+2],sp,saved})
+                nready += 1
+                pc = code[pc+1] -- continue current thread
+            elsif opcode=SAVE then
+                integer k = code[pc+1]
 --p2js:
-                    saved = deep_copy(saved)
-                    saved[k] = sp
-                    pc += 2
-                case CLASS:
-                    if sp>length(input)
-                    or not inclass(input[sp],code[pc+1],code[pc+2]) then
-                        exit
-                    end if
-                    sp += 1
-                    pc += 3
-                case BKREF:
-                    integer bn = code[pc+1]*2+1
-                    integer {bs,be} = saved[bn..bn+1]
-                    integer l = be-bs
-                    --RE_CASEINSENSITIVE(NO)
-                    if bs<1 or l<1
-                    or sp+l-1>length(input)
-                    or input[sp..sp+l-1]!=input[bs..be-1] then
-                        exit
-                    end if
-                    sp += l
-                    pc += 2
-                case BOL:
-                    if sp!=1 then exit end if
-                    pc += 1
-                case EOL:
-                    if sp!=length(input)+1 then exit end if
-                    pc += 1
-                case WORD_BOUND:
-                    bool word_bound, negated = code[pc+1]
-                    if sp=1 then
-                        word_bound = inclass(input[sp],0,"azAZ09__")
+                saved = deep_copy(saved)
+                saved[k] = sp
+                pc += 2
+            elsif opcode=CLASS then
+                if sp>length(input)
+                or not inclass(input[sp],code[pc+1],code[pc+2]) then
+                    exit
+                end if
+                sp += 1
+                pc += 3
+            elsif opcode=BKREF then
+                integer bn = code[pc+1]*2+1
+                integer {bs,be} = saved[bn..bn+1]
+                integer l = be-bs
+                --RE_CASEINSENSITIVE(NO)
+                if bs<1 or l<1
+                or sp+l-1>length(input)
+                or input[sp..sp+l-1]!=input[bs..be-1] then
+                    exit
+                end if
+                sp += l
+                pc += 2
+            elsif opcode=BOL then
+                if sp!=1 then exit end if
+                pc += 1
+            elsif opcode=EOL then
+                if sp!=length(input)+1 then exit end if
+                pc += 1
+            elsif opcode=WORD_BOUND then
+                bool word_bound, negated = code[pc+1]
+                if sp=1 then
+                    word_bound = inclass(input[sp],false,azAZ09__)
+                else
+                    word_bound = inclass(input[sp-1],false,azAZ09__)
+                    if word_bound then
+                        word_bound = sp>length(input) or inclass(input[sp],true,azAZ09__)
                     else
-                        word_bound = inclass(input[sp-1],0,"azAZ09__")
-                        if word_bound then
-                            word_bound = sp>length(input) or inclass(input[sp],1,"azAZ09__")
-                        else
-                            word_bound = sp<=length(input) and inclass(input[sp],0,"azAZ09__")
-                        end if
+                        word_bound = sp<=length(input) and inclass(input[sp],false,azAZ09__)
                     end if
-                    if word_bound=negated then
-                        exit
-                    end if
-                    pc += 2
-                default:
-                    ?9/0
-            end switch
+                end if
+                if word_bound=negated then
+                    exit
+                end if
+                pc += 2
+            else
+                ?9/0 -- unknown opcode
+            end if
         end while
     end while
     return {}
@@ -379,17 +389,19 @@ function chr(string src, integer idx)
 --
 -- parse a single (escaped) character
 --
-sequence res
-integer ch
-bool negated
+    sequence res
+    integer ch
+    bool negated
 
     if idx<=length(src) then
         ch = src[idx]
         if ch='.' then
             if and_bits(options,RE_DOTMATCHESNL) then
-                res = {CLASS,0,"\x00\xFF"}
+--              res = {CLASS,0,"\x00\xFF"}
+                res = {CLASS,false,nech}
             else
-                res = {CLASS,1,"\n\n"}
+--              res = {CLASS,1,"\n\n"}
+                res = {CLASS,true,lnln}
             end if
             idx += 1
             return {idx, res}
@@ -410,8 +422,8 @@ bool negated
                 {idx, ch} = nextch(src, idx, true)
                 if idx=0 then return {0,{}} end if
             end if
-            string pairs = ""
-            while 1 do
+            sequence lhpairs = {}
+            while true do
                 if ch=-1 then
 --trace(1) -- seems OK...
                     ch = src[idx]
@@ -430,7 +442,7 @@ bool negated
                         -- (we cannot flip negated if any pre/post exists)
                         -- likewise note that say [\S\D] must be written 
                         -- as [^\s\d], and [^\S\D] as [\s\d].
-                        if pairs!=""
+                        if lhpairs!=""
                         or idx=length(src)
                         or src[idx+1]!=']' then
                             Abort("invalid escape (negation mismatch)", src, idx)
@@ -440,12 +452,13 @@ bool negated
                         negated = not negated
                     end if
 -- </new code>
---                  pairs &= {"09","  \n\n\r\r\t\t","azAZ09__"}[k]
-                    pairs &= {"09","  \n\n\r\r"&9&9,"azAZ09__"}[k]
+--                  lhpairs &= {"09","  \n\n\r\r\t\t","azAZ09__"}[k]
+--                  lhpairs &= {"09","  \n\n\r\r"&9&9,azAZ09__}[k]
+                    lhpairs &= {{'0','9'},splncrtt,azAZ09__}[k]
 --                  idx += 1
                     {idx, ch} = nextch(src, idx, true)
                 else
-                    pairs &= ch
+                    lhpairs &= ch
                     integer ch2
                     {idx, ch2} = nextch(src, idx, true)
                     if idx=0 then return {0,{}} end if
@@ -453,10 +466,10 @@ bool negated
                     and (idx>=length(src) or -- (prevent crash)
                          src[idx+1]!=']') then
                         {idx, ch} = nextch(src, idx, false)
-                        pairs &= ch
+                        lhpairs &= ch
                         {idx, ch} = nextch(src, idx, true)
                     else
-                        pairs &= ch -- 'a'->'aa' (range of 1)
+                        lhpairs &= ch -- 'a'->'aa' (range of 1)
                         ch = ch2
                     end if
                 end if
@@ -464,10 +477,10 @@ bool negated
             end while
             if and_bits(options,RE_CASEINSENSITIVE) then
 --SUG (untested)
---              pairs = upper(substitute(pairs,"azAZ","AZ"))
-                pairs = upper(pairs)
+--              lhpairs = upper(substitute(lhpairs,"azAZ","AZ"))
+                lhpairs = upper(lhpairs)
             end if
-            res = {CLASS, negated, pairs}
+            res = {CLASS, negated, lhpairs}
 --?res
             idx += 1
             return {idx,res}
@@ -476,32 +489,33 @@ bool negated
             if idx=0 then return {0,{}} end if
             if ch='d' or ch='D' then
                 negated = ch='D'
-                res = {CLASS, negated, "09"}
+                res = {CLASS, negated, ch09}
                 idx += 1
                 return {idx, res}
             elsif ch='s' or ch='S' then
                 negated = ch='S'
 --              res = {CLASS, negated, "  \n\n\r\r\t\t"}
-                res = {CLASS, negated, "  \n\n\r\r"&9&9}
+--              res = {CLASS, negated, "  \n\n\r\r"&9&9}
+                res = {CLASS, negated, splncrtt}
                 idx += 1
                 return {idx, res}
             elsif ch='h' or ch='H' then
                 negated = ch='H'
                 -- Unicode space separator?
 --              res = {CLASS, negated, "  \t\t"}
-                res = {CLASS, negated, "  "&9&9}
+                res = {CLASS, negated, sptt}
                 idx += 1
                 return {idx, res}
             elsif ch='v' or ch='V' then
                 negated = ch='V'
                 -- vertical tab, form feed, paragraph or line separator?
-                res = {CLASS, negated, "\n\n\r\r"}
+                res = {CLASS, negated, lncr}
                 idx += 1
                 return {idx, res}
             -- not (yet) handled: \R - one line break (\r\n pair) + all \v...
             elsif ch='w' or ch='W' then
                 negated = ch='W'
-                res = {CLASS, negated, "azAZ09__"}
+                res = {CLASS, negated, azAZ09__}
                 idx += 1
                 return {idx, res}
             elsif ch='z' then
@@ -727,7 +741,7 @@ function expression(string src, integer idx)
 --
 -- parse a full expression (using recursive descent)
 --
-sequence res
+    sequence res
     {idx,res} = concatenate(src,idx)
     if idx=0 then return {0,{}} end if
     if idx<=length(src) then
@@ -748,11 +762,11 @@ end function
 
 --global 
 function regexp_parse(string src)
-    integer idx
-    sequence res
+--  integer idx
+--  sequence res
 --  group_number = 0
     group_number = 1
-    {idx,res} = expression(src,1)
+    {integer idx, sequence res} = expression(src,1)
     if idx=0 then return {} end if
     if idx<=length(src) then
         Abort("incomplete parse", src, idx)
@@ -771,7 +785,8 @@ global function regex_compile(string src)
     or expr[2][1]!=BOL then
         -- if not anchored, src := ".*?("&src&")" (with RE_DOTMATCHESNL in force)
         --  (ie prefix the expression with a non-greedy .* and add an outer group)
-        expr = {SEQ,{OPT, 0,-1,0, {CLASS, 0, "\x00\xFF"}},
+--      expr = {SEQ,{OPT, 0,-1,0, {CLASS, 0, "\x00\xFF"}},
+        expr = {SEQ,{OPT, 0,-1,0, {CLASS, false, nech}},
                     {GROUP, 1, expr}}
     else
         -- if anchored, src := "("&src&")"
@@ -876,7 +891,7 @@ global function regex(sequence re, string s,  integer strtndx=1)
 -- end is always <idx of last character>+1. res[1..2] is the capture for the
 -- entire expression, and subsequent pairs for any () as read left-to-right.
 --
-sequence code
+    sequence code, m
     if string(re) then
         code = regex_compile(re)
         if length(code)=0 then return {} end if
@@ -884,7 +899,6 @@ sequence code
         if re[1]!=REGEX then ?9/0 end if
         code = re
     end if
-    sequence m 
     if and_bits(options,RE_PIKEVM) then
         m = pikevm_execute(code, s, strtndx)
     else
@@ -900,9 +914,9 @@ end function
 -- Draft routines
 --
 
-global function gsub(sequence re, string target, string rep)
+global function gsub(sequence re, string target, rep)
     sequence code = iff(string(re)?regex_compile(re):re),
-             m = regex(code,target)
+                m = regex(code,target)
     if length(m) then
         string res = ""
         integer k = find('&',rep)       -- should that be \0?
@@ -926,7 +940,7 @@ global function gsub(sequence re, string target, string rep)
     return target
 end function
 
-global function gmatch(sequence re, string target, string res)
+global function gmatch(sequence re, string target, res)
     sequence code = iff(string(re)?regex_compile(re):re),
              m = regex(code,target)
     if length(m) then

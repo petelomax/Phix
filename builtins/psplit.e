@@ -9,9 +9,8 @@ without debug
 
 global function split(sequence source, object delimiter=' ', bool no_empty=true, integer limit=0)
     sequence ret = {}
-    integer start
-    integer pos
-    bool add_empties = not no_empty
+    integer start, pos
+    bool add_empties = not no_empty // (easier to understand!)
 
     if length(source)!=0 then
 
@@ -22,7 +21,6 @@ global function split(sequence source, object delimiter=' ', bool no_empty=true,
                     source[i] = source[i..i]
                     limit -= 1
                     if limit=0 then
---                      source = append(source[1..i],source[i+1..$])
                         source[i+1] = source[i+1..$]
                         source = source[1..i+1]
                         exit
@@ -35,7 +33,6 @@ global function split(sequence source, object delimiter=' ', bool no_empty=true,
             while start<=length(source) do
                 pos = match(delimiter, source, start)
                 if pos=0 then exit end if
---              if no_empty=0 or pos-1>=start then
                 if add_empties or pos-1>=start then
                     limit -= 1
                     if limit=0 then exit end if
@@ -48,7 +45,6 @@ global function split(sequence source, object delimiter=' ', bool no_empty=true,
             while start<=length(source) do
                 pos = find(delimiter, source, start)
                 if pos=0 then exit end if
---              if no_empty=0 or pos-1>=start then
                 if add_empties or pos-1>=start then
                     limit -= 1
                     if limit=0 then exit end if
@@ -58,7 +54,6 @@ global function split(sequence source, object delimiter=' ', bool no_empty=true,
             end while
         end if
 
---      if no_empty=0 or start<=length(source) then
         if add_empties or start<=length(source) then
             ret = append(ret, source[start..$])
         end if
@@ -66,35 +61,25 @@ global function split(sequence source, object delimiter=' ', bool no_empty=true,
     return ret
 end function
 
---changed 5/12/2020:
---global function split_any(sequence source, object delimiters=", \t|", bool no_empty=false, integer limit=0)
---global function split_any(sequence source, object delimiters=", \t|", bool no_empty=true, integer limit=0)
---global function split_any(sequence source, object delimiters=", \t|")
-global function split_any(sequence source, object delimiters={',',' ','\t','|'})
-sequence ret = {}
-integer start = 1, pos
---, k
+global function split_any(sequence source, object delimiters=", \t|")
+    sequence ret = {}
+    integer start = 1
 
     if atom(delimiters) then
         delimiters = {delimiters}
     elsif length(delimiters)=0 then
---      crash("split_any(): delimiter length must be greater than 0")
-        ?9/0 --DEV
+        crash("split_any(): delimiter length must be greater than 0")
     end if
 
     while 1 do
-        pos = find_any(delimiters, source, start)
+        integer pos = find_any(delimiters, source, start)
         if pos=0 then exit end if
---      if no_empty=false or pos-1>=start then
         if pos-1>=start then
             ret = append(ret, source[start..pos-1])
         end if
         start = pos+1
---      limit -= 1
---      if limit=0 then exit end if
     end while
 
---  if no_empty=false or start<=length(source) then
     if start<=length(source) then
         ret = append(ret, source[start..$])
     end if
@@ -103,7 +88,8 @@ integer start = 1, pos
 end function
 
 global function split_by(sequence s, integer n)
--- Split a sequence into chucks of at most length n each, eg split_by(tagset(9)) => {{1,2,3},{4,5,6},{7,8,9}}.
+    -- Split a sequence into chucks of at most length n each, 
+    -- eg split_by(tagset(9)) => {{1,2,3},{4,5,6},{7,8,9}}.
     sequence res = {}
     integer j = 1, k = n
     while k<length(s) do
@@ -118,9 +104,9 @@ global function split_by(sequence s, integer n)
 end function
 
 global function split_path(string path, bool preservetrailsep=false)
-sequence res = {}
-string chunk
-integer start = 1, ch
+    sequence res = {}
+    string chunk
+    integer start = 1, ch
     -- split, preserving any leading separator
     for i=2 to length(path) do
         ch = path[i]

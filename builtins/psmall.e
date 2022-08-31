@@ -15,16 +15,12 @@
 --  the docs) min(s), which also has other incompatibilities with OpenEuphoria (non-recursive processing etc).
 
 global function smallest(sequence set, integer return_index=0)
-object res, tmp
     if length(set)=0 then ?9/0 end if
-    if return_index then
-        res = 1
-    else
-        res = set[1]
-    end if
+    object res = iff(return_index?1:set[1])
     for i=2 to length(set) do
-        tmp = set[i]
+        object tmp = set[i]
         if return_index then
+--          if return_index=2
             if tmp<set[res] then
                 res = i
             end if
@@ -36,15 +32,10 @@ object res, tmp
 end function
 
 global function largest(sequence set, integer return_index=0)
-object res, tmp
     if length(set)=0 then ?9/0 end if
-    if return_index then
-        res = 1
-    else
-        res = set[1]
-    end if
+    object res = iff(return_index?1:set[1])
     for i=2 to length(set) do
-        tmp = set[i]
+        object tmp = set[i]
         if return_index then
             if tmp>set[res] then
                 res = i

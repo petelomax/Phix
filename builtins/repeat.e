@@ -10,7 +10,7 @@
 --
 --  Also implements deep_copy(), for the benefit of pwa/p2js.
 --
---without debug
+without debug
 --
 --  Since JavaScript has pass-by-sharing semantics, whereas Phix has pass-by-reference-with-copy-on-write semantics,
 --  and implementing either in the other is sheer madness, this enables software depending on neither to be written.
@@ -165,7 +165,7 @@ global function repeatch(integer ch, n, nFrames=2)
     return res
 end function
 
-global function repeat(object x, integer n)
+global function repeat(object x, integer n, bool allow_strings = true)
     --
     -- Note: Prior versions of say repeat(repeat(100),100) would use just 800ish bytes and
     --       an inner refcount of 100, vs 40,000 bytes fully expanded. However apart maybe
@@ -176,7 +176,7 @@ global function repeat(object x, integer n)
     --       were probably better off using a dictionary or similar instead anyway.
     --
     sequence res
-    if integer(x) and x>=7 and x<=255 then
+    if allow_strings and integer(x) and x>=7 and x<=255 then
         return repeatch(x,n,3)
     elsif n<0 then
         return repeatch('?',n,3) -- (crash)

@@ -2,6 +2,7 @@
 -- builtins\pApply.e
 -- =================
 --
+--without debug
 include builtins\get_routine_info.e
 
 enum APPLY_PROC, APPLY_FUNC
@@ -95,7 +96,9 @@ function apply_(object s, integer fn, pf, object userdata = {})
                 if pf=APPLY_PROC then
                     fn(s[i])
                 else
+--no help:
                     res[i] = fn(s[i])
+--                  res[i] = fn(deep_copy(s[i]))
                 end if
             end for
         else

@@ -350,6 +350,14 @@ end procedure -- (for Edita/CtrlQ)
         mov eax,esp
         shr eax,2
         mov [pArg],eax
+--/*
+    [ARM]
+        mov r0,sp
+        shr r0,2
+        lea r1,[pArg]
+--      mov [r1],r0
+        str r0,[r1]
+--*/
     [64]
         call :%pNewStack
 
@@ -492,6 +500,11 @@ end procedure -- (for Edita/CtrlQ)
     [ELF64]
 --:%opGetArgELF64
         mov rax,[pArg]
+--/*
+    [ARM]
+        lea r0,[pArg]
+        mov r0,[r0]
+--*/
     []
         ret
 

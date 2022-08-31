@@ -21,7 +21,7 @@
 procedure check_limits(atom n, string rtn)
     if n<1 or n!=floor(n) then
         crash("argument to %s() must be a positive integer",{rtn})
-    elsif n>power(2,iff(machine_bits()=32?53:64)) then
+    elsif n>=power(2,iff(machine_bits()=32?53:64)) then
         -- n above power(2,53|64) is pointless, since IEE 754 floats drop 
         -- low-order bits. As per the manual, on 32-bit atoms can store 
         -- exact integers up to 9,007,199,254,740,992, however between
@@ -31,6 +31,7 @@ procedure check_limits(atom n, string rtn)
         -- factors of 9,007,199,254,740,995 you might be surprised when
         -- it does not list 5, since this gets 9,007,199,254,740,994.
         -- (yes, the routine actually gets a number ending in 4 not 5)
+        -- (and it's >= since eg 90...93 will end up in here as ..92)
         crash("argument to %s() exceeds maximum precision",{rtn})
     end if
 end procedure
@@ -69,9 +70,13 @@ end function
 
 --include primes.e
 
-global function prime_factors(atom n, bool duplicates=false, integer maxprime=100)
--- returns a list of all prime factors <=get_prine(maxprime) of n
+--global function prime_factors(atom n, bool duplicates=false, integer maxprime=100)
+global function prime_factors(atom n, integer duplicates=false, maxprime=100)
+-- returns a list of all prime factors of n that are <= get_prime(maxprime)
 --  if duplicates is true returns a true decomposition of n (eg 8 --> {2,2,2})
+--  if duplicates is 2 returns {prime,power} pairs as per mpz_prime_factors()
+--  if maxprime is -1 it is set to get_maxprime(n), and obviously some programs
+--  will benefit from not performing an unnecessary sqrt() on every single call.
     if n=0 then return {} end if
     check_limits(n,"prime_factors")
     if maxprime=-1 then maxprime = get_maxprime(n) end if
@@ -82,12 +87,17 @@ global function prime_factors(atom n, bool duplicates=false, integer maxprime=10
 
     while p<=lim do
         if remainder(n,p)=0 then
-            pfactors = append(pfactors,p)
+--          pfactors = append(pfactors,p)
+            pfactors = append(pfactors,iff(duplicates=2?{p,1}:p))
             while true do
                 n = n/p
                 if remainder(n,p)!=0 then exit end if
                 if duplicates then
-                    pfactors = append(pfactors,p)
+                    if duplicates=2 then
+                        pfactors[$][2] += 1
+                    else
+                        pfactors = append(pfactors,p)
+                    end if
                 end if
             end while
             if n<=p then exit end if
@@ -97,11 +107,11 @@ global function prime_factors(atom n, bool duplicates=false, integer maxprime=10
         p = get_prime(pn)
     end while 
     if n>1 and (length(pfactors)!=0 or duplicates) then
-        pfactors = append(pfactors,n)
+        pfactors = append(pfactors,iff(duplicates=2?{n,1}:n))
 --added 12/6/19:
     elsif duplicates and pfactors={} then
         if n!=1 then ?9/0 end if    -- sanity check
-        pfactors = {1}
+        pfactors = iff(duplicates=2?{{2,0}}:{1})
     end if
     return pfactors
 end function

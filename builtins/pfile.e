@@ -1,10 +1,11 @@
 --
--- pfile.e
--- =======
+-- builtins\pfile.e (an autoinclude)
+-- ================
 --
 --  Ripped from std/filesys.e, and a few other places
 --
 without debug
+include file_utils.e
 
 --#withtype bool
 
@@ -70,7 +71,9 @@ global function file_exists(string name)
 --  file_exists(name) and get_file_type(name)=FILETYPE_FILE, or
 --  just get_file_type(name)=FILETYPE_FILE)
 --reverted to older method 24/3/21 (/pagefile.sys reported as does not exist - ???!!)
-    object d = dir(name)
+--24/3/22: (don't bother reading directory contents or retrieving any file details, return -1 or {} only)
+--  object d = dir(name)
+    object d = dir(name,NULL)
     return sequence(d)
 /*
     if not finit then initf() end if
@@ -84,83 +87,6 @@ global function file_exists(string name)
 --  return iff(W?c_func(xGetFileAttributes, {name})>0
 --              :c_func(xGetFileAttributes, {name, 0})=0)
 */
-end function
-
---DEV needs testing on Linux (get_proper_path)
-global function get_file_name(string path)
-    if not finit then initf() end if
-    path = get_proper_path(path)
-    path = path[rfind(SLASH,path)+1..$]
-    return path
-end function
-
-global function get_file_extension(string filename)
--- treats eg "libglfw.so.3.1" as "libglfw.so" (both yeilding "so"),
---  however "file.1" ==> "1", and "test.r01" -> "r01".
--- forwardslash and backslash are handled for all platforms.
--- result is lower case (ie "TEST.EXW" and "test.exw" -> "exw")
-string extension = ""
-integer ch, allnum
-    integer len = length(filename)
-    for i=len to 1 by -1 do
-        ch = filename[i]
-        if ch='.' then
-            extension = lower(filename[i+1..len])
---          allnum = false
-            if length(extension) then
-                allnum = true
-                for j=length(extension) to 1 by -1 do
-                    ch = extension[j]
-                    if ch<'0' or ch>'9' then
-                        allnum = false
-                        exit
-                    end if
-                end for
-                if not allnum then exit end if
-            end if
---          if allnum then
-                len = i-1
---          end if
-        elsif find(ch,`\/:`) then
-            exit
-        end if
-    end for
-    return extension
-end function
-
---/*
-if get_file_extension("libglfw.so.3.1")!="so" then ?9/0 end if
-if get_file_extension("libglfw.so")!="so" then ?9/0 end if
-if get_file_extension("file.1")!="1" then ?9/0 end if
-if get_file_extension("file.r01")!="r01" then ?9/0 end if
-if get_file_extension("TEST.EXW")!="exw" then ?9/0 end if
-if get_file_extension("test.exw")!="exw" then ?9/0 end if
---*/
-
-global function get_file_base(string path)
-    path = get_file_name(path)
-    path = path[1..find('.',path)-1]
-    return path
-end function
-
-global function get_file_path(string path, bool dropslash=true)
-    if not finit then initf() end if
-    path = get_proper_path(path)
-    return path[1..rfind(SLASH, path)-dropslash]
-end function
-
-global function get_file_path_and_name(string filepath, bool dropslash=true)
-    if not finit then initf() end if
-    filepath = get_proper_path(filepath)
-    integer k = rfind(SLASH, filepath)
-    string path = filepath[1..k-dropslash],
-           name = filepath[k+1..$]
-    return {path,name}
-end function
-
-global function get_file_name_and_path(string filepath, bool dropslash=true)
-    string {path,name} = get_file_path_and_name(filepath, dropslash)
-    return {name,path}
 end function
 
 --/* Now defined in psym.e:
@@ -210,32 +136,6 @@ global function get_file_type(string filename)
     else
         return FILETYPE_NOT_FOUND
     end if
-end function
-
---11/2/22 (removed silly "stickness")
-global function file_size_k(atom size, integer width=1)
---
--- Trivial routine to convert a size in bytes to a human-readable string, such as "2GB".
--- The width setting is also "sticky", ie whatever is set becomes the new default.
---
-    integer sw = max(width,1),
-            s2 = iff(sw>=3?sw-2:sw),
-            fdx = 0
-    string fmt = sprintf("%%%d.0f%%s",sw),      -- eg "%11.0f%s" (the %s gets ""...)
-           sfmt = sprintf("%%%d.0f%%s",s2),     -- eg "%9.0f%s" (this %s gets eg "KB")
-           dpsfmt = sprintf("%%%d.2f%%s",s2),   -- eg "%9.2f%s" (        ""          )
-           res, suffix = ""
-    while fdx<=3 do
-        atom rsize = round(size/1024,100)       -- (to 2 d.p.)
-        if rsize<1 then exit end if
-        size = rsize
-        fdx += 1
-        suffix = "KMGT"[fdx]&'B'
-        fmt = sfmt
-    end while
-    if size!=trunc(size) then fmt = dpsfmt end if
-    res = sprintf(fmt, {size,suffix})
-    return res
 end function
 
 --global function get_file_size(string filename, bool asStringK=false, integer width=sw)
@@ -361,7 +261,7 @@ global constant DRIVE_UNKNOWN       = 0,    -- The drive type cannot be determin
 
 global function get_logical_drives()
 --(suggestions for enhancements to this routine are welcome)
-sequence res
+    sequence res
     if platform()=WINDOWS then
         if not finit then initf() end if
         res = {}
@@ -384,7 +284,7 @@ sequence res
 end function
 
 global function rename_file(string src, string dest, bool overwrite=false)
-atom ret
+    atom ret
     if not finit then initf() end if
     if not overwrite then
         if file_exists(dest) then
@@ -428,7 +328,7 @@ end function
 --11/9/19:
 --global function copy_file(string src, dest, bool overwrite=false)
 function copy_one_file(string src, dest, bool overwrite=false)
-integer success
+    integer success
 --  if not finit then initf() end if
 
     if get_file_type(src)!=FILETYPE_FILE then return false end if
@@ -469,7 +369,7 @@ integer success
 end function
 
 global function move_file(string src, dest, bool overwrite=false)
-atom ret
+    atom ret
 
     if not file_exists(src)
     or (not overwrite and file_exists(dest)) then
@@ -603,24 +503,29 @@ global function clear_directory(string path, bool recurse=true)
 
     for i=1 to length(d) do
         string name = d[i][D_NAME]
-        if platform()=WINDOWS then
-            if find(name,{".",".."}) then
-                continue
-            end if
-        elsif platform()=LINUX then
-            if name[1]='.' then
-                continue
-            end if
-        end if
-        if find('d', d[i][D_ATTRIBUTES]) then
-            if recurse then
-                if clear_directory(path&name, recurse)=0 then
+--24/3/22
+--      if platform()=WINDOWS then
+--          if find(name,{".",".."}) then
+--              continue
+--          end if
+--      elsif platform()=LINUX then
+--          if name[1]='.' then
+--              continue
+--          end if
+--      end if
+        bool bClear = iff((platform()=WINDOWS) ? find(name,{".",".."})=0
+                                     /*LINUX*/ : name[1]!='.')
+        if bClear then
+            if find('d', d[i][D_ATTRIBUTES]) then
+                if recurse then
+                    if clear_directory(path&name, recurse)=0 then
+                        return 0
+                    end if
+                end if
+            else
+                if delete_file(path&name)=0 then
                     return 0
                 end if
-            end if
-        else
-            if delete_file(path&name)=0 then
-                return 0
             end if
         end if
     end for
@@ -666,8 +571,8 @@ global function copy_directory(string src, dest, bool overwrite=false)
 end function
 
 global function remove_directory(string dir_name, bool force=false)
-atom ret
-object files
+    atom ret
+    object files
 
     if not finit then initf() end if
 
@@ -732,10 +637,8 @@ function addline(sequence res, integer i, integer start, integer option, integer
 -- makes multiple references to one object rather
 -- than multiple such things with ref counts of 1.
 --
-sequence oneline
-integer lend
-    lend = i-1
---  if option=-1 then   -- GT_LF_STRIPPED
+    sequence oneline
+    integer lend = i-1
     if option=GT_LF_STRIPPED then
         if start>lend then
             oneline = ""    -- (use a shared constant)
@@ -951,291 +854,6 @@ global function write_lines(object file, sequence lines)
     return true
 end function
 
---DEV not yet documented/autoincluded
---****
--- === URL Parse Accessor Constants
---
--- Use with the result of [[:parse_url]].
---
--- Notes:
---   If the host name, port, path, username, password or query string are not part of the 
---   URL they will be returned as an integer value of zero.
---
-
-global enum
-        --**
-        -- The protocol of the URL
-        URL_PROTOCOL,
-
-        --**
-        -- The hostname of the URL
-        URL_HOSTNAME,
-
-        --**
-        -- The TCP port that the URL will connect to
-        URL_PORT,
-
-        --**
-        -- The protocol-specific pathname of the URL
-        URL_PATH,
-
-        --**
-        -- The username of the URL
-        URL_USER,
-
-        --**
-        -- The password the URL
-        URL_PASSWORD,
-
-        --**
-        -- The HTTP query string
-        URL_QUERY_STRING,
-
-        --**
-        -- The #name part
-        URL_FRAGMENT
-
---DEV/SUG when documenting, replace bits of https://rosettacode.org/mw/index.php?title=URL_parser#Phix with:
---/*
-global function url_element_desc(integer idx)
-    string res
-    switch idx do
-        case URL_PROTOCOL:      res = "scheme"
-        case URL_HOSTNAME:      res = "domain"
-        case URL_PORT:          res = "port"
-        case URL_PATH:          res = "path"
-        case URL_USER:          res = "user"
-        case URL_PASSWORD:      res = "password"
-        case URL_QUERY_STRING:  res = "query"
-        case URL_FRAGMENT:      res = "fragment"
-        default: ?9/0
-    end switch
-    return res
-end function
---*/
-
---DEV not yet documented/autoincluded
---**
--- Parse a URL returning its various elements.
--- 
--- Parameters:
---   # ##url##: URL to parse
---   # ##querystring_also##: Parse the query string into a map also?
---   
--- Returns: 
---   A multi-element sequence containing:
---   # protocol
---   # host name
---   # port
---   # path
---   # user name
---   # password
---   # query string
---   
---   Or, zero if the URL could not be parsed.
--- 
--- Notes:
---   If the host name, port, path, username, password or query string are not part of the 
---   URL they will be returned as an integer value of zero.
---   
--- Example 1:
--- <eucode>
--- sequence parsed = 
---       parse_url("http://user:pass@www.debian.org:80/index.html?name=John&age=39")
--- -- parsed is
--- -- { 
--- --     "http",
--- --     "www.debian.org",
--- --     80,
--- --     "/index.html",
--- --     "user",
--- --     "pass",
--- --     "name=John&age=39"
--- -- }
--- </eucode>
--- 
-
-global function parse_url(string url)--, integer querystring_also=0)
-sequence protocol = ""
-object host_name = 0,
-       path = 0,
-       user_name = 0,
-       password = 0,
-       query_string = 0,
-       fragment = 0,
-       port = 0
-integer qs_start = 0
-integer pos
-bool authority = false
---,
---   all_done = false
-
-    pos = find('#',url)
-    if pos!=0 then
-        fragment = url[pos+1..$]
-        url = url[1..pos-1]
-    end if
-
-    pos = find(':', url)
-
-    if pos=0 then
-        return 0
-    end if
-
-    protocol = url[1..pos-1]
-    pos += 1
-
-    -- Can have a maximum of 2 // before we move into the hostname or possibly 
-    -- the path (http://john.com) or (file:///home/jeremy/hello.txt)
-    if url[pos]='/' then
-        pos += 1
-    end if
-    if url[pos]='/' then
-        pos += 1
-        authority = true
-    end if
-    qs_start = find('?', url, pos)
-    if authority 
-    and url[pos]!='/' then
-
-        integer at = find('@', url)
-        if at then
-
-            integer password_colon = find(':', url, pos)
-            if password_colon>0 and password_colon<at then
-                -- We have a password too!
-                user_name = url[pos..password_colon-1]
-                password = url[password_colon+1..at-1]
-            else
-                -- Just a user name
-                user_name = url[pos..at-1]
-            end if
-
-            pos = at+1
-        end if
-
-        integer first_slash = find('/', url, pos)
-        integer port_colon = find(':', url, pos)
-
-        integer port_end = 0
-        while port_colon!=0 do
-            if first_slash then
-                port_end = first_slash-1
-            elsif qs_start then
-                port_end = qs_start-1
-            else
-                port_end = length(url)
-            end if
-            port = scanf(url[port_colon+1..port_end], "%d")
---          if sequence(port) and length(port)=1 
-            if length(port)=1 
-            and sequence(port[1]) and length(port[1])=1
-            and integer(port[1][1]) then
-                {{port}} = port
-                exit
-            end if
-            port = 0
-            port_colon = find(':', url, port_colon+1)
-        end while
-
-        integer host_end
-        if port_colon!=0 then
-            host_end = port_colon-1
-        elsif first_slash then
-            host_end = first_slash-1
-        elsif qs_start then
-            host_end = qs_start-1
-        else
-            host_end = length(url)
-            -- Nothing more to parse
---          all_done = true
-        end if
-        host_name = url[pos..host_end]
-        if port_end then
-            host_end = port_end
-        end if
-        pos = host_end+1
-    end if
---  if not all_done then
-    if pos<=length(url) then
-        if qs_start=0 then
-            path = url[pos..$]
-        else
-
-            -- Avoid getting a path when there is none.
-            if pos!=qs_start then
-                path = url[pos..qs_start-1]
-            end if
-
-            pos = qs_start
-
-            query_string = url[qs_start+1..$]
-
---          if querystring_also and length(query_string) then
---              query_string = parse_querystring(query_string)
---          end if
-
-        end if
-    end if
-
-    return {protocol, host_name, port, path, user_name, password, query_string, fragment}
-end function
-
---DEV not yet documented/autoincluded
---**
--- Convert all encoded entities to their decoded counter parts
--- 
--- Parameters:
---   # ##url##: the url to decode
---   
--- Returns:
---   A decoded sequence
---   
--- Example 1:
--- <eucode>
--- puts(1, decode_url("Fred+%26+Ethel"))
--- -- Prints "Fred & Ethel"
--- </eucode>
--- 
--- See Also:
---   [[:encode]]
---DEV:
---   [[:encode_url]]
---   
-
-global function decode_url(string url)
-integer k = 1
-
-    while k<=length(url) do
-        if url[k]='+' then
-            url[k] = ' ' -- space is a special case, converts into +
-        elsif url[k]='%' then
-            if k=length(url) then
-                -- strip empty percent sign
-                url = url[1..$-1]
-            else
-                integer ch = upper(url[k+1])-'0'
-                if ch>9 then ch -= 7 end if
-                if k+1=length(url) then
-                    url[k] = ch
-                    url = url[1..k]
-                else
-                    url[k] = ch*16
-                    ch = upper(url[k+2])-'0'
-                    if ch>9 then ch -= 7 end if
-                    url[k] += ch
-                    url = url[1..k] & url[k+3..$]
-                end if
-            end if
---      else
-        -- do nothing if it is a regular char ('0' or 'A' or etc)
-        end if
-
-        k += 1
-    end while
-
-    return url
-end function
 
 --/* SUG: (done better...)
 String getContentType(String filename){

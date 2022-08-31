@@ -1914,6 +1914,10 @@ integer lowch, highch
 --      puts(fn,peek({pOutBuff,nLen}))
 --      free(pOutBuff)
 --      free(pInBuff)
+--1/8/22:
+        if not string(s) then
+            s = utf32_to_utf8(s)
+        end if
         puts(fn,s)
         puts(fn,"\r\n")
     elsif unicodeflag=UTF16LE then
@@ -2242,6 +2246,7 @@ integer revision
 --          end if
 
             unicodeflag = unicodefile[c]
+--printf(1,"saving, unicodefile[%d] = %d\n",{c,unicodeflag})
 --if unicodeflag<ANSI then ?9/0 end if
             if unicodeflag=ANSI then
                 fn = open(name,"w")
@@ -3138,11 +3143,27 @@ sequence ci
 --      end if
 --      clipText = getTextFromClipboard(fmt)
         if atom(clipText) then
+--?{"TEXT",IupGetAttribute(clipboard, "TEXT")}
+--?{"Unicode Text",IupGetAttribute(clipboard, "UNICODE TEXT")}
+--?{"UNICODETEXT",IupGetAttribute(clipboard, "UNICODETEXT")}
+--?{"OEM Text",IupGetAttribute(clipboard, "OEM TEXT")}
+--?{"OEMTEXT",IupGetAttribute(clipboard, "OEMTEXT")}
+--?{"unicode",unicodefile[currfile]}
             clipText = IupGetAttribute(clipboard, "TEXT")
             if length(clipText) then
 --31/8/21: (preserve blank lines on paste)
 --              clipText = split(clipText,'\n')
+--1/8/22:
+--object wasct = clipText
+                clipText = utf8_to_utf32(clipText)
+                if unicodefile[currfile]=ANSI
+                and not string(clipText)
+                and not find(get_file_extension(filenames[currfile]),{"s","inc","asm","arm"}) then
+                    unicodefile[currfile] = UTF8
+--printf(1,"unicodefile[%d] = %d (%v->%v)\n",{currfile,UTF8,wasct,clipText})
+                end if
                 clipText = split(clipText,'\n',false)
+--              clipText = split(utf8_to_utf32(clipText),'\n',false)
             end if
         end if
         if length(clipText) then

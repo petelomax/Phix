@@ -2,41 +2,11 @@
 -- pCrashN.e
 -- =========
 --
---  Phix implementation of the crash() routine.
+--  Phix implementation of crash() and assert() routines.
 --  crash_message (:%pCrashMsg) is part of the optable/pDiagN.e, this is not.
 --
+without debug -- (crash on user app line, and don't trace into this)
 
---DEV this should perhaps have an optional parameter to pop more frames.
---without debug
---/*
-global procedure crash(string fmt, object args={})  --, integer nFrames=1)
-    if atom(args) or length(args) then
-        fmt = sprintf(fmt, args)
-    end if
-    crash_message(fmt)
-    #ilASM{
-        [32]
---EXCEPT
---          mov edx,[ebp+16]    -- return addr
-            mov edx,[ebp+28]    -- return addr
-            mov ebp,[ebp+20]    -- prev_ebp
-            sub edx,1
-        [64]
---EXCEPT
---          mov rdx,[rbp+32]    -- return addr
-            mov rdx,[rbp+56]    -- return addr
-            mov rbp,[rbp+40]    -- prev_ebp
-            sub rdx,1
-        []
---29/7/17
---          mov al,0            -- (uses crash_msg anyway)
-            mov al,68           -- e68crash
-            jmp :!iDiag
-            int3
-          }
-end procedure
---*/
---/!*
 global procedure crash(string msg, object args={}, integer nFrames=1)
 --  if atom(args) or length(args) then
     if args!={} then
@@ -76,5 +46,8 @@ global procedure crash(string msg, object args={}, integer nFrames=1)
             int3
           }
 end procedure
---*!/
+
+global procedure assert(bool condition, string msg="", object args={}, integer nFrames=1)
+    if not condition then crash("assertion failure:"&msg,args,nFrames+1) end if
+end procedure
 

@@ -89,6 +89,7 @@ TokenChar 0123456789
 --
 -- Escape characters are defined using a single leadin followed by the valid 
 -- characters which may follow (this permits \r \n \t \\ \' \" and \#):
+-- (and has now been extended to also permit \x \0 \b \u and \U)
 --
 Escapes \rnt\'"eE#x0buU
 --
@@ -99,7 +100,8 @@ Escapes \rnt\'"eE#x0buU
 --      normally as opposed to "Illegal". See easynld.e for technical details.
 -- All characters used in the Operators section are automatically delimiters.
 Delimiters #$:.%\^
-Operators , = := == != < <= > >= @= @== @!= @< @<= @> @>= + - * / += -= *= /= @+= @-= @*= @/= .. & &= ? ; : | ~ .
+--Operators , = := == != < <= > >= @= @== @!= @< @<= @> @>= + - * / += -= *= /= @+= @-= @*= @/= .. & &= ? ; : | ~ .
+Operators , = := == != < <= > >= + - * / += -= *= /= .. & &= ? ; : | ~ . @ @@:
 
 -- The Braces section begins with a digit specifying the number of nesting levels 
 -- of colour required (1..7). Only pairs from ()<>[]{} are permitted. 
@@ -266,6 +268,7 @@ ReservedWords
         to
         try
         type
+        until
         virtual
         while
         xor
@@ -293,7 +296,7 @@ WithClauses
         trace
         type_check
         warning
-        strict
+        strict -- (ignored)
         licence
         debug
         console
@@ -439,6 +442,7 @@ BuiltinConstants
         AF_UNIX
         AF_UNSPEC
         ANY_QUEUE
+        ARM
         BLACK
         BLINKING
         BLUE
@@ -573,7 +577,6 @@ BuiltinConstants
         INADDR_ANY
         INADDR_NONE
         INVALID_SOCKET
-        JAVASCRIPT
         JS
         LIFO_QUEUE
         LINUX
@@ -713,7 +716,6 @@ BuiltinConstants
         VC_XPIXELS
         VC_YPIXELS
         W_BAD_PATH
-        WEB
         WHITE
         WIN32
         WINDOWS
@@ -943,6 +945,7 @@ BuiltinConstants
         --
         -- Predefined Color Constants
         --
+        CD_AMBER
         CD_BLACK
         CD_BLUE
         CD_CYAN
@@ -966,6 +969,7 @@ BuiltinConstants
         CD_LIGHT_GRAY
         CD_LIGHT_GREY
         CD_LIGHT_GREEN
+        CD_LIGHT_PARCHMENT
         CD_ORANGE
         CD_PARCHMENT
         CD_PURPLE
@@ -974,7 +978,6 @@ BuiltinConstants
         CD_VIOLET
         CD_WHITE
         CD_YELLOW
-
         --
         -- Conversion Factor Constants
         --
@@ -1180,6 +1183,7 @@ BuiltinConstants
         IUP_LIGHT_GREY
         IUP_LIGHT_GREEN
         IUP_ORANGE
+        IUP_AMBER
         IUP_PARCHMENT
         IUP_PURPLE
         IUP_SILVER
@@ -1769,12 +1773,14 @@ LibraryRoutines
         hll_compare
         hll_cos
         hll_equal
+        hll_even
         hll_floor
         hll_integer
         hll_length
         hll_log
         hll_not_bits
         hll_object
+        hll_odd
         hll_or_bits
         hll_power
         hll_prepend
@@ -1806,6 +1812,7 @@ LibraryRoutines
         is_leap_year
         is_member
         is_prime
+        is_prime2
         is_struct
         is_subset
         is_superset
@@ -1840,6 +1847,7 @@ LibraryRoutines
         or_all
         ord
         ordinal
+        ordinant
         pad
         pad_head
         pad_tail
@@ -1919,6 +1927,7 @@ LibraryRoutines
         system
         system_exec
         tagset
+        tagstart
         tail
         task_clock_start
         task_clock_stop
@@ -1944,6 +1953,7 @@ LibraryRoutines
         walk_dir
         wildcard_file
         wildcard_match
+        write_lines
         WSACleanup
         WSAStartup
 
@@ -1976,6 +1986,7 @@ LibraryRoutines
         ba_mod_exp
         ba_mul
         ba_multiply
+        ba_new
         ba_power
         ba_print
         ba_printf
@@ -1989,9 +2000,9 @@ LibraryRoutines
         ba_sub
         ba_trunc
         ba_uminus
-        ba_new
         ba_round
         ba_sprintf
+        beep
         bigatom
         bigatom_to_atom
         BZ2_desc
@@ -2077,6 +2088,7 @@ LibraryRoutines
         days_in_month
         decode_base64
         decode_flags
+        decode_url
         deep_copy
         define_cffi_func
         define_cffi_proc
@@ -2166,14 +2178,21 @@ LibraryRoutines
         mpfr_sprintf
         mpfr_printf
         mpfr_floor
+        mpfr_ceil
         mpfr_add
         mpfr_add_si
+        mpfr_addmul
+        mpfr_addmul_ui
         mpfr_addmul_si
         mpfr_sub
         mpfr_sub_si
         mpfr_si_sub
+        mpz_submul
+        mpz_submul_ui
+        mpz_submul_si
         mpfr_mul
         mpfr_mul_si
+        mpfr_mul_z
         mpfr_div
         mpfr_div_si
         mpfr_div_z
@@ -2221,6 +2240,7 @@ LibraryRoutines
         mpq_abs
         mpq_inv
         mpq_canonicalize
+        mpq_cmp
         mpq_cmp_si
         mpz
         mpz_or_string
@@ -2251,6 +2271,8 @@ LibraryRoutines
         mpz_neg
         mpz_mod
         mpz_mod_ui
+        mpz_divexact
+        mpz_divexact_ui
         mpz_fdiv_ui
         mpz_mul
         mpz_mul_d
@@ -2350,7 +2372,11 @@ LibraryRoutines
         papply
         parse_date_string
         parse_json
+        parse_url
         permute
+        permutes
+        peep
+        peepn
         peep_dict
         pop
         popn
@@ -2513,8 +2539,6 @@ LibraryRoutines
         timedelta
         to_integer
         to_number
-        top
-        topn
         traverse_dict
         traverse_dict_partial_key
         try_cs
@@ -2529,6 +2553,7 @@ LibraryRoutines
         UnzipItemToFile
         UnzipOpenFile
         UnzipSetBaseDir
+        url_element_desc
         utf8_to_utf16
         utf8_to_utf32
         utf16_to_utf8
@@ -2854,6 +2879,7 @@ LibraryRoutines
         iupKeyCodeToName
         iup_name_from_cb
         iup_cb_from_name
+        iup_XkeyBase
         IupAlarm
         IupAppend
         IupBackgroundBox
@@ -3147,6 +3173,7 @@ LibraryRoutines
         IupSaveImageAsText
         IupSbox
         IupSizeBox
+        IupScintilla
         IupScrollBox
         IupFlatScrollBox
         IupSeparator
@@ -3215,6 +3242,7 @@ LibraryRoutines
         IupTextConvertPosToLinCol
         IupTimer
         IupToggle
+        IupToggleInt
         IupTree
         IupTreeAddNodes
         IupTreeGetId
@@ -3506,7 +3534,7 @@ Library4
         movavg
         new_time
         next_prime
-        now
+--      now
         now_gmt
 --      number
         number_array
@@ -3542,7 +3570,7 @@ Library4
         raw_frequency
         read
         read_file
-        read_lines
+--      read_lines
         receive
 --      regex
         remove_dups
@@ -3581,7 +3609,7 @@ Library4
 --      set_wait_on_summary
 --      show
 --      show_block
-        show_help
+--      show_help
 --      shutdown
 --      sign
         sim_index
@@ -3646,9 +3674,9 @@ Library4
         vslice
         warning_file
         weeks_day
-        write
+--      write
         write_file
-        write_lines
+--      write_lines
         wstring
         years_day
 
@@ -4448,6 +4476,7 @@ Incompatible
         gmp_randinit_mt
         gmp_randseed
         gmp_randclear
+        JAVASCRIPT
         loop
         match_from
         mpfr_init2
@@ -4539,6 +4568,7 @@ Incompatible
         IupThread
         wdCanvasStipple
         wdCanvasPattern
+        WEB
 
         K_acute
         K_ccedilla

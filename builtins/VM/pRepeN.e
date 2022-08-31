@@ -26,7 +26,9 @@ bool ma_ip = false      -- Set true under with js during {a,b} = x operations, t
                         -- s=$repe(s,i,ch) which uses substring + fromCharCode + substring 
                         -- in order to get round the whole immutable strings thingymajig.)
 
-#ilASM{ jmp :%opRetf
+--26/8/22 (spotted in passing)
+--#ilASM{ jmp :%opRetf
+#ilASM{ jmp :!opCallOnceYeNot
 
 --DEV FIXME: (and the :!bang labels below)
 --  ::e04atsaa08

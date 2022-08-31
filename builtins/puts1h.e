@@ -23,6 +23,12 @@ global procedure puts1(string s)
         [64]
             mov rdi,[s]
             call :%puts1    -- (nb use :%puts1rdirsi if rdi is not a phix string)
+--/*
+        [ARM]
+            lea r0,[s]
+            mov r7,[r0]
+            call :%puts1    -- (nb use :%puts1r7r6 if r7 is not a phix string)
+--*/
         []
     }
 end procedure
@@ -37,10 +43,20 @@ global procedure puthex32(atom a, integer showcr=1)
     #ilASM{ 
         [32]
             mov edx,[a]
+            push [showcr]       -- (0 or 1)
         [64]
             mov rdx,[a]
-        []
             push [showcr]       -- (0 or 1)
+--/*
+        [ARM]
+--DEV ldr should cope for local [fp-relative] vars... [erm, no!, but maybe mov???]
+            lea r0,[a]
+            mov r3,[r0]
+--          ldr r3,[a]  
+            ldr r6,[showcr] 
+            mov r6,[r6]
+--*/
+        []
             call :%puthex32a    -- (nb use :%puthex32 (no "a") if edx/rdx is not a phix atom)
                                 --      (there is also a #ilASM-only :%puthex64 (no "a").)
     }
@@ -56,10 +72,18 @@ global procedure putsint(integer i, integer showcr=1)
     #ilASM{ 
         [32]
             mov eax,[i]
+            push [showcr]       -- 0 or 1, 32 or 64 bit.
         [64]
             mov rax,[i]
-        []
             push [showcr]       -- 0 or 1, 32 or 64 bit.
+--/*
+        [ARM]
+            lea r0,[i]  
+            mov r0,[r0]
+            lea r6,[showcr] 
+            mov r6,[r6]
+--*/
+        []
             call :%putsint      -- (ps should be ok for any 32-bit integer, including > h4)
                                 -- ( - by which I mean in e/rax, rather than in integer i)
           }

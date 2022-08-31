@@ -199,6 +199,7 @@ global function sq_sub(object a, b) return sq_general(a,b,'-') end function
 global function sq_mul(object a, b) return sq_general(a,b,'*') end function
 global function sq_div(object a, b) return sq_general(a,b,'/') end function
 global function sq_floor_div(object a, b) return sq_general(a,b,'f') end function
+global function sq_remainder(object a, b) return sq_general(a,b,'r') end function
 global function sq_rmdr(object a, b) return sq_general(a,b,'r') end function
 --global function sq_remainder(object a, b) return sq_general(a,b,'r') end function -- achieved via psym.e/syminit()
 global function sq_mod(object a, b) return sq_general(a,b,'m') end function

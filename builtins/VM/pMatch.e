@@ -5,6 +5,7 @@
 --  (Temporary) hll implementation of match()
 --  There is an equivalent commented-out backend/asm version in pJcc.e, conversion of which is yet to be completed.
 --
+without debug
 
 --global function match(object needle, sequence haystack, integer start=1, bool case_insensitive=false)
 global function match(object needle, sequence haystack, integer start=1, bool case_sensitive=true)

@@ -19,8 +19,11 @@ global function unix_dict(integer minlen=0, string filename="unixdict.txt")
     function min_len(string word, integer len)
         return length(word)>=len
     end function
-    string root = get_file_path(get_interpreter()),
-           path = join_path({root,"demo",filename})
+--  string root = get_file_path(get_interpreter()),
+--         path = join_path({root,"demo",filename})
+    string path = get_file_path(get_interpreter())
+    path = iff(file_exists(filename)?filename:
+               join_path({path,"demo",filename}))
     sequence res = get_text(path,GT_LF_STRIPPED)
     if minlen then
         res = filter(res,min_len,minlen)

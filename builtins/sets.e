@@ -90,7 +90,7 @@ global function union(sequence s1, object s2=-1)
 end function
 
 function set_default(sequence s1, object s2=-1)
-    -- return {} or "" as the new set default
+    -- (local) return {} or "" as the new set default
     bool bAllString = true
     if s2!=-1 then
         bAllString = string(s1) and string(s2)
@@ -256,23 +256,14 @@ global function is_superset(set_type superset, subset)
    return is_subset(subset, superset)
 end function
 
---/*
- -- AVAILABLE FUNCTIONS:
- --
- --    add_member ==>    s = add_member (s, x)
- --       adds a new member to a set, if it's not already a member
- --
- --    remove_member ==> s = remove_member (s, x)
- --       removes the specified member from the set
- --
- --    union ==>         s = union (s, s)
- --       returns the union of two given sets
- --
- --    intersection ==>  s = intersection (s, s)
- --       returns the intersection of two given sets
- --
- --    diff ==>          s = diff (s, s)
- --       returns the difference of the two given sets; i.e.,
- --       the inverse of the union (with the intersection removed)
- --
---*/
+-- AVAILABLE FUNCTIONS:
+--
+--    s = add_member(s, x)      -- adds a new member to a set, if it's not already a member
+--    s = remove_member(s, x)  -- removes the specified member from the set
+--    s = union(s, s)         -- returns the union of two given sets
+--    s = intersection(s, s) -- returns the intersection of two given sets
+--    s = diff(s, s)        -- returns the difference of the two given sets; i.e.,
+--                        the inverse of the union (with the intersection removed)
+--
+
+

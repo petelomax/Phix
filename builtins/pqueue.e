@@ -261,10 +261,10 @@ end function
 --  integer qid = new_stack()               -- create a new LIFO stack
 --  push(integer qid, object item*)         -- add to end/front of queue/stack
 --  object item = pop(integer qid*)         -- remove next from queue/stack
---  object item = top(integer qid*)         -- inspect head of queue/stack
+--  object item = peep(integer qid*)        -- inspect head of queue/stack
 --  pushn(integer qid, sequence items*)     --  push() multiple items
 --  sequence items = popn(integer qid, n*)  --  pop() multiple items
---  sequence items = topn(integer qid, n*)  --  top() multiple items
+--  sequence items = peepn(integer qid, n*) --  peep() multiple items
 --  integer res = queue_size(integer qid)   -- return the size of a queue
 --  integer res = stack_size(integer qid)   -- return the size of a stack
 --  bool res = queue_empty(integer qid)     -- yields true/false
@@ -336,30 +336,30 @@ global function queue_empty(integer qid)    -- [aliased as stack_empty() in psym
     return queue_size(qid)=0
 end function
 
---[to be] aliased in psym.e *3:
---global procedure destroy_stack(integer qid) destroy_queue(qid) end procedure
---global function stack_size(integer qid) return queue_size(qid) end function
---global function stack_empty(integer qid) return queue_empty(qid) end function
+--[next 3 were aliased in psym.e, but that's not p2js compatible [DEV]]:
+global procedure destroy_stack(integer qid) destroy_queue(qid) end procedure
+global function stack_empty(integer qid) return queue_empty(qid) end function
+global function stack_size(integer qid) return queue_size(qid) end function
 
 global procedure push(integer qid, object item, integer qtype=ANY_QUEUE, bool bSingle=true)
 --  if not q_init then init_q() end if
     assert(bSingle or sequence(item))
     sequence qq = q[qid]
     q[qid] = 0
-    if qtype=FIFO_QUEUE
-    or (qtype=ANY_QUEUE and qtypes[qid]=FIFO_QUEUE) then
+--  if qtype=FIFO_QUEUE
+--  or (qtype=ANY_QUEUE and qtypes[qid]=FIFO_QUEUE) then
         if bSingle then
             qq = append(qq,item)
         else
             qq &= item
         end if
-    else
-        if bSingle then
-            qq = prepend(pp,item)
-        else
-            qq = deep_copy(item)&qq
-        end if
-    end if
+--  else
+--      if bSingle then
+--          qq = prepend(qq,item)
+--      else
+--          qq = deep_copy(item)&qq
+--      end if
+--  end if
     q[qid] = qq
 end procedure
 
@@ -372,7 +372,7 @@ global function pop(integer qid, n=-1, qtype=ANY_QUEUE, bool bPop=true)
     object result
     sequence qq = q[qid]
     bool bDC = bPop -- deep_copy(top)
-    if not bPop then
+    if bPop then
         integer l = length(qq)
         if l=n or (n=-1 and l=1) then
             q[qid] = {}
@@ -412,11 +412,11 @@ global function popn(integer qid, n, qtype=ANY_QUEUE)
     return pop(qid,n,qtype)
 end function
 
-global function top(integer qid, n=-1, qtype=ANY_QUEUE)
+global function peep(integer qid, n=-1, qtype=ANY_QUEUE)
     return pop(qid,n,qtype,false)
 end function
 
-global function topn(integer qid, n, qtype=ANY_QUEUE)
+global function peepn(integer qid, n, qtype=ANY_QUEUE)
     return pop(qid,n,qtype,false)
 end function
 

@@ -212,12 +212,14 @@ string x4, s    -- 20/06/2020 now yields a binary string
         -- floating point
         x4 = atom_to_float32(x)
         if x=float32_to_atom(x4) then
-            -- can represent as 4-byte float
+            -- can represent as a 4-byte float
             s = F4B & x4
         else
             x4 = atom_to_float64(x)
             if x=float64_to_atom(x4) then
-                s = F8B & atom_to_float64(x)
+            -- can represent as an 8-byte float
+--              s = F8B & atom_to_float64(x)
+                s = F8B & x4
             else
                 s = S4B & F10 & repeat('\0',3) & atom_to_float80(x)
             end if

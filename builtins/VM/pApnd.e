@@ -17,8 +17,9 @@
 
 include VM\pHeap.e  -- :%pDealloc/:%pAllocSeq/:%pAllocStr/:%pFreePool
 
-
-#ilASM{ jmp :%opRetf
+--26/8/22 (spotted in passing)
+--#ilASM{ jmp :%opRetf
+#ilASM{ jmp :!opCallOnceYeNot
 
 --DEV fixme... (new error code, unknown type byte [internal error])
  ::eNNunknown

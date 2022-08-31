@@ -585,6 +585,7 @@ integer
         bracket_level,      -- as per syncolor.e
         bl                  -- BraceLevel[newSyntax]
 
+--if match("tiles",text) then ?text end if
 
 --sequence res
 --integer cM4
@@ -610,6 +611,7 @@ integer allNumbers
 --integer lc
 --trace(1)
 --if chovline!=0 then trace(1) end if
+--if match("mov",text) then trace(1) end if
     lt = length(text)
 --  lc = length(comment)
 --  if not lt then return {} end if     18/7
@@ -909,17 +911,21 @@ end if
 --        and (lc<2 or (chidx2<=length(text) and text[chidx2]=comment[2]))
 --        and (lc<3 or (chidx2<length(text) and text[chidx2+1]=comment[3])) then
         elsif bcomm=0
-          and ((length(lineComments) and ch=lineComments[1][1]
+          and ((length(lineComments)>=1 and ch=lineComments[1][1]
                 and (length(lineComments[1])<2 or (chidx2<=length(text) and text[chidx2]=lineComments[1][2]))
                 and (length(lineComments[1])<3 or (chidx2<length(text) and text[chidx2+1]=lineComments[1][3]))) or
-               (length(lineComments)=2 and ch=lineComments[2][1]
+               (length(lineComments)>=2 and ch=lineComments[2][1]
                 and (length(lineComments[2])<2 or (chidx2<=length(text) and text[chidx2]=lineComments[2][2]))
-                and (length(lineComments[2])<3 or (chidx2<length(text) and text[chidx2+1]=lineComments[2][3])))) then
+                and (length(lineComments[2])<3 or (chidx2<length(text) and text[chidx2+1]=lineComments[2][3]))) or
+               (length(lineComments)>=3 and ch=lineComments[3][1]
+                and (length(lineComments[3])<2 or (chidx2<=length(text) and text[chidx2]=lineComments[3][2]))
+                and (length(lineComments[3])<3 or (chidx2<length(text) and text[chidx2+1]=lineComments[3][3])))) then
             abc = ""  -- (signals line comment scan)
             scanForUrls(text)
             syntaxClass = Comments
-        elsif length(lineComments)>2 then
-            ?9/0 -- placeholder for more code (three line comments?!)
+        elsif length(lineComments)>3 then
+--  lineComments = {`;`,`@`,`//`}
+            ?9/0 -- placeholder for more code (four line comments?!?!)
 --23/12/16:
         elsif bcomm=0 
 --        and lineno=1  -- relaxed for htmilse code

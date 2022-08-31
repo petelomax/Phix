@@ -6,7 +6,9 @@
 
 include builtins\VM\pHeap.e     -- (needed for :%pDealloc, :%pAllocSeq)
 
-#ilASM{ jmp :%opRetf
+--26/8/22 (spotted in passing)
+--#ilASM{ jmp :%opRetf
+#ilASM{ jmp :!opCallOnceYeNot
 
 --/*
 procedure :%pMkSq(:%)

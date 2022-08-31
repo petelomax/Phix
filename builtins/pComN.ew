@@ -207,19 +207,17 @@ global function GUID(string guid)
 --  though in most cases guids persist for the entire duration of the program, as
 --  per the half dozen or so examples(/global constants) shortly below.
 --
-atom res = allocate(16)
-integer nb1, nb2, byte
-
     if length(guid)=38 and guid[1]='{' and guid[38]='}' then guid = guid[2..37] end if
     if length(guid)!=36 then ?9/0 end if
     if guid[9]!='-' then ?9/0 end if
     if guid[14]!='-' then ?9/0 end if
     if guid[19]!='-' then ?9/0 end if
     if guid[24]!='-' then ?9/0 end if
+    atom res = allocate(16)
     for i=1 to length(guid_map) by 2 do
-        nb1 = guid[guid_map[i]]
-        nb2 = guid[guid_map[i+1]]
-        byte = gnibble(nb1)*#10+gnibble(nb2)
+        integer nb1 = guid[guid_map[i]],
+                nb2 = guid[guid_map[i+1]],
+                byte = gnibble(nb1)*#10+gnibble(nb2)
         poke(res+floor(i/2),byte)
     end for
     return res
@@ -504,11 +502,10 @@ C:\Windows\System32\Speech\SpeechUX\sapi.cpl
 --*/
 $
 
-global constant
-  COINIT_APARTMENTTHREADED  = 0x2,
-  COINIT_MULTITHREADED      = 0x0,
-  COINIT_DISABLE_OLE1DDE    = 0x4,
-  COINIT_SPEED_OVER_MEMORY  = 0x8
+global constant COINIT_APARTMENTTHREADED    = 0x2,
+                COINIT_MULTITHREADED        = 0x0,
+                COINIT_DISABLE_OLE1DDE      = 0x4,
+                COINIT_SPEED_OVER_MEMORY    = 0x8
 
 global procedure CoInitializeEx(integer dwCoInit=COINIT_MULTITHREADED)
 --
@@ -532,7 +529,7 @@ global procedure CoInitializeEx(integer dwCoInit=COINIT_MULTITHREADED)
 -- This routine should only ever be called from with a similar guard:
     if platform()!=WINDOWS then ?9/0 end if
 
-integer res
+    integer res
     #ilASM{
             [32]
                 mov eax,[dwCoInit]
@@ -587,7 +584,7 @@ end procedure
 
 global function CoCreateInstance(atom rclsid, riid, ppv, integer dwClsContext=CLSCTX_ALL, atom pUnkOuter=NULL)
 -- Note args are in a different order to C (rclsid,pUnkOuter,dwClsContext,riid,ppv), for improved defaulting.
-atom hr
+    atom hr
     #ilASM{
             [32]
                 mov eax,[ppv]
@@ -664,12 +661,12 @@ global function COMDLG_FILTERSPEC(sequence filters)
 --  pointers to the text (also in "") expanded to WideChar (utf16le) format.
 -- Caller is responsible for free()ing said memory when no longer required.
 --
-sequence fi         -- (as I want the typechecking)
-string fi1, fi2     -- (as I want the typechecking)
-integer len = 0
-atom res,           -- result
-     ptraddr,       -- where (in "") pointers to strings get poked 
-     straddr = 0    -- where (in "") strings get poked
+    sequence fi         -- (as I want the typechecking)
+    string fi1, fi2     -- (as I want the typechecking)
+    integer len = 0
+    atom res,           -- result
+         ptraddr,       -- where (in "") pointers to strings get poked 
+         straddr = 0    -- where (in "") strings get poked
 
     for i=1 to length(filters) do
         fi = filters[i]
@@ -712,10 +709,8 @@ global function unicode_string(string utf8str,bool cleanup=true)
 -- Returns an atom pointer to memory containing the ansi/utf8 input converted to a null-word (#0000) terminated WideString.
 -- By default the memory will be cleaned up automatically, unless the second parameter is false in which case the caller 
 -- is responsible for invoking free() once the WideString result is no longer required.
-atom res
-integer len
-    len = c_func(xMultiByteToWideChar,{CP_UTF8,0,utf8str,-1,NULL,0})
-    res = allocate(len*2,cleanup)
+    integer len = c_func(xMultiByteToWideChar,{CP_UTF8,0,utf8str,-1,NULL,0})
+    atom res = allocate(len*2,cleanup)
     len = c_func(xMultiByteToWideChar,{CP_UTF8,0,utf8str,-1,res,len})
     return res
 end function
@@ -724,13 +719,10 @@ global function peek_unicode_string(atom pInBuff)
 -- Returns an ansi/utf8 string converted from the passed pointer to WideString (pInBuff).
 -- Caller may or may not need to free(pInBuff) [or CoTaskMemFree(pInBuff)], whereas the
 --  return value (a normal string) should take care of itself.
-integer nLen
-atom pOutBuff
-string res
-    nLen = c_func(xWideCharToMultiByte,{CP_UTF8,0,pInBuff,-1,NULL,0,NULL,NULL})
-    pOutBuff = allocate(nLen)
+    integer nLen = c_func(xWideCharToMultiByte,{CP_UTF8,0,pInBuff,-1,NULL,0,NULL,NULL})
+    atom pOutBuff = allocate(nLen)
     nLen = c_func(xWideCharToMultiByte,{CP_UTF8,0,pInBuff,-1,pOutBuff,nLen,NULL,NULL})
-    res = peek({pOutBuff,nLen-1})
+    string res = peek({pOutBuff,nLen-1})
     free(pOutBuff)
     return res
 end function
@@ -746,15 +738,15 @@ global function create_com_object(sequence vtable)
 --  a {<pointer to vtable>,refcount} pair, and the vtable itself.
 -- 
 --DEV 64 bit?
---atom res = allocate(8+length(vtable)*4)
-atom res = allocate((length(vtable)+2)*machine_word())
+--  atom res = allocate(8+length(vtable)*4)
+    atom res = allocate((length(vtable)+2)*machine_word())
 --  poke4(res,{res+8,0}&vtable)
     pokeN(res,{res+2*machine_word(),0}&vtable,machine_word())
     return res
 end function
 
-sequence com_error_codes
-sequence com_error_names
+sequence com_error_codes,
+         com_error_names
 integer com_error_init = 0
 
 procedure comErrorInit(atom error_code, string error_desc)
@@ -797,8 +789,8 @@ global function cominvk_imm(atom pInterface,integer vIdx,sequence params, intege
 --  are unsigned, so use and_bits(hResult,#80000000) instead of hResult<0,
 --  but you can compare directly against eg constant E_FAIL (=#80004005).
 --
-integer local_ebp4, la
-atom res
+    integer local_ebp4, la
+    atom res
     if and_bits(vIdx,#03) then
         #ilASM { ::kaboom }
         ?9/0
@@ -808,10 +800,12 @@ atom res
         --DEV actually, this should be more like pHeap.e/pGetMem... (nah, this shd be fine...)
         la = length(params)
         if la<4 then
-            params &= repeat(0,4-la)
+--          params &= repeat(0,4-la)
+            params = deep_copy(params) & repeat(0,4-la)
 --          argdefs &= repeat(#01000004,5-la)
         elsif remainder(la,2)=1 then
-            params &= 0
+--          params &= 0
+            params = deep_copy(params) & 0
 --          argdefs &= #01000004    -- (C_INT)
         end if
         la = length(params)
@@ -1021,6 +1015,11 @@ global function com_release(atom pIUnknown)
     return NULL
 end function
 
+-- now in builtins/speak.e:
+--global procedure speak(string text, atom pVoice=NULL, integer flags=NULL)
+--  assert(pVoice!=NULL) -- (a pVoice of NULL is for p2js.js only...)
+--  {} = cominvk(pVoice,ISpVoice_Speak,{unicode_string(text),flags,0})
+--end procedure
 
 -- some old test code:
 --constant filters = { {"Word Document (*.doc)",      "*.doc"}, 

@@ -28,7 +28,9 @@ bool ma_ip = false      -- Set true under with js during {a,b} = x operations, t
                         -- in order to get round the whole immutable strings thingymajig.)
                         -- (shadows the one in opRepeN.e via :%pDeSeqip2)
 
-#ilASM{ jmp :%opRetf
+--26/8/22 (spotted in passing)
+--#ilASM{ jmp :%opRetf
+#ilASM{ jmp :!opCallOnceYeNot
 
 --DEV FIXME: (and the :!bang labels below)
 --  ::e04atsaa8
@@ -319,6 +321,7 @@ end procedure -- (for Edita/CtrlQ)
         --  mov ecx,p3          -- addr res
         --  mov esi,[p1]        -- s
         --  mov edx,p1          -- var no of s              
+--<     --  mov al,isCompound   -- 0/1
         --  call opSubse1       -- [res]:=s[idx]
         sub edi,1
 --DEV
@@ -329,8 +332,12 @@ end procedure -- (for Edita/CtrlQ)
         shl esi,2
         cmp edi,edx
         jb @f
-            mov al,2+1              -- [era] @ [esp+4], "reading from"
+            push eax
+--13/5/22 (Decision tables)
+--          mov al,2+1              -- [era] @ [esp+4], "reading from"
+            mov al,4+1              -- [era] @ [esp+8], "reading from"
             call :%fixupIndex       -- idx-1 in edi, len in edx, (not: idx addr in ebx), al set
+            pop eax
       @@:
         cmp ah,0x80
         je :opSubse1Seq
@@ -351,12 +358,19 @@ end procedure -- (for Edita/CtrlQ)
         jmp @f
 
       ::opSubse1Seq
+        cmp al,1
         mov eax,[esi+edi*4]
         mov edx,[ecx]           -- prev(res)
+        jne @f
+            -- 1/5/22: in eg s[i] &= x, s[i]:=0, w/o incref
+            mov [esi+edi*4],ebx
+            jmp opSubse1CompoundOp
+      @@:
         cmp eax,h4
         jl @f
             add dword[ebx+eax*4-8],1
       @@:
+      ::opSubse1CompoundOp
         cmp edx,h4
         jle @f
             mov edi,[ebx+edx*4-8]   -- decref in edi
@@ -374,6 +388,7 @@ end procedure -- (for Edita/CtrlQ)
         --  mov rcx,p3          -- addr res
         --  mov rsi,[p1]        -- s
         --  mov rdx,p1          -- var no of s              
+        --  mov al,isCompound   -- 0/1
         --  call opSubse1       -- [res]:=s[idx]
         sub rdi,1
 --      mov r15,h4
@@ -384,8 +399,10 @@ end procedure -- (for Edita/CtrlQ)
         shl rsi,2
         cmp rdi,rdx
         jb @f
+            mov r14,rax
             mov al,2+1              -- [era] @ [rsp+8], "reading from"
             call :%fixupIndex       -- idx-1 in rdi, len in rdx, (not: idx addr in rbx), al set
+            mov rax,r14
       @@:
         cmp ah,0x80
         je :opSubse1Seq
@@ -405,14 +422,21 @@ end procedure -- (for Edita/CtrlQ)
         mov al,[rsi+rdi]
         jmp @f
       ::opSubse1Seq
+        cmp al,1
         mov rax,[rsi+rdi*8]
         mov rdx,[rcx]           -- prev(res)
---      cmp rax,h4
         mov r15,h4
+        jne @f
+            -- 1/5/22: in eg s[i] &= x, s[i]:=0, w/o incref
+            mov [rsi+rdi*8],rbx
+            jmp opSubse1CompoundOp
+      @@:
+--      cmp rax,h4
         cmp rax,r15
         jl @f
             add qword[rbx+rax*4-16],1
       @@:
+      ::opSubse1CompoundOp
 --      cmp rdx,h4
         cmp rdx,r15
         jle @f
@@ -617,6 +641,10 @@ end procedure -- (for Edita/CtrlQ)
         ret
     []
 
+--/*
+procedure :%pDeSeqip2(:%)
+end procedure -- (for Edita/CtrlQ)
+--*/
     :%pDeSeqip2         -- [ma_ip]:=e/rax. A multiple assigment (aka desequence/destructure)
 ---------------         --                 operation is in progress under with js therefore
                         --                 string subscript (/replacements) are now illegal,

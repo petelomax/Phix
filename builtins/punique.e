@@ -48,8 +48,8 @@ global function unique(sequence s, string options="SORT")
                 if options!="SORT" then
                     ?9/0    -- unknown
                 end if
-                s = sort(s)
---              s = sort(deep_copy(s))
+--              s = sort(s)
+                s = sort(deep_copy(s))
             end if
             object prev = s[1]
 --5/8/21:

@@ -23,9 +23,10 @@
 --      to trim_head() or trim_tail() returns it unaltered, and it is rather doubtful 
 --      that subsequently treating that -1 as an index will work out at all well...
 --
+without debug
 
---global function trim(object source, object what=" \t\r\n", bool return_index=false)
-global function trim(object source, object what={' ','\t','\r','\n'}, bool return_index=false)
+global function trim(object source, object what=" \t\r\n", bool return_index=false)
+--global function trim(object source, object what={' ','\t','\r','\n'}, bool return_index=false)
     if sequence(source) then
         integer lpos = 1,
                 rpos = length(source)
@@ -49,8 +50,8 @@ global function trim(object source, object what={' ','\t','\r','\n'}, bool retur
     return source
 end function
 
---global function trim_head(object source, object what=" \t\r\n", bool return_index=false)
-global function trim_head(object source, object what={' ','\t','\r','\n'}, bool return_index=false)
+global function trim_head(object source, object what=" \t\r\n", bool return_index=false)
+--global function trim_head(object source, object what={' ','\t','\r','\n'}, bool return_index=false)
     if sequence(source) then
         sequence s = trim(source,what,true)
         integer lpos = s[1]
@@ -65,8 +66,8 @@ global function trim_head(object source, object what={' ','\t','\r','\n'}, bool 
     return source
 end function
 
---global function trim_tail(object source, object what=" \t\r\n", bool return_index=false)
-global function trim_tail(object source, object what={' ','\t','\r','\n'}, bool return_index=false)
+global function trim_tail(object source, object what=" \t\r\n", bool return_index=false)
+--global function trim_tail(object source, object what={' ','\t','\r','\n'}, bool return_index=false)
     if sequence(source) then
         sequence s = trim(source,what,true)
         integer {lpos,rpos} = s
@@ -84,7 +85,7 @@ global function trim_tail(object source, object what={' ','\t','\r','\n'}, bool 
     return source
 end function
 
-global function shorten(sequence s, string what="digits", integer ml=20)
+global function shorten(sequence s, string what="digits", integer ml=20, string fmt="")
     integer l = length(s),
 --PL 17/2/22: could find no reason not to, so undone (p2js*2).
 --            [maybe I've since fixed $repss() or sq_eq()?]
@@ -101,14 +102,27 @@ global function shorten(sequence s, string what="digits", integer ml=20)
     string ls = iff(length(what)?sprintf(" (%,d %s)",{l-c,what}):"")
     if l>ml*2+iff(string(s)?3+length(ls):2) then
         if string(s) then
+            assert(fmt=="")
             s[ml+1..-ml-1] = "..."
             if length(ls) then s &= ls end if
         else
 --p2js:
-            s[ml+1..-ml-1] = {"..."}
---          s = s[1..ml] & {"..."} & s[-ml..-1]
+--          s[ml+1..-ml-1] = {"..."}
+            s = s[1..ml] & {"..."} & s[-ml..-1]
+            if fmt!="" then
+                for i=1 to ml do
+                    s[i] = sprintf(fmt,{s[i]})
+                    s[-i] = sprintf(fmt,{s[-i]})
+                end for
+            end if
             if length(ls) then s = append(s,ls) end if
         end if
+    elsif fmt!="" then
+        assert(not string(s))
+        s = deep_copy(s)
+        for i=1 to length(s) do
+            s[i] = sprintf(fmt,{s[i]})
+        end for
     end if
     return s
 end function

@@ -13,7 +13,9 @@
 --  are also quite happy when given two floats.
 --
 
-#ilASM{ jmp :%opRetf
+--26/8/22 (spotted in passing)
+--#ilASM{ jmp :%opRetf
+#ilASM{ jmp :!opCallOnceYeNot
 
 --DEV FIXME: (and the :!bang labels below)
 --  ::e94vhnbaavesi

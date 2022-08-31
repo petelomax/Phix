@@ -142,6 +142,8 @@ integer rtn,    -- from stack
     return fn
 end function
 
+--global function is_main_include() -- resolved in pmain.e/p2js.exw
+
 --?include_paths()
 --?include_files()
 --?include_path("")

@@ -34,21 +34,31 @@ global function sign(atom a)
     return a
 end function
 
-global function even(atom a)
-    return and_bits(a,1)=0
-end function
+--now mapped to opAndBits in pmain.e:
+--global function even(atom a)
+--  return and_bits(a,1)=0
+--end function
+--
+--global function odd(atom a)
+--  return and_bits(a,1)=1
+--end function
 
-global function odd(atom a)
-    return and_bits(a,1)=1
-end function
+--global function evenN(atom a)
+--  return and_bits(a,1)=0
+--end function
+--
+--global function oddD(atom a)
+--  return and_bits(a,1)=1
+--end function
+
 
 global function exp(atom a)
-    return power(E,a)
+    return power(EULER,a)
 end function
 
 --bool bUseBankersRounding = false
 
-global function round(atom a, atom inverted_precision=1)
+global function round(atom a, inverted_precision=1)
 --  if inverted_precision=0 then
 --      if a!=true and a!=false then ?9/0 end if
 --      bUseBankersRounding = a
@@ -86,19 +96,18 @@ global function bankers_rounding(atom pence, integer precision=1)
     return pennies
 end function
 
-
 global function ceil(atom o)
     o = -floor(-o)
     return o
 end function
 
-global function min(object a, object b)
+global function min(object a, b)
     if a<b then return a else return b end if
 end function
 
 global function minsq(sequence s, bool return_index=false)
-object res = s[1]
-integer rdx = 1
+    object res = s[1]
+    integer rdx = 1
     for i=2 to length(s) do
         if s[i]<res then
             res = s[i]
@@ -108,13 +117,13 @@ integer rdx = 1
     return iff(return_index?rdx:res)
 end function
 
-global function max(object a, object b)
+global function max(object a, b)
     if a>b then return a else return b end if
 end function
 
 global function maxsq(sequence s, bool return_index=false)
-object res = s[1]
-integer rdx = 1
+    object res = s[1]
+    integer rdx = 1
     for i=2 to length(s) do
         if s[i]>res then
             res = s[i]
@@ -124,7 +133,7 @@ integer rdx = 1
     return iff(return_index?rdx:res)
 end function
 
-global function mod(atom x, atom y)
+global function mod(atom x, y)
     if equal(sign(x), sign(y)) then
         return remainder(x,y)
     end if
@@ -139,7 +148,7 @@ global function trunc(atom x)
     return floor(x)
 end function
 
-global function atan2(atom y, atom x)
+global function atan2(atom y, x)
     if x>0 then
         return arctan(y/x)
     elsif x<0 then
