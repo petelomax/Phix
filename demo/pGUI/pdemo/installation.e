@@ -5,7 +5,7 @@
 --
 constant setupver = version(),
          base_url = "http://phix.x10.mx/",
-         num_zips = 3   -- should match C:\Program Files (x86)\Phix\phixzip.exw
+         num_zips = 4   -- should match C:\Program Files (x86)\Phix\phixzip.exw
 
 integer last_lm = 0
 procedure progress(string m, sequence args={})

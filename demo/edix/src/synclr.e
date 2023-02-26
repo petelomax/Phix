@@ -442,7 +442,9 @@ integer syntaxClass
                         end while
                         exit
                     end if
-                    if urlChar[ch2+1]!=TokenChar then exit end if
+--2/1/23: (one assumes utf32... I guess utf//8// might be ok in a url... )
+--                  if urlChar[ch2+1]!=TokenChar then exit end if
+                    if ch2>255 or urlChar[ch2+1]!=TokenChar then exit end if
                     syntaxClass = URLs
                     chidx2 += 1
                 end while

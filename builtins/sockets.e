@@ -824,8 +824,8 @@ end function
 
 --/*
 --constant 
---xSendTo  = define_c_func(WS2,"sendto",{C_INT, C_POINTER, C_INT, C_INT, C_POINTER, C_INT}, C_INT)
---xGetPeer = define_c_func(WS2,"getpeername",{C_INT, C_POINTER, C_POINTER}, C_INT)
+--xSendTo  = define_c_func(WS2,"sendto",{C_INT, C_PTR, C_INT, C_INT, C_PTR, C_INT}, C_INT)
+--xGetPeer = define_c_func(WS2,"getpeername",{C_INT, C_PTR, C_PTR}, C_INT)
 
 -------------------------------------------------------------------------------
 -- getpeername()
@@ -1088,20 +1088,20 @@ end function
 constant
 --Linux is ok with "" but FreeBSD might want libc.so
 --lib = redo({open_dll(""), open_dll("libc.so")}, 0),
-fcntl = define_c_func(lib,"fcntl",{C_POINTER,C_INT,C_INT},C_POINTER),
---sock  = define_c_func(lib,"socket",{C_INT,C_INT,C_INT},C_POINTER),
+fcntl = define_c_func(lib,"fcntl",{C_PTR,C_INT,C_INT},C_PTR),
+--sock  = define_c_func(lib,"socket",{C_INT,C_INT,C_INT},C_PTR),
 --htons = define_c_func(lib,"htons",{C_USHORT},C_USHORT),
 --htonl = define_c_func(lib,"htonl",{C_ULONG},C_ULONG),
---connect = define_c_func(lib,"connect",{C_INT,C_POINTER,C_INT},C_INT),
-read_ = define_c_func(lib,"read",{C_INT,C_POINTER,C_INT},C_INT),
-write_ = define_c_func(lib,"write",{C_INT,C_POINTER,C_INT},C_INT),
+--connect = define_c_func(lib,"connect",{C_INT,C_PTR,C_INT},C_INT),
+read_ = define_c_func(lib,"read",{C_INT,C_PTR,C_INT},C_INT),
+write_ = define_c_func(lib,"write",{C_INT,C_PTR,C_INT},C_INT),
 close_ = define_c_proc(lib,"close",{C_INT}),
---gethostbyname = define_c_func(lib,"gethostbyname",{C_POINTER},C_POINTER),
-getservbyname = define_c_func(lib,"getservbyname",{C_POINTER,C_POINTER},C_POINTER),
---bind_ = define_c_func(lib,"bind",{C_INT,C_POINTER,C_INT},C_INT),
+--gethostbyname = define_c_func(lib,"gethostbyname",{C_PTR},C_PTR),
+getservbyname = define_c_func(lib,"getservbyname",{C_PTR,C_PTR},C_PTR),
+--bind_ = define_c_func(lib,"bind",{C_INT,C_PTR,C_INT},C_INT),
 --listen = define_c_func(lib,"listen",{C_INT,C_INT},C_INT),
-poll = define_c_func(lib,"poll",{C_POINTER,C_UINT,C_INT},C_INT),
---accept = define_c_func(lib,"accept",{C_INT,C_POINTER,C_POINTER},C_INT),
+poll = define_c_func(lib,"poll",{C_PTR,C_UINT,C_INT},C_INT),
+--accept = define_c_func(lib,"accept",{C_INT,C_PTR,C_PTR},C_INT),
 --some systems have errno as a variable, others have it as a macro to
 --the function __errno_location (usually threaded libc).
 errno = redo({define_c_var(lib,"errno"),define_c_var(lib,"__errno_location")}, 0)
@@ -1485,7 +1485,7 @@ constant
 --   AF_UNIX = 1, AF_INET = 2,      -- DOMAINS;
 --   SOCK_STREAM = 1, SOCK_DGRAM = 2, -- SOCKET TYPES;
    F_SETFL = 4, O_NONBLOCK = 04000, -- PORT MODE PARAMS;
-   P = C_POINTER, I = C_INT         -- MINOR CONVENIENCES;
+   P = C_PTR, I = C_INT         -- MINOR CONVENIENCES;
 
 --type socket(object x)
 --  return x> -1

@@ -6,12 +6,17 @@
 --
 --  I will note that accuracy drops sharply above 5 beats per second.
 --
+with javascript_semantics   -- needs some work though, usual sizing stuff [DEV]
+                            -- NB: don't break Morse_code.exw when fixing this!
 include pGUI.e
-Ihandle dlg
+Ihandle dlg, frame_1, radio,
+             frame_2, val_lbl,
+             frame_3, bpm_lbl, spb_lbl, act_lbl, acc_lbl,
+             onbtn, onoff, timer
+sequence notes
 
 function rle_decode_image(sequence data)
--- (not my best work, will rethink: ideally new builtins that pack/unpack any downloaded bmp...)
-    atom mem = allocate(4)
+-- (not my best work, may benefit from a rethink...)
     sequence img = {}
     for i=1 to length(data) do
         sequence rle = data[i], line = {}, val
@@ -21,16 +26,18 @@ function rle_decode_image(sequence data)
                     count = rle[j+1]
             if RGB=-1 then
                 string RGBs = IupGetGlobal("DLGBGCOLOR")
+--?RGBs -- 240 240 240
                 {val} = scanf(RGBs,"%d %d %d")
+            elsif RGB=0 then
+                val = repeat(0,3)
             else
-                poke4(mem, RGB)
-                val = reverse(peek({mem,3}))
+                ?9/0
             end if
+            val &= #FF
             line &= flatten(repeat(val,count))
         end for
         img &= flatten(repeat(line,rpt))
     end for
-    free(mem)
     return img
 end function
 
@@ -148,17 +155,15 @@ constant
 integer vMSPB = 667     -- default milliseconds per beat
 
 constant Tempos = {"Grave", "Largo", "Adagio", "Lento", "Adante", "Moderato",
-            "Allegretto", "Allegro", "Presto", "Vivance", "Prestissimo"}
+                   "Allegretto", "Allegro", "Presto", "Vivance", "Prestissimo"}
 
-function setTempo( integer pBPM, atom pNote )
+function set_tempo(integer pBPM, atom pNote)
 -- returns tempo index
     integer index = floor(((length(Tempos)-1)*pBPM)/(MAX_TEMPO-MIN_TEMPO))+1
     atom lSPB = 60 / pBPM / pNote   -- seconds per beat
     vMSPB = floor( lSPB * 1000 )
 
-    Ihandle spb = IupGetDialogChild(dlg,"spb_label"),
-            timer = IupGetAttributePtr(dlg,"timer")
-    IupSetStrAttribute(spb,"TITLE","%.2f",{lSPB})
+    IupSetStrAttribute(spb_lbl,"TITLE","%.2f",{lSPB})
     IupSetInt(timer,"TIME",vMSPB)
     if IupGetInt(timer,"RUN") then
         -- restart needed to apply new TIME (not doc?)
@@ -169,64 +174,41 @@ function setTempo( integer pBPM, atom pNote )
 end function
 
 procedure tempo_change()
-    Ihandle tbl = IupGetDialogChild(dlg,"val_label"),
-            frm_2 = IupGetDialogChild(dlg,"frame_2")
-    integer lBPM = IupGetInt(tbl,"TITLE"),
-            lIndex = setTempo( lBPM, note/4 )
-    IupSetStrAttribute(frm_2, "TITLE", "Tempo: %s ", {Tempos[lIndex]} )
+    integer lBPM = IupGetInt(val_lbl,"TITLE"),
+            lIndex = set_tempo(lBPM, note/4)
+    IupSetStrAttribute(frame_2, "TITLE", "Tempo: %s ", {Tempos[lIndex]})
     vLastTime = time()
 end procedure
 
 function toggle_state_cb(Ihandle ih, integer state)
     if state then
-        note = IupGetInt(ih,"NOTE") -- 1/2/4/8/16
+        note = power(2,find(ih,notes)-1) -- 1/2/4/8/16
         tempo_change()
     end if
     -- and shift focus away, since it looks ugly w/o any text
-    {} = IupNextField(ih)
+    IupSetFocus(onbtn)
     return IUP_DEFAULT
 end function
 
 function valuechanged_cb(Ihandle val)
     integer v = IupGetInt(val,"VALUE")
-    Ihandle tbl = IupGetDialogChild(dlg,"val_label"),
-            bpm = IupGetDialogChild(dlg,"bpm_label")
-    IupSetInt(tbl,"TITLE",v)
-    IupSetStrAttribute(bpm,"TITLE","%.2f",{v})
+    IupSetInt(val_lbl,"TITLE",v)
+    IupSetStrAttribute(bpm_lbl,"TITLE","%.2f",{v})
     tempo_change()
     return IUP_DEFAULT
 end function
 
-atom k32=0, xBeep
-
---integer low_freq = #200, low_duration = 20,
---      high_freq = #400, high_duration = 20
+include builtins\beep.e
 
 function timer_cb(Ihandle /*ih*/)
-    if platform()=WINDOWS then
-        if k32=0 then
-            k32 = open_dll("kernel32.dll")
-            xBeep = define_c_proc(k32, "Beep", {C_INT,C_INT})
-        end if
---      if j=1 then
---          c_proc(xBeep,{high_freq,high_duration})
---          if count=0 then t0 = time() end if
---      else
---          c_proc(xBeep,{low_freq,low_duration})
---      end if
-        c_proc(xBeep,{#200,20})
-    else
-        puts(1,#07)
-    end if
+    beep(#200,20)
 
     atom lThisTime = time()
     if vLastTime > 0.0 then
         atom lDiff = (lThisTime - vLastTime),
              lResolution = ((lDiff * 1000)/ vMSPB) * 100
-        Ihandle act = IupGetDialogChild(dlg,"act_label"),
-                acc = IupGetDialogChild(dlg,"acc_label")
-        IupSetStrAttribute(act, "TITLE", "%0.2f", {lDiff})
-        IupSetStrAttribute(acc, "TITLE", "%d%%", {lResolution})
+        IupSetStrAttribute(act_lbl, "TITLE", "%0.2f", {lDiff})
+        IupSetStrAttribute(acc_lbl, "TITLE", "%d%%", {lResolution})
     end if
     vLastTime = lThisTime
 
@@ -234,87 +216,73 @@ function timer_cb(Ihandle /*ih*/)
 end function
 
 function button_cb(Ihandle ih)
-    Ihandle timer = IupGetAttributePtr(dlg,"timer")
     bool active = not IupGetInt(timer,"RUN")
     IupSetInt(timer,"RUN",active)
     IupSetAttribute(ih,"TITLE",{"Off","On"}[active+1])
     return IUP_DEFAULT
 end function
 
-procedure main()
-    Ihandle frm_1, frm_2, frm_3
-    
-    IupOpen()
+IupOpen()
 
-    sequence notes = {IupImageRGB(32, 32, rle_decode_image(Whole_note)),
-                      IupImageRGB(32, 40, rle_decode_image(Half_note)),
-                      IupImageRGB(32, 40, rle_decode_image(Quarter_note)),
-                      IupImageRGB(32, 40, rle_decode_image(Eigth_note)),
-                      IupImageRGB(32, 40, rle_decode_image(Sixteenth_note))}
+notes = {IupImageRGBA(32, 32, rle_decode_image(Whole_note)),
+         IupImageRGBA(32, 40, rle_decode_image(Half_note)),
+         IupImageRGBA(32, 40, rle_decode_image(Quarter_note)),
+         IupImageRGBA(32, 40, rle_decode_image(Eigth_note)),
+         IupImageRGBA(32, 40, rle_decode_image(Sixteenth_note))}
 
-    sequence btns = {}
-    for i=1 to length(notes) do
-        Ihandle btn = IupToggle(NULL, Icallback("toggle_state_cb"), "CANFOCUS=NO, NOTE=%d", {power(2,i-1)}),
-                lbl = IupLabel()
-        IupSetAttributeHandle(lbl,"IMAGE",notes[i])
-        btns &= {btn,lbl}
-    end for
-    Ihandle radio = IupRadio(IupHbox(btns,"GAP=20,NORMALSIZE=VERTICAL"))
-    frm_1 = IupFrame(radio,"MARGIN=20x10")
-    IupSetAttribute(frm_1,"TITLE","Note ")
+sequence btns = {}
+for i=1 to length(notes) do
+    Ihandle btn = IupToggle(NULL, Icallback("toggle_state_cb"), "CANFOCUS=NO"),
+            lbl = IupLabel()
+    IupSetAttributeHandle(lbl,"IMAGE",notes[i])
+    btns &= {btn,lbl}
+    notes[i] = btn
+end for
+radio = IupRadio(IupHbox(btns,"GAP=20"))
+frame_1 = IupFrame(radio,"MARGIN=20x10")
+IupSetAttribute(frame_1,"TITLE","Note ")
 
-    Ihandle tbl = IupLabel(" 200","ALIGNMENT=ARIGHT,NAME=val_label"),
-            val = IupValuator("HORIZONTAL","EXPAND=HORIZONTAL, CANFOCUS=NO")
-    IupSetInt(val,"MIN",MIN_TEMPO)
-    IupSetInt(val,"MAX",MAX_TEMPO)
-    IupSetInt(val,"VALUE",DEF_TEMPO)
-    IupSetCallback(val, "VALUECHANGED_CB", Icallback("valuechanged_cb"))
+val_lbl = IupLabel(" 200","ALIGNMENT=ARIGHT")
+Ihandle val = IupValuator("HORIZONTAL","EXPAND=HORIZONTAL, CANFOCUS=NO")
+IupSetInt(val,"MIN",MIN_TEMPO)
+IupSetInt(val,"MAX",MAX_TEMPO)
+IupSetInt(val,"VALUE",DEF_TEMPO)
+IupSetCallback(val, "VALUECHANGED_CB", Icallback("valuechanged_cb"))
 
-    frm_2 = IupFrame(IupHbox({tbl,val}),"NAME=frame_2")
-    IupSetAttribute(frm_2,"TITLE","Tempo: ")
+frame_2 = IupFrame(IupHbox({val_lbl,val}),`TITLE="Tempo: "`)
 
-    Ihandle lbl_1 = IupLabel("Beats Per Minute:"),
-            lbl_2 = IupLabel("90.00","ALIGNMENT=ARIGHT, EXPAND=HORIZONTAL, NAME=bpm_label"),
-            pair_1 = IupHbox({lbl_1,lbl_2}),
-            lbl_3 = IupLabel("Actual Seconds Per Beat:"),
-            lbl_4 = IupLabel("0.00","ALIGNMENT=ARIGHT, EXPAND=HORIZONTAL, NAME=act_label"),
-            pair_2 = IupHbox({lbl_3,lbl_4}),
-            lbl_5 = IupLabel("Seconds Per Beat:"),
-            lbl_6 = IupLabel("0.67","ALIGNMENT=ARIGHT, EXPAND=HORIZONTAL, NAME=spb_label"),
-            pair_3 = IupHbox({lbl_5,lbl_6}),
-            lbl_7 = IupLabel("Accuracy:"),
-            lbl_8 = IupLabel("0%","ALIGNMENT=ARIGHT, EXPAND=HORIZONTAL, NAME=acc_label"),
-            pair_4 = IupHbox({lbl_7,lbl_8})
+bpm_lbl = IupLabel("90.00","ALIGNMENT=ARIGHT, EXPAND=HORIZONTAL")
+act_lbl = IupLabel("0.00","ALIGNMENT=ARIGHT, EXPAND=HORIZONTAL")
+spb_lbl = IupLabel("0.67","ALIGNMENT=ARIGHT, EXPAND=HORIZONTAL")
+acc_lbl = IupLabel("0%","ALIGNMENT=ARIGHT, EXPAND=HORIZONTAL")
 
-    frm_3 = IupFrame(IupHbox({IupVbox({pair_1,pair_3},"GAP=10,MARGIN=10x0"),
-                              IupVbox({pair_2,pair_4},"GAP=10,MARGIN=10x0")}),
-                     "MARGIN=4x8")
-    IupSetAttribute(frm_3,"TITLE","Statistics ")
+frame_3 = IupFrame(IupHbox({IupVbox({IupHbox({IupLabel("Beats Per Minute:"),bpm_lbl}),
+                                     IupHbox({IupLabel("Seconds Per Beat:"),spb_lbl})},
+                                    "GAP=10,MARGIN=10x0"),
+                            IupVbox({IupHbox({IupLabel("Actual Seconds Per Beat:"),act_lbl}),
+                                     IupHbox({IupLabel("Accuracy:"),acc_lbl})},
+                                    "GAP=10,MARGIN=10x0")}),
+                   `TITLE="Statistics ",MARGIN=4x8`)
 
-    Ihandle onoff = IupHbox({IupFill(),IupButton("On",Icallback("button_cb"),"PADDING=30x0")},"MARGIN=0x20")
+onbtn = IupButton("On",Icallback("button_cb"),"PADDING=30x0")
+onoff = IupHbox({IupFill(),onbtn},"MARGIN=0x20")
 
-    dlg = IupDialog(IupVbox({frm_1,
-                             frm_2,
-                             frm_3,
-                             onoff}, "MARGIN=10x5, GAP=5"))
-    IupSetAttribute(dlg,"TITLE","Virtunome")
-    IupSetAttribute(dlg,"RASTERSIZE","500x330")
-    IupSetAttribute(dlg,"DIALOGFRAME","YES") -- non-resizeable..
+dlg = IupDialog(IupVbox({frame_1,
+                         frame_2,
+                         frame_3,
+                         onoff}, "MARGIN=10x5, GAP=5"),
+                `TITLE="Virtunome"`)
 
-    IupShow(dlg)
+IupShow(dlg)
 
-    -- The TIME and RUN attributes are set dynamically:
-    Ihandle timer = IupTimer(Icallback("timer_cb"), vMSPB, active:=false)
-    IupSetAttributePtr(dlg,"timer",timer)
+-- The TIME and RUN attributes are set dynamically:
+timer = IupTimer(Icallback("timer_cb"), vMSPB, active:=false)
 
-    IupSetInt(tbl,"TITLE",DEF_TEMPO)
-    IupSetHandle("QUARTER",btns[5])
-    IupSetAttribute(radio,"VALUE","QUARTER")
-    tempo_change()
-
+IupSetInt(val_lbl,"TITLE",DEF_TEMPO)
+IupSetAttributeHandle(radio,"VALUE",btns[5])
+tempo_change()
+if platform()!=JS then
     IupMainLoop()
     IupClose()
-end procedure
-main()
-
+end if
 

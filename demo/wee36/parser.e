@@ -678,7 +678,7 @@ integer base, start
 
     for i=start to length(s) do
         if s[i]!='_' then
-            x = x*base+s[i]-'0'
+            x = x*base+(s[i]-'0')
             if s[i]>='A' then
                 x += 10-'A'
             end if

@@ -1,0 +1,48 @@
+--
+-- demo\rosetta\Goldbachs_comet.exw
+-- ================================
+--
+-- Note: this plots n/2 vs G(n) for n=6 to 4000 by 2, matching wp and
+--       Algol 68, Python, and Raku. However, while not wrong, Arturo 
+--       and Wren apparently plot n vs G(n) for n=6 to 2000 by 2, so
+--       should you spot any (very) minor differences, that'd be why.
+--
+with javascript_semantics
+requires("1.0.2")
+
+constant limit = 4000
+sequence primes = get_primes_le(limit)[2..$],
+       goldbach = reinstate(repeat(0,limit),{4},{1})
+for i=1 to length(primes) do
+    for j=i to length(primes) do
+        integer s = primes[i] + primes[j]
+        if s>limit then exit end if
+        goldbach[s] += 1
+    end for
+end for
+ 
+sequence fhg = extract(goldbach,tagstart(4,100,2))
+string fhgs = join_by(fhg,1,10," ","\n","%2d")
+integer gm = sum(apply(sq_sub(1e6,get_primes_le(499999)[2..$]),is_prime))
+printf(1,"The first 100 G values:\n%s\n\nG(1,000,000) = %,d\n",{fhgs,gm})
+
+include pGUI.e
+include IupGraph.e
+ 
+function get_data(Ihandle /*graph*/)
+    return {{tagset(limit/2,3,3),extract(goldbach,tagset(limit,6,6)),CD_RED},
+            {tagset(limit/2,4,3),extract(goldbach,tagset(limit,8,6)),CD_BLUE},
+            {tagset(limit/2,5,3),extract(goldbach,tagset(limit,10,6)),CD_DARK_GREEN}}
+end function
+
+IupOpen()
+Ihandle graph = IupGraph(get_data,"RASTERSIZE=640x440,MARKSTYLE=PLUS")
+IupSetAttributes(graph,"XTICK=%d,XMIN=0,XMAX=%d",{limit/20,limit/2})
+IupSetAttributes(graph,"YTICK=20,YMIN=0,YMAX=%d",{max(goldbach)+20})
+Ihandle dlg = IupDialog(graph,`TITLE="Goldbach's comet",MINSIZE=400x300`)
+IupShow(dlg)
+if platform()!=JS then 
+    IupMainLoop()
+    IupClose()
+end if
+

@@ -16,9 +16,9 @@
 -- 25107 words or 284K of it.
 --
 global function unix_dict(integer minlen=0, string filename="unixdict.txt")
-    function min_len(string word, integer len)
+    nested function min_len(string word, integer len)
         return length(word)>=len
-    end function
+    end nested function
 --  string root = get_file_path(get_interpreter()),
 --         path = join_path({root,"demo",filename})
     string path = get_file_path(get_interpreter())

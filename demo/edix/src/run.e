@@ -467,7 +467,7 @@ constant SHOW_NAMES = {
 } 
  
 constant shell32 = open_dll( "shell32.dll" ) 
-constant xShellExecute = define_c_func( shell32, "ShellExecuteA", {C_HANDLE,C_POINTER,C_POINTER,C_POINTER,C_POINTER,C_INT}, C_HANDLE ) 
+constant xShellExecute = define_c_func(shell32, "ShellExecuteA", {C_HANDLE,C_PTR,C_PTR,C_PTR,C_PTR,C_INT}, C_HANDLE) 
  
 -- acceptable values for lpOperation parameter of ShellExecute() 
 constant OPERATIONS = { "edit", "explore", "find", "open", "print" } 

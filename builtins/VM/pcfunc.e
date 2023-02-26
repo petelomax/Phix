@@ -9,6 +9,7 @@
 --           (If p -test, p edix, p test\terror, and p test\trace
 --            all seem fine, then you can breathe easy once again.)
 --
+--without debug
 --/*
     ?9/0    This file is wholly incompatible with RDS Eu/OpenEuphoria.
 --*/
@@ -183,13 +184,10 @@ end procedure
 function toString(sequence name, integer errcode, integer level)
 -- Explicitly convert a dword-sequence to an 8-bit string
 -- errcode is one of the constants defined above (e73..e88)
-string res
-integer nlen
-object ch
-    nlen = length(name)
-    res = repeat(' ',nlen)
+    integer nlen = length(name)
+    string res = repeat(' ',nlen)
     for i=1 to nlen do
-        ch = name[i]
+        object ch = name[i]
         if atom(ch) then
             ch = and_bits(ch,#FF)
             res[i] = ch
@@ -287,18 +285,24 @@ atom res
     return res
 end function
 
-global function open_dll(sequence filename)
-atom res = 0
-sequence fi
-    if length(filename)>0 and atom(filename[1]) then
+global function open_dll(sequence filename, integer bCrash = true)
+    -- 1.0.2: now crashes by default, unless filename is "" (which is Linux-only)
+    -- (also no longer supports open_dll({'u','s','e','r','3','2','.','d','l','l'}).
+    atom res = 0
+--  if length(filename)>0 and atom(filename[1]) then
+    if string(filename) then
         res = OpenOneDLL(filename)
     else
         -- A list of filenames: try each one in turn
         for idx=1 to length(filename) do
-            fi = filename[idx]
+--          sequence fi = filename[idx]
+            string fi = filename[idx]
             res = OpenOneDLL(fi)
             if res!=0 then exit end if
         end for
+    end if
+    if res=0 and bCrash and filename!="" then
+        crash("cannot open dll:"&filename,nFrames:=2)
     end if
     return res
 end function
@@ -310,7 +314,7 @@ global function get_proc_address(atom lib, string name)
 -- runtime interpretation of inline assembly
 -- Applications would not normally use this directly.
 --
-atom addr
+    atom addr
     #ilASM{
         [32]
             mov eax,[lib]
@@ -430,12 +434,13 @@ procedure check(object o, integer level)
                     C_INT,C_UINT,
                 -- (C_LONG    = C_INT,
                 --  C_ULONG   = C_UINT,
-                --  C_POINTER = C_ULONG,)
+                --  C_PTR = C_ULONG,)
 --                  C_FLOAT,C_DOUBLE,
                     C_FLOAT,C_DOUBLE}) then
 --                  E_INTEGER,E_ATOM,
 --                  E_SEQUENCE,E_OBJECT}) then
 --*/
+--DEV/SUG we could say {floor(o/#1000000),remainder(0,#1000000)} must {1|2,1|2|4|8} or {3,4|8} [?..]
     if  o!=C_CHAR
     and o!=C_UCHAR
     and o!=C_SHORT
@@ -579,7 +584,8 @@ procedure Tinit()
 end procedure
 --if not tinit then Tinit() end if  -- (not necessary)
 
-global function define_c_func(object lib, object fname, object args, atom return_type)
+--global function define_c_func(object lib, fname, args, atom return_type, bool bCrash = true)
+function define_c(object lib, fname, args, atom return_type, bool bCrash)
 --
 -- Define the characteristics of either:
 --  * a C function in a dll or .so file, or
@@ -645,18 +651,17 @@ global function define_c_func(object lib, object fname, object args, atom return
 --  or -1 is returned if the routine could not be located.
 --
 integer nlen
-object name
-integer convention, safe
+integer safe
 atom addr
 integer res
-integer level = 2+(return_type=0)
 
     if not sequence(args) then ?9/0 end if
-    convention = STDCALL
+    integer convention = STDCALL,
+            level = 2+(return_type=0)
     if platform()!=WINDOWS then
         convention = CDECL
     end if
-    name = fname
+    object name = fname
     if sequence(fname) then
         -- check for a '+' prefix:
         nlen = length(fname)
@@ -705,14 +710,19 @@ integer level = 2+(return_type=0)
 --5/10/21 (safe_mode)
 --      addr = get_proc_address(lib,name)
         {addr,safe} = get_proc_address(lib,name)
-        if addr=NULL then return -1 end if
+        if addr=NULL then
+            if bCrash then
+                crash("cannot link "&name,nFrames:=level+1)
+            end if
+            return -1
+        end if
     end if
 
     --
     -- Validate the args and return type
     --
     for i=1 to length(args) do
-        check(args[i],2+(return_type=0))
+        check(args[i],level)
     end for
     if return_type then
         check(return_type,2)
@@ -736,13 +746,19 @@ integer level = 2+(return_type=0)
     return res
 end function
 
-global function define_c_proc(object lib, object name, sequence args)
+global function define_c_func(object lib, fname, args, atom return_type, bool bCrash = true)
+    if return_type<=1 then ?9/0 end if
+    return define_c(lib, fname, args, return_type, bCrash)
+end function
+
+global function define_c_proc(object lib, object name, sequence args, bool bCrash = true)
 --
 -- Define the characteristics of either:
 --  * a C function with a VOID return type / ignored return value, or
 --  * a machine-code routine at a given address.
 --
-    return define_c_func(lib, name, args, 0)
+    if bCrash>1 then ?9/0 end if
+    return define_c(lib, name, args, 0, bCrash)
 end function
 
 global function define_c_var(atom lib, sequence name)
@@ -803,13 +819,13 @@ global function call_back(object id)
 --  to specifically say that you cannot optimise "push push call ret" to
 --  to "push push jmp", although "popx push push pushx jmp" might be ok.
 --
-integer k, siNTyp, sigi, noofparams
+integer siNTyp, sigi, noofparams
 object symtab, sig
 object si
 atom r
 integer convention
 
-    k = 0
+    integer k = 0
     if not tinit then
         Tinit()
     else
@@ -909,6 +925,7 @@ integer convention
         end if
 --SUG: should we check the return type for non-atom as well? (warning)
 --DEV.. (as per cbhand.e, couple of fix suggestions in there, before the push r9)
+--DEV 1/2/22: LINUX commented out to force trigger on Windows... [6/5/22 triggered on demo/pGUI/matrix.exw...]
 if platform()=LINUX then
     if noofparams>6 then ?9/0 end if
 end if
@@ -1928,6 +1945,8 @@ if 0 then -- 26/2/18... (not thread safe?)
     end if
 end if
 
+--string r10is = "r10:#",
+--     r11is = "r11:#"
     --
     -- Call the routine and convert result (in eax/ST0) to a Phix ref:
     --
@@ -2045,6 +2064,8 @@ end if
                 shl rcx,2
                 mov rdx,[return_type]
                 mov rsp,rcx
+--10/9/22: (no help...)
+--              mov r15,h4
 
 --DEV this is and isn't quite right... (definition of C_INT suspect for starter, inability to really mean DWORD for desert)
 -- (probably wants cdqe (eax -> rax))
@@ -2089,7 +2110,7 @@ end if
                     -- to load unsigned, right shift rax by 1, save odd bit in rcx, then *2+[0|1]
                     mov rcx,rbx
                     shr rax,1
-                    rcl rcx,1
+                    rcl rcx,1           -- rotate through carry left
                     push rax
                     push rcx
                     fild qword[rsp]
@@ -2100,7 +2121,7 @@ end if
                     jmp :cstore
 --added 25/12/16:
             @@:
-                cmp rdx,#01000008   -- (C_PTR, C_HANDLE etc [signed 64 bit])
+                cmp rdx,#01000008   -- (C_LONG, C_INT64 etc [signed 64 bit])
                 jne @f
                     cmp rax,r15
                     jb :intres          -- (0..#3FFFFFFFFFFFFFFF)
@@ -2114,7 +2135,7 @@ end if
                         jmp :cstore
 --(this should be made invalid)
             @@:
-                cmp rdx,#02000008   -- (C_PTR, C_HANDLE etc [unsigned 64 bit])
+                cmp rdx,#02000008   -- (C_ULONG, C_QWORD, C_PTR, C_HANDLE etc [unsigned 64 bit])
                 jne @f
 --                  cmp rax,h4
 --                  mov r15,h4
@@ -2127,27 +2148,48 @@ end if
 --                  add rsp,8
                     -- to load unsigned, right shift rax by 1, save odd bit in rcx, then *2+[0|1]
                     mov rcx,rbx
-mov r10,rax
+--mov r10,rax
                     shr rax,1
-                    rcl rcx,1
+                    rcl rcx,1           -- rotate through carry left
                     push rax
                     push rcx
                     fild qword[rsp]
                     fild qword[rsp+8]
---                  add rsp,16
+                    add rsp,16
                     fadd st0,st0
                     faddp
 --DEV :%pLoadMint..??
-fld st0
-call :%down64
-fistp qword[rsp]
-call :%near64
-mov r11,[rsp]
-add rsp,16
-cmp r10,r11
-je :cstore
-int3
---                  jmp :cstore
+--fld st0
+--call :%down64
+--fistp qword[rsp]
+--call :%near64
+--mov r11,[rsp]
+--add rsp,16
+--cmp r10,r11
+--je :cstore
+--10/9/22:
+--hmm:
+--r10:#0000000000000000
+--r11:#0000000000000246
+--which is mirrored in FEH, but if I take this out, FEH goes:
+--r10: FFFFFFFFDF30068F
+--r11: 8000000000000000
+--r15: 4000000000000000
+-- I think what I [may] need to do is "if x>#7FFF then x -= #10000 end if", then fistp should work....
+--push rsi
+--  mov rdi,[r10is] -- "r10:#"
+--  call :%puts1
+--  mov rdx,r10
+--  push 1                      -- cr
+--  call :%puthex64
+--  mov rdi,[r11is] -- "r11:#"
+--  call :%puts1
+--  mov rdx,r11
+--  push 1
+--  call :%puthex64
+--pop rsi
+--int3
+                    jmp :cstore
             @@:
                 cmp rdx,0x03000004  -- (C_FLOAT)
                 je :cstorexmm0

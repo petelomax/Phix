@@ -16,8 +16,8 @@
 --   5) While it may sound like fun to run this on "p test", it is far easier to run "p -c test"
 --      and then run this on "test.exe". Obviously you /could/ run it on p.exe, but thankfully 
 --      that should be extrememly rare, and I trust is is clear that performing low-level debug
---      on test.exe vs p test is going to be way easier because the latter could easily have up
---      to or even more than a thousand times as much stuff lying around in memory.
+--      on test.exe vs p test is going to be way easier because the latter could easily and
+--      probably does have more than a thousand times as much stuff lying around in memory.
 --
 --  The basic idea of a post mortem debugger is to take a *copy* of this and fill it with application-
 --  specific and bug-specific logic. Obviously once the problem is solved you are free to save any
@@ -28,10 +28,12 @@
 --
 
 --/**/with console 4.0
+requires(WINDOWS)
+requires(32)    -- not yet working on 64 bit [DEV/fixme, but not exactly a high priority...]
 --without trace
 
 --/* Not Required for Phix:
-include ..\builtins\dll.e       -- open_dll/define_c_func/C_POINTER/C_LONG/C_INT/call_back
+include ..\builtins\dll.e       -- open_dll/define_c_func/C_PTR/C_LONG/C_INT/call_back
 include ..\builtins\machine.e   -- allocate()
 include ..\builtins\peekstr.e   -- peek_string()
 --*/
@@ -40,11 +42,8 @@ constant k32 = open_dll("kernel32.dll"),
          advapi32 = open_dll("advapi32.dll")
 --constant user32 = open_dll("user32.dll"),
 --       gdi32  = open_dll("gdi32.dll")
-    if k32=0 then ?9/0 end if
-    if advapi32=0 then ?9/0 end if
 
 constant
---  C_PTR = C_POINTER,
 --  xGetDC = define_c_func(user32,"GetDC",{C_PTR},C_PTR),
 --  xEnumFontFamiliesExA = define_c_func(gdi32,"EnumFontFamiliesExA",{C_LONG,C_LONG,C_PTR,C_LONG,C_LONG},C_INT)
 --  xEnumFontFamiliesExA = define_c_func(gdi32,"EnumFontFamiliesExA",{C_LONG,C_LONG,C_PTR,C_LONG,C_LONG},C_INT)
@@ -178,33 +177,12 @@ constant
         {C_PTR},    --  _In_  HANDLE hObject
         C_INT)      -- BOOL
 
-    if xGetCurrentProcess=-1 then ?9/0 end if
---/*
-    if xOpenProcessToken=-1 then ?9/0 end if
-    if xLookupPrivilegeValue=-1 then ?9/0 end if
-    if xAdjustTokenPrivileges=-1 then ?9/0 end if
---*/
-    if xEnumProcesses=-1 then ?9/0 end if
-    if xOpenProcess=-1 then ?9/0 end if
-    if xEnumProcessModules=-1 then ?9/0 end if
-    if xGetModuleBaseName=-1 then ?9/0 end if
-    if xGetModuleFileNameEx=-1 then ?9/0 end if
-    if xGetModuleInformation=-1 then ?9/0 end if
-    if xReadProcessMemory=-1 then ?9/0 end if
-    if xCreateFile=-1 then ?9/0 end if
-    if xGetFileTime=-1 then ?9/0 end if
-    if xFileTimeToSystemTime=-1 then ?9/0 end if
-    if xSystemTimeToTzSpecificLocalTime=-1 then ?9/0 end if
-    if xGetDateFormat=-1 then ?9/0 end if
-    if xGetTimeFormat=-1 then ?9/0 end if
-    if xGetLastError=-1 then ?9/0 end if
-    if xCloseHandle=-1 then ?9/0 end if
 
 constant PROCESS_QUERY_INFORMATION  = #400,
          PROCESS_VM_READ            = #010,
          P_QR                       = or_bits(PROCESS_QUERY_INFORMATION,PROCESS_VM_READ),
 --       TRUE                       = (1=1),
-         FALSE                      = (1=0),
+--       FALSE                      = (1=0),
          MAX_PATH                   = 260
 
 --DEV 32bit...

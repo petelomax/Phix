@@ -1,0 +1,105 @@
+--
+-- demo\rosetta\KnuthMorrisPratt.exw
+-- =================================
+--
+-- based on https://www-igm.univ-mlv.fr/~lecroq/string/node8.html#SECTION0080
+-- Note that BoyerMoore.exw performs significantly fewer character comparisons.
+--
+with javascript_semantics
+function preKmp(string pat)
+    integer m = length(pat), i = 1, j = 0
+    sequence kmpNext = repeat(-1,m+1)
+    pat &= '\0'
+    while i <= m do
+        while j > 0 and pat[i] != pat[j] do
+            j = kmpNext[j]+1
+        end while
+        i += 1
+        j += 1
+        if pat[i] == pat[j] then
+            kmpNext[i] = kmpNext[j]
+        else
+            kmpNext[i] = j-1
+        end if
+    end while
+    return kmpNext
+end function
+
+procedure KMP(string pat, s, bool case_insensitive = false)
+    string pins = sprintf("`%s` in `%s`",{pat,shorten(s,"characters",10)})
+    if case_insensitive then {pat,s} = lower({pat,s}) end if
+    /* Preprocessing */
+    sequence kmpNext = preKmp(pat)
+    /* Searching */
+    sequence res = {}
+    integer i = 0, j = 0,
+            n = length(s),
+            m = length(pat),
+            cc = 0
+    while j < n do
+        while i > -1 do
+            cc += 1
+            if pat[i+1] = s[j+1] then exit end if
+            i = kmpNext[i+1]
+        end while
+        i += 1
+        j += 1
+        if i >= m then
+            res &= j-i+1
+            i = kmpNext[i+1]
+        end if
+    end while
+    /* Output */
+    string ccs = sprintf("(%d character comparisons)",cc)
+    if length(res) then
+        string many = ordinant(length(res))
+        printf(1,"Found %s %s at %v %s\n",{pins,many,res,ccs})
+    else
+        printf(1,"No %s %s\n",{pins,ccs})
+    end if
+end procedure
+
+KMP("GCAGAGAG","GCATCGCAGAGAGTATACAGTACG")
+KMP("TCTA","GCTAGCTCTACGAGTCTA")
+KMP("TAATAAA","GGCTATAATGCGTA")
+KMP("word","there would have been a time for such a word")
+KMP("needle","needle need noodle needle")
+constant book = "InhisbookseriesTheArtofComputerProgrammingpublishedbyAddisonWesley"&
+                "DKnuthusesanimaginarycomputertheMIXanditsassociatedmachinecodeand"&
+                "assemblylanguagestoillustratetheconceptsandalgorithmsastheyarepresented"
+KMP("put",book)
+KMP("and",book)
+constant farm = "Nearby farms grew a half acre of alfalfa on the dairy's behalf, with "&
+                "bales of all that alfalfa exchanged for milk."
+KMP("alfalfa",farm)
+--KMP("aLfAlfa",farm)       -- none
+--KMP("aLfAlfa",farm,true)  -- as -2
+wait_key()
+
+--/*
+?preKmp("ABCDABD") -- {-1,0,0,0,-1,0,2,0} -- good
+?preKmp("ABACABABC") -- {-1,0,-1,1,-1,0,-1,3,2,0} -- good
+?preKmp("ABACABABA") -- {-1,0,-1,1,-1,0,-1,3,-1,3} -- good
+?preKmp("PARTICIPATE IN PARACHUTE") -- {-1,0,0,0,0,0,0,-1,0,2,0,0,0,0,0,-1,0,0,3,0,0,0,0,0,0} -- good
+
+This:
+Found `GCAGAGAG` in `GCATCGCAGAGAGTATACAGTACG` once at {6} (26 character comparisons)
+Found `TCTA` in `GCTAGCTCTACGAGTCTA` twice at {7,15} (19 character comparisons)
+No `TAATAAA` in `GGCTATAATGCGTA` (16 character comparisons)
+Found `word` in `there woul...uch a word (44 characters)` once at {41} (45 character comparisons)
+Found `needle` in `needle need noodle needle` twice at {1,20} (27 character comparisons)
+Found `put` in `Inhisbooks...epresented (202 characters)` twice at {27,91} (205 character comparisons)
+Found `and` in `Inhisbooks...epresented (202 characters)` three times at {102,129,172} (216 character comparisons)
+Found `alfalfa` in `Nearby far... for milk. (114 characters)` twice at {34,88} (125 character comparisons)
+
+BM:
+Found `GCAGAGAG` in `GCATCGCAGAGAGTATACAGTACG` once at {6} (17 character comparisons)
+Found `TCTA` in `GCTAGCTCTACGAGTCTA` twice at {7,15} (14 character comparisons)
+No `TAATAAA` in `GGCTATAATGCGTA` (4 character comparisons)
+Found `word` in `there woul...uch a word (44 characters)` once at {41} (15 character comparisons)
+Found `needle` in `needle need noodle needle` twice at {1,20} (18 character comparisons)
+Found `put` in `Inhisbooks...epresented (202 characters)` twice at {27,91} (78 character comparisons)
+Found `and` in `Inhisbooks...epresented (202 characters)` three times at {102,129,172} (79 character comparisons)
+Found `alfalfa` in `Nearby far... for milk. (114 characters)` twice at {34,88} (42 character comparisons)
+--*/
+

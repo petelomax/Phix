@@ -1,0 +1,111 @@
+--
+-- demo/rosetta/Gaussian_primes.exw
+-- ================================
+--
+with javascript_semantics
+
+function gaussian_primes(integer radius)
+    integer sq_radius = radius*radius
+    sequence res = {}
+    for i=1 to radius do
+        if remainder(i,4)=3 then
+            res = append(res,{i*i,i,0})
+        end if
+        integer i2 = i*i
+        for j=i to radius do
+            integer r = i2+j*j
+            if r>sq_radius then exit end if
+            if is_prime(r) then
+                res = append(res,{r,j,i})
+            end if
+        end for
+    end for
+    res = sort(res)
+    return res
+end function
+
+include builtins\complex.e
+function gpp(integer i, j)
+    return pad_head(complex_sprint({i,j}),6)
+end function
+
+function g4(integer i,j)
+    sequence res = {gpp(i,j)}
+    if i!=0 then
+        res = append(res,gpp(-i,j))
+        if j!=0 then
+            res = append(res,gpp(-i,-j))
+        end if
+    end if
+    if j!=0 then
+        res = append(res,gpp(i,-j))
+    end if
+    return res
+end function
+
+function reflect(sequence g)
+    sequence res = {}
+    for p in g do
+        integer {n,i,j} = p
+        res &= g4(i,j)
+        if i!=j then res &= g4(j,i) end if
+    end for
+    return res
+end function
+
+sequence g = gaussian_primes(10)
+
+printf(1,"Gaussian primes with a norm less than 100 sorted by norm:\n%s\n",
+         {join_by(reflect(g),1,10," ")})
+
+--g = gaussian_primes(50) -- (radius of 50)
+g = gaussian_primes(150) -- (radius of 150)
+
+constant title = "Gaussian primes"
+include pGUI.e
+
+Ihandle dlg, canvas
+cdCanvas cddbuffer, cdcanvas
+integer cx, cy
+
+procedure plot4(integer i,j)
+    for im=+1 to -1 by -2 do
+        for jm=+1 to -1 by -2 do
+            cdCanvasPixel(cddbuffer, cx+im*i, cy+jm*j, CD_YELLOW) 
+        end for
+    end for
+end procedure
+
+function redraw_cb(Ihandle /*ih*/)
+    integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
+    cx = floor(width/2)
+    cy = floor(height/2)
+    cdCanvasActivate(cddbuffer)
+    cdCanvasClear(cddbuffer)
+    for p in g do
+        integer {n,i,j} = p
+        plot4(i,j)
+        if i!=j then plot4(j,i) end if
+    end for
+    cdCanvasFlush(cddbuffer)
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle ih)
+    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    cdCanvasSetBackground(cddbuffer, CD_BLACK)
+    return IUP_DEFAULT
+end function
+
+IupOpen()
+canvas = IupCanvas("RASTERSIZE=340x340")
+IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                         "ACTION", Icallback("redraw_cb")})
+dlg = IupDialog(canvas, `TITLE="%s",RESIZE=NO`,{title})
+IupShow(dlg)
+if platform()!=JS then
+    IupMainLoop()
+    IupClose()
+end if
+

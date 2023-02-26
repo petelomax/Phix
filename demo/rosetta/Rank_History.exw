@@ -1,0 +1,320 @@
+--
+-- demo\rosetta\Rank_History.exw
+-- =============================
+--
+--Task: Rosetta Code/Rank History
+--
+--{{draft task}}
+-- In honour of Phix finally hitting the magic 100%, show the progress of several languages towards that goal.
+--
+-- Suggested approach:
+--  Scrape https://rosettacode.org/w/index.php?title=Rosetta_Code/Rank_languages_by_popularity/Full_list&action=history
+--  Convert any non-Sunday to the previous Sunday and skip any entries that ends up being the same day. Done correctly 
+--  that should eiminate all the inevitable minor mishaps from the past four years and result in about 177 "oldid"s.
+--  Specifically there should be no entry for "00:58, 31 July 2020" but one for "00:58, 26 July 2020" not "22:16",
+--  and likewise no entry for "4 September 2018" and the one for "3 September 2018" should be for 22.00, id=268482,
+--  and the final entry on the list should be the 12:24 entry for 19 May 2018, id=263106, and not the 02:40 entry.
+--  Scrape https://rosettacode.org/w/index.php?title=Rosetta_Code/Rank_languages_by_popularity/Full_list&oldid=263106
+--  and similar based on the ids gathered above, saving as many or as few entries needed for the final plotting - a
+--  graph with all 851 languages is not going to work, but (eg) top 10 may leave several gaps that you don't want.
+--  Ideally downloaded and optionally processed oldids should be permanently cached, to speed up future runs and
+--  minimise unnecessary load (~140MB) on the poor old rosettacode servers, whereas "Sundays" will need a re-fetch.
+--  Plot percentage or number by date for selected languages, show the output or image(s) or runnable online link.
+--  Extra kudos of course for prettier or more visually stunning graphs with tooltips, zooming, 3D, and whatever.
+--
+without js
+include pGUI.e
+include IupGraph.e
+include timedate.e
+
+function previous_sunday(string dt)
+    timedate td = parse_date_string(dt,{"dd Mmmm yyyy"})
+    integer {y,m,d} = td,
+            dow = remainder(day_of_week(y,m,d),7)
+    td = adjust_timedate(td,-timedelta(days:=dow))
+    return td
+end function
+
+?format_timedate(previous_sunday("31 July 2020"),"YYYY-MM-DD")
+?format_timedate(previous_sunday("12 December 2021"),"YYYY-MM-DD")
+
+--rc_cache\rankhist -> 263106.htm and 263106.txt (the latter is just a scanf per line) [keep both in case we need to re-parse/delete first]
+
+
+-- https://rosettacode.org/w/index.php?title=Rosetta_Code/Rank_languages_by_popularity/Full_list&oldid=263078 (As of 2018-05-18, 02:40, 19 May 2018)
+-- https://rosettacode.org/w/index.php?title=Rosetta_Code/Rank_languages_by_popularity/Full_list&direction=next&oldid=263078 (As of 2018-05-18, 02:47, 19 May 2018 (typo))
+-- https://rosettacode.org/w/index.php?title=Rosetta_Code/Rank_languages_by_popularity/Full_list&direction=next&oldid=263081
+--/* as of 03:10, 19 May 2018 by Thundergnat (Talk | contribs) (??Rosetta Code / Rank languages by popularity / Full output: Add count of languages to header)
+(diff) ? Older revision | Latest revision (diff) | Newer revision ? (diff)
+Rosetta Code / Rank languages by popularity / Full output
+Full output listing from Perl 6 entry. Updated periodically.
+
+Only includes actual Languages in tally. Accurate counts of only task examples. No other categories included in counts.
+
+As of 2018-05-18 :: 686 Languages
+--*/
+--https://rosettacode.org/w/index.php?title=Rosetta_Code/Rank_languages_by_popularity/Full_list&oldid=263106        -- *** starting point ***
+--https://rosettacode.org/w/index.php?title=Rosetta_Code/Rank_languages_by_popularity/Full_list&direction=next&oldid=263082
+--/* as of 12:24, 19 May 2018 by Thundergnat (Talk | contribs) (Add verbiage)
+(diff) ? Older revision | Latest revision (diff) | Newer revision ? (diff)
+Full output listing from Perl 6 entry. Updated periodically.
+
+Accurate counts of only task examples. No other categories included in counts. No effort made to combine different language categories that are the same behind the scenes due to Rosetta Codes capitalization peculiarities. If it has a "Programming Language" category block, it is counted. Perl6 works in Unicode natively so it has no need to translate or interpret language names which include characters outside of ISO-Latin-1;
+
+As of 2018-05-18 :: 686 Languages
+--*/
+--https://rosettacode.org/w/index.php?title=Rosetta_Code/Rank_languages_by_popularity/Full_list&direction=next&oldid=263106
+--/* as of 22:52, 1 June 2018 by Thundergnat (Talk | contribs) (Update full output list)
+(diff) ? Older revision | Latest revision (diff) | Newer revision ? (diff)
+Full output listing from Perl 6 entry. Updated periodically.
+
+Accurate counts of only task examples. No other categories included in counts. No effort made to combine different language categories that are the same behind the scenes due to Rosetta Codes capitalization peculiarities. If it has a "Programming Language" category block, it is counted. Perl6 works in Unicode natively so it has no need to translate or interpret language names which include characters outside of ISO-Latin-1;
+
+As of 2018-06-01 :: 688 Languages
+--*/
+--https://rosettacode.org/w/index.php?title=Rosetta_Code/Rank_languages_by_popularity/Full_list&direction=next&oldid=269959 *** percentages appear ***
+--/* as of 01:44, 8 October 2018 by Thundergnat (Talk | contribs) (Update full list output, add a column)
+(diff) ? Older revision | Latest revision (diff) | Newer revision ? (diff)
+Full output listing from Perl 6 entry. Updated periodically.
+
+Accurate counts of only task examples. No other categories included in counts. No effort made to combine different language categories that are the same behind the scenes due to Rosetta Codes capitalization peculiarities. If it has a "Programming Language" category block, it is counted. Perl6 works in Unicode natively so it has no need to translate or interpret language names which include characters outside of ISO-Latin-1;
+
+As of 2018-10-07 :: 706 Languages
+--*/
+--https://rosettacode.org/w/index.php?title=Rosetta_Code/Rank_languages_by_popularity/Full_list&direction=prev&oldid=279739 *** oops, skip this... ***
+--/* as of 19:26, 24 March 2019 by Thundergnat (Talk | contribs) (Update full list output)  *** sortable table appears *** (ok, next should blat it if we go by date)
+(diff) ? Older revision | Latest revision (diff) | Newer revision ? (diff)
+Full output listing from Perl 6 entry. Updated periodically.
+
+This is somewhat of a misnomer. This doesn't rank languages by "popularity", only by how many task examples have been added on Rosettacode for that particular language.
+
+Primarily this is a count of task examples in each programming language. I've elected to also show non-task categories, and task completion percentages for each programming language. Non-task sub categories are typically library pages, Users, Implementations and 'Examples needing attention'. Only languages that have a '{{language}}' block on their "Category:(whatever)" page are included in the counts.
+
+Accurate counts of all categories. No effort made to combine different language categories that are the same behind the scenes due to Rosetta Codes capitalization peculiarities. If it has a "Programming Language" category block, it is counted. Perl6 works in Unicode natively so it has no need to translate or interpret language names which include characters outside of ISO-Latin-1;
+
+Top ten programming languages by number of task examples completed:
+? Go
+? Perl 6
+? Python
+? Kotlin
+? Phix
+? Julia
+? Racket
+? Perl
+? C
+? J
+As of 2019-03-24T19:22:41Z :: Tasks: 931 :: Draft Tasks:223 :: Total Tasks: 1154 :: Total Examples: 60963
+--*/
+--https://rosettacode.org/w/index.php?title=Rosetta_Code/Rank_languages_by_popularity/Full_list&direction=next&oldid=279738 *** sanity restored ***
+--/* as of 19:28, 24 March 2019 by Thundergnat (Talk | contribs) (Update full list output with the correct page info.)
+(diff) ? Older revision | Latest revision (diff) | Newer revision ? (diff)
+Full output listing from Perl 6 entry. Updated periodically.
+
+This is somewhat of a misnomer. This doesn't rank languages by "popularity", only by how many task examples have been added on Rosettacode for that particular language.
+
+Primarily this is a count of task examples in each programming language. I've elected to also show non-task categories, and task completion percentages for each programming language. Non-task sub categories are typically library pages, Users, Implementations and 'Examples needing attention'. Only languages that have a '{{language}}' block on their "Category:(whatever)" page are included in the counts.
+
+Accurate counts of all categories. No effort made to combine different language categories that are the same behind the scenes due to Rosetta Codes capitalization peculiarities. If it has a "Programming Language" category block, it is counted. Perl6 works in Unicode natively so it has no need to translate or interpret language names which include characters outside of ISO-Latin-1;
+
+As of 2019-03-24 :: 718 Languages
+--*/
+--oh blast: (none of them were actually 100%)
+--https://rosettacode.org/w/index.php?title=Rosetta_Code/Rank_languages_by_popularity/Full_list&direction=next&oldid=309271
+--/* as of 22:16, 26 July 2020 by Thundergnat (Talk | contribs) (Update full list output)
+(diff) ? Older revision | Latest revision (diff) | Newer revision ? (diff)
+Full output listing from Raku entry. Updated periodically.
+
+This is somewhat of a misnomer. This doesn't rank languages by "popularity", only by how many task examples have been added on Rosettacode for that particular language.
+
+Primarily this is a count of task examples in each programming language. I've elected to also show non-task categories, and task completion percentages for each programming language. Non-task sub categories are typically library pages, Users, Implementations and 'Examples needing attention'. Only languages that have a '{{language}}' block on their "Category:(whatever)" page are included in the counts.
+
+Accurate counts of all categories. No effort made to combine different language categories that are the same behind the scenes due to Rosetta Codes capitalization peculiarities. If it has a "Programming Language" category block, it is counted. Raku works in Unicode natively so it has no need to translate or interpret language names which include characters outside of ISO-Latin-1;
+
+As of 2020-07-26 :: 794 Languages
+1       Go      1256    103.8 %     4       1260
+2       Phix    1224    101.16 %    4       1228
+3       Julia   1216    100.5 %     3       1219
+4       Raku    1209    99.92 %     1       1210
+
+--*/
+
+--/* Erm, don't think I really need this:
+(cur | prev) 20:35, 12 December 2021? Thundergnat (Talk | contribs)? . . (76,739 bytes) (+50)? . . (Update full list output) (undo)
+(cur | prev) 00:38, 6 December 2021? Thundergnat (Talk | contribs)? . . (76,689 bytes) (+173)? . . (U) (undo)
+(cur | prev) 01:15, 29 November 2021? Thundergnat (Talk | contribs)? . . (76,516 bytes) (+107)? . . (Update full list output) (undo)
+(cur | prev) 21:29, 21 November 2021? Thundergnat (Talk | contribs)? . . (76,409 bytes) (+12)? . . (Update full list output) (undo)
+(cur | prev) 21:17, 14 November 2021? Thundergnat (Talk | contribs)? . . (76,397 bytes) (-48)? . . (Update full list output) (undo)
+(cur | prev) 21:06, 7 November 2021? Thundergnat (Talk | contribs)? . . (76,445 bytes) (+83)? . . (Update full list output) (undo)
+(cur | prev) 19:48, 31 October 2021? Thundergnat (Talk | contribs)? . . (76,362 bytes) (+298)? . . (Update full list output) (undo)
+(cur | prev) 20:37, 24 October 2021? Thundergnat (Talk | contribs)? . . (76,064 bytes) (-29)? . . (Update full list output) (undo)
+(cur | prev) 20:53, 17 October 2021? Thundergnat (Talk | contribs)? . . (76,093 bytes) (+87)? . . (Update full list output) (undo)
+(cur | prev) 18:54, 10 October 2021? Thundergnat (Talk | contribs)? . . (76,006 bytes) (-1)? . . (Update full list output) (undo)
+(cur | prev) 20:50, 3 October 2021? Thundergnat (Talk | contribs)? . . (76,007 bytes) (+11)? . . (Update full list output) (undo)
+(cur | prev) 17:56, 26 September 2021? Thundergnat (Talk | contribs)? . . (75,996 bytes) (-8)? . . (Update full list output) (undo)
+(cur | prev) 21:26, 19 September 2021? Thundergnat (Talk | contribs)? . . (76,004 bytes) (+176)? . . (Update full list output) (undo)
+(cur | prev) 21:08, 12 September 2021? Thundergnat (Talk | contribs)? . . (75,828 bytes) (-43)? . . (Update full list output) (undo)
+(cur | prev) 21:03, 5 September 2021? Thundergnat (Talk | contribs)? . . (75,871 bytes) (+6)? . . (Update full list output) (undo)
+(cur | prev) 23:16, 29 August 2021? Thundergnat (Talk | contribs)? . . (75,865 bytes) (+83)? . . (Update full list output) (undo)
+(cur | prev) 22:34, 22 August 2021? Thundergnat (Talk | contribs)? . . (75,782 bytes) (+95)? . . (Update full list output) (undo)
+(cur | prev) 22:54, 15 August 2021? Thundergnat (Talk | contribs)? . . (75,687 bytes) (-6)? . . (Update full list output) (undo)
+(cur | prev) 22:17, 1 August 2021? Thundergnat (Talk | contribs)? . . (75,693 bytes) (+57)? . . (Update full list output) (undo)
+(cur | prev) 21:25, 25 July 2021? Thundergnat (Talk | contribs)? . . (75,636 bytes) (+17)? . . (Update full list output) (undo)
+(cur | prev) 20:44, 18 July 2021? Thundergnat (Talk | contribs)? . . (75,619 bytes) (-38)? . . (Update full list output) (undo)
+(cur | prev) 22:18, 11 July 2021? Thundergnat (Talk | contribs)? . . (75,657 bytes) (+57)? . . (Update full list output) (undo)
+(cur | prev) 21:29, 27 June 2021? Thundergnat (Talk | contribs)? . . (75,600 bytes) (+85)? . . (Update full list output) (undo)
+(cur | prev) 21:06, 20 June 2021? Thundergnat (Talk | contribs)? . . (75,515 bytes) (+1)? . . (Update full list output) (undo)
+(cur | prev) 20:52, 13 June 2021? Thundergnat (Talk | contribs)? . . (75,514 bytes) (+88)? . . (Update full list output) (undo)
+(cur | prev) 21:16, 6 June 2021? Thundergnat (Talk | contribs)? . . (75,426 bytes) (+93)? . . (Update full list output) (undo)
+(cur | prev) 20:23, 30 May 2021? Thundergnat (Talk | contribs)? . . (75,333 bytes) (+243)? . . (Update full list output) (undo)
+(cur | prev) 22:07, 23 May 2021? Thundergnat (Talk | contribs)? . . (75,090 bytes) (+99)? . . (Update full list output) (undo)
+(cur | prev) 22:44, 16 May 2021? Thundergnat (Talk | contribs)? . . (74,991 bytes) (-4)? . . (Update full list output) (undo)
+(cur | prev) 21:54, 9 May 2021? Thundergnat (Talk | contribs)? . . (74,995 bytes) (+178)? . . (Update full list output) (undo)
+(cur | prev) 22:13, 2 May 2021? Thundergnat (Talk | contribs)? . . (74,817 bytes) (-2)? . . (Update full list output) (undo)
+(cur | prev) 22:06, 25 April 2021? Thundergnat (Talk | contribs)? . . (74,819 bytes) (+2)? . . (Update full list output) (undo)
+(cur | prev) 21:14, 18 April 2021? Thundergnat (Talk | contribs)? . . (74,817 bytes) (-94)? . . (Update full list output) (undo)
+(cur | prev) 19:50, 11 April 2021? Thundergnat (Talk | contribs)? . . (74,911 bytes) (+294)? . . (Update full list output) (undo)
+(cur | prev) 23:02, 4 April 2021? Thundergnat (Talk | contribs)? . . (74,617 bytes) (+255)? . . (Update full list output) (undo)
+(cur | prev) 20:48, 28 March 2021? Thundergnat (Talk | contribs)? . . (74,362 bytes) (+100)? . . (Update full list output) (undo)
+(cur | prev) 20:51, 21 March 2021? Thundergnat (Talk | contribs)? . . (74,262 bytes) (+38)? . . (Update full list output) (undo)
+(cur | prev) 21:29, 14 March 2021? Thundergnat (Talk | contribs)? . . (74,224 bytes) (+68)? . . (Update full list output) (undo)
+(cur | prev) 23:07, 7 March 2021? Thundergnat (Talk | contribs)? . . (74,156 bytes) (+88)? . . (Update full list output) (undo)
+(cur | prev) 23:52, 28 February 2021? Thundergnat (Talk | contribs)? . . (74,068 bytes) (+140)? . . (Update full list output) (undo)
+(cur | prev) 23:28, 21 February 2021? Thundergnat (Talk | contribs)? . . (73,928 bytes) (+101)? . . (Update full list output) (undo)
+(cur | prev) 23:02, 14 February 2021? Thundergnat (Talk | contribs)? . . (73,827 bytes) (-22)? . . (Update full list output) (undo)
+(cur | prev) 21:41, 7 February 2021? Thundergnat (Talk | contribs)? . . (73,849 bytes) (+385)? . . (Update full list output) (undo)
+(cur | prev) 21:06, 31 January 2021? Thundergnat (Talk | contribs)? . . (73,464 bytes) (-82)? . . (Update full list output) (undo)
+(cur | prev) 22:12, 24 January 2021? Thundergnat (Talk | contribs)? . . (73,546 bytes) (-1)? . . (U) (undo)
+(cur | prev) 21:37, 17 January 2021? Thundergnat (Talk | contribs)? . . (73,547 bytes) (+87)? . . (Update full list output) (undo)
+(cur | prev) 21:17, 10 January 2021? Thundergnat (Talk | contribs)? . . (73,460 bytes) (+85)? . . (Update full list output) (undo)
+(cur | prev) 20:48, 3 January 2021? Thundergnat (Talk | contribs)? . . (73,375 bytes) (+16)? . . (Update full list output) (undo)
+(cur | prev) 21:14, 27 December 2020? Thundergnat (Talk | contribs)? . . (73,359 bytes) (+211)? . . (Update full list output) (undo)
+(cur | prev) 14:49, 14 December 2020? Thundergnat (Talk | contribs)? . . (73,148 bytes) (+26)? . . (Update full list output) (undo)
+(cur | prev) 21:30, 6 December 2020? Thundergnat (Talk | contribs)? . . (73,122 bytes) (+25)? . . (Update full list output) (undo)
+(cur | prev) 22:49, 29 November 2020? Thundergnat (Talk | contribs)? . . (73,097 bytes) (+19)? . . (Update full list output) (undo)
+(cur | prev) 15:02, 23 November 2020? Thundergnat (Talk | contribs)? . . (73,078 bytes) (+89)? . . (Weekly update, a little late) (undo)
+(cur | prev) 21:46, 15 November 2020? Thundergnat (Talk | contribs)? . . (72,989 bytes) (+74)? . . (Update full list output) (undo)
+(cur | prev) 21:53, 8 November 2020? Thundergnat (Talk | contribs)? . . (72,915 bytes) (+179)? . . (Update full list output) (undo)
+(cur | prev) 21:21, 1 November 2020? Thundergnat (Talk | contribs)? . . (72,736 bytes) (+176)? . . (Update full list output) (undo)
+(cur | prev) 22:27, 25 October 2020? Thundergnat (Talk | contribs)? . . (72,560 bytes) (+2)? . . (Update full list output) (undo)
+(cur | prev) 00:06, 19 October 2020? Thundergnat (Talk | contribs)? . . (72,558 bytes) (+90)? . . (Update full list output) (undo)
+(cur | prev) 00:23, 12 October 2020? Thundergnat (Talk | contribs)? . . (72,468 bytes) (+4)? . . (Update full list output) (undo)
+(cur | prev) 23:01, 4 October 2020? Thundergnat (Talk | contribs)? . . (72,464 bytes) (-3)? . . (Update full list output) (undo)
+(cur | prev) 23:18, 27 September 2020? Thundergnat (Talk | contribs)? . . (72,467 bytes) (+147)? . . (Update full list output) (undo)
+(cur | prev) 22:28, 20 September 2020? Thundergnat (Talk | contribs)? . . (72,320 bytes) (+3)? . . (Update full list output) (undo)
+(cur | prev) 22:45, 13 September 2020? Thundergnat (Talk | contribs)? . . (72,317 bytes) (+183)? . . (Update full list output) (undo)
+(cur | prev) 23:51, 6 September 2020? Thundergnat (Talk | contribs)? . . (72,134 bytes) (+129)? . . (Update full list output) (undo)
+(cur | prev) 21:31, 30 August 2020? Thundergnat (Talk | contribs)? . . (72,005 bytes) (+181)? . . (Update full list output) (undo)
+(cur | prev) 21:50, 23 August 2020? Thundergnat (Talk | contribs)? . . (71,824 bytes) (+92)? . . (Update full list output) (undo)
+(cur | prev) 21:19, 16 August 2020? Thundergnat (Talk | contribs)? . . (71,732 bytes) (+6)? . . (Update full list output) (undo)
+(cur | prev) 21:41, 9 August 2020? Thundergnat (Talk | contribs)? . . (71,726 bytes) (+1)? . . (Update full list output) (undo)
+(cur | prev) 22:08, 2 August 2020? Thundergnat (Talk | contribs)? . . (71,725 bytes) (0)? . . (Update full list output) (undo)
+(cur | prev) 22:16, 26 July 2020? Thundergnat (Talk | contribs)? . . (71,722 bytes) (+102)? . . (Update full list output) (undo)
+(cur | prev) 21:40, 19 July 2020? Thundergnat (Talk | contribs)? . . (71,620 bytes) (+171)? . . (Update full list output) (undo)
+(cur | prev) 22:03, 12 July 2020? Thundergnat (Talk | contribs)? . . (71,449 bytes) (+8)? . . (Update full list output) (undo)
+(cur | prev) 20:58, 5 July 2020? Thundergnat (Talk | contribs)? . . (71,441 bytes) (+6)? . . (Update full list output) (undo)
+(cur | prev) 21:21, 28 June 2020? Thundergnat (Talk | contribs)? . . (71,435 bytes) (+83)? . . (U) (undo)
+(cur | prev) 22:16, 21 June 2020? Thundergnat (Talk | contribs)? . . (71,352 bytes) (+100)? . . (Update full list output) (undo)
+(cur | prev) 21:41, 14 June 2020? Thundergnat (Talk | contribs)? . . (71,252 bytes) (+78)? . . (Update full list output) (undo)
+(cur | prev) 20:49, 31 May 2020? Thundergnat (Talk | contribs)? . . (71,174 bytes) (+111)? . . (Update full list output) (undo)
+(cur | prev) 00:12, 25 May 2020? Thundergnat (Talk | contribs)? . . (71,063 bytes) (+78)? . . (Update full list output) (undo)
+(cur | prev) 23:54, 17 May 2020? Thundergnat (Talk | contribs)? . . (70,985 bytes) (+104)? . . (Update full list output) (undo)
+(cur | prev) 22:20, 10 May 2020? Thundergnat (Talk | contribs)? . . (70,881 bytes) (+3)? . . (Update full list output) (undo)
+(cur | prev) 21:24, 3 May 2020? Thundergnat (Talk | contribs)? . . (70,878 bytes) (+565)? . . (Update full list output) (undo)
+(cur | prev) 21:50, 26 April 2020? Thundergnat (Talk | contribs)? . . (70,313 bytes) (+96)? . . (Update full list output) (undo)
+(cur | prev) 21:51, 19 April 2020? Thundergnat (Talk | contribs)? . . (70,217 bytes) (+290)? . . (Update full list output) (undo)
+(cur | prev) 22:09, 12 April 2020? Thundergnat (Talk | contribs)? . . (69,927 bytes) (+186)? . . (Update full list output) (undo)
+(cur | prev) 23:23, 5 April 2020? Thundergnat (Talk | contribs)? . . (69,741 bytes) (-10)? . . (Update full list output) (undo)
+(cur | prev) 21:53, 29 March 2020? Thundergnat (Talk | contribs)? . . (69,751 bytes) (+93)? . . (Update full list output) (undo)
+(cur | prev) 20:10, 22 March 2020? Thundergnat (Talk | contribs)? . . (69,658 bytes) (+197)? . . (Update full list output) (undo)
+(cur | prev) 20:15, 15 March 2020? Thundergnat (Talk | contribs)? . . (69,461 bytes) (-10)? . . (Update full list output) (undo)
+(cur | prev) 22:00, 8 March 2020? Thundergnat (Talk | contribs)? . . (69,471 bytes) (+184)? . . (Update full list output) (undo)
+(cur | prev) 21:12, 1 March 2020? Thundergnat (Talk | contribs)? . . (69,287 bytes) (+172)? . . (Update full list output) (undo)
+(cur | prev) 21:17, 23 February 2020? Thundergnat (Talk | contribs)? . . (69,115 bytes) (+155)? . . (Update full list output) (undo)
+(cur | prev) 21:41, 16 February 2020? Thundergnat (Talk | contribs)? . . (68,960 bytes) (-12)? . . (Update full list output) (undo)
+(cur | prev) 20:29, 9 February 2020? Thundergnat (Talk | contribs)? . . (68,972 bytes) (-1)? . . (Update full list output) (undo)
+(cur | prev) 21:05, 2 February 2020? Thundergnat (Talk | contribs)? . . (68,973 bytes) (+100)? . . (Update full list output) (undo)
+(cur | prev) 22:06, 26 January 2020? Thundergnat (Talk | contribs)? . . (68,873 bytes) (+3)? . . (Update full list output) (undo)
+(cur | prev) 22:15, 19 January 2020? Thundergnat (Talk | contribs)? . . (68,870 bytes) (-6)? . . (Update full list output) (undo)
+(cur | prev) 20:28, 12 January 2020? Thundergnat (Talk | contribs)? . . (68,876 bytes) (-6)? . . (Update full list output) (undo)
+(cur | prev) 21:19, 5 January 2020? Thundergnat (Talk | contribs)? . . (68,882 bytes) (+180)? . . (Update full list output) (undo)
+(cur | prev) 23:51, 29 December 2019? Thundergnat (Talk | contribs)? . . (68,702 bytes) (0)? . . (Update full list output) (undo)
+(cur | prev) 02:14, 23 December 2019? Thundergnat (Talk | contribs)? . . (68,702 bytes) (+187)? . . (Update full list output) (undo)
+(cur | prev) 22:22, 15 December 2019? Thundergnat (Talk | contribs)? . . (68,515 bytes) (-6)? . . (Update full list output) (undo)
+(cur | prev) 22:00, 8 December 2019? Thundergnat (Talk | contribs)? . . (68,521 bytes) (+84)? . . (Update full list output) (undo)
+(cur | prev) 22:38, 1 December 2019? Thundergnat (Talk | contribs)? . . (68,437 bytes) (+131)? . . (Update full list output) (undo)
+(cur | prev) 22:39, 24 November 2019? Thundergnat (Talk | contribs)? . . (68,306 bytes) (-77,146)? . . (Update full list output) (undo)
+(cur | prev) 22:38, 24 November 2019? Thundergnat (Talk | contribs)? . . (145,452 bytes) (+77,229)? . . (Update full list output) (undo)
+(cur | prev) 22:50, 17 November 2019? Thundergnat (Talk | contribs)? . . (68,223 bytes) (+48)? . . (Update full list output) (undo)
+(cur | prev) 21:13, 10 November 2019? Thundergnat (Talk | contribs)? . . (68,175 bytes) (-11)? . . (Update full list output) (undo)
+(cur | prev) 22:52, 3 November 2019? Thundergnat (Talk | contribs)? . . (68,186 bytes) (+25)? . . (Update full list output) (undo)
+(cur | prev) 23:22, 27 October 2019? Thundergnat (Talk | contribs)? . . (68,161 bytes) (+32)? . . (Update full list output) (undo)
+(cur | prev) 22:21, 20 October 2019? Thundergnat (Talk | contribs)? . . (68,129 bytes) (+253)? . . (Update full list output) (undo)
+(cur | prev) 23:53, 13 October 2019? Thundergnat (Talk | contribs)? . . (67,876 bytes) (-103)? . . (Update full list output) (undo)
+(cur | prev) 02:13, 7 October 2019? Thundergnat (Talk | contribs)? . . (67,979 bytes) (+187)? . . (Update full list output) (undo)
+(cur | prev) 00:16, 30 September 2019? Thundergnat (Talk | contribs)? . . (67,792 bytes) (+11)? . . (Update full list output) (undo)
+(cur | prev) 00:47, 23 September 2019? Thundergnat (Talk | contribs)? . . (67,781 bytes) (+251)? . . (Update full list output) (undo)
+(cur | prev) 03:07, 16 September 2019? Thundergnat (Talk | contribs)? . . (67,530 bytes) (+173)? . . (Update full list output) (undo)
+(cur | prev) 23:22, 8 September 2019? Thundergnat (Talk | contribs)? . . (67,357 bytes) (-18)? . . (Update full list output) (undo)
+(cur | prev) 21:58, 1 September 2019? Thundergnat (Talk | contribs)? . . (67,375 bytes) (-23)? . . (Update full list output) (undo)
+(cur | prev) 22:00, 25 August 2019? Thundergnat (Talk | contribs)? . . (67,398 bytes) (+105)? . . (Update full list output) (undo)
+(cur | prev) 20:56, 18 August 2019? Thundergnat (Talk | contribs)? . . (67,293 bytes) (+72)? . . (Update full list output) (undo)
+(cur | prev) 21:05, 11 August 2019? Thundergnat (Talk | contribs)? . . (67,221 bytes) (+3)? . . (Update full list output) (undo)
+(cur | prev) 23:39, 4 August 2019? Thundergnat (Talk | contribs)? . . (67,218 bytes) (+181)? . . (Update full list output) (undo)
+(cur | prev) 22:38, 28 July 2019? Thundergnat (Talk | contribs)? . . (67,037 bytes) (+11)? . . (Update full list output) (undo)
+(cur | prev) 21:48, 21 July 2019? Thundergnat (Talk | contribs)? . . (67,026 bytes) (+9)? . . (Update full list output) (undo)
+(cur | prev) 21:07, 14 July 2019? Thundergnat (Talk | contribs)? . . (67,017 bytes) (0)? . . (Update full list output) (undo)
+(cur | prev) 22:00, 7 July 2019? Thundergnat (Talk | contribs)? . . (67,017 bytes) (+276)? . . (Update full list output) (undo)
+(cur | prev) 22:13, 30 June 2019? Thundergnat (Talk | contribs)? . . (66,741 bytes) (-4)? . . (Update full list output) (undo)
+(cur | prev) 22:12, 23 June 2019? Thundergnat (Talk | contribs)? . . (66,745 bytes) (+200)? . . (Update full list output) (undo)
+(cur | prev) 22:07, 16 June 2019? Thundergnat (Talk | contribs)? . . (66,545 bytes) (+182)? . . (Update full list output) (undo)
+(cur | prev) 23:13, 9 June 2019? Thundergnat (Talk | contribs)? . . (66,363 bytes) (+183)? . . (Update full list output) (undo)
+(cur | prev) 21:03, 2 June 2019? Thundergnat (Talk | contribs)? . . (66,180 bytes) (-9)? . . (Update full list output) (undo)
+(cur | prev) 21:37, 26 May 2019? Thundergnat (Talk | contribs)? . . (66,189 bytes) (+73)? . . (Update full list output) (undo)
+(cur | prev) 23:43, 19 May 2019? Thundergnat (Talk | contribs)? . . (66,116 bytes) (+333)? . . (Update full list output) (undo)
+(cur | prev) 21:34, 12 May 2019? Thundergnat (Talk | contribs)? . . (65,783 bytes) (+105)? . . (Update full list output) (undo)
+(cur | prev) 22:40, 5 May 2019? Thundergnat (Talk | contribs)? . . (65,678 bytes) (+187)? . . (Update full list output) (undo)
+(cur | prev) 22:51, 28 April 2019? Thundergnat (Talk | contribs)? . . (65,491 bytes) (+1)? . . (Update fill list output) (undo)
+(cur | prev) 00:53, 22 April 2019? Thundergnat (Talk | contribs)? . . (65,490 bytes) (+76)? . . (Update full list output) (undo)
+(cur | prev) 19:52, 14 April 2019? Thundergnat (Talk | contribs)? . . (65,414 bytes) (+207)? . . (Update full list output) (undo)
+(cur | prev) 01:41, 8 April 2019? Thundergnat (Talk | contribs)? . . (65,207 bytes) (+1)? . . (Update full list output) (undo)
+(cur | prev) 01:12, 1 April 2019? Thundergnat (Talk | contribs)? . . (65,206 bytes) (+376)? . . (Update full list output) (undo)
+(cur | prev) 19:28, 24 March 2019? Thundergnat (Talk | contribs)? . . (64,830 bytes) (-73,441)? . . (Update full list output with the correct page info.) (undo)
+(cur | prev) 20:58, 17 March 2019? Thundergnat (Talk | contribs)? . . (64,742 bytes) (+25)? . . (Update full list output) (undo)
+(cur | prev) 23:20, 10 March 2019? Thundergnat (Talk | contribs)? . . (64,717 bytes) (+83)? . . (Update full list output) (undo)
+(cur | prev) 23:14, 3 March 2019? Thundergnat (Talk | contribs)? . . (64,634 bytes) (+2)? . . (Update full list output) (undo)
+(cur | prev) 20:31, 24 February 2019? Thundergnat (Talk | contribs)? . . (64,632 bytes) (-16)? . . (Update full list output) (undo)
+(cur | prev) 19:47, 17 February 2019? Thundergnat (Talk | contribs)? . . (64,648 bytes) (+71)? . . (Update full list output) (undo)
+(cur | prev) 16:31, 10 February 2019? Thundergnat (Talk | contribs)? . . (64,577 bytes) (-63,132)? . . (Update full list output) (undo)
+(cur | prev) 20:16, 3 February 2019? Thundergnat (Talk | contribs)? . . (127,709 bytes) (+163)? . . (Update full list output) (undo)
+(cur | prev) 22:01, 27 January 2019? Thundergnat (Talk | contribs)? . . (127,546 bytes) (+4)? . . (Update full list output) (undo)
+(cur | prev) 17:01, 20 January 2019? Thundergnat (Talk | contribs)? . . (127,542 bytes) (+4)? . . (Update full list output) (undo)
+(cur | prev) 02:11, 14 January 2019? Thundergnat (Talk | contribs)? . . (127,538 bytes) (+6)? . . (Update full list output) (undo)
+(cur | prev) 22:35, 7 January 2019? Thundergnat (Talk | contribs)? . . (127,532 bytes) (+533)? . . (Update full list output) (undo)
+(cur | prev) 13:21, 1 January 2019? Thundergnat (Talk | contribs)? . . (126,999 bytes) (-3)? . . (Update full list output) (undo)
+(cur | prev) 01:00, 24 December 2018? Thundergnat (Talk | contribs)? . . (127,002 bytes) (+7)? . . (Update full list output) (undo)
+(cur | prev) 23:21, 16 December 2018? Thundergnat (Talk | contribs)? . . (126,995 bytes) (-184)? . . (Update full list output) (undo)
+(cur | prev) 21:56, 9 December 2018? Thundergnat (Talk | contribs)? . . (127,179 bytes) (+351)? . . (Update full list output) (undo)
+(cur | prev) 22:08, 2 December 2018? Thundergnat (Talk | contribs)? . . (126,828 bytes) (+190)? . . (Update full list output) (undo)
+(cur | prev) 18:22, 18 November 2018? Thundergnat (Talk | contribs)? . . (126,638 bytes) (+169)? . . (Update full list output) (undo)
+(cur | prev) 22:13, 11 November 2018? Thundergnat (Talk | contribs)? . . (126,469 bytes) (+6)? . . (Update full list output) (undo)
+(cur | prev) 20:22, 4 November 2018? Thundergnat (Talk | contribs)? . . (126,463 bytes) (+7)? . . (Update full list output) (undo)
+(cur | prev) 17:09, 28 October 2018? Thundergnat (Talk | contribs)? . . (126,456 bytes) (+179)? . . (Update full list output) (undo)
+(cur | prev) 00:48, 23 October 2018? Thundergnat (Talk | contribs)? . . (126,277 bytes) (-7)? . . (Update full list output) (undo)
+(cur | prev) 02:04, 16 October 2018? Thundergnat (Talk | contribs)? . . (126,284 bytes) (+178)? . . (Update full list output) (undo)
+(cur | prev) 01:44, 8 October 2018? Thundergnat (Talk | contribs)? . . (126,106 bytes) (+28,056)? . . (Update full list output, add a column) (undo)
+(cur | prev) 23:40, 30 September 2018? Thundergnat (Talk | contribs)? . . (98,050 bytes) (+132)? . . (Update full list output) (undo)
+(cur | prev) 02:20, 27 September 2018? Thundergnat (Talk | contribs)? . . (97,918 bytes) (+142)? . . (Update full list output) (undo)
+(cur | prev) 23:09, 11 September 2018? Thundergnat (Talk | contribs)? . . (97,776 bytes) (0)? . . (Update full list output) (undo)
+(cur | prev) 23:04, 3 September 2018? Gerard Schildberger (Talk | contribs)? m . . (97,776 bytes) (0)? . . (increased height of scrollable window from 40 to 60.) (undo)
+(cur | prev) 02:00, 20 August 2018? Thundergnat (Talk | contribs)? . . (97,500 bytes) (+269)? . . (Update full list output) (undo)
+(cur | prev) 22:13, 5 August 2018? Thundergnat (Talk | contribs)? . . (97,231 bytes) (+140)? . . (Update full list output) (undo)
+(cur | prev) 22:27, 19 July 2018? Thundergnat (Talk | contribs)? . . (97,091 bytes) (+312)? . . (Update full list output) (undo)
+(cur | prev) 21:48, 10 July 2018? Thundergnat (Talk | contribs)? . . (96,779 bytes) (0)? . . (Update full list) (undo)
+(cur | prev) 22:45, 2 July 2018? Thundergnat (Talk | contribs)? . . (96,779 bytes) (+159)? . . (Update full list) (undo)
+(cur | prev) 01:13, 25 June 2018? Thundergnat (Talk | contribs)? . . (96,620 bytes) (0)? . . (Update full list output) (undo)
+(cur | prev) 01:19, 18 June 2018? Thundergnat (Talk | contribs)? m . . (96,620 bytes) (+142)? . . (Update full list output) (undo)
+(cur | prev) 20:01, 10 June 2018? Thundergnat (Talk | contribs)? . . (96,478 bytes) (+981)? . . (Update full list output) (undo)
+(cur | prev) 22:52, 1 June 2018? Thundergnat (Talk | contribs)? . . (95,497 bytes) (+282)? . . (Update full output list) (undo)
+(cur | prev) 12:24, 19 May 2018? Thundergnat (Talk | contribs)? m . . (95,215 bytes) (+246)? . . (Add verbiage) (undo)
+--*/
+

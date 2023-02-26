@@ -49,26 +49,24 @@ constant ERROR_ALREADY_EXISTS = 183
 global atom hMutex
 integer arg
 constant
-    xSetLastError = registerw32Procedure(kernel32, "SetLastError",{C_INT}),
-    xCreateMutex = registerw32Function(kernel32, "CreateMutexA",
-                                       {C_POINTER,C_INT,C_POINTER},C_LONG),
-    xReleaseMutex  = registerw32Procedure(kernel32, "ReleaseMutex",{C_LONG}),
-
-xScrollWindow = registerw32Procedure(user32, "ScrollWindow", {C_LONG,C_LONG,C_LONG,C_POINTER,C_POINTER})
+xSetLastError = registerw32Procedure(kernel32, "SetLastError",{C_INT}),
+xCreateMutex = registerw32Function(kernel32, "CreateMutexA", {C_PTR,C_INT,C_PTR},C_LONG),
+xReleaseMutex = registerw32Procedure(kernel32, "ReleaseMutex",{C_LONG}),
+xScrollWindow = registerw32Procedure(user32, "ScrollWindow", {C_LONG,C_LONG,C_LONG,C_PTR,C_PTR})
 
 arg = allocate_string("JudithIDE")
 hMutex = w32Func(xCreateMutex,{0, 0, arg})
-    if w32Func(GetLastError,{})=ERROR_ALREADY_EXISTS then
-        w32VOID = message_box("Only 1 instance of IDE is allowed","",0)--suggested by Mark Young
-        w32Proc(xReleaseMutex,{hMutex})
-        free(arg)
-        free_console()
-        abort(0)
-    end if
+if w32Func(GetLastError,{})=ERROR_ALREADY_EXISTS then
+    w32VOID = message_box("Only 1 instance of IDE is allowed","",0)--suggested by Mark Young
+    w32Proc(xReleaseMutex,{hMutex})
+    free(arg)
+    free_console()
+    abort(0)
+end if
 
-    -------------------------------------------------------------------------------
-    --       messages and display routine for all messages in IDE
-    -------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+--       messages and display routine for all messages in IDE
+-------------------------------------------------------------------------------
 global sequence MsgNos          MsgNos = {}
 global sequence IDEText         IDEText = {}
 global sequence TheLanguages    TheLanguages = {}

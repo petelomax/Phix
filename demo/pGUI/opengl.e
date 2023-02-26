@@ -1499,186 +1499,185 @@ global constant GL_VERSION_1_1                  = 1,
 --*************** Link functions from OpenGl32.dll **********
 string dll_so = iff(platform()=LINUX?GL_LIBPATH & "libGL.so":"opengl32.dll")
 atom opengl32 = open_dll(dll_so)
-if opengl32=NULL then crash("Error! Can\'t find " & dll_so) end if
 
 constant
-xglAccum                = iup_c_proc(opengl32,"glAccum",{GLenum,GLfloat}),
-xglBegin                = iup_c_proc(opengl32,"glBegin",{C_UINT}),
-xglBindTexture          = iup_c_proc(opengl32,"glBindTexture",{C_INT,C_UINT}),
-xglBitmap               = iup_c_proc(opengl32,"glBitmap",{C_INT,C_INT,C_FLOAT,C_FLOAT,C_FLOAT,C_FLOAT,C_POINTER}),
-xglBlendFunc            = iup_c_proc(opengl32,"glBlendFunc",{C_INT,C_INT}),
-xglCallList             = iup_c_proc(opengl32,"glCallList",{C_UINT}),
-xglCallLists            = iup_c_proc(opengl32,"glCallLists",{C_INT,C_INT,C_POINTER}),
-xglClear                = iup_c_proc(opengl32,"glClear",{C_UINT}),
-xglClearAccum           = iup_c_proc(opengl32,"glClearAccum",{GLfloat,GLfloat,GLfloat,GLfloat}),
-xglClearColor           = iup_c_proc(opengl32,"glClearColor",{GLclampf,GLclampf,GLclampf,GLclampf}),
-xglClearDepth           = iup_c_proc(opengl32,"glClearDepth",{C_DOUBLE}),
---xglColor3b            = iup_c_proc(opengl32,"glColor3b",{C_CHAR,C_CHAR,C_CHAR}),
-xglColor3d              = iup_c_proc(opengl32,"glColor3d",{C_DOUBLE,C_DOUBLE,C_DOUBLE}),
---xglColor3f            = iup_c_proc(opengl32,"glColor3f",{C_FLOAT,C_FLOAT,C_FLOAT}),
---xglColor3i            = iup_c_proc(opengl32,"glColor3i",{C_INT,C_INT,C_INT}),
---xglColor4b            = iup_c_proc(opengl32,"glColor4b",{C_CHAR,C_CHAR,C_CHAR,C_CHAR}),
-xglColor4d              = iup_c_proc(opengl32,"glColor4d",{C_DOUBLE,C_DOUBLE,C_DOUBLE,C_DOUBLE}),
---xglColor4f            = iup_c_proc(opengl32,"glColor4f",{C_FLOAT,C_FLOAT,C_FLOAT,C_FLOAT}),
---xglColor4i            = iup_c_proc(opengl32,"glColor4i",{C_INT,C_INT,C_INT,C_INT}),
-xglColorPointer         = iup_c_proc(opengl32,"glColorPointer", {C_INT, C_UINT, C_UINT, C_POINTER}),
-xglCullFace             = iup_c_proc(opengl32,"glCullFace",{C_INT}),
-xglDeleteLists          = iup_c_proc(opengl32,"glDeleteLists",{C_INT,C_INT}),
-xglDepthFunc            = iup_c_proc(opengl32,"glDepthFunc",{C_INT}),
-xglDepthMask            = iup_c_proc(opengl32,"glDepthMask", {C_CHAR}),
-xglDisable              = iup_c_proc(opengl32,"glDisable",{C_UINT}),
-xglDisableClientState   = iup_c_proc(opengl32,"glDisableClientState", {C_UINT}),
-xglDrawElements         = iup_c_proc(opengl32,"glDrawElements", {C_UINT, C_INT, C_UINT, C_POINTER}),
-xglEnable               = iup_c_proc(opengl32,"glEnable",{C_UINT}),
-xglEnableClientState    = iup_c_proc(opengl32,"glEnableClientState", {C_UINT}),
-xglEnd                  = iup_c_proc(opengl32,"glEnd",{}),
-xglEndList              = iup_c_proc(opengl32,"glEndList",{}),
---xglEvalMesh2          = iup_c_proc(opengl32,"glEvalMesh2",repeat(C_INT,5)),
-xglFinish               = iup_c_proc(opengl32,"glFinish",{}),
-xglFlush                = iup_c_proc(opengl32,"glFlush",{}),
-xglFogf                 = iup_c_proc(opengl32,"glFogf",{GLenum,GLfloat}),
-xglFogfv                = iup_c_proc(opengl32,"glFogfv",{C_INT,C_POINTER}),
-xglFogi                 = iup_c_proc(opengl32,"glFogi",{C_INT,C_INT}),
---xglFogiv              = iup_c_proc(opengl32,"glFogiv",{C_INT,C_POINTER}),
-xglFrontFace            = iup_c_proc(opengl32,"glFrontFace",{C_INT}),
-xglFrustum              = iup_c_proc(opengl32,"glFrustum",repeat(C_DOUBLE,6)),
-xglGenLists             = iup_c_func(opengl32,"glGenLists",{C_INT},C_INT),
-xglGenTextures          = iup_c_proc(opengl32,"glGenTextures",{C_INT,C_POINTER}),
-xglGetError             = iup_c_func(opengl32,"glGetError",{},C_INT),
-xglGetBooleanv          = iup_c_proc(opengl32,"glGetBooleanv", {C_UINT, C_POINTER}),
-xglGetDoublev           = iup_c_proc(opengl32,"glGetDoublev", {C_UINT, C_POINTER}),
-xglGetFloatv            = iup_c_proc(opengl32,"glGetFloatv", {C_UINT, C_POINTER}),
-xglGetIntegerv          = iup_c_proc(opengl32,"glGetIntegerv", {C_UINT, C_POINTER}),
-xglGetString            = iup_c_func(opengl32,"glGetString", {C_UINT}, C_POINTER),
-xglHint                 = iup_c_proc(opengl32,"glHint",{C_INT,C_INT}),
-xglIndexi               = iup_c_proc(opengl32,"glIndexi",{C_INT}),
-xglLightf               = iup_c_proc(opengl32,"glLightf",{GLenum,GLenum,GLfloat}),
-xglLightfv              = iup_c_proc(opengl32,"glLightfv",{C_INT,C_INT,C_POINTER}),
-xglLightModelf          = iup_c_proc(opengl32,"glLightModelf",{C_INT,C_FLOAT}),
-xglLightModelfv         = iup_c_proc(opengl32,"glLightModelfv",{C_INT,C_POINTER}),
-xglListBase             = iup_c_proc(opengl32,"glListBase",{C_UINT}),
-xglLoadIdentity         = iup_c_proc(opengl32,"glLoadIdentity",{}),
-xglLoadMatrixd          = iup_c_proc(opengl32,"glLoadMatrixd",{C_PTR}),
---xglMap2f              = iup_c_proc(opengl32,"glMap2f",{GLenum,GLfloat,GLfloat,GLint,GLint,GLfloat,GLfloat,GLint,GLint,C_POINTER}),
---xglMapGrid2f          = iup_c_proc(opengl32,"glMapGrid2f",{C_INT,C_FLOAT,C_FLOAT,C_INT,C_FLOAT,C_INT}),
-xglMaterialf            = iup_c_proc(opengl32,"glMaterialf",{C_UINT,C_UINT,C_FLOAT}),
-xglMaterialfv           = iup_c_proc(opengl32,"glMaterialfv",{C_INT,C_INT,C_POINTER}),
---xglMateriali          = iup_c_proc(opengl32,"glMateriali",{C_UINT,C_UINT,C_INT}),
-xglMatrixMode           = iup_c_proc(opengl32,"glMatrixMode",{C_UINT}),
-xglNewList              = iup_c_proc(opengl32,"glNewList",{C_UINT,C_INT}),
---xglNormal3b           = iup_c_proc(opengl32,"glNormal3b",{C_CHAR,C_CHAR,C_CHAR}),
-xglNormal3d             = iup_c_proc(opengl32,"glNormal3d",{C_DOUBLE,C_DOUBLE,C_DOUBLE}),
---xglNormal3f           = iup_c_proc(opengl32,"glNormal3f",{C_FLOAT,C_FLOAT,C_FLOAT}),
---xglNormal3i           = iup_c_proc(opengl32,"glNormal3i",{C_INT,C_INT,C_INT}),
---xglNormal3s           = iup_c_proc(opengl32,"glNormal3s",{C_SHORT,C_SHORT,C_SHORT}),
-xglOrtho                = iup_c_proc(opengl32,"glOrtho",repeat(C_DOUBLE,6)),
-xglPixelStorei          = iup_c_proc(opengl32,"glPixelStorei",{C_INT,C_INT}),
-xglPointSize            = iup_c_proc(opengl32,"glPointSize",{C_FLOAT}),
-xglPolygonMode          = iup_c_proc(opengl32,"glPolygonMode",{C_INT,C_INT}),
-xglPopMatrix            = iup_c_proc(opengl32,"glPopMatrix",{}),
-xglPushMatrix           = iup_c_proc(opengl32,"glPushMatrix",{}),
-xglRasterPos2i          = iup_c_proc(opengl32,"glRasterPos2i",{C_INT,C_INT}),
---xglReadBuffer         = iup_c_proc(opengl32,"glReadBuffer",{C_INT}),
---xglReadPixels         = iup_c_proc(opengl32,"glReadPixels",repeat(C_INT,6) & C_POINTER),
---xglRectd              = iup_c_proc(opengl32,"glRectd",repeat(C_DOUBLE,4)),
---xglRectdv             = iup_c_proc(opengl32,"glRectdv",{C_POINTER}),
-xglRectf                = iup_c_proc(opengl32,"glRectf",{C_FLOAT,C_FLOAT,C_FLOAT,C_FLOAT}),
---xglRectfv             = iup_c_proc(opengl32,"glRectfv",{C_POINTER}),
---xglRecti              = iup_c_proc(opengl32,"glRecti",repeat(C_INT,4)),
---xglRectiv             = iup_c_proc(opengl32,"glRectiv",{C_POINTER}),
---xglRects              = iup_c_proc(opengl32,"glRects",repeat(C_SHORT,4)),
---xglRectsv             = iup_c_proc(opengl32,"glRectsv",{C_POINTER}),
---xglRenderMode         = iup_c_func(opengl32,"glRenderMode",{C_INT},C_INT),
-xglRotated              = iup_c_proc(opengl32,"glRotated",{C_DOUBLE,C_DOUBLE,C_DOUBLE,C_DOUBLE}),
-xglRotatef              = iup_c_proc(opengl32,"glRotatef",{C_FLOAT,C_FLOAT,C_FLOAT,C_FLOAT}),
-xglScaled               = iup_c_proc(opengl32,"glScaled",{C_DOUBLE,C_DOUBLE,C_DOUBLE}),
-xglScalef               = iup_c_proc(opengl32,"glScalef",{C_FLOAT,C_FLOAT,C_FLOAT}),
-xglScissor              = iup_c_proc(opengl32,"glScissor",repeat(C_INT,4)),
---xglSelectBuffer       = iup_c_proc(opengl32,"glSelectBuffer",{C_INT,C_POINTER}),
-xglShadeModel           = iup_c_proc(opengl32,"glShadeModel",{C_UINT}),
---xglStencilFunc        = iup_c_proc(opengl32,"glStencilFunc",{C_INT,C_INT,C_UINT}),
---xglStencilMask        = iup_c_proc(opengl32,"glStencilMask",{C_UINT}),
---xglStencilOp          = iup_c_proc(opengl32,"glStencilOp",{C_INT,C_INT,C_INT}),
---xglTexCoord1d         = iup_c_proc(opengl32,"glTexCoord1d",{C_DOUBLE}),
---xglTexCoord1dv        = iup_c_proc(opengl32,"glTexCoord1dv",{C_POINTER}),
---xglTexCoord1fv        = iup_c_proc(opengl32,"glTexCoord1fv",{C_POINTER}),
---xglTexCoord1i         = iup_c_proc(opengl32,"glTexCoord1i",{C_INT}),
---xglTexCoord1iv        = iup_c_proc(opengl32,"glTexCoord1iv",{C_POINTER}),
---xglTexCoord1s         = iup_c_proc(opengl32,"glTexCoord1s",{C_SHORT}),
---xglTexCoord1sv        = iup_c_proc(opengl32,"glTexCoord1sv",{C_POINTER}),
---xglTexCoord2d         = iup_c_proc(opengl32,"glTexCoord2d",{C_DOUBLE,C_DOUBLE}),
---xglTexCoord2dv        = iup_c_proc(opengl32,"glTexCoord2dv",{C_POINTER}),
---xglTexCoord2f         = iup_c_proc(opengl32,"glTexCoord2f",{C_FLOAT,C_FLOAT}),
---xglTexCoord2fv        = iup_c_proc(opengl32,"glTexCoord2fv",{C_POINTER}),
---xglTexCoord2i         = iup_c_proc(opengl32,"glTexCoord2i",{C_INT,C_INT}),
---xglTexCoord2iv        = iup_c_proc(opengl32,"glTexCoord2iv",{C_POINTER}),
---xglTexCoord2s         = iup_c_proc(opengl32,"glTexCoord2s",{C_SHORT,C_SHORT}),
---xglTexCoord2sv        = iup_c_proc(opengl32,"glTexCoord2sv",{C_POINTER}),
---xglTexCoord3d         = iup_c_proc(opengl32,"glTexCoord3d",{C_DOUBLE,C_DOUBLE,C_DOUBLE}),
---xglTexCoord3dv        = iup_c_proc(opengl32,"glTexCoord3dv",{C_POINTER}),
---xglTexCoord3f         = iup_c_proc(opengl32,"glTexCoord3f",{C_FLOAT,C_FLOAT,C_FLOAT}),
---xglTexCoord3fv        = iup_c_proc(opengl32,"glTexCoord3fv",{C_POINTER}),
---xglTexCoord3i         = iup_c_proc(opengl32,"glTexCoord3i",{C_INT,C_INT,C_INT}),
---xglTexCoord3iv        = iup_c_proc(opengl32,"glTexCoord3iv",{C_POINTER}),
---xglTexCoord3s         = iup_c_proc(opengl32,"glTexCoord3s",{C_SHORT,C_SHORT,C_SHORT}),
---xglTexCoord3sv        = iup_c_proc(opengl32,"glTexCoord3sv",{C_POINTER}),
-xglTexCoord4d           = iup_c_proc(opengl32,"glTexCoord4d",repeat(C_DOUBLE,4)),
---xglTexCoord4dv        = iup_c_proc(opengl32,"glTexCoord4dv",{C_POINTER}),
---xglTexCoord4fv        = iup_c_proc(opengl32,"glTexCoord4fv",{C_POINTER}),
---xglTexCoord4i         = iup_c_proc(opengl32,"glTexCoord4i",repeat(C_INT,4)),
---xglTexCoord4iv        = iup_c_proc(opengl32,"glTexCoord4iv",{C_POINTER}),
---xglTexCoord4s         = iup_c_proc(opengl32,"glTexCoord4s",repeat(C_SHORT,4)),
---xglTexCoord4sv        = iup_c_proc(opengl32,"glTexCoord4sv",{C_POINTER}),
-xglTexEnvi              = iup_c_proc(opengl32,"glTexEnvi",{C_INT,C_INT,C_INT}),
-xglTexEnvf              = iup_c_proc(opengl32,"glTexEnvf",{C_INT,C_INT,C_FLOAT}),
---xglTexEnvf            = iup_c_proc(opengl32,"glTexEnvf",{C_INT,C_INT,C_DOUBLE}),
-xglTexGeni              = iup_c_proc(opengl32,"glTexGeni",{C_INT,C_INT,C_INT}),
---xglTexImage1D         = iup_c_proc(opengl32,"glTexImage1D",repeat(C_INT,7) & C_POINTER),
-xglTexImage2D           = iup_c_proc(opengl32,"glTexImage2D",repeat(C_INT,8) & C_POINTER),
---xglTexParameterfv     = iup_c_proc(opengl32,"glTexParameterfv",{C_INT,C_INT,C_POINTER}),
-xglTexParameteri        = iup_c_proc(opengl32,"glTexParameteri",{C_INT,C_INT,C_INT}),
---xglTexParameteriv     = iup_c_proc(opengl32,"glTexParameteriv",{C_INT,C_INT,C_POINTER}),
-xglTranslated           = iup_c_proc(opengl32,"glTranslated",{C_DOUBLE,C_DOUBLE,C_DOUBLE}),
-xglTranslatef           = iup_c_proc(opengl32,"glTranslatef",{C_FLOAT,C_FLOAT,C_FLOAT}),
+xglAccum                = define_c_proc(opengl32,"glAccum",{GLenum,GLfloat}),
+xglBegin                = define_c_proc(opengl32,"glBegin",{C_UINT}),
+xglBindTexture          = define_c_proc(opengl32,"glBindTexture",{C_INT,C_UINT}),
+xglBitmap               = define_c_proc(opengl32,"glBitmap",{C_INT,C_INT,C_FLOAT,C_FLOAT,C_FLOAT,C_FLOAT,C_PTR}),
+xglBlendFunc            = define_c_proc(opengl32,"glBlendFunc",{C_INT,C_INT}),
+xglCallList             = define_c_proc(opengl32,"glCallList",{C_UINT}),
+xglCallLists            = define_c_proc(opengl32,"glCallLists",{C_INT,C_INT,C_PTR}),
+xglClear                = define_c_proc(opengl32,"glClear",{C_UINT}),
+xglClearAccum           = define_c_proc(opengl32,"glClearAccum",{GLfloat,GLfloat,GLfloat,GLfloat}),
+xglClearColor           = define_c_proc(opengl32,"glClearColor",{GLclampf,GLclampf,GLclampf,GLclampf}),
+xglClearDepth           = define_c_proc(opengl32,"glClearDepth",{C_DOUBLE}),
+--xglColor3b            = define_c_proc(opengl32,"glColor3b",{C_CHAR,C_CHAR,C_CHAR}),
+xglColor3d              = define_c_proc(opengl32,"glColor3d",{C_DOUBLE,C_DOUBLE,C_DOUBLE}),
+--xglColor3f            = define_c_proc(opengl32,"glColor3f",{C_FLOAT,C_FLOAT,C_FLOAT}),
+--xglColor3i            = define_c_proc(opengl32,"glColor3i",{C_INT,C_INT,C_INT}),
+--xglColor4b            = define_c_proc(opengl32,"glColor4b",{C_CHAR,C_CHAR,C_CHAR,C_CHAR}),
+xglColor4d              = define_c_proc(opengl32,"glColor4d",{C_DOUBLE,C_DOUBLE,C_DOUBLE,C_DOUBLE}),
+--xglColor4f            = define_c_proc(opengl32,"glColor4f",{C_FLOAT,C_FLOAT,C_FLOAT,C_FLOAT}),
+--xglColor4i            = define_c_proc(opengl32,"glColor4i",{C_INT,C_INT,C_INT,C_INT}),
+xglColorPointer         = define_c_proc(opengl32,"glColorPointer", {C_INT, C_UINT, C_UINT, C_PTR}),
+xglCullFace             = define_c_proc(opengl32,"glCullFace",{C_INT}),
+xglDeleteLists          = define_c_proc(opengl32,"glDeleteLists",{C_INT,C_INT}),
+xglDepthFunc            = define_c_proc(opengl32,"glDepthFunc",{C_INT}),
+xglDepthMask            = define_c_proc(opengl32,"glDepthMask", {C_CHAR}),
+xglDisable              = define_c_proc(opengl32,"glDisable",{C_UINT}),
+xglDisableClientState   = define_c_proc(opengl32,"glDisableClientState", {C_UINT}),
+xglDrawElements         = define_c_proc(opengl32,"glDrawElements", {C_UINT, C_INT, C_UINT, C_PTR}),
+xglEnable               = define_c_proc(opengl32,"glEnable",{C_UINT}),
+xglEnableClientState    = define_c_proc(opengl32,"glEnableClientState", {C_UINT}),
+xglEnd                  = define_c_proc(opengl32,"glEnd",{}),
+xglEndList              = define_c_proc(opengl32,"glEndList",{}),
+--xglEvalMesh2          = define_c_proc(opengl32,"glEvalMesh2",repeat(C_INT,5)),
+xglFinish               = define_c_proc(opengl32,"glFinish",{}),
+xglFlush                = define_c_proc(opengl32,"glFlush",{}),
+xglFogf                 = define_c_proc(opengl32,"glFogf",{GLenum,GLfloat}),
+xglFogfv                = define_c_proc(opengl32,"glFogfv",{C_INT,C_PTR}),
+xglFogi                 = define_c_proc(opengl32,"glFogi",{C_INT,C_INT}),
+--xglFogiv              = define_c_proc(opengl32,"glFogiv",{C_INT,C_PTR}),
+xglFrontFace            = define_c_proc(opengl32,"glFrontFace",{C_INT}),
+xglFrustum              = define_c_proc(opengl32,"glFrustum",repeat(C_DOUBLE,6)),
+xglGenLists             = define_c_func(opengl32,"glGenLists",{C_INT},C_INT),
+xglGenTextures          = define_c_proc(opengl32,"glGenTextures",{C_INT,C_PTR}),
+xglGetError             = define_c_func(opengl32,"glGetError",{},C_INT),
+xglGetBooleanv          = define_c_proc(opengl32,"glGetBooleanv", {C_UINT, C_PTR}),
+xglGetDoublev           = define_c_proc(opengl32,"glGetDoublev", {C_UINT, C_PTR}),
+xglGetFloatv            = define_c_proc(opengl32,"glGetFloatv", {C_UINT, C_PTR}),
+xglGetIntegerv          = define_c_proc(opengl32,"glGetIntegerv", {C_UINT, C_PTR}),
+xglGetString            = define_c_func(opengl32,"glGetString", {C_UINT}, C_PTR),
+xglHint                 = define_c_proc(opengl32,"glHint",{C_INT,C_INT}),
+xglIndexi               = define_c_proc(opengl32,"glIndexi",{C_INT}),
+xglLightf               = define_c_proc(opengl32,"glLightf",{GLenum,GLenum,GLfloat}),
+xglLightfv              = define_c_proc(opengl32,"glLightfv",{C_INT,C_INT,C_PTR}),
+xglLightModelf          = define_c_proc(opengl32,"glLightModelf",{C_INT,C_FLOAT}),
+xglLightModelfv         = define_c_proc(opengl32,"glLightModelfv",{C_INT,C_PTR}),
+xglListBase             = define_c_proc(opengl32,"glListBase",{C_UINT}),
+xglLoadIdentity         = define_c_proc(opengl32,"glLoadIdentity",{}),
+xglLoadMatrixd          = define_c_proc(opengl32,"glLoadMatrixd",{C_PTR}),
+--xglMap2f              = define_c_proc(opengl32,"glMap2f",{GLenum,GLfloat,GLfloat,GLint,GLint,GLfloat,GLfloat,GLint,GLint,C_PTR}),
+--xglMapGrid2f          = define_c_proc(opengl32,"glMapGrid2f",{C_INT,C_FLOAT,C_FLOAT,C_INT,C_FLOAT,C_INT}),
+xglMaterialf            = define_c_proc(opengl32,"glMaterialf",{C_UINT,C_UINT,C_FLOAT}),
+xglMaterialfv           = define_c_proc(opengl32,"glMaterialfv",{C_INT,C_INT,C_PTR}),
+--xglMateriali          = define_c_proc(opengl32,"glMateriali",{C_UINT,C_UINT,C_INT}),
+xglMatrixMode           = define_c_proc(opengl32,"glMatrixMode",{C_UINT}),
+xglNewList              = define_c_proc(opengl32,"glNewList",{C_UINT,C_INT}),
+--xglNormal3b           = define_c_proc(opengl32,"glNormal3b",{C_CHAR,C_CHAR,C_CHAR}),
+xglNormal3d             = define_c_proc(opengl32,"glNormal3d",{C_DOUBLE,C_DOUBLE,C_DOUBLE}),
+--xglNormal3f           = define_c_proc(opengl32,"glNormal3f",{C_FLOAT,C_FLOAT,C_FLOAT}),
+--xglNormal3i           = define_c_proc(opengl32,"glNormal3i",{C_INT,C_INT,C_INT}),
+--xglNormal3s           = define_c_proc(opengl32,"glNormal3s",{C_SHORT,C_SHORT,C_SHORT}),
+xglOrtho                = define_c_proc(opengl32,"glOrtho",repeat(C_DOUBLE,6)),
+xglPixelStorei          = define_c_proc(opengl32,"glPixelStorei",{C_INT,C_INT}),
+xglPointSize            = define_c_proc(opengl32,"glPointSize",{C_FLOAT}),
+xglPolygonMode          = define_c_proc(opengl32,"glPolygonMode",{C_INT,C_INT}),
+xglPopMatrix            = define_c_proc(opengl32,"glPopMatrix",{}),
+xglPushMatrix           = define_c_proc(opengl32,"glPushMatrix",{}),
+xglRasterPos2i          = define_c_proc(opengl32,"glRasterPos2i",{C_INT,C_INT}),
+--xglReadBuffer         = define_c_proc(opengl32,"glReadBuffer",{C_INT}),
+--xglReadPixels         = define_c_proc(opengl32,"glReadPixels",repeat(C_INT,6) & C_PTR),
+--xglRectd              = define_c_proc(opengl32,"glRectd",repeat(C_DOUBLE,4)),
+--xglRectdv             = define_c_proc(opengl32,"glRectdv",{C_PTR}),
+xglRectf                = define_c_proc(opengl32,"glRectf",{C_FLOAT,C_FLOAT,C_FLOAT,C_FLOAT}),
+--xglRectfv             = define_c_proc(opengl32,"glRectfv",{C_PTR}),
+--xglRecti              = define_c_proc(opengl32,"glRecti",repeat(C_INT,4)),
+--xglRectiv             = define_c_proc(opengl32,"glRectiv",{C_PTR}),
+--xglRects              = define_c_proc(opengl32,"glRects",repeat(C_SHORT,4)),
+--xglRectsv             = define_c_proc(opengl32,"glRectsv",{C_PTR}),
+--xglRenderMode         = define_c_func(opengl32,"glRenderMode",{C_INT},C_INT),
+xglRotated              = define_c_proc(opengl32,"glRotated",{C_DOUBLE,C_DOUBLE,C_DOUBLE,C_DOUBLE}),
+xglRotatef              = define_c_proc(opengl32,"glRotatef",{C_FLOAT,C_FLOAT,C_FLOAT,C_FLOAT}),
+xglScaled               = define_c_proc(opengl32,"glScaled",{C_DOUBLE,C_DOUBLE,C_DOUBLE}),
+xglScalef               = define_c_proc(opengl32,"glScalef",{C_FLOAT,C_FLOAT,C_FLOAT}),
+xglScissor              = define_c_proc(opengl32,"glScissor",repeat(C_INT,4)),
+--xglSelectBuffer       = define_c_proc(opengl32,"glSelectBuffer",{C_INT,C_PTR}),
+xglShadeModel           = define_c_proc(opengl32,"glShadeModel",{C_UINT}),
+--xglStencilFunc        = define_c_proc(opengl32,"glStencilFunc",{C_INT,C_INT,C_UINT}),
+--xglStencilMask        = define_c_proc(opengl32,"glStencilMask",{C_UINT}),
+--xglStencilOp          = define_c_proc(opengl32,"glStencilOp",{C_INT,C_INT,C_INT}),
+--xglTexCoord1d         = define_c_proc(opengl32,"glTexCoord1d",{C_DOUBLE}),
+--xglTexCoord1dv        = define_c_proc(opengl32,"glTexCoord1dv",{C_PTR}),
+--xglTexCoord1fv        = define_c_proc(opengl32,"glTexCoord1fv",{C_PTR}),
+--xglTexCoord1i         = define_c_proc(opengl32,"glTexCoord1i",{C_INT}),
+--xglTexCoord1iv        = define_c_proc(opengl32,"glTexCoord1iv",{C_PTR}),
+--xglTexCoord1s         = define_c_proc(opengl32,"glTexCoord1s",{C_SHORT}),
+--xglTexCoord1sv        = define_c_proc(opengl32,"glTexCoord1sv",{C_PTR}),
+--xglTexCoord2d         = define_c_proc(opengl32,"glTexCoord2d",{C_DOUBLE,C_DOUBLE}),
+--xglTexCoord2dv        = define_c_proc(opengl32,"glTexCoord2dv",{C_PTR}),
+--xglTexCoord2f         = define_c_proc(opengl32,"glTexCoord2f",{C_FLOAT,C_FLOAT}),
+--xglTexCoord2fv        = define_c_proc(opengl32,"glTexCoord2fv",{C_PTR}),
+--xglTexCoord2i         = define_c_proc(opengl32,"glTexCoord2i",{C_INT,C_INT}),
+--xglTexCoord2iv        = define_c_proc(opengl32,"glTexCoord2iv",{C_PTR}),
+--xglTexCoord2s         = define_c_proc(opengl32,"glTexCoord2s",{C_SHORT,C_SHORT}),
+--xglTexCoord2sv        = define_c_proc(opengl32,"glTexCoord2sv",{C_PTR}),
+--xglTexCoord3d         = define_c_proc(opengl32,"glTexCoord3d",{C_DOUBLE,C_DOUBLE,C_DOUBLE}),
+--xglTexCoord3dv        = define_c_proc(opengl32,"glTexCoord3dv",{C_PTR}),
+--xglTexCoord3f         = define_c_proc(opengl32,"glTexCoord3f",{C_FLOAT,C_FLOAT,C_FLOAT}),
+--xglTexCoord3fv        = define_c_proc(opengl32,"glTexCoord3fv",{C_PTR}),
+--xglTexCoord3i         = define_c_proc(opengl32,"glTexCoord3i",{C_INT,C_INT,C_INT}),
+--xglTexCoord3iv        = define_c_proc(opengl32,"glTexCoord3iv",{C_PTR}),
+--xglTexCoord3s         = define_c_proc(opengl32,"glTexCoord3s",{C_SHORT,C_SHORT,C_SHORT}),
+--xglTexCoord3sv        = define_c_proc(opengl32,"glTexCoord3sv",{C_PTR}),
+xglTexCoord4d           = define_c_proc(opengl32,"glTexCoord4d",repeat(C_DOUBLE,4)),
+--xglTexCoord4dv        = define_c_proc(opengl32,"glTexCoord4dv",{C_PTR}),
+--xglTexCoord4fv        = define_c_proc(opengl32,"glTexCoord4fv",{C_PTR}),
+--xglTexCoord4i         = define_c_proc(opengl32,"glTexCoord4i",repeat(C_INT,4)),
+--xglTexCoord4iv        = define_c_proc(opengl32,"glTexCoord4iv",{C_PTR}),
+--xglTexCoord4s         = define_c_proc(opengl32,"glTexCoord4s",repeat(C_SHORT,4)),
+--xglTexCoord4sv        = define_c_proc(opengl32,"glTexCoord4sv",{C_PTR}),
+xglTexEnvi              = define_c_proc(opengl32,"glTexEnvi",{C_INT,C_INT,C_INT}),
+xglTexEnvf              = define_c_proc(opengl32,"glTexEnvf",{C_INT,C_INT,C_FLOAT}),
+--xglTexEnvf            = define_c_proc(opengl32,"glTexEnvf",{C_INT,C_INT,C_DOUBLE}),
+xglTexGeni              = define_c_proc(opengl32,"glTexGeni",{C_INT,C_INT,C_INT}),
+--xglTexImage1D         = define_c_proc(opengl32,"glTexImage1D",repeat(C_INT,7) & C_PTR),
+xglTexImage2D           = define_c_proc(opengl32,"glTexImage2D",repeat(C_INT,8) & C_PTR),
+--xglTexParameterfv     = define_c_proc(opengl32,"glTexParameterfv",{C_INT,C_INT,C_PTR}),
+xglTexParameteri        = define_c_proc(opengl32,"glTexParameteri",{C_INT,C_INT,C_INT}),
+--xglTexParameteriv     = define_c_proc(opengl32,"glTexParameteriv",{C_INT,C_INT,C_PTR}),
+xglTranslated           = define_c_proc(opengl32,"glTranslated",{C_DOUBLE,C_DOUBLE,C_DOUBLE}),
+xglTranslatef           = define_c_proc(opengl32,"glTranslatef",{C_FLOAT,C_FLOAT,C_FLOAT}),
 --glUniform
---xglVertex2d           = iup_c_proc(opengl32,"glVertex2d",{C_DOUBLE,C_DOUBLE}),
---xglVertex2dv          = iup_c_proc(opengl32,"glVertex2dv",{C_POINTER}),
---xglVertex2f           = iup_c_proc(opengl32,"glVertex2f",{C_FLOAT,C_FLOAT}),
---xglVertex2fv          = iup_c_proc(opengl32,"glVertex2fv",{C_POINTER}),
---xglVertex2i           = iup_c_proc(opengl32,"glVertex2i",{C_INT,C_INT}),
---xglVertex2iv          = iup_c_proc(opengl32,"glVertex2iv",{C_POINTER}),
---xglVertex2s           = iup_c_proc(opengl32,"glVertex2s",{C_SHORT,C_SHORT}),
---xglVertex2sv          = iup_c_proc(opengl32,"glVertex2sv",{C_POINTER}),
-xglVertex3d             = iup_c_proc(opengl32,"glVertex3d",{C_DOUBLE,C_DOUBLE,C_DOUBLE}),
---xglVertex3dv          = iup_c_proc(opengl32,"glVertex3dv",{C_POINTER}),
---xglVertex3f           = iup_c_proc(opengl32,"glVertex3f",{C_FLOAT,C_FLOAT,C_FLOAT}),
---xglVertex3fv          = iup_c_proc(opengl32,"glVertex3fv",{C_POINTER}),
---xglVertex3i           = iup_c_proc(opengl32,"glVertex3i",{C_INT,C_INT,C_INT}),
---xglVertex3iv          = iup_c_proc(opengl32,"glVertex3iv",{C_POINTER}),
---xglVertex3s           = iup_c_proc(opengl32,"glVertex3s",{C_SHORT,C_SHORT,C_SHORT}),
---xglVertex3sv          = iup_c_proc(opengl32,"glVertex3sv",{C_POINTER}),
-xglVertex4d             = iup_c_proc(opengl32,"glVertex4d",{C_DOUBLE,C_DOUBLE,C_DOUBLE,C_DOUBLE}),
---xglVertex4dv          = iup_c_proc(opengl32,"glVertex4dv",{C_POINTER}),
---xglVertex4fv          = iup_c_proc(opengl32,"glVertex4fv",{C_POINTER}),
---xglVertex4f           = iup_c_proc(opengl32,"glVertex4f",{C_FLOAT,C_FLOAT,C_FLOAT,C_FLOAT}),
---xglVertex4i           = iup_c_proc(opengl32,"glVertex4i",{C_INT,C_INT,C_INT,C_INT}),
---xglVertex4iv          = iup_c_proc(opengl32,"glVertex4iv",{C_POINTER}),
---xglVertex4s           = iup_c_proc(opengl32,"glVertex4s",{C_SHORT,C_SHORT,C_SHORT,C_SHORT}),
---xglVertex4sv          = iup_c_proc(opengl32,"glVertex4sv",{C_POINTER}),
-xglVertexPointer        = iup_c_proc(opengl32,"glVertexPointer", {C_INT, C_UINT, C_UINT, C_POINTER}),
-xglViewport             = iup_c_proc(opengl32,"glViewport",{C_INT,C_INT,C_INT,C_INT}),
---WglGetProcAddress     = iup_c_func(opengl32,"wglGetProcAddress", {C_POINTER}, C_POINTER),
+--xglVertex2d           = define_c_proc(opengl32,"glVertex2d",{C_DOUBLE,C_DOUBLE}),
+--xglVertex2dv          = define_c_proc(opengl32,"glVertex2dv",{C_PTR}),
+--xglVertex2f           = define_c_proc(opengl32,"glVertex2f",{C_FLOAT,C_FLOAT}),
+--xglVertex2fv          = define_c_proc(opengl32,"glVertex2fv",{C_PTR}),
+--xglVertex2i           = define_c_proc(opengl32,"glVertex2i",{C_INT,C_INT}),
+--xglVertex2iv          = define_c_proc(opengl32,"glVertex2iv",{C_PTR}),
+--xglVertex2s           = define_c_proc(opengl32,"glVertex2s",{C_SHORT,C_SHORT}),
+--xglVertex2sv          = define_c_proc(opengl32,"glVertex2sv",{C_PTR}),
+xglVertex3d             = define_c_proc(opengl32,"glVertex3d",{C_DOUBLE,C_DOUBLE,C_DOUBLE}),
+--xglVertex3dv          = define_c_proc(opengl32,"glVertex3dv",{C_PTR}),
+--xglVertex3f           = define_c_proc(opengl32,"glVertex3f",{C_FLOAT,C_FLOAT,C_FLOAT}),
+--xglVertex3fv          = define_c_proc(opengl32,"glVertex3fv",{C_PTR}),
+--xglVertex3i           = define_c_proc(opengl32,"glVertex3i",{C_INT,C_INT,C_INT}),
+--xglVertex3iv          = define_c_proc(opengl32,"glVertex3iv",{C_PTR}),
+--xglVertex3s           = define_c_proc(opengl32,"glVertex3s",{C_SHORT,C_SHORT,C_SHORT}),
+--xglVertex3sv          = define_c_proc(opengl32,"glVertex3sv",{C_PTR}),
+xglVertex4d             = define_c_proc(opengl32,"glVertex4d",{C_DOUBLE,C_DOUBLE,C_DOUBLE,C_DOUBLE}),
+--xglVertex4dv          = define_c_proc(opengl32,"glVertex4dv",{C_PTR}),
+--xglVertex4fv          = define_c_proc(opengl32,"glVertex4fv",{C_PTR}),
+--xglVertex4f           = define_c_proc(opengl32,"glVertex4f",{C_FLOAT,C_FLOAT,C_FLOAT,C_FLOAT}),
+--xglVertex4i           = define_c_proc(opengl32,"glVertex4i",{C_INT,C_INT,C_INT,C_INT}),
+--xglVertex4iv          = define_c_proc(opengl32,"glVertex4iv",{C_PTR}),
+--xglVertex4s           = define_c_proc(opengl32,"glVertex4s",{C_SHORT,C_SHORT,C_SHORT,C_SHORT}),
+--xglVertex4sv          = define_c_proc(opengl32,"glVertex4sv",{C_PTR}),
+xglVertexPointer        = define_c_proc(opengl32,"glVertexPointer", {C_INT, C_UINT, C_UINT, C_PTR}),
+xglViewport             = define_c_proc(opengl32,"glViewport",{C_INT,C_INT,C_INT,C_INT}),
+--WglGetProcAddress     = define_c_func(opengl32,"wglGetProcAddress", {C_PTR}, C_PTR),
 sglGetProcAddress       = iff(platform()=WINDOWS?"wglGetProcAddress":"glXGetProcAddress"),
-xglGetProcAddress       = iup_c_func(opengl32,sglGetProcAddress, {C_POINTER}, C_POINTER)
---WglUseFontOutlines        = iup_c_func(opengl32,"wglUseFontOutlinesA",{C_UINT,C_INT,C_INT,C_INT,C_FLOAT,C_FLOAT,C_INT,C_POINTER},C_INT)
---xwglCreateContext     = iup_c_func(opengl32,"wglCreateContext",{C_INT},C_INT)
+xglGetProcAddress       = define_c_func(opengl32,sglGetProcAddress, {C_PTR}, C_PTR)
+--WglUseFontOutlines        = define_c_func(opengl32,"wglUseFontOutlinesA",{C_UINT,C_INT,C_INT,C_INT,C_FLOAT,C_FLOAT,C_INT,C_PTR},C_INT)
+--xwglCreateContext     = define_c_func(opengl32,"wglCreateContext",{C_INT},C_INT)
 
 --1/12/16 (WglUseFontOutlines is Windows-only)
 atom WglUseFontOutlines = NULL
 global function wglUseFontOutlines(atom glhDC, integer first, integer count, atom pFontList, atom deviation, atom extrusion, integer fmt, atom pGMF)
     if WglUseFontOutlines=NULL then
         if platform()!=WINDOWS then ?9/0 end if
-        WglUseFontOutlines = iup_c_func(opengl32,"wglUseFontOutlinesA",{C_UINT,C_INT,C_INT,C_INT,C_FLOAT,C_FLOAT,C_INT,C_POINTER},C_INT)
+        WglUseFontOutlines = define_c_func(opengl32,"wglUseFontOutlinesA",{C_UINT,C_INT,C_INT,C_INT,C_FLOAT,C_FLOAT,C_INT,C_PTR},C_INT)
     end if
     return c_func(WglUseFontOutlines,{glhDC,first,count,pFontList,deviation,extrusion,fmt,pGMF})
 end function
@@ -1698,7 +1697,7 @@ end function
 function link_glext_func(string name, sequence args, atom result)
     atom addr = wglGetProcAddress(name)
     if addr<=3 then
-        return iup_c_func(opengl32, name, args, result)
+        return define_c_func(opengl32, name, args, result)
     end if
     return define_c_func({},addr,args,result)
 end function
@@ -1706,7 +1705,7 @@ end function
 function link_glext_proc(string name, sequence args)
     atom addr = wglGetProcAddress(name)
     if addr<=3 then
-        return iup_c_proc(opengl32, name, args)
+        return define_c_proc(opengl32, name, args)
     end if
     return define_c_proc({},addr,args)
 end function
@@ -1775,7 +1774,7 @@ integer xglBindAttribLocation = 0
 
 global procedure glBindAttribLocation(integer program, index, string name)
     if xglBindAttribLocation=0 then
-        xglBindAttribLocation = link_glext_proc("glBindAttribLocation",{GLuint,GLuint,C_POINTER})
+        xglBindAttribLocation = link_glext_proc("glBindAttribLocation",{GLuint,GLuint,C_PTR})
     end if
     c_proc(xglBindAttribLocation,{program,index,name})
 end procedure
@@ -1805,7 +1804,7 @@ integer xglBufferData = 0
 
 global procedure glBufferData(integer target, size, atom pData, integer usage)
     if xglBufferData=0 then
-        xglBufferData = link_glext_proc("glBufferData",{GLenum,C_INT,C_POINTER,GLenum})
+        xglBufferData = link_glext_proc("glBufferData",{GLenum,C_INT,C_PTR,GLenum})
     end if
     c_proc(xglBufferData,{target, size, pData, usage})
 end procedure
@@ -1880,7 +1879,7 @@ integer xglGenBuffers = 0
 
 global function glCreateBuffer()
     if xglGenBuffers=0 then
-        xglGenBuffers = link_glext_proc("glGenBuffers",{GLuint,C_POINTER})
+        xglGenBuffers = link_glext_proc("glGenBuffers",{GLuint,C_PTR})
     end if
     poken(pWord,0)
     c_proc(xglGenBuffers,{1,pWord})
@@ -2092,7 +2091,7 @@ integer xglGetAttribLocation = 0
 
 global function glGetAttribLocation(integer program, string name)
     if xglGetAttribLocation=0 then
-        xglGetAttribLocation = link_glext_func("glGetAttribLocation",{GLuint,C_POINTER},GLint)
+        xglGetAttribLocation = link_glext_func("glGetAttribLocation",{GLuint,C_PTR},GLint)
     end if
     integer res = c_func(xglGetAttribLocation,{program,name})
     return res
@@ -2118,7 +2117,7 @@ integer xglGetProgramiv = 0
 
 global function glGetProgramParameter(integer shader, pname, dflt=0)
     if xglGetProgramiv=0 then
-        xglGetProgramiv = link_glext_proc("glGetProgramiv",{GLuint,GLenum,C_POINTER})
+        xglGetProgramiv = link_glext_proc("glGetProgramiv",{GLuint,GLenum,C_PTR})
     end if
     poken(pWord,dflt)
     c_proc(xglGetProgramiv,{shader,pname,pWord})
@@ -2130,7 +2129,7 @@ integer xglGetShaderiv = 0
 
 global function glGetShaderParameter(integer shader, pname, dflt=0)
     if xglGetShaderiv=0 then
-        xglGetShaderiv = link_glext_proc("glGetShaderiv",{GLuint,GLenum,C_POINTER})
+        xglGetShaderiv = link_glext_proc("glGetShaderiv",{GLuint,GLenum,C_PTR})
     end if
     poken(pWord,dflt)
     c_proc(xglGetShaderiv,{shader,pname,pWord})
@@ -2152,7 +2151,7 @@ end procedure
 
 global function glGetProgramInfoLog(integer program)
     if xglGetProgramInfoLog=0 then
-        xglGetProgramInfoLog = link_glext_proc("glGetProgramInfoLog",{GLuint,GLsizei,C_POINTER,C_POINTER})
+        xglGetProgramInfoLog = link_glext_proc("glGetProgramInfoLog",{GLuint,GLsizei,C_PTR,C_PTR})
     end if
     expand_buffer(glGetProgramParameter(program, GL_INFO_LOG_LENGTH))
     c_proc(xglGetProgramInfoLog,{program,logBufferLength,pWord,pLogBuffer})
@@ -2166,7 +2165,7 @@ integer xglGetShaderInfoLog = 0
 
 global function glGetShaderInfoLog(integer shader)
     if xglGetShaderInfoLog=0 then
-        xglGetShaderInfoLog = link_glext_proc("glGetShaderInfoLog",{GLuint,GLsizei,C_POINTER,C_POINTER})
+        xglGetShaderInfoLog = link_glext_proc("glGetShaderInfoLog",{GLuint,GLsizei,C_PTR,C_PTR})
     end if
     expand_buffer(glGetShaderParameter(shader, GL_INFO_LOG_LENGTH))
     c_proc(xglGetShaderInfoLog,{shader,logBufferLength,pWord,pLogBuffer})
@@ -2194,7 +2193,7 @@ integer xglGetUniformLocation = 0
 
 global function glGetUniformLocation(integer prog, string name)
     if xglGetUniformLocation=0 then
-        xglGetUniformLocation = link_glext_func("glGetUniformLocation",{GLuint,C_POINTER},GLint)
+        xglGetUniformLocation = link_glext_func("glGetUniformLocation",{GLuint,C_PTR},GLint)
     end if
     integer res = c_func(xglGetUniformLocation,{prog,name})
     if res=-1 then ?9/0 end if
@@ -2217,9 +2216,9 @@ atom xglFogCoordfEXT,
 
 global procedure enable_GL_EXT_fog_coord()
     xglFogCoordfEXT = link_glext_proc("glFogCoordfEXT",{GLfloat})
-    xglFogCoordfvEXT = link_glext_proc("glFogCoordfvEXT",{C_POINTER})
+    xglFogCoordfvEXT = link_glext_proc("glFogCoordfvEXT",{C_PTR})
     xglFogCoorddEXT = link_glext_proc("glFogCoorddEXT",{GLdouble})
---  xglFogCoorddvEXT = link_glext_proc("glFogCoorddvEXT",{C_POINTER})
+--  xglFogCoorddvEXT = link_glext_proc("glFogCoorddvEXT",{C_PTR})
 end procedure
 
 global procedure glFogCoordfEXT(atom a)
@@ -2431,7 +2430,7 @@ integer xglShaderSource = 0
 
 global procedure glShaderSource(integer shader, string source)
     if xglShaderSource=0 then
-        xglShaderSource = link_glext_proc("glShaderSource",{GLuint,GLsizei,C_POINTER,C_POINTER})
+        xglShaderSource = link_glext_proc("glShaderSource",{GLuint,GLsizei,C_PTR,C_PTR})
     end if
 --  integer count = length(strings)
 --  atom pStrings = iup_string_pointer_array(strings)   -- (automatically freed)
@@ -2531,7 +2530,7 @@ integer xglUniformMatrix4fv = 0
 --global procedure glUniformMatrix4fv(integer location, count, transpose, atom pData)
 global procedure glUniformMatrix4fv(integer location, transpose, atom pData)
     if xglUniformMatrix4fv=0 then
-        xglUniformMatrix4fv = link_glext_proc("glUniformMatrix4fv",{GLint,GLsizei,C_INT,C_POINTER})
+        xglUniformMatrix4fv = link_glext_proc("glUniformMatrix4fv",{GLint,GLsizei,C_INT,C_PTR})
     end if
 --  c_proc(xglUniformMatrix4fv,{location, count, transpose, pData})
     c_proc(xglUniformMatrix4fv,{location, 1, transpose, pData})
@@ -2610,7 +2609,7 @@ integer xglVertexAttribPointer = 0
 
 global procedure glVertexAttribPointer(integer index, size, datatype, normalized, stride, atom pVertices)
     if xglVertexAttribPointer=0 then
-        xglVertexAttribPointer = link_glext_proc("glVertexAttribPointer",{GLuint,GLint,GLenum,C_INT,GLsizei,C_POINTER})
+        xglVertexAttribPointer = link_glext_proc("glVertexAttribPointer",{GLuint,GLint,GLenum,C_INT,GLsizei,C_PTR})
     end if
     c_proc(xglVertexAttribPointer,{index,size, datatype, normalized, stride, pVertices})
 end procedure

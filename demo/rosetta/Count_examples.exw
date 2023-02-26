@@ -1,226 +1,80 @@
---
+﻿--
 -- demo\rosetta\Count_examples.exw
 -- ===============================
 --
---  Counts no of "{{header|" (nb not "=={{header|") via web api (but gets tasks via scraping).
+--  (This uses a few '&' instead of/as well as 'a', fairly obviously for everyone's sanity..)
+--  Counts no of "{{he&der|" (nb not "=={{he&der|") and everything now via the web api.
 --  Since downloading all the pages can be very slow, this uses a cache.
---  Limiting (notdone) by "Phix" fairly obviously speeds it up tenfold :-)
+--  Limiting (notdone) by "Phix" fairly obviously speeds it up a hundredfold :-)
 --
-without js -- (obviously this will never ever run in a browser!)
+without js -- (fairly obviously this will never ever run in a browser!)
 constant include_drafts = true,
          sort_by_count = false,
-         notlang = "Phix" -- or "" (ie a zero length string) for all
---       notlang = "Go"
---       notlang = ""
+--       notdone = "Phix"
+--       notdone = "Go"
+         notdone = "" -- all
 
-include builtins\timedate.e
-integer refresh_cache = timedelta(days:=21) -- 0 for always [NB refresh_cache += timedelta(days:=1) below]
-
-include builtins\libcurl.e
-atom curl = NULL
-atom pErrorBuffer
-
-function write_callback(atom pData, integer size, integer nmemb, integer fn)
-    integer bytes_written = size * nmemb
-    puts(fn,peek({pData,bytes_written}))
-    return bytes_written
-end function
-constant write_cb = call_back({'+', routine_id("write_callback")})
-
-function open_download(string filename, url)
-    bool refetch = true
-    filename = join_path({"rc_cache",filename})
-    if file_exists(filename) then
-        -- use existing file if <= refresh_cache (365 days) old
-        sequence last_mod = get_file_date(filename)     -- (0.8.1+)
-        atom delta = timedate_diff(last_mod,date())
-        refetch = (delta>refresh_cache) or get_file_size(filename)=0
-    else
-        string directory = get_file_path(filename)
-        if get_file_type(directory)!=FILETYPE_DIRECTORY then
-            if not create_directory(directory,make_parent:=true) then
-                crash("cannot create %s directory",{directory})
-            end if
-        end if
-    end if
-    object text
-    if not refetch then
-        text = trim(get_text(filename))
-        refetch = (not sequence(text)) or (length(text)<10)
-    end if
-    if refetch then
-        progress("Downloading %s...\r",{filename})
-        if curl=NULL then
-            curl_global_init()
-            curl = curl_easy_init()
-            pErrorBuffer = allocate(CURL_ERROR_SIZE)
-            curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, pErrorBuffer)
-            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb)
-        end if
-        url = substitute(url,"%3A",":")
-        url = substitute(url,"%2A","*")
-        curl_easy_setopt(curl, CURLOPT_URL, url)
-        integer fn = open(filename,"wb")
-        if fn=-1 then ?9/0 end if
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, fn)
-        while true do
-            CURLcode res = curl_easy_perform(curl)
-            if res=CURLE_OK then exit end if
-            string error = sprintf("%d",res)
-            if res=CURLE_COULDNT_RESOLVE_HOST then
-                error &= " [CURLE_COULDNT_RESOLVE_HOST]"
-            end if
-            progress("Error %s downloading file, retry?(Y/N):",{error})
-            if lower(wait_key())!='y' then abort(0) end if
-            printf(1,"Y\n")
-        end while
-        close(fn)
-        refresh_cache += timedelta(days:=1) -- did I mention it is slow?
-        text = get_text(filename)
-    end if
-    return text
-end function
-
-function open_category(string filename)
-    return open_download(filename&".htm","http://rosettacode.org/wiki/Category:"&filename)
-end function
-
-function dewiki(string s)
-    -- extract tasks from eg `<li><a href="/wiki/100_doors"`
-    sequence tasks = {}
-    integer start = 1, finish = match(`<div class="printfooter">`,s)
-    s = s[1..finish-1]
-    while true do
---      start = match("<li><a href=\"/wiki/",s,start)
-        start = match(`<li><a href="/wiki/`,s,start)
-        if start=0 then exit end if
---      start += length("<li><a href=\"/wiki/")
-        start += length(`<li><a href="/wiki/`)
-        finish = find('"',s,start)
-        string task = s[start..finish-1]
-        task = substitute_all(task,{"*",":"},{"%2A","%3A"})
-        tasks = append(tasks,task)
-        start = finish+1
-    end while
-    return tasks
-end function
-
-constant {hex,ascii} = columnize({{"%2A","*"},
-                                  {"%3A",":"},
-                                  {"%27","'"},
-                                  {"%2B","+"},
-                                  {"%22",`"`},
-                                  {"%E2%80%93","-"},
-                                  {"%E2%80%99","'"},
-                                  {"%C3%A8","e"},
-                                  {"%C3%A9","e"}})
-
-function html_clean(string s)
-    return substitute_all(s,hex,ascii)
-end function
+include rosettacode_cache.e
 
 function count_tasks()
-    if get_file_type("rc_cache")!=FILETYPE_DIRECTORY then
-        if not create_directory("rc_cache") then
-            crash("cannot create rc_cache directory")
-        end if
-    end if
-    -- note this lot use web scraping (as cribbed from a similar task) ...
-    sequence tasks = dewiki(open_category("Programming_Tasks"))
+    sequence tasks = get_rc_category("Programming_Tasks")
     if include_drafts then
-        tasks &= dewiki(open_category("Draft_Programming_Tasks"))
+        tasks &= get_rc_category("Draft_Programming_Tasks")
         tasks = sort(tasks)
     end if
---?length(tasks)
-    if length(notlang) then
-        -- filter already done in specified language
-        string langurl = "http://rosettacode.org/wiki/Category:"&notlang
-        sequence done = dewiki(open_download(notlang&".htm",langurl))
---?length(done)
-        integer k = 0
---,count = 0
---,what='P'
-        for i=1 to length(tasks) do
-            string ti = tasks[i]
---          if not find(tasks[i],done) then
-            integer d = find(ti,done)
-            if not d then
-                k += 1
-                tasks[k] = ti
-            else
---              if ti[1]='1' then ?ti end if
---              if ti[1]='2' then ?ti end if
---              if ti[1]='4' then ?ti end if
---              if ti[1]='9' then ?ti end if
---              if ti[1]='A' then ?ti end if
---              if ti[1]='B' then ?substitute(ti,'_',' ') end if
---              if ti[1]='C' then ?substitute(ti,'_',' ') end if
---              if ti[1]='P' then ?substitute(ti,'_',' ') end if
---              if ti[1]=what then count += 1 end if
-                done[d..d] = {}
-            end if
-        end for
---printf(1,"%c:%d\n",{what,count})
-        tasks = tasks[1..k]
---?done
-        done = {}
+    if length(notdone) then
+        tasks = filter(tasks,"out",get_rc_category(notdone))
     end if
-    progress("%d tasks found\n",{length(tasks)})
-    -- ... whereas the individual tasks use the web api instead (3x smaller/faster)
-    integer total_count = 0
-    sequence task_counts = repeat(0,length(tasks))
-    for i=1 to length(tasks) do
-        string ti = tasks[i],
-               url = sprintf("http://rosettacode.org/mw/index.php?title=%s&action=raw",{ti}),
-               contents = open_download(ti&".raw",url),
-               prev = "", this
+    atom t1 = time()+1
+    integer lt = length(tasks), total_count = 0
+    sequence task_counts = repeat(0,lt)
+    progress("%d tasks found\n",{lt})
+    for i,ti in tasks do
+        if time()>t1 then
+            progress("analysing %s (%d/%d, %2.1f%%)...",{file_clean(ti),i,lt,(i/lt)*100})
+            t1 = time()+1
+        end if
+        string contents = get_rc_raw(ti), prev = "", curr
         integer count = 0, start = 1
         while true do
-            start = match(`{{header|`,contents,start)
+            start = match(`{{hea`&`der|`,contents,start)
             if start=0 then exit end if
             --
             -- skip duplicates/we also have to cope with eg
-            -- =={{header|Python}}==                                    \
-            -- ==={{header|Python}} Original===                          } count
-            -- ==={{header|Python}} Succinct===                          }  once
-            -- ==={{header|Python}} Recursive ===                       /
-            -- =={{header|Mathematica}} / {{header|Wolfram Language}}== \
-            -- =={{header|Icon}} and {{header|Unicon}}==                 } count
-            -- == {{header|Icon}} and {{header|Unicon}} ==              /   both
-            -- == {{header|Java}}==
+            -- =={{he&der|Python}}==                                    \
+            -- ==={{he&der|Python}} Original===                          } count
+            -- ==={{he&der|Python}} Succinct===                          }  once
+            -- ==={{he&der|Python}} Recursive ===                       /
+            -- =={{he&der|Mathematica}} / {{he&der|Wolfram Language}}== \
+            -- =={{he&der|Icon}} and {{he&der|Unicon}}==                 } count
+            -- == {{he&der|Icon}} and {{he&der|Unicon}} ==              /   both
+            -- == {{he&der|Java}}==
             -- etc. Note however that this /does/ count eg
-            -- ==={{header|Applesoft BASIC}}===                         \
-            -- ==={{header|BASIC256}}===                                 } count
-            -- ==={{header|Commodore BASIC}}===                          }  'em
-            -- ==={{header|IS-BASIC}}===                                 }  all
-            -- ==={{header|Sinclair ZX81 BASIC}}===                     /
+            -- ==={{he&der|Applesoft BASIC}}===                         \
+            -- ==={{he&der|BASIC256}}===                                 } count
+            -- ==={{he&der|Commodore BASIC}}===                          }  'em
+            -- ==={{he&der|IS-BASIC}}===                                 }  all
+            -- ==={{he&der|Sinclair ZX81 BASIC}}===                     /
             --
-            this = contents[start..match(`}}`,contents,start+1)]
-            if this!=prev then
+            curr = contents[start..match(`}}`,contents,start+1)]
+            if curr!=prev then
                 count += 1
             end if
-            prev = this
-            start += length(`{{header|`)
+            prev = curr
+            start += length(`{{hea`&`der|`)
         end while
         if sort_by_count then
             task_counts[i] = count
-        elsif length(notlang) or i<=2 or i>=length(tasks)-1 or mod(i,200)=0 then
-            progress("%s %d\n",{html_clean(ti),count})
+        elsif length(notdone) or i<=2 or i>=length(tasks)-1 or mod(i,500)=0 then
+            progress("%s: %d\n",{file_clean(ti),count})
         end if
         total_count += count
         if get_key()=#1B then progress("escape keyed\n") exit end if
     end for
-    if curl!=NULL then
-        curl_easy_cleanup(curl)
-        free(pErrorBuffer)
-        curl = NULL
-        pErrorBuffer = NULL
-    end if
+    curl_cleanup()
     if sort_by_count then
-        sequence tags = custom_sort(task_counts,tagset(length(tasks)))
-        for i=length(tags) to 1 by -1 do
-            integer ti = tags[i]
-            progress("%s %d\n",{html_clean(tasks[ti]),task_counts[ti]})
+        for ti in reverse(custom_sort(task_counts,tagset(lt))) do
+            progress("%s: %d\n",{file_clean(tasks[ti]),task_counts[ti]})
         end for
     end if
     return total_count
@@ -231,6 +85,34 @@ progress("Total: %d\n",{count_tasks()})
 ?"done"
 {} = wait_key()
 --/*
+-- Output as of 31/12/22: (first 2, every 500th, last 2)
+1592 tasks found
+100_doors: 352
+100_prisoners: 82
+First_class_environments: 32
+Permutations: 124
+Unix/ls: 76
+Zsigmondy_numbers: 11
+Zumkeller_numbers: 39
+Total: 93626
+"done"
+
+(every 200th, as of 26/11:) [quickly check what others are showing]
+1591 tasks found
+100 doors: 348
+100 prisoners: 82
+Check output device is a terminal: 39
+Engel expansion: 6
+Hickerson series of almost integers: 46
+Maximum difference between adjacent elements of list: 35
+Permutations: 123
+Self numbers: 28
+Sutherland-Hodgman polygon clipping: 48
+Zsigmondy numbers: 10
+Zumkeller numbers: 39
+Total: 93247
+"done"
+
 -- Output as of 24/7/19:
 1175 tasks found
 100_doors 294
@@ -243,7 +125,8 @@ String_concatenation 155
 Zhang-Suen_thinning_algorithm 29
 Zig-zag_matrix 99
 Total: 64405
--- As of 2/9/19: (with notlang=="")
+
+-- As of 2/9/19: (with notdone=="")
 1194 tasks found
 100_doors 295
 15_Puzzle_Game 57
@@ -256,7 +139,7 @@ Zig-zag_matrix 99
 Zumkeller_numbers 8
 Total: 65185
 
---As of 20/9/21: (with notlang=="")
+--As of 20/9/21: (with notdone=="")
 1441 tasks found
 100_doors 332
 100_prisoners 66
@@ -272,7 +155,7 @@ Zumkeller_numbers 36
 Total: 83050
 "done"
 
-with notlang of Phix:
+with notdone of Phix:
 13 tasks found
 15_puzzle_game_in_3D 3
 Audio_overlap_loop 7
@@ -290,5 +173,14 @@ XML_validation 16
 Total: 215
 "done"
 
-
+Note the following **must** happen (plus some more hidden unicode mungements):
+A* search algorithm                 ==> A%2A_search_algorithm
+Calendar - for "REAL" programmers   ==> Calendar_-_for_%22REAL%22_programmers
+Execute Brain****                   ==> Execute_Brain%2A%2A%2A%2A
+Primes: n*2^m+1                     ==> Primes%3A_n%2A2^m+1
+Words containing "the" substring    ==> Words_containing_%22the%22_substring
+(IE/EG you simply **cannot** have a file named "A*xx", try it and you'll see,
+ that is, by attempting to rename a file within (say) Windows File Explorer.
+ And certainly don't blame me if you start playing silly buggers with unicode 
+ characters and "del A*xx" seems to work, but for all the *wrong* reasons.)
 --*/

@@ -1,0 +1,2625 @@
+﻿--
+-- demo\rpi\minar_melf.exw
+-- =======================
+--
+-- Produce examples of the smallest possible ARM ELF binaries, that can invoke libc.
+--
+-- Using FASMARM, we can produce a 3-segment 120-byte ARM ELF that uses swi sys_swrite, 
+-- however that cannot invoke (/link to) libc (esp/critically dlopen and dlsym).
+--
+-- Using as/ld/strip, we can produce a 14-segment/section 1592-byte pic (listing 2b,
+-- no plt but a whole heap of junk in the Symtab [__bss_start__, _bss_end__, _edata,
+-- __bss_end__, _end, __end__, & __bss_start]...) or a 15-segment/section 1388-byte 
+-- non-pic ARM ELF (listing 2a [but with ugly plt sections...]).
+--
+-- The primary task here is to cherry-pick from 2a and 2b.
+-- Code should be written as something we might actually be able to use.
+--
+-- Aside: In one sense I don't care two hoots about the extra 1000 bytes per se, 
+--        however I /do/ care about getting all /eight thousand/ bits spot-on, as
+--        I expand/shrink all the various parts as and when needed.
+--
+-- Strategy:
+--  Approach 1: a) write a hopelessly optimistic program that writes the desired output.
+--              b) get filedump.exw to recognise it, and fix any obvious mistakes you made.
+--              c) watch it segfault when you try to run it, and be rejected by readelf.
+--  Approach 2: what works for /lib/ld-linux.so.2 should also work for
+--                             /lib/ld-linux-armhf.so.3", in theory...
+--      (see elf32hw.asm/exw - first recreate with +6 \0 interpreter)
+--  Approach 3: a) "filedump" a working file, recreate from that, and ensure it works.
+--              b) gradually replace all literal addresses/offsets/sizes with symbolic
+--              c) get rid of section headers and .shstrtab and .ARM.attributes (etc)
+--              d) get rid of .gnuversion and .gnu_version_r, and maybe .got [DONE]
+--              e) smaller Dynamic Link Info (smallest that still works!)
+--              f) etc
+--
+--/*
+Appendix A: Relocs in i386
+
+Here is some analysis of the i386 design:
+
+Intel
+
+in .o files; these are the old relocs......
+ 
+ 
+Reloc   Meaning
+R_386_32        simply deposit the absolute memory address of "symbol" into a dword
+R_386_PC32      determine the destinance from this memory location to the "symbol", then add it to the value currently at this dword; deposit the result back into the dword
+
+In executable files which are intended to run with shared libraries......
+ 
+R_386_JMP_SLOT  at dynamic link time, deposit the address of "symbol" (a subroutine) into this dword 
+
+R_386_PC8,
+R_386_PC32
+--*/
+constant EH_LEN = #34,
+         PH_SIZE = 32,  -- #20
+--DEV DLI_ENT_SIZE (proper name) = #10, I think...
+--       EXEC  = 0b001,
+         PF_X  = 0b001,
+--       WRITE = 0b010,
+         PF_W  = 0b010,
+--       READ  = 0b100,
+         PF_R  = 0b100,
+         PT_LOAD = 1,
+         PT_DYNAMIC = 2,
+         PT_INTERP = 3,
+         PT_PHDR = 6,
+--/*
+(not these...)
+#define SHT_NULL         0              /* Section header table entry unused */
+#define SHT_PROGBITS     1              /* Program data */
+#define SHT_SYMTAB       2              /* Symbol table */
+#define SHT_STRTAB       3              /* String table */
+#define SHT_RELA         4              /* Relocation entries with addends */
+#define SHT_HASH         5              /* Symbol hash table */
+#define SHT_DYNAMIC      6              /* Dynamic linking information */
+#define SHT_NOTE         7              /* Notes */
+#define SHT_NOBITS       8              /* Program space with no data (bss) */
+#define SHT_REL          9              /* Relocation entries, no addends */
+#define SHT_SHLIB        10             /* Reserved */
+#define SHT_DYNSYM       11             /* Dynamic linker symbol table */
+#define SHT_NUM          12             /* Number of defined types.  */
+--*/
+         BASE = 0x00008000,
+         GLOBFUN = #12, -- STB_GLOBAL(1)*#10 + STT_FUNC(2)
+--       STB_GLOBAL = 1,
+--       STB_WEAK   = 2,
+--       STT_NOTYPE  = 0,
+--       STT_OBJECT  = 1,
+--       STT_FUNC    = 2,
+         R_386_PC32 = 2,
+--#define R_386_32      1               /* Direct 32 bit  */
+--#define R_386_PC32        2               /* PC relative 32 bit */
+         R_386_PC8 = 23, -- #17
+--       R_386_32 = 1,
+         R_ARM_ABS32 = 2,       /* Direct 32 bit  */
+
+         DT_NEEDED = 1,
+         DT_HASH = 4,
+         DT_STRTAB = 5,
+         DT_SYMTAB = 6,
+         DT_STRSZ = 10,
+         DT_SYMENT = 11,
+         DT_REL = #11,
+         DT_RELSZ = #12,
+         DT_RELENT = #13,
+         DT_DEBUG = #15,
+         DT_TEXTREL = #16,
+         DT_RELCOUNT = #6FFFFFFA,
+         N_PH = 5,              -- ie there will be exactly 5 segments
+         EM_ARM = 40            -- =#28
+
+        
+constant B = 1,
+         W = 2,
+         D = 4
+function binstr(atom v, integer l)
+    string res = repeat('\0',l)
+    for i=1 to l do
+        res[i] = remainder(v, #100)
+        v = floor(v/#100)
+    end for
+    return res
+end function
+
+function ELF_Header(integer e_entry, bool bZ = false)
+    -- at offset 0
+    string hdr = "\x7FELF"&         -- 00000000,ei_magic,x4,0x7F&"ELF",ELF signature
+                 x"01"&             -- 00000004,ei_class,1,1,32 bit
+                 x"01"&             -- 00000005,ei_data,1,1,little endian
+                 x"01"&             -- 00000006,ei_version,1,1,current
+                 x"00"&             -- 00000007,ei_osabi,1,0,System V
+                 x"00"&             -- 00000008,ei_abiversion,1,0,
+                 x"000000000000"&   -- 00000009,ei_pad,h6,000000000000h,
+                 x"00"&             -- 0000000F,ei_size,h1,00h,
+iff(bZ?
+--borken:
+                 x"0200"&           -- 00000010,e_type,2,2,Executable file
+--               x"0300"&           -- 00000010,e_type,2,3,Shared object file
+--               x"2800"&           -- 00000012,e_machine,2,40,ARM
+                 binstr(EM_ARM,W)&  -- 00000012,e_machine,2,40,ARM
+--EV_CURRENT = 1 (DEV)
+                 x"01000000"&       -- 00000014,e_version,4,1,current
+--               x"64800000"&       -- 00000018,e_entry,h4,00008064h,ARM code
+--               x"FFFFFFFF"&       -- 00000018,e_entry,h4,00008064h,ARM code
+                 binstr(e_entry,D)& -- 00000018,e_entry,h4,00008064h,ARM code
+--               x"34000000"&       -- 0000001C,e_phoff,h4,00000034h,program header table
+                 binstr(EH_LEN,D)&  -- 0000001C,e_phoff,h4,00000034h,program header table
+                 x"00000000"&       -- 00000020,e_shoff,h4,00000000h,section header table
+--               x"08040000"&       -- 00000020,e_shoff,h4,00000000h,section header table
+                 x"02000005"&       -- 00000024,e_flags,h4,05000002h,ABI version 5, EF_ARM_HASENTRY
+--               x"3400"&           -- 00000028,e_ehsize,h2,0034h,ELF header size
+                 binstr(EH_LEN,W)&  -- 00000028,e_ehsize,h2,0034h,ELF header size
+--               x"2000"&           -- 0000002A,e_phentsize,2,32,program header table entry size
+                 binstr(PH_SIZE,W)& -- 0000002A,e_phentsize,2,32,program header table entry size
+--               x"0100"&           -- 0000002C,e_phnum,2,1,number of program header entries
+                 binstr(N_PH,W)&    -- 0000002C,e_phnum,2,5,number of program header entries
+                 x"2800"&           -- 0000002E,e_shentsize,2,40,section header entry size
+                 x"0000"&           -- 00000030,e_shnum,2,0,number of section header entries
+--               x"0E00"&           -- 00000030,e_shnum,2,0,number of section header entries
+                 x"0000"            -- 00000032,e_shstrndx,2,0,section name string table index
+--               x"0D00"            -- 00000032,e_shstrndx,2,0,section name string table index
+--working:
+      :
+--               x"0200"&           -- 00000010,e_type,2,2,Executable file
+                 x"0300"&           -- 00000010,e_type,2,3,Shared object file
+--               x"2800"&           -- 00000012,e_machine,2,40,ARM
+                 binstr(EM_ARM,W)&  -- 00000012,e_machine,2,40,ARM
+                 x"01000000"&       -- 00000014,e_version,4,1,current
+--               x"64800000"&       -- 00000018,e_entry,h4,00008064h,ARM code
+--               x"FFFFFFFF"&       -- 00000018,e_entry,h4,00008064h,ARM code
+                 binstr(e_entry,D)& -- 00000018,e_entry,h4,00008064h,ARM code
+--               x"34000000"&       -- 0000001C,e_phoff,h4,00000034h,program header table
+                 binstr(EH_LEN,D)&  -- 0000001C,e_phoff,h4,00000034h,program header table
+--               x"00000000"&       -- 00000020,e_shoff,h4,00000000h,section header table
+                 x"08040000"&       -- 00000020,e_shoff,h4,00000000h,section header table
+                 x"02000005"&       -- 00000024,e_flags,h4,05000002h,ABI version 5, EF_ARM_HASENTRY
+--               x"3400"&           -- 00000028,e_ehsize,h2,0034h,ELF header size
+                 binstr(EH_LEN,W)&  -- 00000028,e_ehsize,h2,0034h,ELF header size
+--               x"2000"&           -- 0000002A,e_phentsize,2,32,program header table entry size
+                 binstr(PH_SIZE,W)& -- 0000002A,e_phentsize,2,32,program header table entry size
+--               x"0100"&           -- 0000002C,e_phnum,2,1,number of program header entries
+                 binstr(N_PH,W)&    -- 0000002C,e_phnum,2,5,number of program header entries
+                 x"2800"&           -- 0000002E,e_shentsize,2,40,section header entry size
+--               x"0000"&           -- 00000030,e_shnum,2,0,number of section header entries
+                 x"0E00"&           -- 00000030,e_shnum,2,0,number of section header entries
+--               x"0000"            -- 00000032,e_shstrndx,2,0,section name string table index
+                 x"0D00"            -- 00000032,e_shstrndx,2,0,section name string table index
+    )
+--  hdr[#18+1..#1C] = int_to_bytes(#00008064,D)
+--  hdr[#18+1..#1C] = binstr(#00008064,D)
+--  hdr[#18+1..#1C] = binstr(e_entry,D)
+--/*
+    hdr[1..43] = {127,69'E',76'L',70'F',
+                    1,1,1,0,0,
+                    0,0,0,0,0,0,
+                    2,0,
+                    40,0,
+                    1,0,0,0,
+                    #63,#81,0,0,
+                    52,0,0,0,
+                    0,0,0,0,
+                    2,0,0,5,
+                    52,0,
+                    32,0}
+    hdr[44..51] = { 5,0,
+                    40,0,
+                    0,0,
+                    0,0}
+"Elf_Header:"
+{127,69'E',76'L',70'F',1,1,1,0,0,0,0,0,0,0,0,0,3,0,40'(',0,1,0,0,0,140,2,0,0,52'4',0,0,0,0,0,0,0,2,0,0,5,52'4',0,32' ',0,5,0,40'(',0,0,14,0,13}
+{127,69'E',76'L',70'F',1,1,1,0,0,0,0,0,0,0,0,0,3,0,40'(',0,1,0,0,0,140,2,0,0,52'4',0,0,0,8,4,0,0,2,0,0,5,52'4',0,32' ',0,5,0,40'(',0,14,0,13,0}
+
+?"Elf_Header:"
+?hdr
+?
+x"7F454C46 01010100  00000000 00000000"& -- 00000000  *⌂ELF............*
+x"03002800 01000000  8C020000 34000000"& -- 00000010  *..(.....î...4...*
+x"08040000 02000005  34002000 05002800"& -- 00000020  *........4. ...(.*
+x"0E000D00"                              -- 00000030  *....*
+--*/
+    assert(length(hdr)==EH_LEN)
+    return hdr
+end function
+
+constant LEN_IZ = #1C   -- LEN_IS (with >=1 \0) rounded up to a multiple of 4 bytes [DEV..]
+
+function ELF_interpreter_segment(string interpreter)
+    -- immediately after ELF_program_headers()
+--  string res = "/lib/ld-linux-armhf.so.3\0\0\0\0"
+--  string res = "/lib/ld-linux-armhf.so.3"
+               -- 123456789012345678901234      #19 = 25
+--#F0-#D4 = 240-212 = 28 = #1C
+--  interpreter &= repeat('\n',4-rmdr(length(interpreter),3))
+    interpreter &= repeat('\0',4-rmdr(length(interpreter),3))
+    assert(remainder(length(interpreter),4)==0)
+    assert(length(interpreter)=LEN_IZ)
+    return interpreter
+end function
+
+constant interpreter = "/lib/ld-linux-armhf.so.3",
+         IS_LEN = length(interpreter)+1,
+         interpreter_segment = ELF_interpreter_segment(interpreter),
+         LEN_IS = length(interpreter_segment),
+         TXT_LEN = 12*4,
+         TXZ_LEN = 16*4,
+         DATA_LEN = #16,
+         DATA_ZLEN = #18
+
+function ELF_program_header(sequence ph)
+    -- (32 bit version)
+    atom {p_type,p_offset,p_vaddr,p_paddr,p_filesz,p_memsz,p_flags,p_align} = ph
+--DEV...
+--  assert(p_paddr=NULL)
+--  assert(bit_count(p_align)=1)
+--p_vaddr += BASE
+    string phdr = binstr(p_type,D) &    -- eg PT_PHDR
+                  binstr(p_offset,D)&   -- file offset
+                  binstr(p_vaddr,D)&    -- virtual address
+                  binstr(p_paddr,D)&    -- physical addressing(ignored) [aka "undefined for the system V ABI"]
+                  binstr(p_filesz,D)&   -- bytes in file image
+                  binstr(p_memsz,D)&    -- bytes in memory image
+                  binstr(p_flags,D)&    -- eg #00000005 = Read+Execute
+                  binstr(p_align,D)     -- eg 4 (must be a power of 2)
+    assert(length(phdr)==PH_SIZE)
+    return phdr
+end function
+
+function make_string_table(sequence strings)
+    string string_table = "\0"
+    sequence strpos = {}
+    for i=1 to length(strings) do
+        strpos &= length(string_table)
+        string_table &= strings[i]&'\0'
+    end for
+--?{"string_table_length:",length(string_table)}
+    integer padlen = rmdr(length(string_table),4)
+--?{"padlen:",padlen}
+    if padlen then
+        string_table &= repeat('\0',4-padlen)
+    end if
+--?{"string_table_length:",length(string_table)}
+    return {strpos,string_table}
+end function
+
+function roundto(integer v, integer blocksize)
+    if and_bits(blocksize,blocksize-1) then ?9/0 end if
+    return floor((v+blocksize-1)/blocksize)*blocksize
+end function
+
+sequence names = {"printf"},
+         strings = {"libc.so.6","printf","GLIBC_2.4"},
+         {strpos,string_table} = make_string_table(strings),
+         nameZ = {"mallopt","malloc","printf"},
+         stringZ = {"libc.so.6","mallopt","malloc","printf"},
+         {strpoZ,string_Zable} = make_string_table(stringZ)
+
+--DEV 2 is no of .word refs at start of .text. Need the location of .txt and .data:
+constant N = length(names),
+         NZ = length(nameZ),
+         LEN_STRTBL = length(string_table),
+         LEN_STRTBLZ = length(string_Zable),
+         BPEH = BASE+EH_LEN,    -- #8034
+         PH_LEN = PH_SIZE*N_PH, -- #A0 (#20*5)
+         EPH5 = EH_LEN+PH_LEN,  -- #D4
+--       BPH5 = BPEH+EPH5       -- #80D4
+         BPH5 = BASE+EPH5,      -- #80D4
+--       WASE = #08048000,
+--       WASE = #00008000,
+         WASE = #00000000,
+         WEPH5 = WASE+EPH5,
+         HASH = EPH5+LEN_IS,    -- #F0
+--       N = length(names),     -- ie there will be 1 entry in the symtab
+         SYMTAB = HASH+N*4+16,
+         STRTAB = HASH+N*20+32,
+         RELPOS = STRTAB+LEN_STRTBL,
+         RELSIZ = 3*8,
+         RELSIZZ = 3*8,
+--       TXT_POS = RELPOS+RELSIZ,
+         TXT_POS = roundto(RELPOS+RELSIZ,4),
+         BTXTPOS = BASE+TXT_POS,
+         DLI_POS = TXT_POS+TXT_LEN,
+         DLI_ZPOS = EH_LEN+PH_LEN+LEN_IZ,   --#E8+8 = #F0
+         BDLIZPOS = WASE+DLI_ZPOS,
+         BASE2 = BASE+floor((DLI_POS+#8000)/#8000)*#8000,
+         BDLIPOS = BASE2+DLI_POS,
+         DLI_LEN = #A0,
+         DLI_ZLEN = #50, -- 5*??
+         SYM_POS = DLI_ZPOS+DLI_ZLEN,
+         BSYM_POS = WASE+SYM_POS,
+         BSYM_POSR = WASE+SYM_POS+4*#10+7*4+LEN_STRTBLZ+NZ*8,
+         ZHASH = BSYM_POS+4*#10,
+         STRZTAB = ZHASH+7*4,
+         RELPOZ = STRZTAB+LEN_STRTBLZ,
+         SYM_LEN = #A4,  -- DEV: 4*#10(4 entries)+HASH_SIZ+STR_SIZ+RELOC_SIZ+RELOCS_SIZ
+         DATA_POS = DLI_POS+DLI_LEN,
+         DD_LEN = DLI_LEN+DATA_LEN,
+         DSZ_POS = SYM_POS+SYM_LEN,
+         BDSZ_POS = WASE+DSZ_POS,
+         TXZ_POS = DSZ_POS+DATA_ZLEN,
+         BTXZ_POS = WASE+TXZ_POS
+--       DSZ_LEN = 
+--Symtab size needed... ditto text
+--       LEN_ST = ??
+--       TXT_POS = EPH5+LEN_IS+LEN_ST
+--       DLI_POS = TXT_POS+TXT_LEN  -- #01BC (ish)
+--       LEN_DI = ??
+--       DATA_POS = DLI_POS+LEN_DI
+
+function ELF_program_headers(sequence ph)
+    -- immediately after ELF_Header()
+    string phdrs = ""
+    for i=1 to length(ph) do
+        phdrs &= ELF_program_header(ph[i])
+    end for
+    assert(length(phdrs)=PH_LEN)
+    return phdrs
+end function
+
+--               p_type,    p_offset,  p_vaddr,  p_paddr, p_filesz,  p_memsz,  p_flags,  p_align}
+--quence ph = {{PT_PHDR,   #00000034,#00008034,#00008034,#000000A0,#000000A0,READ+EXEC,#00000004},
+--DEV/SUG: make ELF_program_header() add BASE to p_vaddr[/p_paddr]
+--sequence ph = {{PT_PHDR,      EH_LEN,   BPEH,     BPEH,   PH_LEN,   PH_LEN,PF_R+PF_X,#00000004},
+sequence ph = {{PT_PHDR,      EH_LEN,   EH_LEN,   EH_LEN,   PH_LEN,   PH_LEN,PF_R+PF_X,#00000004},
+--             {PT_INTERP, #000000D4,#000080D4,#000080D4,#00000019,#00000019,PF_R     ,#00000001},
+--             {PT_INTERP,      EPH5,     BPH5,     BPH5,   IS_LEN,   IS_LEN,PF_R     ,#00000001},
+               {PT_INTERP,      EPH5,     EPH5,     EPH5,   IS_LEN,   IS_LEN,PF_R     ,#00000001},
+--everything up to but not including the Dynamic Link Info:
+--(EH+PH+Interpreter+Symtab+text) [assuming we skip gnu/plt]
+--             {PT_LOAD,   #00000000,     BASE,     BASE,#000001BC,#000001BC,PF_R+PF_X,#00008000},
+--             {PT_LOAD,   #00000000,     BASE,     BASE,  DLI_POS,  DLI_POS,PF_R+PF_X,#00008000},
+               {PT_LOAD,   #00000000,#00000000,#00000000,  DLI_POS,  DLI_POS,PF_R+PF_X,#00008000},
+--Dynamic Link Info, .got, .data (1BC..282) [no got, thanks]
+--             {PT_LOAD,   #000001BC,#000101BC,#000101BC,#000000C6,#000000C6,PF_R+PF_W,#00008000},
+               {PT_LOAD,     DLI_POS,  BDLIPOS,  BDLIPOS,   DD_LEN,   DD_LEN,PF_R+PF_W,#00008000},
+--Dynamic Link Info, only (1BC..25B)
+--             {PT_DYNAMIC,#000001BC,#000101BC,#000101BC,  DLI_LEN,  DLI_LEN,PF_R+PF_W,#00000004}}
+               {PT_DYNAMIC,  DLI_POS,  BDLIPOS,  BDLIPOS,  DLI_LEN,  DLI_LEN,PF_R+PF_W,#00000004}}
+assert(length(ph)==N_PH)
+-- Qu: do we really need PT_PHDR? why is it executable? [or do the flags mean something else on a PT_HDR?]
+
+--Check: (temp)
+assert(DLI_ZPOS=#F0)
+assert(SYM_POS=#140)
+assert(DSZ_POS=#1E4)
+--assert(TXZ_POS=#1E4+#16+2)
+--assert(TXZ_POS=DSZ_POS+DATA_ZLEN)
+sequence pW = {{PT_INTERP,      EPH5,    WEPH5,    WEPH5,   IS_LEN,   IS_LEN,PF_R     ,#00001000},
+               {PT_DYNAMIC, DLI_ZPOS, BDLIZPOS, BDLIZPOS, DLI_ZLEN, DLI_ZLEN,PF_R     ,#00001000},
+               {PT_LOAD,     SYM_POS, BSYM_POS, BSYM_POS,  SYM_LEN,  SYM_LEN,PF_R+PF_W,#00001000},
+               {PT_LOAD,     DSZ_POS, BDSZ_POS, BDSZ_POS,DATA_ZLEN,DATA_ZLEN,PF_R+PF_W,#00001000},
+               {PT_LOAD,     TXZ_POS, BTXZ_POS, BTXZ_POS,  TXZ_LEN,  TXZ_LEN,PF_R+PF_X,#00001000}}
+
+function sym_entries(sequence nss)
+    sequence {names, strings, strpos, rinfo} = nss
+    string sym_ents = ""
+    for i=1 to length(names) do
+        string name = names[i]
+        integer k = find(name,strings),
+                offset = strpos[k]
+        sym_ents &= binstr(offset,D)&   -- st_name
+                    binstr(0,D)&        -- st_value
+                    binstr(0,D)&        -- st_size
+                    binstr(GLOBFUN,B)&  -- st_info
+                    binstr(0,B)&        -- st_other
+                    binstr(0,W)         -- st_shndx
+    end for
+    assert(length(sym_ents)=length(names)*#10)
+    integer {nt,nd} = rinfo
+--          text_pos = TXT_POS = EPH5+LEN_IS+LEN_ST
+
+--/*
+0000026C,relocation offset, h4,00000284h,DT_REL [#0000026C]                             -- ie text[0]
+00000270,r_info,            h4,00000017h,R_386_PC8, symtab[0]=DT_SYMTAB [#00000130]
+00000274,relocation offset, h4,00000288h,                                               -- ie text[4]
+00000278,r_info,            h4,00000017h,R_386_PC8, symtab[0]=DT_SYMTAB [#00000130]
+0000027C,relocation offset, h4,00008360h,                                               -- ie data[0]
+00000280,r_info,            h4,00000102h,R_386_PC32, symtab[1]=printf
+--*/
+    string relocs = ""
+if nt!=0 then -- used in lieu of a (not) bZ...
+    for i=1 to nt do
+        relocs &= binstr(TXT_POS+i*4-4,D)&binstr(R_386_PC8,D)
+--      relocs &= binstr(text_pos)&binstr(R_386_PC8)
+--      text_pos += 4
+    end for
+    for i=1 to nd do
+        relocs &= binstr(BASE+DATA_POS+i*4-4,D)&binstr(i*#100+R_386_PC32,D)
+--      relocs &= binstr(BASE+data_pos,D)&binstr(i*#100+R_386_PC32,D)
+--      data_pos += 4
+    end for
+--  assert(length(res)=LEN_ST)
+    assert(length(relocs)=RELSIZ)
+else
+    assert(BSYM_POSR=BDSZ_POS-12)
+    for i=1 to nd do
+--      relocs &= binstr(BSYM_POSR+i*4-4,D)&binstr(i*#100+R_386_32,D)
+        relocs &= binstr(BSYM_POSR+i*4-4,D)&binstr(i*#100+R_ARM_ABS32,D)
+    end for
+    relocs &= repeat('\0',nd*4)
+end if
+    return {sym_ents,relocs}
+--/*
+000001B8,relocation offset,h4,080481D0h,DT_REL [#080481B8]          -- to change [+8, different offset]
+000001BC,r_info,h4,00000101h,R_386_32, symtab[1]=mallopt
+000001C0,relocation offset,h4,080481D4h,                            -- to change [+8, different offset]
+000001C4,r_info,h4,00000201h,R_386_32, symtab[2]=malloc
+000001C8,relocation offset,h4,080481D8h,                            -- to change [+8, different offset]
+000001CC,r_info,h4,00000301h,R_386_32, symtab[3]=printf
+,-,,,
+,--relocs--,,,
+000001D0,reloc[1] (#080481D0),-,00000000 ,....
+000001D4,reloc[2] (#080481D4),-,00000000 ,....
+000001D8,reloc[3] (#080481D8),-,00000000 ,....
+
+--*/
+end function
+
+function ELF_symtab(sequence nss, string string_table)
+--/*
+The obvious solution is to only have one bucket and point it at the end of the chain array, 
+then have the chain array count down from this index, going through the symbols one by one. 
+It is definitely ineffective, but that hardly matters. 
+This results as a generation algorithm as follows:
+
+Write one integer, number of buckets (1).
+Write one integer, number of symbols plus one.
+Write one integer, pointing at the last symbol index, adding one for the obligatory empty symbol (STN_UNDEF is 0).
+Write a zero, for padding.
+Write an increasing list of integers, starting from 0, ending at index of last symbol minus one 
+(last symbol index was already at the only bucket we had).
+The total cost of adding symbols would thus be 
+ 8 (for dynamic structure referencing DT_HASH)
+ + (4 + numsymbols) * 4 (for hash itself)
+ + (1 + numsymbols) * 16 (for symbol structs plus one empty symbol struct)
+ + strlen(symnames) bytes.
+==> plus, see what I did in pbinary.e:
+
+        ht = stringify(repeat('\0',16+rtidx*4))
+        ht = SetField(ht,0,DWORD,1)         -- nbucket
+        ht = SetField(ht,4,DWORD,rtidx+1)   -- nchain
+        for i=1 to rtidx do
+            -- chain[0] = 1
+            -- ...
+            -- chain[n-1] = n
+            -- chain[n] = 0
+            ht = SetField(ht,(i+2)*4,DWORD,i)
+        end for
+
+--SUG:
+function SetField(string res, integer offset, dsize, atom v)
+--
+-- Break up v into dsize bytes (little endian) in res at offset.
+--
+-- res: should be a local string, res = SetField(res,...) for pbr.
+-- offset: 0-based, adjusted here(+1) to index res.
+-- dsize is BYTE(1), WORD(2), DWORD(4), or QWORD(8)[?]
+-- v: does not distinguish between -1 and +4294967295, btw.
+--
+    #isginfo{res,0b1000,MIN,MAX,integer,-2} -- (verify it's a [binary] string)
+    for i=1 to dsize do
+        res[offset+i] = and_bits(v,#FF)
+        v = floor(v/#100)
+    end for
+    return res
+end function
+--*/
+    string {sym_ents,relocs} = sym_entries(nss)
+    string symtab = binstr(1,D)&        -- nbucket
+                    binstr(2,D)&        -- nchain
+                    binstr(1,D)&        -- bucket[0]
+                    binstr(0,D)&        -- chain[0]
+                    binstr(0,D)&        -- chain[1]
+
+--DEV save/verify position here...??
+                    repeat('\0',#10)&   -- symtab[0]
+                    sym_ents&
+--ditto?
+                    string_table&
+                    relocs
+    integer padding = remainder(length(symtab),4)
+    if padding then
+        symtab &= repeat('\0',4-padding)
+    end if
+--LEN_ST = 24+#10+length(sym_ents)+LEN_STRTBL+length(relocs)
+    assert(length(symtab)=TXT_POS-HASH)
+--/*
+======
+,--Hash--,,,
+000000F0,nbucket,4,1,DT_HASH [#000080F0]
+000000F4,nchain,4,2,(also defines DT_SYMTAB size)
+000000F8,bucket[0],4,1,
+000000FC,chain[0],4,0,
+00000100,chain[1],4,0,
+,-,,,
+,--Symtab--,,,
+00000104,st_name[0],h4,00000000h,DT_SYMTAB [#00008104]
+00000108,st_value,h4,00000000h,
+0000010C,st_size,4,0,
+00000110,st_info,h1,00h,
+00000111,st_other,h1,00h,(should be 0)
+00000112,st_shndx,h2,0000h,
+,-,,,
+<<
+00000114,st_name[1],h4,0000000Bh,printf
+00000118,st_value,h4,00008180h,
+0000011C,st_size,4,0,
+00000120,st_info,h1,12h,STB_GLOBAL, STT_FUNC
+00000121,st_other,h1,00h,(should be 0)
+00000122,st_shndx,h2,0000h,
+>>
+00000160,st_name[3],h4,0000000Bh,printf
+00000164,st_value,h4,00000000h,
+00000168,st_size,4,0,
+0000016C,st_info,h1,12h,STB_GLOBAL, STT_FUNC
+0000016D,st_other,h1,00h,(should be 0)
+0000016E,st_shndx,h2,0000h,
+<<
+,-,,,
+,--Strings--,,,                     (+8000 is probably wrong, probably better to start from 0, eg #B === printf, #1 === libc.so.6, #12 === GLIBC_2.4
+00000124,00008124,-,00                                  ,.              (leading null)
+00000125,00008125,-,6C6962 632E736F 2E3600              ,libc.so.6.     (offset #1)
+0000012F,0000812F,-,70 72696E74 6600                    ,printf.        (offset #B)
+00000136,00008136,-,474C 4942435F 322E3400              ,GLIBC_2.4.     (offset #12)
+--Erm, padding?? [nope, there wasn,t any...)
+,--Relocations--,,, --(see .rel.dyn)
+--PL kill*2?:
+0000026C,relocation offset, h4,00000284h,DT_REL [#0000026C]                             -- ie text[0]
+00000270,r_info,            h4,00000017h,R_386_PC8, symtab[0]=DT_SYMTAB [#00000130]
+00000274,relocation offset, h4,00000288h,                                               -- ie text[4]
+00000278,r_info,            h4,00000017h,R_386_PC8, symtab[0]=DT_SYMTAB [#00000130]
+0000027C,relocation offset, h4,00008360h,                                               -- ie data[0]
+00000280,r_info,            h4,00000102h,R_386_PC32, symtab[1]=printf
+
+--*/
+    return symtab
+end function
+
+function ELF_symtabZ(sequence nss, string string_Zable)
+    string {sym_ents,relocs} = sym_entries(nss)
+    string symtab = repeat('\0',#10)&   -- symtab[0]
+                    sym_ents&
+                    binstr(1,D)&        -- nbucket
+                    binstr(4,D)&        -- nchain
+                    binstr(0,D)&        -- bucket[0]
+                    binstr(1,D)&        -- chain[0]
+                    binstr(2,D)&        -- chain[1]
+                    binstr(3,D)&        -- chain[2]
+                    binstr(0,D)&        -- chain[3]
+
+--DEV save/verify position here...??
+                    string_Zable&
+                    relocs
+--DEV:
+--/*
+00000120,d_tag,h4,00000011h,DT_REL
+00000124,d_ptr,h4,000001C0h,(See "Symtab" tab, Relocations)         ; relocs
+00000128,d_tag,h4,00000012h,DT_RELSZ
+0000012C,d_val,4,24, (- total DT_REL table size)
+00000130,d_tag,h4,00000013h,DT_RELENT
+00000134,d_val,4,8, (- size of one DT_REL entry)
+--*/
+
+--  integer padding = remainder(length(symtab),4)
+--  if padding then
+--?9/0
+----        symtab &= repeat('\0',4-padding)
+--  end if
+    integer l = length(symtab)
+    assert(l=SYM_LEN)
+--/*
+Symtab
+======
+,--Symtab--,,,
+00000138,st_name[0],h4,00000000h,DT_SYMTAB [#08048138]
+0000013C,st_value,h4,00000000h,
+00000140,st_size,4,0,
+00000144,st_info,h1,00h,
+00000145,st_other,h1,00h,(should be 0)
+00000146,st_shndx,h2,0000h,
+,-,,,
+00000148,st_name[1],h4,0000000Bh,mallopt
+0000014C,st_value,h4,00000000h,
+00000150,st_size,4,0,
+00000154,st_info,h1,12h,STB_GLOBAL, STT_FUNC
+00000155,st_other,h1,00h,(should be 0)
+00000156,st_shndx,h2,0000h,
+,-,,,
+00000158,st_name[2],h4,00000013h,malloc
+0000015C,st_value,h4,00000000h,
+00000160,st_size,4,0,
+00000164,st_info,h1,12h,STB_GLOBAL, STT_FUNC
+00000165,st_other,h1,00h,(should be 0)
+00000166,st_shndx,h2,0000h,
+,-,,,
+00000168,st_name[3],h4,0000001Ah,printf
+0000016C,st_value,h4,00000000h,
+00000170,st_size,4,0,
+00000174,st_info,h1,12h,STB_GLOBAL, STT_FUNC
+00000175,st_other,h1,00h,(should be 0)
+00000176,st_shndx,h2,0000h,
+,-,,,
+,--Hash--,,,
+00000178,nbucket,4,     1,DT_HASH [#08048178]
+0000017C,nchain,4,      4,(also defines DT_SYMTAB size)
+00000180,bucket[0],4,   0,
+00000184,chain[0],4,    1,
+00000188,chain[1],4,    2,
+0000018C,chain[2],4,    3,
+00000190,chain[3],4,    0,
+,-,,,
+,--Strings--,,,
+00000194,08048194,-,00,.
+00000195,08048195,-,6C6962 632E736F 2E3600,libc.so.6.
+0000019F,0804819F,-,6D 616C6C6F 707400,mallopt.
+000001A7,080481A7,-,6D 616C6C6F 6300,malloc.
+000001AE,080481AE,-,7072 696E7466 00000000 ,printf....
+,-,,,
+,--Relocations--,,,
+000001B8,relocation offset,h4,080481D0h,DT_REL [#080481B8]          -- to change [+8, different offset]
+000001BC,r_info,h4,00000101h,R_386_32, symtab[1]=mallopt
+000001C0,relocation offset,h4,080481D4h,                            -- to change [+8, different offset]
+000001C4,r_info,h4,00000201h,R_386_32, symtab[2]=malloc
+000001C8,relocation offset,h4,080481D8h,                            -- to change [+8, different offset]
+000001CC,r_info,h4,00000301h,R_386_32, symtab[3]=printf
+,-,,,
+,--relocs--,,,
+000001D0,reloc[1] (#080481D0),-,00000000 ,....
+000001D4,reloc[2] (#080481D4),-,00000000 ,....
+000001D8,reloc[3] (#080481D8),-,00000000 ,....
+--*/
+    return symtab
+end function
+
+--function ELF_text_segment(integer DATA_POS)
+function ELF_text_segment(bool bZ=false)
+    atom addr = iff(bZ?BDSZ_POS:BASE+DATA_POS)
+    string text = binstr(addr,D)&       -- iAdrPrntf: .int prntf
+                  binstr(addr+4,D)&     -- iAdrFmt: .int format
+--/*
+--              x"E92D4800"&            -- main:    push {fp,lr}
+                x"00482DE9"&            -- main:    push {fp,lr}
+                x"E51F0010"&            --          ldr r0, iAdrFmt     @ address of message
+                x"E3A0107C"&            --          mov r1, #124        @ arg[1]
+                x"E51F201C"&            --          ldr r2, iAdrPrntf   @ address of prntf
+                x"E5922000"&            --          ldr r2, [r2]        @ address of printf
+                x"E1A0E00F"&            --          mov lr,pc           @ return address
+                x"E12FFF12"&            --          bx r2               -- (call printf)
+                x"E3A07001"&            --          mov r7, #1          @ sys_exit
+--              x"E3A00000"&            --          mov r0, #0          @ (shd perhaps clear r0)
+                x"EF000000"&            --          swi #0              @ syscall
+                x"E8BD8800"             --          pop {fp,pc}
+--*/
+                x"00482DE9"&            -- main:    push {fp,lr}
+                x"10001FE5"&            --          ldr r0, iAdrFmt     @ address of message
+                x"7C10A0E3"&            --          mov r1, #124        @ arg[1]
+                x"1C201FE5"&            --          ldr r2, iAdrPrntf   @ address of prntf
+                x"002092E5"&            --          ldr r2, [r2]        @ address of printf
+                x"0FE0A0E1"&            --          mov lr,pc           @ return address
+                x"12FF2FE1"&            --          bx r2               -- (call printf)
+                x"0170A0E3"&            --          mov r7, #1          @ sys_exit
+--              x"0000A0E3"&            --          mov r0, #0          @ (shd perhaps clear r0)
+                x"000000EF"&            --          swi #0              @ syscall
+                x"0088BDE8"             --          pop {fp,pc}
+
+    assert(length(text)=TXT_LEN)
+    return text
+end function
+
+function ELF_text_segment7()
+    string text = binstr(BDSZ_POS,D)&       -- iAdrPrntf: .int prntf
+                  binstr(BDSZ_POS+4,D)&     -- iAdrFmt: .int format
+
+                x"3030A0E3"& -- mov r3, 48  -- = 0x30 ('0')
+                x"313C83E3"& -- orr r3, 12544  -- = 0x3100 (rotate=1100)
+                x"323883E3"& -- orr r3, 3276800 -- = 0x320000 (rotate=1000)
+                x"333483E3"& -- orr r3, 855638016  -- = 0x33000000 (rotate=0100)
+                x"3440A0E3"& -- mov r4, 52  -- = 0x34 ('4')
+                x"354C84E3"& -- orr r4, 13568  -- = 0x3500 (rotate=1100)
+                x"364884E3"& -- orr r4, 3538944 -- = 0x360000 (rotate=1000)
+                x"0A4484E3"& -- orr r4, 167772160  -- = 0xA000000 (rotate=0100)
+                x"18002DE9"& -- push {r3,r4}
+                x"0D10A0E1"& -- mov r1, sp
+                x"0820A0E3"& -- mov r2, 8
+                x"040090EF"& -- swi 9437188 -- #900004, sys_write
+                x"2A00A0E3"& -- mov r0, 42  -- = 0x2A ('*')
+                x"010090EF"  -- swi 9437185 -- #900001, sys_exit
+
+    assert(length(text)=TXZ_LEN)
+
+    return text
+end function
+
+sequence nss = {names, strings, strpos, {2,N}}
+sequence nzz = {nameZ, stringZ, strpoZ, {0,NZ}}
+--  integer {nt,text_pos,nd,data_pos} = rinfo
+--?strpos
+--?string_table
+
+function ELF_Dynamic_Link_Info()
+    integer k = find("libc.so.6",strings)
+    string dli = binstr(DT_NEEDED,D)    & binstr(strpos[k],D)&
+                 binstr(DT_HASH,  D)    & binstr(HASH,D)&
+                 binstr(DT_STRTAB,D)    & binstr(STRTAB,D)&
+                 binstr(DT_SYMTAB,D)    & binstr(SYMTAB,D)&
+                 binstr(DT_STRSZ, D)    & binstr(LEN_STRTBL,D)&
+                 binstr(DT_SYMENT,D)    & binstr(16,D)&
+                 binstr(DT_DEBUG, D)    & binstr(0,D)&
+                 binstr(DT_REL,   D)    & binstr(RELPOS,D)&
+                 binstr(DT_RELSZ, D)    & binstr(RELSIZ,D)&
+                 binstr(DT_RELENT,D)    & binstr(8,D)&
+                 binstr(DT_TEXTREL,D)   & binstr(0,D)&
+                 binstr(DT_RELCOUNT,D)  & binstr(2,D)
+    -- padding???
+    integer padding = DLI_LEN-length(dli)
+    dli &= repeat('\0',padding)
+--#50, #A0,
+    return dli
+--/*
+Dynamic Link Info
+=================
+#2B4+#A0 = #354
+--000002B4,d_tag,h4,00000001h,DT_NEEDED
+--000002B8,d_val,4,1,libc.so.6
+--000002BC,d_tag,h4,00000004h,DT_HASH
+--000002C0,d_ptr,h4,000000F0h,(See "Symtab" tab, Hash)
+--000002C4,d_tag,h4,00000005h,DT_STRTAB
+--000002C8,d_ptr,h4,000001E0h,(See "Symtab" tab, Strings)
+--000002CC,d_tag,h4,00000006h,DT_SYMTAB
+--000002D0,d_ptr,h4,00000130h,(See "Symtab" tab)
+--000002D4,d_tag,h4,0000000Ah,DT_STRSZ
+--000002D8,d_val,4,86, (- strings end at #00000235)
+--000002DC,d_tag,h4,0000000Bh,DT_SYMENT
+--000002E0,d_val,4,16, (- size of one symtab entry)
+--000002E4,d_tag,h4,00000015h,DT_DEBUG
+--000002E8,d_ptr,h4,00000000h,
+--000002EC,d_tag,h4,00000011h,DT_REL
+--000002F0,d_ptr,h4,0000026Ch,(See "Symtab" tab, Relocations)
+--000002F4,d_tag,h4,00000012h,DT_RELSZ
+----PL try with 1/3 this, ie 8 bytes??
+--000002F8,d_val,4,24, (- total DT_REL table size)
+--000002FC,d_tag,h4,00000013h,DT_RELENT
+--00000300,d_val,4,8, (- size of one DT_REL entry)
+--00000304,d_tag,h4,00000016h,DT_TEXTREL
+--00000308,d_tag,h4,00000000h,DT_NULL
+00000324,d_tag,h4,6FFFFFFAh,DT_RELCOUNT
+00000328,d_val,4,2,(See ".rel.dyn" tab)
+0000032C,d_tag,h4,00000000h,DT_NULL
+00000330,d_tag,h4,00000000h,DT_NULL
+00000334,d_tag,h4,00000000h,DT_NULL
+00000338,d_tag,h4,00000000h,DT_NULL
+0000033C,d_tag,h4,00000000h,DT_NULL
+00000340,d_tag,h4,00000000h,DT_NULL
+00000344,d_tag,h4,00000000h,DT_NULL
+00000348,d_tag,h4,00000000h,DT_NULL
+0000034C,d_tag,h4,00000000h,DT_NULL
+00000350,d_tag,h4,00000000h,DT_NULL
+--*/
+end function
+
+function ELF_Dynamic_Link_InfoZ()
+    integer k = find("libc.so.6",stringZ)
+    string dli = binstr(DT_NEEDED,D)    & binstr(strpoZ[k],D)&
+                 binstr(DT_SYMTAB,D)    & binstr(BSYM_POS,D)&
+                 binstr(DT_SYMENT,D)    & binstr(16,D)&
+                 binstr(DT_HASH,  D)    & binstr(ZHASH,D)&
+                 binstr(DT_STRTAB,D)    & binstr(STRZTAB,D)&
+                 binstr(DT_STRSZ, D)    & binstr(LEN_STRTBLZ,D)
+--               binstr(DT_STRSZ, D)    & binstr(LEN_STRTBLZ,D)&
+--               binstr(DT_REL,   D)    & binstr(RELPOZ,D)&
+--               binstr(DT_RELSZ, D)    & binstr(RELSIZZ,D)&
+--               binstr(DT_RELENT,D)    & binstr(8,D)
+    -- padding???
+    integer padding = DLI_ZLEN-length(dli)
+    dli &= repeat('\0',padding)
+--#50<<, #A0,
+    return dli
+end function
+
+function ELF_data_segment()
+
+    string text = binstr(0,D)&          -- prntf: .word printf
+                  "The result is: %d\n" -- format: .ascii "The result is: %d\n"
+--27/8/22, for hwZ...
+    integer padding = remainder(length(text),4)
+    text &= repeat('\0',padding)
+--  assert(length(text)=DATA_LEN)
+    assert(length(text)=DATA_ZLEN)
+--/*
+.data
+=====
+0000026C,0001026C,-,80810000 ,....
+00000270,00010270,-,54686520 72657375 6C742069 733A2025 ,The result is: %
+00000280,00010280,-,640A,d.
+.data
+=====
+00000360,00008360,-,00000000                            ,....
+00000364,00008364,-,54686520 72657375 6C742069          ,The result i
+00000370,00008370,-,733A2025 640A                       ,s: %d.
+--*/
+    return text
+end function
+
+--printf(1,"%x\n",#1BC+#C6)
+constant b = 
+--EH
+--/*
+x"7F454C46 01010100  00000000 00000000"& -- 00000000  *⌂ELF............*
+x"03002800 01000000  8C020000 34000000"& -- 00000010  *..(.....î...4...*
+x"08040000 02000005  34002000 05002800"& -- 00000020  *........4. ...(.*
+x"0E000D00"&                             -- 00000030  *....*
+--*/
+--PH
+-- PT_PHDR
+x"06000000 34000000  34000000 34000000"& -- 00000034  *....4...4...4...*
+x"A0000000 A0000000  05000000 04000000"& -- 00000044  *á...á...........*
+-- PT_INTERP
+x"03000000 D4000000  D4000000 D4000000"& -- 00000054  *....È...È...È...*
+x"19000000 19000000  04000000 01000000"& -- 00000064  *................*
+-- PT_LOAD (RX)
+x"01000000 00000000  00000000 00000000"& -- 00000074  *................*
+x"B4020000 B4020000  05000000 00800000"& -- 00000084  *┤...┤........Ç..*
+-- PT_LOAD (RW)
+x"01000000 B4020000  B4820000 B4820000"& -- 00000094  *....┤...┤é..┤é..*
+x"C2000000 C2000000  06000000 00800000"& -- 000000A4  *┬...┬........Ç..*
+-- PT_DYNAMIC
+x"02000000 B4020000  B4820000 B4820000"& -- 000000B4  *....┤...┤é..┤é..*
+x"A0000000 A0000000  06000000 04000000"& -- 000000C4  *á...á...........*
+--Interpreter
+x"2F6C6962 2F6C642D  6C696E75 782D6172"& -- 000000D4  */lib/ld-linux-ar*
+x"6D68662E  736F2E33 00000000"&          -- 000000E4  *mhf.so.3....*
+--Symtab, Hash
+x"03000000 0B000000  06000000 08000000"& -- 000000F0  *................*
+x"0A000000 00000000  00000000 00000000"& -- 00000100  *................*
+x"00000000 00000000  03000000 04000000"& -- 00000110  *................*
+x"00000000 07000000  05000000 09000000"& -- 00000120  *................*
+--Symtab[0..10]
+x"00000000 00000000  00000000 00000000"& -- 00000130  *................*
+x"00000000 D4000000  00000000 03000100"& -- 00000140  *....È...........*
+x"00000000 60830000  00000000 03000B00"& -- 00000150  *....`â..........*
+x"0B000000 00000000  00000000 12000000"& -- 00000160  *................*
+x"25000000 76830000  00000000 1000F1FF"& -- 00000170  *%...vâ........± *
+x"34000000 76830000  00000000 1000F1FF"& -- 00000180  *4...vâ........± *
+x"12000000 76830000  00000000 1000F1FF"& -- 00000190  *....vâ........± *
+x"33000000 76830000  00000000 1000F1FF"& -- 000001A0  *3...vâ........± *
+x"47000000 78830000  00000000 1000F1FF"& -- 000001B0  *G...xâ........± *
+x"3F000000 78830000  00000000 1000F1FF"& -- 000001C0  *?...xâ........± *
+x"19000000 76830000  00000000 1000F1FF"& -- 000001D0  *....vâ........± *
+--Symtab, strings
+x"006C6962 632E736F  2E360070 72696E74"& -- 000001E0  *.libc.so.6.print*
+x"66005F65 64617461  005F5F62 73735F73"& -- 000001F0  *f._edata.__bss_s*
+x"74617274 005F5F62  73735F73 74617274"& -- 00000200  *tart.__bss_start*
+x"5F5F005F 5F627373  5F656E64 5F5F005F"& -- 00000210  *__.__bss_end__._*
+x"5F656E64 5F5F005F  656E6400 474C4942"& -- 00000220  *_end__._end.GLIB*
+x"435F322E 3400"&                        -- 00000230  *C_2.4.*
+--.gnuversion
+x"0000  00000000 02000100"&              -- 00000236  *..........*
+x"01000100 01000100  01000100"&          -- 00000240  *............*
+--.gnu_version_r
+x"01000100"&                             -- 0000024C  *....*
+x"01000000 10000000  00000000 1469690D"& -- 00000250  *.............ii.*
+x"00000200 4C000000  00000000"&          -- 00000260  *....L.......*
+--Relocs (aka .rel.dyn)
+x"84020000 17000000"&                    -- 0000026C  *ä.......*
+x"88020000 17000000"&                    -- 00000274  *ê.......*
+x"60830000 02030000"&                    -- 0000027C  *`â......*
+--.text
+x"60830000 64830000"&                    -- 00000284  *`â..dâ..*
+x"00482DE9"&                             -- 0000028C  *.H-Ú*
+x"10001FE5 7C10A0E3  1C201FE5 002092E5"& -- 00000290  *...Õ|.áÒ. .Õ. ÆÕ*
+x"0FE0A0E1 12FF2FE1  0170A0E3 000000EF"& -- 000002A0  *.Óáß. /ß.páÒ...´*
+x"0088BDE8"&                             -- 000002B0  *.ê¢Þ*
+--Dynamic Link Info
+x"01000000 01000000 04000000"&           -- 000002B4  *............*
+x"F0000000 05000000  E0010000 06000000"& -- 000002C0  *­.......Ó.......*
+x"30010000 0A000000  56000000 0B000000"& -- 000002D0  *0.......V.......*
+x"10000000 15000000  00000000 11000000"& -- 000002E0  *................*
+x"6C020000 12000000  18000000 13000000"& -- 000002F0  *l...............*
+x"08000000 16000000  00000000 FEFFFF6F"& -- 00000300  *............■  o*
+x"4C020000 FFFFFF6F  01000000 F0FFFF6F"& -- 00000310  *L...   o....­  o*
+x"36020000 FAFFFF6F  02000000 00000000"& -- 00000320  *6...·  o........*
+x"00000000 00000000  00000000 00000000"& -- 00000330  *................*
+x"00000000 00000000  00000000 00000000"& -- 00000340  *................*
+x"00000000"&                             -- 00000350  *....*
+--.got
+x"B4820000  00000000 00000000"&          -- 00000350  *┤é..........*
+--.data
+x"00000000 54686520  72657375 6C742069"& -- 00000360  *The result i*
+x"733A2025 640A"&                        -- 00000370  *s: %d.*
+--.ARM.attributes
+x"4117  00000061 65616269"&              -- 00000376  *A....aeabi*
+x"00010D00 00000602  08010901 2C01"&     -- 00000380  *............,.*
+--.shstrtab
+x"002E"&                                 -- 0000038E  *..*
+x"73687374 72746162  002E696E 74657270"& -- 00000390  *shstrtab..interp*
+x"002E6861 7368002E  64796E73 796D002E"& -- 000003A0  *..hash..dynsym..*
+x"64796E73 7472002E  676E752E 76657273"& -- 000003B0  *dynstr..gnu.vers*
+x"696F6E00 2E676E75  2E766572 73696F6E"& -- 000003C0  *ion..gnu.version*
+x"5F72002E 72656C2E  64796E00 2E746578"& -- 000003D0  *_r..rel.dyn..tex*
+x"74002E64 796E616D  6963002E 676F7400"& -- 000003E0  *t..dynamic..got.*
+x"2E646174 61002E41  524D2E61 74747269"& -- 000003F0  *.data..ARM.attri*
+x"62757465 73000000"&                    -- 00000400  *butes.*
+--Section headers
+x"00000000 00000000"&                    -- 00000408  *..........*
+x"00000000 00000000  00000000 00000000"& -- 00000410  *................*
+x"00000000 00000000  00000000 00000000"& -- 00000420  *................*
+x"0B000000 01000000  02000000 D4000000"& -- 00000430  *............È...*
+x"D4000000 19000000  00000000 00000000"& -- 00000440  *È...............*
+x"01000000 00000000  13000000 05000000"& -- 00000450  *................*
+x"02000000 F0000000  F0000000 40000000"& -- 00000460  *....­...­...@...*
+x"03000000 00000000  04000000 04000000"& -- 00000470  *................*
+x"19000000 0B000000  02000000 30010000"& -- 00000480  *............0...*
+x"30010000 B0000000  04000000 03000000"& -- 00000490  *0...░...........*
+x"04000000 10000000  21000000 03000000"& -- 000004A0  *........!.......*
+x"02000000 E0010000  E0010000 56000000"& -- 000004B0  *....Ó...Ó...V...*
+x"00000000 00000000  01000000 00000000"& -- 000004C0  *................*
+x"29000000 FFFFFF6F  02000000 36020000"& -- 000004D0  *)...   o....6...*
+x"36020000 16000000  03000000 00000000"& -- 000004E0  *6...............*
+x"02000000 02000000  36000000 FEFFFF6F"& -- 000004F0  *........6...■  o*
+x"02000000 4C020000  4C020000 20000000"& -- 00000500  *....L...L... ...*
+x"04000000 01000000  04000000 00000000"& -- 00000510  *................*
+x"45000000 09000000  02000000 6C020000"& -- 00000520  *E...........l...*
+x"6C020000 18000000  03000000 00000000"& -- 00000530  *l...............*
+x"04000000 08000000  4E000000 01000000"& -- 00000540  *........N.......*
+x"06000000 84020000  84020000 30000000"& -- 00000550  *....ä...ä...0...*
+x"00000000 00000000  04000000 00000000"& -- 00000560  *................*
+x"54000000 06000000  03000000 B4820000"& -- 00000570  *T...........┤é..*
+x"B4020000 A0000000  04000000 00000000"& -- 00000580  *┤...á...........*
+x"04000000 08000000  5D000000 01000000"& -- 00000590  *........].......*
+x"03000000 54830000  54030000 0C000000"& -- 000005A0  *....Tâ..T.......*
+x"00000000 00000000  04000000 04000000"& -- 000005B0  *................*
+x"62000000 01000000  03000000 60830000"& -- 000005C0  *b...........`â..*
+x"60030000 16000000  00000000 00000000"& -- 000005D0  *`...............*
+x"01000000 00000000  68000000 03000070"& -- 000005E0  *........h......p*
+x"00000000 00000000  76030000 18000000"& -- 000005F0  *........v.......*
+x"00000000 00000000  01000000 00000000"& -- 00000600  *................*
+x"01000000 03000000  00000000 00000000"& -- 00000610  *................*
+x"8E030000 78000000  00000000 00000000"& -- 00000620  *Ä...x...........*
+x"01000000 00000000"                     -- 00000630  *........      *
+
+
+--/*
+ELF Header
+==========
+00000000,ei_magic,x4,0x7F&"ELF",ELF signature
+00000004,ei_class,1,1,32 bit
+00000005,ei_data,1,1,little endian
+00000006,ei_version,1,1,current
+00000007,ei_osabi,1,0,System V
+00000008,ei_abiversion,1,0,
+00000009,ei_pad,h6,000000000000h,
+0000000F,ei_size,h1,00h,
+00000010,e_type,2,2,Executable file
+00000012,e_machine,2,3,Intel 386                                            -- to change
+00000014,e_version,4,1,current
+00000018,e_entry,h4,0804C000h,                                              -- to change
+0000001C,e_phoff,h4,00000034h,program header table
+00000020,e_shoff,h4,00000000h,section header table
+00000024,e_flags,h4,00000000h,                                              -- ??? (trying as 02000005)
+00000028,e_ehsize,h2,0034h,ELF header size
+0000002A,e_phentsize,2,32,program header table entry size
+0000002C,e_phnum,2,5,number of program header entries
+0000002E,e_shentsize,2,40,section header entry size
+00000030,e_shnum,2,0,number of section header entries
+00000032,e_shstrndx,2,0,section name string table index
+Program Headers
+===============
+00000034,p_type,4,3,PT_INTERP
+00000038,p_offset,h4,000000D4h,file offset
+0000003C,p_vaddr,h4,080480D4h,virtual address (see "Interpreter" tab)       -- to change
+00000040,p_paddr,h4,080480D4h,physical addressing(ignored)                  -- to change
+00000044,p_filesz,h4,00000014h,bytes in file image                          -- +6 or 8
+00000048,p_memsz,h4,00000014h,bytes in memory image                         -- ""
+0000004C,p_flags,h4,00000004h,Read
+00000050,p_align,h4,00001000h,
+,-,,,
+00000054,p_type,4,2,PT_DYNAMIC
+00000058,p_offset,h4,000000E8h,file offset                                  -- +8
+0000005C,p_vaddr,h4,080480E8h,virtual address (see "Dynamic Link Info" tab) -- to change
+00000060,p_paddr,h4,080480E8h,physical addressing(ignored)                  -- ""
+00000064,p_filesz,h4,00000050h,bytes in file image
+00000068,p_memsz,h4,00000050h,bytes in memory image
+0000006C,p_flags,h4,00000004h,Read
+00000070,p_align,h4,00001000h,
+,-,,,
+--Symtab
+00000074,p_type,4,1,PT_LOAD
+00000078,p_offset,h4,00000138h,file offset                                  -- +8
+0000007C,p_vaddr,h4,08048138h,virtual address (see "Symtab" tab)            -- to change
+00000080,p_paddr,h4,08048138h,physical addressing(ignored)                  -- ""
+00000084,p_filesz,h4,000000A4h,bytes in file image
+00000088,p_memsz,h4,000000A4h,bytes in memory image
+0000008C,p_flags,h4,00000006h,Read+Write
+00000090,p_align,h4,00001000h,
+,-,,,
+00000094,p_type,4,1,PT_LOAD
+00000098,p_offset,h4,000001DCh,file offset                                  -- +8
+0000009C,p_vaddr,h4,080481DCh,virtual address (see "Data Segment" tab)      -- to change
+000000A0,p_paddr,h4,080481DCh,physical addressing(ignored)                  -- ""
+000000A4,p_filesz,h4,00003E24h,bytes in file image                          -- to change
+000000A8,p_memsz,h4,00003E24h,bytes in memory image                         -- ""
+000000AC,p_flags,h4,00000006h,Read+Write
+000000B0,p_align,h4,00001000h,
+,-,,,
+000000B4,p_type,4,1,PT_LOAD
+000000B8,p_offset,h4,00004000h,file offset                                  -- to change
+000000BC,p_vaddr,h4,0804C000h,virtual address (see "Code Segment" tab)      -- to change    
+000000C0,p_paddr,h4,0804C000h,physical addressing(ignored)                  -- ""
+000000C4,p_filesz,h4,00002DB8h,bytes in file image                          -- to change
+000000C8,p_memsz,h4,00002DB8h,bytes in memory image                         -- ""
+000000CC,p_flags,h4,00000005h,Read+Execute
+000000D0,p_align,h4,00001000h,
+,-,,,
+Interpreter
+===========
+000000D4,080480D4,-,2F6C6962 2F6C642D 6C696E75 ,/lib/ld-linu                -- bugger, I need 6 more bytes! (make it 8)
+000000E0,080480E0,-,782E736F 2E320000 ,x.so.2..                             -- (I think I should be able to cope...)
+Dynamic Link Info
+=================
+000000E8,d_tag,h4,00000001h,DT_NEEDED
+000000EC,d_val,4,1,libc.so.6
+000000F0,d_tag,h4,00000006h,DT_SYMTAB
+000000F4,d_ptr,h4,08048138h,(See "Symtab" tab)                              -- to change [+8, different offset]
+000000F8,d_tag,h4,0000000Bh,DT_SYMENT
+000000FC,d_val,4,16, (- size of one symtab entry)
+00000100,d_tag,h4,00000004h,DT_HASH
+00000104,d_ptr,h4,08048178h,(See "Symtab" tab, Hash)                        -- to change [+8, different offset]
+00000108,d_tag,h4,00000005h,DT_STRTAB
+0000010C,d_ptr,h4,08048194h,(See "Symtab" tab, Strings)                     -- to change [+8, different offset]
+00000110,d_tag,h4,0000000Ah,DT_STRSZ
+00000114,d_val,4,36, (- strings end at #000001B7)                           --           (+8)
+00000118,d_tag,h4,00000011h,DT_REL
+0000011C,d_ptr,h4,080481B8h,(See "Symtab" tab, Relocations)                 -- to change [+8, different offset]
+00000120,d_tag,h4,00000012h,DT_RELSZ
+00000124,d_val,4,24, (- total DT_REL table size)
+00000128,d_tag,h4,00000013h,DT_RELENT
+0000012C,d_val,4,8, (- size of one DT_REL entry)
+00000130,d_tag,h4,00000000h,DT_NULL
+00000134,d_tag,h4,00000000h,DT_NULL
+Symtab
+======
+,--Symtab--,,,
+00000138,st_name[0],h4,00000000h,DT_SYMTAB [#08048138]
+0000013C,st_value,h4,00000000h,
+00000140,st_size,4,0,
+00000144,st_info,h1,00h,
+00000145,st_other,h1,00h,(should be 0)
+00000146,st_shndx,h2,0000h,
+,-,,,
+00000148,st_name[1],h4,0000000Bh,mallopt
+0000014C,st_value,h4,00000000h,
+00000150,st_size,4,0,
+00000154,st_info,h1,12h,STB_GLOBAL, STT_FUNC
+00000155,st_other,h1,00h,(should be 0)
+00000156,st_shndx,h2,0000h,
+,-,,,
+00000158,st_name[2],h4,00000013h,malloc
+0000015C,st_value,h4,00000000h,
+00000160,st_size,4,0,
+00000164,st_info,h1,12h,STB_GLOBAL, STT_FUNC
+00000165,st_other,h1,00h,(should be 0)
+00000166,st_shndx,h2,0000h,
+,-,,,
+00000168,st_name[3],h4,0000001Ah,printf
+0000016C,st_value,h4,00000000h,
+00000170,st_size,4,0,
+00000174,st_info,h1,12h,STB_GLOBAL, STT_FUNC
+00000175,st_other,h1,00h,(should be 0)
+00000176,st_shndx,h2,0000h,
+,-,,,
+,--Hash--,,,
+00000178,nbucket,4,1,DT_HASH [#08048178]
+0000017C,nchain,4,4,(also defines DT_SYMTAB size)
+00000180,bucket[0],4,0,
+00000184,chain[0],4,1,
+00000188,chain[1],4,2,
+0000018C,chain[2],4,3,
+00000190,chain[3],4,0,
+,-,,,
+,--Strings--,,,
+00000194,08048194,-,00,.
+00000195,08048195,-,6C6962 632E736F 2E3600,libc.so.6.
+0000019F,0804819F,-,6D 616C6C6F 707400,mallopt.
+000001A7,080481A7,-,6D 616C6C6F 6300,malloc.
+000001AE,080481AE,-,7072 696E7466 00000000 ,printf....
+,-,,,
+,--Relocations--,,,
+000001B8,relocation offset,h4,080481D0h,DT_REL [#080481B8]          -- to change [+8, different offset]
+000001BC,r_info,h4,00000101h,R_386_32, symtab[1]=mallopt
+000001C0,relocation offset,h4,080481D4h,                            -- to change [+8, different offset]
+000001C4,r_info,h4,00000201h,R_386_32, symtab[2]=malloc
+000001C8,relocation offset,h4,080481D8h,                            -- to change [+8, different offset]
+000001CC,r_info,h4,00000301h,R_386_32, symtab[3]=printf
+,-,,,
+,--relocs--,,,
+000001D0,reloc[1] (#080481D0),-,00000000 ,....
+000001D4,reloc[2] (#080481D4),-,00000000 ,....
+000001D8,reloc[3] (#080481D8),-,00000000 ,....
+Data Segment
+============
+000001DC,080481DC,-,50686978 ,Phix                                          -- all change
+000001E0,080481E0,-,01000000 E8820408 00000000 39000000 ,............9...
+Code Segment
+============
+00004000,0804C000:  call #0804E8B9,-,350 B4280000,v  00 00  1   1                   -- all change
+00004005,0804C005:  call #0804EA86,-,350 7C2A0000,v  00 00  1   2      
+0000400A,0804C00A:  call #0804CF0A,-,350 FB0E0000,v  00 00  1   3      
+0000400F,0804C00F:  mov eax,[#080482A8],-,241 A8820408,uv 01 00  1   4              --- (fmt) [good, no sign of that needing anything]
+00004014,0804C014:  mov ecx,124,-,271 7C000000,vu 02 00  1   4      
+00004019,0804C019:  shl eax,2,-,301340 02,u  01 01  1   5      
+0000401C,0804C01C:  push ecx,-,121,vu 00 02  1   5      
+0000401D,0804C01D:  push eax,-,120,uv 00 01  1   6      
+0000401E,0804C01E:  call [#080481D8] (printf),-,377025 D8810408,np 00 00  2   7      -- (printf)
+00004024,0804C024:  add esp,8,-,203304 08,uv 10 10  1   9      
+00004027,0804C027:  jmp #0804EBA1,-,351 752B0000,v  00 00  1   9                    -- opRetf
+0000402C,0804C02C:  jmp #0804EBA1,-,351 702B0000,v  00 00  1  10                    -- "", from opLen (since changed to jmp :!opCallOnceYeNot)
+--*/
+
+
+procedure mainELF()
+    string testfile = `E:\downloads\misc\wren\qemu\putty\hwX`
+    integer fn = open(testfile,`wb`)
+--  puts(fn,ELF_Header(BTXTPOS+2*4))
+    puts(fn,ELF_Header(#0000028C))
+--  puts(fn,ELF_Header(TXT_POS+2*4))
+printf(1,"After ELF_Header:%x\n",where(fn))
+--/*
+    puts(fn,ELF_program_headers(ph))
+printf(1,"After ELF_program_headers:%x\n",where(fn))
+    puts(fn,interpreter_segment)
+printf(1,"After interpreter_segment:%x\n",where(fn))
+    puts(fn,ELF_symtab(nss, string_table))
+printf(1,"After ELF_symtab:%x\n",where(fn))
+    puts(fn,ELF_text_segment())
+printf(1,"After ELF_text_segment:%x\n",where(fn))
+    puts(fn,ELF_Dynamic_Link_Info())
+printf(1,"After ELF_Dynamic_Link_Info:%x\n",where(fn))
+    puts(fn,ELF_data_segment())
+printf(1,"After ELF_data_segment:%x\n",where(fn))
+--*/
+    puts(fn,b)
+printf(1,"After all done:%x (%d)\n",where(fn)) -- 1592
+    close(fn)
+    printf(1,"Test file `%s` written\n",{testfile})
+--/!*
+    testfile[$] = 'Z'
+    fn = open(testfile,`wb`)
+--  puts(fn,ELF_Header(BTXTPOS+2*4,true))
+--  puts(fn,ELF_Header(#0804C000,true))
+--DEV filedump "crashes"...? (**TEMP**)
+--  puts(fn,ELF_Header(BTXZ_POS+2*4,true))
+--      puts(fn,ELF_Header(0,true))
+    puts(fn,ELF_Header(TXZ_POS+2*4,true))
+printf(1,"After ELF_Header:%x\n",where(fn))
+--  puts(fn,ELF_program_headers(ph))
+    puts(fn,ELF_program_headers(pW))
+printf(1,"After ELF_program_headers:%x\n",where(fn))
+    puts(fn,interpreter_segment)
+printf(1,"After interpreter_segment:%x\n",where(fn))
+    puts(fn,ELF_Dynamic_Link_InfoZ())
+printf(1,"After ELF_Dynamic_Link_Info:%x\n",where(fn))
+    puts(fn,ELF_symtabZ(nzz, string_Zable))
+--  puts(fn,ELF_symtab(nss, string_table))
+printf(1,"After ELF_symtab:%x\n",where(fn))
+    puts(fn,ELF_data_segment())
+printf(1,"After ELF_data_segment:%x\n",where(fn))
+--  puts(fn,ELF_text_segment(true))
+    puts(fn,ELF_text_segment7())
+printf(1,"After ELF_text_segment:%x\n",where(fn))
+--  puts(fn,ELF_Dynamic_Link_Info())
+--printf(1,"After ELF_Dynamic_Link_Info:%x\n",where(fn))
+--  puts(fn,ELF_data_segment())
+--printf(1,"After ELF_data_segment:%x\n",where(fn))
+printf(1,"After all done:%x (%d)\n",where(fn)) -- 574
+    close(fn)
+    printf(1,"Test file `%s` written\n",{testfile})
+--*!/
+
+end procedure
+if 0 then
+mainELF()
+end if
+
+constant putty = `E:\downloads\misc\wren\qemu\putty\`
+constant check_addr = false,    -- DEV temp
+         check_bytes = false
+        
+function itob(atom a, integer size)
+    string res = ""
+    for i=1 to size do
+        res &= and_bits(a,#FF)
+        a = floor(a/#100)
+    end for
+    return res
+end function
+
+procedure recreate_ELF(string listing)
+--
+--; ignore any line not beginning 0, except for storing address of any ;:name: 
+--; split on ',' [and verify >=4]
+--; [temp] check addr[1] is as expected
+--; ignore name[2]
+--; check size[3] is understood
+--; check/make data[4] right size, and emit [that is, on the 2nd pass, once all names are known]
+--;  warning: h4,end-fetch would attempt to decode as hex, since length(4*2+1) ending in a 'h'.
+--; [temp] verify generated file matches original [better yet: do so instead of creation]
+--; use the label syntax ";:label:", in an initial first pass. (nb ";;:xxx:" is *not* a label!)
+--; ";.aligned 4" nb: performs a check only, demands bytes be inserted, manually|explicitly.
+--
+    string output = substitute(listing,`.asm`,`r`), po = putty&output
+    sequence lines = get_text(putty&listing,GT_LF_STRIPPED),
+             names = {`""`},
+             naddr = {0},
+             nused = {true},
+             nline = {0}
+    integer lout = 0, offset = 0
+    for li,line in lines do
+        if length(line)>1 then
+            if line[1]='0' then
+                sequence s = split(line,',')
+                assert(length(s)>=4)
+                if check_addr then
+                    integer la = to_integer(s[1],-1,16)
+                    assert(la=offset,"line %d: offset:%x not %x",{li,offset,la})
+                end if
+--              s[1] = offset   -- (simply not actually helpful, hex easier for debug anyway)
+                integer isize
+                string size = trim(s[3]), s4
+                s[3] = size
+                if size="-" then
+                    s4 = substitute(s[4]," ","")
+                    isize = length(s4)/2
+                    s[4] = s4
+                elsif size="x4" then
+                    isize = 4
+                elsif size="x" then
+                    s4 = trim(s[4],` "`)
+                    isize = length(s4)+1    -- trailing "\0"
+                    s[4] = s4
+                else
+                    if size[1]='h' then size = size[2..$] end if
+                    isize = to_integer(size,-1)
+                end if
+                if isize=-1 then crash("line %d: isize=-1 from %s",{li,size}) end if
+                s[2] = isize
+                offset += isize
+                s[1] = li   
+                lout += 1
+                lines[lout] = s
+            elsif line[1..2] = ";:" then
+                integer lend = find(':',line,3)
+--              assert(lend>3,"line %d: label syntax is ;:label: [comments]",{li})
+                assert(lend>3,"line %d: label syntax is ;:label: [comments]",li)
+                string label = line[3..lend-1]
+                integer ndx = find(label,names)
+                assert(ndx=0)
+                names = append(names,label)
+                naddr = append(naddr,offset)
+                nused = append(nused,false)
+                nline = append(nline,li)
+            elsif line = ";.aligned 4" then
+                integer r4 = rmdr(offset,4)
+                string r4s = iff(r4=0?"OK":sprintf("line %d needs %d 0s",{li,4-r4}))
+                printf(1,"%08x:%s - %s\n",{offset,line,r4s})
+                assert(r4=0)
+            end if
+        end if
+    end for
+    lines = lines[1..lout]
+    string res = ""
+    for l in lines do
+        integer line = l[1],
+                size = l[2]
+        string xsize = l[3],
+                data = l[4]
+        if xsize="-" then
+            for i=1 to length(data) by 2 do
+                integer byte = to_number(data[i..i+1],-1,16)
+                assert(byte!=-1)
+                res &= byte
+            end for
+        elsif xsize="x4" then
+            if data=`0x7F&"ELF"` then
+                res &= "\x7FELF"
+            else
+                ?9/0
+            end if
+        elsif xsize="x" then
+            res &= data&"\0"
+        elsif xsize[1]='h' then
+            atom h = 0, v
+            if length(data)=size*2+1 and data[$]='h' then
+                h = to_number(data[1..-2],-1,16)
+                assert(h!=-1)
+            else
+                sequence sd = split_any(data,"+-")
+                integer op = '+'
+                for w in sd do
+                    if w[1]='#' then
+                        v = to_number(w[2..$],-1,16)
+                        assert(v!=-1)
+                    else
+                        integer k = find(w,names)
+                        assert(k!=0,"line %d: undefined identifier:%s",{line,w})
+                        v = naddr[k]
+                        nused[k] = true
+                    end if
+                    h += iff(op='+'?1:-1)*v
+                    integer lw = length(w)
+                    assert(w=data[1..lw])
+                    data = data[lw+1..$]
+                    if length(data) then
+                        op = data[1]
+                        data = data[2..$]
+                    end if
+                end for
+            end if
+--          res &= int_to_bytes(h,size)
+            res &= itob(h,size)
+            naddr[1] = h
+        else
+            integer d = to_number(data,-1)
+            assert(d!=-1,"d=-1 from %v",{line})
+            res &= int_to_bytes(d,size)
+        end if
+    end for
+    integer lr = length(res)
+    if check_bytes then
+        string poo = po[1..-2],
+               poot = get_text(poo,GT_BINARY)
+        integer lp = length(poot)
+        assert(lr=lp,"length(res)=%d, length(poot)=%d",{lr,lp})
+        if res!=poot then
+--?poo
+            for i=1 to lr do
+                assert(res[i]==poot[i])
+            end for
+            ?9/0
+        end if
+        printf(1,"all %d bytes match!!\n",lr)
+    end if
+    integer fn = open(po,"wb")
+    puts(fn,res)
+    close(fn)
+    printf(1,"file %s sucessfully written (%d=#%x bytes).\n",{po,lr,lr})
+    for i,used in nused do
+        if not used then
+            printf(1,"Warning: label %s (line %d) is not actually used anywhere\n",{names[i],nline[i]})
+        end if
+    end for
+end procedure
+
+recreate_ELF(`hw5.asm`)
+--recreate_ELF(`hw5np.asm`) -- officially giving up on this one...
+--recreate_ELF(`hwZ.asm`)
+
+
+?"done"
+wait_key()
+
+
+-- Listing 1: the armelf.asm source file
+-- =====================================
+-- compile with FASMARM.exe armelf.asm -> 120 bytes
+--/*
+format ELF executable
+entry start
+
+segment readable executable
+
+hello:  db  'Hello world',10
+hello_len=$-hello
+
+align 4
+hello_literal dw hello ;<---- this is relocatable     
+
+start:
+;   add r1,pc,hello-$-8
+;   adrl r1,hello
+    ldr r1,[pc,hello_literal-$-8]
+    mov r2,hello_len
+    swi 0x900004 ; sys_write
+    mov r0,42
+    swi 0x900001 ; sys_exit
+--*/
+
+-- Listing 1a: (120 = #78 bytes, but no libc)
+-- ==========================================
+--  Amazingly, this works just fine!! (but alas it don't get us much anywhere,
+--  except, perhaps, to suggest just how much unnecessary gunk there is below)
+--/*
+ELF Header
+==========
+00000000,ei_magic,x4,0x7F&"ELF",ELF signature
+00000004,ei_class,1,1,32 bit
+00000005,ei_data,1,1,little endian
+00000006,ei_version,1,1,current
+00000007,ei_osabi,1,0,System V
+00000008,ei_abiversion,1,0,
+00000009,ei_pad,h6,000000000000h,
+0000000F,ei_size,h1,00h,
+00000010,e_type,2,2,Executable file
+00000012,e_machine,2,40,ARM
+00000014,e_version,4,1,current
+00000018,e_entry,h4,00008064h,ARM code
+0000001C,e_phoff,h4,00000034h,program header table
+00000020,e_shoff,h4,00000000h,section header table
+00000024,e_flags,h4,00000202h,ABI version 0, EF_ARM_HASENTRY+EF_ARM_SOFT_FLOAT
+00000028,e_ehsize,h2,0034h,ELF header size
+0000002A,e_phentsize,2,32,program header table entry size
+0000002C,e_phnum,2,1,number of program header entries
+0000002E,e_shentsize,2,40,section header entry size
+00000030,e_shnum,2,0,number of section header entries
+00000032,e_shstrndx,2,0,section name string table index
+Program Headers
+===============
+00000034,p_type,4,1,PT_LOAD
+00000038,p_offset,h4,00000054h,file offset
+0000003C,p_vaddr,h4,00008054h,virtual address (see "Code Segment" tab)
+00000040,p_paddr,h4,00008054h,physical addressing(ignored)
+00000044,p_filesz,h4,00000024h,bytes in file image
+00000048,p_memsz,h4,00000024h,bytes in memory image
+0000004C,p_flags,h4,00000005h,Read+Execute
+00000050,p_align,h4,00001000h,
+,-,,,
+Code Segment
+============
+00000054,00000054,-,48656C6C 6F20776F 726C640A          ,Hello world.
+00000054,00000060,-,54800000                            ,T...
+00000064,00000064,h4,E51F100Ch,ldr r1, [pc-12] -- (#00000060)
+00000068,00000068,h4,E3A0200Ch,mov r2, 12
+0000006C,0000006C,h4,EF900004h,swi 9437188 -- #900004 -- (sys_write)
+00000070,00000070,h4,E3A0002Ah,mov r0, 42  -- = 0x2A ('*')
+00000074,00000074,h4,EF900001h,swi 9437185 -- #900001 -- (sys_exit) 
+--*/
+--NB: not having a separate data segment (writable/4th) would certainly be an issue...
+
+-- Listing 2: the hw2.s source file
+-- ================================
+--  While the pie version is 204 bytes larger, it /may/ be closer to what we really want,
+--  then again, I'm not seeing any difference in the .text/.data segments anyway...
+--  But, the pie one does have lots of crud I doubt we really need.
+--/*
+@ from https://forums.raspberrypi.com/viewtopic.php?t=259074
+@ compile on an RPi with as -o hw2.o hw2.s
+@                   then ld -o hw2 hw2.o -e main -s -lc -dynamic-linker /lib/ld-linux-armhf.so.3 [-pie]
+@                   then strip -s hw2 --> 1388 [1592] bytes
+.global printf
+.data
+        prntf: .word printf
+        format: .ascii "The result is: %d\n"
+
+.text
+.global main 
+iAdrPrntf: .int prntf
+iAdrFmt: .int format
+
+main:
+        push {fp,lr}
+        ldr r0, iAdrFmt        @ address of message
+        mov r1, #124
+        ldr r2, iAdrPrntf
+        ldr r2, [r2]
+        mov lr,pc
+        bx r2
+        mov r7, #1
+        swi #0
+        pop {fp,pc}
+--*/
+-- Listing 2a: (1388 = #56C bytes, non-pie)
+-- ========================================
+--/* -- (reordered)
+ELF Header
+==========
+00000000,ei_magic,x4,0x7F&"ELF",ELF signature
+00000004,ei_class,1,1,32 bit
+00000005,ei_data,1,1,little endian
+00000006,ei_version,1,1,current
+00000007,ei_osabi,1,0,System V
+00000008,ei_abiversion,1,0,
+00000009,ei_pad,h6,000000000000h,
+0000000F,ei_size,h1,00h,
+00000010,e_type,2,2,Executable file
+00000012,e_machine,2,40,ARM
+00000014,e_version,4,1,current
+00000018,e_entry,h4,00008194h,ARM code
+0000001C,e_phoff,h4,00000034h,program header table
+00000020,e_shoff,h4,00000314h,section header table
+00000024,e_flags,h4,05000002h,ABI version 5, EF_ARM_HASENTRY
+00000028,e_ehsize,h2,0034h,ELF header size
+0000002A,e_phentsize,2,32,program header table entry size
+0000002C,e_phnum,2,5,number of program header entries
+0000002E,e_shentsize,2,40,section header entry size
+00000030,e_shnum,2,15,number of section header entries
+00000032,e_shstrndx,2,14,section name string table index
+Program Headers
+===============
+00000034,p_type,4,6,PT_PHDR
+00000038,p_offset,h4,00000034h,file offset (this tab)
+0000003C,p_vaddr,h4,00008034h,virtual address
+00000040,p_paddr,h4,00008034h,physical addressing(ignored)
+00000044,p_filesz,h4,000000A0h,bytes in file image
+00000048,p_memsz,h4,000000A0h,bytes in memory image
+0000004C,p_flags,h4,00000005h,Read+Execute
+00000050,p_align,h4,00000004h,
+,-,,,
+00000054,p_type,4,3,PT_INTERP
+00000058,p_offset,h4,000000D4h,file offset
+0000005C,p_vaddr,h4,000080D4h,virtual address (see "Interpreter" tab)
+00000060,p_paddr,h4,000080D4h,physical addressing(ignored)
+00000064,p_filesz,h4,00000019h,bytes in file image
+00000068,p_memsz,h4,00000019h,bytes in memory image
+0000006C,p_flags,h4,00000004h,Read
+00000070,p_align,h4,00000001h,
+,-,,,
+--PL: EH+PH+Interpreter+Symtab+relocs+text 
+00000074,p_type,4,1,PT_LOAD
+00000078,p_offset,h4,00000000h,file offset
+0000007C,p_vaddr,h4,00008000h,virtual address
+00000080,p_paddr,h4,00008000h,physical addressing(ignored)
+00000084,p_filesz,h4,000001BCh,bytes in file image
+00000088,p_memsz,h4,000001BCh,bytes in memory image
+0000008C,p_flags,h4,00000005h,Read+Execute
+00000090,p_align,h4,00008000h,
+,-,,,
+--PL: Dynamic Link Info+.data+.ARM.attributes+.shstrtab+Section Headers
+00000094,p_type,4,1,PT_LOAD
+00000098,p_offset,h4,000001BCh,file offset
+0000009C,p_vaddr,h4,000101BCh,virtual address
+000000A0,p_paddr,h4,000101BCh,physical addressing(ignored)
+000000A4,p_filesz,h4,000000C6h,bytes in file image
+000000A8,p_memsz,h4,000000C6h,bytes in memory image
+000000AC,p_flags,h4,00000006h,Read+Write
+000000B0,p_align,h4,00008000h,
+,-,,,
+000000B4,p_type,4,2,PT_DYNAMIC
+000000B8,p_offset,h4,000001BCh,file offset
+000000BC,p_vaddr,h4,000101BCh,virtual address (see "Dynamic Link Info" tab)
+000000C0,p_paddr,h4,000101BCh,physical addressing(ignored)
+000000C4,p_filesz,h4,000000A0h,bytes in file image
+000000C8,p_memsz,h4,000000A0h,bytes in memory image
+000000CC,p_flags,h4,00000006h,Read+Write
+000000D0,p_align,h4,00000004h,
+,-,,,
+Interpreter
+===========
+000000D4,000080D4,-,2F6C6962 2F6C642D 6C696E75   ,/lib/ld-linu
+000000E0,000080E0,-,782D6172 6D68662E 736F2E33 00,x-armhf.so.3.
+Symtab
+======
+,--Hash--,,,
+000000F0,nbucket,4,1,DT_HASH [#000080F0]
+000000F4,nchain,4,2,(also defines DT_SYMTAB size)
+000000F8,bucket[0],4,1,
+000000FC,chain[0],4,0,
+00000100,chain[1],4,0,
+,-,,,
+,--Symtab--,,,
+00000104,st_name[0],h4,00000000h,DT_SYMTAB [#00008104]
+00000108,st_value,h4,00000000h,
+0000010C,st_size,4,0,
+00000110,st_info,h1,00h,
+00000111,st_other,h1,00h,(should be 0)
+00000112,st_shndx,h2,0000h,
+,-,,,
+00000114,st_name[1],h4,0000000Bh,printf
+00000118,st_value,h4,00008180h,
+0000011C,st_size,4,0,
+00000120,st_info,h1,12h,STB_GLOBAL, STT_FUNC
+00000121,st_other,h1,00h,(should be 0)
+00000122,st_shndx,h2,0000h,
+,-,,,
+,--Strings--,,,                     (+8000 is probably wrong, probably better to start from 0, eg #B === printf, #1 === libc.so.6, #12 === GLIBC_2.4
+00000124,00008124,-,00                                  ,.              (leading null)
+00000125,00008125,-,6C6962 632E736F 2E3600              ,libc.so.6.     (offset #1)
+0000012F,0000812F,-,70 72696E74 6600                    ,printf.        (offset #B)
+00000136,00008136,-,474C 4942435F 322E3400              ,GLIBC_2.4.     (offset #12)
+--PL: I've proved we can live without these:
+.gnu.version
+============
+00000140,00008140,-,00000200 ,....
+.gnu.version_r
+==============
+00000144,00008144,-,01000100 01000000 10000000 ,............
+00000150,00008150,-,00000000 1469690D 00000200 12000000 ,.....ii.........
+00000160,00008160,-,00000000 ,....
+.rel.plt
+========
+00000164,00008164,-,68020100 16010000 ,h.......     -- (GOT[$] and something something)
+>>>
+Relocation section '.rel.plt' at offset 0x164 contains 1 entries:
+ Offset     Info    Type            Sym.Value  Sym. Name
+00010268  00000116 R_ARM_JUMP_SLOT   00008180   printf
+<<<
+.plt
+====
+0000016C,0000816C,h4,E52DE004h,str lr, [sp-4]!
+00000170,00008170,h4,E59FE004h,ldr lr, [pc+4] -- (#0000817C)
+00000174,00008174,h4,E08FE00Eh,add lr, pc
+00000178,00008178,h4,E5BEF008h,ldr pc, [lr+8]!
+0000017C,0000817C,h4,000080E0h,andeq r8, r0, r0, ror 1
+--PL this is referenced in .data[0].
+00000180,00008180,h4,E28FC600h,add ip, pc, 0  -- (rotate=0110)
+00000184,00008184,h4,E28CCA08h,add ip, 32768  -- = 0x8000 (rotate=1010)
+00000188,00008188,h4,E5BCF0E0h,ldr pc, [ip+224]!
+.text
+=====
+0000018C,0000818C,-,6C020100 70020100 ,l...p...
+00000194,00008194,h4,E92D4800h,push {fp,lr}
+00000198,00008198,h4,E51F0010h,ldr r0, [pc-16] -- (#00008190)
+0000019C,0000819C,h4,E3A0107Ch,mov r1, 124  -- = 0x7C ('|')
+000001A0,000081A0,h4,E51F201Ch,ldr r2, [pc-28] -- (#0000818C)
+000001A4,000081A4,h4,E5922000h,ldr r2, [r2]
+000001A8,000081A8,h4,E1A0E00Fh,mov lr, pc
+000001AC,000081AC,h4,E12FFF12h,bx r2
+000001B0,000081B0,h4,E3A07001h,mov r7, 1
+000001B4,000081B4,h4,EF000000h,swi 0 -- #0
+000001B8,000081B8,h4,E8BD8800h,pop {fp,pc}
+Dynamic Link Info
+=================
+--1bC+A0 = 25C
+000001BC,d_tag,h4,00000001h,DT_NEEDED
+000001C0,d_val,4,1,libc.so.6
+000001C4,d_tag,h4,00000004h,DT_HASH
+000001C8,d_ptr,h4,000080F0h,(See "Symtab" tab, Hash)
+000001CC,d_tag,h4,00000005h,DT_STRTAB
+000001D0,d_ptr,h4,00008124h,(See "Symtab" tab, Strings)
+000001D4,d_tag,h4,00000006h,DT_SYMTAB
+000001D8,d_ptr,h4,00008104h,(See "Symtab" tab)
+000001DC,d_tag,h4,0000000Ah,DT_STRSZ
+000001E0,d_val,4,28, (- strings end at #0000013F)
+000001E4,d_tag,h4,0000000Bh,DT_SYMENT
+000001E8,d_val,4,16, (- size of one symtab entry)
+000001EC,d_tag,h4,00000015h,DT_DEBUG
+000001F0,d_ptr,h4,00000000h,
+000001F4,d_tag,h4,00000003h,DT_PLTGOT
+000001F8,d_ptr,h4,0001025Ch,(See ".got" tab)
+000001FC,d_tag,h4,00000002h,DT_PLTRELSZ
+00000200,d_val,4,8,
+00000204,d_tag,h4,00000014h,DT_PLTREL
+00000208,d_val,4,17,
+0000020C,d_tag,h4,00000017h,DT_JMPREL
+00000210,d_ptr,h4,00008164h,(See ".rel.plt" tab)
+--PL kill*3:
+00000214,d_tag,h4,6FFFFFFEh,DT_VERNEED
+00000218,d_ptr,h4,00008144h,(See ".gnu.version_r" tab)
+0000021C,d_tag,h4,6FFFFFFFh,DT_VERNEEDNUM
+00000220,d_val,4,1,
+00000224,d_tag,h4,6FFFFFF0h,DT_VERSYM
+00000228,d_ptr,h4,00008140h,(See ".gnu.version" tab)
+0000022C,d_tag,h4,00000000h,DT_NULL
+00000230,d_tag,h4,00000000h,DT_NULL
+00000234,d_tag,h4,00000000h,DT_NULL
+00000238,d_tag,h4,00000000h,DT_NULL
+0000023C,d_tag,h4,00000000h,DT_NULL
+00000240,d_tag,h4,00000000h,DT_NULL
+00000244,d_tag,h4,00000000h,DT_NULL
+00000248,d_tag,h4,00000000h,DT_NULL
+0000024C,d_tag,h4,00000000h,DT_NULL
+00000250,d_tag,h4,00000000h,DT_NULL
+00000254,d_tag,h4,00000000h,DT_NULL
+00000258,d_tag,h4,00000000h,DT_NULL
+.got
+====
+0000025C,0001025C,-,BC010100
+00000260,00010260,-,00000000
+00000264,00010264,-,00000000
+00000268,00010268,-,6C810000
+.data
+=====
+0000026C,0001026C,-,80810000 ,....
+00000270,00010270,-,54686520 72657375 6C742069 733A2025 ,The result is: %
+00000280,00010280,-,640A,d.
+00000282,padding,-,4117 ,A.
+--PL kill all after this...
+.ARM.attributes
+===============
+00000282,fv,h1,41h,format version (should be 'A'/#41)
+00000283,length,h4,00000017h,length (should be 23/#17 or 21/#15)
+00000287,vendor,x6,aeabi\0,vendor (should be aeabi\0)
+0000028D,tag,h1,01h,tag (should be Tag_File/#01)
+0000028E,byte-size,h4,0000000Dh,byte-size (should be 13/#D)
+00000292,Tag_CPU_arch,1,6,(should be 6)
+00000293,=Arm v4T,1,2,(should be 2)
+00000294,Tag_ARM_ISA_use,1,8,(should be 8)
+00000295,=Arm instructions,1,1,(should be 1)
+00000296,Tag_THUMB_ISA_use,,1,9,(should be 9)
+00000297,=Thumb instructions,1,1,(should be 1)
+00000298,Tag_DIV_use,1,44,(should be 44/#2C)
+00000299,=DIV instructions,1,1,(should be 1)
+.shstrtab
+=========
+0000029A,00000000,-,002E 73687374                       ,..shst
+000002A0,00000006,-,72746162 002E696E 74657270 002E6861 ,rtab..interp..ha
+000002B0,00000016,-,7368002E 64796E73 796D002E 64796E73 ,sh..dynsym..dyns
+000002C0,00000026,-,7472002E 676E752E 76657273 696F6E00 ,tr..gnu.version.
+000002D0,00000036,-,2E676E75 2E766572 73696F6E 5F72002E ,.gnu.version_r..
+000002E0,00000046,-,72656C2E 706C7400 2E746578 74002E64 ,rel.plt..text..d
+000002F0,00000056,-,796E616D 6963002E 676F7400 2E646174 ,ynamic..got..dat
+00000300,00000066,-,61002E41 524D2E61 74747269 62757465 ,a..ARM.attribute
+00000310,00000076,-,7300                                ,s.
+Section Headers
+===============
+00000314,sh_name,4,0,section 0: 
+00000318,sh_type,h4,00000000h,null
+0000031C,sh_flags,h4,00000000h,
+00000320,sh_addr,h4,00000000h,
+00000324,sh_offset,h4,00000000h,
+00000328,sh_size,h4,00000000h,
+0000032C,sh_link,h4,00000000h,
+00000330,sh_info,h4,00000000h,
+00000334,sh_addralign,h4,00000000h,
+00000338,sh_entsize,h4,00000000h,
+,-,,,
+0000033C,sh_name,4,11,section 1: .interp
+00000340,sh_type,h4,00000001h,progbits
+00000344,sh_flags,h4,00000002h,alloc
+00000348,sh_addr,h4,000080D4h,
+0000034C,sh_offset,h4,000000D4h,(see "Interpreter" tab)
+00000350,sh_size,h4,00000019h,
+00000354,sh_link,h4,00000000h,
+00000358,sh_info,h4,00000000h,
+0000035C,sh_addralign,h4,00000001h,
+00000360,sh_entsize,h4,00000000h,
+,-,,,
+00000364,sh_name,4,19,section 2: .hash
+00000368,sh_type,h4,00000005h,symbol hash table
+0000036C,sh_flags,h4,00000002h,alloc
+00000370,sh_addr,h4,000080F0h,
+00000374,sh_offset,h4,000000F0h,(see "Symtab/Hash" tab)
+00000378,sh_size,h4,00000014h,
+0000037C,sh_link,h4,00000003h,
+00000380,sh_info,h4,00000000h,
+00000384,sh_addralign,h4,00000004h,
+00000388,sh_entsize,h4,00000004h,
+,-,,,
+0000038C,sh_name,4,25,section 3: .dynsym
+00000390,sh_type,h4,0000000Bh,dynamic linking symbol table
+00000394,sh_flags,h4,00000002h,alloc
+00000398,sh_addr,h4,00008104h,
+0000039C,sh_offset,h4,00000104h,(see "Symtab" tab)
+000003A0,sh_size,h4,00000020h,
+000003A4,sh_link,h4,00000004h,
+000003A8,sh_info,h4,00000001h,
+000003AC,sh_addralign,h4,00000004h,
+000003B0,sh_entsize,h4,00000010h,
+,-,,,
+000003B4,sh_name,4,33,section 4: .dynstr
+000003B8,sh_type,h4,00000003h,string table
+000003BC,sh_flags,h4,00000002h,alloc
+000003C0,sh_addr,h4,00008124h,
+000003C4,sh_offset,h4,00000124h,*** (see tab ???) ***
+000003C8,sh_size,h4,0000001Ch,
+000003CC,sh_link,h4,00000000h,
+000003D0,sh_info,h4,00000000h,
+000003D4,sh_addralign,h4,00000001h,
+000003D8,sh_entsize,h4,00000000h,
+,-,,,
+000003DC,sh_name,4,41,section 5: .gnu.version
+000003E0,sh_type,h4,6FFFFFFFh,DT_VERSYM
+000003E4,sh_flags,h4,00000002h,alloc
+000003E8,sh_addr,h4,00008140h,
+000003EC,sh_offset,h4,00000140h,(see ".gnu.version" tab)
+000003F0,sh_size,h4,00000004h,
+000003F4,sh_link,h4,00000003h,
+000003F8,sh_info,h4,00000000h,
+000003FC,sh_addralign,h4,00000002h,
+00000400,sh_entsize,h4,00000002h,
+,-,,,
+00000404,sh_name,4,54,section 6: .gnu.version_r
+00000408,sh_type,h4,6FFFFFFEh,DT_VERNEED
+0000040C,sh_flags,h4,00000002h,alloc
+00000410,sh_addr,h4,00008144h,
+00000414,sh_offset,h4,00000144h,(see ".gnu.version_r" tab)
+00000418,sh_size,h4,00000020h,
+0000041C,sh_link,h4,00000004h,
+00000420,sh_info,h4,00000001h,
+00000424,sh_addralign,h4,00000004h,
+00000428,sh_entsize,h4,00000000h,
+,-,,,
+0000042C,sh_name,4,69,section 7: .rel.plt
+00000430,sh_type,h4,00000009h,relocation table
+00000434,sh_flags,h4,00000002h,alloc
+00000438,sh_addr,h4,00008164h,
+0000043C,sh_offset,h4,00000164h,(see ".rel.plt" tab)
+00000440,sh_size,h4,00000008h,
+00000444,sh_link,h4,00000003h,
+00000448,sh_info,h4,00000008h,
+0000044C,sh_addralign,h4,00000004h,
+00000450,sh_entsize,h4,00000008h,
+,-,,,
+00000454,sh_name,4,73,section 8: .plt
+00000458,sh_type,h4,00000001h,progbits
+0000045C,sh_flags,h4,00000006h,alloc+executable
+00000460,sh_addr,h4,0000816Ch,
+00000464,sh_offset,h4,0000016Ch,(see ".plt" tab)
+00000468,sh_size,h4,00000020h,
+0000046C,sh_link,h4,00000000h,
+00000470,sh_info,h4,00000000h,
+00000474,sh_addralign,h4,00000004h,
+00000478,sh_entsize,h4,00000004h,
+,-,,,
+0000047C,sh_name,4,78,section 9: .text
+00000480,sh_type,h4,00000001h,progbits
+00000484,sh_flags,h4,00000006h,alloc+executable
+00000488,sh_addr,h4,0000818Ch,
+0000048C,sh_offset,h4,0000018Ch,(see ".text" tab)
+00000490,sh_size,h4,00000030h,
+00000494,sh_link,h4,00000000h,
+00000498,sh_info,h4,00000000h,
+0000049C,sh_addralign,h4,00000004h,
+000004A0,sh_entsize,h4,00000000h,
+,-,,,
+000004A4,sh_name,4,84,section 10: .dynamic
+000004A8,sh_type,h4,00000006h,dynamic linking information
+000004AC,sh_flags,h4,00000003h,writeable+alloc
+000004B0,sh_addr,h4,000101BCh,
+000004B4,sh_offset,h4,000001BCh,(see "Dynamic Link Info" tab)
+000004B8,sh_size,h4,000000A0h,
+000004BC,sh_link,h4,00000004h,
+000004C0,sh_info,h4,00000000h,
+000004C4,sh_addralign,h4,00000004h,
+000004C8,sh_entsize,h4,00000008h,
+,-,,,
+000004CC,sh_name,4,93,section 11: .got
+000004D0,sh_type,h4,00000001h,progbits
+000004D4,sh_flags,h4,00000003h,writeable+alloc
+000004D8,sh_addr,h4,0001025Ch,
+000004DC,sh_offset,h4,0000025Ch,(see ".got" tab)
+000004E0,sh_size,h4,00000010h,
+000004E4,sh_link,h4,00000000h,
+000004E8,sh_info,h4,00000000h,
+000004EC,sh_addralign,h4,00000004h,
+000004F0,sh_entsize,h4,00000004h,
+,-,,,
+000004F4,sh_name,4,98,section 12: .data
+000004F8,sh_type,h4,00000001h,progbits
+000004FC,sh_flags,h4,00000003h,writeable+alloc
+00000500,sh_addr,h4,0001026Ch,
+00000504,sh_offset,h4,0000026Ch,(see ".data" tab)
+00000508,sh_size,h4,00000016h,
+0000050C,sh_link,h4,00000000h,
+00000510,sh_info,h4,00000000h,
+00000514,sh_addralign,h4,00000001h,
+00000518,sh_entsize,h4,00000000h,
+,-,,,
+0000051C,sh_name,4,104,section 13: .ARM.attributes
+00000520,sh_type,h4,70000003h,ARM attributes
+00000524,sh_flags,h4,00000000h,
+00000528,sh_addr,h4,00000000h,
+0000052C,sh_offset,h4,00000282h,(see ".ARM.attributes" tab)
+00000530,sh_size,h4,00000018h,
+00000534,sh_link,h4,00000000h,
+00000538,sh_info,h4,00000000h,
+0000053C,sh_addralign,h4,00000001h,
+00000540,sh_entsize,h4,00000000h,
+,-,,,
+00000544,sh_name,4,1,section 14: .shstrtab
+00000548,sh_type,h4,00000003h,string table
+0000054C,sh_flags,h4,00000000h,
+00000550,sh_addr,h4,00000000h,
+00000554,sh_offset,h4,0000029Ah,(see ".shstrtab" tab)
+00000558,sh_size,h4,00000078h,
+0000055C,sh_link,h4,00000000h,
+00000560,sh_info,h4,00000000h,
+00000564,sh_addralign,h4,00000001h,
+00000568,sh_entsize,h4,00000000h,
+,-,,,
+--*/
+--
+-- Listing 2b: 1592 = #638 pie file
+-- ================================
+--/* -- (reordered)
+ELF Header
+==========
+00000000,ei_magic,x4,0x7F&"ELF",ELF signature
+00000004,ei_class,1,1,32 bit
+00000005,ei_data,1,1,little endian
+00000006,ei_version,1,1,current
+00000007,ei_osabi,1,0,System V
+00000008,ei_abiversion,1,0,
+00000009,ei_pad,h6,000000000000h,
+0000000F,ei_size,h1,00h,
+00000010,e_type,2,3,Shared object file
+00000012,e_machine,2,40,ARM
+00000014,e_version,4,1,current
+00000018,e_entry,h4,0000028Ch,ARM code
+0000001C,e_phoff,h4,00000034h,program header table
+00000020,e_shoff,h4,00000408h,section header table
+00000024,e_flags,h4,05000002h,ABI version 5, EF_ARM_HASENTRY
+00000028,e_ehsize,h2,0034h,ELF header size
+0000002A,e_phentsize,2,32,program header table entry size
+0000002C,e_phnum,2,5,number of program header entries
+0000002E,e_shentsize,2,40,section header entry size
+00000030,e_shnum,2,14,number of section header entries
+00000032,e_shstrndx,2,13,section name string table index
+Program Headers
+===============
+00000034,p_type,4,6,PT_PHDR
+00000038,p_offset,h4,00000034h,file offset (this tab)
+0000003C,p_vaddr,h4,00000034h,virtual address
+00000040,p_paddr,h4,00000034h,physical addressing(ignored)
+00000044,p_filesz,h4,000000A0h,bytes in file image
+00000048,p_memsz,h4,000000A0h,bytes in memory image
+0000004C,p_flags,h4,00000005h,Read+Execute
+00000050,p_align,h4,00000004h,
+,-,,,
+00000054,p_type,4,3,PT_INTERP
+00000058,p_offset,h4,000000D4h,file offset
+0000005C,p_vaddr,h4,000000D4h,virtual address (see "Interpreter" tab)
+00000060,p_paddr,h4,000000D4h,physical addressing(ignored)
+00000064,p_filesz,h4,00000019h,bytes in file image
+00000068,p_memsz,h4,00000019h,bytes in memory image
+0000006C,p_flags,h4,00000004h,Read
+00000070,p_align,h4,00000001h,
+,-,,,
+00000074,p_type,4,1,PT_LOAD
+00000078,p_offset,h4,00000000h,file offset
+0000007C,p_vaddr,h4,00000000h,virtual address
+00000080,p_paddr,h4,00000000h,physical addressing(ignored)
+00000084,p_filesz,h4,000002B4h,bytes in file image
+00000088,p_memsz,h4,000002B4h,bytes in memory image
+0000008C,p_flags,h4,00000005h,Read+Execute
+00000090,p_align,h4,00008000h,
+,-,,,
+00000094,p_type,4,1,PT_LOAD
+00000098,p_offset,h4,000002B4h,file offset
+0000009C,p_vaddr,h4,000082B4h,virtual address
+000000A0,p_paddr,h4,000082B4h,physical addressing(ignored)
+000000A4,p_filesz,h4,000000C2h,bytes in file image
+000000A8,p_memsz,h4,000000C2h,bytes in memory image
+000000AC,p_flags,h4,00000006h,Read+Write
+000000B0,p_align,h4,00008000h,
+,-,,,
+000000B4,p_type,4,2,PT_DYNAMIC
+000000B8,p_offset,h4,000002B4h,file offset
+000000BC,p_vaddr,h4,000082B4h,virtual address (see "Dynamic Link Info" tab)
+000000C0,p_paddr,h4,000082B4h,physical addressing(ignored)
+000000C4,p_filesz,h4,000000A0h,bytes in file image
+000000C8,p_memsz,h4,000000A0h,bytes in memory image
+000000CC,p_flags,h4,00000006h,Read+Write
+000000D0,p_align,h4,00000004h,
+,-,,,
+Interpreter
+===========
+000000D4,000000D4,-,2F6C6962 2F6C642D 6C696E75 ,/lib/ld-linu
+000000E0,000000E0,-,782D6172 6D68662E 736F2E33 00,x-armhf.so.3.
+Symtab
+======
+,--Hash--,,,
+000000F0,nbucket,4,3,DT_HASH [#000000F0]
+000000F4,nchain,4,11,(also defines DT_SYMTAB size)
+000000F8,bucket[0],4,6,
+000000FC,bucket[1],4,8,
+00000100,bucket[2],4,10,
+00000104,chain[0],4,0,
+00000108,chain[1],4,0,
+0000010C,chain[2],4,0,
+00000110,chain[3],4,0,
+00000114,chain[4],4,0,
+00000118,chain[5],4,3,
+0000011C,chain[6],4,4,
+00000120,chain[7],4,0,
+00000124,chain[8],4,7,
+00000128,chain[9],4,5,
+0000012C,chain[10],4,9,
+,-,,,
+,--Symtab--,,,
+00000130,st_name[0],h4,00000000h,DT_SYMTAB [#00000130]
+00000134,st_value,h4,00000000h,
+00000138,st_size,4,0,
+0000013C,st_info,h1,00h,
+0000013D,st_other,h1,00h,(should be 0)
+0000013E,st_shndx,h2,0000h,
+,-,,,
+00000140,st_name[1],h4,00000000h,
+00000144,st_value,h4,000000D4h,
+00000148,st_size,4,0,
+0000014C,st_info,h1,03h,STB_LOCAL, STT_SECTION
+0000014D,st_other,h1,00h,(should be 0)
+0000014E,st_shndx,h2,0001h,
+,-,,,
+00000150,st_name[2],h4,00000000h,
+00000154,st_value,h4,00008360h,
+00000158,st_size,4,0,
+0000015C,st_info,h1,03h,STB_LOCAL, STT_SECTION
+0000015D,st_other,h1,00h,(should be 0)
+0000015E,st_shndx,h2,000Bh,
+,-,,,
+00000160,st_name[3],h4,0000000Bh,printf
+00000164,st_value,h4,00000000h,
+00000168,st_size,4,0,
+0000016C,st_info,h1,12h,STB_GLOBAL, STT_FUNC
+0000016D,st_other,h1,00h,(should be 0)
+0000016E,st_shndx,h2,0000h,
+,-,,,
+00000170,st_name[4],h4,00000025h,__bss_start__
+00000174,st_value,h4,00008376h,
+00000178,st_size,4,0,
+0000017C,st_info,h1,10h,STB_GLOBAL, STT_NOTYPE
+0000017D,st_other,h1,00h,(should be 0)
+0000017E,st_shndx,h2,FFF1h,
+,-,,,
+00000180,st_name[5],h4,00000034h,_bss_end__
+00000184,st_value,h4,00008376h,
+00000188,st_size,4,0,
+0000018C,st_info,h1,10h,STB_GLOBAL, STT_NOTYPE
+0000018D,st_other,h1,00h,(should be 0)
+0000018E,st_shndx,h2,FFF1h,
+,-,,,
+00000190,st_name[6],h4,00000012h,_edata
+00000194,st_value,h4,00008376h,
+00000198,st_size,4,0,
+0000019C,st_info,h1,10h,STB_GLOBAL, STT_NOTYPE
+0000019D,st_other,h1,00h,(should be 0)
+0000019E,st_shndx,h2,FFF1h,
+,-,,,
+000001A0,st_name[7],h4,00000033h,__bss_end__
+000001A4,st_value,h4,00008376h,
+000001A8,st_size,4,0,
+000001AC,st_info,h1,10h,STB_GLOBAL, STT_NOTYPE
+000001AD,st_other,h1,00h,(should be 0)
+000001AE,st_shndx,h2,FFF1h,
+,-,,,
+000001B0,st_name[8],h4,00000047h,_end
+000001B4,st_value,h4,00008378h,
+000001B8,st_size,4,0,
+000001BC,st_info,h1,10h,STB_GLOBAL, STT_NOTYPE
+000001BD,st_other,h1,00h,(should be 0)
+000001BE,st_shndx,h2,FFF1h,
+,-,,,
+000001C0,st_name[9],h4,0000003Fh,__end__
+000001C4,st_value,h4,00008378h,
+000001C8,st_size,4,0,
+000001CC,st_info,h1,10h,STB_GLOBAL, STT_NOTYPE
+000001CD,st_other,h1,00h,(should be 0)
+000001CE,st_shndx,h2,FFF1h,
+,-,,,
+000001D0,st_name[10],h4,00000019h,__bss_start
+000001D4,st_value,h4,00008376h,
+000001D8,st_size,4,0,
+000001DC,st_info,h1,10h,STB_GLOBAL, STT_NOTYPE
+000001DD,st_other,h1,00h,(should be 0)
+000001DE,st_shndx,h2,FFF1h,
+,-,,,
+,--Strings--,,,
+000001E0,000001E0,-,00                                  ,.
+000001E1,000001E1,-,6C6962 632E736F 2E3600              ,libc.so.6.
+000001EB,000001EB,-,70 72696E74 6600                    ,printf.
+--PL kill*6
+000001F2,000001F2,-,5F65 64617461 00                    ,_edata.
+000001F9,000001F9,-,5F5F62 73735F73 74617274 00         ,__bss_start.
+00000205,00000205,-,5F5F62 73735F73 74617274 5F5F00     ,__bss_start__.
+00000213,00000213,-,5F 5F627373 5F656E64 5F5F00         ,__bss_end__.
+0000021F,0000021F,-,5F 5F656E64 5F5F00                  ,__end__.
+00000227,00000227,-,5F 656E6400                         ,_end.
+0000022C,0000022C,-,474C4942 435F322E 3400              ,GLIBC_2.4.
+--(which takes us to 235)
+,-,,,
+,--Relocations--,,, --(see .rel.dyn)
+--PL kill*2?:
+0000026C,relocation offset, h4,00000284h,DT_REL [#0000026C]                             -- ie text[0]
+00000270,r_info,            h4,00000017h,R_386_PC8, symtab[0]=DT_SYMTAB [#00000130]
+00000274,relocation offset, h4,00000288h,                                               -- ie text[4]
+00000278,r_info,            h4,00000017h,R_386_PC8, symtab[0]=DT_SYMTAB [#00000130]
+0000027C,relocation offset, h4,00008360h,                                               -- ie data[0]
+00000280,r_info,            h4,00000302h,R_386_PC32, symtab[3]=printf
+--PL I've proved we can live without these...
+.gnu.version
+============
+00000236,00000236,-,0000 00000000 02000100 ,..........
+00000240,00000240,-,01000100 01000100 01000100 ,............
+0000024C,padding,-,0100,.. --what? [oh, don't care]
+.gnu.version_r
+==============
+0000024C,0000024C,-,01000100 ,....
+00000250,00000250,-,01000000 10000000 00000000 1469690D ,.............ii.
+00000260,00000260,-,00000200 4C000000 00000000 ,....L.......
+.rel.dyn    -- (see Symtab/Relocations)
+========
+0000026C,0000026C,-,84020000 ,....
+00000270,00000270,-,17000000 88020000 17000000 60830000 ,................
+00000280,00000280,-,02030000 ,....
+.text
+=====
+00000284,00000284,-,60830000 64830000 ,....d...
+0000028C,0000028C,h4,E92D4800h,push {fp,lr}
+00000290,00000290,h4,E51F0010h,ldr r0, [pc-16] -- (#00000288)
+00000294,00000294,h4,E3A0107Ch,mov r1, 124  -- = 0x7C ('|')
+00000298,00000298,h4,E51F201Ch,ldr r2, [pc-28] -- (#00000284)
+0000029C,0000029C,h4,E5922000h,ldr r2, [r2]
+000002A0,000002A0,h4,E1A0E00Fh,mov lr, pc
+000002A4,000002A4,h4,E12FFF12h,bx r2
+000002A8,000002A8,h4,E3A07001h,mov r7, 1
+000002AC,000002AC,h4,EF000000h,swi 0 -- #0
+000002B0,000002B0,h4,E8BD8800h,pop {fp,pc}
+Dynamic Link Info
+=================
+000002B4,d_tag,h4,00000001h,DT_NEEDED
+000002B8,d_val,4,1,libc.so.6
+000002BC,d_tag,h4,00000004h,DT_HASH
+000002C0,d_ptr,h4,000000F0h,(See "Symtab" tab, Hash)
+000002C4,d_tag,h4,00000005h,DT_STRTAB
+000002C8,d_ptr,h4,000001E0h,(See "Symtab" tab, Strings)
+000002CC,d_tag,h4,00000006h,DT_SYMTAB
+000002D0,d_ptr,h4,00000130h,(See "Symtab" tab)
+000002D4,d_tag,h4,0000000Ah,DT_STRSZ
+000002D8,d_val,4,86, (- strings end at #00000235)
+000002DC,d_tag,h4,0000000Bh,DT_SYMENT
+000002E0,d_val,4,16, (- size of one symtab entry)
+000002E4,d_tag,h4,00000015h,DT_DEBUG
+000002E8,d_ptr,h4,00000000h,
+000002EC,d_tag,h4,00000011h,DT_REL
+000002F0,d_ptr,h4,0000026Ch,(See "Symtab" tab, Relocations)
+000002F4,d_tag,h4,00000012h,DT_RELSZ
+--PL try with 1/3 this, ie 8 bytes??
+000002F8,d_val,4,24, (- total DT_REL table size)
+000002FC,d_tag,h4,00000013h,DT_RELENT
+00000300,d_val,4,8, (- size of one DT_REL entry)
+00000304,d_tag,h4,00000016h,DT_TEXTREL
+00000308,d_tag,h4,00000000h,DT_NULL
+--PL kill*3/4:
+0000030C,d_tag,h4,6FFFFFFEh,DT_VERNEED
+00000310,d_ptr,h4,0000024Ch,(See ".gnu.version_r" tab)
+00000314,d_tag,h4,6FFFFFFFh,DT_VERNEEDNUM
+00000318,d_val,4,1,
+0000031C,d_tag,h4,6FFFFFF0h,DT_VERSYM
+00000320,d_ptr,h4,00000236h,(See ".gnu.version" tab)
+00000324,d_tag,h4,6FFFFFFAh,DT_RELCOUNT
+00000328,d_val,4,2,(See ".rel.dyn" tab)
+0000032C,d_tag,h4,00000000h,DT_NULL
+00000330,d_tag,h4,00000000h,DT_NULL
+00000334,d_tag,h4,00000000h,DT_NULL
+00000338,d_tag,h4,00000000h,DT_NULL
+0000033C,d_tag,h4,00000000h,DT_NULL
+00000340,d_tag,h4,00000000h,DT_NULL
+00000344,d_tag,h4,00000000h,DT_NULL
+00000348,d_tag,h4,00000000h,DT_NULL
+0000034C,d_tag,h4,00000000h,DT_NULL
+00000350,d_tag,h4,00000000h,DT_NULL
+.got
+====
+-- address of Dynamic link info...
+00000354,00008354,-,B4820000 00000000 00000000 ,............
+.data
+=====
+00000360,00008360,-,00000000                            ,....
+00000364,00008364,-,54686520 72657375 6C742069          ,The result i
+00000370,00008370,-,733A2025 640A                       ,s: %d.
+.ARM.attributes
+===============
+00000376,fv,h1,41h,format version (should be 'A'/#41)
+00000377,length,h4,00000017h,length (should be 23/#17 or 21/#15)
+0000037B,vendor,x6,aeabi\0,vendor (should be aeabi\0)
+00000381,tag,h1,01h,tag (should be Tag_File/#01)
+00000382,byte-size,h4,0000000Dh,byte-size (should be 13/#D)
+00000386,Tag_CPU_arch,1,6,(should be 6)
+00000387,=Arm v4T,1,2,(should be 2)
+00000388,Tag_ARM_ISA_use,1,8,(should be 8)
+00000389,=Arm instructions,1,1,(should be 1)
+0000038A,Tag_THUMB_ISA_use,,1,9,(should be 9)
+0000038B,=Thumb instructions,1,1,(should be 1)
+0000038C,Tag_DIV_use,1,44,(should be 44/#2C)
+0000038D,=DIV instructions,1,1,(should be 1)
+.shstrtab
+=========
+--DEV/sub write a string dump routine, see --Strings--
+0000038E,00000000,-,002E                                ,..
+00000390,00000002,-,73687374 72746162 002E696E 74657270 ,shstrtab..interp
+000003A0,00000012,-,002E6861 7368002E 64796E73 796D002E ,..hash..dynsym..
+000003B0,00000022,-,64796E73 7472002E 676E752E 76657273 ,dynstr..gnu.vers
+000003C0,00000032,-,696F6E00 2E676E75 2E766572 73696F6E ,ion..gnu.version
+000003D0,00000042,-,5F72002E 72656C2E 64796E00 2E746578 ,_r..rel.dyn..tex
+000003E0,00000052,-,74002E64 796E616D 6963002E 676F7400 ,t..dynamic..got.
+000003F0,00000062,-,2E646174 61002E41 524D2E61 74747269 ,.data..ARM.attri
+00000400,00000072,-,62757465 7300                       ,butes.
+Section Headers
+===============
+00000408,sh_name,4,0,section 0: 
+0000040C,sh_type,h4,00000000h,null
+00000410,sh_flags,h4,00000000h,
+00000414,sh_addr,h4,00000000h,
+00000418,sh_offset,h4,00000000h,
+0000041C,sh_size,h4,00000000h,
+00000420,sh_link,h4,00000000h,
+00000424,sh_info,h4,00000000h,
+00000428,sh_addralign,h4,00000000h,
+0000042C,sh_entsize,h4,00000000h,
+,-,,,
+00000430,sh_name,4,11,section 1: .interp
+00000434,sh_type,h4,00000001h,progbits
+00000438,sh_flags,h4,00000002h,alloc
+0000043C,sh_addr,h4,000000D4h,
+00000440,sh_offset,h4,000000D4h,(see "Interpreter" tab)
+00000444,sh_size,h4,00000019h,
+00000448,sh_link,h4,00000000h,
+0000044C,sh_info,h4,00000000h,
+00000450,sh_addralign,h4,00000001h,
+00000454,sh_entsize,h4,00000000h,
+,-,,,
+00000458,sh_name,4,19,section 2: .hash
+0000045C,sh_type,h4,00000005h,symbol hash table
+00000460,sh_flags,h4,00000002h,alloc
+00000464,sh_addr,h4,000000F0h,
+00000468,sh_offset,h4,000000F0h,(see "Symtab/Hash" tab)
+0000046C,sh_size,h4,00000040h,
+00000470,sh_link,h4,00000003h,
+00000474,sh_info,h4,00000000h,
+00000478,sh_addralign,h4,00000004h,
+0000047C,sh_entsize,h4,00000004h,
+,-,,,
+00000480,sh_name,4,25,section 3: .dynsym
+00000484,sh_type,h4,0000000Bh,dynamic linking symbol table
+00000488,sh_flags,h4,00000002h,alloc
+0000048C,sh_addr,h4,00000130h,
+00000490,sh_offset,h4,00000130h,(see "Symtab" tab)
+00000494,sh_size,h4,000000B0h,
+00000498,sh_link,h4,00000004h,
+0000049C,sh_info,h4,00000003h,
+000004A0,sh_addralign,h4,00000004h,
+000004A4,sh_entsize,h4,00000010h,
+,-,,,
+000004A8,sh_name,4,33,section 4: .dynstr
+000004AC,sh_type,h4,00000003h,string table
+000004B0,sh_flags,h4,00000002h,alloc
+000004B4,sh_addr,h4,000001E0h,
+000004B8,sh_offset,h4,000001E0h,*** (see tab ???) ***
+000004BC,sh_size,h4,00000056h,
+000004C0,sh_link,h4,00000000h,
+000004C4,sh_info,h4,00000000h,
+000004C8,sh_addralign,h4,00000001h,
+000004CC,sh_entsize,h4,00000000h,
+,-,,,
+000004D0,sh_name,4,41,section 5: .gnu.version
+000004D4,sh_type,h4,6FFFFFFFh,DT_VERSYM
+000004D8,sh_flags,h4,00000002h,alloc
+000004DC,sh_addr,h4,00000236h,
+000004E0,sh_offset,h4,00000236h,(see ".gnu.version" tab)
+000004E4,sh_size,h4,00000016h,
+000004E8,sh_link,h4,00000003h,
+000004EC,sh_info,h4,00000000h,
+000004F0,sh_addralign,h4,00000002h,
+000004F4,sh_entsize,h4,00000002h,
+,-,,,
+000004F8,sh_name,4,54,section 6: .gnu.version_r
+000004FC,sh_type,h4,6FFFFFFEh,DT_VERNEED
+00000500,sh_flags,h4,00000002h,alloc
+00000504,sh_addr,h4,0000024Ch,
+00000508,sh_offset,h4,0000024Ch,(see ".gnu.version_r" tab)
+0000050C,sh_size,h4,00000020h,
+00000510,sh_link,h4,00000004h,
+00000514,sh_info,h4,00000001h,
+00000518,sh_addralign,h4,00000004h,
+0000051C,sh_entsize,h4,00000000h,
+,-,,,
+00000520,sh_name,4,69,section 7: .rel.dyn
+00000524,sh_type,h4,00000009h,relocation table
+00000528,sh_flags,h4,00000002h,alloc
+0000052C,sh_addr,h4,0000026Ch,
+00000530,sh_offset,h4,0000026Ch,(see ".rel.dyn" tab)
+00000534,sh_size,h4,00000018h,
+00000538,sh_link,h4,00000003h,
+0000053C,sh_info,h4,00000000h,
+00000540,sh_addralign,h4,00000004h,
+00000544,sh_entsize,h4,00000008h,
+,-,,,
+00000548,sh_name,4,78,section 8: .text
+0000054C,sh_type,h4,00000001h,progbits
+00000550,sh_flags,h4,00000006h,alloc+executable
+00000554,sh_addr,h4,00000284h,
+00000558,sh_offset,h4,00000284h,(see ".text" tab)
+0000055C,sh_size,h4,00000030h,
+00000560,sh_link,h4,00000000h,
+00000564,sh_info,h4,00000000h,
+00000568,sh_addralign,h4,00000004h,
+0000056C,sh_entsize,h4,00000000h,
+,-,,,
+00000570,sh_name,4,84,section 9: .dynamic
+00000574,sh_type,h4,00000006h,dynamic linking information
+00000578,sh_flags,h4,00000003h,writeable+alloc
+0000057C,sh_addr,h4,000082B4h,
+00000580,sh_offset,h4,000002B4h,(see "Dynamic Link Info" tab)
+00000584,sh_size,h4,000000A0h,
+00000588,sh_link,h4,00000004h,
+0000058C,sh_info,h4,00000000h,
+00000590,sh_addralign,h4,00000004h,
+00000594,sh_entsize,h4,00000008h,
+,-,,,
+00000598,sh_name,4,93,section 10: .got
+0000059C,sh_type,h4,00000001h,progbits
+000005A0,sh_flags,h4,00000003h,writeable+alloc
+000005A4,sh_addr,h4,00008354h,
+000005A8,sh_offset,h4,00000354h,(see ".got" tab)
+000005AC,sh_size,h4,0000000Ch,
+000005B0,sh_link,h4,00000000h,
+000005B4,sh_info,h4,00000000h,
+000005B8,sh_addralign,h4,00000004h,
+000005BC,sh_entsize,h4,00000004h,
+,-,,,
+000005C0,sh_name,4,98,section 11: .data
+000005C4,sh_type,h4,00000001h,progbits
+000005C8,sh_flags,h4,00000003h,writeable+alloc
+000005CC,sh_addr,h4,00008360h,
+000005D0,sh_offset,h4,00000360h,(see ".data" tab)
+000005D4,sh_size,h4,00000016h,
+000005D8,sh_link,h4,00000000h,
+000005DC,sh_info,h4,00000000h,
+000005E0,sh_addralign,h4,00000001h,
+000005E4,sh_entsize,h4,00000000h,
+,-,,,
+000005E8,sh_name,4,104,section 12: .ARM.attributes
+000005EC,sh_type,h4,70000003h,ARM attributes
+000005F0,sh_flags,h4,00000000h,
+000005F4,sh_addr,h4,00000000h,
+000005F8,sh_offset,h4,00000376h,(see ".ARM.attributes" tab)
+000005FC,sh_size,h4,00000018h,
+00000600,sh_link,h4,00000000h,
+00000604,sh_info,h4,00000000h,
+00000608,sh_addralign,h4,00000001h,
+0000060C,sh_entsize,h4,00000000h,
+,-,,,
+00000610,sh_name,4,1,section 13: .shstrtab
+00000614,sh_type,h4,00000003h,string table
+00000618,sh_flags,h4,00000000h,
+0000061C,sh_addr,h4,00000000h,
+00000620,sh_offset,h4,0000038Eh,(see ".shstrtab" tab)
+00000624,sh_size,h4,00000078h,
+00000628,sh_link,h4,00000000h,
+0000062C,sh_info,h4,00000000h,
+00000630,sh_addralign,h4,00000001h,
+00000634,sh_entsize,h4,00000000h,
+,-,,,
+--*/
+
+--/*
+First stab:
+--EH:
+00000000  7F454C46 01010100  00000000 00000000  *⌂ELF............*
+00000010  02002800 01000000  63810000 34000000  *..(.....cü..4...*
+00000020  00000000 02000005  34002000 05002800  *........4. ...(.*
+00000030  00000000 
+--PH:
+00000034  06000000 34000000  34800000           *....4...4Ç..*
+00000040  34800000 A0000000  A0000000 05000000  *4Ç..á...á.......*
+00000050  04000000 
+00000054  03000000 D4000000  D4800000           *....È...ÈÇ..*
+00000060  D4800000 19000000  19000000 04000000  *ÈÇ..............*
+00000070  01000000 
+00000074  01000000  00000000 00800000           *.........Ç..*
+00000080  00800000 8B010000  8B010000 05000000  *.Ç..ï...ï.......*
+00000090  00800000 
+00000094  01000000  8B010000 8B010100           *....ï...ï...*
+000000A0  8B010100 B6000000  B6000000 06000000  *ï...Â...Â.......*
+000000B0  00800000
+000000B4  02000000  8B010000 8B010100           *....ï...ï...*
+000000C0  8B010100 A0000000  A0000000 06000000  *ï...á...á.......*
+000000D0  04000000
+--Interpreter
+000000D4  2F6C6962  2F6C642D 6C696E75           *..../lib/ld-linu*
+000000E0  782D6172 6D68662E  736F2E33 0A0A0A0A  *x-armhf.so.3....*
+                                        ^^ooh... (fixed)
+--Symtab/Hash:
+000000F0  01000000 02000000  01000000 00000000  *................*
+
+00000100  00000000 00000000  00000000 00000000  *................*
+00000110  00000000 0B000000  00000000 00000000  *................*
+00000120  12000000 006C6962  632E736F 2E360070  *.....libc.so.6.p*
+00000130  72696E74 6600474C  4942435F 322E3400  *rintf.GLIBC_2.4.*
+00000140  0000005B 01000017  0000005F 01000017  *...[......._....*
+00000150  0000002B 82000002  0100002B 8200002F  *...+é......+é../!*
+00000160  820000E9 2D4800E5  1F0010E3 A0107CE5  *é..Ú-H.Õ...Òá.|Õ*
+00000170  1F201CE5 922000E1  A0E00FE1 2FFF12E3  *. .ÕÆ .ßáÓ.ß/ .Ò*
+00000180  A07001EF 000000E8  BD880001 00000001  *áp.´...Þ¢ê......*
+00000190  00000004 000000F0  00000005 00000024  *.......­.......$*
+000001A0  01000006 00000004  0100000A 0000001F  *................*
+000001B0  0000000B 00000010  00000015 00000000  *................*
+000001C0  00000011 00000043  01000012 00000018  *.......C........*
+000001D0  00000013 00000008  00000016 00000000  *................*
+000001E0  00000000 00000000  00000000 00000000  *................*
+000001F0  00000000 00000000  00000000 00000000  *................*
+
+00000200  00000000 00000000  00000000 00000000  *................*
+00000210  00000000 00000000  00000000 00000000  *................*
+00000220  00000000 00000000  00000000 00000054  *...............T*
+00000230  68652072 6573756C  74206973 3A202564  *he result is: %d*
+00000240  0A                                    *.               *
+<eof>
+
+After ELF_Header:34
+After ELF_program_headers:D4
+After interpreter_segment:F0
+After ELF_symtab:15C
+After ELF_text_segment:18C
+After ELF_Dynamic_Link_Info:22C
+After ELF_data_segment:242
+Test file `E:\downloads\misc\wren\qemu\putty\hwX` written
+"done"
+
+
+--hw2:
+00000000  7F454C46 01010100  00000000 00000000  *⌂ELF............*
+00000010  03002800 01000000  8C020000 34000000  *..(.....î...4...*
+00000020  08040000 02000005  34002000 05002800  *........4. ...(.*
+00000030  0E000D00 06000000  34000000 34000000  *........4...4...*
+00000040  34000000 A0000000  A0000000 05000000  *4...á...á.......*
+00000050  04000000 03000000  D4000000 D4000000  *........È...È...*
+00000060  D4000000 19000000  19000000 04000000  *È...............*
+00000070  01000000 01000000  00000000 00000000  *................*
+00000080  00000000 B4020000  B4020000 05000000  *....┤...┤.......*
+00000090  00800000 01000000  B4020000 B4820000  *.Ç......┤...┤é..*
+000000A0  B4820000 C2000000  C2000000 06000000  *┤é..┬...┬.......*
+000000B0  00800000 02000000  B4020000 B4820000  *.Ç......┤...┤é..*
+000000C0  B4820000 A0000000  A0000000 06000000  *┤é..á...á.......*
+000000D0  04000000 2F6C6962  2F6C642D 6C696E75  *..../lib/ld-linu*
+000000E0  782D6172 6D68662E  736F2E33 00000000  *x-armhf.so.3....*
+000000F0  03000000 0B000000  06000000 08000000  *................*
+
+00000100  0A000000 00000000  00000000 00000000  *................*
+00000110  00000000 00000000  03000000 04000000  *................*
+00000120  00000000 07000000  05000000 09000000  *................*
+00000130  00000000 00000000  00000000 00000000  *................*
+00000140  00000000 D4000000  00000000 03000100  *....È...........*
+00000150  00000000 60830000  00000000 03000B00  *....`â..........*
+00000160  0B000000 00000000  00000000 12000000  *................*
+00000170  25000000 76830000  00000000 1000F1FF  *%...vâ........± *
+00000180  34000000 76830000  00000000 1000F1FF  *4...vâ........± *
+00000190  12000000 76830000  00000000 1000F1FF  *....vâ........± *
+000001A0  33000000 76830000  00000000 1000F1FF  *3...vâ........± *
+000001B0  47000000 78830000  00000000 1000F1FF  *G...xâ........± *
+000001C0  3F000000 78830000  00000000 1000F1FF  *?...xâ........± *
+000001D0  19000000 76830000  00000000 1000F1FF  *....vâ........± *
+000001E0  006C6962 632E736F  2E360070 72696E74  *.libc.so.6.print*
+000001F0  66005F65 64617461  005F5F62 73735F73  *f._edata.__bss_s*
+
+00000200  74617274 005F5F62  73735F73 74617274  *tart.__bss_start*
+00000210  5F5F005F 5F627373  5F656E64 5F5F005F  *__.__bss_end__._*
+00000220  5F656E64 5F5F005F  656E6400 474C4942  *_end__._end.GLIB*
+00000230  435F322E 34000000  00000000 02000100  *C_2.4...........*
+00000240  01000100 01000100  01000100 01000100  *................*
+00000250  01000000 10000000  00000000 1469690D  *.............ii.*
+00000260  00000200 4C000000  00000000 84020000  *....L.......ä...*
+00000270  17000000 88020000  17000000 60830000  *....ê.......`â..*
+00000280  02030000 60830000  64830000 00482DE9  *....`â..dâ...H-Ú*
+00000290  10001FE5 7C10A0E3  1C201FE5 002092E5  *...Õ|.áÒ. .Õ. ÆÕ*
+000002A0  0FE0A0E1 12FF2FE1  0170A0E3 000000EF  *.Óáß. /ß.páÒ...´*
+000002B0  0088BDE8 01000000  01000000 04000000  *.ê¢Þ............*
+000002C0  F0000000 05000000  E0010000 06000000  *­.......Ó.......*
+000002D0  30010000 0A000000  56000000 0B000000  *0.......V.......*
+000002E0  10000000 15000000  00000000 11000000  *................*
+000002F0  6C020000 12000000  18000000 13000000  *l...............*
+
+00000300  08000000 16000000  00000000 FEFFFF6F  *............■  o*
+00000310  4C020000 FFFFFF6F  01000000 F0FFFF6F  *L...   o....­  o*
+00000320  36020000 FAFFFF6F  02000000 00000000  *6...·  o........*
+00000330  00000000 00000000  00000000 00000000  *................*
+00000340  00000000 00000000  00000000 00000000  *................*
+00000350  00000000 B4820000  00000000 00000000  *....┤é..........*
+00000360  00000000 54686520  72657375 6C742069  *....The result i*
+00000370  733A2025 640A4117  00000061 65616269  *s: %d.A....aeabi*
+00000380  00010D00 00000602  08010901 2C01002E  *............,...*
+00000390  73687374 72746162  002E696E 74657270  *shstrtab..interp*
+000003A0  002E6861 7368002E  64796E73 796D002E  *..hash..dynsym..*
+000003B0  64796E73 7472002E  676E752E 76657273  *dynstr..gnu.vers*
+000003C0  696F6E00 2E676E75  2E766572 73696F6E  *ion..gnu.version*
+000003D0  5F72002E 72656C2E  64796E00 2E746578  *_r..rel.dyn..tex*
+000003E0  74002E64 796E616D  6963002E 676F7400  *t..dynamic..got.*
+000003F0  2E646174 61002E41  524D2E61 74747269  *.data..ARM.attri*
+
+
+--*/
+--/*
+Listing 3:
+format ELF executable
+entry start
+
+segment readable executable
+
+start:
+    mov r3,0x00000030
+    orr r3,0x00003100
+    orr r3,0x00320000
+    orr r3,0x33000000
+    mov r4,0x00000034
+    orr r4,0x00003500
+    orr r4,0x00360000
+    orr r4,0x0A000000
+    push {r3,r4}
+    mov r1,sp   ; "0123456\n"
+    mov r2,8
+    swi 0x900004 ; sys_write
+    mov r0,42
+    swi 0x900001 ; sys_exit
+
+ELF Header
+==========
+00000000,ei_magic,x4,0x7F&"ELF",ELF signature
+00000004,ei_class,1,1,32 bit
+00000005,ei_data,1,1,little endian
+00000006,ei_version,1,1,current
+00000007,ei_osabi,1,0,System V
+00000008,ei_abiversion,1,0,
+00000009,ei_pad,h6,000000000000h,
+0000000F,ei_size,h1,00h,
+00000010,e_type,2,2,Executable file
+00000012,e_machine,2,40,ARM
+00000014,e_version,4,1,current
+00000018,e_entry,h4,00008054h,ARM code
+0000001C,e_phoff,h4,00000034h,program header table
+00000020,e_shoff,h4,00000000h,section header table
+00000024,e_flags,h4,00000202h,ABI version 0, EF_ARM_HASENTRY+EF_ARM_SOFT_FLOAT
+00000028,e_ehsize,h2,0034h,ELF header size
+0000002A,e_phentsize,2,32,program header table entry size
+0000002C,e_phnum,2,1,number of program header entries
+0000002E,e_shentsize,2,40,section header entry size
+00000030,e_shnum,2,0,number of section header entries
+00000032,e_shstrndx,2,0,section name string table index
+Program Headers
+===============
+00000034,p_type,4,1,PT_LOAD
+00000038,p_offset,h4,00000054h,file offset
+0000003C,p_vaddr,h4,00008054h,virtual address (see "Code Segment" tab)
+00000040,p_paddr,h4,00008054h,physical addressing(ignored)
+00000044,p_filesz,h4,00000038h,bytes in file image
+00000048,p_memsz,h4,00000038h,bytes in memory image
+0000004C,p_flags,h4,00000005h,Read+Execute
+00000050,p_align,h4,00001000h,
+,-,,,
+Code Segment
+============
+00000054,00000054,h4,E3A03030h,mov r3, 48  -- = 0x30 ('0')
+00000058,00000058,h4,E3833C31h,orr r3, 12544  -- = 0x3100 (rotate=1100)
+0000005C,0000005C,h4,E3833832h,orr r3, 3276800  -- = 0x320000 (rotate=1000)
+00000060,00000060,h4,E3833433h,orr r3, 855638016  -- = 0x33000000 (rotate=0100)
+00000064,00000064,h4,E3A04034h,mov r4, 52  -- = 0x34 ('4')
+00000068,00000068,h4,E3844C35h,orr r4, 13568  -- = 0x3500 (rotate=1100)
+0000006C,0000006C,h4,E3844836h,orr r4, 3538944  -- = 0x360000 (rotate=1000)
+00000070,00000070,h4,E384440Ah,orr r4, 167772160  -- = 0xA000000 (rotate=0100)
+00000074,00000074,h4,E92D0018h,push {r3,r4}
+00000078,00000078,h4,E1A0100Dh,mov r1, sp
+0000007C,0000007C,h4,E3A02008h,mov r2, 8
+00000080,00000080,h4,EF900004h,swi 9437188 -- #900004, sys_write
+00000084,00000084,h4,E3A0002Ah,mov r0, 42  -- = 0x2A ('*')
+00000088,00000088,h4,EF900001h,swi 9437185 -- #900001, sys_exit
+--*/
+
+--/*
+Listing 3: (hw5.s)
+@ aim: make it obvious whether it segfaults during load, or from using a duff printf ptr.
+@ compile on an RPi with as -o hw2.o hw2.s
+@                   then ld -o hw2 hw2.o -e main -s -lc -dynamic-linker /lib/ld-linux-armhf.so.3 [-pie]
+@                   then strip -s hw2 --> 1388 [1592] bytes
+.global main 
+.global printf
+.data
+        prntf: .word printf
+
+.text
+iAdrPrntf: .int prntf
+
+main:
+        mov r3,#0x00000032      @    2
+        orr r3,#0x00002B00      @   +
+        orr r3,#0x00320000      @  2 
+        orr r3,#0x3D000000      @ = 
+        mov r4,#0x00000025      @    %
+        orr r4,#0x00006400      @   d
+        orr r4,#0x000A0000      @  \n
+        push {r3,r4}
+        mov r1,sp               @ "2+2=%d\n"
+        mov r2,7                @ length
+        swi #0x900004           @ sys_write
+
+        mov r0,sp
+        mov r1,#4
+        ldr r2, iAdrPrntf
+        ldr r2, [r2]
+        mov lr,pc
+        bx r2
+
+        mov r0,#0
+        swi #0x900001 @ sys_exit
+
+--*/

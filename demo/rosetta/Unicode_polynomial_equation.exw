@@ -24,7 +24,9 @@
 --  output is a little more subtle, but avoids creating a utf32 "string" just because all
 --  bytes happen to be less than 255, which would not necessarily be valid utf8/32.
 --
-constant uni_frac = false   -- if true output unicode superscripts and vulgar fractions
+--constant uni_frac = false -- if true output unicode superscripts and vulgar fractions
+--constant uni_frac = true  -- if true output unicode superscripts and vulgar fractions
+constant uni_frac = platform()!=WINDOWS -- if true output unicode superscripts and vulgar fractions
 
 constant UTF8BOM = {#EF,#BB,#BF},
          SPTWO = #00B2,         -- superscript two
@@ -63,8 +65,7 @@ constant UTF8BOM = {#EF,#BB,#BF},
          UPARW = #2191,         -- uparrow
          BASET = #23E8,         -- base 10
          SPACE = ' ',           -- space
-             T = 10,            -- align nxt tbl
-$
+             T = 10             -- align nxt tbl
 
 constant {vulgar_fractions,unicode_vulgar_fractions} = columnize({{{1,4},QUART},
                                                                   {{1,2},AHALF},
@@ -95,8 +96,8 @@ function skip(sequence s, integer sdx, sequence set)
 end function
 
 function get_sign(sequence s, integer sdx, bool allow_superscripts)
-integer sgn = +1, ch
-    for sdx=sdx to length(s) do
+    integer sgn = +1, ch
+    for i=sdx to length(s) do
         ch = s[sdx]
         if allow_superscripts then
             ch = iff(ch=SPLUS?'+':
@@ -108,29 +109,30 @@ integer sgn = +1, ch
             if ch!='-' then exit end if
             sgn *= -1
         end if
+        sdx += 1
     end for
     return {sgn,sdx}
 end function
 
 function get_num(sequence s, integer sdx, atom n=0, bool allow_superscripts=false, as_fraction=false)
-integer sgn = +1, ch, f, e10, d = 1
-atom p10 = 10
-bool none = not as_fraction -- (cope with "x" == "1x^1" and != "0x^0")
-                            -- (but not when processing the "34" of "12.34", obvs)
+    integer sgn = +1, ch, f, e10, d = 1
+    atom p10 = 10
+    bool none = not as_fraction -- (cope with "x" == "1x^1" and != "0x^0")
+                                -- (but not when processing the "34" of "12.34", obvs)
     if not as_fraction then
         {sgn,sdx} = get_sign(s,sdx,allow_superscripts)
     end if
     if not allow_superscripts then
         sdx = skip(s,sdx,{' '}) 
     end if
-    for sdx=sdx to length(s) do
+    for i=sdx to length(s) do
         ch = s[sdx]
         if ch>='0' and ch<='9' then
             if as_fraction then
                 n += (ch-'0')/p10
                 p10 *= 10
             else
-                n = n*10+ch-'0'
+                n = n*10+(ch-'0')
             end if
             none = false
         elsif allow_superscripts then
@@ -141,6 +143,7 @@ bool none = not as_fraction -- (cope with "x" == "1x^1" and != "0x^0")
         elsif not find(ch," ,") then
             exit
         end if
+        sdx += 1
     end for
     if not allow_superscripts then
         if find(ch,{'e','E',BASET}) then
@@ -175,10 +178,10 @@ bool none = not as_fraction -- (cope with "x" == "1x^1" and != "0x^0")
 end function
 
 function get_term(sequence s, integer sdx)
-integer last_sdx = sdx, -- (infinite loop check/prevent)
-        e = 0
-atom c, d = 1, f
-bool sdiv = false
+    integer last_sdx = sdx, -- (infinite loop check/prevent)
+            e = 0
+    atom c, d = 1, f
+    bool sdiv = false
     {c,d,sdx} = get_num(s,sdx)
     sdx = skip(s,sdx,{' ',MIDOT,MULTY})
     if sdx<=length(s) 
@@ -221,7 +224,7 @@ end function
 
 function unicode_superscripts(integer e)
 -- display helper
-string res = ""
+    string res = ""
     if e>9 then
         res = unicode_superscripts(floor(e/10))
         e = remainder(e,10)
@@ -234,7 +237,7 @@ enum EXP, COEF, FRAC    -- contents of terms[i]
 
 function poly(sequence terms)
 -- display helper
-string r = ""
+    string r = ""
     for t=length(terms) to 1 by -1 do
         {integer e, atom c, integer f} = terms[t]
         if c!=0 then
@@ -281,9 +284,9 @@ string r = ""
 end function
 
 function parse(sequence s)
-sequence terms = {}
-integer sdx = 1, e, f
-atom c
+    sequence terms = {}
+    integer sdx = 1, e, f
+    atom c
     s = match_replace("<sup>",s,"^")
     s = match_replace("</sup>",s,"")
     s = match_replace("**",s,"^")
@@ -316,9 +319,12 @@ atom c
     return poly(terms)
 end function
 
+include Unicode_polynomial_equation.e
+
 sequence alts = {},     -- (unicode versions)
          altn = {},     -- (idx of ascii equivalents)
-         lines = read_lines("Unicode_polynomial_equation.txt")
+--       lines = read_lines("Unicode_polynomial_equation.txt")
+         lines = get_lines()
 
 if lines[1][1..3] = UTF8BOM then
     -- remove/ignore any utf8 byte order mark
@@ -336,9 +342,9 @@ end for
 for i=2 to length(lines) do
     if length(lines[i])>4 
     and lines[i][1..4] = "==> " then
-        sequence line = utf8_to_utf32(lines[i-1])
-        sequence res = parse(line)
-        sequence expected = lines[i][5..$]
+        sequence line = utf8_to_utf32(lines[i-1]),
+                 res = parse(line),
+                 expected = lines[i][5..$]
         if res=expected then
             -- (res is the unicode version)
             if platform()!=WINDOWS or res="0" then
@@ -424,7 +430,7 @@ integer ch, csign = +1, c = 0
     for i=1 to length(s) do
         ch = s[i]
         if ch>='0' and ch<='9' then
-            c = c*10+ch-'0'
+            c = c*10+(ch-'0')
         elsif ch='.' then
             integer p10 = 10
             for j=i+1 to length(s) do
@@ -475,7 +481,7 @@ integer ch, esign = +1, e = 0, sdx = 0
     for i=sdx+1 to length(s) do
         ch = s[i]
         if ch>='0' and ch<='9' then
-            e = e*10+ch-'0'
+            e = e*10+(ch-'0')
         elsif ch=SZERO
            or (ch>=SFOUR and ch<=SNINE) then
             e = e*10+(ch-SZERO)

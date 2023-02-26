@@ -1,0 +1,83 @@
+-- demo\rosetta\TextProcessing1.exw
+with javascript_semantics -- (include version/first of next three lines only)
+include readings.e -- global constant lines, or:
+--assert(write_lines("readings.txt",lines)!=-1) -- first run, then:
+--constant lines = read_lines("readings.txt")
+ 
+include builtins\timedate.e
+ 
+integer count = 0,
+        max_count = 0,
+        ntot = 0
+atom readtot = 0
+timedate run_start, max_start
+ 
+procedure end_bad_run()
+    if count then 
+        if count>max_count then
+            max_count = count
+            max_start = run_start
+        end if
+        count = 0
+    end if
+end procedure
+ 
+for i=1 to length(lines) do
+    sequence oneline = split(lines[i],'\t'), r
+    if length(oneline)!=49 then
+        ?"bad line (length!=49)"
+    else
+        r = parse_date_string(oneline[1],{"YYYY-MM-DD"})
+        if not timedate(r) then
+            ?{"bad date",oneline[1]}
+        else
+            timedate td = r
+            integer rejects=0, accepts=0
+            atom readsum = 0
+            for j=2 to 48 by 2 do
+                r = scanf(oneline[j],"%f")
+                if length(r)!=1 then
+                    ?{"error scanning",oneline[j]}
+                    rejects += 1
+                else
+                    atom reading = r[1][1]
+                    r = scanf(oneline[j+1],"%d")
+                    if length(r)!=1 then
+                        ?{"error scanning",oneline[j+1]}
+                        rejects += 1
+                    else
+                        integer flag = r[1][1]
+                        if flag<=0 then
+                            if count=0 then
+                                run_start = td
+                            end if
+                            count += 1
+                            rejects += 1
+                        else
+                            end_bad_run()
+                            accepts += 1
+                            readsum += reading
+                        end if
+                    end if
+                end if
+            end for
+            readtot += readsum
+            ntot += accepts
+            if i>=length(lines)-2 then
+                string average = iff(accepts=0?"N/A":sprintf("%6.3f",readsum/accepts))
+                printf(1,"Date: %s, Rejects: %2d, Accepts: %2d, Line total: %7.3f, Average %s\n",
+                       {format_timedate(td,"DD/MM/YYYY"),rejects, accepts, readsum, average})
+            end if
+        end if
+    end if
+end for
+ 
+printf(1,"Average: %.3f (of %d readings)\n",{readtot/ntot,ntot})
+end_bad_run()
+if max_count then
+    printf(1,"Maximum run of %d consecutive false readings starting: %s\n",
+            {max_count,format_timedate(max_start,"DD/MM/YYYY")})
+end if
+
+?"done"
+{} = wait_key()

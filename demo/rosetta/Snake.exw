@@ -1,0 +1,212 @@
+--
+-- demo\rosetta\Snake.exw
+-- ======================
+--
+-- See also demo\rosetta\Snake_AI.exw for an auto-player
+--
+with javascript_semantics
+constant title = "Snake Game",
+     help_text = """
+Use arrow keys to change the snake's direction.
+Avoid running into the walls, or your own tail.
+Eating the food (@pples) makes the snake grow.
+
+Press 'n' to start a new game.
+Press +/- to speed up or slow down the game.
+Note this is (still) a character-based game, so eg
+resize may "judder" a bit, to fit whole characters.
+"""
+include pGUI.e
+Ihandle dlg, canvas, timer
+cdCanvas cddbuffer, cdcanvas
+
+integer bh = 0, bw  -- board height and width (sans borders)
+sequence board = {},  -- bh+2 x length w+2 strings (ie a '+' border)
+         snakex, snakey
+integer direction = K_RIGHT, points = 0, moves = 0, tick = 100,
+        max_len, hX, hY, hdx, tdx -- (more snake details)
+atom timeout
+bool alive = true
+constant RYG = {CD_RED,CD_YELLOW,CD_GREEN}
+
+procedure add_apple()
+    integer ay = rand(bh)+1,
+            ax = rand(bw)+1
+    if board[ay,ax]!=' ' then
+        --
+        -- OK, time to go hunting for one then...
+        --  (beats using an infinite loop, which
+        --   can become very slow on a big board
+        --   when only one or two spaces remain,
+        --   and/or o/c hang after some slip-up.)
+        --
+        integer prob = 1 -- pick first 1 in 1,
+                         -- second 1 in 2, etc.
+        for y=2 to bh+1 do -- (ignoring borders)
+            for x=2 to bw+1 do -- (ditto)
+                if board[y,x]=' ' then
+                    if rand(prob)=prob then
+                        {ay,ax} = {y,x}
+                    end if
+                    prob += 1
+                end if
+            end for
+        end for
+        if prob=1 then -- no space found!
+            alive = false
+            return
+        end if
+    end if
+    assert(board[ay,ax]=' ')
+    board[ay,ax] = '@'
+end procedure
+
+procedure move(integer d)
+    assert(alive)
+    moves += 1
+    integer wasY = hY,
+            wasX = hX
+    direction = d
+    switch direction do
+        case K_UP:      hY -= 1
+        case K_DOWN:    hY += 1
+        case K_LEFT:    hX -= 1
+        case K_RIGHT:   hX += 1
+    end switch
+    integer t = board[hY,hX],
+            tY = snakey[tdx],
+            tX = snakex[tdx]
+    if t!=' ' and t!='@' and (hY!=tY or hX!=tX) then
+        alive = false
+    else
+        board[wasY,wasX] = '#'
+        board[hY,hX] = 'O'
+        hdx = remainder(hdx,max_len)+1
+        snakex[hdx] = hX
+        snakey[hdx] = hY
+        if t=='@' then
+            points += 1
+            add_apple() -- (can set alive to false)
+        else
+            board[tY,tX] = ' '
+            tdx = remainder(tdx,max_len)+1
+        end if
+        timeout = time()+tick/1000
+    end if
+    if not alive then
+        IupSetInt(timer,"RUN",false)
+        IupUpdate(canvas)
+    end if
+end procedure
+
+procedure new_game(integer h, w)
+    {bh,bw} = {h,w}
+    board = repeat("+"&repeat(' ',w)&"+",h+2)
+    board[1] = repeat('+',w+2)
+    board[$] = repeat('+',w+2)
+    board[2][2] = 'O'
+    max_len = w*h
+    snakex = 2 & repeat(0,max_len-1)
+    snakey = 2 & repeat(0,max_len-1)
+    {direction,alive} = {K_RIGHT,true}
+    {hdx,tdx,hY,hX} = {1,1,2,2}
+    {points,moves} = {0,0}
+    add_apple()
+    IupSetInt(timer,"RUN",true)
+    timeout = time()+tick/100
+end procedure
+
+function redraw_cb(Ihandle /*ih*/)
+    integer {cw,ch} = IupGetIntInt(canvas, "DRAWSIZE"),
+            {dx,dy} = cdCanvasGetTextSize(cddbuffer, "W"),
+                  w = floor(cw/dx),
+                  h = floor(ch/dy)
+    if h!=bh or w!=bw then new_game(h,w) end if
+    cdCanvasActivate(cddbuffer)
+    cdCanvasSetBackground(cddbuffer, CD_BLUE)
+    cdCanvasClear(cddbuffer)
+    cdCanvasSetForeground(cddbuffer, CD_BLACK)
+    integer marginx = floor((cw-w*dx)/2),
+            marginy = floor((ch-h*dy)/2)
+    cdCanvasBox(cddbuffer,marginx,cw-marginx,marginy,ch-marginy)
+    cdCanvasSetTextAlignment(cddbuffer, CD_CENTER)
+    integer py = marginy+floor(dy/2)
+    for y=1 to h do
+        integer px = marginx+floor(dx/2)
+        for x=1 to w do
+            integer byx = board[y+1][x+1]
+            if byx!=' ' then
+                cdCanvasSetForeground(cddbuffer, RYG[find(byx,"@O#")])
+                cdCanvasText(cddbuffer, px, ch-py, ""&byx)
+            end if
+            px += dx
+        end for
+        py += dy
+    end for
+    if not alive then
+        cdCanvasSetForeground(cddbuffer, CD_RED)
+        cdCanvasText(cddbuffer, cw/2, ch/2, "GAME OVER")
+    end if
+    IupSetStrAttribute(dlg,"TITLE","%s score:%d moves:%,d",{title,points,moves})
+    cdCanvasFlush(cddbuffer)
+    return IUP_DEFAULT
+end function
+
+function timer_cb(Ihandle /*ih*/)
+    if alive and time()>=timeout then
+        move(direction)
+    end if
+    IupUpdate(canvas)
+    return IUP_IGNORE
+end function
+
+function map_cb(Ihandle ih)
+    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    cdCanvasSetBackground(cddbuffer, CD_BLACK)
+    cdCanvasSetTextAlignment(cddbuffer, CD_CENTER)
+    return IUP_DEFAULT
+end function
+
+function show_help()
+    IupSetAttributeHandle(NULL, "PARENTDIALOG", dlg)
+    IupMessage(title,help_text,bWrap:=false)
+    return IUP_IGNORE
+end function
+
+function key_cb(Ihandle /*ih*/, atom c)
+    if c=K_ESC then IupSetInt(timer,"RUN",false) return IUP_CLOSE -- (std practice)
+    elsif c=K_F1 then return show_help() -- (IUP_IGNORE = don't open browser help!)
+    elsif c=K_F5 then return IUP_DEFAULT end if -- (let browser reload work)
+    c = lower(iup_XkeyBase(c))
+    if find(c,{K_UP,K_LEFT,K_RIGHT,K_DOWN}) and alive then move(c)
+    elsif c='n' then new_game(bh,bw) 
+    elsif c=' ' then IupToggleInt(timer,"RUN")
+    elsif find(c,"+-") then
+        c = compare(',',c) -- '+','-' ==> {-1,+1}
+        -- '+' => smaller tick, '-' => larger tick:
+        tick = max(IupGetInt(timer,"TIME")+c*25,25)
+        timeout = time()+tick/1000
+        IupSetInt(timer,"TIME",tick)
+        IupSetInt(timer,"RUN",false)
+        IupSetInt(timer,"RUN",true)
+    end if
+    IupUpdate(canvas)
+    return IUP_CONTINUE
+end function
+
+IupOpen()
+
+canvas = IupCanvas("RASTERSIZE=339x195") -- 12x24
+IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                         "ACTION", Icallback("redraw_cb")})
+timer = IupTimer(Icallback("timer_cb"), 200)
+dlg = IupDialog(canvas,`TITLE="%s",MINSIZE=250x90`,{title})
+IupSetCallback(dlg, "K_ANY", Icallback("key_cb"));
+IupShow(dlg)
+IupSetAttribute(canvas, "RASTERSIZE", NULL)
+if platform()!=JS then
+    IupMainLoop()
+    IupClose()
+end if
+

@@ -629,7 +629,7 @@ integer n = 0
         return {0,{}}
     end if
     while 1 do
-        n = n*10+src[idx]-'0'
+        n = n*10 + (src[idx]-'0')
         idx += 1
         if idx>=length(src) or not isnum(src[idx]) then exit end if
     end while
@@ -914,7 +914,8 @@ end function
 -- Draft routines
 --
 
-global function gsub(sequence re, string target, rep)
+-- pre-1.0.2 version, in case you still need it (hopefully temporarily):
+global function gsub0(sequence re, string target, rep)
     sequence code = iff(string(re)?regex_compile(re):re),
                 m = regex(code,target)
     if length(m) then
@@ -940,10 +941,36 @@ global function gsub(sequence re, string target, rep)
     return target
 end function
 
+local function breakdown(string rep)
+    -- break down rep, eg "\2 -> \1" ==> {2," -> ",1},
+    -- ie string literals and integer match replacements.
+    -- callee is responsible for ensuring eg \2 is valid.
+    sequence rn = {}
+    integer r0 = 1
+    for i=1 to length(rep)-1 do
+        if rep[i]='\\' then
+            integer dx = rep[i+1]-'0'
+            if dx>=0 and dx<=9 then
+                if r0<i then
+                    rn = append(rn,rep[r0..i-1])
+                end if
+                rn &= dx
+                r0 = i+2
+            end if
+        end if
+    end for
+    if r0<=length(rep) then
+        rn = append(rn,rep[r0..$])
+    end if
+    return rn
+end function
+
 global function gmatch(sequence re, string target, res)
     sequence code = iff(string(re)?regex_compile(re):re),
              m = regex(code,target)
     if length(m) then
+--DEV/SUG...
+--      sequence rn = breakdown(res)
         for i=1 to length(m)/2-1 do
             integer k = match(sprintf(`\%d`,{i}),res)
             if k!=0 then
@@ -953,6 +980,40 @@ global function gmatch(sequence re, string target, res)
         return res
     end if
     return -1
+--  return res
+end function
+
+global function gsub(sequence re, string target, rep)
+    sequence code = iff(string(re)?regex_compile(re):re),
+                m = regex(code,target)
+    if length(m) then
+        sequence rn = breakdown(rep)
+--?{m,re,rep,rn}
+        string res = ""
+        while length(target) do
+            integer ai = m[1]
+            res &= target[1..ai-1]
+            for r in rn do
+                if integer(r) then
+                    integer an = r*2+1
+                    if an>length(m) then
+                        crash(`no such: \%d`,{r})
+                    end if                      
+                    res &= target[m[an]..m[an+1]]
+                else
+                    res &= r
+                end if
+            end for
+            --DEV/SUG use the new strtndx arg instead of slicing?
+            target = target[m[2]+1..$]
+            if length(target)=0 then exit end if
+            m = regex(code,target)
+            if length(m)=0 then exit end if         
+        end while
+        res &= target
+        return res
+    end if
+    return target
 end function
 
 --

@@ -1,0 +1,590 @@
+--
+-- demo\rosetta\Taxicab_numbers.exw
+-- ================================
+--
+atom t0 = time()
+with javascript_semantics
+function cube_sums()
+    // create cubes and sorted list of cube sums
+    sequence cubes = {}, sums = {}
+    for i=1 to 1189 do
+        atom cube = i * i * i
+        sums &= sq_add(cubes,cube)
+        cubes &= cube
+    end for
+    sums = sort(sums) -- (706,266 in total)
+    return {cubes,sums}
+end function
+
+sequence {cubes, sums} = cube_sums()
+
+atom nm1 = sums[1],
+       n = sums[2]
+integer idx = 1
+printf(1,"First 25 Taxicab Numbers, 2000..2006th, and all interim triples:\n")
+for i=3 to length(sums) do
+    atom np1 = sums[i]
+    if n=np1 and n!=nm1 then
+        if idx<=25 
+        or (idx>=2000 and idx<=2006)
+        or n=sums[i+1] then
+            sequence s = {}
+            for j=1 to length(cubes) do
+                atom x = cubes[j],
+                     y = n-x
+                if y<x then exit end if
+                integer ydx = binary_search(y,cubes)
+                if ydx>0 then
+                    s = append(s,sprintf("(%3d^3=%9d) + (%4d^3=%10d)",{j,x,ydx,y}))
+                end if
+            end for
+            printf(1,"%4d %10d = %s\n",{idx,n,join(s," or ")})
+        end if
+        idx += 1
+    end if
+    nm1 = n
+    n = np1
+end for
+
+?elapsed(time()-t0)
+?"done"
+{} = wait_key()
+
+
+--/*
+--Translation of: Raku
+--Uses a dictionary to map sum of cubes to either the first/only pair or an integer index into the result set. 
+--Turned out to be a fair bit slower (15s) than I first expected.
+
+with javascript_semantics
+function get_taxis(integer last)
+    sequence taxis = {}
+    integer c1 = 1, maxc1 = 0, c2
+    atom c3, h3 = 0
+    while maxc1=0 or c1<maxc1 do
+        c3 = power(c1,3)
+        for c2 = 1 to c1 do
+            atom curr = power(c2,3)+c3
+            integer node = getd_index(curr)
+            if node=NULL then
+                setd(curr,{c2,c1})
+            else
+                if curr>h3 then h3 = curr end if
+                object data = getd_by_index(node)
+                if not integer(data) then
+                    taxis = append(taxis,{curr,{data}})
+                    data = length(taxis)
+                    setd(curr,data)
+                    if data=last then
+                        maxc1 = ceil(power(h3,1/3))
+                    end if
+                end if
+                sequence td2 = taxis[data][2]
+                taxis[data][2] = 0 -- (kill refcount)
+                td2 &= {{c2,c1}}
+                taxis[data][2] = td2
+            end if
+        end for
+        c1 += 1
+    end while
+    destroy_dict(1,justclear:=true)
+    taxis = sort(taxis)
+    return taxis
+end function
+ 
+sequence taxis = get_taxis(2006)
+constant sets = {{1,25},{2000,2006}}
+for s=1 to length(sets) do
+    integer {first,last} = sets[s]
+    for i=first to last do
+        printf(1,"%d: %d: %s\n",{i,taxis[i][1],sprint(taxis[i][2])})
+    end for
+end for
+
+{{out}}
+<pre>
+1: 1729: {{9,10},{1,12}}
+2: 4104: {{9,15},{2,16}}
+3: 13832: {{18,20},{2,24}}
+4: 20683: {{19,24},{10,27}}
+5: 32832: {{18,30},{4,32}}
+6: 39312: {{15,33},{2,34}}
+7: 40033: {{16,33},{9,34}}
+8: 46683: {{27,30},{3,36}}
+9: 64232: {{26,36},{17,39}}
+10: 65728: {{31,33},{12,40}}
+11: 110656: {{36,40},{4,48}}
+12: 110808: {{27,45},{6,48}}
+13: 134379: {{38,43},{12,51}}
+14: 149389: {{29,50},{8,53}}
+15: 165464: {{38,48},{20,54}}
+16: 171288: {{24,54},{17,55}}
+17: 195841: {{22,57},{9,58}}
+18: 216027: {{22,59},{3,60}}
+19: 216125: {{45,50},{5,60}}
+20: 262656: {{36,60},{8,64}}
+21: 314496: {{30,66},{4,68}}
+22: 320264: {{32,66},{18,68}}
+23: 327763: {{51,58},{30,67}}
+24: 373464: {{54,60},{6,72}}
+25: 402597: {{56,61},{42,69}}
+2000: 1671816384: {{940,944},{428,1168}}
+2001: 1672470592: {{632,1124},{29,1187}}
+2002: 1673170856: {{828,1034},{458,1164}}
+2003: 1675045225: {{744,1081},{522,1153}}
+2004: 1675958167: {{711,1096},{492,1159}}
+2005: 1676926719: {{714,1095},{63,1188}}
+2006: 1677646971: {{891,990},{99,1188}}
+</pre>
+
+{{trans|C}}
+Using a [[Priority_queue#Phix|priority queue]], otherwise based on C, quite a bit (18.5x) faster.<br>
+Copes with 40000..6, same results as Go, though that increases the runtime from 0.8s to 1min 15s.
+
+sequence cubes = {}
+ 
+procedure add_cube()
+    integer n = length(cubes)+1
+    cubes = append(cubes,n*n*n)
+    pq_add({{n,1},cubes[n]+1})
+end procedure
+ 
+constant VALUE = PRIORITY
+
+function next_sum()
+    while length(pq)<=2 or pq[1][VALUE]>=cubes[$] do add_cube() end while
+    sequence res = pq_pop()
+    integer {x,y} = res[DATA]
+    y += 1
+    if y<x then
+        pq_add({{x,y},cubes[x]+cubes[y]})
+    end if
+    return res
+end function
+ 
+function next_taxi()
+    sequence top
+    while 1 do
+        top = next_sum()
+        if pq[1][VALUE]=top[VALUE] then exit end if
+    end while
+    sequence res = {top}
+    atom v = top[PRIORITY]
+    while 1 do
+        top = next_sum()
+        res = append(res,top[DATA])
+        if pq[1][VALUE]!=v then exit end if
+    end while 
+    return res
+end function
+ 
+for i=1 to 2006 do
+    sequence x = next_taxi()
+    if i<=25 or i>=2000 then
+        atom v = x[1][VALUE]
+        x[1] = x[1][DATA]
+        string y = sprintf("%11d+%-10d",sq_power(x[1],3))
+        for j=2 to length(x) do
+            y &= sprintf(",%11d+%-10d",sq_power(x[j],3))
+        end for
+        printf(1,"%4d: %10d: %-23s [%s]\n",{i,v,sprint(x),y})
+    end if
+end for
+
+-- output:
+   1:       1729: {{10,9},{12,1}}         [       1000+729       ,       1728+1         ]
+   2:       4104: {{15,9},{16,2}}         [       3375+729       ,       4096+8         ]
+   3:      13832: {{20,18},{24,2}}        [       8000+5832      ,      13824+8         ]
+   4:      20683: {{24,19},{27,10}}       [      13824+6859      ,      19683+1000      ]
+   5:      32832: {{30,18},{32,4}}        [      27000+5832      ,      32768+64        ]
+   6:      39312: {{33,15},{34,2}}        [      35937+3375      ,      39304+8         ]
+   7:      40033: {{33,16},{34,9}}        [      35937+4096      ,      39304+729       ]
+   8:      46683: {{30,27},{36,3}}        [      27000+19683     ,      46656+27        ]
+   9:      64232: {{39,17},{36,26}}       [      59319+4913      ,      46656+17576     ]
+  10:      65728: {{40,12},{33,31}}       [      64000+1728      ,      35937+29791     ]
+  11:     110656: {{40,36},{48,4}}        [      64000+46656     ,     110592+64        ]
+  12:     110808: {{45,27},{48,6}}        [      91125+19683     ,     110592+216       ]
+  13:     134379: {{51,12},{43,38}}       [     132651+1728      ,      79507+54872     ]
+  14:     149389: {{50,29},{53,8}}        [     125000+24389     ,     148877+512       ]
+  15:     165464: {{48,38},{54,20}}       [     110592+54872     ,     157464+8000      ]
+  16:     171288: {{54,24},{55,17}}       [     157464+13824     ,     166375+4913      ]
+  17:     195841: {{57,22},{58,9}}        [     185193+10648     ,     195112+729       ]
+  18:     216027: {{59,22},{60,3}}        [     205379+10648     ,     216000+27        ]
+  19:     216125: {{50,45},{60,5}}        [     125000+91125     ,     216000+125       ]
+  20:     262656: {{60,36},{64,8}}        [     216000+46656     ,     262144+512       ]
+  21:     314496: {{66,30},{68,4}}        [     287496+27000     ,     314432+64        ]
+  22:     320264: {{68,18},{66,32}}       [     314432+5832      ,     287496+32768     ]
+  23:     327763: {{67,30},{58,51}}       [     300763+27000     ,     195112+132651    ]
+  24:     373464: {{60,54},{72,6}}        [     216000+157464    ,     373248+216       ]
+  25:     402597: {{69,42},{61,56}}       [     328509+74088     ,     226981+175616    ]
+2000: 1671816384: {{1168,428},{944,940}}  [ 1593413632+78402752  ,  841232384+830584000 ]
+2001: 1672470592: {{1124,632},{1187,29}}  [ 1420034624+252435968 , 1672446203+24389     ]
+2002: 1673170856: {{1164,458},{1034,828}} [ 1577098944+96071912  , 1105507304+567663552 ]
+2003: 1675045225: {{1153,522},{1081,744}} [ 1532808577+142236648 , 1263214441+411830784 ]
+2004: 1675958167: {{1159,492},{1096,711}} [ 1556862679+119095488 , 1316532736+359425431 ]
+2005: 1676926719: {{1095,714},{1188,63}}  [ 1312932375+363994344 , 1676676672+250047    ]
+2006: 1677646971: {{990,891},{1188,99}}   [  970299000+707347971 , 1676676672+970299    ]
+--*/
+
+--/* another attempt, 12-14s:
+sequence cubes = sq_power(tagset(1189),3)
+constant seen = new_dict(),
+         taxi = new_dict()
+atom t1 = time()+1
+for i=2 to length(cubes) do
+    for j=1 to i-1 do
+        atom s = cubes[i]+cubes[j]
+        if getd_index(s,seen) then
+            setd(s,0,taxi)
+--          setd(s,getdd(s,0,taxi)+1,taxi) -- not sure whether this adds much...
+        end if
+        setd(s,0,seen) -- 704,206 in total
+    end for
+if time()>t1 then -- this loop takes 12.9s (~99.99% of the total time)
+    ?i
+    t1 = time()+1
+end if
+end for
+?{elapsed(time()-t0),dict_size(seen),dict_size(taxi)}
+
+printf(1,"First 25 Taxicab Numbers, 2000..2006th, and all interim triples:\n")
+sequence taxis = getd_all_keys(taxi)
+for idx=1 to length(taxis) do
+    atom n = taxis[idx]
+    if idx<=25 
+    or (idx>=2000 and idx<=2006) then
+--  or (idx>=2000 and idx<=2006)
+--  or getd(n,taxi)>1 then
+        sequence s = {}
+        for j=1 to length(cubes) do
+            atom x = cubes[j],
+                 y = n-x
+            if y<x then exit end if
+            integer ydx = binary_search(y,cubes)
+            if ydx>0 then
+                s = append(s,sprintf("(%3d^3=%9d) + (%4d^3=%10d)",{j,x,ydx,y}))
+            end if
+        end for
+        printf(1,"%4d %10d = %s\n",{idx,n,join(s," or ")})
+    end if
+end for
+--*/
+
+--/* abandoned...
+--typedef unsigned long long xint;
+--typedef unsigned uint;
+--typedef struct {
+--      uint x, y; // x > y always
+--      xint value;
+--} sum_t;
+sequence cubes = {}, x = {}, y = {}, v = {}
+ 
+--xint *cube;
+--uint n_cubes;
+ 
+sum_t *pq;
+uint pq_len, pq_cap;
+ 
+procedure add_cube()
+    integer n = length(cubes)+1,
+            v = n*n*n
+--  integer x = n_cubes++;
+--  cube = realloc(cube, sizeof(xint) * (n_cubes + 1));
+--  cube[n_cubes] = (xint) n_cubes*n_cubes*n_cubes;
+--  cubes = append(cubes,n*n*n)
+    cubes = append(cubes,v)
+--  if (x < 2) return; // x = 0 or 1 is useless
+--  if n<2 then return; // x = 0 or 1 is useless
+    if n>1 then
+ 
+--  if (++pq_len >= pq_cap) {
+--          if (!(pq_cap *= 2)) pq_cap = 2;
+--          pq = realloc(pq, sizeof(*pq) * pq_cap);
+--  }
+ 
+--  sum_t tmp = (sum_t) { x, 1, cube[x] + 1 };
+--      integer v = n+
+        v += 1
+        v &= 0
+        x &= 0
+        y &= 0
+        // upheap
+        integer i = length(v)
+--  uint i, j;
+--  for (i = pq_len; i >= 1 && pq[j = i>>1].value > tmp.value; i = j)
+        while i>=1 do
+            integer j = floor(i/2),
+                   vj = v[j]
+            if vj<=v then exit end if
+            v[i] = vj
+            x[i] = x[j]
+            y[i] = y[j]
+--          pq[i] = pq[j];
+            i = j
+        end while
+--  pq[i] = tmp;
+        v[i] = v
+        x[i] = n
+        y[i] = 1
+    end if
+end procedure
+ 
+procedure next_sum()
+--  while (!pq_len || pq[1].value >= cube[n_cubes]) add_cube();
+    while length(v)=0 or v[1]>cubes[$] do add_cube() end while 
+
+--  sum_t tmp = pq[0] = pq[1];      // pq[0] always stores last seen value
+    integer v = v[1],
+            x = x[1],
+            y = y[1]+1
+--  if (++tmp.y >= tmp.x) {         // done with this x; throw it away
+    if y>=x then        // done with this x; throw it away
+        tmp = pq[pq_len];
+        pq_len -= 1
+        if (!pq_len) then
+            // refill empty heap
+            next_sum()
+            return
+        end if
+    else
+        tmp.value += cube[tmp.y] - cube[tmp.y-1];
+    end if
+    uint i, j;
+    // downheap
+    for (i = 1; (j = i<<1) <= pq_len; pq[i] = pq[j], i = j) {
+            if (j < pq_len && pq[j+1].value < pq[j].value) ++j;
+            if (pq[j].value >= tmp.value) break;
+    }
+    pq[i] = tmp;
+end procedure
+ 
+function next_taxi()
+    do next_sum(); while (pq[0].value != pq[1].value);
+ 
+--  integer len = 1;
+    sequence res = {}
+    hist[0] = pq[0];
+    do {
+        hist[len] = pq[1]
+--      len += 1
+        next_sum();
+    } while (pq[0].value == pq[1].value);
+ 
+--  return len
+    return res
+end function
+ 
+--uint i;
+--sum_t x[10];
+for i=1 to 2006 do
+    sequence t = next_taxi();
+    if i<=25 or i>=2000 then
+        printf(1,"%4d:%10 = d%s\n", {i, t[1][1], join(t," = ","%4d^3 + %4d^3")})
+--      while (l--) printf(" = %4u^3 + %4u^3", x[l].x, x[l].y);
+--      putchar('\n');
+    end if
+end for
+--*/ --</abandoned...>
+
+-- five times slower...
+--/*
+-->> DEV
+--constant PRIORITY = 2
+enum DATA, PRIORITY
+--<< DEV
+
+sequence cubes = {}
+constant pQ = pq_new()
+ 
+procedure add_cube()
+    integer n = length(cubes)+1
+    cubes = append(cubes,n*n*n)
+    pq_add({{n,1},cubes[n]+1},pQ)
+end procedure
+ 
+constant VALUE = PRIORITY
+--enum DATA, VALUE
+
+function next_sum()
+--  while length(pq)<=2 or pq[1][VALUE]>=cubes[$] do add_cube() end while
+--  while pq_size(pQ)<=2 or pq_peek(pQ)[1][PRIORITY]>=cubes[$] do add_cube() end while
+    while pq_size(pQ)<=2 or pq_peek(pQ)[PRIORITY]>=cubes[$] do add_cube() end while
+--  sequence res = pq_pop()
+--  sequence res = pqPop()
+    sequence res = pq_pop(pQ)
+--assert(res=res2)
+    integer {x,y} = res[DATA]
+    y += 1
+    if y<x then
+--      pq_add({{x,y},cubes[x]+cubes[y]})
+--      pqAdd({{x,y},cubes[x]+cubes[y]})
+        pq_add({{x,y},cubes[x]+cubes[y]},pQ)
+    end if
+    return res
+end function
+ 
+function next_taxi()
+    sequence topp
+    while 1 do
+        topp = next_sum()
+--      if pq[1][VALUE]=topp[VALUE] then exit end if
+        if pq_peek(pQ)[VALUE]=topp[VALUE] then exit end if
+    end while
+    sequence res = {topp}
+    atom v = topp[PRIORITY]
+    while 1 do
+        topp = next_sum()
+        res = append(res,topp[DATA])
+--atom v1 = pq[1][VALUE],
+--   v2 = pq_peek(pQ)[VALUE]
+--assert(v1=v2)
+--      if pq[1][VALUE]!=v then exit end if
+        if pq_peek(pQ)[VALUE]!=v then exit end if
+    end while 
+    return res
+end function
+ 
+for i=1 to 2006 do
+    sequence x = next_taxi()
+    if i<=25 or i>=2000 then
+        atom v = x[1][VALUE]
+        x[1] = x[1][DATA]
+        string y = sprintf("%11d+%-10d",sq_power(x[1],3))
+        for j=2 to length(x) do
+            y &= sprintf(",%11d+%-10d",sq_power(x[j],3))
+        end for
+        printf(1,"%4d: %10d: %-23v [%s]\n",{i,v,x,y})
+    end if
+end for
+--*/
+
+--/*
+-- original fast (what proposed performance investigation is all about)
+-->> DEV
+sequence pq = {}
+
+--constant PRIORITY = 2
+enum DATA, PRIORITY
+
+procedure pqAdd(sequence item)
+-- item is {object data, object priority}
+    integer n = length(pq)+1,
+            m = floor(n/2) 
+    pq &= 0
+    -- append at end, then up heap
+    while m>0 and item[PRIORITY]<pq[m][PRIORITY] do
+        pq[n] = pq[m]
+        n = m
+        m = floor(m/2)
+    end while
+    pq[n] = item
+end procedure
+ 
+function pqPop()
+    sequence result = pq[1]
+ 
+    integer qn = length(pq),
+            n = 1,
+            m = 2
+    while m<qn do
+        if m+1<qn and pq[m][PRIORITY]>pq[m+1][PRIORITY] then
+            m += 1
+        end if 
+        if pq[qn][PRIORITY]<=pq[m][PRIORITY] then exit end if
+        pq[n] = pq[m]
+        n = m
+        m = m * 2
+    end while
+    pq[n] = pq[qn]
+    pq = pq[1..$-1]
+    return result
+end function
+
+--set_rand(iff(platform()=JS?5749:  -- (optional!)
+--       iff(machine_bits()=32?4601:97)))
+--
+--constant set = shuffle({{"Clear drains", 3},
+--                      {"Feed cat", 4},
+--                      {"Make tea", 5},
+--                      {"Solve RC tasks", 1},
+--                      {"Tax return", 2}})
+--for i=1 to length(set) do
+--  pqAdd(set[i])
+--  pqAdd(set[rand(length(set))])
+--end for
+-- 
+--sequence res = {}
+--while length(pq) do
+--  ?pqPop()
+--end while
+--<< DEV
+
+sequence cubes = {}
+constant pQ = pq_new()
+ 
+procedure add_cube()
+    integer n = length(cubes)+1
+    cubes = append(cubes,n*n*n)
+--  pq_add({{n,1},cubes[n]+1})
+    pqAdd({{n,1},cubes[n]+1})
+    pq_add({{n,1},cubes[n]+1},pQ)
+end procedure
+ 
+constant VALUE = PRIORITY
+--enum DATA, VALUE
+
+function next_sum()
+    while length(pq)<=2 or pq[1][VALUE]>=cubes[$] do add_cube() end while
+--  while pq_size(pQ)<=2 or pq_peek(pQ)[1][PRIORITY]>=cubes[$] do add_cube() end while
+--  sequence res = pq_pop()
+    sequence res = pqPop()
+    sequence res2 = pq_pop(pQ)
+assert(res=res2)
+    integer {x,y} = res[DATA]
+    y += 1
+    if y<x then
+--      pq_add({{x,y},cubes[x]+cubes[y]})
+        pqAdd({{x,y},cubes[x]+cubes[y]})
+        pq_add({{x,y},cubes[x]+cubes[y]},pQ)
+    end if
+    return res
+end function
+ 
+function next_taxi()
+    sequence topp
+    while 1 do
+        topp = next_sum()
+atom p1 = pq[1][VALUE],
+     p2 = pq_peek(pQ)[VALUE]
+assert(p1=p2)
+        if pq[1][VALUE]=topp[VALUE] then exit end if
+--      if pq_peek(pQ)[VALUE]=topp[VALUE] then exit end if
+    end while
+    sequence res = {topp}
+    atom v = topp[PRIORITY]
+    while 1 do
+        topp = next_sum()
+        res = append(res,topp[DATA])
+atom v1 = pq[1][VALUE],
+     v2 = pq_peek(pQ)[VALUE]
+assert(v1=v2)
+        if pq[1][VALUE]!=v then exit end if
+--      if pq_peek(pQ)[VALUE]!=v then exit end if
+    end while 
+    return res
+end function
+ 
+for i=1 to 2006 do
+    sequence x = next_taxi()
+    if i<=25 or i>=2000 then
+        atom v = x[1][VALUE]
+        x[1] = x[1][DATA]
+        string y = sprintf("%11d+%-10d",sq_power(x[1],3))
+        for j=2 to length(x) do
+            y &= sprintf(",%11d+%-10d",sq_power(x[j],3))
+        end for
+        printf(1,"%4d: %10d: %-23v [%s]\n",{i,v,x,y})
+    end if
+end for
+--*/
+

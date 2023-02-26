@@ -199,7 +199,8 @@ global function sq_sub(object a, b) return sq_general(a,b,'-') end function
 global function sq_mul(object a, b) return sq_general(a,b,'*') end function
 global function sq_div(object a, b) return sq_general(a,b,'/') end function
 global function sq_floor_div(object a, b) return sq_general(a,b,'f') end function
-global function sq_remainder(object a, b) return sq_general(a,b,'r') end function
+--4/11/22 now properly aliased in psym.e, and in a way understood by p2js
+--global function sq_remainder(object a, b) return sq_general(a,b,'r') end function
 global function sq_rmdr(object a, b) return sq_general(a,b,'r') end function
 --global function sq_remainder(object a, b) return sq_general(a,b,'r') end function -- achieved via psym.e/syminit()
 global function sq_mod(object a, b) return sq_general(a,b,'m') end function
@@ -233,6 +234,7 @@ global function sq_tan(object a) return sq_unary(a,'T') end function
 global function sq_arccos(object a) return sq_unary(a,'D') end function
 global function sq_arcsin(object a) return sq_unary(a,'R') end function
 global function sq_arctan(object a) return sq_unary(a,'U') end function
+global function sq_ln(object a) return sq_unary(a,'l') end function
 global function sq_log(object a) return sq_unary(a,'l') end function
 global function sq_log10(object a)  return sq_unary(a,'1') end function
 global function sq_log2(object a)  return sq_unary(a,'2') end function

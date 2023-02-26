@@ -1,0 +1,159 @@
+--
+-- demo\rosetta\15_puzzle_game.exw
+-- ===============================
+--
+with javascript_semantics
+include pGUI.e
+
+constant title = "15 puzzle",
+         help_text = """
+Put the tiles back into order 1..15 and the hole last.
+Rightarrow moves the tile to the left of the hole (rightwards) into it.
+Leftarrow moves the tile to the right of the hole (leftwards) into it.
+Uparrow moves the tile below the hole (upwards) into it.
+Downarrow moves the tile above the hole (downwards) into it.
+Press 'N' to start a new game.
+"""
+
+function show_help()
+    IupMessage(title,help_text,bWrap:=false)
+    return IUP_IGNORE -- (don't open browser help!)
+end function
+
+Ihandle canvas, dialog
+cdCanvas cddbuffer, cdcanvas
+
+sequence solved = tagset(15)&0, board
+integer pos
+
+procedure move(integer d)
+    if d=5 then -- new game
+        board = deep_copy(solved)
+        pos = 16
+        for i=1 to 1000 do move(rand(4)) end for
+    elsif d then
+        integer new_pos = pos+{+4,+1,-1,-4}[d]
+        if new_pos>=1 and new_pos<=16
+        and (mod(pos,4)=mod(new_pos,4) -- same col, or row:
+         or floor((pos-1)/4)=floor((new_pos-1)/4)) then
+            board[pos] = board[new_pos]
+            board[new_pos] = 0
+            pos = new_pos
+        end if
+    end if
+end procedure
+move(5) -- new game
+
+function redraw_cb(Ihandle /*ih*/)
+    integer {dw,dh} = IupGetIntInt(canvas, "DRAWSIZE"),
+            ox,oy,              -- top right coords
+            os,ts,              -- overall and tile size
+            ht                  -- half tile, for number positioning
+            
+    if dw>=dh then
+        ox = floor((dw-dh)/2)
+        oy = 0
+        os = dh
+    else
+        ox = 0
+        oy = floor((dh-dw)/2)
+        os = dw
+    end if
+    ts = floor((os-10)/4-7)
+    ht = floor(ts/2+5)-10
+
+    cdCanvasActivate(cddbuffer)
+    cdCanvasSetBackground(cddbuffer, #FAF8EF)
+    cdCanvasClear(cddbuffer)
+    cdCanvasSetForeground(cddbuffer, #BBADA0)
+    cdCanvasRoundedBox(cddbuffer, ox+5, ox+os-5, oy+5, oy+os-5, 10, 10)
+
+    integer tx = ox+15
+    for y=1 to 4 do
+        integer ty = oy+15
+        for x=1 to 4 do
+            integer bxy = board[(4-x)*4+y]
+            cdCanvasSetForeground(cddbuffer, #EEE4DA)
+            cdCanvasRoundedBox(cddbuffer, tx, tx+ts-10, ty, ty+ts-10, 5, 5)
+            if bxy then
+                cdCanvasSetForeground(cddbuffer, #776E65)
+                cdCanvasFont(cddbuffer, "Calibri", CD_BOLD, 32)
+                cdCanvasText(cddbuffer, tx+ht, ty+ht, sprint(bxy)) 
+            end if
+            ty += ts+5
+        end for
+        tx += ts+5
+    end for
+    cdCanvasFlush(cddbuffer)
+    string fmt = iff(board==solved?"%s - solved":"%s")
+    IupSetStrAttribute(dialog,"TITLE",fmt,{title})
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle ih)
+    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    cdCanvasSetTextAlignment(cddbuffer, CD_CENTER) 
+    return IUP_DEFAULT
+end function
+
+function key_cb(Ihandle /*ih*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if -- (standard practice for me)
+    if c=K_F5 then return IUP_DEFAULT end if -- (let browser reload work)
+    if c=K_F1 then return show_help() end if
+    move(find(upper(c),{K_UP,K_LEFT,K_RIGHT,K_DOWN,'N'}))
+    IupUpdate(canvas)
+    return IUP_IGNORE
+end function
+
+IupOpen()
+
+canvas = IupCanvas("RASTERSIZE=520x540")
+IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                         "ACTION", Icallback("redraw_cb")})
+
+dialog = IupDialog(canvas,`TITLE="%s",MINSIZE=440x450`,{title})
+IupSetCallback(dialog, "KEY_CB", Icallback("key_cb"));
+
+IupShow(dialog)
+IupSetAttribute(canvas, "RASTERSIZE", NULL)
+IupSetAttributeHandle(NULL,"PARENTDIALOG",dialog)
+if platform()!=JS then
+    IupMainLoop()
+    IupClose()
+end if
+
+--/* and the console-only version:
+constant ESC=27, UP=328, LEFT=331, RIGHT=333, DOWN=336
+sequence board = tagset(15)&0, solve = deep_copy(board)
+integer pos = 16
+ 
+procedure print_board()
+    for i=1 to length(board) do
+        puts(1,iff(i=pos?"   ":sprintf("%3d",{board[i]})))
+        if mod(i,4)=0 then puts(1,"\n") end if
+    end for
+    puts(1,"\n")
+end procedure
+ 
+procedure move(integer d)
+    integer new_pos = pos+{+4,+1,-1,-4}[d]
+    if new_pos>=1 and new_pos<=16
+    and (mod(pos,4)=mod(new_pos,4) -- same col, or row:
+     or floor((pos-1)/4)=floor((new_pos-1)/4)) then
+        {board[pos],board[new_pos]} = {board[new_pos],0}
+        pos = new_pos
+    end if
+end procedure
+ 
+for i=1 to 5 do move(rand(4)) end for
+while 1 do
+    print_board()
+    if board=solve then exit end if
+    integer c = find(wait_key(),{ESC,UP,LEFT,RIGHT,DOWN})-1
+    if c=0 then exit end if
+    move(c)
+end while
+puts(1,"solved!\n")
+--*/
+

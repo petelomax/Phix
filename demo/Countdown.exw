@@ -1,21 +1,24 @@
--- bit slow... (just something I stumbled upon)
+--
+-- demo/Countdown.exw
+--
 -- solves the numbers game from countdown.
-
-constant n = 6
-
+--
+with javascript_semantics
+constant n = 6,
+         ops = "+-*/"
 enum ADD, SUB, MUL, DIV
-constant ops = "+-*/"
 
-sequence chosen = repeat(0,n)
-sequence expression = repeat(0,n)
-sequence solution = repeat(0,n)
+sequence chosen = repeat(0,n), -- original numbers <-> partial sums
+     expression = repeat(0,n), -- the operations tried so far
+       solution -- (a/best snapshot of expression)
 
-int len;
-int count;
+int len,    -- n+1 means no solution yet found
+    maxlev, -- recursion limit (5, drops as solns found)
+    near,   -- nearest answer (in solution) out by this
+    lenn,   -- length of ""         ""
+    target
 
-integer target
-
-procedure Countdown(int lev=1)
+procedure countdown(int level=1)
 --
 -- Recursive search - takes two numbers, performs an op (storing result), checks
 -- for target value, and calls itself. All solutions are stored, to find shortest, 
@@ -23,51 +26,49 @@ procedure Countdown(int lev=1)
 -- Optimizations are made to ensure commutative operations are only performed one 
 -- way round, division is only performed when no remainder, and */1 are skipped.
 --
-int sti,stj,ci;
-bool worth_doing;
-
-    count += 1
     for i=1 to n do
-        if chosen[i]!=0 then
+        integer sti = chosen[i] -- speedwise/save
+        if sti!=0 then
             for j=1 to n do
-                if i!=j and chosen[j]!=0 then
+                integer stj = chosen[j] -- ""
+                if i!=j and stj!=0 then
                     for operation=ADD to DIV do
-                        worth_doing = false
-                        switch operation with fallthrough do
-                            -- (obvs DIV does all 3 tests, MUL does 2, ADD/SUB just 1)
-                            case DIV:       if mod(chosen[i],chosen[j])!=0  then break end if
-                            case MUL:       if chosen[j]=1                  then break end if
-                            case ADD,SUB:   if chosen[i]<chosen[j]          then break end if
-                                            worth_doing = true
---crashes without this pre-0.7.6:
-default:
-                        end switch
-                        if worth_doing then
-                            sti = chosen[i];
-                            stj = chosen[j];
-                            ci = sti
+                        if (operation<DIV or mod(sti,stj)=0)
+                        and (operation<MUL or stj!=1)
+                        and (sti>=stj) then
+                            -- worth doing...
+                            integer ci = sti
                             switch operation do
-                                case ADD: ci+=stj
-                                case SUB: ci-=stj
-                                case MUL: ci*=stj
-                                case DIV: ci/=stj
+                                case ADD: ci += stj
+                                case SUB: ci -= stj
+                                case MUL: ci *= stj
+                                case DIV: ci /= stj
                             end switch
                             chosen[i] = ci
                             chosen[j] = 0
                             /* store operands and operator */
-                            expression[lev] = {sti,ops[operation],stj}
+                            expression[level] = {sti,ops[operation],stj,ci}
                                                         
                             -- check for solution
                             if ci==target then
-                                if lev<len then
+                                if level<len then
                                     /* solution is shortest so far - store it */
-                                    len = lev
-                                    solution = expression
+                                    len = level
+                                    maxlev = level-1
+                                    near = 0
+                                    solution = deep_copy(expression)
                                 end if
                             else
+                                --store closest?
+                                integer offby = abs(target-ci)
+                                if offby<near then
+                                    near = offby
+                                    lenn = level
+                                    solution = deep_copy(expression)
+                                end if
                                 -- if not at required level, recurse
-                                if lev<5 then
-                                    Countdown(lev+1)
+                                if level<maxlev then
+                                    countdown(level+1)
                                 end if
                             end if
                             -- undo
@@ -81,34 +82,81 @@ default:
     end for
 end procedure
 
-/* interface to recursive routine */
-function Carol(sequence list, int dest)
-string solstr = ""
-integer answer = 0
+procedure test(sequence list, int dest)
     len = n+1
-    count = 0
+    maxlev = 5
+    near = dest
     target = dest
-    chosen = list
-
-    Countdown()
+    chosen = deep_copy(list)
+    countdown()
     /* process solution into printable form */
-    if len<n+1 then
-        for i=1 to len do
-            integer {operand1,operator,operand2} = solution[i]
-            switch operator do
-                case '+': answer = operand1+operand2
-                case '-': answer = operand1-operand2
-                case '*': answer = operand1*operand2
-                case '/': answer = operand1/operand2
-            end switch
-            solstr &= sprintf("%d%c%d=%d\n",{operand1,operator,operand2,answer})
-        end for
+    string off = "exact"
+    if len=n+1 then
+        off = sprintf("off by %d",near)
+        len = lenn
     end if
-    return solstr
-end function
+    string soln = join(apply(true,sprintf,{{"%d%c%d=%d"},solution[1..len]}),", ")
+    printf(1,"Target %d from %18v: %s (%s)\n",{dest,list,soln,off})
+end procedure
 
---atom t0 = time()
-puts(1,Carol({75,50,25,100,8,2},737))
---?time()-t0
+atom t0 = time()
+test({75,50,25,100,8,2},737)
+test({3,6,25,50,75,100},952)
+test({100,75,50,25,6,3},952)
+test({50,100,4,2,2,4},203)
+test({25,4,9,2,3,10},465)
+test({9,8,10,5,9,7},241)
+test({3,7,6,2,1,7},824)
+test({75,50,25,100,8,2},125)
+test({8,4,4,6,8,9},594)
+test({2,4,9,10,3,5},363)
+test({1,3,7,6,8,3},382)
+test({1,3,7,6,8,3},348) 
+--test(shuffle(tagset(10)&tagset(10)&tagstart(25,4,25))[1..6],100+rand(899))
+?time()-t0
 
 {} = wait_key()
+
+-- Target 737 from {75,50,25,100,8,2}: 75/25=3, 50-3=47, 100-2=98, 98*8=784, 784-47=737 (exact)
+-- Target 952 from {3,6,25,50,75,100}: 75*3=225, 100+6=106, 225*106=23850, 23850-50=23800, 23800/25=952 (exact)
+-- Target 952 from {100,75,50,25,6,3}: 100+6=106, 106*75=7950, 7950*3=23850, 23850-50=23800, 23800/25=952 (exact)
+-- Target 203 from   {50,100,4,2,2,4}: 50*4=200, 200+4=204, 2/2=1, 204-1=203 (exact)
+-- Target 465 from    {25,4,9,2,3,10}: 25-10=15, 9*3=27, 27+4=31, 31*15=465 (exact)
+-- Target 241 from     {9,8,10,5,9,7}: 9+9=18, 8+5=13, 18*13=234, 234+7=241 (exact)
+-- Target 824 from      {3,7,6,2,1,7}: 7+3=10, 10*6=60, 60-1=59, 59*2=118, 118*7=826 (off by 2)
+-- Target 125 from {75,50,25,100,8,2}: 75+50=125 (exact)
+-- Target 594 from      {8,4,4,6,8,9}: 8*8=64, 64-4=60, 60+6=66, 66*9=594 (exact)
+-- Target 363 from     {2,4,9,10,3,5}: 9*4=36, 36*10=360, 360+3=363 (exact)
+-- 1.797
+
+-- couldn't quite bear to throw this away:
+--/* yep, that'll do:
+function replace_innermost(string s)
+    bool some = false
+    integer cb = rfind(')',s)
+    while cb do
+        integer ob = rfind('(',s,cb-1),
+               icb = rfind(')',s,cb-1)
+        if icb=0 or icb<ob then
+            string inner = s[ob+1..cb-1]
+            integer k = find_any(opchs,inner),
+                    fn = opfns[find(inner[k],opchs)]
+            s[ob..cb] = sprintf("%d",fn(to_integer(inner[1..k-1]),
+                                        to_integer(inner[k+1..$])))
+            some = true
+        end if
+        cb = icb
+    end while
+    return iff(some?s:"")
+end function
+string s = "(((3*75)*(6+100))-50)/25"
+while length(s) do
+    ?s
+    s = replace_innermost(s)
+end while
+"(((3*75)*(6+100))-50)/25"
+"((225*106)-50)/25"
+"(23850-50)/25"
+"23800/25"
+--*/
+

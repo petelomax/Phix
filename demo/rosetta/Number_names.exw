@@ -2,6 +2,7 @@
 -- demo\rosetta\Number_names.exw
 -- -----------------------------
 --
+with javascript_semantics
 
 constant twenties = {"zero","one","two","three","four","five","six","seven","eight","nine","ten",
     "eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen"}
@@ -99,7 +100,6 @@ function smartp(atom n)
     return res
 end function
  
---/!*
 procedure main()
     for i=1 to length(samples) do
         atom si = samples[i]
@@ -107,27 +107,8 @@ procedure main()
     end for
 end procedure
 
--- from [[Executable_library#Phix|Executable_library]] --
---DEV replace with is_main_include(), resolve as per platform(), with ple().
-function isMainOrInclude()
--- returns 1 if called from the main file, 0 if from an include
-integer res
-    #ilASM{
-        [32]
-            mov eax,[ebp+20]    -- prev_ebp
-            mov eax,[eax+8]     -- rtn
-            mov [res],eax
-        [64]
-            mov rax,[rbp+40]    -- prev_ebp
-            mov rax,[rax+16]    -- rtn
-            mov [res],rax
-        []
-          }
-    return res=21 -- (21=T_maintls)
-end function
-
-if isMainOrInclude() then
+if include_file()=1 then
     main()
     {} = wait_key()
 end if
---*!/
+

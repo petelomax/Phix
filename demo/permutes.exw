@@ -3,6 +3,8 @@
 --
 -- Copyright Pete Lomax 2004.
 --
+--**UPDATE** builtins\permute.e has since been significantly improved.
+--
 -- This is a fast method of generating permutations from a given set.
 -- eg permutes of "abc" are "abc","acb","bac","bca","cab",&"cba".
 -- Instead of generating a list, the permute function returns a unique
@@ -109,60 +111,58 @@ global integer Ch, col
 global string text
 global constant scramble=0, T_constm1=0, S_Nlink=0, S_Name=0, maxNVop=0
 global sequence symtab, opNames
-include ../pttree.e
-integer iidx
+include ..\pttree.e
 
 constant maxsetlen = 10
 --sequence chkset   -- (replaced with pttree)
-sequence set
-integer fls         -- factoral(ls)
-integer tfls=0      -- total ""
-sequence res
-atom t,t2
-integer putnewline = 0
-    t = time()
+integer tfls=0      -- total of factorial(1..maxsetlen)
+--integer putnewline = 0
+atom t = time(), t2
 
-    for ls=1 to maxsetlen do
-        set = repeat('@',ls)
-        for i=1 to ls do
-            set[i] += i     -- create "A" to "ABCDEFGH"
-        end for
-        fls = factorial(ls)
-        if checkfordups then
---          chkset = repeat(0,fls)
---          if ls>=10 then fls+=1 end if    -- good, makes it crash when it is fine without it
-            tt = {}
-        end if
-        if showtime then
-            tfls += fls
-            printf(1,"Length: %d, permutes: %d\n",{ls,fls})
+for ls=1 to maxsetlen do
+    sequence set = repeat('@',ls)
+    for i=1 to ls do
+        set[i] += i     -- create "A" to "ABCDEFGH"
+    end for
+    integer fls = factorial(ls)
+    if checkfordups then
+--      chkset = repeat(0,fls)
+--      if ls>=10 then fls+=1 end if    -- good, makes it crash when it is fine without it
+        tt = {}
+    end if
+    if showtime then
+        tfls += fls
+        printf(1,"Length: %d, permutes: %,d\n",{ls,fls})
+        t2 = time()+1
+    end if
+    for i=1 to fls do
+        sequence res = permute(i,set)
+--      puts(1,res&'\n')
+        if showtime and time()>t2 then
+--          printf(1,"Iteration %d (%3.2f%%) :%s\r",{i,i*100/fls,res})
+            progress("Iteration %,d (%3.2f%%) :%s\r",{i,i*100/fls,res})
+--          putnewline = 1
             t2 = time()+1
         end if
-        for i=1 to fls do
-            res = permute(i,set)
---          puts(1,res&'\n')
-            if showtime and time()>t2 then
-                printf(1,"Iteration %d (%3.2f%%) :%s\r",{i,i*100/fls,res})
-                putnewline = 1
-                t2 = time()+1
-            end if
-            if checkfordups then
---              if find(res,chkset) then ?9/0 end if
---              chkset[i] = res
-                tt_string(res,-5)
-                iidx = ttidx+EQ
-                if tt[iidx] then ?9/0 end if
-                tt[iidx] = i
-            end if
-        end for
-        if putnewline then
-            puts(1,"\n")
-            putnewline = 0
+        if checkfordups then
+--          if find(res,chkset) then ?9/0 end if
+--          chkset[i] = res
+            tt_string(res,-5)
+            integer iidx = ttidx+EQ
+            if tt[iidx] then ?9/0 end if
+            tt[iidx] = i
         end if
     end for
-    if showtime then
-        t = time()-t
-        printf(1,"%3.2fs (%d/s)\n",{t,tfls/t})
-    end if
-    puts(1,"Done")
-    if getc(0) then end if
+--  if putnewline then
+--      puts(1,"\n")
+--      putnewline = 0
+--  end if
+end for
+progress()
+if showtime then
+    t = time()-t
+    printf(1,"%3.2fs (%,d/s)\n",{t,tfls/t})
+end if
+puts(1,"Done")
+if getc(0) then end if
+

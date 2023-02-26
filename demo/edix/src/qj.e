@@ -72,8 +72,7 @@ procedure setScope()
 end procedure
 
 function inScope(integer i)
-integer k
-    k = routinescope[i]
+    integer k = routinescope[i]
     if scope=ALL then   -- all = 0 and 1
         return k>=ALL   -- ie not a section
     end if
@@ -372,21 +371,19 @@ setHandler({ROUTINEWINDOW,ROUTINELIST,All,Globals,Sections,Filter},
            routine_id( "routinelistHandler" ))
 --*/
 
-sequence RtnCharMap
-    RtnCharMap = repeat(0,256)
-    RtnCharMap['a'+1..'z'+1] = 1
-    RtnCharMap['A'+1..'Z'+1] = 1
-    RtnCharMap['0'+1..'9'+1] = 2
-    RtnCharMap['_'+1] = 1
-    RtnCharMap['$'+1] = 1   -- 17/12/20 (for js)
-    RtnCharMap['-'+1] = -1
-    RtnCharMap['\"'+1] = -2
+sequence RtnCharMap = repeat(0,256)
+         RtnCharMap['a'+1..'z'+1] = 1
+         RtnCharMap['A'+1..'Z'+1] = 1
+         RtnCharMap['0'+1..'9'+1] = 2
+         RtnCharMap['_'+1] = 1
+         RtnCharMap['$'+1] = 1  -- 17/12/20 (for js)
+         RtnCharMap['-'+1] = -1
+         RtnCharMap['\"'+1] = -2
 
 sequence params
 
 function getWord(sequence line, integer idx, integer getParams)
-integer wstart
-integer ch
+    integer ch
 --  while idx<=length(line) and not RtnCharMap[line[idx]+1] do
     while idx<=length(line) do
         ch = line[idx]
@@ -396,7 +393,7 @@ integer ch
 
     if idx>length(line) then return "" end if
 
-    wstart = idx
+    integer wstart = idx
 
 --  while idx<=length(line) and RtnCharMap[line[idx]+1]>0 do
     while idx<=length(line) do
@@ -583,10 +580,10 @@ integer expro
 function extractAnyRoutineInformation(sequence line, integer lnumber, integer logG)
 --function extractAnyRoutineInformation(string line, integer lnumber, integer logG)
 -- see cycleThroughAllLines() for meaning of logG
-integer idx, isGlobal, rtnType, c
+integer rtnType, c
 sequence name
-    idx = 1
-    isGlobal = 0
+    integer idx = 1,
+       isGlobal = 0
     name = ""
     while idx<=length(line) and find(line[idx]," \t") do
         idx += 1
@@ -601,16 +598,21 @@ sequence name
     if idx<=length(line) then
         c = line[idx]
         integer k = find(c,"gp")
-        if k then
-            if isReally({"global","public"}[k],line,idx) then
-                idx += 6 --length("global"[=="public"])
-                isGlobal = 1
-                while idx<=length(line) and find(line[idx]," \t") do
-                    idx += 1
-                end while
-                if idx<=length(line) then
-                    c = line[idx]
-                end if
+        bool skipwhitespace = false
+        if k and isReally({"global","public"}[k],line,idx) then
+            idx += 6 -- length("global"[=="public"])
+            isGlobal = 1
+            skipwhitespace = true
+        elsif c='l' and isReally("local",line,idx) then
+            idx += 5 -- length("local")
+            skipwhitespace = true
+        end if
+        if skipwhitespace then
+            while idx<=length(line) and find(line[idx]," \t") do
+                idx += 1
+            end while
+            if idx<=length(line) then
+                c = line[idx]
             end if
         end if
         if c='i' then
@@ -1791,6 +1793,7 @@ integer lw
                 end if
                 post500 = i+1
             end for
+--if word="mov" then ?9/0 end if
             idx = find(word,routinenames) -- local first
             if idx=0 then
                 while 1 do

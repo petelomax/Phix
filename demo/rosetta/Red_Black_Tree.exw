@@ -1,0 +1,431 @@
+﻿--
+-- demo\rosetta\Red_Black_Tree.exw
+-- ===============================
+--
+with javascript_semantics
+constant SENTINEL=1
+sequence rbtree = {} -- node indices are 1(""),6,11,16,21,etc.
+constant PARENT = 0, COLOUR = 1, VALUE = 2, LEFT = 3, RIGHT = 4
+--(also uses the builtin constants BLACK = 0 and RED = 4)
+integer root = SENTINEL,
+        freelist = NULL
+
+function new_node(object key, integer colour=RED)
+    integer res = freelist
+    if res then
+        freelist = rbtree[freelist]
+    else
+        res = length(rbtree)+1
+        rbtree &= repeat(0,5)
+    end if
+    rbtree[res+PARENT] = NULL
+    rbtree[res+COLOUR] = colour
+    rbtree[res+VALUE] = key
+    rbtree[res+LEFT] = SENTINEL
+    rbtree[res+RIGHT] = SENTINEL
+    return res
+end function
+assert(new_node(0,BLACK)=SENTINEL)
+
+procedure release_node(integer n)
+    assert(n!=SENTINEL)
+    rbtree[n] = freelist
+    freelist = n
+end procedure
+
+procedure rotate(integer x, d)
+    --
+    --      x                        y  
+    --     / \                      / \
+    --    y   c     == right ==>   a   x
+    --   / \        <== left ==       / \
+    --  a   b                        b   c
+    --
+    -- (param x is the top node, for d=LEFT 
+    --  swap x and y in the above diagram.)
+    --
+    assert(x!=NULL and x!=SENTINEL)
+    assert(d=LEFT or d=RIGHT)
+    integer e = LEFT+RIGHT-d,
+            y = rbtree[x+e],
+            b = rbtree[y+d],
+            p = rbtree[x+PARENT],
+            q = iff(x=rbtree[p+RIGHT]?RIGHT:LEFT)
+    rbtree[x+e] = b
+    if b != SENTINEL then
+        rbtree[b+PARENT] = x
+    end if
+    rbtree[y+PARENT] = p
+    if p == NULL then
+        root = y
+    else
+        rbtree[p+q] = y
+    end if
+    rbtree[y+d] = x
+    rbtree[x+PARENT] = y
+end procedure 
+
+procedure fix_up_insertion(integer k)
+    integer p = rbtree[k+PARENT]
+    while rbtree[p+COLOUR] == RED do
+        integer gp = rbtree[p+PARENT],
+                 d = iff(p=rbtree[gp+RIGHT]?LEFT:RIGHT),
+                rd = LEFT+RIGHT-d,
+             uncle = rbtree[gp+d]
+        if uncle!=SENTINEL and rbtree[uncle+COLOUR] == RED then
+            rbtree[uncle+COLOUR] = BLACK
+            rbtree[p+COLOUR] = BLACK
+            rbtree[gp+COLOUR] = RED
+            k = gp  // repeat with grandparent
+        else
+            if k == rbtree[p+d] then
+                k = p
+                rotate(k,rd)
+                p = rbtree[k+PARENT]
+            end if
+            rbtree[p+COLOUR] = BLACK
+            rbtree[gp+COLOUR] = RED
+            rotate(gp,d)
+        end if
+        if k == root then exit end if
+        p = rbtree[k+PARENT]
+    end while
+    rbtree[root+COLOUR] = BLACK
+end procedure 
+
+procedure insert_node(object key)
+    integer node = new_node(key),
+            y = NULL, x = root, d
+    // y := (sentinel) position for new node
+    // (nb as-is this allows duplicates, it
+    //  may want to be more like delete_node)
+    while x!=SENTINEL do
+        y = x
+        d = iff(key<rbtree[x+VALUE]?LEFT:RIGHT)
+        x = rbtree[x+d]
+    end while
+
+    rbtree[node+PARENT] = y
+    if y == NULL then
+        root = node
+    else
+        assert(rbtree[y+d] = SENTINEL)
+        rbtree[y+d] = node
+    end if
+
+    if y == NULL then
+        rbtree[node+COLOUR] = BLACK
+    elsif rbtree[y+PARENT] != NULL then
+        fix_up_insertion(node)
+    end if
+end procedure
+
+procedure fix_up_deletion(integer x)
+    -- (Don't think I could adequately comment this even if I tried,
+    --  but it is basically the same as several of the other entries.
+    --  This routine needs that sentinal and is why we can't use NULL)
+    while x!=root and rbtree[x+COLOUR] == BLACK do
+        integer parent = rbtree[x+PARENT],
+               d = iff(x=rbtree[parent+LEFT]?RIGHT:LEFT),
+              rd = RIGHT+LEFT-d,
+         sibling = rbtree[parent+d]
+        if rbtree[sibling+COLOUR] == RED then
+            rbtree[sibling+COLOUR] = BLACK
+            rbtree[parent+COLOUR] = RED
+            rotate(parent,rd)
+            sibling = rbtree[parent+d]
+        end if
+        if rbtree[rbtree[sibling+LEFT]+COLOUR] == BLACK 
+        and rbtree[rbtree[sibling+RIGHT]+COLOUR] == BLACK then
+            rbtree[sibling+COLOUR] = RED
+            x = parent
+        else
+            if rbtree[rbtree[sibling+d]+COLOUR] == BLACK then
+                rbtree[rbtree[sibling+rd]+COLOUR] = BLACK
+                rbtree[sibling+COLOUR] = RED
+                rotate(sibling,d)
+                sibling = rbtree[parent+d]
+            end if 
+            rbtree[sibling+COLOUR] = rbtree[parent+COLOUR]
+            rbtree[parent+COLOUR] = BLACK
+            rbtree[rbtree[sibling+d]+COLOUR] = BLACK
+            rotate(parent,rd)
+            x = root
+        end if
+    end while
+    rbtree[x+COLOUR] = BLACK
+end procedure
+ 
+procedure rb_transplant(integer u, v)
+    integer p = rbtree[u+PARENT]
+    if p=NULL then
+        root = v
+    else
+        integer d = iff(u=rbtree[p+LEFT]?LEFT:RIGHT)
+        rbtree[p+d] = v
+    end if
+    rbtree[v+PARENT] = p
+end procedure 
+
+function find_node(integer node, object key)
+    while node != SENTINEL do
+        integer c = compare(key,rbtree[node+VALUE])
+        if c == 0 then exit end if -- found!
+        node = rbtree[node+iff(c=-1?LEFT:RIGHT)]
+    end while
+    return node
+end function
+ 
+procedure delete_node(object key)
+    integer z = find_node(root,key)
+    if z == SENTINEL then
+        printf(1,"Key %d not present in Tree !!\n",key)
+        return
+    end if
+
+    integer y = z, x,
+            y_original_color = rbtree[y+COLOUR]
+    if rbtree[z+LEFT] == SENTINEL then
+        x = rbtree[z+RIGHT]
+        rb_transplant(z, x)
+    elsif rbtree[z+RIGHT] == SENTINEL then
+        x = rbtree[z+LEFT]
+        rb_transplant(z, x)
+    else // z has both child nodes
+        -- y := minimum/leftmost in right subtree:
+        y = rbtree[z+RIGHT]
+        while rbtree[y+LEFT] != SENTINEL do
+            y = rbtree[y+LEFT]
+        end while
+        y_original_color = rbtree[y+COLOUR]
+        x = rbtree[y+RIGHT]
+        if rbtree[y+PARENT] == z then
+            rbtree[x+PARENT] = y
+        else
+            rb_transplant(y, x)
+            integer r = rbtree[z+RIGHT]
+            rbtree[y+RIGHT] = r
+            rbtree[r+PARENT] = y
+        end if
+        rb_transplant(z, y)
+        integer l = rbtree[z+LEFT]
+        rbtree[y+LEFT] = l
+        rbtree[l+PARENT] = y
+        rbtree[y+COLOUR] = rbtree[z+COLOUR]
+    end if
+    if y_original_color == BLACK then
+        fix_up_deletion(x)
+    end if
+    release_node(z)
+end procedure 
+
+procedure visualise_tree(integer tree=root, string prefix="+---")
+    if tree=SENTINEL then
+        printf(1,"<empty>\n")
+    else
+        string colour = iff(rbtree[tree+COLOUR]=RED?"RED":"BLACK")
+        integer v = rbtree[tree+VALUE],
+                left = rbtree[tree+LEFT],
+                right = rbtree[tree+RIGHT]
+        integer g = prefix[-4]
+        if left!=SENTINEL then
+            string g4 = prefix[-4..-1]
+            prefix[-4..-1] = iff(g='L' or g='+'?"    ":"|   ")
+            visualise_tree(left,prefix&"L---")
+            prefix[-4..-1] = g4
+        end if
+        string plus = iff(left!=SENTINEL or right!=SENTINEL?"+":"")
+        printf(1,"%s%s %v (%s)\n",{prefix,plus,v,colour})
+        if right!=SENTINEL then
+            prefix[-4..-1] = iff(g='L'?"|   ":"    ")
+            visualise_tree(right,prefix&"R---")
+        end if
+    end if
+end procedure
+
+function balanced(integer node)
+    if node != SENTINEL then
+        integer {lok, lmxh, lmnh} = balanced(rbtree[node+LEFT]),
+                {rok, rmxh, rmnh} = balanced(rbtree[node+RIGHT]),
+                             maxh = max(lmxh, rmxh) + 1,
+                             minh = min(lmnh, rmnh) + 1;
+        if lok and rok and maxh <= 2*minh then
+            return {true,maxh,minh}
+        end if
+    end if
+    return {node==SENTINEL,0,0}
+end function
+
+function black_height(integer node)
+    if node == SENTINEL then return 1 end if
+    integer left_black_height = black_height(rbtree[node+LEFT]),
+           right_black_height = black_height(rbtree[node+RIGHT])
+    if left_black_height != 0 
+    and right_black_height != 0
+    and left_black_height == right_black_height then
+        return left_black_height + (rbtree[node+COLOUR]=BLACK)
+    end if
+    return 0
+end function
+
+procedure validate_tree()
+    string why = iff(not balanced(root)[1]?"balance":
+                 iff(black_height(root)=0?"height":""))
+    if length(why) then
+        visualise_tree()
+        crash("invalid(%s)",{why})
+    end if
+end procedure
+
+printf(1,"State of the tree after inserting 30 keys:\n")
+for x in shuffle(tagset(30)) do
+    insert_node(x)
+    validate_tree()
+end for
+visualise_tree()
+
+printf(1,"\nState of the tree after deleting 15 keys:\n")
+--for x in shuffle(tagset(15)) do
+--  delete_node(x)
+--  validate_tree()
+--end for
+--for x in shuffle(tagset(15)) do
+--  insert_node(x)
+--  validate_tree()
+--end for
+for x in shuffle(tagset(30))[1..15] do
+    delete_node(x)
+    validate_tree()
+end for
+--for x in shuffle(tagset(30)) do
+--  if find_node(root, x) != SENTINEL then
+--      delete_node(x)
+--      validate_tree()
+--  end if
+--end for
+visualise_tree()
+ 
+--/*
+Output: (slightly different every time)
+State of the tree after inserting 30 keys:
+            L--- 1 (BLACK)
+        L---+ 2 (BLACK)
+        |   |   L--- 3 (BLACK)
+        |   R---+ 4 (RED)
+        |       |   L--- 5 (RED)
+        |       R---+ 6 (BLACK)
+        |           R--- 7 (RED)
+    L---+ 8 (RED)
+    |   |           L--- 9 (RED)
+    |   |       L---+ 10 (BLACK)
+    |   |       |   R--- 11 (RED)
+    |   |   L---+ 12 (RED)
+    |   |   |   R--- 13 (BLACK)
+    |   R---+ 14 (BLACK)
+    |       |   L--- 15 (BLACK)
+    |       R---+ 16 (RED)
+    |           |   L--- 17 (RED)
+    |           R---+ 18 (BLACK)
+    |               R--- 19 (RED)
++---+ 20 (BLACK)
+    |       L---+ 21 (BLACK)
+    |       |   R--- 22 (RED)
+    |   L---+ 23 (RED)
+    |   |   R--- 24 (BLACK)
+    R---+ 25 (BLACK)
+        |       L--- 26 (RED)
+        |   L---+ 27 (BLACK)
+        |   |   R--- 28 (RED)
+        R---+ 29 (RED)
+            R--- 30 (BLACK)
+
+State of the tree after deleting 15 keys:
+            L--- 5 (BLACK)
+        L---+ 7 (RED)
+        |   |   L--- 8 (RED)
+        |   R---+ 9 (BLACK)
+    L---+ 13 (BLACK)
+    |   R--- 14 (BLACK)
++---+ 16 (BLACK)
+    |       L--- 18 (BLACK)
+    |   L---+ 20 (BLACK)
+    |   |   R--- 24 (BLACK)
+    R---+ 25 (RED)
+        |       L--- 26 (RED)
+        |   L---+ 28 (BLACK)
+        R---+ 29 (BLACK)
+            R--- 30 (BLACK)
+--*/
+?"done"
+{} = wait_key()
+
+--/*
+--      printf(1,"%s%s %v[%d] (%s)\n",{root,plus,v,tree,colour})
+--      used = 0
+--function new_node(object key, integer colour=RED)
+    integer res = freelist
+--  integer res = used+1
+    if res then
+        freelist = rbtree[freelist]
+    else
+        res = length(rbtree)+1
+--  if res>length(rbtree) then  
+        rbtree &= repeat(0,5)
+--      used = length(rbtree)
+    end if
+    rbtree[res+PARENT] = NULL
+    rbtree[res+COLOUR] = colour
+    rbtree[res+VALUE] = key
+    rbtree[res+LEFT] = SENTINEL
+    rbtree[res+RIGHT] = SENTINEL
+    return res
+--end function
+assert(new_node(0,BLACK)=SENTINEL)
+
+--procedure release_node(integer n)
+--printf(1,"release(%d)\n",n)
+    assert(n!=SENTINEL)
+    rbtree[n] = freelist
+    freelist = n
+--/*
+    used -= 5
+    integer last = used+1,
+            p = rbtree[last+PARENT],
+            c = rbtree[last+COLOUR],
+            k = rbtree[last+VALUE],
+            l = rbtree[last+LEFT],
+            r = rbtree[last+RIGHT]
+    if last = SENTINEL then
+        assert(p=NULL)
+        assert(c=BLACK)
+        assert(l=SENTINEL)
+        assert(r=SENTINEL)
+    else
+        if last!=n then
+--printf(1,"moving(%d[%d],%d[%d])\n",{k,last,rbtree[n+VALUE],n})
+            if p!=NULL then
+                integer d = iff(rbtree[p+LEFT]=last?LEFT:RIGHT)
+                assert(rbtree[p+d]=last)
+                rbtree[p+d] = n
+            end if
+            rbtree[n+PARENT] = p
+            rbtree[n+COLOUR] = c    
+            rbtree[n+VALUE] = k 
+            rbtree[n+LEFT] = l
+            if l!=SENTINEL then
+                assert(rbtree[l+PARENT]=last)
+                rbtree[l+PARENT] = n
+            end if
+            rbtree[n+RIGHT] = r
+            if r!=SENTINEL then
+                assert(rbtree[r+PARENT]=last)
+                rbtree[r+PARENT] = n
+            end if
+            if root=last then root = n end if
+        end if
+        rbtree = rbtree[1..used]
+    end if
+--*/
+--end procedure
+--*/
+

@@ -2,138 +2,47 @@
 -- demo\rosetta\Find_unimplemented_tasks.exw
 -- =========================================
 --
---  Note that [[RosettaCode/Tasks_without_examples.exw#Phix]] with summary=true and
---  Note that Tasks_without_examples.exw with summary=true and output_html=false 
---  does much that same, only via web scraping, whereas this uses the web api.
---
---{{trans|Go}}
-constant language = "Phix",
---       language = "Go",
---       language = "Julia",
---       language = "Python",
---       language = "Wren",
-         base_query = "http://rosettacode.org/mw/api.php?action=query"&
-                      "&format=xml&list=categorymembers&cmlimit=100"
+without js -- (libcurl, file i/o, peek..)
+constant language = "Phix"
+--       language = "Go"
+--       language = "Julia"
+--       language = "Python"
+--       language = "Wren"
 
-include builtins\libcurl.e
-atom curl = NULL
-atom pErrorBuffer
-include builtins\xml.e
+--DEV use whichever works, or put outside.
+include rosettacode_cache.e -- see [[Rosetta_Code/Count_examples#Phix]]
+--include rosettacode_cache.e -- see [Count_examples#Phix]
+--refresh_cache = timedelta(hours:=1) -- (to force a reload/update cached copies)
 
---integer part = 1
-
-function req(string url, integer rid)
-    if curl=NULL then
-        curl_global_init()
-        curl = curl_easy_init()
-        pErrorBuffer = allocate(CURL_ERROR_SIZE)
-        curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, pErrorBuffer)
-    end if
-    curl_easy_setopt(curl, CURLOPT_URL, url)
-    object res = curl_easy_perform_ex(curl)
-    if integer(res) then
-        string error = sprintf("%d [%s]",{res,peek_string(pErrorBuffer)})
-        crash("Download error: %s\n",{error})
-    end if
-    if not string(res) then ?9/0 end if
-/*
-integer fn = open(sprintf("part%d.xml",part),"w")
-puts(fn,res)
-close(fn)
-printf(1,">>part %d written<<\n",part)
-part += 1
-*/
-    object xml = xml_parse(res)[XML_CONTENTS]
-    res = xml_get_nodes(xml,"continue")
-    res = iff(res=={}?"":xml_get_attribute(res[1],"cmcontinue"))
-    xml = xml_get_nodes(xml,"query")[1]
-    xml = xml_get_nodes(xml,"categorymembers")[1]
-    xml = xml_get_nodes(xml,"cm")
-    for i=1 to length(xml) do
-        call_proc(rid,{xml_get_attribute(xml[i],"title")})
-    end for
-    return res
-end function
-
-function html_clean(string ri)
-    ri = substitute(ri,`&quot;`,`"`)
-    ri = substitute(ri,`&#039;`,`'`)
-    ri = substitute(ri,"\xE2\x80\x99","'")
-    ri = substitute(ri,"\xC3\xB6","o")
-    ri = substitute(ri,"%3A",":")
-    ri = substitute(ri,"%E2%80%93","-")
-    ri = substitute(ri,"%E2%80%99","'")
-    ri = substitute(ri,"%27","'")
-    ri = substitute(ri,"%2B","+")
-    ri = substitute(ri,"%C3%A8","e")
-    ri = substitute(ri,"%C3%A9","e")
-    ri = substitute(ri,"%C3%B6","o")
-    ri = substitute(ri,"%C5%91","o")
-    ri = substitute(ri,"%22",`"`)
-    ri = substitute(ri,"%2A","*")
-    return ri
-end function
-
-sequence titles = {}
-procedure store_title(string title)
-    titles = append(titles,title)
-end procedure
-
-integer unimplemented_count = 0,
-        task_count = 0
-procedure print_unimplemented(string title)
-    if not find(title,titles) then
-        title = html_clean(title)
-        printf(1,"%s\n",{title})
-        unimplemented_count += 1
-    end if
-    task_count += 1
-end procedure
-
-procedure main()
-    printf(1,"Loading implemented tasks list...\n")
-    -- get and store task itles
-    string lang_query := base_query & "&cmtitle=Category:" & language,
-           continue_at := req(lang_query, store_title)
-    while continue_at!="" do
-        continue_at = req(lang_query&"&cmcontinue="&continue_at, store_title)
-    end while
---printf(1,"%d tasks found.\n",length(titles))  -- 1438...
- 
-    -- a quick check to avoid long output
-    if length(titles)==0 then
-        printf(1,"no tasks implemented for %s\n", {language})
-        return
-    end if
- 
-    -- get tasks, print as we go along
-    printf(1,"Tasks:\n")
-    string task_query := base_query & "&cmtitle=Category:Programming_Tasks"
-    continue_at = req(task_query, print_unimplemented)
-    while continue_at!="" do
-        continue_at = req(task_query&"&cmcontinue="&continue_at, print_unimplemented)
-    end while
-    printf(1,"%d unimplemented tasks found for %s.\n",{unimplemented_count,language})
-
-    integer full_tasks = unimplemented_count
-    printf(1,"Draft tasks:\n")
-    task_query := base_query & "&cmtitle=Category:Draft_Programming_Tasks"
-    continue_at = req(task_query, print_unimplemented)
-    while continue_at!="" do
-        continue_at = req(task_query&"&cmcontinue="&continue_at, print_unimplemented)
-    end while
-    integer draft_tasks = unimplemented_count-full_tasks
-    printf(1,"%d unimplemented draft tasks found for %s.\n",{draft_tasks,language})
-
-    printf(1,"%d unimplemented tasks in total found for %s (out of %d).\n",{unimplemented_count,language,task_count})
-
---printf(1,"%d tasks found.\n",task_count)  -- 1441...
-end procedure
-main()
+sequence tasks = get_rc_category(language),
+            pt = get_rc_category("Programming_Tasks"),
+            dt = get_rc_category("Draft_Programming_Tasks")
+integer lt = length(tasks), lpt = length(pt), upt, ldt = length(dt), udt
+if lt==0 then -- (avoid long output)
+    printf(1,"no tasks implemented for %s\n", {language})
+else
+    printf(1,"%d tasks implemented for %s\n",{lt,language})
+    pt = apply(filter(pt,"out",tasks),file_clean); upt = length(pt)
+    printf(1,"%s%nunimplemented tasks for %s: %d/%d\n",{join(pt,"\n"),upt,language,upt,lpt})
+    dt = apply(filter(dt,"out",tasks),file_clean); udt = length(dt)
+    printf(1,"%s%nunimplemented draft tasks for %s: %d/%d\n",{join(dt,"\n"),udt,language,udt,ldt})
+    printf(1,"unimplemented tasks in total for %s: %d/%d\n",{language,upt+udt,lpt+ldt})
+end if
 
 ?"done"
 {} = wait_key()
 --/*
+-- as of 29/12/22:
+1592 tasks implemented for Phix
+unimplemented tasks for Phix: 0/1203
+unimplemented draft tasks for Phix: 0/389
+unimplemented tasks in total for Phix: 0/1592
+
+--open_category()
+--DEV
+--  Note that Tasks_without_examples.exw with summary=true and output_html=false 
+--  does much that same, only via web scraping, whereas this uses the web api.
+--
 --output (eg)
 Abstract type
 Active Directory/Connect

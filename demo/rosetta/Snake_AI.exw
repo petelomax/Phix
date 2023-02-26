@@ -1,0 +1,1577 @@
+--
+-- demo\rosetta\Snake_AI.exw
+-- =========================
+--
+--  ***INCOMPLETE/DEV*** - or rather, it works, but quite badly...
+--  My next big idea is to create orphans as we take shortcuts, and
+--  glue them back in whenever we eat an apple.
+--  An orphan is created by flipping 11 and == pairs, so not every
+--  shortcut can create an orphan...
+--
+--  You cannot have     |b...   or   d>-v.<-b.. (ditto mirrors etc)
+--                 d>-v.>-c .           |a|c  . 
+--                    |a.....           .......
+--  Since that would need a linked to b and therefore no way for c
+--  to reach d.
+--
+--  But you /can/ have  |c      or   d>->-a..
+--                 d>-v.^-b             .-<b.
+--                    |a...             v 
+--  And you /cannot/ orphan those directly. However in the second
+--  case, you /can/ orphan (a,b), ie one step away from where the
+--  shortcut actually took place. You can still take the shorcut,
+--  You just can't create non-reattachable orphans.
+--
+--  We should formally define an "orphan": a subset of the hamiltonian
+--  cycle that can be detached into a cycle, and later attached back
+--  where it was or possibly some other part of the main/active cycle.
+--  Orphans can only be created when we have a clear path to the next
+--  apple
+
+-- Links:
+--  https://www.youtube.com/watch?v=tjQIO1rqTBE (CodeBullet, crazy stuff)
+--  https://www.youtube.com/watch?v=TOpBcfbAgPg (AlphaPhoenix, a bit better)
+--  https://johnflux.com/2015/05/02/nokia-6110-part-3-algorithms/ (John Tapsell)
+--  (The wp page for Hamiltonian cycles is not particularly enlightening)
+--
+with javascript_semantics
+constant title = "Snake Game",
+     help_text = """
+Use arrow keys to change the snake's direction.
+Avoid running into the walls, or your own tail.
+Eating the food (@pples) makes the snake grow.
+
+Press 'n' to start a new game.
+Press -/+ to speed up or slow down the game.
+Press ctrl [shift] -/+ to change width [height].
+Press 'a' to toggle the AI mode on and off (dumb).
+Press 'i' to toggle the AI mode on and off (smart).
+Press 'h' to toggle display of a Hamiltonian path.
+Press 'd' to toggle display of detailed "" info.
+Note this is (still) a character-based game, so eg
+resize may "judder" a bit, to fit whole characters.
+Likewise toggling the AI/path may or may not need 
+to enforce the board being an even-sized one.
+For more details see the source code.
+"""
+--force_even = false
+--
+-- The AI uses a novel strategy of following a basic Hamiltonian cycle, 
+-- but also able to shortcut provided the board remains tail-escapable.
+--
+-- Of course I don't invent Hamiltonian cycles, or tail-escape, however
+-- while AlphaPhoenix was tantalisingly close, he didn't manage to make
+-- the same connection. John Tapsell was also just a heart-beat away,
+-- and surely it is far harder to shortcut a random Hamiltonian cycle.
+-- It is the co-operation between the two that I claim as being novel.
+-- No doubt improvements are possible, see below.
+--
+-- A Hamiltonian path visits every square once, a cycle joins up at the
+-- start/end. It is trivial to prove that no odd-sized board can have a
+-- Hamiltonian cycle: colour the board as per a standard checkerboard,
+-- any path must alternate BWBWB, if it is an odd length the first/last
+-- are the same colour and therefore cannot be adjacent. A snake which
+-- follows a Hamiltonian cycle is guaranteed to find every apple without
+-- ever running into it's own tail, albeit mind-numbingly tediously. 
+--***
+-- It is pretty certain there is no guaranteed winning strategy for an 
+-- odd-sized board, however it is technically still possible to complete 
+-- one, for instance by following a Hamiltonian path (which doesn't join 
+-- up) and it just so happens that every apple is placed right in front 
+-- of you. Or you can simply set force_even to be true.
+--***
+--
+-- The complimentary part of the strategy is tail-escape. If the snake
+-- can always get to it's own tail, that will recede as fast as it moves
+-- forward (should you end up snug against it no more apples can get put
+-- there to make the snake grow) and further if all snipped-off bits can
+-- be re-joined (in particular, never create any isolated single cells)
+-- then you can always (eventually) get to the next apple.
+--
+-- To understand things, it may help to reduce the board size to a 4x5 
+-- (in reality or imagination), then press 'h' to toggle the display.
+-- Imagine sliding horizontal bars up/down (or vertical bars left/right), 
+-- and skipping any wholly-empty U-shapes, recursively if/as needed.
+-- In that way you can take a fairly straightforward route to the apple,
+-- albeit often with a minature detour at the end to collect it properly,
+-- and/or a dainty sidestep to keep it going along the Hamiltonian cycle.
+-- (I never actually got round to sliding the bar ends, occasional trips
+--  to the "other half" being acceptable, but it remains a possibility,
+--  albeit one that would probably need storing in a semi-permanent way.)
+-- A vital point is that snipping off a U-shape maintains tail-escape,
+-- implicitly and without any further effort whatsoever. Also note that
+-- the snake can apparently back-track on itself, for instance if it is
+-- a J-shape (in the upper half of a W/M-shaped path) and the apple is
+-- planted right on the tail, it /can/ form a reverse-C, which rotates
+-- into an L-shape and back round to a J-shape. Of course it has not 
+-- actually gone backwards, but just skipped 95% of the forward path.
+-- Of course should it be a "-J"-shaped snake, that won't be allowed
+-- because the 95% is not [yet] empty.
+--
+-- As for the implementation, it could hardly be simpler. Traverse the
+-- (full) Hamiltonian path saving minimum costs and associated path.
+-- Note that lower costs and paths may "ripple over" one just laid, as
+-- we actually pick them up by visiting some prior path adjacent cell.
+-- Should we run into our own tail there is not much better than just
+-- following the unclipped Hamiltonian, however if we get to the apple
+-- use the short path we've constructed, which needs a quick reversal.
+--
+-- Quite probably the trickiest part is figuring out, for any {i,j}
+-- point on an nxm grid, what directions the path and shortcuts are.
+-- I rather made that tricker by permitting resize and thus having to
+-- cope with odd*even and even*odd as well as even*even boards, before
+-- making it simple again by pre-computing all of the cycle info.
+--
+-- Possible improvements:
+--  AlphaPhoenix achieves 52,698 on a 30x30, this is~120K.
+--  "dumb" is an average of 202.5K moves for a 30x30.
+-- Second half of "" is an average of 50.625K moves, so in the first 
+-- half, "smart" drops 150K to 70K, which is worse than AP for full,
+-- so, erm, not exactly as good as I thought it was, hmmm......
+-- Given we can trivially generate a hamiltonian path for any nxm
+-- sub-grid, where either n or m is even, the new plan is to carry
+-- on past the apple and re-attach any skipped sub-paths as soon as
+-- possible. So we're looking for a 2x2 = or 11 that we can flip,
+-- in tandem with the same that we just short-cut. We can quit if
+-- we run out of orphans, and must, should we (re-)reach the head.
+-- Aside: there is a potential caveat in that 2x1 and 2x2 may be 
+-- impossible to rejoin. In such cases we can still take the s/cut
+-- but leave the actual hamiltonian cycle as-was [I think].
+-- The burning question is whether such snip/rejoin are going to
+-- bump things enough (I think they will) or are we going to have
+-- to seek out post-apple snips to rejoin earlier???
+-- AH: when we take a shortcut, make all cells on that "U" as 1,
+-- and record where we made the shortcut, in an indexable table.
+-- Obviously the next shortcut taken gets 2, etc. Then if we find
+-- an nn on either side of a straight ahead, we can snip/rejoin,
+-- and wipe that, or just mark the indexable table entry done.
+-- Strategy: clicking on a (dead game's) detailed hamiltonian
+-- path flips a 2x2 and redisplays... [see 'r' in key_cb]
+-- ==> "dynamic hamiltonian cycle repair" algorithm....
+-- It is probably worth mentioning that for any "11" or "=" in a
+-- Hamiltonian cycle, the two parts of the path must always be
+-- running in opposite directions. Hence if we snip off a "U"
+-- shape somewhere are reattach it somewhere else, the orphan
+-- part is always left running in the same direction.
+--
+puts(1,"")
+include pGUI.e
+Ihandle dlg, canvas, timer
+cdCanvas cddbuffer, cdcanvas
+
+integer bh = 0, bw  -- board height and width (sans borders)
+sequence board = {},  -- bh+2 x length w+2 strings (ie a '+' border)
+         snakex, snakey, 
+         ham_cycle, -- {path, shortcut1, shortcut2} [mutable]
+         orphan -- bh x bw of true/false
+integer direction = K_RIGHT, points = 0, moves = 0, tick = 100,
+        max_len, hX, hY, hdx, tdx, -- (more snake details)
+        aifunc = 0, -- 0(off)/dumb/smart
+        gpt = 1, -- goes per turn (for aifunc!=0 only)
+        orphans = 0 -- [== sum(orphan)]
+atom timeout
+bool alive = true,
+     shampoo = false, -- show Hamiltonian path orange overlay
+     shampood = false -- "", detailed
+constant RYG = {CD_RED,CD_YELLOW,CD_GREEN}
+
+procedure add_apple()
+    integer ay = rand(bh)+1,
+            ax = rand(bw)+1
+    if board[ay,ax]!=' ' then
+        --
+        -- OK, time to go hunting for one then...
+        --  (beats using an infinite loop, which
+        --   can become very slow on a big board
+        --   when only one or two spaces remain,
+        --   and/or o/c hang after some slip-up.)
+        --
+        integer prob = 1 -- pick first 1 in 1,
+                         -- second 1 in 2, etc.
+        for y=2 to bh+1 do -- (ignoring borders)
+            for x=2 to bw+1 do -- (ditto)
+                if board[y,x]=' ' then
+                    if rand(prob)=prob then
+                        {ay,ax} = {y,x}
+                    end if
+                    prob += 1
+                end if
+            end for
+        end for
+        if prob=1 then -- no space found!
+            alive = false
+            return
+        end if
+    end if
+    assert(board[ay,ax]=' ')
+    board[ay,ax] = '@'
+end procedure
+
+procedure rotate_cycle()
+--DEV simplify if we use make_shortcuts... (as per comments)
+    sequence hc = ham_cycle
+--  ham_cycle = repeat(repeat('.',bw),bh)
+    ham_cycle = {repeat(repeat('.',bw),bh),
+                 repeat(repeat('.',bw),bh),
+                 repeat(repeat('.',bw),bh)}
+    for y=1 to bh do
+        for x=1 to bw do
+--          ham_cycle[y][x] = "RDLU."[find(hc[bw+1-x][y],"URDL.")]
+            integer z = bw+1-x
+            for i=1 to 3 do
+                ham_cycle[i][y][x] = "RDLU."[find(hc[i][z][y],"URDL.")]
+            end for
+        end for
+    end for
+end procedure
+
+function get_pos(integer y, x, ch)
+    integer d = find(ch,"URDL")
+    y += {-1,0,1,0}[d]
+    x += {0,1,0,-1}[d]
+    return {y,x}
+end function
+
+--function make_shortcuts(bool discard=false)
+procedure rebuild_shortcuts(bool discard=false)
+    if discard then ham_cycle = ham_cycle[1] end if
+    sequence sc1 = repeat(repeat('.',bw),bh),
+             sc2 = repeat(repeat('.',bw),bh),
+             numb = repeat(repeat(0,bw),bh)
+    --
+    -- first give every cell a number so we can
+    -- tell where the shortcut()s are taking us
+    --
+    integer y = 1, x = 1 
+--  numb[1][1] = 1
+    for i=1 to bw*bh do
+        assert(numb[y][x]=0)
+        numb[y][x] = i
+        {y,x} = get_pos(y,x,ham_cycle[y][x])
+    end for
+    assert(y=1 and x=1)
+--DEV this may not be the case if we've flipped directions... (as part of rejoin) [FIXED, erm???]
+    -- Note we always construct a clockwise Hamiltonian cycle,
+    -- so the top left corner is always to R and from U.
+    -- (I guess it's quite handy to start in a corner!)
+--  integer dfrom = 'D', -- (since hamcycle[2][1] is U)
+--          dto = 'R'
+    --
+--DEV is this bollocks??...
+    -- Note that while we always construct a clockwise Hamiltonian cycle, so
+    -- the top left corner is initially to R and from U, rejoining a sub-cycle
+    -- may need to flip the direction, so it could by now be from R and to U.
+    -- (I guess it's quite handy to start in a corner!)
+    --
+    integer dto = ham_cycle[1][1],
+--          dfrom = iff(dto='R'?'U':'R')
+            dfrom = iff(dto='R'?'D':'R')
+assert(dto='R' and dfrom='D') -- (temp/DEV)
+    for i=1 to bw*bh do
+--  for y=1 to bh do
+--      for x=1 to bw do
+--          integer dto = ham_cycle[y][x]
+            string dch = "URDL"
+            if y=1 then
+                if x=1 or x=bw then
+                    dch = ""        -- corner
+                else
+                    dch = "RDL"     -- no up
+                end if
+            elsif y=bh then
+                if x=1 or x=bw then
+                    dch = ""        -- corner
+                else
+                    dch = "URL"     -- no down
+                end if
+            elsif x=1 then
+                dch = "URD"         -- no left
+            elsif x=bw then
+                dch = "UDL"         -- no right
+            end if
+            for d in dch do
+                if d!=dfrom and d!=dto then
+                    if length(dch)=3 then
+--if y=1 and x=bw then ?9/0 end if
+                        sc1[y][x] = d
+                        exit
+                    end if
+                    dch = dch[find(d,dch)+1..$]
+                    for d2 in dch do
+                        if d2!=dfrom and d2!=dto then
+                            integer {y1,x1} = get_pos(y,x,d),
+                                    {y2,x2} = get_pos(y,x,d2),
+                                    n0 = numb[y][x],
+                                    n1 = numb[y1][x1],
+                                    n2 = numb[y2][x2]
+                            bool b12 = n1<n2
+                            if (n1>n0) != (n2>n0) then
+                                b12 = n1>n0
+--                          elsif n1<n0 and n2<n0 then
+--                              b12 = n2<n1
+--                          else
+--                              b12 = 
+                            end if
+if y=1 and x=bw then ?9/0 end if
+                            sc1[y][x] = iff(b12?d:d2)
+                            sc2[y][x] = iff(b12?d2:d)
+--                          if b12 then
+--                              sc1[y][x] = d
+--                              sc2[y][x] = d2
+--                          else
+--                              sc2[y][x] = d
+--                              sc1[y][x] = d2
+--                          end if
+                            exit
+                        end if
+                    end for
+                    exit
+                end if
+            end for
+--      end for
+        dfrom = "DLUR"[find(dto,"URDL")]
+        {y,x} = get_pos(y,x,dto)
+        dto = ham_cycle[y][x]
+    end for 
+--  ham_cycle = {ham_cycle,shortcut1,shortcut2}
+    ham_cycle = {ham_cycle,sc1,sc2}
+end procedure
+--  return {sc1,sc2}
+--end function  
+
+procedure make_hamcycle()
+    --
+    -- Aside: this bit of code was quite laboriously won.
+    -- I physically printed off 30-odd grids produced by
+    -- an earlier and quite excessively long version, then
+    -- spotted the rotates, then crossed half of them out,
+    -- before finally reducing the patterns to this form.
+    -- I found the 3/E or if you prefer sideways-H pattern 
+    -- much easier to construct. The wierdish when-to-flip 
+    -- is just a legacy hangover from those beginnings.
+    -- Run it and press h/d, ctrl [shift] -/+ for a better
+    -- understanding of what this is all doing/achieving.
+    --
+    bool flip = even(bw) and bh>2
+--       shortcuts = (aifunc!=0 or shampoo or force_even)
+    integer {h,w} = iff(flip?{bw,bh}:{bh,bw})
+    -- make a 3/E aka sideways H cycle:
+    ham_cycle = repeat(repeat('.',w),h)
+    sequence shortcut1 = deep_copy(ham_cycle),
+             shortcut2 = deep_copy(ham_cycle)
+    ham_cycle[1] = repeat('R',w-1)&"D"
+--  if shortcuts then
+        shortcut1[1] = "."&repeat('D',w-2)&"."
+--  end if
+if h>2 then
+    integer mx = ceil(w/2)
+    string hodd = "U"&repeat('L',mx-1)&"D"&repeat('L',w-mx-1),
+           heven = repeat('R',mx-1)&"U"&repeat('R',w-mx-1)&"D",
+           sodd = "D"&repeat('U',mx-1)&"L"&repeat('D',w-mx-1),
+           seven = repeat('U',mx-1)&"R"&iff(w=3?"L":repeat('D',w-mx-1)&"U"),
+           todd = "."&repeat('D',mx-2)&iff(w=2?"":"R"&repeat('U',w-mx-1))&".",
+           teven = "."&repeat('D',mx-1)&iff(w<=3?"":"L"&repeat('U',w-mx-2))&"."
+    assert(length(hodd)=w and length(heven)=w)
+    assert(length(sodd)=w and length(seven)=w)
+    assert(length(todd)=w and length(teven)=w)
+    for y=2 to h-2 by 2 do
+        ham_cycle[y] = hodd
+        ham_cycle[y+1] = heven
+--      if shortcuts then
+            shortcut1[y] = sodd
+            shortcut1[y+1] = seven
+            shortcut2[y] = todd
+            shortcut2[y+1] = teven
+--      end if
+    end for
+end if
+    ham_cycle[h] = 'U'&repeat('L',w-1)
+--  if shortcuts then
+        shortcut1[h] = "."&repeat('U',w-2)&"."
+--  end if
+--  sequence {sc1,sc2} = make_shortcuts(ham_cycle)
+--  ham_cycle = {ham_cycle,sc1,sc2}
+--better:
+--  ham_cycle = make_shortcuts(ham_cycle)
+--or even:
+--  rebuild_shortcuts()
+    ham_cycle = {ham_cycle,shortcut1,shortcut2}
+    if flip then rotate_cycle() end if
+    if h<=8 and w<=8 then
+--      if flip then {h,w} = {w,h} end if
+--      printf(1,"%dx%d:\n%s\n",{h,w,join_by(ham_cycle[1]&ham_cycle[2]&ham_cycle[3],h,3)})
+        printf(1,"%dx%d:\n%s\n",{bh,bw,join_by(ham_cycle[1]&ham_cycle[2]&ham_cycle[3],bh,3)})
+--      printf(1,"%dx%d:\n%s\n",{h,w,join_by(ham_cycle[1]&ham_cycle[2]&ham_cycle[3],iff(flip?w:h),3)})
+--      {ham_cycle,shortcut1,shortcut2} = ham_cycle
+--      sequence {sc1,sc2} = make_shortcuts(1)
+--/!*
+--      if shortcuts then
+            if flip then
+                {{},shortcut1,shortcut2} = ham_cycle
+            end if
+            rebuild_shortcuts(1)
+            sequence {{},sc1,sc2} = ham_cycle
+            if sc1!=shortcut1
+            or sc2!=shortcut2 then
+                printf(1,"oops:\n%s\n",{join_by(ham_cycle[1]&sc1&sc2,bh,3)})
+            end if
+--      end if
+--*!/
+--      ham_cycle = {ham_cycle,shortcut1,shortcut2}
+    end if
+    orphan = repeat(repeat(0,bw),bh)
+    orphans = 0
+end procedure
+
+function dumb()
+    integer d = find(ham_cycle[1][hY-1,hX-1],"URDL")
+    return {K_UP,K_RIGHT,K_DOWN,K_LEFT}[d]
+end function
+
+function smart()
+    integer y = hY-1,
+            x = hX-1,
+            hc = ham_cycle[1][y,x],
+            d = find(hc,"URDL")
+    --
+    -- Once the snake fills half the board, taking shortcuts
+    -- is just going to lead to the next apple being planted
+    -- in the area we skipped, and we end up going all round
+    -- whereas reverting to dumb mode keeps it just ahead so
+    -- the end game actually ends up finishing much quicker.
+    --
+--  if points<bw*bh/2 then
+        integer ny, nx, pch, ppch,
+                steps = 0
+        sequence bestway = repeat(repeat('?',bw),bh),
+                 lowcost = repeat(repeat(1e9,bw),bh)
+--               re_join = repeat(repeat( 0 ,bw),bh)
+        lowcost[y][x] = 0
+        while true do
+            steps += 1
+            for i=3 to 1 by -1 do
+                pch = ham_cycle[i][y,x]
+                if pch!='.' then
+                    {ny,nx} = get_pos(y,x,pch)
+                    steps = min(steps,lowcost[ny][nx])
+                    if lowcost[ny][nx]>steps then
+                        lowcost[ny][nx] = steps+1
+                        bestway[ny][nx] = pch
+                    end if
+                    if i=1 then
+                        {y,x} = {ny,nx}
+                    end if
+                end if
+            end for
+            integer byx = board[y+1][x+1]
+            if byx!=' ' then
+                if byx='@' then -- 124K
+--              if byx='@' or rand(2)=1 then -- 99K
+--              if byx='@' or rand(3)=1 then -- 103K
+--              if byx='@' or rand(4)=1 then -- 101K
+--              if byx='@' or rand(10)=1 then -- 111K
+--              if true then    -- 105K (204K w/o half)
+                    -- (quick path reversal required)
+                    pch = bestway[y][x]
+--                  integer {ay,ax} = {y,x}
+                    while true do
+                        d = find(pch,"URDL")
+                        if d=0 then exit end if
+--                      {y,x} = get_pos(y,x,"DLUR"[d])
+                        d = "DLUR"[d]
+                        {y,x} = get_pos(y,x,d)
+                        ppch = bestway[y][x]
+                        bestway[y][x] = pch
+--if pch!=ham_cycle[1][y][x] then
+if d!=ham_cycle[1][y][x] then
+    -- re_join = mark_cycle(re_join,??)
+    -- njoin += 1
+end if
+                        pch = ppch
+                    end while
+                    d = find(bestway[y][x],"URDL")
+--  while njoin and byx!='O' do
+--      carry on past the apple looking for re-join points...
+--  end while
+                end if
+                exit
+            end if
+        end while
+--  end if
+    return {K_UP,K_RIGHT,K_DOWN,K_LEFT}[d]
+end function
+
+procedure move(integer d)
+    assert(alive)
+    moves += 1
+    integer wasY = hY,
+            wasX = hX
+    direction = iff(aifunc?aifunc():d)
+    switch direction do
+        case K_UP:      hY -= 1
+        case K_DOWN:    hY += 1
+        case K_LEFT:    hX -= 1
+        case K_RIGHT:   hX += 1
+    end switch
+    integer t = board[hY,hX],
+            tY = snakey[tdx],
+            tX = snakex[tdx]
+    if t!=' ' and t!='@' and (hY!=tY or hX!=tX) then
+        alive = false
+    else
+        board[wasY,wasX] = '#'
+        board[hY,hX] = 'O'
+        hdx = remainder(hdx,max_len)+1
+        snakex[hdx] = hX
+        snakey[hdx] = hY
+        if t=='@' then
+            points += 1
+            add_apple() -- (can set alive to false)
+        else
+            board[tY,tX] = ' '
+            tdx = remainder(tdx,max_len)+1
+        end if
+        timeout = time()+tick/1000
+    end if
+    if not alive then
+        IupSetInt(timer,"RUN",false)
+        IupUpdate(canvas)
+    end if
+end procedure
+
+procedure new_game(integer h=bh, w=bw)
+    {bh,bw} = {h,w}
+    board = repeat("+"&repeat(' ',w)&"+",h+2)
+    board[1] = repeat('+',w+2)
+    board[$] = repeat('+',w+2)
+    board[2][2] = 'O'
+    max_len = w*h
+    snakex = 2 & repeat(0,max_len-1)
+    snakey = 2 & repeat(0,max_len-1)
+    {direction,alive} = {K_RIGHT,true}
+    {hdx,tdx,hY,hX} = {1,1,2,2}
+    make_hamcycle()
+//SUG: make rand(h*w) dumb() move()s here...
+// doesn't really help.
+--/*
+    integer wasai = aifunc
+    aifunc = dumb
+    for i=1 to rand(w*h) do
+        move(direction)
+    end for
+    aifunc = wasai  
+--*/
+    {points,moves} = {0,0}
+    add_apple()
+    IupSetInt(timer,"RUN",true)
+    timeout = time()+tick/100
+end procedure
+
+integer woff = 0, maxwoff = 10,
+        hoff = 0, maxhoff = 10
+
+function redraw_cb(Ihandle /*ih*/)
+    integer {cw,ch} = IupGetIntInt(canvas, "DRAWSIZE"),
+            {dx,dy} = cdCanvasGetTextSize(cddbuffer, "W"),
+                  w = floor((cw-6)/dx),
+                  h = floor((ch-6)/dy)
+    maxwoff = w-2
+    maxhoff = h-2
+    w = max(2,w-woff)
+    h = max(2,h-hoff)
+    
+--  if (aifunc!=0 or shampoo or force_even)
+--  and odd(w) and odd(h) then
+    if odd(w) and odd(h) then
+--      if w>h then w -= 1 else h -= 1 end if
+        if w>2 then w -= 1 else h -= 1 end if
+    end if
+    if bh!=h or bw!=w then new_game(h,w) end if
+    cdCanvasActivate(cddbuffer)
+    cdCanvasSetBackground(cddbuffer, CD_BLUE)
+    cdCanvasClear(cddbuffer)
+    cdCanvasSetForeground(cddbuffer, CD_BLACK)
+    integer marginx = floor((cw-w*dx)/2),
+            marginy = floor((ch-h*dy)/2)
+    cdCanvasBox(cddbuffer,marginx,cw-marginx,marginy,ch-marginy)
+    cdCanvasSetTextAlignment(cddbuffer, CD_CENTER)
+--  integer mx = ceil(w/2),
+--          my = ceil(h/2),
+    integer py = marginy+floor(dy/2)
+    for y=1 to h do
+        integer px = marginx+floor(dx/2)
+        for x=1 to w do
+            integer byx = board[y+1][x+1]
+            if byx!=' ' then
+                cdCanvasSetForeground(cddbuffer, RYG[find(byx,"@O#")])
+                cdCanvasText(cddbuffer, px, ch-py, ""&byx)
+            end if
+            if shampoo then -- show Hamiltonian path orange overlay
+                cdCanvasSetForeground(cddbuffer, CD_ORANGE)
+                integer d = find(ham_cycle[1][y][x],"URLD")
+                atom ex = px+{0,1,-1,0}[d]*dx,
+                     ey = py+{-1,0,0,1}[d]*dy
+                cdCanvasLine(cddbuffer, px, ch-py, ex, ch-ey)
+                if shampood then -- (detailed)
+                    for i=1 to 3 do
+                        d = find(ham_cycle[i][y][x],"URLD")
+                        if d=0 then exit end if
+                        -- CD_RED should follow the Hamiltonian cycle,
+                        -- with CD_YELLOW the first (shorter) clip point,
+                        -- and CD_GREEN the second (longer) clip point.
+                        -- Nothing should ever link straight back to red.
+                        cdCanvasSetForeground(cddbuffer,RYG[i])
+                        ex = px+{0,1,-1,0}[d]*3
+                        ey = py+{-1,0,0,1}[d]*3
+                        cdCanvasLine(cddbuffer, px, ch-py, ex, ch-ey)
+                    end for             
+                end if
+            end if 
+            px += dx
+        end for
+        py += dy
+    end for
+    if not alive then
+        cdCanvasSetForeground(cddbuffer, CD_RED)
+        cdCanvasText(cddbuffer, cw/2, ch/2, "GAME OVER")
+    end if
+    IupSetStrAttribute(dlg,"TITLE","%s (%dx%d) score:%d moves:%,d",{title,h,w,points,moves})
+    cdCanvasFlush(cddbuffer)
+    return IUP_DEFAULT
+end function
+
+function timer_cb(Ihandle /*ih*/)
+    for m=1 to iff(aifunc?gpt:time()>=timeout) do
+        move(direction)
+        if not alive then exit end if
+    end for
+    IupUpdate(canvas)
+    return IUP_IGNORE
+end function
+
+function map_cb(Ihandle ih)
+    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    cdCanvasSetBackground(cddbuffer, CD_BLACK)
+    cdCanvasSetTextAlignment(cddbuffer, CD_CENTER)
+    return IUP_DEFAULT
+end function
+
+function show_help()
+    IupMessage(title,help_text,bWrap:=false)
+    return IUP_IGNORE
+end function
+
+procedure rotate()
+    sequence hc = ham_cycle
+    for i=1 to iff(bh=bw?1:2) do
+        {bh,bw} = {bw,bh}
+        rotate_cycle()
+    end for
+    if bh<=8 and bw<=8 then
+        for y=1 to bh do
+            for x=1 to bw do
+                for z=1 to 3 do
+                    if ham_cycle[z][y][x] = hc[z][y][x] then
+                        hc[z][y][x] = '='
+                    else
+                        hc[z][y][x] = ham_cycle[z][y][x]
+                    end if
+                end for
+            end for
+        end for
+        printf(1,"diff:\n%s\n",{join_by(hc[1]&hc[2]&hc[3],bh,3)})
+        hc = ham_cycle
+        printf(1,"new:\n%s\n",{join_by(hc[1]&hc[2]&hc[3],bh,3)})
+    end if
+end procedure
+
+function key_cb(Ihandle /*ih*/, atom c)
+    if c=K_ESC then IupSetInt(timer,"RUN",false) return IUP_CLOSE -- (standard practice for me)
+    elsif c=K_F1 then return show_help() -- (IUP_IGNORE, don't open browser help!)
+    elsif c=K_F5 then return IUP_DEFAULT end if -- (let browser reload work)
+    c = lower(iup_XkeyBase(c))
+    if find(c,{K_UP,K_LEFT,K_RIGHT,K_DOWN}) and alive then move(c)
+    elsif c='a' then aifunc = iff(aifunc=dumb?0:dumb)
+    elsif c='i' then aifunc = iff(aifunc=smart?0:smart)
+    elsif c='h' then shampoo = not shampoo
+    elsif c='d' then shampood = not shampood
+    elsif c='n' then new_game() 
+    elsif c='r' then rotate()
+    elsif c=' ' then IupToggleInt(timer,"RUN")
+    elsif find(c,"+-") then
+        bool ctrl = IupGetGlobalInt("CONTROLKEY"),
+            shift = IupGetGlobalInt("SHIFTKEY")
+        if ctrl then
+            --
+            -- crop board
+            -- note: if you crop eg 6x3 to 5x3, that may get further cropped to 4x3,
+            --       (so that a Hamiltonian cycle is possible), which can give the
+            --       impression you have to key things twice and/or it jumps by two.
+            --
+            if shift then
+                -- heightwise (a hoff of 0 means none)
+                if c='+' then hoff = max(hoff-1,0)
+                         else hoff = min(hoff+1,maxhoff)
+                end if
+            else
+                -- widthwise (a woff of 0 means none)
+                if c='+' then woff = max(woff-1,0)
+                         else woff = min(woff+1,maxwoff)
+                end if
+            end if
+        elsif alive then
+            integer r = IupGetInt(timer,"TIME")
+            if c='+' then
+                if aifunc and gpt>1 then
+                    gpt /= 2
+                else
+                    r *= 2
+                end if
+            elsif r>25 then
+                r = r/2
+            elsif aifunc then
+                gpt *= 2
+            end if
+            IupSetInt(timer,"TIME",r)
+            tick = r
+            timeout = time()+tick/1000
+            IupSetInt(timer,"RUN",false)
+            IupSetInt(timer,"RUN",true)
+        end if
+    end if
+    IupUpdate(canvas)
+    return IUP_CONTINUE
+end function
+
+IupOpen()
+
+--canvas = IupCanvas("RASTERSIZE=640x480")
+canvas = IupCanvas("RASTERSIZE=435x500") -- 30x30
+IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                         "ACTION", Icallback("redraw_cb")})
+timer = IupTimer(Icallback("timer_cb"), 100)
+dlg = IupDialog(canvas,`TITLE="%s",MINSIZE=250x90`,{title})
+IupSetCallback(dlg, "K_ANY", Icallback("key_cb"));
+IupShow(dlg)
+IupSetAttribute(canvas, "RASTERSIZE", NULL)
+IupSetAttributeHandle(NULL, "PARENTDIALOG", dlg)
+if platform()!=JS then
+    IupMainLoop()
+    IupClose()
+end if
+
+--/*
+--constant W = 60, H = 30
+--enum NORTH, EAST, SOUTH, WEST
+-- 
+--sequence snake
+--integer tailIdx, headIdx, hdX, hdY, d
+-- 
+--procedure createField()
+--  clear_screen()
+--  board = repeat("+"&repeat(' ',W-2)&'+',H)
+--  for x=1 to W do
+--      board[1,x] = '+'
+--  end for
+--  board[H] = board[1]
+--  board[1+rand(H-2),1+rand(W-2)] = '@';
+--  snake = repeat(0,MAX_LEN)
+--  board[3,4] = '#'
+--  tailIdx = 1
+--  headIdx = 5
+--  for c=tailIdx to headIdx do
+--      snake[c] = {3,3+c}
+--  end for
+--  {hdY,hdX} = snake[headIdx-1]
+--  d = EAST
+--  points = 0
+--?snake
+--?{hdY,hdX}
+--wait_key()
+--end procedure
+-- 
+--procedure drawField()
+--integer g = 31
+--  for y=1 to H do
+--      for x=1 to W do
+--          integer t = board[y,x]
+--          if t!=' ' then
+--if t!='+' then
+--position(g,1)
+--g += 1
+--?{y,x,t&""}
+--end if
+--              position(y,x)
+--              if x=hdX and y=hdY then
+--                  text_color(14); puts(1,'O');
+--              else
+--                  text_color({10,9,12}[find(t,"#+@")]); puts(1,t);
+--              end if
+--          end if
+--      end for
+--  end for
+--  position(H+1,1); text_color(7); printf(1,"Points: %d",points)
+--end procedure
+-- 
+--procedure readKey()
+--  integer k = find(get_key(),{333,331,328,336})
+--  if k then d = {EAST,WEST,NORTH,SOUTH}[k] end if
+--end procedure
+-- 
+--procedure moveSnake()
+--integer x,y
+--  switch d do
+--      case NORTH: hdY -= 1
+--      case EAST:  hdX += 1
+--      case SOUTH: hdY += 1
+--      case WEST:  hdX -= 1
+--  end switch
+--  integer t = board[hdY,hdX];
+--  if t!=' ' and t!='@' then
+--      alive = false
+--  else
+--      board[hdY,hdX] = '#'; snake[headIdx] = {hdY,hdX};
+--      headIdx += 1; if headIdx>MAX_LEN then headIdx = 1 end if
+--      if t=='@' then
+--          points += 1
+--          while 1 do
+--              x = 1+rand(W-2); y = 1+rand(H-2);
+--              if board[y,x]=' ' then
+--                  board[y,x] = '@'
+--                  return
+--              end if
+--          end while
+--      end if
+--      {y,x} = snake[tailIdx]
+--      position(y,x)
+--      puts(1,' ')
+--      board[y,x] = ' '
+--      tailIdx += 1
+--      if tailIdx>MAX_LEN then tailIdx = 1 end if
+--  end if
+--end procedure
+-- 
+--procedure play()
+--  while true do
+--      createField(); alive = true; cursor(NO_CURSOR)
+--      while alive do drawField(); readKey(); moveSnake(); sleep(5.05) end while
+--      cursor(BLOCK_CURSOR); position(H+2,1); bk_color(0); text_color(11);
+--      puts(1,"Play again [Y/N]? ")
+--      if upper(wait_key())!='Y' then return end if
+--  end while
+--end procedure
+--play()
+--*/
+
+--/*
+-- https://hogg.io/writings/snake-solution
+
+const adjacentes = (a, xMax, yMax) => [[a[0], a[1] - 1], [a[0] + 1, a[1]], [a[0], a[1] + 1], [a[0] - 1, a[1]]].filter((b) => b[0] >= 0 && b[1] >= 0 && b[0] <= xMax && b[1] <= yMax);
+const equals = ([x1, y1], [x2, y2]) => x1 === x2 && y1 === y2;
+const includes = (a, b) => a.some((a) => equals(a, b));
+const difference = (a, b) => a.filter((a) => !includes(b, a));
+const shift = (a, b, collect) => b.concat(a).slice(0, b.length + (a.length - b.length + (collect ? 1 : 0)));
+const tail = (a) => a[a.length - 1];
+
+const search = (start, end, xMax, yMax, snake) => {
+  const queue = [start];
+  const paths = { [start]: [start] };
+
+  while (queue.length) {
+    const current = queue.shift();
+    const snakeShifted = shift(snake, paths[current] = paths[current] || [start]);
+
+    if (equals(current, end)) {
+      return paths[current];
+    }
+
+    for (const next of difference(adjacentes(current, xMax, yMax), snakeShifted)) {
+      if (!(next in paths)) {
+        queue.push(next);
+        paths[next] = [next].concat(paths[current]);
+      }
+    }
+  }
+};
+
+/**
+ * The heuristic function will be run on every cell, and should return a number. The number that is returned will be used to determine the path of the snake.
+ *
+ * @param [number, number] cell Coordinates of the cell to return a value for
+ * @param number xLength The number of cells across the x axis
+ * @param number yLength The number of cells across the y axis
+ * @param [number, number][] snakeOrigin Coordinates of the position of the snake from head to tail. E.g. [[4, 1], [3, 1]]
+ * @param [number, number] point Coordinates of the point.
+ *
+ * @returns number The value for the cell
+ */
+--function heuristic(cell, xLength, yLength, snake, point) {
+--  const size = (xLength * yLength) * 2;
+--  const xMax = xLength - 1;
+--  const yMax = yLength - 1;
+--
+--  if (!includes(adjacentes(snake[0], xMax, yMax), cell)) return 0;
+--
+--  const pathToPoint = search(cell, point, xMax, yMax, snake);
+--
+--  if (pathToPoint) {
+--  const snakeAtPoint = shift(snake, pathToPoint, true);
+--
+--  for (const next of difference(adjacentes(point, xMax, yMax), snakeAtPoint)) {
+--    if (search(next, tail(snakeAtPoint), xMax, yMax, snakeAtPoint)) {
+--      return pathToPoint.length;
+--    }
+--  }
+--  }
+--
+--  const pathToTail = search(cell, tail(snake), xMax, yMax, snake);
+--
+--  if (pathToTail) {
+--  return size - pathToTail.length;
+--  }
+--
+--  return size * 2;
+--}
+--*/
+
+--/* OLD:
+-- TODO: Add an AI solver. There are a couple of very scary videos on YouTube.
+--  My idea is (obviously) based on Hamiltonian cycles, but along the lines of
+--  connected-by-two mini-grids (with at least one dimension even). If we can
+--  cover the whitespace-plus-apple with a set of such, after each move, then
+--  it's a go-er. The first stage would be to display a set of such cycles...
+--  My first assumption is that there is Hamiltonian cycle for any nxm square
+--  where both n and m are odd, but one can be trivially constructed if either
+--  is even, cmiiw! First step reduces to finding the largest such rectangle.
+--  Ah, not quite (this being the simplest counter-example I could think of):
+--    Bad:           Good:
+--  aaaaaa          aabbbb
+--  aaaaaa          aabbbb
+--  xxbbbb          xxbbbb
+-- ==> can we cover all empty squares using only 2xn (n>1) rectangles, one of
+--      which ***can*** include the current/latest x, and in fact **must** if
+--      the number of remaining empty squares without it is odd...? Oh, and
+--      in order to be able to daisy-chain them, next must start adjacent...
+-- Qu: is there a case where leaving holes is ok? (see tail escape)
+--==> tail-escape-able and hamiltonian-able...
+--
+--*/
+
+--/*
+//from https://github.com/johnflux/snake_game/blob/master/snake.cpp
+// SnakeAI.cpp : This file contains the 'main' function. Program execution begins and ends there.
+//
+
+#include <iostream>
+#include <cstring>
+#include <unistd.h>
+#include <time.h>
+#include <stdlib.h>
+
+#define ARENA_HEIGHT 14
+#define ARENA_WIDTH 14
+#define ARENA_SIZE ((ARENA_WIDTH) * (ARENA_HEIGHT))
+
+int tourToNumber[ARENA_SIZE];
+
+/* Take an x,y coordinate, and turn it into an index in the tour */
+int getPathNumber(int x, int y) {
+    return tourToNumber[x + ARENA_WIDTH * y];
+}
+
+int path_distance(int a, int b) {
+    if (a < b)
+        return b - a - 1;
+    return b - a - 1 + ARENA_SIZE;
+}
+
+struct Food {
+    int x = 2*ARENA_WIDTH/3;
+    int y = 2*ARENA_HEIGHT/3;
+    int value = 1;
+} food;
+
+enum SnakeDirection
+{
+    None = 0,
+    Right = 1,
+    Left = 2,
+    Up = 4,
+    Down = 8
+};
+
+struct Snake {
+    int head_x = ARENA_WIDTH/3;
+    int head_y = ARENA_HEIGHT/3;
+    int tail_x = ARENA_WIDTH/3;
+    int tail_y = ARENA_HEIGHT/3;
+    int growth_length = 1;
+    int drawn_length = 1;
+
+    /* Store the body in two parts.  For each x,y store the direction
+       that the snake come *from* and the direction it is going to.
+       So if a snake goes moves down, the previous head square gets
+       the 'out' set to down, and the new head square gets the in set
+       to down. */
+    SnakeDirection snake_body_in[ARENA_SIZE];
+    SnakeDirection snake_body_out[ARENA_SIZE];
+
+    SnakeDirection get_snake_body_in_at(int x, int y) {
+        return snake_body_in[x + y *ARENA_WIDTH];
+    }
+    SnakeDirection get_snake_body_out_at(int x, int y) {
+        return snake_body_out[x + y *ARENA_WIDTH];
+    }
+
+
+    void set_snake_body_in_at(int x, int y, SnakeDirection new_body_dir) {
+        snake_body_in[x + y *ARENA_WIDTH] = new_body_dir;
+    }
+
+    void set_snake_body_out_at(int x, int y, SnakeDirection new_body_dir) {
+        snake_body_out[x + y *ARENA_WIDTH] = new_body_dir;
+    }
+
+    bool has_snake_at(int x, int y) {
+        return get_snake_body_in_at(x,y) != SnakeDirection::None ||
+            get_snake_body_out_at(x,y) != SnakeDirection::None;
+    }
+
+    const char *get_snake_body_glyph_at(int x, int y) {
+        SnakeDirection dir = (SnakeDirection)(get_snake_body_in_at(x,y) | get_snake_body_out_at(x,y));
+        bool is_tail = tail_x == x && tail_y == y;
+        switch(dir) {
+            case Right:
+                return is_tail ? "â¶" : "âº";
+            case Left:
+                return is_tail ? "â´" : "â¸";
+            case Up:
+                return is_tail ? "âµ" : "â¹";
+            case Down:
+                return is_tail ? "â·" : "â»";
+            case (SnakeDirection)(Right | Left):
+                return "â";
+            case (SnakeDirection)(Up | Down):
+                return "â";
+            case (SnakeDirection)(Up | Left):
+                return "â";
+            case (SnakeDirection)(Up | Right):
+                return "â";
+            case (SnakeDirection)(Down | Left):
+                return "â";
+            case (SnakeDirection)(Down | Right):
+                return "â";
+            default:
+                return " ";
+        }
+    }
+
+    SnakeDirection reverse_direction(SnakeDirection dir) {
+        switch (dir) {
+            case Right:
+                return Left;
+            case Left:
+                return Right;
+            case Up:
+                return Down;
+            case Down:
+                return Up;
+        }
+        return None;
+    }
+
+    void move_snake_head(SnakeDirection dir) {
+        int x = head_x;
+        int y = head_y;
+        switch (dir) {
+        case Right: ++x; break;
+        case Left: --x; break;
+        case Down: ++y; break;
+        case Up: --y; break;
+        }
+
+        // Now update the snake_body
+        set_snake_body_out_at(head_x, head_y, dir);
+        set_snake_body_in_at(x, y, reverse_direction(dir));
+
+        head_x = x;
+        head_y = y;
+
+        if (head_x == food.x && head_y == food.y) {
+            // eat food
+            growth_length += food.value;
+            food.value++;
+            if (drawn_length < ARENA_SIZE - 1) {
+                do {
+                    food.x = rand() % ARENA_WIDTH;
+                    food.y = rand() % ARENA_HEIGHT;
+                } while(has_snake_at(food.x, food.y));
+            }
+        }
+
+        if (growth_length > 0) {
+            growth_length--;
+            drawn_length++;
+        } else {
+            /* Now shrink the tail */
+            int x = tail_x;
+            int y = tail_y;
+            switch (get_snake_body_out_at(tail_x, tail_y)) {
+                case Right: ++x; break;
+                case Left: --x; break;
+                case Down: ++y; break;
+                case Up: --y; break;
+            }
+            set_snake_body_out_at(tail_x, tail_y, SnakeDirection::None);
+            set_snake_body_in_at(x, y, SnakeDirection::None);
+            tail_x = x;
+            tail_y = y;
+        }
+    }
+} snake;
+
+struct Maze {
+    struct Node {
+        bool visited : 1;
+        bool canGoRight : 1;
+        bool canGoDown : 1;
+    };
+    Node nodes[ARENA_SIZE / 4];
+    void markVisited(int x, int y) {
+        nodes[x + y * ARENA_WIDTH / 2].visited = true;
+    }
+    void markCanGoRight(int x, int y) {
+        nodes[x + y * ARENA_WIDTH / 2].canGoRight = true;
+    }
+    void markCanGoDown(int x, int y) {
+        nodes[x + y * ARENA_WIDTH / 2].canGoDown = true;
+    }
+    bool canGoRight(int x, int y) {
+        return nodes[x + y * ARENA_WIDTH / 2].canGoRight;;
+    }
+    bool canGoDown(int x, int y) {
+        return nodes[x + y * ARENA_WIDTH / 2].canGoDown;
+    }
+    bool canGoLeft(int x, int y) {
+        if (x == 0) return false;
+        return nodes[(x - 1) + y * ARENA_WIDTH / 2].canGoRight;
+    }
+
+    bool canGoUp(int x, int y) {
+        if (y == 0) return false;
+        return nodes[x + (y - 1) * ARENA_WIDTH / 2].canGoDown;
+    }
+
+    bool isVisited(int x, int y) {
+        return nodes[x + y * ARENA_WIDTH / 2].visited;
+    }
+
+    void generate() {
+        memset(nodes, 0, sizeof(nodes));
+        generate_r(-1, -1, 0, 0);
+        generateTourNumber();
+    }
+
+    void generate_r(int fromx, int fromy, int x, int y) {
+        if (x < 0 || y < 0 || x >= ARENA_WIDTH / 2 || y >= ARENA_HEIGHT / 2)
+            return;
+        if (isVisited(x, y))
+            return;
+        markVisited(x, y);
+
+        if (fromx != -1) {
+            if (fromx < x)
+                markCanGoRight(fromx, fromy);
+            else if (fromx > x)
+                markCanGoRight(x, y);
+            else if (fromy < y)
+                markCanGoDown(fromx, fromy);
+            else if (fromy > y)
+                markCanGoDown(x, y);
+
+            //Remove wall between fromx and fromy
+        }
+
+        /* We want to visit the four connected nodes randomly,
+         * so we just visit two randomly (maybe already visited)
+         * then just visit them all non-randomly.  It's okay to
+         * visit the same node twice */
+        for (int i = 0; i < 2; i++) {
+            int r = rand() % 4;
+            switch (r) {
+            case 0: generate_r(x, y, x - 1, y); break;
+            case 1: generate_r(x, y, x + 1, y); break;
+            case 2: generate_r(x, y, x, y - 1); break;
+            case 3: generate_r(x, y, x, y + 1); break;
+            }
+        }
+        generate_r(x, y, x - 1, y);
+        generate_r(x, y, x + 1, y);
+        generate_r(x, y, x, y + 1);
+        generate_r(x, y, x, y - 1);
+    }
+
+    SnakeDirection findNextDir(int x, int y, SnakeDirection dir) {
+        if (dir == Right) {
+            if (canGoUp(x, y))
+                return Up;
+            if (canGoRight(x, y))
+                return Right;
+            if (canGoDown(x, y))
+                return Down;
+            return Left;
+        }
+        else if (dir == Down) {
+            if (canGoRight(x, y))
+                return Right;
+            if (canGoDown(x, y))
+                return Down;
+            if (canGoLeft(x, y))
+                return Left;
+            return Up;
+        }
+        else if (dir == Left) {
+            if (canGoDown(x, y))
+                return Down;
+            if (canGoLeft(x, y))
+                return Left;
+            if (canGoUp(x, y))
+                return Up;
+            return Right;
+        }
+        else if (dir == Up) {
+            if (canGoLeft(x, y))
+                return Left;
+            if (canGoUp(x, y))
+                return Up;
+            if (canGoRight(x, y))
+                return Right;
+            return Down;
+        }
+        return (SnakeDirection)-1; //Unreachable
+    }
+    void setTourNumber(int x, int y, int number) {
+        if (getPathNumber(x, y) != 0)
+            return; /* Back to the starting node */
+        tourToNumber[x + ARENA_WIDTH * y] = number;
+    }
+
+    void debug_print_maze_path() {
+        for (int y = 0; y < ARENA_HEIGHT; ++y) {
+            for (int x = 0; x < ARENA_WIDTH; ++x)
+                printf("%4d ", getPathNumber(x,y));
+            printf("\n");
+        }
+    }
+
+    void generateTourNumber() {
+        const int start_x = 0;
+        const int start_y = 0;
+        int x = start_x;
+        int y = start_y;
+        const SnakeDirection start_dir = canGoDown(x, y) ? Up : Left;
+        SnakeDirection dir = start_dir;
+        int number = 0;
+        do {
+            SnakeDirection nextDir = findNextDir(x, y, dir);
+            switch (dir) {
+            case Right:
+                setTourNumber(x * 2, y * 2, number++);
+                if (nextDir == dir || nextDir == Down || nextDir == Left)
+                    setTourNumber(x * 2 + 1, y * 2, number++);
+                if (nextDir == Down || nextDir == Left)
+                    setTourNumber(x * 2 + 1, y * 2 + 1, number++);
+                if (nextDir == Left)
+                    setTourNumber(x * 2, y * 2 + 1, number++);
+                break;
+            case Down:
+                setTourNumber(x * 2 + 1, y * 2, number++);
+                if (nextDir == dir || nextDir == Left || nextDir == Up)
+                    setTourNumber(x * 2 + 1, y * 2 + 1, number++);
+                if (nextDir == Left || nextDir == Up)
+                    setTourNumber(x * 2, y * 2 + 1, number++);
+                if (nextDir == Up)
+                    setTourNumber(x * 2, y * 2, number++);
+                break;
+            case Left:
+                setTourNumber(x * 2 + 1, y * 2 + 1, number++);
+                if (nextDir == dir || nextDir == Up || nextDir == Right)
+                    setTourNumber(x * 2, y * 2 + 1, number++);
+                if (nextDir == Up || nextDir == Right)
+                    setTourNumber(x * 2, y * 2, number++);
+                if (nextDir == Right)
+                    setTourNumber(x * 2 + 1, y * 2, number++);
+                break;
+            case Up:
+                setTourNumber(x * 2, y * 2 + 1, number++);
+                if (nextDir == dir || nextDir == Right || nextDir == Down)
+                    setTourNumber(x * 2, y * 2, number++);
+                if (nextDir == Right || nextDir == Down)
+                    setTourNumber(x * 2 + 1, y * 2, number++);
+                if (nextDir == Down)
+                    setTourNumber(x * 2 + 1, y * 2 + 1, number++);
+                break;
+            }
+            dir = nextDir;
+
+            switch (nextDir) {
+            case Right: ++x; break;
+            case Left: --x; break;
+            case Down: ++y; break;
+            case Up: --y; break;
+            }
+
+        } while (number != ARENA_SIZE); //Loop until we return to the start
+    }
+};
+
+bool is_outside_maze(int x, int y) {
+    return x < 0 || y < 0 || x >= ARENA_WIDTH || y >= ARENA_HEIGHT;
+}
+
+bool check_for_collision(int x, int y) {
+    if (is_outside_maze(x, y))
+        return true;
+
+    return snake.has_snake_at(x,y);
+}
+
+SnakeDirection aiGetNewSnakeDirection() {
+    int x = snake.head_x;
+    int y = snake.head_y;
+    const int pathNumber = getPathNumber(x, y);
+    const int distanceToFood = path_distance(pathNumber, getPathNumber(food.x, food.y));
+    const int distanceToTail = path_distance(pathNumber, getPathNumber(snake.tail_x, snake.tail_y));
+    int cuttingAmountAvailable = distanceToTail - snake.growth_length - 3 /* Allow a small buffer */;
+    const int numEmptySquaresOnBoard = ARENA_SIZE - snake.drawn_length - snake.growth_length - food.value;
+    // If we don't have much space (i.e. snake is 75% of board) then don't take any shortcuts
+    if (numEmptySquaresOnBoard < ARENA_SIZE / 2)
+        cuttingAmountAvailable = 0;
+    else if (distanceToFood < distanceToTail) { /* We will eat the food on the way to the tail, so take that into account */
+        cuttingAmountAvailable -= food.value;
+        /* Once we ate that food, we might end up with another food suddenly appearing in front of us */
+        if ((distanceToTail - distanceToFood) * 4 > numEmptySquaresOnBoard) /* 25% chance of another number appearing */
+            cuttingAmountAvailable -= 10;
+    }
+    int cuttingAmountDesired = distanceToFood;
+    if (cuttingAmountDesired < cuttingAmountAvailable)
+        cuttingAmountAvailable = cuttingAmountDesired;
+    if (cuttingAmountAvailable < 0)
+        cuttingAmountAvailable = 0;
+    // cuttingAmountAvailable is now the maximum amount that we can cut by
+
+    bool canGoRight = !check_for_collision(x + 1, y);
+    bool canGoLeft = !check_for_collision(x - 1, y);
+    bool canGoDown = !check_for_collision(x, y + 1);
+    bool canGoUp = !check_for_collision(x, y - 1);
+
+    SnakeDirection bestDir;
+    int bestDist = -1;
+    if (canGoRight) {
+        int dist = path_distance(pathNumber, getPathNumber(x + 1, y));
+        if (dist <= cuttingAmountAvailable && dist > bestDist) {
+            bestDir = Right;
+            bestDist = dist;
+        }
+    }
+    if (canGoLeft) {
+        int dist = path_distance(pathNumber, getPathNumber(x - 1, y));
+        if (dist <= cuttingAmountAvailable && dist > bestDist) {
+            bestDir = Left;
+            bestDist = dist;
+        }
+    }
+    if (canGoDown) {
+        int dist = path_distance(pathNumber, getPathNumber(x, y + 1));
+        if (dist <= cuttingAmountAvailable && dist > bestDist) {
+            bestDir = Down;
+            bestDist = dist;
+        }
+    }
+    if (canGoUp) {
+        int dist = path_distance(pathNumber, getPathNumber(x, y - 1));
+        if (dist <= cuttingAmountAvailable && dist > bestDist) {
+            bestDir = Up;
+            bestDist = dist;
+        }
+    }
+    if (bestDist >= 0)
+        return bestDir;
+
+    if (canGoUp)
+        return Up;
+    if (canGoLeft)
+        return Left;
+    if (canGoDown)
+        return Down;
+    if (canGoRight)
+        return Right;
+    return None;
+}
+
+Maze maze;
+
+void clear()
+{
+#if defined _WIN32
+    system("cls");
+#else
+    system("clear");
+#endif
+}
+void draw() {
+    clear();
+    for (int y = -1; y < ARENA_HEIGHT+1; ++y) {
+        for (int x = -1; x < ARENA_WIDTH+1; ++x) {
+            if (is_outside_maze(x,y))
+                printf("â");
+            else if(check_for_collision(x,y))
+                printf("%s", snake.get_snake_body_glyph_at(x,y));
+            else if (x == food.x && y == food.y)
+                printf("%d", food.value % 10);
+            else
+                printf(" ");
+        }
+        printf("\n");
+    }
+}
+
+bool doTick() {
+    SnakeDirection new_dir = aiGetNewSnakeDirection();
+    if (new_dir == None)
+        return false;
+    snake.move_snake_head(new_dir);
+    return true;
+}
+
+int main()
+{
+    srand(time(NULL));
+    maze.generate();
+    //maze.debug_print_maze_path();
+    bool success = true;
+    while(success) {
+        draw();
+        success = doTick();
+        usleep(100000);
+    }
+}
+--*/
+--/*
+--Bust:
+--constant {ascii,unicode} = columnize({{'r',utf32_to_utf8({0x2554})},
+--                                    {'7',utf32_to_utf8({0x2557})},
+--                                    {'L',utf32_to_utf8({0x255A})},
+--                                    {'J',utf32_to_utf8({0x255D})},
+--                                    {'-',utf32_to_utf8({0x2550})},
+--                                    {'|',utf32_to_utf8({0x2551})},
+--                                    {'#',utf32_to_utf8({0x2554})},
+--                                    {'O',utf32_to_utf8({0x1F432})},
+--                                    {'@',utf32_to_utf8({0x1F34E})}})
+--?find(byx,ascii)
+--?unicode[find(byx,ascii)]
+--              cdCanvasText(cddbuffer, px, ch-py, unicode[find(byx,ascii)]) 
+--              string u = unicode[find(byx,ascii)] 
+--              cdCanvasText(cddbuffer, px, ch-py, u) 
+--*/
+--/* 
+6x6:
+RDRDRD   .RLRL.   ......
+UDUDUD   RRRRRL   .LLLL.
+URURUD   RDRDRL   .LDLD.
+UDLDLD   RLULUL   .URUR.
+UDUDUD   RLRLRL   .RLRL.
+ULULUL   .RLRL.   ......
+
+w/o rotate:
+RRRRRD   .DDDD.   ......
+ULLDLL   DUULDD   .DRUU.
+RRURRD   UURDDU   .DDLU.
+ULLDLL   DUULDD   .DRUU.
+RRURRD   UURDDU   .DDLU.
+ULLLLL   .UUUU.   ......
+
+with:
+RDRDRD   .RLRL.   ......
+UDUDUD   RRRRRL   .LLLL.
+URURUD   RDRDRL   .LDLD.
+UDLDLD   RLULUL   .URUR.
+UDUDUD   RLLLLL   .RRRR.
+ULULUL   .RLRL.   ......
+--*/
+--?{"best",y,x,{"up","right","down","left"}[d]}
+--printf(1,"%s\n",{join(bestway,"\n")})
+--{} = wait_key()
+--/*
+from https://stackoverflow.com/questions/66905924/an-efficient-algorithm-for-hamiltonian-circuit
+--(PL: bog-standard 31 or W^)
+def HamiltionPath(rows, cols):
+    # No solution case 
+    if rows%2 != 0 and cols%2 != 0:
+        print("No solution exists")
+        return []
+    
+    # Initialize path
+    path = []
+    
+    # If rows are even
+    if rows%2 == 0:
+        # Starting point
+        j = 0
+        # Start traversal
+        for i in range(rows):
+            if j <= 1:
+                while j < cols - 1:
+                    #print(i, j)
+                    path.append(i * cols + j)
+                    j += 1
+            elif j == cols - 1:
+                while j != 1:
+                    #print(i, j)
+                    path.append(i * cols + j)
+                    j -= 1
+            #print(i, j)
+            path.append(i * cols + j)
+        # Final row
+        j = 0
+        for i in range(rows):
+            #print(rows - i - 1, j)
+            path.append((rows - i - 1) * cols + j)
+    # If cols are even
+    else:
+        # Starting point
+        i = 0
+        # Start traversal
+        for j in range(cols):
+            if i <= 1:
+                while i < rows - 1:
+                    #print(i, j)
+                    path.append(i * cols + j)
+                    i += 1
+            elif i == rows - 1:
+                while i != 1:
+                    #print(i, j)
+                    path.append(i * cols + j)
+                    i -= 1
+            #print(i, j)
+            path.append(i * cols + j)
+        # Final row
+        i = 0
+        for j in range(cols):
+            #print(i, cols - j - 1)
+            path.append(i * cols + (cols - j - 1))
+    
+    return path
+
+path = HamiltionPath(6, 6)
+print("Path:")
+for i in path: print(i, end = ' ')
+
+Path: 0 1 2 3 4 5 11 10 9 8 7 13 14 15 16 17 23 22 21 20 19 25 26 27 28 29 35 34 
+33 32 31 30 24 18 12 6 0
+--*/
+--/*
+--  https://github.com/aphrx/py_hamiltonian_snake/blob/main/game.py (no AI)
+--*/
+

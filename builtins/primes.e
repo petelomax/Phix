@@ -2,17 +2,98 @@
 -- builtins/primes.e
 -- =================
 --
+--DEV/SUG:
+--/*
+for n=1 to 10 do
+    sequence p = get_primes(-n)
+    printf(1,"%d: product(%v) = %d\n",{n,p,product(p)})
+end for
+1: product({2}) = 2
+2: product({2,3}) = 6
+3: product({2,3,5}) = 30
+4: product({2,3,5,7}) = 210
+5: product({2,3,5,7,11}) = 2310
+6: product({2,3,5,7,11,13}) = 30030 -- (== 15015*2)
+7: product({2,3,5,7,11,13,17}) = 510510
+8: product({2,3,5,7,11,13,17,19}) = 9699690
+9: product({2,3,5,7,11,13,17,19,23}) = 223092870
+10: product({2,3,5,7,11,13,17,19,23,29}) = 6469693230
+
+That 30030 looks pretty good for me a as "wheel", ie create/deep_copy in add_block()
+and continue from primes[7] (aka 17), should make things a bit faster. Would like to
+knock/improve deep_copy() into respectable/best possible performance first though.
+-- abandoned, for now (more perhaps when register alloc is working):
+-- 1e7th prime in 2.4s on old, 3.5s with a 30030 wheel, 2.0s with a 510510 wheel.
+--  (so yes, it's an improvement, but not one to shout about, or really risk.)
+--*/
+include pfactors.e -- uses factors(n,-8) for check_limits()
+include bsearch.e -- binary_search()
+
+--with trace
 sequence primes
+--       wheel,
+--       sieve
 atom sieved = 0
 
 procedure init_sieve()
     primes = {2,3,5,7}
+--  primes = {2,3,5,7,11,13}
+--  primes = {2}
     sieved = 10 
+--/*
+--  wheel = repeat(1,30030)
+--  sieve = repeat(1,30030)
+    wheel = repeat(1,510510)
+    sieve = repeat(1,510510)
+--  for i=3 to 30030 by 2 do
+    for i=3 to 510510 by 2 do
+        if sieve[i] then
+            primes &= i
+--          for j=i to 30030 by i*2 do
+            for j=i to 510510 by i*2 do
+                sieve[j] = 0
+--              if i<=13 then
+                if i<=17 then
+                    wheel[j] = 0
+                end if
+            end for
+        end if
+    end for
+--  sieved = 30030
+    sieved = 510510
+--pp(shorten(wheel,"digits",40))
+--pp(shorten(primes,"primes",40))
+--*/
 end procedure
 
 procedure add_block()
     integer N = min((sieved-1)*sieved,400000)
+--  integer N = min((sieved-1)*sieved,30030)
     sequence sieve = repeat(1,N)    -- sieve[i] is really i+sieved
+--X sequence sieve = deep_copy(wheel)
+--/*
+--trace(1)
+--  integer N = 30030
+--  integer N = 510510
+--  #ilASM{
+--      [32]
+--          mov esi,[wheel]
+--          mov edi,[sieve]
+--          shl esi,2
+--          shl edi,2
+--          mov ecx,[N]
+--          rep movsd
+--      [64]
+--          mov rsi,[wheel]
+--          mov rdi,[sieve]
+--          shl rsi,2
+--          shl rdi,2
+--          mov rcx,[N]
+--          rep movsq
+--      []
+--        } 
+--  for i=7 to length(primes) do -- (evens filtered on output)
+--*/
     for i=2 to length(primes) do -- (evens filtered on output)
         atom p = primes[i], p2 = p*p
         if p2>sieved+N then exit end if
@@ -27,43 +108,91 @@ procedure add_block()
         end for
 --      end if
     end for
+--pp(shorten(sieve))
+--X procedure add_primes(sieve)
     for i=1 to N by 2 do
         if sieve[i] then
             primes &= i+sieved
         end if
     end for
     sieved += N
+--pp(shorten(primes))
+--?{sieved,length(primes)}
 end procedure
 
--- replaced with much faster version in pfactors.e:
-global function is_prime2(atom p)
+global function get_prime(integer k)
+    if k=0 then return 0 end if
+    if sieved=0 or k=-1 then init_sieve() end if
+    while length(primes)<k do
+        add_block()
+    end while
+    return primes[k]
+end function
+
+-- (moved here from pfactors.e 29/10/22, then merged)
+--/*
+--global function is_prime(atom n)
+--  if n<2 then return false end if
+--  if sieved=0 then init_sieve() end if
+--  if n>sieved then {} = factors(n,-8) end if
+----    check_limits(n,"is_prime") -- (at least that bit's ok)
+--  integer pn = 1,
+--          p = get_prime(pn), 
+--          lim = floor(sqrt(n))
+--
+--  while p<=lim do
+--      if remainder(n,p)=0 then return false end if
+--      pn += 1
+--      p = get_prime(pn)
+--  end while 
+--  return n>1
+--end function
+--
+---- replaced with much faster version in pfactors.e:
+--global function is_prime2(atom p, bool bIndex=false)
+--  if sieved=0 then init_sieve() end if
+--  while sieved<p do
+--      add_block()
+--  end while
+--  integer k = binary_search(p,primes)
+----    return iff(bIndex?max(k,0):k>0)
+--  return iff(bIndex?k:k>0)
+--end function
+--*/
+
+global function is_prime(atom n, integer bIndex=-1)
+    if n<2 then return false end if
     if sieved=0 then init_sieve() end if
-    while sieved<p do
-        add_block()
-    end while
-    return binary_search(p,primes)>0
+    -- perform a check_limits(n) when needed:
+    if n>sieved then {} = factors(n,-8) end if
+    if bIndex!=-1 then -- (nb explicitly true or false)
+        while sieved<n do
+            add_block()
+        end while
+        integer k = binary_search(n,primes)
+        return iff(bIndex?k:k>0)
+    end if
+    integer pn = 1,
+            p = get_prime(pn),
+            lim = floor(sqrt(n))
+    while p<=lim do
+        if remainder(n,p)=0 then return false end if
+        pn += 1
+        p = get_prime(pn)
+    end while 
+    return n>1
 end function
 
-global function get_prime(integer n)
-    if n=0 then return 0 end if
-    if sieved=0 or n=-1 then init_sieve() end if
-    while length(primes)<n do
-        add_block()
-    end while
-    return primes[n]
-end function
-
-global function get_maxprime(atom p)
+global function get_maxprime(atom m)
 -- returns a suitable maxprime for prime_factors()
-    p += 1
-    p = floor(sqrt(p))
+    m = floor(sqrt(m+1))
     if sieved=0 then init_sieve() end if
-    while sieved<p do
+    while sieved<m do
         add_block()
     end while
-    p = binary_search(p,primes)
-    if p<0 then p = abs(p)-1 end if
-    return p
+    integer res = binary_search(m,primes)
+    if res<0 then res = abs(res)-1 end if
+    return res
 end function
 
 global function get_primes(integer count=0)
@@ -78,6 +207,117 @@ global function get_primes(integer count=0)
     return res
 end function
 
+--/* no no no, don't do that...
+--function segmented_primes(atom limit, integer show_progress)
+    -- translation of https://gist.github.com/kimwalisch/3dc39786fab8d5b34fee
+    // Generate primes using the segmented sieve of Eratosthenes.
+    // Note this is slower than get_primes_le(), for 1e9 33s vs 19s, hence
+    // only invoked for > 1e9, which would otherwise hit allocation issues.
+    // Further we count then alloc, potentially doubling time taken, so that
+    // we do not start fragmenting the heap, as building res with &= would.
+--  if limit<2 then return {} end if -- (only ever called with limit>1e9)
+    integer sqrtlim = floor(sqrt(limit)),
+       segment_size = max(sqrtlim, 32768), -- (assumed L1 cache size)
+              count = 1, i = 3, s = 3
+    atom n = 3,  t1 = time()+1
+
+    sequence res,
+             isprime = repeat(true,sqrtlim+1),
+             primes = {},
+             multiples = {},
+             multiplez = {}
+
+    assert(limit<=5e9 or machine_bits()=64)
+    -- ^1e10 yields 455,052,511 primes, whereas sequences are
+    --   limited to 402,653,177 entries on 32bit, as all
+    --   explained in gory detail in builtins\VM\pHeap.e.
+
+    for bCounting in {true, false} do
+        atom low = 0
+        while low<=limit do
+            sequence sieve = repeat(true,segment_size+1)
+            if show_progress and time()>t1 then
+                string cb = iff(bCounting?"Count":"Build"),
+                        f = iff(bCounting?sprintf(", found %,d",count):"")
+                atom lo = iff(bCounting?low:count),
+                     hi = iff(bCounting?limit:length(res))
+                if show_progress=true then
+                    progress("%sing primes %,d/%,d (%3.2f%%)%s\r",{cb, lo,hi,(lo/hi)*100,f})
+                else
+                    show_progress(bCounting,lo,hi)
+                end if
+                t1 = time()+1
+            end if
+
+            // current segment = [low, high]
+            atom high = min(low+segment_size,limit)
+            if bCounting then
+
+                // generate sieving primes using simple sieve of Eratosthenes
+                while i*i<=min(high,sqrtlim) do
+                    if isprime[i+1] then
+                        for j=i*i to sqrtlim by i do
+                            isprime[j+1] = false
+                        end for
+                    end if
+                    i += 2
+                end while
+    
+                // initialize sieving primes for segmented sieve
+                while s*s<=high do
+                    if isprime[s+1] then
+                           primes &= s
+                        multiples &= s*s-low
+                        multiplez &= s*s-low
+                    end if
+                    s += 2
+                end while
+            end if
+
+            // sieve the current segment
+            for mi,j in multiples do
+                integer k = primes[mi]
+                if not bCounting and k*k>high then exit end if
+                k *= 2
+                while j<segment_size do
+                    sieve[j+1] = false
+                    j += k
+                end while
+                multiples[mi] = j - segment_size
+            end for
+
+            while n<=high do
+                if sieve[n-low+1] then // n is a prime
+                    count += 1
+                    if not bCounting then
+                        res[count] = n
+                    end if
+                end if
+                n += 2
+            end while
+            low += segment_size
+        end while
+        if bCounting then
+            res = repeat(2,count)
+            count = 1
+            i = 3
+            s = 3
+            n = 3
+            multiples = multiplez
+            multiplez = {}
+        end if
+    end for
+    if show_progress=true then
+        progress("")
+    elsif show_progress then
+        show_progress(false,count,count)
+    end if
+    return res
+--end function
+
+--global function get_primes_le(atom hi, integer show_progress=true)
+    if hi>1e9 then return segmented_primes(hi,show_progress) end if
+--*/
 global function get_primes_le(integer hi)
     if sieved=0 then init_sieve() end if
     while primes[$]<hi do

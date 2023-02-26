@@ -286,7 +286,7 @@ atom mantissa, fraction, dec, e_mag
         fraction = 0
         while ch>='0' and ch<='9' do
             ndigits += 1
-            fraction = fraction*10 + ch-'0'
+            fraction = fraction*10 + (ch-'0')
             dec *= 10
             get_ch()
         end while
@@ -315,7 +315,7 @@ atom mantissa, fraction, dec, e_mag
             e_mag = ch-'0'
             get_ch()
             while ch>='0' and ch<='9' do
-                e_mag = e_mag*10 + ch-'0'
+                e_mag = e_mag*10 + (ch-'0')
                 get_ch() 
             end while
         else

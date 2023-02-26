@@ -1,0 +1,205 @@
+--
+-- demo\rosetta\21_Game.exw
+-- ========================
+--
+with javascript_semantics -- DEV NORMALIZESIZE, CANFOCUS, "You" not checked, VALUE_HANDLE.
+                          -- The radio_texts simply don't do anything at all in p2js.
+constant title = "21 Game",
+         help_text = """
+Play by choosing 1, 2, or 3 to add to the running total (initially 0).
+
+The first player to reach 21 wins.
+
+If the computer goes first you cannot win.
+
+If you leave your opponent on 18, 19, or 20, they will play {3,2,1} and win.
+If you leave your opponent on 17, simply match their play {1,2,3} with {3,2,1} and win.
+If you leave your opponent on 14, 15, or 16, they'll leave you on 17 and win.
+So the aim is 21 (doh), and before that 17, 13, 9, 5, and 1. Anything else loses.
+""",
+         radio_texts = {"You","Computer","Random"},
+         button_text = {"one","two","three","concede","new game","quit"}
+integer total = 0
+
+include pGUI.e
+Ihandle dlg, vbox, frame, radios, playstate
+sequence radioset, buttons
+
+function show_help()
+    IupMessage(title,help_text)
+    return IUP_IGNORE -- (don't open browser help!)
+end function
+
+function play(integer n)
+    if n!=0 then
+        if n=6 then return IUP_CLOSE end if
+        string title
+        if n>3 then
+            -- concede or new_game
+            total = 0
+            title = iff(n=4?"(conceded) ":"")
+            title &= "Total is 0"
+            Ihandle r = IupGetAttributePtr(radios,"VALUE_HANDLE")
+            n = find(r,radioset)
+            if n=2 or (n=3 and rand(2)=1) then
+                title &= "," -- trigger a computer move
+            end if
+            IupSetInt(buttons[1..3],"ACTIVE",true)
+        else
+            -- n = 1..3
+            title = sprintf("Total is %d",total)
+            if total=21      -- (from key_cb)
+            or total+n>21 then -- (invalid)
+                return IUP_IGNORE
+            end if
+            total += n
+            title &= sprintf(", you play %d (-> %d),",{n,total})
+            if total=21 then title &= " you win" end if
+        end if
+        if find(',',title) and total!=21 then
+            -- computer move
+            sequence moves = {1,rand(3),3,2}
+            n = moves[mod(total,4)+1]
+            total += n
+            title &= sprintf(" computer plays %d (-> %d)",{n,total})
+            if total=21 then
+                title &= ", computer wins"
+            elsif mod(total,4)=1 then
+                title &= ", (you've already lost)"
+            end if
+        end if      
+        if total=21 then
+            title &= " GAME OVER"
+            IupSetInt(buttons[1..4],"ACTIVE",false)
+        else
+            if total>18 then
+                IupSetInt(buttons[22-total..3],"ACTIVE",false)
+            end if
+            IupSetInt(buttons[4],"ACTIVE",total!=0)
+        end if      
+        IupSetFocus(dlg) -- (stops inactive button beeping)
+        IupSetStrAttribute(playstate,"TITLE",title)
+    end if
+    return IUP_IGNORE
+end function
+
+function button_cb(Ihandle ih)
+    string title = IupGetAttribute(ih,"TITLE")
+    return play(find(title,button_text))
+end function
+constant cb_button = Icallback("button_cb")
+
+function key_cb(Ihandle /*dlg*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if -- (standard practice for me)
+    if c=K_F5 then return IUP_DEFAULT end if -- (let browser reload work)
+    if c=K_F1 then return show_help() end if
+    return play(find(upper(c),"123CNQ"))
+end function
+
+IupOpen()
+playstate = IupLabel("","EXPAND=HORIZONTAL, PADDING=10x10")
+radioset = apply(true,IupToggle,{radio_texts,{"RIGHTBUTTON=YES, CANFOCUS=NO"}})
+buttons = apply(true,IupButton,{button_text,cb_button,{"PADDING=5x5"}})
+radios = IupRadio(IupHbox(radioset,"GAP=45"))
+frame = IupHbox({IupLabel(`First Player:`),radios},"NORMALIZESIZE=VERTICAL")
+vbox = IupVbox({frame,playstate,IupHbox(buttons,"GAP=10")},"MARGIN=20x10")
+dlg = IupDialog(vbox,`TITLE="%s", MINSIZE=540x200`,{title})
+IupShow(dlg)
+IupSetCallback({dlg,buttons},"KEY_CB",Icallback("key_cb"))
+IupSetAttributeHandle(NULL,"PARENTDIALOG",dlg)
+{} = play(find("new game",button_text))
+if platform()!=JS then
+    IupMainLoop()
+    IupClose()
+end if
+
+
+--/* console only version saved for posterity:
+bool computer_first = false
+bool show_spoiler = false
+ 
+integer total = 0
+ 
+procedure computer_play()
+    integer move = 0
+    for i=1 to 3 do
+        if mod(total+i,4)=1 then
+            move = i
+            exit
+        end if
+    end for
+    if move=0 then
+        puts(1,"no clear strategy\n")
+        move = rand(min(3,21-total))
+    end if
+    printf(1,"Total is %d. I play %d.\n",{total,move})
+    total += move
+    if total=21 then
+        puts(1,"21! I win!\n")
+    end if
+end procedure
+ 
+puts(1,"\n21 game\n\n")
+puts(1,"Press escape or q to quit the game, c to concede and start a new game from 0\n\n")
+ 
+if computer_first then
+    printf(1,"Total is %d.\n",{total})  
+    computer_play()
+elsif show_spoiler then
+    -- The secret to winning!
+    puts(1,sq_sub("Uif!pomz!xbz!up!xjo!jt!qmbz!2!gjstu-!uifo!5.=dpnqvufs!npwf?!fwfsz!ujnf",1)&"\n\n")
+end if
+ 
+while 1 do
+    printf(1,"Total is %d. enter 1, 2, or 3: ",{total})
+    integer ch = wait_key()
+    puts(1,iff(ch=#1B?"esc":ch)&"\n")
+    if ch>='1' and ch<='3' then
+        ch -= '0'
+        if total+ch>21 then
+            puts(1,"Too big\n")
+        else
+            total += ch
+            if total=21 then
+                puts(1,"21! You win!\n")
+            else
+                computer_play()
+            end if
+        end if
+    elsif ch=#1B or lower(ch)='q' then
+        puts(1,"Quitting\n")
+        exit
+    end if
+    if lower(ch)='c' or total=21 then
+        total = 0
+    end if
+end while
+
+--And the output:
+{{out}}
+<pre>
+21 game
+
+Press escape or q to quit the game, c to concede and start a new game from 0
+
+Total is 0. enter 1, 2, or 3: 1
+no clear strategy
+Total is 1. I play 3.
+Total is 4. enter 1, 2, or 3: 1
+no clear strategy
+Total is 5. I play 1.
+Total is 6. enter 1, 2, or 3: 3
+no clear strategy
+Total is 9. I play 1.
+Total is 10. enter 1, 2, or 3: 1
+Total is 11. I play 2.
+Total is 13. enter 1, 2, or 3: 3
+Total is 16. I play 1.
+Total is 17. enter 1, 2, or 3: 2
+Total is 19. I play 2.
+21! I win!
+Total is 0. enter 1, 2, or 3: q
+Quitting
+</pre>
+
+--*/

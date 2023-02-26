@@ -144,7 +144,8 @@ procedure initD()
         dinit = 1
         leave_cs()
     else
-        libc = open_dll("libc.so.6")
+--      libc = open_dll("libc.so.6")
+        libc = open_dll("libc.so.6",false) -- DEV/take the safe option
         xopendir    = define_c_func(libc, "opendir", {C_PTR}, C_PTR)
         -- (not thread safe, may want to use readdir_r?)
         xreaddir    = define_c_func(libc, "readdir", {C_PTR}, C_PTR)

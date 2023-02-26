@@ -9,7 +9,6 @@
 --
 -- When running in Full Screen, press any key to stop.
 --
-
 constant NTASKS = 9 -- number of P's spinning simultaneously.
                     -- each P is controlled by a separate task.
                     -- Try other numbers!
@@ -45,9 +44,9 @@ include std/math.e
 --      C_ATOM = C_USHORT,
 --      C_WORD = C_USHORT,
 --      C_HFILE = C_INT,
---      C_WNDPROC = C_POINTER,
---      C_LPSTR = C_POINTER,
---      C_LRESULT = C_POINTER,
+--      C_WNDPROC = C_PTR,
+--      C_LPSTR = C_PTR,
+--      C_LRESULT = C_PTR,
 --      C_LANGID =  C_WORD,
 --      C_COLORREF =  C_DWORD,    --0x00bbggrr
 --      $
@@ -194,196 +193,43 @@ typedef struct tagPAINTSTRUCT {
 """
 constant idPAINTSTRUCT = define_struct(tPAINTSTRUCT)
 
---integer xLoadIcon, xLoadCursor, xRegisterClassEx,
---      xCreateWindowEx, xShowWindow, xUpdateWindow, GetMessage,
---      xTranslateMessage, DispatchMessage, PlaySound, xBeginPaint,
---      GetClientRect, DrawText, EndPaint, PostQuitMessage, DefWindowProc,
---      SetTimer, KillTimer, ReleaseDC, CreateDC, xGetDC, MoveToEx, LineTo,
---      xCreatePen, xSelectObject, xGetStockObject, xSendMessage
-
-function link_c(atom dll, sequence name, object args, atom result)
--- dynamically link a C library or procedure or function
-atom handle
-
-    if atom(args) then
-        handle = open_dll(name)
-    elsif result=0 then
-        handle = define_c_proc(dll, name, args)
-    else
-        handle = define_c_func(dll, name, args, result)
-    end if
-    if handle = -1 then
-        puts(1, "Couldn't find " & name & '\n')
-        abort(1)
-    end if
-    return handle
-end function
-
---procedure not_found(sequence name)
---  crash("Couldn't find " & name)
---end procedure
-
---function link_c_func(atom dll, sequence name, sequence args, atom result)
----- dynamically link a C routine as a Euphoria function
---integer handle
---
---  handle = define_c_func(dll, name, args, result)
---  if handle= -1 then
---      not_found(name)
---  end if
---  return handle
---end function
-
---function link_c_proc(atom dll, sequence name, sequence args)
----- dynamically link a C routine as a Euphoria procedure
---integer handle
---
---  handle = define_c_proc(dll, name, args)
---  if handle= -1 then
---      not_found(name)
---  end if
---  return handle
---end function
-
 constant
---DEV/temp:
-    W = (machine_bits()=64),
---  C_WPARAMx   = iff(W?#01000008:#01000004),
---  C_LPARAMx   = iff(W?#01000008:#01000004),
---  C_HRESULTx  = iff(W?#01000008:#01000004),
---  C_SIZE_Tx   = iff(W?#02000008:#02000004),
---  C_POINTERx  = iff(W?#02000008:#02000004),
-    C_PTRx      = iff(W?#01000008:#02000004),
-    C_HANDLEx   = iff(W?#01000008:#02000004),
-    C_HWNDx     = iff(W?#01000008:#02000004),
-
-    user32 = link_c(0,"user32.dll",0,0),
-    gdi32 = link_c(0,"gdi32.dll",0,0),
-    winmm = link_c(0,"winmm.dll",0,0),
-    xLoadIcon = link_c(user32, "LoadIconA", {C_HANDLEx, C_PTRx}, C_HANDLEx),
-    xLoadCursor = link_c(user32, "LoadCursorA", {C_HANDLEx, C_PTRx}, C_HANDLEx),
-    xRegisterClassEx = link_c(user32, "RegisterClassExA", {C_PTRx}, C_USHORT),
-    xCreateWindowEx = link_c(user32, "CreateWindowExA",
-                             {C_DWORD,C_PTRx,C_PTRx,C_DWORD,
-                              C_INT,C_INT,C_INT,C_INT,
-                              C_HWNDx,C_HANDLEx,C_HANDLEx,C_PTRx},
-                             C_HANDLEx),
-    xShowWindow = link_c(user32, "ShowWindow", {C_HWNDx, C_INT},C_BOOL),
-    xUpdateWindow = link_c(user32, "UpdateWindow", {C_HWNDx},C_BOOL),
-    xGetMessage = link_c(user32, "GetMessageA",
-                         {C_PTRx, C_HWNDx, C_UINT, C_UINT}, C_BOOL),
-    xTranslateMessage = link_c(user32, "TranslateMessage", {C_PTRx},0),
-    xDispatchMessage = link_c(user32, "DispatchMessageA", {C_PTRx},0),
-    xPlaySound = link_c(winmm, "PlaySound", {C_PTRx, C_HANDLEx, C_DWORD},C_BOOL),
-    xBeginPaint = link_c(user32, "BeginPaint", {C_HWNDx, C_PTRx}, C_HANDLEx),
-    xGetClientRect = link_c(user32, "GetClientRect", {C_HWNDx, C_PTRx},C_BOOL),
-    xDrawText = link_c(user32, "DrawTextA", {C_HANDLEx, C_PTRx, C_INT, C_PTRx, C_UINT},C_INT),
-    xEndPaint = link_c(user32, "EndPaint", {C_HWNDx, C_PTRx},0),
-    xPostQuitMessage = link_c(user32, "PostQuitMessage", {C_INT},0),
-    xDefWindowProc = link_c(user32, "DefWindowProcA", {C_HWNDx, C_UINT, C_PTRx, C_PTRx}, C_PTRx),
-    xSetTimer = link_c(user32, "SetTimer", {C_HWNDx, C_UINT, C_UINT, C_PTRx},C_PTRx),
-    xKillTimer = link_c(user32, "KillTimer", {C_HWNDx, C_PTRx},C_BOOL),
-    xGetDC = link_c(user32, "GetDC", {C_HWNDx}, C_HANDLEx),
-    xReleaseDC = link_c(user32, "ReleaseDC", {C_HWNDx, C_HANDLEx},C_INT),
-    xMoveToEx = link_c(gdi32, "MoveToEx", {C_HANDLEx, C_INT, C_INT, C_PTRx}, C_BOOL),
-    xLineTo = link_c(gdi32, "LineTo", {C_HANDLEx, C_INT, C_INT}, C_BOOL),
-    xSelectObject = link_c(gdi32, "SelectObject", {C_HANDLEx, C_HANDLEx}, C_HANDLEx),
---  xCreatePen = link_c(gdi32, "CreatePen", {C_LONG, C_LONG, C_LONG}, C_LONG),
---  xCreatePen = link_c(gdi32, "CreatePen", {C_INT, C_INT, C_DWORD}, C_LONG),
---  xCreatePen = link_c(gdi32, "CreatePen", {C_LONG, C_LONG, C_LONG}, C_HANDLEx),   --NO!!
-    xCreatePen = link_c(gdi32, "CreatePen", {C_INT, C_INT, C_DWORD}, C_HANDLEx),
-    xGetStockObject = link_c(gdi32, "GetStockObject", {C_INT}, C_HANDLEx),
-    xSendMessage = link_c(user32,"SendMessageA",{C_HWNDx,C_UINT,C_PTRx,C_PTRx},0),
-    $
-
---procedure link_dll_routines()
----- get handles to all dll routines that we need
---atom user32, gdi32, winmm
---
----- open the .DLL files
---  user32 = open_dll("user32.dll")
---  if user32=NULL then
---      not_found("user32.dll")
---  end if
---
---  gdi32 = open_dll("gdi32.dll")
---  if gdi32=NULL then
---      not_found("gdi32.dll")
---  end if
---
---  winmm = open_dll("winmm.dll")
---  if winmm=NULL then
---      not_found("winmm.dll")
---  end if
---
---  -- link the C routines
+    user32 = open_dll("user32.dll"),
+    gdi32 = open_dll("gdi32.dll"),
+    winmm = open_dll("winmm.dll"),
 --  --new code would use LoadImage
-----    xLoadIcon = link_c_func(user32, "LoadIconA", {C_HANDLE, C_LPSTR}, C_HANDLE)
-----    xLoadIcon = link_c(user32, "LoadIconA", {C_POINTER, C_INT}, C_INT)
-----    xLoadCursor = link_c_func(user32, "LoadCursorA", {C_HANDLE, C_LPSTR}, C_HANDLE)
-----    xLoadCursor = link_c(user32, "LoadCursorA", {C_POINTER, C_INT}, C_INT)
---
-----    xRegisterClassEx = link_c_func(user32, "RegisterClassExA", {C_POINTER}, C_ATOM)
-----    xRegisterClassEx = link_c(user32, "RegisterClassExA", {C_POINTER}, C_INT)
-----    xRegisterClassEx = link_c(user32, "RegisterClassExA", {C_POINTER}, C_USHORT)
-----    xCreateWindowEx = link_c(user32, "CreateWindowExA", repeat(C_INT,12),C_INT)
-----    ShowWindow = link_c_proc(user32, "ShowWindow", {C_HWND, C_INT}) --BOOL
-----    xShowWindow = link_c(user32, "ShowWindow", {C_HANDLEx, C_INT},C_INT)
-----    UpdateWindow = link_c_proc(user32, "UpdateWindow", {C_HWND}) --BOOL
-----    xUpdateWindow = link_c(user32, "UpdateWindow", {C_INT},C_INT)
-----    GetMessage = link_c_func(user32, "GetMessageA",
-----                             {C_LPSTR, C_HWND, C_UINT, C_UINT}, C_BOOL)
-----    xGetMessage = link_c(user32, "GetMessageA",
-----                         {C_PTRx, C_HWNDx, C_UINT, C_UINT}, C_BOOL)
-----    xTranslateMessage = link_c_proc(user32, "TranslateMessage", {C_LPSTR}) --BOOL
-----    xDispatchMessage = link_c_proc(user32, "DispatchMessageA", {C_LPSTR}) --LRESULT
-----    PlaySound = link_c_proc(winmm, "PlaySound", {C_LPSTR, C_HANDLE, C_DWORD}) --BOOL
-----    BeginPaint = link_c_func(user32, "BeginPaint", {C_HWND, C_POINTER}, C_HANDLE)
-----    GetClientRect = link_c_proc(user32, "GetClientRect", {C_HWND, C_POINTER}) --BOOL
-----    DrawText = link_c_proc(user32, "DrawTextA",
-----                           {C_HANDLE, C_LPSTR, C_INT, C_POINTER, C_UINT})  --INT
-----    EndPaint = link_c_proc(user32, "EndPaint", {C_HWND, C_POINTER}) --BOOL
-----    PostQuitMessage = link_c_proc(user32, "PostQuitMessage", {C_INT})
-----    DefWindowProc = link_c_func(user32, "DefWindowProcA",
-----                                {C_HWND, C_UINT, C_WPARAM, C_LPARAM}, C_LRESULT)
---
-----    SetTimer = link_c_proc(user32, "SetTimer",
-----                           {C_POINTER,C_UINT,C_UINT,C_POINTER}) --INT
-----    KillTimer = link_c_proc(user32, "KillTimer", {C_POINTER,C_UINT})
-----    GetDC = link_c_func(user32, "GetDC", {C_HWND}, C_HANDLE)
-----    xGetDC = link_c(user32, "GetDC", {C_INT}, C_INT)
-----    ReleaseDC = link_c_proc(user32, "ReleaseDC", {C_HWND, C_HANDLE}) --INT
-----    CreateDC = link_c_func(gdi32, "CreateDCA",
-----                           {C_LPSTR, C_LPSTR, C_LPSTR, C_POINTER},
-----                           C_HANDLE)
---
-----    MoveToEx = link_c_func(gdi32, "MoveToEx",
-----                           {C_HANDLE, C_INT, C_INT, C_POINTER}, C_BOOL)
---
-----    LineTo = link_c_func(gdi32, "LineTo",
-----                         {C_HANDLE, C_INT, C_INT}, C_BOOL)
---
-----    SelectObject = link_c_func(gdi32, "SelectObject",
-----                               {C_HANDLE, C_HANDLE}, C_HANDLE)
-----    xSelectObject = link_c(gdi32, "SelectObject", {C_LONG, C_LONG}, C_ULONG)
---
-----    xCreatePen = link_c_func(gdi32, "CreatePen",
-----                            {C_INT, C_INT, C_COLORREF}, C_HANDLE)
-----    xCreatePen = link_c(gdi32, "CreatePen", {C_LONG, C_LONG, C_LONG}, C_LONG)
---
-----    xGetStockObject = link_c_func(gdi32, "GetStockObject", {C_INT}, C_HANDLE)
---  xGetStockObject = link_c(gdi32, "GetStockObject", {C_LONG}, C_LONG)
-----    xSendMessage = link_c_func(user32,"SendMessageA",{C_POINTER,C_UINT,C_INT,C_INT},C_INT)
-----    xSendMessage = link_c(user32,"SendMessageA",{C_POINTER,C_UINT,C_INT,C_INT},C_INT)
---
---
---end procedure
-
---link_dll_routines()
-
---without warning
-
-
+    xLoadIcon = define_c_func(user32, "LoadIconA", {C_HANDLE, C_PTR}, C_HANDLE),
+    xLoadCursor = define_c_func(user32, "LoadCursorA", {C_HANDLE, C_PTR}, C_HANDLE),
+    xRegisterClassEx = define_c_func(user32, "RegisterClassExA", {C_PTR}, C_USHORT),
+    xCreateWindowEx = define_c_func(user32, "CreateWindowExA",
+                             {C_DWORD,C_PTR,C_PTR,C_DWORD,
+                              C_INT,C_INT,C_INT,C_INT,
+                              C_HWND,C_HANDLE,C_HANDLE,C_PTR},
+                             C_HANDLE),
+    xShowWindow = define_c_func(user32, "ShowWindow", {C_HWND, C_INT},C_BOOL),
+    xUpdateWindow = define_c_func(user32, "UpdateWindow", {C_HWND},C_BOOL),
+    xGetMessage = define_c_func(user32, "GetMessageA",
+                         {C_PTR, C_HWND, C_UINT, C_UINT}, C_BOOL),
+    xTranslateMessage = define_c_proc(user32, "TranslateMessage", {C_PTR}),
+    xDispatchMessage = define_c_proc(user32, "DispatchMessageA", {C_PTR}),
+    xPlaySound = define_c_func(winmm, "PlaySound", {C_PTR, C_HANDLE, C_DWORD},C_BOOL),
+    xBeginPaint = define_c_func(user32, "BeginPaint", {C_HWND, C_PTR}, C_HANDLE),
+    xGetClientRect = define_c_func(user32, "GetClientRect", {C_HWND, C_PTR},C_BOOL),
+    xDrawText = define_c_func(user32, "DrawTextA", {C_HANDLE, C_PTR, C_INT, C_PTR, C_UINT},C_INT),
+    xEndPaint = define_c_proc(user32, "EndPaint", {C_HWND, C_PTR}),
+    xPostQuitMessage = define_c_proc(user32, "PostQuitMessage", {C_INT}),
+    xDefWindowProc = define_c_func(user32, "DefWindowProcA", {C_HWND, C_UINT, C_PTR, C_PTR}, C_PTR),
+    xSetTimer = define_c_func(user32, "SetTimer", {C_HWND, C_UINT, C_UINT, C_PTR},C_PTR),
+    xKillTimer = define_c_func(user32, "KillTimer", {C_HWND, C_PTR},C_BOOL),
+    xGetDC = define_c_func(user32, "GetDC", {C_HWND}, C_HANDLE),
+    xReleaseDC = define_c_func(user32, "ReleaseDC", {C_HWND, C_HANDLE},C_INT),
+    xMoveToEx = define_c_func(gdi32, "MoveToEx", {C_HANDLE, C_INT, C_INT, C_PTR}, C_BOOL),
+    xLineTo = define_c_func(gdi32, "LineTo", {C_HANDLE, C_INT, C_INT}, C_BOOL),
+    xSelectObject = define_c_func(gdi32, "SelectObject", {C_HANDLE, C_HANDLE}, C_HANDLE),
+    xCreatePen = define_c_func(gdi32, "CreatePen", {C_INT, C_INT, C_DWORD}, C_HANDLE),
+    xGetStockObject = define_c_func(gdi32, "GetStockObject", {C_INT}, C_HANDLE),
+    xSendMessage = define_c_proc(user32,"SendMessageA",{C_HWND,C_UINT,C_PTR,C_PTR}),
+    $
 
 constant X = 1, Y = 2, Z = 3
 
@@ -834,13 +680,10 @@ r_test = routine_id("test")
 
 sequence task_ids
 task_ids = {}
-integer rid
-atom tid, scale
-
-    -- create the spin tasks:
-    rid = routine_id("spin_task")
-    for i=1 to NTASKS do
-        scale = sqrt(9/NTASKS)
+-- create the spin tasks:
+integer rid = routine_id("spin_task")
+for i=1 to NTASKS do
+    atom scale = sqrt(9/NTASKS),
 --      tid = task_create(rid, {E,
         tid = task_create(rid, {P,
                                 sq_div({6, 8, 7.5},2.2),
@@ -849,13 +692,13 @@ atom tid, scale
                                 0.165*scale,
                                 .31*scale*remainder(i-1, floor(sqrt(NTASKS))),
                                 .31*scale*floor((i-1)/floor(sqrt(NTASKS)))})
-        task_ids = append(task_ids, tid)
-    end for
+    task_ids = append(task_ids, tid)
+end for
 
-    -- schedule them all:
-    for i=1 to NTASKS do
-        task_schedule(task_ids[i], rand(5))
-    end for
+-- schedule them all:
+for i=1 to NTASKS do
+    task_schedule(task_ids[i], rand(5))
+end for
 
 string big, wav
 --atom ps, rect, wav, big_string
@@ -947,7 +790,6 @@ atom pMSG
 --atom wndclass
 atom pWndclass
 atom WndProcAddress
-atom class
 integer id
 
 --  wndclass = allocate(SIZE_OF_WNDCLASS,1)
@@ -963,7 +805,7 @@ integer id
     end if
     WndProcAddress = call_back(id) -- get address for callback
 
---  class = register_class(wndclass, WndProcAddress, szAppName)
+--  classreg = register_class(wndclass, WndProcAddress, szAppName)
 --  function register_class(atom wndclass, atom WndProcAddress, atom szAppName)
 --  poke4(wndclass+cbSize, SIZE_OF_WNDCLASS)
 --  poke4(wndclass+style, or_bits(CS_HREDRAW, CS_VREDRAW))
@@ -989,9 +831,9 @@ integer id
 
 --  return c_func(RegisterClassEx, {wndclass})
 --end function
-    class = c_func(xRegisterClassEx, {pWndclass})
+    atom classreg = c_func(xRegisterClassEx, {pWndclass})
 
-    if class=0 then
+    if classreg=0 then
         crash("Couldn't register class")
     end if
     hwnd = c_func(xCreateWindowEx,{0,                           -- extended style

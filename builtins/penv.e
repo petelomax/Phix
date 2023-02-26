@@ -25,13 +25,13 @@ procedure Einit()
     kernel32 = open_dll("kernel32.dll")
 --#without reformat
     xGetEnvironmentVar = define_c_func(kernel32,"GetEnvironmentVariableA",
-        {C_POINTER, --  LPCTSTR  lpName,    // address of environment variable name
-         C_POINTER, --  LPTSTR  lpBuffer,   // address of buffer for variable value
+        {C_PTR,     --  LPCTSTR  lpName,    // address of environment variable name
+         C_PTR,     --  LPTSTR  lpBuffer,   // address of buffer for variable value
          C_INT},    --  DWORD  nSize    // size of buffer, in characters
         C_INT)      -- DWORD number of chars stored in lpBuffer
     xSetEnvironmentVar = define_c_func(kernel32,"SetEnvironmentVariableA",
-        {C_POINTER, --  LPCTSTR  lpszName,  // address of environment variable name
-         C_POINTER}, -- LPCTSTR  lpszValue  // address of new value for variable
+        {C_PTR,     --  LPCTSTR  lpszName,  // address of environment variable name
+         C_PTR},    --  LPCTSTR  lpszValue  // address of new value for variable
         C_INT)      -- BOOL 
 --#with reformat
     eInit = 1
@@ -206,7 +206,7 @@ constant libname = iff(platform()=WINDOWS?"kernel32.dll"
 ifdef WINDOWS then 
     constant kernel32 = open_dll( "kernel32.dll" ) 
     constant xGetEnvironmentStrings = define_c_func( 
-        kernel32, "GetEnvironmentStringsA", {}, C_POINTER ) 
+        kernel32, "GetEnvironmentStringsA", {}, C_PTR ) 
 elsifdef LINUX then 
     constant libc = open_dll( "libc.so.6" ) 
     constant _environ = define_c_var( libc, "environ" ) 
@@ -241,7 +241,7 @@ public function get_environment_strings()
         while str != NULL do 
             str = peek_string( str ) 
             vars = append( vars, stdseq:split(str,'=',0,2) ) 
-            ptr += sizeof( C_POINTER ) 
+            ptr += sizeof( C_PTR ) 
             str = peek_pointer( ptr ) 
         end while 
  

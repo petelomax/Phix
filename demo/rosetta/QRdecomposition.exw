@@ -1,35 +1,41 @@
 --
 -- demo/rosettacode/QRdecomposition.exw
 --
+-- using matrix_mul() from [[Matrix_multiplication#Phix]]
+-- and matrix_transpose() from [[Matrix_transposition#Phix]]
+--
+with javascript_semantics
 
---http://rosettacode.org/wiki/Matrix_multiplication#Phix
-function matrix_mul(sequence a, sequence b)
-sequence c
-    if length(a[1]) != length(b) then
-        return 0 -- (or ?9/0)
-    else
-        c = repeat(repeat(0,length(b[1])),length(a))
-        for i=1 to length(a) do
-            for j=1 to length(b[1]) do
-                for k=1 to length(a[1]) do
-                    c[i][j] += a[i][k]*b[k][j]
-                end for
+function matrix_mul(sequence a, b)
+    integer arows = ~a, acols = ~a[1],
+            brows = ~b, bcols = ~b[1]
+--  integer {arows, acols, brows, bcols} =
+--        apply({a, a[1],  b, b[1]}, length)
+    if acols!=brows then return 0 end if
+    sequence c = repeat(repeat(0,bcols),arows)
+    for i=1 to arows do
+        for j=1 to bcols do
+            for k=1 to acols do
+                c[i][j] += a[i][k]*b[k][j]
             end for
         end for
-        return c
-    end if
+    end for
+    return c
 end function
 
 function vtranspose(sequence v)
 -- transpose a vector of length m into an mx1 matrix, 
 --                       eg {1,2,3} -> {{1},{2},{3}}
-    for i=1 to length(v) do v[i] = {v[i]} end for
-    return v
+    integer l = length(v)
+    sequence res = repeat(0,l)
+    for i=1 to l do res[i] = {v[i]} end for
+    return res
 end function
 
 function mat_col(sequence a, integer col)
-sequence res = repeat(0,length(a))
-    for i=col to length(a) do
+    integer la = length(a)
+    sequence res = repeat(0,la)
+    for i=col to la do
         res[i] = a[i,col]
     end for
     return res
@@ -53,12 +59,11 @@ function mat_ident(integer n)
 end function
 
 function QRHouseholder(sequence a)
-integer columns = length(a[1]),
-        rows = length(a),
-        m = max(columns,rows),
-        n = min(rows,columns)
-sequence q, I = mat_ident(m), Q = I, u, v
-
+    integer cols = length(a[1]),
+            rows = length(a),
+            m = max(cols,rows),
+            n = min(rows,cols)
+    sequence q, I = mat_ident(m), Q = I, u, v
 --
 -- Programming note: The code of this main loop was not as easily
 -- written as the first glance might suggest. Explicitly setting 
@@ -67,7 +72,7 @@ sequence q, I = mat_ident(m), Q = I, u, v
 -- commented-out code was retrieved from a backup and should be
 -- treated as an example and not be trusted (iirc, it made no
 -- difference to the test cases used, so I deleted it, and then
--- had second thoughts a few days later).
+-- had second thoughts about it a few days later).
 --
     for j=1 to min(m-1,n) do
         u = mat_col(a,j)
@@ -115,22 +120,26 @@ constant a = {{12, -51,   4},
 
 sequence {q,r} = QRHouseholder(a)
 
-?"A"        pp(a,{pp_Nest,1})
-?"Q"        pp(q,{pp_Nest,1})
-?"R"        pp(r,{pp_Nest,1})
-?"Q * R"    pp(matrix_mul(q,r),{pp_Nest,1})
+ppOpt({pp_Nest,1,pp_IntFmt,"%4d",pp_FltFmt,"%4g",pp_IntCh,false})
+?"A"        pp(a)
+?"Q"        pp(q)
+?"R"        pp(r)
+?"Q * R"    pp(matrix_mul(q,r))
 
---<lang Phix>
---using matrix_transpose from [[Matrix_transposition#Phix]]
-function matrix_transpose(sequence in)
-sequence out = repeat(repeat(0,length(in)),length(in[1]))
-    for n=1 to length(in) do
-        for m=1 to length(in[1]) do
-            out[m][n] = in[n][m]
+function matrix_transpose(sequence mat)
+    integer rows = length(mat),
+            cols = length(mat[1])
+    sequence res = repeat(repeat(0,rows),cols)
+    for r=1 to rows do
+        for c=1 to cols do
+            res[c][r] = mat[r][c]
         end for
     end for
-    return out
+    return res
 end function
+
+--?"Q * Q'" pp(matrix_mul(q,matrix_transpose(q))) -- (~1e-16s)
+?"Q * Q`"   pp(sq_round(matrix_mul(q,matrix_transpose(q)),1e15))
 
 procedure least_squares()
     sequence x = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
@@ -154,7 +163,10 @@ procedure least_squares()
         end if
         z[k] = (b[k][1]-s)/r[k,k]
     end for
-    ?{"Least-squares solution:",z}
+    printf(1,"Least-squares solution:\n")
+--  printf(1," %v\n",{z})                   -- {1.0,2.0.3,0}
+--  printf(1," %v\n",{sq_sub(z,{1,2,3})})   -- (+/- ~1e-14s)
+    printf(1," %v\n",{sq_round(z,1e13)})    -- {1,2,3}
 end procedure
 least_squares()
 
@@ -164,6 +176,7 @@ puts(1, "Done!\n")
 --without warning
 abort(0)
 
+--/*
 "started"
 "A"
 {{12,-51,4},
@@ -183,6 +196,7 @@ abort(0)
  {-4,24,-41}}
 {"Least-squares solution:",{1.0,2.0,3.0}}
 Done!
+--*/
 
 
 --/*
@@ -238,10 +252,10 @@ if j=1 and norm!=14 then ?9/0 end if    -- (3x3)
  
         tau[j] = 2/scalar
  
-        sequence w = repeat(0,columns)
+        sequence w = repeat(0,cols)
  
         -- First calculate w = v_j^T * A.
-        for i=j to columns do
+        for i=j to cols do
             w[i] = a[j,i]
             for k=j+1 to rows do
                 w[i] += a[k,j]*a[k,i]*iff(i=j?v1:1)
@@ -395,3 +409,4 @@ end if
 --   {  0.00,   -172.80,       65.07},
 --   {  0.00,    0.00,    -26.19}}
 
+--*/

@@ -54,7 +54,11 @@ integer c
         for i=1 to length(x) do
             o = x[i]
             if sequence(o) then
-                x[i] = upper(o)
+                -- 8/2/23 p2js violation
+--              x[i] = upper(o)
+                x[i] = 0
+                o = upper(o)
+                x[i] = o
 
             elsif integer(o) then
                 c = o
@@ -80,7 +84,11 @@ integer c
         for i=1 to length(x) do
             o = x[i]
             if sequence(o) then
-                x[i] = lower(o)
+                -- 8/2/23 p2js violation
+--              x[i] = lower(o)
+                x[i] = 0
+                o = lower(o)
+                x[i] = o
             elsif integer(o) then
                 c = o
                 if c>0 and c<=255 then

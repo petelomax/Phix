@@ -302,6 +302,8 @@ atom field_of_view_radians = 60*CD_DEG2RAD,     -- (currently fixed)
      model_y_rotation_radians = 0*CD_DEG2RAD,   -- -0.2 per second
      last_time = time()
 
+integer speed = 4 -- (nb movement/frame, not frames/second)
+
 function timer_cb(Ihandle /*ih*/)
 
     atom this_time = time(),
@@ -309,8 +311,8 @@ function timer_cb(Ihandle /*ih*/)
     last_time = this_time   // (remember for the next frame)
 
     // Animate the rotation
-    model_x_rotation_radians += 0.3 * delta_time
-    model_y_rotation_radians -= 0.2 * delta_time
+    model_x_rotation_radians += speed*0.3 * delta_time
+    model_y_rotation_radians -= speed*0.2 * delta_time
 
     // Tell WebGL how to convert from clip space to pixels
     integer {w, h} = IupGetIntInt(canvas, "RASTERSIZE")
@@ -362,6 +364,11 @@ function key_cb(Ihandle ih, atom c)
     if c=' ' then
         IupToggleInt(timer,"RUN")
         last_time = time() -- (avoids sudden jumping)
+    elsif find(c,"+-") then
+        if    c='-' and speed>1 then speed -= 1
+        elsif c='+' and speed<30 then speed += 1
+        end if
+        IupSetStrAttribute(dlg,"TITLE","Hello! F (speed:%d)",{speed})
     end if
     return IUP_CONTINUE
 end function
@@ -374,7 +381,7 @@ procedure main()
                              "KEY_CB", Icallback("key_cb")})
     dlg = IupDialog(canvas, `TITLE="Hello! F", SHRINK=YES, MINSIZE=120x90`)
     IupShow(dlg)
-    timer = IupTimer(Icallback("timer_cb"), 1000/40)
+    timer = IupTimer(Icallback("timer_cb"), 1000/40) -- 40 frames/sec, ~0.5% CPU
     if platform()!=JS then
         IupMainLoop()
         dlg = IupDestroy(dlg)

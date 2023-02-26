@@ -21,20 +21,16 @@
 --include w32support.e
 
 constant
-k32 = open_dll( "kernel32.dll" ),
+k32 = open_dll("kernel32.dll"),
 -- winnls.h
-xMultiByteToWideChar = define_c_func( k32, "MultiByteToWideChar", 
-    { C_UINT, C_LONG, C_POINTER, C_LONG, C_POINTER, C_LONG}, C_LONG),
-xWideCharToMultiByte = define_c_func( k32, "WideCharToMultiByte", 
-    { C_UINT, C_LONG, C_POINTER, C_LONG, C_POINTER, C_LONG, C_POINTER,
-      C_POINTER}, C_LONG),
-xlstrlen = define_c_func( k32, "lstrlen", { C_POINTER }, C_LONG ),
+xMultiByteToWideChar = define_c_func(k32,"MultiByteToWideChar",{C_UINT,C_LONG,C_PTR,C_LONG,C_PTR,C_LONG},C_LONG),
+xWideCharToMultiByte = define_c_func(k32,"WideCharToMultiByte",{C_UINT,C_LONG,C_PTR,C_LONG,C_PTR,C_LONG,C_PTR,C_PTR},C_LONG),
+xlstrlen = define_c_func(k32,"lstrlen",{C_PTR},C_LONG),
 
-oleaut32 = open_dll( "oleaut32.dll" ),
-xSysAllocString = define_c_func( oleaut32, "SysAllocString",{ C_POINTER },
-    C_LONG ),
-xSysFreeString = define_c_proc( oleaut32, "SysFreeString", { C_POINTER} ),
-xSysStringLen = define_c_func( oleaut32, "SysStringLen", { C_POINTER },C_POINTER )
+oleaut32 = open_dll("oleaut32.dll"),
+xSysAllocString = define_c_func(oleaut32,"SysAllocString",{C_PTR},C_LONG),
+xSysFreeString = define_c_proc(oleaut32,"SysFreeString",{C_PTR}),
+xSysStringLen = define_c_func(oleaut32,"SysStringLen",{C_PTR},C_PTR)
 
 
 global function unicode_string(string utf8str)
@@ -201,14 +197,14 @@ end function
 
 global function alloc_bstr(sequence str)
 atom pbstr, lpwstr
-    
+
 --  str = ansi_to_unicode( str ) & 0 & 0 -- add double null for wide string terminator
-    
+
 --  lpwstr = allocate_string( str )
     lpwstr = unicode_string(str)
     pbstr = c_func(xSysAllocString, {lpwstr})
     free(lpwstr)
-    
+
     return pbstr
 end function
 

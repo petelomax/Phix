@@ -1,0 +1,255 @@
+--
+-- demo\rosetta\Chi-squared_distribution.exw
+--
+with javascript_semantics
+function gamma(atom z)
+    constant p = {   0.99999999999980993, 
+                   676.5203681218851,   
+                 -1259.1392167224028, 
+                   771.32342877765313,  
+                  -176.61502916214059,  
+                    12.507343278686905, 
+                    -0.13857109526572012,
+                     9.9843695780195716e-6,
+                     1.5056327351493116e-7 }
+    if z<0.5 then
+        return PI / (sin(PI*z)*gamma(1-z))
+    end if
+    z -= 1;
+    atom x := p[1];
+    for i=1 to length(p)-1 do x += p[i+1]/(z+i) end for
+    atom t = z + length(p) - 1.5;
+    return sqrt(2*PI) * power(t,z+0.5) * exp(-t) * x
+end function
+
+function chi_squared(atom x, k)
+-- Chi-squared function, the probability distribution function (pdf) for chi-squared
+    return iff(x > 0 ? power(x,k/2-1) * exp(-x/2) / (power(2,k/2) * gamma(k / 2)) : 0)
+end function
+
+function gamma_cdf(atom k, x)
+-- lower incomplete gamma by series formula with gamma
+    atom tot = 0
+    for m=0 to 100 do
+        tot += power(x,m) / gamma(k + m + 1)
+    end for
+    return power(x,k) * exp(-x) * tot
+end function
+
+function cdf_chi_squared(atom x, k)
+-- Cumulative probability function (cdf) for chi-squared
+    return iff(x<=0 or k<=0 ? 0.0 : gamma_cdf(k/2, x/2))
+end function
+
+printf(1,"       ------------------------------------ Chi-squared ------------------------------------\n")
+printf(1," x             k = 1             k = 2             k = 3             k = 4             k = 5\n")
+printf(1,repeat('-',92)&"\n")
+for x=0 to 10 do
+    printf(1,"%2d",x)
+    for k=1 to 5 do
+        printf(1,"%18.11f%n",{chi_squared(x, k),k=5})
+    end for
+end for
+
+printf(1,"\nChi_squared x     P value (df=3)\n------------------------------------\n")
+for p in {1, 2, 4, 8, 16, 32} do
+    printf(1,"      %2d          %.16g\n",{p, 1-cdf_chi_squared(p, 3)})
+end for
+
+constant airportdata = { 77, 23,
+                         88, 12,
+                         79, 21,
+                         81, 19 },
+
+       expected_data = { 81.25, 18.75,
+                         81.25, 18.75,
+                         81.25, 18.75,
+                         81.25, 18.75 },
+
+fmt = "\n"&"""
+For the airport data, diff total is %.15f,
+              degrees of freedom is %d,
+                      ch-squared is %.15f, 
+                         p value is %.15f
+"""
+integer df = length(airportdata)/2-1
+atom dtotal = sum(sq_div(sq_power(sq_sub(airportdata,expected_data),2),expected_data))
+printf(1,fmt,{dtotal, df, chi_squared(dtotal,df), cdf_chi_squared(dtotal, df)})
+
+include IupGraph.e
+
+function get_data(Ihandle /*graph*/)
+    constant colours = {CD_BLUE,CD_ORANGE,CD_GREEN,CD_RED,CD_PURPLE}
+    sequence x = sq_div(tagset(999,0),100),
+             xy = {{"NAMES",{"0","1","2","3","4"}}}
+    for k=0 to 4 do
+        xy = append(xy,{x,apply(true,chi_squared,{x,k}),colours[k+1]})
+    end for
+    return xy
+end function
+
+IupOpen()
+Ihandle graph = IupGraph(get_data,`RASTERSIZE=340x180,GRID=NO`)
+IupSetAttributes(graph,`XMAX=10,XTICK=2,XMARGIN=10,YMAX=0.5,YTICK=0.1`)
+IupShow(IupDialog(graph,`TITLE="Chi-squared distribution",MINSIZE=260x200`))
+if platform()!=JS then
+    IupMainLoop()
+    IupClose()
+end if
+
+--/* saved:
+without js          -- mpfr_gamma[_inc]()
+requires("1.0.2")   -- mpfr_gamma_inc()
+include mpfr.e
+
+function gamma(atom x)
+-- gamma function for x, using the MPFR library
+--  isnan(x) && return x
+    mpfr {z, bigx} = mpfr_inits(2,{0,x})
+    mpfr_gamma(z, bigx, 0)
+--  isnan(z) && throw(DomainError(x, "NaN for gamma in BigFloat library"))
+    return mpfr_get_d(z)
+end function
+
+function gamma_cdf(atom a, x)
+-- gamma CDF from lower incomplete gamma function, using MPFR library to get upper incomplete gamma
+    mpfr {z, biga, bigx} = mpfr_inits(3,{0,a,x})
+    mpfr_gamma_inc(z, biga, bigx, 0)
+    return 1-mpfr_get_d(z)/gamma(a)
+end function
+
+--*/
+
+--/*
+Output: (julia)
+x           ?2 k = 1             k = 2             k = 3             k = 4             k = 5
+---------------------------------------------------------------------------------------------
+ 0                 0                 0                 0                 0                 0
+ 1     0.24197072451     0.30326532985     0.24197072451     0.15163266492     0.08065690817
+ 2     0.10377687435     0.18393972058     0.20755374871     0.18393972058     0.13836916580
+ 3     0.05139344326     0.11156508007     0.15418032980     0.16734762011     0.15418032980
+ 4     0.02699548325     0.06766764161     0.10798193302     0.13533528323     0.14397591070
+ 5     0.01464498256     0.04104249931     0.07322491280     0.10260624827     0.12204152134
+ 6     0.00810869555     0.02489353418     0.04865217332     0.07468060255     0.09730434665
+ 7     0.00455334292     0.01509869171     0.03187340045     0.05284542098     0.07437126772
+ 8     0.00258337316     0.00915781944     0.02066698535     0.03663127777     0.05511196094
+ 9     0.00147728280     0.00555449826     0.01329554523     0.02499524221     0.03988663570
+10     0.00085003666     0.00336897349     0.00850036660     0.01684486749     0.02833455534
+  12345             12345
+
+?2 x     P value (df=3)
+----------------------
+ 1     0.8012519569012008
+ 2     0.5724067044708798
+ 4     0.2614641299491106
+ 8     0.04601170568923141
+16     0.0011339842897852837
+32     5.233466447984725e-7
+
+For the airport data, diff total is 4.512820512820512, ?2 is 0.08875392598443503, p value 0.7888504263193064
+
+
+""
+{"4.1.0","5.1.2"}
+       ------------------------------------ Chi-squared ------------------------------------
+ x             k = 1             k = 2             k = 3             k = 4             k = 5
+--------------------------------------------------------------------------------------------
+ 0     0.00000000000     0.00000000000     0.00000000000     0.00000000000     0.00000000000
+ 1     0.24197072452     0.30326532986     0.24197072452     0.15163266493     0.08065690817
+ 2     0.10377687436     0.18393972059     0.20755374871     0.18393972059     0.13836916581
+ 3     0.05139344327     0.11156508007     0.15418032980     0.16734762011     0.15418032980
+ 4     0.02699548326     0.06766764162     0.10798193303     0.13533528324     0.14397591070
+ 5     0.01464498256     0.04104249931     0.07322491281     0.10260624828     0.12204152135
+ 6     0.00810869555     0.02489353418     0.04865217333     0.07468060255     0.09730434666
+ 7     0.00455334292     0.01509869171     0.03187340045     0.05284542099     0.07437126772
+ 8     0.00258337317     0.00915781944     0.02066698535     0.03663127778     0.05511196094
+ 9     0.00147728280     0.00555449827     0.01329554524     0.02499524221     0.03988663571
+10     0.00085003666     0.00336897350     0.00850036660     0.01684486750     0.02833455534
+
+Chi_squared x     P value (df=3)
+------------------------------------
+       1          0.8012519569012007
+       2          0.5724067044708797
+       4          0.2614641299491101
+       8          0.0460117056892316
+      16          0.0011339842897863
+      32          5.233466446874501e-7
+
+For the airport data, diff total is 4.512820512820513,
+              degrees of freedom is 3,
+                      ch-squared is 0.088753925984435,
+                         p value is 0.788850426319307
+
+
+
+--*/
+
+--/* saved:
+with javascript_semantics
+
+function gamma(atom z)
+    constant p = {   0.99999999999980993, 
+                   676.5203681218851,   
+                 -1259.1392167224028, 
+                   771.32342877765313,  
+                  -176.61502916214059,  
+                    12.507343278686905, 
+                    -0.13857109526572012,
+                     9.9843695780195716e-6,
+                     1.5056327351493116e-7 }
+    if z<0.5 then
+        return PI / (sin(PI*z)*gamma(1-z))
+    end if
+    z -= 1;
+    atom x := p[1];
+    for i=1 to length(p)-1 do x += p[i+1]/(z+i) end for
+    atom t = z + length(p) - 1.5;
+    return sqrt(2*PI) * power(t,z+0.5) * exp(-t) * x
+end function
+
+function pdf(atom x, k)
+    if (x <= 0) then return 0 end if // this should be in task description
+    return exp(-x/2) * power(x,k/2-1) / (power(2,k/2) * gamma(k/2))
+end function
+
+function cpdf(atom x, k)
+    x = x / 2  // need to do this to agree with Wikipedia formula for k = 2
+    atom t = exp(-x) * power(x,k/2) * gamma(k/2) / gamma(k),
+         s = 0,
+         m = 0,
+         tol = 1e-15 // say
+    while true do
+        atom term = power(x,m) / gamma(k/2 + m + 1)
+        s = s + term
+        if abs(term) < tol then exit end if
+        m = m + 1
+    end while
+    return t * s
+end function
+printf(1,"    Values of the ?2 probablility distribution function\n")
+printf(1," x/k    1         2         3         4         5\n")
+for x=0 to 10 do
+    printf(1,"%2d  ", x)
+    for k=1 to 5 do
+        printf(1,"%f  ", pdf(x, k))
+    end for
+    printf(1,"\n")
+end for
+printf(1,"\n------Checking cpdf formula works for k = 2-------\n")
+printf(1,"    Values of the ?2 cumulative probability distribution function for k = 2\n")
+printf(1," x\n")
+for x=0 to 10 do
+    printf(1,"%2d  %f\n", {x, cpdf(x, 2)})
+end for
+printf(1,"\n    Values of the ?2 cumulative pdf using simple formula for k = 2\n")
+printf(1," x\n")
+for x=0 to 10 do
+    printf(1,"%2d  %f\n", {x, 1 - exp(-x/2)})
+end for
+
+--?mpir_open_dll()
+--?mpir_get_versions()
+
+--*/
+
+

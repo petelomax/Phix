@@ -1,7 +1,5 @@
 --
--- msgbox.exw
---
--- DEV 64bit needs work
+-- demo\msgbox.exw
 --
 -- Demo showing three ways to invoke external functions.
 --  1) Using c_func/c_proc
@@ -47,29 +45,24 @@ integer xMessageBoxA,
 integer initX = 0
 
 procedure Xinit()
-atom user32
-    user32 = open_dll("user32.dll")
+    atom user32 = open_dll("user32.dll")
 --#without reformat
     xMessageBoxA = define_c_func(user32, "MessageBoxA",
-        {C_POINTER, --  HWND  hWnd, // handle of owner window
-         C_POINTER, --  LPCTSTR  lpText,    // address of text in message box
-         C_POINTER, --  LPCTSTR  lpCaption, // address of title of message box
+        {C_PTR,     --  HWND  hWnd, // handle of owner window
+         C_PTR,     --  LPCTSTR  lpText,    // address of text in message box
+         C_PTR,     --  LPCTSTR  lpCaption, // address of title of message box
          C_INT},    --  UINT  uType         // style of message box
         C_INT)      -- int 
-    if xMessageBoxA=-1 then ?9/0 end if
     xGetActiveWindow = define_c_func(user32, "GetActiveWindow",
         {},
         C_LONG)     -- HWND
-    if xGetActiveWindow=-1 then ?9/0 end if
 --#with reformat
     initX = 1
 end procedure
 
 function MessageBox1(string text, string title, integer style)
-atom hWnd
-
     if not initX then Xinit() end if
-    hWnd = c_func(xGetActiveWindow, {})
+    atom hWnd = c_func(xGetActiveWindow, {})
     return c_func(xMessageBoxA, {hWnd,text,title,style})
 end function
 
@@ -183,19 +176,14 @@ end procedure
 
 -- ...but since this is a one-off cost, we may as well do this:
 procedure Zinit()
-atom kernel32, user32
-integer zGetProcAddress
-    kernel32 = open_dll("kernel32.dll")
-    zGetProcAddress = define_c_func(kernel32, "GetProcAddress",
-        {C_PTR,     --  HMODULE  hModule,   // handle to DLL module
-         C_PTR},    --  LPCSTR  lpProcName  // name of function
-        C_PTR)      -- FARPROC
-    if zGetProcAddress=-1 then ?9/0 end if
-    user32 = open_dll("user32.dll")
+    atom kernel32 = open_dll("kernel32.dll")
+    integer zGetProcAddress = define_c_func(kernel32, "GetProcAddress",
+                {C_PTR,     --  HMODULE  hModule,   // handle to DLL module
+                 C_PTR},    --  LPCSTR  lpProcName  // name of function
+                C_PTR)      -- FARPROC
+    atom user32 = open_dll("user32.dll")
     zGetActiveWindow = c_func(zGetProcAddress,{user32, "GetActiveWindow"})
     zMessageBoxA = c_func(zGetProcAddress,{user32,"MessageBoxA"})
-    if zGetActiveWindow=NULL then ?9/0 end if
-    if zMessageBoxA=NULL then ?9/0 end if
     initZ = 1
 end procedure
 

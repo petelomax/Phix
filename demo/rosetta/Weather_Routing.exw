@@ -2,8 +2,8 @@
 -- demo\rosetta\Weather_Routing.exw
 -- ================================
 --
---{{trans|Go}}
---/!*
+with javascript_semantics
+-- inlined for p2js compatibility, posted version has <span style="font-size: 75%; color: #008000;" for this.
 constant polar_csv = """
 TWA\TWS;0;4;5;6;7;8;9;10;11;12;13;14;15;16;17;18;19;20;21;22;23;24;25;26;27;28;29;30;35;40;60;70
 40;0;0.53;0.54;0.49;0.4;0.31;0.21;0.16;0.11;0.08;0.05;0.03;0.02;0.01;0;0;0;0;0;0;0;0;0;0;0;0;0;0;-0.01;-0.05;-0.1;-0.11
@@ -49,7 +49,6 @@ TWA\TWS;0;4;5;6;7;8;9;10;11;12;13;14;15;16;17;18;19;20;21;22;23;24;25;26;27;28;2
 174;0;3.57;3.69;4.11;4.83;5.43;6.01;6.62;7;7.55;8.03;8.5;8.93;9.95;11.19;11.81;12.45;13.11;13.81;14.48;14.84;15.57;16.24;17.11;17.35;17.98;18.57;18.95;19.33;19.77;14.03;8.13
 180;0;3.51;3.6;4.03;4.71;5.31;5.91;6.51;6.88;7.41;7.88;8.33;8.79;9.78;11.02;11.63;12.26;12.93;13.61;14.26;14.61;15.31;15.99;16.9;17.15;17.79;18.39;18.77;19.09;19.52;13.87;8.07
 """
---*!/
 
 function to_numbers(sequence s)
     for i=1 to length(s) do
@@ -84,7 +83,6 @@ end function
 --
 constant {winds, degrees, speeds} = getpolardata(polar_csv) 
 --constant {winds, degrees, speeds} = getpolardata(get_text("polar.csv")) -- alt
---constant {winds, degrees, speeds} = getpolardata(get_text("../../polar.csv"))
 constant R = 6372800  -- Earth's approximate radius in meters
 constant timeinterval = 10  -- the minutes duration for each TimeSlice
 
@@ -167,55 +165,44 @@ function sailingspeed(atom azimuth, pointofsail, ws)
     return boatspeed(pointofsail, ws) * cosd(abs(pointofsail-azimuth))
 end function
 
-struct SurfaceParameters
---
--- wind and surface current, direction and velocity, for a given position
--- directions are in degrees from north, and velocities are in knots.
---
-    public atom winddirection,
-                windvelocity,
-                currentdirection,
-                currentvelocity
-end struct
-
-function bestvectorspeed(atom dirtravel, SurfaceParameters p)
+function bestvectorspeed(atom dirtravel, sequence surfaceparameters)
 --
 -- Calculate the net direction and velocity of a sailing ship.
 --
-    atom wd = p.winddirection,
-         wv = p.windvelocity,
-         cd = p.currentdirection,
-         cv = p.currentvelocity,
-         azimuth = remainder(dirtravel-wd,360)
+    atom {winddirection,
+          windvelocity,
+          currentdirection,
+          currentvelocity} = surfaceparameters,
+         azimuth = remainder(dirtravel-winddirection,360)
     if azimuth<0 then azimuth += 360 end if
     if azimuth>180 then azimuth = 360-azimuth end if
-    atom vmg = boatspeed(azimuth, wv),
+    atom vmg = boatspeed(azimuth, windvelocity),
          other = -1
     integer idx = -1
     for i=1 to length(degrees) do
-        atom ss = sailingspeed(azimuth, degrees[i], wv)
+        atom ss = sailingspeed(azimuth, degrees[i], windvelocity)
         if ss>other then {other,idx} = {ss,i} end if
     end for
     if other>vmg then
         azimuth = degrees[idx]
         vmg = other
     end if
-    atom dirchosen = deg2rad(wd + azimuth),
-         dircurrent = deg2rad(cd),
+    atom dirchosen = deg2rad(winddirection + azimuth),
+         dircurrent = deg2rad(currentdirection),
          wx = vmg * sin(dirchosen),
          wy = vmg * cos(dirchosen),
-         curx = cv * sin(dircurrent),
-         cury = cv * cos(dircurrent)
+         curx = currentvelocity * sin(dircurrent),
+         cury = currentvelocity * cos(dircurrent)
     return sqrt(power(wx+curx,2) + power(wy+cury,2))
 end function
 
-function sailsegmenttime(SurfaceParameters p, atom lat1, lon1, lat2, lon2)
+function sailsegmenttime(sequence surfaceparameters, atom lat1, lon1, lat2, lon2)
 --
 -- Calculate the trip time in minutes from (lat1, lon1) to the destination (lat2, lon2).
--- Uses the data in SurfaceParameters p for wind and current velocity and direction.
+-- Uses the data in surfaceparameters for wind and current velocity and direction.
 --
     atom {distance, direction} = haversine(lat1, lon1, lat2, lon2),
-         velocity = bestvectorspeed(direction, p)
+         velocity = bestvectorspeed(direction, surfaceparameters)
     -- minutes/s * m / (knots * (m/s / knot)) = minutes
     atom res = (1/60) * distance / (velocity * 1.94384)
     return res
@@ -240,7 +227,7 @@ x..F..x.x""",'\n')
 function minimum_time_route(sequence timeframe, start, finish)
 --
 -- Get the fastest route from start to finish for some detailed sea/ship parameters.
--- timeframe is a massive 200 * 9x9 * {pt,SurfaceParameters}
+-- timeframe is a massive 200 * 9x9 * {pt,surfaceparameters}
 -- note that polar data (ie winds, degrees, speeds) is static here, for simplicity.
 --
     atom t0 = time(),
@@ -265,12 +252,12 @@ function minimum_time_route(sequence timeframe, start, finish)
                 and nx>=1 and nx<=xmax
                 and ny>=1 and ny<=ymax 
                 and chart[ny,nx]!='x' then
-                    sequence gp1 = s[py,px],    -- {pt,SurfaceParameters}
+                    sequence gp1 = s[py,px],    -- {pt,surfaceparameters}
                              gp2 = s[ny,nx]     --          ""
                     atom {lat1, lon1} = gp1[1],
                          {lat2, lon2} = gp2[1]
-                    SurfaceParameters sp = gp1[2]
-                    atom nt = duration + sailsegmenttime(sp, lat1, lon1, lat2, lon2)
+                    sequence surfaceparameters = gp1[2]
+                    atom nt = duration + sailsegmenttime(surfaceparameters, lat1, lon1, lat2, lon2)
                     if costs[ny,nx]=-1 or nt<costs[ny,nx] then
                         -- a larger (than 9x9) simulation might benefit from not
                         -- putting any already-too-long routes back on the todo
@@ -308,29 +295,32 @@ end function
  
 function surfacebylongitude(atom lon)
 -- Create regional wind patterns on the map.
-    sequence p = iff(lon < -155.03 ? { -5.0,  8, 150, 0.5} :
-                 iff(lon < -155.99 ? {-90.0, 20, 150, 0.4} :
-                                     {180.0, 25, 150, 0.3}))
-    SurfaceParameters res = new(p)
-    return res
+    sequence surfaceparameters = iff(lon < -155.03 ? { -5.0,  8, 150, 0.5} :
+                                 iff(lon < -155.99 ? {-90.0, 20, 150, 0.4} :
+                                                     {180.0, 25, 150, 0.3}))
+    return surfaceparameters
 end function
 
-procedure mutatetimeslices(sequence slices)
+sequence slices = repeat(null,200)
+
+procedure mutatetimeslices()
 -- Vary wind speeds over time.
     for i=1 to length(slices) do
-        sequence s = slices[i]
+        sequence s = deep_copy(slices[i])
         for j=1 to length(s) do
             sequence sj = s[j]
+            s[j] = 0
             for k=1 to length(sj) do
-                SurfaceParameters p = sj[k][2]
---              p.windvelocity *= 1 + 0.002*i
-                p.windvelocity = p.windvelocity * (1+0.002*i)
+                atom windvelocity = sj[k][2][2]
+                windvelocity *= 1 + 0.002*i
+                sj[k][2][2] = windvelocity
             end for
+            s[j] = sj
         end for
+        slices[i] = s
     end for
 end procedure
  
-sequence slices = repeat(null,200)
 for s=1 to length(slices) do
     sequence gpoints = repeat(null,9)
     for i=1 to 9 do
@@ -343,7 +333,7 @@ for s=1 to length(slices) do
     end for
     slices[s] = gpoints
 end for
-mutatetimeslices(slices)
+mutatetimeslices()
 constant fmt = """
 The route taking the least time found was:
     %v
@@ -351,13 +341,12 @@ which has duration %s [route found in %s]
 """
 printf(1,fmt,minimum_time_route(slices,{1,4},{9,4}))
 
-?"done"
 {} = wait_key()
-abort(0)
+--/*
 output: 
 The route taking the least time found was:
     {{1,4},{1,5},{2,6},{3,7},{4,7},{5,7},{6,7},{7,7},{8,6},{8,5},{9,4}}
 which has duration 4 hours, 43 minutes and 41s [route found in 0.0s]
-
+--*/
 
 

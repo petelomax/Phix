@@ -546,11 +546,10 @@ function idle_action()
     IupSetStrAttribute(progress_label,"TITLE",title)
     return IUP_DEFAULT
 end function
-constant idle_action_cb = Icallback("idle_action")
 
 procedure start_idle()
     IupSetAttribute(progress_label,"TITLE","-")
-    IupSetGlobalFunction("IDLE_ACTION",idle_action_cb)
+    IupSetGlobalFunction("IDLE_ACTION",Icallback("idle_action"))
 end procedure
 
 procedure new_game()
@@ -677,7 +676,7 @@ function redraw_cb(Ihandle ih)
     sequence edges = repeat(0,size*4)
     integer x,y,c = 1, h2 = floor(wh/2), r,
             rfrom = (minmaxcount==0 or IupGetInt(hints,"VALUE")=0)
-    for i=rfrom to length(results) do
+    for i=iff(rfrom?1:0) to length(results) do
         {x,y,r} = iff(i=0?minmaxmove:results[i])
         integer cb, ct
         string txt
@@ -836,11 +835,12 @@ end function
 
 function help_cb(Ihandln /*ih*/)
     IupMessage(title,help_text)
-    return IUP_DEFAULT
+    return IUP_IGNORE -- (don't open browser help!)
 end function
 
 function key_cb(Ihandle /*dlg*/, atom c)
-    if c=K_ESC then return IUP_CLOSE end if
+    if c=K_ESC then return IUP_CLOSE end if -- (standard practice for me)
+    if c=K_F5 then return IUP_DEFAULT end if -- (let browser reload work)
     if c=K_F1 then return help_cb(NULL) end if
     if c='?' then
         -- an old diagnostic that I kept in...
@@ -903,7 +903,7 @@ procedure main()
                                   "BUTTON_CB", Icallback("button_cb")})
     dlg = IupDialog(IupHbox({full},"MARGIN=3x3"))
     IupSetAttribute(dlg, "TITLE", title)
-    IupSetCallback(dlg, "K_ANY", Icallback("key_cb"))
+    IupSetCallback(dlg, "KEY_CB", Icallback("key_cb"))
     IupSetAttributeHandle(dlg,"DEFAULTENTER", declare)  --erm...??
     IupSetAttributeHandle(NULL,"PARENTDIALOG",dlg)
     new_game()

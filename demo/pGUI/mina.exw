@@ -27,23 +27,6 @@ constant
 include builtins\VM\\pcmdlnN.e      -- command_line()
 include builtins\pgetpath.e         -- get_proper_dir()
 
-procedure iup_link_error(sequence name)
-    puts(1,"link error: "&name)
-    ?9/0
-end procedure
-
-function iup_c_func(atom dll, sequence name, sequence args, atom result)
-    integer handle = define_c_func(dll, name, args, result)
-    if handle = -1 then iup_link_error(name) end if
-    return handle
-end function
-
-function iup_c_proc(atom dll, sequence name, sequence args)
-    integer handle = define_c_proc(dll, name, args)
-    if handle = -1 then iup_link_error(name) end if
-    return handle
-end function
-
 constant string curr_dir = current_dir()
 constant integer libidx = iff(platform()=WINDOWS ? 1:
                           iff(platform()=LINUX   ? 2:
@@ -53,28 +36,25 @@ string dll_path
 constant SLASH = iff(platform()=WINDOWS?'\\':'/')
 
 function iup_open_dll(sequence libs)
---string fullpath = dll_path&libs[libidx]
-string path = libs[libidx]
-atom res
+    string path = libs[libidx]
+    atom res
     if platform()=WINDOWS then
         if chdir(dll_path)=0 then ?9/0 end if
---      res = open_dll(fullpath)
         path = current_dir()&SLASH&path
     elsif platform()=LINUX then
         path = dll_path&path
     end if
-    res = open_dll(path)
+    res = open_dll(path,false)
     if platform()=WINDOWS then
         if chdir(curr_dir)=0 then ?9/0 end if
     end if
---  if res=0 then iup_link_error(fullpath) end if
-    if res=0 then iup_link_error(path) end if
+    if res=0 then ?9/0 end if
     return res
 end function
 
 constant
          I  = C_INT,
-         P  = C_POINTER, 
+         P  = C_PTR, 
          $
 
 atom
@@ -100,7 +80,7 @@ procedure iup_init1(nullable_string dll_root)
         -- Aside: normally I'd expect msvcr120.dll to be loaded from system32/syswow64, 
         --        but if someone puts copies in pGUI\win32/64, it should be alright.
         if chdir(dll_path)=0 then ?9/0 end if
-        if open_dll("msvcr120.dll")=0 then
+        if open_dll("msvcr120.dll",false)=0 then
             puts(1,"fatal error: msvcr120.dll could not be loaded\n")
             puts(1," try installing Visual C++ Redistributable Packages for Visual Studio 2013\n")
             puts(1," from https://www.microsoft.com/en-us/download/details.aspx?id=40784 \n")
@@ -116,12 +96,12 @@ procedure iup_init1(nullable_string dll_root)
                         "libiup.dylib"})
 
     -- Control
-    xIupOpen            = iup_c_func(iup, "IupOpen", {I,P}, I)
-    xIupClose           = iup_c_proc(iup, "IupClose", {})
-    xIupDialog  = iup_c_func(iup, "IupDialog", {P},P)
-    xIupShow    = iup_c_func(iup, "IupShow", {P},I)
-    xIupAlarm           = iup_c_func(iup, "IupAlarm", {P,P,P,P,P}, I)
-    xIupMessage         = iup_c_proc(iup, "IupMessage", {P,P})
+    xIupOpen    = define_c_func(iup, "IupOpen", {I,P}, I)
+    xIupClose   = define_c_proc(iup, "IupClose", {})
+    xIupDialog  = define_c_func(iup, "IupDialog", {P},P)
+    xIupShow    = define_c_func(iup, "IupShow", {P},I)
+    xIupAlarm   = define_c_func(iup, "IupAlarm", {P,P,P,P,P}, I)
+    xIupMessage = define_c_proc(iup, "IupMessage", {P,P})
 end procedure
 
 procedure IupOpen(nullable_string dll_root=NULL)

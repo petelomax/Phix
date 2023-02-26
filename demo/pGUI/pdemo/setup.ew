@@ -729,7 +729,7 @@ Ihandln wasFocus
 --  if not equal(basedir[length(basedir)-5..length(basedir)],`\Phix\`) then setError("error: "&basedir&` does not end with "Phix".`) return end if
 --  Edita = basedir[1..-6]&`Edita\edita.exw`
 --  Edita = basedir[1..length(basedir)-5]&`Edita\edita.exw` -- replaced 11/8/15
-    Edita = basedir&`demo\edita\edita.exw`
+    Edita = basedir&`demo\edita\edita.exw` -- DEV xpEditer
     d = dir(Edita)
     if atom(d) or length(d)!=1 then
         Edita[length(Edita)] = 'e'
@@ -1462,42 +1462,6 @@ end procedure
 integer sinit
         sinit = 0
 
-procedure FatalErr(sequence err_msg)
---integer void
---  void = messageBox("Fatal Error", err_msg & "\n\nProgram aborting.", {MB_OK, MB_ICONERROR})
-    IupMessage("Fatal Error", err_msg & "\n\nProgram aborting.")
-    ?9/0
-    abort(1)
-end procedure
-
-procedure link_error(sequence name)
-    FatalErr("Couldn't link function:\n\n " & name & "()")  -- terminates with ?9/0 abort(1)
-end procedure
-
--- dynamically link a C routine as a Euphoria/Phix function
-function link_c_func(atom dll, sequence name, sequence args, atom result)
-integer handle
-    handle = define_c_func(dll, name, args, result)
-    if handle = -1 then link_error(name) end if
-    return handle
-end function
-
--- dynamically link a C routine as a Euphoria/Phix procedure
---function link_c_proc(atom dll, sequence name, sequence args)
---integer handle
---  handle = define_c_proc(dll, name, args)
---  if handle = -1 then link_error(name) end if
---  return handle
---end function
-
--- open a dll file and get handle to it
-function assign_dll(sequence dll_file)
-atom handle
-    handle = open_dll(dll_file)
-    if handle = NULL then link_error(dll_file) end if
-    return handle
-end function
-
 procedure Setup()
     if sinit=0 then
         sinit = 1
@@ -1507,16 +1471,16 @@ procedure Setup()
         IupSetInt({ruser,rmach,cpath,tpert,tper2,tdefi,terri,tedix,trun1,trunw,actdd,bOK},"ACTIVE",flag)
         if platform()=WINDERS then
             readUndo() -- (result in exti)
-            advapi32 = assign_dll("advapi32.dll")
-            RegOpenKeyExA = link_c_func(advapi32,"RegOpenKeyExA",
+            advapi32 = open_dll("advapi32.dll")
+            RegOpenKeyExA = define_c_func(advapi32,"RegOpenKeyExA",
                 {C_LONG,    --  HKEY  hKey (HKEY_CLASSES_ROOT) 
-                 C_POINTER, --  LPCTSTR lpSubKey (eg ".bat", `batfile\DefaultIcon`)
+                 C_PTR,     --  LPCTSTR lpSubKey (eg ".bat", `batfile\DefaultIcon`)
                  C_LONG,    --  DWORD  ulOptions (must be 0)
                  C_LONG,    --  REGSAM  samDesired (KEY_ALL_ACCESS)
                  C_LONG},   --  PHKEY  phkResult
                 C_LONG)     -- LONG 0=success, else error code.
 -- not XP:
---          RegGetValueA = link_c_func(advapi32,"RegGetValueA",
+--          RegGetValueA = define_c_func(advapi32,"RegGetValueA",
 --          RegGetValueA = define_c_func(advapi32,"RegGetValueA",
 --              {C_LONG,    --  _In_        HKEY hkey
 --               C_PTR,     --  _In_opt_    LPCTSTR lpSubKey,
@@ -1527,7 +1491,7 @@ procedure Setup()
 --               C_PTR},    --  _Inout_opt_ LPDWORD pcbData
 --              C_LONG)     -- LONG 0=success, else error code.
 --PL 28/12/16 for XP:
-            RegQueryValueExA = link_c_func(advapi32,"RegQueryValueExA",
+            RegQueryValueExA = define_c_func(advapi32,"RegQueryValueExA",
                 {C_LONG,    --  _In_        HKEY hKey,
                  C_PTR,     --  _In_opt_    LPCTSTR lpValueName,
                  C_PTR,     --  _Reserved_  LPDWORD lpReserved,
@@ -1535,11 +1499,11 @@ procedure Setup()
                  C_PTR,     --  _Out_opt_   LPBYTE lpData,
                  C_PTR},    --  _Inout_opt_ LPDWORD lpcbData
                 C_LONG)     -- LONG 0=success, else error code.
-            RegCloseKey = link_c_func(advapi32,"RegCloseKey",
+            RegCloseKey = define_c_func(advapi32,"RegCloseKey",
                 {C_LONG},   --  HKEY  hKey
                 C_LONG)     -- LONG 0=success, else error code.
-            kernel32 = assign_dll("kernel32.dll")
-            xMultiByteToWideChar = link_c_func(kernel32,"MultiByteToWideChar",
+            kernel32 = open_dll("kernel32.dll")
+            xMultiByteToWideChar = define_c_func(kernel32,"MultiByteToWideChar",
                 {C_INT,     --  UINT  CodePage,     // code page 
                  C_INT,     --  DWORD  dwFlags,     // character-type options 
                  C_PTR,     --  LPCSTR  lpMultiByteStr,     // address of string to map 
@@ -1547,8 +1511,8 @@ procedure Setup()
                  C_PTR,     --  LPWSTR  lpWideCharStr,      // address of wide-character buffer 
                  C_INT},    --  int  cchWideChar    // size of buffer 
                 C_INT)      -- int
-            user32 = assign_dll("user32.dll")
-            xSendMessage = link_c_func(user32, "SendMessageA",
+            user32 = open_dll("user32.dll")
+            xSendMessage = define_c_func(user32, "SendMessageA",
                 {C_PTR,     --  HWND  hwnd, // handle of destination window
                  C_UINT,    --  UINT  uMsg, // message to send
                  C_UINT,    --  WPARAM  wParam, // first message parameter

@@ -572,7 +572,7 @@ end function
 
 function help_cb(Ihandln /*ih*/)
     IupMessage("Morpion Solitaire",help_text)
-    return IUP_DEFAULT
+    return IUP_IGNORE -- (don't open browser help!)
 end function
 
 function play178_cb(Ihandln /*ih*/)
@@ -649,9 +649,10 @@ sequence move = playback[1]
 end function
 
 function key_cb(Ihandle /*dlg*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if -- (standard practice for me)
+    if c=K_F5 then return IUP_DEFAULT end if -- (let browser reload work)
 --?{"key_cb:",c}
-    if c=K_ESC then return IUP_CLOSE
-    elsif c=K_F1 then return help_cb(NULL)
+    if c=K_F1 then return help_cb(NULL)
     elsif find(c,{K_DEL,K_BS}) then undo_move()
     elsif c='?' then ?valid_moves
     elsif find(c,"+-") then
@@ -676,7 +677,8 @@ function key_cb(Ihandle /*dlg*/, atom c)
     --(Initially 1s/move: you cannot actually stop it, 
     -- but 20+ makes it wait 6 days between moves,
     -- and obviously 20- makes it finish in 0.0001s)
-    return IUP_CONTINUE
+--  return IUP_CONTINUE
+    return IUP_IGNORE
 end function
 
 procedure main()

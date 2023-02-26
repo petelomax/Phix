@@ -136,7 +136,7 @@ integer ch, mark, tlim
 --                                  if ch>'0' then
 --                                      mark = 1
 --                                  end if
-                                    c = c*10+ch-'0'
+                                    c = c*10 + (ch-'0')
                                 elsif ch='.' then
                                     for l=k+1 to length(p72)-1 do
                                         ch = p72[l]

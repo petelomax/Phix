@@ -4,6 +4,8 @@
 --
 -- Translation/de-golf(hrumph) of Tomas Sirgedas' winning entry from http://tomas.rokicki.com/cubecontest as held in 2004.
 -- Faster and shorter solutions (in most cases) than cfop, however probably nigh on impossible to debug/enhance...
+--
+with javascript_semantics
 
 function xor_string(string s)
     return xor_bits(s[1],xor_bits(s[2],iff(length(s)=3?s[3]:'!')))
@@ -150,8 +152,8 @@ end function
 
 function pack_moves()
 -- (aside: this reduces the average from 16.03 to 15.57 on the test set)
-string moves = ""
-integer n = 0, this, last, last_rpt
+    string moves = ""
+    integer n = 0, curr, last, last_rpt
     if history_idx!=0 then
         -- add a dummy move to trigger the last move print:
         last = xor_bits(history_mov[history_idx],1) -- F<->B, etc
@@ -161,14 +163,14 @@ integer n = 0, this, last, last_rpt
         last = history_mov[1]
         last_rpt = 0
         for i=1 to history_idx do
-            this = history_mov[i]
-            if this!=last then
+            curr = history_mov[i]
+            if curr!=last then
                 -- coalesce eg F1F2 to F' (unless you wanna fix do_search()!)
                 if last_rpt then
                     moves &= "FBRLUD"[last+1] & {"","2","'"}[last_rpt]
                     n += 1
                 end if
-                last = this
+                last = curr
                 last_rpt = history_rpt[i]+1
             else
                 last_rpt = mod(last_rpt+history_rpt[i]+1,4)
@@ -333,13 +335,13 @@ sequence args = {
 }
     if 01 then
 --      printf(1,"%s (%d move%s)\n",tomas(args[1]))
---      printf(1,"%s (%d move%s)\n",tomas("UL DL RF UB FD BR DB UF DR UR BL FL FDR BLU DLB URB RUF FLD BRD FUL"))
+        printf(1,"%s (%d move%s)\n",tomas("UL DL RF UB FD BR DB UF DR UR BL FL FDR BLU DLB URB RUF FLD BRD FUL"))
         --  UF'R'FB2R2B2LD2L2DLR2U'F2UF2U2F2L2UF2DF2U2R2U2R2B2D2R2F2L2B2D2 (35 moves)
 --      printf(1,"%s (%d move%s)\n",tomas("FU RU BU LU FD RD BD LD RB LB RF LF BLU LFU FRU RBU BDL RDB FDR LDF"))   -- ("hardest case")
         --  FRBU'L'D'FU2B2UF2LUF2RU2L2UL2U2F2U'R2DR2B2R2D2F2U2R2U2B2L2B2 (35 moves)
 --      printf(1,"%s (%d move%s)\n",tomas("FU RU BU LU FD RD BD LD RF LF RB LB UFR URB UBL ULF DRF DFL DLB DBR"))   -- ("superflip")
         --  FRBU'L'D'FRB2RD2RF2UL2U'F2UR2DF2L2U2R2F2L2B2U2B2U2L2 (31 moves)
-        printf(1,"%s (%d move%s)\n",tomas("FD UR FR LU LD BU DB LF LB RB DR FU LFU URB FLD LBD RUF DBR LUB FDR"))
+--      printf(1,"%s (%d move%s)\n",tomas("FD UR FR LU LD BU DB LF LB RB DR FU LFU URB FLD LBD RUF DBR LUB FDR"))
         --  FR'UD'BU'R2URD2RD2LR2UR2U'F2UR2U'F2L2U2R2D2B2R2U2F2 (30 moves)
 --      printf(1,"%s (%d move%s)\n",tomas("UF UR UB UL DF DR DB DL FR FL BR BL UFR BUR BLU ULF DRF DFL DLB DBR"))
         --  RURDR'U'RU'R2UB2U'R2UB2DL2F2U2L2F2U2F2U2D2 (25 moves)

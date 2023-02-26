@@ -37,38 +37,42 @@ global sequence boidsn, boidsnp1, goal, obstacles
 
 -- rotates a vector in 2D
 global function rotate(sequence v, atom rad)
-atom c, s
-    c = cos(rad)
-    s = sin(rad)
-
-    return {c*v[1]-s*v[2], s*v[1]+c*v[2]}
+    atom c = cos(rad),
+         s = sin(rad),
+         {x,y} = v
+    return {c*x-s*y, s*x+c*y}
 end function
 
 -- return the scalar magnitude of a 2D vector
 global function magnitude2(sequence v)
-    return sqrt(v[1]*v[1]+v[2]*v[2])
+    atom {x,y} = v
+    return sqrt(x*x+y*y)
 end function
 
 -- return the scalar magnitude of a 3D vector
 global function magnitude3(sequence v)
-    return sqrt(v[1]*v[1]+v[2]*v[2]+v[3]*v[3])
+    atom {x,y,z} = v
+    return sqrt(x*x+y*y+z*z)
 end function
 
 -- change the scalar magnitude of a 3D vector
 global function make_length(sequence v, atom l)
-atom mag
-    mag = magnitude3(v)
+    atom mag = magnitude3(v)
     return sq_mul(v,l/mag)
 end function
 
 -- return the dot product of 2 2D vectors
 global function dot(sequence u, sequence v)
-    return u[1]*v[1]+u[2]*v[2]
+    atom {ux,uy} = u,
+         {vx,vy} = v
+    return ux*vx+uy*vy
 end function
 
 -- return the dot product of 2 3D vectors
 global function dot3(sequence u, sequence v)
-    return u[1]*v[1]+u[2]*v[2]+u[3]*v[3]
+    atom {ux,uy,uz} = u,
+         {vx,vy,vz} = v
+    return ux*vx+uy*vy+uz*vz
 end function
 
 -- return the distance between two 2D vectors
@@ -126,19 +130,18 @@ end function
 -- alter a boids velocity to try to stay at least
 -- DIST away from other boids
 procedure maintain_distance(integer bid, sequence n)
-atom dx, dy, dz
-sequence this, other
 
-    dx = 0.0
-    dy = 0.0
-    dz = 0.0
+    atom dx = 0.0,
+         dy = 0.0,
+         dz = 0.0
 
-    this = boidsn[bid]
+    sequence this = boidsn[bid]
+--  atom {tx,ty,tz} = boidsn[bid][B_X..B_Z]
 
     for i=1 to length(n) do
         if n[i][2]<DIST then
 
-            other = boidsn[n[i][1]]
+            sequence other = boidsn[n[i][1]]
 
             dx -= (other[B_X]-this[B_X])*2
             dy -= (other[B_Y]-this[B_Y])*2
@@ -163,9 +166,9 @@ end procedure
 procedure avoid_walls(integer bid)
 sequence this
 atom dx, dy, dz, t
-    dx = 0.0
-    dy = 0.0
-    dz = 0.0
+    atom dx = 0.0,
+         dy = 0.0,
+         dz = 0.0
     this = boidsn[bid]
     t = this[B_X]
     if t<DIST+X_MIN then
@@ -236,46 +239,42 @@ end procedure
 -- try to move a boid toward the center of 
 -- its neighbors
 procedure move_to_center(integer bid, sequence n)
-atom x, y, z
-sequence other
-    if not length(n) then
-        return
+    if length(n) then
+        atom x = 0.0,
+             y = 0.0,
+             z = 0.0
+        sequence other
+        for i=1 to length(n) do
+            other = boidsn[n[i][1]]
+            x += other[B_X]
+            y += other[B_Y]
+            z += other[B_Z]
+        end for
+
+        -- compute the center
+        x /= length(n)
+        y /= length(n)
+        z /= length(n)
+
+        -- figure out the direction...
+        other = boidsn[bid]
+        x -= other[B_X]
+        y -= other[B_Y]
+        z -= other[B_Z]
+
+        x *= DIST_FACTOR
+        y *= DIST_FACTOR
+        z *= DIST_FACTOR
+
+        boidsnp1[bid][B_XV] += x
+        boidsnp1[bid][B_YV] += y
+        boidsnp1[bid][B_ZV] += z
     end if
-
-    x = 0.0
-    y = 0.0
-    z = 0.0
-    for i=1 to length(n) do
-        other = boidsn[n[i][1]]
-        x += other[B_X]
-        y += other[B_Y]
-        z += other[B_Z]
-    end for
-
-    -- compute the center
-    x /= length(n)
-    y /= length(n)
-    z /= length(n)
-
-    -- figure out the direction...
-    other = boidsn[bid]
-    x -= other[B_X]
-    y -= other[B_Y]
-    z -= other[B_Z]
-
-    x *= DIST_FACTOR
-    y *= DIST_FACTOR
-    z *= DIST_FACTOR
-
-    boidsnp1[bid][B_XV] += x
-    boidsnp1[bid][B_YV] += y
-    boidsnp1[bid][B_ZV] += z
 end procedure
 
 -- don't let them go too fast or too slow
 procedure constrain(integer bid)
-atom mag
-    mag = magnitude3(boidsnp1[bid][B_XV..B_ZV])
+    atom mag = magnitude3(boidsnp1[bid][B_XV..B_ZV])
     if mag>V_MAX then
         boidsnp1[bid][B_XV..B_ZV] = sq_div(boidsnp1[bid][B_XV..B_ZV],mag/V_MAX)
     elsif mag<V_MIN then
@@ -297,7 +296,7 @@ end procedure
 
 
 global procedure setup()
-atom mag
+
     BOIDS0 = repeat(repeat(0.0, B_ELEMENTS), BOIDS)
     boidsn = BOIDS0
     boidsnp1 = BOIDS0
@@ -312,7 +311,7 @@ atom mag
         boidsnp1[boid][B_YV] = V_MAX-rand(2*V_MAX)
         boidsnp1[boid][B_ZV] = V_MAX-rand(2*V_MAX)
 
-        mag = magnitude3(boidsnp1[boid])/V_MAX
+        atom mag = magnitude3(boidsnp1[boid])/V_MAX
 
         if mag>1.0 then
             boidsnp1[boid][B_XV..B_ZV] = sq_div(boidsnp1[boid][B_XV..B_ZV],mag)
@@ -330,9 +329,8 @@ atom mag
 end procedure
 
 global procedure move_boids()
-sequence n
     for boid=1 to BOIDS do
-        n = neighbors(boid, N_DIST)
+        sequence n = neighbors(boid, N_DIST)
         maintain_distance(boid, n)
         match_velocity(boid, n)
         move_to_center(boid, n)

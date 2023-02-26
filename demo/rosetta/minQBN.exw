@@ -1,0 +1,1225 @@
+--
+-- demo\rosetta\minQBN.exw
+-- =======================
+--
+with javascript_semantics
+atom t0 = time()
+--include pGUI.e
+-- optional (instead of the one-liner above, simplifies debugging)
+without debug
+include pGUI.e
+include builtins\VM\pcmdlnN.e
+include builtins\pcurrdir.e
+include builtins\pgetpath.e
+include builtins\VM\pcfunc.e
+include builtins\pfile.e
+include builtins\VM\pprntfN.e
+include builtins\get_routine_info.e
+include builtins\VM\pTime.e
+include builtins\scanf.e
+include builtins\pdir.e
+include builtins\penv.e
+with debug
+
+constant title = "Minimum QBN",
+         help_text = """
+Finds the minimum number of Queens, Bishops, or Knights that can be placed on an NxN board 
+such that no piece attacks another but every unoccupied square is attacked.
+
+The legend on the right shows the current search status: a red number means that is still
+being or yet to be tried, and a green number means it has found a solution.
+
+Click on the legend, or press Q/B/N and 1..9/T and/or +/-, to show the answer or maniaical
+workings of a particular sub-task. Use space to toggle the timer on and off.
+
+The window title shows additional information for the selected item.
+"""
+constant maxq = 10, -- 1.0s (13 is 3minutes 58s, with maxn=1)
+         maxb = 10, -- 1s (100 is 10s, with maxq=1 and maxn=1)
+         maxn = 10, -- 1mins 10s (9: 11.8s, 8: 8.1s, with maxq=1)
+         maxqbn = max({maxq,maxb,maxn})
+
+bool cheat = true   -- eg find 16N on a 10x10 w/o disproving 15N first.
+                    -- the total time drops to 8.3s (21.9s under p2js).
+
+sequence board
+
+constant bm = {{-1,-1},{-1,+1},
+               {+1,-1},{+1,+1}},
+         rm = {{-1,0},{0,-1},
+               {+1,0},{0,+1}},
+         qm = rm&bm,
+         nm = {{-1,-2},{-2,-1},{-2,+1},{-1,+2},
+               {+1,-2},{+2,-1},{+2,+1},{+1,+2}}
+
+function get_mm(integer piece)
+    switch piece do
+        case 'Q': return qm
+--      case 'R': return rm -- [rooks]
+        case 'B': return bm
+        case 'N': return nm
+    end switch
+    crash("uh?")
+end function
+
+function mm_baby(sequence mm, integer piece, row, col, n)
+    sequence res = {}
+    for i=1 to length(mm) do
+        integer {dx,dy} = mm[i],
+                mx = row,
+                my = col
+        while true do
+            mx += dx
+            my += dy
+            if mx<1 or mx>n 
+            or my<1 or my>n then
+                exit
+            end if
+            res &= {{mx,my}}
+            if piece='N' then exit end if
+        end while
+    end for
+    return res
+end function
+
+function get_moves(integer piece, n, row, col)
+    -- either occupy or attack [row][col]
+    -- we only have to collect right and down
+    sequence res = {{row,col}}, -- (occupy)
+             mm = get_mm(piece)
+    mm = iff(piece='Q'?extract(mm,{3,4,7,8})
+--       iff(piece='R'?extract(mm,{3}) -- [rooks]
+                      :mm[length(mm)/2+1..$])
+    mm = mm_baby(mm,piece,row,col,n)
+    for i=1 to length(mm) do
+        integer {mx,my} = mm[i]
+        if board[mx,my]='0' then
+            res &= {{mx,my}}
+        end if
+    end for
+    integer m = ceil(n/2)
+    if piece='B' then
+        -- As pointed out on the talk page, *every*
+        -- valid bishop solution can be transformed
+        -- into all in column m so search only that
+        for i=1 to length(res) do
+            if res[i][2]=m then
+                res = res[i..i]
+                exit
+            end if
+        end for
+        assert(length(res)=1)
+--  elsif piece='R' then
+--      -- Likewise every valid rook solution can be 
+--      -- transformed into all on main diagonal
+--      res = res[1..1]
+--      assert(length(res)=1)
+--      assert(row=col)
+--      assert(res[1][1]=row)
+--      assert(res[1][2]=col)
+    elsif row=1 and col=1 and n>1 then
+        if piece='Q' then
+            -- first queen on first half of top row
+            -- or first half of diagonal (not cols)
+            assert(length(res)=3*n-2)
+            res = res[1..m]&res[2*n..2*n+m-2]
+--      elsif piece='R' then -- (covered above)
+--          -- first rook on first half of top row
+--          assert(length(res)=2*n-1)
+--          res = res[1..m]
+        elsif piece='N' and n>2 then
+            -- first knight, was occupy+2, but by
+            -- symmetry we only need it to be 1+1
+            assert(length(res)=3)
+            res = res[1..2]
+        end if
+    end if
+    -- this cheeky little fella cuts more than half off the 
+    -- last phase of 10N... (a circumstantial optimisation)
+    res = reverse(res)
+    return res
+end function
+
+procedure move(sequence rc, integer piece, n)
+    integer {row,col} = rc
+    board[row][col] = piece
+    sequence mm = mm_baby(get_mm(piece),piece,row,col,n)
+    for i=1 to length(mm) do
+        integer {mx,my} = mm[i]
+        board[mx][my] += 1
+    end for
+end procedure
+
+Ihandle dlg, canvas, timer
+cdCanvas cddbuffer, cdcanvas
+
+constant SQBN = " QBN",  -- (or " RBN")
+         QBNU = utf8_to_utf32("♕♗♘")
+
+integer bn = 8, -- chosen board is nxn (1..10)
+        cp = 1  -- piece (1,2,3 for QBN)
+
+sequence state
+
+-- eg go straight for 16N on 10x10, avoid disproving 15N (from OEIS)
+constant cheats = {{1,1,1,3,3,4,4,5,5,5,5,7,7,8,9,9,9,10,11,11,11,12,13,13,13},
+                   {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22},
+                   {1,4,4,4,5,8,13,14,14,16,22,24,29,33}}
+-- some more timings with cheat mode ON:
+-- 11Q: 1s, 12Q: 1.2s, 13Q: 1 min 7s, 14Q: 3 min 35s
+-- 11N: 1 min 42s, 12N: gave up
+
+procedure reset()
+    state = {repeat(0,maxq),
+             repeat(0,maxb),
+             repeat(0,maxn)}
+    -- (in case the maxq/b/n settings altered:)
+    if bn>length(state[cp]) then bn = 1 end if
+    for p=1 to 3 do
+        integer piece = SQBN[p+1]
+        for n=1 to length(state[p]) do
+            atom scolour = CD_RED
+--          integer m = 1
+            integer m = iff(cheat?cheats[p][n]:1)
+            board = repeat(repeat('0',n),n)
+            sequence moves = get_moves(piece,n,1,1)
+            string undo = join(board,'\n')
+            state[p][n] = {scolour,m,{moves},{undo},undo,0}
+        end for
+    end for
+    IupSetInt(timer,"RUN",true)
+end procedure
+
+procedure iterative_solve()
+    -- find something not yet done
+    integer n = 0, p
+    for ndx=1 to maxqbn do
+        for pdx=1 to 3 do
+            if ndx<=length(state[pdx])
+            and state[pdx][ndx][1]!=CD_DARK_GREEN then
+                p = pdx
+                n = ndx
+                exit
+            end if
+        end for
+        if n!=0 then exit end if
+    end for
+    if n=0 then
+        ?{"solved",(elapsed(time()-t0))}
+        IupSetInt(timer,"RUN",false)
+    else
+        -- but work on currently selected first, if needed
+        if state[cp][bn][1]!=CD_DARK_GREEN then
+            p = cp
+            n = bn
+        end if
+        atom t1 = time()+0.04, scolour
+        integer piece = SQBN[p+1], m, count
+        sequence stack, undo, answer
+        {scolour,m,stack,undo,answer,count} = state[p][n]
+        state[p][n] = 0
+        if n>1 and state[p][n-1][1]=CD_DARK_GREEN and m<state[p][n-1][2] then
+            -- if we needed (eg) 7 bishops to solve a 7x7, that means 
+            -- we couldn't solve it with 6, so we are not going to be
+            -- able to solve an 8x8 with 6 (or less) now are we!
+            m = state[p][n-1][2]
+        else
+            while length(stack) do
+                sequence rc = stack[$][1]
+                stack[$] = stack[$][2..$]
+                board = split(undo[$],'\n')
+                move(rc,piece,n)
+                count += 1
+                bool solved = true
+                for row=1 to n do
+                    for col=1 to n do
+                        if board[row][col]='0' then
+                            if length(stack)<m then
+                                stack &= {get_moves(piece,n,row,col)}
+                                undo &= {join(board,'\n')}
+                            end if
+                            solved = false
+                            exit
+                        end if
+                    end for
+                    if not solved then exit end if
+                end for
+                if solved then
+                    answer = join(board,'\n')
+                    scolour = CD_DARK_GREEN
+                    stack = {}
+                    undo = {}
+                end if
+                while length(stack) and stack[$]={} do
+                    stack = stack[1..-2]
+                    undo = undo[1..-2]
+                    if length(undo)=0 then exit end if
+                end while
+                if solved or time()>t1 then
+                    state[p][n] = {scolour,m,stack,undo,answer,count}
+                    return
+                end if
+            end while
+            m += 1
+        end if
+        board = repeat(repeat('0',n),n)
+        stack = {get_moves(piece,n,1,1)}
+        undo = {join(board,'\n')}
+        state[p][n] = {scolour,m,stack,undo,answer,count}
+    end if
+end procedure
+
+atom dx, dy -- (saved for button_cb)
+
+function redraw_cb(Ihandle /*canvas*/)
+    integer {w, h} = IupGetIntInt(canvas, "DRAWSIZE")
+    dx = w/40                 -- legend fifth
+    dy = h/(maxqbn+1)         -- legend delta
+    atom ly = h-dy/2,         -- legend top
+         cx = w/2,            -- board centre
+         cy = h/2,
+         bs = min(w*.7,h*.9), -- board size
+         ss = bs/bn           -- square size
+         
+    cdCanvasActivate(cddbuffer)
+    cdCanvasClear(cddbuffer)
+    atom fontsize = min(ceil(dy/6),ceil(dx/2))
+    cdCanvasFont(cddbuffer, "Helvetica", CD_PLAIN, fontsize)
+    for i=0 to maxqbn do
+        atom lx = dx*36
+        for j=0 to 3 do
+            if j=0 or i<=length(state[j]) then
+                string txt = iff(i=0?SQBN[j+1..j+1]:
+                             sprintf("%d",iff(j=0?i:state[j][i][2])))
+                atom colour = iff(i==0 or j==0?CD_BLACK:state[j][i][1])
+                cdCanvasSetForeground(cddbuffer, colour)
+                cdCanvasText(cddbuffer,lx,ly,txt)
+            end if
+            lx += dx
+        end for
+        ly -= dy
+    end for
+    atom x = cx-bs/2,
+         y = cy+bs/2
+    cdCanvasSetForeground(cddbuffer, CD_DARK_GREY)
+    for i=1 to bn do
+        for j=1+even(i) to bn by 2 do
+            atom sx = x+j*ss,
+                 sy = y-i*ss
+            cdCanvasBox(cddbuffer,sx-ss,sx,sy+ss,sy)
+        end for
+    end for
+    cdCanvasRect(cddbuffer,x,x+bs,y,y-bs)
+    string piece_text = utf32_to_utf8({QBNU[cp]})
+    integer piece = SQBN[cp+1]
+    sequence mm = get_mm(piece),
+             st = state[cp][bn]
+    bool solved = st[1]=CD_DARK_GREEN
+    -- show the solution/mt or undo[$] aka maniaical workings
+    board = split(iff(solved or st[4]={}?st[5]:st[4][$]),'\n')
+    for row=1 to bn do
+        for col=1 to bn do
+            if board[row][col]=piece then
+                atom sx = x+col*ss-ss/2,
+                     sy = y-row*ss+ss/2
+                cdCanvasSetForeground(cddbuffer, CD_BLACK)
+                cdCanvasFont(cddbuffer, "Helvetica", CD_PLAIN, fontsize*5)
+                cdCanvasText(cddbuffer,sx,sy+iff(platform()=JS?0:5),piece_text)
+                -- and mark all attacked squares
+                cdCanvasFont(cddbuffer, "Helvetica", CD_PLAIN, fontsize*2)
+                cdCanvasSetForeground(cddbuffer, CD_AMBER)
+--              sequence mnm = mm_baby(mm,piece,row,col,bn) -- nope!
+                sequence mnm = mm_baby(mm,piece,col,row,bn) -- yepp! (damy)
+                for i=1 to length(mnm) do
+                    integer {mx,my} = mnm[i]
+                    string ac = board[my,mx]&""
+                    cdCanvasText(cddbuffer,sx+ss*(mx-col),sy-ss*(my-row),ac)
+                end for
+            end if
+        end for
+    end for
+    cdCanvasFlush(cddbuffer)
+    integer m = st[2], count = st[6]
+    string pdesc = {"Queens", "Bishops", "Knights"}[cp][1..-1-(m=1)],
+          status = iff(solved?"solved in":"working:"),
+         attempt = iff(count=1?"attempt":"attempts")
+    IupSetStrAttribute(dlg,"TITLE","%s - %d %s on %dx%d %s %,d %s",{title,m,pdesc,bn,bn,status,count,attempt})
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle canvas)
+    cdcanvas = cdCreateCanvas(CD_IUP, canvas)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    cdCanvasSetBackground(cddbuffer, CD_PARCHMENT)
+    cdCanvasSetTextAlignment(cddbuffer,CD_CENTER)
+    return IUP_DEFAULT
+end function
+
+function help()
+    IupMessage(title,help_text)
+    return IUP_IGNORE -- (don't open browser help!)
+end function
+
+function key_cb(Ihandle ih, atom c)
+    if c=K_ESC then
+        IupSetInt(timer,"RUN",false)
+        return IUP_CLOSE
+    end if
+    if c=K_F5 then return IUP_DEFAULT end if -- (let browser reload work)
+    if c=K_F1 then return help() end if
+    integer k = find(upper(c),SQBN&"123456789T+-!")
+    if k then
+        if k=1 then IupToggleInt(timer,"RUN")
+        elsif k<=4 then     cp = k-1
+        elsif k<=14 then    bn = k-4
+        elsif c='+' then    bn = min(bn+1,maxqbn)
+        elsif c='-' then    bn = max(bn-1,1)
+        end if
+        bn = min(bn,length(state[cp]))
+        IupUpdate(ih)
+    end if
+    return IUP_IGNORE
+end function
+
+function button_cb(Ihandle ih, integer button, pressed, x, y, atom /*pStatus*/)
+    if button=IUP_BUTTON1 and pressed then      -- (left button pressed)
+        integer p = floor((x+dx/2)/dx)-36,
+                n = floor(y/dy)
+        if p>=1 and p<=3 
+        and n>=1 and n<=length(state[p]) then
+            {cp,bn} = {p,n}
+            IupUpdate(ih)
+        end if
+    end if
+    return IUP_CONTINUE
+end function
+
+function timer_cb(Ihandln /*ih*/)
+    iterative_solve()
+    IupUpdate(canvas)
+    return IUP_IGNORE
+end function
+
+procedure main()
+    IupOpen()
+    IupSetGlobal("UTF8MODE","YES") 
+    canvas = IupGLCanvas("RASTERSIZE=640x480")
+    IupSetCallbacks(canvas, {"ACTION", Icallback("redraw_cb"),
+                             "MAP_CB", Icallback("map_cb"),
+                             "BUTTON_CB", Icallback("button_cb")})
+    dlg = IupDialog(canvas,`TITLE="%s"`,{title})
+    IupSetCallback(dlg,"KEY_CB", Icallback("key_cb"))
+    IupSetAttributeHandle(NULL,"PARENTDIALOG",dlg)
+    timer = IupTimer(Icallback("timer_cb"), 30)
+    reset()
+    IupShow(dlg)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL)
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
+end procedure
+
+main()
+
+--/* before I completely muller it...:
+with javascript_semantics
+atom t0 = time()
+sequence board
+string q8, n8
+constant qm = {{0,-1},{-1,0},
+               {0,+1},{+1,0}},
+         bm = {{-1,-1},{-1,+1},
+               {+1,-1},{+1,+1}},
+         nm = {{-1,-2},{-2,-1},{-2,+1},{-1,+2},
+               {+1,-2},{+2,-1},{+2,+1},{+1,+2}}
+
+function get_moves(integer piece, n, row, col)
+    -- either occupy or attack [row][col]
+    -- we only have to collect right and down
+    sequence res = {{row,col}} -- (occupy)
+    if piece='N' then
+        for i=5 to 8 do
+            integer mx = row+nm[i][1],
+                    my = col+nm[i][2] 
+            if mx<=n and my>=1 and my<=n 
+            and board[mx,my]=' ' then
+                res &= {{mx,my}}
+            end if
+        end for
+    else
+        if piece='Q' then
+            for i=3 to 4 do
+                integer mx = row,
+                        my = col
+                while true do
+                    mx += qm[i][1]
+                    my += qm[i][2] 
+                    if mx>n or my<1 or my>n then
+                        exit
+                    end if
+                    if board[mx,my]=' ' then
+                        res &= {{mx,my}}
+                    end if
+                end while
+            end for
+        end if
+        -- diagonals for Q and B:
+        for i=3 to 4 do
+            integer mx = row,
+                    my = col
+            while true do
+                mx += bm[i][1]
+                my += bm[i][2] 
+                if mx>n or my<1 or my>n then
+                    exit
+                end if
+                if board[mx,my]=' ' then
+                    res &= {{mx,my}}
+                end if
+            end while
+        end for
+    end if
+    return res
+end function
+
+--function move(sequence rc, integer piece, n)
+procedure move(sequence rc, integer piece, n)
+    integer {row,col} = rc
+--  if not find(board[row,col]," .") then
+--?1
+--      return false
+--  end if
+    board[row][col] = piece
+    if piece='N' then
+        for i=1 to 8 do
+            integer mx = row+nm[i][1],
+                    my = col+nm[i][2] 
+            if mx>=1 and mx<=n 
+            and my>=1 and my<=n then
+--              if not find(board[mx,my]," .") then
+--?2
+--                  return false
+--              end if
+                board[mx][my] = '.'
+            end if
+        end for
+    else
+        if piece='Q' then
+            for i=1 to 4 do
+                integer mx = row,
+                        my = col
+                while true do
+                    mx += qm[i][1]
+                    my += qm[i][2] 
+                    if mx<1 or mx>n 
+                    or my<1 or my>n then
+                        exit
+                    end if
+--                  if not find(board[mx,my]," .") then
+--?3
+--                      return false
+--                  end if
+                    board[mx][my] = '.'
+                end while
+            end for
+        end if
+        -- diagonals for Q and B:
+        for i=1 to 4 do
+            integer mx = row,
+                    my = col
+            while true do
+                mx += bm[i][1]
+                my += bm[i][2] 
+                if mx<1 or mx>n 
+                or my<1 or my>n then
+                    exit
+                end if
+--              if not find(board[mx,my]," .") then
+--?4
+--                  return false
+--              end if
+                board[mx][my] = '.'
+            end while
+        end for
+    end if
+--  return true
+--end function
+end procedure
+
+atom t1 = time()+1
+integer mt
+function dominate(integer piece, n, m)
+    for row=1 to n do
+        for col=1 to n do
+            if board[row][col]=' ' then
+                if m=0 then return false end if
+if m=1 and time()>t1 then
+    progress("checking %c%d(%d): %s",{piece,n,mt,shorten(join(board,','),"")})
+    t1 = time()+1
+end if
+                string undo = join(board,'\n')
+                sequence moves = get_moves(piece,n,row,col)
+                for i=1 to length(moves) do
+                    move(moves[i],piece,n)
+--                  if move(moves[i],piece,n)
+--                  and dominate(piece,n,m-1) then
+                    if dominate(piece,n,m-1) then
+                        return true
+                    end if
+                    board = split(undo,'\n')
+                end for
+                return false
+            end if
+        end for
+    end for
+    assert(m=0)
+    if n=8 then
+        if piece='Q' then
+            q8 = join(board,'\n')
+        elsif piece='N' then
+            n8 = join(board,'\n')
+        end if
+    end if
+    return true
+end function
+
+--/!*
+constant cheat = {{1,1,1,3,3,4,4,5,5,5},
+                  {1,2,3,4,5,6,7,8,9,10},
+                  {1,4,4,4,5,8,13,14,14,16}}
+--*!/
+
+printf(1,"Squares  Queens  Bishops  Knights\n")
+--for n=1 to 10 do -- "15 minutes and 12s"
+--for n=1 to 9 do -- "1 minute and 4s"
+--for n=1 to 8 do -- "11.6s"
+--?elapsed((15*60+12)*27.6/11.6)
+--If you tried the full 10 in a browser I predict it'd take/show a blank screen for just over 36 mins
+constant lim = iff(platform()=JS?8   -- 27.6s
+                                :10) -- 15 minutes and 12s
+for n=1 to lim do
+    sequence args = {n*n}
+    for piece in "QBN" do
+--      integer m = 1
+--      integer m = cheat[find(piece,"QBN")][n]
+        mt = 1
+--      mt = cheat[find(piece,"QBN")][n]
+        while true do
+            board = repeat(repeat(' ',n),n)
+--trace(1)
+--          if dominate(piece,n,m) then exit end if
+            if dominate(piece,n,mt) then exit end if
+--progress("%d%c on %dx%d failed\r",{m,piece,n,n})
+--progress("%d%c on %dx%d failed\r",{mt,piece,n,n})
+--          m += 1
+            mt += 1
+        end while
+--      args &= m
+        args &= mt
+    end for
+    progress("")
+    printf(1,"%7d %7d %8d %8d\n",args)
+end for
+printf(1,"Queens on an 8x8 Board\n%s\n",{q8})
+printf(1,"Knights on an 8x8 Board\n%s\n",{n8})
+?elapsed(time()-t0)
+
+--*/
+
+--/*
+-- Some aborted atempts to implement NG's ideas... [11/5/22]
+-- Note he reports 21s for 9x9, whereas above already manages that in 17s...
+--
+-- NG: For an 8x8 board, instead of examining choose(64,14)=4.7e13
+--     positions, if you can find some (say) choose(32,5)=201,376
+--     which leaves only 9 unattacked squares, you're done.
+--     Even the thorny question of solveable in 13 is reduced to
+--     examining choose(32,13)=347,373,600 positions, oh dear.
+--?choose(64,14)
+--?choose(32,5)
+--?choose(32,13)
+--?choose(25,12) -- 5,200,300
+--?choose(32,7) -- 3,365,856 (still a hundred times better...)
+--?choose(32,1) -- 32
+--?choose(32,2) -- 496
+--?choose(32,4) -- 35960 -- oh, all right!
+-- Take 2: Fully populate the black. 
+-- (There will be no white needed, at least for n>=3).
+-- While you can remove k black and leave <k white unattacked,
+-- reduce your target appropriately.
+-- or:
+-- let lim = iff(odd(n)?n:n/2), k=1
+-- Put k(while<=lim) knights on black squares:
+--  Initially first/leftmost k.
+--  while true do
+--      Count unattacked whites, save best, maybe reduce lim[??]
+--          [^^ == sum(sq_eq(join(board,""),'0')] -- BLUFF!!
+--          [^^ == sum(sq_eq(extract(join(board,""),whites),'0')] -- better!
+--      find knight that can move right one, if none exit
+--      move right and slam rest against it
+--          [^^ permute[s]() is simply not up to the job...]
+--  end while
+-- sug: get black[/white] squares for any size n board...   [DONE]
+--  a) tagstart(1,n*n,2) is all the blacks, tagset(k) all we need. -- BLUFF! [just get the lot, do first k]
+--      1->{1,1}, 2->{1,2}, 3->{1,3},
+--      4->{2,1}, 5->{2,2}, 6->{2,3},
+--      7->{3,1}, 8->{3,2}, 9->{3,3}.
+--      integer r = floor((k-1)/3)+1,
+--              c = remainder(k-1,3)+1
+--      bump is eg {1,2,3} -> {1,2,4}..{1,2,32} -> {1,3,4}
+--X     integer bmax = ceil(n*n/2)
+--      integer bmax = length(black_squares[n])
+--      for i=k to 1 by -1 do
+--          if x[i]<32
+--          and (i=k or x[i]+1<x[i+1]) then
+--              x[i] += 1
+--              for j=i+1 to k do
+--                  x[j] = x[j-1]+1
+--              end for
+--              exit
+--          end if
+--          //ok = true //or, better:
+--          if i=1 then
+--              k += 1
+--              x = tagset(k)
+--              exit
+--          end if
+--      end for
+-- b) may very well be worth cacheing/pre-computing all moves for nxn from x,y...
+--      
+with javascript_semantics
+--constant maxn = 10, -- 3mins 3s (9: 17s, 8: 7.2s, with maxq=1)
+constant maxn = 7, -- 2mins 35s (9: 14.9s, 8: 5.3s, 7: 1.2s with maxq=1) -- (w/o pGUI)
+         maxqbn = max({maxn})
+
+sequence board
+
+constant nm = {{-1,-2},{-2,-1},{-2,+1},{-1,+2},
+               {+1,-2},{+2,-1},{+2,+1},{+1,+2}}
+
+function get_mm(integer piece)
+    switch piece do
+--      case 'Q': return qm
+----        case 'R': return rm -- [rooks]
+--      case 'B': return bm
+        case 'N': return nm
+    end switch
+    crash("uh?")
+end function
+
+function mm_baby(sequence mm, integer piece, row, col, n)
+    sequence res = {}
+    for i=1 to length(mm) do
+        integer {dx,dy} = mm[i],
+                mx = row,
+                my = col
+        while true do
+            mx += dx
+            my += dy
+            if mx<1 or mx>n 
+            or my<1 or my>n then
+                exit
+            end if
+            res &= {{mx,my}}
+            if piece='N' then exit end if
+        end while
+    end for
+    return res
+end function
+
+function get_moves(integer piece, n, row, col)
+    -- either occupy or attack [row][col]
+    -- we only have to collect right and down
+    sequence res = {{row,col}}, -- (occupy)
+             mm = get_mm(piece)
+    mm = iff(piece='Q'?extract(mm,{3,4,7,8})
+--       iff(piece='R'?extract(mm,{3}) -- [rooks]
+                      :mm[length(mm)/2+1..$])
+    mm = mm_baby(mm,piece,row,col,n)
+    for i=1 to length(mm) do
+        integer {mx,my} = mm[i]
+--DEV
+--      if board[mx,my]=' ' then
+        if board[mx,my]='0' then
+            res &= {{mx,my}}
+        end if
+    end for
+    integer m = ceil(n/2)
+    if row=1 and col=1 and n>1 then
+        if piece='N' and n>2 then
+            -- first knight, was occupy+2, but by
+            -- symmetry we only need it to be 1+1
+            assert(length(res)=3)
+            res = res[1..2]
+        end if
+    end if
+    return res
+end function
+
+procedure move(sequence rc, integer piece, n, play=1)
+    integer {row,col} = rc
+--  board[row][col] = piece
+    board[row][col] = iff(play=-1?'0':piece)
+    sequence mm = mm_baby(get_mm(piece),piece,row,col,n)
+    for i=1 to length(mm) do
+        integer {mx,my} = mm[i]
+--DEV
+--      board[mx][my] = '+'
+--      board[mx][my] += 1
+        board[mx][my] += play
+    end for
+end procedure
+
+constant SQBN = " QBN"
+
+integer bn = 1, -- chosen board is nxn (1..10)
+        cp = 3  -- piece (1,2,3 for QBN)
+
+sequence state
+
+bool solved = false
+
+procedure reset()
+    state = {repeat(0,0),
+             repeat(0,0),
+             repeat(0,maxn)}
+    -- (in case the maxq/b/n settings altered:)
+    if bn>length(state[cp]) then bn = 1 end if
+    for p=3 to 3 do
+        integer piece = SQBN[p+1]
+--?piece
+        for n=1 to length(state[p]) do
+            string scolour = "CD_RED"
+            integer m = 1
+            board = repeat(repeat('0',n),n)
+--DEV
+--          sequence moves = get_moves(piece,n,1,1)
+-- for q/b, moves (aka state[p][n][3]) is all the moves that attack {1,1},
+--          and we'll extend that [stack] up to length m. 
+-- for knights, moves is {1}, meaning is of course length l=1 and means
+--          place l knights at {1,1}-on, and will be binary-countdown l
+--          digits until it's {nxn}, then it becomes {1,2} which ends up
+--          {n*n/2-1,n*n/2} before becoming {1,2,3}.  At some point we
+--          concede m cannot be done and bump it, starting right back at
+--          {1} We can concede when l (b)reaches m/2 for even n, but we
+--          have to go all the way [I think] for odd n.
+            sequence moves = iff(piece='N'?{1}:{get_moves(piece,n,1,1)})
+?moves
+            string undo = join(board,'\n'), answer=undo
+            state[p][n] = {scolour,m,moves,{undo},answer,0}
+        end for
+    end for
+--  IupSetInt(timer,"RUN",true)
+    solved = false
+end procedure
+
+function squares(integer colour, n)
+--X -- get all 'B'lack or 'W'hite squares on
+--X -- an nxn board, as numbered 1..nxn, eg
+--X -- 2x2 'B'lack==>{1,4}, 'W'hite==>{2,3}.
+    -- get all 'B'lack or 'W'hite squares on
+    -- an nxn board, eg for a 2x2:
+    --   'B'lack should be {{1,1},{2,2}},
+    --   'W'hite should be {{1,2},{2,1}}.
+    -- for odd n, 'B' is 1 longer than 'W'.
+    sequence res = {}
+    for r=1 to n do
+        for c=1 to n do
+            if even(r+c)==(colour=='B') then
+--              res &= (r-1)*n+c
+                res = append(res,{r,c})
+            end if
+        end for
+    end for
+    return res
+end function
+
+constant black_squares = apply(true,squares,{'B',tagset(maxn)}),
+         white_squares = apply(true,squares,{'W',tagset(maxn)})
+--sequence black_squares = repeat(0,maxn),
+--       white_squares = repeat(0,maxn)
+--for n=1 to maxn do
+--  black_squares[n] = squares('B',n)
+--  white_squares[n] = squares('W',n)
+--end for
+--pp(Xblack_squares)
+--pp(black_squares)
+--pp(Xwhite_squares)
+--pp(white_squares)
+--for n=1 to maxn do
+--  ?{n,length(black_squares[n]),length(white_squares[n])}
+--end for
+--wait_key()
+--abort(0)
+
+if 0 then
+    -- good:
+    for n=1 to 10 do
+        printf(1,"%dx%d:\nblack:%v\nwhite:%v\n",
+          {n,n,squares('B',n),squares('W',n)})
+    end for
+--/*
+1x1:
+black:{1}
+white:{}
+2x2:
+black:{1,4}
+white:{2,3}
+3x3:
+black:{1,3,5,7,9}
+white:{2,4,6,8}
+4x4:
+black:{1,3,6,8,9,11,14,16}
+white:{2,4,5,7,10,12,13,15}
+5x5:
+black:{1,3,5,7,9,11,13,15,17,19,21,23,25}
+white:{2,4,6,8,10,12,14,16,18,20,22,24}
+6x6:
+black:{1,3,5,8,10,12,13,15,17,20,22,24,25,27,29,32,34,36}
+white:{2,4,6,7,9,11,14,16,18,19,21,23,26,28,30,31,33,35}
+7x7:
+black:{1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,43,45,47,49}
+white:{2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,42,44,46,48}
+8x8:
+black:{1,3,5,7,10,12,14,16,17,19,21,23,26,28,30,32,33,35,37,39,42,44,46,48,49,51,53,55,58,60,62,64}
+white:{2,4,6,8,9,11,13,15,18,20,22,24,25,27,29,31,34,36,38,40,41,43,45,47,50,52,54,56,57,59,61,63}
+9x9:
+black:{1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,43,45,47,49,51,53,55,57,59,61,63,65,67,69,71,73,75,77,79,81}
+white:{2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,42,44,46,48,50,52,54,56,58,60,62,64,66,68,70,72,74,76,78,80}
+10x10:
+black:{1,3,5,7,9,12,14,16,18,20,21,23,25,27,29,32,34,36,38,40,41,43,45,47,49,52,54,56,58,60,61,63,65,67,69,72,74,76,78,80,81,83,85,87,89,92,94,96,98,100}
+white:{2,4,6,8,10,11,13,15,17,19,22,24,26,28,30,31,33,35,37,39,42,44,46,48,50,51,53,55,57,59,62,64,66,68,70,71,73,75,77,79,82,84,86,88,90,91,93,95,97,99}
+OR:
+1x1:
+black:{{1,1}}
+white:{}
+2x2:
+black:{{1,1},{2,2}}
+white:{{1,2},{2,1}}
+3x3:
+black:{{1,1},{1,3},{2,2},{3,1},{3,3}}
+white:{{1,2},{2,1},{2,3},{3,2}}
+4x4:
+black:{{1,1},{1,3},{2,2},{2,4},{3,1},{3,3},{4,2},{4,4}}
+white:{{1,2},{1,4},{2,1},{2,3},{3,2},{3,4},{4,1},{4,3}}
+5x5:
+black:{{1,1},{1,3},{1,5},{2,2},{2,4},{3,1},{3,3},{3,5},{4,2},{4,4},{5,1},{5,3},{5,5}}
+white:{{1,2},{1,4},{2,1},{2,3},{2,5},{3,2},{3,4},{4,1},{4,3},{4,5},{5,2},{5,4}}
+6x6:
+black:{{1,1},{1,3},{1,5},{2,2},{2,4},{2,6},{3,1},{3,3},{3,5},{4,2},{4,4},{4,6},{5,1},{5,3},{5,5},{6,2},{6,4},{6,6}}
+white:{{1,2},{1,4},{1,6},{2,1},{2,3},{2,5},{3,2},{3,4},{3,6},{4,1},{4,3},{4,5},{5,2},{5,4},{5,6},{6,1},{6,3},{6,5}}
+7x7:
+black:{{1,1},{1,3},{1,5},{1,7},{2,2},{2,4},{2,6},{3,1},{3,3},{3,5},{3,7},{4,2},{4,4},{4,6},{5,1},{5,3},{5,5},{5,7},{6,2},{6,4},{6,6},{7,1},{7,3},{7,5},{7,7}}
+white:{{1,2},{1,4},{1,6},{2,1},{2,3},{2,5},{2,7},{3,2},{3,4},{3,6},{4,1},{4,3},{4,5},{4,7},{5,2},{5,4},{5,6},{6,1},{6,3},{6,5},{6,7},{7,2},{7,4},{7,6}}
+8x8:
+black:{{1,1},{1,3},{1,5},{1,7},{2,2},{2,4},{2,6},{2,8},{3,1},{3,3},{3,5},{3,7},{4,2},{4,4},{4,6},{4,8},{5,1},{5,3},{5,5},{5,7},{6,2},{6,4},{6,6},{6,8},{7,1},{7,3},{7,5},{7,7},{8,2},{8,4},{8,6},{8,8}}
+white:{{1,2},{1,4},{1,6},{1,8},{2,1},{2,3},{2,5},{2,7},{3,2},{3,4},{3,6},{3,8},{4,1},{4,3},{4,5},{4,7},{5,2},{5,4},{5,6},{5,8},{6,1},{6,3},{6,5},{6,7},{7,2},{7,4},{7,6},{7,8},{8,1},{8,3},{8,5},{8,7}}
+9x9:
+black:{{1,1},{1,3},{1,5},{1,7},{1,9},{2,2},{2,4},{2,6},{2,8},{3,1},{3,3},{3,5},{3,7},{3,9},{4,2},{4,4},{4,6},{4,8},{5,1},{5,3},{5,5},{5,7},{5,9},{6,2},{6,4},{6,6},{6,8},{7,1},{7,3},{7,5},{7,7},{7,9},{8,2},{8,4},{8,6},{8,8},{9,1},{9,3},{9,5},{9,7},{9,9}}
+white:{{1,2},{1,4},{1,6},{1,8},{2,1},{2,3},{2,5},{2,7},{2,9},{3,2},{3,4},{3,6},{3,8},{4,1},{4,3},{4,5},{4,7},{4,9},{5,2},{5,4},{5,6},{5,8},{6,1},{6,3},{6,5},{6,7},{6,9},{7,2},{7,4},{7,6},{7,8},{8,1},{8,3},{8,5},{8,7},{8,9},{9,2},{9,4},{9,6},{9,8}}
+10x10:
+black:{{1,1},{1,3},{1,5},{1,7},{1,9},{2,2},{2,4},{2,6},{2,8},{2,10},{3,1},{3,3},{3,5},{3,7},{3,9},{4,2},{4,4},{4,6},{4,8},{4,10},{5,1},{5,3},{5,5},{5,7},{5,9},{6,2},{6,4},{6,6},{6,8},{6,10},{7,1},{7,3},{7,5},{7,7},{7,9},{8,2},{8,4},{8,6},{8,8},{8,10},{9,1},{9,3},{9,5},{9,7},{9,9},{10,2},{10,4},{10,6},{10,8},{10,10}}
+white:{{1,2},{1,4},{1,6},{1,8},{1,10},{2,1},{2,3},{2,5},{2,7},{2,9},{3,2},{3,4},{3,6},{3,8},{3,10},{4,1},{4,3},{4,5},{4,7},{4,9},{5,2},{5,4},{5,6},{5,8},{5,10},{6,1},{6,3},{6,5},{6,7},{6,9},{7,2},{7,4},{7,6},{7,8},{7,10},{8,1},{8,3},{8,5},{8,7},{8,9},{9,2},{9,4},{9,6},{9,8},{9,10},{10,1},{10,3},{10,5},{10,7},{10,9}}
+--*/
+    wait_key()
+    abort(0)
+end if
+
+function fill_in_white_knights(integer n, bool count_only=false)
+    integer count = 0
+    for r=1 to n do
+        for c=1+odd(r) to n by 2 do
+            if board[r][c]='0' then
+                if not count_only then
+                    move({r,c},'N',n)
+                end if
+--              board[r][c] = 'N'
+                count += 1
+            end if
+        end for
+    end for
+    return count
+end function
+
+if 0 then
+    -- good:
+    for n=1 to 10 do
+        board = repeat(repeat('0',n),n)
+        integer c = fill_in_white_knights(n)
+        printf(1,"%dx%d: (%d)\n%s\n",{n,n,c,join(board,"\n")})
+    end for
+--/*
+1x1: (0)
+0
+2x2: (2)
+0N
+N0
+3x3: (4)
+0N0
+N0N
+0N0
+4x4: (8)
+0N0N
+N0N0
+0N0N
+N0N0
+5x5: (12)
+0N0N0
+N0N0N
+0N0N0
+N0N0N
+0N0N0
+6x6: (18)
+0N0N0N
+N0N0N0
+0N0N0N
+N0N0N0
+0N0N0N
+N0N0N0
+7x7: (24)
+0N0N0N0
+N0N0N0N
+0N0N0N0
+N0N0N0N
+0N0N0N0
+N0N0N0N
+0N0N0N0
+8x8: (32)
+0N0N0N0N
+N0N0N0N0
+0N0N0N0N
+N0N0N0N0
+0N0N0N0N
+N0N0N0N0
+0N0N0N0N
+N0N0N0N0
+9x9: (40)
+0N0N0N0N0
+N0N0N0N0N
+0N0N0N0N0
+N0N0N0N0N
+0N0N0N0N0
+N0N0N0N0N
+0N0N0N0N0
+N0N0N0N0N
+0N0N0N0N0
+10x10: (50)
+0N0N0N0N0N
+N0N0N0N0N0
+0N0N0N0N0N
+N0N0N0N0N0
+0N0N0N0N0N
+N0N0N0N0N0
+0N0N0N0N0N
+N0N0N0N0N0
+0N0N0N0N0N
+N0N0N0N0N0
+--*/
+    wait_key()
+    abort(0)
+end if
+
+with trace
+procedure iterative_solve()
+    -- find something not yet done
+    integer n = 0, p
+    for ndx=1 to maxqbn do
+        for pdx=3 to 3 do
+            if ndx<=length(state[pdx])
+            and state[pdx][ndx][1]!="CD_DARK_GREEN" then
+                p = pdx
+                n = ndx
+                exit
+            end if
+        end for
+        if n!=0 then exit end if
+    end for
+    if n=0 then
+--?{"solved",(elapsed(time()-t0))}
+        solved = true
+    else
+        -- but work on currently selected first, if needed
+        if state[cp][bn][1]!="CD_DARK_GREEN" then
+            p = cp
+            n = bn
+        end if
+        atom t1 = time()+0.04
+        string scolour
+        integer piece = SQBN[p+1], m, count
+        sequence stack, undo, answer
+        {scolour,m,stack,undo,answer,count} = state[p][n]
+        state[p][n] = 0
+        if n>1 and state[p][n-1][1]="CD_DARK_GREEN" and m<state[p][n-1][2] then
+            -- if we needed (eg) 7 bishops to solve a 7x7, that means 
+            -- we couldn't solve it with 6, so we are not going to be
+            -- able to solve an 8x8 with 6 (or less) now are we!
+            m = state[p][n-1][2]
+        else
+if piece='N' then
+--trace(1)
+            assert(length(undo)=1)
+            integer l = length(stack), si,
+                 bmax = length(black_squares[n])
+            while true do
+                board = split(undo[1],'\n')
+                for i=1 to l do
+                    si = stack[i]
+                    move(black_squares[n][si],piece,n)
+                end for
+--?board
+--bollocks, filling in one white can (easily) attack two black...
+--              integer c = fill_in_white_knights(n,true),
+                integer c = fill_in_white_knights(n),
+                        z = sum(sq_eq(join(board,""),'0'))
+--                      z = sum(sq_eq(join(board,""),'0'))
+--              if z=c and l+c<=m then
+                if z=0 and l+c<=m then
+--                  assert(c=fill_in_white_knights(n))
+                    answer = join(board,'\n')
+printf(1,"%d solved: (l=%d,c=%d,m=%d)\n%s\n",{n,l,c,m,answer})
+                    scolour = "CD_DARK_GREEN"
+                    stack = {}
+                    undo = {}
+                    l = 0
+                end if
+                for i=l to 1 by -1 do
+                    si = stack[i]
+--                  move(black_squares[n][si],piece,n,-1)
+                    si += 1
+                    if si<=bmax
+                    and (i=l or si<stack[i+1]) then
+                        stack[i] = si
+--                      move(black_squares[n][si],piece,n)
+                        for j=i+1 to l do
+                            si += 1
+                            stack[j] = si
+--                          move(black_squares[n][si],piece,n)
+                        end for
+                        si = 0
+                        exit
+                    end if
+                end for
+                if l=0 or time()>t1 then
+--              if l=0 then
+--if solved then ?{p,n,"solved"} end if
+printf(1,"=== m=%d,stack:%v\n%s\n",{m,stack,join(board,'\n')})
+                    state[p][n] = {scolour,m,stack,undo,answer,count}
+                    return
+                end if
+                if si!=0 then
+                    if l>=min(m,bmax) then exit end if
+                    l += 1  
+                    stack = tagset(l)
+                end if
+            end while
+else
+            while length(stack) do
+                sequence rc = stack[$][1]
+                stack[$] = stack[$][2..$]
+                board = split(undo[$],'\n')
+                move(rc,piece,n)
+                count += 1
+                bool solved = true
+                for row=1 to n do
+                    for col=1 to n do
+--DEV
+--                      if board[row][col]=' ' then
+                        if board[row][col]='0' then
+                            if length(stack)<m then
+                                stack &= {get_moves(piece,n,row,col)}
+                                undo &= {join(board,'\n')}
+                            end if
+                            solved = false
+                            exit
+                        end if
+                    end for
+                    if not solved then exit end if
+                end for
+                if solved then
+--?{"solved",n}
+                    answer = join(board,'\n')
+printf(1,"%d solved:\n%s\n",{n,answer})
+                    scolour = "CD_DARK_GREEN"
+                    stack = {}
+                    undo = {}
+                end if
+                while length(stack) and stack[$]={} do
+                    stack = stack[1..-2]
+                    undo = undo[1..-2]
+                    if length(undo)=0 then exit end if
+                end while
+                if solved or time()>t1 then
+--if solved then ?{p,n,"solved"} end if
+                    state[p][n] = {scolour,m,stack,undo,answer,count}
+                    return
+                end if
+            end while
+end if
+            m += 1
+        end if
+--DEV
+--      board = repeat(repeat(' ',n),n)
+        board = repeat(repeat('0',n),n)
+--      stack = {get_moves(piece,n,1,1)}
+        stack = {iff(piece='N'?1:get_moves(piece,n,1,1))}
+        undo = {join(board,'\n')}
+        state[p][n] = {scolour,m,stack,undo,answer,count}
+    end if
+end procedure
+
+reset()
+while not solved do
+    iterative_solve()
+end while
+
+?elapsed(time()-t0)
+wait_key()
+abort(0)
+
+1 solved:
+N
+2 solved:
+N0
+0N
+3 solved:
+N0N
+1N1
+020
+4 solved:
+1N11
+1N12
+1N12
+1N11
+5 solved:
+N1111
+12212
+12NN1
+11NN1
+12112
+6 solved:
+N1111N
+122221
+12NN21
+12NN21
+122221
+N1111N
+7 solved:
+NNNN1N1
+1213211
+12322N1
+N2122N1
+1122221
+N1NN2N1
+111111N
+8 solved:
+NNN21111
+11221N11
+1222NN11
+N1222131
+1212231N
+11NN212N
+11N11311
+11112N1N
+--*/
+

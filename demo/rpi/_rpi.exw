@@ -1,0 +1,1501 @@
+--
+-- demo\rpi\_rpi.exw
+-- =================
+--
+-- Notes/utilities for the daunting task of getting Phix to run on a Raspberry Pi.
+--
+-- I've set up a qemu Raspberry Pi in E:\downloads\misc\wren\qemu
+--  * fire it up with ~\run.bat
+--  * added -net "nic -net user,hostfwd=tcp::22-:22" to run.bt to enable ssh
+--  * To keep the rpi clean we'll stick to always using "test.s" [bluff]
+--  * To move from Windows onto the Raspberry PI, use (eg, in ""\putty\)
+--      pscp <path>helloworld.s pi@127.0.0.1:/home/pi
+--      pscp -pwfile r E:\downloads\misc\wren\qemu\putty\helloworld.s pi@127.0.0.1:/home/pi
+--      pscp -pwfile r E:\downloads\misc\wren\qemu\putty\achilleNumber.s pi@127.0.0.1:/home/pi
+--      pscp -pwfile r E:\downloads\misc\wren\qemu\putty\hw5.s pi@127.0.0.1:/home/pi
+--  * On the Raspberry Pi, run (eg)
+--      as -o achilleNumber.o achilleNumber.s
+--      as -o achilleNumber.o --strip-local-absolute achilleNumber.s    -- (.o 6356 => 6016 bytes)
+--      ld -o achilleNumber achilleNumber.o -e main -s (7342 -> 4604 bytes [after/inc ""])
+--      ./achilleNumber
+--X     g++ -nostartfiles -o formatNum formatNum.o
+--      ld -o formatNum formatNum.o -e main -s -lc -dynamic-linker /lib/ld-linux-armhf.so.3 
+--      as -g -o hw2.o hw2.s
+--      as -o hw2.o hw2.s -- final 2617 -> 2149 (--strip-local-absolute changed nowt)
+--      ld -o hw2 hw2.o -e main -s -lc -dynamic-linker /lib/ld-linux-armhf.so.3 
+-- -O optimise output file
+-- -s strip all symbols         -- 1475 (12 tabs)
+-- -S strip debugging symbols   -- made it bigger!
+-- --strip-discarded strip symbols in discarded sections
+-- -x discard all local symbols -- no difference
+-- --gc-sections remove unused sections (on some targets)   -- no difference
+-- --traditional-format use same format as native linker    -- no difference
+-- --disable-new-dtags  -- no difference
+-- strip -s hw2 --> 1404
+
+--  * To move from the Raspberry PI into Windows, use (eg)
+--      pscp pi@127.0.0.1:/home/pi/achilleNumber <path>[file]
+--      pscp -pwfile r pi@127.0.0.1:/home/pi/helloworld .
+--      pscp -pwfile r pi@127.0.0.1:/home/pi/achilleNumber .
+--      pscp -pwfile r pi@127.0.0.1:/home/pi/hw5 .
+--      pscp -pwfile r pi@127.0.0.1:/home/pi/hw5np .
+--  * One of the first things to to is have this automate that: [bluff, {uparrow}/cr is good enough]
+--      -- mirror ~\qemu\ and demo\rpi\ (ie dir(), date|size? copy)
+--      --  (plus a wee gui for the common stuff, and maybe as/ld/run in run.sh)
+--      -- then demo\pGUI\filedump.exw\main()\load_file() [+redirect file?].
+--      -- maybe: make filedump accept (eg) -f helloworld -d helloworld.arm args. [or just "-d [test]"]
+--  * There are 296 #ilASM{} in builtins\, the most daunting being pHeap.e and
+--      the one in the most dire need of a complete rethink being pcfunc.e...
+--      For pHeap I might just round to next power of 2 and keep <32|64 freelists,
+--      maybe with (say) 4 bytes whacking 1024(-1) entries onto an empty freelist.
+--      For pcfunc.e I may abandon define_c_func() and replace it with a custom
+--      #ilASM{} per call, similar to what I've done in pchdir.e, namely
+--      #ilASM{ ... call "kernel32.dll","SetCurrentDirectoryA" ...}, and do the
+--      same thoughout Windows/Linux versions [OK, I'll keep the crappy code,
+--      just mark it/the docs as deprecated & not use it in many things I ship.]
+--      [315 in builtins, 7 in rosetta, pGUI, pSQLite, mpfr, but of course I'm 
+--       going to leave win32lib, arwen, and tinEWGdemo all well alone...]
+--      [One worthwhile test is to see how much faster that makes mpfr.e...]
+--      {for version 1] drop: symtab, routine_id, 
+--  * LEB128 encoding is a neat trick I might use elsewhere....
+--  * To embed data mid-code, I might suggest the following:
+--      bx lr   @ or anything similar that creates an unreachable point
+--      movne r0,3  @ move never, 3 into r0 ==> three 32-bit words follow
+--      iAdrszCarriageReturn:   .int szCarriageReturn
+--      iMagicNumber:           .int 0xCCCCCCCD
+--      iAdrptzZoneHeap:        .int ptzZoneHeap
+--      movne r0,0  @ move never, 0 into r0 ==> sanity check end marker
+--https://stackoverflow.com/questions/8348030/how-does-one-do-integer-signed-or-unsigned-division-on-arm
+-- checkout E:\downloads\misc\arm\Rpi-Emulator\Rpi_Emulator
+--  also E:\downloads\misc\arm\bullseye [???]
+-- maybe: https://github.com/harrysethi/ARMV8_Simulator
+--        https://github.com/jamietanna/disARM (written in C)
+--        https://github.com/lecopzer/minimal-arm-elf ("", downloaded to 
+--          E:\downloads\misc\arm\minimal-arm-elf-master but it's a unix makefile...) [Nah, movw/movt...]
+--/*
+typedef struct {
+        Elf32_Word      st_name;
+        Elf32_Addr      st_value;
+        Elf32_Word      st_size;
+        unsigned char   st_info;
+        unsigned char   st_other;
+        Elf32_Half      st_shndx;
+} Elf32_Sym;
+--*/
+--
+--
+-- Testing:
+-- =======
+--  There are 215 entries in https://www.rosettacode.org/wiki/Category:ARM_Assembly
+--    (- maybe do something with demo\rosetta\Run_examples.exw???)
+--  - Move mid-code section variables above the main, eg:
+--      .text
+--      .global main 
+--      iAdrMessage: .int szMessage
+--      main:   
+--    (filedump.exw assumes everything before main is data)
+--  - Replace any // style comments with @
+--  -- both the above had to be done on the two std includes
+-- To VincentARM (maybe not...)
+--  -- Hi, I'm twiddling with the first steps of compiling Phix to ARM, and hope
+--      you don't mind me asking a few questions. Said first step is being able 
+--      to disassemble the raw binary, which the compiler needs to generate, and
+--      as such I'm actually more interested in say #E1A00003 than "mov r0, r3",
+--      at least for now, writing my own assembler is some weeks/months away yet.
+--      Can I safely assume add r5,r5,1 == add r5,1 much like r5+=1 vs r5=r5+1?
+--  https://www.rosettacode.org/wiki/Hello_world/Newbie#ARM_Assembly -- done
+--Achilles_numbers  [ DONE! ]
+--formatNum done...
+--System_time done...
+--clearScreen done...
+--colorText done...
+--fcttime done...
+--Window_creation/X11                               -- bust (gcc anyway)
+--Draw_a_pixel                                      -- """"     ""
+--Xiaolin_Wu's_line_algorithm						-- DONE [not great when run though...]
+--puzzle15 done... [less four I couldn't be bothered to fix]
+--puzzle15solver done... [30  ""  ]
+--(2048,21game,24game[solve] omitted as unlikely to progress anything)
+--
+--Next steps:
+--  clean up docs and cross-index everything (the rpi is apparently armv6l, 2012)
+--  investigate FASMARM and hopefully find some working examples of that.
+--  add format ELF, #ilASM{ [ELF] }, and output a test elf binary.
+--  see Phix/e07.exw for the starter kit...
+--  as yet undecided: do all this in p.exw or p2js.exw...   [ give it a bash on both... ]
+--  (the latter merits a complete rewrite to self-host...)
+--  Decision: start p2.exw and p2js2.exw: share as much as possible, make the latter
+--              run in a browser from the get-go.  And the Rpi asap...
+--  find all *.img file that I already have... [a/r running...]
+--      (fuckit, I've started the bullseye download...)
+--/*
+C:\Users\Pete\.android\avd\arm1.avd\cache.img 264.00 KB 18/09/2012 20:55:27
+C:\Users\Pete\.android\avd\arm1.avd\sdcard.img 20,480.00 KB 18/09/2012 20:55:28
+C:\Users\Pete\.android\avd\arm1.avd\userdata-qemu.img 24,680.00 KB 18/09/2012 20:55:27
+C:\Users\Pete\.android\avd\arm1.avd\userdata.img 3,963.00 KB 17/09/2012 18:58:38
+C:\Users\Pete\.android\avd\MonoForAndroid API 10.avd\cache.img 17.00 KB 14/05/2013 13:10:38
+C:\Users\Pete\.android\avd\MonoForAndroid API 10.avd\sdcard.img 524,288.00 KB 14/05/2013 02:14:20
+C:\Users\Pete\.android\avd\MonoForAndroid API 10.avd\userdata-qemu.img 27,809.00 KB 14/05/2013 13:10:38
+C:\Users\Pete\.android\avd\MonoForAndroid API 10.avd\userdata.img 4,016.00 KB 05/02/2011 01:41:34
+C:\Users\Pete\.android\avd\MonoForAndroid API 12.avd\sdcard.img 524,288.00 KB 14/05/2013 02:14:08
+C:\Users\Pete\.android\avd\MonoForAndroid API 12.avd\userdata.img 2,907.00 KB 05/05/2011 03:40:30
+C:\Users\Pete\.android\avd\MonoForAndroid API 14.avd\sdcard.img 524,288.00 KB 14/05/2013 02:13:58
+C:\Users\Pete\.android\avd\MonoForAndroid API 14.avd\userdata.img 3,866.00 KB 24/11/2011 00:03:50
+C:\Users\Pete\.android\avd\MonoForAndroid API 15.avd\cache.img 33.00 KB 14/05/2013 13:14:21
+C:\Users\Pete\.android\avd\MonoForAndroid API 15.avd\sdcard.img 524,288.00 KB 14/05/2013 02:13:44
+C:\Users\Pete\.android\avd\MonoForAndroid API 15.avd\userdata-qemu.img 5,357.00 KB 14/05/2013 13:14:30
+C:\Users\Pete\.android\avd\MonoForAndroid API 15.avd\userdata.img 3,878.00 KB 28/03/2012 00:28:45
+C:\Users\Pete\.android\avd\MonoForAndroid API 7.avd\sdcard.img 524,288.00 KB 14/05/2013 02:14:49
+C:\Users\Pete\.android\avd\MonoForAndroid API 7.avd\userdata.img 2,346.00 KB 06/05/2010 23:58:29
+C:\Users\Pete\.android\avd\MonoForAndroid API 8.avd\sdcard.img 524,288.00 KB 14/05/2013 02:14:35
+C:\Users\Pete\.android\avd\MonoForAndroid API 8.avd\userdata.img 3,954.00 KB 01/07/2010 00:14:07
+C:\Users\Pete\Downloads\android\Qemu-windows-1.3.1\linux-0.2.img 20,480.00 KB 17/08/2013 20:53:40
+C:\Users\Pete\Downloads\qemu-0.9.0-arm\arm_root.img 2,304.00 KB 07/02/2007 14:32:00
+C:\Users\Pete\Downloads\qemu-0.9.0-windows\linux.img 10,240.00 KB 17/08/2013 21:29:16
+C:\Users\Pete\Downloads\qemu-1.1.0\roms\SLOF\romfs\header.img 1.00 KB 05/06/2012 10:05:28
+C:\Users\Pete\Downloads\qman70\resource\144mb.img 1,440.00 KB 05/03/2010 07:28:06
+C:\Windows\System32\lxss\tools\initrd.img 62.00 KB 07/12/2019 12:19:17
+C:\Windows\WinSxS\amd64_microsoft-windows-lxss-vm-mode_31bf3856ad364e35_10.0.19041.1_none_84865c9f15ba86d1\initrd.img 62.00 KB 07/12/2019 12:19:17
+E:\downloads\Edita14\update.img 205,406.00 KB 11/02/2015 17:25:48
+E:\downloads\Edita14\qemu\qemu\2012-07-15-wheezy-raspbian.img 1,894,400.00 KB 20/07/2012 00:54:40
+E:\downloads\Edita14\qemu\qemu\linux-0.2.img 20,480.00 KB 18/07/2012 21:45:08
+E:\downloads\misc\arm\2012-07-15-wheezy-raspbian.img 1,894,400.00 KB 27/11/2021 20:31:29
+E:\downloads\misc\arm\2012-07-15-wheezy-raspbian\1.img 1,832,960.00 KB 05/02/2020 04:53:39
+E:\downloads\misc\arm\2012-07-15-wheezy-raspbian\0\kernel.img 6,117.00 KB 15/07/2012 19:10:10
+E:\downloads\misc\arm\2012-07-15-wheezy-raspbian\0\kernel_cutdown.img 4,092.00 KB 15/07/2012 19:10:10
+E:\downloads\misc\arm\2012-07-15-wheezy-raspbian\0\kernel_emergency.img 15,940.00 KB 15/07/2012 19:10:10
+E:\downloads\misc\arm\2012-07-15-wheezy-raspbian\1\lib\firmware\RTL8192E\boot.img 1.00 KB 12/06/2012 16:14:02
+E:\downloads\misc\arm\2012-07-15-wheezy-raspbian\1\lib\firmware\RTL8192E\data.img 1.00 KB 12/06/2012 16:14:02
+E:\downloads\misc\arm\2012-07-15-wheezy-raspbian\1\lib\firmware\RTL8192E\main.img 42.00 KB 12/06/2012 16:14:02
+E:\downloads\misc\arm\KolibriOS\kolibri.img 1,440.00 KB 16/01/2020 11:39:29
+E:\downloads\misc\misc\p6\asm\elf\a-linux-0.17\a-linux.img 661.00 KB 17/08/2002 09:39:15
+E:\downloads\misc\wren\qemu\qemu\2012-07-15-wheezy-raspbian.img 1,894,400.00 KB 19/07/2022 19:37:05
+E:\downloads\misc\wren\qemu\qemu\linux-0.2.img 20,480.00 KB 18/07/2012 20:45:08
+F:\CFULL\backup20150618\Phix\asm\elf\a-linux-0.17\a-linux.img 661.00 KB 17/08/2002 09:39:15
+F:\CFULL\backup20150802\Phix\asm\elf\a-linux-0.17\a-linux.img 661.00 KB 17/08/2002 09:39:15
+F:\CFULL\backup20151201\Phix\asm\elf\a-linux-0.17\a-linux.img 661.00 KB 17/08/2002 09:39:15
+F:\CFULL\cdownloadsbackup20130301\android\Qemu-windows-1.3.1\linux-0.2.img 20,480.00 KB 08/02/2013 14:28:08
+F:\CFULL\cdownloadsbackup20130301\qemu-0.9.0-arm\arm_root.img 2,304.00 KB 07/02/2007 13:32:00
+F:\CFULL\cdownloadsbackup20130301\qemu-0.9.0-windows\linux.img 10,240.00 KB 08/07/2012 15:07:08
+F:\CFULL\cdownloadsbackup20130301\qemu-1.1.0\roms\SLOF\romfs\header.img 1.00 KB 05/06/2012 09:05:28
+F:\CFULL\cdownloadsbackup20130301\qman70\resource\144mb.img 1,440.00 KB 05/03/2010 06:28:06
+F:\CFULL\HDD (C)\AAAAAA\exw\qemu\linux.img 10,240.00 KB 25/06/2011 15:31:28
+F:\CFULL\HDD (C)\AAAAAA\exw\qemu2\linux-0.2.img 20,480.00 KB 25/06/2011 17:50:38
+F:\CFULL\HDD (C)\AAAAAA\exw\qemu2\linux.img 10,240.00 KB 25/06/2011 17:28:40
+Plus E:\downloads\misc\arm\bullseye
+--*/
+-- from https://board.flatassembler.net/topic.php?t=21327 (Building and running Android armv7 sample, 2020)
+--/*
+You need any Android device or emulator such as Bluestacks to run the sample (yes, Android x86 devices and emulators can run arm code).
+
+You also need Android SDK because of Android Debug Bridge adb.exe, or you can copy the file to the device manually and run it in Terminal Emulator.
+
+You don't need to root the device/emulator.
+
+sample.asm:
+Code:
+format ELF executable
+entry start
+
+STDOUT      equ 1
+SYS_EXIT    equ 1
+SYS_WRITE   equ 4
+
+segment readable executable
+
+start:
+ mov r0, STDOUT
+ add r1, pc, msg-$-8
+ mov r2, msg_len
+ mov r7, SYS_WRITE
+ swi 0
+
+ mov r0, 0
+ mov r7, SYS_EXIT
+ swi 0
+
+msg DB "hellow from android", 13, 10
+msg_len=$-msg
+    
+
+Build:
+fasmarm.exe sample.asm sample.out
+
+Copy to device (/data/local/tmp/ is usually available on all devices and emulators):
+adb.exe push sample.out /data/local/tmp/
+
+Set read and executable rights for all users:
+adb.exe shell chmod 555 /data/local/tmp/sample.out
+
+Run it:
+adb.exe shell /data/local/tmp/sample.out
+
+--*/
+--
+--/*
+Google translate:
+/******************************************************************/
+;/*    affichage des messages   avec calcul longueur              */ 
+/*     display messages with length calculation                   */
+/******************************************************************/
+;/* r0 contient l adresse du message */
+/* r0 contains the address of the message */
+;affichageMess:
+message display:
+;   push {fp,lr}        /* save des  2 registres */ 
+    push {fp,lr}        /* save 2 registers */
+;   push {r0,r1,r2,r7}  /* save des autres registres */
+    push {r0,r1,r2,r7}  /* save other registers */
+;   mov r2,#0           /* compteur longueur */
+    mov r2,#0           /* length counter */
+;1: /*calcul de la longueur */
+1:  /*length calculation */
+;   ldrb r1,[r0,r2]     /* recup octet position debut + indice */
+    ldrb r1,[r0,r2]     /* get byte start position + index */
+;   cmp r1,#0           /* si 0 c est fini */
+    cmp r1,#0           /* if 0 c is finished */
+    beq 1f
+;   add r2,r2,#1        /* sinon on ajoute 1 */
+    add r2,r2,#1        /* otherwise add 1 */
+    b 1b
+;1: /* donc ici r2 contient la longueur du message */
+1:  /* so here r2 contains the length of the message */
+;   mov r1,r0           /* adresse du message en r1 */
+    mov r1,r0           /* message address in r1 */
+;   mov r0,#STDOUT      /* code pour écrire sur la sortie standard Linux */
+    mov r0,#STDOUT      /* code to write to Linux standard output */
+;   mov r7, #WRITE      /* code de l appel systeme 'write' */
+    mov r7, #WRITE      /* system call code 'write' */
+;   swi #0              /* appel systeme */
+    swi #0              /* system call */
+;   pop {r0,r1,r2,r7}   /* restaur des autres registres */
+    pop {r0,r1,r2,r7}   /* restore other registers */
+;   pop {fp,lr}         /* restaur des  2 registres */ 
+    pop {fp,lr}         /* restore 2 registers */
+;   bx lr               /* retour procedure */  
+    bx lr               /* return procedure */
+--*/
+--/*
+Example: Block Copy
+* Copy a block of memory, which is an exact multiple of 12 words long
+from the location pointed to by r12 to the location pointed to by r13.
+r14 points to the end of block to be copied.
+; r12 points to the start of the source data
+; r14 points to the end of the source data
+; r13 points to the start of the destination data
+loop LDMIA r12!, {r0-r11} ; load 48 bytes
+     STMIA r13!, {r0-r11} ; and store them
+     CMP r12, r14 ; check for the end
+     BNE loop ; and loop until done
+* This loop transfers 48 bytes in 31 cycles
+* Over 50 Mbytes/sec at 33 MHz
+--*/
+--/*
+1
+100_doors
+100_prisoners
+15_puzzle_game
+15_puzzle_solver
+2
+2048
+21_game
+24_game
+24_game/Solve
+4
+4-rings_or_4-squares_puzzle
+9
+9_billion_names_of_God_the_integer
+99_bottles_of_beer
+99_Bottles_of_Beer/Assembly
+A
+A+B
+Abbreviations,_automatic
+Abbreviations,_easy
+Abbreviations,_simple
+ABC_problem
+Abelian_sandpile_model
+Abelian_sandpile_model/Identity
+Abundant_odd_numbers
+Abundant,_deficient_and_perfect_number_classifications
+Achilles_numbers
+Ackermann_function
+Additive_primes
+Address_of_a_variable
+AKS_test_for_primes
+Align_columns
+Aliquot_sequence_classifications
+Almkvist-Giullera_formula_for_pi
+Almost_prime
+Amicable_pairs
+Anagrams
+Anagrams/Deranged_anagrams
+Anti-primes
+Arithmetic/Integer
+Array_concatenation
+Array_length
+Arrays
+ASCII_art_diagram_converter
+Associative_array/Creation
+AVL_tree
+B
+Babbage_problem
+Balanced_brackets
+Base64_encode_data
+Binary_digits
+Binary_search
+Bitmap                  -- Gameboy
+Bitwise_operations
+Boolean_values
+C
+Caesar_cipher
+Call_a_foreign-language_function
+Call_a_function
+Character_codes
+Check_that_file_exists
+Colour_pinstripe/Display        -- Gameboy
+Command-line_arguments
+Comments
+Compound_data_type
+Conditional_structures
+Conway's_Game_of_Life			-- TI-Nspire
+Copy_a_string
+Count_in_factors
+Count_in_octal
+Create_a_file
+Create_an_object_at_a_given_address
+D
+Damm_algorithm
+Date_format
+Delete_a_file
+Determine_if_a_string_is_numeric
+DNS_query
+Doubly-linked_list/Definition
+Doubly-linked_list/Element_definition
+Doubly-linked_list/Traversal
+Draw_a_pixel                                        -- ***
+E
+Empty_program
+Empty_string
+Even_or_odd
+F
+Factorial
+Factors_of_an_integer
+Fibonacci_sequence
+File_input/output
+FizzBuzz
+Flow-control_structures
+Formatted_numeric_output
+Function_definition
+G
+Generate_lower_case_ASCII_alphabet
+Greatest_element_of_a_list
+H
+Hailstone_sequence
+--Hello_world/Newbie                                [DONE]
+Hello_world/Standard_error
+Hello_world/Text
+Here_document
+Hofstadter_Q_sequence
+Host_introspection
+I
+Include_a_file
+Increment_a_numerical_string
+Input_loop
+Integer_comparison
+Integer_sequence
+Inverted_syntax
+J
+Jaro_similarity
+Jensen's_Device
+Josephus_problem
+Jump_anywhere
+K
+Keyboard_input/Flush_the_keyboard_buffer
+Keyboard_input/Keypress_check
+Knuth_shuffle
+L
+Literals/Integer
+Literals/String
+Logical_operations
+Loops/Break
+Loops/Do-while
+Loops/Downward_for
+Loops/For
+Loops/For_with_a_specified_step
+Loops/Increment_loop_index_within_loop_body
+Loops/Infinite
+Loops/N_plus_one_half
+Loops/Nested
+Loops/While
+Loops/With_multiple_ranges
+Lucas-Lehmer_test
+Luhn_test_of_credit_card_numbers
+M
+MD5
+Multiplication_tables
+Mutual_recursion
+N
+Nth_root
+Null_object
+O
+Old_lady_swallowed_a_fly
+Order_two_numerical_lists
+P
+Palindrome_detection
+Perceptron
+Perfect_numbers
+Permutations
+Pointers_and_references
+Priority_queue
+Program_name
+Program_termination
+Proper_divisors
+Pseudo-random_numbers/Middle-square_method
+Q
+Queue/Definition
+R
+Random_number_generator_(device)
+Read_a_file_line_by_line
+Real_constants_and_functions
+Return_multiple_values
+RPG_attributes_generator
+S
+Sattolo_cycle
+SHA-1
+SHA-256
+SHA-256_Merkle_tree
+Show_ASCII_table
+Sieve_of_Eratosthenes
+Singly-linked_list/Element_definition
+Singly-linked_list/Element_insertion
+Singly-linked_list/Traversal
+Sleep
+Solve_the_no_connection_puzzle
+Sort_an_array_of_composite_structures
+Sort_an_integer_array
+Sorting_algorithms/Bead_sort
+Sorting_algorithms/Bogosort
+Sorting_algorithms/Bubble_sort
+Sorting_Algorithms/Circle_Sort
+Sorting_algorithms/Cocktail_sort
+Sorting_algorithms/Cocktail_sort_with_shifting_bounds
+Sorting_algorithms/Comb_sort
+Sorting_algorithms/Counting_sort
+Sorting_algorithms/Gnome_sort
+Sorting_algorithms/Heapsort
+Sorting_algorithms/Insertion_sort
+Sorting_algorithms/Merge_sort
+Sorting_algorithms/Pancake_sort
+Sorting_algorithms/Patience_sort
+Sorting_algorithms/Permutation_sort
+Sorting_algorithms/Quicksort
+Sorting_algorithms/Radix_sort
+Sorting_algorithms/Selection_sort
+Sorting_algorithms/Shell_sort
+Split_a_character_string_based_on_change_of_character
+Stack
+String_append
+String_comparison
+String_concatenation
+String_interpolation_(included)
+String_length
+String_matching
+Subleq
+Substring
+System_time
+T
+Tau_function
+Terminal_control/Clear_the_screen
+Terminal_control/Coloured_text
+Terminal_control/Cursor_movement
+Terminal_control/Cursor_positioning
+Terminal_control/Inverse_video
+Time_a_function
+Tokenize_a_string
+Tonelli-Shanks_algorithm
+Totient_function
+Towers_of_Hanoi
+Tree_traversal
+U
+User_input/Text
+V
+Van_Eck_sequence
+Variables
+Video_display_modes     -- Gameboy
+W
+Window_creation/X11                                 -- ***
+X
+Xiaolin_Wu's_line_algorithm							-- ***
+XML/DOM_serialization
+XML/Input
+XML/Output
+XML/XPath
+Y
+Y_combinator
+Yahoo!_search_interface
+Yin_and_yang                -- ascii...
+Z
+Zumkeller_numbers
+--*/
+
+--/*
+AST nodes, initial thoughts:
+length of generated code (-1 if unknown)
+registers used/damaged[/available [vars] on entry?]
+localtype info??
+--*/
+
+
+--/*
+There are ~296 #ilASM in builtins:
+C:\Program Files (x86)\Phix\builtins\assert.e:15         #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\get_routine_info.e:47     #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\hasdel.e:10     #ilASM{ [32]1}
+C:\Program Files (x86)\Phix\builtins\hash.e:34     #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\IupRawStringPtr.e:13     #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\libcurl.e:1719     #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\pAlloc.e:102             #ilASM{ [32]4}
+C:\Program Files (x86)\Phix\builtins\panykey.e:73     #ilASM{2}
+C:\Program Files (x86)\Phix\builtins\pbreak.e:19 #ilASM{ jmp :!opCallOnceYeNot 3}
+C:\Program Files (x86)\Phix\builtins\pchdir.e:42     #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\pComN.ew:533     #ilASM{6}
+C:\Program Files (x86)\Phix\builtins\pCrashN.e:17     #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\pcurrdir.e:56         #ilASM {1}
+C:\Program Files (x86)\Phix\builtins\pdate.e:94         #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\pdir.e:224     #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\peekstr.e:28         #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\penv.e:63         #ilASM{4}
+C:\Program Files (x86)\Phix\builtins\pfloat.e:9     #ilASM{2}
+C:\Program Files (x86)\Phix\builtins\phash.e:75     #ilASM{9}
+C:\Program Files (x86)\Phix\builtins\pincpathN.e:41     #ilASM{3}
+C:\Program Files (x86)\Phix\builtins\pipeio.e:594     #ilASM{3}
+C:\Program Files (x86)\Phix\builtins\pmach.e:199         #ilASM{13}
+C:\Program Files (x86)\Phix\builtins\ppp.e:588     #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\pprntf.e:361   #ilASM{4}
+C:\Program Files (x86)\Phix\builtins\prnd.e:25     #ilASM{3}
+C:\Program Files (x86)\Phix\builtins\prtnid.e:118     #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\pScrollN.e:128 #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\puts1h.e:19     #ilASM{4}
+C:\Program Files (x86)\Phix\builtins\reflections.e:41     #ilASM{2}
+C:\Program Files (x86)\Phix\builtins\repeat.e:100             #ilASM{3}
+C:\Program Files (x86)\Phix\builtins\ripemd160.e:8     #ilASM{2}
+C:\Program Files (x86)\Phix\builtins\safe.e:598   #ilASM{ lea edi,[a] 1}
+C:\Program Files (x86)\Phix\builtins\sha256.e:72 #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\sha512.e:100 #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\syswait.ew:242         #ilASM{6}
+C:\Program Files (x86)\Phix\builtins\VM\cbhand.e:31     #ilASM{ jmp !opCallOnceYeNot 1}
+C:\Program Files (x86)\Phix\builtins\VM\optable.e:340         #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\VM\pApnd.e:21 #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\VM\pcallfunc.e:48     #ilASM{4}
+C:\Program Files (x86)\Phix\builtins\VM\pcfunc.e:118 #ilASM{60}
+C:\Program Files (x86)\Phix\builtins\VM\pcmdlnN.e:302         #ilASM{2}
+C:\Program Files (x86)\Phix\builtins\VM\pDeleteN.e:259         #ilASM{4}
+C:\Program Files (x86)\Phix\builtins\VM\pDiagN.e:132     #ilASM{21}
+C:\Program Files (x86)\Phix\builtins\VM\pFEH.e:33 #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:709     #ilASM{46}
+C:\Program Files (x86)\Phix\builtins\VM\pFixup.e:17 #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\VM\pFloatN.e:14     #ilASM{7}
+C:\Program Files (x86)\Phix\builtins\VM\pFPU.e:39 #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\VM\pHeap.e:875 #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\VM\pInstance.e:9 #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\VM\pJcc.e:16 #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\VM\pJnotx.e:10 #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\VM\pLen.e:13 #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\VM\pMath.e:30 #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\VM\pMem.e:25 #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\VM\pMemChk.e:667     #ilASM{2}
+C:\Program Files (x86)\Phix\builtins\VM\pMkSqN.e:9 #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\VM\pPower.e:38 #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\VM\pprntfN.e:414   #ilASM{5}
+C:\Program Files (x86)\Phix\builtins\VM\pProfile.e:257     #ilASM{2}
+C:\Program Files (x86)\Phix\builtins\VM\pRand.e:18 #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\VM\pRepeN.e:29 #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\VM\pRepsN.e:36 #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\VM\pRmdr.e:10 #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\VM\prtnidN.e:142     #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\VM\pSleep.e:12 #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\VM\pStack.e:112 #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\VM\pSubseN.e:31 #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\VM\pSubssN.e:15 #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\VM\pTask.e:327     #ilASM{7}
+C:\Program Files (x86)\Phix\builtins\VM\pThreadN.e:140     #ilASM{5}
+C:\Program Files (x86)\Phix\builtins\VM\pTime.e:25 #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\VM\pTrace.e:1301     #ilASM{8}
+C:\Program Files (x86)\Phix\builtins\VM\pTrig.e:8 #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\VM\pType.e:18 #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\VM\pUnary.e:13 #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\VM\pUnassigned.e:13 #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\VM\puts1.e:51 #ilASM{1}
+C:\Program Files (x86)\Phix\builtins\VM\pXor.e:13 #ilASM{1}
+--*/
+
+--/*
+Searching for: define_c [REDO THIS (now that many link_c_func etc have been removed)]
+ Files scanned 223, Directories scanned 2, Lines 139205
+C:\Program Files (x86)\Phix\builtins\beep.e:23         xBeep = define_c_proc(k32, "Beep", {C_INT,C_INT})
+C:\Program Files (x86)\Phix\builtins\bzstream.e:77          r_BZ2_bzCompressInit   = define_cffi_func(bzlib, t_BZ2_bzCompressInit),
+C:\Program Files (x86)\Phix\builtins\bzstream.e:78          r_BZ2_bzCompress       = define_cffi_func(bzlib, t_BZ2_bzCompress),
+C:\Program Files (x86)\Phix\builtins\bzstream.e:79          r_BZ2_bzCompressEnd    = define_cffi_func(bzlib, t_BZ2_bzCompressEnd),
+C:\Program Files (x86)\Phix\builtins\bzstream.e:80          r_BZ2_bzDecompressInit = define_cffi_func(bzlib, t_BZ2_bzDecompressInit),
+C:\Program Files (x86)\Phix\builtins\bzstream.e:81          r_BZ2_bzDecompress     = define_cffi_func(bzlib, t_BZ2_bzDecompress),
+C:\Program Files (x86)\Phix\builtins\bzstream.e:82          r_BZ2_bzDecompressEnd  = define_cffi_func(bzlib, t_BZ2_bzDecompressEnd)
+C:\Program Files (x86)\Phix\builtins\cffi.e:31 --          integer rid = define_cffi_func(object lib, string cdef)
+C:\Program Files (x86)\Phix\builtins\cffi.e:32 --          integer rid = define_cffi_proc(object lib, string cdef)
+C:\Program Files (x86)\Phix\builtins\cffi.e:93 --          constant xMessageBox = define_cffi_func("user32.dll",tMB)
+C:\Program Files (x86)\Phix\builtins\cffi.e:102 --              define_c_func etc is rather carefree regarding type: if it
+C:\Program Files (x86)\Phix\builtins\cffi.e:409 --  returns a bunch of stuff for parse_c_struct() that define_c() can quietly ignore.
+C:\Program Files (x86)\Phix\builtins\cffi.e:1161 function define_c(object lib, string cdef, integer func, integer machine)
+C:\Program Files (x86)\Phix\builtins\cffi.e:1163 -- internal wrapper to define_c_func/define_c_proc.
+C:\Program Files (x86)\Phix\builtins\cffi.e:1165 --  eg define_cffi_func("kernel32.dll","DWORD WINAPI GetLastError(void);")
+C:\Program Files (x86)\Phix\builtins\cffi.e:1167 --  (non-0) result from define_c_func(lib,"GetLastError",{},C_INT).
+C:\Program Files (x86)\Phix\builtins\cffi.e:1171 --  func is 0 or 1, from define_cffi_func/define_cffi_proc below.
+C:\Program Files (x86)\Phix\builtins\cffi.e:1241     -- Note define_c_func/proc are rather carefree regarding type: if
+C:\Program Files (x86)\Phix\builtins\cffi.e:1248         rid = define_c_func(lib,name,args,return_type)
+C:\Program Files (x86)\Phix\builtins\cffi.e:1250         rid = define_c_proc(lib,name,args)
+C:\Program Files (x86)\Phix\builtins\cffi.e:1258             rid = define_c_func(lib,name,args,return_type)
+C:\Program Files (x86)\Phix\builtins\cffi.e:1260             rid = define_c_proc(lib,name,args)
+C:\Program Files (x86)\Phix\builtins\cffi.e:1269 --<global function define_cffi_func(object lib, string cdef, integer machine=0)
+C:\Program Files (x86)\Phix\builtins\cffi.e:1270 global function define_cffi_func(object lib, string cdef, integer machine=machine_bits())
+C:\Program Files (x86)\Phix\builtins\cffi.e:1271     return define_c(lib,cdef,1,machine)
+C:\Program Files (x86)\Phix\builtins\cffi.e:1274 --<global function define_cffi_proc(object lib, string cdef, integer machine=0)
+C:\Program Files (x86)\Phix\builtins\cffi.e:1275 global function define_cffi_proc(object lib, string cdef, integer machine=machine_bits())
+C:\Program Files (x86)\Phix\builtins\cffi.e:1276     return define_c(lib,cdef,0,machine)
+C:\Program Files (x86)\Phix\builtins\dll.e:12 --          constant xFunc = dlldefine_c_func(lib,"name",...)
+C:\Program Files (x86)\Phix\builtins\dll.e:53      M_DEFINE_C  = 51,
+C:\Program Files (x86)\Phix\builtins\dll.e:69 function define_c_var(atom lib, sequence variable_name)
+C:\Program Files (x86)\Phix\builtins\dll.e:77 function define_c_proc(object lib, object routine_name, 
+C:\Program Files (x86)\Phix\builtins\dll.e:82     return machine_func(M_DEFINE_C, {lib, routine_name, arg_sizes, 0})
+C:\Program Files (x86)\Phix\builtins\dll.e:88 function define_c_func(object lib, object routine_name, 
+C:\Program Files (x86)\Phix\builtins\dll.e:91     return machine_func(M_DEFINE_C, {lib, routine_name, arg_sizes, return_type})
+C:\Program Files (x86)\Phix\builtins\dos_rescue.ew:292     handle = define_c_func(dll, name, args, result)
+C:\Program Files (x86)\Phix\builtins\dos_rescue.ew:304     handle = define_c_proc(dll, name, args)
+C:\Program Files (x86)\Phix\builtins\fileopenN.ew:27     xCoInitialize = define_c_func(ole32,"CoInitialize",
+C:\Program Files (x86)\Phix\builtins\fileopenN.ew:31     xCoCreateInstance = define_c_func(ole32,"CoCreateInstance",
+C:\Program Files (x86)\Phix\builtins\fileopenN.ew:39     xSHCreateItemFromParsingName = define_c_func(shell32,"SHCreateItemFromParsingName",
+C:\Program Files (x86)\Phix\builtins\fileopenN.ew:46     xCoTaskMemFree = define_c_proc(ole32,"CoTaskMemFree",
+C:\Program Files (x86)\Phix\builtins\ipc.e:52         xshmctl = define_c_func(lib, "shmctl",
+C:\Program Files (x86)\Phix\builtins\ipc.e:57         xshmget = define_c_func(lib, "shmget",
+C:\Program Files (x86)\Phix\builtins\ipc.e:62         xshmat = define_c_func(lib, "shmat",
+C:\Program Files (x86)\Phix\builtins\ipc.e:67         xshmdt = define_c_func(lib, "shmdt",
+C:\Program Files (x86)\Phix\builtins\ipc.e:70         xerrno = define_c_var(lib, "errno")
+C:\Program Files (x86)\Phix\builtins\ipc.e:75         xCreateFileMapping = define_c_func(lib, "CreateFileMappingA",
+C:\Program Files (x86)\Phix\builtins\ipc.e:83         xOpenFileMapping = define_c_func(lib, "OpenFileMappingA",
+C:\Program Files (x86)\Phix\builtins\ipc.e:88         xMapViewOfFile = define_c_func(lib, "MapViewOfFile",
+C:\Program Files (x86)\Phix\builtins\ipc.e:95         xUnmapViewOfFile = define_c_func(lib, "UnmapViewOfFile",
+C:\Program Files (x86)\Phix\builtins\ipc.e:98         xCloseHandle = define_c_func(lib, "CloseHandle",
+C:\Program Files (x86)\Phix\builtins\ipc.e:101         xGetLastError = define_c_func(lib, "GetLastError",
+C:\Program Files (x86)\Phix\builtins\isatty.e:63             xGetStdHandle           = define_c_func(lib, "GetStdHandle", {C_UINT}, C_PTR)
+C:\Program Files (x86)\Phix\builtins\isatty.e:64             xGetFileType            = define_c_func(lib, "GetFileType", {C_PTR}, C_INT)
+C:\Program Files (x86)\Phix\builtins\isatty.e:65             xGetLastError           = define_c_func(lib, "GetLastError", {}, C_INT)
+C:\Program Files (x86)\Phix\builtins\isatty.e:69             x_isatty = define_c_func(lib, "isatty", {C_INT}, C_INT)
+C:\Program Files (x86)\Phix\builtins\isatty.e:70             x_errno = define_c_var(lib, "errno")
+C:\Program Files (x86)\Phix\builtins\IupBeep.e:18             xBeep = define_c_proc(kernel32, "Beep", {C_INT,C_INT})
+C:\Program Files (x86)\Phix\builtins\ldap.e:23 x_ldap_init = define_cffi_func(wldap32,t_ldap_init),
+C:\Program Files (x86)\Phix\builtins\ldap.e:31 x_ldap_simple_bind_s = define_cffi_func(wldap32,t_ldap_simple_bind_s),
+C:\Program Files (x86)\Phix\builtins\ldap.e:42 x_ldap_search_s = define_cffi_func(wldap32,t_ldap_search_s),
+C:\Program Files (x86)\Phix\builtins\ldap.e:47 x_ldap_msgfree = define_cffi_func(wldap32,t_ldap_msgfree),
+C:\Program Files (x86)\Phix\builtins\ldap.e:52 x_ldap_unbind = define_cffi_func(wldap32,t_ldap_unbind)
+C:\Program Files (x86)\Phix\builtins\libcurl.e:60     integer rid = define_c_func(dll, "+" & name, args, result)
+C:\Program Files (x86)\Phix\builtins\libcurl.e:69     integer rid = define_c_proc(dll, "+" & name, args)
+C:\Program Files (x86)\Phix\builtins\libcurl.e:566         xcurl_version_info = define_c_func(libcurl,"+curl_version_info",{C_INT},C_PTR)
+C:\Program Files (x86)\Phix\builtins\libcurl.e:2124 --  address = define_c_var(dll, "+" & name)
+C:\Program Files (x86)\Phix\builtins\librsvg.e:24     --(following is == define_c_proc if result==NULL)
+C:\Program Files (x86)\Phix\builtins\librsvg.e:25     integer res = define_c_func(lib,name,args,result)
+C:\Program Files (x86)\Phix\builtins\LiteZip.e:134     integer rid = define_c_func(dll, name, args, result)
+C:\Program Files (x86)\Phix\builtins\mpfr.e:153 --  integer rid = define_c_func(dll, "+" & name, args, result)
+C:\Program Files (x86)\Phix\builtins\mpfr.e:154     integer rid = define_c_func(dll, name, args, result)
+C:\Program Files (x86)\Phix\builtins\mpfr.e:161 --  integer rid = define_c_proc(dll, "+" & name, args)
+C:\Program Files (x86)\Phix\builtins\mpfr.e:162     integer rid = define_c_proc(dll, name, args)
+C:\Program Files (x86)\Phix\builtins\mpfr.e:304         p_mpir_version = define_c_var(mpir_dll, "__mpir_version")
+C:\Program Files (x86)\Phix\builtins\mpfr.e:305         p_gmp_version = define_c_var(mpir_dll, "__gmp_version")
+C:\Program Files (x86)\Phix\builtins\msgbox.e:34         xMessageBoxA = define_c_func(user32, "MessageBoxA",{P,P,P,I},I)
+C:\Program Files (x86)\Phix\builtins\pComN.ew:45     xMultiByteToWideChar = define_c_func(kernel32,"MultiByteToWideChar",
+C:\Program Files (x86)\Phix\builtins\pComN.ew:54     xWideCharToMultiByte = define_c_func(kernel32,"WideCharToMultiByte",
+C:\Program Files (x86)\Phix\builtins\pcopyfile.e:19     xCopyFile = define_c_func(kernel32, "CopyFileA", {C_PTR, C_PTR, C_LONG},C_LONG)
+C:\Program Files (x86)\Phix\builtins\pcurrdir.e:39             xGetCurrentDirectory = define_c_func(kernel32, "GetCurrentDirectoryA",
+C:\Program Files (x86)\Phix\builtins\pdate.e:18         xGetLocalTime = define_c_proc(kernel32,"GetLocalTime",{C_PTR})
+C:\Program Files (x86)\Phix\builtins\pdate.e:19         xGetSystemTime = define_c_proc(kernel32,"GetSystemTime",{C_PTR})
+C:\Program Files (x86)\Phix\builtins\pdir.e:115         xFindFirstFile = define_c_func(kernel32,"FindFirstFileA",
+C:\Program Files (x86)\Phix\builtins\pdir.e:121         xFindNextFile = define_c_func(kernel32,"FindNextFileA",
+C:\Program Files (x86)\Phix\builtins\pdir.e:126         xFindClose = define_c_func(kernel32,"FindClose",
+C:\Program Files (x86)\Phix\builtins\pdir.e:130         xFileTimeToLocalFileTime = define_c_func(kernel32,"FileTimeToLocalFileTime",
+C:\Program Files (x86)\Phix\builtins\pdir.e:135         xFileTimeToSystemTime = define_c_func(kernel32,"FileTimeToSystemTime",
+C:\Program Files (x86)\Phix\builtins\pdir.e:148         xopendir    = define_c_func(libc, "opendir", {C_PTR}, C_PTR)
+C:\Program Files (x86)\Phix\builtins\pdir.e:150         xreaddir    = define_c_func(libc, "readdir", {C_PTR}, C_PTR)
+C:\Program Files (x86)\Phix\builtins\pdir.e:151         xclosedir   = define_c_func(libc, "closedir", {C_PTR}, C_INT)
+C:\Program Files (x86)\Phix\builtins\pdir.e:153         xlocaltime  = define_c_func(libc, "localtime", {C_PTR}, C_PTR)
+C:\Program Files (x86)\Phix\builtins\penv.e:27     xGetEnvironmentVar = define_c_func(kernel32,"GetEnvironmentVariableA",
+C:\Program Files (x86)\Phix\builtins\penv.e:32     xSetEnvironmentVar = define_c_func(kernel32,"SetEnvironmentVariableA",
+C:\Program Files (x86)\Phix\builtins\pfile.e:30 --  xGetFileAttributes      = iff(W?define_c_func(lib, "GetFileAttributesA", {C_PTR}, C_INT)
+C:\Program Files (x86)\Phix\builtins\pfile.e:31 ----    xGetFileAttributes      = iff(W?define_c_func(lib, "GetFileAttributesExA", {C_PTR,C_INT,C_PTR}, C_INT)
+C:\Program Files (x86)\Phix\builtins\pfile.e:32 --                                 define_c_func(lib, "access", {C_PTR, C_INT}, C_INT))
+C:\Program Files (x86)\Phix\builtins\pfile.e:33     xMoveFile               = iff(W?define_c_func(lib, "MoveFileExA", {C_PTR, C_PTR, C_INT}, C_BOOL)
+C:\Program Files (x86)\Phix\builtins\pfile.e:34                                    define_c_func(lib, "rename", {C_PTR, C_PTR}, C_INT))
+C:\Program Files (x86)\Phix\builtins\pfile.e:35     xDeleteFile             = iff(W?define_c_func(lib, "DeleteFileA", {C_PTR}, C_BOOL)
+C:\Program Files (x86)\Phix\builtins\pfile.e:36                                    define_c_func(lib, "unlink", {C_PTR}, C_INT))
+C:\Program Files (x86)\Phix\builtins\pfile.e:37     xCopyFile               = iff(W?define_c_func(lib, "CopyFileA", {C_PTR, C_PTR, C_BOOL}, C_BOOL)
+C:\Program Files (x86)\Phix\builtins\pfile.e:39     xCreateDirectory        = iff(W?define_c_func(lib, "CreateDirectoryA", {C_PTR, C_PTR}, C_BOOL)
+C:\Program Files (x86)\Phix\builtins\pfile.e:40                                    define_c_func(lib, "mkdir", {C_PTR, C_INT}, C_INT))
+C:\Program Files (x86)\Phix\builtins\pfile.e:41     xRemoveDirectory        = iff(W?define_c_func(lib, "RemoveDirectoryA", {C_PTR}, C_BOOL)
+C:\Program Files (x86)\Phix\builtins\pfile.e:42                                    define_c_func(lib, "rmdir", {C_PTR}, C_INT))
+C:\Program Files (x86)\Phix\builtins\pfile.e:43     xGetLogicalDriveStrings = iff(W?define_c_func(lib, "GetLogicalDriveStringsA", {C_UINT,C_PTR}, C_UINT)
+C:\Program Files (x86)\Phix\builtins\pfile.e:45     xGetDriveType           = iff(W?define_c_func(lib, "GetDriveTypeA", {C_PTR}, C_UINT)
+C:\Program Files (x86)\Phix\builtins\pfile.e:47     xCreateFileA            = iff(W?define_c_func(lib, "CreateFileA", {C_PTR,C_INT,C_INT,C_PTR,C_INT,C_INT,C_PTR}, C_PTR)
+C:\Program Files (x86)\Phix\builtins\pfile.e:49     xSetFilePointer         = iff(W?define_c_func(lib, "SetFilePointer", {C_PTR, C_LONG, C_PTR, C_INT}, C_BOOL)
+C:\Program Files (x86)\Phix\builtins\pfile.e:51     xSetEndOfFile           = iff(W?define_c_func(lib, "SetEndOfFile", {C_PTR}, C_BOOL)
+C:\Program Files (x86)\Phix\builtins\pfile.e:52                                    define_c_func(lib, "truncate", {C_PTR, C_LONG}, C_BOOL))
+C:\Program Files (x86)\Phix\builtins\pfile.e:53     xGetSystemTime          = iff(W?define_c_proc(lib, "GetSystemTime", {C_PTR})
+C:\Program Files (x86)\Phix\builtins\pfile.e:54 --                                 define_c_func(lib, "time", {C_PTR}, C_LONG)
+C:\Program Files (x86)\Phix\builtins\pfile.e:56     xSystemTimeToFileTime   = iff(W?define_c_func(lib, "SystemTimeToFileTime", {C_PTR, C_PTR}, C_INT)
+C:\Program Files (x86)\Phix\builtins\pfile.e:58     xSetFileTime            = iff(W?define_c_func(lib, "SetFileTime",{C_PTR, C_PTR, C_PTR, C_PTR},C_INT)
+C:\Program Files (x86)\Phix\builtins\pfile.e:59                                    define_c_func(lib, "utime", {C_PTR, C_PTR}, C_INT))
+C:\Program Files (x86)\Phix\builtins\pfile.e:60     xCloseHandle            = iff(W?define_c_func(lib, "CloseHandle", {C_PTR}, C_BOOL)
+C:\Program Files (x86)\Phix\builtins\pfile.e:62     xGetLastError           = iff(W?define_c_func(lib, "GetLastError", {}, C_INT)
+C:\Program Files (x86)\Phix\builtins\pgetpath.e:200             xGetLongPathName = define_c_func(kernel32,"GetLongPathNameA",
+C:\Program Files (x86)\Phix\builtins\pgetpath.e:205             xGetShortPathName = define_c_func(kernel32,"GetShortPathNameA",
+C:\Program Files (x86)\Phix\builtins\pgetpath.e:210 --          xGetLastError = define_c_func(kernel32, "GetLastError",
+C:\Program Files (x86)\Phix\builtins\pipeio.e:43         xWaitForSingleObject = define_c_func(kernel32, "WaitForSingleObject",
+C:\Program Files (x86)\Phix\builtins\pipeio.e:47         xGetExitCodeProcess = define_c_func(kernel32, "GetExitCodeProcess",
+C:\Program Files (x86)\Phix\builtins\pipeio.e:51         xRead = define_c_func(kernel32,"ReadFile",
+C:\Program Files (x86)\Phix\builtins\pipeio.e:58         xWrite = define_c_func(kernel32,"WriteFile",
+C:\Program Files (x86)\Phix\builtins\pipeio.e:65         xPipe = define_c_func(kernel32,"CreatePipe",
+C:\Program Files (x86)\Phix\builtins\pipeio.e:71         xPeekNamedPipe = define_c_func(kernel32,"PeekNamedPipe",
+C:\Program Files (x86)\Phix\builtins\pipeio.e:79         xSetHandleInformation = define_c_func(kernel32,"SetHandleInformation",
+C:\Program Files (x86)\Phix\builtins\pipeio.e:84         xClose = define_c_func(kernel32, "CloseHandle",
+C:\Program Files (x86)\Phix\builtins\pipeio.e:87 --      xGetLastError = define_c_func(kernel32, "GetLastError",
+C:\Program Files (x86)\Phix\builtins\pipeio.e:99 --      xPipe = define_c_func(libc, "pipe",
+C:\Program Files (x86)\Phix\builtins\pipeio.e:102         xPipe = define_c_func(libc, "pipe2",
+C:\Program Files (x86)\Phix\builtins\pipeio.e:106         xClose = define_c_func(libc, "close",
+C:\Program Files (x86)\Phix\builtins\pipeio.e:109         xRead = define_c_func(libc, "read",
+C:\Program Files (x86)\Phix\builtins\pipeio.e:114         xWrite = define_c_func(libc, "write",
+C:\Program Files (x86)\Phix\builtins\pipeio.e:119 --      xWaitpid = define_c_func(libc, "waitpid",
+C:\Program Files (x86)\Phix\builtins\pipeio.e:124         xerrno = define_c_var(libc, "errno")
+C:\Program Files (x86)\Phix\builtins\pipeio.e:406         return define_cffi_func(lib,cdef)
+C:\Program Files (x86)\Phix\builtins\pmach.e:123     M_DEFINE_C          = 51,   --define_c_func(), define_c_proc()
+C:\Program Files (x86)\Phix\builtins\pmach.e:128     M_DEFINE_VAR        = 56,   --define_c_var()
+C:\Program Files (x86)\Phix\builtins\pmach.e:274     elsif a=M_DEFINE_C then
+C:\Program Files (x86)\Phix\builtins\pmach.e:280             res = cfuncdefine_c_proc(p1,p2,p3)
+C:\Program Files (x86)\Phix\builtins\pmach.e:282             res = cfuncdefine_c_func(p1,p2,p3,p4)
+C:\Program Files (x86)\Phix\builtins\pmach.e:298         res = cfuncdefine_c_var(p1,p2)
+C:\Program Files (x86)\Phix\builtins\pmt.e:8      M_DEFINE_C  = 51,
+C:\Program Files (x86)\Phix\builtins\pmt.e:17 global function define_c_var(atom lib, sequence variable_name)
+C:\Program Files (x86)\Phix\builtins\pmt.e:21 global function define_c_proc(object lib, object routine_name, sequence arg_sizes)
+C:\Program Files (x86)\Phix\builtins\pmt.e:22     return machine_func(M_DEFINE_C, {lib, routine_name, arg_sizes, 0})
+C:\Program Files (x86)\Phix\builtins\pmt.e:25 global function define_c_func(object lib, object routine_name, sequence arg_sizes, atom return_type)
+C:\Program Files (x86)\Phix\builtins\pmt.e:26     return machine_func(M_DEFINE_C, {lib, routine_name, arg_sizes, return_type})
+C:\Program Files (x86)\Phix\builtins\pscreen.e:90         xAllocConsole = define_c_func(xKernel32,"AllocConsole",
+C:\Program Files (x86)\Phix\builtins\pscreen.e:94         xGetStdHandle = define_c_func(xKernel32,"GetStdHandle",
+C:\Program Files (x86)\Phix\builtins\pscreen.e:98         xReadConsoleOutput = define_c_func(xKernel32,"ReadConsoleOutputA",
+C:\Program Files (x86)\Phix\builtins\pscreen.e:106         xWriteConsoleOutput = define_c_func(xKernel32,"WriteConsoleOutputA",
+C:\Program Files (x86)\Phix\builtins\pscreen.e:114         xGetConsoleScreenBufferInfo = define_c_func(xKernel32,"GetConsoleScreenBufferInfo",
+C:\Program Files (x86)\Phix\builtins\pscreen.e:119         xSetConsoleCursorInfo = define_c_func(xKernel32,"SetConsoleCursorInfo",
+C:\Program Files (x86)\Phix\builtins\pscreen.e:124         xGetLastError = define_c_func(xKernel32,"GetLastError",
+C:\Program Files (x86)\Phix\builtins\pScrollN.e:68         xGetStdHandle = define_c_func(kernel32,"GetStdHandle",
+C:\Program Files (x86)\Phix\builtins\pScrollN.e:71         xAllocConsole = define_c_func(kernel32,"AllocConsole",
+C:\Program Files (x86)\Phix\builtins\pScrollN.e:74         xSetConsoleMode = define_c_func(kernel32,"SetConsoleMode",
+C:\Program Files (x86)\Phix\builtins\pScrollN.e:78         xGetConsoleScreenBufferInfo = define_c_func(kernel32,"GetConsoleScreenBufferInfo",
+C:\Program Files (x86)\Phix\builtins\pScrollN.e:82         xScrollConsoleScreenBuffer = define_c_func(kernel32,"ScrollConsoleScreenBufferA",
+C:\Program Files (x86)\Phix\builtins\pScrollN.e:89         xFillConsoleOutputCharacter = define_c_func(kernel32,"FillConsoleOutputCharacterA",
+C:\Program Files (x86)\Phix\builtins\pScrollN.e:96         xFillConsoleOutputAttribute = define_c_func(kernel32,"FillConsoleOutputAttribute",
+C:\Program Files (x86)\Phix\builtins\sockets.e:214 xSocket             = define_cffi_func(lib, tSocket),
+C:\Program Files (x86)\Phix\builtins\sockets.e:215 xHtons              = define_cffi_func(lib, tHtons),
+C:\Program Files (x86)\Phix\builtins\sockets.e:216 xNtohs              = define_cffi_func(lib, tNtohs),
+C:\Program Files (x86)\Phix\builtins\sockets.e:217 xHtonl              = define_cffi_func(lib, tHtonl),
+C:\Program Files (x86)\Phix\builtins\sockets.e:218 xNtohl              = define_cffi_func(lib, tNtohl),
+C:\Program Files (x86)\Phix\builtins\sockets.e:219 xGetSockName        = define_cffi_func(lib, tGetSockName),
+C:\Program Files (x86)\Phix\builtins\sockets.e:220 xBind               = define_cffi_func(lib, tBind),
+C:\Program Files (x86)\Phix\builtins\sockets.e:221 xConnect            = define_cffi_func(lib, tConnect),
+C:\Program Files (x86)\Phix\builtins\sockets.e:222 xListen             = define_cffi_func(lib, tListen),
+C:\Program Files (x86)\Phix\builtins\sockets.e:223 xAccept             = define_cffi_func(lib, tAccept),
+C:\Program Files (x86)\Phix\builtins\sockets.e:224 xSelect             = define_cffi_func(lib, tSelect),
+C:\Program Files (x86)\Phix\builtins\sockets.e:225 xSend               = define_cffi_func(lib, tSend),
+C:\Program Files (x86)\Phix\builtins\sockets.e:226 xRecv               = define_cffi_func(lib, tRecv),
+C:\Program Files (x86)\Phix\builtins\sockets.e:227 xCloseSocket        = define_cffi_func(lib, tCloseSocket),
+C:\Program Files (x86)\Phix\builtins\sockets.e:228 xinet_addr          = define_cffi_func(lib, tinet_addr),
+C:\Program Files (x86)\Phix\builtins\sockets.e:229 xShutDown           = define_cffi_func(lib, tShutDown),
+C:\Program Files (x86)\Phix\builtins\sockets.e:230 xSetSockOpt         = define_cffi_func(lib, tSetSockOpt),
+C:\Program Files (x86)\Phix\builtins\sockets.e:231 --xGetAddrInfo      = define_cffi_func(lib, tGetAddrInfo),
+C:\Program Files (x86)\Phix\builtins\sockets.e:232 --xFreeAddrInfo     = define_cffi_proc(lib, tFreeAddrInfo),
+C:\Program Files (x86)\Phix\builtins\sockets.e:233 xGetHostByName      = define_c_func(lib,"gethostbyname",{C_PTR}, C_PTR)
+C:\Program Files (x86)\Phix\builtins\sockets.e:361                 xWSAGetLastError = define_cffi_func(lib, tWSAGetLastError)
+C:\Program Files (x86)\Phix\builtins\sockets.e:367 --              xErrno = define_c_var(lib,"errno")
+C:\Program Files (x86)\Phix\builtins\sockets.e:369 --                  xErrno = define_c_var(lib,"__errno_location")
+C:\Program Files (x86)\Phix\builtins\sockets.e:395             xWSAStartup = define_cffi_func(lib, tWSAStartup)
+C:\Program Files (x86)\Phix\builtins\sockets.e:710             xWSACleanup = define_cffi_func(lib, tWSACleanup)
+C:\Program Files (x86)\Phix\builtins\sockets.e:827 --xSendTo  = define_c_func(WS2,"sendto",{C_INT, C_PTR, C_INT, C_INT, C_PTR, C_INT}, C_INT)
+C:\Program Files (x86)\Phix\builtins\sockets.e:828 --xGetPeer = define_c_func(WS2,"getpeername",{C_INT, C_PTR, C_PTR}, C_INT)
+C:\Program Files (x86)\Phix\builtins\sockets.e:1091 fcntl = define_c_func(lib,"fcntl",{C_PTR,C_INT,C_INT},C_PTR),
+C:\Program Files (x86)\Phix\builtins\sockets.e:1092 --sock  = define_c_func(lib,"socket",{C_INT,C_INT,C_INT},C_PTR),
+C:\Program Files (x86)\Phix\builtins\sockets.e:1093 --htons = define_c_func(lib,"htons",{C_USHORT},C_USHORT),
+C:\Program Files (x86)\Phix\builtins\sockets.e:1094 --htonl = define_c_func(lib,"htonl",{C_ULONG},C_ULONG),
+C:\Program Files (x86)\Phix\builtins\sockets.e:1095 --connect = define_c_func(lib,"connect",{C_INT,C_PTR,C_INT},C_INT),
+C:\Program Files (x86)\Phix\builtins\sockets.e:1096 read_ = define_c_func(lib,"read",{C_INT,C_PTR,C_INT},C_INT),
+C:\Program Files (x86)\Phix\builtins\sockets.e:1097 write_ = define_c_func(lib,"write",{C_INT,C_PTR,C_INT},C_INT),
+C:\Program Files (x86)\Phix\builtins\sockets.e:1098 close_ = define_c_proc(lib,"close",{C_INT}),
+C:\Program Files (x86)\Phix\builtins\sockets.e:1099 --gethostbyname = define_c_func(lib,"gethostbyname",{C_PTR},C_PTR),
+C:\Program Files (x86)\Phix\builtins\sockets.e:1100 getservbyname = define_c_func(lib,"getservbyname",{C_PTR,C_PTR},C_PTR),
+C:\Program Files (x86)\Phix\builtins\sockets.e:1101 --bind_ = define_c_func(lib,"bind",{C_INT,C_PTR,C_INT},C_INT),
+C:\Program Files (x86)\Phix\builtins\sockets.e:1102 --listen = define_c_func(lib,"listen",{C_INT,C_INT},C_INT),
+C:\Program Files (x86)\Phix\builtins\sockets.e:1103 poll = define_c_func(lib,"poll",{C_PTR,C_UINT,C_INT},C_INT),
+C:\Program Files (x86)\Phix\builtins\sockets.e:1104 --accept = define_c_func(lib,"accept",{C_INT,C_PTR,C_PTR},C_INT),
+C:\Program Files (x86)\Phix\builtins\sockets.e:1107 errno = redo({define_c_var(lib,"errno"),define_c_var(lib,"__errno_location")}, 0)
+C:\Program Files (x86)\Phix\builtins\sockets.e:1501 socket fcntl   fcntl = define_c_func(lib,"fcntl",{P,I,I},P)
+C:\Program Files (x86)\Phix\builtins\sockets.e:1502 --socket sock    sock  = define_c_func(lib,"socket",{I,I,I},P)
+C:\Program Files (x86)\Phix\builtins\sockets.e:1503 --socket htons   htons = define_c_func(lib,"htons",{C_USHORT},C_USHORT)
+C:\Program Files (x86)\Phix\builtins\sockets.e:1504 --socket connect connect = define_c_func(lib,"connect",{I,P,I},I)
+C:\Program Files (x86)\Phix\builtins\sockets.e:1505 socket read_   read_ = define_c_func(lib,"read",{I,P,I},I)
+C:\Program Files (x86)\Phix\builtins\sockets.e:1506 socket write_  write_ = define_c_func(lib,"write",{I,P,I},I)
+C:\Program Files (x86)\Phix\builtins\sockets.e:1507 socket close_  close_ = define_c_proc(lib,"close",{I})
+C:\Program Files (x86)\Phix\builtins\sockets.e:1508 --socket gethostbyname gethostbyname = define_c_func(lib,"gethostbyname",{P},P)
+C:\Program Files (x86)\Phix\builtins\sockets.e:1509 socket getservbyname getservbyname = define_c_func(lib,"getservbyname",{P,P},P)
+C:\Program Files (x86)\Phix\builtins\syswait.ew:112         xCreateProcess = define_c_func(kernel32, "CreateProcessA",
+C:\Program Files (x86)\Phix\builtins\syswait.ew:125         xWaitForSingleObject = define_c_func(kernel32, "WaitForSingleObject",
+C:\Program Files (x86)\Phix\builtins\syswait.ew:130         xGetExitCodeProcess = define_c_func(kernel32, "GetExitCodeProcess",
+C:\Program Files (x86)\Phix\builtins\syswait.ew:135 --      xGetProcessTimes = define_c_func(kernel32,"GetProcessTimes",
+C:\Program Files (x86)\Phix\builtins\syswait.ew:145 --      xWaitForInputIdle = define_c_func(user32, "WaitForInputIdle",
+C:\Program Files (x86)\Phix\builtins\syswait.ew:152         xShellExecute = define_c_func(shell32, "ShellExecuteA",
+C:\Program Files (x86)\Phix\builtins\syswait.ew:161 --      xGetStdHandle = define_c_func(kernel32,"GetStdHandle",
+C:\Program Files (x86)\Phix\builtins\syswait.ew:165         xCloseHandle = define_c_func(kernel32, "CloseHandle",
+C:\Program Files (x86)\Phix\builtins\syswait.ew:169 --      xGetLastError = define_c_func(kernel32, "GetLastError",
+C:\Program Files (x86)\Phix\builtins\syswait.ew:201 --  xChangeDisplaySettings = define_c_func(user32, "xChangeDisplaySettingsW",
+C:\Program Files (x86)\Phix\builtins\syswait.ew:206 --  xBeep = define_c_func(kernel32, "Beep",
+C:\Program Files (x86)\Phix\builtins\text.e:471     api_CharLowerBuff = define_c_func(user32, "CharLowerBuffA", {C_PTR, C_INT}, C_INT),
+C:\Program Files (x86)\Phix\builtins\text.e:472     api_CharUpperBuff = define_c_func(user32, "CharUpperBuffA", {C_PTR, C_INT}, C_INT),
+C:\Program Files (x86)\Phix\builtins\timestamp.ew:54     xFileTimeToSystemTime = define_c_func(kernel32,"FileTimeToSystemTime",
+C:\Program Files (x86)\Phix\builtins\timestamp.ew:59     xGetDateFormat = define_c_func(kernel32,"GetDateFormatA",
+C:\Program Files (x86)\Phix\builtins\timestamp.ew:68     xGetTimeFormat = define_c_func(kernel32,"GetTimeFormatA",
+C:\Program Files (x86)\Phix\builtins\timestamp.ew:77     xGetSystemTime = define_c_proc(kernel32,"GetSystemTime",
+C:\Program Files (x86)\Phix\builtins\timestamp.ew:80     xSystemTimeToFileTime = define_c_func(kernel32,"SystemTimeToFileTime",
+C:\Program Files (x86)\Phix\builtins\timestamp.ew:85     xCreateFile = define_c_func(kernel32, "CreateFileA",
+C:\Program Files (x86)\Phix\builtins\timestamp.ew:95     xGetFileTime = define_c_func(kernel32,"GetFileTime",
+C:\Program Files (x86)\Phix\builtins\timestamp.ew:102     xSetFileTime = define_c_func(kernel32,"SetFileTime",
+C:\Program Files (x86)\Phix\builtins\timestamp.ew:109     xCloseHandle = define_c_func(kernel32, "CloseHandle",
+C:\Program Files (x86)\Phix\builtins\unicode_console.e:39             xGetStdHandle = define_cffi_func(k32,tGSH)
+C:\Program Files (x86)\Phix\builtins\unicode_console.e:41             xSetConsoleOutputCP = define_cffi_func(k32,tSCOCP)
+C:\Program Files (x86)\Phix\builtins\VM\pcallfunc.e:27 --constant e74dcfpe     = 74    -- define_c_func/proc parameter error
+--togo:
+C:\Program Files (x86)\Phix\builtins\VM\pcfunc.e:4 --  Phix implementations of define_c_func, define_c_proc, define_c_var,
+C:\Program Files (x86)\Phix\builtins\VM\pcfunc.e:17 --  In Phix, you need not "include dll.e" before using define_c_func, 
+C:\Program Files (x86)\Phix\builtins\VM\pcfunc.e:25 --      i1 = dlldefine_c_func(a,s1,s2,i2)
+C:\Program Files (x86)\Phix\builtins\VM\pcfunc.e:39 --  c) In Phix, calls to machine_func(M_DEFINE_C) are not supposed to
+C:\Program Files (x86)\Phix\builtins\VM\pcfunc.e:42 --      left this in dll.e, and pmach.e (naively) mapped M_DEFINE_C
+C:\Program Files (x86)\Phix\builtins\VM\pcfunc.e:43 --      to dlldefine_c_func(), it would result in an infinite loop. 
+C:\Program Files (x86)\Phix\builtins\VM\pcfunc.e:60 --                   cp_f = define_c_proc({},cb_f,{C_INT})
+C:\Program Files (x86)\Phix\builtins\VM\pcfunc.e:123 constant e74dcfpe       = 74    -- define_c_func/proc parameter error
+C:\Program Files (x86)\Phix\builtins\VM\pcfunc.e:310 -- used by define_c_func/define_c_proc/define_c_var and for
+C:\Program Files (x86)\Phix\builtins\VM\pcfunc.e:583 global function define_c_func(object lib, object fname, object args, atom return_type)
+C:\Program Files (x86)\Phix\builtins\VM\pcfunc.e:593 --                   xBeep = define_c_func(kernel32,"Beep",{C_INT,C_INT},C_INT)
+C:\Program Files (x86)\Phix\builtins\VM\pcfunc.e:610 --          constant ret1 = define_c_proc({},jraddr,{})
+C:\Program Files (x86)\Phix\builtins\VM\pcfunc.e:615 --          constant ret2 = define_c_proc({},mem1,{})
+C:\Program Files (x86)\Phix\builtins\VM\pcfunc.e:638 --  return_type should be one of C_CHAR..E_OBJECT, or 0 for define_c_proc.
+C:\Program Files (x86)\Phix\builtins\VM\pcfunc.e:740 global function define_c_proc(object lib, object name, sequence args)
+C:\Program Files (x86)\Phix\builtins\VM\pcfunc.e:746     return define_c_func(lib, name, args, 0)
+C:\Program Files (x86)\Phix\builtins\VM\pcfunc.e:749 global function define_c_var(atom lib, sequence name)
+C:\Program Files (x86)\Phix\builtins\VM\pcmdlnN.e:191             xGetCommandLine = define_c_func(xKernel32,"GetCommandLineA",
+C:\Program Files (x86)\Phix\builtins\VM\pcmdlnN.e:194 --          xGetLastError = define_c_func(xKernel32, "GetLastError",
+C:\Program Files (x86)\Phix\builtins\VM\pcmdlnN.e:197             xSearchPath = define_c_func(xKernel32,"SearchPathA",
+C:\Program Files (x86)\Phix\builtins\VM\pDiagN.e:810 --  xIsBadReadPtr = define_c_func(kernel32, "IsBadReadPtr",
+C:\Program Files (x86)\Phix\builtins\VM\pDiagN.e:2234     -- occurs after a previous call to routine_id, define_c_func, 
+C:\Program Files (x86)\Phix\builtins\VM\pDiagN.e:2244  "define_c_func/proc parameter error\n",                        -- e74dcfpe
+C:\Program Files (x86)\Phix\builtins\VM\pDiagN.e:2245     -- the first argument to define_c_func/proc is:
+C:\Program Files (x86)\Phix\builtins\VM\pDiagN.e:2251     -- ie the legal forms of define_c_func/proc are:
+C:\Program Files (x86)\Phix\builtins\VM\pDiagN.e:2252     --      define_c_func/proc(atom,name,...)
+C:\Program Files (x86)\Phix\builtins\VM\pDiagN.e:2253     --      define_c_func/proc({},addr,...)
+C:\Program Files (x86)\Phix\builtins\VM\pDiagN.e:2350     -- either the define_c_func/proc statement is wrong, or
+C:\Program Files (x86)\Phix\builtins\VM\pDiagN.e:2354     --  to invoke a routine defined using define_c_proc
+C:\Program Files (x86)\Phix\builtins\VM\pDiagN.e:2357     --  to invoke a routine defined using define_c_func
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:532     xGetStdHandle = define_c_func(kernel32,"GetStdHandle",
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:536     xCreateFile = define_c_func(kernel32,"CreateFileA",
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:545 --  xReadFile   = define_c_func(kernel32,"ReadFile",
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:552 --  xWriteFile  = define_c_func(kernel32,"WriteFile",
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:560     xSetFilePointer = define_c_func(kernel32,"SetFilePointer",
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:566     xGetFileInformationByHandle = define_c_func(kernel32,"GetFileInformationByHandle",
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:570     xLockFile = define_c_func(kernel32,"LockFile",
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:577     xUnlockFile = define_c_func(kernel32,"UnlockFile",
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:584 --  xGetFileSize = define_c_func(kernel32,"GetFileSize",
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:588     xCloseHandle = define_c_func(kernel32,"CloseHandle",
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:591     xAllocConsole = define_c_func(kernel32,"AllocConsole",
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:594     xFreeConsole = define_c_func(kernel32,"FreeConsole",
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:597     xSetConsoleMode = define_c_func(kernel32,"SetConsoleMode",
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:601     xGetConsoleMode = define_c_func(kernel32,"GetConsoleMode",
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:605 --  xReadConsole = define_c_func(kernel32,"ReadConsoleA",
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:612     xWriteConsole = define_c_func(kernel32,"WriteConsoleA",
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:619     xGetConsoleScreenBufferInfo = define_c_func(kernel32,"GetConsoleScreenBufferInfo",
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:623     xSetConsoleScreenBufferSize = define_c_func(kernel32,"GetConsoleScreenBufferInfo",
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:627     xScrollConsoleScreenBuffer = define_c_func(kernel32,"ScrollConsoleScreenBufferA",
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:634     xSetConsoleTextAttribute = define_c_func(kernel32,"SetConsoleTextAttribute",
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:638     xGetLastError = define_c_func(kernel32, "GetLastError",
+C:\Program Files (x86)\Phix\builtins\VM\pTask.e:32 --constant e74dcfpe         = 74    -- define_c_func/proc parameter error
+C:\Program Files (x86)\Phix\builtins\VM\pThreadN.e:41         xCreateEvent = define_c_func(kernel32,"CreateEventA",
+C:\Program Files (x86)\Phix\builtins\VM\pThreadN.e:48         xSetEvent = define_c_func(kernel32,"SetEvent",
+C:\Program Files (x86)\Phix\builtins\VM\pThreadN.e:52         xResetEvent = define_c_func(kernel32,"ResetEvent",
+C:\Program Files (x86)\Phix\builtins\VM\pThreadN.e:56         xWaitForSingleObject = define_c_func(kernel32, "WaitForSingleObject",
+C:\Program Files (x86)\Phix\builtins\VM\pThreadN.e:61 --      xCreateThread = define_c_func(kernel32,"CreateThread",
+C:\Program Files (x86)\Phix\builtins\VM\pThreadN.e:70         xGetExitCodeThread = define_c_func(kernel32,"GetExitCodeThread",
+C:\Program Files (x86)\Phix\builtins\VM\pThreadN.e:75         xSuspendThread = define_c_func(kernel32,"SuspendThread",
+C:\Program Files (x86)\Phix\builtins\VM\pThreadN.e:79         xResumeThread = define_c_func(kernel32,"ResumeThread",
+C:\Program Files (x86)\Phix\builtins\VM\pThreadN.e:83         xCloseHandle = define_c_func(kernel32,"CloseHandle",
+C:\Program Files (x86)\Phix\builtins\VM\pThreadN.e:87         xGetLastError = define_c_func(kernel32,"GetLastError",
+C:\Program Files (x86)\Phix\builtins\VM\pTrace.e:239         xGetStdHandle = define_c_func(xKernel32,"GetStdHandle",
+C:\Program Files (x86)\Phix\builtins\VM\pTrace.e:242         xGetConsoleScreenBufferInfo = define_c_func(xKernel32,"GetConsoleScreenBufferInfo",
+C:\Program Files (x86)\Phix\builtins\VM\pTrace.e:246         xSetConsoleScreenBufferSize = define_c_func(xKernel32,"SetConsoleScreenBufferSize",
+C:\Program Files (x86)\Phix\builtins\VM\pTrace.e:250         xSetConsoleTextAttribute = define_c_func(xKernel32,"SetConsoleTextAttribute",
+C:\Program Files (x86)\Phix\builtins\VM\pTrace.e:254         xGetKeyState = define_c_func(xUser32,"GetKeyState",
+C:\Program Files (x86)\Phix\builtins\VM\pTrace.e:257         xIsBadReadPtr = define_c_func(xKernel32,"IsBadReadPtr",
+C:\Program Files (x86)\Phix\builtins\VM\pTrace.e:261         xGetConsoleMode = define_c_func(xKernel32,"GetConsoleMode",
+C:\Program Files (x86)\Phix\builtins\VM\pTrace.e:265         xSetConsoleMode = define_c_func(xKernel32,"SetConsoleMode",
+C:\Program Files (x86)\Phix\builtins\VM\pTrace.e:1690 --constant xSetForegroundWindow = define_c_func(user32, "SetForegroundWindow", {C_PTR}, C_PTR )
+--*/
+
+--/* I'm counting this lot as just 7:
+Searching for: define_c [ditto]
+ Files scanned 470, Directories scanned 7, Lines 657985
+C:\Program Files (x86)\Phix\demo\rosetta\Day_of_the_week.exw:60          xSTtoFT = define_cffi_func(k32,tSTtoFT),
+C:\Program Files (x86)\Phix\demo\rosetta\Day_of_the_week.exw:61          xFTtoST = define_cffi_func(k32,tFTtoST)
+C:\Program Files (x86)\Phix\demo\rosetta\Record_sound.exw:20          xmciSendString = define_c_func(winmm,"mciSendStringA",
+C:\Program Files (x86)\Phix\demo\rosetta\safe_mode.exw:69     integer frid = define_c_func({},pMem,{},C_INT),
+C:\Program Files (x86)\Phix\demo\rosetta\safe_mode.exw:70             prid = define_c_proc({},pMem,{})
+C:\Program Files (x86)\Phix\demo\rosetta\sha-256dll.exw:11 constant SHA_HashBlock = define_c_proc(lib,"SHA_HashBlock",{C_PTR,C_PTR,C_INT})
+C:\Program Files (x86)\Phix\demo\rosetta\bass\bass.e:18          xBASS_ErrorGetCode = define_c_func(bass,"BASS_ErrorGetCode",{},C_INT),
+C:\Program Files (x86)\Phix\demo\rosetta\bass\bass.e:19          xBASS_Init = define_c_func(bass,"BASS_Init",{C_INT,C_INT,C_INT,C_PTR,C_INT},C_INT),
+C:\Program Files (x86)\Phix\demo\rosetta\bass\bass.e:20 --       xBASS_StreamCreateFile = define_c_func(bass,"BASS_StreamCreateFile",{C_INT,C_PTR,C_INT64,C_INT64,C_INT},C_INT),
+C:\Program Files (x86)\Phix\demo\rosetta\bass\bass.e:22          xBASS_StreamCreateFile = define_c_func(bass,"BASS_StreamCreateFile",scfp,C_INT),
+C:\Program Files (x86)\Phix\demo\rosetta\bass\bass.e:23          xBASS_ChannelPlay = define_c_func(bass,"BASS_ChannelPlay",{C_PTR,C_INT},C_INT),
+C:\Program Files (x86)\Phix\demo\rosetta\bass\bass.e:24          xBASS_ChannelIsActive = define_c_func(bass,"BASS_ChannelIsActive",{C_PTR},C_INT),
+C:\Program Files (x86)\Phix\demo\rosetta\bass\bass.e:25          xBASS_ChannelFree = define_c_func(bass,"BASS_ChannelFree",{C_PTR},C_INT),
+C:\Program Files (x86)\Phix\demo\rosetta\eulibnet\wrapper.ew:23     integer handle = define_c_func(dll, name, args, result)
+C:\Program Files (x86)\Phix\demo\rosetta\eulibnet\wrapper.ew:31     integer handle = define_c_proc(dll, name, args)
+C:\Program Files (x86)\Phix\demo\rosetta\libxml\libxml.e:6          x_xmlLineNumbersDefault = define_c_func(libxml,"xmlLineNumbersDefault",{C_INT},C_INT),
+C:\Program Files (x86)\Phix\demo\rosetta\libxml\libxml.e:7          x_xmlGetLastError = define_c_func(libxml,"xmlGetLastError",{},C_PTR),
+C:\Program Files (x86)\Phix\demo\rosetta\libxml\libxml.e:8          x_xmlSchemaNewParserCtxt = define_c_func(libxml,"xmlSchemaNewParserCtxt",{C_PTR},C_PTR),
+C:\Program Files (x86)\Phix\demo\rosetta\libxml\libxml.e:9          x_xmlSchemaSetParserErrors = define_c_func(libxml,"xmlSchemaSetParserErrors",{C_INT,C_PTR,C_PTR,C_INT},C_INT),
+C:\Program Files (x86)\Phix\demo\rosetta\libxml\libxml.e:10 --       x_xmlSchemaSetParserErrors = define_c_func(libxml,"xmlSchemaSetParserErrors",{I,C_PTR,C_PTR,I},I),
+C:\Program Files (x86)\Phix\demo\rosetta\libxml\libxml.e:11          x_xmlSchemaParse = define_c_func(libxml,"xmlSchemaParse",{C_PTR},C_PTR),
+C:\Program Files (x86)\Phix\demo\rosetta\libxml\libxml.e:12          x_xmlSchemaFreeParserCtxt = define_c_proc(libxml,"xmlSchemaFreeParserCtxt",{C_PTR}),
+C:\Program Files (x86)\Phix\demo\rosetta\libxml\libxml.e:13          x_xmlReadFile = define_c_func(libxml,"xmlReadFile",{C_PTR,C_PTR,C_INT},C_PTR),
+C:\Program Files (x86)\Phix\demo\rosetta\libxml\libxml.e:14          x_xmlFreeDoc = define_c_proc(libxml,"xmlFreeDoc",{C_PTR}),
+C:\Program Files (x86)\Phix\demo\rosetta\libxml\libxml.e:15          x_xmlSchemaNewValidCtxt = define_c_func(libxml,"xmlSchemaNewValidCtxt",{C_PTR},C_PTR),
+C:\Program Files (x86)\Phix\demo\rosetta\libxml\libxml.e:16          x_xmlSchemaSetValidErrors = define_c_func(libxml,"xmlSchemaSetValidErrors",{C_INT,C_PTR,C_PTR,C_INT},C_INT),
+C:\Program Files (x86)\Phix\demo\rosetta\libxml\libxml.e:17 --       x_xmlSchemaSetValidErrors = define_c_func(libxml,"xmlSchemaSetValidErrors",{I,C_PTR,C_PTR,I},I),
+C:\Program Files (x86)\Phix\demo\rosetta\libxml\libxml.e:18          x_xmlSchemaValidateDoc = define_c_func(libxml,"xmlSchemaValidateDoc",{C_PTR,C_PTR},C_INT),
+C:\Program Files (x86)\Phix\demo\rosetta\libxml\libxml.e:19          x_xmlSchemaFreeValidCtxt = define_c_proc(libxml,"xmlSchemaFreeValidCtxt",{C_PTR}),
+C:\Program Files (x86)\Phix\demo\rosetta\libxml\libxml.e:20          x_xmlSchemaFree = define_c_proc(libxml,"xmlSchemaFree",{C_PTR}),
+C:\Program Files (x86)\Phix\demo\rosetta\libxml\libxml.e:21          x_xmlSchemaCleanupTypes = define_c_proc(libxml,"xmlSchemaCleanupTypes",{}),
+C:\Program Files (x86)\Phix\demo\rosetta\libxml\libxml.e:22          x_xmlCleanupParser = define_c_proc(libxml,"xmlCleanupParser",{}),
+C:\Program Files (x86)\Phix\demo\rosetta\libxml\libxml.e:23          x_xmlMemoryDump = define_c_proc(libxml,"xmlMemoryDump",{})
+--*/
+
+--/* from https://board.flatassembler.net/topic.php?t=16902
+include 'literal.inc'
+
+mov r1, r2
+mov r1, 80000000h
+mov r1, [r2]
+mov [r1], r2
+mov r1, [r2+r3]
+mov [r1+r2*4], r3
+mov r1, [r2+123ABCh]
+
+add r1, r2
+add r1, 80000000h
+add r1, [r2]
+add [r1], r2
+add r1, [r2+r3]
+add [r1+r2*4], r3
+add r1, [r2+123ABCh]
+
+sub r1, r2
+orr r1, 80000000h
+and r1, [r2]
+bic [r1], r2
+                a. SWI stands for SoftWare Interrupt. If R7 has a value of 1 in it SWI knows to exit to the terminal. 
+                The value stored in R7 is the Syscall number. Depending on how different registers are set we can call for other Raspbian routines or libraries to be called. 
+
+        1. To output to the screen we need to set the parameters as such
+        
+                a. R0 : Output Stream (1 : Monitor)
+                
+                b. R1 : Address of characters to write
+                
+                c. R2 : Number of characters to write
+                
+                d. R7 : Syscall (4 to write to screen)
+
+        a. R0 : Input Stream (0 : Keyboard)
+                
+                b. R1 : Address of buffer to save string to
+                
+                c. R2 : # of characters to read
+                
+                d. R7 : Syscall (3 to read from keyboard)
+
+        Convert to uppercase with BIC
+                .global _start
+                _start:
+                        MOV R7, #3 @ Syscall read from keyboard
+                        MOV R0,  #0 @ Input stream keyboard
+                        MOV R2, #1 @ Read 1 character
+                        LDR R1, =character @ Put character in character
+                        SWI 0
+                        
+                _uppercase:
+                        LDR R1, =character @ Get address to character
+                        LDR R0, [R1] @ Load character into R0
+                        
+                        @ Zero out 6th bit
+                        @ a : 0110 0001
+                        @   : 0010 0000
+                        @ A : 0100 0001
+                        BIC R0, R0, #32 
+                        
+                        STR R0, [R1] @ Store character with address stored in R1 in R0
+                
+                _write:
+                        MOV R7, #4 @ Syscall to output to screen
+                        MOV R0, #1 @ Output to monitor
+                        MOV R2, #1      @ # of characters to write
+                        LDR R1, =character @ Print character in character
+                        SWI 0
+                
+                end:
+                        MOV R7, #1
+                        SWI 0
+                
+                .data
+                character:
+                        .ascii " "
+
+
+        5. You can disassemble your code. To disassemble the code attacjed to the label _start type : disassemble _start
+        
+                a. The 1st number is the location in memory for the instruction. The 2nd is the number of bytes from the beginning of the label or function.
+        
+        6. By using breakpoints you can step through your code
+                
+
+sub r1, [r2+r3]
+cmp [r1+r2*4], r3
+mvn r1, [r2+123ABCh]    
+
+Disassembly:
+00000000 E1A01002 mov r1, r2
+00000004 E3A01102 mov r1, 80000000h
+00000008 E5921000 ldr r1, [r2]
+0000000C E5812000 str r2, [r1]
+00000010 E7921003 ldr r1, [r2, r3]
+00000014 E7813102 str r3, [r1, r2, lsl 2]
+00000018 E3A0C0BC mov r12, 0BCh
+0000001C E38CCC3A orr r12, r12, 3A00h
+00000020 E38CC812 orr r12, r12, 120000h
+00000024 E792100C ldr r1, [r2, r12]
+00000028 E0911002 adds r1, r1, r2
+0000002C E2911102 adds r1, r1, 80000000h
+00000030 E592B000 ldr r11, [r2]
+00000034 E091100B adds r1, r1, r11
+00000038 E591A000 ldr r10, [r1]
+0000003C E09AA002 adds r10, r10, r2
+00000040 E581A000 str r10, [r1]
+00000044 E792B003 ldr r11, [r2, r3]
+00000048 E091100B adds r1, r1, r11
+0000004C E791A102 ldr r10, [r1, r2, lsl 2]
+00000050 E09AA003 adds r10, r10, r3
+00000054 E781A102 str r10, [r1, r2, lsl 2]
+00000058 E3A0C0BC mov r12, 0BCh
+0000005C E38CCC3A orr r12, r12, 3A00h
+00000060 E38CC812 orr r12, r12, 120000h
+00000064 E792B00C ldr r11, [r2, r12]
+00000068 E091100B adds r1, r1, r11
+0000006C E0511002 subs r1, r1, r2
+00000070 E3811102 orr r1, r1, 80000000h
+00000074 E592B000 ldr r11, [r2]
+00000078 E011100B ands r1, r1, r11
+0000007C E591A000 ldr r10, [r1]
+00000080 E1DAA002 bics r10, r10, r2
+00000084 E581A000 str r10, [r1]
+00000088 E792B003 ldr r11, [r2, r3]
+0000008C E051100B subs r1, r1, r11
+00000090 E791A102 ldr r10, [r1, r2, lsl 2]
+00000094 E15A0003 cmp r10, r3
+00000098 E781A102 str r10, [r1, r2, lsl 2]
+0000009C E3A0C0BC mov r12, 0BCh
+000000A0 E38CCC3A orr r12, r12, 3A00h
+000000A4 E38CC812 orr r12, r12, 120000h
+000000A8 E792B00C ldr r11, [r2, r12]
+000000AC E1E0100B mvn r1, r11    
+--*/
+
+--/* done, so-so:
+--Yay! (won't disassemble though, data in't code section 'n all that jazz)
+constant hws = """
+0000000: 7f45 4c46 0101 0161 0000 0000 0000 0000  .ELF...a........
+0000010: 0200 2800 0100 0000 7480 0000 3400 0000  ..(.....t...4...
+0000020: d400 0000 0202 0000 3400 2000 0200 2800  ........4. ...(.
+0000030: 0700 0600 0100 0000 0000 0000 0080 0000  ................
+0000040: 0080 0000 a000 0000 a000 0000 0500 0000  ................
+0000050: 0080 0000 0100 0000 a000 0000 a000 0100  ................
+0000060: a000 0100 0000 0000 0000 0000 0600 0000  ................
+0000070: 0080 0000 0000 a0e3 0c10 9fe5 0c20 a0e3  ............. ..
+0000080: 0400 90ef 0600 a0e3 0100 90ef 9080 0000  ................
+0000090: 4865 6c6c 6f20 576f 726c 640a 0000 0000  Hello World.....
+00000a0: 0047 6961 6e74 0000 2e73 6873 7472 7461  .Giant...shstrta
+00000b0: 6200 2e74 6578 7400 2e72 6f64 6174 6100  b..text..rodata.
+00000c0: 2e64 6174 6100 2e62 7373 002e 636f 6d6d  .data..bss..comm
+00000d0: 656e 7400 0000 0000 0000 0000 0000 0000  ent.............
+00000e0: 0000 0000 0000 0000 0000 0000 0000 0000  ................
+00000f0: 0000 0000 0000 0000 0000 0000 0b00 0000  ................
+0000100: 0100 0000 0600 0000 7480 0000 7400 0000  ........t...t...
+0000110: 1c00 0000 0000 0000 0000 0000 0400 0000  ................
+0000120: 0000 0000 1100 0000 0100 0000 0200 0000  ................
+0000130: 9080 0000 9000 0000 1000 0000 0000 0000  ................
+0000140: 0000 0000 0400 0000 0000 0000 1900 0000  ................
+0000150: 0100 0000 0300 0000 a000 0100 a000 0000  ................
+0000160: 0000 0000 0000 0000 0000 0000 0100 0000  ................
+0000170: 0000 0000 1f00 0000 0800 0000 0300 0000  ................
+0000180: a000 0100 a000 0000 0000 0000 0000 0000  ................
+0000190: 0000 0000 0100 0000 0000 0000 2400 0000  ............$...
+00001a0: 0100 0000 0000 0000 0000 0000 a000 0000  ................
+00001b0: 0700 0000 0000 0000 0000 0000 0100 0000  ................
+00001c0: 0000 0000 0100 0000 0300 0000 0000 0000  ................
+00001d0: 0000 0000 a700 0000 2d00 0000 0000 0000  ........-.......
+00001e0: 0000 0000 0100 0000 0000 0000            ............    
+"""
+-- size should be #1ec = 492 bytes
+integer fn = open("hwb","wb")
+for hwline in split(hws,'\n') do
+--  hwline[9] = '>'
+--  hwline[49] = '<'
+    string data = trim(hwline[10..48]),
+           rbld = ""
+    for i=1 to length(data) by 5 do
+        for j=0 to 2 by 2 do
+            integer byte = to_integer(data[i+j..i+j+1],-1,16)
+            rbld &= sprintf("%02x",byte)
+            puts(fn,byte)
+        end for
+    end for
+    printf(1,"%s>%s<\n",{hwline[1..8],data})
+    printf(1,"%s>%s<\n",{hwline[1..8],rbld})
+end for
+close(fn)
+?get_file_size("hwb")
+?"done"
+wait_key()
+abort(0)
+--*/
+
+--/* from https://forums.raspberrypi.com/viewtopic.php?t=293734
+-- may be ok for an echo/cat demo...
+.text
+.global main
+
+main:
+    ldr r0, =binaryfile
+    mov r1, #0
+    ldr r2,=0444
+    mov r7, #5
+    svc #0
+
+    ldr r1, =Handle
+    str r0, [r1]
+
+    loop:
+    ldr r0, =Handle
+    ldr r0, [r0]
+    ldr r1,=readBuffer
+    mov r2, #16
+    mov r7, #3
+    svc #0
+
+    mov r7, #1
+    svc #0
+
+    .data
+Handle: .skip 4
+readBuffer: .skip 80
+binaryfile: .asciz "fft.txt"
+.end
+
+Read returns the number of bytes that were read, which in your case since you asked for 16 bytes and there were at least 16 bytes in the file, you got 16 in R0.
+
+The data that was read in is stored in the buffer that your passed to read.
+--*/
+
+--/* from https://forums.raspberrypi.com/viewtopic.php?t=288403
+@??     .data
+main:   .globl  main
+
+        push    {ip,lr}
+        adrl    r0,str
+        adrl    r1,num
+        ldr     r1,[r1]
+        bl      printf
+        pop     {ip,lr}
+
+        mov     r0,#0
+        mov     r7,#248
+        svc     0
+        
+str:    .asciz  "num = %08x\n"
+
+        .align  2
+
+num:    .word   0x12345678
+
+gcc -o example example.s
+./example
+num = 12345678
+--*/
+
+--/* from https://forums.raspberrypi.com/viewtopic.php?t=287048
+.macro  num32   reg,opr
+    mov \reg,#(\opr) & 0xFF000000
+    orr \reg,#(\opr) & 0x00FF0000
+    orr \reg,#(\opr) & 0x0000FF00
+    orr \reg,#(\opr) & 0x000000FF
+.endm
+--*/
+
+--/*
+format ELF executable entry start 
+segment readable executable     
+macro adr reg,location {       add  reg,pc,location-$-8}                              ;tell linker entry point
+code32
+start:      adr r0, Dirtest    ; directory        
+            swi 0x90000C           ; chdir        
+            adr r0, Menutest       ; program to execute        
+            mov r1, 0           ; arg 2 = NULL        
+            mov r2, 0          ; arg 3 = NULL        
+            swi 0x90000B          ; execve
+Dirtest:    db  "/usr/gp2x",0
+Menutest: db  "/usr/gp2x/gp2xmenu",0
+--*/
+
+--S|k=0..7|m=16..31|
+--==> v is +/-m/power(2,k)
+--/* seems OK:
+function valid_vmov_constant(atom t)
+    for i=1 to 8 do
+        if integer(t) and t>=16 and t<=31 then return true end if
+        t *= 2
+    end for
+    return false
+end function
+?valid_vmov_constant(0.1328125)
+--?17/128
+?valid_vmov_constant(0.13281255)
+?valid_vmov_constant(31)
+?valid_vmov_constant(32)
+?"done"
+wait_key()
+--/1,2,4,8,16,32,64,128
+--*/
+--/*
+?"|7..|6..|5..|"
+for m=16 to 31 do
+    for k=7 to 0 by -1 do
+        printf(1,"|%g..",m/power(2,k))
+    end for
+    printf(1,"|\n")
+end for
+?"done"
+wait_key()
+--/!*
+|k=7...........|6.............|5............|4...........|3..........|2.........|1.........|0...|
+|0&#45;125.....|0&#45;25......|0&#45;5......|1...........|2..........|4.........|8.........|16..|
+|0&#45;132812..|0&#45;265625..|0&#45;53125..|1&#45;0625..|2&#45;125..|4&#45;25..|8&#45;5...|17..|
+|0&#45;140625..|0&#45;28125...|0&#45;5625...|1&#45;125...|2&#45;25...|4&#45;5...|9.........|18..|
+|0&#45;148438..|0&#45;296875..|0&#45;59375..|1&#45;1875..|2&#45;375..|4&#45;75..|9&#45;5...|19..|
+|0&#45;15625...|0&#45;3125....|0&#45;625....|1&#45;25....|2&#45;5....|5.........|10........|20..|
+|0&#45;164062..|0&#45;328125..|0&#45;65625..|1&#45;3125..|2&#45;625..|5&#45;25..|10&#45;5..|21..|
+|0&#45;171875..|0&#45;34375...|0&#45;6875...|1&#45;375...|2&#45;75...|5&#45;5...|11........|22..|
+|0&#45;179688..|0&#45;359375..|0&#45;71875..|1&#45;4375..|2&#45;875..|5&#45;75..|11&#45;5..|23..|
+|0&#45;1875....|0&#45;375.....|0&#45;75.....|1&#45;5.....|3..........|6.........|12........|24..|
+|0&#45;195312..|0&#45;390625..|0&#45;78125..|1&#45;5625..|3&#45;125..|6&#45;25..|12&#45;5..|25..|
+|0&#45;203125..|0&#45;40625...|0&#45;8125...|1&#45;625...|3&#45;25...|6&#45;5...|13........|26..|
+|0&#45;210938..|0&#45;421875..|0&#45;84375..|1&#45;6875..|3&#45;375..|6&#45;75..|13&#45;5..|27..|
+|0&#45;21875...|0&#45;4375....|0&#45;875....|1&#45;75....|3&#45;5....|7.........|14........|28..|
+|0&#45;226562..|0&#45;453125..|0&#45;90625..|1&#45;8125..|3&#45;625..|7&#45;25..|14&#45;5..|29..|
+|0&#45;234375..|0&#45;46875...|0&#45;9375...|1&#45;875...|3&#45;75...|7&#45;5...|15........|30..|
+|0&#45;242188..|0&#45;484375..|0&#45;96875..|1&#45;9375..|3&#45;875..|7&#45;75..|15&#45;5..|31..|
+"done"
+--*/
+--/*
+sinx Using IEEE Single Precision
+.data
+@@ The following is a table of constants used in the
+@@ Taylor series approximation for sine
+.align 5 @ Align to cache
+ctab:   .word 0xBE2AAAAA @ -1.666666e-01
+        .word 0x3C088889 @ 8.333334e-03
+        .word 0xB9500D00 @ -1.984126e-04
+        .word 0x3638EF1D @ 2.755732e-06
+        .word 0xB2D7322A @ -2.505210e-08
+@@@ --------------------------------------------------------------
+.text
+.align 2
+@@ sin_a_f implements the sine function using IEEE single
+@@ precision floating point. It computes sine by summing
+@@ the first six terms of the Taylor series.
+.global sin_a_f
+sin_a_f:
+        @@ set runfast mode and rounding to nearest
+        fmrx r1, fpscr @ get FPSCR contents in r1
+        bic r2, r1, #(0b1111<<23)
+        orr r2, r2, #(0b1100<<23)
+        fmxr fpscr, r2 @ store in FPSCR
+        @@ initialize variables
+        vmul.f32 s1,s0,s0 @ s1 <- x^2
+        vmul.f32 s3,s1,s0 @ s3 <- x^3
+        ldr r0,=ctab @ load pointer to coefficients
+        mov r3,#5 @ load loop counter
+loop:
+        vldr.f32 s4,[r0] @ load coefficient
+        add r0,r0,#4 @ increment pointer
+        vmul.f32 s4,s3,s4 @ s4 <- next term
+        vadd.f32 s0,s0,s4 @ add term to result
+        subs r3,r3,#1 @ decrement and test loop count
+        vmulne.f32 s3,s1,s3 @ s4 <- x^2n
+        bne loop @ loop five times
+        @@ restore original FPSCR
+        fmxr fpscr, r1
+        mov pc,lr
+--*/
+
+--/* quick analysis of #ilASM{} syscall vs libc:
+Searching for: #ilASM
+ Files scanned 221, Directories scanned 2, Lines 137443
+C:\Program Files (x86)\Phix\builtins\pbreak.e:19 #ilASM{ jmp :!opCallOnceYeNot..}   -- sys_sigaction
+C:\Program Files (x86)\Phix\builtins\pchdir.e:42     #ilASM{..}                     -- sys_chdir
+C:\Program Files (x86)\Phix\builtins\pComN.ew:533     #ilASM{..}                    -- (strictly windows only)
+C:\Program Files (x86)\Phix\builtins\pcurrdir.e:56         #ilASM{..}               -- sys_getcwd
+C:\Program Files (x86)\Phix\builtins\pdate.e:94         #ilASM{..}                  -- sys_time
+C:\Program Files (x86)\Phix\builtins\pdir.e:224     #ilASM{..}                      -- sys_stat64
+-- (I think we could afford to rewrite this in hll???) [if that helps!!] [see also [get:] E:\downloads\misc\wren\qemu\putty\envlist.s ]
+C:\Program Files (x86)\Phix\builtins\penv.e:63         #ilASM{..}                   -- call "libc.so.6","getenv"
+C:\Program Files (x86)\Phix\builtins\penv.e:113             #ilASM{..}              -- call "libc.so.6","unsetenv"
+C:\Program Files (x86)\Phix\builtins\penv.e:131             #ilASM{..}              -- call "libc.so.6","setenv"
+C:\Program Files (x86)\Phix\builtins\penv.e:156             #ilASM{..}              -- call "libc.so.6","setenv"
+C:\Program Files (x86)\Phix\builtins\penv.e:193 --DEV from https//openeuphoria.org/forum/136916.wc (also, consider #ilASM-ing the windows syscalls)
+C:\Program Files (x86)\Phix\builtins\pincpathN.e:41     #ilASM{..}                  -- %opGetST
+C:\Program Files (x86)\Phix\builtins\pipeio.e:594     #ilASM{..}                    -- call "libc.so.6","popen"
+C:\Program Files (x86)\Phix\builtins\pipeio.e:621     #ilASM{..}                    -- call "libc.so.6","fread"
+C:\Program Files (x86)\Phix\builtins\pipeio.e:652     #ilASM{..}                    -- call "libc.so.6","pclose"
+-- (we should certainluy make machine_func/proc invalid on the RPi!!) [DEV and/or make pmain.e throw (helpful) errors]
+C:\Program Files (x86)\Phix\builtins\pmach.e:199         #ilASM{..} 
+-- (replace [ds+4] with local...)
+C:\Program Files (x86)\Phix\builtins\prnd.e:10 --  #ilASM{
+C:\Program Files (x86)\Phix\builtins\prtnid.e:118     #ilASM{..}                    -- %opGetST
+C:\Program Files (x86)\Phix\builtins\pScrollN.e:128 #ilASM{..}                      -- pop al
+C:\Program Files (x86)\Phix\builtins\puts1h.e:14 include builtins\VM\puts1.e     -- the low-level #ilASM that the following routines call.
+C:\Program Files (x86)\Phix\builtins\puts1h.e:19     #ilASM{..} 
+C:\Program Files (x86)\Phix\builtins\puts1h.e:37     #ilASM{..} 
+C:\Program Files (x86)\Phix\builtins\puts1h.e:45                                 --      (there is also a #ilASM-only :%puthex64 (no "a").)
+C:\Program Files (x86)\Phix\builtins\puts1h.e:56     #ilASM{..} 
+C:\Program Files (x86)\Phix\builtins\puts1h.e:73     #ilASM{..} 
+C:\Program Files (x86)\Phix\builtins\reflections.e:41     #ilASM{..}                -- %opGetST
+C:\Program Files (x86)\Phix\builtins\reflections.e:74     #ilASM{..}                -- %StoreMint
+C:\Program Files (x86)\Phix\builtins\syswait.ew:242         #ilASM{..}              -- call "libc.so.6","close"
+C:\Program Files (x86)\Phix\builtins\syswait.ew:412             #ilASM{..}          -- call "libc.so.6","fork"
+C:\Program Files (x86)\Phix\builtins\syswait.ew:430                 #ilASM{..}      -- call "libc.so.6","system"
+C:\Program Files (x86)\Phix\builtins\syswait.ew:453             #ilASM{..}          -- call "libc.so.6","system"
+C:\Program Files (x86)\Phix\builtins\VM\cbhand.e:31     #ilASM{ jmp !opCallOnceYeNot..}     -- (can we just get rid of call_back completely?!)
+C:\Program Files (x86)\Phix\builtins\VM\optable.e:340         #ilASM{..}            -- %opGetST
+C:\Program Files (x86)\Phix\builtins\VM\pcallfunc.e:130     #ilASM{..}              -- %opGetST
+C:\Program Files (x86)\Phix\builtins\VM\pcallfunc.e:212     #ilASM{ e_all..}                                   -- set "all side_effects"
+C:\Program Files (x86)\Phix\builtins\VM\pcallfunc.e:343 #ilASM{ jmp :!opCallOnceYeNot..}
+C:\Program Files (x86)\Phix\builtins\VM\pcallfunc.e:344 --#ilASM{ jmp :fin..}
+C:\Program Files (x86)\Phix\builtins\VM\pcfunc.e:214     #ilASM{..}                 -- call "libdl.so.2", "dlopen"
+C:\Program Files (x86)\Phix\builtins\VM\pcfunc.e:315     #ilASM{..}                 -- call "libdl.so.2", "dlsym"
+C:\Program Files (x86)\Phix\builtins\VM\pcfunc.e:838         #ilASM{..}             -- %opGetST
+C:\Program Files (x86)\Phix\builtins\VM\pcfunc.e:1206         #ilASM{..}            -- %opGetST
+C:\Program Files (x86)\Phix\builtins\VM\pcmdlnN.e:302         #ilASM{..}            -- call :%opGetArgELF
+C:\Program Files (x86)\Phix\builtins\VM\pcmdlnN.e:388 --/**/  #ilASM{..}            -- %opGetST
+C:\Program Files (x86)\Phix\builtins\VM\pDiagN.e:879     #ilASM{..}                 -- %opGetST
+-- erm...
+C:\Program Files (x86)\Phix\builtins\VM\pFloatN.e:14     #ilASM{..}
+C:\Program Files (x86)\Phix\builtins\VM\pFloatN.e:41     #ilASM{..}
+C:\Program Files (x86)\Phix\builtins\VM\pFloatN.e:56     #ilASM{..}
+C:\Program Files (x86)\Phix\builtins\VM\pFloatN.e:71     #ilASM{..}
+C:\Program Files (x86)\Phix\builtins\VM\pFloatN.e:99     #ilASM{..}
+C:\Program Files (x86)\Phix\builtins\VM\pFloatN.e:118     #ilASM{..}
+C:\Program Files (x86)\Phix\builtins\VM\pFloatN.e:137     #ilASM{..}
+C:\Program Files (x86)\Phix\builtins\VM\pFPU.e:39 #ilASM{ jmp :!opCallOnceYeNot..}
+C:\Program Files (x86)\Phix\builtins\VM\pHeap.e:875 #ilASM{..}                      -- call "libc.so.6","malloc"
+C:\Program Files (x86)\Phix\builtins\VM\pHeap.e:876 --#ilASM{ jmp :fin..}           -- (locking...)
+C:\Program Files (x86)\Phix\builtins\VM\pMath.e:30 #ilASM{ jmp :%opRetf..}          -- (floating points...)
+C:\Program Files (x86)\Phix\builtins\VM\prtnidN.e:142     #ilASM{..}                -- %opGetST
+C:\Program Files (x86)\Phix\builtins\VM\pSleep.e:12 #ilASM{ jmp :%opRetf..}         -- sys_nanosleep
+C:\Program Files (x86)\Phix\builtins\VM\pStack.e:112 #ilASM{..}
+C:\Program Files (x86)\Phix\builtins\VM\pTask.e:327     #ilASM{..}                  -- %opGetST
+C:\Program Files (x86)\Phix\builtins\VM\pThreadN.e:140     #ilASM{..}               -- call "libpthread.so.0","pthread_exit"
+C:\Program Files (x86)\Phix\builtins\VM\pThreadN.e:140+                             -- call "libpthread.so.0","pthread_create"
+C:\Program Files (x86)\Phix\builtins\VM\pThreadN.e:412             #ilASM{..}       -- call "libpthread.so.0","pthread_join"
+C:\Program Files (x86)\Phix\builtins\VM\pThreadN.e:442     #ilASM{..}               -- call "libpthread.so.0","pthread_exit"
+C:\Program Files (x86)\Phix\builtins\VM\pThreadN.e:503         #ilASM{..}           -- call "libpthread.so.0","pthread_join"
+C:\Program Files (x86)\Phix\builtins\VM\pTime.e:25 #ilASM{ jmp :%opRetf..}          -- sys_clock_gettime
+C:\Program Files (x86)\Phix\builtins\VM\pTrace.e:1401     #ilASM{..}                -- %opGetST
+C:\Program Files (x86)\Phix\builtins\VM\pTrig.e:8 #ilASM{ jmp :%opRetf..}           -- oh.....
+C:\Program Files (x86)\Phix\builtins\VM\puts1.e:51 #ilASM{ jmp :!opCallOnceYeNot..} -- sys_write [part done]
+--*/
+--/* and the above repeated, using a different/more appropriate search key:
+Searching for: ELF32
+ Files scanned 219, Directories scanned 2, Lines 136443
+C:\Program Files (x86)\Phix\builtins\pbreak.e:38     [ELF32]                -- sys_sigaction
+C:\Program Files (x86)\Phix\builtins\pchdir.e:65         [ELF32]            -- sys_chdir
+C:\Program Files (x86)\Phix\builtins\pcurrdir.e:57             [ELF32]      -- sys_getcwd
+C:\Program Files (x86)\Phix\builtins\pdate.e:95             [ELF32]         -- sys_time
+C:\Program Files (x86)\Phix\builtins\pdir.e:225         [ELF32]             -- sys_stat64
+C:\Program Files (x86)\Phix\builtins\penv.e:64             [ELF32]          -- call "libc.so.6","getenv"
+C:\Program Files (x86)\Phix\builtins\penv.e:114                 [ELF32]     -- call "libc.so.6","unsetenv"
+C:\Program Files (x86)\Phix\builtins\penv.e:132                 [ELF32]     -- call "libc.so.6","setenv"
+C:\Program Files (x86)\Phix\builtins\penv.e:157                 [ELF32]     -- call "libc.so.6","setenv"
+C:\Program Files (x86)\Phix\builtins\pipeio.e:595         [ELF32]           -- call "libc.so.6","popen"
+C:\Program Files (x86)\Phix\builtins\pipeio.e:622         [ELF32]           -- call "libc.so.6","fread"
+C:\Program Files (x86)\Phix\builtins\pipeio.e:653         [ELF32]           -- call "libc.so.6","pclose"
+C:\Program Files (x86)\Phix\builtins\syswait.ew:243             [ELF32]     -- call "libc.so.6","close"/"dup2"/"close"
+C:\Program Files (x86)\Phix\builtins\syswait.ew:413       [ELF32]           -- call "libc.so.6","fork"
+C:\Program Files (x86)\Phix\builtins\syswait.ew:431         [ELF32]         -- call "libc.so.6","system"
+C:\Program Files (x86)\Phix\builtins\syswait.ew:454           [ELF32]       -- call "libc.so.6","system"
+C:\Program Files (x86)\Phix\builtins\syswait.ew:634   --         [ELF32]    -- (sys_fork?)
+C:\Program Files (x86)\Phix\builtins\VM\pcfunc.e:226         [ELF32]        -- call "libdl.so.2", "dlopen"
+C:\Program Files (x86)\Phix\builtins\VM\pcfunc.e:325         [ELF32]        -- call "libdl.so.2", "dlsym"
+C:\Program Files (x86)\Phix\builtins\VM\pFEH.e:72     [ELF32]               -- SYSCALL_SIGACTION
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:1010             [ELF32] -- sys_open
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:1155         [ELF32]     -- sys_fstat64
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:1473         [ELF32]     -- sys_write
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:1852          [ELF32]    -- sys_close
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:2123             [ELF32] -- sys_llseek
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:2318         [ELF32]     -- sys_llseek
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:2616         [ELF32]     -- sys_read
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:2934     [ELF32]         -- sys_read
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:3097             [ELF32] -- sys_read
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:3578         [ELF32]     -- sys_read
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:3617           [ELF32]   -- sys_read
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:3675             [ELF32] -- sys_write
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:3736             [ELF32] -- sys_write
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:4141             [ELF32] -- sys_llseek
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:4440             [ELF32] -- sys_write
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:4907     [ELF32]         -- sys_write
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:5031     [ELF32]         -- sys_write
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:5140     [ELF32]         -- sys_write
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:5311     [ELF32]         -- sys_ioctl
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:6426         [ELF32]     -- sys_flock
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:6823         [ELF32]     -- sys_fstat64
+C:\Program Files (x86)\Phix\builtins\VM\pfileioN.e:6949         [ELF32]     -- sys_read
+C:\Program Files (x86)\Phix\builtins\VM\pHeap.e:945         [ELF32]         -- call "libc.so.6","mallopt"/"malloc" (sys_brk)
+C:\Program Files (x86)\Phix\builtins\VM\pHeap.e:1121         [ELF32]        -- sys_getpid
+C:\Program Files (x86)\Phix\builtins\VM\pHeap.e:1420         [ELF32]        -- sys_futex
+C:\Program Files (x86)\Phix\builtins\VM\pHeap.e:1516         [ELF32]        -- lock cmpxchg...
+C:\Program Files (x86)\Phix\builtins\VM\pHeap.e:1573         [ELF32]        -- lock sub...
+C:\Program Files (x86)\Phix\builtins\VM\pSleep.e:59     [ELF32]             -- sys_nanosleep
+C:\Program Files (x86)\Phix\builtins\VM\pStack.e:349     [ELF32]            -- (part done)
+C:\Program Files (x86)\Phix\builtins\VM\pStack.e:1777     [ELF32]           -- sys_exit_group
+C:\Program Files (x86)\Phix\builtins\VM\pThreadN.e:185         [ELF32]      -- call "libpthread.so.0","pthread_exit"/"pthread_create"
+C:\Program Files (x86)\Phix\builtins\VM\pThreadN.e:413          [ELF32]     -- call "libpthread.so.0","pthread_join"
+C:\Program Files (x86)\Phix\builtins\VM\pThreadN.e:447         [ELF32]      -- call "libpthread.so.0","pthread_exit"
+C:\Program Files (x86)\Phix\builtins\VM\pThreadN.e:504             [ELF32]  -- call "libpthread.so.0","pthread_join"
+C:\Program Files (x86)\Phix\builtins\VM\pTime.e:63     [ELF32]              -- sys_clock_gettime
+C:\Program Files (x86)\Phix\builtins\VM\pTime.e:142     [ELF32]             -- sys_clock_gettime
+C:\Program Files (x86)\Phix\builtins\VM\puts1.e:82         [ELF32]          -- (part done)
+C:\Program Files (x86)\Phix\builtins\VM\puts1.e:413         [ELF32]
+--*/

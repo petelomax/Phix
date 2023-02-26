@@ -2125,35 +2125,46 @@ sequence wasalso
     if tokstart>1 or nest or inPend() then
         nest += isTabWidth
     end if
-    Match("if")
+    bool bCurlyBraces = false
+    if token="{" then
+        Match("{")
+        bCurlyBraces = true
+    else
+        Match("if")
+    end if
     also = {ExpLength(filetext[currfile][tokline][1..tokstart-1])+inPend()}
     Expression()
     also = {}
     Match("then")
 --trace(1)
     call_proc(rBlock,{})
-    while equal(token,"elsif") do
-        if parser_tokno=1 then Indent(0) end if
-        Match("elsif")
-        indentandor = 1
-        Expression()
-        indentandor = 0
-        Match("then")
-        call_proc(rBlock,{})
-    end while
-    if equal(token,"else") then
-        if parser_tokno=1 then Indent(0) end if
-        Match("else")
-        call_proc(rBlock,{})
+    if not bCurlyBraces then
+        while equal(token,"elsif") do
+            if parser_tokno=1 then Indent(0) end if
+            Match("elsif")
+            indentandor = 1
+            Expression()
+            indentandor = 0
+            Match("then")
+            call_proc(rBlock,{})
+        end while
+        if equal(token,"else") then
+            if parser_tokno=1 then Indent(0) end if
+            Match("else")
+            call_proc(rBlock,{})
+        end if
     end if
     if parser_tokno=1 then Indent(0) end if
 --DEV +adjustments for ifdef? (lots of other places too)
 --  nest = wasNest
 --DEV better!!!
     nest -= isTabWidth
-    Match("end")
---trace(1)
-    Match("if")
+    if bCurlyBraces then
+        Match("}")
+    else
+        Match("end")
+        Match("if")
+    end if
     also = wasalso
 end procedure
 

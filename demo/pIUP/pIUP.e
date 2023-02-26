@@ -130,11 +130,9 @@ constant sequence dirs = {"win","lnx"}
 constant string dll_path = root_dir&sprintf("%s%d\\",{dirs[libidx],machine_bits()})
 
 function iup_open_dll(sequence libs)
-string fullpath = dll_path&libs[libidx]
-atom res
+    string fullpath = dll_path&libs[libidx]
     if chdir(dll_path)=0 then ?9/0 end if
-    res = open_dll(fullpath)
-    if res=0 then ?9/0 end if
+    atom res = open_dll(fullpath)
     if chdir(curr_dir)=0 then ?9/0 end if
     return res
 end function
@@ -144,7 +142,7 @@ constant
          F  = C_FLOAT,      -- NB: VM/pcfunc.e may not be up to this..
          I  = C_INT,
          L  = C_LONG,
-         P  = C_POINTER, 
+         P  = C_PTR, 
 --       UC = C_UCHAR,
          UL = C_ULONG,
          $

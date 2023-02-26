@@ -1,0 +1,226 @@
+--
+-- demo\rosetta\Morse_code.exw
+-- ===========================
+--
+with javascript_semantics
+include pGUI.e
+include builtins\beep.e
+
+Ihandle input, canvas, output, vbox, dlg
+cdCanvas cddbuffer, cdcanvas
+
+constant title = "Morse code",
+         help_text = """
+Enter a message to convert to morse code.
+Press Return to listen to the result.
+Characters A-Z are shown with Baden-Powell menemonics.
+(Note said are a memory aid, not perfectly readable.)
+Obviously deliberately looking away and listening
+would be the best way to use this as a learning aid.
+"""
+
+function show_help()
+    IupMessage(title,help_text,bWrap:=false)
+    IupSetFocus(input)
+    return IUP_IGNORE -- (don't open the browser help!)
+end function
+
+constant morse_data = """
+!-.-.--#".-..-.#$...-..-#&.-...#'.----.#(-.--.#)-.--.-#+.-.-.#,--..--#--....-#..-.-.-#/-..-.#=-...-#
+0-----#1.----#2..---#3...--#4....-#5.....#6-....#7--...#8---..#9----.#:---...#;-.-.-.#?..--..#@.--.-.#
+A.-51517525#B-...7177414144444747#C-.-.7121121277271616#D-..717741414747#E.7474#F..-.7171111174247777#
+G--.712177271818#H....2121717127277777#I..51515757#J.---2121222558269668#K-.-742184854428#(-.--.#
+L.-..7171727677771717#M--45118155#N-.71362727#O---712182861216#P.--.8181612164247777#)-.--.-#
+Q--.-8286121677775818#R.-.717144261717#S...515154545757#T-7121#U..-818111117727#V...-8181111156567727#
+W.--818187534317#X-..-8154333365654518#Y-.--8163545433115558#Z--..7121762277771717#_..--.-#     #"""
+
+sequence morse = repeat(``,255), -- the eg "..."'s
+        bdnpwl = repeat({},255) -- Baden-Powell mnemonics
+
+procedure setMorse()
+    -- I trust the characters and morse codes are all pretty evident in morse_data.
+    -- Baden-Powell mnemonics are encoded as 4 points on a 9wx7h grid per dot/dash,
+    -- counting (it just turned out that way) right to left and top to bottom, such
+    -- that "9711" (=1197) is(/looks like) a forwardslash and "9117" a backslash.
+    -- Each quite fiddly to set up - rather relieved there were only 26 of them!
+    sequence data = split(substitute(morse_data,"\n",""),'#')
+    for di in data do
+        integer key = di[1]
+        string bpm = trim_head(di[2..$],".- "),
+              code = di[2..-length(bpm)-1]
+        assert(length(bpm)=0 or length(bpm)=4*length(code))
+        morse[key] = code   -- eg morse['S'] = "..."
+        bdnpwl[key] = sq_sub('5',bpm)
+    end for
+    morse['['] = morse['(']
+    morse[']'] = morse[')']
+end procedure
+
+setMorse()
+
+function redraw_cb(Ihandle /*ih*/)
+    string text = upper(IupGetAttribute(input,"VALUE")),
+         outstr = ""
+    integer {dw,dh} = IupGetIntInt(canvas, "DRAWSIZE"),
+            {tw,th} = cdCanvasGetTextSize(cddbuffer,text)
+    while tw>dw do
+        if length(outstr) then outstr &= " " end if
+        outstr &= morse[text[1]]
+        text = text[2..$]
+        {tw,th} = cdCanvasGetTextSize(cddbuffer,text)
+    end while
+    atom cw = tw/max(length(text),1),
+         cx = dw/2,
+         cy = dh/2
+
+    cdCanvasActivate(cddbuffer)
+    cdCanvasSetBackground(cddbuffer, CD_LIGHT_PARCHMENT)
+    cdCanvasClear(cddbuffer)
+    cdCanvasSetForeground(cddbuffer, #BBADA0)
+    cdCanvasText(cddbuffer, cx, cy, text)
+    cx -= cw*(length(text)/2-0.5)
+
+    cdCanvasSetForeground(cddbuffer, CD_BLUE)
+    cdCanvasSetLineWidth(cddbuffer,3)
+    {} = cdCanvasMarkSize(cddbuffer,3)
+
+    atom gw = cw*0.75, gh = th*0.285
+    for ch in text do
+        sequence bpm = bdnpwl[ch]
+        if length(bpm) then
+            for k=1 to length(bpm) by 4 do
+                atom x1 = cx+gw*bpm[k+0]/8-1,
+                     y1 = cy+gh*bpm[k+1]/4-3,
+                     x2 = cx+gw*bpm[k+2]/8-1,
+                     y2 = cy+gh*bpm[k+3]/4-3
+                if x1=x2 and y1=y2 then
+                    cdCanvasMark(cddbuffer, x1, y1)
+                else
+                    cdCanvasLine(cddbuffer, x1, y1, x2, y2)
+                end if
+            end for
+        end if
+        cx += cw
+        if length(outstr) then outstr &= " " end if
+        outstr &= morse[ch]
+    end for
+    cdCanvasFlush(cddbuffer)
+    IupSetStrAttribute(output,"TITLE",outstr)
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle ih)
+    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+--  cdCanvasFont(cddbuffer,"Courier",CD_PLAIN,24)
+    cdCanvasFont(cddbuffer,"Courier",CD_PLAIN,48)
+    cdCanvasSetTextAlignment(cddbuffer, CD_CENTER) 
+    return IUP_DEFAULT
+end function
+
+constant frequency = 1280,          -- in Hz, 37..32767
+         wpm = 15,                  -- words per minute
+         dit = 1200/wpm,            -- in milliseconds
+         dah = 3*dit,
+         lettergap = 3*dit,
+         wordgap = 7*dit
+
+function key_cb(Ihandle /*dlg*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if -- (standard practice for me)
+    if c=K_F5 then return IUP_DEFAULT end if -- (let browser reload work)
+    if c=K_F1 then return show_help() end if
+    if c=K_CR then
+        string text = trim(upper(IupGetAttribute(input,"VALUE")))
+        sequence durations = {}
+        for ch in text do
+            if ch=' ' then
+                durations &= wordgap
+            else
+                if length(durations) then
+                    durations &= lettergap
+                end if
+                string m = morse[ch]
+                for i=1 to length(m) do
+                    if i>1 then durations &= dit end if
+                    durations &= iff(m[i]='.'?dit:dah)
+                end for
+            end if
+        end for
+--pp(durations)
+        beep(frequency,durations,0.5)
+        IupSetAttribute(input,"SELECTION","ALL")
+    elsif find(c,"#") then
+        beep()
+        return IUP_IGNORE
+    else
+        IupUpdate(canvas)
+    end if
+    return IUP_CONTINUE
+end function
+
+IupOpen()
+input = IupText("EXPAND=HORIZONTAL")
+canvas = IupCanvas("RASTERSIZE=520x40")
+output = IupLabel("","EXPAND=HORIZONTAL")
+vbox = IupVbox({input,canvas,output}, "MARGIN=10x5, GAP=5")
+dlg = IupDialog(vbox,`TITLE="%s",MINSIZE=440x140`,{title})
+IupSetCallback(dlg,"KEY_CB",Icallback("key_cb"))
+IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                         "ACTION", Icallback("redraw_cb")})
+IupShow(dlg)
+IupSetAttribute(canvas, "RASTERSIZE", NULL)
+IupSetAttributeHandle(NULL,"PARENTDIALOG",dlg)
+if platform()!=JS then
+    IupMainLoop()
+    IupClose()
+end if
+
+--EOM = ..._._
+--Error = .........
+--Start = _._._
+--New Page = ._._.
+--Understood = ..._.
+--Wait = ._...
+--setup aid:
+--/*
+string flip = bpm
+bool flipped = false
+for k=1 to length(bpm) by 4 do
+    if bpm[k+0]<bpm[k+2] then
+--?{k,1}
+        flipped = true
+        flip[k+0] = bpm[k+2]
+        flip[k+1] = bpm[k+3]
+        flip[k+2] = bpm[k+0]
+        flip[k+3] = bpm[k+1]
+    end if
+    if bpm[k+0]=bpm[k+2]
+    and bpm[k+1]>bpm[k+3] then
+--?{k,2}
+        flipped = true
+        flip[k+1] = bpm[k+3]
+        flip[k+3] = bpm[k+1]
+    end if
+end for
+if flipped then
+    printf(1,"'%c' should probably be %s, not %s\n",{key,flip,bpm})
+end if
+--*/
+--  morse['a'..'z'] = morse['A'..'Z']
+--  bdnpwl['a'..'z'] = bdnpwl['A'..'Z']
+--  bdnpwl['['] = bdnpwl['(']
+--  bdnpwl[']'] = bdnpwl[')']
+--  pp(morse)
+--  pp(bdnpwl)
+--/*
+        elsif ch>='A' and ch<='Z' then
+            cdCanvasSetLineWidth(cddbuffer,1)
+            for k=-4 to 4 do
+                cdCanvasLine(cddbuffer,cx-gw/2,cy+gh*k/4,cx+gw/2,cy+gh*k/4)
+--              if abs(k)<=2 then
+                    cdCanvasLine(cddbuffer,cx+gw*k/8,cy-gh,cx+gw*k/8,cy+gh)
+--              end if
+            end for
+            cdCanvasSetLineWidth(cddbuffer,3)
+--*/
+

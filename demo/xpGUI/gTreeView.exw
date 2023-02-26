@@ -1,0 +1,58 @@
+--
+-- demo\xpGUI\gTreeView.exw
+-- ========================
+-- 
+--  See also gTreeView2.exw for an example of deferred loading.
+--
+with javascript_semantics
+--requires(64)
+include xpGUI.e
+--gUseGTK()
+
+--
+-- While a literal constant such as this is a bit eye-wateringly ugly, and
+-- needs fastidious attention to detail with all the nesting levels, it is
+-- intended to be relatively straightforward to construct, from almost any
+-- any suitable data source, using a simple recursive function.
+-- [I am open to suggestions for other ways to construct this.]
+--
+constant tree_nodes = {"Figures",               -- (branch with 5 children)
+--                     {"STATE","COLLAPSED"},   --  (works fine, btw)
+                       {"Other",                -- (leaf)
+                        {"triangle",            -- (branch with 3 children)
+                         {"STATE","COLLAPSED"},
+                         {"equilateral",
+                          {"isoceles",          -- (branch with 2 children)
+                           {"STATE","COLLAPSED"},
+                           {"acute",
+                            "obtuse"}},
+                          "scalenus"}
+                        },
+                        {"parallelogram",       -- (branch with 2 children)
+                         {"square",             -- (should be open on load)
+                          "diamond"}},
+                        "2D",                   -- (leaf)
+                        {"3D",                  -- (branch)
+                         {"STATE","COLLAPSED"}, -- (needed here)
+                         {}},                   -- (empty)
+                        {"4D",
+                         {"STATE","COLLAPSED"},
+                         {"some",
+                          "other",
+                          "branch"},
+                         {"random data"}        -- (iff attr and children present)
+                        }
+                       }
+                      }
+
+gdx tree_view = gTreeView(tree_nodes),
+--gdx tree_view = gTreeView({}),
+          dlg = gDialog(tree_view,`TITLE="Tree View",SIZE=350x300`)
+--gShow(dlg)
+--gTreeAddNodes(tree_view,{})
+--gTreeAddNodes(tree_view,tree_nodes)
+--?upper(deep_copy(tree_nodes))
+--gTreeAddNodes(tree_view,upper(deep_copy(tree_nodes)))
+gShow(dlg)
+gMainLoop()
+

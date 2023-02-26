@@ -39,12 +39,19 @@ global function join(sequence s, object delim=" ", lastdelim="", string fmt="")
     return res
 end function
 
-global function join_by(sequence s, integer step, n, object step_pad="   ", n_pad="\n", string fmt="")
+global function join_by(sequence s, integer step, n, object step_pad="   ", n_pad="\n", string fmt="", integer skip=0)
     sequence res = {}, js
     integer nmax = n,
             ls = length(s)
 --  s = deep_copy(s)
-    s = iff(length(fmt)?apply(true,sprintf,{{fmt},s}):deep_copy(s))
+--4/10/22:
+--  s = iff(length(fmt)?apply(true,sprintf,{{fmt},s}):deep_copy(s))
+    s = deep_copy(s)
+    if length(fmt) then
+        for i=skip+1 to ls do
+            s[i] = sprintf(fmt,s[i])
+        end for
+    end if
     ls += remainder(ls,step)
     while length(s)>=step do
 --  while length(s)>step do     -- (needed for auto-widthwise partial<=step)

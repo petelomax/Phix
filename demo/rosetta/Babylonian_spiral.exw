@@ -1,0 +1,156 @@
+--
+-- demo/rosetta/Babylonian_spiral.exw
+-- ==================================
+--
+--  Use left/right arrow keys to show less/more edges.
+--
+with javascript_semantics
+
+function next_step(atom last_distance)
+    // Find "the next longest vector with integral endpoints on a Cartesian grid"
+    integer next_distance = 100*last_distance, // Set high so we can minimize
+            nmax = floor(sqrt(last_distance)) + 2
+            // ^ The farthest we could possibly go in one direction
+    sequence next_steps = {}
+    for n=0 to nmax do
+        integer n2 = n*n,
+              mmin = floor(sqrt(max(0,last_distance-n2)))
+        for m=mmin to nmax do
+            integer test_distance = n2 + m*m
+            if test_distance>last_distance then
+                if test_distance>next_distance then exit end if
+                if test_distance<next_distance then
+                    next_distance = test_distance
+                    next_steps = {}
+                end if
+                next_steps &= {{m,n}}
+                if m!=n then
+                    next_steps &= {{n,m}}
+                end if
+            end if
+        end for
+    end for
+    return {next_steps, next_distance}
+end function
+
+sequence x = {0,0},         -- first two points
+         y = {0,1}          --  taken as given
+integer distance = 1,
+        px = 0, py = 1,     -- position
+        pdx = 0, pdy = 1    -- previous delta
+
+procedure make_spiral(integer npoints) // Make a Babylonian spiral of npoints.
+    sequence deltas 
+    atom t4 = time()+0.4
+    for n=length(x)+1 to npoints do
+        {deltas,distance} = next_step(distance)
+        atom max_dot = 0, ldx = pdx, ldy = pdy
+        for delta in deltas do
+            integer {tx,ty} = delta
+            for d in {{tx,ty},{-tx,ty},{tx,-ty},{-tx,-ty}} do
+                integer {dx,dy} = d
+                if ldx*dy-ldy*dx<0 then
+                    atom dot = ldx*dx+ldy*dy
+                    if dot>max_dot then
+                        max_dot = dot
+                        {pdx,pdy} = {dx,dy}
+                    end if
+                end if
+            end for
+        end for
+        px += pdx
+        py += pdy
+        x &= px
+        y &= py
+        if time()>t4 then exit end if
+    end for
+end procedure
+
+make_spiral(40)
+printf(1,"The first 40 Babylonian spiral points are:\n%s\n",
+         {join_by(columnize({x,y}),1,10," ",fmt:="(%3d,%3d)")})
+
+include pGUI.e
+include IupGraph.e
+Ihandle dlg, graph, timer
+constant mt = {{5,6,1}, -- {number, minmax, tick}
+               {10,12,2},  -- add more/remove steps as desired
+               {20,20,4},   
+               {40,32,8},   
+               {60,70,10},  
+               {100,220,40},
+               {200,350,50},
+               {400,700,100},
+               {800,1200,200},
+               {1000,2000,400},
+               {2000,4000,1000},
+               {5000,8000,2000},
+               {10000,12000,3000},
+               {12000,20000,5000},
+--             {15000,50000,10000},
+               {20000,50000,10000},
+               {50000,60000,12000},
+               {100000,150000,50000},
+               {150000,150000,50000},
+               {200000,400000,100000}}
+                -- perfectly doable, but test yer patience:
+--             {250000,400000,100000},
+--             {500000,1200000,400000}}
+integer mdx = 4, -- index to mt
+        max_mdx = 4
+
+function get_data(Ihandle /*graph*/)
+    integer {n,m,t} = mt[mdx]
+    string title = sprintf("Babylonian spiral (%,d)", {n})
+    if length(x)<mt[$][1] then
+        title &= sprintf(" (calculating %,d/%,d)",{length(x),mt[$][1]})
+    end if
+    IupSetStrAttribute(graph, "GTITLE", title)
+    IupSetAttributes(graph,"XMIN=%d,XMAX=%d,XTICK=%d",{-m,m,t})
+    IupSetAttributes(graph,"YMIN=%d,YMAX=%d,YTICK=%d",{-m,m,t})
+    sequence xn = x[1..n],
+             yn = y[1..n]
+--This helps when adding steps:
+--?{"min",min(min(xn),min(yn)),"max",max(max(xn),max(yn))}
+    return {{xn,yn,CD_RED}}
+end function
+
+function key_cb(Ihandle /*ih*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if -- (standard practice for me)
+    if c=K_F5 then return IUP_DEFAULT end if -- (let browser reload work)
+    if c=K_LEFT then mdx = max(mdx-1,1) end if
+    if c=K_RIGHT then mdx = min(mdx+1,max_mdx) end if
+    IupUpdate(graph)
+    return IUP_CONTINUE
+end function
+
+function timer_cb(Ihandln /*ih*/)
+    if max_mdx=length(mt) or not IupGetInt(dlg,"VISIBLE") then
+        IupSetInt(timer,"RUN",false)
+    else
+        integer next_target = mt[max_mdx+1][1]
+        make_spiral(next_target)
+        if length(x)=next_target then
+            max_mdx += 1
+            if mdx=max_mdx-1 then
+                mdx = max_mdx
+            end if
+        end if
+    end if
+    IupRedraw(graph)
+    return IUP_IGNORE
+end function
+
+IupOpen()
+graph = IupGraph(get_data,"RASTERSIZE=640x480,XMARGIN=35")
+dlg = IupDialog(graph,`TITLE="Babylonian spiral",MINSIZE=350x200`)
+IupSetInt(graph,"GRIDCOLOR",CD_LIGHT_GREY)
+IupShow(dlg)
+IupSetCallback(dlg,"KEY_CB",Icallback("key_cb"))
+IupSetAttribute(graph,"RASTERSIZE",NULL)
+timer = IupTimer(Icallback("timer_cb"),30)
+if platform()!=JS then
+    IupMainLoop()
+    IupClose()
+end if
+

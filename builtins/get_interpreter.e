@@ -83,7 +83,7 @@ function ibits(string filepath, integer plat=platform())
                     bits = 64
                 end if
             end if
-        else -- platform()=LINUX
+        else -- platform()=LINUX/ARM
             sequence s5 = {}
             for i=1 to 5 do
                 s5 = append(s5,getc(fn))
@@ -123,7 +123,9 @@ procedure initv()
              {"pw.exe","pw32.exe","pw64.exe","p64.exe","p32.exe","p.exe"}, -- [WINDOWS]
              {"p","p32","p64","pth"}} -- [LINUX]
     -- (must match constants in psym.e)
-    platforms = {"DOS32","WINDOWS","LINUX","JS"}
+--                    1         2       3    4
+    platforms = {"DOS32","WINDOWS","LINUX","JS","ARM"}
+--                    1         2       4    8    16
     vinit = true
 end procedure
 
@@ -249,6 +251,7 @@ global procedure requires(object x, bool bPrefW=false)
 --  elsif x>0 and x<length(platforms) then
     elsif x>=0 and x<31 then
         if x!=platform() then
+--DEV 2.0
             string that = platforms[min(max(x,1),JS)],
                    this = platforms[platform()]
             if x=5 then -- (technically 5==JS+DOS32...)[1]
@@ -268,6 +271,36 @@ global procedure requires(object x, bool bPrefW=false)
                 that = "FIXING(!)"
             end if
             -- [1] note that WINDOWS+LINUX yields JS, not what you meant!
+--/*
+--?sq_round(sq_log2(sq_power(2,tagset(4))))
+--                    1         2       3    4     5
+--  platforms = {"DOS32","WINDOWS","LINUX","JS","ARM"}
+--                    1         2       4    8    16
+--  6: WINDOWS or JS
+--  7: WINDOWS or LINUX
+--
+            integer p = round(log2(power(2,platform()))
+
+            string that = platforms[min(max(x,1),JS)],
+                   this = platforms[platform()]
+            if x=5 then -- (technically 5==JS+DOS32...)[1]
+                x = not find(platform(),{WINDOWS,LINUX})                -- (aka not JS)
+                that = "WINDOWS or LINUX"
+            elsif x=6 then -- (validly! 6==JS+WINDOWS)
+                x = not find(platform(),{WINDOWS,JS})                   -- (aka not LINUX)
+                that = "WINDOWS or JS"
+            elsif x=7 then -- (technically 7==JS+LINUX...)
+                x = not find(platform(),{WINDOWS,LINUX,JS})             -- (all[?])
+                that = "WINDOWS or LINUX or JS"
+            elsif x=8 then -- (technically 8==WINDOWS+LINUX+JS...)
+                x = not find(platform(),{LINUX,JS})                     -- (aka not WINDOWS)
+                that = "LINUX or JS"
+            elsif x=0 then
+                x = 1                                                   -- (aka none)
+                that = "FIXING(!)"
+            end if
+
+--*/
             if x then
                 crash("requires %s, this is %s",{that,this},2)
             end if

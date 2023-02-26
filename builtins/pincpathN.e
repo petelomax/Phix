@@ -108,7 +108,7 @@ global function include_file(integer depth=1)
 -- returns an index to the include_files() result (1==main file).
 --
 object symtab
-integer rtn,    -- from stack
+integer rid,    -- from stack
         fn      -- result variable
 
     if depth<=0 then ?9/0 end if -- quick sanity check
@@ -123,8 +123,8 @@ integer rtn,    -- from stack
             sub ecx,1
             jnz @b
             lea edi,[symtab]
-            mov eax,[eax+8]     -- rtn
-            mov [rtn],eax
+            mov eax,[eax+8]     -- rid
+            mov [rid],eax
         [64]
             mov rax,rbp
             mov rcx,[depth]
@@ -133,12 +133,12 @@ integer rtn,    -- from stack
             sub rcx,1
             jnz @b
             lea rdi,[symtab]
-            mov rax,[rax+16]    -- rtn
-            mov [rtn],rax
+            mov rax,[rax+16]    -- rid
+            mov [rid],rax
         []
             call :%opGetST      -- [e/rdi]=symtab
           }
-    fn = symtab[rtn][S_FPno]
+    fn = symtab[rid][S_FPno]
     return fn
 end function
 

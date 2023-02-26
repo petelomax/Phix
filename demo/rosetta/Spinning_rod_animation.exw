@@ -1,0 +1,100 @@
+﻿--
+-- demo\rosetta\Spinning_rod_animation.exw
+-- =======================================
+--
+with javascript_semantics -- just about works under pwa/p2js, but 
+                          -- layout/re-sizing is a bit naff [DEV]
+
+-- A trailing '!' makes it a "ping/pong":
+constant animations = {{`Dots`,  {`.`, `..`, `...`,'!'}},
+                       {`Pipes`, `|/─\`},
+                       {`Stars`, `⁎⁑⁂!`},
+                       {`Clock`, `🕛🕑🕒🕓🕔🕕🕖🕗🕘🕙🕚`},
+                       {`Arrows`,`⬍⬈➞⬊⬍⬋⬅⬉`},
+                       {`Bird`,  `︷︵︹︺︶︸!`},
+                       {`Plants`,`☘❀❁!`},
+                       {`Eclipse`,`🌑🌒🌓🌔🌕🌖🌗🌘`}}
+
+sequence {anames,anims} = columnize(animations)
+
+-- convert anims to "single chars" in utf8 if needed
+for i=1 to length(anims) do
+    if string(anims[i]) then
+        sequence ai = utf8_to_utf32(anims[i])
+        if not string(ai) then
+            for j=1 to length(ai)-(ai[$]=='!') do
+                ai[j] = utf32_to_utf8({ai[j]})
+            end for
+        end if
+        anims[i] = ai
+    end if
+end for
+
+integer andx = 1, -- index to anames/anims
+        adx = 1, -- index within anims[andx]
+        direction = +1
+
+include pGUI.e
+Ihandle dlg, state, label, radios, stopstart, timer 
+
+function timer_cb(Ihandle /*timer*/)
+    sequence anim = anims[andx]
+    bool bounce = (anim[$]='!')
+    integer l = length(anim)-bounce
+    adx += direction
+    if adx=0 then
+        adx = 1
+        direction = +1
+    elsif adx>l then
+        if bounce then
+            direction = -1
+            adx -= 1
+        else
+            adx = 1
+        end if
+    end if
+    IupSetAttribute(state,"TITLE",anim[adx]&"")
+    return IUP_CONTINUE
+end function
+ 
+function radiochanged_cb(Ihandle ih)
+    if IupGetInt(ih,"VALUE") then -- (ignore "unsets")
+        andx = find(IupGetAttribute(ih,"TITLE"),anames)
+        adx = 1
+        direction = 1
+    end if
+    return IUP_DEFAULT
+end function
+constant cb_radiochanged = Icallback("radiochanged_cb")
+
+function stopstart_cb(Ihandle ih)
+    string title = IupGetAttribute(ih,"TITLE")
+    sequence titles = {"Start","Stop"}
+    integer tdx = find(title,titles)
+    IupSetInt(timer,"RUN",tdx=1)
+    IupSetAttribute(ih,"TITLE",titles[3-tdx])
+    IupSetAttribute(state,"TITLE","asleep")
+    return IUP_CONTINUE
+end function
+
+IupOpen()
+IupSetGlobal("UTF8MODE","YES")
+state = IupLabel("asleep")
+sequence radioset = {}
+for i=1 to length(anames) do
+    Ihandle radiobtn = IupToggle(anames[i])
+    radioset = append(radioset,radiobtn)
+end for
+IupSetCallback(radioset,"VALUECHANGED_CB",cb_radiochanged)
+radios = IupRadio(IupHbox(radioset))
+stopstart = IupButton("Start",Icallback("stopstart_cb"))
+dlg = IupDialog(IupVbox({IupHbox({IupLabel("state: "),state},"ALIGNMENT=ACENTER"),
+                         radios,IupHbox({stopstart})},"MARGIN=10x10"),
+                `TITLE="Spinning rod animation", MINSIZE=400x200`)
+IupSetAttributeHandle(dlg,"STARTFOCUS",stopstart) -- (DEV not p2js, just yet)
+timer = IupTimer(Icallback("timer_cb"),250,false)
+IupShow(dlg)
+if platform()!=JS then
+    IupMainLoop()
+    IupClose()
+end if

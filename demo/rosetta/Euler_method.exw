@@ -1,0 +1,56 @@
+--
+-- demo\rosetta\Euler_method.exw
+-- =============================
+--
+with javascript_semantics
+function ivp_euler(atom y, integer f, step, end_t)
+    sequence res = {}
+    for t=0 to end_t by step do
+        if remainder(t,10)==0 then res &= y end if
+        y += step * call_func(f,{t, y})
+    end for
+    return res
+end function
+ 
+function analytic()
+    sequence res = {}
+    for t=0 to 100 by 10 do
+        res &= 20 + 80 * exp(-0.07 * t)
+    end for
+    return res
+end function 
+
+function cooling(atom /*t*/, temp)
+    return -0.07 * (temp - 20)
+end function
+ 
+constant x = tagset(100,0,10),
+         a = analytic(),
+        e2 = ivp_euler(100,cooling,2,100),
+        e5 = ivp_euler(100,cooling,5,100),
+       e10 = ivp_euler(100,cooling,10,100)
+printf(1,"    Time:  %s\n",{join(x,fmt:="%7d")})
+printf(1,"Analytic:  %s\n",{join(a,fmt:="%7.3f")})
+printf(1," Step  2:  %s\n",{join(e2,fmt:="%7.3f")})
+printf(1," Step  5:  %s\n",{join(e5,fmt:="%7.3f")})
+printf(1," Step 10:  %s\n",{join(e10,fmt:="%7.3f")})
+
+-- and a simple plot
+include pGUI.e
+include IupGraph.e
+
+function get_data(Ihandle /*graph*/)
+    return {{"NAMES",{"analytical","h=2","h=5","h=10"}},
+     {x,a,CD_BLUE},{x,e2,CD_GREEN},{x,e5,CD_BLACK},{x,e10,CD_RED}}
+end function
+
+IupOpen()
+Ihandle graph = IupGraph(get_data,`RASTERSIZE=340x240,GRID=NO`)
+IupSetAttributes(graph,`XTICK=20,XMIN=0,XMAX=100,XMARGIN=25`)
+IupSetAttributes(graph,`YTICK=20,YMIN=20,YMAX=100`)
+IupShow(IupDialog(graph,`TITLE="Euler Method",MINSIZE=260x200`))
+if platform()!=JS then
+    IupMainLoop()
+    IupClose()
+end if
+

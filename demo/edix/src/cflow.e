@@ -22,7 +22,7 @@ integer targetLevel -- want stuff at this level
 integer bX          -- CursorX of begin position, adjusted
 
 
-procedure incLevel(integer x, integer y, integer eType)
+procedure incLevel(integer x, y, eType)
 -- save an opening '{', "if", etc.
     level += 1
     if level>0 then
@@ -45,18 +45,15 @@ end procedure
 function KtoF(string s) return s end function
 
 --with trace
-sequence cB_end, cB_global, cB_globali, cB_set1, cB_set2
-    cB_end = KtoF("end")
---DEV public/export/override
---  cB_global = KtoF("global")
-    cB_global = {KtoF("global"),KtoF("public"),KtoF("export"),KtoF("override")}
-    cB_set1 = {KtoF("if"),KtoF("switch"),KtoF("for"),KtoF("while"),
--- 09/10/2020
---             KtoF("procedure"),KtoF("function"),KtoF("type")}
-               KtoF("procedure"),KtoF("function"),KtoF("type"),KtoF("try")}
---DEV case/cB_set3
---  cB_set2 = {cB_end, KtoF("elsif"),KtoF("else")}
-    cB_set2 = {cB_end, KtoF("elsif"),KtoF("else"),KtoF("case"),KtoF("default")}
+sequence cB_end = KtoF("end"), 
+         cB_endn = KtoF("end nested"), 
+         cB_nestd = KtoF("nested"),
+         cB_global = {KtoF("global"),KtoF("public"),KtoF("export"),KtoF("override"),cB_nestd},
+         cB_globali, 
+         cB_set1 = {KtoF("if"),KtoF("switch"),KtoF("for"),KtoF("while"),
+                    KtoF("procedure"),KtoF("function"),KtoF("type"),KtoF("try")},
+         cB_set2 = {cB_end, KtoF("elsif"),KtoF("else"),KtoF("case"),KtoF("default")},
+         cB_then = KtoF("then")
 
 --with trace
 global integer cbX, cbY
@@ -94,11 +91,11 @@ integer len,        -- length(oneline), speedwise
 
 sequence diag       -- for crash problems
 
-integer d0full      -- PL 20051106: (when direction=0 and elsif/else on CursorY+2, this
+integer d0full = 0  -- PL 20051106: (when direction=0 and elsif/else on CursorY+2, this
                     --               is set to 1 to force fold all the way to end if)
 integer pchar
 
-    d0full = 0
+integer difws, difi, difbType = 0
 
     cbX = CursorX
     cbY = CursorY
@@ -156,6 +153,8 @@ integer pchar
                 end while
                 if k2>=length(cB_end)+1 and equal(oneline[k2-length(cB_end)..k2-1],cB_end) then
                     k = k2-length(cB_end)
+                elsif k2>=length(cB_endn)+1 and equal(oneline[k2-length(cB_endn)..k2-1],cB_endn) then
+                    k = k2-length(cB_endn)
                 else
 --DEV getOnWord()
                     -- check for leading "global" and move forward past it
@@ -265,13 +264,25 @@ integer pchar
                             k += 1
                         end while
                         wordend = k
+                        onword = oneline[wordstart..wordend]
                         if skipword then
-                            skipword = 0
+                            if onword!=cB_nestd then
+                                skipword = 0
+                            end if
                         else
-                            onword = oneline[wordstart..wordend]
                             bType = find(onword,cB_set1)    -- if/for/while/procedure/function/type
                             if bType then
-                                incLevel(wordstart,i,bType)             -- remember control struct start
+                                if bType=1 then
+                                    -- 22/9/22 Defer "if" until "then", to cope with "if <condition> {}"
+                                    --         While the {} are handled, the "if" itself is ignored.
+                                    difws = wordstart
+                                    difi = i
+                                    difbType = bType                        -- used as "awaiting"
+                                else
+                                    incLevel(wordstart,i,bType)             -- remember control struct start
+                                end if
+                            elsif difbType and onword=cB_then then
+                                incLevel(difws,difi,difbType)               -- remember control struct start
                             else
                                 if direction=0 and d0full then  -- PL 20051106
                                     eWord = equal(onword,cB_end)
@@ -281,23 +292,26 @@ integer pchar
                                     eWord = find(onword,cB_set2)    -- end/elsif/else/case/default
                                 end if
                                 if eWord then
+                                    difbType = 0
                                     if i=CursorY+1 and wordstart=bX     -- on current word
                                     and (direction=-1 or eWord=1) then  -- going back or at end
                                         if level<=0 then return end if  -- (crash prevention)
                                         if eWord=1 then
 --DEV getOnWord()
-                                            while k<length(oneline) and find(oneline[k+1]," \t") do
-                                                k += 1
-                                            end while
-                                            wordstart = k+1
---                                          while k<length(oneline) and wordChar[oneline[k+1]+1]=TokenChar do
-                                            while k<length(oneline) do
-                                                ch = oneline[k+1]
-                                                if ch<=128 and wordChar[ch+1]!=TokenChar then exit end if
-                                                k += 1
-                                            end while
-                                            wordend = k
-                                            onword = oneline[wordstart..wordend]
+                                            do
+                                                while k<length(oneline) and find(oneline[k+1]," \t") do
+                                                    k += 1
+                                                end while
+                                                wordstart = k+1
+--                                              while k<length(oneline) and wordChar[oneline[k+1]+1]=TokenChar do
+                                                while k<length(oneline) do
+                                                    ch = oneline[k+1]
+                                                    if ch<=128 and wordChar[ch+1]!=TokenChar then exit end if
+                                                    k += 1
+                                                end while
+                                                wordend = k
+                                                onword = oneline[wordstart..wordend]
+                                            until onword!=cB_nestd
                                             bType = find(onword,cB_set1)
                                             if oType[level]!=bType then
                                                 mismatch()
@@ -340,18 +354,20 @@ integer pchar
                                         if eWord=1 then
 --DEV getOnWord()
                                             wordstart += 3
-                                            while wordstart<=length(oneline)
-                                              and find(oneline[wordstart]," \t") do
-                                                wordstart += 1
-                                            end while
-                                            wordend = wordstart
---                                          while wordend<=length(oneline) and wordChar[oneline[wordend]+1]=TokenChar do
-                                            while wordend<=length(oneline) do
-                                                ch = oneline[wordend]
-                                                if ch<=128 and wordChar[ch+1]!=TokenChar then exit end if
-                                                wordend += 1
-                                            end while
-                                            onword = oneline[wordstart..wordend-1]
+                                            do
+                                                while wordstart<=length(oneline)
+                                                  and find(oneline[wordstart]," \t") do
+                                                    wordstart += 1
+                                                end while
+                                                wordend = wordstart
+--                                              while wordend<=length(oneline) and wordChar[oneline[wordend]+1]=TokenChar do
+                                                while wordend<=length(oneline) do
+                                                    ch = oneline[wordend]
+                                                    if ch<=128 and wordChar[ch+1]!=TokenChar then exit end if
+                                                    wordend += 1
+                                                end while
+                                                onword = oneline[wordstart..wordend-1]
+                                            until onword!=cB_nestd
                                             bType = find(onword,cB_set1)
                                             if level>0               -- 2/1/06 crash prevention
                                             and oType[level]!=bType then

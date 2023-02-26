@@ -1,0 +1,76 @@
+--
+-- demo\rosetta\Parameterized_SQL_statement.exw
+-- ============================================
+-- 
+without js -- (pSQLite)
+include pSQLite.e
+
+--<some pretty printing, not really part of the demo>
+constant {coltypes,colfmts,colrids} = columnize({
+        {SQLITE_INTEGER,"%4d",sqlite3_column_int},
+        {SQLITE_FLOAT,"%4g",sqlite3_column_double},
+        {SQLITE_TEXT,"%-20s",sqlite3_column_text}})
+
+procedure show(string what, sqlite3 db)
+    printf(1,"%s:\n",{what})
+    sqlite3_stmt pStmt = sqlite3_prepare(db,"SELECT * FROM players;")
+    while 1 do
+        integer res = sqlite3_step(pStmt)
+        if res=SQLITE_DONE then exit end if
+        assert(res=SQLITE_ROW)
+        string text = ""
+        for c=1 to sqlite3_column_count(pStmt) do
+            integer ctype = sqlite3_column_type(pStmt,c),
+                    cdx = find(ctype,coltypes),
+                    rid = colrids[cdx]
+            string name = sqlite3_column_name(pStmt,c),
+                   data = sprintf(colfmts[cdx],rid(pStmt,c))
+            text &= sprintf("  %s:%s",{name,data})
+        end for
+        printf(1,"%s\n",{text})
+    end while
+    assert(sqlite3_finalize(pStmt)=SQLITE_OK)
+end procedure
+--</pretty printing>
+ 
+sqlite3 db = sqlite3_open(":memory:")
+
+assert(sqlite3_exec(db,`create table players (name, score, active, jerseyNum)`)=SQLITE_OK)
+assert(sqlite3_exec(db,`insert into players values ('Roethlisberger, Ben', 94.1, 1, 7 )`)=SQLITE_OK)
+assert(sqlite3_exec(db,`insert into players values ('Smith, Alex',        85.3, 1, 11)`)=SQLITE_OK)
+assert(sqlite3_exec(db,`insert into players values ('Doe, John',            15, 0, 99)`)=SQLITE_OK)
+assert(sqlite3_exec(db,`insert into players values ('Manning, Payton',    96.5, 0, 123)`)=SQLITE_OK)
+
+show("Before",db)
+--pp({"Before",sqlite3_get_table(db, "select * from players")},{pp_Nest,2})
+
+-- For comparison against some other entries, this is how you would do numbered parameters:
+--/*
+sqlite3_stmt pStmt = sqlite3_prepare(db, `update players set name=?, score=?, active=? where jerseyNum=?`)
+sqlite3_bind_text(pStmt,1,"Smith, Steve")
+sqlite3_bind_double(pStmt,2,42)
+sqlite3_bind_int(pStmt,3,true)
+sqlite3_bind_int(pStmt,4,99)
+--*/
+-- However, ordinarily I would prefer named parameters and sqlbind_parameter_index() calls:
+sqlite3_stmt pStmt = sqlite3_prepare(db, `update players set name=:name, score=:score, active=:active where jerseyNum=:jerseyn`)
+constant k_name = sqlite3_bind_parameter_index(pStmt, ":name"),
+         k_score = sqlite3_bind_parameter_index(pStmt, ":score"),
+         k_active = sqlite3_bind_parameter_index(pStmt, ":active"),
+         k_jerseyn = sqlite3_bind_parameter_index(pStmt, ":jerseyn")
+sqlite3_bind_text(pStmt,k_name,"Smith, Steve")
+sqlite3_bind_double(pStmt,k_score,42)
+sqlite3_bind_int(pStmt,k_active,true)
+sqlite3_bind_int(pStmt,k_jerseyn,99)
+
+assert(sqlite3_step(pStmt)=SQLITE_DONE)
+assert(sqlite3_finalize(pStmt)=SQLITE_OK)
+
+show("After",db)
+--pp({"After",sqlite3_get_table(db, "select * from players")},{pp_Nest,2})
+
+sqlite3_close(db)
+
+{} = wait_key()
+abort(0)
+

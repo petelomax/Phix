@@ -1,0 +1,270 @@
+--
+-- demo\xpGUI\gButton.exw
+-- ======================
+-- 
+--requires(64)
+with javascript_semantics
+include xpGUI.e
+--gUseGTK()
+
+-- forward function mini_porting_helper(bool bJustCheck)
+-- if bJustCheck is false, converts the clipboard contents, as per the
+--  "porting from pGUI" entry in the xpGUI docs (just text mangling).
+-- returns true if the clipboard contains "include pGUI.e" (not xpGUI.e)
+
+function click(gdx btn)
+    ?"click"
+--  gSetInt(btn,"ACTIVE",mini_porting_helper(false))
+--  return XPG_IGNORE
+    return 0
+end function
+
+gdx button = gButton(`port from pGUI`,click),
+    window = gDialog(button,`TITLE="Button",SIZE=350x300`)
+--gSetAttribute(button,"ACTIVE",mini_porting_helper(false))
+gShow(window)
+gMainLoop()
+--?"done"
+--wait_key()
+
+--/* Windows11 project...
+#include "stdafx.h"
+#include "WindowsProject11.h"
+#include <vector>
+#define MAX_LOADSTRING 100
+#define MIN(x,y) ((x)<(y)?(x):(y))
+#define MAX(x,y) ((x)>(y)?(x):(y))
+// Global Variables:
+HINSTANCE hInst;                                // current instance
+WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
+WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
+
+// Forward declarations of functions included in this code module:
+ATOM                MyRegisterClass(HINSTANCE hInstance);
+BOOL                InitInstance(HINSTANCE, int);
+LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
+INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
+
+int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
+                     _In_opt_ HINSTANCE hPrevInstance,
+                     _In_ LPWSTR    lpCmdLine,
+                     _In_ int       nCmdShow)
+{
+    UNREFERENCED_PARAMETER(hPrevInstance);
+    UNREFERENCED_PARAMETER(lpCmdLine);
+
+    // TODO: Place code here.
+
+    // Initialize global strings
+    LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
+    LoadStringW(hInstance, IDC_WINDOWSPROJECT11, szWindowClass, MAX_LOADSTRING);
+    MyRegisterClass(hInstance);
+
+    // Perform application initialization:
+    if (!InitInstance (hInstance, nCmdShow))
+    {
+        return FALSE;
+    }
+
+    HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_WINDOWSPROJECT11));
+    MSG msg;
+
+    // Main message loop:
+    while (GetMessage(&msg, nullptr, 0, 0))
+    {
+        if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
+        {
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+        }
+    }
+
+    return (int) msg.wParam;
+}
+
+
+
+//
+//  FUNCTION: MyRegisterClass()
+//
+//  PURPOSE: Registers the window class.
+//
+ATOM MyRegisterClass(HINSTANCE hInstance)
+{
+    WNDCLASSEXW wcex;
+
+    wcex.cbSize = sizeof(WNDCLASSEX);
+
+    wcex.style          = CS_HREDRAW | CS_VREDRAW;
+    wcex.lpfnWndProc    = WndProc;
+    wcex.cbClsExtra     = 0;
+    wcex.cbWndExtra     = 0;
+    wcex.hInstance      = hInstance;
+    wcex.hIcon          = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_WINDOWSPROJECT11));
+    wcex.hCursor        = LoadCursor(nullptr, IDC_ARROW);
+    wcex.hbrBackground  = (HBRUSH)(COLOR_WINDOW+1);
+    wcex.lpszMenuName   = MAKEINTRESOURCEW(IDC_WINDOWSPROJECT11);
+    wcex.lpszClassName  = szWindowClass;
+    wcex.hIconSm        = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
+
+    return RegisterClassExW(&wcex);
+}
+
+//
+//   FUNCTION: InitInstance(HINSTANCE, int)
+//
+//   PURPOSE: Saves instance handle and creates main window
+//
+//   COMMENTS:
+//
+//        In this function, we save the instance handle in a global variable and
+//        create and display the main program window.
+//
+std::vector<HWND> btns;
+RECT minRect;
+BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
+{
+   hInst = hInstance; // Store instance handle in our global variable
+
+   HWND hWnd = CreateWindow(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
+      CW_USEDEFAULT, 0, 200, 60, nullptr, nullptr, hInstance, nullptr);//create a minimum size window
+   GetWindowRect(hWnd,&minRect);
+   if (!hWnd)
+   {
+      return FALSE;
+   }
+
+   ShowWindow(hWnd, nCmdShow);
+   UpdateWindow(hWnd);
+
+   return TRUE;
+}
+
+//
+//  FUNCTION: WndProc(HWND, UINT, WPARAM, LPARAM)
+//
+//  PURPOSE:  Processes messages for the main window.
+//
+//  WM_COMMAND  - process the application menu
+//  WM_PAINT    - Paint the main window
+//  WM_DESTROY  - post a quit message and return
+//
+//
+RECT childRect = { 0 };
+BOOL first = true;
+
+BOOL CALLBACK EnumChildProc(HWND hwnd, LPARAM lParam)
+{
+    if (hwnd == (HWND)lParam)
+        return true;
+    if (first)
+    {
+        first = false;
+        GetWindowRect(hwnd,&childRect);
+        return true;
+    }
+    RECT rect;
+    GetWindowRect(hwnd,&rect);
+    childRect.right = MAX(childRect.right, rect.right);
+    childRect.bottom = MAX(childRect.bottom, rect.bottom);
+    return true;
+}
+int i = 20;
+int index = 0;
+LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    switch (message)
+    {
+    case WM_COMMAND:
+        {
+            int wmId = LOWORD(wParam);
+            HWND btn;
+            // Parse the menu selections:
+            switch (wmId)
+            {
+            case IDM_ABOUT:
+                DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
+                break;
+            case IDM_EXIT:
+                DestroyWindow(hWnd);
+                break;
+            case ID_FILE_CREATEBUTTON:
+                btn = CreateWindow(L"BUTTON", L"this is a button", WS_CHILD | WS_VISIBLE | WS_BORDER | BS_FLAT, 0, i, 200, 80, hWnd, (HMENU)2, hInst, NULL);
+                btns.push_back(btn);
+                i += 100;
+                break;
+            case ID_FILE_DESTORYLAST:
+                DestroyWindow(btns.back());
+                btns.pop_back();
+                break;
+            default:
+                return DefWindowProc(hWnd, message, wParam, lParam);
+            }
+        }
+        break;
+        return DefWindowProc(hWnd, message, wParam, lParam);
+    case WM_PAINT:
+        {
+            PAINTSTRUCT ps;
+            HDC hdc = BeginPaint(hWnd, &ps);
+            // TODO: Add any drawing code that uses hdc here...
+            EndPaint(hWnd, &ps);
+        }
+        break;
+    case WM_DESTROY:
+        PostQuitMessage(0);
+        break;
+    case WM_PARENTNOTIFY:
+    {
+        int wmId = LOWORD(wParam);
+        HWND hwnd;
+        RECT cRect;
+        RECT Rect = { 0 };
+        switch (wmId)
+        {
+        case WM_CREATE:
+            hwnd = (HWND)lParam;
+            GetWindowRect(hwnd, &cRect);
+            GetWindowRect(hWnd, &Rect);
+            Rect.right = MAX(Rect.right, cRect.right + 7);//Windows 10 has thin invisible borders on left, right, and bottom
+            Rect.bottom = MAX(Rect.bottom, cRect.bottom + 7);
+            SetWindowPos(hWnd, HWND_TOP, 0, 0, Rect.right - Rect.left, Rect.bottom - Rect.top, SWP_NOZORDER | SWP_NOMOVE | SWP_SHOWWINDOW);
+            break;
+        case WM_DESTROY:
+            EnumChildWindows(hWnd, EnumChildProc,lParam);
+            Rect.left = minRect.left;
+            Rect.top = minRect.top;
+            Rect.right = MAX(minRect.right, childRect.right + 7);
+            Rect.bottom = MAX(minRect.bottom, childRect.bottom + 7);
+            SetWindowPos(hWnd, HWND_TOP, 0, 0, Rect.right - Rect.left, Rect.bottom - Rect.top, SWP_NOZORDER | SWP_NOMOVE | SWP_SHOWWINDOW);
+            first = true;
+            break;
+        }
+        return 0;
+    }
+    default:
+        return DefWindowProc(hWnd, message, wParam, lParam);
+    }
+    return 0;
+}
+
+// Message handler for about box.
+INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    UNREFERENCED_PARAMETER(lParam);
+    switch (message)
+    {
+    case WM_INITDIALOG:
+        return (INT_PTR)TRUE;
+
+    case WM_COMMAND:
+        if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
+        {
+            EndDialog(hDlg, LOWORD(wParam));
+            return (INT_PTR)TRUE;
+        }
+        break;
+    }
+    return (INT_PTR)FALSE;
+}
+--*/

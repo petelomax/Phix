@@ -1,0 +1,267 @@
+--
+-- demo\rosetta\BrilliantNumbers.exw
+-- =================================
+--
+with javascript_semantics
+requires("1.0.2") -- (for in)
+atom t0 = time()
+
+function get_primes_by_digits(integer limit)
+    sequence primes = get_primes_le(power(10,limit)),
+             primes_by_digits = {}
+    integer p = 10
+    while length(primes) do
+        integer pi = abs(binary_search(p,primes))-1
+--DEV double-check this is emitting the same binary... [phix 2.0 too]
+--      primes_by_digits = append(primes_by_digits,primes[1..pi])
+        primes_by_digits &= {primes[1..pi]}
+        primes = primes[pi+1..$]
+        p*= 10
+    end while
+    return primes_by_digits
+end function
+sequence primes_by_digits = get_primes_by_digits(8)
+ 
+procedure first100()
+    sequence brilliant_numbers = {}
+    for primes in primes_by_digits do
+        for i=1 to length(primes) do
+--see talk page
+--          for j=i to length(primes) do 
+            for j=1 to i do 
+                brilliant_numbers &= primes[i]*primes[j]
+            end for
+        end for
+        if length(brilliant_numbers)>=100 then exit end if
+    end for
+--?length(brilliant_numbers) -- (both 241)
+    brilliant_numbers = sort(brilliant_numbers)[1..100]
+    sequence j100 = join_by(brilliant_numbers,1,10," ","\n","%,5d")
+    printf(1,"First 100 brilliant numbers:\n%s\n\n",{j100})
+end procedure
+first100()
+
+atom pwr = 10, count = 0
+for p=1 to 2*length(primes_by_digits)-1 do
+    sequence primes = primes_by_digits[floor(p/2)+1]
+    atom pos = count+1,
+         min_product = 0
+    for i=1 to length(primes) do
+        integer p1 = primes[i],
+                j = abs(binary_search(floor((pwr+p1-1)/p1),primes,i))
+        if j<=length(primes) then -- (always is, I think)
+            integer p2 = primes[j]
+            atom prod = p1*p2
+            if min_product=0 or prod<min_product then
+                min_product = prod
+            end if          
+            pos += j-i
+            if p1>=p2 then exit end if
+        end if
+    end for
+    printf(1,"First brilliant number >= 10^%d is %,d at position %,d\n", {p, min_product, pos})
+    pwr *= 10;
+    if odd(p) then
+        integer size = length(primes)
+        count += size * (size + 1) / 2;
+    end if
+end for
+?elapsed(time()-t0)
+{} = wait_key()
+
+-- couldn't bear to throw this away...
+--/* (with get_primes_by_digits(100)
+?apply(brilliant_numbers,prime_factors)
+{{2},{2,3},{2,5},{2,7},
+       {3},{3,5},{3,7},
+             {5},{5,7},
+                   {7},
+ {11},{11,13},{11,17},{11,19},{11,23},{11,29},{11,31},{11,37},{11,41},{11,43},{11,47},{11,53},{11,59},{11,61},{11,67},{11,71},{11,73},{11,79},{11,83},{11,89},{11,97},
+         {13},{13,17},{13,19},{13,23},{13,29},{13,31},{13,37},{13,41},{13,43},{13,47},{13,53},{13,59},{13,61},{13,67},{13,71},{13,73},{13,79},{13,83},{13,89},{13,97},
+                 {17},{17,19},{17,23},{17,29},{17,31},{17,37},{17,41},{17,43},{17,47},{17,53},{17,59},{17,61},{17,67},{17,71},{17,73},{17,79},
+                         {19},{19,23},{19,29},{19,31},{19,37},{19,41},{19,43},{19,47},{19,53},{19,59},{19,61},{19,67},{19,71},
+                                 {23},{23,29},{23,31},{23,37},{23,41},{23,43},{23,47},{23,53},{23,59},
+                                         {29},{29,31},{29,37},{29,41},{29,43},{29,47},
+                                                 {31},{31,37},{31,41},{31,43},
+                                                         {37}}
+"0.1s"
+--*/
+
+
+--/*
+--Replaced with C++ translation; much faster and now goes comfortably to 1e15 even on 32 bit
+First 100 brilliant numbers:
+   4    6    9   10   14   15   21   25   35   49
+ 121  143  169  187  209  221  247  253  289  299
+ 319  323  341  361  377  391  403  407  437  451
+ 473  481  493  517  527  529  533  551  559  583
+ 589  611  629  649  667  671  689  697  703  713
+ 731  737  767  779  781  793  799  803  817  841
+ 851  869  871  893  899  901  913  923  943  949
+ 961  979  989 1003 1007 1027 1037 1067 1073 1079
+1081 1121 1139 1147 1157 1159 1189 1207 1219 1241
+1247 1261 1271 1273 1333 1343 1349 1357 1363 1369
+
+
+First >=                 10 is              4th in the series:                 10
+First >=                100 is             11th in the series:                121
+First >=              1,000 is             76th in the series:              1,027
+First >=             10,000 is            242nd in the series:             10,201
+First >=            100,000 is          2,511th in the series:            100,171
+First >=          1,000,000 is         10,538th in the series:          1,018,081
+First >=         10,000,000 is        124,396th in the series:         10,001,351
+First >=        100,000,000 is        573,929th in the series:        100,140,049
+First >=      1,000,000,000 is      7,408,034th in the series:      1,000,011,739
+First >=     10,000,000,000 is     35,547,995th in the series:     10,000,600,009
+First >=    100,000,000,000 is    491,317,489th in the series:    100,000,104,713
+First >=  1,000,000,000,000 is  2,409,600,866th in the series:  1,000,006,000,009
+First >= 10,000,000,000,000 is 34,896,262,627th in the series: 10,000,001,015,681
+First >= 100,000,000,000,000 is 174,155,363,187th in the series: 100,000,380,000,361
+
+>>>
+First 100 brilliant numbers:
+   4    6    9   10   14   15   21   25   35   49
+ 121  143  169  187  209  221  247  253  289  299
+ 319  323  341  361  377  391  403  407  437  451
+ 473  481  493  517  527  529  533  551  559  583
+ 589  611  629  649  667  671  689  697  703  713
+ 731  737  767  779  781  793  799  803  817  841
+ 851  869  871  893  899  901  913  923  943  949
+ 961  979  989 1003 1007 1027 1037 1067 1073 1079
+1081 1121 1139 1147 1157 1159 1189 1207 1219 1241
+1247 1261 1271 1273 1333 1343 1349 1357 1363 1369
+
+
+First brilliant number >= 10^1 is 10 at position 4
+First brilliant number >= 10^2 is 121 at position 11
+First brilliant number >= 10^3 is 1,003 at position 74
+First brilliant number >= 10^4 is 10,201 at position 242
+First brilliant number >= 10^5 is 100,013 at position 2,505
+First brilliant number >= 10^6 is 1,018,081 at position 10,538
+First brilliant number >= 10^7 is 10,000,043 at position 124,364
+First brilliant number >= 10^8 is 100,140,049 at position 573,929
+First brilliant number >= 10^9 is 1,000,000,081 at position 7,407,841
+First brilliant number >= 10^10 is 10,000,600,009 at position 35,547,995
+First brilliant number >= 10^11 is 100,000,000,147 at position 491,316,167
+First brilliant number >= 10^12 is 1,000,006,000,009 at position 2,409,600,866
+First brilliant number >= 10^13 is 10,000,000,000,073 at position 34,896,253,010
+First brilliant number >= 10^14 is 100,000,380,000,361 at position 174,155,363,187
+First brilliant number >= 10^15 is 1,000,000,000,000,003 at position 2,601,913,448,897
+"3.3s"
+
+
+First brilliant number >= 10^1 is 10 at position 4
+First brilliant number >= 10^2 is 121 at position 11
+First brilliant number >= 10^3 is 1,003 at position 74
+First brilliant number >= 10^4 is 10,201 at position 242
+First brilliant number >= 10^5 is 100,013 at position 2,505
+First brilliant number >= 10^6 is 1,018,081 at position 10,538
+First brilliant number >= 10^7 is 10,000,043 at position 124,364
+First brilliant number >= 10^8 is 100,140,049 at position 573,929
+First brilliant number >= 10^9 is 1,000,000,081 at position 7,407,841
+First brilliant number >= 10^10 is 10,000,600,009 at position 35,547,995
+First brilliant number >= 10^11 is 100,000,000,147 at position 491,316,167
+First brilliant number >= 10^12 is 1,000,006,000,009 at position 2,409,600,866
+First brilliant number >= 10^13 is 10,000,000,000,073 at position 34,896,253,010
+First brilliant number >= 10^14 is 100,000,380,000,361 at position 174,155,363,187
+First brilliant number >= 10^15 is 1,000,000,000,000,003 at position 2,601,913,448,897
+--*/
+
+
+--/* old version, really slow on 64 bit...
+with javascript_semantics
+requires("1.0.2") -- binary_search() mods
+atom t0 = time()
+constant {klim, plim} = iff(machine_bits()=64?{13,1e7},{9,1e5}),
+               primes = get_primes_le(plim-1)
+
+function glim(sequence lp, atom pj)
+    atom {limit,pi} = lp
+    return pi*pj<limit
+end function
+ 
+function get_brilliant(integer digits, limit, bool countOnly=false)
+    sequence brilliant = {}
+    integer count = 0, start = 1
+    atom pow = 10
+    for k=1 to digits do
+        integer finish = abs(binary_search(pow,primes))-1
+        for i=start to finish do
+            if countOnly then
+                integer hij = abs(binary_search({limit,primes[i]},primes,i,finish,glim))
+                if hij=i then exit end if
+                count += hij-i
+            else
+                for j=i to finish do
+                    atom prod = primes[i] * primes[j]
+                    if prod>=limit then exit end if
+                    brilliant &= prod
+                end for
+            end if
+        end for
+        start = finish+1
+        pow *= 10
+    end for
+    return iff(countOnly?count:brilliant)
+end function
+ 
+sequence b100 = sort(get_brilliant(2,10000))[1..100],
+         j100 = join_by(b100,1,10," ","\n","%4d")
+printf(1,"First 100 brilliant numbers:\n%s\n",{j100})
+for k=1 to klim do
+    integer limit = power(10,k),
+            total = get_brilliant(k, limit, true)+1,
+            lo = limit+(k!=1)
+    atom hi = lo*10
+    if even(k) then
+        hi = power(get_prime(abs(binary_search(ceil(sqrt(lo)),primes))),2)
+    else
+        integer lp = abs(binary_search(power(10,(k-1)/2),primes)),
+                hp = abs(binary_search(power(10,(k+1)/2),primes))-1
+        for i=lp to hp do
+            for j=i to hp do
+                atom prod = primes[i] * primes[j]
+                if prod>=lo then
+                    if prod<hi then
+                        hi = prod
+                    end if
+                    exit
+                end if
+            end for 
+        end for
+    end if
+    printf(1,"First >= %,18d is %,14d%s in the series: %,18d\n", {limit, total, ord(total), hi})
+end for
+?elapsed(time()-t0)
+{} = wait_key()
+--*/
+--/* output:
+C:\Program Files (x86)\Phix>p64 e01
+First 100 brilliant numbers:
+   4    6    9   10   14   15   21   25   35   49
+ 121  143  169  187  209  221  247  253  289  299
+ 319  323  341  361  377  391  403  407  437  451
+ 473  481  493  517  527  529  533  551  559  583
+ 589  611  629  649  667  671  689  697  703  713
+ 731  737  767  779  781  793  799  803  817  841
+ 851  869  871  893  899  901  913  923  943  949
+ 961  979  989 1003 1007 1027 1037 1067 1073 1079
+1081 1121 1139 1147 1157 1159 1189 1207 1219 1241
+1247 1261 1271 1273 1333 1343 1349 1357 1363 1369
+
+First >=                 10 is              4th in the series:                 10
+First >=                100 is             11th in the series:                121
+First >=              1,000 is             74th in the series:              1,003
+First >=             10,000 is            242nd in the series:             10,201
+First >=            100,000 is          2,505th in the series:            100,013
+First >=          1,000,000 is         10,538th in the series:          1,018,081
+First >=         10,000,000 is        124,364th in the series:         10,000,043
+First >=        100,000,000 is        573,929th in the series:        100,140,049
+First >=      1,000,000,000 is      7,407,841st in the series:      1,000,000,081
+"0.2s" (32-bit ends)
+First >=     10,000,000,000 is     35,547,995th in the series:     10,000,600,009
+First >=    100,000,000,000 is    491,316,167th in the series:    100,000,000,147
+First >=  1,000,000,000,000 is  2,409,600,866th in the series:  1,000,006,000,008
+First >= 10,000,000,000,000 is 34,896,253,010th in the series: 10,000,000,000,073
+"11 minutes and 29s"
+--*/

@@ -38,7 +38,7 @@
 --
 --  (programming note: %s is all the wildcard-matching we can handle; ? and * are treated as literals.)
 --
---/**/without debug -- (keep ex.err clean)
+--!/**/without debug -- (keep ex.err clean)
 --
 -- The real gruntwork here is recognising numbers (if you think this is complicated, google "scanf.c").
 --  Much of get_number() and completeFloat() was copied from ptok.e, should really unify I spose, but
@@ -150,7 +150,7 @@ procedure initb()
 --  for i=10 to 15 do
     for i=10 to 35 do
         baseset['A'+i-10] = i
-        baseset['a'+i-10] = i
+        baseset['a'+i-10] = i+26
     end for
     bases = {8,16,2,10}  -- NB: oxbd order
     binit = 1
@@ -180,7 +180,7 @@ atom fraction
                 if scan_ch<'0' or scan_ch>'9' then exit end if
 --27/10/15
 --              N += (scan_ch-'0') / dec
-                fraction = fraction*10+(scan_ch-'0')
+                fraction = fraction*10 + (scan_ch-'0')
                 dec *= 10
                 tokvalid = 1
             end if
@@ -209,7 +209,7 @@ atom fraction
                     end if
                 end if
             else
-                exponent = exponent*10 + scan_ch-'0'
+                exponent = exponent*10 + (scan_ch-'0')
                 tokvalid = 1
             end if
 --          sidx += 1
@@ -270,6 +270,7 @@ integer msign, base = 0, tokvalid = 1
     end if
 --  if  scan_ch>='0' 
 --  and scan_ch<='9' then
+    if inbase<=36 and scan_ch>'Z' then scan_ch = upper(scan_ch) end if
     N = baseset[scan_ch]
     if N<inbase then
         sidx += 1
@@ -289,7 +290,7 @@ integer msign, base = 0, tokvalid = 1
                         if sidx>length(s) then return {} end if
                         scan_ch = s[sidx]
                         if scan_ch<'0' or scan_ch>'9' then exit end if
-                        base = base*10 + scan_ch-'0'
+                        base = base*10 + (scan_ch-'0')
                     end while
                     if base<2 or base>16 or scan_ch!=')' then
                         return {}
@@ -357,11 +358,12 @@ integer msign, base = 0, tokvalid = 1
 --          if scan_ch<'0' or scan_ch>'9' then
 --              if scan_ch!='_' then exit end if    -- allow eg 1_000_000 to mean 1000000
 --          else
---              N = N*10 + scan_ch-'0'
+--              N = N*10 + (scan_ch-'0')
 --          end if
             if scan_ch!='_' then    -- allow eg 1_000_000 to mean 1000000 (any base)
 --31/7/19:
                 if scan_ch='.' then exit end if
+                if base<=36 and scan_ch>'Z' then scan_ch = upper(scan_ch) end if
                 scan_ch2 = baseset[scan_ch]
                 if scan_ch2>=base then exit end if  
                 N = N*base + scan_ch2
@@ -410,6 +412,7 @@ integer msign, base = 0, tokvalid = 1
             if sidx>length(s) then exit end if
             scan_ch = s[sidx]
             if scan_ch!='_' then
+                if scan_ch>'Z' then scan_ch = upper(scan_ch) end if
                 scan_ch = baseset[scan_ch]
                 if scan_ch>16 then exit end if
                 N = N*16 + scan_ch

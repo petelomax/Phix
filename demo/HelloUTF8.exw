@@ -158,30 +158,26 @@ constant CP_UTF8 = 65001
 
 --printf(1,"x x x �\n")
 procedure Xinit()
-atom user32, kernel32
-    user32 = open_dll("user32.dll")
-    kernel32 = open_dll("kernel32.dll")
+    atom user32 = open_dll("user32.dll"),
+       kernel32 = open_dll("kernel32.dll")
 --#without reformat
     xMessageBoxW = define_c_func(user32, "MessageBoxW",
-        {C_POINTER, --  HWND     hWnd,      // handle of owner window
-         C_POINTER, --  LPCTSTR  lpText,    // address of text in message box
-         C_POINTER, --  LPCTSTR  lpCaption, // address of title of message box
+        {C_PTR,     --  HWND     hWnd,      // handle of owner window
+         C_PTR,     --  LPCTSTR  lpText,    // address of text in message box
+         C_PTR,     --  LPCTSTR  lpCaption, // address of title of message box
          C_INT},    --  UINT     uType      // style of message box
         C_INT)      -- int 
-    if xMessageBoxW=-1 then ?9/0 end if
     xGetActiveWindow = define_c_func(user32, "GetActiveWindow",
         {},
         C_LONG)     -- HWND
-    if xGetActiveWindow=-1 then ?9/0 end if
     xMultiByteToWideChar = define_c_func(kernel32,"MultiByteToWideChar",
         {C_INT,     --  UINT    CodePage,       // code page 
          C_INT,     --  DWORD   dwFlags,        // character-type options 
-         C_POINTER, --  LPCSTR  lpMultiByteStr, // address of string to map 
+         C_PTR,     --  LPCSTR  lpMultiByteStr, // address of string to map 
          C_INT,     --  int     cchMultiByte,   // number of characters in string 
-         C_POINTER, --  LPWSTR  lpWideCharStr,  // address of wide-character buffer 
+         C_PTR,     --  LPWSTR  lpWideCharStr,  // address of wide-character buffer 
          C_INT},    --  int     cchWideChar     // size of buffer 
         C_INT)      -- int
-    if xMultiByteToWideChar=-1 then ?9/0 end if 
 --#with reformat
     initX = 1
 end procedure
@@ -282,7 +278,7 @@ set_struct_field(idCFI,pCFI,"dwFontSize.Y",18)
 set_struct_field(idCFI,pCFI,"FontFamily",54)
 set_struct_field(idCFI,pCFI,"FontWeight",400)
 --set_struct_field(idCFI,pCFI,"FaceName","Lucida Console")
-constant {name_offset} = get_field_details(idCFI,"FaceName")
+constant {?,name_offset} = get_field_details(idCFI,"FaceName")
 poke2(pCFI+name_offset,"Lucida Console\0")
 --poke2(pCFI+name_offset,"Consolas\0")
 --poke2(pCFI+name_offset,"Arial Unicode MS\0")

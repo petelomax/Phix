@@ -2,6 +2,7 @@
 -- demo\rosetta\Simple_db.exw
 -- ==========================
 --
+without js -- (file i/o, gets(0), getenv)
 include timedate.e
 
 constant filename = getenv(iff(platform()=WINDOWS?"APPDATA":"HOME"))&"/simple_db.csv"
@@ -11,9 +12,9 @@ procedure add(sequence cmd)
     or length(cmd)>2 then
         printf(1,"usage: add name [cat]\n")
     else
-        string name = cmd[1]
-        string cat = iff(length(cmd)=2?cmd[2]:"none")
-        string datestr = format_timedate(date(),"YYYY/MM/DD h:mmpm")
+        string name = cmd[1],
+                cat = iff(length(cmd)=2?cmd[2]:"none")
+            datestr = format_timedate(date(),"YYYY/MM/DD h:mmpm")
         integer fn = open(filename,"a")
         printf(fn,"%s,%s,%s\n",{name,cat,datestr})
         close(fn)
@@ -44,7 +45,6 @@ sequence dates
 function by_date(integer d1, integer d2)
     return compare(dates[d1],dates[d2])
 end function
-constant r_by_date = routine_id("by_date")
 
 procedure sort_by_date()
 -- (simple_db.csv should be edited manually to prove the date sort works)
@@ -62,7 +62,7 @@ procedure sort_by_date()
         dates = append(dates,split(line,',')[3])
     end while
     close(fn)
-    sequence tags = custom_sort(r_by_date,tagset(length(lines)))
+    sequence tags = custom_sort(by_date,tagset(length(lines)))
     for i=1 to length(tags) do
         puts(1,lines[tags[i]])
     end for
@@ -84,16 +84,16 @@ p demo\rosetta\Simple_db last [cat]         -- show last entry [in specified cat
 p demo\rosetta\Simple_db sort               -- show full list sorted by date
 """
 sequence cl = command_line()
-    if length(cl)<3 then
-        -- interactive mode
-        puts(1,helptext)
-        while 1 do
-            puts(1,">")
-            object line = trim(gets(0))
-            if atom(line) or length(line)=0 then exit end if
-            puts(1,"\n")
-            process(split(line))
-        end while
-    else
-        process(cl[3..$])
-    end if
+if length(cl)<3 then
+    -- interactive mode
+    puts(1,helptext)
+    while 1 do
+        puts(1,">")
+        object line = trim(gets(0))
+        if atom(line) or length(line)=0 then exit end if
+        puts(1,"\n")
+        process(split(line))
+    end while
+else
+    process(cl[3..$])
+end if

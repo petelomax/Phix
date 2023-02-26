@@ -108,9 +108,11 @@ end procedure -- (for Edita/CtrlQ)
                         -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
                         -- obviously rsp is now xxx8, whatever alignment we started with
             sub rsp,8*7                     -- 5 params and space for target of r9, plus align
-            mov rcx,-11                     -- DWORD nStdHandle (p1) (--11=STD_OUTPUT_HANDLE)
+--10/9/22 (!!)
+--          mov rcx,-11                     -- DWORD nStdHandle (p1) (--11=STD_OUTPUT_HANDLE)
 --added 14/1/16:
             call "kernel32.dll","AllocConsole"
+            mov rcx,-11                     -- DWORD nStdHandle (p1) (--11=STD_OUTPUT_HANDLE)
             call "kernel32.dll","GetStdHandle"
             mov qword[rsp+4*8],rbx          -- LPOVERLAPPED lpOverlapped (p5) (rbx=NULL)
             lea r9,[rsp+5*8]                -- LPDWORD lpNumberOfBytesWritten (p4)
@@ -127,6 +129,21 @@ end procedure -- (for Edita/CtrlQ)
             mov rdi,1               -- stdout
             mov rax,1               -- sys_write(rdi=unsigned int fd,rsi=const char *buf,rdx=size_t count)
             syscall
+--/*
+        [ARM]
+            ldr r6,[r7*4-12]
+            shl r7,2
+--          lsl r7,2
+
+      :%puts1r7r6   -- (r7=raw text, r6=length)
+-------------------
+            mov r0,0                -- stdout
+            mov r1,r7               -- raw
+            mov r2,r6               -- length
+;           swi 0x900004
+            mov r7,4                -- write
+            swi 0
+--*/
         []
             ret
 
@@ -162,6 +179,17 @@ end procedure -- (for Edita/CtrlQ)
           @@:
             mov rdi,rsp
             jmp @f
+--/*
+        [ARM]
+--          mov ip,h4
+            sub sp,16
+            cmp r3,h4
+            bl @f
+                ???
+          @@:
+            mov r7,sp
+            jmp @f
+--*/
         []
 
 --/*

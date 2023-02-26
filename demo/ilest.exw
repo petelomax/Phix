@@ -7,7 +7,8 @@
 constant B = "..\\builtins",
          BVM = "..\\builtins\\VM"
 
-sequence want = {"e","ew"}, notwant = {"err","dll","txt","exw"}
+sequence want = {"e","ew"}, notwant = {"err","dll","txt","exw","html"}
+
 function efiles(sequence di)
     if find('d',di[D_ATTRIBUTES]) then return 0 end if
     string ext = get_file_extension(di[D_NAME])
@@ -21,13 +22,16 @@ function efiles(sequence di)
     end if
     return 0
 end function
+
 function addir(string file,path)
     return join_path({path,file})
 end function
+
 function ilasm(string file)
     string text = get_text(file)
     return match("#ilASM",text)
 end function
+
 sequence d = filter(apply(true,addir,{vslice(filter(dir(B),efiles),1),{B}}),ilasm),
          v = filter(apply(true,addir,{vslice(filter(dir(BVM),efiles),1),{BVM}}),ilasm)
 
@@ -39,9 +43,11 @@ function strip_comments(string line)
     end if
     return line
 end function
+
 function strip_blank(string line)
     return length(line)
 end function
+
 function get_lines(string file)
     sequence lines = filter(apply(get_text(file,GT_LF_STRIPPED),strip_comments),strip_blank)
     bool bOpen = true
@@ -62,6 +68,7 @@ function get_lines(string file)
     if not bOpen then ?9/0 end if
     return total
 end function
+
 sequence dt = apply(d,get_lines),
          vt = apply(v,get_lines)
 pp(columnize({d,dt}))

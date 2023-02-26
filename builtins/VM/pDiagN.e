@@ -504,6 +504,9 @@ integer prst
 string s
     if OLDSTYLE then
         printf(fn,"    %s = %s\n",{name,ppExf(o,{pp_Indent,length(name)+7})})
+if diagdiag then
+        printf(1,"    %s = %s\n",{name,ppExf(o,{pp_Indent,length(name)+7})})
+end if
     else
 --      printstack = {}
         printstack = repeat(0,0)
@@ -595,7 +598,7 @@ end procedure
 
 procedure put2(string emsg)
     if not batchmode then
-        if lines<15 then
+        if lines<15 or diagdiag then
             if sequence(crash_msg) then
                 if length(crash_msg)=0 then
                     crash_msg = "?? length 0 crash_msg ??\n"
@@ -3593,12 +3596,18 @@ end if
                         filename = deep_copy(symtab[T_fileset][fileno][1..2])
                         filename[1] = pathset[filename[1]]
                         printf(fn,"\n %s%s:\n",filename)
+if diagdiag then
+                        printf(1,"\n %s%s:\n",filename)
+end if
 --4/2/21:
 cdi_filename = filename[2]
                     end if
                     {novalue,o} = getGvarValue(si[S_Slink])
                     if novalue then
                         printf(fn,"    %s = <novalue>\n",{name})
+if diagdiag then
+                        printf(1,"    %s = <novalue>\n",{name})
+end if
                     else
                         clever_dump(name, o)
                     end if

@@ -3,6 +3,7 @@
 --
 -- todo: bar graphs[stacked or side], grid style, piechart, ...
 --
+include pGUI.e
 
 function redraw_graph_cb(Ihandle graph)
 

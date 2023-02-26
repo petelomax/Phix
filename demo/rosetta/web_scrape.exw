@@ -1,43 +1,34 @@
---
+﻿--
 -- demo\rosetta\web_scrape.exw
 -- ===========================
 --
+without js -- (libcurl)
 include builtins\libcurl.e
 include builtins\timedate.e
 
---simplified 1/8/2019:
---curl_global_init()
---atom curl = curl_easy_init()
---curl_easy_setopt(curl, CURLOPT_URL, "https://tycho.usno.navy.mil/cgi-bin/timer.pl")
---object res = curl_easy_perform_ex(curl)
---object res = curl_easy_perform_ex("https://tycho.usno.navy.mil/cgi-bin/timer.pl")
 object res = curl_easy_perform_ex("https://rosettacode.org/wiki/Talk:Web_scraping")
 if string(res) then
     res = split(res,'\n')
     for i=1 to length(res) do
+      if not match(`<div id="siteNotice">`,res[i]) then -- (24/11/22, exclude notice)
         integer k = match("UTC",res[i])
         if k then
---          res = res[i][5..k-2]
-            res = res[i][1..k-3]
-            k = match("</a> ",res)
-            res = res[k+5..$]
+            string line = res[i] -- (debug aid)
+            res = line[1..k-3]
+            k = rmatch("</a>",res)
+            res = trim(res[k+5..$])
             exit
         end if
+      end if    
     end for
     ?res
     if string(res) then
---      timedate td = parse_date_string(res, {"Mmm. d, hh:mm:ss"})
         timedate td = parse_date_string(res, {"hh:mm, d Mmmm yyyy"})
---      td[DT_YEAR] = date()[DT_YEAR]
---      ?format_timedate(td,"h:mpm Dddd ddth Mmmm")
         ?format_timedate(td,"Dddd Mmmm ddth yyyy h:mpm")
---      ?format_timedate(date(),"h:mpm Dddd ddth Mmmm")
     end if
 else
     ?{"some error",res,curl_easy_strerror(res)}
 end if
---curl_easy_cleanup(curl)
---curl_global_cleanup()
 
 ?"done"
 {} = wait_key()
@@ -47,4 +38,16 @@ end if
 "12:24pm Friday 26th April"
 "1:24pm Friday 26th April"
 --(the last line differs because it is British Summer Time here)
+-- with header:
+"20:59, 30 May 2020"
+"Saturday May 30th 2020 8:59pm"
+--old:
+--object res = curl_easy_perform_ex("https://tycho.usno.navy.mil/cgi-bin/timer.pl")
+--          res = line[5..k-2]
+--      timedate td = parse_date_string(res, {"Mmm. d, hh:mm:ss"})
+--      td[DT_YEAR] = date()[DT_YEAR]
+--      ?format_timedate(td,"h:mpm Dddd ddth Mmmm")
+--      ?format_timedate(date(),"h:mpm Dddd ddth Mmmm")
+--curl_easy_cleanup(curl)
+--curl_global_cleanup()
 --*/

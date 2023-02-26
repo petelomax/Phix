@@ -2,8 +2,10 @@
 -- demo\rosetta\Queen_Armies.exw
 -- =============================
 --
+with javascript_semantics
+requires("1.0.2") -- (puts(fn,x,false) for p2js.js)
 string html = ""
-constant as_html = false
+constant as_html = true
 constant queens = {``,
                    `&#x265b;`, 
                    `<font color="green">&#x2655;</font>`,
@@ -73,10 +75,10 @@ function place(integer m, n, sequence blackqueens = {}, whitequeens = {})
                 end for
                 if pos!={} then
                     if placingBlack then
-                        blackqueens = append(blackqueens, pos)
+                        blackqueens = append(deep_copy(blackqueens), pos)
                         placingBlack = false
                     else
-                        whitequeens = append(whitequeens, pos)
+                        whitequeens = append(deep_copy(whitequeens), pos)
                         if place(m-1, n, blackqueens, whitequeens) then return true end if
                         blackqueens = blackqueens[1..$-1]
                         whitequeens = whitequeens[1..$-1]
@@ -119,15 +121,18 @@ constant html_header = """
 """ -- or </div>
 
 if as_html then
-    integer fn = open("queen_armies.html","w")
-    puts(fn,html_header)
-    puts(fn,html)
-    puts(fn,html_footer)
-    close(fn)
-    printf(1,"See queen_armies.html\n")
+    if platform()=JS then
+        puts(1,html,false)
+    else
+        integer fn = open("queen_armies.html","w")
+        puts(fn,html_header)
+        puts(fn,html)
+        puts(fn,html_footer)
+        close(fn)
+        printf(1,"See queen_armies.html\n")
+    end if
 end if
 
 ?"done"
 {} = wait_key()
-abort(0)
 

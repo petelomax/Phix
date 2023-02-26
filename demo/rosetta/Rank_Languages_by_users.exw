@@ -1,0 +1,59 @@
+--
+-- demo\rosetta\Rank_Languages_by_users.exw
+-- ========================================
+--
+include rosettacode_cache.e -- see [[Rosetta_Code/Count_examples#Phix]]
+
+function process_page(sequence result, json)
+    sequence query = extract_json_field(json,"query"),
+             pages = extract_json_field(query,"pages")
+    assert(pages[1]=JSON_ARRAY)
+    for p in pages from 2 do
+        string lang = extract_json_field(p,"title")
+        if lang[1..9]="Category:"
+        and lang[-5..-1]=" User" then
+            lang = lang[10..-6]
+            p = extract_json_field(p,"categoryinfo")
+            integer users = extract_json_field(p,"size")
+            result = append(result,{JSON_OBJECT,{"lang",lang},{"users",users}})
+        end if
+    end for
+    string gmc = ""
+    object qc = extract_json_field(json,"query-continue",0)
+    if qc!=0 then
+        qc = extract_json_field(qc,"categorymembers")
+        gmc = "&gcmcontinue="&extract_json_field(qc,"gcmcontinue")
+    end if
+    return {result,gmc}
+end function
+
+sequence lang_users = get_rc_lang_users(process_page)
+assert(lang_users[1]=JSON_ARRAY)
+sequence result = {}
+for lu in lang_users from 2 do
+    string lang = file_clean(extract_json_field(lu,"lang"))
+    integer users = extract_json_field(lu,"users")
+    result = append(result,{lang,users})
+end for
+result = sort_columns(result,{-2,1})
+for i,r in result to 10 do
+    integer u = r[2]
+    string l = r[1], s = iff(u=1?"":"s")
+    printf(1,"%3d: %s has %d user%s\n",{i,l,u,s})
+end for
+
+?"done"
+{} = wait_key()
+--/*
+--output (eg, as of 28/12/22)
+  1: C has 445 users
+  2: Java has 324 users
+  3: Python has 321 users
+  4: C++ has 315 users
+  5: JavaScript has 292 users
+  6: PHP has 191 users
+  7: Perl has 186 users
+  8: SQL has 168 users
+  9: UNIX_Shell has 152 users
+ 10: BASIC has 134 users
+--*/

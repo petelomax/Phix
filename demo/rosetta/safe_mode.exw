@@ -42,6 +42,7 @@
 --  others may either need to follow suit or be explicitly barred, only 
 --  time and testing will tell.
 --
+with javascript_semantics -- (erm, it kinda is anyway...)
 with safe_mode
 
 sequence cl = command_line()
@@ -52,42 +53,45 @@ if find_any({"-safe","--safe"},cl) then ?9/0 end if -- grief saver, as above
 --#ilASM{ mov eax,1 }
 
 -- but verify some legal #ilASM{} (ie from builtins\) is still OK:
-sequence r = get_routine_info(routine_id("get_routine_info"))
-if r!={2,1,"FII","get_routine_info"} then ?9/0 end if
+sequence r = get_routine_info(routine_id("get_routine_info")),
+         e = iff(platform()!=JS?{2,1,"FII","get_routine_info"}
+                               :{1,0,"","get_routine_info"})
+if r!=e then ?9/0 end if
 
--- disallow call() [as per inline assembly, but at runtime]
-atom pMem = allocate(3)         -- fine
-poke(pMem,{0o061,0o300,#C3})    -- fine (xor eax,eax; ret)
---[OK] (caught by pcfunc.e line 1022)
---call(pMem)                        -- (runtime error)
+if platform()!=JS then
+    -- disallow call() [as per inline assembly, but at runtime]
+    atom pMem = allocate(3)         -- fine
+    poke(pMem,{0o061,0o300,#C3})    -- fine (xor eax,eax; ret)
+    --[OK] (caught by pcfunc.e line 1022)
+    --call(pMem)                        -- (runtime error)
 
+    -- disallow [most other] c_func/proc()
+    integer frid = define_c_func({},pMem,{},C_INT),
+            prid = define_c_proc({},pMem,{})
+    -- above is fine, below should trigger runtime errors
+    --[OK] (caught by pcfunc.e line 1262 *2)
+    --?c_func(frid,{}) -- (prints 0, when allowed that is)
+    --c_proc(prid,{})
 
--- disallow [most other] c_func/proc()
-integer frid = define_c_func({},pMem,{},C_INT),
-        prid = define_c_proc({},pMem,{})
--- above is fine, below should trigger runtime errors
---[OK] (caught by pcfunc.e line 1262 *2)
---?c_func(frid,{}) -- (prints 0, when allowed that is)
---c_proc(prid,{})
+    -- disallow file i/o (at runtime, part covered by c_func):
+    --[OK] (caught by fopen() in pfileioN.e)
+    --?shorten(get_text(cl[2]),"bytes")
+    --integer fn = open(cl[2],"r")
+    --?gets(fn)
+    --close(fn)
+    --integer res = copy_file(cl[2],"test_safe_mode.txt",true)
+    --?{"copy_file",res}
+    --if res then
+    --  res = delete_file("test_safe_mode.txt")
+    --  ?{"delete",res}
+    --end if
 
--- disallow file i/o (at runtime, part covered by c_func):
---[OK] (caught by fopen() in pfileioN.e)
---?shorten(get_text(cl[2]),"bytes")
---integer fn = open(cl[2],"r")
---?gets(fn)
---close(fn)
---integer res = copy_file(cl[2],"test_safe_mode.txt",true)
---?{"copy_file",res}
---if res then
---  res = delete_file("test_safe_mode.txt")
---  ?{"delete",res}
---end if
-
--- disallow system() and system_exec() (at runtime, ditto):
---[OK] (caught by pcfunc.e line 1262 *2)
---?system_exec(`"dir safe*"`,4)
---integer rse = routine_id("system_exec")
---?call_func(rse,{`"dir safe*"`,4})
+    -- disallow system() and system_exec() (at runtime, ditto):
+    --[OK] (caught by pcfunc.e line 1262 *2)
+    --?system_exec(`"dir safe*"`,4)
+    --integer rse = routine_id("system_exec")
+    --?call_func(rse,{`"dir safe*"`,4})
+end if
 
 -- but check call_func() itself is still ok:
 function myfunc() return 42 end function

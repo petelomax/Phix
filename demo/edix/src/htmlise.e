@@ -214,6 +214,7 @@ integer wasSelON, offset, ch
                 elsif ch='<' and toClipBoard!=2 then addpCode("&lt;")
                 elsif ch='>' and toClipBoard!=2 then addpCode("&gt;")
                 elsif ch='~' and toClipBoard!=2 then addpCode("&tilde;")
+                elsif ch=''' and toClipBoard!=2 then addpCode("&rsquo;")
                 else
 --                  if toClip then
                         r &= ch

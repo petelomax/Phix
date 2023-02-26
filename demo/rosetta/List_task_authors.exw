@@ -1,4 +1,4 @@
---
+﻿--
 -- demo\rosetta\List_task_authors.exw
 -- ==================================
 --
@@ -6,138 +6,29 @@
 --  Uses a cache: once a .hist file has been downloaded for a given
 --   task, it is assumed to be good forever. Each task is about 20K,
 --   so it will download around 25MB in total, for >= 1,219 tasks.
---   It does those sequentially, using curl_easy_ handles. I guess
---   if you really wanted to then using curl_multi_ handles would
---   properly thrash the rosettacode servers.
+--   While initially very slow, once cached it is pretty fast (~2s)
 --
 without js -- (libcurl, file i/o, peek, progress..)
-include builtins\libcurl.e
-atom curl = NULL
-atom pErrorBuffer
-
-function write_callback(atom pData, integer size, integer nmemb, integer fn)
-    integer bytes_written = size * nmemb
-    puts(fn,peek({pData,bytes_written}))
-    return bytes_written
-end function
-constant write_cb = call_back({'+', routine_id("write_callback")})
-
-include builtins\timedate.e
--- for [Draft_]Programming_Tasks aka non-.hist files only:
-integer refresh_cache = timedelta(days:=31) -- 0 for always
-
-function open_download(string filename, url, integer i, n)
-    bool refetch = false
-    object text
-    filename = join_path({"rc_cache",filename})
-    if file_exists(filename) then
-        text = trim(get_text(filename))
-        refetch = (not sequence(text)) or (length(text)<10)
-        if not refetch and not match(".hist",filename) then
-            -- use existing file if <= refresh_cache (31 days) old
-            sequence last_mod = get_file_date(filename)     -- (0.8.1+)
-            atom delta = timedate_diff(last_mod,date())
-            refetch = (delta>refresh_cache)
-        end if
-    else
-        string directory = get_file_path(filename)
-        if get_file_type(directory)!=FILETYPE_DIRECTORY then
-            if not create_directory(directory,make_parent:=true) then
-                crash("cannot create %s directory",{directory})
-            end if
-        end if
-        refetch = true
-    end if
-    if refetch then
-        progress("Downloading %d/%d %s...\r",{i,n,filename})
-        if curl=NULL then
-            curl_global_init()
-            curl = curl_easy_init()
-            pErrorBuffer = allocate(CURL_ERROR_SIZE)
-            curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, pErrorBuffer)
-            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb)
-        end if
-        url = substitute(url,"%3A",":")
-        url = substitute(url,"%2A","*")
-        curl_easy_setopt(curl, CURLOPT_URL, url)
-        integer fn = open(filename,"wb")
-        if fn=-1 then ?9/0 end if
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, fn)
-        while true do
-            CURLcode res = curl_easy_perform(curl)
-            if res=CURLE_OK then exit end if
-            string error = sprintf("%d",res)
-            if res=CURLE_COULDNT_RESOLVE_HOST then
-                error &= " [CURLE_COULDNT_RESOLVE_HOST]"
-            end if
-            progress("Error %s downloading file, retry?(Y/N):",{error})
-            if lower(wait_key())!='y' then abort(0) end if
-            printf(1,"Y\n")
-        end while
-        close(fn)
-        text = get_text(filename)
-    end if
-    return text
-end function
-
-function open_category(string filename, integer i, n)
-    return open_download(filename&".htm","http://rosettacode.org/wiki/Category:"&filename,i,n)
-end function
-
-function dewiki(string s)
-    -- extract tasks from eg `<li><a href="/wiki/100_doors"`
-    sequence tasks = {}
-    integer start = 1, finish = match(`<div class="printfooter">`,s)
-    s = s[1..finish-1]
-    while true do
-        start = match(`<li><a href="/wiki/`,s,start)
-        if start=0 then exit end if
-        start += length(`<li><a href="/wiki/`)
-        finish = find('"',s,start)
-        string task = s[start..finish-1]
-        task = substitute_all(task,{"*",":"},{"%2A","%3A"})
-        tasks = append(tasks,task)
-        start = finish+1
-    end while
-    return tasks
-end function
-
-constant {hex,ascii} = columnize({{"%2A","*"},
-                                  {"%3A",":"},
-                                  {"%27","'"},
-                                  {"%2B","+"},
-                                  {"%22",`"`},
-                                  {"%E2%80%93","-"},
-                                  {"%E2%80%99","'"},
-                                  {"%C3%A8","e"},
-                                  {"%C3%A9","e"}})
-
-function html_clean(string s)
-    return substitute_all(s,hex,ascii)
-end function
+include rosettacode_cache.e -- see [[Rosetta_Code/Count_examples#Phix]]
 
 constant history_user = `<span class='history-user'><a href="`
 
 function count_tasks()
-    if get_file_type("rc_cache")!=FILETYPE_DIRECTORY then
-        if not create_directory("rc_cache") then
-            crash("cannot create rc_cache directory")
-        end if
-    end if
-    sequence tasks = dewiki(open_category("Programming_Tasks",1,2))
-                   & dewiki(open_category("Draft_Programming_Tasks",2,2))
+    sequence tasks = sort(get_rc_category("Programming_Tasks")&
+                          get_rc_category("Draft_Programming_Tasks"))
     integer ntasks = length(tasks)
---  progress("%d tasks found\n",{ntasks})
+    progress("%d tasks found\n",{ntasks}) -- 1592 (correct as of 26/12/22)
     sequence users = {},
              utask = {},
              ntask = {}
+    atom t1 = time()+1
     for i=1 to ntasks do
-        string ti = tasks[i],
-               url = sprintf("http://rosettacode.org/mw/index.php?title=%s&action=history&dir=prev&limit=1",{ti}),
---no help:
---             url = sprintf("http://rosettacode.org/mw/index.php?title=%s&action=history&dir=prev&limit=1&format=json",{ti}),
---             url = sprintf("http://rosettacode.org/mw/index.php?title=%s&format=json&action=history&dir=prev&limit=1",{ti}),
-               contents = open_download(ti&".hist",url,i,ntasks)
+        string ti = tasks[i], contents = get_rc_hist(ti,i,ntasks)
+        ti = file_clean(ti) -- (in case you want to show them)
+        if time()>t1 then
+            progress("processing %d of %d - %s\r",{i,ntasks,ti})
+            t1 = time()+1
+        end if
 -- look for and extract "name" from the appropriate <a href="..">name</a>, eg:
 -- <span class='history-user'><a href="/mw/index.php?title=User:Daxim&amp;action=edit&amp;redlink=1" class="new mw-userlink" title="User:Daxim (page does not exist)">Daxim</a>
 -- <span class='history-user'><a href="/wiki/User:Paddy3118" title="User:Paddy3118" class="mw-userlink">Paddy3118</a>
@@ -149,7 +40,15 @@ function count_tasks()
         integer e = match("</a>",contents,k)
         if e=0 then ?9/0 end if
         string user = contents[k..e-1]
-
+        --  user = "<bdi>[rosettacode&gt;]Mathaddict</bdi>"
+        -- (bdi is the html "bidirectional isolation" tag)
+        if match("<bdi>rosettacode&gt;",user)=1 then
+            assert(user[-6..-1] = "</bdi>")
+            user = user[length("<bdi>rosettacode&gt;")+1..-7]
+        elsif match("<bdi>",user)=1 then
+            assert(user[-6..-1] = "</bdi>")
+            user = user[length("<bdi>")+1..-7]
+        end if
         k = find(user,users)
         if k=0 then
             users = append(users,user)
@@ -159,16 +58,10 @@ function count_tasks()
             utask[k] &= i
             ntask[k] += 1
         end if
-        ti = html_clean(ti) -- (in case you want to show them)
         tasks[i] = ti
         if get_key()=#1B then progress("escape keyed\n") exit end if
     end for
-    if curl!=NULL then
-        curl_easy_cleanup(curl)
-        free(pErrorBuffer)
-        curl = NULL
-        pErrorBuffer = NULL
-    end if
+    curl_cleanup()
     progress("\n")
     integer nusers = length(users)
     sequence tags = custom_sort(ntask,tagset(nusers))
@@ -208,5 +101,14 @@ Mwn3d tasks:55
 Thundergnat tasks:44
 Total: 1492 tasks by 307 authors
 
+As of 27/12/22:
+
+Paddy3118 tasks:199
+CalmoSoft tasks:135
+Thundergnat tasks:85
+Markhobley tasks:71
+Gerard Schildberger tasks:66
+Mwn3d tasks:55
+Total: 1592 tasks by 318 authors
 
 --*/

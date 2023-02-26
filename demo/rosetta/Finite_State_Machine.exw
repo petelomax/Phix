@@ -1,0 +1,139 @@
+--
+-- demo\rosetta\Finite_State_Machine.exw
+-- =====================================
+--
+with javascript_semantics
+-- First, let's define our state machine textually, why not:
+constant state_string = """
+Ready,Deposit->Waiting,Quit
+Waiting,Select->Dispense,Refund
+Dispense,Remove->Ready:Remove product
+Refund->Ready:Refunding money
+Quit:Bye
+"""
+
+function decode(string state_string)
+    sequence states = {},
+           messages = {},
+         valid_keys = {}
+    for line in split(state_string,"\n") do
+        sequence state = {}
+        string keyable = ""
+        integer m = find(':',line)
+        messages = append(messages,iff(m?line[m+1..$]:""))
+        for phrase in split(line[1..m-1],",") do
+            state = append(state,split(phrase,"->"))
+            keyable &= phrase[1]
+        end for
+        states = append(states,state)
+        valid_keys = append(valid_keys,keyable[2..$])
+    end for
+    return {states, messages, valid_keys}
+end function
+
+constant {states, messages, valid_keys} = decode(state_string),
+          valid_states = vslice(vslice(states,1),1)
+--/* (for the above text constant:)
+states is: {{{`Ready`}, {`Deposit`, `Waiting`}, {`Quit`}},
+            {{`Waiting`}, {`Select`, `Dispense`}, {`Refund`}},
+            {{`Dispense`}, {`Remove`, `Ready`}},
+            {{`Refund`, `Ready`}},
+            {{`Quit`}}}
+messages: {"","","Remove product","Refunding money","Bye"}
+valid_keys: {"DQ","SR","R","",""}
+valid_states: {`Ready`,`Waiting`,`Dispense`,`Refund`,`Quit`}
+--*/
+
+include pGUI.e
+Ihandle dlg, vbox, state, status, options
+
+procedure transition_to(integer sdx)
+    IupSetAttribute(status,"TITLE",messages[sdx])
+    if length(states[sdx][1])=2 then -- (implicit)
+        sdx = find(states[sdx][1][2],valid_states)
+    end if
+    IupSetAttribute(state,"TITLE",valid_states[sdx])
+    IupSetStrAttribute(options,"TITLE",join(vslice(states[sdx][2..$],1)," or "))
+end procedure
+
+function finite_state_machine(atom c)
+    integer sdx = find(IupGetAttribute(state,"TITLE"),valid_states),
+            cdx = find(c,valid_keys[sdx])
+    if cdx then
+        string newstate = states[sdx][cdx+1][$]
+        sdx = find(newstate,valid_states)
+        transition_to(sdx)
+    end if
+    return iff(valid_states[sdx]=`Quit`?IUP_CLOSE:IUP_CONTINUE)
+end function
+
+function key_cb(Ihandle /*dlg*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if -- (standard practice for me)
+    if c=K_F5 then return IUP_DEFAULT end if -- (let browser reload work)
+    return finite_state_machine(upper(c))
+end function
+
+IupOpen()
+state = IupLabel("","EXPAND=YES")
+status = IupLabel("","EXPAND=YES")
+options = IupLabel("","EXPAND=YES")
+vbox = IupVbox({state,status,options},`MARGIN=40x40`)
+dlg = IupDialog(vbox,`TITLE="Finite State Machine",SIZE=200x100`)
+IupSetCallback(dlg,"KEY_CB",Icallback("key_cb"))
+transition_to(1) -- Ready
+IupShow(dlg)
+if platform()!=JS then
+    IupMainLoop()
+    IupHide(dlg)
+end if
+
+
+--/* console versiopn, saved for posterity:
+enum READY, WAITING, DISPENSE, REFUND, QUIT  -- (or just use strings if you prefer)
+ 
+integer state = READY, ch = ' '
+while true do
+    printf(1,"%c\n",ch)
+    switch state do
+        case READY:     printf(1,"Machine is READY. (D)eposit or (Q)uit :")
+                        while true do
+                            ch = upper(wait_key())
+                            if ch='D' then state = WAITING exit end if
+                            if ch='Q' then state = QUIT exit end if
+                        end while
+ 
+        case WAITING:   printf(1,"(S)elect product or choose to (R)efund :")
+                        while true do
+                            ch = upper(wait_key())
+                            if ch='S' then state = DISPENSE exit end if
+                            if ch='R' then state = REFUND exit end if
+                        end while
+ 
+        case DISPENSE:  printf(1,"Dispensing product...")
+                        printf(1,"Please (C)ollect product. :")
+                        while true do
+                            ch = upper(wait_key())
+                            if ch='C' then state = READY exit end if
+                        end while
+ 
+        case REFUND:    printf(1,"Please collect refund.")
+                        state = READY
+                        ch = ' '
+ 
+        case QUIT:      printf(1,"Thank you, shutting down now.\n")
+                        exit
+    end switch
+end while
+
+{{out}}
+<pre>
+Machine is READY. (D)eposit or (Q)uit :D
+(S)elect product or choose to (R)efund :S
+Dispensing product...Please (C)ollect product. :C
+Machine is READY. (D)eposit or (Q)uit :D
+(S)elect product or choose to (R)efund :R
+Please collect refund.
+Machine is READY. (D)eposit or (Q)uit :Q
+Thank you, shutting down now.
+</pre>
+--*/

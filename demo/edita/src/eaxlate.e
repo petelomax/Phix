@@ -545,7 +545,7 @@ end procedure
 --integer LANG
 --LANG=loWord( c_func(xGetUserDefaultLangID,{}) )
 
---  xGetLocaleInfo = link_c_func(kernel32, "GetLocaleInfo",
+--  xGetLocaleInfo = define_c_func(kernel32, "GetLocaleInfo",
 --      {C_LONG,    --  LCID  Locale,       // locale identifier 
 --       C_LONG,    --  LCTYPE  LCType,     // type of information 
 --       C_PTR,     --  LPTSTR  lpLCData,   // address of buffer for information 

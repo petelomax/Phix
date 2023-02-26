@@ -2,6 +2,7 @@
 -- demo\rosetta\Yahoo_search_interface.exw
 -- =======================================
 --
+without js -- (libcurl)
 include builtins\libcurl.e
 
 constant glyphs = {{"\xC2\xB7 ","*"},                -- bullet point
@@ -15,7 +16,7 @@ constant glyphs = {{"\xC2\xB7 ","*"},                -- bullet point
                  {`<b>`,`</b>`},
                  {`<span class=" fc-2nd">`,`</span>`}}
 
-function grab(string txt, opener, closer, integer tdx)
+function grab(string txt, opener, closer, integer tdx, bool crop)
     integer openidx = match(opener,txt,tdx)
     if openidx=0 then return {0,""} end if
     integer closeidx = match(closer,txt,openidx)
@@ -37,14 +38,16 @@ function grab(string txt, opener, closer, integer tdx)
         end if
     end while
     txt = substitute_all(txt,gutf8,gascii)
-    if length(txt)>80 then txt[78..$] = ".." end if
+    if crop and length(txt)>80 then txt[78..$] = ".." end if
     return {closeidx+length(closer),txt}
 end function
 
 procedure YahooSearch(string query, integer page=1)
     printf(1,"Page %d:\n=======\n",page)
     string url = sprintf("https://search.yahoo.com/search?p=%s&b=%d", {query, (page-1)*10+1})
+--?url
     object res = curl_easy_perform_ex(url)
+--?res
     if not string(res) then
         ?{"some error",res,curl_easy_strerror(res)}
         return
@@ -52,10 +55,17 @@ procedure YahooSearch(string query, integer page=1)
     integer rdx = 1
     string title, link, desc
     while true do
-        {rdx,title} = grab(res,`<h3 class="title ov-h">`,`</h3>`,rdx)
+--      {rdx,title} = grab(res,`<h3 class="title ov-h">`,`</h3>`,rdx)
+--      {rdx,title} = grab(res,`<span class=" d-ib p-abs t-0 l-0 fz-14 lh-20 fc-obsidian wr-bw ls-n pb-4">`,`</span>`,rdx)
+        {rdx,title} = grab(res,`<h3 style="display:block;margin-top:24px;margin-bottom:2px;" class="title">`,`</h3>`,rdx,false)
         if rdx=0 then exit end if
-        {rdx,link} = grab(res,`<span class=" fz-ms fw-m fc-12th wr-bw lh-17">`,`</span>`,rdx)
-        {rdx,desc} = grab(res,`<p class="fz-ms lh-1_43x">`,`</p>`,rdx)
+--      {rdx,title} = grab(res,`</span>`,`</a>`,rdx)
+--      title = title[rmatch(`</span>`,title)+7..rmatch(`<\a>`,title)]
+        title = title[rmatch(`</span>`,title)+7..$]
+--      {rdx,link} = grab(res,`<span class=" fz-ms fw-m fc-12th wr-bw lh-17">`,`</span>`,rdx)
+        {rdx,link} = grab(res,`<span>`,`</span>`,rdx,true)
+--      {rdx,desc} = grab(res,`<p class="fz-ms lh-1_43x">`,`</p>`,rdx)
+        {rdx,desc} = grab(res,`<span class=" fc-falcon">`,`</span>`,rdx,true)
         printf(1,"title:%s\nlink:%s\ndesc:%s\n\n",{title,link,desc})
     end while
 end procedure

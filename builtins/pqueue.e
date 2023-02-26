@@ -314,7 +314,7 @@ global function new_queue(integer qtype=FIFO_QUEUE) -- create a new FIFO queue
     return qid
 end function
 
-global function new_stack(integer qtype=LIFO_QUEUE) -- create a new FIFO queue
+global function new_stack(integer qtype=LIFO_QUEUE) -- create a new LIFO queue
     return new_queue(qtype)
 end function
 
@@ -337,11 +337,14 @@ global function queue_empty(integer qid)    -- [aliased as stack_empty() in psym
 end function
 
 --[next 3 were aliased in psym.e, but that's not p2js compatible [DEV]]:
-global procedure destroy_stack(integer qid) destroy_queue(qid) end procedure
-global function stack_empty(integer qid) return queue_empty(qid) end function
-global function stack_size(integer qid) return queue_size(qid) end function
+-- 4/11/22: proper alias handling, that p2js understands, now added
+--global procedure destroy_stack(integer qid) destroy_queue(qid) end procedure
+--global function stack_empty(integer qid) return queue_empty(qid) end function
+--global function stack_size(integer qid) return queue_size(qid) end function
 
-global procedure push(integer qid, object item, integer qtype=ANY_QUEUE, bool bSingle=true)
+--28/11/22 (remove qtype, since it wasn't used anyway, docs updated)
+--global procedure push(integer qid, object item, integer qtype=ANY_QUEUE, bool bSingle=true)
+global procedure push(integer qid, object item, bool bSingle=true)
 --  if not q_init then init_q() end if
     assert(bSingle or sequence(item))
     sequence qq = q[qid]
@@ -363,10 +366,13 @@ global procedure push(integer qid, object item, integer qtype=ANY_QUEUE, bool bS
     q[qid] = qq
 end procedure
 
-global procedure pushn(integer qid, sequence items, integer qtype=ANY_QUEUE)
-    push(qid,items,qtype,false)
+--global procedure pushn(integer qid, sequence items, integer qtype=ANY_QUEUE)
+global procedure pushn(integer qid, sequence items)
+--  push(qid,items,qtype,false)
+    push(qid,items,false)
 end procedure
  
+--global function pop(integer qid, n=-1, qtype=ANY_QUEUE, bool bPop=true)
 global function pop(integer qid, n=-1, qtype=ANY_QUEUE, bool bPop=true)
 --  if not q_init then init_q() end if  -- (would crash next either way)
     object result

@@ -15,8 +15,11 @@ global function filter(sequence s, rid_string rs, object userdata = {}, string r
 --
 -- Select only those elements from a sequence that pass a specified test.
 --
+    bool bCount = (rangetype="COUNT")
+    if bCount then {userdata,rangetype} = userdata end if
     object si
     sequence res = iff(string(s)?"":{})
+    integer ires = 0
     if string(rs) then
         -- built-in handling
         integer inout = find(rs,{"in","out"})
@@ -24,11 +27,16 @@ global function filter(sequence s, rid_string rs, object userdata = {}, string r
             inout = (inout=1) -- in: true, out: false
             if rangetype="" then
                 -- set handling
-                for i=1 to length(s) do
-                    si = s[i]
+--              for i=1 to length(s) do
+--                  si = s[i]
+                for si in s do
                     integer f = find(si,userdata)
                     if (f!=0)==inout then
-                        res = append(res,si)
+                        if bCount then
+                            ires += 1
+                        else
+                            res = append(res,si)
+                        end if
                     end if
                 end for             
             else
@@ -39,41 +47,66 @@ global function filter(sequence s, rid_string rs, object userdata = {}, string r
                 end if
                 -- rt is now 0..3, aka 0b00..0b11:  -- exclsve, inclsive
                 integer xl =  and_bits(rt,0b01),    -- 0 for [,  1 for (
-                        xh = -and_bits(rt,0b02)/2   -- 0 for ], -1 for )
+--11/11/22:
+--                      xh = -and_bits(rt,0b02)/2   -- 0 for ], -1 for )
+                        xh = -and_bits(rt,0b10)/2   -- 0 for ], -1 for )
                 if not sequence(userdata)
                 or length(userdata)!=2 then
                     crash("userdata must be a sequence of length 2 for in/out handling")
                 end if
                 object {lo,hi} = userdata
-                for i=1 to length(s) do
-                    si = s[i]
+--              for i=1 to length(s) do
+--                  si = s[i]
+                for si in s do
                     integer lc = compare(si,lo),
                             hc = compare(si,hi)
                     if ((lc>=xl) and (hc<=xh))==inout then
-                        res = append(res,si)
+                        if bCount then
+                            ires += 1
+                        else
+                            res = append(res,si)
+                        end if
                     end if
                 end for
             end if
         else
             if rangetype!="" then crash("invalid rangetype") end if
-            integer ct = find(rs,{"<", "<=","=", "!=",">=",">" })
-            if ct=0 then
-                    ct = find(rs,{"lt","le","eq","ne","gt","ge"})
-                if ct=0 then --       maybe "=="    
-                    if rs!="==" then crash("unrecognised comparison operator") end if
-                    ct = 3
+--31/10/22:
+            if rs="notbits" then
+                for si in s do
+                    if not and_bits(si,userdata) then
+                        if bCount then
+                            ires += 1
+                        else
+                            res = append(res,si)
+                        end if
+                    end if
+                end for
+            else
+                integer ct = find(rs,{"<", "<=","=", "!=",">=",">" })
+                if ct=0 then
+                        ct = find(rs,{"lt","le","eq","ne","gt","ge"})
+                    if ct=0 then --       maybe "=="    
+                        if rs!="==" then crash("unrecognised comparison operator") end if
+                        ct = 3
+                    end if
                 end if
-            end if
-            integer ne = (ct=4)
-            ct -= (ct>=4)
-            sequence ok = {{-1},{-1,0},{0},{0,1},{1}}[ct]
-            for i=1 to length(s) do
-                si = s[i]
-                integer c = compare(si,userdata)
-                if (find(c,ok)!=0)!=ne then
-                    res = append(res,si)
-                end if
-            end for
+                integer ne = (ct=4)
+                ct -= (ct>=4)
+                sequence ok = {{-1},{-1,0},{0},{0,1},{1}}[ct]
+--              for i=1 to length(s) do
+--                  si = s[i]
+                for si in s do
+                    integer c = compare(si,userdata)
+                    if (find(c,ok)!=0)!=ne then
+                        if bCount then
+                            ires += 1
+                        else
+                            res = append(res,si)
+                        end if
+                    end if
+                end for
+            end if      
         end if      
     else
         -- user-defined function handling
@@ -102,10 +135,18 @@ global function filter(sequence s, rid_string rs, object userdata = {}, string r
                 bAdd = fn(si,userdata)
             end if
             if bAdd then
-                res = append(res,si)
+                if bCount then
+                    ires += 1
+                else
+                    res = append(res,si)
+                end if
             end if
         end for
     end if
+    if bCount then return ires end if
     return res
 end function
 
+global function filter_count(sequence s, rid_string rs, object userdata = {}, string rangetype = "")
+    return filter(s,rs,{userdata,rangetype},"COUNT")
+end function

@@ -194,7 +194,7 @@ function get_number()
     -- decimal integer or floating point
     while ch>='0' and ch<='9' do
         ndigits += 1
-        mantissa = mantissa*10+(ch-'0')
+        mantissa = mantissa*10 + (ch-'0')
         get_ch()
     end while
 
@@ -205,7 +205,7 @@ function get_number()
              fraction = 0
         while ch>='0' and ch<='9' do
             ndigits += 1
-            fraction = fraction*10 + ch-'0'
+            fraction = fraction*10 + (ch-'0')
             dec *= 10
             get_ch()
         end while
@@ -234,7 +234,7 @@ function get_number()
             e_mag = ch-'0'
             get_ch()
             while ch>='0' and ch<='9' do
-                e_mag = e_mag*10+ch-'0'
+                e_mag = e_mag*10 + (ch-'0')
                 get_ch()
             end while
         else

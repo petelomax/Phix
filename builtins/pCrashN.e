@@ -48,6 +48,26 @@ global procedure crash(string msg, object args={}, integer nFrames=1)
 end procedure
 
 global procedure assert(bool condition, string msg="", object args={}, integer nFrames=1)
-    if not condition then crash("assertion failure:"&msg,args,nFrames+1) end if
+    string colon = iff(length(msg)?":":"")
+    if not condition then crash("assertion failure"&colon&msg,args,nFrames+1) end if
 end procedure
 
+global procedure asserteq(object a, b, string msg="", object args={}, integer nFrames=1)
+    sequence tests = {"=","==","<","<=",">",">=","!="} -- (nb [2..7] flippable)
+    integer k = find(msg,tests), l = max(k,1)
+    bool bOK
+    switch l do
+        case 1,
+             2: bOK := a==b
+        case 3: bOK := a<b
+        case 4: bOK := a<=b
+        case 5: bOK := a>b
+        case 6: bOK := a>=b
+        case 7: bOK := a!=b
+    end switch
+    if not bOK then
+        string m = iff(k or msg=""?"":" ("&sprintf(msg,args)&")"),
+               t = tests[9-max(2,l)]
+        crash("assertion failure: %v %s %v%s",{a,t,b,m},nFrames+1)
+    end if
+end procedure

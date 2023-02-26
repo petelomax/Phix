@@ -1,0 +1,101 @@
+﻿--
+-- demo/rosetta/factor-perfect_numbers.exw
+--
+with javascript_semantics
+
+function get_factor_set(integer x)
+    if x=1 then return {1} end if
+    sequence res = {}
+    for k=1 to x-1 do
+        if remainder(x,k)=0 then
+            for y in get_factor_set(k) do
+                res = append(res,y&x)
+            end for
+        end if
+    end for
+    res = sort(res)
+    return res
+end function
+
+function second_definition(sequence s, integer f)
+    sequence res = {}   
+    for x in s do
+        x = deep_copy(x)
+        if x[$]!=f then x &= f end if
+        for i=length(x) to 2 by -1 do
+            x[i] /= x[i-1]
+        end for
+        res = append(res,x[2..$])
+    end for
+    return res
+end function
+
+constant N = 48
+sequence rN = get_factor_set(N)
+function jbm(bool munge)
+    if munge then rN = second_definition(rN,N) end if
+    return {length(rN),join_by(apply(rN,ppf),1,4," ",fmt:="%-16s")}
+end function
+ppOpt({pp_IntCh,false,pp_StrFmt,3})
+printf(1,"%d sequences using first definition:\n%s\n",jbm(false))
+printf(1,"%d sequences using second definition:\n%s\n",jbm(true))
+
+integer efc_cache = new_dict()
+
+function erdosFactorCount(integer n)
+    sequence divs = factors(n)
+    integer res = 1
+    for d in divs do
+        integer t = n/d, r, node = getd_index(t,efc_cache)
+        if node=NULL then
+            r = erdosFactorCount(t)
+            setd(t,r,efc_cache)
+        else
+            r = getd_by_index(node,efc_cache)
+        end if
+        res += r
+    end for
+    return res
+end function
+
+atom t = time(), t1 = t+1
+integer n = 4
+sequence res = {"0","1"}
+while length(res)<iff(platform()=JS?8:9) do
+    if erdosFactorCount(n)=n then
+        res = append(res,sprintf("%d",n))
+    end if
+    n += 4
+    if time()>t1 then
+        progress("%d found, checking %d...\r",{length(res),n})
+        t1 = time()+1
+    end if
+end while
+progress("")
+printf(1,"Found %d: %s (%s)\n",{length(res),join(res," "),elapsed(time()-t)})
+
+wait_key()
+
+--/*
+desktop/Phix: 1min 9s for 9.
+p2js: 4 minutes and 13s for 9, 22s for 8, 1.1s for 7 (so maybe I should limit it to 7...)
+--  if g(n)=n then
+--function g(integer n)
+--  sequence f = factors(n)
+--  integer l = length(f)
+--  sequence d = repeat(0,l)
+--  for i=l to 1 by -1 do
+--      integer k = f[i]
+--      d[i] = 1
+--      integer j = i+1
+--      for x=2*k to n by k do
+--          while j<=l and f[j]<x do j+=1 end while
+--          if j>l then exit end if
+--          if f[j]=x then
+--              d[i] += d[j]
+--          end if
+--      end for
+--  end for
+--  return 1+sum(d)
+--end function
+--*/

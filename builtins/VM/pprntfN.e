@@ -21,7 +21,7 @@
 --  (which is something prepend, as opposed to append, /always/ does)
 --  which causes a fatal error, eg see 'elsif fmt[i]='s' then'.
 
---/**/without debug -- remove to debug (just keeps ex.err clutter-free)
+--!/**/without debug -- remove to debug (just keeps ex.err clutter-free)
 --!/**/with debug
 --  NB the "without debug" in both pdiag.e and ppp.e overshadow the one
 --      here; use "with debug" and/or "-nodiag" to get a listing.
@@ -52,7 +52,9 @@ function round_str(string result, atom f, integer exponent, integer charflag, in
 integer tmp
 integer dot, dotm1
 --?result   --DOH, infinite loop! (use puts(1,<string>) instead!)
-integer one = iff(result[1]='-'?2:1)
+--1/11/22:
+--integer one = iff(result[1]='-'?2:1)
+integer one = iff(find(result[1],"-+")?2:1)
     if exponent>=1 then
         f /= power(10,exponent)
     end if
@@ -577,6 +579,7 @@ integer centre
 integer showplus
 integer showcommas
 integer enquote
+integer blankTZ
 integer minfieldwidth
 --      minfieldwidth = 0
 integer precision
@@ -648,7 +651,7 @@ integer tmp
                 while 1 do
                     fi = fmt[i]
                     if fi<'0' or fi>'9' then exit end if
-                    minfieldwidth = minfieldwidth*10+fi-'0'
+                    minfieldwidth = minfieldwidth*10 + (fi-'0')
                     i += 1
                     if i>length(fmt) then badfmt() end if
                 end while
@@ -660,7 +663,7 @@ integer tmp
                     while 1 do
                         fi = fmt[i]
                         if fi<'0' or fi>'9' then exit end if
-                        precision = precision*10+fi-'0'
+                        precision = precision*10 + (fi-'0')
                         i += 1
                         if i>length(fmt) then badfmt() end if
                     end while
@@ -672,6 +675,8 @@ integer tmp
                 -- 11/12/19 't' added
                 -- 16/11/20 'q' and 'Q' added
                 -- 22/05/21 'a' and 'A' added
+                -- 10/08/22 'F' added
+                blankTZ = false
                 if fi='a' or fi='A' then
                     lowerHex = fi='a'
                     fidx = 0
@@ -692,6 +697,9 @@ integer tmp
                     if fi='q' or fi='Q' then
                         enquote = fi
                         fi = 's'
+                    elsif fi='F' then
+                        blankTZ = true
+                        fi = 'f'
                     end if
 --                  fidx = find(fi,"dxobstcvefgEXG")
 --                  fidx = find(fi,"dxobstncvefgEXG")
@@ -737,7 +745,7 @@ integer tmp
                         abort(1)                                    -- RDS --*/
                     end if
                 end if
-                if fidx<=4 then -- dxob
+                if fidx<=4 then -- aA(0, work set), dxob (1..4)
                     if fidx!=0 then
                         base = bases[fidx]  --{10,16,8,2}
                         o = args
@@ -774,6 +782,11 @@ end if
                         end if
 --                      r1 = ""
                         r1 = repeat(' ',0)
+--1/11/22: (print powers of 2 exactly, by avoiding discrepancies that creep in for /10 when work>2^75, but don't for /2)
+                        bool bViaBase2 = (base=10 and 
+                                          work>37778931862957161709568 and -- (power(2,75), btw)
+                                          count_bits(work)=1)
+                        if bViaBase2 then base = 2 end if
                         while work do
                             -- NB: The result of prepend is always a sequence, 
                             --      for performance reasons. Hence use append 
@@ -785,7 +798,9 @@ end if
 --                              hc += 6
                                 hc += 26
                             end if
-                            if showcommas and showcommas=length(r1) then
+                            if not bViaBase2 
+                            and showcommas 
+                            and showcommas=length(r1) then
                                 r1 = append(r1,',')
                                 showcommas += 4
                             end if
@@ -794,6 +809,26 @@ end if
                             --  base 16/10/8/2 (just less chars get used).
                             work = floor(work/base)
                         end while
+                        if bViaBase2 then
+                            -- convert r1 to base 10, from base 2
+                            sequence d2 = sq_sub(reverse(r1),'0')
+                            r1 = ""
+                            while length(d2) do
+                                integer d2r = 0
+                                for d2i,d2digit in d2 do
+                                    d2r = d2r*2+d2digit
+                                    d2[d2i] = floor(d2r/10)
+                                    d2r = rmdr(d2r,10)
+                                end for
+                                r1 &= d2r+'0'
+                                if showcommas and showcommas=length(r1) then
+                                    r1 = append(r1,',')
+                                    showcommas += 4
+                                end if
+                                d2 = trim_head(d2,0)
+                            end while
+                            base = 10
+                        end if
                         if sgn then
                             if base=10 then
                                 r1 = append(r1,'-')
@@ -908,14 +943,6 @@ end if
                         r1 = o
                     end if
                 else    -- efg/EG
-                    if precision=-1 then
-                        precision = 6
-                    elsif precision>20 then
-                        crash("floating point precision may not exceed 20",{},3)
-                    elsif machine_bits()=32
-                      and precision>16 then
-                        precision = 16
-                    end if
                     if atom(args) then
                         o = args
                     else
@@ -924,12 +951,49 @@ end if
                             o = 0
                         end if
                     end if
-                    r1 = sprintf2(o,fi,showplus,minfieldwidth,precision)
+                    if precision=-1 then
+                        precision = 6
+-- 1/11/22 (print fractional powers of 2 exactly, and this lot moved after o is set)
+                    elsif count_bits(o)!=1 then
+                        if precision>20 then
+                            crash("floating point precision may not exceed 20",{},3)
+                        elsif machine_bits()=32
+                          and precision>16 then
+                            precision = 16
+                        end if
+                    end if
+--1/11/22: (print powers of 2 exactly, with above 2^-1074 to 2^1024 [on 32 bit, >on 64-bit??])
+--                  if fi='f' and o>37778931862957161709568 and count_bits(o)=1 then
+                    if fi='f' 
+                    and atom_to_float64(o)[$]!=127 -- not [+/-]nan/inf
+                    and o>37778931862957161709568 
+                    and count_bits(o)=1 then
+                        sequence d2 = {}
+                        while o do
+                            d2 = prepend(d2,rmdr(o,2))
+                            o = floor(o/2)
+                        end while
+                        r1 = ""
+                        while length(d2) do
+                            integer d2r = 0
+                            for d2i,d2digit in d2 do
+                                d2r = d2r*2+d2digit
+                                d2[d2i] = floor(d2r/10)
+                                d2r = rmdr(d2r,10)
+                            end for
+                            r1 &= d2r+'0'
+                            d2 = trim_head(d2,0)
+                        end while
+                        r1 = reverse(r1)
+                    else
+                        r1 = sprintf2(o,fi,showplus,minfieldwidth,precision)
+                    end if
                     if showcommas then -- ('f' only)
 --19/09/2020 bugfix (caused by the introduction of %t)
 --                      if fidx!=9 then badfmt() end if
 --                      if fidx!=10 then badfmt() end if
-                        if fidx!=11 then badfmt() end if
+--                      if fidx!=11 then badfmt() end if
+                        if fidx!=12 then badfmt() end if
                         showcommas = find('.',r1)
                         if showcommas=0 then showcommas = length(r1)+1 end if
 --19/09/2020 bugfix ("-999" -> "-,999")
@@ -938,6 +1002,15 @@ end if
                             showcommas -= 3
                             r1 = r1[1..showcommas-1]&','&r1[showcommas..length(r1)]
                         end while
+                    end if
+                    if blankTZ and find('.',r1) then
+                        for r1dx=length(r1) to 1 by -1 do
+                            integer r1ch = r1[r1dx]
+                            if r1ch='0' or r1ch='.' then
+                                r1[r1dx] = ' '
+                            end if
+                            if r1ch!='0' then exit end if
+                        end for
                     end if
                 end if
 -- replaced 19/10/17:

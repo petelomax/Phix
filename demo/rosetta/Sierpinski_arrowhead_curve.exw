@@ -3,18 +3,22 @@
 -- ===========================================
 --
 --  Draws curves lo to hi (simultaneously), initially {6,6}, max {10,10}, min {1,1}
---  Press +/- to change hi, shift +/- to change lo.
+--  Press +/- to change hi, shift +/- to change lo, ctrl +/- for both.
 --  ("=_" are also mapped to "+-", for the non-numpad +/-)
 --
 with javascript_semantics
 include pGUI.e
 
+-- DEV not properly centered (either original or next), improvements welcome. 
+constant use_trans_python = false   -- DEV no scaling, but maybe...
+                                    -- also, odd order is sideways, as is.
+
 Ihandle dlg, canvas
 cdCanvas cddbuffer, cdcanvas
 
 integer width, height,
---      lo = 6, hi = 6
-        lo = 1, hi = 1
+        lo = 6, hi = 6
+--      lo = 1, hi = 1
 atom cx, cy, h, theta
 
 integer iy = +1
@@ -52,19 +56,117 @@ procedure sierpinski_arrowhead_curve(integer order, atom l)
     draw_line(l)
 end procedure
 
+--import matplotlib.pyplot as plt
+--import math
+ 
+ 
+--function nextPoint(atom x, y, angle)
+--  atom a = PI * angle / 180
+--  integer x2 = round(x + cos(a)),
+--          y2 = round(y + sin(a))
+--  return {x2, y2}
+--end function
+ 
+function expand(string axiom, integer level)
+    for l=1 to level do
+        string a2 = ""
+        for i=1 to length(axiom) do
+            integer c = axiom[i]
+--          if c='X' then
+--              a2 &= "YF+XF+Y"
+--          elsif c='Y' then
+--              a2 &= "XF-YF-X"
+--          else
+--              a2 &= c
+--          end if
+            a2 &= iff(c='X'?"YF+XF+Y":
+                  iff(c='Y'?"XF-YF-X":c))
+        end for
+        axiom = a2
+    end for
+    return axiom
+end function
+ 
+procedure draw_lsystem(string axiom, atom angle, integer order)
+    atom px = 1, py = 1,
+--  xp = [1]
+--  yp = [1]
+         direction = 0
+    cdCanvasVertex(cddbuffer, 40+px*10, 100-py*10)
+    for i=1 to length(axiom) do
+        integer c = axiom[i]
+        if c='F' then
+            atom a = PI * direction / 180
+--          cdCanvasVertex(cddbuffer, cx-width/2+h, (height-cy)*iy+2*h)
+            px += cos(a)
+            py += sin(a)
+--almost:
+--          px += cos(a)*order
+--          py += sin(a)*order
+--?{px,py}
+            cdCanvasVertex(cddbuffer, 40+px*10, 100-py*10)
+--          {xn, yn = nextPoint(xp[-1], yp[-1], direction)
+--          xp.append(xn)
+--          yp.append(yn)
+        elsif c='-' then
+            direction = mod(direction+360-angle,360)
+--
+--          direction -= angle
+--          if direction < 0 then
+--              direction += 360
+--          end if
+        elsif c='+' then
+            direction = mod(direction+angle,360)
+        end if 
+    end for
+--  plt.plot(xp, yp)
+--  plt.show()
+ end procedure
+ 
+--if __name__ == '__main__':
+--  # Sierpinski Arrowhead Curve L-System Definition
+--  s_axiom = "XF"
+--  s_rules = {"X": "YF+XF+Y",
+--             "Y": "XF-YF-X"}
+--  s_angle = 60
+-- 
+--  draw_lsystem(expand("XF",order), 60)
+ 
+
 function redraw_cb(Ihandle /*ih*/)
     {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
 --  if height<sqrt(3)*width/2 then
 --width+=floor(width/5)
+--/*
+    if width>height then
+--      lm = floor((width-height)/2)
+--      tm = 0
+        width = height
+    else
+--      lm = 0
+--      tm = floor((height-width)/2)
+        height = width
+    end if
+--*/
     cdCanvasActivate(cddbuffer)
+--cdCanvasMark(cddbuffer, width/2, height) 
     for order=lo to hi do
         cx = width/2
         cy = height
+--      cy = height + cx/2
         h = cx/2
+--      h = cy/2
         theta = 0
         iy = iff(and_bits(order,1)?-1:+1)
         cdCanvasBegin(cddbuffer, CD_OPEN_LINES)
+if use_trans_python then
+        string axiom = expand("XF",order)
+        atom angle = iff(even(order)?60:-60)
+        if odd(order) then theta = 60 end if
+        draw_lsystem(axiom, angle, 10-order)
+else
         sierpinski_arrowhead_curve(order, cx)
+end if
         cdCanvasEnd(cddbuffer)
     end for
     cdCanvasFlush(cddbuffer)
@@ -84,21 +186,18 @@ procedure set_dlg_title()
 end procedure
 
 function key_cb(Ihandle /*ih*/, atom c)
-    if c=K_ESC then return IUP_CLOSE end if
+    if c=K_ESC then return IUP_CLOSE end if -- (standard practice for me)
+    if c=K_F5 then return IUP_DEFAULT end if -- (let browser reload work)
+    c = iup_XkeyBase(c)
     if find(c,"+=-_") then
-        bool bShift = IupGetInt(NULL,"SHIFTKEY")
+        bool bCtrl = IupGetInt(NULL,"CONTROLKEY"),
+             bShift = IupGetInt(NULL,"SHIFTKEY")
         if c='+' or c='=' then
-            if bShift then
-                lo = min(lo+1,hi)
-            else
-                hi = min(10,hi+1)
-            end if
+            if bCtrl or not bShift then hi = min(10,hi+1) end if
+            if bCtrl or     bShift then lo = min(lo+1,hi) end if
         elsif c='-' or c='_' then
-            if bShift then
-                lo = max(1,lo-1)
-            else
-                hi = max(lo,hi-1)
-            end if
+            if bCtrl or     bShift then lo = max( 1,lo-1) end if
+            if bCtrl or not bShift then hi = max(lo,hi-1) end if
         end if
         set_dlg_title()
         cdCanvasClear(cddbuffer)
@@ -116,7 +215,7 @@ procedure main()
     IupSetCallback(dlg, "KEY_CB", Icallback("key_cb"))
     set_dlg_title()
     IupShow(dlg)
---  IupSetAttribute(canvas, "RASTERSIZE", NULL)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL)
     if platform()!=JS then
         IupMainLoop()
         IupClose()
@@ -125,3 +224,89 @@ end procedure
 
 main()
 
+--/*
+import matplotlib.pyplot as plt
+import math
+ 
+ 
+def nextPoint(x, y, angle):
+    a = math.pi * angle / 180
+    x2 = (int)(round(x + (1 * math.cos(a))))
+    y2 = (int)(round(y + (1 * math.sin(a))))
+    return x2, y2
+ 
+ 
+def expand(axiom, rules, level):
+    for l in range(0, level):
+        a2 = ""
+        for c in axiom:
+            if c in rules:
+                a2 += rules[c]
+            else:
+                a2 += c
+        axiom = a2
+    return axiom
+ 
+ 
+def draw_lsystem(axiom, rules, angle, iterations):
+    xp = [1]
+    yp = [1]
+    direction = 0
+    for c in expand(axiom, rules, iterations):
+        if c == "F":
+            xn, yn = nextPoint(xp[-1], yp[-1], direction)
+            xp.append(xn)
+            yp.append(yn)
+        elif c == "-":
+            direction = direction - angle
+            if direction < 0:
+                direction = 360 + direction
+        elif c == "+":
+            direction = (direction + angle) % 360
+ 
+    plt.plot(xp, yp)
+    plt.show()
+ 
+ 
+if __name__ == '__main__':
+    # Sierpinski Arrowhead Curve L-System Definition
+    s_axiom = "XF"
+    s_rules = {"X": "YF+XF+Y",
+               "Y": "XF-YF-X"}
+    s_angle = 60
+ 
+    draw_lsystem(s_axiom, s_rules, s_angle, 7)
+ 
+== or: (xpl0)
+
+int  PosX, PosY;
+real Dir;
+ 
+proc Curve(Order, Length, Angle);
+int  Order; real Length, Angle;
+[if Order = 0 then
+        [PosX:= PosX + fix(Length*Cos(Dir));
+         PosY:= PosY - fix(Length*Sin(Dir));
+         Line(PosX, PosY, $E \yellow\);
+        ]
+else    [Curve(Order-1, Length/2.0, -Angle);
+         Dir:= Dir + Angle;
+         Curve(Order-1, Length/2.0, +Angle);
+         Dir:= Dir + Angle;
+         Curve(Order-1, Length/2.0, -Angle);
+        ];
+];
+ 
+def Order=5, Length=300.0, Pi=3.141592654, Sixty=Pi/3.0;
+[SetVid($12);   \VGA graphics: 640x480x8
+PosX:= 640/4;  PosY:= 3*480/4;
+Move(PosX, PosY);
+Dir:= 0.0;
+if (Order&1) = 0 then
+        Curve(Order, Length, +Sixty)
+else    [Dir:= Dir + Sixty;
+        Curve(Order, Length, -Sixty);
+        ];
+]
+
+--*/

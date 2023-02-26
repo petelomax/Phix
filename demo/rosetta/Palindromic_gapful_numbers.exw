@@ -1,5 +1,6 @@
 --
 -- demo\rosetta\Palindromic_gapful_numbers.exw
+-- ===========================================
 --
 --  Astonishingly this is all done with standard precision numbers, <2^53.
 --  I will credit https://rosettacode.org/wiki/Self_numbers#AppleScript and
@@ -55,6 +56,7 @@
 --  but that's ok because many smaller but still quite big holes 
 --  will probably be skipped.
 --
+with javascript_semantics
 
 sequence cache = columnize(repeat(columnize({tagset(9)}),9))
 --   ie {{{1}, {1}, {1}, {1}, {1}, {1}, {1}, {1}, {1}},
@@ -75,15 +77,15 @@ sequence cache = columnize(repeat(columnize({tagset(9)}),9))
 --  that might appear in such a relatively small table, as
 --  it will be at most (on 64-bit) 9 * 9 * 42.)
 --
-function rmdr(integer digit, gap, pow, n)
+function rmdrn(integer digit, gap, pow, n)
 --
 -- digit is the outer 0..9 (obvs 0 always yields 0),
 -- gap is zeroes between (-1,0,1,2,.. for eg 1,11,101,1001),
 -- pow is trailing zeros (0,1,2,.. for eg 101,1010,10100),
 -- n is 1..9 for 11..99
--- eg rmdr(4,3,2,1) yields remainder(4000400,11), but
---      that === remainder(remainder(4000000,11)+
---                         remainder(    400,11),11), and
+-- eg rmdrn(4,3,2,1) yields remainder(4000400,11), but
+--       that === remainder(remainder(4000000,11)+
+--                          remainder(    400,11),11), and
 --  if k = remainder(4*10^(m-1),11) [already known] then
 --         remainder(4*10^m,11) === remainder(k*10,11), so
 --  we only need to keep a small table for each [digit][n].
@@ -91,11 +93,14 @@ function rmdr(integer digit, gap, pow, n)
 --
     if digit=0 then return 0 end if
     integer nn = n*11, g
-    while length(cache[digit][n])<gap+pow+2 do
-        cache[digit][n] &= remainder(cache[digit][n][$]*10,nn)
+    sequence cdn = cache[digit][n]
+    while length(cdn)<gap+pow+2 do
+        cache[digit][n] = 0 -- (kill refcount)
+        cdn &= remainder(cdn[$]*10,nn)
+        cache[digit][n] = cdn
     end while
-    g = iff(gap=-1 ? 0 : cache[digit][n][gap+pow+2])
-    return remainder(g + cache[digit][n][pow+1],nn)
+    g = iff(gap=-1 ? 0 : cdn[gap+pow+2])
+    return remainder(g + cdn[pow+1],nn)
 end function
 
 integer skipd = new_dict()
@@ -106,7 +111,7 @@ function palindromicgapfuls(sequence pals, string lhs, atom palcount, to_skip, c
 -- lhs: eg "945" of a potential 9459549 result
 -- palcount, to_skip, count: self explanatory (aka got/ignore/target)
 -- l: length of inner to be filled in
--- r: remainder of outer, eg remainder(9400049,11), built from rmdr()
+-- r: remainder of outer, eg remainder(9400049,11), built from rmdrn()
 -- p: left shift (should in fact always equal length(lhs), I think)
 -- dd: outermost 1..9 (despite the name, it's a single digit)
 --
@@ -118,14 +123,14 @@ function palindromicgapfuls(sequence pals, string lhs, atom palcount, to_skip, c
     else
         skip = 0
         for d=0 to 9 do
-            integer r2 = remainder(r+rmdr(d,l-2,p,dd),dd*11)
+            integer r2 = remainder(r+rmdrn(d,l-2,p,dd),dd*11)
             if l<=2 then
                 if r2=0 then
                     palcount += 1
                     if palcount<=to_skip then
                         skip += 1
                     else
-                        pals = append(pals,lhs&repeat(d+'0',l)&reverse(lhs))
+                        pals = append(deep_copy(pals),lhs&repeat(d+'0',l)&reverse(lhs))
                     end if
                 end if
             else
@@ -145,7 +150,7 @@ function collect(integer digit, atom count, keep)
     sequence pals = {}
     string lhs = ""&(digit+'0') -- ie "1" or "2" .. or "9"
     while palcount < count do
-        integer r = rmdr(digit,l-2,0,digit)
+        integer r = rmdrn(digit,l-2,0,digit)
         {pals,palcount} = palindromicgapfuls(pals,lhs,palcount,to_skip,count,l-2,r,1,digit)
         l += 1
     end while
@@ -166,9 +171,9 @@ constant tests = {{20,20,1,9},{100,15,1,9},{1000,10,1,9},{10_000,5,1,9},
 --                {10_000_000_000_000_000_000,1}} -- 64 bit only
                  -- (any further and you'd need mpfr just to hold counts)
 
-atom t0 = time(), count, keep, start, finish
+atom t0 = time()
 for i=1 to length(tests)-(machine_bits()!=64) do
-    {count, keep, start, finish} = tests[i]
+    atom {count, keep, start, finish} = tests[i]
 --  {count, keep} = tests[i]
 --  atom from = count-keep+1
     string r = iff(count==keep?sprintf("First %d",{count}):
@@ -217,16 +222,16 @@ printf(1,"Completed in %s\n",elapsed(time()-t0))
 --abort(0)
 
 --/*
-original version of rmdr, overly complicated...
+original version of rmdrn, overly complicated...
 sequence cache = repeat(0,9)
 
-function rmdr(integer digit, gap, pow, n)
+function rmdrn(integer digit, gap, pow, n)
 --
 -- digit is the outer 0..9 (obvs 0 always yields 0),
 -- gap is zeroes between (-1,0,1,2,.. for eg 1,11,101,1001),
 -- pow is trailing zeros (0,1,2,.. for eg 101,1010,10100),
 -- n is 1..9 for 11..99
--- eg rmdr(4,3,2,1) yields remainder(4000400,11),
+-- eg rmdrn(4,3,2,1) yields remainder(4000400,11),
 --    except without using division - which becomes
 --    critical for accuracy with very large numbers.
 --    (more precisely it does not use division on
@@ -234,8 +239,8 @@ function rmdr(integer digit, gap, pow, n)
 --     as opposed to 10^34 final answer suggests.)
 --
     if digit=0 then return 0 end if
---?{"rmdr",digit,gap,pow,n}
-integer cp, cp2 = rmdr2(digit,gap,pow,n)
+--?{"rmdrn",digit,gap,pow,n}
+integer cp, cp2 = rmdrn2(digit,gap,pow,n)
     if cache[n] = 0 then cache[n] = repeat({},9) end if
     sequence cnd = cache[n][digit]
     if cnd={} then
@@ -294,7 +299,7 @@ for d=0 to 9 do
         for pow=0 to 10 do
             for n=1 to 9 do
 --          for n=4 to 4 do
-                integer r = rmdr(d,gap,pow,n)
+                integer r = rmdrn(d,gap,pow,n)
 --if gap<5 and pow<3 and d!=0 then
 if (gap+pow)<16 then
     atom q = iff(gap=-1?d:d*power(10,gap+1)+d)*power(10,pow)

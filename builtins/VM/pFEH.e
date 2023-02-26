@@ -26,6 +26,7 @@ constant sigsegv = "SIGSEGV"
 constant eat = " at #"
 constant eaxis = "eax: ", ebxis = "ebx: ", ecxis = "ecx: ", edxis = "edx: ", esiis = "esi: ", ediis = "edi: "
 --          (the above constants are rudely patched to rax..rdi under 64-bit, but later restored, btw.)
+constant r10is = "r10: ", r11is = "r11: ", r15is = "r15: "
 --constant setuef = "SetUnhandledExceptionFilter is #"
 
 integer finit = 0
@@ -422,6 +423,54 @@ integer finit = 0
 --      mov rdx,[rcx+176]           -- DWORD64 Rdi
         mov r8,[rsp+32]
         mov rdx,[r8+176]            -- DWORD64 context.Rdi
+        push 1                      -- cr
+        call :%puthex64
+
+--/*
+  DWORD64 Dr7;
+  DWORD64 Rax;  120
+  DWORD64 Rcx;  128
+  DWORD64 Rdx;  136
+  DWORD64 Rbx;  144
+  DWORD64 Rsp;  152
+  DWORD64 Rbp;  160
+  DWORD64 Rsi;  168
+  DWORD64 Rdi;  176
+  DWORD64 R8;   184
+  DWORD64 R9;   192
+  DWORD64 R10;  200
+  DWORD64 R11;  208
+  DWORD64 R12;  216
+  DWORD64 R13;  224
+  DWORD64 R14;  232
+  DWORD64 R15;  240
+  DWORD64 Rip;
+--*/
+        mov rdi,[r10is]             -- "r10: "
+        call :%puts1
+--      mov rsi,[rsp+16]            -- EXCEPTION_POINTERS
+--      mov rcx,[rsi+8]             -- CONTEXT_RECORD
+--      mov rdx,[rcx+176]           -- DWORD64 Rdi
+        mov r8,[rsp+32]
+        mov rdx,[r8+200]            -- DWORD64 context.R10
+        push 1                      -- cr
+        call :%puthex64
+        mov rdi,[r11is]             -- "r11: "
+        call :%puts1
+--      mov rsi,[rsp+16]            -- EXCEPTION_POINTERS
+--      mov rcx,[rsi+8]             -- CONTEXT_RECORD
+--      mov rdx,[rcx+176]           -- DWORD64 Rdi
+        mov r8,[rsp+32]
+        mov rdx,[r8+208]            -- DWORD64 context.R11
+        push 1                      -- cr
+        call :%puthex64
+        mov rdi,[r15is]             -- "r15: "
+        call :%puts1
+--      mov rsi,[rsp+16]            -- EXCEPTION_POINTERS
+--      mov rcx,[rsi+8]             -- CONTEXT_RECORD
+--      mov rdx,[rcx+176]           -- DWORD64 Rdi
+        mov r8,[rsp+32]
+        mov rdx,[r8+240]            -- DWORD64 context.R15
         push 1                      -- cr
         call :%puthex64
         ret

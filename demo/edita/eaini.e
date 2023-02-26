@@ -39,7 +39,7 @@ sequence res
         while 1 do
             c = text[ci]
             if c>='0' and c<='9' then
-                n = n*10+c-'0'
+                n = n*10+(c-'0')
             elsif c=',' then
                 res[i] = n
                 i += 1
@@ -69,7 +69,7 @@ integer v,ch
     for i=1 to 4 do
         ch = txt[i]
         if ch<'0' or ch>'9' then return 0 end if
-        v = v*10+ch-'0'
+        v = v*10+(ch-'0')
     end for
     d = repeat(0,6)
     if v<1900 then return 0 end if
@@ -80,7 +80,7 @@ integer v,ch
     for i=6 to 7 do
         ch = txt[i]
         if ch<'0' or ch>'9' then return 0 end if
-        v = v*10+ch-'0'
+        v = v*10+(ch-'0')
     end for
     if v>12 then return 0 end if
     d[2] = v
@@ -90,7 +90,7 @@ integer v,ch
     for i=9 to 10 do
         ch = txt[i]
         if ch<'0' or ch>'9' then return 0 end if
-        v = v*10+ch-'0'
+        v = v*10+(ch-'0')
     end for
     if v>31 then return 0 end if
     d[3] = v
@@ -101,7 +101,7 @@ integer v,ch
     for i=12 to 13 do
         ch = txt[i]
         if ch<'0' or ch>'9' then return 0 end if
-        v = v*10+ch-'0'
+        v = v*10+(ch-'0')
     end for
     if v>23 then return 0 end if
     d[4] = v
@@ -111,7 +111,7 @@ integer v,ch
     for i=15 to 16 do
         ch = txt[i]
         if ch<'0' or ch>'9' then return 0 end if
-        v = v*10+ch-'0'
+        v = v*10+(ch-'0')
     end for
     if v>59 then return 0 end if
     d[5] = v
@@ -120,7 +120,7 @@ integer v,ch
     for i=18 to 19 do
         ch = txt[i]
         if ch<'0' or ch>'9' then return 0 end if
-        v = v*10+ch-'0'
+        v = v*10+(ch-'0')
     end for
     if v>59 then return 0 end if
     d[6] = v

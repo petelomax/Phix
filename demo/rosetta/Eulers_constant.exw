@@ -11,8 +11,23 @@
 
 -- part 1, translation of Perl, with the same inaccuracy
 --with javascript_semantics -- (this part only)
-constant C = sum(sq_div(1,tagset(1e6)))-log(1e6)
-printf(1,"gamma %.12f  (max 12d.p. of accuracy)\n",C)
+--constant C = sum(sq_div(1,tagset(1e6)))-log(1e6)
+--printf(1,"gamma %.12f  (max 12d.p. of accuracy)\n",C)
+atom c = 0,     -- running total
+     nii = 1e1  -- next i of interest
+for i=1 to 1e8 do
+    c += 1/i
+    if i=nii then
+        string g = sprintf("%.12f",c-ln(i))
+        for j,d in "0.577215664901" do
+            if g[j]!=d then
+                printf(1,"gamma %s  (terms 1..1e%d, accurate to %d d.p.)\n",{g,log10(i),j-3})
+                exit
+            end if
+        end for
+        nii *= 10
+    end if
+end for
 
 -- part 2, translation of C, from first principles.
 without js  -- no mpfr_get_d_2exp() in mpfr.js as yet

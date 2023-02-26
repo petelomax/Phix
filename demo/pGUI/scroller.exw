@@ -4,7 +4,7 @@
 --
 --  Ported from arwendemo/scroller.exw
 --
---  This is one of the "cool" demos.
+--  This is one of the "cool" demos. [DEV rubbish/incomplete...]
 --
 -- TODO: support drag (mousewheel already works)
 --  A help popup... maybe a second window...
@@ -29,6 +29,7 @@ function redraw_cb(Ihandle /*ih*/)
             px = IupGetInt(canvas,"POSX"),
             py = IupGetInt(canvas,"POSY")
 --?{"redraw",w,h,IupGetIntInt(canvas, "RASTERSIZE")}
+?IupGetGlobalIntInt("SCREENSIZE")
 
     cdCanvasActivate(cddbuffer)
     cdCanvasClear(cddbuffer)
@@ -72,9 +73,10 @@ procedure main()
 
     canvas = IupCanvas("SCROLLBAR=YES, XMAX=%d, YMAX=%d",{imageX,imageY})
     IupSetAttributes(canvas,"RASTERSIZE=%dx%d",{imageX,imageY})
+--  IupSetAttributes(canvas,"SHRINK=YES")
 
     IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
-                             "RESIZE_CB", Icallback("resize_cb"),
+--                           "RESIZE_CB", Icallback("resize_cb"),
                              "ACTION", Icallback("redraw_cb")})
     dlg = IupDialog(canvas,`RASTERSIZE=640x480, TITLE="Virtual Window Demo"`)
     IupShow(dlg)
@@ -136,6 +138,7 @@ is probably easier to translate that JavaScript code to C than the Phix code it 
 --  - zoom out
 --  = original zoom
 --  # fit to screen
+--  F toggle focus
 
 include arwen.ew
 include axtra.ew    -- setPenColor/drawRectangleh (bit of a hack to be honest)
@@ -170,8 +173,8 @@ constant Main = create(Window, "Virtual Window Demo", 0, 0, 25, 25, mainX, mainY
 --  have any edges, in which case this would still work fine just not really achieve anything.
 --
 atom focusX, focusY         -- (stored as atoms so that single-step scroll at very high magnification still works)
-integer firsttime = 1       -- (controls setting of {focusX, focusY}, and calling drawImage)
-constant drawfocus = 0
+bool firsttime = true,      -- (controls setting of {focusX, focusY}, and calling drawImage)
+     drawfocus = false
 
 procedure drawImage()
 -- initialise imageBM, and optionally redraw when the focus changes
@@ -194,25 +197,19 @@ function Zoomf(atom v)      return floor(Zoom(v)+0.5)   end function
 function UnZoom(integer v)  return v*10/zoom            end function
 function UnZoomf(integer v) return floor(UnZoom(v)+0.5) end function
 
-function mainHandler(integer id, integer msg, atom wParam, object lParam)
-integer ZimageX, ZimageY
-integer ZfocusX, ZfocusY
-integer halfX, halfY
-sequence six, siy -- scroll info (scratch)
-integer srcX, srcY, srcW, srcH, 
-        dstX, dstY, dstW, dstH
-integer gap, oldzoom
-
+function mainHandler(integer id, integer msg, atom wParam, object /*lParam*/)
     if msg=WM_PAINT then
-        ZimageX = Zoomf(imageX)
-        ZimageY = Zoomf(imageY)
+        integer ZimageX = Zoomf(imageX),
+                ZimageY = Zoomf(imageY),
+                ZfocusX, ZfocusY, halfX, halfY
         if not firsttime then
             ZfocusX = Zoomf(focusX)
             ZfocusY = Zoomf(focusY)
         end if
-        for max_iterations=1 to 2 do                        -- (repeat if the scrollbar visibility changes)
-            {halfX,halfY,mainX,mainY} = getClientRect(Main) -- (less scroll bars, status line, and menu)
-            if {halfX,halfY}!={0,0} then ?9/0 end if        -- sanity check
+        for max_iterations=1 to 2 do                -- (repeat if the scrollbar visibility changes)
+            sequence mcr = = getClientRect(Main)    -- (less scroll bars, status line, and menu)
+            {halfX,halfY,mainX,mainY} = mcr
+            assert(halfX=0 and halfY=0)             -- sanity check
             halfX = floor(mainX/2)
             halfY = floor(mainY/2)
             if firsttime then
@@ -220,15 +217,15 @@ integer gap, oldzoom
                 ZfocusX = Zoomf(focusX)
                 ZfocusY = Zoomf(focusY)
             end if
-            if zoom=-1 then -- fit to screen                -- (so deliberately disable/hide the scrollbars)
-                {six,siy} @= {1,100,100,1}
-            else
+            sequence six = {1,100,100,1}, siy = six
+            -- (a zoom of -1 is fit to screen, so deliberately disable/hide the scrollbars)
+            if zoom!=-1 then                                    -- scroll info (scratch)
                 six = {halfX,ZimageX+halfX,mainX,ZfocusX}       -- {Min/Max/Pagesize/Pos}
                 siy = {halfY,ZimageY+halfY,mainY,ZfocusY}
             end if
             setScrollInfo({id,SB_HORZ},six,1)
             setScrollInfo({id,SB_VERT},siy,1)
-            if getClientRect(Main)={0,0,mainX,mainY} then exit end if
+            if getClientRect(Main)=mcr then exit end if
         end for
         if viewBM=NULL
         or mainX>viewX
@@ -238,24 +235,18 @@ integer gap, oldzoom
             {} = c_func(xDeleteObject,{c_func(xSelectObject,{viewDC, viewBM})})
         end if
 
-        if zoom=-1 then
-            {dstX,dstY,dstW,dstH} = {0,0,mainX,mainY}
-            {srcX,srcY,srcW,srcH} = {0,0,imageX,imageY}
-        else
-
+        integer dstX = 0, dstY = 0, dstW = mainX, dstH = mainY,
+                srcX = 0, srcY = 0, srcW = imageX, srcH = imageY
+        if zoom!=-1 then
             if firsttime or drawfocus then
                 drawImage()
             end if
 
---          setPenColor(BrightWhite)
---          setPenColor(Green)
             setPenColor(Parchment)
             drawRectangleh(viewDC, True, 0, 0, mainX, mainY)        -- clear background
 
             srcX = ZfocusX-halfX
-            dstW = mainX
-            dstX = 0
-            gap = mainX-ZimageX
+            integer gap = mainX-ZimageX
             if gap>=0 then                  -- (enough for) gap on both sides
                 dstX = floor(gap/2)         -- so just center it
                 dstW = ZimageX
@@ -266,8 +257,6 @@ integer gap, oldzoom
                 srcX = ZimageX-mainX        -- so move to "hard right" (some overhang remains on lhs)
             end if
             srcY = ZfocusY-halfY
-            dstH = mainY
-            dstY = 0
             gap = mainY-ZimageY
             if gap>=0 then                  -- (enough for) gap on both sides
                 dstY = floor(gap/2)         -- so just center it
@@ -285,7 +274,7 @@ integer gap, oldzoom
         end if
         {} = c_func(xStretchBlt, {viewDC,dstX,dstY,dstW,dstH,imageDC,srcX,srcY,srcW,srcH,SRCCOPY})
         void = c_func(xBitBlt, {mainDC, 0, 0, mainX, mainY, viewDC, 0, 0, SRCCOPY})
-        firsttime = 0
+        firsttime = false
     elsif msg=WM_HSCROLL then
         focusX = UnZoom(wParam)
         repaintWindow(Main,False)
@@ -295,24 +284,24 @@ integer gap, oldzoom
     elsif msg=WM_CHAR then
         if wParam=VK_ESCAPE then
             closeWindow(Main)
-        elsif find(wParam,"=#-+") then
+        elsif find(wParam,"=#-+fF") then
             oldzoom = zoom
             if    wParam='#'            then zoom = -1
             elsif wParam='=' or zoom<0  then zoom = 10
             elsif wParam='-' and zoom>1 then zoom -= 1
             elsif wParam='+'            then zoom += 1
+            elsif lower(wParam)='f'     then 
+                drawfocus = not drawfocus; oldzoom = 0
+                drawImage()
             end if
             if zoom!=oldzoom then
                 repaintWindow(Main,False)
             end if
         end if
-    else
-        if id or object(lParam) then end if -- (suppress warnings)
     end if
     return 0
 end function
-setHandler(Main, routine_id("mainHandler"))
+setHandler(Main, mainHandler)
 
---drawImage()
 WinMain(Main, SW_NORMAL) 
 --*/

@@ -324,7 +324,7 @@ global function xml_decode(string s)
                         or digit>'9' then
                             ?9/0
                         end if
-                        ch = ch*10+digit-'0'
+                        ch = ch*10 + (digit-'0')
                     end for
                 end if
                 if ch=0 then ?9/0 end if

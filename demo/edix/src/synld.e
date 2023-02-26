@@ -201,21 +201,20 @@ end procedure
 procedure loadAutoComplete()
 -- see eauto.e for syntax details.
 --DEV grab each whole line and translate it. [DONE, cleanup pending]
-integer LinePos,TriggerCh,CursorMove, state
+integer LinePos,TriggerCh,CursorMove
 sequence LineMatch,InsertLine,InsertLines
-sequence line
-integer lidx
+--integer lidx
 --  autoComplete = {}
 --trace(1)
-    state = 0 -- 0 = initialisation, 1=linematch processing, 2=insertblock processing
-    line = {}
+    integer state = 0 -- 0 = initialisation, 1=linematch processing, 2=insertblock processing
+    sequence line = {}
 --  lidx = 1
     while 1 do
         if state=0 or ch='\n' then
 --      if state=0 or lidx>length(line) then
             if state then
 --              line = xlQ(line)
-                lidx = 1
+                integer lidx = 1
                 while lidx<=length(line) do
                     ch = line[lidx]
                     if ch = '&' then
@@ -337,6 +336,8 @@ function ifItReallyIs(sequence txt)
     return 1
 end function
 
+--string loadSynName = "???"
+
 function getWord()
 sequence word
 --  word = {}
@@ -348,6 +349,7 @@ sequence word
         end while
         skipSpaces()
     end if
+--if word="adc" then ?{loadSynName,"adc"} trace(1) end if
     return word
 end function
 
@@ -484,6 +486,58 @@ integer newcolour, k, l
     StyleTab[URLs] = CD_BOLD+CD_UNDERLINE
 end procedure
 
+-- 22/11/22 addbase changes[*2]: allow eg "[j][a|ae|b...]". Note that "j" is *not* in res, and
+--                               that [eg] "[lod|sto][...]" wouldn't have "lod"/"sto" either.
+function word_opt_rec(sequence res, options, string base, bool addbase=true)
+    if addbase then
+        res = append(res,base)
+    end if
+    if length(options) then
+        sequence opts = options[1]
+        options = options[2..$]
+        res = word_opt_rec(res,options,base,false)
+        for opt in opts do
+--          res = word_opt_rec(res,options,base&opt)                    -- [1]
+            res = word_opt_rec(res,options,base&opt,length(base)>0)
+        end for
+    end if
+    return res
+end function
+
+function word_options(string word)
+--bool show = match("[j]",word)=1 or match("mov[",word)=1
+--if show then ?word end if
+    -- expand eg "add[gt|le][s]" into all of the six variations,
+    --  namely {`add`,`adds`,`addgt`,`addgts`,`addle`,`addles`}
+    --  [actual use typically averages perhaps some 36 of them!]
+    -- Note that "[j][a|b|z]" means the "j" is "non-standalone"
+    -- ***NB: keep this in step with makephix.exw ***
+    sequence res = {}, options = {}
+    integer k = find('[',word),
+            l = find(']',word,k+1)
+    string base = word[1..k-1]
+    while true do
+        options = append(options,split(word[k+1..l-1],'|'))
+        word = word[l+1..$]
+        if word="" then exit end if
+        if word[1]!='[' then
+            ?"options error: "&word
+            return {}
+        end if
+        k = 1
+        l = find(']',word)
+        if l=0 then
+            ?"options error(] missing?): "&word
+            return {}
+        end if
+    end while
+--  res = word_opt_rec(res,options,base)                                -- [2]
+--  res = word_opt_rec(res,options,base,k>1)
+    res = word_opt_rec(res,options,base,length(base)>0)
+--if show then ?res end if
+    return res
+end function
+
 --with trace
 constant TokenTypes={"Start","Char","First","Last"}
 
@@ -493,6 +547,7 @@ procedure loadSyn(sequence name)
 -- if it can't find the file etc, but it must complete this routine fully.
 -- Subsequent files can perform an early exit.
 --
+--?{"loadSyn",name}
 integer sectionNo,
         ecb     -- expected close brace
 sequence word
@@ -504,13 +559,14 @@ integer bracelevel
 sequence operatorset
 sequence indentset
 sequence newExtensions
-sequence newWordLists
+sequence newWordLists = {}
 sequence linecomment, blockcomment
 
 integer indentType, indentTypeSave
 
 integer TokenType
 
+--  loadSynName = name
     newSyntax = length(SynNames)+1
     lineno = 1
     columnOne = 1
@@ -526,7 +582,6 @@ integer TokenType
     autoComplete = {}
     ColourTab = {}
 --defaultColourTab()    -- 4/7  StyleTab is left tiddly
-    newWordLists = {}
     if newSyntax=1 then
         newExtensions = {{}}
         charMap = repeat(Illegal,256)
@@ -746,7 +801,12 @@ if sectionNo<=0 then fatal("not allowed") close(f) return end if
             while not columnOne and ch>' ' do
                 word = getWord()
 --DEV crash here with sectionNo of -13 when I tried adding a section named Illegals (hopefully fixed by the above)
-                newWordLists[sectionNo] = append(newWordLists[sectionNo],word)
+--if name="ARM" then ?word end if
+                if find('[',word) then
+                    newWordLists[sectionNo] &= word_options(word)
+                else
+                    newWordLists[sectionNo] = append(newWordLists[sectionNo],word)
+                end if
                 skipSpaces()
             end while
             if ch=-1 then exit end if   --EOF
@@ -886,7 +946,11 @@ integer lh, f2, k, b1, b2
                 if not Expect("F1 keys:") then return end if
                 while not columnOne and ch>' ' do
                     word = getWord()
-                    wordlist = append(wordlist,word)
+                    if find('[',word) then
+                        wordlist &= word_options(word)
+                    else
+                        wordlist = append(wordlist,word)
+                    end if
                     skipSpaces()
                 end while
             else

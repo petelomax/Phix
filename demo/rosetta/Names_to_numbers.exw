@@ -2,6 +2,7 @@
 -- demo\rosetta\Names_to_numbers.exw
 -- ---------------------------------
 --
+with javascript_semantics
 include demo\rosetta\Number_names.exw
 
 constant {tokens,tokvals} = columnize({{"zero",0},{"one",1},{"two",2},{"three",3},{"four",4},{"five",5},{"six",6},
@@ -13,21 +14,19 @@ constant {tokens,tokvals} = columnize({{"zero",0},{"one",1},{"two",2},{"three",3
                                        {"million",1e6},{"billion",1e9},{"trillion",1e12}})
  
 function parse(string s)
-sequence words
-integer negmul = 1, hund = 0
-atom total = 0, k
- 
     s = substitute(s,",","")
     s = substitute(s," and "," ")
     s = substitute(s,"-"," ")
-    words = split(s)
+    sequence words = split(s)
     if length(words)=0 then return "invalid" end if
+    integer negmul = 1, hund = 0
     if words[1]=="minus" then
         negmul = -1
         words = words[2..$]
     end if
+    atom total = 0
     for i=1 to length(words) do
-        k = find(words[i],tokens)
+        atom k = find(words[i],tokens)
         if k=0 then
             if words[i]!="point" then return "invalid" end if
             total += hund
@@ -56,22 +55,16 @@ atom total = 0, k
     return negmul*(total+hund)  
 end function
 
-procedure main()
-atom si
-    for i=1 to length(Samples) do
-        si = Samples[i]
-        string s = spell(si)
---      if parse(s)=si then
-        if abs(parse(s)-si)<1e-6 then
-            s = "<==> "&s
-        else
-            s = "???? "&s
-        end if
-        printf(1,"%18s %s\n",{smartp(si),s})
-    end for
-end procedure
-
-main()
+for i=1 to length(samples) do
+    atom si = samples[i]
+    string s = spell(si)
+    if abs(parse(s)-si)<1e-6 then
+        s = "<==> "&s
+    else
+        s = "???? "&s
+    end if
+    printf(1,"%18s %s\n",{smartp(si),s})
+end for
 
 {} = wait_key()
 

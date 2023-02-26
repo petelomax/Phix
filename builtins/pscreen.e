@@ -34,20 +34,15 @@
 --      result in an infinite loop. Hence I moved any such affected 
 --      routines, but kept everything as compatible as possible.
 --
-
-integer iinit iinit = 0
+integer iinit = 0
 
 atom xKernel32,
-xAllocConsole,xGetStdHandle,
-xReadConsoleOutput,xWriteConsoleOutput,
-xGetConsoleScreenBufferInfo,xGetLastError,
-xSetConsoleCursorInfo
-
-
---object void
+     xAllocConsole,xGetStdHandle,
+     xReadConsoleOutput,xWriteConsoleOutput,
+     xGetConsoleScreenBufferInfo,xGetLastError,
+     xSetConsoleCursorInfo
 
 atom stdout
---, stdin, stderr
 
 constant STD_OUTPUT_HANDLE  = -11   -- #FFFFFFF5
 --       STD_INPUT_HANDLE   = -10,  -- #FFFFFFF6
@@ -156,15 +151,12 @@ end type
 global function get_screen_char(positive_atom line, positive_atom column)
 -- returns {character, attributes} of the single character
 -- at the given (line, column) position on the screen
-atom lpBuffer
-object res
-atom xRect
-    if not iinit then initI() end if
+    object res
     if platform()=WINDOWS then
-        xRect = allocate(8)
+        if not iinit then initI() end if
+        atom xRect = allocate(8),
+          lpBuffer = allocate(4)
         poke2(xRect,{column-1,line-1,column-1,line-1})
-
-        lpBuffer = allocate(4)
         if not c_func(xReadConsoleOutput,{stdout,lpBuffer,#10001,0,xRect}) then
 --          dbg = c_func(xGetLastError,{})
             -- error --
@@ -172,7 +164,6 @@ atom xRect
         else
             res = peek2u({lpBuffer,2})
         end if
-
         free(lpBuffer)
         free(xRect)
     elsif platform()=LINUX then
@@ -187,26 +178,17 @@ global procedure put_screen_char(positive_atom line, positive_atom column, seque
 -- stores {character, attributes, character, attributes, ...} 
 -- of 1 or more characters at position (line, column) on the screen
 -- (nb: all characters get shown on the same line, see also display_text_image)
-atom lpBuffer
-integer x
-atom xRect
-
-    if not iinit then initI() end if
     if platform()=WINDOWS then
-        xRect = allocate(8)
-
-        x = length(char_attr)
-
+        if not iinit then initI() end if
+        integer x = length(char_attr)
+        atom xRect = allocate(8),
+          lpBuffer = allocate(x*2)
         poke2(xRect,{column-1,line-1,column+x-2,line-1})
-
-        lpBuffer = allocate(x*2)
         poke2(lpBuffer,char_attr)
-
         if not c_func(xWriteConsoleOutput,{stdout,lpBuffer,#10000+floor(x/2),0,xRect}) then
 --          dbg = c_func(xGetLastError,{})
             -- error --
         end if
-
         free(lpBuffer)
         free(xRect)
     elsif platform()=LINUX then
@@ -238,24 +220,18 @@ global function save_text_image(text_point top_left, text_point bottom_right)
 --
 --  The two parameters are {line,column}, aka {y,x}.
 --
-integer leftcol, rightcol, topline, lastline, x, y
-atom lpBuffer
-object res
-atom xRect
-    if not iinit then initI() end if
-
+    object res
     if platform()=WINDOWS then
-        xRect = allocate(8)
-        topline = top_left[1]-1
-        lastline = bottom_right[1]-1
-        leftcol = top_left[2]-1
-        rightcol = bottom_right[2]-1
+        if not iinit then initI() end if
+        integer topline = top_left[1]-1,
+               lastline = bottom_right[1]-1,
+                leftcol = top_left[2]-1,
+               rightcol = bottom_right[2]-1,
+                      x = rightcol-leftcol+1,
+                      y = lastline-topline+1
+        atom xRect = allocate(8),
+          lpBuffer = allocate(x*y*4)
         poke2(xRect,{leftcol,topline,rightcol,lastline})
-
-        x = rightcol-leftcol+1
-        y = lastline-topline+1
-
-        lpBuffer = allocate(x*y*4)
         if not c_func(xReadConsoleOutput,{stdout,lpBuffer,x+y*#10000,0,xRect}) then
 --          dbg = c_func(xGetLastError,{})
             -- error --
@@ -266,7 +242,6 @@ atom xRect
                 res[i] = peek2u({lpBuffer+(i-1)*x*4,x*2})
             end for
         end if
-
         free(lpBuffer)
         free(xRect)
     elsif platform()=LINUX then
@@ -278,34 +253,24 @@ atom xRect
 end function
 
 global procedure display_text_image(text_point top_left, sequence image)
-integer topline, lastline, leftcol, rightcol, x, y
-atom lpBuffer
-atom xRect
-    if not iinit then initI() end if
     if platform()=WINDOWS then
-        xRect = allocate(8)
-        x = length(image[1])/2
-        y = length(image)
-        topline = top_left[1]-1
-        lastline = topline+y-1
-        leftcol = top_left[2]-1
-        rightcol = leftcol+x-1
+        if not iinit then initI() end if
+        integer x = length(image[1])/2,
+                y = length(image),
+          topline = top_left[1]-1,
+         lastline = topline+y-1,
+          leftcol = top_left[2]-1,
+         rightcol = leftcol+x-1
+        atom xRect = allocate(8),
+          lpBuffer = allocate(x*y*4)
         poke2(xRect,{leftcol,topline,rightcol,lastline})
-
-        lpBuffer = allocate(x*y*4)
         for i=1 to y do
             poke2(lpBuffer+(i-1)*x*4,image[i])
         end for
---dbg = peek({lpBuffer,x*y*4})
---trace(1)
---dbg = peek({xRect,8})
-
         if not c_func(xWriteConsoleOutput,{stdout,lpBuffer,x+y*#10000,0,xRect}) then
 --          dbg = c_func(xGetLastError,{})
             -- error --
         end if
---dbg = peek({xRect,8})
-
         free(lpBuffer)
         free(xRect)
     elsif platform()=LINUX then
@@ -336,23 +301,20 @@ global procedure cursor(integer style)
     end if
 end procedure
 
-
 global function video_config()
 -- (supported for VC_LINES/VC_COLUMNS and VC_SCRNLINES/VC_SCRNCOLS use only.)
-integer x,y,mx,my
-sequence res
-atom xCSBI
+    sequence res
     puts(1,"")
-    if not iinit then initI() end if
     if platform()=WINDOWS then
-        xCSBI = allocate(sizeof_CSBI)
+        if not iinit then initI() end if
+        atom xCSBI = allocate(sizeof_CSBI)
         if c_func(xGetConsoleScreenBufferInfo,{stdout,xCSBI}) then
 
             -- nb this is the display size; the buffer size is CSBI_SIZEX,CSBI_SIZEY
-            x = peek2u(xCSBI+CSBI_WINX2)-peek2u(xCSBI+CSBI_WINX1)+1
-            y = peek2u(xCSBI+CSBI_WINY2)-peek2u(xCSBI+CSBI_WINY1)+1
-            mx = peek2u(xCSBI+CSBI_SIZEX)
-            my = peek2u(xCSBI+CSBI_SIZEY)
+            integer x = peek2u(xCSBI+CSBI_WINX2)-peek2u(xCSBI+CSBI_WINX1)+1,
+                    y = peek2u(xCSBI+CSBI_WINY2)-peek2u(xCSBI+CSBI_WINY1)+1,
+                   mx = peek2u(xCSBI+CSBI_SIZEX),
+                   my = peek2u(xCSBI+CSBI_SIZEY)
             res = {1,       -- VC_COLOR, always assumed true
                    3,       -- VC_MODE, text mode always assued
                    my,      -- VC_LINES     \ (these are the only reason why
@@ -372,8 +334,8 @@ atom xCSBI
         end if
         free(xCSBI)
     elsif platform()=LINUX then
-        ?9/0 --DEV
---      res = {line_max,col_max}
+        -- maybe: ioctl, TIOCGWINSZ
+        res = {1,3,25,80,0,0,32,1,25,80}
     else
         ?9/0
     end if

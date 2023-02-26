@@ -21,25 +21,35 @@ global function extract(sequence source, indexes, bool invert=false)
     return res
 end function
 
-global function reinstate(sequence source, indexes, replacements, bool invert=false)
-    integer l = length(indexes), ii
-    if length(replacements)!=l then ?9/0 end if
---DEV deep_copy(ifNeeded) may be in order here...
---  sequence res = repeat(0,length(source))
-    sequence res = deep_copy(source)
-    if invert then
-        sequence inverse = repeat(0,l)
+global function reinstate(sequence source, object indexes, replacements, bool invert=false)
+    sequence res
+    if source={} and sequence(indexes) then
+        assert(not invert) -- (??)
+        res = repeat(0,max(indexes))
+        if replacements={} then
+            replacements = tagset(length(indexes))
+        end if
+    else
+        res = deep_copy(source)
+    end if
+    if integer(indexes) then
+        assert(not invert)
+        res[indexes] = replacements
+    else
+        integer l = length(indexes), ii
+        if length(replacements)!=l then ?9/0 end if
+        if invert then
+            sequence inverse = repeat(0,l)
+            for i=1 to l do
+                ii = indexes[i]
+                inverse[ii] = i
+            end for
+            indexes = inverse
+        end if
         for i=1 to l do
             ii = indexes[i]
-            inverse[ii] = i
+            res[ii] = replacements[i]
         end for
-        indexes = inverse
     end if
-    for i=1 to l do
-        ii = indexes[i]
-        res[ii] = replacements[i]
---      source[ii] = replacements[i]
-    end for
     return res
---  return source
 end function

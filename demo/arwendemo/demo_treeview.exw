@@ -138,6 +138,7 @@ include ..\..\builtins\file.e
 constant DEMO = create(Window,  "TreeViews Demo", 0, 0,410,10,340,350,0)
 
 constant TREE1 = create(TreeView, "", 0, DEMO,10, 10, 312, 244, TVS_EDITLABELS),
+--constant TREE1 = create(TreeView, "", 0, DEMO,10, 10, 312, 244, {{TVS_EDITLABELS,TVS_SHOWSELALWAYS},0}),
          treeHwnd = getHwnd(TREE1)
 
 constant CHECK = create(CheckBox, "Show &CheckBoxes?", 0, DEMO, 10, 264, 170, 25, 0)
@@ -160,42 +161,42 @@ constant himl = c_func(xImageList_Create,{cX,cY,ILC_COLOR8+ILC_MASK,1,32})
 --end function
 --
 --DEV make (optional) part of arwen? (arreg.ew)
-include ..\arwen\pFreg.ew   -- regIconInfo() [eg ".bat" ->/-> "C:\Windows\System\shell32.dll,-153"].
+--include ..\arwen\pFreg.ew -- regIconInfo() [eg ".bat" ->/-> "C:\Windows\System\shell32.dll,-153"].
 --
 object iconinfo
 atom icon
 
-function parseDefaultIcon(object iconin)
--- This processes eg "batfile" (obtained from ".bat") as well as
--- the special case (next) of "Folder".
--- Results left in inconinfo/icon
-integer sign
-    if equal(iconin,-1) then return -1 end if
-    iconinfo = regIconInfo(iconin&"\\DefaultIcon")
-    if equal(iconinfo,-1) then return -1 end if
-    if iconinfo[1]='\"' and iconinfo[length(iconinfo)]='\"' then
-        iconinfo = iconinfo[2..length(iconinfo)-1]
-    end if
-    icon = 0
-    for vi=length(iconinfo) to 1 by -1 do
-        if equal(iconinfo[vi],',') then
-            sign = (iconinfo[vi+1]='-')
-            for j=vi+1+sign to length(iconinfo) do
-                icon = icon*10+iconinfo[j]-'0'
-            end for
-            if sign then
-                icon = -icon
-            end if
-            iconinfo = iconinfo[1..vi-1]
-            exit
-        end if
-    end for
-    return iconinfo
-end function
+--function parseDefaultIcon(object iconin)
+---- This processes eg "batfile" (obtained from ".bat") as well as
+---- the special case (next) of "Folder".
+---- Results left in inconinfo/icon
+--integer sgn
+--  if equal(iconin,-1) then return -1 end if
+--  iconinfo = regIconInfo(iconin&"\\DefaultIcon")
+--  if equal(iconinfo,-1) then return -1 end if
+--  if iconinfo[1]='\"' and iconinfo[length(iconinfo)]='\"' then
+--      iconinfo = iconinfo[2..length(iconinfo)-1]
+--  end if
+--  icon = 0
+--  for vi=length(iconinfo) to 1 by -1 do
+--      if equal(iconinfo[vi],',') then
+--          sgn = (iconinfo[vi+1]='-')
+--          for j=vi+1+sgn to length(iconinfo) do
+--              icon = icon*10 + (iconinfo[j]-'0')
+--          end for
+--          if sgn then
+--              icon = -icon
+--          end if
+--          iconinfo = iconinfo[1..vi-1]
+--          exit
+--      end if
+--  end for
+--  return iconinfo
+--end function
 
 
-atom s32
-    s32 = allocate_StringZ("shell32.dll")
+--/*
+atom s32 = allocate_StringZ("shell32.dll")
 
 constant rqdIcons = {3,8}
 --  0 SI_UNKNOWN Unknown File Type
@@ -212,10 +213,12 @@ constant rqdIcons = {3,8}
 -- 11 SI_CDROM      CD drive
 -- 12 SI_RAMDISK    RAM disk
 
-atom pDword
-    pDword = allocate(4)
+--DEV/FIXME: Edita <Ctrl L> Directory seems to fare much (much) better.... [PART fixed... now "why no transparency??"]
+
+atom pDword = allocate(4)
     for i=1 to length(rqdIcons) do
         if c_func(xExtractIconEx,{s32,rqdIcons[i],NULL,pDword,1})!=1 then
+--      if c_func(xExtractIconEx,{s32,rqdIcons[i],pDword,NULL,1})!=1 then
             ?9/0
         end if
         icon = peek4u(pDword)
@@ -224,14 +227,38 @@ atom pDword
         void = c_func(xDeleteObject,{icon})
     end for
     free(pDword)
+--*/
+procedure createImageList()
+---- create imagelist using the recommended sizes for small icons:
+atom pWord = allocate(2)
+--  atom pWord = allocate(machine_word())
+--  himl = c_func(xImageList_Create,{c_func(xGetSystemMetrics,{SM_CXSMICON}),
+--                                   c_func(xGetSystemMetrics,{SM_CYSMICON}),
+--                                   ILC_COLOR8+ILC_MASK,1,32})
+
+    -- get a folder icon
+    atom mem = allocate_StringZ("C:\\WINDOWS")
+    poke2(pWord,0)
+    icon = c_func(xExtractAssociatedIcon,{instance(),mem,pWord})
+    void = c_func(xImageList_AddIcon,{himl,icon})
+    void = c_func(xDeleteObject,{icon})
+    -- get a drive icon
+    mem = allocate_StringZ("C:\\")
+    icon = c_func(xExtractAssociatedIcon,{instance(),mem,pWord})
+    void = c_func(xImageList_AddIcon,{himl,icon})
+    void = c_func(xDeleteObject,{icon})
+    free(pWord)
+end procedure
+createImageList()
 
 -- attach imagelist to the treeview
 void=sendMessage(TREE1,TVM_SETIMAGELIST,TVSIL_NORMAL,himl)
 
 setCheck(ICONS,True)
 
-sequence treeItems
-         treeItems = {}
+sequence treeItems = {},
+         extensions = {':'} -- for imagelist lookup
+                            -- 0 is folder, 1 is drive.
 
 -- indexes to treeItems:
 constant tHandle = 1,
@@ -240,14 +267,8 @@ constant tHandle = 1,
          tPidx   = 4
 
 --DEV replace with treeIdx??
-integer lTI -- length(treeItems)
-
-sequence extensions         -- for imagelist lookup
-         extensions = {':'} -- 0 is folder, 1 is drive.
-
-integer freelist
+integer lTI, -- length(treeItems)
         freelist = 0
-
 
 function caseInsensitiveSort(sequence s1,sequence s2)
     return compare(upper(s1[D_NAME]),upper(s2[D_NAME]))
@@ -260,9 +281,9 @@ atom parent
 object d, d2
 object ext
 integer k, hasChildren
-atom pDword
+--atom pDword
 
-    if path[length(path)]!='\\' then path&='\\' end if
+    if path[$]!='\\' then path&='\\' end if
 
     if pidx=-1 then -- skip floppies during initial load (user must press F5)
         d = -1
@@ -327,11 +348,13 @@ atom pDword
                 ext = upper(d[i][D_NAME])
                 for j=length(ext) to 1 by -1 do
                     if ext[j]='.' then
-                        ext = upper(ext[j+1..length(ext)])
+--                      ext = upper(ext[j+1..length(ext)])
+                        ext = ext[j+1..length(ext)]
                         exit
                     end if
                 end for
 --              ext = getExtension(di[D_NAME])
+--/*
                 k = find(ext,extensions)
 
                 if k=0 then
@@ -343,7 +366,7 @@ atom pDword
                         iconinfo = parseDefaultIcon(regIconInfo("."&ext))
                     end if
                     if not equal(iconinfo,-1) then
-                        pDword = allocate(4)
+                        atom pDword = allocate(4)
                         if c_func(xExtractIconEx,{allocate_StringZ(iconinfo),icon,NULL,pDword,1})=1 then
                             icon = peek4u(pDword)
                         end if
@@ -367,7 +390,21 @@ atom pDword
                         void = c_func(xDeleteObject,{icon})
                     end if
                 end if
-
+--*/
+--<<<
+                k = find(ext,extensions)
+                if k=0 or find(ext,{"EXE","ICO"}) then
+                    extensions = append(extensions,ext)
+                    k = length(extensions)
+                    atom mem = allocate_StringZ(path&d[i][D_NAME])
+                    atom pWord = allocate(2)
+                    poke2(pWord,0)
+                    icon = c_func(xExtractAssociatedIcon,{instance(),mem,pWord})
+                    free(pWord)
+                    void = c_func(xImageList_AddIcon,{himl,icon})
+                    void = c_func(xDeleteObject,{icon})
+                end if
+-->>>
                 if freelist then
                     lTI = freelist
                     freelist = treeItems[freelist]
@@ -398,15 +435,12 @@ end function
 
 --include ppp.e
 procedure loadAllDrives()
-atom buffer, pDrive
-integer buflen
-sequence onedrive
-    buflen = c_func(xGetLogicalDriveStrings,{0,NULL})
-    buffer = allocate(buflen)
-    pDrive = buffer
+    integer buflen = c_func(xGetLogicalDriveStrings,{0,NULL})
+    atom buffer = allocate(buflen),
+         pDrive = buffer
     void = c_func(xGetLogicalDriveStrings,{buflen,buffer})
     while 1 do
-        onedrive = peek_string(pDrive)
+        sequence onedrive = peek_string(pDrive)
         buflen = length(onedrive)
         if buflen=0 then exit end if
         if c_func(xGetDriveType,{pDrive})=DRIVE_REMOVABLE then  -- skip floppies (user must key F5)

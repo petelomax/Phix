@@ -8,13 +8,11 @@
 -- non-true polyspirals, but quite interesting nevertheless.
 --
 with javascript_semantics
+constant TITLE = "Polyspiral"
 include pGUI.e
 
 Ihandle dlg, canvas, timer
 cdCanvas cddbuffer, cdcanvas
-
-constant TITLE = "Polyspiral"
-
 atom incr = 0
 bool mod360 = false
 
@@ -26,8 +24,8 @@ procedure Polyspiral(atom x1, y1)
         incr = mod(incr,360)
     end if
     for i=1 to 150 do
-        atom x2 = x1 + cos(angle)*len
-        atom y2 = y1 + sin(angle)*len
+        atom x2 = x1 + cos(angle)*len,
+             y2 = y1 + sin(angle)*len
         cdCanvasSetForeground(cddbuffer, i*#200+i*#40+i*#10)
         cdCanvasLine(cddbuffer, x1, y1, x2, y2)
         {x1, y1} = {x2, y2}
@@ -51,13 +49,13 @@ function redraw_cb(Ihandle /*ih*/)
     return IUP_DEFAULT
 end function
 
-function timer_cb(Ihandle /*ih*/)
+function timer_cb(Ihandle /*timer*/)
     IupUpdate(canvas)
     return IUP_IGNORE
 end function
 
-function map_cb(Ihandle ih)
-    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+function map_cb(Ihandle canvas)
+    cdcanvas = cdCreateCanvas(CD_IUP, canvas)
     cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
     cdCanvasSetBackground(cddbuffer, CD_WHITE)
     cdCanvasSetForeground(cddbuffer, CD_GRAY)
@@ -65,35 +63,32 @@ function map_cb(Ihandle ih)
 end function
 
 function key_cb(Ihandle /*ih*/, atom c)
-    if c=K_ESC then return IUP_CLOSE end if
+    if c=K_ESC then return IUP_CLOSE end if -- (standard practice for me)
+    if c=K_F5 then return IUP_DEFAULT end if -- (let browser reload work)
     if c=' ' then
-        IupSetInt(timer,"RUN",not IupGetInt(timer,"RUN"))
+        IupToggleInt(timer,"RUN")
     elsif find(c,"+-") then
-        -- ('+' increases speed, by decreasing TIME)
-        IupSetInt(timer,"TIME",max(10,IupGetInt(timer,"TIME")-(','-c)*10))
-        IupSetInt(timer,"RUN",0)
-        IupSetInt(timer,"RUN",1)
+        IupSetInt(timer,"RUN",false)
+        c = -(','-c) -- ('+' ==> +1, '-' ==> -1)
+        IupSetInt(timer,"TIME",max(10,IupGetInt(timer,"TIME")+c*10))
+        IupSetInt(timer,"RUN",true)
     elsif upper(c)='M' then
         mod360 = not mod360
     end if
     return IUP_CONTINUE
 end function
 
-procedure main()
-    IupOpen()
-    canvas = IupCanvas("RASTERSIZE=640x640")
-    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
-                             "ACTION", Icallback("redraw_cb")})
-    timer = IupTimer(Icallback("timer_cb"), 20)
-    dlg = IupDialog(canvas,`TITLE="%s"`, {TITLE})
-    IupSetCallback(dlg, "KEY_CB", Icallback("key_cb"))
-    IupShow(dlg)
-    IupSetAttribute(canvas, "RASTERSIZE", NULL)
-    if platform()!=JS then
-        IupMainLoop()
-        IupClose()
-    end if
-end procedure
-
-main()
+IupOpen()
+canvas = IupCanvas("RASTERSIZE=640x640")
+IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                         "ACTION", Icallback("redraw_cb")})
+timer = IupTimer(Icallback("timer_cb"), 20)
+dlg = IupDialog(canvas,`TITLE="%s"`, {TITLE})
+IupSetCallback(dlg, "KEY_CB", Icallback("key_cb"))
+IupShow(dlg)
+IupSetAttribute(canvas, "RASTERSIZE", NULL)
+if platform()!=JS then
+    IupMainLoop()
+    IupClose()
+end if
 

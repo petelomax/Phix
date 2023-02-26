@@ -2,175 +2,53 @@
 -- demo\rosetta\Speech.exw
 -- =======================
 --
-requires(WINDOWS)
-requires(32)    --  Windows 32 bit only, for now... (runs fine on a 64-bit OS, but needs a 32-bit p.exe)
+with javascript_semantics
+requires(6) -- WINDOWS or JS, not LINUX
+requires(32) -- Windows 32 bit only, for now... 
+-- (^ runs fine on a 64-bit OS, but needs a 32-bit p.exe)
+requires("1.0.2")
+include builtins\speak.e -- (new in 1.0.2)
 
 include pGUI.e
-Ihandle t3, left, red, right, btn, bc, dlg
+Ihandle t3, left, red, right, btn, hbc, dlg
 
-include pComN.ew
+-- not sure why, but a leading space really helps...
+constant text = ` Highlight words as they are spoken.`
 
-procedure speak(atom pVoice, string text, integer flags=NULL)
-    {} = cominvk(pVoice,ISpVoice_Speak,{unicode_string(text),flags,0})
+procedure speech_cb(integer pos, len)
+    if pos<0 then pos += length(text)+1 end if
+    IupSetStrAttribute(left,"TITLE",text[1..pos])
+    IupSetStrAttribute(red,"TITLE",text[pos+1..pos+len])
+    IupSetStrAttribute(right,"TITLE",text[pos+len+1..$])
+    IupSetAttributes({left,red,right}, "RASTERSIZE=x0")
+    IupRefresh(t3)
+    IupRedraw(t3)
 end procedure
-
-procedure set_interest(atom pVoice, sequence flags)
-    atom lo = #40000000,
-         hi = #00000002
-    for i=1 to length(flags) do
-        lo += power(2,flags[i])
-    end for
-    atom res = cominvk(pVoice,ISpVoice_SetInterest,{lo,hi,lo,hi})
-    if res!=S_OK then crash("invalid") end if
-end procedure
-
-constant text = `<rate speed="-5">Highlight words as they are spoken.`
-atom pVoice = NULL
-
-include cffi.e
-constant tSPEVENT = """
-typedef struct SPEVENT
-{
-    WORD         eEventId;
-    WORD         elParamType;
-    ULONG        ulStreamNum;
-    ULONGLONG    ullAudioStreamOffset;
-    WPARAM       wParam;
-    LPARAM       lParam;
-} SPEVENT;""",
-idSPEVENT = define_struct(tSPEVENT),
-pSPEVENT = allocate_struct(idSPEVENT)
-
-function eventHandler(atom wParam, lParam)
-    while cominvk(pVoice,ISpVoice_GetEvents,{1,pSPEVENT,NULL})=S_OK do
-        integer eEventId = get_struct_field(idSPEVENT,pSPEVENT,"eEventId")
-        if eEventId=SPEI_WORD_BOUNDARY then
-            integer len = get_struct_field(idSPEVENT,pSPEVENT,"wParam"),
-                    pos = get_struct_field(idSPEVENT,pSPEVENT,"lParam")
-            IupSetStrAttribute(left,"TITLE",text[1..pos])
-            IupSetStrAttribute(red,"TITLE",text[pos+1..pos+len])
-            IupSetStrAttribute(right,"TITLE",text[pos+len+1..$])
-        elsif eEventId=SPEI_END_INPUT_STREAM then
-            IupSetStrAttribute(left,"TITLE",text)
-            IupSetStrAttribute(red,"TITLE","")
-            IupSetStrAttribute(right,"TITLE","")
-        end if
-        IupSetAttribute(left, "RASTERSIZE", "x0")
-        IupSetAttribute(red, "RASTERSIZE", "x0")
-        IupSetAttribute(right, "RASTERSIZE", "x0")
-        IupRefresh(t3)
-        IupRedraw(t3)
-    end while
-    return 0
-end function
-constant cb_eventHandler = call_back(eventHandler)
 
 function button_cb(Ihandle /*ih*/)
-    object res
-    if platform()=WINDOWS then
-        if pVoice=NULL then
-            pVoice = allocate(machine_word())
-            res = CoCreateInstance(CLSID_SpVoice,IID_ISpVoice,pVoice)
-            if res!=S_OK then
-                crash("Failed to initialize SpeechAPI. (%08x)\n",res)
-            end if
-        end if
-        if cominvk(pVoice,ISpVoice_SetNotifyCallbackFunction,{cb_eventHandler,0,0})!=S_OK then ?9/0 end if
-        set_interest(pVoice, {SPEI_WORD_BOUNDARY,SPEI_END_INPUT_STREAM})
-        speak(pVoice,text,SPF_IS_XML+SPF_ASYNC)
-    else
-        -- DEV no highlighting here...
-        {} = system_exec(sprintf(`espeak "%s"`,{text}))
-    end if
+    atom rate = iff(platform()=WINDOWS?-5: -- -10..+10, voice dependent
+                iff(platform()=JS?0.3:      -- 0.1..10, 0.5 = half speed
+                                  9/0))      -- linux, anyone?...
+    speak(text,rate,speech_cb)
     return IUP_CONTINUE
 end function
 
 procedure main()
     IupOpen()
-    left = IupLabel("",`FONT="Verdana, 18"`)
-    red = IupLabel("",`FONT="Verdana, 18", FGCOLOR="255 0 0"`)
-    right = IupLabel(text,`FONT="Verdana, 18"`)
-    t3 = IupHbox({IupFill(),left,red,right,IupFill()},"MARGIN=20x20")
+    left = IupLabel()
+    red = IupLabel("",`FGCOLOR="255 0 0"`)
+    right = IupLabel(text)
+    t3 = IupHbox({IupFill(),left,red,right,IupFill()},
+                 `FONT="Verdana, 18", MARGIN=0x20`)
     btn = IupButton("Speak",Icallback("button_cb"))
-    bc = IupHbox({IupFill(),btn,IupFill()},"MARGIN=10x10")
-    dlg = IupDialog(IupVbox({t3,bc}),"TITLE=Speak")
+    hbc = IupHbox({IupFill(),btn,IupFill()},"MARGIN=0x10")
+    dlg = IupDialog(IupVbox({t3,hbc}),"TITLE=Speak")
     IupShow(dlg)
-    IupMainLoop()
-    IupClose()
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
 end procedure
 
 main()
 
-?"done"
-{} = wait_key()
-abort(0)
-
-
---/*
-typedef enum SPEVENTENUM
-{
-    SPEI_UNDEFINED,
-
-    //--- TTS engine
-    SPEI_START_INPUT_STREAM,
-    SPEI_END_INPUT_STREAM,
-    SPEI_VOICE_CHANGE,
-    SPEI_TTS_BOOKMARK,
-    SPEI_WORD_BOUNDARY,
-    SPEI_PHONEME,
-    SPEI_SENTENCE_BOUNDARY,
-    SPEI_VISEME,
-    SPEI_TTS_AUDIO_LEVEL,
-
-    //--- Engine vendors use these reserved bits
-    SPEI_TTS_PRIVATE,
-    SPEI_MIN_TTS,
-    SPEI_MAX_TTS,
-
-    //--- Speech Recognition
-    SPEI_END_SR_STREAM,
-    SPEI_SOUND_START,
-    SPEI_SOUND_END,
-    SPEI_PHRASE_START,
-    SPEI_RECOGNITION,
-    SPEI_HYPOTHESIS,
-    SPEI_SR_BOOKMARK,
-    SPEI_PROPERTY_NUM_CHANGE,
-    SPEI_PROPERTY_STRING_CHANGE,
-    SPEI_FALSE_RECOGNITION,
-    SPEI_INTERFERENCE,
-    SPEI_REQUEST_UI,
-    SPEI_RECO_STATE_CHANGE,
-    SPEI_ADAPTATION,
-    SPEI_START_SR_STREAM,
-    SPEI_RECO_OTHER_CONTEXT,
-    SPEI_SR_AUDIO_LEVEL,
-    SPEI_SR_RETAINEDAUDIO,
-
-    //--- Engine vendors use these reserved bits
-    SPEI_SR_PRIVATE,
-    SPEI_MIN_SR,
-    SPEI_MAX_SR,
-
-    //--- Reserved: Do not use
-    SPEI_RESERVED1,
-    SPEI_RESERVED2,
-    SPEI_RESERVED3
-} SPEVENTENUM;
-
-typedef struct SPEVENT
-{
-    WORD         eEventId;      -- see SPEVENTENUM
-    WORD         elParamType;
-    ULONG        ulStreamNum;
-    ULONGLONG    ullAudioStreamOffset;
-    WPARAM       wParam;
-    LPARAM       lParam;
-} SPEVENT;
-
-HRESULT GetEvents(
-   ULONG     ulCount,
-   SPEVENT  *pEventArray,
-   ULONG    *pulFetched
-);
---*/

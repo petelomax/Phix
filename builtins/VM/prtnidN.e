@@ -28,7 +28,7 @@ include builtins/VM/pStack.e    -- :%opGetST
 -- These must match pglobals.e:
 --  (include pglobals.e is not on as it introduces a bunch of compiler-
 --   related global variables that do not belong in application code.)
-constant S_Name  = 1,   -- const/var/rtn name
+constant S_Name  = 1,   -- constant/variable/routine name
          S_NTyp  = 2,   -- Const/GVar/TVar/Nspc/Type/Func/Proc
          S_FPno  = 3,   -- File and Path number
          S_State = 4,   -- state flag. S_fwd/S_used/S_set
@@ -126,7 +126,7 @@ function get_id(string s, bool bVar=false)
 object symtab,          -- yup, we (routine_id) is symtab[188], give or take...
        si,              -- copy of symtab[i], speedwise
        si_name          -- copy of symtab[i][S_name], speedwise/thread-sfaety
-integer rtn,            -- routine number of callee, from callstack
+integer rid,            -- routine number of callee, from callstack
         cFno,           -- calling fileno. Any namespace *must* be in this file.
         tFno,           -- target fileno, or 0 if no namespace specified
         siFno,          -- copy of si[S_FPno], speedwise
@@ -152,7 +152,7 @@ sequence name_space     -- eg "fred" when "fred:thing" is passed as parameter.
 --2/3/21
             mov edi,[edi+20]    -- prev_ebp
             mov edi,[edi+8]     -- calling routine no
-            mov [rtn],edi
+            mov [rid],edi
         [64]
             lea rdi,[symtab]
 --DEV not used:
@@ -163,12 +163,12 @@ sequence name_space     -- eg "fred" when "fred:thing" is passed as parameter.
 --2/3/21
             mov rdi,[rdi+40]    -- prev_ebp
             mov rdi,[rdi+16]    -- calling routine no
-            mov [rtn],rdi
+            mov [rid],rdi
         []
           }
 
-    cFno = symtab[rtn][S_FPno]      -- fileno of callee (whether routine or toplevel)
---?{rtn,cFno}
+    cFno = symtab[rid][S_FPno]      -- fileno of callee (whether routine or toplevel)
+--?{rid,cFno}
     tFno = find(':',s)
     res = -1
     if tFno then

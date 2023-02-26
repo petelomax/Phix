@@ -1,0 +1,944 @@
+﻿--
+-- demo\rosetta\WaveFunctionCollapse.exw
+-- =====================================
+--
+with javascript_semantics
+requires("1.0.2") -- (do until, and a switch <atom> bugfix)
+include pGUI.e
+Ihandle dlg, canvas
+cdCanvas cddbuffer
+
+bool bOverlap = true, -- (debug aids)
+     bSpat = false -- (show space as '@')
+
+integer N = 8 -- board size (nb must be even)
+constant title = "Wave Function Collapse", 
+         help_text = """
+Press 'o' to toggle overlap (see note below).
+Press '@' to toggle display spaces as '@'.
+Press '-' to decrease board size (min 2x2).
+Press '+' to increase board size (max 40x40).
+Press ' ' to start afresh.
+
+Note that it is not really possible to visually verify 
+that a pattern is correct unless overlap is turned off.
+"""
+                -- space,     T,    -|,    iT,    |-    
+constant tilem = {0b0000,0b0111,0b1011,0b1101,0b1110},
+                --       L,      R,      U,      D
+         valid = {{0b00101,0b10001,0b01001,0b00011},
+                  {0b11010,0b01110,0b01001,0b11100},
+                  {0b11010,0b10001,0b10110,0b11100},
+                  {0b11010,0b01110,0b10110,0b00011},
+                  {0b00101,0b01110,0b10110,0b11100}}
+-- eg valid[1=space][4=D] means space or T can go below it,
+--    with bits of each valid[][] being read right-to-left.
+
+sequence grid,      -- -1 if unknown, else one of tilem
+         allowed,   -- initially 0b11111 (all possible) -> 1 bit set
+         entropy    -- count matching allowed (speedwise/simplicity)
+
+integer left    -- N*N..0, with 0=finished, -1=FAIL, -2=REDO
+
+function lowest_entropy()
+    -- returns a random tile from those with the lowest entropy
+    integer row, col, me = 5, count = 0
+    for r=1 to N do
+        for c=1 to N do
+            if grid[r][c]=-1 then -- ignoring any already done
+                integer e = entropy[r][c]
+                if e<=me then
+                    if e<me then
+                        me = e
+                        count = 0
+                    end if
+                    count += 1
+                    -- first=me, 1 in 1 chance,
+                    -- second 1 in 2 chance,
+                    -- third 1 in 3 chance, etc.
+                    -- ===collect[rand(length)].
+                    if rand(count)=1 then
+                        {row,col} = {r,c}
+                    end if
+                end if
+            end if
+        end for
+    end for
+    return {row,col}
+end function
+
+function pop_count(integer p)
+    integer e = 0
+    while p do
+-- naieve, slower:
+--      e += odd(p)
+--      p = floor(p/2)
+-- Kernigans bit counter:
+-- eg p = 0b10101 && p-1=0b10100 => 0b10100
+--    p = 0b10100 && p-1=0b10011 => 0b10000
+--    p = 0b10000 && p-1=0b01111 => 0b00000
+--      p = and_bits(p,p-1)
+        p &&= p-1
+        e += 1
+    end while
+    return e
+end function
+
+function permitted(integer p, d)
+    --
+    -- Given p, 0b00001..0b11111, a 1-5 bitmask,
+    -- calculate the permitted tiles in direction
+    -- d (1..4 for LRUD), eg a T(2) can have 2|3|4
+    -- on the right, and a 3 can have 1|5, so if
+    -- p is 0b01100 the result is 0b11111 (all),
+    -- that is, when d is 2 (ie right).
+    --
+    integer nm = 0
+    for i=1 to 5 do
+        integer m = power(2,i-1)
+        if and_bits(p,m) then
+            nm = or_bits(nm,valid[i][d])
+        end if
+    end for
+    return nm
+end function
+
+function propagate(integer r,c,p)
+    --
+    -- Propagate the permitted tiles, given that only
+    -- those in p (0b00001..0b11111, a 1..5 bitmask)
+    -- are now allowed at [r][c]. Note this can fail,
+    -- especially for some ~2x3 enclosed spaces, and
+    -- in that case you want to undo everything, and
+    -- clear some initial permitted bit setting.
+    --
+    for j,d in {{0,-1},{0,1},{-1,0},{1,0}} do --LRUD
+        integer {dr,dc} = d,
+                 nr = r+dr,
+                 nc = c+dc
+        if nr>=1 and nr<=N and nc>=1 and nc<=N then
+            integer nm = permitted(p,j),
+                    op = allowed[nr][nc],
+                    np = and_bits(op,nm)
+            if np=0 then return false end if
+            if op!=np then
+                allowed[nr][nc] = np
+                entropy[nr][nc] = pop_count(np)
+                if not propagate(nr,nc,np) then return false end if
+            end if
+        end if
+    end for
+    return true
+end function
+
+procedure wfc()
+    --
+    -- wave function collapse: (iterative/one cell at a time, because
+    --      this was once on a timer, but now wfc_init() just loops.)
+    --
+    -- There is, I guess, around a 1 in 8000 chance of this failing,
+    -- which means 1 in 10 40x40 boards fail, presumbably because it
+    -- has surrounded an area and none of the edges will work out.
+    -- Setting left to -2 triggers the outer retry in wfc_init().
+    --
+    integer {r,c} = lowest_entropy(),
+            g = grid[r][c],
+            p = allowed[r][c]
+    assert(g=-1)
+    assert(p!=0)
+    -- pick a random but valid tile:
+    for i in shuffle(tagset(5)) do
+        integer m = power(2,i-1)
+        if and_bits(p,m) then
+            -- in case propagation fails, make a backup
+            sequence saveae = deep_copy({allowed,entropy})
+            grid[r][c] = tilem[i]
+            allowed[r][c] = m
+            entropy[r][c] = 1
+            left -= 1
+            if not propagate(r,c,m) then
+                grid[r][c] = g
+                {allowed,entropy} = saveae
+                saveae = {} -- kill refcounts
+                p -= m -- don't try this again!
+                if p=0 then
+--                  printf(1,"panic: allowed[%d][%d] := 0!\n",{r,c})
+                    left = -2   -- trigger a restart
+                    return
+                end if
+                integer e = pop_count(p)
+                assert(p!=0 and e!=0 and e==entropy[r][c]-1)
+                allowed[r][c] = p
+                entropy[r][c] = e
+                left += 1
+            end if
+            return
+        end if
+    end for
+end procedure
+
+procedure wfc_init() 
+    do
+        grid = repeat(repeat(-1,N),N)
+        allowed = repeat(repeat(0b11111,N),N)
+        entropy = repeat(repeat(5,N),N)
+        left = N*N
+        do
+            wfc()
+        until left<=0
+    until left!=-2
+end procedure
+
+-- (the rest of this is all fairly standard code)
+
+function redraw_cb(Ihandle ih)
+    integer {cw,ch} = IupGetIntInt(ih, "DRAWSIZE"),
+            N2 = N/2,   -- (nb forces N to be even)
+            N3 = N2+1,
+            d = floor(min(cw,ch)/N),
+            d9 = floor(min(cw,ch)/(2*N+1)),
+            d2 = floor(d/2), d4 = N2*d
+    cw = floor(cw/2)
+    ch = floor(ch/2)
+
+    cdCanvasActivate(cddbuffer)
+    cdCanvasClear(cddbuffer)
+    cdCanvasSetForeground(cddbuffer,CD_BLUE)
+    cdCanvasSetLineWidth(cddbuffer,3)
+    for row=1 to N do
+        integer ry = iff(bOverlap?ch-(row*2-N-1)*d9
+                                 :ch-(row-N3)*d-d2)
+        for col=1 to N do
+            integer rx = iff(bOverlap?cw+(col*2-N-1)*d9
+                                     :cw+(col-N3)*d+d2)
+            integer g = grid[row][col],
+                    e = entropy[row][col]
+            if g=0b1111 then
+                cdCanvasSetForeground(cddbuffer,CD_RED)
+                cdCanvasSetTextAlignment(cddbuffer, CD_CENTER) 
+                cdCanvasText(cddbuffer,rx,ry,"?")
+                cdCanvasSetForeground(cddbuffer,CD_BLUE)
+            elsif bSpat and g=0b0000 then
+                cdCanvasSetTextAlignment(cddbuffer, CD_CENTER) 
+                cdCanvasText(cddbuffer,rx,ry,"@")
+            elsif g!=-1 then
+                assert(e=1)
+                -- Erm, ain't tilem in LDRU order... (wth, it works)
+                for i,dxy in {{0,-1},{-1,0},{0,1},{1,0}} do -- LURD
+--              for i,dxy in {{-1,0},{0,1},{1,0},{0,-1}} do -- **BUG**
+                    if and_bits(g,power(2,i-1)) then
+                        integer {dr,dc} = sq_mul(dxy,iff(bOverlap?d9*2:d2))
+                        cdCanvasLine(cddbuffer,rx,ry,rx+dc,ry+dr)
+                    end if
+                end for
+            end if
+        end for
+    end for
+    cdCanvasFlush(cddbuffer)
+    string o = iff(bOverlap?"":" (no overlap)"),
+           f = iff(left!=-1?"":" FAIL")
+    IupSetStrAttribute(dlg,"TITLE","%s [%dx%d] %s%s",{title,N,N,o,f})
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle ih)
+    cdCanvas cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    return IUP_DEFAULT
+end function
+
+function help_cb(Ihandln /*ih*/)
+    IupMessage(title,help_text,bWrap:=false)
+    return IUP_IGNORE -- (don't open browser help!)
+end function
+
+function key_cb(Ihandle /*dlg*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if -- (standard practice for me)
+    if c=K_F5 then return IUP_DEFAULT end if -- (let browser reload work)
+    if c=K_F1 then return help_cb(NULL) end if
+    switch lower(c)
+        case 'c': wfc() 
+        case 'o': bOverlap = not bOverlap
+        case '-': N = max(N-4,0)
+                  fallthrough
+        case '+': N = min(N+2,40)
+                  fallthrough
+        case ' ': wfc_init()
+        case '@': bSpat = not bSpat
+    end switch
+    IupUpdate(canvas)
+    return IUP_IGNORE
+end function
+
+procedure main()
+    IupOpen()
+    canvas = IupGLCanvas("RASTERSIZE=440x440")
+    dlg = IupDialog(canvas,`TITLE="%s"`,{title})
+    IupSetCallbacks(canvas,{"MAP_CB",Icallback("map_cb"),
+                            "ACTION",Icallback("redraw_cb")})
+    IupSetCallback(dlg, "KEY_CB", Icallback("key_cb"))
+    IupSetAttributeHandle(NULL,"PARENTDIALOG",dlg)
+    wfc_init()
+    IupShow(dlg)
+    IupSetAttribute(canvas,"RASTERSIZE",NULL)
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
+end procedure
+ 
+main()
+
+--/*
+-- Translation of the Python ditty on the talk page:
+-- This trivial solution works because we're only ever adding left to right,
+-- and therefore only verifying L/U vs R/D, and it is not possible to have
+-- any two R/D for which no tile is valid. If this filled in each row/line
+-- more randomly, it would soon fail with no tile matching >=3 neighbours.
+-- (lowest entropy would also fail b/c it'd favour 2 no conn over 3 with)
+with javascript_semantics
+include builtins/unicode_console.e
+{} = unicode_console()
+
+with trace
+procedure make_rows(integer w)
+    sequence conn = split("0000.1101.1110.0111.1011","."), -- RULD flags
+            tiles = split("  ... ╠...═╩...═╣...═╦","..."), --[...aligned]
+              res = {},
+                r = {}, p, t
+    for n=1 to w do
+        {p, r} = {r, {}}
+        for i=1 to w do
+            t = {}
+            for x=1 to 5 do
+                if  (length(r)=0 or conn[x][3]=conn[r[$]][1])       -- L=R
+                and (length(p)=0 or conn[x][2]=conn[p[i]][4]) then  -- U=D
+                    t &= x
+                end if
+            end for
+            r &= t[rand(length(t))] 
+        end for
+        res = append(res,join(extract(tiles,r),""))
+    end for
+    puts(1,join(res,"\n"))
+    wait_key()
+end procedure
+
+make_rows(20)
+--*/
+
+
+--/* Saved full copy, before the big cleanup...
+--
+-- demo\rosetta\WaveFunctionCollapse.exw
+-- =====================================
+--
+puts(1,"")
+with javascript_semantics
+requires("1.0.2") -- (do until)
+--include pGUI.e
+-- optional (instead of the one-liner above, simplifies debugging)
+without debug
+include pGUI.e
+include builtins\VM\pcmdlnN.e
+include builtins\pcurrdir.e
+include builtins\pgetpath.e
+include builtins\VM\pcfunc.e
+include builtins\pfile.e
+include builtins\VM\pprntfN.e
+include builtins\get_routine_info.e
+include builtins\VM\pTime.e
+include builtins\scanf.e
+include builtins\pdir.e
+include builtins\penv.e
+with debug
+Ihandle dlg, canvas, timer
+cdCanvas cddbuffer
+
+bool bDiag = false, -- (debug aids)
+     bOverlap = true,
+     bTimer = false,
+     bSpat = false -- (show space as '@')
+
+integer N = 8 -- board size (nb must be even)
+constant title = "Wave Function Collapse", 
+         help_text = """
+Press 'c' to collapse one cell (if timer off).
+Press 'd' to toggle diagnostics (default off).
+Press '@' to toggle display spaces as '@'.
+Press 'o' to toggle overlap (see note below).
+Press 't' to toggle the timer (default off).
+Press '-' to decrease board size (min 2x2).
+Press '+' to increase board size (max 64x64).
+Press ' ' to start afresh.
+
+Note that it is not really possible to visually verify 
+that a pattern is correct unless overlap is turned off.
+Obviously diagnostics are the opposite of user-friendly.
+"""
+                -- space,     T,    -|,    iT,    |-    
+constant tilem = {0b0000,0b0111,0b1011,0b1101,0b1110},
+                --       L,      R,      U,      D
+         valid = {{0b00101,0b10001,0b01001,0b00011},
+                  {0b11010,0b01110,0b01001,0b11100},
+                  {0b11010,0b10001,0b10110,0b11100},
+                  {0b11010,0b01110,0b10110,0b00011},
+                  {0b00101,0b01110,0b10110,0b11100}}
+-- eg valid[1=space][4=D] means space or T can go below it,
+--    with bits of each valid[][] being read right-to-left.
+
+sequence grid,      -- -1 if unknown, else one of tilem
+         allowed,   -- initially 0b11111 (all possible) -> 1 bit set
+         entropy    -- count matching allowed (speedwise/simplicity)
+
+integer left    -- N*N..0, with 0=finished, or -1=FAIL
+
+function lowest_entropy()
+    -- returns a random tile from those with the lowest entropy
+    integer row, col, me = 5, count = 0
+    for r=1 to N do
+        for c=1 to N do
+            if grid[r][c]=-1 then -- ignoring any already done
+                integer e = entropy[r][c]
+                if e<=me then
+                    if e<me then
+                        me = e
+                        count = 0
+                    end if
+                    count += 1
+                    -- first=me, 1 in 1 chance,
+                    -- second 1 in 2 chance,
+                    -- third 1 in 3 chance, etc.
+                    -- ===collect[rand(length)].
+                    if rand(count)=1 then
+                        {row,col} = {r,c}
+                    end if
+                end if
+            end if
+        end for
+    end for
+    return {row,col}
+end function
+
+function pop_count(integer p)
+    integer e = 0
+    while p do
+-- naieve, slower:
+--      e += odd(p)
+--      p = floor(p/2)
+-- Kernigans bit counter:
+-- eg p = 0b10101 && p-1=0b10100 => 0b10100
+--    p = 0b10100 && p-1=0b10011 => 0b10000
+--    p = 0b10000 && p-1=0b01111 => 0b00000
+--      p = and_bits(p,p-1)
+        p &&= p-1
+        e += 1
+    end while
+    return e
+end function
+
+function permitted(integer p, d)
+    --
+    -- Given p, 0b00001..0b11111, a 1-5 bitmask,
+    -- calculate the permitted tiles in direction
+    -- d (1..4 for LRUD), eg a T(2) can have 2|3|4
+    -- on the right, and a 3 can have 1|5, so if
+    -- p is 0b01100 the result is 0b11111 (all),
+    -- that is, when d is 2 (ie right).
+    --
+    integer nm = 0
+    for i=1 to 5 do
+        integer m = power(2,i-1)
+        if and_bits(p,m) then
+            nm = or_bits(nm,valid[i][d])
+        end if
+    end for
+    return nm
+end function
+
+function propagate(integer r,c,p)
+    --
+    -- Propagate the permitted tiles, given that only
+    -- those in p (0b00001..0b11111, a 1..5 bitmask)
+    -- are now allowed at [r][c]. Note this can fail,
+    -- especially for some ~2x3 enclosed spaces, and
+    -- in that case you want to undo everything, and
+    -- clear some initial permitted bit setting.
+    --
+    for j,d in {{0,-1},{0,1},{-1,0},{1,0}} do --LRUD
+        integer {dr,dc} = d,
+                 nr = r+dr,
+                 nc = c+dc
+        if nr>=1 and nr<=N and nc>=1 and nc<=N then
+            integer nm = permitted(p,j),
+                    op = allowed[nr][nc],
+                    np = and_bits(op,nm)
+--/*
+            if np=0 then
+--printf(1,"np=0,[%d][%d]\n",{nr,nc})
+printf(1,"allowed[%d][%d]: %05b => %05b (permitted(0b%05b,%d) = %05b)\n",{nr,nc,op,np,p,j,nm})
+--              left = -1   -- FAIL
+--              grid[nr][nc] = 0b1111
+                return false
+--*/
+--          els
+            if op!=np then
+--              assert(np!=0)
+--if np=0 then
+--              printf(1,"allowed[%d][%d]: %05b => %05b (valid[%d][%d] = %05b)\n",{nr,nc,op,np,i,j,nm})
+------          if np=0 then
+--                  printf(1,"panic!\n")
+--                  return
+------          end if
+--end if
+--              integer e = pop_count(np)
+--/*
+if e=0 then
+    printf(1,"panic: pop_count(0b%05b) = %d??\n",{np,e})
+end if
+--*/
+                allowed[nr][nc] = np
+                entropy[nr][nc] = pop_count(np)
+--              entropy[nr][nc] = e
+--/*
+--              integer k = find(np,{0b00001,0b)
+                if e=1 then
+--              grid[nr][nc] = np
+                    integer k = find(np,{0b00001,0b00010,0b00100,0b01000,0b10000})
+if k=0 then
+printf(1,"k=0,np=%05b,[%d][%d]\n",{np,nr,nc})
+    left = -1
+    grid[nr][nc] = 0b1111
+    return
+end if
+                    propagate(nr,nc,k)
+                end if
+--*/
+                if not propagate(nr,nc,np) then return false end if
+            end if
+        end if
+    end for
+    return true
+end function
+
+procedure wfc(object f=0)
+--  if bDiag then ?"wfc" end if
+    --
+    -- wave function collapse: iterative, for use with timer,
+    --   or wfc_init() may loop until left has dropped to <=0.
+    --
+    -- There is, I guess, around a 1 in 8000 chance of this failing,
+    -- which means 1 in 10 40x40 boards fail, presumbably because it
+    -- has surrounded an area and none of the edges will work out.
+    -- Setting left to -2 triggers the outer retry in wfc_init().
+    --
+    if left<=0 then
+        if bDiag then ?{"left",left} end if
+        IupSetInt(timer,"RUN",false)
+    else
+--      integer {r,c} = lowest_entropy(),
+        integer {r,c} = iff(f=0?lowest_entropy():f),
+                g = grid[r][c],
+                p = allowed[r][c]
+        assert(g=-1)
+--      if g!=-1 then
+--          integer k = find(g,{0b0000,0b0111,0b1011,0b1101,0b1110})
+--          printf(1,"lowest_entropy={%d,%d} but grid[%d][%d]=%05b(%d) (abort)\n",{r,c,r,c,g,k})
+--          return
+--      end if
+        -- pick a random but valid tile:
+--      for i in shuffle(tagset(5)) do
+        sequence s = iff(f=0?shuffle(tagset(5)):{f[3]})
+        for i in s do
+            integer m = power(2,i-1)
+            if and_bits(p,m) then
+--/*
+if bDiag then
+                printf(1,"grid[%d][%d] := 0b%05b(%d)\n",{r,c,tilem[i],i})
+end if
+--*/
+                -- in case propagation fails, make a backup
+                sequence saveae = deep_copy({allowed,entropy})
+                grid[r][c] = tilem[i]
+                allowed[r][c] = m
+                entropy[r][c] = 1
+                left -= 1
+--              propagate(r,c,i)
+                if not propagate(r,c,m) then
+--?"oops, undo..."
+                    grid[r][c] = g
+                    {allowed,entropy} = saveae
+                    saveae = {} -- kill refcounts
+                    p -= m -- don't try this again!
+if p=0 then
+    printf(1,"panic: allowed[%d][%d] := 0!\n",{r,c})
+    grid[r][c] = 0b1111
+    left = -1
+    return
+end if
+                    integer e = pop_count(p)
+                    assert(p!=0 and e!=0 and e==entropy[r][c]-1)
+                    allowed[r][c] = p
+                    entropy[r][c] = e
+                    left += 1
+                end if
+                return
+            end if
+            -- bad forced setup?? (from wfc_init)
+            if f!=0 then ?9/0 end if
+        end for
+    end if
+end procedure
+
+procedure wfc_init() 
+    if bDiag then ?"wfc_init" end if
+    grid = repeat(repeat(-1,N),N)
+    allowed = repeat(repeat(0b11111,N),N)
+    entropy = repeat(repeat(5,N),N)
+    left = N*N
+if 01 then
+--  while true do
+    do
+        wfc()
+--      if bTimer or left<=0 then exit end if
+--  end while
+    until bTimer or left<=0
+else
+    -- some tricky cases...
+--  bTimer = true
+--/*
+    wfc({1,1,3})
+    wfc({1,2,5})
+    wfc({1,3,2})
+    wfc({2,1,5})
+    wfc({3,1,5})
+    wfc({4,1,5})
+    wfc({4,2,4})
+    wfc({4,3,2})
+--*/
+    wfc({1,1,4})
+    wfc({1,2,3})
+    wfc({2,3,4})
+    wfc({3,3,2})
+    wfc({4,1,4})
+    wfc({4,2,3})
+--*!/
+end if
+    IupSetInt(timer,"RUN",bTimer)
+end procedure
+
+-- (the rest of this is all fairly standard code)
+
+function redraw_cb(Ihandle ih)
+    integer {cw,ch} = IupGetIntInt(ih, "DRAWSIZE"),
+            N2 = N/2,   -- (nb forces N to be even)
+            N3 = N2+1,
+            d = floor(min(cw,ch)/N),
+            d9 = floor(min(cw,ch)/(2*N+1)),
+            d2 = floor(d/2), d4 = N2*d
+    cw = floor(cw/2)
+    ch = floor(ch/2)
+
+    cdCanvasActivate(cddbuffer)
+    cdCanvasClear(cddbuffer)
+    if bDiag then
+        -- Draw some grid lines
+        cdCanvasSetForeground(cddbuffer,CD_GREY)
+        cdCanvasSetLineWidth(cddbuffer,1)
+        if bOverlap then
+            for i=-N+1 to +N-1 by 2 do
+                cdCanvasLine(cddbuffer,cw+i*d9,ch-d4,cw+i*d9,ch+d4)
+                cdCanvasLine(cddbuffer,cw-d4,ch-i*d9,cw+d4,ch-i*d9)
+            end for
+        else
+            for i=-N2 to +N2 do
+                cdCanvasLine(cddbuffer,cw+i*d,ch-d4,cw+i*d,ch+d4)
+                cdCanvasLine(cddbuffer,cw-d4,ch+i*d,cw+d4,ch+i*d)
+            end for
+        end if
+    end if
+    cdCanvasSetForeground(cddbuffer,CD_BLUE)
+    cdCanvasSetLineWidth(cddbuffer,3)
+    for row=1 to N do
+        integer ry = iff(bOverlap?ch-(row*2-N-1)*d9
+                                 :ch-(row-N3)*d-d2)
+        for col=1 to N do
+            integer rx = iff(bOverlap?cw+(col*2-N-1)*d9
+                                     :cw+(col-N3)*d+d2)
+            integer g = grid[row][col],
+                    e = entropy[row][col]
+            if g=0b1111 then
+                cdCanvasSetForeground(cddbuffer,CD_RED)
+                cdCanvasSetTextAlignment(cddbuffer, CD_CENTER) 
+                cdCanvasText(cddbuffer,rx,ry,"?")
+                cdCanvasSetForeground(cddbuffer,CD_BLUE)
+            elsif bSpat and g=0b0000 then
+                cdCanvasSetTextAlignment(cddbuffer, CD_CENTER) 
+                cdCanvasText(cddbuffer,rx,ry,"@")
+            elsif g!=-1 then
+                assert(e=1)
+--  if e!=1 then printf(1,"oops, grid[%d][%d]=%d, but e=%d\n",{row,col,g,e}) end if
+                for i,dxy in {{0,-1},{-1,0},{0,1},{1,0}} do -- LURD
+                    if and_bits(g,power(2,i-1)) then
+                        integer {dr,dc} = sq_mul(dxy,iff(bOverlap?d9*2:d2))
+                        cdCanvasLine(cddbuffer,rx,ry,rx+dc,ry+dr)
+                    end if
+                end for
+            end if
+if bDiag then
+            integer p = allowed[row][col],
+                k = find(g,{0b0000,0b0111,0b1011,0b1101,0b1110}) -- (-1->0)
+            cdCanvasSetTextAlignment(cddbuffer, CD_NORTH_WEST) 
+            string sp = reverse(sprintf("%05b",p))
+--          cdCanvasText(cddbuffer,rx,ry,sprintf("g%d p%05b e:%d",{k,p,e}))
+            cdCanvasText(cddbuffer,rx,ry,sprintf("g%d p%s e:%d",{k,sp,e}))
+end if
+        end for
+    end for
+    cdCanvasFlush(cddbuffer)
+    string f = iff(left=-1?" FAIL":"")
+    sequence ot = iff(bOverlap?{}:{"no overlap"})&
+                  iff(bTimer?{"timer on"}:{})
+    ot = iff(length(ot)?sprintf(" (%s)",join(ot,", ")):"")
+    IupSetStrAttribute(dlg,"TITLE","%s [%dx%d] %s%s",{title,N,N,ot,f})
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle ih)
+    cdCanvas cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+--  cdCanvasSetTextAlignment(cddbuffer, CD_NORTH_WEST) 
+--  cdCanvasSetTextAlignment(cddbuffer, CD_CENTER) 
+    return IUP_DEFAULT
+end function
+
+function help_cb(Ihandln /*ih*/)
+    IupMessage(title,help_text,bWrap:=false)
+    return IUP_IGNORE -- (don't open browser help!)
+end function
+
+function key_cb(Ihandle /*dlg*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if -- (standard practice for me)
+    if c=K_F5 then return IUP_DEFAULT end if -- (let browser reload work)
+    if c=K_F1 then return help_cb(NULL) end if
+--  switch lower(c) -- oops, the compiler needs a little help, here:
+    c = and_bits(lower(c),#7F) -- (you /may/ have a 128-way jump table!)
+    switch c
+        case 'c': wfc() 
+        case 'd': bDiag = not bDiag
+                  if bDiag then
+                    bOverlap = false
+                    bTimer = false
+                    IupSetInt(timer,"RUN",false)
+                  end if    
+        case 'o': bOverlap = not bOverlap
+        case 't': bTimer = not bTimer
+                  IupSetInt(timer,"RUN",true)
+        case '-': N = max(N/4,1)
+                  fallthrough
+        case '+': N = min(N*2,64)
+                  fallthrough
+        case ' ': wfc_init()
+        case '@': bSpat = not bSpat
+--      case '!': crash("! keyed!")
+    end switch
+    IupUpdate(canvas)
+    return IUP_CONTINUE
+end function
+
+function timer_cb(Ihandle /*ih*/)
+    wfc()
+    IupUpdate(canvas)
+    return IUP_IGNORE
+end function
+
+procedure main()
+    IupOpen()
+--  canvas = IupGLCanvas("RASTERSIZE=440x440")
+    canvas = IupGLCanvas("RASTERSIZE=800x800")
+    dlg = IupDialog(canvas,`TITLE="%s"`,{title})
+    IupSetCallbacks(canvas,{"MAP_CB",Icallback("map_cb"),
+                            "ACTION",Icallback("redraw_cb")})
+    IupSetCallback(dlg, "KEY_CB", Icallback("key_cb"))
+    IupSetAttributeHandle(NULL,"PARENTDIALOG",dlg)
+    timer = IupTimer(Icallback("timer_cb"),10)
+    wfc_init()
+    IupShow(dlg)
+    IupSetAttribute(canvas,"RASTERSIZE",NULL)
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
+end procedure
+ 
+main()
+--*/
+-- This is how I started...
+--constant tile = {0b0000,  -- space
+--                 0b0111,  -- -|
+--                 0b1011,  -- |-
+--                 0b1101,  -- T
+--                 0b1110}, -- T, inverted
+--                space,     -|,     |-,      T,    i-T
+
+--/*
+--                          --      L       R       U       D 
+constant valid_neighbours = {{0b00101,0b10001,0b01001,0b00011},
+                             {0b11010,0b01110,0b01001,0b11100},
+                             {0b11010,0b10001,0b10110,0b11100},
+                             {0b11010,0b01110,0b10110,0b00011},
+                             {0b00101,0b01110,0b10110,0b11100}}
+
+constant verified = {{1,1,1,1},
+                     {1,1,1,1},
+                     {1,1,1,1},
+                     {1,1,1,1},
+                     {1,1,1,1}}
+--*/
+
+--pp(valid,{pp_Nest,1,pp_IntFmt,"0b%05b"})
+--/*
+{{0b01111,0b01000,0b00001,0b00010,0b00100},
+ {0b00010,0b00101,0b01100,0b01111,0b01001},
+ {0b00100,0b00011,0b01010,0b01001,0b01111},
+ {0b01000,0b01111,0b00110,0b00101,0b00011},
+ {0b00001,0b00110,0b01111,0b01100,0b01010}}
+{{`   `,
+  `   `,
+  `   `},
+ {`   `,
+  `***`,
+  ` * `},
+ {` * `,
+  `** `,
+  ` * `},
+ {` * `,
+  `***`,
+  `   `},
+ {` * `,
+  ` **`,
+  ` * `}}
+{{0b00101,0b10001,0b01001,0b00011},
+ {0b11010,0b01110,0b01001,0b11100},
+ {0b11010,0b10001,0b10110,0b11100},
+ {0b11100,0b01110,0b10110,0b00011},
+ {0b00101,0b01110,0b10110,0b11100}}
+--*/
+--if 01 then
+--  valid = valid_neighbours
+--end if
+
+--pp(tiles,{pp_Nest,2})
+--pp(valid,{pp_Nest,1,pp_IntFmt,"0b%05b"})
+
+--constant masks = {0b00001,0b00010,0b00100,0b01000,0b10000}
+                -- (or sq_power(2,tagstart(0,5))
+
+--/*
+function rotate(sequence tile)
+    sequence res = deep_copy(tile)
+    res[1,2] = tile[2,1]    -- U := L
+    res[2,3] = tile[1,2]    -- R := U
+    res[3,2] = tile[2,3]    -- D := R
+    res[2,1] = tile[3,2]    -- L := D
+    return res
+end function
+
+function rotations(sequence tiles)
+    --
+    -- Note: The code in redraw_cb() was written/adjusted after this,
+    --       to cope with what this generates, and specifically the
+    --       and_bits(g,power(2,i-1))/cdCanvasLine() will need either
+    --       modifying or completely replacing, should this change.
+    --       In other words the code in redraw_cb() does not actually
+    --       look (even sideways) at what this routine returns.
+    --
+    sequence res = {},
+             edges = {},
+             tilem = {}
+    for tb in tiles do
+        {sequence t, integer b} = tb
+        integer w = length(t)
+        for rot=1 to 4 do
+            if find(t,res) then exit end if
+            res = append(res,t)
+            edges = append(edges,{vslice(t,1),vslice(t,w),t[1],t[w]})
+            tilem = append(tilem,b)
+            t = rotate(t)
+            b = odd(b)*0b1000 + floor(b/2) -- LURD->DLUR
+        end for
+    end for
+    tiles = res
+    --
+    -- As above, this edge matching is used "after the fact", and may
+    -- need completely replacing, should you change the tiles, etc.
+    --
+    integer l = length(tiles), 
+         mask = power(2,l)-1
+    sequence valid = repeat(repeat(mask,4),l)
+    for i=1 to l do
+        for d=1 to 4 do -- LRUD
+            integer m = 1
+            mask = 0
+            for j=1 to l do
+                -- match LRUD with RLDU...
+                if edges[i][d]=edges[j][{2,1,4,3}[d]] then
+                    mask += m
+                end if
+                m *= 2
+            end for
+            valid[i][d] = mask
+        end for
+    end for
+    return {tilem,valid}
+end function
+        
+--constant tilem = {0b0000,0b0111,0b1011,0b1101,0b1110},
+
+constant {tileM,valiD} = rotations({{{"   ",
+                                      "   ",
+                                      "   "}, 0b0000},
+                                    {{"   ",
+                                      "***",
+                                      " * "}, 0b0111}})
+printf(1,"tilem:%t, valid:%t\n",{tileM=tilem,valiD=valid})
+--/*
+pp(tilem,{pp_IntFmt,"0b%05b"})
+pp(tileM,{pp_IntFmt,"0b%05b"})
+pp(valid,{pp_Nest,1,pp_IntFmt,"0b%05b"})
+pp(valiD,{pp_Nest,1,pp_IntFmt,"0b%05b"})
+{0b00000,0b00111,0b01011,0b01101,0b01110}
+{0b00000,0b00111,0b01011,0b01101,0b01110}
+{{0b00101,0b10001,0b01001,0b00011},
+ {0b11010,0b01110,0b01001,0b11100},
+ {0b11010,0b10001,0b10110,0b11100},
+ {0b11010,0b01110,0b10110,0b00011},
+ {0b00101,0b01110,0b10110,0b11100}}
+{{0b00101,0b10001,0b01001,0b00011},
+ {0b11010,0b01110,0b01001,0b11100},
+ {0b11010,0b10001,0b10110,0b11100},
+ {0b11010,0b01110,0b10110,0b00011},
+ {0b00101,0b01110,0b10110,0b11100}}
+--*/
+wait_key()
+--*/
+
+--if not verified[i,j] or np=0 then
+--if np=0 then
+--                          printf(1,"allowed[%d][%d]: %05b => %05b (valid[%d][%d] = %05b)\n",{nr,nc,op,np,i,j,nm})
+----                            if np=0 then
+--                              printf(1,"panic!\n")
+--                              return
+----                            end if
+--end if
+--                      integer {dr,dc} = dxy
+--                      if bOverlap then
+--                          cdCanvasLine(cddbuffer,rx,ry,rx+dc*d9*2,ry+dr*d9*2)
+--                      else
+--                          cdCanvasLine(cddbuffer,rx,ry,rx+dc*d2,ry+dr*d2)
+--                      end if
+--/*
+--*/
+--  cdCanvasFont(cddbuffer,"Courier",CD_PLAIN,8)
+
+

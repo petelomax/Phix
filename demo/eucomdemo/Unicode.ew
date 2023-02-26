@@ -21,20 +21,16 @@
 include w32support.e
 
 constant
-k32 = open_dll( "kernel32.dll" ),
+k32 = open_dll("kernel32.dll"),
 -- winnls.h
-MultiByteToWideChar = define_c_func( k32, "MultiByteToWideChar", 
-    { C_UINT, C_LONG, C_POINTER, C_LONG, C_POINTER, C_LONG}, C_LONG),
-WideCharToMultiByte = define_c_func( k32, "WideCharToMultiByte", 
-    { C_UINT, C_LONG, C_POINTER, C_LONG, C_POINTER, C_LONG, C_POINTER,
-      C_POINTER}, C_LONG),
---lstrlen = define_c_func( k32, "lstrlen", { C_POINTER }, C_LONG ),
+MultiByteToWideChar = define_c_func(k32, "MultiByteToWideChar", {C_UINT, C_LONG, C_PTR, C_LONG, C_PTR, C_LONG}, C_LONG),
+WideCharToMultiByte = define_c_func(k32, "WideCharToMultiByte", {C_UINT, C_LONG, C_PTR, C_LONG, C_PTR, C_LONG, C_PTR, C_PTR}, C_LONG),
+--lstrlen = define_c_func( k32, "lstrlen", { C_PTR }, C_LONG ),
 
-oleaut32 = open_dll( "oleaut32.dll" ),
-SysAllocString = define_c_func( oleaut32, "SysAllocString",{ C_POINTER },
-    C_LONG ),
-SysFreeString = define_c_proc( oleaut32, "SysFreeString", { C_POINTER} ),
-SysStringLen = define_c_func( oleaut32, "SysStringLen", { C_POINTER },C_POINTER )
+oleaut32 = open_dll("oleaut32.dll"),
+SysAllocString = define_c_func(oleaut32, "SysAllocString",{C_PTR}, C_LONG),
+SysFreeString = define_c_proc(oleaut32, "SysFreeString", {C_PTR}),
+SysStringLen = define_c_func(oleaut32, "SysStringLen", {C_PTR},C_PTR)
 
 
 --/topic Utilities
@@ -46,18 +42,18 @@ SysStringLen = define_c_func( oleaut32, "SysStringLen", { C_POINTER },C_POINTER 
 --call this function, as you can use /peek_bstr and /peek_unicode, which
 --automatically convert Unicode text to ANSI.
 
-global function unicode_to_ansi( sequence uni )
+global function unicode_to_ansi(sequence uni)
     atom ansi_ptr, mset, uni_ptr, ok
     integer uni_len, ansi_len
     sequence ansi
-    
+
     ansi_ptr = 0
     mset = w32new_memset()
-    
-    uni_len = length( uni ) 
-    uni_ptr = w32acquire_mem( mset, uni )
+
+    uni_len = length(uni)
+    uni_ptr = w32acquire_mem(mset, uni)
     ansi_len = uni_len/2 --floor( uni_len / 2 + 1 )
-    
+
     -- first find the size buffer we need
 --    ansi_len = .5 * c_func( WideToMultiByteChar, 
 --            { 0,            -- code page
@@ -67,27 +63,27 @@ global function unicode_to_ansi( sequence uni )
 --              0,            -- ptr to buffer for return value
 --              0             -- length of buffer
 --            } )
-    
-    ansi_ptr =  w32acquire_mem( mset, ansi_len + 2 )
-    
+
+    ansi_ptr =  w32acquire_mem(mset, ansi_len+2)
+
     -- now convert the string
-    ok = c_func( WideCharToMultiByte, 
-            { 0,            -- code page
-              0,            -- flags
-              uni_ptr,      -- ptr to string
-              uni_len,      -- length of string
-              ansi_ptr,     -- ptr to buffer for return value
-              ansi_len,     -- length of buffer
-              0,            -- default char
-              0             -- used default char
-            } )
-    
-    ansi = peek( {ansi_ptr, ansi_len } )
-    
-    w32release_mem( mset )
-    
+    ok = c_func(WideCharToMultiByte,
+                {0,         -- code page
+                 0,         -- flags
+                 uni_ptr,   -- ptr to string
+                 uni_len,   -- length of string
+                 ansi_ptr,  -- ptr to buffer for return value
+                 ansi_len,  -- length of buffer
+                 0,         -- default char
+                 0          -- used default char
+                })
+
+    ansi = peek({ansi_ptr, ansi_len})
+
+    w32release_mem(mset)
+
     return ansi
-    
+
 end function
 
 --/topic Utilities
@@ -99,18 +95,18 @@ end function
 --call this function, as you can use /alloc_bstr, which automatically converts
 --ANSI text to Unicode.
 
-global function ansi_to_unicode( sequence ansi )
+global function ansi_to_unicode(sequence ansi)
     atom uni_ptr, ansi_ptr, ok, mset
     integer ansi_len, uni_len
     sequence uni
-    
+
     mset = w32new_memset()
-    
-    ansi_len = length( ansi ) 
-    uni_len = ansi_len * 2 + 2
-    
-    ansi_ptr = w32acquire_mem( mset, ansi )
-    
+
+    ansi_len = length(ansi)
+    uni_len = ansi_len*2+2
+
+    ansi_ptr = w32acquire_mem(mset, ansi)
+
     -- first find the size buffer we need
 --    uni_len = 2 * c_func( MultiByteToWideChar, 
 --            { 0,            -- code page
@@ -120,23 +116,23 @@ global function ansi_to_unicode( sequence ansi )
 --              0,            -- ptr to buffer for return value
 --              0             -- length of buffer
 --            } )
-    
-    uni_ptr =  w32acquire_mem( mset, uni_len )
-    
+
+    uni_ptr =  w32acquire_mem(mset, uni_len)
+
     -- now convert the string
-    ok = c_func( MultiByteToWideChar, 
-            { 0,            -- code page
-              0,            -- flags
-              ansi_ptr,     -- ptr to string
-              ansi_len,     -- length of string
-              uni_ptr,      -- ptr to buffer for return value
-              uni_len       -- length of buffer
-            } )
-    
-    uni = peek( {uni_ptr, uni_len - 2} )
-    
-    w32release_mem( mset )
-    
+    ok = c_func(MultiByteToWideChar,
+                {0,         -- code page
+                 0,         -- flags
+                 ansi_ptr,  -- ptr to string
+                 ansi_len,  -- length of string
+                 uni_ptr,   -- ptr to buffer for return value
+                 uni_len    -- length of buffer
+                })
+
+    uni = peek({uni_ptr, uni_len-2})
+
+    w32release_mem(mset)
+
     return uni
 end function
 
@@ -150,16 +146,16 @@ end function
 --These strings are allocated by COM, and should only be allocated by /b alloc_bstr
 --and freed using /free_bstr.
 
-global function alloc_bstr( sequence str )
+global function alloc_bstr(sequence str)
     atom pbstr, lpwstr
 --  integer count
-    
-    str = ansi_to_unicode( str ) & 0 & 0 -- add double null for wide string terminator
-    
-    lpwstr = w32acquire_mem( 0, str )
-    pbstr = c_func( SysAllocString, { lpwstr } )
-    w32release_mem( lpwstr )
-    
+
+    str = ansi_to_unicode(str) & 0 & 0 -- add double null for wide string terminator
+
+    lpwstr = w32acquire_mem(0, str)
+    pbstr = c_func(SysAllocString, {lpwstr})
+    w32release_mem(lpwstr)
+
     return pbstr
 end function
 
@@ -168,17 +164,17 @@ end function
 --/desc Reads a Unicode string in memory and converts to ANSI
 --Reads a Unicode string in memory and converts to ANSI
 
-global function peek_unicode( atom ptr )
+global function peek_unicode(atom ptr)
     sequence str, temp
-    
+
     str = ""
     temp = {}
-    while not equal( temp, {0,0} ) do
+    while not equal(temp, {0,0}) do
         str &= temp
-        temp = peek( {ptr,2} )
+        temp = peek({ptr,2})
         ptr += 2
     end while
-    
+
     return unicode_to_ansi(str)
 end function
 
@@ -187,12 +183,12 @@ end function
 --/desc Reads a BSTR from memory and converts to ANSI
 --Reads a BSTR from memory and converts to ANSI
 
-global function peek_bstr( atom bstr )
+global function peek_bstr(atom bstr)
     integer len
-    
-    len = c_func( SysStringLen, { bstr } )
-    
-    return unicode_to_ansi( peek({ bstr, len * 2 }) )
+
+    len = c_func(SysStringLen, {bstr})
+
+    return unicode_to_ansi(peek({bstr, len*2}))
 end function
 
 --/topic Utilities
@@ -203,8 +199,8 @@ end function
 --referece-counted by COM, and so the string may not be actually released when this
 --is called.
 
-global procedure free_bstr( atom bstr )
-    c_proc( SysFreeString, { bstr } )
+global procedure free_bstr(atom bstr)
+    c_proc(SysFreeString, {bstr})
 end procedure
 
 

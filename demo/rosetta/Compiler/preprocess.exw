@@ -1,0 +1,204 @@
+--
+-- demo\rosetta\Compiler\preprocess.exw
+-- ====================================
+--
+-- Note this uses js_open() and js_gets() directly, to avoid distributing another two files.
+-- Also implemented as a standalone demonstration of the general approach, and as such
+-- might require a bit more work to integrate this properly into the likes of next_ch(),
+-- unless of course you write it out to disk and/or add some kind of js_write() function.
+-- Also as noted this won't cope particularly well with #macro("1st,first","2nd")#, etc.
+-- In other words splitting up the parameters may need to be made significantly smarter.
+--
+with javascript_semantics
+include core.e -- (see [[Compiler/lexical_analyzer#Phix]] - specifically js_io.e's Source.t)
+
+sequence stack, includes, defines, arglst, bodies
+integer stack_ptr
+
+procedure begin(string filename)
+    -- (to allow with and without comments, sequentially, and
+    --  specifically not moaning about things being redefined)
+    stack = repeat(0,5) -- (limited as per task description)
+    includes = repeat("?",5) -- ""
+    defines = {} -- eg "area(h, w) h * w" -> "area"
+    arglst = {} -- -1 if () absent, else eg {"h","w"}
+    bodies = {} -- eg "area(h, w) h * w" -> {1," * ",2}
+    stack_ptr = 1
+    stack[stack_ptr] = js_open(filename)
+end procedure
+        
+function get_word(string line, integer k=1)
+    string word = ""
+    for ch in line[k..$] do
+        if not find(charmap[ch],{LETTER,DIGIT}) then exit end if
+        word &= ch
+    end for
+    return word
+end function
+
+function preprocess(string fragment, bool comments)
+    string word = get_word(fragment)
+    integer k = find(word,defines)
+    assert(k!=0,"no such macro:%s",{word})
+    sequence used = {word},
+             body = deep_copy(bodies[k])
+    fragment = fragment[length(word)+1..$]
+    object args = arglst[k]
+    if sequence(args) then
+        assert(fragment[1]='(' and fragment[$]=')')
+        fragment = fragment[2..$-1]
+        // NB: won't cope with eg #macro("1st,first","2nd")#, etc.
+        sequence params = apply(split(fragment,','),trim)
+        assert(length(params)==length(args))
+        for i=1 to length(body) do
+            if integer(body[i]) then
+                word = params[body[i]]
+                k = find(word,defines)
+                if k then
+                    // (this /might/ want to be recursive...)
+                    used = append(used,word)
+                    assert(atom(arglst[k])) // placeholder
+                    word = join(bodies[k],"")
+                end if
+                body[i] = word
+            end if
+        end for
+    else
+        assert(fragment="")     
+    end if
+    if comments then
+        printf(1,"/* Use %s */\n",{join(used,", ",", and ")})   
+    end if
+    string replacement = join(body,"")
+    return replacement
+end function
+
+for comments in {false,true} do
+    printf(1,"with%s comments:\n",{iff(comments?"":"out")})
+    begin("Source.t")
+    while stack_ptr do
+        object oneline = js_gets(stack[stack_ptr])
+        if oneline=EOF then
+            if comments and stack_ptr>1 then
+                printf(1,"/* End %s */\n",{includes[stack_ptr]})
+            end if
+            stack_ptr -= 1
+        else
+            integer k = find('#',oneline)
+            if k then
+                string word = get_word(oneline,k+1)
+                if word="include" then
+                    stack_ptr += 1
+                    assert(k=1)
+                    -- 10 is length("#include ")+1
+                    oneline = trim(oneline[10..$],` "`)
+                    stack[stack_ptr] = js_open(oneline)
+                    if comments then
+                        printf(1,"/* Include %s */\n",{oneline})
+                        includes[stack_ptr] = oneline
+                    end if
+                elsif word="define" then
+                    assert(k=1)
+                    -- 9 is length("#define ")+1
+                    word = get_word(oneline,9)
+                    assert(not find(word,defines))
+                    defines = append(defines,word)
+                    oneline = trim(oneline[9+length(word)..$])
+                    sequence body = {}
+                    if oneline[1]='(' then
+                        k = find(')',oneline,2)
+                        assert(k>0,"closing parenthesis missing")
+                        sequence args = apply(split(oneline[2..k-1],','),trim)
+                        oneline = trim(oneline[k+1..$])
+                        string fixed = ""
+                        while length(oneline) do
+                            word = get_word(oneline)
+                            if length(word)=0 then
+                                fixed &= oneline[1]
+                                oneline = oneline[2..$]
+                            else
+                                k = find(word,args)
+                                if k then
+                                    if length(fixed) then
+                                        body = append(body,fixed)
+                                        fixed = ""
+                                    end if
+                                    body = append(body,k)
+                                else
+                                    fixed &= word
+                                end if
+                                oneline = oneline[length(word)+1..$]
+                            end if
+                        end while
+                        if length(fixed) then
+                            body = append(body,fixed)
+                            fixed = ""
+                        end if
+                        arglst = append(arglst,args)
+                    else
+                        body = {oneline}
+                        arglst = append(arglst,-1)
+                    end if
+                    bodies = append(bodies,body)
+                    if comments then
+                        object al = arglst[$]
+                        string n = defines[$],
+                               a = iff(atom(al)?"":sprintf("(%s)",{join(al,',')}))
+                        sequence b = deep_copy(bodies[$])
+                        for i=1 to length(b) do
+                            if atom(b[i]) then
+                                b[i] = al[b[i]]
+                            end if
+                        end for
+                        b = join(b,"")      
+                        printf(1,"/* Define %s%s as %s */\n",{n,a,b})
+                    end if
+                else
+                    while k do
+                        integer l = find('#',oneline,k+1)
+                        assert(l!=0,"missing closing #")
+                        string fragment = oneline[k+1..l-1],
+                            replacement = preprocess(fragment,comments)
+                        oneline[k..l] = replacement
+                        k = find('#',oneline,k+length(replacement)-1)
+                    end while
+                    printf(1,"%s\n",{oneline})
+                end if
+            else
+                printf(1,"%s\n",{oneline})
+            end if
+        end if
+    end while
+    printf(1,"\n")
+end for
+
+--close_files()
+?"done"
+wait_key()
+
+--/*
+Given these (as defined in js_io.e):
+~~ Header.h ~~
+#define area(h, w) h * w
+
+~~ Source.t ~~
+#include "Header.h"
+#define width 5
+#define height 6
+area = #area(height, width)#;
+
+Output is:
+
+without comments:
+area = 6 * 5;
+
+with comments:
+/* Include Header.h */
+/* Define area(h,w) as h * w */
+/* End Header.h */
+/* Define width as 5 */
+/* Define height as 6 */
+/* Use area, height, and width */
+area = 6 * 5;
+--*/
+

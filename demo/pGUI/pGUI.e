@@ -27,7 +27,9 @@ global type Ihandles(object o)
 --if not object(o) then ?9/0 end if
     if atom(o) then return Ihandle(o) end if
     for i=1 to length(o) do
-        if not Ihandle(o[i]) then return 0 end if
+--7/5/22:
+--      if not Ihandle(o[i]) then return 0 end if
+        if not Ihandles(o[i]) then return 0 end if
     end for
     return 1
 end type
@@ -95,7 +97,7 @@ global function iup_name_from_cb(atom cb)
     return name
 end function
 
-function rid_from_cb(atom cb)
+function iup_rid_from_cb(atom cb)
     integer rid = cbrids[find(cb,callbacks)]
     return rid
 end function
@@ -133,10 +135,6 @@ include builtins/ptypes.e
 --  return integer(o) and (o=0 or o=1)
 --end type
 
-type dword_seq(sequence s)  -- (technically qword_seq on 64-bit)
-    return not string(s)
-end type
-
 -- erm, there is no chance of this ever working on any flavour of OE.
 --ifdef not EU4_1 then
 --global 
@@ -144,6 +142,10 @@ function sizeof(atom ctype)
     return and_bits(ctype, #FF)
 end function
 --end ifdef
+
+type dword_seq(sequence s)  -- (technically qword_seq on 64-bit)
+    return not string(s)
+end type
 
 -- (defaulted parameters version is for running the unit tests that follow)
 --function paranormalise(object action=NULL, object func=NULL, sequence attributes="", dword_seq args={})
@@ -486,7 +488,25 @@ global function rgb(atom red, green, blue, alpha=0)
     return colour
 end function
 
+--atom minh = 9999, maxh = -9999,
+--   mins = 9999, maxs = -9999,
+--   minv = 9999, maxv = -9999,
+--   mina = 9999, maxa = -9999  
 global function hsv_to_rgb(atom h, s, v, a=0)
+--if h<minh or h>maxh
+--or s<mins or s>maxs
+--or v<minv or v>maxv
+--or a<mina or a>maxa then
+--  minh = min(minh,h)
+--  maxh = max(maxh,h)
+--  mins = min(mins,s)
+--  maxs = max(maxs,s)
+--  minv = min(minv,v)
+--  maxv = max(maxv,v)
+--  mina = min(mina,a)
+--  maxa = max(maxa,a)
+--  ?{"h",minh,maxh,"s",mins,maxs,"v",minv,maxv,"a",mina,maxa}
+--end if
     integer i = floor(h*6)
     atom f = h*6-i,
          p = v*(1-s),
@@ -1091,25 +1111,25 @@ procedure iup_link_error(sequence name)
     crash("link error: "&name)
 end procedure
 
-global -- for iup_layoutdlg.e
-function iup_c_func(atom dll, sequence name, sequence args, atom result, boolean allow_fail=false)
-    integer handle = define_c_func(dll, name, args, result)
-    if handle = -1 then
-        if allow_fail then
-            handle = NULL
-        else
-            iup_link_error(name)
-        end if
-    end if
-    return handle
-end function
-
-global -- for iup_layoutdlg.e
-function iup_c_proc(atom dll, sequence name, sequence args)
-    integer handle = define_c_proc(dll, name, args)
-    if handle = -1 then iup_link_error(name) end if
-    return handle
-end function
+--global -- for iup_layoutdlg.e
+--function iup_c_func(atom dll, sequence name, sequence args, atom result, boolean allow_fail=false)
+--  integer handle = define_c_func(dll, name, args, result, false)
+--  if handle = -1 then
+--      if allow_fail then
+--          handle = NULL
+--      else
+--          iup_link_error(name)
+--      end if
+--  end if
+--  return handle
+--end function
+--
+--global -- for iup_layoutdlg.e
+--function iup_c_proc(atom dll, sequence name, sequence args)
+--  integer handle = define_c_proc(dll, name, args, false)
+--  if handle = -1 then iup_link_error(name) end if
+--  return handle
+--end function
 
 --constant string curr_dir = current_dir()
 --string curr_dir = current_dir()
@@ -1130,12 +1150,12 @@ atom res
 --      if chdir(dll_path)=0 then ?9/0 end if
         if dll_path!="" and chdir(dll_path)=0 then ?9/0 end if
 --      path = current_dir()&SLASH&path
-        res = open_dll(path)
+        res = open_dll(path,false)
         if chdir(curr_dir)=0 then ?9/0 end if
     elsif platform()=LINUX then
 --      for now, see demo/pGUI/lnx/installation.txt...
 --      path = dll_path&path
-        res = open_dll(path)
+        res = open_dll(path,false)
 --no friggin help...
 --      if res=0 then
 --          if machine_bits()=64 then
@@ -1154,7 +1174,7 @@ constant
          F  = C_FLOAT,      -- NB: VM/pcfunc.e may not be up to this.. [edited 25/2/16]
          I  = C_INT,
          L  = C_LONG,
-         P  = C_POINTER, 
+         P  = C_PTR, 
          U  = C_UINT,
          UC = C_UCHAR,
          UL = C_ULONG,
@@ -1581,295 +1601,295 @@ procedure iup_init1(nullable_string dll_root)
                         "libiup.dylib"})
 
     -- Control
-    xIupOpen            = iup_c_func(iup, "IupOpen", {I,P}, I)
-    xIupClose           = iup_c_proc(iup, "IupClose", {})
+    xIupOpen            = define_c_func(iup, "IupOpen", {I,P}, I)
+    xIupClose           = define_c_proc(iup, "IupClose", {})
 --DEV these are documented in elements...
-    xIupCreate          = iup_c_func(iup, "IupCreate", {P},P)
-    xIupCreatev         = iup_c_func(iup, "IupCreatev", {P,P},P)
-    xIupDestroy         = iup_c_proc(iup, "IupDestroy", {P})
-    xIupMap             = iup_c_func(iup, "IupMap", {P},I)
-    xIupUnmap           = iup_c_proc(iup, "IupUnmap", {P})
+    xIupCreate          = define_c_func(iup, "IupCreate", {P},P)
+    xIupCreatev         = define_c_func(iup, "IupCreatev", {P,P},P)
+    xIupDestroy         = define_c_proc(iup, "IupDestroy", {P})
+    xIupMap             = define_c_func(iup, "IupMap", {P},I)
+    xIupUnmap           = define_c_proc(iup, "IupUnmap", {P})
 --DEV attributes? (nah)
-    xIupVersion         = iup_c_func(iup, "IupVersion", {}, P)
-    xIupVersionDate     = iup_c_func(iup, "IupVersionDate", {}, P)
-    xIupVersionNumber   = iup_c_func(iup, "IupVersionNumber", {}, I)
-    xIupVersionShow     = iup_c_proc(iup, "IupVersionShow", {})
+    xIupVersion         = define_c_func(iup, "IupVersion", {}, P)
+    xIupVersionDate     = define_c_func(iup, "IupVersionDate", {}, P)
+    xIupVersionNumber   = define_c_func(iup, "IupVersionNumber", {}, I)
+    xIupVersionShow     = define_c_proc(iup, "IupVersionShow", {})
 
-    xIupMainLoop        = iup_c_proc(iup, "IupMainLoop", {})
-    xIupMainLoopLevel   = iup_c_func(iup, "IupMainLoopLevel", {}, I)
-    xIupLoopStep        = iup_c_func(iup, "IupLoopStep", {}, I)
-    xIupLoopStepWait    = iup_c_func(iup, "IupLoopStepWait", {}, I)
-    xIupExitLoop        = iup_c_proc(iup, "IupExitLoop", {})
-    xIupPostMessage     = iup_c_proc(iup, "IupPostMessage", {P,P,I,D,P})
-    xIupFlush           = iup_c_proc(iup, "IupFlush", {})
-    xIupRecordInput     = iup_c_func(iup, "IupRecordInput", {P,I}, I)
-    xIupPlayInput       = iup_c_proc(iup, "IupPlayInput", {P})
---  xIupGetActionName   = iup_c_func(iup, "IupGetActionName", {}, P)
+    xIupMainLoop        = define_c_proc(iup, "IupMainLoop", {})
+    xIupMainLoopLevel   = define_c_func(iup, "IupMainLoopLevel", {}, I)
+    xIupLoopStep        = define_c_func(iup, "IupLoopStep", {}, I)
+    xIupLoopStepWait    = define_c_func(iup, "IupLoopStepWait", {}, I)
+    xIupExitLoop        = define_c_proc(iup, "IupExitLoop", {})
+    xIupPostMessage     = define_c_proc(iup, "IupPostMessage", {P,P,I,D,P})
+    xIupFlush           = define_c_proc(iup, "IupFlush", {})
+    xIupRecordInput     = define_c_func(iup, "IupRecordInput", {P,I}, I)
+    xIupPlayInput       = define_c_proc(iup, "IupPlayInput", {P})
+--  xIupGetActionName   = define_c_func(iup, "IupGetActionName", {}, P)
 
-    xIupSetAttribute                = iup_c_proc(iup, "IupSetAttribute", {P,P,P})
-     xIupSetAttributeId             = iup_c_proc(iup, "IupSetAttributeId", {P,P,I,P})
-     xIupSetAttributeId2            = iup_c_proc(iup, "IupSetAttributeId2", {P,P,I,I,P})
-     xIupSetStrAttribute            = iup_c_proc(iup, "IupSetStrAttribute", {P,P,P})
-      xIupSetStrAttributeId         = iup_c_proc(iup, "IupSetStrAttributeId", {P,P,I,P})
-      xIupSetStrAttributeId2        = iup_c_proc(iup, "IupSetStrAttributeId2", {P,P,I,I,P})
-      xIupSetInt                    = iup_c_proc(iup, "IupSetInt", {P,P,I})
-      xIupSetIntId                  = iup_c_proc(iup, "IupSetIntId", {P,P,I,I})
-      xIupSetIntId2                 = iup_c_proc(iup, "IupSetIntId2", {P,P,I,I,I})
-      xIupSetFloat                  = iup_c_proc(iup, "IupSetFloat", {P,P,F})
-      xIupSetFloatId                = iup_c_proc(iup, "IupSetFloatId", {P,P,I,F})
-      xIupSetFloatId2               = iup_c_proc(iup, "IupSetFloatId2", {P,P,I,I,F})
-      xIupSetDouble                 = iup_c_proc(iup, "IupSetDouble", {P,P,D})
-      xIupSetDoubleId               = iup_c_proc(iup, "IupSetDoubleId", {P,P,I,D})
-      xIupSetDoubleId2              = iup_c_proc(iup, "IupSetDoubleId2", {P,P,I,I,D})
-      xIupSetRGB                    = iup_c_proc(iup, "IupSetRGB", {P,P,UC,UC,UC})
-      xIupSetRGBId                  = iup_c_proc(iup, "IupSetRGBId", {P,P,I,UC,UC,UC})
-      xIupSetRGBId2                 = iup_c_proc(iup, "IupSetRGBId2", {P,P,I,I,UC,UC,UC})
-      xIupStoreAttribute            = iup_c_proc(iup, "IupStoreAttribute", {P,P,P})
-     xIupSetAttributeHandle         = iup_c_proc(iup, "IupSetAttributeHandle", {P,P,P})
-     xIupSetAttributeHandleId       = iup_c_proc(iup, "IupSetAttributeHandleId", {P,P,I,P})
-     xIupSetAttributeHandleId2      = iup_c_proc(iup, "IupSetAttributeHandleId2", {P,P,I,I,P})
-      xIupSetHandle                 = iup_c_proc(iup, "IupSetHandle", {P,P})
-    xIupSetAttributes               = iup_c_proc(iup, "IupSetAttributes", {P,P})
-    xIupResetAttribute              = iup_c_proc(iup, "IupResetAttribute", {P,P})
-    xIupGetAttribute                = iup_c_func(iup, "IupGetAttribute", {P,P}, P)
-     xIupGetAttributeId             = iup_c_func(iup, "IupGetAttributeId", {P,P,I}, P)
-     xIupGetAttributeId2            = iup_c_func(iup, "IupGetAttributeId2", {P,P,I,I}, P)
---   xIupGetAttributes              = iup_c_func(iup, "IupGetAttributes", {P}, P) --(deprecated)
-     xIupGetAllAttributes           = iup_c_func(iup, "IupGetAllAttributes", {P,P,I}, I)
-     xIupGetAttributeHandle         = iup_c_func(iup, "IupGetAttributeHandle", {P,P}, P)
-     xIupGetAttributeHandleId       = iup_c_func(iup, "IupGetAttributeHandleId", {P,P,I}, P)
-     xIupGetAttributeHandleId2      = iup_c_func(iup, "IupGetAttributeHandleId2", {P,P,I,I}, P)
-      xIupGetHandle                 = iup_c_func(iup, "IupGetHandle", {P}, P)
-     xIupGetInt                     = iup_c_func(iup, "IupGetInt", {P,P}, I)
-     xIupGetInt2                    = iup_c_func(iup, "IupGetInt2", {P,P}, I)
-     xIupGetIntInt                  = iup_c_func(iup, "IupGetIntInt", {P,P,P,P}, I)
-     xIupGetIntId                   = iup_c_func(iup, "IupGetIntId", {P,P,I}, I)
-     xIupGetIntId2                  = iup_c_func(iup, "IupGetIntId2", {P,P,I,I}, I)
-     xIupGetFloat                   = iup_c_func(iup, "IupGetFloat", {P,P}, F)
-     xIupGetFloatId                 = iup_c_func(iup, "IupGetFloatId", {P,P,I}, F)
-     xIupGetFloatId2                = iup_c_func(iup, "IupGetFloatId2", {P,P,I,I}, F)
-     xIupGetDouble                  = iup_c_func(iup, "IupGetDouble", {P,P}, D)
-     xIupGetDoubleId                = iup_c_func(iup, "IupGetDoubleId", {P,P,I}, D)
-     xIupGetDoubleId2               = iup_c_func(iup, "IupGetDoubleId2", {P,P,I,I}, D)
-     xIupGetRGB                     = iup_c_proc(iup, "IupGetRGB", {P,P,P,P,P})
-     xIupGetRGBId                   = iup_c_proc(iup, "IupGetRGBId", {P,P,I,P,P,P})
-     xIupGetRGBId2                  = iup_c_proc(iup, "IupGetRGBId2", {P,P,I,I,P,P,P})
-    xIupSetGlobal                   = iup_c_proc(iup, "IupSetGlobal", {P,P})
-     xIupSetStrGlobal               = iup_c_proc(iup, "IupSetStrGlobal", {P,P})
-     xIupStoreGlobal                = iup_c_proc(iup, "IupStoreGlobal", {P,P})
-    xIupGetGlobal                   = iup_c_func(iup, "IupGetGlobal", {P}, P)
-     xIupSetLanguage                = iup_c_proc(iup, "IupSetLanguage", {P})
-     xIupGetLanguage                = iup_c_func(iup, "IupGetLanguage", {},P)
-     xIupSetLanguagePack            = iup_c_proc(iup, "IupSetLanguagePack", {P})
-     xIupSetLanguageString          = iup_c_proc(iup, "IupSetLanguageString", {P,P})
-     xIupStoreLanguageString        = iup_c_proc(iup, "IupStoreLanguageString", {P,P})
-     xIupGetLanguageString          = iup_c_func(iup, "IupGetLanguageString", {P},P)
-    xIupSetCallback                 = iup_c_func(iup, "IupSetCallback", {P,P,P}, P)
-     xIupGetCallback                = iup_c_func(iup, "IupGetCallback", {P,P}, P)
-    xIupGetClassName                = iup_c_func(iup, "IupGetClassName", {P},P)
-     xIupGetAllClasses              = iup_c_func(iup, "IupGetAllClasses", {P,I}, I)
-     xIupGetClassType               = iup_c_func(iup, "IupGetClassType", {P}, P)
-     xIupGetClassAttributes         = iup_c_func(iup, "IupGetClassAttributes", {P,P,I}, I)
-     xIupGetClassCallbacks          = iup_c_func(iup, "IupGetClassCallbacks", {P,P,I}, I)
-     xIupSaveClassAttributes        = iup_c_proc(iup, "IupSaveClassAttributes", {P})
-     xIupCopyAttributes             = iup_c_proc(iup, "IupCopyAttributes", {P,P})
-     xIupCopyClassAttributes        = iup_c_proc(iup, "IupCopyClassAttributes", {P,P})
-     xIupSetClassDfltAttribute      = iup_c_proc(iup, "IupSetClassDefaultAttribute", {P,P,P})
+    xIupSetAttribute                = define_c_proc(iup, "IupSetAttribute", {P,P,P})
+     xIupSetAttributeId             = define_c_proc(iup, "IupSetAttributeId", {P,P,I,P})
+     xIupSetAttributeId2            = define_c_proc(iup, "IupSetAttributeId2", {P,P,I,I,P})
+     xIupSetStrAttribute            = define_c_proc(iup, "IupSetStrAttribute", {P,P,P})
+      xIupSetStrAttributeId         = define_c_proc(iup, "IupSetStrAttributeId", {P,P,I,P})
+      xIupSetStrAttributeId2        = define_c_proc(iup, "IupSetStrAttributeId2", {P,P,I,I,P})
+      xIupSetInt                    = define_c_proc(iup, "IupSetInt", {P,P,I})
+      xIupSetIntId                  = define_c_proc(iup, "IupSetIntId", {P,P,I,I})
+      xIupSetIntId2                 = define_c_proc(iup, "IupSetIntId2", {P,P,I,I,I})
+      xIupSetFloat                  = define_c_proc(iup, "IupSetFloat", {P,P,F})
+      xIupSetFloatId                = define_c_proc(iup, "IupSetFloatId", {P,P,I,F})
+      xIupSetFloatId2               = define_c_proc(iup, "IupSetFloatId2", {P,P,I,I,F})
+      xIupSetDouble                 = define_c_proc(iup, "IupSetDouble", {P,P,D})
+      xIupSetDoubleId               = define_c_proc(iup, "IupSetDoubleId", {P,P,I,D})
+      xIupSetDoubleId2              = define_c_proc(iup, "IupSetDoubleId2", {P,P,I,I,D})
+      xIupSetRGB                    = define_c_proc(iup, "IupSetRGB", {P,P,UC,UC,UC})
+      xIupSetRGBId                  = define_c_proc(iup, "IupSetRGBId", {P,P,I,UC,UC,UC})
+      xIupSetRGBId2                 = define_c_proc(iup, "IupSetRGBId2", {P,P,I,I,UC,UC,UC})
+      xIupStoreAttribute            = define_c_proc(iup, "IupStoreAttribute", {P,P,P})
+     xIupSetAttributeHandle         = define_c_proc(iup, "IupSetAttributeHandle", {P,P,P})
+     xIupSetAttributeHandleId       = define_c_proc(iup, "IupSetAttributeHandleId", {P,P,I,P})
+     xIupSetAttributeHandleId2      = define_c_proc(iup, "IupSetAttributeHandleId2", {P,P,I,I,P})
+      xIupSetHandle                 = define_c_proc(iup, "IupSetHandle", {P,P})
+    xIupSetAttributes               = define_c_proc(iup, "IupSetAttributes", {P,P})
+    xIupResetAttribute              = define_c_proc(iup, "IupResetAttribute", {P,P})
+    xIupGetAttribute                = define_c_func(iup, "IupGetAttribute", {P,P}, P)
+     xIupGetAttributeId             = define_c_func(iup, "IupGetAttributeId", {P,P,I}, P)
+     xIupGetAttributeId2            = define_c_func(iup, "IupGetAttributeId2", {P,P,I,I}, P)
+--   xIupGetAttributes              = define_c_func(iup, "IupGetAttributes", {P}, P) --(deprecated)
+     xIupGetAllAttributes           = define_c_func(iup, "IupGetAllAttributes", {P,P,I}, I)
+     xIupGetAttributeHandle         = define_c_func(iup, "IupGetAttributeHandle", {P,P}, P)
+     xIupGetAttributeHandleId       = define_c_func(iup, "IupGetAttributeHandleId", {P,P,I}, P)
+     xIupGetAttributeHandleId2      = define_c_func(iup, "IupGetAttributeHandleId2", {P,P,I,I}, P)
+      xIupGetHandle                 = define_c_func(iup, "IupGetHandle", {P}, P)
+     xIupGetInt                     = define_c_func(iup, "IupGetInt", {P,P}, I)
+     xIupGetInt2                    = define_c_func(iup, "IupGetInt2", {P,P}, I)
+     xIupGetIntInt                  = define_c_func(iup, "IupGetIntInt", {P,P,P,P}, I)
+     xIupGetIntId                   = define_c_func(iup, "IupGetIntId", {P,P,I}, I)
+     xIupGetIntId2                  = define_c_func(iup, "IupGetIntId2", {P,P,I,I}, I)
+     xIupGetFloat                   = define_c_func(iup, "IupGetFloat", {P,P}, F)
+     xIupGetFloatId                 = define_c_func(iup, "IupGetFloatId", {P,P,I}, F)
+     xIupGetFloatId2                = define_c_func(iup, "IupGetFloatId2", {P,P,I,I}, F)
+     xIupGetDouble                  = define_c_func(iup, "IupGetDouble", {P,P}, D)
+     xIupGetDoubleId                = define_c_func(iup, "IupGetDoubleId", {P,P,I}, D)
+     xIupGetDoubleId2               = define_c_func(iup, "IupGetDoubleId2", {P,P,I,I}, D)
+     xIupGetRGB                     = define_c_proc(iup, "IupGetRGB", {P,P,P,P,P})
+     xIupGetRGBId                   = define_c_proc(iup, "IupGetRGBId", {P,P,I,P,P,P})
+     xIupGetRGBId2                  = define_c_proc(iup, "IupGetRGBId2", {P,P,I,I,P,P,P})
+    xIupSetGlobal                   = define_c_proc(iup, "IupSetGlobal", {P,P})
+     xIupSetStrGlobal               = define_c_proc(iup, "IupSetStrGlobal", {P,P})
+     xIupStoreGlobal                = define_c_proc(iup, "IupStoreGlobal", {P,P})
+    xIupGetGlobal                   = define_c_func(iup, "IupGetGlobal", {P}, P)
+     xIupSetLanguage                = define_c_proc(iup, "IupSetLanguage", {P})
+     xIupGetLanguage                = define_c_func(iup, "IupGetLanguage", {},P)
+     xIupSetLanguagePack            = define_c_proc(iup, "IupSetLanguagePack", {P})
+     xIupSetLanguageString          = define_c_proc(iup, "IupSetLanguageString", {P,P})
+     xIupStoreLanguageString        = define_c_proc(iup, "IupStoreLanguageString", {P,P})
+     xIupGetLanguageString          = define_c_func(iup, "IupGetLanguageString", {P},P)
+    xIupSetCallback                 = define_c_func(iup, "IupSetCallback", {P,P,P}, P)
+     xIupGetCallback                = define_c_func(iup, "IupGetCallback", {P,P}, P)
+    xIupGetClassName                = define_c_func(iup, "IupGetClassName", {P},P)
+     xIupGetAllClasses              = define_c_func(iup, "IupGetAllClasses", {P,I}, I)
+     xIupGetClassType               = define_c_func(iup, "IupGetClassType", {P}, P)
+     xIupGetClassAttributes         = define_c_func(iup, "IupGetClassAttributes", {P,P,I}, I)
+     xIupGetClassCallbacks          = define_c_func(iup, "IupGetClassCallbacks", {P,P,I}, I)
+     xIupSaveClassAttributes        = define_c_proc(iup, "IupSaveClassAttributes", {P})
+     xIupCopyAttributes             = define_c_proc(iup, "IupCopyAttributes", {P,P})
+     xIupCopyClassAttributes        = define_c_proc(iup, "IupCopyClassAttributes", {P,P})
+     xIupSetClassDfltAttribute      = define_c_proc(iup, "IupSetClassDefaultAttribute", {P,P,P})
 
-    xIupFill            = iup_c_func(iup, "IupFill", {}, P)
-    xIupSpace           = iup_c_func(iup, "IupSpace", {}, P)
-    xIupHboxv           = iup_c_func(iup, "IupHboxv", {P}, P)
-    xIupVboxv           = iup_c_func(iup, "IupVboxv", {P}, P)
-    xIupZboxv           = iup_c_func(iup, "IupZboxv", {P}, P)
-    xIupRadio           = iup_c_func(iup, "IupRadio", {P}, P)
-    xIupNormalizerv     = iup_c_func(iup, "IupNormalizerv", {P}, P)
-    xiupObjectCheck     = iup_c_func(iup, "iupObjectCheck", {P}, P)
-    xIupCboxv           = iup_c_func(iup, "IupCboxv", {P}, P)
-    xIupSbox            = iup_c_func(iup, "IupSbox", {P}, P)
-    xIupSplit           = iup_c_func(iup, "IupSplit", {P,P}, P)
-    xIupGridBoxv        = iup_c_func(iup, "IupGridBoxv", {P}, P)
-    xIupMultiBoxv       = iup_c_func(iup, "IupMultiBoxv", {P}, P)
+    xIupFill            = define_c_func(iup, "IupFill", {}, P)
+    xIupSpace           = define_c_func(iup, "IupSpace", {}, P)
+    xIupHboxv           = define_c_func(iup, "IupHboxv", {P}, P)
+    xIupVboxv           = define_c_func(iup, "IupVboxv", {P}, P)
+    xIupZboxv           = define_c_func(iup, "IupZboxv", {P}, P)
+    xIupRadio           = define_c_func(iup, "IupRadio", {P}, P)
+    xIupNormalizerv     = define_c_func(iup, "IupNormalizerv", {P}, P)
+    xiupObjectCheck     = define_c_func(iup, "iupObjectCheck", {P}, P)
+    xIupCboxv           = define_c_func(iup, "IupCboxv", {P}, P)
+    xIupSbox            = define_c_func(iup, "IupSbox", {P}, P)
+    xIupSplit           = define_c_func(iup, "IupSplit", {P,P}, P)
+    xIupGridBoxv        = define_c_func(iup, "IupGridBoxv", {P}, P)
+    xIupMultiBoxv       = define_c_func(iup, "IupMultiBoxv", {P}, P)
 
-    xIupAppend          = iup_c_func(iup, "IupAppend", {P,P}, P)
-    xIupDetach          = iup_c_proc(iup, "IupDetach", {P})
-    xIupInsert          = iup_c_func(iup, "IupInsert", {P,P,P}, P)
-    xIupReparent        = iup_c_func(iup, "IupReparent", {P,P,P}, P)
-    xIupGetParent       = iup_c_func(iup, "IupGetParent", {P}, P)
-    xIupGetChild        = iup_c_func(iup, "IupGetChild", {P,I}, P)
-    xIupGetChildPos     = iup_c_func(iup, "IupGetChildPos", {P,P}, I)
-    xIupGetChildCount   = iup_c_func(iup, "IupGetChildCount", {P}, I)
-    xIupGetNextChild    = iup_c_func(iup, "IupGetNextChild", {P,P}, P)
-    xIupGetBrother      = iup_c_func(iup, "IupGetBrother", {P},P)
-    xIupGetDialog       = iup_c_func(iup, "IupGetDialog", {P},P)
-    xIupGetDialogChild  = iup_c_func(iup, "IupGetDialogChild", {P,P},P)
+    xIupAppend          = define_c_func(iup, "IupAppend", {P,P}, P)
+    xIupDetach          = define_c_proc(iup, "IupDetach", {P})
+    xIupInsert          = define_c_func(iup, "IupInsert", {P,P,P}, P)
+    xIupReparent        = define_c_func(iup, "IupReparent", {P,P,P}, P)
+    xIupGetParent       = define_c_func(iup, "IupGetParent", {P}, P)
+    xIupGetChild        = define_c_func(iup, "IupGetChild", {P,I}, P)
+    xIupGetChildPos     = define_c_func(iup, "IupGetChildPos", {P,P}, I)
+    xIupGetChildCount   = define_c_func(iup, "IupGetChildCount", {P}, I)
+    xIupGetNextChild    = define_c_func(iup, "IupGetNextChild", {P,P}, P)
+    xIupGetBrother      = define_c_func(iup, "IupGetBrother", {P},P)
+    xIupGetDialog       = define_c_func(iup, "IupGetDialog", {P},P)
+    xIupGetDialogChild  = define_c_func(iup, "IupGetDialogChild", {P,P},P)
 
-    xIupRefresh         = iup_c_proc(iup, "IupRefresh", {P})
-    xIupRefreshChildren = iup_c_proc(iup, "IupRefreshChildren", {P})
-    xIupUpdate          = iup_c_proc(iup, "IupUpdate", {P})
-    xIupUpdateChildren  = iup_c_proc(iup, "IupUpdate", {P})
-    xIupRedraw          = iup_c_proc(iup, "IupRedraw", {P,I})
-    xIupConvertXYToPos  = iup_c_func(iup, "IupConvertXYToPos", {P,I,I}, I)
+    xIupRefresh         = define_c_proc(iup, "IupRefresh", {P})
+    xIupRefreshChildren = define_c_proc(iup, "IupRefreshChildren", {P})
+    xIupUpdate          = define_c_proc(iup, "IupUpdate", {P})
+    xIupUpdateChildren  = define_c_proc(iup, "IupUpdate", {P})
+    xIupRedraw          = define_c_proc(iup, "IupRedraw", {P,I})
+    xIupConvertXYToPos  = define_c_func(iup, "IupConvertXYToPos", {P,I,I}, I)
 
-    xIupDialog          = iup_c_func(iup, "IupDialog", {P},P)
-    xIupPopup           = iup_c_func(iup, "IupPopup", {P,I,I},I)
-    xIupShow            = iup_c_func(iup, "IupShow", {P},I)
-    xIupShowXY          = iup_c_func(iup, "IupShowXY", {P,I,I},I)
-    xIupHide            = iup_c_proc(iup, "IupHide", {P})
+    xIupDialog          = define_c_func(iup, "IupDialog", {P},P)
+    xIupPopup           = define_c_func(iup, "IupPopup", {P,I,I},I)
+    xIupShow            = define_c_func(iup, "IupShow", {P},I)
+    xIupShowXY          = define_c_func(iup, "IupShowXY", {P,I,I},I)
+    xIupHide            = define_c_proc(iup, "IupHide", {P})
 
-    xIupAlarm           = iup_c_func(iup, "IupAlarm", {P,P,P,P,P}, I)
-    xIupMessage         = iup_c_proc(iup, "IupMessage", {P,P})
-    xIupMessageError    = iup_c_proc(iup, "IupMessageError", {P,P})
-    xIupMessageAlarm    = iup_c_func(iup, "IupMessageAlarm", {P,P,P,P}, I)
-    xIupMessageDlg      = iup_c_func(iup, "IupMessageDlg", {}, P)
-    xIupCalendar        = iup_c_func(iup, "IupCalendar", {}, I)
-    xIupColorDlg        = iup_c_func(iup, "IupColorDlg", {}, P)
-    xIupDatePick        = iup_c_func(iup, "IupDatePick", {}, I)
-    xIupFileDlg         = iup_c_func(iup, "IupFileDlg", {}, P)
-    xIupFontDlg         = iup_c_func(iup, "IupFontDlg", {}, P)
-    xIupGetColor        = iup_c_func(iup, "IupGetColor", {I,I,P,P,P}, I)
-    xIupGetFile         = iup_c_func(iup, "IupGetFile", {P}, I)
-    xIupGetParamv       = iup_c_func(iup, "IupGetParamv", {P,P,P,P,I,I,P}, I)
-    xIupGetText         = iup_c_func(iup, "IupGetText", {P,P,I}, I)
-    xIupListDialog      = iup_c_func(iup, "IupListDialog", {I,P,I,P,I,I,I,P}, I)
-    xIupLayoutDialog    = iup_c_func(iup, "IupLayoutDialog", {P}, P)
-    xIupGlobalsDialog   = iup_c_func(iup, "IupGlobalsDialog", {}, P)
-    xIupProgressDlg     = iup_c_func(iup, "IupProgressDlg", {}, P)
+    xIupAlarm           = define_c_func(iup, "IupAlarm", {P,P,P,P,P}, I)
+    xIupMessage         = define_c_proc(iup, "IupMessage", {P,P})
+    xIupMessageError    = define_c_proc(iup, "IupMessageError", {P,P})
+    xIupMessageAlarm    = define_c_func(iup, "IupMessageAlarm", {P,P,P,P}, I)
+    xIupMessageDlg      = define_c_func(iup, "IupMessageDlg", {}, P)
+    xIupCalendar        = define_c_func(iup, "IupCalendar", {}, I)
+    xIupColorDlg        = define_c_func(iup, "IupColorDlg", {}, P)
+    xIupDatePick        = define_c_func(iup, "IupDatePick", {}, I)
+    xIupFileDlg         = define_c_func(iup, "IupFileDlg", {}, P)
+    xIupFontDlg         = define_c_func(iup, "IupFontDlg", {}, P)
+    xIupGetColor        = define_c_func(iup, "IupGetColor", {I,I,P,P,P}, I)
+    xIupGetFile         = define_c_func(iup, "IupGetFile", {P}, I)
+    xIupGetParamv       = define_c_func(iup, "IupGetParamv", {P,P,P,P,I,I,P}, I)
+    xIupGetText         = define_c_func(iup, "IupGetText", {P,P,I}, I)
+    xIupListDialog      = define_c_func(iup, "IupListDialog", {I,P,I,P,I,I,I,P}, I)
+    xIupLayoutDialog    = define_c_func(iup, "IupLayoutDialog", {P}, P)
+    xIupGlobalsDialog   = define_c_func(iup, "IupGlobalsDialog", {}, P)
+    xIupProgressDlg     = define_c_func(iup, "IupProgressDlg", {}, P)
 
-    xIupButton                  = iup_c_func(iup, "IupButton", {P,P}, P)
-    xIupCanvas                  = iup_c_func(iup, "IupCanvas", {P}, P)
-    xIupFrame                   = iup_c_func(iup, "IupFrame", {P}, P)
-    xIupFlatFrame               = iup_c_func(iup, "IupFlatFrame", {P}, P)
-    xIupLabel                   = iup_c_func(iup, "IupLabel", {P}, P)
-    xIupFlatLabel               = iup_c_func(iup, "IupFlatLabel", {P}, P)
-    xIupFlatList                = iup_c_func(iup, "IupFlatList", {}, P)
-    xIupFlatSeparator           = iup_c_func(iup, "IupFlatSeparator", {}, P)
-    xIupList                    = iup_c_func(iup, "IupList", {P}, P)
-    xIupProgressBar             = iup_c_func(iup, "IupProgressBar", {}, P)
-    xIupGauge                   = iup_c_func(iup, "IupGauge", {}, P)
-    xIupSpin                    = iup_c_func(iup, "IupSpin", {}, P)
-    xIupSpinbox                 = iup_c_func(iup, "IupSpinbox", {P}, P)
-    xIupTabsv                   = iup_c_func(iup, "IupTabsv", {P}, P)
-    xIupFlatTabsv               = iup_c_func(iup, "IupFlatTabsv", {P}, P)
-    xIupText                    = iup_c_func(iup, "IupText", {P}, P)
-    xIupMultiLine               = iup_c_func(iup, "IupMultiLine", {P},P)
-    xIupTextConvertLinColToPos  = iup_c_proc(iup, "IupTextConvertLinColToPos", {P,I,I,P})
-    xIupTextConvertPosToLinCol  = iup_c_proc(iup, "IupTextConvertPosToLinCol", {P,I,P,P})
-    xIupToggle                  = iup_c_func(iup, "IupToggle", {P,P}, P)
-    xIupFlatToggle              = iup_c_func(iup, "IupFlatToggle", {P,P}, P)
-    xIupTree                    = iup_c_func(iup, "IupTree", {}, P)
-    xIupFlatTree                = iup_c_func(iup, "IupFlatTree", {}, P)
-    xIupVal                     = iup_c_func(iup, "IupVal", {P}, P)
-    xIupFlatVal                 = iup_c_func(iup, "IupFlatVal", {P}, P)
+    xIupButton                  = define_c_func(iup, "IupButton", {P,P}, P)
+    xIupCanvas                  = define_c_func(iup, "IupCanvas", {P}, P)
+    xIupFrame                   = define_c_func(iup, "IupFrame", {P}, P)
+    xIupFlatFrame               = define_c_func(iup, "IupFlatFrame", {P}, P)
+    xIupLabel                   = define_c_func(iup, "IupLabel", {P}, P)
+    xIupFlatLabel               = define_c_func(iup, "IupFlatLabel", {P}, P)
+    xIupFlatList                = define_c_func(iup, "IupFlatList", {}, P)
+    xIupFlatSeparator           = define_c_func(iup, "IupFlatSeparator", {}, P)
+    xIupList                    = define_c_func(iup, "IupList", {P}, P)
+    xIupProgressBar             = define_c_func(iup, "IupProgressBar", {}, P)
+    xIupGauge                   = define_c_func(iup, "IupGauge", {}, P)
+    xIupSpin                    = define_c_func(iup, "IupSpin", {}, P)
+    xIupSpinbox                 = define_c_func(iup, "IupSpinbox", {P}, P)
+    xIupTabsv                   = define_c_func(iup, "IupTabsv", {P}, P)
+    xIupFlatTabsv               = define_c_func(iup, "IupFlatTabsv", {P}, P)
+    xIupText                    = define_c_func(iup, "IupText", {P}, P)
+    xIupMultiLine               = define_c_func(iup, "IupMultiLine", {P},P)
+    xIupTextConvertLinColToPos  = define_c_proc(iup, "IupTextConvertLinColToPos", {P,I,I,P})
+    xIupTextConvertPosToLinCol  = define_c_proc(iup, "IupTextConvertPosToLinCol", {P,I,P,P})
+    xIupToggle                  = define_c_func(iup, "IupToggle", {P,P}, P)
+    xIupFlatToggle              = define_c_func(iup, "IupFlatToggle", {P,P}, P)
+    xIupTree                    = define_c_func(iup, "IupTree", {}, P)
+    xIupFlatTree                = define_c_func(iup, "IupFlatTree", {}, P)
+    xIupVal                     = define_c_func(iup, "IupVal", {P}, P)
+    xIupFlatVal                 = define_c_func(iup, "IupFlatVal", {P}, P)
 
-    xIupConfig                        = iup_c_func(iup, "IupConfig", {}, P)
-    xIupConfigCopy                    = iup_c_proc(iup, "IupConfigCopy", {P,P,P})
-    xIupConfigLoad                    = iup_c_func(iup, "IupConfigLoad", {P}, I)
-    xIupConfigSave                    = iup_c_func(iup, "IupConfigSave", {P}, I)
-    xIupConfigSetVariableInt          = iup_c_proc(iup, "IupConfigSetVariableInt", {P,P,P,I})
-    xIupConfigSetVariableIntId        = iup_c_proc(iup, "IupConfigSetVariableIntId", {P,P,P,I,I})
-    xIupConfigSetVariableDouble       = iup_c_proc(iup, "IupConfigSetVariableDouble", {P,P,P,D})
-    xIupConfigSetVariableDoubleId     = iup_c_proc(iup, "IupConfigSetVariableDoubleId", {P,P,P,I,D})
-    xIupConfigSetVariableStr          = iup_c_proc(iup, "IupConfigSetVariableStr", {P,P,P,P})
-    xIupConfigSetVariableStrId        = iup_c_proc(iup, "IupConfigSetVariableStrId", {P,P,P,I,P})
---  xIupConfigGetVariableInt          = iup_c_func(iup, "IupConfigGetVariableInt", {P,P,P}, I)
-    xIupConfigGetVariableIntDef       = iup_c_func(iup, "IupConfigGetVariableIntDef", {P,P,P,I}, I)
---  xIupConfigGetVariableIntId        = iup_c_func(iup, "IupConfigGetVariableIntId", {P,P,P,I}, I)
-    xIupConfigGetVariableIntIdDef     = iup_c_func(iup, "IupConfigGetVariableIntIdDef", {P,P,P,I,I}, I)
---  xIupConfigGetVariableDouble       = iup_c_func(iup, "IupConfigGetVariableDouble", {P,P,P}, D)
-    xIupConfigGetVariableDoubleDef    = iup_c_func(iup, "IupConfigGetVariableDoubleDef", {P,P,P,D}, D)
---  xIupConfigGetVariableDoubleId     = iup_c_func(iup, "IupConfigGetVariableDoubleId", {P,P,P,I}, D)
-    xIupConfigGetVariableDoubleIdDef  = iup_c_func(iup, "IupConfigGetVariableDoubleIdDef", {P,P,P,I,D}, D)
---  xIupConfigGetVariableStr          = iup_c_func(iup, "IupConfigGetVariableStr", {P,P,P}, P)
-    xIupConfigGetVariableStrDef       = iup_c_func(iup, "IupConfigGetVariableStrDef", {P,P,P,P}, P)
---  xIupConfigGetVariableStrId        = iup_c_func(iup, "IupConfigGetVariableStrId", {P,P,P,I}, P)
-    xIupConfigGetVariableStrIdDef     = iup_c_func(iup, "IupConfigGetVariableStrIdDef", {P,P,P,I,P}, P)
-    xIupConfigRecentInit              = iup_c_proc(iup, "IupConfigRecentInit", {P,P,P,I})
-    xIupConfigRecentUpdate            = iup_c_proc(iup, "IupConfigRecentUpdate", {P,P})
-    xIupConfigDialogShow              = iup_c_proc(iup, "IupConfigDialogShow", {P,P,P})
-    xIupConfigDialogClosed            = iup_c_proc(iup, "IupConfigDialogClosed", {P,P,P})
-    xIupExecute                       = iup_c_func(iup, "IupExecute", {P,P},I)
-    xIupExecuteWait                   = iup_c_func(iup, "IupExecuteWait", {P,P},I)
-    xIupLog                           = iup_c_proc(iup, "IupLog", {P,P,P})
+    xIupConfig                        = define_c_func(iup, "IupConfig", {}, P)
+    xIupConfigCopy                    = define_c_proc(iup, "IupConfigCopy", {P,P,P})
+    xIupConfigLoad                    = define_c_func(iup, "IupConfigLoad", {P}, I)
+    xIupConfigSave                    = define_c_func(iup, "IupConfigSave", {P}, I)
+    xIupConfigSetVariableInt          = define_c_proc(iup, "IupConfigSetVariableInt", {P,P,P,I})
+    xIupConfigSetVariableIntId        = define_c_proc(iup, "IupConfigSetVariableIntId", {P,P,P,I,I})
+    xIupConfigSetVariableDouble       = define_c_proc(iup, "IupConfigSetVariableDouble", {P,P,P,D})
+    xIupConfigSetVariableDoubleId     = define_c_proc(iup, "IupConfigSetVariableDoubleId", {P,P,P,I,D})
+    xIupConfigSetVariableStr          = define_c_proc(iup, "IupConfigSetVariableStr", {P,P,P,P})
+    xIupConfigSetVariableStrId        = define_c_proc(iup, "IupConfigSetVariableStrId", {P,P,P,I,P})
+--  xIupConfigGetVariableInt          = define_c_func(iup, "IupConfigGetVariableInt", {P,P,P}, I)
+    xIupConfigGetVariableIntDef       = define_c_func(iup, "IupConfigGetVariableIntDef", {P,P,P,I}, I)
+--  xIupConfigGetVariableIntId        = define_c_func(iup, "IupConfigGetVariableIntId", {P,P,P,I}, I)
+    xIupConfigGetVariableIntIdDef     = define_c_func(iup, "IupConfigGetVariableIntIdDef", {P,P,P,I,I}, I)
+--  xIupConfigGetVariableDouble       = define_c_func(iup, "IupConfigGetVariableDouble", {P,P,P}, D)
+    xIupConfigGetVariableDoubleDef    = define_c_func(iup, "IupConfigGetVariableDoubleDef", {P,P,P,D}, D)
+--  xIupConfigGetVariableDoubleId     = define_c_func(iup, "IupConfigGetVariableDoubleId", {P,P,P,I}, D)
+    xIupConfigGetVariableDoubleIdDef  = define_c_func(iup, "IupConfigGetVariableDoubleIdDef", {P,P,P,I,D}, D)
+--  xIupConfigGetVariableStr          = define_c_func(iup, "IupConfigGetVariableStr", {P,P,P}, P)
+    xIupConfigGetVariableStrDef       = define_c_func(iup, "IupConfigGetVariableStrDef", {P,P,P,P}, P)
+--  xIupConfigGetVariableStrId        = define_c_func(iup, "IupConfigGetVariableStrId", {P,P,P,I}, P)
+    xIupConfigGetVariableStrIdDef     = define_c_func(iup, "IupConfigGetVariableStrIdDef", {P,P,P,I,P}, P)
+    xIupConfigRecentInit              = define_c_proc(iup, "IupConfigRecentInit", {P,P,P,I})
+    xIupConfigRecentUpdate            = define_c_proc(iup, "IupConfigRecentUpdate", {P,P})
+    xIupConfigDialogShow              = define_c_proc(iup, "IupConfigDialogShow", {P,P,P})
+    xIupConfigDialogClosed            = define_c_proc(iup, "IupConfigDialogClosed", {P,P,P})
+    xIupExecute                       = define_c_func(iup, "IupExecute", {P,P},I)
+    xIupExecuteWait                   = define_c_func(iup, "IupExecuteWait", {P,P},I)
+    xIupLog                           = define_c_proc(iup, "IupLog", {P,P,P})
 
-    xIupPreviousField   = iup_c_func(iup, "IupPreviousField", {P},P)
-    xIupNextField       = iup_c_func(iup, "IupNextField", {P},P)
-    xIupSetFocus        = iup_c_proc(iup, "IupSetFocus", {P})
-    xIupGetFocus        = iup_c_func(iup, "IupGetFocus", {},P)
+    xIupPreviousField   = define_c_func(iup, "IupPreviousField", {P},P)
+    xIupNextField       = define_c_func(iup, "IupNextField", {P},P)
+    xIupSetFocus        = define_c_proc(iup, "IupSetFocus", {P})
+    xIupGetFocus        = define_c_func(iup, "IupGetFocus", {},P)
 
-    xIupMenuv           = iup_c_func(iup, "IupMenuv", {P}, P)
-    xIupItem            = iup_c_func(iup, "IupItem",  {P,P}, P)
-    xIupSeparator       = iup_c_func(iup, "IupSeparator", {}, P)
-    xIupSubmenu         = iup_c_func(iup, "IupSubmenu", {P,P}, P)
+    xIupMenuv           = define_c_func(iup, "IupMenuv", {P}, P)
+    xIupItem            = define_c_func(iup, "IupItem",  {P,P}, P)
+    xIupSeparator       = define_c_func(iup, "IupSeparator", {}, P)
+    xIupSubmenu         = define_c_func(iup, "IupSubmenu", {P,P}, P)
 
---  xIupSetHandle       = iup_c_proc(iup, "IupSetHandle", {P,P})
---  xIupGetHandle       = iup_c_func(iup, "IupGetHandle", {P},P)
-    xIupGetName         = iup_c_func(iup, "IupGetName", {P},P)
-    xIupGetAllNames     = iup_c_func(iup, "IupGetAllNames", {P,I},I)
-    xIupGetAllDialogs   = iup_c_func(iup, "IupGetAllDialogs", {P,I},I)
+--  xIupSetHandle       = define_c_proc(iup, "IupSetHandle", {P,P})
+--  xIupGetHandle       = define_c_func(iup, "IupGetHandle", {P},P)
+    xIupGetName         = define_c_func(iup, "IupGetName", {P},P)
+    xIupGetAllNames     = define_c_func(iup, "IupGetAllNames", {P,I},I)
+    xIupGetAllDialogs   = define_c_func(iup, "IupGetAllDialogs", {P,I},I)
 
-    xIupClipboard = iup_c_func(iup, "IupClipboard", {}, P)
-    xIupTimer = iup_c_func(iup, "IupTimer", {}, P)
-    xIupUser = iup_c_func(iup, "IupUser", {}, P)
-    xIupHelp = iup_c_func(iup, "IupHelp", {P}, I)
+    xIupClipboard       = define_c_func(iup, "IupClipboard", {}, P)
+    xIupTimer           = define_c_func(iup, "IupTimer", {}, P)
+    xIupUser            = define_c_func(iup, "IupUser", {}, P)
+    xIupHelp            = define_c_func(iup, "IupHelp", {P}, I)
 
     iupControls = iup_open_dll({"iupcontrols.dll",
                                 "libiupcontrols.so",
                                 "libiupcontrols.dylib"})
 
-    xIupControlsOpen        = iup_c_proc(iupControls, "IupControlsOpen", {})
-    xIupCells               = iup_c_func(iupControls, "IupCells", {},P)
---  xIupColorbar            = iup_c_func(iupControls, "IupColorbar", {},P)      -- removed in 3.24
---  xIupColorBrowser        = iup_c_func(iupControls, "IupColorBrowser", {},P)  -- removed in 3.24
---  xIupDial                = iup_c_func(iupControls, "IupDial", {P},P)         -- removed in 3.24
-    xIupColorbar            = iup_c_func(iup, "IupColorbar", {},P)      -- moved in 3.24
-    xIupColorBrowser        = iup_c_func(iup, "IupColorBrowser", {},P)  -- moved in 3.24
-    xIupDial                = iup_c_func(iup, "IupDial", {P},P)         -- moved in 3.24
-    xIupMatrix              = iup_c_func(iupControls, "IupMatrix", {P},P)
-    xIupMatrixEx            = iup_c_func(iupControls, "IupMatrixEx", {},P)
-    xIupMatrixList          = iup_c_func(iupControls, "IupMatrixList", {},P)
---  xIupMatSetAttribute     = iup_c_proc(iupControls, "IupMatSetAttribute",{P,P,I,I,P})
---  xIupMatStoreAttribute   = iup_c_proc(iupControls, "IupMatStoreAttribute",{P,P,I,I,P})
---  xIupMatGetAttribute     = iup_c_func(iupControls, "IupMatGetAttribute",{P,P,I,I},P)
---  xIupMatGetInt           = iup_c_func(iupControls, "IupMatGetInt",{P,P,I,I},I)
---  xIupMatGetFloat         = iup_c_func(iupControls, "IupMatGetFloat",{P,P,I,I},F)
+    xIupControlsOpen        = define_c_proc(iupControls, "IupControlsOpen", {})
+    xIupCells               = define_c_func(iupControls, "IupCells", {},P)
+--  xIupColorbar            = define_c_func(iupControls, "IupColorbar", {},P)       -- removed in 3.24
+--  xIupColorBrowser        = define_c_func(iupControls, "IupColorBrowser", {},P)   -- removed in 3.24
+--  xIupDial                = define_c_func(iupControls, "IupDial", {P},P)      -- removed in 3.24
+    xIupColorbar            = define_c_func(iup, "IupColorbar", {},P)       -- moved in 3.24
+    xIupColorBrowser        = define_c_func(iup, "IupColorBrowser", {},P)   -- moved in 3.24
+    xIupDial                = define_c_func(iup, "IupDial", {P},P)      -- moved in 3.24
+    xIupMatrix              = define_c_func(iupControls, "IupMatrix", {P},P)
+    xIupMatrixEx            = define_c_func(iupControls, "IupMatrixEx", {},P)
+    xIupMatrixList          = define_c_func(iupControls, "IupMatrixList", {},P)
+--  xIupMatSetAttribute     = define_c_proc(iupControls, "IupMatSetAttribute",{P,P,I,I,P})
+--  xIupMatStoreAttribute   = define_c_proc(iupControls, "IupMatStoreAttribute",{P,P,I,I,P})
+--  xIupMatGetAttribute     = define_c_func(iupControls, "IupMatGetAttribute",{P,P,I,I},P)
+--  xIupMatGetInt           = define_c_func(iupControls, "IupMatGetInt",{P,P,I,I},I)
+--  xIupMatGetFloat         = define_c_func(iupControls, "IupMatGetFloat",{P,P,I,I},F)
 
-    xIupLoad                          = iup_c_func(iup, "+IupLoad", {P}, P)
-    xIupLoadBuffer                    = iup_c_func(iup, "+IupLoadBuffer", {P}, P)
---  xIupSetLanguage                   = iup_c_proc(iup, "+IupSetLanguage", {P})
---  xIupGetLanguage                   = iup_c_func(iup, "+IupGetLanguage", {}, P)
---  xIupSetLanguageString             = iup_c_proc(iup, "+IupSetLanguageString", {P,P})
---  xIupStoreLanguageString           = iup_c_proc(iup, "+IupStoreLanguageString", {P,P})
---  xIupGetLanguageString             = iup_c_func(iup, "+IupGetLanguageString", {P}, P)
---  xIupSetLanguagePack               = iup_c_proc(iup, "+IupSetLanguagePack", {P})
-    xIupGetFunction                   = iup_c_func(iup, "+IupGetFunction", {P}, P)
-    xIupSetFunction                   = iup_c_func(iup, "+IupSetFunction", {P,P}, P)
-    xIupClassMatch                    = iup_c_func(iup, "+IupClassMatch", {P,P}, I)
-    xIupScrollBox                     = iup_c_func(iup, "+IupScrollBox", {P}, P)
-    xIupFlatScrollBox                 = iup_c_func(iup, "+IupFlatScrollBox", {P}, P)
-    xIupExpander                      = iup_c_func(iup, "+IupExpander", {P}, P)
-    xIupDetachBox                     = iup_c_func(iup, "+IupDetachBox", {P}, P)
-    xIupBackgroundBox                 = iup_c_func(iup, "+IupBackgroundBox", {P}, P)
-    xIupLink                          = iup_c_func(iup, "+IupLink", {P,P}, P)
-    xIupFlatButton                    = iup_c_func(iup, "+IupFlatButton", {P}, P)
-    xIupDropButton                    = iup_c_func(iup, "+IupDropButton", {P}, P)
-    xIupStoreAttributeId              = iup_c_proc(iup, "+IupStoreAttributeId", {P,P,I,P})
-    xIupStoreAttributeId2             = iup_c_proc(iup, "+IupStoreAttributeId2", {P,P,I,I,P})
-    xIupTreeSetUserId                 = iup_c_func(iup, "+IupTreeSetUserId", {P,I,P}, I)
-    xIupTreeGetUserId                 = iup_c_func(iup, "+IupTreeGetUserId", {P,I}, P)
-    xIupTreeGetId                     = iup_c_func(iup, "+IupTreeGetId", {P,P}, I)
---  xIupTreeSetAttributeHandle        = iup_c_proc(iup, "+IupTreeSetAttributeHandle", {P,P,I,P})
---  xIupTreeSetAttribute              = iup_c_proc(iup, "+IupTreeSetAttribute", {P,P,I,P})
---  xIupTreeStoreAttribute            = iup_c_proc(iup, "+IupTreeStoreAttribute", {P,P,I,P})
---  xIupTreeGetAttribute              = iup_c_func(iup, "+IupTreeGetAttribute", {P,P,I}, P)
---  xIupTreeGetInt                    = iup_c_func(iup, "+IupTreeGetInt", {P,P,I}, I)
---  xIupTreeGetFloat                  = iup_c_func(iup, "+IupTreeGetFloat", {P,P,I}, F)
---  xIupMapFont                       = iup_c_func(iup, "+IupMapFont", {P}, P)
---  xIupUnMapFont                     = iup_c_func(iup, "+IupUnMapFont", {P}, P)
---  xIupParamf                        = iup_c_func(iup, "+IupParamf", {P}, P)
---  xIupParamBox                      = iup_c_func(iup, "+IupParamBox", {P,P,I}, P)
-    xIupElementPropertiesDialog       = iup_c_func(iup, "+IupElementPropertiesDialog", {P,P}, P)
-    xIupClassInfoDialog               = iup_c_func(iup, "+IupClassInfoDialog", {P}, P)
-    xiupKeyCodeToName                 = iup_c_func(iup, "iupKeyCodeToName", {I},P)
+    xIupLoad                          = define_c_func(iup, "+IupLoad", {P}, P)
+    xIupLoadBuffer                    = define_c_func(iup, "+IupLoadBuffer", {P}, P)
+--  xIupSetLanguage                   = define_c_proc(iup, "+IupSetLanguage", {P})
+--  xIupGetLanguage                   = define_c_func(iup, "+IupGetLanguage", {}, P)
+--  xIupSetLanguageString             = define_c_proc(iup, "+IupSetLanguageString", {P,P})
+--  xIupStoreLanguageString           = define_c_proc(iup, "+IupStoreLanguageString", {P,P})
+--  xIupGetLanguageString             = define_c_func(iup, "+IupGetLanguageString", {P}, P)
+--  xIupSetLanguagePack               = define_c_proc(iup, "+IupSetLanguagePack", {P})
+    xIupGetFunction                   = define_c_func(iup, "+IupGetFunction", {P}, P)
+    xIupSetFunction                   = define_c_func(iup, "+IupSetFunction", {P,P}, P)
+    xIupClassMatch                    = define_c_func(iup, "+IupClassMatch", {P,P}, I)
+    xIupScrollBox                     = define_c_func(iup, "+IupScrollBox", {P}, P)
+    xIupFlatScrollBox                 = define_c_func(iup, "+IupFlatScrollBox", {P}, P)
+    xIupExpander                      = define_c_func(iup, "+IupExpander", {P}, P)
+    xIupDetachBox                     = define_c_func(iup, "+IupDetachBox", {P}, P)
+    xIupBackgroundBox                 = define_c_func(iup, "+IupBackgroundBox", {P}, P)
+    xIupLink                          = define_c_func(iup, "+IupLink", {P,P}, P)
+    xIupFlatButton                    = define_c_func(iup, "+IupFlatButton", {P}, P)
+    xIupDropButton                    = define_c_func(iup, "+IupDropButton", {P}, P)
+    xIupStoreAttributeId              = define_c_proc(iup, "+IupStoreAttributeId", {P,P,I,P})
+    xIupStoreAttributeId2             = define_c_proc(iup, "+IupStoreAttributeId2", {P,P,I,I,P})
+    xIupTreeSetUserId                 = define_c_func(iup, "+IupTreeSetUserId", {P,I,P}, I)
+    xIupTreeGetUserId                 = define_c_func(iup, "+IupTreeGetUserId", {P,I}, P)
+    xIupTreeGetId                     = define_c_func(iup, "+IupTreeGetId", {P,P}, I)
+--  xIupTreeSetAttributeHandle        = define_c_proc(iup, "+IupTreeSetAttributeHandle", {P,P,I,P})
+--  xIupTreeSetAttribute              = define_c_proc(iup, "+IupTreeSetAttribute", {P,P,I,P})
+--  xIupTreeStoreAttribute            = define_c_proc(iup, "+IupTreeStoreAttribute", {P,P,I,P})
+--  xIupTreeGetAttribute              = define_c_func(iup, "+IupTreeGetAttribute", {P,P,I}, P)
+--  xIupTreeGetInt                    = define_c_func(iup, "+IupTreeGetInt", {P,P,I}, I)
+--  xIupTreeGetFloat                  = define_c_func(iup, "+IupTreeGetFloat", {P,P,I}, F)
+--  xIupMapFont                       = define_c_func(iup, "+IupMapFont", {P}, P)
+--  xIupUnMapFont                     = define_c_func(iup, "+IupUnMapFont", {P}, P)
+--  xIupParamf                        = define_c_func(iup, "+IupParamf", {P}, P)
+--  xIupParamBox                      = define_c_func(iup, "+IupParamBox", {P,P,I}, P)
+    xIupElementPropertiesDialog       = define_c_func(iup, "+IupElementPropertiesDialog", {P,P}, P)
+    xIupClassInfoDialog               = define_c_func(iup, "+IupClassInfoDialog", {P}, P)
+    xiupKeyCodeToName                 = define_c_func(iup, "iupKeyCodeToName", {I},P)
 
 end procedure
 
@@ -1958,15 +1978,15 @@ global procedure IupVersionShow()
 end procedure
 
 --constant
---  xIupMainLoop        = iup_c_proc(iup, "IupMainLoop", {}),
---  xIupMainLoopLevel   = iup_c_func(iup, "IupMainLoopLevel", {}, I),
---  xIupLoopStep        = iup_c_func(iup, "IupLoopStep", {}, I),
---  xIupLoopStepWait    = iup_c_func(iup, "IupLoopStepWait", {}, I),
---  xIupExitLoop        = iup_c_proc(iup, "IupExitLoop", {}),
---  xIupFlush           = iup_c_proc(iup, "IupFlush", {}),
---  xIupRecordInput     = iup_c_func(iup, "IupRecordInput", {P,I}, I),
---  xIupPlayInput       = iup_c_proc(iup, "IupPlayInput", {P}),
---  xIupGetActionName   = iup_c_func(iup, "IupGetActionName", {}, P)
+--  xIupMainLoop        = define_c_proc(iup, "IupMainLoop", {}),
+--  xIupMainLoopLevel   = define_c_func(iup, "IupMainLoopLevel", {}, I),
+--  xIupLoopStep        = define_c_func(iup, "IupLoopStep", {}, I),
+--  xIupLoopStepWait    = define_c_func(iup, "IupLoopStepWait", {}, I),
+--  xIupExitLoop        = define_c_proc(iup, "IupExitLoop", {}),
+--  xIupFlush           = define_c_proc(iup, "IupFlush", {}),
+--  xIupRecordInput     = define_c_func(iup, "IupRecordInput", {P,I}, I),
+--  xIupPlayInput       = define_c_proc(iup, "IupPlayInput", {P}),
+--  xIupGetActionName   = define_c_func(iup, "IupGetActionName", {}, P)
 
 global procedure IupMainLoop()
     c_proc(xIupMainLoop, {})
@@ -2289,7 +2309,7 @@ end procedure
 --end function
 
 -- (deprecated, use IupSetAttributeHandle instead)
-global procedure IupSetHandle(string name, Ihandle ih)
+global procedure IupSetHandle(string name, Ihandln ih)
 --  name = upper(name)
     c_proc(xIupSetHandle, {name, ih})
 end procedure
@@ -2378,6 +2398,12 @@ global function IupGetInt(Ihandln ih, string name, integer dflt=0)
     if result=0 then result = dflt end if
     return result
 end function
+
+global procedure IupToggleInt(Ihandle ih, string name)
+-- A trivial but fairly handy IupSetInt(not IupGetInt()) wrapper, which
+-- saves having to type both the handle and name twice. [Phix specific]
+    IupSetInt(ih, name, not IupGetInt(ih,name))
+end procedure
 
 global function IupGetInt2(Ihandle ih, string name)
     atom result = c_func(xIupGetInt2, {ih, name})
@@ -2530,8 +2556,10 @@ end function
 global procedure IupSetCallback(Ihandles ih, string name, cbfunc func, integer nf=2)
     if sequence(ih) then
         for i=1 to length(ih) do
-            Ihandle ihi = ih[i]     -- (typecheck deliberate)
-            IupSetCallback(ihi,name,func)
+--7/5/22:
+--          Ihandle ihi = ih[i]     -- (typecheck deliberate)
+--          IupSetCallback(ihi,name,func)
+            IupSetCallback(ih[i],name,func)
         end for
     else
         if name="K_ANY"
@@ -2541,7 +2569,7 @@ global procedure IupSetCallback(Ihandles ih, string name, cbfunc func, integer n
                 -- Trapped specially because it is particularly irksome to have a
                 -- program run fine for ages then suddenly crash just because you
                 -- have (accidentally) hit a funny key.
-                integer rid = rid_from_cb(func)
+                integer rid = iup_rid_from_cb(func)
                 sequence ri = get_routine_info(rid,false)
 --              if ri[1]!=2 then ?9/0 end if
 --              if ri[2]!=2 then ?9/0 end if
@@ -2562,7 +2590,7 @@ global procedure IupSetCallback(Ihandles ih, string name, cbfunc func, integer n
             if cn="canvas"
             or cn="glcanvas" then
                 -- posx, posy must instead be feteched via IupGetDouble()
-                integer rid = rid_from_cb(func)
+                integer rid = iup_rid_from_cb(func)
                 sequence ri = get_routine_info(rid,false)
                 if ri!={1,1,"FN"} then
 --                  crash("canvas ACTION callback have func(Ihandle) sig",nFrames:=nf)
@@ -2614,6 +2642,7 @@ function key_cb(Ihandle dlg, atom c)
         end if
         IupHide(dlg)
     end if
+    if c=K_F5 then return IUP_DEFAULT end if -- (let browser reload work)
     return IUP_DEFAULT
 end function
 constant cb_key = Icallback("key_cb")
@@ -2808,7 +2837,7 @@ global procedure IupImageLibOpen()
 atom iupimglib = iup_open_dll({"iupimglib.dll",
                                "libiupimglib.so",
                                "libiupimglib.dylib"})
-integer xIupImageLibOpen = iup_c_proc(iupimglib, "IupImageLibOpen", {})
+integer xIupImageLibOpen = define_c_proc(iupimglib, "IupImageLibOpen", {})
     c_proc(xIupImageLibOpen, {})
 end procedure
 
@@ -2969,18 +2998,18 @@ end function
 --
 
 --constant
---  xIupAppend          = iup_c_func(iup, "IupAppend", {P,P}, P),
---  xIupDetach          = iup_c_proc(iup, "IupDetach", {P}),
---  xIupInsert          = iup_c_func(iup, "IupInsert", {P,P,P}, P),
---  xIupReparent        = iup_c_func(iup, "IupReparent", {P,P,P}, P),
---  xIupGetParent       = iup_c_func(iup, "IupGetParent", {P}, P),
---  xIupGetChild        = iup_c_func(iup, "IupGetChild", {P,I}, P),
---  xIupGetChildPos     = iup_c_func(iup, "IupGetChildPos", {P,P}, I),
---  xIupGetChildCount   = iup_c_func(iup, "IupGetChildCount", {P}, I),
---  xIupGetNextChild    = iup_c_func(iup, "IupGetNextChild", {P,P}, P),
---  xIupGetBrother      = iup_c_func(iup, "IupGetBrother", {P},P),
---  xIupGetDialog       = iup_c_func(iup, "IupGetDialog", {P},P),
---  xIupGetDialogChild  = iup_c_func(iup, "IupGetDialogChild", {P,P},P)
+--  xIupAppend          = define_c_func(iup, "IupAppend", {P,P}, P),
+--  xIupDetach          = define_c_proc(iup, "IupDetach", {P}),
+--  xIupInsert          = define_c_func(iup, "IupInsert", {P,P,P}, P),
+--  xIupReparent        = define_c_func(iup, "IupReparent", {P,P,P}, P),
+--  xIupGetParent       = define_c_func(iup, "IupGetParent", {P}, P),
+--  xIupGetChild        = define_c_func(iup, "IupGetChild", {P,I}, P),
+--  xIupGetChildPos     = define_c_func(iup, "IupGetChildPos", {P,P}, I),
+--  xIupGetChildCount   = define_c_func(iup, "IupGetChildCount", {P}, I),
+--  xIupGetNextChild    = define_c_func(iup, "IupGetNextChild", {P,P}, P),
+--  xIupGetBrother      = define_c_func(iup, "IupGetBrother", {P},P),
+--  xIupGetDialog       = define_c_func(iup, "IupGetDialog", {P},P),
+--  xIupGetDialogChild  = define_c_func(iup, "IupGetDialogChild", {P,P},P)
 
 --DEV/SUG: (then again, do we actually need IupAppends? - NO!)
 --global procedure IupAppend(Ihandle ih, Ihandles children)
@@ -3072,12 +3101,12 @@ end function
 --
 
 --constant
---  xIupRefresh         = iup_c_proc(iup, "IupRefresh", {P}),
---  xIupRefreshChildren = iup_c_proc(iup, "IupRefreshChildren", {P}),
---  xIupUpdate          = iup_c_proc(iup, "IupUpdate", {P}),
---  xIupUpdateChildren  = iup_c_proc(iup, "IupUpdate", {P}),
---  xIupRedraw          = iup_c_proc(iup, "IupRedraw", {P,I}),
---  xIupConvertXYToPos  = iup_c_func(iup, "IupConvertXYToPos", {P,I,I}, I)
+--  xIupRefresh         = define_c_proc(iup, "IupRefresh", {P}),
+--  xIupRefreshChildren = define_c_proc(iup, "IupRefreshChildren", {P}),
+--  xIupUpdate          = define_c_proc(iup, "IupUpdate", {P}),
+--  xIupUpdateChildren  = define_c_proc(iup, "IupUpdate", {P}),
+--  xIupRedraw          = define_c_proc(iup, "IupRedraw", {P,I}),
+--  xIupConvertXYToPos  = define_c_func(iup, "IupConvertXYToPos", {P,I,I}, I)
 --
 global procedure IupRefresh(Ihandles ih)
     if sequence(ih) then
@@ -3126,11 +3155,11 @@ end function
 
 --include dialog.e
 --constant
---  xIupDialog  = iup_c_func(iup, "IupDialog", {P},P),
---  xIupPopup   = iup_c_func(iup, "IupPopup", {P,I,I},I),
---  xIupShow    = iup_c_func(iup, "IupShow", {P},I),
---  xIupShowXY  = iup_c_func(iup, "IupShowXY", {P,I,I},I),
---X xIupHide    = iup_c_proc(iup, "IupHide", {P})
+--  xIupDialog  = define_c_func(iup, "IupDialog", {P},P),
+--  xIupPopup   = define_c_func(iup, "IupPopup", {P,I,I},I),
+--  xIupShow    = define_c_func(iup, "IupShow", {P},I),
+--  xIupShowXY  = define_c_func(iup, "IupShowXY", {P,I,I},I),
+--X xIupHide    = define_c_proc(iup, "IupHide", {P})
 
 --global function IupDialog(Ihandln child=NULL, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
 --  {action,func,attributes,data} = paranormalise(action,func,attributes,data)
@@ -3143,8 +3172,7 @@ global function IupDialog(Ihandln child=NULL, object attributes="", args={}, boo
     if bool(attributes) then
         -- map IupDialog(child,false) to IupDialog(child,bEsc:=false)
         --  - which of course equates to IupDialog(child,"",{},false)
-        if args!={} then ?9/0 end if
-        if bEsc!=true then ?9/0 end if
+        assert(args={} and bEsc=true) -- sanity
         bEsc = attributes
         attributes = ""
     else
@@ -3180,9 +3208,10 @@ global procedure IupShow(Ihandle ih, integer x=IUP_CURRENT, y=IUP_CURRENT)
 end procedure
 
 global procedure IupShowXY(Ihandle ih, integer x=IUP_CURRENT, y=IUP_CURRENT)
-    integer err = c_func(xIupShowXY, {ih, x, y})
-    if err!=IUP_NOERROR then ?9/0 end if
-    IupSetAttribute(ih,"RASTERSIZE",NULL)
+    IupShow(ih, x, y)
+--  integer err = c_func(xIupShowXY, {ih, x, y})
+--  if err!=IUP_NOERROR then ?9/0 end if
+--  IupSetAttribute(ih,"RASTERSIZE",NULL)
 end procedure
 
 global function IupAlarm(string title, string msg, string b1, nullable_string b2=NULL, nullable_string b3=NULL)
@@ -3744,31 +3773,31 @@ end function
 
 
 --global constant -- function delcarations
---  xIupConfig                        = iup_c_func(iup, "IupConfig", {}, P),
---  xIupConfigLoad                    = iup_c_func(iup, "IupConfigLoad", {P}, I),
---  xIupConfigSave                    = iup_c_func(iup, "IupConfigSave", {P}, I),
---  xIupConfigSetVariableInt          = iup_c_proc(iup, "IupConfigSetVariableInt", {P,P,P,I}),
---  xIupConfigSetVariableIntId        = iup_c_proc(iup, "IupConfigSetVariableIntId", {P,P,P,I,I}),
---  xIupConfigSetVariableDouble       = iup_c_proc(iup, "IupConfigSetVariableDouble", {P,P,P,D}),
---  xIupConfigSetVariableDoubleId     = iup_c_proc(iup, "IupConfigSetVariableDoubleId", {P,P,P,I,D}),
---  xIupConfigSetVariableStr          = iup_c_proc(iup, "IupConfigSetVariableStr", {P,P,P,P}),
---  xIupConfigSetVariableStrId        = iup_c_proc(iup, "IupConfigSetVariableStrId", {P,P,P,I,P}),
-----    xIupConfigGetVariableInt          = iup_c_func(iup, "IupConfigGetVariableInt", {P,P,P}, I),
---  xIupConfigGetVariableIntDef       = iup_c_func(iup, "IupConfigGetVariableIntDef", {P,P,P,I}, I),
-----    xIupConfigGetVariableIntId        = iup_c_func(iup, "IupConfigGetVariableIntId", {P,P,P,I}, I),
---  xIupConfigGetVariableIntIdDef     = iup_c_func(iup, "IupConfigGetVariableIntIdDef", {P,P,P,I,I}, I),
-----    xIupConfigGetVariableDouble       = iup_c_func(iup, "IupConfigGetVariableDouble", {P,P,P}, D),
---  xIupConfigGetVariableDoubleDef    = iup_c_func(iup, "IupConfigGetVariableDoubleDef", {P,P,P,D}, D),
-----    xIupConfigGetVariableDoubleId     = iup_c_func(iup, "IupConfigGetVariableDoubleId", {P,P,P,I}, D),
---  xIupConfigGetVariableDoubleIdDef  = iup_c_func(iup, "IupConfigGetVariableDoubleIdDef", {P,P,P,I,D}, D),
-----    xIupConfigGetVariableStr          = iup_c_func(iup, "IupConfigGetVariableStr", {P,P,P}, P),
---  xIupConfigGetVariableStrDef       = iup_c_func(iup, "IupConfigGetVariableStrDef", {P,P,P,P}, P),
-----    xIupConfigGetVariableStrId        = iup_c_func(iup, "IupConfigGetVariableStrId", {P,P,P,I}, P),
---  xIupConfigGetVariableStrIdDef     = iup_c_func(iup, "IupConfigGetVariableStrIdDef", {P,P,P,I,P}, P),
---  xIupConfigRecentInit              = iup_c_proc(iup, "IupConfigRecentInit", {P,P,P,I}),
---  xIupConfigRecentUpdate            = iup_c_proc(iup, "IupConfigRecentUpdate", {P,P}),
---  xIupConfigDialogShow              = iup_c_proc(iup, "IupConfigDialogShow", {P,P,P}),
---  xIupConfigDialogClosed            = iup_c_proc(iup, "IupConfigDialogClosed", {P,P,P}),
+--  xIupConfig                        = define_c_func(iup, "IupConfig", {}, P),
+--  xIupConfigLoad                    = define_c_func(iup, "IupConfigLoad", {P}, I),
+--  xIupConfigSave                    = define_c_func(iup, "IupConfigSave", {P}, I),
+--  xIupConfigSetVariableInt          = define_c_proc(iup, "IupConfigSetVariableInt", {P,P,P,I}),
+--  xIupConfigSetVariableIntId        = define_c_proc(iup, "IupConfigSetVariableIntId", {P,P,P,I,I}),
+--  xIupConfigSetVariableDouble       = define_c_proc(iup, "IupConfigSetVariableDouble", {P,P,P,D}),
+--  xIupConfigSetVariableDoubleId     = define_c_proc(iup, "IupConfigSetVariableDoubleId", {P,P,P,I,D}),
+--  xIupConfigSetVariableStr          = define_c_proc(iup, "IupConfigSetVariableStr", {P,P,P,P}),
+--  xIupConfigSetVariableStrId        = define_c_proc(iup, "IupConfigSetVariableStrId", {P,P,P,I,P}),
+--- xIupConfigGetVariableInt          = define_c_func(iup, "IupConfigGetVariableInt", {P,P,P}, I),
+--  xIupConfigGetVariableIntDef       = define_c_func(iup, "IupConfigGetVariableIntDef", {P,P,P,I}, I),
+--- xIupConfigGetVariableIntId        = define_c_func(iup, "IupConfigGetVariableIntId", {P,P,P,I}, I),
+--  xIupConfigGetVariableIntIdDef     = define_c_func(iup, "IupConfigGetVariableIntIdDef", {P,P,P,I,I}, I),
+--- xIupConfigGetVariableDouble       = define_c_func(iup, "IupConfigGetVariableDouble", {P,P,P}, D),
+--  xIupConfigGetVariableDoubleDef    = define_c_func(iup, "IupConfigGetVariableDoubleDef", {P,P,P,D}, D),
+--- xIupConfigGetVariableDoubleId     = define_c_func(iup, "IupConfigGetVariableDoubleId", {P,P,P,I}, D),
+--  xIupConfigGetVariableDoubleIdDef  = define_c_func(iup, "IupConfigGetVariableDoubleIdDef", {P,P,P,I,D}, D),
+--- xIupConfigGetVariableStr          = define_c_func(iup, "IupConfigGetVariableStr", {P,P,P}, P),
+--  xIupConfigGetVariableStrDef       = define_c_func(iup, "IupConfigGetVariableStrDef", {P,P,P,P}, P),
+--- xIupConfigGetVariableStrId        = define_c_func(iup, "IupConfigGetVariableStrId", {P,P,P,I}, P),
+--  xIupConfigGetVariableStrIdDef     = define_c_func(iup, "IupConfigGetVariableStrIdDef", {P,P,P,I,P}, P),
+--  xIupConfigRecentInit              = define_c_proc(iup, "IupConfigRecentInit", {P,P,P,I}),
+--  xIupConfigRecentUpdate            = define_c_proc(iup, "IupConfigRecentUpdate", {P,P}),
+--  xIupConfigDialogShow              = define_c_proc(iup, "IupConfigDialogShow", {P,P,P}),
+--  xIupConfigDialogClosed            = define_c_proc(iup, "IupConfigDialogClosed", {P,P,P}),
 --  $
 
 global function IupConfig()
@@ -3984,9 +4013,9 @@ end function
 --                                  "libiupmatrixex.dylib"
 --                                 })
 --
---      xIupMatrixEx            = iup_c_func(iupMatrixEx, "IupMatrixEx", {},P)
-----        xIupMatrixExInit        = iup_c_proc(iupMatrixEx, "IupMatrixExInit", {P})
-----        xIupMatrixExOpen        = iup_c_proc(iupMatrixEx, "IupMatrixExOpen", {})
+--      xIupMatrixEx            = define_c_func(iupMatrixEx, "IupMatrixEx", {},P)
+----        xIupMatrixExInit        = define_c_proc(iupMatrixEx, "IupMatrixExInit", {P})
+----        xIupMatrixExOpen        = define_c_proc(iupMatrixEx, "IupMatrixExOpen", {})
 --  end if
 --end procedure
 
@@ -4495,25 +4524,25 @@ procedure iup_gl_controls_init()
         iupGLControls = iup_open_dll({"iupglcontrols.dll",
                                       "libiupglcontrols.so",
                                       "libiupglcontrols.dylib"})
-        xIupGLControlsOpen      = iup_c_proc(iupGLControls, "IupGLControlsOpen", {})
-        xIupGLCanvasBoxv        = iup_c_func(iupGLControls, "IupGLCanvasBoxv", {P}, P)
-        xIupGLButton            = iup_c_func(iupGLControls, "IupGLButton", {P}, P)
-        xIupGLExpander          = iup_c_func(iupGLControls, "IupGLExpander", {P}, P)
-        xIupGLFrame             = iup_c_func(iupGLControls, "IupGLFrame", {P}, P)
-        xIupGLLabel             = iup_c_func(iupGLControls, "IupGLLabel", {P}, P)
-        xIupGLLink              = iup_c_func(iupGLControls, "IupGLLink", {P,P}, P)
-        xIupGLProgressBar       = iup_c_func(iupGLControls, "IupGLProgressBar", {}, P)
-        xIupGLScrollBox         = iup_c_func(iupGLControls, "IupGLScrollBox", {P}, P)
-        xIupGLSeparator         = iup_c_func(iupGLControls, "IupGLSeparator", {}, P)
-        xIupGLSizeBox           = iup_c_func(iupGLControls, "IupGLSizeBox", {P}, P)
-        xIupGLSubCanvas         = iup_c_func(iupGLControls, "IupGLSubCanvas", {P}, P)
-        xIupGLDrawText          = iup_c_proc(iupGLControls, "IupGLDrawText", {P,P,I,I,I})
-        xIupGLDrawImage         = iup_c_proc(iupGLControls, "IupGLDrawImage", {P,P,I,I,I})
-        xIupGLDrawGetTextSize   = iup_c_proc(iupGLControls, "IupGLDrawGetTextSize", {P,P,P,P})
-        xIupGLDrawGetImageInfo  = iup_c_proc(iupGLControls, "IupGLDrawGetImageInfo", {P,P,P,P})
-        xIupGLToggle            = iup_c_func(iupGLControls, "IupGLToggle", {P}, P)
-        xIupGLText              = iup_c_func(iupGLControls, "IupGLText", {}, P)
-        xIupGLVal               = iup_c_func(iupGLControls, "IupGLVal", {P}, P)
+        xIupGLControlsOpen      = define_c_proc(iupGLControls, "IupGLControlsOpen", {})
+        xIupGLCanvasBoxv        = define_c_func(iupGLControls, "IupGLCanvasBoxv", {P}, P)
+        xIupGLButton            = define_c_func(iupGLControls, "IupGLButton", {P}, P)
+        xIupGLExpander          = define_c_func(iupGLControls, "IupGLExpander", {P}, P)
+        xIupGLFrame             = define_c_func(iupGLControls, "IupGLFrame", {P}, P)
+        xIupGLLabel             = define_c_func(iupGLControls, "IupGLLabel", {P}, P)
+        xIupGLLink              = define_c_func(iupGLControls, "IupGLLink", {P,P}, P)
+        xIupGLProgressBar       = define_c_func(iupGLControls, "IupGLProgressBar", {}, P)
+        xIupGLScrollBox         = define_c_func(iupGLControls, "IupGLScrollBox", {P}, P)
+        xIupGLSeparator         = define_c_func(iupGLControls, "IupGLSeparator", {}, P)
+        xIupGLSizeBox           = define_c_func(iupGLControls, "IupGLSizeBox", {P}, P)
+        xIupGLSubCanvas         = define_c_func(iupGLControls, "IupGLSubCanvas", {P}, P)
+        xIupGLDrawText          = define_c_proc(iupGLControls, "IupGLDrawText", {P,P,I,I,I})
+        xIupGLDrawImage         = define_c_proc(iupGLControls, "IupGLDrawImage", {P,P,I,I,I})
+        xIupGLDrawGetTextSize   = define_c_proc(iupGLControls, "IupGLDrawGetTextSize", {P,P,P,P})
+        xIupGLDrawGetImageInfo  = define_c_proc(iupGLControls, "IupGLDrawGetImageInfo", {P,P,P,P})
+        xIupGLToggle            = define_c_func(iupGLControls, "IupGLToggle", {P}, P)
+        xIupGLText              = define_c_func(iupGLControls, "IupGLText", {}, P)
+        xIupGLVal               = define_c_func(iupGLControls, "IupGLVal", {P}, P)
     end if
 end procedure
 
@@ -4712,8 +4741,8 @@ procedure IupWebBrowserOpen()
         hIupWeb = iup_open_dll({"iupweb.dll",
                                 "libiupweb.so",
                                 "libiupweb.dylib"})
-        xIupWebBrowserOpen  = iup_c_proc(hIupWeb, "IupWebBrowserOpen", {})
-        xIupWebBrowser      = iup_c_func(hIupWeb, "IupWebBrowser", {},P)
+        xIupWebBrowserOpen  = define_c_proc(hIupWeb, "IupWebBrowserOpen", {})
+        xIupWebBrowser      = define_c_func(hIupWeb, "IupWebBrowser", {},P)
         c_proc(xIupWebBrowserOpen, {})
     end if
 end procedure
@@ -4827,57 +4856,57 @@ procedure iup_image_init()
                                    "libim_process.so",
                                    "libim_process.dylib"})
 
-        xIupImage                   = iup_c_func(iup, "IupImage", {I,I,P}, P)
-        xIupImageRGB                = iup_c_func(iup, "IupImageRGB", {I,I,P}, P)
-        xIupImageRGBA               = iup_c_func(iup, "IupImageRGBA", {I,I,P}, P)
-        xiupImageStockLoadAll       = iup_c_proc(iup, "iupImageStockLoadAll", {})
-        xIupDrawBegin               = iup_c_proc(iup, "IupDrawBegin",{P})
-        xIupDrawEnd                 = iup_c_proc(iup, "IupDrawEnd",{P})
-        xIupDrawSetClipRect         = iup_c_proc(iup, "IupDrawSetClipRect",{P,I,I,I,I})
-        xIupDrawGetClipRect         = iup_c_proc(iup, "IupDrawGetClipRect",{P,P,P,P,P})
-        xIupDrawResetClip           = iup_c_proc(iup, "IupDrawResetClip",{P})
-        xIupDrawParentBackground    = iup_c_proc(iup, "IupDrawParentBackground",{P})
-        xIupDrawLine                = iup_c_proc(iup, "IupDrawLine",{P,I,I,I,I})
-        xIupDrawRectangle           = iup_c_proc(iup, "IupDrawRectangle",{P,I,I,I,I})
-        xIupDrawArc                 = iup_c_proc(iup, "IupDrawArc",{P,I,I,I,I,D,D})
-        xIupDrawPolygon             = iup_c_proc(iup, "IupDrawPolygon",{P,P,I})
-        xIupDrawText                = iup_c_proc(iup, "IupDrawText",{P,P,I,I,I,I,I})
-        xIupDrawImage               = iup_c_proc(iup, "IupDrawImage",{P,P,I,I,I,I})
-        xIupDrawSelectRect          = iup_c_proc(iup, "IupDrawSelectRect",{P,I,I,I,I})
-        xIupDrawFocusRect           = iup_c_proc(iup, "IupDrawFocusRect",{P,I,I,I,I})
-        xIupDrawGetSize             = iup_c_proc(iup, "IupDrawGetSize",{P,P,P})
-        xIupDrawGetTextSize         = iup_c_proc(iup, "IupDrawGetTextSize",{P,P,I,P,P})
-        xIupDrawGetImageInfo        = iup_c_proc(iup, "IupDrawGetImageInfo",{P,P,P,P})
-        xIupLoadImage               = iup_c_func(iupIm, "IupLoadImage", {P}, P)
-        xIupSaveImage               = iup_c_func(iupIm, "IupSaveImage", {P,P,P}, I)
-        xIupSaveImageAsText         = iup_c_func(iup, "IupSaveImageAsText", {P,P,P,P}, I)
-        xIupGetNativeHandleImage    = iup_c_func(iupIm, "IupGetNativeHandleImage", {P}, P)
-        xIupGetImageNativeHandle    = iup_c_func(iupIm, "IupGetImageNativeHandle", {P}, P)
-        xIupImageGetHandle          = iup_c_func(iup, "IupImageGetHandle", {P}, P)
-        xIupImageFromImImage        = iup_c_func(iupIm, "IupImageFromImImage", {P}, P)
-        xIupImageToImImage          = iup_c_func(iupIm, "IupImageToImImage", {P}, P)
-        ximFileImageLoadBitmap      = iup_c_func(hIm, "imFileImageLoadBitmap", {P,I,P}, P)
-        ximImageGetAttribString     = iup_c_func(hIm, "imImageGetAttribString", {P,P}, P)
-        ximImageSetAttribString     = iup_c_proc(hIm, "imImageSetAttribString", {P,P,P})
---      ximFileSaveImage            = iup_c_func(hIm, "imFileSaveImage", {P,P}, I)
-        ximFileImageSave            = iup_c_func(hIm, "imFileImageSave", {P,P,P}, I)
-        ximProcessRenderFloodFill   = iup_c_proc(hImProcess, "imProcessRenderFloodFill", {P,I,I,P,F})
-        ximProcessRenderConstant    = iup_c_proc(hImProcess, "imProcessRenderConstant", {P,P})
-        ximProcessToneGamut         = iup_c_proc(hImProcess, "imProcessToneGamut", {})
-        ximProcessResize            = iup_c_proc(hImProcess, "imProcessResize", {P,P,I})
-        ximProcessMirror            = iup_c_proc(hImProcess, "imProcessMirror", {P,P})
-        ximProcessFlip              = iup_c_proc(hImProcess, "imProcessFlip", {P,P})
-        ximProcessRotate180         = iup_c_proc(hImProcess, "imProcessRotate180", {P,P})
-        ximProcessRotate90          = iup_c_proc(hImProcess, "imProcessRotate90", {P,P,I})
-        ximProcessNegative          = iup_c_proc(hImProcess, "imProcessNegative", {P,P})
-        ximImageRemoveAlpha         = iup_c_proc(hIm, "imImageRemoveAlpha", {P})
-        ximImageCreate              = iup_c_func(hIm, "imImageCreate", {I,I,I,I}, P)
-        ximImageCreateBased         = iup_c_func(hIm, "imImageCreateBased", {P,I,I,I,I}, P)
-        ximConvertColorSpace        = iup_c_func(hIm, "imConvertColorSpace", {P,P}, I)
-        ximImageClone               = iup_c_func(hIm, "imImageClone", {P}, P)
-        ximImageDestroy             = iup_c_proc(hIm, "imImageDestroy", {P})
-        ximConvertPacking           = iup_c_proc(hIm, "imConvertPacking", {P,P,I,I,I,I,I,I})
-        ximImageGetOpenGLData       = iup_c_proc(hIm, "imImageGetOpenGLData", {P,P})
+        xIupImage                   = define_c_func(iup, "IupImage", {I,I,P}, P)
+        xIupImageRGB                = define_c_func(iup, "IupImageRGB", {I,I,P}, P)
+        xIupImageRGBA               = define_c_func(iup, "IupImageRGBA", {I,I,P}, P)
+        xiupImageStockLoadAll       = define_c_proc(iup, "iupImageStockLoadAll", {})
+        xIupDrawBegin               = define_c_proc(iup, "IupDrawBegin",{P})
+        xIupDrawEnd                 = define_c_proc(iup, "IupDrawEnd",{P})
+        xIupDrawSetClipRect         = define_c_proc(iup, "IupDrawSetClipRect",{P,I,I,I,I})
+        xIupDrawGetClipRect         = define_c_proc(iup, "IupDrawGetClipRect",{P,P,P,P,P})
+        xIupDrawResetClip           = define_c_proc(iup, "IupDrawResetClip",{P})
+        xIupDrawParentBackground    = define_c_proc(iup, "IupDrawParentBackground",{P})
+        xIupDrawLine                = define_c_proc(iup, "IupDrawLine",{P,I,I,I,I})
+        xIupDrawRectangle           = define_c_proc(iup, "IupDrawRectangle",{P,I,I,I,I})
+        xIupDrawArc                 = define_c_proc(iup, "IupDrawArc",{P,I,I,I,I,D,D})
+        xIupDrawPolygon             = define_c_proc(iup, "IupDrawPolygon",{P,P,I})
+        xIupDrawText                = define_c_proc(iup, "IupDrawText",{P,P,I,I,I,I,I})
+        xIupDrawImage               = define_c_proc(iup, "IupDrawImage",{P,P,I,I,I,I})
+        xIupDrawSelectRect          = define_c_proc(iup, "IupDrawSelectRect",{P,I,I,I,I})
+        xIupDrawFocusRect           = define_c_proc(iup, "IupDrawFocusRect",{P,I,I,I,I})
+        xIupDrawGetSize             = define_c_proc(iup, "IupDrawGetSize",{P,P,P})
+        xIupDrawGetTextSize         = define_c_proc(iup, "IupDrawGetTextSize",{P,P,I,P,P})
+        xIupDrawGetImageInfo        = define_c_proc(iup, "IupDrawGetImageInfo",{P,P,P,P})
+        xIupLoadImage               = define_c_func(iupIm, "IupLoadImage", {P}, P)
+        xIupSaveImage               = define_c_func(iupIm, "IupSaveImage", {P,P,P}, I)
+        xIupSaveImageAsText         = define_c_func(iup, "IupSaveImageAsText", {P,P,P,P}, I)
+        xIupGetNativeHandleImage    = define_c_func(iupIm, "IupGetNativeHandleImage", {P}, P)
+        xIupGetImageNativeHandle    = define_c_func(iupIm, "IupGetImageNativeHandle", {P}, P)
+        xIupImageGetHandle          = define_c_func(iup, "IupImageGetHandle", {P}, P)
+        xIupImageFromImImage        = define_c_func(iupIm, "IupImageFromImImage", {P}, P)
+        xIupImageToImImage          = define_c_func(iupIm, "IupImageToImImage", {P}, P)
+        ximFileImageLoadBitmap      = define_c_func(hIm, "imFileImageLoadBitmap", {P,I,P}, P)
+        ximImageGetAttribString     = define_c_func(hIm, "imImageGetAttribString", {P,P}, P)
+        ximImageSetAttribString     = define_c_proc(hIm, "imImageSetAttribString", {P,P,P})
+--      ximFileSaveImage            = define_c_func(hIm, "imFileSaveImage", {P,P}, I)
+        ximFileImageSave            = define_c_func(hIm, "imFileImageSave", {P,P,P}, I)
+        ximProcessRenderFloodFill   = define_c_proc(hImProcess, "imProcessRenderFloodFill", {P,I,I,P,F})
+        ximProcessRenderConstant    = define_c_proc(hImProcess, "imProcessRenderConstant", {P,P})
+        ximProcessToneGamut         = define_c_proc(hImProcess, "imProcessToneGamut", {})
+        ximProcessResize            = define_c_proc(hImProcess, "imProcessResize", {P,P,I})
+        ximProcessMirror            = define_c_proc(hImProcess, "imProcessMirror", {P,P})
+        ximProcessFlip              = define_c_proc(hImProcess, "imProcessFlip", {P,P})
+        ximProcessRotate180         = define_c_proc(hImProcess, "imProcessRotate180", {P,P})
+        ximProcessRotate90          = define_c_proc(hImProcess, "imProcessRotate90", {P,P,I})
+        ximProcessNegative          = define_c_proc(hImProcess, "imProcessNegative", {P,P})
+        ximImageRemoveAlpha         = define_c_proc(hIm, "imImageRemoveAlpha", {P})
+        ximImageCreate              = define_c_func(hIm, "imImageCreate", {I,I,I,I}, P)
+        ximImageCreateBased         = define_c_func(hIm, "imImageCreateBased", {P,I,I,I,I}, P)
+        ximConvertColorSpace        = define_c_func(hIm, "imConvertColorSpace", {P,P}, I)
+        ximImageClone               = define_c_func(hIm, "imImageClone", {P}, P)
+        ximImageDestroy             = define_c_proc(hIm, "imImageDestroy", {P})
+        ximConvertPacking           = define_c_proc(hIm, "imConvertPacking", {P,P,I,I,I,I,I,I})
+        ximImageGetOpenGLData       = define_c_proc(hIm, "imImageGetOpenGLData", {P,P})
     end if
 end procedure
 
@@ -5469,10 +5498,10 @@ end function
 --
 
 --constant
---  xIupPreviousField   = iup_c_func(iup, "IupPreviousField", {P},P),
---  xIupNextField       = iup_c_func(iup, "IupNextField", {P},P),
---  xIupSetFocus        = iup_c_proc(iup, "IupSetFocus", {P}),
---  xIupGetFocus        = iup_c_func(iup, "IupGetFocus", {},P)
+--  xIupPreviousField   = define_c_func(iup, "IupPreviousField", {P},P),
+--  xIupNextField       = define_c_func(iup, "IupNextField", {P},P),
+--  xIupSetFocus        = define_c_proc(iup, "IupSetFocus", {P}),
+--  xIupGetFocus        = define_c_func(iup, "IupGetFocus", {},P)
 --
 global function IupPreviousField(Ihandle ih)
     Ihandln prev = c_func(xIupPreviousField, {ih})
@@ -5499,10 +5528,10 @@ end function
 --
 
 --constant
---  xIupMenuv       = iup_c_func(iup, "IupMenuv", {P}, P),
---  xIupItem        = iup_c_func(iup, "IupItem",  {P,P}, P),
---  xIupSeparator   = iup_c_func(iup, "IupSeparator", {}, P),
---  xIupSubmenu     = iup_c_func(iup, "IupSubmenu", {P,P}, P)
+--  xIupMenuv       = define_c_func(iup, "IupMenuv", {P}, P),
+--  xIupItem        = define_c_func(iup, "IupItem",  {P,P}, P),
+--  xIupSeparator   = define_c_func(iup, "IupSeparator", {}, P),
+--  xIupSubmenu     = define_c_func(iup, "IupSubmenu", {P,P}, P)
 --
 global function IupMenu(Ihandles children={}, sequence attributes="", dword_seq args={})
 atom pChildren = iup_ptr_array(children)
@@ -5556,11 +5585,11 @@ end function
 --
 
 --constant
-----    xIupSetHandle       = iup_c_proc(iup, "IupSetHandle", {P,P}),
-----    xIupGetHandle       = iup_c_func(iup, "IupGetHandle", {P},P),
---  xIupGetName         = iup_c_func(iup, "IupGetName", {P},P),
---  xIupGetAllNames     = iup_c_func(iup, "IupGetAllNames", {P,I},I),
---  xIupGetAllDialogs   = iup_c_func(iup, "IupGetAllDialogs", {P,I},I)
+----    xIupSetHandle       = define_c_proc(iup, "IupSetHandle", {P,P}),
+----    xIupGetHandle       = define_c_func(iup, "IupGetHandle", {P},P),
+--  xIupGetName         = define_c_func(iup, "IupGetName", {P},P),
+--  xIupGetAllNames     = define_c_func(iup, "IupGetAllNames", {P,I},I),
+--  xIupGetAllDialogs   = define_c_func(iup, "IupGetAllDialogs", {P,I},I)
 
 global function IupGetName(Ihandle ih)
 atom pName = c_func(xIupGetName, {ih})
@@ -5590,10 +5619,10 @@ global function IupGetAllDialogs()
 end function
 
 --constant
---  xIupClipboard = iup_c_func(iup, "IupClipboard", {}, P),
---  xIupTimer = iup_c_func(iup, "IupTimer", {}, P),
---  xIupUser = iup_c_func(iup, "IupUser", {}, P),
---  xIupHelp = iup_c_func(iup, "IupHelp", {P}, I)
+--  xIupClipboard = define_c_func(iup, "IupClipboard", {}, P),
+--  xIupTimer = define_c_func(iup, "IupTimer", {}, P),
+--  xIupUser = define_c_func(iup, "IupUser", {}, P),
+--  xIupHelp = define_c_func(iup, "IupHelp", {P}, I)
 
 global function IupClipboard()
     Ihandle ih = c_func(xIupClipboard, {})
@@ -5957,73 +5986,77 @@ global constant
 --~                      #000075,   -- Navy
 --                       #a9a9a9}   -- Grey
 
-    CD_BLACK        = #000000,
-    CD_BLUE         = #0000FF,
-    CD_CYAN         = #00FFFF,
-    CD_DARK_BLUE    = #000080,
-    CD_DARK_CYAN    = #008080,
-    CD_DARK_GRAY    = #808080,
-    CD_DARK_GREY    = #808080,
-    CD_DARK_GREEN   = #008000,
-    CD_DARK_MAGENTA = #800080,  -- (not the best...)
-    CD_DARK_RED     = #800000,  -- (not the best...)
-    CD_DARK_YELLOW  = #EBEB00,
-    CD_GRAY         = #C0C0C0,
-    CD_GREY         = #C0C0C0,
-    CD_GREEN        = #3cb44b,
-    CD_INDIGO       = #4B0082,
-    CD_LIGHT_GRAY   = #E4E4E4,
-    CD_LIGHT_GREY   = #E4E4E4,
-    CD_LIGHT_GREEN  = #00FF00,
-    CD_LIGHT_BLUE   = #4363d8,
---  CD_MAGENTA      = #FF00FF,
-    CD_MAGENTA      = #f032e6,
-    CD_NAVY         = #000080,  -- (=== CD_DARK_BLUE)
-    CD_ORANGE       = #FF8C00,
-    CD_OLIVE        = #808000,
-    CD_PARCHMENT    = #FFFFE0,
---  CD_PURPLE       = #D080D0,
-    CD_PURPLE       = #911eb4,
-    CD_RED          = #FF0000,
-    CD_SILVER       = #C0C0C0,  -- (=== CD_GREY)
-    CD_TEAL         = #008080,  -- (=== CD_DARK_CYAN)
-    CD_VIOLET       = #EE82EE,
-    CD_WHITE        = #FFFFFF,
-    CD_YELLOW       = #FFFF00,
+    CD_AMBER            = #FFBF00,
+    CD_BLACK            = #000000,
+    CD_BLUE             = #0000FF,
+    CD_CYAN             = #00FFFF,
+    CD_DARK_BLUE        = #000080,
+    CD_DARK_CYAN        = #008080,
+    CD_DARK_GRAY        = #808080,
+    CD_DARK_GREY        = #808080,
+    CD_DARK_GREEN       = #008000,
+    CD_DARK_MAGENTA     = #800080,  -- (not the best...)
+    CD_DARK_RED         = #800000,  -- (not the best...)
+    CD_DARK_YELLOW      = #EBEB00,
+    CD_GRAY             = #C0C0C0,
+    CD_GREY             = #C0C0C0,
+    CD_GREEN            = #3CB44B,
+    CD_INDIGO           = #4B0082,
+    CD_LIGHT_GRAY       = #E4E4E4,
+    CD_LIGHT_GREY       = #E4E4E4,
+    CD_LIGHT_GREEN      = #00FF00,
+    CD_LIGHT_BLUE       = #4363d8,
+    CD_LIGHT_PARCHMENT  = #FAF8EF,
+--  CD_MAGENTA          = #FF00FF,
+    CD_MAGENTA          = #F032E6,
+    CD_NAVY             = #000080,  -- (=== CD_DARK_BLUE)
+    CD_ORANGE           = #FF8C00,
+    CD_OLIVE            = #808000,
+    CD_PARCHMENT        = #FFFFE0,
+--  CD_PURPLE           = #D080D0,
+    CD_PURPLE           = #911EB4,
+    CD_RED              = #FF0000,
+    CD_SILVER           = #C0C0C0,  -- (=== CD_GREY)
+    CD_TEAL             = #008080,  -- (=== CD_DARK_CYAN)
+    CD_VIOLET           = #EE82EE,
+    CD_WHITE            = #FFFFFF,
+    CD_YELLOW           = #FFFF00,
 
-    IUP_BLACK        = "#000000",
-    IUP_BLUE         = "#0000FF",
-    IUP_CYAN         = "#00FFFF",
-    IUP_DARK_BLUE    = "#000080",
-    IUP_DARK_CYAN    = "#008080",
-    IUP_DARK_GRAY    = "#808080",
-    IUP_DARK_GREY    = "#808080",
-    IUP_DARK_GREEN   = "#008000",
-    IUP_DARK_MAGENTA = "#800080",   -- (not the best...)
-    IUP_DARK_RED     = "#800000",   -- (not the best...)
-    IUP_DARK_YELLOW  = "#EBEB00",
-    IUP_GRAY         = "#C0C0C0",
-    IUP_GREY         = "#C0C0C0",
-    IUP_GREEN        = "#3cb44b",
-    IUP_INDIGO       = "#4B0082",
-    IUP_LIGHT_GRAY   = "#E4E4E4",
-    IUP_LIGHT_GREY   = "#E4E4E4",
-    IUP_LIGHT_GREEN  = "#00FF00",
-    IUP_LIGHT_BLUE   = "#4363d8",
---  IUP_MAGENTA      = "#FF00FF",
-    IUP_MAGENTA      = "#f032e6",
-    IUP_NAVY         = "#000080",   -- (=== CD_DARK_BLUE)
-    IUP_ORANGE       = "#FF8C00",
-    IUP_OLIVE        = "#808000",
-    IUP_PARCHMENT    = "#FFFFE0",
---  IUP_PURPLE       = "#D080D0",
-    IUP_PURPLE       = "#911eb4",
-    IUP_RED          = "#FF0000",
-    IUP_SILVER       = "#C0C0C0",   -- (=== CD_GREY)
-    IUP_TEAL         = "#008080",   -- (=== CD_DARK_CYAN)
-    IUP_VIOLET       = "#EE82EE",
-    IUP_WHITE        = "#FFFFFF",
-    IUP_YELLOW       = "#FFFF00",
+    IUP_BLACK           = "#000000",
+    IUP_BLUE            = "#0000FF",
+    IUP_CYAN            = "#00FFFF",
+    IUP_DARK_BLUE       = "#000080",
+    IUP_DARK_CYAN       = "#008080",
+    IUP_DARK_GRAY       = "#808080",
+    IUP_DARK_GREY       = "#808080",
+    IUP_DARK_GREEN      = "#008000",
+    IUP_DARK_MAGENTA    = "#800080",    -- (not the best...)
+    IUP_DARK_RED        = "#800000",    -- (not the best...)
+    IUP_DARK_YELLOW     = "#EBEB00",
+    IUP_GRAY            = "#C0C0C0",
+    IUP_GREY            = "#C0C0C0",
+    IUP_GREEN           = "#3cb44b",
+    IUP_INDIGO          = "#4B0082",
+    IUP_LIGHT_GRAY      = "#E4E4E4",
+    IUP_LIGHT_GREY      = "#E4E4E4",
+    IUP_LIGHT_GREEN     = "#00FF00",
+    IUP_LIGHT_BLUE      = "#4363d8",
+    IUP_LIGHT_PARCHMENT = "#FAF8EF",
+--  IUP_MAGENTA         = "#FF00FF",
+    IUP_MAGENTA         = "#f032e6",
+    IUP_NAVY            = "#000080",    -- (=== CD_DARK_BLUE)
+    IUP_ORANGE          = "#FF8C00",
+    IUP_AMBER           = "#FFBF00",
+    IUP_OLIVE           = "#808000",
+    IUP_PARCHMENT       = "#FFFFE0",
+--  IUP_PURPLE          = "#D080D0",
+    IUP_PURPLE          = "#911eb4",
+    IUP_RED             = "#FF0000",
+    IUP_SILVER          = "#C0C0C0",    -- (=== CD_GREY)
+    IUP_TEAL            = "#008080",    -- (=== CD_DARK_CYAN)
+    IUP_VIOLET          = "#EE82EE",
+    IUP_WHITE           = "#FFFFFF",
+    IUP_YELLOW          = "#FFFF00",
     $
 
 /*
@@ -6514,58 +6547,58 @@ procedure iup_init_cd()
         --
         -- Version Information Routines
         --
-        xcdVersion       = iup_c_func(hCd, "cdVersion", {}, P)
-        xcdVersionDate   = iup_c_func(hCd, "cdVersionDate", {}, P)
-        xcdVersionNumber = iup_c_func(hCd, "cdVersionNumber", {}, I)
+        xcdVersion       = define_c_func(hCd, "cdVersion", {}, P)
+        xcdVersionDate   = define_c_func(hCd, "cdVersionDate", {}, P)
+        xcdVersionNumber = define_c_func(hCd, "cdVersionNumber", {}, I)
 
-        xcdCreateCanvas     = iup_c_func(hCd, "cdCreateCanvas", {P,P}, P)
-        xcdKillCanvas       = iup_c_proc(hCd, "cdKillCanvas", {P})
-        xcdCanvasGetContext = iup_c_func(hCd, "cdCanvasGetContext", {P}, P)
-        xcdCanvasActivate   = iup_c_func(hCd, "cdCanvasActivate", {P}, I)
-        xcdCanvasDeactivate = iup_c_proc(hCd, "cdCanvasDeactivate", {P})
-        xcdUseContextPlus   = iup_c_proc(hCd, "cdUseContextPlus", {I})
-        xcdInitContextPlus  = define_c_proc(hCd, "cdInitContextPlus", {})   -- (-1 is handled OK)
+        xcdCreateCanvas     = define_c_func(hCd, "cdCreateCanvas", {P,P}, P)
+        xcdKillCanvas       = define_c_proc(hCd, "cdKillCanvas", {P})
+        xcdCanvasGetContext = define_c_func(hCd, "cdCanvasGetContext", {P}, P)
+        xcdCanvasActivate   = define_c_func(hCd, "cdCanvasActivate", {P}, I)
+        xcdCanvasDeactivate = define_c_proc(hCd, "cdCanvasDeactivate", {P})
+        xcdUseContextPlus   = define_c_proc(hCd, "cdUseContextPlus", {I})
+        xcdInitContextPlus  = define_c_proc(hCd, "cdInitContextPlus", {}, bCrash:=false)    -- (-1 is handled OK)
 
         --
         -- Context Routines
         --
-        xcdContextRegisterCallback  = iup_c_func(hCd, "cdContextRegisterCallback", {P,I,P}, I)
-        xcdContextCaps              = iup_c_func(hCd, "cdContextCaps", {P}, UL)
-        xcdCanvasPlay               = iup_c_func(hCd, "cdCanvasPlay", {P,P,I,I,I,I,P}, I)
+        xcdContextRegisterCallback  = define_c_func(hCd, "cdContextRegisterCallback", {P,I,P}, I)
+        xcdContextCaps              = define_c_func(hCd, "cdContextCaps", {P}, UL)
+        xcdCanvasPlay               = define_c_func(hCd, "cdCanvasPlay", {P,P,I,I,I,I,P}, I)
 
-        xcdContextImImage           = iup_c_func(hCdIm, "cdContextImImage", {}, P)
-        xcdCanvasPutImImage         = iup_c_proc(hCdIm, "cdCanvasPutImImage", {P,P,I,I,I,I})
+        xcdContextImImage           = define_c_func(hCdIm, "cdContextImImage", {}, P)
+        xcdCanvasPutImImage         = define_c_proc(hCdIm, "cdCanvasPutImImage", {P,P,I,I,I,I})
 
         --
         -- Canvas Initialization Routines
         --
-        xcdContextIup           = iup_c_func(hCdIup, "cdContextIup", {}, P)
-        xcdContextIupDraw       = iup_c_func(hCdIup, "cdContextIupDraw", {}, P)
-        xcdContextPrinter       = iup_c_func(hCd, "cdContextPrinter", {}, P)
-        xcdContextPS            = iup_c_func(hCd, "cdContextPS", {}, P)
-        xcdContextPicture       = iup_c_func(hCd, "cdContextPicture", {}, P)
-        xcdContextGL            = iup_c_func(hCdGL,"cdContextGL", {}, P)
-        xcdContextIupDBuffer    = iup_c_func(hCdIup,"cdContextIupDBuffer", {}, P)
-        xcdContextDBuffer       = iup_c_func(hCd, "cdContextDBuffer", {}, P)
-        xcdContextImageRGB      = iup_c_func(hCd, "cdContextImageRGB", {}, P)
-        xcdContextDBufferRGB    = iup_c_func(hCd, "cdContextDBufferRGB", {}, P)
-        xcdContextPPTX          = iup_c_func(hCd, "cdContextPPTX", {}, P, allow_fail:=true)
-        xcdContextCGM           = iup_c_func(hCd, "cdContextCGM", {}, P)
-        xcdContextMetafile      = iup_c_func(hCd, "cdContextMetafile", {}, P)
-        xcdContextWMF           = iup_c_func(hCd, "cdContextWMF", {}, P)
-        xcdContextEMF           = iup_c_func(hCd, "cdContextEMF", {}, P)
-        xcdContextDebug         = iup_c_func(hCd, "cdContextDebug", {}, P)
-        xcdContextDGN           = iup_c_func(hCd, "cdContextDGN", {}, P)
-        xcdContextDXF           = iup_c_func(hCd, "cdContextDXF", {}, P)
-        xcdContextPDF           = iup_c_func(hCdPDF, "cdContextPDF", {}, P)
-        xcdContextSVG           = iup_c_func(hCd, "cdContextSVG", {}, P)
-        xcdContextClipboard     = iup_c_func(hCd, "cdContextClipboard", {}, P)
+        xcdContextIup           = define_c_func(hCdIup, "cdContextIup", {}, P)
+        xcdContextIupDraw       = define_c_func(hCdIup, "cdContextIupDraw", {}, P)
+        xcdContextPrinter       = define_c_func(hCd, "cdContextPrinter", {}, P)
+        xcdContextPS            = define_c_func(hCd, "cdContextPS", {}, P)
+        xcdContextPicture       = define_c_func(hCd, "cdContextPicture", {}, P)
+        xcdContextGL            = define_c_func(hCdGL,"cdContextGL", {}, P)
+        xcdContextIupDBuffer    = define_c_func(hCdIup,"cdContextIupDBuffer", {}, P)
+        xcdContextDBuffer       = define_c_func(hCd, "cdContextDBuffer", {}, P)
+        xcdContextImageRGB      = define_c_func(hCd, "cdContextImageRGB", {}, P)
+        xcdContextDBufferRGB    = define_c_func(hCd, "cdContextDBufferRGB", {}, P)
+        xcdContextPPTX          = define_c_func(hCd, "cdContextPPTX", {}, P, bCrash:=false)
+        xcdContextCGM           = define_c_func(hCd, "cdContextCGM", {}, P)
+        xcdContextMetafile      = define_c_func(hCd, "cdContextMetafile", {}, P)
+        xcdContextWMF           = define_c_func(hCd, "cdContextWMF", {}, P)
+        xcdContextEMF           = define_c_func(hCd, "cdContextEMF", {}, P)
+        xcdContextDebug         = define_c_func(hCd, "cdContextDebug", {}, P)
+        xcdContextDGN           = define_c_func(hCd, "cdContextDGN", {}, P)
+        xcdContextDXF           = define_c_func(hCd, "cdContextDXF", {}, P)
+        xcdContextPDF           = define_c_func(hCdPDF, "cdContextPDF", {}, P)
+        xcdContextSVG           = define_c_func(hCd, "cdContextSVG", {}, P)
+        xcdContextClipboard     = define_c_func(hCd, "cdContextClipboard", {}, P)
 
 --DEV..
 if platform()=WINDOWS then
-        xcdContextNativeWindow  = iup_c_func(hCd, "cdContextNativeWindow", {},P)
-        xcdGetScreenSize        = iup_c_proc(hCd, "cdGetScreenSize", {P,P,P,P})
-        xcdGetScreenColorPlanes = iup_c_func(hCd, "cdGetScreenColorPlanes", {},I)
+        xcdContextNativeWindow  = define_c_func(hCd, "cdContextNativeWindow", {},P)
+        xcdGetScreenSize        = define_c_proc(hCd, "cdGetScreenSize", {P,P,P,P})
+        xcdGetScreenColorPlanes = define_c_func(hCd, "cdGetScreenColorPlanes", {},I)
 end if
 
 
@@ -6626,267 +6659,267 @@ end if
         --
         -- control
         --
-        xcdCanvasSimulate       = iup_c_func(hCd, "cdCanvasSimulate", {P,I},I)
-        xcdCanvasFlush          = iup_c_proc(hCd, "cdCanvasFlush", {P})
-        xcdCanvasClear          = iup_c_proc(hCd, "cdCanvasClear", {P})
-        xcdCanvasSaveState      = iup_c_func(hCd, "cdCanvasSaveState", {P},P)
-        xcdCanvasRestoreState   = iup_c_proc(hCd, "cdCanvasRestoreState", {P,P})
-        xcdReleaseState         = iup_c_proc(hCd, "cdReleaseState", {P})
-        xcdCanvasSetAttribute   = iup_c_proc(hCd, "cdCanvasSetAttribute", {P,P,P})
-        xcdCanvasGetAttribute   = iup_c_func(hCd, "cdCanvasGetAttribute", {P,P},P)
+        xcdCanvasSimulate       = define_c_func(hCd, "cdCanvasSimulate", {P,I},I)
+        xcdCanvasFlush          = define_c_proc(hCd, "cdCanvasFlush", {P})
+        xcdCanvasClear          = define_c_proc(hCd, "cdCanvasClear", {P})
+        xcdCanvasSaveState      = define_c_func(hCd, "cdCanvasSaveState", {P},P)
+        xcdCanvasRestoreState   = define_c_proc(hCd, "cdCanvasRestoreState", {P,P})
+        xcdReleaseState         = define_c_proc(hCd, "cdReleaseState", {P})
+        xcdCanvasSetAttribute   = define_c_proc(hCd, "cdCanvasSetAttribute", {P,P,P})
+        xcdCanvasGetAttribute   = define_c_func(hCd, "cdCanvasGetAttribute", {P,P},P)
 
         --
         --  coordinate transformation 
         --
-        xcdCanvasGetSize            = iup_c_proc(hCd, "cdCanvasGetSize", {P,I,I,P,P})
---      xcdCanvasUpdateYAxis        = iup_c_func(hCd, "cdCanvasUpdateYAxis", {P,P},I)
-        xcdfCanvasUpdateYAxis       = iup_c_func(hCd, "cdfCanvasUpdateYAxis", {P,P},D)
---      xcdCanvasInvertYAxis        = iup_c_func(hCd, "cdCanvasInvertYAxis", {P,I},I)
-        xcdfCanvasInvertYAxis       = iup_c_func(hCd, "cdfCanvasInvertYAxis", {P,D},D)
-        xcdCanvasMM2Pixel           = iup_c_proc(hCd, "cdCanvasMM2Pixel", {P,D,D,P,P})
---      xcdfCanvasMM2Pixel          = iup_c_proc(hCd, "cdfCanvasMM2Pixel", {P,D,D,P,P})
---      xcdCanvasPixel2MM           = iup_c_proc(hCd, "cdCanvasPixel2MM", {P,I,I,P,P})
-        xcdfCanvasPixel2MM          = iup_c_proc(hCd, "cdfCanvasPixel2MM", {P,D,D,P,P})
---      xcdCanvasOrigin             = iup_c_proc(hCd, "cdCanvasOrigin", {P,I,I})
-        xcdfCanvasOrigin            = iup_c_proc(hCd, "cdfCanvasOrigin", {P,D,D})
---      xcdCanvasGetOrigin          = iup_c_proc(hCd, "cdCanvasGetOrigin", {P,P,P})
-        xcdfCanvasGetOrigin         = iup_c_proc(hCd, "cdfCanvasGetOrigin", {P,P,P})
-        xcdCanvasTransform          = iup_c_proc(hCd, "cdCanvasTransform", {P,P})
-        xcdCanvasGetTransform       = iup_c_func(hCd, "cdCanvasGetTransform", {P},P)
-        xcdCanvasTransformMultiply  = iup_c_proc(hCd, "cdCanvasTransformMultiply", {P,P})
-        xcdCanvasTransformRotate    = iup_c_proc(hCd, "cdCanvasTransformRotate", {P,D})
-        xcdCanvasTransformScale     = iup_c_proc(hCd, "cdCanvasTransformScale", {P,D,D})
-        xcdCanvasTransformTranslate = iup_c_proc(hCd, "cdCanvasTransformTranslate", {P,D,D})
---      xcdCanvasTransformPoint     = iup_c_proc(hCd, "cdCanvasTransformPoint", {P,I,I,P,P})
-        xcdfCanvasTransformPoint    = iup_c_proc(hCd, "cdfCanvasTransformPoint", {P,D,D,P,P})
+        xcdCanvasGetSize            = define_c_proc(hCd, "cdCanvasGetSize", {P,I,I,P,P})
+--      xcdCanvasUpdateYAxis        = define_c_func(hCd, "cdCanvasUpdateYAxis", {P,P},I)
+        xcdfCanvasUpdateYAxis       = define_c_func(hCd, "cdfCanvasUpdateYAxis", {P,P},D)
+--      xcdCanvasInvertYAxis        = define_c_func(hCd, "cdCanvasInvertYAxis", {P,I},I)
+        xcdfCanvasInvertYAxis       = define_c_func(hCd, "cdfCanvasInvertYAxis", {P,D},D)
+        xcdCanvasMM2Pixel           = define_c_proc(hCd, "cdCanvasMM2Pixel", {P,D,D,P,P})
+--      xcdfCanvasMM2Pixel          = define_c_proc(hCd, "cdfCanvasMM2Pixel", {P,D,D,P,P})
+--      xcdCanvasPixel2MM           = define_c_proc(hCd, "cdCanvasPixel2MM", {P,I,I,P,P})
+        xcdfCanvasPixel2MM          = define_c_proc(hCd, "cdfCanvasPixel2MM", {P,D,D,P,P})
+--      xcdCanvasOrigin             = define_c_proc(hCd, "cdCanvasOrigin", {P,I,I})
+        xcdfCanvasOrigin            = define_c_proc(hCd, "cdfCanvasOrigin", {P,D,D})
+--      xcdCanvasGetOrigin          = define_c_proc(hCd, "cdCanvasGetOrigin", {P,P,P})
+        xcdfCanvasGetOrigin         = define_c_proc(hCd, "cdfCanvasGetOrigin", {P,P,P})
+        xcdCanvasTransform          = define_c_proc(hCd, "cdCanvasTransform", {P,P})
+        xcdCanvasGetTransform       = define_c_func(hCd, "cdCanvasGetTransform", {P},P)
+        xcdCanvasTransformMultiply  = define_c_proc(hCd, "cdCanvasTransformMultiply", {P,P})
+        xcdCanvasTransformRotate    = define_c_proc(hCd, "cdCanvasTransformRotate", {P,D})
+        xcdCanvasTransformScale     = define_c_proc(hCd, "cdCanvasTransformScale", {P,D,D})
+        xcdCanvasTransformTranslate = define_c_proc(hCd, "cdCanvasTransformTranslate", {P,D,D})
+--      xcdCanvasTransformPoint     = define_c_proc(hCd, "cdCanvasTransformPoint", {P,I,I,P,P})
+        xcdfCanvasTransformPoint    = define_c_proc(hCd, "cdfCanvasTransformPoint", {P,D,D,P,P})
 
         --
         --   clipping 
         --
-        xcdCanvasClip           = iup_c_func(hCd, "cdCanvasClip", {P,I},I)
---      xcdCanvasClipArea       = iup_c_proc(hCd, "cdCanvasClipArea", {P,I,I,I,I})
-        xcdfCanvasClipArea      = iup_c_proc(hCd, "cdfCanvasClipArea", {P,D,D,D,D})
---      xcdCanvasGetClipArea    = iup_c_func(hCd, "cdCanvasGetClipArea", {P,P,P,P,P},I)
-        xcdfCanvasGetClipArea   = iup_c_func(hCd, "cdfCanvasGetClipArea", {P,P,P,P,P},I)
+        xcdCanvasClip           = define_c_func(hCd, "cdCanvasClip", {P,I},I)
+--      xcdCanvasClipArea       = define_c_proc(hCd, "cdCanvasClipArea", {P,I,I,I,I})
+        xcdfCanvasClipArea      = define_c_proc(hCd, "cdfCanvasClipArea", {P,D,D,D,D})
+--      xcdCanvasGetClipArea    = define_c_func(hCd, "cdCanvasGetClipArea", {P,P,P,P,P},I)
+        xcdfCanvasGetClipArea   = define_c_func(hCd, "cdfCanvasGetClipArea", {P,P,P,P,P},I)
 
         --
         -- clipping region 
         --
-        xcdCanvasIsPointInRegion    = iup_c_func(hCd, "cdCanvasIsPointInRegion", {P,I,I},I)
-        xcdCanvasOffsetRegion       = iup_c_proc(hCd, "cdCanvasOffsetRegion", {P,I,I})
-        xcdCanvasGetRegionBox       = iup_c_proc(hCd, "cdCanvasGetRegionBox", {P,P,P,P,P,P})
-        xcdCanvasRegionCombineMode  = iup_c_func(hCd, "cdCanvasRegionCombineMode", {P,I},I)
+        xcdCanvasIsPointInRegion    = define_c_func(hCd, "cdCanvasIsPointInRegion", {P,I,I},I)
+        xcdCanvasOffsetRegion       = define_c_proc(hCd, "cdCanvasOffsetRegion", {P,I,I})
+        xcdCanvasGetRegionBox       = define_c_proc(hCd, "cdCanvasGetRegionBox", {P,P,P,P,P,P})
+        xcdCanvasRegionCombineMode  = define_c_func(hCd, "cdCanvasRegionCombineMode", {P,I},I)
 
         --
         -- drawing primitives
         --
-        xcdCanvasPixel      = iup_c_proc(hCd, "cdCanvasPixel", {P,I,I,I})
-        xcdCanvasMark       = iup_c_proc(hCd, "cdCanvasMark", {P,I,I})
-        xcdCanvasLine       = iup_c_proc(hCd, "cdCanvasLine", {P,I,I,I,I})
-        xcdCanvasBegin      = iup_c_proc(hCd, "cdCanvasBegin", {P,I})
-        xcdCanvasVertex     = iup_c_proc(hCd, "cdCanvasVertex", {P,I,I})
-        xcdCanvasEnd        = iup_c_proc(hCd, "cdCanvasEnd", {P})
-        xcdCanvasPathSet    = iup_c_proc(hCd, "cdCanvasPathSet", {P,I})
-        xcdCanvasRect       = iup_c_proc(hCd, "cdCanvasRect", {P,I,I,I,I})
-        xcdCanvasBox        = iup_c_proc(hCd, "cdCanvasBox", {P,I,I,I,I})
-        xcdCanvasArc        = iup_c_proc(hCd, "cdCanvasArc", {P,I,I,I,I,D,D})
-        xcdCanvasSector     = iup_c_proc(hCd, "cdCanvasSector", {P,I,I,I,I,D,D})
-        xcdCanvasChord      = iup_c_proc(hCd, "cdCanvasChord", {P,I,I,I,I,D,D})
-        xcdCanvasText       = iup_c_proc(hCd, "cdCanvasText", {P,I,I,P})
+        xcdCanvasPixel      = define_c_proc(hCd, "cdCanvasPixel", {P,I,I,I})
+        xcdCanvasMark       = define_c_proc(hCd, "cdCanvasMark", {P,I,I})
+        xcdCanvasLine       = define_c_proc(hCd, "cdCanvasLine", {P,I,I,I,I})
+        xcdCanvasBegin      = define_c_proc(hCd, "cdCanvasBegin", {P,I})
+        xcdCanvasVertex     = define_c_proc(hCd, "cdCanvasVertex", {P,I,I})
+        xcdCanvasEnd        = define_c_proc(hCd, "cdCanvasEnd", {P})
+        xcdCanvasPathSet    = define_c_proc(hCd, "cdCanvasPathSet", {P,I})
+        xcdCanvasRect       = define_c_proc(hCd, "cdCanvasRect", {P,I,I,I,I})
+        xcdCanvasBox        = define_c_proc(hCd, "cdCanvasBox", {P,I,I,I,I})
+        xcdCanvasArc        = define_c_proc(hCd, "cdCanvasArc", {P,I,I,I,I,D,D})
+        xcdCanvasSector     = define_c_proc(hCd, "cdCanvasSector", {P,I,I,I,I,D,D})
+        xcdCanvasChord      = define_c_proc(hCd, "cdCanvasChord", {P,I,I,I,I,D,D})
+        xcdCanvasText       = define_c_proc(hCd, "cdCanvasText", {P,I,I,P})
 
         --
         -- primitives with double as arguments instead of integer
         --
---      xcdfCanvasLine      = iup_c_proc(hCd, "cdfCanvasLine", {P,D,D,D,D})
---      xcdfCanvasVertex    = iup_c_proc(hCd, "cdfCanvasVertex", {P,D,D})
---      xcdfCanvasRect      = iup_c_proc(hCd, "cdfCanvasRect", {P,D,D,D,D})
---      xcdfCanvasBox       = iup_c_proc(hCd, "cdfCanvasBox", {P,D,D,D,D})
---      xcdfCanvasArc       = iup_c_proc(hCd, "cdfCanvasArc", {P,D,D,D,D,D,D})
---      xcdfCanvasSector    = iup_c_proc(hCd, "cdfCanvasSector", {P,D,D,D,D,D,D})
---      xcdfCanvasChord     = iup_c_proc(hCd, "cdfCanvasChord", {P,D,D,D,D,D,D})
---      xcdfCanvasText      = iup_c_proc(hCd, "cdfCanvasText", {P,D,D,P})
+--      xcdfCanvasLine      = define_c_proc(hCd, "cdfCanvasLine", {P,D,D,D,D})
+--      xcdfCanvasVertex    = define_c_proc(hCd, "cdfCanvasVertex", {P,D,D})
+--      xcdfCanvasRect      = define_c_proc(hCd, "cdfCanvasRect", {P,D,D,D,D})
+--      xcdfCanvasBox       = define_c_proc(hCd, "cdfCanvasBox", {P,D,D,D,D})
+--      xcdfCanvasArc       = define_c_proc(hCd, "cdfCanvasArc", {P,D,D,D,D,D,D})
+--      xcdfCanvasSector    = define_c_proc(hCd, "cdfCanvasSector", {P,D,D,D,D,D,D})
+--      xcdfCanvasChord     = define_c_proc(hCd, "cdfCanvasChord", {P,D,D,D,D,D,D})
+--      xcdfCanvasText      = define_c_proc(hCd, "cdfCanvasText", {P,D,D,P})
 
         --
         -- attributes
         --
-        xcdCanvasSetForeground   = iup_c_proc(hCd, "cdCanvasSetForeground", {P,I})
-        xcdCanvasSetBackground   = iup_c_proc(hCd, "cdCanvasSetBackground", {P,I})
-        xcdCanvasForeground      = iup_c_func(hCd, "cdCanvasForeground", {P,L}, L)
-        xcdCanvasBackground      = iup_c_func(hCd, "cdCanvasBackground", {P,L}, L)
-        xcdCanvasBackOpacity     = iup_c_func(hCd, "cdCanvasBackOpacity", {P,I}, I)
-        xcdCanvasWriteMode       = iup_c_func(hCd, "cdCanvasWriteMode", {P,I}, I)
-        xcdCanvasLineStyle       = iup_c_func(hCd, "cdCanvasLineStyle", {P,I}, I)
-        xcdCanvasLineStyleDashes = iup_c_proc(hCd, "cdCanvasLineStyleDashes", {P,P, I})
-        xcdCanvasLineWidth       = iup_c_func(hCd, "cdCanvasLineWidth", {P,I}, I)
-        xcdCanvasLineJoin        = iup_c_func(hCd, "cdCanvasLineJoin", {P,I}, I)
-        xcdCanvasLineCap         = iup_c_func(hCd, "cdCanvasLineCap", {P,I}, I)
-        xcdCanvasInteriorStyle   = iup_c_func(hCd, "cdCanvasInteriorStyle", {P,I}, I)
-        xcdCanvasHatch           = iup_c_func(hCd, "cdCanvasHatch", {P,I}, I)
-        xcdCanvasStipple         = iup_c_proc(hCd, "cdCanvasStipple", {P,I,I,P})
-        xcdCanvasGetStipple      = iup_c_func(hCd, "cdCanvasGetStipple", {P,P,P}, P)
-        xcdCanvasPattern         = iup_c_proc(hCd, "cdCanvasPattern", {P,I,I,P})
-        xcdCanvasGetPattern      = iup_c_func(hCd, "cdCanvasGetPattern", {P,P,P}, P)
-        xcdCanvasFillMode        = iup_c_func(hCd, "cdCanvasFillMode", {P,I}, I)
-        xcdCanvasFont            = iup_c_proc(hCd, "cdCanvasFont", {P,P,I,I})
-        xcdCanvasGetFont         = iup_c_proc(hCd, "cdCanvasGetFont", {P,P,P,P})
-        xcdCanvasNativeFont      = iup_c_func(hCd, "cdCanvasNativeFont", {P,P}, P)
-        xcdCanvasTextAlignment   = iup_c_func(hCd, "cdCanvasTextAlignment", {P,I}, I)
-        xcdCanvasTextOrientation = iup_c_func(hCd, "cdCanvasTextOrientation", {P,D}, D)
-        xcdCanvasMarkType        = iup_c_func(hCd, "cdCanvasMarkType", {P,I}, I)
-        xcdCanvasMarkSize        = iup_c_func(hCd, "cdCanvasMarkSize", {P,I}, I)
+        xcdCanvasSetForeground   = define_c_proc(hCd, "cdCanvasSetForeground", {P,I})
+        xcdCanvasSetBackground   = define_c_proc(hCd, "cdCanvasSetBackground", {P,I})
+        xcdCanvasForeground      = define_c_func(hCd, "cdCanvasForeground", {P,L}, L)
+        xcdCanvasBackground      = define_c_func(hCd, "cdCanvasBackground", {P,L}, L)
+        xcdCanvasBackOpacity     = define_c_func(hCd, "cdCanvasBackOpacity", {P,I}, I)
+        xcdCanvasWriteMode       = define_c_func(hCd, "cdCanvasWriteMode", {P,I}, I)
+        xcdCanvasLineStyle       = define_c_func(hCd, "cdCanvasLineStyle", {P,I}, I)
+        xcdCanvasLineStyleDashes = define_c_proc(hCd, "cdCanvasLineStyleDashes", {P,P, I})
+        xcdCanvasLineWidth       = define_c_func(hCd, "cdCanvasLineWidth", {P,I}, I)
+        xcdCanvasLineJoin        = define_c_func(hCd, "cdCanvasLineJoin", {P,I}, I)
+        xcdCanvasLineCap         = define_c_func(hCd, "cdCanvasLineCap", {P,I}, I)
+        xcdCanvasInteriorStyle   = define_c_func(hCd, "cdCanvasInteriorStyle", {P,I}, I)
+        xcdCanvasHatch           = define_c_func(hCd, "cdCanvasHatch", {P,I}, I)
+        xcdCanvasStipple         = define_c_proc(hCd, "cdCanvasStipple", {P,I,I,P})
+        xcdCanvasGetStipple      = define_c_func(hCd, "cdCanvasGetStipple", {P,P,P}, P)
+        xcdCanvasPattern         = define_c_proc(hCd, "cdCanvasPattern", {P,I,I,P})
+        xcdCanvasGetPattern      = define_c_func(hCd, "cdCanvasGetPattern", {P,P,P}, P)
+        xcdCanvasFillMode        = define_c_func(hCd, "cdCanvasFillMode", {P,I}, I)
+        xcdCanvasFont            = define_c_proc(hCd, "cdCanvasFont", {P,P,I,I})
+        xcdCanvasGetFont         = define_c_proc(hCd, "cdCanvasGetFont", {P,P,P,P})
+        xcdCanvasNativeFont      = define_c_func(hCd, "cdCanvasNativeFont", {P,P}, P)
+        xcdCanvasTextAlignment   = define_c_func(hCd, "cdCanvasTextAlignment", {P,I}, I)
+        xcdCanvasTextOrientation = define_c_func(hCd, "cdCanvasTextOrientation", {P,D}, D)
+        xcdCanvasMarkType        = define_c_func(hCd, "cdCanvasMarkType", {P,I}, I)
+        xcdCanvasMarkSize        = define_c_func(hCd, "cdCanvasMarkSize", {P,I}, I)
 
         --
         --  vector text
         --
-        xcdCanvasVectorText             = iup_c_proc(hCd, "cdCanvasVectorText", {P,I,I,P})
-        xcdCanvasMultiLineVectorText    = iup_c_proc(hCd, "cdCanvasMultiLineVectorText", {P,I,I,P})
+        xcdCanvasVectorText             = define_c_proc(hCd, "cdCanvasVectorText", {P,I,I,P})
+        xcdCanvasMultiLineVectorText    = define_c_proc(hCd, "cdCanvasMultiLineVectorText", {P,I,I,P})
 
         --
         -- vector text attributes
         --
-        xcdCanvasVectorFont             = iup_c_func(hCd, "cdCanvasVectorFont", {P,P},P)
-        xcdCanvasVectorFontSize         = iup_c_proc(hCd, "cdCanvasVectorFontSize", {P,D,D})
-        xcdCanvasGetVectorFontSize      = iup_c_proc(hCd, "cdCanvasGetVectorFontSize", {P,P,P})
-        xcdCanvasVectorTextDirection    = iup_c_proc(hCd, "cdCanvasVectorTextDirection", {P,I,I,I,I})
-        xcdCanvasVectorTextTransform    = iup_c_func(hCd, "cdCanvasVectorTextTransform", {P,P},P)
-        xcdCanvasVectorTextSize         = iup_c_proc(hCd, "cdCanvasVectorTextSize", {P,I,I,P})
-        xcdCanvasVectorCharSize         = iup_c_func(hCd, "cdCanvasVectorCharSize", {P,I},I)
+        xcdCanvasVectorFont             = define_c_func(hCd, "cdCanvasVectorFont", {P,P},P)
+        xcdCanvasVectorFontSize         = define_c_proc(hCd, "cdCanvasVectorFontSize", {P,D,D})
+        xcdCanvasGetVectorFontSize      = define_c_proc(hCd, "cdCanvasGetVectorFontSize", {P,P,P})
+        xcdCanvasVectorTextDirection    = define_c_proc(hCd, "cdCanvasVectorTextDirection", {P,I,I,I,I})
+        xcdCanvasVectorTextTransform    = define_c_func(hCd, "cdCanvasVectorTextTransform", {P,P},P)
+        xcdCanvasVectorTextSize         = define_c_proc(hCd, "cdCanvasVectorTextSize", {P,I,I,P})
+        xcdCanvasVectorCharSize         = define_c_func(hCd, "cdCanvasVectorCharSize", {P,I},I)
 
         --
         --  vector text properties 
         --
-        xcdCanvasGetVectorTextSize      = iup_c_proc(hCd, "cdCanvasGetVectorTextSize", {P,P,P,P})
-        xcdCanvasGetVectorTextBounds    = iup_c_proc(hCd, "cdCanvasGetVectorTextBounds", {P,P,I,I,P})
+        xcdCanvasGetVectorTextSize      = define_c_proc(hCd, "cdCanvasGetVectorTextSize", {P,P,P,P})
+        xcdCanvasGetVectorTextBounds    = define_c_proc(hCd, "cdCanvasGetVectorTextBounds", {P,P,I,I,P})
 
         --
         -- properties
         --
-        xcdCanvasGetFontDim     = iup_c_proc(hCd, "cdCanvasGetFontDim", {P,P,P,P,P})
-        xcdCanvasGetTextSize    = iup_c_proc(hCd, "cdCanvasGetTextSize", {P,P,P,P})
-        xcdCanvasGetTextBox     = iup_c_proc(hCd, "cdCanvasGetTextBox", {P,P,I,I,P,P,P,P})
---      xcdfCanvasGetTextBox    = iup_c_proc(hCd, "cdfCanvasGetTextBox", {P,D,D,P,P,P,P,P})
-        xcdCanvasGetTextBounds  = iup_c_proc(hCd, "cdCanvasGetTextBounds", {P,I,I,P,P})
-        xcdCanvasGetColorPlanes = iup_c_func(hCd, "cdCanvasGetColorPlanes", {P},I)
+        xcdCanvasGetFontDim     = define_c_proc(hCd, "cdCanvasGetFontDim", {P,P,P,P,P})
+        xcdCanvasGetTextSize    = define_c_proc(hCd, "cdCanvasGetTextSize", {P,P,P,P})
+        xcdCanvasGetTextBox     = define_c_proc(hCd, "cdCanvasGetTextBox", {P,P,I,I,P,P,P,P})
+--      xcdfCanvasGetTextBox    = define_c_proc(hCd, "cdfCanvasGetTextBox", {P,D,D,P,P,P,P,P})
+        xcdCanvasGetTextBounds  = define_c_proc(hCd, "cdCanvasGetTextBounds", {P,I,I,P,P})
+        xcdCanvasGetColorPlanes = define_c_func(hCd, "cdCanvasGetColorPlanes", {P},I)
 
         --
         -- color 
         --
-        xcdCanvasPalette = iup_c_proc(hCd, "cdCanvasPalette", {P,I,P,I})
+        xcdCanvasPalette = define_c_proc(hCd, "cdCanvasPalette", {P,I,P,I})
 
         --
         -- client images 
         --
-        xcdCanvasGetImageRGB        = iup_c_proc(hCd, "cdCanvasGetImageRGB", {P,P,P,P,I,I,I,I})
---      xcdCanvasGetImageRGB        = iup_c_proc(hCd, "cdCanvasGetImageRGB", {P,P,P,P,P,I,I,I,I})
-        xcdCanvasPutImageRectRGB    = iup_c_proc(hCd, "cdCanvasPutImageRectRGB", {P,I,I,P,P,P,I,I,I,I,I,I,I,I})
-        xcdCanvasPutImageRectRGBA   = iup_c_proc(hCd, "cdCanvasPutImageRectRGBA", {P,I,I,P,P,P,P,I,I,I,I,I,I,I,I})
-        xcdCanvasPutImageRectMap    = iup_c_proc(hCd, "cdCanvasPutImageRectMap", {P,I,I,P,P,I,I,I,I,I,I,I,I})
+        xcdCanvasGetImageRGB        = define_c_proc(hCd, "cdCanvasGetImageRGB", {P,P,P,P,I,I,I,I})
+--      xcdCanvasGetImageRGB        = define_c_proc(hCd, "cdCanvasGetImageRGB", {P,P,P,P,P,I,I,I,I})
+        xcdCanvasPutImageRectRGB    = define_c_proc(hCd, "cdCanvasPutImageRectRGB", {P,I,I,P,P,P,I,I,I,I,I,I,I,I})
+        xcdCanvasPutImageRectRGBA   = define_c_proc(hCd, "cdCanvasPutImageRectRGBA", {P,I,I,P,P,P,P,I,I,I,I,I,I,I,I})
+        xcdCanvasPutImageRectMap    = define_c_proc(hCd, "cdCanvasPutImageRectMap", {P,I,I,P,P,I,I,I,I,I,I,I,I})
 
         --
         -- server images 
         --
---      xcdCanvasCreateImage    = iup_c_func(hCd, "cdCanvasCreateImage", {P,I,I},P)
---      xcdKillImage            = iup_c_proc(hCd, "cdKillImage", {P})
---      xcdCanvasGetImage       = iup_c_proc(hCd, "cdCanvasGetImage", {P,P,I,I})
---      xcdCanvasPutImageRect   = iup_c_proc(hCd, "cdCanvasPutImageRect", {P,P,I,I,I,I,I,I})
---      xcdCanvasScrollArea     = iup_c_proc(hCd, "cdCanvasScrollArea", {P,I,I,I,I,I,I})
+--      xcdCanvasCreateImage    = define_c_func(hCd, "cdCanvasCreateImage", {P,I,I},P)
+--      xcdKillImage            = define_c_proc(hCd, "cdKillImage", {P})
+--      xcdCanvasGetImage       = define_c_proc(hCd, "cdCanvasGetImage", {P,P,I,I})
+--      xcdCanvasPutImageRect   = define_c_proc(hCd, "cdCanvasPutImageRect", {P,P,I,I,I,I,I,I})
+--      xcdCanvasScrollArea     = define_c_proc(hCd, "cdCanvasScrollArea", {P,I,I,I,I,I,I})
 
         --
         -- bitmap 
         --
-        xcdCreateBitmap     = iup_c_func(hCd, "cdCreateBitmap", {I,I,I},P)
-        xcdInitBitmapRGB    = iup_c_func(hCd, "cdInitBitmap", {I,I,I,P,P,P},P) -- type CD_RGB
-        xcdInitBitmapRGBA   = iup_c_func(hCd, "cdInitBitmap", {I,I,I,P,P,P,P},P) -- type CD_RGBA
+        xcdCreateBitmap     = define_c_func(hCd, "cdCreateBitmap", {I,I,I},P)
+        xcdInitBitmapRGB    = define_c_func(hCd, "cdInitBitmap", {I,I,I,P,P,P},P) -- type CD_RGB
+        xcdInitBitmapRGBA   = define_c_func(hCd, "cdInitBitmap", {I,I,I,P,P,P,P},P) -- type CD_RGBA
     --PL unused
-    --  xcdInitBitmapMAP    = iup_c_func(hCd, "cdInitBitmap", {I,I,I,P,P},P) -- type CD_MAP
-        xcdKillBitmap       = iup_c_proc(hCd, "cdKillBitmap", {P})
-        xcdBitmapGetData    = iup_c_func(hCd, "cdBitmapGetData", {P,I},P)
-        xcdBitmapSetRect    = iup_c_proc(hCd, "cdBitmapSetRect", {P,I,I,I,I})
-        xcdCanvasPutBitmap  = iup_c_proc(hCd, "cdCanvasPutBitmap", {P,P,I,I,I,I})
-        xcdCanvasGetBitmap  = iup_c_proc(hCd, "cdCanvasGetBitmap", {P,P,I,I})
-        xcdBitmapRGB2Map    = iup_c_proc(hCd, "cdBitmapRGB2Map", {P,P})
+    --  xcdInitBitmapMAP    = define_c_func(hCd, "cdInitBitmap", {I,I,I,P,P},P) -- type CD_MAP
+        xcdKillBitmap       = define_c_proc(hCd, "cdKillBitmap", {P})
+        xcdBitmapGetData    = define_c_func(hCd, "cdBitmapGetData", {P,I},P)
+        xcdBitmapSetRect    = define_c_proc(hCd, "cdBitmapSetRect", {P,I,I,I,I})
+        xcdCanvasPutBitmap  = define_c_proc(hCd, "cdCanvasPutBitmap", {P,P,I,I,I,I})
+        xcdCanvasGetBitmap  = define_c_proc(hCd, "cdCanvasGetBitmap", {P,P,I,I})
+        xcdBitmapRGB2Map    = define_c_proc(hCd, "cdBitmapRGB2Map", {P,P})
 
         --
         -- color 
         --
-        xcdEncodeColor      = iup_c_func(hCd, "cdEncodeColor", {UC,UC,UC},L)
-        xcdEncodeColorAlpha = iup_c_func(hCd, "cdEncodeColorAlpha", {UC,UC,UC,UC},L)
-        xcdDecodeColor      = iup_c_proc(hCd, "cdDecodeColor", {L,P,P,P})
-        xcdDecodeColorAlpha = iup_c_proc(hCd, "cdDecodeColorAlpha", {L,P,P,P,P})
-        xcdDecodeAlpha      = iup_c_func(hCd, "cdDecodeAlpha", {L},UC)
-        xcdEncodeAlpha      = iup_c_func(hCd, "cdEncodeAlpha", {L,UC},L)
-        xcdRGB2Map          = iup_c_proc(hCd, "cdRGB2Map", {I,I,P,P,P,P,I,P})
+        xcdEncodeColor      = define_c_func(hCd, "cdEncodeColor", {UC,UC,UC},L)
+        xcdEncodeColorAlpha = define_c_func(hCd, "cdEncodeColorAlpha", {UC,UC,UC,UC},L)
+        xcdDecodeColor      = define_c_proc(hCd, "cdDecodeColor", {L,P,P,P})
+        xcdDecodeColorAlpha = define_c_proc(hCd, "cdDecodeColorAlpha", {L,P,P,P,P})
+        xcdDecodeAlpha      = define_c_func(hCd, "cdDecodeAlpha", {L},UC)
+        xcdEncodeAlpha      = define_c_func(hCd, "cdEncodeAlpha", {L,UC},L)
+        xcdRGB2Map          = define_c_proc(hCd, "cdRGB2Map", {I,I,P,P,P,P,I,P})
 
         --
         --  coordinate transformation
         --
-        xwdCanvasWindow             = iup_c_proc(hCd, "wdCanvasWindow", {P,D,D,D,D})
-        xwdCanvasGetWindow          = iup_c_proc(hCd, "wdCanvasGetWindow", {P,P,P,P,P})
-        xwdCanvasViewport           = iup_c_proc(hCd, "wdCanvasViewport", {P,I,I,I,I})
-        xwdCanvasGetViewport        = iup_c_proc(hCd, "wdCanvasGetViewport", {P,P,P,P,P})
-        xwdCanvasWorld2Canvas       = iup_c_proc(hCd, "wdCanvasWorld2Canvas", {P,D,D,P,P})
-        xwdCanvasWorld2CanvasSize   = iup_c_proc(hCd, "wdCanvasWorld2CanvasSize", {P,D,D,P,P})
-        xwdCanvasCanvas2World       = iup_c_proc(hCd, "wdCanvasCanvas2World", {P,I,I,D,D})
+        xwdCanvasWindow             = define_c_proc(hCd, "wdCanvasWindow", {P,D,D,D,D})
+        xwdCanvasGetWindow          = define_c_proc(hCd, "wdCanvasGetWindow", {P,P,P,P,P})
+        xwdCanvasViewport           = define_c_proc(hCd, "wdCanvasViewport", {P,I,I,I,I})
+        xwdCanvasGetViewport        = define_c_proc(hCd, "wdCanvasGetViewport", {P,P,P,P,P})
+        xwdCanvasWorld2Canvas       = define_c_proc(hCd, "wdCanvasWorld2Canvas", {P,D,D,P,P})
+        xwdCanvasWorld2CanvasSize   = define_c_proc(hCd, "wdCanvasWorld2CanvasSize", {P,D,D,P,P})
+        xwdCanvasCanvas2World       = define_c_proc(hCd, "wdCanvasCanvas2World", {P,I,I,D,D})
 
         --
         -- clipping region
         --
-        xwdCanvasClipArea           = iup_c_proc(hCd, "wdCanvasClipArea", {P,D,D,D,D})
-        xwdCanvasGetClipArea        = iup_c_func(hCd, "wdCanvasGetClipArea", {P,P,P,P,P},I)
-        xwdCanvasIsPointInRegion    = iup_c_func(hCd, "wdCanvasIsPointInRegion", {P,D,D},I)
-        xwdCanvasOffsetRegion       = iup_c_proc(hCd, "wdCanvasOffsetRegion", {P,D,D})
-        xwdCanvasGetRegionBox       = iup_c_proc(hCd, "wdCanvasGetRegionBox", {P,P,P,P,P})
-        xwdCanvasHardcopy           = iup_c_proc(hCd, "wdCanvasHardcopy", {P,P,P,P})
+        xwdCanvasClipArea           = define_c_proc(hCd, "wdCanvasClipArea", {P,D,D,D,D})
+        xwdCanvasGetClipArea        = define_c_func(hCd, "wdCanvasGetClipArea", {P,P,P,P,P},I)
+        xwdCanvasIsPointInRegion    = define_c_func(hCd, "wdCanvasIsPointInRegion", {P,D,D},I)
+        xwdCanvasOffsetRegion       = define_c_proc(hCd, "wdCanvasOffsetRegion", {P,D,D})
+        xwdCanvasGetRegionBox       = define_c_proc(hCd, "wdCanvasGetRegionBox", {P,P,P,P,P})
+        xwdCanvasHardcopy           = define_c_proc(hCd, "wdCanvasHardcopy", {P,P,P,P})
 
         --
         --  world draw primitives
         --
-        xwdCanvasPixel  = iup_c_proc(hCd, "wdCanvasPixel", {P,D,D,L})
-        xwdCanvasMark   = iup_c_proc(hCd, "wdCanvasMark", {P,D,D})
-        xwdCanvasLine   = iup_c_proc(hCd, "wdCanvasLine", {P,D,D,D,D})
-        xwdCanvasVertex = iup_c_proc(hCd, "wdCanvasVertex", {P,D,D})
-        xwdCanvasRect   = iup_c_proc(hCd, "wdCanvasRect", {P,D,D,D,D})
-        xwdCanvasBox    = iup_c_proc(hCd, "wdCanvasBox", {P,D,D,D,D})
-        xwdCanvasArc    = iup_c_proc(hCd, "wdCanvasArc", {P,D,D,D,D,D,D})
-        xwdCanvasSector = iup_c_proc(hCd, "wdCanvasSector", {P,D,D,D,D,D,D})
-        xwdCanvasChord  = iup_c_proc(hCd, "wdCanvasChord", {P,D,D,D,D,D,D})
-        xwdCanvasText   = iup_c_proc(hCd, "wdCanvasText", {P,D,D,P})
+        xwdCanvasPixel  = define_c_proc(hCd, "wdCanvasPixel", {P,D,D,L})
+        xwdCanvasMark   = define_c_proc(hCd, "wdCanvasMark", {P,D,D})
+        xwdCanvasLine   = define_c_proc(hCd, "wdCanvasLine", {P,D,D,D,D})
+        xwdCanvasVertex = define_c_proc(hCd, "wdCanvasVertex", {P,D,D})
+        xwdCanvasRect   = define_c_proc(hCd, "wdCanvasRect", {P,D,D,D,D})
+        xwdCanvasBox    = define_c_proc(hCd, "wdCanvasBox", {P,D,D,D,D})
+        xwdCanvasArc    = define_c_proc(hCd, "wdCanvasArc", {P,D,D,D,D,D,D})
+        xwdCanvasSector = define_c_proc(hCd, "wdCanvasSector", {P,D,D,D,D,D,D})
+        xwdCanvasChord  = define_c_proc(hCd, "wdCanvasChord", {P,D,D,D,D,D,D})
+        xwdCanvasText   = define_c_proc(hCd, "wdCanvasText", {P,D,D,P})
 
         --
         -- world draw images
         --
-        xwdCanvasPutImageRect       = iup_c_proc(hCd, "wdCanvasPutImageRect", {P,P,D,D,D,D,D,D})
-        xwdCanvasPutImageRectRGB    = iup_c_proc(hCd, "wdCanvasPutImageRectRGB", {P,I,I,P,P,P,D,D,D,D,D,D,D,D,D,D})
-        xwdCanvasPutImageRectRGBA   = iup_c_proc(hCd, "wdCanvasPutImageRectRGBA", {P,I,I,P,P,P,P,D,D,D,D,D,D,D,D})
-        xwdCanvasPutImageRectMap    = iup_c_proc(hCd, "wdCanvasPutImageRectMap", {P,I,I,P,P,D,D,D,D,D,D,D,D})
-        xwdCanvasPutBitmap          = iup_c_proc(hCd, "wdCanvasPutBitmap", {P,P,D,D,D,D})
+        xwdCanvasPutImageRect       = define_c_proc(hCd, "wdCanvasPutImageRect", {P,P,D,D,D,D,D,D})
+        xwdCanvasPutImageRectRGB    = define_c_proc(hCd, "wdCanvasPutImageRectRGB", {P,I,I,P,P,P,D,D,D,D,D,D,D,D,D,D})
+        xwdCanvasPutImageRectRGBA   = define_c_proc(hCd, "wdCanvasPutImageRectRGBA", {P,I,I,P,P,P,P,D,D,D,D,D,D,D,D})
+        xwdCanvasPutImageRectMap    = define_c_proc(hCd, "wdCanvasPutImageRectMap", {P,I,I,P,P,D,D,D,D,D,D,D,D})
+        xwdCanvasPutBitmap          = define_c_proc(hCd, "wdCanvasPutBitmap", {P,P,D,D,D,D})
 
         --
         -- world draw attributes
         --
-        xwdCanvasLineWidth      = iup_c_func(hCd, "wdCanvasLineWidth", {P,D},D)
-        xwdCanvasFont           = iup_c_proc(hCd, "wdCanvasFont", {P,P,I,D})
-        xwdCanvasGetFont        = iup_c_proc(hCd, "wdCanvasGetFont", {P,P,P,P})
-        xwdCanvasGetFontDim     = iup_c_proc(hCd, "wdCanvasGetFontDim", {P,P,P,P,P})
-        xwdCanvasMarkSize       = iup_c_func(hCd, "wdCanvasMarkSize", {P,D},D)
-        xwdCanvasGetTextSize    = iup_c_proc(hCd, "wdCanvasGetTextSize", {P,P,P,P})
-        xwdCanvasGetTextBox     = iup_c_proc(hCd, "wdCanvasGetTextBox", {P,D,D,P,P,P,P,P})
-        xwdCanvasGetTextBounds  = iup_c_proc(hCd, "wdCanvasGetTextBounds", {P,D,D,P,P})
-        xwdCanvasStipple        = iup_c_proc(hCd, "wdCanvasStipple", {P,I,I,P,D,D})
-        xwdCanvasPattern        = iup_c_proc(hCd, "wdCanvasPattern", {P,I,I,P,D,D})
+        xwdCanvasLineWidth      = define_c_func(hCd, "wdCanvasLineWidth", {P,D},D)
+        xwdCanvasFont           = define_c_proc(hCd, "wdCanvasFont", {P,P,I,D})
+        xwdCanvasGetFont        = define_c_proc(hCd, "wdCanvasGetFont", {P,P,P,P})
+        xwdCanvasGetFontDim     = define_c_proc(hCd, "wdCanvasGetFontDim", {P,P,P,P,P})
+        xwdCanvasMarkSize       = define_c_func(hCd, "wdCanvasMarkSize", {P,D},D)
+        xwdCanvasGetTextSize    = define_c_proc(hCd, "wdCanvasGetTextSize", {P,P,P,P})
+        xwdCanvasGetTextBox     = define_c_proc(hCd, "wdCanvasGetTextBox", {P,D,D,P,P,P,P,P})
+        xwdCanvasGetTextBounds  = define_c_proc(hCd, "wdCanvasGetTextBounds", {P,D,D,P,P})
+        xwdCanvasStipple        = define_c_proc(hCd, "wdCanvasStipple", {P,I,I,P,D,D})
+        xwdCanvasPattern        = define_c_proc(hCd, "wdCanvasPattern", {P,I,I,P,D,D})
 
         --
         -- world draw vector text
         --
-        xwdCanvasVectorTextDirection    = iup_c_proc(hCd, "wdCanvasVectorTextDirection", {P,D,D,D,D})
-        xwdCanvasVectorTextSize         = iup_c_proc(hCd, "wdCanvasVectorTextSize", {P,D,D,P})
-        xwdCanvasGetVectorTextSize      = iup_c_proc(hCd, "wdCanvasGetVectorTextSize", {P,P,P,P})
-        xwdCanvasVectorCharSize         = iup_c_func(hCd, "wdCanvasVectorCharSize", {P,D},D)
-        xwdCanvasVectorText             = iup_c_proc(hCd, "wdCanvasVectorText", {P,D,D,P})
-        xwdCanvasMultiLineVectorText    = iup_c_proc(hCd, "wdCanvasMultiLineVectorText", {P,D,D,P})
-        xwdCanvasGetVectorTextBounds    = iup_c_proc(hCd, "wdCanvasGetVectorTextBounds", {P,P,D,D,P})
+        xwdCanvasVectorTextDirection    = define_c_proc(hCd, "wdCanvasVectorTextDirection", {P,D,D,D,D})
+        xwdCanvasVectorTextSize         = define_c_proc(hCd, "wdCanvasVectorTextSize", {P,D,D,P})
+        xwdCanvasGetVectorTextSize      = define_c_proc(hCd, "wdCanvasGetVectorTextSize", {P,P,P,P})
+        xwdCanvasVectorCharSize         = define_c_func(hCd, "wdCanvasVectorCharSize", {P,D},D)
+        xwdCanvasVectorText             = define_c_proc(hCd, "wdCanvasVectorText", {P,D,D,P})
+        xwdCanvasMultiLineVectorText    = define_c_proc(hCd, "wdCanvasMultiLineVectorText", {P,D,D,P})
+        xwdCanvasGetVectorTextBounds    = define_c_proc(hCd, "wdCanvasGetVectorTextBounds", {P,P,D,D,P})
 
-        xwdCanvasGetImageRGB = iup_c_proc(hCd, "wdCanvasGetImageRGB", {P,P,P,P,D,D,I,I})
+        xwdCanvasGetImageRGB = define_c_proc(hCd, "wdCanvasGetImageRGB", {P,P,P,P,D,D,I,I})
 
     end if
 end procedure
@@ -6930,9 +6963,9 @@ end type
 
 ----ifdef WINDOWS then
 --constant
---  xcdContextNativeWindow  = iup_c_func(hCd, "cdContextNativeWindow", {},P),
---  xcdGetScreenSize        = iup_c_proc(hCd, "cdGetScreenSize", {P,P,P,P}),
---  xcdGetScreenColorPlanes = iup_c_func(hCd, "cdGetScreenColorPlanes", {},I)
+--  xcdContextNativeWindow  = define_c_func(hCd, "cdContextNativeWindow", {},P),
+--  xcdGetScreenSize        = define_c_proc(hCd, "cdGetScreenSize", {P,P,P,P}),
+--  xcdGetScreenColorPlanes = define_c_func(hCd, "cdGetScreenColorPlanes", {},I)
 --
 --global constant
 --  CD_NATIVEWINDOW = c_func(xcdContextNativeWindow, {})
@@ -6965,12 +6998,12 @@ global function cdGetScreenColorPlanes()
 end function
 
 --constant
---  xcdCreateCanvas     = iup_c_func(hCd, "cdCreateCanvas", {P,P}, P),
---  xcdKillCanvas       = iup_c_proc(hCd, "cdKillCanvas", {P}),
---  xcdCanvasGetContext = iup_c_func(hCd, "cdCanvasGetContext", {P}, P),
---  xcdCanvasActivate   = iup_c_func(hCd, "cdCanvasActivate", {P}, I),
---  xcdCanvasDeactivate = iup_c_proc(hCd, "cdCanvasDeactivate", {P}),
---  xcdUseContextPlus   = iup_c_proc(hCd, "cdUseContextPlus", {I}),
+--  xcdCreateCanvas     = define_c_func(hCd, "cdCreateCanvas", {P,P}, P),
+--  xcdKillCanvas       = define_c_proc(hCd, "cdKillCanvas", {P}),
+--  xcdCanvasGetContext = define_c_func(hCd, "cdCanvasGetContext", {P}, P),
+--  xcdCanvasActivate   = define_c_func(hCd, "cdCanvasActivate", {P}, I),
+--  xcdCanvasDeactivate = define_c_proc(hCd, "cdCanvasDeactivate", {P}),
+--  xcdUseContextPlus   = define_c_proc(hCd, "cdUseContextPlus", {I}),
 
 global function cdCreateCanvas(object hCdContext, atom_string data, sequence params={})
     iup_init_cd()
@@ -7016,9 +7049,9 @@ end procedure
 ----
 --
 --constant
---  xcdContextRegisterCallback  = iup_c_func(hCd, "cdContextRegisterCallback", {P,I,P}, I),
---  xcdContextCaps              = iup_c_func(hCd, "cdContextCaps", {P}, UL),
---  xcdCanvasPlay               = iup_c_func(hCd, "cdCanvasPlay", {P,P,I,I,I,I,P}, I)
+--  xcdContextRegisterCallback  = define_c_func(hCd, "cdContextRegisterCallback", {P,I,P}, I),
+--  xcdContextCaps              = define_c_func(hCd, "cdContextCaps", {P}, UL),
+--  xcdCanvasPlay               = define_c_func(hCd, "cdCanvasPlay", {P,P,I,I,I,I,P}, I)
 --
 global function cdCanvasPlay(cdCanvas canvas, cdContext context, integer xmin, xmax, ymin, ymax, atom_string data)
     integer res = c_func(xcdCanvasPlay, {canvas, cd_context(context), xmin, xmax, ymin, ymax, data})
@@ -7081,8 +7114,8 @@ end function
 --      hCdIm = iup_open_dll({"cdim.dll",
 --                            "libcdim.so",
 --                            "libcdim.dylib"})
---      xcdContextImImage           = iup_c_func(hCdIm, "cdContextImImage", {}, P)
---      xcdCanvasPutImImage         = iup_c_proc(hCdIm, "cdCanvasPutImImage", {P,P,I,I,I,I})
+--      xcdContextImImage           = define_c_func(hCdIm, "cdContextImImage", {}, P)
+--      xcdCanvasPutImImage         = define_c_proc(hCdIm, "cdCanvasPutImImage", {P,P,I,I,I,I})
 --  end if
 --end procedure
 --
@@ -7161,27 +7194,27 @@ end function
 ----
 --------------------------------------------------------------------------------------------
 --constant
---  xcdCanvasGetSize            = iup_c_proc(hCd, "cdCanvasGetSize", {P,I,I,P,P}),
-----    xcdCanvasUpdateYAxis        = iup_c_func(hCd, "cdCanvasUpdateYAxis", {P,P},I),
---  xcdfCanvasUpdateYAxis       = iup_c_func(hCd, "cdfCanvasUpdateYAxis", {P,P},D),
-----    xcdCanvasInvertYAxis        = iup_c_func(hCd, "cdCanvasInvertYAxis", {P,I},I),
---  xcdfCanvasInvertYAxis       = iup_c_func(hCd, "cdfCanvasInvertYAxis", {P,D},D),
---  xcdCanvasMM2Pixel           = iup_c_proc(hCd, "cdCanvasMM2Pixel", {P,D,D,P,P}),
-----    xcdfCanvasMM2Pixel          = iup_c_proc(hCd, "cdfCanvasMM2Pixel", {P,D,D,P,P}),
-----    xcdCanvasPixel2MM           = iup_c_proc(hCd, "cdCanvasPixel2MM", {P,I,I,P,P}),
---  xcdfCanvasPixel2MM          = iup_c_proc(hCd, "cdfCanvasPixel2MM", {P,D,D,P,P}),
-----    xcdCanvasOrigin             = iup_c_proc(hCd, "cdCanvasOrigin", {P,I,I}),
---  xcdfCanvasOrigin            = iup_c_proc(hCd, "cdfCanvasOrigin", {P,D,D}),
-----    xcdCanvasGetOrigin          = iup_c_proc(hCd, "cdCanvasGetOrigin", {P,P,P}),
---  xcdfCanvasGetOrigin         = iup_c_proc(hCd, "cdfCanvasGetOrigin", {P,P,P}),
---  xcdCanvasTransform          = iup_c_proc(hCd, "cdCanvasTransform", {P,P}),
---  xcdCanvasGetTransform       = iup_c_func(hCd, "cdCanvasGetTransform", {P},P),
---  xcdCanvasTransformMultiply  = iup_c_proc(hCd, "cdCanvasTransformMultiply", {P,P}),
---  xcdCanvasTransformRotate    = iup_c_proc(hCd, "cdCanvasTransformRotate", {P,D}),
---  xcdCanvasTransformScale     = iup_c_proc(hCd, "cdCanvasTransformScale", {P,D,D}),
---  xcdCanvasTransformTranslate = iup_c_proc(hCd, "cdCanvasTransformTranslate", {P,D,D}),
-----    xcdCanvasTransformPoint     = iup_c_proc(hCd, "cdCanvasTransformPoint", {P,I,I,P,P}),
---  xcdfCanvasTransformPoint    = iup_c_proc(hCd, "cdfCanvasTransformPoint", {P,D,D,P,P})
+--  xcdCanvasGetSize            = define_c_proc(hCd, "cdCanvasGetSize", {P,I,I,P,P}),
+--- xcdCanvasUpdateYAxis        = define_c_func(hCd, "cdCanvasUpdateYAxis", {P,P},I),
+--  xcdfCanvasUpdateYAxis       = define_c_func(hCd, "cdfCanvasUpdateYAxis", {P,P},D),
+--- xcdCanvasInvertYAxis        = define_c_func(hCd, "cdCanvasInvertYAxis", {P,I},I),
+--  xcdfCanvasInvertYAxis       = define_c_func(hCd, "cdfCanvasInvertYAxis", {P,D},D),
+--  xcdCanvasMM2Pixel           = define_c_proc(hCd, "cdCanvasMM2Pixel", {P,D,D,P,P}),
+--- xcdfCanvasMM2Pixel          = define_c_proc(hCd, "cdfCanvasMM2Pixel", {P,D,D,P,P}),
+--- xcdCanvasPixel2MM           = define_c_proc(hCd, "cdCanvasPixel2MM", {P,I,I,P,P}),
+--  xcdfCanvasPixel2MM          = define_c_proc(hCd, "cdfCanvasPixel2MM", {P,D,D,P,P}),
+--- xcdCanvasOrigin             = define_c_proc(hCd, "cdCanvasOrigin", {P,I,I}),
+--  xcdfCanvasOrigin            = define_c_proc(hCd, "cdfCanvasOrigin", {P,D,D}),
+--- xcdCanvasGetOrigin          = define_c_proc(hCd, "cdCanvasGetOrigin", {P,P,P}),
+--  xcdfCanvasGetOrigin         = define_c_proc(hCd, "cdfCanvasGetOrigin", {P,P,P}),
+--  xcdCanvasTransform          = define_c_proc(hCd, "cdCanvasTransform", {P,P}),
+--  xcdCanvasGetTransform       = define_c_func(hCd, "cdCanvasGetTransform", {P},P),
+--  xcdCanvasTransformMultiply  = define_c_proc(hCd, "cdCanvasTransformMultiply", {P,P}),
+--  xcdCanvasTransformRotate    = define_c_proc(hCd, "cdCanvasTransformRotate", {P,D}),
+--  xcdCanvasTransformScale     = define_c_proc(hCd, "cdCanvasTransformScale", {P,D,D}),
+--  xcdCanvasTransformTranslate = define_c_proc(hCd, "cdCanvasTransformTranslate", {P,D,D}),
+--- xcdCanvasTransformPoint     = define_c_proc(hCd, "cdCanvasTransformPoint", {P,I,I,P,P}),
+--  xcdfCanvasTransformPoint    = define_c_proc(hCd, "cdfCanvasTransformPoint", {P,D,D,P,P})
 
 global function cdCanvasGetSize(cdCanvas canvas)
 --DEV machine_bits()?
@@ -7405,10 +7438,10 @@ end function
 ----
 --------------------------------------------------------------------------------------------
 --constant
---  xcdCanvasIsPointInRegion    = iup_c_func(hCd, "cdCanvasIsPointInRegion", {P,I,I},I),
---  xcdCanvasOffsetRegion       = iup_c_proc(hCd, "cdCanvasOffsetRegion", {P,I,I}),
---  xcdCanvasGetRegionBox       = iup_c_proc(hCd, "cdCanvasGetRegionBox", {P,P,P,P,P,P}),
---  xcdCanvasRegionCombineMode  = iup_c_func(hCd, "cdCanvasRegionCombineMode", {P,I},I)
+--  xcdCanvasIsPointInRegion    = define_c_func(hCd, "cdCanvasIsPointInRegion", {P,I,I},I),
+--  xcdCanvasOffsetRegion       = define_c_proc(hCd, "cdCanvasOffsetRegion", {P,I,I}),
+--  xcdCanvasGetRegionBox       = define_c_proc(hCd, "cdCanvasGetRegionBox", {P,P,P,P,P,P}),
+--  xcdCanvasRegionCombineMode  = define_c_func(hCd, "cdCanvasRegionCombineMode", {P,I},I)
 
 --global function canvas_is_point_in_region(cdCanvas canvas, atom x, atom y)
 global function cdCanvasIsPointInRegion(cdCanvas canvas, atom x, atom y)
@@ -7443,31 +7476,31 @@ end procedure
 ----
 --------------------------------------------------------------------------------------------
 --constant
---  xcdCanvasSetForeground   = iup_c_proc(hCd, "cdCanvasSetForeground", {P,I}),
---X xcdCanvasSetBackground   = iup_c_proc(hCd, "cdCanvasSetBackground", {P,I}),
---  xcdCanvasForeground      = iup_c_func(hCd, "cdCanvasForeground", {P,L}, L),
---  xcdCanvasBackground      = iup_c_func(hCd, "cdCanvasBackground", {P,L}, L),
---  xcdCanvasBackOpacity     = iup_c_func(hCd, "cdCanvasBackOpacity", {P,I}, I),
---  xcdCanvasWriteMode       = iup_c_func(hCd, "cdCanvasWriteMode", {P,I}, I),
---  xcdCanvasLineStyle       = iup_c_func(hCd, "cdCanvasLineStyle", {P,I}, I),
---  xcdCanvasLineStyleDashes = iup_c_proc(hCd, "cdCanvasLineStyleDashes", {P,P, I}),
---  xcdCanvasLineWidth       = iup_c_func(hCd, "cdCanvasLineWidth", {P,I}, I),
---  xcdCanvasLineJoin        = iup_c_func(hCd, "cdCanvasLineJoin", {P,I}, I),
---  xcdCanvasLineCap         = iup_c_func(hCd, "cdCanvasLineCap", {P,I}, I),
---  xcdCanvasInteriorStyle   = iup_c_func(hCd, "cdCanvasInteriorStyle", {P,I}, I),
---  xcdCanvasHatch           = iup_c_func(hCd, "cdCanvasHatch", {P,I}, I),
---  xcdCanvasStipple         = iup_c_proc(hCd, "cdCanvasStipple", {P,I,I,P}),
---  xcdCanvasGetStipple      = iup_c_func(hCd, "cdCanvasGetStipple", {P,P,P}, P),
---  xcdCanvasPattern         = iup_c_proc(hCd, "cdCanvasPattern", {P,I,I,P}),
---  xcdCanvasGetPattern      = iup_c_func(hCd, "cdCanvasGetPattern", {P,P,P}, P),
---  xcdCanvasFillMode        = iup_c_func(hCd, "cdCanvasFillMode", {P,I}, I),
---  xcdCanvasFont            = iup_c_proc(hCd, "cdCanvasFont", {P,P,I,I}),
---  xcdCanvasGetFont         = iup_c_proc(hCd, "cdCanvasGetFont", {P,P,P,P}),
---  xcdCanvasNativeFont      = iup_c_func(hCd, "cdCanvasNativeFont", {P,P}, P),
---  xcdCanvasTextAlignment   = iup_c_func(hCd, "cdCanvasTextAlignment", {P,I}, I),
---  xcdCanvasTextOrientation = iup_c_func(hCd, "cdCanvasTextOrientation", {P,D}, D),
---  xcdCanvasMarkType        = iup_c_func(hCd, "cdCanvasMarkType", {P,I}, I),
---  xcdCanvasMarkSize        = iup_c_func(hCd, "cdCanvasMarkSize", {P,I}, I)
+--  xcdCanvasSetForeground   = define_c_proc(hCd, "cdCanvasSetForeground", {P,I}),
+--X xcdCanvasSetBackground   = define_c_proc(hCd, "cdCanvasSetBackground", {P,I}),
+--  xcdCanvasForeground      = define_c_func(hCd, "cdCanvasForeground", {P,L}, L),
+--  xcdCanvasBackground      = define_c_func(hCd, "cdCanvasBackground", {P,L}, L),
+--  xcdCanvasBackOpacity     = define_c_func(hCd, "cdCanvasBackOpacity", {P,I}, I),
+--  xcdCanvasWriteMode       = define_c_func(hCd, "cdCanvasWriteMode", {P,I}, I),
+--  xcdCanvasLineStyle       = define_c_func(hCd, "cdCanvasLineStyle", {P,I}, I),
+--  xcdCanvasLineStyleDashes = define_c_proc(hCd, "cdCanvasLineStyleDashes", {P,P, I}),
+--  xcdCanvasLineWidth       = define_c_func(hCd, "cdCanvasLineWidth", {P,I}, I),
+--  xcdCanvasLineJoin        = define_c_func(hCd, "cdCanvasLineJoin", {P,I}, I),
+--  xcdCanvasLineCap         = define_c_func(hCd, "cdCanvasLineCap", {P,I}, I),
+--  xcdCanvasInteriorStyle   = define_c_func(hCd, "cdCanvasInteriorStyle", {P,I}, I),
+--  xcdCanvasHatch           = define_c_func(hCd, "cdCanvasHatch", {P,I}, I),
+--  xcdCanvasStipple         = define_c_proc(hCd, "cdCanvasStipple", {P,I,I,P}),
+--  xcdCanvasGetStipple      = define_c_func(hCd, "cdCanvasGetStipple", {P,P,P}, P),
+--  xcdCanvasPattern         = define_c_proc(hCd, "cdCanvasPattern", {P,I,I,P}),
+--  xcdCanvasGetPattern      = define_c_func(hCd, "cdCanvasGetPattern", {P,P,P}, P),
+--  xcdCanvasFillMode        = define_c_func(hCd, "cdCanvasFillMode", {P,I}, I),
+--  xcdCanvasFont            = define_c_proc(hCd, "cdCanvasFont", {P,P,I,I}),
+--  xcdCanvasGetFont         = define_c_proc(hCd, "cdCanvasGetFont", {P,P,P,P}),
+--  xcdCanvasNativeFont      = define_c_func(hCd, "cdCanvasNativeFont", {P,P}, P),
+--  xcdCanvasTextAlignment   = define_c_func(hCd, "cdCanvasTextAlignment", {P,I}, I),
+--  xcdCanvasTextOrientation = define_c_func(hCd, "cdCanvasTextOrientation", {P,D}, D),
+--  xcdCanvasMarkType        = define_c_func(hCd, "cdCanvasMarkType", {P,I}, I),
+--  xcdCanvasMarkSize        = define_c_func(hCd, "cdCanvasMarkSize", {P,I}, I)
 
 global procedure cdCanvasSetForeground(cdCanvas canvas, atom color)
     c_proc(xcdCanvasSetForeground, {canvas, color})
@@ -7690,12 +7723,12 @@ global function cdCanvasGetTextOrientation(cdCanvas canvas)
     return c_func(xcdCanvasTextOrientation, {canvas, CD_QUERY})
 end function
 
-global function cdCanvasMarkType(cdCanvas canvas, atom mtype)
-    return c_func(xcdCanvasMarkType, {canvas, mtype})
+global function cdCanvasMarkType(cdCanvas canvas, atom mark_type)
+    return c_func(xcdCanvasMarkType, {canvas, mark_type})
 end function
 
-global function cdCanvasMarkSize(cdCanvas canvas, atom msize)
-    return c_func(xcdCanvasMarkSize, {canvas, msize})
+global function cdCanvasMarkSize(cdCanvas canvas, atom mark_size)
+    return c_func(xcdCanvasMarkSize, {canvas, mark_size})
 end function
 
 --------------------------------------------------------------------------------------------
@@ -7704,18 +7737,18 @@ end function
 ----
 --------------------------------------------------------------------------------------------
 --constant
---  xcdCanvasPixel  = iup_c_proc(hCd, "cdCanvasPixel", {P,I,I,I}),
---  xcdCanvasMark   = iup_c_proc(hCd, "cdCanvasMark", {P,I,I}),
---  xcdCanvasLine   = iup_c_proc(hCd, "cdCanvasLine", {P,I,I,I,I}),
---  xcdCanvasBegin  = iup_c_proc(hCd, "cdCanvasBegin", {P,I}),
---  xcdCanvasVertex = iup_c_proc(hCd, "cdCanvasVertex", {P,I,I}),
---  xcdCanvasEnd    = iup_c_proc(hCd, "cdCanvasEnd", {P}),
---  xcdCanvasRect   = iup_c_proc(hCd, "cdCanvasRect", {P,I,I,I,I}),
---  xcdCanvasBox    = iup_c_proc(hCd, "cdCanvasBox", {P,I,I,I,I}),
---  xcdCanvasArc    = iup_c_proc(hCd, "cdCanvasArc", {P,I,I,I,I,D,D}),
---  xcdCanvasSector = iup_c_proc(hCd, "cdCanvasSector", {P,I,I,I,I,D,D}),
---  xcdCanvasChord  = iup_c_proc(hCd, "cdCanvasChord", {P,I,I,I,I,D,D}),
---  xcdCanvasText   = iup_c_proc(hCd, "cdCanvasText", {P,I,I,P}),
+--  xcdCanvasPixel  = define_c_proc(hCd, "cdCanvasPixel", {P,I,I,I}),
+--  xcdCanvasMark   = define_c_proc(hCd, "cdCanvasMark", {P,I,I}),
+--  xcdCanvasLine   = define_c_proc(hCd, "cdCanvasLine", {P,I,I,I,I}),
+--  xcdCanvasBegin  = define_c_proc(hCd, "cdCanvasBegin", {P,I}),
+--  xcdCanvasVertex = define_c_proc(hCd, "cdCanvasVertex", {P,I,I}),
+--  xcdCanvasEnd    = define_c_proc(hCd, "cdCanvasEnd", {P}),
+--  xcdCanvasRect   = define_c_proc(hCd, "cdCanvasRect", {P,I,I,I,I}),
+--  xcdCanvasBox    = define_c_proc(hCd, "cdCanvasBox", {P,I,I,I,I}),
+--  xcdCanvasArc    = define_c_proc(hCd, "cdCanvasArc", {P,I,I,I,I,D,D}),
+--  xcdCanvasSector = define_c_proc(hCd, "cdCanvasSector", {P,I,I,I,I,D,D}),
+--  xcdCanvasChord  = define_c_proc(hCd, "cdCanvasChord", {P,I,I,I,I,D,D}),
+--  xcdCanvasText   = define_c_proc(hCd, "cdCanvasText", {P,I,I,P}),
 
 global procedure cdCanvasPixel(cdCanvas canvas, atom x, y, color)
     c_proc(xcdCanvasPixel, {canvas, x, y, color})
@@ -7836,14 +7869,14 @@ end function
 ----
 -------------------------------------------------------------------------------------------
 --constant
---  xcdfCanvasLine      = iup_c_proc(hCd, "cdfCanvasLine", {P,D,D,D,D}),
---  xcdfCanvasVertex    = iup_c_proc(hCd, "cdfCanvasVertex", {P,D,D}),
---  xcdfCanvasRect      = iup_c_proc(hCd, "cdfCanvasRect", {P,D,D,D,D}),
---  xcdfCanvasBox       = iup_c_proc(hCd, "cdfCanvasBox", {P,D,D,D,D}),
---  xcdfCanvasArc       = iup_c_proc(hCd, "cdfCanvasArc", {P,D,D,D,D,D,D}),
---  xcdfCanvasSector    = iup_c_proc(hCd, "cdfCanvasSector", {P,D,D,D,D,D,D}),
---  xcdfCanvasChord     = iup_c_proc(hCd, "cdfCanvasChord", {P,D,D,D,D,D,D}),
---  xcdfCanvasText      = iup_c_proc(hCd, "cdfCanvasText", {P,D,D,P})
+--  xcdfCanvasLine      = define_c_proc(hCd, "cdfCanvasLine", {P,D,D,D,D}),
+--  xcdfCanvasVertex    = define_c_proc(hCd, "cdfCanvasVertex", {P,D,D}),
+--  xcdfCanvasRect      = define_c_proc(hCd, "cdfCanvasRect", {P,D,D,D,D}),
+--  xcdfCanvasBox       = define_c_proc(hCd, "cdfCanvasBox", {P,D,D,D,D}),
+--  xcdfCanvasArc       = define_c_proc(hCd, "cdfCanvasArc", {P,D,D,D,D,D,D}),
+--  xcdfCanvasSector    = define_c_proc(hCd, "cdfCanvasSector", {P,D,D,D,D,D,D}),
+--  xcdfCanvasChord     = define_c_proc(hCd, "cdfCanvasChord", {P,D,D,D,D,D,D}),
+--  xcdfCanvasText      = define_c_proc(hCd, "cdfCanvasText", {P,D,D,P})
 
 --global procedure f_canvas_line(cdCanvas canvas, atom x1, atom y1, atom x2, atom y2)
 ----global procedure cdfCanvasLine(cdCanvas canvas, atom x1, atom y1, atom x2, atom y2)
@@ -7891,8 +7924,8 @@ end function
 ----
 -------------------------------------------------------------------------------------------
 --constant
---  xcdCanvasVectorText             = iup_c_proc(hCd, "cdCanvasVectorText", {P,I,I,P}),
---  xcdCanvasMultiLineVectorText    = iup_c_proc(hCd, "cdCanvasMultiLineVectorText", {P,I,I,P})
+--  xcdCanvasVectorText             = define_c_proc(hCd, "cdCanvasVectorText", {P,I,I,P}),
+--  xcdCanvasMultiLineVectorText    = define_c_proc(hCd, "cdCanvasMultiLineVectorText", {P,I,I,P})
 
 global procedure cdCanvasVectorText(cdCanvas canvas, atom x, y, string text)
     c_proc(xcdCanvasVectorText, {canvas, x, y, text})
@@ -7908,13 +7941,13 @@ end procedure
 ----
 -------------------------------------------------------------------------------------------
 --constant
---  xcdCanvasVectorFont             = iup_c_func(hCd, "cdCanvasVectorFont", {P,P},P),
---  xcdCanvasVectorFontSize         = iup_c_proc(hCd, "cdCanvasVectorFontSize", {P,D,D}),
---  xcdCanvasGetVectorFontSize      = iup_c_proc(hCd, "cdCanvasVectorFontSize", {P,P,P}),
---  xcdCanvasVectorTextDirection    = iup_c_proc(hCd, "cdCanvasVectorTextDirection", {P,I,I,I,I}),
---  xcdCanvasVectorTextTransform    = iup_c_func(hCd, "cdCanvasVectorTextTransform", {P,P},P),
---  xcdCanvasVectorTextSize         = iup_c_proc(hCd, "cdCanvasVectorTextSize", {P,I,I,P}),
---  xcdCanvasVectorCharSize         = iup_c_func(hCd, "cdCanvasVectorCharSize", {P,I},I)
+--  xcdCanvasVectorFont             = define_c_func(hCd, "cdCanvasVectorFont", {P,P},P),
+--  xcdCanvasVectorFontSize         = define_c_proc(hCd, "cdCanvasVectorFontSize", {P,D,D}),
+--  xcdCanvasGetVectorFontSize      = define_c_proc(hCd, "cdCanvasVectorFontSize", {P,P,P}),
+--  xcdCanvasVectorTextDirection    = define_c_proc(hCd, "cdCanvasVectorTextDirection", {P,I,I,I,I}),
+--  xcdCanvasVectorTextTransform    = define_c_func(hCd, "cdCanvasVectorTextTransform", {P,P},P),
+--  xcdCanvasVectorTextSize         = define_c_proc(hCd, "cdCanvasVectorTextSize", {P,I,I,P}),
+--  xcdCanvasVectorCharSize         = define_c_func(hCd, "cdCanvasVectorCharSize", {P,I},I)
 
 global function cdCanvasVectorFont(cdCanvas canvas, nullable_string font)
     atom pFont = c_func(xcdCanvasVectorFont, {canvas, font})
@@ -7972,8 +8005,8 @@ end function
 ----
 -------------------------------------------------------------------------------------------
 --constant
---  xcdCanvasGetVectorTextSize      = iup_c_proc(hCd, "cdCanvasGetVectorTextSize", {P,P,P,P}),
---  xcdCanvasGetVectorTextBounds    = iup_c_proc(hCd, "cdCanvasGetVectorTextBounds", {P,P,I,I,P})
+--  xcdCanvasGetVectorTextSize      = define_c_proc(hCd, "cdCanvasGetVectorTextSize", {P,P,P,P}),
+--  xcdCanvasGetVectorTextBounds    = define_c_proc(hCd, "cdCanvasGetVectorTextBounds", {P,P,I,I,P})
 
 global function cdCanvasGetVectorTextSize(cdCanvas canvas, sequence text)
     atom pX = allocate(8),
@@ -7998,12 +8031,12 @@ end function
 ----
 -------------------------------------------------------------------------------------------
 --constant
---  xcdCanvasGetFontDim     = iup_c_proc(hCd, "cdCanvasGetFontDim", {P,P,P,P,P}),
---  xcdCanvasGetTextSize    = iup_c_proc(hCd, "cdCanvasGetTextSize", {P,P,P,P}),
-----    xcdCanvasGetTextBox     = iup_c_proc(hCd, "cdCanvasGetTextBox", {P,P,I,I,P,P,P,P}),
---  xcdfCanvasGetTextBox    = iup_c_proc(hCd, "cdfCanvasGetTextBox", {P,D,D,P,P,P,P,P}),
---  xcdCanvasGetTextBounds  = iup_c_proc(hCd, "cdCanvasGetTextBounds", {P,I,I,P,P}),
---  xcdCanvasGetColorPlanes = iup_c_func(hCd, "cdCanvasGetColorPlanes", {P},I)
+--  xcdCanvasGetFontDim     = define_c_proc(hCd, "cdCanvasGetFontDim", {P,P,P,P,P}),
+--  xcdCanvasGetTextSize    = define_c_proc(hCd, "cdCanvasGetTextSize", {P,P,P,P}),
+--- xcdCanvasGetTextBox     = define_c_proc(hCd, "cdCanvasGetTextBox", {P,P,I,I,P,P,P,P}),
+--  xcdfCanvasGetTextBox    = define_c_proc(hCd, "cdfCanvasGetTextBox", {P,D,D,P,P,P,P,P}),
+--  xcdCanvasGetTextBounds  = define_c_proc(hCd, "cdCanvasGetTextBounds", {P,I,I,P,P}),
+--  xcdCanvasGetColorPlanes = define_c_func(hCd, "cdCanvasGetColorPlanes", {P},I)
 
 global function cdCanvasGetFontDim(cdCanvas canvas)
     atom pWidth = allocate(16),
@@ -8075,7 +8108,7 @@ end function
 ----
 -------------------------------------------------------------------------------------------
 --constant
---  xcdCanvasPalette = iup_c_proc(hCd, "cdCanvasPalette", {P,I,P,I})
+--  xcdCanvasPalette = define_c_proc(hCd, "cdCanvasPalette", {P,I,P,I})
 
 --global procedure canvas_palette(cdCanvas canvas, sequence palette, integer mode)
 global procedure cdCanvasPalette(cdCanvas canvas, sequence colours, integer mode=CD_POLITE)
@@ -8093,10 +8126,10 @@ end procedure
 ----
 -------------------------------------------------------------------------------------------
 --constant
---  xcdCanvasGetImageRGB        = iup_c_proc(hCd, "cdCanvasGetImageRGB", {P,P,P,P,I,I,I,I}),
---  xcdCanvasPutImageRectRGB    = iup_c_proc(hCd, "cdCanvasPutImageRectRGB", {P,I,I,P,P,P,I,I,I,I,I,I,I,I}),
---  xcdCanvasPutImageRectRGBA   = iup_c_proc(hCd, "cdCanvasPutImageRectRGBA", {P,I,I,P,P,P,P,I,I,I,I,I,I,I,I}),
---  xcdCanvasPutImageRectMap    = iup_c_proc(hCd, "cdCanvasPutImageRectMap", {P,I,I,P,P,I,I,I,I,I,I,I,I})
+--  xcdCanvasGetImageRGB        = define_c_proc(hCd, "cdCanvasGetImageRGB", {P,P,P,P,I,I,I,I}),
+--  xcdCanvasPutImageRectRGB    = define_c_proc(hCd, "cdCanvasPutImageRectRGB", {P,I,I,P,P,P,I,I,I,I,I,I,I,I}),
+--  xcdCanvasPutImageRectRGBA   = define_c_proc(hCd, "cdCanvasPutImageRectRGBA", {P,I,I,P,P,P,P,I,I,I,I,I,I,I,I}),
+--  xcdCanvasPutImageRectMap    = define_c_proc(hCd, "cdCanvasPutImageRectMap", {P,I,I,P,P,I,I,I,I,I,I,I,I})
 
 --29/10/21 added a(lpha), which seems to stop some crashes [I need to revisit the online docs]
 -- reverted 31/12/21 (HelloF went badly wrong, PhixLogo is the only other likely candidate I could find...)
@@ -8180,11 +8213,11 @@ end procedure
 ----
 -------------------------------------------------------------------------------------------
 --constant
---  xcdCanvasCreateImage    = iup_c_func(hCd, "cdCanvasCreateImage", {P,I,I},P),
---  xcdKillImage            = iup_c_proc(hCd, "cdKillImage", {P}),
---  xcdCanvasGetImage       = iup_c_proc(hCd, "cdCanvasGetImage", {P,P,I,I}),
---  xcdCanvasPutImageRect   = iup_c_proc(hCd, "cdCanvasPutImageRect", {P,P,I,I,I,I,I,I}),
---  xcdCanvasScrollArea     = iup_c_proc(hCd, "cdCanvasScrollArea", {P,I,I,I,I,I,I})
+--  xcdCanvasCreateImage    = define_c_func(hCd, "cdCanvasCreateImage", {P,I,I},P),
+--  xcdKillImage            = define_c_proc(hCd, "cdKillImage", {P}),
+--  xcdCanvasGetImage       = define_c_proc(hCd, "cdCanvasGetImage", {P,P,I,I}),
+--  xcdCanvasPutImageRect   = define_c_proc(hCd, "cdCanvasPutImageRect", {P,P,I,I,I,I,I,I}),
+--  xcdCanvasScrollArea     = define_c_proc(hCd, "cdCanvasScrollArea", {P,I,I,I,I,I,I})
 
 --DEV removed (as untested and undocumented) 12/8/19 *5:
 --/*
@@ -8222,17 +8255,17 @@ end procedure
 ----
 -------------------------------------------------------------------------------------------
 --constant
---  xcdCreateBitmap     = iup_c_func(hCd, "cdCreateBitmap", {I,I,I},P),
---  xcdInitBitmapRGB    = iup_c_func(hCd, "cdInitBitmap", {I,I,I,P,P,P},P), -- type CD_RGB
---  xcdInitBitmapRGBA   = iup_c_func(hCd, "cdInitBitmap", {I,I,I,P,P,P,P},P), -- type CD_RGBA
+--  xcdCreateBitmap     = define_c_func(hCd, "cdCreateBitmap", {I,I,I},P),
+--  xcdInitBitmapRGB    = define_c_func(hCd, "cdInitBitmap", {I,I,I,P,P,P},P), -- type CD_RGB
+--  xcdInitBitmapRGBA   = define_c_func(hCd, "cdInitBitmap", {I,I,I,P,P,P,P},P), -- type CD_RGBA
 ----PL unused
-----    xcdInitBitmapMAP    = iup_c_func(hCd, "cdInitBitmap", {I,I,I,P,P},P), -- type CD_MAP
---  xcdKillBitmap       = iup_c_proc(hCd, "cdKillBitmap", {P}),
---  xcdBitmapGetData    = iup_c_func(hCd, "cdBitmapGetData", {P,I},P),
---  xcdBitmapSetRect    = iup_c_proc(hCd, "cdBitmapSetRect", {P,I,I,I,I}),
---  xcdCanvasPutBitmap  = iup_c_proc(hCd, "cdCanvasPutBitmap", {P,P,I,I,I,I}),
---  xcdCanvasGetBitmap  = iup_c_proc(hCd, "cdCanvasGetBitmap", {P,P,I,I}),
---  xcdBitmapRGB2Map    = iup_c_proc(hCd, "cdBitmapRGB2Map", {P,P})
+--- xcdInitBitmapMAP    = define_c_func(hCd, "cdInitBitmap", {I,I,I,P,P},P), -- type CD_MAP
+--  xcdKillBitmap       = define_c_proc(hCd, "cdKillBitmap", {P}),
+--  xcdBitmapGetData    = define_c_func(hCd, "cdBitmapGetData", {P,I},P),
+--  xcdBitmapSetRect    = define_c_proc(hCd, "cdBitmapSetRect", {P,I,I,I,I}),
+--  xcdCanvasPutBitmap  = define_c_proc(hCd, "cdCanvasPutBitmap", {P,P,I,I,I,I}),
+--  xcdCanvasGetBitmap  = define_c_proc(hCd, "cdCanvasGetBitmap", {P,P,I,I}),
+--  xcdBitmapRGB2Map    = define_c_proc(hCd, "cdBitmapRGB2Map", {P,P})
 
 --DEV doc:
 --/*
@@ -8520,13 +8553,13 @@ end function
 ----
 -------------------------------------------------------------------------------------------
 --constant
---  xwdCanvasWindow             = iup_c_proc(hCd, "wdCanvasWindow", {P,D,D,D,D}),
---  xwdCanvasGetWindow          = iup_c_proc(hCd, "wdCanvasGetWindow", {P,P,P,P,P}),
---  xwdCanvasViewport           = iup_c_proc(hCd, "wdCanvasViewport", {P,I,I,I,I}),
---  xwdCanvasGetViewport        = iup_c_proc(hCd, "wdCanvasGetViewport", {P,P,P,P,P}),
---  xwdCanvasWorld2Canvas       = iup_c_proc(hCd, "wdCanvasWorld2Canvas", {P,D,D,P,P}),
---  xwdCanvasWorld2CanvasSize   = iup_c_proc(hCd, "wdCanvasWorld2CanvasSize", {P,D,D,P,P}),
---  xwdCanvasCanvas2World       = iup_c_proc(hCd, "wdCanvasCanvas2World", {P,I,I,D,D})
+--  xwdCanvasWindow             = define_c_proc(hCd, "wdCanvasWindow", {P,D,D,D,D}),
+--  xwdCanvasGetWindow          = define_c_proc(hCd, "wdCanvasGetWindow", {P,P,P,P,P}),
+--  xwdCanvasViewport           = define_c_proc(hCd, "wdCanvasViewport", {P,I,I,I,I}),
+--  xwdCanvasGetViewport        = define_c_proc(hCd, "wdCanvasGetViewport", {P,P,P,P,P}),
+--  xwdCanvasWorld2Canvas       = define_c_proc(hCd, "wdCanvasWorld2Canvas", {P,D,D,P,P}),
+--  xwdCanvasWorld2CanvasSize   = define_c_proc(hCd, "wdCanvasWorld2CanvasSize", {P,D,D,P,P}),
+--  xwdCanvasCanvas2World       = define_c_proc(hCd, "wdCanvasCanvas2World", {P,I,I,D,D})
 
 global procedure wdCanvasWindow(cdCanvas canvas, atom xmin, atom xmax, atom ymin, atom ymax)
     c_proc(xwdCanvasWindow, {canvas, xmin, xmax, ymin, ymax})
@@ -8602,12 +8635,12 @@ end function
 ----
 -------------------------------------------------------------------------------------------
 --constant
---  xwdCanvasClipArea           = iup_c_proc(hCd, "wdCanvasClipArea", {P,D,D,D,D}),
---  xwdCanvasGetClipArea        = iup_c_func(hCd, "wdCanvasGetClipArea", {P,P,P,P,P},I),
---  xwdCanvasIsPointInRegion    = iup_c_func(hCd, "wdCanvasIsPointInRegion", {P,D,D},I),
---  xwdCanvasOffsetRegion       = iup_c_proc(hCd, "wdCanvasOffsetRegion", {P,D,D}),
---  xwdCanvasGetRegionBox       = iup_c_proc(hCd, "wdCanvasGetRegionBox", {P,P,P,P,P}),
---  xwdCanvasHardcopy           = iup_c_proc(hCd, "wdCanvasHardcopy", {P,P,P,P})
+--  xwdCanvasClipArea           = define_c_proc(hCd, "wdCanvasClipArea", {P,D,D,D,D}),
+--  xwdCanvasGetClipArea        = define_c_func(hCd, "wdCanvasGetClipArea", {P,P,P,P,P},I),
+--  xwdCanvasIsPointInRegion    = define_c_func(hCd, "wdCanvasIsPointInRegion", {P,D,D},I),
+--  xwdCanvasOffsetRegion       = define_c_proc(hCd, "wdCanvasOffsetRegion", {P,D,D}),
+--  xwdCanvasGetRegionBox       = define_c_proc(hCd, "wdCanvasGetRegionBox", {P,P,P,P,P}),
+--  xwdCanvasHardcopy           = define_c_proc(hCd, "wdCanvasHardcopy", {P,P,P,P})
 
 --global procedure wd_canvas_clip_area(cdCanvas canvas, atom xmin, atom xmax, atom ymin, atom ymax)
 global procedure wdCanvasClipArea(cdCanvas canvas, atom xmin, atom xmax, atom ymin, atom ymax)
@@ -8659,16 +8692,16 @@ end procedure
 ----
 -------------------------------------------------------------------------------------------
 --constant
---  xwdCanvasPixel  = iup_c_proc(hCd, "wdCanvasPixel", {P,D,D,L}),
---  xwdCanvasMark   = iup_c_proc(hCd, "wdCanvasMark", {P,D,D}),
---  xwdCanvasLine   = iup_c_proc(hCd, "wdCanvasLine", {P,D,D,D,D}),
---  xwdCanvasVertex = iup_c_proc(hCd, "wdCanvasVertex", {P,D,D}),
---  xwdCanvasRect   = iup_c_proc(hCd, "wdCanvasRect", {P,D,D,D,D}),
---  xwdCanvasBox    = iup_c_proc(hCd, "wdCanvasBox", {P,D,D,D,D}),
---  xwdCanvasArc    = iup_c_proc(hCd, "wdCanvasArc", {P,D,D,D,D,D,D}),
---  xwdCanvasSector = iup_c_proc(hCd, "wdCanvasSector", {P,D,D,D,D,D,D}),
---  xwdCanvasChord  = iup_c_proc(hCd, "wdCanvasChord", {P,D,D,D,D,D,D}),
---  xwdCanvasText   = iup_c_proc(hCd, "wdCanvasText", {P,D,D,P})
+--  xwdCanvasPixel  = define_c_proc(hCd, "wdCanvasPixel", {P,D,D,L}),
+--  xwdCanvasMark   = define_c_proc(hCd, "wdCanvasMark", {P,D,D}),
+--  xwdCanvasLine   = define_c_proc(hCd, "wdCanvasLine", {P,D,D,D,D}),
+--  xwdCanvasVertex = define_c_proc(hCd, "wdCanvasVertex", {P,D,D}),
+--  xwdCanvasRect   = define_c_proc(hCd, "wdCanvasRect", {P,D,D,D,D}),
+--  xwdCanvasBox    = define_c_proc(hCd, "wdCanvasBox", {P,D,D,D,D}),
+--  xwdCanvasArc    = define_c_proc(hCd, "wdCanvasArc", {P,D,D,D,D,D,D}),
+--  xwdCanvasSector = define_c_proc(hCd, "wdCanvasSector", {P,D,D,D,D,D,D}),
+--  xwdCanvasChord  = define_c_proc(hCd, "wdCanvasChord", {P,D,D,D,D,D,D}),
+--  xwdCanvasText   = define_c_proc(hCd, "wdCanvasText", {P,D,D,P})
 
 --global procedure wd_canvas_pixel(cdCanvas canvas, atom x, atom y)
 global procedure wdCanvasPixel(cdCanvas canvas, atom x, y, colour)
@@ -8726,11 +8759,11 @@ end procedure
 ----
 -------------------------------------------------------------------------------------------
 --constant
---  xwdCanvasPutImageRect       = iup_c_proc(hCd, "wdCanvasPutImageRect", {P,P,D,D,D,D,D,D}),
---  xwdCanvasPutImageRectRGB    = iup_c_proc(hCd, "wdCanvasPutImageRectRGB", {P,I,I,P,P,P,D,D,D,D,D,D,D,D,D,D}),
---  xwdCanvasPutImageRectRGBA   = iup_c_proc(hCd, "wdCanvasPutImageRectRGBA", {P,I,I,P,P,P,P,D,D,D,D,D,D,D,D}),
---  xwdCanvasPutImageRectMap    = iup_c_proc(hCd, "wdCanvasPutImageRectMap", {P,I,I,P,P,D,D,D,D,D,D,D,D}),
---  xwdCanvasPutBitmap          = iup_c_proc(hCd, "wdCanvasPutBitmap", {P,P,D,D,D,D})
+--  xwdCanvasPutImageRect       = define_c_proc(hCd, "wdCanvasPutImageRect", {P,P,D,D,D,D,D,D}),
+--  xwdCanvasPutImageRectRGB    = define_c_proc(hCd, "wdCanvasPutImageRectRGB", {P,I,I,P,P,P,D,D,D,D,D,D,D,D,D,D}),
+--  xwdCanvasPutImageRectRGBA   = define_c_proc(hCd, "wdCanvasPutImageRectRGBA", {P,I,I,P,P,P,P,D,D,D,D,D,D,D,D}),
+--  xwdCanvasPutImageRectMap    = define_c_proc(hCd, "wdCanvasPutImageRectMap", {P,I,I,P,P,D,D,D,D,D,D,D,D}),
+--  xwdCanvasPutBitmap          = define_c_proc(hCd, "wdCanvasPutBitmap", {P,P,D,D,D,D})
 
 --/* [DEV] as per cdCanvasPutImageRect...
 --global procedure wd_canvas_put_image_rect(cdCanvas canvas, atom hCdImage, atom x, atom y,
@@ -8794,16 +8827,16 @@ end procedure
 ----
 -------------------------------------------------------------------------------------------
 --constant
---  xwdCanvasLineWidth      = iup_c_func(hCd, "wdCanvasLineWidth", {P,D},D),
---  xwdCanvasFont           = iup_c_proc(hCd, "wdCanvasFont", {P,P,I,D}),
---  xwdCanvasGetFont        = iup_c_proc(hCd, "wdCanvasGetFont", {P,P,P,P}),
---  xwdCanvasGetFontDim     = iup_c_proc(hCd, "wdCanvasGetFontDim", {P,P,P,P,P}),
---  xwdCanvasMarkSize       = iup_c_func(hCd, "wdCanvasMarkSize", {P,D},D),
---  xwdCanvasGetTextSize    = iup_c_proc(hCd, "wdCanvasGetTextSize", {P,P,P,P}),
---  xwdCanvasGetTextBox     = iup_c_proc(hCd, "wdCanvasGetTextBox", {P,D,D,P,P,P,P,P}),
---  xwdCanvasGetTextBounds  = iup_c_proc(hCd, "wdCanvasGetTextBounds", {P,D,D,P,P}),
---  xwdCanvasStipple        = iup_c_proc(hCd, "wdCanvasStipple", {P,I,I,P,D,D}),
---  xwdCanvasPattern        = iup_c_proc(hCd, "wdCanvasPattern", {P,I,I,P,D,D})
+--  xwdCanvasLineWidth      = define_c_func(hCd, "wdCanvasLineWidth", {P,D},D),
+--  xwdCanvasFont           = define_c_proc(hCd, "wdCanvasFont", {P,P,I,D}),
+--  xwdCanvasGetFont        = define_c_proc(hCd, "wdCanvasGetFont", {P,P,P,P}),
+--  xwdCanvasGetFontDim     = define_c_proc(hCd, "wdCanvasGetFontDim", {P,P,P,P,P}),
+--  xwdCanvasMarkSize       = define_c_func(hCd, "wdCanvasMarkSize", {P,D},D),
+--  xwdCanvasGetTextSize    = define_c_proc(hCd, "wdCanvasGetTextSize", {P,P,P,P}),
+--  xwdCanvasGetTextBox     = define_c_proc(hCd, "wdCanvasGetTextBox", {P,D,D,P,P,P,P,P}),
+--  xwdCanvasGetTextBounds  = define_c_proc(hCd, "wdCanvasGetTextBounds", {P,D,D,P,P}),
+--  xwdCanvasStipple        = define_c_proc(hCd, "wdCanvasStipple", {P,I,I,P,D,D}),
+--  xwdCanvasPattern        = define_c_proc(hCd, "wdCanvasPattern", {P,I,I,P,D,D})
 
 --global function wd_canvas_line_width(cdCanvas canvas, atom width)
 --global function wdCanvasLineWidth(cdCanvas canvas, atom width)
@@ -8900,13 +8933,13 @@ end procedure
 ----
 -------------------------------------------------------------------------------------------
 --constant
---  xwdCanvasVectorTextDirection    = iup_c_proc(hCd, "wdCanvasVectorTextDirection", {P,D,D,D,D}),
---  xwdCanvasVectorTextSize         = iup_c_proc(hCd, "wdCanvasVectorTextSize", {P,D,D,P}),
---  xwdCanvasGetVectorTextSize      = iup_c_proc(hCd, "wdCanvasGetVectorTextSize", {P,P,P,P}),
---  xwdCanvasVectorCharSize         = iup_c_func(hCd, "wdCanvasVectorCharSize", {P,D},D),
---  xwdCanvasVectorText             = iup_c_proc(hCd, "wdCanvasVectorText", {P,D,D,P}),
---  xwdCanvasMultiLineVectorText    = iup_c_proc(hCd, "wdCanvasMultiLineVectorText", {P,D,D,P}),
---  xwdCanvasGetVectorTextBounds    = iup_c_proc(hCd, "wdCanvasGetVectorTextBounds", {P,P,D,D,P})
+--  xwdCanvasVectorTextDirection    = define_c_proc(hCd, "wdCanvasVectorTextDirection", {P,D,D,D,D}),
+--  xwdCanvasVectorTextSize         = define_c_proc(hCd, "wdCanvasVectorTextSize", {P,D,D,P}),
+--  xwdCanvasGetVectorTextSize      = define_c_proc(hCd, "wdCanvasGetVectorTextSize", {P,P,P,P}),
+--  xwdCanvasVectorCharSize         = define_c_func(hCd, "wdCanvasVectorCharSize", {P,D},D),
+--  xwdCanvasVectorText             = define_c_proc(hCd, "wdCanvasVectorText", {P,D,D,P}),
+--  xwdCanvasMultiLineVectorText    = define_c_proc(hCd, "wdCanvasMultiLineVectorText", {P,D,D,P}),
+--  xwdCanvasGetVectorTextBounds    = define_c_proc(hCd, "wdCanvasGetVectorTextBounds", {P,P,D,D,P})
 
 --global procedure wd_canvas_vector_text_direction(cdCanvas canvas, atom x1, atom y1, atom x2, atom y2)
 global procedure wdCanvasVectorTextDirection(cdCanvas canvas, atom x1, atom y1, atom x2, atom y2)
@@ -8974,16 +9007,16 @@ procedure iup_init_pplot()
                                   "libiup_pplot.dylib"
                                  })
 
-        xIupPPlotOpen       = iup_c_proc(hIupPPlot, "IupPPlotOpen", {})
-        xIupPPlot           = iup_c_func(hIupPPlot, "IupPPlot", {},P)
-        xIupPPlotBegin      = iup_c_proc(hIupPPlot, "IupPPlotBegin", {P,I})
-        xIupPPlotAdd        = iup_c_proc(hIupPPlot, "IupPPlotAdd", {P,F,F})
-        xIupPPlotAddStr     = iup_c_proc(hIupPPlot, "IupPPlotAddStr", {P,P,F})
-        xIupPPlotEnd        = iup_c_proc(hIupPPlot, "IupPPlotEnd", {P})
-        xIupPPlotInsert     = iup_c_proc(hIupPPlot, "IupPPlotInsert", {P,I,I,F,F})
-        xIupPPlotInsertStr  = iup_c_proc(hIupPPlot, "IupPPlotInsertStr", {P,I,I,P,F})
-        xIupPPlotTransform  = iup_c_proc(hIupPPlot, "IupPPlotTransform", {P,F,F,P,P})
-        xIupPPlotPaintTo    = iup_c_proc(hIupPPlot, "IupPPlotPaintTo", {P,P})
+        xIupPPlotOpen       = define_c_proc(hIupPPlot, "IupPPlotOpen", {})
+        xIupPPlot           = define_c_func(hIupPPlot, "IupPPlot", {},P)
+        xIupPPlotBegin      = define_c_proc(hIupPPlot, "IupPPlotBegin", {P,I})
+        xIupPPlotAdd        = define_c_proc(hIupPPlot, "IupPPlotAdd", {P,F,F})
+        xIupPPlotAddStr     = define_c_proc(hIupPPlot, "IupPPlotAddStr", {P,P,F})
+        xIupPPlotEnd        = define_c_proc(hIupPPlot, "IupPPlotEnd", {P})
+        xIupPPlotInsert     = define_c_proc(hIupPPlot, "IupPPlotInsert", {P,I,I,F,F})
+        xIupPPlotInsertStr  = define_c_proc(hIupPPlot, "IupPPlotInsertStr", {P,I,I,P,F})
+        xIupPPlotTransform  = define_c_proc(hIupPPlot, "IupPPlotTransform", {P,F,F,P,P})
+        xIupPPlotPaintTo    = define_c_proc(hIupPPlot, "IupPPlotPaintTo", {P,P})
     end if
 end procedure
 
@@ -9096,36 +9129,36 @@ procedure iup_init_plot()
                                  "libiup_plot.dylib"
                                 })
 
-        xIupPlotOpen                = iup_c_proc(hIupPlot, "IupPlotOpen", {})
-        xIupPlot                    = iup_c_func(hIupPlot, "IupPlot", {},P)
-        xIupPlotBegin               = iup_c_proc(hIupPlot, "IupPlotBegin", {P,I})
-        xIupPlotAdd                 = iup_c_proc(hIupPlot, "IupPlotAdd", {P,D,D})
-        xIupPlotAddSegment          = iup_c_proc(hIupPlot, "IupPlotAddSegment", {P,D,D})
-        xIupPlotAddStr              = iup_c_proc(hIupPlot, "IupPlotAddStr", {P,P,D})
-        xIupPlotEnd                 = iup_c_func(hIupPlot, "IupPlotEnd", {P},I)
-        xIupPlotLoadData            = iup_c_proc(hIupPlot, "IupPlotLoadData", {P,P,I})
-        xIupPlotInsert              = iup_c_proc(hIupPlot, "IupPlotInsert", {P,I,I,D,D})
-        xIupPlotInsertSegment       = iup_c_proc(hIupPlot, "IupPlotInsertSegment", {P,I,I,P,D})
-        xIupPlotInsertStr           = iup_c_proc(hIupPlot, "IupPlotInsertStr", {P,I,I,P,D})
-        xIupPlotInsertSamples       = iup_c_proc(hIupPlot, "IupPlotInsertSamples", {P,I,I,P,P,I})
-        xIupPlotInsertStrSamples    = iup_c_proc(hIupPlot, "IupPlotInsertStrSamples", {P,I,I,P,P,I})
-        xIupPlotAddSamples          = iup_c_proc(hIupPlot, "IupPlotAddSamples", {P,I,P,P,I})
-        xIupPlotAddStrSamples       = iup_c_proc(hIupPlot, "IupPlotAddStrSamples", {P,I,P,P,I})
-        xIupPlotGetSample           = iup_c_proc(hIupPlot, "IupPlotGetSample", {P,I,I,P,P})
-        xIupPlotGetSampleStr        = iup_c_proc(hIupPlot, "IupPlotGetSampleStr", {P,I,I,P,P})
-        xIupPlotGetSampleSelection  = iup_c_func(hIupPlot, "IupPlotGetSampleSelection", {P,I,I},I)
-        xIupPlotGetSampleExtra      = iup_c_func(hIupPlot, "IupPlotGetSampleExtra", {P,I,I},D)
-        xIupPlotSetSample           = iup_c_proc(hIupPlot, "IupPlotSetSample", {P,I,I,D,D})
-        xIupPlotSetSampleStr        = iup_c_proc(hIupPlot, "IupPlotSetSampleStr", {P,I,I,P,D})
-        xIupPlotSetSampleSelection  = iup_c_proc(hIupPlot, "IupPlotSetSampleSelection", {P,I,I,I})
-        xIupPlotSetSampleExtra      = iup_c_proc(hIupPlot, "IupPlotSetSampleExtra", {P,I,I,D})
-        xIupPlotTransform           = iup_c_proc(hIupPlot, "IupPlotTransform", {P,D,D,P,P})
-        xIupPlotTransformTo         = iup_c_proc(hIupPlot, "IupPlotTransformTo", {P,D,D,P,P})
-        xIupPlotFindSample          = iup_c_proc(hIupPlot, "IupPlotFindSample", {P,D,D,P,P})
-        xIupPlotFindSegment         = iup_c_proc(hIupPlot, "IupPlotFindSegment", {P,D,D,P,P,P})
-        xIupPlotPaintTo             = iup_c_proc(hIupPlot, "IupPlotPaintTo", {P,P})
+        xIupPlotOpen                = define_c_proc(hIupPlot, "IupPlotOpen", {})
+        xIupPlot                    = define_c_func(hIupPlot, "IupPlot", {},P)
+        xIupPlotBegin               = define_c_proc(hIupPlot, "IupPlotBegin", {P,I})
+        xIupPlotAdd                 = define_c_proc(hIupPlot, "IupPlotAdd", {P,D,D})
+        xIupPlotAddSegment          = define_c_proc(hIupPlot, "IupPlotAddSegment", {P,D,D})
+        xIupPlotAddStr              = define_c_proc(hIupPlot, "IupPlotAddStr", {P,P,D})
+        xIupPlotEnd                 = define_c_func(hIupPlot, "IupPlotEnd", {P},I)
+        xIupPlotLoadData            = define_c_proc(hIupPlot, "IupPlotLoadData", {P,P,I})
+        xIupPlotInsert              = define_c_proc(hIupPlot, "IupPlotInsert", {P,I,I,D,D})
+        xIupPlotInsertSegment       = define_c_proc(hIupPlot, "IupPlotInsertSegment", {P,I,I,P,D})
+        xIupPlotInsertStr           = define_c_proc(hIupPlot, "IupPlotInsertStr", {P,I,I,P,D})
+        xIupPlotInsertSamples       = define_c_proc(hIupPlot, "IupPlotInsertSamples", {P,I,I,P,P,I})
+        xIupPlotInsertStrSamples    = define_c_proc(hIupPlot, "IupPlotInsertStrSamples", {P,I,I,P,P,I})
+        xIupPlotAddSamples          = define_c_proc(hIupPlot, "IupPlotAddSamples", {P,I,P,P,I})
+        xIupPlotAddStrSamples       = define_c_proc(hIupPlot, "IupPlotAddStrSamples", {P,I,P,P,I})
+        xIupPlotGetSample           = define_c_proc(hIupPlot, "IupPlotGetSample", {P,I,I,P,P})
+        xIupPlotGetSampleStr        = define_c_proc(hIupPlot, "IupPlotGetSampleStr", {P,I,I,P,P})
+        xIupPlotGetSampleSelection  = define_c_func(hIupPlot, "IupPlotGetSampleSelection", {P,I,I},I)
+        xIupPlotGetSampleExtra      = define_c_func(hIupPlot, "IupPlotGetSampleExtra", {P,I,I},D)
+        xIupPlotSetSample           = define_c_proc(hIupPlot, "IupPlotSetSample", {P,I,I,D,D})
+        xIupPlotSetSampleStr        = define_c_proc(hIupPlot, "IupPlotSetSampleStr", {P,I,I,P,D})
+        xIupPlotSetSampleSelection  = define_c_proc(hIupPlot, "IupPlotSetSampleSelection", {P,I,I,I})
+        xIupPlotSetSampleExtra      = define_c_proc(hIupPlot, "IupPlotSetSampleExtra", {P,I,I,D})
+        xIupPlotTransform           = define_c_proc(hIupPlot, "IupPlotTransform", {P,D,D,P,P})
+        xIupPlotTransformTo         = define_c_proc(hIupPlot, "IupPlotTransformTo", {P,D,D,P,P})
+        xIupPlotFindSample          = define_c_proc(hIupPlot, "IupPlotFindSample", {P,D,D,P,P})
+        xIupPlotFindSegment         = define_c_proc(hIupPlot, "IupPlotFindSegment", {P,D,D,P,P,P})
+        xIupPlotPaintTo             = define_c_proc(hIupPlot, "IupPlotPaintTo", {P,P})
 --link error (using v3.17)
---      xIupPlotSetFormula          = iup_c_proc(hIupPlot, "IupPlotSetFormula", {P,I,P,P})
+--      xIupPlotSetFormula          = define_c_proc(hIupPlot, "IupPlotSetFormula", {P,I,P,P})
     end if
 end procedure
 
@@ -9368,30 +9401,30 @@ procedure iup_init_mglplot()
                                  "libiup_mglplot.dylib"
                                 })
 
-        xIupMglPlotOpen                 = iup_c_proc(hIupMglPlot, "IupMglPlotOpen", {})
-        xIupMglPlot                     = iup_c_func(hIupMglPlot, "IupMglPlot", {},P)
-        xIupMglPlotBegin                = iup_c_proc(hIupMglPlot, "IupMglPlotBegin", {P,I})
-        xIupMglPlotAdd1D                = iup_c_proc(hIupMglPlot, "IupMglPlotAdd1D", {P,P,D})
-        xIupMglPlotAdd2D                = iup_c_proc(hIupMglPlot, "IupMglPlotAdd2D", {P,D,D})
-        xIupMglPlotAdd3D                = iup_c_proc(hIupMglPlot, "IupMglPlotAdd3D", {P,D,D,D})
-        xIupMglPlotDrawLine             = iup_c_proc(hIupMglPlot, "IupMglPlotDrawLine", {P,D,D,D,D,D,D})
-        xIupMglPlotDrawMark             = iup_c_proc(hIupMglPlot, "IupMglPlotDrawMark", {P,D,D,D})
-        xIupMglPlotDrawText             = iup_c_proc(hIupMglPlot, "IupMglPlotDrawText", {P,P,D,D,D})
-        xIupMglPlotEnd                  = iup_c_func(hIupMglPlot, "IupMglPlotEnd", {P},I)
-        xIupMglPlotInsert1D             = iup_c_proc(hIupMglPlot, "IupMglPlotInsert1D", {P,I,I,P,P,I})
-        xIupMglPlotInsert2D             = iup_c_proc(hIupMglPlot, "IupMglPlotInsert2D", {P,I,I,P,P,I})
-        xIupMglPlotInsert3D             = iup_c_proc(hIupMglPlot, "IupMglPlotInsert3D", {P,I,I,P,P,P,I})
-        xIupMglPlotLoadData             = iup_c_proc(hIupMglPlot, "IupMglPlotLoadData", {P,I,P,I,I,I})
-        xIupMglPlotNewDataSet           = iup_c_func(hIupMglPlot, "IupMglPlotNewDataSet", {P,I},I)
-        xIupMglPlotPaintTo              = iup_c_proc(hIupMglPlot, "IupMglPlotPaintTo", {P,P,I,I,D,P})
-        xIupMglPlotSet1D                = iup_c_proc(hIupMglPlot, "IupMglPlotInsert1D", {P,I,I,P,P,I})
-        xIupMglPlotSet2D                = iup_c_proc(hIupMglPlot, "IupMglPlotInsert2D", {P,I,I,P,P,I})
-        xIupMglPlotSet3D                = iup_c_proc(hIupMglPlot, "IupMglPlotInsert3D", {P,I,I,P,P,P,I})
-        xIupMglPlotSetData              = iup_c_proc(hIupMglPlot, "IupMglPlotSetData", {P,I,P,I,I,I})
-        xIupMglPlotSetFormula           = iup_c_proc(hIupMglPlot, "IupMglPlotSetFormula", {P,I,P,P,P,I})
-        xIupMglPlotSetFromFormula       = iup_c_proc(hIupMglPlot, "IupMglPlotSetFromFormula", {P,I,P,I,I,I})
-        xIupMglPlotTransform            = iup_c_proc(hIupMglPlot, "IupMglPlotTransform", {P,D,D,D,P,P})
-        xIupMglPlotTransformTo          = iup_c_proc(hIupMglPlot, "IupMglPlotTransformTo", {P,I,I,P,P,P})
+        xIupMglPlotOpen                 = define_c_proc(hIupMglPlot, "IupMglPlotOpen", {})
+        xIupMglPlot                     = define_c_func(hIupMglPlot, "IupMglPlot", {},P)
+        xIupMglPlotBegin                = define_c_proc(hIupMglPlot, "IupMglPlotBegin", {P,I})
+        xIupMglPlotAdd1D                = define_c_proc(hIupMglPlot, "IupMglPlotAdd1D", {P,P,D})
+        xIupMglPlotAdd2D                = define_c_proc(hIupMglPlot, "IupMglPlotAdd2D", {P,D,D})
+        xIupMglPlotAdd3D                = define_c_proc(hIupMglPlot, "IupMglPlotAdd3D", {P,D,D,D})
+        xIupMglPlotDrawLine             = define_c_proc(hIupMglPlot, "IupMglPlotDrawLine", {P,D,D,D,D,D,D})
+        xIupMglPlotDrawMark             = define_c_proc(hIupMglPlot, "IupMglPlotDrawMark", {P,D,D,D})
+        xIupMglPlotDrawText             = define_c_proc(hIupMglPlot, "IupMglPlotDrawText", {P,P,D,D,D})
+        xIupMglPlotEnd                  = define_c_func(hIupMglPlot, "IupMglPlotEnd", {P},I)
+        xIupMglPlotInsert1D             = define_c_proc(hIupMglPlot, "IupMglPlotInsert1D", {P,I,I,P,P,I})
+        xIupMglPlotInsert2D             = define_c_proc(hIupMglPlot, "IupMglPlotInsert2D", {P,I,I,P,P,I})
+        xIupMglPlotInsert3D             = define_c_proc(hIupMglPlot, "IupMglPlotInsert3D", {P,I,I,P,P,P,I})
+        xIupMglPlotLoadData             = define_c_proc(hIupMglPlot, "IupMglPlotLoadData", {P,I,P,I,I,I})
+        xIupMglPlotNewDataSet           = define_c_func(hIupMglPlot, "IupMglPlotNewDataSet", {P,I},I)
+        xIupMglPlotPaintTo              = define_c_proc(hIupMglPlot, "IupMglPlotPaintTo", {P,P,I,I,D,P})
+        xIupMglPlotSet1D                = define_c_proc(hIupMglPlot, "IupMglPlotInsert1D", {P,I,I,P,P,I})
+        xIupMglPlotSet2D                = define_c_proc(hIupMglPlot, "IupMglPlotInsert2D", {P,I,I,P,P,I})
+        xIupMglPlotSet3D                = define_c_proc(hIupMglPlot, "IupMglPlotInsert3D", {P,I,I,P,P,P,I})
+        xIupMglPlotSetData              = define_c_proc(hIupMglPlot, "IupMglPlotSetData", {P,I,P,I,I,I})
+        xIupMglPlotSetFormula           = define_c_proc(hIupMglPlot, "IupMglPlotSetFormula", {P,I,P,P,P,I})
+        xIupMglPlotSetFromFormula       = define_c_proc(hIupMglPlot, "IupMglPlotSetFromFormula", {P,I,P,I,I,I})
+        xIupMglPlotTransform            = define_c_proc(hIupMglPlot, "IupMglPlotTransform", {P,D,D,D,P,P})
+        xIupMglPlotTransformTo          = define_c_proc(hIupMglPlot, "IupMglPlotTransformTo", {P,I,I,P,P,P})
     end if
 end procedure
 
@@ -9641,14 +9674,14 @@ procedure iup_init_iupgl()
                                "libiupgl.so",
                                "libiupgl.dylib"})
 
-        xIupGLCanvas      = iup_c_func(hIupGL, "IupGLCanvas", {P},P)
-        xIupGLCanvasOpen  = iup_c_proc(hIupGL, "IupGLCanvasOpen", {})
-        xIupGLMakeCurrent = iup_c_proc(hIupGL, "IupGLMakeCurrent", {P})
-        xIupGLIsCurrent   = iup_c_func(hIupGL, "IupGLIsCurrent", {P},I)
-        xIupGLSwapBuffers = iup_c_proc(hIupGL, "IupGLSwapBuffers", {P})
-        xIupGLPalette     = iup_c_proc(hIupGL, "IupGLPalette", {P,I,F,F,F})
-        xIupGLUseFont     = iup_c_proc(hIupGL, "IupGLUseFont", {P,I,I,I})
-        xIupGLWait        = iup_c_proc(hIupGL, "IupGLWait", {I})
+        xIupGLCanvas      = define_c_func(hIupGL, "IupGLCanvas", {P},P)
+        xIupGLCanvasOpen  = define_c_proc(hIupGL, "IupGLCanvasOpen", {})
+        xIupGLMakeCurrent = define_c_proc(hIupGL, "IupGLMakeCurrent", {P})
+        xIupGLIsCurrent   = define_c_func(hIupGL, "IupGLIsCurrent", {P},I)
+        xIupGLSwapBuffers = define_c_proc(hIupGL, "IupGLSwapBuffers", {P})
+        xIupGLPalette     = define_c_proc(hIupGL, "IupGLPalette", {P,I,F,F,F})
+        xIupGLUseFont     = define_c_proc(hIupGL, "IupGLUseFont", {P,I,I,I})
+        xIupGLWait        = define_c_proc(hIupGL, "IupGLWait", {I})
     end if
 end procedure
 
@@ -9726,8 +9759,8 @@ constant hImageLib = iup_open_dll({
     }) 
 
 constant 
---  xIupImageLibOpen = iup_c_func(hImageLib, "IupImageLibOpen", {},I)
-    xIupImageLibOpen = iup_c_proc(hImageLib, "IupImageLibOpen", {})
+--  xIupImageLibOpen = define_c_func(hImageLib, "IupImageLibOpen", {},I)
+    xIupImageLibOpen = define_c_proc(hImageLib, "IupImageLibOpen", {})
 
 --****
 -- === Routines
@@ -9752,8 +9785,8 @@ procedure iup_init_ole()
                              "?libiupole.so",
                              "?libiupole.dylib"})
 
-        xIupOleControlOpen  = iup_c_proc(hOle, "IupOleControlOpen", {})
-        xIupOleControl      = iup_c_func(hOle, "IupOleControl", {P},P)
+        xIupOleControlOpen  = define_c_proc(hOle, "IupOleControlOpen", {})
+        xIupOleControl      = define_c_func(hOle, "IupOleControl", {P},P)
     end if
 end procedure
 
@@ -9796,8 +9829,8 @@ constant hTuio = iup_open_dll({
 -- === Routines
 
 constant
-    xIupTuioOpen    = iup_c_proc(hTuio, "IupTuioOpen", {}),
-    xIupTuioClient  = iup_c_func(hTuio, "IupTuioClient", {I},P)
+    xIupTuioOpen    = define_c_proc(hTuio, "IupTuioOpen", {}),
+    xIupTuioClient  = define_c_func(hTuio, "IupTuioClient", {I},P)
 
 integer did_tuio_open = 0
 
@@ -10120,192 +10153,192 @@ global constant K_yAsterisk = iup_XkeySys(K_asterisk )
 --*/
 
 --global constant -- function delcarations
---      xIupOpen                          = iup_c_func(iup, "+IupOpen", {P,P}, I),
---      xIupClose                         = iup_c_proc(iup, "+IupClose", {}),
---      xIupImageLibOpen                  = iup_c_proc(iupimglib, "+IupImageLibOpen", {}),
---      xIupMainLoop                      = iup_c_func(iup, "+IupMainLoop", {}, I),
---      xIupLoopStep                      = iup_c_func(iup, "+IupLoopStep", {}, I),
---      xIupLoopStepWait                  = iup_c_func(iup, "+IupLoopStepWait", {}, I),
---      xIupMainLoopLevel                 = iup_c_func(iup, "+IupMainLoopLevel", {}, I),
---      xIupFlush                         = iup_c_proc(iup, "+IupFlush", {}),
---      xIupExitLoop                      = iup_c_proc(iup, "+IupExitLoop", {}),
---      xIupRecordInput                   = iup_c_func(iup, "+IupRecordInput", {P,I}, I),
---      xIupPlayInput                     = iup_c_func(iup, "+IupPlayInput", {P}, I),
---      xIupUpdate                        = iup_c_proc(iup, "+IupUpdate", {P}),
---      xIupUpdateChildren                = iup_c_proc(iup, "+IupUpdateChildren", {P}),
---      xIupRedraw                        = iup_c_proc(iup, "+IupRedraw", {P,I}),
---      xIupRefresh                       = iup_c_proc(iup, "+IupRefresh", {P}),
---      xIupRefreshChildren               = iup_c_proc(iup, "+IupRefreshChildren", {P}),
---      xIupHelp                          = iup_c_func(iup, "+IupHelp", {P}, I),
---      xIupVersion                       = iup_c_func(iup, "+IupVersion", {}, P),
---      xIupVersionDate                   = iup_c_func(iup, "+IupVersionDate", {}, P),
---      xIupVersionNumber                 = iup_c_func(iup, "+IupVersionNumber", {}, I),
---      xIupSetLanguage                   = iup_c_proc(iup, "+IupSetLanguage", {P}),
---      xIupGetLanguage                   = iup_c_func(iup, "+IupGetLanguage", {}, P),
---      xIupSetLanguageString             = iup_c_proc(iup, "+IupSetLanguageString", {P,P}),
---      xIupStoreLanguageString           = iup_c_proc(iup, "+IupStoreLanguageString", {P,P}),
---      xIupGetLanguageString             = iup_c_func(iup, "+IupGetLanguageString", {P}, P),
---      xIupSetLanguagePack               = iup_c_proc(iup, "+IupSetLanguagePack", {P}),
---      xIupDestroy                       = iup_c_proc(iup, "+IupDestroy", {P}),
---      xIupDetach                        = iup_c_proc(iup, "+IupDetach", {P}),
---      xIupAppend                        = iup_c_func(iup, "+IupAppend", {P,P}, P),
---      xIupInsert                        = iup_c_func(iup, "+IupInsert", {P,P,P}, P),
---      xIupGetChild                      = iup_c_func(iup, "+IupGetChild", {P,I}, P),
---      xIupGetChildPos                   = iup_c_func(iup, "+IupGetChildPos", {P,P}, I),
---      xIupGetChildCount                 = iup_c_func(iup, "+IupGetChildCount", {P}, I),
---      xIupGetNextChild                  = iup_c_func(iup, "+IupGetNextChild", {P,P}, P),
---      xIupGetBrother                    = iup_c_func(iup, "+IupGetBrother", {P}, P),
---      xIupGetParent                     = iup_c_func(iup, "+IupGetParent", {P}, P),
---      xIupGetDialog                     = iup_c_func(iup, "+IupGetDialog", {P}, P),
---      xIupGetDialogChild                = iup_c_func(iup, "+IupGetDialogChild", {P,P}, P),
---      xIupReparent                      = iup_c_func(iup, "+IupReparent", {P,P,P}, I),
---      xIupPopup                         = iup_c_func(iup, "+IupPopup", {P,I,I}, I),
---      xIupShow                          = iup_c_func(iup, "+IupShow", {P}, I),
---      xIupShowXY                        = iup_c_func(iup, "+IupShowXY", {P,I,I}, I),
---      xIupHide                          = iup_c_func(iup, "+IupHide", {P}, I),
---      xIupMap                           = iup_c_func(iup, "+IupMap", {P}, I),
---      xIupUnmap                         = iup_c_proc(iup, "+IupUnmap", {P}),
---      xIupResetAttribute                = iup_c_proc(iup, "+IupResetAttribute", {P,P}),
---      xIupGetAllAttributes              = iup_c_func(iup, "+IupGetAllAttributes", {P,P,I}, I),
---      xIupSetAttributes                 = iup_c_func(iup, "+IupSetAttributes", {P,P}, P),
---      xIupGetAttributes                 = iup_c_func(iup, "+IupGetAttributes", {P}, P),
---      xIupSetAttribute                  = iup_c_proc(iup, "+IupSetAttribute", {P,P,P}),
---      xIupSetStrAttribute               = iup_c_proc(iup, "+IupSetStrAttribute", {P,P,P}),
---      xIupSetInt                        = iup_c_proc(iup, "+IupSetInt", {P,P,I}),
---      xIupSetFloat                      = iup_c_proc(iup, "+IupSetFloat", {P,P,F}),
---      xIupSetDouble                     = iup_c_proc(iup, "+IupSetDouble", {P,P,D}),
---      xIupSetRGB                        = iup_c_proc(iup, "+IupSetRGB", {P,P,UC,UC,UC}),
---      xIupGetAttribute                  = iup_c_func(iup, "+IupGetAttribute", {P,P}, P),
---      xIupGetInt                        = iup_c_func(iup, "+IupGetInt", {P,P}, I),
---      xIupGetInt2                       = iup_c_func(iup, "+IupGetInt2", {P,P}, I),
---      xIupGetIntInt                     = iup_c_func(iup, "+IupGetIntInt", {P,P,P,P}, I),
---      xIupGetFloat                      = iup_c_func(iup, "+IupGetFloat", {P,P}, F),
---      xIupGetDouble                     = iup_c_func(iup, "+IupGetDouble", {P,P}, D),
---      xIupGetRGB                        = iup_c_proc(iup, "+IupGetRGB", {P,P,P,P,P}),
---      xIupSetAttributeId                = iup_c_proc(iup, "+IupSetAttributeId", {P,P,I,P}),
---      xIupSetStrAttributeId             = iup_c_proc(iup, "+IupSetStrAttributeId", {P,P,I,P}),
---      xIupSetIntId                      = iup_c_proc(iup, "+IupSetIntId", {P,P,I,I}),
---      xIupSetFloatId                    = iup_c_proc(iup, "+IupSetFloatId", {P,P,I,F}),
---      xIupSetDoubleId                   = iup_c_proc(iup, "+IupSetDoubleId", {P,P,I,D}),
---      xIupSetRGBId                      = iup_c_proc(iup, "+IupSetRGBId", {P,P,I,UC,UC,UC}),
---      xIupGetAttributeId                = iup_c_func(iup, "+IupGetAttributeId", {P,P,I}, P),
---      xIupGetIntId                      = iup_c_func(iup, "+IupGetIntId", {P,P,I}, I),
---      xIupGetFloatId                    = iup_c_func(iup, "+IupGetFloatId", {P,P,I}, F),
---      xIupGetDoubleId                   = iup_c_func(iup, "+IupGetDoubleId", {P,P,I}, D),
---      xIupGetRGBId                      = iup_c_proc(iup, "+IupGetRGBId", {P,P,I,P,P,P}),
---      xIupSetAttributeId2               = iup_c_proc(iup, "+IupSetAttributeId2", {P,P,I,I,P}),
---      xIupSetStrAttributeId2            = iup_c_proc(iup, "+IupSetStrAttributeId2", {P,P,I,I,P}),
---      xIupSetIntId2                     = iup_c_proc(iup, "+IupSetIntId2", {P,P,I,I,I}),
---      xIupSetFloatId2                   = iup_c_proc(iup, "+IupSetFloatId2", {P,P,I,I,F}),
---      xIupSetDoubleId2                  = iup_c_proc(iup, "+IupSetDoubleId2", {P,P,I,I,D}),
---      xIupSetRGBId2                     = iup_c_proc(iup, "+IupSetRGBId2", {P,P,I,I,UC,UC,UC}),
---      xIupGetAttributeId2               = iup_c_func(iup, "+IupGetAttributeId2", {P,P,I,I}, P),
---      xIupGetIntId2                     = iup_c_func(iup, "+IupGetIntId2", {P,P,I,I}, I),
---      xIupGetFloatId2                   = iup_c_func(iup, "+IupGetFloatId2", {P,P,I,I}, F),
---      xIupGetDoubleId2                  = iup_c_func(iup, "+IupGetDoubleId2", {P,P,I,I}, D),
---      xIupGetRGBId2                     = iup_c_proc(iup, "+IupGetRGBId2", {P,P,I,I,P,P,P}),
---      xIupSetGlobal                     = iup_c_proc(iup, "+IupSetGlobal", {P,P}),
---      xIupSetStrGlobal                  = iup_c_proc(iup, "+IupSetStrGlobal", {P,P}),
---      xIupGetGlobal                     = iup_c_func(iup, "+IupGetGlobal", {P}, P),
---      xIupSetFocus                      = iup_c_func(iup, "+IupSetFocus", {P}, P),
---      xIupGetFocus                      = iup_c_func(iup, "+IupGetFocus", {}, P),
---      xIupPreviousField                 = iup_c_func(iup, "+IupPreviousField", {P}, P),
---      xIupNextField                     = iup_c_func(iup, "+IupNextField", {P}, P),
---      xIupGetCallback                   = iup_c_func(iup, "+IupGetCallback", {P,P}, P),
---      xIupSetCallback                   = iup_c_func(iup, "+IupSetCallback", {P,P,P}, P),
---      xIupGetFunction                   = iup_c_func(iup, "+IupGetFunction", {P}, P),
---      xIupSetFunction                   = iup_c_func(iup, "+IupSetFunction", {P,P}, P),
---      xIupGetHandle                     = iup_c_func(iup, "+IupGetHandle", {P}, P),
---      xIupSetHandle                     = iup_c_proc(iup, "+IupSetHandle", {P,P}),
---      xIupGetAllNames                   = iup_c_func(iup, "+IupGetAllNames", {P,I}, I),
---      xIupGetAllDialogs                 = iup_c_func(iup, "+IupGetAllDialogs", {P,I}, I),
---      xIupGetName                       = iup_c_func(iup, "+IupGetName", {P}, P),
---      xIupSetAttributeHandle            = iup_c_proc(iup, "+IupSetAttributeHandle", {P,P,P}),
---      xIupGetAttributeHandle            = iup_c_func(iup, "+IupGetAttributeHandle", {P,P}, P),
---      xIupGetClassName                  = iup_c_func(iup, "+IupGetClassName", {P}, P),
---      xIupGetClassType                  = iup_c_func(iup, "+IupGetClassType", {P}, P),
---      xIupGetAllClasses                 = iup_c_func(iup, "+IupGetAllClasses", {P,I}, I),
---      xIupGetClassAttributes            = iup_c_func(iup, "+IupGetClassAttributes", {P,P,I}, I),
---      xIupGetClassCallbacks             = iup_c_func(iup, "+IupGetClassCallbacks", {P,P,I}, I),
---      xIupSaveClassAttributes           = iup_c_proc(iup, "+IupSaveClassAttributes", {P}),
---      xIupCopyClassAttributes           = iup_c_proc(iup, "+IupCopyClassAttributes", {P,P}),
---      xIupSetClassDfltAttribute         = iup_c_proc(iup, "+IupSetClassDefaultAttribute", {P,P,P}),
---      xIupClassMatch                    = iup_c_func(iup, "+IupClassMatch", {P,P}, I),
---      xIupCreate                        = iup_c_func(iup, "+IupCreatev", {P,P}, P),
---      xIupFill                          = iup_c_func(iup, "+IupFill", {}, P),
---      xIupRadio                         = iup_c_func(iup, "+IupRadio", {P}, P),
---      xIupVbox                          = iup_c_func(iup, "+IupVboxv", {P}, P),
---      xIupZbox                          = iup_c_func(iup, "+IupZboxv", {P}, P),
---      xIupHbox                          = iup_c_func(iup, "+IupHboxv", {P}, P),
---      xIupNormalizer                    = iup_c_func(iup, "+IupNormalizerv", {P}, P),
---      xIupCboxv                         = iup_c_func(iup, "+IupCboxv", {P}, P),
---      xIupSbox                          = iup_c_func(iup, "+IupSbox", {P}, P),
---      xIupSplit                         = iup_c_func(iup, "+IupSplit", {P,P}, P),
---      xIupScrollBox                     = iup_c_func(iup, "+IupScrollBox", {P}, P),
---      xIupGridBox                       = iup_c_func(iup, "+IupGridBoxv", {P}, P),
---      xIupExpander                      = iup_c_func(iup, "+IupExpander", {P}, P),
---      xIupDetachBox                     = iup_c_func(iup, "+IupDetachBox", {P}, P),
---      xIupBackgroundBox                 = iup_c_func(iup, "+IupBackgroundBox", {P}, P),
---X     xIupFrame                         = iup_c_func(iup, "+IupFrame", {P}, P),
---      xIupImage                         = iup_c_func(iup, "+IupImage", {I,I,P}, P),
---      xIupImageRGB                      = iup_c_func(iup, "+IupImageRGB", {I,I,P}, P),
---      xIupImageRGBA                     = iup_c_func(iup, "+IupImageRGBA", {I,I,P}, P),
---      xIupItem                          = iup_c_func(iup, "+IupItem", {P,P}, P),
---      xIupSubmenu                       = iup_c_func(iup, "+IupSubmenu", {P,P}, P),
---      xIupSeparator                     = iup_c_func(iup, "+IupSeparator", {}, P),
---      xIupMenu                          = iup_c_func(iup, "+IupMenuv", {P}, P),
---      xIupButton                        = iup_c_func(iup, "+IupButton", {P,P}, P),
---      xIupCanvas                        = iup_c_func(iup, "+IupCanvas", {P}, P),
---      xIupDialog                        = iup_c_func(iup, "+IupDialog", {P}, P),
---      xIupUser                          = iup_c_func(iup, "+IupUser", {}, P),
---      xIupLabel                         = iup_c_func(iup, "+IupLabel", {P}, P),
---      xIupList                          = iup_c_func(iup, "+IupList", {P}, P),
---      xIupText                          = iup_c_func(iup, "+IupText", {P}, P),
---      xIupMultiLine                     = iup_c_func(iup, "+IupMultiLine", {P}, P),
---      xIupToggle                        = iup_c_func(iup, "+IupToggle", {P,P}, P),
---      xIupTimer                         = iup_c_func(iup, "+IupTimer", {}, P),
---      xIupClipboard                     = iup_c_func(iup, "+IupClipboard", {}, P),
---      xIupProgressBar                   = iup_c_func(iup, "+IupProgressBar", {}, P),
---      xIupVal                           = iup_c_func(iup, "+IupVal", {P}, P),
---      xIupTabs                          = iup_c_func(iup, "+IupTabsv", {P}, P),
---      xIupTree                          = iup_c_func(iup, "+IupTree", {}, P),
---      xIupLink                          = iup_c_func(iup, "+IupLink", {P,P}, P),
---x     xIupFlatButton                    = iup_c_func(iup, "+IupFlatButton", {P}, P),
---x     xIupSpin                          = iup_c_func(iup, "+IupSpin", {}, P),
---      xIupSpinbox                       = iup_c_func(iup, "+IupSpinbox", {P}, P),
---      xIupSaveImageAsText               = iup_c_func(iup, "+IupSaveImageAsText", {P,P,P,P}, I),
---      xIupTextConvertLinColToPos        = iup_c_proc(iup, "+IupTextConvertLinColToPos", {P,I,I,P}),
---      xIupTextConvertPosToLinCol        = iup_c_proc(iup, "+IupTextConvertPosToLinCol", {P,I,P,P}),
---      xIupConvertXYToPos                = iup_c_func(iup, "+IupConvertXYToPos", {P,I,I}, I),
---      xIupStoreGlobal                   = iup_c_proc(iup, "+IupStoreGlobal", {P,P}),
---      xIupStoreAttribute                = iup_c_proc(iup, "+IupStoreAttribute", {P,P,P}),
---      xIupStoreAttributeId              = iup_c_proc(iup, "+IupStoreAttributeId", {P,P,I,P}),
---      xIupStoreAttributeId2             = iup_c_proc(iup, "+IupStoreAttributeId2", {P,P,I,I,P}),
---      xIupTreeSetUserId                 = iup_c_func(iup, "+IupTreeSetUserId", {P,I,P}, I),
---      xIupTreeGetUserId                 = iup_c_func(iup, "+IupTreeGetUserId", {P,I}, P),
---      xIupTreeGetId                     = iup_c_func(iup, "+IupTreeGetId", {P,P}, I),
---      xIupTreeSetAttributeHandle        = iup_c_proc(iup, "+IupTreeSetAttributeHandle", {P,P,I,P}),
---      xIupTreeSetAttribute              = iup_c_proc(iup, "+IupTreeSetAttribute", {P,P,I,P}),
---      xIupTreeStoreAttribute            = iup_c_proc(iup, "+IupTreeStoreAttribute", {P,P,I,P}),
---      xIupTreeGetAttribute              = iup_c_func(iup, "+IupTreeGetAttribute", {P,P,I}, P),
---      xIupTreeGetInt                    = iup_c_func(iup, "+IupTreeGetInt", {P,P,I}, I),
---      xIupTreeGetFloat                  = iup_c_func(iup, "+IupTreeGetFloat", {P,P,I}, F),
---      xIupGetActionName                 = iup_c_func(iup, "+IupGetActionName", {}, P),
---      xIupMapFont                       = iup_c_func(iup, "+IupMapFont", {P}, P),
---      xIupUnMapFont                     = iup_c_func(iup, "+IupUnMapFont", {P}, P),
---      xIupFileDlg                       = iup_c_func(iup, "+IupFileDlg", {}, P),
---      xIupMessageDlg                    = iup_c_func(iup, "+IupMessageDlg", {}, P),
---      xIupFontDlg                       = iup_c_func(iup, "+IupFontDlg", {}, P),
---      xIupGetFile                       = iup_c_func(iup, "+IupGetFile", {P}, I),
---      xIupMessage                       = iup_c_proc(iup, "+IupMessage", {P,P}),
---      xIupAlarm                         = iup_c_func(iup, "+IupAlarm", {P,P,P,P,P}, I),
---      xIupListDialog                    = iup_c_func(iup, "+IupListDialog", {I,P,I,P,I,I,I,P}, I),
---      xIupGetText                       = iup_c_func(iup, "+IupGetText", {P,P}, I),
---      xIupGetColor                      = iup_c_func(iup, "+IupGetColor", {I,I,P,P,P}, I),
---      xIupGetParam                      = iup_c_func(iup, "+IupGetParamv", {P,P,P,P,I,I,P}, I),
---      xIupParamf                        = iup_c_func(iup, "+IupParamf", {P}, P),
---      xIupParamBox                      = iup_c_func(iup, "+IupParamBox", {P,P,I}, P),
---      xIupLayoutDialog                  = iup_c_func(iup, "+IupLayoutDialog", {P}, P),
+--      xIupOpen                          = define_c_func(iup, "+IupOpen", {P,P}, I),
+--      xIupClose                         = define_c_proc(iup, "+IupClose", {}),
+--      xIupImageLibOpen                  = define_c_proc(iupimglib, "+IupImageLibOpen", {}),
+--      xIupMainLoop                      = define_c_func(iup, "+IupMainLoop", {}, I),
+--      xIupLoopStep                      = define_c_func(iup, "+IupLoopStep", {}, I),
+--      xIupLoopStepWait                  = define_c_func(iup, "+IupLoopStepWait", {}, I),
+--      xIupMainLoopLevel                 = define_c_func(iup, "+IupMainLoopLevel", {}, I),
+--      xIupFlush                         = define_c_proc(iup, "+IupFlush", {}),
+--      xIupExitLoop                      = define_c_proc(iup, "+IupExitLoop", {}),
+--      xIupRecordInput                   = define_c_func(iup, "+IupRecordInput", {P,I}, I),
+--      xIupPlayInput                     = define_c_func(iup, "+IupPlayInput", {P}, I),
+--      xIupUpdate                        = define_c_proc(iup, "+IupUpdate", {P}),
+--      xIupUpdateChildren                = define_c_proc(iup, "+IupUpdateChildren", {P}),
+--      xIupRedraw                        = define_c_proc(iup, "+IupRedraw", {P,I}),
+--      xIupRefresh                       = define_c_proc(iup, "+IupRefresh", {P}),
+--      xIupRefreshChildren               = define_c_proc(iup, "+IupRefreshChildren", {P}),
+--      xIupHelp                          = define_c_func(iup, "+IupHelp", {P}, I),
+--      xIupVersion                       = define_c_func(iup, "+IupVersion", {}, P),
+--      xIupVersionDate                   = define_c_func(iup, "+IupVersionDate", {}, P),
+--      xIupVersionNumber                 = define_c_func(iup, "+IupVersionNumber", {}, I),
+--      xIupSetLanguage                   = define_c_proc(iup, "+IupSetLanguage", {P}),
+--      xIupGetLanguage                   = define_c_func(iup, "+IupGetLanguage", {}, P),
+--      xIupSetLanguageString             = define_c_proc(iup, "+IupSetLanguageString", {P,P}),
+--      xIupStoreLanguageString           = define_c_proc(iup, "+IupStoreLanguageString", {P,P}),
+--      xIupGetLanguageString             = define_c_func(iup, "+IupGetLanguageString", {P}, P),
+--      xIupSetLanguagePack               = define_c_proc(iup, "+IupSetLanguagePack", {P}),
+--      xIupDestroy                       = define_c_proc(iup, "+IupDestroy", {P}),
+--      xIupDetach                        = define_c_proc(iup, "+IupDetach", {P}),
+--      xIupAppend                        = define_c_func(iup, "+IupAppend", {P,P}, P),
+--      xIupInsert                        = define_c_func(iup, "+IupInsert", {P,P,P}, P),
+--      xIupGetChild                      = define_c_func(iup, "+IupGetChild", {P,I}, P),
+--      xIupGetChildPos                   = define_c_func(iup, "+IupGetChildPos", {P,P}, I),
+--      xIupGetChildCount                 = define_c_func(iup, "+IupGetChildCount", {P}, I),
+--      xIupGetNextChild                  = define_c_func(iup, "+IupGetNextChild", {P,P}, P),
+--      xIupGetBrother                    = define_c_func(iup, "+IupGetBrother", {P}, P),
+--      xIupGetParent                     = define_c_func(iup, "+IupGetParent", {P}, P),
+--      xIupGetDialog                     = define_c_func(iup, "+IupGetDialog", {P}, P),
+--      xIupGetDialogChild                = define_c_func(iup, "+IupGetDialogChild", {P,P}, P),
+--      xIupReparent                      = define_c_func(iup, "+IupReparent", {P,P,P}, I),
+--      xIupPopup                         = define_c_func(iup, "+IupPopup", {P,I,I}, I),
+--      xIupShow                          = define_c_func(iup, "+IupShow", {P}, I),
+--      xIupShowXY                        = define_c_func(iup, "+IupShowXY", {P,I,I}, I),
+--      xIupHide                          = define_c_func(iup, "+IupHide", {P}, I),
+--      xIupMap                           = define_c_func(iup, "+IupMap", {P}, I),
+--      xIupUnmap                         = define_c_proc(iup, "+IupUnmap", {P}),
+--      xIupResetAttribute                = define_c_proc(iup, "+IupResetAttribute", {P,P}),
+--      xIupGetAllAttributes              = define_c_func(iup, "+IupGetAllAttributes", {P,P,I}, I),
+--      xIupSetAttributes                 = define_c_func(iup, "+IupSetAttributes", {P,P}, P),
+--      xIupGetAttributes                 = define_c_func(iup, "+IupGetAttributes", {P}, P),
+--      xIupSetAttribute                  = define_c_proc(iup, "+IupSetAttribute", {P,P,P}),
+--      xIupSetStrAttribute               = define_c_proc(iup, "+IupSetStrAttribute", {P,P,P}),
+--      xIupSetInt                        = define_c_proc(iup, "+IupSetInt", {P,P,I}),
+--      xIupSetFloat                      = define_c_proc(iup, "+IupSetFloat", {P,P,F}),
+--      xIupSetDouble                     = define_c_proc(iup, "+IupSetDouble", {P,P,D}),
+--      xIupSetRGB                        = define_c_proc(iup, "+IupSetRGB", {P,P,UC,UC,UC}),
+--      xIupGetAttribute                  = define_c_func(iup, "+IupGetAttribute", {P,P}, P),
+--      xIupGetInt                        = define_c_func(iup, "+IupGetInt", {P,P}, I),
+--      xIupGetInt2                       = define_c_func(iup, "+IupGetInt2", {P,P}, I),
+--      xIupGetIntInt                     = define_c_func(iup, "+IupGetIntInt", {P,P,P,P}, I),
+--      xIupGetFloat                      = define_c_func(iup, "+IupGetFloat", {P,P}, F),
+--      xIupGetDouble                     = define_c_func(iup, "+IupGetDouble", {P,P}, D),
+--      xIupGetRGB                        = define_c_proc(iup, "+IupGetRGB", {P,P,P,P,P}),
+--      xIupSetAttributeId                = define_c_proc(iup, "+IupSetAttributeId", {P,P,I,P}),
+--      xIupSetStrAttributeId             = define_c_proc(iup, "+IupSetStrAttributeId", {P,P,I,P}),
+--      xIupSetIntId                      = define_c_proc(iup, "+IupSetIntId", {P,P,I,I}),
+--      xIupSetFloatId                    = define_c_proc(iup, "+IupSetFloatId", {P,P,I,F}),
+--      xIupSetDoubleId                   = define_c_proc(iup, "+IupSetDoubleId", {P,P,I,D}),
+--      xIupSetRGBId                      = define_c_proc(iup, "+IupSetRGBId", {P,P,I,UC,UC,UC}),
+--      xIupGetAttributeId                = define_c_func(iup, "+IupGetAttributeId", {P,P,I}, P),
+--      xIupGetIntId                      = define_c_func(iup, "+IupGetIntId", {P,P,I}, I),
+--      xIupGetFloatId                    = define_c_func(iup, "+IupGetFloatId", {P,P,I}, F),
+--      xIupGetDoubleId                   = define_c_func(iup, "+IupGetDoubleId", {P,P,I}, D),
+--      xIupGetRGBId                      = define_c_proc(iup, "+IupGetRGBId", {P,P,I,P,P,P}),
+--      xIupSetAttributeId2               = define_c_proc(iup, "+IupSetAttributeId2", {P,P,I,I,P}),
+--      xIupSetStrAttributeId2            = define_c_proc(iup, "+IupSetStrAttributeId2", {P,P,I,I,P}),
+--      xIupSetIntId2                     = define_c_proc(iup, "+IupSetIntId2", {P,P,I,I,I}),
+--      xIupSetFloatId2                   = define_c_proc(iup, "+IupSetFloatId2", {P,P,I,I,F}),
+--      xIupSetDoubleId2                  = define_c_proc(iup, "+IupSetDoubleId2", {P,P,I,I,D}),
+--      xIupSetRGBId2                     = define_c_proc(iup, "+IupSetRGBId2", {P,P,I,I,UC,UC,UC}),
+--      xIupGetAttributeId2               = define_c_func(iup, "+IupGetAttributeId2", {P,P,I,I}, P),
+--      xIupGetIntId2                     = define_c_func(iup, "+IupGetIntId2", {P,P,I,I}, I),
+--      xIupGetFloatId2                   = define_c_func(iup, "+IupGetFloatId2", {P,P,I,I}, F),
+--      xIupGetDoubleId2                  = define_c_func(iup, "+IupGetDoubleId2", {P,P,I,I}, D),
+--      xIupGetRGBId2                     = define_c_proc(iup, "+IupGetRGBId2", {P,P,I,I,P,P,P}),
+--      xIupSetGlobal                     = define_c_proc(iup, "+IupSetGlobal", {P,P}),
+--      xIupSetStrGlobal                  = define_c_proc(iup, "+IupSetStrGlobal", {P,P}),
+--      xIupGetGlobal                     = define_c_func(iup, "+IupGetGlobal", {P}, P),
+--      xIupSetFocus                      = define_c_func(iup, "+IupSetFocus", {P}, P),
+--      xIupGetFocus                      = define_c_func(iup, "+IupGetFocus", {}, P),
+--      xIupPreviousField                 = define_c_func(iup, "+IupPreviousField", {P}, P),
+--      xIupNextField                     = define_c_func(iup, "+IupNextField", {P}, P),
+--      xIupGetCallback                   = define_c_func(iup, "+IupGetCallback", {P,P}, P),
+--      xIupSetCallback                   = define_c_func(iup, "+IupSetCallback", {P,P,P}, P),
+--      xIupGetFunction                   = define_c_func(iup, "+IupGetFunction", {P}, P),
+--      xIupSetFunction                   = define_c_func(iup, "+IupSetFunction", {P,P}, P),
+--      xIupGetHandle                     = define_c_func(iup, "+IupGetHandle", {P}, P),
+--      xIupSetHandle                     = define_c_proc(iup, "+IupSetHandle", {P,P}),
+--      xIupGetAllNames                   = define_c_func(iup, "+IupGetAllNames", {P,I}, I),
+--      xIupGetAllDialogs                 = define_c_func(iup, "+IupGetAllDialogs", {P,I}, I),
+--      xIupGetName                       = define_c_func(iup, "+IupGetName", {P}, P),
+--      xIupSetAttributeHandle            = define_c_proc(iup, "+IupSetAttributeHandle", {P,P,P}),
+--      xIupGetAttributeHandle            = define_c_func(iup, "+IupGetAttributeHandle", {P,P}, P),
+--      xIupGetClassName                  = define_c_func(iup, "+IupGetClassName", {P}, P),
+--      xIupGetClassType                  = define_c_func(iup, "+IupGetClassType", {P}, P),
+--      xIupGetAllClasses                 = define_c_func(iup, "+IupGetAllClasses", {P,I}, I),
+--      xIupGetClassAttributes            = define_c_func(iup, "+IupGetClassAttributes", {P,P,I}, I),
+--      xIupGetClassCallbacks             = define_c_func(iup, "+IupGetClassCallbacks", {P,P,I}, I),
+--      xIupSaveClassAttributes           = define_c_proc(iup, "+IupSaveClassAttributes", {P}),
+--      xIupCopyClassAttributes           = define_c_proc(iup, "+IupCopyClassAttributes", {P,P}),
+--      xIupSetClassDfltAttribute         = define_c_proc(iup, "+IupSetClassDefaultAttribute", {P,P,P}),
+--      xIupClassMatch                    = define_c_func(iup, "+IupClassMatch", {P,P}, I),
+--      xIupCreate                        = define_c_func(iup, "+IupCreatev", {P,P}, P),
+--      xIupFill                          = define_c_func(iup, "+IupFill", {}, P),
+--      xIupRadio                         = define_c_func(iup, "+IupRadio", {P}, P),
+--      xIupVbox                          = define_c_func(iup, "+IupVboxv", {P}, P),
+--      xIupZbox                          = define_c_func(iup, "+IupZboxv", {P}, P),
+--      xIupHbox                          = define_c_func(iup, "+IupHboxv", {P}, P),
+--      xIupNormalizer                    = define_c_func(iup, "+IupNormalizerv", {P}, P),
+--      xIupCboxv                         = define_c_func(iup, "+IupCboxv", {P}, P),
+--      xIupSbox                          = define_c_func(iup, "+IupSbox", {P}, P),
+--      xIupSplit                         = define_c_func(iup, "+IupSplit", {P,P}, P),
+--      xIupScrollBox                     = define_c_func(iup, "+IupScrollBox", {P}, P),
+--      xIupGridBox                       = define_c_func(iup, "+IupGridBoxv", {P}, P),
+--      xIupExpander                      = define_c_func(iup, "+IupExpander", {P}, P),
+--      xIupDetachBox                     = define_c_func(iup, "+IupDetachBox", {P}, P),
+--      xIupBackgroundBox                 = define_c_func(iup, "+IupBackgroundBox", {P}, P),
+--X     xIupFrame                         = define_c_func(iup, "+IupFrame", {P}, P),
+--      xIupImage                         = define_c_func(iup, "+IupImage", {I,I,P}, P),
+--      xIupImageRGB                      = define_c_func(iup, "+IupImageRGB", {I,I,P}, P),
+--      xIupImageRGBA                     = define_c_func(iup, "+IupImageRGBA", {I,I,P}, P),
+--      xIupItem                          = define_c_func(iup, "+IupItem", {P,P}, P),
+--      xIupSubmenu                       = define_c_func(iup, "+IupSubmenu", {P,P}, P),
+--      xIupSeparator                     = define_c_func(iup, "+IupSeparator", {}, P),
+--      xIupMenu                          = define_c_func(iup, "+IupMenuv", {P}, P),
+--      xIupButton                        = define_c_func(iup, "+IupButton", {P,P}, P),
+--      xIupCanvas                        = define_c_func(iup, "+IupCanvas", {P}, P),
+--      xIupDialog                        = define_c_func(iup, "+IupDialog", {P}, P),
+--      xIupUser                          = define_c_func(iup, "+IupUser", {}, P),
+--      xIupLabel                         = define_c_func(iup, "+IupLabel", {P}, P),
+--      xIupList                          = define_c_func(iup, "+IupList", {P}, P),
+--      xIupText                          = define_c_func(iup, "+IupText", {P}, P),
+--      xIupMultiLine                     = define_c_func(iup, "+IupMultiLine", {P}, P),
+--      xIupToggle                        = define_c_func(iup, "+IupToggle", {P,P}, P),
+--      xIupTimer                         = define_c_func(iup, "+IupTimer", {}, P),
+--      xIupClipboard                     = define_c_func(iup, "+IupClipboard", {}, P),
+--      xIupProgressBar                   = define_c_func(iup, "+IupProgressBar", {}, P),
+--      xIupVal                           = define_c_func(iup, "+IupVal", {P}, P),
+--      xIupTabs                          = define_c_func(iup, "+IupTabsv", {P}, P),
+--      xIupTree                          = define_c_func(iup, "+IupTree", {}, P),
+--      xIupLink                          = define_c_func(iup, "+IupLink", {P,P}, P),
+--x     xIupFlatButton                    = define_c_func(iup, "+IupFlatButton", {P}, P),
+--x     xIupSpin                          = define_c_func(iup, "+IupSpin", {}, P),
+--      xIupSpinbox                       = define_c_func(iup, "+IupSpinbox", {P}, P),
+--      xIupSaveImageAsText               = define_c_func(iup, "+IupSaveImageAsText", {P,P,P,P}, I),
+--      xIupTextConvertLinColToPos        = define_c_proc(iup, "+IupTextConvertLinColToPos", {P,I,I,P}),
+--      xIupTextConvertPosToLinCol        = define_c_proc(iup, "+IupTextConvertPosToLinCol", {P,I,P,P}),
+--      xIupConvertXYToPos                = define_c_func(iup, "+IupConvertXYToPos", {P,I,I}, I),
+--      xIupStoreGlobal                   = define_c_proc(iup, "+IupStoreGlobal", {P,P}),
+--      xIupStoreAttribute                = define_c_proc(iup, "+IupStoreAttribute", {P,P,P}),
+--      xIupStoreAttributeId              = define_c_proc(iup, "+IupStoreAttributeId", {P,P,I,P}),
+--      xIupStoreAttributeId2             = define_c_proc(iup, "+IupStoreAttributeId2", {P,P,I,I,P}),
+--      xIupTreeSetUserId                 = define_c_func(iup, "+IupTreeSetUserId", {P,I,P}, I),
+--      xIupTreeGetUserId                 = define_c_func(iup, "+IupTreeGetUserId", {P,I}, P),
+--      xIupTreeGetId                     = define_c_func(iup, "+IupTreeGetId", {P,P}, I),
+--      xIupTreeSetAttributeHandle        = define_c_proc(iup, "+IupTreeSetAttributeHandle", {P,P,I,P}),
+--      xIupTreeSetAttribute              = define_c_proc(iup, "+IupTreeSetAttribute", {P,P,I,P}),
+--      xIupTreeStoreAttribute            = define_c_proc(iup, "+IupTreeStoreAttribute", {P,P,I,P}),
+--      xIupTreeGetAttribute              = define_c_func(iup, "+IupTreeGetAttribute", {P,P,I}, P),
+--      xIupTreeGetInt                    = define_c_func(iup, "+IupTreeGetInt", {P,P,I}, I),
+--      xIupTreeGetFloat                  = define_c_func(iup, "+IupTreeGetFloat", {P,P,I}, F),
+--      xIupGetActionName                 = define_c_func(iup, "+IupGetActionName", {}, P),
+--      xIupMapFont                       = define_c_func(iup, "+IupMapFont", {P}, P),
+--      xIupUnMapFont                     = define_c_func(iup, "+IupUnMapFont", {P}, P),
+--      xIupFileDlg                       = define_c_func(iup, "+IupFileDlg", {}, P),
+--      xIupMessageDlg                    = define_c_func(iup, "+IupMessageDlg", {}, P),
+--      xIupFontDlg                       = define_c_func(iup, "+IupFontDlg", {}, P),
+--      xIupGetFile                       = define_c_func(iup, "+IupGetFile", {P}, I),
+--      xIupMessage                       = define_c_proc(iup, "+IupMessage", {P,P}),
+--      xIupAlarm                         = define_c_func(iup, "+IupAlarm", {P,P,P,P,P}, I),
+--      xIupListDialog                    = define_c_func(iup, "+IupListDialog", {I,P,I,P,I,I,I,P}, I),
+--      xIupGetText                       = define_c_func(iup, "+IupGetText", {P,P}, I),
+--      xIupGetColor                      = define_c_func(iup, "+IupGetColor", {I,I,P,P,P}, I),
+--      xIupGetParam                      = define_c_func(iup, "+IupGetParamv", {P,P,P,P,I,I,P}, I),
+--      xIupParamf                        = define_c_func(iup, "+IupParamf", {P}, P),
+--      xIupParamBox                      = define_c_func(iup, "+IupParamBox", {P,P,I}, P),
+--      xIupLayoutDialog                  = define_c_func(iup, "+IupLayoutDialog", {P}, P),
 --$
 
 --if xIupSetCallback=0 then ?9/0 end if
@@ -10763,16 +10796,14 @@ end procedure
 --  ?{"IupSetAttributeId",addlb, id, desc}
 --end procedure
 
-function iupTreeAddNodesRec(Ihandle tree, sequence tree_nodes, integer id)
+procedure iupTreeAddNodesRec(Ihandle tree, sequence tree_nodes, integer id)
 -- internal routine, the guts of IupTreeAddNodes, less the initial clear
+--?{"iupTreeAddNodesRec",tree_nodes}
 string desc
-integer next
     if string(tree_nodes) then
         -- leaf (no attributes)
         desc = tree_nodes
         IupSetAttributeId(tree, "ADDLEAF", id, desc)
---      iupSetTreeNodeAttribute(tree, "ADDLEAF", id, desc)
-        next = id+1
     else
         sequence children = {}
         desc = tree_nodes[1]
@@ -10780,37 +10811,34 @@ integer next
         if l=1 or atom(tree_nodes[l]) then
             -- also leaf (may have attributes)
             IupSetAttributeId(tree, "ADDLEAF", id, desc)
---          iupSetTreeNodeAttribute(tree, "ADDLEAF", id, desc)
+            id += 1
         else -- (length 2 or 3)
             -- branch
             IupSetAttributeId(tree, "ADDBRANCH", id, desc)
---          iupSetTreeNodeAttribute(tree, "ADDBRANCH", id, desc)
             children = tree_nodes[l]
+            id += 1
+            for i=length(children) to 1 by -1 do
+                iupTreeAddNodesRec(tree, children[i], id)
+            end for
         end if
-        id += 1
-        next = id
-        for i=length(children) to 1 by -1 do
-            next = iupTreeAddNodesRec(tree, children[i], id)
-        end for
         if l=3 then
             iupTreeSetNodeAttributes(tree, id, tree_nodes[2])
         end if
     end if
-    return next
-end function
+end procedure
 
 global procedure IupTreeAddNodes(Ihandle tree, sequence tree_nodes, integer id=-1)
     IupSetInt(tree,"AUTOREDRAW",false)
     if id=-1 then
         IupSetAttributeId(tree,"DELNODE",0,"ALL")
-        {} = iupTreeAddNodesRec(tree, tree_nodes, id)
+        iupTreeAddNodesRec(tree, tree_nodes, id)
     else
         -- tree_nodes is actually just children
         sequence children = tree_nodes
         id = IupTreeGetId(tree, id)
         if id=-1 then ?9/0 end if
         for i=length(children) to 1 by -1 do
-            {} = iupTreeAddNodesRec(tree, children[i], id)
+            iupTreeAddNodesRec(tree, children[i], id)
         end for
     end if
     IupSetInt(tree,"AUTOREDRAW",true)
@@ -10949,31 +10977,31 @@ global constant IUPMASK_UINT = IUP_MASK_UINT
 /************************************************************************/
 
 --global constant -- function delcarations
---  xIupConfig                        = iup_c_func(iup, "+IupConfig", {}, P),
---  xIupConfigLoad                    = iup_c_func(iup, "+IupConfigLoad", {P}, I),
---  xIupConfigSave                    = iup_c_func(iup, "+IupConfigSave", {P}, I),
---  xIupConfigSetVariableStr          = iup_c_proc(iup, "+IupConfigSetVariableStr", {P,P,P,P}),
---  xIupConfigSetVariableStrId        = iup_c_proc(iup, "+IupConfigSetVariableStrId", {P,P,P,I,P}),
---  xIupConfigSetVariableInt          = iup_c_proc(iup, "+IupConfigSetVariableInt", {P,P,P,I}),
---  xIupConfigSetVariableIntId        = iup_c_proc(iup, "+IupConfigSetVariableIntId", {P,P,P,I,I}),
---  xIupConfigSetVariableDouble       = iup_c_proc(iup, "+IupConfigSetVariableDouble", {P,P,P,D}),
---  xIupConfigSetVariableDoubleId     = iup_c_proc(iup, "+IupConfigSetVariableDoubleId", {P,P,P,I,D}),
---  xIupConfigGetVariableStr          = iup_c_func(iup, "+IupConfigGetVariableStr", {P,P,P}, P),
---  xIupConfigGetVariableStrId        = iup_c_func(iup, "+IupConfigGetVariableStrId", {P,P,P,I}, P),
---  xIupConfigGetVariableInt          = iup_c_func(iup, "+IupConfigGetVariableInt", {P,P,P}, I),
---  xIupConfigGetVariableIntId        = iup_c_func(iup, "+IupConfigGetVariableIntId", {P,P,P,I}, I),
---  xIupConfigGetVariableDouble       = iup_c_func(iup, "+IupConfigGetVariableDouble", {P,P,P}, D),
---  xIupConfigGetVariableDoubleId     = iup_c_func(iup, "+IupConfigGetVariableDoubleId", {P,P,P,I}, D),
---  xIupConfigGetVariableStrDef       = iup_c_func(iup, "+IupConfigGetVariableStrDef", {P,P,P,P}, P),
---  xIupConfigGetVariableStrIdDef     = iup_c_func(iup, "+IupConfigGetVariableStrIdDef", {P,P,P,I,P}, P),
---  xIupConfigGetVariableIntDef       = iup_c_func(iup, "+IupConfigGetVariableIntDef", {P,P,P,I}, I),
---  xIupConfigGetVariableIntIdDef     = iup_c_func(iup, "+IupConfigGetVariableIntIdDef", {P,P,P,I,I}, I),
---  xIupConfigGetVariableDoubleDef    = iup_c_func(iup, "+IupConfigGetVariableDoubleDef", {P,P,P,D}, D),
---  xIupConfigGetVariableDoubleIdDef  = iup_c_func(iup, "+IupConfigGetVariableDoubleIdDef", {P,P,P,I,D}, D),
---  xIupConfigRecentInit              = iup_c_proc(iup, "+IupConfigRecentInit", {P,P,P,I}),
---  xIupConfigRecentUpdate            = iup_c_proc(iup, "+IupConfigRecentUpdate", {P,P}),
---  xIupConfigDialogShow              = iup_c_proc(iup, "+IupConfigDialogShow", {P,P,P}),
---  xIupConfigDialogClosed            = iup_c_proc(iup, "+IupConfigDialogClosed", {P,P,P}),
+--  xIupConfig                        = define_c_func(iup, "+IupConfig", {}, P),
+--  xIupConfigLoad                    = define_c_func(iup, "+IupConfigLoad", {P}, I),
+--  xIupConfigSave                    = define_c_func(iup, "+IupConfigSave", {P}, I),
+--  xIupConfigSetVariableStr          = define_c_proc(iup, "+IupConfigSetVariableStr", {P,P,P,P}),
+--  xIupConfigSetVariableStrId        = define_c_proc(iup, "+IupConfigSetVariableStrId", {P,P,P,I,P}),
+--  xIupConfigSetVariableInt          = define_c_proc(iup, "+IupConfigSetVariableInt", {P,P,P,I}),
+--  xIupConfigSetVariableIntId        = define_c_proc(iup, "+IupConfigSetVariableIntId", {P,P,P,I,I}),
+--  xIupConfigSetVariableDouble       = define_c_proc(iup, "+IupConfigSetVariableDouble", {P,P,P,D}),
+--  xIupConfigSetVariableDoubleId     = define_c_proc(iup, "+IupConfigSetVariableDoubleId", {P,P,P,I,D}),
+--  xIupConfigGetVariableStr          = define_c_func(iup, "+IupConfigGetVariableStr", {P,P,P}, P),
+--  xIupConfigGetVariableStrId        = define_c_func(iup, "+IupConfigGetVariableStrId", {P,P,P,I}, P),
+--  xIupConfigGetVariableInt          = define_c_func(iup, "+IupConfigGetVariableInt", {P,P,P}, I),
+--  xIupConfigGetVariableIntId        = define_c_func(iup, "+IupConfigGetVariableIntId", {P,P,P,I}, I),
+--  xIupConfigGetVariableDouble       = define_c_func(iup, "+IupConfigGetVariableDouble", {P,P,P}, D),
+--  xIupConfigGetVariableDoubleId     = define_c_func(iup, "+IupConfigGetVariableDoubleId", {P,P,P,I}, D),
+--  xIupConfigGetVariableStrDef       = define_c_func(iup, "+IupConfigGetVariableStrDef", {P,P,P,P}, P),
+--  xIupConfigGetVariableStrIdDef     = define_c_func(iup, "+IupConfigGetVariableStrIdDef", {P,P,P,I,P}, P),
+--  xIupConfigGetVariableIntDef       = define_c_func(iup, "+IupConfigGetVariableIntDef", {P,P,P,I}, I),
+--  xIupConfigGetVariableIntIdDef     = define_c_func(iup, "+IupConfigGetVariableIntIdDef", {P,P,P,I,I}, I),
+--  xIupConfigGetVariableDoubleDef    = define_c_func(iup, "+IupConfigGetVariableDoubleDef", {P,P,P,D}, D),
+--  xIupConfigGetVariableDoubleIdDef  = define_c_func(iup, "+IupConfigGetVariableDoubleIdDef", {P,P,P,I,D}, D),
+--  xIupConfigRecentInit              = define_c_proc(iup, "+IupConfigRecentInit", {P,P,P,I}),
+--  xIupConfigRecentUpdate            = define_c_proc(iup, "+IupConfigRecentUpdate", {P,P}),
+--  xIupConfigDialogShow              = define_c_proc(iup, "+IupConfigDialogShow", {P,P,P}),
+--  xIupConfigDialogClosed            = define_c_proc(iup, "+IupConfigDialogClosed", {P,P,P}),
 --  $
 
 
@@ -10986,9 +11014,9 @@ global procedure IupScintillaOpen()
                                       "libiup_scintilla.so",
                                       "libiup_scintilla.dylib"})
 --?iup_scintilla
-        xIupScintillaOpen        = iup_c_proc(iup_scintilla, "IupScintillaOpen", {})
-        xIupScintilla            = iup_c_func(iup_scintilla, "IupScintilla", {}, P)
-        xIupScintillaSendMessage = iup_c_func(iup_scintilla, "IupScintillaSendMessage", {P,U,P,P}, P)
+        xIupScintillaOpen        = define_c_proc(iup_scintilla, "IupScintillaOpen", {})
+        xIupScintilla            = define_c_func(iup_scintilla, "IupScintilla", {}, P)
+        xIupScintillaSendMessage = define_c_func(iup_scintilla, "IupScintillaSendMessage", {P,U,P,P}, P)
         c_proc(xIupScintillaOpen, {})
     end if
 end procedure
@@ -11017,7 +11045,7 @@ end function
 --constant atom hCd = iup_open_dll({"cd.dll","libcd.so","libcd.dylib"})
 --constant atom hCdIup = iup_open_dll({"iupcd.dll","libiupcd.so","libiupcd.dylib"})
 
---constant xwdCanvasGetImageRGB = iup_c_proc(hCd, "wdCanvasGetImageRGB", {P,P,P,P,D,D,I,I})
+--constant xwdCanvasGetImageRGB = define_c_proc(hCd, "wdCanvasGetImageRGB", {P,P,P,P,D,D,I,I})
 
 global function wdCanvasGetImageRGB(cdCanvas canvas, atom x, atom y, atom w, atom h)
     integer l = w*h
@@ -11035,33 +11063,33 @@ end function
  -- vector text attributes
 --------------------------
 --constant
---  xcdCanvasVectorFont             = iup_c_func(hCd, "cdCanvasVectorFont", {P,P},P),
---  xcdCanvasVectorTextDirection    = iup_c_proc(hCd, "cdCanvasVectorTextDirection", {P,I,I,I,I}),
---  xcdCanvasVectorTextTransform    = iup_c_func(hCd, "cdCanvasVectorTextTransform", {P,P},P),
---  xcdCanvasVectorTextSize         = iup_c_proc(hCd, "cdCanvasVectorTextSize", {P,I,I,P}),
---  xcdCanvasVectorCharSize         = iup_c_func(hCd, "cdCanvasVectorCharSize", {P,I},I),
+--  xcdCanvasVectorFont             = define_c_func(hCd, "cdCanvasVectorFont", {P,P},P),
+--  xcdCanvasVectorTextDirection    = define_c_proc(hCd, "cdCanvasVectorTextDirection", {P,I,I,I,I}),
+--  xcdCanvasVectorTextTransform    = define_c_func(hCd, "cdCanvasVectorTextTransform", {P,P},P),
+--  xcdCanvasVectorTextSize         = define_c_proc(hCd, "cdCanvasVectorTextSize", {P,I,I,P}),
+--  xcdCanvasVectorCharSize         = define_c_func(hCd, "cdCanvasVectorCharSize", {P,I},I),
 --  $
 
  -- world draw attributes
 -------------------------
 --constant 
---  xwdCanvasLineWidth      = iup_c_func(hCd, "wdCanvasLineWidth", {P,D},D),
---  xwdCanvasFont           = iup_c_proc(hCd, "wdCanvasFont", {P,P,I,D}),
---  xwdCanvasGetFont        = iup_c_proc(hCd, "wdCanvasGetFont", {P,P,P,P}),
---  xwdCanvasMarkSize       = iup_c_func(hCd, "wdCanvasMarkSize", {P,D},D),
---  xwdCanvasGetFontDim     = iup_c_proc(hCd, "wdCanvasGetFontDim", {P,P,P,P,P}),
---  xwdCanvasGetTextSize    = iup_c_proc(hCd, "wdCanvasGetTextSize", {P,P,P,P}),
---  xwdCanvasGetTextBox     = iup_c_proc(hCd, "wdCanvasGetTextBox", {P,D,D,P,P,P,P,P}),
---  xwdCanvasGetTextBounds  = iup_c_proc(hCd, "wdCanvasGetTextbounds", {P,D,D,P,P}),
---  xwdCanvasStipple        = iup_c_proc(hCd, "wdCanvasStipple", {P,I,I,P,D,D}),
---  xwdCanvasPattern        = iup_c_proc(hCd, "wdCanvasPattern", {P,I,I,P,D,D})
+--  xwdCanvasLineWidth      = define_c_func(hCd, "wdCanvasLineWidth", {P,D},D),
+--  xwdCanvasFont           = define_c_proc(hCd, "wdCanvasFont", {P,P,I,D}),
+--  xwdCanvasGetFont        = define_c_proc(hCd, "wdCanvasGetFont", {P,P,P,P}),
+--  xwdCanvasMarkSize       = define_c_func(hCd, "wdCanvasMarkSize", {P,D},D),
+--  xwdCanvasGetFontDim     = define_c_proc(hCd, "wdCanvasGetFontDim", {P,P,P,P,P}),
+--  xwdCanvasGetTextSize    = define_c_proc(hCd, "wdCanvasGetTextSize", {P,P,P,P}),
+--  xwdCanvasGetTextBox     = define_c_proc(hCd, "wdCanvasGetTextBox", {P,D,D,P,P,P,P,P}),
+--  xwdCanvasGetTextBounds  = define_c_proc(hCd, "wdCanvasGetTextbounds", {P,D,D,P,P}),
+--  xwdCanvasStipple        = define_c_proc(hCd, "wdCanvasStipple", {P,I,I,P,D,D}),
+--  xwdCanvasPattern        = define_c_proc(hCd, "wdCanvasPattern", {P,I,I,P,D,D})
 --  $
 
 --/* DEV/SUG, from iup4eu3:
---  hIupSetCallbacks = define_c_func(iuplib, "IupSetCallbacks", {C_INT, C_POINTER, C_INT}, C_INT),
+--  hIupSetCallbacks = define_c_func(iuplib, "IupSetCallbacks", {C_INT, C_PTR, C_INT}, C_INT),
     hIupColorDlg = define_c_func(iuplib, "IupColorDlg", {}, C_INT),
-    hIupGetFile = define_c_func(iuplib, "IupGetFile", {C_POINTER}, C_INT),
-    hIupGetText = define_c_func(iuplib, "IupGetText", {C_POINTER, C_POINTER}, C_INT),
+    hIupGetFile = define_c_func(iuplib, "IupGetFile", {C_PTR}, C_INT),
+    hIupGetText = define_c_func(iuplib, "IupGetText", {C_PTR, C_PTR}, C_INT),
 
 -- Associates several callbacks to an event.
 -- To define each rid use the function Icallback.

@@ -270,7 +270,7 @@ object res, p1, p2, p3, p4
         res = pfloat:float32_to_atom(p1)
     elsif a=M_OPEN_DLL then
 --      res = dll:open_dll(x)
-        res = cfunc:open_dll(x)
+        res = cfunc:open_dll(x,false) -- DEV/take the safe option
     elsif a=M_DEFINE_C then
         p1 = x[1]   -- #ilasm cannot do things like subscripts
         p2 = x[2]   --  "

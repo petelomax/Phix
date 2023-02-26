@@ -25,7 +25,7 @@ constant
      C_UINT    = #02000004,
      C_LONG    = C_INT,
      C_ULONG   = #02000004,
-     C_POINTER = C_ULONG
+     C_PTR     = C_ULONG
 --   C_FLOAT   = #03000004,
 --   C_DOUBLE  = #03000008
 
@@ -68,108 +68,98 @@ constant
     if kernel32 = NULL then ErrorExit0("Couldn't open kernel32") end if
     if user32 = NULL then ErrorExit0("Couldn't open user32") end if
 
-function link_c_func(atom dll, sequence name, sequence args, atom result)
-integer handle
---/**/  handle = define_c_func(dll, name, args, result)
---/*
-        handle = machine_func(M_DEFINE_C, {dll, name, args, result})
---*/
-        if handle = -1 then ErrorExit0("Couldn't link :" & name & "()") end if
-        return handle
-end function
-
 constant 
 
 --#without reformat
---  xCreateFile = link_c_func(kernel32, "CreateFileA",
---      {C_POINTER,     -- LPCTSTR  lpFileName, // address of name of the file
---       C_LONG,        -- DWORD  dwDesiredAccess,  // access (read-write) mode
---       C_LONG,        -- DWORD  dwShareMode,  // share mode
---       C_POINTER,     -- LPSECURITY_ATTRIBUTES  lpSecurityAttributes, // address of security descriptor
---       C_LONG,        -- DWORD  dwCreationDistribution,   // how to create
---       C_LONG,        -- DWORD  dwFlagsAndAttributes, // file attributes
---       C_POINTER},    -- HANDLE   hTemplateFile   // handle of file with attributes to copy
---      C_POINTER),     -- HANDLE
+--  xCreateFile = define_c_func(kernel32, "CreateFileA",
+--      {C_PTR,     -- LPCTSTR  lpFileName, // address of name of the file
+--       C_LONG,    -- DWORD  dwDesiredAccess,  // access (read-write) mode
+--       C_LONG,    -- DWORD  dwShareMode,  // share mode
+--       C_PTR,     -- LPSECURITY_ATTRIBUTES  lpSecurityAttributes, // address of security descriptor
+--       C_LONG,    -- DWORD  dwCreationDistribution,   // how to create
+--       C_LONG,    -- DWORD  dwFlagsAndAttributes, // file attributes
+--       C_PTR},    -- HANDLE   hTemplateFile   // handle of file with attributes to copy
+--      C_PTR),     -- HANDLE
 
-    xGetStdHandle = link_c_func(kernel32, "GetStdHandle",
-        {C_LONG},       --  DWORD  nStdHandle   // input, output, or error device
-        C_POINTER),     -- HANDLE
+    xGetStdHandle = define_c_func(kernel32, "GetStdHandle",
+        {C_LONG},   --  DWORD  nStdHandle   // input, output, or error device
+        C_PTR),     -- HANDLE
 
-    xSetStdHandle = link_c_func(kernel32, "SetStdHandle",
-        {C_LONG,        --  DWORD  IDStdHandle, // input, output, or error device
-         C_POINTER},    --  HANDLE  hHandle     // handle to be a standard handle
-        C_INT),         -- BOOL
+    xSetStdHandle = define_c_func(kernel32, "SetStdHandle",
+        {C_LONG,    --  DWORD  IDStdHandle, // input, output, or error device
+         C_PTR},    --  HANDLE  hHandle     // handle to be a standard handle
+        C_INT),     -- BOOL
 
-    xCreatePipe = link_c_func(kernel32, "CreatePipe",
-        {C_POINTER, -- PHANDLE  hReadPipe,  // address of variable for read handle
-         C_POINTER, -- PHANDLE  hWritePipe, // address of variable for write handle
-         C_POINTER, -- LPSECURITY_ATTRIBUTES  lpPipeAttributes, // address of security attributes
+    xCreatePipe = define_c_func(kernel32, "CreatePipe",
+        {C_PTR,     -- PHANDLE  hReadPipe,  // address of variable for read handle
+         C_PTR,     -- PHANDLE  hWritePipe, // address of variable for write handle
+         C_PTR,     -- LPSECURITY_ATTRIBUTES  lpPipeAttributes, // address of security attributes
          C_INT},    -- DWORD  nSize     // number of bytes reserved for pipe
         C_INT),     -- BOOL
 
---  xGetCurrentProcess = link_c_func(kernel32, "GetCurrentProcess",
+--  xGetCurrentProcess = define_c_func(kernel32, "GetCurrentProcess",
 --      {},         --  no parameters
---      C_POINTER), -- returns HANDLE
+--      C_PTR),     -- returns HANDLE
 --
-    xCreateProcess = link_c_func(kernel32, "CreateProcessA",
-        {C_POINTER,     --  LPCTSTR  lpApplicationName, // pointer to name of executable module
-         C_POINTER,     --  LPTSTR  lpCommandLine,  // pointer to command line string
-         C_POINTER,     --  LPSECURITY_ATTRIBUTES  lpProcessAttributes, // pointer to process security attributes
-         C_POINTER,     --  LPSECURITY_ATTRIBUTES  lpThreadAttributes,  // pointer to thread security attributes
-         C_LONG,        --  BOOL  bInheritHandles,  // handle inheritance flag 
-         C_ULONG,       --  DWORD  dwCreationFlags, // creation flags
-         C_POINTER,     --  LPVOID  lpEnvironment,  // pointer to new environment block
-         C_POINTER,     --  LPCTSTR  lpCurrentDirectory,    // pointer to current directory name
-         C_POINTER,     --  LPSTARTUPINFO  lpStartupInfo,   // pointer to STARTUPINFO
-         C_POINTER},    --  LPPROCESS_INFORMATION  lpProcessInformation     // pointer to PROCESS_INFORMATION
-        C_LONG),        -- BOOL 
+    xCreateProcess = define_c_func(kernel32, "CreateProcessA",
+        {C_PTR,     --  LPCTSTR  lpApplicationName, // pointer to name of executable module
+         C_PTR,     --  LPTSTR  lpCommandLine,  // pointer to command line string
+         C_PTR,     --  LPSECURITY_ATTRIBUTES  lpProcessAttributes, // pointer to process security attributes
+         C_PTR,     --  LPSECURITY_ATTRIBUTES  lpThreadAttributes,  // pointer to thread security attributes
+         C_LONG,    --  BOOL  bInheritHandles,  // handle inheritance flag 
+         C_ULONG,   --  DWORD  dwCreationFlags, // creation flags
+         C_PTR,     --  LPVOID  lpEnvironment,  // pointer to new environment block
+         C_PTR,     --  LPCTSTR  lpCurrentDirectory,    // pointer to current directory name
+         C_PTR,     --  LPSTARTUPINFO  lpStartupInfo,   // pointer to STARTUPINFO
+         C_PTR},    --  LPPROCESS_INFORMATION  lpProcessInformation     // pointer to PROCESS_INFORMATION
+        C_LONG),    -- BOOL 
 
---  xWriteFile = link_c_func(kernel32, "WriteFile",
---      {C_POINTER,     --  HANDLE  hFile,  // handle of file to write to
---       C_POINTER,     --  LPCVOID  lpBuffer,  // address of data to write to file
---       C_LONG,        --  DWORD  nNumberOfBytesToWrite,   // number of bytes to write
---       C_POINTER,     --  LPDWORD  lpNumberOfBytesWritten,    // address of number of bytes written
---       C_POINTER},    --  LPOVERLAPPED  lpOverlapped  // addr. of structure needed for overlapped I/O
---      C_INT),         -- BOOL
+--  xWriteFile = define_c_func(kernel32, "WriteFile",
+--      {C_PTR,     --  HANDLE  hFile,  // handle of file to write to
+--       C_PTR,     --  LPCVOID  lpBuffer,  // address of data to write to file
+--       C_LONG,    --  DWORD  nNumberOfBytesToWrite,   // number of bytes to write
+--       C_PTR,     --  LPDWORD  lpNumberOfBytesWritten,    // address of number of bytes written
+--       C_PTR},    --  LPOVERLAPPED  lpOverlapped  // addr. of structure needed for overlapped I/O
+--      C_INT),     -- BOOL
 
-    xReadFile = link_c_func(kernel32, "ReadFile",
-        {C_POINTER,     --  HANDLE  hFile,  // handle of file to read
-         C_POINTER,     --  LPVOID  lpBuffer,   // address of buffer that receives data
-         C_LONG,        --  DWORD  nNumberOfBytesToRead,    // number of bytes to read
-         C_POINTER,     --  LPDWORD  lpNumberOfBytesRead,   // address of number of bytes read
-         C_POINTER},    --  LPOVERLAPPED  lpOverlapped  // address of structure for data
-        C_INT),         -- BOOL
+    xReadFile = define_c_func(kernel32, "ReadFile",
+        {C_PTR,     --  HANDLE  hFile,  // handle of file to read
+         C_PTR,     --  LPVOID  lpBuffer,   // address of buffer that receives data
+         C_LONG,    --  DWORD  nNumberOfBytesToRead,    // number of bytes to read
+         C_PTR,     --  LPDWORD  lpNumberOfBytesRead,   // address of number of bytes read
+         C_PTR},    --  LPOVERLAPPED  lpOverlapped  // address of structure for data
+        C_INT),     -- BOOL
 
-    xGetExitCodeProcess = link_c_func(kernel32, "GetExitCodeProcess",
-        {C_ULONG,       --  HANDLE  hProcess,   // handle to the process
-         C_ULONG},      --  LPDWORD  lpExitCode     // address to receive termination status
-        C_ULONG),       -- BOOL
+    xGetExitCodeProcess = define_c_func(kernel32, "GetExitCodeProcess",
+        {C_ULONG,   --  HANDLE  hProcess,   // handle to the process
+         C_ULONG},  --  LPDWORD  lpExitCode     // address to receive termination status
+        C_ULONG),   -- BOOL
 
-    xWaitForSingleObject = link_c_func(kernel32, "WaitForSingleObject",
-        {C_ULONG,       --  HANDLE  hObject,    // handle of object to wait for
-         C_ULONG},      --  DWORD  dwTimeout    // time-out interval in milliseconds
-        C_ULONG),       -- DWORD    -- WAIT_ABANDONED, WAIT_OBJECT_0, or WAIT_TIMEOUT
+    xWaitForSingleObject = define_c_func(kernel32, "WaitForSingleObject",
+        {C_ULONG,   --  HANDLE  hObject,    // handle of object to wait for
+         C_ULONG},  --  DWORD  dwTimeout    // time-out interval in milliseconds
+        C_ULONG),   -- DWORD    -- WAIT_ABANDONED, WAIT_OBJECT_0, or WAIT_TIMEOUT
 
---  xGetConsoleScreenBufferInfo = link_c_func(kernel32, "GetConsoleScreenBufferInfo",
---      {C_POINTER,     --  HANDLE  hConsoleOutput, // handle of console screen buffer
---       C_POINTER},    --  PCONSOLE_SCREEN_BUFFER_INFO  lpConsoleScreenBufferInfo  // address of screen buffer info.
---      C_INT),         -- BOOL
---
---  xReadConsoleOutput = link_c_func(kernel32, "ReadConsoleOutputA",
---      {C_POINTER,     --  HANDLE  hConsoleOutput, // handle of a console screen buffer
---       C_POINTER,     --  PCHAR_INFO  pchiDestBuffer, // address of buffer that receives data
---       C_LONG,        --  COORD  coordDestBufferSize, // column-row size of destination buffer
---       C_LONG,        --  COORD  coordDestBufferCoord,    // upper-left cell to write to
---       C_POINTER},    --  PSMALL_RECT  psrctSourceRect    // address of rectangle to read from 
+--  xGetConsoleScreenBufferInfo = define_c_func(kernel32, "GetConsoleScreenBufferInfo",
+--      {C_PTR,     --  HANDLE  hConsoleOutput, // handle of console screen buffer
+--       C_PTR},    --  PCONSOLE_SCREEN_BUFFER_INFO  lpConsoleScreenBufferInfo  // address of screen buffer info.
 --      C_INT),     -- BOOL
 --
-    xSendMessage = link_c_func(user32, "SendMessageA", {C_POINTER, C_UINT, C_UINT, C_UINT}, C_LONG),
+--  xReadConsoleOutput = define_c_func(kernel32, "ReadConsoleOutputA",
+--      {C_PTR,     --  HANDLE  hConsoleOutput, // handle of a console screen buffer
+--       C_PTR,     --  PCHAR_INFO  pchiDestBuffer, // address of buffer that receives data
+--       C_LONG,    --  COORD  coordDestBufferSize, // column-row size of destination buffer
+--       C_LONG,    --  COORD  coordDestBufferCoord,    // upper-left cell to write to
+--       C_PTR},    --  PSMALL_RECT  psrctSourceRect    // address of rectangle to read from 
+--      C_INT),     -- BOOL
+--
+    xSendMessage = define_c_func(user32, "SendMessageA", {C_PTR, C_UINT, C_UINT, C_UINT}, C_LONG),
 
-    xGetLastError = link_c_func(kernel32, "GetLastError", {}, C_INT),
+    xGetLastError = define_c_func(kernel32, "GetLastError", {}, C_INT),
 
-    xCloseHandle = link_c_func(kernel32, "CloseHandle",
-        {C_POINTER},    --  HANDLE  hObject // handle of object to close
-        C_INT)          -- BOOL
+    xCloseHandle = define_c_func(kernel32, "CloseHandle",
+        {C_PTR},    --  HANDLE  hObject // handle of object to close
+        C_INT)      -- BOOL
 --#with reformat
 
 
@@ -188,13 +178,13 @@ constant
     -- SECURITY_ATTRIBUTES structure
     sizeofSA        = 12,   --new_struct(),     --Win32.hlp:
     SALength        = 0,    --struc(C_LONG),    --DWORD
---  SASecurityDescr = 4,    --struc(C_POINTER), --LPVOID
+--  SASecurityDescr = 4,    --struc(C_PTR),     --LPVOID
     SAInheritHandle = 8,    --struc(C_LONG),    --BOOL
 
     -- PROCESS_INFORMATION structure
     sizeofPI        = 16,   --new_struct(),     --Win32.hlp:
-    PI_hProcess     = 0,    --struc(C_POINTER), --HANDLE
-    PI_hThread      = 4,    --struc(C_POINTER), --HANDLE
+    PI_hProcess     = 0,    --struc(C_PTR),     --HANDLE
+    PI_hThread      = 4,    --struc(C_PTR),     --HANDLE
     PI_dwProcessId  = 8,    --struc(C_LONG),    --DWORD
 --  PI_dwThreadId   = 12,   --struc(C_LONG),    --DWORD
 

@@ -1,0 +1,136 @@
+﻿--
+-- xpEditer.exw
+-- ============
+--
+--  Expediter: n. One employed to ensure the steady progress to completion of a project.
+--
+-- Port of Edita to the cross platform pGUI library, instead of (32 bit windows only) arwen.
+--  -- hang on, what about running it in a browser?! (save via php etc??!!)
+-- Author Pete Lomax April 2022.
+--
+-- Aims: 
+--  * Refactor as many components of Edita as possible so they can be used in both.
+--  * Fast startup, better backups from Edix (which I accept has failed).
+--  * Rock-solid anti-crash: reboot/re-open the gui part without loss (see below).
+--  * Run online! 
+--      see pwa\js\poc\simple_syntax_highlighter.html for the basics, and
+--          pwa\js\poc\cheter.html for using local storage (php wd be better..)
+--      and E:/downloads/misc/js/highlight-text-inside-a-textarea/dist/index.html
+--  * Mixed mode syntax highlighting!! (HTML + CSS + JavaScript + PHP)
+--  * Syntax checking (aka periodic background compile)
+--  * Spell checking
+--  * At some point I expect to remove/rename demo/Edita as demo/xpEditer, but as
+--      long as both still exist they will be left in the same shared directory.
+--
+-- Anti-crash:
+--  Use Opera/Chrome approach of multiple processes, ie "xxx has crashed, reload?"
+--  - admittedly will be more "if crash move code" than "get it right first time".
+--Erm, better:
+--  Own window manager not on PGUI's flawed one, esp. restart on unexpected close.
+--  - based on some kind of "desired state" table, methinks...
+--  - or just shut windows asap, and move any lengthy ops to b/g task (disabling tab)...
+--  Own settings manager in preference to IupConfig()/rewrite ini.e properly
+--
+-- * Better handling of files modified by someone/something else
+-- * Completely replace ini file handling, see what I did with p2js_keywords.e, 
+--      p2js_auto.e, p2js_depend.e, and also think about recovery/restore.
+-- * Add: overpaste: if it recognises the selected text, paste in a substitution for
+--      that specific thing rather than the clipboard. List with active, temp chkbxs,
+--      in datetime order, and quietly collect (inactive) suitables, if you can.
+--
+--DEV/SUG: (settings) Don't backup broken files [ ]. By default (unchecked), a backup
+--  is made of every file before it is overwritten. When this is checked it does not
+--  make backups of files it knows don't run properly, for instance demo\test.exw is
+--  is saved as demo\backup\test.2655.exw, then .2656.exw, etc. At the start of every 
+--  session it assumes all files do work, but if F5 signals some error that file is
+--  marked as not worth saving, which can make <a href="??">delta debugging</a> much 
+--  easier, but of course risks losing some work. If the file has not been saved for
+--  over half an hour, it will make a demo\backup\test.broken.2657.exw just in case.
+--  Note however that since you don't actually run say demo\xpGUI\xpGUI.e, that file
+--  is never marked as "broken" and hence always saved...
+-- Try 2: Trash broken backup files [ ]. A backup is made of every file before it is
+--  saved, for instance demo\test.exw is is saved as demo\backup\test.2655.exw, then 
+--  demo\backup\test.2656.exw, etc. Should any file be already earmarked for purging
+--  (see below) then the previous unwanted backup is simply overwritten, obviously 
+--  that is only when this option is checked. When F5 signals some error, that file
+--  and in fact everything in it's (auto-generated) project tree is earmarked for
+--  subsequent trashing, and should no error be detected all earmarks are cleared.
+--  Note that save/overwrite leaves all earmarks unchanged, only an F5 changes them.
+--  Any and all such earmarks are simply discarded between edit sessions, so there
+--  may be some broken backups, should the previous edit session have been exited
+--  with any still outstanding. This can make <a href="??">delta debugging</a> much 
+--  easier, but of course potentially risks losing some work.
+-- Delta debugging: (TIP for users of xpEditer)
+--  Sometimes I create a new file that only contains "include backup\test.2655.exw"
+--  and run that to see whether it contains some bug recently introduced, and then
+--  maybe try backup\test.2100.exw (whatever I see in file explorer, driven by the
+--  dates) and hopefully "binary chop" until say test.2352.exw works and 2353 does
+--  not, at which point a diff of those two is probably the quickest possible way
+--  to determine where the error lies. Obviously it is not wise to edit any files
+--  in a backup directory and much better to copy their contents into the working
+--  directory, otherwise some subsequent "binary chop" may prove very confusing.
+--  You can of course in a similar vein also just change say "include xpGUI.e" to 
+--  instead "include backup\xpGUI.1743.e", maybe with a more detailed path. Note
+--  the only way to marry up compatible backups of test.exw and xpGUI.e would be
+--  a judgement call based on the dates seen in file explorer. It is probably 
+--  fair to say that delta debugging is unlikely to be the best approach for any
+--  bugs introduced more than 3 or 4 days ago, apart perhaps for the more mature
+--  components where changes are relatively few and far between, and sometimes
+--  you may be wiser to use github tools rather than your local backup dir.
+
+--puts(1,"") -- (temp [warning child not used])
+--include ../xpGUI/xpGUI.e
+include xpGUI.e
+
+--gOpen() -- (platform default)
+--gOpen(XPG_GTK) -- (use gtk)
+--gOpen(XPG_WINAPI) -- (use Windows API)
+
+--gHandle main = gDialog(NULL,`TITLE="xpEditer",SIZE=500x300`,false)
+gHandle main = gDialog(NULL,`TITLE="xpEditer",SIZE=500x300`)    -- (TEMP/for now...)
+gShow(main)
+if platform()!=JS then
+    gMainLoop()
+--  w1 = gDestroy(w1)   -- if that's what it takes...
+end if
+--?"done"
+--wait_key()
+
+--Need demos for: menus, taskbar/dropdown, tabs, canvas, splitter, treeview, listview(table), statusbar,
+--                file open/save, and I think that's just about it. Check pwa/p2js at each & every step.
+--Split eg eamenus.ew into eamenus.ew and eamenus.ex, both of which include eamenus.e, iyswim.
+--          In other words .ew starts to mean arwen-only, .ex means uses xpGUI, and .e is gui-agnostic.
+--          also start shifting whatever we can into edita.e
+
+--procedure test()
+--//function test()
+--//    static <accs,fred>  -- (triggers "static fred not defined" error at end of routine)
+--  static [accs]
+--  static sequence accs = {}
+--
+--  nested function makeAdder(integer x)
+--      accs &= x
+--      return length(accs)
+--  end nested function
+--
+--//    string s = "inner scope"
+--  nested function add(integer mal, y)
+--//        ?s  // illegal
+--      return accs[mal] + y
+--  end nested function
+--
+--  integer add5 = makeAdder(5),
+--         add10 = makeAdder(10)
+--
+--  ?add(add5,2)    -- 7
+--  ?add(add10,2)   -- 10
+--//?? return {add5,add10,makeAdder,add}
+--//end function
+--end procedure
+--test()
+--//?? integer {a5,a10,make_adder,add} = test()
+--//?? ?add(a5,2)
+--//?? ?add(a10,2)
+--//?? constant a15 = make_adder(15)
+--//?? ?add(a10,2)
+

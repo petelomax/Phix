@@ -277,7 +277,7 @@ atom dec, fraction
             if charClass[Ch]!=DIGIT then
                 if Ch!='_' then exit end if
             else
-                exponent = exponent*10+Ch-'0'
+                exponent = exponent*10 + (Ch-'0')
             end if
         end while
         tokatm = tokatm*power(10,exponent*esign)
@@ -347,7 +347,7 @@ integer tokstart
             if charClass[Ch]!=DIGIT then
                 if Ch!='_' then exit end if
             else
-                tokint = tokint*10+Ch-'0'
+                tokint = tokint*10 + (Ch-'0')
             end if
         end while
         if find(Ch,".eE") then

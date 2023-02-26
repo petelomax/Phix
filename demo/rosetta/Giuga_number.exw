@@ -1,0 +1,147 @@
+--
+-- demo\rosetta\Giuga_number.exw
+-- =============================
+--
+with javascript_semantics
+requires("1.0.2") -- (is_prime tweak)
+
+procedure giuga(integer n)
+    printf(1,"n = %d:",n)
+    sequence p = repeat(0,n),
+             s = repeat(0,n)
+    p[1..2] = 1
+    s[1] = {1,2}
+    integer t = 2
+    while t>1 do
+        integer pt = p[t]+1
+        p[t] = pt
+        pt = get_prime(pt)
+        integer {c,d} = s[t-1]
+        {c,d} = {c*pt+d,d*pt}
+        s[t] = {c,d}
+        if c=d
+        or c*pt+(n-t)*d<=d*pt then
+            t -= 1
+        elsif t < (n - 2) then
+            t += 1
+            {c,d} = s[t-1]
+            p[t] = max(p[t-1], is_prime(floor(c/(d-c)),true))
+        else
+            {c,d} = s[n-2]
+            integer dmc = d-c,
+                    k = d*d-dmc
+            sequence f = factors(k,1)
+            for i=1 to floor(length(f)/2) do
+                integer h = f[i]
+                if remainder(h+d,dmc) == 0 
+                and remainder(k/h+d,dmc) == 0 then
+                    integer r1 = (h + d) / dmc,
+                            r2 = (k/h + d) / dmc,
+                            pn2 = get_prime(p[n-2])
+                    if  r1 > pn2 
+                    and r2 > pn2 
+                    and r1 != r2 
+                    and is_prime(r1) 
+                    and is_prime(r2) then
+                        printf(1," %d",d * r1 * r2)
+--                      printf(1," %d(%d*%d*%d,h=%d,k=%d)",{d*r1*r2,d,r1,r2,h,k})
+                    end if
+                end if
+            end for
+        end if
+    end while
+    printf(1,"\n")
+end procedure
+ 
+papply({3,4,5,6},giuga)
+if machine_bits()=64 then giuga(7) end if -- (got 3 in 1 min but then carried on for an hour before I killed it)
+
+--/*
+n = 3: 30
+n = 4: 1722 858
+n = 5: 66198
+n = 6: 24423128562 2214408306
+n = 7: 432749205173838 550843391309130318 14737133470010574
+--*/
+
+if platform()!=JS then
+    ?"done"
+    wait_key()
+    abort(0)
+end if
+
+--/*
+sequence pf = prime_factors(n)
+    for f in pf do
+        if remainder(n/f-1,f) then pf={} exit end if
+    end for
+
+n = 7: 432,749,205,173,838
+   550,843,391,309,130,324 (6 out on 32 bit)
+    14,737,133,470,010,574 (lucky on 32 bit?)
+     9,007,199,254,740,992
+n = 7: 432,749,205,173,838
+   550,843,391,309,130,318
+    14,737,133,470,010,574 (64 bit... tee,hee)
+ 4,611,686,018,427,387,903
+--32-bit:
+maxint  1,073,741,823 (#3FFFFFFF)
+minint -1,073,741,824 (#C0000000)
+maxatm 9,007,199,254,740,992
+-- 64-bit:
+maxint  4,611,686,018,427,387,903 (#3FFFFFFFFFFFFFFF)
+minint -4,611,686,018,427,387,904 (#C000000000000000)
+maxatm 18,446,744,073,709,551,616
+
+30, 858, 1722, 66198, 
+2214408306, 24423128562, 
+432749205173838, 14737133470010574, 550843391309130318, 
+244197000982499715087866346, 554079914617070801288578559178, 1910667181420507984555759916338506
+
+--https://math.stackexchange.com/questions/2397410/why-do-all-giuga-numbers-have-exactly-one-odd-prime-factor-which-is-congruent-to
+Why do all Giuga numbers have exactly one odd prime factor which is congruent to 1 (mod 4), 
+with all their other odd prime factors being congruent to 3 (mod 4) ?
+
+Only thirteen Giuga Numbers are known. They are: 
+
+30 = 2 * 3 * 5.
+             1
+
+858 = 2 * 3 * 11 * 13,
+                   12
+
+1722 = 2 * 3 * 7 * 41.
+                   12
+
+66198 = 2 * 3 * 11 * 17 * 59.
+                     12
+
+2214408306 = 2 * 3 * 11 * 23 * 31 * 47057,
+                                    12345
+
+24423128562 = 2 * 3 * 7 * 43 * 3041 * 4447.
+                               1234
+
+432749205173838 = 2 * 3 * 7 * 59 * 163 * 1381 * 775807,
+                                         1234
+
+14737133470010574 = 2 * 3 * 7 * 71 * 103 * 67213 *13863,
+                                           12345
+
+550843391309130318 = 2 * 3 * 7 * 71 * 103 * 61559 * 29133437.
+                                                    12345678
+
+244197000982499715087866346 = 2 * 3 * 11 * 23 * 31 * 47137 * 28282147 * 92535183,
+                                                     12345
+
+554079914617070801288578559178 = 2 * 3 * 11 * 23 * 31 * 47059 * 2259696349 * 110725121051,
+                                                                1234567890 (10)
+
+1910667181420507984555759916338506 = 2 * 3 * 7 * 43 * .. * 1831 * 138683 * 2861051 * 1456230512169437.
+                                                                                     1234567890123456 (16)
+
+4200017949707747062038711509670656632404195753751630609228764416142557211582098432545190323474818 = 
+2 * 3 * 11 * 23 * 31 * 47059 * 2217342227 * 1729101023519 * 8491659218261819498490029296021 * 658254480569119734123541298976556403.
+                                                            1234567890123456789012345678901 (31)
+
+--*/

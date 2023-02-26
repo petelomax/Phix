@@ -61,7 +61,7 @@ end function
 function thousand(integer n, string withand)
     -- (aside: p2js.exw/insert_dollars() 
     --  must not hundred -> $hundred this:)
-    constant sphun = " hundred"
+    string sphun = " hundred"
     if n<100 then
         return withand & hundred(n)
     elsif mod(n,100)=0 then

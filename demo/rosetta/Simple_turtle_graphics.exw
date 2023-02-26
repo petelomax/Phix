@@ -3,23 +3,11 @@
 -- =======================================
 --
 with javascript_semantics
-without debug                       --  (optional)
-include pGUI.e
-include builtins\VM\pcfunc.e        --   vv""vv
-include builtins\pfile.e            --
-include builtins\VM\pprntfN.e       --   (keeps
-include builtins\get_routine_info.e --     any
-include builtins\scanf.e            --    ex.err
-include builtins\pdir.e             --    clean)
-include builtins\penv.e             --
-with debug                          --   ^^""^^
-Ihandle canvas, dlg
-cdCanvas cdcanvas
+include turtle.e -- (common code for 2D and 3D versions)
 
 atom x = 0,
      y = 0,
      direction = 0
-bool pen_down = true
 
 procedure walk(atom distance)
     //
@@ -41,15 +29,6 @@ end procedure
 
 procedure left(atom angle)
     right(360-angle)
-end procedure
-
-procedure penup()
-    pen_down = false
-end procedure
-
-procedure pendown(atom colour=CD_BLACK)
-    pen_down = true
-    cdCanvasSetForeground(cdcanvas, colour) 
 end procedure
 
 procedure move(sequence s)
@@ -127,26 +106,26 @@ procedure draw_barchart(sequence nums, atom w, h)
 end procedure
 
 function redraw_cb(Ihandle /*ih*/)
---function redraw_cb()
     integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
     cdCanvasActivate(cdcanvas)
     cdCanvasClear(cdcanvas)
-    atom qw = width/4,
+    atom w2 = width/2, 
+         qw = width/4,
          qh = height/4
     penup()
     move({0,qh,90,qw,-90})
     pendown()
 
-    draw_house(qw,qh)       -- (at current x,y)
+    draw_house(qw,qh)   -- house in the left half
 
     penup()
     move({180,qh,90,qw,90}) -- return to {0,0}
 
-    move({90,width/2,-90})  -- barchart in the right half
+    move({90,w2,-90})   -- barchart in the right half
 
     draw_barchart({0.5, -4/3, 2, 1.3, 0.5},width/2,height)
 
-    move({-90,width/2,90})  -- return to {0,0}
+    move({-90,w2,90})   -- return to {0,0}
 
     -- sanity checks
     if round(x)!=0 then ?9/0 end if
@@ -169,32 +148,3 @@ if platform()!=JS then
     IupClose()
 end if
 
---/*
---A pre-out-of-date-comments-purge version of walk(), kept for posterity.
---It seemed to help a few things, before proving unneccessary, but maybe
---it could solve something else in the future, and hence end up back in.
-procedure walk(atom distance)
-    //
-    // Move forward by distance pixels.
-    //
-    // Aside: We jump though a few rounding hoops to ensure that
-    //        eg +149.5 then -149.5 goes back to where it started.
-    //        Only really an issue for peskily perfect .5s, however 
-    //        rounding to 0 dp introduces a whole different set of
-    //        problems (as would rounding to nearest 10 pixels) so
-    //        we round to 3dp just to be sure...
-    //
-    atom start_x = x,
-         start_y = y,
-         angle = direction*PI/180
---       dx = distance*sin(angle),
---       dy = distance*cos(angle)
---  x += sign(dx)*round(abs(dx),1000)
-    x += distance*sin(angle)
---  y += sign(dy)*round(abs(dy),1000)
-    y += distance*cos(angle)
-    if pen_down then
-        cdCanvasLine(cdcanvas,start_x,start_y,x,y)
-    end if
-end procedure
---*/

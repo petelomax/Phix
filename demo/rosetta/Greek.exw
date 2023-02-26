@@ -1,0 +1,147 @@
+﻿--
+-- demo\rosetta\Greek.exw
+-- ======================
+--
+--	(not actually included in the distro)
+--
+with javascript_semantics
+constant task = """
+alpha   a
+beta    b or v
+gamma   g
+delta   d
+epsilon e (but not ee)
+zeta    z
+eta     h or ee (but not ch, kh, ph, rh or th)
+theta   th
+iota    i or j
+kappa   c, k, q or ck (but not ch and kh)
+lambda  l
+mu      m
+nu      n
+xi      x
+omicron o (but not oo)
+pi      p (but not ph or ps)
+rho     r or rh
+sigma   s (but not ps)
+tau     t (but not th)
+upsilon u or y
+phi     f or ph
+chi     ch or kh
+psi     ps
+omega   w or oo
+"""
+
+function rules()
+    sequence replacements = split(task,"\n"),
+             suborder = {{" ",49},{",",50},{".",51},{"\n",52}},
+	     {rs,ir} = columnize(suborder),
+	     names = reinstate(repeat(0,52),ir,rs),
+             done = {}
+    for i,s in replacements do
+        s = substitute_all(s,{" or"," and"},{",",","})
+        integer k = match("(but not ",s)
+        sequence nots = {}
+        if k then
+            assert(s[$]=')' and s[k-1]=' ')
+            nots = split(s[k+9..$-1],", ")
+            s = s[1..k-2]
+        end if
+        s = split(substitute(s,",","")," ")
+	names[i] = "<" & proper(s[1]) & ">"
+	names[i+24] = "<" & s[1] & ">"
+	s = s[2..$]
+        k = max(apply(s&nots,length))
+        replacements[i] = {k,i,reverse(s),nots}
+    end for
+    replacements = sort(replacements)
+    while length(replacements) do
+        for i=length(replacements) to 1 by -1 do
+            bool missing = false
+            for s in replacements[i][4] do
+                missing += not find(s,done)
+            end for
+            if not missing then
+		integer g = replacements[i][2]
+                for s in replacements[i][3] do
+                    done = append(done,s)
+                    suborder &= {{s,g+24}}
+                    s[1] = upper(s[1])
+                    suborder &= {{s,g}}
+                end for
+                replacements[i..i] = {}
+            end if
+        end for
+    end while
+    return {columnize(suborder),names}
+end function
+
+sequence {{sub,rep},names} = rules(),
+gulp = utf8_to_utf32("ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ"&
+		     "αβγδεζηθικλμνξοπρστυφχψω ,.\n"),
+text = """
+The quick brown fox jumped over the lazy dog.
+
+I was looking at some rhododendrons in my back garden,
+dressed in my khaki shorts, when the telephone rang.
+ 
+As I answered it, I cheerfully glimpsed that the July sun
+caused a fragment of black pine wax to ooze on the velvet quilt
+laying in my patio.
+sphinx of black quartz, judge my vow."""
+string g = utf32_to_utf8(extract(gulp,substitute_all(text,sub,rep)))
+g = substitute_all(g,{"σ ","σ,"},{"ς ","ς,"})
+printf(1,"%s\n=>\n%s\n\n",{text,g})
+string thedog = "the dog"
+g = join(extract(names,substitute_all(thedog,sub,rep)),"")      
+printf(1,"%s\n=>\n%s\n\n",{thedog,g})
+
+wait_key()
+/*
+The quick brown fox jumped over the lazy dog.
+=>
+Θε κυικκ βροων φοξ ιυμπεδ οβερ θε λαζυ δογ.
+=====
+I was looking at some rhododendrons in my back garden,
+dressed in my khaki shorts, when the telephone rang.
+ 
+As I answered it, I cheerfully glimpsed that the July sun
+caused a fragment of black pine wax to ooze on the velvet quilt
+laying in my patio.
+=>
+Ι ωας λωκινγ ατ σομε ρηοδοδενδρονς ιν μυ βακκ γαρδεν,
+δρεσσεδ ιν μυ χακι σηορτς, ωηεν θε τελεφονε ρανγ.
+ 
+Ας Ι ανσωερεδ ιτ, Ι χηρφυλλυ γλιμψεδ θατ θε Ιυλυ συν
+καυσεδ α φραγμεντ οφ βλακκ πινε ωαξ το ωζε ον θε βελβετ κυιλτ
+λαυινγ ιν μυ πατιο.
+=====
+sphinx of black quartz, judge my vow.
+=>
+σφινξ οφ βλακκ κυαρτζ, ιυδγε μυ βοω.
+=====
+
+Julia output, for comparison:
+The quick brown fox jumped over the lazy dog.
+=>
+Θε κυικ βροων φοξ ιυμπεδ οβερ θε λαζυ δογ.
+=================================================================
+I was looking at some rhododendrons in my back garden,
+dressed in my khaki shorts, when the telephone rang.
+
+As I answered it, I cheerfully glimpsed that the July sun
+caused a fragment of black pine wax to ooze on the velvet quilt
+laying in my patio.
+=>
+Ι ωας λωκινγ ατ σομε ροδοδενδρονς ιν μυ βακ γαρδεν,
+δρεσσεδ ιν μυ κακι σηορτς, ωηεν θε τελεφονε ρανγ.
+
+Ας Ι ανσωερεδ ιτ, Ι χηρφυλλυ γλιμψεδ θατ θε Iυλυ συν
+cαυσεδ α φραγμεντ οφ βλακ πινε ωαξ το ωζε ον θε βελβετ κυιλτ
+λαυινγ ιν μυ πατιο.
+=================================================================
+sphinx of black quartz, judge my vow.
+=>
+σφινξ οφ βλακ κυαρτζ, ιυδγε μυ βοω.
+=================================================================
+*/

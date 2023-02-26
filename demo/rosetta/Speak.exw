@@ -2,6 +2,33 @@
 -- demo\rosetta\Speak.exw
 -- ======================
 --
+with javascript_semantics
+requires(6) -- WINDOWS or JS, not LINUX
+requires(32) -- Windows 32 bit only, for now... 
+-- (^ runs fine on a 64-bit OS, but needs a 32-bit p.exe)
+requires("1.0.2")
+include builtins\speak.e -- (new in 1.0.2)
+constant text = "This is an example of speech synthesis"
+
+include pGUI.e
+
+function button_cb(Ihandle /*ih*/)
+    speak(text)
+    return IUP_CONTINUE
+end function
+
+IupOpen()
+Ihandle btn = IupButton("Speak",Icallback("button_cb")),
+        dlg = IupDialog(IupHbox({btn},"MARGIN=180x80"))
+IupSetAttribute(dlg,"TITLE",text)
+IupShow(dlg)
+if platform()!=JS then
+    IupMainLoop()
+    IupClose()
+end if
+
+
+--/* OLD:
 -- credit: The first thing I got working was a translation (to inline assembly)
 --          of FASM from http://board.flatassembler.net/topic.php?t=8723
 --          not that it bears the slightest similarity to that any more.
@@ -17,7 +44,7 @@ string text = """
 Pete, I know that you are trying to get me to talk, 
 but I'm afraid that is something I simply cannot allow to happen.
 Oops, I just spoke didn't I? That is a shame, now I have to kill you.
-<rate speed="-15"><pitch absmiddle="35">Hai.<pitch absmiddle="-15">Fuh shum. Squelch. Thud."""
+<rate speed="-15"><pitch absmiddle="35">Hai. Fuh shum. <pitch absmiddle="-15">Squelch. <pitch absmiddle="35">Thud."""
 --Oh, I just did. That is a shame, now I have to kill you."""
 --That is a shame, I'm sorry but now I will have to kill you."""
 --string text = `<voice required="Gender=Female">Dave, I know that you and Frank were planning to disconnect me, and I'm afraid that's something I cannot allow to happen.`
@@ -28,10 +55,6 @@ Oops, I just spoke didn't I? That is a shame, now I have to kill you.
 
 include pComN.ew
 
-procedure speak(atom pVoice, string text)
-    {} = cominvk(pVoice,ISpVoice_Speak,{unicode_string(text),SPF_IS_XML,0})
-end procedure
-
 if platform()=WINDOWS then
     CoInitializeEx()
     atom pVoice = allocate(machine_word()),
@@ -39,15 +62,17 @@ if platform()=WINDOWS then
     if res!=S_OK then
         crash("Failed to initialize SpeechAPI. (%08x)\n",res)
     end if
-    speak(pVoice,text)
+    speak(text,pVoice,SPF_IS_XML)
     pVoice = com_release(pVoice)
     CoUnInitialize()
     freeGUIDS()
+elsif platform()=JS then
+    speak("This is an example of speech synthesis")
 else
     {} = system_exec(`espeak "This is an example of speech synthesis"`)
 end if
+--*/
 
 ?"done"
 {} = wait_key()
-abort(0)
 

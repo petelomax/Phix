@@ -18,17 +18,17 @@ global procedure set_librsvg_dir(string d)
 end procedure
 constant W = machine_word()
 
-function link_c(object dll, string name, sequence args, atom result=NULL)
-    atom lib = iff(string(dll)?open_dll(dll):dll)
-    if lib=0 then throw("could not open "&dll) end if
-    --(following is == define_c_proc if result==NULL)
-    integer res = define_c_func(lib,name,args,result)
-    if res=-1 then throw("could not link "&name) end if
-    return res
-end function
+--function link_c(object dll, string name, sequence args, atom result=NULL)
+--  atom lib = iff(string(dll)?open_dll(dll):dll)
+--  if lib=0 then throw("could not open "&dll) end if
+--  --(following is == define_c_proc if result==NULL)
+--  integer res = define_c_func(lib,name,args,result)
+--  if res=-1 then throw("could not link "&name) end if
+--  return res
+--end function
 
-integer xrsvg_handle_new_from_data = NULL,
-        xg_type_init = NULL, 
+integer xg_type_init = NULL, 
+        xrsvg_handle_new_from_data,
         xg_object_unref, xg_clear_error, xrsvg_handle_close,
         xrsvg_handle_get_pixbuf, xgdk_pixbuf_save, 
         xgdk_pixbuf_get_width, xgdk_pixbuf_get_height, 
@@ -40,14 +40,14 @@ integer xrsvg_handle_new_from_data = NULL,
 
 --deprecated
 --      xrsvg_pixbuf_from_file_at_size, 
---  xrsvg_pixbuf_from_file_at_size = link_c("librsvg-2-2.dll","rsvg_pixbuf_from_file_at_size",{C_PTR,C_INT,C_INT,C_PTR},C_PTR)
+--  xrsvg_pixbuf_from_file_at_size = define_c_func(librsvg,"rsvg_pixbuf_from_file_at_size",{C_PTR,C_INT,C_INT,C_PTR},C_PTR)
 
 --future?? (since 2.32??)
 --      xgdk_pixbuf_read_pixels,
 -- const guint8* gdk_pixbuf_read_pixels(const GdkPixbuf *pixbuf);
---  xgdk_pixbuf_read_pixels = link_c("librsvg-2-2.dll","gdk_pixbuf_read_pixels",{C_PTR},C_PTR)          -- nope...
+--  xgdk_pixbuf_read_pixels = define_c_func(librsvg,"gdk_pixbuf_read_pixels",{C_PTR},C_PTR)         -- nope...
 -- GdkPixbuf* rsvg_handle_get_pixbuf(RsvgHandle *handle);
---  xrsvg_handle_get_pixbuf = link_c("librsvg-2-2.dll","rsvg_handle_get_pixbuf",{C_PTR},C_PTR)          -- nope...
+--  xrsvg_handle_get_pixbuf = define_c_func(librsvg,"rsvg_handle_get_pixbuf",{C_PTR},C_PTR)         -- nope...
 
 procedure svg_error(string error="null_error")
 -- process pError, throw it as an exception
@@ -65,7 +65,8 @@ end procedure
 
 procedure init_svg()
     if platform()=WINDOWS then
-        xSetDllDirectory = link_c("kernel32.dll","SetDllDirectoryA",{C_PTR},C_BOOL)
+        atom k32 = open_dll("kernel32.dll")
+        xSetDllDirectory = define_c_func(k32,"SetDllDirectoryA",{C_PTR},C_BOOL)
         if librsvg_dir!="" 
         and not c_func(xSetDllDirectory,{librsvg_dir}) then
             throw("Could not set DLL directory")
@@ -85,21 +86,25 @@ procedure init_svg()
     -- int gdk_pixbuf_get_n_channels(const GdkPixbuf *pixbuf);
     -- int gdk_pixbuf_get_bits_per_sample(const GdkPixbuf *pixbuf);
     -- guchar* gdk_pixbuf_get_pixels(const GdkPixbuf *pixbuf);
-    xg_type_init = link_c("libgobject-2.0-0.dll","g_type_init",{},NULL)
-    xg_object_unref = link_c("libgobject-2.0-0.dll","g_object_unref",{C_PTR},NULL)
-    xg_clear_error = link_c("libglib-2.0-0.dll","g_clear_error",{C_PTR},NULL)
-    xrsvg_handle_new_from_data = link_c("librsvg-2-2.dll","rsvg_handle_new_from_data",{C_PTR,C_INT,C_PTR},C_PTR)
-    xrsvg_handle_get_pixbuf = link_c("librsvg-2-2.dll","rsvg_handle_get_pixbuf",{C_PTR},C_PTR)
-    xrsvg_handle_close = link_c("librsvg-2-2.dll","rsvg_handle_close",{C_PTR,C_PTR},C_BOOL)
-    xgdk_pixbuf_save = link_c("libgdk_pixbuf-2.0-0.dll","+gdk_pixbuf_save",{C_PTR,C_PTR,C_PTR,C_PTR,C_PTR},C_BOOL)
-    xgdk_pixbuf_get_width = link_c("libgdk_pixbuf-2.0-0.dll","+gdk_pixbuf_get_width",{C_PTR},C_INT)
-    xgdk_pixbuf_get_height = link_c("libgdk_pixbuf-2.0-0.dll","+gdk_pixbuf_get_height",{C_PTR},C_INT)
-    xgdk_pixbuf_get_rowstride = link_c("libgdk_pixbuf-2.0-0.dll","+gdk_pixbuf_get_rowstride",{C_PTR},C_INT)
-    xgdk_pixbuf_get_has_alpha = link_c("libgdk_pixbuf-2.0-0.dll","+gdk_pixbuf_get_has_alpha",{C_PTR},C_INT)
-    xgdk_pixbuf_get_colorspace = link_c("libgdk_pixbuf-2.0-0.dll","+gdk_pixbuf_get_colorspace",{C_PTR},C_INT)
-    xgdk_pixbuf_get_n_channels = link_c("libgdk_pixbuf-2.0-0.dll","+gdk_pixbuf_get_n_channels",{C_PTR},C_INT)
-    xgdk_pixbuf_get_bits_per_sample = link_c("libgdk_pixbuf-2.0-0.dll","+gdk_pixbuf_get_bits_per_sample",{C_PTR},C_INT)
-    xgdk_pixbuf_get_pixels = link_c("libgdk_pixbuf-2.0-0.dll","gdk_pixbuf_get_pixels",{C_PTR},C_PTR)
+    atom libgobject = open_dll("libgobject-2.0-0.dll"),
+         libglib = open_dll("libglib-2.0-0.dll"),
+         librsvg = open_dll("librsvg-2-2.dll"),
+         libgdk_pixbuf = open_dll("libgdk_pixbuf-2.0-0.dll")
+    xg_type_init = define_c_proc(libgobject,"g_type_init",{})
+    xg_object_unref = define_c_proc(libgobject,"g_object_unref",{C_PTR})
+    xg_clear_error = define_c_proc(libglib,"g_clear_error",{C_PTR})
+    xrsvg_handle_new_from_data = define_c_func(librsvg,"rsvg_handle_new_from_data",{C_PTR,C_INT,C_PTR},C_PTR)
+    xrsvg_handle_get_pixbuf = define_c_func(librsvg,"rsvg_handle_get_pixbuf",{C_PTR},C_PTR)
+    xrsvg_handle_close = define_c_func(librsvg,"rsvg_handle_close",{C_PTR,C_PTR},C_BOOL)
+    xgdk_pixbuf_save = define_c_func(libgdk_pixbuf,"+gdk_pixbuf_save",{C_PTR,C_PTR,C_PTR,C_PTR,C_PTR},C_BOOL)
+    xgdk_pixbuf_get_width = define_c_func(libgdk_pixbuf,"+gdk_pixbuf_get_width",{C_PTR},C_INT)
+    xgdk_pixbuf_get_height = define_c_func(libgdk_pixbuf,"+gdk_pixbuf_get_height",{C_PTR},C_INT)
+    xgdk_pixbuf_get_rowstride = define_c_func(libgdk_pixbuf,"+gdk_pixbuf_get_rowstride",{C_PTR},C_INT)
+    xgdk_pixbuf_get_has_alpha = define_c_func(libgdk_pixbuf,"+gdk_pixbuf_get_has_alpha",{C_PTR},C_INT)
+    xgdk_pixbuf_get_colorspace = define_c_func(libgdk_pixbuf,"+gdk_pixbuf_get_colorspace",{C_PTR},C_INT)
+    xgdk_pixbuf_get_n_channels = define_c_func(libgdk_pixbuf,"+gdk_pixbuf_get_n_channels",{C_PTR},C_INT)
+    xgdk_pixbuf_get_bits_per_sample = define_c_func(libgdk_pixbuf,"+gdk_pixbuf_get_bits_per_sample",{C_PTR},C_INT)
+    xgdk_pixbuf_get_pixels = define_c_func(libgdk_pixbuf,"gdk_pixbuf_get_pixels",{C_PTR},C_PTR)
     if platform()=WINDOWS then
         if not c_func(xSetDllDirectory,{NULL}) then
             throw("Could not restore default DLL search order")
@@ -178,7 +183,6 @@ global function rasterize_svg_pixbuf(string text)
         svg_error("rsvg_handle_close?")
     end if
     atom pGdkPixbuf = c_func(xrsvg_handle_get_pixbuf,{rsvg_handle})
---  c_proc(xg_object_unref,{rsvg_handle})
     g_object_unref(rsvg_handle)
     if pGdkPixbuf=NULL then svg_error("null pixbuff (defs-only svg?)") end if
     return pGdkPixbuf -- nb: needs g_object_unref(pGdkPixbuf) at some point...
@@ -192,9 +196,6 @@ global procedure rasterize_svg_text(string text, outputfilename)
     bool success = c_func(xgdk_pixbuf_save,{result, outputfilename, "png", pError, NULL})
     if not success then svg_error("cannot save png file") end if
     g_object_unref(result)
---  c_proc(xg_object_unref,{result})
---  return NULL
---end function
 end procedure
 
 --/*

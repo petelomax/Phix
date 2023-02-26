@@ -4,6 +4,7 @@
 --  Uses SQLite, there is a MySQL wrapper in PCAN that I have not personally tried yet.
 --  Uses code from [[md5|md5#Phix]], now modified to be an executable library.
 --
+without js -- (file i/o)
 include pSQLite.e
 include md5.exw
  
@@ -38,9 +39,9 @@ function authenticate_user(sqlite3 db, string name, pw)
     else
 --      assert_equal(sqlite3_column_name(pAuthUser,1),"pass_salt")
 --      assert_equal(sqlite3_column_type(pAuthUser,1),SQLITE_TEXT)
-        string salt = sqlite3_column_text(pAuthUser,1)
 --      assert_equal(sqlite3_column_name(pAuthUser,2),"pass_md5")
 --      assert_equal(sqlite3_column_type(pAuthUser,2),SQLITE_TEXT)
+        string salt = sqlite3_column_text(pAuthUser,1)
         string pass_md5 = sqlite3_column_text(pAuthUser,2)
         res = (pass_md5==md5(salt&pw))
     end if
@@ -80,6 +81,7 @@ procedure main()
         if sqlite3_finalize(pAuthUser)!=SQLITE_OK then ?9/0 end if
     end if
     sqlite3_close(db)
+--  {} = delete_file("users.sqlite")    -- (ditto)
     ?"done"
     {} = wait_key()
 end procedure

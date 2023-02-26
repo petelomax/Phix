@@ -1,29 +1,40 @@
---
+﻿--
 -- demo\rosetta\VisualiseTree.exw
 --
-constant Horizontal = #C4,
-         Horizontals = "\#C4",
-         TopLeft = #DA,
-         Vertical = #B3,
-         BtmLeft = #C0
+with javascript_semantics
+                        
+-- To the theme tune of the Milk Tray Ad iyrt,
+-- All because the Windows console hates utf8:
+constant TL = '\#DA', -- aka '┌'
+         VT = '\#B3', -- aka '│'
+         BL = '\#C0', -- aka '└'
+         HZ = '\#C4', -- aka '─'
+         HS = "\#C4"  -- (string version of HZ)
 
-procedure visualise_tree(object tree, string root=Horizontals)
+function w1252_to_utf8(string s)
+    if platform()!=WINDOWS then
+        s = substitute_all(s,{ TL, VT, BL, HZ},
+                             {"┌","│","└","─"})
+    end if
+    return s
+end function
+--</hates utf8>
+
+procedure visualise_tree(object tree, string root=HS)
     if atom(tree) then
         puts(1,"<empty>\n")
     else
         object {v,l,r} = tree
         integer g = root[$]
         if sequence(l) then
-            root[$] = iff(g=TopLeft or g=Horizontal?' ':Vertical)
-            visualise_tree(l,root&TopLeft)
+            root[$] = iff(g=TL or g=HZ?' ':VT)
+            visualise_tree(l,root&TL)
         end if
         root[$] = g
---      puts(1,root)
---      ?v
-        printf(1,"%s%d\n",{root,v})
+        printf(1,"%s%d\n",{w1252_to_utf8(root),v})
         if sequence(r) then
-            root[$] = iff(g=TopLeft?Vertical:' ')
-            visualise_tree(r,root&BtmLeft)
+            root[$] = iff(g=TL?VT:' ')
+            visualise_tree(r,root&BL)
         end if
     end if
 end procedure
@@ -42,8 +53,5 @@ end function
 object tree = rand_tree(0,20)   -- (can be 0, <1% chance)
 
 visualise_tree(tree)
-
---include ppp.e
 --pp(tree,{pp_Nest,10})
-
 {} = wait_key()

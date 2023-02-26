@@ -277,7 +277,7 @@ atom dec, fraction
             if col>lenTC then exit end if
             Ch = text[CurrLine][col]
             if charClass[Ch]!=DIGIT then exit end if
-            exponent = exponent*10+Ch-'0'
+            exponent = exponent*10 + (Ch-'0')
         end while
         tokatm = tokatm*power(10,exponent*esign)
     end if
@@ -382,12 +382,14 @@ integer nxtCh, lenTC
                 if nxtCh>'F' then
                     if nxtCh<'a' then exit end if
                     if nxtCh>'f' then exit end if
-                    tokatm = tokatm*16+nxtCh-'W'
+--                  tokatm = tokatm*16 + (nxtCh-'W')
+                    tokatm = tokatm*16 + (nxtCh-('a'-10))
                 else
-                    tokatm = tokatm*16+nxtCh-'7'
+--                  tokatm = tokatm*16+nxtCh-'7'
+                    tokatm = tokatm*16 + (nxtCh-('A'-10))
                 end if
             else
-                tokatm = tokatm*16+nxtCh-'0'
+                tokatm = tokatm*16 + (nxtCh-'0')
             end if
         end while
 -- 19/03/10 (gave up)
@@ -439,7 +441,7 @@ integer nxtCh, lenTC
             if col>lenTC then exit end if
             Ch = text[CurrLine][col]
             if charClass[Ch]!=DIGIT then exit end if
-            tokint = tokint*10+Ch-'0'
+            tokint = tokint*10 + (Ch-'0')
         end while
         if find(Ch,".eE") then
             getFloat()

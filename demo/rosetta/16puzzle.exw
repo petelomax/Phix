@@ -1,0 +1,104 @@
+--
+-- demo\rosetta\16puzzle.exw
+-- =========================
+--
+-- DEV make me a GUI, playable online, undo, solver.... Not yet in phix7z.
+--
+with javascript_semantics
+constant level = 5,
+         ESC=27, UP=328, DOWN=336, LEFT=331, RIGHT=333
+ 
+sequence board = tagset(16), solve = deep_copy(board)
+ 
+procedure print_board()
+    printf(1,"    1  2  3  4\n")
+    for r=1 to 4 do
+        printf(1,"%d: %2d %2d %2d %2d\n",r&board[r*4-3..r*4])
+    end for
+    puts(1,"\n")
+end procedure
+ 
+procedure move(integer d,rc)
+    -- d is 1..4 for up/down/left/right
+    -- rc is 1..4 for row(d>=3)/column(d<=2)
+    sequence idx = repeat(0,4),
+             tiles = repeat(0,4)
+    for i=1 to 4 do
+        idx[i] = iff(d<=2?rc+(i-1)*4:(rc-1)*4+i)
+        tiles[i] = board[idx[i]]
+    end for
+--  ?{d,rc,idx}
+    idx = iff(mod(d,2)?idx[4]&idx[1..3]:idx[2..4]&idx[1])
+    for i=1 to 4 do
+        board[idx[i]] = tiles[i]
+    end for
+end procedure
+ 
+for i=1 to level do move(rand(4),rand(4)) end for
+while 1 do
+    print_board()
+    if board=solve then
+        puts(1,"Solved!\n")
+        exit
+    end if
+    puts(1,"Your move (escape|Up/Down|Left/Right & 1/2/3/4):")
+    integer d, rc
+    while true do
+        while true do
+            d = find(upper(wait_key()),{ESC,UP,DOWN,LEFT,RIGHT}&"UDLR")-1
+            if d!=-1 then exit end if
+        end while
+        if d=0 then
+            puts(1,"\n\nYou gave up!\n")
+            exit
+        end if
+        if d>4 then d-=4 end if
+        puts(1,"UDLR"[d])
+        while true do
+            rc = find(upper(wait_key()),ESC&"1234UDLR"&{UP,DOWN,LEFT,RIGHT})-1
+            if rc>4 then
+                if rc>8 then rc -= 4 end if
+                d = rc-4
+                puts(1,"\b \b"&"UDLR"[d])
+            else
+                if rc!=-1 then exit end if
+            end if
+        end while
+        if rc=0 then
+            puts(1,"\b \b")
+        else
+            printf(1,"%d\n\n",rc)
+            move(d,rc)
+            exit
+        end if
+    end while
+    if d=0 then exit end if
+end while
+--/*
+Output:
+(a level 2 game)
+
+    1  2  3  4
+1:  1  2  7  4
+2:  5  6 11  8
+3:  9 10 16 12
+4: 14 15  3 13
+
+Your move (escape|Up/Down|Left/Right & 1/2/3/4):D3
+
+    1  2  3  4
+1:  1  2  3  4
+2:  5  6  7  8
+3:  9 10 11 12
+4: 14 15 16 13
+
+Your move (escape|Up/Down|Left/Right & 1/2/3/4):R4
+
+    1  2  3  4
+1:  1  2  3  4
+2:  5  6  7  8
+3:  9 10 11 12
+4: 13 14 15 16
+
+Solved!
+--*/

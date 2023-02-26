@@ -15,6 +15,7 @@
 -- blank spaces: ".-*0" ideally, ' ' may cause tab replacement
 -- issues during copy/paste, underscore/? are /NOT/ supported.
 --
+with javascript_semantics
 
 --This is an extended version of the one posted on rosettacode.
 
@@ -47,8 +48,8 @@ sequence nines = {},                -- will be 27 in total
          dotrow = repeat(0,9*9)     -- same row, diff square
 
 procedure set_nines()
-sequence nine, six
-integer idx, ndx
+    sequence nine, six
+    integer idx, ndx
     for x=0 to 8 do                     -- columns
         nine = {}
         ndx = length(nines)+1
@@ -118,7 +119,7 @@ set_nines()
 
 integer improved = 0
 
-function eliminate_in(sequence valid, sequence set, integer ch)
+function eliminate_in(sequence valid, set, integer ch)
     for i=1 to length(set) do
         integer idx = set[i]
         if string(valid[idx]) then
@@ -132,16 +133,16 @@ function eliminate_in(sequence valid, sequence set, integer ch)
     return valid
 end function
 
-function test_comb(sequence chosen, sequence pool, sequence valid)
+function test_comb(sequence chosen, pool, valid)
 --
 -- (see deep_logic()/set elimination)
 -- chosen is a sequence of length 2..4 of integers 1..9: ordered elements of pool.
 -- pool is a set of elements of the sequence valid, each of which is a sequence.
 -- (note that elements of valid in pool not in chosen are not necessarily sequences)
 --
-sequence contains = repeat(0,9)
-integer ccount = 0, ch
-object set
+    sequence contains = repeat(0,9)
+    integer ccount = 0, ch
+    object set
 
     for i=1 to length(chosen) do
         set = valid[pool[chosen[i]]]
@@ -154,6 +155,7 @@ object set
         end for
     end for
     if ccount=length(chosen) then
+        valid = deep_copy(valid)
         for i=1 to length(pool) do
             if find(i,chosen)=0 then
                 set = valid[pool[i]]
@@ -184,7 +186,7 @@ function comb(sequence pool, valid, integer needed, done=0, sequence chosen={})
     -- get all combinations with and without the next item:
     done += 1
     if sequence(valid[pool[done]]) then
-        valid = comb(pool,valid,needed-1,done,append(chosen,done))
+        valid = comb(pool,valid,needed-1,done,append(deep_copy(chosen),done))
     end if
     return comb(pool,valid,needed,done,chosen)
 end function
@@ -286,12 +288,7 @@ function deep_logic(string board, sequence valid)
 --      force algorithm is going to select pairs first anyway. [Erm, no it doesn't, 
 --      it selects shortest - I've noted the possible improvement below.]
 --
-integer col, row
-sequence c, r
-sequence nine, prevsets, set
-object vj
-integer ch, k, idx, sx, sy, count
-
+    integer ch, k -- (scratch)
     if length(valid)=0 then
         -- initialise/start again from scratch
         valid = repeat("123456789",9*9)
@@ -314,15 +311,16 @@ integer ch, k, idx, sx, sy, count
     -- 1) row/col elimination
     --
     for s=19 to 27 do
-        c = repeat(0,9) -- 0 = none seen, 1..9 this col only, -1: >1 col
-        r = repeat(0,9) -- ""                       row              row
-        nine = nines[s]
+        sequence c = repeat(0,9), -- 0 = none seen, 1..9 this col only, -1: >1 col
+                 r = repeat(0,9), -- ""                       row              row
+                 nine = nines[s]
+        integer row, col
         for n=1 to 9 do
             k = nine[n]
-            vj = valid[k]
-            if string(vj) then
-                for i=1 to length(vj) do
-                    ch = vj[i]-'0'
+            object vk = valid[k]
+            if string(vk) then
+                for i=1 to length(vk) do
+                    ch = vk[i]-'0'
                     col = dotcol[k]
                     row = dotrow[k]
                     c[ch] = iff(find(c[ch],{0,col})!=0?col:-1)
@@ -360,7 +358,8 @@ integer ch, k, idx, sx, sy, count
     -- 3) x-wings
     --
     for ch='1' to '9' do
-        prevsets = repeat(0,9)
+        sequence prevsets = repeat(0,9), set
+        integer count, idx
         for x=1 to 9 do
             count = 0
             set = repeat(0,9)
@@ -420,15 +419,13 @@ integer ch, k, idx, sx, sy, count
     return valid
 end function
 
-function permitted_in(string board, sequence sets, sequence valid, integer ch)
-sequence set
-integer pos, idx, bch
+function permitted_in(string board, sequence sets, valid, integer ch)
     for i=1 to 9 do
-        set = nines[sets[i]]
-        pos = 0
+        sequence set = nines[sets[i]]
+        integer pos = 0
         for j=1 to 9 do
-            idx = set[j]
-            bch = board[idx]
+            integer idx = set[j],
+                    bch = board[idx]
             if bch>'0' then
                 if bch=ch then pos = -1 exit end if
             elsif find(ch,valid[idx]) then
@@ -452,18 +449,16 @@ function plain_logic(string board)
 --  1) cells with only one option
 --  2) numbers with only one home
 --
-integer solved
-sequence valid = {}
-object vi
-
-    while 1 do
+    integer solved
+    sequence valid = {}
+    while true do
         solved = SOLVED
         improved = 0
         valid = deep_logic(board,valid)
 
         -- 1) cells with only one option:
         for i=1 to length(valid) do
-            vi = valid[i]
+            object vi = valid[i]
             if string(vi) then
                 if length(vi)=0 then return {board,{},INVALID} end if
                 if length(vi)=1 then
@@ -490,20 +485,20 @@ end function
 
 function validate(string board)
 -- (sum9 should be sufficient - if you want, get rid of nine/nines)
-integer ch, sum9
-sequence nine, nines = tagset(9)
+    integer ch, sum9
+    sequence nine, nines = tagset(9)
 
     for x=0 to 8 do                 -- columns
         sum9 = 0
         nine = repeat(0,9)
         for y=1 to 81 by 9 do
             ch = board[y+x]-'0'
-            if ch<1 or ch>9 then return 0 end if
+            if ch<1 or ch>9 then return false end if
             sum9 += ch
             nine[ch] = ch
         end for
-        if sum9!=45 then return 0 end if
-        if nine!=nines then return 0 end if
+        if sum9!=45 then return false end if
+        if nine!=nines then return false end if
     end for
     for y=1 to 81 by 9 do           -- rows
         sum9 = 0
@@ -513,8 +508,8 @@ sequence nine, nines = tagset(9)
             sum9 += ch
             nine[ch] = ch
         end for
-        if sum9!=45 then return 0 end if
-        if nine!=nines then return 0 end if
+        if sum9!=45 then return false end if
+        if nine!=nines then return false end if
     end for
     for y=0 to 8 by 3 do            -- small squares
         for x=0 to 8 by 3 do
@@ -527,19 +522,15 @@ sequence nine, nines = tagset(9)
                     nine[ch] = ch
                 end for
             end for
-            if sum9!=45 then return 0 end if
-            if nine!=nines then return 0 end if
+            if sum9!=45 then return false end if
+            if nine!=nines then return false end if
         end for
     end for
-    return 1
+    return true
 end function
 
-function solve(string board, sequence valid={})
-sequence solution, solutions
-integer solved
-integer minopt, mindx
-object vi
-    {solution,valid,solved} = plain_logic(board)
+function solve(string board)
+    {sequence solution, sequence valid, integer solved} = plain_logic(board)
     if solved=INVALID then return {{},INVALID} end if
     if solved=SOLVED then return {{solution},SOLVED} end if
     if solved=BRUTE then return {{solution},BRUTE} end if
@@ -547,9 +538,9 @@ object vi
     -- find the cell with the fewest options:
     -- (a possible improvement here would be to select the shortest 
     --  with the "most pairs" set, see swordfish etc above.)
-    minopt = 10
+    integer minopt = 10, mindx
     for i=1 to 9*9 do
-        vi = valid[i]
+        object vi = valid[i]
         if string(vi) then
             if length(vi)<=1 then ?9/0 end if   -- should be caught above
             if length(vi)<minopt then
@@ -558,10 +549,10 @@ object vi
             end if
         end if
     end for
-    solutions = {}
+    sequence solutions = {}
     for i=1 to minopt do
         board[mindx] = valid[mindx][i]
-        {solution,solved} = solve(board,valid)
+        {solution,solved} = solve(board)
         if solved=MULTIPLE then
             return {solution,MULTIPLE}
         elsif solved=SOLVED
@@ -585,10 +576,8 @@ object vi
 end function
 
 function test_one(string board)
-sequence solutions
-string solution, desc
-integer solved
-    {solutions,solved} = solve(board)
+    {sequence solutions, integer solved} = solve(board)
+    string solution, desc
     if solved=SOLVED then
         desc = "(logic)"
     elsif solved=BRUTE then
@@ -1017,21 +1006,17 @@ constant l = " x x x | x x x | x x x ",
          l3 = join({l,l,l},"\n"),
          fmt = substitute(join({l3,s,l3,s,l3},"\n"),"x","%c")&"\n"
 
-procedure print_board(string board)
-    printf(1,fmt,board)
-end procedure
-
 procedure test()
-string board    -- (81 characters)
-string solution, desc
-atom t0 = time()
+    string board,   -- (81 characters)
+           solution, desc
+    atom t0 = time()
     if run_one_test then
         board = tests[run_one_test]
-        print_board(board)
+        printf(1,fmt,board)
         {solution,desc} = test_one(board)
         if length(solution)!=0 then
             printf(1,"solution:\n")
-            print_board(solution)
+            printf(1,fmt,solution)
         end if
         printf(1,"%s, %3.2fs\n",{desc,time()-t0})
     else
@@ -1047,8 +1032,10 @@ atom t0 = time()
     end if
 end procedure
 
+--DEV transpile to pGUI, run online...
 include ..\arwen\arwen.ew
 include ..\arwen\axtra.ew
+--include pGUI.e
 
 --DEV ought to have a sudoku.txt really... (81-char format, comment lines skipped)
 --    or better yet: Sudoku_examples.e (and have this load a random puzzle) and
@@ -1065,6 +1052,7 @@ procedure newGame()
     valid = {}
 end procedure
 
+--DEV?
 constant cBackgnd = #EFF8FA,
          cHover  = White,
          cLines  = Black,
@@ -1082,7 +1070,7 @@ integer ls, ls9,    -- length of a single square/full thing
         lw          -- line width (10% of ls, tweaked)
 
 function font_info(integer size)
-atom hFont = createFontForDC(viewDC, "Arial", size, Normal)
+    atom hFont = createFontForDC(viewDC, "Arial", size, Normal)
     {} = selectObject(viewDC,hFont)
     {} = c_func(xGetTextExtentPoint32,{viewDC,"W",1,pSize})
     return {peek4u(pSize),hFont}
@@ -1106,7 +1094,7 @@ integer mx=0, my=0  -- mouse hover cell
 integer sn=0        -- small number within "" (only valid if mx,my are)
 
 function xy_to_grid(sequence xy)
-integer x, y, gx=0, gy=0, sx, sy
+    integer x, y, gx=0, gy=0, sx, sy
 
     if ls!=0 then   -- (avoid divide by 0)
         x = xy[1]-ox--5
@@ -1123,15 +1111,14 @@ integer x, y, gx=0, gy=0, sx, sy
     return {gx,gy}
 end function
 
-integer dw = 0, dh = 0      -- client area width and height
+integer dw = 0, dh = 0,     -- client area width and height
+        vwX = 0, vwY = 0    -- actual size of the view bitmap
 atom bmView
-integer vwX = 0, vwY = 0    -- actual size of the view bitmap
 
 function mainHandler(integer id, integer msg, atom wParam, object lParam)
-integer ch, idx, solved
-string s
-atom x0,y0,x1,y1
-string desc
+    integer ch, idx, solved
+    atom x0, y0, x1, y1
+    string s, desc
 
     if msg=WM_SIZE then
         {{},{},dw,dh} = getClientRect(main)

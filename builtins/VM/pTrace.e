@@ -1687,7 +1687,7 @@ end procedure
 --  end if
 --  system("exw.exe "&filepath,2)
 --end if
---constant xSetForegroundWindow = define_c_func(user32, "SetForegroundWindow", {C_POINTER}, C_POINTER )
+--constant xSetForegroundWindow = define_c_func(user32, "SetForegroundWindow", {C_PTR}, C_PTR )
 --void = c_func(xSetForegroundWindow,{ipc_CallFunc(path,AppName&"File",{temp,12})})
 
 --if 01 then

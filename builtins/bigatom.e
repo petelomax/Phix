@@ -1822,7 +1822,7 @@ integer dsize
     if d>0 then
         carries[1] = BASE
         for i=1 to size do
-            while 1 do
+            while true do
                 c += 1
                 for j=i to size do
                     bdigit = bdigit*BASE+carries[j]

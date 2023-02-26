@@ -187,6 +187,8 @@ global function complex_log(complexn a)
     return res
 end function
 
+global function complex_ln(complexn a) return complex_log(a) end function
+
 global function complex_exp(complexn a)
     if atom(a) then a = {a,0} end if
 --NO!:

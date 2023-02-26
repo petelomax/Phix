@@ -61,21 +61,12 @@ global constant
 
 
 --IDLEON
-integer
-    PrimaryWindowID,    -- id of the main application window
-    isAppStarted,       -- flag to indicate if application has started or not
+integer PrimaryWindowID = UNDEFINED,    -- id of the main application window
+        isAppStarted = False,           -- flag to indicate if application has started or not
 
-    IdleTimer,
-    IDLEROUTINE,            -- routine id of the procedure to be called during IDLE states
-    IDLEON                  -- active only when user wants idle process to run
-
-    PrimaryWindowID = UNDEFINED
-    isAppStarted = False
-
-    IdleTimer = UNDEFINED
-    IDLEROUTINE = UNDEFINED
-    IDLEON = 0
-
+        IdleTimer = UNDEFINED,
+        IDLEROUTINE = UNDEFINED,        -- routine id of the procedure to be called during IDLE states
+        IDLEON = 0                      -- active only when user wants idle process to run
 
 constant
 
@@ -1337,8 +1328,6 @@ global function loadCursor(object fName)
     -- load single cursor
     -- if fName is filename only then will search for it in the application directory
     -- if fName is integer then will load stock cur resource
-atom lpszName
-atom hCur
 
     -- deal to internal resource
     if integer(fName) then
@@ -1349,8 +1338,8 @@ atom hCur
     if not find('\\', fName) then -- assume filename passed only
         fName = getAppDir() & fName
     end if
-    lpszName = allocate_StringZ(fName)
-    hCur = c_func(xLoadCursorFromFile,{lpszName})
+
+    atom hCur = c_func(xLoadCursorFromFile,{allocate_StringZ(fName)})
 
     -- ensure valid cursor obtained
     if hCur=NULL then
@@ -1528,27 +1517,27 @@ end procedure
 
 
 global function isChecked(integer id)
-integer class, item, flag, state
-    class = ObjectClass[id]
-    if class=MENU then
-        class = ObjectType[id]
-        if class=MenuItem then
+    integer objclass = ObjectClass[id]
+    if objclass=MENU then
+        objclass = ObjectType[id]
+        integer item, flag
+        if objclass=MenuItem then
             item = id
             flag = MF_BYCOMMAND
-        elsif class=Menu then
+        elsif objclass=Menu then
             item = getMenuElementPosZ(id)
             flag = MF_BYPOSITION
 --      else    -- MenuSep?
 --          ?9/0 (caught by unassigned item/flag)
         end if
-        state = c_func(xGetMenuState,{getParentHwnd(id),item,flag})
+        integer state = c_func(xGetMenuState,{getParentHwnd(id),item,flag})
         if state = #FFFFFFFF
         or not and_bits(state, MF_CHECKED) then
             return 0
         end if
         return 1
 
-    elsif class=BUTTON then
+    elsif objclass=BUTTON then
         -- yields one of: BST_UNCHECKED = 0,  BST_CHECKED = 1,  BST_INDETERMINATE = 2
         return c_func(xSendMessage,{ObjectHwnd[id],BM_GETCHECK,0,0})
 
@@ -2307,9 +2296,8 @@ end function
 
 
 global function getScreenSize()
-integer width, height
-    width = c_func(xGetSystemMetrics, {SM_CXSCREEN})
-    height = c_func(xGetSystemMetrics, {SM_CYSCREEN})
+    integer width = c_func(xGetSystemMetrics, {SM_CXSCREEN}),
+            height = c_func(xGetSystemMetrics, {SM_CYSCREEN})
     return {width, height}
 end function
 
@@ -2340,36 +2328,25 @@ end procedure
 
 global function getWindowRect(integer id)
 -- returns {left,top,right,bottom}
-object rect
-atom hwnd, rs
-
-    hwnd = ObjectHwnd[id]
-    rs = allocate_Rect()
-
-    if c_func(xGetWindowRect, {hwnd, rs}) then
-        rect = peek4s({rs,4})
-    else
-        rect = 0
+    atom hwnd = ObjectHwnd[id],
+           rs = allocate_Rect()
+    if not c_func(xGetWindowRect, {hwnd, rs}) then
+        return 0
     end if
-
+    sequence rect = peek4s({rs,4})
     return rect
-
 end function
-
 
 global function getClientRect(integer id)
 -- returns {left,top,width,height}
-object rect, TmpRect
-atom hwnd, rs
+object TmpRect
 integer temp
 
-    hwnd = ObjectHwnd[id]
-    rs = allocate_Rect()
+    atom hwnd = ObjectHwnd[id],
+         rs = allocate_Rect()
 
-    if not c_func(xGetClientRect, {hwnd, rs}) then
-        rect = 0
-
-    else
+    object rect = 0
+    if c_func(xGetClientRect, {hwnd, rs}) then
         rect = peek4u({rs,4})
 
         if ObjectType[id]=Window then
@@ -2449,35 +2426,22 @@ integer temp
 
 end function
 
-
 global function getClientCoords(integer id)
     -- get the client coordinates of a control within its parent
-atom hParent, hWnd, lpRect
-
---  hParent = ObjectParent[id]      -- PL 18/11/2006
-    hParent = getParentHwnd(id)
-    hWnd = ObjectHwnd[id]
-
+    atom hParent = getParentHwnd(id)
     if hParent then
-
-        lpRect = allocate_Rect()
-
+        atom hWnd = ObjectHwnd[id],
+           lpRect = allocate_Rect()
         if c_func(xGetWindowRect,{hWnd,lpRect}) then
-
             if c_func(xScreenToClient,{hParent,lpRect}) then
                 if c_func(xScreenToClient,{hParent,lpRect+8}) then
                     return peek4s({lpRect,4})
                 end if
             end if
-
         end if
-
     end if
-
     return {0,0,0,0}
-
 end function
-
 
 function isPointIn(integer x, integer y, sequence rect)
     if x>=rect[1] then
@@ -2698,7 +2662,7 @@ end procedure
 global function getText(integer id)
 integer pID, len, objType, uIDItem, uFlag
 sequence text
-atom buffer, hMenu, hwnd, struct, lpMII
+atom buffer, hMenu, hwnd, lpMII
 
     -- clipboard?
     if id=CLIPBOARD then
@@ -2734,13 +2698,13 @@ atom buffer, hMenu, hwnd, struct, lpMII
             uIDItem -= 1 -- make 0-based
             -- use form other than allocate_TextSpace()?
             -- text buffer is tacked onto end of this struct
-            struct = allocate_TextSpace(sizeofstruct(TC_ITEM)+MAXLENGTHGETTABITEMTEXT)
-            buffer =  struct + TC_ITEM_lParam + 4
-            poke4(struct, TCIF_TEXT)
-            poke4(struct + TC_ITEM_pszText, buffer) -- start of buffer
-            poke4(struct + TC_ITEM_cchTextMax, MAXLENGTHGETTABITEMTEXT) -- includes null terminator
+            atom pStruct = allocate_TextSpace(sizeofstruct(TC_ITEM)+MAXLENGTHGETTABITEMTEXT)
+            buffer =  pStruct + TC_ITEM_lParam + 4
+            poke4(pStruct, TCIF_TEXT)
+            poke4(pStruct + TC_ITEM_pszText, buffer) -- start of buffer
+            poke4(pStruct + TC_ITEM_cchTextMax, MAXLENGTHGETTABITEMTEXT) -- includes null terminator
             hwnd = ObjectHwnd[ObjectParent[id]] -- handle of the tab control "parent"
-            if c_func(xSendMessage,{hwnd,TCM_GETITEMA,uIDItem,struct}) then
+            if c_func(xSendMessage,{hwnd,TCM_GETITEMA,uIDItem,pStruct}) then
                 text = peek_string(buffer)
             end if
         end if
@@ -2841,7 +2805,7 @@ end function
 
 
 global procedure setText(integer id, object text)
-atom lpSz, lpMII, hMenu, hWnd, flags, struct
+atom lpSz, lpMII, hMenu, hWnd, flags
 integer pos, pID, objectType
 
     -- convert the 'text' object to a char sequence if needed
@@ -2905,12 +2869,12 @@ integer pos, pID, objectType
         pos = find(id,ObjectChildren[ObjectParent[id]]) -- index of tab part
         if pos!=0 then
             pos -= 1 -- make 0-based
-            struct = allocate_TextSpace(sizeofstruct(TC_ITEM))
-            poke4(struct, TCIF_TEXT)
-            poke4(struct + TC_ITEM_pszText, lpSz) -- start of buffer
-            poke4(struct + TC_ITEM_cchTextMax, length(text)+1) -- includes null terminator
+            atom pStruct = allocate_TextSpace(sizeofstruct(TC_ITEM))
+            poke4(pStruct, TCIF_TEXT)
+            poke4(pStruct + TC_ITEM_pszText, lpSz) -- start of buffer
+            poke4(pStruct + TC_ITEM_cchTextMax, length(text)+1) -- includes null terminator
             hWnd = ObjectHwnd[ObjectParent[id]] -- handle of the tab control "parent"
-            void = c_func(xSendMessage,{hWnd,TCM_SETITEMA,pos,struct})
+            void = c_func(xSendMessage,{hWnd,TCM_SETITEMA,pos,pStruct})
         end if
 
 
@@ -3281,16 +3245,16 @@ end procedure
 
 
 global function getItem(integer id, object pos)
-integer len, disp, get_len_msg, get_text_msg, class
+integer len, disp, get_len_msg, get_text_msg
 atom hwnd, lpSz
 sequence items
 
     -- check that caller is valid list-type control
-    class = ObjectClass[id]
-    if class=LIST then
+    integer objclass = ObjectClass[id]
+    if objclass=LIST then
         get_len_msg = LB_GETTEXTLEN
         get_text_msg = LB_GETTEXT
-    elsif class=COMBO then
+    elsif objclass=COMBO then
         get_len_msg = CB_GETLBTEXTLEN
         get_text_msg = CB_GETLBTEXT
     else
@@ -4520,15 +4484,10 @@ atom lpTC_ITEM, lpSz
 end function
 
 
-
 function registerClass(sequence classname, atom classstyle, atom wndproc, atom icon_handle, atom cursor_handle, atom brush)
-atom szAppName
-atom wndclass
-atom regdclass
-
     -- construct & populate a WNDCLASSEX structure
-    szAppName = allocate_StringZ(classname)
-    wndclass = allocate(sizeofstruct(WNDCLASSEX))
+    atom szAppName = allocate_StringZ(classname),
+         wndclass = allocate(sizeofstruct(WNDCLASSEX))
     poke4(wndclass + WNDCLASSEX_cbSize,             sizeofstruct(WNDCLASSEX))
     poke4(wndclass + WNDCLASSEX_style,              classstyle)
     poke4(wndclass + WNDCLASSEX_lpfnWndProc,        wndproc) -- default message handler
@@ -4543,26 +4502,20 @@ atom regdclass
     poke4(wndclass + WNDCLASSEX_lpszClassName,      szAppName)
 
     -- attempt to register the WNDCLASSEX structure
-    regdclass = c_func(xRegisterClassEx,{wndclass})
-
+    atom regdclass = c_func(xRegisterClassEx,{wndclass})
     free(wndclass)
-
     return regdclass -- could be NULL at times
-
 end function
 
 
-
-integer nextWinClass
-        nextWinClass=1
-atom hwIcon
-    hwIcon = c_func(xLoadIcon,{instance(),allocate_StringZ("exw")})
+integer nextWinClass = 1
+atom hwIcon = c_func(xLoadIcon,{instance(),allocate_StringZ("exw")})
+if hwIcon=0 then
+    hwIcon = c_func(xLoadIcon,{instance(),10})
     if hwIcon=0 then
-        hwIcon = c_func(xLoadIcon,{instance(),10})
-        if hwIcon=0 then
-            hwIcon = c_func(xLoadIcon,{NULL,IDI_APPLICATION})
-        end if
+        hwIcon = c_func(xLoadIcon,{NULL,IDI_APPLICATION})
     end if
+end if
 
 
 constant RBBsize = sizeofstruct(REBARBANDINFO)
@@ -5318,6 +5271,7 @@ object exstyle
             style -= and_bits(style,exstyle)
         end if
         void = c_func(xSetWindowLong,{hwnd,GWL_EXSTYLE,style})
+--printf(1,"style_ex:%08x\n",style)
         styles = styles[1]
         if sequence(styles) then
             styles = or_all(styles)
@@ -5338,6 +5292,7 @@ object exstyle
         style -= and_bits(style,styles)
     end if
     void = c_func(xSetWindowLong,{hwnd,GWL_STYLE,style})
+--printf(1,"style:%08x\n",style)
     void = c_func(xSetWindowPos,{hwnd,0,0,0,0,0,SWP_UPDATECACHE})
 end procedure
 
@@ -6259,18 +6214,18 @@ end function
 
 
 function proc_SizeMessage(integer id)
-atom hwnd, struct, hwndHscroll, hwndVscroll
+atom hwnd, hwndHscroll, hwndVscroll
 integer top, extent, breadth, width, height
 
     hwnd = ObjectHwnd[id]
 
     -- allocate space for RECT
-    struct = allocate_Rect()
+    atom pRect = allocate_Rect()
 
     -- get the raw client coordinates of the window
-    if c_func(xGetClientRect, {hwnd, struct}) then
-        extent = peek4s(struct + 8) -- New Width of client area
-        breadth = peek4s(struct + 12) -- New Height of client area
+    if c_func(xGetClientRect, {hwnd, pRect}) then
+        extent = peek4s(pRect + 8) -- New Width of client area
+        breadth = peek4s(pRect + 12) -- New Height of client area
     else
         return 0
     end if
@@ -6283,8 +6238,8 @@ integer top, extent, breadth, width, height
         if c_func(xIsWindowVisible,{hwnd}) then
             void = c_func(xSendMessage,{hwnd,WM_SIZE,0,0})
             -- add the height of the toolbar to the y coord
-            if c_func(xGetClientRect, {hwnd, struct}) then
-                top = peek4s(struct+12)+4
+            if c_func(xGetClientRect, {hwnd, pRect}) then
+                top = peek4s(pRect+12)+4
             end if
         end if
     end if
@@ -6296,8 +6251,8 @@ integer top, extent, breadth, width, height
         if c_func(xIsWindowVisible,{hwnd}) then
             void = c_func(xSendMessage,{hwnd,WM_SIZE,0,0})
             -- deduct the height of the status bar from the y coord
-            if c_func(xGetClientRect, {hwnd, struct}) then
-                breadth -= peek4s(struct+12)
+            if c_func(xGetClientRect, {hwnd, pRect}) then
+                breadth -= peek4s(pRect+12)
             end if
         end if
     end if
@@ -6308,8 +6263,8 @@ integer top, extent, breadth, width, height
     if hwndHscroll!=UNDEFINED then
         hwndHscroll = ObjectHwnd[hwndHscroll]
         if c_func(xIsWindowVisible,{hwndHscroll}) then
-            void = c_func(xGetClientRect,{hwndHscroll,struct})
-            height = peek4s(struct+12)
+            void = c_func(xGetClientRect,{hwndHscroll,pRect})
+            height = peek4s(pRect+12)
             breadth -= height
         end if
     end if
@@ -6320,8 +6275,8 @@ integer top, extent, breadth, width, height
     if hwndVscroll!=UNDEFINED then
         hwndVscroll = ObjectHwnd[hwndVscroll]
         if c_func(xIsWindowVisible,{hwndVscroll}) then
-            void = c_func(xGetClientRect,{hwndVscroll,struct})
-            width = peek4s(struct+8)
+            void = c_func(xGetClientRect,{hwndVscroll,pRect})
+            width = peek4s(pRect+8)
             extent -= width
         end if
     end if
@@ -6343,13 +6298,9 @@ end function
 
 
 function proc_MouseMessage(atom lParam)
-integer xPos, yPos
-
-    xPos = and_bits(lParam, #FFFF)  if xPos>32767 then xPos -= 65536 end if
-    yPos = floor(lParam / #10000)   if yPos>32767 then yPos -= 65536 end if
-
+    atom xPos = and_bits(lParam, #FFFF) if xPos>32767 then xPos -= 65536 end if
+    atom yPos = floor(lParam / #10000)  if yPos>32767 then yPos -= 65536 end if
     return {xPos, yPos}
-
 end function
 
 --WM_MOUSEMOVE
@@ -6715,7 +6666,7 @@ function WndProc(atom hwnd, atom msg, atom wParam, atom lParam)
 integer id, iHandler, iPart, nCode, item
 object temp, return_value
 sequence rect
-atom struct, hdc
+atom hdc
 integer frtn
 
     -- find the control
@@ -6749,15 +6700,15 @@ integer frtn
 
     elsif msg=WM_PAINT then
         -- get the DC & paint coordinates
-        struct = allocate_Paint()
-        hdc = c_func(xBeginPaint,{hwnd,struct})
-        temp = peek4u({struct+PAINTSTRUCT_rcPaint,4})
+        atom pPaint = allocate_Paint()
+        hdc = c_func(xBeginPaint,{hwnd,pPaint})
+        temp = peek4u({pPaint+PAINTSTRUCT_rcPaint,4})
         -- extract client paint coords & send to the handler routine with the DC
         if iHandler!=UNDEFINED then
             void = call_func(iHandler, {id, msg, hdc, temp})
         end if
         -- release the DC
-        c_proc(xEndPaint, {hwnd, struct})
+        c_proc(xEndPaint, {hwnd, pPaint})
         return 0
 
     elsif msg=WM_KEYDOWN 
@@ -6857,14 +6808,14 @@ integer frtn
                 -- get the coords of the arrow when the message was made
                 temp = c_func(xGetMessagePos,{})
                 -- populate a structure
-                struct = allocate_TextSpace(sizeofstruct(TC_HITTESTINFO))
-                poke4(struct+POINT_x, and_bits(temp, #FFFF))
-                poke4(struct+POINT_Y, floor(temp/#10000))
+                atom pStruct = allocate_TextSpace(sizeofstruct(TC_HITTESTINFO))
+                poke4(pStruct+POINT_x, and_bits(temp, #FFFF))
+                poke4(pStruct+POINT_Y, floor(temp/#10000))
                 -- convert coords
-                void = c_func(xScreenToClient,{hwnd,struct})
+                void = c_func(xScreenToClient,{hwnd,pStruct})
                 -- test coords to see if a hit was definitely made on a tab
-                temp = sendMessage(id, TCM_HITTEST, 0, struct) + 1
-                if temp and and_bits(peek4u(struct+TC_HITTESTINFO_flags), TCHT_ONITEM) then -- valid hit
+                temp = sendMessage(id, TCM_HITTEST, 0, pStruct) + 1
+                if temp and and_bits(peek4u(pStruct+TC_HITTESTINFO_flags), TCHT_ONITEM) then -- valid hit
                     temp = ObjectChildren[id][temp] -- temp is now the id of the tabitem
                     if ObjectExtra[temp]=0 then -- has struck a disabled tab item
                         return True -- to prevent change

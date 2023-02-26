@@ -101,62 +101,37 @@ integer xLoadIcon, xLoadCursor, xGetStockObject, xRegisterClassEx,
         xGetClientRect, xDrawText, xEndPaint, xPostQuitMessage, xDefWindowProc,
         xGetLastError
 
-procedure not_found(sequence name)
-    crash("Couldn't find " & name)
-end procedure
-
-function link_dll(sequence name)
-    -- dynamically link a dll
-    atom lib = open_dll(name)
-    if lib=NULL then not_found(name) end if
-    return lib
-end function
-
-function link_c_func(atom dll, sequence name, sequence args, atom result)
-    -- dynamically link a C routine as a function
-    integer handle = define_c_func(dll, name, args, result)
-    if handle=-1 then not_found(name) end if
-    return handle
-end function
-
-function link_c_proc(atom dll, sequence name, sequence args)
-    -- dynamically link a C routine as a procedure
-    integer handle = define_c_proc(dll, name, args)
-    if handle=-1 then not_found(name) end if
-    return handle
-end function
-
 procedure link_dll_routines()
     -- get handles to all dll routines that we need
 
-    atom user32 = link_dll("user32.dll"),
-         gdi32 = link_dll("gdi32.dll"),
-         winmm = link_dll("winmm.dll"),
-         kernel32 = link_dll("kernel32.dll")
+    atom user32 = open_dll("user32.dll"),
+         gdi32 = open_dll("gdi32.dll"),
+         winmm = open_dll("winmm.dll"),
+         kernel32 = open_dll("kernel32.dll")
 
-    xLoadIcon = link_c_func(user32, "LoadIconA", {C_POINTER, C_INT}, C_INT)
-    xLoadCursor = link_c_func(user32, "LoadCursorA", {C_POINTER, C_INT}, C_INT)
-    xGetStockObject = link_c_func(gdi32, "GetStockObject", {C_INT}, C_INT)
-    xRegisterClassEx = link_c_func(user32, "RegisterClassExA", {C_POINTER}, C_INT)
-    xCreateWindowEx = link_c_func(user32, "CreateWindowExA",
+    xLoadIcon = define_c_func(user32, "LoadIconA", {C_PTR, C_INT}, C_INT)
+    xLoadCursor = define_c_func(user32, "LoadCursorA", {C_PTR, C_INT}, C_INT)
+    xGetStockObject = define_c_func(gdi32, "GetStockObject", {C_INT}, C_INT)
+    xRegisterClassEx = define_c_func(user32, "RegisterClassExA", {C_PTR}, C_INT)
+    xCreateWindowEx = define_c_func(user32, "CreateWindowExA",
                                   {C_INT, C_INT,C_INT,C_INT,C_INT,C_INT,C_INT,C_INT,C_INT,C_INT,C_INT,C_INT},
                                   C_INT)
-    xShowWindow = link_c_proc(user32, "ShowWindow", {C_INT, C_INT})
-    xUpdateWindow = link_c_proc(user32, "UpdateWindow", {C_INT})
-    xGetMessage = link_c_func(user32, "GetMessageA",
+    xShowWindow = define_c_proc(user32, "ShowWindow", {C_INT, C_INT})
+    xUpdateWindow = define_c_proc(user32, "UpdateWindow", {C_INT})
+    xGetMessage = define_c_func(user32, "GetMessageA",
                              {C_INT, C_INT, C_INT, C_INT}, C_INT)
-    xTranslateMessage = link_c_proc(user32, "TranslateMessage", {C_INT})
-    xDispatchMessage = link_c_proc(user32, "DispatchMessageA", {C_INT})
-    xPlaySound = link_c_proc(winmm, "PlaySound", {C_INT, C_INT, C_INT})
-    xBeginPaint = link_c_func(user32, "BeginPaint", {C_INT, C_POINTER}, C_INT)
-    xGetClientRect = link_c_proc(user32, "GetClientRect", {C_INT, C_POINTER})
-    xDrawText = link_c_proc(user32, "DrawTextA",
+    xTranslateMessage = define_c_proc(user32, "TranslateMessage", {C_INT})
+    xDispatchMessage = define_c_proc(user32, "DispatchMessageA", {C_INT})
+    xPlaySound = define_c_proc(winmm, "PlaySound", {C_INT, C_INT, C_INT})
+    xBeginPaint = define_c_func(user32, "BeginPaint", {C_INT, C_PTR}, C_INT)
+    xGetClientRect = define_c_proc(user32, "GetClientRect", {C_INT, C_PTR})
+    xDrawText = define_c_proc(user32, "DrawTextA",
                            {C_INT, C_INT, C_INT, C_INT, C_INT})
-    xEndPaint = link_c_proc(user32, "EndPaint", {C_INT, C_INT})
-    xPostQuitMessage = link_c_proc(user32, "PostQuitMessage", {C_INT})
-    xDefWindowProc = link_c_func(user32, "DefWindowProcA",
+    xEndPaint = define_c_proc(user32, "EndPaint", {C_INT, C_INT})
+    xPostQuitMessage = define_c_proc(user32, "PostQuitMessage", {C_INT})
+    xDefWindowProc = define_c_func(user32, "DefWindowProcA",
                                 {C_INT, C_INT, C_INT, C_INT}, C_INT)
-    xGetLastError = link_c_func(kernel32,"GetLastError",{},C_INT)
+    xGetLastError = define_c_func(kernel32,"GetLastError",{},C_INT)
 end procedure
 
 link_dll_routines()

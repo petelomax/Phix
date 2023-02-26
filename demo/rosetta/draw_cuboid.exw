@@ -86,9 +86,9 @@ function canvas_resize_cb(Ihandle /*canvas*/)
 end function
 
 function key_cb(Ihandle /*ih*/, atom c)
-    if c=K_ESC then 
-        return IUP_CLOSE
-    elsif c=K_UP then
+    if c=K_ESC then return IUP_CLOSE end if -- (standard practice for me)
+    if c=K_F5 then return IUP_DEFAULT end if -- (let browser reload work)
+    if c=K_UP then
         for i=1 to 8 do
             y[i] += z[i]*Sx*S   -- rotate vertices in Y-Z plane
             z[i] -= y[i]*Sx*S
@@ -113,7 +113,7 @@ function key_cb(Ihandle /*ih*/, atom c)
     elsif c='-' then
         Size = max( 10,Size-5)
     elsif c=' ' then
-        IupSetInt(hTimer,"RUN",not IupGetInt(hTimer,"RUN"))
+        IupToggleInt(hTimer,"RUN")
     end if
     IupUpdate(canvas)
     return IUP_CONTINUE
@@ -144,7 +144,7 @@ procedure main()
     IupSetCallback(dlg, "KEY_CB",  Icallback("key_cb"))
     IupShow(dlg)
     IupSetAttribute(canvas, "RASTERSIZE", NULL)
-    hTimer = IupTimer(Icallback("timer_cb"), 40)
+--  hTimer = IupTimer(Icallback("timer_cb"), 40)
     if platform()!=JS then
         IupMainLoop()
         IupClose()

@@ -958,6 +958,7 @@ integer iThis
 --  make accessmode an integer, stored /4 to avoid int/float conversions
 --  make sharemode and createmode integers too
 --!/*
+--printf(1,"file %s, accessmode:#%x, createmode:#%x, sharemode:#%x\n",{filepath,accessmode*4,createmode,sharemode})
         #ilASM{
             [PE32]
                 mov eax,[accessmode]            -- (/4)

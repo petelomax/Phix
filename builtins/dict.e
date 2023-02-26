@@ -156,11 +156,12 @@ global procedure setd(object key, object data, integer tid=1)
     roots[tid] = insertNode(roots[tid], key, data, tid)
 end procedure
 
-global procedure putd(object key, object data, integer tid=1)
---21/10/21...
---  setd(key, data, tid=1)
-    setd(key, data, tid)
-end procedure
+--4/11/22 now properly aliased in psym.e, in a way that p2js understands
+--global procedure putd(object key, object data, integer tid=1)
+----21/10/21...
+----    setd(key, data, tid=1)
+--  setd(key, data, tid)
+--end procedure
 
 -- (old name) now handled via psym.e/syminit()/Alias():
 --global procedure putd(object key, object data, integer tid=1)
@@ -337,7 +338,7 @@ end procedure
 --end function
 --constant r_gpkv = routine_id("gpk_visitor")
 
-function traverser(sequence res, integer node, bool partial, object pkey, integer tid, bool rev)
+function traverser(sequence res, integer node, bool partial, object pkey, integer tid, bool rev, bKeys=true)
     if node!=NULL then
         object tt = trees[tid],
                key = tt[node+KEY],
@@ -350,13 +351,13 @@ function traverser(sequence res, integer node, bool partial, object pkey, intege
             {left,right} = {right,left}
         end if
         if left!=NULL then
-            res = traverser(res, left, partial, pkey, tid, rev)
+            res = traverser(res, left, partial, pkey, tid, rev, bKeys)
         end if  
         if c>=0 and (not partial or length(res)=0) then
-            res = append(res,key)
+            res = append(res,iff(bKeys?key:data))
         end if
         if right!=NULL and (not partial or length(res)=0) then
-            res = traverser(res, right, partial, pkey, tid, rev)
+            res = traverser(res, right, partial, pkey, tid, rev, bKeys)
         end if
     end if
     return res
@@ -367,7 +368,7 @@ global function getd_partial_key(object pkey, integer tid=1, bool rev=false)
 --if 0 then
 --  gpk = defaults[tid]
 --  if roots[tid]!=0 then
---      {} = traverse_key(roots[tid], r_gpkv, pkey, NULL, tid, rev)
+--      {} = traverse_key(roots[tid], r_gpkv, pkey, NULL, tid, rev, bKeys)
 --  end if
 --  return gpk
 --end if
@@ -380,12 +381,12 @@ global function getd_partial_key(object pkey, integer tid=1, bool rev=false)
     return res
 end function
 
-global function getd_all_keys(integer tid=1)
+global function getd_all_keys(integer tid=1, bool bKeys=true)
     check_tid(tid)
 --p2js:
 --  return traverser({}, roots[tid], false, NULL, tid, false)
     sequence res = {}
-    res = traverser(res, roots[tid], false, NULL, tid, false)
+    res = traverser(res, roots[tid], false, NULL, tid, false, bKeys)
     return res
 end function
 

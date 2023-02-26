@@ -1172,7 +1172,7 @@ integer ch, n, asize = 1, sidx = idx+1
         ch = s[sidx+1]
         if ch<'0' then exit end if
         if ch>'9' then exit end if
-        n = n*10+ch-'0'
+        n = n*10 + (ch-'0')
         sidx += 1
         asize += 1
     end while

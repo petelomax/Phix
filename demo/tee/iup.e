@@ -8,9 +8,7 @@ global type Ihandle(integer /*i*/)
 end type
 
 atom iup = open_dll({"win32\\iup.dll", "libiup.so"})
-if iup=0 then ?9/0 end if
 atom iupimglib = open_dll({"win32\\iupimglib.dll", "libiupimglib.so"})
-if iupimglib=0 then ?9/0 end if
 
 public constant EXIT_SUCCESS = 0
 public constant EXIT_FAILURE = 1
@@ -37,7 +35,7 @@ atom pstr = peek4u(ptr)
         if length(strings)=max then
             exit
         end if
-        ptr += sizeof(C_POINTER)
+        ptr += sizeof(C_PTR)
 --      pstr = peek_pointer( ptr )
         pstr = peek4u(ptr)
     end while
@@ -1178,7 +1176,7 @@ public constant IUP_IMGBLANK = "IMGBLANK"
 public constant IUP_IMGPAPER = "IMGPAPER"
 
 public constant -- function delcarations
-        xIupOpen                          = define_c_func(iup, "+IupOpen", {C_POINTER,C_POINTER}, C_INT),
+        xIupOpen                          = define_c_func(iup, "+IupOpen", {C_PTR,C_PTR}, C_INT),
         xIupClose                         = define_c_proc(iup, "+IupClose", {}),
         xIupImageLibOpen                  = define_c_proc(iupimglib, "+IupImageLibOpen", {}),
         xIupMainLoop                      = define_c_func(iup, "+IupMainLoop", {}, C_INT),
@@ -1187,188 +1185,188 @@ public constant -- function delcarations
         xIupMainLoopLevel                 = define_c_func(iup, "+IupMainLoopLevel", {}, C_INT),
         xIupFlush                         = define_c_proc(iup, "+IupFlush", {}),
         xIupExitLoop                      = define_c_proc(iup, "+IupExitLoop", {}),
-        xIupRecordInput                   = define_c_func(iup, "+IupRecordInput", {C_POINTER,C_INT}, C_INT),
-        xIupPlayInput                     = define_c_func(iup, "+IupPlayInput", {C_POINTER}, C_INT),
-        xIupUpdate                        = define_c_proc(iup, "+IupUpdate", {C_POINTER}),
-        xIupUpdateChildren                = define_c_proc(iup, "+IupUpdateChildren", {C_POINTER}),
-        xIupRedraw                        = define_c_proc(iup, "+IupRedraw", {C_POINTER,C_INT}),
-        xIupRefresh                       = define_c_proc(iup, "+IupRefresh", {C_POINTER}),
-        xIupRefreshChildren               = define_c_proc(iup, "+IupRefreshChildren", {C_POINTER}),
-        xIupHelp                          = define_c_func(iup, "+IupHelp", {C_POINTER}, C_INT),
-        xIupLoad                          = define_c_func(iup, "+IupLoad", {C_POINTER}, C_POINTER),
-        xIupLoadBuffer                    = define_c_func(iup, "+IupLoadBuffer", {C_POINTER}, C_POINTER),
-        xIupVersion                       = define_c_func(iup, "+IupVersion", {}, C_POINTER),
-        xIupVersionDate                   = define_c_func(iup, "+IupVersionDate", {}, C_POINTER),
+        xIupRecordInput                   = define_c_func(iup, "+IupRecordInput", {C_PTR,C_INT}, C_INT),
+        xIupPlayInput                     = define_c_func(iup, "+IupPlayInput", {C_PTR}, C_INT),
+        xIupUpdate                        = define_c_proc(iup, "+IupUpdate", {C_PTR}),
+        xIupUpdateChildren                = define_c_proc(iup, "+IupUpdateChildren", {C_PTR}),
+        xIupRedraw                        = define_c_proc(iup, "+IupRedraw", {C_PTR,C_INT}),
+        xIupRefresh                       = define_c_proc(iup, "+IupRefresh", {C_PTR}),
+        xIupRefreshChildren               = define_c_proc(iup, "+IupRefreshChildren", {C_PTR}),
+        xIupHelp                          = define_c_func(iup, "+IupHelp", {C_PTR}, C_INT),
+        xIupLoad                          = define_c_func(iup, "+IupLoad", {C_PTR}, C_PTR),
+        xIupLoadBuffer                    = define_c_func(iup, "+IupLoadBuffer", {C_PTR}, C_PTR),
+        xIupVersion                       = define_c_func(iup, "+IupVersion", {}, C_PTR),
+        xIupVersionDate                   = define_c_func(iup, "+IupVersionDate", {}, C_PTR),
         xIupVersionNumber                 = define_c_func(iup, "+IupVersionNumber", {}, C_INT),
-        xIupSetLanguage                   = define_c_proc(iup, "+IupSetLanguage", {C_POINTER}),
-        xIupGetLanguage                   = define_c_func(iup, "+IupGetLanguage", {}, C_POINTER),
-        xIupSetLanguageString             = define_c_proc(iup, "+IupSetLanguageString", {C_POINTER,C_POINTER}),
-        xIupStoreLanguageString           = define_c_proc(iup, "+IupStoreLanguageString", {C_POINTER,C_POINTER}),
-        xIupGetLanguageString             = define_c_func(iup, "+IupGetLanguageString", {C_POINTER}, C_POINTER),
-        xIupSetLanguagePack               = define_c_proc(iup, "+IupSetLanguagePack", {C_POINTER}),
-        xIupDestroy                       = define_c_proc(iup, "+IupDestroy", {C_POINTER}),
-        xIupDetach                        = define_c_proc(iup, "+IupDetach", {C_POINTER}),
-        xIupAppend                        = define_c_func(iup, "+IupAppend", {C_POINTER,C_POINTER}, C_POINTER),
-        xIupInsert                        = define_c_func(iup, "+IupInsert", {C_POINTER,C_POINTER,C_POINTER}, C_POINTER),
-        xIupGetChild                      = define_c_func(iup, "+IupGetChild", {C_POINTER,C_INT}, C_POINTER),
-        xIupGetChildPos                   = define_c_func(iup, "+IupGetChildPos", {C_POINTER,C_POINTER}, C_INT),
-        xIupGetChildCount                 = define_c_func(iup, "+IupGetChildCount", {C_POINTER}, C_INT),
-        xIupGetNextChild                  = define_c_func(iup, "+IupGetNextChild", {C_POINTER,C_POINTER}, C_POINTER),
-        xIupGetBrother                    = define_c_func(iup, "+IupGetBrother", {C_POINTER}, C_POINTER),
-        xIupGetParent                     = define_c_func(iup, "+IupGetParent", {C_POINTER}, C_POINTER),
-        xIupGetDialog                     = define_c_func(iup, "+IupGetDialog", {C_POINTER}, C_POINTER),
-        xIupGetDialogChild                = define_c_func(iup, "+IupGetDialogChild", {C_POINTER,C_POINTER}, C_POINTER),
-        xIupReparent                      = define_c_func(iup, "+IupReparent", {C_POINTER,C_POINTER,C_POINTER}, C_INT),
-        xIupPopup                         = define_c_func(iup, "+IupPopup", {C_POINTER,C_INT,C_INT}, C_INT),
-        xIupShow                          = define_c_func(iup, "+IupShow", {C_POINTER}, C_INT),
-        xIupShowXY                        = define_c_func(iup, "+IupShowXY", {C_POINTER,C_INT,C_INT}, C_INT),
-        xIupHide                          = define_c_func(iup, "+IupHide", {C_POINTER}, C_INT),
-        xIupMap                           = define_c_func(iup, "+IupMap", {C_POINTER}, C_INT),
-        xIupUnmap                         = define_c_proc(iup, "+IupUnmap", {C_POINTER}),
-        xIupResetAttribute                = define_c_proc(iup, "+IupResetAttribute", {C_POINTER,C_POINTER}),
-        xIupGetAllAttributes              = define_c_func(iup, "+IupGetAllAttributes", {C_POINTER,C_POINTER,C_INT}, C_INT),
-        xIupSetAttributes                 = define_c_func(iup, "+IupSetAttributes", {C_POINTER,C_POINTER}, C_POINTER),
-        xIupGetAttributes                 = define_c_func(iup, "+IupGetAttributes", {C_POINTER}, C_POINTER),
-        xIupSetAttribute                  = define_c_proc(iup, "+IupSetAttribute", {C_POINTER,C_POINTER,C_POINTER}),
-        xIupSetStrAttribute               = define_c_proc(iup, "+IupSetStrAttribute", {C_POINTER,C_POINTER,C_POINTER}),
-        xIupSetInt                        = define_c_proc(iup, "+IupSetInt", {C_POINTER,C_POINTER,C_INT}),
-        xIupSetFloat                      = define_c_proc(iup, "+IupSetFloat", {C_POINTER,C_POINTER,C_FLOAT}),
-        xIupSetDouble                     = define_c_proc(iup, "+IupSetDouble", {C_POINTER,C_POINTER,C_DOUBLE}),
-        xIupSetRGB                        = define_c_proc(iup, "+IupSetRGB", {C_POINTER,C_POINTER,C_UCHAR,C_UCHAR,C_UCHAR}),
-        xIupGetAttribute                  = define_c_func(iup, "+IupGetAttribute", {C_POINTER,C_POINTER}, C_POINTER),
-        xIupGetInt                        = define_c_func(iup, "+IupGetInt", {C_POINTER,C_POINTER}, C_INT),
-        xIupGetInt2                       = define_c_func(iup, "+IupGetInt2", {C_POINTER,C_POINTER}, C_INT),
-        xIupGetIntInt                     = define_c_func(iup, "+IupGetIntInt", {C_POINTER,C_POINTER,C_POINTER,C_POINTER}, C_INT),
-        xIupGetFloat                      = define_c_func(iup, "+IupGetFloat", {C_POINTER,C_POINTER}, C_FLOAT),
-        xIupGetDouble                     = define_c_func(iup, "+IupGetDouble", {C_POINTER,C_POINTER}, C_DOUBLE),
-        xIupGetRGB                        = define_c_proc(iup, "+IupGetRGB", {C_POINTER,C_POINTER,C_POINTER,C_POINTER,C_POINTER}),
-        xIupSetAttributeId                = define_c_proc(iup, "+IupSetAttributeId", {C_POINTER,C_POINTER,C_INT,C_POINTER}),
-        xIupSetStrAttributeId             = define_c_proc(iup, "+IupSetStrAttributeId", {C_POINTER,C_POINTER,C_INT,C_POINTER}),
-        xIupSetIntId                      = define_c_proc(iup, "+IupSetIntId", {C_POINTER,C_POINTER,C_INT,C_INT}),
-        xIupSetFloatId                    = define_c_proc(iup, "+IupSetFloatId", {C_POINTER,C_POINTER,C_INT,C_FLOAT}),
-        xIupSetDoubleId                   = define_c_proc(iup, "+IupSetDoubleId", {C_POINTER,C_POINTER,C_INT,C_DOUBLE}),
-        xIupSetRGBId                      = define_c_proc(iup, "+IupSetRGBId", {C_POINTER,C_POINTER,C_INT,C_UCHAR,C_UCHAR,C_UCHAR}),
-        xIupGetAttributeId                = define_c_func(iup, "+IupGetAttributeId", {C_POINTER,C_POINTER,C_INT}, C_POINTER),
-        xIupGetIntId                      = define_c_func(iup, "+IupGetIntId", {C_POINTER,C_POINTER,C_INT}, C_INT),
-        xIupGetFloatId                    = define_c_func(iup, "+IupGetFloatId", {C_POINTER,C_POINTER,C_INT}, C_FLOAT),
-        xIupGetDoubleId                   = define_c_func(iup, "+IupGetDoubleId", {C_POINTER,C_POINTER,C_INT}, C_DOUBLE),
-        xIupGetRGBId                      = define_c_proc(iup, "+IupGetRGBId", {C_POINTER,C_POINTER,C_INT,C_POINTER,C_POINTER,C_POINTER}),
-        xIupSetAttributeId2               = define_c_proc(iup, "+IupSetAttributeId2", {C_POINTER,C_POINTER,C_INT,C_INT,C_POINTER}),
-        xIupSetStrAttributeId2            = define_c_proc(iup, "+IupSetStrAttributeId2", {C_POINTER,C_POINTER,C_INT,C_INT,C_POINTER}),
-        xIupSetIntId2                     = define_c_proc(iup, "+IupSetIntId2", {C_POINTER,C_POINTER,C_INT,C_INT,C_INT}),
-        xIupSetFloatId2                   = define_c_proc(iup, "+IupSetFloatId2", {C_POINTER,C_POINTER,C_INT,C_INT,C_FLOAT}),
-        xIupSetDoubleId2                  = define_c_proc(iup, "+IupSetDoubleId2", {C_POINTER,C_POINTER,C_INT,C_INT,C_DOUBLE}),
-        xIupSetRGBId2                     = define_c_proc(iup, "+IupSetRGBId2", {C_POINTER,C_POINTER,C_INT,C_INT,C_UCHAR,C_UCHAR,C_UCHAR}),
-        xIupGetAttributeId2               = define_c_func(iup, "+IupGetAttributeId2", {C_POINTER,C_POINTER,C_INT,C_INT}, C_POINTER),
-        xIupGetIntId2                     = define_c_func(iup, "+IupGetIntId2", {C_POINTER,C_POINTER,C_INT,C_INT}, C_INT),
-        xIupGetFloatId2                   = define_c_func(iup, "+IupGetFloatId2", {C_POINTER,C_POINTER,C_INT,C_INT}, C_FLOAT),
-        xIupGetDoubleId2                  = define_c_func(iup, "+IupGetDoubleId2", {C_POINTER,C_POINTER,C_INT,C_INT}, C_DOUBLE),
-        xIupGetRGBId2                     = define_c_proc(iup, "+IupGetRGBId2", {C_POINTER,C_POINTER,C_INT,C_INT,C_POINTER,C_POINTER,C_POINTER}),
-        xIupSetGlobal                     = define_c_proc(iup, "+IupSetGlobal", {C_POINTER,C_POINTER}),
-        xIupSetStrGlobal                  = define_c_proc(iup, "+IupSetStrGlobal", {C_POINTER,C_POINTER}),
-        xIupGetGlobal                     = define_c_func(iup, "+IupGetGlobal", {C_POINTER}, C_POINTER),
-        xIupSetFocus                      = define_c_func(iup, "+IupSetFocus", {C_POINTER}, C_POINTER),
-        xIupGetFocus                      = define_c_func(iup, "+IupGetFocus", {}, C_POINTER),
-        xIupPreviousField                 = define_c_func(iup, "+IupPreviousField", {C_POINTER}, C_POINTER),
-        xIupNextField                     = define_c_func(iup, "+IupNextField", {C_POINTER}, C_POINTER),
-        xIupGetCallback                   = define_c_func(iup, "+IupGetCallback", {C_POINTER,C_POINTER}, C_POINTER),
-        xIupSetCallback                   = define_c_func(iup, "+IupSetCallback", {C_POINTER,C_POINTER,C_POINTER}, C_POINTER),
-        xIupGetFunction                   = define_c_func(iup, "+IupGetFunction", {C_POINTER}, C_POINTER),
-        xIupSetFunction                   = define_c_func(iup, "+IupSetFunction", {C_POINTER,C_POINTER}, C_POINTER),
-        xIupGetHandle                     = define_c_func(iup, "+IupGetHandle", {C_POINTER}, C_POINTER),
-        xIupSetHandle                     = define_c_func(iup, "+IupSetHandle", {C_POINTER,C_POINTER}, C_POINTER),
-        xIupGetAllNames                   = define_c_func(iup, "+IupGetAllNames", {C_POINTER,C_INT}, C_INT),
-        xIupGetAllDialogs                 = define_c_func(iup, "+IupGetAllDialogs", {C_POINTER,C_INT}, C_INT),
-        xIupGetName                       = define_c_func(iup, "+IupGetName", {C_POINTER}, C_POINTER),
-        xIupSetAttributeHandle            = define_c_proc(iup, "+IupSetAttributeHandle", {C_POINTER,C_POINTER,C_POINTER}),
-        xIupGetAttributeHandle            = define_c_func(iup, "+IupGetAttributeHandle", {C_POINTER,C_POINTER}, C_POINTER),
-        xIupGetClassName                  = define_c_func(iup, "+IupGetClassName", {C_POINTER}, C_POINTER),
-        xIupGetClassType                  = define_c_func(iup, "+IupGetClassType", {C_POINTER}, C_POINTER),
-        xIupGetAllClasses                 = define_c_func(iup, "+IupGetAllClasses", {C_POINTER,C_INT}, C_INT),
-        xIupGetClassAttributes            = define_c_func(iup, "+IupGetClassAttributes", {C_POINTER,C_POINTER,C_INT}, C_INT),
-        xIupGetClassCallbacks             = define_c_func(iup, "+IupGetClassCallbacks", {C_POINTER,C_POINTER,C_INT}, C_INT),
-        xIupSaveClassAttributes           = define_c_proc(iup, "+IupSaveClassAttributes", {C_POINTER}),
-        xIupCopyClassAttributes           = define_c_proc(iup, "+IupCopyClassAttributes", {C_POINTER,C_POINTER}),
-        xIupSetClassDefaultAttribute      = define_c_proc(iup, "+IupSetClassDefaultAttribute", {C_POINTER,C_POINTER,C_POINTER}),
-        xIupClassMatch                    = define_c_func(iup, "+IupClassMatch", {C_POINTER,C_POINTER}, C_INT),
-        xIupCreate                        = define_c_func(iup, "+IupCreatev", {C_POINTER,C_POINTER}, C_POINTER),
-        xIupFill                          = define_c_func(iup, "+IupFill", {}, C_POINTER),
-        xIupRadio                         = define_c_func(iup, "+IupRadio", {C_POINTER}, C_POINTER),
-        xIupVbox                          = define_c_func(iup, "+IupVboxv", {C_POINTER}, C_POINTER),
-        xIupZbox                          = define_c_func(iup, "+IupZboxv", {C_POINTER}, C_POINTER),
-        xIupHbox                          = define_c_func(iup, "+IupHboxv", {C_POINTER}, C_POINTER),
-        xIupNormalizer                    = define_c_func(iup, "+IupNormalizerv", {C_POINTER}, C_POINTER),
-        xIupCbox                          = define_c_func(iup, "+IupCboxv", {C_POINTER}, C_POINTER),
-        xIupSbox                          = define_c_func(iup, "+IupSbox", {C_POINTER}, C_POINTER),
-        xIupSplit                         = define_c_func(iup, "+IupSplit", {C_POINTER,C_POINTER}, C_POINTER),
-        xIupScrollBox                     = define_c_func(iup, "+IupScrollBox", {C_POINTER}, C_POINTER),
-        xIupGridBox                       = define_c_func(iup, "+IupGridBoxv", {C_POINTER}, C_POINTER),
-        xIupExpander                      = define_c_func(iup, "+IupExpander", {C_POINTER}, C_POINTER),
-        xIupDetachBox                     = define_c_func(iup, "+IupDetachBox", {C_POINTER}, C_POINTER),
-        xIupBackgroundBox                 = define_c_func(iup, "+IupBackgroundBox", {C_POINTER}, C_POINTER),
-        xIupFrame                         = define_c_func(iup, "+IupFrame", {C_POINTER}, C_POINTER),
-        xIupImage                         = define_c_func(iup, "+IupImage", {C_INT,C_INT,C_POINTER}, C_POINTER),
-        xIupImageRGB                      = define_c_func(iup, "+IupImageRGB", {C_INT,C_INT,C_POINTER}, C_POINTER),
-        xIupImageRGBA                     = define_c_func(iup, "+IupImageRGBA", {C_INT,C_INT,C_POINTER}, C_POINTER),
-        xIupItem                          = define_c_func(iup, "+IupItem", {C_POINTER,C_POINTER}, C_POINTER),
-        xIupSubmenu                       = define_c_func(iup, "+IupSubmenu", {C_POINTER,C_POINTER}, C_POINTER),
-        xIupSeparator                     = define_c_func(iup, "+IupSeparator", {}, C_POINTER),
-        xIupMenu                          = define_c_func(iup, "+IupMenuv", {C_POINTER}, C_POINTER),
-        xIupButton                        = define_c_func(iup, "+IupButton", {C_POINTER,C_POINTER}, C_POINTER),
-        xIupCanvas                        = define_c_func(iup, "+IupCanvas", {C_POINTER}, C_POINTER),
-        xIupDialog                        = define_c_func(iup, "+IupDialog", {C_POINTER}, C_POINTER),
-        xIupUser                          = define_c_func(iup, "+IupUser", {}, C_POINTER),
-        xIupLabel                         = define_c_func(iup, "+IupLabel", {C_POINTER}, C_POINTER),
-        xIupList                          = define_c_func(iup, "+IupList", {C_POINTER}, C_POINTER),
-        xIupText                          = define_c_func(iup, "+IupText", {C_POINTER}, C_POINTER),
-        xIupMultiLine                     = define_c_func(iup, "+IupMultiLine", {C_POINTER}, C_POINTER),
-        xIupToggle                        = define_c_func(iup, "+IupToggle", {C_POINTER,C_POINTER}, C_POINTER),
-        xIupTimer                         = define_c_func(iup, "+IupTimer", {}, C_POINTER),
-        xIupClipboard                     = define_c_func(iup, "+IupClipboard", {}, C_POINTER),
-        xIupProgressBar                   = define_c_func(iup, "+IupProgressBar", {}, C_POINTER),
-        xIupVal                           = define_c_func(iup, "+IupVal", {C_POINTER}, C_POINTER),
-        xIupTabs                          = define_c_func(iup, "+IupTabsv", {C_POINTER}, C_POINTER),
-        xIupTree                          = define_c_func(iup, "+IupTree", {}, C_POINTER),
-        xIupLink                          = define_c_func(iup, "+IupLink", {C_POINTER,C_POINTER}, C_POINTER),
-        xIupFlatButton                    = define_c_func(iup, "+IupFlatButton", {C_POINTER}, C_POINTER),
-        xIupSpin                          = define_c_func(iup, "+IupSpin", {}, C_POINTER),
-        xIupSpinbox                       = define_c_func(iup, "+IupSpinbox", {C_POINTER}, C_POINTER),
-        xIupSaveImageAsText               = define_c_func(iup, "+IupSaveImageAsText", {C_POINTER,C_POINTER,C_POINTER,C_POINTER}, C_INT),
-        xIupTextConvertLinColToPos        = define_c_proc(iup, "+IupTextConvertLinColToPos", {C_POINTER,C_INT,C_INT,C_POINTER}),
-        xIupTextConvertPosToLinCol        = define_c_proc(iup, "+IupTextConvertPosToLinCol", {C_POINTER,C_INT,C_POINTER,C_POINTER}),
-        xIupConvertXYToPos                = define_c_func(iup, "+IupConvertXYToPos", {C_POINTER,C_INT,C_INT}, C_INT),
-        xIupStoreGlobal                   = define_c_proc(iup, "+IupStoreGlobal", {C_POINTER,C_POINTER}),
-        xIupStoreAttribute                = define_c_proc(iup, "+IupStoreAttribute", {C_POINTER,C_POINTER,C_POINTER}),
-        xIupStoreAttributeId              = define_c_proc(iup, "+IupStoreAttributeId", {C_POINTER,C_POINTER,C_INT,C_POINTER}),
-        xIupStoreAttributeId2             = define_c_proc(iup, "+IupStoreAttributeId2", {C_POINTER,C_POINTER,C_INT,C_INT,C_POINTER}),
-        xIupTreeSetUserId                 = define_c_func(iup, "+IupTreeSetUserId", {C_POINTER,C_INT,C_POINTER}, C_INT),
-        xIupTreeGetUserId                 = define_c_func(iup, "+IupTreeGetUserId", {C_POINTER,C_INT}, C_POINTER),
-        xIupTreeGetId                     = define_c_func(iup, "+IupTreeGetId", {C_POINTER,C_POINTER}, C_INT),
-        xIupTreeSetAttributeHandle        = define_c_proc(iup, "+IupTreeSetAttributeHandle", {C_POINTER,C_POINTER,C_INT,C_POINTER}),
-        xIupTreeSetAttribute              = define_c_proc(iup, "+IupTreeSetAttribute", {C_POINTER,C_POINTER,C_INT,C_POINTER}),
-        xIupTreeStoreAttribute            = define_c_proc(iup, "+IupTreeStoreAttribute", {C_POINTER,C_POINTER,C_INT,C_POINTER}),
-        xIupTreeGetAttribute              = define_c_func(iup, "+IupTreeGetAttribute", {C_POINTER,C_POINTER,C_INT}, C_POINTER),
-        xIupTreeGetInt                    = define_c_func(iup, "+IupTreeGetInt", {C_POINTER,C_POINTER,C_INT}, C_INT),
-        xIupTreeGetFloat                  = define_c_func(iup, "+IupTreeGetFloat", {C_POINTER,C_POINTER,C_INT}, C_FLOAT),
-        xIupGetActionName                 = define_c_func(iup, "+IupGetActionName", {}, C_POINTER),
-        xIupMapFont                       = define_c_func(iup, "+IupMapFont", {C_POINTER}, C_POINTER),
-        xIupUnMapFont                     = define_c_func(iup, "+IupUnMapFont", {C_POINTER}, C_POINTER),
-        xIupFileDlg                       = define_c_func(iup, "+IupFileDlg", {}, C_POINTER),
-        xIupMessageDlg                    = define_c_func(iup, "+IupMessageDlg", {}, C_POINTER),
-        xIupColorDlg                      = define_c_func(iup, "+IupColorDlg", {}, C_POINTER),
-        xIupFontDlg                       = define_c_func(iup, "+IupFontDlg", {}, C_POINTER),
-        xIupProgressDlg                   = define_c_func(iup, "+IupProgressDlg", {}, C_POINTER),
-        xIupGetFile                       = define_c_func(iup, "+IupGetFile", {C_POINTER}, C_INT),
-        xIupMessage                       = define_c_proc(iup, "+IupMessage", {C_POINTER,C_POINTER}),
-        xIupAlarm                         = define_c_func(iup, "+IupAlarm", {C_POINTER,C_POINTER,C_POINTER,C_POINTER,C_POINTER}, C_INT),
-        xIupListDialog                    = define_c_func(iup, "+IupListDialog", {C_INT,C_POINTER,C_INT,C_POINTER,C_INT,C_INT,C_INT,C_POINTER}, C_INT),
-        xIupGetText                       = define_c_func(iup, "+IupGetText", {C_POINTER,C_POINTER}, C_INT),
-        xIupGetColor                      = define_c_func(iup, "+IupGetColor", {C_INT,C_INT,C_POINTER,C_POINTER,C_POINTER}, C_INT),
-        xIupGetParam                      = define_c_func(iup, "+IupGetParamv", {C_POINTER,C_POINTER,C_POINTER,C_POINTER,C_INT,C_INT,C_POINTER}, C_INT),
-        xIupParamf                        = define_c_func(iup, "+IupParamf", {C_POINTER}, C_POINTER),
-        xIupParamBox                      = define_c_func(iup, "+IupParamBox", {C_POINTER,C_POINTER,C_INT}, C_POINTER),
-        xIupLayoutDialog                  = define_c_func(iup, "+IupLayoutDialog", {C_POINTER}, C_POINTER),
-        xIupElementPropertiesDialog       = define_c_func(iup, "+IupElementPropertiesDialog", {C_POINTER}, C_POINTER),
+        xIupSetLanguage                   = define_c_proc(iup, "+IupSetLanguage", {C_PTR}),
+        xIupGetLanguage                   = define_c_func(iup, "+IupGetLanguage", {}, C_PTR),
+        xIupSetLanguageString             = define_c_proc(iup, "+IupSetLanguageString", {C_PTR,C_PTR}),
+        xIupStoreLanguageString           = define_c_proc(iup, "+IupStoreLanguageString", {C_PTR,C_PTR}),
+        xIupGetLanguageString             = define_c_func(iup, "+IupGetLanguageString", {C_PTR}, C_PTR),
+        xIupSetLanguagePack               = define_c_proc(iup, "+IupSetLanguagePack", {C_PTR}),
+        xIupDestroy                       = define_c_proc(iup, "+IupDestroy", {C_PTR}),
+        xIupDetach                        = define_c_proc(iup, "+IupDetach", {C_PTR}),
+        xIupAppend                        = define_c_func(iup, "+IupAppend", {C_PTR,C_PTR}, C_PTR),
+        xIupInsert                        = define_c_func(iup, "+IupInsert", {C_PTR,C_PTR,C_PTR}, C_PTR),
+        xIupGetChild                      = define_c_func(iup, "+IupGetChild", {C_PTR,C_INT}, C_PTR),
+        xIupGetChildPos                   = define_c_func(iup, "+IupGetChildPos", {C_PTR,C_PTR}, C_INT),
+        xIupGetChildCount                 = define_c_func(iup, "+IupGetChildCount", {C_PTR}, C_INT),
+        xIupGetNextChild                  = define_c_func(iup, "+IupGetNextChild", {C_PTR,C_PTR}, C_PTR),
+        xIupGetBrother                    = define_c_func(iup, "+IupGetBrother", {C_PTR}, C_PTR),
+        xIupGetParent                     = define_c_func(iup, "+IupGetParent", {C_PTR}, C_PTR),
+        xIupGetDialog                     = define_c_func(iup, "+IupGetDialog", {C_PTR}, C_PTR),
+        xIupGetDialogChild                = define_c_func(iup, "+IupGetDialogChild", {C_PTR,C_PTR}, C_PTR),
+        xIupReparent                      = define_c_func(iup, "+IupReparent", {C_PTR,C_PTR,C_PTR}, C_INT),
+        xIupPopup                         = define_c_func(iup, "+IupPopup", {C_PTR,C_INT,C_INT}, C_INT),
+        xIupShow                          = define_c_func(iup, "+IupShow", {C_PTR}, C_INT),
+        xIupShowXY                        = define_c_func(iup, "+IupShowXY", {C_PTR,C_INT,C_INT}, C_INT),
+        xIupHide                          = define_c_func(iup, "+IupHide", {C_PTR}, C_INT),
+        xIupMap                           = define_c_func(iup, "+IupMap", {C_PTR}, C_INT),
+        xIupUnmap                         = define_c_proc(iup, "+IupUnmap", {C_PTR}),
+        xIupResetAttribute                = define_c_proc(iup, "+IupResetAttribute", {C_PTR,C_PTR}),
+        xIupGetAllAttributes              = define_c_func(iup, "+IupGetAllAttributes", {C_PTR,C_PTR,C_INT}, C_INT),
+        xIupSetAttributes                 = define_c_func(iup, "+IupSetAttributes", {C_PTR,C_PTR}, C_PTR),
+        xIupGetAttributes                 = define_c_func(iup, "+IupGetAttributes", {C_PTR}, C_PTR),
+        xIupSetAttribute                  = define_c_proc(iup, "+IupSetAttribute", {C_PTR,C_PTR,C_PTR}),
+        xIupSetStrAttribute               = define_c_proc(iup, "+IupSetStrAttribute", {C_PTR,C_PTR,C_PTR}),
+        xIupSetInt                        = define_c_proc(iup, "+IupSetInt", {C_PTR,C_PTR,C_INT}),
+        xIupSetFloat                      = define_c_proc(iup, "+IupSetFloat", {C_PTR,C_PTR,C_FLOAT}),
+        xIupSetDouble                     = define_c_proc(iup, "+IupSetDouble", {C_PTR,C_PTR,C_DOUBLE}),
+        xIupSetRGB                        = define_c_proc(iup, "+IupSetRGB", {C_PTR,C_PTR,C_UCHAR,C_UCHAR,C_UCHAR}),
+        xIupGetAttribute                  = define_c_func(iup, "+IupGetAttribute", {C_PTR,C_PTR}, C_PTR),
+        xIupGetInt                        = define_c_func(iup, "+IupGetInt", {C_PTR,C_PTR}, C_INT),
+        xIupGetInt2                       = define_c_func(iup, "+IupGetInt2", {C_PTR,C_PTR}, C_INT),
+        xIupGetIntInt                     = define_c_func(iup, "+IupGetIntInt", {C_PTR,C_PTR,C_PTR,C_PTR}, C_INT),
+        xIupGetFloat                      = define_c_func(iup, "+IupGetFloat", {C_PTR,C_PTR}, C_FLOAT),
+        xIupGetDouble                     = define_c_func(iup, "+IupGetDouble", {C_PTR,C_PTR}, C_DOUBLE),
+        xIupGetRGB                        = define_c_proc(iup, "+IupGetRGB", {C_PTR,C_PTR,C_PTR,C_PTR,C_PTR}),
+        xIupSetAttributeId                = define_c_proc(iup, "+IupSetAttributeId", {C_PTR,C_PTR,C_INT,C_PTR}),
+        xIupSetStrAttributeId             = define_c_proc(iup, "+IupSetStrAttributeId", {C_PTR,C_PTR,C_INT,C_PTR}),
+        xIupSetIntId                      = define_c_proc(iup, "+IupSetIntId", {C_PTR,C_PTR,C_INT,C_INT}),
+        xIupSetFloatId                    = define_c_proc(iup, "+IupSetFloatId", {C_PTR,C_PTR,C_INT,C_FLOAT}),
+        xIupSetDoubleId                   = define_c_proc(iup, "+IupSetDoubleId", {C_PTR,C_PTR,C_INT,C_DOUBLE}),
+        xIupSetRGBId                      = define_c_proc(iup, "+IupSetRGBId", {C_PTR,C_PTR,C_INT,C_UCHAR,C_UCHAR,C_UCHAR}),
+        xIupGetAttributeId                = define_c_func(iup, "+IupGetAttributeId", {C_PTR,C_PTR,C_INT}, C_PTR),
+        xIupGetIntId                      = define_c_func(iup, "+IupGetIntId", {C_PTR,C_PTR,C_INT}, C_INT),
+        xIupGetFloatId                    = define_c_func(iup, "+IupGetFloatId", {C_PTR,C_PTR,C_INT}, C_FLOAT),
+        xIupGetDoubleId                   = define_c_func(iup, "+IupGetDoubleId", {C_PTR,C_PTR,C_INT}, C_DOUBLE),
+        xIupGetRGBId                      = define_c_proc(iup, "+IupGetRGBId", {C_PTR,C_PTR,C_INT,C_PTR,C_PTR,C_PTR}),
+        xIupSetAttributeId2               = define_c_proc(iup, "+IupSetAttributeId2", {C_PTR,C_PTR,C_INT,C_INT,C_PTR}),
+        xIupSetStrAttributeId2            = define_c_proc(iup, "+IupSetStrAttributeId2", {C_PTR,C_PTR,C_INT,C_INT,C_PTR}),
+        xIupSetIntId2                     = define_c_proc(iup, "+IupSetIntId2", {C_PTR,C_PTR,C_INT,C_INT,C_INT}),
+        xIupSetFloatId2                   = define_c_proc(iup, "+IupSetFloatId2", {C_PTR,C_PTR,C_INT,C_INT,C_FLOAT}),
+        xIupSetDoubleId2                  = define_c_proc(iup, "+IupSetDoubleId2", {C_PTR,C_PTR,C_INT,C_INT,C_DOUBLE}),
+        xIupSetRGBId2                     = define_c_proc(iup, "+IupSetRGBId2", {C_PTR,C_PTR,C_INT,C_INT,C_UCHAR,C_UCHAR,C_UCHAR}),
+        xIupGetAttributeId2               = define_c_func(iup, "+IupGetAttributeId2", {C_PTR,C_PTR,C_INT,C_INT}, C_PTR),
+        xIupGetIntId2                     = define_c_func(iup, "+IupGetIntId2", {C_PTR,C_PTR,C_INT,C_INT}, C_INT),
+        xIupGetFloatId2                   = define_c_func(iup, "+IupGetFloatId2", {C_PTR,C_PTR,C_INT,C_INT}, C_FLOAT),
+        xIupGetDoubleId2                  = define_c_func(iup, "+IupGetDoubleId2", {C_PTR,C_PTR,C_INT,C_INT}, C_DOUBLE),
+        xIupGetRGBId2                     = define_c_proc(iup, "+IupGetRGBId2", {C_PTR,C_PTR,C_INT,C_INT,C_PTR,C_PTR,C_PTR}),
+        xIupSetGlobal                     = define_c_proc(iup, "+IupSetGlobal", {C_PTR,C_PTR}),
+        xIupSetStrGlobal                  = define_c_proc(iup, "+IupSetStrGlobal", {C_PTR,C_PTR}),
+        xIupGetGlobal                     = define_c_func(iup, "+IupGetGlobal", {C_PTR}, C_PTR),
+        xIupSetFocus                      = define_c_func(iup, "+IupSetFocus", {C_PTR}, C_PTR),
+        xIupGetFocus                      = define_c_func(iup, "+IupGetFocus", {}, C_PTR),
+        xIupPreviousField                 = define_c_func(iup, "+IupPreviousField", {C_PTR}, C_PTR),
+        xIupNextField                     = define_c_func(iup, "+IupNextField", {C_PTR}, C_PTR),
+        xIupGetCallback                   = define_c_func(iup, "+IupGetCallback", {C_PTR,C_PTR}, C_PTR),
+        xIupSetCallback                   = define_c_func(iup, "+IupSetCallback", {C_PTR,C_PTR,C_PTR}, C_PTR),
+        xIupGetFunction                   = define_c_func(iup, "+IupGetFunction", {C_PTR}, C_PTR),
+        xIupSetFunction                   = define_c_func(iup, "+IupSetFunction", {C_PTR,C_PTR}, C_PTR),
+        xIupGetHandle                     = define_c_func(iup, "+IupGetHandle", {C_PTR}, C_PTR),
+        xIupSetHandle                     = define_c_func(iup, "+IupSetHandle", {C_PTR,C_PTR}, C_PTR),
+        xIupGetAllNames                   = define_c_func(iup, "+IupGetAllNames", {C_PTR,C_INT}, C_INT),
+        xIupGetAllDialogs                 = define_c_func(iup, "+IupGetAllDialogs", {C_PTR,C_INT}, C_INT),
+        xIupGetName                       = define_c_func(iup, "+IupGetName", {C_PTR}, C_PTR),
+        xIupSetAttributeHandle            = define_c_proc(iup, "+IupSetAttributeHandle", {C_PTR,C_PTR,C_PTR}),
+        xIupGetAttributeHandle            = define_c_func(iup, "+IupGetAttributeHandle", {C_PTR,C_PTR}, C_PTR),
+        xIupGetClassName                  = define_c_func(iup, "+IupGetClassName", {C_PTR}, C_PTR),
+        xIupGetClassType                  = define_c_func(iup, "+IupGetClassType", {C_PTR}, C_PTR),
+        xIupGetAllClasses                 = define_c_func(iup, "+IupGetAllClasses", {C_PTR,C_INT}, C_INT),
+        xIupGetClassAttributes            = define_c_func(iup, "+IupGetClassAttributes", {C_PTR,C_PTR,C_INT}, C_INT),
+        xIupGetClassCallbacks             = define_c_func(iup, "+IupGetClassCallbacks", {C_PTR,C_PTR,C_INT}, C_INT),
+        xIupSaveClassAttributes           = define_c_proc(iup, "+IupSaveClassAttributes", {C_PTR}),
+        xIupCopyClassAttributes           = define_c_proc(iup, "+IupCopyClassAttributes", {C_PTR,C_PTR}),
+        xIupSetClassDefaultAttribute      = define_c_proc(iup, "+IupSetClassDefaultAttribute", {C_PTR,C_PTR,C_PTR}),
+        xIupClassMatch                    = define_c_func(iup, "+IupClassMatch", {C_PTR,C_PTR}, C_INT),
+        xIupCreate                        = define_c_func(iup, "+IupCreatev", {C_PTR,C_PTR}, C_PTR),
+        xIupFill                          = define_c_func(iup, "+IupFill", {}, C_PTR),
+        xIupRadio                         = define_c_func(iup, "+IupRadio", {C_PTR}, C_PTR),
+        xIupVbox                          = define_c_func(iup, "+IupVboxv", {C_PTR}, C_PTR),
+        xIupZbox                          = define_c_func(iup, "+IupZboxv", {C_PTR}, C_PTR),
+        xIupHbox                          = define_c_func(iup, "+IupHboxv", {C_PTR}, C_PTR),
+        xIupNormalizer                    = define_c_func(iup, "+IupNormalizerv", {C_PTR}, C_PTR),
+        xIupCbox                          = define_c_func(iup, "+IupCboxv", {C_PTR}, C_PTR),
+        xIupSbox                          = define_c_func(iup, "+IupSbox", {C_PTR}, C_PTR),
+        xIupSplit                         = define_c_func(iup, "+IupSplit", {C_PTR,C_PTR}, C_PTR),
+        xIupScrollBox                     = define_c_func(iup, "+IupScrollBox", {C_PTR}, C_PTR),
+        xIupGridBox                       = define_c_func(iup, "+IupGridBoxv", {C_PTR}, C_PTR),
+        xIupExpander                      = define_c_func(iup, "+IupExpander", {C_PTR}, C_PTR),
+        xIupDetachBox                     = define_c_func(iup, "+IupDetachBox", {C_PTR}, C_PTR),
+        xIupBackgroundBox                 = define_c_func(iup, "+IupBackgroundBox", {C_PTR}, C_PTR),
+        xIupFrame                         = define_c_func(iup, "+IupFrame", {C_PTR}, C_PTR),
+        xIupImage                         = define_c_func(iup, "+IupImage", {C_INT,C_INT,C_PTR}, C_PTR),
+        xIupImageRGB                      = define_c_func(iup, "+IupImageRGB", {C_INT,C_INT,C_PTR}, C_PTR),
+        xIupImageRGBA                     = define_c_func(iup, "+IupImageRGBA", {C_INT,C_INT,C_PTR}, C_PTR),
+        xIupItem                          = define_c_func(iup, "+IupItem", {C_PTR,C_PTR}, C_PTR),
+        xIupSubmenu                       = define_c_func(iup, "+IupSubmenu", {C_PTR,C_PTR}, C_PTR),
+        xIupSeparator                     = define_c_func(iup, "+IupSeparator", {}, C_PTR),
+        xIupMenu                          = define_c_func(iup, "+IupMenuv", {C_PTR}, C_PTR),
+        xIupButton                        = define_c_func(iup, "+IupButton", {C_PTR,C_PTR}, C_PTR),
+        xIupCanvas                        = define_c_func(iup, "+IupCanvas", {C_PTR}, C_PTR),
+        xIupDialog                        = define_c_func(iup, "+IupDialog", {C_PTR}, C_PTR),
+        xIupUser                          = define_c_func(iup, "+IupUser", {}, C_PTR),
+        xIupLabel                         = define_c_func(iup, "+IupLabel", {C_PTR}, C_PTR),
+        xIupList                          = define_c_func(iup, "+IupList", {C_PTR}, C_PTR),
+        xIupText                          = define_c_func(iup, "+IupText", {C_PTR}, C_PTR),
+        xIupMultiLine                     = define_c_func(iup, "+IupMultiLine", {C_PTR}, C_PTR),
+        xIupToggle                        = define_c_func(iup, "+IupToggle", {C_PTR,C_PTR}, C_PTR),
+        xIupTimer                         = define_c_func(iup, "+IupTimer", {}, C_PTR),
+        xIupClipboard                     = define_c_func(iup, "+IupClipboard", {}, C_PTR),
+        xIupProgressBar                   = define_c_func(iup, "+IupProgressBar", {}, C_PTR),
+        xIupVal                           = define_c_func(iup, "+IupVal", {C_PTR}, C_PTR),
+        xIupTabs                          = define_c_func(iup, "+IupTabsv", {C_PTR}, C_PTR),
+        xIupTree                          = define_c_func(iup, "+IupTree", {}, C_PTR),
+        xIupLink                          = define_c_func(iup, "+IupLink", {C_PTR,C_PTR}, C_PTR),
+        xIupFlatButton                    = define_c_func(iup, "+IupFlatButton", {C_PTR}, C_PTR),
+        xIupSpin                          = define_c_func(iup, "+IupSpin", {}, C_PTR),
+        xIupSpinbox                       = define_c_func(iup, "+IupSpinbox", {C_PTR}, C_PTR),
+        xIupSaveImageAsText               = define_c_func(iup, "+IupSaveImageAsText", {C_PTR,C_PTR,C_PTR,C_PTR}, C_INT),
+        xIupTextConvertLinColToPos        = define_c_proc(iup, "+IupTextConvertLinColToPos", {C_PTR,C_INT,C_INT,C_PTR}),
+        xIupTextConvertPosToLinCol        = define_c_proc(iup, "+IupTextConvertPosToLinCol", {C_PTR,C_INT,C_PTR,C_PTR}),
+        xIupConvertXYToPos                = define_c_func(iup, "+IupConvertXYToPos", {C_PTR,C_INT,C_INT}, C_INT),
+        xIupStoreGlobal                   = define_c_proc(iup, "+IupStoreGlobal", {C_PTR,C_PTR}),
+        xIupStoreAttribute                = define_c_proc(iup, "+IupStoreAttribute", {C_PTR,C_PTR,C_PTR}),
+        xIupStoreAttributeId              = define_c_proc(iup, "+IupStoreAttributeId", {C_PTR,C_PTR,C_INT,C_PTR}),
+        xIupStoreAttributeId2             = define_c_proc(iup, "+IupStoreAttributeId2", {C_PTR,C_PTR,C_INT,C_INT,C_PTR}),
+        xIupTreeSetUserId                 = define_c_func(iup, "+IupTreeSetUserId", {C_PTR,C_INT,C_PTR}, C_INT),
+        xIupTreeGetUserId                 = define_c_func(iup, "+IupTreeGetUserId", {C_PTR,C_INT}, C_PTR),
+        xIupTreeGetId                     = define_c_func(iup, "+IupTreeGetId", {C_PTR,C_PTR}, C_INT),
+        xIupTreeSetAttributeHandle        = define_c_proc(iup, "+IupTreeSetAttributeHandle", {C_PTR,C_PTR,C_INT,C_PTR}),
+        xIupTreeSetAttribute              = define_c_proc(iup, "+IupTreeSetAttribute", {C_PTR,C_PTR,C_INT,C_PTR}),
+        xIupTreeStoreAttribute            = define_c_proc(iup, "+IupTreeStoreAttribute", {C_PTR,C_PTR,C_INT,C_PTR}),
+        xIupTreeGetAttribute              = define_c_func(iup, "+IupTreeGetAttribute", {C_PTR,C_PTR,C_INT}, C_PTR),
+        xIupTreeGetInt                    = define_c_func(iup, "+IupTreeGetInt", {C_PTR,C_PTR,C_INT}, C_INT),
+        xIupTreeGetFloat                  = define_c_func(iup, "+IupTreeGetFloat", {C_PTR,C_PTR,C_INT}, C_FLOAT),
+        xIupGetActionName                 = define_c_func(iup, "+IupGetActionName", {}, C_PTR),
+        xIupMapFont                       = define_c_func(iup, "+IupMapFont", {C_PTR}, C_PTR),
+        xIupUnMapFont                     = define_c_func(iup, "+IupUnMapFont", {C_PTR}, C_PTR),
+        xIupFileDlg                       = define_c_func(iup, "+IupFileDlg", {}, C_PTR),
+        xIupMessageDlg                    = define_c_func(iup, "+IupMessageDlg", {}, C_PTR),
+        xIupColorDlg                      = define_c_func(iup, "+IupColorDlg", {}, C_PTR),
+        xIupFontDlg                       = define_c_func(iup, "+IupFontDlg", {}, C_PTR),
+        xIupProgressDlg                   = define_c_func(iup, "+IupProgressDlg", {}, C_PTR),
+        xIupGetFile                       = define_c_func(iup, "+IupGetFile", {C_PTR}, C_INT),
+        xIupMessage                       = define_c_proc(iup, "+IupMessage", {C_PTR,C_PTR}),
+        xIupAlarm                         = define_c_func(iup, "+IupAlarm", {C_PTR,C_PTR,C_PTR,C_PTR,C_PTR}, C_INT),
+        xIupListDialog                    = define_c_func(iup, "+IupListDialog", {C_INT,C_PTR,C_INT,C_PTR,C_INT,C_INT,C_INT,C_PTR}, C_INT),
+        xIupGetText                       = define_c_func(iup, "+IupGetText", {C_PTR,C_PTR}, C_INT),
+        xIupGetColor                      = define_c_func(iup, "+IupGetColor", {C_INT,C_INT,C_PTR,C_PTR,C_PTR}, C_INT),
+        xIupGetParam                      = define_c_func(iup, "+IupGetParamv", {C_PTR,C_PTR,C_PTR,C_PTR,C_INT,C_INT,C_PTR}, C_INT),
+        xIupParamf                        = define_c_func(iup, "+IupParamf", {C_PTR}, C_PTR),
+        xIupParamBox                      = define_c_func(iup, "+IupParamBox", {C_PTR,C_PTR,C_INT}, C_PTR),
+        xIupLayoutDialog                  = define_c_func(iup, "+IupLayoutDialog", {C_PTR}, C_PTR),
+        xIupElementPropertiesDialog       = define_c_func(iup, "+IupElementPropertiesDialog", {C_PTR}, C_PTR),
 $
 
 if xIupSetCallback=0 then ?9/0 end if
@@ -1702,7 +1700,7 @@ end procedure
 --int IupGetAllAttributes(Ihandle* ih, char** names, int n);
 public function IupGetAllAttributes(atom ih)
 atom n = c_func(xIupGetAllAttributes, {ih,NULL,0})
-atom ptr = allocate_data(sizeof(C_POINTER)*n, 1)
+atom ptr = allocate_data(sizeof(C_PTR)*n, 1)
     n = c_func(xIupGetAllAttributes, {ih,ptr,n})
     return peek_string_pointer_array(ptr, n)
 end function
@@ -2087,7 +2085,7 @@ end function
 --int IupGetAllNames(char** names, int n);
 public function IupGetAllNames()
 atom n = c_func(xIupGetAllNames, {NULL,0})
-atom ptr = allocate_data(sizeof(C_POINTER)*n, 1)
+atom ptr = allocate_data(sizeof(C_PTR)*n, 1)
     n = c_func(xIupGetAllNames, {ptr,n})
     return peek_string_pointer_array(ptr, n)
 end function
@@ -2095,7 +2093,7 @@ end function
 --int IupGetAllDialogs(char** names, int n);
 public function IupGetAllDialogs()
 atom n = c_func(xIupGetAllDialogs, {NULL,0})
-atom ptr = allocate_data(sizeof(C_POINTER)*n, 1)
+atom ptr = allocate_data(sizeof(C_PTR)*n, 1)
     n = c_func(xIupGetAllDialogs, {ptr,n})
     return peek_string_pointer_array(ptr, n)
 end function
@@ -2140,7 +2138,7 @@ end function
 --int IupGetAllClasses(char** names, int n);
 public function IupGetAllClasses()
 atom n = c_func(xIupGetAllClasses, {NULL,0})
-atom ptr = allocate_data(sizeof(C_POINTER)*n, 1)
+atom ptr = allocate_data(sizeof(C_PTR)*n, 1)
     n = c_func(xIupGetAllClasses, {ptr,n})
     return peek_string_pointer_array(ptr, n)
 end function
@@ -2148,7 +2146,7 @@ end function
 --int IupGetClassAttributes(const char* classname, char** names, int n);
 public function IupGetClassAttributes(object classname = NULL)
 atom n = c_func(xIupGetClassAttributes, {classname,NULL,0})
-atom ptr = allocate_data(sizeof(C_POINTER)*n, 1)
+atom ptr = allocate_data(sizeof(C_PTR)*n, 1)
     n = c_func(xIupGetClassAttributes, {classname,ptr,n})
     return peek_string_pointer_array(ptr, n)
 end function
@@ -2156,7 +2154,7 @@ end function
 --int IupGetClassCallbacks(const char* classname, char** names, int n);
 public function IupGetClassCallbacks(object classname = NULL)
 atom n = c_func(xIupGetClassCallbacks, {classname,NULL,0})
-atom ptr = allocate_data(sizeof(C_POINTER)*n, 1)
+atom ptr = allocate_data(sizeof(C_PTR)*n, 1)
     n = c_func(xIupGetClassCallbacks, {classname,ptr,n})
     return peek_string_pointer_array(ptr, n)
 end function
@@ -2850,18 +2848,15 @@ $
 /************************************************************************/
 
 atom zlib1 = open_dll({ "win32\\zlib1.dll", "??libiupim.so", "??libiupim.dylib" })
-if zlib1=0 then ?9/0 end if
 atom im = open_dll({ "win32\\im.dll", "??libiupim.so", "??libiupim.dylib" })
-if im=0 then ?9/0 end if
 atom iupim = open_dll({ "win32\\iupim.dll", "libiupim.so" })
-if iupim=0 then ?9/0 end if
 
 public constant -- function delcarations
-        xIupLoadImage                     = define_c_func( iupim, "+IupLoadImage", {C_POINTER}, C_POINTER ),
-        xIupSaveImage                     = define_c_func( iupim, "+IupSaveImage", {C_POINTER,C_POINTER,C_POINTER}, C_INT ),
-        xIupGetNativeHandleImage          = define_c_func( iupim, "+IupGetNativeHandleImage", {C_POINTER}, C_POINTER ),
-        xIupGetImageNativeHandle          = define_c_func( iupim, "+IupGetImageNativeHandle", {C_POINTER}, C_POINTER ),
-        xIupImageFromImImage              = define_c_func( iupim, "+IupImageFromImImage", {C_POINTER}, C_POINTER ),
+        xIupLoadImage                     = define_c_func( iupim, "+IupLoadImage", {C_PTR}, C_PTR ),
+        xIupSaveImage                     = define_c_func( iupim, "+IupSaveImage", {C_PTR,C_PTR,C_PTR}, C_INT ),
+        xIupGetNativeHandleImage          = define_c_func( iupim, "+IupGetNativeHandleImage", {C_PTR}, C_PTR ),
+        xIupGetImageNativeHandle          = define_c_func( iupim, "+IupGetImageNativeHandle", {C_PTR}, C_PTR ),
+        xIupImageFromImImage              = define_c_func( iupim, "+IupImageFromImImage", {C_PTR}, C_PTR ),
 $
 
 --Ihandle* IupLoadImage(const char* file_name);
@@ -2898,34 +2893,33 @@ public function IupImageFromImImage(atom image)
 end function
 
 --atom iup = open_dll({"bin\\iup.dll", "libiup.so"})
---if iup=0 then ?9/0 end if
 
 public constant -- function delcarations
-        xIupConfig                        = define_c_func(iup, "+IupConfig", {}, C_POINTER),
-        xIupConfigLoad                    = define_c_func(iup, "+IupConfigLoad", {C_POINTER}, C_INT),
-        xIupConfigSave                    = define_c_func(iup, "+IupConfigSave", {C_POINTER}, C_INT),
-        xIupConfigSetVariableStr          = define_c_proc(iup, "+IupConfigSetVariableStr", {C_POINTER,C_POINTER,C_POINTER,C_POINTER}),
-        xIupConfigSetVariableStrId        = define_c_proc(iup, "+IupConfigSetVariableStrId", {C_POINTER,C_POINTER,C_POINTER,C_INT,C_POINTER}),
-        xIupConfigSetVariableInt          = define_c_proc(iup, "+IupConfigSetVariableInt", {C_POINTER,C_POINTER,C_POINTER,C_INT}),
-        xIupConfigSetVariableIntId        = define_c_proc(iup, "+IupConfigSetVariableIntId", {C_POINTER,C_POINTER,C_POINTER,C_INT,C_INT}),
-        xIupConfigSetVariableDouble       = define_c_proc(iup, "+IupConfigSetVariableDouble", {C_POINTER,C_POINTER,C_POINTER,C_DOUBLE}),
-        xIupConfigSetVariableDoubleId     = define_c_proc(iup, "+IupConfigSetVariableDoubleId", {C_POINTER,C_POINTER,C_POINTER,C_INT,C_DOUBLE}),
-        xIupConfigGetVariableStr          = define_c_func(iup, "+IupConfigGetVariableStr", {C_POINTER,C_POINTER,C_POINTER}, C_POINTER),
-        xIupConfigGetVariableStrId        = define_c_func(iup, "+IupConfigGetVariableStrId", {C_POINTER,C_POINTER,C_POINTER,C_INT}, C_POINTER),
-        xIupConfigGetVariableInt          = define_c_func(iup, "+IupConfigGetVariableInt", {C_POINTER,C_POINTER,C_POINTER}, C_INT),
-        xIupConfigGetVariableIntId        = define_c_func(iup, "+IupConfigGetVariableIntId", {C_POINTER,C_POINTER,C_POINTER,C_INT}, C_INT),
-        xIupConfigGetVariableDouble       = define_c_func(iup, "+IupConfigGetVariableDouble", {C_POINTER,C_POINTER,C_POINTER}, C_DOUBLE),
-        xIupConfigGetVariableDoubleId     = define_c_func(iup, "+IupConfigGetVariableDoubleId", {C_POINTER,C_POINTER,C_POINTER,C_INT}, C_DOUBLE),
-        xIupConfigGetVariableStrDef       = define_c_func(iup, "+IupConfigGetVariableStrDef", {C_POINTER,C_POINTER,C_POINTER,C_POINTER}, C_POINTER),
-        xIupConfigGetVariableStrIdDef     = define_c_func(iup, "+IupConfigGetVariableStrIdDef", {C_POINTER,C_POINTER,C_POINTER,C_INT,C_POINTER}, C_POINTER),
-        xIupConfigGetVariableIntDef       = define_c_func(iup, "+IupConfigGetVariableIntDef", {C_POINTER,C_POINTER,C_POINTER,C_INT}, C_INT),
-        xIupConfigGetVariableIntIdDef     = define_c_func(iup, "+IupConfigGetVariableIntIdDef", {C_POINTER,C_POINTER,C_POINTER,C_INT,C_INT}, C_INT),
-        xIupConfigGetVariableDoubleDef    = define_c_func(iup, "+IupConfigGetVariableDoubleDef", {C_POINTER,C_POINTER,C_POINTER,C_DOUBLE}, C_DOUBLE),
-        xIupConfigGetVariableDoubleIdDef  = define_c_func(iup, "+IupConfigGetVariableDoubleIdDef", {C_POINTER,C_POINTER,C_POINTER,C_INT,C_DOUBLE}, C_DOUBLE),
-        xIupConfigRecentInit              = define_c_proc(iup, "+IupConfigRecentInit", {C_POINTER,C_POINTER,C_POINTER,C_INT}),
-        xIupConfigRecentUpdate            = define_c_proc(iup, "+IupConfigRecentUpdate", {C_POINTER,C_POINTER}),
-        xIupConfigDialogShow              = define_c_proc(iup, "+IupConfigDialogShow", {C_POINTER,C_POINTER,C_POINTER}),
-        xIupConfigDialogClosed            = define_c_proc(iup, "+IupConfigDialogClosed", {C_POINTER,C_POINTER,C_POINTER}),
+        xIupConfig                        = define_c_func(iup, "+IupConfig", {}, C_PTR),
+        xIupConfigLoad                    = define_c_func(iup, "+IupConfigLoad", {C_PTR}, C_INT),
+        xIupConfigSave                    = define_c_func(iup, "+IupConfigSave", {C_PTR}, C_INT),
+        xIupConfigSetVariableStr          = define_c_proc(iup, "+IupConfigSetVariableStr", {C_PTR,C_PTR,C_PTR,C_PTR}),
+        xIupConfigSetVariableStrId        = define_c_proc(iup, "+IupConfigSetVariableStrId", {C_PTR,C_PTR,C_PTR,C_INT,C_PTR}),
+        xIupConfigSetVariableInt          = define_c_proc(iup, "+IupConfigSetVariableInt", {C_PTR,C_PTR,C_PTR,C_INT}),
+        xIupConfigSetVariableIntId        = define_c_proc(iup, "+IupConfigSetVariableIntId", {C_PTR,C_PTR,C_PTR,C_INT,C_INT}),
+        xIupConfigSetVariableDouble       = define_c_proc(iup, "+IupConfigSetVariableDouble", {C_PTR,C_PTR,C_PTR,C_DOUBLE}),
+        xIupConfigSetVariableDoubleId     = define_c_proc(iup, "+IupConfigSetVariableDoubleId", {C_PTR,C_PTR,C_PTR,C_INT,C_DOUBLE}),
+        xIupConfigGetVariableStr          = define_c_func(iup, "+IupConfigGetVariableStr", {C_PTR,C_PTR,C_PTR}, C_PTR),
+        xIupConfigGetVariableStrId        = define_c_func(iup, "+IupConfigGetVariableStrId", {C_PTR,C_PTR,C_PTR,C_INT}, C_PTR),
+        xIupConfigGetVariableInt          = define_c_func(iup, "+IupConfigGetVariableInt", {C_PTR,C_PTR,C_PTR}, C_INT),
+        xIupConfigGetVariableIntId        = define_c_func(iup, "+IupConfigGetVariableIntId", {C_PTR,C_PTR,C_PTR,C_INT}, C_INT),
+        xIupConfigGetVariableDouble       = define_c_func(iup, "+IupConfigGetVariableDouble", {C_PTR,C_PTR,C_PTR}, C_DOUBLE),
+        xIupConfigGetVariableDoubleId     = define_c_func(iup, "+IupConfigGetVariableDoubleId", {C_PTR,C_PTR,C_PTR,C_INT}, C_DOUBLE),
+        xIupConfigGetVariableStrDef       = define_c_func(iup, "+IupConfigGetVariableStrDef", {C_PTR,C_PTR,C_PTR,C_PTR}, C_PTR),
+        xIupConfigGetVariableStrIdDef     = define_c_func(iup, "+IupConfigGetVariableStrIdDef", {C_PTR,C_PTR,C_PTR,C_INT,C_PTR}, C_PTR),
+        xIupConfigGetVariableIntDef       = define_c_func(iup, "+IupConfigGetVariableIntDef", {C_PTR,C_PTR,C_PTR,C_INT}, C_INT),
+        xIupConfigGetVariableIntIdDef     = define_c_func(iup, "+IupConfigGetVariableIntIdDef", {C_PTR,C_PTR,C_PTR,C_INT,C_INT}, C_INT),
+        xIupConfigGetVariableDoubleDef    = define_c_func(iup, "+IupConfigGetVariableDoubleDef", {C_PTR,C_PTR,C_PTR,C_DOUBLE}, C_DOUBLE),
+        xIupConfigGetVariableDoubleIdDef  = define_c_func(iup, "+IupConfigGetVariableDoubleIdDef", {C_PTR,C_PTR,C_PTR,C_INT,C_DOUBLE}, C_DOUBLE),
+        xIupConfigRecentInit              = define_c_proc(iup, "+IupConfigRecentInit", {C_PTR,C_PTR,C_PTR,C_INT}),
+        xIupConfigRecentUpdate            = define_c_proc(iup, "+IupConfigRecentUpdate", {C_PTR,C_PTR}),
+        xIupConfigDialogShow              = define_c_proc(iup, "+IupConfigDialogShow", {C_PTR,C_PTR,C_PTR}),
+        xIupConfigDialogClosed            = define_c_proc(iup, "+IupConfigDialogClosed", {C_PTR,C_PTR,C_PTR}),
 $
 
 --Ihandle* IupConfig(void);
@@ -3115,12 +3109,11 @@ public procedure IupConfigDialogClosed(atom ih, atom dialog, object name = NULL)
 end procedure
 
 atom iup_scintilla = open_dll({ "win32\\iup_scintilla.dll", "libiup_scintilla.so" })
-if iup_scintilla=0 then ?9/0 end if
 
 public constant -- function delcarations
         xIupScintillaOpen                 = define_c_proc( iup_scintilla, "+IupScintillaOpen", {} ),
-        xIupScintilla                     = define_c_func( iup_scintilla, "+IupScintilla", {}, C_POINTER ),
-        xIupScintillaSendMessage          = define_c_func( iup_scintilla, "+IupScintillaSendMessage", {C_POINTER,C_UINT,C_POINTER,C_POINTER}, C_POINTER ),
+        xIupScintilla                     = define_c_func( iup_scintilla, "+IupScintilla", {}, C_PTR ),
+        xIupScintillaSendMessage          = define_c_func( iup_scintilla, "+IupScintillaSendMessage", {C_PTR,C_UINT,C_PTR,C_PTR}, C_PTR ),
 $
 
 --void IupScintillaOpen(void);

@@ -1,0 +1,99 @@
+--
+-- demo\rosetta\Decision_tables.exw
+--
+with javascript_semantics
+--make this a gui: https://rosettacode.org/wiki/Decision_tables#Phix
+constant conditions = """
+YYYYNNNN:Printer does not print
+YYNNYYNN:A red light is flashing
+YNYNYNYN:Printer is unrecognized
+"""
+constant actions = """
+--X-----:Check the power cable
+X-X-----:Check the printer-computer cable
+X-X-X-X-:Ensure printer software is installed
+XX--XX--:Check/replace ink
+-X-X----:Check for paper jam
+"""
+ 
+procedure validate(sequence s, integer l, string letters, name)
+    assert(even(length(s)),"uneven %s pairings",{name})
+--  if remainder(length(s),2) then
+--      throw(sprintf("uneven %s pairings",{name}))
+--  end if
+    for i=1 to length(s) by 2 do
+        string si = s[i]
+        assert(length(si)=l,"mismatched lengths (line %d)",i)
+--      if length(si)!=l then
+--          throw(sprintf("mismatched lengths (line %d)",i))
+--      end if
+        for j=1 to length(si) do
+            assert(find(si[j],letters),"invalid letter [%c not in %s]",{si[j],letters})
+--          if not find(si[j],letters) then
+--              throw(sprintf("invalid letter [%c not in %s]",{si[j],letters}))
+--          end if
+        end for
+    end for
+end procedure
+ 
+constant qa = split_any(conditions,"\n:"),
+         sa = split_any(actions,"\n:")
+integer l = length(qa[1])
+validate(qa,l,"YN","condition")
+validate(sa,l,"-X","action")
+ 
+function ask_questions()
+    sequence valid = repeat(true,l)
+    integer a
+    for i=1 to length(qa) by 2 do
+        while true do
+            puts(1,qa[i+1]&":? ")
+            a = upper(wait_key())
+            if find(a,"YN") then exit end if        
+            puts(1,"\nplease enter Y or N\n")
+        end while
+        printf(1,"%c\n",a)
+        for j=1 to l do
+            if a!=qa[i][j] then valid[j] = false end if
+        end for
+    end for
+    return valid
+end function
+ 
+procedure show_answers(integer k)
+    integer count = 0
+    for i=1 to length(sa) by 2 do
+        if sa[i][k]='X' then
+            puts(1,sa[i+1]&"\n")
+            count += 1
+        end if
+    end for
+    printf(1,"%d answers\n",count)
+end procedure
+ 
+procedure main()
+--  try
+--      validate(qa,l,"YN","condition")
+--      validate(sa,l,"-X","action")
+--  catch e
+--      ?e
+--      abort(0)
+--  end try
+    sequence valid = ask_questions()
+    integer sv = sum(valid)
+    if sv=0 then
+        puts(1,"no answers")
+    elsif sv=1 then
+        show_answers(find(true,valid))
+    else
+        puts(1,"multiple answer sets\n")
+        for i=1 to length(valid) do
+            if valid[i] then
+                printf(1,"for %d:\n",i)
+                show_answers(i)
+            end if
+        end for
+    end if
+end procedure
+main()
+

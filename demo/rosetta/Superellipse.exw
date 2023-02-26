@@ -4,8 +4,6 @@
 --
 with javascript_semantics
 atom n = 2.5        -- '+' and '-' increase/decrease in steps of 0.1
-integer a = 200,    -- resize window to set this from canvas width
-        b = 200     -- resize window to set this from canvas height
 
 include pGUI.e
 
@@ -14,9 +12,10 @@ cdCanvas cddbuffer, cdcanvas
 
 function redraw_cb(Ihandle /*ih*/)
 
-    integer {hw, hh} = sq_floor_div(IupGetIntInt(canvas, "DRAWSIZE"),2)
-    a = max(10,hw-100)  -- (initially 200, from 602x   )
-    b = max(10,hh-50)   -- (initially 200, from    x502)
+    integer {w, h} = IupGetIntInt(canvas, "DRAWSIZE"),
+             hw = floor(w/2), hh = floor(h/2),
+             a = max(10,hw-100),    -- (initially 200, from 602x   )
+             b = max(10,hh-50)      -- (initially 200, from    x502)
     sequence y = b&repeat(0,a)
     for x=1 to a-1 do
         y[x+1] = floor(exp(log(1-power(x/a,n))/n)*b)
@@ -45,7 +44,8 @@ function map_cb(Ihandle ih)
 end function
 
 function key_cb(Ihandle /*ih*/, atom c)
-    if c=K_ESC then return IUP_CLOSE end if
+    if c=K_ESC then return IUP_CLOSE end if -- (standard practice for me)
+    if c=K_F5 then return IUP_DEFAULT end if -- (let browser reload work)
     if c='+' then
         n = min(130,n+0.1) -- (otherwise [>130] power overflow)
         IupUpdate(canvas)

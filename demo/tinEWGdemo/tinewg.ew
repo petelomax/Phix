@@ -444,8 +444,6 @@ end procedure
 
 -- HELPER FUNCTIONS --
 
-
-
 global function LoWord(atom dword)
     return and_bits(#0000FFFF,dword)
 end function
@@ -453,41 +451,6 @@ end function
 global function HiWord(atom dword)
     return floor(and_bits(#FFFF0000,dword)/#FFFF)
 end function
-
-global procedure not_found(sequence name)
-    puts(1, "Couldn't find " & name)
-    puts(1, " Maybe this could lead to some trouble...\n")
-    sleep(5)
---  abort(1)
-end procedure
-
-global function link_c_func(atom dll, sequence name, sequence args, atom result)
--- dynamically link a C routine as a Euphoria function
-integer handlea
-
-    handlea = define_c_func(dll, name, args, result)
-    if handlea=-1 then
-        not_found(name)
-        return -1
-    else
-        return handlea
-    end if
-end function
-
-global function link_c_proc(atom dll, sequence name, sequence args)
--- dynamically link a C routine as a Euphoria function
-integer handlea
-
-    handlea = define_c_proc(dll, name, args)
-    if handlea=-1 then
-        not_found(name)
-        return -1
-    else
-        return handlea
-    end if
-end function
-
-
 
 -- END HELPER FUNCTIONS
 
@@ -497,225 +460,178 @@ end function
 
 procedure link_dll_routines()
 -- get handles to all dll routines that we need
-atom richedit,comctl,user32, gdi32, winmm,kernel32,uxtheme,comdlg,shell32,richedit4,winspool
-    comctl = open_dll("comctl32.dll")
-    if comctl=NULL then
-        not_found("comctl32.dll")
-    end if
-    comdlg = open_dll("comdlg32.dll")
-    if comdlg=NULL then
-        not_found("comdlg32.dll")
-    end if
+    atom comctl = open_dll("comctl32.dll"),
+         comdlg = open_dll("comdlg32.dll"),
+         user32 = open_dll("user32.dll"),
+         gdi32 = open_dll("gdi32.dll"),
+         winmm = open_dll("winmm.dll"),
+         kernel32 = open_dll("kernel32.dll"),
+         uxtheme = open_dll("uxtheme.dll"),
+         shell32 = open_dll("shell32.dll"),
+         richedit = open_dll("Riched20.dll"),
+         richedit4 = open_dll("msftedit.dll"),
+         winspool = open_dll("winspool.drv")
 
-    user32 = open_dll("user32.dll")
-    if user32=NULL then
-        not_found("user32.dll")
-    end if
-    gdi32 = open_dll("gdi32.dll")
-    if gdi32=NULL then
-        not_found("gdi32.dll")
-    end if
-    winmm = open_dll("winmm.dll")
-    if winmm=NULL then
-        not_found("winmm.dll")
-    end if
-    kernel32 = open_dll("kernel32.dll")
-    if kernel32=NULL then
-        not_found("kernel32.dll")
-    end if
-    uxtheme = open_dll("uxtheme.dll")
-    if uxtheme=NULL then
-        not_found("uxtheme.dll")
-    end if
-    shell32 = open_dll("shell32.dll")
-    if shell32=NULL then
-        not_found("shell32.dll")
-    end if
-
-    richedit = open_dll("Riched20.dll")
-    if richedit=NULL then
-        not_found("Riched20.dll")
-    end if
-
-    richedit4 = open_dll("msftedit.dll")
-    if richedit4=NULL then
-        not_found("msftedit.dll")
-    end if
-
-    winspool = open_dll("winspool.drv")
-    if winspool=NULL then
-        not_found("winspool.drv")
-    end if
-
-    myLoadIcon = link_c_func(user32, "LoadIconA", {C_POINTER, C_INT}, C_ULONG)
-    myLoadCursor = link_c_func(user32, "LoadCursorA", {C_POINTER, C_POINTER}, C_POINTER)
-    mySetCursor = link_c_func(user32,"SetCursor",{C_POINTER},C_INT)
-    myLoadImage = link_c_func(user32,"LoadImageA",{C_INT,C_INT,C_INT,C_INT,C_INT,C_INT},C_POINTER)
-    myGetStockObject = link_c_func(gdi32, "GetStockObject", {C_INT}, C_POINTER)
-    myRegisterClassEx = link_c_func(user32, "RegisterClassExA", {C_POINTER}, C_POINTER)
-    myCreateWindow = link_c_func(user32, "CreateWindowExA",
-                                 {C_ULONG, C_ULONG,C_ULONG,C_ULONG,C_INT,C_INT,C_INT,C_INT,C_HANDLE,C_HANDLE,C_ULONG,C_POINTER},
-                                 C_POINTER)
---  myCreate = link_c_func (user32, "CreateWindowA",
---                               {C_ULONG, C_ULONG,C_ULONG,C_ULONG,C_INT,C_INT,C_INT,C_INT,C_HANDLE,C_HANDLE,C_ULONG,C_POINTER},
---                               C_POINTER)
-
-    myShowWindow = link_c_proc(user32, "ShowWindow", {C_INT, C_INT})
-    myUpdateWindow = link_c_proc(user32, "UpdateWindow", {C_INT})
-    myGetMessage = link_c_func(user32, "GetMessageA",
-                               {C_POINTER, C_INT, C_INT, C_INT}, C_INT)
-    myPeekMessage = link_c_func(user32, "PeekMessageA",
-                                {C_POINTER, C_INT, C_INT, C_INT,C_INT}, C_INT)
-    myTranslateMessage = link_c_proc(user32, "TranslateMessage", {C_INT})
-    myDispatchMessage = link_c_proc(user32, "DispatchMessageA", {C_INT})
-    myPlaySound = link_c_proc(winmm, "PlaySound", {C_INT, C_INT, C_INT})
-    myBeginPaint = link_c_func(user32, "BeginPaint", {C_INT, C_POINTER}, C_INT)
-    myGetClientRect = link_c_func(user32, "GetClientRect", {C_INT, C_POINTER},C_INT)
-    myGetWindowRect = link_c_func(user32, "GetWindowRect", {C_INT, C_POINTER},C_INT)
-    myDrawText = link_c_proc(user32, "DrawTextA",
-                             {C_INT, C_INT, C_INT, C_INT, C_INT})
-    myEndPaint = link_c_proc(user32, "EndPaint", {C_INT, C_INT})
-    myPostQuitMessage = link_c_proc(user32, "PostQuitMessage", {C_INT})
-    myDefWindowProc = link_c_func(user32, "DefWindowProcA",
-                                  {C_INT, C_INT, C_INT, C_INT}, C_INT)
+    myLoadIcon = define_c_func(user32, "LoadIconA", {C_PTR, C_INT}, C_ULONG)
+    myLoadCursor = define_c_func(user32, "LoadCursorA", {C_PTR, C_PTR}, C_PTR)
+    mySetCursor = define_c_func(user32,"SetCursor",{C_PTR},C_INT)
+    myLoadImage = define_c_func(user32,"LoadImageA",{C_INT,C_INT,C_INT,C_INT,C_INT,C_INT},C_PTR)
+    myGetStockObject = define_c_func(gdi32, "GetStockObject", {C_INT}, C_PTR)
+    myRegisterClassEx = define_c_func(user32, "RegisterClassExA", {C_PTR}, C_PTR)
+    myCreateWindow = define_c_func(user32, "CreateWindowExA",{C_ULONG, C_ULONG,C_ULONG,C_ULONG,C_INT,C_INT,C_INT,C_INT,C_HANDLE,C_HANDLE,C_ULONG,C_PTR},C_PTR)
+--  myCreate = define_c_func (user32, "CreateWindowA",{C_ULONG, C_ULONG,C_ULONG,C_ULONG,C_INT,C_INT,C_INT,C_INT,C_HANDLE,C_HANDLE,C_ULONG,C_PTR},C_PTR)
+    myShowWindow = define_c_proc(user32, "ShowWindow", {C_INT, C_INT})
+    myUpdateWindow = define_c_proc(user32, "UpdateWindow", {C_INT})
+    myGetMessage = define_c_func(user32, "GetMessageA",{C_PTR, C_INT, C_INT, C_INT}, C_INT)
+    myPeekMessage = define_c_func(user32, "PeekMessageA",{C_PTR, C_INT, C_INT, C_INT,C_INT}, C_INT)
+    myTranslateMessage = define_c_proc(user32, "TranslateMessage", {C_INT})
+    myDispatchMessage = define_c_proc(user32, "DispatchMessageA", {C_INT})
+    myPlaySound = define_c_proc(winmm, "PlaySound", {C_INT, C_INT, C_INT})
+    myBeginPaint = define_c_func(user32, "BeginPaint", {C_INT, C_PTR}, C_INT)
+    myGetClientRect = define_c_func(user32, "GetClientRect", {C_INT, C_PTR},C_INT)
+    myGetWindowRect = define_c_func(user32, "GetWindowRect", {C_INT, C_PTR},C_INT)
+    myDrawText = define_c_proc(user32, "DrawTextA",{C_INT, C_INT, C_INT, C_INT, C_INT})
+    myEndPaint = define_c_proc(user32, "EndPaint", {C_INT, C_INT})
+    myPostQuitMessage = define_c_proc(user32, "PostQuitMessage", {C_INT})
+    myDefWindowProc = define_c_func(user32, "DefWindowProcA",{C_INT, C_INT, C_INT, C_INT}, C_INT)
 -- Meine erweiterungen
-    myMapVirtualKey = link_c_func(user32,"MapVirtualKeyA",{C_INT,C_INT},C_INT)
-    myPostMessage = link_c_func(user32,"PostMessageA",{C_POINTER,C_POINTER,C_POINTER,C_POINTER},C_INT)
-    mySendMessage = link_c_func(user32,"SendMessageA",{C_POINTER,C_POINTER,C_POINTER,C_POINTER},C_INT)
+    myMapVirtualKey = define_c_func(user32,"MapVirtualKeyA",{C_INT,C_INT},C_INT)
+    myPostMessage = define_c_func(user32,"PostMessageA",{C_PTR,C_PTR,C_PTR,C_PTR},C_INT)
+    mySendMessage = define_c_func(user32,"SendMessageA",{C_PTR,C_PTR,C_PTR,C_PTR},C_INT)
 
-    mykeybd_event = link_c_proc(user32,"keybd_event",{C_CHAR,C_CHAR,C_INT,C_INT})
-    myGetKeyState = link_c_func(user32,"GetKeyState",{C_INT},C_INT)
-    mySetWindowText = link_c_func(user32,"SetWindowTextA",{C_INT,C_POINTER},C_INT)
-    myGetWindowText = link_c_func(user32,"GetWindowTextA",{C_INT,C_POINTER,C_INT},C_INT)
-    myGetDesktopWindow = link_c_func(user32,"GetDesktopWindow",{},C_HANDLE)
-    mySetActiveWindow = link_c_func(user32,"SetActiveWindow",{C_INT},C_INT)
-    myGetActiveWindow = link_c_func(user32,"GetActiveWindow",{},C_INT)
-    myGetTopWindow = link_c_func(user32,"GetTopWindow",{C_INT},C_INT)
-    myGetNextWindow = link_c_func(user32,"GetWindow",{C_INT,C_INT},C_INT)
-    myMessageBox = link_c_func(user32,"MessageBoxA",{C_INT,C_POINTER,C_POINTER,C_INT},C_INT)
-    mySetForegroundWindow = link_c_func(user32,"SetForegroundWindow",{C_INT},C_INT)
-    mySetFocus = link_c_func(user32,"SetFocus",{C_INT},C_INT)
-    myBringWindowToTop = link_c_func(user32,"BringWindowToTop",{C_INT},C_INT)
-    myGetVersionEx = link_c_proc(kernel32,"GetVersionExA",{C_POINTER})
-    mySetWindowsHookEx = link_c_func(user32,"SetWindowsHookExA",{C_INT,C_POINTER,C_INT,C_INT},C_INT)
-    myUnhookWindowsHookEx = link_c_func(user32,"UnhookWindowsHookEx",{C_INT},C_INT)
-    myCallNextHookEx = link_c_func(user32,"CallNextHookEx",{C_INT,C_INT,C_INT,C_INT},C_INT)
-    myExitWindowsEx = link_c_func(user32,"ExitWindowsEx",{C_INT,C_INT},C_INT)
-    myGetClassName = link_c_func(user32,"GetClassNameA",{C_INT,C_POINTER,C_INT},C_INT)
-    mySleep = link_c_proc(kernel32,"Sleep",{C_POINTER})
-    myIsWindowVisible = link_c_func(user32,"IsWindowVisible",{C_POINTER},C_INT)
-    myIsIconic = link_c_func(user32,"IsIconic",{C_POINTER},C_INT)
-    myIsZoomed = link_c_func(user32,"IsZoomed",{C_POINTER},C_INT)
-    myEnumWindows = link_c_func(user32,"EnumWindows",{C_POINTER,C_POINTER},C_INT)
-    myFindWindow1 = link_c_func(user32,"FindWindowA",{C_INT,C_INT},C_INT)
-    myWinExec = link_c_func(kernel32,"WinExec",{C_POINTER,C_INT},C_INT)
-    myDestroyWindow = link_c_func(user32,"DestroyWindow",{C_HANDLE},C_INT)
+    mykeybd_event = define_c_proc(user32,"keybd_event",{C_CHAR,C_CHAR,C_INT,C_INT})
+    myGetKeyState = define_c_func(user32,"GetKeyState",{C_INT},C_INT)
+    mySetWindowText = define_c_func(user32,"SetWindowTextA",{C_INT,C_PTR},C_INT)
+    myGetWindowText = define_c_func(user32,"GetWindowTextA",{C_INT,C_PTR,C_INT},C_INT)
+    myGetDesktopWindow = define_c_func(user32,"GetDesktopWindow",{},C_HANDLE)
+    mySetActiveWindow = define_c_func(user32,"SetActiveWindow",{C_INT},C_INT)
+    myGetActiveWindow = define_c_func(user32,"GetActiveWindow",{},C_INT)
+    myGetTopWindow = define_c_func(user32,"GetTopWindow",{C_INT},C_INT)
+    myGetNextWindow = define_c_func(user32,"GetWindow",{C_INT,C_INT},C_INT)
+    myMessageBox = define_c_func(user32,"MessageBoxA",{C_INT,C_PTR,C_PTR,C_INT},C_INT)
+    mySetForegroundWindow = define_c_func(user32,"SetForegroundWindow",{C_INT},C_INT)
+    mySetFocus = define_c_func(user32,"SetFocus",{C_INT},C_INT)
+    myBringWindowToTop = define_c_func(user32,"BringWindowToTop",{C_INT},C_INT)
+    myGetVersionEx = define_c_proc(kernel32,"GetVersionExA",{C_PTR})
+    mySetWindowsHookEx = define_c_func(user32,"SetWindowsHookExA",{C_INT,C_PTR,C_INT,C_INT},C_INT)
+    myUnhookWindowsHookEx = define_c_func(user32,"UnhookWindowsHookEx",{C_INT},C_INT)
+    myCallNextHookEx = define_c_func(user32,"CallNextHookEx",{C_INT,C_INT,C_INT,C_INT},C_INT)
+    myExitWindowsEx = define_c_func(user32,"ExitWindowsEx",{C_INT,C_INT},C_INT)
+    myGetClassName = define_c_func(user32,"GetClassNameA",{C_INT,C_PTR,C_INT},C_INT)
+    mySleep = define_c_proc(kernel32,"Sleep",{C_PTR})
+    myIsWindowVisible = define_c_func(user32,"IsWindowVisible",{C_PTR},C_INT)
+    myIsIconic = define_c_func(user32,"IsIconic",{C_PTR},C_INT)
+    myIsZoomed = define_c_func(user32,"IsZoomed",{C_PTR},C_INT)
+    myEnumWindows = define_c_func(user32,"EnumWindows",{C_PTR,C_PTR},C_INT)
+    myFindWindow1 = define_c_func(user32,"FindWindowA",{C_INT,C_INT},C_INT)
+    myWinExec = define_c_func(kernel32,"WinExec",{C_PTR,C_INT},C_INT)
+    myDestroyWindow = define_c_func(user32,"DestroyWindow",{C_HANDLE},C_INT)
 -- Device Context handling
-    myGetDC = link_c_func(user32,"GetDC",{C_INT},C_INT)
-    myGetWindowDC  = link_c_func(user32,"GetWindowDC",{C_INT},C_INT)
-    myDeleteDC = link_c_func(gdi32,"DeleteDC",{C_POINTER},C_INT)
-    myReleaseDC = link_c_func(user32,"ReleaseDC",{C_INT,C_INT},C_INT)
-    mySetBkMode = link_c_proc(gdi32,"SetBkMode",{C_POINTER,C_INT})
-    mySetTextColor = link_c_proc(gdi32,"SetTextColor",{C_INT,C_INT})
-    mySetBkColor   = link_c_proc(gdi32,"SetBkColor",{C_INT,C_INT})
-    myCreateSolidBrush = link_c_func(gdi32,"CreateSolidBrush",{C_INT},C_POINTER)
-    myDeleteObject = link_c_func(gdi32,"DeleteObject",{C_INT},C_INT)
-    myGetSysColorBrush = link_c_func(user32,"GetSysColorBrush",{C_INT},C_POINTER)
-    myInvalidateRect = link_c_func(user32,"InvalidateRect",{C_INT,C_INT,C_INT},C_INT)
-    myRedrawWindow = link_c_func(user32,"RedrawWindow",{C_INT,C_INT,C_INT,C_INT},C_INT)
-    mySelectObject = link_c_func(gdi32,"SelectObject",{C_POINTER,C_POINTER},C_POINTER)
-    myCreateCompatibleDC = link_c_func(gdi32,"CreateCompatibleDC",{C_POINTER},C_POINTER)
-    myCreateCompatibleBitmap = link_c_func(gdi32,"CreateCompatibleBitmap",{C_POINTER,C_POINTER,C_POINTER},C_POINTER)
-    myRectangle = link_c_proc(gdi32,"Rectangle",{C_POINTER,C_INT,C_INT,C_INT,C_INT})
-    mySetDCBrushColor = link_c_proc(gdi32,"SetDCBrushColor",{C_POINTER,C_POINTER})
-    mySetDCPenColor = link_c_proc(gdi32,"SetDCPenColor",{C_POINTER,C_POINTER})
-    myFillRect = link_c_proc(user32,"FillRect",{C_POINTER,C_POINTER,C_POINTER})
-    myMoveTo = link_c_proc(gdi32,"MoveToEx",{C_POINTER,C_POINTER,C_POINTER,C_POINTER})
-    myLineTo = link_c_proc(gdi32,"LineTo",{C_POINTER,C_POINTER,C_POINTER})
-    myPolyLine = link_c_proc(gdi32,"Polyline",{C_POINTER,C_POINTER,C_POINTER})
-    myPolygon = link_c_proc(gdi32,"Polygon",{C_POINTER,C_POINTER,C_POINTER})
-    myCreatePen = link_c_func(gdi32,"CreatePen",{C_POINTER,C_POINTER,C_POINTER},C_POINTER)
-    myGetPixel = link_c_func(gdi32,"GetPixel",{C_POINTER,C_POINTER,C_POINTER},C_POINTER)
-    mySetPixel = link_c_func(gdi32,"SetPixel",{C_POINTER,C_POINTER,C_POINTER,C_POINTER},C_POINTER)
-    myStretchBlt = link_c_func(gdi32,"StretchBlt",{C_POINTER,C_INT,C_INT,C_INT,C_INT,C_POINTER,C_INT,C_INT,C_INT,C_INT,C_POINTER},C_INT)
-    myBitBlt = link_c_func(gdi32,"BitBlt",{C_POINTER,C_INT,C_INT,C_INT,C_INT,C_POINTER,C_INT,C_INT,C_POINTER},C_INT)
-    myCreateFont = link_c_func(gdi32,"CreateFontA",{C_INT,C_INT,C_INT,C_INT,C_INT,C_POINTER,C_POINTER,C_POINTER,C_POINTER,C_POINTER,C_POINTER,C_POINTER,C_POINTER,C_POINTER},C_HANDLE)
-    myChooseFont = link_c_func(comdlg,"ChooseFontA",{C_POINTER},C_INT)
-    myTextOut = link_c_func(gdi32,"TextOutA",{C_POINTER,C_INT,C_INT,C_POINTER,C_INT},C_POINTER)
-    myGetTextExtentPoint32 = link_c_func(gdi32,"GetTextExtentPoint32A",{C_POINTER,C_POINTER,C_INT,C_INT},C_INT)
-    myGetObject = link_c_func(gdi32,"GetObjectA",{C_HANDLE,C_INT,C_POINTER},C_INT)
-    mySetStretchBltMode = link_c_proc(gdi32,"SetStretchBltMode",{C_HANDLE,C_INT})
+    myGetDC = define_c_func(user32,"GetDC",{C_INT},C_INT)
+    myGetWindowDC  = define_c_func(user32,"GetWindowDC",{C_INT},C_INT)
+    myDeleteDC = define_c_func(gdi32,"DeleteDC",{C_PTR},C_INT)
+    myReleaseDC = define_c_func(user32,"ReleaseDC",{C_INT,C_INT},C_INT)
+    mySetBkMode = define_c_proc(gdi32,"SetBkMode",{C_PTR,C_INT})
+    mySetTextColor = define_c_proc(gdi32,"SetTextColor",{C_INT,C_INT})
+    mySetBkColor   = define_c_proc(gdi32,"SetBkColor",{C_INT,C_INT})
+    myCreateSolidBrush = define_c_func(gdi32,"CreateSolidBrush",{C_INT},C_PTR)
+    myDeleteObject = define_c_func(gdi32,"DeleteObject",{C_INT},C_INT)
+    myGetSysColorBrush = define_c_func(user32,"GetSysColorBrush",{C_INT},C_PTR)
+    myInvalidateRect = define_c_func(user32,"InvalidateRect",{C_INT,C_INT,C_INT},C_INT)
+    myRedrawWindow = define_c_func(user32,"RedrawWindow",{C_INT,C_INT,C_INT,C_INT},C_INT)
+    mySelectObject = define_c_func(gdi32,"SelectObject",{C_PTR,C_PTR},C_PTR)
+    myCreateCompatibleDC = define_c_func(gdi32,"CreateCompatibleDC",{C_PTR},C_PTR)
+    myCreateCompatibleBitmap = define_c_func(gdi32,"CreateCompatibleBitmap",{C_PTR,C_PTR,C_PTR},C_PTR)
+    myRectangle = define_c_proc(gdi32,"Rectangle",{C_PTR,C_INT,C_INT,C_INT,C_INT})
+    mySetDCBrushColor = define_c_proc(gdi32,"SetDCBrushColor",{C_PTR,C_PTR})
+    mySetDCPenColor = define_c_proc(gdi32,"SetDCPenColor",{C_PTR,C_PTR})
+    myFillRect = define_c_proc(user32,"FillRect",{C_PTR,C_PTR,C_PTR})
+    myMoveTo = define_c_proc(gdi32,"MoveToEx",{C_PTR,C_PTR,C_PTR,C_PTR})
+    myLineTo = define_c_proc(gdi32,"LineTo",{C_PTR,C_PTR,C_PTR})
+    myPolyLine = define_c_proc(gdi32,"Polyline",{C_PTR,C_PTR,C_PTR})
+    myPolygon = define_c_proc(gdi32,"Polygon",{C_PTR,C_PTR,C_PTR})
+    myCreatePen = define_c_func(gdi32,"CreatePen",{C_PTR,C_PTR,C_PTR},C_PTR)
+    myGetPixel = define_c_func(gdi32,"GetPixel",{C_PTR,C_PTR,C_PTR},C_PTR)
+    mySetPixel = define_c_func(gdi32,"SetPixel",{C_PTR,C_PTR,C_PTR,C_PTR},C_PTR)
+    myStretchBlt = define_c_func(gdi32,"StretchBlt",{C_PTR,C_INT,C_INT,C_INT,C_INT,C_PTR,C_INT,C_INT,C_INT,C_INT,C_PTR},C_INT)
+    myBitBlt = define_c_func(gdi32,"BitBlt",{C_PTR,C_INT,C_INT,C_INT,C_INT,C_PTR,C_INT,C_INT,C_PTR},C_INT)
+    myCreateFont = define_c_func(gdi32,"CreateFontA",{C_INT,C_INT,C_INT,C_INT,C_INT,C_PTR,C_PTR,C_PTR,C_PTR,C_PTR,C_PTR,C_PTR,C_PTR,C_PTR},C_HANDLE)
+    myChooseFont = define_c_func(comdlg,"ChooseFontA",{C_PTR},C_INT)
+    myTextOut = define_c_func(gdi32,"TextOutA",{C_PTR,C_INT,C_INT,C_PTR,C_INT},C_PTR)
+    myGetTextExtentPoint32 = define_c_func(gdi32,"GetTextExtentPoint32A",{C_PTR,C_PTR,C_INT,C_INT},C_INT)
+    myGetObject = define_c_func(gdi32,"GetObjectA",{C_HANDLE,C_INT,C_PTR},C_INT)
+    mySetStretchBltMode = define_c_proc(gdi32,"SetStretchBltMode",{C_HANDLE,C_INT})
 -- Timer Handling
-    mySetTimer = link_c_func(user32,"SetTimer",{C_INT,C_INT,C_INT,C_INT},C_INT)
-    myKillTimer = link_c_func(user32,"KillTimer",{C_INT,C_INT},C_INT)
-    myMoveWindow = link_c_proc(user32,"MoveWindow",{C_INT,C_INT,C_INT,C_INT,C_INT,C_INT})
+    mySetTimer = define_c_func(user32,"SetTimer",{C_INT,C_INT,C_INT,C_INT},C_INT)
+    myKillTimer = define_c_func(user32,"KillTimer",{C_INT,C_INT},C_INT)
+    myMoveWindow = define_c_proc(user32,"MoveWindow",{C_INT,C_INT,C_INT,C_INT,C_INT,C_INT})
 --Toolhelp32
-    myCreateToolhelp32Snapshot = link_c_func(kernel32,"CreateToolhelp32Snapshot",{C_INT,C_INT},C_POINTER)
-    myCloseHandle = link_c_func(kernel32,"CloseHandle",{C_INT},C_INT)
-    myModule32First = link_c_func(kernel32,"Module32First",{C_INT,C_POINTER},C_INT)
-    myModule32Next = link_c_func(kernel32,"Module32Next",{C_INT,C_POINTER},C_INT)
-    myProcess32First = link_c_func(kernel32,"Process32First",{C_INT,C_POINTER},C_INT)
-    myProcess32Next = link_c_func(kernel32,"Process32Next",{C_INT,C_POINTER},C_INT)
-    myGetLastError = link_c_func(kernel32,"GetLastError",{},C_INT)
+    myCreateToolhelp32Snapshot = define_c_func(kernel32,"CreateToolhelp32Snapshot",{C_INT,C_INT},C_PTR)
+    myCloseHandle = define_c_func(kernel32,"CloseHandle",{C_INT},C_INT)
+    myModule32First = define_c_func(kernel32,"Module32First",{C_INT,C_PTR},C_INT)
+    myModule32Next = define_c_func(kernel32,"Module32Next",{C_INT,C_PTR},C_INT)
+    myProcess32First = define_c_func(kernel32,"Process32First",{C_INT,C_PTR},C_INT)
+    myProcess32Next = define_c_func(kernel32,"Process32Next",{C_INT,C_PTR},C_INT)
+    myGetLastError = define_c_func(kernel32,"GetLastError",{},C_INT)
 --ThreadId
-    myGetWindowThreadProcessId = link_c_func(user32,"GetWindowThreadProcessId",{C_INT,C_POINTER},C_INT)
-    myGetCurrentThreadId = link_c_func(kernel32,"GetCurrentThreadId",{},C_INT)
-    myAttachThreadInput = link_c_func(user32,"AttachThreadInput",{C_INT,C_INT,C_INT},C_INT)
-    myGetForegroundWindow = link_c_func(user32,"GetForegroundWindow",{},C_INT)
+    myGetWindowThreadProcessId = define_c_func(user32,"GetWindowThreadProcessId",{C_INT,C_PTR},C_INT)
+    myGetCurrentThreadId = define_c_func(kernel32,"GetCurrentThreadId",{},C_INT)
+    myAttachThreadInput = define_c_func(user32,"AttachThreadInput",{C_INT,C_INT,C_INT},C_INT)
+    myGetForegroundWindow = define_c_func(user32,"GetForegroundWindow",{},C_INT)
 --  WindowsThemes
-    mySetWindowTheme = link_c_proc(uxtheme,"SetWindowTheme",{C_POINTER,C_POINTER,C_POINTER})
+    mySetWindowTheme = define_c_proc(uxtheme,"SetWindowTheme",{C_PTR,C_PTR,C_PTR})
 -- added 
-    myGetSystemMetrics = link_c_func(user32,"GetSystemMetrics",{C_INT},C_INT)
-    myInitCommonControlsEx = link_c_func(comctl,"InitCommonControlsEx",{C_POINTER},C_INT)
-    myEnableWindow = link_c_func(user32,"EnableWindow",{C_INT,C_INT},C_INT)
-    myChildWindowFromPoint = link_c_func(user32,"ChildWindowFromPoint",{C_POINTER,C_POINTER},C_POINTER)
-    myAnimateWindow = link_c_func(user32,"AnimateWindow",{C_INT,C_POINTER,C_POINTER},C_INT)
-    myGetOpenFileName = link_c_func(comdlg,"GetOpenFileNameA",{C_POINTER},C_INT)
-    myGetSaveFileName = link_c_func(comdlg,"GetSaveFileNameA",{C_POINTER},C_INT)
-    myCommDlgExtendedError = link_c_func(comdlg,"CommDlgExtendedError",{C_INT},C_INT)
-    myCallWindowProc = link_c_func(user32,"CallWindowProcA",{C_POINTER,C_POINTER,C_POINTER,C_POINTER,C_POINTER},C_INT)
-    myGetWindowLong = link_c_func(user32,"GetWindowLongA",{C_POINTER,C_INT},C_POINTER)
-    mySetWindowLong = link_c_func(user32,"SetWindowLongA",{C_POINTER,C_INT,C_POINTER},C_POINTER)
-    myMultiByteToWideChar = link_c_func(kernel32,"MultiByteToWideChar",{C_UINT,C_POINTER,C_POINTER,C_INT,C_POINTER,C_INT},C_INT)
-    myGetSysColor = link_c_func(user32,"GetSysColor",{C_INT},C_POINTER)
-    myShellExecute = link_c_func(shell32,"ShellExecuteA",{C_POINTER,C_POINTER,C_POINTER,C_POINTER,C_POINTER,C_INT},C_INT)
+    myGetSystemMetrics = define_c_func(user32,"GetSystemMetrics",{C_INT},C_INT)
+    myInitCommonControlsEx = define_c_func(comctl,"InitCommonControlsEx",{C_PTR},C_INT)
+    myEnableWindow = define_c_func(user32,"EnableWindow",{C_INT,C_INT},C_INT)
+    myChildWindowFromPoint = define_c_func(user32,"ChildWindowFromPoint",{C_PTR,C_PTR},C_PTR)
+    myAnimateWindow = define_c_func(user32,"AnimateWindow",{C_INT,C_PTR,C_PTR},C_INT)
+    myGetOpenFileName = define_c_func(comdlg,"GetOpenFileNameA",{C_PTR},C_INT)
+    myGetSaveFileName = define_c_func(comdlg,"GetSaveFileNameA",{C_PTR},C_INT)
+    myCommDlgExtendedError = define_c_func(comdlg,"CommDlgExtendedError",{C_INT},C_INT)
+    myCallWindowProc = define_c_func(user32,"CallWindowProcA",{C_PTR,C_PTR,C_PTR,C_PTR,C_PTR},C_INT)
+    myGetWindowLong = define_c_func(user32,"GetWindowLongA",{C_PTR,C_INT},C_PTR)
+    mySetWindowLong = define_c_func(user32,"SetWindowLongA",{C_PTR,C_INT,C_PTR},C_PTR)
+    myMultiByteToWideChar = define_c_func(kernel32,"MultiByteToWideChar",{C_UINT,C_PTR,C_PTR,C_INT,C_PTR,C_INT},C_INT)
+    myGetSysColor = define_c_func(user32,"GetSysColor",{C_INT},C_PTR)
+    myShellExecute = define_c_func(shell32,"ShellExecuteA",{C_PTR,C_PTR,C_PTR,C_PTR,C_PTR,C_INT},C_INT)
 -- Special testing
-    myGetVersionEx = link_c_proc(kernel32,"GetVersionExA",{C_POINTER})
-    myGetWindowThreadProcessId = link_c_func(user32,"GetWindowThreadProcessId",{C_INT,C_POINTER},C_INT)
-    myGetCurrentThreadId = link_c_func(kernel32,"GetCurrentThreadId",{},C_INT)
-    myAttachThreadInput = link_c_func(user32,"AttachThreadInput",{C_INT,C_INT,C_INT},C_INT)
-    myGetForegroundWindow = link_c_func(user32,"GetForegroundWindow",{},C_HANDLE)
-    mySetForegroundWindow = link_c_func(user32,"SetForegroundWindow",{C_HANDLE},C_INT)
-    myBringWindowToTop = link_c_func(user32,"BringWindowToTop",{C_HANDLE},C_INT)
-    mySetActiveWindow = link_c_func(user32,"SetActiveWindow",{C_HANDLE},C_INT)
-    myGetActiveWindow = link_c_func(user32,"GetActiveWindow",{},C_HANDLE)
+    myGetVersionEx = define_c_proc(kernel32,"GetVersionExA",{C_PTR})
+    myGetWindowThreadProcessId = define_c_func(user32,"GetWindowThreadProcessId",{C_INT,C_PTR},C_INT)
+    myGetCurrentThreadId = define_c_func(kernel32,"GetCurrentThreadId",{},C_INT)
+    myAttachThreadInput = define_c_func(user32,"AttachThreadInput",{C_INT,C_INT,C_INT},C_INT)
+    myGetForegroundWindow = define_c_func(user32,"GetForegroundWindow",{},C_HANDLE)
+    mySetForegroundWindow = define_c_func(user32,"SetForegroundWindow",{C_HANDLE},C_INT)
+    myBringWindowToTop = define_c_func(user32,"BringWindowToTop",{C_HANDLE},C_INT)
+    mySetActiveWindow = define_c_func(user32,"SetActiveWindow",{C_HANDLE},C_INT)
+    myGetActiveWindow = define_c_func(user32,"GetActiveWindow",{},C_HANDLE)
 -- Printing
-    myGetDeviceCaps = link_c_func(gdi32,"GetDeviceCaps",{C_HANDLE,C_INT},C_INT)
-    myGetDefaultPrinter = link_c_func(winspool,"GetDefaultPrinterA",{C_POINTER,C_POINTER},C_INT)
-    myStartDoc = link_c_func(gdi32,"StartDocA",{C_HANDLE,C_POINTER},C_INT)
-    myEndDoc = link_c_func(gdi32,"EndDoc",{C_HANDLE},C_INT)
-    myStartPage = link_c_func(gdi32,"StartPage",{C_HANDLE},C_INT)
-    myEndPage = link_c_func(gdi32,"EndPage",{C_HANDLE},C_INT)
-    myCreateDC = link_c_func(gdi32,"CreateDCA",{C_POINTER,C_POINTER,C_POINTER,C_POINTER},C_HANDLE)
-    myPrintWindow = link_c_proc(user32,"PrintWindow",{C_HANDLE,C_HANDLE,C_UINT})
-    myPrintDlg = link_c_func(comdlg,"PrintDlgA",{C_POINTER},C_UINT)
+    myGetDeviceCaps = define_c_func(gdi32,"GetDeviceCaps",{C_HANDLE,C_INT},C_INT)
+    myGetDefaultPrinter = define_c_func(winspool,"GetDefaultPrinterA",{C_PTR,C_PTR},C_INT)
+    myStartDoc = define_c_func(gdi32,"StartDocA",{C_HANDLE,C_PTR},C_INT)
+    myEndDoc = define_c_func(gdi32,"EndDoc",{C_HANDLE},C_INT)
+    myStartPage = define_c_func(gdi32,"StartPage",{C_HANDLE},C_INT)
+    myEndPage = define_c_func(gdi32,"EndPage",{C_HANDLE},C_INT)
+    myCreateDC = define_c_func(gdi32,"CreateDCA",{C_PTR,C_PTR,C_PTR,C_PTR},C_HANDLE)
+    myPrintWindow = define_c_proc(user32,"PrintWindow",{C_HANDLE,C_HANDLE,C_UINT})
+    myPrintDlg = define_c_func(comdlg,"PrintDlgA",{C_PTR},C_UINT)
 -- Menu
-    myAppendMenu = link_c_func(user32,"AppendMenuA",{C_HANDLE,C_UINT,C_UINT,C_POINTER},C_UINT)
-    myCheckMenuItem = link_c_func(user32,"CheckMenuItem",{C_HANDLE,C_UINT,C_UINT},C_UINT)
-    myCreateMenu = link_c_func(user32,"CreateMenu",{},C_HANDLE)
-    myDestroyMenu = link_c_func(user32,"DestroyMenu",{C_HANDLE},C_UINT)
-    myEnableMenuItem = link_c_func(user32,"EnableMenuItem",{C_HANDLE,C_UINT,C_UINT},C_UINT)
-    mySetMenu = link_c_func(user32,"SetMenu",{C_HANDLE,C_HANDLE},C_UINT)
-    myCreatePopupMenu = link_c_func(user32,"CreatePopupMenu",{},C_HANDLE)
-    myTrackPopupMenu = link_c_func(user32,"TrackPopupMenu",{C_HANDLE,C_UINT,C_INT,C_INT,C_INT,C_HANDLE,C_POINTER},C_UINT)
-    myDrawMenuBar = link_c_func(user32,"DrawMenuBar",{C_HANDLE},C_INT)
+    myAppendMenu = define_c_func(user32,"AppendMenuA",{C_HANDLE,C_UINT,C_UINT,C_PTR},C_UINT)
+    myCheckMenuItem = define_c_func(user32,"CheckMenuItem",{C_HANDLE,C_UINT,C_UINT},C_UINT)
+    myCreateMenu = define_c_func(user32,"CreateMenu",{},C_HANDLE)
+    myDestroyMenu = define_c_func(user32,"DestroyMenu",{C_HANDLE},C_UINT)
+    myEnableMenuItem = define_c_func(user32,"EnableMenuItem",{C_HANDLE,C_UINT,C_UINT},C_UINT)
+    mySetMenu = define_c_func(user32,"SetMenu",{C_HANDLE,C_HANDLE},C_UINT)
+    myCreatePopupMenu = define_c_func(user32,"CreatePopupMenu",{},C_HANDLE)
+    myTrackPopupMenu = define_c_func(user32,"TrackPopupMenu",{C_HANDLE,C_UINT,C_INT,C_INT,C_INT,C_HANDLE,C_PTR},C_UINT)
+    myDrawMenuBar = define_c_func(user32,"DrawMenuBar",{C_HANDLE},C_INT)
 -- Clipboard
-    myOpenClipboard = link_c_func(user32,"OpenClipboard",{C_HANDLE},C_INT)
-    myEmptyClipboard = link_c_func(user32,"EmptyClipboard",{},C_INT)
-    mySetClipboardData = link_c_func(user32,"SetClipboardData",{C_UINT,C_HANDLE},C_HANDLE)
-    myCloseClipboard = link_c_func(user32,"CloseClipboard",{},C_INT)
+    myOpenClipboard = define_c_func(user32,"OpenClipboard",{C_HANDLE},C_INT)
+    myEmptyClipboard = define_c_func(user32,"EmptyClipboard",{},C_INT)
+    mySetClipboardData = define_c_func(user32,"SetClipboardData",{C_UINT,C_HANDLE},C_HANDLE)
+    myCloseClipboard = define_c_func(user32,"CloseClipboard",{},C_INT)
 -- TransparentWindows
-    mySetLayeredWindowAttributes = link_c_func(user32,"SetLayeredWindowAttributes",{C_HANDLE,C_POINTER,C_BYTE,C_POINTER},C_INT)
+    mySetLayeredWindowAttributes = define_c_func(user32,"SetLayeredWindowAttributes",{C_HANDLE,C_PTR,C_BYTE,C_PTR},C_INT)
 end procedure
 
 global function SetWindowLong(atom hwnd,atom index,atom newlong)

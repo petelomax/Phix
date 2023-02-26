@@ -81,8 +81,7 @@ mess up the gameplay.
 """
 function help_cb(Ihandln /*ih*/)
     IupMessage(title,help_text)
-    IupSetFocus(dlg)
-    return IUP_DEFAULT
+    return IUP_IGNORE -- (don't open browser help!)
 end function
 
 function over2(string word) return length(word)>2 end function
@@ -324,8 +323,9 @@ function quit_cb(Ihandle /*ih*/)
 end function
 
 function key_cb(Ihandle /*dlg*/, atom c)
-    if c=K_ESC then return IUP_CLOSE
-    elsif c=K_CR then
+    if c=K_ESC then return IUP_CLOSE end if -- (standard practice for me)
+    if c=K_F5 then return IUP_DEFAULT end if -- (let browser reload work)
+    if c=K_CR then
         Ihandln focus = IupGetFocus()
         if focus=playerset then
             IupSetFocus(playtime)
@@ -383,6 +383,7 @@ Ihandle settings = IupHbox({IupLabel("Contestant name(s)"),
                         currbox,
                         numbox, hframe, btnbox}, "GAP=5,MARGIN=5x5")
 dlg = IupDialog(vbox, `TITLE="%s", SIZE=500x220`, {title})
+IupSetAttributeHandle(NULL,"PARENTDIALOG",dlg)
 IupSetCallback(dlg, "K_ANY", Icallback("key_cb"))
 IupShow(dlg)
 if platform()!=JS then

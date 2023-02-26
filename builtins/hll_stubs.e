@@ -40,12 +40,14 @@ global function hll_not_bits(atom a) return not_bits(a) end function
 global function hll_or_bits(atom a,b) return or_bits(a,b) end function
 global function hll_xor_bits(atom a,b) return xor_bits(a,b) end function
 global function hll_remainder(atom a,b) return remainder(a,b) end function
+--global function hll_rmdr(atom a,b) return remainder(a,b) end function -- (now done in psym.e)
 global function hll_floor(atom a) return floor(a) end function
 global function hll_power(atom a,b) return power(a,b) end function
 global function hll_cos(atom a) return cos(a) end function
 global function hll_sin(atom a) return sin(a) end function
 global function hll_tan(atom a) return tan(a) end function
 global function hll_arctan(atom a) return arctan(a) end function
+global function hll_ln(atom a) return log(a) end function
 global function hll_log(atom a) return log(a) end function
 global function hll_sqrt(atom a) return sqrt(a) end function
 global function hll_rand(atom a) return rand(a) end function

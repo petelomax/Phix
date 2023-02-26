@@ -1,10 +1,171 @@
 --
+-- demo\rosetta\Julia_Set.exw
+-- ===========================
+--
+with javascript_semantics
+without debug  -- (optional)
+include pGUI.e
+with debug
+
+Ihandle dlg, canvas
+Ihandln timer = NULL
+cdCanvas cddbuffer, cdcanvas
+
+sequence px, py, pi, colours
+integer pw = 0, ph, pidone = 0, picalc = 0, pidox = 0
+,zoom = 1, moveX = 0, moveY = 0
+--constant MAXITER = 256
+--constant MAXITER = 1024
+--constant MAXITER = 128
+--constant MAXITER = 64
+constant MAXITER = 80
+--constant MAXITER = 256
+
+atom cX = -0.7,
+     cY = -0.353777
+--atom cX = -0.8,
+--   cY = 0.156
+
+procedure iterate()
+    atom t1 = time()+0.4
+        atom hw = pw/2,
+             hh = ph/2,
+             zw2 = 2/(zoom*pw),
+             zh2 = 2/(zoom*ph)
+
+    while picalc<MAXITER do
+        integer pdx = (pidox-1)*ph
+        for x=pidox to pw do
+        for y=1 to ph do
+                pdx += 1
+                integer pyx = pi[pdx]
+                if pyx=0 then
+                    atom {zx, zy} = iff(picalc=0?{1.5*((x-1)-hw)*zw2+moveX,
+                                                  1.0*((y-1)-hh)*zh2+moveY}
+                                                :{px[pdx],py[pdx]})
+                    if picalc!=0 and ((zx*zx+zy*zy)>=4 or picalc=MAXITER-1) then
+                        pi[pdx] = picalc
+                    else
+                        px[pdx] = zx*zx -zy*zy + cX
+                        py[pdx] = 2*zx*zy + cY
+                    end if
+                end if
+            end for
+            pidox += 1
+            if time()>t1 then return end if
+        end for
+        picalc += 1
+        pidox = 1
+    end while   
+    IupSetInt(timer,"RUN",false)
+end procedure
+
+function redraw_cb(Ihandle /*ih*/)
+    atom {w,h} = IupGetIntInt(canvas, "DRAWSIZE")
+    if w!=pw or h!=ph then
+        pw = w
+        ph = h
+        integer wh = w*h
+        px = repeat(0,wh)
+        py = repeat(0,wh)
+        pi = repeat(0,wh)
+        pidone = 0
+        picalc = 0
+        pidox = 1
+        if timer then
+            IupSetInt(timer,"RUN",true)
+        end if
+    else
+        cdCanvasActivate(cddbuffer)
+        integer pdx = 0
+        for x=1 to w do
+            for y=1 to h do
+                pdx += 1
+                integer pyx = pi[pdx]
+--              if pyx>pidone then
+                if pyx>pidone and pyx<picalc then
+                    cdCanvasPixel(cddbuffer, x, h-y, colours[MAXITER-pyx])
+                end if  
+            end for
+        end for
+--      pidone = picalc-1
+        pidone = max(0,picalc-1)
+--      if picalc>MAXITER-1 then
+----?shorten(pi)
+--          IupSetInt(timer,"RUN",false)
+--      end if
+        cdCanvasFlush(cddbuffer)
+    end if
+
+    IupSetStrAttribute(dlg, "TITLE", "Julia Set (%,d pixels: %.2f%%)", {pw*ph,(picalc/MAXITER)*100})
+    return IUP_DEFAULT
+end function
+
+function timer_cb(Ihandle /*ih*/)
+    if pw then
+        iterate()
+    end if
+    IupUpdate(canvas)
+    return IUP_IGNORE
+end function
+
+function map_cb(Ihandle ih)
+    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    cdCanvasSetBackground(cddbuffer, CD_WHITE)
+    cdCanvasSetForeground(cddbuffer, CD_GRAY)
+    return IUP_DEFAULT
+end function
+
+--function key_cb(Ihandle /*ih*/, atom c)
+--  if c=K_ESC then return IUP_CLOSE end if -- (standard practice for me)
+--  if c=K_F5 then return IUP_DEFAULT end if -- (let browser reload work)
+----    if c=' ' then
+----        mode += 1
+----        if mode>PENT then
+----            mode = TRI
+----        end if
+----        cdCanvasClear(cddbuffer)
+----        IupRedraw(canvas)
+----    end if
+--  return IUP_CONTINUE
+--end function
+
+procedure main()
+    IupOpen()
+    sequence sm = sq_and_bits(apply(true,sq_mul,{tagset(MAXITER-1),{{8,32,16}}}),#FF)
+    colours = apply(true,cdEncodeColor,columnize(sm))
+
+--?shorten(colours,"colours",5,"#%06x")
+
+
+--  canvas = IupCanvas("RASTERSIZE=640x640")
+    canvas = IupCanvas("RASTERSIZE=800x600")
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "ACTION", Icallback("redraw_cb")})
+    dlg = IupDialog(canvas, `TITLE="Julia Set"`)
+--  IupSetCallback(dlg, "KEY_CB", Icallback("key_cb"))
+
+    IupShow(dlg)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL)
+    timer = IupTimer(Icallback("timer_cb"), 100)
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
+end procedure
+
+main()
+
+--/* old version:
+--
 -- demo\rosetta\Julia_set.exw
 -- ==========================
 --
 -- Interactive gui (zoom/pan incomplete).
 --
 --with javascript_semantics -- not quite yet:
+puts(1,"")
 without js  -- [DEV] IupValuator, IupImageRGB
 include pGUI.e
 
@@ -14,6 +175,7 @@ Ihandle dlg, cxv, cxl, cyv, cyl, ispin, pspin, clrzn, label, bb, redraw
 atom cX = -0.7,
      cY = -0.353777
 integer iter = 255,
+--integer iter = 50,
         pwr = 2,
         zoom = 1,       -- (not yet used/to do)
         moveX = 0,      -- drag?? (to do)
@@ -25,23 +187,75 @@ constant clrzns = {{8,32,16},
 
 sequence colourisation = clrzns[1]
 
-function julia(integer width, integer height)
-    atom tpt25 = time()+0.25
+bool cshown = false
+
+function julia(integer width, height)
+    atom tpt25 = time()+0.25,
+         hw = width/2,
+         hh = height/2,
+         zw2 = 2/(zoom*width),
+         zh2 = 2/(zoom*height)
+--       hzw = 1/(0.5*zoom*width),
+--       hzh = 1/(0.5*zoom*height)
     sequence img = repeat(repeat(0,width),height)
+atom t0 = time()
+sequence px = repeat(repeat(0,width),height),
+         py = repeat(repeat(0,width),height)
+for x=1 to width do
+    for y=1 to height do
+        px[y][x] = 1.5*((x-1)-hw)*zw2+moveX
+        py[y][x] = 1.0*((y-1)-hh)*zh2+moveY
+    end for
+end for
+?time()-t0 -- 0.2s (small)
     for x=1 to width do
         for y=1 to height do
-            atom zx := 1.5*((x-1)-width/2)/(0.5*zoom*width)+moveX,
-                 zy := 1.0*((y-1)-height/2)/(0.5*zoom*height)+moveY;
+--          atom zx := 1.5*((x-1)-width/2)/(0.5*zoom*width)+moveX,
+--          atom zx := 1.5*((x-1)-width/2)*hzw+moveX,
+--          atom zx := 1.5*((x-1)-width/2)*zw2+moveX,
+            atom zx := 1.5*((x-1)-hw)*zw2+moveX,
+--               zy := 1.0*((y-1)-height/2)*hzw+moveY;
+--               zy := 1.0*((y-1)-height/2)*zh2+moveY;
+                 zy := 1.0*((y-1)-hh)*zh2+moveY;
+--               zy := 1.0*((y-1)-height/2)/(0.5*zoom*height)+moveY;
+--if x=width then
+--?{zx,zy}
+----/*
+--{1.49625,0.735}
+--{1.49625,0.7375}
+--{1.49625,0.74}
+--{1.49625,0.7425}
+--{1.49625,0.745}
+--{1.49625,0.7475}
+-->>>
+--{1.49625,0.98}
+--{1.49625,0.9833333333}
+--{1.49625,0.9866666667}
+--{1.49625,0.99}
+--{1.49625,0.9933333333}
+--{1.49625,0.9966666667}
+--
+----*/
+--end if
             integer i := iter;
             while ((zx*zx+zy*zy)<4) and (i>1) do
-                atom pn = power(zx*zx+zy*zy,pwr/2),
-                     pa = pwr*atan2(zy, zx)
-                zx = pn*cos(pa)+cX
-                zy = pn*sin(pa)+cY
+--              atom pn = power(zx*zx+zy*zy,pwr/2),
+--                   pa = pwr*atan2(zy, zx)
+--              zx = pn*cos(pa)+cX
+--              zy = pn*sin(pa)+cY
+                {zx, zy} = {zx*zx -zy*zy + cX, 2*zx*zy + cY}
                 i -= 1;
             end while
 --          img[y,x] = {i*2,i*4,i*8}        -- (experiment thusly)
+if not cshown and i=iter-1 then
+--  sequence c = sq_mul(i,colourisation)
+    sequence c = sq_and_bits(sq_mul(i,colourisation),#FF)
+    printf(1,"Colour %d: %s (%v)\n",{i,sprintf("#%02x/%02x/%02x",c),c})
+    cshown = 1
+end if
             img[y,x] = sq_mul(i,colourisation)
+--          img[y,x] = sq_and_bits(sq_mul(i,colourisation),#FF)
+--cdCanvasPixel
         end for
         if time()>tpt25 then
             IupSetStrAttribute(dlg, "TITLE", "%s (generating - %3.2f%%)",{title,x/width*100})
@@ -117,7 +331,7 @@ procedure create_dlg()
     Ihandle clbl = IupLabel("colourization:","PADDING=0x3")
     clrzn = IupList("DROPDOWN=YES")
     for i=1 to length(clrzns) do
-        IupSetStrAttributeId(clrzn,"",i,sprint(clrzns[i]))
+        IupSetStrAttributeId(clrzn,"",i,sprintf("%v",{clrzns[i]}))
     end for
     IupSetInt(clrzn,"VISIBLEITEMS",length(clrzns)+1)
     IupSetInt(clrzn,"VALUE",1)
@@ -150,4 +364,27 @@ procedure main()
 end procedure
 
 main()
+--*/
 
+--/* simple ascii (141 chars wide, use by 10 (twice) for 57 chars wide):
+with javascript_semantics
+procedure julia(integer step=4, atom r = -0.8, i = 0.156)
+    printf(1,"%g + %gi\n",{r,i})
+    for v=-100 to 100 by step do
+        string l = ""
+        for h=-280 to 280 by step do
+            atom x = h/200, y = v/100
+            integer ch = '#'
+            for k=1 to 50 do
+                {x, y} = {(x*x - y*y) + r, x*y*2 + i}
+                if x*x>10000 then ch=' ' exit end if
+            end for
+            l &= ch
+        end for
+        printf(1,"%s\n",{l})
+    end for
+end procedure
+ 
+julia(4)        -- 141 chars wide
+--julia(10)     -- 57 chars wide
+--*/

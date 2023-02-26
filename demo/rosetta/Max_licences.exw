@@ -1,0 +1,39 @@
+-- demo\rosetta\Max_licences.exw
+with javascript_semantics -- (include version/first of next three lines only)
+include mlijobs.e -- global constant lines, or:
+--assert(write_lines("mlijobs.txt",lines)!=-1) -- first run, then:
+--constant lines = read_lines("mlijobs.txt")
+
+integer maxout = 0, jobnumber
+sequence jobs = {}, maxtime, scanres
+string inout, jobtime
+for i=1 to length(lines) do
+    string line = lines[i]
+    scanres = scanf(line,"License %s @ %s for job %d")
+    if length(scanres)!=1 then
+        printf(1,"error scanning line: %s\n",{line})
+        {} = wait_key()
+        abort(0)
+    end if
+    {{inout,jobtime,jobnumber}} = scanres
+    if inout="OUT" then
+        jobs &= jobnumber
+        if length(jobs)>maxout then
+            maxout = length(jobs)
+            maxtime = {jobtime}
+        elsif length(jobs)=maxout then
+            maxtime = append(maxtime, jobtime)
+        end if
+    else
+        jobs[find(jobnumber,jobs)] = jobs[$]
+        jobs = jobs[1..$-1]
+    end if
+end for
+ 
+printf(1, "Maximum simultaneous license use is %d at the following times:\n", maxout)
+for i = 1 to length(maxtime) do
+    printf(1, "%s\n", {maxtime[i]})
+end for
+
+?"done"
+{} = wait_key()

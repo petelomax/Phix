@@ -167,3 +167,54 @@ global function atan2(atom y, x)
 --    return 2*arctan((sqrt(power(x,2)+power(y,2))-x)/y)
 end function
 
+global function mulmod(atom a, b, modulus)
+    // return (a*b) % modulus, but allow a*b to exceed precision.
+    // Note: intended for use when sign(a)=sign(b); no formal statement concerning whether
+    //       the results more closely (/theoretically) match mod() or remainder() is made.
+
+    // (a * b) % modulus = (a % modulus) * (b % modulus) % modulus
+    a = mod(a,modulus)
+    b = mod(b,modulus)
+
+    // fast path
+--  if a<=0xFFFFFFF and b<=0xFFFFFFF then   -- 64 bit?? [PL, 7x4=28,*2=56 bits? - 7 or 8 spare]
+    if a<=0xFFFFFF and b<=0xFFFFFF then     -- 32 bit..      6x4=24,*2=48 bits? - 3 or 4 spare...]
+        return mod(a*b,modulus)
+    end if
+
+    // we might encounter overflows (slow path)
+    // the number of loops depends on b, therefore try to minimize b
+    if b>a then {a,b} = {b,a} end if
+
+    // bitwise multiplication
+    atom result = 0
+    while a>0 and b>0 do
+        if odd(b) then
+            result = mod(result+a,modulus)
+        end if
+        a = mod(a*2,modulus)
+        b = floor(b/2)  // next bit
+    end while
+    return result
+end function
+
+global function powmod(atom base, exponent, modulus)
+    // return base^exponent % modulus, but allow base^exponent to exceed precision.
+    // employs the tricks of https://en.wikipedia.org/wiki/Exponentiation_by_squaring
+    // Note: see disclaimer in modmul() above regarding mod() vs remainder().
+
+    atom result = 1
+--  if exponent<0 then x = 1/x; exponent *= -1 end if   -- (untested)
+    while exponent>0 do
+        if odd(exponent) then
+            result = mulmod(result, base, modulus)
+        end if
+        base = mulmod(base, base, modulus)
+        exponent = floor(exponent/2)
+    end while
+    return result
+end function
+
+--?powmod(13789,722341,2345) -- 2029 expected (good)
+
+

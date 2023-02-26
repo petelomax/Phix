@@ -714,7 +714,7 @@ global function decode11(string s, integer i)
                     ri = 0
                     exit
                 end if
-                ri = ri*10+ch-'0'
+                ri = ri*10+(ch-'0')
             end for
             res[i] = ri
         end for
@@ -812,7 +812,10 @@ global function load_prev_file()
 --?currfile
         if openFile(true, prevfiles[i], -1) then
 --?{{{currfile}}}
-if length(filecursel)!=length(prevcursel) then ?9/0 end if
+if length(filecursel)!=length(prevcursel) then
+    ?{"oops, ini.e line 816...",prevfiles[i]}
+else
+--end if
             filecursel[i] = prevcursel[i]
             restcursel()
             if i=currfile then
@@ -822,6 +825,7 @@ if length(filecursel)!=length(prevcursel) then ?9/0 end if
                 appUpdateRender()
             end if
 --          prevfiles[i] = 0
+end if
         else
 ?{"oops, ini.e line 826",prevfiles[i]}
 --?9/0

@@ -6,7 +6,7 @@
 --  Does not cover the human readable reload parts of extra.e
 --
 with javascript_semantics
-constant {known_files,kfc} = columnize({
+sequence {known_files,kfc} = columnize({
 {"test3.c",split("""
 /*
   All lexical tokens - not syntactically correct, but that will
@@ -71,20 +71,32 @@ while (b != 0) {
     a     = new_a;
 }
 print(a);
+""","\n")},
+{"Header.h",split("""
+#define area(h, w) h * w
+""","\n")},
+{"Source.t",split("""
+#include "Header.h"
+#define width 5
+#define height 6
+area = #area(height, width)#;
 ""","\n")}})
 
-integer fn, lineno
+sequence linenos = repeat(-1,length(known_files))
 
 global function js_open(string filename)
-    fn = find(filename,known_files)
+    integer fn = find(filename,known_files)
     assert(fn!=0)
-    lineno = 0
+    linenos[fn] = 0
     return fn
 end function
 
-global function js_gets()
-    lineno += 1
-    if lineno>length(kfc[fn]) then return EOF end if
-    return kfc[fn][lineno]
+global function js_gets(integer fn)
+    integer lineno = linenos[fn]+1
+    if lineno<=length(kfc[fn]) then
+        linenos[fn] = lineno
+        return kfc[fn][lineno]
+    end if
+    return EOF
 end function
 

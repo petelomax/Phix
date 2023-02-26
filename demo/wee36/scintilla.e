@@ -44,17 +44,17 @@ end ifdef
 constant cmd_line = command_line()
 
 atom scintilla
-scintilla = open_dll(dirname(cmd_line[1]) & SLASH & dll)
+scintilla = open_dll(dirname(cmd_line[1]) & SLASH & dll,false)
 if scintilla = 0 and length(cmd_line) >= 2 then
-    scintilla = open_dll(dirname(cmd_line[2]) & SLASH & dll)
+    scintilla = open_dll(dirname(cmd_line[2]) & SLASH & dll,false)
 end if
 if scintilla = 0  then
     scintilla = open_dll(dll)
 end if
 
 constant
-  scintilla_new_ = define_c_func(scintilla, "scintilla_new", {}, C_POINTER),
-  scintilla_send_message_ = define_c_func(scintilla, send_message, {C_POINTER, C_LONG, C_LONG, C_LONG}, C_LONG)
+  scintilla_new_ = define_c_func(scintilla, "scintilla_new", {}, C_PTR),
+  scintilla_send_message_ = define_c_func(scintilla, send_message, {C_PTR, C_LONG, C_LONG, C_LONG}, C_LONG)
 
 --? {scintilla, scintilla_new_, scintilla_send_message_}
   

@@ -454,10 +454,10 @@ atom fraction
 --26/6/10...
             if Ch!='_' then
                 if Ch<'0' or Ch>'9' then exit end if
---              TokN = TokN*10 + Ch-'0'
+--              TokN = TokN*10 + (Ch-'0')
 --27/10/15:
 --              TokN += (Ch-'0') / dec
-                fraction = fraction*10+(Ch-'0')
+                fraction = fraction*10 + (Ch-'0')
                 dec *= 10
                 toktype = DIGIT
 --              ndp += 1
@@ -485,7 +485,7 @@ atom fraction
                     end if
                 end if
             else
-                exponent = exponent*10 + Ch-'0'
+                exponent = exponent*10 + (Ch-'0')
                 toktype = DIGIT
             end if
         end while
@@ -577,7 +577,7 @@ procedure loadBase()
             col += 1
             Ch = text[col]
             if Ch<'0' or Ch>'9' then exit end if
-            base = base*10 + Ch-'0'
+            base = base*10 + (Ch-'0')
         end while
 --      if not find(base,bases) then
         if base<2 or base>36 then
@@ -935,7 +935,7 @@ global procedure getToken(bool float_valid=false)
             if Ch<'0' or Ch>'9' then
                 if Ch!='_' then exit end if     -- allow eg 1_000_000 to mean 1000000
             else
-                TokN = TokN*10 + Ch-'0'
+                TokN = TokN*10 + (Ch-'0')
             end if
             col += 1
             Ch = text[col]
@@ -1018,7 +1018,7 @@ global procedure getToken(bool float_valid=false)
 --                      col += 1
 --                      Ch = text[col]
 --                      if not find(Ch,"01") then exit end if
---                      TokN = TokN*2 + Ch-'0'
+--                      TokN = TokN*2 + (Ch-'0')
 --                  end while
 --                  if TokN>255 then
 --                      tokcol = savecol
@@ -1119,7 +1119,7 @@ end if
 --                  toklen += 1
                 end if
             else
-                TokN = TokN*16 + Ch-'0'
+                TokN = TokN*16 + (Ch-'0')
 --              toklen += 1
             end if
             toktype = DIGIT

@@ -1,0 +1,84 @@
+--
+-- demo\rosetta\Circular_primes.exw
+-- ================================
+--
+with javascript_semantics
+function circular(integer p)
+    integer len = length(sprintf("%d",p)),
+            pow = power(10,len-1),
+            p0 = p
+    for i=1 to len-1 do
+        p = pow*remainder(p,10)+floor(p/10)
+        if p<p0 or not is_prime(p) then return false end if
+    end for
+    return true
+end function
+ 
+sequence c = {}
+integer n = 1
+while length(c)<19 do
+    integer p = get_prime(n)
+    if circular(p) then c &= p end if
+    n += 1
+end while
+printf(1,"The first 19 circular primes are:\n%v\n\n",{c})
+ 
+include mpfr.e
+procedure repunit(mpz z, integer n)
+    mpz_set_str(z,repeat('1',n))
+end procedure 
+ 
+c = {}
+n = 7
+mpz z = mpz_init()
+while length(c)<4 do
+--?n
+    repunit(z,n)
+--  if mpz_prime(z) then    -- really slow/hangs on repunit(19), 19/10/22
+    if mpz_prime_mr(z) then
+--?n
+--      ?mpz_pollard_rho(z) -- and this dies a death too...
+        c = append(c,sprintf("R(%d)",n))
+    end if
+    n += 1
+end while
+printf(1,"The next 4 circular primes, in repunit format, are:\n%s\n\n",{join(c)})
+
+constant t = {5003, 9887, 15073, 25031, 35317, 49081}
+printf(1,"The following repunits are probably circular primes:\n")
+for i=1 to length(t) do
+    integer ti = t[i]
+    atom t0 = time()
+    repunit(z,ti)
+--  bool bPrime = mpz_prime(z,1)
+--?mpz_pollard_rho(z) -- gave up!
+    bool bPrime = mpz_prime_mr(z,1)
+    printf(1,"R(%d) : %t (%s)\n", {ti, bPrime, elapsed(time()-t0)})
+end for
+
+wait_key()
+
+--/* was:
+The following repunits are probably circular primes:
+R(5003) : false (10.2s)
+R(9887) : false (54.9s)
+R(15073) : false (2 minutes and 22s)
+R(25031) : false (7 minutes and 45s)
+diag looping, error code is 1, era is #00644651
+-- better:
+The first 19 circular primes are:
+{2,3,5,7,11,13,17,37,79,113,197,199,337,1193,3779,11939,19937,193939,199933}
+
+The next 4 circular primes, in repunit format, are:
+R(19) R(23) R(317) R(1031)
+
+The following repunits are probably circular primes:
+R(5003) : false (5.7s)
+R(9887) : false (30.7s)
+-- mpz_prime_mr:
+The following repunits are probably circular primes:
+R(5003) : false (5.9s)
+R(9887) : false (38.4s)
+R(15073) : false (1 minute and 19s)
+
+--*/

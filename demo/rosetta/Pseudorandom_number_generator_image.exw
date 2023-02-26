@@ -2,18 +2,37 @@
 -- demo\rosetta\Pseudorandom_number_generator_image.exw
 -- ====================================================
 --
-without js -- IupSaveImage(), not possible from within a browser (though a "save" button might be?)
+--without js -- IupSaveImage(), not possible from within a browser (though a "save" button might be?)
+with javascript_semantics -- (but see performance note below)
 include pGUI.e
  
 IupOpen()
-integer w=250, h=w
-sequence bw = repeat(0,w*h)
+integer w=500, h=w
+-- Performance note: repeat(0) creates a dword-sequence whereas repeat(15) creates a string.
+--                   In JavaScript, strings are "immutable", so $repe() aka bw[idx] = rep 
+--                   has to perform the equivalent of bw[1..idx-1] & rep & bw[idx+1..$],
+--                   which is hooorendously slow on large strings - in this case it would
+--                   have to copy 250,000 bytes to set each pixel. However dword-sequences
+--                   aka JavaScript Arrays /are/ "mutable", and thus exponentially faster.
+--sequence bw = repeat(15,w*h) -- all white -- (dog slow under pwa/p2js)
+sequence bw = repeat(15,w*h,false) -- all white -- (much faster "")
+--sequence bw = repeat(0,w*h) -- all black  -- (much faster "")
 for x=0 to w-1 do
     for y=0 to h-1 do
-        if rand(2)=2 then bw[x*h+y+1] = 255 end if
+        if rand(2)=2 then bw[x*h+y+1] = 0 end if -- black (slow)
+--      if rand(2)=2 then bw[x*h+y+1] = 15 end if -- white (fast)
     end for
 end for
-Ihandle image = IupImage(w,h,bw)
-object res = IupSaveImage(image,"bw.png","PNG")
-IupClose()
+Ihandle image = IupImage(w,h,bw),
+        label = IupLabel()
+IupSetAttributeHandle(label, "IMAGE", image)
+IupSetStrAttribute(label, "RASTERSIZE", "%dx%d",{w,h})
+Ihandle dlg = IupDialog(label)
+IupSetAttribute(dlg, "TITLE", "Pseudorandom_number_generator_image")
+IupShow(dlg)
+if platform()!=JS then
+    object res = IupSaveImage(image,"bw.png","PNG")
+    IupMainLoop()
+    IupClose()
+end if
 

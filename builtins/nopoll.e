@@ -23,40 +23,35 @@ procedure nopoll_init()
             ?9/0 -- fixme!
         end if
         nopoll = open_dll(nopoll_dll_name)
-        if nopoll=NULL then
---          if fatal then
-                Abort("cannot open "&nopoll_dll_name)
---          end if
-        end if
     end if
 end procedure
 
-function link_c_func(atom dll, sequence name, sequence args, atom result)
-    if dll=NULL then ?9/0 end if
--- erm, if you don't need this on Windows, you don't need it full stop:
---  integer rid = define_c_func(dll, "+" & name, args, result)
-    integer rid = define_c_func(dll, name, args, result)
-    if rid<1 then
-        Abort("cannot link "&name)
-    end if
-    return rid
-end function
+--function link_c_func(atom dll, sequence name, sequence args, atom result)
+--  if dll=NULL then ?9/0 end if
+---- erm, if you don't need this on Windows, you don't need it full stop:
+----    integer rid = define_c_func(dll, "+" & name, args, result)
+--  integer rid = define_c_func(dll, name, args, result)
+--  if rid<1 then
+--      Abort("cannot link "&name)
+--  end if
+--  return rid
+--end function
 
-function link_c_proc(atom dll, sequence name, sequence args)
-    if dll=NULL then ?9/0 end if
---  integer rid = define_c_proc(dll, "+" & name, args)
-    integer rid = define_c_proc(dll, name, args)
-    if rid<1 then
-        Abort("cannot line "&name)
-    end if
-    return rid
-end function
+--function link_c_proc(atom dll, sequence name, sequence args)
+--  if dll=NULL then ?9/0 end if
+----    integer rid = define_c_proc(dll, "+" & name, args)
+--  integer rid = define_c_proc(dll, name, args)
+--  if rid<1 then
+--      Abort("cannot line "&name)
+--  end if
+--  return rid
+--end function
 
 atom xnopoll_ctx_new = NULL
 global function nopoll_ctx_new()
     if xnopoll_ctx_new=NULL then
         if nopoll=NULL then nopoll_init() end if
-        xnopoll_ctx_new = link_c_func(nopoll, "nopoll_ctx_new", {}, C_PTR)
+        xnopoll_ctx_new = define_c_func(nopoll, "nopoll_ctx_new", {}, C_PTR)
     end if
     atom res = c_func(xnopoll_ctx_new, {})
     if res=NULL then ?9/0 end if
@@ -66,7 +61,7 @@ end function
 atom xnopoll_conn_connect_timeout = NULL
 global procedure nopoll_conn_connect_timeout(atom ctx, integer microseconds_to_wait)
     if xnopoll_conn_connect_timeout=NULL then
-        xnopoll_conn_connect_timeout = link_c_proc(nopoll, "nopoll_conn_connect_timeout", {C_PTR,C_INT})
+        xnopoll_conn_connect_timeout = define_c_proc(nopoll, "nopoll_conn_connect_timeout", {C_PTR,C_INT})
     end if
     c_proc(xnopoll_conn_connect_timeout,{ctx,microseconds_to_wait})
 end procedure
@@ -74,7 +69,7 @@ end procedure
 atom xnopoll_conn_get_connect_timeout = NULL
 global function nopoll_conn_get_connect_timeout(atom ctx)
     if xnopoll_conn_get_connect_timeout=NULL then
-        xnopoll_conn_get_connect_timeout = link_c_func(nopoll, "nopoll_conn_get_connect_timeout", {C_PTR}, C_INT)
+        xnopoll_conn_get_connect_timeout = define_c_func(nopoll, "nopoll_conn_get_connect_timeout", {C_PTR}, C_INT)
     end if
     integer timeout = c_func(xnopoll_conn_get_connect_timeout,{ctx})
     return timeout
@@ -83,7 +78,7 @@ end function
 atom xnopoll_ctx_unref = NULL
 global procedure nopoll_ctx_unref(atom ctx)
     if xnopoll_ctx_unref=NULL then
-        xnopoll_ctx_unref = link_c_proc(nopoll, "nopoll_ctx_unref", {C_PTR})
+        xnopoll_ctx_unref = define_c_proc(nopoll, "nopoll_ctx_unref", {C_PTR})
     end if
     c_proc(xnopoll_ctx_unref,{ctx})
 end procedure
@@ -103,7 +98,7 @@ end type
 atom xnopoll_conn_new = NULL
 global function nopoll_conn_new(atom ctx, nullable_string host_ip, host_port, host_name, get_url, protocols, origin)
     if xnopoll_conn_new=NULL then
-        xnopoll_conn_new = link_c_func(nopoll, "nopoll_conn_new", {C_PTR,C_PTR,C_PTR,C_PTR,C_PTR,C_PTR,C_PTR}, C_PTR)
+        xnopoll_conn_new = define_c_func(nopoll, "nopoll_conn_new", {C_PTR,C_PTR,C_PTR,C_PTR,C_PTR,C_PTR,C_PTR}, C_PTR)
     end if
     atom res = c_func(xnopoll_conn_new, {ctx, host_ip, host_port, host_name, get_url, protocols, origin})
     if res=NULL then ?9/0 end if
@@ -113,7 +108,7 @@ end function
 atom xnopoll_conn_is_ok = NULL
 global function nopoll_conn_is_ok(atom conn)
     if xnopoll_conn_is_ok=NULL then
-        xnopoll_conn_is_ok = link_c_func(nopoll, "nopoll_conn_is_ok", {C_PTR}, C_INT)
+        xnopoll_conn_is_ok = define_c_func(nopoll, "nopoll_conn_is_ok", {C_PTR}, C_INT)
     end if
     bool res = c_func(xnopoll_conn_is_ok, {conn})
     return res
@@ -122,7 +117,7 @@ end function
 atom xnopoll_conn_is_ready = NULL
 global function nopoll_conn_is_ready(atom conn)
     if xnopoll_conn_is_ready=NULL then
-        xnopoll_conn_is_ready = link_c_func(nopoll, "nopoll_conn_is_ready", {C_PTR}, C_INT)
+        xnopoll_conn_is_ready = define_c_func(nopoll, "nopoll_conn_is_ready", {C_PTR}, C_INT)
     end if
     bool res = c_func(xnopoll_conn_is_ready,{conn})
     return res
@@ -147,7 +142,7 @@ end function
 atom xnopoll_conn_get_accepted_protocol = NULL
 global function nopoll_conn_get_accepted_protocol(atom conn)
     if xnopoll_conn_get_accepted_protocol=NULL then
-        xnopoll_conn_get_accepted_protocol = link_c_func(nopoll, "nopoll_conn_get_accepted_protocol", {C_PTR}, C_PTR)
+        xnopoll_conn_get_accepted_protocol = define_c_func(nopoll, "nopoll_conn_get_accepted_protocol", {C_PTR}, C_PTR)
     end if
     atom pProtocol = c_func(xnopoll_conn_get_accepted_protocol,{conn})
     if pProtocol=NULL then return "" end if
@@ -157,7 +152,7 @@ end function
 atom xnopoll_conn_read = NULL
 global function nopoll_conn_read(atom conn, integer bytes, bool block, integer timeout)
     if xnopoll_conn_read=NULL then
-        xnopoll_conn_read = link_c_func(nopoll, "nopoll_conn_read", {C_PTR,C_PTR,C_INT,C_INT,C_INT}, C_INT)
+        xnopoll_conn_read = define_c_func(nopoll, "nopoll_conn_read", {C_PTR,C_PTR,C_INT,C_INT,C_INT}, C_INT)
     end if
     atom buffer = allocate(bytes)
     integer n = c_func(xnopoll_conn_read,{conn,buffer,bytes,block,timeout})
@@ -169,7 +164,7 @@ end function
 atom xnopoll_conn_read_pending = NULL
 global function nopoll_conn_read_pending(atom conn)
     if xnopoll_conn_read_pending=NULL then
-        xnopoll_conn_read_pending = link_c_func(nopoll, "nopoll_conn_read_pending", {C_PTR}, C_INT)
+        xnopoll_conn_read_pending = define_c_func(nopoll, "nopoll_conn_read_pending", {C_PTR}, C_INT)
     end if
     integer pending_bytes = c_func(xnopoll_conn_read_pending,{conn})
     return pending_bytes
@@ -210,7 +205,7 @@ constant mutex_unlock_cb = call_back(routine_id("mutex_unlock"))
 atom xnopoll_thread_handlers = NULL
 global procedure nopoll_thread_handlers()
     if xnopoll_thread_handlers=NULL then
-        xnopoll_thread_handlers = link_c_proc(nopoll, "nopoll_thread_handlers", {C_PTR, C_PTR, C_PTR, C_PTR})
+        xnopoll_thread_handlers = define_c_proc(nopoll, "nopoll_thread_handlers", {C_PTR, C_PTR, C_PTR, C_PTR})
     end if
     c_proc(xnopoll_thread_handlers, {mutex_create_cb, mutex_destroy_cb, mutex_lock_cb, mutex_unlock_cb})
 end procedure
@@ -218,7 +213,7 @@ end procedure
 atom xnopoll_loop_wait = NULL
 global function nopoll_loop_wait(atom ctx, integer timeout)
     if xnopoll_loop_wait=NULL then
-        xnopoll_loop_wait = link_c_func(nopoll, "nopoll_loop_wait", {C_PTR, C_INT}, C_INT)
+        xnopoll_loop_wait = define_c_func(nopoll, "nopoll_loop_wait", {C_PTR, C_INT}, C_INT)
     end if
     integer res = c_func(xnopoll_loop_wait, {ctx, timeout})
     return res
@@ -227,7 +222,7 @@ end function
 atom xnopoll_loop_stop = NULL
 global procedure nopoll_loop_stop(atom ctx)
     if xnopoll_loop_stop=NULL then
-        xnopoll_loop_stop = link_c_proc(nopoll, "nopoll_loop_stop", {C_PTR})
+        xnopoll_loop_stop = define_c_proc(nopoll, "nopoll_loop_stop", {C_PTR})
     end if
     c_proc(xnopoll_loop_stop, {ctx})
 end procedure
@@ -235,7 +230,7 @@ end procedure
 atom xnopoll_ctx_set_on_msg = NULL
 global procedure nopoll_ctx_set_on_msg(atom ctx, on_msg_cb, pUserData=NULL)
     if xnopoll_ctx_set_on_msg=NULL then
-        xnopoll_ctx_set_on_msg = link_c_proc(nopoll, "nopoll_ctx_set_on_msg", {C_PTR, C_PTR, C_PTR})
+        xnopoll_ctx_set_on_msg = define_c_proc(nopoll, "nopoll_ctx_set_on_msg", {C_PTR, C_PTR, C_PTR})
     end if
     c_proc(xnopoll_ctx_set_on_msg, {ctx, on_msg_cb, pUserData})
 end procedure
@@ -243,7 +238,7 @@ end procedure
 atom xnopoll_conn_set_on_msg = NULL
 global procedure nopoll_conn_set_on_msg(atom conn, on_msg_cb, pUserData=NULL)
     if xnopoll_conn_set_on_msg=NULL then
-        xnopoll_conn_set_on_msg = link_c_proc(nopoll, "nopoll_conn_set_on_msg", {C_PTR, C_PTR, C_PTR})
+        xnopoll_conn_set_on_msg = define_c_proc(nopoll, "nopoll_conn_set_on_msg", {C_PTR, C_PTR, C_PTR})
     end if
     c_proc(xnopoll_conn_set_on_msg, {conn, on_msg_cb, pUserData})
 end procedure
@@ -283,7 +278,7 @@ end procedure
 atom xnopoll_conn_get_msg = NULL
 global function nopoll_conn_get_msg(atom conn)
     if xnopoll_conn_get_msg=NULL then
-        xnopoll_conn_get_msg = link_c_func(nopoll, "nopoll_conn_get_msg", {C_PTR}, C_PTR)
+        xnopoll_conn_get_msg = define_c_func(nopoll, "nopoll_conn_get_msg", {C_PTR}, C_PTR)
     end if
     atom pMsg = c_func(xnopoll_conn_get_msg, {conn})
     return pMsg
@@ -296,7 +291,7 @@ global constant EAGAIN = 11,
 atom xnopoll_conn_send_text = NULL
 global function nopoll_conn_send_text(atom conn, object content, integer len=length(content))
     if xnopoll_conn_send_text=NULL then
-        xnopoll_conn_send_text = link_c_func(nopoll, "nopoll_conn_send_text", {C_PTR,C_PTR,C_INT}, C_INT)
+        xnopoll_conn_send_text = define_c_func(nopoll, "nopoll_conn_send_text", {C_PTR,C_PTR,C_INT}, C_INT)
     end if
     integer bytes_written = c_func(xnopoll_conn_send_text, {conn, content, len})
     return bytes_written
@@ -305,7 +300,7 @@ end function
 atom xnopoll_conn_pending_write_bytes = NULL
 global function nopoll_conn_pending_write_bytes(atom conn)
     if xnopoll_conn_pending_write_bytes=NULL then
-        xnopoll_conn_pending_write_bytes = link_c_func(nopoll, "nopoll_conn_pending_write_bytes", {C_PTR}, C_INT)
+        xnopoll_conn_pending_write_bytes = define_c_func(nopoll, "nopoll_conn_pending_write_bytes", {C_PTR}, C_INT)
     end if
     integer bytes_pending = c_func(xnopoll_conn_pending_write_bytes, {conn})
     return bytes_pending
@@ -315,7 +310,7 @@ atom xnopoll_sleep = NULL
 global procedure nopoll_sleep(integer microseconds)
 -- note microseconds should be >=1000, on Windows anyway.
     if xnopoll_sleep=NULL then
-        xnopoll_sleep = link_c_proc(nopoll, "nopoll_sleep", {C_LONG})
+        xnopoll_sleep = define_c_proc(nopoll, "nopoll_sleep", {C_LONG})
     end if
     c_proc(xnopoll_sleep, {microseconds})
 end procedure
@@ -323,7 +318,7 @@ end procedure
 atom xnopoll_conn_complete_pending_write = NULL
 global function nopoll_conn_complete_pending_write(atom conn)
     if xnopoll_conn_complete_pending_write=NULL then
-        xnopoll_conn_complete_pending_write = link_c_func(nopoll, "nopoll_conn_complete_pending_write", {C_PTR}, C_INT)
+        xnopoll_conn_complete_pending_write = define_c_func(nopoll, "nopoll_conn_complete_pending_write", {C_PTR}, C_INT)
     end if
     integer bytes_written = c_func(xnopoll_conn_complete_pending_write, {conn})
     return bytes_written
@@ -333,7 +328,7 @@ end function
 atom xnopoll_conn_flush_writes = NULL
 global function nopoll_conn_flush_writes(atom conn, integer timeout, integer previous_result)
     if xnopoll_conn_flush_writes=NULL then
-        xnopoll_conn_flush_writes = link_c_func(nopoll, "nopoll_conn_flush_writes", {C_PTR,C_INT,C_INT}, C_INT)
+        xnopoll_conn_flush_writes = define_c_func(nopoll, "nopoll_conn_flush_writes", {C_PTR,C_INT,C_INT}, C_INT)
     end if
     integer bytes_written = c_func(xnopoll_conn_flush_writes, {conn, timeout, previous_result})
     return bytes_written
@@ -343,7 +338,7 @@ end function
 atom xnopoll_conn_close = NULL
 global procedure nopoll_conn_close(atom conn)
     if xnopoll_conn_close=NULL then
-        xnopoll_conn_close = link_c_proc(nopoll, "nopoll_conn_close", {C_PTR})
+        xnopoll_conn_close = define_c_proc(nopoll, "nopoll_conn_close", {C_PTR})
     end if
     c_proc(xnopoll_conn_close,{conn})
 end procedure
@@ -351,7 +346,7 @@ end procedure
 atom xnopoll_conn_close_ext = NULL
 global procedure nopoll_conn_close_ext(atom conn, integer status, string reason)
     if xnopoll_conn_close_ext=NULL then
-        xnopoll_conn_close_ext = link_c_proc(nopoll, "nopoll_conn_close_ext", {C_PTR,C_INT,C_PTR,C_INT})
+        xnopoll_conn_close_ext = define_c_proc(nopoll, "nopoll_conn_close_ext", {C_PTR,C_INT,C_PTR,C_INT})
     end if
     c_proc(xnopoll_conn_close_ext,{conn,status,reason,length(reason)})
 end procedure
@@ -374,7 +369,7 @@ global enum NOPOLL_UNKNOWN_OP_CODE = -1,
 atom xnopoll_msg_opcode = NULL
 global function nopoll_msg_opcode(atom pMsg)
     if xnopoll_msg_opcode=NULL then
-        xnopoll_msg_opcode = link_c_func(nopoll, "nopoll_msg_opcode", {C_PTR}, C_INT)
+        xnopoll_msg_opcode = define_c_func(nopoll, "nopoll_msg_opcode", {C_PTR}, C_INT)
     end if
     integer opcode = c_func(xnopoll_msg_opcode, {pMsg})
     return opcode
@@ -397,7 +392,7 @@ end function
 atom xnopoll_msg_get_payload = NULL
 global function nopoll_msg_get_payload(atom pMsg)
     if xnopoll_msg_get_payload=NULL then
-        xnopoll_msg_get_payload = link_c_func(nopoll, "nopoll_msg_get_payload", {C_PTR}, C_INT)
+        xnopoll_msg_get_payload = define_c_func(nopoll, "nopoll_msg_get_payload", {C_PTR}, C_INT)
     end if
     atom pPayload = c_func(xnopoll_msg_get_payload, {pMsg})
     return pPayload
@@ -407,7 +402,7 @@ end function
 atom xnopoll_msg_get_payload_size = NULL
 global function nopoll_msg_get_payload_size(atom pMsg)
     if xnopoll_msg_get_payload_size=NULL then
-        xnopoll_msg_get_payload_size = link_c_func(nopoll, "nopoll_msg_get_payload_size", {C_PTR}, C_INT)
+        xnopoll_msg_get_payload_size = define_c_func(nopoll, "nopoll_msg_get_payload_size", {C_PTR}, C_INT)
     end if
     integer payload_length = c_func(xnopoll_msg_get_payload_size, {pMsg})
     return payload_length
@@ -419,7 +414,7 @@ end function
 atom xnopoll_listener_new = NULL
 global function nopoll_listener_new(atom ctx, string host, string port)
     if xnopoll_listener_new=NULL then
-        xnopoll_listener_new = link_c_func(nopoll, "nopoll_listener_new", {C_PTR,C_PTR,C_PTR}, C_PTR)
+        xnopoll_listener_new = define_c_func(nopoll, "nopoll_listener_new", {C_PTR,C_PTR,C_PTR}, C_PTR)
     end if
     atom listener = c_func(xnopoll_listener_new,{ctx,host,port})
     return listener
@@ -503,11 +498,6 @@ procedure curl_init(string dll_name="", bool fatal=true)
             curl_dll_name = dll_name
         end if
         libcurl = open_dll(curl_dll_name)
-        if libcurl=NULL then
-            if fatal then
-                Abort("cannot open "&curl_dll_name)
-            end if
-        end if
     end if
 end procedure
 
@@ -565,7 +555,7 @@ end type
 atom xcurl_easy_strerror = NULL
 global function curl_easy_strerror(CURLcode code)
     if xcurl_easy_strerror=NULL then
-        xcurl_easy_strerror = link_c_func(libcurl, "curl_easy_strerror", {C_INT}, C_PTR)
+        xcurl_easy_strerror = define_c_func(libcurl, "curl_easy_strerror", {C_INT}, C_PTR)
     end if
     atom pRes = c_func(xcurl_easy_strerror, {code})
     string res = peek_string(pRes)

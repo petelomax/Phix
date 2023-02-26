@@ -6,8 +6,8 @@
 --
 --  Recommended reading: http://www.antonellaperucca.net/FioreLangPerucca.pdf
 --
---with javascript_semantics
-without javascript_semantics -- needs IupSetGlobalFunction("IDLE_ACTION"..), plus IupText("SPIN=Yes") and IupToggle() properly done
+with javascript_semantics
+--without javascript_semantics -- needs IupSetGlobalFunction("IDLE_ACTION"..), plus IupText("SPIN=Yes") and IupToggle() properly done
 constant SET_LIMIT = 1_000_000  -- above this, it uses random sampling.
 
 constant help_text = """
@@ -78,8 +78,8 @@ sequence secret = {},
 --
 
 function get_score(sequence guess, goal)
-integer blacks = 0, -- (right colour & place)
-        whites = 0  -- ("" but wrong place)
+    integer blacks = 0, -- (right colour & place)
+            whites = 0  -- ("" but wrong place)
     guess = deep_copy(guess)
     goal = deep_copy(goal)
     for i=1 to length(guess) do
@@ -203,7 +203,7 @@ atom done, is_done, best
 
 function idle_action()
     atom to_do = excluded-1,
-         t1 = time()+1
+         t1 = time()+0.04
     string samp = iff(is_len=length(initial_set)?"":sprintf(" samples of %,d",{is_len}))
     for i=1 to 100000 do    -- reasonable slice of work
         done += 1
@@ -244,7 +244,6 @@ function idle_action()
     IupSetStrAttribute(progres,"TITLE","%,d/%,d%s (%d%%)",{is_done,to_do,samp,100*(is_done/to_do)})
     return IUP_DEFAULT
 end function
-constant idle_action_cb = Icallback("idle_action")
 
 procedure start_idle()
     done = 0
@@ -252,7 +251,7 @@ procedure start_idle()
     best = length(initial_set)+1
     IupSetAttribute(progres,"TITLE","-")
     IupSetInt(usehint,"ACTIVE",false)
-    IupSetGlobalFunction("IDLE_ACTION",idle_action_cb)
+    IupSetGlobalFunction("IDLE_ACTION",Icallback("idle_action"))
 end procedure
 
 procedure new_game()
@@ -528,11 +527,12 @@ end function
 
 function help_cb(Ihandln /*ih*/)
     IupMessage("Mastermind",help_text)
-    return IUP_DEFAULT
+    return IUP_IGNORE -- (don't open browser help!)
 end function
 
 function key_cb(Ihandle /*dlg*/, atom c)
-    if c=K_ESC then return IUP_CLOSE end if
+    if c=K_ESC then return IUP_CLOSE end if -- (standard practice for me)
+    if c=K_F5 then return IUP_DEFAULT end if -- (let browser reload work)
     if c=K_F1 then return help_cb(NULL) end if
     if find(c,{K_DEL,K_BS}) then undo_move() end if
     return IUP_CONTINUE

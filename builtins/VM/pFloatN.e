@@ -36,7 +36,7 @@ procedure loadFloat(atom a)
 end procedure
 
 global function atom_to_float32(atom a)
-string res = repeat(' ',4)
+    string res = repeat(' ',4)
     loadFloat(a)
     #ilASM{
         [32]
@@ -51,7 +51,7 @@ string res = repeat(' ',4)
 end function
 
 global function atom_to_float64(atom a)
-string res = repeat(' ',8)
+    string res = repeat(' ',8)
     loadFloat(a)
     #ilASM{
         [32]
@@ -66,7 +66,7 @@ string res = repeat(' ',8)
 end function
 
 global function atom_to_float80(atom a)
-string res = repeat(' ',10)
+    string res = repeat(' ',10)
     loadFloat(a)
     #ilASM{
         [32]
@@ -83,7 +83,7 @@ end function
 function toBinaryString(sequence s)
 -- internal helper function, converts a dword-sequence into a byte-string
 --  containing the raw binary of a 32/64/80-bit floating point value.
-string res = repeat(' ',length(s))
+    string res = repeat(' ',length(s))
     for i=1 to length(s) do
         res[i] = and_bits(s[i],#FF)
     end for
@@ -93,7 +93,7 @@ end function
 {} = toBinaryString("")
 
 global function float32_to_atom(sequence s)
-atom res
+    atom res
     if length(s)!=4 then ?9/0 end if --DEV crash()? (and two more below)
     if not string(s) then s = toBinaryString(s) end if
     #ilASM{
@@ -112,7 +112,7 @@ atom res
 end function
 
 global function float64_to_atom(sequence s)
-atom res
+    atom res
     if length(s)!=8 then ?9/0 end if
     if not string(s) then s = toBinaryString(s) end if
     #ilASM{
@@ -131,7 +131,7 @@ atom res
 end function
 
 global function float80_to_atom(sequence s)
-atom res
+    atom res
     if length(s)!=10 then ?9/0 end if
     if not string(s) then s = toBinaryString(s) end if
     #ilASM{
@@ -148,4 +148,5 @@ atom res
            }
     return res
 end function
+
 

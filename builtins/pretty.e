@@ -191,6 +191,7 @@ global enum
 
 procedure pretty( object x, sequence options )
     if length(options) < length( PRETTY_DEFAULT ) then
+        options = deep_copy(options)
         options &= PRETTY_DEFAULT[length(options)+1..$]
     end if
     

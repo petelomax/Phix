@@ -60,9 +60,9 @@ global function isatty(integer fn)
         enter_cs()
         if platform()=WINDOWS then
             lib = open_dll("kernel32")
-            xGetStdHandle           = define_c_func(lib, "GetStdHandle", {C_UINT}, C_PTR)
-            xGetFileType            = define_c_func(lib, "GetFileType", {C_PTR}, C_INT)
-            xGetLastError           = define_c_func(lib, "GetLastError", {}, C_INT)
+            xGetStdHandle = define_c_func(lib, "GetStdHandle", {C_UINT}, C_PTR)
+            xGetFileType  = define_c_func(lib, "GetFileType", {C_PTR}, C_INT)
+            xGetLastError = define_c_func(lib, "GetLastError", {}, C_INT)
         elsif platform()=LINUX then
 --          lib = open_dll("libc.so.6")
             lib = open_dll("libc.so")

@@ -7,11 +7,9 @@
 constant
     STD_INPUT_HANDLE         = -10,
     STD_OUTPUT_HANDLE        = -11,
-    STD_ERROR_HANDLE         = -12,
+    STD_ERROR_HANDLE         = -12
 
 --  ENABLE_PROCESSED_INPUT   = 1,
-
-    C_PTR = C_POINTER
 
 object void
 
@@ -123,7 +121,6 @@ integer right
 integer attributes
 atom dest
 atom origin
-atom pDword, pCSBI, pSMALLRECT, pCHARINFO
 
 #ilASM{
     [ELF32]
@@ -133,10 +130,10 @@ atom pDword, pCSBI, pSMALLRECT, pCHARINFO
     []
       }
     if not Sinit then initScroll() end if
-    pDword = allocate(4)
-    pCSBI = allocate(sizeof_CSBI)
-    pSMALLRECT = allocate(sizeof_SMALL_RECT)
-    pCHARINFO = allocate(sizeof_CHAR_INFO)
+    atom pDword = allocate(4),
+         pCSBI = allocate(sizeof_CSBI),
+         pSMALLRECT = allocate(sizeof_SMALL_RECT),
+         pCHARINFO = allocate(sizeof_CHAR_INFO)
 
     if not c_func(xGetConsoleScreenBufferInfo,{stdout, pCSBI}) then ?9/0 end if
     right = peek2u(pCSBI+CSBI_SIZEX)-1

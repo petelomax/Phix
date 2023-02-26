@@ -111,7 +111,7 @@ Version 0.3.4
          go blank) if owner drawn tabs were disabled. Now it only invokes
          setBackColour (in arwen.ew) when they are enabled.
 07/07/13 Bugfix. Pressing F1 worked on the string but not on the xXXX in:
-          xEnumFontFamiliesExA = link_c_func(gdi32,"EnumFontFamiliesExA"
+         xEnumFontFamiliesExA = define_c_func(gdi32,"EnumFontFamiliesExA"
          (eaqj.e was testing a ch in the wrong one of word/Xword/Yword)
 10/07/13 Tweaked context popup menu positioning when opened using the 
          keyboard. Switched to xTrackPopupMenuEx (was using no-Ex) as

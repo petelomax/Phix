@@ -3,7 +3,7 @@
 -- =================================
 --
 --  Draws curves lo to hi (simultaneously), initially {1,1}, max {8,8}
---  Press +/- to change hi, shift +/- to change lo.
+--  Press +/- to change hi, shift +/- to change lo, ctrl +/- for both.
 --  ("=_" are also mapped to "+-", for the non-numpad +/-)
 --
 with javascript_semantics
@@ -21,7 +21,6 @@ procedure lineTo(atom newX, newY)
     cdCanvasVertex(cddbuffer, newX-width/2+h+lm, height-newY+2*h+tm)
     cx = newX
     cy = newY
---?{cx,cy}
 end procedure
 
 procedure lineN() lineTo(cx,cy-2*h) end procedure
@@ -131,21 +130,18 @@ procedure set_dlg_title()
 end procedure
 
 function key_cb(Ihandle /*ih*/, atom c)
-    if c=K_ESC then return IUP_CLOSE end if
+    if c=K_ESC then return IUP_CLOSE end if -- (standard practice for me)
+    if c=K_F5 then return IUP_DEFAULT end if -- (let browser reload work)
+    c = iup_XkeyBase(c)
     if find(c,"+=-_") then
-        bool bShift = IupGetInt(NULL,"SHIFTKEY")
+        bool bCtrl = IupGetInt(NULL,"CONTROLKEY"),
+             bShift = IupGetInt(NULL,"SHIFTKEY")
         if c='+' or c='=' then
-            if bShift then
-                lo = min(lo+1,hi)
-            else
-                hi = min(8,hi+1)
-            end if
+            if bCtrl or not bShift then hi = min(8,hi+1) end if
+            if bCtrl or     bShift then lo = min(lo+1,hi) end if
         elsif c='-' or c='_' then
-            if bShift then
-                lo = max(1,lo-1)
-            else
-                hi = max(lo,hi-1)
-            end if
+            if bCtrl or     bShift then lo = max(1,lo-1) end if
+            if bCtrl or not bShift then hi = max(lo,hi-1) end if
         end if
         set_dlg_title()
         cdCanvasClear(cddbuffer)

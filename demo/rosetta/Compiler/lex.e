@@ -25,7 +25,7 @@ function next_ch()
         elsif col>length(oneline) then
             line += 1
             col = 0
-            oneline = iff(platform()=JS?js_gets()
+            oneline = iff(platform()=JS?js_gets(input_file)
                                        :gets(input_file))
         else
             ch = oneline[col]

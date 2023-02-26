@@ -2292,31 +2292,42 @@ sequence wasalso
     also = {ExpLength(filetext[currfile][tokline][1..tokstart-1])+inPend()}
     Expression()
     also = {}
-    Match("then")
+    bool bCurlyBraces = false
+    if token="{" then
+        Match("{")
+        bCurlyBraces = true
+    else
+        Match("then")
+    end if
 --trace(1)
     Block()
-    while equal(token,"elsif") do
-        if parser_tokno=1 then Indent(0) end if
-        Match("elsif")
-        indentandor = 1
-        Expression()
-        indentandor = 0
-        Match("then")
-        Block()
-    end while
-    if equal(token,"else") then
-        if parser_tokno=1 then Indent(0) end if
-        Match("else")
-        Block()
+    if not bCurlyBraces then
+        while equal(token,"elsif") do
+            if parser_tokno=1 then Indent(0) end if
+            Match("elsif")
+            indentandor = 1
+            Expression()
+            indentandor = 0
+            Match("then")
+            Block()
+        end while
+        if equal(token,"else") then
+            if parser_tokno=1 then Indent(0) end if
+            Match("else")
+            Block()
+        end if
     end if
     if parser_tokno=1 then Indent(0) end if
 --DEV +adjustments for ifdef? (lots of other places too)
 --  nest = wasNest
 --DEV better!!!
     nest -= isTabWidth
-    Match("end")
---trace(1)
-    Match("if")
+    if bCurlyBraces then
+        Match("}")
+    else
+        Match("end")
+        Match("if")
+    end if
     also = wasalso
 end procedure
 

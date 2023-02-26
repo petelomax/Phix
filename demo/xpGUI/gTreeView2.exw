@@ -1,0 +1,258 @@
+﻿--
+-- demo\xpGUI\gTreeView2.exw
+-- =========================
+--
+--  See also gTreeView.exw for a simpler example without deferred loading.
+--
+-- Some key points:
+--  32 and 64 bit compatible
+--  Escape quits (with focus on both dialog and treeview, and no belling)
+--  Alt-tab preserves tree selection
+--  [WinAPI only] Treeview text is held in local table rather than Windows.
+--  Subdirectory(subtree) loading delayed until item expanded.
+--  Subdirectories initially shown as empty (when they are).
+--  Simple implementation of imagelists.
+--  Specifying simple xpm icons in text format.
+--  Treeview resized to fit window. [good on 32 and 64 bit]
+--  Automatic scrollbars kick in when needed, and vanish when not.
+--
+-- A lesson well and truly learnt:
+--  First get it to work by replacing include arwen.ew with win00inglcod.exw
+--  (that is, copy the whole file in and edit things in here not in there,
+--   except perhaps shifting some things after WinMain to make next easier)
+--  Then get it working on 32 and 64-bit by switching to cffi (&update "")
+--  **NOW** rather than try and suck it into xpGUI.e and in the process try
+--  to rewrite all of the well-tested innards of arwen, DO IT THE OTHER WAY,
+--  ie write gDialog()-style shims, and then copy xpGUI.e into this, remove
+--  the many duplicates, and massage into a "new xpGUI.e" as best you can.
+--
+--  What that means, with some practical considerations taken on board, is 
+--  that the original arwen routines need to update *BOTH* the old and the
+--  new internal tables, and can/shd verify they are kept in perfect sync.
+--  Conversely, the new routines should also update the old tables, as a
+--  bit of an afterthought and clearly marked for final-day removal, so
+--  that they will continue to work with either - I used a bMaintainOld.
+--  The key point being we can switch individual controls one-at-a-time
+--  and avoid the "every-single-one-and-it-just-does-not-work" nightmare.
+--
+--  Note that mirroring callbacks would obviuously be rather difficult, so
+--  instead when needed provide a callback and a separate routine_id which
+--  may or may not refer to the same code.
+--
+-- TODO: [DEV]
+--  true latent deferred loading: make branchopen simulate a network load, by
+--      kicking off a timer to perform the current guts in say rand(5) seconds, 
+--      and returning immediately. See what happens (on WinAPI/GTK/p2js) when 
+--      the user randomly opens more branches before others have completed...
+--
+with javascript_semantics
+include xpGUI.e
+--requires(64)
+--gUseGTK()
+
+--
+-- While a literal constant such as this is a bit eye-wateringly ugly, and
+-- needs fastidious attention to detail with all the nesting levels, it is
+-- intended to be relatively straightforward to construct, from almost any
+-- any suitable data source, using a simple recursive function.
+-- [I am open to suggestions for other ways to construct this.]
+--
+--/*
+
+--DEV fixup these comments!
+--
+sequence tree_data = {{"equilateral",       -- 1    (for Figures/triangle2)
+--                     "isoceles",
+                       {"isoceles",     -- (branch with 2 children)
+--                     {"STATE","COLLAPSED"},
+                       {"STATE","COLLAPSED","USERDATA",4},  -- see treedata[4]
+--                     {"acute",
+--                       "obtuse",
+--                     }},
+                       {"dummy"}},          -- (ensures we get a '+')
+                       "scalenus"},
+                      {"some",              -- 2    (for Figures/4D)
+                       "other",
+                       "branch"},
+--                    {"acute",
+--                     "obtuse"},
+                      {},                   -- 3 (kills + w/o opening, for Figures/triangle/isoceles)
+                      {"acute",             -- 4    (for Figures/triangle2/isoceles [a nested deferral])
+                       "obtuse"}
+                     }
+
+
+constant tree_nodes = {"Figures",               -- (branch with 5 children)
+--                     {"STATE","COLLAPSED"},   --  (works fine, btw)
+                       {"Other",                -- (leaf)
+                        {"triangle",            -- (branch with 3 children)
+                         {"STATE","COLLAPSED"},
+                         {"equilateral",
+--                        "isoceles",
+                          {"isoceles",          -- (branch with 2 children)
+                           {"STATE","COLLAPSED","USERDATA",3},
+--                         {"STATE","COLLAPSED"},
+--                         {"STATE","COLLAPSED","USERDATA",3}}, -- NO! [[1]]
+--                         {"acute",
+--                          "obtuse",
+--                         }},
+--                         {"dummy"}},          -- (ensures we get a '+')
+                           {}},                 -- ([we don't get a '+'])
+                          "scalenus",
+                         }},
+                        {"triangle2",           -- (branch with 3 children)
+                         {"STATE","COLLAPSED","USERDATA",1},
+                         {"dummy"}},            -- (ensures we get a '+')
+                        {"parallelogram",       -- (branch with 2 children)
+                         {"square",
+                          "diamond"
+                         }},
+                        "2D",                   -- (leaf)
+--                      {"2D"},                 -- (same)
+--                      {"2D",0},               -- (same)
+--                      {"2D",{},0},            -- (same)
+                        {"3D",
+                         {"STATE","COLLAPSED"}, -- (needed here)
+                         {}},                   -- (branch, empty)
+                        {"4D",                  -- (works just fine, if 8 uncommented above)
+                         {"STATE","COLLAPSED","USERDATA",2},
+                         {"dummy"}}             -- (branch, deferred load)
+                       }
+                      }
+-- [[1]] note: a node of {"isoceles",{"STATE","COLLAPSED","USERDATA",3}}, ie length 2,
+--       would (attempt to) be interpreted as no attributes and 4 children. As per docs
+--       that would need a trailing {} to explicitly mean "no children" (and no '+').
+
+--*!/
+
+procedure branchopen(object treenode)
+    integer userid = gTreeGetUserId(treenode)
+    if userid!=0 
+    and tree_data[userid]!=0 then -- (deferred load (still) rqd for this node)
+        gTreeDeleteChildren(treenode) -- first kill off "dummy" (which ensured a '+')
+        sequence children = tree_data[userid]
+        gTreeAddNodes(treenode, children)
+        -- finally remove the deferred load (or otherise mark as done, if
+        -- this isn't done then any sub-trees get deleted and collapsed.)
+        tree_data[userid] = 0
+--/*
+--  else
+--      -- prevent empty branches from "opening"...
+--      if IupGetIntId(tree,"CHILDCOUNT",id)=0 then return IUP_IGNORE end if
+--*/
+    end if
+end procedure
+--*/
+
+
+constant tree_nodes = {"Figures",               -- (branch with 5 children)
+--                     {"STATE","COLLAPSED"},   --  (works fine, btw)
+                       {"Other",                -- (leaf)
+                        {"triangle",            -- (branch with 3 children)
+                         {"STATE","COLLAPSED"},
+                         {"equilateral",
+--                        "isoceles",
+                          {"isoceles",          -- (branch with 2 children)
+                           {"STATE","COLLAPSED","USERDATA",3},
+--                         {"STATE","COLLAPSED"},
+--                         {"STATE","COLLAPSED","USERDATA",3}}, -- NO!
+--                         {"acute",
+--                          "obtuse",
+--                         }},
+--                         {"dummy"}},          -- (ensures we get a '+')
+                           {}},                 -- ([we don't get a '+'])
+                          "scalenus",
+                         }},
+                        {"triangle2",           -- (branch with 3 children)
+                         {"STATE","COLLAPSED","USERDATA",1},
+                         {"dummy"}},            -- (ensures we get a '+')
+                        {"parallelogram",       -- (branch with 2 children)
+                         {"square",
+                          "diamond"
+--                        {"diamond",
+--                         {"COLOR","92 92 255","TITLEFONT","Courier, 8"},
+--                         0}   -- (nb: this is a leaf, non-optional here)
+                         }},
+                        "2D",                   -- (leaf)
+--                      {"2D"},                 -- (same)
+--                      {"2D",0},               -- (same)
+--                      {"2D",{},0},            -- (same)
+                        {"3D",
+                         {"STATE","COLLAPSED"}, -- (needed here)
+                         {}},                   -- (branch, empty)
+                        {"4D",                  -- (works just fine, if 8 uncommented above)
+                         {"STATE","COLLAPSED","USERDATA",2},
+                         {"dummy"}}             -- (branch, deferred load)
+                       }
+                      }
+
+--
+-- Note tree_data [next] is a/your (non-constant) application defined structure.
+-- You can put anything you like here, as long as your branchopen() copes with it.
+-- Just in case that's not clear, xpGUI.e never ever gets to see that at all, and
+-- there wouldn't be any problem stashing that info in, say, a keyed dictionary.
+-- Fundamentally, though, it's job is to provide tree_nodes compatible nodes.
+-- At least for the branchopen() as defined below, the following notes apply:
+-- tree_nodes/data entries should contain {"dummy"}, to ensure you get a '+', along 
+--  with {"STATE","COLLAPSED","USERDATA",index_to_tree_data} attributes.
+-- Should you omit COLLAPSED, then it would show opened/dummy, and you would
+--  have to close/open it to trigger the deferred load, all fairly obviously.
+-- Also fairly obviously it won't do anything with nodes without a USERDATA, and as
+--  with the tree_data[4] handling below, that rule can be applied recursively.
+-- This structure could easily contain a -1 or similar, meaning "go and fetch it".
+-- Lastly note there is no rigid ordering here, like the way 1 refers to 4, and 
+--  3 is technically before 2 in the tree itself, and in fact you could shuffle()
+--  tree_data, as long as you updated all the indexes properly and consistently.
+--
+
+-- Obviously would probably be more dynamically set in a real app,
+-- and of course this does not have to be finalised at the get-go, 
+-- the USERDATA of 4 could be allocated/added when 1 is opened.
+-- (Whereas the 1/2/3 already in tree-nodes would usually be added
+--  when that is built, typically before the gTreeView() call.)
+
+sequence tree_data = {{"equilateral",       -- 1    (for Figures/triangle2)
+--                     "isoceles",
+                       {"isoceles",     -- (branch with 2 children)
+--                     {"STATE","COLLAPSED"},
+                       {"STATE","COLLAPSED","USERDATA",4},  -- see tree_data[4]
+--                     {"acute",
+--                       "obtuse",
+--                     }},
+                       {"dummy"}},          -- (ensures we get a '+')
+                       "scalenus"},
+                      {"some",              -- 2    (for Figures/4D)
+                       "other",
+                       "branch"},
+--                    {"acute",
+--                     "obtuse"},
+                      {},                   -- 3 (kills + w/o opening, for Figures/triangle/isoceles)
+                      {"acute",             -- 4    (for Figures/triangle2/isoceles [a nested deferral])
+                       "obtuse"}
+                     }
+
+--gdx timer = gTimer(...)
+
+procedure branchopen(object treenode)
+    integer userid = gTreeGetUserId(treenode)
+--  integer {id,userid} = gTreeGetUserId(treenode)
+    if userid!=0 
+    and tree_data[userid]!=0 then -- (deferred load (still) rqd for this node)
+--      defer = append(defer,{treenode,rand(5)})
+--      gSetAttribute(timer,"ACTIVE",true)
+        gTreeDeleteChildren(treenode) -- first kill off "dummy" (which ensured a '+')
+        sequence children = tree_data[userid]
+        gTreeAddNodes(treenode, children)
+         -- (DEV for winAPI treenode shd be {handle,id}, may need to re-fetch userid)
+        -- finally remove the deferred load (or otherise mark as done, if
+        -- this isn't done then any sub-trees get deleted and collapsed.)
+        tree_data[userid] = 0
+    end if
+end procedure
+
+gdx tree_view = gTreeView(tree_nodes,branchopen),
+          dlg = gDialog(tree_view,`TITLE="Tree View2",SIZE=350x300`)
+gShow(dlg)
+gMainLoop()
+
+

@@ -11,7 +11,7 @@
 --  each, but once in the cache it only takes a few seconds to load everything.
 --
 -- Should you only want to run Phix programs, demo/pGUI/pdemo.exw offers many
---  other non-rosettacode demo programs, and many but not all 1440 rc tasks.
+--  other non-rosettacode demo programs, and many but not all 1,592 rc tasks.
 --
 --  No attempt has been made for the "Extra credit" (report which tasks failed
 --  to run) or "More credit" (save output and compare with expected) - for the
@@ -208,124 +208,24 @@ function run(atom c)
     return IUP_IGNORE -- (for key_cb)
 end function
 
-include builtins\timedate.e
-integer refresh_cache = timedelta(days:=21) -- 0 for always
---  [NB refresh_cache += timedelta(days:=1) below]
+include rosettacode_cache.e -- see [[Rosetta_Code/Count_examples#Phix]]
 
-include builtins\libcurl.e
-atom curl = NULL
-atom pErrorBuffer
+procedure set_title(string title)
+    IupSetStrAttribute(statusbar, "TITLE", title)
+end procedure
+show_title = set_title
 
-function write_callback(atom pData, integer size, integer nmemb, integer fn)
-    integer bytes_written = size * nmemb
-    puts(fn,peek({pData,bytes_written}))
-    return bytes_written
-end function
-constant write_cb = call_back({'+', routine_id("write_callback")})
-
--- don't clobber any "NEED EDITING" or Downloading... messages:
-string wastitle = ""
-
-function open_download(string filename, url, integer i=0, t=0)
-    bool refetch = true
-    filename = join_path({"rc_cache",filename})
-    if file_exists(filename) then
-        -- use existing file if <= refresh_cache (365 days) old
-        sequence last_mod = get_file_date(filename)     -- (0.8.1+)
-        atom delta = timedate_diff(last_mod,date())
-        refetch = (delta>refresh_cache) or get_file_size(filename)=0
-    else
-        string directory = get_file_path(filename)
-        if get_file_type(directory)!=FILETYPE_DIRECTORY then
-            if not create_directory(directory,make_parent:=true) then
-                crash("cannot create %s directory",{directory})
-            end if
-        end if
-    end if
-    object text
-    if not refetch then
-        text = trim(get_text(filename))
-        refetch = (not sequence(text)) or (length(text)<10)
-    end if
-    if refetch then
-        wastitle = "x" -- don't clobber
-        string title = "Downloading "
-        if t then
-            title &= sprintf(" (%d/%d, %.1f%%) ",{i,t,i/t*100})
-        end if
-        IupSetStrAttribute(statusbar, "TITLE", title&filename)
-        if curl=NULL then
-            curl_global_init()
-            curl = curl_easy_init()
-            pErrorBuffer = allocate(CURL_ERROR_SIZE)
-            curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, pErrorBuffer)
-            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb)
-        end if
-        url = substitute(url,"%3A",":")
-        url = substitute(url,"%2A","*")
-        curl_easy_setopt(curl, CURLOPT_URL, url)
-        integer fn = open(filename,"wb")
-        if fn=-1 then ?9/0 end if
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, fn)
-        while true do
-            CURLcode res = curl_easy_perform(curl)
-            if res=CURLE_OK then exit end if
-            string error = sprintf("%d",res)
-            if res=CURLE_COULDNT_RESOLVE_HOST then
-                error &= " [CURLE_COULDNT_RESOLVE_HOST]"
-            end if
-            error = sprintf("Error %s downloading file, retry?",{error})
-            if IupMessageAlarm(NULL, "Error", error, "YESNO")!=1 then
-                abort(0)
-            end if
-        end while
-        close(fn)
-        refresh_cache += timedelta(days:=1) -- did I mention it is slow?
-        text = get_text(filename)
-    end if
-    return text
-end function
-
-function open_category(string filename)
-    return open_download(filename&".htm","http://rosettacode.org/wiki/Category:"&filename)
-end function
-
-function dewiki(string s)
-    -- extract tasks from eg `<li><a href="/wiki/100_doors"`
-    sequence tasks = {}
-    integer start = 1, finish = match(`<div class="printfooter">`,s)
-    s = s[1..finish-1]
-    while true do
-        start = match(`<li><a href="/wiki/`,s,start)
-        if start=0 then exit end if
-        start += length(`<li><a href="/wiki/`)
-        finish = find('"',s,start)
-        string task = s[start..finish-1]
-        task = substitute_all(task,{"*",":"},{"%2A","%3A"})
-        tasks = append(tasks,task)
-        start = finish+1
-    end while
-    return tasks
-end function
-
-constant {hex,ascii} = columnize({{"%2A","*"},
-                                  {"%3A",":"},
-                                  {"%27","'"},
-                                  {"%2B","+"},
-                                  {"%22",`"`},
-                                  {"%E2%80%93","-"},
-                                  {"%E2%80%99","'"},
-                                  {"%C3%A8","e"},
-                                  {"%C3%A9","e"}})
-
-function html_clean(string s)
-    return substitute_all(s,hex,ascii)
-end function
-
-constant cleanups = {{`<!--<lang Phix>(phixonline)-->`,`<lang Phix>`},
-                     {`<!--<lang Phix>(notonline)-->`,`<lang Phix>`},
-                     {`<!--<lang Phix>-->`,`<lang Phix>`},
-                     {`<!--</lang>-->`,`</lang>`},
+--  (We use a few '&' here, fairly obviously for everyone's sanity..)
+--constant langsp = `<l`&`ang `,
+--       clang = `</l`&`ang>`,
+--       langp = langsp&`Phix>`
+constant langsp = `<syntax`&`highlight `,
+         clang = `</syntax`&`highlight>`,
+         langp = langsp&`lang="phix">`
+constant cleanups = {{`<!--`&langp&`(phixonline)-->`,langp},
+                     {`<!--`&langp&`(notonline)-->`,langp},
+                     {`<!--`&langp&`-->`,langp},
+                     {`<!--`&clang&`-->`,clang},
                      {`<span style="color: #008080;">`,``},
                      {`<span style="color: #000000;">`,``},
                      {`<span style="color: #0000FF;">`,``},
@@ -335,12 +235,13 @@ constant cleanups = {{`<!--<lang Phix>(phixonline)-->`,`<lang Phix>`},
                      {`<span style="color: #004600;">`,``},
                      {`<span style="color: #000080;font-style:italic;">`,``},
                      {`</span>`,``},
-                     {`&gt;`,`>`},
-                     {`&lt;`,`<`}},
+                     {`&`&`gt;`,`>`},
+                     {`&`&`lt;`,`<`}},
          {cleanstrs,cleanreps} = columnize(cleanups)
 
 function cleanup(string s)
-    if match(`<!--<lang Phix>`,s) then
+--  if match(`<!--<l`&`ang Phix>`,s) then
+    if match(`<!--`&langp,s) then
         -- (Phix "manual" syntax colouring inserts a
         --  space at the start of every single line,
         --  otherwise blank lines break code blocks.)
@@ -368,7 +269,8 @@ procedure set_blocks(sequence di, integer i)
              finishes = di[$]
     integer start = starts[i],
            finish = finishes[i]
-    string filename = join_path({"rc_cache",di[$-2]})
+--DEV/SUG would using rc_get_raw() be in any way better here?
+    string filename = join_path({"rc_cache",file_clean(di[$-2])})
     string text = trim(get_text(filename))
     -- (above is full text, below is language-only)
     -- (assumes rc_cache not edited since load_tasks)
@@ -376,11 +278,13 @@ procedure set_blocks(sequence di, integer i)
     blocks = {}
     start = 1
     while true do
-        start = match(`<lang `,text,start)
+--      start = match(`<l`&`ang `,text,start)
+        start = match(langsp,text,start)
         if start=0 then exit end if
         start = find('>',text,start)+1
         if start=1 then ?9/0 end if
-        finish = match(`</lang>`,text,start)
+--      finish = match(`</l`&`ang>`,text,start)
+        finish = match(clang,text,start)
         blocks = append(blocks,trim_head(text[start..finish-1]))
         start = finish+7
     end while
@@ -431,20 +335,13 @@ function load_tasks()
         inIdle = true
         -- don't clobber any "NEED EDITING" message:
         wastitle = IupGetAttribute(statusbar, "TITLE")
-        if get_file_type("rc_cache")!=FILETYPE_DIRECTORY then
-            if not create_directory("rc_cache") then
-                crash("cannot create rc_cache directory")
-            end if
-        end if
-        sequence tasks = sort(dewiki(open_category("Programming_Tasks"))&
-                              dewiki(open_category("Draft_Programming_Tasks")))
---?length(tasks)
+        sequence tasks = sort(get_rc_category("Programming_Tasks")&
+                              get_rc_category("Draft_Programming_Tasks"))
         task_table = {}
         atom t1 = time()+0.2
         for i=1 to length(tasks) do
             string ti = tasks[i],
-                   url = sprintf("http://rosettacode.org/mw/index.php?title=%s&action=raw",{ti}),
-                   contents = open_download(ti&".raw",url,i,length(tasks)),
+                   contents = get_rc_raw(ti),
                    prev = "", curr
             integer count = 0, start = 1, finishk = 0
             sequence found = repeat("N",length(langs)),
@@ -454,7 +351,7 @@ function load_tasks()
                 -- Note this must handle (from Animation.raw):
                 -- ==[[header|JavaScript]] + [[header|HTML]]==
                 -- ==[[header|JavaScript]] + [[header|SVG]]==
-                start = match(`=={`&`{header|`,contents,start)
+                start = match(`=={`&`{he`&`ader|`,contents,start)
                 if start=0 then exit end if
                 integer finish = match(`}`&`}`,contents,start+1)
                 curr = contents[start+11..finish-1]
@@ -472,7 +369,7 @@ function load_tasks()
                     count += 1
                 end if
                 prev = curr
-                start += length(`{`&`{header|`)
+                start += length(`{`&`{he`&`ader|`)
             end while
             if find("Y",found) then
                 assert(find(true,sq_lt(finishes,starts))=0)
@@ -492,12 +389,7 @@ function load_tasks()
                 t1 = time()+0.2
             end if
         end for
-        if curl!=NULL then
-            curl_easy_cleanup(curl)
-            free(pErrorBuffer)
-            curl = NULL
-            pErrorBuffer = NULL
-        end if
+        curl_cleanup()
         if wastitle="" then
             IupSetStrAttribute(statusbar, "TITLE", "%d tasks loaded",{length(task_table)})
         end if

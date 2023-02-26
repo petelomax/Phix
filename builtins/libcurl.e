@@ -4,8 +4,8 @@
 --  A libcurl wrapper, based heavily on the work of Raymond Smith and jmduro, 
 --                     rewritten mainly as part of the documentation process.
 --  
---  Note that the (windows) dlls are /not/ included in the standard distribution,
---  but can be downloaded from http://phix.x10.mx/pmwiki/pmwiki.php?n=Main.Libcurldlls
+--  Windows dlls /are/ now included in the standard distribution.
+--  (or get from http://phix.x10.mx/pmwiki/pmwiki.php?n=Main.Libcurldlls )
 --
 
 procedure Abort(string msg)
@@ -30,12 +30,10 @@ procedure curl_init(string dll_name="", bool fatal=true)
         else
             curl_dll_name = dll_name
         end if
-        libcurl = open_dll(curl_dll_name)
+        libcurl = open_dll(curl_dll_name,false)
         if libcurl=NULL then
-            libcurl = open_dll(join_path({"builtins",curl_dll_name}))
-        end if
-        if libcurl=NULL then
-            if fatal then
+            libcurl = open_dll(join_path({"builtins",curl_dll_name}),false)
+            if libcurl=NULL and fatal then
                 Abort("cannot open "&curl_dll_name)
             end if
         end if
@@ -53,24 +51,6 @@ global function curl_loadlib(string dll_name="")
         return libcurl!=NULL
     end if
     return true
-end function
-
-function link_c_func(atom dll, sequence name, sequence args, atom result)
-    if dll=NULL then ?9/0 end if
-    integer rid = define_c_func(dll, "+" & name, args, result)
-    if rid<1 then
-        Abort("cannot link "&name)
-    end if
-    return rid
-end function
-
-function link_c_proc(atom dll, sequence name, sequence args)
-    if dll=NULL then ?9/0 end if
-    integer rid = define_c_proc(dll, "+" & name, args)
-    if rid<1 then
-        Abort("cannot line "&name)
-    end if
-    return rid
 end function
 
 constant W = machine_word()
@@ -385,7 +365,7 @@ global constant
 atom xcurl_easy_strerror = NULL
 global function curl_easy_strerror(CURLcode error)
     if xcurl_easy_strerror=NULL then
-        xcurl_easy_strerror = link_c_func(libcurl, "curl_easy_strerror", {C_INT}, C_PTR)
+        xcurl_easy_strerror = define_c_func(libcurl, "curl_easy_strerror", {C_INT}, C_PTR)
     end if
     atom pRes = c_func(xcurl_easy_strerror, {error})
     string res = peek_string(pRes)
@@ -399,7 +379,7 @@ global function curl_version()
 -- Returns the libcurl version as an ascii string.
     if xcurl_version=NULL then
         if libcurl=NULL then curl_init() end if
-        xcurl_version = link_c_func(libcurl, "curl_version", {}, C_PTR)
+        xcurl_version = define_c_func(libcurl, "curl_version", {}, C_PTR)
     end if
     atom pVersion = c_func(xcurl_version, {})
     string res = peek_string(pVersion)
@@ -649,7 +629,7 @@ atom xcurl_global_init = NULL
 global procedure curl_global_init(integer flags=CURL_GLOBAL_DEFAULT)
     if xcurl_global_init=NULL then
         if libcurl=NULL then curl_init() end if
-        xcurl_global_init = link_c_func(libcurl, "curl_global_init", {C_LONG}, C_INT)
+        xcurl_global_init = define_c_func(libcurl, "curl_global_init", {C_LONG}, C_INT)
     end if
     global_init = true
     integer error_code = c_func(xcurl_global_init, {flags})
@@ -662,7 +642,7 @@ atom xcurl_global_cleanup = NULL
 global procedure curl_global_cleanup()
     if xcurl_global_cleanup=NULL then
         if libcurl=NULL then curl_init() end if
-        xcurl_global_cleanup = link_c_proc(libcurl, "curl_global_cleanup", {})
+        xcurl_global_cleanup = define_c_proc(libcurl, "curl_global_cleanup", {})
     end if
     global_init = false
     c_proc(xcurl_global_cleanup, {})
@@ -679,7 +659,7 @@ atom xcurl_easy_init = NULL
 global function curl_easy_init()
     if xcurl_easy_init=NULL then
         if libcurl=NULL then curl_init() end if
-        xcurl_easy_init = link_c_func(libcurl, "curl_easy_init", {}, C_PTR)
+        xcurl_easy_init = define_c_func(libcurl, "curl_easy_init", {}, C_PTR)
     end if
 --  CURLhandle curl = c_func(xcurl_easy_init, {})
     atom curl = c_func(xcurl_easy_init, {})
@@ -702,7 +682,7 @@ end function
 atom xcurl_easy_cleanup = NULL
 global procedure curl_easy_cleanup(atom curl)
     if xcurl_easy_cleanup=NULL then
-        xcurl_easy_cleanup = link_c_proc(libcurl, "curl_easy_cleanup",  {C_PTR})
+        xcurl_easy_cleanup = define_c_proc(libcurl, "curl_easy_cleanup",    {C_PTR})
     end if
     c_proc(xcurl_easy_cleanup, {curl})
 end procedure
@@ -740,7 +720,7 @@ end procedure
 atom xcurl_easy_duphandle = NULL
 global function curl_easy_duphandle(atom curl)
     if xcurl_easy_duphandle=NULL then
-        xcurl_easy_duphandle = link_c_func(libcurl, "curl_easy_duphandle", {C_PTR}, C_PTR)
+        xcurl_easy_duphandle = define_c_func(libcurl, "curl_easy_duphandle", {C_PTR}, C_PTR)
     end if
   return c_func(xcurl_easy_duphandle, {curl})
 end function
@@ -750,7 +730,7 @@ end function
 atom xcurl_easy_reset = NULL
 global procedure curl_easy_reset(atom curl)
     if xcurl_easy_reset=NULL then
-        xcurl_easy_reset = link_c_proc(libcurl, "curl_easy_reset", {C_PTR})
+        xcurl_easy_reset = define_c_proc(libcurl, "curl_easy_reset", {C_PTR})
     end if
   c_proc(xcurl_easy_reset, {curl})
 end procedure
@@ -808,10 +788,12 @@ global constant
                                                 -- it is less than 2000 bytes/sec during 20 seconds.
   CURLOPT_LOW_SPEED_LIMIT           =    19,    -- Set the "low speed limit"
   CURLOPT_LOW_SPEED_TIME            =    20,    -- Set the "low speed time"
+--*/
   CURLOPT_RESUME_FROM               =    21,    -- Set the continuation offset.
                                                 -- Note there is also a _LARGE version of this key which uses
                                                 -- off_t types, allowing for large file offsets on platforms which
                                                 -- use larger-than-32-bit off_t's.  Look below for RESUME_FROM_LARGE.
+--/*
   CURLOPT_COOKIE                    = 10022,    -- Set cookie in request:
 --*/
   CURLOPT_HTTPHEADER                = 10023,    -- This points to a linked list of headers, struct curl_slist kind. This
@@ -992,8 +974,10 @@ global constant
                                                 -- platforms which have larger off_t sizes.  See MAXFILESIZE_LARGE below.
   CURLOPT_INFILESIZE_LARGE          = 30115,    -- See the comment for INFILESIZE above, but in short, specifies
                                                 -- the size of the file being uploaded.  -1 means unknown.
+--*/
   CURLOPT_RESUME_FROM_LARGE         = 30116,    -- Sets the continuation offset.    There is also a LONG version of this;
                                                 -- look above for RESUME_FROM.
+--/*
   CURLOPT_MAXFILESIZE_LARGE         = 30117,    -- Sets the maximum size of data that will be downloaded from
                                                 -- an HTTP or FTP server.  See MAXFILESIZE above for the LONG version.
   CURLOPT_NETRC_FILE                = 10118,    -- Set this option to the file name of your .netrc file you want libcurl
@@ -1244,12 +1228,16 @@ global constant  -- this global enum was added in 7.10
 --                 CURLPROXY_SOCKS5, CURLPROXY_SOCKS4A, CURLPROXY_SOCKS5_HOSTNAME})
 --end type
 
-atom xcurl_easy_setopt = NULL
+atom xcurl_easy_setopt = NULL,
+     xcurl_easy_setopt2
 global function curl_easy_setoptf(atom curl, CURLoption option, object param)
 CURLcode res -- CURLE_OK..CURL_LAST-1
     if xcurl_easy_setopt=NULL then
         if libcurl=NULL then ?9/0 end if -- (the curl param cannot possibly be valid)
-        xcurl_easy_setopt = link_c_func(libcurl, "curl_easy_setopt", {C_PTR, C_INT, C_PTR}, C_INT)
+        xcurl_easy_setopt = define_c_func(libcurl, "curl_easy_setopt", {C_PTR, C_INT, C_PTR}, C_INT)
+        if machine_bits()=32 then -- split a curl_off_t (64 bit int) into two 32-bit ints
+            xcurl_easy_setopt2 = define_c_func(libcurl, "curl_easy_setopt", {C_PTR, C_INT, C_PTR, C_PTR}, C_INT)
+        end if
     end if
     --
     -- NB these are not necessarily set in stone:
@@ -1276,7 +1264,16 @@ CURLcode res -- CURLE_OK..CURL_LAST-1
         -- replace a deprecated debug option (treat true as 2):
         if param=1 then param=2 end if
     end if
-    res = c_func(xcurl_easy_setopt, {curl, option, param})
+--  bool use2 = machine_bits()=32 and option>30000
+--  integer option = remainder(option,10000) -- no no no!
+--  if use2 then
+    if machine_bits()=32 and option>30000 then
+        atom paramhi = floor(param/#1_0000_0000)
+        param = remainder(param,#1_0000_0000)
+        res = c_func(xcurl_easy_setopt2, {curl, option, param, paramhi})
+    else
+        res = c_func(xcurl_easy_setopt, {curl, option, param})
+    end if
     return res
 end function
 
@@ -1289,7 +1286,7 @@ end procedure
 atom xcurl_easy_perform = NULL
 global function curl_easy_perform(atom curl)
     if xcurl_easy_perform=NULL then
-        xcurl_easy_perform = link_c_func(libcurl, "curl_easy_perform", {C_PTR}, C_INT)
+        xcurl_easy_perform = define_c_func(libcurl, "curl_easy_perform", {C_PTR}, C_INT)
     end if
     CURLcode res = c_func(xcurl_easy_perform, {curl})
     return res
@@ -1390,8 +1387,8 @@ constant write_fn_cb = call_back({'+',routine_id("curl_easy_write_fn_callback")}
 atom xcurl_easy_send = NULL
 global function curl_easy_send(atom curl, object buffer, integer buflen=length(buffer))
     if xcurl_easy_send=NULL then
---      xcurl_easy_send = link_c_func(libcurl, "curl_easy_send", {C_PTR, C_PTR, C_SIZE_T, C_PTR}, C_INT)
-        xcurl_easy_send = link_c_func(libcurl, "curl_easy_send", {C_PTR, C_PTR, C_UINT, C_PTR}, C_INT)
+--      xcurl_easy_send = define_c_func(libcurl, "curl_easy_send", {C_PTR, C_PTR, C_SIZE_T, C_PTR}, C_INT)
+        xcurl_easy_send = define_c_func(libcurl, "curl_easy_send", {C_PTR, C_PTR, C_UINT, C_PTR}, C_INT)
     end if
     atom addr = allocate(4)
     poke4(addr,0)
@@ -1414,7 +1411,7 @@ end function
 atom xcurl_easy_recv = NULL
 global function curl_easy_recv(atom curl, atom buffer, integer buflen)
     if xcurl_easy_recv=NULL then
-        xcurl_easy_recv = link_c_func(libcurl, "curl_easy_recv", {C_PTR, C_PTR, C_UINT, C_PTR}, C_INT)
+        xcurl_easy_recv = define_c_func(libcurl, "curl_easy_recv", {C_PTR, C_PTR, C_UINT, C_PTR}, C_INT)
     end if
     atom addr = allocate(4)
     poke4(addr,0)
@@ -1468,7 +1465,7 @@ end function
 atom xcurl_slist_append = NULL
 global function curl_slist_append(atom slist, string s)
     if xcurl_slist_append=NULL then
-        xcurl_slist_append = link_c_func(libcurl, "curl_slist_append", {C_PTR, C_PTR}, C_PTR)
+        xcurl_slist_append = define_c_func(libcurl, "curl_slist_append", {C_PTR, C_PTR}, C_PTR)
     end if
     slist = c_func(xcurl_slist_append, {slist, s})
     if slist=NULL then ?9/0 end if
@@ -1510,7 +1507,7 @@ end function
 atom xcurl_slist_free_all = NULL
 global procedure curl_slist_free_all(atom slist)
     if xcurl_slist_free_all=NULL then
-        xcurl_slist_free_all = link_c_proc(libcurl, "curl_slist_free_all", {C_PTR})
+        xcurl_slist_free_all = define_c_proc(libcurl, "curl_slist_free_all", {C_PTR})
     end if
     c_proc(xcurl_slist_free_all, {slist})
 end procedure
@@ -1554,7 +1551,7 @@ global function curl_easy_getinfo(atom curl, integer option)
 atom param
 object o, res
     if xcurl_easy_getinfo=NULL then
-        xcurl_easy_getinfo = link_c_func(libcurl, "curl_easy_getinfo", {C_PTR, C_INT, C_PTR}, C_INT)
+        xcurl_easy_getinfo = define_c_func(libcurl, "curl_easy_getinfo", {C_PTR, C_INT, C_PTR}, C_INT)
     end if
 
     integer option_type = and_bits(option,CURLINFO_TYPEMASK)
@@ -1655,7 +1652,7 @@ atom xcurl_multi_init = NULL
 global function curl_multi_init()
     if xcurl_multi_init=NULL then
         if libcurl=NULL then curl_init() end if
-        xcurl_multi_init = link_c_func(libcurl, "curl_multi_init", {}, C_PTR)
+        xcurl_multi_init = define_c_func(libcurl, "curl_multi_init", {}, C_PTR)
     end if
     atom mcurl = c_func(xcurl_multi_init, {})
     if mcurl=NULL then ?9/0 end if
@@ -1693,7 +1690,7 @@ end type
 atom xcurl_pushheader_bynum = NULL
 global function curl_pushheader_bynum(atom p_curl_pushheaders, integer num)
     if xcurl_pushheader_bynum=NULL then
-        xcurl_pushheader_bynum = link_c_func(libcurl, "curl_pushheader_bynum", {C_PTR, C_INT}, C_PTR)
+        xcurl_pushheader_bynum = define_c_func(libcurl, "curl_pushheader_bynum", {C_PTR, C_INT}, C_PTR)
     end if
     atom ptr = c_func(xcurl_pushheader_bynum, {p_curl_pushheaders, num})
     return ptr
@@ -1702,7 +1699,7 @@ end function
 atom xcurl_pushheader_byname = NULL
 global function curl_pushheader_byname(atom p_curl_pushheaders, string name)
     if xcurl_pushheader_byname=NULL then
-        xcurl_pushheader_byname = link_c_func(libcurl, "curl_pushheader_byname", {C_PTR, C_PTR}, C_PTR)
+        xcurl_pushheader_byname = define_c_func(libcurl, "curl_pushheader_byname", {C_PTR, C_PTR}, C_PTR)
     end if
     atom ptr = c_func(xcurl_pushheader_byname, {p_curl_pushheaders, name})
     return ptr
@@ -1747,7 +1744,7 @@ end function
 atom xcurl_multi_add_handle = NULL
 global procedure curl_multi_add_handle(atom mcurl, curl)
     if xcurl_multi_add_handle=NULL then
-        xcurl_multi_add_handle = link_c_func(libcurl, "curl_multi_add_handle", {C_PTR, C_PTR}, C_INT)
+        xcurl_multi_add_handle = define_c_func(libcurl, "curl_multi_add_handle", {C_PTR, C_PTR}, C_INT)
     end if
     CURLMcode res = c_func(xcurl_multi_add_handle, {mcurl,curl})
     if res!=CURLM_OK then ?9/0 end if
@@ -1756,7 +1753,7 @@ end procedure
 atom xcurl_multi_setopt = NULL
 global function curl_multi_setopt(atom mcurl, CURLMoption option, object param)
     if xcurl_multi_setopt=NULL then
-        xcurl_multi_setopt = link_c_func(libcurl, "curl_multi_setopt", {C_PTR, C_INT, C_PTR}, C_INT)
+        xcurl_multi_setopt = define_c_func(libcurl, "curl_multi_setopt", {C_PTR, C_INT, C_PTR}, C_INT)
     end if
     atom params
     if option=CURLMOPT_PIPELINING_SITE_BL
@@ -1773,7 +1770,7 @@ end function
 atom xcurl_multi_remove_handle = NULL
 global procedure curl_multi_remove_handle(atom mcurl, curl)
     if xcurl_multi_remove_handle=NULL then
-        xcurl_multi_remove_handle = link_c_func(libcurl, "curl_multi_remove_handle", {C_PTR, C_PTR}, C_INT)
+        xcurl_multi_remove_handle = define_c_func(libcurl, "curl_multi_remove_handle", {C_PTR, C_PTR}, C_INT)
     end if
     CURLMcode res = c_func(xcurl_multi_remove_handle, {mcurl,curl})
     if res!=CURLM_OK then ?9/0 end if
@@ -1782,7 +1779,7 @@ end procedure
 atom xcurl_multi_perform = NULL
 global function curl_multi_perform(atom mcurl)
     if xcurl_multi_perform=NULL then
-        xcurl_multi_perform = link_c_func(libcurl, "curl_multi_perform", {C_PTR, C_PTR}, C_INT)
+        xcurl_multi_perform = define_c_func(libcurl, "curl_multi_perform", {C_PTR, C_PTR}, C_INT)
     end if
     atom p_running_handles = allocate(W)
     CURLMcode result = c_func(xcurl_multi_perform, {mcurl, p_running_handles})
@@ -1856,7 +1853,7 @@ global constant CURL_WAIT_POLLIN  = 0x0001,
 atom xcurl_multi_wait = NULL
 global function curl_multi_wait(atom mcurl, extra_fds, integer nextra_fds, timeout_ms)
     if xcurl_multi_wait=NULL then
-        xcurl_multi_wait = link_c_func(libcurl, "curl_multi_wait", {C_PTR, C_PTR, C_INT, C_INT, C_PTR}, C_INT)
+        xcurl_multi_wait = define_c_func(libcurl, "curl_multi_wait", {C_PTR, C_PTR, C_INT, C_INT, C_PTR}, C_INT)
     end if
     atom p_numfds = allocate(W)
     CURLMcode result = c_func(xcurl_multi_wait, {mcurl, extra_fds, nextra_fds, timeout_ms, p_numfds})
@@ -1868,7 +1865,7 @@ end function
 atom xcurl_multi_timeout = NULL
 global function curl_multi_timeout(atom mcurl)
     if xcurl_multi_timeout=NULL then
-        xcurl_multi_timeout = link_c_func(libcurl, "curl_multi_timeout", {C_PTR, C_PTR}, C_INT)
+        xcurl_multi_timeout = define_c_func(libcurl, "curl_multi_timeout", {C_PTR, C_PTR}, C_INT)
     end if
     atom p_timeout = allocate(W)
     CURLMcode result = c_func(xcurl_multi_timeout, {mcurl, p_timeout})
@@ -1893,7 +1890,7 @@ constant CURLMSG_DONE = 1
 atom xcurl_multi_info_read = NULL
 global function curl_multi_info_read(atom mcurl)
     if xcurl_multi_info_read=NULL then
-        xcurl_multi_info_read = link_c_func(libcurl, "curl_multi_info_read", {C_PTR, C_PTR}, C_PTR)
+        xcurl_multi_info_read = define_c_func(libcurl, "curl_multi_info_read", {C_PTR, C_PTR}, C_PTR)
     end if
     atom pnmsgs = allocate(W)
     atom pMsg = c_func(xcurl_multi_info_read, {mcurl, pnmsgs})
@@ -1913,7 +1910,7 @@ end function
 atom xcurl_multi_cleanup = NULL
 global function curl_multi_cleanup(atom mcurl)
     if xcurl_multi_cleanup=NULL then
-        xcurl_multi_cleanup = link_c_func(libcurl, "curl_easy_cleanup", {C_PTR}, C_INT)
+        xcurl_multi_cleanup = define_c_func(libcurl, "curl_easy_cleanup", {C_PTR}, C_INT)
     end if
     CURLMcode curlmcode = c_func(xcurl_multi_cleanup, {mcurl})
     return curlmcode
@@ -1925,7 +1922,7 @@ global function curl_multi_strerror(CURLMcode error)
         -- aside: permit eg curl_multi_strerror(CURLM_BAD_EASY_HANDLE), as
         --  opposed to only allowing results from a real call to libcurl.
         if libcurl=NULL then curl_init() end if
-        xcurl_multi_strerror = link_c_func(libcurl, "curl_multi_strerror", {C_INT}, C_PTR)
+        xcurl_multi_strerror = define_c_func(libcurl, "curl_multi_strerror", {C_INT}, C_PTR)
     end if
     atom pRes = c_func(xcurl_multi_strerror, {error})
     string res = peek_string(pRes)
@@ -1936,7 +1933,7 @@ atom xcurl_share_init = NULL
 global function curl_share_init()
     if xcurl_share_init=NULL then
         if libcurl=NULL then curl_init() end if
-        xcurl_share_init = link_c_func(libcurl, "curl_share_init", {}, C_PTR)
+        xcurl_share_init = define_c_func(libcurl, "curl_share_init", {}, C_PTR)
     end if
     atom curlshare = c_func(xcurl_share_init, {})
     if curlshare=NULL then ?9/0 end if
@@ -1998,7 +1995,7 @@ atom xcurl_share_setopt = NULL
 global function curl_share_setopt(atom curlshare, CURLSHoption share_option, atom param)
     if xcurl_share_setopt=NULL then
         if libcurl=NULL then curl_init() end if
-        xcurl_share_setopt = link_c_func(libcurl, "curl_share_setopt", {C_PTR, C_INT, C_PTR}, C_INT)
+        xcurl_share_setopt = define_c_func(libcurl, "curl_share_setopt", {C_PTR, C_INT, C_PTR}, C_INT)
     end if
     CURLSHcode res = c_func(xcurl_share_setopt, {curlshare,share_option,param})
     return res
@@ -2008,7 +2005,7 @@ atom xcurl_share_cleanup = NULL
 global function curl_share_cleanup(atom curlshare)
     if xcurl_share_cleanup=NULL then
         if libcurl=NULL then curl_init() end if
-        xcurl_share_cleanup = link_c_func(libcurl, "curl_share_cleanup", {C_PTR}, C_INT)
+        xcurl_share_cleanup = define_c_func(libcurl, "curl_share_cleanup", {C_PTR}, C_INT)
     end if
     CURLSHcode res = c_func(xcurl_share_cleanup, {curlshare})
     return res
@@ -2018,7 +2015,7 @@ atom xcurl_share_strerror = NULL
 global function curl_share_strerror(CURLSHcode error)
     if xcurl_share_strerror=NULL then
         if libcurl=NULL then curl_init() end if
-        xcurl_share_strerror = link_c_func(libcurl, "curl_share_strerror", {C_INT}, C_PTR)
+        xcurl_share_strerror = define_c_func(libcurl, "curl_share_strerror", {C_INT}, C_PTR)
     end if
     atom pRes = c_func(xcurl_share_strerror, {error})
     string res = peek_string(pRes)
@@ -2799,7 +2796,7 @@ global constant
 -- curl_strequal() and curl_strnequal() are subject for removal in a future
 --   libcurl, see lib/README.curlx for details
 -- CURL_EXTERN int (curl_strequal)(const char *s1, const char *s2);
---constant xcurl_strequal = link_c_func(libcurl, "curl_strequal",
+--constant xcurl_strequal = define_c_func(libcurl, "curl_strequal",
 --                          {C_PTR, C_PTR}, C_INT)
 --global function curl_strequal(sequence s1, sequence s2)
 --  atom addr_s1, addr_s2
@@ -2816,7 +2813,7 @@ global constant
 --------------------------------------------------------------------------------
 
 -- CURL_EXTERN int (curl_strnequal)(const char *s1, const char *s2, size_t n);
---constant xcurl_strnequal = link_c_func(libcurl, "curl_strnequal",
+--constant xcurl_strnequal = define_c_func(libcurl, "curl_strnequal",
 --                           {C_PTR, C_PTR, C_SIZE_T}, C_INT)
 --global function curl_strnequal(sequence s1, sequence s2, atom n)
 --  atom addr_s1, addr_s2
@@ -2959,7 +2956,7 @@ global constant
 -- complete. DEPRECATED - see lib/README.curlx
 --/
 -- CURL_EXTERN char *curl_getenv(const char *variable);
---constant xcurl_getenv = link_c_func(libcurl, "curl_getenv",
+--constant xcurl_getenv = define_c_func(libcurl, "curl_getenv",
 --                        {C_PTR}, C_PTR)
 --global function curl_getenv(sequence variable)
 --  atom addr, ret
@@ -2984,7 +2981,7 @@ global constant
 -- error occurred.
 --/
 -- CURL_EXTERN char *curl_easy_escape(CURL *handle, const char *string, int length);
---constant xcurl_easy_escape = link_c_func(libcurl, "curl_easy_escape",
+--constant xcurl_easy_escape = define_c_func(libcurl, "curl_easy_escape",
 --                             {C_PTR, C_PTR, C_INT}, C_PTR)
 --global function curl_easy_escape(atom handle, string s) 
 --  atom ret = c_func(xcurl_easy_escape, {handle, s, length(s)})
@@ -2995,7 +2992,7 @@ global constant
 
 -- the previous version:
 -- CURL_EXTERN char *curl_escape(const char *string, int length);
---constant xcurl_escape = link_c_func(libcurl, "curl_escape",
+--constant xcurl_escape = define_c_func(libcurl, "curl_escape",
 --                        {C_PTR, C_INT}, C_PTR)
 --global function curl_escape(string s)
 --  atom ret = c_func(xcurl_escape, {s, length(s)})
@@ -3016,7 +3013,7 @@ global constant
 --/
 -- CURL_EXTERN char *curl_easy_unescape(CURL *handle, const char *string,
 --                                 --   int length, int *outlength);
---constant xcurl_easy_unescape = link_c_func(libcurl, "curl_easy_unescape",
+--constant xcurl_easy_unescape = define_c_func(libcurl, "curl_easy_unescape",
 --                               {C_PTR, C_PTR, C_INT, C_PTR},
 --                               C_PTR)
 --global function curl_easy_unescape(atom handle, string s)
@@ -3029,7 +3026,7 @@ global constant
 
 -- the previous version
 -- CURL_EXTERN char *curl_unescape(const char *string, int length);
---constant xcurl_unescape = link_c_func(libcurl, "curl_unescape",
+--constant xcurl_unescape = define_c_func(libcurl, "curl_unescape",
 --                          {C_PTR, C_INT}, C_PTR)
 --global function curl_unescape(string s)
 --  atom ret = c_func(xcurl_unescape, {s, length(s)})
@@ -3046,7 +3043,7 @@ global constant
 -- allocation. Added in libcurl 7.10
 --/
 -- CURL_EXTERN void curl_free(void *p);
---constant xcurl_free = link_c_proc(libcurl, "curl_free",
+--constant xcurl_free = define_c_proc(libcurl, "curl_free",
 --                      {C_PTR})
 --global procedure curl_free(atom p)
 --  c_proc(xcurl_free, {p})
@@ -3085,7 +3082,7 @@ global constant
 -- and should be set to NULL.
 --/
 -- CURL_EXTERN time_t curl_getdate(const char *p, const time_t *unused);
---constant xcurl_getdate = link_c_func(libcurl, "curl_getdate",
+--constant xcurl_getdate = define_c_func(libcurl, "curl_getdate",
 --                         {C_PTR, C_PTR}, C_PTR)
 --global function curl_getdate(string s)
 --  atom ret = c_func(xcurl_getdate, {s, NULL})
@@ -3176,7 +3173,7 @@ global constant
 --
 --/
 -- CURL_EXTERN CURLcode curl_easy_pause(CURL *handle, int bitmask);
---constant xcurl_easy_pause = link_c_func(libcurl, "curl_easy_pause",
+--constant xcurl_easy_pause = define_c_func(libcurl, "curl_easy_pause",
 --                            {C_PTR, C_INT}, C_INT)
 --global function curl_easy_pause(atom handle, integer bitmask)
 --  CURLcode res = c_func(xcurl_easy_pause, {handle, bitmask})

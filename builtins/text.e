@@ -468,8 +468,8 @@ include std/machine.e
 --include std/types.e
 atom
     user32 = open_dll("user32.dll"),
-    api_CharLowerBuff = define_c_func(user32, "CharLowerBuffA", {C_POINTER, C_INT}, C_INT),
-    api_CharUpperBuff = define_c_func(user32, "CharUpperBuffA", {C_POINTER, C_INT}, C_INT),
+    api_CharLowerBuff = define_c_func(user32, "CharLowerBuffA", {C_PTR, C_INT}, C_INT),
+    api_CharUpperBuff = define_c_func(user32, "CharUpperBuffA", {C_PTR, C_INT}, C_INT),
 --/*
     tm_size = 1024,
 --*/

@@ -4403,3 +4403,185 @@ begin
  
 end bignum;
 --*/
+
+--/* Some ruby I found (PE56)
+public class p56 {
+
+        public static void main(String[] args) {
+                int res = 0;
+                int besta = 0, bestb = 0;
+                String bestnum = "";
+
+                for (int a = 2; a < 100; a++) {
+                        String num = a+"";
+                        for (int b = 2; b < 100; b++) {
+                                num = mult(num,a);
+                                //System.out.println(a+"^"+b+" = "+num);
+
+                                int t = sumDigits(num);
+                                if (t>res) {
+                                        res = t;
+                                        besta = a;
+                                        bestb = b;
+                                        bestnum = num;
+                                }
+                        }
+                }
+                System.out.println(besta+"^"+bestb+" = "+bestnum);
+                System.out.println("sum of digits = "+res);
+        }
+
+        public static int sumDigits(String num) {
+                int res = 0;
+                for (int i = 0; i < num.length(); i++) {
+                        res += num.charAt(i)-'0';
+                }
+                return res;
+        }
+
+        public static String mult(String s, int m) {
+                int shift = 0;
+
+                String res = "0";
+                while (m>0) {
+                        int d = m%10;
+                        m /= 10;
+
+                        int carry = 0;
+
+                        String t = "";
+                        for (int i = s.length()-1; i >= 0; i--) {
+                                int sum = (s.charAt(i)-'0')*d+carry;
+                                t = (sum%10)+t;
+                                carry = sum/10;
+                        }
+                        if (carry>0) t = carry+t;
+
+                        for (int i = 0; i < shift; i++) t += "0";
+                        res = add(res,t);
+
+                        shift++;
+                }
+
+                return res;
+        }
+
+        public static String add(String a, String b) {
+                String aa = new StringBuffer(a).reverse()+"";
+                String bb = new StringBuffer(b).reverse()+"";
+                String res = "";
+
+                int i = 0, j = 0;
+                int extra = 0, carry = 0;
+                while (i < aa.length() && j < bb.length()) {
+                        int d1 = aa.charAt(i++)-'0';
+                        int d2 = bb.charAt(j++)-'0';
+                        int sum = d1+d2+carry;
+
+                        res = (sum%10)+res;
+                        carry = sum/10;
+                }
+
+                while (i < aa.length()) {
+                        int d1 = aa.charAt(i++)-'0';
+                        int sum = d1+carry;
+
+                        res = (sum%10)+res;
+                        carry = sum/10;
+                }
+
+                while (j < bb.length()) {
+                        int d2 = bb.charAt(j++)-'0';
+                        int sum = d2+carry;
+
+                        res = (sum%10)+res;
+                        carry = sum/10;
+                }
+                if (carry>0) res = carry+res;
+
+                return res;
+        }
+}
+
+And some Boo:
+I made my own simple BigInt class.
+Stored 9 digits in every 32 bit integer.
+Calculates digitsum 3 digits at a time.
+Kudos to xenon for teaching me big mult.
+
+Boo
+
+class E056b():
+        
+        def f(low as int, high as int):
+                best = 0
+                bi = BigInt(0)
+                for a in range(low,high): 
+                        continue if a % 10 == 0
+                        bi.val = a
+                        for b in range(2,high): 
+                                bi.mult(a)
+                                continue if b<low
+                                d = bi.digitsum()
+                                best=d if d>best
+                return best
+
+        def Run():
+                assert f(1,100) == 972 # 45 ms
+
+BigInt:
+Boo
+
+class BigInt():
+
+        final static BigSize = 1000_000_000
+        final static SmallSize = 1000
+        ksum = array(byte,SmallSize)
+        arr = array(int,25)
+        count = 0
+
+        val as int:
+                set:
+                        arr[0]=value
+                        count=1
+        
+        def constructor(n as int):
+                initksum()
+                val = 1
+                
+        def mult(n as int):
+                carry = 0L
+                nl as long = n
+                i=0
+                while i < count:
+                        carry += arr[i] * nl
+                        arr[i] = carry % BigSize
+                        carry = carry / BigSize
+                        i++
+                while carry:
+                        arr[i] = carry % BigSize
+                        carry = carry / BigSize
+                        i++
+                count = i
+        
+        def digitsum() as int:
+                res = 0
+                for i in range(count):
+                        n = arr[i]
+                        while n:
+                                res += ksum[n % SmallSize]
+                                n = n / SmallSize
+                return res
+                
+        def initksum():
+                for i in range(SmallSize):
+                        n = i
+                        res = 0
+                        while n:
+                                res += n % 10
+                                n = n / 10
+                        ksum[i]=res
+
+
+--*/
+

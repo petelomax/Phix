@@ -198,13 +198,13 @@ atom buffer
             kernel32 = open_dll("kernel32")
 --#without reformat
             xGetLongPathName = define_c_func(kernel32,"GetLongPathNameA",
-                {C_POINTER, --  LPCTSTR lpszShortPath // input
-                 C_POINTER, --  LPTSTR lpszLongPath   // output
+                {C_PTR,     --  LPCTSTR lpszShortPath // input
+                 C_PTR,     --  LPTSTR lpszLongPath   // output
                  C_LONG},   --  DWORD cchBuffer // specifies size of *lpszLongPath
                 C_INT)  -- DWORD
             xGetShortPathName = define_c_func(kernel32,"GetShortPathNameA",
-                {C_POINTER, --  LPCTSTR lpszLongPath // input
-                 C_POINTER, --  LPTSTR lpszShortPath   // output
+                {C_PTR,     --  LPCTSTR lpszLongPath // input
+                 C_PTR,     --  LPTSTR lpszShortPath   // output
                  C_LONG},   --  DWORD cchBuffer // specifies size of *lpszShortPath
                 C_INT)  -- DWORD
 --          xGetLastError = define_c_func(kernel32, "GetLastError",

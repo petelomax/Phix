@@ -18,18 +18,21 @@ procedure initd()
     dinit = 1
 end procedure
 
-global function is_leap_year(integer y)
+global function is_leap_year(object y)
+    if sequence(y) then y = y[DT_YEAR] end if
     return remainder(y,4)=0 and (remainder(y,100)!=0 or remainder(y,400)=0)
 end function
 
-global function day_of_year(integer y, integer m, integer d)
+global function day_of_year(object y, integer m=0, d=0)
 -- day of year function, returns 1..366
+    if sequence(y) then {y,m,d} = y end if -- (extract DT_YEAR,DT_MONTH,DT_YEAR)
     if not dinit then initd() end if
     if m<1 or m>12 or (y!=0 and y<1752) then return 0 end if
     return d+dot[m]+(m>2 and is_leap_year(y))
 end function
 
-global function days_in_month(integer y, integer m)
+global function days_in_month(object y, integer m=0)
+    if sequence(y) then {y,m} = y end if -- (extract DT_YEAR,DT_MONTH)
     if not dinit then initd() end if
     if m<1 or m>12 or (y!=0 and y<1752) then return 0 end if
     return dim[m]+(m=2 and is_leap_year(y))
@@ -66,11 +69,12 @@ end function
 
 --*/
 
-global function day_of_week(integer y, m, d, bool bAsText=false)
+global function day_of_week(object y, integer m=0, d=0, bool bAsText=false)
 -- day of week function (Sakamoto) returns 1..7 (Mon..Sun)
+    if sequence(y) then {y,m,d} = y end if -- (extract DT_YEAR,DT_MONTH,DT_YEAR)
     integer l
     if not dinit then initd() end if
-    if d<1 then ?9/0 end if
+    if d<1 or d>31 or m<0 or m>12 or (y!=0 and y<1752) then ?9/0 end if
     if y!=0 or m!=0 or not bAsText or d>7 then
         y -= m<3
         l = floor(y/4)-floor(y/100)+floor(y/400)
@@ -81,5 +85,17 @@ global function day_of_week(integer y, m, d, bool bAsText=false)
         return days[d]
     end if
     return d
+end function
+
+global function week_number(object y, integer m=0, d=0)
+    -- note days prior to the first monday of the year are
+    --      classed as the 52nd week of the preceding year.
+    -- returns {y[-1],1..52}
+    if sequence(y) then {y,m,d} = y end if -- (extract DT_YEAR,DT_MONTH,DT_YEAR)
+    integer d1 = day_of_week(y,1,1),    -- (1..7)
+           w52 = remainder(7-d1,7)+1,   -- (1..7)
+            dy = day_of_year(y,m,d)-w52 -- (1..366) - (1..7) = -6..365
+    if dy<=0 then return {y-1,52} end if
+    return {y,floor((dy-1)/7)+1}
 end function
 

@@ -1,6 +1,7 @@
 --
 -- demo\rosetta\Cryptanalysis.exw
 --
+with javascript_semantics
 atom t0 = time()
 constant ciphertext = substitute_all("""
 MOMUD EKAPV TQEFM OEVHP AJMII CDCTI FGYAG JSPXY ALUYM NSMYH
@@ -121,10 +122,11 @@ constant trigraphs = new_dict(
     {"ONT",2.0}})
  
 function decrypt(string enc, string key)
-integer keylen = length(key), k = 1
+    integer keylen = length(key), k = 1
     string msg = repeat(' ', length(enc))
     for i=1 to length(enc) do
         msg[i] = mod(enc[i]-key[k]+26,26)+'A'
+--      msg[i] = xor_bits(enc[i],key[k])        -- (for PE59)
         k = mod(k,keylen)+1
     end for
     return msg
@@ -138,6 +140,7 @@ function cryptanalyze(string enc, integer maxkeylen=20)
     atom maxscore = 0.0
  
     for keylen=1 to maxkeylen do
+--  for keylen=3 to 3 do                        -- (for PE59)
         string key = repeat(' ',keylen)
         sequence idx = {}
         for i=1 to enclen do
@@ -150,6 +153,7 @@ function cryptanalyze(string enc, integer maxkeylen=20)
             atom maxsubscore = 0.0
  
             for j='A' to 'Z' do
+--          for j in poss[i] do                 -- (for PE59)
                 atom subscore = 0.0
  
                 k1[1] = j

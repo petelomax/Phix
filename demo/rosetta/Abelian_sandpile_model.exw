@@ -213,9 +213,11 @@ function timer_cb(Ihandle /*ih*/)
 end function
 
 function key_cb(Ihandle /*dlg*/, atom c)
-    if c=K_ESC then return IUP_CLOSE
-    elsif c=K_F1 then
+    if c=K_ESC then return IUP_CLOSE end if -- (standard practice for me)
+    if c=K_F5 then return IUP_DEFAULT end if -- (let browser reload work)
+    if c=K_F1 then
         IupMessage("Abelian sandpile model",help_text)
+        return IUP_IGNORE -- (don't open browser help!)
     elsif find(c,"+-") then
         if c='-' and mps>1 then
             mps /= 10
@@ -240,7 +242,8 @@ procedure main()
                                "MAP_CB", Icallback("map_cb"),
                                "RESIZE_CB", Icallback("canvas_resize_cb")})
     dlg = IupDialog(canvas,`TITLE="Abelian sandpile model"`)
-    IupSetCallback(dlg, "K_ANY", Icallback("key_cb"))
+    IupSetCallback(dlg, "KEY_CB", Icallback("key_cb"))
+    IupSetAttributeHandle(NULL,"PARENTDIALOG",dlg)
     IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
     IupSetAttribute(dlg, "RASTERSIZE", NULL)
     IupSetStrAttribute(dlg, "MINSIZE", IupGetAttribute(dlg,"RASTERSIZE"))

@@ -430,7 +430,8 @@ end procedure
 
 --object ts -- timestamp data from eaedb.e
 
-constant qJ_global = KtoF("global"),
+constant qJ_local = KtoF("local"),
+         qJ_global = KtoF("global"),
          qJ_public = KtoF("public"),
          qJ_include = KtoF("include"),
          qJ_function = KtoF("function"),
@@ -449,7 +450,8 @@ constant qJ_global = KtoF("global"),
 --                      qJ_type[1],
 --                      qJ_end[1]
 --                     }
-constant qJ_global1 = qJ_global[1],
+constant qJ_local1 = qJ_local[1],
+         qJ_global1 = qJ_global[1],
          qJ_public1 = qJ_public[1],
          qJ_include1 = qJ_include[1],
          qJ_function1 = qJ_function[1],
@@ -481,10 +483,10 @@ integer expro
 function extractAnyRoutineInformation(sequence line, integer lnumber, integer logG)
 --function extractAnyRoutineInformation(string line, integer lnumber, integer logG)
 -- see cycleThroughAllLines() for meaning of logG
-integer idx, isGlobal, rtnType, c
+integer rtnType, c
 sequence name
-    idx = 1
-    isGlobal = 0
+    integer idx = 1,
+       isGlobal = 0
     name = ""
     while idx<=length(line) and find(line[idx]," \t") do
         idx += 1
@@ -502,34 +504,25 @@ sequence name
 --      c = find(line[idx],first_chars)
 --      if c=1 then --'g' of global?
         c = line[idx]
-        if c=qJ_global1 then
-            if isReally(qJ_global,line,idx) then
-                idx += length(qJ_global)
-                isGlobal = 1
-                while idx<=length(line) and find(line[idx]," \t") do
-                    idx += 1
-                end while
-                if idx<=length(line) then
---                  c = find(line[idx],"g_-fpt_")
---                  c = find(line[idx],after_global)
-                    c = line[idx]
-                end if
---c = 0
-            end if
---      elsif c=2 then  -- 'p' of public?
-        elsif c=qJ_public1 then
-            if isReally(qJ_public,line,idx) then
-                idx += length(qJ_public)
-                isGlobal = 1
-                while idx<=length(line) and find(line[idx]," \t") do
-                    idx += 1
-                end while
-                if idx<=length(line) then
---                  c = find(line[idx],"g_-fpt_")
---                  c = find(line[idx],after_global)
-                    c = line[idx]
-                end if
---c = 0
+        bool skipwhitespace = false
+        if c=qJ_global1 and isReally(qJ_global,line,idx) then
+            idx += length(qJ_global)
+            isGlobal = 1
+            skipwhitespace = true
+        elsif c=qJ_public1 and isReally(qJ_public,line,idx) then
+            idx += length(qJ_public)
+            isGlobal = 1
+            skipwhitespace = true
+        elsif c=qJ_local1 and isReally(qJ_local,line,idx) then
+            idx += length(qJ_local)
+            skipwhitespace = true
+        end if
+        if skipwhitespace then
+            while idx<=length(line) and find(line[idx]," \t") do
+                idx += 1
+            end while
+            if idx<=length(line) then
+                c = line[idx]
             end if
         end if
 --      if c=3 then --'i' of include?
@@ -1227,11 +1220,11 @@ constant
     HH_AKLINK       = new_struct(),
     cbStruct        = struc(C_LONG), -- sizeof this structure
     fReserved       = struc(C_LONG), -- must be FALSE (really!)
-    pszKeywords     = struc(C_POINTER), -- semi-colon separated keywords
-    pszURL          = struc(C_POINTER), -- URL to jump to if no keywords found (may be NULL)
-    pszMsgText      = struc(C_POINTER), -- Message text to display in MessageBox if pszUrl is NULL and no keyword match
-    pszMsgTitle     = struc(C_POINTER), -- Message text to display in MessageBox if pszUrl is NULL and no keyword match
-    pszWindow       = struc(C_POINTER), -- Window to display URL in
+    pszKeywords     = struc(C_PTR), -- semi-colon separated keywords
+    pszURL          = struc(C_PTR), -- URL to jump to if no keywords found (may be NULL)
+    pszMsgText      = struc(C_PTR), -- Message text to display in MessageBox if pszUrl is NULL and no keyword match
+    pszMsgTitle     = struc(C_PTR), -- Message text to display in MessageBox if pszUrl is NULL and no keyword match
+    pszWindow       = struc(C_PTR), -- Window to display URL in
     fIndexOnFail    = struc(C_LONG) -- Displays index if keyword lookup fails.
 
 constant aklen = sizeofstruct(HH_AKLINK)
@@ -1296,8 +1289,8 @@ atom pChm, ak
         end if
     elsif equal(ext,"chm") then
         if HH=0 then
-            HH = assign_dll("hhctrl.ocx")
-            HtmlHelp = link_c_func(HH,"HtmlHelpA",{C_POINTER,C_POINTER,C_UINT,C_LONG},C_POINTER)
+            HH = open_dll("hhctrl.ocx")
+            HtmlHelp = define_c_func(HH,"HtmlHelpA",{C_PTR,C_PTR,C_UINT,C_LONG},C_PTR)
 --          void = c_func(xRegisterHotKey,{mainHwnd,1,0,VK_ESCAPE})
 --          setText(Main,sprintf("xRegisterHotKey: %d",void))
         end if

@@ -12,17 +12,21 @@
 
 integer lp = 0 -- (last progress length, to be wiped out)
 
-global procedure progress(string msg, sequence args = {})
+global procedure progress(string msg="", sequence args = {})
     if length(args) then
         msg = sprintf(msg,args)
     end if
     integer lm = length(msg)
-    if lm=0 then
+--25/11/22 (see "pair" in docs)
+--  if lm=0 then
+    if lm=0 or find('\n',msg) then
         if lp then
             puts(1,repeat(' ',lp)&"\r")
         end if
         lp = 0
-    else
+--  else
+    end if
+    if lm!=0 then
         if find(msg[$],"\r\n")=0 then
             msg &= "\r"
         end if

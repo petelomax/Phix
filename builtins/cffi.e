@@ -252,18 +252,28 @@ procedure nch(object msg="eof")
 end procedure
 
 procedure skipspaces(object msg="eof")
-integer k
+--integer k
     while 1 do
 --      while find(ch," \t\r\n")!=0 do nch(msg) end while
         while find(ch," \r\n"&9)!=0 do nch(msg) end while
         if ch!='/' then exit end if
-        if match("/*",s,sidx)=sidx then
-            k = match("*/",s,sidx+2)
+--16/2/23 (reduce .asm listing files showing data as comments)
+--      if match("/!*",s,sidx)=sidx then
+        if s[sidx+1]='*' then
+--          k = match("*!/",s,sidx+2)
+            integer k = 0
+            for i=sidx+2 to length(s)-1 do
+                if s[i]='*' and s[i+1]='/' then
+                    k = i
+                    exit
+                end if
+            end for
             if k=0 then cffi_error("missing closing comment") end if
             sidx = k+1
             nch(msg)
         else
-            if match("//",s,sidx)!=sidx then exit end if
+--          if match("//",s,sidx)!=sidx then exit end if
+            if s[sidx+1]!=sidx then exit end if
             while find(ch,"\r\n")=0 do nch(msg) end while
         end if
     end while
@@ -361,7 +371,7 @@ integer ch, n
         for i=1 to length(txt) do
             ch = txt[i]
             if ch<'0' or ch>'9' then cffi_error("number expected") end if
-            n = n*10+ch-'0'
+            n = n*10 + (ch-'0')
         end for
     end if
     return n
@@ -833,6 +843,7 @@ procedure init_cffi()
                                          {"HRGN",           as_ptr},
                                          {"HRSRC",          as_ptr},
                                          {"HSZ",            as_ptr},
+                                         {"HTREEITEM",      as_ptr},
                                          {"HWINSTA",        as_ptr},
                                          {"HWND",           as_ptr},
 --m                                      {"LPBOOL",         as_ptr},
@@ -970,6 +981,16 @@ procedure init_cffi()
                                          {"UINT64",         as_uint64},
                                          {"ULONGLONG",      as_uint64},
                                          {"ULONG64",        as_uint64},
+                                         {"GdkEventType",   as_long},
+--                                       {"gint8",          as_char},
+--                                       {"guint32",        as_uint},
+--                                       {"guint",          as_uint},
+--                                       {"gint",           as_int},
+--                                       {"guint16",        as_ushort},
+--                                       {"guint8",         as_uchar},
+                                         {"byte",           as_char},
+                                         {"ubyte",          as_uchar},
+                                         {"ModifierType",   as_int},
                                          $})
 
     {UnicodeNames,UnicodeAs} = columnize({
@@ -989,9 +1010,9 @@ procedure init_cffi()
                                          {{2,0},C_USHORT},
                                          {{4,0},C_DWORD},   -- (=== C_PTR, C_HWND, etc)
                                          {{4,1},C_INT},
-                                         {{8,0},C_POINTER},
+                                         {{8,0},C_PTR},
 --DEV temp (do_type should probably zero signed on all pointers)
-                                         {{8,1},C_POINTER},
+                                         {{8,1},C_PTR},
                                          $})
 --/* Some of these may need adding:
 --  initialConstant("C_CHAR",       #01000001)
@@ -1011,7 +1032,7 @@ end procedure
 
 --<?
 --global function define_struct(string struct_str, integer machine=0, integer add=1)
-global function define_struct(string struct_str, integer machine=machine_bits(), integer add=1)
+global function define_struct(string struct_str, integer machine=machine_bits(), integer bAdd=true)
 --
 -- The struct_str parameter is eg "typedef struct{LONG left; .. } RECT;"
 --  - note that without a "typedef", nothing gets stored permanantly.
@@ -1061,7 +1082,7 @@ sequence res
     end try
 --*/
 --?"pcs ret"
-    if add and typedef then
+    if bAdd and typedef then
         return add_struct(res)
     end if
     return res
@@ -1098,6 +1119,7 @@ global procedure set_struct_field(integer id, atom pStruct, atom_string field, o
         if not string(v) then ?9/0 end if
         -- (the following should never trigger, since something similar
         --  when defining the TCHAR[] should have already have happened.)
+--?details[k]
         if unicode=-1 then ?9/0 end if
         if unicode=0 then -- ansi
             poke(pStruct+offset,v)
@@ -1137,8 +1159,13 @@ global function get_field_details(integer id, atom_string field)
 --  sequence {membernames,details} = smembers[id]
     sequence {membernames,details} = get_smembers(id)
     integer k = iff(string(field)?find(field,membernames):field)
-    integer {?,size,offset,sgn} = details[k]
-    return {offset,size,sgn}
+--  integer {?,size,offset,sgn} = details[k]
+    string mtype
+    integer size, offset, signed
+    {mtype,size,offset,signed} = details[k]
+--  return {offset,size,signed}
+    return {offset,size,signed,mtype}
+--  return details[k]
 end function
 
 function open_lib(object lib)
@@ -1245,9 +1272,9 @@ integer rid
     --       it does on the parameters, at least in my experience.
     --
     if func then
-        rid = define_c_func(lib,name,args,return_type)
+        rid = define_c_func(lib,name,args,return_type,false)
     else
-        rid = define_c_proc(lib,name,args)
+        rid = define_c_proc(lib,name,args,false)
     end if
     if rid=-1 then
         if unicode=-1 then crash(`"%s" not found (unicode still -1)`,{name},3) end if
@@ -1255,9 +1282,9 @@ integer rid
 --      name &= AW[unicode+1] -- (errors out if unicode still -1)
         name &= "AW"[unicode+1] -- (errors out if unicode still -1)
         if func then
-            rid = define_c_func(lib,name,args,return_type)
+            rid = define_c_func(lib,name,args,return_type,false)
         else
-            rid = define_c_proc(lib,name,args)
+            rid = define_c_proc(lib,name,args,false)
         end if
 --      if rid=-1 then ?9/0 end if
         if rid=-1 then crash(`"%s" not found`,{name[1..-2]},3) end if

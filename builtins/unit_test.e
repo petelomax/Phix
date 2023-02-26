@@ -191,6 +191,18 @@ end procedure
 global procedure test_equal(object a, object b, string name="", bool eq=true)
 
     bool success
+
+--/* I completely forgot about bool eq, bit of a daft idea anyway.
+    -- Eu compatibility, ie args of (name, a, b):
+    if string(a) and string(b) and name!="" then -- (and string(name), obvs!)
+        if (length(a)!=length(b) and length(b)=length(name))
+        or (a!=b and b=name) then
+            {a,b,name} = {b,name,a}
+        end if
+    end if
+    -- </Eu compatibility>
+--*/
+    
     if a=b then
         success = true
     elsif sq_mul(0,a)=sq_mul(0,b) then

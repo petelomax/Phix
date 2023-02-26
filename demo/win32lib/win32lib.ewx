@@ -168,18 +168,8 @@ integer initM
 procedure init()
     if platform() = WIN32 then
         lib = open_dll("user32.dll")
-        msgbox_id = define_c_func(lib, "MessageBoxA", {C_POINTER, C_POINTER, 
-                                       C_POINTER, C_INT}, C_INT)
-        if msgbox_id = -1 then
-            puts(2, "couldn't find MessageBoxA\n")
-            abort(1)
-        end if
-
+        msgbox_id = define_c_func(lib, "MessageBoxA", {C_PTR, C_PTR, C_PTR, C_INT}, C_INT)
         get_active_id = define_c_func(lib, "GetActiveWindow", {}, C_LONG)
-        if get_active_id = -1 then
-            puts(2, "couldn't find GetActiveWindow\n")
-            abort(1)
-        end if
     end if
     initM = 1
 end procedure
@@ -886,19 +876,19 @@ procedure initI()
         C_INT)      -- HANDLE
 
     xReadConsoleOutput = define_c_func(xKernel32,"ReadConsoleOutputA",
-        {C_POINTER, --  HANDLE  hConsoleOutput, // handle of a console screen buffer
-         C_POINTER, --  PCHAR_INFO  pchiDestBuffer, // address of buffer that receives data
+        {C_PTR,     --  HANDLE  hConsoleOutput, // handle of a console screen buffer
+         C_PTR,     --  PCHAR_INFO  pchiDestBuffer, // address of buffer that receives data
          C_UINT,    --  COORD  coordDestBufferSize, // column-row size of destination buffer
          C_UINT,    --  COORD  coordDestBufferCoord, // upper-left cell to write to
-         C_POINTER},--  PSMALL_RECT  psrctSourceRect // address of rectangle to read from
+         C_PTR},    --  PSMALL_RECT  psrctSourceRect // address of rectangle to read from
         C_INT)      -- BOOL
 
     xWriteConsoleOutput = define_c_func(xKernel32,"WriteConsoleOutputA",
-        {C_POINTER, --  HANDLE  hConsoleOutput, // handle of a console screen buffer
-         C_POINTER, --  PCHAR_INFO  pchiSrcBuffer,  // address of buffer with data to write
+        {C_PTR,     --  HANDLE  hConsoleOutput, // handle of a console screen buffer
+         C_PTR,     --  PCHAR_INFO  pchiSrcBuffer,  // address of buffer with data to write
          C_UINT,    --  COORD  coordSrcBufferSize,  // column-row size of source buffer
          C_UINT,    --  COORD  coordSrcBufferCoord, // upper-left cell to write from
-         C_POINTER},--  PSMALL_RECT  psrctDestRect  // address of rectangle to write to
+         C_PTR},    --  PSMALL_RECT  psrctDestRect  // address of rectangle to write to
         C_INT)      -- BOOL
 
     void = c_func(xAllocConsole,{}) -- if we already have one, fail, we don't care.
@@ -3221,7 +3211,7 @@ end function
 --
 -- Example:
 --/code
---      xLoadIcon = registerw32Function(user32, "LoadIconA", {C_POINTER, C_POINTER}, C_POINTER)
+--      xLoadIcon = registerw32Function(user32, "LoadIconA", {C_PTR, C_PTR}, C_PTR)
 --/endcode
 global function registerw32Function(integer libid, sequence name,
                         sequence signature, integer returntype)
@@ -3246,7 +3236,7 @@ end function
 --
 -- Example:
 --/code
---      constant xKillTimer = registerw32Procedure(user32, "KillTimer", {C_POINTER, C_UINT})
+--      constant xKillTimer = registerw32Procedure(user32, "KillTimer", {C_PTR, C_UINT})
 --/endcode
 
 global function registerw32Procedure(integer libid, sequence name,
@@ -3277,7 +3267,7 @@ global function linkDLL(sequence name)
 
     -- open the dll
     for i = 1 to length(name) do
-        handle[2] = open_dll( name[i] )
+        handle[2] = open_dll(name[i],false)
         if handle[2] != NULL then
             handle[1] = i
             exit
@@ -3299,9 +3289,9 @@ function linkFunc(atom dll, sequence name, sequence args, atom result)
     -- dynamically link a C routine as a Euphoria function
     integer handle
 
-    handle = define_c_func(dll, name, args, result)
+    handle = define_c_func(dll, name, args, result, false)
     if handle = -1 then
-    abortErr( append(Err_LINKFUNC, {name}))
+        abortErr( append(Err_LINKFUNC, {name}))
     end if
     return handle
 end function
@@ -3311,10 +3301,10 @@ function linkProc(atom dll, sequence name, sequence args)
 
     integer handle
 
-    handle = define_c_proc(dll, name, args)
+    handle = define_c_proc(dll, name, args, false)
     if handle = -1 then
-    -- give error and abort
-    abortErr( append(Err_LINKPROC, {name}) )
+        -- give error and abort
+        abortErr( append(Err_LINKPROC, {name}) )
     end if
     return handle
 end function
@@ -9264,10 +9254,10 @@ global constant
     advapi32    = registerw32Library("advapi32.dll"),  -- common dialogs
 
 -- common dialogs
-    xCryptAcquireContext    = registerw32Function(advapi32, "CryptAcquireContextA", {C_POINTER,C_POINTER,C_POINTER,C_LONG,C_UINT}, C_LONG),
-    xCryptReleaseContext    = registerw32Function(advapi32, "CryptReleaseContext", {C_POINTER, C_UINT}, C_LONG),
-    xCryptGenRandom         = registerw32Function(advapi32, "CryptGenRandom",{C_POINTER, C_LONG, C_POINTER}, C_UINT),
-    xGetUserName            = registerw32Function(advapi32, "GetUserNameA", {C_POINTER, C_POINTER}, C_INT),
+    xCryptAcquireContext    = registerw32Function(advapi32, "CryptAcquireContextA", {C_PTR,C_PTR,C_PTR,C_LONG,C_UINT}, C_LONG),
+    xCryptReleaseContext    = registerw32Function(advapi32, "CryptReleaseContext", {C_PTR, C_UINT}, C_LONG),
+    xCryptGenRandom         = registerw32Function(advapi32, "CryptGenRandom",{C_PTR, C_LONG, C_PTR}, C_UINT),
+    xGetUserName            = registerw32Function(advapi32, "GetUserNameA", {C_PTR, C_PTR}, C_INT),
 
     PROV_RSA_FULL          = 1,
     PROV_RSA_SIG           = 2,
@@ -12526,7 +12516,7 @@ end function
 --
 
 
-constant qGetWindowLong = define_c_func(open_dll("user32.dll"), "GetWindowLongA", {C_POINTER, C_LONG}, C_LONG)
+constant qGetWindowLong = define_c_func(open_dll("user32.dll"), "GetWindowLongA", {C_PTR, C_LONG}, C_LONG)
 
 -- Added CChris <oedoc@free.fr> Oct 26, 2006
 -- These record ids and handles of menus, so that the pairing is always guaranteed
@@ -12834,7 +12824,7 @@ end function
 --/endcode
 
 constant qSendMessage = define_c_func(open_dll("user32.dll"),
-                                      "SendMessageA", {C_POINTER, C_UINT, C_LONG, C_LONG}, C_LONG)
+                                      "SendMessageA", {C_PTR, C_UINT, C_LONG, C_LONG}, C_LONG)
 
 global function sendMessage(object id, atom pCmd, object wParm, object lParm)
 -- send a command to a control

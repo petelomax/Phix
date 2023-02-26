@@ -316,9 +316,9 @@ integer k
     while 1 do
         while find(ch," \t\r\n")!=0 do nch(msg) end while
         if ch!='/' then exit end if
---      if match("/*",s,sidx)=sidx then
+--      if match("/!*",s,sidx)=sidx then
         if sidx<length(s) and s[sidx+1]='*' then
---          k = match("*/",s,sidx+2)
+--          k = match("*!/",s,sidx+2)
             k = 0
             for i=sidx+2 to length(s)-1 do
                 if s[i]='*' and s[i+1]='/' then
@@ -642,7 +642,7 @@ integer ch, n
         for i=1 to length(txt) do
             ch = txt[i]
             if ch<'0' or ch>'9' then err("number expected") end if
-            n = n*10+ch-'0'
+            n = n*10 + (ch-'0')
         end for
     end if
     return n

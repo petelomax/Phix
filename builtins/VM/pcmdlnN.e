@@ -186,26 +186,22 @@ integer pArg4,W,N
             -- added 25/11/16:
             enter_cs()
             xKernel32 = open_dll("kernel32")
-            if xKernel32=0 then xKernel32 = 9/0 end if
 --#without reformat
             xGetCommandLine = define_c_func(xKernel32,"GetCommandLineA",
                 {},
-                C_POINTER)  -- LPTSTR
+                C_PTR)  -- LPTSTR
 --          xGetLastError = define_c_func(xKernel32, "GetLastError",
 --              {},
 --              C_INT)      -- DWORD
             xSearchPath = define_c_func(xKernel32,"SearchPathA",
-                {C_POINTER, --  LPCTSTR  lpszPath,  // address of search path 
-                 C_POINTER, --  LPCTSTR  lpszFile,  // address of filename 
-                 C_POINTER, --  LPCTSTR  lpszExtension, // address of extension 
-                 C_INT,      -- DWORD  cchReturnBuffer, // size, in characters, of buffer 
-                 C_POINTER, --  LPTSTR  lpszReturnBuffer,   // address of buffer for found filename 
-                 C_POINTER},--  LPTSTR  *plpszFilePart  // address of pointer to file component 
-                C_INT)      -- DWORD (required) length in buffer
+                {C_PTR, --  LPCTSTR  lpszPath,  // address of search path 
+                 C_PTR, --  LPCTSTR  lpszFile,  // address of filename 
+                 C_PTR, --  LPCTSTR  lpszExtension, // address of extension 
+                 C_INT, --  DWORD  cchReturnBuffer, // size, in characters, of buffer 
+                 C_PTR, --  LPTSTR  lpszReturnBuffer,   // address of buffer for found filename 
+                 C_PTR},--  LPTSTR  *plpszFilePart  // address of pointer to file component 
+                C_INT)  -- DWORD (required) length in buffer
 --#with reformat
-            if xGetCommandLine=-1 then xGetCommandLine = 9/0 end if
---          if xGetLastError = -1 then xGetLastError = 9/0 end if
-            if xSearchPath=-1 then xSearchPath = 9/0 end if
 --          dotEXE = allocate_string(".exe")
 --          pFilePart = allocate(4)
             init = 1
