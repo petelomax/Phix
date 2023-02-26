@@ -1,0 +1,281 @@
+--
+-- test\t70nested.exw
+--
+--  Tests for nested functions
+--
+with javascript_semantics
+function test(integer i)
+--  static <accs,fred>  -- (triggers (^fred) "static not defined" error at end of routine)
+    static [accs,ctest]
+--  static [accs]
+    static sequence accs = {}
+    string s = "inner scope"
+
+    nested function makeAdder(integer x)
+--      string s = "adder scope"    -- fine!
+        accs &= x
+--      ?s
+        return length(accs)
+    end nested function
+
+    nested function addd(integer adx, y)
+--      ?s  // illegal (undefined)
+        constant ctest = deep_copy(accs)
+        accs[adx] += y
+        return accs[adx]
+    end nested function
+
+    -- Note you could make these "constant", but for very little
+    -- benefit, & would have to add them to the static directive
+    integer add5 = makeAdder(5),
+           add10 = makeAdder(10)
+
+    assert(addd(add5,2)=7)
+    assert(addd(add10,2)=12)
+    assert(i=55)
+    assert(s="inner scope")
+    assert(ctest={5,10})
+    return {add5,add10,makeAdder,addd}
+end function
+integer {a5,a10,make_adder,addd} = test(55)
+constant a15 = make_adder(15)
+assert(addd(a5,2)=9)
+assert(addd(a10,2)=14)
+assert(addd(a15,2)=17)
+--?accs
+--?ctest
+--?9/0 -- shows accs in ex.err as {9,14,17}, ctest as {5,10}
+
+--/* -- too slow (1.7s)
+atom t0 = time()
+function findByIndex(integer index)
+    static [numbers]
+
+    nested function n(integer k)
+        sequence res = apply(true,sprintf,{{"n%d"},tagset(k)})
+        printf(1,"n(%d) built (%s)\n",{k,elapsed(time()-t0)})
+        return res
+    end nested function
+
+    constant numbers = n(1000000)
+    return numbers[index]
+end function
+
+?findByIndex(110351)
+?findByIndex(911234)
+?findByIndex(520109)
+?findByIndex(398)
+?elapsed(time()-t0)
+--*/
+
+procedure Pxxx()
+    nested function rank(integer n, d)
+        return n+d
+    end nested function
+    atom res = rank(1,2)-rank(1,3)-1
+    assert(res=-2)
+end procedure Pxxx()
+Pxxx()
+
+integer a = 'a'
+procedure p(integer b = 'b')
+    static [c,d,h,i]
+    static integer c = 'c'
+    constant d = 'd'
+    integer e = 'e'
+    
+    nested function f(integer g = 'g')
+        static integer h = 'h'
+        constant i = 'i'
+        string res = ""
+        res &= a
+--      res &= b    -- undefined
+        res &= c
+        res &= d
+--      res &= e    -- undefined
+        res &= g
+        res &= h
+        res &= i
+        return res
+    end nested function
+
+    assert(f()="acdghi")
+    assert(b=='b')
+end procedure
+p()
+--/*
+</eucode>
+The output is "acdghi". I've actually just modified the new hideScope() routine mentioned
+at the top of this thread to preserve static and local(private) constants. So, why are b
+and e "undefined"? The reason is they are not in the current call stack frame, while in a
+simple case like the above they are only one "hop" away, that would not be true for any
+nested recursive routines. Also, imagine that you save routine_id("f") somewhere, and then
+invoke it after p() has exited - b and e would then simply no longer exist, anywhere.
+
+You can of course pass b and e explicitly to f(), and if you like return and store them.
+
+Anyone thinking I am just being stubborn or making this stuff up is invited to read
+http://jibbering.com/faq/notes/closures/
+I will not accept any responsibilty for or pay for the removal of any stains caused 
+by liquified brain cells dribbling out of anyone's ears after reading that, however
+it is actually very well written.
+*/
+
+object a_ = 1
+function b(object c)
+    object d = 2
+    nested function e(object f)
+        object g = 3
+        -- a,b,e,f,g in scope
+        -- c not in scope (except as a named parameter)
+        -- d not in scope
+--      ?c -- error -- 18,11,14,6   -- see note [1]
+--      ?f -- 18,11,14,6
+--      ?d -- error -- 3,3,3,3(!!)  -- see note [1]
+--      ?g -- 3,3,3,3
+        return {"a",a_,"b45",iff(f==11?b(c:=4):5),"e67",iff(f==11?e(6):7),"f",f,"g",g}
+    end nested function
+    -- a,b,c,d,e in scope
+    -- f not in scope (except as a named parameter)
+    -- g not in scope
+    --?f -- error
+    --?g -- error
+--  ?c -- 1,8,4
+    return {"a",a_,"b89",iff(c==1?b(8):9),"c",c,"d",d,"e",e(f:=c+10)}
+end function
+-- a,b in scope
+-- c not in scope (except as a named parameter)
+-- d,e,f,g not in scope
+--pp(b(c:=a)) -- fine
+assert(b(c:=a_)={`a`, 1, `b89`,
+                 {`a`, 1, `b89`, 9, `c`, 8, `d`, 2, `e`,
+                  {`a`, 1, `b45`, 5, `e67`, 7, `f`, 18, `g`, 3}}, `c`, 1, `d`, 2, `e`,
+                 {`a`, 1, `b45`,
+                  {`a`, 1, `b89`, 9, `c`, 4, `d`, 2, `e`,
+                   {`a`, 1, `b45`, 5, `e67`, 7, `f`, 14, `g`, 3}}, `e67`,
+                  {`a`, 1, `b45`, 5, `e67`, 7, `f`, 6, `g`, 3}, `f`, 11, `g`, 3}})
+--/*
+-- (the output is of course somewhat meaningless)
+--?c -- error
+--?d -- error
+--?e -- error
+--?f -- error
+--?g -- error
+[1] I have now added the necessary hideScope/restoreScope to make c,d invisible from e(),
+    though of course that's in pre-0.8.3 and has not been released yet. On 0.8.2 the
+    first ?c will actually give the same results as ?f, as it's stack-frame-relative.
+
+I will just say this: I've used closures in JavaScript quite a bit recently, and they are pretty
+neat, especially if you've got no other way to handle them. The trouble is they are "hidden magic".
+There is absolutely nowhere, for instance, that I could ever output closure values in an ex.err.
+At best they would be an anonymous automatic construct from some point in a now destroyed stack.
+And that in turn would mean they are virtually completely and utterly impossible to ever debug.
+And you know me, I have no patience for any "waaah, I have to type it in, waaahh" programmers.
+
+OK, back to the task at hand:
+The problem is simply that the above is (too stress-testy and) totally abstract, and therefore 
+totally meaningless, and almost impossible to relate to any real-world use. Can anyone do better?
+--*/
+
+--/*
+-- Euforum:
+Better example?
+
+Nearly four years ago, I spent a sunday afternoon (about 6 hours) partially implementing nested functions,
+and it has remained in that partially broken state ever since. While it might be nice to solve the funarg
+problem and have proper closures (the ability for e() below to reference/update c and d even after b() 
+has left the building) but I have to accept that's never going to happen without a drastic replacement of
+the whole call stack mechanism and all of our beloved pass by reference/copy-on-write semantics.
+
+The better approach (for Phix) is to spot any attempt to write closure-like code and issue an error. [DONE, see [1]]
+In the following, e() must instead be explicitly passed anything it needs (such as c and/or d).
+Just this week, I suddenly realised that we //could// pass reference types to e(), namely a dictionary 
+or a class instance, and it //could// update those directly, as opposed to the more traditional types
+atom/integer/string/sequence, which it can modify and return, but not update directly (cow-semantics).
+Anyway, I've hit a bit of a snag trying to clearly document these concepts (no s**t sherlock).
+
+There is only partial support for nested functions in Phix. Some prior work (over a single afternoon) has been left 
+unfinished, anyone interested can see it at [[Nested_function#Phix]], but it was just enough to open the door for two
+reasonably acceptable work-arounds.<br>
+Note that in both the following you cannot reference any local variables or parameters of the containing function,
+but must pass in everything you need explicitly, and anything you need to update must be a reference type, which
+is only dictionaries and class instances, not integers, atoms, sequences, strings, or any user-defined types, as
+they are all effectively read-only. Also note that the compiler will not (as yet) issue any proper errors or
+warnings should you break that restriction, instead it simply won't work as hoped for.
+=== using a dictionary ===
+<lang Phix>
+--*/
+function MakeList(string sep=".  ")
+    nested function MakeItem(integer env, string sep)
+        integer counter = getd("counter",env)+1
+        setd("counter",counter,env)
+        return sprintf("%d%s%s",{counter,sep,{"first","second","third"}[counter]})
+    end nested function
+    integer counter = new_dict({{"counter",0}})
+    sequence res = {}
+    for i=1 to 3 do
+        res = append(res,MakeItem(counter,sep))
+    end for
+    return res
+end function
+ 
+assert(MakeList()={"1.  first","2.  second","3.  third"})
+--/*
+=== using a class ===
+Same output. I trust it is obvious that if you passed in c.count, you would not be able to update it.
+<lang Phix>
+--*!/
+without javascript_semantics
+class counter
+    public integer count
+end class
+function MakeList(string sep=".  ")
+    nested function MakeItem(counter c, string sep)
+        c.count += 1
+        return sprintf("%d%s%s",{c.count,sep,{"first","second","third"}[c.count]})
+    end nested function
+    counter c = new()
+    sequence res = {}
+    for i=1 to 3 do
+        res = append(res,MakeItem(c,sep))
+    end for
+    return res
+end function
+ 
+assert(MakeList()={"1.  first","2.  second","3.  third"})
+--/!*
+</lang>
+--*/
+
+
+
+-- nothing at all to do with nested functions, but I had to pput it somewhere...
+function n(integer i) return i end function
+sequence s = {1,{2,{3,{4}}}}
+s[n(1)] += 1
+s[n(2)][n(1)] += 1
+s[n(2)][n(2)][n(1)] += 1
+s[n(2)][n(2)][n(2)][n(1)] += 1
+assert(s={2,{3,{4,{5}}}})
+--==>
+--  function n(/*integer*/ i) { return i; }
+--  let /*sequence*/ s = ["sequence",1, ["sequence",2, ["sequence",3, ["sequence",4]]]];
+--  { let t$dx = n(1); s = $repe(s,t$dx,$subse(s,t$dx)+(1)); }
+--  { let t$dx = n(1), t2$dx = n(2); s = $repe(s,t$dx,$subse(s,t$dx,["sequence",t2$dx])+(1),["sequence",t2$dx]); }
+--  { let t$dx = n(1), t2$dx = n(2), t3$dx = n(2); s = $repe(s,t$dx,$subse(s,t$dx,["sequence",t2$dx,t3$dx])+(1),["sequence",t2$dx,t3$dx]); }
+--  { let t$dx = n(1), t2$dx = n(2), t3$dx = n(2), t4$dx = n(2); s = $repe(s,t$dx,$subse(s,t$dx,["sequence",t2$dx,t3$dx,t4$dx])+(1),["sequence",t2$dx,t3$dx,t4$dx]); }
+
+s = {1,{2},{3,{4}}}
+s[n(1)] += 1
+s[n(2)][n(1)] += 1
+s[n(3)][n(2)][n(1)] += 1
+assert(s={2,{3},{3,{5}}})
+--function n(/*integer*/ i) { return i; }
+--let /*sequence*/ s = ["sequence",1, ["sequence",2], ["sequence",3, ["sequence",4]]];
+--{ let i$dx = n(1); s = $repe(s,i$dx,$subse(s,i$dx)+(1)); }
+--{ let i$dx = n(1), i2$dx = n(2); s = $repe(s,i$dx,$subse(s,i$dx,["sequence",i2$dx])+(1),["sequence",i2$dx]); }
+--{ let i$dx = n(1), i2$dx = n(2), i3$dx = n(3); s = $repe(s,i$dx,$subse(s,i$dx,["sequence",i2$dx,i3$dx])+(1),["sequence",i2$dx,i3$dx]); }
+
+
+--?"done"
+--wait_key()

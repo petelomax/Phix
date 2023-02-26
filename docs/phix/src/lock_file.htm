@@ -23,34 +23,43 @@
          <td>When multiple processes or threads can simultaneously access a
             file, some kind of locking mechanism may be needed to avoid mangling
             the contents of the file, or causing erroneous data to be read from the file.
-          <br>
-          <br>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+          <a href="notpgui.htm"><span class="illegal">Not supported</span></a>.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Comments:</b>
+         </td>
+         <td>
             lock_file() attempts to place a lock on an open file, fn, to stop 
             other processes from using the file while your program is reading it 
-            or writing it. Under Linux, there are two types of locks that 
-            you can request using the locktype parameter. (Under Windos the 
-            locktype parameter is ignored, but should be an integer.)
-            Ask for a
-           <b>
-            <i>shared
-            </i>
-           </b>
-             lock when you intend to read a file, and you want to 
-            temporarily block other processes from writing it. Ask for an
-           <b>
-            <i>exclusive</i>
-           </b> lock 
-            when you intend to write to a file and you want to temporarily block other 
-            processes from reading or writing it. It is ok for many processes to 
-            simultaneously have shared locks on the same file, but only one process 
-            can have an exclusive lock, and that can happen only when no other 
-            process has any kind of lock on the file. The following constants are
-            pre-defined:
+            or writing it. <br>
+            Under Linux, there are two types of locks that you can request using the locktype parameter.<br>
+            Under Windows the locktype parameter is ignored, but should be an integer.<br>
+            Ask for a <b><i>shared</i></b> lock when you intend to read a file, and you want to 
+            temporarily block other processes from writing it. <br>
+            Ask for an <b><i>exclusive</i></b> lock when you intend to write to a file and you 
+            want to temporarily block other processes from reading or writing it. <br>
+            It is ok for many processes to simultaneously have shared locks on the same file, but 
+            only one process can have an exclusive lock, and that can happen only when no other 
+            process has any kind of lock on the file.
+            <br>
+            <br>
+            The following constants are pre-defined:
+<!--
          </td>
         </tr>
         <tr>
          <td></td>
          <td>
+-->
 <!--eucode>
 global constant LOCK_SHARED = 1, 
                 LOCK_EXCLUSIVE = 2
@@ -59,6 +68,7 @@ global constant LOCK_SHARED = 1,
 <font color="#000000"></font><font color="#008080">global constant</font><font color="#004600"> LOCK_SHARED</font><font color="#0000FF"> =</font><font color="#000000"> 1</font><font color="#0000FF">, 
 </font><font color="#004600">                LOCK_EXCLUSIVE</font><font color="#0000FF"> =</font><font color="#000000"> 2</font>
 </pre>
+<!--
          </td>
         </tr>
         <tr>
@@ -66,6 +76,7 @@ global constant LOCK_SHARED = 1,
           <b></b>
          </td>
          <td>
+-->
             On Windows you can lock a specified portion of a file using the range parameter. <br>
             range is a sequence of the form: {first_byte, last_byte}.<br>
             It indicates the first byte and last byte in the file that the lock applies to. <br>
@@ -73,17 +84,11 @@ global constant LOCK_SHARED = 1,
             In the current release for Linux, locks always apply to the whole file, and you should specify {} for this parameter.
           <br>
           <br>
-            If it is successful in obtaining the desired lock, lock_file() will return 1. <br>
-            If unsuccessful, it will return 0. <br>
-            lock_file() does not wait for other processes to relinquish their locks. You may have to call 
-            it repeatedly, before the lock request is granted.
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <b>Comments:</b>
-         </td>
-         <td>
+            If it is successful in obtaining the desired lock, lock_file() will return true (1), otherwise false (0).<br>
+            lock_file() does not wait for other processes to relinquish their locks. <br>
+            You may have to call it repeatedly before the lock request is granted, possibly with a short <a href="sleep.htm">sleep</a>() between tries.
+          <br>
+          <br>
             On Linux, these locks are called advisory locks, which means they are not enforced by the operating system. <br>
             It is up to the processes that use a particular file to cooperate with each other.<br>
             A process can access a file without first obtaining a lock on it.<br>
@@ -96,12 +101,10 @@ global constant LOCK_SHARED = 1,
          </td>
          <td>
 <!--eucode>
-integer v
-atom t
-v = open("visitor_log", "a")  -- open for append
-t = time()
+integer v = open("visitor_log", "a")  -- open for append
+atom t = time()
 while not lock_file(v, LOCK_EXCLUSIVE, {}) do
-    if time() > t + 60 then
+    if time() > t+60 then
         puts(1, "One minute already ... I can't wait forever!\n")
         abort(1)
     end if

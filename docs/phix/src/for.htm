@@ -38,15 +38,24 @@
         The compiler does not allow assignment to a loop variable. <br>
         The initial value, loop limit and increment must all be integers. <br>
         If no increment is specified then +1 is assumed. The limit and increment values are established when the loop is entered, and 
-        are not affected by anything that happens during the execution of the loop. See also
-        <a href="scope.htm#scope">scope of the loop variable</a>.
+        are not affected by anything that happens during the execution of the loop. Note that p2js/JavaScript does not cope as well as 
+        desktop/Phix when step may or may not be negative, relying as it does on the presence of an explicit '-' at the start of any 
+        by clause. In such cases replicating the loop inside an if -ve/else or perhaps replacing it with a while statement is advised.
+        See also <a href="scope.htm#scope">scope of the loop variable</a>.
        <br>
        <br>
         An "illegal construct" error occurs if the end for statement is immediately preceded by an unconditional exit. In truth that
         happens because the compiler tries to "optimise away" the "end for", with disastrous consequences when it later tries to  
         backpatch the zero iterations jump. There may be other cases, besides immediately before the end, where an unconditional exit
-        causes grief. Anyway and besides, an <a href="if.htm">if</a> construct could and should be used instead.
+        causes grief. 
+<!--
+        Anyway and besides, an <a href="if.htm">if</a> construct could and should be used instead. 
+-->
+        Obviously an unconditional exit means that the loop will never iterate, so it deserves to be removed (if always once) or 
+        replaced with an <a href="if.htm">if</a> construct (if zero or one).
+        Occasionally it may be annoying when the compiler forces that on you but in the long run your code will thank you for it.
        <br>
+        <a name=float></a>
        <br>
         Compatibility Note: Euphoria allows floating point for loops, which Phix does not. <br>
         However, quite often they do not work as anticipated (in Euphoria), for example:
@@ -60,10 +69,11 @@
 <font color="#008080">    for</font><font color="#000000"> x</font><font color="#0000FF">=</font><font color="#000000">1.7</font><font color="#008080"> to</font><font color="#000000"> 1.9</font><font color="#008080"> by</font><font color="#000000"> 0.1</font><font color="#008080"> do</font><font color="#0000FF"> ?</font><font color="#000000">x</font><font color="#008080"> end for  </font><font color="#000080"><i> -- prints 1.7,1.8</i></font>
 <font color="#008080">    for</font><font color="#000000"> x</font><font color="#0000FF">=</font><font color="#000000">9.7</font><font color="#008080"> to</font><font color="#000000"> 9.9</font><font color="#008080"> by</font><font color="#000000"> 0.1</font><font color="#008080"> do</font><font color="#0000FF"> ?</font><font color="#000000">x</font><font color="#008080"> end for  </font><font color="#000080"><i> -- prints 9.7,9.8,9.9</i></font>
 </pre>
-        I have not analysed why that specific case happens, and have no desire to replicate it.<br>
+        I have not analysed in any great detail why that specific case happens, and have no desire to replicate it.<br>
         Besides, it is trivial to use a predictable integer loop variable alongside a manually incremented/decremented atom to achieve 
         the required effect, and that is certainly easier than at least one technique to ensure the desired number of iterations occur 
-        that I have seen more than once in Euphoria: adjusting limit by a "step/2 fudge factor".
+        that I have seen more than once in Euphoria: adjusting limit by a "step/2 fudge factor", so for instance the above loops would
+        behave more consistently (in Euphoria) if they ran to 1.95 and 9.95.
        <br>
        <br>
         The <b>by</b> keyword can also be used in <a href="enum.htm">enum</a> defintions.

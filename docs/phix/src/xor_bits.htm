@@ -27,12 +27,20 @@
         </tr>
         <tr>
          <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+          Supported.
+         </td>
+        </tr>
+        <tr>
+         <td>
           <b>Comments:</b>
          </td>
          <td>
             This function may be applied to an <a href="atom.htm">atom</a> or sq_xor_bits() to all elements
-            of a <a href="sequence.htm">sequence</a>. The rules for
-          <a href="seqops.htm">sequence operations</a> apply.
+            of a <a href="sequence.htm">sequence</a>.<br>
+            The rules for <a href="seqops.htm">sequence operations</a> apply.
           <br>
           <br>
             The arguments must be representable as 32-bit numbers, either signed or unsigned.
@@ -48,7 +56,7 @@
           <br>
           <br>
             <b>Caution</b>: many cryptographic functions and the like require <i>unsigned</i> 32-bit integers,
-            especially when bit-shifting, for which <b>xor_bitsu</b>() can be used instead.
+            especially when bit-shifting, for which <b>xor_bitsu</b>() can be used instead. See also example 2 below.
           <br>
           <br>
             Unlike <a href="and_bits.htm">and_bits</a>() and <a href="or_bits.htm">or_bits</a>(), there is no
@@ -57,7 +65,7 @@
         </tr>
         <tr>
          <td>
-          <b>Example:</b>
+          <b>Example 1:</b>
          </td>
          <td>
 <!--eucode>
@@ -72,10 +80,58 @@ a = xor_bits(#0110, #1010)
         </tr>
         <tr>
          <td>
+          <b>Example 2:</b>
+         </td>
+         <td>
+            The following discrepancy was noted during the rosettacode PCG32 task:
+            <br>
+            <br>
+<!--eucode>
+atom x = #909E8125,
+     l = x << 32,
+--   l = and_bitsu(x << 32,#FFFFFFFF),
+     a = xor_bitsu(x,l),
+     u = and_bitsu(a,#FFFFFFFF)
+printf(1,"x:%x, l:%x, a:%x (%d)\n",{x,l,a,u})
+-- 32bit: x:909E8125, l:909E812500000000, a:909E8125 (2426306853)
+-- 64bit: x:909E8125, l:909E812500000000, a:80000000909E8125 (0)
+-- as commented out (both): x:909E8125, l:0, a:909E8125 (2426306853)
+</eucode-->
+<pre>
+<font color="#004080">atom</font><font color="#000000"> x</font><font color="#0000FF"> =</font><font color="#000000"> #909E8125</font><font color="#0000FF">,</font>
+<font color="#000000">     l</font><font color="#0000FF"> =</font><font color="#000000"> x</font><font color="#0000FF"> &lt;&lt;</font><font color="#000000"> 32</font><font color="#0000FF">,</font>
+<font color="#000080"><i>--   l = and_bitsu(x &lt;&lt; 32,#FFFFFFFF),</i></font>
+<font color="#000000">     a</font><font color="#0000FF"> =</font><font color="#7060A8"> xor_bitsu</font><font color="#0000FF">(</font><font color="#000000">x</font><font color="#0000FF">,</font><font color="#000000">l</font><font color="#0000FF">),</font>
+<font color="#000000">     u</font><font color="#0000FF"> =</font><font color="#7060A8"> and_bitsu</font><font color="#0000FF">(</font><font color="#000000">a</font><font color="#0000FF">,</font><font color="#000000">#FFFFFFFF</font><font color="#0000FF">)</font>
+<font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"x:%x, l:%x, a:%x (%d)\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">x</font><font color="#0000FF">,</font><font color="#000000">l</font><font color="#0000FF">,</font><font color="#000000">a</font><font color="#0000FF">,</font><font color="#000000">u</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- 32bit: x:909E8125, l:909E812500000000, a:909E8125 (2426306853)
+-- 64bit: x:909E8125, l:909E812500000000, a:80000000909E8125 (0)
+-- as commented out (both): x:909E8125, l:0, a:909E8125 (2426306853)</i></font>
+</pre>
+            <br>
+            Technically, of course, you could easily argue that is an outright bug, but to cut a long 
+            rant about CPU/FPU/SSE instructions short, it is far easier just to say that sometimes 
+<!--
+            e with no easy fix since
+            there simply isn&rsquo;t a hardware xor CPU instruction that treats 64-bit registers as unsigned, and/or no
+            fistp FPU instruction of the ideal size, which leads to the implicit rounding of storing an 80-bit float in
+            a 64-bit slot on the stack, which doesn&rsquo;t quite fit, whereas the 64-bit equivalent, [just!] does...
+            (As in 32 bit uses 64 bit floats whereas 64 bit uses 80-bit floats. I expect there <i>is</i> indeed a 
+            perfectly good 128-bit SSE instruction or two that would get the job done on 64 bit, I just haven&rsquo;t 
+            found it/them yet. I also noted that inconsistency was triggered on average by 1 in 1024 values, and 
+            wholly caused by Phix storing large integers as floats, so it gets the FPU involved and that might say 
+            "won&rsquo;t fit, have a 0 instead" whereas the CPU only ever says "here&rsquo;s the cropped version".)<br>
+            Sometimes -->
+            for consistency between 32 and 64 bit you may have to explicitly enforce the 32-bit aspect.
+         </td>
+        </tr>
+        <tr>
+         <td>
           <b>Implementation:</b>
          </td>
          <td>
-            via :%opXorBits in builtins\VM\pMath.e and builtins/ubits.e (both autoincludes).
+            pilx86.e emits inline binary directly for two initialised integers, otherwise a call to :%opXorBits in builtins\VM\pMath.e <br>
+            xor_bitsu() is currently implemented in builtins/ubits.e (also an autoinclude), though that could probably be improved on, if needed.
          </td>
         </tr>
         <tr>

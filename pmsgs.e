@@ -621,6 +621,7 @@ sequence name
 --  elsif equal(name,"my_dir") then
 --      Abort("undefined:"&name&".\n\nYou may have meant set_walk_dir_sort_rtn().")
     else
+        if name="E" then name &= " (E was renamed EULER in 1.0.2)" end if
         Abort("undefined identifier "&name)
     end if
 end procedure

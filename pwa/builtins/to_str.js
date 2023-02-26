@@ -31,11 +31,11 @@
     }
     let /*sequence*/ data_out = "{";
     for (let i=1, i$lim=length(data_in); i<=i$lim; i+=1) {
-        data_out = $conCat(data_out, to_string($subse(data_in,i),embed_string_quote));
+        data_out = $conCat(data_out, to_string($subse(data_in,i),embed_string_quote), false);
         if (!equal(i,length(data_in))) {
-            data_out = $conCat(data_out, ", ");
+            data_out = $conCat(data_out, ", ", false);
         }
     }
-    data_out = $conCat(data_out, 0X7D);
+    data_out = $conCat(data_out, 0X7D, false);
     return data_out;
 }

@@ -13,7 +13,9 @@
           <b>Definition:</b>
          </td>
          <td>
-         crash(<a href="string.htm">string</a> msg, <a href="object.htm">object</a> args={}, integer nFrames=1)
+         crash(<a href="string.htm">string</a> msg, 
+               <a href="object.htm">object</a> args={},
+               <a href="integer.htm">integer</a> nFrames=1)
          </td>
         </tr>
         <tr>
@@ -21,7 +23,7 @@
           <b>Description:</b>
          </td>
          <td>
-            Crash the running program, displaying a formatted error message the way <a href="printf.htm">printf</a>() does.
+            Terminate the running program, displaying a formatted error message the way <a href="printf.htm">printf</a>() does.
             <br>
             <br>
             msg: the message text, optionally with embedded <a href="sprintf.htm">sprintf</a> format specifiers.<br>
@@ -34,7 +36,8 @@
           <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
          </td>
          <td>
-          Supported, however nFrames is ignored (any error handling is the responsibility of the browser development tools anyway).
+          Supported, however nFrames is ignored (any error handling is the responsibility of the browser development tools anyway),
+          plus the message is (always) displayed <i>before</i> being caught by any containing <a href="try.htm">try/catch</a>.
          </td>
         </tr>
         <tr>
@@ -46,9 +49,11 @@
             whereas a value of 2 is suitable for some global library routines, and 3 for some private library routines.<br>
             Several builtins\ and builtins\VM\ files try to report the error on the calling statement rather than in themselves, 
             for instance it is easily several thousand times more likely that the wrong parameters were passed to printf(), 
-            than the actual problem being a bug within printf() itself.<br>
+            than some percieved problem being a bug within printf() itself. 
             Obviously you should normally test that the crash actually occurs, and that it leads the developer directly to the 
-            most likely source of error, as opposed to code that does not usually need fixing.
+            most likely source of error, as opposed to [builtin] code that does not usually need fixing.
+            A few well-placed <a href="with.htm">without debug</a>, in the builtin files themselves, can remove the need to 
+            fiddle with nFrames, however I cannot guarantee they will remain in place from one release to the next.
             <br>
             <br>
             The program terminates as for any runtime error, unless there is a containing <a href="try.htm">try/catch</a> statement.
@@ -59,6 +64,10 @@
             user-friendliness (yeah, not really buying that one either). As a developer, I prefer throw() and even 9/0 to crash(), 
             at least when debugging, although to be fair the difference can be a bit subtle. Lastly, crash() predates throw() by 
             several years, if that means anything.
+            <br>
+            <br>
+???
+            Note that while [s]printf() allows an integer/atom/string args, both crash() and assert() require a dword-sequence.
 -->
          </td>
         </tr>
@@ -67,10 +76,28 @@
           <b>Auxillary Functions</b>
          </td>
          <td>
-            <b>assert</b>(<a href="integer.htm#bool">bool</a> condition, <a href="string.htm">string</a> msg="",
-                                                                         <a href="sequence.htm">sequence</a> args={})
+            <b>assert</b>(<a href="integer.htm#bool">bool</a> condition,
+                          <a href="string.htm">string</a> msg="",
+                          <a href="object.htm">object</a> args={},
+                          <a href="integer.htm">integer</a> nFrames=1)<br>
+            <b>asserteq</b>(<a href="object.htm">object</a> a, b,
+                          <a href="string.htm">string</a> msg="==",
+                          <a href="object.htm">object</a> args={},
+                          <a href="integer.htm">integer</a> nFrames=1)<br>
+                <br>
+            Trivial wrappers: assert is simply if not condition then crash("assertion failure:"&msg,args,nFrames+1) end if,
+            whereas asserteq is ever so slightly more fiddly, with a msg in {"==","=","!=","&lt;","&lt;=","=&gt;","&gt;"} 
+            overriding the equality test and then being treated as "".<!--, and asserteq in particular often making it much more 
+            obvious what just went wrong, for instance it might display "assertion failure: 7 <= 5 (indexes out of order)". -->
+            See builtins\pCrashN.e for more precise details, such as asserteq() actually works identically whether msg is 
+            [defaulted to] "==", "=", or "" - however should it not be easily and intuitively improving your code or be
+            introducing any kind of difficulty or confusion my advice would be to use crash(), perhaps/probably with a 
+            slightly more carefully crafted message.
+<!--
+            if a!=b then string m = iff(msg=""?"":" ("&sprintf(msg,args)&")"); crash("assertion failure: $v != %v%s",{a,b,msg},nFrames+1).
             is roughly the same as <code>crash("assertion failure: "&msg)</code> when condition is false, albeit not actually 
             implemented like that (it predated the nFrames parameter of crash).
+-->
             <br>
             <br>
             Note there is as yet no option to suppress code generation for a production build, for that define DEBUG as a true/false 
@@ -91,22 +118,65 @@
          <td>
 <!--eucode>
 if fn=-1 then
-    crash("cannot open config file")
+    crash("cannot open config file")                -- [1]
+-- or
+    crash("cannot open %s",{"path/to/file"})        -- [2]
 end if
 -- or
-assert(fn!=-1)
+assert(fn!=-1)                                      -- [3]
 -- or
-assert(fn!=-1,"cannot open config file")
+assert(fn!=-1,"cannot open config file")            -- [4]
+-- or
+asserteq(fn,-1,"!=")                                -- [5]
+-- or
+asserteq(2+2,5)                                     -- [6]
+-- or
+asserteq(2+2,5,"!=")                        -- (no output)
+-- or
+assert(2+2!=5)                              -- (no output)
+-- or
+asserteq(2+2,5,"maths broken")                      -- [7]
+-- collected output on failure (silent on success):
+-- cannot open config file                          -- [1]
+-- cannot open path/to/file                         -- [2]
+-- assertion failure                                -- [3]
+-- assertion failure:cannot open config file        -- [4]
+-- assertion failure: -1 != -1                      -- [5]
+-- assertion failure: 4 == 5                        -- [6]
+-- assertion failure: 4 == 5 (maths broken)         -- [7]
 </eucode-->
 <pre>
 <font color="#008080">if</font><font color="#000000"> fn</font><font color="#0000FF">=-</font><font color="#000000">1</font><font color="#008080"> then</font>
-<font color="#5E005E">    crash</font><font color="#0000FF">(</font><font color="#008000">"cannot open config file"</font><font color="#0000FF">)</font>
+<font color="#7060A8">    crash</font><font color="#0000FF">(</font><font color="#008000">"cannot open config file"</font><font color="#0000FF">)               </font><font color="#000080"><i> -- [1]
+-- or</i></font>
+<font color="#7060A8">    crash</font><font color="#0000FF">(</font><font color="#008000">"cannot open %s"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">"path/to/file"</font><font color="#800000">}</font><font color="#0000FF">)       </font><font color="#000080"><i> -- [2]</i></font>
 <font color="#008080">end if</font>
 <font color="#000080"><i>-- or</i></font>
-<font color="#5E005E">assert</font><font color="#0000FF">(</font><font color="#000000">fn</font><font color="#0000FF">!=-</font><font color="#000000">1</font><font color="#0000FF">)</font>
-<font color="#000080"><i>-- or</i></font>
-<font color="#5E005E">assert</font><font color="#0000FF">(</font><font color="#000000">fn</font><font color="#0000FF">!=-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"cannot open config file"</font><font color="#0000FF">)</font>
+<font color="#7060A8">assert</font><font color="#0000FF">(</font><font color="#000000">fn</font><font color="#0000FF">!=-</font><font color="#000000">1</font><font color="#0000FF">)                                     </font><font color="#000080"><i> -- [3]
+-- or</i></font>
+<font color="#7060A8">assert</font><font color="#0000FF">(</font><font color="#000000">fn</font><font color="#0000FF">!=-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"cannot open config file"</font><font color="#0000FF">)           </font><font color="#000080"><i> -- [4]
+-- or</i></font>
+<font color="#7060A8">asserteq</font><font color="#0000FF">(</font><font color="#000000">fn</font><font color="#0000FF">,-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"!="</font><font color="#0000FF">)                               </font><font color="#000080"><i> -- [5]
+-- or</i></font>
+<font color="#7060A8">asserteq</font><font color="#0000FF">(</font><font color="#000000">2</font><font color="#0000FF">+</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">)                                    </font><font color="#000080"><i> -- [6]
+-- or</i></font>
+<font color="#7060A8">asserteq</font><font color="#0000FF">(</font><font color="#000000">2</font><font color="#0000FF">+</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#008000">"!="</font><font color="#0000FF">)                       </font><font color="#000080"><i> -- (no output)
+-- or</i></font>
+<font color="#7060A8">assert</font><font color="#0000FF">(</font><font color="#000000">2</font><font color="#0000FF">+</font><font color="#000000">2</font><font color="#0000FF">!=</font><font color="#000000">5</font><font color="#0000FF">)                             </font><font color="#000080"><i> -- (no output)
+-- or</i></font>
+<font color="#7060A8">asserteq</font><font color="#0000FF">(</font><font color="#000000">2</font><font color="#0000FF">+</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#008000">"maths broken"</font><font color="#0000FF">)                     </font><font color="#000080"><i> -- [7]
+-- collected output on failure (silent on success):
+-- cannot open config file                          -- [1]
+-- cannot open path/to/file                         -- [2]
+-- assertion failure                                -- [3]
+-- assertion failure:cannot open config file        -- [4]
+-- assertion failure: -1 != -1                      -- [5]
+-- assertion failure: 4 == 5                        -- [6]
+-- assertion failure: 4 == 5 (maths broken)         -- [7]</i></font>
 </pre>
+            In all cases the source file and line number is also shown, and a "Press Enter..." pause occurs. I briefly considered trying to "flip" the
+            equality operator in the asserteq message, before quickly realising that would probably cause just as much confusion, if not more, but as
+            ever I&rsquo;m open to suggestions for improvement.
          </td>
         </tr>
         <tr>
@@ -116,7 +186,9 @@ assert(fn!=-1,"cannot open config file")
          <td>
             Partly in builtins\pCrashN.e (an autoinclude), but mainly via <a href="crash_message.htm">crash_message</a>() and :!iDiag in builtins\VM\pDiag.e (also an autoinclude)
             - be warned however it is low-level complicated stuff that you do not need to know.<br>
+<!--
             assert() is separately implemented in builtins\assert.e (another autoinclude) and again partly in pDiag.e, this time via e119af(edi).
+-->
          </td>
         </tr>
         <tr>

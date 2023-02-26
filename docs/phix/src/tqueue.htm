@@ -37,16 +37,24 @@
         inherent in the programming language itself. There are however nearly twice as many 
         routine identifiers defined as strictly necessary, eg new_queue() and new_stack(), 
         purely to try and help make your code a little more readable and self-documenting. 
-        Since they are in fact using the same codebase, you can also "cheat" and access the 
-        "wrong end" of both stacks and queues, should you ever feel the need to (and it 
-        won&rsquo;t be subtle, you would have to stamp each and every such statement doing 
-        that sort of thing with the builtin constant FIFO_QUEUE or LIFO_QUEUE).
+        <br>
+        <br>
+        Since they are in fact using the same codebase, you can also "cheat" and peep/pop 
+        (but not push, since that gave me jip, and as it was probably not very useful I just 
+        ripped it/cheating out) the "wrong end" of both stacks and queues, should you ever 
+        feel the need to (and it won&rsquo;t be subtle, you would have to stamp each and 
+        every such statement doing that sort of thing with the builtin constant FIFO_QUEUE 
+        or LIFO_QUEUE). On the other hand, should you want to get clever(/fast) you should 
+        just use a normal sequence.
         <br>
         <br>
         Note that unlike priority queues and dictionaries there is no "default" queue or stack,
         since even the most trivial program simply reads better with explicit names, which as
-        shown in the following example are always the first parameter to these routines (with
-        the obvious exception of new_queue and new_stack).
+        shown in the following example are always the first parameter to these routines, with
+        the obvious exception of new_queue() and new_stack().
+        <br>
+        <br>
+        These routines are fully supported by <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js</b></span></a>.
         <br>
         <h3>Example:</h3>
            <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
@@ -59,43 +67,75 @@
              <div id="CodeSnippetContainerCode_18b74j93-qx54-4765-123h-8b2483c92846" class="codeSnippetContainerCode" dir="ltr">
               <div style="color:Black;">
 <!--eucode>
-integer pten = new_queue(), p, t
+integer pten = new_queue()
 sequence res = {}
 for i=1 to 25 do
-    p = get_prime(i)
-    push(pten,p)        -- {2,3,5,7,11,...}
-    t = pop(pten)
-    res &= t
-    push(pten,t*10) -- {20,200,30,2000,50,300,...} (kinda, you get the idea)
+    push(pten,get_prime(i))     -- {2,3,5,7,11,...}
+    res &= pop(pten)
+    push(pten,res[$]*10) -- {20,200,30,2000,50,300,...} (kinda, you get the idea)
 end for
-destroy_queue(powers)
+destroy_queue(pten)
 printf(1,"The first 13 primes mixed in with primes*some power of 10 are:\n")
 pp(res) -- {2,20,3,200,5,30,7,2000,11,50,13,300,17,70,19,20000,23,110,29,500,31,130,37,3000,41}
 --  vs pq: {2,3,5,7,11,13,17,19,20,23,29,30,31,37,41,43,47,50,53,59,61,67,70,71,73,79,83,89,97}
 </eucode-->
 <pre>
-<font color="#004080">integer</font><font color="#000000"> pten</font><font color="#0000FF"> =</font><font color="#5E005E"> new_queue</font><font color="#0000FF">(),</font><font color="#000000"> p</font><font color="#0000FF">,</font><font color="#000000"> t</font>
+<font color="#004080">integer</font><font color="#000000"> pten</font><font color="#0000FF"> =</font><font color="#7060A8"> new_queue</font><font color="#0000FF">()</font>
 <font color="#004080">sequence</font><font color="#000000"> res</font><font color="#0000FF"> = {}</font>
 <font color="#008080">for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#000000"> 25</font><font color="#008080"> do</font>
-<font color="#000000">    p</font><font color="#0000FF"> =</font><font color="#5E005E"> get_prime</font><font color="#0000FF">(</font><font color="#000000">i</font><font color="#0000FF">)</font>
-<font color="#5E005E">    push</font><font color="#0000FF">(</font><font color="#000000">pten</font><font color="#0000FF">,</font><font color="#000000">p</font><font color="#0000FF">)       </font><font color="#000080"><i> -- {2,3,5,7,11,...}</i></font>
-<font color="#000000">    t</font><font color="#0000FF"> =</font><font color="#5E005E"> pop</font><font color="#0000FF">(</font><font color="#000000">pten</font><font color="#0000FF">)</font>
-<font color="#000000">    res</font><font color="#0000FF"> &amp;=</font><font color="#000000"> t</font>
-<font color="#5E005E">    push</font><font color="#0000FF">(</font><font color="#000000">pten</font><font color="#0000FF">,</font><font color="#000000">t</font><font color="#0000FF">*</font><font color="#000000">10</font><font color="#0000FF">)</font><font color="#000080"><i> -- {20,200,30,2000,50,300,...} (kinda, you get the idea)</i></font>
+<font color="#7060A8">    push</font><font color="#0000FF">(</font><font color="#000000">pten</font><font color="#0000FF">,</font><font color="#7060A8">get_prime</font><font color="#800000">(</font><font color="#000000">i</font><font color="#800000">)</font><font color="#0000FF">)    </font><font color="#000080"><i> -- {2,3,5,7,11,...}</i></font>
+<font color="#000000">    res</font><font color="#0000FF"> &amp;=</font><font color="#7060A8"> pop</font><font color="#0000FF">(</font><font color="#000000">pten</font><font color="#0000FF">)</font>
+<font color="#7060A8">    push</font><font color="#0000FF">(</font><font color="#000000">pten</font><font color="#0000FF">,</font><font color="#000000">res</font><font color="#800000">[</font><font color="#000000">$</font><font color="#800000">]</font><font color="#0000FF">*</font><font color="#000000">10</font><font color="#0000FF">)</font><font color="#000080"><i> -- {20,200,30,2000,50,300,...} (kinda, you get the idea)</i></font>
 <font color="#008080">end for</font>
-<font color="#5E005E">destroy_queue</font><font color="#0000FF">(</font><font color="#000000">powers</font><font color="#0000FF">)</font>
-<font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"The first 13 primes mixed in with primes*some power of 10 are:\n"</font><font color="#0000FF">)</font>
-<font color="#5E005E">pp</font><font color="#0000FF">(</font><font color="#000000">res</font><font color="#0000FF">)</font><font color="#000080"><i> -- {2,20,3,200,5,30,7,2000,11,50,13,300,17,70,19,20000,23,110,29,500,31,130,37,3000,41}
+<font color="#7060A8">destroy_queue</font><font color="#0000FF">(</font><font color="#000000">pten</font><font color="#0000FF">)</font>
+<font color="#7060A8">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"The first 13 primes mixed in with primes*some power of 10 are:\n"</font><font color="#0000FF">)</font>
+<font color="#7060A8">pp</font><font color="#0000FF">(</font><font color="#000000">res</font><font color="#0000FF">)</font><font color="#000080"><i> -- {2,20,3,200,5,30,7,2000,11,50,13,300,17,70,19,20000,23,110,29,500,31,130,37,3000,41}
 --  vs pq: {2,3,5,7,11,13,17,19,20,23,29,30,31,37,41,43,47,50,53,59,61,67,70,71,73,79,83,89,97}</i></font>
 </pre>
               </div>
              </div>
             </div>
            </div>
-        For comparison purposes I&rsquo;ve shown what a priority queue pushing t*10 would produce, and of course 
+        For comparison purposes I&rsquo;ve shown what a priority queue pushing *10s would produce, and of course 
         the precise order isn&rsquo;t particularly significant or important, I just wanted to demonstrate mixing.
         <br>
         <br>
+        <a name=constants></a>
+        <h3>constants</h3>
+        The following constants are automatically defined (in psym.e/syminit).
+        <br>
+        <br>
+        <style type="text/css">
+          dl {margin:0;padding:0;}
+          dt {margin:0;padding:0;}
+          dd {margin:0;padding:0;}
+          dd.pad {padding-left:12em;}
+        </style>
+        <div id="nopad" class="nopad" align="left">
+         <table cellspacing="0" cellpadding="0" border="0" style="padding: 0; border-style: none;">
+          <col style="width: 5%"/>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <nobr>ANY_QUEUE&nbsp;</nobr>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 0 -- (intended for internal use)
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            FIFO_QUEUE&nbsp;
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 1
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <nobr>LIFO_QUEUE&nbsp;</nobr>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 2
+          </td></tr>
+         </table>
+        </div>
+        <div style="clear:both;height:1px;"> </div>
+        <br>
+        <br>
+        <a name=routines></a>
+        <h3>routines</h3>
         <style type="text/css">
           dl {margin:0;padding:0;}
           dt {margin:0;padding:0;}
@@ -121,13 +161,12 @@ pp(res) -- {2,20,3,200,5,30,7,2000,11,50,13,300,17,70,19,20000,23,110,29,500,31,
             <!-- procedure -->
           </td><td align="left" style="padding: 0; border-style: none;">
             <dl><dt>
-            <b>push</b>(integer qid, object item<small><i>, integer qtype=ANY_QUEUE, bool bSingle=true</i></small>) -- add to end/front of queue/stack<br>
-            <b>pushn</b>(integer qid, sequence items<small><i>, integer qtype=ANY_QUEUE</i></small>) -- push() multiple items.<br>
+            <b>push</b>(integer qid, object item<small><i>, bool bSingle=true</i></small>) -- add to queue/stack<br>
+            <b>pushn</b>(integer qid, sequence items) -- push() multiple items.<br>
             </dt><dd class="pad">
-            The qtype parameter is really for internal use, with ANY_QUEUE meaning obtain from qid,
-            however you are not prohibited from using it creatively (see "cheat" above).<br>
-            Likewise the bSingle parameter exists so that pushn() can simply invoke push(..,false).<br>
-            There is also an unrelated JavaScript <i>array</i>.<a href="javascript.htm#push">push</a>(), in case you were looking for that.
+            The bSingle parameter exists for internal use only, so that pushn() can simply invoke push(qid,items,false).<br>
+            There is also an unrelated JavaScript <i>array</i>.<a href="javascript.htm#push">push</a>(), in case you were looking for that,
+            as well as <a href="ARM___mov.htm">ARM</a> and <a href="x86.htm#push">x86</a> assembly instructions.
             <a name=pop></a>
             </dd></dl>
           </td></tr>
@@ -135,46 +174,49 @@ pp(res) -- {2,20,3,200,5,30,7,2000,11,50,13,300,17,70,19,20000,23,110,29,500,31,
             object item =&nbsp;
           </td><td align="left" style="padding: 0; border-style: none;">
             <b>pop</b>(integer qid<small><i>, n=-1, qtype=ANY_QUEUE, bool bPop=true</i></small>) -- remove next from queue/stack<br>
-            <b>top</b>(integer qid<small><i>, n=-1, qtype=ANY_QUEUE</i></small>) -- inspect head of queue/stack<br>
+            <b>peep</b>(integer qid<small><i>, n=-1, qtype=ANY_QUEUE</i></small>) -- inspect head of queue/stack<br>
             </dt><dd class="pad">
-            Ditto qtype, n and bPop for top => pop(.,n,.,false), JavaScript <i>array</i>.<a href="javascript.htm#pop">pop</a>().
+            Ditto qtype, n and bPop for peep => pop(.,n,.,false), JavaScript <i>array</i>.<a href="javascript.htm#pop">pop</a>().<br>
+            Note that top is a reserved word/predefined function in JavaScript.
             </dd></dl>
           </td></tr>
           <tr><td align="right" style="padding: 0; border-style: none;">
             <nobr>sequence items =&nbsp;</nobr>
           </td><td align="left" style="padding: 0; border-style: none;">
-            <b>popn</b>(integer qid<small><i>, n, qtype=ANY_QUEUE</i></small>) -- pop() multiple items.<br>
-            <b>topn</b>(integer qid<small><i>, n, qtype=ANY_QUEUE</i></small>) -- top() multiple items.<br>
+            <b>popn</b>(integer qid<small>, n<i>, qtype=ANY_QUEUE</i></small>) -- pop() multiple items.<br>
+            <b>peepn</b>(integer qid<small>, n<i>, qtype=ANY_QUEUE</i></small>) -- peep() multiple items.<br>
             <a name=size></a>
           </td></tr>
           <tr><td align="right" style="padding: 0; border-style: none;">
             integer res =&nbsp;
           </td><td align="left" style="padding: 0; border-style: none;">
             <b>queue_size</b>(integer qid) -- return the size of a queue<br>
+            <b>stack_size</b>(integer qid) -- return the size of a stack<br>
             <a name=empty></a>
           </td></tr>
           <tr><td align="right" style="padding: 0; border-style: none;">
             bool res =&nbsp;
           </td><td align="left" style="padding: 0; border-style: none;">
             <b>queue_empty</b>(integer qid) -- yields true/false<br>
+            <b>stack_empty</b>(integer qid) -- yields true/false<br>
             <a name=destroy></a>
           </td></tr>
           <tr><td align="right" style="padding: 0; border-style: none;">
             <!-- procedure -->
           </td><td align="left" style="padding: 0; border-style: none;">
             <b>destroy_queue</b>(integer pqid) -- release a queue for reuse<br>
+            <b>destroy_stack</b>(integer pqid) -- release a stack for reuse<br>
           </td></tr>
          </table>
         </div>
         <div style="clear:both;height:1px;"> </div>
         <br>
-        The routines <b>stack_size</b>(), <b>stack_empty</b>(), and <b>destroy_stack</b>() are simply 
-        aliases (as created/defined in psym.e) of the respective queue routines.
+        The routines stack_size(), stack_empty</b>(), and destroy_stack</b>() exist purely to make code more self-documenting,
+        it does no checking and does not really matter should you use them on a queue, or vice versa.
         <br>
         <br>
-        I suppose you could extract an entire queue or stack using popn(qid,queue_size(qid)), 
-        manipulate and then use pushn() to restore it, but that&rsquo;s probably only even
-        half sensible for the most exceptional of cases.
+        I suppose you could extract an entire queue or stack using popn(qid,queue_size(qid)), manipulate and then use pushn() 
+        to restore it, but that&rsquo;s probably only even half sensible for the most exceptional of cases.
         <br>
         <br>
       </div>

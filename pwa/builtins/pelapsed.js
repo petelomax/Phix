@@ -15,9 +15,9 @@ function $elaps(/*atom*/ v, /*string*/ d, r="") {
     let /*string*/ res = sprintf("%d %s%s",["sequence",v, d, ((v===1) ? "" : "s")]);
     if (length(r)) {
         if (!equal(match(" and ",r),1)) {
-            res = $conCat(res, ", ");
+            res = $conCat(res, ", ", false);
         }
-        res = $conCat(res, r);
+        res = $conCat(res, r, false);
     }
     return res;
 }

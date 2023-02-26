@@ -62,7 +62,7 @@
     assert(!string(src) || (integer(ch) && (equal(ch,and_bits(ch,0xFF)))));
     size -= length(src);
     if (size>0) {
-        src = $conCat(src, repeat(ch,size));
+        src = $conCat(src, repeat(ch,size), false);
     }
     return src;
 }
@@ -73,7 +73,7 @@
         if (method==="HEAD") {
             src = $conCat(repeat(ch,size), src);
         } else if (method==="TAIL") {
-            src = $conCat(src, repeat(ch,size));
+            src = $conCat(src, repeat(ch,size), false);
         } else {
             let /*integer*/ half = floor(size/2);
             if (method==="BOTH") {

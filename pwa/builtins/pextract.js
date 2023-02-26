@@ -23,25 +23,35 @@
     return res;
 }
 
-/*global*/ function reinstate(/*sequence*/ source, indexes, replacements, /*bool*/ invert=false) {
-    let /*integer*/ l = length(indexes), ii;
-    if (!equal(length(replacements),l)) { crash("9/0"); }
-//DEV deep_copy(ifNeeded) may be in order here...
-//  sequence res = repeat(0,length(source))
-    let /*sequence*/ res = deep_copy(source);
-    if (invert) {
-        let /*sequence*/ inverse = repeat(0,l);
+/*global*/ function reinstate(/*sequence*/ source, /*object*/ indexes, replacements, /*bool*/ invert=false) {
+    let /*sequence*/ res;
+    if ((equal(source,["sequence"])) && sequence(indexes)) {
+        assert(!invert);   // (??)
+        res = repeat(0,maxsq(indexes));
+        if (equal(replacements,["sequence"])) {
+            replacements = tagset(length(indexes));
+        }
+    } else {
+        res = deep_copy(source);
+    }
+    if (integer(indexes)) {
+        assert(!invert);
+        res = $repe(res,indexes,replacements);
+    } else {
+        let /*integer*/ l = length(indexes), ii;
+        if (!equal(length(replacements),l)) { crash("9/0"); }
+        if (invert) {
+            let /*sequence*/ inverse = repeat(0,l);
+            for (let i=1, i$lim=l; i<=i$lim; i+=1) {
+                ii = $subse(indexes,i);
+                inverse = $repe(inverse,ii,i);
+            }
+            indexes = inverse;
+        }
         for (let i=1, i$lim=l; i<=i$lim; i+=1) {
             ii = $subse(indexes,i);
-            inverse = $repe(inverse,ii,i);
+            res = $repe(res,ii,$subse(replacements,i));
         }
-        indexes = inverse;
-    }
-    for (let i=1, i$lim=l; i<=i$lim; i+=1) {
-        ii = $subse(indexes,i);
-        res = $repe(res,ii,$subse(replacements,i));
-//      source[ii] = replacements[i]
     }
     return res;
-//  return source
 }

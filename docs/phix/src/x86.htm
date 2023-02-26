@@ -1,0 +1,1872 @@
+﻿<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">x86 instruction set</h1>
+      <div id="mainSection">
+        As per the <a href="ARM.htm">ARM</a> notes, this is almost certainly more for my benefit than anyone else&rsquo;s, 
+        but it makes sense to at least make a (rather belated!) start on this while I&rsquo;m here, as in updating the docs 
+        and porting all that x86 asssembly to ARM (~300 #ilASM{} statements in /builtins, some of which are rather big). 
+        Of course x86 is ~45 years old by now (and ARM ~40 years), just don&rsquo;t expect any of that segment addressing 
+        nonsense, and equally don&rsquo;t expect too much in the way of SSE and newer, just yet [ask when/as needed].
+        <br>
+        <br>
+        The idea is simply to remind myself of precise behaviour and/or detail any standard mappings, should
+        any seem likely to be handy, or they become a regular thing.
+        <br>
+        <br>
+        Aside: I <del>may</del> have built a rod for my own back here in trying to document/summarise encodings: 
+        should there be any doubt whatsoever, pilasm.e is tried/tested/completely overrules anything in here.
+<!--
+        The following [placeholder] is a (belatedly composed) subset of x86 instructions that I may want to 
+        refer to when creating their [ARM] equivalents, for instance if I see "lea esi,[ebx+edi*4+8]" then
+        here is where I (might) list a few standard mappings.
+-->
+<!--
+        These pages are naturally biased towards binary [dis]assembly of instructions, rather than usage,
+        and deliberately omit the 75% or more of instructions that Phix does not [yet] make any use of.
+        <br>
+        <h3>Supported instructions in bitwise-layout-ish order:</h3>
+//flags: ZSPOC(A?)... jump considtions... registers...
+//      There are 6 CPU status flags: CPAZSO (Carry,Parity,Adjust,Zero,Sign,Overflow). Adjust is only used in BCD.
+//      There are 6 CPU status flags: O[di]SZAPC (Overflow,[direction,interrupt,]Sign,Zero,Adjust,Parity,Carry). Adjust is only used in BCD.
+//                                   odiszapc
+        There are ?? FPU status flags: ??? 
+        Phix currently only supports a relatively limited subset of FPU instructions, those that I&rsquo;ve actually needed/used/tested. 
+        It would not be difficult to add, say, VFNMSUB231SS, but of course each deserves proper testing and documentation, and a small 
+        FASM example that verifies correct behaviour would be ideal [with Windows PE being a bit better than Linux ELF, for me].
+ 
+CF - Carry flag
+Set if an arithmetic operation generates a carry or a borrow out of the most-significant bit of the result; cleared otherwise. 
+This flag indicates an overflow condition for unsigned-integer arithmetic. It is also used in multiple-precision arithmetic.
+
+ 
+PF - Parity flag
+Set if the least-significant byte of the result contains an even number of 1 bits; cleared otherwise.
+
+ 
+AF - Adjust flag
+Set if an arithmetic operation generates a carry or a borrow out of bit 3 of the result; cleared otherwise. This flag is used in binary-coded decimal (BCD) arithmetic.
+
+ 
+ZF - Zero flag
+Set if the result is zero; cleared otherwise.
+
+ 
+SF - Sign flag
+Set equal to the most-significant bit of the result, which is the sign bit of a signed integer. (0 indicates a positive value and 1 indicates a negative value.)
+
+ 
+OF - Overfloa flag
+Set if the integer result is too large a positive number or too small a negative number (excluding the sign-bit) to fit in the destination operand; cleared otherwise. 
+This flag indicates an overflow condition for signed-integer (two&rsquo;s complement) arithmetic.
+
+todo: (inc?)
+registers: al, ah... rsi [??] - eax..esi done
+-->
+        <a name=reg></a>
+        <h3>Registers</h3>
+ <div class="arm_table">
+|ah.....|high byte of ax.........................|General purpose, 8 bits.................|
+|al.....|low byte of ax..........................|General purpose, 8 bits.................|
+|ax.....|low word of eax.........................|General purpose, 16 bits................|
+|cl.....|low byte of cx..........................|General purpose, 8 bits.................|
+|cx.....|low word of ecx.........................|General purpose, 16 bits................|
+|eax....|low dword of rax.(accumulator)..........|General purpose, 32 bits................|
+|ebp....|low dword of rbp........................|Frame pointer, 32 bits..................|
+|ebx....|low word of rbx.........................|Usually maintained as a 0 base..........|
+|ecx....|low dword of rcx.(counter)..............|General purpose, 32 bits................|
+|edi....|low dword of rdi.(destination)..........|General purpose, 32 bits................|
+|edx....|low dword of rdx........................|General purpose, 32 bits................|
+|esi....|low dword of rsi.(source)...............|General purpose, 32 bits................|
+|esp....|low dword of rsp........................|Stack pointer, 32 bits..................|
+|rax....|64-bit version of eax...................|General purpose.........................|
+|rbp....|64-bit version of ebp...................|Frame pointer...........................|
+|rbx....|64-bit version of ebx...................|General purpose.........................|
+|rcx....|64-bit version of ecx...................|General purpose.........................|
+|rdi....|64-bit version of edi...................|General purpose.........................|
+|rdx....|64-bit version of edx...................|General purpose.........................|
+|rsi....|64-bit version of esi...................|General purpose.........................|
+|rsp....|64-bit version of esp...................|Stack pointer...........................|
+|r9-15..|64-bit has 16 registers.................|General purpose.........................|
+|st0..8.|80-bit fpu register stack...............|General purpose.........................|
+ </div>
+        <div class="clear"></div>
+        <br>    
+        <h3>examples/CPU</h3>
+ <div class="arm_table">
+|Instruction..........|Description..........................|Encoding...................|Notes.....................|
+|[rex&#46;w]..........|use 64 bit operand size..............|#48 (prefix)...............|(also #49-#4F)............|
+|[rex&#46;r]..........|use 64 bit registers 8-15............|#44 (prefix)...............|m (main reg)..............|
+|[rex&#46;x]..........|use 64 bit registers 8-15............|#42 (prefix)...............|i (index reg).............|
+|[rex&#46;b]..........|use 64 bit registers 8-15............|#41 (prefix)...............|b (base reg)..............|
+|[sizeprefix].........|operand size prefix..................|#66 (prefix)...............|(ie 16-bit instructions)..|
+|[addrprefix].........|address size prefix..................|#67 (prefix)...............|=(rare/avoid).............|
+|lock.................|lock prefix..........................|#F0 (prefix)...............|..........................|
+|repne(/z)............|repne prefix.........................|#F2 (prefix)...............|for (cmp/sca)s[b/w/d].....|
+|repe(/z).............|rep prefix...........................|#F3 (prefix)...............|for "", Z==1, *ecx........|
+|rep..................|rep prefix...........................|#F3 (prefix)...............|for lods/movs/stos........|
+#and# al,imm8.........|al &&= imm8..........................|0o044 i8...................|..........................|
+|and eax,imm32........|eax &&= imm32........................|0o045 i32..................|[sign extended to 64bits].|
+|and r/m,r8/32........|r/m &&= r8/32........................|0o04k xrm..................|k:0/1 r8/r32, ARM reg-only|
+|and r8/32,r/m........|r8/32 &&= r/m........................|0o04k xrm..................|k:2/3 r8/r32, ARM reg-only|
+|and r/m8,imm8/32.....|reg &&= imm8/32......................|0o20k x4r i8/32............|[k:0/1/3 i8/32/8, sgn xtd]|
+|=add /0, or /1, adc /2, sbb /3, and /4, (as above) sub /5, xor /6, cmp /7.........................................|
+|=(NB take extra care when translating x86&rsquo;s sbb to ARM&rsquo;s sbc or rsc, as the carry is negated).........|
+#call# :[%]lbl........|call [global] label (or opcode)......|0o350 offset32.............|ARM: alias of bl (<32MB)..|
+|call dword[b+i*s+d8].|call [mem].("dword" is optional).....|0o377 0o124 sib d8.........|ARM: not supported........|
+|call "lib","name"....|call dll/so entry point..............|0o377 0o025 mem32..........|ARM: ?not supported? (tbc)|
+|call reg.............|call reg.............................|0o377 0o32r................|ARM: use mov lr,pc; b Rm..|
+#cdq# ................|eax -> edx:eax (ie sign extend)......|0o231......................|ARM: n/a..................|
+#dec# reg.............|not x64 or ARM compatible............|...........................|replace with sub reg,1....|
+#fcomp#...............|fpu flags := st0-st1; pop st0........|0o330 0o331................|ARM: fcmpd................|
+#fcompp#..............|fpu flags := st0-st1; pop st0,st1....|0o336 0o331................|ARM: fcmpd................|
+#fild# dword[mem32]...|st0 := (float)[(int)mem32]...........|0o333 0o005 m32............|ARM: not supported........|
+|fild dword[mem64]....|st0 := (float)[(int)mem64]...........|0o337 0o055 m32.(nb not 64)|ARM: "", use fmsr/fsitod..|
+|fild d/qword[r/m]....|st0 := (float)[(int)reg+d8/32].......|0o33" 0ok"r [d8/32]........|k:0/1/2 /d8/32,.ARM: ""...|
+#fist# [var]..........|not permitted (not how Phix works)...|.(see/ditto fistp).........|..........................|
+#fistp# [b+i*s+d].....|[mem] := (int16/32/64)st0 (k7pop3not)|0o33k.xrm [sib] [d8].......|ARM: fstd.................|
+#fld# [var]...........|not permitted (not how Phix works)...|...........................|..........................|
+|fld [rm].............|st0 := [b+i*s+d8/32].................|0o33k sib [d8/32]..........|k:1/3/5 for 4/8/10 bytes..|
+|fld stN..............|st0 := stN...........................|0o331 0o28N................|ARM: fldd/fcpyd...........|
+#fldz#................|st0 := 0.0...........................|0o331 0o356................|ARM: use fsubd............|
+#fnstsw#.ax...........|ax := fpu flags......................|0o337 0o340................|ARM: use fmstat (or fmxr).|
+#fxch#................|st0 &lt;=&gt; st1....................|0o331 0o311................|ARM: n/a (use fpush/pop?).|
+#idiv# r/m8.(signed)..|al,ah := floor,rmdr(ax/r8)...........|0o366 0o37r................|..........................|
+|idiv r/m32...........|eax,edx := floor,rmdr(edx:eax/r32)...|0o367 0o37r................|..........................|
+#imul# r/m8.(signed)..|ax := al * r/m8......................|0o366 0o35r................|..........................|
+|imul r/m32...........|edx:eax := eax * r/m32...............|0o367 0o35r................|..........................|
+|imul r32,r/m32.......|r32 *= r/m32.........................|0o017 0o257 0o3rm..........|..........................|
+#inc# reg.............|not x64 or ARM compatible............|...........................|replace with add reg,1....|
+#int3#................|interrupt.(ie crash).................|0o314......................|ARM:???...................|
+#jcc# d8..............|conditional jump (short, see below)..|0o160+cc i8................|.(ARM: all 32bit instr)...|
+|jcc d32..............|conditional jump (long, "")..........|0o017 0o200+cc i32.........|.(ARM: 24 bit/32MB limit).|
+#jmp# d8..............|unconditional jump (short)...........|0o353 d8...................|.(ARM: all 32bit instr)...|
+|jmp d32..............|unconditional jump (long)............|0o351 d32..................|.(ARM: 24 bit/32MB limit).|
+#lea# reg,[base+d8/32]|reg := effective address.............|0o215 xrb d8/32............|x:1/2 d8/32...............|
+|lea reg,[esp+d8/32]..|reg := effective address.............|0o215 xr4 044 d8/32........|ARM might use an add......|
+|lea reg,[b+i*s+d8/32]|reg := effective address.............|0o215 xr4 sib d8/32........|."".......................|
+|lea reg,[gvar].......|reg := effective address.............|0o215 0r5 m32..............|ARM uses mov{orr}.........|
+|lea reg,[gvar].......|reg := effective address.............|0o27r m32..................|("", actually an x86 mov).|
+|lea reg,[ebp]........|reg := effective address (1st local).|0o213 3r5..................|(actually mov reg,ebp)....|
+|lea reg,[tvar].......|reg := effective address.............|0o215 xr5 d8/32............|..........................|
+#mov# dst,src.........|dst := src...........................|lots, see pilasm.e.........|ARM may need lea & mov....|
+#neg# r/m8............|reg := -reg, aka not_bits(reg)+1.....|0o36(6/7) 0o33r..(r8/32)...| (ARM mapped to rsb)......|
+#not# r/m8............|reg := not_bits(reg).................|0o36(6/7) 0o32r..(r8/32)...| (ARM mapped to mvn)......|
+#push# reg............|[--esp] := reg.......................|0o012r.....................|ARM very different........|
+|push [reg[+imm]].....|[--esp] := [reg[+imm]]...............|0o377 0ok6r [imm]..........|k:0/1/2 i0/i8/i32,.not ARM|
+|push [b+r/m].........|[--esp] := [b+r*s+imm]...............|0o377 0ok64 srb imm[1].....|s:0/1/2/3 *1/2/4/8."."."."|
+|push [var]...........|[--esp] := [mem(not ARM[2])/(ebp+d)].|0o377 0ok65 d8/[m]32.......|k:0/1/2 m32/d8/32.."."."."|
+|push :lbl............|[--esp] := :lbl......................|0o150 m32 imm32............|ARM: relative, &lt;=32MB..|
+|push imm.............|[--esp] := imm.......................|0o15n m32 immn.............|m:0/2 i32/8...............|
+#pop# reg.............|reg := [esp++].......................|0o013r.....................|ARM very different........|
+|pop [gvar]...........|[mem32] := [esp++]...................|0o217 0b005 [mem32]........|(n/a in ARM).......not ARM|
+|pop [tvar]...........|[ebp+k] := [esp++]...................|0o217 0bmr5 d8/32..........|m:1/2 d8/32........"."."."|
+|pop [b+r/m]..........|[b+r*s+imm] := [esp++]...............|0o217 srb [imm8/32]........|(special forms for ebp).""|
+#ret#.................|return (ie pop pc)...................|0o303......................|ARM: aliased to bx lr.....|
+|ret imm16............|return (ie discard and pop pc).......|0o302.imm16................|ARM: n/a, use pop {,,pc}..|
+#sahf#................|cpu flags := ah......................|0o236......................|ARM: use fmstat...........|
+#setcc# r8............|set r8 to 1 if cc is true............|0o017 0o22c 030r...........|ARM: use movcc............|
+#shl# reg,1...........|reg *= 2.............................|0o32m 0o34r................|m:0/1 r8/32 ..............|
+|shl r32,imm8.........|r32 *= power(2,imm8).................|0o30m 0o34r.imm8...........|"", (same as sal, n/a)....|
+|shl r32,cl...........|r32 *= power(2,cl)...................|0o34r 0o323................|(ARM uses lsl/asl/shl)....|
+#shr# reg,1...........|reg = floor(reg/2)...................|0o32m 0o35r................|m:0/1 r8/32 ..............|
+|shr r32,imm8.........|r32 = floor(r32/power(2,imm8)).......|0o30m 0o35r.imm8...........|"", (sar is signed).......|
+|shr r32,cl...........|r32 = floor(r32/power(2,cl)).........|0o35r 0o323................|(ARM uses lsr/asr/shr)....|
+#test# al,imm8........|flags := al && imm8..................|0o250 i8...................| (ARM mapped to tst)......|
+|test eax,imm32.......|flags := eax && imm32................|0o251 i32..................|[sign extended to 64bits].|
+|test r/m,i8/32.......|flags := r/m && imm8/32..............|0o36k xr0 i8/32............|k:6/7 i8/32, ARM.reg-only.|
+|test r/m,r8/32.......|flags := r/m &&= r8/32...............|0o20k xrm..................|k:4/5 r8/r32, ""..........|
+ </div>
+        <div class="clear"></div>
+        <br>
+        Phix does not [yet] use/support (64 bit) VEX or XOP prefixes.<br>
+        Some assemblers allow sal (shift arithmetic left) as an equivalent form of and with identical behaviour to shl (shift left), but Phix does not.<br>
+        The sar instruction is a signed division, ie it propagates the sign bit, whereas shr is unsigned, ie it zero-fills from the left.<br>
+        [1] Note that push [ebp+reg*s] specifically needs a d8 even if it is 0.<br>
+        [2] x86 allows push [gvar] but ARM (absolutely) does not: lea reg; push [reg]; would be required for the latter. (locals fine, ditto pop).<br>
+        There obviously aren&rsquo;t any "short jumps" in ARM, since every instruction is 32 bits anyway [and almost all conditional, which helps].<br>
+        Explicit sizes of byte/word/dword/qword can be used, though pilasm.e can often deduce that from the register used, eg eax means 32-bit.<br>
+        <a name=h4></a>h4 can be used for the unassigned value #40000000[00000000].<br>
+
+<!-- When adding more instructions, see https://www.felixcloutier.com/x86/index.html (which was used for most of the above) and o/c pilasm.e -->
+<!--
+;   181         fyl2x               -- st1*=log2(st0); pop st0. st0 must be >0 ; ie log2(p2)*p3
+                fyl2x                     ;#0055596A: 331361                     np 00 00 103 129      
+;   183         frndint             -- round it to an integer   ;DEV SLOW!
+                frndint                   ;#0055596E: 331374                     np 00 00 20 233      
+;   184         fsub st1,st0        -- leave only fractional portion in st1
+                fsub st1,st0              ;#00555970: 334351                     np 00 00  3 253      
+;   186         f2xm1               -- get the fractional power of 2 (minus 1). st0 = 2^^st0-1 st0 must be in the range -1.0 to +1.0
+                f2xm1                     ;#00555974: 331360                     np 00 00 57 257      
+;   187         fld1
+                fld1                      ;#00555976: 331350                     np 00 00  2 314      
+;   188         faddp               -- get rid of that minus 1
+                faddp st1,st0             ;#00555978: 336301                     np 00 00  3 316      
+;   189         fscale              -- multiply by 2^int(p2*log2(p3)) ; similar to shl 2 being same as mul 4
+                fscale                    ;#0055597A: 331375                     np 00 00 32 319      
+;   193         fstp st0            -- discard junk
+                fstp st0                  ;#0055597E: 335330                     np 00 00  1 352      
+-->
+
+        <!-- The following shorthands are munged into nice [colourful] tables by makephix.exw/armify(): -->
+<!--
+'386 Opcode Summary
+  Preparations for a 32-bit assembler for Unix/Linux/etc. Irrelevant
+instructions left out.. e.g., segmentation & supervisor-mode opcodes.
+
+Abbreviations:
+  word = 32 bits (16 bits in real mode)
+  disp = displacement (address.. absolute for data, relative for code)
+        short = byte relative    near = word relative
+  imm = immediate value
+  reg = general register
+  r/m = register/memory (as indicated by encodings below)
+  xrm = "mod reg r/m" byte, followed by displacement depending on xm
+  +w = bit 0 = word size (0=byte, 1=word)
+  +d = bit 1 = direction (reverse src,dest)    Applies to MOV, ALU
+  +s = bit 1 = sign-extend imm8 to word        Applies to PUSH, ALU, IMUL3
+
+Register Encoding:
+                 0  1  2  3  4  5  6  7
+        byte    AL CL DL BL AH CH DH BH
+        word    AX CX DX BX SP BP SI DI    (and EAX,RAX, etc.)
+
+"xrm" Encoding: (m = reg   r = other register/whatever, doesn't matter here)
+        0rm         [reg]
+        1rm disp8   [reg + disp8]
+        2rm disp32  [reg + disp32]
+        3rm         reg (NO EXCEPTIONS)
+    Exceptions: (for x=0,1,2 only)
+        0r5 disp32  [disp32]
+        xr5         default for EBP
+        xr4 sib     As follows:
+
+"sib" Encoding: (Scale*Index+Base)
+        0r4 sib         [base + scale*index]
+        1r4 sib disp8   [base + scale*index + disp8]
+        2r4 sib disp32  [base + scale*index + disp32]
+    Exceptions:
+        0r4 si5 disp32  [scale*index + disp32]
+        r=4,5           default for ESP, EBP
+        xr4 04b         No Index (scale must be 0)
+        xr4 s4b (s>0)   Undefined!
+
+MOV
+  210+dw xrm        MOV r/m, reg
+  240+dw disp       MOV acc, mem
+  26r+(8w) imm      MOV reg, imm          (26r if byte, 27r if word-size)
+  306+w xrm imm     MOV r/m, imm
+LEA
+  215 xrm           LEA reg, r/m
+XCHG
+  206+w xrm         XCHG reg, r/m
+  22r               XCHG EAX, reg   (XCHG EAX,EAX = NOP)
+TEST
+  204+w xrm         TEST reg, r/m
+  250+w imm         TEST acc, imm
+  366+w x0m imm     TEST r/m, imm
+
+ALU
+  0p0+dw xrm        ADD r/m, reg
+  0p4+w imm         ADD acc, imm
+  200+sw xpm imm    ADD r/m, imm  (there is no 202: "extend word->byte")
+        p=0    ADD
+          1    OR
+          2    ADC
+          3    SBB
+          4    AND
+          5    SUB
+          6    XOR
+          7    CMP
+
+  366+w x2m         NOT r/m
+  366+w x3m         NEG r/m
+  366+w x4m         MUL r/m
+  366+w x5m         IMUL r/m
+  366+w x6m         DIV r/m
+  366+w x7m         IDIV r/m
+  017 257 xrm imm   IMUL reg, r/m
+  151+(2w) xrm imm  IMUL reg, r/m, imm      (r/m * imm -> reg)
+
+INC/DEC
+  10r               INC reg32
+  11r               DEC reg32
+  376+w x0m         INC r/m
+  376+w x1m         DEC r/m
+
+SHIFT & ROTATE
+  300+w xpm imm8    ROL r/m, imm
+  320+w xpm         ROL r/m, 1
+  322+w xpm         ROL r/m, CL
+        p=0    ROL
+        p=1    ROR
+        p=2    RCL
+        p=3    RCR
+        p=4    SHL/SAL
+        p=5    SHR
+        p=7    SAR
+
+BCD CONVERSION
+  047            DAA
+  057            DAS
+  067            AAA
+  077            AAS
+  324 012        AAM (012 = base 10. Some 80x86 chips accept others.)
+  325 012        AAD
+
+ZERO/SIGN EXTEND
+  017 266+w     MOVZX reg, r/m8 (extend byte to full width)
+  017 276+w     MOVSX reg, r/m8
+  230           CBW / CWDE (zero-extend byte to full width)
+  231           CWD / CDQ
+
+CONTROL TRANSFER
+  160+cc disp8          Jcc (short)
+  017 200+cc disp32     Jcc (near)
+  017 220+cc x0m        SETcc r/m8
+  340 disp8             LOOPNE
+  341 disp8             LOOPE
+  342 disp8             LOOP
+  343 disp8             JCXZ
+  350 disp              CALL disp (relative address)
+  351 disp              JMP disp
+  303                   RET
+  302 imm16             RET imm (drop locals from stack)
+  310 imm32 imm8        ENTER locals, nesting
+  311                   LEAVE
+  313                   RET FAR (pops CS:IP)
+  312 imm16             RET FAR imm
+
+PUSH/POP
+  12r            PUSH reg32    (like INC/DEC reg32)
+  13r            POP reg32
+  150+s imm      PUSH imm
+  377 x6m        PUSH r/m
+  217 x0m        POP r/m
+  140            PUSHA
+  141            POPA
+
+STRING
+  244+w            MOVS
+  246+w            CMPS
+  252+w            STOS
+  254+w            LODS
+  256+w            SCAS
+  154+w            INS     (acc, DX assumed)
+  156+w            OUTS    (DX, acc assumed)
+
+IN/OUT
+  344+w    imm8    IN acc, port
+  346+w    imm8    OUT port, acc
+  354+w            IN acc, DX
+  356+w            OUT DX, acc
+
+FLAGS
+  234            PUSHF
+  235            POPF
+  236            SAHF
+  237            LAHF
+  365            CMC
+  370            CLC
+  371            STC
+  372            CLI
+  373            STI
+  374            CLD
+  375            STD
+
+MISCELLANEOUS
+  017 31r        BSWAP reg
+  364            HLT
+  315 imm8       INT imm8
+  316            INT0
+  314            INT3
+  317            IRET
+  360            LOCK
+  220            NOP
+  233            WAIT
+  327            XLAT    (AL = [EBX+AL])
+
+<x!--
+        <h3>examples/FPU</h3>
+ <div class="arm_table">
+|Instruction..........|Description..........................|Encoding..........|Notes..............|
+|blah r/m32...........|eax,edx := floor,rmdr(edx:eax/r32)...|[#48]#F7 /7.......|...................|
+ </div>
+        <div class="clear"></div>
+        <br>
+--x>
+-->
+    <h3>Condition codes</h3>
+    There are 5 (relevant) CPU status flags: O..SZ.PC (Overflow,Sign,Zero,Parity,Carry). <br>
+    Should you quite wrongly care, the three other bits are direction, interrupt, and adjust (the latter only being used in BCD).<br>
+    Phix/pilasm.e(x86) supports jcc, setcc, and probably should but does not yet support cmovcc [I got no excuse for that].<br>
+ <div class="arm_table">
+|Condition........................................|=cc.|=flags........|ARM............|
+|o.(overflow).....................................|0o00|=O=1..........|vs.............|
+|no.(not overflow)................................|0o01|=O=0..........|vc.............|
+|b,c,nae.(below, carry, not above or equal).......|0o02|=C=1..........|cs,hs?.........|
+|ae,nb,nc.(above or equal, not below, not carry)..|0o03|=C=0..........|cc,lo?.........|
+|e,z.(equal, zero)................................|0o04|=Z=1..........|eq.............|
+|ne,nz.(not equal, not zero)......................|0o05|=Z=0..........|ne.............|
+|be,na.(below or equal, not above)................|0o06|=C=1 or Z=1...|ls? (C=0,Z=1)..|
+|a,nbe.(above, not below or equal)................|0o07|=C=0 and Z=0..|hi? (C=1,Z=0)..|
+|s.(signed).......................................|0o10|=S=1..........|mi.............|
+|ns.(not signed)..................................|0o11|=S=0..........|pl.............|
+|p,pe.(parity, parity even).......................|0o12|=P=1..........|=(n/a).........|
+|np,po.(not parity, parity odd)...................|0o13|=P=0..........|=(n/a).........|
+|l,nge.(less, not greater or equal)...............|0o14|=S!=O.........|lt.............|
+|ge,nl.(greater or equal, not less)...............|0o15|=S=O..........|ge.............|
+|le,ng.(less or equal, not greater)...............|0o16|=Z=1 or S!=O..|le.............|
+|g,nle.(greater, not less or equal)...............|0o17|=Z=0 and S=O..|gt.............|
+ </div>
+        <div class="clear"></div>
+        <br>
+        a/b aka above/below implement unsigned comparisons (so #80&gt;#7F aka 128&gt;127), whereas <br>
+        l/g aka less/greater implement signed comparisons (so #80&lt;#7F aka -128&lt;+127), and since <br>
+        Phix hll does not have unsigned integers, most hll tests map to l/g, but you still might use a/b <br>
+        for, say, character comparisons, or the internal type tags (atom is #12, seq/str #80/#82).<br>
+        Note the l/g tests are comparing the Sign and Overflow flags, not Sign and 0(zero).<br>
+        ARM has no parity bit (which only applies to the least significant byte on x86, I&rsquo;m told), and <br>
+        traditionally uses NCZV which correspond (in a manner of speaking) to x86&rsquo;s SCZO.<br>
+        There seems to be some discrepancies regarding the tests on the C and Z flags between <br>
+        cs == hs (carry set == unsigned higher or same), and <br>
+        cc == lo (carry clear == unsigned lower), and ls/hi, versus [n]a/b/c[e] on the x86...<br>
+        the safer option would be to use signed comparisons when possible, at least when porting x86 code.<br>
+        I may yet allow a few x86-named jumps/conditions to map to their ARM equivalents, but given the above 
+        it is unlikely to [ever] be a full set.
+
+<!--
+Jcc — Jump if Condition Is Met
+Opcode  Instruction     Op/En   64-Bit Mode     Compat/Leg Mode Description
+E3 cb   JCXZ rel8       D       N.E.    Valid   Jump short if CX register is 0.
+E3 cb   JECXZ rel8      D       Valid   Valid   Jump short if ECX register is 0.
+E3 cb   JRCXZ rel8      D       Valid   N.E.    Jump short if RCX register is 0.
+-->
+        <div class="clear"></div>
+        <br>    
+
+<!--
+CVTTSS2SI r64, xmm1/m32 F3 REX.W 0F 2C /r       Convert with Truncation Scalar Single-Precision FP Value to Qword Integer
+0044F01E     F3:0F2C0424    CVTTSS2SI EAX,DWORD PTR SS:[ESP]
+CVTSD2SI
+-->
+
+        Just something I stumbled upon, might as well save it before closing the browser tab:
+<pre>
+x86 assembly instructions (with comments)
+//  MOV transfer words or bytes.  
+    MOVSX is sign extended first, and then transmitted.  
+    MOVZX first zero-extend, then transmit.  
+//  PUSH pushes the word onto the stack.  
+//  POP pops the word from the stack.  
+    PUSHA pushes AX, CX, DX, BX, SP, BP, SI, DI into the stack in sequence.  
+    POPA pops DI, SI, BP, SP, BX, DX, CX, AX from the stack in turn.  
+    PUSHAD pushes EAX, ECX, EDX, EBX, ESP, EBP, ESI, EDI into the stack in sequence.  
+    POPAD pops EDI, ESI, EBP, ESP, EBX, EDX, ECX, EAX from the stack in sequence.  
+    BSWAP swaps the order of bytes in 32-bit registers  
+    XCHG exchange words or bytes. (At least one operand is a register, segment registers cannot be used as operands)  
+    CMPXCHG compares and exchanges operands. (The second operand must be the accumulator AL/AX/EAX)  
+    XADD exchange first and then accumulate. (The result is in the first operand)  
+    XLAT byte lookup table conversion.----BX points to the start of a 256-byte table, AL is the index value of the table (0-255, that is, 0-FFH); return AL is the lookup result. ([BX+AL]-&gt;AL)  
+//  LEA loads the effective address. Example: LEA DX, string; save the offset address to DX.  
+    LAHF flag register transfer, the flag is loaded into AH.  
+    SAHF flag register transfer, load the contents of AH into the flag register.  
+    The PUSHF flag is pushed onto the stack.  
+    The POPF flag is popped.  
+    The PUSHD 32-bit flag is pushed onto the stack.  
+    The POPD 32-bit flag is popped from the stack.  
+//  ADD addition.  
+//  ADC with carry addition.  
+?   INC plus 1.  
+//  SUB subtraction.  
+//  SBB with borrow subtraction.  
+?   DEC minus 1.  
+//  NEG negate (subtract from 0).  
+//  CMP comparison. (The two operands are subtracted, only the flag bit is modified, and the result is not returned).  
+    MUL unsigned multiplication. The result is returned to AH and AL (byte operation), or DX and AX (word operation),  
+//  IMUL integer multiplication. The result is sent back to AH and AL (byte operation), or DX and AX (word operation),  
+    DIV unsigned division. The result is returned: the quotient returns AL, the remainder returns AH, (byte operation); or the quotient returns AX, the remainder returns DX, (word operation).  
+//  IDIV integer division. The result is returned: the quotient returns AL, the remainder returns AH, (byte operation); or the quotient returns AX, the remainder returns DX, (word operation).  
+    CBW byte is converted to word. (Extend the sign of the byte in AL to AH)  
+    CWD words are converted to double words. (Extend the sign of the word in AX to DX)  
+    CWDE words are converted to double words. (Extend the character number in AX to EAX)  
+//  CDQ double word extension. (Extend the sign of the word in EAX to EDX)  
+//  AND operation.  
+//  OR operation.  
+//  XOR exclusive OR operation.  
+//  NOT negate.  
+//  TEST test. (The two operands are ANDed, only the flag bit is modified, and the result is not returned).  
+//  SHL logical shift left.  
+//  SAL arithmetic shift left. (=SHL)  
+//  SHR logical shift right.  
+//  SAR arithmetic shift right. (=SHR)  
+    ROL rotates to the left.  
+    ROR rotates to the right.  
+    RCL is shifted to the left through a round of carry.  
+    RCR is shifted to the right through a round of carry.  
+              The above eight shift instructions can be shifted up to 255 times.  
+              When shifting once, the operation code can be used directly. For example, SHL AX, 1.  
+              When shifting&gt; 1 time, the number of shifts is given by the register CL.   
+              Such as MOV CL, 04 SHL AX, CL  
+---------- 4. string instructions ------------------------------------ ----------------------  
+              DS: SI source string segment register: source string index.  
+              ES: DI target string segment register: target string index.  
+              CX repeat counter.  
+              AL/AX scan value.  
+              D flag 0 indicates that SI and DI should be automatically increased during repeated operations; 1 indicates that they should be automatically decreased.  
+              The Z flag is used to control the end of the scan or comparison operation.  
+    MOVS string transfer. (MOVSB transfer character. MOVSW transfer word. MOVSD transfer double word.)  
+    CMPS string comparison. (CMPSB comparison character. CMPSW comparison word.)  
+    SCAS string scan. Compare the content of AL or AX with the target string, and the comparison result is reflected in the flag bit.  
+    LODS load string. Load the elements (words or bytes) in the source string into AL or AX one by one. (LODSB transmits characters. LODSW transmits words. LODSD transmits double words.)  
+    STOS save string. It is the reverse process of LODS.  
+//  REP Repeat when CX/ECX&lt;&gt;0.    
+//  REPE/REPZ Repeat when ZF=1 or the comparison result is equal, and CX/ECX&lt;&gt;0.  
+//  REPNE/REPNZ Repeat when ZF=0 or the comparison result is not equal, and CX/ECX&lt;&gt;0.    
+    REPC repeats when CF=1 and CX/ECX&lt;&gt;0.  
+    REPNC repeats when CF=0 and CX/ECX&lt;&gt;0.    
+---------- 5. program transfer instructions ----------------------------------- -----------------  
+1. Unconditional branch instruction (long branch)  
+//  JMP unconditional branch instruction  
+    CALL procedure call  
+    RET/RETF process returns.  
+2. Conditional transfer instruction (short transfer, within the distance of -128 to +127) (if and only if (SF XOR OF)=1, OP1&lt;OP2)  
+//  Transfer when JA/JNBE is not less than or not equal to.  
+//  JAE/JNB is greater than or equal to transfer.  
+//  JB/JNAE is less than transfer.  
+//  JBE/JNA is less than or equal to transfer.  
+//      The above four items test the results of unsigned integer operations (marks C and Z).  
+//  JG/JNLE is greater than transfer.  
+//  JGE/JNL is greater than or equal to transfer.  
+//  JL/JNGE is less than transfer.  
+//  JLE/JNG is less than or equal to transfer.  
+//      The above four items test the results of signed integer operations (marks S, O and Z).  
+//  JE/JZ equals transfer.  
+//  JNE/JNZ is not equal to time transfer.  
+//  Transfer when JC has a carry.  
+//  Transfer when JNC has no carry.  
+//  Transfer when JNO does not overflow.  
+//  Transfer when JNP/JPO parity is odd.  
+//  Transfer when the JNS sign bit is "0".  
+//  JO overflow transfer.  
+//  Transfer when JP/JPE parity is even.  
+//  Transfer when the JS sign bit is "1".  
+3. Loop control instructions (short transfer)  
+    Loop when LOOP CX is not zero.  
+    Loop when LOOPE/LOOPZ CX is not zero and the flag Z=1.  
+    Loop when LOOPNE/LOOPNZ CX is not zero and the flag Z=0.  
+    JCXZ Transfer when CX is zero.  
+    Transfer when JECXZ ECX is zero.  
+//4. Interrupt instruction  
+//  INT interrupt instruction  
+//  INTO overflow interrupt  
+//  IRET interrupt return  
+5. Processor control instructions  
+//  The HLT processor pauses and does not continue until an interrupt or reset signal occurs.  
+//  WAIT makes the CPU enter the waiting state when the chip lead TEST is high.  
+    ESC switch to external processor.  
+    LOCK blocks the bus.  
+    NOP No operation.  
+    STC sets the carry flag.  
+    CLC clears the carry flag.  
+    The CMC carry flag is inverted.  
+    STD sets the direction flag bit.  
+    CLD clears the direction flag bit.  
+    STI sets the interrupt enable bit.  
+    CLI clears interrupt enable bit.  
+//---------- 6. pseudo-instructions --------------------- ----------------------    
+//  DW definition word (2 bytes).  
+//  PROC defines the process.  
+//  The ENDP process ends.  
+//  SEGMENT defines the segment.  
+//  ASSUME establishes segment register addressing.  
+//  The ENDS section ends.  
+//  END The program ends.  
+---------- 7. processor control instructions: mark processing instructions ------------------------------ ------  
+    CLC carry position 0 instruction  
+    CMC carry bit negation instruction  
+    STC carry position is 1 instruction  
+    CLD direction flag set 1 instruction  
+    STD direction flag position 1 command  
+    CLI interrupt flag set 0 instruction  
+    STI interrupt flag set 1 instruction  
+    NOP No operation  
+    HLT shutdown  
+    WAIT  
+    ESC escape code  
+//  LOCK  
+========== Floating point operation instruction set ================================== ===================  
+---------- 1. Control instructions (floating point is not checked when the control instruction prefix F with 9B is changed to FN, and 9B is removed from the machine code)----  
+FINIT initialize floating point part machine code 9B DB E3  
+FCLEX clear abnormal machine code 9B DB E2  
+FDISI floating point check prohibits interruption of machine code 9B DB E1  
+FENI floating point check prohibit interruption 2 machine code 9B DB E0  
+WAIT Synchronize CPU and FPU machine code 9B  
+FWAIT Synchronize CPU and FPU machine code D9 D0  
+FNOP No operation machine code DA E9  
+FXCH exchange ST(0) and ST(1) machine code D9 C9  
+FXCH ST(i) Exchange ST(0) and ST(i) machine code D9 C1iii  
+FSTSW ax status word to ax machine code 9B DF E0  
+FSTSW word ptr mem status word to mem machine code 9B DD mm111mmm  
+FLDCW word ptr mem mem to status word machine code D9 mm101mmm  
+FSTCW word ptr mem control word to mem machine code 9B D9 mm111mmm  
+  
+FLDENV word ptr mem mem to full environment machine code D9 mm100mmm  
+FSTENV word ptr mem full environment to mem machine code 9B D9 mm110mmm  
+FRSTOR word ptr mem mem to FPU state machine code DD mm100mmm  
+FSAVE word ptr mem FPU state to mem machine code 9B DD mm110mmm  
+  
+FFREE ST(i) mark ST(i) not using machine code DD C0iii  
+FDECSTP Decrease stack pointer 1-&gt;0 2-&gt;1 Machine code D9 F6  
+FINCSTP increase stack pointer 0-&gt;1 1-&gt;2 machine code D9 F7  
+FSETPM floating point setting protection machine code DB E4  
+---------- 2. data transfer instructions ----------------------------------- -----------------  
+FLDZ Load 0.0 into ST(0) machine code D9 EE  
+FLD1 Load 1.0 into ST(0) machine code D9 E8  
+FLDPI loads � into ST(0) machine code D9 EB  
+FLDL2T Load ln10/ln2 into ST(0) machine code D9 E9  
+FLDL2E Load 1/ln2 into ST(0) machine code D9 EA  
+FLDLG2 Load ln2/ln10 into ST(0) machine code D9 EC  
+FLDLN2 Load ln2 into ST(0) machine code D9 ED  
+  
+FLD real4 ptr mem Single-precision floating-point number machine code loaded into mem D9 mm000mmm  
+FLD real8 ptr mem Double-precision floating-point number machine code DD mm000mmm loaded into mem  
+FLD real10 ptr mem Ten-byte floating point number machine code DB mm101mmm loaded into mem  
+  
+FILD word ptr mem Two-byte integer machine code DF mm000mmm loaded into mem  
+FILD dword ptr mem Four-byte integer machine code DB mm000mmm loaded into mem  
+FILD qword ptr mem eight-byte integer machine code loaded into mem DF mm101mmm  
+  
+FBLD tbyte ptr mem Ten-byte BCD number loaded into mem Machine code DF mm100mmm  
+  
+FST real4 ptr mem Save single-precision floating point numbers to mem machine code D9 mm010mmm  
+FST real8 ptr mem saves double-precision floating-point numbers to mem machine code DD mm010mmm  
+  
+FIST word ptr mem save two-byte integer to mem machine code DF mm010mmm  
+FIST dword ptr mem save four-byte integer to mem machine code DB mm010mmm  
+  
+FSTP real4 ptr mem Save single-precision floating point numbers to mem and pop the machine code D9 mm011mmm  
+FSTP real8 ptr mem Save double-precision floating-point numbers to mem and pop the machine code DD mm011mmm  
+FSTP real10 ptr mem Save ten-byte floating point number to mem and pop the machine code DB mm111mmm  
+  
+FISTP word ptr mem save a two-byte integer to mem and pop the machine code DF mm011mmm  
+FISTP dword ptr mem save a four-byte integer to mem and pop the machine code DB mm011mmm  
+FISTP qword ptr mem saves an eight-byte integer to mem and pops the machine code DF mm111mmm  
+  
+FBSTP tbyte ptr mem Save the ten-byte BCD number to mem and pop the machine code DF mm110mmm  
+  
+FCMOVB ST(0), ST(i) &lt;When transmitting machine code DA C0iii  
+FCMOVBE ST(0), ST(i) &lt;=, send machine code DA D0iii  
+FCMOVE ST(0), ST(i) = when transmitting machine code DA C1iii  
+FCMOVNB ST(0), ST(i) &gt;=, send machine code DB C0iii  
+FCMOVNBE ST(0), ST(i)&gt; when sending machine code DB D0iii  
+FCMOVNE ST(0),ST(i) != When sending machine code DB C1iii  
+FCMOVNU ST(0), ST(i) send machine code DB D1iii in order  
+FCMOVU ST(0), ST(i) Send machine code DA D1iii out of order  
+---------- 3. comparison instruction ------------------------------------ --------------------  
+FCOM ST(0)-ST(1) Machine code D8 D1  
+FCOMI ST(0),ST(i) ST(0)-ST(1) Machine code DB F0iii  
+FCOMIP ST(0), ST(i) ST(0)-ST(1) and stack machine code DF F0iii  
+FCOM real4 ptr mem ST(0)-real number mem machine code D8 mm010mmm  
+FCOM real8 ptr mem ST(0)-real number mem machine code DC mm010mmm  
+  
+FICOM word ptr mem ST(0)-integer mem machine code DE mm010mmm  
+FICOM dword ptr mem ST(0)-integer mem machine code DA mm010mmm  
+FICOMP word ptr mem ST(0)-integer mem and stack machine code DE mm011mmm  
+FICOMP dword ptr mem ST(0)-integer mem and pop-up machine code DA mm011mmm  
+  
+FTST ST(0)-0 machine code D9 E4  
+FUCOM ST(i) ST(0)-ST(i) machine code DD E0iii  
+FUCOMP ST(i) ST(0)-ST(i) and stack machine code DD E1iii  
+FUCOMPP ST(0)-ST(1) and double popping machine code DA E9  
+FXAM ST(0) specification type machine code D9 E5  
+---------- 4. operation instructions ------------------------------------ --------------------  
+FADD adds the destination operand (variable or stack buffer directly after the instruction) and source operand (variable or stack buffer after the destination operand), and 
+     stores the result in the destination operand  
+FADDP ST(i),ST This instruction adds the ST register to the destination operand and pops the ST register. 
+                The destination operand must be one of the stack registers. 
+                Finally, regardless of the destination operand, it is popped once After that, the destination operand will become the previous stack buffer  
+FIADD FIADD is to add ST to the source operand and then store it in the ST register. The source operand must be a variable in the form of a block integer or a short integer  
+  
+FSUB minus  
+FSUBP  
+FSUBR Subtract and subtract are interchanged  
+FSUBRP  
+FISUB  
+FISUBR  
+  
+FMUL multiply  
+FMULP  
+FIMUL  
+  
+FDIV division  
+FDIVP  
+FDIVR  
+FDIVRP  
+FIDIV  
+FIDIVR  
+  
+FCHS changes the positive and negative values ? of ST
+  
+FABS takes out the value of ST, takes its absolute value and stores it back.  
+  
+FSQRT takes out the value of ST, opens the root number, and saves it back.  
+  
+The FSCALE instruction is to calculate the value of ST*2^ST(1), and then store the result in ST without the value of ST(1). 
+ST(1) must be an integer between -32768 and 32768 (-215 to 215). If it exceeds this range, the calculation result cannot be determined. 
+If it is not an integer, ST(1) will be rounded to zero before calculation. Therefore, for safety, it is best to load ST(1) from a block integer.  
+  
+The FRNDINT command rounds the value of ST to an integer. FPU provides four rounding methods, which are determined by the two bits of RC in the control word of FPU.  
+                          RC rounding control  
+                          00 rounded  
+                          01 Round to negative infinity  
+                          10 Round to positive infinity  
+                          11 Round to zero  
+================================================= ===============================  
+ 
+</pre>
+Ditto
+<pre>
+Original x86 integer instructions
+Instruction     Meaning Notes   Opcode
+//ADC   Add with carry  destination = destination + source + carry_flag 0x10&0x15, 0x80&0x81/2, 0x82&0x83/2 (since 80186)
+//ADD   Add     (1) r/m += r/imm; (2) r += m/imm;       0x00&0x05, 0x80/0&0x81/0, 0x82/0&0x83/0 (since 80186)
+//AND   Logical AND     (1) r/m &= r/imm; (2) r &= m/imm;       0x20&0x25, 0x80&0x81/4, 0x82&0x83/4 (since 80186)
+CALL    Call procedure  push eip; eip points to the instruction directly after the call 0x9A, 0xE8, 0xFF/2, 0xFF/3
+CBW     Convert byte to word            0x98
+CLC     Clear carry flag        CF = 0; 0xF8
+CLD     Clear direction flag    DF = 0; 0xFC
+CLI     Clear interrupt flag    IF = 0; 0xFA
+//CMC   Complement carry flag           0xF5
+//CMP   Compare operands                0x38&0x3D, 0x80&0x81/7, 0x82&0x83/7 (since 80186)
+CMPSB   Compare bytes in memory         0xA6
+CMPSW   Compare words           0xA7
+CWD     Convert word to doubleword              0x99
+?DEC    Decrement by 1          0x48&0x4F, 0xFE/1, 0xFF/1
+DIV     Unsigned divide (1) AX = DX:AX / r/m; resulting DX = remainder (2) AL = AX / r/m; resulting AH = remainder      0xF7/6, 0xF6/6
+//ESC   Used with floating-point unit           0xD8..0xDF
+//HLT   Enter halt state                0xF4
+//IDIV  Signed divide   (1) AX = DX:AX / r/m; resulting DX = remainder (2) AL = AX / r/m; resulting AH = remainder      0xF7/7, 0xF6/7
+//IMUL  Signed multiply (1) DX:AX = AX * r/m; (2) AX = AL * r/m 0x69, 0x6B (both since 80186), 0xF7/5, 0xF6/5, 0x0FAF (since 80386)
+//IN        Input from port (1) AL = port[imm]; (2) AL = port[DX]; (3) AX = port[imm]; (4) AX = port[DX];   0xE4, 0xE5, 0xEC, 0xED
+?INC    Increment by 1          0x40&0x47, 0xFE/0, 0xFF/0
+//INT   Call to interrupt               0xCC, 0xCD
+//INTO  Call to interrupt if overflow           0xCE
+//IRET  Return from interrupt           0xCF
+//Jcc   Jump if condition       (JA, JAE, JB, JBE, JC, JE, JG, JGE, JL, JLE, JNA, JNAE, JNB, JNBE, JNC, JNE, JNG, JNGE, JNL, JNLE, JNO, 
+//                               JNP, JNS, JNZ, JO, JP, JPE, JPO, JS, JZ)       0x70&0x7F, 0x0F80&0x0F8F (since 80386)
+JCXZ    Jump if CX is zero              0xE3
+//JMP   Jump            0xE9&0xEB, 0xFF/4, 0xFF/5
+LAHF    Load FLAGS into AH register             0x9F
+//LDS   Load pointer using DS           0xC5
+//LEA   Load Effective Address          0x8D
+//LES   Load ES with pointer            0xC4
+//LOCK  Assert BUS LOCK# signal (for multiprocessing)   0xF0
+LODSB   Load string byte        if (DF==0) AL = *SI++; else AL = *SI--; 0xAC
+LODSW   Load string word        if (DF==0) AX = *SI++; else AX = *SI--; 0xAD
+LOOP/LOOPx      Loop control    (LOOPE, LOOPNE, LOOPNZ, LOOPZ) if (x && --CX) goto lbl; 0xE0&0xE2
+//MOV   Move    copies data from one location to another, (1) r/m = r; (2) r = r/m;     0xA0...0xA3
+MOVSB   Move byte from string to string  if (DF==0) *(byte*)DI++ = *(byte*)SI++; else *(byte*)DI-- = *(byte*)SI--; 0xA4
+MOVSW   Move word from string to string  if (DF==0) *(word*)DI++ = *(word*)SI++; else *(word*)DI-- = *(word*)SI--; 0xA5
+MUL     Unsigned multiply       (1) DX:AX = AX * r/m; (2) AX = AL * r/m;        0xF7/4, 0xF6/4
+//NEG   Two&rsquo;s complement negation r/m *= -1;  0xF6/3&0xF7/3
+NOP     No operation    opcode equivalent to XCHG EAX, EAX      0x90
+//NOT   Negate the operand, logical NOT r/m ^= -1;      0xF6/2&0xF7/2
+//OR        Logical OR      (1) r/m |= r/imm; (2) r |= m/imm;       0x08&0x0D, 0x80&0x81/1, 0x82&0x83/1 (since 80186)
+//POP   Pop data from stack     r/m = *SP++; POP CS (opcode 0x0F) works only on 8086/8088. Later CPUs use 0x0F as a prefix for newer instructions.      0x07, 0x0F(8086/8088 only), 0x17, 0x1F, 0x58&0x5F, 0x8F/0
+POPF    Pop FLAGS register from stack   FLAGS = *SP++;  0x9D
+//PUSH  Push data onto stack    *--SP = r/m;    0x06, 0x0E, 0x16, 0x1E, 0x50&0x57, 0x68, 0x6A (both since 80186), 0xFF/6
+PUSHF   Push FLAGS onto stack   *--SP = FLAGS;  0x9C
+RCL     Rotate left (with carry)                0xC0&0xC1/2 (since 80186), 0xD0&0xD3/2
+RCR     Rotate right (with carry)               0xC0&0xC1/3 (since 80186), 0xD0&0xD3/3
+//REPxx Repeat MOVS/STOS/CMPS/LODS/SCAS (REP, REPE, REPNE, REPNZ, REPZ) 0xF2, 0xF3
+RET     Return from procedure   Not a real instruction. The assembler will translate these to a RETN or a RETF depending on the memory model of the target system.      
+RETN    Return from near procedure              0xC2, 0xC3
+//RETF  Return from far procedure               0xCA, 0xCB
+ROL     Rotate left             0xC0&0xC1/0 (since 80186), 0xD0&0xD3/0
+ROR     Rotate right            0xC0&0xC1/1 (since 80186), 0xD0&0xD3/1
+SAHF    Store AH into FLAGS             0x9E
+//SAL   Shift Arithmetically left (signed shift left)   (1) r/m &lt;&lt;= 1; (2) r/m &lt;&lt;= CL;  0xC0&0xC1/4 (since 80186), 0xD0&0xD3/4
+//SAR   Shift Arithmetically right (signed shift right) (1) (signed) r/m &gt;&gt;= 1; (2) (signed) r/m &gt;&gt;= CL;        0xC0&0xC1/7 (since 80186), 0xD0&0xD3/7
+//SBB   Subtraction with borrow alternative 1-byte encoding of SBB AL, AL is available via undocumented SALC instruction        0x18&0x1D, 0x80&0x81/3, 0x82&0x83/3 (since 80186)
+SCASB   Compare byte string             0xAE
+SCASW   Compare word string             0xAF
+//SHL   Shift left (unsigned shift left)                0xC0&0xC1/4 (since 80186), 0xD0&0xD3/4
+//SHR   Shift right (unsigned shift right)              0xC0&0xC1/5 (since 80186), 0xD0&0xD3/5
+STC     Set carry flag  CF = 1; 0xF9
+STD     Set direction flag      DF = 1; 0xFD
+STI     Set interrupt flag      IF = 1; 0xFB
+STOSB   Store byte in string    if (DF==0) *ES:DI++ = AL; else *ES:DI-- = AL;   0xAA
+STOSW   Store word in string    if (DF==0) *ES:DI++ = AX; else *ES:DI-- = AX;   0xAB
+//SUB   Subtraction     (1) r/m -= r/imm; (2) r -= m/imm;       0x28&0x2D, 0x80&0x81/5, 0x82&0x83/5 (since 80186)
+//TEST  Logical compare (AND)   (1) r/m & r/imm; (2) r & m/imm; 0x84, 0x84, 0xA8, 0xA9, 0xF6/0, 0xF7/0
+WAIT    Wait until not busy     Waits until BUSY# pin is inactive (used with floating-point unit)       0x9B
+XCHG    Exchange data   r :=: r/m; A spinlock typically uses xchg as an atomic operation. (coma bug).   0x86, 0x87, 0x91&0x97
+XLAT    Table look-up translation       behaves like MOV AL, [BX+AL]    0xD7
+//XOR   Exclusive OR    (1) r/m ^= r/imm; (2) r ^= m/imm;       0x30&0x35, 0x80&0x81/6, 0x82&0x83/6 (since 80186)
+Added in specific processors
+Added with 80186/80188
+Instruction     Meaning Notes
+//BOUND Check array index against bounds        raises software interrupt 5 if test fails
+//ENTER Enter stack frame       Modifies stack for entry to procedure for high level language. Takes two operands: the amount of storage to be allocated on the stack and the nesting level of the procedure.
+//INS   Input from port to string       equivalent to:
+//IN (E)AX, DXMOV ES:[(E)DI], (E)AX; adjust (E)DI according to operand size and DF
+//LEAVE Leave stack frame       Releases the local stack storage created by the previous ENTER instruction.
+//OUTS  Output string to port   equivalent to:
+//MOV (E)AX, DS:[(E)SI]OUT DX, (E)AX; adjust (E)SI according to operand size and DF
+POPA    Pop all general purpose registers from stack    equivalent to:
+//POP DIPOP SIPOP BPPOP AX ; no POP SP here, all it does is ADD SP, 2 (since AX will be overwritten later)POP BXPOP DXPOP CXPOP AX
+PUSHA   Push all general purpose registers onto stack   equivalent to:
+//PUSH AXPUSH CXPUSH DXPUSH BXPUSH SP ; The value stored is the initial SP valuePUSH BPPUSH SIPUSH DI
+//PUSH immediate    Push an immediate byte/word value onto the stack        example:
+//PUSH 12hPUSH 1200h
+//IMUL immediate    Signed multiplication of immediate byte/word value      example:
+//IMUL BX,12hIMUL DX,1200hIMUL CX, DX, 12hIMUL BX, SI, 1200hIMUL DI, word ptr [BX+SI], 12hIMUL SI, word ptr [BP-4], 1200h
+SHL/SHR/SAL/SAR/ROL/ROR/RCL/RCR immediate       Rotate/shift bits with an immediate value greater than 1        example:
+ROL AX,3SHR BL,3
+//Added with 80286
+//Instruction   Meaning Notes
+//ARPL  Adjust RPL field of selector    
+//CLTS  Clear task-switched flag in register CR0        
+//LAR   Load access rights byte 
+//LGDT  Load global descriptor table    
+//LIDT  Load interrupt descriptor table 
+//LLDT  Load local descriptor table     
+//LMSW  Load machine status word        
+//LOADALL Load all CPU registers, including internal ones such as GDT   Undocumented, 80286 and 80386 only
+//LSL   Load segment limit      
+//LTR   Load task register      
+//SGDT  Store global descriptor table   
+//SIDT  Store interrupt descriptor table        
+//SLDT  Store local descriptor table    
+//SMSW  Store machine status word       
+//STR   Store task register     
+//VERR  Verify a segment for reading    
+//VERW  Verify a segment for writing    
+Added with 80386
+Instruction     Meaning Notes
+BSF     Bit scan forward        
+BSR     Bit scan reverse        
+BT      Bit test        
+BTC     Bit test and complement 
+BTR     Bit test and reset      
+BTS     Bit test and set        
+//CDQ   Convert double-word to quad-word        Sign-extends EAX into EDX, forming the quad-word EDX:EAX. Since (I)DIV uses EDX:EAX as its input, CDQ must be called after setting EAX if EDX is not manually initialized (as in 64/32 division) before (I)DIV.
+CMPSD   Compare string double-word      Compares ES:[(E)DI] with DS:[(E)SI] and increments or decrements both (E)DI and (E)SI, depending on DF; can be prefixed with REP
+CWDE    Convert word to double-word     Unlike CWD, CWDE sign-extends AX to EAX instead of AX to DX:AX
+//INSD  Input from port to string double-word   
+//IRETx Interrupt return; D suffix means 32-bit return, F suffix means do not generate epilogue code (i.e. LEAVE instruction)   Use IRETD rather than IRET in 32-bit situations
+JECXZ   Jump if ECX is zero     
+//LFS, LGS      Load far pointer        
+//LSS   Load stack segment      
+LODSD   Load string double-word EAX = *ES:EDI±±; (±± depends on DF, ES cannot be overridden); can be prefixed with REP
+LOOPW, LOOPccW  Loop, conditional loop  Same as LOOP, LOOPcc for earlier processors
+LOOPD, LOOPccD  Loop while equal        if (cc && --ECX) goto lbl;, cc = Z(ero), E(qual), NonZero, N(on)E(qual)
+MOV to/from CR/DR/TR    Move to/from special registers  CR=control registers, DR=debug registers, TR=test registers (up to 80486)
+MOVSD   Move string double-word *(dword*)ES:EDI±± = *(dword*)ESI±±; (±± depends on DF); can be prefixed with REP
+MOVSX   Move with sign-extension        (long)r = (signed char) r/m; and similar
+MOVZX   Move with zero-extension        (long)r = (unsigned char) r/m; and similar
+//OUTSD Output to port from string double-word  port[DX] = *(long*)ESI±±; (±± depends on DF)
+POPAD   Pop all double-word (32-bit) registers from stack       Does not pop register ESP off of stack
+POPFD   Pop data into EFLAGS register   
+PUSHAD  Push all double-word (32-bit) registers onto stack      
+PUSHFD  Push EFLAGS register onto stack 
+SCASD   Scan string data double-word    Compares ES:[(E)DI] with EAX and increments or decrements (E)DI, depending on DF; can be prefixed with REP
+SETcc   Set byte to one on condition, zero otherwise    (SETA, SETAE, SETB, SETBE, SETC, SETE, SETG, SETGE, SETL, SETLE, SETNA, SETNAE, SETNB, SETNBE, SETNC, SETNE, SETNG, SETNGE, SETNL, SETNLE, SETNO, SETNP, SETNS, SETNZ, SETO, SETP, SETPE, SETPO, SETS, SETZ)
+SHLD    Shift left double-word  
+SHRD    Shift right double-word r1 = r1&gt;&gt;CL # r2&lt;&lt;(32-CL); Instead of CL, immediate 1 can be used
+STOSD   Store string double-word        *ES:EDI±± = EAX; (±± depends on DF, ES cannot be overridden); can be prefixed with REP
+Added with 80486
+Instruction     Meaning Notes
+BSWAP   Byte Swap       r = r&lt;&lt;24 | r&lt;&lt;8&0x00FF0000 | r&gt;&gt;8&0x0000FF00 | r&gt;&gt;24; Only defined for 32-bit registers. 
+Usually used to change between little endian and big endian representations. When used with 16-bit registers produces various different results on 486,[2] 586, and Bochs/QEMU.[3]
+CMPXCHG atomic CoMPare and eXCHanGe     See Compare-and-swap / on later 80386 as undocumented opcode available
+//INVD  Invalidate Internal Caches      Flush internal caches
+//INVLPG    Invalidate TLB Entry    Invalidate TLB Entry for page that contains data specified
+//WBINVD    Write Back and Invalidate Cache Writes back all modified cache lines in the processor&rsquo;s internal cache to main memory and invalidates the internal caches.
+XADD    eXchange and ADD        Exchanges the first operand with the second operand, then loads the sum of the two values into the destination operand.
+Added with Pentium
+Instruction     Meaning Notes
+CPUID   CPU IDentification      Returns data regarding processor identification and features, and returns data to the EAX, EBX, ECX, and EDX registers. Instruction functions specified by the EAX register.[1] This was also added to later 80486 processors
+CMPXCHG8B       CoMPare and eXCHanGe 8 bytes    Compare EDX:EAX with m64. If equal, set ZF and load ECX:EBX into m64. Else, clear ZF and load m64 into EDX:EAX.
+RDMSR   ReaD from Model-specific register       Load MSR specified by ECX into EDX:EAX
+RDTSC   ReaD Time Stamp Counter Returns the number of processor ticks since the processor being "ONLINE" (since the last power on of system)
+WRMSR   WRite to Model-Specific Register        Write the value in EDX:EAX to MSR specified by ECX
+//RSM[4]    Resume from System Management Mode      This was introduced by the i386SL and later and is also in the i486SL and later. Resumes from System Management Mode (SMM)
+//Added with Pentium MMX
+//Instruction   Meaning Notes
+//RDPMC Read the PMC [Performance Monitoring Counter]   Specified in the ECX register into registers EDX:EAX
+//Also MMX registers and MMX support instructions were added. They are usable for both integer and floating point operations, see below.
+
+//Added with AMD K6
+//Instruction   Meaning Notes
+//SYSCALL       functionally equivalent to SYSENTER
+//SYSRET            functionally equivalent to SYSEXIT
+//AMD changed the CPUID detection bit for this feature from the K6-II on.
+
+Added with Pentium Pro
+Instruction     Meaning Notes
+CMOVcc  Conditional move        (CMOVA, CMOVAE, CMOVB, CMOVBE, CMOVC, CMOVE, CMOVG, CMOVGE, CMOVL, CMOVLE, 
+                                 CMOVNA, CMOVNAE, CMOVNB, CMOVNBE, CMOVNC, CMOVNE, CMOVNG, CMOVNGE, CMOVNL, CMOVNLE, 
+                                 CMOVNO, CMOVNP, CMOVNS, CMOVNZ, CMOVO, CMOVP, CMOVPE, CMOVPO, CMOVS, CMOVZ)
+Added with x86-64
+Instruction     Meaning Notes
+CDQE    Sign extend EAX into RAX        
+CQO     Sign extend RAX into RDX:RAX    
+CMPSQ   CoMPare String Quadword 
+//CMPXCHG16B        CoMPare and eXCHanGe 16 Bytes   
+//IRETQ 64-bit Return from Interrupt    
+JRCXZ   Jump if RCX is zero     
+LODSQ   LoaD String Quadword    
+MOVSXD  MOV with Sign Extend 32-bit to 64-bit   
+POPFQ   POP RFLAGS Register     
+PUSHFQ  PUSH RFLAGS Register    
+RDTSCP  ReaD Time Stamp Counter and Processor ID        
+SCASQ   SCAn String Quadword    
+STOSQ   STOre String Quadword   
+Added with AMD-V
+Instruction     Meaning Notes   Opcode
+MOV(CRn)        Move to or from control registers       Moves 32- or 64-bit contents to control register and vice versa.        0x0F 0x22 or 0x0F 0x20
+MOV(DRn)        Move to or from debug registers Moves 32- or 64-bit contents to control register and vice versa.        0x0F 0x21 or 0x0F 0x23
+
+x87 floating-point instructions
+Original 8087 instructions
+Instruction     Meaning Notes
+F2XM1   2^{x}-1 more precise than 2^{x} for x close to zero
+FABS    Absolute value  
+FADD    Add     
+FADDP   Add and pop     
+FBLD    Load BCD        
+FBSTP   Store BCD and pop       
+FCHS    Change sign     
+FCLEX   Clear exceptions        
+FCOM    Compare 
+FCOMP   Compare and pop 
+FCOMPP  Compare and pop twice   
+FDECSTP Decrement floating point stack pointer  
+FDISI   Disable interrupts      8087 only, otherwise FNOP
+FDIV    Divide  Pentium FDIV bug
+FDIVP   Divide and pop  
+FDIVR   Divide reversed 
+FDIVRP  Divide reversed and pop 
+FENI    Enable interrupts       8087 only, otherwise FNOP
+FFREE   Free register   
+FIADD   Integer add     
+FICOM   Integer compare 
+FICOMP  Integer compare and pop 
+FIDIV   Integer divide  
+FIDIVR  Integer divide reversed 
+FILD    Load integer    
+FIMUL   Integer multiply        
+FINCSTP Increment floating point stack pointer  
+FINIT   Initialize floating point processor     
+FIST    Store integer   
+FISTP   Store integer and pop   
+FISUB   Integer subtract        
+FISUBR  Integer subtract reversed       
+FLD     Floating point load     
+FLD1    Load 1.0 onto stack     
+FLDCW   Load control word       
+FLDENV  Load environment state  
+FLDENVW Load environment state, 16-bit  
+FLDL2E  Load log2(e) onto stack 
+FLDL2T  Load log2(10) onto stack        
+FLDLG2  Load log10(2) onto stack        
+FLDLN2  Load ln(2) onto stack   
+FLDPI   Load À onto stack       
+FLDZ    Load 0.0 onto stack     
+FMUL    Multiply        
+FMULP   Multiply and pop        
+FNCLEX  Clear exceptions, no wait       
+FNDISI  Disable interrupts, no wait     8087 only, otherwise FNOP
+FNENI   Enable interrupts, no wait      8087 only, otherwise FNOP
+FNINIT  Initialize floating point processor, no wait    
+FNOP    No operation    
+FNSAVE  Save FPU state, no wait, 8-bit  
+FNSAVEW Save FPU state, no wait, 16-bit 
+FNSTCW  Store control word, no wait     
+FNSTENV Store FPU environment, no wait  
+FNSTENVW        Store FPU environment, no wait, 16-bit  
+FNSTSW  Store status word, no wait      
+FPATAN  Partial arctangent      
+FPREM   Partial remainder       
+FPTAN   Partial tangent 
+FRNDINT Round to integer        
+FRSTOR  Restore saved state     
+FRSTORW Restore saved state     Perhaps not actually available in 8087
+FSAVE   Save FPU state  
+FSAVEW  Save FPU state, 16-bit  
+FSCALE  Scale by factor of 2    
+FSQRT   Square root     
+FST     Floating point store    
+FSTCW   Store control word      
+FSTENV  Store FPU environment   
+FSTENVW Store FPU environment, 16-bit   
+FSTP    Store and pop   
+FSTSW   Store status word       
+FSUB    Subtract        
+FSUBP   Subtract and pop        
+FSUBR   Reverse subtract        
+FSUBRP  Reverse subtract and pop        
+FTST    Test for zero   
+FWAIT   Wait while FPU is executing     
+FXAM    Examine condition flags 
+FXCH    Exchange registers      
+FXTRACT Extract exponent and significand        
+FYL2X   y · log2 x      if y = logb 2, then the base-b logarithm is computed
+FYL2XP1 y · log2 (x+1)  more precise than log2 z if x is close to zero
+Added in specific processors
+//Added with 80287
+//Instruction   Meaning Notes
+//FSETPM    Set protected mode      80287 only, otherwise FNOP
+Added with 80387
+Instruction     Meaning Notes
+FCOS    Cosine  
+FLDENVD Load environment state, 32-bit  
+FSAVED  Save FPU state, 32-bit  
+FPREM1  Partial remainder       Computes IEEE remainder
+FRSTORD Restore saved state, 32-bit     
+FSIN    Sine    
+FSINCOS Sine and cosine 
+FSTENVD Store FPU environment, 32-bit   
+FUCOM   Unordered compare       
+FUCOMP  Unordered compare and pop       
+FUCOMPP Unordered compare and pop twice 
+Added with Pentium Pro
+FCMOV variants: FCMOVB, FCMOVBE, FCMOVE, FCMOVNB, FCMOVNBE, FCMOVNE, FCMOVNU, FCMOVU
+FCOMI variants: FCOMI, FCOMIP, FUCOMI, FUCOMIP
+Added with SSE
+FXRSTOR, FXSAVE
+
+These are also supported on later Pentium IIs which do not contain SSE support
+
+Added with SSE3
+FISTTP (x87 to integer conversion with truncation regardless of status word)
+
+SIMD instructions
+MMX instructions
+MMX instructions operate on the mm registers, which are 64 bits wide. They are shared with the FPU registers.
+
+Original MMX instructions
+Added with Pentium MMX
+
+Instruction     Opcode  Meaning Notes
+EMMS    0F 77   Empty MMX Technology State      Marks all x87 FPU registers for use by FPU
+MOVD mm, r/m32  0F 6E /r        Move doubleword 
+MOVD r/m32, mm  0F 7E /r        Move doubleword 
+MOVQ mm/m64, mm 0F 7F /r        Move quadword   
+MOVQ mm, mm/m64 0F 6F /r        Move quadword   
+MOVQ mm, r/m64  REX.W + 0F 6E /r        Move quadword   
+MOVQ r/m64, mm  REX.W + 0F 7E /r        Move quadword   
+PACKSSDW mm1, mm2/m64   0F 6B /r        Pack doublewords to words (signed with saturation)      
+PACKSSWB mm1, mm2/m64   0F 63 /r        Pack words to bytes (signed with saturation)    
+PACKUSWB mm, mm/m64     0F 67 /r        Pack words to bytes (unsigned with saturation)  
+PADDB mm, mm/m64        0F FC /r        Add packed byte integers        
+PADDW mm, mm/m64        0F FD /r        Add packed word integers        
+PADDD mm, mm/m64        0F FE /r        Add packed doubleword integers  
+PADDQ mm, mm/m64        0F D4 /r        Add packed quadword integers    
+PADDSB mm, mm/m64       0F EC /r        Add packed signed byte integers and saturate    
+PADDSW mm, mm/m64       0F ED /r        Add packed signed word integers and saturate    
+PADDUSB mm, mm/m64      0F DC /r        Add packed unsigned byte integers and saturate  
+PADDUSW mm, mm/m64      0F DD /r        Add packed unsigned word integers and saturate  
+PAND mm, mm/m64 0F DB /r        Bitwise AND     
+PANDN mm, mm/m64        0F DF /r        Bitwise AND NOT 
+POR mm, mm/m64  0F EB /r        Bitwise OR      
+PXOR mm, mm/m64 0F EF /r        Bitwise XOR     
+PCMPEQB mm, mm/m64      0F 74 /r        Compare packed bytes for equality       
+PCMPEQW mm, mm/m64      0F 75 /r        Compare packed words for equality       
+PCMPEQD mm, mm/m64      0F 76 /r        Compare packed doublewords for equality 
+PCMPGTB mm, mm/m64      0F 64 /r        Compare packed signed byte integers for greater than    
+PCMPGTW mm, mm/m64      0F 65 /r        Compare packed signed word integers for greater than    
+PCMPGTD mm, mm/m64      0F 66 /r        Compare packed signed doubleword integers for greater than      
+PMADDWD mm, mm/m64      0F F5 /r        Multiply packed words, add adjacent doubleword results  
+PMULHW mm, mm/m64       0F E5 /r        Multiply packed signed word integers, store high 16 bits of results     
+PMULLW mm, mm/m64       0F D5 /r        Multiply packed signed word integers, store low 16 bits of results      
+PSLLW mm1, imm8 0F 71 /6 ib     Shift left words, shift in zeros        
+PSLLW mm, mm/m64        0F F1 /r        Shift left words, shift in zeros        
+PSLLD mm, imm8  0F 72 /6 ib     Shift left doublewords, shift in zeros  
+PSLLD mm, mm/m64        0F F2 /r        Shift left doublewords, shift in zeros  
+PSLLQ mm, imm8  0F 73 /6 ib     Shift left quadword, shift in zeros     
+PSLLQ mm, mm/m64        0F F3 /r        Shift left quadword, shift in zeros     
+PSRAD mm, imm8  0F 72 /4 ib     Shift right doublewords, shift in sign bits     
+PSRAD mm, mm/m64        0F E2 /r        Shift right doublewords, shift in sign bits     
+PSRAW mm, imm8  0F 71 /4 ib     Shift right words, shift in sign bits   
+PSRAW mm, mm/m64        0F E1 /r        Shift right words, shift in sign bits   
+PSRLW mm, imm8  0F 71 /2 ib     Shift right words, shift in zeros       
+PSRLW mm, mm/m64        0F D1 /r        Shift right words, shift in zeros       
+PSRLD mm, imm8  0F 72 /2 ib     Shift right doublewords, shift in zeros 
+PSRLD mm, mm/m64        0F D2 /r        Shift right doublewords, shift in zeros 
+PSRLQ mm, imm8  0F 73 /2 ib     Shift right quadword, shift in zeros    
+PSRLQ mm, mm/m64        0F D3 /r        Shift right quadword, shift in zeros    
+PSUBB mm, mm/m64        0F F8 /r        Subtract packed byte integers   
+PSUBW mm, mm/m64        0F F9 /r        Subtract packed word integers   
+PSUBD mm, mm/m64        0F FA /r        Subtract packed doubleword integers     
+PSUBSB mm, mm/m64       0F E8 /r        Subtract signed packed bytes with saturation    
+PSUBSW mm, mm/m64       0F E9 /r        Subtract signed packed words with saturation    
+PSUBUSB mm, mm/m64      0F D8 /r        Subtract unsigned packed bytes with saturation  
+PSUBUSW mm, mm/m64      0F D9 /r        Subtract unsigned packed words with saturation  
+PUNPCKHBW mm, mm/m64    0F 68 /r        Unpack and interleave high-order bytes  
+PUNPCKHWD mm, mm/m64    0F 69 /r        Unpack and interleave high-order words  
+PUNPCKHDQ mm, mm/m64    0F 6A /r        Unpack and interleave high-order doublewords    
+PUNPCKLBW mm, mm/m32    0F 60 /r        Unpack and interleave low-order bytes   
+PUNPCKLWD mm, mm/m32    0F 61 /r        Unpack and interleave low-order words   
+PUNPCKLDQ mm, mm/m32    0F 62 /r        Unpack and interleave low-order doublewords     
+MMX instructions added in specific processors
+EMMI instructions
+Added with 6x86MX from Cyrix, deprecated now
+
+PAVEB, PADDSIW, PMAGW, PDISTIB, PSUBSIW, PMVZB, PMULHRW, PMVNZB, PMVLZB, PMVGEZB, PMULHRIW, PMACHRIW
+
+MMX instructions added with MMX+ and SSE
+The following MMX instruction were added with SSE. They are also available on the Athlon under the name MMX+.
+
+Instruction     Opcode  Meaning
+MASKMOVQ mm1, mm2       0F F7 /r        Masked Move of Quadword
+MOVNTQ m64, mm  0F E7 /r        Move Quadword Using Non-Temporal Hint
+PSHUFW mm1, mm2/m64, imm8       0F 70 /r ib     Shuffle Packed Words
+PINSRW mm, r32/m16, imm8        0F C4 /r        Insert Word
+PEXTRW reg, mm, imm8    0F C5 /r        Extract Word
+PMOVMSKB reg, mm        0F D7 /r        Move Byte Mask
+PMINUB mm1, mm2/m64     0F DA /r        Minimum of Packed Unsigned Byte Integers
+PMAXUB mm1, mm2/m64     0F DE /r        Maximum of Packed Unsigned Byte Integers
+PAVGB mm1, mm2/m64      0F E0 /r        Average Packed Integers
+PAVGW mm1, mm2/m64      0F E3 /r        Average Packed Integers
+PMULHUW mm1, mm2/m64    0F E4 /r        Multiply Packed Unsigned Integers and Store High Result
+PMINSW mm1, mm2/m64     0F EA /r        Minimum of Packed Signed Word Integers
+PMAXSW mm1, mm2/m64     0F EE /r        Maximum of Packed Signed Word Integers
+PSADBW mm1, mm2/m64     0F F6 /r        Compute Sum of Absolute Differences
+MMX instructions added with SSE2
+The following MMX instructions were added with SSE2:
+
+Instruction     Opcode  Meaning
+PSUBQ mm1, mm2/m64      0F FB /r        Subtract quadword integer
+PMULUDQ mm1, mm2/m64    0F F4 /r        Multiply unsigned doubleword integer
+MMX instructions added with SSSE3
+Instruction     Opcode  Meaning
+PSIGNB mm1, mm2/m64     0F 38 08 /r     Negate/zero/preserve packed byte integers depending on corresponding sign
+PSIGNW mm1, mm2/m64     0F 38 09 /r     Negate/zero/preserve packed word integers depending on corresponding sign
+PSIGND mm1, mm2/m64     0F 38 0A /r     Negate/zero/preserve packed doubleword integers depending on corresponding sign
+PSHUFB mm1, mm2/m64     0F 38 00 /r     Shuffle bytes
+PMULHRSW mm1, mm2/m64   0F 38 0B /r     Multiply 16-bit signed words, scale and round signed doublewords, pack high 16 bits
+PMADDUBSW mm1, mm2/m64  0F 38 04 /r     Multiply signed and unsigned bytes, add horizontal pair of signed words, pack saturated signed-words
+PHSUBW mm1, mm2/m64     0F 38 05 /r     Subtract and pack 16-bit signed integers horizontally
+PHSUBSW mm1, mm2/m64    0F 38 07 /r     Subtract and pack 16-bit signed integer horizontally with saturation
+PHSUBD mm1, mm2/m64     0F 38 06 /r     Subtract and pack 32-bit signed integers horizontally
+PHADDSW mm1, mm2/m64    0F 38 03 /r     Add and pack 16-bit signed integers horizontally, pack saturated integers to mm1.
+PHADDW mm1, mm2/m64     0F 38 01 /r     Add and pack 16-bit integers horizontally
+PHADDD mm1, mm2/m64     0F 38 02 /r     Add and pack 32-bit integers horizontally
+PALIGNR mm1, mm2/m64, imm8      0F 3A 0F /r ib  Concatenate destination and source operands, extract byte-aligned result shifted to the right
+PABSB mm1, mm2/m64      0F 38 1C /r     Compute the absolute value of bytes and store unsigned result
+PABSW mm1, mm2/m64      0F 38 1D /r     Compute the absolute value of 16-bit integers and store unsigned result
+PABSD mm1, mm2/m64      0F 38 1E /r     Compute the absolute value of 32-bit integers and store unsigned result
+//3DNow! instructions
+//Added with K6-2
+//
+//FEMMS, PAVGUSB, PF2ID, PFACC, PFADD, PFCMPEQ, PFCMPGE, PFCMPGT, PFMAX, PFMIN, PFMUL, PFRCP, PFRCPIT1, PFRCPIT2, PFRSQIT1, PFRSQRT, PFSUB, PFSUBR, PI2FD, PMULHRW, PREFETCH, PREFETCHW
+//
+//3DNow!+ instructions
+//Added with Athlon and K6-2+
+//PF2IW, PFNACC, PFPNACC, PI2FW, PSWAPD
+//
+//Added with Geode GX
+//PFRSQRTV, PFRCPV
+
+SSE instructions
+Added with Pentium III
+
+SSE instructions operate on xmm registers, which are 128 bit wide.
+
+SSE consists of the following SSE SIMD floating-point instructions:
+
+Instruction     Opcode  Meaning
+ANDPS* xmm1, xmm2/m128  0F 54 /r        Bitwise Logical AND of Packed Single-Precision Floating-Point Values
+ANDNPS* xmm1, xmm2/m128 0F 55 /r        Bitwise Logical AND NOT of Packed Single-Precision Floating-Point Values
+ORPS* xmm1, xmm2/m128   0F 56 /r        Bitwise Logical OR of Single-Precision Floating-Point Values
+XORPS* xmm1, xmm2/m128  0F 57 /r        Bitwise Logical XOR for Single-Precision Floating-Point Values
+MOVUPS xmm1, xmm2/m128  0F 10 /r        Move Unaligned Packed Single-Precision Floating-Point Values
+MOVSS xmm1, xmm2/m32    F3 0F 10 /r     Move Scalar Single-Precision Floating-Point Values
+MOVUPS xmm2/m128, xmm1  0F 11 /r        Move Unaligned Packed Single-Precision Floating-Point Values
+MOVSS xmm2/m32, xmm1    F3 0F 11 /r     Move Scalar Single-Precision Floating-Point Values
+MOVLPS xmm, m64 0F 12 /r        Move Low Packed Single-Precision Floating-Point Values
+MOVHLPS xmm1, xmm2      0F 12 /r        Move Packed Single-Precision Floating-Point Values High to Low
+MOVLPS m64, xmm 0F 13 /r        Move Low Packed Single-Precision Floating-Point Values
+UNPCKLPS xmm1, xmm2/m128        0F 14 /r        Unpack and Interleave Low Packed Single-Precision Floating-Point Values
+UNPCKHPS xmm1, xmm2/m128        0F 15 /r        Unpack and Interleave High Packed Single-Precision Floating-Point Values
+MOVHPS xmm, m64 0F 16 /r        Move High Packed Single-Precision Floating-Point Values
+MOVLHPS xmm1, xmm2      0F 16 /r        Move Packed Single-Precision Floating-Point Values Low to High
+MOVHPS m64, xmm 0F 17 /r        Move High Packed Single-Precision Floating-Point Values
+MOVAPS xmm1, xmm2/m128  0F 28 /r        Move Aligned Packed Single-Precision Floating-Point Values
+MOVAPS xmm2/m128, xmm1  0F 29 /r        Move Aligned Packed Single-Precision Floating-Point Values
+MOVNTPS m128, xmm1      0F 2B /r        Move Aligned Four Packed Single-FP Non Temporal
+MOVMSKPS reg, xmm       0F 50 /r        Extract Packed Single-Precision Floating-Point 4-bit Sign Mask. The upper bits of the register are filled with zeros.
+CVTPI2PS xmm, mm/m64    0F 2A /r        Convert Packed Dword Integers to Packed Single-Precision FP Values
+CVTSI2SS xmm, r/m32     F3 0F 2A /r     Convert Dword Integer to Scalar Single-Precision FP Value
+CVTSI2SS xmm, r/m64     F3 REX.W 0F 2A /r       Convert Qword Integer to Scalar Single-Precision FP Value
+MOVNTPS m128, xmm       0F 2B /r        Store Packed Single-Precision Floating-Point Values Using Non-Temporal Hint
+CVTTPS2PI mm, xmm/m64   0F 2C /r        Convert with Truncation Packed Single-Precision FP Values to Packed Dword Integers
+CVTTSS2SI r32, xmm/m32  F3 0F 2C /r     Convert with Truncation Scalar Single-Precision FP Value to Dword Integer
+CVTTSS2SI r64, xmm1/m32 F3 REX.W 0F 2C /r       Convert with Truncation Scalar Single-Precision FP Value to Qword Integer
+CVTPS2PI mm, xmm/m64    0F 2D /r        Convert Packed Single-Precision FP Values to Packed Dword Integers
+CVTSS2SI r32, xmm/m32   F3 0F 2D /r     Convert Scalar Single-Precision FP Value to Dword Integer
+CVTSS2SI r64, xmm1/m32  F3 REX.W 0F 2D /r       Convert Scalar Single-Precision FP Value to Qword Integer
+UCOMISS xmm1, xmm2/m32  0F 2E /r        Unordered Compare Scalar Single-Precision Floating-Point Values and Set EFLAGS
+COMISS xmm1, xmm2/m32   0F 2F /r        Compare Scalar Ordered Single-Precision Floating-Point Values and Set EFLAGS
+SQRTPS xmm1, xmm2/m128  0F 51 /r        Compute Square Roots of Packed Single-Precision Floating-Point Values
+SQRTSS xmm1, xmm2/m32   F3 0F 51 /r     Compute Square Root of Scalar Single-Precision Floating-Point Value
+RSQRTPS xmm1, xmm2/m128 0F 52 /r        Compute Reciprocal of Square Root of Packed Single-Precision Floating-Point Value
+RSQRTSS xmm1, xmm2/m32  F3 0F 52 /r     Compute Reciprocal of Square Root of Scalar Single-Precision Floating-Point Value
+RCPPS xmm1, xmm2/m128   0F 53 /r        Compute Reciprocal of Packed Single-Precision Floating-Point Values
+RCPSS xmm1, xmm2/m32    F3 0F 53 /r     Compute Reciprocal of Scalar Single-Precision Floating-Point Values
+ADDPS xmm1, xmm2/m128   0F 58 /r        Add Packed Single-Precision Floating-Point Values
+ADDSS xmm1, xmm2/m32    F3 0F 58 /r     Add Scalar Single-Precision Floating-Point Values
+MULPS xmm1, xmm2/m128   0F 59 /r        Multiply Packed Single-Precision Floating-Point Values
+MULSS xmm1, xmm2/m32    F3 0F 59 /r     Multiply Scalar Single-Precision Floating-Point Values
+SUBPS xmm1, xmm2/m128   0F 5C /r        Subtract Packed Single-Precision Floating-Point Values
+SUBSS xmm1, xmm2/m32    F3 0F 5C /r     Subtract Scalar Single-Precision Floating-Point Values
+MINPS xmm1, xmm2/m128   0F 5D /r        Return Minimum Packed Single-Precision Floating-Point Values
+MINSS xmm1, xmm2/m32    F3 0F 5D /r     Return Minimum Scalar Single-Precision Floating-Point Values
+DIVPS xmm1, xmm2/m128   0F 5E /r        Divide Packed Single-Precision Floating-Point Values
+DIVSS xmm1, xmm2/m32    F3 0F 5E /r     Divide Scalar Single-Precision Floating-Point Values
+MAXPS xmm1, xmm2/m128   0F 5F /r        Return Maximum Packed Single-Precision Floating-Point Values
+MAXSS xmm1, xmm2/m32    F3 0F 5F /r     Return Maximum Scalar Single-Precision Floating-Point Values
+LDMXCSR m32     0F AE /2        Load MXCSR Register State
+STMXCSR m32     0F AE /3        Store MXCSR Register State
+CMPPS xmm1, xmm2/m128, imm8     0F C2 /r ib     Compare Packed Single-Precision Floating-Point Values
+CMPSS xmm1, xmm2/m32, imm8      F3 0F C2 /r ib  Compare Scalar Single-Precision Floating-Point Values
+SHUFPS xmm1, xmm2/m128, imm8    0F C6 /r ib     Shuffle Packed Single-Precision Floating-Point Values
+The floating point single bitwise operations ANDPS, ANDNPS, ORPS and XORPS produce the same result as 
+the SSE2 integer (PAND, PANDN, POR, PXOR) and double ones (ANDPD, ANDNPD, ORPD, XORPD), but can 
+introduce extra latency for domain changes when applied values of the wrong type.[11]
+SSE2 instructions
+Added with Pentium 4
+
+SSE2 SIMD floating-point instructions
+SSE2 data movement instructions
+Instruction     Opcode  Meaning
+MOVAPD xmm1, xmm2/m128  66 0F 28 /r     Move Aligned Packed Double-Precision Floating-Point Values
+MOVAPD xmm2/m128, xmm1  66 0F 29 /r     Move Aligned Packed Double-Precision Floating-Point Values
+MOVNTPD m128, xmm1      66 0F 2B /r     Store Packed Double-Precision Floating-Point Values Using Non-Temporal Hint
+MOVHPD xmm1, m64        66 0F 16 /r     Move High Packed Double-Precision Floating-Point Value
+MOVHPD m64, xmm1        66 0F 17 /r     Move High Packed Double-Precision Floating-Point Value
+MOVLPD xmm1, m64        66 0F 12 /r     Move Low Packed Double-Precision Floating-Point Value
+MOVLPD m64, xmm1        66 0F 13/r      Move Low Packed Double-Precision Floating-Point Value
+MOVUPD xmm1, xmm2/m128  66 0F 10 /r     Move Unaligned Packed Double-Precision Floating-Point Values
+MOVUPD xmm2/m128, xmm1  66 0F 11 /r     Move Unaligned Packed Double-Precision Floating-Point Values
+MOVMSKPD reg, xmm       66 0F 50 /r     Extract Packed Double-Precision Floating-Point Sign Mask
+MOVSD* xmm1, xmm2/m64   F2 0F 10 /r     Move or Merge Scalar Double-Precision Floating-Point Value
+MOVSD xmm1/m64, xmm2    F2 0F 11 /r     Move or Merge Scalar Double-Precision Floating-Point Value
+SSE2 packed arithmetic instructions
+Instruction     Opcode  Meaning
+ADDPD xmm1, xmm2/m128   66 0F 58 /r     Add Packed Double-Precision Floating-Point Values
+ADDSD xmm1, xmm2/m64    F2 0F 58 /r     Add Low Double-Precision Floating-Point Value
+DIVPD xmm1, xmm2/m128   66 0F 5E /r     Divide Packed Double-Precision Floating-Point Values
+DIVSD xmm1, xmm2/m64    F2 0F 5E /r     Divide Scalar Double-Precision Floating-Point Value
+MAXPD xmm1, xmm2/m128   66 0F 5F /r     Maximum of Packed Double-Precision Floating-Point Values
+MAXSD xmm1, xmm2/m64    F2 0F 5F /r     Return Maximum Scalar Double-Precision Floating-Point Value
+MINPD xmm1, xmm2/m128   66 0F 5D /r     Minimum of Packed Double-Precision Floating-Point Values
+MINSD xmm1, xmm2/m64    F2 0F 5D /r     Return Minimum Scalar Double-Precision Floating-Point Value
+MULPD xmm1, xmm2/m128   66 0F 59 /r     Multiply Packed Double-Precision Floating-Point Values
+MULSD xmm1,xmm2/m64     F2 0F 59 /r     Multiply Scalar Double-Precision Floating-Point Value
+SQRTPD xmm1, xmm2/m128  66 0F 51 /r     Square Root of Double-Precision Floating-Point Values
+SQRTSD xmm1,xmm2/m64    F2 0F 51/r      Compute Square Root of Scalar Double-Precision Floating-Point Value
+SUBPD xmm1, xmm2/m128   66 0F 5C /r     Subtract Packed Double-Precision Floating-Point Values
+SUBSD xmm1, xmm2/m64    F2 0F 5C /r     Subtract Scalar Double-Precision Floating-Point Value
+SSE2 logical instructions
+Instruction     Opcode  Meaning
+ANDPD xmm1, xmm2/m128   66 0F 54 /r     Bitwise Logical AND of Packed Double Precision Floating-Point Values
+ANDNPD xmm1, xmm2/m128  66 0F 55 /r     Bitwise Logical AND NOT of Packed Double Precision Floating-Point Values
+ORPD xmm1, xmm2/m128    66 0F 56/r      Bitwise Logical OR of Packed Double Precision Floating-Point Values
+XORPD xmm1, xmm2/m128   66 0F 57/r      Bitwise Logical XOR of Packed Double Precision Floating-Point Values
+SSE2 compare instructions
+Instruction     Opcode  Meaning
+CMPPD xmm1, xmm2/m128, imm8     66 0F C2 /r ib  Compare Packed Double-Precision Floating-Point Values
+CMPSD* xmm1, xmm2/m64, imm8     F2 0F C2 /r ib  Compare Low Double-Precision Floating-Point Values
+COMISD xmm1, xmm2/m64   66 0F 2F /r     Compare Scalar Ordered Double-Precision Floating-Point Values and Set EFLAGS
+UCOMISD xmm1, xmm2/m64  66 0F 2E /r     Unordered Compare Scalar Double-Precision Floating-Point Values and Set EFLAGS
+SSE2 shuffle and unpack instructions
+Instruction     Opcode  Meaning
+SHUFPD xmm1, xmm2/m128, imm8    66 0F C6 /r ib  Packed Interleave Shuffle of Pairs of Double-Precision Floating-Point Values
+UNPCKHPD xmm1, xmm2/m128        66 0F 15 /r     Unpack and Interleave High Packed Double-Precision Floating-Point Values
+UNPCKLPD xmm1, xmm2/m128        66 0F 14 /r     Unpack and Interleave Low Packed Double-Precision Floating-Point Values
+SSE2 conversion instructions
+Instruction     Opcode  Meaning
+CVTDQ2PD xmm1, xmm2/m64 F3 0F E6 /r     Convert Packed Doubleword Integers to Packed Double-Precision Floating-Point Values
+CVTDQ2PS xmm1, xmm2/m128        0F 5B /r        Convert Packed Doubleword Integers to Packed Single-Precision Floating-Point Values
+CVTPD2DQ xmm1, xmm2/m128        F2 0F E6 /r     Convert Packed Double-Precision Floating-Point Values to Packed Doubleword Integers
+CVTPD2PI mm, xmm/m128   66 0F 2D /r     Convert Packed Double-Precision FP Values to Packed Dword Integers
+CVTPD2PS xmm1, xmm2/m128        66 0F 5A /r     Convert Packed Double-Precision Floating-Point Values to Packed Single-Precision Floating-Point Values
+CVTPI2PD xmm, mm/m64    66 0F 2A /r     Convert Packed Dword Integers to Packed Double-Precision FP Values
+CVTPS2DQ xmm1, xmm2/m128        66 0F 5B /r     Convert Packed Single-Precision Floating-Point Values to Packed Signed Doubleword Integer Values
+CVTPS2PD xmm1, xmm2/m64 0F 5A /r        Convert Packed Single-Precision Floating-Point Values to Packed Double-Precision Floating-Point Values
+CVTSD2SI r32, xmm1/m64  F2 0F 2D /r     Convert Scalar Double-Precision Floating-Point Value to Doubleword Integer
+CVTSD2SI r64, xmm1/m64  F2 REX.W 0F 2D /r       Convert Scalar Double-Precision Floating-Point Value to Quadword Integer With Sign Extension
+CVTSD2SS xmm1, xmm2/m64 F2 0F 5A /r     Convert Scalar Double-Precision Floating-Point Value to Scalar Single-Precision Floating-Point Value
+CVTSI2SD xmm1, r32/m32  F2 0F 2A /r     Convert Doubleword Integer to Scalar Double-Precision Floating-Point Value
+CVTSI2SD xmm1, r/m64    F2 REX.W 0F 2A /r       Convert Quadword Integer to Scalar Double-Precision Floating-Point value
+CVTSS2SD xmm1, xmm2/m32 F3 0F 5A /r     Convert Scalar Single-Precision Floating-Point Value to Scalar Double-Precision Floating-Point Value
+CVTTPD2DQ xmm1, xmm2/m128       66 0F E6 /r     Convert with Truncation Packed Double-Precision Floating-Point Values to Packed Doubleword Integers
+CVTTPD2PI mm, xmm/m128  66 0F 2C /r     Convert with Truncation Packed Double-Precision FP Values to Packed Dword Integers
+CVTTPS2DQ xmm1, xmm2/m128       F3 0F 5B /r     Convert with Truncation Packed Single-Precision Floating-Point Values to Packed Signed Doubleword Integer Values
+CVTTSD2SI r32, xmm1/m64 F2 0F 2C /r     Convert with Truncation Scalar Double-Precision Floating-Point Value to Signed Dword Integer
+CVTTSD2SI r64, xmm1/m64 F2 REX.W 0F 2C /r       Convert with Truncation Scalar Double-Precision Floating-Point Value To Signed Qword Integer
+CMPSD and MOVSD have the same name as the string instruction mnemonics CMPSD (CMPS) and MOVSD (MOVS); however, the former refer to scalar double-precision floating-points whereas the latters refer to doubleword strings.
+SSE2 SIMD integer instructions
+SSE2 MMX-like instructions extended to SSE registers
+SSE2 allows execution of MMX instructions on SSE registers, processing twice the amount of data at once.
+
+Instruction     Opcode  Meaning
+MOVD xmm, r/m32 66 0F 6E /r     Move doubleword
+MOVD r/m32, xmm 66 0F 7E /r     Move doubleword
+MOVQ xmm1, xmm2/m64     F3 0F 7E /r     Move quadword
+MOVQ xmm2/m64, xmm1     66 0F D6 /r     Move quadword
+MOVQ r/m64, xmm 66 REX.W 0F 7E /r       Move quadword
+MOVQ xmm, r/m64 66 REX.W 0F 6E /r       Move quadword
+PMOVMSKB reg, xmm       66 0F D7 /r     Move a byte mask, zeroing the upper bits of the register
+PEXTRW reg, xmm, imm8   66 0F C5 /r ib  Extract specified word and move it to reg, setting bits 15-0 and zeroing the rest
+PINSRW xmm, r32/m16, imm8       66 0F C4 /r ib  Move low word at the specified word position
+PACKSSDW xmm1, xmm2/m128        66 0F 6B /r     Converts 4 packed signed doubleword integers into 8 packed signed word integers with saturation
+PACKSSWB xmm1, xmm2/m128        66 0F 63 /r     Converts 8 packed signed word integers into 16 packed signed byte integers with saturation
+PACKUSWB xmm1, xmm2/m128        66 0F 67 /r     Converts 8 signed word integers into 16 unsigned byte integers with saturation
+PADDB xmm1, xmm2/m128   66 0F FC /r     Add packed byte integers
+PADDW xmm1, xmm2/m128   66 0F FD /r     Add packed word integers
+PADDD xmm1, xmm2/m128   66 0F FE /r     Add packed doubleword integers
+PADDQ xmm1, xmm2/m128   66 0F D4 /r     Add packed quadword integers.
+PADDSB xmm1, xmm2/m128  66 0F EC /r     Add packed signed byte integers with saturation
+PADDSW xmm1, xmm2/m128  66 0F ED /r     Add packed signed word integers with saturation
+PADDUSB xmm1, xmm2/m128 66 0F DC /r     Add packed unsigned byte integers with saturation
+PADDUSW xmm1, xmm2/m128 66 0F DD /r     Add packed unsigned word integers with saturation
+PAND xmm1, xmm2/m128    66 0F DB /r     Bitwise AND
+PANDN xmm1, xmm2/m128   66 0F DF /r     Bitwise AND NOT
+POR xmm1, xmm2/m128     66 0F EB /r     Bitwise OR
+PXOR xmm1, xmm2/m128    66 0F EF /r     Bitwise XOR
+PCMPEQB xmm1, xmm2/m128 66 0F 74 /r     Compare packed bytes for equality.
+PCMPEQW xmm1, xmm2/m128 66 0F 75 /r     Compare packed words for equality.
+PCMPEQD xmm1, xmm2/m128 66 0F 76 /r     Compare packed doublewords for equality.
+PCMPGTB xmm1, xmm2/m128 66 0F 64 /r     Compare packed signed byte integers for greater than
+PCMPGTW xmm1, xmm2/m128 66 0F 65 /r     Compare packed signed word integers for greater than
+PCMPGTD xmm1, xmm2/m128 66 0F 66 /r     Compare packed signed doubleword integers for greater than
+PMULLW xmm1, xmm2/m128  66 0F D5 /r     Multiply packed signed word integers with saturation
+PMULHW xmm1, xmm2/m128  66 0F E5 /r     Multiply the packed signed word integers, store the high 16 bits of the results
+PMULHUW xmm1, xmm2/m128 66 0F E4 /r     Multiply packed unsigned word integers, store the high 16 bits of the results
+PMULUDQ xmm1, xmm2/m128 66 0F F4 /r     Multiply packed unsigned doubleword integers
+PSLLW xmm1, xmm2/m128   66 0F F1 /r     Shift words left while shifting in 0s
+PSLLW xmm1, imm8        66 0F 71 /6 ib  Shift words left while shifting in 0s
+PSLLD xmm1, xmm2/m128   66 0F F2 /r     Shift doublewords left while shifting in 0s
+PSLLD xmm1, imm8        66 0F 72 /6 ib  Shift doublewords left while shifting in 0s
+PSLLQ xmm1, xmm2/m128   66 0F F3 /r     Shift quadwords left while shifting in 0s
+PSLLQ xmm1, imm8        66 0F 73 /6 ib  Shift quadwords left while shifting in 0s
+PSRAD xmm1, xmm2/m128   66 0F E2 /r     Shift doubleword right while shifting in sign bits
+PSRAD xmm1, imm8        66 0F 72 /4 ib  Shift doublewords right while shifting in sign bits
+PSRAW xmm1, xmm2/m128   66 0F E1 /r     Shift words right while shifting in sign bits
+PSRAW xmm1, imm8        66 0F 71 /4 ib  Shift words right while shifting in sign bits
+PSRLW xmm1, xmm2/m128   66 0F D1 /r     Shift words right while shifting in 0s
+PSRLW xmm1, imm8        66 0F 71 /2 ib  Shift words right while shifting in 0s
+PSRLD xmm1, xmm2/m128   66 0F D2 /r     Shift doublewords right while shifting in 0s
+PSRLD xmm1, imm8        66 0F 72 /2 ib  Shift doublewords right while shifting in 0s
+PSRLQ xmm1, xmm2/m128   66 0F D3 /r     Shift quadwords right while shifting in 0s
+PSRLQ xmm1, imm8        66 0F 73 /2 ib  Shift quadwords right while shifting in 0s
+PSUBB xmm1, xmm2/m128   66 0F F8 /r     Subtract packed byte integers
+PSUBW xmm1, xmm2/m128   66 0F F9 /r     Subtract packed word integers
+PSUBD xmm1, xmm2/m128   66 0F FA /r     Subtract packed doubleword integers
+PSUBQ xmm1, xmm2/m128   66 0F FB /r     Subtract packed quadword integers.
+PSUBSB xmm1, xmm2/m128  66 0F E8 /r     Subtract packed signed byte integers with saturation
+PSUBSW xmm1, xmm2/m128  66 0F E9 /r     Subtract packed signed word integers with saturation
+PMADDWD xmm1, xmm2/m128 66 0F F5 /r     Multiply the packed word integers, add adjacent doubleword results
+PSUBUSB xmm1, xmm2/m128 66 0F D8 /r     Subtract packed unsigned byte integers with saturation
+PSUBUSW xmm1, xmm2/m128 66 0F D9 /r     Subtract packed unsigned word integers with saturation
+PUNPCKHBW xmm1, xmm2/m128       66 0F 68 /r     Unpack and interleave high-order bytes
+PUNPCKHWD xmm1, xmm2/m128       66 0F 69 /r     Unpack and interleave high-order words
+PUNPCKHDQ xmm1, xmm2/m128       66 0F 6A /r     Unpack and interleave high-order doublewords
+PUNPCKLBW xmm1, xmm2/m128       66 0F 60 /r     Interleave low-order bytes
+PUNPCKLWD xmm1, xmm2/m128       66 0F 61 /r     Interleave low-order words
+PUNPCKLDQ xmm1, xmm2/m128       66 0F 62 /r     Interleave low-order doublewords
+PAVGB xmm1, xmm2/m128   66 0F E0, /r    Average packed unsigned byte integers with rounding
+PAVGW xmm1, xmm2/m128   66 0F E3 /r     Average packed unsigned word integers with rounding
+PMINUB xmm1, xmm2/m128  66 0F DA /r     Compare packed unsigned byte integers and store packed minimum values
+PMINSW xmm1, xmm2/m128  66 0F EA /r     Compare packed signed word integers and store packed minimum values
+PMAXSW xmm1, xmm2/m128  66 0F EE /r     Compare packed signed word integers and store maximum packed values
+PMAXUB xmm1, xmm2/m128  66 0F DE /r     Compare packed unsigned byte integers and store packed maximum values
+PSADBW xmm1, xmm2/m128  66 0F F6 /r     Computes the absolute differences of the packed unsigned byte integers; the 8 low differences and 8 high differences are then summed separately to produce two unsigned word integer results
+SSE2 integer instructions for SSE registers only
+The following instructions can be used only on SSE registers, since by their nature they do not work on MMX registers
+
+Instruction     Opcode  Meaning
+MASKMOVDQU xmm1, xmm2   66 0F F7 /r     Non-Temporal Store of Selected Bytes from an XMM Register into Memory
+MOVDQ2Q mm, xmm F2 0F D6 /r     Move low quadword from XMM to MMX register.
+MOVDQA xmm1, xmm2/m128  66 0F 6F /r     Move aligned double quadword
+MOVDQA xmm2/m128, xmm1  66 0F 7F /r     Move aligned double quadword
+MOVDQU xmm1, xmm2/m128  F3 0F 6F /r     Move unaligned double quadword
+MOVDQU xmm2/m128, xmm1  F3 0F 7F /r     Move unaligned double quadword
+MOVQ2DQ xmm, mm F3 0F D6 /r     Move quadword from MMX register to low quadword of XMM register
+MOVNTDQ m128, xmm1      66 0F E7 /r     Store Packed Integers Using Non-Temporal Hint
+PSHUFHW xmm1, xmm2/m128, imm8   F3 0F 70 /r ib  Shuffle packed high words.
+PSHUFLW xmm1, xmm2/m128, imm8   F2 0F 70 /r ib  Shuffle packed low words.
+PSHUFD xmm1, xmm2/m128, imm8    66 0F 70 /r ib  Shuffle packed doublewords.
+PSLLDQ xmm1, imm8       66 0F 73 /7 ib  Packed shift left logical double quadwords.
+PSRLDQ xmm1, imm8       66 0F 73 /3 ib  Packed shift right logical double quadwords.
+PUNPCKHQDQ xmm1, xmm2/m128      66 0F 6D /r     Unpack and interleave high-order quadwords,
+PUNPCKLQDQ xmm1, xmm2/m128      66 0F 6C /r     Interleave low quadwords,
+SSE3 instructions
+Added with Pentium 4 supporting SSE3
+
+SSE3 SIMD floating-point instructions
+Instruction     Opcode  Meaning Notes
+ADDSUBPS xmm1, xmm2/m128        F2 0F D0 /r     Add/subtract single-precision floating-point values     for Complex Arithmetic
+ADDSUBPD xmm1, xmm2/m128        66 0F D0 /r     Add/subtract double-precision floating-point values
+MOVDDUP xmm1, xmm2/m64  F2 0F 12 /r     Move double-precision floating-point value and duplicate
+MOVSLDUP xmm1, xmm2/m128        F3 0F 12 /r     Move and duplicate even index single-precision floating-point values
+MOVSHDUP xmm1, xmm2/m128        F3 0F 16 /r     Move and duplicate odd index single-precision floating-point values
+HADDPS xmm1, xmm2/m128  F2 0F 7C /r     Horizontal add packed single-precision floating-point values    for Graphics
+HADDPD xmm1, xmm2/m128  66 0F 7C /r     Horizontal add packed double-precision floating-point values
+HSUBPS xmm1, xmm2/m128  F2 0F 7D /r     Horizontal subtract packed single-precision floating-point values
+HSUBPD xmm1, xmm2/m128  66 0F 7D /r     Horizontal subtract packed double-precision floating-point values
+SSE3 SIMD integer instructions
+Instruction     Opcode  Meaning Notes
+LDDQU xmm1, mem F2 0F F0 /r     Load unaligned data and return double quadword  Instructionally equivalent to MOVDQU. For video encoding
+SSSE3 instructions
+Added with Xeon 5100 series and initial Core 2
+
+The following MMX-like instructions extended to SSE registers were added with SSSE3
+
+Instruction     Opcode  Meaning
+PSIGNB xmm1, xmm2/m128  66 0F 38 08 /r  Negate/zero/preserve packed byte integers depending on corresponding sign
+PSIGNW xmm1, xmm2/m128  66 0F 38 09 /r  Negate/zero/preserve packed word integers depending on corresponding sign
+PSIGND xmm1, xmm2/m128  66 0F 38 0A /r  Negate/zero/preserve packed doubleword integers depending on corresponding
+PSHUFB xmm1, xmm2/m128  66 0F 38 00 /r  Shuffle bytes
+PMULHRSW xmm1, xmm2/m128        66 0F 38 0B /r  Multiply 16-bit signed words, scale and round signed doublewords, pack high 16 bits
+PMADDUBSW xmm1, xmm2/m128       66 0F 38 04 /r  Multiply signed and unsigned bytes, add horizontal pair of signed words, pack saturated signed-words
+PHSUBW xmm1, xmm2/m128  66 0F 38 05 /r  Subtract and pack 16-bit signed integers horizontally
+PHSUBSW xmm1, xmm2/m128 66 0F 38 07 /r  Subtract and pack 16-bit signed integer horizontally with saturation
+PHSUBD xmm1, xmm2/m128  66 0F 38 06 /r  Subtract and pack 32-bit signed integers horizontally
+PHADDSW xmm1, xmm2/m128 66 0F 38 03 /r  Add and pack 16-bit signed integers horizontally with saturation
+PHADDW xmm1, xmm2/m128  66 0F 38 01 /r  Add and pack 16-bit integers horizontally
+PHADDD xmm1, xmm2/m128  66 0F 38 02 /r  Add and pack 32-bit integers horizontally
+PALIGNR xmm1, xmm2/m128, imm8   66 0F 3A 0F /r ib       Concatenate destination and source operands, extract byte-aligned result shifted to the right
+PABSB xmm1, xmm2/m128   66 0F 38 1C /r  Compute the absolute value of bytes and store unsigned result
+PABSW xmm1, xmm2/m128   66 0F 38 1D /r  Compute the absolute value of 16-bit integers and store unsigned result
+PABSD xmm1, xmm2/m128   66 0F 38 1E /r  Compute the absolute value of 32-bit integers and store unsigned result
+SSE4 instructions
+SSE4.1
+Added with Core 2 manufactured in 45nm
+
+SSE4.1 SIMD floating-point instructions
+Instruction     Opcode  Meaning
+DPPS xmm1, xmm2/m128, imm8      66 0F 3A 40 /r ib       Selectively multiply packed SP floating-point values, add and selectively store
+DPPD xmm1, xmm2/m128, imm8      66 0F 3A 41 /r ib       Selectively multiply packed DP floating-point values, add and selectively store
+BLENDPS xmm1, xmm2/m128, imm8   66 0F 3A 0C /r ib       Select packed single precision floating-point values from specified mask
+BLENDVPS xmm1, xmm2/m128,       66 0F 38 14 /r  Select packed single precision floating-point values from specified mask
+BLENDPD xmm1, xmm2/m128, imm8   66 0F 3A 0D /r ib       Select packed DP-FP values from specified mask
+BLENDVPD xmm1, xmm2/m128 ,      66 0F 38 15 /r  Select packed DP FP values from specified mask
+ROUNDPS xmm1, xmm2/m128, imm8   66 0F 3A 08 /r ib       Round packed single precision floating-point values
+ROUNDSS xmm1, xmm2/m32, imm8    66 0F 3A 0A /r ib       Round the low packed single precision floating-point value
+ROUNDPD xmm1, xmm2/m128, imm8   66 0F 3A 09 /r ib       Round packed double precision floating-point values
+ROUNDSD xmm1, xmm2/m64, imm8    66 0F 3A 0B /r ib       Round the low packed double precision floating-point value
+INSERTPS xmm1, xmm2/m32, imm8   66 0F 3A 21 /r ib       Insert a selected single-precision floating-point value at the specified destination element and zero out destination elements
+EXTRACTPS reg/m32, xmm1, imm8   66 0F 3A 17 /r ib       Extract one single-precision floating-point value at specified offset and store the result (zero-extended, if applicable)
+SSE4.1 SIMD integer instructions
+Instruction     Opcode  Meaning
+MPSADBW xmm1, xmm2/m128, imm8   66 0F 3A 42 /r ib       Sums absolute 8-bit integer difference of adjacent groups of 4 byte integers with starting offset
+PHMINPOSUW xmm1, xmm2/m128      66 0F 38 41 /r  Find the minimum unsigned word
+PMULLD xmm1, xmm2/m128  66 0F 38 40 /r  Multiply the packed dword signed integers and store the low 32 bits
+PMULDQ xmm1, xmm2/m128  66 0F 38 28 /r  Multiply packed signed doubleword integers and store quadword result
+PBLENDVB xmm1, xmm2/m128,       66 0F 38 10 /r  Select byte values from specified mask
+PBLENDW xmm1, xmm2/m128, imm8   66 0F 3A 0E /r ib       Select words from specified mask
+PMINSB xmm1, xmm2/m128  66 0F 38 38 /r  Compare packed signed byte integers
+PMINUW xmm1, xmm2/m128  66 0F 38 3A/r   Compare packed unsigned word integers
+PMINSD xmm1, xmm2/m128  66 0F 38 39 /r  Compare packed signed dword integers
+PMINUD xmm1, xmm2/m128  66 0F 38 3B /r  Compare packed unsigned dword integers
+PMAXSB xmm1, xmm2/m128  66 0F 38 3C /r  Compare packed signed byte integers
+PMAXUW xmm1, xmm2/m128  66 0F 38 3E/r   Compare packed unsigned word integers
+PMAXSD xmm1, xmm2/m128  66 0F 38 3D /r  Compare packed signed dword integers
+PMAXUD xmm1, xmm2/m128  66 0F 38 3F /r  Compare packed unsigned dword integers
+PINSRB xmm1, r32/m8, imm8       66 0F 3A 20 /r ib       Insert a byte integer value at specified destination element
+PINSRD xmm1, r/m32, imm8        66 0F 3A 22 /r ib       Insert a dword integer value at specified destination element
+PINSRQ xmm1, r/m64, imm8        66 REX.W 0F 3A 22 /r ib Insert a qword integer value at specified destination element
+PEXTRB reg/m8, xmm2, imm8       66 0F 3A 14 /r ib       Extract a byte integer value at source byte offset, upper bits are zeroed.
+PEXTRW reg/m16, xmm, imm8       66 0F 3A 15 /r ib       Extract word and copy to lowest 16 bits, zero-extended
+PEXTRD r/m32, xmm2, imm8        66 0F 3A 16 /r ib       Extract a dword integer value at source dword offset
+PEXTRQ r/m64, xmm2, imm8        66 REX.W 0F 3A 16 /r ib Extract a qword integer value at source qword offset
+PMOVSXBW xmm1, xmm2/m64 66 0f 38 20 /r  Sign extend 8 packed 8-bit integers to 8 packed 16-bit integers
+PMOVZXBW xmm1, xmm2/m64 66 0f 38 30 /r  Zero extend 8 packed 8-bit integers to 8 packed 16-bit integers
+PMOVSXBD xmm1, xmm2/m32 66 0f 38 21 /r  Sign extend 4 packed 8-bit integers to 4 packed 32-bit integers
+PMOVZXBD xmm1, xmm2/m32 66 0f 38 31 /r  Zero extend 4 packed 8-bit integers to 4 packed 32-bit integers
+PMOVSXBQ xmm1, xmm2/m16 66 0f 38 22 /r  Sign extend 2 packed 8-bit integers to 2 packed 64-bit integers
+PMOVZXBQ xmm1, xmm2/m16 66 0f 38 32 /r  Zero extend 2 packed 8-bit integers to 2 packed 64-bit integers
+PMOVSXWD xmm1, xmm2/m64 66 0f 38 23/r   Sign extend 4 packed 16-bit integers to 4 packed 32-bit integers
+PMOVZXWD xmm1, xmm2/m64 66 0f 38 33 /r  Zero extend 4 packed 16-bit integers to 4 packed 32-bit integers
+PMOVSXWQ xmm1, xmm2/m32 66 0f 38 24 /r  Sign extend 2 packed 16-bit integers to 2 packed 64-bit integers
+PMOVZXWQ xmm1, xmm2/m32 66 0f 38 34 /r  Zero extend 2 packed 16-bit integers to 2 packed 64-bit integers
+PMOVSXDQ xmm1, xmm2/m64 66 0f 38 25 /r  Sign extend 2 packed 32-bit integers to 2 packed 64-bit integers
+PMOVZXDQ xmm1, xmm2/m64 66 0f 38 35 /r  Zero extend 2 packed 32-bit integers to 2 packed 64-bit integers
+PTEST xmm1, xmm2/m128   66 0F 38 17 /r  Set ZF if AND result is all 0s, set CF if AND NOT result is all 0s
+PCMPEQQ xmm1, xmm2/m128 66 0F 38 29 /r  Compare packed qwords for equality
+PACKUSDW xmm1, xmm2/m128        66 0F 38 2B /r  Convert 2 × 4 packed signed doubleword integers into 8 packed unsigned word integers with saturation
+MOVNTDQA xmm1, m128     66 0F 38 2A /r  Move double quadword using non-temporal hint if WC memory type
+SSE4a
+Added with Phenom processors
+
+EXTRQ/INSERTQ
+MOVNTSD/MOVNTSS
+SSE4.2
+Added with Nehalem processors
+
+Instruction     Opcode  Meaning
+PCMPESTRI xmm1, xmm2/m128, imm8 66 0F 3A 61 /r imm8     Packed comparison of string data with explicit lengths, generating an index
+PCMPESTRM xmm1, xmm2/m128, imm8 66 0F 3A 60 /r imm8     Packed comparison of string data with explicit lengths, generating a mask
+PCMPISTRI xmm1, xmm2/m128, imm8 66 0F 3A 63 /r imm8     Packed comparison of string data with implicit lengths, generating an index
+PCMPISTRM xmm1, xmm2/m128, imm8 66 0F 3A 62 /r imm8     Packed comparison of string data with implicit lengths, generating a mask
+PCMPGTQ xmm1,xmm2/m128  66 0F 38 37 /r  Compare packed signed qwords for greater than.
+//SSE5 derived instructions
+//SSE5 was a proposed SSE extension by AMD. 
+//The bundle did not include the full set of Intel&rsquo;s SSE4 instructions, making it a competitor to SSE4 rather than a successor. 
+//AMD chose not to implement SSE5 as originally proposed, however, derived SSE extensions were introduced.
+
+XOP
+Introduced with the bulldozer processor core, removed again from Zen (microarchitecture) onward.
+
+A revision of most of the SSE5 instruction set
+
+F16C
+Half-precision floating-point conversion.
+
+Instruction     Meaning
+VCVTPH2PS xmmreg,xmmrm64        Convert four half-precision floating point values in memory or the bottom half of an XMM register to four single-precision floating-point values in an XMM register
+VCVTPH2PS ymmreg,xmmrm128       Convert eight half-precision floating point values in memory or an XMM register (the bottom half of a YMM register) to eight single-precision floating-point values in a YMM register
+VCVTPS2PH xmmrm64,xmmreg,imm8   Convert four single-precision floating point values in an XMM register to half-precision floating-point values in memory or the bottom half an XMM register
+VCVTPS2PH xmmrm128,ymmreg,imm8  Convert eight single-precision floating point values in a YMM register to half-precision floating-point values in memory or an XMM register
+FMA3
+Supported in AMD processors starting with the Piledriver architecture and Intel starting with Haswell processors and Broadwell processors since 2014.
+
+Fused multiply-add (floating-point vector multiply?accumulate) with three operands.
+
+Instruction     Meaning
+VFMADD132PD     Fused Multiply-Add of Packed Double-Precision Floating-Point Values
+VFMADD213PD     Fused Multiply-Add of Packed Double-Precision Floating-Point Values
+VFMADD231PD     Fused Multiply-Add of Packed Double-Precision Floating-Point Values
+VFMADD132PS     Fused Multiply-Add of Packed Single-Precision Floating-Point Values
+VFMADD213PS     Fused Multiply-Add of Packed Single-Precision Floating-Point Values
+VFMADD231PS     Fused Multiply-Add of Packed Single-Precision Floating-Point Values
+VFMADD132SD     Fused Multiply-Add of Scalar Double-Precision Floating-Point Values
+VFMADD213SD     Fused Multiply-Add of Scalar Double-Precision Floating-Point Values
+VFMADD231SD     Fused Multiply-Add of Scalar Double-Precision Floating-Point Values
+VFMADD132SS     Fused Multiply-Add of Scalar Single-Precision Floating-Point Values
+VFMADD213SS     Fused Multiply-Add of Scalar Single-Precision Floating-Point Values
+VFMADD231SS     Fused Multiply-Add of Scalar Single-Precision Floating-Point Values
+VFMADDSUB132PD  Fused Multiply-Alternating Add/Subtract of Packed Double-Precision Floating-Point Values
+VFMADDSUB213PD  Fused Multiply-Alternating Add/Subtract of Packed Double-Precision Floating-Point Values
+VFMADDSUB231PD  Fused Multiply-Alternating Add/Subtract of Packed Double-Precision Floating-Point Values
+VFMADDSUB132PS  Fused Multiply-Alternating Add/Subtract of Packed Single-Precision Floating-Point Values
+VFMADDSUB213PS  Fused Multiply-Alternating Add/Subtract of Packed Single-Precision Floating-Point Values
+VFMADDSUB231PS  Fused Multiply-Alternating Add/Subtract of Packed Single-Precision Floating-Point Values
+VFMSUB132PD     Fused Multiply-Subtract of Packed Double-Precision Floating-Point Values
+VFMSUB213PD     Fused Multiply-Subtract of Packed Double-Precision Floating-Point Values
+VFMSUB231PD     Fused Multiply-Subtract of Packed Double-Precision Floating-Point Values
+VFMSUB132PS     Fused Multiply-Subtract of Packed Single-Precision Floating-Point Values
+VFMSUB213PS     Fused Multiply-Subtract of Packed Single-Precision Floating-Point Values
+VFMSUB231PS     Fused Multiply-Subtract of Packed Single-Precision Floating-Point Values
+VFMSUB132SD     Fused Multiply-Subtract of Scalar Double-Precision Floating-Point Values
+VFMSUB213SD     Fused Multiply-Subtract of Scalar Double-Precision Floating-Point Values
+VFMSUB231SD     Fused Multiply-Subtract of Scalar Double-Precision Floating-Point Values
+VFMSUB132SS     Fused Multiply-Subtract of Scalar Single-Precision Floating-Point Values
+VFMSUB213SS     Fused Multiply-Subtract of Scalar Single-Precision Floating-Point Values
+VFMSUB231SS     Fused Multiply-Subtract of Scalar Single-Precision Floating-Point Values
+VFMSUBADD132PD  Fused Multiply-Alternating Subtract/Add of Packed Double-Precision Floating-Point Values
+VFMSUBADD213PD  Fused Multiply-Alternating Subtract/Add of Packed Double-Precision Floating-Point Values
+VFMSUBADD231PD  Fused Multiply-Alternating Subtract/Add of Packed Double-Precision Floating-Point Values
+VFMSUBADD132PS  Fused Multiply-Alternating Subtract/Add of Packed Single-Precision Floating-Point Values
+VFMSUBADD213PS  Fused Multiply-Alternating Subtract/Add of Packed Single-Precision Floating-Point Values
+VFMSUBADD231PS  Fused Multiply-Alternating Subtract/Add of Packed Single-Precision Floating-Point Values
+VFNMADD132PD    Fused Negative Multiply-Add of Packed Double-Precision Floating-Point Values
+VFNMADD213PD    Fused Negative Multiply-Add of Packed Double-Precision Floating-Point Values
+VFNMADD231PD    Fused Negative Multiply-Add of Packed Double-Precision Floating-Point Values
+VFNMADD132PS    Fused Negative Multiply-Add of Packed Single-Precision Floating-Point Values
+VFNMADD213PS    Fused Negative Multiply-Add of Packed Single-Precision Floating-Point Values
+VFNMADD231PS    Fused Negative Multiply-Add of Packed Single-Precision Floating-Point Values
+VFNMADD132SD    Fused Negative Multiply-Add of Scalar Double-Precision Floating-Point Values
+VFNMADD213SD    Fused Negative Multiply-Add of Scalar Double-Precision Floating-Point Values
+VFNMADD231SD    Fused Negative Multiply-Add of Scalar Double-Precision Floating-Point Values
+VFNMADD132SS    Fused Negative Multiply-Add of Scalar Single-Precision Floating-Point Values
+VFNMADD213SS    Fused Negative Multiply-Add of Scalar Single-Precision Floating-Point Values
+VFNMADD231SS    Fused Negative Multiply-Add of Scalar Single-Precision Floating-Point Values
+VFNMSUB132PD    Fused Negative Multiply-Subtract of Packed Double-Precision Floating-Point Values
+VFNMSUB213PD    Fused Negative Multiply-Subtract of Packed Double-Precision Floating-Point Values
+VFNMSUB231PD    Fused Negative Multiply-Subtract of Packed Double-Precision Floating-Point Values
+VFNMSUB132PS    Fused Negative Multiply-Subtract of Packed Single-Precision Floating-Point Values
+VFNMSUB213PS    Fused Negative Multiply-Subtract of Packed Single-Precision Floating-Point Values
+VFNMSUB231PS    Fused Negative Multiply-Subtract of Packed Single-Precision Floating-Point Values
+VFNMSUB132SD    Fused Negative Multiply-Subtract of Scalar Double-Precision Floating-Point Values
+VFNMSUB213SD    Fused Negative Multiply-Subtract of Scalar Double-Precision Floating-Point Values
+VFNMSUB231SD    Fused Negative Multiply-Subtract of Scalar Double-Precision Floating-Point Values
+VFNMSUB132SS    Fused Negative Multiply-Subtract of Scalar Single-Precision Floating-Point Values
+VFNMSUB213SS    Fused Negative Multiply-Subtract of Scalar Single-Precision Floating-Point Values
+VFNMSUB231SS    Fused Negative Multiply-Subtract of Scalar Single-Precision Floating-Point Values
+FMA4
+Supported in AMD processors starting with the Bulldozer architecture. Not supported by any intel chip as of 2017.
+
+Fused multiply-add with four operands. FMA4 was realized in hardware before FMA3.
+
+Instruction     Opcode  Meaning Notes
+VFMADDPD xmm0, xmm1, xmm2, xmm3 C4E3 WvvvvL01 69 /r /is4        Fused Multiply-Add of Packed Double-Precision Floating-Point Values     
+VFMADDPS xmm0, xmm1, xmm2, xmm3 C4E3 WvvvvL01 68 /r /is4        Fused Multiply-Add of Packed Single-Precision Floating-Point Values     
+VFMADDSD xmm0, xmm1, xmm2, xmm3 C4E3 WvvvvL01 6B /r /is4        Fused Multiply-Add of Scalar Double-Precision Floating-Point Values     
+VFMADDSS xmm0, xmm1, xmm2, xmm3 C4E3 WvvvvL01 6A /r /is4        Fused Multiply-Add of Scalar Single-Precision Floating-Point Values     
+VFMADDSUBPD xmm0, xmm1, xmm2, xmm3      C4E3 WvvvvL01 5D /r /is4        Fused Multiply-Alternating Add/Subtract of Packed Double-Precision Floating-Point Values        
+VFMADDSUBPS xmm0, xmm1, xmm2, xmm3      C4E3 WvvvvL01 5C /r /is4        Fused Multiply-Alternating Add/Subtract of Packed Single-Precision Floating-Point Values        
+VFMSUBADDPD xmm0, xmm1, xmm2, xmm3      C4E3 WvvvvL01 5F /r /is4        Fused Multiply-Alternating Subtract/Add of Packed Double-Precision Floating-Point Values        
+VFMSUBADDPS xmm0, xmm1, xmm2, xmm3      C4E3 WvvvvL01 5E /r /is4        Fused Multiply-Alternating Subtract/Add of Packed Single-Precision Floating-Point Values        
+VFMSUBPD xmm0, xmm1, xmm2, xmm3 C4E3 WvvvvL01 6D /r /is4        Fused Multiply-Subtract of Packed Double-Precision Floating-Point Values        
+VFMSUBPS xmm0, xmm1, xmm2, xmm3 C4E3 WvvvvL01 6C /r /is4        Fused Multiply-Subtract of Packed Single-Precision Floating-Point Values        
+VFMSUBSD xmm0, xmm1, xmm2, xmm3 C4E3 WvvvvL01 6F /r /is4        Fused Multiply-Subtract of Scalar Double-Precision Floating-Point Values        
+VFMSUBSS xmm0, xmm1, xmm2, xmm3 C4E3 WvvvvL01 6E /r /is4        Fused Multiply-Subtract of Scalar Single-Precision Floating-Point Values        
+VFNMADDPD xmm0, xmm1, xmm2, xmm3        C4E3 WvvvvL01 79 /r /is4        Fused Negative Multiply-Add of Packed Double-Precision Floating-Point Values    
+VFNMADDPS xmm0, xmm1, xmm2, xmm3        C4E3 WvvvvL01 78 /r /is4        Fused Negative Multiply-Add of Packed Single-Precision Floating-Point Values    
+VFNMADDSD xmm0, xmm1, xmm2, xmm3        C4E3 WvvvvL01 7B /r /is4        Fused Negative Multiply-Add of Scalar Double-Precision Floating-Point Values    
+VFNMADDSS xmm0, xmm1, xmm2, xmm3        C4E3 WvvvvL01 7A /r /is4        Fused Negative Multiply-Add of Scalar Single-Precision Floating-Point Values    
+VFNMSUBPD xmm0, xmm1, xmm2, xmm3        C4E3 WvvvvL01 7D /r /is4        Fused Negative Multiply-Subtract of Packed Double-Precision Floating-Point Values       
+VFNMSUBPS xmm0, xmm1, xmm2, xmm3        C4E3 WvvvvL01 7C /r /is4        Fused Negative Multiply-Subtract of Packed Single-Precision Floating-Point Values       
+VFNMSUBSD xmm0, xmm1, xmm2, xmm3        C4E3 WvvvvL01 7F /r /is4        Fused Negative Multiply-Subtract of Scalar Double-Precision Floating-Point Values       
+VFNMSUBSS xmm0, xmm1, xmm2, xmm3        C4E3 WvvvvL01 7E /r /is4        Fused Negative Multiply-Subtract of Scalar Single-Precision Floating-Point Values       
+AVX
+AVX were first supported by Intel with Sandy Bridge and by AMD with Bulldozer.
+
+Vector operations on 256 bit registers.
+
+Instruction     Description
+VBROADCASTSS    Copy a 32-bit, 64-bit or 128-bit memory operand to all elements of a XMM or YMM vector register.
+VBROADCASTSD
+VBROADCASTF128
+VINSERTF128     Replaces either the lower half or the upper half of a 256-bit YMM register with the value of a 128-bit source operand. The other half of the destination is unchanged.
+VEXTRACTF128    Extracts either the lower half or the upper half of a 256-bit YMM register and copies the value to a 128-bit destination operand.
+VMASKMOVPS      Conditionally reads any number of elements from a SIMD vector memory operand into a destination register, leaving the remaining 
+                vector elements unread and setting the corresponding elements in the destination register to zero. 
+                Alternatively, conditionally writes any number of elements from a SIMD vector register operand to a vector memory operand, leaving 
+                the remaining elements of the memory operand unchanged. 
+                On the AMD Jaguar processor architecture, this instruction with a memory source operand takes more than 300 clock cycles when the mask is zero, 
+                in which case the instruction should do nothing. This appears to be a design flaw.[12]
+VMASKMOVPD
+VPERMILPS       Permute In-Lane. Shuffle the 32-bit or 64-bit vector elements of one input operand. These are in-lane 256-bit instructions, meaning that 
+                they operate on all 256 bits with two separate 128-bit shuffles, so they can not shuffle across the 128-bit lanes.[13]
+VPERMILPD
+VPERM2F128      Shuffle the four 128-bit vector elements of two 256-bit source operands into a 256-bit destination operand, with an immediate constant as selector.
+VZEROALL        Set all YMM registers to zero and tag them as unused. Used when switching between 128-bit use and 256-bit use.
+VZEROUPPER      Set the upper half of all YMM registers to zero. Used when switching between 128-bit use and 256-bit use.
+AVX2
+Introduced in Intel&rsquo;s Haswell microarchitecture and AMD&rsquo;s Excavator.
+
+Expansion of most vector integer SSE and AVX instructions to 256 bits
+
+Instruction     Description
+VBROADCASTSS    Copy a 32-bit or 64-bit register operand to all elements of a XMM or YMM vector register. 
+                These are register versions of the same instructions in AVX1. 
+                There is no 128-bit version however, but the same effect can be simply achieved using VINSERTF128.
+VBROADCASTSD
+VPBROADCASTB    Copy an 8, 16, 32 or 64-bit integer register or memory operand to all elements of a XMM or YMM vector register.
+VPBROADCASTW
+VPBROADCASTD
+VPBROADCASTQ
+VBROADCASTI128  Copy a 128-bit memory operand to all elements of a YMM vector register.
+VINSERTI128     Replaces either the lower half or the upper half of a 256-bit YMM register with the value of a 128-bit source operand. The other half of the destination is unchanged.
+VEXTRACTI128    Extracts either the lower half or the upper half of a 256-bit YMM register and copies the value to a 128-bit destination operand.
+VGATHERDPD      Gathers single or double precision floating point values using either 32 or 64-bit indices and scale.
+VGATHERQPD
+VGATHERDPS
+VGATHERQPS
+VPGATHERDD      Gathers 32 or 64-bit integer values using either 32 or 64-bit indices and scale.
+VPGATHERDQ
+VPGATHERQD
+VPGATHERQQ
+VPMASKMOVD      Conditionally reads any number of elements from a SIMD vector memory operand into a destination register, leaving the remaining vector elements 
+                unread and setting the corresponding elements in the destination register to zero. Alternatively, conditionally writes any number of elements 
+                from a SIMD vector register operand to a vector memory operand, leaving the remaining elements of the memory operand unchanged.
+VPMASKMOVQ
+VPERMPS Shuffle the eight 32-bit vector elements of one 256-bit source operand into a 256-bit destination operand, with a register or memory operand as selector.
+VPERMD
+VPERMPD Shuffle the four 64-bit vector elements of one 256-bit source operand into a 256-bit destination operand, with a register or memory operand as selector.
+VPERMQ
+VPERM2I128      Shuffle (two of) the four 128-bit vector elements of two 256-bit source operands into a 256-bit destination operand, with an immediate constant as selector.
+VPBLENDD        Doubleword immediate version of the PBLEND instructions from SSE4.
+VPSLLVD Shift left logical. Allows variable shifts where each element is shifted according to the packed input.
+VPSLLVQ
+VPSRLVD Shift right logical. Allows variable shifts where each element is shifted according to the packed input.
+VPSRLVQ
+VPSRAVD Shift right arithmetically. Allows variable shifts where each element is shifted according to the packed input.
+AVX-512
+Introduced in Intel&rsquo;s Xeon Phi x200
+
+Vector operations on 512 bit registers.
+
+AVX-512 foundation
+Instruction     Description
+VBLENDMPD       Blend float64 vectors using opmask control
+VBLENDMPS       Blend float32 vectors using opmask control
+VPBLENDMD       Blend int32 vectors using opmask control
+VPBLENDMQ       Blend int64 vectors using opmask control
+VPCMPD  Compare signed/unsigned doublewords into mask
+VPCMPUD
+VPCMPQ  Compare signed/unsigned quadwords into mask
+VPCMPUQ
+VPTESTMD        Logical AND and set mask for 32 or 64 bit integers.
+VPTESTMQ
+VPTESTNMD       Logical NAND and set mask for 32 or 64 bit integers.
+VPTESTNMQ
+VCOMPRESSPD     Store sparse packed double/single-precision floating-point values into dense memory
+VCOMPRESSPS
+VPCOMPRESSD     Store sparse packed doubleword/quadword integer values into dense memory/register
+VPCOMPRESSQ
+VEXPANDPD       Load sparse packed double/single-precision floating-point values from dense memory
+VEXPANDPS
+VPEXPANDD       Load sparse packed doubleword/quadword integer values from dense memory/register
+VPEXPANDQ
+VPERMI2PD       Full single/double floating point permute overwriting the index.
+VPERMI2PS
+VPERMI2D        Full doubleword/quadword permute overwriting the index.
+VPERMI2Q
+VPERMT2PS       Full single/double floating point permute overwriting first source.
+VPERMT2PD
+VPERMT2D        Full doubleword/quadword permute overwriting first source.
+VPERMT2Q
+VSHUFF32x4      Shuffle four packed 128-bit lines.
+VSHUFF64x2
+VSHUFFI32x4
+VSHUFFI64x2
+VPTERNLOGD      Bitwise Ternary Logic
+VPTERNLOGQ
+VPMOVQD Down convert quadword or doubleword to doubleword, word or byte; unsaturated, saturated or saturated unsigned. The reverse of the sign/zero extend instructions from SSE4.1.
+VPMOVSQD
+VPMOVUSQD
+VPMOVQW
+VPMOVSQW
+VPMOVUSQW
+VPMOVQB
+VPMOVSQB
+VPMOVUSQB
+VPMOVDW
+VPMOVSDW
+VPMOVUSDW
+VPMOVDB
+VPMOVSDB
+VPMOVUSDB
+VCVTPS2UDQ      Convert with or without truncation, packed single or double-precision floating point to packed unsigned doubleword integers.
+VCVTPD2UDQ
+VCVTTPS2UDQ
+VCVTTPD2UDQ
+VCVTSS2USI      Convert with or without trunction, scalar single or double-precision floating point to unsigned doubleword integer.
+VCVTSD2USI
+VCVTTSS2USI
+VCVTTSD2USI
+VCVTUDQ2PS      Convert packed unsigned doubleword integers to packed single or double-precision floating point.
+VCVTUDQ2PD
+VCVTUSI2PS      Convert scalar unsigned doubleword integers to single or double-precision floating point.
+VCVTUSI2PD
+VCVTUSI2SD      Convert scalar unsigned integers to single or double-precision floating point.
+VCVTUSI2SS
+VCVTQQ2PD       Convert packed quadword integers to packed single or double-precision floating point.
+VCVTQQ2PS
+VGETEXPPD       Convert exponents of packed fp values into fp values
+VGETEXPPS
+VGETEXPSD       Convert exponent of scalar fp value into fp value
+VGETEXPSS
+VGETMANTPD      Extract vector of normalized mantissas from float32/float64 vector
+VGETMANTPS
+VGETMANTSD      Extract float32/float64 of normalized mantissa from float32/float64 scalar
+VGETMANTSS
+VFIXUPIMMPD     Fix up special packed float32/float64 values
+VFIXUPIMMPS
+VFIXUPIMMSD     Fix up special scalar float32/float64 value
+VFIXUPIMMSS
+VRCP14PD        Compute approximate reciprocals of packed float32/float64 values
+VRCP14PS
+VRCP14SD        Compute approximate reciprocals of scalar float32/float64 value
+VRCP14SS
+VRNDSCALEPS     Round packed float32/float64 values to include a given number of fraction bits
+VRNDSCALEPD
+VRNDSCALESS     Round scalar float32/float64 value to include a given number of fraction bits
+VRNDSCALESD
+VRSQRT14PD      Compute approximate reciprocals of square roots of packed float32/float64 values
+VRSQRT14PS
+VRSQRT14SD      Compute approximate reciprocal of square root of scalar float32/float64 value
+VRSQRT14SS
+VSCALEFPS       Scale packed float32/float64 values with float32/float64 values
+VSCALEFPD
+VSCALEFSS       Scale scalar float32/float64 value with float32/float64 value
+VSCALEFSD
+VALIGND Align doubleword or quadword vectors
+VALIGNQ
+VPABSQ  Packed absolute value quadword
+VPMAXSQ Maximum of packed signed/unsigned quadword
+VPMAXUQ
+VPMINSQ Minimum of packed signed/unsigned quadword
+VPMINUQ
+VPROLD  Bit rotate left or right
+VPROLVD
+VPROLQ
+VPROLVQ
+VPRORD
+VPRORVD
+VPRORQ
+VPRORVQ
+VPSCATTERDD     Scatter packed doubleword/quadword with signed doubleword and quadword indices
+VPSCATTERDQ
+VPSCATTERQD
+VPSCATTERQQ
+VSCATTERDPS     Scatter packed float32/float64 with signed doubleword and quadword indices
+VSCATTERDPD
+VSCATTERQPS
+VSCATTERQPD
+Cryptographic instructions
+Intel AES instructions
+6 new instructions.
+
+Instruction     Description
+AESENC  Perform one round of an AES encryption flow
+AESENCLAST      Perform the last round of an AES encryption flow
+AESDEC  Perform one round of an AES decryption flow
+AESDECLAST      Perform the last round of an AES decryption flow
+AESKEYGENASSIST Assist in AES round key generation
+AESIMC  Assist in AES Inverse Mix Columns
+RDRAND and RDSEED
+Instruction     Description
+RDRAND  Read Random Number
+RDSEED  Read Random Seed
+Intel SHA instructions
+7 new instructions.
+
+Instruction     Description
+SHA1RNDS4       Perform Four Rounds of SHA1 Operation
+SHA1NEXTE       Calculate SHA1 State Variable E after Four Rounds
+SHA1MSG1        Perform an Intermediate Calculation for the Next Four SHA1 Message Dwords
+SHA1MSG2        Perform a Final Calculation for the Next Four SHA1 Message Dwords
+SHA256RNDS2     Perform Two Rounds of SHA256 Operation
+SHA256MSG1      Perform an Intermediate Calculation for the Next Four SHA256 Message Dwords
+SHA256MSG2      Perform a Final Calculation for the Next Four SHA256 Message Dwords
+Undocumented instructions
+Undocumented x86 instructions
+The x86 CPUs contain undocumented instructions which are implemented on the chips but not listed in some official documents. 
+They can be found in various sources across the Internet, such as Ralf Brown&rsquo;s Interrupt List and at sandpile.org
+
+Mnemonic        Opcode  Description     Status
+AAM imm8        D4 imm8 Divide AL by imm8, put the quotient in AH, and the remainder in AL      Available beginning with 8086, documented since Pentium (earlier documentation lists no arguments)
+AAD imm8        D5 imm8 Multiplication counterpart of AAM       Available beginning with 8086, documented since Pentium (earlier documentation lists no arguments)
+SALC    D6      Set AL depending on the value of the Carry Flag (a 1-byte alternative of SBB AL, AL)    Available beginning with 8086, but only documented since Pentium Pro.
+
+Only available on 80286
+LOADALL 0F 05   Loads All Registers from Memory Address 0x000800H       Only available on 80286
+LOADALLD        0F 07   Loads All Registers from Memory Address ES:EDI  Only available on 80386
+?       0F 0E   On AMD K6 and later maps to FEMMS operation (fast clear of MMX state), possibly identified as Microcode manipulation on Intel   
+UD1     0F B9   Intentionally undefined instruction, but unlike UD2 this was not published      
+ALTINST 0F 3F   Jump and execute instructions in the undocumented Alternate Instruction Set.    Only available on some x86 processors made by VIA Technologies.
+Undocumented x87 instructions
+FFREEP performs FFREE ST(i) and pop stack
+
+</pre>
+
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

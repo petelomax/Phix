@@ -1,0 +1,123 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">ARM mul / misc</h1>
+      <div id="mainSection">
+ <small>
+ <div class="arm_table">
+|Opcode ................................|1|0|9|8|7|6|5|4|3|2|1|0|9|8|7|6|5|4|3|2|1|0|9|8|7|6|5|4|3|2|1|0|
+|.......................................|..COND.|.O7..........|S|...RN..|...RD..|...RS..|V|=S2|Z|...RM..|
+|mul[cond][s] Rd, Rm, Rs ...............|..cond.|0.0.0.0.0.0.0|S|...Rd..|..SBZ..|...Rs..|1.0.0.1|...Rm..|
+|mla[cond][s] Rd, Rm, Rs, Rn ...........|..cond.|0 0 0 0 0 0 1|S|...Rd..|...Rn..|...Rs..|1 0 0 1|...Rm..|
+|umull[cond][s] RdLo, RdHi, Rm, Rs .....|..cond.|0 0 0 0 1 0 0|S|..RdHi.|..RdLo.|...Rs..|1 0 0 1|...Rm..|
+|umlal[cond][s] RdLo, RdHi, Rm, Rs .....|..cond.|0 0 0 0 1 0 1|S|..RdHi.|..RdLo.|...Rs..|1 0 0 1|...Rm..|
+|smull[cond][s] RdLo, RdHi, Rm, Rs .....|..cond.|0 0 0 0 1 1 0|S|..RdHi.|..RdLo.|...Rs..|1 0 0 1|...Rm..|
+|smlal[cond][s] RdLo, RdHi, Rm, Rs .....|..cond.|0 0 0 0 1 1 1|S|..RdHi.|..RdLo.|...Rs..|1 0 0 1|...Rm..|
+|clz[cond] Rd, Rm ......................|..cond.|0 0 0 1 0 1 1 0|..SBO..|...Rd..|..SBO..|0 0 0 1|...Rm..|
+ </div>
+ </small>
+        <div class="clear"></div>
+        <br>
+        <h3>examples</h3>
+ <div class="arm_table">
+|Instruction..........|Description..............................|
+|mul r0,r1,r2 ........|r0 := r1*r2 .............................|
+|mul r0,r2 ...........|r0 *= r2 ................................|
+|mla r0,r1,r2,r3 .....|r0 := r1*r2+r3 ..........................|
+|smull r1,r2,r3,r4 ...|{r2,r1} := r3*r4 ........................|
+|clz r0,r2 ...........|r0 := count leading zeros in r2 (0-32) ..|
+ </div>
+        <div class="clear"></div>
+        <br>
+        Note that you cannot use the barrel shifter on multiply instructions, nor can you use an immediate value.<br>
+        Should you be looking for *2/4/8/16 etc then you probably want a plain mov with a <a href="ARM__shift.htm">barrel shift</a>.<br>
+        There are, quite deliberately, no shorthand forms of mla, umull, umlal, smull, or smlal.<br>
+        There should be little use for umull and umlal from a Phix perspective, but it was easier to leave them in (the above table).<br>
+        The same could be said for mul and mla, since unlike C and friends, hll Phix is not in the business of discarding bits.<br>
+        Another way of describing smull would be that r2*#1000000+r1 is the 64-bit signed integer result.<br>
+
+ <pre>
+DEV to be cleaned up:
+
+32x32-&gt;32 Multiply Instructions
+MUL - Multiply
+Rd := Rm * Rs
+MLA - Multiply with Accumulate
+Rd := Rn + (Rm * Rs)
+
+32x32-&gt;64 Multiply Instructions
+UMULL - Unsigned Multiply Long
+RdHi, RdLo := Rm * Rs
+UMLAL - Unsigned Multiply with Accumlate Long
+RdHi, RdLo := RdHi,RdLo + (Rm * Rs)
+SMULL - Signed Multiply Long
+RdHi, RdLo := Rm * Rs
+SMLAL - Signed Multiply with Accumlate Long
+RdHi, RdLo := RdHi,RdLo + (Rm * Rs)
+
+Note that they have the same form, but they treat the sign bit differently.
+
+
+Multiplication instructions.
+These two instructions are different from the normal arithmetical instructions in that there are restrictions on the operands, namely:
+
+All operands, and the destination, must be given as simple registers.
+You cannot use immediate values or shifted registers for operand two.
+The destination and operand one must be different registers.
+Lastly, you cannot specify R15 as the destination.
+MLA : Multiplication with Accumulate
+  MLA&lt;suffix&gt;  &lt;dest&gt;, &lt;op1&gt;, &lt;op2&gt;, &lt;op3&gt;
+
+                dest := (op1 * op2) + op_3
+MLA behaved that same as MUL, except that the value of operand three is added to the result. This is useful for running totals.
+ 
+
+ 
+
+
+MUL : Multiplication
+  MUL&lt;suffix&gt;  &lt;dest&gt;, &lt;op1&gt;, &lt;op2&gt;
+
+                dest := op1 * op2
+MUL provides 32 bit integer multiplication. If the operands are signed, it can be assumed that the result is also signed.
+Here is an example of multiplication: --PL is this implying Rd and R[n?] cannot be the same??
+
+REM Multiplication example
+REM
+REM by Richard Murray 26th April 1999
+REM
+REM Downloaded from: http://www.heyrick.co.uk/assembler/
+
+DIM code% 12
+
+P%=code%
+[  OPT 2
+   MUL     R2, R0, R1
+   MOV     R0, R2
+   MOV     PC, R14
+]
+
+REPEAT
+  INPUT "Number 1 : "A%
+  INPUT "Number 2 : "B%
+  PRINT "Result   : "+STR$(USR(code%))'
+UNTIL A% = 0
+
+END
+
+smull r0,r1,r2,r3 ; [r1,r0] := r2*r3
+eg if r2=#F0000002 and r3=#00000002, r0 will be #e00000004 (RdLo) and r1 will be #00000001 (RdHi)
+[DEV test this]
+
+ </pre>
+        <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

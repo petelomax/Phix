@@ -38,6 +38,14 @@
         </tr>
         <tr>
          <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+          Supported, note however the differences in output for Example 1 below.
+         </td>
+        </tr>
+        <tr>
+         <td>
           <b>Comments:</b>
          </td>
          <td>
@@ -89,10 +97,10 @@
     throw(122,"invalid poke size")
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#7060A8">    throw</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"type check error, %s is %s"</font><font color="#0000FF">)
-</font><font color="#7060A8">    throw</font><font color="#0000FF">(</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#008000">"attempt to divide by 0"</font><font color="#0000FF">)
-    ...
-</font><font color="#7060A8">    throw</font><font color="#0000FF">(</font><font color="#000000">122</font><font color="#0000FF">,</font><font color="#008000">"invalid poke size"</font><font color="#0000FF">)</font>
+<font color="#7060A8">    throw</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"type check error, %s is %s"</font><font color="#0000FF">)</font>
+<font color="#7060A8">    throw</font><font color="#0000FF">(</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#008000">"attempt to divide by 0"</font><font color="#0000FF">)
+    ...</font>
+<font color="#7060A8">    throw</font><font color="#0000FF">(</font><font color="#000000">122</font><font color="#0000FF">,</font><font color="#008000">"invalid poke size"</font><font color="#0000FF">)</font>
 </pre>
             <br>
             See builtins\VM\pDiagN.e for the full/up-to-date list. In the catch clause, e[E_CODE] will be 1..122 and e[E_USER] will be a (post-sprintf) string.<br>
@@ -118,14 +126,14 @@
     end try
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#008080">    try
-</font><font color="#0000FF">        ...
-</font><font color="#008080">    catch</font><font color="#000000"> e
-</font><font color="#008080">        if</font><font color="#0000FF"> &lt;</font><font color="#000000">recognised</font><font color="#0000FF">&gt;</font><font color="#008080"> then
-</font><font color="#0000FF">            &lt;</font><font color="#000000">handle it here</font><font color="#0000FF">&gt;
-</font><font color="#008080">        else
-</font><font color="#7060A8">            throw</font><font color="#0000FF">(</font><font color="#000000">e</font><font color="#0000FF">)
-</font><font color="#008080">        end if
+<font color="#008080">    try</font>
+<font color="#0000FF">        ...</font>
+<font color="#008080">    catch</font><font color="#000000"> e</font>
+<font color="#008080">        if</font><font color="#0000FF"> &lt;</font><font color="#000000">recognised</font><font color="#0000FF">&gt;</font><font color="#008080"> then</font>
+<font color="#0000FF">            &lt;</font><font color="#000000">handle it here</font><font color="#0000FF">&gt;</font>
+<font color="#008080">        else</font>
+<font color="#7060A8">            throw</font><font color="#0000FF">(</font><font color="#000000">e</font><font color="#0000FF">)</font>
+<font color="#008080">        end if
     end try</font>
 </pre>
             <br>
@@ -165,7 +173,7 @@ Obviously the latter may drift over time (or be wrong on day 1), just like a put
          <td>
             Exception handling is designed to minimise the impact on code which does <i>/not/</i> trigger it, and is intended for very infrequent events.<br>
             Should you compare the performance overhead of <code>throw("failure")</code> with <code>return false</code> then unfortunately you 
-            are in for a very big shock.<br>
+            are in for a very big shock.
             Building detailed run-time diagnostic information and converting a machine address into a human-readable line number, file, and 
             routine name, is simply always going to take considerably longer than a single <code>"mov eax,ebx"</code> instruction!
             <br>
@@ -204,32 +212,47 @@ end try
 Output:
 {"raw:",{2,8249772,2,21,"-1","test.exw",`C:\Program Files (x86)\Phix\`,"attempt to divide by 0"}}
 attempt to divide by 0 (test.exw line 2)
+Output under pwa/p2js:
+9/0
+{"raw:",{0,0,0,0,"","","","9/0"}}
+9/0 ( line 0)
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#008080">try
-</font><font color="#0000FF">    ?</font><font color="#000000">9</font><font color="#0000FF">/</font><font color="#000000">0
-</font><font color="#000080"><i>--  throw(2,"attempt to divide by 0") -- equivalent/as triggered via pDiagN.e/diag().
-</i></font><font color="#008080">catch</font><font color="#000000"> e
-</font><font color="#0000FF">    ?{</font><font color="#008000">"raw:"</font><font color="#0000FF">,</font><font color="#000000">e</font><font color="#0000FF">}
-</font><font color="#008080">    if</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">e</font><font color="#0000FF">)&gt;=</font><font color="#004600">E_USER
-</font><font color="#008080">    and</font><font color="#004080"> string</font><font color="#0000FF">(</font><font color="#000000">e</font><font color="#800000">[</font><font color="#004600">E_USER</font><font color="#800000">]</font><font color="#0000FF">)
-</font><font color="#008080">    and</font><font color="#004080"> string</font><font color="#0000FF">(</font><font color="#000000">e</font><font color="#800000">[</font><font color="#004600">E_FILE</font><font color="#800000">]</font><font color="#0000FF">)
-</font><font color="#008080">    and</font><font color="#004080"> integer</font><font color="#0000FF">(</font><font color="#000000">e</font><font color="#800000">[</font><font color="#004600">E_LINE</font><font color="#800000">]</font><font color="#0000FF">)
-</font><font color="#008080">    and</font><font color="#000000"> e</font><font color="#0000FF">[</font><font color="#004600">E_LINE</font><font color="#0000FF">]!=-</font><font color="#000000">1</font><font color="#008080"> then
-</font><font color="#5E005E">        printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"%s (%s line %d)\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">e</font><font color="#800080">[</font><font color="#004600">E_USER</font><font color="#800080">]</font><font color="#0000FF">,</font><font color="#000000">e</font><font color="#800080">[</font><font color="#004600">E_FILE</font><font color="#800080">]</font><font color="#0000FF">,</font><font color="#000000">e</font><font color="#800080">[</font><font color="#004600">E_LINE</font><font color="#800080">]</font><font color="#800000">}</font><font color="#0000FF">)
-</font><font color="#008080">    else
-</font><font color="#0000FF">        ?{</font><font color="#008000">"oops... (test.exw line 13)"</font><font color="#0000FF">,</font><font color="#000000">e</font><font color="#0000FF">}
-</font><font color="#008080">    end if
-end try
-</font><font color="#000000">Output</font><font color="#0000FF">:
-{</font><font color="#008000">"raw:"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">8249772</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">21</font><font color="#0000FF">,</font><font color="#008000">"-1"</font><font color="#0000FF">,</font><font color="#008000">"test.exw"</font><font color="#0000FF">,</font><font color="#008000">`C:\Program Files (x86)\Phix\`</font><font color="#0000FF">,</font><font color="#008000">"attempt to divide by 0"</font><font color="#800000">}</font><font color="#0000FF">}
-</font><font color="#000000">attempt</font><font color="#008080"> to</font><font color="#000000"> divide</font><font color="#008080"> by</font><font color="#000000"> 0</font><font color="#0000FF"> (</font><font color="#000000">test</font><font color="#0000FF">.</font><font color="#000000">exw line 2</font><font color="#0000FF">)</font>
+<font color="#008080">try</font>
+<font color="#0000FF">    ?</font><font color="#000000">9</font><font color="#0000FF">/</font><font color="#000000">0</font>
+<font color="#000080"><i>--  throw(2,"attempt to divide by 0") -- equivalent/as triggered via pDiagN.e/diag().</i></font>
+<font color="#008080">catch</font><font color="#000000"> e</font>
+<font color="#0000FF">    ?{</font><font color="#008000">"raw:"</font><font color="#0000FF">,</font><font color="#000000">e</font><font color="#0000FF">}</font>
+<font color="#008080">    if</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">e</font><font color="#0000FF">)&gt;=</font><font color="#004600">E_USER</font>
+<font color="#008080">    and</font><font color="#004080"> string</font><font color="#0000FF">(</font><font color="#000000">e</font><font color="#800000">[</font><font color="#004600">E_USER</font><font color="#800000">]</font><font color="#0000FF">)</font>
+<font color="#008080">    and</font><font color="#004080"> string</font><font color="#0000FF">(</font><font color="#000000">e</font><font color="#800000">[</font><font color="#004600">E_FILE</font><font color="#800000">]</font><font color="#0000FF">)</font>
+<font color="#008080">    and</font><font color="#004080"> integer</font><font color="#0000FF">(</font><font color="#000000">e</font><font color="#800000">[</font><font color="#004600">E_LINE</font><font color="#800000">]</font><font color="#0000FF">)</font>
+<font color="#008080">    and</font><font color="#000000"> e</font><font color="#0000FF">[</font><font color="#004600">E_LINE</font><font color="#0000FF">]!=-</font><font color="#000000">1</font><font color="#008080"> then</font>
+<font color="#5E005E">        printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"%s (%s line %d)\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">e</font><font color="#800080">[</font><font color="#004600">E_USER</font><font color="#800080">]</font><font color="#0000FF">,</font><font color="#000000">e</font><font color="#800080">[</font><font color="#004600">E_FILE</font><font color="#800080">]</font><font color="#0000FF">,</font><font color="#000000">e</font><font color="#800080">[</font><font color="#004600">E_LINE</font><font color="#800080">]</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#008080">    else</font>
+<font color="#0000FF">        ?{</font><font color="#008000">"oops... (test.exw line 13)"</font><font color="#0000FF">,</font><font color="#000000">e</font><font color="#0000FF">}</font>
+<font color="#008080">    end if
+end try</font>
+<font color="#000000">Output</font><font color="#0000FF">:
+{</font><font color="#008000">"raw:"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">8249772</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">21</font><font color="#0000FF">,</font><font color="#008000">"-1"</font><font color="#0000FF">,</font><font color="#008000">"test.exw"</font><font color="#0000FF">,</font><font color="#008000">`C:\Program Files (x86)\Phix\`</font><font color="#0000FF">,</font><font color="#008000">"attempt to divide by 0"</font><font color="#800000">}</font><font color="#0000FF">}</font>
+<font color="#000000">attempt</font><font color="#008080"> to</font><font color="#000000"> divide</font><font color="#008080"> by</font><font color="#000000"> 0</font><font color="#0000FF"> (</font><font color="#000000">test</font><font color="#0000FF">.</font><font color="#000000">exw line 2</font><font color="#0000FF">)</font>
+<font color="#000000">Output under pwa</font><font color="#0000FF">/</font><font color="#000000">p2js</font><font color="#0000FF">:</font>
+<font color="#000000">9</font><font color="#0000FF">/</font><font color="#000000">0</font>
+<font color="#0000FF">{</font><font color="#008000">"raw:"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#008000">""</font><font color="#0000FF">,</font><font color="#008000">""</font><font color="#0000FF">,</font><font color="#008000">""</font><font color="#0000FF">,</font><font color="#008000">"9/0"</font><font color="#800000">}</font><font color="#0000FF">}</font>
+<font color="#000000">9</font><font color="#0000FF">/</font><font color="#000000">0</font><font color="#0000FF"> (</font><font color="#000000"> line 0</font><font color="#0000FF">)</font>
 </pre>
             <br>
             While the above conditions/printf should give you the basic idea of what may be required, be advised that that using 
             cut-and-paste may cause unforseen problems, since the precise content of an exception can vary quite dramatically.
             Although those five tests on 'e' cover everything that I can think of right now, creative use of throw() will probably
             find some way to make that catch clause as it stands go and do something completely and utterly wrong.
+            <br>
+            <br>
+            Note that under <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a> the <code>?9/0</code> is mapped to
+            <code><a href="crash.htm">crash</a>("9/0");</code> and as documented in <a href="crash.htm">crash</a>() that
+            message ("9/0") is (always) displayed <i>before</i> invoking any catch clause - you would need to use an explict
+            throw() instead, to avoid that initial display. Admittedly mapping it to throw("9/0") might have been a better
+            choice, and might yet happen.
          </td>
         </tr>
         <tr>
@@ -242,8 +265,8 @@ throw("Parameter n contains %d digits: too big",{nd})
 throw("Negative %age")
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#7060A8">throw</font><font color="#0000FF">(</font><font color="#008000">"Parameter n contains %d digits: too big"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">nd</font><font color="#800000">}</font><font color="#0000FF">)
-</font><font color="#7060A8">throw</font><font color="#0000FF">(</font><font color="#008000">"Negative %age"</font><font color="#0000FF">)</font>
+<font color="#7060A8">throw</font><font color="#0000FF">(</font><font color="#008000">"Parameter n contains %d digits: too big"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">nd</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#7060A8">throw</font><font color="#0000FF">(</font><font color="#008000">"Negative %age"</font><font color="#0000FF">)</font>
 </pre>
             <br>
             You can use the built-in <a href="sprintf.htm">sprintf</a>() functionality of throw() in a natural way, but you can also pass a string 
@@ -296,7 +319,7 @@ throw("Negative %age")
             <br>
             <br>
             <small><sup>[1]</sup></small> I will justify that slightly less helpful behaviour by saying that if you are going to provide more information 
-            in the exceptions you throw, there is an underlying assumption you are going to try and do something useful with it, plus everything that you 
+            in the exceptions you throw, there is an underlying assumption you are going to try and do something useful with them, plus everything that you 
             need for debugging/removing your uncaught exception should still be in the ex.err file. Besides, trying to sprint(e[E_CODE..E_USER]) (when it 
             is not a string) into a neat little one-liner is all rather likely to get way too messy and confusing anyway.<br>
             <small><sup>[2]</sup></small> For completeness I should say that they, ie throw("string") & throw({0,-1,-1,-1,-1,-1,-1,"string"}), are 

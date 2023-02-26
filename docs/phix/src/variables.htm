@@ -18,20 +18,33 @@
     c = 0
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#000080"><i>    -- x may only be assigned integer values
-</i></font><font color="#004080">    integer</font><font color="#000000"> x
-    x</font><font color="#0000FF"> =</font><font color="#000000"> 25
-</font><font color="#000080"><i>    -- a, b and c may be assigned *any* value
-</i></font><font color="#004080">    object</font><font color="#000000"> a</font><font color="#0000FF">,</font><font color="#000000"> b</font><font color="#0000FF">,</font><font color="#000000"> c
-    a</font><font color="#0000FF"> = {}
-</font><font color="#000000">    b</font><font color="#0000FF"> =</font><font color="#000000"> a
+<font color="#000080"><i>    -- x may only be assigned integer values</i></font>
+<font color="#004080">    integer</font><font color="#000000"> x
+    x</font><font color="#0000FF"> =</font><font color="#000000"> 25</font>
+<font color="#000080"><i>    -- a, b and c may be assigned *any* value</i></font>
+<font color="#004080">    object</font><font color="#000000"> a</font><font color="#0000FF">,</font><font color="#000000"> b</font><font color="#0000FF">,</font><font color="#000000"> c
+    a</font><font color="#0000FF"> = {}</font>
+<font color="#000000">    b</font><font color="#0000FF"> =</font><font color="#000000"> a
     c</font><font color="#0000FF"> =</font><font color="#000000"> 0</font>
 </pre>
-        When you declare a variable you name the variable (which protects you
-        against making spelling mistakes later on) and you specify the values
-        that may legally be assigned to the variable during execution of your 
-        program.
+        When you declare a variable you (should) give it a sensible name that lets you reason about the contents logically and 
+        protects you against making spelling mistakes later on, and specify/restrict what values may legally be assigned to it
+        (said variable) during the execution of your program, via a type, either one of the five builtins (discussed above) or
+        a user defined type (detailed five or[/and] six topics down). 
+        Some programming languages are "dynamic" with "duck typing", which can seem great, but fails to catch typos and other 
+        small slips, so it can end up taking far longer to locate and correct them.
+        Other languages can have <i>thousands</i> of types, and worse still simply quietly discard fractions and higher binary 
+        digits, none of which happens in Phix programs (unless explicitly coded). 
+        It is fair to say that some cryptographic functions expressly rely on said automatic discards, making them slightly 
+        more awkward to code in Phix (and dynamic languages), but in the vast majority of cases you do not want that kind of 
+        behaviour at all. 
+        Lastly, some languages permit or require explicit casts between types, but woe betide anyone who slips up on that, and 
+        again that is simply not necessary in Phix. It may be that C-style typedefs can trigger some (but not many) compilation 
+        errors that Phix may let through, but makes up for with (implicitly triggered) run-time errors, that a C programmer would
+        probably have to explicitly code in a probably tediously consistent and potentially very widespread fashion, and would
+        make a user of a dynamic language quietly sigh and want to die.
        <br>
+    
        <br>
         Variables may also be assigned on declaration, e.g.
 <!--eucode>
@@ -41,61 +54,61 @@
     object a = {}, b = a, c = 0
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#000080"><i>    -- x may only be assigned integer values
-</i></font><font color="#004080">    integer</font><font color="#000000"> x</font><font color="#0000FF"> =</font><font color="#000000"> 25
-</font><font color="#000080"><i>    -- a, b and c may be assigned *any* value
-</i></font><font color="#004080">    object</font><font color="#000000"> a</font><font color="#0000FF"> = {},</font><font color="#000000"> b</font><font color="#0000FF"> =</font><font color="#000000"> a</font><font color="#0000FF">,</font><font color="#000000"> c</font><font color="#0000FF"> =</font><font color="#000000"> 0</font>
+<font color="#000080"><i>    -- x may only be assigned integer values</i></font>
+<font color="#004080">    integer</font><font color="#000000"> x</font><font color="#0000FF"> =</font><font color="#000000"> 25</font>
+<font color="#000080"><i>    -- a, b and c may be assigned *any* value</i></font>
+<font color="#004080">    object</font><font color="#000000"> a</font><font color="#0000FF"> = {},</font><font color="#000000"> b</font><font color="#0000FF"> =</font><font color="#000000"> a</font><font color="#0000FF">,</font><font color="#000000"> c</font><font color="#0000FF"> =</font><font color="#000000"> 0</font>
 </pre>
         Variable declaration also supports <a href=multiassign.htm>multiple assignment</a> syntax (this may make more sense after reading that section) e.g.
 <!--eucode>
     object {x, y, z} = {{},5,1.5}
+--  object x = {}, y = 5, z = 1.5 -- equivalent
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#004080">    object</font><font color="#0000FF"> {</font><font color="#000000">x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#000000"> z</font><font color="#0000FF">} = {</font><font color="#800000">{}</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">1.5</font><font color="#0000FF">}</font>
+<font color="#004080">    object</font><font color="#0000FF"> {</font><font color="#000000">x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#000000"> z</font><font color="#0000FF">} = {</font><font color="#800000">{}</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">1.5</font><font color="#0000FF">}</font>
+<font color="#000080"><i>--  object x = {}, y = 5, z = 1.5 -- equivalent</i></font>
 </pre>
-       <br>
-       <br>
-        Variables may also be declared locally with a routine, eg
+        Variables may also be declared globally, locally, or private to a routine (see <a href="scope.htm">scope</a>), eg
 <!--eucode>
+global atom a = 1       -- visible to the rest of the entire application
+sequence p = {"one"}    -- visible to the rest of the current source file only
 procedure p()
-    string s = "s"
-    ?s
+    string s = "s"      -- visible to the rest of the routine p() only
+    ?s                  -- ok (ditto a, p)
 end procedure
-p()     -- displays s
---?s    -- illegal (see scope)
+p()                     -- declares and displays s
+--?s                    -- illegal (but a, p still ok)
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#008080">procedure</font><font color="#000000"> p</font><font color="#0000FF">()
-</font><font color="#004080">    string</font><font color="#000000"> s</font><font color="#0000FF"> =</font><font color="#008000"> "s"
-</font><font color="#0000FF">    ?</font><font color="#000000">s
-</font><font color="#008080">end procedure
-</font><font color="#000000">p</font><font color="#0000FF">()    </font><font color="#000080"><i> -- displays s
---?s    -- illegal (see scope)</i></font>
+<font color="#008080">global</font><font color="#004080"> atom</font><font color="#000000"> a</font><font color="#0000FF"> =</font><font color="#000000"> 1      </font><font color="#000080"><i> -- visible to the rest of the entire application</i></font>
+<font color="#004080">sequence</font><font color="#000000"> p</font><font color="#0000FF"> = {</font><font color="#008000">"one"</font><font color="#0000FF">}   </font><font color="#000080"><i> -- visible to the rest of the current source file only</i></font>
+<font color="#008080">procedure</font><font color="#000000"> p</font><font color="#0000FF">()</font>
+<font color="#004080">    string</font><font color="#000000"> s</font><font color="#0000FF"> =</font><font color="#008000"> "s"     </font><font color="#000080"><i> -- visible to the rest of the routine p() only</i></font>
+<font color="#0000FF">    ?</font><font color="#000000">s                 </font><font color="#000080"><i> -- ok (ditto a, p)</i></font>
+<font color="#008080">end procedure</font>
+<font color="#000000">p</font><font color="#0000FF">()                    </font><font color="#000080"><i> -- declares and displays s
+--?s                    -- illegal (but a, p still ok)</i></font>
 </pre>
-        They can also be declared with block-level scope, eg
+        They can also be declared with block-level <a href="scope.htm">scope</a>, eg
 <!--eucode>
-procedure p()
     if rand(2)=1 then
-        string s = "p1"
+        string s = "p1" -- visible within this branch/block only
         ?s
     else
         ?"p2"
+--      ?s              -- illegal
     end if
---  ?s  -- illegal
-end procedure
-p()
+--  ?s                  -- illegal
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#008080">procedure</font><font color="#000000"> p</font><font color="#0000FF">()
-</font><font color="#008080">    if</font><font color="#7060A8"> rand</font><font color="#0000FF">(</font><font color="#000000">2</font><font color="#0000FF">)=</font><font color="#000000">1</font><font color="#008080"> then
-</font><font color="#004080">        string</font><font color="#000000"> s</font><font color="#0000FF"> =</font><font color="#008000"> "p1"
-</font><font color="#0000FF">        ?</font><font color="#000000">s
-</font><font color="#008080">    else
-</font><font color="#0000FF">        ?</font><font color="#008000">"p2"
-</font><font color="#008080">    end if
-</font><font color="#000080"><i>--  ?s  -- illegal
-</i></font><font color="#008080">end procedure
-</font><font color="#000000">p</font><font color="#0000FF">()</font>
+<font color="#008080">    if</font><font color="#7060A8"> rand</font><font color="#0000FF">(</font><font color="#000000">2</font><font color="#0000FF">)=</font><font color="#000000">1</font><font color="#008080"> then</font>
+<font color="#004080">        string</font><font color="#000000"> s</font><font color="#0000FF"> =</font><font color="#008000"> "p1"</font><font color="#000080"><i> -- visible within this branch/block only</i></font>
+<font color="#0000FF">        ?</font><font color="#000000">s</font>
+<font color="#008080">    else</font>
+<font color="#0000FF">        ?</font><font color="#008000">"p2"</font>
+<font color="#000080"><i>--      ?s              -- illegal</i></font>
+<font color="#008080">    end if</font>
+<font color="#000080"><i>--  ?s                  -- illegal</i></font>
 </pre>
        <br>
        <br>

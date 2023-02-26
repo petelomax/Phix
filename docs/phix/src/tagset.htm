@@ -14,6 +14,10 @@
          </td>
          <td>
          <a href="sequence.htm">sequence</a> s = tagset(<a href="integer.htm">integer</a> lim, start=1, step=1)
+         <br>
+         <i>-- or --</i>
+         <br>
+         <a href="sequence.htm">sequence</a> s = tagstart(<a href="integer.htm">integer</a> start, len, step=1)
          </td>
         </tr>
         <tr>
@@ -26,6 +30,26 @@
             <br>
             The optional start and step parameters are reasonably intuitive, as long as you remember that start is <i>after</i> lim, 
             eg tagset(20,10,2) returns {10,12,14,16,18,20}.
+            <br>
+            <br>
+            Sometimes you don&rsquo;t know or really care where it ends, for instance tagstart('A',5) is "ABCDE", and sometimes
+            tagstart(1,26) is just more natural than tagset(26[,1]), likewise tagstart(5,5,5) and tagset(25,5,5) both produce
+            {5,10,15,20,25}. The tagstart() routine is in fact just a trivial one-line wrapper of tagset, performing that slightly 
+            fiddly little bit of maths for you, calculating the lim for tagset() as <code>start+(len-1)*step</code>, that&rsquo;s all.<br>
+            In other words a tagstart() is just a tagset() where you specify first and length, instead of last [and optionally first].
+<!--
+             I also thought about adding a tag<i>bla</i>('A','Z') 
+            which gave the same results as tagset('Z','A') but I could neither give it a decent name nor justify it, and it 
+            would probably add more confusion and effort than any it might save.
+-->
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+          Supported.
          </td>
         </tr>
         <tr>
@@ -79,22 +103,22 @@ for i=1 to length(yeartags) do
 end for
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#004080">sequence</font><font color="#000000"> Names</font><font color="#0000FF"> = {</font><font color="#008000">"C. C. Catch"</font><font color="#0000FF">,</font><font color="#008000"> "Army of Lovers"</font><font color="#0000FF">,</font><font color="#008000"> "Boney M."</font><font color="#0000FF">,</font><font color="#008000"> "Dschinghis Khan"</font><font color="#0000FF">}
-</font><font color="#004080">sequence</font><font color="#000000"> Years</font><font color="#0000FF"> = {</font><font color="#000000"> 1985</font><font color="#0000FF">,         </font><font color="#000000"> 1987</font><font color="#0000FF">,            </font><font color="#000000"> 1975</font><font color="#0000FF">,      </font><font color="#000000"> 1979           </font><font color="#0000FF"> }
-
-</font><font color="#008080">function</font><font color="#000000"> by_year</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> i</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> j</font><font color="#0000FF">)
-</font><font color="#004080">integer</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#7060A8"> compare</font><font color="#0000FF">(</font><font color="#000000">Years</font><font color="#800000">[</font><font color="#000000">i</font><font color="#800000">]</font><font color="#0000FF">,</font><font color="#000000">Years</font><font color="#800000">[</font><font color="#000000">j</font><font color="#800000">]</font><font color="#0000FF">)
-</font><font color="#008080">    if</font><font color="#000000"> res</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#008080"> then
-</font><font color="#000000">        res</font><font color="#0000FF"> =</font><font color="#7060A8"> compare</font><font color="#0000FF">(</font><font color="#000000">Names</font><font color="#800000">[</font><font color="#000000">i</font><font color="#800000">]</font><font color="#0000FF">,</font><font color="#000000">Names</font><font color="#800000">[</font><font color="#000000">j</font><font color="#800000">]</font><font color="#0000FF">)
-</font><font color="#008080">    end if
-    return</font><font color="#000000"> res
-</font><font color="#008080">end function
-</font><font color="#004080">sequence</font><font color="#000000"> yeartags</font><font color="#0000FF"> =</font><font color="#5E005E"> custom_sort</font><font color="#0000FF">(</font><font color="#5E005E">routine_id</font><font color="#800000">(</font><font color="#008000">"by_year"</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#5E005E">tagset</font><font color="#800000">(</font><font color="#7060A8">length</font><font color="#800080">(</font><font color="#000000">Years</font><font color="#800080">)</font><font color="#800000">)</font><font color="#0000FF">)
-
-</font><font color="#008080">for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">yeartags</font><font color="#0000FF">)</font><font color="#008080"> do
-</font><font color="#004080">    integer</font><font color="#000000"> ti</font><font color="#0000FF"> =</font><font color="#000000"> yeartags</font><font color="#0000FF">[</font><font color="#000000">i</font><font color="#0000FF">]
-</font><font color="#5E005E">    printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"Year: %d, Name: %s\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">Years</font><font color="#800080">[</font><font color="#000000">ti</font><font color="#800080">]</font><font color="#0000FF">,</font><font color="#000000">Names</font><font color="#800080">[</font><font color="#000000">ti</font><font color="#800080">]</font><font color="#800000">}</font><font color="#0000FF">)
-</font><font color="#008080">end for</font>
+<font color="#004080">sequence</font><font color="#000000"> Names</font><font color="#0000FF"> = {</font><font color="#008000">"C. C. Catch"</font><font color="#0000FF">,</font><font color="#008000"> "Army of Lovers"</font><font color="#0000FF">,</font><font color="#008000"> "Boney M."</font><font color="#0000FF">,</font><font color="#008000"> "Dschinghis Khan"</font><font color="#0000FF">}</font>
+<font color="#004080">sequence</font><font color="#000000"> Years</font><font color="#0000FF"> = {</font><font color="#000000"> 1985</font><font color="#0000FF">,         </font><font color="#000000"> 1987</font><font color="#0000FF">,            </font><font color="#000000"> 1975</font><font color="#0000FF">,      </font><font color="#000000"> 1979           </font><font color="#0000FF"> }
+</font>
+<font color="#008080">function</font><font color="#000000"> by_year</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> i</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> j</font><font color="#0000FF">)</font>
+<font color="#004080">integer</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#7060A8"> compare</font><font color="#0000FF">(</font><font color="#000000">Years</font><font color="#800000">[</font><font color="#000000">i</font><font color="#800000">]</font><font color="#0000FF">,</font><font color="#000000">Years</font><font color="#800000">[</font><font color="#000000">j</font><font color="#800000">]</font><font color="#0000FF">)</font>
+<font color="#008080">    if</font><font color="#000000"> res</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#008080"> then</font>
+<font color="#000000">        res</font><font color="#0000FF"> =</font><font color="#7060A8"> compare</font><font color="#0000FF">(</font><font color="#000000">Names</font><font color="#800000">[</font><font color="#000000">i</font><font color="#800000">]</font><font color="#0000FF">,</font><font color="#000000">Names</font><font color="#800000">[</font><font color="#000000">j</font><font color="#800000">]</font><font color="#0000FF">)</font>
+<font color="#008080">    end if
+    return</font><font color="#000000"> res</font>
+<font color="#008080">end function</font>
+<font color="#004080">sequence</font><font color="#000000"> yeartags</font><font color="#0000FF"> =</font><font color="#5E005E"> custom_sort</font><font color="#0000FF">(</font><font color="#5E005E">routine_id</font><font color="#800000">(</font><font color="#008000">"by_year"</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#5E005E">tagset</font><font color="#800000">(</font><font color="#7060A8">length</font><font color="#800080">(</font><font color="#000000">Years</font><font color="#800080">)</font><font color="#800000">)</font><font color="#0000FF">)
+</font>
+<font color="#008080">for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">yeartags</font><font color="#0000FF">)</font><font color="#008080"> do</font>
+<font color="#004080">    integer</font><font color="#000000"> ti</font><font color="#0000FF"> =</font><font color="#000000"> yeartags</font><font color="#0000FF">[</font><font color="#000000">i</font><font color="#0000FF">]</font>
+<font color="#5E005E">    printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"Year: %d, Name: %s\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">Years</font><font color="#800080">[</font><font color="#000000">ti</font><font color="#800080">]</font><font color="#0000FF">,</font><font color="#000000">Names</font><font color="#800080">[</font><font color="#000000">ti</font><font color="#800080">]</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#008080">end for</font>
 </pre>
           <br>
             This program, with a sort by name as well as by year, along with a non-tagsort version using the new 
@@ -121,13 +145,13 @@ for i=1 to length(casetags) do
 end for
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#004080">sequence</font><font color="#000000"> cases</font><font color="#0000FF"> = {</font><font color="#008000">"Case 3"</font><font color="#0000FF">,</font><font color="#008000"> "caSe 1"</font><font color="#0000FF">,</font><font color="#008000"> "cAse 4"</font><font color="#0000FF">,</font><font color="#008000"> "casE 2"</font><font color="#0000FF">}
-
-</font><font color="#004080">sequence</font><font color="#000000"> casetags</font><font color="#0000FF"> =</font><font color="#5E005E"> custom_sort</font><font color="#0000FF">(</font><font color="#5E005E">lower</font><font color="#800000">(</font><font color="#000000">cases</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#5E005E">tagset</font><font color="#800000">(</font><font color="#7060A8">length</font><font color="#800080">(</font><font color="#000000">cases</font><font color="#800080">)</font><font color="#800000">)</font><font color="#0000FF">)
-
-</font><font color="#008080">for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">casetags</font><font color="#0000FF">)</font><font color="#008080"> do
-</font><font color="#5E005E">    printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"%s\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">cases</font><font color="#800080">[</font><font color="#000000">casetags</font><font color="#00FF00">[</font><font color="#000000">i</font><font color="#00FF00">]</font><font color="#800080">]</font><font color="#800000">}</font><font color="#0000FF">)
-</font><font color="#008080">end for</font>
+<font color="#004080">sequence</font><font color="#000000"> cases</font><font color="#0000FF"> = {</font><font color="#008000">"Case 3"</font><font color="#0000FF">,</font><font color="#008000"> "caSe 1"</font><font color="#0000FF">,</font><font color="#008000"> "cAse 4"</font><font color="#0000FF">,</font><font color="#008000"> "casE 2"</font><font color="#0000FF">}
+</font>
+<font color="#004080">sequence</font><font color="#000000"> casetags</font><font color="#0000FF"> =</font><font color="#5E005E"> custom_sort</font><font color="#0000FF">(</font><font color="#5E005E">lower</font><font color="#800000">(</font><font color="#000000">cases</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#5E005E">tagset</font><font color="#800000">(</font><font color="#7060A8">length</font><font color="#800080">(</font><font color="#000000">cases</font><font color="#800080">)</font><font color="#800000">)</font><font color="#0000FF">)
+</font>
+<font color="#008080">for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">casetags</font><font color="#0000FF">)</font><font color="#008080"> do</font>
+<font color="#5E005E">    printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"%s\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">cases</font><font color="#800080">[</font><font color="#000000">casetags</font><font color="#00FF00">[</font><font color="#000000">i</font><font color="#00FF00">]</font><font color="#800080">]</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#008080">end for</font>
 </pre>
           <br>
             This example is also included in demo\tagsort.exw
@@ -135,6 +159,29 @@ end for
             <br>
             Note that, especially on a large dataset, invoking <a href="upper.htm">upper</a>() or <a href="lower.htm">lower</a>() once at the start
             as the above does would be significantly faster than calling it twice for each comparison.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Example 3:</b>
+         </td>
+         <td>
+<!--eucode>
+?tagstart('A',5) -- "ABCDE"
+?tagstart('A',15) -- "ABCDEFGHIJKLMNO"
+?tagset(5,2) -- {2,3,4,5}
+?tagstart(2,4) -- {2,3,4,5}
+?tagstart(5,5,5) -- {5,10,15,20,25}
+?tagset(25,5,5) -- {5,10,15,20,25}
+</eucode-->
+<pre>
+<font color="#0000FF">?</font><font color="#5E005E">tagstart</font><font color="#0000FF">(</font><font color="#008000">'A'</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">)</font><font color="#000080"><i> -- "ABCDE"</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">tagstart</font><font color="#0000FF">(</font><font color="#008000">'A'</font><font color="#0000FF">,</font><font color="#000000">15</font><font color="#0000FF">)</font><font color="#000080"><i> -- "ABCDEFGHIJKLMNO"</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">tagset</font><font color="#0000FF">(</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">)</font><font color="#000080"><i> -- {2,3,4,5}</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">tagstart</font><font color="#0000FF">(</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">)</font><font color="#000080"><i> -- {2,3,4,5}</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">tagstart</font><font color="#0000FF">(</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">)</font><font color="#000080"><i> -- {5,10,15,20,25}</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">tagset</font><font color="#0000FF">(</font><font color="#000000">25</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">)</font><font color="#000080"><i> -- {5,10,15,20,25}</i></font>
+</pre>
          </td>
         </tr>
         <tr>

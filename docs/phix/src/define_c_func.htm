@@ -16,7 +16,8 @@
              <a href="integer.htm">integer</a> rid = define_c_func(<a href="object.htm">object</a> lib, 
                                                                    <a href="object.htm">object</a> fname,
                                                                    <a href="sequence.htm">sequence</a> args,
-                                                                   <a href="atom.htm">atom</a> return_type)
+                                                                   <a href="atom.htm">atom</a> return_type,
+                                                                   <a href="integer.htm#bool">bool</a> bCrash=true)
          </td>
         </tr>
         <tr>
@@ -24,15 +25,24 @@
           <b>Description:</b>
          </td>
          <td>
-            Define the characteristics of a C function that you wish to
-            call from your Phix program. A small <a href="integer.htm">integer</a>, known as a
-            <a href="routine_id.htm">routine id</a>, is returned, or -1 if the function cannot be found.
-            <br>
-            <br>
-            The <a href="define_cffi_func.htm">define_cffi_func</a> routine is a string-based wrapper of this routine, 
-            which you may find slightly easier to use.
-            <br>
-            <br>
+            Define the characteristics of a C function that you wish to call from your Phix program. 
+            A small <a href="integer.htm">integer</a>, known as a
+            <a href="routine_id.htm">routine id</a>, is returned, or -1 if the function cannot be found (and bCrash is false).
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+          <a href="notpgui.htm"><span class="illegal">Not supported</span></a>.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Comments:</b>
+         </td>
+         <td>
             lib is either an (atom) address returned by open_dll(), or {}.<br>
             If lib is an atom, fname is the (string) name of a function within that dll, optionally
             as either {'+',"name"} or "+name" to specify the CDECL calling convention.<br>
@@ -49,6 +59,12 @@
             <br>
             <br>
             args is a list of the parameter types for the function, return_type should be self explanatory. 
+            <br>
+            <br>
+            The <a href="define_cffi_func.htm">define_cffi_func</a> routine is a string-based wrapper of this routine, 
+            which you may find slightly easier to use.
+            <br>
+            <br>
             The following C types are predefined (in psym.e/syminit):
             <br>
             <br>
@@ -76,31 +92,31 @@
                   C_DOUBLE = #03000008      -- a 64-bit float
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#004600">                    C_BYTE</font><font color="#0000FF"> =</font><font color="#000000"> #01000001</font><font color="#0000FF">,    </font><font color="#000080"><i> -- an 8 bit signed integer
-</i></font><font color="#004600">                    C_CHAR</font><font color="#0000FF"> =</font><font color="#004600"> C_BYTE</font><font color="#0000FF">,
-</font><font color="#004600">                   C_UCHAR</font><font color="#0000FF"> =</font><font color="#000000"> #02000001</font><font color="#0000FF">,    </font><font color="#000080"><i> -- an 8 bit unsigned integer
-</i></font><font color="#004600">                   C_UBYTE</font><font color="#0000FF"> =</font><font color="#004600"> C_UCHAR</font><font color="#0000FF">,
-</font><font color="#004600">                   C_SHORT</font><font color="#0000FF"> =</font><font color="#000000"> #01000002</font><font color="#0000FF">,    </font><font color="#000080"><i> -- a 16 bit signed integer
-</i></font><font color="#004600">                    C_WORD</font><font color="#0000FF"> =</font><font color="#004600"> C_SHORT</font><font color="#0000FF">,
-</font><font color="#004600">                  C_USHORT</font><font color="#0000FF"> =</font><font color="#000000"> #02000002</font><font color="#0000FF">,    </font><font color="#000080"><i> -- a 16 bit unsigned integer
-</i></font><font color="#004600">                     C_INT</font><font color="#0000FF"> =</font><font color="#000000"> #01000004</font><font color="#0000FF">,    </font><font color="#000080"><i> -- a 32 bit signed integer
-</i></font><font color="#004600">                    C_BOOL</font><font color="#0000FF"> =</font><font color="#004600"> C_INT</font><font color="#0000FF">,
-</font><font color="#004600">                    C_UINT</font><font color="#0000FF"> =</font><font color="#000000"> #02000004</font><font color="#0000FF">,    </font><font color="#000080"><i> -- a 32 bit unsigned integer
-</i></font><font color="#004600">                   C_DWORD</font><font color="#0000FF"> =</font><font color="#004600"> C_UINT</font><font color="#0000FF">,
-</font><font color="#004600">                   C_INT64</font><font color="#0000FF"> =</font><font color="#000000"> #01000008</font><font color="#0000FF">,    </font><font color="#000080"><i> -- a 64 bit signed integer
-</i></font><font color="#004600">                   C_QWORD</font><font color="#0000FF"> =</font><font color="#000000"> #02000008</font><font color="#0000FF">,    </font><font color="#000080"><i> -- a 64 bit unsigned integer
-</i></font><font color="#004600">                    C_LONG</font><font color="#0000FF"> =</font><font color="#7060A8"> iff</font><font color="#0000FF">(</font><font color="#7060A8">machine_bits</font><font color="#800000">()</font><font color="#0000FF">=</font><font color="#000000">32</font><font color="#008080"> or</font><font color="#7060A8"> platform</font><font color="#800000">()</font><font color="#0000FF">=</font><font color="#004600">WINDOWS</font><font color="#0000FF"> ?</font><font color="#004600"> C_INT </font><font color="#0000FF"> :</font><font color="#004600"> C_INT64</font><font color="#0000FF">),
-</font><font color="#004600">                   C_ULONG</font><font color="#0000FF"> =</font><font color="#7060A8"> iff</font><font color="#0000FF">(</font><font color="#7060A8">machine_bits</font><font color="#800000">()</font><font color="#0000FF">=</font><font color="#000000">32</font><font color="#008080"> or</font><font color="#7060A8"> platform</font><font color="#800000">()</font><font color="#0000FF">=</font><font color="#004600">WINDOWS</font><font color="#0000FF"> ?</font><font color="#004600"> C_UINT</font><font color="#0000FF"> :</font><font color="#004600"> C_QWORD</font><font color="#0000FF">),
-</font><font color="#004600">                     C_PTR</font><font color="#0000FF"> =</font><font color="#7060A8"> iff</font><font color="#0000FF">(</font><font color="#7060A8">machine_bits</font><font color="#800000">()</font><font color="#0000FF">=</font><font color="#000000">32                      </font><font color="#0000FF"> ?</font><font color="#004600"> C_UINT</font><font color="#0000FF"> :</font><font color="#004600"> C_QWORD</font><font color="#0000FF">),
-</font><font color="#004600">                 C_POINTER</font><font color="#0000FF"> =</font><font color="#004600"> C_PTR</font><font color="#0000FF">,
-</font><font color="#004600">                  C_HANDLE</font><font color="#0000FF"> =</font><font color="#004600"> C_PTR</font><font color="#0000FF">,
-</font><font color="#004600">                    C_HWND</font><font color="#0000FF"> =</font><font color="#004600"> C_PTR</font><font color="#0000FF">,
-</font><font color="#004600">                   C_FLOAT</font><font color="#0000FF"> =</font><font color="#000000"> #03000004</font><font color="#0000FF">,    </font><font color="#000080"><i> -- a 32-bit float
-</i></font><font color="#004600">                  C_DOUBLE</font><font color="#0000FF"> =</font><font color="#000000"> #03000008     </font><font color="#000080"><i> -- a 64-bit float</i></font>
+<font color="#004600">                    C_BYTE</font><font color="#0000FF"> =</font><font color="#000000"> #01000001</font><font color="#0000FF">,    </font><font color="#000080"><i> -- an 8 bit signed integer</i></font>
+<font color="#004600">                    C_CHAR</font><font color="#0000FF"> =</font><font color="#004600"> C_BYTE</font><font color="#0000FF">,</font>
+<font color="#004600">                   C_UCHAR</font><font color="#0000FF"> =</font><font color="#000000"> #02000001</font><font color="#0000FF">,    </font><font color="#000080"><i> -- an 8 bit unsigned integer</i></font>
+<font color="#004600">                   C_UBYTE</font><font color="#0000FF"> =</font><font color="#004600"> C_UCHAR</font><font color="#0000FF">,</font>
+<font color="#004600">                   C_SHORT</font><font color="#0000FF"> =</font><font color="#000000"> #01000002</font><font color="#0000FF">,    </font><font color="#000080"><i> -- a 16 bit signed integer</i></font>
+<font color="#004600">                    C_WORD</font><font color="#0000FF"> =</font><font color="#004600"> C_SHORT</font><font color="#0000FF">,</font>
+<font color="#004600">                  C_USHORT</font><font color="#0000FF"> =</font><font color="#000000"> #02000002</font><font color="#0000FF">,    </font><font color="#000080"><i> -- a 16 bit unsigned integer</i></font>
+<font color="#004600">                     C_INT</font><font color="#0000FF"> =</font><font color="#000000"> #01000004</font><font color="#0000FF">,    </font><font color="#000080"><i> -- a 32 bit signed integer</i></font>
+<font color="#004600">                    C_BOOL</font><font color="#0000FF"> =</font><font color="#004600"> C_INT</font><font color="#0000FF">,</font>
+<font color="#004600">                    C_UINT</font><font color="#0000FF"> =</font><font color="#000000"> #02000004</font><font color="#0000FF">,    </font><font color="#000080"><i> -- a 32 bit unsigned integer</i></font>
+<font color="#004600">                   C_DWORD</font><font color="#0000FF"> =</font><font color="#004600"> C_UINT</font><font color="#0000FF">,</font>
+<font color="#004600">                   C_INT64</font><font color="#0000FF"> =</font><font color="#000000"> #01000008</font><font color="#0000FF">,    </font><font color="#000080"><i> -- a 64 bit signed integer</i></font>
+<font color="#004600">                   C_QWORD</font><font color="#0000FF"> =</font><font color="#000000"> #02000008</font><font color="#0000FF">,    </font><font color="#000080"><i> -- a 64 bit unsigned integer</i></font>
+<font color="#004600">                    C_LONG</font><font color="#0000FF"> =</font><font color="#7060A8"> iff</font><font color="#0000FF">(</font><font color="#7060A8">machine_bits</font><font color="#800000">()</font><font color="#0000FF">=</font><font color="#000000">32</font><font color="#008080"> or</font><font color="#7060A8"> platform</font><font color="#800000">()</font><font color="#0000FF">=</font><font color="#004600">WINDOWS</font><font color="#0000FF"> ?</font><font color="#004600"> C_INT </font><font color="#0000FF"> :</font><font color="#004600"> C_INT64</font><font color="#0000FF">),</font>
+<font color="#004600">                   C_ULONG</font><font color="#0000FF"> =</font><font color="#7060A8"> iff</font><font color="#0000FF">(</font><font color="#7060A8">machine_bits</font><font color="#800000">()</font><font color="#0000FF">=</font><font color="#000000">32</font><font color="#008080"> or</font><font color="#7060A8"> platform</font><font color="#800000">()</font><font color="#0000FF">=</font><font color="#004600">WINDOWS</font><font color="#0000FF"> ?</font><font color="#004600"> C_UINT</font><font color="#0000FF"> :</font><font color="#004600"> C_QWORD</font><font color="#0000FF">),</font>
+<font color="#004600">                     C_PTR</font><font color="#0000FF"> =</font><font color="#7060A8"> iff</font><font color="#0000FF">(</font><font color="#7060A8">machine_bits</font><font color="#800000">()</font><font color="#0000FF">=</font><font color="#000000">32                      </font><font color="#0000FF"> ?</font><font color="#004600"> C_UINT</font><font color="#0000FF"> :</font><font color="#004600"> C_QWORD</font><font color="#0000FF">),</font>
+<font color="#004600">                 C_POINTER</font><font color="#0000FF"> =</font><font color="#004600"> C_PTR</font><font color="#0000FF">,</font>
+<font color="#004600">                  C_HANDLE</font><font color="#0000FF"> =</font><font color="#004600"> C_PTR</font><font color="#0000FF">,</font>
+<font color="#004600">                    C_HWND</font><font color="#0000FF"> =</font><font color="#004600"> C_PTR</font><font color="#0000FF">,</font>
+<font color="#004600">                   C_FLOAT</font><font color="#0000FF"> =</font><font color="#000000"> #03000004</font><font color="#0000FF">,    </font><font color="#000080"><i> -- a 32-bit float</i></font>
+<font color="#004600">                  C_DOUBLE</font><font color="#0000FF"> =</font><font color="#000000"> #03000008     </font><font color="#000080"><i> -- a 64-bit float</i></font>
 </pre>
 <!-- DEV: -- also C_WPARAM, C_LPARAM, C_HRESULT ?? -->
-         </td>
-        </tr>
+            <br>
+            <br>
 <!--
         <tr>
          <td>
@@ -135,11 +151,6 @@ DEV not yet (ever??) supported [Eu types&lt;-&gt;c_func]:
          </td>
         </tr>
 -->
-        <tr>
-         <td>
-          <b>Comments:</b>
-         </td>
-         <td>
             The resulting <a href="routine_id.htm">routine id</a>, rid, can be
             passed to c_func() when you want to call the C function.
           <br>
@@ -185,19 +196,13 @@ DEV not yet (ever??) supported [Eu types&lt;-&gt;c_func]:
 -- user32.dll contains the LoadIconA C function which takes a C pointer and a C int as parameters
 -- and returns a C int as a result.
 atom user32 = open_dll("user32.dll")
-integer xLoadIcon = define_c_func(user32, "LoadIconA", {C_POINTER, C_INT}, C_INT)
-if xLoadIcon=-1 then
-    crash("LoadIconA could not be found!")
-end if
+integer xLoadIcon = define_c_func(user32, "LoadIconA", {C_PTR, C_INT}, C_INT)
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#000080"><i>-- user32.dll contains the LoadIconA C function which takes a C pointer and a C int as parameters
--- and returns a C int as a result.
-</i></font><font color="#004080">atom</font><font color="#000000"> user32</font><font color="#0000FF"> =</font><font color="#7060A8"> open_dll</font><font color="#0000FF">(</font><font color="#008000">"user32.dll"</font><font color="#0000FF">)
-</font><font color="#004080">integer</font><font color="#000000"> xLoadIcon</font><font color="#0000FF"> =</font><font color="#7060A8"> define_c_func</font><font color="#0000FF">(</font><font color="#000000">user32</font><font color="#0000FF">,</font><font color="#008000"> "LoadIconA"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#004600">C_POINTER</font><font color="#0000FF">,</font><font color="#004600"> C_INT</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#004600"> C_INT</font><font color="#0000FF">)
-</font><font color="#008080">if</font><font color="#000000"> xLoadIcon</font><font color="#0000FF">=-</font><font color="#000000">1</font><font color="#008080"> then
-</font><font color="#5E005E">    crash</font><font color="#0000FF">(</font><font color="#008000">"LoadIconA could not be found!"</font><font color="#0000FF">)
-</font><font color="#008080">end if</font>
+<font color="#000080"><i>-- user32.dll contains the LoadIconA C function which takes a C pointer and a C int as parameters
+-- and returns a C int as a result.</i></font>
+<font color="#004080">atom</font><font color="#000000"> user32</font><font color="#0000FF"> =</font><font color="#7060A8"> open_dll</font><font color="#0000FF">(</font><font color="#008000">"user32.dll"</font><font color="#0000FF">)</font>
+<font color="#004080">integer</font><font color="#000000"> xLoadIcon</font><font color="#0000FF"> =</font><font color="#7060A8"> define_c_func</font><font color="#0000FF">(</font><font color="#000000">user32</font><font color="#0000FF">,</font><font color="#008000"> "LoadIconA"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#004600">C_PTR</font><font color="#0000FF">,</font><font color="#004600"> C_INT</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#004600"> C_INT</font><font color="#0000FF">)</font>
 </pre>
             The naming convention of xLoadIcon is partly a personal preference but it can also improve the help system
             in Edita/Edix, when F1 is keyed, as they both strip a leading "x" when looking for a chm file to open.

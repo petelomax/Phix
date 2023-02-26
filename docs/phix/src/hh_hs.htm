@@ -1,0 +1,90 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">Homogenous sequences</h1>
+      <div id="mainSection">
+        I was just idly thinking about those "sequence of xxx" discussed eons ago.
+        <br>
+        <pre>
+type            current     proposed
+#80 (0b0000)    seq         empty sequence (and/or "legacy behaviour")
+#81 (0b0001)                sequence of integer [1]                                 *
+#82 (0b0010)    string      sequence of 64-bit floats (8 bytes per) [array]         **
+#83 (0b0011)                sequence of atom [1]                                    ***
+#84 (0b0100)                string (1 byte per, see UTF the notes below)
+#85 (0b0101)                sequence of string|int [1]                              ***
+#86 (0b0110)                sequence of 128-bit floats (16 bytes per) [array]       **
+#87 (0b0111)                sequence of string|atom [1]                             ***
+#88 (0b1000)                sequence of sequence [1]                                ***
+#89 (0b1001)                sequence of sequence|integer [1]                        ***
+#8A (0b1010)                sequence of 64-bit arrays (/illegal?)
+#8B (0b1011)                sequence of sequence|atom [1]                           ***
+#8C (0b1100)                sequence of string [1]                                  ***
+#8D (0b1101)                sequence of sequence|string|integer [1]                 ***
+#8E (0b1110)                sequence of 128-bit arrays (/illegal?)
+#8F (0b1111)                sequence of object [1] (=="legacy")
+#12             atom        (unchanged) </pre>
+        <br>
+        Note those are the [ref*4-1] bytes, not the 1..15 T_integer..T_object of the compiler.<br>
+        So, first replace all #82 in the backend with #84 (should be no problems with doing that).<br>
+        #8F is bascially what we have now, maybe try that (blanketwise) and see what probs arise.<br>
+        UTF-8 and/or UTF-16-encoded binary strings are perfectly good enough, bar ws[i]<->#hhhh,<br>
+        in other words it is no great hardship to convert to UTF-32 before anything char-by-char.<br>
+        Existing opcodes opRepe etc should ||= type bytes, opSubse etc can avoid some refcounts.<br>
+        Obviously opMkSq should also collect element types, and repeat() shd be a smidge easier.<br>
+        Even better savings occur inline: types shd be mirrored in the new parse tree localtypes.<br>
+        A new array type is required to use the new #82/#86, existing opcodes should just crash.<br>
+        There should also be a new float64|128 type for dealing with array elements, probably.<br>
+        If parameters (etc) of that type are allowed, they would also have to be reference types.<br>
+        Obviously if you box and unbox into an atom type there will just be no performance gains.<br>
+        I assume there is simply no point trying to implement an array of 80-bit floats, anyway.<br>
+        The ability to take or replace slices of arrays is probably just simply not worthwhile.<br>
+        Allowing explicit "sequence of" in the source code is a niceity, and not a necessity, and<br>
+        it would probably be best to introduce a new implicit udt-style routine to enforce that.<br>
+        The handling of opTchk/T_seq within pilx86.e might not actually even need <i>any</i> tweaks.
+        <br>
+        <br>
+        [1] standard 4/8 bytes per element, can be nested refs except o/c for "of integer".<br>
+        *,** : good optimisations available with these<br>
+        *** : lesser optimisations (on the localtypes of extracted elements)<br>
+        Note that any nested sequences have the same potential optimisations available to them.<br>
+        There is probably very little gain for "sequence of arrays" over "sequence of sequence"<br>
+
+<!--
+#01 (0b0001)    int         (unchanged)
+#02 (0b0010)    T_N         deprecated, -> float64
+#03 (0b0010)    atom        (unchanged)
+#04 (0b0100)    sequence    swap with string
+#03 (0b0101)                (unchanged)
+#03 (0b0010)    atom        (unchanged)
+#03 (0b0010)    atom        (unchanged)
+#03 (0b0010)    atom        (unchanged)
+    symlimit = 0                                                -- #00 / 0b0000   dummy type: unknown
+    initialSymEntry("integer",  S_Type,"TI",opInt,  E_none)     -- #01 / 0b0001 integer
+--                                                                            Z_integer = symtab[T_integer][S_Name]
+    initialSymEntry(-1,         S_Type,"T", -1,     E_none)     -- #02 / 0b0010   dummy type: flt (atom but not integer)
+    initialSymEntry("atom",     S_Type,"TN",opAtom, E_none)     -- #03 / 0b0011 atom (ie flt|int)
+    initialSymEntry(-1,         S_Type,"T", -1,     E_none)     -- #04 / 0b0100   dummy type: dseq (sequence but not string)
+    initialSymEntry(-1,         S_Type,"T", -1,     E_none)     -- #05 / 0b0101   dummy type: dseq|int
+    initialSymEntry(-1,         S_Type,"T", -1,     E_none)     -- #06 / 0b0110   dummy type: dseq|flt
+    initialSymEntry(-1,         S_Type,"T", -1,     E_none)     -- #07 / 0b0111   dummy type: dseq|flt|int (not string)
+    initialSymEntry("string",   S_Type,"TS",opStr,  E_none)     -- #08 / 0b1000 string
+    initialSymEntry(-1,         S_Type,"T", -1,     E_none)     -- #09 / 0b1001   dummy type: str|int
+    initialSymEntry(-1,         S_Type,"T", -1,     E_none)     -- #0A / 0b1010   dummy type: str|flt
+    initialSymEntry(-1,         S_Type,"T", -1,     E_none)     -- #0B / 0b1011   dummy type: str|flt|int
+    initialSymEntry("sequence", S_Type,"TP",opSq,   E_none)     -- #0C / 0b1100 sequence (ie dseq|str)
+    initialSymEntry(-1,         S_Type,"T", -1,     E_none)     -- #0D / 0b1101   dummy type: dseq|str|int
+    initialSymEntry(-1,         S_Type,"T", -1,     E_none)     -- #0E / 0b1110   dummy type: dseq|str|flt
+    initialSymEntry("object",   S_Type,"TO",opObj,  E_none)     -- #0F / 0b1111 object (ie dseq|str|flt|int)
+-->
+        <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

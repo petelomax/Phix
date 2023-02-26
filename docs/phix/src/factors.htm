@@ -4,7 +4,7 @@
    <these>
     <get>
      <stripped>
-      <h1 class="title">[prime_]factors / is_prime</h1>
+      <h1 class="title">[prime_]factors / powers</h1>
       <div id="mainSection">
        <table>
         <col style="width: 5%"/>
@@ -13,17 +13,27 @@
           <b>Definition:</b>
          </td>
          <td>
-         <a href="sequence.htm">sequence</a> s = factors(<a href="atom.htm">atom</a> n, <a href="integer.htm">integer</a> include1=0)
-          <br>
-          <i>-- or --</i>
-          <br>
          <a href="sequence.htm">sequence</a> s = prime_factors(<a href="atom.htm">atom</a> n, 
-                                                               <a href="integer.htm#bool">bool</a> duplicates=<a href="logicops.htm">false</a>,
-                                                               <a href="integer.htm">integer</a> maxprime=100)
+                                                               <a href="integer.htm#bool">integer</a> duplicates=<a href="logicops.htm">false</a>,
+                                                                                                      maxprime=100)
           <br>
           <i>-- or --</i>
           <br>
          <a href="sequence.htm">sequence</a> s = prime_powers(<a href="atom.htm">atom</a> n)
+          <br>
+          <i>-- or --</i>
+          <br>
+         <a href="sequence.htm">sequence</a> s = factors(<a href="atom.htm">atom</a> n, <a href="object.htm">object</a> include1=0)
+<!--
+          <br>
+          <i>-- or --</i>
+          <br>
+         <a href="integer.htm">integer</a> fc = factor_count(<a href="atom.htm">atom</a> n)
+          <br>
+          <i>-- or --</i>
+          <br>
+         <a href="atom.htm">atom</a> fs = factor_sum(<a href="atom.htm">atom</a> n)
+-->
          </td>
         </tr>
         <tr>
@@ -31,9 +41,21 @@
           <b>Description:</b>
          </td>
          <td>
-            factors() returns a list of all integer factors of n.<br>
             prime_factors() returns a list of prime factors of n.<br>
             prime_powers() returns a list of prime powers of n.<br>
+            factors() returns a list of all integer factors of n.<br>
+<!--
+            factor_count() returns length(factors(n,1)), but without actually constructing it.<br>
+            factor_sum() returns sum(factors(n,1)), but again without actually constructing it.<br>
+-->
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+          Supported.
          </td>
         </tr>
         <tr>
@@ -41,66 +63,94 @@
           <b>Comments:</b>
          </td>
          <td>
-            The parameter n must be an integer (as stored in an atom) between 0 and 
-            <a href="log.htm">power</a>(2,<a href="iff.htm">iff</a>(<a href="machine_bits.htm">machine_bits</a>()=32?53:64)).<br>
-            If n is 0 the result is {}, irrespective of the include1 setting.
+            The parameter n must be a non-negative integer (as stored in an atom) between 0 and 
+            <a href="log.htm">power</a>(2,<a href="iff.htm">iff</a>(<a href="machine_bits.htm">machine_bits</a>()=32?53:64)).
             <br>
             <br>
-            If the optional include1 parameter is:<br>
-            &nbsp;1 the result includes 1 and n,<br>
-            -1 the result includes 1 but not n, and <br>
-            &nbsp;0 (the default), the result includes neither 1 nor n.
+            When duplicates is false, <b>prime_factors</b>() always returns {} when passed a prime number (or &lt;2).<br>
+            When duplicates is true, and n&gt;=1, prime_factors() returns a list such that multiplying all the elements of it 
+            together produces the value n, ie a true decomposition. In fact, prime_factors(1,true) yields {1} as a special 
+            case to fulfil that requirement, despite 1 not actually being a prime number.
+            That special case is also the one and only time the result of prime_factors() can ever contain a 1.<br>
+            However, prime_factors(0) yields {} no matter what duplicates and maxprime are set to (hopefully less annoying than {0}).<br>
+            The duplicates parameter can also take the special values 2 and 3 as detailed in auxillary functions below.
+<!--
+            When duplicates is 2, and n>0, prime_factors() returns a list of {prime,power} pairs, matching prime_powers() and 
+            <a href="mpfr.htm#mpz_prime_factors">mpz_prime_factors</a>().<br>
+            When duplicates is 3, prime_factors() returns the product of said (power+1), matching factor_count().
+-->
+
             <br>
             <br>
-            The factors() routine is really only suitable for relatively small values of n, for larger values consider using 
-            <a href="factors.htm">prime_factors</a>() or <a href="mpfr.htm#mpz_prime_factors">mpz_prime_factors</a>() instead.
-            <br>
-            <br>
-            On 32-bit, the <a href="log.htm">power</a>(2,53) limit of 9,007,199,254,740,992 performs some 47,453,132 trial 
-            divisions, which at several hundred clock cycles (each) takes just under 2 seconds on my machine.<br>
-            That should give you some idea of just how far you can push this routine before needing to a) look for something 
-            better, or b) devise a smarter approach/algorithm that relies a little less on brute force and ignorance.<br>
-            Values above the stated limits trigger an exception, since otherwise the <a href="accuracy.htm">dropped bits</a>
-            would make the result quite incorrect and utterly meaningless.
-            <br>
-            <br>
-            Note that, when duplicates is false, prime_factors() always returns {} when passed a prime number (or 1).<br>
-            If n is 0 the result is {}, irrespective of any other setting.
-            <br>
-            <br>
-            When duplicates is true, prime_factors() returns a list such that multiplying all the elements of it together 
-            produces the value n, ie a true decomposition. <br>
-            In fact, prime_factors(1,true) yields {1} as a special case to fulfil that requirement, despite 1 not actually 
-            being a prime number.<br>
-            That special case is also the one and only time the result of prime_factors() can ever contain a 1.
-            <br>
-            <br>
-            The maxprime argument limits the number of prime number factors that are checked, for more details see
+            The maxprime argument limits the number of prime factors that are checked, for more details see
             <a href="mpfr.htm#mpz_prime_factors">mpz_prime_factors</a>(), which is also capable of handling much larger inputs.<br>
             The <a href="get_prime.htm">get_maxprime</a>() function can be used to obtain a suitable maxprime index by performing
-            a fast <a href="bsearch.htm">binary_search</a>() for floor(sqrt(p)), which ensures all appropriate primes are 
-            checked. However that routine is unlikely to be suitable for <a href="mpfr.htm#mpz_prime_factors">mpz_prime_factors</a>()
-            for reasons outlined therein. Alternatively you can pass -1 to maxprime (in this routine) and have it invoke
-            <a href="get_prime.htm">get_maxprime</a>() for you, but of course that potentially means an unnecessary sqrt() 
-            and binary_search() every time. 
+            a fast <a href="bsearch.htm">binary_search</a>() for <a href="floor.htm">floor</a>(<a href="log.htm">sqrt</a>(p)), 
+            which ensures all appropriate primes are checked. However that routine is unlikely to be suitable for 
+            <a href="mpfr.htm#mpz_prime_factors">mpz_prime_factors</a>() for reasons outlined therein. Alternatively 
+            you can pass -1 to maxprime (in this routine) and have it invoke <a href="get_prime.htm">get_maxprime</a>() 
+            for you, but of course that potentially means an unnecessary <a href="log.htm">sqrt</a>() and 
+            <a href="bsearch.htm">binary_search</a>() every time. 
             <br>
             <br>
             Values above the stated limits trigger an exception, since otherwise the <a href="accuracy.htm">dropped bits</a>
             would make the result quite incorrect and utterly meaningless. Should you by some strange circumstance happen
             to know that several trailing bits of a very large n are <i>meant</i> to be 0 (something this routine could not
-            possibly test) and therefore there really isn&rsquot any precision loss, I supppose you <i>could</i> divide by
-            <a href="log.htm">power</a>(2,k) and <a href="prepend.htm">prepend</a> <a href="repeat.htm">repeat</a>(2,k) 
-            to the head of the result, for some k.
+            possibly test) and therefore there really isn&rsquo;t any precision loss, I supppose you <i>could</i> handle the 
+            powers of 2 yourself and let these routines (only have to) deal with the in-range remainder - in other words 
+            divide by <a href="log.htm">power</a>(2,k) for some k and either <a href="prepend.htm">prepend</a> (say)
+            <a href="repeat.htm">repeat</a>(2,k) to the head of the result, or in the case of prime_powers() either
+            prepend {2,k} or add k into the first {2,j} should there be one.
             <br>
             <br>
-            The prime_powers() function decomposes n into powers of small primes, eg 108 ==> {{2,2},{3,3}}<br>
-            Each element of the result is a {prime,power} pair. Note this will persevere all the way on up to 16/20 digit numbers,
-            and may get rather slow towards the upper end, of power(2,53|64).
-            This is closer to <a href="mpfr.htm#mpz_prime_factors">mpz_prime_factors</a>() than prime_factors() is.
+            The <b>prime_powers</b>(n) function decomposes n into powers of small primes, eg 720 ==> {{2,4},{3,2},{5,1}},
+            with each element being a {prime,power} pair. Note this perseveres all the way on up to 16|20 digit numbers, and
+            may get rather tardy towards the precision limit, as per Example 2 below. 
+            This is closer to <a href="mpfr.htm#mpz_prime_factors">mpz_prime_factors</a>() than prime_factors() <del>is</del> was, 
+            as of 1.0.2 [for code reuse reasons] this routine has become a trivial thin shim to prime_factors(n,2,-1).
+<!--
+            <br>
+            <br>
+            Likewise <b>factor_count</b>(n) is a trivial thin shim to prime_factors(n,3,-1), equivalent to length(factors(n,1)) 
+            and indeed the product of all the (power+1) from prime_powers(), eg from prime_powers(720) being {{2,4},{3,1},{5,1}},
+            factor_count(720) is (4+1)*(2+1)*(1+1)=30, but without actually bothering to construct any intermediate sequences, 
+            and therefore much faster.<br>
+            In a similar vein <b>factor_sum</b>(n) is another such shim, with a dash (geddit?) of crafty number theory for extra 
+            speed, though to be fair you&rsquo;d need a pretty big n/factor list for these to make any noticeable difference.
+-->
+            <br>
+            <br>
+            The <b>factors</b>() routine returns a list of all integer factors of n, and in fact when n>1e7 it turns out faster to 
+            construct the result from the prime_powers(). The result of factors(0) is {}, irrespective of the include1 setting.
+            <br>
+            <br>
+            If the optional include1 parameter is:<br>
+            &nbsp;1 the result includes 1 and n,<br>
+            -1 the result includes 1 but not n,<br>
+            &nbsp;0 (the default), the result includes neither 1 nor n, and <br>
+            -9 then n is a lim_chk setting (0=fail maxint, 1=pass it, see technicalia).<br>
+            The (uppercase) strings "BOTH","JUST1","NEITHER", and "SET_LIM" can also be used to the same effect.
+            <br>
+            <br>
+            The <a href="factors.htm">factors</a>() routine is really only suitable for relatively small values of n, 
+            for larger values consider using <a href="factors.htm">prime_factors</a>(), 
+            <a href="factors.htm">prime_powers</a>(), or <a href="mpfr.htm#mpz_prime_factors">mpz_prime_factors</a>() instead.
+            <br>
+            <br>
+            On 32-bit, the <a href="log.htm">power</a>(2,53)-1 limit of 9,007,199,254,740,991 performs some 47,453,132 trial 
+            divisions, which at several hundred clock cycles (each) takes just under 2 seconds on my machine (update: just
+            over half that with the >1e7 speedup handling mentioned above).<br>
+            That should give you some idea of just how far you can push this routine before needing to a) look for something 
+            better, or b) devise a smarter approach/algorithm that relies a little less on brute force and ignorance.<br>
+<!--
+            Values above the stated limits trigger an exception, since otherwise the <a href="accuracy.htm">dropped bits</a>
+            would make the result quite incorrect and utterly meaningless.
+-->
          </td>
         </tr>
         <tr>
          <td>
+            <a name=aux></a>
           <b>Auxillary functions:</b>
          </td>
          <td>
@@ -109,11 +159,38 @@
             quitting early on failure. square_free(0) yields true, because it is.
             <br>
             <br>
-            <a href="integer.htm#bool">bool</a> res = <b>is_prime</b>(<a href="atom.htm">atom</a> n)<br>
-            returns true if prime_factors(n,false,<a href="get_prime.htm">get_maxprime</a>(n)) would yield {}, but using a faster/simplified version of 
-            almost the same algorithm. is_prime(0) yields false, because it isn&rsquo;t.
-            Bear in mind, however, that while this is pretty fast, even on 15 or 16 digit numbers, it is still a trial division approach and no doubt 
-            <a href="mpfr.htm">mpz_prime</a>() will be much faster on larger numbers, plus of course not bound by any 53/64 bit precision limits.
+            <a href="integer.htm">integer</a> fc = <b>factor_count</b>(<a href="atom.htm">atom</a> n) effectively returns length(factors(n,1)), but 
+            without actually constructing it, and is actually the product of all the (power+1) from prime_powers(), eg from prime_powers(720) being 
+            {{2,4},{3,1},{5,1}}, factor_count(720) is (4+1)*(2+1)*(1+1)=30 but as just said without building and extracting from any intermediate.
+            <br>
+            <br>
+            <a href="atom.htm">atom</a> fs = <b>factor_sum</b>(<a href="atom.htm">atom</a> n) effectively returns sum(factors(n,1)), but again without 
+            actually constructing it, also with a dash of crafty number theory for extra speed (geddit?), though to be fair you&rsquo;d need a pretty 
+            big n/factor list for either this or factor_count() to make any noticeable difference.
+            <br>
+            <br>
+            Just so you know, internally these routines have been quite heavily refactored to minimise code duplication, such that prime_powers(n) is
+            in fact implemented as a trivial thin shim to prime_factors(n,2,-1), and factor_count(n) as prime_factors(n,3,-1), however refactoring 
+            square_free() as prime_factors(n,4,-1) or similar has been left as an exercise for the avid reader (that <i>is</i> a joke btw!).
+<!-- restored to ?? 29/10/22
+//          <br>
+//          <br>
+//          <a href="integer.htm#bool">bool</a> res = <b>is_prime</b>(<a href="atom.htm">atom</a> n)<br>
+//          returns true if prime_factors(n,false,<a href="get_prime.htm">get_maxprime</a>(n)) would yield {}, but using a faster/simplified version of 
+//          almost the same algorithm. is_prime(0) yields false, because it isn&rsquo;t.
+//          Bear in mind, however, that while this is pretty fast, even on 15 or 16 digit numbers, it is still a trial division approach and no doubt 
+//          <a href="mpfr.htm">mpz_prime</a>() will be much faster on larger numbers, plus of course not bound by any 53/64 bit precision limits.
+//          <br>
+//          <br>
+//          The is_prime() function was found to be faster and hence replaced an earlier version in builtins/primes.e, which has therefore been renamed, 
+//          and extended with an optional bIndex parameter:<br>
+//          <a href="integer.htm">integer</a> res = <b>is_prime2</b>(<a href="atom.htm">atom</a> n, 
+//                                                                   <a href="integer.htm#bool">bool</a> bIndex=false)<br>
+//          That version performs a binary search on the internal primes table (extended as necessary), which should theoretically be faster than any 
+//          trial division approach, but in practice simply wasn&rsquo;t. Actually what I should say is that is_prime2() <i>is</i> faster in the long 
+//          run, but can be a bit of a memory hog and often has significantly longer initial setup time. If bIndex is true, it returns the result of 
+//          said binary search directly, instead of testing it for &gt;0, and of course that is the main reason why both routines now co-exist.
+-->
             <br>
             <br>
             The checks on the legal range of n and handling of -1 in maxprime as noted above apply equally to these routines.
@@ -131,44 +208,119 @@
 -->
         <tr>
          <td>
-          <b>Example:</b>
+          <b>Examples:</b>
          </td>
          <td>
 <!--eucode>
-?factors(6) -- {2,3}
+?factors(6)            -- {2,3}
 ?factors(6,include1:=1) -- {1,2,3,6}
 ?factors(6,include1:=-1) -- {1,2,3}
 ?prime_factors(6) -- {2,3}
 ?prime_factors(720) -- {2,3,5}
 ?prime_factors(12345) -- {3,5,823}
-?prime_factors(27) -- {3}
+?prime_factors(27)                  -- {3}
 ?prime_factors(27,duplicates:=true) -- {3,3,3}
+?prime_factors(27,duplicates:=2)    -- {{3,2}}
 ?get_prime(101) -- 547
 atom a = power(2*get_prime(101),2)
 ?prime_factors(a,true)      -- {2,2,299209}
 ?prime_factors(a,true,101)  -- {2,2,547,547}
+?prime_powers(a)            -- {{2,2},{547,2}}
 </eucode-->
 <pre>
-<font color="#0000FF">?</font><font color="#5E005E">factors</font><font color="#0000FF">(</font><font color="#000000">6</font><font color="#0000FF">)</font><font color="#000080"><i> -- {2,3}</i></font>
-<font color="#0000FF">?</font><font color="#5E005E">factors</font><font color="#0000FF">(</font><font color="#000000">6</font><font color="#0000FF">,</font><font color="#000000">include1</font><font color="#0000FF">:=</font><font color="#000000">1</font><font color="#0000FF">)</font><font color="#000080"><i> -- {1,2,3,6}</i></font>
-<font color="#0000FF">?</font><font color="#5E005E">factors</font><font color="#0000FF">(</font><font color="#000000">6</font><font color="#0000FF">,</font><font color="#000000">include1</font><font color="#0000FF">:=-</font><font color="#000000">1</font><font color="#0000FF">)</font><font color="#000080"><i> -- {1,2,3}</i></font>
-<font color="#0000FF">?</font><font color="#5E005E">prime_factors</font><font color="#0000FF">(</font><font color="#000000">6</font><font color="#0000FF">)</font><font color="#000080"><i> -- {2,3}</i></font>
-<font color="#0000FF">?</font><font color="#5E005E">prime_factors</font><font color="#0000FF">(</font><font color="#000000">720</font><font color="#0000FF">)</font><font color="#000080"><i> -- {2,3,5}</i></font>
-<font color="#0000FF">?</font><font color="#5E005E">prime_factors</font><font color="#0000FF">(</font><font color="#000000">12345</font><font color="#0000FF">)</font><font color="#000080"><i> -- {3,5,823}</i></font>
-<font color="#0000FF">?</font><font color="#5E005E">prime_factors</font><font color="#0000FF">(</font><font color="#000000">27</font><font color="#0000FF">)</font><font color="#000080"><i> -- {3}</i></font>
-<font color="#0000FF">?</font><font color="#5E005E">prime_factors</font><font color="#0000FF">(</font><font color="#000000">27</font><font color="#0000FF">,</font><font color="#000000">duplicates</font><font color="#0000FF">:=</font><font color="#004600">true</font><font color="#0000FF">)</font><font color="#000080"><i> -- {3,3,3}</i></font>
-<font color="#0000FF">?</font><font color="#5E005E">get_prime</font><font color="#0000FF">(</font><font color="#000000">101</font><font color="#0000FF">)</font><font color="#000080"><i> -- 547</i></font>
-<font color="#004080">atom</font><font color="#000000"> a</font><font color="#0000FF"> =</font><font color="#7060A8"> power</font><font color="#0000FF">(</font><font color="#000000">2</font><font color="#0000FF">*</font><font color="#5E005E">get_prime</font><font color="#800000">(</font><font color="#000000">101</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">)
-?</font><font color="#5E005E">prime_factors</font><font color="#0000FF">(</font><font color="#000000">a</font><font color="#0000FF">,</font><font color="#004600">true</font><font color="#0000FF">)     </font><font color="#000080"><i> -- {2,2,299209}</i></font>
-<font color="#0000FF">?</font><font color="#5E005E">prime_factors</font><font color="#0000FF">(</font><font color="#000000">a</font><font color="#0000FF">,</font><font color="#004600">true</font><font color="#0000FF">,</font><font color="#000000">101</font><font color="#0000FF">) </font><font color="#000080"><i> -- {2,2,547,547}</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">factors</font><font color="#0000FF">(</font><font color="#000000">6</font><font color="#0000FF">)           </font><font color="#000080"><i> -- {2,3}</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">factors</font><font color="#0000FF">(</font><font color="#000000">6</font><font color="#0000FF">,</font><font color="#000000">include1</font><font color="#0000FF">:=</font><font color="#000000">1</font><font color="#0000FF">)</font><font color="#000080"><i> -- {1,2,3,6}</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">factors</font><font color="#0000FF">(</font><font color="#000000">6</font><font color="#0000FF">,</font><font color="#000000">include1</font><font color="#0000FF">:=-</font><font color="#000000">1</font><font color="#0000FF">)</font><font color="#000080"><i> -- {1,2,3}</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">prime_factors</font><font color="#0000FF">(</font><font color="#000000">6</font><font color="#0000FF">)</font><font color="#000080"><i> -- {2,3}</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">prime_factors</font><font color="#0000FF">(</font><font color="#000000">720</font><font color="#0000FF">)</font><font color="#000080"><i> -- {2,3,5}</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">prime_factors</font><font color="#0000FF">(</font><font color="#000000">12345</font><font color="#0000FF">)</font><font color="#000080"><i> -- {3,5,823}</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">prime_factors</font><font color="#0000FF">(</font><font color="#000000">27</font><font color="#0000FF">)                 </font><font color="#000080"><i> -- {3}</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">prime_factors</font><font color="#0000FF">(</font><font color="#000000">27</font><font color="#0000FF">,</font><font color="#000000">duplicates</font><font color="#0000FF">:=</font><font color="#004600">true</font><font color="#0000FF">)</font><font color="#000080"><i> -- {3,3,3}</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">prime_factors</font><font color="#0000FF">(</font><font color="#000000">27</font><font color="#0000FF">,</font><font color="#000000">duplicates</font><font color="#0000FF">:=</font><font color="#000000">2</font><font color="#0000FF">)   </font><font color="#000080"><i> -- {{3,2}}</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">get_prime</font><font color="#0000FF">(</font><font color="#000000">101</font><font color="#0000FF">)</font><font color="#000080"><i> -- 547</i></font>
+<font color="#004080">atom</font><font color="#000000"> a</font><font color="#0000FF"> =</font><font color="#7060A8"> power</font><font color="#0000FF">(</font><font color="#000000">2</font><font color="#0000FF">*</font><font color="#7060A8">get_prime</font><font color="#800000">(</font><font color="#000000">101</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">)
+?</font><font color="#7060A8">prime_factors</font><font color="#0000FF">(</font><font color="#000000">a</font><font color="#0000FF">,</font><font color="#004600">true</font><font color="#0000FF">)     </font><font color="#000080"><i> -- {2,2,299209}</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">prime_factors</font><font color="#0000FF">(</font><font color="#000000">a</font><font color="#0000FF">,</font><font color="#004600">true</font><font color="#0000FF">,</font><font color="#000000">101</font><font color="#0000FF">) </font><font color="#000080"><i> -- {2,2,547,547}</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">prime_powers</font><font color="#0000FF">(</font><font color="#000000">a</font><font color="#0000FF">)           </font><font color="#000080"><i> -- {{2,2},{547,2}}</i></font>
 </pre>
-            <br>
-            The use of a <a href="procedures.htm#namedparams">named parameter</a> when setting the include1 parameter is recommended, 
-            to make the intent clear and the code easier to read. Using constants (which you would have to declare yourself) such as
-            BOTH = 1, JUST1 = -1, and NEITHER = 0 might further improve clarity (builtin constants would deserve to be named something 
-            like FACTORS_INCLUDE1_BOTH, and I am more than a little reluctant to bother with that).
          </td>
         </tr>
+        <tr>
+         <td>
+          <b>Example 2:</b>
+         </td>
+         <td>
+<!--eucode>
+-- Worst case scenario. Be warned this chews through memory and made my machine almost
+-- completely unresponsive for several minutes, nearly forcing a hard reboot. 
+-- [The times shown exclude the get_prime() costs, which are actually even more.]
+-- Of course under 32-bits it crashes fairly quickly, on the second iteration.
+for b=53 to 65 do
+    integer pn = get_maxprime(power(2,b))
+    atom a = get_prime(pn-1)*get_prime(pn), t1 = time()
+    sequence pa = prime_powers(a)
+    printf(1,"b:%d, pn:%,d, a:%,d, prime_powers:%v (%s)\n",{b,pn,a,pa,elapsed(time()-t1)})
+end for
+
+--/* output:
+C:\Program Files (x86)\Phix>p64 test01
+b:53, pn:5484599, a:9007195909437503, prime_powers:{{94906247,1},{94906249,1}} (0.5s)
+b:54, pn:7603554, a:18014382671793161, prime_powers:{{134217649,1},{134217689,1}} (0.6s)
+b:55, pn:10545586, a:36028786674750007, prime_powers:{{189812501,1},{189812507,1}} (0.9s)
+b:56, pn:14630844, a:72057554846356433, prime_powers:{{268435367,1},{268435399,1}} (1.2s)
+b:57, pn:20306370, a:144115174032001927, prime_powers:{{379625041,1},{379625047,1}} (1.7s)
+b:58, pn:28192751, a:288230356824359011, prime_powers:{{536870879,1},{536870909,1}} (2.3s)
+b:59, pn:39155484, a:576460715868510101, prime_powers:{{759250091,1},{759250111,1}} (3.2s)
+b:60, pn:54400029, a:1152921423002469787, prime_powers:{{1073741783,1},{1073741789,1}} (4.5s)
+b:61, pn:75601572, a:2305842851326038979, prime_powers:{{1518500183,1},{1518500213,1}} (6.3s)
+b:62, pn:105097566, a:4611685975477714963, prime_powers:{{2147483629,1},{2147483647,1}} (8.8s)
+b:63, pn:146144319, a:9223371873002223329, prime_powers:{{3037000453,1},{3037000493,1}} (12.2s)
+b:64, pn:203280222, a:18446743979220271189, prime_powers:{{4294967279,1},{4294967291,1}} (17.3s)
+
+C:\Program Files (x86)\Phix\test01.exw:7
+argument to prime_powers() exceeds maximum precision
+
+==> see C:\Program Files (x86)\Phix\ex.err
+Press Enter...
+--*/
+</eucode-->
+<pre>
+<font color="#000080"><i>-- Worst case scenario. Be warned this chews through memory and made my machine almost
+-- completely unresponsive for several minutes, nearly forcing a hard reboot. 
+-- [The times shown exclude the get_prime() costs, which are actually even more.]
+-- Of course under 32-bits it crashes fairly quickly, on the second iteration.</i></font>
+<font color="#008080">for</font><font color="#000000"> b</font><font color="#0000FF">=</font><font color="#000000">53</font><font color="#008080"> to</font><font color="#000000"> 65</font><font color="#008080"> do</font>
+<font color="#004080">    integer</font><font color="#000000"> pn</font><font color="#0000FF"> =</font><font color="#7060A8"> get_maxprime</font><font color="#0000FF">(</font><font color="#7060A8">power</font><font color="#800000">(</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">b</font><font color="#800000">)</font><font color="#0000FF">)</font>
+<font color="#004080">    atom</font><font color="#000000"> a</font><font color="#0000FF"> =</font><font color="#7060A8"> get_prime</font><font color="#0000FF">(</font><font color="#000000">pn</font><font color="#0000FF">-</font><font color="#000000">1</font><font color="#0000FF">)*</font><font color="#7060A8">get_prime</font><font color="#0000FF">(</font><font color="#000000">pn</font><font color="#0000FF">),</font><font color="#000000"> t1</font><font color="#0000FF"> =</font><font color="#7060A8"> time</font><font color="#0000FF">()</font>
+<font color="#004080">    sequence</font><font color="#000000"> pa</font><font color="#0000FF"> =</font><font color="#7060A8"> prime_powers</font><font color="#0000FF">(</font><font color="#000000">a</font><font color="#0000FF">)</font>
+<font color="#7060A8">    printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"b:%d, pn:%,d, a:%,d, prime_powers:%v (%s)\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">b</font><font color="#0000FF">,</font><font color="#000000">pn</font><font color="#0000FF">,</font><font color="#000000">a</font><font color="#0000FF">,</font><font color="#000000">pa</font><font color="#0000FF">,</font><font color="#7060A8">elapsed</font><font color="#800080">(</font><font color="#7060A8">time</font><font color="#00FF00">()</font><font color="#0000FF">-</font><font color="#000000">t1</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#008080">end for
+</font>
+<font color="#000080"><i>--/* output:
+C:\Program Files (x86)\Phix&gt;p64 test01
+b:53, pn:5484599, a:9007195909437503, prime_powers:{{94906247,1},{94906249,1}} (0.5s)
+b:54, pn:7603554, a:18014382671793161, prime_powers:{{134217649,1},{134217689,1}} (0.6s)
+b:55, pn:10545586, a:36028786674750007, prime_powers:{{189812501,1},{189812507,1}} (0.9s)
+b:56, pn:14630844, a:72057554846356433, prime_powers:{{268435367,1},{268435399,1}} (1.2s)
+b:57, pn:20306370, a:144115174032001927, prime_powers:{{379625041,1},{379625047,1}} (1.7s)
+b:58, pn:28192751, a:288230356824359011, prime_powers:{{536870879,1},{536870909,1}} (2.3s)
+b:59, pn:39155484, a:576460715868510101, prime_powers:{{759250091,1},{759250111,1}} (3.2s)
+b:60, pn:54400029, a:1152921423002469787, prime_powers:{{1073741783,1},{1073741789,1}} (4.5s)
+b:61, pn:75601572, a:2305842851326038979, prime_powers:{{1518500183,1},{1518500213,1}} (6.3s)
+b:62, pn:105097566, a:4611685975477714963, prime_powers:{{2147483629,1},{2147483647,1}} (8.8s)
+b:63, pn:146144319, a:9223371873002223329, prime_powers:{{3037000453,1},{3037000493,1}} (12.2s)
+b:64, pn:203280222, a:18446743979220271189, prime_powers:{{4294967279,1},{4294967291,1}} (17.3s)
+
+C:\Program Files (x86)\Phix\test01.exw:7
+argument to prime_powers() exceeds maximum precision
+
+==&gt; see C:\Program Files (x86)\Phix\ex.err
+Press Enter...
+--*/</i></font>
+</pre>
+         </td>
+        </tr>
+
         <tr>
          <td>
           <b>Implementation:</b>
@@ -182,12 +334,32 @@ atom a = power(2*get_prime(101),2)
           <b>See Also:</b>
          </td>
          <td>
-          <a href="prime_factors.htm">prime_factors</a>,
+          <a href="get_prime.htm">get_primes</a>,
           <a href="mpfr.htm#mpz_prime_factors">mpz_prime_factors</a>,
+          <a href="mpfr.htm#mpz_factors">mpz_factors</a>,
           <a href="accuracy.htm">Floats Are Not Exact</a>
          </td>
         </tr>
+        <tr id="Technicalia" style="display:none;">
+         <td>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+            These routines terminate in error when passed a value that exceeds power(2,iff(machine_bits()=32?53:64)), ie the 
+            precision limit. By default they also fail when passed that exact limit value, since for instance on 32 bit 
+            9,007,199,254,740,993 actually arrives as 9,007,199,254,740,992 and obviously therefore these routines simply 
+            cannot tell which of those you were attempting to pass. If it did not fail in that way, you might be perplexed
+            when (say) ..95 does not list 5 as a factor (since this would actually get ..94), or worse obliviously toil away at 
+            producing incorrect/<wbr>meaningless/<wbr>pointless answers. You can change the behaviour of that checking when on 
+            the limit via integer prev_lim_chk = factors(lim_chk,-9), where lim_chk is 0 (the default) to fail on the limit, or 
+            1 to pass the limit value. In some cases you might want to flip and restore that setting, and perhaps do so inside a 
+            critical section should multithreading be in use. All a bit overkill, I know, but quite straightforward enough.
+         </td>
+        </tr>
        </table>
+       <img src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
        <br>
        <br>
       </div>

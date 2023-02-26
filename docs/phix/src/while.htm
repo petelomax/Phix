@@ -9,16 +9,74 @@
          A <b>while statement</b> tests a condition to see if it is non-zero (true), and while it is true a loop is executed. e.g.
 <!--eucode>
     while x>0 do
-        a = a * 2
-        x = x - 1
+        a *= 2
+        x -= 1
     end while
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#008080">    while</font><font color="#000000"> x</font><font color="#0000FF">&gt;</font><font color="#000000">0</font><font color="#008080"> do
-</font><font color="#000000">        a</font><font color="#0000FF"> =</font><font color="#000000"> a</font><font color="#0000FF"> *</font><font color="#000000"> 2
-        x</font><font color="#0000FF"> =</font><font color="#000000"> x</font><font color="#0000FF"> -</font><font color="#000000"> 1
-</font><font color="#008080">    end while</font>
+<font color="#008080">    while</font><font color="#000000"> x</font><font color="#0000FF">&gt;</font><font color="#000000">0</font><font color="#008080"> do</font>
+<font color="#000000">        a</font><font color="#0000FF"> *=</font><font color="#000000"> 2
+        x</font><font color="#0000FF"> -=</font><font color="#000000"> 1</font>
+<font color="#008080">    end while</font>
 </pre>
+        A <b>do until</b> statement (introduced in 1.0.2, not Euphoria compatible) is similar:
+<!--eucode>
+    do
+        a *= 2
+        x -= 1
+    until x<=0
+
+    -- wholly equivalent to, and in fact implemented as:
+
+    while true do
+        a *= 2
+        x -= 1
+        if x<=0 then exit end if
+    end while
+</eucode-->
+<pre>
+<font color="#008080">    do</font>
+<font color="#000000">        a</font><font color="#0000FF"> *=</font><font color="#000000"> 2
+        x</font><font color="#0000FF"> -=</font><font color="#000000"> 1</font>
+<font color="#008080">    until</font><font color="#000000"> x</font><font color="#0000FF">&lt;=</font><font color="#000000">0
+</font>
+<font color="#000080"><i>    -- wholly equivalent to, and in fact implemented as:
+</i></font>
+<font color="#008080">    while</font><font color="#004600"> true</font><font color="#008080"> do</font>
+<font color="#000000">        a</font><font color="#0000FF"> *=</font><font color="#000000"> 2
+        x</font><font color="#0000FF"> -=</font><font color="#000000"> 1</font>
+<font color="#008080">        if</font><font color="#000000"> x</font><font color="#0000FF">&lt;=</font><font color="#000000">0</font><font color="#008080"> then exit end if
+    end while</font>
+</pre>
+        Obviously a while loop may iterate zero times, whereas a do until loop always iterates at least once (excepting of course explicit exits).
+        <br>
+        <br>
+        The &lt;Ctrl [&gt; and &lt;Ctrl ]&gt; feature of Edita currently completely ignores do/until, which is not considered 
+        to be a significant problem since it ignores both ends equally.
+        <br>
+        <br>
+        Note that it would be fair to say that the "until clause" above should really be compiled to "if not(x&lt;=0) then goto loopTop end if"
+        and there should be no unconditional "jmp loopTop" being generated, but as things stand it isn&rsquo;t, and one is.
+        The performance overhead of that admittedly rather lazy implementation approach is expected to be quite neglible and
+        possibly not even measurable (these days branch prediction affects performance more than you or I ever could anyway),
+        and I only mention it because the whole point of do until is less typing and clearer code, rather than more speed.<br>
+        One other small implementation detail is that in a normal while loop (and other similar constructs) any inner scope (ie 
+        as introduced by the declaration of block-level variables) is dropped before the "end while", whereas it is retained a 
+        smidge longer in a do until statement, just long enough for the final expression to still reference variables that were
+        introduced within the inner scope.
+        <br>
+        <br>
+        Since JavaScript does not have an until loop, or more accurately it&rsquo;s do while would/might probably just serve to confuse things, 
+        p2js likewise maps the do..until construct to a while true do statement, and in fact deliberately generates identical parse trees for 
+        both halves of the last example (apart from a few line and column numbers).
+        <br>
+        <br>
+        Note:<br>
+        As with <a href="for.htm">for</a> loops, an unconditional exit means that the loop will never iterate, so it deserves to 
+        be removed or replaced with an <a href="if.htm">if</a> construct. 
+        Occasionally it may be annoying when the compiler forces that on you but in the long run your code will thank you for it.
+        In truth the compiler tries to "optimise away" the "end while", since it has become unreachable code, with disastrous 
+        consequences when it later tries to backpatch the zero iterations jump. 
       </div>
      </stripped>
     </get>

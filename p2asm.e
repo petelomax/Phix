@@ -81,7 +81,8 @@ integer wordsize
     while 1 do
         v = 0
         wordsize = 4
-        if X64 then
+--      if X64 then
+        if machine=64 then
             wordsize = 8
         end if
 --      for i=1 to 4 do
@@ -654,7 +655,8 @@ end if
                    (useHexBase and (size=4))) then -- for jump tables (added 3/4/2010) [and return addresses 22/2/2012]
                 asm &= sprintf("%s#%08x",{spacer,v})
             elsif v=#40000000
-               or (X64=1 and v=#4000000000000000) then
+--             or (X64=1 and v=#4000000000000000) then
+               or (machine=64 and v=#4000000000000000) then
                 asm &= spacer&"h4"
             elsif v=-128 then
                 asm &= spacer&"#80"
@@ -980,8 +982,10 @@ if rm=5 then    -- ebp
 --  or (X64=1 and v=32) then
 --  if (NEWRETSLOT=0 and ((X64=0 and v=16) or (X64=1 and v=32)))
 --  or (NEWRETSLOT=1 and ((X64=0 and v=28) or (X64=1 and v=56))) then
-    if (X64=0 and v=28) 
-    or (X64=1 and v=56) then
+--  if (X64=0 and v=28) 
+    if (machine=32 and v=28) 
+--  or (X64=1 and v=56) then
+    or (machine=64 and v=56) then
 --trace(1)
 if notphix=0 then
         asm &= " (retaddr)"
@@ -989,8 +993,10 @@ end if
         wasRetAddr = 1
         inFrame = 0
 --  elsif v=20 then
-    elsif (X64=0 and v=20)
-       or (X64=1 and v=40) then
+--  elsif (X64=0 and v=20)
+    elsif (machine=32 and v=20)
+--     or (X64=1 and v=40) then
+       or (machine=64 and v=40) then
         asm &= " (prevebp)"
     elsif v<=0 then
         if inFrame then
@@ -1001,7 +1007,8 @@ end if
 wasp = p
         if p!=0 then
             p = symtab[p][S_Parm1]
-if X64 then
+--if X64 then
+if machine=64 then
             for i=v to -8 by 8 do
                 if p=0 then exit end if
                 p = symtab[p][S_Slink]
@@ -1145,7 +1152,7 @@ constant f5d = {"fild",0,"fist","fistp",0,"fld",0,"fstp"}
 constant f6d = {#E0,"feni",#E1,"fdisi",#E2,"fnclex",#E3,"fninit"}
 constant f5e = {"fld",0,"fst","fstp","frstor",0,"fnsave","fnstsw"}
 constant f5f = {"ffree",0,"fst","fstp","fucom","fucomp",0,0}
-constant f7a = {"fild word",0,"fist word","fistp word","fbld","fild qword","fbstp","fistp qword"}
+constant f7a = {"fild word",0,"fist word","fistp word","fbld tbyte","fild qword","fbstp tbyte","fistp qword"}
 constant f7b = {"ffreep",0,0,0,"fnstsw ax","fucomip","fcomip",0}
 constant i34x = {"loopnz","loopz","loop","jecxz","in al","in eax","out","out"}
 constant i36x = {"lock","int1",0,0,"hlt","cmc"}
@@ -3559,8 +3566,9 @@ dormspacer = 1
                 elsif c3=7 then
 --trace(1)
                     if mode!=3 then
-                        -- {"fild word",0,"fist word","fistp word","fbld","fild qword","fbstp","fistp qword"}
+                        -- {"fild word",0,"fist word","fistp word","fbld tbyte","fild qword","fbstp tbyte","fistp qword"}
                         asm = f7a[reg+1]
+
                         if integer(asm) then -- reg=1
                             unk()
                         else
@@ -3574,6 +3582,9 @@ dormspacer = 1
                             elsif find(reg,{2,3,7}) then    -- fist m16, fistp m16/m64
                                 pairing = NP
                                 clocks = 6
+                            elsif find(reg,{4,6}) then      -- fbld, fbstp
+                                pairing = NP
+                                clocks = 1
                             end if
                         end if
                     else
@@ -3888,7 +3899,8 @@ end if
 -- 3/4/2010 hack for jump tables
 useHexBase = 1
 --17/1/15 (over jmp qword[rsp])
-if X64=0 then
+--if X64=0 then
+if machine=32 then
                                 dorm(1)
 else
                                 dorm(0)
@@ -3898,13 +3910,16 @@ useHexBase = 0
                                 pairing = NP
 -- 2/4/2010:
 
+--if addr=#82E8A53 then trace(1) end if -- p32
+--if addr=#83125E then trace(1) end if  -- p64
 if c3=7
 and mode=0
 --and reg=4
 and rm=4
 and base=5  -- no base
 --and scale=2
-and ((X64=0 and scale=2) or (X64=1 and scale=3))
+--and ((X64=0 and scale=2) or (X64=1 and scale=3))
+and ((machine=32 and scale=2) or (machine=64 and scale=3))
 and and_bits(addr+7-v,#03)=0    -- added 1/10/13
 and isPlausibleJumpTable(addr+7)
 then
@@ -3916,8 +3931,9 @@ then
     --          should expect consecutive forward (absolute not relative) jumps and that the
     --          min_jt_addr (as found during the scan) exactly terminates the table.
     dump_jump_table = -1
---?{addr,v}
-  if X64 then
+--printf(1,"jump_table: addr:%08x, v:%08x\n",{addr,v})
+--  if X64 then
+  if machine=64 then
     jump_table_index = (addr+7-v)/8     -- (result should always be an integer)
   else
     jump_table_index = (addr+7-v)/4     -- (result should always be an integer)
@@ -3968,7 +3984,8 @@ sequence res
 --trace(1)
         asm = ""
         hex = ""
-if X64 then
+--if X64 then
+if machine=64 then
         getimm(8,'#')
 else
         getimm(4,'#')
@@ -3990,7 +4007,8 @@ end if
         res = sprintf("%s [%d]",{asm,jump_table_index})
         res = {res,addr,hex,""}
         jump_table_index += 1
-if X64 then
+--if X64 then
+if machine=64 then
         addr += 8 --ilen
 else
         addr += 4 --ilen

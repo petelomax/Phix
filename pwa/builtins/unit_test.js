@@ -155,6 +155,7 @@ function $show_module() {
     }
     $module = name;
 }
+let set_test_section = set_test_module;
 //Instead of this there is now an Alias() in psym.e:
 //global procedure set_test_section(string name)
 //  set_test_module(name)
@@ -183,6 +184,16 @@ function $test_result(/*bool*/ success, /*sequence*/ args, /*integer*/ fdx, leve
 
 /*global*/ function test_equal(/*object*/ a, /*object*/ b, /*string*/ name="", /*bool*/ eq=true) {
     let /*bool*/ success;
+/* I completely forgot about bool eq, bit of a daft idea anyway.
+    -- Eu compatibility, ie args of (name, a, b):
+    if string(a) and string(b) and name!="" then -- (and string(name), obvs!)
+        if (length(a)!=length(b) and length(b)=length(name))
+        or (a!=b and b=name) then
+            {a,b,name} = {b,name,a}
+        end if
+    end if
+    -- </Eu compatibility>
+*/
     if (equal(a,b)) {
         success = true;
     } else if (equal(sq_mul(0,a),sq_mul(0,b))) {

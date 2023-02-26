@@ -2,7 +2,7 @@
 -- pbinary.e
 -- =========
 --
-constant datab4code = 01 --DEV (could/should be a format option?)
+--constant datab4code = 01 --DEV (could/should be a format option?)
 
 --  Implements the messy details of actually creating 32/64-bit PE/ELF executable files.
 --  Executable files contain mountains of obscure and often historical/obsolete details. This
@@ -245,8 +245,8 @@ function RoundToSectionAlignment(integer v)
     return floor((v+SectionAlignment-1)/SectionAlignment)*SectionAlignment
 end function
 
-function pad(string s, integer wordsize)
-integer padding = and_bits(length(s),wordsize-1)
+function pad_to(string s, integer wordsize)
+    integer padding = and_bits(length(s),wordsize-1)
     if padding then
         s &= stringify(repeat('\0',wordsize-padding))
     end if
@@ -655,7 +655,7 @@ if and_bits(esize,1) then esize += 1 end if
         expected_reloc_size = rsize
         SizeOfImage += RoundToFileAlignment(rsize)
     end if
-if datab4code then
+--if datab4code then
     sections = append(sections,{0,".data",datalen,RVAaddr})
     BaseOfData = RVAaddr
 BaseOfData2 = BaseOfData
@@ -669,20 +669,20 @@ BaseOfCode2 = BaseOfCode
 SizeOfCode2 = codelen
     RVAaddr += RoundToSectionAlignment(codelen)
     SizeOfImage += RoundToFileAlignment(codelen)
-else
-    sections = append(sections,{0,".text",codelen,RVAaddr})
-    BaseOfCode = RVAaddr
-BaseOfCode2 = BaseOfCode
-SizeOfCode2 = codelen
-    RVAaddr += RoundToSectionAlignment(codelen)
-    SizeOfImage += RoundToFileAlignment(codelen)
-    sections = append(sections,{0,".data",datalen,RVAaddr})
-    BaseOfData = RVAaddr
-BaseOfData2 = BaseOfData
-SizeOfData2 = datalen
-    RVAaddr += RoundToSectionAlignment(datalen)
-    SizeOfImage += RoundToFileAlignment(datalen)
-end if
+--else
+--  sections = append(sections,{0,".text",codelen,RVAaddr})
+--  BaseOfCode = RVAaddr
+--BaseOfCode2 = BaseOfCode
+--SizeOfCode2 = codelen
+--  RVAaddr += RoundToSectionAlignment(codelen)
+--  SizeOfImage += RoundToFileAlignment(codelen)
+--  sections = append(sections,{0,".data",datalen,RVAaddr})
+--  BaseOfData = RVAaddr
+--BaseOfData2 = BaseOfData
+--SizeOfData2 = datalen
+--  RVAaddr += RoundToSectionAlignment(datalen)
+--  SizeOfImage += RoundToFileAlignment(datalen)
+--end if
 
     resourceBase = RVAaddr
     if resourcelen!=0 then
@@ -1204,7 +1204,7 @@ integer ch
     for i=1 to length(n) do
         ch = n[i]
         if ch<'0' or ch>'9' then exit end if
-        res = res*10+ch-'0'
+        res = res*10+(ch-'0')
     end for
     if res>#FFFF then ?9/0 end if
     return res
@@ -1812,27 +1812,20 @@ end function
 
 --DEV (split temporarily)
 procedure SetCheckSum(string img, integer SizeOfImage)
-atom imagehlp = 0, 
-     kernel32,
-     xCheckSumMappedFile,
-     xGetLastError,
-     pChecksums,
-     pPE
-
-    imagehlp = open_dll("imagehlp.dll")
-    xCheckSumMappedFile = define_c_func(imagehlp,"CheckSumMappedFile",
-        {C_PTR,     --  PVOID BaseAddress,
-         C_LONG,    --  DWORD FileLength,
-         C_PTR,     --  PDWORD HeaderSum,
-         C_PTR},    --  PDWORD CheckSum
-        C_PTR)      -- PIMAGE_NT_HEADERS
-    kernel32 = open_dll("kernel32.dll")
-    xGetLastError = define_c_func(kernel32, "GetLastError",
-        {},
-        C_INT)      -- DWORD
-    pChecksums = allocate(8) -- {PE, Calc}
+    atom imagehlp = open_dll("imagehlp.dll"),
+        xCheckSumMappedFile = define_c_func(imagehlp,"CheckSumMappedFile",
+            {C_PTR,     --  PVOID BaseAddress,
+             C_LONG,    --  DWORD FileLength,
+             C_PTR,     --  PDWORD HeaderSum,
+             C_PTR},    --  PDWORD CheckSum
+            C_PTR),     -- PIMAGE_NT_HEADERS
+        kernel32 = open_dll("kernel32.dll"),
+        xGetLastError = define_c_func(kernel32, "GetLastError",
+            {},
+            C_INT),     -- DWORD
+        pChecksums = allocate(8) -- {PE, Calc}
     poke4(pChecksums,{0,0})
-    pPE = c_func(xCheckSumMappedFile,{img, SizeOfImage, pChecksums, pChecksums+4})
+    atom pPE = c_func(xCheckSumMappedFile,{img, SizeOfImage, pChecksums, pChecksums+4})
     if pPE=NULL then pPE=c_func(xGetLastError,{}) ?9/0 end if
     if peek4u(pPE+#58)!=peek4u(pChecksums) then ?9/0 end if
     poke(pPE+#58,peek4u(pChecksums+4))
@@ -2138,17 +2131,17 @@ end if
     blocklen = length(block)
     imgidx = blocklen
     img[1..imgidx] = block
-    if datab4code then
+--  if datab4code then
         img[imgidx+1..imgidx+datalen] = data
         imgidx += RoundToFileAlignment(datalen)
         img[imgidx+1..imgidx+codelen] = code
         imgidx += RoundToFileAlignment(codelen)
-    else
-        img[imgidx+1..imgidx+codelen] = code
-        imgidx += RoundToFileAlignment(codelen)
-        img[imgidx+1..imgidx+datalen] = data
-        imgidx += RoundToFileAlignment(datalen)
-    end if
+--  else
+--      img[imgidx+1..imgidx+codelen] = code
+--      imgidx += RoundToFileAlignment(codelen)
+--      img[imgidx+1..imgidx+datalen] = data
+--      imgidx += RoundToFileAlignment(datalen)
+--  end if
 --  if gexch!=0 then    -- global exception handler (PE64 only)
 --      ?9/0
 -->
@@ -2226,12 +2219,15 @@ constant Read = 4, Write= 2, Execute = 1 -- (for S_FLAGS)
 
 --constant interpreter = "/lib/ld-linux.so.2\0\0",  -- (manually padded to whole dwords/DEV)
 string interpreter = "/lib/ld-linux.so.2\0"
+--9/12/22: (no help, undone)
 string interpreter64 = "/lib64/ld-linux-x86-64.so.2\0"
+--string interpreter64 = "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2\0"
 
 
 constant PT_LOAD = 1,
          PT_DYNAMIC = 2,
-         PT_INTERP = 3
+         PT_INTERP = 3,
+         PT_PHDR = 6
 
 constant DT_NULL            = 0,
          DT_NEEDED          = 1,
@@ -2285,7 +2281,7 @@ function elfHeader(integer machine, atom base, sequence imports, integer datalen
 sequence res, shdr
 integer phnum
 atom vaddr
-atom offset, shtype, size, flags
+atom offset, shtype, pa, size, flags, align
 integer e_entry
 integer e_phentsize
 integer p_type
@@ -2295,6 +2291,7 @@ integer p_paddr
 integer p_filesz
 integer p_memsz
 integer p_flags
+integer p_align
 integer elfHeaderSize
 sequence segments
 integer dataBase
@@ -2303,7 +2300,7 @@ integer start
 --sequence stringaddrs = imports
 string dt = "", dtentry, st, stentry, ht, rt = "", rtentry
 integer rtidx = 0
-integer dynalen
+integer dynalen, phlen
 string dynstrings = "\0"
 integer padding
 sequence dynfixups = {}
@@ -2366,35 +2363,53 @@ ImageBase2 = base
         
 --      rt &= stringify(repeat('\0',rtidx*4))
         dynalen = length(st)+length(ht)+length(dynstrings)+length(rt)+rtidx*4
+--21/2/23:
+        phlen = 5*32 -- =160 = #A0 (5 program headers, aka e_phentsize*phnum)
 --      reloc = stringify({0,0,0,0}) --??
                 
         dtentry = SetField(dtentry,4,DWORD,0)
---      interpreter = pad(interpreter,iff(machine=32?DWORD:QWORD))
-        interpreter = pad(interpreter,DWORD)
+--      interpreter = pad_to(interpreter,iff(machine=32?DWORD:QWORD))
+        interpreter = pad_to(interpreter,DWORD)
         interplen = length(interpreter)
 --DEV I think this should be if rtidx=0?? (do we care?)
-        if dynalen=0 then
-            segments = {{PT_INTERP,interplen,Read}}
-        else
-            segments = {{PT_INTERP,interplen,Read},
-                        {PT_DYNAMIC,length(dt)+9*8,Read},
-                        {PT_LOAD,dynalen,Read+Write}}
+--      if dynalen=0 then
+--?9/0
+--          segments = {{PT_INTERP,interplen,Read}}
+--      else
+            segments = {{PT_INTERP,0,interplen,Read,0x4},
+                        {PT_DYNAMIC,0,length(dt)+9*8,Read,0x8},
+--21/2/23
+--                      {PT_LOAD,dynalen,Read+Write}}
+                        {PT_PHDR,0,phlen,Read+Write,0x10}}
             interplen += length(dt)+9*8+dynalen
-        end if
+--      end if
         elfHeaderSize = #34
         e_phentsize = 32
-if datab4code then
+--if datab4code then
         interplen += datalen + (length(segments)+2)*e_phentsize + elfHeaderSize
         datapad = RoundToSectionAlignment(interplen)-interplen
         datalen += datapad
-        segments &= {{PT_LOAD,datalen,Read+Write},
-                     {PT_LOAD,codelen,Read+Execute}}
-else
-        ?9/0 --(double padding rqd)
-        segments &= {{PT_LOAD,codelen,Read+Execute},
-                     {PT_LOAD,datalen,Read+Write}}
-end if
+--#320 = 800...
+        pa = #34    -- e_shsize
+           + phlen  -- program headers
+           + length(interpreter)
+           + length(dt)+9*8 -- dynamic link info
+           + length(st) -- symtab (12*16)
+           + length(ht) -- hash table (15*4)    
+           + length(dynstrings) -- string table
+           + rtidx*8 -- relocations
+           + rtidx*4 -- relocs
+--?{"pa",pa,#320} -- looking good!
+--?9/0 -- placeholder, figure out the proper way to get that...
+        segments &= {{PT_LOAD,pa,pa+datalen,Read+Write,0x1000},
+                     {PT_LOAD,0,codelen,Read+Execute,0x1000}}
+--else
+--      ?9/0 --(double padding rqd)
+--      segments &= {{PT_LOAD,codelen,Read+Execute},
+--                   {PT_LOAD,datalen,Read+Write}}
+--end if
         phnum = length(segments)
+        assert(phlen = phnum*32)
         res = stringify(                --  offset    name         size value       desc
               { #7F, 'E', 'L', 'F',     -- 00000000,ei_magic,       x4, 0x7F&"ELF", ELF signature
                 1,                      -- 00000004,ei_class,       1,  1,          32 bit
@@ -2414,7 +2429,9 @@ end if
                 #34,0,                  -- 00000028,e_ehsize,       h2, 0034h,      ELF header size (32 bit)
                 32,0,                   -- 0000002A,e_phentsize,    2,  32,         program header table entry size
                 phnum,0,                -- 0000002C,e_phnum,        2,  4,          number of program header entries (segments)
-                40,0,                   -- 0000002E,e_shentsize,    2,  40,         section header entry size
+--13/2/2023:
+--              40,0,                   -- 0000002E,e_shentsize,    2,  40,         section header entry size
+                0,0,                    -- 0000002E,e_shentsize,    2,  40,         section header entry size
                 0,0,                    -- 00000030,e_shnum,        2,  0,          number of section header entries
                 0,0 })                  -- 00000032,e_shstrndx,     2,  0,          section name string table index
         if length(res)!=elfHeaderSize then ?9/0 end if
@@ -2443,6 +2460,7 @@ end if
         p_filesz = #00000010
         p_memsz  = #00000014
         p_flags  = #00000018
+        p_align  = #0000001C
 
         offset = length(res)+phnum*e_phentsize
         for i=1 to phnum do
@@ -2451,17 +2469,23 @@ end if
 --             }
 --          {offset,size,flags} = segments[i]
 --          segments[i][1] = offset
-            {shtype,size,flags} = segments[i]
-            segments[i][1] = vaddr+offset
+            {shtype,pa,size,flags,align} = segments[i]
+            if shtype=PT_PHDR then offset = #34 end if
+--          integer vo = iff(shtype=PT_PHDR?#34:vaddr+offset)
+            integer vo = vaddr+offset
+--          segments[i][1] = vo
+            segments[i][1] = vo+pa
             shdr = SetField(shdr,p_type,DWORD,shtype)
             shdr = SetField(shdr,p_offset,DWORD,offset)
-            shdr = SetField(shdr,p_vaddr,DWORD,vaddr+offset)
-            shdr = SetField(shdr,p_paddr,DWORD,vaddr+offset)
+            shdr = SetField(shdr,p_vaddr,DWORD,vo)
+            shdr = SetField(shdr,p_paddr,DWORD,vo+pa)
             shdr = SetField(shdr,p_filesz,DWORD,size)
             shdr = SetField(shdr,p_memsz,DWORD,size)
             shdr = SetField(shdr,p_flags,DWORD,flags)
+            shdr = SetField(shdr,p_align,DWORD,align)
             res &= shdr
             offset += size
+            if shtype=PT_PHDR then offset = 0 end if
         end for
 --      offset = length(res)
 --      size = codelen
@@ -2518,9 +2542,9 @@ end if
 --      if vaddr+length(res)+length(dt)!=dynalen then ?9/0 end if
         res &= dt
         start = base+length(res)
-        if datab4code then
+--      if datab4code then
             start += datalen
-        end if
+--      end if
         res = SetField(res,e_entry,DWORD,start)
 
     elsif machine=M64 then
@@ -2574,32 +2598,48 @@ end if
         end for
         
         dynalen = length(st)+length(ht)+length(dynstrings)+length(rt)+rtidx*8
+--21/2/23:
+        phlen = 5*56 -- =280 = #118 (5 program headers, aka e_phentsize*phnum)
                 
         dtentry = SetField(dtentry,8,QWORD,0)
-        interpreter64 = pad(interpreter64,QWORD)
+        interpreter64 = pad_to(interpreter64,QWORD)
         interplen = length(interpreter64)
-        if dynalen=0 then
-            segments = {{PT_INTERP,interplen,Read}}
-        else
-            segments = {{PT_INTERP,interplen,Read},
-                        {PT_DYNAMIC,length(dt)+9*16,Read},
-                        {PT_LOAD,dynalen,Read+Write}}
+--      if dynalen=0 then
+--          segments = {{PT_INTERP,interplen,Read}}
+--      else
+            segments = {{PT_INTERP,0,interplen,Read,0x8},
+                        {PT_DYNAMIC,0,length(dt)+9*16,Read,0x8},
+--                      {PT_LOAD,dynalen,Read+Write}}
+                        {PT_PHDR,0,phlen,Read+Write,0x10}}
             interplen += length(dt)+9*16+dynalen
-        end if
+--      end if
         elfHeaderSize = #00000040
         e_phentsize = 56
-if datab4code then
+--if datab4code then
         interplen += datalen + (length(segments)+2)*e_phentsize + elfHeaderSize
         datapad = RoundToSectionAlignment(interplen)-interplen
         datalen += datapad
-        segments &= {{PT_LOAD,datalen,Read+Write},
-                     {PT_LOAD,codelen,Read+Execute}}
-else
-        ?9/0
-        segments &= {{PT_LOAD,codelen,Read+Execute},
-                     {PT_LOAD,datalen,Read+Write}}
-end if
+        pa = #40    -- e_shsize
+           + phlen  -- program headers
+           + length(interpreter64)
+           + length(dt)+9*16 -- dynamic link info
+           + length(st) -- symtab (12*24)
+           + length(ht) -- hash table (15*8)    
+           + length(dynstrings) -- string table
+           + rtidx*24 -- relocations
+           + rtidx*8 -- relocs
+--?{"pa",pa,#500}   -- looking good!
+--pa = #500 -- 1280
+--?9/0
+        segments &= {{PT_LOAD,pa,pa+datalen,Read+Write,0x1000},
+                     {PT_LOAD,0,codelen,Read+Execute,0x1000}}
+--else
+--      ?9/0
+--      segments &= {{PT_LOAD,codelen,Read+Execute},
+--                   {PT_LOAD,datalen,Read+Write}}
+--end if
         phnum = length(segments)
+        assert(phlen = phnum*56)
 
         res = stringify(                --  offset    name         size value       desc
               { #7F, 'E', 'L', 'F',     -- 00000000,ei_magic,       x4, 0x7F&"ELF", ELF signature
@@ -2620,7 +2660,9 @@ end if
                 #40,0,                  -- 00000034,e_ehsize,       h2, 0040h,      ELF header size (64 bit)
                 56,0,                   -- 00000036,e_phentsize,    2,  56,         program header table entry size
                 phnum,0,                -- 00000038,e_phnum,        2,  4,          number of program header entries (segments)
-                64,0,                   -- 0000003A,e_shentsize,    2,  64,         section header entry size
+--13/2/2023
+--              64,0,                   -- 0000003A,e_shentsize,    2,  64,         section header entry size
+                0,0,                    -- 0000003A,e_shentsize,    2,  64,         section header entry size
                 0,0,                    -- 0000003C,e_shnum,        2,  0,          number of section header entries
                 0,0 })                  -- 0000003E,e_shstrndx,     2,  0,          section name string table index
         if length(res)!=elfHeaderSize then ?9/0 end if
@@ -2650,27 +2692,34 @@ end if
         p_filesz = #00000020
         p_memsz  = #00000028
         p_flags  = #00000004
+        p_align  = #00000030
 
         if length(segments)!=phnum then ?9/0 end if
         offset = length(res)+phnum*e_phentsize
         for i=1 to phnum do
 --          {offset,size,flags} = segments[i]
-            {shtype,size,flags} = segments[i]
+            {shtype,pa,size,flags,align} = segments[i]
+            if shtype=PT_PHDR then offset = #40 end if
+--          integer vo = iff(shtype=PT_PHDR?#40:vaddr+offset)
+            integer vo = vaddr+offset
 --          offset = length(res)
 --          segments[i][1] = offset
-            segments[i][1] = vaddr+offset
+--          segments[i][1] = vo
+            segments[i][1] = vo+pa
             shdr = SetField(shdr,p_type,QWORD,shtype)
             shdr = SetField(shdr,p_offset,QWORD,offset)
-            shdr = SetField(shdr,p_vaddr,QWORD,vaddr+offset)
-            shdr = SetField(shdr,p_paddr,QWORD,vaddr+offset)
+            shdr = SetField(shdr,p_vaddr,QWORD,vo)
+            shdr = SetField(shdr,p_paddr,QWORD,vo+pa)
             shdr = SetField(shdr,p_filesz,QWORD,size)
             shdr = SetField(shdr,p_memsz,QWORD,size)
             shdr = SetField(shdr,p_flags,DWORD,flags)
+            shdr = SetField(shdr,p_align,QWORD,align)
             res &= shdr
             --DEV not entirely sure we need to do this... (or whether we should do the same for 32-bit)
 --          vaddr += size+#1000-1
 --          vaddr = and_bits(vaddr,#FFFFF000)
             offset += size
+            if shtype=PT_PHDR then offset = 0 end if
         end for
 
         res &= interpreter64
@@ -2681,7 +2730,10 @@ end if
         dtentry = SetField(dtentry,8,QWORD,dynalen)
         dt &= dtentry
         dtentry = SetField(dtentry,0,QWORD,DT_SYMENT)
-        dtentry = SetField(dtentry,8,QWORD,16)
+--22/2/23
+--      dtentry = SetField(dtentry,8,QWORD,16)
+        dtentry = SetField(dtentry,8,QWORD,24)
+--0xb0 = 176 = 11*16, 11*24=264 = #108
         dt &= dtentry
         dynalen += length(st)
         dtentry = SetField(dtentry,0,QWORD,DT_HASH)
@@ -2725,9 +2777,9 @@ end if
 --      if vaddr+length(res)+length(dt)!=dynalen then ?9/0 end if
         res &= dt
         start = base+length(res)
-        if datab4code then
+--      if datab4code then
             start += datalen
-        end if
+--      end if
         res = SetField(res,e_entry,QWORD,start)
     else
         ?9/0
@@ -2739,17 +2791,17 @@ end if
 --  return res          
 --  return {res,segments}
 --  dataBase = codeBase+codelen
-if datab4code then
+--if datab4code then
 --  dataBase = segments[1][1]
 --  codeBase = segments[2][1]
     dataBase = segments[-2][1]
     codeBase = segments[-1][1]
-else
---  codeBase = segments[1][1]
---  dataBase = segments[2][1]
-    codeBase = segments[-2][1]
-    dataBase = segments[-1][1]
-end if
+--else
+----    codeBase = segments[1][1]
+----    dataBase = segments[2][1]
+--  codeBase = segments[-2][1]
+--  dataBase = segments[-1][1]
+--end if
 --DEV
 BaseOfData2 = dataBase-ImageBase2
 SizeOfData2 = datalen
@@ -2876,13 +2928,13 @@ end if
     end if
     data = fixup(data,relocations[DATA][CODE],machine,0,codeBase)
     data = fixup(data,relocations[DATA][DATA],machine,0,dataBase)
-if datab4code then
+--if datab4code then
     puts(fn,data)
     puts(fn,code)
-else
-    puts(fn,code)
-    puts(fn,data)
-end if
+--else
+--  puts(fn,code)
+--  puts(fn,data)
+--end if
     close(fn)
 --DEV
     fixedupdata = data

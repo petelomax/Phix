@@ -10,8 +10,8 @@
         declaration is in effect, i.e. where that symbol is <i>visible</i>.
        <br>
        <br>
-        In Phix, every variable must be declared before it is used. You can read a Phix program
-        from beginning to end without encountering any variables that have not been defined yet.
+        In a Phix program every variable must be declared before use, and can be read 
+        from beginning to end without encountering any that get defined later.
        <br>
        <br>
         You can explicitly declare a forward routine that will be defined later, or just invoke
@@ -21,21 +21,21 @@
        <br>
        <br>
         Implicit forward routine calls are assumed to be local and generate a compilation error 
-        if still unresolved at the end of the file. If the routine is actually global (and not 
-        a typo) there must be an explicit forward global routine statement, and that must occur 
+        if still unresolved at the end of file. If the routine is actually global (and not a
+        typo) there must be an explicit forward global routine statement, and that must occur 
         before the first (implicit) call. If the compiler can unambiguously resolve an implicit 
         local routine to a global routine, it will, but at the same time also issue a warning.
        <br>
        <br>
         Procedures, functions and types can call themselves <i>recursively</i>. Mutual recursion, 
-        where routine A calls routine B which directly or indirectly calls routine A, is fully supported.
+        where routine A calls routine B which [in]directly calls routine A, is fully supported.
        <br>
        <br>
         It is also possible to call a routine that comes later in the source using the special 
         functions <a href="routine_id.htm">routine_id</a>(), and either
         <a href="call_func.htm">call_func</a>() or
         <a href="call_proc.htm">call_proc</a>(), see
-        <a href="dcall.htm">Library Routines - Dynamic Calls</a>. <br>
+        <a href="dcall.htm">Library Routines - Dynamic Calls</a>. 
         This mechanism was the only means of making a forward call in RDS Eu, and may
         therefore be quite prevalent in legacy code.
        <br>
@@ -65,44 +65,45 @@
          same file, but not a global from any other file. 
 -->
         You can use the same name in many different for-loops as long as the loops are not nested. 
-        You do not have to declare loop variables as you would other variables. However should you
-        chose to, you should use type integer, as Phix does not allow floating point for loops.
+        You do not have to declare loop variables as you would other variables. However, since Phix 
+        <a href="for.htm#float">does not support floating point for loops</a>, should you choose to, 
+        use the type integer.
        <br>
        <br>
-        When you include a Phix file in a main file (see 
-       <a href="specialtop.htm">Special Top-Level Statements</a>),
-        only the variables and routines declared using the <b>global</b> keyword are accessible 
-        or even visible to the main file. The other, non-global, declarations in the included 
-        file are forgotten at the end of the included file, and you will get an error message, 
-        "not declared", if you try to use them in the main file.
+        When you include a Phix file in a main file (see <a href="specialtop.htm">Special Top-Level Statements</a>),
+        only the variables and routines declared using the <b>global</b> keyword are accessible or even visible 
+        to the main file. The other, non-global, declarations in the included file are forgotten at the end of 
+        that file, and you will get a "not declared" error message, should you try to use them in the main file.
        <br>
        <br>
-        The <b>global</b> keyword makes it clear which symbols can be used externally,
-        and which symbols are strictly for internal use within the include file.<br>
-        This information is helpful when maintaining or enhancing the file, or when learning 
-        how to use the file.
+        The <b>global</b> keyword makes it clear which symbols can be used externally, and which symbols are 
+        strictly for internal use within the include file.<br>
+        This information may be helpful when maintaining or enhancing the file, or when learning how to use the file.<br>
+<!--        For compatibility reasons the <b>public</b> keyword is a simple alias of global.  -->
+        <a name=local></a>
+        Optionally the <b>local</b> keyword can be used as the logical counterpart to global, but it does not actually 
+        change anything, it is for clarification of intent only, and noting that local means file rather than routine level, 
+        and there is <i><b>no</b></i> similar private (compatability) alias like there is for public (see next).
        <br>
        <blockquote>
-        <b>Compatibility Note:</b> Euphoria has private and export qualifiers as well as global. 
-        Phix simply treats all three identically, except for export in the top-level
-        file when building a .dll or .so. The "priorities" handling as documented in psym.e 
-        addresses pretty much the same concerns but in a completely different manner.
+        <b>Compatibility Note:</b> Euphoria has public and export qualifiers as well as global. 
+        Phix simply treats all three identically, except for export in the top-level file when building a .dll or .so. 
+        The "priorities" handling as documented in psym.e addresses pretty much the same concerns (that Euphoria uses 
+        global/public/export to distinguish between) but in a completely different manner.
         <br>
         <br>
-        JavaScript is essentially a function-scoped language, with block scope added as a
-        bit of an afterthought, hence most of these rules do not strictly apply when using
-        <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a> to transpile code so
-        it can be run in a browser. In particular everything declared at file level is
-        effectively global, and there are no namespaces at all. Otherwise however these rules 
-        can still be helpful when initially developing on the desktop.
+        JavaScript is essentially a function-scoped language, with block scope added as a bit of an afterthought, hence 
+        most of these rules do not strictly apply when using <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a> 
+        to transpile code so it can be run in a browser. 
+        In particular everything declared at file level is effectively global, and there are <i>no namespaces at all</i>. 
+        Otherwise however these rules can still be helpful when initially developing on the desktop.
        </blockquote>
-        Sometimes, when using include files developed by others, you will encounter a naming conflict.
-        One of the include file authors has used the same name for a global symbol
-        as one of the other authors. If you have the source, you can
-        simply edit one of the include files to correct the problem, but then
-        you would have repeat this process whenever a new version of the include
-        file was released. Phix has a simpler way to solve this. Using
-        an extension to the include statement, you can say for example:
+        Sometimes, when using include files developed by others, you may encounter a naming conflict.
+        One of the include file authors has used the same name for a global symbol as one of the other authors. 
+        Since you have the source code you could simply edit one of the include files to correct the problem, 
+        but then you would have repeat this process whenever a new version of the include file was released. 
+        Phix has a simpler way to solve this, albeit one that is not p2js-compatible. Using an extension to 
+        the include statement, you can say for example:
 <!--eucode>
      include johns_file.e as john
      include bills_file.e as bill
@@ -115,38 +116,28 @@
      john</font><font color="#0000FF">:</font><font color="#000000">x</font><font color="#0000FF"> +=</font><font color="#000000"> 1
      bill</font><font color="#0000FF">:</font><font color="#000000">x</font><font color="#0000FF"> +=</font><font color="#000000"> 2</font>
 </pre>
-       In this case, the variable x was declared in two different files,
-        and you want to refer to both variables in your file.
-        Using the <i>namespace identifier</i> of either john or bill, you can
-        attach a prefix to x to indicate which x you are referring to.
-        We sometimes say that john refers to one <i>namespace</i>, while bill 
-        refers to another distinct <i>namespace</i>. 
-        You can attach a namespace identifier
-        to any user-defined variable, constant, procedure or function. You can do it
-        to solve a conflict, or simply to make things clearer. A namespace identifier
-        has local scope. It is known only within the file that declares it,
-        i.e. the file that contains the include statement. Different files
-        might define different namespace identifiers to refer to the same 
-        included file. See also <a href="include.htm">include</a>.
+        In this case, the variable x was declared in two different files, and you want to refer to both variables in your file.
+        Using the <i>namespace identifier</i> of either john or bill, you can prefix x to indicate which one you are referring to.
+        We sometimes say that john refers to one <i>namespace</i>, while bill refers to another distinct <i>namespace</i>. 
+        You can attach a namespace identifier to any user-defined variable, constant, procedure or function. You can do it
+        to solve a conflict, or simply to make things clearer. 
+        A namespace identifier has local scope. It is known only within the file that declares it, i.e. the file that contains the 
+        include statement. Different files might define different namespace identifiers to refer to the same included file. 
+        See also <a href="include.htm">include</a>.
        <br>
        <br>
-        Phix encourages you to restrict the scope of symbols. If all symbols were
-        automatically global to the whole program, you might have a lot of
-        naming conflicts, especially in a large program consisting of files
-        written by many different programmers. A naming conflict might cause
-        a compiler error message, or it could lead to a very subtle bug, where
-        different parts of a program accidentally modify the same variable without
-        being aware of it.
-        Try to use the most restrictive scope that you can. Make variables <b>private</b> 
-        to one routine where possible, and where that is not possible, make them
-        <b>local</b> to a file, rather than <b>global</b> to the whole program.
+        Phix encourages you to restrict the scope of symbols. If all symbols were automatically global to the whole program, you 
+        might experience naming conflicts, especially in a large program consisting of files written by many different programmers. 
+        A naming conflict might cause a compiler error message, or it could lead to a very subtle bug, where different parts of a 
+        program accidentally modify the same variable without being aware of it.
+        Try to use the most restrictive scope that you can. Make variables <b>private</b> to one routine where possible, and where 
+        that is not possible, make them <b>local</b> to a file, rather than <b>global</b> to the whole program.
        <br>
        <br>
-        When Phix looks up the declaration of a symbol, it first checks the current routine, 
-        then the current file, then globals in other files. At least that is the simple version,
-        see the comments in psym.e for more detailed technical information. Symbols that are more 
-        localized will temporarily <i>override</i> symbols that are more globalized, without any 
-        error message occurring.
+        When Phix looks up the declaration of a symbol, it first checks the current routine, then the current file, then globals in other files. 
+        At least that is the simple version, see the comments in psym.e for more detailed technical information. 
+        Symbols that are more localized may temporarily <i>override</i> (aka <i>shadow</i>) symbols that are more globalized, without 
+        any error message occurring.
        <br>
        <br>
         <b>Constant</b> declarations must be outside of any subroutine. <br>
@@ -176,6 +167,46 @@
         to write, often make it harder to comprehend, and almost always cause confusion when
         debugging (eg your ex.err contains 7 (local) variables named "i"...)
 -->
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
        <br>
        <br>
       </div>

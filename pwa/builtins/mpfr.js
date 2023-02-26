@@ -99,7 +99,7 @@ function MPFR$replace_e(/*string*/ s) {
             e -= length(s)-d;
             s = $repss(s,d,d,"");
         }
-        s = $conCat(s, repeat(0X30,e)); // (-ve e is expected to crash)
+        s = $conCat(s, repeat(0X30,e), false); // (-ve e is expected to crash)
     }
     return s;
 }
@@ -146,7 +146,13 @@ function mpz_free(x) {
 
 function MPFR$COMMAFILL(res) {
     let showcommas = res.length,
-        lim = "-+".indexOf(res[0]) === -1 ? 3 : 4;
+        lim = "-+".indexOf(res[0]) === -1 ? 3 : 4,
+        dot = res.indexOf('.');
+//20/8/22!!
+//  if (dot) { showcommas = dot-1; }
+//09/10/22!!!!!
+//  if (dot !== -1) { showcommas = dot-1; }
+    if (dot !== -1) { showcommas = dot; }
     while (showcommas>lim) {
         showcommas -= 3;
         res = res.slice(0,showcommas) + ',' + res.slice(showcommas);
@@ -162,8 +168,8 @@ function mpz_get_str(x, base=10, comma_fill=false) {
 
 // (transiled and copied in by hand)
 function mpz_get_short_str(/*mpz*/ op, /*integer*/ ml=20, base=10, /*boolean*/ comma_fill=false, /*string*/ what="digits") {
-// equivalent to shorten(mpz_get_str(op,base,comma_fill),ml:=ml) but much faster, since it is not
-// constructing potentially hundreds of thousands of middle digits that it then just throws away.
+// equivalent to shorten(mpz_get_str(op,base,comma_fill),ml:=ml) but much faster, since it does not
+// construct potentially hundreds of thousands of the middle digits before just throwing them away.
     let /*bool*/ neg = compare(mpz_cmp_si(op,0),0)<0;
     if (neg) { mpz_abs(op,op); }      // (don't worry that's very fast)
     let /*integer*/ l = mpz_sizeinbase(op,base);
@@ -174,6 +180,11 @@ function mpz_get_short_str(/*mpz*/ op, /*integer*/ ml=20, base=10, /*boolean*/ c
         mpz_fdiv_r(tmp,op,p10);
         // get rightmost ml digits [plus any commas]
         let /*string*/ rml = mpz_get_str(tmp,base,comma_fill);
+        let /*integer*/ lr = length(rml);
+        while (lr<ml) {
+            rml = $conCat((((lr<3 || !comma_fill) || (lr>=4 && (!equal($subse(rml,4),0X2C)))) ? 0X30 : 0X2C), rml);
+            lr += 1;
+        }
         // for comma_fill, say ml=4, get the "123,456" head, 
         //  not "123,4", so commas end up logically correct.
         let /*integer*/ ll = (l-ml)-((comma_fill) ? remainder(l-ml,3) : 0);
@@ -185,7 +196,7 @@ function mpz_get_short_str(/*mpz*/ op, /*integer*/ ml=20, base=10, /*boolean*/ c
             res = $subss(res,1,ml-neg);
             rml = $subss(rml,-ml,-1);
         }
-        res = $conCat(res, $conCat($conCat("...", rml), ls));
+        res = $conCat(res, $conCat($conCat("...", rml), ls), false);
     } else {
         res = mpz_get_str(op,base,comma_fill);
     }
@@ -235,6 +246,7 @@ function mpz_addmul(/*mpz*/ rop, op1, op2) {
 function mpz_addmul_ui(/*mpz*/ rop, op1, /*integer*/ op2) {
     rop[MPZ$B] = rop[MPZ$B] + op1[MPZ$B] * BigInt(op2);
 }
+let mpz_addmul_si = mpz_addmul_ui;
 
 function mpz_cmp(op1, op2) {
     op1 = op1[MPZ$B];
@@ -275,19 +287,54 @@ let mpz_set_d = mpz_set_si;
 //}
 
 function MPFR$PREFIX(s, base) {
-    // put "0b"/"0o"/"0x" at the start of string s if needed
-    if (base !== 0 && base !== 10) {
-        base = [2,8,16].indexOf(base);
-        if (base == -1) { crash("unsupported base"); }
-        let prefix = "box"[base];
-        if (s[0]!='0' || s[1]!=prefix) { s = '0' + prefix + s; }
+    // 12/3/22: allow strings such as "1e200" or even "2.5e1" (as long as integer overall)
+    if (base <= 10) {
+//      s = lower(substitute(substitute(s,",",""),"_",""));
+        s = substitute(substitute(s,",",""),"_","");
+        s = s.toLowerCase();
+        let /*integer*/ e = find(0X65,s); // 'e'
+//3/5/22:
+//      if (e) {
+        if (e && s[0]!='#' && (s[0]!='0' || "xX(".indexOf(s[1])===-1)) {
+//          [,s,e] = ["sequence",$subss(s,1,e-1),to_number($subss(s,e+1,-1))];
+            let n = to_number($subss(s,e+1,-1));
+            s = $subss(s,1,e-1);
+            let /*integer*/ d = find(0X2E,s); // '.'
+            if (d) {
+                n -= length(s)-d;
+                s = $repss(s,d,d,"");
+            }
+            s = $conCat(s, repeat(0X30,n), false); // (-ve e is expected to crash)
+        }
     }
-    return s;
+    // put "0b"/"0o"/"0x" at the start of string s if needed
+    let neg = (s[0] === '-');
+    if (neg) { s = s.slice(1); }
+    if (base !== 0 && base !== 10) {
+        let bdx = [2,8,16].indexOf(base);
+//      if (bdx == -1) { crash("unsupported base"); }
+        if (bdx != -1) {
+            let prefix = "box"[bdx];
+            s = '0' + prefix + s;
+        } else {
+            let z = 0n, bn = BigInt(base?base:10);
+            for (let i=1, i$lim=length(s); i<=i$lim; i+=1) {
+                let /*integer*/ c = $subse(s,i);
+                c -= ((c<=0X39) ? 0X30 : ((c<=0X5A) ? 0X41-10 : 0X61-36));
+                z = z*bn + BigInt(c);
+            }
+            if (neg) { z = -z; }
+            return z;
+        }
+    }
+    let res = BigInt(s);
+    if (neg) { res = -res; }
+    return res;
 }
 
 function mpz_set_str(rop, s, base=0) {
 //DEV spotted in passing 6/11/21 - what about replace_e()?
-    rop[MPZ$B] = BigInt(MPFR$PREFIX(s,base));
+    rop[MPZ$B] = MPFR$PREFIX(s,base);
 }
 
 function mpz_set_v(rop, v) {
@@ -335,6 +382,7 @@ function mpz_fdiv_q(q, n, d) {
     n = n[MPZ$B];
     q[MPZ$B] = n / d;
 }
+let mpz_divexact = mpz_fdiv_q;
 
 function mpz_fdiv_q_ui(q, n, d) {
 //integer res = mpz_fdiv_q_ui(mpz q, n, integer d) - {q,res} := {floor(n/d),remainder(n,d)} 
@@ -347,6 +395,7 @@ function mpz_fdiv_q_ui(q, n, d) {
     if (n < 0n) { n += d; }
     return Number(n);
 }
+let mpz_divexact_ui = mpz_fdiv_q_ui;
 
 function mpz_fdiv_r(r, n, d) {
 //mpz_fdiv_r(mpz r, n, d) - r := remainder(n,d)
@@ -515,6 +564,7 @@ function mpz_powm_ui(/*mpz*/ rop, base, /*integer*/ exponent, /*mpz*/ modulus) {
 //          Maintain table(s) of base^(2^k), binary_search/extend it, then repeated subtraction?
 //          (experiment in Phix, checking performance, then transpile it, of course)
 function mpz_sizeinbase(op, base=2) {
+/*
     let digits = 1,
         a = op[MPZ$B],
         bn = BigInt(base),
@@ -528,6 +578,12 @@ function mpz_sizeinbase(op, base=2) {
         }
     }
     return digits;
+*/
+//  let res = x[MPZ$B].toString(base).length;
+//  return op[MPZ$B].toString(base).length;
+    let n = op[MPZ$B];
+    if (n < 0n) { n = -n; }
+    return n.toString(base).length;
 }
 
 function mpz_tstbit(/*mpz*/ op, /*integer*/ bit_index) {
@@ -804,9 +860,11 @@ function mpz_invert(rop, op1, op2) {
         newR = lastR - q*newR;
     }
 //  if (!r.isUnit) Fiber.abort("%(op1) and %(op2) are not co-prime.")
+    if (r !== 1n) { return false; }
     if (t < 0n) { t += op2; }
     if (op2 < 0n) { t = -t; }
     rop[MPZ$B] = t;
+    return true;
 }
 /*
 // a possible alternative (needing much work) for mpz_invert:
@@ -981,11 +1039,11 @@ function mpz_prime(/*mpz*/ p, /*integer*/ k=10) {
     }
     return true;
 }
-let mpz_prime_mr = mpz_prime;
+//let mpz_prime_mr = mpz_prime;
 
 function mpz_prime_factors(/*mpz*/ s, /*integer*/ maxprime=100) {
 //
-// Attempts to decompse the integer s into powers of small primes.
+// Attempts to decompose the integer s into powers of small primes.
 // returns eg 108 ==> {{2,2},{3,3}}  (ie 2^2*3^3==4*27==108)
 //         or 10080 ==> {{2,5},{3,2},{5,1},{7,1}}
 //         or 1196836 ==> {{2,2},{"299209"}}
@@ -1056,6 +1114,12 @@ function mpz_prime_factors(/*mpz*/ s, /*integer*/ maxprime=100) {
     return res;
 }
 
+/*
+function mpz_perfect_power_p(/!*mpz*!/ op) {
+    
+}
+*/
+
 function mpz_factorstring(/*sequence*/ s) {
 // converts eg {{2,2},{3,3}} to "2^2*3^3"
 // s is typically from mpz_prime_factors(), but does not have to be.
@@ -1064,17 +1128,17 @@ function mpz_factorstring(/*sequence*/ s) {
     if (equal(s,["sequence",["sequence",2,0]])) { return "1"; } // (rather than "2^0")
     let /*string*/ res = "";
     for (let i=1, i$lim=length(s); i<=i$lim; i+=1) {
-        if (length(res)) { res = $conCat(res, "*"); }
+        if (length(res)) { res = $conCat(res, "*", false); }
         let /*object*/ si = $subse(s,i);
         if (string(si)) {
-            res = $conCat(res, si);
+            res = $conCat(res, si, false);
         } else if (equal(length(si),1)) {
-            res = $conCat(res, $subse(si,1));
+            res = $conCat(res, $subse(si,1), false);
         } else {
             let [,/*atom*/ p,/*integer*/ e] = $subse(s,i);
-            res = $conCat(res, sprintf("%d",p));
+            res = $conCat(res, sprintf("%d",p), false);
             if (e!==1) {
-                res = $conCat(res, sprintf("^%d",["sequence",e]));
+                res = $conCat(res, sprintf("^%d",["sequence",e]), false);
             }
         }
     }
@@ -1163,8 +1227,8 @@ function mpz_pollard_rho(/*mpz_or_string*/ s, /*bool*/ bAsStrings=false) {
                         s = $subss(s,2,-1);
                     }
                 }
-                res = $conCat(res, p);
-                res = $conCat(res, s);
+                res = $conCat(res, p, false);
+                res = $conCat(res, s, false);
             }
         } else {
             let /*object*/ p1, s1;
@@ -1201,7 +1265,7 @@ function mpz_pollard_rho(/*mpz_or_string*/ s, /*bool*/ bAsStrings=false) {
                     s = $subss(s,2,-1);
                 }
             }
-            res = $conCat(res, p);
+            res = $conCat(res, p, false);
     //      res &= s
             for (let i=1, i$lim=length(s); i<=i$lim; i+=1) {
                 s1 = $subse(s,i);
@@ -1249,6 +1313,119 @@ function mpz_pollard_rho(/*mpz_or_string*/ s, /*bool*/ bAsStrings=false) {
     }
     if (mpz_cmp_si(n,1) > 0) {
         res = merge(res,mpz_prime_factors(n,1230),bAsStrings);
+    }
+    return res;
+}
+
+//manually pasted transpilation of the one in mpfr.e:
+/*global*/ function mpz_factors(/*object*/ s, /*object*/ include1=0, /*bool*/ bAsAtmStr=true, bSort=true) {
+//, bCountOnly=false) -- [cannot think of a good use, tbh: re-add should one ever pop up]
+//
+//  returns a list of all integer factors of s
+//  s can be a small integer, a string, a result from mpz_pollard_rho, or
+//  a "tagged" mpz which looks like this: {"mpz",z}. Take special care to
+//  wrap a plain mpz argument like that; there is a high risk of treating
+//  the raw memory address of an unwrapped mpz as a small integer.
+//  When I say integer, I mean an atom with no fractional part that passes
+//  builtins/pfactors.e/check_limits() or it&rsquo;s equivalent, so maybe
+//  "small" isn&rsquo;t the right word, but I think you get what I mean.<br>
+//  As per factors():
+//  if include1 is 1 the result contains 1 and n
+//  if include1 is -1 the result contains 1 but not n
+//  if include1 is 0 the result contains neither 1 nor n (the default)
+//  if bAsAtmStr is false, the result is a sequence of mpz, otherwise (the
+//  default) the result is a mixture of atoms (when they fit) and strings
+//  (when they exceed the 53/64 bit precision limit of normal Phix atoms).<br>
+//  Supplying a bAsAtmStr parameter of/>= 2 means "return all as strings".
+//  Sorting probably adds very little overhead, but you never know...<br>
+//  Just as mpz_pollard_rho() can return strings for prime factors that do
+//  not fit in a phix atom, any strings in prime_factors are assumed to be
+//  primes, and the result may be a mixture of integers and strings.<br>
+//  Note this is not expected to handle duplicate strings correctly: if
+//  you have (somehow) managed to factor a 32-digit+ number, good on you,
+//  but you've long passed the bounds of what is realistically feasible,
+//  unless, that is, all the prime factors are reasonably small integers.<br>
+//  ?mpz_factors(12)                ==> {1,2,4,3,6,12}<br>
+//  ?mpz_factors(12,bSort:=true)    ==> {1,2,3,4,6,12}<br>
+//  ?mpz_factors("12345678999999977")  -- ,bSort:=true) don't help)
+//           ==> {1,35604581,346744117,"12345678999999977"}<br>
+//  ?mpz_factors("12345678999999977",bAsAtmStr:=2)
+//          ==> {"1","35604581","346744117","12345678999999977"}<br>
+//
+    if (string(include1)) {
+        include1 = $subse(["sequence",1,-1,0,-9],find(include1,["sequence","BOTH","JUST1","NEITHER","SET_LIM"]));
+    }
+    let /*sequence*/ res = ["sequence",mpz_init(1)];
+    if (atom(s)) {
+        s = prime_factors(s,2,-1); // (precision limit applies)
+    } else if (string(s)) {
+        s = mpz_pollard_rho(s);
+    } else if (equal($subse(s,1),"mpz")) {
+        s = mpz_pollard_rho($subse(s,2));
+    }
+//  if s={} then return s end if
+    if ((equal(s,["sequence"])) || (equal(s,["sequence",["sequence",2,0]]))) {
+        if (equal(include1,0)) { return ["sequence"];
+        } else if (bAsAtmStr===false) {
+            return ["sequence",mpz_init(1)];
+        } else if (bAsAtmStr===1) {
+            return ["sequence",1];
+        } else {
+            return ["sequence","1"];
+        }
+//      return {}
+    }
+//  if bCountOnly then
+//      integer count = 1
+//      for pn in s do count *= pn[2]+1 end for
+//      return count
+//  end if
+    for (let si$idx = 1, si$lim = length(s); si$idx <= si$lim; si$idx += 1) { let si = $subse(s,si$idx);
+        if (string(si)) { si = ["sequence",si,1]; }
+        let /*sequence*/ r1, r2 = ["sequence"];
+        let /*integer*/ l = length(res);
+        let /*mpz*/ p = mpz_init($subse(si,1)), 
+                    pj = mpz_init_set(p);
+        for (let j=1, j$lim=$subse(si,2); j<=j$lim; j+=1) {
+            for (let k=1, k$lim=l; k<=k$lim; k+=1) {
+                let /*mpz*/ pk = mpz_init();
+                mpz_mul(pk,$subse(res,k),pj);
+                r2 = $conCat(r2, pk, false);
+            }
+            mpz_mul(pj,pj,p);
+        }
+        if (bSort) {
+            r2 = custom_sort(mpz_cmp,r2);
+            r1 = res;
+            res = ["sequence"];
+            let /*integer*/ r1dx = 1, lr1 = length(r1), 
+                            r2dx = 1;
+            let /*mpz*/ p1 = $subse(r1,1), 
+                        q1 = $subse(r2,1);
+            while (true) {
+                if (compare(mpz_cmp(p1,q1),0)<0) {
+                    res = $conCat(res, p1, false);
+                    r1dx += 1;
+                    if (r1dx>lr1) { break; }
+                    p1 = $subse(r1,r1dx);
+                } else {
+                    res = $conCat(res, q1, false);
+                    r2dx += 1;
+                    q1 = $subse(r2,r2dx);
+                }
+            }
+            res = $conCat(res, $subss(r2,r2dx,-1), false);
+        } else {
+            res = $conCat(res, r2, false);
+        }
+    }
+    if (bAsAtmStr) {
+        for (let i = 1, ri$lim = length(res); i <= ri$lim; i += 1) { let ri = $subse(res,i);
+            res = $repe(res,i,(((bAsAtmStr===true) && mpz_fits_atom(ri)) ? mpz_get_atom(ri) : mpz_get_str(ri)));
+        }
+    }
+    if (equal(include1,-1)) { res = $subss(res,1,-1-1);
+    } else if (equal(include1,0)) { res = $subss(res,2,-1-1);
     }
     return res;
 }
@@ -1312,7 +1489,7 @@ function mpz_vecprod_si(/*mpz*/ rop, /*sequence*/ s, /*integer*/ zlr=1) {
 //  often than the above, for such simple practical reasons, that is.
 //
     if (and_bits(length(s),1)) {
-        s = $conCat(s, 1);
+        s = $conCat(s, 1, false);
     }
     let /*integer*/ j = 0;
     for (let i=1, i$lim=length(s); i<=i$lim; i+=2) {
@@ -1406,6 +1583,16 @@ function mpz_xor(/*mpz*/ rop, op1, op2) {
     rop[MPZ$B] = op1[MPZ$B] ^ op2[MPZ$B];
 }
 
+function mpz_popcount(/*mpz*/ op) {
+    let count = 0,
+        n = op[MPZ$B];
+    while (n > 0n) {
+        n &= n - 1n;
+        count += 1;
+    }
+    return count;
+}
+
 function mpq_init() {
     return ["mpq",0n,1n];
 }
@@ -1458,6 +1645,17 @@ function MPFR$GCD(a, b) {
       } while (b !== 0n)
     // rescale
     return a << shift;
+/*
+boost does this:
+    if (a < 0n) { a = -a; }
+    if (b < 0n) { b = -b; }
+    for(;;) {
+      if (a == 0n) { return b; }
+      a %= b;
+      if (b == 0n) { return a; }
+      b %= a;
+    }
+*/
 }
 
 function MPFR$LCM(a, b) {
@@ -1501,10 +1699,10 @@ function mpq_set_str(/*mpq*/ tgt, /*string*/ s, /*integer*/ base=0) {
     let /*integer*/ k = s.indexOf('/'),
                    dn = 1n; 
     if (k !== -1) {
-        dn = BigInt(MPFR$PREFIX(s.slice(k+1),base));
+        dn = MPFR$PREFIX(s.slice(k+1),base);
         s = s.substr(0,k);
     }
-    tgt[MPQ$N] = BigInt(MPFR$PREFIX(s,base));
+    tgt[MPQ$N] = MPFR$PREFIX(s,base);
     tgt[MPQ$D] = dn;
     mpq_canonicalize(tgt);
 }
@@ -1577,6 +1775,24 @@ function mpq_cmp(/*mpq*/ op1, op2) {
     n1 *= d2;
     n2 *= d1;
     return n1 === n2 ? 0 : n1 > n2 ? c : -c;
+/*
+alt, untested (adapted from from boost):
+    // If the two values have different signs, we don't need to do the
+    // expensive calculations below. We take advantage here of the fact
+    // that the denominators are always positive.
+    if (((n1<0n) !== (n2<0)) || (d1 === d2)) {
+        return n1 === n2 ? 0 : n1 > n2 ? 1 : -1;
+    }
+    // Avoid overflow
+    let gcd1 = MPFR$GCD(n1, n2),
+        gcd2 = MPFR$GCD(d2, d1),
+        a = (n1/gcd1) * (d2/gcd2),
+        b = (n2/gcd1) * (d1/gcd2);
+    // likewise this assumes neither denominator is negative.
+    return a === b ? 0 : a > b ? 1 : -1;
+// or from bjarne:
+//  x1.num*x2.den==x1.den*x2.num;
+*/
 }
 
 function mpq_cmp_si(/*mpq*/ op1, /*integer*/ n, d=1) {
@@ -1588,14 +1804,15 @@ function mpq_abs(/*mpq*/ rop, op) {
     let n = op[MPQ$N],
         d = op[MPQ$D];
     if (n < 0n) { n = -n; }
+    if (d < 0n) { d = -d; }
     rop[MPQ$N] = n;
     rop[MPQ$D] = d;
 }
 
 function mpq_neg(/*mpq*/ rop, op) {
-    let n = -op[MPQ$N],
+    let n = op[MPQ$N],
         d = op[MPQ$D];
-    rop[MPQ$N] = n;
+    rop[MPQ$N] = -n;
     rop[MPQ$D] = d;
 }
 
@@ -1603,6 +1820,10 @@ function mpq_inv(/*mpq*/ rop, op) {
     let n = op[MPQ$N],
         d = op[MPQ$D];
     if (d === 0n) { crash("divide by zero"); }
+    if (n<0) {
+        n = -n;
+        d = -d;
+    }
     rop[MPQ$N] = d;
     rop[MPQ$D] = n;
 }
@@ -1621,6 +1842,40 @@ function mpq_add(/*mpq*/ rsum, addend1, addend2) {
     rsum[MPQ$N] = a + b;
     rsum[MPQ$D] = lm;
     mpq_canonicalize(rsum);
+/*
+alt, untested (adapted from from boost):
+    //
+    // This calculation avoids overflow, and minimises the number of expensive
+    // calculations. Thanks to Nickolay Mladenov for this algorithm.
+    //
+    // Proof:
+    // We have to compute a/b + c/d, where gcd(a,b)=1 and gcd(b,c)=1.
+    // Let g = gcd(b,d), and b = b1*g, d=d1*g. Then gcd(b1,d1)=1
+    //
+    // The result is (a*d1 + c*b1) / (b1*d1*g).
+    // Now we have to normalize this ratio.
+    // Let's assume h | gcd((a*d1 + c*b1), (b1*d1*g)), and h > 1
+    // If h | b1 then gcd(h,d1)=1 and hence h|(a*d1+c*b1) => h|a.
+    // But since gcd(a,b1)=1 we have h=1.
+    // Similarly h|d1 leads to h=1.
+    // So we have that h | gcd((a*d1 + c*b1) , (b1*d1*g)) => h|g
+    // Finally we have gcd((a*d1 + c*b1), (b1*d1*g)) = gcd((a*d1 + c*b1), g)
+    // Which proves that instead of normalizing the result, it is better to
+    // divide num and den by gcd((a*d1 + c*b1), g)
+    //
+    let n1 = addend1[MPQ$N],
+        d1 = addend1[MPQ$D],
+        n2 = addend2[MPQ$N],
+        d2 = addend2[MPQ$D]
+        g = MPFR$GCD(d1, d2);
+    d1 /= g;  // = b1 from the calculations above
+    n1 = n1 * (d2 / g) + n2 * d1;
+    g = MPFR$GCD(n1, g);
+    n1 /= g;
+    d1 *= d2/g;
+    rsum[MPQ$N] = n1;
+    rsum[MPQ$D] = d2;
+*/
 }
 
 function mpq_add_si(/*mpq*/ rsum, addend1, /*integer*/ n, d=1) {
@@ -1646,6 +1901,7 @@ function mpq_sub(/*mpq*/ rdifference, minuend, subtrahend) {
     rdifference[MPQ$N] = a - b;
     rdifference[MPQ$D] = lm;
     mpq_canonicalize(rdifference);
+// (see mpq_add for an alt, identical bar a single +/-)
 }
     
 function mpq_mul(/*mpq*/ rproduct, multiplier, multiplicand) {
@@ -1653,6 +1909,20 @@ function mpq_mul(/*mpq*/ rproduct, multiplier, multiplicand) {
     rproduct[MPQ$N] = multiplier[MPQ$N] * multiplicand[MPQ$N];
     rproduct[MPQ$D] = multiplier[MPQ$D] * multiplicand[MPQ$D];
     mpq_canonicalize(rproduct);
+/*
+alt, untested (adapted from from boost):
+    let n1 = dividend[MPQ$N],
+        n2 = divisor[MPQ$N],
+        d1 = dividend[MPQ$D],
+        d2 = divisor[MPQ$D],
+        // Avoid overflow and preserve normalization
+        g1 = MPFR$GCD(n1,d2),
+        g2 = MPFR$GCD(n2,d1),
+        n = (n1/g1) * (n2/g2),
+        d = (d1/g2) * (d2/g1);
+    rproduct[MPQ$N] = n;
+    rproduct[MPQ$D] = d;
+*/
 }
 
 function mpq_div(/*mpq*/ rquotient, dividend, divisor) {
@@ -1661,6 +1931,26 @@ function mpq_div(/*mpq*/ rquotient, dividend, divisor) {
     rquotient[MPQ$N] = dividend[MPQ$N] * divisor[MPQ$D];
     rquotient[MPQ$D] = dividend[MPQ$D] * divisor[MPQ$N];
     mpq_canonicalize(rquotient);
+/*
+alt, untested (adapted from from boost):
+    let n1 = dividend[MPQ$N],
+        n2 = divisor[MPQ$N],
+        d1 = dividend[MPQ$D],
+        d2 = divisor[MPQ$D];
+    if (n2===0n) { crash("bad rational"); }
+    if (n1!=0) {
+        let g1 = MPFR$GCD(n1,n2),
+            g1 = MPFR$GCD(d1,d2),
+            n = (n1/g1) * (d2/g2),
+            d = (d1/g2) * (n2/g1);
+        if (d<0) {
+            n = -n;
+            d = -d;
+        }
+        rquotient[MPQ$N] = n;
+        rquotient[MPQ$D] = d;
+    }
+*/
 }
 
 function mpq_div_2exp(/*mpq*/ rop, op, /*integer*/ bits) {
@@ -1684,7 +1974,7 @@ global function mpq_get_d(mpq op)
 --normally returned. Hardware overflow, underflow and denorm traps may or may not occur.
     if op=NULL then ?9/0 end if
     if x_mpq_get_d=NULL then
-        x_mpq_get_d = link_c_func(mpir_dll, "+__gmpq_get_d", {P},D)
+        x_mpq_get_d = define_c_func(mpir_dll, "+__gmpq_get_d", {P},D)
     end if
     atom res = c_func(x_mpq_get_d,{op})
     return res
@@ -1696,7 +1986,7 @@ global procedure mpq_mul_2exp(mpq rop, op, integer bits)
     if op=NULL then ?9/0 end if
     if bits<0 then ?9/0 end if  -- (not sure about that...)
     if x_mpq_mul_2exp=NULL then
-        x_mpq_mul_2exp = link_c_proc(mpir_dll, "+__gmpq_mul_2exp", {P,P,I})
+        x_mpq_mul_2exp = define_c_proc(mpir_dll, "+__gmpq_mul_2exp", {P,P,I})
     end if
     c_proc(x_mpq_mul_2exp,{rop,op,bits})
 end procedure
@@ -1807,35 +2097,41 @@ function mpfr_set_si(/*mpfr*/ tgt, /*integer*/ i, rounding=MPFR$default_rounding
 //  tgt[MPFR$P] = MPFR$default_precision;
 }
 
-function mpfr_set_str(/*mpfr*/ tgt, /*string*/ s, /*integer*/ rounding=MPFR$default_rounding) {
+function mpfr_set_str(/*mpfr*/ tgt, /*string*/ s, /*integer*/ base=0, rounding=MPFR$default_rounding) {
     let d = 1n,
         dx = s.indexOf('.'),
-        ex = s.toLowerCase().indexOf('e'),
+//      ex = (base>10) ? -1 : s.toLowerCase().indexOf('e'),
+        ex = (base>10) ? s.indexOf('@') : s.toLowerCase().indexOf('e'),
         sx = s.indexOf('/');
+//  if (ex === -1 && base > 10) { ex = s.indexOf('@'); }
     if (sx !== -1) {
-        if (dx !== -1 || ex !== -1) { crash("uh?"); } // trap eg "31.4/1e1" (jic)
+        if (dx !== -1 || ex !== -1 || (base!==0 && base !== 10) ) { crash("uh?"); } // trap eg "31.4/1e1" (jic)
         d = BigInt(s.slice(sx+1));
         s = s.slice(0,sx);
     } else {    
-        let dn = 0;
+        let dn = 0n;
         if (ex !== -1) {
-            dn = Number(s.slice(ex+1));
+            dn = MPFR$PREFIX(s.slice(ex+1),base);
             s = s.slice(0,ex);
         }
         if (dx !== -1) {
             s = s.slice(0,dx) + s.slice(dx+1);
-            if (s[0] === '-') { dx -= 1; }
-            dn -= s.length - dx;
+//          if (s[0] === '-') { dx -= 1; } // NO!!
+            dn -= BigInt(s.length - dx);
         }
-        if (dn !== 0) {
-            if (dn < 0) {
-                d = 10n**BigInt(-dn);
+        if (dn !== 0n) {
+            let bn = base ? BigInt(base) : 10n;
+            if (dn < 0n) {
+                d = bn**(-dn);
             } else {
-                s = BigInt(s)*10n**BigInt(dn);
+                s = MPFR$PREFIX(s,base)*bn**dn;
             }
         }
     }
-    tgt[MPFR$N] = BigInt(s);
+//20/8/22:
+//  tgt[MPFR$N] = MPFR$PREFIX(s,base);
+    if (typeof(s) === "string") { s = MPFR$PREFIX(s,base); }
+    tgt[MPFR$N] = s
     tgt[MPFR$D] = d;
     tgt[MPFR$E] = 0;
     tgt[MPFR$R] = rounding;
@@ -1931,8 +2227,11 @@ function MPFR$normalise(/*mpfr*/ rop, /*BigInt*/ n,d) {
     // DEV/SUG what I'd really like here is to set d to 1n, honouring MPFR$P/R, and adjust MPFR$E...
     //      (also, while d is a power of 10, just increase MPFR$E)
     //      (as is, this is just a copy of mpq_canonicalize)
-/*
-    if (d !== 1n) {
+// put back 9/10/22, and the n=0 check added: (this matches what boost does...)
+///!*
+    if (n === 0n) {
+        d = 1n;
+    } else if (d !== 1n) {
         let g = MPFR$GCD(n,d);
         if (g > 1n) {
             n = n/g;
@@ -1943,7 +2242,8 @@ function MPFR$normalise(/*mpfr*/ rop, /*BigInt*/ n,d) {
             d = -d;
         }
     }
-*/
+//*!/
+/*
 //DEV might be worth cacheing/making this a function...
     let precision = rop[MPFR$P]
     if (precision <= 0) { crash("uh?"); }
@@ -1978,6 +2278,43 @@ function MPFR$normalise(/*mpfr*/ rop, /*BigInt*/ n,d) {
             rop[MPFR$E] += 1;
         }
     }
+*/
+    rop[MPFR$N] = n;
+    rop[MPFR$D] = d;
+}
+
+function mpfr_floor(/*mpfr*/ rop, op) {
+// rop := floor(op)
+    rop[MPFR$N] = op[MPFR$N]/op[MPFR$D];
+    rop[MPFR$D] = 1n;
+}
+
+function mpfr_ceil(/*mpfr*/ rop, op) {
+// rop := ceil(op)
+    let n = op[MPFR$N],
+        d = op[MPFR$D];
+//let mc = BigInt(Math.ceil(Number(n)/Number(d))),
+//  nc = n/d + (n%d>0n?1n:0n);
+//if (mc!=nc) {
+//  printf(1," mpfr_ceil(n:%s,d:%s):mc:%s, nc:%s\n",["sequence",n.toString(10),d.toString(10),mc.toString(10),nc.toString(10)])
+//}
+//  rop[MPFR$N] = BigInt(Math.ceil(Number(n)/Number(d)));
+    rop[MPFR$N] = n/d + (n%d>0n?1n:0n);
+    rop[MPFR$D] = 1n;
+}
+
+function mpfr_neg(/*mpz*/ rop, op) {
+    let n = op[MPFR$N],
+        d = op[MPFR$D];
+    rop[MPFR$N] = -n;
+    rop[MPFR$D] = d;
+}
+
+function mpfr_abs(/*mpz*/ rop, op) {
+    let n = op[MPFR$N],
+        d = op[MPFR$D];
+    if (n < 0n) { n = -n; }
+    if (d < 0n) { d = -d; }
     rop[MPFR$N] = n;
     rop[MPFR$D] = d;
 }
@@ -1995,6 +2332,22 @@ function mpfr_add(/*mpfr*/ rop, op1, op2, /*integer*/ rounding=MPFR$default_roun
     b *= n2;
     a += b;
     MPFR$normalise(rop,a,lm);
+}
+
+function mpfr_add_si(/*mpfr*/ rop, op1, /*integer*/ op2, /*integer*/ rounding=MPFR$default_rounding) {
+    let n1 = op1[MPFR$N],
+        d1 = op1[MPFR$D],
+        n2 = BigInt(op2),
+        a = n1 + d1 * n2;
+    MPFR$normalise(rop,a,d1);
+}
+//let mpfr_add_d = mpfr_add_si;
+
+function mpfr_add_d(/*mpfr*/ rop, op1, /*atom*/ op2, /*integer*/ rounding=MPFR$default_rounding) {
+    let s = op2.toString();
+    op2 = ["mpfr",0n,1n,0,rounding,MPFR$default_precision];
+    mpfr_set_str(op2,s,rounding);
+    mpfr_add(rop, op1, op2, rounding);
 }
 
 function mpfr_sub(/*mpfr*/ rop, op1, op2, /*integer*/ rounding=MPFR$default_rounding) {
@@ -2019,6 +2372,14 @@ function mpfr_sub_si(/*mpfr*/ rop, op1, /*integer*/ op2, /*integer*/ rounding=MP
         a = n1 - d1 * n2;
     MPFR$normalise(rop,a,d1);
 }
+//let mpfr_sub_d = mpfr_sub_si;
+
+function mpfr_sub_d(/*mpfr*/ rop, op1, /*atom*/ op2, /*integer*/ rounding=MPFR$default_rounding) {
+    let s = op2.toString();
+    op2 = ["mpfr",0n,1n,0,rounding,MPFR$default_precision];
+    mpfr_set_str(op2,s,rounding);
+    mpfr_sub(rop, op1, op2, rounding);
+}
 
 function mpfr_si_sub(/*mpfr*/ rop, /*integer*/ op1, /*mpfr*/ op2, /*integer*/ rounding=MPFR$default_rounding) {
     let n1 = BigInt(op1),
@@ -2041,6 +2402,21 @@ function mpfr_mul_si(/*mpfr*/ rop, op1, /*integer*/ op2, rounding=MPFR$default_r
         d = op1[MPQ$D];
     MPFR$normalise(rop,n,d);
 }
+//let mpfr_mul_d = mpfr_mul_si;
+
+function mpfr_mul_d(/*mpfr*/ rop, op1, /*atom*/ op2, /*integer*/ rounding=MPFR$default_rounding) {
+    let s = op2.toString();
+    op2 = ["mpfr",0n,1n,0,rounding,MPFR$default_precision];
+    mpfr_set_str(op2,s,rounding);
+    mpfr_mul(rop, op1, op2, rounding);
+}
+
+function mpfr_mul_z(/*mpfr*/ rop, op1, /*mpz*/ op2, rounding=MPFR$default_rounding) {
+// rop := op1*op2 with specified rounding 
+    let n = op1[MPQ$N] * op2[MPZ$B],
+        d = op1[MPQ$D];
+    MPFR$normalise(rop,n,d);
+}
 
 function mpfr_addmul_si(/*mpfr*/ rop, op1, /*integer*/ op2, rounding=MPFR$default_rounding) {
     let n = op1[MPQ$N] * BigInt(op2),
@@ -2055,11 +2431,12 @@ function mpfr_div(/*mpfr*/ rop, op1, op2, /*integer*/ rounding=MPFR$default_roun
     let n = op1[MPQ$N] * op2[MPQ$D],
         d = op1[MPQ$D] * op2[MPQ$N];
     MPFR$normalise(rop,n,d);
+// (see also the alt in mpq_div)
 }
 
 function mpfr_si_div(/*mpfr*/ rop, /*integer*/ op1, /*mpfr*/ op2, /*integer*/ rounding=MPFR$default_rounding) {
 // rop := op1/op2
-    let n = op2[MPFR$D] * BigInt(op1);
+    let n = op2[MPFR$D] * BigInt(op1),
         d = op2[MPFR$N];
     MPFR$normalise(rop,n,d);
 }
@@ -2069,6 +2446,14 @@ function mpfr_div_si(/*mpfr*/ rop, op1, /*integer*/ op2, rounding=MPFR$default_r
     let n = op1[MPFR$N],
         d = op1[MPFR$D] * BigInt(op2);
     MPFR$normalise(rop,n,d);
+}
+//let mpfr_div_d = mpfr_div_si;
+
+function mpfr_div_d(/*mpfr*/ rop, op1, /*atom*/ op2, /*integer*/ rounding=MPFR$default_rounding) {
+    let s = op2.toString();
+    op2 = ["mpfr",0n,1n,0,rounding,MPFR$default_precision];
+    mpfr_set_str(op2,s,rounding);
+    mpfr_div(rop, op1, op2, rounding);
 }
 
 function mpfr_div_z(/*mpfr*/ rop, op1, /*mpz*/ op2, /*integer*/ rounding=MPFR$default_rounding) {
@@ -2084,12 +2469,44 @@ function mpfr_pow_si(/*mpfr*/ rop, op1, /*integer*/ op2, rounding=MPFR$default_r
     MPFR$normalise(rop,n,d);
 }
 
-function mpfr_get_d(/*mpfr*/ op, /*integer*/ rounding=MPFR$default_rounding) {
-// res := op as a double.
-    let dn = (op[MPFR$N]*10n**20n)/op[MPFR$D],
-        d = Number(dn)/1e20;
+function mpfr_ui_pow_ui(/*mpfr*/ rop, /*integer*/ op1, op2, rounding=MPFR$default_rounding) {
+    let p = BigInt(op2),
+        n = BigInt(op1)**p,
+        d = BigInt(1);
+    MPFR$normalise(rop,n,d);
+}
+
+
+function mpfr_get_si(/*mpfr*/ op, /*integer*/ rounding=MPFR$default_rounding) {
+// res := op as an integer.
+    let dn = op[MPFR$N]/op[MPFR$D],
+        d = Number(dn);
     return d;
 }
+
+//DEV (spotted in passing) there must be some way quite a bit a better than this...
+function mpfr_get_d(/*mpfr*/ op, /*integer*/ rounding=MPFR$default_rounding) {
+// res := op as a double.     v---[parenth on 10**20 is for clarity only]
+    let dn = (op[MPFR$N]*(10n**20n))/op[MPFR$D],
+        d = Number(dn)/1e20;
+    return d;
+// maybe: [need to find some test cases...]
+//  let n = op[MPFR$N],
+//      d = op[MPFR$D],
+//      s = 1;
+//  if (n < 0n) { n = -n; s = -1; }
+//  if (d < 0n) { d = -d; s *= -1; }
+//  while (n>1e308n || d>1e308n) {
+//      n /= 2n;
+//      d /= 2n;
+//  }
+//  d = s*Number(n)/Number(d);
+//  return d;
+}
+
+let mpfr_cmp = mpq_cmp;
+let mpfr_cmp_si = mpq_cmp_si;
+
 
 //function mpfr_pow(/*mpfr*/ rop, op1, op2, /*integer*/ rounding=MPFR$default_rounding)
 // rop := op1**op2 with specified rounding 
@@ -2292,13 +2709,23 @@ function mpfr_const_pi(/*mpfr*/ x, /*integer*/ rounding=MPFR$default_rounding) {
 //       AH try -1, check for trailing 0, then strip/shift the decimal point into place.
 //      DOH we actually need the log, as per ratio.js!!!
 
-//function mpfr_get_fixed(/*mpfr*/ x, /*integer*/ base=10, dp=6, rounding=MPFR$default_rounding) {
-function mpfr_get_fixed(/*mpfr*/ x, /*integer*/ dp=6) {
-    let p = BigInt(dp),
-        n = x[MPFR$N] * 10n**p,
+function mpfr_get_fixed(/*mpfr*/ x, /*integer*/ dp=6, base=10, /*bool*/ comma_fill=false, /*integer*/ maxlen=0) {
+//global function mpfr_get_fixed(mpfr x, integer dp=6, base=10, boolean comma_fill=false, integer maxlen=0)
+    let b = BigInt(base),
+//      p = BigInt(dp),
+//      bp = b**p,
+//      n = x[MPFR$N] * bp,
+//      n = x[MPFR$N] * b**p,
+        n = x[MPFR$N] * b**BigInt(dp),
         d = x[MPFR$D],
-        s = 1n
+        s = 1n,
         rounding = x[MPFR$R];
+    if (dp === 0) {
+        while (n%d && dp<16) {
+            n *= b;
+            dp += 1;
+        }
+    }
     if (n < 0n) { s = -1n; n = -n; }
     switch (rounding) {
         // DEV nb not particularly well tested...
@@ -2310,8 +2737,7 @@ function mpfr_get_fixed(/*mpfr*/ x, /*integer*/ dp=6) {
         default: crash("unrecognised rounding mode");
     }
     n = s*(n/d);
-//  let res = n.toString(base);
-    let res = n.toString();
+    let res = n.toString(base);
     if (dp > 0) {
         let sgn = "";
         if (res[0] === '-') {
@@ -2325,12 +2751,59 @@ function mpfr_get_fixed(/*mpfr*/ x, /*integer*/ dp=6) {
             l -= dp;
             res = sgn + res.slice(0,l) + '.' + res.slice(l);
         }
+        l = res.length;
+        while (l>1) {
+            l -= 1;
+            let ch = res.charAt(l);
+            if (ch === '.') { break; }
+            if (ch !== '0') { l += 1; break; }
+        }
+        res = res.slice(0,l);
     } else if (dp < 0) {
         res += '0'.repeat(-dp);
     }
+    if (comma_fill) { res = MPFR$COMMAFILL(res); }
+//6/10/22:
+    let /*integer*/ lr = length(res);
+    if (maxlen && lr>maxlen) {
+        if (comma_fill) {
+            res = mpfr_get_fixed(x,dp,base,false,0);
+            lr = length(res);
+            if (lr<maxlen) {
+                res = $conCat(res, repeat(0X3F,maxlen-lr), false); // '?'
+            }
+        }
+        let /*bool*/ neg = equal($subse(res,1),0X2D);   // '-'
+        if (neg) { res = $subss(res,2,-1); maxlen -= 1; lr -= 1; }
+        let /*integer*/ dot = find(0X2E,res), e = 0;    // '.'
+        // eg "0.0013" -> "1.3",e=-3
+        //    "0.0003" -> "3", e=-4 
+        //    "-0.000" -> return "0"
+        while ((dot===2) && (equal($subse(res,1),0X30))) { // '0'
+            e -= 1;
+            if (lr===3) { res = $subss(res,3,3); break; }
+            if (lr<=2) { return "0"; }
+            res = $repss(res,1,3,$conCat($subse(res,3), ".")); // "0.xYZZZ" -> "x.YZZZ"
+            lr -= 1;
+        }
+        dot = find(0X2E,res);
+        if (dot>2) {
+            // eg "123.4" -> "1.234", e+=2
+            e += dot-2;
+            res = $repss(res,3,dot,$subss(res,2,dot-1));
+            res = $repe(res,2,0X2E);
+        } else if ((dot===0) && lr>1) {
+            // eg "1234" -> "1.234", e+=3
+            e += lr-1;
+            res = $repss(res,2,1,".");
+        }
+        let /*string*/ estr = sprintf("e%d",e);
+        res = $subss(res,1,maxlen-neg);
+        res = $repss(res,-length(estr),-1,estr);
+        if (neg) { res = $conCat("-", res); }
+    }
     return res;
 }
-
 
 /*
 sign(x) {
@@ -3697,4 +4170,29 @@ var c = b.add("9.000000000000000004");
 console.log(b.toString());
 console.log(c.toString());
 console.log(+c); // loss of precision when converting to number
+*/
+
+/*
+function integerLogarithm(value, base) {
+    if (base.compareTo(value) <= 0) {
+        var tmp = integerLogarithm(value, base.square(base));
+        var p = tmp.p;
+        var e = tmp.e;
+        var t = p.multiply(base);
+        return t.compareTo(value) <= 0 ? { p: t, e: e * 2 + 1 } : { p: p, e: e * 2 };
+    }
+    return { p: bigInt(1), e: 0 };
+}
+
+BigInteger.prototype.bitLength = function () {
+    var n = this;
+    if (n.compareTo(bigInt(0)) < 0) {
+        n = n.negate().subtract(bigInt(1));
+    }
+    if (n.compareTo(bigInt(0)) === 0) {
+        return bigInt(0);
+    }
+    return bigInt(integerLogarithm(n, bigInt(2)).e).add(bigInt(1));
+}
+https://stackoverflow.com/questions/70382306/logarithm-of-a-bigint
 */

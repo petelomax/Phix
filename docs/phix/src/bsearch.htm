@@ -13,7 +13,9 @@
           <b>Definition:</b>
          </td>
          <td>
-          <a href="integer.htm">integer</a> res = binary_search(<a href="object.htm">object</a> needle, <a href="sequence.htm">sequence</a> haystack)
+          <a href="integer.htm">integer</a> res = binary_search(<a href="object.htm">object</a> needle, 
+                                                                <a href="sequence.htm">sequence</a> haystack,
+                                                                <a href="integer.htm">integer</a> lo=1, hi=<a ref="length.htm">length</a>(haystack), fn=0)
          </td>
         </tr>
         <tr>
@@ -25,21 +27,43 @@
             <br>
             <br>
             needle: an <a href="object.htm">object</a> to look for<br>
-            haystack: an ordered <a href="sequence.htm">sequence</a> to be searched
+            haystack: an ordered <a href="sequence.htm">sequence</a> to be searched<br>
+            lo, hi: allow the limiting of processing to a specific range of haystack<br>
+            fn: a partition function, see below.
             <br>
             <br>
             Returns either a positive integer index, which means haystack[res]==needle, otherwise the negative index 
-            of where it would go if it were inserted now.
-            <br>
-            <br>
-            Results are undefined if haystack is not in ascending order or contains duplicates. In the latter case (ie 
-            ascending order with duplicates) it is guaranteed to locate one of the duplicates, but it could be the first, 
-            last, or anything inbetween.
+            of where it would go were it inserted now.
          </td>
         </tr>
         <tr>
          <td>
-          <b>Example:</b>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+          Supported.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Notes:</b>
+         </td>
+         <td>
+            Results are undefined if haystack is not in ascending order or contains duplicates. In the latter case (ie 
+            ascending order with duplicates, which needle matches) it is guaranteed to locate one of the duplicates, but 
+            it could be the first, last, or anything inbetween.
+            <br>
+            <br>
+            A partition function fn(object needle, haystacki) can be provided which causes binary_search() to yield an always negative index 
+            such that haystack[lo..(-res)-1] <i>(should)</i> all yield true from fn(needle,haystack[i]), and haystack[-res..hi] all false. <br>
+            If the specified range of haystack does not yield <i>&lt;all true&gt;&lt;all false&gt;</i> from fn() the results are undefined.<br>
+            The value passed in needle is forwarded to fn() but otherwise unused, and can therefore contain anything needed.<br>
+            Obviously this performs some log2(hi-lo) operations, which may or may not be a significant improvement over lo += 1.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Example 1:</b>
          </td>
          <td>
 <!--eucode>
@@ -52,13 +76,40 @@
 ?binary_search(6,{1,3,5})   -- -4
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#0000FF">?</font><font color="#5E005E">binary_search</font><font color="#0000FF">(</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#800000">}</font><font color="#0000FF">)  </font><font color="#000080"><i> -- -1
-</i></font><font color="#0000FF">?</font><font color="#5E005E">binary_search</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#800000">}</font><font color="#0000FF">)  </font><font color="#000080"><i> --  1
-</i></font><font color="#0000FF">?</font><font color="#5E005E">binary_search</font><font color="#0000FF">(</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#800000">}</font><font color="#0000FF">)  </font><font color="#000080"><i> -- -2
-</i></font><font color="#0000FF">?</font><font color="#5E005E">binary_search</font><font color="#0000FF">(</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#800000">}</font><font color="#0000FF">)  </font><font color="#000080"><i> --  2
-</i></font><font color="#0000FF">?</font><font color="#5E005E">binary_search</font><font color="#0000FF">(</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#800000">}</font><font color="#0000FF">)  </font><font color="#000080"><i> -- -3
-</i></font><font color="#0000FF">?</font><font color="#5E005E">binary_search</font><font color="#0000FF">(</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#800000">}</font><font color="#0000FF">)  </font><font color="#000080"><i> --  3
-</i></font><font color="#0000FF">?</font><font color="#5E005E">binary_search</font><font color="#0000FF">(</font><font color="#000000">6</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#800000">}</font><font color="#0000FF">)  </font><font color="#000080"><i> -- -4</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">binary_search</font><font color="#0000FF">(</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#800000">}</font><font color="#0000FF">)  </font><font color="#000080"><i> -- -1</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">binary_search</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#800000">}</font><font color="#0000FF">)  </font><font color="#000080"><i> --  1</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">binary_search</font><font color="#0000FF">(</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#800000">}</font><font color="#0000FF">)  </font><font color="#000080"><i> -- -2</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">binary_search</font><font color="#0000FF">(</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#800000">}</font><font color="#0000FF">)  </font><font color="#000080"><i> --  2</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">binary_search</font><font color="#0000FF">(</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#800000">}</font><font color="#0000FF">)  </font><font color="#000080"><i> -- -3</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">binary_search</font><font color="#0000FF">(</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#800000">}</font><font color="#0000FF">)  </font><font color="#000080"><i> --  3</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">binary_search</font><font color="#0000FF">(</font><font color="#000000">6</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#800000">}</font><font color="#0000FF">)  </font><font color="#000080"><i> -- -4</i></font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Example 2:</b>
+         </td>
+         <td>
+<!--eucode>
+function fifty(integer fiveo, haystacki) return haystacki<fiveo end function
+?binary_search(50,tagset(100),1,100,fifty)  -- -50
+-- (your responsibility to check haystack[abs(-50)]==50 || needs inserting)
+-- (below this point that fifty() becomes somewhat misnamed...)
+?binary_search(0,tagset(100),1,100,fifty) --   -1 ( < all)
+?binary_search(1,tagset(100),1,100,fifty) --   -1 (== first, note)
+?binary_search(100,tagset(100),fn:=fifty) -- -100 (== last, maybe)
+?binary_search(101,tagset(100),fn:=fifty) -- -101 ( > all)
+</eucode-->
+<pre>
+<font color="#008080">function</font><font color="#000000"> fifty</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> fiveo</font><font color="#0000FF">,</font><font color="#000000"> haystacki</font><font color="#0000FF">)</font><font color="#008080"> return</font><font color="#000000"> haystacki</font><font color="#0000FF">&lt;</font><font color="#000000">fiveo</font><font color="#008080"> end function</font>
+<font color="#0000FF">?</font><font color="#5E005E">binary_search</font><font color="#0000FF">(</font><font color="#000000">50</font><font color="#0000FF">,</font><font color="#5E005E">tagset</font><font color="#800000">(</font><font color="#000000">100</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">100</font><font color="#0000FF">,</font><font color="#000000">fifty</font><font color="#0000FF">) </font><font color="#000080"><i> -- -50
+-- (your responsibility to check haystack[abs(-50)]==50 || needs inserting)
+-- (below this point that fifty() becomes somewhat misnamed...)</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">binary_search</font><font color="#0000FF">(</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#5E005E">tagset</font><font color="#800000">(</font><font color="#000000">100</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">100</font><font color="#0000FF">,</font><font color="#000000">fifty</font><font color="#0000FF">)</font><font color="#000080"><i> --   -1 ( &lt; all)</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">binary_search</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#5E005E">tagset</font><font color="#800000">(</font><font color="#000000">100</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">100</font><font color="#0000FF">,</font><font color="#000000">fifty</font><font color="#0000FF">)</font><font color="#000080"><i> --   -1 (== first, note)</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">binary_search</font><font color="#0000FF">(</font><font color="#000000">100</font><font color="#0000FF">,</font><font color="#5E005E">tagset</font><font color="#800000">(</font><font color="#000000">100</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#000000">fn</font><font color="#0000FF">:=</font><font color="#000000">fifty</font><font color="#0000FF">)</font><font color="#000080"><i> -- -100 (== last, maybe)</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">binary_search</font><font color="#0000FF">(</font><font color="#000000">101</font><font color="#0000FF">,</font><font color="#5E005E">tagset</font><font color="#800000">(</font><font color="#000000">100</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#000000">fn</font><font color="#0000FF">:=</font><font color="#000000">fifty</font><font color="#0000FF">)</font><font color="#000080"><i> -- -101 ( &gt; all)</i></font>
 </pre>
          </td>
         </tr>
@@ -67,7 +118,8 @@
           <b>Implementation:</b>
          </td>
          <td>
-            See builtins\bsearch.e (an autoinclude) for details of the actual implementation.
+            See builtins\bsearch.e (an autoinclude) for details of the actual implementation.<br>
+            hi is actually defaulted to -1, which is then replaced with length(haystack), for p2js compatibility reasons.
          </td>
         </tr>
         <tr>

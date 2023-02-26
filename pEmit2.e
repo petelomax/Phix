@@ -1392,7 +1392,7 @@ and c!=isJmpG
 and c!=isGaddr then
 --24/4/15:
                     if atom(symtab[vno]) then
-printf(1,"pemit2.e line 1817: symtab[%d]=%d\n",{vno,symtab[vno]})
+printf(1,"pemit2.e line 1395: symtab[%d]=%d\n",{vno,symtab[vno]})
                         sv = {-1,S_GVar2,0,0,0,-1}
                     else
                         sv = symtab[vno]
@@ -1405,7 +1405,9 @@ end if
                     if sv[S_NTyp]<=S_GVar2 then
                         vno = sv[S_Slink]   --DEV +gbase
                     else
-if newEmit then ?9/0 end if
+--6/12/22:
+--if newEmit then ?9/0 end if
+if newEmit then ?"9/0 blurph line 1410??" end if
                         vno = -sv[S_Tidx]   --DEV vmap or reassign!
                     end if
                     if bind then
@@ -3039,7 +3041,7 @@ atom k32=0, xVirtualProtect, pDword
 constant PAGE_EXECUTE_READWRITE = #40
 
 --DEV I've hard-coded 4096 here, might instead want to do something like:
---       xGetSystemInfo = define_c_proc(k32,"GetSystemInfo",{C_POINTER}),
+--       xGetSystemInfo = define_c_proc(k32,"GetSystemInfo",{C_PTR}),
 --       SYSTEM_INFO = allocate(44),    -- (36 on 32bit, 44 on 64bit[?])
 --       SYSTEM_INFO_dwPageSize = 4
 --
@@ -3256,7 +3258,7 @@ end if
     for i=1 to length(APIlibs) do
         s = APIlibs[i]
         if not norun or not bind then
-            lib = open_dll(s)
+            lib = open_dll(s,false) -- (do a proper Abort() with file/line)
             if lib=NULL then
                 APIerritem = APIerrlib
                 APIerror(i, "error loading library")
@@ -4012,13 +4014,13 @@ end if
             nTyp = sv[S_NTyp]
             u = sv[S_State]     -- DEV can't see this is used (cleanup first!)
 --/*
-            if nTyp>S_Type      -- types are not properly marked as used... yet.
---          if nTyp>=S_Func-MARKTYPES
+--          if nTyp>S_Type      -- types are not properly marked as used... yet.
+----            if nTyp>=S_Func-MARKTYPES
+----            if nTyp>=S_Type
+--          and sv[S_Slink]=-9 then -- (not on symtab[T_maintls][S_Slink] chain)
+----DEV (NEWGSCAN)
 --          if nTyp>=S_Type
-            and sv[S_Slink]=-9 then -- (not on symtab[T_maintls][S_Slink] chain)
---DEV (NEWGSCAN)
-            if nTyp>=S_Type
-            and g_scan[v]==0 then
+--          and g_scan[v]==0 then
 --*/
             bool doit = iff(NEWGSCAN ? nTyp>=S_Type and g_scan[v]==0
                                      : nTyp>S_Type and sv[S_Slink]=-9 )

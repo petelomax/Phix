@@ -1,0 +1,835 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">ARM mov / mvn</h1>
+      <div id="mainSection">
+        Unlike x86, the target of a mov instruction is always a register: the str, ldr, stm, and ldm instructions
+        must be used to reference memory.<br>
+        push and pop are aliases of specific forms of stm and ldm respectively.<br>
+        Movement to and from floating point registers uses a completely different set of opcodes, see
+        <a href="ARM___fpu.htm">ARM fpu</a>. <br>
+        For more details about the shift pseudo-iunstructions or embedded use, see 
+        <a href="ARM__shift.htm">barrel shifter</a>.<br>
+        For x86, see 
+        <a href="x86.htm#lea">lea</a>, 
+        <a href="x86.htm#mov">mov</a>, 
+        <a href="x86.htm#push">push</a>,
+        <a href="x86.htm#pop">pop</a>,
+        <a href="x86.htm#shl">shl</a>,
+        <a href="x86.htm#shr">shr</a> (==sar).<br>
+        For the hll stack/queue see <a href="tqueue.htm#push">push</a> and <a href="tqueue.htm#pop">pop</a>,
+        and javascript arrays also have an <a href="javascript.htm#push">array.push</a> method.<br>
+        Also, <a href="ARM___dpo.htm">data processing</a> lightly covers the <a href="ARM___dpo.htm">mov</a> 
+        and <a href="ARM___dpo.htm">mvn</a> instructions as well.
+        <br>
+        <br>
+        [DEV/tbc] Note that you can "mov Rn,[local]", which is actually encoded as "ldr Rn,[fp+k]", and likewise
+        "mov [local],Rn", which is actually encoded as "str Rn,[fp+k]", but you&rsquo;ll get a compilation error
+        for static variables, and instead have to code "lea Rm,[static_var]", which is actually encoded as mov
+        plus up to three orr, followed by "mov Rn,[Rm]". Similarly with "constant THREE = 3, FOUR = four()", you
+        can code "mov Rn,[THREE]" which is the same as "mov Rn,3", while "mov Rn,THREE" gets a complaint that 
+        you should use "lea Rn,[THREE]" instead, and the latter is mandatory for all dealings with FOUR.
+        <br>
+        <br>
+ <small>
+ <div class="arm_table">
+|Opcode.....................................|1|0|9|8|7|6|5|4|3|2|1|0|9|8|7|6|5|4|3|2|1|0|9|8|7|6|5|4|3|2|1|0|
+|...................................................................................|.ROTATE|......LIT8.....|
+|.........................................................|P|U|X|W|.................|..SHIFTH.|.............|
+|...........................................|..COND.|.OOO.|.OPCODE|S|...RN..|...RD..|...RS..|V|=S2|Z|...RM..|
+|mov[cond][s] Rd, Rm OP #...................|..cond.|0 0 0|1 1 0 1|S|..SBZ..|...Rd..|..shift#.|=s2|0|...Rm..|
+|mov[cond][s] Rd, Rm OP Rs..................|..cond.|0 0 0|1 1 0 1|S|..SBZ..|...Rd..|...Rs..|0|=s2|1|...Rm..|
+|mvn[cond][s] Rd, Rm OP #...................|..cond.|0 0 0|1 1 1 1|S|..SBZ..|...Rd..|..shift#.|=s2|0|...Rm..|
+|mvn[cond][s] Rd, Rm OP Rs..................|..cond.|0 0 0|1 1 1 1|S|..SBZ..|...Rd..|...Rs..|0|=s2|1|...Rm..|
+|mov[cond][s] Rd, #.........................|..cond.|0 0 1|1 1 0 1|S|..SBZ..|...Rd..|.rotate|.......#.......|
+|mvn[cond][s] Rd, #.........................|..cond.|0 0 1|1 1 1 1|S|..SBZ..|...Rd..|.rotate|.......#.......|
+-str[cond]H Rd, &lt;address&gt;.............|..cond.|0 0 0|P|U|I|W|0|...Rn..|...Rd..|adr_mde|1 0 1 1|adr_mde|
+-ldr[cond]H Rd, &lt;address&gt;.............|..cond.|0 0 0|P|U|I|W|1|...Rn..|...Rd..|adr_mde|1 0 1 1|adr_mde|
+-ldr[cond]SB Rd, &lt;address&gt;............|..cond.|0 0 0|P|U|I|W|1|...Rn..|...Rd..|adr_mde|1 1 0 1|adr_mde|
+-ldr[cond]SH Rd, &lt;address&gt;............|..cond.|0 0 0|P|U|I|W|1|...Rn..|...Rd..|adr_mde|1 1 1 1|adr_mde|
+|str[cond]&lt;x&gt; Rd, Rn, #...............|..cond.|0 1 0|P|U|X|W|0|...Rn..|...Rd..|............#..........|
+|ldr[cond]&lt;x&gt; Rd, Rn, #...............|..cond.|0 1 0|P|U|X|W|1|...Rn..|...Rd..|............#..........|
+-str[cond]B Rd, Rn, #.......................|..cond.|0 1 0|P|U|1|W|0|...Rn..|...Rd..|............#..........|
+-ldr[cond]B Rd, Rn, #.......................|..cond.|0 1 0|P|U|1|W|1|...Rn..|...Rd..|............#..........|
+-*str[cond]T Rd, Rn, #......................|..cond.|0 1 0 0|U|0 1 0|...Rn..|...Rd..|............#..........|
+-*ldr[cond]T Rd, Rn, #......................|..cond.|0 1 0 0|U|0 1 1|...Rn..|...Rd..|............#..........|
+-*str[cond]BT Rd, Rn, #.....................|..cond.|0 1 0 0|U|1 1 0|...Rn..|...Rd..|............#..........|
+-*ldr[cond]BT Rd, Rn, #.....................|..cond.|0 1 0 0|U|1 1 1|...Rn..|...Rd..|............#..........|
+|str[cond]&lt;x&gt; Rd, Rn, #...............|..cond.|0 1 1|P|U|X|W|0|...Rn..|...Rd..|..shift#.|=s2|0|...Rm..|
+|ldr[cond]&lt;x&gt; Rd, Rn, #...............|..cond.|0 1 1|P|U|X|W|1|...Rn..|...Rd..|..shift#.|=s2|0|...Rm..|
+-str[cond]B Rd, Rn, #.......................|..cond.|0 1 1|P|U|1|W|0|...Rn..|...Rd..|..shift#.|=s2|0|...Rm..|
+-ldr[cond]B Rd, Rn, #.......................|..cond.|0 1 1|P|U|1|W|1|...Rn..|...Rd..|..shift#.|=s2|0|...Rm..|
+-*str[cond]T Rd, Rn, #......................|..cond.|0 1 1 0|U|0 1 0|...Rn..|...Rd..|..shift#.|=s2|0|...Rm..|
+-*ldr[cond]T Rd, Rn, #......................|..cond.|0 1 1 0|U|0 1 1|...Rn..|...Rd..|..shift#.|=s2|0|...Rm..|
+-*str[cond]BT Rd, Rn, #.....................|..cond.|0 1 1 0|U|1 1 0|...Rn..|...Rd..|..shift#.|=s2|0|...Rm..|
+-*ldr[cond]BT Rd, Rn, #.....................|..cond.|0 1 1 0|U|1 1 1|...Rn..|...Rd..|..shift#.|=s2|0|...Rm..|
+|stm[cond]&lt;am&gt; Rm&lt;!&gt;, reglst....|..cond.|1 0 0|P|U|0|W|0|...Rn..|.........register list.........|
+|ldm[cond]&lt;am&gt; Rm&lt;!&gt;, reglst....|..cond.|1 0 0|P|U|0|W|1|...Rn..|.........register list.........|
+-*stm[cond]&lt;am&gt; Rm, reglst^...........|..cond.|1 0 0|P|U|1 0 0|...Rn..|0|........register list........|
+-*ldm[cond]&lt;am&gt; Rm, reglst^...........|..cond.|1 0 0|P|U|1 0 1|...Rn..|0|........register list........|
+-*stm[cond]&lt;am&gt; Rm&lt;!&gt;, reglst^..|..cond.|1 0 0|P|U|1|W|0|...Rn..|1|........register list........|
+-*ldm[cond]&lt;am&gt; Rm&lt;!&gt;, reglst^..|..cond.|1 0 0|P|U|1|W|1|...Rn..|1|........register list........|
+|push reglist...............................|..cond.|1 0 0|1|0|0|1|0|1 1 0 1|.........register list.........|
+|pop reglist................................|..cond.|1 0 0|0|1|0|1|1|1 1 0 1|.........register list.........|
+-swp[cond] Rd, Rm, [Rn].....................|..cond.|0 0 0 1 0 0|SBZ|...Rn..|...Rd..|..SBZ..|1 0 0 1|...Rm..|
+-swp[cond]B Rd, Rm, [Rn]....................|..cond.|0 0 0 1 0 1|SBZ|...Rn..|...Rd..|..SBZ..|1 0 0 1|...Rm..|
+?swp&lt;b&gt;[cond] Rd, Rm, [Rn]............|..cond.|0 0 0 1 0|B|SBZ|...Rn..|...Rd..|..SBZ..|1 0 0 1|...Rm..|
+ </div>
+ </small>
+        </div>
+<br>
+        <div class="clear"></div>
+        <br>
+        P means pre/post indexing (trust me, you don&rsquo;t want to know!)<br>
+        U means up/down ("")<br>
+        W means write-back ("")<br>
+        S on mov/mvn determines whether to update the flags, for the rest it is a to/from memory direction.<br>
+        If X is 0 then it is a word-sized str/ldr instruction, if 1 it is byte-sized (with...??).<br>
+<!--
+                x = mask(ins,X)     -- byte/word
+                w = mask(ins,W)     -- write-back
+                y = mask(ins,Y)     -- load/store
+-->
+        If B is 0 then it is a word-sized swp, if 1 it is byte-sized.<br>
+        T (whereby Rn is set to the calculated address) and EX (mark exclusive) forms of LDR are not supported.<br>
+        While stm and ldm have four addressing modes (IA, IB, DA, and DB, aka EA/FD, FA/ED, ED/FA, and FD/EA 
+        respectively), only FD is supported by Phix, for obvious reasons of avoiding all that insanity. For
+        data transfer use LDMFD (not LDMIA) and STMFD (not STMDB), and for the stack just use push and pop [DEV??].<br>
+        Likewise the W bit is always set under Phix, aka ! after Rn, to indicate it <i>is</i> updated.<br>
+        Since the all generated code is run in user mode, I don&rsquo;t think the hat(^) is relevant.<br>
+        For push and pop, Rn is pc, aka 13. I think P[erm, S??!!] should be 1 on the push, 0 on the pop, ditto !U??<br>
+        <br>
+        The mvn ("Move Not") opcode is the same as mov but with (all 32) bits inverted on storage, so, for instance, 
+        "mov r0,-1" is technically invalid but automatically mapped by the compiler to "mvn r0,0", and "mov r1,#FF shl 8" 
+        is logically the same as (the technically invalid) "mov r1,#FFFF00FF". Elsewhere, mvn is often documented as 
+        "Move Negative", which is just downright misleading, since it is a 1&rsquo;s compliment (aka not_bits), rather 
+        than a 2&rsquo;s compliment (as in '-'). 
+        The compiler happily converts eg mov r0,-42 into the appropriate mvn, and of course it is recommended you rely on that.
+
+        <h3>examples</h3>
+ <div class="arm_table">
+|Instruction ............|Description ...........................|
+|lea r0, [i] ............|r0 := address of variable i ...........|
+|ldr r1, [r0] ...........|r1 := ref of variable i ...............|
+|str r2, [r0] ...........|[i] := r2 .............................|
+|lea r3, [r1*4] .........|r3 := r1*4 ............................|
+|mov r3, r1 lsl 2 .......|r3 := r1*4 ............................|
+|lsl r3, r1, 2 ..........|r3 := r1*4 ............................|
+|lea r3, [r1+r2*4] ......|r3 := r1+r2*4 (using an add/sub) ......|
+|lea r3, [r1-12] ........|r3 := r1-12 (ditto) ...................|
+|ldr r3, [r1-12] ........|r3 := [r1-12] .........................|
+|ldr r3, [r1+4]! ........|r3 := [r1+4]; r1 += 4 .................|
+|str r3, [r1-12] ........|[r1-12] := r3 .........................|
+|str r3, [r1+4]! ........|[r1+4] := r3; r1 += 4 .................|
+|ldr r3, [r1], 4 ........|r3 := [r1]; r1 += 4 ...................|
+|str r3, [r1], 4 ........|[r1] := r3; r1 += 4 ...................|
+|str r3, [r1, r2] .......|[r1+r2] := r3 .........................|
+|str r3, [r1, r2]! ......|[r1+r2] := r3; r1 += r2 ...............|
+|ldr r3, [r1], r2 .......|r3 := [r1]; r1 += r2 ..................|
+|ldr r3, [r1, r2 lsl 2] .|r3 := [r1+r2*4] (maybe/not)............|
+|ldr r3, [r1+r2*4] ......|"" ....................................|
+|lsl r0, 2 ..............|r0 *= 4 ...............................|
+|lsr r0, 2 ..............|r0 := floor(r0/4) .....................|
+|lsr r0, r0, r2 .........|r0 := r0*power(2,r2) ..................|
+|lsr r0, r2 .............|"" ....................................|
+|mov r0, 42 .............|r0 := 42 ..............................|
+|mvn r1, r0 .............|r1 := -43 (aka not_bits)...............|
+|mvn r1, 42 .............|r1 := -43 ...(ditto)...................|
+|mov r1, -42 ............|r1 := -42 .............................|
+|mov r0, -1 .............|r0 := -1 (encoded as mvn r0, 0) .......|
+|mov r0, -2 .............|r0 := -2 (encoded as mvn r0, 1) .......|
+|mvn r0, 0 ..............|r0 := -1 ..............................|
+|mvn r0, 1 ..............|r0 := -2 ..............................|
+|mov r0, #FFFFFFFF ......|r0 := -1 (encoded as mvn r0, 0) .......|
+?swp Rd,Rm,[Rn] .........|{Rd,[Rn]} := {[Rn],Rm} ................|
+ </div>
+        <div class="clear"></div>
+        <br>
+        Take special notice of the first three entries: in x86, you can mov eax,[i] in a single instruction,<br>
+        whereas in ARM you have to load the variable address separately before you can load the contents.<br>
+        Attempting ldr r0,[i] (or the matching str) results in a compilation error, as does ldr r1,r0.<br>
+        There is no actual lea instruction in ARM assembly, it is purely a (Phix specific) pseudo-instruction.<br>
+        In practice, (eg) "lea r0,[i]" maps to "ldr r0,i", though I don&rsquo;t like or support that syntax.<br>
+        You can also use more x86-like lea forms such as lea r0, [r1+r2*4], which maps to an add.<br>
+        The compiler is at liberty to utilise all manner of dirty tricks to implement lea efficiently,<br>
+        from constructing it in byte-sized chunks to using an offset from some other known address,<br>
+        and even utilising the s0..s31 floating point registers as a first level alu register spill cache.
+        The *2/4/8 forms of lea/ldr are implemented via lsl 1/2/3 (not much different to x86 then).<br>
+        I have no immediate plans to support adr/ldr Rn,=literal pseudo-instructions, for now use mov/orr.<br>
+        Likewise I don&rsquo;t support any ldr Rn, <i>&lt;hll_var&gt;</i> or similar(/no-[]-register) forms:<br>
+        In fact and of course lea Rn, [<i>&lt;hll_var&gt;</i>] is my take and as far as I go with all that.<br>
+        The swp[b] instruction is noted as deprecated in ARMv6, so I&rsquo;ll not use/support it.<br>
+<!--
+        I don&rsquo;t [yet] support post-indexed addressing, eg ldr r3, [r1], 4, which would be
+        equivalent to r3:=[r1]; r1 += 4.
+        swp may not use pc, Rd and Rm may be the same, but Rn must not be the same as either.
+-->
+<!--
+Summary
+=======
+Remember the three offset modes in LDR/STR:
+
+offset mode using an immediate as offset:       ldr   r3, [r1, #4]
+offset mode using a register as offset:         ldr   r3, [r1, r2]
+offset mode using a scaled register as offset:  ldr   r3, [r1, r2, LSL#2]
+
+How to remember the different address modes in LDR/STR:
+
+If there is a !, it&rsquo;s prefix address mode:    ldr   r3, [r1, #4]!
+                                                    ldr   r3, [r1, r2]!
+                                                    ldr   r3, [r1, r2, LSL#2]!
+A base register in brackets by itself is postfix:   ldr   r3, [r1], #4
+                                                    ldr   r3, [r1], r2
+                                                    ldr   r3, [r1], r2, LSL#2
+Anything else is offset address mode:               ldr   r3, [r1, #4]
+                                                    ldr   r3, [r1, r2]
+                                                    ldr   r3, [r1, r2, LSL#2]
+
+-->
+<!--
+.data
+
+buffr:
+ .word 0x00000000             /* buffr[0] */
+ .word 0x00000000             /* buffr[1] */
+ .word 0x00000000             /* buffr[2]. This element has a relative address of buffr+8 */
+ .word 0x00000000             /* buffr[3] */
+ .word 0x00000000             /* buffr[4] */
+
+.text
+.global _start
+
+_start:
+ adr r0, words+12             /* address of words[3] -> r0 */
+ ldr r1, buffr_bridge         /* address of buffr[0] -> r1 */
+ ldr r2, buffr_bridge+4       /* address of buffr[2] -> r2 */
+ ldm r0, {r4,r5}              /* words[3] -> r4 = 0x03; words[4] -> r5 = 0x04 */
+ stm r1, {r4,r5}              /* r4 -> buffr[0] = 0x03; r5 -> buffr[1] = 0x04 */
+ ldmia r0, {r4-r6}            /* words[3] -> r4 = 0x03; words[4] -> r5 = 0x04; words[5] -> r6 = 0x05 */
+ stmia r1, {r4-r6}            /* r4 -> buffr[0] = 0x03; r5 -> buffr[1] = 0x04; r6 -> buffr[2] = 0x05 */
+ ldmib r0, {r4-r6}            /* words[4] -> r4 = 0x04; words[5] -> r5 = 0x05; words[6] -> r6 = 0x06 */
+ stmib r1, {r4-r6}            /* r4 -> buffr[1] = 0x04; r5 -> buffr[2] = 0x05; r6 -> buffr[3] = 0x06 */
+ ldmda r0, {r4-r6}            /* words[3] -> r6 = 0x03; words[2] -> r5 = 0x02; words[1] -> r4 = 0x01 */
+ ldmdb r0, {r4-r6}            /* words[2] -> r6 = 0x02; words[1] -> r5 = 0x01; words[0] -> r4 = 0x00 */
+ stmda r2, {r4-r6}            /* r6 -> buffr[2] = 0x02; r5 -> buffr[1] = 0x01; r4 -> buffr[0] = 0x00 */
+ stmdb r2, {r4-r5}            /* r5 -> buffr[1] = 0x01; r4 -> buffr[0] = 0x00; */
+ bx lr
+
+words:
+ .word 0x00000000             /* words[0] */
+ .word 0x00000001             /* words[1] */
+ .word 0x00000002             /* words[2] */
+ .word 0x00000003             /* words[3] */
+ .word 0x00000004             /* words[4] */
+ .word 0x00000005             /* words[5] */
+ .word 0x00000006             /* words[6] */
+
+buffr_bridge:
+ .word buffr                  /* address of buffr, aka buffr[0] */
+ .word buffr+8                /* address of buffr[2] */
+
+========================
+In the following example we use both PUSH/POP and LDMIA/STMDB:
+
+.text
+.global _start
+
+_start:
+   mov r0, #3
+   mov r1, #4
+   push {r0, r1}
+   pop {r2, r3}
+   stmdb sp!, {r0, r1}
+   ldmia sp!, {r4, r5}
+   bkpt
+Let&rsquo;s look at the disassembly of this code.
+
+azeria@labs:~$ as pushpop.s -o pushpop.o
+azeria@labs:~$ ld pushpop.o -o pushpop
+azeria@labs:~$ objdump -D pushpop
+pushpop: file format elf32-littlearm
+
+Disassembly of section .text:
+
+00008054 <_start>:
+ 8054: e3a00003 mov r0, #3
+ 8058: e3a01004 mov r1, #4
+ 805c: e92d0003 push {r0, r1}
+ 8060: e8bd000c pop {r2, r3}
+ 8064: e92d0003 push {r0, r1}
+ 8068: e8bd0030 pop {r4, r5}
+ 806c: e1200070 bkpt 0x0000
+
+
+-->
+<!--
+        Also note that instead of the x86 "lea edi,[ebx+esi*4-12]", you&rsquo;ll probably just want 
+        "sub r7, r0 shl 2, 12". <br>
+-->
+<!-- ??? (oh yes you can! 
+        Also note that you cannot have both a base register and offset, though in x86 the base is almost always <br>
+        ebx/0 anyway, and the compiler maps eg "lea r7, [r0*4-12]" to "sub r7, r0 shl 2, 12".<br>
+-->
+<!--
+DEV check asr r0,2, and output the results...
+MOV r1, r1, LSR #2
+Divide R1 by four (unsigned).
+MOV r2, r2, ASR #2
+Divide R2 by four (signed).
+MOV r3, r3, ROR #16
+Swap the top and bottom halves of R3.
+
+Single Register Data Transfer
+<operation>{cond}{size} Rd, <address>
+
+LDR     Rd := value at <address>
+STR     value at <address> := Rd
+{size} is specified to transfer bytes or half-words:
+
+<operation>B    unsigned byte
+<operation>SB   signed byte
+<operation>H    unsigned half-word
+<operation>SH   signed half-word
+
+Examples of Single Register Data Transfer
+LDR r0,[r1]     Load word addressed by R1 into R0.
+LDRB r0,[r1]    The same as above but loads a byte.
+
+Addressing Modes
+An <address> can take multiple forms:
+
+An address expression:
+A pre-indexed address – where the address generated is used immediately:
+[Rn, <expression>]{!}
+[Rn, {-}Rm]{!}
+[Rn, {-}Rm <shift> count]{!}
+A post-indexed address – where the address generated later replaces the base register:
+[Rn], <expression>
+[Rn], {-}Rm
+[Rn], {-}Rm <shift> count
+Where <shift> is any of LSL, LSR, ASR, ROR or RRX as described earlier.
+
+Pre-indexed writeback denoted by {!} causes the final address generated to be written back into Rn.
+
+Examples of Addressing Modes
+LDR r0,[r1,#4]              Load word addressed by R1+4.
+STR r0,[r1],#4              Store R0 to word addressed by R1. Increment R1 by 4.
+LDR r0,[r1,#4]!             Load word addressed by R1+4. Increment R1 by 4.
+LDRLS pc,[r1,r0,LSL #2]     Jump table idiom: load routine address into PC from R1 + R0 * 4.
+Remarks
+The <address> form is a pseudo instruction: the assembler generates a PC-relative LDR or STR.
+
+For halfword and signed halfword/byte instructions, which were later additions to the instruction set, the offset is restricted and can be:
+
+an unsigned 8-bit immediate value, or
+an unshifted register.
+
+Multiple Register Data Transfer
+===============================
+<operation>{cond}<mode> Rn{!}, <reglist>
+
+LDM reglist := values at Rn
+STM values at Rn := reglist
+
+<mode> controls how Rn is incremented:
+
+<op>IA – Increment after.
+<op>IB – Increment before.
+<op>DA – Decrement after.
+<op>DB – Decrement before.
+<reglist> is the list of registers to load or store. It can be a comma-separated list or an Rx-Ry style range.
+
+Examples of Multiple Register Data Transfer Instructions
+LDMIA r0, {r3,r7}       Load words addressed by R0 into R3 and R7. Increment After each load.
+LDMIA r0, {r3-r7}       Load words addressed by R0 into R3, R4, R5, R6 and R7.  Increment After each load.
+STMDB r1!, {r6-r8}      Store R6,R7,R8 into words addressed by R1.  Write back the final address into R1.
+                        Decrement Before each store.
+
+The Stack
+=========
+We need to store the processor state when making nested calls.
+
+The multiple data transfer instructions provide a mechanism for storing state on the stack (pointed to by R13 aka sp).
+
+The STM and LDM instructions’ modes have aliases for accessing stacks:
+
+FD = Full Descending    STMFD/LDMFD = STMDB/LDMIA
+ED = Empty Descending   STMED/LDMED = STMDA/LDMIB
+FA = Full Ascending     STMFA/LDMFA = STMIB/LDMDA
+EA = Empty Ascending    STMEA/LDMEA = STMIA/LDMDB
+Anything but a full descending stack is rare!
+
+Example Stack Entry & Exit
+
+STMFD r13!, {r4-r7} – Pushes R4,R5,R6 and R7 onto the stack.
+
+                (used)                  [high address]
+                (used) -- inital r13
+                r7
+                r6
+                r5
+                r4      -- final r13
+                (free)
+
+LDMFD r13!, {r4-r7} – Pops R4,R5,R6 and R7 from the stack.
+
+                (used)                  [high address]
+                (used) -- final r13
+                r7/free
+                r6/free
+                r5/free
+                r4/free -- initial r13
+                (free)
+
+A Call Chain
+============
+            ...
+            bl func
+            ...
+    func:   
+            stmfd r13!, {r14}
+            ...
+            bl mystery
+            ...
+
+    mystery:
+            sub r1, r0, 'A'
+            cmp r1, 'Z'-'A'
+            addls r0,r0,'a'-'A'
+            mov pc, r14
+
+Diagram showing call operation.
+
+Routine A branches with link (BL) to routine B.
+This saves its return address, the address of the next instruction, into R14 and then jumps to the routine B’s first instruction.
+Routine B is going to call another subroutine, routine C.
+Were it to immediately call routine C using BL then its existing stored R14 would be overwritten. So it stores its R14 to the stack to preserve it.
+It BL&rsquo;s to routine C. (R14 := return address, PC := Routine C).
+Routine C does its work, then returns using MOV pc,r14.
+Its return value is passed back in R0. R1 is corrupted. (R0..R3 are allowed to be corrupted in AAPCS).
+We return to Routine B after the BL instruction.
+It restores R14 from the stack.
+A return is effected and we end up at the instruction after the original BL.
+Routine C does not call any subroutines; it is known as a leaf routine. Leaf routines can dispense with the overhead of storing their return address on the stack.
+
+
+-->
+        <br>
+        <br>
+
+<!--
+000002AC,000082AC,h4,051F0224h,0b0000_0101_0001_1111_0000_0010_0010_0100,ldreq r0, [pc-548] (#00008090)
+000005FC,000085FC,h4,051F2550h,0b0000_0101_0001_1111_0010_0101_0101_0000,ldreq r2, [pc-1360] (#000080B4)
+00000600,00008600,h4,05D20002h,0b0000_0101_1101_0010_0000_0000_0000_0010,ldreqb r0, [r2+2]
+00000100,00008100,h4,E51F0088h,0b1110_0101_0001_1111_0000_0000_1000_1000,ldr r0, [pc-136] (#00008080)
+00000108,00008108,h4,E51F0090h,0b1110_0101_0001_1111_0000_0000_1001_0000,ldr r0, [pc-144] (#00008080)
+00000120,00008120,h4,E51F00A8h,0b1110_0101_0001_1111_0000_0000_1010_1000,ldr r0, [pc-168] (#00008080)
+00000128,00008128,h4,E51F00B0h,0b1110_0101_0001_1111_0000_0000_1011_0000,ldr r0, [pc-176] (#00008080)
+00000144,00008144,h4,E51F00C8h,0b1110_0101_0001_1111_0000_0000_1100_1000,ldr r0, [pc-200] (#00008084)
+000001CC,000081CC,h4,E51F0148h,0b1110_0101_0001_1111_0000_0001_0100_1000,ldr r0, [pc-328] (#0000808C)
+00000294,00008294,h4,E51F0208h,0b1110_0101_0001_1111_0000_0010_0000_1000,ldr r0, [pc-520] (#00008094)
+000002C4,000082C4,h4,E51F0250h,0b1110_0101_0001_1111_0000_0010_0101_0000,ldr r0, [pc-592] (#0000807C)
+000002D8,000082D8,h4,E51F0268h,0b1110_0101_0001_1111_0000_0010_0110_1000,ldr r0, [pc-616] (#00008078)
+000002EC,000082EC,h4,E51F027Ch,0b1110_0101_0001_1111_0000_0010_0111_1100,ldr r0, [pc-636] (#00008078)
+000002F4,000082F4,h4,E51F0270h,0b1110_0101_0001_1111_0000_0010_0111_0000,ldr r0, [pc-624] (#0000808C)
+0000030C,0000830C,h4,E51F027Ch,0b1110_0101_0001_1111_0000_0010_0111_1100,ldr r0, [pc-636] (#00008098)
+00000560,00008560,h4,E51F04BCh,0b1110_0101_0001_1111_0000_0100_1011_1100,ldr r0, [pc-1212] (#000080AC)
+00000574,00008574,h4,E51F04CCh,0b1110_0101_0001_1111_0000_0100_1100_1100,ldr r0, [pc-1228] (#000080B0)
+00000650,00008650,h4,E51F058Ch,0b1110_0101_0001_1111_0000_0101_1000_1100,ldr r0, [pc-1420] (#000080CC)
+00000614,00008614,h4,E51F0570h,0b1110_0101_0001_1111_0000_0101_0111_0000,ldr r0, [pc-1392] (#000080AC)
+0000013C,0000813C,h4,E51F10BCh,0b1110_0101_0001_1111_0001_0000_1011_1100,ldr r1, [pc-188] (#00008088)
+000002A0,000082A0,h4,E51F1234h,0b1110_0101_0001_1111_0001_0010_0011_0100,ldr r1, [pc-564] (#00008074)
+000004AC,000084AC,h4,E51F13F4h,0b1110_0101_0001_1111_0001_0011_1111_0100,ldr r1, [pc-1012] (#000080C0)
+00000490,00008490,h4,E51F13D8h,0b1110_0101_0001_1111_0001_0011_1101_1000,ldr r1, [pc-984] (#000080C0)
+00000484,00008484,h4,E51F13CCh,0b1110_0101_0001_1111_0001_0011_1100_1100,ldr r1, [pc-972] (#000080C0)
+00000470,00008470,h4,E51F13B0h,0b1110_0101_0001_1111_0001_0011_1011_0000,ldr r1, [pc-944] (#000080C8)
+000004C8,000084C8,h4,E51F1410h,0b1110_0101_0001_1111_0001_0100_0001_0000,ldr r1, [pc-1040] (#000080C0)
+000004E4,000084E4,h4,E51F1428h,0b1110_0101_0001_1111_0001_0100_0010_1000,ldr r1, [pc-1064] (#000080C4)
+000004F0,000084F0,h4,E51F1434h,0b1110_0101_0001_1111_0001_0100_0011_0100,ldr r1, [pc-1076] (#000080C4)
+00000530,00008530,h4,E51F147Ch,0b1110_0101_0001_1111_0001_0100_0111_1100,ldr r1, [pc-1148] (#000080BC)
+000005A4,000085A4,h4,E51F14F8h,0b1110_0101_0001_1111_0001_0100_1111_1000,ldr r1, [pc-1272] (#000080B4)
+000005BC,000085BC,h4,E51F14FCh,0b1110_0101_0001_1111_0001_0100_1111_1100,ldr r1, [pc-1276] (#000080C8)
+000005E8,000085E8,h4,E51F1528h,0b1110_0101_0001_1111_0001_0101_0010_1000,ldr r1, [pc-1320] (#000080C8)
+0000063C,0000863C,h4,E51F1574h,0b1110_0101_0001_1111_0001_0101_0111_0100,ldr r1, [pc-1396] (#000080D0)
+00000648,00008648,h4,E51F157Ch,0b1110_0101_0001_1111_0001_0101_0111_1100,ldr r1, [pc-1404] (#000080D4)
+000000E0,000080E0,h4,E51F2068h,0b1110_0101_0001_1111_0010_0000_0110_1000,ldr r2, [pc-104] (#00008080)
+0000045C,0000845C,h4,E51F23ACh,0b1110_0101_0001_1111_0010_0011_1010_1100,ldr r2, [pc-940] (#000080B8)
+00000514,00008514,h4,E51F2460h,0b1110_0101_0001_1111_0010_0100_0110_0000,ldr r2, [pc-1120] (#000080BC)
+0000054C,0000854C,h4,E51F2498h,0b1110_0101_0001_1111_0010_0100_1001_1000,ldr r2, [pc-1176] (#000080BC)
+000005D4,000085D4,h4,E51F2524h,0b1110_0101_0001_1111_0010_0101_0010_0100,ldr r2, [pc-1316] (#000080B8)
+000003DC,000083DC,h4,E51F3340h,0b1110_0101_0001_1111_0011_0011_0100_0000,ldr r3, [pc-832] (#000080A4)
+000003E4,000083E4,h4,E51F3348h,0b1110_0101_0001_1111_0011_0011_0100_1000,ldr r3, [pc-840] (#000080A4)
+000003B4,000083B4,h4,E51F3320h,0b1110_0101_0001_1111_0011_0011_0010_0000,ldr r3, [pc-800] (#0000809C)
+000003D4,000083D4,h4,E51F433Ch,0b1110_0101_0001_1111_0100_0011_0011_1100,ldr r4, [pc-828] (#000080A0)
+00000564,00008564,h4,E5900000h,0b1110_0101_1001_0000_0000_0000_0000_0000,ldr r0, [r0]
+000002F8,000082F8,h4,E5901000h,0b1110_0101_1001_0000_0001_0000_0000_0000,ldr r1, [r0]
+00000534,00008534,h4,E591300Ch,0b1110_0101_1001_0001_0011_0000_0000_1100,ldr r3, [r1+12]
+000003D8,000083D8,h4,E5942000h,0b1110_0101_1001_0100_0010_0000_0000_0000,ldr r2, [r4]
+0000022C,0000822C,h4,E7912106h,0b1110_0111_1001_0001_0010_0001_0000_0110,ldr r2, [r1, r6, lsl 2]
+00000230,00008230,h4,E7913105h,0b1110_0111_1001_0001_0011_0001_0000_0101,ldr r3, [r1, r5, lsl 2]
+00000258,00008258,h4,E7983102h,0b1110_0111_1001_1000_0011_0001_0000_0010,ldr r3, [r8, r2, lsl 2]
+00000260,00008260,h4,E7984102h,0b1110_0111_1001_1000_0100_0001_0000_0010,ldr r4, [r8, r2, lsl 2]
+000002A4,000082A4,h4,E7940102h,0b1110_0111_1001_0100_0000_0001_0000_0010,ldr r0, [r4, r2, lsl 2]
+00000324,00008324,h4,E7D01002h,0b1110_0111_1101_0000_0001_0000_0000_0010,ldrb r1, [r0, r2]
+00000374,00008374,h4,E7D31002h,0b1110_0111_1101_0011_0001_0000_0000_0010,ldrb r1, [r3, r2]
+
+0000056C,0000856C,h4,13E05000h,0b0001_0011_1110_0000_0101_0000_0000_0000,movne r5, -1  -- = 0xFFFFFFFF
+00000268,00008268,h4,B3A00000h,0b1011_0011_1010_0000_0000_0000_0000_0000,movlt r0, 0
+
+00000630,00008630,h4,E1A00001h,0b1110_0001_1010_0000_0000_0000_0000_0001,mov r0, r1
+00000404,00008404,h4,E1A00003h,0b1110_0001_1010_0000_0000_0000_0000_0011,mov r0, r3
+0000038C,0000838C,h4,E1A00004h,0b1110_0001_1010_0000_0000_0000_0000_0100,mov r0, r4
+00000210,00008210,h4,E1A00008h,0b1110_0001_1010_0000_0000_0000_0000_1000,mov r0, r8
+00000138,00008138,h4,E1A00009h,0b1110_0001_1010_0000_0000_0000_0000_1001,mov r0, r9
+0000011C,0000811C,h4,E1A01000h,0b1110_0001_1010_0000_0001_0000_0000_0000,mov r1, r0
+0000062C,0000862C,h4,E1A02000h,0b1110_0001_1010_0000_0010_0000_0000_0000,mov r2, r0
+00000350,00008350,h4,E1A03001h,0b1110_0001_1010_0000_0011_0000_0000_0001,mov r3, r1
+00000270,00008270,h4,E1A03004h,0b1110_0001_1010_0000_0011_0000_0000_0100,mov r3, r4
+00000290,00008290,h4,E1A04000h,0b1110_0001_1010_0000_0100_0000_0000_0000,mov r4, r0
+0000020C,0000820C,h4,E1A04080h,0b1110_0001_1010_0000_0100_0000_1000_0000,lsl r4, r0, 1  -- aka mov r4, r0 lsl 1
+00000164,00008164,h4,E1A08000h,0b1110_0001_1010_0000_1000_0000_0000_0000,mov r8, r0
+000001E4,000081E4,h4,E1A0A002h,0b1110_0001_1010_0000_1010_0000_0000_0010,mov r10, r2
+0000052C,0000852C,h4,E1E02002h,0b1110_0001_1110_0000_0010_0000_0000_0010,mvn r2, r2
+
+000000DC,000080DC,h4,E3A00000h,0b1110_0011_1010_0000_0000_0000_0000_0000,mov r0, 0
+00000280,00008280,h4,E3A00001h,0b1110_0011_1010_0000_0000_0000_0000_0001,mov r0, 1
+00000204,00008204,h4,E3A00004h,0b1110_0011_1010_0000_0000_0000_0000_0001,mov r0, 4
+00000220,00008220,h4,E3A0000Eh,0b1110_0011_1010_0000_0000_0000_0000_1110,mov r0, 14
+000004EC,000084EC,h4,E3A00016h,0b1110_0011_1010_0000_0000_0000_0001_0110,mov r0, 22  -- = 0x16
+00000304,00008304,h4,E3A01000h,0b1110_0011_1010_0000_0001_0000_0000_0000,mov r1, 0
+000001D0,000081D0,h4,E3A01001h,0b1110_0011_1010_0000_0001_0000_0000_0001,mov r1, 1
+00000390,00008390,h4,E3A01020h,0b1110_0011_1010_0000_0001_0000_0010_0000,mov r1, 32  -- = 0x20
+00000354,00008354,h4,E3A0200Ah,0b1110_0011_1010_0000_0001_0000_0010_0000,mov r2, 10
+00000418,00008418,h4,E3A03000h,0b1110_0011_1010_0000_0011_0000_0000_0000,mov r3, 0
+00000370,00008370,h4,E3A04000h,0b1110_0011_1010_0000_0100_0000_0000_0000,mov r4, 0
+00000150,00008150,h4,E3A07001h,0b1110_0011_1010_0000_0111_0000_0000_0001,mov r7, 1
+0000033C,0000833C,h4,E3A07004h,0b1110_0011_1010_0000_0111_0000_0000_0100,mov r7, 4
+000004B4,000084B4,h4,E3A07043h,0b1110_0011_1010_0000_0111_0000_0100_0011,mov r7, 67  -- = 0x43
+000000E4,000080E4,h4,E3A09000h,0b1110_0011_1010_0000_1001_0000_0000_0000,mov r9, 0
+000000FC,000080FC,h4,E3A0A00Fh,0b1110_0011_1010_0000_1010_0000_0000_1111,mov r10, 15
+00000254,00008254,h4,E3A02000h,0b1110_0011_1010_0000_0010_0000_0000_0000,mov r2, 0
+
+0000041C,0000841C,h4,E3A04020h,0b1110_0011_1010_0000_0100_0000_0010_0000,mov r4, 32  -- = 0x20
+0000044C,0000844C,h4,E3A05000h,0b1110_0011_1010_0000_0101_0000_0000_0000,mov r5, 0
+00000454,00008454,h4,E3A01B15h,0b1110_0011_1010_0000_0001_1011_0001_0101,mov r1, 21504  -- = 0x5400 (rotate=1011)
+00000460,00008460,h4,E3A07036h,0b1110_0011_1010_0000_0111_0000_0011_0110,mov r7, 54  -- = 0x36
+00000478,00008478,h4,E3E00000h,0b1110_0011_1110_0000_0000_0000_0000_0000,mov r0, -1  -- = 0xFFFFFFFF
+00000528,00008528,h4,E3A0200Ah,0b1110_0011_1010_0000_0010_0000_0000_1010,mov r2, 10
+
+00000590,00008590,h4,E3A070A8h,0b1110_0011_1010_0000_0111_0000_1010_1000,mov r7, 168    -- = 0xA8
+000005C4,000085C4,h4,E3E05000h,0b1110_0011_1110_0000_0101_0000_0000_0000,mov r5, -1  -- = 0xFFFFFFFF
+00000604,00008604,h4,11A00005h,0b0001_0001_1010_0000_0000_0000_0000_0101,movne r0, r5
+00000664,00008664,h4,E3A0201Ch,0b1110_0011_1010_0000_0010_0000_0001_1100,mov r2, 28  -- = 0x1C
+00000668,00008668,h4,E3A0420Fh,0b1110_0011_1010_0000_0100_0010_0000_1111,mov r4, -268435456  -- = 0xF0000000 (rotate=0010)
+0000066C,0000866C,h4,E1A03000h,0b1110_0001_1010_0000_0011_0000_0000_0000,mov r3, r0
+
+00000620,00008620,h4,E8BD0003h,0b1110_1000_1011_1101_0000_0000_0000_0011,pop {r0,r1}
+00000658,00008658,h4,E8BD4007h,0b1110_1000_1011_1101_0100_0000_0000_0111,pop {r0-r2,lr}
+00000440,00008440,h4,E8BD4010h,0b1110_1000_1011_1101_0100_0000_0001_0000,pop {r4,lr}
+000003C8,000083C8,h4,E8BD401Ch,0b1110_1000_1011_1101_0100_0000_0001_1100,pop {r2-r4,lr}
+00000408,00008408,h4,E8BD401Eh,0b1110_1000_1011_1101_0100_0000_0001_1110,pop {r1-r4,lr}
+00000314,00008314,h4,E8BD403Eh,0b1110_1000_1011_1101_0100_0000_0011_1110,pop {r1-r5,lr}
+00000244,00008244,h4,E8BD407Eh,0b1110_1000_1011_1101_0100_0000_0111_1110,pop {r1-r6,lr}
+00000344,00008344,h4,E8BD4087h,0b1110_1000_1011_1101_0100_0000_1000_0111,pop {r0-r2,r7,lr}
+00000608,00008608,h4,E8BD40FEh,0b1110_1000_1011_1101_0100_0000_1111_1110,pop {r1-r7,lr}
+000001F4,000081F4,h4,E8BD41FEh,0b1110_1000_1011_1101_0100_0001_1111_1110,pop {r1-r8,lr}
+
+00000610,00008610,h4,E92D0003h,0b1110_1001_0010_1101_0000_0000_0000_0011,push {r0,r1}
+00000628,00008628,h4,E92D4007h,0b1110_1001_0010_1101_0100_0000_0000_0111,push {r0-r2,lr}
+00000410,00008410,h4,E92D4010h,0b1110_1001_0010_1101_0100_0000_0001_0000,push {r4,lr}
+000003AC,000083AC,h4,E92D401Ch,0b1110_1001_0010_1101_0100_0000_0001_1100,push {r2-r4,lr}
+000003D0,000083D0,h4,E92D401Eh,0b1110_1001_0010_1101_0100_0000_0001_1110,push {r1-r4,lr}
+0000028C,0000828C,h4,E92D403Eh,0b1110_1001_0010_1101_0100_0000_0011_1110,push {r1-r5,lr}
+000001FC,000081FC,h4,E92D407Eh,0b1110_1001_0010_1101_0100_0000_0111_1110,push {r1-r6,lr}
+0000031C,0000831C,h4,E92D4087h,0b1110_1001_0010_1101_0100_0000_1000_0111,push {r0-r2,r7,lr}
+00000448,00008448,h4,E92D40FEh,0b1110_1001_0010_1101_0100_0000_1111_1110,push {r1-r7,lr}
+00000160,00008160,h4,E92D41FEh,0b1110_1001_0010_1101_0100_0001_1111_1110,push {r1-r8,lr}
+
+000002B0,000082B0,h4,05810000h,0b0000_0101_1000_0001_0000_0000_0000_0000,streq r0, [r1]
+0000061C,0000861C,h4,E5801000h,0b1110_0101_1000_0000_0001_0000_0000_0000,str r1, [r0]
+00000584,00008584,h4,E5801004h,0b1110_0101_1000_0000_0001_0000_0000_0100,str r1, [r0+4]
+000004E8,000084E8,h4,E5810000h,0b1110_0101_1000_0001_0000_0000_0000_0000,str r0, [r1]
+000000EC,000080EC,h4,E7821100h,0b1110_0111_1000_0010_0001_0001_0000_0000,str r1, [r2, r0, lsl 2]
+00000234,00008234,h4,E7812105h,0b1110_0111_1000_0001_0010_0001_0000_0101,str r2, [r1, r5, lsl 2]
+000003EC,000083EC,h4,E5842000h,0b1110_0101_1000_0100_0010_0000_0000_0000,str r2, [r4]
+000001EC,000081EC,h4,E788310Ah,0b1110_0111_1000_1000_0011_0001_0000_1010,str r3, [r8, r10, lsl 2]
+00000238,00008238,h4,E7813106h,0b1110_0111_1000_0001_0011_0001_0000_0110,str r3, [r1, r6, lsl 2]
+0000053C,0000853C,h4,E581300Ch,0b1110_0101_1000_0001_0011_0000_0000_1100,str r3, [r1+12]
+00000684,00008684,h4,E4C10001h,0b1110_0100_1100_0001_0000_0000_0000_0001,strb r0, [r1], 1
+000002C0,000082C0,h4,E5C10003h,0b1110_0101_1100_0001_0000_0000_0000_0011,strb r0, [r1+3]
+00000360,00008360,h4,E7C31002h,0b1110_0111_1100_0011_0001_0000_0000_0010,strb r1, [r3, r2]
+00000378,00008378,h4,E7C31004h,0b1110_0111_1100_0011_0001_0000_0000_0100,strb r1, [r3, r4]
+
+-->
+ <pre>
+                                                  L P U
+LDMDA (Decrement After) LDMFA (Full Ascending)    1 0 0
+LDMIA (Increment After) LDMFD (Full Descending)   1 0 1
+LDMDB (Decrement Before) LDMEA (Empty Ascending)  1 1 0
+LDMIB (Increment Before) LDMED (Empty Descending) 1 1 1
+
+STMDA (Decrement After) STMED (Empty Descending)  0 0 0
+STMIA (Increment After) STMEA (Empty Ascending)   0 0 1
+STMDB (Decrement Before) STMFD (Full Descending)  0 1 0
+STMIB (Increment Before) STMFA (Full Ascending)   0 1 1
+
+--stmdb = stmfd = push (if Rn=sp and w=1) [full ascending]
+--ldmia = ldmfd = pop (if Rn=sp and w=0 and sp is in the list)
+--stmib = stmfa, ldmda = ldmfa [full descending]
+--stmda = stmed, ldmib = ldmed [empty descending]
+--stmia = stmea, ldmdb = ldmea [empty ascending]
+ </pre>
+
+
+I bit Distinguishes between the immediate and register forms of &lt;shifter_operand&gt;.<br>
+S bit Signifies that the instruction updates the condition codes.<br>
+Rn Specifies the first source operand register.<br>
+Rd Specifies the destination register.<br>
+shifter_operand Specifies the second source operand. <br>
+
+
+<br>
+<br>
+ <pre>
+MOV Move register or constant Rd : = Op2 4.5
+MVN Move negative register Rd := 0xFFFFFFFF EOR Op2 4.5     (PL same as not_bits..)
+1111 = MVN - Rd:= NOT Op2
+
+MOV : Move
+  MOV&lt;suffix&gt;  &lt;dest&gt;, &lt;op1&gt;
+
+                dest = op1
+MOV loads a value into the destination register, from another register, a shifted register, or an immediate value.
+You can specify the same register for the effect of a NOP instruction, or you can shift the same register if you choose:
+  MOV     R0, R0                  ; R0 = R0... NOP instruction
+
+  MOV     R0, R0, LSL#3           ; R0 = R0 * 8
+If R15 is the destination, the program counter or flags can be modified. 
+This is used to return to calling code, by moving the contents of the link register into R15:
+  MOV     PC, R14                 ; Exit to caller
+
+  MOVS    PC, R14                 ; Exit to caller preserving flags
+                                    (not 32-bit compliant)
+ 
+MVN : Move Negative
+  MVN&lt;suffix&gt;  &lt;dest&gt;, &lt;op1&gt;
+
+                dest = !op1
+MVN loads a value into the destination register, from another register, a shifted register, or an immediate value.
+The difference is the bits are inverted prior to moving, thus you can move a negative value into a register.
+Due to the way this works (two&rsquo;s complement), you want to move one less than the required number:
+  MVN     R0, #4                  ; R0 = -5
+
+  MVN     R0, #0                  ; R0 = -1
+
+SWP : Swap
+  SWP&lt;suffix&gt;  &lt;dest&gt;, &lt;op1&gt;, [&lt;op2&gt;]
+SWP will:
+Load a word from memory, address pointed to by operand two, and put that word in the destination register.
+Store the contents of register operand one to that same address.
+If the destination and operand one are the same register, then the contents of the register and the contents of the memory location given will be swapped.
+If the B suffix is set, then a byte will be transferred, otherwise a word will be transferred.
+ </pre>
+<br>
+<br>
+(out of place/DEV, and I&rsquo;m probably <i>not</i>?? going to use this in Phix...):<br>
+(not halfword or doubleword, see A3.11.3 [if ever needed], ditto multiple/A3.12)<br>
+Load instructions load a single value from memory and write it to a general-purpose register.<br>
+Store instructions read a value from a general-purpose register and store it to memory.<br>
+These instructions have a single instruction format:<br>
+LDR|STR{&lt;cond&gt;}{B}{T} Rd, &lt;addressing_mode&gt;<br>
+ <div class="arm_table">
+|1|0|9|8|7|6|5|4|3|2|1|0|9|8|7|6|5|4|3|2|1|0|9|8|7|6|5|4|3|2|1|0|
+|cond...|0|1|I|P|U|B|W|L|Rn.....|Rd.....|address mode specific..|
+ </div>
+        <div class="clear"></div>
+        <br>
+I, P, U, W Are bits that distinguish between different types of &lt;addressing_mode&gt;.<br>
+See Addressing Mode 2 - Load and Store Word or Unsigned Byte on page A5-18<br>
+L bit Distinguishes between a Load (L==1) and a Store instruction (L==0).<br>
+B bit Distinguishes between an unsigned byte (B==1) and a word (B==0) access.<br>
+Rn Specifies the base register used by &lt;addressing_mode&gt;.<br>
+Rd Specifies the register whose contents are to be loaded or stored.
+
+ <pre>
+These are, arguably, the most useful instructions available. 
+It is all very well being able to do stuff with the registers, 
+but if you cannot load and store them to the main memory, then... &lt;grin&gt;
+
+Single Data Transfer
+The single data transfer instructions (STR and LDR) are used to load and store single bytes 
+or words of data from/to main memory. The addressing is very flexible.
+First, we&rsquo;ll look at the instruction:
+
+  LDR    R0, address
+  STR    R0, address
+  LDRB   R0, address
+  STRB   R0, address
+
+These instructions load and store the value of R0 to the specified address. 
+If 'B' is also specified, as in the latter two instructions, then only a single byte is loaded or saved. 
+The three unused bytes in the word are zeroed upon loading.
+The address can be a simple value, or an offset, or a shifted offset. 
+Write-back may be performed (to remove the need for adding/subtracting).
+
+   STR    R0, [Rbase]          Store R0 at Rbase.
+
+   STR    R0, [Rbase, Rindex]  Store R0 at Rbase + Rindex.
+
+   STR    R0, [Rbase, #index]  Store R0 at Rbase + index.
+                               Index is an immediate value.
+                               STR R0, [R1, #16] would load R0
+                               from R1+16.
+
+   STR    R0, [Rbase, Rindex]! Store R0 at Rbase + Rindex, &
+                               write back new address to Rbase.
+
+   STR    R0, [Rbase, #index]! Store R0 at Rbase + index, &
+                               write back new address to Rbase.
+
+   STR    R0, [Rbase], Rindex  Store R0 at Rbase, & write back
+                               Rbase + Rindex to Rbase.
+
+   STR    R0, [Rbase, Rindex, LSL #2] will store R0 at the address
+                               Rbase + (Rindex * 4)
+
+   STR    R0, place            Will generate a PC-relative offset
+                               to 'place', and store R0 there.
+You can, of course, use conditional execution on any of these instructions. 
+Note, however, that the conditional flag comes before the byte flag, so if you wish to load a byte when 
+the result is equal, the instruction would be LDREQB Rx, address (not LDRBEQ...).
+If you specify pre-indexed addressing (where the base and index are both within square brackets), the 
+write-back is controlled by the presence or absence of the '!'. 
+The fourth and fifth examples above reflect this. Using this, you can automatically move forward or backward in memory. 
+A string print routine could then become:
+
+  .loop
+    LDRB   R0, [R1, #1]!
+    SWI    "OS_WriteC"
+    CMP    R0, #0
+    BNE    loop
+instead of:
+  .loop
+    LDRB   R0, [R1]
+    SWI    "OS_WriteC"
+    ADD    R1, R1, #1
+    CMP    R0, #0
+    BNE    loop
+The use of '!' is invalid for post-indexed addressing (where the index is outside of the square brackets, as in example six above) as write-back is implied.
+
+As you can see, the offset may be shifted. Additionally, the index offset may be subtracted from the base. In this case, you might use code such as:
+
+  LDRB   R0, [R1, #-1]
+You cannot modify the PSR with a load or store instruction, though you can store or load the PC. In order to load a stored 'state' and correctly restore it, use:
+
+  LDR    R0, [Rbase]
+  MOVS   R15, R0
+The MOVS will cause the PSR bits to be updated, provided that you are privileged.
+Using MOVS with PC is not 32-bit compliant.
+According to the ARM assembler manual:
+A byte load (LDRB) expects the data on bits 0 to 7 if the supplied address is on a word boundary, 
+                                    on bits 8 to 15 if it is a word address plus one byte, and so on. 
+The selected byte is placed in the bottom 8 bits of the destination register, and the remaining bits of the register are filled with zeroes.
+A byte store (STRB) repeats the bottom 8 bits of the source register four times across the data bus. 
+The external memory system should activate the appropriate byte subsystem to store the data.
+A word load (LDR) or word store (STR) should generate a word aligned address. Using a non-word-aligned addresses has non-obvious and unspecified results.
+
+The only thing of real note here is that you cannot use LDR to load a word from a non-aligned address.
+
+
+Multiple Data Transfer
+The multiple data transfer instructions (LDM and STM) are used to load and store multiple words of data from/to main memory.
+The main use of LDM/STM is to dump registers that need to be preserved onto the stack. We've all seen STMFD R13!, {R0-R12, R14}.
+
+The instruction is:
+
+  xxM type cond   base write-back, {register list}
+'xx' is LD to load, or ST to store.
+
+'type' is:
+
+  Stack     Other
+  LDMED     LDMIB     Pre-incremental load
+  LDMFD     LDMIA     Post-incremental load
+  LDMEA     LDMDB     Pre-decremental load
+  LDMFA     LDMDA     Post-decremental load 
+
+  STMFA     STMIB     Pre-incremental store
+  STMEA     STMIA     Post-incremental store
+  STMFD     STMDB     Pre-decremental store
+  STMED     STMDA     Post-decremental store
+The assembler takes care of how to map the mnemonics. Note that ED is not IB; it is only the same for a pre-decremental load. When storing, ED is post-decrement.
+FD, ED, FA, and EA refer to a Full or Empty stack which is either Ascending or Descending.
+A full stack is where the stack pointer points to the last data item written, and empty stack is where the stack pointer points to the first free slot.
+A descending stack grows downwards in memory (ie, from the end of application space down) and an ascending stack is one which grows upwards in memory.
+
+The other forms simply describe the behaviour of the instruction, and mean Increment After, Increment Before, Decrement After, Decrement Before.
+
+RISC OS, by tradition, uses a Fully Descending stack. When writing in APCS assembler, it is common to set your stack pointer to the end of application space and 
+then use a Full Descending stack. If you are working with a high level language (either BASIC or C), then you don&rsquo;t get a choice. 
+The stack pointer (traditionally R13) points to the end of a fully descending stack. You must continue this format, or create and manage your own stack (if 
+you&rsquo;re the sort of die-hard person that would do something like this!).
+
+'base' is the register containing the address to begin with. Traditionally under RISC OS, the stack pointer is R13, though you can use any available register except R15.
+
+If you would like the stack pointer to be updated with the new register contents, simply set the write-back bit by following the stack pointer register with an '!'.
+
+The register list is given in {curly brackets}. It doesn&rsquo;t matter what order you specify the registers in, they are stored from lowest to highest. 
+As a single bit determines whether or not a register is saved, there is no point to trying to specify it twice.
+A side effect of this is that code such as:
+
+  STMFD  R13!, {R0, R1}
+  LDMFD  R13!, {R1, R0}
+will not swap the contents of two registers.
+A useful shorthand has been provided. To encompass a range of registers, simply say the first and the last, and put a dash between them. 
+For example R0-R3 is identical to R0, R1, R2, R3, only tidier and saner...
+When R15 is stored to memory, the PSR bits are also saved. When R15 is reloaded, the PSR bits are NOT restored unless you request it. 
+The method of requesting is to follow the register list with a '^'.
+
+  STMFD  R13!, {R0-R12, R14}
+  ...
+  LDMFD  R13!, {R0-R12, PC}
+This saves all registers, does some stuff, then reloads all registers. PC is loaded from R14 which was probably set by a BL instruction or some-such. The PSR flags are untouched.
+  STMFD  R13!, {R0-R12, R14}
+  ...
+  LDMFD  R13!, {R0-R12, PC}^
+This saves all registers, does some stuff, then reloads all registers. PC is loaded from R14 which was probably set by a BL instruction. The PSR flags are updated.
+Warning: This code is not 32 bit compliant. You need to use MRS and MSR to handle the PSR. You cannot use the '^' suffix.
+Note that in both examples, R14 is loaded directly into PC. This saves the need to MOV(S) R14 into R15.
+Warning: Using MOVS PC, ... is not 32 bit compliant. You need to use MRS and MSR to handle the PSR.
+
+ldr Rd := (int32)[addr]
+str (int32)[addr] := Rd
+ldrb Rd:=(uint8)[addr]      (zero-extended)
+strb (uint8)[addr] := (uint8)Rd
+ldrh Rd:=(uint16)[addr]     (zero-extended)
+strh (uint16)[addr] := (uint16)Rd
+ldrsb Rd:=(int8)[addr]      (sign-extended)
+ldrsh Rd:=(int16)[addr]     (sign-extended)
+NB no strsb or strsh since strb/h store both signed and unsigned ones
+
+Copy a block of memory:
+=======================
+r9: address of src, r10: address of dest, r11: end of src (r11>r9)
+
+loop:   ldmia r9! {r0-r7}
+        stmia r10! {r0-r7}
+        cmp r9,r11
+        bne loop    ; (PL I would have said BL, might need some kind of shift-loops...)
+
+ </pre>
+<br>
+<br>
+Erm...: You cannot use MOVS PC, R14 or LDMFD R13!, {registers, PC}^ in 32 bit code.
+<br>
+<br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

@@ -208,7 +208,8 @@ global constant
 --  opSubssp = 31??
     -- 31,32 spare
     --
-    -- opSubse1 is res, ref, idx, isInit[ref and idx]:  res:=ref[idx], aka N=p1[p2].
+    -- opSubse1 is res, ref, idx, isInit[ref and idx], isCompound:
+    --  res:=ref[idx], aka N=p1[p2].
     -- optimised forms of opSubse for the single subscript case (common cases are inlined)
     --
     opSubse1 = 33,                              -- res := ref[idx]

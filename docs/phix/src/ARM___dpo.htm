@@ -1,0 +1,232 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">ARM data processing</h1>
+      <div id="mainSection">
+        <h3>Data Processing opcodes</h3>
+        For x86, see 
+        <a href="x86.htm#and">adc</a>,
+        <a href="x86.htm#and">add</a>, 
+        <a href="x86.htm#and">and</a>,
+        <a href="x86.htm#and">cmp</a>,
+        <a href="x86.htm#neg">neg</a>,
+        <a href="x86.htm#not">not</a>,
+        <a href="x86.htm#and">or</a>, 
+        <a href="x86.htm#and">sbb</a>,
+        <a href="x86.htm#and">sub</a>,
+        <a href="x86.htm#and">test</a>,
+        <a href="x86.htm#and">xor</a>, and for other help misdirections/ambiguities see
+        JavaScript&rsquo;s classList.<a href="javascript.htm#add">add</a>(), or the hll 
+        <a href="logicops.htm">and</a>,
+        <a href="logicops.htm">or</a>,
+        <a href="logicops.htm">xor</a> logical operators
+ <small>
+ <div class="arm_table">
+|=--- Instruction ---.|1|0|9|8|7|6|5|4|3|2|1|0|9|8|7|6|5|4|3|2|1|0|9|8|7|6|5|4|3|2|1|0|
+|.............................................................|.ROTATE|......LIT8.....|
+|.............................................................|..SHIFTH.|.............|
+|.....................|..COND.|.OOO.|.OPCODE|S|...RN..|...RD..|...RS..|V|=S2|Z|...RM..|
+|and Rd, Rn, Rm OP #..|..cond.|0 0 0|0 0 0 0|S|...Rn..|...Rd..|..shift#.|=s2|0|...Rm..|
+|and Rd, Rn, Rm OP Rs.|..cond.|0 0 0|0 0 0 0|S|...Rn..|...Rd..|...Rs..|0|=s2|1|...Rm..|
+|and Rd, Rn, #........|..cond.|0 0 1|0 0 0 0|S|...Rn..|...Rd..|.rotate|.......#.......|
+ </div>
+ </small>
+<!--
+|and[cond][s] Rd, Rn, Rm OP #...........|..cond.|0 0 0|0 0 0 0|S|...Rn..|...Rd..|..shift#.|=s2|0|...Rm..|
+|and[cond][s] Rd, Rn, Rm OP Rs..........|..cond.|0 0 0|0 0 0 0|S|...Rn..|...Rd..|...Rs..|0|=s2|1|...Rm..|
+|and[cond][s] Rd, Rn, #.................|..cond.|0 0 1|0 0 0 0|S|...Rn..|...Rd..|.rotate|.......#.......|
+-->
+<br>
+        <div class="clear"></div>
+        <br>
+        The above is copied from the <a href="ARM.htm">main table</a>. Equivalently, perhaps a smidge clearer:
+        <br>
+ <small>
+ <div class="arm_table">
+|=---- Operation ----.|1|0|9|8|7|6|5|4|3|2|1|0|9|8|7|6|5|4|3|2|1|0|9|8|7|6|5|4|3|2|1|0|
+|.....................|.COND..|.TA|I|OPCODE.|S|.RN....|.RD....|shifter_operand........|
+|add Rd, Rn, Rm Op #..|.cond..|0.0|0|0 1 0 0|S|.Rn....|.Rd....|.IS......|.ST|0|.Rm....|
+|add Rd, Rn, Rm Op Rs.|.cond..|0.0|0|0 1 0 0|S|.Rn....|.Rd....|.Rs....|0|.ST|1|.Rm....|
+|add Rd, Rn, #........|.cond..|0.0|1|0 1 0 0|S|.Rn....|.Rd....|rotate.|immediate......|
+ </div>
+ </small>
+        <div class="clear"></div>
+        <br>
+        I bit Distinguishes between the immediate and register forms of &lt;shifter_operand&gt;.<br>
+        S bit Signifies that the instruction updates the condition codes.<br>
+        Note that S must be 1 and Rd 0 for cmp/cmn/tst/teq instructions.<br>
+        If I is 0 and both V and Z are 1, it is (probably) a <a href="ARM___mul.htm">multiply</a> instruction.<br>
+        Rn Specifies the first source operand register.<br>
+        Rd Specifies the destination register (must be 0 for tst/teq/cmp/cmn).<br>
+        shifter_operand Specifies the second source operand (see <a href="ARM__shift.htm">ARM barrel shifter</a>).
+
+<a name="opcodes"></a>
+        <h3>opcodes</h3>
+ <div class="arm_table">
+|Opcode.|Mnemonic|Operation....................|Action.............................................|
+|=0000..|..=and..|Logical.bitwise and_bits.....|Rd := and_bits(Rn,shifter_operand).................|
+|=0001..|..=eor..|Logical.bitwise xor_bits.....|Rd := xor_bits(Rn,shifter_operand).................|
+|=0010..|..=sub..|Subtract.....................|Rd := Rn - shifter_operand.........................|
+|=0011..|..=rsb..|Reverse Subtract.............|Rd := shifter_operand - Rn.........................|
+|=0100..|..=add..|Add..........................|Rd := Rn + shifter_operand.........................|
+|=0101..|..=adc..|Add with Carry...............|Rd := Rn + shifter_operand + Carry Flag............|
+|=0110..|..=sbc..|Subtract with Carry..........|Rd := Rn - shifter_operand - NOT(Carry Flag).......|
+|=0111..|..=rsc..|Reverse Subtract with Carry..|Rd := shifter_operand - Rn - NOT(Carry Flag).......|
+|=1000..|..=tst..|Test.........................|Update flags as per and_bits(Rn,shifter_operand)...|
+|=1001..|..=teq..|Test Equivalence.............|Update flags as per xor_bits(Rn,shifter_operand)...|
+|=1010..|..=cmp..|Compare......................|Update flags as per Rn - shifter_operand...........|
+|=1011..|..=cmn..|Compare Negated..............|Update flags as per Rn + shifter_operand...........|
+|=1100..|..=orr..|Logical bitwise or_bits......|Rd := or_bits(Rn,shifter_operand)..................|
+|=1101..|..=mov..|Move.........................|Rd := shifter_operand [no first operand]...........|
+|=1110..|..=bic..|Bit Clear....................|Rd := and_bits(Rn,not_bits(shifter_operand)).......|
+|=1111..|..=mvn..|Move bitwise not_bits........|Rd := not_bits(shifter_operand) [no first operand].|
+ </div>
+<!-- should that be???
+|=1011..|..=cmn..|Compare Negated..............|Update flags as per Rn - not_bits(shifter_operand).|
+-->
+        <div class="clear"></div>
+        <br>
+        See <a href="ARM__shift.htm">ARM barrel shifter</a> for more details about shifter_operand.
+<!-- oh no it isn't!
+<br>
+        [DEV?] it may be that cmn is better expressed as Rn - not_bits(shifter_operand)?
+-->
+
+<!--
+&lt;opcode1&gt;{&lt;cond&gt;}{S} &lt;Rd&gt;, &lt;shifter_operand&gt;<br>
+&lt;opcode1&gt; := MOV | MVN<br>
+&lt;opcode2&gt;{&lt;cond&gt;} &lt;Rn&gt;, &lt;shifter_operand&gt;<br>
+&lt;opcode2&gt; := CMP | CMN | TST | TEQ<br>
+-->
+<!-- not helpful...
+&lt;opcode&gt;{&lt;cond&gt;}{S} &lt;Rd&gt;, &lt;Rn&gt;, &lt;shifter_operand&gt;<br>
+&lt;opcode&gt; := <a href="#eg">add</a> |
+                  <a href="#sub">sub</a> |
+                  <a href="#rsb">rsb</a> |
+                  <a href="#eg">adc</a> |
+                  <a href="#sbc">sbc</a> |
+                  <a href="#rsc">rsc</a> |
+                  <a href="#eg">and</a> |
+                  <a href="#bic">bic</a> |
+                  <a href="#eor">eor</a> |
+                  <a href="#orr">orr</a><br>
+<br>
+-->
+        <br>
+        <h3>examples</h3>
+ <div class="arm_table">
+|Instruction..........|Description..........................|
+|adds r0, r2, r4......|r0 := r2+r4, setting carry bit.......|
+|adcs r1, r3, r5......|r1 := r3+r5+c ["" for&gt;64bits].....|
+|adc r0,r1............|shorthand for adc r0,r0,r1...........|
+|add r0, r1, 256......|r0 := r1 + 256.......................|
+|add r0, r2, r3 lsl 1.|r0 := r2 + r3*2......................|
+|add r4, r4, r4 lsl 4.|r4 *= 17.(aka r4*16+r4)..............|
+|and r7, r5, r9.......|r7 := and_bits(r5,r9)................|
+|and r0, r0, 3........|r0 := and_bits(r0,0b0011)............|
+|bic r0, 0b1011.......|r0 := and_bits(r0,not_bits(0b1011)...|
+|and r0, not r2.......|(phix-only-style unconditional bics).|
+|cmn r1, r2...........|status_flags:= r1 - (-r2)............|
+|cmn r1, 1............|equivalent to/emitted for cmp r1,-1..|
+|cmp r1, r2...........|status_flags:= r1 - r2...............|
+|cmp r0, 42...........|compare r0 to 42.....................|
+|cmn r0, 42...........|compare r0 to -42....................|
+|eor r1, r2, r3.......|r1 := xor_bits(r2,r3)................|
+|xor r1, r2, r3.......|(phix-only-style unconditional eors).|
+|orr r1, r2, r3.......|r1 := or_bits(r2,r3).................|
+|or r1, r2, r3........|(phix-only-style unconditional orrs).|
+|neg r0...............|r0 := -r0 (""/== rsb r0,0)...........|
+|not r0...............|r0 := not_bits(r0) (""/== mvn r0,r0).|
+|rsb r0, 4............|r0 := 4 - r0.........................|
+|rsb r0, r1...........|r0 := r1 - r0........................|
+|rsb r0, r1, 16.......|r0 := 16 - r1........................|
+|rsb r0, r1, r2.......|r0 := r2 - r1........................|
+|rsb r5, r5, r5 lsl 5.|r5 *= 31.(aka r5*32-r5)..............|
+|rsc r0, r1, r2.......|r0 := r2 - r1 - not(carry)...........|
+|sbc r0, r1, r2.......|r0 := r1 - r2 - not(carry)...........|
+|sub r0, r1, r2.......|r0 := r1 - r2........................|
+|subs r0, r1, 42......|r0 := r1 - 42, setting flags.........|
+|teq r1, r2...........|status_flags := xor_bits(r1,r2)......|
+|tst r1, r2...........|status_flags := and_bits(r1,r2)......|
+|test r1, r2..........|(phix-only-style unconditional tst)..|
+ </div>
+        <div class="clear"></div>
+        <br>
+        The first two entries add two 64 bit numbers, with the result in r0 and r1, and the first 64 bit source 
+        in r2/3 and the second in r3/4. It would of course be trivial to extend that to a 128-bit addition of
+        r0..3 := r4..7 + r8..11.
+        <br>
+        <br>
+        Note the phix-only-style use of and/or/xor/test may <i>not</i> have a conditional suffix, and the flags 
+        are <i>always</i> updated when using those aliases, an s suffix is implied/illegal/non-removable.
+        <br>
+        <br>
+        sub and sbc generate the carry flag the wrong way around, if a borrow is required then the carry flag is UNSET. <br>
+        Thus, the sbc and rsc instructions require a NOT Carry flag - they invert the flag automatically during the instruction.
+        <br>
+        <br>
+        While mvn uses a 1&rsquo;s compliment of it&rsquo;s input (for good reason), cmn uses a (perhaps more sensible) 2&rsquo;s compliment.<br>
+        <small><i>(Aside: I&rsquo;m not passing any judgement on those design decisions, 
+                          merely explaining their behaviour in the best way that I can think of.)</i></small><br>
+        Unfortunately I am not confident enough to say much/anything at all about what happens when cmn uses the barrel shifter.<br>
+        One thing I can repeat is that when Rn is 0 or #80000000, cmp Rn,0 leaves the C flag = 1 but cmn Rn,0 leaves the C flag = 0,<br>
+        so it&rsquo;s almost like cmp Rn,-op2, but not quite.
+        <br>
+        <br>
+        Both cmp a,b and teq a,b can be used as an equality test, the former affects the V flag, whereas the latter does not.<br>
+        The teq instruction <i>may?</i> set the C flag from "shifter_carry_out", whereas cmp/cmn would immediately blat that.<br>
+        The teq instruction updates the Z and N flags such that Z=1 if they are equal, and N=1 if their signs differ.
+        <br>
+        <br>
+<!-- (it's down as "shifter_carry_out", whether that ever means "sometimes" is beyond me...)
+        Note that teq does not affect the carry flag???
+        <br>
+        <br>
+-->
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

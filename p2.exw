@@ -1,0 +1,45 @@
+--
+-- p2.exw
+-- ======
+--
+--Bleurgh:
+--  Phix version 2.0 - which is intended to run on Raspbian OS/ARM, and must
+--  therefore implement a reasonably proper register allocator, and run in a
+--  web browser (transpiled o/c). A secondary aim is to unify p.exw and p2js
+--  sources, in particular use the new tokeniser and parse tree. After quite 
+--  some procastrination, I realised the correct approach is all three:
+--   * Implement here as the best (shared) code I can manage
+--   * Update p2js.exw with code sharing techniques in particular
+--   * Update p.exw as normal, and "" as a secondary consideration
+--  It would be fair to say this is p2js.exw version 2 more than p.exw v2.
+--
+-- Step through p.exw and p2js.exw, scavenging parts...
+-- At all points, ensure it runs in a browser.
+-- Since we're doing that, we must no longer rely on console keyboard input, 
+--  and an ascii trace() screen, ie replace it with a GUI [yeah!], not that 
+--  I'm planning on making trace() work in the browser, you understand, and
+--  not that I'd object should that ever become a possibility, either.
+-- So p2 test[.exw] runs as p test, p2 alone opens a GUI, like p2js.exw does.
+--
+-- STAGE 1: get a decent gui working
+--
+without debug               -- (keep ex.err clean)
+include builtins\timedate.e
+include builtins\pdates.e
+include builtins\pdate.e
+include builtins\VM\pprntfN.e
+with debug
+
+--include src\p2js_tok.e
+--include src\p2js_parse.e
+
+function platform_is_js()   -- (for testing purposes, on desktop)
+    return platform()==JS
+--  return true
+end function
+
+global constant string initialcurrentdir = get_proper_dir(command_line()[2]),   -- ("" under p2js)
+                       inifile = join_path({initialcurrentdir,"p2js.ini"}),     -- (contains {"file: %s\n"} on desktop/Phix)
+                       testexw = join_path({initialcurrentdir,"test.exw"}),     -- (meaningless under p2js)
+                       testhtm = join_path({initialcurrentdir,"test.htm"})      -- (         ""           )
+

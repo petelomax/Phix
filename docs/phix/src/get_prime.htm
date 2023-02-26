@@ -4,7 +4,7 @@
    <these>
     <get>
      <stripped>
-      <h1 class="title">get_[max]prime[s/_le]</h1>
+      <h1 class="title">(is_/get_[max])prime[s/_le]</h1>
       <div id="mainSection">
        <table>
         <col style="width: 5%"/>
@@ -13,7 +13,12 @@
           <b>Definition:</b>
          </td>
          <td>
-          <a href="atom.htm">atom</a> res = get_prime(<a href="integer.htm">integer</a> n)
+          <a href="integer.htm">integer</a> res = is_prime(<a href="atom.htm">atom</a> n, 
+                                                           <a href="integer.htm">integer</a> bIndex=-1)
+          <br>
+          <i>-- or --</i>
+          <br>
+          <a href="atom.htm">atom</a> res = get_prime(<a href="integer.htm">integer</a> k)
           <br>
           <i>-- or --</i>
           <br>
@@ -22,10 +27,14 @@
           <i>-- or --</i>
           <br>
           <a href="sequence.htm">sequence</a> res = get_primes_le(<a href="integer.htm">integer</a> hi)
+<!--
+          <a href="sequence.htm">sequence</a> res = get_primes_le(<a href="atom.htm">atom</a> hi,
+                                                                  <a href="integer.htm">integer</a> show_progress=true)
+-->
           <br>
           <i>-- or --</i>
           <br>
-          <a href="atom.htm">atom</a> maxprime = get_maxprime(<a href="atom.htm">atom</a> p)
+          <a href="integer.htm">integer</a> maxprime = get_maxprime(<a href="atom.htm">atom</a> m)
          </td>
         </tr>
         <tr>
@@ -33,13 +42,26 @@
           <b>Description:</b>
          </td>
          <td>
-            Determine whether an integer is prime, or retrieve the n<small><sup>th</sup></small> prime or a table of prime numbers.
+            Determine whether an integer is prime, or retrieve the n<small><sup>th</sup></small> prime or a table of prime numbers or a prime index.
             <br>
             <br>
-            n: obtain the n<small><sup>th</sup></small> prime number.<br>
+            n: return true if n is a prime number, false otherwise, or the result of a <a href="bsearch.htm">binary_search</a>() when bIndex is true.<br>
+            bIndex: false = use binary search, true = return result from that, -1 (default) = use trial division (see notes).<br>
+            k: obtain the k<small><sup>th</sup></small> prime number.<br>
             count: the number of primes to obtain, see notes below. <br>
-            hi: return all primes &lt;= hi. <br>
-            p: return the index of the highest prime &lt;= floor(sqrt(p)).
+            hi: return a sequence of all primes &lt;= hi. <br>
+<!--
+            show_progress: for hi&gt;1e9 only, see timing notes below.<br>
+-->
+            m: return the index of the highest prime &lt;= <a href="floor.htm">floor</a>(<a href="log.htm">sqrt</a>(m+1)).
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+          Supported.
          </td>
         </tr>
         <tr>
@@ -51,15 +73,16 @@
             previously generated prime numbers, initially set to {2,3,5,7}.
             <br>
             <br>
-            All four functions extend said table if necessary, then:<br>
+            All five functions extend said table when necessary, then:<br>
+            is_prime() performs a binary search when it can/must, and/or uses it for trial division on larger numbers.<br>
             get_prime() returns a single element from it.<br>
             get_primes() returns an exact or cropped copy of it.<br>
             get_primes_le() uses a fast <a href="bsearch.htm">binary_search</a>() to crop it.<br>
-            get_maxprime() performs a fast <a href="bsearch.htm">binary_search</a>() for floor(sqrt(p)).
+            get_maxprime() performs a fast <a href="bsearch.htm">binary_search</a>() for <a href="floor.htm">floor</a>(<a href="log.htm">sqrt</a>(m+1)).
             <br>
             <br>
 <!--
-            Invoking, for instance, is_prime(100) is guaranteed to populate the internal table with all primes &lt;= 100.<br>
+            Invoking, for instance, is_prime(100,true) is guaranteed to populate the internal table with all primes &lt;= 100.<br>
             Note that same objective could also be achieved by invoking get_prime(25) or get_primes(25), similar to the example below.
             <br>
             <br>
@@ -88,14 +111,75 @@
             being in the way (aka memory fragmentation or some other variable allocated slap in the middle of addressable memory). 
             Those numbers are potentially much bigger on 64 bit, depending on physical memory and the operating system.
             I can tell you that the 100,000,000<small><sup>th</sup></small> prime is 2,038,074,743 which suggests the sort of limits that 
-            might be applicable to parameter p of is_prime() on 32-bit [which is defined as atom to allow "integer" values above 1,073,741,823], 
-            but otherwise there are no deliberate restrictions in place here.
+            might be applicable to parameter n of is_prime() on 32-bit [which is defined as atom to allow "integer" values above 1,073,741,823], 
+            but otherwise there are no deliberate restrictions in place here, other than the occasional precision validation test.
             <br>
             <br>
             The <a href="mpfr.htm#mpz">mpz_prime</a>() function is likely to be significantly faster for larger numbers, and
             obviously is not limited to 31/53/63/64 bit values like the native 32/64-bit Phix integer/atoms are, and it will probably
             also use and hog less memory, then again this needs no dlls and is perfectly adequate and fast enough, for most of the time,
             that is assuming the results of any calculations are also all within the normal Phix integer/atom [accuracy] limits.
+            <br>
+            <br>
+            Fairly obviously the +1 in get_maxprime() avoids glitches along the lines of sqrt(64) = 7.99999, which inevitably becomes increasingly
+            likely as m gets significantly larger, especially on 64-bit where as mentioned <a href="accuracy.htm">elsewhere</a> there&rsquo;s no 
+            implicit rounding when storing of numbers out of the hardware FPU, as yet.
+            <br>
+            <br>
+<!--
+            The <b>is_prime</b>() function uses a faster/simplified version of almost the same algorithm as <a href="factors.htm">prime_factors</a><().<br>
+            Bear in mind, however, that while this is pretty fast, even on 15 or 16 digit numbers, it is still a trial division approach and no doubt 
+            <a href="mpfr.htm">mpz_prime</a>() will be much faster on larger numbers, plus of course not bound by any 53/64 bit precision limits.
+            Obviously is_prime(0) and negative numbers yield false, because they aren&rsquo;t.
+            <br>
+            <br>
+            That is_prime() function was found to be faster and hence replaced an earlier version, which has therefore been renamed as <b>is_prime2</b>(),
+            and extended with an optional bIndex parameter. It performs a binary search on the internal primes table (extended as necessary), which should 
+            theoretically be faster than any trial division approach, but in practice simply wasn&rsquo;t. Actually what I should say is that is_prime2() 
+            <i>is</i> (probably) faster in the long run, and sometimes by quite a margin, but can be a bit of a memory hog and often has significantly 
+            longer initial setup time. <br>
+            Note that I have tried several times to unify is_prime[2]() into a single "best of both", but alas always with pretty dismal results.<br>
+            If bIndex is true, it returns the result of said binary search directly, instead of testing it for &gt;0, and of course that is, along
+            with my failed efforts to unite them, and wildly different performance profiles, the main reason(s) why both routines now co-exist.
+-- well, this //was// the plan... [in the end I gave up]
+-->
+            Some time ago, is_prime() was renamed as <span class="illegal">is_prime2</span>() and a replacement put in pfactors.e, which was
+            <i>sometimes</i> faster... <br>
+            As of 1.0.2 they have been merged [in an attempt] to get the best of both [which for the most part failed/gained almost nowt].<br>
+            <b>NB</b> passing <b>false</b> for bIndex is required to obtain the same performance profile previously achieved by is_prime2().
+            <br>
+            <br>
+            Should bIndex not be -1, specifically true (as opposed to not 0) or false, the internal primes table is extended to cover n, <br>
+            and then a fast k := <a href="bsearch.htm">binary_search</a>() is performed on it, before finally returning iff(bIndex?k:k>0).<br>
+            Note that building the complete primes table can be a bit of a memory hog, or even run out, and/or entail higher one-off setup costs.<br>
+            When bIndex is true and is_prime() returns a positive result, then calling get_prime() with that will retrieve the corresponding 
+            prime number, or of course it could be used to subscript some prior result from get_primes[_le]() that you may have knocking about. <br>
+            Obviously is_prime(0) yields false, because it isn&rsquo;t (unlike some otherwise equivalent functions in some other programming 
+            languages that I won&rsquo;t name), as in fact does any n<2, in other words all negative n as well, even when bIndex is true.
+            <br>
+            <br>
+            When bIndex <i>is</i> -1, it uses a sometimes faster/simplified version of code from <a href="factors.htm">prime_factors</a>(). 
+            As just mentioned, invoking is_prime() with only a single parameter, ie not extending the internal table (beyond floor(sqrt(n)), 
+            can be much faster and deal with a much larger n.<br>
+            Bear in mind, however, that while that is (usually) pretty fast, even on 15 or 16 digit numbers, it is still a trial division 
+            approach and no doubt <a href="mpfr.htm">mpz_prime</a>() will be much faster on larger numbers, plus of course the latter is not bound 
+            by any 53/64 bit precision limits.<br>
+            In <i>some</i> cases, is_prime(,false) is significantly faster, but sometimes <i>much</i> slower, up to a factor of 5 either way.<br>
+            <b><i>The general advice (assuming you do not want an index) is to experiment with is_prime(n[,false]) to see which is the faster.</i></b><br>
+            <small>[all my attempts to automate that decision for you have yielded pretty dismal results, yet it may be something as simple as ">1e7"...]</small>
+<!-- (now commented out in the source code)
+            <br>
+            <br>
+            When get_primes_le() is invoked with a limit &gt; 1e9 (1.0.2+ only) it switches to a segmented sieve routine, which is noticeably 
+            slower, not helped by it adopting a "count then build" strategy, to minimise heap memory fragmentation, resulting in (eg) 33s for 
+            1e9+1 vs. 19s for 1e9, and at that point, not before, the show_progress parameter comes into effect. Invoking get_primes_le(1e10) 
+            yields 455,052,511 primes which is more than 32 bit can cope with, and it takes 11mins 44s, that is on this box at least. 
+            It therefore crashes immediately if the limit exceeds 5e9 on 32 bit, and it would normally be advised to have some indication of
+            progress: the show_progress default of true triggers the standard console <a href="progress.htm">progress</a>(), obviously false 
+            does nothing, otherwise it should be a procedure with the signature show_progress(bool bCounting, atom lo,hi). Making the latter
+            a function so the operation can be cancelled is a possibility and probably not difficult, but equally it makes very little sense
+            to do so pre-emptively, before someone points out what they actually need, as opposed to my totally uninformed best guess.
+-->
          </td>
         </tr>
         <tr>
@@ -109,12 +193,14 @@
 ?get_primes(-26) -- prints {2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97,101}
 ?get_primes_le(100) -- prints {2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97}
 ?get_maxprime(100) -- prints 4 (as in get_prime(4) is 7, since 11^2 > 100)
+for i=1 to maxprime(1e12) do -- the idx of all primes < 1e6(==sqrt(1e12))
 </eucode-->
 <pre>
 <font color="#0000FF">?</font><font color="#5E005E">get_prime</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">)</font><font color="#000080"><i> -- prints 2</i></font>
 <font color="#0000FF">?</font><font color="#5E005E">get_primes</font><font color="#0000FF">(-</font><font color="#000000">26</font><font color="#0000FF">)</font><font color="#000080"><i> -- prints {2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97,101}</i></font>
 <font color="#0000FF">?</font><font color="#5E005E">get_primes_le</font><font color="#0000FF">(</font><font color="#000000">100</font><font color="#0000FF">)</font><font color="#000080"><i> -- prints {2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97}</i></font>
 <font color="#0000FF">?</font><font color="#5E005E">get_maxprime</font><font color="#0000FF">(</font><font color="#000000">100</font><font color="#0000FF">)</font><font color="#000080"><i> -- prints 4 (as in get_prime(4) is 7, since 11^2 &gt; 100)</i></font>
+<font color="#008080">for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#000000"> maxprime</font><font color="#0000FF">(</font><font color="#000000">1e12</font><font color="#0000FF">)</font><font color="#008080"> do</font><font color="#000080"><i> -- the idx of all primes &lt; 1e6(==sqrt(1e12))</i></font>
 </pre>
             </small>
          </td>
@@ -136,7 +222,21 @@
           <a href="mpfr.htm#mpz">mpz_prime</a>
          </td>
         </tr>
+        <tr id="Technicalia" style="display:none;">
+         <td>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+          I also implemented a segmented sieve, now commented out, which is about half the speed of get_primes_le() but can
+          go much higher, before realising it is plain silly to generate a full list of all 455,052,511 primes less than 1e10
+          (more than 32 bit can cope with, and it takes 11mins 44s, that is on this box at least) and far more sensible to 
+          process them on-the-fly, as demo/rosetta/Ormiston_pairs.exw and demo/rosetta/Ormiston_triplets.exw now do.
+         </td>
+        </tr>
        </table>
+       <img src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
        <br>
        <br>
       </div>

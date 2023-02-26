@@ -254,7 +254,8 @@ procedure tt_keywords(sequence defs)
 
         content &= contk
         content &= "    -- types:\n"
-        sequence sections = {"illegal keywords","keywords","supported routines","unsupported routines","constants"}
+        sequence sections = {"illegal keywords","keywords","supported routines","unsupported routines","constants"},
+               pysections = {        "keywords",        "",          "routines",                    "","constants"}
         integer clen = 0
         for i=1 to length(defs) do
             {string n, integer t, integer c} = defs[i]
@@ -287,11 +288,17 @@ procedure tt_keywords(sequence defs)
             if find(n,{"object","trace","xor","zIndex","yield"}) then
                 ci &= '\n'
                 ci &= "    -- " & sections[1] & ":\n"
-                cy[$] = '\n'
-                cy &= "    )\n    " & sections[1] & " = (\n"
+                string ps = pysections[1]
+                if length(ps) then
+                    cy[$] = '\n'
+                    cy &= "    )\n    " & ps & " = (\n"
+                else
+                    cy &= '\n'
+                end if
                 ppycontent &= cy
                 cy = "       "
                 sections = sections[2..$]
+                pysections = pysections[2..$]
             end if
             content &= ci
         end for

@@ -57,9 +57,9 @@
             if (fset!==0) {
                 v -= fset;
                 if ((((!equal(length(res),0)) && (!equal(length(sep),0))) && compare(length(desc),1)>=0) && (!equal($subse(desc,1),0X2D))) {
-                    res = $conCat(res, sep);
+                    res = $conCat(res, sep, false);
                 }
-                res = $conCat(res, desc);
+                res = $conCat(res, desc, false);
             }
         }
     }

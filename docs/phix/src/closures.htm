@@ -1,0 +1,180 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">No closures</h1>
+      <div id="mainSection">
+        Many programmers swear by closures: they can make for some neat-looking code
+<!--
+        Note that Phix does <i><b>not</b></i> support closures. Many programmers swear by closures: they can make for some neat-looking code
+-->
+        but they also require a far from intuitive "value capture" and inevitably introduce a hidden state, which can make debugging nigh on 
+        impossible (hence all the swearing). Clearly closures are great when they work, confusing and counter-intuitive for beginners, a
+<!--
+        While I seem 
+        to get the part about a "neat trick from lambda calculus", albeit with more than a few concerns about the convoluted complexity and
+        often overlong and clumsy explanations, the bit I really quite strongly disagree with is "side effects on hidden state".<br>
+        It is also well-known that closures are a 
+-->
+        notorious source of memory leaks and performance issues, and often don&rsquo;t work as expected without a 
+        seemingly pointless sleight-of-hand additional function nesting level to force the required lexical scope.
+        For instance, this is (<a href="javascript:ExternalLink('ext943','https://developer.mozilla.org/en-US/docs/Web/JavaScript/Closures');"
+        id="ext943" style="color:#9B5565" >it really is</a>) an abridged summary of how MDN explains matters (in JavaScript):
+
+        <br>
+ <pre>
+ <span style="color: #008080;">function</span> <span style="color: #000000;">showHelp</span><span style="color: #0000FF;">(</span><span style="color: #000000;">help</span><span style="color: #0000FF;">)</span> <span style="color: #0000FF;">{</span>
+   <span style="color: #7060A8;">document</span><span style="color: #0000FF;">.</span><span style="color: #000000;">getElementById</span><span style="color: #0000FF;">(</span><span style="color: #008000;">'help'</span><span style="color: #0000FF;">).</span><span style="color: #7060A8;">textContent</span> <span style="color: #0000FF;">=</span> <span style="color: #000000;">help</span><span style="color: #0000FF;">;</span>
+ <span style="color: #0000FF;">}</span>
+ 
+ <span style="color: #000080;font-style:italic;">//function makeHelpCallback(help) {
+ //  return function () {
+ //    showHelp(help);
+ //  };
+ //}</span>
+ 
+ <span style="color: #008080;">function</span> <span style="color: #000000;">setupHelp</span><span style="color: #0000FF;">()</span> <span style="color: #0000FF;">{</span>
+   <span style="color: #7060A8;">var</span> <span style="color: #000000;">helpText</span> <span style="color: #0000FF;">=</span> <span style="color: #0000FF;">[</span>
+     <span style="color: #0000FF;">{</span> <span style="color: #000000;">id</span><span style="color: #0000FF;">:</span> <span style="color: #008000;">'email'</span><span style="color: #0000FF;">,</span> <span style="color: #000000;">help</span><span style="color: #0000FF;">:</span> <span style="color: #008000;">'Your e-mail address'</span> <span style="color: #0000FF;">},</span>
+     <span style="color: #0000FF;">{</span> <span style="color: #000000;">id</span><span style="color: #0000FF;">:</span> <span style="color: #008000;">'name'</span><span style="color: #0000FF;">,</span> <span style="color: #000000;">help</span><span style="color: #0000FF;">:</span> <span style="color: #008000;">'Your full name'</span> <span style="color: #0000FF;">},</span>
+     <span style="color: #0000FF;">{</span> <span style="color: #000000;">id</span><span style="color: #0000FF;">:</span> <span style="color: #008000;">'age'</span><span style="color: #0000FF;">,</span> <span style="color: #000000;">help</span><span style="color: #0000FF;">:</span> <span style="color: #008000;">'Your age (you must be over 16)'</span> <span style="color: #0000FF;">},</span>
+   <span style="color: #0000FF;">];</span>
+ 
+   <span style="color: #008080;">for</span> <span style="color: #0000FF;">(</span><span style="color: #7060A8;">var</span> <span style="color: #000000;">i</span> <span style="color: #0000FF;">=</span> <span style="color: #000000;">0</span><span style="color: #0000FF;">;</span> <span style="color: #000000;">i</span> <span style="color: #0000FF;"><</span> <span style="color: #000000;">helpText</span><span style="color: #0000FF;">.</span><span style="color: #7060A8;">length</span><span style="color: #0000FF;">;</span> <span style="color: #000000;">i</span><span style="color: #0000FF;">++)</span> <span style="color: #0000FF;">{</span>
+ <span style="color: #000080;font-style:italic;">//  // Culprit is the use of `var` on this line</span>
+     <span style="color: #7060A8;">var</span> <span style="color: #000000;">item</span> <span style="color: #0000FF;">=</span> <span style="color: #000000;">helpText</span><span style="color: #0000FF;">[</span><span style="color: #000000;">i</span><span style="color: #0000FF;">];</span>
+     <span style="color: #7060A8;">document</span><span style="color: #0000FF;">.</span><span style="color: #000000;">getElementById</span><span style="color: #0000FF;">(</span><span style="color: #000000;">item</span><span style="color: #0000FF;">.</span><span style="color: #000000;">id</span><span style="color: #0000FF;">).</span><span style="color: #000000;">onfocus</span> <span style="color: #0000FF;">=</span> <span style="color: #008080;">function</span> <span style="color: #0000FF;">()</span> <span style="color: #0000FF;">{</span> <span style="color: #000000;">showHelp</span><span style="color: #0000FF;">(</span><span style="color: #000000;">item</span><span style="color: #0000FF;">.</span><span style="color: #000000;">help</span><span style="color: #0000FF;">);</span> <span style="color: #0000FF;">};</span>
+ <span style="color: #000080;font-style:italic;">//  document.getElementById(item.id).onfocus = makeHelpCallback(item.help);
+ //or:
+ //  (function () {
+ //    var item = helpText[i];
+ //    document.getElementById(item.id).onfocus = function () {
+ //      showHelp(item.help);
+ //    };
+ //  })(); // Immediate event listener attachment with the current value of item (preserved until iteration).</span>
+   <span style="color: #0000FF;">}</span>
+ <span style="color: #000080;font-style:italic;">//or:
+ //helpText.forEach(function (text) {
+ //  document.getElementById(text.id).onfocus = function () {
+ //    showHelp(text.help);
+ //  };
+ //});   </span>
+ <span style="color: #0000FF;">}</span>
+ 
+ <span style="color: #000000;">setupHelp</span><span style="color: #0000FF;">();</span></pre>
+        One fix is to replace the var with let (or const), another is to use makeHelpCallback(), another is to use the anonymous closure,
+        perhaps inside a forEach instead of the for loop. Call me old-fashioned, but if you have to explain something in terms of all the
+        ways it can go wrong, followed by several (in this case four) methods of "fixing" it, well, something ain&rsquo;t quite right.
+<!--
+        That "really neat code" is clearly anything but free in terms of cognitive overhead.
+-->
+        The problem is the obsessive yearning for excessively spartan code with implicit and non-immediately-intuitive "magic", without a care in the
+        world for either practical run/compile-time costs or the cognitive overheads unwittingly burdened on the programmer, or the maintainer.<br>
+        I am also aware that much of this is triggered by the inability or extra hoop-jumping needed in some programming languages to pass a single
+        function pointer, rather than either f or {f,g}, and similar when storing in a single field of a structure - and of course <i>neither</i> of 
+        those would be any kind of problem in standard Phix [hll] code (but admittedly still a potential issue when, say, interfacing to C, not that
+        C stands much chance of coping with a C++ closure, or vice versa, and even less for closures in even less similar languages).
+        <br>
+        <br>
+        OK, so now we&rsquo;ve dished the dirt and done disparaging, let&rsquo;s look at something a little more relevant, and how we might achieve 
+        a similar effect in Phix. <br>
+        Consider the following snippet (in JavaScript, again):
+        <a name=eg2></a>
+ <pre>
+ <span style="color: #008080;">function</span> <span style="color: #000000;">test</span><span style="color: #0000FF;">()</span> <span style="color: #0000FF;">{</span>
+     <span style="color: #008080;">function</span> <span style="color: #000000;">makeAdder</span><span style="color: #0000FF;">(</span><span style="color: #000000;">x</span><span style="color: #0000FF;">)</span> <span style="color: #0000FF;">{</span>
+       <span style="color: #008080;">return</span> <span style="color: #008080;">function</span> <span style="color: #0000FF;">(</span><span style="color: #000000;">y</span><span style="color: #0000FF;">)</span> <span style="color: #0000FF;">{</span>
+         <span style="color: #008080;">return</span> <span style="color: #000000;">x</span> <span style="color: #0000FF;">+</span> <span style="color: #000000;">y</span><span style="color: #0000FF;">;</span>
+       <span style="color: #0000FF;">};</span>
+     <span style="color: #0000FF;">}</span>
+ 
+     <span style="color: #008080;">const</span> <span style="color: #000000;">add5</span> <span style="color: #0000FF;">=</span> <span style="color: #000000;">makeAdder</span><span style="color: #0000FF;">(</span><span style="color: #000000;">5</span><span style="color: #0000FF;">);</span>
+     <span style="color: #008080;">const</span> <span style="color: #000000;">add10</span> <span style="color: #0000FF;">=</span> <span style="color: #000000;">makeAdder</span><span style="color: #0000FF;">(</span><span style="color: #000000;">10</span><span style="color: #0000FF;">);</span>
+ 
+     <span style="color: #7060A8;">console</span><span style="color: #0000FF;">.</span><span style="color: #7060A8;">log</span><span style="color: #0000FF;">(</span><span style="color: #000000;">add5</span><span style="color: #0000FF;">(</span><span style="color: #000000;">2</span><span style="color: #0000FF;">));</span> <span style="color: #000080;font-style:italic;">// 7</span>
+     <span style="color: #7060A8;">console</span><span style="color: #0000FF;">.</span><span style="color: #7060A8;">log</span><span style="color: #0000FF;">(</span><span style="color: #000000;">add10</span><span style="color: #0000FF;">(</span><span style="color: #000000;">2</span><span style="color: #0000FF;">));</span> <span style="color: #000080;font-style:italic;">// 12</span>
+ <span style="color: #0000FF;">}</span>
+ <span style="color: #000000;">test</span><span style="color: #0000FF;">()</span></pre>
+        Which creates a couple of implicit lexical scopes that contain the x=5 and x=10.<br>
+        Phix takes the view that a little bit more explicit code, to keep/reference an x that shouldn&rsquo;t really be there anymore, is no bad thing.<br>
+        An equivalent for the above can be found on the <a href="nested.htm#eg2">parent page</a>. Another quick example:
+        <a name=eg3></a>
+ <pre>
+ <span style="color: #008080;">const</span> <span style="color: #000000;">findByIndex</span> <span style="color: #0000FF;">=</span> <span style="color: #0000FF;">()</span> <span style="color: #0000FF;">=></span> <span style="color: #0000FF;">{</span>
+   <span style="color: #7060A8;">console</span><span style="color: #0000FF;">.</span><span style="color: #7060A8;">time</span><span style="color: #0000FF;">(</span><span style="color: #008000;">'array creation'</span><span style="color: #0000FF;">);</span>
+   <span style="color: #008080;">const</span> <span style="color: #000000;">numbers</span> <span style="color: #0000FF;">=</span> <span style="color: #7060A8;">Array</span><span style="color: #0000FF;">.</span><span style="color: #008080;">from</span><span style="color: #0000FF;">(</span><span style="color: #7060A8;">Array</span><span style="color: #0000FF;">(</span><span style="color: #000000;">1000000</span><span style="color: #0000FF;">).</span><span style="color: #000000;">keys</span><span style="color: #0000FF;">());</span>
+   <span style="color: #7060A8;">console</span><span style="color: #0000FF;">.</span><span style="color: #000000;">timeEnd</span><span style="color: #0000FF;">(</span><span style="color: #008000;">'array creation'</span><span style="color: #0000FF;">);</span>
+ 
+   <span style="color: #008080;">return</span> <span style="color: #0000FF;">(</span><span style="color: #000000;">index</span><span style="color: #0000FF;">)</span> <span style="color: #0000FF;">=></span> <span style="color: #0000FF;">{</span>
+     <span style="color: #008080;">const</span> <span style="color: #000000;">result</span> <span style="color: #0000FF;">=</span> <span style="color: #000000;">numbers</span><span style="color: #0000FF;">[</span><span style="color: #000000;">index</span><span style="color: #0000FF;">];</span>
+ 
+     <span style="color: #7060A8;">console</span><span style="color: #0000FF;">.</span><span style="color: #7060A8;">log</span><span style="color: #0000FF;">(</span><span style="color: #008000;">`item by index ${index}=${result}`</span><span style="color: #0000FF;">);</span>
+ 
+     <span style="color: #008080;">return</span> <span style="color: #000000;">result</span><span style="color: #0000FF;">;</span>
+   <span style="color: #0000FF;">};</span>
+ <span style="color: #0000FF;">};</span>
+ 
+ <span style="color: #008080;">const</span> <span style="color: #7060A8;">find</span> <span style="color: #0000FF;">=</span> <span style="color: #000000;">findByIndex</span><span style="color: #0000FF;">();</span>
+ 
+ <span style="color: #7060A8;">find</span><span style="color: #0000FF;">(</span><span style="color: #000000;">110351</span><span style="color: #0000FF;">);</span>
+ <span style="color: #7060A8;">find</span><span style="color: #0000FF;">(</span><span style="color: #000000;">911234</span><span style="color: #0000FF;">);</span>
+ <span style="color: #7060A8;">find</span><span style="color: #0000FF;">(</span><span style="color: #000000;">520109</span><span style="color: #0000FF;">);</span>
+ <span style="color: #7060A8;">find</span><span style="color: #0000FF;">(</span><span style="color: #000000;">398</span><span style="color: #0000FF;">);</span></pre>
+        I would add a more persuasive example that better highlights the true purpose and usefulness of closures, only I&rsquo;ve looked, and there really isn&rsquo;t one.<br>
+        However it is certainly no bad thing for Phix to have private statics and routines, even should they technically have little or nothing to do with closures.<br>
+        Again, the equivalent in Phix for the above can also be found on the <a href="nested.htm#eg3">parent page</a>.
+       <br>
+       <br>
+        Some further reading on closures can be found <a href="javascript:ExternalLink('ext173','http://jibbering.com/faq/notes/closures/');"
+        id="ext173" style="color:#9B5565" >here</a>, and it rather tickles me to contemplate that all of that was almost certainly written
+        <i>in favour of</i> closures<i>!!!</i>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

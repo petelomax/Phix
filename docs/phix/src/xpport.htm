@@ -1,0 +1,180 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">porting from pGUI</h1>
+      <div id="mainSection">
+        xpGUI is the Phix Cross Platform Graphical User Interface, a planned replacement for <a href="pGUI.htm">pGUI</a>.
+        <br>
+        <br>
+        Unlike pGUI, xpGUI will only contain js-compatible things, and perhaps some non-js pieces I actually need.<br>
+        On Windows, uses the native windows API but can be made to use GTK, for testing purposes only (see <a href="gUseGTK.htm">gUseGTK</a>).<br>
+        On Linux, uses GTK and assumes that is already installed, and besides IUP does/did the same anyway.<br>
+        In a web browser, uses pwa/xpGUI.js which is a laboriously hand-crafted drop-in replacement.
+        <br>
+        <br>
+        The Windows part is based on Arwen (tougher than expected), pGUI.js only needs superficial mods, GTK is proving easier than feared.<br>
+        With a bit of luck, OpenGL/WebGL should only require the lightest of tweaks to make it [x]pGUI-agnostic, or an easy fork.<br>
+        To minimise confusion, none/few of the Windows API, Arwen, GTK, or IUP-style globals/names are exposed or (re-)used, one<br>
+        notable exception being VK_F1 (etc) of arwen <small>(as per the aside <a href="gSetHandler.htm#KEY">here</a>).</small><br>
+        Implemented in demo\xpGUI\xpGUI.e for desktop/Phix and pwa\xpGUI.js for use under pwa/p2js.
+<!--    <small>(Note that ppGUI.js is currently being used for some delta debugging, with xpGUI.js being a
+        modified copy of [parts of] that, and relevant diffs manually maintained as comments)<br></small>   -->
+
+        <h3>porting from pGUI to xpGUI</h3>
+<!--
+        The mini-helper as documented below should cover all of the following.<br>
+        Obviously a search for all "Iup" (usually replace with "g") and "IUP_" (ditto "XPG_") is needed, likewise "cd".<br>
+<X!X--
+        I may yet pen some kind of mini-helper, probably standalone/clipboard-based, maybe integrated with Edita (et al).<br>
+--X>
+        <a href="IupOpen.htm">IupOpen</a>() has become a private and automatically invoked xpg_Init(), so just delete that call.<br>
+        Replace any Ihandl(e|n)[s] with <a href="gdx.htm">gdx</a>. Note there is now only one gdx type, not four.<br>
+-->
+        The single biggest change is that any parent must be specified up-front on <a href="gDialog.htm">gDialog</a>() 
+        (nee <a href="IupDialog.htm">IupDialog</a>()), <br>and there is no longer either a global or per-dialog "PARENTDIALOG".<br>
+        Some not insignificant refactoring may be required to ensure dialogs are created in the right order.<br>
+        Many things have been simplified, unified and consolidated, for instance "just" <a href="gSetAttribute.htm">gSetAttribute</a>(),
+        several attributes have been renamed and several controls have been dropped, and the use of normal first class routines as handlers 
+        instead of callbacks, all of which makes it a touch impractial to summarise everything properly on a/this single page.
+        Should the <a href="pGUI.htm">pGUI</a> docs tag pwa/p2js as not supported, then it won&rsquo;t be in <a href="xpGUI.htm">xpGUI</a>.
+<!--
+        (Whether controls within a dialog can be "post-parented" in an IupH/Vbox-like fashion is as yet unknown, but I hope so.)<br>
+-->
+<!--
+        There is no similar distinction in xpGUI between <a href="IupSetAttribute.htm">IupSetAttribute</a>() and 
+        <a href="IupSetStrAttribute.htm">IupSetStrAttribute</a>(), or the legacy name of
+        <a href="IupStoreAttribute.htm">IupStoreAttribute</a>(), just 
+        <a href="gSetAttribute.htm">gSetAttribute</a>(), however 
+        suffixed (Ptr|Handle|Id[2]) and utility versions (in particular Int) remain (probably).<br>
+--X>
+        Since xpGUI uses first class routines for handlers rather than callbacks, <code>Icallback("name")</code> becomes simply <code>name</code>, 
+        importantly with any quotes removed. You may also want to replace (say) <code>(... atom pStr ...); string s = peek_string(s)</code> with 
+        just <code>(... string s ...)</code>, iyswim, and hopefully compilation errors will drop some clear hints in that regard.<br>
+<X!X--
+        Finally, replace <a href="IupMainLoop.htm">IupMainLoop</a>() with <a href="gMainLoop.htm">gMainLoop</a>(), noting that
+        wrapping it with <code>if platform()!=JS then</code> is no longer necessary/now part of the API.
+-->
+        <br>
+        <br>
+        There is a mini-helper defined in builtins\xpGUI_from_pGUI.e intended to alleviate most of the tedious editing needed 
+        when porting code from pGUI to xpGUI:<br>
+        <br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a href="string.htm">string</a> res = <b>xpGUI_from_pGUI</b>(<a href="string.htm">string</a> src)
+        <br>
+        <br>
+        Should you copy some source code into the clipboard, run demo\xpGUI\gButton.exw, and click on the "port from pGUI" button
+        (which should be disabled if the clipboard does not contain "include pGUI.e"), then it updates the clipboard contents
+        modified roughly as follows:<br>
+        `include pGUI.e` is replaced with `include xpGUI.e`<br>
+        `<a href="IupOpen.htm">IupOpen</a>()` (ditto `<a href="IupClose.htm">IupClose</a>()`) is simply deleted
+          <small>[xpGUI has a private and auto-invoked when actually needed xpg_Init()]</small><br>
+        `IHandl(e|n)[s]` is replaced with `<a href="gdx.htm">gdx</a>` <small>[note there is now only one gdx type, not four.]</small><br>
+        `IupDialog` is replaced with `<a href="gDialog.htm">gDialog</a>` <small>(must manually specify any parent, when needed, <i>after</i> the child)</small><br>
+        `"PARENTDIALOG"` is replaced with ?PARENTDIALOG? <small>(as prior, needs further editing)</small><br>
+        `Iup(Set[Str]|Store)Attribute` are all replaced with `<a href="gSetAttribute.htm">gSetAttribute</a>`<br>
+        `Icallback("xxx")` is replaced with `xxx` <small>(quotes removed)</small><br>
+        `IupSetCallback[s](` is replaced with `<a href="gSetHandler.htm">gSetHandler</a>[s](?` <small>(you&rsquo;ll need to fixup quotes, remove call_back(), etc.)</small><br>
+        `IupXxxx` is replaced with `gXxxx` <small>(a dirty great big long list, probably forever incomplete)</small><br>
+        [maybe] `cdXxxx` is replaced with `gXxxx` <small>(ditto [we really really can&rsquo;t just "cd"->"g", obvs.])</small><br>
+        `"XXX_CB"` is replaced with `"XXX"` <small>(ditto, plus `"K_ANY"` -> `"<a href="gSetHandler.htm#KEY">KEY</a>"`)</small><br>
+        `IUP_` is replaced with `XPG_` <small>(blanket, unverified)</small><br>
+        `K_` is replaced with `VK_` <small>(blanket, unverified)</small><br>
+        More tweaks may be added as necessary.<br>
+        <small>(or rather <i>will</i>, it&rsquo;ll probably <i>never</i> be totally finished/perfected, besides
+                xpGUI_from_pGUI() is one-shot, not meant to be long-term, and more than likely will be me-only)</small><br>
+        I also plan to incorporate similar code into the new demo\Edita\xpEditer.exw if that ever gets going properly, and/or Edita/Edix if not.<br>
+        <small>(Mind you, should xpEditer.exw somehow fail to become a reality, by 2024|5, then I&rsquo;ll consider xpGUI an abject failure...)</small>
+        <br>
+        <br>        
+        Obviously there is no guarantee or even likelihood of the result running without any further changes, and no apologies
+        whatsoever should <i>you</i> clobber the only working version you have <i>without</i> making an adequate backup first.
+
+        <h3>Handler changes</h3>
+        Several run-time errors, specifically designed to assist in the porting process, can also occur in xpGUI.e such as<br>
+        &nbsp;&nbsp;<a href="crash.htm">crash</a>(`setHandler(BUTTON,"ACTION",rtn) should be changed to "CLICK"`)<br>
+        and you should take appropriate care to ensure any required associated updates are also made, as follows:
+        <br>
+        <br>
+        <table>
+         <col style="width: 5%"/>
+         <tr>
+          <th>
+            Affects
+          </th>
+          <th>
+            pGUI name
+          </th>
+          <th>
+            xpGUI name
+          </th>
+          <th>
+            Notes
+          </th>
+         </tr>
+         <tr>
+          <td>
+           <a href="gButton.htm">
+            <b>gButton</b>
+           </a>
+          </td>
+          <td>
+            "ACTION"
+          </td>
+          <td>
+            "CLICK"
+          </td>
+          <td>
+            Just a more intuitive name
+          </td>
+         </tr>
+         <tr>
+          <td>
+           <a href="gCanvas.htm">
+            <b>gCanvas</b>
+           </a>
+          </td>
+          <td>
+            "ACTION"
+          </td>
+          <td>
+            "REDRAW"
+          </td>
+          <td>
+            The callback function has now become a procedure instead
+          </td>
+         </tr>
+        </table>
+<!--
+(I've gotten used to the GTK docs a bit more now...)
+        <small><sup><small>1</small></sup> Help welcome, and/or better (non-heredoc) GTK documentation.</small>
+        <small><sup><small>1</small></sup> Help welcome, and/or much better (non-bloody-useless-heredoc) GTK documentation.</small>
+        (any GTK-fanboy feeling the urge to defend the GTK docs should first see how many times that can find the phrase
+        "No description available" -- oh, don't set them off...
+        <small><sup><small>1<small></sup> Forgive me for saying this, but the GTK documentation is by far the worst 
+        I have ever seen in my entire life.<br>
+        The GTK documentation has zero meaningful structure; every routine is independently defined with almost no 
+        cross-references whatsoever, and all in segregated implementation "units" without any explanation.<br>
+        Every page has a tempting search box, that bluntly rejects anything in the wrong "unit". <br>
+        Of course there are without doubt many sound reasons for breaking something like that down into multiple
+        implementation units, but there is no excuse for ramming that irrelevant technical detail into the face of
+        every single person that uses the finished product or tries to navigate around the documentation, apart 
+        from the almost inevitable bipolar "but di-docgen is just <i>so</i> cool, and <i>entirely</i> to blame".<br>
+        I am certainly thankful that google exists.. and in fact I have resorted to Dependency Walker just to get 
+        a list of the available functions, and it is quite something that running that 12 times is way easier than 
+        navigating the official help documents!! <br>
+        Either you know the name of the function needed, or if you don&rsquo;t, why <i>should</i> the docs bother to help??<br>
+        Of course I am aware of the difficulties and similar deficiencies in my own docs, but absolutely refusing to even
+        acknowledge there is a problem frankly just astonishes me.</small>
+        <br>
+        <br>
+-->
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

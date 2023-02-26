@@ -38,7 +38,8 @@ sequence referenced
 --sequence zeroes -- DEV temp
 
 include p2js_auto.e
-sequence {auto_names, auto_procfunc, auto_sigs, auto_files} = columnize(p2js_auto)
+sequence {auto_names, auto_procfunc, auto_sigs, auto_files} = columnize(p2js_auto),
+         {aliases,anames} = columnize(p2js_alia)
 integer named_args,     -- key is {arg_rtn,ttidx}, 
                         -- data is {arg_idx,vartype}
         arg_defs        -- key is {arg_rtn,arg_idx},
@@ -138,11 +139,31 @@ global procedure clear_arg_rtn()
 end procedure
 
 global procedure drop_scope()
+--?"drop_scope"
     if length(scopes)<=GLOBALS then ?9/0 end if
     integer d = scopes[$]
     destroy_dict(d)
     scopes = scopes[1..$-1]
 end procedure
+
+--/!*
+sequence scope_dumps
+--scope_dumps = {0,{{39408,19},{39468,19},{39472,19}},{{39024,8},{39032,1},{39416,12},{39488,1},{39500,1}}}
+global procedure dump_scopes()
+    scope_dumps = repeat(0,length(scopes))
+    for i,d in scopes from 1 do
+        sequence k = keys(d),
+                 v = values(d),
+                 n = repeat(0,length(k))
+        for j,t in k do
+if integer(t) then
+            n[j] = get_ttname(t)
+end if
+        end for
+        scope_dumps[i] = columnize({k,v,n})
+    end for
+end procedure
+--*!/
 
 global procedure final_scope_check()
     if length(scopes)!=GLOBALS then ?9/0 end if
@@ -190,6 +211,7 @@ tokstack[1..2] = {{`C:\Program Files (x86)\Phix\builtins`},{`C:\Program Files (x
         end if
         return 0 -- already defined
     end if
+--if ttidx=39456 then ?9/0 end if
     setd(ttidx,vartype,scope)
     return 1 -- ok
 end function
@@ -203,7 +225,8 @@ global function add_local(integer ttidx, vartype)
 --?{"add_local",ttidx,vartype}
     -- catch/warn this before the call, eg see p2js_parse.e/vardef()
 --  if not find(vartype,{TYPI,TYP2,TYPN,TYPQ,TYPS,TYP9,TYPM,TYPP,TYPO}) then ?9/0 end if
-    if not find(vartype,{TYPI,TYP2,TYPN,TYPQ,TYPS,TYP9,TY11,TYPP,TYPO}) then ?9/0 end if
+--  if not find(vartype,{TYPI,TYP2,TYPN,TYPQ,TYPS,TYP9,TY11,TYPP,TYPO}) then ?9/0 end if
+    if not find(vartype,{TYPI,TYP2,TYPN,TYPQ,TYPS,TYP9,TY11,TYPP,TYPO,TYPF,TYPR}) then ?9/0 end if
     if arg_rtn then
         arg_idx += 1
         if ttidx=0 then return 1 end if
@@ -279,8 +302,27 @@ function arg_rec(sequence node)
     string res = "?"
     if length(node) then    
         object toktype = node[TOKTYPE]
-        if find(toktype,{DIGIT,LETTER,'\"','\'',BLK_CMT}) then
+--10/4/22... (Strip control chars from a string)
+--      if find(toktype,{DIGIT,LETTER,'\"','\'',BLK_CMT}) then
+        if find(toktype,{DIGIT,LETTER,'\"',BLK_CMT}) then
             res = tok_string(node)
+--?{1,res}
+        elsif toktype='\'' then
+            res = tok_string(node)
+--          if not is_phix() then
+                integer ch = res[2]
+                if length(res)!=3 then
+                    if length(res)!=4 or ch!='\\' then ?9/0 end if
+                    ch = res[3]
+                    if ch='t' then
+                        ch = 9  -- tab ('\t' and "\t" are illegal under p2js)
+                    elsif not find(ch,`"'`) then
+                        ch = "\r\n\\\0\eE"[find(ch,"rn\\0eE")]
+                    end if
+                end if
+                res = sprintf("0X%x",ch)
+--          end if
+--?{2,res}
         elsif toktype='-' then
             res = "-" & arg_rec(node[2][1])
         elsif toktype=`PROC` then
@@ -301,6 +343,10 @@ function arg_rec(sequence node)
           and length(node[2])=1
           and find(node[2][1][TOKTYPE],{DIGIT,LETTER}) then
             res = "+" & tok_string(node[2][1])
+        elsif toktype='#' then
+            res = tok_string(node)
+            assert(res[1]='#')
+            res = "0x"&res[2..$]
         else
             ?9/0    -- placeholder for more code...
         end if
@@ -391,6 +437,7 @@ global function get_arg_default(integer fttidx,idx)
 end function
 
 function get_type(integer ttidx, scope, downto=1)
+--?{"get_type",ttidx,get_ttname(ttidx),scope,downto}
     integer res
     for s=scope to downto by -1 do
         res = getd(ttidx,scopes[s])
@@ -413,10 +460,15 @@ function get_type(integer ttidx, scope, downto=1)
 --  return TYPO
 end function
 
+--global function get_local_type(integer ttidx, plus=0)
 global function get_local_type(integer ttidx)
     -- (mainly for checking things do /not/ exist)
+    -- (plus is -1 in T_for/T_try when we've already
+    --  done an add_scope(), so want the parent too.)
     integer s = length(scopes)
-    return get_type(ttidx,s,s)
+--  return get_type(ttidx,s,s+plus)
+--  return get_type(ttidx,s,s)
+    return get_type(ttidx,s,min(s,3))
 end function
 
 global function get_global_type(integer ttidx)
@@ -428,8 +480,7 @@ global function get_id_type(integer ttidx)
     return get_type(ttidx,length(scopes))
 end function
 
--- note there is a Euphoria match_any() which is a 100% ridiculous copy of find_any(), right down to the docs..
-function match_any(sequence needles, haystack)
+function not_an(sequence needles, haystack)
     for i=1 to length(needles) do
         if match(needles[i],haystack) then
             return 1
@@ -448,7 +499,9 @@ constant unsupported = {"pcfunc.e","pTask.e","pThreadN.e","structs.e","syswait.e
 -- supported differently (see/directly in p2js.js)
 --5/8/21:
 --"printf","pprntfN.e","pdate.e","pApply.e","pFilter.e","pCrashN.e","prnd.e","prtnidN.e",
-"printf","pprntfN.e","pdate.e","pFilter.e","pCrashN.e","prnd.e","prtnidN.e",
+--10/11/22:
+--"printf","pprntfN.e","pdate.e","pFilter.e","pCrashN.e","prnd.e","prtnidN.e",
+"printf","pprntfN.e","pdate.e","pCrashN.e","prnd.e","prtnidN.e",
 "repeat.e","ubits.e",`serialize.e`,`utfconv.e`,`assert.e`}
 --??"procedure",
 
@@ -456,7 +509,7 @@ function initialAutoEntries(string line)
     integer k = match("--",line)
     if k then line = line[1..k-1] end if
     return match("initialAutoEntry",line)
-       and not match_any(unsupported,line)
+       and not not_an(unsupported,line)
 --     and not match("pcfunc.e",line)
 --     and not match("pTask.e",line)
 --     and not match("pThreadN.e",line)
@@ -556,7 +609,7 @@ function initialAutoEntries(string line)
 --     and not match("graphics.e",line)
 --     and not match("get.e",line)
 --     and not match("machine.e",line)
---     and not match("pFilter.e",line)
+--X    and not match("pFilter.e",line)
 --     and not match("ubits.e",line)
 --temp:
 --     and not match("ppp.e",line)
@@ -583,6 +636,24 @@ function clean(string line)
 --  return res
 end function
 
+function Aliases(string line)
+    integer k = match("--",line)
+    if k then line = line[1..k-1] end if
+    return match("Alias",line)
+       and not match("procedure Alias(",line)
+       and length(find_all(',',line))=2 -- Alias("name",symlimit,"aname") cases only
+end function
+
+function clean_aliases(string line)
+    integer k = find(')',line)  -- clip any trailing comments, etc.
+    line = trim(line[1..k])
+                    -- whitespace:      vv         vv
+    sequence r = scanf(line,`Alias("%s",%ssymlimit,%s"%s")`)
+                    --          name^^           aname^^
+    if length(r)!=1 then ?9/0 end if
+    return extract(r[1],{1,4}) -- {name,aname}
+end function
+
 include builtins\timedate.e
 
 constant auto = """
@@ -593,7 +664,8 @@ global constant last_built = "%s"
 
 global constant p2js_auto = """,
 --234567890123456789012345678 -- (hence indent of 28)
-         dfmt = "Mmmm d yyyy h:mm:sspm"
+         dfmt = "Mmmm d yyyy h:mm:sspm",
+         alia = "\nglobal constant p2js_alia = "
 
 --DEV not sure when bet to put this...
 global sequence rebuild_required = {}
@@ -632,10 +704,14 @@ procedure check_builtins()
         if not find(upper(wait_key()),{'Q','N',#1B}) then
             puts(1,"\n")
             string content = sprintf(auto,{format_timedate(date(),dfmt)})
-            sequence s = apply(filter(get_text("../psym.e",GT_LF_STRIPPED),initialAutoEntries),clean)
+            sequence lines = get_text("../psym.e",GT_LF_STRIPPED),
+                     s = apply(filter(lines,initialAutoEntries),clean),
+                     a = sort(apply(filter(lines,Aliases),clean_aliases))
+            lines = {}
 --          content &= ppf(sort_columns(s,{4,1}),{pp_Nest,1,pp_Indent,28,pp_Maxlen,120})
             s = sort_columns(s,{4,1})
             content &= ppf(s,{pp_Nest,1,pp_Indent,28,pp_Maxlen,120})
+            content &= alia & ppf(a,{pp_Nest,1,pp_Indent,28})
             integer fn = open(filename,"w")
             if fn=-1 then crash("cannot open "&filename) end if
             puts(fn,content)
@@ -652,7 +728,10 @@ procedure check_builtins()
         string ai = strip_builtin(autoincludes[i])
         if ai!="pGUI.e"
         and ai!="mpfr.e"
-        and ai!="sha256.e" then
+        and ai!="sha256.e"
+        and ai!="speak.e"
+        and ai!="beep.e"
+        and ai!="pComN.ew" then
             string aj = substitute(ai,".e",".js"),
                    pb = get_proper_path(join_path({"..","builtins",ai})),
                    jb = get_proper_path(join_path({"builtins",aj}))
@@ -770,7 +849,8 @@ constant depend = """
 --
 -- Each entry is {"builtin.e",{dependencies, if any},{locals, if any},{{routine,{args}}}} 
 -- Rebuild builtins (Ctrl R) verifies no locals clash, and renames them with a $-prefix.
--- Note that "pGUI.e"/"mpfr.e"/"timedate.e" are manually maintained, the rest auto-built.
+-- Note that "pGUI.e"/"mpfr.e"/"timedate.e" are manually maintained, the rest auto-built,
+-- though you do (usually) have to kick things off with a suitable empty entry, I think.
 --
 global sequence p2js_depend = 
 """
@@ -936,6 +1016,7 @@ end function
 sequence tokstack,
          tokseen,
          sources
+integer srcdx
 
 global procedure tokstack_clean(string filename)
     string {path,file} = get_file_path_and_name(filename)
@@ -946,6 +1027,7 @@ global procedure tokstack_clean(string filename)
 --  tokseen = {file}
     tokseen = {filename}
     sources = {}
+    srcdx = 0
 --pp(tokstack)
 end procedure
 
@@ -1006,8 +1088,7 @@ global function tokstack_push(string filename, integer line)
         (find(nameonly,autoincludes) or
          find(nameonly,{`pdate.e`,`pcurrdir.e`,`peekstr.e`,`pgetpath.e`,`pfile.e`,
                         `get_routine_info.e`,`pdir.e`,`penv.e`,`get_interpreter.e`,
-        
-                        `syswait.ew`,`utfconv.e`})))
+                        `speak.e`,`beep.e`,`syswait.ew`,`utfconv.e`})))
     or filepath=builtinVM then
         return "ALREADY DONE"
     end if
@@ -1021,7 +1102,8 @@ global function tokstack_push(string filename, integer line)
     src = get_text(filename,GT_WHOLE_FILE)
     src = substitute(src,"\r\n","\n")
     sources = append(sources,src)
-    integer srcdx = length(sources)
+--  integer srcdx = length(sources)
+    srcdx = length(sources)
     tokstack = append(tokstack,{filepath,filename,srcdx,tdx,tokens,clines,textlines,current_file})
 --?src
     lt = length(src)
@@ -1038,7 +1120,7 @@ end function
 
 global function tokstack_pop()
     if length(tokstack)>3 then
-        integer srcdx
+--      integer srcdx
         {?,?,srcdx,tdx,tokens,clines,textlines,current_file} = tokstack[$]
 --      src = sources[srcdx]
         tokstack = tokstack[1..$-1]
@@ -1049,11 +1131,41 @@ global function tokstack_pop()
     return "NO MORE"
 end function
 
-global procedure restore_source(integer srcdx)
+global function tokstack_length()
+    -- usual use: check against 3 for include_file()=1
+    integer res = length(tokstack)
+    return res
+end function
+
+global procedure save_source()
+    if srcdx then
+        sources[srcdx] = src
+    end if
+end procedure
+
+global procedure restore_source(integer srcidx)
+    srcdx = srcidx
     src = sources[srcdx]
 --?{"restore_source",current_file,tokseen,srcdx}
     current_file = tokseen[srcdx]
 end procedure
+
+global bool bBuiltinAliases = false
+global function get_builtin_aliases(string name)
+    string res = ""
+    if bBuiltinAliases then
+        for i,s in anames do
+            if name=s then
+                if length(res) then res &= "\n" end if
+                res &= sprintf("let %s = %s;",{aliases[i],s})
+            end if
+        end for
+--?{"get_builtin_aliases",name,res}
+--?aliases
+--?anames
+    end if
+    return res
+end function
 --/*
 {"autoincludes:",{"dict.e","pmaths.e","=="}}
 {"KEY","DATA","LEFT","HEIGHT","RIGHT","trees","treenames","roots","sizes","defaults","freelists","free_trees",

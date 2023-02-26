@@ -15,17 +15,20 @@
 //
 requires(JS);
 
-const CD_BASE_CENTER = 10,
-      CD_BASE_LEFT = 9,
-      CD_BASE_RIGHT = 11,
+const CD_AMBER = "#FFBF00",
+      CD_BASE_CENTER = 1, // (=== CD_SOUTH)
+      CD_BASE_LEFT = 7, // (=== CD_SOUTH_WEST)
+      CD_BASE_RIGHT = 6, // (=== CD_SOUTH_EAST)
       CD_BLACK = "#000000",
-//    CD_BLUE = "blue",
       CD_BLUE = "#0000FF",
       CD_BOLD = 1,
       CD_BOLD_ITALIC = 3,
+      CD_BOX = 4,
       CD_CENTER = 8,
+      CD_CIRCLE = 2,
       CD_CLOSED_LINES = 2,
       CD_CONTINUOUS = 0,
+      CD_CUSTOM = 5,
       CD_CYAN = "cyan",
       CD_DARK_BLUE = "#000080",
       CD_DARK_CYAN = "#008080",
@@ -39,9 +42,9 @@ const CD_BASE_CENTER = 10,
       CD_DOTTED = 2,
       CD_DASH_DOT = 3,
       CD_DASH_DOT_DOT = 4,
-      CD_CUSTOM = 5,
       CD_DBUFFER = 2,
       CD_DEG2RAD = PI/180,
+      CD_DIAMOND = 5,
       CD_EAST = 2,
       CD_EVENODD = 0,
       CD_FILL = 0,
@@ -51,6 +54,9 @@ const CD_BASE_CENTER = 10,
       CD_GREEN = "#3cb44b",
       CD_HATCH = 1,
       CD_HOLLOW = 4,
+      CD_HOLLOW_BOX = 7,
+      CD_HOLLOW_CIRCLE = 6,
+      CD_HOLLOW_DIAMOND = 8,
       CD_INDIGO = "#4B0082",
       CD_ITALIC = 2,
 //    CD_IUP = 1,
@@ -59,7 +65,9 @@ const CD_BASE_CENTER = 10,
       CD_LIGHT_GRAY = "#E4E4E4",
       CD_LIGHT_GREY = "#E4E4E4",
       CD_LIGHT_GREEN = "#00FF00",
+      CD_LIGHT_PARCHMENT = "#FAF8EF",
       CD_MAGENTA = "#f032e6",
+      CD_NAVY = "#000080",
       CD_NORTH = 0,
       CD_NORTH_EAST = 4,
       CD_NORTH_WEST = 5,
@@ -70,7 +78,9 @@ const CD_BASE_CENTER = 10,
       CD_PARCHMENT = "#FFFFE0",         IUP_PARCHMENT = CD_PARCHMENT,
       CD_PATTERN = 3,
       CD_PLAIN = 0,
+      CD_PLUS = 0,
       CD_PURPLE = "#911eb4",
+      CD_QUERY = -1,
       CD_RAD2DEG = 180/PI,
       CD_RED = "#FF0000",
       CD_SILVER = "#C0C0C0",  // (=== CD_GREY)
@@ -78,6 +88,7 @@ const CD_BASE_CENTER = 10,
       CD_SOUTH = 1,
       CD_SOUTH_EAST = 6,
       CD_SOUTH_WEST = 7,
+      CD_STAR = 1,
       CD_STIPPLE = 2,
       CD_STRIKEOUT = 8,
       CD_UNDERLINE = 4,
@@ -85,6 +96,7 @@ const CD_BASE_CENTER = 10,
       CD_WEST = 3,
       CD_WHITE  = "#FFFFFF",
       CD_WINDING = 1,
+      CD_X = 3,
       CD_YELLOW = "#FFFF00",
 //DEV move to builtins/opengl.js... (along with much other code)
       GL_ARRAY_BUFFER = 0x8892,
@@ -133,66 +145,53 @@ const CD_BASE_CENTER = 10,
       K_BS = 0X08,
       K_CR = 0X0D,
       K_DEL = 0XFFFF,
-      K_DOWN = 40,
-      K_END = 0,
+      K_DOWN = 0xFF54,
+      K_END = 0xFF57,
       K_ESC = 0X1B,
-      K_F1 = 112,
-      K_F2 = 113,
-      K_F3 = 114,
-      K_F4 = 115,
-      K_F5 = 116,
-      K_F6 = 117,
-      K_F7 = 118,
-      K_F8 = 119,
-      K_F9 = 120,
-      K_F10 = 121,
-      K_F11 = 122,
-      K_F12 = 123,
-      K_HOME = 0,
-      K_INS = 0,
-      K_LEFT = 37,
-      K_MIDDLE = 0,
-      K_PGDN = 34,
-      K_PGUP = 33,
-      K_RIGHT = 39,
+//    K_ESC = 0xFF1B,   (untried...)
+      K_F1 = 0xFFBE,
+      K_F2 = 0xFFBF,
+      K_F3 = 0xFFC0,
+      K_F4 = 0xFFC1,
+      K_F5 = 0xFFC2,
+      K_F6 = 0xFFC3,
+      K_F7 = 0xFFC4,
+      K_F8 = 0xFFC5,
+      K_F9 = 0xFFC6,
+      K_F10 = 0xFFC7,
+      K_F11 = 0xFFC8,
+      K_F12 = 0xFFC9,
+      K_HOME = 0xFF50,
+      K_INS = 0xFF63,
+      K_LEFT = 0xFF51,
+      K_MIDDLE = 0xFF0B,
+      K_PGDN = 0xFF56,
+      K_PGUP = 0xFF55,
+      K_RIGHT = 0xFF53,
       K_SP = 0X20,
-      K_TAB = 0,
-      K_UP = 38,
+      K_TAB = 0X09,
+      K_UP = 0xFF52,
+      K_a = 0X61,       // 'a' / 97
+      K_b = 0X62,       // 'b' / 98
+      K_c = 0X63,       // 'c' / 99
+      K_d = 0X64,       // 'd' / 100
+      K_e = 0X65,       // 'e' / 101
+      K_f = 0X66,       // 'f' / 102
+      K_g = 0X67,       // 'g' / 103
       K_h = 0X68,       // 'h' / 104
       K_i = 0X69,       // 'i' / 105
       K_j = 0X6A,       // 'j' / 106
       K_p = 0X70,       // 'p' / 112
       K_r = 0X72,       // 'r' / 114
       K_s = 0X73,       // 's' / 115
-//DEV..
-      K_cA = 0,
-      K_cD = 0;
+      K_cA = 1,
+      K_cC = 3,
+      K_cD = 4;
 
 //DEV/SUG split into/manage both handlers and valid/supported values?
 let $storeAttr = {};    // element-specific attribute handlers/setters
 
-//DEV rename/doc...
-//function $class_name(ih, check) {
-//  if (!ih) { crash("invalid handle"); }
-//  let cn = ih.classList[0];
-//  if (typeof(check) === "string") {
-//      if (check !== cn) {
-//          crash("wrong class (not " + check + ")");
-//      }
-//  } else {
-//      if (!Array.isArray(check)) { crash("uh??"); }
-//      if (check.indexOf(cn) === -1) {
-//          crash("wrong class (" + cn + " not in " + check + ")");
-//      }
-//  }
-//}
-
-//function $pxFloat(s) { return parseFloat(s.replace("px", "")); }
-function $pxFloat(s) {
-    if (s === "auto") { return 0; }
-    return parseFloat(s.replace("px", ""));
-}
-//function $pxWidth(elem) { return $pxFloat(elem.style.width); }
+function $pxFloat(s) { return (s === "auto") ? 0 : parseFloat(s.replace("px", "")); }
 function $eHeight(elem) { return $pxFloat(getComputedStyle(elem).height); }
 function $eWidth(elem) { return $pxFloat(getComputedStyle(elem).width); }
 
@@ -212,8 +211,8 @@ function $to_bool(val) {
     crash("uh?");
 }
 
-
-let $shiftKey = false; /// or event.shiftKey, for IupGetInt(NULL,"SHIFTKEY")
+let $ctrlKey  = false, /// or event.ctrlKey, for IupGetInt(NULL,"CONTROLKEY")
+    $shiftKey = false; /// or event.shiftKey, for IupGetInt(NULL,"SHIFTKEY")
 
 function IupOpen() {
 
@@ -241,6 +240,7 @@ function IupOpen() {
     }
 
     function shiftkey_cb(event) {
+        $ctrlKey = event.ctrlKey; // for IupGetInt()
         $shiftKey = event.shiftKey; // for IupGetInt()
         return true;
     }
@@ -271,7 +271,7 @@ function IupOpen() {
         }
     }
 
-    function intint(val,w,h) {
+    function intint(val) {
         if (typeof(val) === "string") {
             // convert eg "225x75" to [225,75]
             //  (ie a js Array of length 2)
@@ -292,7 +292,7 @@ function IupOpen() {
         return val;
     }
 
-    function intints(val,w,h,name) {
+    function intints(val, w, h, name) {
         // version of intint() for dialog [raster]size, supporting eg "QUARTERxEIGHTH"
         if (typeof(val) === "string") {
             // convert eg "225x75" to [225,75]
@@ -331,46 +331,7 @@ function IupOpen() {
         return val;
     }
 
-    function class_name(ih, check) {
-        if (!ih) { crash("invalid handle"); }
-        let cn = ih.classList[0];
-        if (typeof(check) === "string") {
-            if (check !== cn) {
-                crash("wrong class (not " + check + ")");
-            }
-        } else {
-//          if (!Array.isArray(check)) { crash("uh??"); }
-            assert(Array.isArray(check));
-            if (check.indexOf(cn) === -1) {
-                crash("wrong class (" + cn + " not in " + check + ")");
-            }
-        }
-    }
-
-//  function class_name(ih, check) {
-//      if (!ih) { crash("invalid handle"); }
-////        let cn = ih.className;
-//      let cn = ih.classList[0];
-////        let sp = cn.indexOf(' ');
-//////hmmm, can we be sure it stays first??
-////        if (sp !== -1) { cn = cn.slice(0,cn); }
-////        if (check && check !== cn) {
-//      if (typeof(check)==="string") {
-//          if (check !== cn) {
-////            if (!ih.classList.contains(check)) {    // [untried]
-//              crash("wrong class (not " + check + ")");
-//          }
-//      } else if (Array.isArray(check)) {
-//          if (check.indexOf(cn)===-1) {
-//              crash("wrong class (" + cn + " not in " + check + ")");
-//          }
-//      } else {
-//          crash("class_name(" + check + ")???");
-//      }
-////        return cn
-//  }
-
-    function set_style(ih,sname,val) {
+    function set_style(ih, sname, val) {
         if (val.indexOf('x') === -1) {
             // treat eg "200" as "200x"
             val = val + "x";
@@ -384,9 +345,66 @@ function IupOpen() {
         ih.style[sname+"Bottom"] = h;
     }
 
+    function set_font(ih,val) {
+        let face = val, fallback,
+            comma = val.indexOf(',');
+        if (comma !== -1) {
+            face = face.slice(0,comma);
+            let stylesize = val.slice(comma+1),
+                space = stylesize.indexOf(' ');
+            while (space !== -1) {
+                if (space) {
+                    let stylename = val.slice(0,space);
+                    // Bold, Italic, Underline and Strikeout
+                    if (stylename === "Bold") {
+                        ih.style.fontWeight = "bold";
+                    } else if (stylename === "Italic") {
+                        ih.style.fontStyle = "italic";
+                    } else if (stylename === "Underline") {
+                        ih.style.textDecoration = "underline";
+                    } else if (stylename === "Strikeout") {
+                        ih.style.textDecoration = "line-through";
+//text-decoration: underline;
+//text-decoration: line-through;
+//font-style: italic;
+//font-weight: bold;
+                    } else {
+                        crash("FONT="+val+"??\n");
+                    }
+                }
+                stylesize = stylesize.slice(space+1);
+                space = stylesize.indexOf(' ');
+            }
+            stylesize = parseInt(stylesize);
+            if (!stylesize) {
+                crash("FONT="+val+"??\n");
+            } else if (stylesize < 0) {
+                ih.style.fontSize = -stylesize + "px";
+            } else {
+                ih.style.fontSize = stylesize + "pt";
+            }
+        }
+        if (face === "Tahoma" ||
+            face === "Verdana" ||
+            face === "Arial") {
+            fallback = "sans_serif";
+//          fallback = "serif";
+        } else if (face === "Courier") {
+            fallback = "monospace";
+        } else {
+//          crash("FONT="+val+"??\n");
+            puts(1,"FONT="+val+"??\n"); // placeholder
+        }
+        ih.style.fontFamily = `"` + face + `", ` + fallback;
+//font-family: "Tahoma", sans-serif;
+//font-size: 12px;
+//  "Times, Bold 18"
+//  "Arial, 24" (no style)
+//  "Courier New, Italic Underline -30" (size in pixels)
+    }
+
     function rastersize(ih, name, val) {
         // applies to dialog, label, text, canvas, ...
-//      if (name !== "SIZE" && name !== "RASTERSIZE") { crash("[RASTER]SIZE expected!"); }
         assert(name === "SIZE" || name === "RASTERSIZE");
         let cn = ih.classList[0];
         if ((val === null) || (val === NULL)) {
@@ -395,10 +413,19 @@ function IupOpen() {
                 cn = "dialog";
             }
             if (cn === "dialog") {
-                ih.minWidth = 260;
-                ih.minimumWidth = 0;
-                ih.minHeight = 160;
-                ih.minimumHeight = 0;
+//DEV still not sure about this...
+//9/5/22:
+//              ih.minWidth = 260;
+                if (!ih.minWidth) { ih.minWidth = 260; }
+//              ih.minimumWidth = 0;
+//              ih.minHeight = 160;
+                if (!ih.minHeight) { ih.minHeight = 160; }
+//              ih.minimumHeight = 0;
+//put back for Sierpinski_curve 5/4/22:
+//              ih.minimumWidth = 0;
+                ih.minimumWidth = ih.minWidth;
+//              ih.minimumHeight = 0;
+                ih.minimumHeight = ih.minHeight;
             }
         } else {
             let w, h;
@@ -433,49 +460,10 @@ function IupOpen() {
     }
     store_attrs(["button","canvas","dialog","frame","hbox","label","text","vbox","tabcontainer","progress"], ["RASTERSIZE","SIZE"], rastersize);
 
-/*
-    function crastersize(ih, name, val) {
-        // applies to canvas
-        if (name !== "RASTERSIZE") { crash("RASTERSIZE expected!"); }
-        if ((val === null) || (val === NULL)) {
-            let dlg = IupGetDialog(ih);
-            dlg.minWidth = 260;
-            dlg.minimumWidth = 260;
-            dlg.minHeight = 160;
-            dlg.minimumHeight = 160;
-//          ih.width = 0;
-//          ih.height = 0;
-//          ih.width = "100%";
-//          ih.height = "100%";
-        } else {
-            let [w, h] = intint(val);
-//DEV + "px"??
-//NO: this is actually right, the trouble is the containing dialog does not expand to hold this...
-            if (w) { ih.width = w; }
-//          if (w) { ih.style.width = w; }
-//          if (w) { ih.style.width = w + "px"; }
-            if (h) { ih.height = h; }
-//          if (h) { ih.style.height = h; }
-//          if (h) { ih.style.height = h + "px"; }
-        }
-    }
-    store_attrs(["canvas"], ["RASTERSIZE"], crastersize);
-*/
-//  store_attrs(["canvas"], ["RASTERSIZE","SIZE"], rastersize);
-
     function set_dialog(ih, name, val) {
-//      if (ih.className !== "dialog") {
-//          crash("wrong class (not IupDialog)");
-//      }
-        class_name(ih, "dialog");
+        assert(ih.classList[0] === "dialog");
         if (name === "TITLE") {
-//          const hdrs = ih.getElementsByClassName("dialog-handle");
             const hdr = ih.querySelector(".dialog-handle");
-//          if (hdrs.length !== 1) {
-//              crash("cannot get (lone) header handle");
-//          }
-//          hdrs[0].innerHTML = "<b>" + val + "</b>";
-//          hdrs[0].innerHTML = val;
             hdr.innerHTML = val;
         } else if (name === "MINSIZE") {
             let [w, h] = intint(val);
@@ -486,12 +474,29 @@ function IupOpen() {
             ih.minimumWidth = w;
             ih.minHeight = h;
             ih.minimumHeight = h;
+//9/5/22:
+            if (ih.isConnected) {
+//7/5/22:
+                if (!ih.style.width || ih.style.width < w) {
+                    ih.style.width = w ? w + "px" : "";
+                }
+                if (!ih.style.height || ih.style.height < h) {
+                    ih.style.height = h ? h-10 + "px" :"";
+                }
+            }
         } else if (name === "MAXSIZE") {
             let [w, h] = intint(val);
 //          ih.maxWidth = w;
             ih.maximumWidth = w;
 //          ih.minHeight = h;
             ih.maximumHeight = h;
+//7/5/22:
+            if (!ih.style.width || ih.style.width > w) {
+                ih.style.width = w ? w + "px" : "";
+            }
+            if (!ih.style.height || ih.style.height > h) {
+                ih.style.height = h ? h-10 + "px" :"";
+            }
 //      } else if (name === "MARGIN" || name === "GAP") {
         } else if (name === "MARGIN") {
 //DEV tryme:
@@ -627,7 +632,8 @@ function IupOpen() {
         if (k !== -1) {
             let vtb = val.slice(k+1);
                 val = val.slice(0,k);
-            if (vtb === "ATOP") {
+            if (vtb === "ATOP" ||
+                vtb === "ALEFT") {
                 ih.style.alignItems = "flex-start";
 //              ih.classList.add("expandv");
 //              ih.classList.add("expandh");
@@ -635,7 +641,8 @@ function IupOpen() {
                 ih.style.alignItems = "center";
 //              ih.classList.remove("expandv");
 //              ih.classList.add("expandh");
-            } else if (vtb === "ABOTTOM") {
+            } else if (vtb === "ABOTTOM" ||
+                       vtb === "ARIGHT") {
                 ih.style.alignItems = "flex-end";
 //              ih.classList.add("expandv");
 //              ih.classList.remove("expandh");
@@ -662,7 +669,7 @@ function IupOpen() {
     }   
     
     function set_frame(ih, name, val) {
-        class_name(ih,"frame");
+        assert(ih.classList[0] === "frame");
 //DEV spotted in passing: some of these are not reachable aka not set in store_attrs below...
         if (name === "EXPAND") {
             expand(ih,val);
@@ -694,21 +701,22 @@ function IupOpen() {
 //DEV tryme:
 //          set_style(ih,"margin",val);
             puts(1,"IupFrame(FGCOLOR"+val+")??\n"); // placeholder
+        } else if (name === "NAME") {
+            ih["NAME"] = val;
+            puts(1,"?!IupFrame(NAME,"+val+")??\n"); // placeholder
         } else {
             crash("IupStoreAttribute(IupFrame,\"" + name + "\") not yet implemented\n");
         }
     }
-    store_attrs(["frame"], ["PADDING","MARGIN","TITLE","VISIBLE","FGCOLOR"], set_frame);
+    store_attrs(["frame"], ["PADDING","MARGIN","TITLE","VISIBLE","FGCOLOR","NAME"], set_frame);
 
 //Ihandle lbl = IupLabel("World","EXPAND=YES, ALIGNMENT=ACENTER"),
     function set_label(ih, name, val) {
-        class_name(ih,"label");
+        assert(ih.classList[0] === "label");
         if (name === "TITLE") {
-//          ih.innerHTML = val;
-            const sp = new RegExp("[ ]","g"),
-                  lf = new RegExp("\\n","g");
-            val = val.replace(sp,"&ensp;")
-                     .replace(lf,"<br>");
+            if (typeof(val) === "string") {
+                const sp = new RegExp("[ ]","g"),
+                      lf = new RegExp("\\n","g");
 /*                   
     const am = new RegExp("&","g"),
           lt = new RegExp("[<]","g"),
@@ -721,6 +729,10 @@ function IupOpen() {
                .replace(sp,"&ensp;")
                .replace(lf,"<br>");
 */
+                val = val.replace(sp,"&ensp;")
+                         .replace(lf,"<br>");
+            }
+//          ih.innerHTML = val;
 //          ih.innerText = val;
             ih.innerHTML = "<nobr>"+val+"</nobr>";
         } else if (name === "EXPAND") {
@@ -740,64 +752,34 @@ function IupOpen() {
             puts(1,"?!IupLabel(ACTIVE,"+val+")??\n"); // placeholder
         } else if (name === "VISIBLE") {
             puts(1,"IupLabel(VISIBLE,"+val+")??\n"); // placeholder
-        } else if (name === "FONT" || name === "FONTFACE") {
-//DEV       set_font(ih,val);
-//          puts(1,"IupLabel(FONT,"+val+")??\n"); // placeholder
-            let face = val, fallback,
-                comma = val.indexOf(',');
-            if (comma !== -1) {
-                face = face.slice(0,comma);
-                let stylesize = val.slice(comma+1),
-                    space = stylesize.indexOf(' ');
-                while (space !== -1) {
-                    if (space) {
-                        let stylename = val.slice(0,space);
-                        // Bold, Italic, Underline and Strikeout
-                        if (stylename === "Bold") {
-                            ih.style.fontWeight = "bold";
-                        } else if (stylename === "Italic") {
-                            ih.style.fontStyle = "italic";
-                        } else if (stylename === "Underline") {
-                            ih.style.textDecoration = "underline";
-                        } else if (stylename === "Strikeout") {
-                            ih.style.textDecoration = "line-through";
-//text-decoration: underline;
-//text-decoration: line-through;
-//font-style: italic;
-//font-weight: bold;
-                        } else {
-                            crash("FONT="+val+"??\n");
-                        }
-                    }
-                    stylesize = stylesize.slice(space+1);
-                    space = stylesize.indexOf(' ');
-                }
-                stylesize = parseInt(stylesize);
-                if (!stylesize) {
-                    crash("FONT="+val+"??\n");
-                } else if (stylesize < 0) {
-                    ih.style.fontSize = -stylesize + "px";
-                } else {
-                    ih.style.fontSize = stylesize + "pt";
-                }
+        } else if (name === "FGCOLOR") {
+            if (val.indexOf(" ")) {
+                // eg "255 0 128" ==> "#FF0080".
+                val = val.split(" ").map(Number);   // ==> [255,0,128]
+//.map
+//              val = (+val[0]<<16)+(+val[1]<<8)+(+val[2]);
+//              val = "#"+((1<<24)+val).toString(16).slice(1);
+//              cal = sprintf("#%06x",colour)
+                val = sprintf("#%02x%02x%02x",val);  // ==> #FF0080 (doh)
+/*
+// pretty cool, eg "Red" -> #ff0000, "PeachPuff" -> #ffdab9, "PaleGoldenRod" -> #eee8aa, 
+//  plus "RGB(123,234,142)" -> #7bea8e and "HSL(284,6%,49%)" -> #807584. Handy!
+//function standardize_color(str){
+//  var ctx = document.createElement("canvas").getContext('2d');
+//  ctx.fillStyle = str;
+//  return ctx.fillStyle;
+//}
+*/
             }
-            if (face === "Tahoma" ||
-                face === "Verdana" ||
-                face === "Arial") {
-                fallback = "sans_serif";
-//              fallback = "serif";
-            } else if (face === "Courier") {
-                fallback = "monospace";
+            if (val.indexOf("#") !== -1) {
+//              ih.style.background=val;
+                ih.style.color=val;
             } else {
-//              crash("FONT="+val+"??\n");
-                puts(1,"FONT="+val+"??\n"); // placeholder
+                puts(1,"IupLabel(FGCOLOR,"+val+")??\n"); // placeholder??
             }
-            ih.style.fontFamily = `"` + face + `", ` + fallback;
-//font-family: "Tahoma", sans-serif;
-//font-size: 12px;
-//  "Times, Bold 18"
-//  "Arial, 24" (no style)
-//  "Courier New, Italic Underline -30" (size in pixels)
+        } else if (name === "FONT" || name === "FONTFACE") {
+            set_font(ih,val);
+//          puts(1,"IupLabel(FONT,"+val+")??\n"); // placeholder
         } else if (name === "FONTSTYLE") {
             puts(1,"IupLabel(FONTSTYLE,"+val+")??\n"); // placeholder
         } else if (name === "SEPARATOR") {
@@ -809,18 +791,28 @@ function IupOpen() {
             }
 //DEV seems to work for IupLabel(NULL,"SEPARATOR=HORIZONTAL") anyway...
 //          puts(1,"?IupLabel(SEPARATOR,"+val+")??\n"); // placeholder
+        } else if (name === "NAME") {
+            ih["NAME"] = val;
+            puts(1,"?!IupLabel(NAME,"+val+")??\n"); // placeholder
+        } else if (name === "TIP") {
+            puts(1,"IupLabel(TIP,"+val+")\n"); // placeholder
+        } else if (name === "TEXTWRAP") {
+            puts(1,"IupLabel(TEXTWRAP,"+val+")\n"); // placeholder
         } else {
             crash("IupStoreAttribute(IupLabel,\"" + name + "\") not yet implemented\n");
         }
     }
     store_attrs(["label"], ["TITLE","EXPAND","ALIGNMENT","MARGIN","PADDING","ACTIVE","VISIBLE",
-                            "FONT","FONTFACE","FONTSTYLE","SEPARATOR"], set_label);
+                            "FGCOLOR","FONT","FONTFACE","FONTSTYLE","SEPARATOR","NAME","TIP",
+                            "TEXTWRAP"], set_label);
 //  store_values("EXPAND",[["YES","NO","HORIZONTAL","HORIZONTALFREE","VERTICAL","VERTICALFREE"]])
 //  store_values("ALIGNMENT",[["ALEFT","ACENTER","ARIGHT"],":",["ATOP","ACENTER","ABOTTOM"]])
 
     function set_list(ih, name, val) {
-        class_name(ih,"list");
-        if (name === "EXPAND") {
+        assert(ih.classList[0] === "list");
+        if (name === "CANFOCUS") {
+            puts(1,"IupList(CANFOCUS,"+val+")??\n"); // placeholder
+        } else if (name === "EXPAND") {
             expand(ih,val);
 //      } else if (name === "ALIGNMENT") {
 //          align(ih,val,"IupList");
@@ -883,23 +875,24 @@ function IupOpen() {
 //maybe: return ((parseInt(str, 10).toString() == str) && str.indexOf('-') === -1);
 
     // note: "1", "2", etc are handled specially, see IupSetStrAttribute() and IupSetAttributeId().
-    store_attrs(["list"], ["<list_id>","DROPDOWN","EXPAND","APPENDITEM","REMOVEITEM","TIP",
-                           "VALUE","VISIBLE","VISIBLELINES","VISIBLECOLUMNS","VISIBLEITEMS",
+    store_attrs(["list"], ["<list_id>","CANFOCUS","DROPDOWN","EXPAND","APPENDITEM","REMOVEITEM",
+                           "TIP","VALUE","VISIBLE","VISIBLELINES","VISIBLECOLUMNS","VISIBLEITEMS",
                            "SHOWDROPDOWN","NAME","EDITBOX"], set_list);
 
     function set_vbox(ih, name, val) {
-        class_name(ih,["vbox","hbox"]);
+        let cn = ih.classList[0];
+        assert(cn === "vbox") || (cn === "hbox");
 //DEV common up??
         if (name === "MARGIN") {
 //          set_style(ih,"margin",val);
             let [w, h] = intint(val);
             if (w) {
-                ih.style.marginLeft = w + 'px';
-                ih.style.marginRight = w + 'px';
+                ih.style.marginLeft = w + "px";
+                ih.style.marginRight = w + "px";
             }
             if (h) {
-                ih.style.marginTop = h + 'px';
-                ih.style.marginBottom = h + 'px';
+                ih.style.marginTop = h + "px";
+                ih.style.marginBottom = h + "px";
             }
         } else if (name === "NMARGIN") {
 //          set_style(ih,"margin",val);
@@ -923,14 +916,21 @@ function IupOpen() {
 //          puts(1,"IupH/Vbox(SIZE," + val + ")\n"); // placeholder
         } else if (name === "LINEBREAK") {
             puts(1,"IupH/Vbox(LINEBREAK," + val + ")\n"); // placeholder
+        } else if (name === "FONT") {
+            set_font(ih,val);
+//      } else if (name === "NORMALSIZE") {
+//          puts(1,"IupH/Vbox(LINEBREAK," + val + ")\n"); // placeholder
+        } else if (name === "BGCOLOR") {
+            puts(1,"IupH/Vbox(BGCOLOR,"+val+")\n"); // placeholder
         } else {
             crash("IupStoreAttribute(IupVbox,\"" + name + "\") not yet implemented");
         }
     }
-    store_attrs(["vbox","hbox"], ["MARGIN","NMARGIN","TABTITLE","ALIGNMENT","PADDING","NORMALIZESIZE","GAP","LINEBREAK"], set_vbox);
+    store_attrs(["vbox","hbox"], ["MARGIN","NMARGIN","TABTITLE","ALIGNMENT","PADDING",
+                                  "NORMALIZESIZE","GAP","LINEBREAK","FONT","BGCOLOR"], set_vbox);
 
     function set_text(ih, name, val) {
-        class_name(ih,"text");
+        assert(ih.classList[0] === "text");
         if (name === "VALUE") {
 //          ih.innerHTML = val;
 //          ih.value = val;
@@ -965,14 +965,14 @@ function IupOpen() {
         } else if (name === "SPIN") {
 //          puts(1,"IupText(SPIN,"+val+")??\n"); // placeholder
 //          val = $to_bool(val); // (maybe??)
-            ih.setAttribute('type', 'number');
-//          ih.setAttribute('type', 'number');
+            ih.setAttribute("type", "number");
+//          ih.setAttribute("type", "number");
         } else if (name === "SPINMIN") {
 //          puts(1,"IupText(SPINMIN,"+val+")??\n"); // placeholder
-            ih.setAttribute('min', val);
+            ih.setAttribute("min", val);
         } else if (name === "SPINMAX") {
 //          puts(1,"IupText(SPINMAX,"+val+")??\n"); // placeholder
-            ih.setAttribute('max', val);
+            ih.setAttribute("max", val);
         } else if (name === "ACTIVE") {
             val = $to_bool(val);
             ih.disabled = !val;
@@ -987,7 +987,7 @@ function IupOpen() {
         } else if (name === "CUEBANNER") {
             puts(1,"IupText(CUEBANNER," + val + ")??\n"); // placeholder
         } else if (name === "NAME") {
-            ih['NAME'] = val;
+            ih["NAME"] = val;
             puts(1,"?!IupText(NAME," + val + ")??\n"); // placeholder
         } else if (name === "TIP") {
             puts(1,"IupText(TIP," + val + ")??\n"); // placeholder
@@ -1009,16 +1009,22 @@ function IupOpen() {
             puts(1,"IupText(BGCOLOR," + val + ")??\n"); // placeholder
         } else if (name === "VISIBLECOLUMNS") {
             puts(1,"IupText(VISIBLECOLUMNS," + val + ")??\n"); // placeholder
+        } else if (name === "SELECTION") {
+            if (val === "ALL") {
+                ih.select();
+            } else {
+                puts(1,"IupText(SELECTION," + val + ")??\n"); // placeholder
+            }
         } else {
             crash("IupStoreAttribute(IupText,\"" + name + "," + val + "\") not yet implemented\n");
         }
     }
     store_attrs(["text"], ["VALUE","EXPAND","MASK","PADDING","SPIN","SPINMIN","SPINMAX","ACTIVE","FILTER",
                            "CUEBANNER","NAME","TIP","MULTILINE","FORMATTING","APPEND","INSERT","WORDWRAP",
-                           "SCROLLBAR","READONLY","BGCOLOR","VISIBLECOLUMNS"], set_text);
+                           "SCROLLBAR","SELECTION","READONLY","BGCOLOR","VISIBLECOLUMNS"], set_text);
 
     function set_toggle(ih, name, val) {
-        class_name(ih,"toggle");
+        assert(ih.classList[0] === "toggle");
         if (name === "VALUE") {
 //          ih.innerHTML = val;
             val = $to_bool(val);
@@ -1042,11 +1048,15 @@ function IupOpen() {
 //          puts(1,"IupToggle(SPINMIN,"+val+")??\n"); // placeholder
         } else if (name === "TIP") {
             puts(1,"IupToggle(TIP,"+val+")??\n"); // placeholder
+        } else if (name === "CANFOCUS") {
+            puts(1,"IupToggle(CANFOCUS,"+val+")??\n"); // placeholder
+        } else if (name === "NOTE") {
+            puts(1,"IupToggle(NOTE,"+val+")??\n"); // placeholder
         } else {
             crash("IupStoreAttribute(IupToggle,\"" + name + "," + val + "\") not yet implemented\n");
         }
     }
-    store_attrs(["toggle"], ["PADDING","RIGHTBUTTON","VALUE","TIP"], set_toggle);
+    store_attrs(["toggle"], ["CANFOCUS","NOTE","PADDING","RIGHTBUTTON","VALUE","TIP"], set_toggle);
 
     function linebreak(ih, name, val) {
         // applies to dialog, label, text
@@ -1058,13 +1068,15 @@ function IupOpen() {
     }
 
     function set_button(ih, name, val) {
-        class_name(ih,"button");
+        assert(ih.classList[0] === "button");
         if (name === "ACTIVE") {
             val = $to_bool(val);
             ih.disabled = !val;
 //          puts(1,"?!IupButton(ACTIVE,"+val+")??\n"); // placeholder
         } else if (name === "GAP") {
-            puts(1,"IupButton(GAP,"+val+")??\n"); // placeholder
+//DEV should be hbox/vbox only???
+//          puts(1,"IupButton(GAP,"+val+")??\n"); // placeholder
+            crash("IupButton(GAP,"+val+")??\n");
         } else if (name === "EXPAND") {
             puts(1,"IupButton(EXPAND,"+val+")??\n"); // placeholder
 //          expand(ih,val);
@@ -1072,6 +1084,7 @@ function IupOpen() {
             set_style(ih,"padding",val);
 //          puts(1,"IupButton(PADDING,"+val+")??\n"); // placeholder
         } else if (name === "RUNNING") {
+//DEV I think this is a hack for demo\rosetta\Morpion_solitaire.exw ...
             val = $to_bool(val);
             ih[name] = val;
         } else if (name === "TIP") {
@@ -1082,11 +1095,14 @@ function IupOpen() {
             puts(1,"IupButton(IMPRESS,"+val+")??\n"); // placeholder
         } else if (name === "BGCOLOR") {
             puts(1,"IupButton(BGCOLOR,"+val+")??\n"); // placeholder
+        } else if (name === "TITLE") {
+            ih.innerHTML = "<nobr>" + val + "</nobr>";
         } else {
             crash("IupStoreAttribute(IupButton,\"" + name + "," + val + "\") not yet implemented\n");
         }
     }
-    store_attrs(["button"], ["ACTIVE","GAP","EXPAND","PADDING","RUNNING","TIP","IMAGE","IMPRESS","BGCOLOR"], set_button);
+    store_attrs(["button"], ["ACTIVE","GAP","EXPAND","PADDING","RUNNING","TIP","IMAGE","IMPRESS","BGCOLOR",
+                             "TITLE"], set_button);
     store_attrs(["button"], ["LINEBREAK"], linebreak);
 //ToDo: (found while surfin)
 //button.setAttribute("disabled", "true");
@@ -1095,11 +1111,11 @@ function IupOpen() {
 //[attribute=value]     [target=_blank] Selects all elements with target="_blank"       (PL: eg [type=button] ??)
 
     function set_canvas(ih, name, val) {
-        class_name(ih,"canvas");
-        if (name === "BUFFER") {
-            puts(1,"IupCanvas(BUFFER,"+val+")??\n"); // placeholder
-        } else if (name === "BORDER") {
+        assert(ih.classList[0] === "canvas");
+        if (name === "BORDER") {
             puts(1,"IupCanvas(BORDER,"+val+")??\n"); // placeholder
+        } else if (name === "BUFFER") {
+            // (ignored, as now documented)
 //      } else if (name === "DATA") {
 //          puts(1,"IupCanvas(DATA,"+val+")??\n"); // placeholder
         } else if (name === "EXPAND") {
@@ -1108,7 +1124,10 @@ function IupOpen() {
                    name === "BARMODE" ||
 //                 name === "DATA" ||
                    name === "DRID" ||
+                   name === "GRIDCOLOR" ||
                    name === "GTITLE" ||
+                   name === "MARKSTYLE" ||
+                   name === "MODE" ||
                    name === "XNAME" ||
                    name === "YNAME" ||
                    name === "XRID" ||
@@ -1116,7 +1135,8 @@ function IupOpen() {
                    name === "XTICKFMT" ||
                    name === "YTICKFMT") {
             ih[name] = val;
-        } else if (name === "GRID") {
+        } else if (name === "GRID" ||
+                   name === "LEGENDBOX") {
             val = $to_bool(val);
             ih[name] = val;
         } else if (name === "TITLESTYLE" ||
@@ -1162,15 +1182,15 @@ function IupOpen() {
             crash("IupStoreAttribute(IupCanvas,\"" + name + "\") not yet implemented\n");
         }
     }
-    store_attrs(["canvas"], ["BORDER","BUFFER","DATA","EXPAND","BGCOLOR","BARMODE","DRID","GRID",
-                             "GTITLE","TITLESTYLE","XNAME","YNAME",
+    store_attrs(["canvas"], ["BORDER","BUFFER","DATA","EXPAND","BGCOLOR","BARMODE","DRID","GRID","GRIDCOLOR",
+                             "GTITLE","MARKSTYLE","MODE","TITLESTYLE","XNAME","YNAME",
                              "DRAWCOLOR","DRAWSTYLE","DRAWFONT","DRAWTEXTORIENTATION",
                              "XANGLE","XCROSSORIGIN","XMARGIN","XMAX","XMIN","XRID","XTICK","XTICKFMT","XYSHIFT",
                              "YANGLE","YCROSSORIGIN","YMARGIN","YMAX","YMIN","YRID","YTICK","YTICKFMT","YXSHIFT",
-                             "FONT","SCROLLBAR","DX","DY"], set_canvas);
+                             "FONT","SCROLLBAR","DX","DY","LEGENDBOX"], set_canvas);
 
     function set_datepick(ih, name, val) {
-        class_name(ih,"datepick");
+        assert(ih.classList[0] === "datepick");
         if (name === "ACTIVE") {
 //          val = $to_bool(val);
 //          ih.disabled = !val;
@@ -1190,7 +1210,7 @@ function IupOpen() {
     store_attrs(["datepick"], ["ACTIVE","MONTHSHORTNAMES","ZEROPRECED","VALUE"], set_datepick);
 
     function set_menuitem(ih, name, val) {
-        class_name(ih,"menuitem");
+        assert(ih.classList[0] === "menuitem");
         if (name === "ACTIVE") {
 //          val = $to_bool(val);
 //          ih.disabled = !val;
@@ -1210,7 +1230,7 @@ function IupOpen() {
     store_attrs(["menuitem"], ["ACTIVE","VALUE","AUTOTOGGLE"], set_menuitem);
 
     function set_multibox(ih, name, val) {
-        class_name(ih,"multibox");
+        assert(ih.classList[0] === "multibox");
 //      if (name === "ACTIVE") {
 //          val = $to_bool(val);
 //          ih.disabled = !val;
@@ -1238,7 +1258,7 @@ function IupOpen() {
     store_attrs(["multibox"], ["MARGIN","NMARGIN","GAPHORIZ","GAPVERT"], set_multibox);
 
     function set_progress(ih, name, val) {
-        class_name(ih,"progress");
+        assert(ih.classList[0] === "progress");
 //      if (name === "ACTIVE") {
 //          val = $to_bool(val);
 //          ih.disabled = !val;
@@ -1249,11 +1269,11 @@ function IupOpen() {
             puts(1,"IupProgressBar(ORIENTATION,"+val+")??\n"); // placeholder
 //          if (val === "HORIZONTAL") {
 //              drag.className = "drag-y"
-//              ih.style.flexDirection = 'column';
+//              ih.style.flexDirection = "column";
 //          } else {
 //              assert(val === "VERTICAL");
 //              drag.className = "drag-x"
-//              ih.style.flexDirection = 'row';
+//              ih.style.flexDirection = "row";
 //          }
         } else if (name === "MIN") {
             puts(1,"IupProgressBar(MIN,"+val+")??\n"); // placeholder
@@ -1273,7 +1293,7 @@ function IupOpen() {
     store_attrs(["progress"], ["ORIENTATION","MIN","MAX","VALUE","EXPAND"], set_progress);
 
     function set_split(ih, name, val) {
-        class_name(ih,"split");
+        assert(ih.classList[0] === "split");
 //      if (name === "ACTIVE") {
 //          val = $to_bool(val);
 //          ih.disabled = !val;
@@ -1287,11 +1307,11 @@ function IupOpen() {
             let drag = ih.children[1];
             if (val === "HORIZONTAL") {
                 drag.className = "drag-y"
-                ih.style.flexDirection = 'column';
+                ih.style.flexDirection = "column";
             } else {
                 assert(val === "VERTICAL");
                 drag.className = "drag-x"
-                ih.style.flexDirection = 'row';
+                ih.style.flexDirection = "row";
             }
         } else if (name === "MINMAX") {
             puts(1,"IupSplit(MINMAX,"+val+")??\n"); // placeholder
@@ -1302,7 +1322,7 @@ function IupOpen() {
     store_attrs(["split"], ["ORIENTATION","MINMAX"], set_split);
 
     function set_tabcontainer(ih, name, val) {
-        class_name(ih,"tabcontainer");
+        assert(ih.classList[0] === "tabcontainer");
 //      if (name === "ACTIVE") {
 //          val = $to_bool(val);
 //          ih.disabled = !val;
@@ -1323,9 +1343,9 @@ function IupOpen() {
     store_attrs(["tabcontainer"], ["TABTYPE"], set_tabcontainer);
 
     function set_slider(ih, name, val) {
-        class_name(ih,"slider");
+        assert(ih.classList[0] === "slider");
         if (name === "ORIENTATION") {
-            puts(1,"IupValuator(ORIENTATION,"+val+")??\n"); // placeholder
+//          puts(1,"IupValuator(ORIENTATION,"+val+")??\n"); // placeholder
             if (val === "VERTICAL") {
                 ih.style.transform = "rotate(90deg)";
             } else if (val === "HORIZONTAL") {
@@ -1335,27 +1355,28 @@ function IupOpen() {
             }
         } else if (name === "MAX") {
 //          puts(1,"IupValuator(MAX,"+val+")??\n"); // placeholder
-            ih.setAttribute('max', val);
+            ih.setAttribute("max", val);
         } else if (name === "MIN") {
 //          puts(1,"IupValuator(MIN,"+val+")??\n"); // placeholder
-            ih.setAttribute('min', val);
+            ih.setAttribute("min", val);
         } else if (name === "VALUE") {
 //          puts(1,"IupValuator(VALUE,"+val+")??\n"); // placeholder
-            ih.setAttribute('value', val);
+            ih.setAttribute("value", val);
         } else if (name === "STEP") {
 //          puts(1,"IupValuator(STEP,"+val+")??\n"); // placeholder
-            ih.setAttribute('step', val);
+            ih.setAttribute("step", val);
         } else if (name === "PAGESTEP") {
             puts(1,"IupValuator(PAGESTEP,"+val+")??\n"); // placeholder
-//          ih.setAttribute('step', val);
+//          ih.setAttribute("step", val);
         } else if (name === "EXPAND") {
-            puts(1,"IupValuator(EXPAND,"+val+")??\n"); // placeholder
-//          ih.setAttribute('step', val);
+//          puts(1,"IupValuator(EXPAND,"+val+")??\n"); // placeholder
+            ih.style.flexGrow = 1;
         } else if (name === "TIP") {
             puts(1,"IupValuator(TIP,"+val+")??\n"); // placeholder
-//          ih.setAttribute('step', val);
+//          ih.setAttribute("step", val);
         } else if (name === "CANFOCUS") {
-            puts(1,"IupValuator(CANFOCUS,"+val+")??\n"); // placeholder
+// just ignore for now...
+//          puts(1,"IupValuator(CANFOCUS,"+val+")??\n"); // placeholder
         } else {
             crash("IupStoreAttribute(IupValuator,\"" + name + "\"," + val + ") not yet implemented\n");
         }
@@ -1364,7 +1385,7 @@ function IupOpen() {
                              "CANFOCUS"], set_slider);
 
     function set_clipboard(ih, name, val) {
-        class_name(ih,"clipboard");
+        assert(ih.classList[0] === "clipboard");
         if (name === "TEXT") {
 //          puts(1,"IupClipboard(TEXT,"+val+")??\n"); // placeholder
             ih.value = val;
@@ -1384,7 +1405,7 @@ function IupOpen() {
 
 function IupSetGlobal(name, v) {
     if (name === "UTF8MODE") {
-        // do nothing... (it is already/permanently enabled in JvaScript)
+        // do nothing... (it is already/permanently enabled in JavaScript)
     } else if (name === "SINGLEINSTANCE") {
         puts(1,"IupSetGlobal(" + name + "," + v + ")...\n");
     } else if (name === "INPUTCALLBACKS") {
@@ -1392,6 +1413,28 @@ function IupSetGlobal(name, v) {
     } else {
         crash("IupSetGlobal(" + name + "," + v + ")...");
     }
+}
+const IupSetGlobalInt = IupSetGlobal;
+
+function IupGetGlobal(/*string*/ name) {
+    if (name === "DLGBGCOLOR") {
+        return "240 240 240";
+    } else if (name === "SCREENSIZE") {
+        return window.innerWidth + "x" + window.innerHeight;
+    }
+    crash("IupGetGlobal(" + name + ")...");
+}
+
+function IupGetGlobalInt(/*string*/ name) {
+    if (name === "CONTROLKEY") { return $ctrlKey; }
+    if (name === "SHIFTKEY") { return $shiftKey; }
+    if (name === "UTF8MODE") { return true; }
+    crash("IupGetGlobalInt(%s) not supported",["sequence",name]);
+}
+
+function IupGetGlobalIntInt(/*string*/ name) {
+    if (name === "SCREENSIZE") { return ["sequence",window.innerWidth,window.innerHeight]; }
+    crash("IupGetGlobalIntInt(%s) not supported",["sequence",name]);
 }
 
 function IupSetGlobalFunction(name, v) {
@@ -1411,46 +1454,46 @@ function IupSetGlobalFunction(name, v) {
 function $timer(/*string*/cmd, ih, name, v) { // nb: mapped to ("create",func,msecs,active)
     // timer handling, used by IupTimer(), IupSetInt(), and IupGetInt()
     // (bundled like this mainly just so that the next enum can be local)
-    const TIMER=0, FUNC=1, MSECS=2, ACTIVE=3, RUNNING=4, ID=5, CB=6
+    const TIMER=0, FUNC=1, MSECS=2, ACTIVE=3, ID=4, CB=5
     if (cmd === "create") {
-
-        //function IupTimer(/*cbfunc*/ func=NULL, /*integer*/ msecs=0, /*boolean*/ active=true) {
-        //  return $timer("create",func,msecs,active);
-        let func = ih, msecs = name, active = v;    // map args to more sensible names
-        // (aside: ACTIVE is what we want it to be, RUNNING is what it actually is)
         function action_cb(timer) {
             if (!timer[ACTIVE]) { 
-//              console.log("IupTimer clearInterval " + timer[ID]);
-                timer[RUNNING] = false;
-                clearInterval(timer[ID]);
+                if (timer[ID]) {
+                    // shouldn't really happen... not very often anyway
+                    clearInterval(timer[ID]);
+                    timer[ID] = 0;
+                }
             } else {
                 let fn = timer[FUNC],
                     res = fn(timer);
-    //          if (res === IUPCLOSE) { uh?? }
+    //          if (res === IUPCLOSE) { uh?? [now documented as not supported] }
             }
         }
-        let timer = ["timer",func,msecs,active,true,0,action_cb];
-        timer[ID] = setInterval(action_cb,msecs,timer);
-//      console.log("IupTimer setInterval " + timer[ID]);
-        return timer;
+        //function IupTimer(/*cbfunc*/ func=NULL, /*integer*/ msecs=0, /*boolean*/ active=true) {
+        //  return $timer("create",func,msecs,active);
+        let func = ih, msecs = name, active = v; // map args to more sensible names
+        ih = ["timer",func,msecs,active,0,action_cb];
+        if (active) {
+            ih[ID] = setInterval(action_cb,msecs,ih);
+        }
+        return ih;
 
     } else if (cmd === "is") {
         return Array.isArray(ih) && ih[TIMER] === "timer";
     } else if (cmd === "set") {
+        if (ih[ID]) {
+            clearInterval(ih[ID]);
+            ih[ID] = 0;
+        }
         if (name === "RUN") {
-            if (v && !ih[RUNNING]) {
-                ih[RUNNING] = true;
-                ih[ID] = setInterval(ih[CB],ih[MSECS],ih);
-            }
-//          console.log("IupSetInt active:"+v);
             ih[ACTIVE] = v;
         } else if (name === "TIME") {
             ih[MSECS] = v;
-            if (ih[RUNNING]) {
-                ih[ID] = setInterval(ih[CB],ih[MSECS],ih);
-            }
         } else {
             crash("timer??");
+        }
+        if (ih[ACTIVE]) {
+            ih[ID] = setInterval(ih[CB],ih[MSECS],ih);
         }
     } else if (cmd === "get") {
         if (name === "TIME") { return ih[MSECS]; }
@@ -1527,10 +1570,15 @@ function IupSetAttributeId(ih, name, id, v) {
 //  ih[name] = v;
 }
 
-
 function IupSetInt(ih, name, v) {
-    let tv = typeof(v);
-    if (tv !== "number" && tv !== "boolean" && tv !== "function") { crash("??"); }
+    if (name!="GRIDCOLOR") {
+        let tv = typeof(v);
+        if (tv !== "number" && 
+            tv !== "boolean" && 
+            tv !== "function") {
+            crash("IupSetInt("+name+","+tv+")??");
+        }
+    }
     if ($timer("is", ih)) {
         $timer("set", ih, name, v);
     } else if (sequence(ih)) {
@@ -1541,10 +1589,6 @@ function IupSetInt(ih, name, v) {
 //      IupSetStrAttribute(ih,name,v?"YES":"NO");
         IupSetStrAttribute(ih, name, v);
     }
-}
-
-function IupSetAttributePtr(ih, name, v) {
-    ih[name] = v;
 }
 
 function IupGetAttribute(ih, name, dflt) {
@@ -1579,15 +1623,18 @@ function IupGetAttribute(ih, name, dflt) {
             return ih.innerText;
         } else if (t === "frame") {
             return ih.childNodes[0].innerText;
-//      } else if (t === "hbox" ||
-        } else if (t === "hbox" ) {
-//                 t === "canvas") {
+        } else if (t === "hbox" ||
+//      } else if (t === "hbox" ) {
+                   t === "canvas") {
             return IupGetAttribute(ih.parentNode,name);
         }
 //  } else if (t === "dialog") {
     } else if (name === "GTITLE" ||
                name === "XNAME" ||
-               name === "YNAME") {
+               name === "YNAME" ||
+               name === "MODE" ||
+               name === "MARKSTYLE" ||
+               name === "LEGENDBOX") {
         if (t === "canvas" ) {
             if (!ih[name]) { return dflt; }
             return ih[name];
@@ -1600,7 +1647,7 @@ function IupGetAttribute(ih, name, dflt) {
     } else if (name === "TEXT") {
         if (t === "clipboard" ) {
 //          puts(1,"IupClipboard(TEXT,"+val+")??\n"); // placeholder
-//          ih.value = 'paste';
+//          ih.value = "paste";
             ih.value = "1";
             document.body.appendChild(ih);
             ih.style.display = "block";
@@ -1609,7 +1656,7 @@ function IupGetAttribute(ih, name, dflt) {
 //DEV does not work:
 //          document.execCommand("copy");
 //                  if (document.execCommand !== undefined && document.execCommand("copy") !== true) {
-//                      throw new Error("Unsupported 'copy' clipboard command");
+//                      throw new Error(`Unsupported "copy" clipboard command`);
 //                  }
 //                  if (document.execCommand !== undefined && document.execCommand("paste", null, null)) {
 //                      return clip.value;
@@ -1630,7 +1677,16 @@ function IupGetAttribute(ih, name, dflt) {
     }
     crash("IupGetAttribute(%s,%s) not supported",["sequence",t,name]);
 }   
-let IupGetAttributePtr = IupGetAttribute;
+
+function IupSetAttributePtr(ih, name, v) {
+    ih[name] = v;
+}
+
+// 28/4/22 (may have jumped the gun.. [while updating the docs, rather than actually using])
+//let IupGetAttributePtr = IupGetAttribute; // NO!!
+function IupGetAttributePtr(ih, name) {
+    return ih[name];
+}
 
 function IupGetAttributeId(ih, name, id) {
     let t = ih.classList[0];
@@ -1651,10 +1707,10 @@ function IupGetAttributeId(ih, name, id) {
 
 function IupGetInt(ih, name, dflt=0) {
     if (ih === 0) {
-        if (name === "SHIFTKEY") {
-            return $shiftKey;
-        }
-        crash("IupGetInt(NULL,%s) not supported",["sequence",name]);
+        return IupGetGlobalInt(name);
+//      if (name === "CONTROLKEY") { return $ctrlKey; }
+//      if (name === "SHIFTKEY") { return $shiftKey; }
+//      crash("IupGetInt(NULL,%s) not supported",["sequence",name]);
     } else if ($timer("is",ih)) {
         return $timer("get",ih,name);
     }
@@ -1671,18 +1727,27 @@ function IupGetInt(ih, name, dflt=0) {
             if (ih.value === "") { return 0; }
             return parseInt(ih.value);
         }
+    } else if (t === "label") {
+        if (name === "TITLE") {
+            if (ih.innerText === "") { return 0; }
+            return parseInt(ih.innerText);
+        }
     } else if (t === "toggle") {
         if (name === "VALUE") {
 //          val = $to_bool(val);
 //DEV to_bool not in scope...? (is innerText actually so???) [IupToggle is ~1% implemented, if that]
 //          let val = ih.innerText;
 //          if (string(val)) { val = (val.toUpperCase()==="YES"); }
-            return ih.innerText.toUpperCase() === "YES";
+//8/4/22 (for Spinning Rod Animation)
+//          return ih.innerText.toUpperCase() === "YES";
+            return ih.childNodes[1].checked;
         }
     } else if (t === "canvas") {
         if (name === "DATA" ||
             name === "DRID" ||
             name === "GRID" ||
+            name === "GRIDCOLOR" ||
+            name === "LEGENDBOX" ||
             name === "POSX" ||
             name === "POSY" ||
             name === "TITLESTYLE" ||
@@ -1716,10 +1781,25 @@ function IupGetInt(ih, name, dflt=0) {
                 }
             }
             return 0;
+        } else if (name === "COUNT") {
+            return ih.childElementCount;
+        }
+    } else if (t === "dialog") {
+        if (name === "VISIBLE") {
+//          return !ih.hidden;
+            return ih.isConnected;
+        }
+    } else if (t === "slider") {
+        if (name === "VALUE") {
+            return ih.valueAsNumber;
         }
     }
     crash("IupGetInt(%s,%s) not supported",["sequence",t,name]);
 }   
+
+function IupToggleInt(/*Ihandle*/ ih, /*string*/ name) {
+    IupSetInt(ih,name,!IupGetInt(ih,name))
+}
 
 function IupGetIntInt(ih, name) {
 //  if (typeof(name) !== "string" ...??
@@ -1829,6 +1909,12 @@ function IupSetDouble(ih, name, v) {
     if (t === "progress") {
         if (name === "VALUE") {
             ih.value = v;
+            return;
+        }
+    } else if (t === "canvas") {
+        if (name === "XTICK" ||
+            name === "YTICK") {
+            ih[name] = v;
             return;
         }
     }
@@ -1964,6 +2050,20 @@ function IupSetAttributes(ih, attributes, args = []) {
 
 function IupSetAttributeHandle(/*Ihandln*/ ih, /*string*/ name, /*Ihandln*/ ih_named) {
     // NB currently only handles dialog/MENU..
+    if (name === "IMAGE") {
+//      inputDataUrl.value = dataUrl;
+//      imagePreview.src = dataUrl;
+//      ih.value = ih_named;
+//      ih.src = ih_named;
+//      imagePreview.style.display = "block";
+//      ih.style.display = "block";
+//  imagePreview.style.maxWidth = `${inputWidth.value}px`;
+//      ih.style.maxWidth = `32px`;
+        let img = new Image();
+        img.src = ih_named;
+        ih.appendChild(img);
+        return;
+    }
     let t = ih?ih.classList[0]:"NULL",
         n = ih_named?ih_named.classList[0]:"NULL";
     if (t === "dialog" && name === "MENU" && n === "submenu") {
@@ -1973,25 +2073,25 @@ function IupSetAttributeHandle(/*Ihandln*/ ih, /*string*/ name, /*Ihandln*/ ih_n
              nav = document.createElement("nav");
 //<div id="mobbtn">&#9776;</div>
 //<nav id="menu"><ul class="menubar">
-//      mh.setAttribute('class', 'menuheader');
-        mh.className = 'menuheader';
-//      mh.id = 'menuheader';
-        mb.id = 'mobbtn';
-        mb.innerHTML = '&#9776;';
-        nav.id = 'menu';
+//      mh.setAttribute("class", "menuheader");
+        mh.className = "menuheader";
+//      mh.id = "menuheader";
+        mb.id = "mobbtn";
+        mb.innerHTML = "&#9776;";
+        nav.id = "menu";
         nav.appendChild(ih_named);
         mh.appendChild(mb);
         mh.appendChild(nav);
-        if (ih_named.className !== 'submenu') { crash("uh?"); }
-//      ih_named.setAttribute('class', 'menubar');
-        ih_named.className = 'menubar';
+        if (ih_named.className !== "submenu") { crash("uh?"); }
+//      ih_named.setAttribute("class", "menubar");
+        ih_named.className = "menubar";
         let l = ih_named.children.length;
         for (let i = 0; i < l; i += 1) {
             let ci = ih_named.children[i],
                 cn = ci.className;
             // quick sanity check:
-            assert(cn === 'nestmenu' || cn === 'menuitem' );
-            ci.className = 'topmenu';
+            assert(cn === "nestmenu" || cn === "menuitem" );
+            ci.className = "topmenu";
         }
         let dlgbod = ih.querySelector(".dialog-body");
         dlgbod.insertAdjacentElement("afterbegin", mh);
@@ -2016,11 +2116,11 @@ function IupSetAttributeHandle(/*Ihandln*/ ih, /*string*/ name, /*Ihandln*/ ih_n
                 p = mitem?.parentNode.parentNode;
             while (mstack.length &&
                    mstack[mstack.length-1]!==p) {
-                mstack.pop().classList.remove('open');
+                mstack.pop().classList.remove("open");
             }
             if (mitem!==null && (clicked || wasmlen)) {
-                mitem.classList.toggle('open');
-                if (mitem.classList.contains('open')) {
+                mitem.classList.toggle("open");
+                if (mitem.classList.contains("open")) {
                     mstack.push(mitem);
                 }
             }
@@ -2031,13 +2131,13 @@ function IupSetAttributeHandle(/*Ihandln*/ ih, /*string*/ name, /*Ihandln*/ ih_n
             event.stopPropagation(); // important!
             close_to(mitem,true);
         }
-        let ml = ih_named.querySelectorAll('.topmenu');
+        let ml = ih_named.querySelectorAll(".topmenu");
         for (let i = 0; i < ml.length; i += 1) {
             let m = ml[i];
             m.addEventListener("click", (event) => li_click(event,m), false);
             m.addEventListener("mouseenter", () => { close_to(m,false); }, false);
         }
-        let nm = ih_named.querySelectorAll('.nestmenu, .menuitem');
+        let nm = ih_named.querySelectorAll(".nestmenu, .menuitem");
         for (let i = 0; i < nm.length; i += 1) {
             let m = nm[i];
             m.addEventListener("mouseenter", () => { close_to(m,false); }, false);
@@ -2051,7 +2151,7 @@ function IupSetAttributeHandle(/*Ihandln*/ ih, /*string*/ name, /*Ihandln*/ ih_n
         document.addEventListener("click", hide_menu);
         document.addEventListener("contextmenu", hide_menu);
 
-//      let menu = ih_named.getElementById('menu');
+//      let menu = ih_named.getElementById("menu");
 //      menu.addEventListener("contextmenu", (event)=> {event.preventDefault(); event.stopPropagation(); return false; });
         nav.addEventListener("contextmenu", (event)=> {event.preventDefault(); event.stopPropagation(); return false; });
 
@@ -2059,15 +2159,15 @@ function IupSetAttributeHandle(/*Ihandln*/ ih, /*string*/ name, /*Ihandln*/ ih_n
             hide_menu();
             //DEV/SUG calc the 640 from sum of toplevel sizes...
             if (window.innerWidth < 140) {
-                nav.classList.add('mobile');
+                nav.classList.add("mobile");
             } else {
-                nav.classList.remove('mobile');
+                nav.classList.remove("mobile");
             }
         }   
         window_resize();
         ih.addEventListener("resize", window_resize);
 
-//      let me = ih_named.querySelectorAll('.topmenu > span');
+//      let me = ih_named.querySelectorAll(".topmenu > span");
 
         function listenKeys(event) {
             var key = event.keyCode;
@@ -2079,7 +2179,7 @@ function IupSetAttributeHandle(/*Ihandln*/ ih, /*string*/ name, /*Ihandln*/ ih_n
                         // (mush === Menu Underline SHow, topmenu only)
                         malt.forEach((item) => { item.classList.toggle("mush"); });
 //                      me[0].focus();
-                        ih_named.querySelector('.topmenu > span').focus();
+                        ih_named.querySelector(".topmenu > span").focus();
                         event.preventDefault();
                         break;
               case 27: // Escape
@@ -2097,19 +2197,19 @@ function IupSetAttributeHandle(/*Ihandln*/ ih, /*string*/ name, /*Ihandln*/ ih_n
         ih.addEventListener("keydown", listenKeys)
 
         // TOGGLE SLIDE MOBILE MENU
-//      let mobbtn = ih_named.querySelector('#mobbtn');
+//      let mobbtn = ih_named.querySelector("#mobbtn");
 //      ==> mb
         function mobbtn_click() {
-            let mobile = ih.querySelector('.mobile');
-            if (mb.classList.contains('active')) {
-                mb.classList.remove('active');
+            let mobile = ih.querySelector(".mobile");
+            if (mb.classList.contains("active")) {
+                mb.classList.remove("active");
                 mb.innerHTML = "&#9776;";
                 if (mobile) {
                     mobile.style.right = "-220px";
                 }
                 mb.style.right = "0";
             } else {
-                mb.classList.add('active');
+                mb.classList.add("active");
                 mb.innerHTML = "&#9587;";
                 if (mobile) {
                     mobile.style.right = "0";
@@ -2120,13 +2220,13 @@ function IupSetAttributeHandle(/*Ihandln*/ ih, /*string*/ name, /*Ihandln*/ ih_n
         mb.addEventListener("click", mobbtn_click);
 
 //DEV is this not the same as/should be in doc_click??
-//      let content = document.querySelector('.content');
-//$('.content').on('click', function() { 
+//      let content = document.querySelector(".content");
+//$(".content").on("click", function() { 
         function content_click() {
-            if (mb.classList.contains('active')) {
-                mb.classList.remove('active');
+            if (mb.classList.contains("active")) {
+                mb.classList.remove("active");
                 mb.innerHTML = "&#9776;";
-                let mobile = document.querySelector('.mobile');
+                let mobile = document.querySelector(".mobile");
                 if (mobile) {
                     mobile.style.right = "-220px";
                 }
@@ -2184,6 +2284,13 @@ function IupSetCallback(ih, name, func) {
 //puts(1,"shiftKey:"+shiftKey+"\n");
             if (string(key) && key.length === 1) {
                 key = key.codePointAt(0);
+                if (event.ctrlKey) {
+                    if (key>=65 && key<=90) { // A..Z
+                        key -= 64;
+                    } else if (key>=97 && key<=122) { // a..z
+                        key -= 96;
+                    }
+                }
             } else if (key == "Backspace") {
                 key = K_BS;
             } else if (key == "Delete") {
@@ -2245,7 +2352,12 @@ function IupSetCallback(ih, name, func) {
                 // should prevent propagation,
                 // am not going to bother with
                 // IUP_CLOSE handling here:
-                event.preventDefault();
+//7/5/22:
+//              if (res !== IUP_DEFAULT) {
+                if (res !== IUP_DEFAULT &&
+                    res !== IUP_CONTINUE) {
+                    event.preventDefault();
+                }
                 return (res === IUP_CONTINUE);
             }
 //          ih.onkeydown = key_cb;
@@ -2286,8 +2398,11 @@ function IupSetCallback(ih, name, func) {
             }
 //21/10/21: (for guessthenumber)
             if (cn === "datepick" ||
-                cn === "list") {
+                cn === "list" ||
+                cn === "toggle") {
                 ih.addEventListener("change",change_cb);
+            } else if (cn === "slider") {
+                ih.addEventListener("input",change_cb);
             } else {
                 ih.addEventListener("keyup",change_cb);
             }
@@ -2303,7 +2418,7 @@ function IupSetCallback(ih, name, func) {
                         IupHide(dialog);
                     }
                 }
-//              ih.addEventListener('click', action_cb);
+//              ih.addEventListener("click", action_cb);
                 ih.onclick = action_cb;
             } else if (cn === "text") {
                 // action with ih, c, pNewValue parameters [not that we could ever actually provide the latter??
@@ -2330,8 +2445,8 @@ function IupSetCallback(ih, name, func) {
                         printf(1,"text/action_cb(%d) ==> %d???\n",["sequence",c,res]);
                     }
                 }
-//              ih.addEventListener('click', action_cb);
-                ih.addEventListener('keydown', action_cb);
+//              ih.addEventListener("click", action_cb);
+                ih.addEventListener("keydown", action_cb);
 //              ih.onclick = action_cb;
             } else if (cn === "canvas") {
                 ih.ACTION = func;
@@ -2457,7 +2572,7 @@ function IupClipboard() {
 //  return "clipboard";
 //string text = IupGetAttribute(clipboard,"TEXT")
     const ih = document.createElement("textarea");
-    ih.setAttribute('class', 'clipboard');
+    ih.setAttribute("class", "clipboard");
     ih.setAttribute("readonly", "");
 //  ih.style = { position: "absolute", left: "-9999px" };
 //              this.$clipboard.setAttribute("style", "display:none;position:fixed;left:-99em;top:-99em;");
@@ -2469,7 +2584,7 @@ function IupCloseOnEscape(/* Ihandle */ dlg) {
     function hide_dlg(event) {
 //      let keyCode = window.event ? window.event.keyCode : e.which;
 //      if (keyCode === 27) {
-        if (event.key === 'Escape') {
+        if (event.key === "Escape") {
             IupHide(dlg);
         }
     }
@@ -2511,8 +2626,11 @@ function $resize_children(ih, w, h) {
                     fs = ctx.fillStyle,
                     ss = ctx.strokeStyle,
                     ta = ctx.textAlign,
-                    tb = ctx.textBaseline;
+                    tb = ctx.textBaseline,
+                    cf = ctx.font;
     
+//console.log("canvas.width: "+ih.width+" => "+w);
+//console.log("canvas.height: "+ih.height+" => "+h);
                 ih.width = w;
                 ih.height = h;
 //no diff:
@@ -2522,6 +2640,7 @@ function $resize_children(ih, w, h) {
                 ctx.strokeStyle = ss;
                 ctx.textAlign = ta;
                 ctx.textBaseline = tb;
+                ctx.font = cf;
 //              if (l) { crash("uh?"); }
                 bSizeChanged = true;
             }
@@ -2553,11 +2672,20 @@ function $resize_children(ih, w, h) {
 //      } else {
 //      } else if (cn === "menuheader") {
 //          h -= 21;
+//6/5/22:
         } else {
+//      } else if (false) {
             prev_w = ih.offsetWidth,
+//          prev_w = ih.offsetWidth-($pxFloat(ih.style.marginLeft)+$pxFloat(ih.style.marginRight)),
+//ih.style.marginBottom
+//marginBottom: "5px"
+//marginLeft: "10px"
+//marginRight: "10px"
+//marginTop: "5px
 //          prev_w = ih.offsetWidth-ih.offsetLeft,
 //          prev_w = ih.clientWidth,
             prev_h = ih.offsetHeight;
+//          prev_h = ih.offsetHeight-($pxFloat(ih.style.marginTop)+$pxFloat(ih.style.marginBottom));
 //          prev_h = ih.offsetHeight-ih.offsetTop;
 //          prev_h = ih.clientHeight;
 //          w -= ih.offsetLeft;
@@ -2672,9 +2800,14 @@ function $resize_children(ih, w, h) {
 //                              cw = ci.width,
 //                              cw = ci.clientWidth,
                                 cw = ci.offsetWidth,
+//                              cw = ci.offsetWidth-($pxFloat(ci.style.marginLeft)+$pxFloat(ci.style.marginRight)),
 //                              ch = ci.height;
-//                              ch = ci.clientHeight;
-                                ch = ci.offsetHeight;
+                                ch = ci.clientHeight;
+//                              ch = ci.offsetHeight-($pxFloat(ih.style.marginTop)+$pxFloat(ih.style.marginBottom));
+//                          if (ci.style.marginLeft   !== "") { cw -= $pxFloat(ci.style.marginLeft); }
+//                          if (ci.style.marginRight  !== "") { cw -= $pxFloat(ci.style.marginRight); }
+//                          if (ci.style.marginTop    !== "") { ch -= $pxFloat(ci.style.marginTop); }
+//                          if (ci.style.marginBottom !== "") { ch -= $pxFloat(ci.style.marginBottom); }
                             if (w) {
                                 let dw = ((w_count-w+1)/wcrem)*rem_w;
                                 cw += dw;
@@ -2720,10 +2853,16 @@ function $maxWindow(dialog) {
             dialog.style.left = "-1px";
 //          dialog.style.width = (dialog.maximumWidth || window.innerWidth) + "px";
             dialog.style.width = (dialog.maximumWidth || (window.innerWidth-4)) + "px";
-//          dialog.style.height = (dialog.maximumHeight || window.innerHeight) + "px";
-            dialog.style.height = (dialog.maximumHeight || (window.innerHeight-34)) + "px";
+            dialog.style.height = (dialog.maximumHeight || window.innerHeight) + "px";
+//          dialog.style.height = (dialog.maximumHeight || (window.innerHeight-34)) + "px";
+//console.log("dialog.width: "+dialog.waswidth+" => "+dialog.style.width);
+//console.log("dialog.height: "+dialog.washeight+" => "+dialog.style.height);
             maxbtn.title = "Restore";
         } else {
+            if ($pxFloat(dialog.washeight)<dialog.minimumHeight) { dialog.washeight = dialog.minimumHeight + "px"; }
+            if ($pxFloat(dialog.waswidth) <dialog.minimumWidth ) { dialog.waswidth  = dialog.minimumWidth  + "px"; }
+//console.log("dialog.width: "+dialog.style.width+" => "+dialog.waswidth);
+//console.log("dialog.height: "+dialog.style.height+" => "+dialog.washeight);
             dialog.style.top = dialog.wastop;
             dialog.style.left = dialog.wasleft;
             dialog.style.width = dialog.waswidth;
@@ -2740,6 +2879,7 @@ function $maxWindow(dialog) {
 //      $resize_children(child,$eWidth(dialog)-4,$eHeight(dialog)-34-45);
 //      $resize_children(child,$eWidth(dlgbod),$eHeight(dlgbod));
 //getBoundingClientRect
+//(removed 27/5/22...)
         $resize_children(child,dlgbod.clientWidth-2,dlgbod.clientHeight-2);
 //      $resize_children(child,dlgbod.clientWidth-5,dlgbod.clientHeight-5);
 //      $resize_children(child,dialog.clientWidth-4,dialog.clientHeight-34);
@@ -2791,7 +2931,7 @@ function IupDialog(child, attributes = "", args = [], bEsc = true) {
           clsbtn = header_button("Close", "M10,10 L20,20 M20,10 L10,20");
     headiv.classList.add("dialog-header");
     header.classList.add("dialog-handle");
-//div.setAttribute('class', 'note');
+//div.setAttribute("class", "note");
 //  header.innerHTML = "<b>" + htitle + "</b>";
     header.innerHTML = "<b><i>untitled</i></b>";
     headiv.appendChild(header_button("Application", "M28 0h-24c-2.2 0-4 1.8-4 4v24c0 2.2 "+
@@ -2818,7 +2958,7 @@ function IupDialog(child, attributes = "", args = [], bEsc = true) {
 //  dlgbod.innerHTML = "Move<br>this<br>div<br>";
     dlgbod.appendChild(child);
     dialog.className = "dialog";
-    dialog.setAttribute('EXPAND', 'YES');
+    dialog.setAttribute("EXPAND", "YES");
 //26/5 (see if this helps with boids...)
 //  dialog.setAttribute("data-sizing","intrinsic");
     dialog.appendChild(headiv);
@@ -2959,7 +3099,7 @@ function IupDialog(child, attributes = "", args = [], bEsc = true) {
                 h !== dialog.clientHeight) {
                 dialog.style.width = w + "px";
                 dialog.style.height = h + "px";
-                if (dialog.querySelector('.menuheader')) { h -= 21; }
+                if (dialog.querySelector(".menuheader")) { h -= 21; }
                 $resize_children(child,w-4,h-34);
 //              $resize_children(dialog.children[1],w-4,h-34);
 //              $resize_children(child,w-4,h-34-45);
@@ -3074,27 +3214,34 @@ function IupMap(ih) {
 //      }
         let children = ih.childNodes,
             l = children.length;
-        for (let i=0; i<l; i += 1) { IupMap(children[i]); }
+        for (let i = 0; i < l; i += 1) { IupMap(children[i]); }
     }
 }
 
 function IupRedraw(ih) {
-    let cn = ih.className;
-    if (cn !== "dialog-header" &&   // (there can be no ["ACTION"] attached
-        cn !== "dialog-resizers") { //  to either, so simplify debugging..)
-//      let action = ih["REDRAW_CB"];
-        let action = ih["ACTION"];
-        if (action && cn === "canvas") { 
-            action(ih); 
-//          ih["MAP_CB"] = null;
+    if (sequence(ih)) {
+        let len = length(ih);
+        for (let i = 1; i <= len; i += 1) {
+            IupRedraw(ih[i]);
         }
-        let children = ih.childNodes,
-            l = children.length;
-        for (let i=0; i<l; i += 1) { IupRedraw(children[i]); }
+    } else {
+        let cn = ih.className;
+        if (cn !== "dialog-header" &&   // (there can be no ["ACTION"] attached
+            cn !== "dialog-resizers") { //  to either, so simplify debugging..)
+//          let action = ih["REDRAW_CB"];
+            let action = ih["ACTION"];
+            if (action && cn === "canvas") { 
+                action(ih); 
+//              ih["MAP_CB"] = null;
+            }
+            let children = ih.childNodes,
+                l = children.length;
+            for (let i=0; i<l; i += 1) { IupRedraw(children[i]); }
+        }
     }
 }
-let IupRefresh = IupRedraw;
-let IupRefreshChildren = IupRedraw;
+const IupRefresh = IupRedraw;
+const IupRefreshChildren = IupRedraw;
 
 function IupShow(ih, x = IUP_CENTER, y = IUP_CENTER) {
 //  IupMap(ih);
@@ -3133,7 +3280,7 @@ function IupShow(ih, x = IUP_CENTER, y = IUP_CENTER) {
 //              h !== dialog.clientHeight) {
 //              dialog.style.width = w + "px";
 //              dialog.style.height = h + "px";
-//              if (dialog.querySelector('.menuheader')) { h -= 21; }
+//              if (dialog.querySelector(".menuheader")) { h -= 21; }
 //              $resize_children(child,w-4,h-34);
 //
 //  let resize_cb = ih.RESIZE_CB;
@@ -3144,11 +3291,12 @@ function IupShow(ih, x = IUP_CENTER, y = IUP_CENTER) {
 //26/9/21:
     if (ih.minWidth) { w = ih.minWidth; }
     if (ih.minHeight) { h = ih.minHeight; }
+//DEV probably wrong 5/4/22...
     ih.minimumWidth = w;                        // for use in doSize()
     ih.minimumHeight = h;                       //      """
 //  ih.onresize(ih,w,h);
 //--DEV REDRAW_CB? ACTION? (triggers violation too)
-//  const event = new Event('resize');
+//  const event = new Event("resize");
 //  ih.dispatchEvent(event);
 //  window.setTimeout(ih.dispatchEvent,10,event);
 //  window.setTimeout(function() { ih.dispatchEvent(event); }, 100);
@@ -3157,10 +3305,31 @@ function IupShow(ih, x = IUP_CENTER, y = IUP_CENTER) {
 //  const r2 = ih.getBoundingClientRect();
 //  $resize_children(ih, r2.width, r2.height);
 // 31/21/21: bingo!!
+/* SUG... (total failure)
+const config = { attributes: true, childList: true, subtree: true };
+const callback = function(mutationList, observer) {
+    for(const mutation of mutationList) {
+        if (mutation.type === "childList") {
+            console.log("A child node has been added or removed.");
+        }
+        else if (mutation.type === "attributes") {
+            console.log("The " + mutation.attributeName + " attribute was modified.");
+        }
+    }
+};
+const observer = new MutationObserver(callback);
+observer.observe(ih, config);
+*/
+//console.log("maxmax");
     $maxWindow(ih);
     $maxWindow(ih);
+//console.log("mmout");
+/*
+observer.disconnect();
+*/
 }
-let IupShowXY = IupShow;
+const IupShowXY = IupShow;
+//IupPopup?
 
 function IupSetFocus(ih) {
     ih.focus();
@@ -3169,33 +3338,11 @@ function IupSetFocus(ih) {
 function IupHide(ih) {
     const dialogs = document.getElementsByClassName("dialog");
     if (dialogs.length === 1) {
-// See IupMainLoop:
-//      if (terminator) { terminator(); }
-// @grant        window.close
-        window.close();  // close the whole page [DEV/erm?]
-//      open(location, '_self').close();
-//      window.top.close();  // close the whole page [DEV/erm?]
-//      window.open('about:blank', '_self').close();
-//      window.open('', '_self').close();
-//      function closeWin() { 
-//          window.top.close();
-//      }
-//      setTimeout(function(){ closeWin() }, 1000);
-//      $docBody.innerHTML = "";
-//      puts(1,"\n\n\n\n");
-//      puts(1,"                                                 Oh dear.\n\n");
-//      puts(1,"                      With all of their usual infinite lack of wisdom,\n\n");
-//      puts(1,"              the spineless retards that so-called `develop` this stuff,\n\n");
-//      puts(1,"          have blocked window.close() for cretinous `security reasons`.\n\n");
-//      puts(1,"      Just like http:mydir and file:mydir being a stupid `CORS violation`.\n\n");
-//      puts(1,"  Like it would be `far too difficult` to ever make anyone's life any easier.\n\n");
-//      puts(1,"Try using an older and therefore less bug-ridden browser version, maybe.\n\n");
-//      puts(1,"PS: Any resemblance of the above to a dog's turd is entirely coincidental.\n\n");
+        window.close();  // close the whole page, if allowed
     } else {
         $topZindex(ih); // (specifically, fixup the rest)
         $docBody.removeChild(ih);
     }
-//  ih.style.display = 'none';
 }
 
 function IupGetChild(/*Ihandle*/ ih, /*integer*/ pos) {
@@ -3211,10 +3358,7 @@ function IupGetClassName(/*Ihandle*/ ih) {
 }
 
 function IupGetDialog(ih) {
-//  while (true) {
-//      ih = ih.parentNode;
     let parent = ih.offsetParent;
-//  while (parent === null) { // nb not NULL!
     while (parent === null || parent.classList[0] !== "dialog") { // nb not NULL!
         ih = ih.parentNode;
         if (ih.classList[0] === "dialog") {
@@ -3222,9 +3366,7 @@ function IupGetDialog(ih) {
             break;
         }
     }
-//      if (ih.!="dialog") { crash("uh?"); }
-//  $class_name(parent, "dialog");
-    assert(parent.classList[0] === "dialog");
+//  assert(parent.classList[0] === "dialog");
     return parent;
 }
 
@@ -3233,7 +3375,7 @@ function IupGetDialogChild(/*Ihandle*/ ih, /*string*/ name) {
         let count = ih.childElementCount;
         for (let pos = 0; pos < count; pos += 1) {
             let cp = ih.children[pos];
-            if (cp['NAME'] === name) { return cp; }
+            if (cp["NAME"] === name) { return cp; }
             cp = get_child(cp,name);
             if (cp) { return cp; }      
         }
@@ -3261,11 +3403,22 @@ function IupGetBrother(ih, bPrev=false) {
         brother = siblings[bPrev?pos-1:pos+1];
     return brother;
 }
-        
+
+function IupNextField(ih) {
+    let next = IupGetBrother(ih);
+    IupSetFocus(next);
+    return next;
+}
+function IupPreviousField(ih) {
+    let prev = IupGetBrother(ih,true);
+    IupsetFocus(prev);
+    return prev;
+}
+
 //IupButton(nullable_string title=NULL,[[nullable_string action=NULL,] cbfunc func=NULL,] string attributes="", sequence args={}) 
 function IupButton(title = null, action = null, func = null, attributes = "", args = []) {
     const ih = document.createElement("button");
-    ih.setAttribute('class', 'button');
+    ih.setAttribute("class", "button");
     [action,func,attributes,args] = $paranormalise(action,func,attributes,args);
     if (title) {
 //      ih.innerHTML = title;
@@ -3277,7 +3430,7 @@ function IupButton(title = null, action = null, func = null, attributes = "", ar
     if (func) {
         if (action !== null && action !== "ACTION") { crash("?9/0"); }
         IupSetCallback(ih, "ACTION", func);
-//      btn.addEventListener('click', toggleHide);
+//      btn.addEventListener("click", toggleHide);
     }
     IupSetAttributes(ih, attributes, args);
     return ih;
@@ -3287,8 +3440,8 @@ const IupFlatButton = IupButton;
 
 function IupDatePick(action = null, func = null, attributes = "", args = []) {
     const ih = document.createElement("input");
-    ih.setAttribute('class', 'datepick');
-    ih.setAttribute('type', 'date');
+    ih.setAttribute("class", "datepick");
+    ih.setAttribute("type", "date");
     [action,func,attributes,args] = $paranormalise(action,func,attributes,args);
     if (func) {
         if (action !== null && action !== "VALUECHANGED_CB") { crash("?9/0"); }
@@ -3303,10 +3456,10 @@ function IupDatePick(action = null, func = null, attributes = "", args = []) {
 //      Any attributes must be set before the element is inserted into the hierarchy (not normally an issue).
 function IupFill(attributes = "", args = []) {
     const ih = document.createElement("div");
-    ih.setAttribute('class', 'fill');
+    ih.setAttribute("class", "fill");
 //DEV more complex: If User size is not defined, then when inside an IupHbox or IupGridBox EXPAND is HORIZONTAL, 
 //                  when inside a IupVbox EXPAND is VERTICAL.If User size is defined then EXPAND is NO. 
-//  ih.setAttribute('EXPAND', 'YES');
+//  ih.setAttribute("EXPAND", "YES");
     IupSetAttributes(ih, attributes, args);
     return ih;
 }
@@ -3316,9 +3469,10 @@ function IupFlush() { }
 function IupFrame(child = NULL, attributes = "", args = []) {
     const ih = document.createElement("fieldset"),
           legend = document.createElement("legend");
-    ih.setAttribute('class', 'frame');
-//  ih.setAttribute('EXPAND', 'YES');
-    ih['EXPAND'] = 'YES';
+    ih.setAttribute("class", "frame");
+    legend.setAttribute("padding", "0px 5px 0px 5px");
+//  ih.setAttribute("EXPAND", "YES");
+    ih["EXPAND"] = "YES";
     ih.appendChild(legend);
     if (child) {
         ih.appendChild(child);
@@ -3330,13 +3484,13 @@ function IupFrame(child = NULL, attributes = "", args = []) {
 function IupHbox(children, attributes = "", args = []) {
 //  if (!Array.isArray(children)) {
     if (!sequence(children)) {
-//      crash('vbox children must be an array!');
-        crash('hbox children must be a sequence!');
+//      crash("vbox children must be an array!");
+        crash("hbox children must be a sequence!");
     }
     const ih = document.createElement("div");
-    ih.setAttribute('class', 'hbox');
-//  ih.setAttribute('EXPAND', 'YES');
-    ih['EXPAND'] = 'YES';
+    ih.setAttribute("class", "hbox");
+//  ih.setAttribute("EXPAND", "YES");
+    ih["EXPAND"] = "YES";
 //  ih.className = "hbox";
 //9/4/21:
 //  for (let i = 0; i < children.length; i += 1) {
@@ -3355,13 +3509,13 @@ function IupHbox(children, attributes = "", args = []) {
 function IupVbox(children, attributes = "", args = []) {
 //  if (!Array.isArray(children)) {
     if (!sequence(children)) {
-//      crash('vbox children must be an array!');
-        crash('vbox children must be a sequence!');
+//      crash("vbox children must be an array!");
+        crash("vbox children must be a sequence!");
     }
     const ih = document.createElement("div");
-    ih.setAttribute('class', 'vbox');
-//  ih.setAttribute('EXPAND', 'YES');
-    ih['EXPAND'] = 'YES';
+    ih.setAttribute("class", "vbox");
+//  ih.setAttribute("EXPAND", "YES");
+    ih["EXPAND"] = "YES";
 //  ih.className = "vbox";
     let l = length(children);
     for (let i = 1; i <= l; i += 1) {
@@ -3375,12 +3529,90 @@ function IupVbox(children, attributes = "", args = []) {
     return ih;
 }
 
+function IupImageRGBA(/*integer*/ width, height, /*object*/ pixels) {
+    let ih = document.createElement("canvas");
+    ih.width = width;
+    ih.height = height;
+    let ctx = ih.getContext("2d"),
+        imgData = ctx.createImageData(width, height),
+        len = length(pixels);
+    for (let i = 0; i < len; i += 1) {
+        imgData.data[i] = pixels[i+1];
+    }
+    ctx.putImageData(imgData,0,0);
+//  return ih;
+//or, maybe:
+    let res = ih.toDataURL();
+    return res;
+}
+
+function IupImageRGB(/*integer*/ width, height, /*object*/ pixels) {
+    let ih = document.createElement("canvas");
+    ih.width = width;
+    ih.height = height;
+    let ctx = ih.getContext("2d"),
+        imgData = ctx.createImageData(width, height),
+        len = length(pixels),
+        k = 0;
+    for (let i = 0; i < len; i += 3) {
+        imgData.data[k+0] = pixels[i+1];
+        imgData.data[k+1] = pixels[i+2];
+        imgData.data[k+2] = pixels[i+3];
+        imgData.data[k+3] = 255; // (alpha)
+        k += 4
+    }
+    ctx.putImageData(imgData,0,0);
+    let res = ih.toDataURL();
+    return res;
+}
+
+function IupImage(/*integer*/ width, height, /*object*/ pixels) {
+    let ih = document.createElement("canvas");
+    ih.width = width;
+    ih.height = height;
+    let ctx = ih.getContext("2d"),
+        imgData = ctx.createImageData(width, height),
+        len = length(pixels),
+        k = 0;
+    const $IupImageDefaultColours = [[  0,  0,  0], // ( 0 black)
+                                     [128,  0,  0], // ( 1 dark red)
+                                     [  0,128,  0], // ( 2 dark green) 
+                                     [128,128,  0], // ( 3 dark yellow)
+                                     [  0,  0,128], // ( 4 dark blue)
+                                     [128,  0,128], // ( 5 dark magenta) 
+                                     [  0,128,128], // ( 6 dark cian) 
+                                     [192,192,192], // ( 7 gray)
+                                     [128,128,128], // ( 8 dark gray)
+                                     [255,  0,  0], // ( 9 red)    
+                                     [  0,255,  0], // (10 green)
+                                     [255,255,  0], // (11 yellow)
+                                     [  0,  0,255], // (12 blue)
+                                     [255,  0,255], // (13 magenta)
+                                     [  0,255,255], // (14 cian)  
+                                     [255,255,255]] // (15 white)
+    for (let i = 0; i < len; i += 1) {
+//      let pi = pixels[i+1],
+        let /*integer*/ pi = $subse(pixels,i+1),
+            p3 = $IupImageDefaultColours[pi];
+        for (let j = 0; j < 3; j += 1) {
+            imgData.data[k] = p3[j];
+            k += 1;
+        }   
+        imgData.data[k] = 255; // (alpha)
+        k += 1;
+    }
+    ctx.putImageData(imgData,0,0);
+    let res = ih.toDataURL();
+    return res;
+}
+
 //IupFlatLabel?? (mnemonics not supported...???)
 function IupLabel(title=null, attributes = "", args = []) {
     const ih = document.createElement("div");
-    ih.setAttribute('class', 'label');
-//  ih['EXPAND'] = 'YES';
+    ih.setAttribute("class", "label");
+//  ih["EXPAND"] = "YES";
     if (title) {
+/*
 //      ih.innerHTML = title;
         if (title.indexOf('\n') === -1) {
             title = "<nobr>" + title + "</nobr>";
@@ -3390,7 +3622,8 @@ function IupLabel(title=null, attributes = "", args = []) {
         }
         ih.innerHTML = title;
 //DEV:
-//      IupSetAtribute(ih,"TITLE",title);
+*/
+        IupSetAttribute(ih,"TITLE",title);
     }
     IupSetAttributes(ih, attributes, args);
 //  ih.className = "label";
@@ -3404,7 +3637,7 @@ const IupFlatLabel = IupLabel;
 
 function IupList(action = null, func = null, attributes = "", args = []) {
     const ih = document.createElement("select");
-    ih.setAttribute('class', 'list');
+    ih.setAttribute("class", "list");
     [action,func,attributes,args] = $paranormalise(action,func,attributes,args);
     if (func) {
         if (!action) {
@@ -3418,6 +3651,7 @@ function IupList(action = null, func = null, attributes = "", args = []) {
     IupSetAttributes(ih, attributes, args);
     return ih;
 }
+const IupFlatList = IupList;
 
 /*
   <div id="menuheader">
@@ -3453,8 +3687,8 @@ function $menutitle(ih,title) {
     if (title) {
         let adx = title.indexOf('&');
         if (adx !== -1) {
-            // replace eg '&File' with '<span class="malt">F</span>ile'
-            title = title.slice(0,adx) + '<span class="malt">' + title.slice(adx+1,adx+2) + '</span>' + title.slice(adx+2);
+            // replace eg "&File" with "<span class="malt">F</span>ile"
+            title = title.slice(0,adx) + `<span class="malt">` + title.slice(adx+1,adx+2) + `</span>` + title.slice(adx+2);
 //      } else {
 //          title = "<i></i>" + title;
         }
@@ -3479,13 +3713,13 @@ function IupMenu(/*Ihandles*/ children=[], /*sequence*/ attributes="", /*dword_s
           ul = document.createElement("ul");
 //<div id="mobbtn">&#9776;</div>
 //<nav id="menu"><ul class="menubar">
-//  ih.setAttribute('class', 'menuheader');
-    ih.id = 'menuheader';
-    mb.id = 'mobbtn';
-    mb.innerHTML = '&#9776;';
-    nav.id = 'menu';
-//  ul.setAttribute('class', 'menubar');
-    ul.className = 'menubar';
+//  ih.setAttribute("class", "menuheader");
+    ih.id = "menuheader";
+    mb.id = "mobbtn";
+    mb.innerHTML = "&#9776;";
+    nav.id = "menu";
+//  ul.setAttribute("class", "menubar");
+    ul.className = "menubar";
            <li class="nestmenu">
             <span><i></i>Create</span>
             <ul class="submenu">
@@ -3508,7 +3742,7 @@ function IupMenu(/*Ihandles*/ children=[], /*sequence*/ attributes="", /*dword_s
 //  const ih = document.createElement("li"),
 //        sp = document.createElement("span");
     const ih = document.createElement("ul");
-    ih.className = 'submenu';   // (maybe replaced with 'topmenu' later, along with a tabindex of 0)
+    ih.className = "submenu";   // (maybe replaced with "topmenu" later, along with a tabindex of 0)
     if (children.length) {
         let l = length(children);
         for (let i = 1; i <= l; i += 1) {
@@ -3516,7 +3750,7 @@ function IupMenu(/*Ihandles*/ children=[], /*sequence*/ attributes="", /*dword_s
 //DEV NO, this needs to be done at the IupSetAttributeHandle(dlg,"MENU",menu) stage:
 /*
             cs = ci.children[0];
-        ci.className = 'topmenu';
+        ci.className = "topmenu";
         cs.tabIndex = 0;
 */
             ih.appendChild(ci);
@@ -3538,8 +3772,8 @@ function IupMenuItem(/*nullable_string*/ title=NULL, /*object*/ action=NULL, fun
     const ih = document.createElement("li"),
           sp = document.createElement("span");
 //        ii = document.createElement("i");
-//  ih.setAttribute('class', 'menuitem');
-    ih.className = 'menuitem';
+//  ih.setAttribute("class", "menuitem");
+    ih.className = "menuitem";
 //  sp.appendChild(ii);
     $menutitle(sp,title);
     ih.appendChild(sp);
@@ -3560,13 +3794,13 @@ function IupMenuItem(/*nullable_string*/ title=NULL, /*object*/ action=NULL, fun
     IupSetAttributes(ih, attributes, args);
     return ih;
 }
-let IupItem = IupMenuItem;
+const IupItem = IupMenuItem;
 
 function IupSeparator() {
 //  Ihandle ih = c_func(xIupSeparator, {})
 //<li class="separator"></li>
     const ih = document.createElement("li");
-    ih.className = 'separator';
+    ih.className = "separator";
     return ih;
 }
 
@@ -3575,7 +3809,7 @@ function IupSubmenu(/*nullable_string*/ title=NULL, /*Ihandln*/ menu=NULL, /*str
           sp = document.createElement("span");
 //        ul = document.createElement("ul");
 
-    ih.className = 'nestmenu';   // (maybe replaced with 'topmenu' later)
+    ih.className = "nestmenu";   // (maybe replaced with "topmenu" later)
     $menutitle(sp,title);
     ih.appendChild(sp);
     ih.appendChild(menu);
@@ -3608,19 +3842,19 @@ function IupSubmenu(/*nullable_string*/ title=NULL, /*Ihandln*/ menu=NULL, /*str
     IupSetAttributes(ih, attributes, args);
     return ih;
 }
-let IupSubMenu = IupSubmenu;
+const IupSubMenu = IupSubmenu;
 
 //DEV re-do the snapshots in the manual...
 function IupMultiBox(children, attributes = "", args = []) {
     if (!sequence(children)) {
 //      children = IupGetChildren(children);
-        crash('multibox children must be a sequence!');
+        crash("multibox children must be a sequence!");
     }
 //DEV (and elsewhere)
 //  assert(sequence(children),
     const ih = document.createElement("div");
-    ih.setAttribute('class', 'multibox');
-    ih['EXPAND'] = 'YES';
+    ih.setAttribute("class", "multibox");
+    ih["EXPAND"] = "YES";
 //  ih.className = "multibox";
     let l = length(children);
     for (let i = 1; i <= l; i += 1) {
@@ -3633,9 +3867,9 @@ function IupMultiBox(children, attributes = "", args = []) {
 
 function IupProgressBar(attributes = "", args = []) {
     const ih = document.createElement("progress");
-    ih.setAttribute('class', 'progress');
-    ih.setAttribute('min', 0);
-    ih.setAttribute('max', 1);
+    ih.setAttribute("class", "progress");
+    ih.setAttribute("min", 0);
+    ih.setAttribute("max", 1);
     IupSetAttributes(ih, attributes, args);
     return ih;
 }
@@ -3657,15 +3891,15 @@ function IupSplit(/*Ihandln*/ child1=NULL, child2=NULL, /*string*/ attributes=""
 //
     let ih = document.createElement(`div`),
       drag = document.createElement(`div`);
-    ih.style.display = 'flex';
-    ih.style.flexDirection = 'column';  // ('row' if HORIZONTAL)
+    ih.style.display = "flex";
+    ih.style.flexDirection = "column";  // ("row" if HORIZONTAL)
     ih.EXPAND = "YES"
     ih.className = "split";
-    drag.className = "drag-y";          // ('drag-x' if HORIZONTAL)
+    drag.className = "drag-y";          // ("drag-x" if HORIZONTAL)
 //DEV??
-//  ih.style.height = '100vh';
-    child1.style.flex = '0 0 50%';
-    child2.style.flex = '1';
+//  ih.style.height = "100vh";
+    child1.style.flex = "0 0 50%";
+    child2.style.flex = "1";
     ih.appendChild(child1);
     ih.appendChild(drag);
     ih.appendChild(child2);
@@ -3690,15 +3924,15 @@ function IupSplit(/*Ihandln*/ child1=NULL, child2=NULL, /*string*/ attributes=""
     function OnMouseMoveX(e){
         if (e == null)
             var e = window.event; 
-//      _leftPane.style.flex = '0 0' + (e.clientX/(_container.clientWidth/100)) + '%';
-        child1.style.flex = '0 0' + (e.clientX/(ih.clientWidth/100)) + '%';
+//      _leftPane.style.flex = "0 0" + (e.clientX/(_container.clientWidth/100)) + "%";
+        child1.style.flex = "0 0" + (e.clientX/(ih.clientWidth/100)) + "%";
     }
 
     function OnMouseMoveY(e){
         if (e == null)
             var e = window.event; 
-//      _topPane.style.flex = '0 0' + (e.clientY/(_container.clientHeight/100)) + '%';
-        child1.style.flex = '0 0' + (e.clientY/(ih.clientHeight/100)) + '%';
+//      _topPane.style.flex = "0 0" + (e.clientY/(_container.clientHeight/100)) + "%";
+        child1.style.flex = "0 0" + (e.clientY/(ih.clientHeight/100)) + "%";
     }
 
     function ff() { return false; }
@@ -3712,7 +3946,7 @@ function IupSplit(/*Ihandln*/ child1=NULL, child2=NULL, /*string*/ attributes=""
 //      var target = e.target != null ? e.target : e.srcElement;
         let target = e.target;
     
-        if ((e.button == 1 && window.event != null || e.button == 0) && target.className == 'drag-x') {
+        if ((e.button == 1 && window.event != null || e.button == 0) && target.className == "drag-x") {
             startX = e.clientX;
             dragElement = target;
             document.onmousemove = OnMouseMoveX;
@@ -3720,7 +3954,7 @@ function IupSplit(/*Ihandln*/ child1=NULL, child2=NULL, /*string*/ attributes=""
             document.onselectstart = ff;
             target.ondragstart = ff;
             return false;
-        } else if ((e.button == 1 && window.event != null || e.button == 0) && target.className == 'drag-y') {
+        } else if ((e.button == 1 && window.event != null || e.button == 0) && target.className == "drag-y") {
             startY = e.clientY;
             dragElement = target;
             document.onmousemove = OnMouseMoveY;
@@ -3754,12 +3988,12 @@ function IupSplit(/*Ihandln*/ child1=NULL, child2=NULL, /*string*/ attributes=""
 function IupTable(columns, data, visible=10, attributes="", args=[]) {
     let table = document.createElement(`table`),
         container = document.createElement(`div`);  // wraps table+resizers
-    table.style.height = visible*23+27 + 'px';
-//  table.classList = 'table';
+    table.style.height = visible*23+27 + "px";
+//  table.classList = "table";
     container.appendChild(table);
-    container.classList = 'container';
-    container.style.width = '100%';
-    container.style.height = '100%';
+    container.classList = "container";
+    container.style.width = "100%";
+    container.style.height = "100%";
 
     let nColumns = length(columns),
         nRows = length(data[1]),
@@ -3791,10 +4025,10 @@ function IupTable(columns, data, visible=10, attributes="", args=[]) {
 
     function update_item(node) {
         let id = Number(node.id),
-            tds = Array.from(node.querySelectorAll('td'));
+            tds = Array.from(node.querySelectorAll("td"));
         if (tds.length===1) {
             for (let i=1; i<=nColumns; i += 1) {
-                let td = document.createElement('td');
+                let td = document.createElement("td");
                 node.appendChild(td);
                 tds[i] = td;
             }
@@ -3861,17 +4095,17 @@ function IupTable(columns, data, visible=10, attributes="", args=[]) {
 
     function sortTable(event) {
         let th = event.currentTarget,
-            ad = th.getAttribute('data-sorted'),
-            ths = th.parentNode.querySelectorAll('th');
+            ad = th.getAttribute("data-sorted"),
+            ths = th.parentNode.querySelectorAll("th");
         for (let i=0; i<ths.length; i += 1) {
             let ti = ths[i];
-            ti.removeAttribute('data-sorted');
+            ti.removeAttribute("data-sorted");
         }
         ad = ad==='A' ? 'D' : 'A';
         sort_col = Number(th.id);
         sort_dir = ad==='A' ? +1 : -1;
         tags.sort(xSorter);
-        th.setAttribute('data-sorted', ad);
+        th.setAttribute("data-sorted", ad);
         refresh_observer();
     }
 
@@ -3897,7 +4131,7 @@ function IupTable(columns, data, visible=10, attributes="", args=[]) {
     }
 
     function trHide(trOld) {
-        if (trOld) { trOld.classList.remove('trActive'); }
+        if (trOld) { trOld.classList.remove("trActive"); }
         return false;
     }
 
@@ -3907,7 +4141,7 @@ function IupTable(columns, data, visible=10, attributes="", args=[]) {
 // maybe not for pageup/down:...
         if (trNew==null) { return true; }   // pass keybd input up
         trHide(trOld);
-        trNew.classList.add('trActive');
+        trNew.classList.add("trActive");
         let tbody = trNew.parentNode,
             tableHeight = $eHeight(tbody);
         if (bPageKey) {
@@ -3939,26 +4173,26 @@ function IupTable(columns, data, visible=10, attributes="", args=[]) {
 
     function trClick(event) {
       let trNew = event.currentTarget,
-          trOld = trNew.parentNode.querySelector('.trActive');
+          trOld = trNew.parentNode.querySelector(".trActive");
       trSelect(trOld,trNew);
     }
 
     function table_keyhandler(event) {
         let table = event.currentTarget,
             tbody = table.querySelector("tbody"),
-            trSel = tbody.querySelector('.trActive');
+            trSel = tbody.querySelector(".trActive");
         if (trSel!=null) {
 //          shift = event.shiftKey;
 //          ctrl = event.ctrlKey;
             switch(event.key)
             {
-                case 'ArrowDown':   return trSelect(trSel,trSel.nextElementSibling);
-                case 'ArrowUp':     return trSelect(trSel,trSel.previousElementSibling);
-                case 'PageDown':    return trSelect(trSel,trPage(trSel,+1),+1);
-                case 'PageUp':      return trSelect(trSel,trPage(trSel,-1),-1);
-                case 'Home':        return trSelect(trSel,trSel.parentNode.firstElementChild,"Home");
-                case 'End':         return trSelect(trSel,trSel.parentNode.lastElementChild,"End");
-                case 'Escape':      return trHide(trSel);
+                case "ArrowDown":   return trSelect(trSel,trSel.nextElementSibling);
+                case "ArrowUp":     return trSelect(trSel,trSel.previousElementSibling);
+                case "PageDown":    return trSelect(trSel,trPage(trSel,+1),+1);
+                case "PageUp":      return trSelect(trSel,trPage(trSel,-1),-1);
+                case "Home":        return trSelect(trSel,trSel.parentNode.firstElementChild,"Home");
+                case "End":         return trSelect(trSel,trSel.parentNode.lastElementChild,"End");
+                case "Escape":      return trHide(trSel);
             }
         }
     }
@@ -3966,21 +4200,21 @@ function IupTable(columns, data, visible=10, attributes="", args=[]) {
     function populate_table() {
         let tbody, bRefresh = false;
         if (created===0) {
-            let thead = document.createElement('thead'),
-                headr = document.createElement('tr');
-            tbody = document.createElement('tbody');
-//          tbody.classList = 'tbody';
+            let thead = document.createElement("thead"),
+                headr = document.createElement("tr");
+            tbody = document.createElement("tbody");
+//          tbody.classList = "tbody";
 //23/8/21 (when making KEY_CB work... put back if focus goes wrong)
-//          tbody.setAttribute('tabindex', "0");
-            tbody.setAttribute('tabindex', "-1");
+//          tbody.setAttribute("tabindex", "0");
+            tbody.setAttribute("tabindex", "-1");
             thead.appendChild(headr);
             table.appendChild(thead);
             table.appendChild(tbody);
             for (let i=1; i<=nColumns; i += 1) {
-                let th = document.createElement('th'),
+                let th = document.createElement("th"),
                     ci = columns[i];
                 if (Array.isArray(ci)) {
-                    let wydth = (columns[i][2]-11) + 'px',
+                    let wydth = (columns[i][2]-11) + "px",
                         align = columns[i][3].toLowerCase().slice(1);
                     th.style.width = wydth;
                     th.style.maxWidth = wydth;
@@ -3991,12 +4225,12 @@ function IupTable(columns, data, visible=10, attributes="", args=[]) {
                 }
                 th.textContent = ci;
                 th.id = i;
-                th.classList.add('sortable');
+                th.classList.add("sortable");
                 th.onclick = sortTable;
                 headr.appendChild(th);
             }   
-            let th = document.createElement('th');
-            th.classList.add('thlast');
+            let th = document.createElement("th");
+            th.classList.add("thlast");
             headr.appendChild(th);
             bRefresh = true;
         } else {
@@ -4008,9 +4242,9 @@ function IupTable(columns, data, visible=10, attributes="", args=[]) {
 //      for (; created<last; created += 1) {
         for (let i=created; i<=last; i += 1) {
             created = i;
-            let tr = document.createElement('tr');
+            let tr = document.createElement("tr");
             for (let c=1; c<=nColumns; c += 1) {
-                tr.appendChild(document.createElement('td'));
+                tr.appendChild(document.createElement("td"));
             }
             tr.id = created+1;
             tr.onclick = trClick;
@@ -4100,8 +4334,8 @@ function IupTable(columns, data, visible=10, attributes="", args=[]) {
 function IupTableGetSelected(/*Ihandle*/ table) {
 //  crash("testme");
     puts(1,"IupTableGetSelected\n");
-//  let tr = table.parentNode.querySelector('.trActive'),
-    let tr = table.querySelector('.trActive'),
+//  let tr = table.parentNode.querySelector(".trActive"),
+    let tr = table.querySelector(".trActive"),
         idx = tr.id;
 //      idx = tr.id || 0;
 //  integer idx = IupGetInt(table,"FOCUSCELL") -- (line only)
@@ -4115,10 +4349,10 @@ function IupTableGetSelected(/*Ihandle*/ table) {
 function IupTableClearSelected(/*Ihandle*/ table) {
 //  crash("testme");
     puts(1,"IupTableClearSelected\n");
-//  let tr = table.parentNode.querySelector('.trActive'),
-    let tr = table.querySelector('.trActive');
+//  let tr = table.parentNode.querySelector(".trActive"),
+    let tr = table.querySelector(".trActive");
     if (tr) {
-        tr.classList.remove('trActive');
+        tr.classList.remove("trActive");
     }
 }
 
@@ -4184,28 +4418,28 @@ function IupTabs(/*Ihandles*/ children = [], /*string*/ attributes="", /*sequenc
     const ih = document.createElement("div"),
         tabs = document.createElement("ul"),
       panels = document.createElement("div");
-    ih.setAttribute('class', 'tabcontainer');
-    tabs.setAttribute('class', 'tabs');
-    panels.setAttribute('class', 'panels');
-//  ih.setAttribute('EXPAND', 'YES');
-    ih['EXPAND'] = 'YES';
+    ih.setAttribute("class", "tabcontainer");
+    tabs.setAttribute("class", "tabs");
+    panels.setAttribute("class", "panels");
+//  ih.setAttribute("EXPAND", "YES");
+    ih["EXPAND"] = "YES";
 //  ih.className = "tabs";
 
     function tabclick(event) {
         let tgt = event.target;
-        if (tgt.classList.contains('tab')) {
+        if (tgt.classList.contains("tab")) {
             let tabul = tgt.parentNode,                 // the <ul tabs> (lone)
                 tabch = [...tabul.children],            // the <li tab>s (Array)
                  pdiv = tabul.parentNode.children[1],   // the <div panel>s
-                  act = tabul.querySelector('.active'),
+                  act = tabul.querySelector(".active"),
                   adx = tabch.indexOf(act),
                   apt = pdiv.children[adx],
                   tdx = tabch.indexOf(tgt),
                   pnl = pdiv.children[tdx];
-            act.classList.remove('active');
-            apt.classList.remove('active');
-            tgt.classList.add('active');
-            pnl.classList.add('active');
+            act.classList.remove("active");
+            apt.classList.remove("active");
+            tgt.classList.add("active");
+            pnl.classList.add("active");
         }
     }
 
@@ -4215,13 +4449,13 @@ function IupTabs(/*Ihandles*/ children = [], /*string*/ attributes="", /*sequenc
             li = document.createElement("li"),
             pi = document.createElement("div");
         li.innerText = ci.TABTITLE;
-        li.setAttribute('class', 'tab');
-        pi.setAttribute('class', 'panel');
+        li.setAttribute("class", "tab");
+        pi.setAttribute("class", "panel");
         if (i === 1) {
-            li.classList.add('active');
-            pi.classList.add('active');
+            li.classList.add("active");
+            pi.classList.add("active");
         }
-        li.addEventListener('click', tabclick);
+        li.addEventListener("click", tabclick);
         pi.appendChild(ci);
         tabs.appendChild(li);
         panels.appendChild(pi);
@@ -4234,7 +4468,7 @@ function IupTabs(/*Ihandles*/ children = [], /*string*/ attributes="", /*sequenc
 
 function IupText(action=null, func=null, attributes = "", args = []) {
     const ih = document.createElement("input");
-    ih.setAttribute('class', 'text');
+    ih.setAttribute("class", "text");
     [action,func,attributes,args] = $paranormalise(action,func,attributes,args);
     if (func) {
         if (!action) { action = "ACTION"; }
@@ -4254,7 +4488,7 @@ function IupText(action=null, func=null, attributes = "", args = []) {
 //  //              }
 //              }
 //              ih.onkeyup = action_cb;
-//  //          ih.addEventListener('keyup', action_cb);
+//  //          ih.addEventListener("keyup", action_cb);
 //          }
     }
     IupSetAttributes(ih, attributes, args);
@@ -4267,7 +4501,7 @@ function IupMultiLine(action=null, func=null, attributes = "", args = []) {
 //  let ih = IupText(action, func, attributes, args);
 //  IupSetAttribute(ih, "MULTILINE", "YES")
     const ih = document.createElement("textarea");
-    ih.setAttribute('class', 'text');
+    ih.setAttribute("class", "text");
     [action,func,attributes,args] = $paranormalise(action,func,attributes,args);
     if (func) {
         if (!action) { action = "ACTION"; }
@@ -4283,6 +4517,7 @@ function IupRadio(/*Ihandln*/ child=NULL, /*string*/ attributes="", /*sequence*/
     const ih = document.createElement("div"),
         name = "radio"+$radio_id;
     $radio_id += 1;
+    ih.setAttribute("class", "radio");
     function radiate(ih) {
         let cn = ih.classList[0];
         if (cn === "toggle") {
@@ -4316,7 +4551,7 @@ function IupToggle(title=null, action=null, func=null, attributes = "", args = [
     cb.type = "checkbox";
     cb.id = tid;
     ih.for = tid;   
-    ih.setAttribute('class', 'toggle');
+    ih.setAttribute("class", "toggle");
     if (title) {
 //      ih.innerHTML = title;
         let adx = title.indexOf('&');
@@ -4358,20 +4593,21 @@ function IupToggle(title=null, action=null, func=null, attributes = "", args = [
 //              if (res===IUP_IGNORE) {
 //              }
             }
-//          ih.addEventListener('keyup', action_cb);
-//          ih.addEventListener('change', action_cb);
-            cb.addEventListener('change', action_cb);
+//          ih.addEventListener("keyup", action_cb);
+//          ih.addEventListener("change", action_cb);
+            cb.addEventListener("change", action_cb);
 //          ih.onkeyup = action_cb;
         }
     }
     IupSetAttributes(ih, attributes, args);
     return ih;
 }       
+const IupFlatToggle = IupToggle;
 
 function IupTreeGetUserId(tree, id) {
 //DEV/DOC this is effectively a null-op on the web browser.
-//  let leaf = tree.querySelector('[data-tree-id="' + id + '"]');
-//  let /*integer*/ userid = leaf.getAttribute('data-tree-id');
+//  let leaf = tree.querySelector(`[data-tree-id="` + id + `"]`);
+//  let /*integer*/ userid = leaf.getAttribute("data-tree-id");
 //  if (userid!==id) { crash("userid error?"); }
 //  return userid;
     return id;
@@ -4385,6 +4621,7 @@ function IupTreeAddNodes(tree, tree_nodes, id=-1) {
         let res = document.createElement(tagname);
         res.classList.add(classname);
         if (innerhtml) { res.innerHTML = innerhtml; }
+//      if (innerhtml) { crash("oh, it *is* used!"); }
         return res;
     }
     if (tree==="createTVelem") { return createTVelem; } // for IupTreeView
@@ -4405,9 +4642,9 @@ function IupTreeAddNodes(tree, tree_nodes, id=-1) {
 //              IupSetAttributeId(tree, name, id, v);
                 if (name==="STATE") {
                     if (v==="COLLAPSED") {
-                        leaf.classList.add('closed');
+                        leaf.classList.add("closed");
                     } else if (v==="EXPANDED") {
-                        leaf.classList.remove('closed');
+                        leaf.classList.remove("closed");
                     } else {
                         crash("?9/0");
                     }
@@ -4416,7 +4653,7 @@ function IupTreeAddNodes(tree, tree_nodes, id=-1) {
                 }
             } else if (name==="USERDATA" && integer(v)) {
 //              IupTreeSetUserId(tree, id, v); // (maybe?)
-                leaf.setAttribute('data-tree-id',v);
+                leaf.setAttribute("data-tree-id",v);
             } else {
                 crash("?9/0");
             }
@@ -4435,14 +4672,14 @@ function IupTreeAddNodes(tree, tree_nodes, id=-1) {
         // being the first two children of the li.
         //
         let label = string(tree_nodes)?tree_nodes:tree_nodes[1],
-            leaf = createTVelem('li', 'leaf'),
+            leaf = createTVelem("li", "leaf"),
             parentList = tree;
-        leaf.appendChild(createTVelem('span','treeToggle'));
-        leaf.appendChild(createTVelem('a', 'leafLabel', label));
+        leaf.appendChild(createTVelem("span","treeToggle"));
+        leaf.appendChild(createTVelem("a", "leafLabel", label));
         if (!bRoot) {
-            let list = tree.querySelector('ul');
+            let list = tree.querySelector("ul");
             if (!list) {
-                list = tree.appendChild(createTVelem('ul', 'subtree'));
+                list = tree.appendChild(createTVelem("ul", "subtree"));
             }
             parentList = list;
         }
@@ -4457,8 +4694,8 @@ function IupTreeAddNodes(tree, tree_nodes, id=-1) {
             if (!atom(tree_nodes[lentn])) {
                 children = tree_nodes[lentn];
                 lench = length(children);
-                leaf.classList.add(lench?'showExpander':'closed');
-                leaf.classList.add('hasChildren');
+                leaf.classList.add(lench?"showExpander":"closed");
+                leaf.classList.add("hasChildren");
             }
             for (let i=1; i<=lench; i += 1) {
                 iupTreeAddNodesRec(leaf, children[i], false);
@@ -4483,12 +4720,12 @@ function IupTreeAddNodes(tree, tree_nodes, id=-1) {
         // tree_nodes is actually just children
         let children = tree_nodes,
             lench = length(children);
-        tree = tree.querySelector('[data-tree-id="' + id + '"]');
-        let list = tree.querySelector('ul');
+        tree = tree.querySelector(`[data-tree-id="` + id + `"]`);
+        let list = tree.querySelector("ul");
         if (list) { deleteChildren(list); }
         if (!lench) {
-            tree.classList.remove('showExpander');
-            tree.classList.add('closed');
+            tree.classList.remove("showExpander");
+            tree.classList.add("closed");
         } else {
             for (let i=1; i<=lench; i += 1) {
                 iupTreeAddNodesRec(tree, children[i], false);
@@ -4508,66 +4745,66 @@ function IupTreeView(tree_nodes, branchopen_cb=null, attributes="", args=[]) {
 // you can also set branchopen_cb later, via IupSetCallback(tree,"BRANCHOPEN_CB",Icallback("branchopen_cb")) [DEV]
 //
     const createTVelem = IupTreeAddNodes("createTVelem");
-    let /*Ihandle*/ tree = createTVelem('ul', 'tree');
-//  let /*Ihandle*/ tree = IupTreeAddNodes.createTVelem('ul', 'tree'); // does not work...
-    tree.setAttribute('EXPAND', 'YES');
+    let /*Ihandle*/ tree = createTVelem("ul", "tree");
+//  let /*Ihandle*/ tree = IupTreeAddNodes.createTVelem("ul", "tree"); // does not work...
+    tree.setAttribute("EXPAND", "YES");
 
     function clickHandler(event) {
         let leaf = event.target, // an a.leafLabel or span.treeToggle
             tcl = leaf.classList,
             pcl = leaf.parentNode.classList; // always an li.leaf
-        if (tcl.contains('leafLabel')) {
+        if (tcl.contains("leafLabel")) {
             // was selectTreeLeaf()
-            if (!pcl.contains('selected')) {
-                let prev = tree.querySelector('.selected');
-                if (prev) { prev.classList.remove('selected'); }
-                pcl.add('selected');
+            if (!pcl.contains("selected")) {
+                let prev = tree.querySelector(".selected");
+                if (prev) { prev.classList.remove("selected"); }
+                pcl.add("selected");
                 let select_cb = tree.select_cb;
                 if (select_cb) {
-                    select_cb(leaf.innerText, ', ye ha');
+                    select_cb(leaf.innerText, ", ye ha");
                 }
             }
-        } else if (tcl.contains('treeToggle')) {
+        } else if (tcl.contains("treeToggle")) {
             let it = leaf.nextSibling.innerText; // the a.leafLabel
-            if (pcl.contains('closed')) {
-                pcl.remove('closed');
+            if (pcl.contains("closed")) {
+                pcl.remove("closed");
                 let open_cb = tree.open_cb;
                 if (open_cb) {
-                    open_cb(it, ', wowee'); //DEV (testing relic??)
+                    open_cb(it, ", wowee"); //DEV (testing relic??)
                 }
                 let branchopen_cb = tree.BRANCHOPEN_CB;
                 if (branchopen_cb) {
-                    let id = leaf.parentNode.getAttribute('data-tree-id');
+                    let id = leaf.parentNode.getAttribute("data-tree-id");
                     if (id) {
                         branchopen_cb(tree,id);
                     }
                 }
             } else {
-                pcl.add('closed');
+                pcl.add("closed");
                 let close_cb = tree.close_cb;
                 if (close_cb) {
-                    close_cb(it, ', so there'); //DEV (testing relic??)
+                    close_cb(it, ", so there"); //DEV (testing relic??)
                 }
             }
         }
     }
-//  tree.addEventListener('click', clickHandler);
+//  tree.addEventListener("click", clickHandler);
     tree.onclick = clickHandler;
 
 /*
-    tree.addEventListener('keydown', e => {
+    tree.addEventListener("keydown", e => {
                 const {code} = e;
-                if (code === 'ArrowUp' || code === 'ArrowDown') {
-                    this.navigate(code === 'ArrowUp' ? 'backward' : 'forward');
+                if (code === "ArrowUp" || code === "ArrowDown") {
+                    this.navigate(code === "ArrowUp" ? "backward" : "forward");
                     e.preventDefault();
                 }
             });
-    navigate(direction = 'forward') {
+    navigate(direction = "forward") {
       const e = this.active();
       if (e) {
-        const list = [...this.parent.querySelectorAll('a, summary')];
+        const list = [...this.parent.querySelectorAll("a, summary")];
         const index = list.indexOf(e);
-        const candidates = direction === 'forward' ? list.slice(index + 1) : list.slice(0, index).reverse();
+        const candidates = direction === "forward" ? list.slice(index + 1) : list.slice(0, index).reverse();
         for (const m of candidates) {
           if (m.getBoundingClientRect().height) {
             return this.select(m);
@@ -4592,10 +4829,10 @@ function IupTreeView(tree_nodes, branchopen_cb=null, attributes="", args=[]) {
 //IupValuator
 function IupValuator(/*nullable_string*/ orientation=NULL, action=NULL, /*cbfunc*/ func=NULL, /*string*/ attributes="", /*sequence*/ args = []) {
     const ih = document.createElement("input");
-    ih.setAttribute('class', 'slider');
-    ih.setAttribute('type', 'range');
-    ih.setAttribute('min', 0);
-    ih.setAttribute('max', 1);
+    ih.setAttribute("class", "slider");
+    ih.setAttribute("type", "range");
+    ih.setAttribute("min", 0);
+    ih.setAttribute("max", 1);
     [action,func,attributes,args] = $paranormalise(action,func,attributes,args);
     if (orientation) {
         IupSetAttribute(ih,"ORIENTATION",orientation);
@@ -4608,12 +4845,18 @@ function IupValuator(/*nullable_string*/ orientation=NULL, action=NULL, /*cbfunc
             crash("?9/0");
         }
         IupSetCallback(ih, action, func);
-//      btn.addEventListener('click', toggleHide);
+//      btn.addEventListener("click", toggleHide);
+/*
+solveSlider.addEventListener("input", (e) => {
+  solveMilliseconds = parseInt(e.target.value, 10);
+  solveTimeContainer.innerText = e.target.value;
+});
+*/
     }
     IupSetAttributes(ih, attributes, args);
     return ih;
 }
-let IupFlatVal = IupValuator;
+const IupFlatVal = IupValuator;
 
 function Icallback(func) {
     // dummy function, exists solely for p2js to convert Icallback("func") [phix] <==> Icallback(func); [js]
@@ -4651,9 +4894,9 @@ function IupDestroy(/* Ihandlns */ dlg) {
 
 function IupCanvas(action = null, func = null, attributes = "", args = []) {
     let ih = document.createElement("canvas");
-    ih.setAttribute('class', 'canvas');
-//  ih.setAttribute('EXPAND', 'YES');
-    ih['EXPAND'] = 'YES';
+    ih.setAttribute("class", "canvas");
+//  ih.setAttribute("EXPAND", "YES");
+    ih["EXPAND"] = "YES";
     [action,func,attributes,args] = $paranormalise(action,func,attributes,args);
     //DEV/temp...
 //  canvas.onload = func; // nope...
@@ -4678,12 +4921,20 @@ function IupCanvas(action = null, func = null, attributes = "", args = []) {
 */
     return ih;
 }
-let IupGLCanvas = IupCanvas;
+const IupGLCanvas = IupCanvas;
 
 function rgb(/*atom*/ red, green, blue, alpha=0) {
-    let colour = sprintf("#%02x%02x%02x",["sequence",red,green,blue]);
-//DEV (untried, check online first)
-//  let colour = sprintf("#%02%02x%02x%02x",["sequence",alpha,red,green,blue]);
+//  let colour = sprintf("#%02x%02x%02x",["sequence",red,green,blue]);
+    let colour = sprintf("#%02x%02x%02x",["sequence",red&0xFF,green&0xFF,blue&0xFF]);
+// works the same, but above was 10s, this 13s (Julia set)...
+//  let colour = (red&0xFF)*0x10000+(green&0xFF)*0x100+(blue&0xFF);
+//DEV (untried, check online first) [tried, they're all different...]
+//  let colour = sprintf("#%02x%02x%02x%02x",["sequence",alpha&0xFF,red&0xFF,green&0xFF,blue&0xFF]);
+//  let colour = sprintf("#00%02x%02x",["sequence",red&0xFF,green&0xFF]);
+//  let colour = sprintf("#0000%02x%02x",["sequence",red&0xFF,green&0xFF]);
+//  let colour = sprintf("#00%02x%02x",["sequence",green&0xFF,blue&0xFF]);
+// nah, it really don't like this:
+//  let colour = sprintf("#%02x%02x%02x%02x",["sequence",red&0xFF,green&0xFF,blue&0xFF,alpha&0xFF]);
     return colour;
 }
 let cdEncodeColor = rgb;
@@ -4878,7 +5129,8 @@ function cdCanvasClear(ctx) {
         bs = ctx.backGround;
     if (bs) { ctx.fillStyle = bs; }
 //if (ctx.canvas) {
-    ctx.fillRect(0,0,ctx.canvas.clientWidth,ctx.canvas.clientHeight);
+//  ctx.fillRect(0,0,ctx.canvas.clientWidth,ctx.canvas.clientHeight);
+    ctx.fillRect(0,0,ctx.canvas.width,ctx.canvas.height);
 //  ctx.fillRect(0,0,ctx.clientWidth,ctx.clientHeight);
 //  ctx.canvas.fillRect(0,0,ctx.canvas.clientWidth,ctx.canvas.clientHeight);
 //}
@@ -4908,8 +5160,8 @@ function cdCanvasFlush() {}
 function cdCanvasFont(/*cdCanvas*/ ctx, /*nullable_string*/ font, /*integer*/ style, /*integer*/ size) {
 //CD_PLAIN (0), CD_BOLD (1), CD_ITALIC (2), CD_UNDERLINE (4) and CD_STRIKEOUT (8).
 //pGUI also provides the constant CD_BOLD_ITALIC (3) for convenience.
-//ctx.font = 'bold 48px serif';
-//ctx.font = '50px serif';
+//ctx.font = "bold 48px serif";
+//ctx.font = "50px serif";
     if (font === "Courier") {
         font = "courier";
     } else if (font === "Times") {
@@ -5051,15 +5303,47 @@ function cdCanvasLine(ctx, x1, y1, x2, y2) {
     ctx.stroke();
 }
 
+function cdCanvasMark(ctx, x, y) {
+    let msize = ctx.MarkSize || 10;
+//  cdCanvasBox(ctx, x, y, x+msize, y+msize);
+    cdCanvasBox(ctx, x, x+msize, y, y+msize);
+/*
+                        elsif dms="PLUS" then
+                            cdCanvasLine(cd_canvas,x2,y2-3,x2,y2+3)
+                            cdCanvasLine(cd_canvas,x2-3,y2,x2+3,y2)
+                        else --default/x
+                            cdCanvasLine(cd_canvas,x2-3,y2-3,x2+3,y2+3)
+                            cdCanvasLine(cd_canvas,x2-3,y2+3,x2+3,y2-3)
+*/
+}
+
+function cdCanvasMarkSize(ctx, mark_size) {
+    let prev = ctx.MarkSize || 10;
+    if (mark_size !== CD_QUERY) {
+        ctx.MarkSize = mark_size;
+    }
+    return prev;
+}
+
+function cdCanvasMarkType(ctx, mark_type) {
+    let prev = ctx.MarkType || CD_BOX;
+    if (mark_type !== CD_QUERY) {
+        ctx.MarkType = mark_type;
+    }
+    return prev;
+}
+
 function cdCanvasPixel(ctx,x,y,colour) {
-/// let fs = ctx.fillStyle;
-//  ctx.fillStyle = colour;
-//  ctx.fillRect(x,ctx.canvas.clientHeight-y,1,1);
-//  ctx.fillStyle = fs;
-//  ctx.strokeStyle = colour;
     if (integer(colour)) { colour = sprintf("#%06x",colour&0xFFFFFF); }
-    ctx.strokeStyle = colour;
-    ctx.strokeRect(x,ctx.canvas.clientHeight-y,1,0);
+//24/7/22 put back for gaussian primes... (much sharper)
+//      (no performance difference to brownian tree, death star...)
+    let fs = ctx.fillStyle;
+    ctx.fillStyle = colour;
+    ctx.fillRect(x,ctx.canvas.clientHeight-y,1,1);
+    ctx.fillStyle = fs;
+
+//  ctx.strokeStyle = colour;
+//  ctx.strokeRect(x,ctx.canvas.clientHeight-y,1,0);
 }
 
 function cdCanvasRect(/*cdCanvas*/ ctx, /*atom*/ xmin, xmax, ymin, ymax) {
@@ -5130,10 +5414,18 @@ function cdCanvasSetBackground(ctx, colour) {
     ctx.backGround = colour; // (custom attribute)
 }
 
+function cdCanvasGetBackground(ctx) {
+    return ctx.backGround;
+}
+
 function cdCanvasSetForeground(ctx, colour) {
     if (integer(colour)) { colour = sprintf("#%06x",colour); }
     ctx.fillStyle = colour;
     ctx.strokeStyle = colour;
+}
+
+function cdCanvasGetForeground(ctx) {
+    return ctx.strokeStyle;
 }
 
 function cdCanvasSetFillMode(ctx, mode) {
@@ -5251,9 +5543,9 @@ function cdCanvasSetTextAlignment(/*cdCanvas*/ ctx, /*integer*/ alignment) {
 //  CD_SOUTH_EAST = 6,
 //  CD_SOUTH_WEST = 7,
 //  CD_CENTER = 8,
-//  CD_BASE_LEFT = 9,
-//  CD_BASE_CENTER = 10,
-//  CD_BASE_RIGHT = 11,
+//  CD_BASE_LEFT = 7, (was 9)
+//  CD_BASE_CENTER = 1,  (was 10)
+//  CD_BASE_RIGHT = 6, (was 11)
 //Returns the previous value. 
 //Default value: CD_BASE_LEFT. -- (ok!)
 //  let ta = ctx.textAlign || ctx.style.textAlign,
@@ -5264,8 +5556,20 @@ function cdCanvasSetTextAlignment(/*cdCanvas*/ ctx, /*integer*/ alignment) {
     } else if (alignment === CD_NORTH) {
         ta = "center";
         tb = "top";
+    } else if (alignment === CD_NORTH_EAST) {
+        ta = "right";
+        tb = "top";
+    } else if (alignment === CD_NORTH_WEST) {
+        ta = "left";
+        tb = "top";
     } else if (alignment === CD_SOUTH) {
         ta = "center";
+        tb = "bottom";
+    } else if (alignment === CD_SOUTH_EAST) {
+        ta = "right";
+        tb = "bottom";
+    } else if (alignment === CD_SOUTH_WEST) {
+        ta = "left";
         tb = "bottom";
     } else if (alignment === CD_WEST) {
         ta = "left";
@@ -5301,10 +5605,18 @@ function cdCanvasGetTextAlignment(canvas) {
     } else if (ta === "left") {
         if (tb === "middle") {
             alignment = CD_WEST;
+        } else if (tb === "top") {
+            alignment = CD_NORTH_WEST;
+        } else if (tb === "bottom") {
+            alignment = CD_SOUTH_WEST;
         }
     } else if (ta === "right") {
         if (tb === "middle") {
             alignment = CD_EAST;
+        } else if (tb === "top") {
+            alignment = CD_NORTH_EAST;
+        } else if (tb === "bottom") {
+            alignment = CD_SOUTH_EAST;
         }
     }
     if (alignment===-1) {
@@ -5314,7 +5626,17 @@ function cdCanvasGetTextAlignment(canvas) {
 }
 
 function cdCanvasGetTextSize(/*cdCanvas*/ ctx, /*string*/ text) {
-    let r = ctx.measureText(text);
+//  const am = new RegExp("&","g"),
+//            lt = new RegExp("[<]","g"),
+//            gt = new RegExp("[>]","g"),
+    const sp = new RegExp("[ ]","g");
+//            lf = new RegExp("\\n","g");
+//      text = text.replace(am,"&amp;")
+//                 .replace(lt,"&lt;")
+//                 .replace(gt,"&gt;")
+//                 .replace(sp,"&ensp;")
+    text = text.replace(sp,"_");
+    let tm = ctx.measureText(text),
 /*
 actualBoundingBoxAscent: 7
 actualBoundingBoxDescent: 0
@@ -5323,9 +5645,12 @@ actualBoundingBoxRight: 10
 fontBoundingBoxAscent: 9
 fontBoundingBoxDescent: 2
 width: 9.4384765625
-r.actualBoundingBoxRight
+tm.actualBoundingBoxRight
 */
-    return ["sequence",r.actualBoundingBoxRight,r.fontBoundingBoxAscent+r.fontBoundingBoxDescent];
+        w = tm.actualBoundingBoxLeft + tm.actualBoundingBoxRight,
+        h = tm.fontBoundingBoxAscent + tm.fontBoundingBoxDescent;
+//  return ["sequence",tm.actualBoundingBoxRight,tm.fontBoundingBoxAscent+tm.fontBoundingBoxDescent];
+    return ["sequence",w,h];
 }
 
 function cdCanvasSetTextOrientation(/*cdCanvas*/ ctx, /*atom*/ angle) {
@@ -5371,6 +5696,8 @@ function IupUpdate(ih) {
 //  if (action) { action(ih); }
     function redraw() { IupRedraw(ih); }
     setTimeout(redraw, 100);
+// no better:
+//  window.requestAnimationFrame(redraw);
 }
 
 let $gl;
@@ -5383,7 +5710,7 @@ function IupGLMakeCurrent(canvas) {
         $gl = true;
 //  } else if ($gl === NULL) { // ie not "undefined"
     } else if ($gl) { // ie not "undefined"
-        const names = ['webgl', 'experimental-webgl', 'webkit-3d', 'moz-webgl'];
+        const names = ["webgl", "experimental-webgl", "webkit-3d", "moz-webgl"];
         for (let i = 0; i < names.length; ++i) {
 //          try {
             $gl = canvas.getContext(names[i]);
@@ -5474,7 +5801,6 @@ function glInt32Array(/*sequence*/ data) {
     return ["sequence",size,pData];
 }
 
-
 function glFlush() {
     $gl.flush();
 }
@@ -5561,11 +5887,8 @@ function glViewport(/*integer*/ x, y, w, h) {
 
 function IupDrawBegin(/*Ihandle ih*/) {
 }
-let IupDrawEnd = IupDrawBegin;
-let IupDrawGetSize = cdCanvasGetSize;
-//let IupDrawLine = cdCanvasLine;
-//let IupDrawArc = cdCanvasArc;
-//let IupDrawGetTextSize = cdCanvasGetTextSize;
+const IupDrawEnd = IupDrawBegin;
+const IupDrawGetSize = cdCanvasGetSize;
 
 function IupDrawArc(/*Ihandle*/ ih, /*integer*/ x1, y1, x2, y2, /*atom*/ a1, a2) {
     let ctx = ih.getContext("2d") || ih.getContext("webgl");
@@ -5667,16 +5990,16 @@ function myTimer2() {
 /*
 // for IupMenu, perhaps...
 function popupMenu() {
-  const menuItems = ['add', 'this'];
+  const menuItems = ["add", "this"];
 
-  const popup = document.createElement('div');
-  const popupList = document.createElement('ul')
-  popup.className = 'popup-menu';
+  const popup = document.createElement("div");
+  const popupList = document.createElement("ul")
+  popup.className = "popup-menu";
   popup.appendChild(popupList)
   document.body.appendChild(popup)
 
   function create_item(item) {
-    const li = document.createElement('li');
+    const li = document.createElement("li");
     li.textContent = item;
     popupList.appendChild(li);
   }
@@ -5684,27 +6007,27 @@ function popupMenu() {
 
   function context_listener(event) {
     event.preventDefault();
-    popup.style.display = 'block';
+    popup.style.display = "block";
     let dW = document.documentElement.clientWidth,
         dH = document.documentElement.clientHeight,
         pW = popup.offsetWidth,
         pH = popup.offsetHeight,
         pX = Math.min(event.pageX,dW-pW-3),
         pY = Math.min(event.pageY,dH-pH-3);
-    popup.style.left = pX + 'px';
-    popup.style.top = pY + 'px';
+    popup.style.left = pX + "px";
+    popup.style.top = pY + "px";
   }
-//  document.addEventListener('contextmenu', context_listener);
-  $docBody.addEventListener('contextmenu', context_listener);
+//  document.addEventListener("contextmenu", context_listener);
+  $docBody.addEventListener("contextmenu", context_listener);
 
   function click_hide(event) {
     const classes = event.target.classList;
-    if (!classes.contains('popup-menu-list')) {
-      popup.style.display = 'none';
+    if (!classes.contains("popup-menu-list")) {
+      popup.style.display = "none";
     }
   }
-//  document.addEventListener('click', click_hide);
-  $docBody.addEventListener('click', click_hide);
+//  document.addEventListener("click", click_hide);
+  $docBody.addEventListener("click", click_hide);
 }
 
 window.onload = popupMenu;
@@ -5727,7 +6050,7 @@ let divs = document.querySelectorAll(".div");
 divs.forEach(addContextMenu);
 
 for "CURSORPOS", [GLOBAL]MOTION_CB:
-document.addEventListener('mousemove', function(e){
+document.addEventListener("mousemove", function(e){
   var position = { x: e.clientX, y: e.clientY }
 }
 

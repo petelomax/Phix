@@ -13,17 +13,17 @@ include pGUI.e
 -- (Whereas the 1/2/3 already in tree-nodes would usually be added
 --  when that is built, typically before the IupTreeView() call.)
 
-sequence treedata = {{"equilateral",        -- 1
+sequence treedata = {{"equilateral",        -- 1    (for Figures/triangle)
 --                    "isoceles",
                       {"isoceles",      -- (branch with 2 children)
 --                    {"STATE","COLLAPSED"},
-                      {"STATE","COLLAPSED","USERDATA",4},
+                      {"STATE","COLLAPSED","USERDATA",4},  -- (for Figures/triangle/isoceles)
 --                    {"acute",
 --                      "obtuse",
 --                    }},
                       {"dummy"}},           -- (ensures we get a '+')
                       "scalenus"},
-                     {"some",               -- 2
+                     {"some",               -- 2    (for Figures/4D)
                       "other",
                       "branch"},
 --                   {"acute",
@@ -42,14 +42,14 @@ constant tree_nodes = {"Figures",               -- (branch with 5 children)
                          {"equilateral",
 --                        "isoceles",
                           {"isoceles",          -- (branch with 2 children)
---                         {"STATE","COLLAPSED"},
                            {"STATE","COLLAPSED","USERDATA",3},
+--                         {"STATE","COLLAPSED"},
 --                         {"STATE","COLLAPSED","USERDATA",3}}, -- NO!
 --                         {"acute",
 --                          "obtuse",
 --                         }},
-                           {"dummy"}},          -- (ensures we get a '+')
---                         {}},                 -- ([we don't get a '+'])
+--                         {"dummy"}},          -- (ensures we get a '+')
+                           {}},                 -- ([we don't get a '+'])
                           "scalenus",
                          }},
                         {"triangle",            -- (branch with 3 children)
@@ -57,9 +57,10 @@ constant tree_nodes = {"Figures",               -- (branch with 5 children)
                          {"dummy"}},            -- (ensures we get a '+')
                         {"parallelogram",       -- (branch with 2 children)
                          {"square",
-                          {"diamond",
-                           {"COLOR","92 92 255","TITLEFONT","Courier, 8"},
-                           0}   -- (nb: this is a leaf, non-optional here)
+                          "diamond",
+--                        {"diamond",
+--                         {"COLOR","92 92 255","TITLEFONT","Courier, 8"},
+--                         0}   -- (nb: this is a leaf, non-optional here)
                          }},
                         "2D",                   -- (leaf)
 --                      {"2D"},                 -- (same)
@@ -82,6 +83,7 @@ function branchopen_cb(Ihandle tree, integer id)
         -- first kill off "dummy" (which ensured a '+'):
         IupSetAttributeId(tree,"DELNODE",id,"CHILDREN")
         sequence children = treedata[userid]
+--?children
         IupTreeAddNodes(tree, children, userid)
         -- finally remove the deferred load (or otherise mark as done, if
         -- this isn't done then any sub-trees get deleted and collapsed.)
@@ -104,7 +106,7 @@ IupSetAttribute(dlg,"TITLE","IupTreeView deferred load demo")
 IupSetAttribute(dlg,"RASTERSIZE","400x400")
 IupShow(dlg)
 IupSetAttribute(dlg,"RASTERSIZE", NULL);
-if platform()!=WEB then
+if platform()!=JS then
     IupMainLoop()
 end if
 

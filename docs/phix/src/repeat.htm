@@ -13,7 +13,9 @@
           <b>Definition:</b>
          </td>
          <td>
-          <a href="sequence.htm">sequence</a> s = repeat(<a href="object.htm">object</a> x, <a href="integer.htm">integer</a> n)
+          <a href="sequence.htm">sequence</a> s = repeat(<a href="object.htm">object</a> x,
+                                                         <a href="integer.htm">integer</a> n,
+                                                         <a href="integer.htm#bool">bool</a> allow_strings=true)
          </td>
         </tr>
         <tr>
@@ -35,9 +37,13 @@
           would use 40,000 bytes. While that was a nice idea, and occasionally might improve startup times a tiny fraction,
           on deeper reflection it is a completely <i>fake saving</i>, and probably reduces overall performance, especially 
           if anything needs reloading to cache just for the clone, as well as being wholly and utterly incompatible with
-          the pass-by-sharing semantics of JavaScript, and hence <a href="p2js.htm">pwa/p2js</a>. Hence it now performs a
+          the pass-by-sharing semantics of JavaScript, and therefore <a href="p2js.htm">pwa/p2js</a>. It now performs a
           <a href="deep_copy.htm">deep_copy</a>(x) when needed, and I have yet to notice any significant performance loss.
           For more details see the <a href="notp2js.htm">Incompatibilities</a> section of the p2js documentation.
+          <br>
+          <br>
+          The optional third parameter was introduced in 1.0.2 to help alleviate a significant performance issue when using
+          a binary string to create <a href="IupImage.htm">IupImage</a>() pixel data, for more details see comments. 
          </td>
         </tr>
         <tr>
@@ -58,6 +64,13 @@
             following exceptions: performance gains, explicit tests with the <a href="string.htm">string</a>() builtin, #isginfo 
             directives, accessing it using inline assembly, and lastly holding raw binary can be done in a string as one byte per 
             element, rather than 4 or 8, which might need a secondary <a href="poke.htm">poke</a>() before use.
+          <br>
+          <br>
+            In JavaScript, strings are "immutable", and hence pwa/p2js.js/$repe() performs <code>s[1..i-1] & ch & s[i+1..$]</code> 
+            aka <code>t = t.substring(0,idx-1) + String.fromCodePoint(x) + t.substring(idx);</code> which for a 500x500 
+            <a href="IupImage.htm">IupImage</a>() pixel data could mean copying 250,000 bytes to set each pixel (this problem was 
+            only first noticed after some 18 months of using p2js). No such penalty occurs for dword-sequences aka JavaScript Arrays.
+            For that reason, repeat() now [1.0.2+] has an optional third parameter to prevent it from creating (binary) strings.</li>
           <br>
           <br>
             Compatibility note: Euphoria allows an atom length/count, whereas Phix requires an integer, since I believe that 
@@ -157,7 +170,7 @@ repeat('=', 10)     -- "=========="  (a string)
             <br>
             <br>
             repeatch() has an optional third parameter, nFrames, for the benefit of repeat(), so that the runtime error message 
-            "repeat count must not be nagative" always points at user code rather than within builtins/repeat.e itself.
+            "repeat count must not be negative" always points at user code rather than within builtins/repeat.e itself.
          </td>
         </tr>
        </table>

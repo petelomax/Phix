@@ -1254,6 +1254,20 @@ global constant T_js_semantics  = 5700  tt_stringF("javascript_semantics",T_js_s
 global constant T_safe_mode     = 5732  tt_stringF("safe_mode",T_safe_mode)
 global constant T_in            = 5736  tt_stringF("in",T_in)
 global constant T_fdiv          = 5740  tt_stringF("fdiv",T_fdiv)
+global constant T_aaa           = 5752  tt_stringF("aaa",T_aaa)
+global constant T_aas           = 5760  tt_stringF("aas",T_aas)
+global constant T_daa           = 5772  tt_stringF("daa",T_daa)
+global constant T_das           = 5780  tt_stringF("das",T_das)
+global constant T_aam           = 5788  tt_stringF("aam",T_aam)
+global constant T_aad           = 5796  tt_stringF("aad",T_aad)
+global constant T_fbld          = 5812  tt_stringF("fbld",T_fbld)
+global constant T_fbstp         = 5828  tt_stringF("fbstp",T_fbstp)
+global constant T_ARM           = 5844  tt_stringF("ARM",T_ARM)
+global constant T_from          = 5856  tt_stringF("from",T_from)
+global constant T_nested        = 5876  tt_stringF("nested",T_nested)
+global constant T_local         = 5888  tt_stringF("local",T_local)
+--CVTTSS2SI
+--cvttss2si
 
 --          elsif ttidx=T_indirect_includes
 --             or ttidx=T_inline then

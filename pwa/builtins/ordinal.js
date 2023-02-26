@@ -11,8 +11,6 @@
 //      ordinal(atom n, bool bJustSpell:=true) yields "one", "two", etc.
 //
 
-//DEV 10/12/20 (docs not updated)
-//global function ord(integer n)
 /*global*/ function ord(/*atom*/ n) {
     let /*integer*/ r = remainder(n,10)+1;
     if ((r<=0 || r>4) || (equal(remainder(n,100),r+9))) { r = 1; }
@@ -45,7 +43,7 @@ function $hundred(/*integer*/ n) {
 function $thousand(/*integer*/ n, /*string*/ withand) {
     // (aside: p2js.exw/insert_dollars() 
     //  must not $hundred -> $$hundred this:)
-    const sphun = " hundred";
+    let /*string*/ sphun = " hundred";
     if (n<100) {
         return $conCat(withand, $hundred(n));
     } else if (equal(mod(n,100),0)) {
@@ -61,19 +59,19 @@ function $triplet(/*atom*/ n) {
         high = floor(n/order);
         low = mod(n,order);
         if (high!==0) {
-            res = $conCat(res, $conCat($conCat($thousand(high,""), 0X20), name));
+            res = $conCat(res, $conCat($conCat($thousand(high,""), 0X20), name), false);
         }
         n = low;
         if (low===0) { break; }
         if (length(res) && (high!==0)) {
-            res = $conCat(res, ", ");
+            res = $conCat(res, ", ", false);
         }
     }
     if ((n!==0) || (res==="")) {
-        res = $conCat(res, $thousand(floor(n),((res==="") ? "" : "and ")));
+        res = $conCat(res, $thousand(floor(n),((res==="") ? "" : "and ")), false);
         n = abs(mod(n,1));
         if (n>1e-6) {
-            res = $conCat(res, " point");
+            res = $conCat(res, " point", false);
             //
             // Ah: inherited from rosettacode, I suspect *10+1e-7 
             //  is there to trigger <1e-6 sooner rather than later,
@@ -82,7 +80,7 @@ function $triplet(/*atom*/ n) {
             //
             for (let i=1; i<=10; i+=1) {
                 let /*integer*/ d = floor(n*10.0000001);
-                res = $conCat(res, $conCat(0X20, $subse($twenties,d+1)));
+                res = $conCat(res, $conCat(0X20, $subse($twenties,d+1)), false);
                 n = n*10-d;
                 if (compare(abs(n),1e-6)<0) { break; }
             }
@@ -96,7 +94,7 @@ function $spell(/*atom*/ n) {
         res = "minus ";
         n = -n;
     }
-    res = $conCat(res, $triplet(n));
+    res = $conCat(res, $triplet(n), false);
     return res;
 }
 
@@ -116,8 +114,21 @@ function $spell(/*atom*/ n) {
         } else if (equal($subse(s,-1),0X79)) {
             s = $repss(s,-1,-1,"ieth");
         } else {
-            s = $conCat(s, "th");
+            s = $conCat(s, "th", false);
         }
     }
     return s;
+}
+
+/*global*/ function ordinant(/*atom*/ n) {
+    // returns never, [minus] once, twice, or n,nnn times.
+    let /*string*/ res = "";
+    if (n<0) { res = "minus "; n = -n; }
+    if (n===0) { res = $conCat(res, "never", false);
+    } else if (n===1) { res = $conCat(res, "once", false);
+    } else if (n===2) { res = $conCat(res, "twice", false);
+//  else res &= sprintf("%,d times",n)  
+    } else { res = $conCat(res, $conCat(ordinal(n,true), " times"), false);
+    }
+    return res;
 }

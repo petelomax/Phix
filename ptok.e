@@ -651,7 +651,7 @@ end if
 --                          Abort("invalid version")
                             exit
                         else
-                            cversion[$] = cversion[$]*10+ch-'0'
+                            cversion[$] = cversion[$]*10+(ch-'0')
                         end if
                     end if
                     k += 1
@@ -1654,7 +1654,7 @@ atom fraction
                     end if
                 end if
             else
-                exponent = exponent*10 + Ch-'0'
+                exponent = exponent*10 + (Ch-'0')
                 toktype = DIGIT
             end if
         end while
@@ -1676,6 +1676,11 @@ atom fraction
             end for
         elsif exponent<0 then
             TokN /= power(10,-exponent)
+--28/9/22 (1e18 failed to be stored as an integer...)
+        elsif exponent<21 then
+            for e=1 to exponent do
+                TokN *= 10
+            end for
         else
             TokN *= power(10, exponent)
         end if
@@ -1746,7 +1751,7 @@ procedure loadBase()
             col += 1
             Ch = text[col]
             if Ch<'0' or Ch>'9' then exit end if
-            base = base*10 + Ch-'0'
+            base = base*10 + (Ch-'0')
         end while
 --      if not find(base,bases) then
         if base<2 or base>36 then
@@ -1776,7 +1781,9 @@ procedure loadBase()
     else
         while 1 do
             bCh = baseset[Ch]
-            if bCh>base then
+--11/11/22:
+--          if bCh>base then
+            if bCh>=base then
 --              if toktype!=DIGIT then exit end if
 --              if base!=10 or Ch!='_' then exit end if     -- allow eg 1_000_000 to mean 1000000
                 if Ch!='_' then exit end if     -- allow eg 1_000_000 to mean 1000000 (any base)
@@ -2137,7 +2144,9 @@ global procedure getToken(bool float_valid=false)
             if Ch<'0' or Ch>'9' then
                 if Ch!='_' then exit end if     -- allow eg 1_000_000 to mean 1000000
             else
-                TokN = TokN*10 + Ch-'0'
+--17/10/22(!!!)
+--              TokN = TokN*10 + Ch-'0'
+                TokN = TokN*10 + (Ch-'0')
             end if
             col += 1
             Ch = text[col]
@@ -2231,7 +2240,7 @@ global procedure getToken(bool float_valid=false)
 --                      col += 1
 --                      Ch = text[col]
 --                      if not find(Ch,"01") then exit end if
---                      TokN = TokN*2 + Ch-'0'
+--                      TokN = TokN*2 + (Ch-'0')
 --                  end while
 --                  if TokN>255 then
 --                      tokcol = savecol
@@ -2332,7 +2341,7 @@ end if
 --                  toklen += 1
                 end if
             else
-                TokN = TokN*16 + Ch-'0'
+                TokN = TokN*16 + (Ch-'0')
 --              toklen += 1
             end if
             toktype = DIGIT

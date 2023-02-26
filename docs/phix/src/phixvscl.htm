@@ -33,6 +33,69 @@
         never causes random delays in execution of a program, and does not pre-allocate huge regions of memory.
        <br>
        <br>
+DEV (to be cleaned up)
+<pre>
+                        C   C++  Go  Java  JavaScript  Julia  Lua  Python  Phix  Wren
+Hassle free install:    Y-   N    Y-  N        Y         Y     N     Y      Y-    N
+Easily portable code:   N    N    Y   Y-       Y         Y     ?     Y      Y     ?
+Cross platform GUI:     ~    ~    N   Y        ~         Y-    Y     Y-     Y     Y
+Runs on the desktop:    Y    ?    Y   Y        N         Y     Y     Y      Y     Y
+Runs in a browser:      ~    ~    N   Y-       Y         N     Y     N      Y     N
+Meaningful messages:    N    N--  Y   Y        N         Y     ?     Y-     Y     ?
+Fast edit/run cycle:    ~    N--  N   N--      ~         N     Y     Y      Y     Y
+Fast benchmark speed:   Y    Y    Y   Y        Y-        Y     ?     N--    N     N
+</pre>
+Notes:<br>
+Installation of C/C++ ranges from absolutely easy peasy to a month-long struggle.<br>
+C-based languages are usually riddled with platform and compiler-specific #ifdefs.<br>
+Finding a bit of C/C++ code is often quite some distance from actually running it.<br>
+In my experience the majority of Go packages are out of date and incompatible<br>
+with the latest release, try installing IUP for Go, for example. <br>
+The only blotch on Phix install is (also) IUP on Linux, but no prob on Windows.<br>
+(O/c I have plans for a hassle-free Linux GUI, but don&rsquo;t be holding your breath!)<br>
+Go&rsquo;s packages are a valiant but somehow incomplete solution, certainly compared <br>
+to Julia&rsquo;s Pkg.add() and Python&rsquo;s pip install. <br>
+Phix does not currently have a third party package manager, but it should, and<br>
+instead relys more on having everything needed included in the standard distro.<br>
+(see demo/rosetta and bass/eulibnet/libxml for some fledgling ideas, perhaps,<br>
+as in entries that reference those subdirs rather than what&rsquo;s actually in them)
+<br>
+<br>
+While many C/C++ cross platform GUIs exist, only rarely does code cross-compile.<br>
+I have never managed to get a Go GUI running. While browsers are cross-platform,<br>
+the lack of a reasonable desktop GUI for JavaScript makes Y for it unacceptable.<br>
+Julia is a very impressive effort. Installing GTK on Windows is not excessively<br>
+difficult, but takes quite some time, and raises concerns about distribution of<br>
+finished applications. Likewise Python GUIs require a bit of manual setup effort.
+<br>
+<br>
+Error messages from C++, if I get one at all, remind me of Dr Evil, in a cheesy<br>
+French accent: "There's a bug in your code" pause, then a dramatic "Somewhere!"<br>
+Whilst many JavaScript messages are fine, some are quite cryptic, and of course<br>
+in real terms most are just silently squirrelled away on a non-visible console.<br>
+Meaningful error messages are the heart and soul of Phix, simplifying debugging,<br>
+not that every bug is suddenly somehow easy, but at least it is trying to help.
+<br>
+<br>
+Compilation times of an hour or even longer for C++ are still not exactly rare.<br>
+Claims that the Go compiler is fast confuse and bemuse me: a 90s delay compared to<br>
+a 0s delay for Phix is just simply not what I w/could describe as "very fast"...<br>
+JavaScript, or rather the Douglas Crockford subset of it, is actually a very good<br>
+language, but desktop is far from seamless, and it&rsquo;s still somewhat harder to kill <br>
+off a bad run or infinite loop than I&rsquo;d like - ie the Task Manager gets involved,<br>
+which to be fair can happen in Phix when running pw.exe w/o opening a console,<br>
+but puts(1,"") gives you a way out, nothing similar is available in JavaScript.
+<br>
+<br>
+One thing Phix lacks is a proper register allocator, and as a consequence several<br>
+subscripting operations suffer more AGI stalls than they should. Work on p2js has<br>
+opened up the possibility of a better overall approach for some mythical v2.0.0.<br>
+Some (but not many, otherwise pointless) benchmarks can be up to 8 times faster<br>
+on C/Go/Julia, though you can at least hot-spot and use inline assembly on the<br>
+worst offenders, sometimes.
+
+       <br>
+       <br>
         The language definitions of conventional languages such as C, C++, Ada, etc. are very complex. <br>
         Most programmers become fluent in only a subset of the language. <br>
         The ANSI standards for these languages read like complex legal documents.
@@ -41,13 +104,17 @@
         You are forced to write different code for different data types simply to copy the data, ask for its current length, concatenate it, 
         compare it etc. <br>
         The manuals for those languages are packed with routines that each only work on one of the many types of data, such as:<br>
-        strcpy, wcscpy, _tcscpy, lstrcpy, StrCpy, StringCbCpy, StringCbCpyEx, StringCchCpy, StringCchCpyEx, strncpy, _strncpy_l, wcsncpy, 
-        _wcsncpy_l, _mbsncpy, _tcsncpy, _mbsncpy_l, strcat, lstrcat, wcscat, _mbscat, strcat_s, wcscat_s, _mbscat_s, StrCat, StringCbCat, 
-        StringCbCatEx, StringCbCatN, StringCbCatNEx, StringCchCat, StringCchCatEx, StringCchCatN, StringCchCatNEx, strncat, _strncat_l, 
-        wcsncat, wcsncat_l, _mbsncat, _mbsncat_l, strlen, lstrlen, StringCbLength, StringCchLength, strcmp, lstrcmp, strncmp, wcsncmp, 
-        _mbsncmp, _mbsncmp_l, _strnicmp, _wcsnicmp, _mbsnicmp, _strnicmp_l, _wcsnicmp_l, _mbsnicmp_l, strrchr, wcsrchr, _mbsrchr, _mbsrchr_l, 
-        strspn, wcsspn, _mbsspn, _mbsspn_l, etc. [Free free to google any or all of those]<br>
-        Clearly I could be here for the rest of my life just listing them, apologies for the many I left out.
+        [1] strcpy, wcscpy, _tcscpy, lstrcpy[A/W], StrCpy, StringCbCpy, StringCbCpyEx, StringCchCpy, StringCchCpyEx, strncpy, _strncpy_l, wcsncpy, 
+        _wcsncpy_l, _mbsncpy, _tcsncpy, _mbsncpy_l, <br>
+        [2] strcat, lstrcat[A/W], wcscat, _mbscat, strcat_s, wcscat_s, _mbscat_s, StrCat, StringCbCat, StringCbCatEx, StringCbCatN, StringCbCatNEx, 
+        StringCchCat, StringCchCatEx, StringCchCatN, StringCchCatNEx, strncat, _strncat_l, wcsncat, wcsncat_l, _mbsncat, _mbsncat_l, <br>
+        [3] strcmp, lstrcmp[A/W], strncmp, wcsncmp, _mbsncmp, _mbsncmp_l, _strnicmp, _wcsnicmp, _mbsnicmp, _strnicmp_l, _wcsnicmp_l, _mbsnicmp_l, <br>
+        [4] strlen, wcslen, _tcslen, lstrlen[A/W], _mbslen, _mbslen_l, _mbstrlen, _mbstrlen_l, strnlen, strnlen_s, wcsnlen, wcsnlen_s, _mbsnlen, 
+        _mbsnlen_l, _mbstrnlen, _mbstrnlen_l, StringCbLength, StringCchLength[A/W], UnalignedStringCchLength, <br>
+        [5] strrchr, wcsrchr, _mbsrchr, _mbsrchr_l, etc. <br>
+        Free free to google any or all of those, clearly I could be here for the rest of my life just simply listing them.<br>
+        The (5) Phix equivalents for (all 77 of) that lot would simply be: [1] = (or :=), [2] & (or &=), [3] = (or ==), [4] length(), and 
+        [5] rfind(), admittedly the latter two perhaps with utf8_to_utf32() and similar.
        <br>
        <br>
         Much of the complexity surrounds issues of data type. <br>
@@ -58,8 +125,8 @@
        <br>
        <br>
         In these languages the numeric value 4 (for example) can have a different meaning depending on whether it is an int, a char, a short, 
-        a double, an int * etc. In Phix, 4 is the atom 4, period. 
-        Phix has user defined types as we shall see later, but they are a much simpler concept, used mainly for validation and debugging.
+        a double, an int * etc. In Phix, 4 is the atom 4, period. Phix also has <a href="usingtypes.htm#type">user defined types</a> as we 
+        shall see later, but they are a much simpler concept, used mainly for validation and debugging.
        <br>
        <br>
         Arithmetic operations in Phix always generate sensible answers, and terminate the program with a human readable error message should

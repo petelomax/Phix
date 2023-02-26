@@ -21,6 +21,24 @@
           <b>Description:</b>
          </td>
          <td>
+            <b>Deprecated</b>, since 0.8.2 you can just code <code>my_rtn</code> (without quotes and not followed by '(') instead of 
+            <code>routine_id("my_rtn")</code>, although both remain perfectly valid, plus the get_routine_info() as documented below
+            is still independently useful, and finally most of the remarks below about hll_stubs continue to apply.
+            <br>
+            <br>
+            While this is unlikely to go away any time soon, new code should just use the bare routine name, which the compiler treats
+            as (aka automatically converts into) a constant integer. You may encounter some cases where that does not quite work, such
+            as piecemeal string construction and maybe even the odd forward reference, but even then the recommendation is to refactor 
+            those nasty bits away until it does work, purely on the grounds of it&rsquo;ll doubtless be nicer code.
+            <br>
+            <br>
+            One subtle point to note is that the compiler has been very finely tuned to deeply understand scopes, and in particular a
+            few nuances related to locality of reference at a specific point in a complex nested include hierarchy (oooh errr, listen
+            to im) that are lost and are frankly impossible to replicate (and obviously never were) in a routine that looks up a name 
+            in one dirty great big flat symbol table. If you didn&rsquo;t get any of that, the key take-home is that it all goes away 
+            if you use bare routine names.
+            <br>
+            <br>
             Return an integer id number, in fact an index to the symbol table, for a user-defined procedure or function.
             <br>
             <br>
@@ -54,7 +72,7 @@ DEV test, then delete:
             for pwa/p2js to potentially get wrong! 
                          In short, if the compiler can
             figure it out at compile-time, it&rsquo;s fine, whereas 
-            is not supported.has
+            is not supported. has
             to be able to fu, routine_id("<i>name</i>") and <i>name</i> not followed by '(' are the same. The latter
             (a bare identifier) is fine and recommended, pwa/p2js.exw may or may not succeed in stripping the routine_id("") parts,
             but it certainly won&rsquo;t put them back on in any reverse trip and would therefore fail some reversibility tests.<br>
@@ -68,7 +86,7 @@ it is: window["functionName"](arguments);
             Also note that get_routine_info() is not supported by p2js: the one place it was really needed, in the heart of 
             <a href="apply.htm">apply</a>(), is coded somewhat differently in p2js.js (with considerably relaxed error checking).
             JavaScript does in fact have an fn.length property, which can be used to determine maxp, however there is no minp,
-            obviously no sig in a typeless language, and the routine name would be a fiddly regex on fn.toString;
+            obviously no sig in a <i>typeless</i> language, and the routine name would be a fiddly regex on fn.toString;
             <br>
             <br>
             Likewise s-->
@@ -219,7 +237,7 @@ call_proc(foo, {})      -- "", in 0.8.2+
 <font color="#008080">procedure</font><font color="#000000"> foo</font><font color="#0000FF">()</font>
 <font color="#7060A8">    puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000"> "Hello World\n"</font><font color="#0000FF">)</font>
 <font color="#008080">end procedure
-constant</font><font color="#000000"> r_foo</font><font color="#0000FF"> =</font><font color="#5E005E"> routine_id</font><font color="#0000FF">(</font><font color="#008000">"foo"</font><font color="#0000FF">)</font>
+constant</font><font color="#000000"> r_foo</font><font color="#0000FF"> =</font><font color="#7060A8"> routine_id</font><font color="#0000FF">(</font><font color="#008000">"foo"</font><font color="#0000FF">)</font>
 <font color="#7060A8">call_proc</font><font color="#0000FF">(</font><font color="#000000">r_foo</font><font color="#0000FF">,</font><font color="#800000"> {}</font><font color="#0000FF">)   </font><font color="#000080"><i> -- same as calling foo()</i></font>
 <font color="#000000">r_foo</font><font color="#0000FF">()                </font><font color="#000080"><i> -- "", in 0.8.1+</i></font>
 <font color="#7060A8">call_proc</font><font color="#0000FF">(</font><font color="#000000">foo</font><font color="#0000FF">,</font><font color="#800000"> {}</font><font color="#0000FF">)     </font><font color="#000080"><i> -- "", in 0.8.2+</i></font>
@@ -260,8 +278,8 @@ function</font><font color="#000000"> add1</font><font color="#0000FF">(</font><
 <font color="#008080">    return</font><font color="#000000"> x</font><font color="#0000FF"> +</font><font color="#000000"> 1</font>
 <font color="#008080">end function
 </font>
-<font color="#0000FF">?</font><font color="#000000">apply_to_all</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000"> 2</font><font color="#0000FF">,</font><font color="#000000"> 3</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#5E005E"> routine_id</font><font color="#800000">(</font><font color="#008000">"add1"</font><font color="#800000">)</font><font color="#0000FF">) </font><font color="#000080"><i> -- displays {2,3,4}</i></font>
-<font color="#0000FF">?</font><font color="#5E005E">apply</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000"> 2</font><font color="#0000FF">,</font><font color="#000000"> 3</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000"> add1</font><font color="#0000FF">) </font><font color="#000080"><i> -- (equivalent in 0.8.2+ - add1 valid &amp; apply builtin)</i></font>
+<font color="#0000FF">?</font><font color="#000000">apply_to_all</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000"> 2</font><font color="#0000FF">,</font><font color="#000000"> 3</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#7060A8"> routine_id</font><font color="#800000">(</font><font color="#008000">"add1"</font><font color="#800000">)</font><font color="#0000FF">) </font><font color="#000080"><i> -- displays {2,3,4}</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">apply</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000"> 2</font><font color="#0000FF">,</font><font color="#000000"> 3</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000"> add1</font><font color="#0000FF">) </font><font color="#000080"><i> -- (equivalent in 0.8.2+ - add1 valid &amp; apply builtin)</i></font>
 </pre>
             <br>
             Note that add1 could be a private function in a completely different file; there is no need for it to be in scope when (actually) called.
@@ -333,13 +351,13 @@ function</font><font color="#000000"> add1</font><font color="#0000FF">(</font><
 <pre>
 <font color="#000000">    #</font><font color="#008080">ilASM</font><font color="#0000FF">{
             ...</font>
-<font color="#000000">            mov edx</font><font color="#0000FF">,</font><font color="#5E005E">routine_id</font><font color="#800000">(</font><font color="#000000">fopen</font><font color="#800000">)          </font><font color="#000080"><i> -- mov edx,imm32 (sets K_ridt)</i></font>
-<font color="#000000">            mov ecx</font><font color="#0000FF">,</font><font color="#000000">$_Ltot                     </font><font color="#000080"><i> -- (symtab[fopen][S_Ltot])</i></font>
-<font color="#7060A8">            call</font><font color="#0000FF"> :</font><font color="#000000">%opFrame
-            pop dword</font><font color="#800000">[</font><font color="#000000">ebp</font><font color="#800000">]                     </font><font color="#000080"><i> -- filepath</i></font>
-<font color="#000000">            pop dword</font><font color="#800000">[</font><font color="#000000">ebp</font><font color="#0000FF">-</font><font color="#000000">4</font><font color="#800000">]                   </font><font color="#000080"><i> -- openmode</i></font>
-<font color="#000000">            mov</font><font color="#800000"> [</font><font color="#000000">ebp</font><font color="#0000FF">+</font><font color="#000000">28</font><font color="#800000">]</font><font color="#0000FF">,:</font><font color="#000000">openret
-            jmp $_il                           </font><font color="#000080"><i> -- (symtab[fopen][S_il])</i></font>
+<font color="#7060A8">            mov edx</font><font color="#0000FF">,</font><font color="#7060A8">routine_id</font><font color="#800000">(</font><font color="#000000">fopen</font><font color="#800000">)          </font><font color="#000080"><i> -- mov edx,imm32 (sets K_ridt)</i></font>
+<font color="#7060A8">            mov ecx</font><font color="#0000FF">,</font><font color="#000000">$_Ltot                     </font><font color="#000080"><i> -- (symtab[fopen][S_Ltot])</i></font>
+<font color="#7060A8">            call</font><font color="#0000FF"> :</font><font color="#000000">%opFrame</font>
+<font color="#7060A8">            pop dword</font><font color="#800000">[</font><font color="#7060A8">ebp</font><font color="#800000">]                     </font><font color="#000080"><i> -- filepath</i></font>
+<font color="#7060A8">            pop dword</font><font color="#800000">[</font><font color="#7060A8">ebp</font><font color="#0000FF">-</font><font color="#000000">4</font><font color="#800000">]                   </font><font color="#000080"><i> -- openmode</i></font>
+<font color="#7060A8">            mov</font><font color="#800000"> [</font><font color="#7060A8">ebp</font><font color="#0000FF">+</font><font color="#000000">28</font><font color="#800000">]</font><font color="#0000FF">,:</font><font color="#000000">openret</font>
+<font color="#7060A8">            jmp</font><font color="#000000"> $_il                           </font><font color="#000080"><i> -- (symtab[fopen][S_il])</i></font>
 <font color="#0000FF">          ::</font><font color="#000000">openret</font>
 <font color="#0000FF">            ...
           }</font>
@@ -399,14 +417,14 @@ old/partially attempted before deciding against:
 </eucode-->
 <pre>
 <font color="#008080">            procedure</font><font color="#000000"> show</font><font color="#0000FF">(</font><font color="#004080">string</font><font color="#000000"> s</font><font color="#0000FF">) ?</font><font color="#000000">s</font><font color="#008080"> end procedure
-            constant</font><font color="#000000"> r_show</font><font color="#0000FF"> =</font><font color="#5E005E"> routine_id</font><font color="#0000FF">(</font><font color="#008000">"show"</font><font color="#0000FF">)</font>
+            constant</font><font color="#000000"> r_show</font><font color="#0000FF"> =</font><font color="#7060A8"> routine_id</font><font color="#0000FF">(</font><font color="#008000">"show"</font><font color="#0000FF">)</font>
 <font color="#000080"><i>            -- show("40")   (normal non-routine_id call [still valid!])</i></font>
 <font color="#7060A8">            call_proc</font><font color="#0000FF">(</font><font color="#000000">r_show</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">"41"</font><font color="#800000">}</font><font color="#0000FF">)               </font><font color="#000080"><i> -- old style [""!]</i></font>
 <font color="#000000">            r_show</font><font color="#0000FF">(</font><font color="#008000">"42"</font><font color="#0000FF">)                           </font><font color="#000080"><i> -- *** new (0.8.1) ***</i></font>
 <font color="#7060A8">            call_proc</font><font color="#0000FF">(</font><font color="#000000">show</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">"43"</font><font color="#800000">}</font><font color="#0000FF">)                 </font><font color="#000080"><i> -- *** new (0.8.2) ***
 </i></font>
 <font color="#008080">            function</font><font color="#000000"> f</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> i</font><font color="#0000FF">)</font><font color="#008080"> return</font><font color="#000000"> i</font><font color="#008080"> end function
-            constant</font><font color="#000000"> r_f</font><font color="#0000FF"> =</font><font color="#5E005E"> routine_id</font><font color="#0000FF">(</font><font color="#008000">"f"</font><font color="#0000FF">)</font>
+            constant</font><font color="#000000"> r_f</font><font color="#0000FF"> =</font><font color="#7060A8"> routine_id</font><font color="#0000FF">(</font><font color="#008000">"f"</font><font color="#0000FF">)</font>
 <font color="#000080"><i>            --?f(40)        (normal non-routine_id call [still valid!])</i></font>
 <font color="#0000FF">            ?</font><font color="#7060A8">call_func</font><font color="#0000FF">(</font><font color="#000000">r_f</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">41</font><font color="#800000">}</font><font color="#0000FF">)                   </font><font color="#000080"><i> -- old style [""!]</i></font>
 <font color="#0000FF">            ?</font><font color="#000000">r_f</font><font color="#0000FF">(</font><font color="#000000">42</font><font color="#0000FF">)                               </font><font color="#000080"><i> -- *** new (0.8.1) ***</i></font>
@@ -435,6 +453,10 @@ old/partially attempted before deciding against:
             Likewise the additional compile-time validation of argument types that occurs on a show() call is not performed/deferred until run-time on r_show(), in exactly 
             the same way as it always was for explicit/old-style call_func/proc() calls. <br>
             These changes (first class routine_ids) were made to complement the syntax enhancements for the new struct/class handling, specifically class methods.
+            <br>
+            <br>
+            One almost accidental benefit of first class routine names is that <code>rtn_name</code> triggers an immediate compilation error should it be mis-spelt, whereas
+            routine_id("rtn_name") might but is not guaranteed to and instead generate -1 at run-time, which may of course be a tad trickier to track down.
             <br>
             <br>
             There is inevitably<sup><small>1</small></sup> perhaps three or four times as much overhead on a call_func/proc(), and equivalently on r_show()-style, as there is 

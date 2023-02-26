@@ -17,6 +17,10 @@
           <br>
           <i>-- or --</i>
           <br>
+          <a href="atom.htm">atom</a> res = ln(<a href="atom.htm">atom</a> x)
+          <br>
+          <i>-- or --</i>
+          <br>
           <a href="atom.htm">atom</a> res = log10(<a href="atom.htm">atom</a> x)
           <br>
           <i>-- or --</i>
@@ -34,6 +38,14 @@
           <i>-- or --</i>
           <br>
           <a href="atom.htm">atom</a> res = power(<a href="atom.htm">atom</a> x, y)
+          <br>
+          <i>-- or --</i>
+          <br>
+          <a href="atom.htm">atom</a> res = powmod(<a href="atom.htm">atom</a> base, exponent, modulus)
+          <br>
+          <i>-- or --</i>
+          <br>
+          <a href="atom.htm">atom</a> res = mulmod(<a href="atom.htm">atom</a> a, b, modulus)
          </td>
         </tr>
         <tr>
@@ -45,6 +57,16 @@
             exp() returns the inverse of log(), implemented trivially as power(EULER,x).<br>
             sqrt() returns the square root of x. x must not be negative.<br>
             power() returns the x raised to the power y.<br>
+            powmod() returns the equivalent of rmdr|mod(power(base,exponent),modulus) only much faster and more accurate.<br>
+            mulmod() returns the equivalent of rmdr|mod(a*b,modulus) only (sometimes somewhat slower and) more accurate.<br>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+          Supported.
          </td>
         </tr>
         <tr>
@@ -53,29 +75,42 @@
          </td>
          <td>
             These functions may be applied to an <a href="atom.htm">atom</a> or sq_log[10/2](), sq_sqrt(), sq_power() to all 
-            elements of a <a href="sequence.htm">sequence</a>. The rules for <a href="seqops.htm">sequence operations</a> apply.
+            elements of a <a href="sequence.htm">sequence</a>.<br>
+            The rules for <a href="seqops.htm">sequence operations</a> apply.
           <br>
           <br>
-            Note that log is only defined for positive numbers. Your program will abort with a message if you
-            try to take the log of a negative number or zero.
+            Note that logarithms are only defined for positive numbers. Your program will abort with a message should
+            you try to obtain one of a negative number or zero.
             <br>
             <br>
-            log10() is a simple wrapper to log(), multiplied by (1/log(10)). Likewise log2().
+            <b>ln</b>() is a simple alias of log(), likewise <b>sq_ln</b>() and hll_ln(), which emphasize they yield the natural logarithm; 
+            were it not for legacy code and compatibility issues, I&rsquo;d probably just deprecate/delete the [sq_|hll_]log() names.
             <br>
             <br>
-            log() is directly supported by the floating point hardware and as such, without any wrapper/multiplication, may prove noticeably faster, 
-            and perhaps slightly more accurate.
+            <b>log10</b>() is a simple wrapper to log(), multiplied by (1/log(10)). Likewise <b>log2</b>(), which also contains 
+            some code to ensure that non-negative integer powers of 2 yeild an integer result [pre-1.0.2 log2(8) gave 3-(4.44e-16) 
+            on 32-bit, while 64-bit fared a bit better up to log2(8192) which gave 13-(8.67e-19), ie both pretty close but no cigar],
+            covering 0..31 on 32-bit, and 0..63 on 64-bit. A slightly less efficient version of that code was also added to log10(), 
+            but only guarantees 0..9 on 32-bit (aka <a href="integer.htm">integer</a> inputs of 1, 10, .. 1_000_000_000), and 0..19 
+            on 64-bit. Should the (reduced) performance of log10/2 be an issue, you would be much better off by invoking ln() and 
+            performing said multiplication by a predefined constant inline.
             <br>
             <br>
-            The builtin function <b>exp</b>(<a href="atom.htm">atom</a> x) is the inverse of log(), and is implemented simply as return <a href="log.htm">power</a>(EULER,x).<br>
-            There is no similar builtin function for the inverse of log10(); you are expected to use <a href="log.htm">power</a>(10,x) directly, likewise log2().<br>
-            Also, there is currently no sq_exp() function, it has simply never been needed or asked for (plus it don&rsquo;t fit in <a href="seqops.htm">seqops</a>).
+            log() is directly supported by the floating point hardware and as such, without any wrapper/multiplication, may prove noticeably 
+            faster, and perhaps slightly more accurate.
+            <br>
+            <br>
+            <b>exp</b>(<a href="atom.htm">atom</a> x) is the inverse of log(), and is implemented simply as return power(EULER,x).<br>
+            There is no similar builtin function for the inverse of log10(); you are expected to use power(10,x) directly, likewise log2().<br>
+            Also, there is currently no sq_exp() function, it has simply never been needed or asked for (plus it don&rsquo;t quite fit 
+            in the <a href="seqops.htm">seqops</a> table).
             <br>
             <br>
             Powers of 2 are calculated very efficiently.
             <br>
             <br>
-            Other languages have a ** or ^ operator to perform the same action as <a href="log.htm">power</a>(), although in some languages ^ is the xor function.
+            Other languages have a ** or ^ operator to perform the same action as power(), though in some languages ^ is the xor function.<br>
+            It is also noted that any potential ambiguity in, say, "-5^2" simply does not occur in power(-5,2) vs. -power(5,2).
             <br>
             <br>
             Theoretically power(0,0) is undefined, however the result is 1, mainly for consistency with other programming languages.<br>
@@ -106,17 +141,19 @@ end function
          <td>
 <!--eucode>
 ?log(100)   -- prints 4.605170186
-?log10(100) -- prints 2.0 (approx)
-?log2(8)    -- prints 3.0 (approx)
+?log10(100) -- prints 2 -- (exact in 1.0.2+)
+?log2(8)    -- prints 3 --        ""
 ?sqrt(16)   -- prints 4
 ?power(5,2) -- prints 25
+?powmod(13789,722341,2345) -- prints 2029
 </eucode-->
 <pre>
 <font color="#0000FF">?</font><font color="#7060A8">log</font><font color="#0000FF">(</font><font color="#000000">100</font><font color="#0000FF">)  </font><font color="#000080"><i> -- prints 4.605170186</i></font>
-<font color="#0000FF">?</font><font color="#5E005E">log10</font><font color="#0000FF">(</font><font color="#000000">100</font><font color="#0000FF">)</font><font color="#000080"><i> -- prints 2.0 (approx)</i></font>
-<font color="#0000FF">?</font><font color="#5E005E">log2</font><font color="#0000FF">(</font><font color="#000000">8</font><font color="#0000FF">)   </font><font color="#000080"><i> -- prints 3.0 (approx)</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">log10</font><font color="#0000FF">(</font><font color="#000000">100</font><font color="#0000FF">)</font><font color="#000080"><i> -- prints 2 -- (exact in 1.0.2+)</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">log2</font><font color="#0000FF">(</font><font color="#000000">8</font><font color="#0000FF">)   </font><font color="#000080"><i> -- prints 3 --        ""</i></font>
 <font color="#0000FF">?</font><font color="#7060A8">sqrt</font><font color="#0000FF">(</font><font color="#000000">16</font><font color="#0000FF">)  </font><font color="#000080"><i> -- prints 4</i></font>
 <font color="#0000FF">?</font><font color="#7060A8">power</font><font color="#0000FF">(</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">)</font><font color="#000080"><i> -- prints 25</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">powmod</font><font color="#0000FF">(</font><font color="#000000">13789</font><font color="#0000FF">,</font><font color="#000000">722341</font><font color="#0000FF">,</font><font color="#000000">2345</font><font color="#0000FF">)</font><font color="#000080"><i> -- prints 2029</i></font>
 </pre>
          </td>
         </tr>
@@ -130,8 +167,12 @@ end function
             exp(): see builtins\pmaths.e (an autoinclude) for details of the actual implementation.<br>
             sqrt(): via :%opSqrt in builtins\VM\pTrig.e (an autoinclude).<br>
             power(): via :%opPow in builtins\VM\pPower.e (an autoinclude). <br>
+            powmod() and mulmod(): see builtins\pmaths.e. NB: no formal statement regards matching mod() or rmdr() is made.<br>
             The constant <b>EULER</b> (renamed from E in 1.0.2) is defined in psym.e/syminit(), part of the compiler, 
-            as 2.7182818284590452, the last two digits of which are of course irrelevant on 32-bit.
+            as 2.71828182845904523536, the last two digits of which are probably beyond precision limits of 64-bit,
+            with the last 6 digits likewise being of course pretty much irrelevant on 32-bit. 
+            There is also a commented-out (and undocumented) routine in mpfr.e which will generate a string version
+            of that constant to however many digits you have patience for (easily portable to mpfr.js if needed).
          </td>
         </tr>
        </table>

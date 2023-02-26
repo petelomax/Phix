@@ -1,0 +1,287 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">Attributes</h1>
+      <div id="mainSection">
+        On the first reading, you should assume something like
+        <code><a href="gdx.htm">gdx</a> button = <a href="gButton.htm">gButton</a>("button")</code> and without worrying too much about the
+        technical details of that, it should be obvious that it creates a button. Equally I am sure you can imagine a fairly long list of things
+        you might want to alter: size, font, colour, text, an image, enable/disable it, and of course configure what happens when it is clicked. 
+<!--
+        Aside: in IUP element position is dynamically determined through nested containers and fillers, though if you are adamantly married to 
+        specifying everything in pixels you could always try using an <a href="IupCbox.htm">IupCbox</a>.
+-->
+       <br>
+       <br>
+        All of that, even the handlers, is achieved through the use of attributes.
+       <br>
+       <br>
+        Note that IUP/pGUI allow bespoke application-specific attributes on any control, which are effectively ignored, however in particular
+        xpGUI.js benefits enormously from flagging anything it does not [yet] understand, and likewise desktop/Phix is simply better if say 
+        "POSITON" is immediately called out as the typo that it is. So under xpGUI you will have to store such custom things elsewhere, or
+        alternatively I could easily be persuaded to add, say, gG/SetCustomAttribute().
+<!--
+        ignore
+        Without looking at the C source, I would hazard that all attributes are in fact stored as pointers, or more accurately machine-sized 
+        words, which delivers high performance, with a handful of selected routines carefully taking a copy of any volatile strings, floats, 
+        etc and keeping them safe for the duration. My first reaction was predictable enough given my obsession with performance, but once I 
+        accepted it is no big deal to convert "200" to 200, or "YES/NO" to 1/0, I realised it is a pretty good way to keep things simple.
+-->
+       <br>
+       <br>
+<!-- DEV/ERM...
+        The majority of attributes are implemented using text strings, but there are also routines for storing (and perhaps more importantly
+        retrieving) numbers, pointers, etc. Depending on the interface element, some attributes are inheritable (for instance the
+        <a href="IupButton.htm#BGCOLOR">BGCOLOR</a> on an <a href="IupButton.htm">IupButton</a>: if not specifically set, a button takes on
+        the background colour of whatever control it is sitting on), and some attributes are non-inheritable (eg 
+        <a href="IupButton.htm#TITLE">TITLE</a>). Some must be set at creation time, ie before the dialog is first displayed (eg 
+        <a href="IupButton.htm#CANFOCUS">CANFOCUS</a>), while others can be amended on the fly (eg <a href="gSetAttribute.htm#ACTIVE">ACTIVE</a>), 
+        and some are read-only, or platform-specific. Whilst most attributes are static, referred to as needed, a few trigger actions when 
+        read or set (eg <a href="iupgattr.htm#KEY">KEY</a>). These are all documented for each element type.
+       <br>
+       <br>
+-->
+<!--
+        You can also set bespoke application-specific attributes on any control, which the underlying platform-specific driver will completely 
+        ignore. The most likely thing I can think of where that might be useful would be to have a single handler that deals with several 
+        controls, which fetches an attribute off the control that triggered it, and tweaks the behaviour accordingly. Perhaps (I have not 
+        tried this) a clock application could have a single handler that gets called by three timers, and draws the hour, minute, and second 
+        hand appropriately, but I digress...
+       <br>
+       <br>
+        The point I am trying to make here is that, sheer number of different controls aside, by and large the core of IUP is jaw-droppingly 
+        trivial - all the important stuff gets controlled by attributes. Equally there are quite a few ways to set and retrieve attributes,
+        of which there are plenty knocking about, but otherwise the attribute system itself is also conceptually quite trivial.
+-->
+<!-- nobody really uses this, and to be honest, I'll never keep it up to date...
+       <br>
+       <br>
+        The following routines are used to set/retrieve attributes:
+       <br>
+       <br>
+        <table>
+         <col style="width: 5%"/>
+         <tr>
+          <td>
+           <a href="IupSetAttribute.htm">
+            <b>IupSetAttribute</b>
+           </a>
+          </td>
+          <td>Sets an interface element attribute.
+          </td>
+         </tr>
+         <tr>
+          <td>
+           <a href="IupSetStrAttribute.htm">
+            <b>IupSetStrAttribute</b>
+           </a>
+          </td>
+          <td>Sets an interface element attribute, making a safe copy of any transient string.
+          </td>
+         </tr>
+         <tr>
+          <td>
+           <a href="IupSetAttributes.htm">
+            <b>IupSetAttributes</b>
+           </a>
+          </td>
+          <td>Sets several attributes of an interface element.
+          </td>
+         </tr>
+         <tr>
+          <td>
+           <a href="IupResetAttribute.htm">
+            <b>IupResetAttribute</b>
+           </a>
+          </td>
+          <td>Removes an attribute
+          </td>
+         </tr>
+         <tr>
+          <td>
+           <a href="IupGetAttribute.htm">
+            <b>IupGetAttribute</b>
+           </a>
+          </td>
+          <td>Retrieve an interface element attribute value.
+          </td>
+         </tr>
+         <tr>
+          <td>
+           <a href="IupGetAllAttributes.htm">
+            <b>IupGetAllAttributes</b>
+           </a>
+          </td>
+          <td>Returns a list of attribute names.
+          </td>
+         </tr>
+         <tr>
+          <td>
+           <a href="IupSetAttributeHandle.htm">
+            <b>IupSetAttributeHandle</b>
+           </a>
+          </td>
+          <td>Sets an attribute to a handle (instead of the usual string).
+          </td>
+         </tr>
+         <tr>
+          <td>
+           <a href="IupSetGlobal.htm">
+            <b>IupSetGlobal</b>
+           </a>
+          </td>
+          <td>Sets an attribute in the global environment.
+          </td>
+         </tr>
+         <tr>
+          <td>
+           <a href="IupGetGlobal.htm">
+            <b>IupGetGlobal</b>
+           </a>
+          </td>
+          <td>Returns an attribute value from the global environment.
+          </td>
+         </tr>
+         <tr>
+          <td>
+           <a href="IupSetCallback.htm">
+            <b>IupSetCallback</b>
+           </a>
+          </td>
+          <td>Associates a callback to an event.
+          </td>
+         </tr>
+         <tr>
+          <td>
+           <a href="IupGetCallback.htm">
+            <b>IupGetCallback</b>
+           </a>
+          </td>
+          <td>Returns the callback associated to an event.
+          </td>
+         </tr>
+         <tr>
+          <td>
+           <a href="IupSetHandle.htm">
+            <b>IupSetHandle</b>
+           </a>
+          </td>
+          <td>(deprecated) Associates a name with an interface element.
+          </td>
+         </tr>
+         <tr>
+          <td>
+           <a href="IupGetClassName.htm">
+            <b>IupGetClassName</b>
+           </a>
+          </td>
+          <td>Returns the name of the class of an interface element.
+          </td>
+         </tr>
+         <tr>
+          <td>
+           <a href="IupGetAllClasses.htm">
+            <b>IupGetAllClasses</b>
+           </a>
+          </td>
+          <td>Returns the names of all registered classes.
+          </td>
+         </tr>
+         <tr>
+          <td>
+           <a href="IupGetClassType.htm">
+            <b>IupGetClassType</b>
+           </a>
+          </td>
+          <td>Returns the name of the native type of an interface element.
+          </td>
+         </tr>
+         <tr>
+          <td>
+           <a href="IupGetClassAttributes.htm">
+            <b>IupGetClassAttributes</b>
+           </a>
+          </td>
+          <td>Returns the names of all registered attributes of a class.
+          </td>
+         </tr>
+         <tr>
+          <td>
+           <a href="IupGetClassCallbacks.htm">
+            <b>IupGetClassCallbacks</b>
+           </a>
+          </td>
+          <td>Returns the names of all registered callbacks of a class.
+          </td>
+         </tr>
+         <tr>
+          <td>
+           <a href="IupSaveClassAttributes.htm">
+            <b>IupSaveClassAttributes</b>
+           </a>
+          </td>
+          <td>Saves all registered attributes on the internal hash table.
+          </td>
+         </tr>
+         <tr>
+          <td>
+           <a href="IupCopyClassAttributes.htm">
+            <b>IupCopyClassAttributes</b>
+           </a>
+          </td>
+          <td>Copies all registered attributes from one element to another.
+          </td>
+         </tr>
+         <tr>
+          <td>
+           <a href="IupSetClassDefaultAttribute.htm">
+            <b>IupSetClassDefaultAttribute</b>
+           </a>
+          </td>
+          <td>Changes the default value of an attribute for a class. 
+          </td>
+         </tr>
+        </table>
+       <br>
+        &nbsp;
+       <br>
+        The following attributes are common to several controls/interface element types:
+       <br>
+       <br>
+        <a href="gSetAttribute.htm#ACTIVE">ACTIVE</a><br>
+        <a href="gSetAttribute.htm#BGCOLOR">BGCOLOR</a><br>
+        <a href="gSetAttribute.htm#CLIENTOFFSET">CLIENTOFFSET</a><br>
+        <a href="gSetAttribute.htm#CLIENTSIZE">CLIENTSIZE</a><br>
+        <a href="gSetAttribute.htm#CURSOR">CURSOR</a><br>
+        <a href="gSetAttribute.htm#EXPAND">EXPAND</a><br>
+        <a href="gSetAttribute.htm#FGCOLOR">FGCOLOR</a><br>
+        <a href="gSetAttribute.htm#FLOATING">FLOATING</a><br>
+        <a href="gSetAttribute.htm#FONT">FONT</a>
+<X!X--  <a href="gSetAttribute.htm#NAME">NAME</a> --X>
+        <a href="gSetAttribute.htm#NATURALSIZE">NATURALSIZE</a><br>
+        <a href="gSetAttribute.htm#MAXSIZE">MAXSIZE</a><br>
+        <a href="gSetAttribute.htm#MINSIZE">MINSIZE</a><br>
+        <a href="gSetAttribute.htm#SCREENPOSITION">SCREENPOSITION</a><br>
+        <a href="gSetAttribute.htm#SCROLLBAR">SCROLLBAR</a><a href="notpgui.htm#IupCanvas"><span style="color:orange; font-size:75%;"><sup>?</sup></span></a><br>
+        <a href="gSetAttribute.htm#POSITION">POSITION</a><br>
+        <a href="gSetAttribute.htm#RASTERSIZE">RASTERSIZE</a><a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a><br>
+        <a href="gSetAttribute.htm#SIZE">SIZE</a><a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a><br>
+        <a href="gSetAttribute.htm#TIP">TIP</a><br>
+        <a href="gSetAttribute.htm#TITLE">TITLE</a><br>
+        <a href="gSetAttribute.htm#VISIBLE">VISIBLE</a><br>
+<X!X--  <a href="gSetAttribute.htm#WID">WID</a><br> --X>
+        <a href="gSetAttribute.htm#ZORDER">ZORDER</a><br>
+-->
+       <br>
+        &nbsp;
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

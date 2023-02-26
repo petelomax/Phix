@@ -1,0 +1,183 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">gMap</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td>
+          <b>Definition:</b>
+         </td>
+         <td>
+            include xpGUI.e
+            <br>
+            <br>
+            gpMap(<a href="gdx.htm">gdx</a> id<small><i>, <a href="integer.htm">integer</a> level=0</i></small>)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Description:</b>
+         </td>
+         <td>
+            id: Identifier of an interface element(/dialog).<br>
+            <small><i>level: intended for internal use only, resize at level 0 only</i></small>
+            <br>
+            <br>
+            (semi-deprecated) - invoked automatically, and there should no longer be any particular reason why you would need to call this, 
+            but it is an integral necessity to the fundamental inner workings of xpGUI, and (flw) little harm can arise from making it 
+            publically available. It will, however, and unlike <a href="IupMap.htm">IupMap</a>, simply crash if the control has already 
+            been mapped, so perhaps you should avoid this. Plus, <a href="pGUI.htm">pGUI</a> has several ways to reorganise the element
+            hierarchy (eg <a href="IupAppend,htm">IupAppend</a>), which xpGUI foregoes, further reducing the need for this to be invoked
+            explicitly.
+            <!--, and 
+            to a lesser degree it would be a simply unnecessary annoyance not to have any equivalent for <a href="IupMap.htm">IupMap</a>().-->
+            To be honest, I rather relished the challenge of documenting this thing (well, <a href="IupMap.htm">IupMap</a>) that I 
+            didn&rsquo;t really quite understand properly, until I had to implement it myself.
+            <br>
+            <br>
+            Creates (maps) the real native interface objects corresponding to the given xpGUI virtual interface elements. 
+            <br>
+            <br>
+            It is also called recursively (with level+1) to create the native elements of any children the element may have.
+            <br>
+            <br>
+            The element must be already attached to a mapped container, except for dialogs. <br>
+            A child can only be mapped if its parent is already mapped, hence this can only be invoked on a dialog, or 
+            perhaps more accurately there are as yet no observed or imagined cases where invoking this on an un-mapped 
+            non-dialog would not imminently and immediately conclude in a rather sudden and sticky end.
+            <br>
+            <br>
+            Essentially there are four possible ways to contruct a nested dialog:<br>
+            <ol>
+            <li>parent container first: parent(), child1(parent), child2(parent)</li>
+            <li>child element(s) first: child1(), child2(), parent({child1,child2})</li>
+            <li>nested: parent({child1(),child2()})</li>
+            <li>associate later: parent(), child1(), add_control(parent,child1), child2(), add_control(parent,child2)</li>
+            </ol>
+            The way Phix works, similar to the vast majority of programming languages, is that nested is effectively the same as child-first, 
+            hence you could say it beats parent-first by a vote of 2:1. The "associate later" approach (used by GTK and JavaScript) is the least 
+            restrictive in that elements/containers can be created in <a href="factorial.htm">factorial</a>(<i>number_of_controls</i>) different 
+            ways, and the only real constraint is that you can only associate two controls after both have been created, but otherwise can be 
+            done in any order and interspersed amid the creates in an equally silly number of ways. Clearly that approach is also typically the 
+            most long-winded, at least as shown, and in all examples of GTK source code yet seen. There is also a subtle relaxation of the order 
+            of declaring things child-first, for instance you could define child2 before child1, or leave them like that and flip them round when 
+            specifying the parent, whereas parent-first requires creation without deviating one iota from a very precisely fixed order.<br>
+            Of course more choices isn&rsquo;t important, but less "sigh, can&rsquo;t do it that way" probably is, or should I say would be.
+            <br>
+            <br>
+            While GTK and JavaScript really don&rsquo;t mind, WinAPI is however utterly adamant (error 1406) that creation must be performed
+            parent-first, and arwen adhered itself to that policy, which was all rather quite a bit of fun to disentangle.
+            <blockquote>
+            Incidentally I would not object to allowing both (child/parent-first), or even some kind of mix, provided it can be done without 
+            just simply confusing everyone, or introducing ambiguity, or for that matter overly complicating the inner workings of xpGUI.
+            To be crystal clear about that last point, I meant specifying the parent on declaration, as per option 1 of 4 above, rather than 
+            (re-)introducing (say) <a href="IupAppend.htm">IupAppend</a>() functionality at a post-gMap() stage. Anyway...
+            </blockquote>
+
+            <!-- (with a totally unhelpful bit of sibling-only shuffle at creation time that at best just annoys).-->
+<!--            Since child-first has won, and xpGUI adopts/promotes that approach, and things would be the same under "both allowed" anyway, 
+            xpGUI must defer 
+            <br>
+            <br>
+-->
+            Hence xpGUI defers actual creation until it has gathered enough information to appease WinAPI (etc), which is where the 
+            <i>absolute necessity</i> for a gMap() comes from. It permits the programmer to declare things in a more natural and relaxed 
+            fashion, before actually creating things in some order that actually works, and does so on all platforms, with any potential 
+            minor differences abstracted away and hidden out of sight and mind.
+            <br>
+            <br>
+            This function is automatically called before the dialog is shown in <a href="gShow.htm">gShow</a> or 
+            <a href="IupPopup.htm">IupPopup</a>.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+          Supported.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Notes:</b>
+         </td>
+         <td>
+            There is no equivalent for MAP_CB in xpGUI, or that matter the WID attribute.<br>
+            It is planned that the apparently-always-the-same canvas mapping stuff will be in xpGUI.e/js instead.<br>
+            <small><i>(Besides, making say double-buffering optional is so 1980s, even a 4K framebuffer is only 32MB, which 
+            ceased to be worth fretting over decades ago.)</i></small>
+<!--
+DEV I have not yet decided whether to ditch MAP_CB, or bury that apparently-always-the-same IupCanvas stuff in xpGUI.e/js...
+<br>
+<br>
+            Many applications do not need to invoke IupMap explicitly; it will be performed automatically as needed.
+            <br>
+            <br>
+<X!X--
+            It is useful for the application to call IupMap when the value of the <a href="common.htm#WID">WID</a> attribute must be known, 
+            i.e. the native element must exist, before a dialog is made visible.<br>
+            [PL: one case where this appears to be needed is before populating an <a href="IupTree.htm">IupTree</a>]
+            <br>
+            <br>
+--X>
+            If you add new elements to an already mapped dialog you must call IupMap for those elements, 
+            and then call <a href="IupRefresh.htm">IupRefresh</a> to update the dialog layout.
+            <br>
+            <br>
+<X!X--
+            If the <a href="common.htm#WID">WID</a> attribute of an element is NULL, it means the element was not already mapped. <br>
+            Some containers do not have a native element associated, like VBOX and HBOX, in this case their WID is the fake value (void*)(-1).
+            <br>
+            <br>
+--X>
+            If the element is a dialog then the abstract layout will be updated even if the dialog is already mapped. <br>
+            If the dialog is visible the elements will be immediately repositioned. <br>
+            Calling IupMap for an already mapped dialog is the same as only calling <a href="IupRefresh.htm">IupRefresh</a> for the dialog.
+            <br>
+            <br>
+            Calling IupMap for an already mapped element that is not a dialog does nothing.
+            <br>
+            <br>
+            The <a href="callbacks.htm#MAP_CB">MAP_CB</a> callback is called at the end of the IupMap function, after all processing, 
+            so it can also be used to create other things that depend on the <a href="common.htm#WID">WID</a> attribute. 
+            But notice that for non dialog elements it will be called before the dialog layout has been updated, 
+            so the element current size will still be 0x0 (since 3.14).
+-->
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>See Also:</b>
+         </td>
+         <td>
+<!--
+          <a href="IupAppend.htm">IupAppend</a>,
+          <a href="IupDetach.htm">IupDetach</a>,
+          <a href="IupUnmap.htm">IupUnmap</a>,
+          <a href="IupCreate.htm">IupCreate</a>,
+          <a href="IupDestroy.htm">IupDestroy</a>,
+          <a href="IupShowXY.htm">IupShowXY</a>,
+-->
+          <a href="gShow.htm">gShow</a>,
+          <a href="IupPopup.htm">IupPopup</a>
+<!--
+          <a href="callbacks.htm#MAP_CB">MAP_CB</a>
+-->
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

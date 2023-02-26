@@ -1,0 +1,133 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">ARM intro/notes</h1>
+      <div id="mainSection">
+        One of the first things to note is the relatively limited address handling. While you can branch to 24 bits
+        (+/-32MB), you can only load an address using a 12 bit offset (4K), although you can re-constitute anything
+        using multiple instructions (in 8 bit chunks). Thankfully the compiler has a pretty good idea where all the
+        (static and/or frame-relative) data is going to be, before it has to emit the first instruction.
+ <pre>              
+.data
+szTitle:    .asciz "This is the title\n"    @ (say this is at #40123456)
+.text
+.global main 
+iAdrszTitle:     .int szTitle
+
+main:                           @ entry of program 
+    ldr r0,iAdrszTitle          @ (similar to x86&rsquo;s lea)
+@ or (as sub-4K style)
+    ldr r0,=szTitle
+@ or (Phix-style - don&rsquo;t panic!):
+    mov r0,#40000000 @ (lsl 24)
+    orr r0,#00120000 @ (lsl 16)
+    orr r0,#00003400 @ (lsl 8)
+    orr r0,#00000056 @ (lsl 0)
+    bl displayMsg               @ (similar to x86&rsquo;s call)
+ </pre>
+        All you really need to know/accept from that is that values (often) need to be loaded in 8-bit chunks.<br>
+        NB: in "as" (ie the RPi assembler) syntax, #NN is a decimal number, but pilasm.e treats that as hex.<br>
+        For pilasm.e, I think I&rsquo;ll allow an "lea [var]" and have it spit out three instructions.<br>
+<!--
+        However for our experiments with "as" and "ld", we still need to cope with iAdrszTitle being slap in the middle
+        of the code section. Or just assume that 4K is enough for all rosettacode samples...<br>
+-->
+        
+        <br>
+        <br>
+        There are several other non-standard quirks of Phix&rsquo;s (internal) ARM assembly langugage, such as:<br>
+        "add r5, r4, r2, lsl 3" &lt;===&gt; "add r5, r4, r2 lsl 3" &lt;===&gt; "add r5, r4, r2<<3" &lt;===&gt; "add r5, r4, r2*8",<br>
+        "ldr r3, [r5, 4]" &lt;===&gt; "ldr r3, [r5+4]".<br>
+        In other words I&rsquo;ll make up my own rules/syntax as I see fit, to preserve my own sanity.<br>
+        Some will no doubt disagree, but for me the pre-UAL syntax is all round far nicer to deal with.<br>
+        By default (in filedump.e unless UsePhixSyntax is true) it will disassemble to a standard syntax, whereas
+        when disassembling for a list.asm file it will try as best it can to match the #ilASM{[ARM]} source input.
+        <br>
+        <br>
+
+Stages/Progress:<br>
+1) Dissassemble [IN PROGRESS]: There are 216 entries on rosettacode (just 4 selected for now) 
+that I can copy, compile, test, then transfer the binary file and throw it at filedump.exw<br>
+2) Update platform(), format, etc. (pretty basic stuff)<br>
+3) Output the basic ELF ARM headers etc. ("")<br>
+4.1) Extend #ilASM{} with an [ARM] guard. (getting tricky)<br>
+        --  #ilASM{ [32] ret [64] pop al } is the correct way to say "64bit not yet written",<br>
+4.2) Extend all 300+ uses of #ilASM in the backend with [ARM] sections (some dummy for now). (huge)<br>
+4.3) Extend pilx86.e/ilxlate() or write a separate include to emit ARM binary. (huge)<br>
+4.4) Merge/start from p2js (use new tokeniser/parse tree), add register allocation, etc.<br>
+The compiler must know when a register contains:<br>
+    The address of a variable<br>
+    The ref of a variable   (== value for ints)<br>
+    The shifted ref of a variable<br>
+    Such states on entry and exit from a basic block/sub-tree-node.<br>
+    ...<br>
+5) Test.<br>
+6) ex.err creation.<br>
+7) pGUI, mpfr, etc...<br>
+8) trace, profile, etc...<br>
+<br>
+Of necessity 4.1-4 will intertwine and overlap, and take many months and quite probably years,
+but with a bit of luck I just might uncover some shortcuts along the way.
+<br>
+<br>
+<hr>
+<br>
+<br>
+fasmarm follows this principle: Find a way to encode it, the smaller the better
+<br>
+<br>
+What this means is that even though you may write a particular opcocde, fasmarm
+may assemble another as a replacement. This can only happen where the
+functionality is exactly the same. The reason for doing this is to increase the
+likelihood of a successful assembly. This will only affect you if you want to
+look at a disassembly listing and match it to the original source. Example:
+
+ <pre>
+        What you coded     | What is assembled  ;reason
+        -------------------+---------------------------------------------------
+                          ARM
+        and r0,0xfffffff0  | bic r0,0x0000000f  ;immediate could not be encoded
+        add r1,-4          | sub r1,4           ;immediate could not be encoded
+        cmp r2,0xffffe500  | cmn r2,0x00001b00  ;immediate could not be encoded
+        lsr r1,r2,r3       | mov r1,r2,lsr r3   ;ARM mode does not have LSR
+        pop {r0-r3}        | ldmfd r13!,{r0-r3} ;ARM mode does not have POP
+        mul r4,r4,r11      | mul r4,r11,r4      ;encoding restriction for
+                           |                    ;CPU versions before v6
+<!--
+                         THUMB
+        ldmfd r13!,{r0-r3} | pop {r0-r3}        ;THUMB mode uses pop
+        ldmfd r10!,{r8}    | ldr r8,[r10],4     ;forbidden single register LDMs
+        pop {r8}           | ldr r8,[r13],4     ;forbidden single register POP
+        add r2,0x89a       | addw r2,0x89a      ;immediate could not be encoded
+                         BOTH
+        mov r1,0x4567      | movw r1,0x4567     ;immediate could not be encoded
+-->
+        mov r1,0x4567      | mov r1,0x4500      ;immediate could not be encoded
+                             orr r1,0x0067
+ </pre>
+
+blx is not supported, but you can always replace:
+ <pre>
+@   blx r4                               @ call of the function to be measured
+    mov lr,pc                            @ pc is always +8!! (+4 in thumb mode)
+    bx r4
+ </pre>
+
+nb: bx pc is undefined... (compiler error needed?)
+
+<!--
+-- http://www.davespace.co.uk/arm/introduction-to-arm/index.html
+-- http://compileroptimizations.com/index.html
+-- https://alisdair.mcdiarmid.org/arm-immediate-value-encoding/ (playgound for testing...)
+-->
+
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

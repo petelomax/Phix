@@ -41,6 +41,7 @@ procedure std_ident()
     integer ttidx = tt_idx(tokstart,i)
 --  integer ttidx = tt_idx(tokstart,i,is_html())
     add_tok({toktype,tokstart,i,line,tokstart-linestart,ttidx})
+if ttidx=T_private then ?tokens[$] end if
 end procedure
 
 bool tok_bad = false
@@ -227,7 +228,7 @@ global procedure tokenise()
                     end if
                 end if
                 fallthrough
-            case '?','+','*','!','=',';',',','.','|','<','&',':','>','\\','$','%','~','^':
+            case '?','@','+','*','!','=',';',',','.','|','<','&',':','>','\\','$','%','~','^':
                 while i<lt 
                   and charset[src[i+1]]>SYMBOL do
                     integer sdx = find(src[tokstart..i+1],multisym)
@@ -248,13 +249,19 @@ global procedure tokenise()
                 i += 1
                 tok_ch = src[i]
                 if tok_ch='i' then
-                    if not is_C() -- allow "#include"
-                    or i+6>lt 
-                    or src[i..i+6]!="include" then
-                        {} = tok_error("unrecognised")
-                        return
+                    if is_phix()
+                    and i+4<=lt
+                    and src[i..i+4]="ilASM" then
+                        i += 4
+                    else
+                        if not is_C() -- allow "#include"
+                        or i+6>lt 
+                        or src[i..i+6]!="include" then
+                            {} = tok_error("unrecognised")
+                            return
+                        end if
+                        i += 6
                     end if
-                    i += 6
                     tokstart += 1
                     toktype = LETTER
                     std_ident()
@@ -342,9 +349,10 @@ global procedure tokenise()
                     if tok_ch='\\' and cq!='`' then
                         i += 1
                         tok_ch = src[i]
-                        if tok_ch='t' then
-                            {} = tok_error("tab character:illegal",i-1)
-                        end if
+--removed 12/4/22...
+--                      if tok_ch='t' then
+--                          {} = tok_error("tab character:illegal",i-1)
+--                      end if
                     elsif tok_ch=cq then
                         if i=tokstart+1 
 --(28/2/21 taken out for inside script tags)
@@ -462,7 +470,7 @@ global procedure tokenise()
                                 if i>length(src) then exit end if
                                 tok_ch = src[i]
                                 if not find(tok_ch,"0123456789") then exit end if
-                                base = base*10+tok_ch-'0'
+                                base = base*10+(tok_ch-'0')
                             end while
                             if base=0 or base>36 then
                                 {} = tok_error("invalid base")
@@ -499,6 +507,7 @@ global procedure tokenise()
                                     tok_ch = src[i]
                                     toktype = charset[tok_ch]
                                     if toktype!=DIGIT
+                                    and tok_ch!='_'
                                     and ((i!=i0+1) or not find(tok_ch,"-+")) then
                                         if i=i0+1 then
                                             -- eg "2. ", "3e "

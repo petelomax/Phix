@@ -23,8 +23,8 @@
         text = $subse(chunks,1);
         chunks = $repe(chunks,1,0);
         for (let i=2, i$lim=length(chunks); i<=i$lim; i+=1) {
-            text = $conCat(text, r);
-            text = $conCat(text, $subse(chunks,i));
+            text = $conCat(text, r, false);
+            text = $conCat(text, $subse(chunks,i), false);
         }
     }
     return text;

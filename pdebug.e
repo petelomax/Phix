@@ -219,15 +219,13 @@ atom xGetConsoleScreenBufferInfo,
      pMode
 
 procedure dinit()
-atom xKernel32,
-     xUser32,
-     xGetStdHandle,
+atom xGetStdHandle,
      xSetConsoleScreenBufferSize
 object dScreen
 
     puts(1,"")  -- ensure console exists
-    xKernel32 = open_dll("kernel32.dll")
-    xUser32 = open_dll("user32.dll")
+    atom xKernel32 = open_dll("kernel32.dll"),
+         xUser32 = open_dll("user32.dll")
     xGetStdHandle = define_c_func(xKernel32,"GetStdHandle",
         {C_LONG},   --  DWORD  nStdHandle   // input, output, or error device
         C_PTR)      -- HANDLE
@@ -1387,7 +1385,7 @@ end function
 --  end if
 --  system("exw.exe "&filepath,2)
 --end if
---constant xSetForegroundWindow = define_c_func(user32, "SetForegroundWindow", {C_POINTER}, C_POINTER )
+--constant xSetForegroundWindow = define_c_func(user32, "SetForegroundWindow", {C_PTR}, C_PTR)
 --void = c_func(xSetForegroundWindow,{ipc_CallFunc(path,AppName&"File",{temp,12})})
 
 if 01 then

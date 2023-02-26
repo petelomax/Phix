@@ -41,11 +41,20 @@
         </tr>
         <tr>
          <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+          Supported.
+         </td>
+        </tr>
+        <tr>
+         <td>
           <b>Comments:</b>
          </td>
          <td>
             These functions may be applied to an <a href="atom.htm">atom</a> or sq_floor(), sq_round(), sq_ceil(), sq_trunc() to all elements of a 
-            <a href="sequence.htm">sequence</a>. The rules for <a href="seqops.htm">sequence operations</a> apply.
+            <a href="sequence.htm">sequence</a>.<br>
+            The rules for <a href="seqops.htm">sequence operations</a> apply.
             <br>
             <br>
             floor(a/b) is treated specially for performance reasons, as there is no point storing a floating point 
@@ -97,11 +106,13 @@ constant</font><font color="#000000"> x</font><font color="#0000FF"> = {-</font>
 <font color="#0000FF">?</font><font color="#5E005E">apply</font><font color="#0000FF">(</font><font color="#000000">x</font><font color="#0000FF">,</font><font color="#000000">precision100</font><font color="#0000FF">)     </font><font color="#000080"><i> -- {-400,-400,-200,-200,0,0,200,200,400,400}</i></font>
 </pre>
             <br>
-            The reason you might want to use banker&rsquo;s rounding is so that the average of the rounded numbers is as close as possible to 
+            The reason you might want to use banker&rsquo;s rounding is so that the average of the rounded numbers is more likely to match 
             the average of the original numbers (ditto total), whereas always rounding up obviously introduces a systemic bias. <br>
             Above, the standard rounding average is out by 0.1, whereas the average x and the average bankers are both exactly zero, not
             that it would be difficult to construct a deliberately biased x such that the opposite were true; you only get better outputs
-            for evenly-dispersed/unbiased inputs.
+            for evenly-dispersed/unbiased inputs. Obviously the use of proper knock-on rounding leads to even better results, for instance
+            {0.6,0.6,0.6,0.6,0.6} =&gt; {0.6,0.2,0.8,0.4,1.0} (or {0.6,1.2,1.8,2.4,3.0} if you prefer) =&gt; {1,0,1,0,1}, guaranteeing that 
+            sum(results)==round(sum(inputs), but there is, as yet, no builtin routine for that.
             <br>
             <br>
             Note that this is only possible when working in whole (integer) pennies/cents (and above), <i>not</i> pounds/dollars to 2dp, and the 
@@ -109,7 +120,7 @@ constant</font><font color="#000000"> x</font><font color="#0000FF"> = {-</font>
             round(*100) to get exact whole integer penny/cent values back out when you retrieve them, that is prior to attempting any subsequent 
             calculations that are likely to end up requiring any further banker&rsquo;s rounding, but of course you don&rsquo;t need to do that
             if all you&rsquo;re going to do is print or add and subtract them. It should make no difference whatsoever if you use round() or
-            bankers_rounding() to retrieve the whole integer penny/cent values.
+            bankers_rounding() to retrieve the whole integer penny/cent values, since obviously there would be no .5s involved in that.
          </td>
         </tr>
         <tr>
@@ -181,11 +192,11 @@ constant</font><font color="#000000"> x</font><font color="#0000FF"> = {-</font>
             <br>
             Since eg 0.045 cannot be held exactly in an IEEE 754 floating point, it would be rather difficult 
             to coerce it to (almost) 0.04 rather than (almost) 0.05 - it would instead naturally fall depending 
-            on whether the nearest admissible representation was out by +/-epsilon. An abs(frac-0.5)<1e-13 or 
-            similar rather than frac=0.5 (see pmaths.e) might work, but could introduce another (small) bias of 
-            the very same kind that we are trying to eliminate. Best to just stick with integers. There is of
-            course nothing to stop you taking a copy of bankers_rounding() and creating a (renamed) application
-            specific version of it, tweaked however you like.
+            on whether the nearest admissible representation was out by +/-epsilon. 
+            An <a href="abs.htm">abs</a>(frac-0.5)<1e-13 or similar rather than frac=0.5 (see pmaths.e) might 
+            work, but could introduce another (small) bias of the very same kind that we are trying to eliminate. 
+            Best to just stick with integers. There is of course nothing to stop you taking a copy of 
+            bankers_rounding() and creating a (renamed) application specific version of it, tweaked however you like.
             <br>
             <br>
             Likewise if bankers_rounding() had an inverted precision, inaccuracies in the representation of 

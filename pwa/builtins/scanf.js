@@ -40,8 +40,7 @@
 //
 //  (programming note: %s is all the wildcard-matching we can handle; ? and * are treated as literals.)
 //
- /**/ 
-/*without debug*/   // (keep ex.err clean)
+//!/**/without debug -- (keep ex.err clean)
 //
 // The real gruntwork here is recognising numbers (if you think this is complicated, google "scanf.c").
 //  Much of $get_number() and $completeFloat() was copied from ptok.e, should really unify I spose, but
@@ -157,7 +156,7 @@ function $initb() {
 //  for i=10 to 15 do
     for (let i=10; i<=35; i+=1) {
         $baseset = $repe($baseset,(0X41+i)-10,i);
-        $baseset = $repe($baseset,(0X61+i)-10,i);
+        $baseset = $repe($baseset,(0X61+i)-10,i+26);
     }
     $bases = ["sequence",8,16,2,10]; // NB: oxbd order
     $binit = 1;
@@ -212,7 +211,7 @@ function $completeFloat(/*string*/ s, /*integer*/ sidx, /*atom*/ N, /*integer*/ 
                     }
                 }
             } else {
-                exponent = (exponent*10+$scan_ch)-0X30;
+                exponent = exponent*10+($scan_ch-0X30);
                 tokvalid = 1;
             }
 //          sidx += 1
@@ -271,6 +270,7 @@ function $get_number(/*string*/ s, /*integer*/ sidx, inbase=10) {
     }
 //  if  $scan_ch>='0' 
 //  and $scan_ch<='9' then
+    if (inbase<=36 && $scan_ch>0X5A) { $scan_ch = upper($scan_ch); }
     N = $subse($baseset,$scan_ch);
     if (N<inbase) {
         sidx += 1;
@@ -290,7 +290,7 @@ function $get_number(/*string*/ s, /*integer*/ sidx, inbase=10) {
                         if (compare(sidx,length(s))>0) { return ["sequence"]; }
                         $scan_ch = $subse(s,sidx);
                         if ($scan_ch<0X30 || $scan_ch>0X39) { break; }
-                        base = (base*10+$scan_ch)-0X30;
+                        base = base*10+($scan_ch-0X30);
                     }
                     if ((base<2 || base>16) || ($scan_ch!==0X29)) { return ["sequence"]; }
                 } else {
@@ -355,11 +355,12 @@ function $get_number(/*string*/ s, /*integer*/ sidx, inbase=10) {
 //          if $scan_ch<'0' or $scan_ch>'9' then
 //              if $scan_ch!='_' then exit end if    -- allow eg 1_000_000 to mean 1000000
 //          else
-//              N = N*10 + $scan_ch-'0'
+//              N = N*10 + ($scan_ch-'0')
 //          end if
             if ($scan_ch!==0X5F) {   // allow eg 1_000_000 to mean 1000000 (any base)
 //31/7/19:
                 if ($scan_ch===0X2E) { break; }
+                if (base<=36 && $scan_ch>0X5A) { $scan_ch = upper($scan_ch); }
                 scan_ch2 = $subse($baseset,$scan_ch);
                 if (scan_ch2>=base) { break; }
                 N = N*base+scan_ch2;
@@ -407,6 +408,7 @@ function $get_number(/*string*/ s, /*integer*/ sidx, inbase=10) {
             if (compare(sidx,length(s))>0) { break; }
             $scan_ch = $subse(s,sidx);
             if ($scan_ch!==0X5F) {
+                if ($scan_ch>0X5A) { $scan_ch = upper($scan_ch); }
                 $scan_ch = $subse($baseset,$scan_ch);
                 if ($scan_ch>16) { break; }
                 N = N*16+$scan_ch;
@@ -473,7 +475,7 @@ function $scanff(/*sequence*/ res, /*string*/ s, /*integer*/ sidx, /*sequence*/ 
 //              tries = $scanff(res,s,sidx+length(ffi),fmts,fidx)
                 tries = $scanff(deep_copy(res),s,sidx+length(ffi),fmts,fidx);
                 if (length(tries)) {
-                    resset = $conCat(resset, tries);
+                    resset = $conCat(resset, tries, false);
                 }
 //              tries = 0
                 sidx += 1;

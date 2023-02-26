@@ -49,8 +49,8 @@
                 if (options!=="SORT") {
                     crash("9/0"); // unknown
                 }
-                s = sort(s);
-//              s = sort(deep_copy(s))
+//              s = sort(s)
+                s = sort(deep_copy(s));
             }
             let /*object*/ prev = $subse(s,1);
 //5/8/21:

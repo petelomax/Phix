@@ -1,0 +1,121 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">ARM branches</h1>
+      <div id="mainSection">
+ <small>
+ <div class="arm_table">
+|Opcode..................................|1|0|9|8|7|6|5|4|3|2|1|0|9|8|7|6|5|4|3|2|1|0|9|8|7|6|5|4|3|2|1|0|
+|................................................|.O8............|...RN..|...RD..|...RS..|..OPC2.|...RM..|
+|........................................|..COND.|.OOOO..|.OFFSET........................................|
+|bx[cond] Rm.(aka ret)...................|..cond.|0 0 0 1 0 0 1 0|..SBO..|..SBO..|..SBO..|0 0 0 1|...Rm..|
+|b[cond] &lt;target addr&gt;.(aka jmp)...|..cond.|1 0 1 0|.................24_bit_offset.................|
+|bl[cond] &lt;target addr&gt;.(aka call).|..cond.|1 0 1 1|.................24_bit_offset.................|
+ </div>
+ </small>
+        <div class="clear"></div>
+        <br>
+        The <b>bx lr</b> instruction is most like and aliased to the x86 <b>ret</b> <small><i>(no imm)</i></small> instruction. <br>
+        The <b>b</b> instruction is most like and aliased to the x86 <b>jmp <i>label</i></b> instruction (32MB limit). <br>
+        The <b>bl</b> instruction is most like and aliased to the x86 <b>call <i>label</i></b> instruction (32MB limit). <br>
+        A <b>mov lr,pc; b Rm;</b> pair should (manually/explicitly) be used instead of an x86 <b>call <i>register</i></b> instruction.<br>
+        Note that since call/return on the ARM uses the lr (link register) instead of the system stack, <br>
+        there is no equivalent form of the x86 <b>ret imm</b> instruction, however you can of course use <br>
+        <b>add sp,NN; pop {pc}</b> or perhaps better yet <b>pop {Rm-Rn,pc}</b> to mimic it. <br>
+        It is also quite common to see lr being popped followed by a bx lr, which is perhaps understandable for manually written code, <br>
+        but I can think of no good reason for a compiler to follow suit, given that the lr bit is adjacent to the pc bit, so it&rsquo;s <br>
+        not like other register restores c/would run interference, and it should instead pop pc directly rather than into lr and jumping, <br>
+        and obviously that way emit one less instruction.<br>
+        <br>
+        <br>
+        Note that eg #ilASM{call "libc", "printf"} has to jump through several hoops: a couple of symtab entries, an entry in the string table,
+        a relocation entry, and a ".word printf" near the start of the data section [fetchable via ip], as well as emitting the three
+        instructions "ldr rN, [ip+imm]; mov lr, pc; bx rN;". (At a bare minimum and at this stage that&rsquo;s all a bit of a guess!)
+        <br>
+        <br>
+        There is no (deliberate) support for entering thumb mode via bx, that is, in Phix, which <br>
+        should not be surprising since there is (as yet) no way to generate any thumb instructions.
+        <br>
+        <br>
+        The <b>blx</b> instruction is <i>not</i> supported, if necessary replace eg "blx r4" with "mov lr,pc" and "bx r4".
+        <br>
+        <br>
+        
+        <table>
+         <tr>
+          <td>Phix</td>
+          <td>Traditional branches</td>
+          <td>Sometimes Better</td>
+         </tr>  
+         <tr>   
+          <td>
+<!--eucode>
+function gcd(integer a,b)
+    while a!=b do
+        if a>b then
+            a -= b
+        else
+            b -= a
+        end if
+    end while
+    return a
+end function
+</eucode-->
+<pre>
+<font color="#008080">function</font><font color="#7060A8"> gcd</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> a</font><font color="#0000FF">,</font><font color="#000000">b</font><font color="#0000FF">)</font>
+<font color="#008080">    while</font><font color="#000000"> a</font><font color="#0000FF">!=</font><font color="#000000">b</font><font color="#008080"> do
+        if</font><font color="#000000"> a</font><font color="#0000FF">&gt;</font><font color="#000000">b</font><font color="#008080"> then</font>
+<font color="#000000">            a</font><font color="#0000FF"> -=</font><font color="#000000"> b</font>
+<font color="#008080">        else</font>
+<font color="#000000">            b</font><font color="#0000FF"> -=</font><font color="#000000"> a</font>
+<font color="#008080">        end if
+    end while
+    return</font><font color="#000000"> a</font>
+<font color="#008080">end function</font>
+</pre>
+          </td> 
+          <td>
+ <pre>
+    gcd:    cmp r0,r1
+            beq stop
+            blt less
+            sub r0,r1
+            b gcd
+    less:
+            sub r1,r0
+            b gcd
+    stop:
+            bx lr
+ </pre>
+          </td> 
+          <td>
+ <pre>
+    gcd:    cmp r0,r1
+            subgt r0,r1
+            sublt r1,r0
+            bne gcd
+            bx lr
+ </pre>
+          </td> 
+         </tr>  
+        </table>
+        <br>
+        &nbsp;
+        <br>
+        The cut-off point for sticking with traditional branches over unconditional instructions is
+        quite small: typically 4..6 instructions, so I&rsquo;m told.
+        <br>
+        <br>
+<!--
+R_ARM_JUMP24
+-->
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

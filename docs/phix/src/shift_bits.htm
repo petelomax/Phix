@@ -4,7 +4,7 @@
    <these>
     <get>
      <stripped>
-      <h1 class="title">shift_bits</h1>
+      <h1 class="title">shift/count_bits</h1>
       <div id="mainSection">
        <table>
         <col style="width: 5%"/>
@@ -13,7 +13,7 @@
           <b>Definition:</b>
          </td>
          <td>
-            <a href="object.htm">object</a> res = shift_bits(<a href="object.htm">object</a> source_number, <a href="integer.htm">integer</a> shift_distance)
+            <a href="object.htm">object</a> res = shift_bits(<a href="object.htm">object</a> n, <a href="integer.htm">integer</a> shift_distance)
          </td>
         </tr>
         <tr>
@@ -24,12 +24,20 @@
             Moves the bits in the input value by the specified distance.
             <br>
             <br>
-            source_number: The value(s) whose bits will be be moved.<br>
+            n: The value(s) whose bits will be be moved.<br>
             shift_distance: number of bits to be moved by. 
             <br>
             <br>
-            Returns: atom(s) containing a 32-bit integer. A single atom in source_number yields a single atom result, otherwise the 
-            result is a <a href="sequence.htm">sequence</a> with the same shape as source_number, consisting of 32-bit integers.
+            Returns: atom(s) containing a 32-bit integer. A single atom in n yields a single atom result, otherwise the 
+            result is a <a href="sequence.htm">sequence</a> with the same shape as n, consisting of 32-bit integers.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+          Supported.
          </td>
         </tr>
         <tr>
@@ -37,16 +45,37 @@
           <b>Comments:</b>
          </td>
          <td>
-            If source_number is a <a href="sequence.htm">sequence</a>, each element is shifted.<br>
-            The value(s) in source_number are first truncated to a 32-bit integer.<br>
+            If n is a <a href="sequence.htm">sequence</a>, each element is shifted.<br>
+            The value(s) in n are first truncated to a 32-bit integer.<br>
             The output is truncated to a 32-bit integer.<br>
             Vacated bits are replaced with zero.<br>
-            If shift_distance is negative, the bits in source_number are moved left.<br>
-            If shift_distance is positive, the bits in source_number are moved right.<br>
-            If shift_distance is zero, the bits in source_number are not moved.
+            If shift_distance is negative, the bits in n are moved left.<br>
+            If shift_distance is positive, the bits in n are moved right.<br>
+            If shift_distance is zero, the bits in n are not moved.
 <!-- See Also: [[:rotate_bits]] -->
          </td>
         </tr>
+        <tr>
+         <td>
+          <b>Auxillary functions:</b>
+         </td>
+         <td>
+            <a name=count_bits></a>
+            <a href="object.htm">object</a> result = <b>count_bits</b>(<a href="object.htm">object</a> n[, integer nFrame=2])<br>
+            A simple implementation of Kernigans bit counter, eg count_bits(0b00100001) returns 2, with just the two iterations of the loop,
+            although while n exceeds the limits of a native integer/and_bits() it resorts to a slightly slower single-bit test/shift method,
+            which it also does when presented with any fractional values (for example 1/256 has a bit count of exactly 1).<br>
+            The nFrame parameter is intended for internal/recursive use, on sequences and eg 256.00390625, and should be ignored.<br>
+            As per shift_bits, a single atom yields an integer result, otherwise the result is a <a href="sequence.htm">sequence</a> with the 
+            same shape as n, consisting of small integers (0..53/63). Note that the checking to ensure the parameter(s) have not exceeded native 
+            53/63 bit precision limits, which w/could of course make the results pretty much meaningless, may yet need some further improvement.
+            See also <a href="mpfr.htm#mpz_popcount">mpz_popcount</a>(), which has no such limits and quite effectively disuades me from wanting 
+            to try anything clever with negative parameter(s), other than deliberately crash. As far as I am aware there is no such function as 
+            mpfr_popcount(), though you might be able to do something with an mpq of 1/256 (etc), that is by using mpz_popcount on the numerator
+            and denominator, not that I&rsquo;ve tried. Lastly note that count_bits() specifically returns -1 for [-]inf/nan.
+         </td>
+        </tr>
+
         <tr>
          <td>
           <b>Example:</b>
@@ -69,24 +98,28 @@
 ?shift_bits(0xFE427AAC, 7)          --==> 33326325 (==0x01FC84F5)
 ?shift_bits(-7,3)                   --==> 536870911 (==0x1FFFFFFF)
 ?shift_bits({48,121},2)             --==> {12,30}
+?count_bits(0.00390625)             --==> 1
+?count_bits(256)                    --==> 1
+?count_bits(256.00390625)           --==> 2
+?count_bits(power(2,1000))          --==> 1
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#0000FF">?</font><font color="#5E005E">shift_bits</font><font color="#0000FF">(</font><font color="#000000">7</font><font color="#0000FF">,-</font><font color="#000000">3</font><font color="#0000FF">)                  </font><font color="#000080"><i> --==&gt; 56 (==7*8)
-</i></font><font color="#0000FF">?</font><font color="#5E005E">shift_bits</font><font color="#0000FF">(</font><font color="#000000">0</font><font color="#0000FF">,-</font><font color="#000000">9</font><font color="#0000FF">)                  </font><font color="#000080"><i> --==&gt; 0
-</i></font><font color="#0000FF">?</font><font color="#5E005E">shift_bits</font><font color="#0000FF">(</font><font color="#000000">4</font><font color="#0000FF">,-</font><font color="#000000">7</font><font color="#0000FF">)                  </font><font color="#000080"><i> --==&gt; 512 (==4*128)
-</i></font><font color="#0000FF">?</font><font color="#5E005E">shift_bits</font><font color="#0000FF">(</font><font color="#000000">8</font><font color="#0000FF">,-</font><font color="#000000">4</font><font color="#0000FF">)                  </font><font color="#000080"><i> --==&gt; 128 (==8*16)
-</i></font><font color="#0000FF">?</font><font color="#5E005E">shift_bits</font><font color="#0000FF">(</font><font color="#000000">0xFE427AAC</font><font color="#0000FF">,-</font><font color="#000000">7</font><font color="#0000FF">)         </font><font color="#000080"><i> --==&gt; 557667840 (==0x213D5600)
-</i></font><font color="#0000FF">?</font><font color="#5E005E">shift_bits</font><font color="#0000FF">(</font><font color="#000000">0xFE427AAC</font><font color="#0000FF">,-</font><font color="#000000">8</font><font color="#0000FF">)         </font><font color="#000080"><i> --==&gt; 1115335680 (==#427AAC00)
-</i></font><font color="#0000FF">?</font><font color="#5E005E">shift_bits</font><font color="#0000FF">(-</font><font color="#000000">7</font><font color="#0000FF">,-</font><font color="#000000">3</font><font color="#0000FF">)                 </font><font color="#000080"><i> --==&gt; -56 (==0xFFFFFFC8)
-</i></font><font color="#0000FF">?</font><font color="#5E005E">shift_bits</font><font color="#0000FF">(</font><font color="#000000">131</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">)                 </font><font color="#000080"><i> --==&gt; 131
-</i></font><font color="#0000FF">?</font><font color="#5E005E">shift_bits</font><font color="#0000FF">(</font><font color="#000000">184.464</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">)             </font><font color="#000080"><i> --==&gt; 184
-</i></font><font color="#0000FF">?</font><font color="#5E005E">shift_bits</font><font color="#0000FF">(</font><font color="#000000">999_999_999_999_999</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">) </font><font color="#000080"><i> --==&gt; -1530494977 (==0xA4C67FFF)
-</i></font><font color="#0000FF">?</font><font color="#5E005E">shift_bits</font><font color="#0000FF">(</font><font color="#000000">184</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">)                 </font><font color="#000080"><i> --==&gt; 23 (==184/8)
-</i></font><font color="#0000FF">?</font><font color="#5E005E">shift_bits</font><font color="#0000FF">(</font><font color="#000000">48</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">)                  </font><font color="#000080"><i> --==&gt; 12 (==48/4)
-</i></font><font color="#0000FF">?</font><font color="#5E005E">shift_bits</font><font color="#0000FF">(</font><font color="#000000">121</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">)                 </font><font color="#000080"><i> --==&gt; 15 (==floor(121/8))
-</i></font><font color="#0000FF">?</font><font color="#5E005E">shift_bits</font><font color="#0000FF">(</font><font color="#000000">0xFE427AAC</font><font color="#0000FF">,</font><font color="#000000"> 7</font><font color="#0000FF">)         </font><font color="#000080"><i> --==&gt; 33326325 (==0x01FC84F5)
-</i></font><font color="#0000FF">?</font><font color="#5E005E">shift_bits</font><font color="#0000FF">(-</font><font color="#000000">7</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">)                  </font><font color="#000080"><i> --==&gt; 536870911 (==0x1FFFFFFF)
-</i></font><font color="#0000FF">?</font><font color="#5E005E">shift_bits</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">48</font><font color="#0000FF">,</font><font color="#000000">121</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">)            </font><font color="#000080"><i> --==&gt; {12,30}</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">shift_bits</font><font color="#0000FF">(</font><font color="#000000">7</font><font color="#0000FF">,-</font><font color="#000000">3</font><font color="#0000FF">)                  </font><font color="#000080"><i> --==&gt; 56 (==7*8)</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">shift_bits</font><font color="#0000FF">(</font><font color="#000000">0</font><font color="#0000FF">,-</font><font color="#000000">9</font><font color="#0000FF">)                  </font><font color="#000080"><i> --==&gt; 0</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">shift_bits</font><font color="#0000FF">(</font><font color="#000000">4</font><font color="#0000FF">,-</font><font color="#000000">7</font><font color="#0000FF">)                  </font><font color="#000080"><i> --==&gt; 512 (==4*128)</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">shift_bits</font><font color="#0000FF">(</font><font color="#000000">8</font><font color="#0000FF">,-</font><font color="#000000">4</font><font color="#0000FF">)                  </font><font color="#000080"><i> --==&gt; 128 (==8*16)</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">shift_bits</font><font color="#0000FF">(</font><font color="#000000">0xFE427AAC</font><font color="#0000FF">,-</font><font color="#000000">7</font><font color="#0000FF">)         </font><font color="#000080"><i> --==&gt; 557667840 (==0x213D5600)</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">shift_bits</font><font color="#0000FF">(</font><font color="#000000">0xFE427AAC</font><font color="#0000FF">,-</font><font color="#000000">8</font><font color="#0000FF">)         </font><font color="#000080"><i> --==&gt; 1115335680 (==#427AAC00)</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">shift_bits</font><font color="#0000FF">(-</font><font color="#000000">7</font><font color="#0000FF">,-</font><font color="#000000">3</font><font color="#0000FF">)                 </font><font color="#000080"><i> --==&gt; -56 (==0xFFFFFFC8)</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">shift_bits</font><font color="#0000FF">(</font><font color="#000000">131</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">)                 </font><font color="#000080"><i> --==&gt; 131</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">shift_bits</font><font color="#0000FF">(</font><font color="#000000">184.464</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">)             </font><font color="#000080"><i> --==&gt; 184</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">shift_bits</font><font color="#0000FF">(</font><font color="#000000">999_999_999_999_999</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">) </font><font color="#000080"><i> --==&gt; -1530494977 (==0xA4C67FFF)</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">shift_bits</font><font color="#0000FF">(</font><font color="#000000">184</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">)                 </font><font color="#000080"><i> --==&gt; 23 (==184/8)</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">shift_bits</font><font color="#0000FF">(</font><font color="#000000">48</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">)                  </font><font color="#000080"><i> --==&gt; 12 (==48/4)</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">shift_bits</font><font color="#0000FF">(</font><font color="#000000">121</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">)                 </font><font color="#000080"><i> --==&gt; 15 (==floor(121/8))</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">shift_bits</font><font color="#0000FF">(</font><font color="#000000">0xFE427AAC</font><font color="#0000FF">,</font><font color="#000000"> 7</font><font color="#0000FF">)         </font><font color="#000080"><i> --==&gt; 33326325 (==0x01FC84F5)</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">shift_bits</font><font color="#0000FF">(-</font><font color="#000000">7</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">)                  </font><font color="#000080"><i> --==&gt; 536870911 (==0x1FFFFFFF)</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">shift_bits</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">48</font><font color="#0000FF">,</font><font color="#000000">121</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">)            </font><font color="#000080"><i> --==&gt; {12,30}</i></font>
 </pre>
          </td>
         </tr>

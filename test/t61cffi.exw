@@ -307,21 +307,16 @@ typedef struct tagPAINTSTRUCT {
 } PAINTSTRUCT, *PPAINTSTRUCT;
 """
 procedure testPS()
-integer idRECT, idPS, size, sign
-atom pPS, pRECT
---sequence res
-    idRECT = define_struct(tRECT,32,1)
-    idPS = define_struct(tPS,32,1)
-    pPS = allocate_struct(idPS)
-
-    {pRECT,size,sign} = get_field_details(idPS,"rcPaint.left")
-    pRECT = pPS+pRECT
+    integer idRECT = define_struct(tRECT,32,1),
+            idPS = define_struct(tPS,32,1),
+            {offset,size,signed} = get_field_details(idPS,"rcPaint.left")
+    atom pPS = allocate_struct(idPS),
+         pRECT = pPS+offset
     pokeN(pRECT,{1,2,3,4},size)
     set_struct_field(idPS,pPS,"rcPaint.right",450)
-    if peekNS({pRECT,4},size,sign)!={1,2,450,4} then ?9/0 end if
+    if peekNS({pRECT,4},size,signed)!={1,2,450,4} then ?9/0 end if
     if get_struct_field(idRECT,pRECT,"right")!=450 then ?9/0 end if
     if get_struct_field(idPS,pPS,"rcPaint.right")!=450 then ?9/0 end if
---?{structs,stsizes,saligns,smembers}
 end procedure
 
 if 1 then

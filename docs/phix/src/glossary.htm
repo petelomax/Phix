@@ -23,7 +23,7 @@
             The simple act of giving something a clear, meaningful, and intuitive name. Often this term is explained in the 
             most baroque, confusing, and unhelpful way possible, especially layers within layers to hide and protect things. 
             I would argue it is all about careful choices that avoid distraction and let you focus on other matters, and the 
-            real benefits are not usually immediate but months or years hence.
+            real benefits are not usually immediate but in months or years from now.
             <br>
             <br>
             Now, if you asked me where I&rsquo;d been, and I said "a building", then at best you might assume I meant a
@@ -31,16 +31,23 @@
             assume I meant "a restaurant" or whatever. Clearly, "building" is a terrible abstraction, with little valid use
             outside construction, insurance, and planning (or non-abstract uses such as "clear the building") - would you 
             walk into an estate agents and say you want to buy "a building"? There are good and useful abstractions, bad
-            abstractions, and then there are programming abstractions.
+            abstractions, and programming abstractions.
+            <br>
+            <br>
+            There is a subtly different use of "abstract" in classes: just as you might have a cat or dog but cannot
+            actually have a pet "animal", you cannot create an instance of an abstract class but can create instances
+            of non-abstract subclasses/extensions of an abstract class. Consider it an "incomplete specification".
             <br>
             <br>
             Obviously within a class, "this" is almost not an abstraction, whereas "this" in JavaScript is a ripe source 
-            of bugs and the subject of many a stupid trick to restore it&rsquo;s magical meaningless status. I might accept 
-            a capture for later use such as "let restaurant = this;", but "that = this" is just drivel. <br>
-            Unless you are writing a routine which does the
-            right and useful thing with peanut butter, dying flowers, Matt Damon on a bicycle, hyenas, and India.<br>
-            As disparate as those are, I can effortlessly invent meaningful abstractions for them: food, emotives,
-            film scenes, animals, countries. If an abstraction cannot separate any of them, then it is truly abysmal.<br>
+            of bugs and the subject of many a stupid trick to restore it&rsquo;s magical meaningless status.<br>
+            I might accept a capture for later use such as "let restaurant = this;", but "that = this" is just drivel, unless 
+            you can do the right thing with peanut butter, dying flowers, Matt Damon on a bicycle, hyenas, and India.<br>
+            As disparate as those are, I can effortlessly invent meaningful abstractions for them: foods, emotives,
+            film scenes, animals, countries. <br>
+            If an abstraction cannot separate any of them, then it is truly not just abysmal but obstructively unhelpful.<br>
+            The only routines that can do anything useful without the slightest idea what/which it is, are almost inevitably
+            so completely and utterly banal and trivial that they are indeed completely and utterly pointless themselves.<br>
             Not a fan, be I, of deliberately meaningless abstraction, but should you be, you have my heartfelt pity.
             <br>
               <a name=allocation></a>
@@ -98,6 +105,22 @@
             Personally, I use builtins\VM\pHeap.e\::pGetMem as my go-to place for a quick recap on the various 
             operating-system-api-specific calling conventions.
             <br>
+              <a name=closure></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+            closure
+         </td>
+         <td>
+            (not supported in Phix, but pretty easy to explicitly emulate, and much easier to debug like that)
+            A mapping associating each free variable of a function (variables that are used locally, but defined in an enclosing scope) 
+            with the value or reference to which the name was bound when the closure was created. Unlike a plain function, a closure 
+            allows the function to access those captured variables through the closure&rsquo;s copies of their values or references, 
+            even when the function is invoked outside their scope. In short, a closure implicitly creates(/would create) multiple copies 
+            of things, which is great until you realise (in some specific case) you don&rsquo;t want that. Phix takes the view that you
+            should explicitly pass everything needed, and explicitly return/assign anything modified.
+            <br>
               <a name=compilation></a>
          </td>
         </tr>
@@ -128,13 +151,10 @@
             dword-sequence
          </td>
          <td>
-            Specifically used to indicate a
-          <a href="#sequence">sequence</a> which is
-          <i>not</i> a
-          <a href="#string">string</a> but (on 32-bit) 4 bytes per element.
+            Specifically used to indicate a <a href="#sequence">sequence</a> which is <i>not</i> a <a href="#string">string</a> but (on 32-bit) 4 bytes per element.
             On 64-bit, they are (of course) technically qword-sequences, 8 bytes per element, but are still usually referred to as dword-sequences.
-            You cannot natively declare a variable as dword-sequence-but-not-string, however the following user defined type has the same effect
-            (in fact <a href="pGUI.htm">pGUI.e</a> has a very similar private dword_seq type).
+            You cannot natively declare a variable as dword-sequence-but-not-string, however the following <a href="usingtypes.htm#type">user defined type</a>
+            has the same effect, and in fact <a href="xpGUI.htm">[x]</a><a href="pGUI.htm">pGUI.e</a> has a very similar private dword_seq type.
             <br>
             <br>
 <!--eucode>
@@ -149,6 +169,29 @@
 </pre>
             <br>
             You can (sometimes) alternatively use a #isginfo{} statement to instruct the compiler to perform an equivalent compile-time check.
+            <br>
+              <a name=dynamic_typing></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+            dynamic typing
+         </td>
+         <td>
+            Otherwise known as duck typing, as in "if it walks like a duck and it quacks like a duck, then it must be a duck". Programming languages
+            are generally either statically typed (eg C, Java) or dynamically typed (eg JavaScript, Python), though other type systems exist, such 
+            as manifest, inferred, nominal, and structural, and even abstract, dependent, flow-sensitive, gradual, intersection, latent, refinement,
+            substructural, unique, and session!! Duck typing is often claimed to enable easier code reuse, but I have never noticed a case of that,
+            at least that is not compared to Phix, thanks mainly to the more cautious and selective use of <a href="object.htm">object</a>.
+            <br>
+            <br>
+            Phix is more of a hybrid: if you have <a href="integer.htm">integer</a> i, then i is a strongly statically typed variable, whereas some 
+            <a href="object.htm">object</a> o is dynamically typed, unless the compiler manages to apply type inference and determine it is only ever 
+            assigned one or some subset of the standard builtin types. <br>
+            The biggest problem imo with most dynamically typed languages is the complete failure to catch, say "fleg = false" when you meant to set 
+            "flag", which can be very hard to spot and fix.<br>
+            The biggest problem imo with (some) statically typed languages is implicit type coercion, whereby eg 1/2 is 0, whereas in Phix you would 
+            need to explicitly code floor(1/2) to get that 0, rather than 0.5.
             <br>
               <a name=era></a>
          </td>
@@ -225,7 +268,8 @@
             Specifically used to indicate an <a href="#atom">atom</a> which is <i>not</i> an <a href="#integer">integer</a> but (on 32-bit) a 
             64 bit floating point value, ranging from approximately -1.79e308 to +1.79e308 with around 15 decimal digits of precision. 
             On 64-bit, floats are 80-bit (tbyte), ranging from roughly -1.18e4932 to +1.18e4932 with about 19 decimal digits of precision.
-            You cannot natively declare a variable as float-but-not-integer, however the following user defined type has the same effect:
+            You cannot natively declare a variable as float-but-not-integer, however the following <a href="usingtypes.htm#type">user defined type</a>
+            has the same effect:
             <br>
             <br>
 <!--eucode>
@@ -347,6 +391,22 @@
             of the included file. Note that a namespace is always deemed local rather than global and may therefore require a source file to be
             re-included by any source files that want to qualify a reference with it. See <a href="scope.htm">scope</a>.
             <br>
+              <a name=p2jsviolation></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+            p2js violation
+         </td>
+         <td>
+            Phix has copy-on-write semantics whereas JavaScript has pass-by-sharing semantics. In truth neither rely on that as much as we
+            might think they do, so <a href="with.htm">with js</a> effectively disables <i>both</i> and that way allows the same source code 
+            to run both on the desktop <i>and</i> in a web browser. When desktop/Phix detects an internal clone has been triggered as part of 
+            it&rsquo;s copy-on-write semantics it terminates with a fatal "p2js violation" error, forcing the introduction of an appropriate 
+            <a href="deep_copy.htm">deep_copy</a>() or other means of getting the program to work. Note that p2js.exw itself does nothing in 
+            this regard, just relies on that sort of debugging/testing having previously happened. Occasionally also referred to as a
+            cow-violation (where cow stands for copy-on-write).
+            <br>
               <a name=qwordseq></a>
          </td>
         </tr>
@@ -395,6 +455,7 @@
             The scope of a routine is anywhere in the file it is declared in, or in the case of global routines, anywhere in the entire 
             application. <br>
             Namespaces and explicit forward declarations can be used to further qualify and clarify matters. See <a href="scope.htm">scope</a>.
+            <b>NB:</b> namespaces are <i>not</i> <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a>-compatible.
             <br>
               <a name=sequence></a>
          </td>
@@ -518,6 +579,19 @@
             See also/contrast with gvar. Note that while gvars can have an associated compile-time value for constant
             and assignment-on-declaration purposes, that is not the case for tvars, which only have run-time values.
             <br>
+              <a name=type_safety></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+            type safety
+         </td>
+         <td>
+            Phix implements a (probably weak) form of type safety in the form of compile-time checks, but makes no grandious claims,
+            preferring to focus on making debugging easier, instead of trying to avoid it at <i>all</i> costs, and inevitably failing. 
+            Phix also avoids any implicit type conversion; should you want a 3 from PI, you would have to explicitly code floor(PI).
+<!--            , or at best make that tricky 2% take 210% of the time. -->
+            <br>
               <a name=UTF8></a>
          </td>
         </tr>
@@ -565,7 +639,7 @@
 DEV format routine_id call_back type user defined type enum constant inline assembly listing trace profile profile_time 
 console gui global public include whitespace ansi utf8 utf16 WideString unicode ascii byte dword qword 
 coercion casting commandline autoinclude (multiple) slice subscript typecheck intermediate code, il x86
-X64 ffi closure(!! time to give up !! [erm, see compose suggestion in totdo.txt])-->
+X64 ffi (!! time to give up !! [erm, see compose suggestion in totdo.txt])-->
        <br>
        <br>
       <br>

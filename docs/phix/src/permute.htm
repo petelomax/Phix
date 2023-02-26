@@ -13,7 +13,26 @@
           <b>Definition:</b>
          </td>
          <td>
-         <a href="sequence.htm">sequence</a> res = permute(<a href="integer.htm">integer</a> n, <a href="sequence.htm">sequence</a> set)
+         <a href="sequence.htm">sequence</a> res = permute(<a href="integer.htm">integer</a> n, 
+                                                           <a href="sequence.htm">sequence</a> s,
+                                                           <a href="integer.htm#bool">bool</a> bFast=false)
+         <br>
+         <i>-- or --</i>
+         <br>
+         <a href="sequence.htm">sequence</a> res = permutes(<a href="sequence.htm">sequence</a> s,
+                                                            <a href="integer.htm">integer</a> cb=0, k=<a href="length.htm">length</a>(s))
+         <br>
+         <i>-- or --</i>
+         <br>
+         <a href="sequence.htm">sequence</a> res = combinations(<a href="sequence.htm">sequence</a> s,
+                                                                 <a href="integer.htm">integer</a> k, <small><i>at=1,
+                                                                 <a href="sequence.htm">sequence</a> res={}, part=""</i></small>)
+         <br>
+         <i>-- or --</i>
+         <br>
+         <a href="sequence.htm">sequence</a> res = combinations_with_repetitions(<a href="sequence.htm">sequence</a> s,
+                                                                                 <a href="integer.htm">integer</a> k=<a href="length.htm">length</a>(s), <small><i>at=1,
+                                                                                 <a href="sequence.htm">sequence</a> res={}, part=""</i></small>)
          </td>
         </tr>
         <tr>
@@ -21,8 +40,45 @@
           <b>Description:</b>
          </td>
          <td>
-            Return the nth permute of the given set.<br>
-            n should be an integer in the range 1 to <a href="factorial.htm">factorial</a>(<a href="length.htm">length</a>(set))
+            permute() returns the nth permute of the given sequence.<br>
+            n: an integer in the range 1 to <a href="factorial.htm">factorial</a>(<a href="length.htm">length</a>(s))<br>
+            s: the sequence or string to permute<br>
+            bFast: [optional] use older somewhat quirky but faster algorithm (see below)
+            <br>
+            <br>
+            permutes() generates every unique k-permutation of s in lexicographical first-instance order,<br>
+            and either returns that as a full set, or invokes the provided callback on each and returns {}.<br>
+            s: the sequence or string to permute (let l be <a href="length.htm">length</a>(s))<br>
+            cb: [optional] if non-zero, a function to process each permutation, and res will be {}<br>
+            k: [optional] to specify partial permutations. If k>l then {} is returned.<br>
+            when cb=0, and k=l and s contains no duplicates, returns a sequence of length <a href="factorial.htm">factorial</a>(l), 
+            in other cases the length is a bit harder to calculate/describe, but of course follows standard theory.<br>
+            For the callback function bool continue = cb(sequence p[, integer kth[, tk]]):<br>
+            p: a single permutation<br>
+            kth, tk: indicates the kth of tk permutes (see notes below)<br>
+            The callback should return true to continue or false to terminate.
+            <br>
+            <br>
+            combinations() returns all subsets of k distinct elements of s in lexicographical order.<br>
+            s: the sequence or string to permute (any duplicates are stripped, let u be <a href="unique.htm">unique</a>(s) and n be <a href="length.htm">length</a>(u)).<br>
+            k: the length of each subset. Note that should k=n the result would [just] be {u}, and k>n yields {}.<br>
+            <small><i>at, res, part</i>: intended for internal use only.</small><br>
+            returns a sequence of length <a href="factorial.htm">choose</a>(n,k).
+            <br>
+            <br>
+            combinations_with_repetitions() returns all subsets of k non-descending elements of s in lexicographical order.<br>
+            s: the sequence or string to permute (ditto unique&rsquo;d, n as above, noting that k does not necessarily default the same).<br>
+            k: the length of each subset. Somewhat more useful results are yielded when k>=n than from combinations(), as per examples.<br>
+            <small><i>at, res, part</i>: intended for internal use only.</small><br>
+            returns a sequence of length <a href="factorial.htm">choose</a>(n+k-1,k).
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+          Supported.
          </td>
         </tr>
         <tr>
@@ -30,25 +86,206 @@
           <b>Comments:</b>
          </td>
          <td>
-            This can be used to retrieve all possible permutations, in no particular order. The elements can be any type. 
-            It is just as fast to generate the (n!)th permutation as the first, so some applications may benefit by storing
-            an integer key rather than duplicating all the elements of the given set.
+            The elements of s can be any type. 
+            <br>
+            <br>
+            Prior to 1.0.2, permute() used a somewhat quirky but faster (2-fold) algorithm that generated all possible permutations
+            but in no particular order, and that can still be used, whereas the default is now in lexicographic position order, and
+            of course that is proper lexicographic order when s is sorted on entry, but a full set can still be generated even when 
+            it isn&rsquo;t.<br>
+            For both the old and new algorithms in permute(), it is just as fast to generate the (n!)th permutation as the first, 
+            so some applications may benefit by storing an integer key rather than duplicating all the elements of the given set.
+            <br>
+            <br>
+            Neither the old nor new algorithms in permute() handle partial permutations or duplicate elements in s correctly, for 
+            that a new routine permutes() must be used [added in 1.0.2], which (alas) does not (and cannot) support integer key 
+            reconstruction, that is of course apart from using permutes() to generate a full no duplicates set and saving the
+            position in that (or the kth parameter of the callback) for later reconstruction via permute().<br>
+            It needs to build a full set or requires a callback to process each, since it uses a mutated tagset internally, which 
+            of course would be lost if it tried to return each permutation individually, and/or would be unnecessarily difficult 
+            to reconstruct from some prior permutation, especially so should that be a partial one with duplicates.<br>
+            Obviously building a complete set of permutations can be <i>extremely</i> wasteful if you don&rsquo;t need the vast
+            majority of them.
+            <br>
+            <br>
+            For best results any s passed to permute[s]() should be sorted, in which case permutations are generated in a proper 
+            lexicographic order.<br>
+            When s is unsorted, they are generated in "first instance order", eg babb -> {bbba, bbab, babb, abbb}, in other
+            words you get all 3 b at the front first because the first b occurred in s before the first a, and likewise you
+            will get a perfect mirror order of results from "cba" that you would get from "abc".
+            <br>
+            <br>
+            The callback can take 1, 2, or 3 parameters: it will always be passed a permutation, and optionally two atoms
+            indicating the permutation number and total of them, which may be useful for a progress indicator.
+            <small><i>(While technically kth and tk are atom, it is probably wiser to use integer as shown, since that may
+            help catch attempts to generate more permutations than nanoseconds since the big bang.)</i></small><br>
+            The callback should return true to continue or false to cease and desist the generation of any more permutations.
+            <br>
+            <br>
+            Note that the total number of permutations, ie tk as passed to cb(), is incorrect/meaningless for partial permutes 
+            with duplicates in s.<br>
+            For instance, there are 7 length-2 permutes of "UVXX" (UV,UX,VU,VX,XU,XV,XX), but tk is given/calculated as 12,
+            which btw is correct for no duplicates in s. I don&rsquo;t believe there is a formula to calculate that 7 for
+            such circumstances, but happy to be proved wrong, and (of course) should you happen to know what tk should be, 
+            use that instead of the wrong value from this! The value given for tk should however be correct for partial
+            permutes with no duplicates, and full permutes with (or without) duplicates, just not both at the same time.
+            It will of course generate the correct number of permutations, it is just tk that is (sometimes) wrong.<br>
+            I would of course accept the argument and a suitable modification to the source file builtins\permute.e
+            which passes, say, -1, to the callback instead of a blatently wrong value, see the four ((x...?)) comments in
+            that code [for which there has been no attempt at testing].
+            <br>
+            <br>
+            For permutations, ordering is important, whereas for combinations it is not, hence the latter tend to return 
+            smaller result sets for the equivalent parameters, though that is certainly not the case every time.<br>
+            Both combinations() and combinations_with_repetitions() perform <code>s=unique(s)</code> when first called, 
+            though the latter goes on to duplicate the one remaining copy (as opposed to duplicating each of the duplicates). <br>
+            The results from combinations() are strictly ascending, those from combinations_with_duplicates() non-descending.<br>
+            You could of course supply a <a href="tagset.htm">tagset</a> to these routines, and use those results to extract 
+            from your still-with-duplicates and/or out-of-order original set, should that help any.
+            <br>
+            <br>
+            Aside: Obviously, any way a specific application can cut down the number of permutations or combinations, 
+            including simply using a callback to terminate should (say) the 73rd fit the bill, would make for a much 
+            better and faster program.
+            It is in fact a common optimisation technique, to scan a much smaller set of permutations or combinations than 
+            some much larger range, but if you&rsquo;re not careful there can sometimes be far more than the original range, 
+            especially should you somehow be able to skip some quite large segments early on, whereas it is much harder to 
+            say anything like "no more permutations beginning 1,2,3 please". (I am of course always open to suggestions.)
          </td>
         </tr>
         <tr>
          <td>
-          <b>Example:</b>
+          <b>Example 1:</b>
          </td>
          <td>
 <!--eucode>
 for i=1 to factorial(3) do
-    ?permute(i,"abc")       -- displays "bca" "cab" "bac" "cba" "acb" "abc"
+    ?permute(i,"abc")       -- displays "abc" "acb" "bac" "bca" "cab" "cba" 
+--  ?permute(i,"abc",true)  -- displays "bca" "cab" "bac" "cba" "acb" "abc"
 end for
+
+sequence res = permutes("112223445556")
+pp(join(shorten(res,"items",2)))
+-- `112223445556 112223445565 ... 655544322121 655544322211  (3,326,400 items)`
+
+?join(permutes("123",0,1),',')                    -- "1,2,3"
+?join(combinations("123",1),',')                  -- "1,2,3"
+?join(combinations_with_repetitions("123",1),',') -- "1,2,3"
+
+?join(permutes("123",0,2),',')                    -- "12,13,21,23,31,32"
+?join(combinations("123",2),',')                  -- "12,13,23"
+?join(combinations_with_repetitions("123",2),',') -- "11,12,13,22,23,33"
+
+?join(permutes("123",0,3),',')                    -- "123,132,213,231,312,321"
+?join(combinations("123",3),',')                  -- "123"
+?join(combinations_with_repetitions("123",3),',') -- "111,112,113,122,123,133,222,223,233,333"
+
+?join(permutes("123",0,4),',')                    -- ""
+?join(combinations("123",4),',')                  -- ""
+?join(combinations_with_repetitions("123",4),',') -- "1111,1112,1113,..,1333,2222,..,2333,3333"
+
+?combinations_with_repetitions(tagset(9,0),3)     -- {{0,0,0},{0,0,1},..{8,9,9},{9,9,9}} (length 220)
+?combinations_with_repetitions(tagset(9),3)       -- {{1,1,1},{1,1,2},..{8,9,9},{9,9,9}} (length 165)
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#008080">for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#5E005E"> factorial</font><font color="#0000FF">(</font><font color="#000000">3</font><font color="#0000FF">)</font><font color="#008080"> do
-</font><font color="#0000FF">    ?</font><font color="#5E005E">permute</font><font color="#0000FF">(</font><font color="#000000">i</font><font color="#0000FF">,</font><font color="#008000">"abc"</font><font color="#0000FF">)      </font><font color="#000080"><i> -- displays "bca" "cab" "bac" "cba" "acb" "abc"
-</i></font><font color="#008080">end for</font>
+<font color="#008080">for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#7060A8"> factorial</font><font color="#0000FF">(</font><font color="#000000">3</font><font color="#0000FF">)</font><font color="#008080"> do</font>
+<font color="#0000FF">    ?</font><font color="#7060A8">permute</font><font color="#0000FF">(</font><font color="#000000">i</font><font color="#0000FF">,</font><font color="#008000">"abc"</font><font color="#0000FF">)      </font><font color="#000080"><i> -- displays "abc" "acb" "bac" "bca" "cab" "cba" 
+--  ?permute(i,"abc",true)  -- displays "bca" "cab" "bac" "cba" "acb" "abc"</i></font>
+<font color="#008080">end for
+</font>
+<font color="#004080">sequence</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#7060A8"> permutes</font><font color="#0000FF">(</font><font color="#008000">"112223445556"</font><font color="#0000FF">)</font>
+<font color="#7060A8">pp</font><font color="#0000FF">(</font><font color="#7060A8">join</font><font color="#800000">(</font><font color="#7060A8">shorten</font><font color="#800080">(</font><font color="#000000">res</font><font color="#0000FF">,</font><font color="#008000">"items"</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#800080">)</font><font color="#800000">)</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- `112223445556 112223445565 ... 655544322121 655544322211  (3,326,400 items)`
+</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">join</font><font color="#0000FF">(</font><font color="#7060A8">permutes</font><font color="#800000">(</font><font color="#008000">"123"</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#008000">','</font><font color="#0000FF">)                   </font><font color="#000080"><i> -- "1,2,3"</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">join</font><font color="#0000FF">(</font><font color="#7060A8">combinations</font><font color="#800000">(</font><font color="#008000">"123"</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#008000">','</font><font color="#0000FF">)                 </font><font color="#000080"><i> -- "1,2,3"</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">join</font><font color="#0000FF">(</font><font color="#7060A8">combinations_with_repetitions</font><font color="#800000">(</font><font color="#008000">"123"</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#008000">','</font><font color="#0000FF">)</font><font color="#000080"><i> -- "1,2,3"
+</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">join</font><font color="#0000FF">(</font><font color="#7060A8">permutes</font><font color="#800000">(</font><font color="#008000">"123"</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#008000">','</font><font color="#0000FF">)                   </font><font color="#000080"><i> -- "12,13,21,23,31,32"</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">join</font><font color="#0000FF">(</font><font color="#7060A8">combinations</font><font color="#800000">(</font><font color="#008000">"123"</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#008000">','</font><font color="#0000FF">)                 </font><font color="#000080"><i> -- "12,13,23"</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">join</font><font color="#0000FF">(</font><font color="#7060A8">combinations_with_repetitions</font><font color="#800000">(</font><font color="#008000">"123"</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#008000">','</font><font color="#0000FF">)</font><font color="#000080"><i> -- "11,12,13,22,23,33"
+</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">join</font><font color="#0000FF">(</font><font color="#7060A8">permutes</font><font color="#800000">(</font><font color="#008000">"123"</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#008000">','</font><font color="#0000FF">)                   </font><font color="#000080"><i> -- "123,132,213,231,312,321"</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">join</font><font color="#0000FF">(</font><font color="#7060A8">combinations</font><font color="#800000">(</font><font color="#008000">"123"</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#008000">','</font><font color="#0000FF">)                 </font><font color="#000080"><i> -- "123"</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">join</font><font color="#0000FF">(</font><font color="#7060A8">combinations_with_repetitions</font><font color="#800000">(</font><font color="#008000">"123"</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#008000">','</font><font color="#0000FF">)</font><font color="#000080"><i> -- "111,112,113,122,123,133,222,223,233,333"
+</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">join</font><font color="#0000FF">(</font><font color="#7060A8">permutes</font><font color="#800000">(</font><font color="#008000">"123"</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#008000">','</font><font color="#0000FF">)                   </font><font color="#000080"><i> -- ""</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">join</font><font color="#0000FF">(</font><font color="#7060A8">combinations</font><font color="#800000">(</font><font color="#008000">"123"</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#008000">','</font><font color="#0000FF">)                 </font><font color="#000080"><i> -- ""</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">join</font><font color="#0000FF">(</font><font color="#7060A8">combinations_with_repetitions</font><font color="#800000">(</font><font color="#008000">"123"</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#008000">','</font><font color="#0000FF">)</font><font color="#000080"><i> -- "1111,1112,1113,..,1333,2222,..,2333,3333"
+</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">combinations_with_repetitions</font><font color="#0000FF">(</font><font color="#7060A8">tagset</font><font color="#800000">(</font><font color="#000000">9</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">)    </font><font color="#000080"><i> -- {{0,0,0},{0,0,1},..{8,9,9},{9,9,9}} (length 220)</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">combinations_with_repetitions</font><font color="#0000FF">(</font><font color="#7060A8">tagset</font><font color="#800000">(</font><font color="#000000">9</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">)      </font><font color="#000080"><i> -- {{1,1,1},{1,1,2},..{8,9,9},{9,9,9}} (length 165)</i></font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Example 2:</b>
+         </td>
+         <td>
+            You could use an outer loop to generate all the different length permutes in length order:
+            <br>
+            <br>
+<!--eucode>
+sequence res = {}
+for k=1 to 3 do res &= permutes("123",0,k) end for
+pp(join(res))
+-- `1 2 3 12 13 21 23 31 32 123 132 213 231 312 321`
+</eucode-->
+<pre>
+<font color="#004080">sequence</font><font color="#000000"> res</font><font color="#0000FF"> = {}</font>
+<font color="#008080">for</font><font color="#000000"> k</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#000000"> 3</font><font color="#008080"> do</font><font color="#000000"> res</font><font color="#0000FF"> &amp;=</font><font color="#7060A8"> permutes</font><font color="#0000FF">(</font><font color="#008000">"123"</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">k</font><font color="#0000FF">)</font><font color="#008080"> end for</font>
+<font color="#7060A8">pp</font><font color="#0000FF">(</font><font color="#7060A8">join</font><font color="#800000">(</font><font color="#000000">res</font><font color="#800000">)</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- `1 2 3 12 13 21 23 31 32 123 132 213 231 312 321`</i></font>
+</pre>
+            <br>
+            Or instead, you might prefer do something like this, and maybe doing a bit of filtering or (actually doing, in real time) 
+            other useful things in the callback:
+            <br>
+            <br>
+<!--eucode>
+sequence res = {}, prev
+function collect(sequence s, integer kth)
+    integer k = 1
+    if kth!=1 then
+--      while k<length(s) -- (a strictly unnecessary test,
+--        and ...         -- albeit a logically valid one)
+        while s[k]=prev[k] do 
+            k += 1
+        end while
+    end if
+    for l=k to length(s) do
+        res = append(res,s[1..l])
+    end for
+    prev = s
+    return true -- (continue permuting)
+end function
+
+{} = permutes("123",collect) -- (instead of k=1,2,3)
+pp(join(res))
+-- `1 12 123 13 132 2 21 213 23 231 3 31 312 32 321`
+</eucode-->
+<pre>
+<font color="#004080">sequence</font><font color="#000000"> res</font><font color="#0000FF"> = {},</font><font color="#000000"> prev</font>
+<font color="#008080">function</font><font color="#000000"> collect</font><font color="#0000FF">(</font><font color="#004080">sequence</font><font color="#000000"> s</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> kth</font><font color="#0000FF">)</font>
+<font color="#004080">    integer</font><font color="#000000"> k</font><font color="#0000FF"> =</font><font color="#000000"> 1</font>
+<font color="#008080">    if</font><font color="#000000"> kth</font><font color="#0000FF">!=</font><font color="#000000">1</font><font color="#008080"> then</font>
+<font color="#000080"><i>--      while k&lt;length(s) -- (a strictly unnecessary test,
+--        and ...         -- albeit a logically valid one)</i></font>
+<font color="#008080">        while</font><font color="#000000"> s</font><font color="#0000FF">[</font><font color="#000000">k</font><font color="#0000FF">]=</font><font color="#000000">prev</font><font color="#0000FF">[</font><font color="#000000">k</font><font color="#0000FF">]</font><font color="#008080"> do </font>
+<font color="#000000">            k</font><font color="#0000FF"> +=</font><font color="#000000"> 1</font>
+<font color="#008080">        end while
+    end if
+    for</font><font color="#000000"> l</font><font color="#0000FF">=</font><font color="#000000">k</font><font color="#008080"> to</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">)</font><font color="#008080"> do</font>
+<font color="#000000">        res</font><font color="#0000FF"> =</font><font color="#7060A8"> append</font><font color="#0000FF">(</font><font color="#000000">res</font><font color="#0000FF">,</font><font color="#000000">s</font><font color="#800000">[</font><font color="#000000">1</font><font color="#0000FF">..</font><font color="#000000">l</font><font color="#800000">]</font><font color="#0000FF">)</font>
+<font color="#008080">    end for</font>
+<font color="#000000">    prev</font><font color="#0000FF"> =</font><font color="#000000"> s</font>
+<font color="#008080">    return</font><font color="#004600"> true</font><font color="#000080"><i> -- (continue permuting)</i></font>
+<font color="#008080">end function
+</font>
+<font color="#0000FF">{} =</font><font color="#7060A8"> permutes</font><font color="#0000FF">(</font><font color="#008000">"123"</font><font color="#0000FF">,</font><font color="#000000">collect</font><font color="#0000FF">)</font><font color="#000080"><i> -- (instead of k=1,2,3)</i></font>
+<font color="#7060A8">pp</font><font color="#0000FF">(</font><font color="#7060A8">join</font><font color="#800000">(</font><font color="#000000">res</font><font color="#800000">)</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- `1 12 123 13 132 2 21 213 23 231 3 31 312 32 321`</i></font>
 </pre>
          </td>
         </tr>
@@ -57,7 +294,7 @@ end for
           <b>Implementation:</b>
          </td>
          <td>
-            See builtins\permute.e (an autoinclude), reproduced in the technicalia dropdown below, for details of the actual implementation.
+            See builtins\permute.e (an autoinclude) for details of the actual implementation.
          </td>
         </tr>
         <tr>
@@ -75,54 +312,12 @@ end for
           </a>
          </td>
          <td>
-            It is worth reproducing the algorithm here. The implementation in builtins\permute.e also contains
-            some additional commented-out variations that may or may not provide slightly more suitable ordering.
-            <br>
-            <br>
-<!--eucode>
-global function permute(integer n, sequence set)
---
--- return the nth permute of the given set.
--- n should be an integer in the range 1 to factorial(length(set))
---
-sequence res
-integer w
-    n -= 1
-    res = set   -- so permute(n,string/seq) yields string/seq
-    for i=length(set) to 1 by -1 do 
-        w = remainder(n,i)+1
-        res[i] = set[w]
-        set[w] = set[i]
-        n = floor(n/i)
-    end for
-    return res
-end function
-</eucode-->
-<pre>
-<font color="#000000"></font><font color="#008080">global function</font><font color="#5E005E"> permute</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> n</font><font color="#0000FF">,</font><font color="#004080"> sequence</font><font color="#000000"> set</font><font color="#0000FF">)
-</font><font color="#000080"><i>--
--- return the nth permute of the given set.
--- n should be an integer in the range 1 to factorial(length(set))
---
-</i></font><font color="#004080">sequence</font><font color="#000000"> res
-</font><font color="#004080">integer</font><font color="#000000"> w
-    n</font><font color="#0000FF"> -=</font><font color="#000000"> 1
-    res</font><font color="#0000FF"> =</font><font color="#000000"> set  </font><font color="#000080"><i> -- so permute(n,string/seq) yields string/seq
-</i></font><font color="#008080">    for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#7060A8">length</font><font color="#0000FF">(</font><font color="#000000">set</font><font color="#0000FF">)</font><font color="#008080"> to</font><font color="#000000"> 1</font><font color="#008080"> by</font><font color="#0000FF"> -</font><font color="#000000">1</font><font color="#008080"> do 
-</font><font color="#000000">        w</font><font color="#0000FF"> =</font><font color="#7060A8"> remainder</font><font color="#0000FF">(</font><font color="#000000">n</font><font color="#0000FF">,</font><font color="#000000">i</font><font color="#0000FF">)+</font><font color="#000000">1
-        res</font><font color="#0000FF">[</font><font color="#000000">i</font><font color="#0000FF">] =</font><font color="#000000"> set</font><font color="#0000FF">[</font><font color="#000000">w</font><font color="#0000FF">]
-</font><font color="#000000">        set</font><font color="#0000FF">[</font><font color="#000000">w</font><font color="#0000FF">] =</font><font color="#000000"> set</font><font color="#0000FF">[</font><font color="#000000">i</font><font color="#0000FF">]
-</font><font color="#000000">        n</font><font color="#0000FF"> =</font><font color="#7060A8"> floor</font><font color="#0000FF">(</font><font color="#000000">n</font><font color="#0000FF">/</font><font color="#000000">i</font><font color="#0000FF">)
-</font><font color="#008080">    end for
-    return</font><font color="#000000"> res
-</font><font color="#008080">end function</font>
-</pre>
-            <br>
+<!--
             There is no corresponding library routine for generating combinations. The following template routine shows one way 
             to generate combinations of a given set. It is anticipated that you would need to modify this for each specific use.
             <br>
             <br>
-<!--eucode>
+<X!X--eucode>
 procedure comb(integer pool, needed, done=0, sequence chosen={})
     if needed=0 then    -- got a full set
         ?chosen         -- or call a routine[id] or whatever
@@ -136,27 +331,27 @@ procedure comb(integer pool, needed, done=0, sequence chosen={})
 end procedure           
 
 comb(3,2)   -- outputs {1,2} {1,3} {2,3}
-</eucode-->
-<pre>
-<font color="#000000"></font><font color="#008080">procedure</font><font color="#000000"> comb</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> pool</font><font color="#0000FF">,</font><font color="#000000"> needed</font><font color="#0000FF">,</font><font color="#000000"> done</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#004080"> sequence</font><font color="#000000"> chosen</font><font color="#0000FF">=</font><font color="#800000">{}</font><font color="#0000FF">)
-</font><font color="#008080">    if</font><font color="#000000"> needed</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#008080"> then   </font><font color="#000080"><i> -- got a full set
-</i></font><font color="#0000FF">        ?</font><font color="#000000">chosen        </font><font color="#000080"><i> -- or call a routine[id] or whatever
-</i></font><font color="#008080">        return
+</eucode-X-X>
+<Xpre>
+<font color="#008080">procedure</font><font color="#000000"> comb</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> pool</font><font color="#0000FF">,</font><font color="#000000"> needed</font><font color="#0000FF">,</font><font color="#000000"> done</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#004080"> sequence</font><font color="#000000"> chosen</font><font color="#0000FF">=</font><font color="#800000">{}</font><font color="#0000FF">)</font>
+<font color="#008080">    if</font><font color="#000000"> needed</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#008080"> then   </font><font color="#000080"><i> -- got a full set</i></font>
+<font color="#0000FF">        ?</font><font color="#000000">chosen        </font><font color="#000080"><i> -- or call a routine[id] or whatever</i></font>
+<font color="#008080">        return
     end if
     if</font><font color="#000000"> done</font><font color="#0000FF">+</font><font color="#000000">needed</font><font color="#0000FF">&gt;</font><font color="#000000">pool</font><font color="#008080"> then return end if</font><font color="#000080"><i> -- cannot fulfil
-    -- get all combinations with and without the next item:
-</i></font><font color="#000000">    done</font><font color="#0000FF"> +=</font><font color="#000000"> 1
-    comb</font><font color="#0000FF">(</font><font color="#000000">pool</font><font color="#0000FF">,</font><font color="#000000">needed</font><font color="#0000FF">-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">done</font><font color="#0000FF">,</font><font color="#7060A8">append</font><font color="#800000">(</font><font color="#000000">chosen</font><font color="#0000FF">,</font><font color="#000000">done</font><font color="#800000">)</font><font color="#0000FF">)
-</font><font color="#000000">    comb</font><font color="#0000FF">(</font><font color="#000000">pool</font><font color="#0000FF">,</font><font color="#000000">needed</font><font color="#0000FF">,</font><font color="#000000">done</font><font color="#0000FF">,</font><font color="#000000">chosen</font><font color="#0000FF">)
-</font><font color="#008080">end procedure           
-
-</font><font color="#000000">comb</font><font color="#0000FF">(</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">)  </font><font color="#000080"><i> -- outputs {1,2} {1,3} {2,3}</i></font>
-</pre>
+    -- get all combinations with and without the next item:</i></font>
+<font color="#000000">    done</font><font color="#0000FF"> +=</font><font color="#000000"> 1
+    comb</font><font color="#0000FF">(</font><font color="#000000">pool</font><font color="#0000FF">,</font><font color="#000000">needed</font><font color="#0000FF">-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">done</font><font color="#0000FF">,</font><font color="#7060A8">append</font><font color="#800000">(</font><font color="#000000">chosen</font><font color="#0000FF">,</font><font color="#000000">done</font><font color="#800000">)</font><font color="#0000FF">)</font>
+<font color="#000000">    comb</font><font color="#0000FF">(</font><font color="#000000">pool</font><font color="#0000FF">,</font><font color="#000000">needed</font><font color="#0000FF">,</font><font color="#000000">done</font><font color="#0000FF">,</font><font color="#000000">chosen</font><font color="#0000FF">)</font>
+<font color="#008080">end procedure           
+</font>
+<font color="#000000">comb</font><font color="#0000FF">(</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">)  </font><font color="#000080"><i> -- outputs {1,2} {1,3} {2,3}</i></font>
+</preX>
             <br>
             And here is a version that returns all combinations - many other variations are possible <img src="images/ksk-smile.png" alt="smile" />
             <br>
             <br>
-<!--eucode>
+<X!X--eucode>
 function comb(sequence res, pool, integer needed, done=0, sequence chosen={})
     if needed=0 then    -- got a full set
         res = append(res,chosen)
@@ -170,24 +365,30 @@ function comb(sequence res, pool, integer needed, done=0, sequence chosen={})
 end function            
 
 ?comb({},{4,5,6},2) -- {{4,5},{4,6},{5,6}}
-</eucode-->
-<pre>
-<font color="#000000"></font><font color="#008080">function</font><font color="#000000"> comb</font><font color="#0000FF">(</font><font color="#004080">sequence</font><font color="#000000"> res</font><font color="#0000FF">,</font><font color="#000000"> pool</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> needed</font><font color="#0000FF">,</font><font color="#000000"> done</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#004080"> sequence</font><font color="#000000"> chosen</font><font color="#0000FF">=</font><font color="#800000">{}</font><font color="#0000FF">)
-</font><font color="#008080">    if</font><font color="#000000"> needed</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#008080"> then   </font><font color="#000080"><i> -- got a full set
-</i></font><font color="#000000">        res</font><font color="#0000FF"> =</font><font color="#7060A8"> append</font><font color="#0000FF">(</font><font color="#000000">res</font><font color="#0000FF">,</font><font color="#000000">chosen</font><font color="#0000FF">)
-</font><font color="#008080">    elsif</font><font color="#000000"> done</font><font color="#0000FF">+</font><font color="#000000">needed</font><font color="#0000FF">&lt;=</font><font color="#7060A8">length</font><font color="#0000FF">(</font><font color="#000000">pool</font><font color="#0000FF">)</font><font color="#008080"> then
-</font><font color="#000080"><i>        -- get all combinations with and without the next item:
-</i></font><font color="#000000">        done</font><font color="#0000FF"> +=</font><font color="#000000"> 1
-        res</font><font color="#0000FF"> =</font><font color="#000000"> comb</font><font color="#0000FF">(</font><font color="#000000">res</font><font color="#0000FF">,</font><font color="#000000">pool</font><font color="#0000FF">,</font><font color="#000000">needed</font><font color="#0000FF">-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">done</font><font color="#0000FF">,</font><font color="#7060A8">append</font><font color="#800000">(</font><font color="#000000">chosen</font><font color="#0000FF">,</font><font color="#000000">pool</font><font color="#800080">[</font><font color="#000000">done</font><font color="#800080">]</font><font color="#800000">)</font><font color="#0000FF">)
-</font><font color="#000000">        res</font><font color="#0000FF"> =</font><font color="#000000"> comb</font><font color="#0000FF">(</font><font color="#000000">res</font><font color="#0000FF">,</font><font color="#000000">pool</font><font color="#0000FF">,</font><font color="#000000">needed</font><font color="#0000FF">,</font><font color="#000000">done</font><font color="#0000FF">,</font><font color="#000000">chosen</font><font color="#0000FF">)
-</font><font color="#008080">    end if
-    return</font><font color="#000000"> res
-</font><font color="#008080">end function            
-
-</font><font color="#0000FF">?</font><font color="#000000">comb</font><font color="#0000FF">(</font><font color="#800000">{}</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">6</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">)</font><font color="#000080"><i> -- {{4,5},{4,6},{5,6}}</i></font>
-</pre>
+</eucode-X-X>
+<preX>
+<font color="#008080">function</font><font color="#000000"> comb</font><font color="#0000FF">(</font><font color="#004080">sequence</font><font color="#000000"> res</font><font color="#0000FF">,</font><font color="#000000"> pool</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> needed</font><font color="#0000FF">,</font><font color="#000000"> done</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#004080"> sequence</font><font color="#000000"> chosen</font><font color="#0000FF">=</font><font color="#800000">{}</font><font color="#0000FF">)</font>
+<font color="#008080">    if</font><font color="#000000"> needed</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#008080"> then   </font><font color="#000080"><i> -- got a full set</i></font>
+<font color="#000000">        res</font><font color="#0000FF"> =</font><font color="#7060A8"> append</font><font color="#0000FF">(</font><font color="#000000">res</font><font color="#0000FF">,</font><font color="#000000">chosen</font><font color="#0000FF">)</font>
+<font color="#008080">    elsif</font><font color="#000000"> done</font><font color="#0000FF">+</font><font color="#000000">needed</font><font color="#0000FF">&lt;=</font><font color="#7060A8">length</font><font color="#0000FF">(</font><font color="#000000">pool</font><font color="#0000FF">)</font><font color="#008080"> then</font>
+<font color="#000080"><i>        -- get all combinations with and without the next item:</i></font>
+<font color="#000000">        done</font><font color="#0000FF"> +=</font><font color="#000000"> 1
+        res</font><font color="#0000FF"> =</font><font color="#000000"> comb</font><font color="#0000FF">(</font><font color="#000000">res</font><font color="#0000FF">,</font><font color="#000000">pool</font><font color="#0000FF">,</font><font color="#000000">needed</font><font color="#0000FF">-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">done</font><font color="#0000FF">,</font><font color="#7060A8">append</font><font color="#800000">(</font><font color="#000000">chosen</font><font color="#0000FF">,</font><font color="#000000">pool</font><font color="#800080">[</font><font color="#000000">done</font><font color="#800080">]</font><font color="#800000">)</font><font color="#0000FF">)</font>
+<font color="#000000">        res</font><font color="#0000FF"> =</font><font color="#000000"> comb</font><font color="#0000FF">(</font><font color="#000000">res</font><font color="#0000FF">,</font><font color="#000000">pool</font><font color="#0000FF">,</font><font color="#000000">needed</font><font color="#0000FF">,</font><font color="#000000">done</font><font color="#0000FF">,</font><font color="#000000">chosen</font><font color="#0000FF">)</font>
+<font color="#008080">    end if
+    return</font><font color="#000000"> res</font>
+<font color="#008080">end function            
+</font>
+<font color="#0000FF">?</font><font color="#000000">comb</font><font color="#0000FF">(</font><font color="#800000">{}</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">6</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">)</font><font color="#000080"><i> -- {{4,5},{4,6},{5,6}}</i></font>
+</preX>
             <br>
             A practical application can be seen in demo\rosetta\Sudoku.exw
+-->
+            Both combinations() and combinations_with_repetitions() are still currently subject to change in the next few releases, for instance 
+            to add a callback that operates in a similar fashion to permutes(), should that be required. Likewise permutes() contains some clever
+            tagset-based handling to deal with duplicates that may deserve to be replicated in combinations[_with_repetitions](). A practical 
+            application of some custom combination-style code can be found in demo\rosetta\Sudoku.exw (which predates the formal introduction of 
+            these as builtins).
          </td>
         </tr>
        </table>

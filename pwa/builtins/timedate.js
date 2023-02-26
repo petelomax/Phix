@@ -1085,7 +1085,7 @@ function $td_get_number(/*string*/ s, /*integer*/ idx, /*integer*/ nsize) {
         ch = $subse(s,sidx+1);
         if (ch<0X30) { break; }
         if (ch>0X39) { break; }
-        n = (n*10+ch)-0X30;
+        n = n*10+(ch-0X30);
         sidx += 1;
         asize += 1;
     }
@@ -1172,7 +1172,7 @@ function $parse_one(/*string*/ s, /*string*/ fmt, /*integer*/ partial) {
                         ecode = 1;
                         $ecxtra = sprintf("'%c' expected in %s at position %d",["sequence",ch,s,sdx+1]);
                         if (compare(sdx,length(s))<0) {
-                            $ecxtra = $conCat($ecxtra, sprintf(", not '%c'",["sequence",$subse(s,sdx+1)]));
+                            $ecxtra = $conCat($ecxtra, sprintf(", not '%c'",["sequence",$subse(s,sdx+1)]), false);
                         }
                     } else {
                         sdx += 1;
@@ -1184,7 +1184,7 @@ function $parse_one(/*string*/ s, /*string*/ fmt, /*integer*/ partial) {
                             ecode = 1;
                             $ecxtra = sprintf("'%c' expected in %s at position %d",["sequence",ch,s,sdx+1]);
                             if (compare(sdx,length(s))<0) {
-                                $ecxtra = $conCat($ecxtra, sprintf(", not '%c'",["sequence",$subse(s,sdx+1)]));
+                                $ecxtra = $conCat($ecxtra, sprintf(", not '%c'",["sequence",$subse(s,sdx+1)]), false);
                             }
                             break;
                         }
@@ -1821,7 +1821,7 @@ let /*string*/ $default_format = "h:mpm Dddd Mmmm ddth, yyyy";
                 crash("9/0"); // should never happen
         }
         if (ecode!==0) { break; }
-        res = $conCat(res, x);
+        res = $conCat(res, x, false);
         if (ftyp!==$TD_LITERAL) {
             pftyp = ftyp;
         }

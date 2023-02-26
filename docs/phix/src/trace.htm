@@ -22,21 +22,11 @@
          <td>
           <b>Description:</b>
          </td>
-         <td>If i is 1 or 2, turn on full-screen interactive statement tracing/debugging. 
-             If i is 3, turn on tracing of statements to a file called
-          <b>ctrace.out</b>.
-             If i is 0, turn off tracing. When i is 1 a color display appears.
+         <td>If i is 1 or 2, turn on full-screen interactive statement tracing/debugging. <br>
+             If i is 3, turn on tracing of statements to a file called <b>ctrace.out</b>.<br>
+             If i is 0, turn off tracing. <br>
+             When i is 1 a color display appears. <br>
              When i is 2 a monochrome trace display appears. 
-             Tracing can only occur in routines that were
-             compiled
-          <font color="#2C5C2C">
-           <b>with trace</b>
-          </font>, and trace() has no effect unless it is
-             executed in a
-          <font color="#2C5C2C">
-           <b>with trace</b>
-          </font>
-          <b>section</b> of your program.
           <br>
           <br>
              See
@@ -49,21 +39,27 @@
           <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
          </td>
          <td>
-          <a href="notp2js.htm">Not supported</a>. You can of course use the browser tools to trace/debug the generated JavaScript code.
+          Ignored, in other words transpilation behaves much like compilation as far as this routine is concerned. <br>
+          You can of course use the browser development tools to trace/debug the generated JavaScript code.
          </td>
         </tr>
         <tr>
          <td>
           <b>Comments:</b>
          </td>
-         <td>Use trace(2) if the color display is hard to view on your system.
-<!--DEV trace(3)-->
+         <td>
+            Tracing can only occur in a <font color="#2C5C2C"><b>with trace</b></font> section of your program.
+            <br>
+            <br>
+            Use trace(2) if the color display is hard to view on your system.
+<!--DEV trace(3)
             trace(3) is supported by the Euphoria To C Translator. Interactive tracing is not supported with the Translator.
+-->
           <br>
           <br>
             The trace() function is only available during interpretation; it is not and cannot be part of a compiled application, other than in p[w].exe. 
             Any thoughts of "trace a compiled application" suggest that there is a behavioural discrepancy (between compilation and interpretation) which 
-            should be directly addressed as a bug in phix. I know of no such cases, but it is only reasonable to expect one to crop up every now and again, 
+            should be directly addressed as a bug in Phix. I know of no such cases, but it is only reasonable to expect one to crop up every now and again, 
             hopefully occuring quite rarely and promptly fixed.
           <br>
           <br>
@@ -122,9 +118,12 @@ end if
           The trace() function itself does very little: just sets flags for subsequent opLnt (see builtins\VM\pTrace.e). <br>
           In fact the implemention actually invokes the trace routine even when 'with trace' is not active; apart from being 
           an utterly insignificant cost, it allows code the programmer would not normally wish to trace, such as the low-level 
-          general-purpose code in builtins\VM, to trigger tracing in the calling application-specific code, or perhaps you have 
+          general-purpose code in builtins\VM, to trigger tracing in the calling application-specific code. Perhaps you have 
           a message handler which is called several million times and rather than trace that, you want it to start tracing when
-          it gets back to whatever code triggered it to be invoked (perhaps quite indirectly) in a specific and unusual way.
+          it gets back to whatever code triggered it to be invoked in a specific and unusual way (perhaps quite indirectly).
+          One minor difference between Phix and Euphoria is that in the latter trace() has no effect when executed within a
+          <b>without trace</b> section of code, whereas in the former it just doesn&rsquo;t take effect until that section of
+          code is exited (if at all).
           <br>
           <br>
           The internal routines that implement trace() must take great care over the handling of the stack and when referencing the 
@@ -136,11 +135,14 @@ end if
           routines that are actually within p.exe rather than being part of the end user application.
           <br>
           <br>
-          In the parlour trick that is 'p p test', the underlying assumption is that trace and diagnostics ought to apply 
-          to the first-level p.exw rather than the final test.exw, but that is not officially supported (tracewise) and neither are 
-          'p p p test', 'p p p p test', etc. What <i>is</i> supported is 'p p test' with trace() 
-          statements in p.exw and no such thing in test.exw, but only up to the point just before the interpreted copy of p tries to 
-          run the binary that it just created for test.exw, with 'p p -norun test' being the safer way to do such things.
+          In the parlour trick that is 'p p test', the underlying assumption is that trace and diagnostics ought to apply to 
+          the first-level p.exw rather than the final test.exw, but that is not officially supported (tracewise) and neither 
+          are 'p p p test', 'p p p p test', etc. Of course in the latter there are five symbol tables knocking about, and
+          it gets very difficult to <i>guarantee</i> the debugger is always using the right one for the code being executed,
+          so any effort in that regard is strictly limited to juggling at most two. What <i>is</i> supported is 'p p test' 
+          with trace() statements in p.exw and no such thing in test.exw, but only up to the point just before the interpreted 
+          copy of p tries to run the binary that it just created for test.exw, with 'p p -norun test' being the safer way to 
+          do such things.
           <br>
           <br>
           While it remains a pretty good idea to first test any modifications to the compiler sources with 'p p test', 

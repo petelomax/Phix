@@ -10,9 +10,8 @@
 /*without debug*/
 /*global*/ function split(/*sequence*/ source, /*object*/ delimiter=0X20, /*bool*/ no_empty=true, /*integer*/ limit=0) {
     let /*sequence*/ ret = ["sequence"];
-    let /*integer*/ start;
-    let /*integer*/ pos;
-    let /*bool*/ add_empties = !no_empty;
+    let /*integer*/ start, pos;
+    let /*bool*/ add_empties = !no_empty; // (easier to understand!)
     if (!equal(length(source),0)) {
         if (sequence(delimiter)) {
             // Handle the simple case of split("123", ""), opposite is join({"1","2","3"}, "") -- "123"
@@ -21,7 +20,6 @@
                     source = $repe(source,i,$subss(source,i,i));
                     limit -= 1;
                     if (limit===0) {
-//                      source = append(source[1..i],source[i+1..$])
                         source = $repe(source,i+1,$subss(source,i+1,-1));
                         source = $subss(source,1,i+1);
                         break;
@@ -33,7 +31,6 @@
             while (compare(start,length(source))<=0) {
                 pos = match(delimiter,source,start);
                 if (pos===0) { break; }
-//              if no_empty=0 or pos-1>=start then
                 if (add_empties || pos-1>=start) {
                     limit -= 1;
                     if (limit===0) { break; }
@@ -46,7 +43,6 @@
             while (compare(start,length(source))<=0) {
                 pos = find(delimiter,source,start);
                 if (pos===0) { break; }
-//              if no_empty=0 or pos-1>=start then
                 if (add_empties || pos-1>=start) {
                     limit -= 1;
                     if (limit===0) { break; }
@@ -55,39 +51,29 @@
                 start = pos+1;
             }
         }
-//      if no_empty=0 or start<=length(source) then
         if (add_empties || compare(start,length(source))<=0) {
             ret = append(ret,$subss(source,start,-1));
         }
     }
     return ret;
 }
-//changed 5/12/2020:
-//global function split_any(sequence source, object delimiters=", \t|", bool no_empty=false, integer limit=0)
-//global function split_any(sequence source, object delimiters=", \t|", bool no_empty=true, integer limit=0)
-//global function split_any(sequence source, object delimiters=", \t|")
-/*global*/ function split_any(/*sequence*/ source, /*object*/ delimiters=["sequence",0X2C,0X20,0X9,0X7C]) {
+
+/*global*/ function split_any(/*sequence*/ source, /*object*/ delimiters=", \t|") {
     let /*sequence*/ ret = ["sequence"];
-    let /*integer*/ start = 1, pos;
-//, k
+    let /*integer*/ start = 1;
     if (atom(delimiters)) {
         delimiters = ["sequence",delimiters];
     } else if (equal(length(delimiters),0)) {
-//      crash("split_any(): delimiter length must be greater than 0")
-        crash("9/0"); //DEV
+        crash("split_any(): delimiter length must be greater than 0");
     }
     while (1) {
-        pos = find_any(delimiters,source,start);
+        let /*integer*/ pos = find_any(delimiters,source,start);
         if (pos===0) { break; }
-//      if no_empty=false or pos-1>=start then
         if (pos-1>=start) {
             ret = append(ret,$subss(source,start,pos-1));
         }
         start = pos+1;
-//      limit -= 1
-//      if limit=0 then exit end if
     }
-//  if no_empty=false or start<=length(source) then
     if (compare(start,length(source))<=0) {
         ret = append(ret,$subss(source,start,-1));
     }
@@ -95,7 +81,8 @@
 }
 
 /*global*/ function split_by(/*sequence*/ s, /*integer*/ n) {
-// Split a sequence into chucks of at most length n each, eg split_by(tagset(9)) => {{1,2,3},{4,5,6},{7,8,9}}.
+    // Split a sequence into chucks of at most length n each, 
+    // eg split_by(tagset(9)) => {{1,2,3},{4,5,6},{7,8,9}}.
     let /*sequence*/ res = ["sequence"];
     let /*integer*/ j = 1, k = n;
     while (compare(k,length(s))<0) {

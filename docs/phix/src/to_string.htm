@@ -36,6 +36,14 @@
         </tr>
         <tr>
          <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+          Supported, but only somewhat unofficially/reluctantly, see examples and alternatives below.
+         </td>
+        </tr>
+        <tr>
+         <td>
           <b>Comments:</b>
          </td>
          <td>
@@ -53,6 +61,9 @@
             In this case, it is used as the enclosing quote for embedded strings.
             <br>
             <br>
+            See also <a href="printf.htm">(s)printf</a>()&rsquo;s '%v' handling, which is often easier, and/or <a href="ppp.htm">ppp</a>.
+            <br>
+            <br>
             This routine is defined in builtins\to_str.e (an autoinclude) and is provided only for compatibility with Euphoria.
          </td>
         </tr>
@@ -62,22 +73,44 @@
          </td>
          <td>
 <!--eucode>
-procedure display(string s) puts(1,s) puts(1,"\n") end procedure
-display(to_string(12))                          -- 12
-display(to_string("abc"))                       -- abc
-display(to_string("abc",'"'))                   -- "abc"
-display(to_string(`abc\"`,'`'))                 -- `abc\\"`     -- see note
-display(to_string({12,"abc",{4.5, -99}}))       -- {12, "abc", {4.5, -99}}
-display(to_string({12,"abc",{4.5, -99}},0,0))   -- {12, abc, {4.5, -99}}
+printf(1,"%s\n",{to_string(12)})                        -- 12
+printf(1,"%s\n",{to_string("abc")})                     -- abc
+printf(1,"%s\n",{to_string("abc",'"')})                 -- "abc"
+printf(1,"%s\n",{to_string(`abc\"`,'`')})               -- `abc\\"`     -- see note
+printf(1,"%s\n",{to_string({12,"abc",{4.5, -99}})})     -- {12, "abc", {4.5, -99}}
+printf(1,"%s\n",{to_string({12,"abc",{4.5, -99}},0,0)}) -- {12, abc, {4.5, -99}}
+puts(1,"\n")
+printf(1,"%v\n",{12})                       -- 12
+printf(1,"%v\n",{"abc"})                    -- "abc" (no quote-less %v, that'd be %s)
+printf(1,"%v\n",{`abc\"`})  	            -- `abc\"`	-- that's better!
+printf(1,"%v\n",{{12,"abc",{4.5,-99}}})     -- {12,"abc",{4.5,-99}}         -- ("")
+puts(1,"\n")
+pp(12)                                      -- 12
+pp("abc",{pp_StrFmt,-1})                    -- abc
+pp("abc")                                   -- "abc"
+pp(`abc\"`)  		               			-- `abc\"`	-- ditto
+pp({12,"abc",{4.5, -99}})                   -- {12, `abc`, {4.5,-99}}
+pp({12,"abc",{4.5, -99}},{pp_StrFmt,-1})    -- {12, abc, {4.5,-99}}
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#008080">procedure</font><font color="#000000"> display</font><font color="#0000FF">(</font><font color="#004080">string</font><font color="#000000"> s</font><font color="#0000FF">)</font><font color="#7060A8"> puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">s</font><font color="#0000FF">)</font><font color="#7060A8"> puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"\n"</font><font color="#0000FF">)</font><font color="#008080"> end procedure
-</font><font color="#000000">display</font><font color="#0000FF">(</font><font color="#5E005E">to_string</font><font color="#800000">(</font><font color="#000000">12</font><font color="#800000">)</font><font color="#0000FF">)                         </font><font color="#000080"><i> -- 12
-</i></font><font color="#000000">display</font><font color="#0000FF">(</font><font color="#5E005E">to_string</font><font color="#800000">(</font><font color="#008000">"abc"</font><font color="#800000">)</font><font color="#0000FF">)                      </font><font color="#000080"><i> -- abc
-</i></font><font color="#000000">display</font><font color="#0000FF">(</font><font color="#5E005E">to_string</font><font color="#800000">(</font><font color="#008000">"abc"</font><font color="#0000FF">,</font><font color="#008000">'"'</font><font color="#800000">)</font><font color="#0000FF">)                  </font><font color="#000080"><i> -- "abc"
-</i></font><font color="#000000">display</font><font color="#0000FF">(</font><font color="#5E005E">to_string</font><font color="#800000">(</font><font color="#008000">`abc\"`</font><font color="#0000FF">,</font><font color="#008000">'`'</font><font color="#800000">)</font><font color="#0000FF">)                </font><font color="#000080"><i> -- `abc\\"`     -- see note
-</i></font><font color="#000000">display</font><font color="#0000FF">(</font><font color="#5E005E">to_string</font><font color="#800000">(</font><font color="#800080">{</font><font color="#000000">12</font><font color="#0000FF">,</font><font color="#008000">"abc"</font><font color="#0000FF">,</font><font color="#00FF00">{</font><font color="#000000">4.5</font><font color="#0000FF">, -</font><font color="#000000">99</font><font color="#00FF00">}</font><font color="#800080">}</font><font color="#800000">)</font><font color="#0000FF">)      </font><font color="#000080"><i> -- {12, "abc", {4.5, -99}}
-</i></font><font color="#000000">display</font><font color="#0000FF">(</font><font color="#5E005E">to_string</font><font color="#800000">(</font><font color="#800080">{</font><font color="#000000">12</font><font color="#0000FF">,</font><font color="#008000">"abc"</font><font color="#0000FF">,</font><font color="#00FF00">{</font><font color="#000000">4.5</font><font color="#0000FF">, -</font><font color="#000000">99</font><font color="#00FF00">}</font><font color="#800080">}</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#800000">)</font><font color="#0000FF">)  </font><font color="#000080"><i> -- {12, abc, {4.5, -99}}</i></font>
+<font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"%s\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#5E005E">to_string</font><font color="#800080">(</font><font color="#000000">12</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">)                       </font><font color="#000080"><i> -- 12</i></font>
+<font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"%s\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#5E005E">to_string</font><font color="#800080">(</font><font color="#008000">"abc"</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">)                    </font><font color="#000080"><i> -- abc</i></font>
+<font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"%s\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#5E005E">to_string</font><font color="#800080">(</font><font color="#008000">"abc"</font><font color="#0000FF">,</font><font color="#008000">'"'</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">)                </font><font color="#000080"><i> -- "abc"</i></font>
+<font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"%s\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#5E005E">to_string</font><font color="#800080">(</font><font color="#008000">`abc\"`</font><font color="#0000FF">,</font><font color="#008000">'`'</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">)              </font><font color="#000080"><i> -- `abc\\"`     -- see note</i></font>
+<font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"%s\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#5E005E">to_string</font><font color="#800080">(</font><font color="#00FF00">{</font><font color="#000000">12</font><font color="#0000FF">,</font><font color="#008000">"abc"</font><font color="#0000FF">,</font><font color="#000080">{</font><font color="#000000">4.5</font><font color="#0000FF">, -</font><font color="#000000">99</font><font color="#000080">}</font><font color="#00FF00">}</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">)    </font><font color="#000080"><i> -- {12, "abc", {4.5, -99}}</i></font>
+<font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"%s\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#5E005E">to_string</font><font color="#800080">(</font><font color="#00FF00">{</font><font color="#000000">12</font><font color="#0000FF">,</font><font color="#008000">"abc"</font><font color="#0000FF">,</font><font color="#000080">{</font><font color="#000000">4.5</font><font color="#0000FF">, -</font><font color="#000000">99</font><font color="#000080">}</font><font color="#00FF00">}</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#000080"><i> -- {12, abc, {4.5, -99}}</i></font>
+<font color="#7060A8">puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"\n"</font><font color="#0000FF">)</font>
+<font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"%v\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">12</font><font color="#800000">}</font><font color="#0000FF">)                      </font><font color="#000080"><i> -- 12</i></font>
+<font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"%v\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">"abc"</font><font color="#800000">}</font><font color="#0000FF">)                   </font><font color="#000080"><i> -- "abc" (no quote-less %v, that'd be %s)</i></font>
+<font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"%v\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">`abc\"`</font><font color="#800000">}</font><font color="#0000FF">)                 </font><font color="#000080"><i> -- `abc\"`  -- that's better!</i></font>
+<font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"%v\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#800080">{</font><font color="#000000">12</font><font color="#0000FF">,</font><font color="#008000">"abc"</font><font color="#0000FF">,</font><font color="#00FF00">{</font><font color="#000000">4.5</font><font color="#0000FF">,-</font><font color="#000000">99</font><font color="#00FF00">}</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">)    </font><font color="#000080"><i> -- {12,"abc",{4.5,-99}}         -- ("")</i></font>
+<font color="#7060A8">puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"\n"</font><font color="#0000FF">)</font>
+<font color="#5E005E">pp</font><font color="#0000FF">(</font><font color="#000000">12</font><font color="#0000FF">)                                     </font><font color="#000080"><i> -- 12</i></font>
+<font color="#5E005E">pp</font><font color="#0000FF">(</font><font color="#008000">"abc"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#004600">pp_StrFmt</font><font color="#0000FF">,-</font><font color="#000000">1</font><font color="#800000">}</font><font color="#0000FF">)                   </font><font color="#000080"><i> -- abc</i></font>
+<font color="#5E005E">pp</font><font color="#0000FF">(</font><font color="#008000">"abc"</font><font color="#0000FF">)                                  </font><font color="#000080"><i> -- "abc"</i></font>
+<font color="#5E005E">pp</font><font color="#0000FF">(</font><font color="#008000">`abc\"`</font><font color="#0000FF">)                                </font><font color="#000080"><i> -- `abc\"`  -- ditto</i></font>
+<font color="#5E005E">pp</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">12</font><font color="#0000FF">,</font><font color="#008000">"abc"</font><font color="#0000FF">,</font><font color="#800080">{</font><font color="#000000">4.5</font><font color="#0000FF">, -</font><font color="#000000">99</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">)                  </font><font color="#000080"><i> -- {12, `abc`, {4.5,-99}}</i></font>
+<font color="#5E005E">pp</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">12</font><font color="#0000FF">,</font><font color="#008000">"abc"</font><font color="#0000FF">,</font><font color="#800080">{</font><font color="#000000">4.5</font><font color="#0000FF">, -</font><font color="#000000">99</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#004600">pp_StrFmt</font><font color="#0000FF">,-</font><font color="#000000">1</font><font color="#800000">}</font><font color="#0000FF">)   </font><font color="#000080"><i> -- {12, abc, {4.5,-99}}</i></font>
 </pre>
             <br>
             Note: I spotted in passing that the fourth item was completely wrong [compared to Euphoria?]. I corrected it best

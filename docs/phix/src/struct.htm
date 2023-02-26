@@ -13,7 +13,7 @@
           <b>Definition:</b>
          </td>
          <td>
-struct <i>identifier</i><br>
+[global] struct <i>identifier</i><br>
 &nbsp;&nbsp;&nbsp;&nbsp;( <i>"&lt;c-string&gt;"</i> | { <i>field</i> [ ',' ... ] } )<br>
 end struct<br>
 <center><small><i>-- or --</i></small></center>
@@ -42,6 +42,14 @@ struct|<i>identifier</i> <i>variable</i> ( ';' | '=' ( new() | <i>expr</i> ) ) [
         </tr>
         <tr>
          <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+          <a href="notpgui.htm"><span class="illegal">Not supported</span></a>.
+         </td>
+        </tr>
+        <tr>
+         <td>
           <b>Example:</b>
          </td>
          <td>
@@ -62,8 +70,8 @@ bridge b = new(),
 <font color="#004080">    integer</font><font color="#000000"> completed</font><font color="#0000FF"> =</font><font color="#000000"> 1971</font><font color="#0000FF">,</font>
 <font color="#000000">            age</font><font color="#0000FF"> =</font><font color="#000000"> 48</font>
 <font color="#008080">end struct</font>
-<font color="#000000">bridge b</font><font color="#0000FF"> =</font><font color="#5E005E"> new</font><font color="#0000FF">(),</font>
-<font color="#000000">       t</font><font color="#0000FF"> =</font><font color="#5E005E"> new</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#008000">"tower"</font><font color="#0000FF">,</font><font color="#000000">1894</font><font color="#0000FF">,</font><font color="#000000">125</font><font color="#800000">}</font><font color="#0000FF">)
+<font color="#000000">bridge b</font><font color="#0000FF"> =</font><font color="#7060A8"> new</font><font color="#0000FF">(),</font>
+<font color="#000000">       t</font><font color="#0000FF"> =</font><font color="#7060A8"> new</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#008000">"tower"</font><font color="#0000FF">,</font><font color="#000000">1894</font><font color="#0000FF">,</font><font color="#000000">125</font><font color="#800000">}</font><font color="#0000FF">)
 ?</font><font color="#000000">b</font><font color="#0000FF">.</font><font color="#000000">age</font>
 <font color="#000080"><i>--b.age = "oops" -- type error</i></font>
 </pre>
@@ -110,9 +118,14 @@ bridge b = new(),
          </td>
          <td>
             Note that (in the middle case) should you want to declare a (lowest level builtin) struct variable at file-level without invoking new() or 
-            otherwise assigning it on declaration, the ';' (or a ',') is mandatory for struct, ditto <a href="class.htm">class</a>. Obviously without a 
-            terminating semicolon, comma, or assignment operator (in fact '=' or ':=') the compiler would treat an attempt at such a variable declaration 
-            as a brand new type definition (top case), and possibly end up saying "end&nbsp;struct&nbsp;expected", perhaps somewhat dis-jointedly.
+            otherwise assigning it on declaration, the ';' (or a ',') is <b><i>mandatory</i></b> for struct, ditto <a href="class.htm">class</a>. 
+            <br>
+            In short, "struct s = null" and "struct s;" are fine, but "struct s" (as an attempted top-level variable declaration) is likely to trigger 
+            a "weird" error somewhere down the line, and of course the same applies to the keyword "class". No such problem in local declarations.
+            <br>
+            Obviously without a terminating semicolon, comma, or assignment operator (either '=' or ':=') the compiler would treat attempts at such 
+            variable declarations as a brand new type definition (top case), and say "end&nbsp;struct&nbsp;expected", probably somewhat dis-jointedly.
+            <br>
             Thankfully there is no such need for derived types, or during routine parameter or local variable declarations, since it is not legal to 
             define a new type(/struct/class) then anyway, besides in any case (eg) <nobr>"bridge b"</nobr> (which does not need said mandatory terminator) 
             is almost always preferable to <nobr>"struct s"</nobr> (which does, should you be trying to declare a variable). Phew, that was an excessive 
@@ -121,7 +134,7 @@ bridge b = new(),
             <br>
             The effective signature for instantiation/creation is <nobr>new(<a href="integer.htm">integer</a>|<a href="string.htm">string</a> 
             id=routine_id("<i>identifier</i>"), <a href="sequence.htm">sequence</a> defaults={})</nobr>.<br>
-            The new() in bridge b = new() is automatically augmented by the compiler to new(routine_id("bridge")), which is also equivalent to new("bridge"). <br>
+            The new() in bridge b = new() is automatically augmented by the compiler to new(routine_id("bridge")) [equivalent to new("bridge")]. <br>
             <small>Aside: also, bridge [<i>not</i> followed by '('] is now equivalent to routine_id("bridge") anyway, so the ability to specify with either 
             a routine_id or a string is less significant, except the latter may occasionally make debugging easier, in that (say) 984 is faster but not 
             instantly recognisable, whereas "bridge" is a known and valid structure name, and also clearly (for instance) <i>not</i> an animal.<br></small>

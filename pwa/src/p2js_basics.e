@@ -20,6 +20,7 @@ include builtins\ppp.e
 include builtins\VM\pcfunc.e
 include builtins\xml.e
 include builtins\dict.e
+include builtins\map.e
 include builtins\get_interpreter.e
 include builtins\syswait.ew
 with debug
@@ -169,6 +170,7 @@ end function
 -- common to tokeniser and parser:
 --
 global enum TOKTYPE, TOKSTART, TOKFINISH, TOKLINE, TOKCOL, TOKALTYPE=$, TOKTTIDX, TOKENDLINE=$ -- (one token)
+--                1,        2,         3,       4,      5,           5,        6,            6 
             -- TOKTYPE as below, if integer use tok_name(toktype) to get a human-readable string
             -- TOKTTIDX is only set on LETTER tokens and can be compared to T_integer, etc.
             -- TOKENDLINE only on '`' (aka `"""`) and BLK_CMT (no other tokens span lines)
@@ -199,8 +201,10 @@ C:\Program Files (x86)\Phix\pwa\src\p2js_parse.e:1113 --  integer {toktype,start
 
 -- nb keep this enum and TOKTYPES in perfect step/exact same order.
 global enum EOL, SPACE, DIGIT, LETTER, COMMENT, BLK_CMT, ILLEGAL, SYMBOL, TOKMAX=$
---SUG: (will it help or confuse?)
+--            1,     2,     3,      4,       5,       6,       7,      8,        8
+--SUG: (will it help or confuse? [or clash?])
 --          EOL = '\n', SPACE = ' ', DIGIT = '0', LETTER = 'A', COMMENT = '-', BLK_CMT = '*', ILLEGAL='?', SYMBOL = '$'
+--                  10,          32,          48,           65,            45,            42,          63,           36
 --if ILLEGAL>=' ' then ?9/0 end if
 
 --erm, good news, both 39:
@@ -223,7 +227,7 @@ TOKTYPES = {{EOL,"EOL",false},      -- End of line
             {COMMENT,"COMMENT",false}, -- Phix only, -- .. \n
             {BLK_CMT,"BLK_CMT",false}, -- 
             {ILLEGAL,"ILLEGAL",false}, -- Illegal character
-            {SYMBOL,"SYMBOL",false}}    -- General symbols !&|*+,.:;<=>?~\$%
+            {SYMBOL,"SYMBOL",false}}    -- General symbols !&|*+,.:;<=>?@~\$%
 
 --global constant {tok_chk, tok_names, show_tok} = columnize(TOKTYPES)
 --?{tok_chk,tok_names,show_tok}  {} = wait_key()
@@ -279,7 +283,7 @@ global string charset = set_chars({{"\r\n",EOL},
 --                                 {" \t",SPACE},
                                    {' ',SPACE},
                                    {0x9,SPACE},
-                                   {`!&|*/+-,.:;<=>?~\$%([{}])^`,SYMBOL},
+                                   {`!&|*/+-,.:;<=>?@~\$%([{}])^`,SYMBOL},
 --                                 {'$', LETTER}, -- iff is_js() in tokenise()
                                    {'"', '"'},
                                    {'`', '`'},
@@ -414,7 +418,7 @@ end function
 --  return show_toks[min(toktype,SYMBOL)]
 --end function
 
-global procedure show_token(sequence tok, string prefix="")
+global procedure show_token(sequence tok, string prefix="", integer ocol=-1)
     -- (diagnostic routine)
 --object finish
     integer {toktype,start,finish,line,col} = tok
@@ -432,6 +436,7 @@ global procedure show_token(sequence tok, string prefix="")
 --  end if
         ?tok
         if length(prefix) then
+            if ocol!=-1 then col = ocol end if
             string curline = textlines[line], -- (for debug reasons)
                    padline = repeat(' ',col)&"^ "&prefix -- ("")
             printf(1,"Error in %s line %d, column %d\n%s\n%s\n",

@@ -1,0 +1,56 @@
+--
+-- test\t69infnan.exw
+--
+--  Tests for is_nan() and is_inf()
+--
+without javascript_semantics
+atom inf,nan
+--  inf = 1e300*1e300
+--/!*
+        #ilASM{ fld1
+                fldz
+                fdivp
+            [32]
+                lea edi,[inf]
+            [64]
+                lea rdi,[inf]
+            []
+                call :%pStoreFlt }
+--*!/
+    nan = -(inf/inf)
+--?{nan=nan,nan!=nan}   -- {true,false!}
+--if nan=-nan then -- fail... (in some senses)
+
+assert(join(atom_to_float64(1),     fmt:="%02x")="00 00 00 00 00 00 F0 3F","1")
+assert(join(atom_to_float64(-1),    fmt:="%02x")="00 00 00 00 00 00 F0 BF","-1")
+assert(join(atom_to_float64(PI),    fmt:="%02x")="18 2D 44 54 FB 21 09 40","PI")
+assert(join(atom_to_float64(nan),   fmt:="%02x")="00 00 00 00 00 00 F8 7F","nan")
+assert(join(atom_to_float64(-nan),  fmt:="%02x")="00 00 00 00 00 00 F8 FF","-nan")
+assert(join(atom_to_float64(inf),   fmt:="%02x")="00 00 00 00 00 00 F0 7F","inf")
+assert(join(atom_to_float64(-inf),  fmt:="%02x")="00 00 00 00 00 00 F0 FF","-inf")
+
+assert(join(atom_to_float80(1),     fmt:="%02x")="00 00 00 00 00 00 00 80 FF 3F","1")
+assert(join(atom_to_float80(-1),    fmt:="%02x")="00 00 00 00 00 00 00 80 FF BF","-1")
+assert(join(atom_to_float80(PI),    fmt:="%02x")="00 C0 68 21 A2 DA 0F C9 00 40","PI")
+assert(join(atom_to_float80(nan),   fmt:="%02x")="00 00 00 00 00 00 00 C0 FF 7F","nan")
+assert(join(atom_to_float80(-nan),  fmt:="%02x")="00 00 00 00 00 00 00 C0 FF FF","-nan")
+assert(join(atom_to_float80(inf),   fmt:="%02x")="00 00 00 00 00 00 00 80 FF 7F","inf")
+assert(join(atom_to_float80(-inf),  fmt:="%02x")="00 00 00 00 00 00 00 80 FF FF","-inf")
+
+assert(is_nan(1)=0,"is_nan(1)")
+assert(is_inf(1)=0,"is_inf(1)")
+assert(is_nan(PI)=0,"is_nan(PI)")
+assert(is_inf(PI)=0,"is_inf(PI)")
+assert(is_nan(nan)=1,"is_nan(nan)")
+assert(is_nan(-nan)=1,"is_nan(-nan)")
+assert(is_nan(inf)=0,"is_nan(inf)")
+assert(is_nan(-inf)=0,"is_nan(-inf)")
+assert(is_inf(nan)=0,"is_inf(nan)")
+assert(is_inf(-nan)=0,"is_inf(-nan)")
+assert(is_inf(inf)=1,"is_inf(inf)")
+assert(is_inf(-inf)=1,"is_inf(-inf)")
+assert(is_inf(inf,+1)=1,"is_inf(inf,+1)")
+assert(is_inf(inf,-1)=0,"is_inf(inf,-1)")
+assert(is_inf(-inf,+1)=0,"is_inf(-inf,+1)")
+assert(is_inf(-inf,-1)=1,"is_inf(-inf,-1)")
+

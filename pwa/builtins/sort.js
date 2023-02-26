@@ -72,7 +72,7 @@ function $tagsort(/*integer*/ i, /*integer*/ j, /*sequence*/ data) {
     let /*object*/ tempi, tempj;
     let /*sequence*/ args = ["sequence",0, 0];
     if (atom(data)) {
-        args = $conCat(args, data);
+        args = $conCat(args, data, false);
 //DEV... (broke self hosting... wtf??) [it ain't psym... afaict anyway] [seems to have righted itself 14/4/21...]
     } else if (!equal(data,["sequence"])) {
 //  elsif length(data)!=0 then

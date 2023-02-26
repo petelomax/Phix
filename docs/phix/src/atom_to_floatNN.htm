@@ -21,7 +21,7 @@
         <br>
           <i>-- or --</i>
         <br>
-         <a href="sequence.htm">sequence</a> s = atom_to_float80(<a href="atom.htm">atom</a> a1)
+         <a href="sequence.htm">sequence</a> s = <span class="illegal">atom_to_float80</span>(<a href="atom.htm">atom</a> a1)
          </td>
         </tr>
         <tr>
@@ -32,6 +32,20 @@
             Convert an <a href="atom.htm">atom</a> to a <a href="sequence.htm">sequence</a> 
             (in fact a raw binary <a href="string.htm">string</a>) of 4/8/10 single-byte values.
             These bytes contain the representation of an IEEE floating-point number in 32/64/80-bit format.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+          Supported, apart from <a href="atom_to_floatNN.htm"><span class="illegal">atom_to_float80</span></a>() - while JavaScript has 
+          DataView.prototype.setFloat32 and DataView.prototype.setFloat64, there is no DataView.prototype.setFloat80, as yet, and no
+          mention of it in the ECMAScript specs. To be fair, there would be little point, and in fact there is very little point in
+          32-bit Phix supporting atom_to_float80(), since at least 11 bits plus some of the exponent are always missing/0, apart from
+          being able to poke or write something almost right and in the correct format for some C api or similar, and nothing remotely
+          like that applies to JavaScript running in a browser, at least nothing that I can think of.<br>
+          Note that while on desktop/Phix the result is technically a string, whereas under pwa/p2js it is explicitly a sequence.
          </td>
         </tr>
         <tr>
@@ -56,7 +70,8 @@
             upscaling can introduce apparent discrepancies, for instance the value 0.1 cannot be held exactly,
             and hence a 64-bit version of 0.1 upscaled to 80-bits will not match a 0.1 value that has been
             80-bits since inception. <a href="accuracy.htm">Neither is exact</a> but the latter will contain 
-            a futher eleven bits of the infinitely recurring bit pattern that the former does not.
+            a futher eleven bits of the infinitely recurring bit pattern that the former does not, at least
+            that is on 64-bit.
           <br>
           <br>
             Integer values will also be converted to floating-point format.
@@ -72,8 +87,8 @@ fn = open("numbers.dat", "wb")
 puts(fn, atom_to_float64(157.82)) -- write 8 bytes to a file
 </eucode-->
 <pre>
-<font color="#000000">fn</font><font color="#0000FF"> =</font><font color="#7060A8"> open</font><font color="#0000FF">(</font><font color="#008000">"numbers.dat"</font><font color="#0000FF">,</font><font color="#008000"> "wb"</font><font color="#0000FF">)
-</font><font color="#7060A8">puts</font><font color="#0000FF">(</font><font color="#000000">fn</font><font color="#0000FF">,</font><font color="#7060A8"> atom_to_float64</font><font color="#800000">(</font><font color="#000000">157.82</font><font color="#800000">)</font><font color="#0000FF">)</font><font color="#000080"><i> -- write 8 bytes to a file</i></font>
+<font color="#000000">fn</font><font color="#0000FF"> =</font><font color="#7060A8"> open</font><font color="#0000FF">(</font><font color="#008000">"numbers.dat"</font><font color="#0000FF">,</font><font color="#008000"> "wb"</font><font color="#0000FF">)</font>
+<font color="#7060A8">puts</font><font color="#0000FF">(</font><font color="#000000">fn</font><font color="#0000FF">,</font><font color="#7060A8"> atom_to_float64</font><font color="#800000">(</font><font color="#000000">157.82</font><font color="#800000">)</font><font color="#0000FF">)</font><font color="#000080"><i> -- write 8 bytes to a file</i></font>
 </pre>
          </td>
         </tr>
@@ -82,7 +97,7 @@ puts(fn, atom_to_float64(157.82)) -- write 8 bytes to a file
           <b>Implementation:</b>
          </td>
          <td>
-            See builtins\VM\pFloatN.e (an autoinclude) for details of the actual implementation.
+            See builtins\VM\pFloatN.e (an autoinclude), or pwa\p2js.js, for details of the actual implementation.
          </td>
         </tr>
         <tr>

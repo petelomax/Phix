@@ -574,8 +574,8 @@ integer reginfo = 0,-- "in use" part of mloc/mreg (see below).
 procedure emitHexDword(atom v)
 -- break up a dword constant into 4 bytes
 --  if v<-#80000000 or v>#7FFFFFFF then ?9/0 end if
-    if v<-#80000000 or v>#FFFFFFFF then ?9/0 end if
---  if v<-#80000000 or v>#FFFFFFFF then ?{"emitHexDword",v,sprintf("%08x",v),"emitline",emitline,"pfileno",pfileno} end if
+--  if v<-#80000000 or v>#FFFFFFFF then ?9/0 end if
+    if v<-#80000000 or v>#FFFFFFFF then ?{"emitHexDword",v,sprintf("%08x",v),"emitline",emitline,"pfileno",pfileno} ?9/0 end if
     atom m4 = allocate(4)
     poke4(m4, v) -- faster than doing divides etc. (idea from database.e)
     string s = peek({m4,4})
@@ -1823,7 +1823,8 @@ sequence bj, bj1, bjz, pdone
                         pdone[pidx] = 1
                     end if
                     cidx = bjz[2]
-                    if symtab[rtn][S_il][cidx]!=-9 then ?9/0 end if
+--                  if symtab[rtn][S_il][cidx]!=-9 then ?9/0 end if
+                    if symtab[rtn][S_il][cidx]!=-9 then Aborc("?9/0") end if
 --object dbg = symtab[rtn]  --{-1,8,1,2304,0,0,"P",0,0,0,0,0,1,0}
 --                  if symtab[rtn][S_il][cidx]!=-9 then Aborc("uh?") end if
                     if pidx>nParams then
@@ -4736,6 +4737,7 @@ global procedure ilxlate(integer vi)
 integer p1, p2, p4, pc3, pc6,
         sib, k, res, idx, def,
         isInit,     -- (actually a chain: 0 is False, anything else, including the -1 terminator, is True)
+        isCompound,
         onDeclaration, ltype, prev,
         routineNo, first, ltot, invert,
 --      rs, rx, 
@@ -4837,6 +4839,7 @@ integer raoffset
 
 integer Tsmin,Tsmax     -- temp/test [DEV]
 string opName
+integer ma_ip = 0   -- 1/5/22
 
 object dbg
     --  dbg = symtab[vi]
@@ -6274,8 +6277,10 @@ end if
                                     svar = tvar
                                     src2 = svar
                                     getSrc2()
+--14/7/22:
 --13/11/16:
-                                    if slroot2!=T_integer then
+--                                  if slroot2!=T_integer then
+                                    if not and_bits(slroot2,T_integer) then
                                         swecode = 14
                                         switchable = 0
                                         tlink = pc
@@ -8002,7 +8007,19 @@ else -- 20/4/19
                         -- we must do a compare:
                         mod = m_cmp
                         if tmpd=-1 then
-                            regimm365(smin2)                            -- cmp reg,imm
+--20/10/22:
+                            if X64=1 and (smin2>#7FFFFFFF or smin2<-#80000000) then
+                                emitHex1(#49)                               -- mov r14,imm64
+                                emitHex1(0o276)
+                                emitHexDword(and_bits(smin2,#FFFFFFFF))
+                                smin2 = floor(smin2/#100000000)
+                                emitHexDword(and_bits(smin2,#FFFFFFFF))
+                                emitHex1(#4C)
+                                xrm = 0o360+reg -- 0o36r
+                                emitHex2(0o071,xrm)                         -- cmp reg,r14
+                            else
+                                regimm365(smin2)                            -- cmp reg,imm
+                            end if
                         else
 --                          if sched then
 --                              rb = regbit[reg+1]
@@ -8231,7 +8248,7 @@ end if
 --         or opcode=opSubse1ip then    -- 160  res := s[idx], "" and s is sequence of integer
             --                          (NB opSubse1ip is only selected here, never in pmain.e)
             --
-            -- opSubse1 is dest, src, idx, isInit[src and idx]:
+            -- opSubse1 is dest, src, idx, isInit[src and idx], isCompound:
             --  implements dest:=src[idx], aka dest=src[src2].
             --  accepts transtmpfer() for idx/src2 only.
             --
@@ -8247,7 +8264,7 @@ end if
             getSrc()
             src2 = s5[pc+3]     -- idx
             isInit = s5[pc+4]   -- (ref and idx): 3=both, 1=p1 only, 2=p2 only, 0=neither
---          isCompound = s5[pc+5]   -- eg s[i] += x, used in/loaded by transtmpfer().
+            isCompound = s5[pc+5]   -- eg s[i] += x, used in/loaded by transtmpfer().
             pc += 6
             if opcode=opSubse1is        -- int:=string[idx]
             or and_bits(slroot,T_sequence)=T_string then
@@ -8391,7 +8408,10 @@ end if
                                 end if
                                 dest = 0    -- flag code as inlined
                             end if
-                        elsif opcode=opSubse1is then
+--1/5/22:
+--                      elsif opcode=opSubse1is then
+                        elsif opcode=opSubse1is and (with_js=0 or ma_ip=0) then
+
                             if idx=-1               -- not already set
                             and smin2!=smax2 then   -- not a fixed value
                                 idx = loadReg(src2) -- idx (if we can't use a fixed literal offset)
@@ -8434,8 +8454,10 @@ end if
 --; mov edi,[src2]      ; idx                       213 075     8B 3D m32       mov edi,[m32]   u 7
 --; mov ecx,dest        ; addr res                  271         B9 imm32        mov ecx,imm32   u 7
 --; mov esi,[src]       ; s                         213 065     8B 35 m32       mov esi,[m32]   v 8
+--< mov al,isCompound                                           B0 01           mov al,0/1
 --; call opSubse1       ; [ecx]:=s[idx]             350         E8 rel32        call rel32      v 8
---; NB: src/2 obtained from [esp]-9/-20 on error
+-->; NB: src/2 obtained from [esp]-9/-20 on error
+--<; NB: src/2 obtained from [esp]-11/-22 on error [erm, out of date, anyway]
 --; (opcode deallocates previous content of [ecx] as&when rqd)
 -- opSubse1i/ip/is calling convention:
 --; mov edi,[src2]      ; idx                       213 075     8B 3D m32       mov edi,[m32]   u 7
@@ -8498,6 +8520,14 @@ end if
 --DEV we may need opUnassigned here for opcode!=opSubse1? (testing will tell rsn)
                     loadToReg(esi,src)                              -- mov esi,[src] (s)
                     movRegVno(edx,src)                              -- mov e/rdx,varno of s
+--/!* proposed 1/5/22:
+                    if opcode=opSubse1 then
+--                      emitHexx2(mov_al_imm8,s5[pc+5])             -- mov al,isCompound
+--                      integer isCompound = s5[pc+5]
+--                      assert(isCompound=0 or isCompound=1)
+                        emitHexx2(mov_al_imm8,isCompound)           -- mov al,isCompound
+                    end if
+--*!/
                     emitHex5callG(opcode)                           -- call opSubse1[i[s|p]] ([ecx]/eax:=esi[edi])
                     reginfo = 0
 -- 27/3/2013:
@@ -10335,11 +10365,14 @@ end if
 
         elsif opcode=opJtyp then
             -- implements eg if sequence(x) then
+            -- opJtyp,mergeSet,tgt,link,?,flippable,init,src,invert,ltype
 
             src = s5[pc+7]
             invert = s5[pc+8]
             ltype = s5[pc+9]        -- T_integer/T_atom/T_sequence/T_string
             if ltype>T_object then ?9/0 end if
+--if ltype=0 then ?{"ltype0",isGscan} end if
+--if ltype=0 and not isGscan then trace(1) end if
             sltype2 = ltype
             getSrc()
 --yep, already 0 here...
@@ -10404,11 +10437,14 @@ end if -- NOLT
 --DEV/temp/ugh... (15/2/19)
 --if slroot=0 then printf(1,"pilx86.e line 9936 (opJtyp): slroot=0 (src=%d)\n",src) x86showmapsymtab = src end if
 --if slroot!=0 then
+--if ltype!=0 then -- 13/12/22
+if ltype!=T_object then -- 13/12/22
                 if not and_bits(ltype,slroot) then
                     flag = 1
                 elsif not and_bits(lmask,slroot) then
                     flag = 0
                 end if
+end if
 --end if
 --              if sched then
 ----        if mergeSet=isOpCode then   ? (seems far too messy to schedule this lot anyways)
@@ -10442,7 +10478,10 @@ if not isGscan then
                         bcode = 4-invert    -- invert=jz[3], not invert=jnz[4] (idx to ccde)
                     else -- isInit
                         reg = loadReg(src)                          -- mov reg,[src]
-                        if and_bits(slroot,T_integer) then
+--13/12/22
+--                      if and_bits(slroot,T_integer) then
+--                      if and_bits(slroot,T_integer) or ltype=0 then
+                        if and_bits(slroot,T_integer) or ltype=T_object then
 --                          if sched then
 --                              rb = regbit[reg+1]
 --                              schedule(rb,0,0,pNP,1,0) -- treat remainder as one instruction
@@ -10461,6 +10500,12 @@ if not isGscan then
 --                      bcode = 0   -- temp, ioob if we fail to set it
                         if ltype=T_integer then
                             bcode = 1+invert*5  -- invert=jg[6], not invert=jl[1]   (idx to ccde)
+--13/12/22
+                        elsif ltype=T_object then
+--                      elsif ltype=0 then
+--?9/0
+--?"bcode=4"
+                            bcode = 4   -- jne
                         else
                             sib = #83+reg*8 -- 0o2r3, ebx+reg*4
                             if ltype=T_sequence or ltype=T_string then
@@ -13069,16 +13114,16 @@ else
 --                      emitHex6j(jle_rel32,15)                         -- jle @f [sj NOT ok]
                         emitHex6j(jle_rel32,0)                          -- jle @f [sj NOT ok]
                         backpatch = length(x86)
-if newEmit then
+--if newEmit then
                         if X64 then
                             emitHex1(#48)
                             emitHex5sib(subd_sibd8i8,ebx_edx4,-16,1)    -- sub qword[rbx+rdx*4-16],1 (decref prev)
                         else
                             emitHex5sib(subd_sibd8i8,ebx_edx4,-8,1)     -- sub dword[ebx+edx*4-8],1 (decref prev)
                         end if
-else
-                        emitHex4sib(decd_sib,ebx_edx4,-8)               -- dec dword[ebx+edx*4-8]   ; decref prev
-end if
+--else
+--                      emitHex4sib(decd_sib,ebx_edx4,-8)               -- dec dword[ebx+edx*4-8]   ; decref prev
+--end if
 --DEVBPM backpatch me: [DONE]
 --                      emitHex6j(jnz_rel32,5)                          -- jnz @f [sj NOT ok]
                         emitHex6j(jnz_rel32,0)                          -- jnz @f [sj NOT ok]
@@ -13318,7 +13363,19 @@ end if
                         emitHexx2(0o061,xrm)                            -- xor res,res
                         mod = m_cmp
                         if tmpd=-1 then
-                            regimm365(smin2)                            -- cmp reg,imm
+--20/10/22:
+                            if X64=1 and (smin2>#7FFFFFFF or smin2<-#80000000) then
+                                emitHex1(#49)                           -- mov r14,imm64
+                                emitHex1(0o276)
+                                emitHexDword(and_bits(smin2,#FFFFFFFF))
+                                smin2 = floor(smin2/#100000000)
+                                emitHexDword(and_bits(smin2,#FFFFFFFF))
+                                emitHex1(#4C)
+                                xrm = 0o360+reg -- 0o36r
+                                emitHex2(0o071,xrm)                     -- cmp reg,r14
+                            else
+                                regimm365(smin2)                        -- cmp reg,imm
+                            end if
                         else
 --                          if sched then
 --                              rw = regbit[wrk+1]
@@ -14027,8 +14084,10 @@ end if
                         emitHex1(#48)
                     end if
                     emitHex2s(xor_eax_eax)                      -- xor eax,eax (eax:=0)
+                    ma_ip = 0
                 else
                     movRegImm32(eax,1)                          -- mov eax,1
+                    ma_ip = 1
                 end if
 --              movRegImm32(eax,v)
 --              loadToReg(eax,src)                              -- mov eax,[src]
@@ -15306,7 +15365,8 @@ ltDiagMsg(sprintf("opLchk,N=%d,typ=%d,line %d\n",{p1,mtype,s5[pc+3]}))
                 lblidx = s5[pc+1]
                 flags = glblused[lblidx]
                 -- erm, can't actually happen...
-                if not and_bits(flags,G_declared) then ?9/0 end if
+--              if not and_bits(flags,G_declared) then ?9/0 end if
+                if not and_bits(flags,G_declared) then ?"9/0 pilx86.e line 15327, "&glblname[lblidx] end if
 if not repl then
                 if and_bits(flags,G_set) then ?9/0 end if
 end if

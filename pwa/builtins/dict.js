@@ -35,7 +35,7 @@ function $dict_init() {
     $init_dict = 1;
 }
 //DEV/SUG: (requires forward type [erm, may already be working, just not yet tried in psym/init]) ...needs MARKTYPES...
-/*global*/ function dictionary(/*integer*/ tid) {
+/*global*/ function $dictionary(/*integer*/ tid) {
     return (tid===1) || ((($init_dict && tid>=1) && compare(tid,length($roots))<=0) && sequence($subse($trees,tid)));
 //  return tid=1 or ($init_dict and tid>=1 and tid<=length($roots))
 }
@@ -46,10 +46,10 @@ function $dict_init() {
 }
 function $check_tid(/*integer*/ tid) {
 //28/10/20: (even though p2js.js may yet choose a completely different approach for dictionaries...)
-    if (!is_dict(tid)) { crash("invalid dictionary id (%d)",["sequence",tid],3); }
+    if (!is_dict(tid)) { crash("invalid $dictionary id (%d)",["sequence",tid],3); }
 //  if not is_dict(tid) then
 //      #ilASM{ mov ecx,2           -- no of frames to pop to obtain an era (>=2)
-//              mov al,56           -- e56idi (invalid dictionary id)
+//              mov al,56           -- e56idi (invalid $dictionary id)
 //              jmp :!fatalN        -- fatalN(level,errcode,ep1,ep2)
 //            }
 //  end if
@@ -121,7 +121,10 @@ function $insertNode(/*integer*/ node, /*object*/ key, /*object*/ data, /*intege
         $trees = $repe($trees,node+$DATA,data,["sequence",tid]);
     } else {
         let /*integer*/ direction = $HEIGHT+c; // $LEFT or $RIGHT
-        $trees = $repe($trees,node+direction,$insertNode($subse($subse($trees,tid),node+direction),key,data,tid),["sequence",tid]);
+//15/7/22 while apparently not actually needed[?], we may as well copy the AVL bugfix:
+//      $trees[tid][node+direction] = $insertNode($trees[tid][node+direction], key, data, tid)
+        let /*atom*/ tnd = $insertNode($subse($subse($trees,tid),node+direction),key,data,tid);
+        $trees = $repe($trees,node+direction,tnd,["sequence",tid]);
         $setHeight(node,tid);
         let /*integer*/ balance = trunc($getBalance(node,tid)/2); // +/-1 (or 0)
         if (balance) {
@@ -143,12 +146,14 @@ function $insertNode(/*integer*/ node, /*object*/ key, /*object*/ data, /*intege
     $check_tid(tid);
     $roots = $repe($roots,tid,$insertNode($subse($roots,tid),key,data,tid));
 }
+let putd = setd;
+//4/11/22 now properly aliased in psym.e, in a way that p2js understands
+//global procedure putd(object key, object data, integer tid=1)
+//--21/10/21...
+//--    setd(key, data, tid=1)
+//  setd(key, data, tid)
+//end procedure
 
-/*global*/ function putd(/*object*/ key, /*object*/ data, /*integer*/ tid=1) {
-//21/10/21...
-//  setd(key, data, tid=1)
-    setd(key,data,tid);
-}
 // (old name) now handled via psym.e/syminit()/Alias():
 //global procedure putd(object key, object data, integer tid=1)
 //  $roots[tid] = $insertNode($roots[tid], key, data, tid)
@@ -317,7 +322,7 @@ function $traverse_key(/*integer*/ node, /*integer*/ rid, /*object*/ pkey, /*obj
 //  return 0    -- stop!
 //end function
 //constant r_gpkv = routine_id("gpk_visitor")
-function $traverser(/*sequence*/ res, /*integer*/ node, /*bool*/ partial, /*object*/ pkey, /*integer*/ tid, /*bool*/ rev) {
+function $traverser(/*sequence*/ res, /*integer*/ node, /*bool*/ partial, /*object*/ pkey, /*integer*/ tid, /*bool*/ rev, bKeys=true) {
     if (node!==NULL) {
         let /*object*/ tt = $subse($trees,tid), 
                        key = $subse(tt,node+$KEY), 
@@ -330,13 +335,13 @@ function $traverser(/*sequence*/ res, /*integer*/ node, /*bool*/ partial, /*obje
             [,left,right] = ["sequence",right,left];
         }
         if (left!==NULL) {
-            res = $traverser(res,left,partial,pkey,tid,rev);
+            res = $traverser(res,left,partial,pkey,tid,rev,bKeys);
         }
         if (c>=0 && (!partial || (equal(length(res),0)))) {
-            res = append(res,key);
+            res = append(res,((bKeys) ? key : data));
         }
         if ((right!==NULL) && (!partial || (equal(length(res),0)))) {
-            res = $traverser(res,right,partial,pkey,tid,rev);
+            res = $traverser(res,right,partial,pkey,tid,rev,bKeys);
         }
     }
     return res;
@@ -347,7 +352,7 @@ function $traverser(/*sequence*/ res, /*integer*/ node, /*bool*/ partial, /*obje
 //if 0 then
 //  gpk = $defaults[tid]
 //  if $roots[tid]!=0 then
-//      {} = $traverse_key($roots[tid], r_gpkv, pkey, NULL, tid, rev)
+//      {} = $traverse_key($roots[tid], r_gpkv, pkey, NULL, tid, rev, bKeys)
 //  end if
 //  return gpk
 //end if
@@ -360,12 +365,12 @@ function $traverser(/*sequence*/ res, /*integer*/ node, /*bool*/ partial, /*obje
     return res;
 }
 
-/*global*/ function getd_all_keys(/*integer*/ tid=1) {
+/*global*/ function getd_all_keys(/*integer*/ tid=1, /*bool*/ bKeys=true) {
     $check_tid(tid);
 //p2js:
 //  return $traverser({}, $roots[tid], false, NULL, tid, false)
     let /*sequence*/ res = ["sequence"];
-    res = $traverser(res,$subse($roots,tid),false,NULL,tid,false);
+    res = $traverser(res,$subse($roots,tid),false,NULL,tid,false,bKeys);
     return res;
 }
 
@@ -470,10 +475,10 @@ function $peekpop(/*integer*/ tid, /*bool*/ rev, bDelete) {
 }
 
 /*global*/ function destroy_dict(/*integer*/ tid, /*bool*/ justclear=false) {
-//global procedure destroy_dict(dictionary tid, bool justclear=false)
+//global procedure destroy_dict($dictionary tid, bool justclear=false)
 //
 // Note: It is (and should be) perfectly legal to destroy_dict(1) at the very start.
-//       In contrast, destroy_dict(5) is fatal when 5 is not a valid dictionary, or
+//       In contrast, destroy_dict(5) is fatal when 5 is not a valid $dictionary, or
 //       (equivalently) was the recent subject of a destroy_dict() call.
 //
     $check_tid(tid);
@@ -495,4 +500,9 @@ function $peekpop(/*integer*/ tid, /*bool*/ rev, bDelete) {
         $free_trees = tid;
         $freelists = $repe($freelists,tid,0);
     }
+}
+
+/*global*/ function $destroy_dictf(/*integer*/ tid) {
+    destroy_dict(tid);
+    return NULL;
 }

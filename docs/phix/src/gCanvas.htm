@@ -1,0 +1,472 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">gCanvas</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td>
+          <b>Definition:</b>
+         </td>
+         <td>
+            include xpGUI.e
+            <br>
+            <br>
+            <a href="gdx.htm">gdx</a> h = gCanvas([<a href="rtn.htm">rtn</a> redraw=NULL,] 
+                                                  <a href="string.htm">string</a> attributes="",
+                                                  <a href="html/glossary.htm#dwordseq">dword_seq</a> args={})
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Description:</b>
+         </td>
+         <td>
+            Creates an interface element that is a canvas - a working area for your application.
+            <br>
+            <br>
+            redraw: a procedure invoked whenever the canvas needs to be redrawn, see <a href="#REDRAW">REDRAW</a> below.<br>
+            For more information on the attributes and args parameters see <a href="gSetAttributes.htm">gSetAttributes</a>.<br>
+            This is a <a href="g_paranormal.htm">paranormalised function</a>.
+            <br>
+            <br>
+            Returns the identifier of the created element.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+          Supported.
+         </td>
+        </tr>
+<!--
+        <tr>
+         <td>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="IupGLCanvas.htm">IupGLCanvas</a>,
+          <a href="IupGLCanvasBox.htm">IupGLCanvasBox</a>,
+          <a href="IupGLSubCanvas.htm">IupGLSubCanvas</a>
+         </td>
+        </tr>
+-->
+        <tr>
+         <td>
+          <b>Notes:</b>
+         </td>
+         <td>
+            Note that some keys might remove the focus from the canvas. 
+            To avoid this, return <a href="gSetHandler.htm#XPG_IGNORE">XPG_IGNORE</a> in the <a href="gSetHandler.htm#KEY">KEY</a> callback. 
+            <br>
+[DEV...]
+            <br>
+            The mouse cursor position can be programmatically controlled using the global attribute CURSORPOS.
+            <br>
+            <br>
+            Drag & Drop attributes and callbacks are supported. 
+            <br>
+            <br>
+            When the canvas is displayed for the first time, the callback call order is always:
+            <br>
+            <br>
+<!--
+            <a href="callbacks.htm#MAP_CB">MAP_CB</a><br>
+-->
+            <a href="callbacks.htm#RESIZE_CB">RESIZE_CB</a><br>
+            <a href="#REDRAW">REDRAW</a>
+            <br>
+            <br>
+            When the canvas is resized the <a href="#REDRAW">REDRAW</a> callback is always called after the <a href="callbacks.htm#RESIZE_CB">RESIZE_CB</a> callback.
+            <br>
+            <br>
+            <h4>Using with the CD library</h4>
+            <br>
+            When using the CD library to draw in a IupCanvas, you can use the callbacks to manage the canvas. The simplest way is to do:
+            <br>
+            <br>
+<!--
+            <a href="callbacks.htm#MAP_CB">MAP_CB</a> - calls cdCreateCanvas  (current size is not available yet)<br>
+            <a href="callbacks.htm#UNMAP_CB">UNMAP_CB</a> - calls cdKillCanvas<br>
+-->
+            <a href="callbacks.htm#RESIZE_CB">RESIZE_CB</a> - Calling <a href="cdCanvasActivate.htm">cdCanvasActivate</a>() and 
+                        <a href="cdCanvasGetSize.htm">cdCanvasGetSize</a>() returns the same values as given by the callback parameters.
+                        Recalculate the drawing size, update the scrollbars if any.<br>
+            <a href="#REDRAW">REDRAW</a> - call <a href="cdCanvasActivate.htm">cdCanvasActivate</a> then use CD primitives to draw the scene, and finally call 
+                        <a href="cdCanvasClear.htm#aux">cdCanvasFlush</a>() if using a double buffer.<br>
+            <a href="callbacks.htm#SCROLL_CB">SCROLL_CB</a> - when using scrollbars, if this callback is defined the canvas must be manually redrawn,
+                        call yourself the redraw handler or call <a href="IupUpdate.htm">IupUpdate</a>.
+                        In other words, if this callback is not defined the canvas is automatically redrawn.<br>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Attributes:</b>
+         </td>
+         <td>
+            
+         </td>
+        </tr>
+<!--
+        <tr>
+         <td>
+          BACKINGSTORE
+         </td>
+         <td>
+            [Motif Only]: Controls the canvas backing store flag. The default value is "YES".
+         </td>
+        </tr>
+-->
+<!--
+        <tr>
+         <td>
+          <a href="common.htm#BGCOLOR">BGCOLOR</a><a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a>
+         </td>
+         <td>
+            Background color. The background is painted only if the <a href="#REDRAW">REDRAW</a> callback is not defined. <br>
+            If the callback is defined the application must draw all the canvas contents. <br>
+            In GTK or Motif if you set the <a href="#ACTION">ACTION</a> callback after map then you should also set BGCOLOR to any value just after 
+            setting the callback or the first redraw will be lost. Default: "255 255 255".
+         </td>
+        </tr>
+-->
+        <tr>
+         <td>
+          BORDER<a href="notpgui.htm#IupCanvas"><span style="color:orange; font-size:75%;"><sup>?</sup></span></a>
+         </td>
+         <td>
+            (creation only): Shows a border around the canvas. Default: "YES".
+         </td>
+        </tr>
+        <tr>
+         <td>
+          CANFOCUS
+         </td>
+         <td>
+            (creation only) (non inheritable): enables the focus traversal of the control. 
+            In Windows the canvas will respect CANFOCUS in opposite to the other controls. Default: YES. (since 3.0)
+         </td>
+        </tr>
+<!--
+        <tr>
+         <td>
+          CAIRO_CR
+         </td>
+         <td>
+            [GTK Only] (non inheritable): Contains the "cairo_t*" parameter of the internal GTK callback. <br>
+            Valid only during the <a href="#REDRAW">REDRAW</a> callback and onyl when using GTK version 3. (since 3.7)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          CLIPRECT
+         </td>
+         <td>
+            [Windows and GTK Only] (only during <a href="#REDRAW">REDRAW</a>): Specifies a rectangle that has its region invalidated for painting, 
+            it could be used for clipping. Format: "%d %d %d %d"="x1 y1 x2 y2".
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="common.htm#CURSOR">CURSOR</a>
+         </td>
+         <td>
+            (non inheritable): Defines a cursor for the canvas. The Windows SDK recommends that cursors and icons should be implemented as resources rather than created at run time.
+         </td>
+        </tr>
+-->
+        <tr>
+         <td>
+          <a href="common.htm#EXPAND">EXPAND</a><a href="notpgui.htm#IupCanvas"><span style="color:orange; font-size:75%;"><sup>?</sup></span></a>
+         </td>
+         <td>
+            (non inheritable): The default value is "YES". The natural size is the size of 1 character.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          DROPFILESTARGET
+         </td>
+         <td>
+            [Windows and GTK Only] (non inheritable): Enable or disable the drop of files. 
+            Default: NO, but if DROPFILES_CB is defined when the element is mapped then it will be automatically enabled.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a name=DRAWSIZE></a>
+          DRAWSIZE
+         </td>
+         <td>
+            (non inheritable): The size of the drawing area in pixels. This size is also used in the <a href="callbacks.htm#RESIZE_CB">RESIZE_CB</a> callback.
+          <br>
+            Notice that the drawing area size is not the same as 
+            <a href="common.htm#RASTERSIZE">RASTERSIZE</a><a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a>.
+            The <a href="common.htm#SCROLLBAR">SCROLLBAR</a> and BORDER attributes affect the size of the drawing area.
+         </td>
+        </tr>
+<!--
+        <tr>
+         <td>
+          HDC_WMPAINT
+         </td>
+         <td>
+            [Windows Only] (non inheritable): Contains the HDC created with the BeginPaint inside the WM_PAINT message. <br>
+            Valid only during the <a href="#REDRAW">REDRAW</a> callback.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          HWND
+         </td>
+         <td>
+            [Windows Only] (non inheritable, read-only): Returns the Windows Window handle. Available in the Windows driver or in the GTK driver in Windows.
+         </td>
+        </tr>
+-->
+        <tr>
+         <td>
+          <a href="common.htm#SCROLLBAR">SCROLLBAR</a><a href="notpgui.htm#IupCanvas"><span style="color:orange; font-size:75%;"><sup>?</sup></span></a>
+         </td>
+         <td>
+            (creation only): Associates a horizontal and/or vertical scrollbar to the canvas. Default: "NO". 
+            The <a href="common.htm#secondaryattributes">secondary attributes</a> are all non inheritable.
+         </td>
+        </tr>
+<!--
+        <tr>
+         <td>
+          TOUCH
+         </td>
+         <td>
+            [Windows 7 Only]: enable the multi-touch events processing. (Since 3.3)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          WHEELDROPFOCUS
+         </td>
+         <td>
+            (non inheritable) when the wheel is used the focus control receives a SHOWDROPDOWN=No. (since 3.28)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          XDISPLAY
+         </td>
+         <td>
+            [UNIX Only](non inheritable, read-only): Returns the X-Windows Display. Available in the Motif driver or in the GTK driver in UNIX.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          XWINDOW
+         </td>
+         <td>
+            [UNIX Only](non inheritable, read-only): Returns the X-Windows Window (Drawable). Available in the Motif driver or in the GTK driver in UNIX.
+         </td>
+        </tr>
+-->
+        <tr>
+         <td>
+          also
+         </td>
+         <td>
+            <a href="common.htm#ACTIVE">ACTIVE</a>, 
+            <a href="common.htm#FONT">FONT</a><a href="notpgui.htm#IupCanvas"><span style="color:orange; font-size:75%;"><sup>?</sup></span></a>, 
+            <a href="common.htm#NAME">NAME</a>, 
+            <a href="common.htm#SCREENPOSITION">SCREENPOSITION</a>, 
+            <a href="common.htm#POSITION">POSITION</a>, 
+            <a href="common.htm#MINSIZE">MINSIZE</a>, 
+            <a href="common.htm#MAXSIZE">MAXSIZE</a>,
+<!--
+            <a href="common.htm#WID">WID</a>,
+-->
+            <a href="common.htm#TIP">TIP</a>, 
+            <a href="common.htm#SIZE">SIZE</a><a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a>,
+            <a href="common.htm#RASTERSIZE">RASTERSIZE</a><a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a>,
+            <a href="common.htm#ZORDER">ZORDER</a>,
+            <a href="common.htm#VISIBLE">VISIBLE</a>: also accepted.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Handlers:</b>
+         </td>
+         <td>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a name=BUTTON_CB></a>
+          <a href="callbacks.htm#BUTTON_CB">BUTTON_CB</a>
+         </td>
+         <td>
+            Event generated when any mouse button is pressed or released.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          DROPFILES_CB
+         </td>
+         <td>
+            [Windows and GTK Only]: Event generated when one or more files are dropped in the element.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a name=FOCUS_CB></a>
+          FOCUS_CB
+         </td>
+         <td>
+            Called when the canvas gets or looses the focus. 
+            It is called after the common callbacks <a href="callbacks.htm#GETFOCUS_CB">GETFOCUS_CB</a> and <a href="callbacks.htm#KILLFOCUS_CB">KILLFOCUS_CB</a>.
+            <br>
+            <br>
+            function focus_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> focus)<br>
+            ih: identifier of the element that activated the event.<br>
+            focus: is non zero if the canvas is getting the focus, is zero if it is loosing the focus.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="callbacks.htm#MOTION_CB">MOTION_CB</a>
+         </td>
+         <td>
+            Event generated when the mouse is moved.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="callbacks.htm#KEYPRESS_CB">KEYPRESS_CB</a>
+         </td>
+         <td>
+            Event generated when a key is pressed or released. It is called after the common callback <a href="gSetHandler.htm#KEY">KEY</a>.
+            <br>
+            <br>
+            When the canvas has the focus, pressing the arrow keys may change the focus to another control in some systems. <br>
+            If your callback process the arrow keys, we recommend you to return <a href="callbacks.htm#IUP_IGNORE">IUP_IGNORE</a> so it will not lose its focus.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a name=REDRAW></a>
+          "REDRAW"
+         </td>
+         <td>
+            A procedure that should be invoked when the canvas needs to be redrawn, can also be specified as 
+            the first parameter on the call that initially creates the canvas.
+            <br>
+            <br>
+            procedure redraw(<a href="gdx.htm">gdx</a> h)<br>
+            h: identifier of the element (ie canvas) that activated the event.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="callbacks.htm#RESIZE_CB">RESIZE_CB</a>
+         </td>
+         <td>
+            Event generated when the canvas size is changed. 
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="callbacks.htm#SCROLL_CB">SCROLL_CB</a>
+         </td>
+         <td>
+            Called when the scrollbar is manipulated. (GTK 2.8) Also the POSX and POSY values will not be correctly updated for older GTK versions.
+         </td>
+        </tr>
+<!--
+        <tr>
+         <td>
+          TOUCH_CB
+         </td>
+         <td>
+            [Windows 7 Only]: Event generated when a touch event occurred. Multiple touch events will trigger several calls. Must set TOUCH=Yes to receive this event. (Since 3.3)
+            <br>
+            <br>
+            function touch_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> id, x, y, <a href="atom.htm">atom</a> pState)<br>
+            ih: identifies the element that activated the event.<br>
+            id: identifies the touch point. <br>
+            x, y: position in pixels, relative to the top-left corner of the canvas.<br>
+            pState: the touch point state (char*). Can be: DOWN, MOVE or UP. If the point is a "primary" point then "-PRIMARY" is appended to the string.
+            <br>
+            <br>
+            Returns: <a href="callbacks.htm#IUP_CLOSE">IUP_CLOSE</a> will be processed.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          MULTITOUCH_CB
+         </td>
+         <td>
+            [Windows 7 Only]: Event generated when multiple touch events occurred. Must set TOUCH=Yes to receive this event. (Since 3.3)
+            <br>
+            <br>
+            function mulittouch_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> count, <a href="atom.htm">atom</a> pid, px, py, pstate) <br>
+            ih: identifier of the element that activated the event.<br>
+            count: Number of touch points in the array.<br>
+            pid: Array (int*) of touch point ids.<br>
+            px: Array (int*) of touch point x coordinates in pixels, relative to the top-left corner of the canvas.<br>
+            py: Array (int*) of touch point y coordinates in pixels, relative to the top-left corner of the canvas.<br>
+            pstate: Array (int*) of touch point states. Can be 'D' (DOWN), 'U' (UP) or 'M' (MOVE).
+            <br>
+            <br>
+            Returns: <a href="callbacks.htm#IUP_CLOSE">IUP_CLOSE</a> will be processed.
+         </td>
+        </tr>
+-->
+        <tr>
+         <td>
+          <a href="callbacks.htm#WHEEL_CB">WHEEL_CB</a>
+         </td>
+         <td>
+            Event generated when the mouse wheel is rotated.
+         </td>
+        </tr>
+<!--
+        <tr>
+         <td>
+          WOM_CB
+         </td>
+         <td>
+            [Windows Only]: Event generated when an audio device receives an event.
+         </td>
+        </tr>
+-->
+        <tr>
+         <td>
+          also
+         </td>
+         <td>
+<!--
+            <a href="callbacks.htm#MAP_CB">MAP_CB</a>,
+            <a href="callbacks.htm#UNMAP_CB">UNMAP_CB</a>,
+            <a href="callbacks.htm#DESTROY_CB">DESTROY_CB</a>, 
+-->
+            <a href="callbacks.htm#GETFOCUS_CB">GETFOCUS_CB</a>, 
+            <a href="callbacks.htm#KILLFOCUS_CB">KILLFOCUS_CB</a>, 
+            <a href="callbacks.htm#ENTERWINDOW_CB">ENTERWINDOW_CB</a>,
+            <a href="callbacks.htm#LEAVEWINDOW_CB">LEAVEWINDOW_CB</a>, 
+            <a href="gSetHandler.htm#KEY">KEY</a>, 
+            <a href="callbacks.htm#HELP_CB">HELP_CB</a>: All common callbacks are supported.
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

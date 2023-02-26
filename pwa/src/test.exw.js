@@ -27,7 +27,7 @@ if (((a || b) || c) || d) { }
 if ((a || b) && (c || d)) { }
 if ((a && b) || (c && d)) { }
 let /*sequence*/ res = ["sequence"], start = ["sequence"];
-res = $conCat(res, start);
-res = $conCat(res, start);
+res = $conCat(res, start, false);
+res = $conCat(res, start, false);
 let /*sequence*/ t = ["sequence",1];
 

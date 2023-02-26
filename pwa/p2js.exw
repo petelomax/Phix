@@ -240,6 +240,8 @@ zIndex
     {"style",                           BADT,   T_style                             := 20892},
     {"top",                             BADT,   T_top                               := 21720},
     {"bind",                            BADT,   T_bind                              := 22956},
+    {"contains",                        BADT,   T_contains                          := 4736},
+    {"dictionary",                      TYPI,   T_dictionary                        := 328},
 
 
 just in case:
@@ -682,8 +684,28 @@ sequence dropfiles = {},
 bool bSaveIni = false
 
 include pGUI.e
-Ihandle main_dlg, choose_file, chosen, ctype, multitext, lbl_statusbar, otype,
-        run_btn
+Ihandle main_dlg,           -- IupDialog
+--       vbox,              -- IupVbox, local to create_main_dialog()
+--        ch_box,           -- IupHbox, local to create_main_dialog()
+--         choose_file,     -- IupButton, local to create_main_dialog()
+           chosen,          -- IupFlatLabel(JS)/IupList(desktop/Phix)
+           ctype,           -- IupList
+          multitext,        -- IupText
+          lbl_statusbar,    -- IupLabel
+--        show_box,         -- IupHbox, local to create_main_dialog()
+--         show_tokens,     -- IupButton, local to create_main_dialog()
+--         parse_tree,      -- IupButton, local to create_main_dialog()
+--         violations,      -- IupButton, local to create_main_dialog()
+--         (IupFill),
+           otype,           -- IupList
+--         show_btn,        -- IupButton, local to create_main_dialog()
+--         copy_btn,        -- IupButton, local to create_main_dialog()
+--         run_btn,         -- IupButton, local to create_main_dialog()
+--         (IupFill),
+           run_btn          -- IupButton
+--         opt_btn,         -- IupButton, local to create_main_dialog()
+--         help_btn,        -- IupButton, local to create_main_dialog()
+--         exit_btn         -- IupButton, local to create_main_dialog()
 Ihandln config
 Ihandln tok_dlg = NULL, tok_table,
         tree_dlg = NULL, tree,
@@ -745,6 +767,8 @@ bool pGUI, pMPFR, pSHA256, pTIMEDATE
 --function load_tokens(Ihandle mle=multitext)
 function load_tokens(Ihandle mle=multitext, mtype=ctype)
 --  if src="" then
+--clear_screen()
+--?"load_tokens"
     src = IupGetAttribute(mle, "VALUE")
     src_offset = 0
     pGUI = false
@@ -912,8 +936,9 @@ function idle_action()
             elsif toktype<=T_object then        -- types
                 colour = "#004080"
 --          elsif toktype<=T_volatile then      -- dodgy keywords
---          elsif toktype<=T_trace then         -- dodgy keywords
-            elsif toktype<=T_try then           -- dodgy keywords
+-- [reverted (T_try -> t_trace) 28/4/22]
+            elsif toktype<=T_trace then         -- dodgy keywords
+--          elsif toktype<=T_try then           -- dodgy keywords
                 colour = IUP_RED
             elsif toktype<=T_xor then           -- keywords
                 colour = IUP_TEAL
@@ -936,7 +961,8 @@ if toktype=T_IupMainLoop then
     and fokens[fdx-1][TOKTYPE]=LETTER
     and fokens[fdx-1][TOKTTIDX]=T_then
     and fokens[fdx-2][TOKTYPE]=LETTER
-    and find(fokens[fdx-2][TOKTTIDX],{T_JS,T_JAVASCRIPT,T_WEB})
+--  and find(fokens[fdx-2][TOKTTIDX],{T_JS,T_JAVASCRIPT,T_WEB})
+    and fokens[fdx-2][TOKTTIDX]=T_JS
     and fokens[fdx-3][TOKTYPE]=NE
     and fokens[fdx-4][TOKTYPE]=')'
     and fokens[fdx-5][TOKTYPE]='('
@@ -952,7 +978,8 @@ if toktype=T_IupMainLoop then
     and fokens[fdx-1][TOKTYPE]='{'
     and fokens[fdx-2][TOKTYPE]=')'
     and fokens[fdx-3][TOKTYPE]=LETTER
-    and find(fokens[fdx-3][TOKTTIDX],{T_JS,T_JAVASCRIPT,T_WEB})
+--  and find(fokens[fdx-3][TOKTTIDX],{T_JS,T_JAVASCRIPT,T_WEB})
+    and fokens[fdx-3][TOKTTIDX]=T_JS
     and fokens[fdx-4][TOKTYPE]=NE
     and fokens[fdx-5][TOKTYPE]=')'
     and fokens[fdx-6][TOKTYPE]='('
@@ -1001,7 +1028,7 @@ sequence y500 = yellowstone(500)
   {4,973,983,27,4,10152}}}  T_IupMainLoop                   := 10152},
 --*/
 end if
-            elsif toktype<=T_WEB then           -- constants
+            elsif toktype<=T_YELLOW then        -- constants
                 colour = "#004600"
             else                                -- everything else
                 colour = IUP_BLACK
@@ -1085,6 +1112,7 @@ procedure open_file(string filename)
 --  object str = read_file(filename)
     object str = get_text(filename)
     if sequence(str) then
+if not string(str) then ?9/0 end if -- 16/6/22 -- ???
         save_filename(filename)
 --      IupSetStrAttribute(main_dlg, "TITLE", `pwa\p2js - %s`, {get_file_name(filename)})
         lastfile = filename
@@ -1145,6 +1173,7 @@ procedure open_file(string filename)
 --      IupSetStrAttribute(multitext, "FILENAME", filename)
         IupSetAttribute(multitext,"CARET","1,1")
         IupSetStrAttribute(multitext, "VALUE", str)
+if not string(str) then ?9/0 end if -- 16/6/22 -- ???
         {} = syntax_colour()
         {} = multitext_caret_cb(multitext, 1, 1)
         if show_dlg!=NULL then
@@ -1234,7 +1263,7 @@ procedure save_ini()
 --  if pdx>1 then {tags[1],tags[pdx]} = {pdx,1} end if
 --  if pdx>1 then tags[1..pdx] = tags[pdx]&tags[1..pdx-1] end if
 --  if pdx then
-    if bSaveIni and pdx then
+    if bSaveIni and pdx then    --DEV: and platform()!=JS, probably...
 --?"save_ini"
 --?dropfiles
 --?droptags
@@ -1335,7 +1364,7 @@ Ihandln filedlg = NULL
 --  return IUP_CLOSE
 --end function
 
-function choose_cb(Ihandln /*choose_file*/)
+function choose_cb(Ihandln /*choose_file/NULL*/)
     if filedlg=NULL then
         filedlg = IupFileDlg()
         IupSetAttribute(filedlg, "DIALOGTYPE", "OPEN");
@@ -1480,8 +1509,48 @@ function treeify(sequence ast, bool bRoot=true)
 -- The parse tree is not set in stone: if this or any 
 -- other part can be simplified, just go for it!
 --
---?9/0
-    if length(ast)!=2 then ?9/0 end if
+
+--16/5/22 (handle the new T_for/T_in construct)
+--  if length(ast)!=2 then ?9/0 end if
+    if length(ast)!=2 then
+        if length(ast)!=3 
+        or ast[1]!=`vardef` 
+--13/11/22:
+--      or length(ast[2])!=4
+        or (length(ast[2])!=4 and length(ast[2])!=5)
+        or ast[2][1][TOKTTIDX]!=T_in then
+            ?9/0
+--/*
+    -- "for k,q in roughs to mxri+1 do"
+    ast[1] = `vardef`
+    ast[2][1..5] = {{4,2542,2543,47'/',20,1288}, (T_in)
+                    {4,2538,2538,47'/',1,38884},
+                    {4,2540,2540,47'/',1,39508},
+                    0,
+                    {1628,{43'+',{{4,2555,2558,47'/',1,39488},{3,2560,2560,47'/',38'&'}}}}} (T_to mrxi+1)
+    ast[3] = {4,2545,2550,47'/',12,39428} -- (roughs, I assume)
+--*/
+        end if
+        -- ctrl in {T_for,{ctrl,{T_block,block}}} where 
+--<     -- ctrl is {"vardef",{{LETTER,...T_in},i,e,predefined},expr}, where
+        -- ctrl is {"vardef",{{LETTER,...T_in},i,e,predefined[,from][,to]},expr}, where
+        --  e is {LETTER,...<e>}, i is similar or 0, and predefined is 0..3, 
+        --  ie e:0b01 + i:0b10, with the latter only set in the i,e form. 
+--<     -- simply tweak -> {"vardef",{T_in,i|"0",e,"predefined:%02b",expr}}
+        -- simply tweak -> {"vardef",{T_in,i|"0",e,"predefined:%02b"[,from][,to],expr}}
+        -- ie back into a length-2 along with a coupla stringified items.
+        ast[2] = append(deep_copy(ast[2]),ast[3])
+        if ast[2][2]=0 then ast[2][2] = "0" end if
+        ast[2][4] = sprintf("predefined:%02b",ast[2][4])
+--DEV 13/11/22... (can't remember how to deal with this, parse tree may need altering...)
+        if length(ast[2])>5 then
+            ast[2][5] = "????[DEV]"
+            if length(ast[2])>6 then
+                ast[2][6] = "????[DEV]"
+            end if
+        end if
+        ast = ast[1..2]
+    end if
 --  if length(ast)!=2 then ?ast end if
 --  {object nodetype, sequence children} = ast
     object {nodetype, children} = ast
@@ -1490,12 +1559,12 @@ function treeify(sequence ast, bool bRoot=true)
         or nodetype=T_without then
             children = children[1..1]
         elsif nodetype=T_include then
---          children = children[1..1]&sprint(childre
 --?children
 --if not find(strip_builtin(children[1]),{"pGUI.e",`..\pGUI\opengl.e`,"mpfr.e","sha256.e","timedate.e"}) then
-if not find(strip_builtin(children[1]),{"pGUI.e","opengl.e","mpfr.e","sha256.e","timedate.e"}) then
-            restore_source(children[2])
-end if
+            if not find(strip_builtin(children[1]),{"pGUI.e","opengl.e",
+                             "mpfr.e","sha256.e","timedate.e","pComN.ew"}) then
+                restore_source(children[2])
+            end if
             children[2] = sprint(children[2])
             children = children[1..2]
         end if
@@ -1511,6 +1580,14 @@ end if
     if string(children) then
 ?{"can this happen anymore?? (treeify)",ast}
         res[$] = {children}
+--DEV...
+    elsif nodetype="format"
+       or nodetype="ilASM" then
+        for child in children do
+--          res[$] = append(res[$],commentify(child))
+            child = commentify(child)
+            res[$] = append(res[$],child)
+        end for
     elsif nodetype!="global"
       and nodetype!="use strict" then
         integer cdx=1
@@ -1541,6 +1618,9 @@ end if
                     child = sprintf("predef:%f",child)
                 else
                     ?9/0
+--/*
+    textlines[47] = `            for k,q in roughs to mxri+1 do` ["fixed" by "????[DEV]" above]
+--*/
                 end if
             elsif length(child)=0 then
                 child = iff(string(child)?`""`:"{}")
@@ -1873,11 +1953,13 @@ procedure rebuild_builtins_and_run_tests()
 --DEV set a flag to prevent reordering... [if we're still doing that in open_file() etc]
     string builtindir = join_path({get_file_path(get_interpreter()),"builtins"}),
            pwabuiltins = join_path({pwadir,"builtins"})
+    bBuiltinAliases = true
     for i=1 to length(rebuild_required) do
         string ri = strip_builtin(rebuild_required[i]), output
         if find(ri,{"pGUI.e","mpfr.e","sha256.e"}) then
             -- [see p2js_scope.e/check_builtins()]
-            ?"rebuild_required includes "&ri&"..."
+--          ?"rebuild_required includes "&ri&"..."
+            crash("rebuild_required includes "&ri&"...")
         else
             string filepath = join_path({builtindir,ri}),
                    pwabpath = join_path({pwabuiltins,substitute(ri,".e",".js")})
@@ -1911,6 +1993,7 @@ procedure rebuild_builtins_and_run_tests()
             close(fn)
         end if
     end for
+    bBuiltinAliases = false
 --  ?"run_tests"
 --/*
 On startup (desktop only) pwa/src/test.exw is transpiled to js and compared line-by-line to test.exw.js
@@ -2176,6 +2259,7 @@ w wildcard.js       {`find.e`, `match.e`, `pcase.e`, `wildcard.e`}
 
         else
 
+--if what="OUTPUT" then ?{"show_scope",what} end if
 --trace(1)
             sequence ast = parse()
             if parse_error() then
@@ -2439,7 +2523,7 @@ function key_cb(Ihandle main_dlg, atom c)
     switch c do
 --case '!': ?9/0
         case K_F1:  return help_cb(main_dlg)
-        case K_cO:  return choose_cb(choose_file)
+        case K_cO:  return choose_cb(NULL)
         case K_cS:  return syntax_colour() -- (nb not save)
         case K_cM:  return show_stuff("MEDIAWIKI") -- (copy)
         case K_cN:  return show_stuff("OPTIONS")
@@ -2464,7 +2548,7 @@ end function
     
 procedure create_main_dialog()
 
-    choose_file = IupButton("Choose File",Icallback("choose_cb"))--,"PADDING=5x0, CANFOCUS=NO")
+    Ihandle choose_file = IupButton("Choose File",Icallback("choose_cb"))--,"PADDING=5x0, CANFOCUS=NO")
     if platform_is_js() then
         chosen = IupFlatLabel("","EXPAND=HORIZONTAL")
     else
@@ -2565,13 +2649,14 @@ end if
 IupOpen()
 IupSetGlobal("UTF8MODE","YES")
 create_main_dialog()
-if platform()!=WEB then
+if platform()!=JS then
     IupMainLoop()
     IupClose()
 end if
 
 --?"done"
 --{} = wait_key()
+without warning
 abort(0)
 
 -- menus:

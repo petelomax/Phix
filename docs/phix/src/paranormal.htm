@@ -9,48 +9,52 @@
         Several routines perform a little trickery that, once you get used to the idea, make them easier to use. For example this help contains:
         <br>
         <br>
+        <small>
         <code>
         <a href="IupButton.htm">IupButton</a>(<a href="string.htm">nullable_string</a> title=NULL, 
                                               [[<a href="string.htm">nullable_string</a> action=NULL,] 
                                               <a href="Icallback.htm">cbfunc</a> func=NULL,] 
                                               <a href="string.htm">string</a> attributes="", 
-                                              <a href="sequence.htm">sequence</a> args={})</code>
+                                              <a href="html/glossary.htm#dwordseq">dword_seq</a> args={})</code>
         <br>
         <br>
         <code>
         <a href="IupText.htm">IupText</a>([[<a href="string.htm">nullable_string</a> action=NULL,] 
                                           <a href="Icallback.htm">cbfunc</a> func=NULL,] 
                                           <a href="string.htm">string</a> attributes="", 
-                                          <a href="sequence.htm">sequence</a> args={})
+                                          <a href="html/glossary.htm#dwordseq">dword_seq</a> args={})
         </code>
+        </small>
         <br>
         <br>
         The idea is that [action, func] are doubly-optional. Any items before the "[[" are element-specific; this note covers the handling of 
         {action,func,attributes,args}. If you want to provide any of the parameters after the "[[", you must provide everything before it, 
         unless using <a href="procedures.htm#namedparams">named parameters</a>. I made up the term paranormalise as a jokey way to explain that 
         you have more flexibility than normal in how you can provide the parameters. In short you can assume the following are all valid:
+        <small>
  <pre>
-    IupButton()                                                   [NB title/NULL must be provided in all other cases]
+    IupButton()                                   [NB title/NULL must be provided in all other cases]
     IupButton(title)
-    IupButton(title,action,func)                                             [NB func is /not/ optional in this case]
+    IupButton(title,action,func)                             [NB func is /not/ optional in this case]
     IupButton(title,func)
     IupButton(title,attributes[,args])
     IupButton(title,func,attributes[,args])
-    IupButton(title,action,func,attributes[,args])                                         [ditto: func not optional]</pre>
-
+    IupButton(title,action,func,attributes[,args])                         [ditto: func not optional]</pre>
+        </small>
         You can imagine the same less "title" for <a href="IupText.htm">IupText</a>.<br>
         Note that, unless using <a href="procedures.htm#namedparams">named parameters</a>, you cannot change the order, eg:
+        <small>
  <pre>
     IupButton(title,attributes[,args][,action],func)            -- !INVALID!
     IupButton(title,func,attributes,args,action)                -- !Stop this madness!
     IupButton(action,attributes,args,func,title)                -- !You're being silly now!
     IupButton(attributes:="FLAT=YES",func:=ok_cb,title:="OK")   -- but this is fine </pre>
-
-        The action and func parameters are actually declared as <a href="object.htm">object</a>, attributes as <a href="sequence.htm">sequence</a>, 
-        and args as <a href="html/glossary.htm#dwordseq">dword_seq</a>,
+        </small>
+        The action and func parameters are actually declared as <a href="object.htm">object</a>, attributes as 
+        <a href="sequence.htm">sequence</a>, and args as <a href="html/glossary.htm#dwordseq">dword_seq</a>,
         but manually and thoroughly verified to be of the documented types, after they have all been repositioned.
         See pGUI.e/paranormalise() for the precise details of this handling, which is of course absolutely identical
-        across all the interface elements that use it, plus a full set of unit tests.
+        across all the interface elements that use it, plus a full set of unit tests. Same in pGUI.js, less the tests.
         <br>
         <br>
         There is an underlying assumption that if func is NULL then action is meaningless; what that specifically
@@ -61,19 +65,20 @@
         <br>
         If any of this troubles you, just provide the full set of parameters every time, and re-visit this once you 
         get bored with that. Alternatively, break the line up into several discrete statements, ie/eg:
+        <small>
  <pre>
     Ihandle button = IupButton([title])
     IupSetCallback(button, <i>"action name"</i>, Icallback(<i>"function name"</i>)) 
     IupSetAttributes(button, attributes[, args]) 
     IupSetAttribute(button, name, v) </pre>
-        
+        </small>    
         Of course when you are not entirely sure which attributes are needed, multiple calls to <a href="IupSetAttribute.htm">IupSetAttribute</a>
-        are easier to comment in/out for testing, and multiple callbacks can only be set via <a href="IupSetCallback.htm">IupSetCallback</a> anyway.
+        are easier to comment in/out for testing, and multiple callbacks can only be set via <a href="IupSetCallback.htm">IupSetCallback[s]</a> anyway.
         <br>
         <br>
         What this mechanism really attacks is the use of nested <a href="IupSetCallback.htm">IupSetCallbackf</a>() and 
-        <a href="IupSetAttributes.htm"><span class="illegal">IupSetAttributesf</span></a>(), with all the extra parenthesis and indentation that requires, 
-        which can get real ugly real fast.
+        <a href="IupSetAttributes.htm"><span class="illegal">IupSetAttributesf</span></a>(), with all the extra parenthesis 
+        and indentation that requires, which can get real ugly real fast.
 <!-- DEV (IDE/plade)
 It also provides a unified and consistent mechanism for declaring interface elements, which greatly simplifies Edix/Tools/Window Painter.
 -->

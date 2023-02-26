@@ -1,0 +1,477 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">ARM swi numbers</h1>
+      <div id="mainSection">
+        I&rsquo;ve tried to keep this down to a semi-reasonable length, rather than just dump all 377+ here...<br>
+        #ilASM {mov r7, sys_exit} and #ilASM {swi sys_exit} should be recognised, even though there is no matching hll sys_exit constant.<br>
+        <small>(The latter having 0x900000 added that the former does not, other attempted uses of sys_exit, and similar, may or may not work.)</small><br>
+        Of course it may often be easier and simply all-round better to use libc routines, but there is a limit to what I can document...<br>
+        As an [untested] example, #ilASM{call "libc", "dlsym"} is likely to get you much further than anything here possibly can.<br>
+        In general, it is usually much better to try using libc, like that, before resorting to any of these...
+        <br>
+        <br>
+<!-- 
+ <div class="arm_table">
+|Meaning.......................|Mnemonic|Prefix.|Status Flags..|
+|Equal.........................|..=eq...|0 0 0 0|Z = 1.........|
+|Not Equal.....................|..=ne...|0 0 0 1|Z = 0.........|
+|Carry Set.....................|..=cs...|0 0 1 0|C = 1.........| 
+|Carry Clear...................|..=cc...|0 0 1 1|C = 0.........|
+|Unsigned Higher or Same.......|..=hs...|0 0 1 0|C = 1.........|
+|Unsigned Lower................|..=lo...|0 0 1 1|C = 0.........|
+|Minus/Negative................|..=mi...|0 1 0 0|N = 1.........|
+|Plus/Positive or Zero.........|..=pl...|0 1 0 1|N = 0.........|
+|Overflow......................|..=vs...|0 1 1 0|V = 1.........|
+|No Overflow...................|..=vc...|0 1 1 1|V = 0.........|
+|Unsigned Higher...............|..=hi...|1 0 0 0|C = 1, Z = 0..|
+|Unsigned Lower or Same........|..=ls...|1 0 0 1|C = 0, Z = 1..|
+|Signed Greater than or Equal..|..=ge...|1 0 1 0|N = V.........|
+|Signed Less than..............|..=lt...|1 0 1 1|N != V........|
+|Signed Greater than...........|..=gt...|1 1 0 0|Z = 0, N = V..|
+|Signed Less than or Equal.....|..=le...|1 1 0 1|Z = 1, N != V.|
+|Always........................|..=al...|1 1 1 0|..............|
+|Never.........................|..=ne...|1 1 1 1|..............|
+ </div>
+        <div class="clear"></div>
+-->
+
+<!-- from https://syscalls.w3challs.com/?arch=arm_strong
+--goes a little further: https://chromium.googlesource.com/chromiumos/docs/+/HEAD/constants/syscalls.md#arm-32_bit_EABI
+--NB these are 32-bit: On 64 bit I've seen 93 for exit and 64 for write...
+--maybe: /usr/include/arm-linux-gnueabihf/asm/unistd-common.h 
+-->
+<table cellpadding="0" cellspacing="0" border="0" class="display" id="syscall_table">
+        <thead>
+                <tr>
+<!--
+                        <th rowspan="2">#</th>
+-->
+                        <th rowspan="2">Name</th>
+                        <th colspan="7" class="ui-state-default">Registers</th> <!-- Stack for BSD -->
+<!--
+                        <th rowspan="2">Definition</th>
+-->
+                </tr>
+                <tr><!-- http://stackoverflow.com/questions/2535989/what-are-the-calling-conventions-for-unix-linux-system-calls-on-x86-64 -->
+                <th>r7</th>
+                <th>r0</th>
+                <th>r1</th>
+                <th>r2</th>
+                <th>r3</th>
+                <th>r4</th>
+                <th>r5</th>
+
+                </tr>
+        </thead>
+        <tbody>
+<tr><td>restart_syscall</td>        <td>0x900000</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>exit</td>                   <td>0x900001</td><td>int error_code</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>                                     <!-- **used** -->
+<tr><td>fork</td>                   <td>0x900002</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>read</td>                   <td>0x900003</td><td>unsigned int fd</td><td>char *buf</td><td>size_t count</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>write</td>                  <td>0x900004</td><td>unsigned int fd</td><td>const char *buf</td><td>size_t count</td><td>-</td><td>-</td><td>-</td></tr>           <!-- **used** -->
+<tr><td>open</td>                   <td>0x900005</td><td>const char *filename</td><td>int flags</td><td>umode_t mode</td><td>-</td><td>-</td><td>-</td></tr>            <!-- **used** -->
+<tr><td>close</td>                  <td>0x900006</td><td>unsigned int fd</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>                                    <!-- **used** -->
+<!--
+<tr><td>creat</td>                  <td>0x900008</td><td>const char *pathname</td><td>umode_t mode</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>link</td>                   <td>0x900009</td><td>const char *oldname</td><td>const char *newname</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>unlink</td>                 <td>0x90000a</td><td>const char *pathname</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+-->
+<tr><td>execve</td>                 <td>0x90000b</td><td>const char *filenamei</td><td>const char *const *argv</td><td>const char *const *envp</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>chdir</td>                  <td>0x90000c</td><td>const char *filename</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>time</td>                   <td>0x90000d</td><td>time_t *tloc</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>               <!-- ?? Not RPi ?? (see #4e) -->
+<!--
+<tr><td>mknod</td>                  <td>0x90000e</td><td>const char *filename</td><td>umode_t mode</td><td>unsigned dev</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>chmod</td>                  <td>0x90000f</td><td>const char *filename</td><td>umode_t mode</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>lchown</td>                 <td>0x900010</td><td>const char *filename</td><td>uid_t user</td><td>gid_t group</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>lseek</td>                  <td>0x900013</td><td>unsigned int fd</td><td>off_t offset</td><td>unsigned int origin</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>getpid</td>                 <td>0x900014</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>mount</td>                  <td>0x900015</td><td>char *dev_name</td><td>char *dir_name</td><td>char *type</td><td>unsigned long flags</td><td>void *data</td><td>-</td></tr>
+<tr><td>umount</td>                 <td>0x900016</td><td>char *name</td><td>int flags</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>setuid</td>                 <td>0x900017</td><td>uid_t uid</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>getuid</td>                 <td>0x900018</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>stime</td>                  <td>0x900019</td><td>time_t *tptr</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>ptrace</td>                 <td>0x90001a</td><td>long request</td><td>long pid</td><td>unsigned long addr</td><td>unsigned long data</td><td>-</td><td>-</td></tr>
+<tr><td>alarm</td>                  <td>0x90001b</td><td>unsigned int seconds</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>pause</td>                  <td>0x90001d</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>utime</td>                  <td>0x90001e</td><td>char *filename</td><td>struct utimbuf *times</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>access</td>                 <td>0x900021</td><td>const char *filename</td><td>int mode</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>nice</td>                   <td>0x900022</td><td>int increment</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>sync</td>                   <td>0x900024</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>kill</td>                   <td>0x900025</td><td>pid_t pid</td><td>int sig</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>rename</td>                 <td>0x900026</td><td>const char *oldname</td><td>const char *newname</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>mkdir</td>                  <td>0x900027</td><td>const char *pathname</td><td>umode_t mode</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>rmdir</td>                  <td>0x900028</td><td>const char *pathname</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>dup</td>                    <td>0x900029</td><td>unsigned int fildes</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+-->
+<tr><td>pipe</td>                   <td>0x90002a</td><td>int *fildes</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<!--
+<tr><td>times</td>                  <td>0x90002b</td><td>struct tms *tbuf</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+-->
+<tr><td>brk</td>                    <td>0x90002d</td><td>unsigned long brk</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>                                  <!-- **used** -->
+<!--
+<tr><td>setgid</td>                 <td>0x90002e</td><td>gid_t gid</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>getgid</td>                 <td>0x90002f</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>geteuid</td>                <td>0x900031</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>getegid</td>                <td>0x900032</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>acct</td>                   <td>0x900033</td><td>const char *name</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>umount2</td>                <td>0x900034</td><td>char *name</td><td>int flags</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+-->
+<tr><td>ioctl</td>                  <td>0x900036</td><td>unsigned int fd</td><td>unsigned int cmd</td><td>unsigned long arg</td><td>-</td><td>-</td><td>-</td></tr>     <!-- **used** -->
+<!--
+<tr><td>fcntl</td>                  <td>0x900037</td><td>unsigned int fd</td><td>unsigned int cmd</td><td>unsigned long arg</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>setpgid</td>                <td>0x900039</td><td>pid_t pid</td><td>pid_t pgid</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>umask</td>                  <td>0x90003c</td><td>int mask</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>chroot</td>                 <td>0x90003d</td><td>const char *filename</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>ustat</td>                  <td>0x90003e</td><td>unsigned dev</td><td>struct ustat *ubuf</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>dup2</td>                   <td>0x90003f</td><td>unsigned int oldfd</td><td>unsigned int newfd</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>getppid</td>                <td>0x900040</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>getpgrp</td>                <td>0x900041</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>setsid</td>                 <td>0x900042</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+-->
+<tr><td>sigaction</td>              <td>0x900043</td><td>int sig</td><td>const struct old_sigaction *act</td><td>struct old_sigaction *oact</td><td>-</td><td>-</td><td>-</td></tr>     <!-- **used** -->
+<!--
+<tr><td>setreuid</td>               <td>0x900046</td><td>uid_t ruid</td><td>uid_t euid</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>setregid</td>               <td>0x900047</td><td>gid_t rgid</td><td>gid_t egid</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>sigsuspend</td>             <td>0x900048</td><td>int restart</td><td>unsigned long oldmask</td><td>old_sigset_t mask</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>sigpending</td>             <td>0x900049</td><td>old_sigset_t *set</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>sethostname</td>            <td>0x90004a</td><td>char *name</td><td>int len</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>setrlimit</td>              <td>0x90004b</td><td>unsigned int resource</td><td>struct rlimit *rlim</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>getrlimit</td>              <td>0x90004c</td><td>unsigned int resource</td><td>struct rlimit *rlim</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>getrusage</td>              <td>0x90004d</td><td>int who</td><td>struct rusage *ru</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+-->
+<tr><td>gettimeofday</td>           <td>0x90004e</td><td>struct timeval *tv</td><td>struct timezone *tz</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>   <!-- **used, & ok on Rpi** -->
+<!--
+<tr><td>settimeofday</td>           <td>0x90004f</td><td>struct timeval *tv</td><td>struct timezone *tz</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>getgroups</td>              <td>0x900050</td><td>int gidsetsize</td><td>gid_t *grouplist</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>setgroups</td>              <td>0x900051</td><td>int gidsetsize</td><td>gid_t *grouplist</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+-->
+<tr><td>select</td>                 <td>0x900052</td><td>int n</td><td>fd_set *inp</td><td>fd_set *outp</td><td>fd_set *exp</td><td>struct timeval *tvp</td><td>-</td></tr>
+<!--
+<tr><td>symlink</td>                <td>0x900053</td><td>const char *oldname</td><td>const char *newname</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>readlink</td>               <td>0x900055</td><td>const char *path</td><td>char *buf</td><td>int bufsiz</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>uselib</td>                 <td>0x900056</td><td>const char *library</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>swapon</td>                 <td>0x900057</td><td>const char *specialfile</td><td>int swap_flags</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>reboot</td>                 <td>0x900058</td><td>int magic1</td><td>int magic2</td><td>unsigned int cmd</td><td>void *arg</td><td>-</td><td>-</td></tr>
+<tr><td>readdir</td>                <td>0x900059</td><td>unsigned int fd</td><td>struct old_linux_dirent *dirent</td><td>unsigned int count</td><td>-</td><td>-</td><td>-</td></tr>
+-->
+<tr><td>mmap</td>                   <td>0x90005a</td><td>struct mmap_arg_struct *arg</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>munmap</td>                 <td>0x90005b</td><td>unsigned long addr</td><td>size_t len</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>            <!-- **used** -->
+<!--
+<tr><td>truncate</td>               <td>0x90005c</td><td>const char *path</td><td>long length</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>ftruncate</td>              <td>0x90005d</td><td>unsigned int fd</td><td>unsigned long length</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>fchmod</td>                 <td>0x90005e</td><td>unsigned int fd</td><td>umode_t mode</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>fchown</td>                 <td>0x90005f</td><td>unsigned int fd</td><td>uid_t user</td><td>gid_t group</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>getpriority</td>            <td>0x900060</td><td>int which</td><td>int who</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>setpriority</td>            <td>0x900061</td><td>int which</td><td>int who</td><td>int niceval</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>statfs</td>                 <td>0x900063</td><td>const char *pathname</td><td>struct statfs *buf</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>fstatfs</td>                <td>0x900064</td><td>unsigned int fd</td><td>struct statfs *buf</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>socketcall</td>             <td>0x900066</td><td>int call</td><td>unsigned long *args</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>syslog</td>                 <td>0x900067</td><td>int type</td><td>char *buf</td><td>int len</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>setitimer</td>              <td>0x900068</td><td>int which</td><td>struct itimerval *value</td><td>struct itimerval *ovalue</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>getitimer</td>              <td>0x900069</td><td>int which</td><td>struct itimerval *value</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>stat</td>                   <td>0x90006a</td><td>const char *filename</td><td>struct __old_kernel_stat *statbuf</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>lstat</td>                  <td>0x90006b</td><td>const char *filename</td><td>struct __old_kernel_stat *statbuf</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>fstat</td>                  <td>0x90006c</td><td>unsigned int fd</td><td>struct __old_kernel_stat *statbuf</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>vhangup</td>                <td>0x90006f</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>syscall</td>                <td>0x900071</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>wait4</td>                  <td>0x900072</td><td>pid_t upid</td><td>int *stat_addr</td><td>int options</td><td>struct rusage *ru</td><td>-</td><td>-</td></tr>
+<tr><td>swapoff</td>                <td>0x900073</td><td>const char *specialfile</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>sysinfo</td>                <td>0x900074</td><td>struct sysinfo *info</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>ipc</td>                    <td>0x900075</td><td>unsigned int call</td><td>int first</td><td>unsigned long second</td><td>unsigned long third</td><td>void *ptr</td><td>long fifth</td></tr>
+<tr><td>fsync</td>                  <td>0x900076</td><td>unsigned int fd</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>sigreturn</td>              <td>0x900077</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>clone</td>                  <td>0x900078</td><td>unsigned long clone_flags</td><td>unsigned long newsp</td><td>int *parent_tidptr</td><td>int tls_val</td><td>int *child_tidptr</td><td>-</td></tr>
+<tr><td>setdomainname</td>          <td>0x900079</td><td>char *name</td><td>int len</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>uname</td>                  <td>0x90007a</td><td>struct old_utsname *name</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>adjtimex</td>               <td>0x90007c</td><td>struct timex *txc_p</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>mprotect</td>               <td>0x90007d</td><td>unsigned long start</td><td>size_t len</td><td>unsigned long prot</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>sigprocmask</td>            <td>0x90007e</td><td>int how</td><td>old_sigset_t *nset</td><td>old_sigset_t *oset</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>init_module</td>            <td>0x900080</td><td>void *umod</td><td>unsigned long len</td><td>const char *uargs</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>delete_module</td>          <td>0x900081</td><td>const char *name_user</td><td>unsigned int flags</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>quotactl</td>               <td>0x900083</td><td>unsigned int cmd</td><td>const char *special</td><td>qid_t id</td><td>void *addr</td><td>-</td><td>-</td></tr>
+<tr><td>getpgid</td>                <td>0x900084</td><td>pid_t pid</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>fchdir</td>                 <td>0x900085</td><td>unsigned int fd</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>bdflush</td>                <td>0x900086</td><td>int func</td><td>long data</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>sysfs</td>                  <td>0x900087</td><td>int option</td><td>unsigned long arg1</td><td>unsigned long arg2</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>personality</td>            <td>0x900088</td><td>unsigned int personality</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>setfsuid</td>               <td>0x90008a</td><td>uid_t uid</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>setfsgid</td>               <td>0x90008b</td><td>gid_t gid</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>_llseek</td>                <td>0x90008c</td><td>unsigned int fd</td><td>unsigned long offset_high</td><td>unsigned long offset_low</td><td>loff_t *result</td><td>unsigned int origin</td><td>-</td></tr>
+<tr><td>getdents</td>               <td>0x90008d</td><td>unsigned int fd</td><td>struct linux_dirent *dirent</td><td>unsigned int count</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>_newselect</td>             <td>0x90008e</td><td>int n</td><td>fd_set *inp</td><td>fd_set *outp</td><td>fd_set *exp</td><td>struct timeval *tvp</td><td>-</td></tr>
+-->
+<tr><td>flock</td>                  <td>0x90008f</td><td>unsigned int fd</td><td>unsigned int cmd</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<!--
+<tr><td>msync</td>                  <td>0x900090</td><td>unsigned long start</td><td>size_t len</td><td>int flags</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>readv</td>                  <td>0x900091</td><td>unsigned long fd</td><td>const struct iovec *vec</td><td>unsigned long vlen</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>writev</td>                 <td>0x900092</td><td>unsigned long fd</td><td>const struct iovec *vec</td><td>unsigned long vlen</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>getsid</td>                 <td>0x900093</td><td>pid_t pid</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>fdatasync</td>              <td>0x900094</td><td>unsigned int fd</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>_sysctl</td>                <td>0x900095</td><td>struct __sysctl_args *args</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>mlock</td>                  <td>0x900096</td><td>unsigned long start</td><td>size_t len</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>munlock</td>                <td>0x900097</td><td>unsigned long start</td><td>size_t len</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>mlockall</td>               <td>0x900098</td><td>int flags</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>munlockall</td>             <td>0x900099</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+-->
+<!--
+<tr><td>sched_setparam</td>         <td>0x90009a</td><td>pid_t pid</td><td>struct sched_param *param</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>sched_getparam</td>         <td>0x90009b</td><td>pid_t pid</td><td>struct sched_param *param</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>sched_setscheduler</td>     <td>0x90009c</td><td>pid_t pid</td><td>int policy</td><td>struct sched_param *param</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>sched_getscheduler</td>     <td>0x90009d</td><td>pid_t pid</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>sched_yield</td>            <td>0x90009e</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>sched_get_priority_max</td> <td>0x90009f</td><td>int policy</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>sched_get_priority_min</td> <td>0x9000a0</td><td>int policy</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>sched_rr_get_interval</td>  <td>0x9000a1</td><td>pid_t pid</td><td>struct timespec *interval</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+-->
+<tr><td>nanosleep</td>              <td>0x9000a2</td><td>struct timespec *rqtp</td><td>struct timespec *rmtp</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<!-- **used:** -->
+<tr><td>mremap</td>                 <td>0x9000a3</td><td>unsigned long addr</td><td>unsigned long old_len</td><td>unsigned long new_len</td><td>unsigned long flags</td><td>unsigned long new_addr</td><td>-</td></tr>
+<!--
+<tr><td>setresuid</td>              <td>0x9000a4</td><td>uid_t ruid</td><td>uid_t euid</td><td>uid_t suid</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>getresuid</td>              <td>0x9000a5</td><td>uid_t *ruidp</td><td>uid_t *euidp</td><td>uid_t *suidp</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>poll</td>                   <td>0x9000a8</td><td>struct pollfd *ufds</td><td>unsigned int nfds</td><td>int timeout_msecs</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>nfsservctl</td>             <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>Not implemented</td></tr>
+<tr><td>setresgid</td>              <td>0x9000aa</td><td>gid_t rgid</td><td>gid_t egid</td><td>gid_t sgid</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>getresgid</td>              <td>0x9000ab</td><td>gid_t *rgidp</td><td>gid_t *egidp</td><td>gid_t *sgidp</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>prctl</td>                  <td>0x9000ac</td><td>int option</td><td>unsigned long arg2</td><td>unsigned long arg3</td><td>unsigned long arg4</td><td>unsigned long arg5</td><td>-</td></tr>
+<tr><td>rt_sigreturn</td>           <td>0x9000ad</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>rt_sigaction</td>           <td>0x9000ae</td><td>int sig</td><td>const struct sigaction *act</td><td>struct sigaction *oact</td><td>size_t sigsetsize</td><td>-</td><td>-</td></tr>
+<tr><td>rt_sigprocmask</td>         <td>0x9000af</td><td>int how</td><td>sigset_t *nset</td><td>sigset_t *oset</td><td>size_t sigsetsize</td><td>-</td><td>-</td></tr>
+<tr><td>rt_sigpending</td>          <td>0x9000b0</td><td>sigset_t *set</td><td>size_t sigsetsize</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>rt_sigtimedwait</td>        <td>0x9000b1</td><td>const sigset_t *uthese</td><td>siginfo_t *uinfo</td><td>const struct timespec *uts</td><td>size_t sigsetsize</td><td>-</td><td>-</td></tr>
+<tr><td>rt_sigqueueinfo</td>        <td>0x9000b2</td><td>pid_t pid</td><td>int sig</td><td>siginfo_t *uinfo</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>rt_sigsuspend</td>          <td>0x9000b3</td><td>sigset_t *unewset</td><td>size_t sigsetsize</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+-->
+<tr><td>pread64</td>                <td>0x9000b4</td><td>char *buf size_t count</td><td>loff_t pos</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>pwrite64</td>               <td>0x9000b5</td><td>const char *buf size_t count</td><td>loff_t pos</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>chown</td>                  <td>0x9000b6</td><td>const char *filename</td><td>uid_t user</td><td>gid_t group</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>getcwd</td>                 <td>0x9000b7</td><td>char *buf</td><td>unsigned long size</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<!--
+<tr><td>capget</td>                 <td>0x9000b8</td><td>cap_user_header_t header</td><td>cap_user_data_t dataptr</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>capset</td>                 <td>0x9000b9</td><td>cap_user_header_t header</td><td>const cap_user_data_t data</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>sigaltstack</td>            <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>Not implemented</td></tr>
+-->
+<!--
+<tr><td>sendfile</td>               <td>0x9000bb</td><td>int out_fd</td><td>int in_fd</td><td>off_t *offset</td><td>size_t count</td><td>-</td><td>-</td></tr>
+<tr><td>vfork</td>                  <td>0x9000be</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>ugetrlimit</td>             <td>0x9000bf</td><td>unsigned int resource</td><td>struct rlimit *rlim</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+--->
+<!-- **used:** -->
+<tr><td>mmap2</td>                  <td>0x9000c0</td><td>unsigned long addr</td><td>unsigned long len</td><td>unsigned long prot</td><td>unsigned long flags</td><td>unsigned long fd</td><td>unsigned long pgoff</td></tr>
+<!--
+<tr><td>truncate64</td>             <td>0x9000c1</td><td>loff_t length</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>ftruncate64</td>            <td>0x9000c2</td><td>loff_t length</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+-->
+<tr><td>stat64</td>                 <td>0x9000c3</td><td>const char *filename</td><td>struct stat64 *statbuf</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>lstat64</td>                <td>0x9000c4</td><td>const char *filename</td><td>struct stat64 *statbuf</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>fstat64</td>                <td>0x9000c5</td><td>unsigned long fd</td><td>struct stat64 *statbuf</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<!--
+<tr><td>lchown32</td>               <td>0x9000c6</td><td>const char *filename</td><td>uid_t user</td><td>gid_t group</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>getuid32</td>               <td>0x9000c7</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>getgid32</td>               <td>0x9000c8</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>geteuid32</td>              <td>0x9000c9</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>getegid32</td>              <td>0x9000ca</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>setreuid32</td>             <td>0x9000cb</td><td>uid_t ruid</td><td>uid_t euid</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>setregid32</td>             <td>0x9000cc</td><td>gid_t rgid</td><td>gid_t egid</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>getgroups32</td>            <td>0x9000cd</td><td>int gidsetsize</td><td>gid_t *grouplist</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>setgroups32</td>            <td>0x9000ce</td><td>int gidsetsize</td><td>gid_t *grouplist</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>fchown32</td>               <td>0x9000cf</td><td>unsigned int fd</td><td>uid_t user</td><td>gid_t group</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>setresuid32</td>            <td>0x9000d0</td><td>uid_t ruid</td><td>uid_t euid</td><td>uid_t suid</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>getresuid32</td>            <td>0x9000d1</td><td>uid_t *ruidp</td><td>uid_t *euidp</td><td>uid_t *suidp</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>setresgid32</td>            <td>0x9000d2</td><td>gid_t rgid</td><td>gid_t egid</td><td>gid_t sgid</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>getresgid32</td>            <td>0x9000d3</td><td>gid_t *rgidp</td><td>gid_t *egidp</td><td>gid_t *sgidp</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>chown32</td>                <td>0x9000d4</td><td>const char *filename</td><td>uid_t user</td><td>gid_t group</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>setuid32</td>               <td>0x9000d5</td><td>uid_t uid</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>setgid32</td>               <td>0x9000d6</td><td>gid_t gid</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>setfsuid32</td>             <td>0x9000d7</td><td>uid_t uid</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>setfsgid32</td>             <td>0x9000d8</td><td>gid_t gid</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>getdents64</td>             <td>0x9000d9</td><td>unsigned int fd</td><td>struct linux_dirent64 *dirent</td><td>unsigned int count</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>pivot_root</td>             <td>0x9000da</td><td>const char *new_root</td><td>const char *put_old</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>mincore</td>                <td>0x9000db</td><td>unsigned long start</td><td>size_t len</td><td>unsigned char *vec</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>madvise</td>                <td>0x9000dc</td><td>unsigned long start</td><td>size_t len_in</td><td>int behavior</td><td>-</td><td>-</td><td>-</td></tr>
+-->
+<tr><td>fcntl64</td>                <td>0x9000dd</td><td>unsigned int fd</td><td>unsigned int cmd</td><td>unsigned long arg</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>gettid</td>                 <td>0x9000e0</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<!--
+<tr><td>readahead</td>              <td>0x9000e1</td><td>loff_t offset size_t count</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>setxattr</td>               <td>0x9000e2</td><td>const char *pathname</td><td>const char *name</td><td>const void *value</td><td>size_t size</td><td>int flags</td><td>-</td></tr>
+<tr><td>lsetxattr</td>              <td>0x9000e3</td><td>const char *pathname</td><td>const char *name</td><td>const void *value</td><td>size_t size</td><td>int flags</td><td>-</td></tr>
+<tr><td>fsetxattr</td>              <td>0x9000e4</td><td>int fd</td><td>const char *name</td><td>const void *value</td><td>size_t size</td><td>int flags</td><td>-</td></tr>
+<tr><td>getxattr</td>               <td>0x9000e5</td><td>const char *pathname</td><td>const char *name</td><td>void *value</td><td>size_t size</td><td>-</td><td>-</td></tr>
+<tr><td>lgetxattr</td>              <td>0x9000e6</td><td>const char *pathname</td><td>const char *name</td><td>void *value</td><td>size_t size</td><td>-</td><td>-</td></tr>
+<tr><td>fgetxattr</td>              <td>0x9000e7</td><td>int fd</td><td>const char *name</td><td>void *value</td><td>size_t size</td><td>-</td><td>-</td></tr>
+<tr><td>listxattr</td>              <td>0x9000e8</td><td>const char *pathname</td><td>char *list</td><td>size_t size</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>llistxattr</td>             <td>0x9000e9</td><td>const char *pathname</td><td>char *list</td><td>size_t size</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>flistxattr</td>             <td>0x9000ea</td><td>int fd</td><td>char *list</td><td>size_t size</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>removexattr</td>            <td>0x9000eb</td><td>const char *pathname</td><td>const char *name</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>lremovexattr</td>           <td>0x9000ec</td><td>const char *pathname</td><td>const char *name</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>fremovexattr</td>           <td>0x9000ed</td><td>int fd</td><td>const char *name</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>tkill</td>                  <td>0x9000ee</td><td>pid_t pid</td><td>int sig</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>sendfile64</td>             <td>0x9000ef</td><td>int out_fd</td><td>int in_fd</td><td>loff_t *offset</td><td>size_t count</td><td>-</td><td>-</td></tr>
+-->
+<tr><td>futex</td>                  <td>0x9000f0</td><td>u32 *uaddr</td><td>int op</td><td>u32 val</td><td>struct timespec *utime</td><td>u32 *uaddr2</td><td>u32 val3</td></tr>
+<!--
+<tr><td>sched_setaffinity</td>      <td>0x9000f1</td><td>pid_t pid</td><td>unsigned int len</td><td>unsigned long *user_mask_ptr</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>sched_getaffinity</td>      <td>0x9000f2</td><td>pid_t pid</td><td>unsigned int len</td><td>unsigned long *user_mask_ptr</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>io_setup</td>               <td>0x9000f3</td><td>unsigned nr_events</td><td>aio_context_t *ctxp</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>io_destroy</td>             <td>0x9000f4</td><td>aio_context_t ctx</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>io_getevents</td>           <td>0x9000f5</td><td>aio_context_t ctx_id</td><td>long min_nr</td><td>long nr</td><td>struct io_event *events</td><td>struct timespec *timeout</td><td>-</td></tr>
+<tr><td>io_submit</td>              <td>0x9000f6</td><td>aio_context_t ctx_id</td><td>long nr</td><td>struct iocb * *iocbpp</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>io_cancel</td>              <td>0x9000f7</td><td>aio_context_t ctx_id</td><td>struct iocb *iocb</td><td>struct io_event *result</td><td>-</td><td>-</td><td>-</td></tr>
+-->
+<tr><td>exit_group</td>             <td>0x9000f8</td><td>int error_code</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<!--
+<tr><td>lookup_dcookie</td>         <td>0x9000f9</td><td>char *buf size_t len</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>epoll_create</td>           <td>0x9000fa</td><td>int size</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>epoll_ctl</td>              <td>0x9000fb</td><td>int epfd</td><td>int op</td><td>int fd</td><td>struct epoll_event *event</td><td>-</td><td>-</td></tr>
+<tr><td>epoll_wait</td>             <td>0x9000fc</td><td>int epfd</td><td>struct epoll_event *events</td><td>int maxevents</td><td>int timeout</td><td>-</td><td>-</td></tr>
+<tr><td>remap_file_pages</td>       <td>0x9000fd</td><td>unsigned long start</td><td>unsigned long size</td><td>unsigned long prot</td><td>unsigned long pgoff</td><td>unsigned long flags</td><td>-</td></tr>
+<tr><td>set_tid_address</td>        <td>0x900100</td><td>int *tidptr</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>timer_create</td>           <td>0x900101</td><td>const clockid_t which_clock</td><td>struct sigevent *timer_event_spec</td><td>timer_t *created_timer_id</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>timer_settime</td>          <td>0x900102</td><td>timer_t timer_id</td><td>int flags</td><td>const struct itimerspec *new_setting</td><td>struct itimerspec *old_setting</td><td>-</td><td>-</td></tr>
+<tr><td>timer_gettime</td>          <td>0x900103</td><td>timer_t timer_id</td><td>struct itimerspec *setting</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>timer_getoverrun</td>       <td>0x900104</td><td>timer_t timer_id</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>timer_delete</td>           <td>0x900105</td><td>timer_t timer_id</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+-->
+<tr><td>clock_settime</td>          <td>0x900106</td><td>const clockid_t which_clock</td><td>const struct timespec *tp</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>clock_gettime</td>          <td>0x900107</td><td>const clockid_t which_clock</td><td>struct timespec *tp</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>clock_getres</td>           <td>0x900108</td><td>const clockid_t which_clock</td><td>struct timespec *tp</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>clock_nanosleep</td>        <td>0x900109</td><td>const clockid_t which_clock</td><td>int flags</td><td>const struct timespec *rqtp</td><td>struct timespec *rmtp</td><td>-</td><td>-</td></tr>
+<tr><td>statfs64</td>               <td>0x90010a</td><td>const char *pathname</td><td>size_t sz</td><td>struct statfs64 *buf</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>fstatfs64</td>              <td>0x90010b</td><td>unsigned int fd</td><td>size_t sz</td><td>struct statfs64 *buf</td><td>-</td><td>-</td><td>-</td></tr>
+<!--
+<tr><td>tgkill</td>                 <td>0x90010c</td><td>pid_t tgid</td><td>pid_t pid</td><td>int sig</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>utimes</td>                 <td>0x90010d</td><td>char *filename</td><td>struct timeval *utimes</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>arm_fadvise64_64</td>       <td>0x90010e</td><td>int fd</td><td>int advice</td><td>loff_t offset</td><td>loff_t len</td><td>-</td><td>-</td></tr>
+<tr><td>pciconfig_iobase</td>       <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>Not implemented</td></tr>
+<tr><td>pciconfig_read</td>         <td>0x900110</td><td>unsigned long bus</td><td>unsigned long dfn</td><td>unsigned long off</td><td>unsigned long len</td><td>void *buf</td><td>-</td></tr>
+<tr><td>pciconfig_write</td>        <td>0x900111</td><td>unsigned long bus</td><td>unsigned long dfn</td><td>unsigned long off</td><td>unsigned long len</td><td>void *buf</td><td>-</td></tr>
+<tr><td>mq_open</td>                <td>0x900112</td><td>const char *u_name</td><td>int oflag</td><td>umode_t mode</td><td>struct mq_attr *u_attr</td><td>-</td><td>-</td></tr>
+<tr><td>mq_unlink</td>              <td>0x900113</td><td>const char *u_name</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>mq_timedsend</td>           <td>0x900114</td><td>mqd_t mqdes</td><td>const char *u_msg_ptr</td><td>size_t msg_len</td><td>unsigned int msg_prio</td><td>const struct timespec *u_abs_timeout</td><td>-</td></tr>
+<tr><td>mq_timedreceive</td>        <td>0x900115</td><td>mqd_t mqdes</td><td>char *u_msg_ptr</td><td>size_t msg_len</td><td>unsigned int *u_msg_prio</td><td>const struct timespec *u_abs_timeout</td><td>-</td></tr>
+<tr><td>mq_notify</td>              <td>0x900116</td><td>mqd_t mqdes</td><td>const struct sigevent *u_notification</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>mq_getsetattr</td>          <td>0x900117</td><td>mqd_t mqdes</td><td>const struct mq_attr *u_mqstat</td><td>struct mq_attr *u_omqstat</td><td>-</td><td>-</td><td>-</td></tr>
+-->
+<tr><td>waitid</td>                 <td>0x900118</td><td>int which</td><td>pid_t upid</td><td>struct siginfo *infop</td><td>int options</td><td>struct rusage *ru</td><td>-</td></tr>
+<tr><td>socket</td>                 <td>0x900119</td><td>int family</td><td>int type</td><td>int protocol</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>bind</td>                   <td>0x90011a</td><td>int fd</td><td>struct sockaddr *umyaddr</td><td>int addrlen</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>connect</td>                <td>0x90011b</td><td>int fd</td><td>struct sockaddr *uservaddr</td><td>int addrlen</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>listen</td>                 <td>0x90011c</td><td>int fd</td><td>int backlog</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>accept</td>                 <td>0x90011d</td><td>int fd</td><td>struct sockaddr *upeer_sockaddr</td><td>int *upeer_addrlen</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>getsockname</td>            <td>0x90011e</td><td>int fd</td><td>struct sockaddr *usockaddr</td><td>int *usockaddr_len</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>getpeername</td>            <td>0x90011f</td><td>int fd</td><td>struct sockaddr *usockaddr</td><td>int *usockaddr_len</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>socketpair</td>             <td>0x900120</td><td>int family</td><td>int type</td><td>int protocol</td><td>int *usockvec</td><td>-</td><td>-</td></tr>
+<tr><td>send</td>                   <td>0x900121</td><td>int fd</td><td>void *buff</td><td>size_t len</td><td>unsigned int flags</td><td>-</td><td>-</td></tr>
+<tr><td>sendto</td>                 <td>0x900122</td><td>int fd</td><td>void *buff</td><td>size_t len</td><td>unsigned int flags</td><td>struct sockaddr *addr</td><td>int addr_len</td></tr>
+<tr><td>recv</td>                   <td>0x900123</td><td>int fd</td><td>void *ubuf</td><td>size_t size</td><td>unsigned int flags</td><td>-</td><td>-</td></tr>
+<tr><td>recvfrom</td>               <td>0x900124</td><td>int fd</td><td>void *ubuf</td><td>size_t size</td><td>unsigned int flags</td><td>struct sockaddr *addr</td><td>int *addr_len</td></tr>
+<tr><td>shutdown</td>               <td>0x900125</td><td>int fd</td><td>int how</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>setsockopt</td>             <td>0x900126</td><td>int fd</td><td>int level</td><td>int optname</td><td>char *optval</td><td>int optlen</td><td>-</td></tr>
+<tr><td>getsockopt</td>             <td>0x900127</td><td>int fd</td><td>int level</td><td>int optname</td><td>char *optval</td><td>int *optlen</td><td>-</td></tr>
+<tr><td>sendmsg</td>                <td>0x900128</td><td>int fd</td><td>struct msghdr *msg</td><td>unsigned int flags</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>recvmsg</td>                <td>0x900129</td><td>int fd</td><td>struct msghdr *msg</td><td>unsigned int flags</td><td>-</td><td>-</td><td>-</td></tr>
+<!--
+<tr><td>semop</td>                  <td>0x90012a</td><td>int semid</td><td>struct sembuf *tsops</td><td>unsigned nsops</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>semget</td>                 <td>0x90012b</td><td>key_t key</td><td>int nsems</td><td>int semflg</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>semctl</td>                 <td>0x90012c</td><td>int semnum int cmd</td><td>union semun arg</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>msgsnd</td>                 <td>0x90012d</td><td>int msqid</td><td>struct msgbuf *msgp</td><td>size_t msgsz</td><td>int msgflg</td><td>-</td><td>-</td></tr>
+<tr><td>msgrcv</td>                 <td>0x90012e</td><td>int msqid</td><td>struct msgbuf *msgp</td><td>size_t msgsz</td><td>long msgtyp</td><td>int msgflg</td><td>-</td></tr>
+<tr><td>msgget</td>                 <td>0x90012f</td><td>key_t key</td><td>int msgflg</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>msgctl</td>                 <td>0x900130</td><td>int msqid</td><td>int cmd</td><td>struct msqid_ds *buf</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>shmat</td>                  <td>0x900131</td><td>int shmid</td><td>char *shmaddr</td><td>int shmflg</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>shmdt</td>                  <td>0x900132</td><td>char *shmaddr</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>shmget</td>                 <td>0x900133</td><td>key_t key</td><td>size_t size</td><td>int shmflg</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>shmctl</td>                 <td>0x900134</td><td>int shmid</td><td>int cmd</td><td>struct shmid_ds *buf</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>add_key</td>                <td>0x900135</td><td>const char *_type</td><td>const char *_description</td><td>const void *_payload</td><td>size_t plen</td><td>key_serial_t ringid</td><td>-</td></tr>
+<tr><td>request_key</td>            <td>0x900136</td><td>const char *_type</td><td>const char *_description</td><td>const char *_callout_info</td><td>key_serial_t destringid</td><td>-</td><td>-</td></tr>
+<tr><td>keyctl</td>                 <td>0x900137</td><td>int option</td><td>unsigned long arg2</td><td>unsigned long arg3</td><td>unsigned long arg4</td><td>unsigned long arg5</td><td>-</td></tr>
+<tr><td>semtimedop</td>             <td>0x900138</td><td>int semid</td><td>struct sembuf *tsops</td><td>unsigned nsops</td><td>const struct timespec *timeout</td><td>-</td><td>-</td></tr>
+<tr><td>vserver</td>                <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>Not implemented</td></tr>
+<tr><td>ioprio_set</td>             <td>0x90013a</td><td>int which</td><td>int who</td><td>int ioprio</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>ioprio_get</td>             <td>0x90013b</td><td>int which</td><td>int who</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>inotify_init</td>           <td>0x90013c</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>inotify_add_watch</td>      <td>0x90013d</td><td>int fd</td><td>const char *pathname</td><td>u32 mask</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>inotify_rm_watch</td>       <td>0x90013e</td><td>int fd</td><td>__s32 wd</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>mbind</td>                  <td>0x90013f</td><td>unsigned long start</td><td>unsigned long len</td><td>unsigned long mode</td><td>unsigned long *nmask</td><td>unsigned long maxnode</td><td>unsigned flags</td></tr>
+<tr><td>get_mempolicy</td>          <td>0x900140</td><td>int *policy</td><td>unsigned long *nmask</td><td>unsigned long maxnode</td><td>unsigned long addr</td><td>unsigned long flags</td><td>-</td></tr>
+<tr><td>set_mempolicy</td>          <td>0x900141</td><td>int mode</td><td>unsigned long *nmask</td><td>unsigned long maxnode</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>openat</td>                 <td>0x900142</td><td>int dfd</td><td>const char *filename</td><td>int flags</td><td>umode_t mode</td><td>-</td><td>-</td></tr>
+<tr><td>mkdirat</td>                <td>0x900143</td><td>int dfd</td><td>const char *pathname</td><td>umode_t mode</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>mknodat</td>                <td>0x900144</td><td>int dfd</td><td>const char *filename</td><td>umode_t mode</td><td>unsigned dev</td><td>-</td><td>-</td></tr>
+<tr><td>fchownat</td>               <td>0x900145</td><td>int dfd</td><td>const char *filename</td><td>uid_t user</td><td>gid_t group</td><td>int flag</td><td>-</td></tr>
+<tr><td>futimesat</td>              <td>0x900146</td><td>int dfd</td><td>const char *filename</td><td>struct timeval *utimes</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>fstatat64</td>              <td>0x900147</td><td>int dfd</td><td>const char *filename</td><td>struct stat64 *statbuf</td><td>int flag</td><td>-</td><td>-</td></tr>
+<tr><td>unlinkat</td>               <td>0x900148</td><td>int dfd</td><td>const char *pathname</td><td>int flag</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>renameat</td>               <td>0x900149</td><td>int olddfd</td><td>const char *oldname</td><td>int newdfd</td><td>const char *newname</td><td>-</td><td>-</td></tr>
+<tr><td>linkat</td>                 <td>0x90014a</td><td>int olddfd</td><td>const char *oldname</td><td>int newdfd</td><td>const char *newname</td><td>int flags</td><td>-</td></tr>
+<tr><td>symlinkat</td>              <td>0x90014b</td><td>const char *oldname</td><td>int newdfd</td><td>const char *newname</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>readlinkat</td>             <td>0x90014c</td><td>int dfd</td><td>const char *pathname</td><td>char *buf</td><td>int bufsiz</td><td>-</td><td>-</td></tr>
+<tr><td>fchmodat</td>               <td>0x90014d</td><td>int dfd</td><td>const char *filename</td><td>umode_t mode</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>faccessat</td>              <td>0x90014e</td><td>int dfd</td><td>const char *filename</td><td>int mode</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>pselect6</td>               <td>0x90014f</td><td>int n</td><td>fd_set *inp</td><td>fd_set *outp</td><td>fd_set *exp</td><td>struct timespec *tsp</td><td>void *sig</td></tr>
+<tr><td>ppoll</td>                  <td>0x900150</td><td>struct pollfd *ufds</td><td>unsigned int nfds</td><td>struct timespec *tsp</td><td>const sigset_t *sigmask</td><td>size_t sigsetsize</td><td>-</td></tr>
+<tr><td>unshare</td>                <td>0x900151</td><td>unsigned long unshare_flags</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>set_robust_list</td>        <td>0x900152</td><td>struct robust_list_head *head</td><td>size_t len</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>get_robust_list</td>        <td>0x900153</td><td>int pid</td><td>struct robust_list_head * *head_ptr</td><td>size_t *len_ptr</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>splice</td>                 <td>0x900154</td><td>int fd_in</td><td>loff_t *off_in</td><td>int fd_out</td><td>loff_t *off_out</td><td>size_t len</td><td>unsigned int flags</td></tr>
+<tr><td>sync_file_range2</td>       <td>0x900155</td><td>unsigned int flags loff_t offset</td><td>loff_t nbytes</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>tee</td>                    <td>0x900156</td><td>int fdin</td><td>int fdout</td><td>size_t len</td><td>unsigned int flags</td><td>-</td><td>-</td></tr>
+<tr><td>vmsplice</td>               <td>0x900157</td><td>int fd</td><td>const struct iovec *iov</td><td>unsigned long nr_segs</td><td>unsigned int flags</td><td>-</td><td>-</td></tr>
+<tr><td>move_pages</td>             <td>0x900158</td><td>pid_t pid</td><td>unsigned long nr_pages</td><td>const void * *pages</td><td>const int *nodes</td><td>int *status</td><td>int flags</td></tr>
+<tr><td>getcpu</td>                 <td>0x900159</td><td>unsigned *cpup</td><td>unsigned *nodep</td><td>struct getcpu_cache *unused</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>epoll_pwait</td>            <td>0x90015a</td><td>int epfd</td><td>struct epoll_event *events</td><td>int maxevents</td><td>int timeout</td><td>const sigset_t *sigmask</td><td>size_t sigsetsize</td></tr>
+<tr><td>kexec_load</td>             <td>0x90015b</td><td>unsigned long entry</td><td>unsigned long nr_segments</td><td>struct kexec_segment *segments</td><td>unsigned long flags</td><td>-</td><td>-</td></tr>
+<tr><td>utimensat</td>              <td>0x90015c</td><td>int dfd</td><td>const char *filename</td><td>struct timespec *utimes</td><td>int flags</td><td>-</td><td>-</td></tr>
+<tr><td>signalfd</td>               <td>0x90015d</td><td>int ufd</td><td>sigset_t *user_mask</td><td>size_t sizemask</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>timerfd_create</td>         <td>0x90015e</td><td>int clockid</td><td>int flags</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>eventfd</td>                <td>0x90015f</td><td>unsigned int count</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>fallocate</td>              <td>0x900160</td><td>int mode loff_t offset</td><td>loff_t len</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>timerfd_settime</td>        <td>0x900161</td><td>int ufd</td><td>int flags</td><td>const struct itimerspec *utmr</td><td>struct itimerspec *otmr</td><td>-</td><td>-</td></tr>
+<tr><td>timerfd_gettime</td>        <td>0x900162</td><td>int ufd</td><td>struct itimerspec *otmr</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>signalfd4</td>              <td>0x900163</td><td>int ufd</td><td>sigset_t *user_mask</td><td>size_t sizemask</td><td>int flags</td><td>-</td><td>-</td></tr>
+<tr><td>eventfd2</td>               <td>0x900164</td><td>unsigned int count</td><td>int flags</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>epoll_create1</td>          <td>0x900165</td><td>int flags</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>dup3</td>                   <td>0x900166</td><td>unsigned int oldfd</td><td>unsigned int newfd</td><td>int flags</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>pipe2</td>                  <td>0x900167</td><td>int *fildes</td><td>int flags</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>inotify_init1</td>          <td>0x900168</td><td>int flags</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>preadv</td>                 <td>0x900169</td><td>unsigned long fd</td><td>const struct iovec *vec</td><td>unsigned long vlen</td><td>unsigned long pos_l</td><td>unsigned long pos_h</td><td>-</td></tr>
+<tr><td>pwritev</td>                <td>0x90016a</td><td>unsigned long fd</td><td>const struct iovec *vec</td><td>unsigned long vlen</td><td>unsigned long pos_l</td><td>unsigned long pos_h</td><td>-</td></tr>
+<tr><td>rt_tgsigqueueinfo</td>      <td>0x90016b</td><td>pid_t tgid</td><td>pid_t pid</td><td>int sig</td><td>siginfo_t *uinfo</td><td>-</td><td>-</td></tr>
+<tr><td>perf_event_open</td>        <td>0x90016c</td><td>struct perf_event_attr *attr_uptr</td><td>pid_t pid</td><td>int cpu</td><td>int group_fd</td><td>unsigned long flags</td><td>-</td></tr>
+<tr><td>recvmmsg</td>               <td>0x90016d</td><td>int fd</td><td>struct mmsghdr *mmsg</td><td>unsigned int vlen</td><td>unsigned int flags</td><td>struct timespec *timeout</td><td>-</td></tr>
+<tr><td>accept4</td>                <td>0x90016e</td><td>int fd</td><td>struct sockaddr *upeer_sockaddr</td><td>int *upeer_addrlen</td><td>int flags</td><td>-</td><td>-</td></tr>
+<tr><td>fanotify_init</td>          <td>0x90016f</td><td>unsigned int flags</td><td>unsigned int event_f_flags</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>fanotify_mark</td>          <td>0x900170</td><td>unsigned int flags __u64 mask</td><td>int dfd const char *pathname</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>prlimit64</td>              <td>0x900171</td><td>pid_t pid</td><td>unsigned int resource</td><td>const struct rlimit64 *new_rlim</td><td>struct rlimit64 *old_rlim</td><td>-</td><td>-</td></tr>
+<tr><td>name_to_handle_at</td>      <td>0x900172</td><td>int dfd</td><td>const char *name</td><td>struct file_handle *handle</td><td>int *mnt_id</td><td>int flag</td><td>-</td></tr>
+<tr><td>open_by_handle_at</td>      <td>0x900173</td><td>int mountdirfd</td><td>struct file_handle *handle</td><td>int flags</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>clock_adjtime</td>          <td>0x900174</td><td>const clockid_t which_clock</td><td>struct timex *utx</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>syncfs</td>                 <td>0x900175</td><td>int fd</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>sendmmsg</td>               <td>0x900176</td><td>int fd</td><td>struct mmsghdr *mmsg</td><td>unsigned int vlen</td><td>unsigned int flags</td><td>-</td><td>-</td></tr>
+<tr><td>setns</td>                  <td>0x900177</td><td>int fd</td><td>int nstype</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+<tr><td>process_vm_readv</td>       <td>0x900178</td><td>pid_t pid</td><td>const struct iovec *lvec</td><td>unsigned long liovcnt</td><td>const struct iovec *rvec</td><td>unsigned long riovcnt</td><td>unsigned long flags</td></tr>
+<tr><td>process_vm_writev</td>      <td>0x900179</td><td>pid_t pid</td><td>const struct iovec *lvec</td><td>unsigned long liovcnt</td><td>const struct iovec *rvec</td><td>unsigned long riovcnt</td><td>unsigned long flags</td></tr>
+-->
+        </tbody>
+</table>
+<!--
+#179 = 377
+-->
+        <br>
+        <br>
+<!--
+            I really <i>should</i> cut that down to size, even more, methinks...
+        <br>
+-->
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

@@ -1,0 +1,121 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">is_nan/inf</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td>
+          <b>Definition:</b>
+         </td>
+         <td>
+          <a href="integer.htm#bool">bool</a> res = is_nan(<a href="object.htm">object</a> a, <a href="integer.htm#bool">bool</a> b64=false)
+          <br>
+          <i>-- or --</i>
+          <br>
+          <a href="integer.htm#bool">bool</a> res = is_inf(<a href="object.htm">object</a> a, <a href="integer.htm">integer</a> sgn=0,
+                                                                                              <a href="integer.htm#bool">bool</a> b64=false)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Description:</b>
+         </td>
+         <td>
+            Determine whether a is one of the special values [+/-]NaN or infinity.
+            <br>
+            <br>
+            a: the number to test - automatically yields false(0) if a is an integer or not an atom.<br>
+            sgn: check for a specific +/- infinity. default: either, -1: -infinity, +1: +infinity.<br>
+            b64: use 32-bit compatible methods/limits when running on 64-bit, ignored on 32-bit.<br>
+            returns true(1) if a is one of the specified special values, false(0) otherwise.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+            Supported. is_nan() is mapped directly to Number.isNaN(), while is_inf() uses Number.isFinite() and 
+            implements sgn handling on top. Neither pay any heed to b64, since Javascript is inherently 32-bit.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Comments:</b>
+         </td>
+         <td>
+            The file builtins/infnan.e (an autoinclude) contains efficient low-level code to check for special floating point values.<br>
+            Unlike some programming languages, Phix specifically traps division by zero, making these values less likely to occur.<br>
+            In fact the only way I know of generating a nan is to first generate an inf (eg 1e308*1e308), then divide that by itself.
+            <br>
+            <br>
+            Note that is_nan(a) answers the question "is it the special value [+/-]NaN?" rather than "is it not a number?", and of course 
+            the latter is better answered in Phix by "not atom(a)", aka "not number(a)" [number being a simple alias of atom].
+            <br>
+            <br>
+            b64 has no effect on 32-bit, but when set to true on 64-bit it replicates the 32-bit test, by storing the normal 80-bit
+            float in 64 bits, which should help obtain identical results whether the program is run on 32 or 64 bits (rarely needed).<br>
+            One case where it probably will help is in generating JSON, another may be developing on 64bit desktop/Phix with a mind
+            to later transpiling the finished program to JavaScript.
+            <br>
+            <br>
+            Lastly note that Phix goes against the grain in that nan==nan, a somewhat incorrect decision I made many many years ago, 
+            mainly since back then I thought it would be a good idea to allow (say) find(nan,s), though it would not exactly be the 
+            end of the world to have to replace any such with a longhand is_nan() loop.<br>
+            I am (now) aware that nan!=-nan [in both proper terms and Phix as it stands], which kinda proves that ancient decision was 
+            indeed rather wrong (is_nan() completely ignores the sign, just as it should, btw).<br>
+            The specific code is in builtins\VM\pJcc.e, marked "--DEV this may be the wrong thing to do entirely" (*4 aka cmp/eq * 32/64)<br>
+            That behaviour may be altered in a future release - there are several dependencies on it in sprintf(), of my own making, 
+            plus it needs/deserves a full hunt through all source code for any other such abuses in /demo, /test, etc.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Example:</b>
+         </td>
+         <td>
+            <small>
+<!--eucode>
+?is_inf(1e308*1e308) -- prints 1 aka true, for more see test/t69infnan.exw
+</eucode-->
+<pre>
+<font color="#0000FF">?</font><font color="#7060A8">is_inf</font><font color="#0000FF">(</font><font color="#000000">1e308</font><font color="#0000FF">*</font><font color="#000000">1e308</font><font color="#0000FF">)</font><font color="#000080"><i> -- prints 1 aka true, for more see test/t69infnan.exw</i></font>
+</pre>
+            </small>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Implementation:</b>
+         </td>
+         <td>
+            See builtins\infnan.e (an autoinclude), or pwa\p2js.js, for details of the actual implementation (the former includes both inline assembly 
+            and the earlier hll code it was originally based on, which made it&rsquo;s development much simpler/actually achievable).
+         </td>
+        </tr>
+<!--
+        <tr>
+         <td>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="bsearch.htm">binary_search</a>,
+          <a href="mpfr.htm#mpz">mpz_prime</a>
+         </td>
+        </tr>
+-->
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

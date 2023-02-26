@@ -18,11 +18,12 @@
 -->
         The program Phix\pwa\p2js.exw and the contents of the Phix\pwa directory represent the next big step for Phix:
         <br>
-        <blockquote>running the exact same program source code both on the desktop and directly in a web browser.</blockquote>
+        <blockquote>Running the exact same program source code both on the desktop and directly in a web browser.</blockquote>
 
         The files pwa\p2js.js, pwa\pGUI.js and pGUI.css contain a basic JavaScript re-implementation of a subset of the standard builtins
         (especially any that use inline assembly in desktop/Phix) and <a href="PGUI.htm">pGUI.e</a>, and the directory pwa\builtins 
-        contains auto-transpiled versions of other (more normal) builtins/autoincludes.
+        contains auto-transpiled versions of other (more normal) builtins/autoincludes, as well as mpfr.js which is a laboroiously 
+        and lovingly hand-crafted drop-in JavaScript replacement for <a href="mpfr.htm">mpfr/gmp</a>.
 <!--
         <br>
         <br>
@@ -91,11 +92,6 @@ include pGUI.e
 IupOpen()
 Ihandle lbl = IupFlatLabel("World","EXPAND=YES, ALIGNMENT=ACENTER")
 Ihandln dlg = IupDialog(lbl,`TITLE="Hello", MINSIZE=225x75`)
---X IupSetAttribute(dlg,"HIDEHEADERS","YES")
---if SIZE <?? then
---IupSetInt(dlg,"HIDEHEADERS",true)
---end if
-
 IupShow(dlg)
 if platform()!=JS then
     IupMainLoop()
@@ -110,21 +106,22 @@ end if
 --</i></font>
 <font color="#008080">include</font><font color="#000000"> pGUI.e
 </font>
-<font color="#5E005E">IupOpen</font><font color="#0000FF">()</font>
-<font color="#5E005E">Ihandle</font><font color="#000000"> lbl</font><font color="#0000FF"> =</font><font color="#5E005E"> IupFlatLabel</font><font color="#0000FF">(</font><font color="#008000">"World"</font><font color="#0000FF">,</font><font color="#008000">"EXPAND=YES, ALIGNMENT=ACENTER"</font><font color="#0000FF">)</font>
-<font color="#5E005E">Ihandln</font><font color="#000000"> dlg</font><font color="#0000FF"> =</font><font color="#5E005E"> IupDialog</font><font color="#0000FF">(</font><font color="#000000">lbl</font><font color="#0000FF">,</font><font color="#008000">`TITLE="Hello", MINSIZE=225x75`</font><font color="#0000FF">)</font>
-<font color="#000080"><i>--X IupSetAttribute(dlg,"HIDEHEADERS","YES")
---if SIZE &lt;?? then
---IupSetInt(dlg,"HIDEHEADERS",true)
---end if
-</i></font>
-<font color="#5E005E">IupShow</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">)</font>
+<font color="#7060A8">IupOpen</font><font color="#0000FF">()</font>
+<font color="#7060A8">Ihandle</font><font color="#000000"> lbl</font><font color="#0000FF"> =</font><font color="#7060A8"> IupFlatLabel</font><font color="#0000FF">(</font><font color="#008000">"World"</font><font color="#0000FF">,</font><font color="#008000">"EXPAND=YES, ALIGNMENT=ACENTER"</font><font color="#0000FF">)</font>
+<font color="#7060A8">Ihandln</font><font color="#000000"> dlg</font><font color="#0000FF"> =</font><font color="#7060A8"> IupDialog</font><font color="#0000FF">(</font><font color="#000000">lbl</font><font color="#0000FF">,</font><font color="#008000">`TITLE="Hello", MINSIZE=225x75`</font><font color="#0000FF">)</font>
+<font color="#7060A8">IupShow</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">)</font>
 <font color="#008080">if</font><font color="#7060A8"> platform</font><font color="#0000FF">()!=</font><font color="#004600">JS</font><font color="#008080"> then</font>
-<font color="#5E005E">    IupMainLoop</font><font color="#0000FF">()</font>
-<font color="#000000">    dlg</font><font color="#0000FF"> =</font><font color="#5E005E"> IupDestroy</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">)</font>
-<font color="#5E005E">    IupClose</font><font color="#0000FF">()</font>
+<font color="#7060A8">    IupMainLoop</font><font color="#0000FF">()</font>
+<font color="#000000">    dlg</font><font color="#0000FF"> =</font><font color="#7060A8"> IupDestroy</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">)</font>
+<font color="#7060A8">    IupClose</font><font color="#0000FF">()</font>
 <font color="#008080">end if</font>
 </pre>
+<!--
+--X IupSetAttribute(dlg,"HIDEHEADERS","YES")
+--if SIZE <?? then
+--IupSetInt(dlg,"HIDEHEADERS",true)
+--end if
+-->
           </div>
          </div>
         </div>
@@ -224,7 +221,7 @@ locking, video_config,  ...
         <br>
         <br>
         The annotations below are written in a JavaScript-esque style.<br>
-        Since JavaScript is typeless, p2js converts eg "integer a" into "let /*integer*/ a", ie comments out any type.<br>
+        Since JavaScript is <i>typeless</i>, p2js converts eg "integer a" into "let /*integer*/ a", ie comments out any type.<br>
         &nbsp;&nbsp;&nbsp;<small>(I initially tried that style here in the docs, but not surprisingly it quickly became completely unreadable.)</small><br>
         Phix sequences, which use {}, become JavaScript arrays, which use [], rather than the {} of JavaScript objects, <br>
         which are more like a <a href="dict.htm">dictonary</a>, with unordered non-integer keys (or alphanumerically ordered, so "9" is after "10").
@@ -580,8 +577,8 @@ locking, video_config,  ...
             &nbsp;&nbsp;
          </div>
          <div>
-            Optimised to literal (WEB==4) by p2js in much the same way as the desktop version, and no code is emitted for irrelevant if-branches.<br>
-            Note the presence of an "else" without an explicit WEB(/JS/JAVASCRIPT) branch triggers a transpile-time error.<br> <x!x-- DEV --x>
+            Optimised to literal (JS==4) by p2js in much the same way as the desktop version, and no code is emitted for irrelevant if-branches.<br>
+            Note the presence of an "else" without an explicit JS branch triggers a transpile-time error.<br> <x!x-- DEV --x>
          </div>
         </div>
         <br>
@@ -858,7 +855,7 @@ locking, video_config,  ...
             <nobr><a href="IupButton.htm">IupButton</a>(</nobr>
          </div>
          <div>
-            <nobr>title=NULL,</nobr> <nobr>[[action=NULL,]</nobr> <nobr>func=NULL,]</nobr> <nobr>attributes="",</nobr> <nobr>args=[]);</nobr>
+//          <nobr>title=NULL,</nobr> <nobr>[[action=NULL,]</nobr> <nobr>func=NULL,]</nobr> <nobr>attributes="",</nobr> <nobr>args=[]);</nobr>
          </div>
          <div>
             &nbsp;&nbsp;
@@ -879,7 +876,7 @@ locking, video_config,  ...
             <small><i>constant&nbsp;</i></small>
          </div>
          <div>
-            <nobr><a href="callbacks.htm#IUP_DEFAULT">IUP_DEFAULT</a></nobr>
+            <nobr><a href="setHandler.htm#XPG_DEFAULT">XPG_DEFAULT</a></nobr>
          </div>
          <div>
             <nobr> = -2;</nobr>
@@ -1093,8 +1090,8 @@ locking, video_config,  ...
             <code>if <a href="platform.htm">platform</a>()!=JS then</code> guard.<br>
             It would of course be perfectly feasible/trivial to add a null-op IupMainLoop() to pGUI.js but leaving it undefined,
             and syntax colouring it illegal, except when it detects an immediately preceding 
-            <code>if platform()!=JS then</code> (where JS can also be JAVASCRIPT or WEB) or 
-            <code>if (platform()!=JS) {</code>, is an obvious way to ensure that such a guard is put in place and not forgotten.
+            <code>if platform()!=JS then</code> or <code>if (platform()!=JS) {</code>, is an obvious way to ensure that such a 
+            guard is put in place and not forgotten.
          </div>
         </div>
         <br>

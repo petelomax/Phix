@@ -36,11 +36,11 @@ const NULL = 0,     // nb !=null, see docs
 //    FALSE = 0,    // nb mapped to false, see docs
       WINDOWS = 2,
       LINUX = 3,
-      WEB = 4,
-      JS = WEB,
-      JAVASCRIPT = WEB,
+//    WEB = 4,
+//    JS = WEB,
+//    JAVASCRIPT = WEB,
+      JS = 4,
       PI = Math.PI,
-      E_USER = 8,
       EULER = Math.E,
       INVLN10 = 0.43429448190325182765,
 //    INVLN10 = 1/Math.LN10,    // NO!!
@@ -66,6 +66,14 @@ const NULL = 0,     // nb !=null, see docs
       DT_MSEC = 7,
       DT_DOY = 8,
       DT_GMT = -1,
+      E_CODE = 1,
+      E_ADDR = 2,
+      E_LINE = 3,
+      E_RTN  = 4,
+      E_NAME = 5,
+      E_FILE = 6,
+      E_PATH = 7,
+      E_USER = 8,
       pp_File = 1,
       pp_Maxlen = 2,
       pp_Pause = 3,
@@ -86,7 +94,7 @@ const NULL = 0,     // nb !=null, see docs
       MIN_HEAP = -1,
       MAX_HEAP = +1,
       HSIEH30 = -6,
-      SLASH = 0x2f,
+      SLASH = 0x2f, // '/'
       TEST_QUIET = 0,
       TEST_SUMMARY = 1,
       TEST_SHOW_FAILED = 2,
@@ -95,30 +103,79 @@ const NULL = 0,     // nb !=null, see docs
       TEST_CRASH = -1,
       TEST_PAUSE = 1,
       TEST_PAUSE_FAIL = -1,
+      VC_COLOR      = 1,    // was colour/monochrome flag, now always 1 
+      VC_MODE       = 2,    // was current video mode, now always 3 
+      VC_LINES      = 3,    // number of text rows in console buffer 
+      VC_COLUMNS    = 4,    // number of text columns in console buffer 
+      VC_XPIXELS    = 5,    // was screen width in pixels, now always 0 
+      VC_YPIXELS    = 6,    // was screen height in pixels, now always 0 
+      VC_NCOLORS    = 7,    // was number of colors, now always 32 
+      VC_PAGES      = 8,    // was number of display pages, now always 1 
+      VC_SCRNLINES  = 9,    // number of text rows for current screen size 
+      VC_SCRNCOLS   = 10,   // number of text columns for current screen size 
       ANY_QUEUE = 0,
       FIFO_QUEUE = 1,
-      LIFO_QUEUE = 2
+      LIFO_QUEUE = 2,
+      BLACK          = 0,
+      BLUE           = 1,  // [or  4]
+      GREEN          = 2,
+      CYAN           = 3,  // [or  6]
+      RED            = 4,  // [or  1]
+      MAGENTA        = 5,
+      BROWN          = 6,  // [or  3]
+      WHITE          = 7,
+      GRAY           = 8,
+      BRIGHT_BLUE    = 9,  // [or 12]
+      BRIGHT_GREEN   = 10,
+      BRIGHT_CYAN    = 11, // [or 14]
+      BRIGHT_RED     = 12, // [or  9]
+      BRIGHT_MAGENTA = 13,
+      YELLOW         = 14, // [or 11]
+      BRIGHT_WHITE   = 15,
+      $console_colours = [`black`,              // BLACK          (0)
+                          `mediumblue`,         // BLUE           (1) [or 4]
+                          `green`,              // GREEN          (2)
+                          `darkcyan`,           // CYAN           (3) [or 6]
+                          `darkred`,            // RED            (4) [or 1]
+                          `darkmagenta`,        // MAGENTA        (5)
+                          `olive`,              // BROWN          (6) [or 3]
+                          `lightgray`,          // WHITE          (7)
+                          `gray`,               // GRAY           (8)
+                          `blue`,               // BRIGHT_BLUE    (9) [or 12]
+                          `lime`,               // BRIGHT_GREEN   (10)
+                          `cyan`,               // BRIGHT_CYAN    (11) [or 14]
+                          `red`,                // BRIGHT_RED     (12) [or 9]
+                          `magenta`,            // BRIGHT_MAGENTA (13)
+                          `yellow`,             // YELLOW         (14) [or 11]
+                          `white`];             // BRIGHT_WHITE   (15)
 
+let $tx_clr = -1,
+    $bg_clr = -1;
 
-function puts(fn, text) {
+function puts(fn, text, cleanup=true) {
     integer(fn,"fn");
 //  string(text,"text");
     if ((fn !== 1) && (fn !== 2)) { crash("fn must be 1 or 2"); }
     if (typeof(text) === "number") { text = String.fromCodePoint(text); }
-    const am = new RegExp("&","g"),
-          lt = new RegExp("[<]","g"),
-          gt = new RegExp("[>]","g"),
-          sp = new RegExp("[ ]","g"),
-          lf = new RegExp("\\n","g");
-    text = text.replace(am,"&amp;")
-               .replace(lt,"&lt;")
-               .replace(gt,"&gt;")
-               .replace(sp,"&ensp;")
-               .replace(lf,"<br>");
+    if (cleanup) {
+        const am = new RegExp("&","g"),
+              lt = new RegExp("[<]","g"),
+              gt = new RegExp("[>]","g"),
+              sp = new RegExp("[ ]","g"),
+              lf = new RegExp("\\n","g");
+        text = text.replace(am,"&amp;")
+                   .replace(lt,"&lt;")
+                   .replace(gt,"&gt;")
+                   .replace(sp,"&ensp;")
+                   .replace(lf,"<br>");
+    }
     let where = fn === 2 ? "afterbegin" : "beforeend";
-//  text = `<span style="font-family: monospace;">` + text + `<\span>`;
+    if ($tx_clr !== -1 || $bg_clr !== -1) {
+        text = `<span style="` + ($tx_clr !== -1?`color:`+$tx_clr+`;`:"")
+                               + ($bg_clr !== -1?`background-color:`+$bg_clr+`;`:"")
+                               + `">` + text + `</span>`;
+    }
     $docBody.insertAdjacentHTML(where, text);
-//  $docBody.insertAdjacentText(where, text);
 }
 
 function crash(msg, args = []) {
@@ -128,8 +185,8 @@ function crash(msg, args = []) {
         // ^ ie treat sprintf(fmt,5) as sprintf(fmt,{5})
         msg = sprintf(msg,args);
     }
-    msg += "\n";
-    puts(2,msg);
+//  msg += "\n";
+    puts(2,msg + "\n");
     throw(new Error(msg));
 //  debugger;
 //  puts(2,"this should not occur");
@@ -159,11 +216,27 @@ function integer(i, name = "") {
 // invoke as (eg) integer(fn) to test, integer(fn,"fn") to typecheck [from js only].
 //
     let ti = typeof(i);
-    if ((ti !== "boolean") && (ti !== "function") && !Number.isSafeInteger(i)) {
+//  ti is one of "string","number","undefined","boolean","object", or "function".
+//  Please note:
+//      The data type of NaN is number
+//      The data type of an array is object
+//      The data type of a date is object
+//      The data type of null is object
+//      The data type of an undefined (/unassigned) variable is undefined
+//      You cannot use typeof to determine if a JavaScript object is an array (or a date).
+//30/10/22: (the javascript (bitwise) & operator is limited to 32 bits...)
+//  if ((ti !== "boolean") && (ti !== "function") && !Number.isSafeInteger(i)) {
+//5/11/22:
+//  if ((ti !== "boolean") && (ti !== "function") && (ti != "undefined") && (i!="") && (i!=~~i)) {
+    if ((ti === "undefined") || 
+        (ti === "object") || 
+        (ti === "string") || 
+        ((ti !== "boolean") && (ti !== "function") && (i!=~~i))) {
         return $typeCheckError(name,i);
     }
     return true;
 }
+let int = integer;
 
 function atom(a, name = "") {
 //7/8/21...
@@ -177,6 +250,7 @@ function atom(a, name = "") {
     }
     return true;
 }
+let number = atom;
 
 function string(s, name = "") {
     if (typeof(s) !== "string") {
@@ -193,6 +267,7 @@ function sequence(p, name = "") {
     }
     return true;
 }
+let seq = sequence;
 
 function object(o, name = "") {
     if (typeof(o) === "undefined") {
@@ -261,7 +336,7 @@ function sprintf(fmt, args = []) {
     //      See also pwa\printf_tests.html
     //
     string(fmt,"fmt");
-    let i = sequence(args) ? 0 : -1;
+    let i = sequence(args) ? 0 : -1; // (treat ["sequence",1,2,3] and [1,2,3] the same)
 
     // First, some private helper routines to get i'th arg as string/int/float:
     function argi() {
@@ -471,13 +546,12 @@ function sprintf(fmt, args = []) {
 //      if (!sequence(bn) || length(bn)!=2 ...
         let [,b,n] = bn;
         if (b > 36) {
-//          crash("p2js.js: printf(%A) does not support base > 36");
-            const charset = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+            const charset = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'.split('');
             if (n === 0) { return "0"; }
             let s = [];
             while (n > 0) {
-              s = [charset[n % 62], ...s];
-              n = Math.floor(n / 62);
+              s = [charset[n % b], ...s];
+              n = Math.floor(n / b);
             }
             return s.join('');
         }
@@ -501,6 +575,7 @@ function sprintf(fmt, args = []) {
         if (subscript) {
             let l = subscript.length-1, j = 1, ssign = +1;
             i = 0;
+            // handle negative subscripts, eg [-1] (0X2D=='-')
             if (subscript.codePointAt(1) === 0X2D) { ssign = -1; j = 2; } 
             while (j < l) {
                 let d = subscript.codePointAt(j) - 0X30; // (ie ch-'0')
@@ -535,8 +610,10 @@ function sprintf(fmt, args = []) {
             case 'o': res = inti().toString(8); break;
             case 'x': res = inti(true).toString(16).toUpperCase(); break;
             case 'X': res = inti(true).toString(16); break; //^yep===Phix
-            case 'a': res = inbase(argi()); break;
-            case 'A': res = inbase(argi()).toUpperCase(); break;
+//          case 'a': res = inbase(argi()); break;
+            case 'a': res = inbase(argi()).toLowerCase(); break;
+//          case 'A': res = inbase(argi()).toUpperCase(); break;
+            case 'A': res = inbase(argi()); break;
             case 'e': res = flti(precision).toExponential(precision); break;
             case 'E': res = flti(precision).toExponential(precision).toUpperCase(); break;
             case 'f': res = flti(precision).toFixed(precision); break;
@@ -674,10 +751,17 @@ function print(fn, o) {
     puts(fn,sprint(o) + "\n");
 }
 
-function progress() {
+//DEV if msg[$]='\n' then just display it
+function progress(/*string*/ msg, /*object*/ args={}) {
     // (it would never work: the browser will not update while JavaScript is running)
     //  (anything using progress() should be rewritten to gui/timer/idle processing)
-    crash("progress does not work under p2js");
+//  crash("progress does not work under p2js");
+// 15/4/22 changed to "do nothing".
+//  printf(1,msg,args); [temp, sometimes useful]
+//25/11/22:
+    if (equal($subse(msg,-1),0XA)) {    // if msg[$]='\n' then
+        printf(1,msg,args);
+    }
 }
 
 function append(a, x) {
@@ -786,7 +870,7 @@ function equal(a, b) {
     return (a === b);
 }
 
-function $conCat(a, b) {
+function $conCat(a, b, clone=true) {
     // equivalent to the Phix infix & operator (js overloads +)
     if (integer(a) && a>=0 && a<=255) {
         if (integer(b) && b>=0 && b<=255) {
@@ -808,17 +892,29 @@ function $conCat(a, b) {
             return a + String.fromCodePoint(b);
         }
         a = $charArray(a);
+        clone = false
     } else if (!sequence(a)) {
         a = ["sequence",a];
+        clone = false
     }
     if (string(b)) {
         b = $charArray(b);
     }
     if (sequence(b)) {
-        // (creates a new array)
-        a = a.concat(b.slice(1));
+        if (clone) {
+            // (creates a new array)
+            a = a.concat(b.slice(1));
+        } else {
+            // for eg "res = res & x" cases
+            a.push(...b.slice(1));
+        }
     } else {
-        a.push(b);
+        if (clone) {
+            a.push(b);
+        } else {
+            let idx = a.length;
+            a[idx] = b;
+        }
     }
     return a;
 }
@@ -849,100 +945,6 @@ function repeatch(ch,count) {
     }
     return String.fromCodePoint(ch).repeat(count);
 }   
-
-//5/8/21 [p]apply() is now auto-transpiled, maybe filter() c/should be too.
-
-function filter(s, rs, userdata = ["sequence"], rangetype = "") {
-//
-// Select only those elements from a sequence that pass a specified test.
-//
-    let res = (string(s) ? "" : ["sequence"]),
-        ls = length(s);
-    if (string(s)) { s = $charArray(s); }
-    if (string(userdata)) { userdata = $charArray(userdata); }
-    if (typeof(rs) === "string") {
-        // built-in handling
-        let inout = find(rs,["sequence","in","out"]);
-        if (inout !== 0) {
-            inout = (inout === 1); // in: true, out: false
-            if (rangetype === "") {
-                // set handling
-                for (let i = 1; i <= ls; i += 1) {
-                    let si = s[i],
-                        f = find(si,userdata);
-                    if ((f !== 0) === inout) {
-                        res = append(res,si);
-                    }
-                }
-            } else {
-                // inclusive/exclusive lo/hi range handling
-                let rt = find(rangetype,["sequence","[]","(]","[)","()"])-1;
-                if (rt === -1) { crash("invalid rangetype"); }
-                // rt is now 0..3, aka 0b00..0b11:  // exclsve, inclsive
-                let xl =  (rt & 1),                 // 0 for [,  1 for (
-                    xh = -(rt & 2)/2;               // 0 for ], -1 for )
-                if (!sequence(userdata) || length(userdata) !== 2) {
-                    crash("userdata must be a sequence of length 2 for in/out handling");
-                }
-                let lo = userdata[1],
-                    hi = userdata[2];
-                for (let i = 1; i <= ls; i += 1) {
-                    let si = s[i],
-                        lc = compare(si,lo),
-                        hc = compare(si,hi);
-                    if (((lc >= xl) && (hc <= xh)) === inout) {
-                        res = append(res,si);
-                    }
-                }
-            }
-        } else {
-            if (rangetype !== "") { crash("invalid rangetype"); }
-            let ct = find(rs,["sequence","<", "<=","=", "!=",">=",">"]);
-            if (ct === 0) {
-                ct = find(rs,["sequence","lt","le","eq","ne","gt","ge"]);
-                if (ct === 0) { //    maybe "=="    
-                    if (rs !== "==") { crash("unrecognised comparison operator"); }
-                    ct = 3;
-                }
-            }
-            let ne = (ct === 4);
-            ct -= (ct >= 4);
-            let ok = ["sequence",[-1],[-1,0],[0],[0,1],[1]][ct];
-            for (let i = 1; i <= ls; i += 1) {
-                let si = s[i], c = compare(si,userdata);
-                if ((ok.indexOf(c) !== -1) !== ne) {
-                    res = append(res,si);
-                }
-            }
-        }
-        return res;
-    }
-
-    // user-defined function handling
-    if (rangetype !== "") { crash("invalid rangetype"); }
-    let fn = rs,
-        maxp = fn.length;
-    if (maxp<1) { crash("filter routine must accept 1..3 parameters"); }
-    if (string(s)) { s = $charArray(s); }
-    let mt = equal(userdata,["sequence"]);
-    if (maxp===1 && !mt) { crash("filter routine must accept 2..3 parameters"); }
-    for (let i = 1; i <= ls; i += 1) {
-        let si = s[i], bAdd;
-        if (mt) {
-            bAdd = fn(si,i,s);
-        } else if (maxp === 3) {
-//5/8/21 (for the rc "Text completion" task, do what the docs actually say)
-//          bAdd = fn(si,s,userdata);
-            bAdd = fn(si,i,userdata);
-        } else {
-            bAdd = fn(si,userdata);
-        }
-        if (bAdd) {
-            res = append(res,si);
-        }
-    }
-    return res;
-}
 
 let $seed = Date.now();
 
@@ -1059,6 +1061,7 @@ function time() {
 function remainder(a, b) {
     return a % b;
 }
+const rmdr = remainder;
 
 function machine_bits() {
     return 32;
@@ -1071,6 +1074,7 @@ function machine_word() {
 function version() {
     return "1.0.2";
 }
+//let IupVersion = version;
 
 function platform() {
     return JS;
@@ -1111,7 +1115,7 @@ function requires(x) {  // (hand translated)
 }
 requires(JS);
 
-function $sidii(s,idii,skip=0,t) {
+function $sidii(s, idii, skip=0, t) {
     // note this is only ever dealing with dword-sequence subscripts,
     //      and should never ever be asked to subscript a string.
     if (idii) { 
@@ -1126,7 +1130,13 @@ function $sidii(s,idii,skip=0,t) {
         }
 //12/5/21 (!!)
 //      if (skip) { s[idii[l+1]] = t; }
-        if (skip) { s[idii[1]] = t; }
+//20/4/22 (!!)
+//      if (skip) { s[idii[1]] = t; }
+        if (skip) { 
+            let idx = idii[1];
+            if (idx<0) { idx += length(s)+1; }
+            s[idx] = t;
+        }
     }
     if (!sequence(s)) { crash("attempt to subscript an atom"); }
     // note: sometimes (see "shudder" below) this is invoked to effect
@@ -1288,6 +1298,7 @@ const power = Math.pow,
       floor = Math.floor,
       sqrt = Math.sqrt,
       log = Math.log,
+      ln = Math.log,
       cos = Math.cos,
       sin = Math.sin,
       tan = Math.tan,
@@ -1449,9 +1460,150 @@ function utf32_to_utf8(/*sequence*/ s) {
     return s;
 }
 
+function include_file() { return 1; } // see docs
+function incl0de_file() { return 0; }
+// DEV/SUG: (see T_include_file on line 408 of p2js_parse.e, but let's be testing summat before making any change.)
+//          (erm, but obvs. T_incl0de_file **cannot** become T_incl$de_file... hmmm...... )
+//function incl$de_file() { return 0; }
+
+function command_line() {
+    return ["sequence","p2js",document.location.href];
+}
+
+function get_proper_path(filepath) {
+    return filepath;
+}
+
+function get_proper_dir(/*string*/ filepath, /*bool*/ remove_slash=false) {
+    string(filepath,"filepath");
+    let l = filepath.length, res = "";
+    for (let i=l-1; i>=0; i-=1) {
+        let ch = filepath.codePointAt(i);
+        if (ch === 0X2F ||  // '/'
+            ch === 0X5C) {  // '\\'
+            res = filepath.slice(0,i+1-remove_slash);
+            break;
+        } 
+    }
+    return res;
+}
+
+function trace(/*integer*/ i) {
+    // (ignored, in other words transpilation behaves much like compilation, as far as this routine is concerned)
+//Maybe:
+//  debugger;
+}
+
+function clear_screen() {
+    if (typeof(IupOpen) === "function") { crash("clear_screen() when pGUI detected"); }
+    $docBody.innerHTML = "";
+//  position(0,0);
+}
+
+function text_color(/*integer*/ i) {
+    $tx_clr = $console_colours[i];
+}
+
+function bk_color(/*integer*/ i) {
+    $bg_clr = $console_colours[i];
+}
+
+function even(/*atom*/ a) {
+    return !(a & 1);
+}
+
+function odd(/*atom*/ a) {
+    return a & 1;
+}
+
+function free_console() {}
+
+function instance() { return 0; }
+
+function atom_to_float32(/*atom*/ a) {
+    let buffer = new ArrayBuffer(4),
+          view = new DataView(buffer),
+     byteArray = new Uint8Array(buffer);
+    view.setFloat32(0, a);
+    let res = repeat(0,4);
+    for (let i = 1; i <= 4; i++) {
+        res[i] = byteArray[4-i];
+    }
+    return res;
+}
+
+function atom_to_float64(/*atom*/ a) {
+    let buffer = new ArrayBuffer(8),
+          view = new DataView(buffer),
+     byteArray = new Uint8Array(buffer);
+    view.setFloat64(0, a);
+    let res = repeat(0,8);
+    for (let i = 1; i <= 8; i++) {
+        res[i] = byteArray[8-i];
+    }
+    return res;
+}
+
+function float32_to_atom(/*sequence*/ s) {
+    let buffer = new ArrayBuffer(4),
+          view = new DataView(buffer),
+     byteArray = new Uint8Array(buffer);
+    for (let i = 1; i <= 4; i++) {
+        byteArray[4-i] = s[i];
+    }
+    let res = view.getFloat32(0);
+    return res;
+}
+
+function float64_to_atom(/*sequence*/ s) {
+    let buffer = new ArrayBuffer(8),
+// (I doubt there is any measurable difference between view and floatArray...)
+          view = new DataView(buffer),
+//  floatArray = new Float32Array(buffer),
+     byteArray = new Uint8Array(buffer);
+    for (let i = 1; i <= 8; i++) {
+        byteArray[8-i] = s[i];
+    }
+    let res = view.getFloat64(0);
+//  let res = floatArray[0];
+    return res;
+}
+// (sadly there is no get/setFloat80 in JavaScript...)
+
+const is_nan = Number.isNaN;
+
+function is_inf(x, sgn) {
+    if (typeof(x)!="number" || Number.isFinite(x) || Number.isNaN(x)) { return false; }
+    if (sgn==-1) { return x<0; }
+//  if (sgn==-1) { return x==Number.NEGATITIVE_INFINITY; } // (untested)
+    if (sgn==0) { return true; }
+    if (sgn==+1) { return x>0; }
+//  if (sgn==+1) { return x==Number.POSITIVE_INFINITY; } // (not tested)
+}
+
+function video_config() {
+    return ["sequence",1,3,25,80,0,0,32,1,25,80];
+}
+
 //DEV experimental...
-function speak(/*string*/ s) {
-    let utterance = new SpeechSynthesisUtterance("This is an example of speech synthesis.");
+function speak(/*string*/ text, /*atom*/ rate=0, /*integer*/speech_cb=0) {
+    let utterance = new SpeechSynthesisUtterance(text);
+    if (speech_cb) {
+        function eh(event) {
+            if (event.type === 'boundary') {
+//no help...
+//if (event.charLength) {
+                speech_cb(event.charIndex,event.charLength);
+//}
+            } else { // 'end'
+                speech_cb(-1,0);
+            }   
+//          console.log('type:' + event.type + ' name:' + event.name + ' charIndex:' + event.charIndex + ' charLength:' + event.charLength);
+        }
+        utterance.addEventListener('boundary', eh);
+        utterance.addEventListener('end', eh);
+    }
+    if (rate) { utterance.rate = rate; }
     window.speechSynthesis.speak(utterance);
 }
 
@@ -1465,22 +1617,45 @@ let $audioCtx;
 //frequency of the tone in hertz. default is 440
 //volume of the tone. Default is 1, off is 0.
 //type of tone. Possible values are sine, square, sawtooth, triangle, and custom. Default is sine.
-function beep(duration, frequency, volume, type) {
+function beep(frequencies=440, durations=500, volume=0.1, type) {
     if (!$audioCtx) {
-        $audioCtx = new (window.AudioContext || window.webkitAudioContext || window.audioContext);
+//      $audioCtx = new (window.AudioContext || window.webkitAudioContext || window.audioContext);
+        $audioCtx = new window.AudioContext;
     }
     let oscillator = $audioCtx.createOscillator(),
-          gainNode = $audioCtx.createGain();
+          gainNode = $audioCtx.createGain(),
+                 t = $audioCtx.currentTime;
 
     oscillator.connect(gainNode);
     gainNode.connect($audioCtx.destination);
 
     if (volume) { gainNode.gain.value = volume; }
-    if (frequency) { oscillator.frequency.value = frequency; }
     if (type) { oscillator.type = type; }
+    let af = atom(frequencies),
+        ad = atom(durations),
+        l = af?(ad?1:length(durations)):length(frequencies);
 
-    oscillator.start($audioCtx.currentTime);
-    oscillator.stop($audioCtx.currentTime + ((duration || 500) / 1000));
+//  if (!frequencies) {
+//      frequencies = ["sequence",440];
+//  } else if (atom(frequencies)) {
+//      frequencies = ["sequence",frequencies];
+//  } else {
+//      l = length(frequencies);
+//  }
+//  if (!durations) {
+//      durations = ["sequence",500];
+//  } else if (atom(durations)) {
+//      durations = ["sequence",durations];
+//  }
+//  if (frequency) { oscillator.frequency.value = frequency; }
+    for (let i = 1; i <= l; i += 1) {
+        let f = af?((ad || odd(i))?frequencies:0):frequencies[i],
+            d = ad?durations:durations[i];
+        oscillator.frequency.setValueAtTime(f, t);
+        t += d / 1000;
+    }
+    oscillator.start();
+    oscillator.stop(t);
 }
 
 /*

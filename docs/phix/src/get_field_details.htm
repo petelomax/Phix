@@ -15,7 +15,9 @@
          <td>
           include cffi.e
           <br>
-          <a href="integer.htm">integer</a> {offset, size, sign} = get_field_details(<a href="integer.htm">integer</a> id, <a href="string.htm">atom_string</a> field)
+          <a href="sequence.htm">sequence</a> res = get_field_details(<a href="integer.htm">integer</a> id, <a href="string.htm">atom_string</a> field)
+          whre res is {<a href="integer.htm">integer</a> offset, <a href="integer.htm">integer</a> size, 
+                       <a href="integer.htm">integer</a> signed, <a href="string.htm">string</a> mtype}
          </td>
         </tr>
         <tr>
@@ -29,9 +31,14 @@
             id: a result from <a href="define_struct.htm">define_struct</a>().<br>
             pStruct: a result from <a href="allocate_struct.htm">allocate_struct</a>().<br>
             field: a string name or, caveat emptor, a numeric index.
-            <br>
-            <br>
-            Normally field is a string, which is searched for in the private table of field names, or it can already be an integer to skip that step.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+          <a href="notpgui.htm"><span class="illegal">Not supported</span></a>.
          </td>
         </tr>
         <tr>
@@ -39,6 +46,9 @@
           <b>Comments:</b>
          </td>
          <td>
+            Normally field is a string, which is searched for in the private table of field names, or it can already be an integer to skip that step.
+            <br>
+            <br>
             It is normally sufficient to use <a href="set_struct_field.htm">set_struct_field</a>() and
             <a href="get_struct_field.htm">get_struct_field</a>(), however this routine may be necessary to deal with
             arrays of structures, nested or hybrid structures, unions, etc.
@@ -51,9 +61,18 @@
             would advise you not to bother.
           <br>
           <br>
-            The offset would normally be added to a value from <a href="allocate_struct.htm">allocate_struct</a>() or similar.
+            The offset would normally be added to a value from <a href="allocate_struct.htm">allocate_struct</a>() or similar.<br>
+            The size and signed can be passed to <a href="peek.htm">peekNS</a>(), and size to <a href="poke.htm">pokeN</a>().
           <br>
-            The size and sign can be passed to <a href="peek.htm">peekNS</a>(), and size to <a href="poke.htm">pokeN</a>().
+          <br>
+            The mtype is for diagnostic assistance purposes only. Note that cffi.e itself only knows the [name/subscript, which
+            is passed to this routine and the] offset and size in bytes, and whether it is signed, which of course this routine 
+            has already returned to you, and cannot provide any further assistance with obscure C types. While it might not be a
+            bad idea to verify your app understands all types in use, especially should it be automatically extracting from the 
+            latest lib.h file, generally speaking anything along the lines of <code>if mtype="long" or...</code> should certainly 
+            be considered a "bad code smell", unless as just implied you know there will be no sudden/quietly hidden surprises.
+            It is not particularly unusual for say <i>int</i> to evolve into <i>lib_int</i>, usually for reasons that have very 
+            little impact on or relevance to Phix interfacing with precompiled dll/so files.
          </td>
         </tr>
         <tr>
@@ -73,13 +92,13 @@ constant {title_offset,tsize,tsign} = get_field_details(idMBP,"lpszText")
 </eucode-->
 <pre>
 <font color="#008080">include</font><font color="#000000"> cffi.e</font>
-<font color="#004080">integer</font><font color="#000000"> idMBP</font><font color="#0000FF"> =</font><font color="#5E005E"> define_struct</font><font color="#0000FF">(...)</font>
-<font color="#004080">atom</font><font color="#000000"> pMBP</font><font color="#0000FF"> =</font><font color="#5E005E"> allocate_struct</font><font color="#0000FF">(</font><font color="#000000">idMBP</font><font color="#0000FF">)
+<font color="#004080">integer</font><font color="#000000"> idMBP</font><font color="#0000FF"> =</font><font color="#7060A8"> define_struct</font><font color="#0000FF">(...)</font>
+<font color="#004080">atom</font><font color="#000000"> pMBP</font><font color="#0000FF"> =</font><font color="#7060A8"> allocate_struct</font><font color="#0000FF">(</font><font color="#000000">idMBP</font><font color="#0000FF">)
 ..</font>
-<font color="#004080">atom</font><font color="#000000"> pTitle</font><font color="#0000FF"> =</font><font color="#5E005E"> get_struct_field</font><font color="#0000FF">(</font><font color="#000000">idMBP</font><font color="#0000FF">,</font><font color="#000000">pMBP</font><font color="#0000FF">,</font><font color="#008000">"lpszText"</font><font color="#0000FF">)
-?</font><font color="#5E005E">peek_string</font><font color="#0000FF">(</font><font color="#000000">pTitle</font><font color="#0000FF">)</font>
-<font color="#008080">constant</font><font color="#0000FF"> {</font><font color="#000000">title_offset</font><font color="#0000FF">,</font><font color="#000000">tsize</font><font color="#0000FF">,</font><font color="#000000">tsign</font><font color="#0000FF">} =</font><font color="#5E005E"> get_field_details</font><font color="#0000FF">(</font><font color="#000000">idMBP</font><font color="#0000FF">,</font><font color="#008000">"lpszText"</font><font color="#0000FF">)
-?</font><font color="#5E005E">peek_string</font><font color="#0000FF">(</font><font color="#7060A8">peekNS</font><font color="#800000">(</font><font color="#000000">pMBP</font><font color="#0000FF">+</font><font color="#000000">title_offset</font><font color="#0000FF">,</font><font color="#000000">tsize</font><font color="#0000FF">,</font><font color="#000000">tsign</font><font color="#800000">)</font><font color="#0000FF">)</font>
+<font color="#004080">atom</font><font color="#000000"> pTitle</font><font color="#0000FF"> =</font><font color="#7060A8"> get_struct_field</font><font color="#0000FF">(</font><font color="#000000">idMBP</font><font color="#0000FF">,</font><font color="#000000">pMBP</font><font color="#0000FF">,</font><font color="#008000">"lpszText"</font><font color="#0000FF">)
+?</font><font color="#7060A8">peek_string</font><font color="#0000FF">(</font><font color="#000000">pTitle</font><font color="#0000FF">)</font>
+<font color="#008080">constant</font><font color="#0000FF"> {</font><font color="#000000">title_offset</font><font color="#0000FF">,</font><font color="#000000">tsize</font><font color="#0000FF">,</font><font color="#000000">tsign</font><font color="#0000FF">} =</font><font color="#7060A8"> get_field_details</font><font color="#0000FF">(</font><font color="#000000">idMBP</font><font color="#0000FF">,</font><font color="#008000">"lpszText"</font><font color="#0000FF">)
+?</font><font color="#7060A8">peek_string</font><font color="#0000FF">(</font><font color="#7060A8">peekNS</font><font color="#800000">(</font><font color="#000000">pMBP</font><font color="#0000FF">+</font><font color="#000000">title_offset</font><font color="#0000FF">,</font><font color="#000000">tsize</font><font color="#0000FF">,</font><font color="#000000">tsign</font><font color="#800000">)</font><font color="#0000FF">)</font>
 </pre>
          </td>
         </tr>

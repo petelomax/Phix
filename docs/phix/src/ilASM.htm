@@ -1,0 +1,94 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">inline assembly</h1>
+      <div id="mainSection">
+        Should you want to learn (the Phix subset of) ARM/x86 assembly, you are probably better off 
+        searching builtins\ for "#ilASM", most of what follows is likely and in fact deliberately 
+        intended to make much more sense within such a context, specifically when faced with (say) 
+        "ermah du,da,de", pressing F1 with the cursor on that should give you some kind of hint.
+        Note there is an ARM bias to F1 help, so eg "lea" goes to the ARM pseudo-instruction,
+        rather than the x86 real instruction, though the former should have a suitable back-link.
+        <br>
+        <br>
+<!--eucode>
+    #ilASM{ e_all
+        jmp :fin    -- or:
+//      jmp :!opCallOnceYeNot
+        [32] -- shorthand for [PE32,ELF32]
+            -- 32-bit x86 code goes here
+        [64] -- shorthand for [PE64,ELF64]
+            -- 64-bit x86 code goes here
+        [PE32]
+            -- PE32-specific code goes here
+        [ARM]
+            -- ARM code goes here
+        [] -- shorthand for [PE32,PE64,ELF32,ELF64,ARM]
+            -- generic code goes here, eg
+            call :%puts1
+        ::fin
+          }
+</eucode-->
+<pre>
+<font color="#000000">    #</font><font color="#008080">ilASM</font><font color="#0000FF">{</font><font color="#000000"> e_all</font>
+<font color="#7060A8">        jmp</font><font color="#0000FF"> :</font><font color="#000000">fin   </font><font color="#000080"><i> -- or:
+//      jmp :!opCallOnceYeNot</i></font>
+<font color="#800000">        [</font><font color="#000000">32</font><font color="#800000">]</font><font color="#000080"><i> -- shorthand for [PE32,ELF32]
+            -- 32-bit x86 code goes here</i></font>
+<font color="#800000">        [</font><font color="#000000">64</font><font color="#800000">]</font><font color="#000080"><i> -- shorthand for [PE64,ELF64]
+            -- 64-bit x86 code goes here</i></font>
+<font color="#800000">        [</font><font color="#000000">PE32</font><font color="#800000">]</font>
+<font color="#000080"><i>            -- PE32-specific code goes here</i></font>
+<font color="#800000">        [</font><font color="#004600">ARM</font><font color="#800000">]</font>
+<font color="#000080"><i>            -- ARM code goes here</i></font>
+<font color="#800000">        []</font><font color="#000080"><i> -- shorthand for [PE32,PE64,ELF32,ELF64,ARM]
+            -- generic code goes here, eg</i></font>
+<font color="#7060A8">            call</font><font color="#0000FF"> :</font><font color="#000000">%puts1</font>
+<font color="#0000FF">        ::</font><font color="#000000">fin</font>
+<font color="#0000FF">          }</font>
+</pre>
+        Picking through that line-by-line:
+        <br>
+        <br>
+        The e_all directive, if present, informs the compiler that significant side effects may occur.<br>
+        Used in call_func(), c_func(), and task_yield(), which is (alas) perhaps the best I can really say about that, but I&rsquo;ll try:<br>
+        At a push I might say the compiler&rsquo;s localtypes, that it builds from hll code analysis, are no longer 
+        trustworthy and it has to emit full generic/defensive code immediately following the #ilASM [e_all] statement, at
+        least until it has built up some new (and irrefutable) localtype info. <br>
+        As an example of localtype info, after `object s = "string"`, the compiler <i>knows</i> that s <i>is</i> a string, 
+        and it <i>cannot</i> be unassigned, so it can inline say length(s) as a single machine instruction, rather than 
+        invoke the more generic :%opLen, which is slower and contains all the standard "variable %s has not been assigned" 
+        and "length of an ATOM is not defined" handling. The e_all directive may also cover other subtleties,
+        for instance in pure hll the compiler may (be confident enough to) omit parameter type checking code, 
+        but if a routine is being invoked via call_func/proc [aka is a possible target of routine_id], then it 
+        simply cannot (be confident enough to do that).
+        <br>
+        <br>
+        Sometimes you may want to jump over the code, or invoke <a href="opCallOnceYeNot.htm">opCallOnceYeNot</a>. Of course there
+        is no problem putting #ilASM{} inside a routine, however any fundamental opcodes <i>must</i> be defined at the top-level.
+        <br>
+        <br>
+        Various "guards" allow a single #ilASM construct to contain the code for different architectures, and
+        obviously the compiler does not emit any binary for those it is not currently targetting, and of course
+        there are no jumps over any "not me" branches. Specifically, an earlier "format ELF32" explicitly tells 
+        the compiler what to do when it finds a #ilASM statement, whereas the interpreter implicitly determines
+        that from itself, for instance a 64-bit binary on Windows obviously selects/compiles [PE64]. 
+        To be clear, a "format" directive is only honoured when compiling, and is ignored when interpreting, with 
+        sometimes the latter instead relying on a <href="requires.htm">requires</a>() statement. 
+        It is also quite normal, but not mandatory, for format statements to be in completely separate files, 
+        which are used purely for packaging purposes, for instance see Phix/p32.exu and Phix/p64.exu.<br>
+        Note that for historic reasons [32] and [64] are exclusively Intel x86 and x64 respectively.<br>
+        At the moment, only 32-bit ARM is being targetted, at some future date [ARM] may become shorthand for 
+        [ARM32,ARM64] but right now neither of those exist, nor does anything like [THUMB].
+        <br>
+        <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

@@ -2,12 +2,71 @@
 <html><head><meta charset="UTF-8">
 <title>Sierpinski Pentagon</title></head>
 <body>
-<svg width="500" height="500" style="fill:blue" version="1.1" xmlns="http://www.w3.org/2000/svg">
-<polygon points="50.278 205.106 79.417 294.787 173.713 294.787 202.852 205.106 126.565 149.681 " />
-<polygon points="97.426 350.213 126.565 439.894 220.861 439.894 250.000 350.213 173.713 294.787 " />
-<polygon points="250.000 350.213 279.139 439.894 373.435 439.894 402.574 350.213 326.287 294.787 " />
-<polygon points="297.148 205.106 326.287 294.787 420.583 294.787 449.722 205.106 373.435 149.681 " />
-<polygon points="173.713 115.426 202.852 205.106 297.148 205.106 326.287 115.426 250.000 60.000 " />
-</svg>
+<canvas id="cvsid" width="100%" height="100%"></canvas>
+<script>
+let cvs = document.getElementById("cvsid")
+cvs.width = window.innerWidth
+cvs.height = window.innerHeight
+let ctx = cvs.getContext("2d"),
+    w=cvs.width, h=cvs.height
+//let _72_degrees = 72*CD_DEG2RAD,  // exterior angle
+const _72_degrees = 72*Math.PI/180, // exterior angle
+      starting_angle = 3*_72_degrees,
+      cos_72_degrees = Math.cos(_72_degrees),
+      scaleFactor = 1/(2+cos_72_degrees*2)
+let level = 1
+
+function drawPentagon(x, y, side, w, h, depth) {
+    let angle = starting_angle, distance
+    if (depth==0) {
+        distance = side
+//      cdCanvasBegin(cddbuffer,CD_FILL)
+        ctx.beginPath()
+    } else {
+        side *= scaleFactor
+        /* Starting at the top of the highest pentagon, calculate
+           the top vertices of the other pentagons by taking the
+           length of the scaled side plus the length of the gap. */
+        distance = side + side * cos_72_degrees * 2.0
+    }
+    /* The top positions form a virtual pentagon of their own,
+       so simply move from one to the other by changing direction. */
+    for(let i=1; i<=5; i++) {
+        x += Math.cos(angle) * distance
+        y -= Math.sin(angle) * distance
+        if (depth==0) {
+            ctx.lineTo(x, y)
+        } else {
+            drawPentagon(x, y, side, w, h, depth-1)
+        }
+        angle += _72_degrees
+    }
+    if (depth==0) {
+//      cdCanvasEnd(cddbuffer,CD_FILL)
+        ctx.fill()
+    }
+}
+
+function draw(w,h) {
+//  atom hw = min(w/2,h/2),
+    let hw = w<h ? w/2 : h/2,
+        margin = 20,
+        radius = hw - 2*margin,
+        side = radius * Math.sin(Math.PI/5) * 2
+//  cdCanvasSetBackground(cddbuffer, CD_PARCHMENT)
+//  cdCanvasClear(cddbuffer)
+//  cdCanvasSetForeground(cddbuffer, CD_BLUE)
+
+//  ctx.clearRect(0,0,w,h)
+//    ctx.fillStyle='parchment' // nope...
+//  CD_PARCHMENT    = #FFFFE0,
+//    ctx.fillStyle='white'
+    ctx.fillStyle='#FFFFE0'  // excellento!!
+    ctx.fillRect(0,0,w,h)
+    ctx.fillStyle='blue' 
+    drawPentagon(hw, 3*margin, side, w/2-radius-2*margin, h, level)
+}
+draw(w,h)
+</script>
 </body>
 </html>

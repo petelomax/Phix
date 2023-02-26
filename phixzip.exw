@@ -3,7 +3,7 @@
 -- ===========
 --
 constant v = version(),
-         num_zips = 3   -- see also C:\Program Files (x86)\Phix\demo\pGUI\pdemo\installation.e
+         num_zips = 4   -- see also C:\Program Files (x86)\Phix\demo\pGUI\pdemo\installation.e
 
 printf(1,"Build using version %s?(Y/N):",{v})
 integer ch = upper(getc(0))
@@ -55,23 +55,30 @@ function in_file(string zi)
 
     if match("bench",zi)=1
     or match("demo",zi)=1 then
+        if match("demo\\pGUI\\win32",zi)=1
+        or match("demo\\pGUI\\win64",zi)=1 then
+            return 2
+        end if
         if (match("demo\\Arwen",zi)!=1 or
             match("demo\\Arwen32dibdemo",zi)=1)
-        and match("demo\\edita",zi)!=1
-        and (match("demo\\pGUI",zi)!=1 or
-             match("demo\\pGUI\\win64",zi)=1)
+--      and match("demo\\edita",zi)!=1
+        and match("demo\\pGUI",zi)!=1
         and match("demo\\combo.exw",zi)!=1
         and match("demo\\mandle.exw",zi)!=1
         and match("demo\\takeuchi.exw",zi)!=1 then
-            return 2
+            return 3
         end if
     elsif match("docs",zi)=1 then
 --DEV/SUG we might need to put pwa in here (3 aka phix.ver.2.zip) too...
         if match("Phix.chm",zi) then
 --?zi -- `docs/phix/Phix.chm`
-            return 4
+            return 5
         end if
-        return 3
+--      if match("docs\\phix\\images",zi)=1 then
+--          return 3
+--      end if
+--?zi
+        return 4
     end if
     return 1
 end function
@@ -152,7 +159,7 @@ constant TENMB = 10*1024*1024
 function get_file_info(string filename)
     integer size = get_file_size(filename)
     string ss = file_size_k(size),
-           ok = iff(size<TENMB?"(ok)":"*** TOO BIG ***")
+           ok = iff(size<TENMB?"(ok)":iff(match("docs",filename)?"(temp anyway)":"*** TOO BIG ***"))
     return sprintf("%-26s %s %s",{filename,ss,ok})
 end function
 

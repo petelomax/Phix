@@ -40,10 +40,10 @@ object o [= ...]</pre></code>
             </td>
             <td>
 <code><pre>
-let /*integer*/ i [= ...]
-let /*atom*/ a [= ...]
-let /*string*/ s [= ...]
-let /*object*/ o [= ...]</pre></code>
+let /*integer*/ i [= ...];
+let /*atom*/ a [= ...];
+let /*string*/ s [= ...];
+let /*object*/ o [= ...];</pre></code>
             </td>
          </tr>
          <tr>
@@ -73,7 +73,7 @@ integer {i,j,k} = ...</pre></code>
             </td>
             <td>
 <code><pre>
-let /*integer*/ [,i,j,k] = ...</pre></code>
+let /*integer*/ [,i,j,k] = ...;</pre></code>
             </td>
          </tr>
          <tr>
@@ -83,7 +83,7 @@ let /*integer*/ [,i,j,k] = ...</pre></code>
             </td>
             <td>
 <code><pre>
-let [,/*string*/ s, /*integer*/ i] = ...</pre></code>
+let [,/*string*/ s, /*integer*/ i] = ...;</pre></code>
             </td>
          </tr>
          <tr>
@@ -139,19 +139,21 @@ a &amp; b</pre></code>
             </td>
             <td>
 <code><pre>
-$conCat(a,b)  <small>// (defined in p2js.js)</small></pre></code>
+$conCat(a,b)  <small>// (defined in p2js.js, documented <a href="javascript.htm#conCat">here</a>)</small></pre></code>
             </td>
          </tr>
          <tr>
             <td>
 <code><pre>
+a = b & c
 res = res & start
 res &= start</pre></code>
             </td>
             <td>
 <code><pre>
-res = $conCat(res, start);
-res = $conCat(res, start);<small> // (reversed to 1st form)</small></pre></code>
+a = $conCat(b, c[, true]);       <small> // ie clone rqd</small>
+res = $conCat(res, start, false);<small> // ie no clone rqd, since "res"==="res"</small>
+res = $conCat(res, start, false);<small> // (reversed to above form[?])</small></pre></code>
             </td>
          </tr>
          <tr>
@@ -182,13 +184,36 @@ s[g][h][i..j] = x</pre></code>
             </td>
             <td>
 <code><pre>
-s = $repe(s,i,x)
-s = $repss(s,i,j,x)
-s = $repe(s,i,x,["sequence",h,g])
-s = $repss(s,i,j,x,["sequence",h,g])</pre></code>
+s = $repe(s,i,x);
+s = $repss(s,i,j,x);
+s = $repe(s,i,x,["sequence",h,g]);
+s = $repss(s,i,j,x,["sequence",h,g]);</pre></code>
              <br>
              <small>(nb relies somewhat on JavaScript pass-by-sharing semantics...)</small><br>
              <small>(inevitably += etc can get a tad messy/may not yet be fully supported)</small>
+            </td>
+         </tr>
+         <tr>
+            <td>
+<code><pre>
+s[i] <i>op</i>= x
+s[<expr>] <i>op</i>= x
+s[i+1][j+1][k+1] <i>op</i>= x</pre></code>
+            </td>
+            <td>
+<code><pre>
+s = $repe(s,i,$subse(s,i) <i>op</i> x);
+{ let i$dx = <expr>; s = $repe(s,i$dx,$subse(s,i$dx) <i>op</i> x); }
+{ let i$dx = k+1, i2$dx = j+1, i3$dx = i+1; 
+  s = $repe(s,i$dx,$subse(s,i$dx,["sequence",i2$dx,i3$dx]) <i>op</i> x,["sequence",i2$dx,i3$dx]); }</pre></code>
+             <br>
+             <small>An additional mini-scope is needed when any index is neither plain var nor literal integer,
+             which is then used for all (rather than just those that actually need it).</small>
+             <small>Note that (eg) i$dx is calculated once only, then used twice, which is why it must exist.</small><br>
+<!--???
+            <br>
+             <small>(multiple subscripts not [yet<i>!</i>] permitted<i>!</i>)</small>
+-->
             </td>
          </tr>
          <tr>
@@ -236,8 +261,8 @@ for (let i=1; i&lt;=5; i+=1) { }
 for (let i=1, i$lim=N; i&lt;=i$lim; i+=1) { }
 for (let i=N; i&gt;=1; i-=1) { }
 for (let j=1, j$lim=N; j&lt;=j$lim; j+=p) { }<small> // (nb assumes p>0)</small>
-for (let k=N; k&gt;=1; k-=p) { }<small> // (   "", ie -p<0)</small></pre></code>
-                <br><small>
+for (let k=N; k&gt;=1; k-=p) { }             <small> // (   "", ie -p<0)</small></pre></code>
+                <br><small><br>
                 The i$lim is needed because otherwise JavaScript would re-evaluate the expression on every iteration,
                 whereas Phix does not. We can avoid introducing the i$lim variable when it is a fixed literal integer,
                 but avoiding the same for 'N' would require careful analysis not just of the loop body but also any
@@ -250,7 +275,70 @@ for (let k=N; k&gt;=1; k-=p) { }<small> // (   "", ie -p<0)</small></pre></code>
                 are dynamically defined, desktop/phix emits generic code that copes: pwa/p2js does not and never 
                 will (cope), except perhaps to get half or maybe only a quarter of them right by sheer luck. When
                 step may or may not be negative, you <i>will</i> have to replace the construct with a more explicit
-                while loop. (When step is omitted, both desktop and p2js equally assume +1 and &lt;=.)</small>
+                while loop, or duplicated inside an if -ve/else. 
+                When step is omitted, both desktop and p2js equally assume +1 and &lt;=.</small>
+            </td>
+         </tr>
+         <tr>
+            <td>
+<code><pre>
+for i,e in s do end for
+for i,e in <i>&lt;expr&gt;</i> do end for
+for e in <i>&lt;expr&gt;</i> do end for
+for e in s do end for
+for e in s [from &lt;f&gt;] [to &lt;t&gt;] do end for</pre></code>
+<!-- maybe in version 2.0.0:
+for e in reverse(s) do end for
+for i,e in reverse(s) do end for
+-->
+            </td>
+            <td>
+<code><pre>
+<small>for (let i=1, e$lim=length(s); i&lt;=e$lim; i+=1) { let e = $subse(s,i); }</small> [1]
+  as [1] with e$seq=<i>&lt;expr&gt;</i> and then s -> e$seq (twice) [2]
+  as [2] with i -> e$idx
+  as [1] with i -> e$idx
+  as above with (i or e$idx)=&lt;f&gt; and/or e$lim=&lt;t&gt;</pre></code>
+<!--
+<small>for (let e$idx=length(s); e$idx&gt;=1; e$idx-=1) { let e = $subse(s,i); }</small>
+<small>for (let i=length(s); i&gt;=1; i-=1) { let e = $subse(s,i); }</small>
+-->
+                <br><small><br>
+                We consistently use e$lim since that one must always exist (without any possible name clash), 
+                and/or use a literal constant when we can. 
+                I trust it is pretty obvious that by "s" I mean "a single variable name", and that e$seq is just a 
+                name to use for lack of anything else, which in no way attempts to achieve any kind of Phix-style 
+                copy-on-write semantics, except (perhaps) by virtue of being a hidden name that the programmer 
+                simply should not be able to accidentally typo-clobber.
+                </small>
+            </td>
+         </tr>
+         <tr>
+            <td>
+<code><pre>
+integer i
+for i ... end for</pre></code>
+            </td>
+            <td>
+<code><pre>
+<small>{let [e$seq=<i>&lt;expr&gt;</i>][, ][e$lim=length(s)]; 
+  for (i=1; i&lt=e$lim; i+=1;) { [[let ]e=$subse(e[$seq],i);] ... }}</small></pre></code>
+                <br><small><br>
+                When the control variable is predefined, there is no let in the for itself, and should we 
+                need either e$seq or e$lim then we need a mini-wrapper-scope. Should e be predefined, it is simply 
+                a matter of omitting the inner "let", without causing such a container scope to be needed.
+                <br>
+                <br>
+                Be warned that desktop/Phix and pwa/p2js may have subtly different notions of [nested] scope:
+                such "predefined" behaviour is only formally supported for declarations in the immediately
+                surrounding scope. Nothing to do with JavaScript, that one&rsquo;s fairly and squarely on me. 
+                It&rsquo;s just that the older pmain.e of desktop\Phix is very conservative in calling increaseScope() 
+                and dropScope(), and prefers to handle the for loop variable(s) "by hand" in DoFor(), whereas 
+                the newer pwa\src\p2js_parse.e is generally much more eager to invoke add_scope() and drop_scope().
+                New/re-use <i>may</i> therefore differ.<br>
+                Obviously if you hit an issue, I&rsquo;ll happily investigate more, but I&rsquo;m not about 
+                to make changes for changes sake when that perceived problem may simply never occur.
+                </small>
             </td>
          </tr>
          <tr>
@@ -271,25 +359,28 @@ end procedure</pre></code>
          <tr>
             <td>
 <code><pre>
-function action_cb(Ihandle /*ih*/, integer i)
-    return IUP_DEFAULT
+function action(gdx /*h*/, integer i)
+    return XPG_DEFAULT
 end function</pre></code>
             </td>
             <td>
 <code><pre>
-function action_cb(/*Ihandle*/ /*ih*/, /*integer*/ i) {
-    return IUP_DEFAULT;
+function action(/*gdx*/ /*h*/anon1, /*integer*/ i) {
+    return XPG_DEFAULT;
 }</pre></code>
             </td>
          </tr>
          <tr>
             <td>
 <code><pre>
-type <i>t</i>(<i>ptype</i> pt)...</pre></code>
+type <i>t</i>(<i>ptype</i> pt) .. end type</pre></code>
             </td>
             <td>
 <code><pre>
-<i>/*/@*type*@/ function t(/*ptype*/ pt)...*/</i> <small>// (t aliased to ptype)</small></pre></code>
+function <i>t</i>(/*ptype*/ pt) { .. }</pre></code>
+                <br><small>
+                You can explicitly invoke the type as a function, but obviously you <i>cannot</i> add a type to
+                the <i>typeless</i> language that is JavaScript, and should not expect any run-time typechecks.</small>
             </td>
          </tr>
          <tr>
@@ -311,7 +402,7 @@ timedelta(hours:=4,seconds:=6)</pre></code>
             </td>
             <td>
 <code><pre>
-timedelta(0,0,4,0,6);</pre></code>
+timedelta(0,0,4,0,6) <small>// (non-reversed)</small></pre></code>
                 <br><small>
                 (Named parameters are mapped to positional parameters, with defaults inserted)</small>
 <!--(timedelta(,,4,,6) c/should work in JavaScript & may be better) [DEV/SUG]-->
@@ -333,6 +424,60 @@ const b = 2, a = ["sequence",b, "b"],
          </tr>
          <tr>
             <td>
+<code><pre>
+try
+    throw("bang")
+catch e
+    ?e
+end try</pre></code>
+            </td>
+            <td>
+<code><pre>
+try {
+    throw("bang");
+}
+catch (e) {
+    e = $catch(e);
+    print(1, e);
+}</pre></code>
+                <br><small>
+                <b>NB</b>: JavaScript does not typecheck (etc), this will only behave even semi-consistently 
+                for explicit throw() statements. It uses the JavaScript version of throw() rather than some 
+                translation of the desktop/Phix version, and the contents of an exception are not the same, 
+                to put it mildly, for instance:<br>
+                desktop/Phix: {0,34279823,152,21,"-1","t68forin.exw",`C:\Program Files (x86)\Phix\test\`,"bang"}<br>
+                pwa/p2js: {0,0,0,0,"","","","bang"}</small>
+            </td>
+         </tr>
+         <tr>
+            <td>
+<code><pre>
+function f()
+    static [a,b]
+    static a = 1
+    constant b = 2
+    nested function g()
+    end nested function
+    ...
+end function</pre></code>
+            </td>
+            <td>
+<code><pre>
+let %static1%a, %static2%b;
+function f() {
+    /*static*/ if (!%static1%a) { %static1%a = 1; }
+    /*constant*/ if (!%static2%b) { %static2%b = 2; }
+    /*nested*/ function g() {
+    }
+    ... (with matching renaming)
+}</pre></code>
+                <br><small>The if() tests prevent (re-)clobbering on every single (re-)invocation.
+                Javascript handles nested functions anyway, but p2js actively tries to avoid creating 
+                closures, for reasons outlined in <a href="nested.htm">nested routines</a>.</small>
+            </td>
+         </tr>
+         <tr>
+            <td>
              ???
             </td>
             <td>
@@ -349,8 +494,10 @@ const b = 2, a = ["sequence",b, "b"],
         I have some hopes for the IUP C examples (at least not crashing), but that&rsquo;s a distant tertiary consideration.
         <br>
         <br>
-        The JavaScript % operator maps to the Phix remainder() function, rather than the mod() function, and both of
-        those are defined in p2js.js (note that mapping remainder() to % would open up all manner of precedence issues).
+        The JavaScript % operator maps to the Phix <a href="remainder.htm">remainder</a>() function, rather than the 
+        <a href="remainder.htm">mod</a>() function, and both of those are defined in p2js.js. Also note that mapping 
+        <a href="remainder.htm">remainder</a>() to % would likely open up all manner of precedence issues, for instance
+        <a href="remainder.htm">remainder</a>(a-b,7) is clearly not the same as a-b%7.
         <br>
         <br>
         Aside: while investigating the peculiarities of the JavaScript === operator, one person said <i>&ldquo;it looks like 
@@ -368,6 +515,11 @@ const b = 2, a = ["sequence",b, "b"],
         you must use the equal() syntax in those rare cases where comparing a string against a dword-sequence is important,
         but you <i>can</i> still use the infix = operator for two strings or two dword-sequences, or indeed any two objects
         where neither is explicitly typed as string (a literal would be), which is probably not far off 99.9% of the time.
+        <br>
+        <br>
+        It turns out that it&rsquo;s much more important and useful for desktop/Phix to baulk at "bad things" when under 
+        "with js" than it is for pwa/p2js.exw to "cope with everything", not entirely unlike the way the former makes it
+        relatively straightforward to get ancient legacy (or 4.0+) Euphoria code (with sequence ops, etc) to work.
         <br>
         <br>
       </div>

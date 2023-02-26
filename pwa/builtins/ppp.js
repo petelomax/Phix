@@ -262,7 +262,7 @@ function $spurge() {
     if ($ppp_File) {
         puts($ppp_File,$subss($pline,1,$plen));
     } else {
-        $ppp_result = $conCat($ppp_result, $subss($pline,1,$plen));
+        $ppp_result = $conCat($ppp_result, $subss($pline,1,$plen), false);
     }
     $plen = 0;
 }
@@ -287,7 +287,7 @@ function $sput(/*object*/ txt) {
         $plen += length(txt);
     }
     if (compare($plen,length($pline))>0) {
-        $pline = $conCat($pline, repeat(0X20,$plen-length($pline)));
+        $pline = $conCat($pline, repeat(0X20,$plen-length($pline)), false);
     }
     $pline = $repss($pline,p,$plen,txt);
     if (equal($subse($pline,$plen),0XA)) {
@@ -533,43 +533,14 @@ function $prnf(/*object*/ cl, /*integer*/ col, /*integer*/ indent, /*integer*/ p
     if (prnt) { $sput(txt); }
     return length(txt);
 }
-/*with warning*/ //procedure $pp_fatal(sequence msg)
-//  puts(1,"ppp.e: $pp_fatal: "&msg&"\nPress d for diagnostics...")
-//  if find(getc(0),"dD") then ?9/0 end if
-//--    if find(getc(0),"dD") then crash("?9/0") end if
-//  abort(1)
-//end procedure
-//bool warned = false
-//procedure warn(string msg)
-function $pp_fatal(/*string*/ msg, /*integer*/ level) {
-//  puts(1,msg)
-//  warned = true
-//18/12/20:
- /*
-    crash_message(msg)
-    #ilASM{ 
-            [32]
-                mov ecx,[level] -- no of frames to pop to obtain an era
-            [64]
-                mov rcx,[level] -- no of frames to pop to obtain an era
-            []
---              mov al,2        -- (we don't rightly care, /0'll do)
-                mov al,68       -- e68crash
-                jmp :!fatalN    -- fatalN(level,errcode,ep1,ep2)
-          }
---  ?9/0
-*/ 
-    crash(msg,{},level);
-//  crash(msg,{},level) -- pwa/p2js: JavaScript does not support named parameters... [but p2js now does!]
-}
-function $setAscii() {
+/*with warning*/ function $setAscii() {
     $ascii = repeat(0,255);
-    if (!equal(length($ppp_Ascii),2)) { $pp_fatal("length($ascii) must be 2",4); }
+    if (!equal(length($ppp_Ascii),2)) { crash("length($ascii) must be 2",{},4); }
     let /*object*/ [,minasc,maxasc] = $ppp_Ascii;
     if (!sequence(minasc)) { minasc = ["sequence",minasc]; }
     if (!sequence(maxasc)) { maxasc = ["sequence",maxasc]; }
-    if (!equal(length(minasc),length(maxasc))) { $pp_fatal("length(minasc)!=length(maxasc)",4); }
-    if (find(0,minasc) || find(0,maxasc)) { $pp_fatal("find(0,minasc) or find(0,maxasc)",4); }
+    if (!equal(length(minasc),length(maxasc))) { crash("length(minasc)!=length(maxasc)",{},4); }
+    if (find(0,minasc) || find(0,maxasc)) { crash("find(0,minasc) or find(0,maxasc)",{},4); }
     for (let i=1, i$lim=length(minasc); i<=i$lim; i+=1) {
         $ascii = $repss($ascii,$subse(minasc,i),$subse(maxasc,i),1);
     }
@@ -604,7 +575,7 @@ function $setOpt(/*sequence*/ options) {
     let /*integer*/ f, ip1, flvl = 4;
     let /*object*/ tmp;
     if (!$ppp_Init) { $pp_Init(); }
-    if (and_bits(1,length(options))) { $pp_fatal("length(options) not even",flvl); }
+    if (and_bits(1,length(options))) { crash("length(options) not even",{},flvl); }
     options = deep_copy(options);
     for (let i=1, i$lim=length(options); i<=i$lim; i+=2) {
         f = $subse(options,i);
@@ -627,11 +598,11 @@ function $setOpt(/*sequence*/ options) {
             options = $repe(options,ip1,$ppp_StrFmt);
             $ppp_StrFmt = tmp;
             if (equal(tmp,-2)) {
-                $pp_fatal("pp_StrFmt,-2 deprecated: use pp_IntCh,false instead",flvl);
+                crash("pp_StrFmt,-2 deprecated: use pp_IntCh,false instead",{},flvl);
             } else if (equal(tmp,-3)) {
-                $pp_fatal("pp_StrFmt,-3 deprecated: use pp_StrFmt,-1,pp_IntCh,false instead",flvl);
+                crash("pp_StrFmt,-3 deprecated: use pp_StrFmt,-1,pp_IntCh,false instead",{},flvl);
             } else if (equal(tmp,1)) {
-                $pp_fatal("pp_StrFmt,1 behaves as 3: use pp_StrFmt,3,pp_IntCh,false instead",flvl);
+                crash("pp_StrFmt,1 behaves as 3: use pp_StrFmt,3,pp_IntCh,false instead",{},flvl);
             }
 //             -2:  as 0, but chars number-only like +1                 [DEPRECATED: use pp_IntCh,false instead]
 //             -3:  as -1, ""                                           [ "" (and pp_StrFmt,-1)]

@@ -1,0 +1,189 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">xpGUI</h1>
+      <div id="mainSection">
+        <b>*Draft*</b>: in particular expect many pages copied verbatim from the pGUI docs to contain broken/cross links.<br>
+        Certainly if you spot (say) an IupHandle it is a pretty clear indication that has not been updated/implemented/tested.
+        <br>
+        <br>
+        xpGUI is the Phix Cross Platform Graphical User Interface. Not that you really need to know, it uses:<br>
+        * WinAPI on Windows (ie %windir%(System32|SysWOW64)\user32.dll and friends),<br>
+        * GTK on Linux (such as gtk_window_new(), from some already-installed gtk package), and<br>
+        * a hand_crafted pwa/xpGUI.js (ie document.createElement() and similar) in a web browser.<br>
+        Of course, being fully open source with no packaging issues and not one or two but three examples of how to do everything, <br>
+        it should be as straightforward as possible to squidge in any other back-end you can think of.<br>
+        It is a planned <a href="xpport.htm">replacement for pGUI</a>, specifically to alleviate Linux installation issues more
+        than anything else.<br>
+<!--
+        Unlike pGUI, xpGUI will only contain js-compatible things, and perhaps some non-js pieces I actually need.<br>
+        On Windows, uses the native windows API but can be made to use GTK, for testing purposes only.<br>
+        On Linux, uses GTK and assumes that is already installed, and besides IUP does/did so too anyway.<br>
+        In a browser, uses pwa/xpGUI.js which is a laboriously hand-crafted drop-in replacement.<br>
+        The Windows part is based on Arwen, pGUI.js only needs fairly superficial mods, guess I&rsquo;ll wing it for GTK<sup><small>1</small></sup>.<br>
+        To avoid confusion, none/few of the Windows API, Arwen, GTK, or IUP-style globals/names are exposed or (re-)used.<br>
+-->
+        Implemented in demo\xpGUI\xpGUI.e for desktop/Phix and pwa\xpGUI.js for use under pwa/p2js.
+<!--    <small>(Note that ppGUI.js is currently being used for some delta debugging, with xpGUI.js being a
+        modified copy of [parts of] that, and relevant diffs manually maintained as comments)<br></small>   -->
+        <br>
+        <br>
+        Layout and positioning use a <a href="xplayout.htm#BoxModel">box model</a>, primarily for compatibility with JavaScript.<br>
+        Elements can be resized or hidden/shown at will, however there really is very little benefit to letting a programmer transmogrify <br>
+        a possibly quite complex nested hierarchy in sudden and unexpected ways, hence xpGUI simply foregoes all of that kind of thing.<br>
+        That may mean, for example, you need to define a layout with both a top and side menu, but only one showing at any given time.<br>
+        Uses an attribute system (as per/nicked from IUP) to further keep the API nice and simple.
+        <br>
+        <br>
+        <a href="xptypes.htm">Types</a>: xpGUI uses a pretty minimal set of types, plus the odd helper utility<br>
+        <a href="xpattr.htm">Attributes</a>: attributes control and configure almost everything in xpGUI<br>
+        <a href="xpelements.htm">Elements</a>: child interface elements supported in xpGUI<br>
+        <a href="xpcontainers.htm">Containers</a>: parent interface elements supported in xpGUI<br>
+        <a href="xpctrl.htm">Control</a>: startup, shutdown, and everything inbetween<br>
+        <a href="opengl.htm">OpenGL/WebGL</a>: for rendering 2D and 3D vector graphics<br>
+        <a href="xpport.htm">porting from pGUI</a>: a brief guide<br>
+
+        <h3>Example</h3>
+<!--eucode>
+include xpGUI.e
+gdx dlg = gDialog(NULL,gLabel("World","PADDING=80x10"),"TITLE=Hello")
+gShow(dlg)
+gMainLoop()
+</eucode-->
+<pre>
+<font color="#008080">include</font><font color="#000000"> xpGUI.e</font>
+<font color="#7060A8">gdx</font><font color="#000000"> dlg</font><font color="#0000FF"> =</font><font color="#7060A8"> gDialog</font><font color="#0000FF">(</font><font color="#004600">NULL</font><font color="#0000FF">,</font><font color="#000000">gLabel</font><font color="#800000">(</font><font color="#008000">"World"</font><font color="#0000FF">,</font><font color="#008000">"PADDING=80x10"</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#008000">"TITLE=Hello"</font><font color="#0000FF">)</font>
+<font color="#7060A8">gShow</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">)</font>
+<font color="#7060A8">gMainLoop</font><font color="#0000FF">()</font>
+</pre>
+<!--
+        IUP has four important concepts that are implemented in a very different way from other toolkits.
+        <br>
+        <ul>
+        <li>First is the control creation timeline. <br>
+        When a control is created it is not immediately mapped to the native system. <br>
+        So some attributes will not work until the control is mapped. <br>
+        The mapping is done when the dialog is shown or manually calling <a href="IupMap.htm">IupMap</a> for the dialog. <br>
+        You cannot map a control without inserting it into a dialog.</li>
+        <br>
+        <li>Second is the attribute system. <br>
+        IUP has only a few functions because it uses string attributes to access the properties of each control. <br>
+        So get used to <a href="IupSetAttribute.htm">IupSetAttribute</a> and <a href="IupGetAttribute.htm">IupGetAttribute</a>, 
+        because you are going to use them a lot.</li>
+        <br>
+        <li>Third is the abstract layout positioning. <br>
+        IUP controls are never positioned in a specific (x,y) coordinate inside the dialog. <br>
+        The positioning is always calculated dynamically from the abstract layout hierarchy. <br>
+        So get used to <a href="IupHbox.htm">IupHbox</a>, <a href="IupVbox.htm">IupVbox</a>, and <a href="IupFill.htm">IupFill</a> 
+        controls as the way to position things in a dialog.</li>
+        <br>
+        <li>Fourth is the callback system. <br>
+        Use the <a href="IupSetCallback.htm">IupSetCallback</a> function to associate a callback for a control.</li>
+        </ul>
+        Elements, containers, attributes, and callbacks are (slowly being) marked if/when they are supported by 
+        <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a>.
+        <br>
+        <br>
+--X>
+        <br>
+        <table>
+<X!X--
+         <col style="width: 5%"/>
+         <tr>
+          <td>
+           <a href="iupcred.htm">Background</a>
+          </td>
+          <td>origin, credits, requirements, and development status
+          </td>
+         </tr>
+--X>
+         <tr>
+          <td>
+           <a href="xptypes.htm">Types</a>
+          </td>
+          <td>xpGUI uses a pretty minimal set of types, plus the odd helper utility
+          </td>
+         </tr>
+         <tr>
+          <td>
+           <a href="xpattr.htm">Attributes</a>
+          </td>
+          <td>attributes control and configure almost everything in xpGUI
+          </td>
+         </tr>
+         <tr>
+          <td>
+           <a href="xpelements.htm">Elements</a>
+          </td>
+          <td>visible interface elements supported in xpGUI
+          </td>
+         </tr>
+         <tr>
+          <td>
+           <a href="xpcontainers.htm">Containers</a>
+          </td>
+          <td>non visible interface elements supported in xpGUI
+          </td>
+         </tr>
+         <tr>
+          <td>
+           <a href="xpctrl.htm">Control</a>
+          </td>
+          <td>startup, shutdown, and everything inbetween
+          </td>
+         </tr>
+<X!X--
+         <tr>
+          <td>
+           <nobr><a href="iupcd.htm">Canvas Draw</a></nobr>
+          </td>
+          <td width=10 align=center>-</td>
+          <td>a vector graphics toolkit with device independent output</td>
+         </tr>
+--X>
+         <tr>
+          <td>
+           <a href="opengl.htm">OpenGL/WebGL</a>
+          </td>
+          <td>for rendering 2D and 2D vector graphics</td>
+         </tr>
+         <tr>
+          <td>
+           <a href="xpport.htm">porting from pGUI</a>
+          </td>
+          <td>a brief guide</td>
+         </tr>
+        </table>
+        <br>
+        <br>
+-->
+<!--
+        <sup><small>1</small></sup> Help welcome, and/or better (non-heredoc) GTK documentation.
+        <small><sup><small>1<small></sup> Forgive me for saying this, but the GTK documentation is by far the worst 
+        I have ever seen in my entire life.<br>
+        The GTK documentation has zero meaningful structure; every routine is independently defined with almost no 
+        cross-references whatsoever, and all in segregated implementation "units" without any explanation.<br>
+        Every page has a tempting search box, that bluntly rejects anything in the wrong "unit". <br>
+        Of course there are without doubt many sound reasons for breaking something like that down into multiple
+        implementation units, but there is no excuse for ramming that irrelevant technical detail into the face of
+        every single person that uses the finished product or tries to navigate around the documentation, apart 
+        from the almost inevitable bipolar "but di-docgen is just <i>so</i> cool, and <i>entirely</i> to blame".<br>
+        I am certainly thankful that google exists.. and in fact I have resorted to Dependency Walker just to get 
+        a list of the available functions, and it is quite something that running that 12 times is way easier than 
+        navigating the official help documents!! <br>
+        Either you know the name of the function needed, or if you don&rsquo;t, why <i>should</i> the docs bother to help??<br>
+        Of course I am aware of the difficulties and similar deficiencies in my own docs, but absolutely refusing to even
+        acknowledge there is a problem frankly just astonishes me.</small>
+-->
+        <br>
+        <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

@@ -6,8 +6,8 @@
 
 --DEV - time for this one to go...
 --global constant newEmit = 0
-global integer newEmit
-               newEmit = 01
+--global integer newEmit = 01
+global constant newEmit = 01
 
 --DEV togo*3:
 global constant newBase = 2 -- 0 = old style, with base @ ref*4-20 on seq/str
@@ -34,7 +34,7 @@ global constant newEBP = 04 -- 4=on, 0=off(ie old style/working)
 --global constant pxversion = {0,8,3},  -- 0.8.3    -- 02/02/21
 --global constant pxversion = {1,0,0},  -- 1.0.0    -- 04/07/21
 --global constant pxversion = {1,0,1},  -- 1.0.1    -- 25/11/21
-global constant phixversion = {1,0,2},  -- 1.0.2    -- 22/11/21
+global constant phixversion = {1,0,2},  -- 1.0.2    -- 26/02/23
                 phixverstr = sprintf("%d.%d.%d",phixversion)
 sequence phixver = phixversion  -- (debug aid, otherwise unused)
 if sequence(phixver) then end if
@@ -669,7 +669,10 @@ global integer T_ptr = 0,
                T_match = 0,         -- for defaulting 3rd param to 1
 --             T_get_text = 0,      -- for defaulting 2nd param to -2
                T_throw = 0,         -- for defaulting 2nd param to {}
+               T_puts = 0,          -- for ignoring 3rd param of false
+               T_false = 0,         --                            """
                T_equal = 0,         -- map "if equal(a,b)" to "if a=b"
+               T_wait_key = 0,      -- treat "wait_key()" as "{} = wait_key()"
                T_length = 0,        -- map s[..length(s)] to s[..-1]
                T_floor = 0,         -- map "floor(a/b)" to opDivf a,b
                T_floor_div = 0,     -- ""
@@ -708,6 +711,8 @@ global integer T_ptr = 0,
                Z_struct = 0,
                T_free = 0,
                T_ffree = 0,
+               T_odd = 0,
+               T_even = 0,
 --             Z_integer = 0,       -- (==symtab[T_integer][S_Name])
 
 -- these are actually temps for setting up hll_stubs, but may as well make them global:
@@ -722,11 +727,13 @@ global integer T_ptr = 0,
                T_tan = 0,
                T_arctan = 0,
                T_log = 0,
+               T_ln = 0,
                T_sqrt = 0,
                T_rand = 0,
                Z_append = 0,    -- (T_xxx got nicked by ttree.e)
-               Z_prepend = 0    --              ""
-
+               Z_prepend = 0,   --              ""
+               T_destroy_dict = 0,
+               T_destroy_dictf = 0
 
 global integer TIDX
                TIDX = -1
@@ -748,6 +755,11 @@ global integer LIDX
 --global integer iNNN = 0
 --object sNNN sNNN=0
 --type symt(sequence s)
+--  if length(s)>21 and sequence(s[21]) then
+--      if sequence(s[21][11]) and length(s[21][11]) then
+--          if s[21][11][1]=0 then ?9/0 end if
+--      end if
+--  end if
 --  if iNNN and length(s)>=iNNN then
 --      if not equal(s[iNNN],sNNN) then
 ----?1
@@ -860,8 +872,12 @@ global integer ltline       -- line no that LineTab[$] refers to
 
 global sequence LineTab
 
-global sequence s5
-                s5 = {}
+global sequence s5 = {}
+--type s5t(sequence s)
+--  if length(s) and s[1]=0 then ?9/0 end if
+--  return 1
+--end type
+--global s5t s5 = {}
 
 global integer lastline     -- last line no emitted
                lastline = -1
@@ -1078,6 +1094,9 @@ global integer X64
 --             X64 = 0
                X64 = (machine_bits()==64)
 --             X64 = (bits()==64)
+global integer XARM
+               XARM = 0
+--             XARM = (platform()==ARM) -- [DEV once self-hosting!]
 global integer DLL
                DLL = 0
 --global integer GUI

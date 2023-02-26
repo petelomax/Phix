@@ -15,7 +15,8 @@
          <td>
              <a href="integer.htm">integer</a> rid = define_c_proc(<a href="object.htm">object</a> lib,
                                                                    <a href="object.htm">object</a> fname,
-                                                                   <a href="sequence.htm">sequence</a> args)
+                                                                   <a href="sequence.htm">sequence</a> args,
+                                                                   <a href="integer.htm#bool">bool</a> bCrash=true)
          </td>
         </tr>
         <tr>
@@ -23,31 +24,17 @@
           <b>Description:</b>
          </td>
          <td>
-            Define the characteristics of a C function that you wish to
-            call as a procedure from your Phix program. A small <a href="integer.htm">integer</a>, known as a
-            <a href="routine_id.htm">routine id</a>, will be returned, or -1 if the function cannot be found.
-            <br>
-            <br>
-            The <a href="define_cffi_proc.htm">define_cffi_proc</a> routine is a string-based wrapper of this routine, 
-            which you may find easier to use.
-            <br>
-            <br>
-            lib is an address returned by open_dll(), or {}.<br>
-            If lib is an atom, fname is the name of a function within that dll, optionally as 
-            either {'+',"name"} or "+name" to specify the CDECL calling convention.<br>
-            If lib is {}, fname is the (atom) address of a machine code function, optionally
-            as {'+',addr} to specify the CDECL calling convention.
-            <br>
-            <br>
-            CDECL is the default/only calling convention on a Linux system.<br>
-            STDCALL is the default in a Windows system.<br>
-            The CDECL convention requires the callee to clean up the stack, and is 
-            therefore more suited to variable numbers of arguments, whereas with 
-            STDCALL the routine cleans up the stack before returning.
-            <br>
-            <br>
-            args is a list of the parameter types for the routine. A list of
-            C types is contained in <b>dll.e</b>, and <a href="define_c_func.htm">define_c_func</a>.
+            Define the characteristics of a C function that you wish to call as a procedure from your Phix program. 
+            A small <a href="integer.htm">integer</a>, known as a
+            <a href="routine_id.htm">routine id</a>, will be returned, or -1 if the function cannot be found (and bCrash is false).
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+          <a href="notpgui.htm"><span class="illegal">Not supported</span></a>.
          </td>
         </tr>
 <!--DEV [Eu types -> c_proc]
@@ -66,6 +53,28 @@
           <b>Comments:</b>
          </td>
          <td>
+            lib is an address returned by open_dll(), or {}.<br>
+            If lib is an atom, fname is the name of a function within that dll, optionally as 
+            either {'+',"name"} or "+name" to specify the CDECL calling convention.<br>
+            If lib is {}, fname is the (atom) address of a machine code function, optionally
+            as {'+',addr} to specify the CDECL calling convention.
+            <br>
+            <br>
+            CDECL is the default/only calling convention on a Linux system.<br>
+            STDCALL is the default in a Windows system.<br>
+            The CDECL convention requires the callee to clean up the stack, and is 
+            therefore more suited to variable numbers of arguments, whereas with 
+            STDCALL the routine cleans up the stack before returning.
+            <br>
+            <br>
+            args is a list of the parameter types for the routine. A list of
+            C types is contained in <b>dll.e</b>, and <a href="define_c_func.htm">define_c_func</a>.
+            <br>
+            <br>
+            The <a href="define_cffi_proc.htm">define_cffi_proc</a> routine is a string-based wrapper of this routine, 
+            which you may find easier to use.
+            <br>
+            <br>
             The <a href="routine_id.htm">routine id</a>, rid, can be passed to c_proc(), when you want to call the C function.
           <br>
           <br>
@@ -101,17 +110,11 @@
 -- user32.dll contains the ShowWindow C function which takes two integer parameters
 atom user32 = open_dll("user32.dll")
 integer ShowWindow = define_c_proc(user32, "ShowWindow", {C_INT, C_INT})
-if ShowWindow=-1 then
-    crash("ShowWindow not found!")
-end if
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#000080"><i>-- user32.dll contains the ShowWindow C function which takes two integer parameters
-</i></font><font color="#004080">atom</font><font color="#000000"> user32</font><font color="#0000FF"> =</font><font color="#7060A8"> open_dll</font><font color="#0000FF">(</font><font color="#008000">"user32.dll"</font><font color="#0000FF">)
-</font><font color="#004080">integer</font><font color="#000000"> ShowWindow</font><font color="#0000FF"> =</font><font color="#7060A8"> define_c_proc</font><font color="#0000FF">(</font><font color="#000000">user32</font><font color="#0000FF">,</font><font color="#008000"> "ShowWindow"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#004600">C_INT</font><font color="#0000FF">,</font><font color="#004600"> C_INT</font><font color="#800000">}</font><font color="#0000FF">)
-</font><font color="#008080">if</font><font color="#000000"> ShowWindow</font><font color="#0000FF">=-</font><font color="#000000">1</font><font color="#008080"> then
-</font><font color="#5E005E">    crash</font><font color="#0000FF">(</font><font color="#008000">"ShowWindow not found!"</font><font color="#0000FF">)
-</font><font color="#008080">end if</font>
+<font color="#000080"><i>-- user32.dll contains the ShowWindow C function which takes two integer parameters</i></font>
+<font color="#004080">atom</font><font color="#000000"> user32</font><font color="#0000FF"> =</font><font color="#7060A8"> open_dll</font><font color="#0000FF">(</font><font color="#008000">"user32.dll"</font><font color="#0000FF">)</font>
+<font color="#004080">integer</font><font color="#000000"> ShowWindow</font><font color="#0000FF"> =</font><font color="#7060A8"> define_c_proc</font><font color="#0000FF">(</font><font color="#000000">user32</font><font color="#0000FF">,</font><font color="#008000"> "ShowWindow"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#004600">C_INT</font><font color="#0000FF">,</font><font color="#004600"> C_INT</font><font color="#800000">}</font><font color="#0000FF">)</font>
 </pre>
          </td>
         </tr>

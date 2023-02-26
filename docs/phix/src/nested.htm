@@ -1,0 +1,433 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">Nested routines</h1>
+      <div id="mainSection">
+<!--
+        <h2>**NB** IN PROGRESS/INCOMPLETE</h2>
+-->
+        <b>**WARNING**</b> while they now seem to pass all tests, statics and nested routines can mess up diagnostics, in
+        particular the ex.err files, so this should be considered as in progress/incomplete in that regard.
+        Proper debugging support for nested routines has now been deferred until Phix version 2.0.0 or later.
+        <br>
+        <br>
+        First time readers are encouraged to skip this section since it describes features that Phix does not really need.
+        <small><i>To be honest, it is a fairly heavy handed and slightly clumsy description of a slighly clumsier alternative 
+        to a feature many programmers have come to expect and believe they cannot possibly live without.</i></small>
+        <br>
+        <br>
+        Warning: beta feature in 1.0.2 - you may well encounter little niggles with this that I didn&rsquo;t think of.
+        <br>
+        <br>
+<!--
+        Update: Most of this has now been implemented, but <X!--some tricky scope issues (now fixed) made me defer it to version 2.0.0.<br>
+        Some of these things may already work, but--X> quite a few otherwise rather innocent looking things may just make the compiler crash.<br>
+        <small><i>(Obviously, feel free to investigate further and suggest me a fix!)</i></small>
+        <br>
+        <br>
+-->
+<!--
+        <h3>Nested routines, but no closures</h3>
+-->
+        Phix does <i><b>not</b></i> (directly/implicitly) support <a href="closures.htm">closures</a>, in that link/subpage there 
+        is a mini-rant explaining why, for anyone interested.<br>
+        However it <i>does</i> support a more restricted form of nested routines that can achieve much the same effect, <br>
+        only without any direct access to the containing inner scope, and quite strictly "static only".
+        <a name=stalc></a>
+<!--DEV rename/put [half of] this in constants.htm [extend/replace existing "local constants"], or better yet reference this there -->
+<!--
+        <h3>statics and local constants</h3>
+-->
+        <h3>first example</h3>
+        <a name=eg2></a>
+<!--eucode>
+function test()
+    static [accs]                       -- (a compiler directive)
+    static sequence accs = {}           -- (an actual definition)
+
+    nested function makeAdder(integer x)
+        accs &= x
+        return length(accs)
+    end nested function
+
+    nested function addd(integer adx, y)
+        accs[adx] += y
+        return accs[adx]
+    end nested function
+
+    -- Note you could make these "constant", but for very little
+    -- benefit, & would have to add them to the static directive
+    integer add5 = makeAdder(5),
+           add10 = makeAdder(10)
+
+    ?addd(add5,2)   -- 7
+    ?addd(add10,2)  -- 12
+
+    return {add5,add10,makeAdder,addd}
+end function
+integer {a5,a10,make_adder,addd} = test(),
+         a15 = make_adder(15)
+?addd(a5,2)     -- 9
+?addd(a10,2)    -- 14
+?addd(a15,2)    -- 17
+</eucode-->
+<pre>
+<font color="#008080">function</font><font color="#7060A8"> test</font><font color="#0000FF">()</font>
+<font color="#008080">    static</font><font color="#0000FF"> [</font><font color="#000000">accs</font><font color="#0000FF">]                      </font><font color="#000080"><i> -- (a compiler directive)</i></font>
+<font color="#008080">    static</font><font color="#004080"> sequence</font><font color="#000000"> accs</font><font color="#0000FF"> = {}          </font><font color="#000080"><i> -- (an actual definition)
+</i></font>
+<font color="#008080">    nested function</font><font color="#000000"> makeAdder</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> x</font><font color="#0000FF">)</font>
+<font color="#000000">        accs</font><font color="#0000FF"> &amp;=</font><font color="#000000"> x</font>
+<font color="#008080">        return</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">accs</font><font color="#0000FF">)</font>
+<font color="#008080">    end nested function
+
+    nested function</font><font color="#000000"> addd</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> adx</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">)</font>
+<font color="#000000">        accs</font><font color="#0000FF">[</font><font color="#000000">adx</font><font color="#0000FF">] +=</font><font color="#000000"> y</font>
+<font color="#008080">        return</font><font color="#000000"> accs</font><font color="#0000FF">[</font><font color="#000000">adx</font><font color="#0000FF">]</font>
+<font color="#008080">    end nested function
+</font>
+<font color="#000080"><i>    -- Note you could make these "constant", but for very little
+    -- benefit, &amp; would have to add them to the static directive</i></font>
+<font color="#004080">    integer</font><font color="#000000"> add5</font><font color="#0000FF"> =</font><font color="#000000"> makeAdder</font><font color="#0000FF">(</font><font color="#000000">5</font><font color="#0000FF">),</font>
+<font color="#000000">           add10</font><font color="#0000FF"> =</font><font color="#000000"> makeAdder</font><font color="#0000FF">(</font><font color="#000000">10</font><font color="#0000FF">)
+
+    ?</font><font color="#000000">addd</font><font color="#0000FF">(</font><font color="#000000">add5</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">)  </font><font color="#000080"><i> -- 7</i></font>
+<font color="#0000FF">    ?</font><font color="#000000">addd</font><font color="#0000FF">(</font><font color="#000000">add10</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">) </font><font color="#000080"><i> -- 12
+</i></font>
+<font color="#008080">    return</font><font color="#0000FF"> {</font><font color="#000000">add5</font><font color="#0000FF">,</font><font color="#000000">add10</font><font color="#0000FF">,</font><font color="#000000">makeAdder</font><font color="#0000FF">,</font><font color="#000000">addd</font><font color="#0000FF">}</font>
+<font color="#008080">end function</font>
+<font color="#004080">integer</font><font color="#0000FF"> {</font><font color="#000000">a5</font><font color="#0000FF">,</font><font color="#000000">a10</font><font color="#0000FF">,</font><font color="#000000">make_adder</font><font color="#0000FF">,</font><font color="#000000">addd</font><font color="#0000FF">} =</font><font color="#7060A8"> test</font><font color="#0000FF">(),</font>
+<font color="#000000">         a15</font><font color="#0000FF"> =</font><font color="#000000"> make_adder</font><font color="#0000FF">(</font><font color="#000000">15</font><font color="#0000FF">)
+?</font><font color="#000000">addd</font><font color="#0000FF">(</font><font color="#000000">a5</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">)    </font><font color="#000080"><i> -- 9</i></font>
+<font color="#0000FF">?</font><font color="#000000">addd</font><font color="#0000FF">(</font><font color="#000000">a10</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">)   </font><font color="#000080"><i> -- 14</i></font>
+<font color="#0000FF">?</font><font color="#000000">addd</font><font color="#0000FF">(</font><font color="#000000">a15</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">)   </font><font color="#000080"><i> -- 17</i></font>
+</pre>
+<!--        <small>(As you can see, I ran headlong into some rather strange scope issues here...)</small><br> -->
+<!--        <small>(I should probably admit I didn&rsquo;t get far enough in to test static content is preserved, and shown in ex.err, or list.asm [etc] are all spick and span.)</small><br>
+-->
+        The above imitates the last but one (js closure) example from the <a href="closures.htm#eg2">subpage</a>.
+        <br>
+        <br>
+        Note that I have not had to explain why the above does not work, or offer four different ways to fix it.
+<!--
+        , though admittedly I have cluttered it up a bit by trying to include everything I want to say in the very first example. 
+-->
+        While accs is clearly scoped to the test() function, it appears in an ex.err the same as a file-scoped variable, and of course 
+        it all works exactly as it would with it declared as such, bar undefined/out of scope errors.
+        <br>
+        <br>
+        Several questions raised by the above are covered in more detail under "edge cases" below.
+
+        <h3>another example</h3>
+        <a name=eg3></a>
+<!--eucode>
+atom t0 = time()
+function findByIndex(integer index)
+    static [numbers]
+
+    nested function n(integer k)
+        sequence res = apply(true,sprintf,{{"n%d"},tagset(k)})
+        printf(1,"n(%d) built (%s)\n",{k,elapsed(time()-t0)})
+        return res
+    end nested function
+
+    constant numbers = n(1000000)
+    return numbers[index]
+end function
+
+?findByIndex(110351)
+?findByIndex(911234)
+?findByIndex(520109)
+?findByIndex(398)
+?elapsed(time()-t0)
+-- output:
+--  n(1000000) built (1.7s)
+--  "n110351"
+--  "n911234"
+--  "n520109"
+--  "n398"
+--  "1.7s"
+</eucode-->
+<pre>
+<font color="#004080">atom</font><font color="#000000"> t0</font><font color="#0000FF"> =</font><font color="#7060A8"> time</font><font color="#0000FF">()</font>
+<font color="#008080">function</font><font color="#000000"> findByIndex</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> index</font><font color="#0000FF">)</font>
+<font color="#008080">    static</font><font color="#0000FF"> [</font><font color="#000000">numbers</font><font color="#0000FF">]
+</font>
+<font color="#008080">    nested function</font><font color="#000000"> n</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> k</font><font color="#0000FF">)</font>
+<font color="#004080">        sequence</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#7060A8"> apply</font><font color="#0000FF">(</font><font color="#004600">true</font><font color="#0000FF">,</font><font color="#7060A8">sprintf</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#800080">{</font><font color="#008000">"n%d"</font><font color="#800080">}</font><font color="#0000FF">,</font><font color="#7060A8">tagset</font><font color="#800080">(</font><font color="#000000">k</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#7060A8">        printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"n(%d) built (%s)\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">k</font><font color="#0000FF">,</font><font color="#7060A8">elapsed</font><font color="#800080">(</font><font color="#7060A8">time</font><font color="#00FF00">()</font><font color="#0000FF">-</font><font color="#000000">t0</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#008080">        return</font><font color="#000000"> res</font>
+<font color="#008080">    end nested function
+
+    constant</font><font color="#000000"> numbers</font><font color="#0000FF"> =</font><font color="#000000"> n</font><font color="#0000FF">(</font><font color="#000000">1000000</font><font color="#0000FF">)</font>
+<font color="#008080">    return</font><font color="#000000"> numbers</font><font color="#0000FF">[</font><font color="#000000">index</font><font color="#0000FF">]</font>
+<font color="#008080">end function
+</font>
+<font color="#0000FF">?</font><font color="#000000">findByIndex</font><font color="#0000FF">(</font><font color="#000000">110351</font><font color="#0000FF">)
+?</font><font color="#000000">findByIndex</font><font color="#0000FF">(</font><font color="#000000">911234</font><font color="#0000FF">)
+?</font><font color="#000000">findByIndex</font><font color="#0000FF">(</font><font color="#000000">520109</font><font color="#0000FF">)
+?</font><font color="#000000">findByIndex</font><font color="#0000FF">(</font><font color="#000000">398</font><font color="#0000FF">)
+?</font><font color="#7060A8">elapsed</font><font color="#0000FF">(</font><font color="#7060A8">time</font><font color="#800000">()</font><font color="#0000FF">-</font><font color="#000000">t0</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- output:
+--  n(1000000) built (1.7s)
+--  "n110351"
+--  "n911234"
+--  "n520109"
+--  "n398"
+--  "1.7s"</i></font>
+</pre>
+        Of course the whole point here is merely to make "numbers" private to findByIndex(), and created once-only and on-demand rather than pre-emptively.<br>
+        You can also find the js equivalent of the above on the <a href="closures.htm#eg3">subpage</a>. Of course all this really saves is a
+        single boolean flag... and again I am driven to wonder why anyone would ever think closures are a good idea, but they do, and in droves.
+        <br>
+        <br>
+        Perhaps I simply no longer quite get or fully appreciate many of the horrible limitations of other programming languages, especially
+        when they relate to scope and/or "data hiding" issues, which are very rarely if at all any kind of problem in Phix, probably simply
+        because file-level scope is the natural intuitive norm in Phix, whereas in C-based languages #include statements extend the file 
+        scope or more accurately "translation unit", almost everything in JavaScript ends up in an anonymous immediately invoked function, 
+        and/or other programming languages have to mess about with modules, packages, or classes to achieve anything remotely similar.
+       <br>
+       <br>
+        One other thing to note is that Phix does not support proper block scope for nested functions. They must instead be declared at the
+        "second-level" within a routine (and most certainly not within any conditional or loop constructs), which shouldn&rsquo;t raise any 
+        significant issues since they can only refer to statics in the containing scope [directive/file] anyway [and any globals of course].
+        No effort whatsoever has been or will be made to implement or test anything "triple-stacked", since any benefits would be tiny - if
+        you think it would be nice for an already nested function to have a couple of private methods, remember they would only be able to
+        access the same things they would if moved outside/before the nested routine (but still in and local to the same top-level one).
+<!--
+       <br>
+       <br>
+        So, despite some almost inevitable protestations, in Phix you have to explicitly pass in everything required, and (ideally) return
+        any saved state changes, something <i>all</i> typical implementations of closures quietly gloss over, or in many cases proudly dismiss 
+        with some waffle about "free variables" and/or "late binding", as if that&rsquo;s some sort of "good thing".
+        In my world, "abstraction" is the art of giving something a clear, meaningful, and intuitive name, rather than painting a picture
+        that quite intentionally means something completely different to everybody that ever looks at it, with none <i>ever</i> the same,
+        which is obviously an insanely bad idea when you&rsquo;re talking about computer code. What does this bit do? That&rsquo;s abstract 
+        code mate, you&rsquo;re <i>supposed to make your own mind up</i> about what that actually does. (Erm, too much?)
+-->
+        <h3>edge cases and the nitty gritty details</h3>
+<!--eucode>
+procedure edge_cases(integer i)
+//  static <accs,fred>  -- (triggers (^fred) "static not defined" error,
+//                      --  technically at end procedure but shown here)
+    static [accs,ctest]
+    static sequence accs = {}
+    string s = "inner scope"
+
+    nested function makeAdder(integer x)
+//      ?s  // illegal (undefined)
+--      string s = "adder scope"            -- (but this is fine)
+        accs &= x
+--      ?s                                  -- ("", but see note)
+        return length(accs)
+    end nested function
+
+    nested function addd(integer adx, y)
+        constant ctest = deep_copy(accs)    -- (for testing only)
+        accs[adx] += y
+        return accs[adx]
+    end nested function
+
+    integer add5 = makeAdder(5),
+           add10 = makeAdder(10)
+
+    ?addd(add5,2)   -- 7
+    ?addd(add10,2)  -- 12
+    ?i      -- 55
+    ?s      -- "inner scope" -- (whether "adder scope" defined or not)
+    ?ctest  -- {5,10}        -- nb assignment on declaration semantics
+end procedure
+edge_cases(55)
+--?accs -- invalid (undefined)
+--?makeAdder -- ""
+--?9/0 -- shows accs in ex.err as {7,12}, ctest as {5,10}
+</eucode-->
+<pre>
+<font color="#008080">procedure</font><font color="#000000"> edge_cases</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> i</font><font color="#0000FF">)</font>
+<font color="#000080"><i>//  static &lt;accs,fred&gt;  -- (triggers (^fred) "static not defined" error,
+//                      --  technically at end procedure but shown here)</i></font>
+<font color="#008080">    static</font><font color="#0000FF"> [</font><font color="#000000">accs</font><font color="#0000FF">,</font><font color="#000000">ctest</font><font color="#0000FF">]</font>
+<font color="#008080">    static</font><font color="#004080"> sequence</font><font color="#000000"> accs</font><font color="#0000FF"> = {}</font>
+<font color="#004080">    string</font><font color="#000000"> s</font><font color="#0000FF"> =</font><font color="#008000"> "inner scope"
+</font>
+<font color="#008080">    nested function</font><font color="#000000"> makeAdder</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> x</font><font color="#0000FF">)</font>
+<font color="#000080"><i>//      ?s  // illegal (undefined)
+--      string s = "adder scope"            -- (but this is fine)</i></font>
+<font color="#000000">        accs</font><font color="#0000FF"> &amp;=</font><font color="#000000"> x</font>
+<font color="#000080"><i>--      ?s                                  -- ("", but see note)</i></font>
+<font color="#008080">        return</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">accs</font><font color="#0000FF">)</font>
+<font color="#008080">    end nested function
+
+    nested function</font><font color="#000000"> addd</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> adx</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">)</font>
+<font color="#008080">        constant</font><font color="#000000"> ctest</font><font color="#0000FF"> =</font><font color="#7060A8"> deep_copy</font><font color="#0000FF">(</font><font color="#000000">accs</font><font color="#0000FF">)   </font><font color="#000080"><i> -- (for testing only)</i></font>
+<font color="#000000">        accs</font><font color="#0000FF">[</font><font color="#000000">adx</font><font color="#0000FF">] +=</font><font color="#000000"> y</font>
+<font color="#008080">        return</font><font color="#000000"> accs</font><font color="#0000FF">[</font><font color="#000000">adx</font><font color="#0000FF">]</font>
+<font color="#008080">    end nested function
+</font>
+<font color="#004080">    integer</font><font color="#000000"> add5</font><font color="#0000FF"> =</font><font color="#000000"> makeAdder</font><font color="#0000FF">(</font><font color="#000000">5</font><font color="#0000FF">),</font>
+<font color="#000000">           add10</font><font color="#0000FF"> =</font><font color="#000000"> makeAdder</font><font color="#0000FF">(</font><font color="#000000">10</font><font color="#0000FF">)
+
+    ?</font><font color="#000000">addd</font><font color="#0000FF">(</font><font color="#000000">add5</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">)  </font><font color="#000080"><i> -- 7</i></font>
+<font color="#0000FF">    ?</font><font color="#000000">addd</font><font color="#0000FF">(</font><font color="#000000">add10</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">) </font><font color="#000080"><i> -- 12</i></font>
+<font color="#0000FF">    ?</font><font color="#000000">i     </font><font color="#000080"><i> -- 55</i></font>
+<font color="#0000FF">    ?</font><font color="#000000">s     </font><font color="#000080"><i> -- "inner scope" -- (whether "adder scope" defined or not)</i></font>
+<font color="#0000FF">    ?</font><font color="#000000">ctest </font><font color="#000080"><i> -- {5,10}        -- nb assignment on declaration semantics</i></font>
+<font color="#008080">end procedure</font>
+<font color="#000000">edge_cases</font><font color="#0000FF">(</font><font color="#000000">55</font><font color="#0000FF">)</font>
+<font color="#000080"><i>--?accs -- invalid (undefined)
+--?makeAdder -- ""
+--?9/0 -- shows accs in ex.err as {7,12}, ctest as {5,10}</i></font>
+</pre>
+<!--
+         (with a couple of small
+        additions), but should make sense in it&rsquo;s own right, apart from the fact it is emulating a feature that I believe has been 
+        proven pretty conclusively Phix doesn&rsquo;t rightly need, although the scope limitation aspect <i>is</i> an obvious benefit. 
+-->
+        You could also easily have a get_running_total(adx) function, slightly messier with classic closures, since "there is only one x" 
+        or "it would create a different lexical binding to a different x", and for that reason (if no other) Phix uses the above more 
+        explicit form. Of course you could just as easily have reset/destroy/print/[un]lock procedures and suchlike, which can only be 
+        achieved for classic closures by returning multiple functions simultaneously, at which point picking one out of that is no real 
+        difference to passing an extra parameter anyway.
+<!--
+//      I am aware of a certain irony that I have put everything in a test(), to create the extra lexical scope for accs, but at least 
+        it&rsquo;s not hidden and hence potentially difficult to debug. You can of course declare accs at top-level in a separate file 
+        to achieve a similar scope, or even just not bother with that and trust that accs being more visible won&rsquo;t be an issue.
+        Note that even with that caveat, I have not had to explain why the above does not work, or offer four different ways to fix it.
+-->
+        <br>
+        <br>
+        A <code>static [identifier{,identifier}]</code> directive causes the compiler to allocate the correct number of required/named 
+        static slots, technically outside/external to test() itself, but dropped from scope/visibility at the end of the routine. 
+        You can use square, angle, or curly braces to delimit the list (of plain identifiers), or omit the braces completely, the idea
+        behind that simply being to let you choose whatever you think looks the least like code, since it ain&rsquo;t.<br>
+        In truth, a "static [id-list]" directive exists to overcome a version 1 "single pass" limitation of the compiler, and may well 
+        not be needed in version 2+ (assuming, as planned, there is by then a proper parse sub-tree that can quickly be scanned). 
+        <br>
+        <br>
+        In fact I considered making "static" optional on subsequent actual declarations, before realising it might just one day make 
+        removing the no-longer-needed id-list quietly break existing code, and also making the same optional in "single-id" cases, 
+        which is also not very beneficial long-term. Behind the scenes, even a simple "= {}" is enough to push the compiler beyond the 
+        "allocate slots" phase, which is why you (currently) need to explicitly declare such an id-list. 
+        Each slot is initially just "object", but that can and usually is overriden by the formal declaration. An error occurs at the 
+        end of a routine definition ("static not defined") should no matching formal declaration be found for any entry in the static 
+        id-list, but they do not need to be fulfilled in the same order. Likewise <code>static [fred]; static ferd = ..</code>, since
+        fred!=ferd, or a similar orphaned constant declaration, generates the error message "not specified in static directive".
+<!--
+        , and can also be declared/further constrained to within nested block scopes.
+-->
+        <br>
+        <br>
+        Shadowing a static variable, as shown for s in makeAdder() above, is currently fine on desktop/Phix, but I shall make no promises 
+        about and not even bother to test that under the current version of pwa/p2js. The plans for version 2 of Phix include merging the
+        two parsers (etc) and revisiting scope handling, in particular preserving more scope information for debugging purposes, and hence 
+        that level of detail is deferred until then. Should such shadowing cause any grief in pwa/p2js, I may simply prohibit it, which to
+        be honest I would have done immediately and without hesitation had said needed any actual work on desktop/Phix.
+        <br>
+        <br>
+        You can also define static-ids as constants, which obviously just prevents subsequent assignment/modification.
+<!--
+         at the start of a [top-level] routine, without an explicit static id list, but
+        again will need one in order to declare multiple constants, or any such at some lower block scope. The compiler should
+        give you a non-nonsense error when it realises it needed a static id list. Version 2.0.0 of Phix may or may not have a
+        quick pre-scan, but currently once the compiler has already shoved a bunch of stuff onto the end of the [sequentially 
+        allocated] symbol table it would be utter madness to try and shuffle everything down to create the missing slot. It is
+        also permitted to use "static constant", but doing so has no effect that a plain "constant" would not achieve.
+-->
+        <br>
+        <br>
+        The static id list is only valid on a top-level routine, but can be used to pre-allocate slots for nested routines.
+        <br>
+        Handling of assignment on declaration is similar to that for optional parameters, in other words effectively the same
+        as <code>if not object(accs) then accs := {} end if</code>, and likewise for constants. 
+        Should you declare a constant in addd(), such as ctest above, and of course also in test()&rsquo;s static id list, it 
+        is in scope for the whole of test(), but will not actually be assigned until that routine is first called.
+        <br>
+        <br>
+        Nested routines must be explicitly marked as such using the "nested" keyword as shown above, on both start and end lines.
+        Of course that error ("nested missing?") may also occur because you accidentally deleted/commented out some prior end
+        function/procedure/type. Speaking of the latter, nested types are not formally supported, not that I have any particular
+        deep objection, however they add very little benefit to (randomly-named) non-nested types, yet quite a few edge cases.
+        One deliberate thing is that Edita does not recognise "nested", so they do not appear in the Quick Jump (Ctrl Q) popup 
+        or routine drop-down (and it might get confused if start/end don&rsquo;t match), though I could perhaps be persuaded to 
+        add a new configuration option so they are recognised, and perhaps highlight any that are non-matching. 
+        Incidentally and in contrast, &lt;Ctrl [&gt; and &lt;Ctrl ]&gt; needed to and have been tweaked to recognise nested routines.
+        <br>
+        <br>
+        Any nested routines only have access to their own parameters and local variables, plus anything static, including such
+        statics private to the containing scope, but nothing else in the containing scope proper, such as the string s in the 
+        above example, or any parameters of the test() routine. Accessing non-static fields in the calling frame would at best 
+        be rather messy, expecially should you throw in a few indirect calls and maybe some recursion, let alone the whole closure 
+        "outer scope no longer exists" concept. In some cases you may want to make static copies of various parameters and locals 
+        before invoking a nested routine, and in other cases you may want to relay any such on as normal parameters, that is to 
+        the nested routine itself.
+        <br>
+        <br>
+        Note that a JavaScript local const is, erm, well, just about anything <i>but</i> constant, and p2js hoists local constants 
+        and statics suitably renamed into the global namespace, eg "$staticNN$accs" where NN is incremented system-wide.
+        Otherwise it does nothing special and don&rsquo;t be complaining to me should it start creating (real) closures because 
+        you insist on testing it in the browser before/without testing it on the desktop first, where you&rsquo;ll probably get 
+        a better compile-time error message, at least until desktop/Phix and pwa/p2js are [hopefully] merged in version 2.0.0.
+<!--        Since JavaScript does not -->
+        <br>
+        <br>
+        The key difference between Phix nested functions and the closures of other programming languages is, of course, 
+        <code>add5(2)</code> vs. <code>addd(add5,2)</code>: Phix wants/needs things to be a touch more explicit. <br>
+        Of course I know all those hidden/implied values are perfectly visible when something is actually called, but
+        suppose you have set up a bunch of adders and cannot figure out why 1045 is not being generated, that is quite
+        a bit harder to answer when you simply cannot see half the stuff, not that JavaScript is in particular at fault,
+        several other programming languages are significantly worse in that regard.
+       <br>
+       <br>
+        So the answer to the question &ldquo;Does Phix support closures?&rdquo; is &ldquo;Not in the traditional/implicit sense, 
+        <!--in Phix you need to be a little more explicit, by passing an extra parameter or two and explicitly storing any "captured values" 
+        in plain sight, but as a consequence grants significant extra capability, in that more than one routine can access or update the 
+        "hidden" values of a traditional closure, or even let several such "not closure" routines access several shared "captured" values. 
+        Standard file-level scope could also easily be used to restrict the visibility of any such "exposed" data to an easily manageable 
+        and clearly limited region. <br> Or, if you prefer to be blunt, just say &ldquo;Phix does not indulge in "silly little magic tricks",--> 
+        but it has a perfectly adequate and sensible way to achieve the same thing, that is often much easier to debug.&rdquo;
+        <img src="images/ksk-smile.png" alt="smile" />
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

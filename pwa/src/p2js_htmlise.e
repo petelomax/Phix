@@ -6,10 +6,17 @@
 --   (this is pretty fast, it's the ADDFORMATTAG_HANDLE operation that's slow)
 --  Used for Ctrl M (Copy as MediaWiki) and (probably) for the web version of p2js.
 --
-constant {hchars,hsubs} = columnize({{"<","&lt;"},
---                                   {">","&gt;"},
+--1/7/22:
+--constant {hchars,hsubs} = columnize({{"<","&lt;"},
+constant {hchars,hsubs} = columnize({{"&amp;","&amp;amp;"},
+                                     {"&lt;","&amp;lt;"},
+                                     {"&gt;","&amp;gt;"},
+                                     {"<","&lt;"},
                                      {">","&gt;"},
-                                     {"'\\''","<nowiki>'\\''</nowiki>"}})
+--                                   {"&","&amp;"},
+                                     {"'\\''","<nowiki>'\\''</nowiki>"},
+                                     {"{{","<nowiki>{{</nowiki>"},
+                                     {"}}","<nowiki>}}</nowiki>"}})
 --                                   {"&","&amp;"},
 --                                   {`"`,"&quot;"},
 --                                   {`'`,"&apos;"}})
@@ -41,7 +48,8 @@ end function
 global function htmlise(string hsrc, sequence hokens)
 --  string output = " "
 --  string output = "<!--<lang Phix>-->\n ", colour, prev_colour = ""
-    string output = "<!--<lang Phix>(phixonline)-->\n ", colour, prev_colour = ""
+--  string output = "<!--<lang Phix>(phixonline)-->\n ", colour, prev_colour = ""
+    string output = "<!--<syntaxhighlight lang=\"phix\">(phixonline)-->\n ", colour, prev_colour = ""
 --20/12/21:
     if match("without js",hsrc)
     or match("without javascript",hsrc)
@@ -50,7 +58,8 @@ global function htmlise(string hsrc, sequence hokens)
     or match("requires(WINDOWS)",hsrc)
     or match("requires(LINUX)",hsrc)
     or match("requires(5)",hsrc) then
-        output = "<!--<lang Phix>(notonline)-->\n "
+--      output = "<!--<lang Phix>(notonline)-->\n "
+        output = "<!--<syntaxhighlight lang=\"phix\">(notonline)-->\n "
     end if
     integer done = 0, hdx = 1
     while hdx<=length(hokens) do
@@ -126,11 +135,12 @@ global function htmlise(string hsrc, sequence hokens)
             elsif toktype<=T_yield then         -- not pwa/p2js
 --              colour = IUP_RED
                 if find(toktype,{T_try,T_catch}) then
+?9/0 -- 28/4/22 (should now be covered by T_xor, delete this to leave only the else part once confident this never triggers) [DEV]
                     colour = IUP_TEAL
                 else
                     colour = "#7060A8"
                 end if
-            elsif toktype<=T_WEB then           -- constants
+            elsif toktype<=T_YELLOW then        -- constants
                 colour = "#004600"
             else                                -- everything else
                 colour = IUP_BLACK
@@ -147,7 +157,8 @@ global function htmlise(string hsrc, sequence hokens)
         hdx += 1
     end while
 --  if done<length(hsrc) then --- we no need no stinky traily spacey!
-    output &= "\n<!--</lang>-->"
+--  output &= "\n<!--</lang>-->"
+    output &= "\n<!--</syntaxhighlight>-->"
     return output
 end function
 

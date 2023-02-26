@@ -13,7 +13,8 @@
           <b>Definition:</b>
          </td>
          <td>
-            <a href="atom.htm">atom</a> a = open_dll(<a href="sequence.htm">sequence</a> s)
+            <a href="atom.htm">atom</a> a = open_dll(<a href="sequence.htm">sequence</a> filename,
+                                                     <a href="integer.htm#bool">bool</a> bCrash=true)
          </td>
         </tr>
         <tr>
@@ -22,9 +23,18 @@
          </td>
          <td>
             Open a Windows dynamic link library (.dll) file, or a Linux shared library (.so) file. <br>
-            A base address will be returned, or 0 if the file cannot be found. <br>
-            The parameter s can be a string representing a relative or an absolute file name, or a sequence of such. <br>
+            filename: including .dll/so and relative or absolute path, or a sequence of such [or "", see Technicalia].<br>
+            bCrash: controls whether to crash (default since 1.0.2) or return 0 on failure (when false [and filename!=""])<br>
+            A base address will be returned, or 0 if the file cannot be found and bCrash is false [or filename==""]. <br>
             On Windows the normal search path is used for for locating .dll files.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+          <a href="notpgui.htm"><span class="illegal">Not supported</span></a>.
          </td>
         </tr>
         <tr>
@@ -43,19 +53,33 @@
             Phix closes the .dll or .so for you automatically at the end of execution.
           <br>
           <br>
-            A 32-bit application can only open 32-bit dll/so files, and likewise a 64-bit application
-            can only open 64-bit dll/so files. On 64-bit windows, somewhat confusingly, 64-bit dlls 
-            are typically kept in C:\Windows\System32, while 32-bit dlls are stored in C:\Windows\SysWOW64.
-            They can also just be kept in the application directory, and sometimes in Phix\builtins, and
-            in the case of <a href="pGUI.htm">pGUI</a> the windows dlls are kept in demo\pGUI\win32 and win64 directories.
+            A 32-bit application can only open 32-bit dll/so files, and likewise a 64-bit application can only open 64-bit dll/so files. 
+            On 64-bit windows, somewhat confusingly, 64-bit dlls are typically kept in C:\Windows\System32, while 32-bit dlls are stored 
+            in C:\Windows\SysWOW64. They can also just be kept in the application directory, and sometimes in Phix\builtins, and in the 
+            case of <a href="pGUI.htm">pGUI</a> the windows dlls are kept in demo\pGUI\win32 and demo\pGUI\win64 directories.
           <br>
           <br>
-            On windows, it is useful, but not mandatory, to explicitly identify .dll files with a bit size,
-            eg libcurl32.dll and/or libcurl64.dll, or even say libcurl-7.57.0-32.dll. For standalone dlls,
-            such renaming is usually fine, however it may prevent inter-dependent dlls from loading.<br>
-            On linux, .so files are typically built/installed by a package manager or script, and it is 
-            generally unwise to attempt similar renaming tricks manually (or worry about where they were
-            installed).
+            On windows you may see .dll files explicitly identifed with the version and/or machine word size, eg libcurl32.dll and/or 
+            libcurl64.dll, or even libcurl-7.57.0-32.dll. For standalone dlls you may be able to perform a similar renaming yourself,
+            however it may prevent inter-dependent dlls from loading, and therefore (say) \32\libcurl.dll and|or \64\libcurl.dll and
+            perhaps specific version identifiers in the path is recommended instead.<br>
+            On linux, .so files are typically built/installed by a package manager or script, and it is generally unwise to attempt 
+            similar renaming tricks manually (or worry about where they were installed).
+          <br>
+          <br>
+            Note that, especially on Windows, a relative or absolute path in the filename is <i>not</i> transferred to the opening of 
+            any dependent dlls, for instance there are about 20 heavily co-dependent windows gtk dlls. 
+            In such cases it is necessary to (temporarily) <a href="chdir.htm">chdir</a>() to the correct directory rather than 
+            specify that in the filename, and usually restore the current directory once the dlls have been successfully opened. 
+            Another example is that mpfr(32|64).dll depends on mpir(32|64).dll - you might (were mpfr.e not handling all this for you 
+            anyway) get away with opening mpir first, but you might not, it all depends on the build/link options used when they were 
+            originally compiled, and of course that might change (without your consent) between different release versions. 
+            One way round that has been in legacy programs to chuck things in C:\Windows(\System32|\SysWOW64), but that can mean 
+            installing one program breaks another, so avoid doing that if you can, and keep them in app-specific or versioned and 
+            quite possibly/often separate 32|64 directories instead. Of course there is no harm in several apps sharing a common dll
+            storage space, for instance ...\libcurl-7.57.0\64\libcurl.dll, and in an ideal world you would (at install) create that 
+            if it does not already exist, but otherwise carefully byte-check and raise the alarm if there is any discrepancy, since
+            that might help catch corrupt downloads and/or malware infected files.
          </td>
         </tr>
         <tr>
@@ -64,17 +88,25 @@
          </td>
          <td>
 <!--eucode>
-atom user32 = open_dll("user32.dll")
+atom knl32 = open_dll("kernel32.dll") -- crash on failure
+--if knl32=0 then crash(...) end if -- (no longer helpful)
+atom user32 = open_dll("user32.dll",false) -- don't crash (legacy mode)
 if user32=0 then
     puts(1, "Could not open user32.dll!\n")
 end if
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#004080">atom</font><font color="#000000"> user32</font><font color="#0000FF"> =</font><font color="#7060A8"> open_dll</font><font color="#0000FF">(</font><font color="#008000">"user32.dll"</font><font color="#0000FF">)
-</font><font color="#008080">if</font><font color="#000000"> user32</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#008080"> then
-</font><font color="#7060A8">    puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000"> "Could not open user32.dll!\n"</font><font color="#0000FF">)
-</font><font color="#008080">end if</font>
+<font color="#004080">atom</font><font color="#000000"> knl32</font><font color="#0000FF"> =</font><font color="#7060A8"> open_dll</font><font color="#0000FF">(</font><font color="#008000">"kernel32.dll"</font><font color="#0000FF">)</font><font color="#000080"><i> -- crash on failure
+--if knl32=0 then crash(...) end if -- (no longer helpful)</i></font>
+<font color="#004080">atom</font><font color="#000000"> user32</font><font color="#0000FF"> =</font><font color="#7060A8"> open_dll</font><font color="#0000FF">(</font><font color="#008000">"user32.dll"</font><font color="#0000FF">,</font><font color="#004600">false</font><font color="#0000FF">)</font><font color="#000080"><i> -- don't crash (legacy mode)</i></font>
+<font color="#008080">if</font><font color="#000000"> user32</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#008080"> then</font>
+<font color="#7060A8">    puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000"> "Could not open user32.dll!\n"</font><font color="#0000FF">)</font>
+<font color="#008080">end if</font>
 </pre>
+          Pre-1.0.2 code should add the ",false" if it performs any checking such as that "if user32=0 then" above, and/or tries
+          in several different directories, and as shown some now pointless [esp basic/crude] error handling can be removed.<br>
+          Legacy "link_c_func()" style routines, whose only purpose was to crash on failure, can now safely be removed, as long
+          as said message was not more helpful, for instance pEmit2.e reports the error on user code rather than in itself.
          </td>
         </tr>
         <tr>
@@ -106,11 +138,14 @@ end if
          </td>
          <td>
             On Linux (unlike Windows), should define_c_func/proc be passed 0/NULL for the library, it automatically searches all open shared libraries.<br>
-            Some legacy code contains open_dll(""), which is quite obviously utterly pointless (it just returns 0/NULL). <br>
+            Some legacy code contains open_dll(""), which is quite obviously utterly pointless (it just returns 0/NULL), and only ever worked on Linux, 
+            however compatibility with that behaviour has been maintained.<br>
+            With the 1.0.2 changes [bCrash added], I also decided to drop "support" for (eg) open_dll({'u','s','e','r','3','2','.','d','l','l'}), but
+            the previous [left in as comments] code can trivially be restored [by anyone] should that cause any unnecessary grief.<br>
             You should also note that p (as in the Linux version of p.exe) depends on libc and libdl (you can check that using demo/pGUI/filedump.exw), 
             whereas Euphoria&rsquo;s eui also relies on libm, and hence you may find some old Euphoria code, which uses that "trick" to declare libm 
             functions, will not work on Phix - and of course that can normally be rectified simply by replacing <code>libm = open_dll("")</code> 
-            with/adding <code>libm = open_dll("libm.so")</code>.
+            by/with or adding <code>libm = open_dll("libm.so")</code>.
          </td>
         </tr>
        </table>

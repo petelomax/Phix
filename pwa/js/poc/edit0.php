@@ -1,12 +1,11 @@
  <?php
- if(isset($_POST['bt_submit']))
- {
- $file = "try_it.php";
- $fp = fopen($file, 'w');
- $content = $_POST['txt_data'];
- fwrite($fp, $content);
-  fclose($fp);
-  }
+ if (isset($_POST['bt_submit'])) {
+   $file = "try_it.php";
+   $fp = fopen($file, 'w');
+   $content = $_POST['txt_data'];
+   fwrite($fp, $content);
+   fclose($fp);
+ }
  ?>
 <html>
  <head>
@@ -27,7 +26,7 @@ function data_submit() { document.form1.txt_data.value = document.form1.txt_html
         <input type="text"  name="txt_data" value="" style="visibility:hidden;" />
          <textarea rows="35" width="90px" height="550px" cols="77" name="txt_html">
 <?php
- if(isset($_POST['bt_submit'])) {
+ if (isset($_POST['bt_submit'])) {
    echo trim($content);
  } else {
    echo "<html>\n";

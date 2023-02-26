@@ -259,8 +259,10 @@ function $sq_unary(/*object*/ a, /*integer*/ fn, /*bool*/ recursive=true) {
 /*global*/ function sq_div(/*object*/ a, b) { return $sq_general(a,b,0X2F); }
 
 /*global*/ function sq_floor_div(/*object*/ a, b) { return $sq_general(a,b,0X66); }
-
+//4/11/22 now properly aliased in psym.e, and in a way understood by p2js
+//global function sq_remainder(object a, b) return $sq_general(a,b,'r') end function
 /*global*/ function sq_rmdr(/*object*/ a, b) { return $sq_general(a,b,0X72); }
+let sq_remainder = sq_rmdr;
 //global function sq_remainder(object a, b) return $sq_general(a,b,'r') end function -- achieved via psym.e/syminit()
 /*global*/ function sq_mod(/*object*/ a, b) { return $sq_general(a,b,0X6D); }
 
@@ -316,6 +318,8 @@ function $sq_unary(/*object*/ a, /*integer*/ fn, /*bool*/ recursive=true) {
 /*global*/ function sq_arcsin(/*object*/ a) { return $sq_unary(a,0X52); }
 
 /*global*/ function sq_arctan(/*object*/ a) { return $sq_unary(a,0X55); }
+
+/*global*/ function $sq_ln(/*object*/ a) { return $sq_unary(a,0X6C); }
 
 /*global*/ function sq_log(/*object*/ a) { return $sq_unary(a,0X6C); }
 

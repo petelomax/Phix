@@ -25,9 +25,9 @@
 //      to trim_head() or trim_tail() returns it unaltered, and it is rather doubtful 
 //      that subsequently treating that -1 as an index will work out at all well...
 //
-
-//global function trim(object source, object what=" \t\r\n", bool return_index=false)
-/*global*/ function trim(/*object*/ source, /*object*/ what=["sequence",0X20,0X9,0XD,0XA], /*bool*/ return_index=false) {
+/*without debug*/
+/*global*/ function trim(/*object*/ source, /*object*/ what=" \t\r\n", /*bool*/ return_index=false) {
+//global function trim(object source, object what={' ','\t','\r','\n'}, bool return_index=false)
     if (sequence(source)) {
         let /*integer*/ lpos = 1, 
                         rpos = length(source);
@@ -47,8 +47,9 @@
     }
     return source;
 }
-//global function trim_head(object source, object what=" \t\r\n", bool return_index=false)
-/*global*/ function trim_head(/*object*/ source, /*object*/ what=["sequence",0X20,0X9,0XD,0XA], /*bool*/ return_index=false) {
+
+/*global*/ function trim_head(/*object*/ source, /*object*/ what=" \t\r\n", /*bool*/ return_index=false) {
+//global function trim_head(object source, object what={' ','\t','\r','\n'}, bool return_index=false)
     if (sequence(source)) {
         let /*sequence*/ s = trim(source,what,true);
         let /*integer*/ lpos = $subse(s,1);
@@ -60,8 +61,9 @@
     }
     return source;
 }
-//global function trim_tail(object source, object what=" \t\r\n", bool return_index=false)
-/*global*/ function trim_tail(/*object*/ source, /*object*/ what=["sequence",0X20,0X9,0XD,0XA], /*bool*/ return_index=false) {
+
+/*global*/ function trim_tail(/*object*/ source, /*object*/ what=" \t\r\n", /*bool*/ return_index=false) {
+//global function trim_tail(object source, object what={' ','\t','\r','\n'}, bool return_index=false)
     if (sequence(source)) {
         let /*sequence*/ s = trim(source,what,true);
         let /*integer*/ [,lpos,rpos] = s;
@@ -76,7 +78,7 @@
     return source;
 }
 
-/*global*/ function shorten(/*sequence*/ s, /*string*/ what="digits", /*integer*/ ml=20) {
+/*global*/ function shorten(/*sequence*/ s, /*string*/ what="digits", /*integer*/ ml=20, /*string*/ fmt="") {
     let /*integer*/ l = length(s), 
 //PL 17/2/22: could find no reason not to, so undone (p2js*2).
 //            [maybe I've since fixed $repss() or sq_eq()?]
@@ -93,13 +95,26 @@
     let /*string*/ ls = ((length(what)) ? sprintf(" (%,d %s)",["sequence",l-c,what]) : "");
     if (compare(l,ml*2+((string(s)) ? 3+length(ls) : 2))>0) {
         if (string(s)) {
+            assert(fmt==="");
             s = $repss(s,ml+1,-ml-1,"...");
-            if (length(ls)) { s = $conCat(s, ls); }
+            if (length(ls)) { s = $conCat(s, ls, false); }
         } else {
 //p2js:
-            s = $repss(s,ml+1,-ml-1,["sequence","..."]);
-//          s = s[1..ml] & {"..."} & s[-ml..-1]
+//          s[ml+1..-ml-1] = {"..."}
+            s = $conCat($conCat($subss(s,1,ml), ["sequence","..."]), $subss(s,-ml,-1));
+            if (fmt!=="") {
+                for (let i=1, i$lim=ml; i<=i$lim; i+=1) {
+                    s = $repe(s,i,sprintf(fmt,["sequence",$subse(s,i)]));
+                    s = $repe(s,-i,sprintf(fmt,["sequence",$subse(s,-i)]));
+                }
+            }
             if (length(ls)) { s = append(s,ls); }
+        }
+    } else if (fmt!=="") {
+        assert(!string(s));
+        s = deep_copy(s);
+        for (let i=1, i$lim=length(s); i<=i$lim; i+=1) {
+            s = $repe(s,i,sprintf(fmt,["sequence",$subse(s,i)]));
         }
     }
     return s;

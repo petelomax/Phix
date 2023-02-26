@@ -13,7 +13,7 @@
           <b>Definition:</b>
          </td>
          <td>
-          progress(<a href="string.htm">string</a> msg, <a href="object.htm">object</a> args={})
+          progress(<a href="string.htm">string</a> msg="", <a href="object.htm">object</a> args={})
          </td>
         </tr>
         <tr>
@@ -29,8 +29,11 @@
           <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
          </td>
          <td>
-          <a href="notp2js.htm">Not supported</a>. The browser will not update the display while JavaScript is still running, so
-          all updates would be delayed until the program had finished, making this kind of approach worthless.
+          <a href="notpgui.htm"><span class="illegal">Does nothing</span></a>(ish). The browser does not update the display 
+          while JavaScript is still running (and it is quite adamant about that), hence all updates would be delayed until 
+          the program had finished, making this kind of approach worthless. However, rather than force you to put an
+          "if platform()!=JS then" around every call, the (fake-ish) version in p2js.js simply does nothing, unless the 
+          last character of msg is '\n' (see examples below), in which case it behaves as/invokes printf(1,msg,args).
          </td>
         </tr>
         <tr>
@@ -39,29 +42,33 @@
          </td>
          <td>
             For gui apps (including the browser) see (eg) <a href="IupProgressBar.htm">IupProgressBar</a>() or 
-            <a href="IupGauge.htm">IupGauge</a>(), or just use an <a href="IupLabel.htm">IupLabel</a>() or even (my fave) 
-            <a href="IupSetStrAttribute.htm">IupSetStrAttribute</a>(dlg,"TITLE",msg).<br>
-            <small>[See demo\rosetta\VoronoiDiagram.exw for a good (and interruptable) example of the latter, just maximise the window and/or 
-            press '+' a few times to see it in action.]</small>
+            <a href="IupGauge.htm">IupGauge</a>(), or just use an <a href="IupLabel.htm">IupLabel</a>() or even (my personal
+            pet favourite) <a href="IupSetStrAttribute.htm">IupSetStrAttribute</a>(dlg,"TITLE",msg).<br>
+            <small>[See demo\rosetta\VoronoiDiagram.exw for a good (and interruptable) example of the latter, just maximise 
+            the window and/or press '+' a few times to see it in action.]</small>
             <br>
             <br>
             Display (eg) 1%, 2%, ... 100% on the console while working, overwriting each time, and clearing it away once done.
             <br>
             <br>
             If args is not {} then <code>msg = <a href="sprintf.htm">sprintf</a>(msg,args)</code> is performed automatically for you.<br>
-            Obviously, to display "1%".."100%" when args is not {}, you&rsquo;ll need "%%", or better yet "%d%%".
+            Obviously, to display "1%".."100%" when args is not {}, you would need "%%", or better yet "%d%%".
             <br>
             <br>
             Note a '\r' at the end of msg is critical to overwriting/clearing output, one will be provided if required, but '\n'
-            at the end (and mid-msg) will prevent overwriting.
+            at the end (and mid-msg) prevents (future) overwriting.
             <br>
             <br>
-            A final <code>progress("")</code> should be performed to clean up the display.
+            A final <code>progress("")</code> should be performed to clean up the display (the "" is now optional), or, as in 
+            the examples below, a <code>progress(""); puts/printf(1,m);</code> pair can be combined into one progress() call, 
+            as long as that m ends with a '\n'. That cleans up the display, by overwriting it with the minimum number of spaces
+            (a previously saved length) and then a \r to put the cursor back in column 1, before displaying that m as normal.
             <br>
             <br>
             If used correctly, adds progress messages to a console app, but does not change the final output.<br>
-            Correct use requires the cursor be on a blank line in column 1 while displaying progress messages,<br>
-            or that line be completely redrawn after progress("") [which w/could make using this a bit pointless].
+            Correct use requires the cursor be on a blank line in column 1 while displaying progress messages.
+            <!--,<br> (PL: no longer have any real idea what I might (/could possibly) have meant by this....)
+            or that line be completely redrawn after progress("") [which w/could make using this a bit pointless].-->
          </td>
         </tr>
         <tr>
@@ -78,8 +85,9 @@ for i=N to 0 by -1 do
     progress("Working... (%d%%)\r",{(i/N)*100})
     sleep(0.1+(i=N or i=0)) -- (1.1 first/last, 0.1 rest)
 end for
-progress("") -- (clears away the last one)
-puts(1,"\ndone\n")
+--progress("") -- (clears away the last one)
+--puts(1,"\ndone\n")
+progress("\ndone\n") -- equivalent to above two lines
 {} = wait_key()
 </eucode-->
 <pre>
@@ -88,12 +96,13 @@ puts(1,"\ndone\n")
 <font color="#008080">for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">N</font><font color="#008080"> to</font><font color="#000000"> 0</font><font color="#008080"> by</font><font color="#0000FF"> -</font><font color="#000000">1</font><font color="#008080"> do</font>
 <font color="#000080"><i>    -- (by -1 to test that trailing "))" does NOT appear,
     --  that is, when a message is shorter than previous)</i></font>
-<font color="#5E005E">    progress</font><font color="#0000FF">(</font><font color="#008000">"Working... (%d%%)\r"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#800080">(</font><font color="#000000">i</font><font color="#0000FF">/</font><font color="#000000">N</font><font color="#800080">)</font><font color="#0000FF">*</font><font color="#000000">100</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#7060A8">    progress</font><font color="#0000FF">(</font><font color="#008000">"Working... (%d%%)\r"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#800080">(</font><font color="#000000">i</font><font color="#0000FF">/</font><font color="#000000">N</font><font color="#800080">)</font><font color="#0000FF">*</font><font color="#000000">100</font><font color="#800000">}</font><font color="#0000FF">)</font>
 <font color="#7060A8">    sleep</font><font color="#0000FF">(</font><font color="#000000">0.1</font><font color="#0000FF">+</font><font color="#800000">(</font><font color="#000000">i</font><font color="#0000FF">=</font><font color="#000000">N</font><font color="#008080"> or</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#800000">)</font><font color="#0000FF">)</font><font color="#000080"><i> -- (1.1 first/last, 0.1 rest)</i></font>
 <font color="#008080">end for</font>
-<font color="#5E005E">progress</font><font color="#0000FF">(</font><font color="#008000">""</font><font color="#0000FF">)</font><font color="#000080"><i> -- (clears away the last one)</i></font>
-<font color="#7060A8">puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"\ndone\n"</font><font color="#0000FF">)
-{} =</font><font color="#7060A8"> wait_key</font><font color="#0000FF">()</font>
+<font color="#000080"><i>--progress("") -- (clears away the last one)
+--puts(1,"\ndone\n")</i></font>
+<font color="#7060A8">progress</font><font color="#0000FF">(</font><font color="#008000">"\ndone\n"</font><font color="#0000FF">)</font><font color="#000080"><i> -- equivalent to above two lines</i></font>
+<font color="#0000FF">{} =</font><font color="#7060A8"> wait_key</font><font color="#0000FF">()</font>
 </pre>
             <br>
             <small>The parenthesis around (i/N) is strictly speaking unnecessary, but reinforces intent.</small>
@@ -114,8 +123,9 @@ for i=1 to 10 do
     end if
     sleep(0.4)
 end for
-progress("") -- (clears away the last one)
-puts(1,"\ndone\n")
+--progress("") -- (clears away the last one)
+--puts(1,"\ndone\n")
+progress("\ndone\n") -- equivalent to above two lines
 {} = wait_key()
 </eucode-->
 <pre>
@@ -123,18 +133,20 @@ puts(1,"\ndone\n")
 <font color="#004080">atom</font><font color="#000000"> t1</font><font color="#0000FF"> =</font><font color="#7060A8"> time</font><font color="#0000FF">()+</font><font color="#000000">1</font>
 <font color="#008080">for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#000000"> 10</font><font color="#008080"> do
     if</font><font color="#7060A8"> time</font><font color="#0000FF">()&gt;</font><font color="#000000">t1</font><font color="#008080"> then</font>
-<font color="#5E005E">        progress</font><font color="#0000FF">(</font><font color="#008000">"Working... (%s of ten)\r"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#5E005E">ordinal</font><font color="#800080">(</font><font color="#000000">i</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#7060A8">        progress</font><font color="#0000FF">(</font><font color="#008000">"Working... (%s of ten)\r"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#7060A8">ordinal</font><font color="#800080">(</font><font color="#000000">i</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">)</font>
 <font color="#000000">        t1</font><font color="#0000FF"> =</font><font color="#7060A8"> time</font><font color="#0000FF">()+</font><font color="#000000">1</font>
 <font color="#008080">    end if</font>
 <font color="#7060A8">    sleep</font><font color="#0000FF">(</font><font color="#000000">0.4</font><font color="#0000FF">)</font>
 <font color="#008080">end for</font>
-<font color="#5E005E">progress</font><font color="#0000FF">(</font><font color="#008000">""</font><font color="#0000FF">)</font><font color="#000080"><i> -- (clears away the last one)</i></font>
-<font color="#7060A8">puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"\ndone\n"</font><font color="#0000FF">)
-{} =</font><font color="#7060A8"> wait_key</font><font color="#0000FF">()</font>
+<font color="#000080"><i>--progress("") -- (clears away the last one)
+--puts(1,"\ndone\n")</i></font>
+<font color="#7060A8">progress</font><font color="#0000FF">(</font><font color="#008000">"\ndone\n"</font><font color="#0000FF">)</font><font color="#000080"><i> -- equivalent to above two lines</i></font>
+<font color="#0000FF">{} =</font><font color="#7060A8"> wait_key</font><font color="#0000FF">()</font>
 </pre>
             <br>
-            <small>Obviously this avoids unnecessary displays during fast phases.</small><br>
-            <small>aside: only i=1 has time()-t1 of 0, i=5 and i=8 have time()-t1 of 0.4, hence it shows 4th/7th/10th rather than 4th/8th[/12th].</small><br>
+            <small>Obviously the time()>t1 avoids unnecessary displays and is certainly noticeably faster than calling progress() thousands of times a second.</small><br>
+            <small>Providing you have that kind of rate limiting in place for any messages, even a long-running program should be slowed down by less than 0.01s.</small><br>
+            <small>aside: ?{i,time()-t1} would show {{1,-1},{2|5|8,-.6},{3|6|9,-.2},{4|7|10,+.2(show/reset)}}, hence it shows 4th/7th/10th (and not 4th/8th[/12th]).</small><br>
          </td>
         </tr>
         <tr>

@@ -11,11 +11,12 @@
         Again, this is of no particular help to anyone actually using pwa/p2js.
         <br>
         <br>
-        There may be some subtle implications of using these routines from an imperative mindset (as
-        opposed to say a prototype or object orientated mindset) that may be clearer here than elsewhere,
-        plus there may be for instance optional parameters and the like that pwa/p2js does not use and/or
-        specifically advises against. Lastly, by only documenting those fields and methods actually used, 
-        they should be a tad easier to locate, and hopefully impose significantly less cognitive overload.
+        There may be some subtle implications of using these routines from an imperative mindset (as opposed to 
+        say a prototype or object orientated mindset) that may be clearer here than elsewhere, plus there may be 
+        for instance optional parameters and the like (of the javascript builtin functions listed below) that 
+        pwa/p2js does not use and/or specifically advises against. Lastly, by only documenting those fields and 
+        methods actually used, they should be a tad easier to locate, and hopefully impose significantly less 
+        cognitive overload.
         <br>
         <br>
         Apart from an initial trawl, entries are likely to be added on an ad-hoc basis, as I realise it is
@@ -36,36 +37,39 @@
         for the sort of code that pwa/p2js.exw spits out.
         <br>
         <br>
-        Transpilation is largely a mechanical process of mapping between language syntax and compatible 
-        features, for example <br>
+        Transpilation is largely a mechanical process of <a href="mappings.htm">mapping</a> between language 
+        syntax and compatible features, for example <br>
         "procedure p() end procedure" &lt;==&gt; "function p() { }" with no return statement.
         <br>
         <br>
-        Javascript is a typeless language, however I would prefer to keep the output legible so have opted 
-        for eg "integer i" &lt;==&gt; "let /*integer*/ i;".
+        Javascript is a <i>typeless</i> language, however to keep the output legible/reversible I have opted for 
+        eg "integer i" &lt;==&gt; "let /*integer*/ i;".
         <br>
         <br>
         Phix sequences are actually a much closer match to JavaScript Arrays than Objects, so we use []
         syntax rather than {}. <br>
         Phix sequences are 1-based, whereas Javascript Arrays are (loosely) 0-based, so we use eg 
         `{1,2,3}` &lt;==&gt; `["sequence",1,2,3]`.
-        <br>
-        <br>
-        JavaScript strings are immutable (and 0-based), and JavaScript has no concept of a character, so
-        we have eg `s[i]` &lt;==&gt; `s.codePointAt(i-1)` and such monstrosities as "s[i] = 'A'" &lt;==&gt; 
-        `s.splice(i-1,i,String.fromCodePoint(65))`. Note that for this to work you may need to be more
-        explicit with the string type, eg "initial = table[i][NAME][1]" won&rsquo;t work and instead you
-        will need to code "string name = table[i][NAME]; initial = name[1]". Obviously you can store and
-        retrieve strings deep inside other structures, but any manipulation, subscripting, slicing, and even
-        perhaps concatenating, should be performed on a plain string variable, like that 'name' above.
-        <br>
-        <br>
-        Phix is a reference counted language with copy-on-write semantics, which poses some problems as
-        JavaScript is absolutely anything but that. So sequence a = b may have to perform a deep copy, but 
-        since that can be expensive it should scan the AST (abstract syntax tree) to see if it can be avoided
-        - obviously if it is not being modified, but also if it is reassigned when the function returns. 
-        I toyed with a = ...b before realising the spread operator only does a shallow copy, so now it uses 
-        a = deep_copy(b);
+<!--
+//      <br>
+//      <br>
+//      Out of date, see $repe(), $repss(), $subse(), and $subss(), below.<br>
+//      JavaScript strings are immutable (and 0-based), and JavaScript has no concept of a character, so
+//      we have eg `s[i]` &lt;==&gt; `s.codePointAt(i-1)` and such monstrosities as "s[i] = 'A'" &lt;==&gt; 
+//      `s.splice(i-1,i,String.fromCodePoint(0X41))`. Note that for this to work you may need to be more
+//      explicit with the string type, eg "initial = table[i][NAME][1]" won&rsquo;t work and instead you
+//      will need to code "string name = table[i][NAME]; initial = name[1]". Obviously you can store and
+//      retrieve strings deep inside other structures, but any manipulation, subscripting, slicing, and even
+//      perhaps concatenating, should be performed on a plain string variable, like that 'name' above.
+//      <br>
+//      <br>
+//      Phix is a reference counted language with copy-on-write semantics, which poses some problems as
+//      JavaScript is absolutely anything but that. So sequence a = b may have to perform a deep copy, but 
+//      since that can be expensive it should scan the AST (abstract syntax tree) to see if it can be avoided
+//      - obviously if it is not being modified, but also if it is reassigned when the function returns. 
+//      I toyed with a = ...b before realising the spread operator only does a shallow copy, so now it uses 
+//      a = deep_copy(b);
+-->
         <br>
         <br>
         Obviously, p2js.js and pGUI.js should only expose identifiers that would normally be considered
@@ -137,7 +141,8 @@ initValidation.validate( "hello" );
          <div>
             Self explanatory: create a real Array from something array-like, such as a NodeList. Note that Array.from(string)
             produces lots of diddy-strings whereas $charArray (see below) produces the array of codePointAt I was expecting, 
-            and eg both compare() and equal() use that internally, when one argument is a string and the other is an Array.
+            and eg both compare() and equal() use that internally, when one argument is a string and the other is an Array.<br>
+            There is also a <a href="forin.htm">from</a> pseudo-keyword on a for in statement, were you looking for that.
          </div>
         </div>
         <br>
@@ -964,7 +969,8 @@ toLowerCase
          </div>
          <div>
             The element that was clicked. See also event.currentTarget.<br>
-            event.srcElement was the name used for this in IE6-8 and should be replaced without hesitation.
+            event.<span class="illegal">srcElement</span> was the name used for this in IE6-8 and should be replaced without hesitation
+            (ie changed to <i>event</i>.target).
          </div>
         </div>
         <div style="clear:both;height:1px;"> </div>
@@ -983,7 +989,7 @@ toLowerCase
          </div>
          <div>
             Technically a prefix operator, it is used as a function in p2js/pGUI.js. Valid results are "string",
-            "number", "undefined", "boolean", and "object". Note the latter is returned for arrays...
+            "number", "undefined", "boolean", "function", and "object". Note the latter is returned for arrays...
          </div>
         </div>
         <br>
@@ -1116,11 +1122,19 @@ toLowerCase
 -->
          <tr>
             <td>
+             <a name=conCat></a>
              $conCat()
             </td>
             <td>
               Replacement for the & operator of Phix, which internally uses += for strings and array.concat(slice) for sequences.<br>
-              Will be emitted in generated code.
+              Will be emitted in generated code. Note that since JavaScript does not have reference counts, you have / p2js_emit has
+              to explicitly distinguish <code>s = $conCat(s,x,false)</code> [ie do not clone] from <code>s = $conCat(t,x[,true])</code> 
+              [ie must clone t and that way leave the original undamaged]. Also note that, due to ref counts, desktop/Phix knows when, 
+              in something like <code>s = [tmp57:=]&lt;expr&gt; & x</code> aka <code>s = $conCat([tmp57:=]&lt;expr&gt;,x)</code> it 
+              <i>can</i> safely (re)use the hidden/unnamed tmp57, whereas JavaScript (and for the most part p2js) cannot, hence should
+              you rework code to have more <code><i>&lt;var&gt;</i> = $conCat(<i>&lt;var&gt;</i>,..</code> then there will be fewer 
+              (hidden/unnamed temps and as a direct consequence) unnecessary clones, and therefore more speed. 
+              Of course more <code><i>&lt;var&gt;</i> &= ..</code> is/achieves the very same thing.
             </td>
          </tr>
 <!-- (now deep_copy())

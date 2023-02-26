@@ -203,6 +203,9 @@ procedure cdent(string comment, integer nodetype, line, col)
     end if
 end procedure
 
+sequence static_tids = {}, static_names
+integer next_static_id = 1
+
 function ident(sequence tok)
     if find(tok[TOKTYPE],{LETTER,DIGIT,HEXSTR}) then
         integer {?,tokstart,tokfinish} = tok
@@ -215,7 +218,28 @@ function get_name(sequence tok)
     integer {toktype, tokstart, tokfinish, line} = tok
     tokline = line
     string res = src[tokstart..tokfinish]
+    if toktype=LETTER then
+        integer sdx = find(tok[TOKTTIDX],static_tids)
+        if sdx then
+            if oneline = `    const `
+            or oneline = `        const ` then
+--              oneline = `    /*constant*/ `
+                ?9/0 -- (caller must do "if (!x) { x = expr; }", via get_static(), instead)
+            end if
+            res = static_names[sdx]
+        end if
+    end if
 --  if res="$" then res = "-1" end if
+    return res
+end function
+
+function get_static(sequence tok)
+    assert(tok[TOKTYPE]=LETTER)
+    tokline = tok[TOKLINE]
+    integer sdx = find(tok[TOKTTIDX],static_tids)
+--if sdx=0 then string name = get_ttname(tok[TOKTTIDX]) end if  -- (for debug only)
+--if sdx=0 then dump_scopes() end if    -- (for debug only)[???]
+    string res = static_names[sdx]
     return res
 end function
 
@@ -266,7 +290,7 @@ function equable(sequence expr)
         if find(toktype,{DIGIT,'\'','"','#','-',T_not}) then return true end if
         if toktype=LETTER then
             integer ttidx = expr[TOKTTIDX]
-            if ttidx<=T_WEB then
+            if ttidx<=T_YELLOW then
                 toktype = T_toktypes[find(ttidx,T_reserved)]
                 if find(toktype,{TYPI,TYP2,TYPN,TYPS}) then
 --DEV have not actually found any needed yet, some/all of these may need to go under "PROC"..
@@ -296,7 +320,7 @@ function comparable(sequence expr)
         if find(toktype,{DIGIT,'\'','"','#','-',T_not}) then return true end if
         if toktype=LETTER then
             integer ttidx = expr[TOKTTIDX]
-            toktype = iff(ttidx<=T_WEB?T_toktypes[find(ttidx,T_reserved)]:expr[TOKALTYPE])
+            toktype = iff(ttidx<=T_YELLOW?T_toktypes[find(ttidx,T_reserved)]:expr[TOKALTYPE])
             if find(toktype,{TYPI,TYP2,TYPN,TYPS}) then return true end if
         end if
     end if
@@ -308,8 +332,9 @@ end function
 function emit_expr(sequence expr, integer p, pandtype=0)
 --trace(1)
 --  if p=PANDO then p += 1 end if
-    string res
-    object nodetype = expr[1]
+    string res, op, rhs
+--  object nodetype = expr[1]
+    object nodetype = expr[TOKTYPE]
 --if nodetype=LSH then trace(1) end if
     if integer(nodetype) then
         if nodetype=DIGIT
@@ -345,6 +370,9 @@ function emit_expr(sequence expr, integer p, pandtype=0)
                         res = "NULL" -- not "null"
                     elsif find(ttidx,{T_TRUE,T_True,T_FALSE,T_False}) then
                         res = lower(res)
+                    else
+                        integer sdx = find(ttidx,static_tids)
+                        if sdx then res = static_names[sdx] end if
                     end if
                 end if
 --          end if
@@ -576,7 +604,7 @@ expr = deep_copy(expr)
                 res = emit_expr(expr[2][1],thisp,nodetype)
                 if find(nodetype,{'-','+',T_not})
                 and length(expr[2])=1 then
-                    string op = tok_name(nodetype)
+                    op = tok_name(nodetype)
                     if nodetype=T_not then
                         if is_phix() then
                             op &= " "
@@ -606,8 +634,8 @@ expr = deep_copy(expr)
                             nodetype = iff(is_js()?EEE:EEQ)
                         end if
                     end if
-                    string op = iff(thisp=PANDO?xlsp(nodetype):tok_name(nodetype)),
-                           rhs = emit_expr(expr[2][2],thisp)
+                    op = iff(thisp=PANDO?xlsp(nodetype):tok_name(nodetype))
+                    rhs = emit_expr(expr[2][2],thisp)
                     if wasext=PHIX
                     and (op="===" or op="!==")
                     and (not equable(expr[2][1]) or
@@ -627,6 +655,18 @@ expr = deep_copy(expr)
                         else
                             res = res & "*power(2," & rhs & ")"
                         end if
+--3/5/22:
+                    elsif wasext=PHIX
+                      and is_js()
+                      and op=">>" then
+--                      if res!="0" then
+                            res = res & "/power(2," & rhs & ")"
+--                      end if
+--13/5/22:
+                    elsif wasext=PHIX
+                      and is_js()
+                      and find(op,{"&&","||"}) then
+                        res = iff(op="&&"?"and":"or") & "_bits(" & res & "," & rhs & ")"
                     else
                         res = res & op & rhs
                     end if
@@ -664,6 +704,8 @@ end if
             and find(fname,{"min","max"}) then
                 fname &= "sq"
             end if
+--26/3/22
+if fname=`~` then fname = "length" end if
 --          integer fttidx = iff(expr[1][TOKTYPE]=LETTER?expr[1][TOKTTIDX]:0)
 --          if find(fname,{"iff","iif"}) and not is_phix() then
             if find(fttidx,{T_iff,T_iif}) and not is_phix() then
@@ -1075,8 +1117,9 @@ constant {ibctypes,ibtypes} = columnize({{"/*atom*/","atom"},
 --                                       {"/*Ihandle*/","Ihandle"},
 --                                       {"/*Ihandln*/","Ihandln"}})
 
-procedure emit(sequence nodes, integer indent=0)
+procedure emit(sequence nodes, integer indent=0, bool bNested=false)
     integer toktype, tokstart, tokfinish, line, col, wastokline
+--  bool bNested = false
     for i=1 to length(nodes) do
         sequence node = nodes[i]
         object nodetype = node[1]
@@ -1106,6 +1149,7 @@ procedure emit(sequence nodes, integer indent=0)
                 cdent(cmt,nodetype,line,col)
 
             elsif nodetype=T_global
+               or nodetype=T_local
                or nodetype=T_forward then
 
 --trace(1)
@@ -1189,6 +1233,7 @@ procedure emit(sequence nodes, integer indent=0)
 
                 sequence ctrl,lim,step,block
                 bool bPreDef
+if node[2][1][2][1][TOKTTIDX]=T_for then -- (traditional)
 --              sequence {ctrl,lim,step,block} = node[2]
                 {ctrl,bPreDef,lim,step,block} = node[2]
                 -- (I'm not enamoured of this structure...)
@@ -1202,17 +1247,19 @@ procedure emit(sequence nodes, integer indent=0)
 --               {T_block,block}}}
 --*/
                 if ctrl[1]!="vardef" then ?9/0 end if
---              ctrl = ctrl[2]
-                ctrl = deep_copy(ctrl[2])
+                ctrl = ctrl[2]
+--              ctrl = deep_copy(ctrl[2])
                 -- ctrl is now (/shd be) {T_for,ctrl,expr} as in "for i=1".
                 if ctrl[1][TOKTYPE]!=LETTER or ctrl[1][TOKTTIDX]!=T_for then ?9/0 end if
                 line = ctrl[1][TOKLINE]
-if string(ctrl[2]) then
-    ?"I thought we'd got rid of this... (emit/T_for/vardef/string)"
-else
-    ctrl[2] = get_name(ctrl[2])
-end if
-                string c2 = ctrl[2],
+                if string(ctrl[2]) then ?9/0 end if
+--if string(ctrl[2]) then
+--  ?"I thought we'd got rid of this... (emit/T_for/vardef/string)"
+--else
+--  ctrl[2] = get_name(ctrl[2])
+--end if
+--              string c2 = ctrl[2],
+                string c2 = get_name(ctrl[2]),
                        c3 = emit_expr(ctrl[3],0)
                 if lim[1]=LE and ident(lim[2][1])=c2 then
                     -- (I believe) this is for the Javascript
@@ -1251,12 +1298,14 @@ end if
                         oneline &= c2 & cmpop & l2 & "; "
                         bPreDef = false
 --16/11/21:
-                    elsif bPreDef then
-                        dent("{let " & c2 & "$lim=" & l2 & "; " & forlet & c2 & "=" & c3 & "; ",indent)
                     else
+                        if bPreDef then
+                            dent("{let " & c2 & "$lim=" & l2 & "; " & forlet & c2 & "=" & c3 & "; ",indent)
+                        else
 --                      -- should be caught at the parse stage...
 --                      assert(not bPreDef) -- JavaScript does not support eg for(i, let i$lim=length(s);...)
-                        dent(forlet & c2 & "=" & c3 & ", " & c2 & "$lim=" & l2 & "; ",indent)
+                            dent(forlet & c2 & "=" & c3 & ", " & c2 & "$lim=" & l2 & "; ",indent)
+                        end if
                         oneline &= c2 & cmpop & c2 & "$lim; "
                     end if
                     if step={}
@@ -1284,12 +1333,108 @@ end if
 --                      ?9/0 -- placeholder
                     end if
                 end if
+else -- for [i,]e in s do: (19/4/22)
+--  nodes[1][1] = 1192 -- T_for
+--  nodes[1][2][1] = {`vardef`,{{4,7,8,1,6,26212},0,{4,5,5,1,1,36868},0}, -- {T_in,i,e,predefined}
+--                              {123'{',{{3,11,11,1,10},{3,13,13,1,12}}}} -- s (in this case {3,5})
+--  nodes[1][2][2] = {696,{{`?`,{{4,20,20,1,1,36868}}}}}                  -- T_block,block
+                {ctrl,block} = node[2]
+                string vardef, ival = "1", tval = ""
+                object ivar
+                sequence tin, evar, expr
+                integer predefined
+                {vardef, {tin, ivar, evar, predefined},expr} = ctrl
+                if vardef!="vardef" then ?9/0 end if
+                if tin[1]!=LETTER or tin[TOKTTIDX]!=T_in then ?9/0 end if
+                line = tin[TOKLINE]
+                if ivar!=0 and ivar[1]!=LETTER then ?9/0 end if
+                if evar[1]!=LETTER then ?9/0 end if
+--28/10/22:
+                if length(ctrl[2])>=5 then
+                    if ctrl[2][5][1]=T_from then
+                        ival = emit_expr(ctrl[2][5][2],0)
+                        if length(ctrl[2])=6 then
+                            assert(ctrl[2][6][1]=T_to)
+                            tval = emit_expr(ctrl[2][6][2],0)
+                        end if
+                    else
+                        assert(ctrl[2][5][1]=T_to)
+                        tval = emit_expr(ctrl[2][5][2],0)
+                    end if
+                end if
+--              if predefined!=0 then ?9/0 end if -- (placeholder)
+--              if predefined!=0 then ?{"p2js_emit.e line 1311, predefined:",predefined} end if -- (placeholder)
+--              bPreDef = and_bits(predefined,0b01)
+                bPreDef = and_bits(predefined,0b10)
+                evar = get_name(evar)
+                string sexpr = emit_expr(expr,0)
+                if is_phix() then
+//probably rubbish... 
+                    string cvar = iff(ivar=0?"":get_name(ivar)&",")
+                    dent("for " & cvar & evar & " in " & sexpr & "do" ,indent)
+                    bPreDef = false
+                else
+                    -- two main cases: (we don't care much re e pre-existing, just omit the last let when it does)
+                    -- 1) cvar does not already exist, so any svar/lvar needed can be defined inline.
+                    -- for (let cvar=1[, svar=sexpr][, lvar=length(svar)]; cvar<lvar; cvar+=1;) {let e = $subse(svar,cvar); ... }
+                    -- 2) cvar does already exist. Note that either svar or lvar must always be created, since if
+                    --      if sexpr is {..} so we don't need a length, we still need to store svar = {..}, whereas
+                    --      if sexpr is LETTER so we can use that in lieu of a new svar, we still need lvar=length().
+                    --      (this is not [yet] smart enough to spot a fixed length named constant [thankfully!])
+                    -- {let [svar=sexpr][, ][lvar=length(svar)]; for (cvar=1; cvar<lvar; cvar+=1) {let e = ... }} // [nb *}}*]
+--                  bool elim = expr[1]=LETTER  
+                    string cvar = iff(ivar=0?evar&"$idx":get_name(ivar)),
+                           svar = iff(expr[1]=LETTER?"":evar&"$seq")
+--                           eseq = iff(
+--                           slen = iff(expr[1]='{'?sprintf("%d",length(expr[2])):evar&"$lim")
+                    if not bPreDef then
+                        dent("for (let " & cvar & " = " & ival,indent)
+                        if length(svar) or expr[1]!='{' then oneline &= ", " end if
+                    else
+                        dent("{ let ",indent)
+                    end if                          
+                    if length(svar) then
+                        oneline &= sprintf("%s = %s",{svar,sexpr})
+                        if expr[1]!='{' then oneline &= ", " end if
+                    else
+                        svar = sexpr
+                    end if
+                    if expr[1]!='{' or tval!="" then
+                        string tvar = iff(tval!=""?tval:sprintf("length(%s)",{svar}))
+--                      oneline &= sprintf("%s$lim = length(%s)",{evar,svar})
+                        oneline &= sprintf("%s$lim = %s",{evar,tvar})
+                    end if
+                    if bPreDef then
+                        oneline &= sprintf("; for (%s = %s",{cvar,ival})
+                    end if
+                    if expr[1]='{' and tval="" then
+                        oneline &= sprintf("; %s <= %d",{cvar,length(expr[2])})
+                    else
+                        oneline &= sprintf("; %s <= %s$lim",{cvar,evar})
+                    end if
+                    string lword = iff(and_bits(predefined,0b01)?"":" let")
+--                  oneline &= sprintf("; %s+=1) { let %s = $subse(%s,%s);",{cvar,evar,svar,cvar})
+                    oneline &= sprintf("; %s += 1) {%s %s = $subse(%s,%s);",{cvar,lword,evar,svar,cvar})
+                end if
+--/*
+--for i,e in s do end for
+--for i,e in <expr> do end for
+--for e in <expr> do end for
+--for e in s do end for
+--
+--for (let i=1, e$lim=length(s); i<=e$lim; i+=1) { let e = $subse(s,i); } [1]
+--  as [1] with e$seq=<expr> and then s -> e$seq (twice) [2]
+--  as [2] with i -> e$idx
+--  as [1] with i -> e$idx
+--*/
+end if
                 wastokline = tokline
                 if block[1]!=T_block then ?9/0 end if
                 emit(block[2],indent+4)
 --              dent(xl("end for"),indent)
                 prevline = wastokline
                 softdent(xl("end for"),indent)
+--(removed 26/4/22) [and immediately undone]
                 if bPreDef then oneline &= "}" end if
 
             elsif nodetype=T_function
@@ -1298,7 +1443,32 @@ end if
 
 --              massn &= massN
 --              massN = 0
-                sequence {name,args,body} = node[2]
+                sequence name,args,body,statics
+                bool bNested2
+                {name,args,body,bNested2,statics} = node[2]
+                integer ls = length(statics)
+                if ls then
+                    static_tids = repeat(0,ls)
+                    static_names = repeat(0,ls)
+                    for sdx,stdx in statics do
+                        sequence stok = tokens[stdx]
+                        static_tids[sdx] = stok[TOKTTIDX]
+                        static_names[sdx] = sprintf("$static%d$%s",{next_static_id,tok_string(stok)})
+                        next_static_id += 1
+                    end for
+                    dent(sprintf("let %s;",{join(static_names,", ")}),0)
+                    flush_oneline()
+                end if
+                if bNested2 then
+                    line = node[2][1][TOKLINE]
+                    if line>tokline then dent("\n",0) end if
+                    string nstd = "nested "
+                    if not is_phix() then
+                        nstd = "/*nested*/ "
+                    end if
+                    dent(nstd,4)
+                    tokline = line
+                end if
                 -- (I'm not enamoured of this structure either...)
 --/*
 -->functn:{1052,{{4,1340,1343,45,9,5116},
@@ -1367,12 +1537,25 @@ else
                 if not is_phix() then oneline &= " {" end if
                 if body[1]!=T_block then ?9/0 end if
 --if name="main_menu" then trace(1) end if
-                emit(body[2],indent+4)
+--              emit(body[2],indent+4,bNested2)
+                emit(body[2],indent+4,true)
                 prevline = wastokline
 --              filter_comments = false
 --              softdent(xl("end " & fp) & cc,indent)
                 softdent(xl("end " & fp),indent)
+                if not is_phix() and bBuiltinAliases then
+                    string a = get_builtin_aliases(name)
+                    if length(a) then
+                        softdent(a,0)
+                    end if
+                end if
+                if ls then
+                    static_tids = {}
+                end if
 end if
+                body = {}
+                args = {}
+--              bNested2 = false
 --              massN = massn[$]
 --              massn = massn[1..-2]
 
@@ -1418,7 +1601,7 @@ end if
                     bSHA256 = true
                 elsif n21="timedate.e" then
                     bTIMEDATE = true
-                else
+                elsif n21!="pComN.ew" then
                     restore_source(node[2][2])
                     if length(node[2][1]) then
                         string incline = tok_name(nodetype) & " " & node[2][1] 
@@ -1462,7 +1645,17 @@ end if
                 if not is_phix() and nodetype==BEQ then nodetype := '=' end if
 --              dent(emit_expr(node[1],0) & sp(nodetype) & emit_expr(node[2],0),indent)
                 prevline = tokline
-                softdent(emit_expr(node[1],0) & sp(nodetype) & emit_expr(node[2],0),indent)
+--5/11/22
+--              softdent(emit_expr(node[1],0) & sp(nodetype) & emit_expr(node[2],0),indent)
+                string lhs = emit_expr(node[1],0),
+                        op = sp(nodetype),
+                       rhs = emit_expr(node[2],0)
+                if nodetype='=' and match("$conCat("&lhs&",",rhs)=1 then
+                    -- ie/eg "res = %conCat(res,"..., lhs===rhs
+--                  assert(rhs[$]=')')
+                    rhs[-1..-2] = ", false"
+                end if
+                softdent(lhs & op & rhs,indent)
                 if not is_phix() then oneline &= ";" end if
 -->while:{T_while,{{T_and,{{60,{{4,2243,2243,69,22,5128},
 --                              {"PROC",{{4,2245,2250,69,24,3100},
@@ -1492,14 +1685,35 @@ end if
                 if is_phix() or wasext!=PHIX then
                     softdent(lhs & " = " & lhs & " & " & emit_expr(node[2],0),indent)
                 else
-                    softdent(lhs & " = $conCat(" & lhs & ", " & emit_expr(node[2],0) & ");",indent)
+--5/11/22: ("s &= <expr>" case, only...)
+--                  softdent(lhs & " = $conCat(" & lhs & ", " & emit_expr(node[2],0) & ");",indent)
+                    softdent(lhs & " = $conCat(" & lhs & ", " & emit_expr(node[2],0) & ", false);",indent)
                 end if
+
+            elsif nodetype=ANDBEQ
+               or nodetype=ORBEQ then
+                if length(node)!=2 then ?9/0 end if
+                node = node[2]
+                if length(node)!=2 then ?9/0 end if            
+                prevline = tokline
+                string lhs = emit_expr(node[1],0),
+                       aob = iff(nodetype=ANDBEQ?" = and_bits("
+                                                :" = or_bits(")
+--5/5/21:??
+--              if is_phix() then
+--              if is_phix() or wasext!=PHIX then
+--                  softdent(lhs & " &&= " & emit_expr(node[2],0),indent)
+--              else
+                    softdent(lhs & aob & lhs & ", " & emit_expr(node[2],0) & ");",indent)
+--              end if
 
             elsif nodetype=T_while then
 
                 node = node[2]
                 sequence condition = node[1]
-                string expr = emit_expr(condition,initp)
+                -- because do..until re-uses the "do" token for "true":
+                bool bTrue = condition[TOKTYPE]=LETTER and condition[TOKTTIDX]=T_true
+                string expr = iff(bTrue?"(true)":emit_expr(condition,initp))
                 wastokline = tokline
                 dent("while " & expr & xl(" do"),indent)
                 if node[2][1]!=T_block then ?9/0 end if
@@ -1648,7 +1862,7 @@ end if
 
             elsif nodetype=T_try then
 --/*
---DEV add to docs: {T_try,{T_block,try_body,{T_catch,ename},{T_block,catch_clause}}
+--DEV add to docs: {T_try,{T_block,try_body,{T_catch,ename},{T_block,catch_clause}} [DONE]
 {572,{{"PROC",{{4,1783,1791,70,23,23964},
                     {"PROC",{{4,1793,1799,70,19,12704},
                              {34'"',1801,1811,70,34'"'},
@@ -1746,7 +1960,10 @@ end if
                 string vartype = emit_expr(node[1],0)
 --?vartype
                 integer v = 2
+                bool bAod = false
+--integer apath = 0
                 if is_phix() then
+--apath = 1
                     if vartype="let" then
 --  node = {{4,66'B',68'D',4,0,1280},{6,70'F',80'P',4,4,4},`dlg`,{},`lbl`,{},`btn`,{},`vbox`,{}}
                         integer n21 = node[2][TOKTYPE]
@@ -1789,13 +2006,48 @@ end if
 --                  end if
                     softdent(vartype, indent)
                 elsif vartype="let" then
+--apath = 2
                     softdent("let ",indent)
+                elsif find(nodetype,{T_function,T_procedure})
+                   or (node[1][TOKTYPE]=LETTER and 
+                       node[1][TOKTTIDX]=T_static) then
+--apath = 3
+                    bAod = true
+                    softdent("if (!",indent)
                 elsif find(vartype,{"const","constant"}) then
+--apath = 4
 --                  softdent(iff(is_phix()?"constant ":"const "),indent)
-                    softdent("const ",indent)
+--                  if bNested then
+                    if bNested 
+--                  or find(nodes[1][1],{T_function,T_procedure}) then
+                    or find(nodes[i][1],{T_function,T_procedure}) then
+--                  if find(nodes[1][1],{T_function,T_procedure}) then
+--                  if find(nodetype,{T_function,T_procedure}) then
+                        bAod = true
+                        softdent("if (!",indent)
+                    else
+                        softdent("const ",indent)
+                    end if
+--
+--{832,"?static?",{4,454,461,18,12,548},"sequence"}
+--{832,"?static?",{4,518,525,20,12,548},"sequence"}
+--{832,"?static?",{4,791,798,28,12,548},"sequence"}
+--{832,"?static?",{4,852,859,31,12,548},"sequence"}
+--"erm...(static)"
+--{"Already defined (p2js_scope.e line 186)",39452,"add"}
+--{"p2js_parse.e line 649, add_local(",39452,"=","add",")=",0}
+--{832,"?static?",{4,163,168,5,12,832},"static"}
+--{832,"?static?",{4,193,198,6,8,24},"string"}
+--{832,"?static?",{4,731,737,24,1,320},"integer"}
+--{832,"?static?",{4,911,917,34'"',1,320},"integer"}
+--
                 else
+--apath = 5
+--?{T_static,"?static?",node[1],vartype}
+--show_token(node[1], "?static?")
                     softdent("let /*"&vartype&"*/ ",indent)
                 end if
+--?{apath,bAod,tokline,vartype}
                 prevline = tokline
                 integer nindent = length(oneline)
                 while v<=length(node) do
@@ -1817,17 +2069,31 @@ end if
                         if nvtype=LETTER then
                             prevline = tokline
 --                          softdent(get_name(node[v]) & iff(node[v+1]={}?"":" = "), nindent)
-                            softdent(get_name(node[v]), nindent)
+                            if bAod then
+                                string cname = get_static(node[v])
+                                softdent(cname&") { "&cname, nindent)
+                                if node[v+1]={} then ?9/0 end if
+                            else
+                                softdent(get_name(node[v]), nindent)
+                            end if
 --                          emit_exprn(node[v+1],length(oneline))
                             if node[v+1]!={} then
                                 oneline &= " = "
                                 emit_exprn("",node[v+1],length(oneline))
+                                if bAod then
+                                    oneline &= "; }"
+                                end if
                             end if
                             v += 2
 --11/5/21 [?]
 --                          if v<length(node) then
                             if v<=length(node) then
                                 oneline &= ", "
+--if bAod then ?9/0 end if -- placeholder, flush_oneline(), softdent("if (!",indent)", I think... (the following still needs testing...)
+                                if bAod then
+                                    flush_oneline()
+                                    softdent("if (!",indent)
+                                end if
                             end if
                         elsif nvtype=BLK_CMT
                            or nvtype=COMMENT then
@@ -1882,8 +2148,11 @@ end if
 --                      v += 1
                     end if
                 end while
-                if not is_phix() then oneline &= ";" end if
-            elsif nodetype="SASS" then
+--              if not is_phix() then oneline &= ";" end if
+                if not is_phix() and not bAod then oneline &= ";" end if
+                bAod = false
+            elsif nodetype="SASS"
+               or nodetype="SAST" then  -- (SASS that requires one or more temps)
 --?(s)SASS:{"SASS",{{91,{{4,5007,5013,136,16,5656},         '['
 --                       {4,5015,5017,136,24,5732}}},
 --                  {61,{{4,5022,5023,136,31,5884}}}}}?     '='
@@ -1900,7 +2169,32 @@ end if
 --                           }}
 --                      }}
 --                   }}}?
+--if nodetype="SAST" then
 --?node
+--/*
+{91'[',{{4,86'V',86'V',4,12,39024},{"PROC",{{4,88'X',88'X',4,19,39188},{3,90'Z',90'Z',4,4}}}}}
+"tmp rqd"
+{91'[',{{91'[',{{4,99'c',99'c',5,12,39024},{"PROC",{{4,101'e',101'e',5,19,39188},{3,103'g',103'g',5,4}}}}},{"PROC",{{4,107'k',107'k',5,19,39188},{3,109'm',109'm',5,10}}}}}
+"tmp rqd"
+{91'[',{{91'[',{{91'[',{{4,118'v',118'v',6,12,39024},{"PROC",{{4,120'x',120'x',6,19,39188},{3,122'z',122'z',6,4}}}}},{"PROC",{{4,126'~',126'~',6,19,39188},{3,128,128,6,10}}}}},{"PROC",{{4,132,132,6,19,39188},{3,134,134,6,16}}}}}
+"tmp rqd"
+{91'[',{{91'[',{{91'[',{{91'[',{{4,143,143,7,12,39024},{"PROC",{{4,145,145,7,19,39188},{3,147,147,7,4}}}}},{"PROC",{{4,151,151,7,19,39188},{3,153,153,7,10}}}}},{"PROC",{{4,157,157,7,19,39188},{3,159,159,7,16}}}}},{"PROC",{{4,163,163,7,19,39188},{3,165,165,7,22}}}}}
+"tmp rqd"
+{"SAST",{{91'[',{{4,86'V',86'V',4,12,39024},
+                 {"PROC",{{4,88'X',88'X',4,19,39188},
+                          {3,90'Z',90'Z',4,4}
+                }}}
+         },
+         {131,{{3,97'a',97'a',4,11}}
+        }}
+}
+                                                                             n                   1      PLUSEQ                  1
+{"SAST",{{91'[',{{91'[',{{4,99'c',99'c',5,12,39024},{"PROC",{{4,101'e',101'e',5,19,39188},{3,103'g',103'g',5,4}}}}},{"PROC",{{4,107'k',107'k',5,19,39188},{3,109'm',109'm',5,10}}}}},{131,{{3,116't',116't',5,17}}}}}
+{"SAST",{{91'[',{{91'[',{{91'[',{{4,118'v',118'v',6,12,39024},{"PROC",{{4,120'x',120'x',6,19,39188},{3,122'z',122'z',6,4}}}}},{"PROC",{{4,126'~',126'~',6,19,39188},{3,128,128,6,10}}}}},{"PROC",{{4,132,132,6,19,39188},{3,134,134,6,16}}}}},{131,{{3,141,141,6,23}}}}}
+{"SAST",{{91'[',{{91'[',{{91'[',{{91'[',{{4,143,143,7,12,39024},{"PROC",{{4,145,145,7,19,39188},{3,147,147,7,4}}}}},{"PROC",{{4,151,151,7,19,39188},{3,153,153,7,10}}}}},{"PROC",{{4,157,157,7,19,39188},{3,159,159,7,16}}}}},{"PROC",{{4,163,163,7,19,39188},{3,165,165,7,22}}}}},{131,{{3,172,172,7,29}}}}}
+OK, let's not fanny about: just use temps for all of them.
+--*/
+--end if
 --/*
 grid[2][2] = 4
 grid[1][1..1] = {1} -- nb vlsa!
@@ -1947,7 +2241,7 @@ node = deep_copy(node)
                 sequence idx = node[1][2][2]
                 bool bBadOp = (idx[1]=ELLIPSE and aoidx>2)
 --              if idx[1]=ELLIPSE and aoidx>2 then ?9/0 end if
-                string rhs = emit_expr(node[2][2][1],0)
+                string rhs = emit_expr(node[2][2][1],0) -- DEV use correct p, see below, using {??}[aoidx] maybe
                 node = node[1][2][1]
                 if is_phix() then
                     dent(emit_expr(node,0) & "[" & emit_expr(idx,0) & idrr & "] " & tok_name(aop) & " "&rhs,indent)
@@ -1958,18 +2252,37 @@ node = deep_copy(node)
                         idii = append(idii,emit_expr(node[2][2],0))
                         node = node[2][1]
                     end while
-                    string id = emit_expr(node,0),
-                           idiis = iff(length(idii)?`,["sequence",` & join(idii,",") & `]`:"")
-                    if idx[1]=ELLIPSE then
+                    string id = emit_expr(node,0), letpr = ""
+                    bool bEllipse = idx[1]=ELLIPSE
+                    sequence idx2 = iff(bEllipse?{emit_expr(idx[2][1],0),
+                                                  emit_expr(idx[2][2],0)}
+                                                :emit_expr(idx,0))
+                    if nodetype="SAST" then
+                        sequence defs = iff(bEllipse?{"i$dx = "&idx2[1],"i1$dx = "&idx2[2]}
+                                                    :{"i$dx = "&idx2})
+                        idx2 = iff(bEllipse?{"i$dx","i1$dx"}:"i$dx")
+                        for ii=1 to length(idii) do
+                            string tdi = sprintf("i%d$dx",ii+1)
+                            defs = append(defs,sprintf("%s = %s",{tdi,idii[ii]}))
+                            idii[ii] = tdi
+                        end for
+                        letpr = sprintf("{ let %s; ",{join(defs,", ")})
+                    end if 
+                    string idiis = iff(length(idii)?`,["sequence",` & join(idii,",") & `]`:"")
+                    if bEllipse then
                         if aoidx>2 then ?9/0 end if -- expressly forbid s[i..j] +=/-= etc (esp &=)
-                        dent(id & " = $repss(" & id & "," & emit_expr(idx[2][1],0) & "," & emit_expr(idx[2][2],0),indent)
+--                      if nodetype="SAST" then ?9/0 end if -- placeholder [DEV, done, needs testing...]
+                        dent(letpr & id & " = $repss(" & id & "," & idx2[1] & "," & idx2[2],indent)
                     else
-                        dent(id & " = $repe(" & id & "," & emit_expr(idx,0),indent)
+                        dent(letpr & id & " = $repe(" & id & "," & idx2,indent)
                     end if
                     if aoidx>2 then
                         string mop = iff(aop=AMPSEQ?",":{"+","-","/","*"}[aoidx-2]),
---                             mid = "$subse(" & id & "," & emit_expr(idx,0) & idiis & ")" &mop & rhs
-                               mid = "$subse(" & id & "," & emit_expr(idx,0) & idiis & ")" &mop & "(" & rhs & ")"
+--DEV while you certainly need the () in say "$subse(s,i) * (1+2)" where mop is "*", 
+--                you certainly don't in say "$subse(s,i) + (1)"... not exactly critical though
+--  proper solution is almost certainly to pass correct p for mop in rhs = emit_expr(node[],p) above.
+--                             mid = "$subse(" & id & "," & idx2 & idiis & ")" &mop & rhs
+                               mid = "$subse(" & id & "," & idx2 & idiis & ")" &mop & "(" & rhs & ")"
                         if aop=AMPSEQ then
                             oneline &= ",$conCat(" & mid & ")"
                         else
@@ -1985,6 +2298,9 @@ node = deep_copy(node)
                         oneline &= idrr
                     end if
                     oneline &= ");"
+                    if nodetype="SAST" then
+                        oneline &= " }"
+                    end if
                 end if
                 if bBadOp then puts(1,oneline & "\n^^^?????") flush_oneline() dent("^^??????",0) end if
             elsif nodetype="MASS" then
@@ -2092,6 +2408,8 @@ global function generate_source(sequence ast, integer oxt, src_offset, bool pGUI
     bMPFR = false
     bSHA256 = false
     bTIMEDATE = false
+    next_static_id = 1
+    static_tids = {}
 --trace(1)
     emit(ast[2])
     flush_oneline()
@@ -2114,7 +2432,7 @@ global function generate_source(sequence ast, integer oxt, src_offset, bool pGUI
             ?9/0
         end if
         if bMPFR or pMPFR then
-            ai = add_includes(ai,{`find.e`,`pmaths.e`,`primes.e`,`ptagset.e`,`mpfr.e`})
+            ai = add_includes(ai,{`find.e`,`pmaths.e`,`primes.e`,`ptagset.e`,`match.e`,`substitute.e`,`mpfr.e`})
         end if
         if bSHA256 or pSHA256 then
             ai = add_includes(ai,{"sha256.e"})

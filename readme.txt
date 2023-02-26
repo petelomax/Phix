@@ -40,6 +40,51 @@ Version 1.0.2
             the editor. It occurred inside a #ilASM{} and maybe that was the 
             only way it could have ever escaped unnoticed. Gave me a bit of 
             a fright, tbh, but probably won't trigger m/any knock-ons...
+20/04/2022: Bugfix in p2js.js/$sidii(), which was doing s[idii[1]] = t; when
+            it should check for and add length(s)+1 to a negative idii[1].
+13/05/2022: Bugfix: wrong era in :%pSubse1 (!!!, Decision tables) It would
+            not surprise me if that has to be hastily undone, but it looked
+            pretty clear-cut at the time.
+06/07/2022: Bugfix: When compiled, the assert(j=3) failed after "for i,e in"
+            in t68forin, because "e" state updates clobbered the "i" state.
+14/07/2022: Bugfix: switch <atom> [with fallthroughs detected] failing with
+            "cannot create jump table [swecode=14,...". Instead of checking
+            for slroot2!=T_integer, it now "not and_bits()" them.
+28/09/2022: Bugfix: 1e18 was not generating an integer on 64bit. Rather than
+            (further) mess with %opPow in VM\pPower.e, I simply added a *10
+            loop in ptok.e/completeFloat() for (decimal) exponents 0..20.
+            Aka: integer i=1e18 <== "type error (storing float in integer)".
+20/10/2022: Bugfix: for p in {po,pe} do was re-using the unnamed [tmp] var
+            in which {po,pe} was stored... There isn't really anything else
+            that needs to preserve an un-named var over a block, and in the
+            end I simply marked it as literal (opsltrl[2] = 1), realising
+            it being allowTempReuse (-1) was the core of the problem, and
+            0 (No) triggering an error in t68 (line 144). At the same time
+            I ditched a rather dubious looking bit of code that copied one
+            unnamed temp into another, for no reason I could think of.
+20/10/2022: Bugfix/local constant restrictions: While you can still have a 
+            locally scoped constant x = "one two three", attempting things 
+            more complex such as constant y = split(x) was generating some 
+            rather whacky compiler errors. On analysis, I realised that if 
+            the routine was the target of a forward call, there would be 
+            (even more than usual) difficulties, and nowhere sensible to 
+            put the split() call, so I limited local constants to literals, 
+            spat out a "not supported (sorry)" error, and updated the docs.
+            Ho hum, it seems the whole statics and local constants thing has 
+            all been a complete and utter humiliating whitewash wipeout, 
+            n'er mind. Probably would've been better as something like:
+                scope -- (named, maybe??)
+                    constant y  -- visible only in(/via) current scope
+                    sequence x  -- "", private variable but "static"
+                    function/procedure()...
+                    end function/procedure
+                end scope
+24/11/2022: Bugfix: "type error (storing atom in sequence)" on s = {}&1, 
+            and an internal crash on s = {}&{}. When optimising [multiple] & 
+            into a single opConcat[N], it "assumed opApnd (alone) occurred", 
+            which makes no sense, and in the second case tried to opConcatN 
+            zero items, which ain't ever gonna fly. It now pushes an opMkSq 
+            operation for <=1 items, as it always should have.
 
 
 Version 1.0.1

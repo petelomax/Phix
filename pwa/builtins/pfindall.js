@@ -9,7 +9,7 @@
     while (true) {
         start = find(needle,haystack,start);
         if (start===0) { break; }
-        res = $conCat(res, start);
+        res = $conCat(res, start, false);
         start += 1;
     }
     return res;

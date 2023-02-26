@@ -1,0 +1,163 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">gMainLoop</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td>
+          <b>Definition:</b>
+         </td>
+         <td>
+            include xpGUI.e
+            <br>
+            <br>
+            gMainLoop()
+            <br>
+            <i>-- or --</i>
+            <br>
+            <a href="integer.htm#bool">bool</a> bNotJS = gMainLoopf()
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Description:</b>
+         </td>
+         <td>
+            Starts the main event loop, which runs until the last visible dialog is closed, and is responsible for
+            processing all user interaction messages such as and in particular all mouse and keyboard input.
+            <br>
+            <br>
+            Should you forget to call gMainLoop(), in most cases (on desktop/Phix) the application will simply and 
+            immediately terminate, without error.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+            Supported, but in practice completely ignored, with <a href="p2js.htm">pwa/p2js</a> instead relying on the event loop of the browser.<br>
+            Note that any final closedown processing as might be needed for desktop/Phix should be sidestepped as shown below.
+<!--
+            , so this should <b><i>not</i></b> be called on that platform,
+            nor should any subsequent <a href="IupDestroy.htm">IupDestroy</a>(), ie those which on the desktop would naturally only occur after the window closes.
+-->
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Use:</b>
+         </td>
+         <td>
+            Usually towards the very end of a program, pick any one of the following three patterns:
+            <br>
+            <br>
+<!--eucode>
+    -- Option 1                     -- Option 2                 -- Option 3
+    gMainLoop()                     if platform()!=JS then      if gMainLoopf() then
+    /* NB no closedown code */          gMainLoop()                 /* closedown code */
+    /*   such as gDestroy() */          /* closedown code */    end if  
+                                    end if                      
+</eucode-->
+<pre>
+<font color="#000080"><i>    -- Option 1                     -- Option 2                 -- Option 3</i></font>
+<font color="#7060A8">    gMainLoop</font><font color="#0000FF">()                    </font><font color="#008080"> if</font><font color="#7060A8"> platform</font><font color="#0000FF">()!=</font><font color="#004600">JS</font><font color="#008080"> then      if</font><font color="#7060A8"> gMainLoopf</font><font color="#0000FF">()</font><font color="#008080"> then</font>
+<font color="#000080"><i>    /* NB no closedown code */         </i></font><font color="#7060A8"> gMainLoop</font><font color="#0000FF">()                </font><font color="#000080"><i> /* closedown code */
+    /*   such as gDestroy() */          /* closedown code */   </i></font><font color="#008080"> end if  
+                                    end if                      </font>
+</pre>
+            <br>
+            The first option is the most common, and appropriate when there is no shutdown code or it lives in the close handler(s) 
+            for the dialog(s), which is where any such would absolutely have to be for JavaScript compatibility.
+            <br>
+            <br>
+            Options 2 and 3 are functionally identical, with the latter clearly being slightly neater, and both really only exist for 
+            JavaScript-incompatible and/or legacy program functionality, especially any which is supposed [on desktop only] to write 
+            stuff back to file [which may just be the window layout and position, of very limited use in a browser anyway].
+<!--
+            When this function is called, it will interrupt the program execution until a callback returns <a href="gSetHandler.htm#XPG_CLOSE">XPG_CLOSE</a>,
+            or <a href="IupExitLoop.htm">IupExitLoop</a>() is called, or there are no visible dialogs. 
+            <br>
+            <br>
+            If you cascade many calls to IupMainLoop there must be a "return XPG_CLOSE" or <a href="IupExitLoop.htm">IupExitLoop</a> call for each cascade level, 
+            hiding all dialogs will close only one level. <br>
+            Call <a href="IupMainLoopLevel.htm">IupMainLoopLevel</a> to obtain the current level.
+            <br>
+            <br>
+            If IupMainLoop is called without any visible dialogs and no active timers, the application will hang and it will not be possible to close the main loop. 
+            The process will have to be interrupted by the system.
+            <br>
+            <br>
+            When the last visible dialog is hidden the <a href="IupExitLoop.htm">IupExitLoop</a> function is automatically called, causing the gMainLoop() to return. 
+            <br>
+            To avoid that set <a href="iupgattr.htm#LOCKLOOP">LOCKLOOP</a>=YES before hiding the last dialog.
+-->
+<!--
+gMainLoop()
+--if gMainLoopf() then
+--  w1 = gDestroy(w1)   -- if that's what it takes...
+--end if
+-->
+         </td>
+        </tr>
+<!--
+        <tr>
+         <td>
+          <b>Example:</b>
+         </td>
+         <td>
+<X!X--eucode>
+include xpGUI.e
+
+gdx main_dialog = gDialog(IupLabel("Hello","PADDING=80x10"),"TITLE=test")
+gShow(main_dialog)
+if platform()!=JS then
+    gMainLoop()
+    main_dialog = IupDestroy(main_dialog)
+    IupClose()
+end if
+</eucode--X>
+<pre>
+<font color="#008080">include</font><font color="#000000"> xpGUI.e
+</font>
+<font color="#7060A8">gdx</font><font color="#000000"> main_dialog</font><font color="#0000FF"> =</font><font color="#7060A8"> gDialog</font><font color="#0000FF">(</font><font color="#7060A8">IupLabel</font><font color="#800000">(</font><font color="#008000">"Hello"</font><font color="#0000FF">,</font><font color="#008000">"PADDING=80x10"</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#008000">"TITLE=test"</font><font color="#0000FF">)</font>
+<font color="#7060A8">gShow</font><font color="#0000FF">(</font><font color="#000000">main_dialog</font><font color="#0000FF">)</font>
+<font color="#008080">if</font><font color="#7060A8"> platform</font><font color="#0000FF">()!=</font><font color="#004600">JS</font><font color="#008080"> then</font>
+<font color="#7060A8">    gMainLoop</font><font color="#0000FF">()</font>
+<font color="#000000">    main_dialog</font><font color="#0000FF"> =</font><font color="#7060A8"> IupDestroy</font><font color="#0000FF">(</font><font color="#000000">main_dialog</font><font color="#0000FF">)</font>
+<font color="#7060A8">    IupClose</font><font color="#0000FF">()</font>
+<font color="#008080">end if</font>
+</pre>
+         </td>
+        </tr>
+-->
+<!--
+        <tr>
+         <td>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="IupLoopStep.htm">IupLoopStep</a>,
+          <a href="IupExitLoop.htm">IupExitLoop</a>,
+          <a href="IupMainLoopLevel.htm">IupMainLoopLevel</a>,
+          <a href="pGUI.htm#GUIDE">Guide/System Control</a>,
+          <a href="callbacks.htm#IDLE_ACTION">IDLE_ACTION</a>,
+          <a href="iupgattr.htm#LOCKLOOP">LOCKLOOP</a>
+         </td>
+        </tr>
+-->
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

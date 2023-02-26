@@ -4,7 +4,10 @@
 // builtins/pqueue.e
 // =================
 //
-// Basic implementation of priority queues (an autoinclude).
+//  Basic implementation of priority and other queues (an autoinclude).
+//
+// Priority queues (see about half way down for traditional queues/stacks)
+// ===============
 //
 //  A priority queue is kind of fast to-do list, whereby you can add items,
 //  as many as you want, in any order, and quickly retrieve the lowest (if 
@@ -17,6 +20,7 @@
 //  by a factor of 17.5 (0.8s vs 14s), yet the only real difference was how 
 //  those numbers were stored/sorted.
 //
+//  Also implements standard (FIFO) queues and (LIFO) stacks.
 //
 // Interface
 // =========
@@ -51,9 +55,8 @@
 //  for different things simultaneously, but also obviously is quite handy for 
 //  smaller/simpler (quick 'n dirty) programs.
 //
-//
-// Technial details
-// ================
+// Technical details
+// =================
 //
 // A priority queue is a tree stored in a flat list, as follows
 //
@@ -183,7 +186,12 @@ function $pq_init() {
                     crid = $subse($pqcrid,pqid);
 //  $pq[pqid] &= 0
 //  $pq[pqid] = deep_copy($pq[pqid]) & 0
-    let /*sequence*/ pqp = $conCat(deep_copy($subse($pq,pqid)), 0);
+//15/2/22 (spotted in passing, gotta be better!)
+//  sequence pqp = deep_copy($pq[pqid]) & 0
+    let /*sequence*/ pqp = $subse($pq,pqid);
+    $pq = $repe($pq,pqid,0);
+    pqp = $conCat(pqp, 0, false);
+//  $pq[pqid] = pqp
 //  $pq[pqid] = deep_copy($pq[pqid] & 0)
     // append at end, then up heap
 //  while m>0 and call_func(crid,{item[$PRIORITY],$pq[pqid][m][$PRIORITY]})=heap_type do
@@ -226,6 +234,185 @@ function $pq_init() {
 
 /*global*/ function pq_peek(/*integer*/ pqid=1) {
 //  if not $pqinit then $pq_init() end if     -- (would crash next either way)
+//15/2/22: (erm, not tried...)
     let /*sequence*/ result = $subse($subse($pq,pqid),1);
+//  sequence result = deep_copy($pq[pqid][1])
     return result;
+}
+//
+// Traditional queues and stacks
+// =============================
+//
+//  Fairly obviously a queue is exactly like the one in a shop, you do not expect
+//  people arriving after you to be served before you, and a stack is exactly like
+//  a pile of plates in a kitchen, the ones on the top are regularly removed and
+//  replaced, whereas the ones at the bottom could be there for months even years.
+//
+// Interface
+// =========
+//
+//  integer qid = new_queue(*)              -- create a new FIFO queue
+//  integer qid = new_stack()               -- create a new LIFO stack
+//  push(integer qid, object item*)         -- add to end/front of queue/stack
+//  object item = pop(integer qid*)         -- remove next from queue/stack
+//  object item = peep(integer qid*)        -- inspect head of queue/stack
+//  pushn(integer qid, sequence items*)     --  push() multiple items
+//  sequence items = popn(integer qid, n*)  --  pop() multiple items
+//  sequence items = peepn(integer qid, n*) --  peep() multiple items
+//  integer res = queue_size(integer qid)   -- return the size of a queue
+//  integer res = stack_size(integer qid)   -- return the size of a stack
+//  bool res = queue_empty(integer qid)     -- yields true/false
+//  bool res = stack_empty(integer qid)     -- yields true/false
+//  destroy_queue(integer qid)              -- release a queue for reuse
+//  destroy_stack(integer qid)              -- release a stack for reuse
+//
+//  The * indicates shared routines with a defaulted field which specifies whether 
+//  to apply queue or stack behaviour, which you would not usually be expected to 
+//  provide, but are not prohibited from so doing: FIFO_QUEUE and LIFO_QUEUE and
+//  the default ANY_QUEUE (as all defined in psym.e) can be used when needed.
+//  The other (non-starred) routines have no need or use for such a parameter, 
+//  and in fact several stack_XXX() are simply aliased to queue_XXX() in psym.e,
+//  obviously really only existing to allow/show clearer indication of intent.
+//
+//enum ANY_QUEUE = 0, FIFO_QUEUE = 1, LIFO_QUEUE = 2    -- as defined in psym.e/p2js.js
+let /*bool*/ $q_init = false;
+let /*sequence*/ $q, $qtypes;
+let /*integer*/ $qfreelist = 0;
+//procedure init_q()
+//  $q = {}
+//  $qtypes = {}
+//  $q_init = true
+//end procedure
+
+/*global*/ function new_queue(/*integer*/ qtype=FIFO_QUEUE) { // create a new FIFO queue
+    assert((qtype===FIFO_QUEUE) || (qtype===LIFO_QUEUE));
+//  if not $q_init then init_q() end if
+    if (!$q_init) {
+        $q = ["sequence"];
+        $qtypes = ["sequence"];
+        $q_init = true;
+    }
+    let /*integer*/ qid;
+    if ($qfreelist===0) {
+        $q = append($q,["sequence"]);
+        $qtypes = append($qtypes,qtype);
+        qid = length($q);
+    } else {
+        qid = $qfreelist;
+        $qfreelist = $subse($qtypes,$qfreelist);
+        $q = $repe($q,qid,["sequence"]);
+        $qtypes = $repe($qtypes,qid,qtype);
+    }
+    return qid;
+}
+
+/*global*/ function new_stack(/*integer*/ qtype=LIFO_QUEUE) { // create a new LIFO queue
+    return new_queue(qtype);
+}
+
+/*global*/ function destroy_queue(/*integer*/ qid) { // [aliased as destroy_stack() in psym.e]
+//  if not $q_init then init_q() end if
+    if (!sequence($subse($q,qid))) { crash("9/0"); }
+    $qtypes = $repe($qtypes,qid,$qfreelist);
+    $qfreelist = qid;
+    $q = $repe($q,qid,0);
+}
+let destroy_stack = destroy_queue;
+
+/*global*/ function queue_size(/*integer*/ qid) { // [aliased as stack_size() in psym.e]
+//  if not $q_init then init_q() end if
+    return length($subse($q,qid));
+}
+let stack_size = queue_size;
+
+/*global*/ function queue_empty(/*integer*/ qid) { // [aliased as stack_empty() in psym.e]
+//  if not $q_init then init_q() end if
+    return equal(queue_size(qid),0);
+}
+let stack_empty = queue_empty;
+//[next 3 were aliased in psym.e, but that's not p2js compatible [DEV]]:
+// 4/11/22: proper alias handling, that p2js understands, now added
+//global procedure destroy_stack(integer qid) destroy_queue(qid) end procedure
+//global function stack_empty(integer qid) return queue_empty(qid) end function
+//global function stack_size(integer qid) return queue_size(qid) end function
+
+//28/11/22 (remove qtype, since it wasn't used anyway, docs updated)
+//global procedure push(integer qid, object item, integer qtype=ANY_QUEUE, bool bSingle=true)
+/*global*/ function push(/*integer*/ qid, /*object*/ item, /*bool*/ bSingle=true) {
+//  if not $q_init then init_q() end if
+    assert(bSingle || sequence(item));
+    let /*sequence*/ qq = $subse($q,qid);
+    $q = $repe($q,qid,0);
+//  if qtype=FIFO_QUEUE
+//  or (qtype=ANY_QUEUE and $qtypes[qid]=FIFO_QUEUE) then
+    if (bSingle) {
+        qq = append(qq,item);
+    } else {
+        qq = $conCat(qq, item, false);
+    }
+//  else
+//      if bSingle then
+//          qq = prepend(qq,item)
+//      else
+//          qq = deep_copy(item)&qq
+//      end if
+//  end if
+    $q = $repe($q,qid,qq);
+}
+//global procedure pushn(integer qid, sequence items, integer qtype=ANY_QUEUE)
+/*global*/ function pushn(/*integer*/ qid, /*sequence*/ items) {
+//  push(qid,items,qtype,false)
+    push(qid,items,false);
+}
+//global function pop(integer qid, n=-1, qtype=ANY_QUEUE, bool bPop=true)
+/*global*/ function pop(/*integer*/ qid, n=-1, qtype=ANY_QUEUE, /*bool*/ bPop=true) {
+//  if not $q_init then init_q() end if  -- (would crash next either way)
+    let /*object*/ result;
+    let /*sequence*/ qq = $subse($q,qid);
+    let /*bool*/ bDC = bPop; // deep_copy(top)
+    if (bPop) {
+        let /*integer*/ l = length(qq);
+        if ((l===n) || ((n===-1) && (l===1))) {
+            $q = $repe($q,qid,["sequence"]);
+            bPop = false;
+            bDC = false;
+        } else {
+            $q = $repe($q,qid,0); // (kill refcount)
+        }
+    }
+    if ((qtype===FIFO_QUEUE) || ((qtype===ANY_QUEUE) && (equal($subse($qtypes,qid),FIFO_QUEUE)))) {
+        if (n===-1) {
+            result = $subse(qq,1);
+            if (bPop) { qq = $subss(qq,2,-1); }
+        } else {
+            result = $subss(qq,1,n);
+            if (bPop) { qq = $subss(qq,n+1,-1); }
+        }
+    } else {
+        if (n===-1) {
+            result = $subse(qq,-1);
+            if (bPop) { qq = $subss(qq,1,-1-1); }
+        } else {
+            result = $subss(qq,-n,-1);
+            if (bPop) { qq = $subss(qq,1,-n-1); }
+        }
+    }
+    if (bPop) {
+        $q = $repe($q,qid,qq);
+    } else if (bDC) {
+        result = deep_copy(result);
+    }
+    return result;
+}
+
+/*global*/ function popn(/*integer*/ qid, n, qtype=ANY_QUEUE) {
+    return pop(qid,n,qtype);
+}
+
+/*global*/ function peep(/*integer*/ qid, n=-1, qtype=ANY_QUEUE) {
+    return pop(qid,n,qtype,false);
+}
+
+/*global*/ function peepn(/*integer*/ qid, n, qtype=ANY_QUEUE) {
+    return pop(qid,n,qtype,false);
 }

@@ -1,0 +1,133 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">ARM supported opcodes</h1>
+      <div id="mainSection">
+        Note the following table does not contain anything from <a href="ARM___fpu.htm">ARM fpu</a>.
+        <br>
+
+<!-- DEV add links (may as well do that by hand, given I've got to write each page (49 of em) and update Phix.txt, index.txt, and phix.syn -->
+
+<!--
+:cmn:<a href="ARM___dpo_htm">cmn</a>
+:cmp:<a href="ARM___dpo_htm">cmp</a>
+-->
+<!-- Aside: ended up using eg "ADC" instead of "adc" to prevent self-clobbering... -->
+<!--
+now persistent, in ARM.htm:
+:ADC:<a href="ARM___dpo_htm">adc</a>
+:ADD:<a href="ARM___dpo_htm">add</a>
+:AND:<a href="ARM___dpo_htm">and</a>
+:BIC:<a href="ARM___dpo_htm">bic</a>
+:EOR:<a href="ARM___dpo_htm">eor</a>
+:ORR:<a href="ARM___dpo_htm">orr</a>
+:RSB:<a href="ARM___dpo_htm">rsb</a>
+:RSC:<a href="ARM___dpo_htm">rsc</a>
+:SBC:<a href="ARM___dpo_htm">sbc</a>
+:SUB:<a href="ARM___dpo_htm">sub</a>
+:SWI:<a href="ARM___swi_htm">swi</a>
+
+-->
+ <div class="arm_table">
+|Mnemonic.|Description..........................|Phix-specific and standard aliases....|
+|ADC......|Add with Carry.......................|......................................|
+|ADD......|Add..................................|......................................|
+|AND......|Logical and_bits.....................|......................................|
+|B_.......|Branch...............................|jmp (unconditional) ..................|
+|BIC......|Bit Clear............................|or , not (unconditional) .............|
+|BL.......|Branch and Link......................|call (unconditional) .................|
+|BX.......|Branch and Exchange..................|ret ( === bx lr, unconditional) ......|
+-cdp......|Coprocessor Data Processing..........|......................................|
+|CMN......|Compare Negative.....................|cmp -ve imm is standard ..............|
+|CMP......|Compare..............................|......................................|
+|EOR......|Logical Exclusive or_bits............|xor (unconditional) ..................|
+-ldc......|Load Coprocessor.....................|......................................|
+|LDM......|Load Multiple........................|pop is standard ......................|
+|LDR......|Load Register........................|mov Rn, [Rm&#124;fp+k] ...............|
+-ldrb.....|Load Register Byte...................|......................................|
+-ldrbt....|Load Register Byte Translate.........|......................................|
+-ldrh.....|Load Register Half Word..............|......................................|
+-ldrsb....|Load Register Signed Byte............|......................................|
+-ldrsh....|Load Register Signed Half Word.......|......................................|
+-ldrt.....|Load Register Translate..............|......................................|
+-mcr......|Move to Coprocessor from ARM reg.....|......................................|
+|MLA......|Multiply Accumulate..................|......................................|
+|MOV......|Move.................................|lsl, asl, shl, lsr, shr, asr, ror ....|
+-mrc......|Move to ARM reg from Coprocessor.....|......................................|
+-mrs......|Move from Status Register............|......................................|
+-msr......|Move to Status Register..............|......................................|
+|MUL......|Multiply.............................|......................................|
+|MVN......|Move Not (aka not_bits)..............|mov -ve imm is standard ..............|
+|ORR......|Logical or_bits......................|or (unconditional) ...................|
+|RSB......|Reverse Subtract.....................|......................................|
+|RSC......|Reverse Subtract with Carry..........|......................................|
+|SBC......|Subtract with Carry..................|......................................|
+|SMLAL....|Signed Long Multiply Accumulate......|......................................|
+|SMULL....|Signed Long Multiply.................|......................................|
+-stc......|Store Coprocessor....................|......................................|
+|STM......|Store Multiple.......................|push is standard .....................|
+|STR......|Store Register.......................|mov [Rm&#124;fp+k], Rn ...............|
+-strb.....|Store Register Byte..................|......................................|
+-strbt....|Store Register Byte Translate........|......................................|
+-strh.....|Store Register Half Word.............|......................................|
+-strt.....|Store Register Translate.............|......................................|
+|SUB......|Subtract.............................|......................................|
+|SWI......|Software Interrupt...................|svc (std), syscall (Phix only) .......|
+?SWP_.....|Swap.................................|......................................|
+?SWPB.....|Swap Byte............................|......................................|
+|TEQ......|Test Equivalence.....................|......................................|
+|TST......|Test.................................|test (unconditional) .................|
+-umlal....|Unsigned Long Multiply Accumulate....|......................................|
+-umull....|Unsigned Long Multiply...............|......................................|
+ </div>
+        <div class="clear"></div>
+        <br>
+        Also, "lea Rn,[var]" is (usually) encoded as mov/orr (Phix-specific).
+
+        <h3>Pseudo-instructions</h3>
+ <div class="arm_table">
+|Mnemonic.|Description..........................|Phix-specific and standard aliases....|
+|ASL......|Arithmetic shift left.(=MOV).........|lsl, shl .............................|
+|ASR......|Arithmetic shift right.(=MOV)........|......................................|
+|LEA......|Load effective address.(=MOV/ORR)....|(Phix only) ..........................|
+|LSL......|Logical shift left.(=MOV)............|shl, asl .............................|
+|LSR......|Logical shift right.(=MOV)...........|shr ..................................|
+|MOV......|(with memory address in a register)..|ldr/str ..............................|
+?MOV/ORR..|Load address.........................|lea (Phix only) ......................|
+|ROR......|Rotate...............................|......................................|
+|neg......|Negate...............................|rsb ..................................|
+ </div>
+        <div class="clear"></div>
+        <br>
+        The five main shift operations (asl/asr/lsl/lsr/ror) are just shorthands for the equivalent
+        mov instruction with that operation embedded via the barrel shifter.<br>
+        There is no difference whatsoever between asl and lsl, and in fact they use the same encoding.<br>
+        Note that (the Phix-specific aliases) shl and shr must be unconditional, if used, ditto lea.
+
+        <a name=reg></a>
+        <h3>Registers</h3>
+ <div class="arm_table">
+|r0-r10.|General purpose.........................|
+|fp.....|Frame pointer (not r11).................|
+|ip.....|Intra-proc (not particularly special)...|
+|sp.....|Stack pointer (not r13).................|
+|lr.....|Link register (not r14).................|
+|pc.....|Program counter (not r15)...............|
+|s0-s31.|Single precision (32 bit) floats........|
+|d0-d15.|Double precision (64 bit) floats........|
+ </div>
+        <div class="clear"></div>
+        <br>
+        Phix does not support or permit the use of r11..r15 as (confusing) aliases for important registers.
+        <br>
+        <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

@@ -17,6 +17,7 @@
 --      unreferenced files in \src
 --      unreferenced "<a name=" (nah)
 --      files with no entries in the toc/index
+--IupButton cdCanvasSetTextAlignment
 -- map qu to ? (already done!!)
 -- make it more forgiving if src has a tailing blank line... (nah)
 --*** create html directory if it does not exist.
@@ -38,21 +39,21 @@
 --  <b>, <i>, <u>, <del> for bold, italic, underline, strikethrough
 free_console()
 
-constant justcompile = 0    -- (occasionally helpful if you need to manually edit something)
+constant justcompile = 0,   -- (occasionally helpful if you need to manually edit something)
                             -- (nb windows only!)
-constant wikidocs = 0
-constant replaceprewithcode = 0
-constant displaycompileprogress = 0
+         wikidocs = 0,
+         replaceprewithcode = 0,
+         displaycompileprogress = 0
 
-sequence tocf = {}  -- filenames
-sequence tocl = {}  -- levels
-sequence tocln = {} -- line nos
-global
-sequence contents
-sequence descriptions
-sequence index
-constant stubnames = {"header","body","banner","trailer"}
-constant HEAD = 1, BODY = 2, BANNER = 3, TAIL = 4
+sequence tocf = {}, -- filenames
+         tocl = {}, -- levels
+         tocln = {}, -- line nos
+--global --??
+         contents,
+         descriptions,
+         index
+constant stubnames = {"header","body","banner","trailer"},
+                 HEAD = 1, BODY = 2, BANNER = 3, TAIL = 4
 sequence stubs = repeat("",length(stubnames))
 
 constant stdhdr = "<head>\n <body>\n  <toc>\n   <these>\n    <get>\n     <stripped>\n",
@@ -67,9 +68,337 @@ constant stdhdr = "<head>\n <body>\n  <toc>\n   <these>\n    <get>\n     <stripp
 procedure fatal(string msg)
     puts(1,msg)
     if getc(0) then end if
-contents = {}
+    contents = {}
     ?9/0
 end procedure
+
+constant lgreen = "#3CB44B;",
+         yellow = "#EBEB00;",
+         ltblue = "#4363D8",
+--       yellow = "#ffffe6;",
+--       orange = "#ffebd2;",
+         orange = "#FF8C00;",
+         purple = "#911EB4;",
+         green  = "#f0fff0;",
+         blue   = "#e6ffff;",
+         pink   = "#ffeeff;",
+         teal   = "#008080;",
+         cyan   = "#00FFFF;",
+         red    = "#ff0000;",
+         colours = {yellow, lgreen,                             -- OPCODE, LIT12
+                    yellow, ltblue, lgreen,                     -- O7/8, ROTATE, LIT8
+                    orange, purple, orange, green,              -- OOOO, Y, R, SHIFTH
+                    pink, orange, blue, blue, blue, blue, orange, -- const, OOO, P,U,X,W, S
+                    teal, cyan, teal,                           -- RN, RD, RS
+--                  cyan, teal, lgreen, -- "" by hand
+                    orange, green, orange, teal,              -- V, SHFT, Z, RM
+--(no longer used):
+                    red,red,red,red,red,red,red,red,
+                    red,red,red,red,red,red,red,red,
+                    red,red,red,red,red,red,red,red}
+--       colours = {{yellow, orange, green, blue, pink},
+--                  {blue, yellow, orange, green, pink}}
+ 
+with trace
+
+sequence words = {}, refs = {}
+
+--function markup(string outline, sequence colours)
+function markup(string outline, filename)
+--
+--  Rules:
+--  * Line 1 defines the basic columns: every following line can *only* 
+--      have '|' that match line 1, and those define the span (if any).
+--  * If line 1 or 2 begins '|.' then this table is colourised.
+--  * In the (one-off) case of line 1, colours begin with yellow.
+--  * If a table is not colourised, everything is left-aligned,
+--  * Except any elements beginning '=' are specially centered.
+--  * The first column should never have a span (at least as used in the ARM docs).
+--  * Lines beginning with a '-' are not supported (grey out or omit) [TO-DO]
+--  * Lines beginning with ':' are links, eg :and:<a href="ARM___and_htm">and</a>
+--    (nb special care must be taken not to use/clobber part-words, etc.)   
+--  * Lines begining '#' are names, eg/ie #imul#.. == |<a name=imul></a>imul..
+--    (obvs. you still have to populate index.txt with "imul x86.htm#imul", etc.)
+--  * This is an ad-hoc one-off, expected to be brittle, require frequent
+--    updates, and not work with anything new you decide to throw at it.
+--
+--if 01 then ?filename end if -- check: ARM.htm /is/ done first [it is]
+    outline = trim(substitute(substitute(outline,'.',' '),"_htm",".htm"))
+    sequence lines = split(outline,"\n",no_empty:=true), wr
+    bool colourized = lines[2][2]=' '
+    string line = lines[1], -- First line defines our headings
+           center = iff(colourized?"text-align: center; ":""),
+           style = "style=\""&center&"width: auto;\"",
+           res = "<table class=\"armtable\" "&style&">\n",
+           word, ref
+--  integer w = length(line)
+
+--21/7/22 (allow links before top line, also now persistent, so define them all in ARM.htm)
+    while line[1]=':' do -- links
+        -- eg ":and:<a href="ARM___and_htm">and</a>"
+        wr = split(line,":",no_empty:=true)
+        assert(length(wr)=2,"%s: bad link ref `%s`",{filename,line})
+        {word,ref} = wr
+        words = append(words,word)
+        refs = append(refs,ref)
+        lines = lines[2..$]
+        line = lines[1]
+    end while
+
+    sequence f = find_all('|',line), -- eg {1,41,43,45,...103,105}
+--         bdx = tagset(length(f)),
+--         cdx = reinstate(repeat(-1,w),f,tagstart(0,length(f)))
+           cdx = reinstate(repeat(-1,length(line)),f,tagstart(0,length(f)))
+    res &= " <tr>\n"
+    integer start = 2, 
+            colour_idx = 0,
+            ctab = new_dict("colours")
+    for i=2 to length(f) do
+        integer finish = f[i]
+        string htxt = trim(line[start..finish-1]),
+              left1 = iff(i=2?` style="text-align: left;"`:``)
+        if i=2 and line[2]=' ' and length(htxt) then
+            colour_idx = 2
+            setd({start,finish},colour_idx,ctab)
+--          colourized = true -- (not actually needed)
+        elsif length(htxt)=1 and htxt>="0" and htxt<="9" then
+            integer n = length(f)-i
+            htxt = sprintf("%d",n)
+            if n<=9 then htxt = "&nbsp;"&htxt end if
+        end if
+        if htxt[1]='=' then
+            htxt = htxt[2..$]
+--          left1 = ` text-align: center;`
+            left1 = ` style="text-align: center;"`
+        end if
+        if htxt="S2" then htxt = "SHFT" end if
+        res &= sprintf("  <td%s>%s</td>\n",{left1,htxt})
+        start = finish+1
+    end for
+    res &= " </tr>\n"
+    for i=2 to length(lines) do
+        line = lines[i]
+        integer c1 = line[1]
+        if c1=':' then -- links
+            -- eg ":and:<a href="ARM___and_htm">and</a>"
+            wr = split(line,":",no_empty:=true)
+            assert(length(wr)=2)
+            {word,ref} = wr
+            words = append(words,word)
+            refs = append(refs,ref)
+        elsif c1!='='       -- (not hidden, aka too/very similar to something else)
+          and c1!='-'       -- (not hidden, aka "a distraction" that I'll not use)
+          and c1!='?' then  -- (not a questionable edit/previous version of line..)
+            res &= " <tr>\n"
+--          bool unsupported = (c1='-') [DEV unused/usurped...]
+            bool named = (c1='#')
+            line[1] = '|'
+            f = find_all('|',line)
+            start = 2
+            if line[2]=' ' then
+                -- assign colours...
+                if dict_size(ctab)=0 then
+                    -- some fudges...
+--                  setd({50,63},2,ctab)    -- MUL's 0000000
+--                  setd({50,65},2,ctab)    -- MRS's 00010000
+--                  setd({90,97},5,ctab)    -- V+SHFT+Z, aka MUL's 1001
+                    setd({68,81},2,ctab)    -- MUL's 0000000
+                    setd({68,83},2,ctab)    -- MRS's 00010000
+                    setd({108,115},5,ctab)  -- V+SHFT+Z, aka MUL's 1001
+                end if
+                start = f[2]+1
+                for j=3 to length(f) do
+                    integer finish = f[j]
+                    string ctxt = trim(line[start..finish-1])
+                    if length(ctxt) then
+                        colour_idx += 1
+                        if colour_idx>length(colours) then ?9/0 end if
+--if find(ctxt,{"LIT8","V","Z"}) then
+--?{ctxt,start,finish,colour_idx}
+--wait_key()
+--end if
+                        setd({start,finish},colour_idx,ctab)
+                    end if
+                    start = finish+1
+                end for
+                start = 2 
+            end if
+
+            for j=2 to length(f) do
+                integer finish = f[j]
+                integer s = cdx[finish]-cdx[start-1],
+                        c = getd({start,finish},ctab)
+                string txt = trim(line[start..finish-1]),
+                      span = iff(s>1?sprintf(` colspan="%d"`,s):""),
+                     left1 = iff(j=2?`text-align: left;`:
+                             iff(line[start]=' '?`text-align: center;`:``)),
+                    colour = iff(length(txt) and c?colours[c]:``)
+                if length(txt) then
+                    if txt[1]='=' then
+                        txt = txt[2..$]
+                        left1 = ` text-align: center;`
+                    end if
+                    if length(words) then
+                        txt = substitute_all(txt,words,refs)
+                    end if
+                    if named and j=2 then
+--<a name=xxx></a>xxx
+                        
+                        integer k = find('#',txt,3)
+                        string name = txt[1..k-1]
+                        txt = sprintf("<a name=%s></a>%s%s",{name,name,txt[k+1..$]})
+--?txt
+--                      ?9/0
+                    end if
+                end if
+--if (c=0 and length(txt)) or txt="OPCODE" then 
+--if (c=0 and length(txt)) or txt="1 0 0 1" then 
+--  ?line
+--  ?txt
+--  ?{c,start,finish}
+--  wait_key()
+--end if
+
+                if length(colour) then
+                    if txt[1]='x' or txt="SBZ" or txt = "fld_msk" then
+                        colour = "#c2c2c2;"
+                    elsif txt = "SBO" then
+                        colour = "#d2d2d2;"
+                    else
+                        integer rx = find(txt,{"Rn","Rd","RdHi","RdLo"})
+                        if rx then
+                            colour = {teal, cyan, cyan, cyan}[rx]
+                        end if
+                    end if
+                    colour = `background: `&colour
+                end if
+--PL why colourized?? - messes up ARM___cond otherwise.
+-- (DEV/SUG a better option wd be to check enuf spans [DONE])
+--              if length(txt)>1 and colourized
+--              if length(txt)>1
+--              and s=(length(txt)+1)/2
+                if j>2 and s=(length(txt)+1)/2
+                and length(find_all(' ',txt))*2=length(txt)-1 then
+--if txt="1 0 0 1" then
+--              if txt[1]='x' then colour = "background: #c2c2c2;" end if
+                    string bw = iff(length(txt)>1?"border-width: 1px 0;":""),
+                         cbwc = sprintf(` style="text-align: center;%s%s"`,{bw,colour})
+--/*
+                    if length(colour) then
+                        colour = sprintf(` style="border-width: 1px 0;%s"`,{colour})
+                    else
+                        colour = ` style="border-width: 1px 0;"` 
+                    end if
+--*/
+--?{"spanchek?",s,(length(txt)+1)/2,filename}
+--?9/0
+                    for c=1 to length(txt) by 2 do
+--                      res &= sprintf("  <td%s>%c</td>\n",{colour,txt[c]})
+                        res &= sprintf("  <td%s>%c</td>\n",{cbwc,txt[c]})
+--                      res &= sprintf("  <td style=\"%s%s\">%c</td>\n",{bwc,colour,txt[c]})
+                    end for
+                else
+                    if length(left1) then
+                        if length(colour) then
+                            left1 = sprintf(` style="%s %s"`,{left1,colour})
+                        else
+                            left1 = sprintf(` style="%s"`,{left1})
+                        end if
+                    elsif length(colour) then
+                        left1 = sprintf(` style="%s"`,{colour})
+                    end if  
+                    if txt="S2" then txt = "SHFT" end if
+                    if txt="s2" then txt = "shft" end if
+                    res &= sprintf("  <td%s%s%s>%s</td>\n",{left1,colour,span,txt})
+                end if
+                start = finish+1
+            end for
+            res &= " </tr>\n"
+        end if
+    end for
+    destroy_dict(ctab)
+    res &= "</table>\n"
+    return res
+end function
+
+constant atc = `<div class="arm_table">`,
+        latc = length(atc)
+
+function armify(string content, filename)
+    -- convert the shorthand in ARM.htm to a nice colour table
+    filename = get_file_name(filename)
+    while true do
+        integer k = match(atc,content),
+                l = k+latc-1
+        if k=0 then exit end if
+        assert(content[l]='>')
+        integer m = match(`</div>`,content,l+1),
+                n = m+5
+        assert(m!=0)
+        assert(content[n]='>')
+        content[m..n] = "</pre>"
+        content[l+1..m-1] = markup(content[l+1..m-1],filename)
+--/*
+Rules:
+* Line 1 defines the basic columns: every following line can *only* have | that match line 1, and those define the span (if any).
+* If line 2 begins '.' then this table is colourised.
+
+--*/
+        content[k..l] = "<pre>"
+--?{"ARM",k}
+    end while
+    return content
+end function
+
+function word_opt_rec(sequence res, options, string base, bool addbase=true)
+    if addbase then
+        res = append(res,base)
+    end if
+    if length(options) then
+        sequence opts = options[1]
+        options = options[2..$]
+        res = word_opt_rec(res,options,base,false)
+        for opt in opts do
+--          res = word_opt_rec(res,options,base&opt)
+            res = word_opt_rec(res,options,base&opt,length(base)>0)
+        end for
+    end if
+    return res
+end function
+
+function word_options(string word)
+--bool show = match("[j]",word)=1 or match("mov[",word)=1
+--if show then ?word end if
+    -- expand eg "add[gt|le][s]" into all of the six variations,
+    --  namely {`add`,`adds`,`addgt`,`addgts`,`addle`,`addles`}
+    --  [actual use typically averages perhaps some 36 of them!]
+    -- Note that "[j][a|b|z]" means the "j" is "non-standalone"
+    -- ***NB: keep this in step with synld.e ***
+    sequence res = {}, options = {}
+    integer k = find('[',word),
+            l = find(']',word,k+1)
+    string base = word[1..k-1]
+    while true do
+        options = append(options,split(word[k+1..l-1],'|'))
+        word = word[l+1..$]
+        if word="" then exit end if
+        if word[1]!='[' then
+            ?"options error: "&word
+            return {}
+        end if
+        k = 1
+        l = find(']',word)
+        if l=0 then
+            ?"options error(] missing?): "&word
+            return {}
+        end if
+    end while
+--  res = word_opt_rec(res,options,base)
+--  res = word_opt_rec(res,options,base,k>1)
+    res = word_opt_rec(res,options,base,length(base)>0)
+--if show then ?res end if
+    return res
+end function
 
 procedure readtoc()
 string tocname = join_path({current_dir(),"src","toc.txt"})
@@ -88,7 +417,7 @@ integer startidx, endidx, k, s, e
 
     puts(1,"Reading files...\n")
     if fn=-1 then fatal(sprintf("error opening %s\n",{tocname})) end if
-    while 1 do
+    while true do
         line = trim_tail(gets(fn))
         if atom(line) then exit end if
         lineno += 1
@@ -156,14 +485,23 @@ integer startidx, endidx, k, s, e
                     k = match(".htm",oneline)
 --No! - we can have link names such as printf.htm#SEEALSO
 --                  if k=0 or k!=length(oneline)-3 then ?9/0 end if
-                    if k=0 then ?9/0 end if
+                    if k=0 then crash("missing .htm (%s => %s)",{onekey,oneline}) end if
                     if k!=length(oneline)-3 then
                         if oneline[k+4]!='#' then ?9/0 end if
                     end if
                 end if
-                if find(onekey,keywords) then crash("duplicate:"&onekey) end if
-                index = append(index,{onekey,oneline})
-                keywords = append(keywords,onekey)
+                if find('[',onekey) then
+                    sequence manykeys = word_options(onekey)
+                    for akey in manykeys do
+                        if find(akey,keywords) then crash("duplicate:"&akey) end if
+                        index = append(index,{akey,oneline})
+                        keywords = append(keywords,akey)
+                    end for
+                else
+                    if find(onekey,keywords) then crash("duplicate:"&onekey) end if
+                    index = append(index,{onekey,oneline})
+                    keywords = append(keywords,onekey)
+                end if
             end if
         end if
         startidx = endidx+1
@@ -209,10 +547,16 @@ if get_file_name(filename)!=get_file_name(test) then ?9/0 end if
             content &= line
         end while
         -- these need to be byte-perfect:
+--8/8/22:
+        if content[1..3] = {239,187,191} then
+            content = content[4..$]
+        end if
         if length(content)<length(stdhdr)
         or content[1..lenstdhdr]!=stdhdr
         or length(content)<length(stdtail)
         or content[-lenstdtail..-1]!=stdtail then
+--object stdhdrc = stdhdr,
+--      stdtailc = stdtail
             fatal("invalid/incorrect hdr/tail in "&filename&"\n")
         end if
         content = content[lenstdhdr+1..-lenstdtail-1]
@@ -231,6 +575,9 @@ if get_file_name(filename)!=get_file_name(test) then ?9/0 end if
         dend = match(" <a href=",description)
         if dend then description = description[1..dend-1] end if
 --    <h1 class="title">IupLabel <a href="common.htm#TITLE">(<span class="pwap2js">pwap2js</span>)</a></h1>
+if match("ARM",filename) or match("x86.htm",filename) then
+    content = armify(content,filename)
+end if
         contents[i] = content
         if wikidocs then
             description = substitute(description,"/","")
@@ -280,6 +627,25 @@ if get_file_name(filename)!=get_file_name(test) then ?9/0 end if
             exit
         end if
     end while
+
+--26/4/22:
+    string p2js = get_proper_path(join_path({current_dir(),"..","..","pwa","p2js.js"}))
+    fn = open(p2js,"r")
+    if fn=-1 then fatal("error opening "&p2js&"\n") end if
+    while 1 do
+        line = gets(fn)
+        if match("function version() {",line) then
+            line = trim(gets(fn))
+            close(fn)
+            assert(line[1..8]=`return "`)
+            line = line[9..$]
+            assert(line[-2..-1]=`";`)
+            p2js = line[1..-3]
+            assert(p2js=pglobals,"version() in p2js.js does not match pglobals.e")
+            exit
+        end if
+    end while
+
     content = stubs[find("banner",stubnames)]
     if not match("<h3>Version "&pglobals&"</h3>",content) then
         s = find(' ',content,match("<h3>Version",content))+1
@@ -2124,13 +2490,15 @@ function wikiword(string desc)
 end function
 
 procedure writefiles()
-integer fn
-string filename, filepath
+    integer fn
     puts(1,"Writing files...\n")
     for i=1 to length(tocf) do
-        filename = tocf[i]
-        if wikidocs then
+        string filename = tocf[i], filepath
+--too late... (before you slap it in contents)
+--if match("ARM",filename) then
 --?{filename,i}
+--end if
+        if wikidocs then
 --          string targets = "",
 --                 content = contents[i]
 --          string {targets,content} = wikify(contents[i])
@@ -2138,24 +2506,24 @@ string filename, filepath
 --if find(filename,{"phix","example","language","rectools"}) then
 if find(filename,FILESET) then
 --/*
-            integer ch = lower(filename[1])
-if find(ch,"cdepl")
-and match("cd",filename)!=1
-and match("vs",filename)=0
---and match("Iup",filename)!=1
-and match("curl",filename)!=1
-and match("Dib",filename)=0
-and match("db_",filename)!=1 then
---and match("task_",filename)!=1
---and match("get_",filename)!=1
---and match("Zip",filename)!=1
---and match("UnZip",filename)!=1
---and match("ba_",filename)!=1
---and match("a32",filename)!=1
---and match("arwen",filename)!=1
---and match("utf",filename)!=1
---and match("sqlite3",filename)!=1
---and match("nopoll",filename)!=1 then
+--              integer ch = lower(filename[1])
+--  if find(ch,"cdepl")
+--  and match("cd",filename)!=1
+--  and match("vs",filename)=0
+--  --and match("Iup",filename)!=1
+--  and match("curl",filename)!=1
+--  and match("Dib",filename)=0
+--  and match("db_",filename)!=1 then
+--  --and match("task_",filename)!=1
+--  --and match("get_",filename)!=1
+--  --and match("Zip",filename)!=1
+--  --and match("UnZip",filename)!=1
+--  --and match("ba_",filename)!=1
+--  --and match("a32",filename)!=1
+--  --and match("arwen",filename)!=1
+--  --and match("utf",filename)!=1
+--  --and match("sqlite3",filename)!=1
+--  --and match("nopoll",filename)!=1 then
 --*/
             if i=1 then
                 filename = "Phix"

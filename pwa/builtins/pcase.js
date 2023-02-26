@@ -53,7 +53,11 @@ function $initcase() {
         for (let i=1, i$lim=length(x); i<=i$lim; i+=1) {
             o = $subse(x,i);
             if (sequence(o)) {
-                x = $repe(x,i,upper(o));
+                // 8/2/23 p2js violation
+//              x[i] = upper(o)
+                x = $repe(x,i,0);
+                o = upper(o);
+                x = $repe(x,i,o);
             } else if (integer(o)) {
                 c = o;
                 if (c>0 && c<=255) {
@@ -78,7 +82,11 @@ function $initcase() {
         for (let i=1, i$lim=length(x); i<=i$lim; i+=1) {
             o = $subse(x,i);
             if (sequence(o)) {
-                x = $repe(x,i,lower(o));
+                // 8/2/23 p2js violation
+//              x[i] = lower(o)
+                x = $repe(x,i,0);
+                o = lower(o);
+                x = $repe(x,i,o);
             } else if (integer(o)) {
                 c = o;
                 if (c>0 && c<=255) {

@@ -1825,7 +1825,7 @@ end if
             guards = or_bits(guards,#01)
             getCh()
             if Ch=']' then
-                -- [] is shorthand for [PE32,PE64,ELF32,ELF64]
+                -- [] is shorthand for [PE32,PE64,ELF32,ELF64,ARM]
                 emitON = wasemitON
 --DEV I think this should be... (19/11/14) [undone w/out ever testing, use X64 to control binary output (when emitON=true!), Z64 to control parsing...][DEV]
                 Z64 = 0
@@ -1887,6 +1887,7 @@ end if
                                 emitON = 1
                             end if
                             Z64 = 1
+-->ARM
                         else
                             unrecognised = 1
                         end if
@@ -2088,13 +2089,14 @@ end if
                 mod = find(ttidx,{T_add,T_or,T_adc,T_sbb,T_and,T_sub,T_xor,T_cmp})-1
                 {p1type,p1size,p1details} = get_operand(P_RM,true)
                 comma()
-                if and_bits(p1type,P_MV) then
+                if and_bits(p1type,P_MV) then -- mem/var
                     permitted = P_RLI
                 elsif p1type=P_REG then
                     permitted = P_RMLIS
                 else
                     permitted = P_RMLI
                 end if
+                -- for eg :%opOpen, specially allow "mov edx,<routine_id>":
                 if op=T_mov
                 and p1type=P_REG
                 and ((Z64=0 and p1size=4) or
@@ -2996,6 +2998,13 @@ end if
 --00429B01   #39 0o035 6C2A4000 CMP DWORD PTR DS:[402A6C],EBX
 --00429B01   0o071 0o035 6C2A4000   CMP DWORD PTR DS:[402A6C],EBX
 --00429B07   0o071 0o005 6C2A4000   CMP DWORD PTR DS:[402A6C],EAX
+
+                            elsif sType=S_TVar then
+                                -- 0o0m1 0o1r5 d8                               -- cmp [ebp+d8],r32
+                                -- 0o0m1 0o2r5 d32                              -- cmp [ebp+d32],r32
+                                xrm = 0o001+mod*8 -- 0o0m1 (where m is instruction modifier)
+                                s5 &= xrm
+                                emit_ebpN(reg,N)
                             else
                                 ?9/0  -- placeholder for more code
                             end if
@@ -3088,6 +3097,7 @@ end if
                     end if
                 end if -- emitON
 
+--<[DEV] x86.htm done to here...>
             elsif ttidx=T_rol
                or ttidx=T_ror
                or ttidx=T_rcl
@@ -3258,10 +3268,10 @@ bt eax,5        0FBAE005    (0o017 0o272 0o340 #05)
                     elsif p1type=P_MEM then
                         {scale,idx,base,offset} = p1details
                         -- 0o377 0o06r          -- push dword[reg]
-                        -- 0o377 0o16r          -- push dword[reg+d8]
+                        -- 0o377 0o16r d8       -- push dword[reg+d8]
                         -- 0o377 0o26r d32      -- push dword[reg+d32]
                         -- 0o377 0o064 sib      -- push dword[b+i*s]
-                        -- 0o377 0o164 si5 00   -- push dword[ebp+i*4]
+                        -- 0o377 0o164 si5 00   -- push dword[ebp+i*4+0]
                         -- 0o377 0o164 sib d8   -- push dword[b+i*s+d8]
                         -- 0o377 0o264 sib d32  -- push dword[b+i*s+d32]
                         if rex then
@@ -3380,7 +3390,7 @@ end if
                             -- 0o217 0o105 d8       -- pop dword[ebp+d8] (d8 of 0 rqd)
                             -- 0o217 0o205 d32      -- pop dword[ebp+d32]
                             s5 &= 0o217
-                            emit_ebpN(0,N)  -- (6 is an instruction modifier)
+                            emit_ebpN(0,N)  -- (0 is an instruction modifier)
                         else
                             ?9/0 -- sanity check (should never happen)
                         end if
@@ -3398,7 +3408,7 @@ end if
             elsif ttidx=T_popad then
                 -- DEV invalid on 64bit
                 if emitON then
-                    if X64 then ?9/0 end if
+                    if X64 then Aborp("invalid on 64 bit") end if
                     -- 0o141                    -- popad
                     s5 &= 0o141
                 end if
@@ -4500,6 +4510,7 @@ end if
                or ttidx=T_mul
                or ttidx=T_imul then
                 -- DEV barely tested, if at all:
+                op = ttidx
                 if ttidx=T_div then
                     xrm = 0o360
                 elsif ttidx=T_idiv then
@@ -4507,41 +4518,63 @@ end if
                 elsif ttidx=T_mul then
                     xrm = 0o340
                 elsif ttidx=T_imul then
+                    -- eg imul ecx  367351                   np 05 03 10  46      
+                    --DEV 64 bit should not allow AH/BH/CH/DH...
                     xrm = 0o350
                 else
                     ?9/0
                 end if
                 {p1type,p1size,p1details} = get_operand(P_REG,false)
-                if emitON then
-                    rex = 0
-                    if p1size=8 then
-                        rex = #48
-                    end if
-                    if p1type=P_REG then
-                        reg = p1details-1
-                        if reg>8 then
-                            ?9/0 -- (I'm only expecting to have to deal with idiv rcx here)
---                          rex = or_bits(rex,?9/0)
+-- 17/11/22:
+                if p1size=2 then ?9/0 end if
+                if Ch=',' then
+                    -- NB: only specifically supporting "imul eax,ecx" for now...
+--      imul eax,ecx
+--004410E9   0FAFC1         IMUL EAX,ECX
+--004410E9   0o17 0o257 0o301       IMUL EAX,ECX
+                    if op!=T_imul then ?9/0 end if
+                    comma()
+                    {p2type,p2size,p2details} = get_operand(P_REG,false)
+                    if Ch=',' then ?9/0 end if
+                    if p1type!=P_REG then ?9/0 end if
+                    if p2type!=P_REG then ?9/0 end if
+                    if p1size!=4 then ?9/0 end if
+                    if p2size!=4 then ?9/0 end if
+                    if p1details!=1 then ?9/0 end if -- eax
+                    if p2details!=2 then ?9/0 end if -- eax
+                    s5 &= {#0F,#AF,0o301}
+                else
+                    if emitON then
+                        rex = 0
+                        if p1size=8 then
+                            rex = #48
                         end if
-                        if rex then
-                            s5 &= rex
-                        end if
---                      xrm = 0o370+reg
-                        xrm += reg
+                        if p1type=P_REG then
+                            reg = p1details-1
+                            if reg>8 then
+                                ?9/0 -- (I'm only expecting to have to deal with idiv rcx here)
+--                              rex = or_bits(rex,?9/0)
+                            end if
+                            if rex then
+                                s5 &= rex
+                            end if
+--                          xrm = 0o370+reg
+                            xrm += reg
 --26/6/19:
 --; 175             div cl
 --                  div ecx               ;#0043D5A5: 367361                     np 05 07 41 741      
 --0043D5A5   F6F1           DIV CL
 --0043D5A5   0o366 0o361            DIV CL
---                      s5 &= {0o367,xrm}
-                        if p1size=1 then
-                            s5 &= 0o366
+--                          s5 &= {0o367,xrm}
+                            if p1size=1 then
+                                s5 &= 0o366
+                            else
+                                s5 &= 0o367
+                            end if
+                            s5 &= xrm
                         else
-                            s5 &= 0o367
+                            ?9/0 -- sanity check (should never trigger)
                         end if
-                        s5 &= xrm
-                    else
-                        ?9/0 -- sanity check (should never trigger)
                     end if
                 end if
             elsif ttidx=T_syscall then
@@ -5060,6 +5093,55 @@ movdqu... (64 bit only?)
                     else
                         ?9/0
                     end if
+                end if
+            elsif ttidx=T_aaa
+               or ttidx=T_aas
+               or ttidx=T_daa
+               or ttidx=T_das then
+                if emitON then
+                    if X64 then Aborp("invalid on 64 bit") end if
+                    op = {0o067,0o077,0o047,0o057}[find(ttidx,{T_aaa,T_aas,T_daa,T_das})]
+                    s5 &= {op}
+                end if
+--/*
+--  T_aaa                       // #37, invalid in 64-bit
+--  T_aas                       // #3F, ""
+--  T_daa                       // #27, ""
+--  T_das                       // #2F, ""
+--  T_aam                       // #D4 0A (eat imm8 if we can...) -- see fdivp
+--  T_aad                       // #D5 0A ""
+--  T_fbld                      // #DF 4, whereas T_fild is DF 5
+--  T_fbstp                     // #DF 6, whereas T_fistp is DF 7
+--*/
+            elsif ttidx=T_aam
+               or ttidx=T_aad then
+                b = 10 -- default base 10
+                skipSpacesAndComments()
+                if line=tokline and Ch!='}' then
+                    getToken()
+                    if toktype!=DIGIT
+                    or TokN<0 or TokN>#FF then  --- (technically all valid...)
+                        Aborp("unrecognised")
+                    end if
+                    b = TokN
+                end if
+                if emitON then
+                    if X64 then Aborp("invalid on 64 bit") end if
+                    op = {0o324,0o325}[find(ttidx,{T_aam,T_aad})]
+                    s5 &= {op,b}
+                end if
+            elsif ttidx=T_fbld
+               or ttidx=T_fbstp then
+                op = ttidx
+                {p1type,p1size,p1details} = get_operand(P_MEM,false)
+                if p1type!=P_MEM or p1size!=10 then
+                    Aborp("not permitted")
+                end if
+                if emitON then
+                    {scale,idx,base,offset} = p1details
+                    mod = iff(op=T_fbld?4:6)
+                    s5 &= 0o337
+                    emit_xrm_sib(mod,scale,idx,base,offset)
                 end if
             else
 --              if machine=64 then ?9/0 end if  -- aaa and aas and daa and das invalid (but this never supported them anyway)

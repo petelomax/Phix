@@ -28,8 +28,8 @@
       }
 </eucode-->
 <pre>
-<font color="#000000">#</font><font color="#008080">ilASM</font><font color="#0000FF">{</font><font color="#000000"> jmp</font><font color="#0000FF"> :</font><font color="#FF0000">!</font><font color="#000000">opCallOnceYeNot
-</font><font color="#0000FF">        ...
+<font color="#000000">#</font><font color="#008080">ilASM</font><font color="#0000FF">{</font><font color="#000000"> jmp</font><font color="#0000FF"> :</font><font color="#FF0000">!</font><font color="#000000">opCallOnceYeNot</font>
+<font color="#0000FF">        ...
       }</font>
 </pre>
           </div>
@@ -57,11 +57,11 @@ end procedure
 puts(1,"There\n")
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#7060A8">puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"Hi\n"</font><font color="#0000FF">)
-</font><font color="#008080">global procedure</font><font color="#000000"> bye</font><font color="#0000FF">()
-</font><font color="#7060A8">    puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"Bye\n"</font><font color="#0000FF">)
-</font><font color="#008080">end procedure
-</font><font color="#7060A8">puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"There\n"</font><font color="#0000FF">)</font>
+<font color="#7060A8">puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"Hi\n"</font><font color="#0000FF">)</font>
+<font color="#008080">global procedure</font><font color="#000000"> bye</font><font color="#0000FF">()</font>
+<font color="#7060A8">    puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"Bye\n"</font><font color="#0000FF">)</font>
+<font color="#008080">end procedure</font>
+<font color="#7060A8">puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"There\n"</font><font color="#0000FF">)</font>
 </pre>
             <br>
             And a little test program:
@@ -72,16 +72,15 @@ include my_include.e
 bye()
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> my_include.e
+<font color="#008080">include</font><font color="#000000"> my_include.e
 bye</font><font color="#0000FF">()</font>
 </pre>
             <br>
             Now, obviously you would expect the "Hi" (and "There") to be displayed before the "Bye". <br>
             Each file generates a hidden top-level subroutine, which the compiler invokes, but only when it needs to. <br>
             There are hundreds of files in builtins\VM so the last thing we want is to call hundreds of empty top-level 
-            subroutines that do nothing, when each and every program starts. Now while I can optimise that away (and have),
-            equally we don&rsquo;t want each and every program to be invoking lots of such piddly little routines from 
-            builtins\VM, and this is the mechanism I use to stop myself accidentally adding (more of) them.
+            subroutines that do nothing, when each and every program starts. I can optimise that away (and have), this is 
+            the mechanism I use to stop myself accidentally adding (more of) them.
             <br>
             <br>
             The definition of :!opCallOnceYeNot is simply just an int3 statement, and there is not much point making that a more
@@ -96,7 +95,7 @@ bye</font><font color="#0000FF">()</font>
 constant something = somefunc()
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#008080">constant</font><font color="#000000"> something</font><font color="#0000FF"> =</font><font color="#000000"> somefunc</font><font color="#0000FF">()</font>
+<font color="#008080">constant</font><font color="#000000"> something</font><font color="#0000FF"> =</font><font color="#000000"> somefunc</font><font color="#0000FF">()</font>
 </pre>
             <br>
             to a builtins/VM source file (above the jmp). Of course that sort of thing is fine if really needed, in which case 
@@ -110,16 +109,16 @@ constant something = somefunc()
       }
 </eucode-->
 <pre>
-<font color="#000000">#</font><font color="#008080">ilASM</font><font color="#0000FF">{</font><font color="#000000"> jmp</font><font color="#0000FF"> :</font><font color="#000000">fin
-</font><font color="#0000FF">        ...
-        ::</font><font color="#000000">fin
-</font><font color="#0000FF">      }</font>
+<font color="#000000">#</font><font color="#008080">ilASM</font><font color="#0000FF">{</font><font color="#000000"> jmp</font><font color="#0000FF"> :</font><font color="#000000">fin</font>
+<font color="#0000FF">        ...
+        ::</font><font color="#000000">fin</font>
+<font color="#0000FF">      }</font>
 </pre>
             <br>
             However, in most cases [in builtins/VM] it is probably better to defer such initialisation until it is actually needed,
-            and it should be no big deal to make that private "constant something" into a private variable instead, given that it
-            does not actually help for the compiler to re-check you are not accidentally modifying it, every single time it runs,
-            from now until the end of time.
+            and it should be no big deal to make that private constant into a private variable instead, given the only difference
+            between said is the compiler automatically checking for and blocking (accidental) modification, and only for the hll
+            code at compile-time, not at run-time, and besides, freely letting any ilASM{} code run completely amok anyway.
          </td>
         </tr>
         <tr>

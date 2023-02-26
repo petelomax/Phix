@@ -34,21 +34,29 @@
     }
     return a;
 }
+//now mapped to opAndBits in pmain.e:
+//global function even(atom a)
+//  return and_bits(a,1)=0
+//end function
+//
+//global function odd(atom a)
+//  return and_bits(a,1)=1
+//end function
 
-/*global*/ function even(/*atom*/ a) {
-    return equal(and_bits(a,1),0);
-}
-
-/*global*/ function odd(/*atom*/ a) {
-    return equal(and_bits(a,1),1);
-}
+//global function evenN(atom a)
+//  return and_bits(a,1)=0
+//end function
+//
+//global function oddD(atom a)
+//  return and_bits(a,1)=1
+//end function
 
 /*global*/ function exp(/*atom*/ a) {
     return power(EULER,a);
 }
 //bool bUseBankersRounding = false
 
-/*global*/ function round(/*atom*/ a, /*atom*/ inverted_precision=1) {
+/*global*/ function round(/*atom*/ a, inverted_precision=1) {
 //  if inverted_precision=0 then
 //      if a!=true and a!=false then ?9/0 end if
 //      bUseBankersRounding = a
@@ -91,7 +99,7 @@
     return o;
 }
 
-/*global*/ function min(/*object*/ a, /*object*/ b) {
+/*global*/ function min(/*object*/ a, b) {
     if (compare(a,b)<0) { return a; } else { return b; }
 }
 
@@ -107,7 +115,7 @@
     return ((return_index) ? rdx : res);
 }
 
-/*global*/ function max(/*object*/ a, /*object*/ b) {
+/*global*/ function max(/*object*/ a, b) {
     if (compare(a,b)>0) { return a; } else { return b; }
 }
 
@@ -123,7 +131,7 @@
     return ((return_index) ? rdx : res);
 }
 
-/*global*/ function mod(/*atom*/ x, /*atom*/ y) {
+/*global*/ function mod(/*atom*/ x, y) {
     if (equal(sign(x),sign(y))) {
         return remainder(x,y);
     }
@@ -138,7 +146,7 @@
     return floor(x);
 }
 
-/*global*/ function atan2(/*atom*/ y, /*atom*/ x) {
+/*global*/ function atan2(/*atom*/ y, x) {
     if (x>0) {
         return arctan(y/x);
     } else if (x<0) {
@@ -156,3 +164,48 @@
     }
 //    return 2*arctan((sqrt(power(x,2)+power(y,2))-x)/y)
 }
+
+/*global*/ function mulmod(/*atom*/ a, b, modulus) {
+    // return (a*b) % modulus, but allow a*b to exceed precision.
+    // Note: intended for use when sign(a)=sign(b); no formal statement concerning whether
+    //       the results more closely (/theoretically) match mod() or remainder() is made.
+
+    // (a * b) % modulus = (a % modulus) * (b % modulus) % modulus
+    a = mod(a,modulus);
+    b = mod(b,modulus);
+    // fast path
+//  if a<=0xFFFFFFF and b<=0xFFFFFFF then   -- 64 bit?? [PL, 7x4=28,*2=56 bits? - 7 or 8 spare]
+    if (a<=0xFFFFFF && b<=0xFFFFFF) {       // 32 bit..      6x4=24,*2=48 bits? - 3 or 4 spare...]
+        return mod(a*b,modulus);
+    }
+    // we might encounter overflows (slow path)
+    // the number of loops depends on b, therefore try to minimize b
+    if (b>a) { [,a,b] = ["sequence",b,a]; }
+    // bitwise multiplication
+    let /*atom*/ result = 0;
+    while (a>0 && b>0) {
+        if (odd(b)) {
+            result = mod(result+a,modulus);
+        }
+        a = mod(a*2,modulus);
+        b = floor(b/2); // next bit
+    }
+    return result;
+}
+
+/*global*/ function powmod(/*atom*/ base, exponent, modulus) {
+    // return base^exponent % modulus, but allow base^exponent to exceed precision.
+    // employs the tricks of https://en.wikipedia.org/wiki/Exponentiation_by_squaring
+    // Note: see disclaimer in modmul() above regarding mod() vs remainder().
+    let /*atom*/ result = 1;
+//  if exponent<0 then x = 1/x; exponent *= -1 end if   -- (untested)
+    while (exponent>0) {
+        if (odd(exponent)) {
+            result = mulmod(result,base,modulus);
+        }
+        base = mulmod(base,base,modulus);
+        exponent = floor(exponent/2);
+    }
+    return result;
+}
+//?powmod(13789,722341,2345) -- 2029 expected (good)

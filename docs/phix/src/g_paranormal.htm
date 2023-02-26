@@ -1,0 +1,148 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">Paranormalised Functions</h1>
+      <div id="mainSection">
+        Several routines perform a little trickery that, once you get used to the idea, make them easier to use. For example this help contains:
+        <br>
+        <br>
+        <small>
+        <code>
+        <a href="gButton.htm">gButton</a>([<a href="string.htm">nullable_string</a> title=NULL,]
+                                          [<a href="rtn.htm">rtn</a> click=NULL,] 
+                                           <a href="string.htm">string</a> attributes="", 
+                                           <a href="html/glossary.htm#dwordseq">dword_seq</a> args={})</code>
+<!--
+//      <br>
+//      <br>
+//      <code>
+//      <a href="gText.htm">gText</a>([<a href="integer.htm">integer</a> ?action=NULL,] 
+//                                     <a href="string.htm">string</a> attributes="", 
+//                                     <a href="html/glossary.htm#dwordseq">dword_seq</a> args={})
+//      </code>
+-->
+        </small>
+        <br>
+        <br>
+        The idea is that (in this specific case) title and click are doubly-optional.<br>
+        You might want to study <a href="gText.htm">gText</a>() first, as the simplest possible use case for this concept.
+        <br>
+        <br>
+<!--
+//      Hence this note is somewhat more trivial and indeed almost unnecessary in xpGUI, 
+//      but there is still a common "shuffle arguments into the right place" process.<br>
+//      Any items before the "[" are element-specific; this note covers the handling of {rtn,attributes,args}. <br>
+//      Unless you are using <a href="procedures.htm#namedparams">named parameters</a>, should you want to provide any of the parameters 
+//      after the "[", you must provide everything before it. 
+-->
+        I made up the term paranormalise as a jokey way to explain that you have more flexibility than normal in how you can provide the parameters. <br>
+        In short, and with no expectation that you should attempt to memorise this lot, you can assume that <i>any</i> and <i>all</i> of the following 
+        are perfectly valid, via a common "shuffle arguments into the right place" process using a wee bit of good old crafty/common sense logic:
+        <small>
+ <pre>
+    gButton()
+    gButton(title)
+    gButton(title, click)
+    gButton(title, attributes[,args])
+    gButton(title, click, attributes[,args])
+    gButton(click)
+    gButton(click, attributes[,args])
+    gButton(attributes, args)                       -- [NB gButton(attributes) treated as gButton(title)]
+    gButton(attributes:="FLAT=YES", click:=click, title:="OK")  -- [an example of using named parameters]</pre>
+        </small>
+<!--
+        You can imagine the same less "title" for <a href="gText.htm">gText</a>.<br>
+-->
+        Fairly obviously and as per all subroutine calls in Phix, no other (unnamed) ordering of the parameters will be successful.<br>
+        Having 11 or 12 ways to call something might not sound like fun, but trust me it is really nifty once you get used to the idea.<br>
+        Named parameters may carry some additional risk of confusion, and are probably just simply more trouble than they are worth. (here, anyway)<br>
+        The title and click parameters are actually declared as <a href="object.htm">object</a>, attributes as <a href="sequence.htm">sequence</a>, 
+        and args as <a href="html/glossary.htm#dwordseq">dword_seq</a>, but carefully and<br>
+        thoroughly verified to be of the documented types, after they have all been properly repositioned.<br>
+        An assertion failure, such as `"what?" != "" (and not dword_seq)`, is shown on the gButton() call itself for any parameter it failed 
+        to understand, along with what it would have found acceptable in that parameter position. That can also occur if it has decided you
+        must be passing, say, at most 3 parameters, but the 4th is not the usual default. Let me know of any such messages that don&rsquo;t 
+        make perfect sense, and/or could be improved.
+        <br>
+        <br>
+        While pGUI had just one paranormalise() routine which only dealt with [action,func,attr,args], xpGUI.e has relaxed the "always present"
+        restrictions on preceding arguments and now has (at least) four versions: <br>
+        firstly ~_traa() which is used by (at least) <a href="gButton.htm">gButton</a>(), gLink(), gMenuItem(), gToggle(), and gValuator(), <br>
+        secondly ~_qraa for (at least) <a href="gTreeView.htm">gTreeView</a>(), <br>
+        thirdly ~_raa() for (at least) <a href="gText.htm">gText</a>(), gDatePick(), <a href="gCanvas.htm">gCanvas</a>(),  gDetachBox(), gList(), 
+                                       and gSpinBox(), and <br>
+        fourth and lastly ~_paab() currently just for <a href="gDialog.htm">gDialog</a>(). <br>
+        In those you can find the the precise nitty-gritty details of this handling, which is of course generally speaking pretty much identical 
+        across all the interface elements that use it, plus a full set of unit tests. <br>
+        Note that, should you modify these in xpGUI.e, xpGUI.js contains the equivalent manually transpiled and pasted into JavaScript.
+        <br>
+        <br>
+        There are a couple of mini-gotchas with this approach, which are individually documented on all affected routines, for instance
+        <a href="gButton.htm">gButton</a>(attributes) would be treated as <a href="gButton.htm">gButton</a>(title), which in that case 
+        can easily be fixed by a leading NULL, or a trailing {}, or using named parameters, or as next, and simply cannot happen if a
+        click routine is specified, which it pretty much almost always is.
+        <br>
+        <br>
+<!--
+//      If any of this troubles you, just provide the full set of parameters every time, and re-visit this once you 
+//      get bored with that. 
+-->
+        Alternatively, a control declaration can be broken up into several discrete statements, ie/eg:
+        <small>
+ <pre>
+    gdx button = gButton([title])
+    gSetHandler(button, "CLICK", <i>btn_clicked</i>) 
+    gSetAttributes(button, attributes[, args]) 
+    gSetAttribute(button, name, v) </pre>
+        </small>    
+        Of course when you are not entirely sure which attributes are needed, multiple calls to <a href="gSetAttribute.htm">gSetAttribute</a>
+        are easier to comment in/out for testing, and multiple handlers can only be set via <a href="gSetHandler.htm">gSetHandler[s]</a> anyway.
+        <br>
+        <br>
+        All paranormalised functions should be clearly marked as such, and no non-paranormalised routine definitions should have any [].
+<!--
+//      <br>
+//      <br>
+//      What this mechanism really attacks is the use of nested <a href="IupSetCallback.htm">IupSetCallbackf</a>() and 
+//      <a href="IupSetAttributes.htm"><span class="illegal">IupSetAttributesf</span></a>(), with all the extra parenthesis 
+//      and indentation that requires, which can get real ugly real fast.
+-->
+<!-- DEV (IDE/plade)
+It also provides a unified and consistent mechanism for declaring interface elements, which greatly simplifies Edix/Tools/Window Painter.
+-->
+<!--
+//      <br>
+//      <br>
+//      Admittedly paranormalisation is less useful on more complex elements and containers, especially if there are
+//      multiple callbacks required, or no callbacks at all, or any slightly fiddly or non-string attributes.
+//      This mechanism has not been applied where it has not yet proved useful, for example <a href="IupMatrix.htm">IupMatrix</a>, 
+//      <a href="IupTree.htm">IupTree</a>, and <a href="IupRadio.htm">IupRadio</a>. 
+//      In fact I originally made <a href="IupDialog.htm">IupDialog</a> paranormalised, before realising that was not helpful.
+//      <br>
+//      <br>
+//      Technicalia: Most elements have more than one callback, and the action name is used to distinguish them - see 
+//      the documentation of the specific interface element. pGUI replaces a NULL action name with "ACTION", which is
+//      suitable for <a href="gCanvas.htm">gCanvas</a>, 
+//      <a href="IupList.htm">IupList</a>, <a href="IupMenuItem.htm">IupMenuItem</a>(aka IupItem), 
+//      <a href="gText.htm">gText</a>, and <a href="IupToggle.htm">IupToggle</a>, but meaningless
+//      on most other elements.
+-->
+        <h3>Legacy aspects</h3>
+        Note that pGUI had/has a slightly strange [[string action,]cbfunc func] affair, which probably stemmed from a legacy method of 
+        having to associate a callback with a (probably globally unique) (string) name and then allowing control-specific overriding 
+        of the default (string) name, no doubt sprinkled with some backward-compatibility issues from before my time, whereas by the time 
+        I started with IUP that was no longer necessary, and I frowned upon it then, and have removed all traces of it completely from 
+        xpGUI, and besides (obviously) it is not using any of that code(/dll/so) any more anyway. 
+        The restrictions on everything before the "[[" must be present have also been relaxed.
+        <br>
+        <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

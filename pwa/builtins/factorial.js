@@ -6,13 +6,42 @@
 let /*integer*/ $finit = 0;
 let /*sequence*/ $fcache;
 
-/*global*/ function factorial(/*integer*/ n) {
+/*global*/ function $gamma(/*atom*/ z) {
+    let /*sequence*/ p = ["sequence",676.5203681218851,
+                                     -1259.1392167224028,
+                                     771.32342877765313,
+                                     -176.61502916214059,
+                                     12.507343278686905,
+                                     -.13857109526572012,
+                                     9.9843695780195716e-6,
+                                     1.5056327351493116e-7];
+//maybe:
+//forward function factorial(atom n) -- probably not needed/wanted, since it's in psym.e anyway
+//  if integer(z) and z>=1 then return factorial(z-1) end if
+    if (z<.5) {
+        return PI/(sin(PI*z)*$gamma(1-z));
+    }
+    // use a lanczos approximation:
+    z -= 1;
+    let /*atom*/ x = .99999999999980993;
+    for (let i=1, i$lim=length(p); i<=i$lim; i+=1) {
+        x += $subse(p,i)/(z+i);
+    }
+    let /*atom*/ t = z+7.5;
+    return ((sqrt(2*PI)*power(t,z+.5))*exp(-t))*x;
+}
+//4/10/22:
+//global function factorial(integer n)
+/*global*/ function factorial(/*atom*/ n) {
 //
 // Standard iterative factorial function, with memoisation.
 // eg         n : 0 1 2 3 4  5   6   7    8
 //  factorial(n): 1 1 2 6 24 120 720 5040 40320 
 // see also mpz_fac_ui()
 //
+    if (!integer(n) || n<0) {
+        return $gamma(n+1);
+    }
     let /*atom*/ res = 1;
     if (n>0) {
         if (!$finit) {
@@ -43,12 +72,27 @@ let /*sequence*/ $fcache;
 // Standard combinations calculation - choose k from n aka "n choose k"
 // see also mpz_binom() [probably wiser to use mpz over atom anyway]
 //
+//24/10/22 (from below)
+//  if k>n-k then k = n-k end if
+//  k = min(k,n-k)
     let /*atom*/ res = 1;
-    for (let i=1, i$lim=k; i<=i$lim; i+=1) {
+//  for i=1 to k do
+    for (let i=1, i$lim=min(k,n-k); i<=i$lim; i+=1) {
         res = (res*((n-i)+1))/i;
     }
     return res;
 }
+/* alt, from pe 53 overview paper
+function combinations(integer n, r)
+    if r>n-r then r = n-r end if
+    atom res = 1
+    for i=1 to r do
+        res = res*(n-i+1)/i
+    end for
+    return res
+end function
+*/
+
 //  atom res = k_perm(n,k)/factorial(k)
  /* alt:
     mpz r = mpz_init(1)

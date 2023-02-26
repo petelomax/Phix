@@ -17,7 +17,7 @@ constant STD_INPUT_HANDLE   = -10,
          STD_OUTPUT_HANDLE  = -11,
 --*/
          ENABLE_PROCESSED_INPUT = 1,
-         C_PTR = C_POINTER,
+--       C_PTR = C_POINTER,
          KEY_EVENT = 1
 
 --/* not rqd for Phix:
@@ -48,14 +48,14 @@ atom xGlobalLock, xGlobalUnlock, xGlobalSize, xGlobalAlloc, xGlobalFree,
 constant CF_TEXT = 1,
          GMEM_CLIPBOARD = #2002 --GMEM_MOVEABLE(#2) + GMEM_DDESHARE(#2000)
 
-integer cinit       -- 0=totally uninitialised, 1=clipboard done,
-        cinit=0     -- 2=console done, 3=clip+console done
+integer cinit=0     -- 0=totally uninitialised, 1=clipboard done,
+                    -- 2=console done, 3=clip+console done
 
 procedure Cinit(integer iflags) 
         if cinit=0 then
             kernel32 = open_dll("kernel32.dll")
         end if
-        if and_bits(iflags,2) then
+        if and_bits(iflags,2) and not and_bits(cinit,2) then
             -- console support:
             xAllocConsole = define_c_func(kernel32,"AllocConsole",
                 {},         --  no parameters
@@ -94,7 +94,7 @@ procedure Cinit(integer iflags)
 --*/
         end if
 
-        if and_bits(iflags,1) then
+        if and_bits(iflags,1) and not and_bits(cinit,1) then
             -- clipboard support:
             xGlobalLock                 = define_c_func(kernel32,"GlobalLock",{C_PTR},C_PTR)
             xGlobalUnlock               = define_c_func(kernel32,"GlobalUnlock",{C_PTR},C_INT)

@@ -13,4 +13,362 @@ constant showprogress=0
 
 if showprogress then puts(1,"0\n") end if
 
+with javascript_semantics
 
+--integer e=-1, i=-2, j=-3
+--integer e=-1, i=-2
+--integer e=-1
+--integer i=-2
+--integer i=-2, j=-3
+sequence t = {}
+--/!*
+integer j=-3
+for e in {3,5} do t &= e end for
+assert(t={3,5})
+sequence s = {3,5}
+for i,e in s do
+--object e
+--for i=1 to length(s) do
+--  e = s[i]
+--  integer k = -5
+--for e in s do
+--  ?{i,e,k} 
+--  ?{i,e} 
+    t &= {{"i",i,e}}
+--  ?{e} 
+    for j,e in s do
+--  for j=1 to length(s) do
+--      e = s[j]
+--  for e in s do
+--  for j=1 to length(s) do
+--      ?{j,e}
+        t &= {{"j",j,e}}
+--      ?{e}
+    end for
+--  ?{i,e,i}
+    t &= {{i,e,i}}
+end for
+--?t
+--assert(t={3,5,{"i",1,3},{"j",1,3},{"j",2,3},{1,3,1},{"i",2,5},{"j",1,5},{"j",2,5},{2,5,2}})
+assert(t={3,5,{"i",1,3},{"j",1,3},{"j",2,5},{1,5,1},{"i",2,5},{"j",1,3},{"j",2,5},{2,5,2}})
+--DEV fails under -c, which just emits assert(false). [FIXED]
+--#isginfo{j,integer,1,2,object,-2}     -- for in (hmmm)
+--symtab[1554]:{j,S_GVar,1,(S_used+S_set+S_for+K_used+K_sqr+K_aod + *** #80 ***??),0,615/#004029AC,integer,{integer,1,2,object,-1},-3}
+--#isginfo{j,integer,-3,3,object,-1}    -- for to (!!!!)
+--symtab[1554]:{j,S_GVar,1,(S_used+S_set+K_wdb+K_noclr),0,615/#004029AC,integer,{integer,-3,3,object,-1},-3}
+assert(j=3)
+--/!*
+t = {}
+-- (I was going to try and optimise these, but dropped that for now)
+enum Up,Left,Down,Right
+for d in {Up,Left,Down,Right} do
+--  ?d
+    t &= d
+end for
+for d in {1,2,3,4} do
+--  ?d
+    t &= d
+end for
+--   is mapped to 
+for d=1 to 4 do
+--  ?d
+    t &= d
+end for
+--?t
+assert(t={1,2,3,4,1,2,3,4,1,2,3,4})
+
+t = ""
+for word in {"one","two","three"} do
+    t &= word
+end for
+for ch in "word" do
+    t &= ch
+end for
+assert(t="onetwothreeword")
+
+t = {}
+for e in {1,"two",{3,4.5}} do
+    t &= e
+end for
+assert(t={1,'t','w','o',3,4.5})
+
+t = {}
+for i in tagstart(5,5,5) do
+    t &= i
+end for
+assert(t={5,10,15,20,25})
+
+procedure test()
+    sequence s = {3,5}, t = {}
+    object e
+    for i,e in s do
+--  for i=1 to length(s) do
+--      object e = s[i]
+--      ?{i,e}
+        t = append(t,{i,e})
+    end for
+    assert(e=5)
+    s = {{1,2},{3,4}}
+    for i=1 to length(s) do
+        for j=1 to length(s[i]) do
+--          ?s[i][j]
+            t &= s[i][j]
+        end for
+    end for
+    for i in s do
+        for j in i do
+--          ?j
+            t &= j
+        end for
+    end for
+    assert(t={{1,3},{2,5},1,2,3,4,1,2,3,4})
+end procedure
+test()
+
+s = tagstart('A',26)
+t = ""
+--for_each:
+for e in s[2..5] do
+    t &= e
+end for
+for e in extract(s,{3,5,7}) do
+    t &= e
+end for
+--?t
+assert(t="BCDECEG")
+
+function decode(string states)
+    sequence res = {}
+    for line in split(states,"\n") do
+        sequence state = {}
+        for phrase in split(line,",") do
+            state = append(state,split(phrase,"->"))
+        end for
+        res = append(res,state)
+    end for
+--pp(res,{pp_Nest,1})
+    return res
+end function
+
+constant states = """
+Ready,Deposit->Waiting,Quit
+Waiting,Select->Dispense,Refund
+Dispense,Remove->Ready
+Refund->Ready
+Quit
+""",	expected = {{{`Ready`}, {`Deposit`, `Waiting`}, {`Quit`}},
+                    {{`Waiting`}, {`Select`, `Dispense`}, {`Refund`}},
+                    {{`Dispense`}, {`Remove`, `Ready`}},
+                    {{`Refund`, `Ready`}},
+                    {{`Quit`}}},
+        actual = decode(states)
+assert(actual==expected)
+
+--13/11/22:
+function half(integer n) return floor((n-1)/2)+1 end function // convenience convert to idx
+
+function count_primes(atom n)
+    // non-recursive Legendre prime counting function for a range `n`...
+    // has O(n^(3/4)/((log n)^2)) time complexity; O(n^(1/2)) space complexity.
+    if n<3 then return iff(n<2?0:1) end if // can't odd sieve for n less than 3!
+    integer sqrtn = trunc(sqrt(n)),     // (actual limit)
+            mxndx = floor((sqrtn-1)/2)  // odds-only limit
+    --
+    -- smalls is the current accumulated counts of odd primes 1 to sqrt(n), initialized 
+    -- to odds-only sieving, ie {0,1,2,3,4...} meaning 0 odd primes to 1, 1 o.p to 3,...
+    --
+    -- roughs is the current odd k-rough numbers up to sqrt of range; k = 2
+    -- initialized to all odd positive numbers 1, 3, 5, 7, 9, 11, ... sqrt(n)
+    --
+    -- larges is an array of current phi counts for the above roughs... except they are
+    -- not strictly `phi`'s since they also include primes, to match `smalls` above!
+    -- initialized for current roughs after accounting for the even prime of two...
+    --
+    -- composite is a flag array representing odd numbers 1..sqrtn, for sieving.
+    -- initialized false, meaning all positive odd numbers are potentially prime
+    -- note that this array starts at (and keeps) 1 to match the algorithm even
+    -- though 1 is not actually a prime, as 1 is important in computation of phi...
+    --
+    sequence smalls = tagset(mxndx,0),
+             roughs = tagstart(1,mxndx+1,2),
+             larges = sq_floor_div(sq_sub(sq_div(n,roughs),1),2),
+          composite = repeat(false,mxndx+1)
+
+    integer bp = 3,             // 'current' base prime
+           nbp = 0,             // number of base primes found 
+          mxri = mxndx,         // current highest used rough index
+             i = 2, sqri = 4    // index and square (index-1) limit
+    // partial sieve loop, adjusting larges/smalls, compressing larges/roughs...
+    while sqri<=mxndx do // partial sieve to square index limit
+        if not composite[i] then
+            // cull from composite so they will never be found again
+            composite[i] = true // cull bp and multiples
+            for c=sqri+1 to mxndx+1 by bp do
+                composite[c] = true
+            end for
+            // partial sieving to current base prime is now completed!
+
+            // now adjust `larges` for latest partial sieve pass...
+            integer ori = 0 // compress input rough index(k) to output one
+            for k,q in roughs to mxri+1 do
+                // q is not necessarily prime but may be a product of primes not yet 
+                // culled by partial sieving (saves ops cmprd to recursive Legendre)
+                // skip over values of `q` already culled in the last partial sieve:
+                integer qi = floor(q/2)+1; // index of always odd q!
+                if not composite[qi] then
+                    // since `q` cannot be equal to bp due to cull of bp and above skip;
+                    atom d = bp*q, // `d` is odd product of some combination of odd primes!
+                    // the following computation is essential to the algorithm's speed,
+                    // see the Nim entry for the full details of how this works
+                      dadj = iff(d<=sqrtn ? larges[smalls[half(d)]-nbp+1]
+                                          : smalls[half(floor(n/d))])
+                    ori += 1
+                    larges[ori] = larges[k]-dadj+nbp // base primes count over subtracted!
+                    // eliminate rough values that have been culled in partial sieve:
+                    // note that `larges` and `roughs` indices relate to each other!
+                    roughs[ori] = q
+                end if
+            end for
+
+            integer m = mxndx // and adjust `smalls` for latest partial sieve pass...
+            // this is faster than recounting over the `composite` array for each loop...
+            for k=(sqrtn/bp-1)||1 to bp by -2 do    // k always odd!
+                // `c` is correction from current count to desired count...
+                // `e` is end limit index no correction is necessary for current cull...
+                integer c = smalls[half(k)]-nbp,
+                        e = floor((k*bp)/2)
+                while m>=e do
+--                  smalls[m+1] -= c    -- (grr, js!)
+                    m += 1
+                    smalls[m] -= c
+--                  m -= 1
+                    m -= 2
+                end while
+            end for
+            
+            nbp += 1        // increase number of found base primes
+            mxri = ori-1    // advance rough index for later
+        end if
+        bp += 2
+        sqri = (i+i)*(i+1)
+        i += 1
+    end while
+
+    // now `smalls` is a LUT of odd prime accumulated counts for all odd primes;
+    // `roughs` is exactly the "k-roughs" up to the sqrt of range with `k` (erm,
+    //   mxri?) the index of the next prime above the quad root of the range;
+    // `larges` is the partial prime counts for each of the `roughs` values...
+    // note that `larges` values include the count of the odd base primes!!!
+    // - and `composite` is never used again!
+    
+    // the following does the top-most "phi tree" calculation:
+    // the answer to here is all valid `phis`, combined here by subtraction,
+    // + compensate for included odd base prime counts over subracted above:
+    atom result = larges[1] - sum(larges[2..mxri+1])
+                + trunc((mxri+1 + 2*(nbp-1))*mxri/2)
+                + 1 // include the only even prime, ie 2
+
+    // This loop adds the counts due to the products of the `roughs` primes,
+    // of which we only use two different ones at a time, as all the
+    // combinations with lower primes than the cube root of the range have
+    // already been computed and included with the previous major loop...
+    // see text description in the Nim entry for how this works...
+    for ri,p in roughs from 2 do // for all `roughs` (now prime) bar '1':
+        atom m = trunc(n/p), // `m` is the `p` quotient
+        // so that the end limit `e` can be calculated based on `n`/(`p`^2)
+             e = smalls[half(floor(m/p))+1]-nbp+1
+        // the following test is equivalent to non-splitting optmization:
+        if e<=ri then exit end if // quit when no more pairs! - aka stop
+                                  // at about `p` of cube root of range!
+        for k=ri+1 to e do // for all `roughs` greater than `p` to limit:
+            result += smalls[half(floor(m/roughs[k]))];
+        end for
+        // compensate for all the extra base prime counts just added!
+        result -= (e-ri)*(nbp+ri-2)
+    end for
+    return result
+end function
+
+--atom t = time()
+constant expect_d = {0,4,25,168,1229,9592,78498,664579,5761455,
+                     50847534,455052511,4118054813,37607912018,
+                     346065536839,3204941750802}
+--for i=0 to iff(platform()=JS?11:14) do -- (sp: keep js under 2s)
+for i=0 to 9 do
+    atom c = count_primes(power(10,i))
+    assert(c==expect_d[i+1])
+--  string e = elapsed(time()-t,0.1," (%s)")
+--  printf(1,"10^%d = %d%s\n",{i,c,e})
+end for
+--printf(1,"\nTook %s\n",elapsed(time()-t))
+
+
+-- NOTE: under pwa/p2js no typecheck occurs and no exception is thrown, you just get the "6"'s
+--/*
+integer ei
+--for i,e in {3,5,"6"} do
+--for i,e in s[1..2] do
+--object e
+try
+    for ei in {3,5,"6"} do  -- should typecheck, and does
+        ?ei
+    end for
+catch e
+    ?e
+end try
+
+try
+    for i,ei in {3,5,"6"} do    -- should typecheck, and does
+        ?{i,ei}
+    end for
+catch e
+    ?e
+end try
+
+try
+    throw("bang")
+catch e
+    ?e
+end try
+
+try
+    ?9/0
+--  crash("9/0")
+--  throw(2,"attempt to divide by 0") -- equivalent/as triggered via pDiagN.e/diag().
+catch e
+    ?{"raw:",e}
+    if length(e)>=E_USER
+    and string(e[E_USER])
+    and string(e[E_FILE])
+    and integer(e[E_LINE])
+    and e[E_LINE]!=-1 then
+        printf(1,"%s (%s line %d)\n",{e[E_USER],e[E_FILE],e[E_LINE]})
+    else
+        ?{"oops... (test.exw line 13)",e}
+    end if
+end try
+--*/
+
+--from discussion (but dropped):
+-- (==> instead of "for integer id in...", just do "integer id; for id in...",
+--      that is, if you /really/ want that typecheck [and/or id to persist!].
+--      In other words, [forcing] pre-declaration solves two problems not one.)
+
+--  for string key in {"one","two","three"} do
+--      ^ illegal use of a reserved word
+--      ?key
+--  end for
+--/*
+for integer id in {2,4,6} do
+for object key in {"Hello",3,{1,2,3}} do
+for {key,value} in {{"one",1},{"two",2},{"three",3}} do 
+--for {string s, integer n} in {"one",1,"two",2} do -- (crashes)
+for {string s, integer n} in {{"one",1},{"two",2}} do 
+for {string s, t} in {{"one","uno"},{"two","duo"}} do -- (check t is granted string type)
+for string s in {"one","two"} do
+--for {string s} in {"one","two"} do -- (crashes)
+for {string s} in {{"one"},{"two"}} do
+--*/
+
+--?"done"
+--{} = wait_key()

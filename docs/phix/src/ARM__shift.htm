@@ -1,0 +1,167 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">ARM barrel shifter</h1>
+      <div id="mainSection">
+        The ARM processor incorporates a barrel shifter that can be used with the 
+        <a href="ARM___mov.htm">mov/mvn</a> and 
+        <a href="ARM___dpo.htm">data processing instructions</a>.
+<!--
+        For x86, see <a href="x86.htm#shl">shl</a>.
+-->
+<!--
+        (specifically adc, add, and, bic, cmn, cmp, eor, mov, mvn, orr, rsb, sbc, sub, teq, tst). 
+-->
+        You can also use the barrel shifter to affect the index value in 
+        <a href="ARM___mov.htm">ldr/str</a> operations.
+<!--
+        A key feature the the ARM architecture is the barrel shifter, which allows all sorts of fancy,
+        clever, and genuinely useful operations as an inbuilt part of many (other) instructions.
+-->
+        <br>
+        <br>
+        Looking in more detail at the right hand 12 bits (which specific one of these something is, being defined elsewhere):
+        
+ <div class="arm_table">
+|.&#46;&#46;&#46;.|1|0|9|8|7|6|5|4|3|2|1|0|
+|.&#46;&#46;&#46;.|.ROTATE|......LIT8.....|
+|.&#46;&#46;&#46;.|...RS..|V|=S2|Z|...RM..|
+|&#46;&#46;&#46;..|..shift#.|=s2|0|...Rm..|
+|&#46;&#46;&#46;..|...Rs..|0|=s2|1|...Rm..|
+ </div>
+        <div class="clear"></div>
+
+        <br>
+        The ROTATE contains a value 0..15 for right rotates 0..30 in steps of 2.<br>
+        The LIT8 value is zero-extended to 32 bits before being rotated by that amount.<br>
+        Therefore you can encode any even-aligned 8 bits or any (odd-aligned) 7 bits.<br>
+        The compiler manages most of that automatically, complaining when you ask for the impossible.<br>
+        In particular it will split a mov (or mvn) instruction, but of course cannot do the same for (say) an add.
+        <br>
+        <br>
+        Suppose we wish to load #1635427C, a simplistic brute force approach might be:
+ <pre>              
+    mov r0,#16000000 ; (#16 ror 8)
+    orr r0,#00350000 ; (#35 ror 16)
+    orr r0,#00004200 ; (#42 ror 24)
+    orr r0,#0000007C ; (#7C ror 0)
+ </pre>
+        However the compiler should (for that very carefully chosen constant) be smart enough to emit:
+ <pre>              
+    mov r0,#16000000 ; (#16 ror 8 <small>[or #2C ror 10, or #B0 ror 12]</small>)
+    orr r0,#00354000 ; (#D5 ror 18)
+    orr r0,#0000027C ; (#9F ror 30)
+ </pre>
+        You may and should be rather grateful the compiler does most of that sort of thing obediently and silently!<br>
+        <small>[Noting that neither #2C/10 nor #B0/12 would constitute any kind of error, however weird they might at first seem, nor would it<br>
+        be wrong or particularly unusual to see an orr of 1..3 after that last instruction, to fill in the last 2 bits the C couldn&rsquo;t, though<br>
+        for our collective sanity the compiler will prefer to emit same #instructions with non-overlapping nibbles if it can.]</small><br>
+        Traditionally, ARM assemblers reject many things Phix/#ilASM{} figures out for you, especially variable addresses.<br>
+        <small>(It is of course mostly variable addresses that need this stuff, and luckily their locations should all be set in
+        stone (or be frame-relative)<br> long before we need to emit even the very first machine instruction.)</small><br>
+        Naturally the compiler is also at liberty to use shorter pc-relative (etc) operations when it can, and even <br>
+        locate the address of some variable j as being some already-loaded-variable-i-address-relative.<br>
+        One thing I would rather avoid is the "data holes in the code" approach, since that makes disassembly much trickier, plus <br>
+        denying myself that "cop-out" plays right into my plans for making much better use of the available registers anyway.
+        <br>
+        <br>
+        As warned other instructions cannot be so split (obviously use eg mov r2,#102 then add r0,r2):
+ <pre>              
+;   add r0,#102 ; invalid (only just: 8 bits but odd rotate)
+    add r0,#104 ; valid (7 bits that /can/ be evenly rotated)
+    add r0,#204 ; valid (8 bits that /can/ be evenly rotated)
+ </pre>
+        Unlike ROTATE, the lower 5 bits of Rs or the shift# immediate can contain 0..31, which acts on Rm, with SHFT as follows:
+        
+ <div class="arm_table">
+|=S2|Mnemonic..|Description.................................|
+|0 0|lsl.......|logical shift left (zero-fill).[===asl/shl].|
+|0 1|lsr.......|logical shift right (zero-fill).............|
+|1 0|asr.......|arithmetic shift right (sign-extend)........|
+|1 1|ror.......|rotate right................................|
+|1 1|rrx.......|rotate right extended (1 bit, see below)....|
+ </div>
+        <div class="clear"></div>
+        <br>
+        The ror 0 coding is actually rrx which rotates the 33-bit Rm & carry (just/only) one bit to the right.<br>
+        The asr 0 coding is instead asr 32, giving a result of all ones or all zeros (ie the sign bit as 0/-1).
+        <br>
+        <br>
+        If no shift is required the SHFT, Z, and SHIFT# bits should all be 0 (aka "lsl 0").<br>
+        Be advised that Z=1 and V!=0 is likely not this at all but a multiply or undefined instruction.
+        <br>
+        <br>
+        There is also an asl mnemonic which stands for arithmetic shift left, which behaves identically to lsl.
+        <br>
+        <br>
+        Note the compiler allows pseudo-instructions such as lsl r0,3 as shorthand for mov r0, r0 lsl 3, and/or
+        asr r0,r2,3 for mov r0,r2 asr 3.
+        <br>
+        <br>
+        Rs may not be pc aka r15.
+        <br>
+        <br>
+        Please don&rsquo;t ask or expect me to explain what happens when such a shift operation affects the carry flag, <br>
+        and that is also (subsequently,?) used/set by the opcode (eg adc). <br>
+        Likewise the precise effects of shifts&gt;=32 holds no interest for me whatsoever.
+        <br>
+        <br>
+        Various other examples:
+ <div class="arm_table">
+|Instruction.........|Description..................|
+|mov r0, r1 lsl 2....|r0 := r1*4...................|
+|lsl r0, 2...........|r0 *= 4......................|
+|lsr r0, 2...........|r0 := floor(r0/4)............|
+ </div>
+        <div class="clear"></div>
+        <br>
+ <pre>
+[to be cleaned up/merged...]
+4.5.1 CPSR flags
+The data processing operations may be classified as logical or arithmetic. The logical
+operations (AND, EOR, TST, TEQ, ORR, MOV, BIC, MVN) perform the logical action
+on all corresponding bits of the operand or operands to produce the result. If the S bit
+is set (and Rd is not R15, see below) the V flag in the CPSR will be unaffected, the C
+flag will be set to the carry out from the barrel shifter (or preserved when the shift
+operation is LSL #0), the Z flag will be set if and only if the result is all zeros, and the N
+flag will be set to the logical value of bit 31 of the result.
+The arithmetic operations (SUB, RSB, ADD, ADC, SBC, RSC, cmp, cmn) treat each
+operand as a 32 bit integer (either unsigned or 2&rsquo;s complement signed, the two are
+equivalent). If the S bit is set (and Rd is not R15) the V flag in the CPSR will be set if
+an overflow occurs into bit 31 of the result; this may be ignored if the operands were
+considered unsigned, but warns of a possible error if the operands were 2&rsquo;s
+Assembler
+Mnemonic OpCode Action
+AND 0000 operand1 AND operand2
+EOR 0001 operand1 EOR operand2
+SUB 0010 operand1 - operand2
+RSB 0011 operand2 - operand1
+ADD 0100 operand1 + operand2
+ADC 0101 operand1 + operand2 + carry
+SBC 0110 operand1 - operand2 + carry - 1
+RSC 0111 operand2 - operand1 + carry - 1
+TST 1000 as AND, but result is not written
+TEQ 1001 as EOR, but result is not written
+cmp 1010 as SUB, but result is not written
+cmn 1011 as ADD, but result is not written
+ORR 1100 operand1 OR operand2
+MOV 1101 operand2(operand1 is ignored)
+BIC 1110 operand1 AND NOT operand2(Bit clear)
+MVN 1111 NOT operand2(operand1 is ignored)
+ Table 4-3: ARM Data processing instructions
+complement signed. The C flag will be set to the carry out of bit 31 of the ALU, the Z
+flag will be set if and only if the result was zero, and the N flag will be set to the value
+of bit 31 of the result (indicating a negative result if the operands are considered to be
+2&rsquo;s complement signed).
+ </pre>
+
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

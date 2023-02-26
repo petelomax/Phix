@@ -16,23 +16,23 @@
             include pGUI.e
             <br>
             <br>
-            <a href="integer.htm">integer</a> color = cdEncodeColor(<a href="atom.htm">atom</a> red, green, blue)
+            <a href="integer.htm">integer</a> colour = cdEncodeColor(<a href="atom.htm">atom</a> red, green, blue)
             <br><i>-- or --</i><br>
-            <a href="atom.htm">atom</a> color = cdEncodeColorAlpha(<a href="atom.htm">atom</a> red, green, blue, alpha)
+            <a href="atom.htm">atom</a> colour = cdEncodeColorAlpha(<a href="atom.htm">atom</a> red, green, blue, alpha)
             <br><i>-- or --</i><br>
-            <a href="atom.htm">atom</a> color = cdEncodeAlpha(<a href="atom.htm">atom</a> colour, <a href="integer.htm">integer</a> alpha)
+            <a href="atom.htm">atom</a> colour = cdEncodeAlpha(<a href="atom.htm">atom</a> colour, <a href="integer.htm">integer</a> alpha)
             <br><i>-- or --</i><br>
-            <a href="atom.htm">atom</a> color = rgb(<a href="atom.htm">atom</a> red, green, blue, alpha=0)
+            <a href="atom.htm">atom</a> colour = rgb(<a href="atom.htm">atom</a> red, green, blue, alpha=0)
             <br><i>-- or --</i><br>
-            <a href="atom.htm">atom</a> color = hsv_to_rgb(<a href="atom.htm">atom</a> h, s, v, a=0)
+            <a href="atom.htm">atom</a> colour = hsv_to_rgb(<a href="atom.htm">atom</a> h, s, v, a=0)
             <br><i>-- and --</i><br>
-            <a href="integer.htm">integer</a> {r,g,b} = cdDecodeColor(<a href="atom.htm">atom</a> colour)
+            <a href="integer.htm">integer</a> {red,green,blue} = cdDecodeColor(<a href="atom.htm">atom</a> colour)
             <br><i>-- or --</i><br>
-            <a href="integer.htm">integer</a> {r,g,b,a} = cdDecodeColorAlpha(<a href="atom.htm">atom</a> colour)
+            <a href="integer.htm">integer</a> {red,green,blue,alpha} = cdDecodeColorAlpha(<a href="atom.htm">atom</a> colour)
             <br><i>-- or --</i><br>
             <a href="integer.htm">integer</a> alpha = cdDecodeAlpha(<a href="atom.htm">atom</a> colour)
             <br><i>-- or --</i><br>
-            <a href="integer.htm">integer</a> {r,g,b,a} = to_rgb(<a href="atom.htm">atom</a> colour)
+            <a href="integer.htm">integer</a> {red,green,blue,alpha} = to_rgb(<a href="atom.htm">atom</a> colour)
          </td>
         </tr>
         <tr>
@@ -40,19 +40,51 @@
           <b>Description:</b>
          </td>
          <td>
+            Various utility routines to convert between colour components and their combined equivalent encodings.
+            <br>
+            <br>
+            red, green, blue, alpha: Notionally integers 0..255 but fractions permitted (see comment).<br>
+            colour: an encoding in the format 0xAARRGGBB.<br>
+            h,s,v,a: fractions between 0 and 1 (hue, saturation, value, and alpha).
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+          Supported. Note that under pwa/p2js both cdDecodeColor() and cdDecodeColorAlpha() are simple aliases of to_rgb(), and therefore the 
+          first returns a quadlet rather than a triplet, unlike desktop/Phix. Obviously that could easily be rectified, but if/when genuinely
+          needed and not before.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Comments:</b>
+         </td>
+         <td>
+<!--
             cdEncodeColor() returns a codified triple (r,g,b) in an integer such as 0x00RRGGBB, where RR are the red components, GG are the green ones and BB are the blue ones. <br>
             cdEncodeColorAlpha() returns a codified quadriple (r,g,b,a) in an atom such as 0xAARRGGBB, where AA are the alpha components, and as above.<br>
-            The code is used in the CD library to define colors. It can be used without an active canvas.
+            The code is used 
+-->
+            Used in the CD library to define colors. Can be used without an active canvas.
             <br>
             <br>
-            Fractional colour values are permitted, and are automatically converted to unsigned integers in the range 0 to 255 (#00 to #FF). The precise mode of that conversion 
-            is however officially undefined - you should not overly rely on rounding, trunction, or what happens when you pass values that are negative or above 255.49, but (for 
-            instance) one thing you can expect is that 255.01 will always yield 255, however 254.99 might yield 254 or 255, and that may differ between different operating systems, 
-            libc/msvcrt builds, and even CPU brands. More likely to have been my fault than anyone else&rsquo;s, but I ended up with some rather strange little glitches during a 
-            failed experiment to get the exact same thing running identically on Windows, Linux, Android, and JavaScript... (It was a ludicrously complex setup involving hundreds 
-            of gigabytes of third party tools, not really Phix at all, basically just rgb() vs. other hand crafted equivalents in various other languages, and a much older copy of 
-            IUP than the one I use now, that was lost forever when my previous PC finally died.)<br>
-            Anyway, I digress: for consistent results, should that be vitally important, explicitly round/truncate any fractions yourself.
+<!--
+//          Fractional colour values are permitted, and are automatically converted to unsigned integers in the range 0 to 255 (#00 to #FF). The precise mode of that conversion 
+//          is however officially undefined - you should not overly rely on rounding, trunction, or what happens when you pass values that are negative or above 255.49, but (for 
+//          instance) one thing you can expect is that 255.01 will always yield 255, however 254.99 might yield 254 or 255, and that may differ between different operating systems, 
+//          libc/msvcrt builds, and even CPU brands. More likely to have been my fault than anyone else&rsquo;s, but I ended up with some rather strange little glitches during a 
+//          failed experiment to get the exact same thing running identically on Windows, Linux, Android, and JavaScript... (It was a ludicrously complex setup involving hundreds 
+//          of gigabytes of third party tools, not really Phix at all, basically just rgb() vs. other hand crafted equivalents in various other languages, and a much older copy of 
+//          IUP than the one I use now, that was lost forever when my previous PC finally died.)<br>
+//          Anyway, I digress: for consistent results, should that be vitally important, explicitly round/truncate any fractions yourself.
+-->
+            Technically, and of little practical concern, except perhaps when testing, the precise nature of any fraction ==>&gt; 0..255 conversion is
+            officially undefined, especially for values below 0 or above 255.49, and may differ between different operating systems, libc/msvcrt builds, 
+            and even CPU brands. For consistent results, should that be vitally important, explicitly round/truncate any such fractions yourself, and
+            for fairly obvious reasons hsv_to_rgb() is unlikely to be perfectly consistent between 32 and 64 bit (pretty much no matter what you do).
             <br>
             <br>
             The cdEncodeColor() and cdEncodeColorAlpha() routines invoke the C functions of the same name, whereas the rgb() function performs the same task 
@@ -79,24 +111,9 @@
             <br>
             <br>
             cdDecodeAlpha returns the alpha component of a color in the CD library. Can be used without an active canvas. 0 is transparent, 255 is opaque.
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
-         </td>
-         <td>
-          Supported. Note that under pwa/p2js both cdDecodeColor() and cdDecodeColorAlpha() are simple aliases of to_rgb(), and therefore the 
-          first returns a quadlet rather than a triplet, unlike desktop/Phix. Obviously that could easily be rectified, but if/when genuinely
-          needed and not before.
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <b>Constants:</b>
-         </td>
-         <td>
+            <br>
             <a name="const"></a>
+            <br>
             The following constants are defined for convenience.
             <br>
             <br>
@@ -106,33 +123,35 @@
                   <th bgcolor="#C0C0C0">Eg</th>
                   <th bgcolor="#C0C0C0">CD (#000000 format)</th>
                   <th bgcolor="#C0C0C0">IUP ("#000000" format)</th>
-                  <th bgcolor="#C0C0C0">Aliases</th>
+                  <th bgcolor="#C0C0C0">Value/Aliases</th>
                 </tr>
-                <tr><td style="background-color:#000000;"></td> <td>CD_BLACK        </td><td>IUP_BLACK        </td> <td>  </td>
-                <tr><td style="background-color:#0000FF;"></td> <td>CD_BLUE         </td><td>IUP_BLUE         </td> <td>  </td>
-                <tr><td style="background-color:#00FFFF;"></td> <td>CD_CYAN         </td><td>IUP_CYAN         </td> <td>  </td>
-                <tr><td style="background-color:#000080;"></td> <td>CD_DARK_BLUE    </td><td>IUP_DARK_BLUE    </td> <td>CD_NAVY, IUP_NAVY  </td>
-                <tr><td style="background-color:#008080;"></td> <td>CD_DARK_CYAN    </td><td>IUP_DARK_CYAN    </td> <td>CD_TEAL, IUP_TEAL  </td>
-                <tr><td style="background-color:#808080;"></td> <td>CD_DARK_GREY    </td><td>IUP_DARK_GREY    </td> <td>CD_DARK_GRAY, IUP_DARK_GRAY </td>
-                <tr><td style="background-color:#008000;"></td> <td>CD_DARK_GREEN   </td><td>IUP_DARK_GREEN   </td> <td>  </td>
-                <tr><td style="background-color:#800080;"></td> <td>CD_DARK_MAGENTA </td><td>IUP_DARK_MAGENTA </td> <td>  </td>
-                <tr><td style="background-color:#800000;"></td> <td>CD_DARK_RED     </td><td>IUP_DARK_RED     </td> <td>  </td>
-                <tr><td style="background-color:#EBEB00;"></td> <td>CD_DARK_YELLOW  </td><td>IUP_DARK_YELLOW  </td> <td>  </td>
-                <tr><td style="background-color:#C0C0C0;"></td> <td>CD_GREY         </td><td>IUP_GREY         </td> <td>CD_GRAY, IUP_GRAY, CD_SILVER, IUP_SILVER  </td>
-                <tr><td style="background-color:#3cb44b;"></td> <td>CD_GREEN        </td><td>IUP_GREEN        </td> <td>  </td>
-                <tr><td style="background-color:#4B0082;"></td> <td>CD_INDIGO       </td><td>IUP_INDIGO       </td> <td>  </td>
-                <tr><td style="background-color:#E4E4E4;"></td> <td>CD_LIGHT_GREY   </td><td>IUP_LIGHT_GREY   </td> <td>CD_LIGHT_GRAY, IUP_LIGHT_GRAY  </td>
-                <tr><td style="background-color:#00FF00;"></td> <td>CD_LIGHT_GREEN  </td><td>IUP_LIGHT_GREEN  </td> <td>  </td>
-                <tr><td style="background-color:#4363d8;"></td> <td>CD_LIGHT_BLUE   </td><td>IUP_LIGHT_BLUE   </td> <td>  </td>
-                <tr><td style="background-color:#f032e6;"></td> <td>CD_MAGENTA      </td><td>IUP_MAGENTA      </td> <td>  </td>
-                <tr><td style="background-color:#FF8C00;"></td> <td>CD_ORANGE       </td><td>IUP_ORANGE       </td> <td>  </td>
-                <tr><td style="background-color:#808000;"></td> <td>CD_OLIVE        </td><td>IUP_OLIVE        </td> <td>  </td>
-                <tr><td style="background-color:#FFFFE0;"></td> <td>CD_PARCHMENT    </td><td>IUP_PARCHMENT    </td> <td>  </td>
-                <tr><td style="background-color:#911eb4;"></td> <td>CD_PURPLE       </td><td>IUP_PURPLE       </td> <td>  </td>
-                <tr><td style="background-color:#FF0000;"></td> <td>CD_RED          </td><td>IUP_RED          </td> <td>  </td>
-                <tr><td style="background-color:#EE82EE;"></td> <td>CD_VIOLET       </td><td>IUP_VIOLET       </td> <td>  </td>
-                <tr><td style="background-color:#FFFFFF;"></td> <td>CD_WHITE        </td><td>IUP_WHITE        </td> <td>  </td>
-                <tr><td style="background-color:#FFFF00;"></td> <td>CD_YELLOW       </td><td>IUP_YELLOW       </td> <td>  </td>
+                <tr><td style="background-color:#000000;"></td> <td>CD_BLACK            </td><td>IUP_BLACK              </td> <td>#000000 (0)           </td>
+                <tr><td style="background-color:#0000FF;"></td> <td>CD_BLUE             </td><td>IUP_BLUE               </td> <td>#0000FF (255)         </td>
+                <tr><td style="background-color:#00FFFF;"></td> <td>CD_CYAN             </td><td>IUP_CYAN               </td> <td>#00FFFF (65535)       </td>
+                <tr><td style="background-color:#000080;"></td> <td>CD_DARK_BLUE        </td><td>IUP_DARK_BLUE          </td> <td>#000080 (128)     CD_NAVY, IUP_NAVY  </td>
+                <tr><td style="background-color:#008080;"></td> <td>CD_DARK_CYAN        </td><td>IUP_DARK_CYAN          </td> <td>#008080 (32896)   CD_TEAL, IUP_TEAL  </td>
+                <tr><td style="background-color:#808080;"></td> <td>CD_DARK_GREY        </td><td>IUP_DARK_GREY          </td> <td>#808080 (8421504) CD_DARK_GRAY, IUP_DARK_GRAY </td>
+                <tr><td style="background-color:#008000;"></td> <td>CD_DARK_GREEN       </td><td>IUP_DARK_GREEN         </td> <td>#008000 (32768)       </td>
+                <tr><td style="background-color:#800080;"></td> <td>CD_DARK_MAGENTA     </td><td>IUP_DARK_MAGENTA       </td> <td>#800080 (8388736)     </td>
+                <tr><td style="background-color:#800000;"></td> <td>CD_DARK_RED         </td><td>IUP_DARK_RED           </td> <td>#800000 (8388608)     </td>
+                <tr><td style="background-color:#EBEB00;"></td> <td>CD_DARK_YELLOW      </td><td>IUP_DARK_YELLOW        </td> <td>#EBEB00 (15461120)    </td>
+                <tr><td style="background-color:#C0C0C0;"></td> <td>CD_GREY             </td><td>IUP_GREY               </td> <td>#C0C0C0 (12632256) CD_GRAY, IUP_GRAY, CD_SILVER, IUP_SILVER  </td>
+                <tr><td style="background-color:#3cb44b;"></td> <td>CD_GREEN            </td><td>IUP_GREEN              </td> <td>#3CB44B (3978315)     </td>
+                <tr><td style="background-color:#4B0082;"></td> <td>CD_INDIGO           </td><td>IUP_INDIGO             </td> <td>#4B0082 (4915330)     </td>
+                <tr><td style="background-color:#E4E4E4;"></td> <td>CD_LIGHT_GREY       </td><td>IUP_LIGHT_GREY         </td> <td>#E4E4E4 (15000804) CD_LIGHT_GRAY, IUP_LIGHT_GRAY  </td>
+                <tr><td style="background-color:#00FF00;"></td> <td>CD_LIGHT_GREEN      </td><td>IUP_LIGHT_GREEN        </td> <td>#00FF00 (65280)       </td>
+                <tr><td style="background-color:#4363d8;"></td> <td>CD_LIGHT_BLUE       </td><td>IUP_LIGHT_BLUE         </td> <td>#4363D8 (4416472)     </td>
+                <tr><td style="background-color:#FAF8EF;"></td> <td>CD_LIGHT_PARCHMENT  </td><td>IUP_LIGHT_PARCHMENT    </td> <td>#FAF8EF (16447727)    </td>
+                <tr><td style="background-color:#f032e6;"></td> <td>CD_MAGENTA          </td><td>IUP_MAGENTA            </td> <td>#F032E6 (15741670)    </td>
+                <tr><td style="background-color:#FF8C00;"></td> <td>CD_ORANGE           </td><td>IUP_ORANGE             </td> <td>#FF8C00 (16747520)    </td>
+                <tr><td style="background-color:#FFBF00;"></td> <td>CD_AMBER            </td><td>IUP_AMBER              </td> <td>#FFBF00 (16760576)    </td>
+                <tr><td style="background-color:#808000;"></td> <td>CD_OLIVE            </td><td>IUP_OLIVE              </td> <td>#808000 (8421376)     </td>
+                <tr><td style="background-color:#FFFFE0;"></td> <td>CD_PARCHMENT        </td><td>IUP_PARCHMENT          </td> <td>#FFFFE0 (16777184)    </td>
+                <tr><td style="background-color:#911eb4;"></td> <td>CD_PURPLE           </td><td>IUP_PURPLE             </td> <td>#911EB4 (9510580)     </td>
+                <tr><td style="background-color:#FF0000;"></td> <td>CD_RED              </td><td>IUP_RED                </td> <td>#FF0000 (16711680)    </td>
+                <tr><td style="background-color:#EE82EE;"></td> <td>CD_VIOLET           </td><td>IUP_VIOLET             </td> <td>#EE82EE (15631086)    </td>
+                <tr><td style="background-color:#FFFFFF;"></td> <td>CD_WHITE            </td><td>IUP_WHITE              </td> <td>#FFFFFF (16777215)    </td>
+                <tr><td style="background-color:#FFFF00;"></td> <td>CD_YELLOW           </td><td>IUP_YELLOW             </td> <td>#FFFF00 (16776960)    </td>
                 </table>
             </div>
          </td>

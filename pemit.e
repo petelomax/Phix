@@ -2878,7 +2878,7 @@ end procedure
 
 --DEV I've hard-coded 4096 here, might instead want to do something like:
 --constant k32 = open_dll("kernel32.dll"),
---       xGetSystemInfo = define_c_proc(k32,"GetSystemInfo",{C_POINTER}),
+--       xGetSystemInfo = define_c_proc(k32,"GetSystemInfo",{C_PTR}),
 --       SYSTEM_INFO = allocate(36),
 --       SYSTEM_INFO_dwPageSize = 4
 --

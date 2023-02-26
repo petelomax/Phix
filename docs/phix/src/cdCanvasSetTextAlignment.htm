@@ -28,33 +28,66 @@
           <b>Description:</b>
          </td>
          <td>
-            Defines the vertical and horizontal alignment of a text as: CD_NORTH, CD_SOUTH, CD_EAST, CD_WEST, CD_NORTH_EAST, 
-            CD_NORTH_WEST, CD_SOUTH_EAST, CD_SOUTH_WEST, CD_CENTER, CD_BASE_LEFT, CD_BASE_CENTER, or CD_BASE_RIGHT. <br>
-            Default value: CD_BASE_LEFT.
+            Defines the vertical and horizontal alignment of text.
             <br>
             <br>
-            The following diagram illustrates for all 12 settings where the text will be drawn relative to a specified x,y position as indicated by the six asterisks:
+            alignment: one of CD_NORTH, CD_SOUTH, CD_EAST, CD_WEST, <br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;CD_NORTH_EAST, CD_NORTH_WEST, CD_SOUTH_EAST, CD_SOUTH_WEST, <br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;CD_CENTER, CD_BASE_RIGHT, CD_BASE_LEFT, CD_BASE_CENTER. <br>
+            Default value: CD_BASE_LEFT (==CD_SOUTH_WEST).
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+          Supported. However note the (minor) discrepancy detailed in the technicalia dropdown.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Description:</b>
+         </td>
+         <td>
+            The following diagram illustrates for all 12 settings (or technically 9 as per the dropdown below) where the text will be drawn 
+            relative to a specified x,y position as indicated by the six asterisks:
             <br>
             <br>
-            <div class="wraptocenter">
-             <span></span>
-             <img src="images/align.gif" class="boxed" width="273" height="227" />
-            </div>
-            <br>
-            PL: afaict CD_BASE_LEFT and CD_SOUTH_WEST, CD_BASE_CENTER and CD_SOUTH, and CD_BASE_RIGHT and CD_SOUTH_EAST achieve 
-            the same effect, although they are not defined like that. Since the pwa/p2js re-implementation maps the enumeration
-            to separate textAlign and textBaseline settings, the reconsititution in cdCanvasGetTextAlignment() introduces some
-            inevitable inconsistencies compared to the desktop version, in that it can only ever either always or never return 
-            any of the CD_BASE_XXX and is currently doing the never thing. It could I suppose be fixed easily enough by adding
-            a new independent and otherwise unused attribute setting, should that ever be required.
-            <br>
+            <p align="center"><img src="images/align.png" class="boxed" width="186" height="151" /></p>
             <br>
             When translating C code, <span class="illegal">cdCanvasTextAlignment</span>() must have Set/Get inserted. <br>
-            The old school <span class="illegal">cdTextAlignment</span>() routine that did not need an explicit canvas is no longer 
-            operational (as of IUP version 3.25, not my call or decision).
+            The old school <span class="illegal">cdTextAlignment</span>() routine that did not need an explicit canvas is apparently 
+            no longer operational (as of IUP version 3.25, not my call or decision, and not that it bothers me much).
+         </td>
+        </tr>
+        <tr id="Technicalia" style="display:none;">
+         <td>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+            As far as I can tell, CD_BASE_(LEFT|CENTER|RIGHT) and CD_SOUTH(_WEST|""|_EAST) achieve the same effect, although they are not defined like that, 
+            at least not on desktop/Phix. The pwa/p2js re-implementation maps the enumeration to separate textAlign and textBaseline settings, and hence the 
+            reconsititution in cdCanvasGetTextAlignment() could potentially introduce some inconsistencies since it would be unable to distinguish between 
+            them. To minimise any such potential differences, in pGUI.js the CD_BASE_XXX <i>are</i> defined with the <i>same</i> values as the cardinal 
+            directions, which would probably only ever come to light in debugging statements (which you probably shouldn&rsquo;t be doing in a browser anyway).
+            <br>
+            <br>
+            In other words, <nobr><code>?{CD_BASE_LEFT,CD_BASE_CENTER,CD_BASE_RIGHT}</code></nobr> prints {9,10,11} on desktop/Phix but {7,1,6} under pwa/p2js, 
+            otherwise <nobr><code>?{CD_SOUTH_WEST,CD_SOUTH,CD_SOUTH_EAST}</code></nobr> is equivalent and totally consistent on both.
+            <br>
+            <br>
+            Of course I could easily change pGUI.e to match pGUI.js, but slightly reluctant in case there&rsquo;s something I&rsquo;ve missed.<br>
+            (One obviously possibile failure might be a test/demo program that explicitly uses 0..11 instead of 0..8 or the named constants.)<br>
+            Likewise the default value should probably be CD_SOUTH_WEST rather than CD_BASE_LEFT, not that I could easily change that.<br>
+            Mind you, there are plenty of other such constant values that differ (slightly) between desktop/Phix and pwa/p2js, eg colours.<br>
+            It <i>is</i> a completely different underlying system after all, this one apparently just hit a nerve or something.
          </td>
         </tr>
        </table>
+       <img src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
        <br>
        <br>
       </div>

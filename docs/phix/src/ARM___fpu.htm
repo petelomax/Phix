@@ -1,0 +1,221 @@
+﻿<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">ARM fpu</h1>
+      <div id="mainSection">
+        The CDP (Coprocessor Data Processing) instructions include all floating point operations, this page also
+        covers all supported MCR/MRC register transfers.
+<!--
+        Of particular interest is the IEEE 74 64 bit coprocessor, p11 or 0b1011. There is also a 32-bit version
+        in p10 (0b1010) but (for now and maybe forever) I&rsquo;m only supporting disassembly of that, not assembly.
+-->
+        <br>
+        <br>
+        There are probably over a <i>thousand</i> different floating point instructions (at least that&rsquo;s what 
+        fasmarm&rsquo;s ARMDOC\InstructionFormatsVFP.asm implies), so this page deliberately omits many/most 
+        single-presision and vectorial operations. Note the disassembler is quite ad-hoc and more than likely 
+        to mis-report many of the ~950 other instructions as things they are not, aka I&rsquo;m not about 
+        to undertake perhaps two years worth(!) of back-breaking debugging for no good reason.<br>
+<!--
+        I&rsquo;m not about to waste my breath on single precision or vectorial floating point operations, which I
+        can only describe (from a Phix perspective) as shitting the bed and smearing it all over the walls. 
+-->
+<!--
+        but as d4 and above slip into vectorial, we&rsquo;ll stick with d0..d3.
+        There are 
+-->
+        There are 16 double precision registers, d0..d15, and 32 single precision registers, s0..s31, which overlap the 
+        double precision registers in pairs, so for instance writing to s8 or s9 clobbers d4. Only the single precision 
+        operations that are necessary for data conversion are documented. There is certainly some attraction to using 
+        s0..s31 as a first level register spill cache in the planned linear scan register allocation implementation.
+        <br>
+<!-- todo[?]:
+    f[n]macs    s0,s1,s2
+    f[n]macd    d0,d1,d2
+    f[n]mscs    s0,s1,s2
+    f[n]mscs    Sd,Sn,Sm    -- Sd := Sn*Sm-Sd
+    f[n]mscd    d0,d1,d2
+    fnmuld
+-->
+        <br>
+ <small>
+ <small>
+ <div class="arm_table">
+|Opcode...................................................|1|0|9|8|7|6|5|4|3|2|1|0|9|8|7|6|5|4|3|2|1|0|9|8|7|6|5|4|3|2|1|0|
+|.................................................................|......O8.......|.......................|......LIT8.....|
+|.........................................................|..COND.|.OOO.|P|U|D|W|S|...RN..|...RD..|...RS..|V|X|M|Z|...RM..|
+?stc[cond] p&lt;cp_num&gt;, CRd, # .......................|..cond.|1 1 0|P|U|N|W|0|...Rn..|..CRd..|.cp_num|.......#.......|
+?stc[cond] p11, Fd, # ....................................|..cond.|1 1 0|P|U|0|W|0|...Rn..|...Fd..|1.0.1.1|.......#.......|
+?ldc[cond] p&lt;cp_num&gt;, CRd, # .......................|..cond.|1 1 0|P|U|N|W|1|...Rn..|..CRd..|.cp_num|.......#.......|
+?ldc[cond] p11, Fd, # ....................................|..cond.|1 1 0|P|U|0|W|1|...Rn..|...Fd..|1.0.1.1|.......#.......|
+?cdp[cond] p&lt;cp#&gt;,&lt;o1&gt;,CRd,CRn,CRm,&lt;o2&gt; |..cond.|1 1 1 0|..op1..|..CRn..|..CRd..|.cp_num|.op2.|0|..CRm..|
+?cdp[cond] p11,&lt;o1&gt;,Fd,Fn,Fm,&lt;o2&gt; ............|..cond.|1 1 1 0|P|0|Q|R|...Fn..|...Fd..|1 0 1 1|0|S|0|0|...Fm..|
+|fmdrr[cond] Dm,Rd,Rn ....................................|..cond.|1 1 0 0 0 1 0 0|...Rn..|...Rd..|1 0 1 1|0|0|0|1|...Dm..|
+|fmrrd[cond] Rd,Rn,Dm ....................................|..cond.|1 1 0 0 0 1 0 1|...Rn..|...Rd..|1 0 1 1|0|0|0|1|...Dm..|
+|fpop[cond] {Dd-Dd+imm8/2-1} .............................|..cond.|1 1 0|0|1|0|1|1|1 1 0 1|...Dd..|1.0.1.1|......#r.....|0|
+?vpush[cond] {Sd-Sd+imm8-1} where Sd is Dd*2+d ...........|..cond.|1 1 0|1|0|D|1|0|1 1 0 1|...Sd..|1.0.1.0|.......#r......|
+|fpush[cond] {Dd-Dd+imm8/2-1} ............................|..cond.|1 1 0|1|0|0|1|0|1 1 0 1|...Dd..|1.0.1.1|......#r.....|0|
+|fstd[cond] Dd,[Rn+(2u-1)*imm8*4] ........................|..cond.|1 1 0 1|U|0|0 0|...Rn..|...Dd..|1 0 1 1|.....imm8......|
+-flds[cond] Sn*2+d,[Rn+(2u-1)*imm8*4] ....................|..cond.|1 1 0 1|U|D|0 1|...Rn..|...Sd..|1 0 1 0|.....imm8......|
+|fldd[cond] Dd,[Rn+(2u-1)*imm8*4] ........................|..cond.|1 1 0 1|U|0|0 1|...Rn..|...Dd..|1 0 1 1|.....imm8......|
+|fmsr[cond] Rd,Sn*2+n ....................................|..cond.|1 1 1 0 0 0 0 0|...Sn..|...Rd..|1 0 1 0|N|0|0|1|0 0 0 0|
+|fmrs[cond] Rd,Sn*2+n ....................................|..cond.|1 1 1 0 0 0 0 1|...Sn..|...Rd..|1 0 1 0|N|0|0|1|0 0 0 0|
+?fadds[cond] Sd*2+d,Sn*2+n,Sm*2+m ........................|..cond.|1 1 1 0 0|D|1 1|...Dn..|...Sd..|1 0 1 0|N|0|M|0|...Sm..|
+|faddd[cond] Dd,Dn,Dm ....................................|..cond.|1 1 1 0 0|0|1 1|...Dn..|...Dd..|1 0 1 1|0|0|0|0|...Dm..|
+?fsubs[cond] Sd*2+d,Sn*2+n,Sm*2+m ........................|..cond.|1 1 1 0 0|D|1 1|...Dn..|...Sd..|1 0 1 0|N|1|M|0|...Sm..|
+|fsubd[cond] Dd,Dn,Dm ....................................|..cond.|1 1 1 0 0|0|1 1|...Dn..|...Dd..|1 0 1 1|0|1|0|0|...Dm..|
+?fmuls[cond] Sd*2+d,Sn*2+n,Sm*2+m ........................|..cond.|1 1 1 0 0|D|1 0|...Dn..|...Sd..|1 0 1 0|N|0|M|0|...Sm..|
+|fmuld[cond] Dd,Dn,Dm ....................................|..cond.|1 1 1 0 0|0|1 0|...Dn..|...Dd..|1 0 1 1|0|0|0|0|...Dm..|
+?fdivs[cond] Sd*2+d,Sn*2+n,Sm*2+m ........................|..cond.|1 1 1 0 1|D|0 0|...Dn..|...Sd..|1 0 1 0|N|0|M|0|...Sm..|
+|fdivd[cond] Dd,Dn,Dm ....................................|..cond.|1 1 1 0 1|0|0 0|...Dn..|...Dd..|1 0 1 1|0|0|0|0|...Dm..|
+?fmxr[cond] FPSCR,Rn .....................................|..cond.|1 1 1 0 1 1 1 0|..reg..|...Rd..|1 0 1 0|0|.SBZ.|1|.SBZ.|
+|fmxr[cond] FPSCR,Rn .....................................|..cond.|1 1 1 0 1 1 1 0|0 0 0 1|...Rd..|1 0 1 0|0|.SBZ.|1|.SBZ.|
+|fmrx[cond] Rn,FPSCR .....................................|..cond.|1 1 1 0 1 1 1 1|0 0 0 1|...Rd..|1 0 1 0|0|.SBZ.|1|.SBZ.|
+|fmstat[cond] ............................................|..cond.|1 1 1 0 1 1 1 1|0 0 0 1|1 1 1 1|1 0 1 0|0|0|0|1|0 0 0 0|
+-fcpys[cond] Sd*2+d,Sm*2+m ...............................|..cond.|1 1 1 0 1|D|1|1|0 0 0 0|...Sd..|1 0 1 0|0|1|M|0|...Sm..|
+|fcpyd[cond] Dd,Dm .......................................|..cond.|1 1 1 0 1|0|1|1|0 0 0 0|...Dd..|1 0 1 1|0|1|0|0|...Dm..|
+?fabss[cond] Sd*2+d,Sm*2+m ...............................|..cond.|1 1 1 0 1|D|1 1|0 0 0 0|...Sd..|1 0 1 0|1|1|M|0|...Sm..|
+|fabsd[cond] Dd,Dm .......................................|..cond.|1 1 1 0 1|0|1 1|0 0 0 0|...Dd..|1 0 1 1|1|1|0|0|...Dm..|
+?fnegs[cond] Sd*2+d,Sm ...................................|..cond.|1 1 1 0 1|D|1 1|0 0 0 1|...Sd..|1 0 1 0|0|1|M|0|...Sm..|
+|fnegd[cond] Dd,Dm .......................................|..cond.|1 1 1 0 1|0|1 1|0 0 0 1|...Dd..|1 0 1 1|0|1|0|0|...Dm..|
+?fsqrtd[cond] Sd*2+d,Sm*2+m ..............................|..cond.|1 1 1 0 1|D|1 1|0 0 0 1|...Sd..|1 0 1 0|1|1|M|0|...Sm..|
+|fsqrtd[cond] Dd,Dm ......................................|..cond.|1 1 1 0 1|0|1 1|0 0 0 1|...Dd..|1 0 1 1|1|1|0|0|...Dm..|
+?fcmpzs[cond] Sd*2+d .....................................|..cond.|1 1 1 0 1|D|1 1|0 1 0 1|...Sd..|1 0 1 0|0|1|0|0|0 0 0 0|
+|fcmpzd[cond] Dd .........................................|..cond.|1 1 1 0 1|0|1 1|0 1 0 1|...Dd..|1 0 1 1|0|1|0|0|0 0 0 0|
+?fcmps[cond] Sd*2+d,Sm ...................................|..cond.|1 1 1 0 1|D|1 1|0 1 0 0|...Sd..|1 0 1 0|0|1|M|0|...Sm..|
+|fcmpd[cond] Dd,Dm .......................................|..cond.|1 1 1 0 1|0|1 1|0 1 0 0|...Dd..|1 0 1 1|0|1|0|0|...Dm..|
+?fto{s}i{z}s[cond] Sd*2+d,Sm*2+m .........................|..cond.|1 1 1 0 1|D|1|1|1 1 0 S|...Sd..|1 0 1 0|Z|1|M|0|...Sm..|
+|fto{s}i{z}d[cond] Sd*2+d,Dm .............................|..cond.|1 1 1 0 1|D|1|1|1 1 0 S|...Sd..|1 0 1 1|Z|1|0|0|...Dm..|
+?f{s}itos[cond] Sd*2+d,Sm*2+m ............................|..cond.|1 1 1 0 1|D|1|1|1 0 0 0|...Sd..|1 0 1 0|S|1|M|0|...Sm..|
+|f{s}itod[cond] Dd,Sm*2+m ................................|..cond.|1 1 1 0 1|0|1|1|1 0 0 0|...Dd..|1 0 1 1|S|1|M|0|...Sm..|
+ </div>
+ </small>
+ </small>
+<!--
+    vpush   {d0,d1,d2}
+;   vpush   {d0,d2,d1}
+;00000080,00000080,h4,ED2D0B06h,stc p11,cr0,[sp, -24]!
+;00000080,00000080,h4,0b1110_1101_0010_1101_0000_1011_0000_0110,stc p11,cr0,[sp, -24]!
+                                P UDWL  Rn       cp11 
+-->
+        </div>
+<br>
+        <div class="clear"></div>
+        <br>
+        Note that many of these are quite likely to have been implemented without any (assembler-side) condition logic.<br>
+        fldd with U of 0 is Dn := (double)[Rn-imm8*4], wth U of 1 is Dn := (double)[Rn+imm8*4], and obviously likewise fstd.<br>
+        The disassembler also supports flds, fcpys, but the assembler doesn&rsquo;t, so those entries are commented out for my sanity.<br>
+        Many single-precision instructions such as fsitos are commented-out and syntax-coloured red (in .s/.arm files), not so much
+        because they are illegal or unsupported (ymmv), but because they (probably) bear little relevance to <i>hll</i> Phix, and
+        should therefore (probably) be changed to their double-precision counterparts.<br>
+<!--
+fcpyd is Dd := Dm, fcpys is s(Sd*2+D) := s(Dm*2+M), iyswim.<br>
+DEV get/test a fld Dn,3.14 thingy... (in fasmarm)
+-->
+
+        <h3>examples</h3>
+ <div class="arm_table">
+|Instruction ............|Description ...........................|Aliases ....................|
+|fpush {d0-d3} ..........|save #r consecutive registers .........|fstmfdd, fstmdbd, vpush ....|
+|fpop {d0-d3} ...........|restore #r consecutive registers ......|fldmfdd, fldmiad, vpop .....|
+|fstd d0,[r0]  ..........|(double)[r0] := d0 ....................|vstr&#46;64, vstr&#46;f64 ..|
+|fldd d0,[r0] ...........|d0 := (double)[r0] ....................|vldr&#46;64, vldr&#46;f64 ..|
+|fmsr s0,r0 .............|s0 := r0 (int/exact bit copy) .........|vmov .......................|
+|fmrs r0,s0 .............|r0 := s0 (int/exact bit copy) .........|vmov .......................|
+|fmdrr d0,r1,r2 .........|d0 := r1,r2 (int/exact bit copy) ......|vmov .......................|
+|fmrrd r0,r1,d0 .........|r0,r1 := d0 (int/exact bit copy) ......|vmov .......................|
+|faddd d0,d1,d2 .........|d0 := d1+d2 ...........................|vadd&#46;f64 ...............|
+|faddd d0,d1 ............|d0 := d0+d1 aka d0 += d1 ..............|=(shorthand) ...............|
+|fsubd d0,d1,d2 .........|d0 := d1-d2 ...........................|vsub&#46;f64 ...............|
+|fmuld d0,d1,d2 .........|d0 := d1*d2 ...........................|vmul&#46;f64 ...............|
+|fdivd d0,d1,d2 .........|d0 := d1/d2 ...........................|vdiv&#46;f64 ...............|
+|fmrx r0,FPSCR ..........|fpu flags := r0 .......................|=(or FPSID maybe?)..........|
+|fmxr FPSCR,r0 ..........|r0 := fpu flags .......................|=(or FPSID maybe?)..........|
+|fmstat .................|alu flags := fpu flags ................|vmrs APSR_nzcv, FPSCR ......|
+|fcpyd d0,d1  ...........|d0 := d1 ..............................|vmov .......................|
+|fnegd d0 ...............|d0 := -d0 .............................|vneg&#46;f64 ...............|
+|fsqrtd d0,d1 ...........|d0 := sqrt(d1) ........................|vsqrt&#46;f64 ..............|
+|fcmpzd d0 ..............|fpu flags := (d0==0.0) ................|vcmp&#46;f64 d0,#0 .........|
+|ftosid s4,d0 ...........|s4 := (int)d0 (fpscr rounding mode) ...|vcvtr&#46;s32&#46;f64 ......|
+|ftouizd s4,d0 ..........|s4 := (uint)d0 (round towards zero) ...|vcvt&#46;u32&#46;f64 .......|
+|fsitod d0,s4 ...........|d0 := (float)s4 .......................|vcvt&#46;f64&#46;s32 .......|
+ </div>
+        <div class="clear"></div>
+        <br>
+        By (double) I mean that memory address should contain an eight byte IEEE 754 64-bit float, as per poke(mem8,atom_to_float64(v)).<br>
+        By (int) I really do mean a non IEEE 754 normal integer sitting in the bits of the floating point register, as per poke4(mem4,i).<br>
+        Not all shorthands may be implemented correctly, and some may be ambiguous: if in any doubt simply use the full longhand form.<br>
+        Aliases: just because someone else thinks vldr.f64 is a sensible way to say fldd, I don&rsquo;t, and won&rsquo;t support that, plus right now <br>
+        I&rsquo;m <i>really</i> feeling the need to banish each and every possible distraction, one of which is floating point ops not beginning 'f',<br>
+        or perhaps more accurately, being forced to used v for vector when you&rsquo;re trying to perform a simple single scalar operation,<br>
+        plus I can guarantee that when scanning vadd.f64 d4,d6 my reptilian brain would relentlessly register the 6+=4 rather than the 4+=6.<br>
+        Besides, trying to syntax-colour or F1-lookup mnemonics with <i>dots</i> in them promises to cause a <i>ridiculous</i> amount of grief!<br>
+        Finally of course there is quite some bias towards meeting my needs and fitting my odd little ways of thinking, rather anyone else&rsquo;s.
+        <br>
+        <br>
+
+        
+<!--
+DEV write a desktop/Phix example of 32 vs 64 bit rounding, eg/ie 0.9{9}4 being rounded to 1 on 32 bit, and left just shy on 64 bit;
+(obvs/prob: "atom a = 1-6e17[ish]; ?a-1") test the same calculation on arm, see what it does... 
+(aka: is there a "thin veneer of rounding" that hides a multitude of sins? and/or 1e18-1+1e18, etc...)
+SUG: likewise fp discrepancies are more evident on ARM than x86 because the p11 coprocessor works directly/internally with 64-bit floats
+and we loose the implicit rounding that occurs on a (32-bit) x86 FPU, since the latter uses 80-bit internals. [@ end of accuracy.htm]
+-->
+
+<!--
+The following topics describe the floating-point instructions:
+
+VABS, VNEG, and VSQRT Floating-point absolute value, negate, and square root.
+VADD, VSUB, and VDIV Floating-point add, subtract, and divide.
+VMUL, VMLA, VMLS, VNMUL, VNMLA, and VNMLS Floating-point multiply and multiply accumulate, with optional negation.
+VFNMA, VFNMS Fused floating-point multiply accumulate and fused floating-point multiply subtract, with optional negation.
+VCMP, VCMPE Floating-point compare.
+VSEL Floating-point select.
+VCVT (between single-precision and double-precision) Convert between single-precision and double-precision.
+VCVT (between floating-point and integer) Convert between floating-point and integer.
+VCVT (from floating-point to integer with directed rounding modes) Convert from floating-point to integer with directed rounding modes.
+VCVT (between floating-point and fixed-point) Convert between floating-point and fixed-point.
+VCVTB, VCVTT (half-precision extension) Convert between half-precision and single-precision floating-point.
+VCVTB, VCVTT (between half-precision and double-precision) Convert between half-precision and double-precision.
+VRINT (floating-point) Floating-point round to integer.
+VMAXNM, VMINNM (floating-point) Floating-point maximum, minimum, consistent with IEEE 754-2008.
+VMOV Insert a floating-point immediate value in a single-precision or double-precision register.
+
+-->
+<!-- oh dear, "fconsts s0,#10" gives "illegal instruction" (erm, wow!) on the RPi emulator... nevermind
+        <h3>Table of valid inline vmov[DEV/name not yet picked] constants</h3>
+        8 bits hence 256 possible values, being +/-(m=16..31)/power(2,k=0..7).<br>
+        [?]If you specify 0 or 0.0 the compiler maps it to fcmpz(s|d) automatically.[?]<br>
+ <div class="arm_table">
+|k=7...........|6&#32;........|5&#32;.......|4&#32;......|3&#32;.....|2&#32;....|1&#32;....|0(&darr;=m)..|
+|0&#46;125.....|0&#46;25......|0&#46;5......|1&#32;......|2&#32;.....|4&#32;....|8&#32;....|16...........|
+|0&#46;132812..|0&#46;265625..|0&#46;53125..|1&#46;0625..|2&#46;125..|4&#46;25..|8&#46;5...|17...........|
+|0&#46;140625..|0&#46;28125...|0&#46;5625...|1&#46;125...|2&#46;25...|4&#46;5...|9&#32;....|18...........|
+|0&#46;148438..|0&#46;296875..|0&#46;59375..|1&#46;1875..|2&#46;375..|4&#46;75..|9&#46;5...|19...........|
+|0&#46;15625...|0&#46;3125....|0&#46;625....|1&#46;25....|2&#46;5....|5&#32;....|10........|20...........|
+|0&#46;164062..|0&#46;328125..|0&#46;65625..|1&#46;3125..|2&#46;625..|5&#46;25..|10&#46;5..|21...........|
+|0&#46;171875..|0&#46;34375...|0&#46;6875...|1&#46;375...|2&#46;75...|5&#46;5...|11........|22...........|
+|0&#46;179688..|0&#46;359375..|0&#46;71875..|1&#46;4375..|2&#46;875..|5&#46;75..|11&#46;5..|23...........|
+|0&#46;1875....|0&#46;375.....|0&#46;75.....|1&#46;5.....|3&#32;.....|6&#32;....|12........|24...........|
+|0&#46;195312..|0&#46;390625..|0&#46;78125..|1&#46;5625..|3&#46;125..|6&#46;25..|12&#46;5..|25...........|
+|0&#46;203125..|0&#46;40625...|0&#46;8125...|1&#46;625...|3&#46;25...|6&#46;5...|13........|26...........|
+|0&#46;210938..|0&#46;421875..|0&#46;84375..|1&#46;6875..|3&#46;375..|6&#46;75..|13&#46;5..|27...........|
+|0&#46;21875...|0&#46;4375....|0&#46;875....|1&#46;75....|3&#46;5....|7&#32;....|14........|28...........|
+|0&#46;226562..|0&#46;453125..|0&#46;90625..|1&#46;8125..|3&#46;625..|7&#46;25..|14&#46;5..|29...........|
+|0&#46;234375..|0&#46;46875...|0&#46;9375...|1&#46;875...|3&#46;75...|7&#46;5...|15........|30...........|
+|0&#46;242188..|0&#46;484375..|0&#46;96875..|1&#46;9375..|3&#46;875..|7&#46;75..|15&#46;5..|31...........|
+ </div>
+        <div class="clear"></div>
+-->
+        <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

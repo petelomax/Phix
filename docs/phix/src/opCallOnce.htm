@@ -1,0 +1,89 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">opCallOnce</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td>
+          <b>Syntax:</b>
+         </td>
+         <td>
+            include <i>&lt;any_file_with_top-level_statements&gt;</i>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Description:</b>
+         </td>
+         <td>
+            Ensure any required top-level statements are invoked as required.
+<!--
+            Quite possible a rather poor and strictly unnecessary design choice in the implementation of Phix (and no
+            doubt one of countless many).
+-->
+            <br>
+            <br>
+            Suppose you have a file my_include.e (normal, hll) which contains, outside of any routine:
+            <br>
+            <br>
+<!--eucode>
+puts(1,"Hello there\n")
+</eucode-->
+<pre>
+<font color="#7060A8">puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"Hello there\n"</font><font color="#0000FF">)</font>
+</pre>
+            <br>
+            And a little test.exw program:
+            <br>
+            <br>
+<!--eucode>
+include my_include.e
+--puts(1,"Hello there\n")
+</eucode-->
+<pre>
+<font color="#008080">include</font><font color="#000000"> my_include.e</font>
+<font color="#000080"><i>--puts(1,"Hello there\n")</i></font>
+</pre>
+            <br>
+            You would (/should) expect the result to be the same when the statement in the include file is commented out
+            and the one after the include statement is uncommented.<br>
+            Each file generates a hidden top-level subroutine, which the compiler invokes, but only when it needs to.<br>
+            Note the compiler does not emit pointless opCallOnce for include files with no top-level statements, however
+            and of course there may be some top-level statements that you cannot immediately see, in the form of implicit
+            [nested] opCallOnce statements.
+            <br>
+            <br>
+            You might question whether the compiler should keep track of what it is doing and only invoke such hidden
+            routines from one ideal place, however in practice it is all too easy to create a convoluted meshwork of 
+            mutually-including files, in other words and as a rebuttal question, if filea includes fileb and at the same
+            time fileb includes filea, where precisely should the calls to the hidden top-level routines go?<br>
+            In some senses it gets even more confusing when some files are not included at the top-top-level but only at
+            varying depths in a complex nested include hirarchy, and the precise order things will actually get executed
+            in all starts to get a bit fuzzy.<br>
+            The compiler takes the easier route of planting opCallOnce that do nothing when already previously invoked,
+            with the latter being achieved by setting a flag on the appropriate (hidden) symbol table entry.
+            <br>
+            <br>
+            User code, and indeed even the builtin files themselves, should <i>never</i> explicitly invoke opCallOnce.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Defined in:</b>
+         </td>
+         <td>builtins\VM\pStack.e
+         </td>
+        </tr>
+       </table>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

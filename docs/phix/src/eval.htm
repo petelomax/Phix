@@ -8,6 +8,8 @@
       <div id="mainSection">
         The file Phix/eval.e is part of the compiler/interpreter, but since Phix is a self-hosted language
         that very same file (not an autoinclude) can also be used for runtime evaluation.
+        Works on desktop/Phix only, not <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a> - 
+        with a bit of luck that might be possible in Phix 2.0 but I wouldn&rsquo;t bet on it.
         <br>
         <br>
         The eval function accepts at least 1 and up to 4 parameters:
@@ -102,7 +104,7 @@ if not q_init then q = {} end if
 <font color="#800000">                 {</font><font color="#008000">"p"</font><font color="#0000FF">,</font><font color="#800080">{</font><font color="#008000">"not_p"</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">,  </font><font color="#000080"><i> -- ignored/clobbered</i></font>
 <font color="#800000">                 {</font><font color="#008000">"q_init"</font><font color="#0000FF">,</font><font color="#004600">true</font><font color="#800000">}</font><font color="#0000FF">,  </font><font color="#000080"><i> -- else next line useless</i></font>
 <font color="#800000">                 {</font><font color="#008000">"q"</font><font color="#0000FF">,</font><font color="#800080">{</font><font color="#008000">"q"</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">}
-?</font><font color="#5E005E">eval</font><font color="#0000FF">(</font><font color="#000000">code</font><font color="#0000FF">,</font><font color="#000000">rset</font><font color="#0000FF">,</font><font color="#000000">iset</font><font color="#0000FF">)</font>
+?</font><font color="#7060A8">eval</font><font color="#0000FF">(</font><font color="#000000">code</font><font color="#0000FF">,</font><font color="#000000">rset</font><font color="#0000FF">,</font><font color="#000000">iset</font><font color="#0000FF">)</font>
 <font color="#000080"><i>-- output is {0,1.5,3.5,"s","t",{"p"},{"q"}}</i></font>
 </pre>
         In particular note the use of q_init to suppress the defaulting of q, and
@@ -133,9 +135,9 @@ res = {} -- (kill hidden refcount)
 <font color="#000000">    original</font><font color="#0000FF"> =</font><font color="#004600"> NULL</font><font color="#000080"><i> -- (or {}, kill refcount)</i></font>
 <font color="#008080">    return</font><font color="#000000"> iset</font>
 <font color="#008080">end function</font>
-<font color="#004080">sequence</font><font color="#0000FF"> {</font><font color="#000000">original</font><font color="#0000FF">} =</font><font color="#5E005E"> eval</font><font color="#0000FF">(</font><font color="#000000">code</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">"table"</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000">get_iset</font><font color="#800000">()</font><font color="#0000FF">)</font>
+<font color="#004080">sequence</font><font color="#0000FF"> {</font><font color="#000000">original</font><font color="#0000FF">} =</font><font color="#7060A8"> eval</font><font color="#0000FF">(</font><font color="#000000">code</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">"table"</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000">get_iset</font><font color="#800000">()</font><font color="#0000FF">)</font>
 <font color="#000080"><i>-- or maybe</i></font>
-<font color="#004080">sequence</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#5E005E"> eval</font><font color="#0000FF">(</font><font color="#000000">code</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">"table"</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000">get_iset</font><font color="#800000">()</font><font color="#0000FF">)</font>
+<font color="#004080">sequence</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#7060A8"> eval</font><font color="#0000FF">(</font><font color="#000000">code</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">"table"</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000">get_iset</font><font color="#800000">()</font><font color="#0000FF">)</font>
 <font color="#000000">original</font><font color="#0000FF"> =</font><font color="#000000"> res</font><font color="#0000FF">[</font><font color="#000000">1</font><font color="#0000FF">]</font>
 <font color="#000000">res</font><font color="#0000FF"> = {}</font><font color="#000080"><i> -- (kill hidden refcount)</i></font>
 </pre>
@@ -145,14 +147,17 @@ res = {} -- (kill hidden refcount)
         <br>
         <br>
         Lastly note that include eval.e is not an autoinclude or a builtin or a single file, but pulls in about 90% of the 
-        interpreter/compiler. Obviously that exposes almost all of the compiler innards to your application and care must
-        be taken not to accidentally reference or worse stomp on anything it relies on: you may wish to periodically 
-        comment out both the include eval.e and the eval() call and ensure it compiles cleanly, maybe/probably taking 
-        advantage of the -norun command line option. In total there are about 1,220 such identifiers, the majority being 
-        constants or routine names. None of this is supported by pwa/p2js, however that is an entirely new backend for 
-        which I have vague plans of both getting to work online and introducing a new machine code generator, and maybe, 
-        just maybe, that sort of thing could open up all new kinds of possibilities, half-incidentally that is, one of
-        which may or may not be to dramatically reduce the number of internals exposed.
+        (desktop/Phix) interpreter/compiler. Obviously that exposes almost all of the compiler innards to your application 
+        and care must be taken not to accidentally reference or worse stomp on anything it relies on: you may wish to 
+        periodically comment out both the include eval.e and the eval() call and ensure it compiles cleanly, maybe/probably 
+        taking advantage of the -norun command line option. In total there are about 1,220 such identifiers, the majority 
+        being constants or routine names.
+        <br>
+        <br>
+        None of this is supported by <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a>pwa/p2js, however that is 
+        an entirely new backend for which I have vague plans of both getting to work online and introducing a brand new 
+        machine code generator, and maybe, just maybe, that sort of thing could open up all new kinds of possibilities, 
+        half-incidentally that is, one of which may or may not be to dramatically reduce the number of internals exposed.
         <br>
         <br>
         See also procedure REPL() in p.exw: instead of using eval() it saves/restores the symbol table,

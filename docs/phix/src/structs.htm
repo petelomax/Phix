@@ -26,6 +26,9 @@
         routine might have just gone so horribly wrong, that is if it got confused with <a href="#new">this one</a> somehow.
         <br>
         <br>
+        None of these routines are supported by <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js</b></span></a>.
+        <br>
+        <br>
         <dl>
         <dt>bool res = <b>struct</b>(object s)</dt>
          <dd>
@@ -37,7 +40,7 @@
         <br>
         <dt>bool res = <b>is_struct</b>(object s, integer rid)</dt>
          <dd>
-            Implements the implicit user defined types created for each struct/class, for example (automatically generated):<br>
+            Implements the implicit <a href="usingtypes.htm#type">user defined types</a> created for each struct/class, for example (automatically generated):<br>
             <code>type bridge(object b) return is_struct(b,routine_id("bridge")) end type</code><br>
             <i>NB: global so that it <i>can</i> be called from such implicit user defined types, rather than being useful itself directly.</i><br>
             The builtin struct/class passes 0 for rid, other types pass their own routine_id, which is guaranteed to be unique.<br>
@@ -159,7 +162,8 @@
             sdx: the routine_id of the user_defined type, inferred when possible, or a string<br>
             imm: initial field settings, if any, assigned in numerical order<br>
             res: an instance of the requested type<br>
-            The result is a <i>reference type</i>, which is <b>not</b> suitable for passing to <a href="repeat.htm">repeat</a>().<br>
+            The result is a <i>reference type</i>, which is <b>not</b> (in general) suitable for passing to <a href="repeat.htm">repeat</a>(), except perhaps in<br>
+            &nbsp;sq = repeat(don&rsquo;t care/ignore/clobber each other,N) followed by (several) sq[vital] = new(class).<br>
             The front-end attempts to provide/insert a suitable default for sdx from context, see T_new in pmain.e/ParamList().<br>
             No attempt has been made to support or mimic inline named parameters (that is, beyond "sdx" and "imm" with above caveat). Instead of
             <br>
@@ -168,7 +172,7 @@
             politician p := new(name := "boris", age := 3)
 </eucode-->
 <pre>
-<font color="#000000">            politician p</font><font color="#0000FF"> :=</font><font color="#5E005E"> new</font><font color="#0000FF">(</font><font color="#000000">name</font><font color="#0000FF"> :=</font><font color="#008000"> "boris"</font><font color="#0000FF">,</font><font color="#000000"> age</font><font color="#0000FF"> :=</font><font color="#000000"> 3</font><font color="#0000FF">)</font>
+<font color="#000000">            politician p</font><font color="#0000FF"> :=</font><font color="#7060A8"> new</font><font color="#0000FF">(</font><font color="#000000">name</font><font color="#0000FF"> :=</font><font color="#008000"> "boris"</font><font color="#0000FF">,</font><font color="#000000"> age</font><font color="#0000FF"> :=</font><font color="#000000"> 3</font><font color="#0000FF">)</font>
 </pre>
             use
             <br>
@@ -178,7 +182,7 @@
                        p.age := 3
 </eucode-->
 <pre>
-<font color="#000000">            politician p</font><font color="#0000FF"> :=</font><font color="#5E005E"> new</font><font color="#0000FF">()</font>
+<font color="#000000">            politician p</font><font color="#0000FF"> :=</font><font color="#7060A8"> new</font><font color="#0000FF">()</font>
 <font color="#000000">                       p</font><font color="#0000FF">.</font><font color="#000000">name</font><font color="#0000FF"> :=</font><font color="#008000"> "boris"</font>
 <font color="#000000">                       p</font><font color="#0000FF">.</font><font color="#000000">age</font><font color="#0000FF"> :=</font><font color="#000000"> 3</font>
 </pre>
@@ -239,12 +243,12 @@
 <!--eucode>
 integer sdx = s[I_SDX],
         id = structs[sdx][S_BDX],
-        {offset,size,sign} = cffi:get_field_details(id,field_name)
+        {offset,size,signed/*[, string mtype]*/} = cffi:get_field_details(id,field_name)
 </eucode-->
 <pre>
 <font color="#004080">integer</font><font color="#000000"> sdx</font><font color="#0000FF"> =</font><font color="#000000"> s</font><font color="#0000FF">[</font><font color="#000000">I_SDX</font><font color="#0000FF">],</font>
 <font color="#000000">        id</font><font color="#0000FF"> =</font><font color="#000000"> structs</font><font color="#0000FF">[</font><font color="#000000">sdx</font><font color="#0000FF">][</font><font color="#000000">S_BDX</font><font color="#0000FF">],
-        {</font><font color="#000000">offset</font><font color="#0000FF">,</font><font color="#000000">size</font><font color="#0000FF">,</font><font color="#5E005E">sign</font><font color="#0000FF">} =</font><font color="#000000"> cffi</font><font color="#0000FF">:</font><font color="#5E005E">get_field_details</font><font color="#0000FF">(</font><font color="#000000">id</font><font color="#0000FF">,</font><font color="#000000">field_name</font><font color="#0000FF">)</font>
+        {</font><font color="#000000">offset</font><font color="#0000FF">,</font><font color="#000000">size</font><font color="#0000FF">,</font><font color="#000000">signed</font><font color="#000080"><i>/*[, string mtype]*/</i></font><font color="#0000FF">} =</font><font color="#000000"> cffi</font><font color="#0000FF">:</font><font color="#7060A8">get_field_details</font><font color="#0000FF">(</font><font color="#000000">id</font><font color="#0000FF">,</font><font color="#000000">field_name</font><font color="#0000FF">)</font>
 </pre>
             but that is/gets nothing remotely like the "res" detailed above.</i><br>
          </dd>
@@ -277,7 +281,7 @@ s.name[1] = upper(s.name[1])
        ^ not yet supported
 </eucode-->
 <pre>
-<font color="#000000">s</font><font color="#0000FF">.</font><font color="#000000">name</font><font color="#0000FF">[</font><font color="#000000">1</font><font color="#0000FF">] =</font><font color="#5E005E"> upper</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">.</font><font color="#000000">name</font><font color="#800000">[</font><font color="#000000">1</font><font color="#800000">]</font><font color="#0000FF">)</font>
+<font color="#000000">s</font><font color="#0000FF">.</font><font color="#000000">name</font><font color="#0000FF">[</font><font color="#000000">1</font><font color="#0000FF">] =</font><font color="#7060A8"> upper</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">.</font><font color="#000000">name</font><font color="#800000">[</font><font color="#000000">1</font><font color="#800000">]</font><font color="#0000FF">)</font>
 <font color="#000000">       ^</font><font color="#008080"> not</font><font color="#000000"> yet supported</font>
 </pre>
         The rhs is in fact fine, however the left hand side needs a fetch/modify/store, since it is not implemented in the
@@ -298,10 +302,10 @@ s.name = s.name & " (deceased)"
 </eucode-->
 <pre>
 <font color="#004080">string</font><font color="#000000"> name</font><font color="#0000FF"> =</font><font color="#000000"> s</font><font color="#0000FF">.</font><font color="#000000">name
-name</font><font color="#0000FF">[</font><font color="#000000">1</font><font color="#0000FF">] =</font><font color="#5E005E"> upper</font><font color="#0000FF">(</font><font color="#000000">name</font><font color="#800000">[</font><font color="#000000">1</font><font color="#800000">]</font><font color="#0000FF">)   </font><font color="#000080"><i> -- (this line be all-traditional-non-struct-code)</i></font>
+name</font><font color="#0000FF">[</font><font color="#000000">1</font><font color="#0000FF">] =</font><font color="#7060A8"> upper</font><font color="#0000FF">(</font><font color="#000000">name</font><font color="#800000">[</font><font color="#000000">1</font><font color="#800000">]</font><font color="#0000FF">)   </font><font color="#000080"><i> -- (this line be all-traditional-non-struct-code)</i></font>
 <font color="#000000">s</font><font color="#0000FF">.</font><font color="#000000">name</font><font color="#0000FF"> =</font><font color="#000000"> name</font>
 <font color="#000080"><i>-- or --</i></font>
-<font color="#000000">s</font><font color="#0000FF">.</font><font color="#000000">name</font><font color="#0000FF"> =</font><font color="#5E005E"> proper</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">.</font><font color="#000000">name</font><font color="#0000FF">)
+<font color="#000000">s</font><font color="#0000FF">.</font><font color="#000000">name</font><font color="#0000FF"> =</font><font color="#7060A8"> proper</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">.</font><font color="#000000">name</font><font color="#0000FF">)
 </font>
 <font color="#000080"><i>-- and, for those last two compound assigments, the obvious workaround...</i></font>
 <font color="#000000">s</font><font color="#0000FF">.</font><font color="#000000">age</font><font color="#0000FF"> =</font><font color="#000000"> s</font><font color="#0000FF">.</font><font color="#000000">age</font><font color="#0000FF"> +</font><font color="#000000"> 1
