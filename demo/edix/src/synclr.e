@@ -1056,6 +1056,11 @@ end if
             chidx = chidx2
             chidx2 += 1
         elsif ctype=Operator then
+--dev/sug
+--          bool bProbableRegex = false
+--  if we're on a /, it's not phix/asm/..., there is another / later on,
+--  and our / is first non-whitespace or following one of "=,", then as one.
+--  eg   const IDENT_RE = /[a-zA-Z]\w*/;
             while 1 do
                 if chidx2>length(text) 
                 or text[chidx2]>128

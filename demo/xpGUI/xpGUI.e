@@ -830,6 +830,151 @@ global procedure gSetAttribute(gdx id, string name, object v, sequence args={})
         crash("gSetAttribute(%s,%s,%s)",{ctrl_names[ct],name,iff(v=NULL?"NULL":v)})
     end if
 end procedure
+--/*
+--I think this is the one:
+static void do_drawing(cairo_t *);
+
+struct {
+  int count;
+  double coordx[100];
+  double coordy[100];
+} glob;
+
+static gboolean on_draw_event(GtkWidget *widget, cairo_t *cr, gpointer user_data) {
+  cairo_set_source_rgb(cr, 0, 0, 0);
+  cairo_set_line_width(cr, 0.5);
+
+  int i, j;
+  for (i = 0; i <= glob.count - 1; i++ ) {
+      for (j = 0; j <= glob.count - 1; j++ ) {
+          cairo_move_to(cr, glob.coordx[i], glob.coordy[i]);
+          cairo_line_to(cr, glob.coordx[j], glob.coordy[j]);
+      }
+  }
+
+  glob.count = 0;
+  cairo_stroke(cr);    
+
+  return FALSE;
+}
+
+static gboolean clicked(GtkWidget *widget, GdkEventButton *event, gpointer user_data) {
+    if (event->button == 1) {
+        glob.coordx[glob.count] = event->x;
+        glob.coordy[glob.count++] = event->y;
+    }
+
+    if (event->button == 3) {
+        gtk_widget_queue_draw(widget);
+    }
+
+    return TRUE;
+}
+
+
+int main(int argc, char *argv[])
+{
+  GtkWidget *window;
+  GtkWidget *darea;
+  
+  glob.count = 0;
+
+  gtk_init(&argc, &argv);
+
+  window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+
+  darea = gtk_drawing_area_new();
+  gtk_container_add(GTK_CONTAINER(window), darea);
+ 
+  gtk_widget_add_events(window, GDK_BUTTON_PRESS_MASK);
+
+  g_signal_connect(G_OBJECT(darea), "draw", G_CALLBACK(on_draw_event), NULL); 
+  g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);  
+    
+  g_signal_connect(window, "button-press-event", G_CALLBACK(clicked), NULL);
+ 
+  gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
+  gtk_window_set_default_size(GTK_WINDOW(window), 400, 300); 
+  gtk_window_set_title(GTK_WINDOW(window), "Lines");
+
+  gtk_widget_show_all(window);
+
+  gtk_main();
+
+  return 0;
+}
+-- possibly easier?:
+static gboolean on_draw_event(GtkWidget *widget, cairo_t *cr, gpointer user_data) {    
+  cairo_set_source_rgb(cr, 0, 0, 0);
+  cairo_select_font_face(cr, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
+  cairo_set_font_size(cr, 40.0);
+
+  cairo_move_to(cr, 10.0, 50.0);
+  cairo_show_text(cr, "Disziplin ist Macht.");    (Discipline is Power)
+  return FALSE;
+}
+
+int main(int argc, char *argv[])
+{
+  GtkWidget *window;
+  GtkWidget *darea;
+
+  gtk_init(&argc, &argv);
+
+  window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+
+  darea = gtk_drawing_area_new();
+  gtk_container_add(GTK_CONTAINER(window), darea);
+
+  g_signal_connect(G_OBJECT(darea), "draw", G_CALLBACK(on_draw_event), NULL); 
+  g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
+
+  gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
+  gtk_window_set_default_size(GTK_WINDOW(window), 400, 90); 
+  gtk_window_set_title(GTK_WINDOW(window), "GTK window");
+
+  gtk_widget_show_all(window);
+
+  gtk_main();
+
+  return 0;
+}
+--*/
+--DEV "TIP": gtk_widget_set_tooltip_text(button, "Button widget");
+--gtk_container_set_border_width(window, 15);
+--From: https://zetcode.com/gui/gtk2/menusandtoolbars/
+--  menubar = gtk_menu_bar_new();
+--  fileMenu = gtk_menu_new();
+--
+--  fileMi = gtk_menu_item_new_with_label("File");
+--  quitMi = gtk_menu_item_new_with_label("Quit");
+--
+--  gtk_menu_item_set_submenu(GTK_MENU_ITEM(fileMi), fileMenu);
+--  gtk_menu_shell_append(GTK_MENU_SHELL(fileMenu), quitMi);
+--  gtk_menu_shell_append(GTK_MENU_SHELL(menubar), fileMi);
+--  gtk_box_pack_start(GTK_BOX(vbox), menubar, FALSE, FALSE, 0);
+--SUBMENU:
+--    imprMenu = gtk_menu_new();
+--    imprMi = gtk_menu_item_new_with_label("Import");
+--    feedMi = gtk_menu_item_new_with_label("Import news feed...");
+--    bookMi = gtk_menu_item_new_with_label("Import bookmarks...");
+--    mailMi = gtk_menu_item_new_with_label("Import mail...");
+--    
+--    gtk_menu_item_set_submenu(GTK_MENU_ITEM(imprMi), imprMenu);
+--    gtk_menu_shell_append(GTK_MENU_SHELL(imprMenu), feedMi);
+--    gtk_menu_shell_append(GTK_MENU_SHELL(imprMenu), bookMi);
+--    gtk_menu_shell_append(GTK_MENU_SHELL(imprMenu), mailMi);
+--    sep = gtk_separator_menu_item_new();  
+--    quitMi = gtk_menu_item_new_with_label("Quit");
+--
+--    gtk_menu_item_set_submenu(GTK_MENU_ITEM(fileMi), fileMenu);
+--    gtk_menu_shell_append(GTK_MENU_SHELL(fileMenu), imprMi);
+--    gtk_menu_shell_append(GTK_MENU_SHELL(fileMenu), sep);
+--    gtk_menu_shell_append(GTK_MENU_SHELL(fileMenu), quitMi);
+--    gtk_menu_shell_append(GTK_MENU_SHELL(menubar), fileMi);
+--    gtk_box_pack_start(GTK_BOX(vbox), menubar, FALSE, FALSE, 0);
+-- https://www.codeproject.com/Articles/1042516/Custom-Controls-in-Win-API-Scrolling
+
 
 --local procedure xpg_set_any_deferred_attrs(gdx id)
 --  for i=1 to length(attributes[id]) do

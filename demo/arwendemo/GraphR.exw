@@ -66,43 +66,42 @@ integer width,height
 end procedure
 
 procedure setShapes(string text)
-integer error_status
-sequence v
-integer cidx
-integer b, g, r
-sequence pens, brushes
-integer x, y, width, right, height, colour
-atom lpRect, lpText
-integer len
 
     text = text[8..$] -- strip the "GraphR:", leaving "{...}"
-    {error_status,v} = value(text)
+    {integer error_status, sequence v} = value(text)
     if error_status!=GET_SUCCESS then
         void = messageBox("error",text,MB_OK)
         abort(0)
     end if
-    pens = repeat(0,length(rainbow))
-    brushes = repeat(0,length(rainbow))
+    sequence pens = repeat(0,length(rainbow)),
+          brushes = repeat(0,length(rainbow))
+    integer width
     for i=1 to length(rainbow) do
-        {b,g,r} = GetNamedColour(rainbow[i])
-        colour = rgb(r,g,b)
+        integer {b,g,r} = GetNamedColour(rainbow[i]),
+                 colour = rgb(r,g,b)
+--printf(1,"%s %06x\n",{rainbow[i],colour})
+--red 0000FF
+--orange 00A5FF
+--yellow 00FFFF
+--green 00FF00
+--blue FF0000
+--indigo 82004B
+--violet EE82EE
         width = 1
         pens[i] = c_func(xCreatePen,{PS_SOLID,width,colour})
         brushes[i] = c_func(xCreateSolidBrush,{colour})
     end for
-    cidx = 1
-    y = 20
-    height = 40
+    integer cidx = 1, x, y = 20, height = 40
     maxright = 0
     vShapes = repeat(0,length(v)+1)
     setShape1()
-    lpRect = allocate_Rect()
+    atom lpRect = allocate_Rect()
     for i=1 to length(v) do
         {text,x,width} = v[i]
-        right = x+width
+        integer len = length(text),
+              right = x+width
         if right>maxright then maxright = right end if
-        len = length(text)
-        lpText = allocate_StringZ(text)
+        atom lpText = allocate_StringZ(text)
         if not c_func(xGetTextExtentPoint32,{mainDC,lpText,len,lpRect}) then ?9/0 end if
         len = peek4s(lpRect)
         vShapes[i+1] = {x,y,right,y+height,text,len,pens[cidx],brushes[cidx]}
@@ -113,12 +112,6 @@ integer len
 end procedure
 
 function mHandler(integer id, integer msg, atom wParam, object lParam)
-integer left,width,bottom
-integer x1, y1, x2, y2, l, ht
-atom hBrush
-atom hPen
-string text
-sequence vText
 
     if msg=WM_SIZE then
         setShape1()
@@ -126,7 +119,12 @@ sequence vText
 --      void = c_func(xInvalidateRect,{mainHwnd,NULL,0})    -- w/o erase...
 --      void = c_func(xSendMessage,{mainHwnd,WM_PAINT,0,0})
     elsif msg=WM_PAINT then
-        vText = repeat(0,length(vShapes))
+        sequence vText = repeat(0,length(vShapes))
+        integer left,width,bottom
+        integer x1, y1, x2, y2, l, ht
+        atom hBrush
+        atom hPen
+        string text
         for i=1 to length(vShapes) do
             {x1,y1,x2,y2,text,l,hPen,hBrush} = vShapes[i]
             if i=1 then -- containing box

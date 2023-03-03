@@ -71,15 +71,9 @@ integer draw_shadows
 integer dx = 0, dy = 0, dw = 0, dh = 0
 
 function project_point(sequence pt)
-atom d
-atom px,py,pz
 
-    {px,py,pz} = pt
-    if pz=oz then
-        d = 0.0001
-    else
-        d =  1-pz/(pz-oz)
-    end if
+    atom {px,py,pz} = pt,
+         d = iff(pz=oz?0.0001:1-pz/(pz-oz))
 
     px = floor(ox+(ox-px)/d)
     py = floor(oy+(oy-py)/d)
@@ -91,14 +85,10 @@ integer bmX = 0, bmY = 0
 atom bmWorld, bmView
 
 procedure project_world2(integer w, integer h)
-atom hBitMap
-integer N, x, y, z
-atom x1, y1, z1,
-     x2, y2, z2
 
     if w>bmX or h>bmY then
         bmWorld = c_func(xCreateCompatibleBitmap, {winDC, w, h})
-        hBitMap = selectObject(backDC,bmWorld)
+        atom hBitMap = selectObject(backDC,bmWorld)
         if hBitMap!=NULL then
             void = deleteObject(hBitMap)
         end if
@@ -118,14 +108,13 @@ atom x1, y1, z1,
     setPenColor(#909090)
     drawRectangleh(backDC, False, 0, 0, w, h)
 
-    {x1,y1,z1} = {X_MIN,  0.0,Z_MIN}
-    {x2,y2,z2} = {X_MAX,Y_MAX,Z_MAX}
+    atom {x1,y1,z1} = {X_MIN,  0.0,Z_MIN},
+         {x2,y2,z2} = {X_MAX,Y_MAX,Z_MAX}
 
     -- draw the verticals on the sides and horizontals on the floor and ceiling
-    N = floor((z2-z1)/100)
-    if N<3 then N = 3 end if
+    integer N = max(floor((z2-z1)/100),3)
     for i=1 to N-1 do
-        z = z1+floor((i/N)*(z2-z1))
+        integer z = z1+floor((i/N)*(z2-z1))
         drawLinesh(backDC, {#808080,
                             project_point({x2, y2, z}) & project_point({x2, y1, z}),
                             project_point({x1, y1, z}),
@@ -135,13 +124,11 @@ atom x1, y1, z1,
                             project_point({x2, y2, z})
                            })
     end for
---if 1 then return end if
 
     -- draw the horizontals on the back and the not-quite horizontals on the sides
-    N = floor((y2-y1)/100)
-    if N<3 then N = 3 end if
+    N = max(floor((y2-y1)/100),3)
     for i=1 to N-1 do
-        y = y1+floor((i/N)*(y2-y1))
+        integer y = y1+floor((i/N)*(y2-y1))
         drawLinesh(backDC, {#808080,
                             project_point({x1,y,z1}) & project_point({x1,y,z2}),
                             project_point({x2,y,z2}),
@@ -150,10 +137,9 @@ atom x1, y1, z1,
     end for
 
     -- draw the verticals on the back and the not-quite-verticals on floor/ceiling
-    N = floor((x2-x1)/100)
-    if N<3 then N = 3 end if
+    N = max(floor((x2-x1)/100),3)
     for i=1 to N-1 do
-        x = x1+floor((i/N)*(x2-x1))
+        integer x = x1+floor((i/N)*(x2-x1))
         drawLinesh(backDC, {#808080,
                             project_point({x,y2,z2}) & project_point({x,y1,z2}),
                             project_point({x,y1,z1}),
@@ -178,15 +164,14 @@ end procedure
 
 constant null_u = {0,0}
 function get_ortho(sequence v)
-sequence y, yhat, z, u
 
-    u = v[1..2]
+    sequence u = v[1..2]
     if equal(u, null_u) then
         return {1,1,0}
     end if
-    y = {1,1}
-    yhat = sq_mul(sq_div(dot(u,y),dot(u,u)),u)
-    z = sq_sub(y,yhat)
+    sequence y = {1,1},
+          yhat = sq_mul(sq_div(dot(u,y),dot(u,u)),u),
+             z = sq_sub(y,yhat)
     if equal(z, null_u) then
         return {1,1,0}
     end if
@@ -194,11 +179,8 @@ sequence y, yhat, z, u
 end function
 
 procedure on_timer()
-sequence in,boid, pt, v, verts, v1, v2, v3, sv
 
     move_boids()
-
-    in = boidsnp1
 
     -- start with a fresh copy of the background
     void = c_func(xBitBlt,{viewDC,0,0,dw,dh,backDC,0,0,SRCCOPY})
@@ -212,25 +194,24 @@ sequence in,boid, pt, v, verts, v1, v2, v3, sv
 
     -- convert boid location and velocities into triangles in 3D 
     -- and project them onto the screen
-    verts = repeat("", BOIDS)
+    sequence verts = repeat("", BOIDS)
     for i=1 to BOIDS do
 
-        boid = in[i]
-
-        pt = boid[B_X..B_Z]
-        v = boid[B_XV..B_ZV]
+        sequence boid = boidsnp1[i],
+                   pt = boid[B_X..B_Z],
+                    v = boid[B_XV..B_ZV]
 
         if equal(v,{0,0,0}) then
             v = {1,0,1}
         end if
 
         -- the 'nose' of the boid
-        v1 = sq_add(pt,make_length(v, 20))
+        sequence v1 = sq_add(pt,make_length(v, 20))
 
         -- make the base of the triangle
-        sv = make_length(get_ortho(v), 4)
-        v2 = sq_add(pt,sv)
-        v3 = sq_sub(pt,sv)
+        sequence sv = make_length(get_ortho(v), 4),
+                 v2 = sq_add(pt,sv),
+                 v3 = sq_sub(pt,sv)
 
         verts[i] = {distance3(pt, {ox,oy,oz}), v1, v2, v3, i, v1, v2, v3}
 
@@ -260,7 +241,7 @@ sequence in,boid, pt, v, verts, v1, v2, v3, sv
 
     -- draw boids as polygons, starting with farthest from the POV
     for i=BOIDS to 1 by -1 do
-        v = verts[i]
+        sequence v = verts[i]
         setPenColor(colors[v[5]])
         drawPolygonh(viewDC, v[2..4])
     end for
@@ -274,11 +255,9 @@ function getInteger(sequence numstr)
 -- Return the (positive) integer value of a string.
 -- "" is treated as 0. {} is returned on error.
 --
-atom n
-integer ch
-    n = 0
+    atom n = 0
     for i=1 to length(numstr) do
-        ch = numstr[i]-'0'
+        integer ch = numstr[i]-'0'
         if ch<0 or ch>9 then return {} end if
         n = n*10+ch
         if not integer(n) then return {} end if
@@ -289,11 +268,7 @@ end function
 integer firsttime = 1
 integer eraseRqd = 1
 
-function winHandler(integer id, integer msg, atom wParam, object lParam)
-integer num
-integer dt
-sequence boid
-    if object(lParam) then end if -- suppress warnings
+function winHandler(integer id, integer msg, atom wParam, object /*lParam*/)
     if id=win then
         if msg=WM_SIZE then
             {{},{},dw,dh} = getClientRect(win)
@@ -329,7 +304,7 @@ sequence boid
           and msg=WM_SHOWWINDOW then
             firsttime = 0
             setup()
-            dt = floor(1000.0/30.0)
+--          dt = floor(1000.0/30.0)
             colors = {}
             startTimer(MainTimer,win,33)
         end if
@@ -350,8 +325,8 @@ sequence boid
 
         elsif id=nboids then
             -- change the number of boids
-            num = getInteger(getText(nboids))
-            boid = repeat(0, B_ELEMENTS)
+            integer num = getInteger(getText(nboids))
+            sequence boid = repeat(0, B_ELEMENTS)
             if num>BOIDS then
                 for i=BOIDS+1 to num do
                     boid[B_X] = rand(X_MAX)

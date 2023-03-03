@@ -8,7 +8,9 @@ include ..\..\builtins\misc.e
 
 include arwen.ew
 
-constant DEMO = create(Window, "Demo Window with various Controls", 0, 0,23,13,759,347,0)
+constant DEMO = create(Window, "Demo Window with various Controls", 0, 0,23,13,759,347,0),
+         mainDC = getPrivateDC(DEMO)
+
 --setIcon(DEMO,loadIcon("ok.ico"))
 --void = command_line()
 --global function getHwnd(integer id)
@@ -101,6 +103,8 @@ constant LABEL = create(Label,  "static Label ", 0, DEMO, 140,80,100, 20,0)
 constant TRACK = create(HTrackBar,  "321 ", 0, DEMO, 150,130,200, 45,0)
 
 constant GROUP = create(Group,  "Group ", 0, DEMO, 374,170,200, 45,0)
+--constant GROUP = create(Group,    "", 0, DEMO, 374,170,200, 45,0)
+--removeStyle(GROUP,BS_GROUPBOX) -- turns it into a button...
 
 constant CHECK = create(CheckBox,  "CheckBox ", 0, DEMO, 369,5,200, 30,0)
 constant TRICHECK = create(TriCheckBox,  "TriCheckBox ", 0, DEMO, 369,40,200, 35,0)
@@ -177,9 +181,32 @@ function handler_BUTTON(integer id, integer msg, atom wParam, object lParam)
     return 0
 end function
 
-setHandler(BUTTON, routine_id("handler_BUTTON"))
-setHandler({EDIT}, routine_id("handler_EDIT"))
+--violet EE82EE
+integer width = 1, colour = #EE82EE
+atom hPen = c_func(xCreatePen,{PS_SOLID,width,colour})
+--   hBrush = c_func(xCreateSolidBrush,{colour})
+
+function handler_MAIN(integer id, integer msg, atom wParam, object lParam)
+    if msg = WM_PAINT then
+--      integer {x1,y1,x2,y2} = getWindowRect(GROUP)
+--      integer {x1,y1,x2,y2} = getClientRect(GROUP)
+        integer {x1,y1,x2,y2} = getClientCoords(GROUP)
+--      {x1,y1} = clientToScreen(DEMO, x1, y1)
+--      {x2,y2} = clientToScreen(DEMO, x2, y2)
+        void = c_func(xSelectObject,{mainDC,hPen})
+        void = c_func(xSelectObject,{mainDC,hBrush})
+        void = c_func(xRectangle, {mainDC, x1, y1, x2, y2})
+--      return {0}
+--      return {1}
+--      return true
+    end if
+    return 0
+end function
+
+setHandler(BUTTON, handler_BUTTON)
+setHandler({EDIT}, handler_EDIT)
     
-setHandler({HHH,VVV, TRACK}, routine_id("handler_SCROLL"))
+setHandler({HHH,VVV, TRACK}, handler_SCROLL)
+setHandler(DEMO, handler_MAIN)
 
 WinMain(DEMO, SW_NORMAL)

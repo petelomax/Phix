@@ -32,7 +32,7 @@ constant
 -- create Window & controls
 constant DEMO           = create(Window, header,                0, 0,    100,100,500,413, {{WS_HSCROLL,WS_VSCROLL},0})
 
-constant HHH            = create(HScroll, "",                   0, DEMO,   0,  0,  0,  0, SBS_BOTTOMALIGN)
+constant HZ_SCROLL      = create(HScroll, "",                   0, DEMO,   0,  0,  0,  0, SBS_BOTTOMALIGN)
 
 constant START          = create(Button,"Start",                0, DEMO,  10,215, 80, 25, 0)
 constant STOP           = create(Button,"Stop",                 0, DEMO,  10,250, 80, 25, 0)
@@ -45,10 +45,8 @@ constant TRACK          = create(HTrackBar,"",                  0, DEMO, 230,250
 
 constant STATUS         = create(StatusBar,"",                  0, DEMO,   0,  0,200,  0, 0)
 
-integer row
-        row = -1
-integer direction
-        direction = 1
+integer row = -1
+integer direction = 1
 
 
 constant width = 500,
@@ -67,8 +65,7 @@ end procedure
 
 startDIB()
 
-integer setThumbs
-        setThumbs = False
+integer setThumbs = False
 
 constant --ODM_VIEW_ICONS = #7029,
 --       ODM_VIEW_LIST  = #702B,
@@ -79,14 +76,13 @@ constant --ODM_VIEW_ICONS = #7029,
 
 
 procedure handler_IDLE()--integer id, integer msg, atom wParam, atom lParam)
-atom hDC, hWnd
 
     if setThumbs then
         setThumbs = False
 --          hWnd = c_func(xFindWindowEx,{getHwnd(DEMO), 0, "SHELLDLL_DefView", ""})
 --          hWnd = c_func(xFindWindowEx,{getHwnd(DEMO), 0, "Folder View", ""})
 --getActiveWindow
-        hWnd = c_func(xGetForegroundWindow,{})
+        atom hWnd = c_func(xGetForegroundWindow,{})
         --?hWnd
         if hWnd then
             --0x0461
@@ -114,7 +110,7 @@ atom hDC, hWnd
         direction = 1
     end if
 
-    hDC = getPrivateDC(DEMO)
+    atom hDC = getPrivateDC(DEMO)
 
     for i=0 to width-1 do
         setDibPixel(DIB, i, row, rand(255))
@@ -125,23 +121,19 @@ atom hDC, hWnd
 end procedure
 
 procedure setControls(integer on_off)
-    setEnable({STOP, EDIT, TRACK, DIALOG_COLOR, DIALOG_SELECT, DIALOG_FILE, HHH}, on_off)
+    setEnable({STOP, EDIT, TRACK, DIALOG_COLOR, DIALOG_SELECT, DIALOG_FILE, HZ_SCROLL}, on_off)
     setEnable(START, not on_off)
 end procedure
 
 function formatRGB(atom colour)
-integer r, g, b
-    r = and_bits(colour, #FF)
-    colour = floor(colour/256)
-    g = and_bits(colour, #FF)
-    b = floor(colour/256)
+    integer r = and_bits(colour, #FF),
+           gb = floor(colour/256),
+            g = and_bits(gb, #FF),
+            b = floor(gb/256)
     return sprintf("RGB colour selected: { %d, %d, %d }", {r,g,b})
 end function
 
 function handler_BUTTON(integer id, integer msg, atom wParam, object lParam)
-sequence filters
-atom flags
-
     if msg=WM_COMMAND then -- one of the buttons was clicked
 
         if id=START then
@@ -182,8 +174,8 @@ atom flags
 --end if
         elsif id=DIALOG_FILE then
 
-            filters = {"All *.*","*.*",  "some ew,exw",  "*.ew;*.exw"}
-            flags = or_all({OFN_HIDEREADONLY,OFN_ALLOWMULTISELECT})
+            sequence filters = {"All *.*","*.*",  "some ew,exw",  "*.ew;*.exw"}
+            atom flags = or_all({OFN_HIDEREADONLY,OFN_ALLOWMULTISELECT})
             --OFN_ENABLEHOOK
             setThumbs = True --<<**
             lParam = getOpenFileName(DEMO, "*.*", filters, flags)
@@ -216,7 +208,7 @@ function handler_DEMO(integer id, integer msg, atom wParam, object lParam)
 end function
 
 
---function handler_HHH(integer id, integer msg, atom wParam, object lParam)
+--function handler_HZ_SCROLL(integer id, integer msg, atom wParam, object lParam)
 ----    if msg = WM_HSCROLL then
 ----        void = postMessage(DEMO, WM_ENTERIDLE, 0,0)
 ------      runIdle()
@@ -228,9 +220,9 @@ end function
 
 setControls(False)
 
-setHandler({START, STOP, DIALOG_COLOR, DIALOG_SELECT, DIALOG_FILE}, routine_id("handler_BUTTON"))
-setHandler(IDLE, routine_id("handler_IDLE"))
-setHandler({DEMO,EDIT,TRACK,HHH}, routine_id("handler_DEMO"))
+setHandler({START, STOP, DIALOG_COLOR, DIALOG_SELECT, DIALOG_FILE}, handler_BUTTON)
+setHandler(IDLE, handler_IDLE)
+setHandler({DEMO,EDIT,TRACK,HZ_SCROLL}, handler_DEMO)
 
 WinMain(DEMO, SW_NORMAL)
 void = deleteDib(0)

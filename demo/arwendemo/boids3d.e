@@ -164,13 +164,11 @@ end procedure
 -- avoid the boundaries of MAX and MIN for 
 -- each dimension (X, Y, Z)
 procedure avoid_walls(integer bid)
-sequence this
-atom dx, dy, dz, t
+    sequence this = boidsn[bid]
     atom dx = 0.0,
          dy = 0.0,
-         dz = 0.0
-    this = boidsn[bid]
-    t = this[B_X]
+         dz = 0.0,
+         t = this[B_X]
     if t<DIST+X_MIN then
         dx += 1
     elsif t>X_MAX-DIST then
