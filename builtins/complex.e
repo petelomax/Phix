@@ -10,12 +10,12 @@
 
 --global constant i = {0,1} -- i
 
-constant REAL = 1,
-         IMAG = 2
+local constant CE_REAL = 1,
+               CE_IMAG = 2
 
 --DEV forward types needed before this can be made an autoinclude...
 global type complex(object c)
-    bool res = sequence(c) and length(c)=2 and atom(c[REAL]) and atom(c[IMAG])
+    bool res = sequence(c) and length(c)=2 and atom(c[CE_REAL]) and atom(c[CE_IMAG])
     return res
 end type
 
@@ -40,12 +40,12 @@ global function complex_new(atom real, imag)
 end function
 
 global function complex_real(complexn a)
-    atom res = iff(atom(a)?a:a[REAL])
+    atom res = iff(atom(a)?a:a[CE_REAL])
     return res
 end function
 
 global function complex_imag(complexn a)
-    atom res = iff(atom(a)?0:a[IMAG])
+    atom res = iff(atom(a)?0:a[CE_IMAG])
     return res
 end function
 
@@ -85,7 +85,7 @@ end function
 
 global function complex_conjugate(complexn a)
     if atom(a) then a = {a,0} end if
-    complex res = {a[REAL], -1 * a[IMAG]}
+    complex res = {a[CE_REAL], -1 * a[CE_IMAG]}
     return res
 end function
 
@@ -93,8 +93,8 @@ global function complex_mul(complexn a, b)
 --  if atom(a) or atom(b) then return sq_mul(a,b) end if
 --  if atom(a) then a = {a,0} end if
 --  if atom(b) then b = {b,0} end if
---  return {a[REAL] * b[REAL] - a[IMAG] * b[IMAG],
---          a[REAL] * b[IMAG] + a[IMAG] * b[REAL]}
+--  return {a[CE_REAL] * b[CE_REAL] - a[CE_IMAG] * b[CE_IMAG],
+--          a[CE_REAL] * b[CE_IMAG] + a[CE_IMAG] * b[CE_REAL]}
     atom {ar,ai} = iff(atom(a)?{a,0}:a)
     atom {br,bi} = iff(atom(b)?{b,0}:b)
     complex res = {ar*br - ai*bi, ar*bi + ai*br}
@@ -103,9 +103,9 @@ end function
 
 global function complex_inv(complexn a)     -- (aka reciprocal)
     if atom(a) then a = {a,0} end if
---  atom denom = a[REAL] * a[REAL] + a[IMAG] * a[IMAG]
+--  atom denom = a[CE_REAL] * a[CE_REAL] + a[CE_IMAG] * a[CE_IMAG]
     atom denom = complex_norm(a)
-    complex res = {a[REAL] / denom, -a[IMAG] / denom}
+    complex res = {a[CE_REAL] / denom, -a[CE_IMAG] / denom}
     return res
 end function
  
@@ -114,11 +114,11 @@ global function complex_div(complexn a, b)
 --  if atom(a) then a = {a,0} end if
 --  if atom(b) then b = {b,0} end if
 --  if atom(b) then
---      return {a[REAL]/b, a[IMAG]/b}
+--      return {a[CE_REAL]/b, a[CE_IMAG]/b}
 --  end if
 --  atom bn = complex_norm(b)
---  return {(a[REAL]*b[REAL] + a[IMAG]*b[IMAG])/bn,
---          (a[IMAG]*b[REAL] - a[REAL]*b[IMAG])/bn}
+--  return {(a[CE_REAL]*b[CE_REAL] + a[CE_IMAG]*b[CE_IMAG])/bn,
+--          (a[CE_IMAG]*b[CE_REAL] - a[CE_REAL]*b[CE_IMAG])/bn}
     atom {ar,ai} = iff(atom(a)?{a,0}:a)
     atom {br,bi} = iff(atom(b)?{b,0}:b)
     if bi=0 then
@@ -136,21 +136,21 @@ global function complex_div2(complexn a, b)
     complex rc = complex_conjugate(b),
             num = complex_mul(a,rc),
             den = complex_mul(b,rc),
---          res = {num[REAL]/den[REAL],num[IMAG]/den[REAL]}
-            res = sq_div(num,den[REAL])
+--          res = {num[CE_REAL]/den[CE_REAL],num[CE_IMAG]/den[CE_REAL]}
+            res = sq_div(num,den[CE_REAL])
     return res
 end function
 --*/
 
 global function complex_arg(complexn a)     -- (aka angle)
     if atom(a) then a = {a,0} end if
-    atom res = atan2(a[IMAG], a[REAL])
+    atom res = atan2(a[CE_IMAG], a[CE_REAL])
     return res
 end function
 
 global function complex_theta(complex a)    -- (aka angle, arg)
 -- derived polar angle theta for polar form. Normalized to 0 <= theta < 2*PI.
-    atom theta = atan2(a[IMAG],a[REAL])
+    atom theta = atan2(a[CE_IMAG],a[CE_REAL])
     if theta<0 then theta += 2*PI end if
     return theta
 end function
@@ -192,9 +192,9 @@ global function complex_ln(complexn a) return complex_log(a) end function
 global function complex_exp(complexn a)
     if atom(a) then a = {a,0} end if
 --NO!:
---  atom e = exp(a[REAL])
---  return {e*cos(a[IMAG]), e*sin(a[REAL])}
-    complex res = from_polar(exp(a[REAL]), a[IMAG])
+--  atom e = exp(a[CE_REAL])
+--  return {e*cos(a[CE_IMAG]), e*sin(a[CE_REAL])}
+    complex res = from_polar(exp(a[CE_REAL]), a[CE_IMAG])
     return res
 end function
 
@@ -299,8 +299,8 @@ end function
 
 global function complex_round(complex a, atom inverted_precision=1)
     if atom(a) then a = {a,0} else a = deep_copy(a) end if
-    a[REAL] = round(a[REAL],inverted_precision)
-    a[IMAG] = round(a[IMAG],inverted_precision)
+    a[CE_REAL] = round(a[CE_REAL],inverted_precision)
+    a[CE_IMAG] = round(a[CE_IMAG],inverted_precision)
     return a
 end function
 

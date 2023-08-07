@@ -170,6 +170,7 @@ global function get_interpreter(bool bQuote=false, object mb=machine_bits(), int
 
     sequence cl = command_line()
     string res = cl[1]
+    if bPrefW=-1 then bPrefW = find('w',get_file_base(res))!=0 end if
     string file = get_file_name(res)
     sequence cpaths = split_path(res)
     string crun = cpaths[$]
@@ -230,7 +231,10 @@ global function get_interpreter(bool bQuote=false, object mb=machine_bits(), int
     return filepath
 end function
 
-global procedure requires(object x, bool bPrefW=false)
+integer xmb = 0 -- (set to x when x=machine_bits() test passes)
+
+--global procedure requires(object x, bool bPrefW=false)
+global procedure requires(object x, bool bQuiet=false)
 --
 -- x: should be eg "0.8.2" for a version() requirement, or a
 --                  WINDOWS/LINUX/WEB platform() check, or
@@ -305,23 +309,35 @@ global procedure requires(object x, bool bPrefW=false)
                 crash("requires %s, this is %s",{that,this},2)
             end if
         end if
-    elsif x!=machine_bits() then
+--  elsif x!=machine_bits() then
+    elsif x=machine_bits() then
+        xmb = x
+    else
         integer m = abs(x)
         sequence cl = command_line()
         string {c1,c2} = cl, cmd, msg
         bool precompiled = (c1==c2)
         if not precompiled then
-            if bPrefW=-1 then bPrefW = find('w',get_file_base(c1))!=0 end if
+--          if bPrefW=-1 then bPrefW = find('w',get_file_base(c1))!=0 end if
+--          bool bPrefW = find('w',get_file_base(c1))!=0
+            bool bPrefW = iff(and_bits(bQuiet,0b10)?false:-1)
+            bQuiet = and_bits(bQuiet,0b01)
+            assert(not bQuiet or xmb=0,"would go bananas") -- (as per docs)
             string p = get_interpreter(false,{m},platform(),bPrefW)
+--          string p = get_interpreter(false,{m},platform(),-1)
             if c1!=p or m!=x then
                 cl[1] = p
                 cmd = join(apply(cl,enquote))
-                msg = iff(m==x?sprintf("%d bit",m):"restart")
-                printf(1,"requires %s: %s\n",{msg,cmd})
-                printf(1,"Press Escape to abandon, Enter to retry as above...")
-                if not find(upper(wait_key()),{'Q','N',#1B}) then
-                    puts(1,"\n")
+                if bQuiet then
                     {} = system_exec(cmd)
+                else
+                    msg = iff(m==x?sprintf("%d bit",m):"restart")
+                    printf(1,"requires %s: %s\n",{msg,cmd})
+                    printf(1,"Press Escape to abandon, Enter to retry as above...")
+                    if not find(upper(wait_key()),{'Q','N',#1B}) then
+                        puts(1,"\n")
+                        {} = system_exec(cmd)
+                    end if
                 end if
                 abort(0)
             end if

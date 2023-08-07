@@ -359,7 +359,7 @@ end procedure
 integer x_mpz_set_si = NULL
 
 global procedure mpz_set_si(mpz rop, integer op)
--- Set x to a phix integer
+-- Set rop to a phix integer
     if rop=NULL then ?9/0 end if
     if x_mpz_set_si=NULL then
         x_mpz_set_si = define_c_proc(mpir_dll, "+__gmpz_set_si", {P,I})
@@ -370,7 +370,7 @@ end procedure
 integer x_mpz_set_d = NULL
 
 global procedure mpz_set_d(mpz rop, atom op)
--- Set x to a phix atom
+-- Set rop to a phix atom
     if rop=NULL then ?9/0 end if
     if x_mpz_set_d=NULL then
         x_mpz_set_d = define_c_proc(mpir_dll, "+__gmpz_set_d", {P,D})
@@ -396,6 +396,17 @@ function replace_e(string s)
     end if
     return s
 end function
+
+integer x_mpz_set_q = NULL
+
+global procedure mpz_set_q(mpz rop, mpq op)
+-- truncates op to make it an integer and stores it in rop
+    if rop=NULL then ?9/0 end if
+    if x_mpz_set_q=NULL then
+        x_mpz_set_q = define_c_proc(mpir_dll, "+__gmpz_set_q", {P,P})
+    end if
+    c_proc(x_mpz_set_q,{rop,op})
+end procedure
 
 integer x_mpz_set_str = NULL
 
@@ -2131,6 +2142,53 @@ global function mpz_prime(mpz p, integer k = 10)
       return true
 end function
 
+--/*
+void mpz_nextprime (mpz t rop, mpz t op) [Function]
+Set rop to the next prime greater than op.
+This function uses a probabilistic algorithm to identify primes. For practical purposes it’s
+adequate, the chance of a composite passing will be extremely small. However, despite the
+name, it does not guarantee primality.
+***This function is obsolete. It will disappear from future MPIR releases.***
+
+void mpz_next_prime_candidate (mpz t rop, mpz t op, gmp randstate t [Function]
+state)
+Set rop to the next candidate prime greater than op. Note that this function will occasionally
+return composites. It is designed to give a quick method for generating numbers which do
+not have small prime factors (less than 1000) and which pass a small number of rounds of
+Miller-Rabin (just two rounds).The test is designed for speed, assuming that a high quality
+followup test can then be run to ensure primality.
+The variable state must be initialized by calling one of the gmp_randinit functions
+(Section 9.1 [Random State Initialization], page 66) before invoking this function.
+--*/
+integer x_mpz_next_prime_candidate = NULL,
+        x_mpz_nextprime
+
+global procedure mpz_nextprime(mpz rop, op)
+    if state=NULL then state = gmp_randinit_mt_() end if
+    if x_mpz_next_prime_candidate=NULL then
+        x_mpz_next_prime_candidate = define_c_proc(mpir_dll, "+__gmpz_next_prime_candidate", {P,P,P},false)
+        if x_mpz_next_prime_candidate=-1 then
+            x_mpz_nextprime = define_c_proc(mpir_dll, "+__gmpz_nextprime", {P,P})
+        end if
+    end if
+    if x_mpz_next_prime_candidate=-1 then
+        c_proc(x_mpz_nextprime,{rop,op})
+    else
+        c_proc(x_mpz_next_prime_candidate,{rop,op,state})
+    end if
+end procedure
+
+--  global procedure mpz_nextprime(mpz rop, op)
+--      if mpz_cmp_si(op,2)<0 then
+--          mpz_set_si(rop,2)
+--      else
+--          mpz_add_si(rop,op,iff(mpz_odd(op)?2:1))
+--          while not mpz_prime(rop) do
+--              mpz_add_si(rop,rop,2)
+--          end while
+--      end if
+--  end procedure
+
 --randstate pf_state=NULL
 --integer pfs_cs = 0
 
@@ -3683,6 +3741,7 @@ global procedure mpfr_div_d(mpfr rop, op1, atom op2, rounding=default_rounding)
 -- rop := op1/op2
     if rop=NULL then ?9/0 end if
     if op1=NULL then ?9/0 end if
+    if op2=0 then ?9/0 end if
     if x_mpfr_div_d=NULL then
         x_mpfr_div_d = define_c_proc(mpfr_dll, "+mpfr_div_d", {P,P,D,I})
     end if
@@ -3693,11 +3752,26 @@ integer x_mpfr_si_div = NULL
 
 global procedure mpfr_si_div(mpfr rop, integer op1, mpfr op2, integer rounding=default_rounding)
     if rop=NULL then ?9/0 end if
-    if op1=NULL then ?9/0 end if
+    if op1=0 then ?9/0 end if
+    if op2=NULL then ?9/0 end if
     if x_mpfr_si_div=NULL then
         x_mpfr_si_div = define_c_proc(mpfr_dll, "+mpfr_si_div", {P,P,I,I})
     end if
     c_proc(x_mpfr_si_div,{rop,op1,op2,rounding})
+end procedure
+
+integer x_mpfr_fmod = NULL
+
+global procedure mpfr_fmod(mpfr r, x, y, integer rounding=default_rounding)
+--Set r to the value of x - ny, rounded according to the direction rnd, 
+--where n is the integer quotient of x divided by y, rounded toward zero
+    if r=NULL then ?9/0 end if
+    if x=NULL then ?9/0 end if
+    if y=NULL then ?9/0 end if
+    if x_mpfr_fmod=NULL then
+        x_mpfr_fmod = define_c_proc(mpfr_dll, "+mpfr_fmod", {P,P,P,I})
+    end if
+    c_proc(x_mpfr_fmod,{r,x,y,rounding})
 end procedure
 
 integer x_mpfr_rootn_ui = NULL
@@ -3793,6 +3867,19 @@ global procedure mpfr_ui_pow_ui(mpfr rop, integer op1, op2, rounding=default_rou
         x_mpfr_ui_pow_ui = define_c_proc(mpfr_dll, "+mpfr_ui_pow_ui", {P,I,I,I})
     end if
     c_proc(x_mpfr_ui_pow_ui,{rop,op1,op2,rounding})
+end procedure
+
+mpfr ONE = NULL
+
+global procedure mpfr_si_pow_si(mpfr rop, integer op1, op2, rounding=default_rounding)
+    mpfr_ui_pow_ui(rop,abs(op1),abs(op2),rounding)
+    if op1<0 and odd(op2) then
+        mpfr_neg(rop,rop,rounding)
+    end if
+    if op2<0 then
+        if ONE=NULL then ONE = mpfr_init(1) end if
+        mpfr_div(rop,ONE,rop,rounding)
+    end if
 end procedure
 
 --Function: int mpfr_ui_pow (mpfr rop, unsigned long int op1, mpfr_t op2, mpfr_rnd_t rnd)
@@ -4563,7 +4650,7 @@ mpfr_fits_ulong_p
 mpfr_fits_ushort_p
 --mpfr_floor
 mpfr_fma
-mpfr_fmod
+--mpfr_fmod
 mpfr_fms
 mpfr_fprint_binary
 mpfr_frac
@@ -5170,8 +5257,8 @@ __gmpz_millerrabin
 --__gmpz_mul_ui
 __gmpz_n_pow_ui
 --__gmpz_neg
-__gmpz_next_prime_candidate
-__gmpz_nextprime
+--__gmpz_next_prime_candidate
+--__gmpz_nextprime (obsolete)
 --__gmpz_nthroot
 __gmpz_oddfac_1
 __gmpz_out_raw
@@ -5196,7 +5283,7 @@ __gmpz_rrandomb
 --__gmpz_scan1
 --__gmpz_set
 --__gmpz_set_d
-__gmpz_set_q
+--__gmpz_set_q
 --__gmpz_set_si
 --__gmpz_set_str
 __gmpz_set_sx
@@ -5766,7 +5853,7 @@ __MPFR_DECLSPEC int mpfr_remquo (mpfr_ptr, long*, mpfr_srcptr, mpfr_srcptr,
                                  mpfr_rnd_t);
 __MPFR_DECLSPEC int mpfr_remainder (mpfr_ptr, mpfr_srcptr, mpfr_srcptr,
                                     mpfr_rnd_t);
-__MPFR_DECLSPEC int mpfr_fmod (mpfr_ptr, mpfr_srcptr, mpfr_srcptr, mpfr_rnd_t);
+--__MPFR_DECLSPEC int mpfr_fmod (mpfr_ptr, mpfr_srcptr, mpfr_srcptr, mpfr_rnd_t);
 __MPFR_DECLSPEC int mpfr_fmodquo (mpfr_ptr, long*, mpfr_srcptr, mpfr_srcptr,
                                   mpfr_rnd_t);
 
@@ -6665,7 +6752,7 @@ corresponding precision of iop and fop (equivalent to mpfr_trunc(iop, op, rnd) a
 The variables iop and fop must be different. 
 Return 0 iff both results are exact (see mpfr_sin_cos for a more detailed description of the return value).
 
-Function: int mpfr_fmod (mpfr_t r, mpfr_t x, mpfr_t y, mpfr_rnd_t rnd)
+--Function: int mpfr_fmod (mpfr_t r, mpfr_t x, mpfr_t y, mpfr_rnd_t rnd)
 Function: int mpfr_fmodquo (mpfr_t r, long* q, mpfr_t x, mpfr_t y, mpfr_rnd_t rnd)
 Function: int mpfr_remainder (mpfr_t r, mpfr_t x, mpfr_t y, mpfr_rnd_t rnd)
 Function: int mpfr_remquo (mpfr_t r, long* q, mpfr_t x, mpfr_t y, mpfr_rnd_t rnd)
@@ -7251,7 +7338,7 @@ mpfr_flags_test:                Exception Related Functions
 mpfr_fma:               Special Functions
 mpfr_fmma:              Special Functions
 mpfr_fmms:              Special Functions
-mpfr_fmod:              Integer and Remainder Related Functions
+--mpfr_fmod:                Integer and Remainder Related Functions
 mpfr_fmodquo:           Integer and Remainder Related Functions
 mpfr_fms:               Special Functions
 mpfr_frac:              Integer and Remainder Related Functions
@@ -7834,10 +7921,10 @@ These functions assign new values to already initialized integers (see Section 5
 Integers], page 29).
 void mpz_set_ux (mpz_t rop, uintmax_t op) 
 void mpz_set_sx (mpz_t rop, intmax_t op) 
-void mpz_set_q (mpz_t rop, mpq_t op) 
+--void mpz_set_q (mpz_t rop, mpq_t op) 
 Set the value of rop from op. Note the intmax versions are only available if you include the
 stdint.h header before including mpir.h.
-mpz_set_q truncate op to make it an integer.
+--mpz_set_q truncate op to make it an integer.
 void mpz_swap (mpz_t rop1, mpz_t rop2) 
 Swap the values rop1 and rop2 efficiently.
 5.3 Combined Initialization and Assignment Functions

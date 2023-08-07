@@ -4,14 +4,19 @@
 --
 --  hll implementation of match()  (replaces builtins/VM/pMatch.e)
 --
+--  Changes noted below ("Euphoria") arose from a protracted discussion on EuForum in 2002.
+--
+without debug
+
 global function match(object needle, sequence haystack, integer start=1, bool case_sensitive=true)
 --
 -- Try to match needle against some slice of haystack.
--- Return the element number of haystack where the (first) matching slice begins,
--- or 0 if there are none.
+-- Return the element number of haystack where the (first) matching slice begins, else 0.  
 --
-    integer res, hdx, ln, lh
-    object ni, hi
+-- Finding a short int is faster than anything else, because there is no dereference, hence 
+-- when we hit a mismatch and one of the disagreeing values is a shortint, use that to look
+-- for a better place to restart the top-level scan.
+--
     -- This line, and first parameter being object not sequence, is not Euphoria compliant.
     --  (Euphoria gives error "first argument of match() must be a sequence")
     if atom(needle) then
@@ -21,39 +26,38 @@ global function match(object needle, sequence haystack, integer start=1, bool ca
         needle = lower(needle)
         haystack = lower(haystack)
     end if
-    res = start
-    ln = length(needle)
-    -- This line is also not RDS compliant
-    --  (RDS gives error "first argument of match() must be a non-empty sequence")
-    if ln=0 then return 0 end if
+    integer res = start,
+             nl = length(needle),
+             hl = length(haystack)
+    -- This line is also not Euphoria compliant
+    --  (Euphoria gives error "first argument of match() must be a non-empty sequence")
+    if nl=0 then return 0 end if
     if start<1 then return 0 end if
-    lh = length(haystack)
-    while 1 do
-        if res+ln-1>lh then return 0 end if
-        for i=1 to ln do
-            ni = needle[i]
-            hdx = i+res-1
-            hi = haystack[hdx]
+    while res+nl-1<=hl do
+        for i=1 to nl do
+            integer hdx = i+res-1
+            object ni = needle[i],
+                   hi = haystack[hdx]
             if not equal(ni,hi) then
                 if integer(ni) then
                     -- scan for ni later on in haystack
-                    -- eg needle=13131...,
-                    --    haystack=1313x31...
-                    -- with needle[5]=1, scanning fwd two places to haystack[7]=1
+                    -- eg needle=13131..., and
+                    --  haystack=1313x31...
+                    -- with needle[5]=1, scanning forward two places to haystack[7]=1
                     -- gives the earliest point worth re-starting from.
                     -- if ni does not occur anywhere later in haystack, then
                     -- clearly there will be no match anywhere.
-                    for j=hdx+1 to lh+1 do
+                    for j=hdx+1 to hl+1 do
                         res += 1
-                        if j>lh then return 0 end if
+                        if j>hl then return 0 end if
                         hi = haystack[j]
                         if equal(ni,hi) then exit end if
                     end for
                     exit
                 elsif integer(hi) then
                     -- scan for hi earlier on in needle
-                    -- eg needle=131313x...,
-                    --    haystack=1313131...
+                    -- eg needle=131313x..., and
+                    --  haystack=1313131...
                     -- with haystack[7]=1, scanning back two places to needle[5]=1
                     -- gives the earliest point worth re-starting from.
                     -- if haystack[7] does not occur anywhere earlier in needle,
@@ -70,26 +74,30 @@ global function match(object needle, sequence haystack, integer start=1, bool ca
                     exit
                 end if
             end if
-            if i=ln then return res end if
+            if i=nl then return res end if
         end for
     end while
+    return 0
 end function
 
 global function rmatch(object needle, sequence haystack, integer start=length(haystack), bool case_sensitive=true)
-
+--
+-- Try to match a needle against some slice of a haystack in reverse order.
+-- Return the element number of haystack where the (last<=start) matching slice begins, else 0.  
+--
     -- This line, and first parameter being object not sequence, is not Euphoria compliant.
     --  (Euphoria gives error "first argument of match() must be a sequence")
     if atom(needle) then
         return rfind(needle,haystack,start)
     end if
 
-    integer ln = length(needle),
-            lh = length(haystack)
+    integer nl = length(needle),
+            hl = length(haystack)
 
-    if ln=0
+    if nl=0
     or start=0
-    or start>lh
-    or lh+start<1 then
+    or start>hl
+    or hl+start<1 then
         return 0
     end if
 
@@ -99,20 +107,17 @@ global function rmatch(object needle, sequence haystack, integer start=length(ha
     end if
 
     if start<1 then
-        start = lh+start
+        start = hl+start
     end if
 
-    if start+ln-1>lh then
-        start = lh-ln+1
+    if start+nl-1>hl then
+        start = hl-nl+1
     end if
-
---28/11/19 (bitbucket issue #27)
---  ln -= 1
 
     for i=start to 1 by -1 do
-        for j=1 to ln do
+        for j=1 to nl do
             if needle[j]!=haystack[i+j-1] then exit end if  
-            if j=ln then return i end if
+            if j=nl then return i end if
         end for
     end for
 
@@ -137,3 +142,13 @@ global function match_all(object needle, sequence haystack, integer start=1, boo
     return res
 end function
 
+global function begins(object sub_text, sequence full_text)
+    integer lf = length(full_text)
+    if lf=0 then return false end if
+    if atom(sub_text) then
+        -- eg begins('c',"cat") -> true.
+        return sub_text==full_text[1]
+    end if
+    integer ls = length(sub_text)
+    return ls<=lf and sub_text==full_text[1..ls]
+end function

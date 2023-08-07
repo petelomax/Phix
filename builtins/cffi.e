@@ -253,7 +253,7 @@ end procedure
 
 procedure skipspaces(object msg="eof")
 --integer k
-    while 1 do
+    while true do
 --      while find(ch," \t\r\n")!=0 do nch(msg) end while
         while find(ch," \r\n"&9)!=0 do nch(msg) end while
         if ch!='/' then exit end if
@@ -272,18 +272,18 @@ procedure skipspaces(object msg="eof")
             sidx = k+1
             nch(msg)
         else
---          if match("//",s,sidx)!=sidx then exit end if
-            if s[sidx+1]!=sidx then exit end if
+--          if match("/!/",s,sidx)!=sidx then exit end if
+--          if s[sidx+1]!=sidx then exit end if
+            if s[sidx+1]!='/' then exit end if
             while find(ch,"\r\n")=0 do nch(msg) end while
         end if
     end while
 end procedure
 
 function stoken()
-integer tokstart, tokend
     if ch=-1 then cffi_error("eof") end if
 --  skipspaces()
-    tokstart = sidx
+    integer tokstart = sidx, tokend
     if find(ch,"{;*}[]:,()")!=0 then
         tokend = sidx
         nch(0)
@@ -325,6 +325,7 @@ integer as_char,  -- = find("char",SizeNames)
         as_long,  -- = find("long",SizeNames)
         as_ulong, -- = find("ulong",SizeNames)
         as_float, -- = find("float",SizeNames)
+        as_double,-- = find("double",SizeNames)
         as_int64, -- = find("int64",SizeNames)
         as_uint64 -- = find("uint64",SizeNames)
 
@@ -353,8 +354,8 @@ end procedure
 
 function toInt(sequence txt)
 -- convert string to integer.
--- " is treated as 0
-integer ch, n
+-- "" is treated as 0
+    integer n = 0
 
     -- (add more cases for MAX_PATH etc as needed)
     -- (or maybe parse C constants/enums/#defines?)
@@ -367,9 +368,7 @@ integer ch, n
     elsif equal(txt,"WSASYS_STATUS_LEN+1") then
         n = 128+1
     else
-        n = 0
-        for i=1 to length(txt) do
-            ch = txt[i]
+        for ch in txt do
             if ch<'0' or ch>'9' then cffi_error("number expected") end if
             n = n*10 + (ch-'0')
         end for
@@ -389,10 +388,9 @@ function add_struct(sequence res)
 -- internal routine
 -- res is eg {"RECT",16,4,{{"left","top","right","bottom"},{{"long",4,0,1},{"long",4,4,1},{"long",4,8,1},{"long",4,12,1}}}}
 -- returns an integer id
-string name
-integer sizeofS, widest
-sequence members, ptrnames
-integer id
+    string name
+    sequence members, ptrnames
+    integer sizeofS, widest, id
     {name,sizeofS,widest,members,ptrnames} = res
     if length(name) then
         structs = append(structs,name)
@@ -418,7 +416,7 @@ function do_type(string mtype, integer machine)
 --  processes "RECT", "RECT*", "long", "long long int", "long long int*" etc
 --  returns a bunch of stuff for parse_c_struct() that define_c() can quietly ignore.
 --
-integer substruct = 0, k, size, align, signed = 1
+integer substruct = 0, size, align, signed = 1
 string mname
 bool bFunc = false
 
@@ -430,7 +428,7 @@ bool bFunc = false
         mtype = stoken()
 --  end if
     end while
-    k = find(mtype,structs)
+    integer k = find(mtype,structs)
     if k then
         size = stsizes[k]
         align = saligns[k]
@@ -568,7 +566,7 @@ bool bFunc = false
     return {mname,substruct,mtype,size,align,signed}
 end function
 
-function parse_c_struct(bool bStruct, integer machine, integer base)
+function parse_c_struct(bool bStruct, integer machine, base)
 --
 -- internal routine:
 --  bStruct is 1 for struct, 0 for union
@@ -799,6 +797,7 @@ procedure init_cffi()
     as_long = find("long",SizeNames)
     as_ulong = find("ulong",SizeNames)
     as_float = find("float",SizeNames)
+    as_double = find("double",SizeNames)
     as_int64 = find("int64",SizeNames)
     as_uint64 = find("uint64",SizeNames)
 
@@ -933,6 +932,7 @@ procedure init_cffi()
                                          {"CCHAR",          as_char},
                                          {"CHAR",           as_char},
                                          {"INT8",           as_char},
+                                         {"gint8",          as_char},
 --                                       {"int8_t",         as_[u]char},
                                          {"UCHAR",          as_uchar},
                                          {"UINT8",          as_uchar},
@@ -952,12 +952,16 @@ procedure init_cffi()
                                          {"INT",            as_int},
                                          {"INT32",          as_int},
                                          {"LONG32",         as_int},
+                                         {"gint",           as_int},
+--                                       {"gint",           as_long}, -- no help!
 --                                       {"int32_t",        as_[u]int},
                                          {"REGSAM",         as_int},        -- assumes C enums are signed ints
                                          {"DWORD32",        as_uint},
                                          {"UINT",           as_uint},
                                          {"UINT32",         as_uint},
+                                         {"guint32",        as_uint},
                                          {"ULONG32",        as_uint},
+                                         {"guint",          as_uint},
                                          {"LONG",           as_long},
                                          {"HRESULT",        as_long},
                                          {"DWORD",          as_ulong},
@@ -970,6 +974,8 @@ procedure init_cffi()
                                          {"u_long",         as_ulong},
 --                                       {"float",          as_float},
                                          {"FLOAT",          as_float},
+                                         {"gdouble",        as_double},
+--                                       {"gdouble",        as_int64},
                                          {"INT64",          as_int64},
                                          {"LONGLONG",       as_int64},
                                          {"LONG64",         as_int64},
@@ -979,6 +985,7 @@ procedure init_cffi()
                                          {"DWORD64",        as_uint64},
                                          {"QWORD",          as_uint64},
                                          {"UINT64",         as_uint64},
+                                         {"uint64_t",       as_uint64},
                                          {"ULONGLONG",      as_uint64},
                                          {"ULONG64",        as_uint64},
                                          {"GdkEventType",   as_long},
@@ -986,6 +993,7 @@ procedure init_cffi()
 --                                       {"guint32",        as_uint},
 --                                       {"guint",          as_uint},
 --                                       {"gint",           as_int},
+                                         {"gint16",         as_short},
 --                                       {"guint16",        as_ushort},
 --                                       {"guint8",         as_uchar},
                                          {"byte",           as_char},
@@ -1032,7 +1040,7 @@ end procedure
 
 --<?
 --global function define_struct(string struct_str, integer machine=0, integer add=1)
-global function define_struct(string struct_str, integer machine=machine_bits(), integer bAdd=true)
+global function define_struct(string struct_str, integer machine=machine_bits(), bAdd=true)
 --
 -- The struct_str parameter is eg "typedef struct{LONG left; .. } RECT;"
 --  - note that without a "typedef", nothing gets stored permanantly.
@@ -1046,9 +1054,6 @@ global function define_struct(string struct_str, integer machine=machine_bits(),
 --  display, use to write a little help file, or perhaps even directly 
 --  use the sizes and offsets etc. For details see parse_c_struct().
 --
-string token
-integer typedef = 0
-sequence res
     if not cffi_init then init_cffi() end if
 --  if machine=0 then
 ----<       if machine_bits()=32 then
@@ -1062,7 +1067,8 @@ sequence res
     sidx = 1
     ch = s[1]
     skipspaces()
-    token = stoken()
+    integer typedef = 0
+    string token = stoken()
     if equal(token,"typedef") then
         typedef = 1
         token = stoken()
@@ -1072,7 +1078,7 @@ sequence res
     end if
 --?"pcs"
 -- 19/2/21
-    res = parse_c_struct(1,machine,0)
+    sequence res = parse_c_struct(1,machine,0)
 --/*
     try
         res = parse_c_struct(1,machine,0)
@@ -1089,27 +1095,34 @@ sequence res
 end function
 
 global function get_struct_size(integer id)
-    if not cffi_init then ?9/0 end if
+    if not cffi_init or id<0 then ?9/0 end if
     return stsizes[id]
 end function
 
 global function allocate_struct(integer id, bool cleanup=true)
 -- if cleanup is false, remember to free() the result once done.
-    if not cffi_init then ?9/0 end if
+    if not cffi_init or id<0 then ?9/0 end if
     integer size = stsizes[id]
-    atom res = allocate(size,cleanup)
-    mem_set(res,0,size)
-    return res
+    atom pMem = allocate(size,cleanup)
+    mem_set(pMem,0,size)
+    return pMem
 end function
 
+--global procedure clear_struct(integer id, atom pMem)
+--  if not cffi_init or pMem=0 or id<0 then ?9/0 end if
+--  integer size = stsizes[id]
+--  mem_set(pMem,0,size)
+--end procedure
+
 function get_smembers(integer id)
-    if not cffi_init then ?9/0 end if
+    if not cffi_init or id<0 then ?9/0 end if
     return smembers[id]
 end function
 
 --global procedure set_struct_field(integer id, atom pStruct, string fieldname, atom v)
 --global procedure set_struct_field(integer id, atom pStruct, atom_string field, atom_string v)
 global procedure set_struct_field(integer id, atom pStruct, atom_string field, object v)
+    if not cffi_init or pStruct=0 or id<0 then ?9/0 end if
     sequence {membernames,details} = get_smembers(id)
     integer k = iff(string(field)?find(field,membernames):field)
     integer {?,size,offset} = details[k]
@@ -1129,8 +1142,11 @@ global procedure set_struct_field(integer id, atom pStruct, atom_string field, o
     end if
 end procedure
 
+--DEV 17/4/23 (!!) bAsFlt is a total fudge, this should already know all about that, maybe just use -ve sizes?.
+--                  If you do fix this, may I suggest you first test xpGUI.e is getting bAsFlt correct, before ripping it out (from both).
 --global function get_struct_field(integer id, atom pStruct, string fieldname)
-global function get_struct_field(integer id, atom pStruct, atom_string field)
+global function get_struct_field(integer id, atom pStruct, atom_string field, bool bAsFlt=false)
+    if not cffi_init or pStruct=0 or id<0 then ?9/0 end if
     sequence {membernames,details} = get_smembers(id)
 --sequence membernames,details
 --integer k
@@ -1140,10 +1156,15 @@ global function get_struct_field(integer id, atom pStruct, atom_string field)
 --  k = find(fieldname,membernames)
     integer k = iff(string(field)?find(field,membernames):field)
     integer {?,size,offset,signed} = details[k]
+    if bAsFlt then
+        sequence f4or8 = peek({pStruct+offset,size})
+        return iff(size=4?float32_to_atom(f4or8):float64_to_atom(f4or8))
+    end if
     return peekNS(pStruct+offset,size,signed)
 end function
 
 global function get_struct_string(integer id, atom pStruct, string field, integer len)
+    if not cffi_init or pStruct=0 or id<0 then ?9/0 end if
     sequence {membernames,details} = get_smembers(id)
     integer k = find(field,membernames)
     integer {?,?,offset} = details[k]
@@ -1155,7 +1176,7 @@ end function
 
 --global function get_field_details(integer id, string fieldname)
 global function get_field_details(integer id, atom_string field)
---  if not cffi_init then ?9/0 end if
+    if not cffi_init or id<0 then ?9/0 end if
 --  sequence {membernames,details} = smembers[id]
     sequence {membernames,details} = get_smembers(id)
     integer k = iff(string(field)?find(field,membernames):field)
@@ -1170,9 +1191,8 @@ end function
 
 function open_lib(object lib)
 -- internal caching wrapper to open_dll()
-integer k
     if string(lib) then
-        k = find(lib,dll_names)
+        integer k = find(lib,dll_names)
         if k=0 then
             dll_names = append(dll_names,lib)
             lib = open_dll(lib)
@@ -1181,7 +1201,7 @@ integer k
             lib = dll_addrs[k]
         end if
     end if
-    if lib=0 then ?9/0 end if
+    if lib<=0 then ?9/0 end if
     return lib
 end function
 
@@ -1206,12 +1226,11 @@ function define_c(object lib, string cdef, integer func, integer machine)
 --  any problem is detected, rather than return an error code.
 --
 string name, mtype
-sequence args
 integer substruct, size, align, signed, return_type, ptype
 integer rid
 
     if not cffi_init then init_cffi() end if
-    args = {}
+    sequence args = {}
 --  if machine=0 then
 ----<       if machine_bits()=32 then
 ----            machine = S32

@@ -25,13 +25,16 @@ global function sum(object a, zlr=0)
     atom res
     if atom(a) then
         res = a
-    elsif length(a)=0 then
-        res = zl(zlr)
     else
-        res = 0
-        for i=1 to length(a) do
-            res += sum(a[i],iff(atom(zlr)?0:zlr))
-        end for
+        integer l = length(a)
+        if l=0 then
+            res = zl(zlr)
+        else
+            res = 0
+            for i=1 to l do
+                res += sum(a[i],iff(atom(zlr)?0:zlr))
+            end for
+        end if
     end if
     return res
 end function
@@ -40,13 +43,36 @@ global function product(object a, zlr=1)
     atom res
     if atom(a) then
         res = a
-    elsif length(a)=0 then
-        res = zl(zlr)
     else
-        res = 1
-        for i=1 to length(a) do
-            res *= product(a[i],iff(atom(zlr)?1:zlr))
-        end for
+        integer l = length(a)
+        if l=0 then
+            res = zl(zlr)
+        else
+            res = 1
+            for i=1 to l do
+                res *= product(a[i],iff(atom(zlr)?1:zlr))
+            end for
+        end if
+    end if
+    return res
+end function
+
+global function average(object a, zlr=0)
+    atom res
+    if atom(a) then
+        res = a
+    else
+        integer l = length(a)
+        if l=0 then
+            res = zl(zlr)
+        else
+--          res = sum(s)/l
+            res = 0
+            for i=1 to l do
+                res += average(a[i],iff(atom(zlr)?0:zlr))
+            end for
+            res /= l
+        end if
     end if
     return res
 end function

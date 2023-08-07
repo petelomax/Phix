@@ -9,7 +9,7 @@ To run either the above, you'll need : https://openeuphoria.org/pastey/350.wc
 --*/
 
 --
--- demo/pGUI/pGUIC.e
+-- demo\pGUI\pGUIC.e
 -- =================
 --
 --  A quick and dirty class-based wrapper/drop-in replacement for pGUI.e

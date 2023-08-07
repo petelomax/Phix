@@ -214,7 +214,7 @@ global procedure install()
     end for
 --13/12/20:
     if platform()=WINDOWS then
-        -- Aside: pGUI.e allows vc runtimes to be distributed in a copy of demo/pGUI/win32|64/,
+        -- Aside: pGUI.e allows vc runtimes to be distributed in a copy of demo\pGUI\win32|64\,
         --        whereas Phix itself does not, hence there is no chdir() or similar here.
         sequence vcr = IupCheckVCRuntime(false)
         for i=1 to length(vcr) do -- ("" returns {} if all present and correct)

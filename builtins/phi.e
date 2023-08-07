@@ -1,3 +1,4 @@
+DEAD
 --
 -- builtins\phi.e (an autoinclude)
 -- ==============

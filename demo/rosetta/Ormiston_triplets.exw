@@ -123,3 +123,64 @@ Smallest members of first 25 Ormiston triplets:
 Note that running this under pwa/p2js shows 25<1e8 in 8s, a limit of 1e9 would get you a blank screen for 1min 25s<br>
 I have not the patience to see whether JavaScript would actually cope with 1e10, but it should (with a blank screen for at least half an hour).
 --*/
+
+
+--faster version (win64 only)
+--Uses that primesieve dll I found, almost no memory at all, like less than 10MB, and is over twelve times faster than the above.
+--It would be nice to find a primesieve.js, obviously capped at 53 not 64 bits but that's way, way, past what this needs anyway.
+--/*
+requires("1.0.3")
+requires(WINDOWS)
+requires(64,true)
+include builtins/primesieve.e
+atom t0 = time(), t1 = time()+1,
+     p = primesieve_next_prime(),
+     p1 = p, p2, count = 0, nc = 1e9
+sequence orm25 = repeat(0,25)
+
+procedure showt()
+    if count=25 then
+        progress("Smallest members of first 25 Ormiston triplets:\n")
+        progress("%s\n",join_by(orm25,1,5))
+    else
+        string e = elapsed_short(time()-t0)
+        progress("%,6d Ormiston triplets before %,d (%s)\n",{count,nc,e})
+        nc *= 10
+    end if
+end procedure
+
+while p<1e10 do
+    p2 = p1
+    p1 = p
+    p = primesieve_next_prime()
+    if remainder(p-p1,18)=0
+    and remainder(p1-p2,18)=0 then
+        string s = sort(sprint(p))
+        if sort(sprint(p1))=s
+        and sort(sprint(p2))=s then
+            if p>=nc then showt() end if
+            count += 1
+            if count<=25 then
+                orm25[count] = sprintf("%d",{p2})
+                if count=25 then showt() end if
+            end if  
+        end if
+    elsif time()>t1 then
+        progress("%,d\r",{p})
+        t1 = time()+1
+    end if
+end while
+showt()
+--*/
+
+--/*
+Smallest members of first 25 Ormiston triplets:
+11117123   12980783   14964017   32638213   32964341
+33539783   35868013   44058013   46103237   48015013
+50324237   52402783   58005239   60601237   61395239
+74699789   76012879   78163123   80905879   81966341
+82324237   82523017   83279783   86050781   92514341
+
+   368 Ormiston triplets before 1,000,000,000 (11s)
+ 4,925 Ormiston triplets before 10,000,000,000 (1:46)
+--*/

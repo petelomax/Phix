@@ -1,0 +1,350 @@
+--
+-- demo\GildedRoseKata.exw
+-- =======================
+--
+--  The Gilded Rose is a shop selling only the finest goods, and has/needs an inventory system as follows:
+--  All items have a SellIn value denoting the number of days left to sell the item
+--  All items have a Quality value denoting how valuable the item is
+--  At the end of each day both values should be updated.
+--  Once the sell by date has passed, quality degrades twice as fast
+--  The quality of an item is never negative
+--  "Aged Brie" actually increases in quality the older it gets
+--  "Sulfuras", being a legendary item, never has to be sold and always has a quality of 80
+--  The quality of all other items is never more than 50
+--  "Backstage pass", like aged brie, increases in quality as its sell by date approaches, with
+--  quality increasing by 2 when there are 10 days or less and by 3 when there are 5 days or less,
+--  but dropping to 0 after the concert
+--  New: "Conjured" items degrade in quality twice as fast as normal items
+--
+--  I offer you three trivial refactorings, plus one that actually uses object orientation:
+--
+enum ORIGINAL, REORDER, COLUMNIZE, DICTIONARY, OBJECTS
+--constant style = ORIGINAL
+constant style = REORDER
+--constant style = COLUMNIZE
+--constant style = DICTIONARY
+--constant style = OBJECTS
+
+sequence items = {}, -- descriptions, eg "Aged Brie", or OBJECTS
+         sellin = {}, -- days left
+         quality = {}  -- quality(ha!)
+
+-- for style==OBJECTS:
+class item
+    public:
+    string name
+    integer sellin, quality
+
+    procedure update()
+        this.sellin -= 1
+        if this.quality!=0 then
+            this.quality -= 1+(this.sellin<=0)
+        end if
+    end procedure
+    
+    procedure printme()
+        printf(1,"%s: %d days left, quality is %d\n",{this.name,this.sellin,this.quality})
+    end procedure
+end class
+
+class aged_brie extends item
+    procedure update()
+        this.sellin -= 1
+        this.quality = min(this.quality+1+(this.sellin<0),50)
+    end procedure
+end class
+
+class sulfuras extends item
+    procedure update()
+        without warning -- (do nowt)
+    end procedure
+end class
+
+class backstage_pass extends item
+    procedure update()
+        this.sellin -= 1
+        integer si = this.sellin, adj = 1+(si<10)+(si<5)    
+        this.quality = iff(si<0?0:min(this.quality+adj,50))
+    end procedure
+end class
+
+class conjured extends item
+    procedure update()
+        this.sellin -= 1
+        this.quality = max(0,this.quality-2*(1+(this.sellin<=0)))
+    end procedure
+end class
+
+constant {classnames,classids} = columnize({{"Normal",item},
+                                            {"Aged Brie",aged_brie},
+                                            {"Sulfuras",sulfuras},
+                                            {"Backstage pass",backstage_pass},
+                                            {"Conjured",conjured}})
+--</OBJECTS>
+
+procedure print_items()
+    for i=1 to length(items) do
+        if style=OBJECTS then
+            item ii = items[i]
+            ii.printme()
+        else
+            printf(1,"%s: %d days left, quality is %d\n",{items[i],sellin[i],quality[i]})
+        end if
+    end for
+    printf(1,"\n")
+end procedure
+
+procedure add_item(string name, integer days, qual)
+    if style=OBJECTS then
+        integer k = find(name,classnames),
+                ni = classids[k]
+        items = append(items,new(ni,{name,days,qual}))
+    else
+        items = append(items,name)
+        sellin = append(sellin,days)
+        quality = append(quality,qual)
+    end if
+end procedure
+
+function new_item(string name, integer days, qual)
+    add_item(name,days,qual)
+    return length(items)
+end function
+
+-- for style==DICTIONARY:
+integer updaters = new_dict()
+
+-- for style==COLUMNIZE (and DICTIONARY):
+procedure update_normal(integer i)
+    sellin[i] -= 1
+    if quality[i]!=0 then
+        quality[i] -= 1+(sellin[i]<=0)
+    end if
+end procedure
+setd("Normal",update_normal,updaters)
+
+procedure update_brie(integer i)
+    sellin[i] -= 1
+    quality[i] = min(quality[i]+1+(sellin[i]<0),50)
+end procedure
+setd("Aged Brie",update_brie,updaters)
+
+procedure update_sulfuras(integer /*i*/)
+    without warning -- (do nowt)
+end procedure
+setd("Sulfuras",update_sulfuras,updaters)
+
+procedure update_pass(integer i)
+    sellin[i] -= 1
+    integer si = sellin[i], adj = 1+(si<10)+(si<5)  
+    quality[i] = iff(si<0?0:min(quality[i]+adj,50))
+end procedure
+setd("Backstage pass",update_pass,updaters)
+
+procedure update_conjured(integer i)
+    sellin[i] -= 1
+    quality[i] = max(0,quality[i]-2*(1+(sellin[i]<=0)))
+end procedure
+setd("Conjured",update_conjured,updaters)
+--</DICTIONARY>
+
+-- for style==COLUMNIZE (not DICTIONARY):
+constant {nameset,upd_rtns} = columnize({{"Normal",update_normal},
+                                         {"Aged Brie",update_brie},
+                                         {"Sulfuras",update_sulfuras},
+                                         {"Backstage pass",update_pass},
+                                         {"Conjured",update_conjured}})
+--</COLUMNIZE>
+
+// update_quality ages the item by a day, and updates the quality of the item
+procedure update_quality(integer i)
+    string name = iff(style=OBJECTS?"???":items[i])
+    if style=ORIGINAL then
+        if name != "Aged Brie" and name != "Backstage pass" then
+            if quality[i] > 0 then
+                if name != "Sulfuras" then
+                    quality[i] -= 1
+                end if
+            end if
+        else
+            if quality[i] < 50 then
+                quality[i] += 1
+                if name == "Backstage pass" then
+                    if sellin[i] < 11 then
+                        if quality[i] < 50 then
+                            quality[i] += 1
+                        end if
+                    end if
+                    if sellin[i] < 6 then
+                        if quality[i] < 50 then
+                            quality[i] += 1
+                        end if
+                    end if
+                end if
+            end if
+        end if
+
+        if name != "Sulfuras" then
+            sellin[i] -= 1
+        end if
+
+        if sellin[i] < 0 then
+            if name != "Aged Brie" then
+                if name != "Backstage pass" then
+                    if quality[i] > 0 then
+                        if name != "Sulfuras" then
+                            quality[i] -= 1
+                        end if
+                    end if
+                else
+                    quality[i] = 0
+                end if
+            else
+                if quality[i] < 50 then
+                    quality[i] += 1
+                end if
+            end if
+        end if
+    elsif style=REORDER then
+        -- aside: invoking update_brie(i) etc would just make this
+        --        too similar to/a poor man's COLUMNIZE/DICTIONARY
+        if name = "Aged Brie" then
+            sellin[i] -= 1
+            quality[i] = min(quality[i]+1+(sellin[i]<0),50)
+        elsif name = "Backstage pass" then
+            sellin[i] -= 1
+            integer si = sellin[i], adj = 1+(si<10)+(si<5)  
+            quality[i] = iff(si<0?0:min(quality[i]+adj,50))
+        elsif name = "Conjured" then
+            sellin[i] -= 1
+            quality[i] = max(0,quality[i]-2*(1+(sellin[i]<=0)))
+        elsif name != "Sulfuras" then
+            sellin[i] -= 1
+            if quality[i]!=0 then
+                quality[i] -= 1+(sellin[i]<=0)
+            end if
+        end if
+    elsif style=COLUMNIZE then
+        integer updater = upd_rtns[find(name,nameset)]
+        updater(i)
+    elsif style=DICTIONARY then
+        integer updater = getd(name,updaters)
+        updater(i)
+    elsif style=OBJECTS then
+        item ii = items[i]
+        ii.update()
+    end if
+end procedure
+
+function get_qs(integer it)
+    -- (factored out purely so the aside that follows is true)
+    integer q, s
+    if style=OBJECTS then
+        item ii = items[it]
+        q = ii.quality
+        s = ii.sellin
+    else
+        q = quality[it] 
+        s = sellin[it]  
+    end if
+    return {q,s}
+end function
+
+-- Aside: style not used again below this point.
+
+procedure update_qualities()
+    for i=1 to length(items) do
+        update_quality(i)
+    end for
+end procedure
+
+procedure ExampleGildedRose()
+    add_item("Normal", 5, 5)
+    add_item("Aged Brie", 5, 5)
+    add_item("Sulfuras", 5, 5)
+    add_item("Backstage pass", 5, 5)
+    // when you're ready to uncomment the line for the conjured item
+    // you will also have to update the expected output below [DONE]
+    add_item("Conjured", 5, 5) -- (last line wrong under ORIGINAL)
+
+    print_items()
+
+    update_qualities()
+
+    print_items()
+
+    // Output:
+    // Normal: 5 days left, quality is 5
+    // Aged Brie: 5 days left, quality is 5
+    // Sulfuras: 5 days left, quality is 5
+    // Backstage pass: 5 days left, quality is 5
+    // Conjured: 5 days left, quality is 5
+    //
+    // Normal: 4 days left, quality is 4
+    // Aged Brie: 4 days left, quality is 6
+    // Sulfuras: 5 days left, quality is 5
+    // Backstage pass: 4 days left, quality is 8
+    // Conjured: 4 days left, quality is 3
+end procedure
+
+ExampleGildedRose()
+
+enum NAME, DESC, DAYS, QUALITY, EDAYS, EQUAL
+constant tests = {
+        {"Normal", "before sell date", 5, 10, 4, 9},
+        {"Normal", "on sell date", 0, 10, -1, 8},
+        {"Normal", "after sell date", -10, 10, -11, 8},
+        {"Normal", "of zero quality", 5, 0, 4, 0},
+        {"Aged Brie", "before sell date with max quality", 5, 50, 4, 50},
+        {"Aged Brie", "on sell date", 0, 10, -1, 12},
+        {"Aged Brie", "on sell date near max quality", 0, 49, -1, 50},
+        {"Aged Brie", "on sell date with max quality", 0, 50, -1, 50},
+        {"Aged Brie", "after sell date", -10, 10, -11, 12},
+        {"Aged Brie", "after sell date with max quality", -10, 50, -11, 50},
+        {"Sulfuras", "before sell date", 5, 80, 5, 80},
+        {"Sulfuras", "on sell date", 0, 80, 0, 80},
+        {"Sulfuras", "after sell date", -10, 80, -10, 80},
+        {"Backstage pass", "long before sell date", 11, 10, 10, 11},
+        {"Backstage pass", "long before sell date near max quality", 11, 49, 10, 50},
+        {"Backstage pass", "long before sell date at max quality", 11, 50, 10, 50},
+        {"Backstage pass", "medium close to sell date (upper bound)", 10, 10, 9, 12},
+        {"Backstage pass", "medium close to sell date (upper bound) near max quality", 10, 49, 9, 50},
+        {"Backstage pass", "medium close to sell date (upper bound) at max quality", 10, 50, 9, 50},
+        {"Backstage pass", "medium close to sell date (lower bound)", 6, 10, 5, 12},
+        {"Backstage pass", "medium close to sell date (lower bound) near max quality", 6, 49, 5, 50},
+        {"Backstage pass", "medium close to sell date (lower bound) at max quality", 6, 50, 5, 50},
+        {"Backstage pass", "very close to sell date (upper bound)", 5, 10, 4, 13},
+        {"Backstage pass", "very close to sell date (upper bound) near max quality", 5, 49, 4, 50},
+        {"Backstage pass", "very close to sell date (upper bound) at max quality", 5, 50, 4, 50},
+        {"Backstage pass", "very close to sell date (lower bound)", 1, 10, 0, 13},
+        {"Backstage pass", "very close to sell date (lower bound) near max quality", 1, 49, 0, 50},
+        {"Backstage pass", "very close to sell date (lower bound) at max quality", 1, 50, 0, 50},
+        {"Backstage pass", "on sell date", 0, 10, -1, 0},
+        {"Backstage pass", "after sell date", -10, 10, -11, 0},
+        -- note (some of) these (obviously) fail under style=ORIGINAL:
+        {"Conjured", "before sell date", 5, 10, 4, 8},
+        {"Conjured", "before sell date at zero quality", 5, 0, 4, 0},
+        {"Conjured", "on sell date", 0, 10, -1, 6},
+        {"Conjured", "on sell date at zero quality", 0, 0, -1, 0},
+        {"Conjured", "after sell date", -10, 10, -11, 6},
+        {"Conjured", "after sell date at zero quality", -10, 0, -11, 0},
+}
+
+procedure TestGildedRose()
+    -- you could of course use test_equal() and test_summary() here...
+    for tt in tests do
+        integer it = new_item(tt[NAME], tt[DAYS], tt[QUALITY])
+        update_quality(it)
+        integer {q, s} = get_qs(it)
+        if q != tt[EQUAL] then
+            printf(1,"\n%s %s\nexpected quality: %d\nactual quality: %d\n", {tt[NAME], tt[DESC], tt[EQUAL], q})
+        end if
+        if s != tt[EDAYS] then
+            printf(1,"\n%s %s\nexpected days left: %d\nactual days left: %d\n", {tt[NAME], tt[DESC], tt[EDAYS], s})
+        end if
+    end for
+end procedure
+TestGildedRose()
+?"done"
+{} = wait_key()
+

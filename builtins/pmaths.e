@@ -133,6 +133,15 @@ global function maxsq(sequence s, bool return_index=false)
     return iff(return_index?rdx:res)
 end function
 
+global function median(sequence s)
+    -- for even length lists return average of the middle two
+    -- for odd length lists just return the middle entry
+    -- s must be sorted on entry.
+    atom m = length(s)/2
+    return iff(integer(m)?(s[m]+s[m+1])/2
+                         :s[ceil(m)])
+end function
+
 global function mod(atom x, y)
     if equal(sign(x), sign(y)) then
         return remainder(x,y)

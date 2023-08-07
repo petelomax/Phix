@@ -1,0 +1,241 @@
+--
+-- demo\rosetta\Colour_separation.exw
+-- ==================================
+--
+without js -- imImage, im_width, im_height, im_pixel, IupImageRGB, allocate,
+            -- imFileImageLoadBitmap, peekNS, wait_key, IupImageFromImImage
+include pGUI.e
+
+enum RGB_R, RGB_G, RGB_B,
+     CMY_C, CMY_M, CMY_Y,
+     CMYKC, CMYKM, CMYKY, CMYKK
+if CMYKM or CMYKY then end if -- (suppress unused warnings)
+
+integer width = 0, height
+sequence original
+
+function separate(imImage img, integer cdx)
+    if width=0 then
+        width = im_width(img)
+        height = im_height(img)
+        original = repeat(repeat(0,width),height)
+        for y=height-1 to 0 by -1 do
+            for x=0 to width-1 do
+                original[height-y,x+1] = im_pixel(img, x, y)
+            end for
+        end for
+    end if
+    sequence new_image = repeat(repeat(0,width),height)
+    for y=1 to height do
+        for x=1 to width do
+            sequence pyx = original[y,x]
+            integer {r,g,b} = pyx, kc, adx = cdx
+            if cdx>=CMYKC then
+                {r,g,b} = sq_sub(255,pyx)
+                integer k = min({r,g,b})
+                kc = 255 - k
+                if cdx<CMYKK then
+                    {r,g,b} = iff(kc=0?{0,0,0}:sq_floor(sq_mul(sq_div(sq_sub({r,g,b},k),kc),255)))
+                    adx -= 3
+                end if
+            end if
+            switch adx do
+                case RGB_R: pyx = {r,0,0}
+                case RGB_G: pyx = {0,g,0}
+                case RGB_B: pyx = {0,0,b}
+                case CMY_C: pyx = {r,#FF,#FF}
+                case CMY_M: pyx = {#FF,g,#FF}
+                case CMY_Y: pyx = {#FF,#FF,b}
+                case CMYKK: pyx = {kc,kc,kc}
+            end switch
+            new_image[y,x] = pyx
+        end for
+    end for
+    new_image = flatten(new_image) -- (as needed by IupImageRGB)
+    Ihandle new_img = IupImageRGB(width, height, new_image) 
+    return new_img
+end function
+
+IupOpen()
+
+constant w = machine_word(),
+         TITLE = "Colour separation",
+         pError = allocate(w)
+imImage im1 = imFileImageLoadBitmap("Lenna50.jpg",0,pError)
+--imImage im1 = imFileImageLoadBitmap("Lenna100.jpg",0,pError)
+--imImage im1 = imFileImageLoadBitmap("Lena.ppm",0,pError) --??
+--imImage im1 = imFileImageLoadBitmap("Lenna50.ppm",0,pError)
+--imImage im1 = imFileImageLoadBitmap("Lenna100a.jpg",0,pError)
+--imImage im1 = imFileImageLoadBitmap("Quantum_frog.png",0,pError)
+--imImage im1 = imFileImageLoadBitmap("Quantum_frog.512.png",0,pError)
+--imImage im1 = imFileImageLoadBitmap("lady.png",0,pError)
+
+if im1=NULL then
+    ?{"error opening image",peekNS(pError,w,1)}
+    {} = wait_key()
+    abort(0)
+end if
+--(see also Color_quantization.exw if not an IM_RGB image)
+
+Ihandle dlg,
+        flt = IupList("DROPDOWN=YES, VALUE=1")
+
+Ihandln image1 = IupImageFromImImage(im1),
+        image2 = separate(im1,1),
+        label1 = IupLabel(),
+        label2 = IupLabel()
+IupSetAttributeHandle(label1, "IMAGE", image1)
+IupSetAttributeHandle(label2, "IMAGE", image2)
+
+function valuechanged_cb(Ihandle /*flt*/)
+    IupSetAttribute(dlg,"TITLE","Working...")
+--  IupSetAttributeHandle(label2, "IMAGE", NULL)
+    image2 = IupDestroy(image2)
+    image2 = separate(im1,IupGetInt(flt,"VALUE"))
+    IupSetAttributeHandle(label2, "IMAGE", image2)
+    IupSetAttribute(dlg,"TITLE",TITLE)
+    IupRefresh(dlg)
+    return IUP_DEFAULT
+end function
+IupSetCallback(flt,"VALUECHANGED_CB",Icallback("valuechanged_cb"))
+
+IupSetAttributes(flt,`1=RGB_R, 2=RGB_G, 3=RGB_B, 4=CMY_Y, 5=CMY_M, 6=CMY_Y, 7=CMYK_C, 8=CMYK_M, 9=CMYK_Y, 10=CMYK_K`)
+IupSetAttributes(flt,"VISIBLEITEMS=11") -- (still dunno why this trick works)
+dlg = IupDialog(IupVbox({flt,
+                         IupFill(),
+                         IupHbox({IupFill(),label1, label2,IupFill()}),
+                         IupFill()}))
+IupSetAttribute(dlg, "TITLE", TITLE)
+IupShow(dlg)
+if platform()!=JS then  -- (no chance...)
+    IupMainLoop()
+    IupClose()
+end if
+
+--/*
+
+class ColorSeparationRGB {
+    construct new() {
+        Window.title = "Color separation, RGB model"
+        var fileName = "Lenna50.jpg"
+        var image = ImageData.loadFromFile(fileName)
+        var w = image.width
+        var h = image.height
+        Window.resize(w * 4 + 40, h)
+        Canvas.resize(w * 4 + 40, h)
+
+        //draw original image
+        image.draw(0, 0)
+
+        var imgR = ImageData.create("lennaR", w, h)
+        var imgG = ImageData.create("lennaG", w, h)
+        var imgB = ImageData.create("lennaB", w, h)
+        for (y in 0...h) {
+            for (x in 0...w) {
+                var col = image.pget(x, y)
+                imgR.pset(x, y, Color.rgb(col.r, 0, 0))
+                imgG.pset(x, y, Color.rgb(0, col.g, 0))
+                imgB.pset(x, y, Color.rgb(0, 0, col.b))
+            }
+        }
+
+        // draw color separated images
+        imgR.draw(w + 10, 0)
+        imgG.draw(2 * (w + 10), 0)
+        imgB.draw(3 * (w + 10), 0)
+    }
+
+    init() {}
+    update() {}
+    draw(alpha) {}
+}
+
+class ColorSeparationCMY {
+    construct new() {
+        Window.title = "Color separation, CMY model"
+        var fileName = "Lenna50.jpg"
+        var image = ImageData.loadFromFile(fileName)
+        var w = image.width
+        var h = image.height
+        Window.resize(w * 4 + 40, h)
+        Canvas.resize(w * 4 + 40, h)
+
+        //draw original image
+        image.draw(0, 0)
+
+        var imgC = ImageData.create("lennaC", w, h)
+        var imgM = ImageData.create("lennaM", w, h)
+        var imgY = ImageData.create("lennaY", w, h)
+        for (y in 0...h) {
+            for (x in 0...w) {
+                var col = image.pget(x, y)
+                imgC.pset(x, y, Color.rgb(col.r, 255, 255))
+                imgM.pset(x, y, Color.rgb(255, col.g, 255))
+                imgY.pset(x, y, Color.rgb(255, 255, col.b))
+            }
+        }
+
+        // draw color separated images
+        imgC.draw(w + 10, 0)
+        imgM.draw(2 * (w + 10), 0)
+        imgY.draw(3 * (w + 10), 0)
+    }
+
+    init() {}
+    update() {}
+    draw(alpha) {}
+}
+
+class ColorSeparationCMYK {
+    construct new() {
+        Window.title = "Color separation, CMYK model"
+        var fileName = "lady.png"
+        var image = ImageData.loadFromFile(fileName)
+        var w = image.width
+        var h = image.height
+        Window.resize(w * 4 + 40, h * 2 + 20)
+        Canvas.resize(w * 4 + 40, h * 2 + 20)
+
+        // draw original image on top row
+        image.draw(0, 0)
+
+        var imgC = ImageData.create("ladyC", w, h)
+        var imgM = ImageData.create("ladyM", w, h)
+        var imgY = ImageData.create("ladyY", w, h)
+        var imgK = ImageData.create("ladyK", w, h)
+        for (j in 0...h) {
+            for (i in 0...w) {
+                var col = image.pget(i, j)
+                var rc = 255 - col.r
+                var gc = 255 - col.g
+                var bc = 255 - col.b
+                var k = Math.min(Math.min(rc, gc), bc)
+                var kc = 255 - k
+                if (kc != 0) {
+                    var c = (((rc - k) / kc) * 255).floor
+                    var m = (((gc - k) / kc) * 255).floor
+                    var y = (((bc - k) / kc) * 255).floor    
+                    imgC.pset(i, j, Color.rgb(255-c, 255, 255))
+                    imgM.pset(i, j, Color.rgb(255, 255-m, 255))
+                    imgY.pset(i, j, Color.rgb(255, 255, 255-y))
+                } else {
+                    imgC.pset(i, j, Color.rgb(0, 0, 0))
+                    imgM.pset(i, j, Color.rgb(0, 0, 0))
+                    imgY.pset(i, j, Color.rgb(0, 0, 0))
+                }
+                imgK.pset(i, j, Color.rgb(kc, kc, kc))
+            }
+        }
+
+        // draw color separated images on bottom row
+        imgC.draw(0, h + 10)
+        imgM.draw(w + 10, h + 10)
+        imgY.draw(2 * (w + 10), h + 10)
+        imgK.draw(3 * (w + 10), h + 10)
+    }
+
+    init() {}
+    update() {}
+    draw(alpha) {}
+}
+--*/

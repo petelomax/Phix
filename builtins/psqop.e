@@ -145,8 +145,8 @@ function sq_general(object a,b, integer fn, bool recursive=true)
     return res
 end function
 
-function sq_unary(object a, integer fn, bool recursive=true)
-    if atom(a) or not recursive then
+function sq_unary(object a, integer fn, level = 1, bool recursive=true)
+    if atom(a) or (not recursive and level>1) then
         switch fn do
             case 'a': a = abs(a)
             case 'c': a = ceil(a)
@@ -182,7 +182,8 @@ function sq_unary(object a, integer fn, bool recursive=true)
 --  sequence res = repeat(0,la)
     sequence res = repeat(iff(string(a)?' ':0),la)
     for i=1 to la do
-        res[i] = sq_unary(a[i],fn)
+--      res[i] = sq_unary(a[i],fn)
+        res[i] = sq_unary(a[i],fn,level+1,recursive)
     end for
     return res
 end function

@@ -3166,10 +3166,14 @@ bool error_handler
     and msg_id!=12      -- not e12pa ('!' keyed in trace window)
     and msg_id!=56 then -- not e56rocow (also non-catchable)
         msg = trim(msg)
+if rtn<1 or rtn>length(symtab) then
+    ?{"oops, pDiagN.e line 3170: rtn is",rtn,length(symtab),msg_id,msg}
+else
         sr = symtab[rtn]
         lineno = convert_offset(or_era,sr)
         diaglooping -= 1
         throw({msg_id,or_era,lineno,rtn,-1,-1,-1,msg})
+end if
     end if
 
     if not batchmode then
@@ -3191,7 +3195,7 @@ bool error_handler
     while 1 do
 --?rtn
         if rtn<1 or rtn>length(symtab) then -- See note at top
-            printf(1,"pDiagN.e line 3064: oops, rtn[=%d] out of range[1..%d]\n",{rtn,length(symtab)})
+            printf(1,"pDiagN.e line 398: oops, rtn[=%d] out of range[1..%d]\n",{rtn,length(symtab)})
 --          exit
 --      end if
             rtype = 0   -- (added 15/4/16, at the time we had the wrong symtab... then again it was a bug in pTrace.e)

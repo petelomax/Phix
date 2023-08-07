@@ -263,11 +263,13 @@ end for
         result = round_str(result,f,exponent,charflag,digit)--,minfieldwidth)
         k = find('!',result)
         if k then
-            if k=length(result) then
-                result = result[1..-2]
-            else
+--          if k=length(result) then
+--              result = result[1..-2]
+--          else
                 result[k] = '.'
-            end if
+--24/3/23!
+                result = result[1..-2]
+--          end if
             exponent += 1
         end if
         exponent += expadj
@@ -412,29 +414,8 @@ if digit=10 then exit end if
     return result
 end function
 
-procedure badfmt()
---/**/  #ilASM{ mov al,69                       -- Phix
---!/**/         xor edi,edi     -- ep1 unused   -- Phix
---!/**/         xor esi,esi     -- ep2 unused   -- Phix
---DEV (this is :%pRTErn:, see also pfileioN.e for ebp/calledfrom/fatalN etc)
---      pop edx -- era
---      sub edx,1
---      jmp :!iDiag
---      int3
---!/**/         call :%pRTErn } -- fatal error  -- Phix
-        -- calling convention
-        --  mov ecx,imm32       -- no of frames to pop to obtain an era (>=1)
-        --  mov al,imm          -- error code [1..length(msgs)-1, currently 122]
-        --  mov edi,ep1         -- [optional] (opUnassigned)
-        --  mov esi,ep2         -- [optional] (opUnassigned) [used for 110/ecx]
-        --  jmp :!fatalN        -- fatalN(level,errcode,ep1,ep2)
---/**/          mov ecx,3                       -- Phix
---/**/          jmp :!fatalN                    -- Phix
---/**/          int3 }                          -- Phix
---/**/                                  --/*    -- Phix
-        puts(1,"error in format string\n")      -- RDS
-        if getc(0) then end if                  -- RDS
-        abort(1)                                -- RDS --*/
+procedure ueofmt()
+    crash("unexpected end of format string",{},4)
 end procedure
 
 function useFlatString(sequence args, integer nxt, sequence fmt, integer i)
@@ -595,7 +576,7 @@ integer tmp
         fi = fmt[i]
         if fi='%' then
             i += 1
-            if i>length(fmt) then badfmt() end if
+            if i>length(fmt) then ueofmt() end if
             fi = fmt[i]
             if fi='%' then
                 result &= '%'
@@ -608,11 +589,15 @@ integer tmp
                 enquote = 0
                 if fi='[' then
                     integer e = find(']',fmt,i+1)
-                    if e=0 then badfmt() end if
+                    if e=0 then
+                        crash("missing ] in format string",{},3)
+                    end if
                     nxt = to_integer(fmt[i+1..e-1])
-                    if nxt=0 then badfmt() end if
+                    if nxt=0 then
+                        crash("[%s] is 0 or not a number",{fmt[i+1..e-1]},3)
+                    end if
                     i = e+1
-                    if i>length(fmt) then badfmt() end if
+                    if i>length(fmt) then ueofmt() end if
                     fi = fmt[i]
                 end if
                 -- Note that -=| are mutually exclusive, and cannot co-exist with 0. 
@@ -626,7 +611,7 @@ integer tmp
                     if fi='+' then
                         showplus = 1
                         i += 1
-                        if i>length(fmt) then badfmt() end if
+                        if i>length(fmt) then ueofmt() end if
                         fi = fmt[i]
                     end if
                     if fi='-' then
@@ -640,32 +625,32 @@ integer tmp
                         i += 1
                     end if
                 end if
-                if i>length(fmt) then badfmt() end if
+                if i>length(fmt) then ueofmt() end if
                 fi = fmt[i]
                 if fi=',' then
                     showcommas = 3
                     i+=1
                 end if
-                if i>length(fmt) then badfmt() end if
+                if i>length(fmt) then ueofmt() end if
                 minfieldwidth = 0
                 while 1 do
                     fi = fmt[i]
                     if fi<'0' or fi>'9' then exit end if
                     minfieldwidth = minfieldwidth*10 + (fi-'0')
                     i += 1
-                    if i>length(fmt) then badfmt() end if
+                    if i>length(fmt) then ueofmt() end if
                 end while
                 precision = -1
                 if fi='.' then
                     i += 1
-                    if i>length(fmt) then badfmt() end if
+                    if i>length(fmt) then ueofmt() end if
                     precision = 0
                     while 1 do
                         fi = fmt[i]
                         if fi<'0' or fi>'9' then exit end if
                         precision = precision*10 + (fi-'0')
                         i += 1
-                        if i>length(fmt) then badfmt() end if
+                        if i>length(fmt) then ueofmt() end if
                     end while
                 end if
 
@@ -723,26 +708,33 @@ integer tmp
                         fidx = 2
                     end if
 
-                    if fidx=0
---                  or (showcommas and find(fi,"df")=0) then
-                    or (showcommas and fi!='d' and fi!='f') then
-                        badfmt()
+--                  if fidx=0
+----                    or (showcommas and find(fi,"df")=0) then
+--                  or (showcommas and fi!='d' and fi!='f') then
+--                      badfmt()
+--                  end if
+                    if fidx=0 then
+                        crash("unknown specifier:%c",fi,3)
+                    elsif showcommas and fi!='d' and fi!='f' then
+                        crash("comma fill not supported on %c",fi,3)
                     end if
+
                     if not atom(args) and nxt>length(args) then
---/**/                  #ilASM{
---!/**/                     [32]
---/**/                          mov al,70                           -- Phix
---!/**/                         xor edi,edi         -- ep1 unused   -- Phix
---!/**/                         xor esi,esi         -- ep2 unused   -- Phix
---!/**/                     [64]
---!/**/                         call :%pRTErn }     -- fatal error  -- Phix
---/**/                          mov ecx,2                           -- Phix
---/**/                          jmp :!fatalN                        -- Phix
---/**/                          int3 }                              -- Phix
---/**/                                                  --/*    -- Phix
-                        puts(1,"insufficient values for sprintf\n") -- RDS
-                        if getc(0) then end if                      -- RDS
-                        abort(1)                                    -- RDS --*/
+----/**/                    #ilASM{
+----!/**/                   [32]
+----/**/                            mov al,70                           -- Phix
+----!/**/                       xor edi,edi         -- ep1 unused   -- Phix
+----!/**/                       xor esi,esi         -- ep2 unused   -- Phix
+----!/**/                   [64]
+----!/**/                       call :%pRTErn }     -- fatal error  -- Phix
+----/**/                            mov ecx,2                           -- Phix
+----/**/                            jmp :!fatalN                        -- Phix
+----/**/                            int3 }                              -- Phix
+----/**/                                                    --/*    -- Phix
+--                      puts(1,"insufficient values for sprintf\n") -- RDS
+--                      if getc(0) then end if                      -- RDS
+--                      abort(1)                                    -- RDS --*/
+                        crash("insufficient values for [s]printf",{},3)
                     end if
                 end if
                 if fidx<=4 then -- aA(0, work set), dxob (1..4)
@@ -868,7 +860,9 @@ end if
                         end if
                     end if
                 elsif fidx<=10 then -- one of "stncvV"
-                    if showplus then badfmt() end if
+                    if showplus then
+                        crash("show plus not supported on %c",fi,3)
+                    end if
                     if atom(args) then
                         o = args
 --12/9/15:
@@ -967,6 +961,8 @@ end if
                     if fi='f' 
                     and atom_to_float64(o)[$]!=127 -- not [+/-]nan/inf
                     and o>37778931862957161709568 
+-- sug/untested, see docs/Helping Hands/printf(2^i)
+--                  and (o>37778931862957161709568 or o<1e-22)
                     and count_bits(o)=1 then
                         sequence d2 = {}
                         while o do
@@ -993,7 +989,11 @@ end if
 --                      if fidx!=9 then badfmt() end if
 --                      if fidx!=10 then badfmt() end if
 --                      if fidx!=11 then badfmt() end if
-                        if fidx!=12 then badfmt() end if
+--                      if fidx!=12 then 
+-- 30/5/23 is not this just much easier? (untested)
+                        if fi!='f' then 
+                            crash("comma fill not supported on %c",fi,3)
+                        end if
                         showcommas = find('.',r1)
                         if showcommas=0 then showcommas = length(r1)+1 end if
 --19/09/2020 bugfix ("-999" -> "-,999")

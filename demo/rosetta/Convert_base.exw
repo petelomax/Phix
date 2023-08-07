@@ -138,7 +138,42 @@ you just cannot do for most other (ie non-power-2) bases.
 --*/
 
 --and another one (positive integer only[?]):
--- (could perhaps be made to convert a string in any base to any other base...?)
+-- (could perhaps be made to convert a string in any base to any other base...?) -- done:
+--/*
+function to_base(string s, integer from_base, to_base)
+-- convert the (integer) string s in from_base to a string in to_base
+-- eg to_base("65535",10,16) => "FFFF"
+--    to_base("FFFF",16,10) => "65535"
+    assert(min(from_base,to_base)>=2)
+    assert(max(from_base,to_base)<=36)
+    bool negative = (s[1]='-')
+    if negative then s = s[2..$] end if
+    string res = "" 
+    while length(s) do
+        integer q = 0, r = 0, digit
+        for i=1 to length(s) do
+            digit = upper(s[i])
+            digit -= iff(digit>='A'?'A'-10:'0')
+            q = q*from_base+digit
+            r = mod(q,to_base)
+            q = floor(q/to_base)
+            q += iff(q>10?'A'-10:'0')
+            s[i] = q
+            q = r
+        end for
+        r += iff(r>10?'A'-10:'0')
+        res = r & res
+        while length(s) and s[1]='0' do
+            s = s[2..$]
+        end while
+    end while
+    if negative then res = '-'&res end if
+    return res
+end function
+?to_base("65535",10,16) --=> "FFFF"
+?to_base("FFFF",16,10) --=> "65535"
+?to_base("E8D4A51000",16,10) --=> "1000000000000"
+--*/
 -- (note this may be a tad slow: it performs string-maths - converting a 100-digit
 --  input string is likely to perform some 10,000 individual mod and floor_div ops.
 --  On the plus side it can theoretically handle 800 million+ digits with perfect

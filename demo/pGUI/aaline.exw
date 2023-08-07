@@ -23,13 +23,14 @@ include pGUI.e
 Ihandle dlg, canvas
 cdCanvas cd_canvas
 
-constant USE_OPENGL = 01    -- (if 0, it draws thinner bresenham lines)
+constant USE_OPENGL = 01 -- (if 0, it draws thinner bresenham lines)
 
 --/*
 enum FILL,BORDER
 constant colours = {CD_BLUE,CD_RED},
          modes = {CD_FILL,CD_CLOSED_LINES}
 sequence pts = {{319,606},{150,86},{591,407},{46,407},{487,86}}
+integer rot = 0, radius = 30, cx = 50, cy = 50
 --*/
 
 function canvas_action_cb(Ihandle canvas)
@@ -37,6 +38,9 @@ function canvas_action_cb(Ihandle canvas)
     cdCanvasClear(cd_canvas)
     integer {w, h} = sq_sub(IupGetIntInt(canvas, "DRAWSIZE"),10)
 --  cdCanvasSetBackground(cd_canvas, CD_RED)
+--cdCanvasSetLineWidth(cd_canvas,1) -- no change
+--cdCanvasSetLineWidth(cd_canvas,0) -- no change
+--cdCanvasSetLineWidth(cd_canvas,2) -- really thick
     cdCanvasLine(cd_canvas,0,0,200,200)
     cdCanvasLine(cd_canvas,w,0,200,200)
     cdCanvasLine(cd_canvas,0,h,200,200)
@@ -54,26 +58,35 @@ function canvas_action_cb(Ihandle canvas)
 --  cdCanvasVertex(cd_canvas,0,h)
 --  cdCanvasVertex(cd_canvas,200,200)
 --  cdCanvasEnd(cd_canvas)
+    cdCanvasFont(cd_canvas, "Helvetica", CD_ITALIC, 12)
     cdCanvasText(cd_canvas,50,13,"Hello!")
 --/test
 --/*
 --  cdCanvasActivate(cddbuffer)
 --  cdCanvasClear(cddbuffer)
-    cdCanvasSetFillMode(cd_canvas, CD_WINDING)
+--  cdCanvasSetFillMode(cd_canvas, CD_WINDING)
 --  cdCanvasSetLineWidth(cd_canvas, round(radius/100)+1) 
+--cdCanvasSetFillMode(cd_canvas, CD_WINDING)
+--cdCanvasSetFillMode(cd_canvas, CD_EVENODD)
     for mode=FILL to BORDER do
         cdCanvasSetForeground(cd_canvas,colours[mode])
         cdCanvasBegin(cd_canvas,modes[mode])
---      for i=1 to length(pts) do
---          integer {x,y} = pts[i]
---          cdCanvasVertex(cd_canvas,x,y)
---      end for
+?sq_round(sq_floor_div(pts,10))
+        for i=1 to length(pts) do
+            integer {x,y} = pts[i]
+            cdCanvasVertex(cd_canvas,x/10+120,y/10+10)
+        end for
+        cdCanvasEnd(cd_canvas)
+        cdCanvasBegin(cd_canvas,modes[mode])
+sequence pt2 = {}
         for a=90 to 666 by 144 do
             atom r = (a+rot)*CD_DEG2RAD,
                  x = radius*cos(r)+cx,
                  y = radius*sin(r)+cy
+pt2 = append(pt2,{round(x),round(y)})
             cdCanvasVertex(cd_canvas, x, y)
         end for
+?pt2
         cdCanvasEnd(cd_canvas)
     end for
 --*/

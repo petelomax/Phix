@@ -1,0 +1,71 @@
+--
+-- demo\rosetta\Inventory_sequence.exw
+-- ===================================
+--
+with javascript_semantics
+function inventory(integer limit)
+    sequence inv = {0}, counts = {1}
+    integer ix = 0, thousands = 1000
+    while true do
+        integer i = 0
+        while true do
+            integer j = iff(i>=length(counts)?0:counts[i+1])
+            inv &= j
+            while j>=length(counts) do counts &= 0 end while
+            counts[j+1] += 1
+            ix += 1
+            if length(inv)=100 then
+                printf(1,"Inventory sequence, first 100 elements:\n%s\n",
+                         {join_by(inv,1,20,"",fmt:="%3d")})
+            end if
+            if j=0 then exit end if
+            if j>=thousands then
+                printf(1,"First element >= %,6d is %,6d at index %,7d\n", {thousands, j, ix})
+                if j>=limit then return inv[1..limit] end if
+                thousands += 1000
+            end if
+            i += 1
+        end while
+    end while
+end function
+constant lim = 1e4
+sequence x = tagset(lim),
+         y = inventory(lim)
+
+include pGUI.e
+include IupGraph.e
+function get_data(Ihandle graph)
+    integer {w,h} = IupGetIntInt(graph,"SIZE")
+    IupSetInt(graph,"XTICK",iff(w<500?iff(w<350?iff(w<250?5000:2500):2000):1000))
+    IupSetInt(graph,"YTICK",iff(h<350?iff(h<200?iff(h<150? 200: 100):  80):  40))
+    return {{x,y,CD_BLUE}}
+end function
+
+IupOpen()
+Ihandle graph = IupGraph(get_data,"XMIN=0,XMAX=10000,YMIN=0,YMAX=400"),
+    dlg = IupDialog(graph,`TITLE=gGraph,SIZE=320x240,MINSIZE=240x140`)
+IupShow(dlg)
+if platform()!=JS then
+    IupMainLoop()
+end if
+
+--/*
+requires("1.0.3")   -- Note: not quite ready for primetime just yet
+include xpGUI.e     --                  ""
+function get_data(gdx graph)
+    integer {w,h} = gGetAttribute(graph,"SIZE")
+    integer {w,h} = gGetIntInt(graph,"SIZE")
+    gSetInt(graph,"XTICK",iff(w<500?iff(w<350?iff(w<250?5000:2500):2000):1000))
+    gSetInt(graph,"YTICK",iff(h<350?iff(h<200?iff(h<150?200:100):80):40))
+    return {{x,y,XPG_BLUE}}
+end function
+
+gdx graph = gGraph(get_data,"XMIN=0,XMAX=10000,YMIN=0,YMAX=400"),
+    dlg = gDialog(graph,`gGraph`,"SIZE=320x240")
+--gSetAttributes(dlg,"RASTERSIZE=320x240,MINSIZE=320x200")
+--gSetAttributes(dlg,"RASTERSIZE=320x240,MINSIZE=210x80")
+--gSetAttributes(graph,"MINSIZE=210x100")
+gShow(dlg)
+gMainLoop()
+--*/
+

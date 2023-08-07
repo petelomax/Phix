@@ -1037,34 +1037,5 @@ integer bracketed
     return result
 end function
 
---**
--- Test whether a sequence is the head of another one.
--- 
--- Parameters:
---      # ##sub_text## : an object to be looked for
---  # ##full_text## : a sequence, the head of which is being inspected.
---
--- Returns:
---              An **integer**, 1 if ##sub_text## begins ##full_text##, else 0.
---
--- Example 1:
--- <eucode>
--- s = begins("abc", "abcdef")
--- -- s is 1
--- s = begins("bcd", "abcdef")
--- -- s is 0
--- </eucode>
---
--- See Also:
---     [[:ends]], [[:head]]
 
-global function begins(object sub_text, sequence full_text)
-    integer lf = length(full_text)
-    if lf=0 then return false end if
-    if atom(sub_text) then
-        return sub_text==full_text[1]
-    end if
-    integer ls = length(sub_text)
-    return ls<=lf and sub_text==full_text[1..ls]
-end function
 

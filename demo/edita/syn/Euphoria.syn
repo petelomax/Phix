@@ -309,6 +309,8 @@ WithClauses
         format  -- (not actually with/without, of course)
         js javascript javascript_semantics
         safe_mode
+        nested_globals
+        nested_locals
 
 Types
 -----
@@ -1468,12 +1470,47 @@ BuiltinConstants
         K_sSP
         K_scSP
 
-        MODKEYSTATE
-        SINGLEINSTANCE
-
 --xpGUI:
+        VK_APPS
+        VK_BS
+        VK_CAPSLOCK
+        VK_CR
+        VK_DEL
+        VK_DOWN
+        VK_END
         VK_ESC
+        VK_F1
+        VK_F2
+        VK_F3
+        VK_F4
+        VK_F5
+        VK_F6
+        VK_F7
+        VK_F8
+        VK_F9
+        VK_F10
+        VK_F11
+        VK_F12
+        VK_HOME
+        VK_INS
+        VK_LALT
+        VK_LCTRL
+        VK_LEFT
+        VK_LF
+        VK_LSHIFT
+        VK_NUMLOCK
+        VK_PAUSE
+        VK_PGDN
+        VK_PGUP
+        VK_POUND
+        VK_RALT
+        VK_RCTRL
+        VK_RIGHT
+        VK_RSHIFT
+        VK_SCROLL
+        VK_SP
         VK_TAB
+        VK_UP
         XPG_CLOSE
         XPG_CONTINUE
         XPG_DEFAULT
@@ -1490,6 +1527,76 @@ BuiltinConstants
         XPG_RIGHTPARENT
         XPG_TOP
         XPG_TOPPARENT
+        XPG_BLACK
+        XPG_DARK_RED
+        XPG_DARK_GREEN
+        XPG_DARK_YELLOW
+        XPG_OLIVE
+        XPG_NAVY
+        XPG_DARK_PURPLE
+        XPG_TEAL
+        XPG_GREY
+        XPG_GRAY
+        XPG_SILVER
+        XPG_SLATE
+        XPG_DARK_GREY
+        XPG_DARK_GRAY
+        XPG_RED
+        XPG_GREEN
+        XPG_LIGHT_GREEN
+        XPG_YELLOW
+        XPG_BLUE
+        XPG_MAGENTA
+        XPG_CYAN
+        XPG_INDIGO
+        XPG_LIGHT_GREY
+        XPG_LIGHT_GRAY
+        XPG_LIGHT_GREEN
+        XPG_LIGHT_BLUE
+        XPG_LIGHT_PARCHMENT
+        XPG_ORANGE
+        XPG_AMBER
+        XPG_PARCHMENT
+        XPG_PURPLE
+        XPG_VIOLET
+        XPG_WHITE
+
+        XPG_CONTINUOUS
+        XPG_DASHED
+        XPG_DOTTED
+        XPG_DASH_DOT
+        XPG_DASH_DOT_DOT
+
+        XPG_FILLED
+        XPG_CHORD
+        XPG_SECTOR
+
+        XPG_N
+        XPG_NW
+        XPG_NE
+        XPG_W
+        XPG_C
+        XPG_E
+        XPG_SW
+        XPG_SE
+        XPG_S
+        XPG_NORTH
+        XPG_NORTHWEST
+        XPG_NORTHEAST
+        XPG_WEST
+        XPG_CENTRE
+        XPG_EAST
+        XPG_SOUTHWEST
+        XPG_SOUTHEAST
+        XPG_SOUTH
+
+        XPG_NORMAL
+        XPG_BOLD
+        XPG_ITALIC
+        XPG_BOLDITALIC
+
+        XPG_DEG2RAD
+        XPG_RAD2DEG
 
 -- libcurl constants:
         CURL_ERROR_SIZE
@@ -1670,7 +1777,7 @@ LibraryRoutines
         lock_memory
         mouse_events
         mouse_pointer
-        palette
+--      palette
 --      pixel
         polygon
 --      save_image
@@ -1699,6 +1806,7 @@ LibraryRoutines
         assert
         asserteq
         atan2
+        average
         bankers_rounding
         binary_search
         bind
@@ -1788,6 +1896,7 @@ LibraryRoutines
         get_proper_dir
         get_proper_path
         get_routine_info
+        get_possible_constant_names
         get_screen_char
         get_socket_error
         get_text
@@ -2195,6 +2304,7 @@ LibraryRoutines
         isupper
         leave_cs
         map_get
+        median
         mpfr
         mpir_open_dll
         mpfr_get_versions
@@ -2248,6 +2358,7 @@ LibraryRoutines
         mpfr_div_si
         mpfr_div_z
         mpfr_si_div
+        mpfr_fmod
         mpfr_sqr
         mpfr_sqrt
         mpfr_sqrt_ui
@@ -2255,6 +2366,7 @@ LibraryRoutines
         mpfr_pow_si
         mpfr_ui_pow
         mpfr_ui_pow_ui
+        mpfr_si_pow_si
         mpfr_neg
         mpfr_sin
         mpfr_log
@@ -2306,6 +2418,7 @@ LibraryRoutines
         mpz_set
         mpz_set_si
         mpz_set_d
+        mpz_set_q
         mpz_set_str
         mpz_set_v
         mpz_import
@@ -2323,6 +2436,7 @@ LibraryRoutines
         mpz_si_sub
         mpz_abs
         mpz_neg
+        mpz_nextprime
         mpz_mod
         mpz_mod_ui
         mpz_divexact
@@ -3413,48 +3527,128 @@ LibraryRoutines
         gButton
 --      gCallback
         gCanvas
+        gCanvasArc
+        gCanvasCircle
+        gCanvasCubicBezier
+        gCanvasGetBackground
+        gCanvasGetForeground
+        gCanvasGetLineStyle
+        gCanvasGetLineWidth
+        gCanvasLine
+        gCanvasPixel
+        gCanvasQuadBezier
+        gCanvasRect
+        gCanvasSetBackground
+        gCanvasSetForeground
+        gCanvasSetLineStyle
+        gCanvasSetLineWidth
+        gCanvasText
+        gCheckbox
+        gClipboard
+        gDatePick
+        gdc
         gDialog
+        gDropDown
         gdx
 --      gfunc
+--      gFill
+        gFrame
+        gGetAlignName
+        gGetAttribute
+        gGetBrother
+        gGetChild
+        gGetChildCount
+        gGetColourName
+        gGetDialog
+        gGetDouble
+        gGetFocus
         gGetGlobal
+        gGetGlobalInt
         gGetGlobalIntInt
+        gGetHandler
+        gGetInheritedHandler
+        gGetInt
+        gGetIntInt
+        gGetLineStyleName
+        gGetParent
+        gGetTextExtent
+        gGraph
+        gHbox
         gHide
+        gImage
+        gImage_from_XPM
+        gImageDraw
+        gImageRGB
+        gImageRGBA
+        gLabel
+        gList
         gMainLoop
-        gMainLoopf
         gMap
+        gMenu
+        gMenuGetAttribute
+        gMenuSetAttribute
+        gNormalise
+        gNormalize
+        gPopupMenu
+        gProgressBar
+        gQuit
+        gRadio
+        gRadioItem
+        gRedraw
         gSetAttribute
         gSetAttributes
+        gSetDouble
+        gSetFocus
+        gSetGlobal
         gSetHandler
         gSetHandlers
+        gSetInt
         gShow
+        gSlider
+        gSpin
+        gSplit
+        gTable
+        gTabs
         gText
         gTimer
+        gToggleInt
         gTreeAddNodes
-        gTreeDeleteChildren
         gTreeGetUserId
         gTreeView
         gUseGTK
+        gVbox
         gVersion
+        hsv_to_rgba
+        rgba
         rtn
+        to_rgba
+        xpGUI_from_pGUI
 
 -- ARM/x86: -- (better, make #ilASM{} syntax colour "asm")
-        ah
-        al
         adc
         add
+--      ah
+--      al
 --      and
         asl
         asr
-        ax
+--      ax
+--      bh
         bic
+--      bl
+--      bx
         byte
         cdq
-        cl
+--      ch
+--      cl
         cmn
         cmp
-        cx
+--      cx
         dec
+--      dh
+--      dl
         dword
+--      dx
         eax
         ebp
         ebx
