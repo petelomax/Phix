@@ -1,0 +1,294 @@
+--
+-- demo/pGUI/gTable.exw
+-- ======================
+--
+--  An gTable is a Phix/pGUI invention, expressly written for pwa/p2js,
+--  but of course it can be freely used for strictly desktop-only purposes.
+--  It provides common ground between an HTML table and a desktop IupMatrix.
+--  (That is, a fairly advanced HTML table, even if I say so myself.)
+--
+--  Columns can be sorted by clicking on their headings. It maintains a stack
+--  of sort orders, so for instance if you click on amount then date, it shows
+--  items in amount order within each unique date, plus any with both the same 
+--  amount and date matching (aka all clicked columns) in their original order.
+--  Columns can also be resized by dragging the edges between column headings, 
+--  and resizing the window expands the table to fit, retaining the existing 
+--  column width ratios as best it can.
+--
+--BLUFF/DEV:
+--  Internally, pGUI.e implements an gTable via an IupMatrix, whereas
+--  (obviously) pGUI.js implements an gTable via <table>.
+--
+--  The internals of gTable are really quite straightforward: they just
+--  adopt a very narrow view of what we need to achieve from an IupMatrix,
+--  and/or the html, css, and JavaScript we need to use in a browser.
+--  Obviously, should gTable not quite meet your needs, you are free to
+--  take a copy of it and tweak it, the only real question being whether
+--  you or I can make such changes work on both the desktop and browser.
+--
+--  See also demo/pGUI/listview.exw, on which this is based. While this is
+--  now nearly as long and complicated, that's only because I'm trying to
+--  show/test as much as possible, whereas the cut-down version in the docs
+--  is clearly quite nicely short and sweet.
+--
+with javascript_semantics -- work rqd: most of the usual resize problems,
+                          --           one extra blank entry from s/where
+                          --           column resizers completely kaput,
+                          --           CLICVK_CB callback also """  """ ,
+                          --           things marked as tested below were 
+                          --           tested on desktop/Phix & not p2js.
+--requires("1.0.3")
+--/!*
+include xpGUI.e
+--gUseGTK()
+constant columns = {{"Chq",38,"R"},
+                    {"Date",86,"C"},
+                    {"Amount",100,"R"}},
+         -- or just {"Chq","Date","Amount"},
+         data = {{{1,{2020,1,13},1500.89},
+                  {2,{2020,7,10},3646.86},
+                  {3,{2019,3,20},3807.94}},
+                 {0,
+--                {`13/07/2020`,`20/01/2020`,`10/03/2019`},
+                  "%[3]2d/%[2]02d/%[1]4d",
+--                {`1500.89`,`3646.86`,`3807.94`},
+                  "%.2f"}}  -- (see note)
+
+gdx table = gTable(columns,data,3),
+--    dlg = gDialog(table,"gTable") 
+      dlg = gDialog(table,"gTable","SIZE=240x129") 
+gShow(dlg)
+gMainLoop()
+--*!/
+--/* to create the fonts table for the manual
+--      (some of this from an xfer to gCanvas idea, since "drop"ped)
+include xpGUI.e
+--/*
+constant columns = {{"Recommended",100,"C"},
+                    {"Windows",120,"C"},
+                    {"GTK",80,"C"},
+                    {"Description",200,"L"}},
+--*/
+constant columns = {"Recommended","Windows","GTK","Description"},
+         data = {{{"Helvetica","Arial","Sans","without serif, variable spacing"},
+                  {"Courier","Courier New","Monospace","with serif, fixed spacing"},
+                  {"Times","Times New Roman","Serif","with serif, variable spacing"}},
+                 {}}
+
+--/*
+procedure iCanvasRect(gdx canvas, atom xmin, xmax, ymin, ymax, bool bFill=false, integer rc=0, style=-1, width=-1, atom colour=-1, fillcolour=-1)
+    gCanvasRect(canvas, xmin, xmax, ymin, ymax, bFill, rc, style, width, colour, fillcolour)
+    printf(1,"gCanvasRect(table,%d,%d,%d,%d,%t,%d,%s,%d,%s,%s)\n",
+                       {xmin,xmax,ymin,ymax,bFill,rc,gGetLineStyleName(style),
+                                                  width,gGetColourName(colour),gGetColourName(fillcolour)})
+end procedure
+
+procedure iCanvasSetForeground(gdx canvas, atom colour)
+    gCanvasSetForeground(canvas, colour)
+    printf(1,"gCanvasSetForeground(table,%s)\n",{gGetColourName(colour)})
+end procedure
+
+procedure iCanvasLine(gdc canvas, atom x1, y1, x2, y2, integer style=-1, width=-1, atom colour=-1)
+    gCanvasLine(canvas, x1, y1, x2, y2, style, width, colour)
+    printf(1,"gCanvasLine(table,%d,%d,%d,%d,%s,%d,%s)\n",
+                                {x1,y1,x2,y2,gGetLineStyleName(style),width,gGetColourName(colour)})
+end procedure
+--*/
+
+procedure iCanvasText(gdx canvas, atom x, y, string text, integer align=XPG_E, object angle=0, atom colour=-1, style=-1)
+    bool bChangeFont = match("with serif,",text)!=0
+    string prev_font
+    if bChangeFont then
+        prev_font = gGetAttribute(canvas,"FONT")
+        string new_font = iff(match("fixed",text)?"Courier, 9":"Times, 10")
+        gSetAttribute(canvas,"FONT",new_font)
+    end if
+    gCanvasText(canvas, x, y, text, align, angle, colour, style)
+    if bChangeFont then
+        gSetAttribute(canvas,"FONT",prev_font)
+    end if
+
+--/*
+    printf(1,"gCanvasText(table,%d,%d,\"%s\",%s, %v,%s,%d)\n",
+                                {x, y, text,gGetAlignName(align), 
+                          angle,gGetColourName(colour),gGetLineStyleName(style)})
+--*/
+end procedure
+
+function drop(integer rid)
+    if rid=gCanvasText then return iCanvasText end if
+--  switch rid do
+--      case gCanvasRect:           rid = iCanvasRect
+--      case gCanvasSetForeground:  rid = iCanvasSetForeground
+--      case gCanvasLine:           rid = iCanvasLine
+--      case gCanvasText:           rid = iCanvasText
+--  end switch
+    return rid
+end function
+--*!/
+
+gdx table = gTable(columns,data,3),
+--    dlg = gDialog(table,"gTable","SIZE=484x136")
+      dlg = gDialog(table,"gTable")
+gSetHandler(table,"DROP",drop) --DEV to be documented (lets get scrolling/sorting fixed first, though)
+gShow(dlg)
+--printf(1,"table size is %dx%d\n",gGetAttribute(table,"SIZE"))
+
+gMainLoop()
+--*/
+--/*
+--gUseGTK()
+
+--constant columns = {{"Chq#",40,"R"},
+--                  {"Date",60,"C"},
+--                  {"Amount",100,"R"},
+--                  {"Status",35,"C"},
+--                  {"Bank",50,"L"}}
+
+constant columns = {{"Chq#",-45,"R"},
+                    {"Date",-70,"C"},
+                    {"Amount",110,"R"},
+                    {"Status",-40,"C"},
+                    {"Bank",-60,"L"}}
+?sum(sq_abs(vslice(columns,2)))
+--{"width",309,"height",264,"columns",{"Chq#","Date","Amount","Status","Bank"},"colacts","45 77 121 44 67",354}
+--{"width",309,"height",264,"columns",{"Chq#","Date","Amount","Status","Bank"},"colacts","45 70 110 40 60",325}
+--{"width",309,"height",264,"columns",{"Chq#","Date","Amount","Status","Bank"},"colacts","-45 70 110 40 60",235}
+
+
+
+--constant columns = {"Chq#","Date","Amount","Status","Bank"} -- (fine too)
+
+function date_fmt(sequence data, integer row, col)
+    sequence dt = data[row][col]
+--  return sprintf("%02d-%02d-%04d",reverse(dt))
+    return sprintf("%[3]02d-%[2]02d-%[1]04d",dt)
+--                "%[3]2d/%[2]02d/%[1]4d",
+end function
+--data[2][2] = date_fmt
+
+function amt_fmt(sequence data, integer row, col)
+    atom amt = data[row][col]
+    return sprintf("%,.2f",amt)
+end function
+--data[2][3] = amt_fmt
+--/* DEV
+procedure amt_fmt(gdx table, integer row, col, atom x, y)
+    atom amt = data[row][col],
+         txtclr = iff(amt<0?XPG_RED:XPG_BLACK)
+    string txt = sprintf("%,.2f",amt)
+    -- Note that x and y are calculated according to any alignment
+    --      specified in columns, and hence that dictates what is
+    --      a suitable align value to pass to gCanvasText() [etc].
+    -- Also note a gTable is designed to show single text lines only,
+    --      more/variable space would need quite a bit of work, but
+    --      otherwise you're free to draw anything that fits here.
+    gCanvasText(table,x,y,txt,XPG_CENTRE,colour:=txtclr)
+end procedure
+--*/
+
+constant MAX = 50000
+
+function buildDummyData(bool use_fmt_rtns = true)
+    -- data is length 2: {raw/sortable,null/display columns}
+--  sequence data = repeat(0,MAX)
+--  data = {data,{0,data,data}}
+    sequence data = {repeat(0,MAX),{0,repeat(0,MAX),repeat(0,MAX)}}
+    for i=1 to MAX do
+        sequence dt = {2018+rand(2),rand(12),rand(28)}
+        atom cheque = i,
+             amount = rand(999999)/100
+        string status = iff(rand(5)==1?"R":""),
+                bank = sprintf("%5d", rand(9999)+10000)
+        data[1][i] = {cheque,dt,amount,status,bank}
+        -- initially overwritten with date/amt_fmt() below,
+        -- however not when ' ' is subsequently keyed:
+        data[2][2][i] = sprintf("%02d/%02d/%04d",reverse(dt))
+        data[2][3][i] = sprintf("%.2f",amount)
+    end for
+    if use_fmt_rtns then
+        data[2][2] = date_fmt
+        data[2][3] = amt_fmt
+    end if
+    return data
+end function
+sequence data = buildDummyData()
+--?data
+
+--/*
+procedure showselected(gdx table)
+    -- (private test routine, optional)
+    integer idx = gTableGetSelected(table)
+    string msg = iff(idx?sprint(data[1][idx]):"nothing")
+?msg
+--  IupMessage("Selected", msg)
+--  IupSetFocus(table)
+end procedure
+
+function key_cb(gdx table, atom c)
+    -- (optional)
+    if c=VK_CR then showselected(table) end if
+    if c=' ' then -- (test, optional)
+        -- note this removes the column format routines 
+        -- date_fmt() and amt_fmt() as set below.
+        data = buildDummyData(false)
+        gTableSetData(table,data,false)
+    end if
+    return XPG_CONTINUE
+end function
+
+function click_cb(gdx ih, integer l, c, atom pStatus)
+    -- (optional)
+    if l=0 then return gTableClick_cb(ih, l, c, pStatus) end if
+    if iup_isdouble(pStatus) then
+        showselected(ih)
+    end if
+    return XPG_DEFAULT
+end function
+--*/
+
+--/*
+function enteritem_cb(gdx table, integer lin, col)
+    -- (optional)
+    {} = gTableEnterItem_cb(table,lin,col)
+    integer idx = gTableGetSelected(table)
+    string msg = iff(idx?sprint(data[1][idx]):"nothing")
+    ?{"enteritem_cb",msg}
+    return XPG_DEFAULT
+end function
+--*/
+
+--/* (tested, works fine)
+gdxs tables
+function resize_cb(gdx dlg, integer width, height)
+    -- (optional)
+    for t=1 to length(tables) do
+        gSetAttributePtr(dlg,"TABLE",tables[t])
+        {} = gTableResize_cb(dlg, width, NULL)
+    end for
+    return XPG_DEFAULT
+end function
+--*/
+
+--string msg = buildDummyData() -- nb sets data
+--gdx table = gTable(columns,data,"RASTERSIZE=750x450") -- fine (on desktop)
+gdx table = gTable(columns,data,10),
+--    dlg = gDialog(table,"gTable")
+      dlg = gDialog(table,"gTable",`SIZE=325x303`)
+--    dlg = gDialog(table,"gTable","SHRINK=YES")
+--      dlg = gDialog(IupHbox({table})) -- (also works fine)
+
+--gSetAttribute(table, "MARKMULTIPLE", "YES") -- nope
+--gSetAttribute(table, "MARKAREA", "NOT_CONTINUOUS") -- "/nope
+--gSetAttribute(table,"WIDTH0","8") -- ah, you *need* this...
+
+--gSetHandler(table, `KEY`, key_cb) -- (optional)
+--gSetHandler(table, "ENTERITEM_CB", enteritem_cb) -- (optional)
+--XgSetAttribute(dlg, "TITLE", "gTable demo")
+--tables = {table}  -- (needed for resize_cb)
+--gSetHandler(dlg, "RESIZE_CB", resize_cb) -- (optional)
+--gSetHandler(table, "CLICVK_CB", click_cb) --(optional)
+--gSetAttributeHandle(NULL,?PARENTDIALOG?,dlg)
+gShow(dlg)
+gMainLoop()
+--*/

@@ -102,7 +102,7 @@ end class</font>
             <br>
             <a name=this></a>
             Class methods can use "this." to explicitly refer to class instance fields and methods. It can be omitted provided that doing so 
-            remains totally unambiguous, see technicalia.
+            remains totally unambiguous, see <a href="#tech" onclick="opentech()">technicalia</a>.
          </td>
         </tr>
         <tr>
@@ -120,7 +120,8 @@ end class</font>
          <td>
           <a href="extended.htm">extended</a>,
           <a href="dynamic.htm">dynamic</a>,
-          <a href="javascript.htm#this">javascript.this</a>
+          <a href="javascript.htm#this">javascript.this</a><br>
+          <a name=tech></a>
          </td>
         </tr>
         <tr id="Technicalia" style="display:none;">
@@ -159,7 +160,7 @@ f</font><font color="#0000FF">.</font><font color="#000000">jelly</font><font co
 <!--
         <br>
         <br>
-        <small><sup>1</sup> Were fields private by default, then simple structs would be utterly useless...<br></small>
+//      <small><sup>1</sup> Were fields private by default, then simple structs would be utterly useless...<br></small>
             <br>
             <br>
 -->
@@ -178,15 +179,17 @@ f</font><font color="#0000FF">.</font><font color="#000000">jelly</font><font co
             <br>
             Class methods are automatically given a "this" first parameter, which is fulfilled by the object immediately to the left of the dot on the call.<br>
             It should be possible to omit "this." inside method definitions, as long as doing so would otherwise cause a compilation 
-            error<sup><small>[1]</small></sup>, however there are many potential use cases and not all have yet been fully tested. 
-            Obviously if you have say:
+            error, for instance if you have say:
             <br>
             <br>
 <!--eucode>
         class person
             atom age
             procedure set_age(atom age)
-                this.age = age
+                this.age := age
+            end procedure
+            procedure set_age2(atom a)
+                age := a
             end procedure
         end class
 </eucode-->
@@ -194,14 +197,23 @@ f</font><font color="#0000FF">.</font><font color="#000000">jelly</font><font co
 <font color="#008080">        class</font><font color="#000000"> person</font>
 <font color="#004080">            atom</font><font color="#000000"> age</font>
 <font color="#008080">            procedure</font><font color="#000000"> set_age</font><font color="#0000FF">(</font><font color="#004080">atom</font><font color="#000000"> age</font><font color="#0000FF">)</font>
-<font color="#000000">                this</font><font color="#0000FF">.</font><font color="#000000">age</font><font color="#0000FF"> =</font><font color="#000000"> age</font>
+<font color="#000000">                this</font><font color="#0000FF">.</font><font color="#000000">age</font><font color="#0000FF"> :=</font><font color="#000000"> age</font>
+<font color="#008080">            end procedure
+            procedure</font><font color="#000000"> set_age2</font><font color="#0000FF">(</font><font color="#004080">atom</font><font color="#000000"> a</font><font color="#0000FF">)</font>
+<font color="#000000">                age</font><font color="#0000FF"> :=</font><font color="#000000"> a</font>
 <font color="#008080">            end procedure
         end class</font>
 </pre>
             <br>
-            then (in the set_age() procedure) <code>age</code> and <code>this.age</code> genuinely refer to different things, and 
-            <sup><small>[1]</small></sup>in that case "omitting this." is simply not any kind of shorthand, nor does the compiler 
-            try (for instance) to second-guess assignment to the parameter, it just does it, even when doing so achieves nothing.
+            then in the set_age() procedure <code>age</code> and <code>this.age</code> genuinely refer to different things, and clearly omitting "this." would 
+            <i>not</i> cause a compilation error, but instead just copy the parameter to itself, which achieves nothing. In contrast, in the set_age2()
+            procedure, "age" <i>is</i> a potential compilation error, so the compiler <i>can</i> assume you must have really meant "this.age := a" (and of course
+            you&rsquo;d still get an error if this.age was also invalid). Note that fields local to the class, which you might assume should "shadow" file-level
+            or global identifiers, [at present] simply do not, and you still need the explicit "this." for those!
+<!-- hmm...
+             You could make a big deal out of that, or realise that if
+            a local age could ever be mistyped and match a global aye, you are inevitably going to face problems "proper shadowing" would not resolve anyway.
+-->
             <br>
             <br>
             Class methods offer the usual expected benefits over traditional static (file-level) routines, namely that they do not pollute the global namespace,
@@ -213,7 +225,7 @@ f</font><font color="#0000FF">.</font><font color="#000000">jelly</font><font co
          </td>
         </tr>
        </table>
-       <img src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <img id="Timg" src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
        <br>
        <br>
       </div>

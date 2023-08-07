@@ -1,0 +1,482 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">gGetAttribute</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td>
+          <b>Definition:</b>
+         </td>
+         <td>
+            include pGUI.e
+           <br>
+           <br>
+            <a href="object.htm">object</a> res = gGetAttribute(<a href="gdx.htm">gdx</a> id, 
+                                                                <a href="string.htm">string</a> name,
+                                                                <a href="object.htm">object</a> dflt=999_999_999)
+<!--
+//          <a href="string.htm">string</a> res = IupGetAttribute(<a href="Ihandle.htm">Ihandln</a> ih, <a href="string.htm">string</a> name, dflt="")
+//          <br>
+//          <i>-- or --</i>
+//          <br>
+//          <a href="atom.htm">atom</a> res = IupGetAttributePtr(<a href="Ihandle.htm">Ihandln</a> ih, <a href="string.htm">string</a> name)
+-->
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Description:</b>
+         </td>
+         <td>
+            Retrieve an interface element attribute value.
+            <br>
+            <br>
+            id: Identifier of the interface element.<!-- **NO** If NULL will retrieve from the global environment.--><br>
+            name: name of the attribute.<br>
+            dlft: value to return if not found or undefined, with 999_999_999 specifically/randomly meaning "crash".
+            <br>
+            <br>
+            Returns: the attribute value or dlft if the attribute is not set or does not exist.
+<!--
+            <br>
+            <br>
+            [DEV...]
+            <b>Note</b>: <a href="IupSetAttribute.htm">IupSetAttribute</a>() accepts an <a href="string.htm">atom_string</a>, whereas 
+            IupGetAttribute always yields a <a href="string.htm">string</a>, and IupGetAttributePtr retrieves (the raw pointer or) a handle. <br>
+            The (strictly speaking somewhat unnecessary) <a href="IupSetAttribute.htm">IupSetAttributePtr</a>() is intended to be the 
+            logical counterpart to IupGetAttributePtr (which has a very real need), and in that simple way make code more self-documenting.<br>
+            Alternatively the utility functions below may be used to retrieve numerical indexes, etc.
+            <br>
+-->
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+            Supported.
+<!--
+            , whereas IupGetAttributePtr() (deliberately) never 
+            raises any errors or warnings under pwa/p2js.<br>
+-->
+<!--
+            explicit setting dflt (even to "") can avoid some 
+            "IupGetAttribute(<i>&lt;class&gt;</i>,<i>&lt;name&gt;</i>) not supported" errors in pGUI.js - 
+            the latter must tread a fine line between helpfully pointing out unsupported attributes, and
+            being a royal pain in the jacksie, though thankfully it is pretty straightforward to add some
+            explicit support for an attribute, ideally just find and copy something with reasonably similar 
+            string/integer/fraction status, and obviously being from the same class would be even easier.<br>
+            Also note that IupGetAttributePtr() (deliberately) never raises an error under pwa/p2js.<br>
+            Some of the utility functions listed below may not yet be available (but should be fairly easy to add).
+-->
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Notes:</b>
+         </td>
+         <td>
+            While <a href="gSetAttribute.htm">gSetAttribute</a>() can be passed settings in either the most natural form 
+            or a suitable string representation, this routine returns the internal representation, and there is no way to 
+            force it to yield a string. Note that the internal form may be platform or back-end specific, for instance the
+            red colour under GTK is (I think) the atom #FF0000 whereas under JavaScript it might be "#FF0000", or "red", 
+            or even "rgb(255,0,0)". In fact, red in WinAPI is actually #0000FF, but xpGUI.e expects/returns all colours 
+            in rgb form, and quietly maps them to/from the offbeat Windows bgr form for you. Obviously I can and will take 
+            pains to address the most common vexing issues, such as the colours just mentioned, and may in time be able to
+            start guaranteeing some consistency between backends, but the more obscure the setting you are retrieving, the
+            more defensive you should probably code.
+            <br>
+            <br>
+            Also, <a href="gSetAttribute.htm">gSetAttribute</a>() is obviously and for good reason downright belligerent 
+            in pointing out unsupported attributes, whereas gGetAttribute() is somewhere between moderately aggressive in 
+            that regard and quite wrong in flagging something as an error simply because it hasn&rsquo;t yet been set. 
+            There will doubtless be several such cases that should undeniably be treated as a straightorward bug (jlmk).
+            Simply providing a suitable default can sometimes go a long way to alleviating much of that.
+<!--
+            explicitly setting dflt can avoid some of that.
+            would not surprise me, given their track record, if GTK5 yields a "GtkAbstractColourInstanceEnumeration *".
+            string or
+            See the Attributes Guide for more details.
+            <br>
+            <br>
+            The returned value is not necessarily the same pointer used by the application to define the attribute value. 
+            The pointers of internal IUP attributes returned by IupGetAttribute should never be freed or changed, except 
+            when it is a custom application pointer that was stored using <a href="IupSetAttribute.htm">IupSetAttribute</a> 
+            and allocated by the application.
+            <br>
+            <br>
+            The returned pointer can be used safely even if <a href="IupGetGlobal.htm">IupGetGlobal</a> or IupGetAttribute are called several times. 
+            But not too many times, because it is an internal buffer and IUP may reuse it after around 50 calls.
+-->
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Aliases:</b>
+         </td>
+         <td>
+            The following aliases can be used for a clearer statement of intent and to make code more self-documenting:
+            <br>
+            <a name=gGetInt></a>
+            <br>
+            <a href="atom.htm">atom</a> res = <b>gGetInt</b>(<a href="gdx.htm">gdx</a> id, <a href="string.htm">string</a> name,
+                                                             <a href="object.htm">object</a> dflt=999_999_999)<br>
+            <a name=gGetIntInt></a>
+            <a href="atom.htm">atom</a> {a,b} = <b>gGetIntInt</b>(<a href="gdx.htm">gdx</a> id, <a href="string.htm">string</a> name,
+                                                                  <a href="object.htm">object</a> dflt={0,0})<br>
+<!--
+            <a href="atom.htm">atom</a> {a1,a2} = <b>IupGetIntInt</b>(<a href="Ihandle.htm">Ihandln</a> ih, <a href="string.htm">string</a> name)<br>
+            <a href="atom.htm">atom</a> res = <b>IupGetInt2</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="string.htm">string</a> name)<br>
+            <a href="atom.htm">atom</a> res = <b>IupGetIntId</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="string.htm">string</a> name, <a href="integer.htm">integer</a> id)<br>
+            <a href="atom.htm">atom</a> res = <b>IupGetIntId2</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="string.htm">string</a> name, <a href="integer.htm">integer</a> lin, col)<br>
+            <a href="atom.htm">atom</a> res = <b>IupGetFloat</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="string.htm">string</a> name)<br>
+            <a href="atom.htm">atom</a> res = <b>IupGetFloatId</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="string.htm">string</a> name, <a href="integer.htm">integer</a> id)<br>
+            <a href="atom.htm">atom</a> res = <b>IupGetFloatId2</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="string.htm">string</a> name, <a href="integer.htm">integer</a> lin, col)<br>
+-->
+            <a name=gGetDouble></a>
+            <a href="atom.htm">atom</a> res = <b>gGetDouble</b>(<a href="gdx.htm">gdx</a> id, <a href="string.htm">string</a> name,
+                                                                <a href="object.htm">object</a> dflt=999_999_999)<br>
+<!--
+            <a href="atom.htm">atom</a> res = <b>IupGetDoubleId</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="string.htm">string</a> name, <a href="integer.htm">integer</a> id)<br>
+            <a href="atom.htm">atom</a> res = <b>IupGetDoubleId2</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="string.htm">string</a> name, <a href="integer.htm">integer</a> lin, col)<br>
+-->
+<!--
+            <a href="integer.htm">integer</a> {r,g,b} = <b>IupGetRGB</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="string.htm">string</a> name)<br>
+            <a href="integer.htm">integer</a> {r,g,b} = <b>IupGetRGBId</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="string.htm">string</a> name, <a href="integer.htm">integer</a> id)<br>
+            <a href="integer.htm">integer</a> {r,g,b} = <b>IupGetRGBId2</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="string.htm">string</a> name, <a href="integer.htm">integer</a> lin, col)<br>
+            <a href="string.htm">string</a> res = <b>IupGetAttributeId</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="string.htm">string</a> name, <a href="integer.htm">integer</a> id)<br>
+            <a href="string.htm">string</a> res = <b>IupGetAttributeId2</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="string.htm">string</a> name, <a href="integer.htm">integer</a> lin, col)<br>
+            <br>
+            id, lin, col: used when the attribute has additional ids.
+            <br>
+            <br>
+            IupGetIntInt retrieves two integers (as separated by 'x', ':' or ',').<br>
+            IupGetInt2 returns just the second value (and IupGetInt just the first, and the &tilde;Id2 routines just the first of a different thing).<br>
+            As far as most Phix applications are concerned there is probably not much point using IupGetFloat instead of IupGetDouble, apart from easing translation.<br>
+            Only those routines I have personally found useful for retrieving global attributes accept an Ihandln first parameter. Let me know if any others should, 
+            however I suspect that sometimes an immediate error may prove more helpful than some potential/additional but as yet completely unused flexibility.<br>
+            Note that IupGetInt() etc retrieve 32-bit (or 64-bit) integers, or pointers/handles, which may need to be stored as an <a href="atom.htm">atom</a>.<br>
+            (Renaming as IupGetAtom() etc would only succeed in making it more difficult to translate C code, or search for examples.)
+-->
+            <br>
+            With the exception of gGetInt(id,&ldquo;<a href="gSetAttribute.htm#EXPAND">EXPAND</a>&rdquo;), they don&rsquo;t guarantee or do anything differently, 
+            should you ask for gGetInt(id,"TITLE") it will return a string, and if anything is likely to crash it would be your code storing that in an integer.<br>
+            <a name=gGetTextExtent></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Additional:</b>
+         </td>
+         <td>
+            <a href="integer.htm">integer</a> {w,h} = <b>gGetTextExtent</b>(<a href="gdx.htm">gdx</a> id, 
+                                                                            <a href="sequence.htm">sequence</a> text,
+                                                                            <a href="integer.htm#bool">bool</a> bSumHeights=true)
+            <br>
+            <br>
+            Uses the current font settings on the specified element.<br>
+            No attempt is made to support rotated text (that would probably be a separate routine).<br>
+            Should not be invoked before the specified element has been displayed.<br>
+            If text is a sequence of strings the maximum width is returned.<br>
+            bSumHeights determines whether "" heights are summed or just the last returned.<br>
+          <a name=COMMON></a>   
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Common:</b>
+         </td>
+         <td>
+            The following (read-only) attributes are common to several controls/interface element types.<br>
+            See <a href="gSetAttribute.htm#COMMON">gSetAttribute</a> for other (updateable) common attributes.<br>
+          <a name=CLASSNAME></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          CLASSNAME
+         </td>
+         <td>
+            (read-only, non inheritable)<br>
+            Returns a human readable string representation of the inteface element type which may be helpful for diagnostic purposes.<br>
+            See the ctrl_names constant in xpGUI.e for more details.<br>
+          <a name=CLIENTSIZE></a>
+         </td>
+        </tr>
+<!--
+          <a name=CLIENTOFFSET></a>
+        <tr>
+         <td>
+          CLIENTOFFSET
+         </td>
+         <td>
+            (read-only, non inheritable)<br>
+            Returns the container native offset to the Client area, see <a href="xplayout.htm">Layout Management</a>.<br>
+            Useful for <a href="gFrame.htm">gFrame</a>, <a href="gTabs.htm">gTabs</a> and <a href="gDialog.htm">gDialog</a> that have decorations. <br>
+            Can also be consulted in other containers, it will simply return "0x0". 
+<X!X--          This attribute can be used in conjunction with the <a href="#POSITION">POSITION</a> attribute of a child so the coordinates of a 
+            child relative to the native parent can be obtained.--X>
+            <br>
+            <br>
+            Value: {dx,dy}, where dx and dy are integer values corresponding to the horizontal and vertical offsets, respectively, in pixels.
+            <br>
+            <br>
+            Affects: All elements that are containers, except menus.
+            <br>
+            <br>
+            Notes:<br>
+?           In GTK, for the <a href="gDialog.htm">gDialog</a>, the dy value is negative when there is a menu. <br>
+            This occurs because in those systems the menu is placed inside the client area and all children must be placed below the menu.<br>
+??          In Windows, for the <a href="gFrame.htm">gFrame</a>, the value is always {0,0} the position of the child is still relative to the top-left corner of the frame.
+<X!X-- <br>
+            This is automatically compensated in calculation of the <a href="#POSITION">POSITION</a> attribute.--X>
+            <br>
+            <br>
+            See Also: <a href="gSetAttribute.htm#SIZE">SIZE</a>, 
+<X!X--                    <a href="gSetAttribute.htm#RASTERSIZE">RASTERSIZE</a>, --X>
+                  <a href="#CLIENTSIZE">CLIENTSIZE</a>
+<X!X--                    <a href="#POSITION">POSITION</a>--X>
+            <br>
+         </td>
+        </tr>
+-->
+        <tr>
+         <td>
+          CLIENTSIZE
+         </td>
+         <td>
+            (read-only, except on <a href="gDialog.htm">gDialog</a>, non inheritable)<br>
+            Returns the client area size of a container. <br>
+            It is the space available for positioning and sizing children, see <a href="xplayout.htm">Layout Management</a>.<br>
+            It is the container current size excluding the decorations (if any). 
+            <br>
+            <br>
+            Value: {width,height} (can also be specified as "widthxheight"), where width and height are integer values corresponding 
+            to the horizontal and vertical size, respectively, in pixels.
+            <br>
+            <br>
+            Affects: All elements that are containers, except menus.
+            <br>
+            <br>
+            Notes: <br>
+            For <a href="gBox.htm">gHbox</a> and <a href="gBox.htm">gVbox</a> it considers the MARGIN attribute as a decoration.<br>
+<!--            For <a href="IupBackgroundBox.htm">IupBackgroundBox</a>, is only available after the control is mapped.<br>-->
+            For <a href="gDialog.htm">gDialog</a> is NOT read-only, and it will re-define 
+                <a href="gSetAttribute.htm#SIZE">SIZE</a> by adding the decorations to the actual client size.
+<!--                <a href="gSetAttribute.htm#RASTERSIZE">RASTERSIZE</a> by adding the decorations to the actual client size.-->
+<!--[DEV]       For <a href="gBox.htm">gSplit</a> returns the total area available for the two children. -->
+            <br>
+            <br>
+            See Also: <a href="gSetAttribute.htm#SIZE">SIZE</a>.
+<!--                      <a href="gSetAttribute.htm#RASTERSIZE">RASTERSIZE</a>, -->
+<!--                      <a href="#CLIENTOFFSET">CLIENTOFFSET</a>-->
+            <br>
+          <a name=NATURALSIZE></a>
+         </td>
+        </tr>
+<!--
+          <a name=POSITION></a>
+        <tr>
+         <td>
+?         POSITION
+         </td>
+         <td>
+            (non inheritable, read-only) The position of the element relative to the origin of the Client area of the native parent. <br>
+<X!X--          If you add the <a href="#CLIENTOFFSET">CLIENTOFFSET</a> attribute of the native parent, you can obtain the 
+            coordinates relative to the Window area of the native parent. --X>
+            See <a href="xplayout.htm">Layout Management</a>.
+            <br>
+            <br>
+            It will be changed during the layout computation. 
+<X!X--, except when FLOATING=YES or when used inside a concrete layout container.--X>
+            <br>
+            <br>
+            Value: {x,y}, where x and y are integer values corresponding to the horizontal and vertical position, respectively, in pixels.
+            <br>
+            <br>
+            Affects: All, except menus.
+            <br>
+            <br>
+            See Also: <a href="gSetAttribute.htm#SIZE">SIZE</a>.
+<X!X--                    <a href="gSetAttribute.htm#RASTERSIZE">RASTERSIZE</a>, --X>
+<X!X--                    <a href="#FLOATING">FLOATING</a>,--X>
+<X!X--                    <a href="#CLIENTOFFSET">CLIENTOFFSET</a>--X>
+            <br>
+          <a name=SCREENPOSITION></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+<nobr>?           SCREENPOSITION</nobr>
+         </td>
+         <td>
+            (read-only) (non inheritable) Returns the absolute horizontal and<X!X--/or--X> vertical position of the top left corner 
+<X!X--of the client area --X>
+<X!X--relative to the origin of the main screen--X> in pixels. <br>
+            It is similar to <a href="#POSITION">POSITION</a> but relative to the origin of the main screen, instead of the origin of the client area. <br>
+            The origin of the main screen is at the upper left corner, <X!X--in Windows it is--X> which may be affected by the position of the Start Menu 
+            when it is at the top or left side of the screen. 
+            <br>
+            <br>
+            IMPORTANT: For the dialog, it is the position of the top left corner of the window, NOT the client area. <br>
+            It is the same position used in <a href="gShow.htm">gShow</a>() - should you actually want to change the screen position 
+            (of a <a href="gDialog.htm">gDialog</a> only, of course), use that routine. <br>
+            In GTK, if the dialog is hidden the values can be outdated.
+            <br>
+            <br>
+            Value: {x,y}, where x and y are integer values corresponding to the horizontal and vertical position, respectively, in pixels. <br>
+<X!X--
+            When X or Y are used a single value is returned.
+--X>
+            <br>
+            <br>
+            Affects: All controls that have visual representation.
+            <br>
+            <br>
+            See Also: <a href="#POSITION">POSITION</a>
+            <br>
+         </td>
+        </tr>
+-->
+<!--(???)
+//        <a name=FLOATING></a>
+//      <tr>
+//       <td>
+//        FLOATING
+//       </td>
+//       <td>
+//          (non inheritable) If an element has FLOATING=YES then its size and position will be ignored by the layout processing 
+//          in <a href="gBox.htm">gHbox</a> and <a href="gBox.htm">gVbox</a>. <br>
+//          But the element size and position will still be updated in the native system allowing the usage of 
+//          <a href="gSetAttribute.htm#SIZE">SIZE</a> or 
+////            <a href="gSetAttribute.htm#RASTERSIZE">RASTERSIZE</a> and 
+//          <a href="#POSITION">POSITION</a> 
+//          to manually position and size the element. <br>
+//          And must ensure that the element will be on top of other using <a href="#ZORDER">ZORDER</a>, if there is overlap.
+//          <br>
+//          <br>
+//          This is useful when you do not want that an invisible element to be computed in the box size.
+//          <br>
+//          <br>
+//          If the value IGNORE is used then it will behave as YES, but also it will not update the the size and position in the native system.
+//          <br>
+//          <br>
+//          Value: "YES", "IGNORE" or "NO". Default: "NO".
+//          <br>
+//          <br>
+//          Affects: All elements, except menus.
+//          <br>
+//          <br>
+//          See Also: <a href="gBox.htm">gHbox</a>, <a href="gBox.htm">gVbox</a>
+//          <br>
+//       </td>
+//      </tr>
+-->
+        <tr>
+         <td>
+?         NATURALSIZE,<br>
+          NORMALSIZE
+<!-- Shirley, this is just "PIXELSIZE"...
+        ,<br>
+//        CURRENTSIZE
+-->
+         </td>
+         <td>
+            (read only) Retrieves the last calculated natural size in pixels. Not expected/intended to be particularly useful.<br>
+            The NORMALSIZE attribute yields the largest natural width/height from any normaliser group it is a part of.<br>
+<!--
+?           (Note the latter <i>is</i> affected by USERSIZE bubbling up and on itself and other elements in such groups, 
+             but not by any said on any parent[s], and further is implemented as a single-pass affair, so may include
+             such effects from previously processed elements/groups but not those that get updated later. While it may
+             be true to say that normalisation works best on visible elements, that still doesn&rsquo;t quite cover 
+             before/after/cross-group effects. There may be cases where explicitly setting USERSIZE achieves effects
+             that normalisation cannot.)<br>
+-->
+<!--
+//          The CURRENTSIZE attribute yields the actual width/height as finalised by the layout manager code.<br>
+-->
+            Returns: integer {width,height}. For more details see <a href="xplayout.htm">Layout Management</a>.
+            <br>
+            <br>
+            See Also: <a href="gSetAttribute.htm#SIZE">SIZE</a> 
+<!--//                    <a href="gSetAttribute.htm#RASTERSIZE">RASTERSIZE</a>-->
+            <br>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="gSetAttribute.htm">gSetAttribute</a>,
+          <a href="gSetAttributes.htm">gSetAttributes</a>,
+          <a href="gSetHandler.htm">gSetHandler</a>,
+          <a href="gSetHandler.htm#gGetHandler">gGetHandler</a>,
+          <a href="gSetGlobal.htm">gSetGlobal</a>,
+          <a href="gGetGlobal.htm">gGetGlobal</a>
+         </td>
+        </tr>
+       </table>
+        <div style="clear:both;height:1px;"> </div>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

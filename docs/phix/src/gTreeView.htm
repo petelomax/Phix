@@ -16,10 +16,11 @@
             include xpGUI.e
            <br>
            <br>
-            <a href="gdx.htm">gdx</a> tree_view = gTreeView([<a href="sequence.htm">sequence</a> tree_nodes,]
+            <a href="gdx.htm">gdx</a> tree_view = gTreeView([<a href="sequence.htm">sequence</a> tree_nodes={},]
+                                                            <small>
                                                             [<a href="rtn.htm">rtn</a> branchopen=NULL, ]
                                                              <a href="string.htm">string</a> attributes="", 
-                                                             <a href="html/glossary.htm#dwordseq">dword_seq</a> args={})
+                                                             <a href="html/glossary.htm#dwordseq">dword_seq</a> args={}</small>)
          </td>
         </tr>
         <tr>
@@ -33,16 +34,16 @@
             tree_nodes: a nested construct of the form {"<i>text</i>"[,attr][,children]}, suitable for passing to 
             <a href="gTreeAddNodes.htm">gTreeAddNodes</a>(). <br>
             branchopen: optional routine for deferred loading of sub-tree nodes, see <a href="#BRANCHOPEN">BRANCHOPEN</a>.<br>
-            For more information on the attributes and args parameters see <a href="IupSetAttributes.htm">IupSetAttributes</a>.<br>
-            This is a <a href="g_paranormal.htm">paranormalised function</a>.  <small>(see technicalia dropdown below for details)</small>
+            For more information on the attributes and args parameters see <a href="gSetAttributes.htm">gSetAttributes</a>.<br>
+            This is a <a href="g_paranormal.htm">paranormalised function</a>.  <small>(see <a href="#tech" onclick="opentech()">technicalia</a>)</small>
             <br>
             <br>
             The tree_nodes parameter may be empty, or omitted on creation and set via <a href="gTreeAddNodes.htm">gTreeAddNodes</a>()
             at some later time.
             <br>
             <br>
-            At the time of writing, no treeview attributes are yet supported, but in time I expect it will cope with at least
-            ACTIVE, CANFOCUS, COUNT, EXPAND, EXPANDNODE, CONTRACTNODE, FOCUSNODE, SIZE, TOPITEM, VISIBLE, as well as having a few 
+            At the time of writing, few treeview attributes are supported, but in time I expect it will cope with at least
+            ACTIVE, COUNT, EXPAND, EXPANDNODE, CONTRACTNODE, FOCUSNODE, SIZE, TOPITEM, VISIBLE, as well as having a few 
             more handler routines, probably.
             <br>
             <br>
@@ -133,156 +134,103 @@ OLD:
           <b>Example:</b>
          </td>
          <td>
-DEV: to be updated, probably:
-<br>
-<br>
-
+<!--
             <div class="parent">
-              <div class="child" style="border: solid 1px #dfdfdf;">
+              <div class="child">
                 Desktop appearance:
                 <br>
                 <br>
-                <img width="241" height="188" src="images/IupTreeView.png">
+                <img width="240" height="160" src="images/gTreeView.png"/>
               </div>
               <div class="child">
                 &nbsp;
               </div>
-              <div class="child" style="border: solid 1px #dfdfdf;">
+              <div class="child">
                 Browser appearance:
                 <br>
                 <br>
-                <img width="241" height="188" src="images/IupTreeView2.png">
+                <img style="border: solid 1px #000000;" width="240" height="160" src="images/gTreeView2.png"/>
               </div>
             </div>
             <div style="clear:both;height:1px;"> </div>
-          <br>
+-->
+            <p align="center"><img alt="gTreeView" src="images/gTreeView.png" width="240" height="160"></p>
         <small>
 <!--eucode>
--- demo\xpGUI\gTreeView2.exw
---  (if you don't need deferred loading, feel free to omit tree_data and branchopen)
+-- demo\xpGUI\gTreeView.exw
 include xpGUI.e
-sequence tree_data = {{"equilateral",       -- 1    (for Figures/triangle2)
-                       {"isoceles",     -- (branch with 2 children)
-                       {"STATE","COLLAPSED","USERDATA",4},  -- see tree_data[4]
-                       {"dummy"}},          -- (ensures we get a '+')
-                       "scalenus"},
-                      {"some",              -- 2    (for Figures/4D)
-                       "other",
-                       "branch"},
-                      {},                   -- 3 (kills + w/o opening, for Figures/triangle/isoceles)
-                      {"acute",             -- 4    (for Figures/triangle2/isoceles [a nested deferral])
-                       "obtuse"}
-                     }
-
 constant tree_nodes = {"Figures",               -- (branch with 5 children)
                        {"Other",                -- (leaf)
                         {"triangle",            -- (branch with 3 children)
                          {"STATE","COLLAPSED"},
                          {"equilateral",
                           {"isoceles",          -- (branch with 2 children)
-                           {"STATE","COLLAPSED","USERDATA",3},
-                           {}},                 -- ([we don't get a '+'])
-                          "scalenus",
-                         }},
-                        {"triangle2",           -- (branch with 3 children)
-                         {"STATE","COLLAPSED","USERDATA",1},
-                         {"dummy"}},            -- (ensures we get a '+')
+                           {"STATE","COLLAPSED"},
+                           {"acute",
+                            "obtuse"}},
+                          "scalenus"}
+                        },
                         {"parallelogram",       -- (branch with 2 children)
-                         {"square",
-                          "diamond"
-                         }},
+                         {"square",             -- (should be open on load)
+                          "diamond"}},
                         "2D",                   -- (leaf)
-                        {"3D",
+                        {"3D",                  -- (branch)
                          {"STATE","COLLAPSED"}, -- (needed here)
-                         {}},                   -- (branch, empty)
-                        {"4D",                  -- (works just fine, if 8 uncommented above)
-                         {"STATE","COLLAPSED","USERDATA",2},
-                         {"dummy"}}             -- (branch, deferred load)
+                         {}},                   -- (empty)
+                        {"4D",
+                         {"STATE","COLLAPSED"},
+                         {"some",
+                          "other",
+                          "branch"},
+                         {"random data"}        -- (iff attr and children present)
+                        }
                        }
                       }
 
-procedure branchopen(object treenode)
-    integer userid = gTreeGetUserId(treenode)
-    if userid!=0 
-    and tree_data[userid]!=0 then -- (deferred load (still) rqd for this node)
-        gTreeDeleteChildren(treenode) -- first kill off "dummy" (which ensured a '+')
-        sequence children = tree_data[userid]
-        gTreeAddNodes(treenode, children)
-        -- finally remove the deferred load (or otherise mark as done, if
-        -- this isn't done then any sub-trees get deleted and collapsed.)
-        tree_data[userid] = 0
-    end if
-end procedure
-
-gdx tree_view = gTreeView(tree_nodes,branchopen),
-    dlg = gDialog(tree_view,`TITLE="Tree View",SIZE=350x300`)
+gdx tree_view = gTreeView(tree_nodes),
+    dlg = gDialog(tree_view,`gTreeView`)
 gShow(dlg)
 gMainLoop()
 </eucode-->
 <pre>
-<font color="#000080"><i>-- demo\xpGUI\gTreeView2.exw
---  (if you don&rsquo;t need deferred loading, feel free to omit tree_data and branchopen)</i></font>
+<font color="#000080"><i>-- demo\xpGUI\gTreeView.exw</i></font>
 <font color="#008080">include</font><font color="#000000"> xpGUI.e</font>
-<font color="#004080">sequence</font><font color="#000000"> tree_data</font><font color="#0000FF"> = {</font><font color="#800000">{</font><font color="#008000">"equilateral"</font><font color="#0000FF">,      </font><font color="#000080"><i> -- 1    (for Figures/triangle2)</i></font>
-<font color="#800080">                       {</font><font color="#008000">"isoceles"</font><font color="#0000FF">,    </font><font color="#000080"><i> -- (branch with 2 children)</i></font>
-<font color="#00FF00">                       {</font><font color="#008000">"STATE"</font><font color="#0000FF">,</font><font color="#008000">"COLLAPSED"</font><font color="#0000FF">,</font><font color="#008000">"USERDATA"</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#00FF00">}</font><font color="#0000FF">, </font><font color="#000080"><i> -- see tree_data[4]</i></font>
-<font color="#00FF00">                       {</font><font color="#008000">"dummy"</font><font color="#00FF00">}</font><font color="#800080">}</font><font color="#0000FF">,         </font><font color="#000080"><i> -- (ensures we get a &rsquo;+&rsquo;)</i></font>
-<font color="#008000">                       "scalenus"</font><font color="#800000">}</font><font color="#0000FF">,</font>
-<font color="#800000">                      {</font><font color="#008000">"some"</font><font color="#0000FF">,             </font><font color="#000080"><i> -- 2    (for Figures/4D)</i></font>
-<font color="#008000">                       "other"</font><font color="#0000FF">,</font>
-<font color="#008000">                       "branch"</font><font color="#800000">}</font><font color="#0000FF">,</font>
-<font color="#800000">                      {}</font><font color="#0000FF">,                  </font><font color="#000080"><i> -- 3 (kills + w/o opening, for Figures/triangle/isoceles)</i></font>
-<font color="#800000">                      {</font><font color="#008000">"acute"</font><font color="#0000FF">,            </font><font color="#000080"><i> -- 4    (for Figures/triangle2/isoceles [a nested deferral])</i></font>
-<font color="#008000">                       "obtuse"</font><font color="#800000">}</font>
-<font color="#0000FF">                     }
-</font>
 <font color="#008080">constant</font><font color="#000000"> tree_nodes</font><font color="#0000FF"> = {</font><font color="#008000">"Figures"</font><font color="#0000FF">,              </font><font color="#000080"><i> -- (branch with 5 children)</i></font>
 <font color="#800000">                       {</font><font color="#008000">"Other"</font><font color="#0000FF">,               </font><font color="#000080"><i> -- (leaf)</i></font>
 <font color="#800080">                        {</font><font color="#008000">"triangle"</font><font color="#0000FF">,           </font><font color="#000080"><i> -- (branch with 3 children)</i></font>
 <font color="#00FF00">                         {</font><font color="#008000">"STATE"</font><font color="#0000FF">,</font><font color="#008000">"COLLAPSED"</font><font color="#00FF00">}</font><font color="#0000FF">,</font>
 <font color="#00FF00">                         {</font><font color="#008000">"equilateral"</font><font color="#0000FF">,</font>
 <font color="#000080">                          {</font><font color="#008000">"isoceles"</font><font color="#0000FF">,         </font><font color="#000080"><i> -- (branch with 2 children)</i></font>
-<font color="#008000">                           {"STATE"</font><font color="#0000FF">,</font><font color="#008000">"COLLAPSED"</font><font color="#0000FF">,</font><font color="#008000">"USERDATA"</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#008000">}</font><font color="#0000FF">,</font>
-<font color="#008000">                           {}</font><font color="#000080">}</font><font color="#0000FF">,                </font><font color="#000080"><i> -- ([we don&rsquo;t get a &rsquo;+&rsquo;])</i></font>
-<font color="#008000">                          "scalenus"</font><font color="#0000FF">,</font>
-<font color="#00FF00">                         }</font><font color="#800080">}</font><font color="#0000FF">,</font>
-<font color="#800080">                        {</font><font color="#008000">"triangle2"</font><font color="#0000FF">,          </font><font color="#000080"><i> -- (branch with 3 children)</i></font>
-<font color="#00FF00">                         {</font><font color="#008000">"STATE"</font><font color="#0000FF">,</font><font color="#008000">"COLLAPSED"</font><font color="#0000FF">,</font><font color="#008000">"USERDATA"</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#00FF00">}</font><font color="#0000FF">,</font>
-<font color="#00FF00">                         {</font><font color="#008000">"dummy"</font><font color="#00FF00">}</font><font color="#800080">}</font><font color="#0000FF">,           </font><font color="#000080"><i> -- (ensures we get a &rsquo;+&rsquo;)</i></font>
+<font color="#008000">                           {"STATE"</font><font color="#0000FF">,</font><font color="#008000">"COLLAPSED"}</font><font color="#0000FF">,</font>
+<font color="#008000">                           {"acute"</font><font color="#0000FF">,</font>
+<font color="#008000">                            "obtuse"}</font><font color="#000080">}</font><font color="#0000FF">,</font>
+<font color="#008000">                          "scalenus"</font><font color="#00FF00">}</font>
+<font color="#800080">                        }</font><font color="#0000FF">,</font>
 <font color="#800080">                        {</font><font color="#008000">"parallelogram"</font><font color="#0000FF">,      </font><font color="#000080"><i> -- (branch with 2 children)</i></font>
-<font color="#00FF00">                         {</font><font color="#008000">"square"</font><font color="#0000FF">,</font>
-<font color="#008000">                          "diamond"</font>
-<font color="#00FF00">                         }</font><font color="#800080">}</font><font color="#0000FF">,</font>
+<font color="#00FF00">                         {</font><font color="#008000">"square"</font><font color="#0000FF">,            </font><font color="#000080"><i> -- (should be open on load)</i></font>
+<font color="#008000">                          "diamond"</font><font color="#00FF00">}</font><font color="#800080">}</font><font color="#0000FF">,</font>
 <font color="#008000">                        "2D"</font><font color="#0000FF">,                  </font><font color="#000080"><i> -- (leaf)</i></font>
-<font color="#800080">                        {</font><font color="#008000">"3D"</font><font color="#0000FF">,</font>
+<font color="#800080">                        {</font><font color="#008000">"3D"</font><font color="#0000FF">,                 </font><font color="#000080"><i> -- (branch)</i></font>
 <font color="#00FF00">                         {</font><font color="#008000">"STATE"</font><font color="#0000FF">,</font><font color="#008000">"COLLAPSED"</font><font color="#00FF00">}</font><font color="#0000FF">,</font><font color="#000080"><i> -- (needed here)</i></font>
-<font color="#00FF00">                         {}</font><font color="#800080">}</font><font color="#0000FF">,                  </font><font color="#000080"><i> -- (branch, empty)</i></font>
-<font color="#800080">                        {</font><font color="#008000">"4D"</font><font color="#0000FF">,                 </font><font color="#000080"><i> -- (works just fine, if 8 uncommented above)</i></font>
-<font color="#00FF00">                         {</font><font color="#008000">"STATE"</font><font color="#0000FF">,</font><font color="#008000">"COLLAPSED"</font><font color="#0000FF">,</font><font color="#008000">"USERDATA"</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#00FF00">}</font><font color="#0000FF">,</font>
-<font color="#00FF00">                         {</font><font color="#008000">"dummy"</font><font color="#00FF00">}</font><font color="#800080">}            </font><font color="#000080"><i> -- (branch, deferred load)</i></font>
+<font color="#00FF00">                         {}</font><font color="#800080">}</font><font color="#0000FF">,                  </font><font color="#000080"><i> -- (empty)</i></font>
+<font color="#800080">                        {</font><font color="#008000">"4D"</font><font color="#0000FF">,</font>
+<font color="#00FF00">                         {</font><font color="#008000">"STATE"</font><font color="#0000FF">,</font><font color="#008000">"COLLAPSED"</font><font color="#00FF00">}</font><font color="#0000FF">,</font>
+<font color="#00FF00">                         {</font><font color="#008000">"some"</font><font color="#0000FF">,</font>
+<font color="#008000">                          "other"</font><font color="#0000FF">,</font>
+<font color="#008000">                          "branch"</font><font color="#00FF00">}</font><font color="#0000FF">,</font>
+<font color="#00FF00">                         {</font><font color="#008000">"random data"</font><font color="#00FF00">}       </font><font color="#000080"><i> -- (iff attr and children present)</i></font>
+<font color="#800080">                        }</font>
 <font color="#800000">                       }</font>
 <font color="#0000FF">                      }
 </font>
-<font color="#008080">procedure</font><font color="#000000"> branchopen</font><font color="#0000FF">(</font><font color="#004080">object</font><font color="#000000"> treenode</font><font color="#0000FF">)</font>
-<font color="#004080">    integer</font><font color="#000000"> userid</font><font color="#0000FF"> =</font><font color="#7060A8"> gTreeGetUserId</font><font color="#0000FF">(</font><font color="#000000">treenode</font><font color="#0000FF">)</font>
-<font color="#008080">    if</font><font color="#000000"> userid</font><font color="#0000FF">!=</font><font color="#000000">0 </font>
-<font color="#008080">    and</font><font color="#000000"> tree_data</font><font color="#0000FF">[</font><font color="#000000">userid</font><font color="#0000FF">]!=</font><font color="#000000">0</font><font color="#008080"> then</font><font color="#000080"><i> -- (deferred load (still) rqd for this node)</i></font>
-<font color="#7060A8">        gTreeDeleteChildren</font><font color="#0000FF">(</font><font color="#000000">treenode</font><font color="#0000FF">)</font><font color="#000080"><i> -- first kill off "dummy" (which ensured a &rsquo;+&rsquo;)</i></font>
-<font color="#004080">        sequence</font><font color="#000000"> children</font><font color="#0000FF"> =</font><font color="#000000"> tree_data</font><font color="#0000FF">[</font><font color="#000000">userid</font><font color="#0000FF">]</font>
-<font color="#7060A8">        gTreeAddNodes</font><font color="#0000FF">(</font><font color="#000000">treenode</font><font color="#0000FF">,</font><font color="#000000"> children</font><font color="#0000FF">)</font>
-<font color="#000080"><i>        -- finally remove the deferred load (or otherise mark as done, if
-        -- this isn&rsquo;t done then any sub-trees get deleted and collapsed.)</i></font>
-<font color="#000000">        tree_data</font><font color="#0000FF">[</font><font color="#000000">userid</font><font color="#0000FF">] =</font><font color="#000000"> 0</font>
-<font color="#008080">    end if
-end procedure
-</font>
-<font color="#7060A8">gdx</font><font color="#000000"> tree_view</font><font color="#0000FF"> =</font><font color="#7060A8"> gTreeView</font><font color="#0000FF">(</font><font color="#000000">tree_nodes</font><font color="#0000FF">,</font><font color="#000000">branchopen</font><font color="#0000FF">),</font>
-<font color="#000000">    dlg</font><font color="#0000FF"> =</font><font color="#7060A8"> gDialog</font><font color="#0000FF">(</font><font color="#000000">tree_view</font><font color="#0000FF">,</font><font color="#008000">`TITLE="Tree View",SIZE=350x300`</font><font color="#0000FF">)</font>
+<font color="#7060A8">gdx</font><font color="#000000"> tree_view</font><font color="#0000FF"> =</font><font color="#7060A8"> gTreeView</font><font color="#0000FF">(</font><font color="#000000">tree_nodes</font><font color="#0000FF">),</font>
+<font color="#000000">    dlg</font><font color="#0000FF"> =</font><font color="#7060A8"> gDialog</font><font color="#0000FF">(</font><font color="#000000">tree_view</font><font color="#0000FF">,</font><font color="#008000">`gTreeView`</font><font color="#0000FF">)</font>
 <font color="#7060A8">gShow</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">)</font>
 <font color="#7060A8">gMainLoop</font><font color="#0000FF">()</font>
 </pre>
           </small>
           <br>
+            See also <a href="gTreeAddNodes.htm">gTreeAddNodes</a> for a more details of the structures, splitting/flattening them, and deferred loading.
          </td>
         </tr>
 <!--
@@ -361,7 +309,7 @@ end procedure
            <li>Enter: If the focus node is an expanded branch, it is collapsed; if it is a collapsed branch, it is expanded; if it is a leaf, it is executed. </li>
            <li>Ctrl+Arrow Up/Down: Moves only the focus node. </li>
            <li>Ctrl+Space: Marks or unmarks the node at focus. </li>
-           <li>F2: Calls the rename callback or invokes the in place rename. </li>
+           <li>F2: Calls the rename handler or invokes the in place rename. </li>
            <li>Esc: cancels in place rename. </li>
           </ul>
             Using the left mouse button:
@@ -372,15 +320,15 @@ end procedure
                 If the node is an expanded branch, it is collapsed; 
                 if it is a collapsed branch, it is expanded; 
                 if it is a leaf, it is executed. </li>
-           <li>Clicking twice a node: Calls the rename callback or invokes the in place rename. </li>
-           <li>Clicking and dragging a node: if SHOWDRAGDROP=Yes starts a drag. When mouse is released, the DRAGDROP_CB callback is called. <br>
-                If the callback does not exist or if it returns <a href="gSetHandler.htm#XPG_CONTINUE">XPG_CONTINUE</a> then the node is moved to the new position. <br>
+           <li>Clicking twice a node: Calls the rename handler or invokes the in place rename. </li>
+           <li>Clicking and dragging a node: if SHOWDRAGDROP=Yes starts a drag. When mouse is released, the DRAGDROP_CB handler is called. <br>
+                If the handler does not exist or if it returns <a href="gSetHandler.htm#XPG_CONTINUE">XPG_CONTINUE</a> then the node is moved to the new position. <br>
                 If Ctrl is pressed then the node is copied instead of moved. In Motif drag is performed with the middle mouse button.
            </li>
           </ul>
             Removing a Node with "Del" <br>
             By default the Del key is not processed, but you can implement it using a simple
-          <a href="gSetHandler.htm#KEY">KEY</a> callback:
+          <a href="gSetHandler.htm#KEY">KEY</a> handler:
         <br>
         <br><small>
 <X!X--eucode>
@@ -406,7 +354,7 @@ end procedure
           Extra Functions
          </td>
          <td>
-            IupFlatTree has functions that allow associating a pointer (or a user defined id) to a node. <br>
+//          IupFlatTree has functions that allow associating a pointer (or a user defined id) to a node. <br>
             In order to do that, you provide the id of the node and the pointer (userid); even if the node&rsquo;s 
             id changes later on (because of insertions/deletions above/below it), the userid will still be associated with the given node. <br>
             A positive integer index, to some other table, is recommended in Phix, whereas using raw pointers would 
@@ -415,8 +363,8 @@ end procedure
             <br>
             <br>
             IupFlatTree shares the same functions with <a href="IupTree.htm">IupTree</a>.
-          <a name="IupTreeSetUserId"></a>
           <br>
+          <a name="IupTreeSetUserId"></a>
           <br>
             <b>IupTreeSetUserId</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> id, <a href="atom.htm">atom</a> userid) <br>
             ih: Identifier of the interface element. <br>
@@ -426,8 +374,8 @@ end procedure
           <br>
             Associates a userid with a given id. If the id of the node is changed, the userid remains the same.
             Terminates in error if the node cannot be found.
-          <a name="IupTreeGetUserId"></a>
           <br>
+          <a name="IupTreeGetUserId"></a>
           <br>
             <a href="atom.htm">atom</a> userid = <b>IupTreeGetUserId</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> id) <br>
             ih: Identifier of the interface element. <br>
@@ -436,8 +384,8 @@ end procedure
           <br>
             Returns the index or pointer associated to the node or NULL if none was associated. <br>
             IupTreeSetUserId must have been called for the node with the given id.
-          <a name="IupTreeGetId"></a>
           <br>
+          <a name="IupTreeGetId"></a>
           <br>
             <a href="integer.htm">integer</a> id = <b>IupTreeGetId</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="atom.htm">atom</a> userid) <br>
             ih: Identifier of the interface element. <br>
@@ -479,7 +427,7 @@ IupSetAttributeId(ih, "ADDLEAF", 10, value) == IupSetAttribute(ih, "ADDLEAF10", 
          </td>
          <td>
 <!--
-            Inherits all attributes and callbacks of the <a href="IupCanvas.htm">IupCanvas</a>, but redefines a few attributes.
+            Inherits all attributes and handlers of the <a href="IupCanvas.htm">IupCanvas</a>, but redefines a few attributes.
             <br>
             <br>
             Different from the <a href="IupTree.htm">IupTree</a>, all attributes are functional before map. <br>
@@ -507,14 +455,14 @@ IupSetAttributeId(ih, "ADDLEAF", 10, value) == IupSetAttribute(ih, "ADDLEAF10", 
             Set to NO to add many items to the tree without updating the display. Default: "YES".
          </td>
         </tr>
-        <tr>
-         <td>
-          <a href="gSetAttribute.htm#BGCOLOR">BGCOLOR</a>
-         </td>
-         <td>
-            Background color of the tree. Default: the global attribute <a href="iupgattr.htm#TXTBGCOLOR">TXTBGCOLOR</a>.
-         </td>
-        </tr>
+//      <tr>
+//       <td>
+//        <a href="gSetAttribute.htm#BGCOLOR">BGCOLOR</a>
+//       </td>
+//       <td>
+//          Background color of the tree. Default: the global attribute <a href="gGetGlobal.htm#TXTBGCOLOR">TXTBGCOLOR</a>.
+//       </td>
+//      </tr>
         <tr>
          <td>
           BORDERCOLOR(*)
@@ -555,32 +503,32 @@ IupSetAttributeId(ih, "ADDLEAF", 10, value) == IupSetAttribute(ih, "ADDLEAF10", 
             width of the extra text area at right. (since 3.30)
          </td>
         </tr>
-        <tr>
-         <td>
-          <a href="gSetAttribute.htm#FGCOLOR">FGCOLOR</a>
-         </td>
-         <td>
-            default text foreground color. <br>
-            Once each node is created it will not change its color when <a href="gSetAttribute.htm#FGCOLOR">FGCOLOR</a> is changed.<br>
-            Default: the global attribute <a href="iupgattr.htm#TXTFGCOLOR">TXTFGCOLOR</a>.
-         </td>
-        </tr>
-        <tr>
-         <td>
-          HLCOLOR(*)
-         </td>
-         <td>
-            (non inheritable) color of a filled box drawn over the selected node. Default: TXTHLCOLOR global attribute.
-         </td>
-        </tr>
-        <tr>
-         <td>
-          HLCOLORALPHA(*)
-         </td>
-         <td>
-            the transparency used to draw the selection. Default: 128. If set to 0 the selection box is not drawn.
-         </td>
-        </tr>
+//      <tr>
+//       <td>
+//        <a href="gSetAttribute.htm#FGCOLOR">FGCOLOR</a>
+//       </td>
+//       <td>
+//          default text foreground color. <br>
+//          Once each node is created it will not change its color when <a href="gSetAttribute.htm#FGCOLOR">FGCOLOR</a> is changed.<br>
+//          Default: the global attribute <a href="gGetGlobal.htm#TXTFGCOLOR">TXTFGCOLOR</a>.
+//       </td>
+//      </tr>
+//      <tr>
+//       <td>
+//        HLCOLOR(*)
+//       </td>
+//       <td>
+//          (non inheritable) color of a filled box drawn over the selected node. Default: TXTHLCOLOR global attribute.
+//       </td>
+//      </tr>
+//      <tr>
+//       <td>
+//        HLCOLORALPHA(*)
+//       </td>
+//       <td>
+//          the transparency used to draw the selection. Default: 128. If set to 0 the selection box is not drawn.
+//       </td>
+//      </tr>
         <tr>
          <td>
           PSCOLOR(*)
@@ -616,7 +564,7 @@ IupSetAttributeId(ih, "ADDLEAF", 10, value) == IupSetAttribute(ih, "ADDLEAF10", 
         </tr>
         <tr>
          <td>
-          <a href="gSetAttribute.htm#RASTERSIZE">RASTERSIZE</a>
+//        <a href="gSetAttribute.htm#RASTERSIZE">RASTERSIZE</a>
          </td>
          <td>
             (non inheritable) the initial size is "400x200". Set to NULL to allow the automatic layout use smaller values.
@@ -660,32 +608,6 @@ IupSetAttributeId(ih, "ADDLEAF", 10, value) == IupSetAttribute(ih, "ADDLEAF10", 
 <!--
         <tr>
          <td>
-          Also:
-         </td>
-         <td>
-            <a href="gSetAttribute.htm#ACTIVE">ACTIVE</a>,
-            <a href="gSetAttribute.htm#EXPAND">EXPAND</a>, 
-            <a href="gSetAttribute.htm#FONT">FONT</a>,
-            <a href="gSetAttribute.htm#SCREENPOSITION">SCREENPOSITION</a>, 
-            <a href="gSetAttribute.htm#POSITION">POSITION</a>, 
-            <a href="gSetAttribute.htm#MINSIZE">MINSIZE</a>, 
-            <a href="gSetAttribute.htm#MAXSIZE">MAXSIZE</a>,
-<X!X--      <a href="gSetAttribute.htm#WID">WID</a>, --X>
-            <a href="gSetAttribute.htm#TIP">TIP</a>, 
-            <a href="gSetAttribute.htm#SIZE">SIZE</a><a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a>,
-            <a href="gSetAttribute.htm#RASTERSIZE">RASTERSIZE</a><a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a>,
-            <a href="gSetAttribute.htm#ZORDER">ZORDER</a>,
-            <a href="gSetAttribute.htm#VISIBLE">VISIBLE</a>: also accepted. 
-          <br>
-          <br>
-            Drag & Drop attributes are supported, but SHOWDRAGDROP must be set no No.
---x>
-         </td>
-        </tr>
--->
-<!--
-        <tr>
-         <td>
           <b>Expanders</b>
          </td>
          <td>
@@ -716,30 +638,30 @@ IupSetAttributeId(ih, "ADDLEAF", 10, value) == IupSetAttribute(ih, "ADDLEAF10", 
             the color of the dotted guidelines. Default: "110 110 110"
          </td>
         </tr>
-        <tr>
-         <td>
-          BUTTONBGCOLOR(*)
-         </td>
-         <td>
-            background color of the expander buttons. Default: "240 240 240"
-         </td>
-        </tr>
-        <tr>
-         <td>
-          BUTTONFGCOLOR(*)
-         </td>
-         <td>
-            sign color of the expander buttons ("+" or "-" signs). Default: "50 100 150"
-         </td>
-        </tr>
-        <tr>
-         <td>
-          BUTTONBRDCOLOR(*)
-         </td>
-         <td>
-            border color of the expander buttons. Default: "150 150 150"
-         </td>
-        </tr>
+//      <tr>
+//       <td>
+//        BUTTONBGCOLOR(*)
+//       </td>
+//       <td>
+//          background color of the expander buttons. Default: "240 240 240"
+//       </td>
+//      </tr>
+//      <tr>
+//       <td>
+//        BUTTONFGCOLOR(*)
+//       </td>
+//       <td>
+//          sign color of the expander buttons ("+" or "-" signs). Default: "50 100 150"
+//       </td>
+//      </tr>
+//      <tr>
+//       <td>
+//        BUTTONBRDCOLOR(*)
+//       </td>
+//       <td>
+//          border color of the expander buttons. Default: "150 150 150"
+//       </td>
+//      </tr>
         <tr>
          <td>
           BUTTONSIZE(*)
@@ -801,53 +723,53 @@ IupSetAttributeId(ih, "ADDLEAF", 10, value) == IupSetAttribute(ih, "ADDLEAF10", 
             (read only) returns the number of root nodes. (since 3.23)
          </td>
         </tr>
-        <tr>
-         <td>
-          COLORid
-         </td>
-         <td>
-            foreground color of the title at the given id. If not defined FGCOLOR is used. <br>
-            The value should be a string in the format "R G B" where R, G, B are numbers from 0 to 255.
-         </td>
-        </tr>
-        <tr>
-         <td>
-          BACKCOLOR(*)
-         </td>
-         <td>
-            background color of the title at the given id. If not defined BGCOLOR is used.
-         </td>
-        </tr>
-        <tr>
-         <td>
-          ITEMTIP(*)
-         </td>
-         <td>
-            tip of the node at the given id. If defined will be shown instead of the TIP attribute.
-         </td>
-        </tr>
-        <tr>
-         <td>
-          DEPTHid
-         </td>
-         <td>
-            (read only) returns the depth of the specified node. <br>
-            The first node has depth=0, its immediate children has depth=1, their children has depth=2 and so on.
-         </td>
-        </tr>
-        <tr>
-         <td>
-          KINDid
-         </td>
-         <td>
-            (read only) returns the kind of the specified node. <br>
-            Possible values:
-          <br>
-          <br>
-            "LEAF": The node is a leaf <br>
-            "BRANCH": The node is a branch
-         </td>
-        </tr>
+//      <tr>
+//       <td>
+//        COLORid
+//       </td>
+//       <td>
+//          foreground color of the title at the given id. If not defined FGCOLOR is used. <br>
+//          The value should be a string in the format "R G B" where R, G, B are numbers from 0 to 255.
+//       </td>
+//      </tr>
+//      <tr>
+//       <td>
+//        BACKCOLOR(*)
+//       </td>
+//       <td>
+//          background color of the title at the given id. If not defined BGCOLOR is used.
+//       </td>
+//      </tr>
+//      <tr>
+//       <td>
+//        ITEMTIP(*)
+//       </td>
+//       <td>
+//          tip of the node at the given id. If defined will be shown instead of the TIP attribute.
+//       </td>
+//      </tr>
+//      <tr>
+//       <td>
+//        DEPTHid
+//       </td>
+//       <td>
+//          (read only) returns the depth of the specified node. <br>
+//          The first node has depth=0, its immediate children has depth=1, their children has depth=2 and so on.
+//       </td>
+//      </tr>
+//      <tr>
+//       <td>
+//        KINDid
+//       </td>
+//       <td>
+//          (read only) returns the kind of the specified node. <br>
+//          Possible values:
+//        <br>
+//        <br>
+//          "LEAF": The node is a leaf <br>
+//          "BRANCH": The node is a branch
+//       </td>
+//      </tr>
         <tr>
          <td>
           PARENTid
@@ -905,38 +827,38 @@ IupSetAttributeId(ih, "ADDLEAF", 10, value) == IupSetAttribute(ih, "ADDLEAF10", 
             "COLLAPSED": Collapsed branch state (hides its children)
          </td>
         </tr>
-        <tr>
-         <td>
-          TITLEid
-         </td>
-         <td>
-            the text label of the specified node.
-         </td>
-        </tr>
-        <tr>
-         <td>
-          TITLEFONTid
-         </td>
-         <td>
-            the text font of the specified node. The format is the same as the <a href="gSetAttribute.htm#FONT">FONT</a> attribute.
-         </td>
-        </tr>
-        <tr>
-         <td>
-          TITLEFONTSTYLEid
-         </td>
-         <td>
-            changes the font style of the specified node. Actually changes the TITLEFONTid attribute.
-         </td>
-        </tr>
-        <tr>
-         <td>
-          TITLEFONTSIZEid
-         </td>
-         <td>
-            changes the font size of the specified node. Actually changes the TITLEFONTid attribute.
-         </td>
-        </tr>
+//      <tr>
+//       <td>
+//        TITLEid
+//       </td>
+//       <td>
+//          the text label of the specified node.
+//       </td>
+//      </tr>
+//      <tr>
+//       <td>
+//        TITLEFONTid
+//       </td>
+//       <td>
+//          the text font of the specified node. The format is the same as the <a href="gSetAttribute.htm#FONT">FONT</a> attribute.
+//       </td>
+//      </tr>
+//      <tr>
+//       <td>
+//        TITLEFONTSTYLEid
+//       </td>
+//       <td>
+//          changes the font style of the specified node. Actually changes the TITLEFONTid attribute.
+//       </td>
+//      </tr>
+//      <tr>
+//       <td>
+//        TITLEFONTSIZEid
+//       </td>
+//       <td>
+//          changes the font size of the specified node. Actually changes the TITLEFONTid attribute.
+//       </td>
+//      </tr>
         <tr>
          <td>
           USERDATAid
@@ -996,22 +918,22 @@ IupSetAttributeId(ih, "ADDLEAF", 10, value) == IupSetAttribute(ih, "ADDLEAF10", 
             defines the toggle visible state. Values can be "Yes" or "No". Default: "Yes".
          </td>
         </tr>
-        <tr>
-         <td>
-          TOGGLEBGCOLOR(*)
-         </td>
-         <td>
-            background color of the toggle. Default: "TXTBGCOLOR"
-         </td>
-        </tr>
-        <tr>
-         <td>
-          TOGGLEFGCOLOR(*)
-         </td>
-         <td>
-            foreground color of the toggle, use to draw the frame and the check mark. Default: "TXTFGCOLOR"
-         </td>
-        </tr>
+//      <tr>
+//       <td>
+//        TOGGLEBGCOLOR(*)
+//       </td>
+//       <td>
+//          background color of the toggle. Default: "TXTBGCOLOR"
+//       </td>
+//      </tr>
+//      <tr>
+//       <td>
+//        TOGGLEFGCOLOR(*)
+//       </td>
+//       <td>
+//          foreground color of the toggle, use to draw the frame and the check mark. Default: "TXTFGCOLOR"
+//       </td>
+//      </tr>
         <tr>
          <td>
           TOGGLESIZE(*)
@@ -1055,7 +977,7 @@ IupSetAttributeId(ih, "ADDLEAF", 10, value) == IupSetAttribute(ih, "ADDLEAF10", 
          <td>
             the image name that will be shown for all leaves. Default: "IMGLEAF" (a bullet). <br>
             Internal values "IMGBLANK" (blank sheet of paper) and "IMGPAPER" (written sheet of paper) are also available. <br>
-            If <a href="gSetAttribute.htm#BGCOLOR">BGCOLOR</a> is set the image is automatically updated.
+//          If <a href="gSetAttribute.htm#BGCOLOR">BGCOLOR</a> is set the image is automatically updated.
             This image defines the available space for the image in all nodes. <br>
             "IMGEMPTY" can be used as a totally transparent image .
          </td>
@@ -1124,18 +1046,10 @@ IupSetAttributeId(ih, "ADDLEAF", 10, value) == IupSetAttribute(ih, "ADDLEAF10", 
         </tr>
         <tr>
          <td>
-          CANFOCUS
-         </td>
-         <td>
-            (creation only) enables the focus traversal of the control. Default: YES.
-         </td>
-        </tr>
-        <tr>
-         <td>
           PROPAGATEFOCUS
          </td>
          <td>
-            enables the focus callback forwarding to the next native parent with FOCUS_CB defined. Default: NO.
+            enables the focus handler forwarding to the next native parent with FOCUS_CB defined. Default: NO.
          </td>
         </tr>
         <tr>
@@ -1157,12 +1071,41 @@ IupSetAttributeId(ih, "ADDLEAF", 10, value) == IupSetAttribute(ih, "ADDLEAF10", 
 -->
         <tr>
          <td>
+          Also:
+         </td>
+         <td>
+            <a href="gSetAttribute.htm#ACTIVE">ACTIVE</a>, 
+            <a href="gSetAttribute.htm#CANFOCUS">CANFOCUS</a>, 
+            <a href="gSetAttribute.htm#FONT">FONT</a>, 
+<!--        <a href="gSetAttribute.htm#NAME">NAME</a>, -->
+            <a href="gSetAttribute.htm#EXPAND">EXPAND</a>, 
+<!--?           <a href="gSetAttribute.htm#POSITION">POSITION</a>, -->
+<!--?           <a href="gSetAttribute.htm#SCREENPOSITION">SCREENPOSITION</a>, -->
+            <a href="gSetAttribute.htm#MINSIZE">MINSIZE</a>, 
+            <a href="gSetAttribute.htm#MAXSIZE">MAXSIZE</a>,
+<!--            <a href="gSetAttribute.htm#WID">WID</a>, -->
+            <a href="gSetAttribute.htm#SIZE">SIZE</a>, 
+            <a href="gSetAttribute.htm#TIP">TIP</a>, 
+<!--            <a href="gSetAttribute.htm#RASTERSIZE">RASTERSIZE</a>,-->
+<!--            <a href="gSetAttribute.htm#ZORDER">ZORDER</a>,-->
+            <a href="gSetAttribute.htm#VISIBLE">VISIBLE</a>.
+<!--
+            <br>
+            <br>
+?           Drag & Drop attributes are supported. See Notes above.
+-->
+         </td>
+        </tr>
+<!--
+        <tr>
+         <td>
           <b>Marks</b>
          </td>
          <td>
             (non inheritable)
          </td>
         </tr>
+-->
 <!--
         <tr>
          <td>
@@ -1201,15 +1144,17 @@ IupSetAttributeId(ih, "ADDLEAF", 10, value) == IupSetAttribute(ih, "ADDLEAF10", 
          </td>
         </tr>
 -->
+<!--
         <tr>
          <td>
-          MARKMODE
+?         MARKMODE
          </td>
          <td>
             (not yet implemented , but planned)
             defines how the nodes can be selected. Can be: SINGLE or MULTIPLE. Default: SINGLE.
          </td>
         </tr>
+-->
 <!--
         <tr>
          <td>
@@ -1422,7 +1367,7 @@ IupSetAttributeId(ih, "ADDLEAF", 10, value) == IupSetAttribute(ih, "ADDLEAF10", 
           DRAGDROPTREE
          </td>
          <td>
-            (non inheritable) prepare the Drag & Drop callbacks to support drag and drop of nodes between trees (IupFlatTree only), in the same IUP application. <br>
+            (non inheritable) prepare the Drag & Drop handlers to support drag and drop of nodes between trees (IupFlatTree only), in the same IUP application. <br>
             Drag & Drop attributes still need to be set in order to activate the drag & drop support, so the application can control if this tree will be source and/or target. <br>
             Default: NO.
          </td>
@@ -1444,7 +1389,7 @@ IupSetAttributeId(ih, "ADDLEAF", 10, value) == IupSetAttribute(ih, "ADDLEAF10", 
          <td>
             (non inheritable) if enabled will allow a drop node to be equal to the drag node. <br>
             Used only if SHOWDRAGDROP =Yes. <br>
-            In the case the nodes are equal the callback return value is ignored and nothing is done after.
+            In the case the nodes are equal the handler return value is ignored and nothing is done after.
          </td>
         </tr>
         <tr>
@@ -1452,7 +1397,7 @@ IupSetAttributeId(ih, "ADDLEAF", 10, value) == IupSetAttribute(ih, "ADDLEAF10", 
           SHOWDRAGDROP
          </td>
          <td>
-            (non inheritable) Enables the internal drag and drop of nodes, and enables the DRAGDROP_CB callback. Default: "NO". <br>
+            (non inheritable) Enables the internal drag and drop of nodes, and enables the DRAGDROP_CB handler. Default: "NO". <br>
             Works only if MARKMODE=SINGLE. Drag & Drop attributes are NOT used.
          </td>
         </tr>
@@ -1462,17 +1407,50 @@ IupSetAttributeId(ih, "ADDLEAF", 10, value) == IupSetAttribute(ih, "ADDLEAF10", 
           <b>Handlers:</b>
          </td>
          <td>
+            <br>
 <!--
-            Inherits all callbacks of the <a href="IupCanvas.htm">IupCanvas</a>, but redefines a few of them. <br>
-            Including <a href="callbacks.htm#BUTTON_CB">BUTTON_CB</a>, <a href="callbacks.htm#LEAVEWINDOW_CB">LEAVEWINDOW_CB</a>,
-            <a href="callbacks.htm#FOCUS_CB">FOCUS_CB</a>, and <a href="callbacks.htm#MOTION_CB">MOTION_CB</a>.
-            To allow the application to use those callbacks the same callbacks are exported with the "FLAT_" prefix using the same parameters.<br>
-            They are all called before the internal callbacks and if they return <a href="gSetHandler.htm#XPG_IGNORE">XPG_IGNORE</a>
-            the internal callbacks are not processed.
+            Inherits all handlers of the <a href="IupCanvas.htm">IupCanvas</a>, but redefines a few of them. <br>
+??ERM??     Including <a href="gSetHandler.htm#CLICK">CLICK</a>, <a href="gSetHandler.htm#LEAVEWINDOW_CB">LEAVEWINDOW_CB</a>,
+?           <a href="gSetHandler.htm#FOCUS_CB">FOCUS_CB</a>, and <a href="gSetHandler.htm#MOOUSEMOVE">MOUSEMOVE</a>.
+            To allow the application to use those handlers the same handlers are exported with the "FLAT_" prefix using the same parameters.<br>
+            They are all called before the internal handlers and if they return <a href="gSetHandler.htm#XPG_IGNORE">XPG_IGNORE</a>
+            the internal handlers are not processed.
             <br>
             <br>
-            Drag & Drop attributes and callbacks are supported, but SHOWDRAGDROP must be set to NO.
+            Drag & Drop attributes and handlers are supported, but SHOWDRAGDROP must be set to NO.
 -->
+          <a name=BRANCHOPEN></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          BRANCHOPEN
+         </td>
+         <td>
+            Event generated when a branch is expanded, and intended for implementing deferred (sub-tree) loading.
+            <br>
+            <br>
+            procedure branchopen(<a href="object.htm">object</a> treenode)
+            <br>
+            <br>
+            treenode: opaque/backend-specific, suitable for passing directly to gTreeGetUserId() and gTreeAddNodes(). <br>
+            Currently under GTK it is {treeview,iter,path}, under WinAPI it is {treeview,TreeIdx}, and under p2js it is a 
+            HTMLUListElement: you may be able to do a few dirty little debug tricks with it, but should cease and desist 
+            from doing anything like that in the finished code, plus those details may well change in a future release.
+            <br>
+            <br>
+            Should you not want a user to open a branch, simply don&rsquo;t put any children in there in the first place.
+            <br>
+            <br>
+            Deferred loading is not worthwhile for a tree the size of the one shown above, but it certainly would be when 
+            loading a hard drive (for instance, try right clicking on C:\Windows, select Properties, and watch it start 
+            counting, then imagine staring at a blank screen until it finishes) or perhaps a database containing several 
+            decades-worth of detailed historical information. 
+            <br>
+            <br>
+            The <a href="gTreeAddNodes.htm">gTreeAddNodes example</a> showcases deferred loading, however you are free to 
+            replace "tree_data" with anything you like[/can massage into the right format], including a database or even an 
+            (ideally asynchronous) remote fetch that triggers that code (in the main thread) when it completes.
          </td>
         </tr>
 <!--
@@ -1530,35 +1508,6 @@ IupSetAttributeId(ih, "ADDLEAF", 10, value) == IupSetAttribute(ih, "ADDLEAF10", 
          </td>
         </tr>
 -->
-        <tr>
-         <td>
-            <a name=BRANCHOPEN></a>
-          BRANCHOPEN
-         </td>
-         <td>
-            Event generated when a branch is expanded, and intended for implementing deferred (sub-tree) loading.
-            <br>
-            <br>
-            procedure branchopen(<a href="object.htm">object</a> treenode)
-            <br>
-            <br>
-            treenode: backend-specific, suitable for passing directly to gTreeGetUserId(), gTreeDeleteChildren(), and
-            gTreeAddNodes(). Under GTK it is {treeview,iter,path}, under WinAPI it is {treeview,TreeIdx}, and under 
-            p2js it is a HTMLUListElement: you may be able to do a few dirty little debug tricks with it, but should 
-            cease and desist from doing anything like that in finished code.
-            <br>
-            <br>
-            If for some reason you do not want to allow a user to open a branch, simply don&rsquo;t put any children
-            in there in the first place.
-            <br>
-            <br>
-            Probably not really worthwhile for a tree the size of the one shown above, but it certainly would be when loading
-            a hard drive (for instance, try right clicking on C:\Windows, select Properties, and watch it start counting) or 
-            perhaps a database containing decades-worth of detailed historical information. The code in the simple example 
-            above should be pretty much all you need, however you are free to replace "tree_data" with anything you like, 
-            including a database or even a remote fetch that, ideally asynchronously, triggers that code when it completes.
-         </td>
-        </tr>
 <!--
         <tr>
          <td>
@@ -1599,7 +1548,7 @@ IupSetAttributeId(ih, "ADDLEAF", 10, value) == IupSetAttribute(ih, "ADDLEAF10", 
          <td>
             Event generated when a branch is executed. <br>
             This event occurs when the user double clicks a branch, or hits Enter on a branch. <br>
-            Is is called before the BRANCH*_CB callbacks.
+            Is is called before the BRANCH*_CB handlers.
             <br>
             <br>
             function executebranch_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> id)<br>
@@ -1639,9 +1588,9 @@ IupSetAttributeId(ih, "ADDLEAF", 10, value) == IupSetAttribute(ih, "ADDLEAF10", 
             pTitle: new node title (a char*). 
             <br>
             <br>
-            Returns: The new title is accepted only if the callback returns <a href="gSetHandler.htm#XPG_DEFAULT">XPG_DEFAULT</a>. <br>
-            If the callback does not exist the new title is always accepted. <br>
-            If the user pressed Enter and the callback returns <a href="gSetHandler.htm#XPG_IGNORE">XPG_IGNORE</a> the editing continues. <br>
+            Returns: The new title is accepted only if the handler returns <a href="gSetHandler.htm#XPG_DEFAULT">XPG_DEFAULT</a>. <br>
+            If the handler does not exist the new title is always accepted. <br>
+            If the user pressed Enter and the handler returns <a href="gSetHandler.htm#XPG_IGNORE">XPG_IGNORE</a> the editing continues. <br>
             If the text box looses its focus the editing stops always.
          </td>
         </tr>
@@ -1663,7 +1612,7 @@ IupSetAttributeId(ih, "ADDLEAF", 10, value) == IupSetAttribute(ih, "ADDLEAF10", 
             iscontrol: flag indicating the control key state.
             <br>
             <br>
-            Returns: if returns <a href="gSetHandler.htm#XPG_CONTINUE">XPG_CONTINUE</a>, or if the callback is not defined 
+            Returns: if returns <a href="gSetHandler.htm#XPG_CONTINUE">XPG_CONTINUE</a>, or if the handler is not defined 
             and SHOWDRAGDROP=YES, then the node is moved to the new position. <br>
             If Ctrl is pressed then the node is copied instead of moved. <br>
             If the drop node is a branch and it is expanded, then the drag node is inserted as the first child of the node. <br>
@@ -1677,7 +1626,7 @@ IupSetAttributeId(ih, "ADDLEAF", 10, value) == IupSetAttribute(ih, "ADDLEAF10", 
          <td>
             Event generated when a node is about to be removed.<br>
             It is only a notification, the event can not be aborted. <br>
-            No node dependent attribute can be consulted during the callback. <br>
+            No node dependent attribute can be consulted during the handler. <br>
             It is useful to remove memory allocated for the userdata.
             <br>
             <br>
@@ -1705,7 +1654,7 @@ IupSetAttributeId(ih, "ADDLEAF", 10, value) == IupSetAttribute(ih, "ADDLEAF10", 
          </td>
          <td>
             Event generated when the toggle&rsquo;s state was changed. <br>
-            The callback also receives the new toggle&rsquo;s state.
+            The handler also receives the new toggle&rsquo;s state.
             <br>
             <br>
             function togglevalue_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> id, state)<br>
@@ -1714,24 +1663,24 @@ IupSetAttributeId(ih, "ADDLEAF", 10, value) == IupSetAttribute(ih, "ADDLEAF10", 
             state: 1 if the toggle&rsquo;s state was shifted to ON; 0 if it was shifted to OFF. If SHOW3STATE=YES, -1 if it was shifted to NOTDEF.
          </td>
         </tr>
-        <tr>
-         <td>
-          FLAT_BUTTON_CB
-         </td>
-         <td>
-            Event generated when any mouse button is pressed or released inside the element. <br>
-            Use <a href="IupConvertXYToPos.htm">IupConvertXYToPos</a>() to convert (x,y) coordinates in the node identifier.
-         </td>
-        </tr>
-        <tr>
-         <td>
-          FLAT_MOTION_CB
-         </td>
-         <td>
-            Event generated when the mouse is moved over the element. <br>
-            Use <a href="IupConvertXYToPos.htm">IupConvertXYToPos</a>() to convert (x,y) coordinates in item the node identifier.
-         </td>
-        </tr>
+//      <tr>
+//       <td>
+//        FLAT_BUTTON_CB
+//       </td>
+//       <td>
+//          Event generated when any mouse button is pressed or released inside the element. <br>
+//          Use <a href="IupConvertXYToPos.htm">IupConvertXYToPos</a>() to convert (x,y) coordinates in the node identifier.
+//       </td>
+//      </tr>
+//      <tr>
+//       <td>
+//        FLAT_MOTION_CB
+//       </td>
+//       <td>
+//          Event generated when the mouse is moved over the element. <br>
+//          Use <a href="IupConvertXYToPos.htm">IupConvertXYToPos</a>() to convert (x,y) coordinates in item the node identifier.
+//       </td>
+//      </tr>
         <tr>
          <td>
           DROPFILES_CB
@@ -1747,24 +1696,19 @@ IupSetAttributeId(ih, "ADDLEAF", 10, value) == IupSetAttribute(ih, "ADDLEAF10", 
          </td>
          <td>
 <!--
-//          <a href="callbacks.htm#MAP_CB">MAP_CB</a>,
-//          <a href="callbacks.htm#UNMAP_CB">UNMAP_CB</a>,
-//          <a href="callbacks.htm#DESTROY_CB">DESTROY_CB</a>,
+//          <a href="gSetHandler.htm#MAP_CB">MAP_CB</a>,
+//          <a href="gSetHandler.htm#UNMAP_CB">UNMAP_CB</a>,
+//          <a href="gSetHandler.htm#DESTROY_CB">DESTROY_CB</a>,
 -->
-            <a href="callbacks.htm#GETFOCUS_CB">GETFOCUS_CB</a>,
-            <a href="callbacks.htm#KILLFOCUS_CB">KILLFOCUS_CB</a>, 
-            <a href="callbacks.htm#ENTERWINDOW_CB">ENTERWINDOW_CB</a>,
-            <a href="callbacks.htm#LEAVEWINDOW_CB">LEAVEWINDOW_CB</a>, 
-            <a href="gSetHandler.htm#KEY">KEY</a>,
-            <a href="callbacks.htm#HELP_CB">HELP_CB</a>: All common callbacks are supported.
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <b>Examples:</b>
-         </td>
-         <td>
-            See demo\xpGUI\gTreeView.exw and demo\xpGUI\gTreeView2.exw
+<!--
+            <a href="gSetHandler.htm#GETFOCUS_CB">GETFOCUS_CB</a>,
+            <a href="gSetHandler.htm#KILLFOCUS_CB">KILLFOCUS_CB</a>, 
+            <a href="gSetHandler.htm#ENTERWINDOW_CB">ENTERWINDOW_CB</a>,
+            <a href="gSetHandler.htm#LEAVEWINDOW_CB">LEAVEWINDOW_CB</a>, 
+-->
+<!--            <a href="gSetHandler.htm#HELP_CB">HELP_CB</a>-->
+            <a href="gSetHandler.htm#KEY">KEY</a>: All common handlers are supported.<br>
+          <a name=tech></a>
          </td>
         </tr>
         <tr id="Technicalia" style="display:none;">
@@ -1775,61 +1719,67 @@ IupSetAttributeId(ih, "ADDLEAF", 10, value) == IupSetAttribute(ih, "ADDLEAF10", 
          </td>
          <td>
             As this is a <a href="g_paranormal.htm">paranormalised function</a>, and with no expectation that you should attempt to memorise 
-            anything but the final recap, or better yet just stick to the initial definition, and/or just ignore this completely and provide 
-            all four parameters every time, you can assume that all of the following are potentially perfectly valid:
+            this lot, except maybe "qraa", you can assume that all of the following are potentially perfectly valid, with the fairly obvious 
+            restriction that any parameters <i>must</i> be in strict qraa-order, and no args without attributes:
             <br>
             <br>
 <small>
 <!--eucode>
                         gTreeView()
                         gTreeView(branchopen)
-                        gTreeView(attributes[,args])
-                        gTreeView(branchopen,attributes[,args])
+                        gTreeView(attributes)
+                        gTreeView(attributes, args)
+                        gTreeView(branchopen, attributes)
+                        gTreeView(branchopen, attributes, args)
                         gTreeView(tree_nodes)
-                        gTreeView(tree_nodes,branchopen)
-                        gTreeView(tree_nodes,attributes[,args])
-                        gTreeView(tree_nodes,branchopen,attributes[,args])
--- quick recap:      gTreeView([tree_nodes,][branchopen,][attributes[,args]])
+                        gTreeView(tree_nodes, branchopen)
+                        gTreeView(tree_nodes, attributes)
+                        gTreeView(tree_nodes, attributes, args)
+                        gTreeView(tree_nodes, branchopen, attributes)
+                        gTreeView(tree_nodes, branchopen, attributes, args)     -- (the full set)
 </eucode-->
 <pre>
 <font color="#7060A8">                        gTreeView</font><font color="#0000FF">()</font>
 <font color="#7060A8">                        gTreeView</font><font color="#0000FF">(</font><font color="#000000">branchopen</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gTreeView</font><font color="#0000FF">(</font><font color="#000000">attributes</font><font color="#800000">[</font><font color="#0000FF">,</font><font color="#000000">args</font><font color="#800000">]</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gTreeView</font><font color="#0000FF">(</font><font color="#000000">branchopen</font><font color="#0000FF">,</font><font color="#000000">attributes</font><font color="#800000">[</font><font color="#0000FF">,</font><font color="#000000">args</font><font color="#800000">]</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gTreeView</font><font color="#0000FF">(</font><font color="#000000">attributes</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gTreeView</font><font color="#0000FF">(</font><font color="#000000">attributes</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gTreeView</font><font color="#0000FF">(</font><font color="#000000">branchopen</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gTreeView</font><font color="#0000FF">(</font><font color="#000000">branchopen</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">)</font>
 <font color="#7060A8">                        gTreeView</font><font color="#0000FF">(</font><font color="#000000">tree_nodes</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gTreeView</font><font color="#0000FF">(</font><font color="#000000">tree_nodes</font><font color="#0000FF">,</font><font color="#000000">branchopen</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gTreeView</font><font color="#0000FF">(</font><font color="#000000">tree_nodes</font><font color="#0000FF">,</font><font color="#000000">attributes</font><font color="#800000">[</font><font color="#0000FF">,</font><font color="#000000">args</font><font color="#800000">]</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gTreeView</font><font color="#0000FF">(</font><font color="#000000">tree_nodes</font><font color="#0000FF">,</font><font color="#000000">branchopen</font><font color="#0000FF">,</font><font color="#000000">attributes</font><font color="#800000">[</font><font color="#0000FF">,</font><font color="#000000">args</font><font color="#800000">]</font><font color="#0000FF">)</font>
-<font color="#000080"><i>-- quick recap:      gTreeView([tree_nodes,][branchopen,][attributes[,args]])</i></font>
+<font color="#7060A8">                        gTreeView</font><font color="#0000FF">(</font><font color="#000000">tree_nodes</font><font color="#0000FF">,</font><font color="#000000"> branchopen</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gTreeView</font><font color="#0000FF">(</font><font color="#000000">tree_nodes</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gTreeView</font><font color="#0000FF">(</font><font color="#000000">tree_nodes</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gTreeView</font><font color="#0000FF">(</font><font color="#000000">tree_nodes</font><font color="#0000FF">,</font><font color="#000000"> branchopen</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gTreeView</font><font color="#0000FF">(</font><font color="#000000">tree_nodes</font><font color="#0000FF">,</font><font color="#000000"> branchopen</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">)    </font><font color="#000080"><i> -- (the full set)</i></font>
 </pre>
 </small>
             <br>
             Note that in practice rid is actually defined as <a href="object.htm">object</a>, and attributes as
             a <a href="sequence.htm">sequence</a> rather than a string, but they are all manually and thoroughly verified to 
-            be of the documented types, after they have been repositioned via the xpGUI.e/paranormalise_qraa() routine.
+            be of the documented types, after being repositioned via xpGUI.e/paranormalise_qraa().
          </td>
         </tr>
        </table>
-       <img src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <img id="Timg" src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
 <!--
-            A gTreeView is a Phix/pGUI invention, expressly written for 
-            <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js</b></span></a>,
-            but can of course be used for desktop/Phix-only purposes.<br>
-            The desktop version wraps IupFlatTree() with IupTreeAddNodes(), in other words a restricted/easier subset.<br>
-            The equivalent functionality is implemented in the browser using nested ul/li with a tiny embedded gif and a 
-            a small handful of suitable unicode characters, plus of course about 300 lines of handcrafted javascript/CSS.
-            <br>
-            <br>
-            The main purpose of this page is to show <b>only</b> pwa/p2js supported features, in preference to littering 
-            the IupFlatTree page with dozens if not hundreds of "not supported" markers.
-            <br>
-            <br>
-            Note, for example, that USERDATA is used internally, so that and IupTreeSet/Get[User]Id() are not available 
-            to the application, at least not in any generally useful way, other than as dictated below. In fact,
-            <a href="IupFlatTree.htm">IupTreeGetUserId</a>() is effectively a null-op on the browser, however it is
-            required on the desktop because of the way IUP renumbers nodes as predecessors are inserted.
-            <br>
-            <br>
+//          A gTreeView is a Phix/pGUI invention, expressly written for 
+//          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js</b></span></a>,
+//          but can of course be used for desktop/Phix-only purposes.<br>
+//          The desktop version wraps IupFlatTree() with IupTreeAddNodes(), in other words a restricted/easier subset.<br>
+//          The equivalent functionality is implemented in the browser using nested ul/li with a tiny embedded gif and a 
+//          a small handful of suitable unicode characters, plus of course about 300 lines of handcrafted javascript/CSS.
+//          <br>
+//          <br>
+//          The main purpose of this page is to show <b>only</b> pwa/p2js supported features, in preference to littering 
+//          the IupFlatTree page with dozens if not hundreds of "not supported" markers.
+//          <br>
+//          <br>
+//          Note, for example, that USERDATA is used internally, so that and IupTreeSet/Get[User]Id() are not available 
+//          to the application, at least not in any generally useful way, other than as dictated below. In fact,
+//          <a href="IupFlatTree.htm">IupTreeGetUserId</a>() is effectively a null-op on the browser, however it is
+//          required on the desktop because of the way IUP renumbers nodes as predecessors are inserted.
+//          <br>
+//          <br>
 -->
        <br>
        <br>

@@ -30,9 +30,10 @@
           <br>
           <br>
             id: Identifier(s) of the interface element(s).<br>
-            attributes: string with the attributes in the format <i>"v1=a1, v2=a2,..."</i><br>
-            args: if a non-empty <a href="sequence.htm">sequence</a> is passed, it performs 
-            attributes = <a href="sprintf.htm">sprintf</a>(attributes,args) first.
+            attributes: string with the attributes in the format 
+            <i>&ldquo;name<small><sub>1</sub></small>=attr<small><sub>1</sub></small>, 
+                      name<small><sub>2</sub></small>=attr<small><sub>2</sub></small>,...&rdquo;</i><br>
+            args: if not {}, it performs <code>attributes = <a href="sprintf.htm">sprintf</a>(attributes,args)</code>.
          </td>
         </tr>
         <tr>
@@ -48,22 +49,28 @@
           <b>Comments:</b>
          </td>
          <td>
+            Parses the (post-sprintf) attributes string and invokes 
+            <a href="gSetAttribute.htm">gSetAttribute</a>(id,name<small><sub><i>i</i></sub></small>,attr<small><sub><i>i</i></sub></small>) 
+            for each pair in turn. This routine itself does not care or check whether id is a single or a sequence of ids, and instead
+            leaves all such handling to the "without-s" routine.
+            <br>
+            <br>
             Most interface elements can be created with an optional implicit inline invocation of gSetAttributes(), which can make code 
             much cleaner than invoking this function, as example 2 below shows.
             <br>
             <br>
-            Fairly obviously, attribute values must be expressed in textual form, but for instance a <a href="integer.htm#bool">bool</a>
-            can be set using "1"/"0", "true"/"false", "YES"/"NO", "ON"/"OFF" and similar, as documented for the specific attribute, with
-            (say) "SOMEFLAG=%t, ...", {flag, ...} or a separate <a href="gSetAttribute.htm">gSetAttribute</a>(id,"SOMEFLAG",flag) being 
+            Fairly obviously, attribute values must be expressed(/ible) in textual form, but a <a href="integer.htm#bool">bool</a>, for
+            instance, can be set using "1"/"0", "true"/"false", "YES"/"NO", "ON"/"OFF" and similar, as documented for the specific attribute, 
+            with (say) "SOMEFLAG=%t, ...", {flag, ...} or a separate <a href="gSetAttribute.htm">gSetAttribute</a>(id,"SOMEFLAG",flag) being 
             some of the more obvious and straightforward choices.
             <br>
             <br>
-            There are cases such as a title of `the string is "X" [SIZE=%d]` which are difficult if not impossible to achieve via 
-            gSetAttributes, because of the inevitable mis-parsing of commas, spaces, quotes, and equal signs. Bear this in mind, 
-            especially when the data originates from file or user input, as a similar potential error might not be so readily apparent. 
+            There may be cases such as a title of `thing="X", [SIZE=%d]` which might prove difficult if not impossible to achieve via 
+            gSetAttributes(), because of the probable mis-parsing of commas, spaces, [mixed] quotes, and equal signs. Bear this in mind, 
+            especially when the data originates from file or user input, and may in fact require careful sanitisation, or even rejection.
             While quotation marks <i>are</i> parsed, so for example gSetAttributes(id,`TITLE="Address Book", SIZE=500x300`) works fine, 
-            there is however no way to include literal quotation marks in a value when using gSetAttributes(). Any such fields must be 
-            set individually using <a href="gSetAttribute.htm">gSetAttribute</a>().
+            there is however quite simply <i>no way</i> to include literal quotation marks in a value when using gSetAttributes(). Any 
+            such potentially confusing fields must be set individually using <a href="gSetAttribute.htm">gSetAttribute</a>() directly.
             If there is any doubt, especially with settings that are not fixed constants, just do them one at a time.
 <!-- [FIXED]
             <br>
@@ -78,12 +85,12 @@
             <br>
             <br>
 <!--
-            The function <span class="illegal">IupSetAttributesf</span> has been removed, since that functionality is now provided by the optional 
-            <code>string attributes="", sequence args={}</code> parameters on all relevant element creation routines (with non-default
-            values triggering an internal invocation of this very routine).<br>
-            Likewise the <span class="illegal">IupSetAtt</span> function has been removed, see example 2 below, though admittedly when a non-null name has
-            been provided that may require extra <a href="IupSetHandle.htm">IupSetHandle</a>() calls (which, btw, is equivalent
-            to making the handle global, and therefore potentially troublesome).<br>
+//          The function <span class="illegal">IupSetAttributesf</span> has been removed, since that functionality is now provided by the optional 
+//          <code>string attributes="", sequence args={}</code> parameters on all relevant element creation routines (with non-default
+//          values triggering an internal invocation of this very routine).<br>
+//          Likewise the <span class="illegal">IupSetAtt</span> function has been removed, see example 2 below, though admittedly when a non-null name has
+//          been provided that may require extra <a href="IupSetHandle.htm">IupSetHandle</a>() calls (which, btw, is equivalent
+//          to making the handle global, and therefore potentially troublesome).<br>
 -->
             C code that uses nested IupSetAtt[ributes[f]]() calls should normally be converted into a single 
             <a href="g_paranormal.htm">paranormalised function</a> call when possible, otherwise be broken down into consecutive 
@@ -113,7 +120,7 @@ gSetAttributes(filedlg, dlgtype)
 <pre>
 <font color="#004080">string</font><font color="#000000"> dlgtype</font><font color="#0000FF"> =</font><font color="#7060A8"> iff</font><font color="#0000FF">(</font><font color="#000000">bOpen</font><font color="#0000FF">?</font><font color="#008000">`DIALOGTYPE=OPEN, TITLE=Open`</font>
 <font color="#0000FF">                          :</font><font color="#008000">`DIALOGTYPE=SAVE, TITLE=Save`</font><font color="#0000FF">)</font>
-<font color="#7060A8">IupSetAttributes</font><font color="#0000FF">(</font><font color="#000000">filedlg</font><font color="#0000FF">,</font><font color="#000000"> dlgtype</font><font color="#0000FF">)</font>
+<font color="#7060A8">gSetAttributes</font><font color="#0000FF">(</font><font color="#000000">filedlg</font><font color="#0000FF">,</font><font color="#000000"> dlgtype</font><font color="#0000FF">)</font>
 </pre>
          </td>
         </tr>
@@ -131,49 +138,21 @@ gSetAttributes(filedlg, dlgtype)
          <td>
             Translate C code such as
             <br>
-            <br>
+            <small><br>
              <code>list = IupList(); IupSetAtt(NULL, list, "VALUE", "3", "1", "Brazil", "2", "USA", "3", "Japan", "4", "France", NULL);</code>
-            <br>
+            <br></small>
             <br>
              to
             <br>
-            <br>
+            <small><br></small>
 <!--eucode>
-Ihandle list = IupList(`VALUE=3, 1=Brazil, 2=USA, 3=Japan, 4=France`)
+gdx list = gList(`VALUE=3, 1=Brazil, 2=USA, 3=Japan, 4=France`)
 </eucode-->
 <pre>
-<font color="#7060A8">Ihandle</font><font color="#000000"> list</font><font color="#0000FF"> =</font><font color="#7060A8"> IupList</font><font color="#0000FF">(</font><font color="#008000">`VALUE=3, 1=Brazil, 2=USA, 3=Japan, 4=France`</font><font color="#0000FF">)</font>
+<font color="#7060A8">gdx</font><font color="#000000"> list</font><font color="#0000FF"> =</font><font color="#7060A8"> gList</font><font color="#0000FF">(</font><font color="#008000">`VALUE=3, 1=Brazil, 2=USA, 3=Japan, 4=France`</font><font color="#0000FF">)</font>
 </pre>
-            <br>
-            Admittedly this is more of an example of when <i>not</i> to use IupsetAttributes, or more accurately inline it.
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <b>Example 3:</b>
-         </td>
-         <td>
-            Enable or disable several buttons and/or menu entries simultaneously.
-         </td>
-        </tr>
-        <tr>
-         <td>
-         </td>
-         <td>
-<!--eucode>
-string active = iff(selected_text={}?"NO":"YES")
--- or equivalently: bool active = (selected_text!={})
-gSetAttributes({b_cut,b_copy,b_delete,m_cut,m_copy,m_delete}, "ACTIVE", active)
-</eucode-->
-<pre>
-<font color="#004080">string</font><font color="#000000"> active</font><font color="#0000FF"> =</font><font color="#7060A8"> iff</font><font color="#0000FF">(</font><font color="#000000">selected_text</font><font color="#0000FF">=</font><font color="#800000">{}</font><font color="#0000FF">?</font><font color="#008000">"NO"</font><font color="#0000FF">:</font><font color="#008000">"YES"</font><font color="#0000FF">)</font>
-<font color="#7060A8">IupSetAttributes</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">b_cut</font><font color="#0000FF">,</font><font color="#000000">b_copy</font><font color="#0000FF">,</font><font color="#000000">b_delete</font><font color="#0000FF">,</font><font color="#000000">m_cut</font><font color="#0000FF">,</font><font color="#000000">m_copy</font><font color="#0000FF">,</font><font color="#000000">m_delete</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000"> "ACTIVE"</font><font color="#0000FF">,</font><font color="#000000"> active</font><font color="#0000FF">)</font>
-</pre>
-<!--
-            <br>
-            You could equivalently use <a href="IupSetStrAttribute.htm#utility">IupSetInt</a> and a 
-            <a href="integer.htm#bool">bool</a>, probably ever-so-slightly faster, but probably not by enough to ever actually measure.
--->
+            <small><br></small>
+            Admittedly that is more of an example of when <i>not</i> to use gSetAttributes(), or more accurately implicitly inline it.
          </td>
         </tr>
         <tr>
@@ -181,12 +160,59 @@ gSetAttributes({b_cut,b_copy,b_delete,m_cut,m_copy,m_delete}, "ACTIVE", active)
           <b>See Also:</b>
          </td>
          <td>
-          <a href="IupGetAttribute.htm">IupGetAttribute</a>,
+          <a href="gGetAttribute.htm">gGetAttribute</a>,
           <a href="gSetAttribute.htm">gSetAttribute</a>,
-          <a href="IupList.htm">IupList</a>
+          <a href="gList.htm">gList</a>
          </td>
         </tr>
        </table>
+        <div style="clear:both;height:1px;"> </div>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
        <br>
        <br>
       </div>

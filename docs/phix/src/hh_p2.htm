@@ -1,0 +1,385 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">printf(2^i)</h1>
+      <div id="mainSection">
+        Some code was added to the desktop version of printf() in 1.0.2 which prints powers of 2 to ridiculous accuracy, simply
+        because I had spotted C++ boost manages it and I just wanted to know how, since I did not think it was possible, and in 
+        fact it isn&rsquo;t when using {%10,/10} to get the digits. It uses <a href="shift_bits.htm#count_bits">count_bits</a>()
+        which was also added in 1.0.2 to determine when/if the new code should be used, and just before that test it also uses
+        "and o>37778931862957161709568" which as commented should I <i>suspect</i> also have an "or o<1e-22" part.
+        <br>
+        <br>
+        It currently limits accuracy to 2^-73 probably only because that is where the web page I was reading went to, but I
+        suspect it could be pushed to like 2^-1074 or thereabouts (32-bit, more on 64-bit). It should be pretty trivial to write
+        some string-maths which starts with "0.5"(/"1") and divides(/multiplies) that by 2 on each iteration, to check against.
+        <br>
+        <br>
+        However, one thing I did not do is add any similar code to p2js.js, which just uses JavaScript&rsquo;s Number.toFixed() 
+        - and the (relatively straightforward) task here is to add such (JavaScript) code, obviously after and incorporating the 
+        final touches to desktop/Phix as outlined above.
+        <br>
+        <br>
+        Some left-over test code which may or may not be useful (also check for any comments in builtins/VM/pprntfN.e):
+<!--eucode>
+with javascript_semantics
+?count_bits(power(2,1000)) -- 1 -- DEV/SUG use this to print powers of 2 perfectly??
+--                          -- "(bound & -bound) == bound" might be better?? [ah, but limited to 32 bits!!]
+?count_bits(PI) -- 23 (about half of 53, ie about right then)
+?count_bits(0) -- good, 0
+
+--DEV **TODO**: make/check this lot work/s under p2js...
+atom po2 = 0.5;
+printf(1,"Negative Powers of Two\n")
+printf(1,"======================\n")
+for i=-1 to -73 by -1 do
+    string fmt = sprintf("2^%%d: %%.%df\n",{-i})
+    printf(1,fmt,{i,po2})
+    printf(1,fmt,{i,power(2,i)})
+    po2 /= 2
+end for
+
+po2 = 1;
+
+function act2(integer d)
+    sequence d2 = reinstate(repeat(0,d),1,1), d10 = ""
+    -- convert d2 (in base 2) to d10 (in base 10)
+    -- note that d2 is {1,0,0,0,0,0,0,0} for 0b10000000 aka 128,
+    --  whereas d10 is constructed as {8,2,1}, ie in reverse
+    while length(d2) do     -- (will be 302 iterations)
+        integer r = 0
+        for i,digit in d2 do    -- (<=1000 iterations)
+            r = r*2+digit       -- (times by inbase)
+            d2[i] = floor(r/10) -- (divide by outbase)
+            r = rmdr(r,10)
+        end for
+        d10 &= r+'0'
+        d2 = trim_head(d2,0)
+    end while
+    return reverse(d10)
+end function
+
+function act3(string b)
+    sequence d2 = sq_sub(b,'0')
+    string d10 = ""
+    -- convert d2 (in base 2) to d10 (in base 10)
+    -- note that d2 is {1,0,0,0,0,0,0,0} for 0b10000000 aka 128,
+    --  whereas d10 is constructed as {8,2,1}, ie in reverse
+    while length(d2) do     -- (will be 302 iterations)
+        integer r = 0
+        for i,digit in d2 do    -- (<=1000 iterations)
+            r = r*2+digit       -- (times by inbase)
+            d2[i] = floor(r/10) -- (divide by outbase)
+            r = rmdr(r,10)
+        end for
+        d10 &= r+'0'
+        d2 = trim_head(d2,0)
+    end while
+    return reverse(d10)
+end function
+
+
+printf(1,"Nonnegative Powers of Two\n");
+printf(1,"========================\n");
+for i=1 to 1024 do
+--for i=1 to 9 do --ok
+--if i>=76 and i<=84 then
+if i>=183 and i<=188 then
+--if i
+  printf(1,"2^%d: %.0f (%d)\n",{i-1,po2,count_bits(po2)});
+  printf(1,"2^%d: %d (%d)\n",{i-1,po2,count_bits(po2)});
+--  printf(1,"2^%d: %b (%d)\n",{i-1,po2,count_bits(po2)});
+    printf(1,"2^%d: %s (%d)\n",{i-1,act2(i),count_bits(po2)});
+    printf(1,"2^%d: %s (%d)\n",{i-1,act3(sprintf("%b",po2)),count_bits(po2)});
+end if
+  po2 *= 2;
+end for
+
+--/*
+Negative Powers of Two
+======================
+2^-1: 0.5
+2^-2: 0.25
+2^-3: 0.125
+2^-4: 0.0625
+2^-5: 0.03125
+2^-6: 0.015625
+2^-7: 0.0078125
+2^-8: 0.00390625
+2^-9: 0.001953125
+2^-10: 0.0009765625
+2^-11: 0.00048828125
+2^-12: 0.000244140625
+2^-13: 0.0001220703125
+2^-14: 0.00006103515625
+2^-15: 0.000030517578125
+2^-16: 0.0000152587890625
+2^-17: 0.0000076293945312
+2^-18: 0.0000038146972656
+2^-19: 0.0000019073486328
+2^-20: 0.0000009536743164
+
+Negative Powers of Two
+======================
+2^-1: 0.5
+2^-2: 0.25
+2^-3: 0.125
+2^-4: 0.0625
+2^-5: 0.03125
+2^-6: 0.015625
+2^-7: 0.0078125
+2^-8: 0.00390625
+.
+.
+.
+2^-50: 0.00000000000000088817841970012523233890533447265625
+2^-51: 0.000000000000000444089209850062616169452667236328125
+2^-52: 0.0000000000000002220446049250313080847263336181640625
+2^-53: 0.00000000000000011102230246251565404236316680908203125
+2^-54: 0.000000000000000055511151231257827021181583404541015625
+2^-55: 0.0000000000000000277555756156289135105907917022705078125
+.
+.
+Phix: (good!)
+2^-50: 0.00000000000000088817841970012523233890533447265625
+2^-51: 0.000000000000000444089209850062616169452667236328125
+2^-52: 0.0000000000000002220446049250313080847263336181640625
+2^-53: 0.00000000000000011102230246251565404236316680908203125
+2^-54: 0.000000000000000055511151231257827021181583404541015625
+2^-55: 0.0000000000000000277555756156289135105907917022705078125
+
+Nonnegative Powers of Two
+========================
+2^0: 1
+2^1: 2
+2^2: 4
+2^3: 8
+2^4: 16
+2^5: 32
+2^6: 64
+2^7: 128
+2^8: 256
+.
+.
+.
+2^182: 6129982163463555433433388108601236734474956488734408704
+2^183: 12259964326927110866866776217202473468949912977468817408
+2^184: 24519928653854221733733552434404946937899825954937634816
+2^185: 49039857307708443467467104868809893875799651909875269632
+2^186: 98079714615416886934934209737619787751599303819750539264
+2^187: 196159429230833773869868419475239575503198607639501078528
+.
+.
+
+Phix: (this might be out of date...)
+Nonnegative Powers of Two
+========================
+2^182: 6129982163463554284126732709696982227059464479679971328 (1)
+2^182: 6129982163463555433433388108601236734474956488734408704 (1)
+2^183: 12259964326927110609823056809472241841378405049603981312 (1)
+2^183: 12259964326927110866866776217202473468949912977468817408 (1)
+2^184: 24519928653854221176987498798866189691551903273132752896 (1)
+2^184: 24519928653854221733733552434404946937899825954937634816 (1)
+2^185: 49039857307708440652394899964511751250874601852710682624 (1)
+2^185: 49039857307708443467467104868809893875799651909875269632 (1)
+2^186: 98079714615416885388051641219717931021204724817896407040 (1)
+2^186: 98079714615416886934934209737619787751599303819750539264 (1)
+
+2^187: 196159429230833763970291579175725342047380071173039587328 (1)
+2^187: 196159429230833773869868419475239575503198607639501078528 (1)
+
+2^182: 6129982163463554284126732709696982227059464479679971328
+2^183: 12259964326927110609823056809472241841378405049603981312
+2^184: 24519928653854221176987498798866189691551903273132752896
+2^185: 49039857307708440652394899964511751250874601852710682624
+2^186: 98079714615416885388051641219717931021204724817896407040
+2^187: 196159429230833763970291579175725342047380071173039587328
+--*/
+
+</eucode-->
+<pre>
+<font color="#2C5C2C">with javascript_semantics</font>
+<font color="#0000FF">?</font><font color="#7060A8">count_bits</font><font color="#0000FF">(</font><font color="#7060A8">power</font><font color="#800000">(</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">1000</font><font color="#800000">)</font><font color="#0000FF">)</font><font color="#000080"><i> -- 1 -- DEV/SUG use this to print powers of 2 perfectly??
+--                          -- "(bound &amp; -bound) == bound" might be better?? [ah, but limited to 32 bits!!]</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">count_bits</font><font color="#0000FF">(</font><font color="#004600">PI</font><font color="#0000FF">)</font><font color="#000080"><i> -- 23 (about half of 53, ie about right then)</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">count_bits</font><font color="#0000FF">(</font><font color="#000000">0</font><font color="#0000FF">)</font><font color="#000080"><i> -- good, 0
+
+--DEV **TODO**: make/check this lot work/s under p2js...</i></font>
+<font color="#004080">atom</font><font color="#000000"> po2</font><font color="#0000FF"> =</font><font color="#000000"> 0.5</font><font color="#0000FF">;</font>
+<font color="#7060A8">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"Negative Powers of Two\n"</font><font color="#0000FF">)</font>
+<font color="#7060A8">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"======================\n"</font><font color="#0000FF">)</font>
+<font color="#008080">for</font><font color="#000000"> i</font><font color="#0000FF">=-</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#0000FF"> -</font><font color="#000000">73</font><font color="#008080"> by</font><font color="#0000FF"> -</font><font color="#000000">1</font><font color="#008080"> do</font>
+<font color="#004080">    string</font><font color="#000000"> fmt</font><font color="#0000FF"> =</font><font color="#7060A8"> sprintf</font><font color="#0000FF">(</font><font color="#008000">"2^%%d: %%.%df\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#0000FF">-</font><font color="#000000">i</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#7060A8">    printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">fmt</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">i</font><font color="#0000FF">,</font><font color="#000000">po2</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#7060A8">    printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">fmt</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">i</font><font color="#0000FF">,</font><font color="#7060A8">power</font><font color="#800080">(</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">i</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#000000">    po2</font><font color="#0000FF"> /=</font><font color="#000000"> 2</font>
+<font color="#008080">end for
+</font>
+<font color="#000000">po2</font><font color="#0000FF"> =</font><font color="#000000"> 1</font><font color="#0000FF">;
+</font>
+<font color="#008080">function</font><font color="#000000"> act2</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> d</font><font color="#0000FF">)</font>
+<font color="#004080">    sequence</font><font color="#000000"> d2</font><font color="#0000FF"> =</font><font color="#7060A8"> reinstate</font><font color="#0000FF">(</font><font color="#7060A8">repeat</font><font color="#800000">(</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">d</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">),</font><font color="#000000"> d10</font><font color="#0000FF"> =</font><font color="#008000"> ""</font>
+<font color="#000080"><i>    -- convert d2 (in base 2) to d10 (in base 10)
+    -- note that d2 is {1,0,0,0,0,0,0,0} for 0b10000000 aka 128,
+    --  whereas d10 is constructed as {8,2,1}, ie in reverse</i></font>
+<font color="#008080">    while</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">d2</font><font color="#0000FF">)</font><font color="#008080"> do    </font><font color="#000080"><i> -- (will be 302 iterations)</i></font>
+<font color="#004080">        integer</font><font color="#000000"> r</font><font color="#0000FF"> =</font><font color="#000000"> 0</font>
+<font color="#008080">        for</font><font color="#000000"> i</font><font color="#0000FF">,</font><font color="#000000">digit</font><font color="#008080"> in</font><font color="#000000"> d2</font><font color="#008080"> do   </font><font color="#000080"><i> -- (&lt;=1000 iterations)</i></font>
+<font color="#000000">            r</font><font color="#0000FF"> =</font><font color="#000000"> r</font><font color="#0000FF">*</font><font color="#000000">2</font><font color="#0000FF">+</font><font color="#000000">digit      </font><font color="#000080"><i> -- (times by inbase)</i></font>
+<font color="#000000">            d2</font><font color="#0000FF">[</font><font color="#000000">i</font><font color="#0000FF">] =</font><font color="#7060A8"> floor</font><font color="#0000FF">(</font><font color="#000000">r</font><font color="#0000FF">/</font><font color="#000000">10</font><font color="#0000FF">)</font><font color="#000080"><i> -- (divide by outbase)</i></font>
+<font color="#000000">            r</font><font color="#0000FF"> =</font><font color="#7060A8"> rmdr</font><font color="#0000FF">(</font><font color="#000000">r</font><font color="#0000FF">,</font><font color="#000000">10</font><font color="#0000FF">)</font>
+<font color="#008080">        end for</font>
+<font color="#000000">        d10</font><font color="#0000FF"> &amp;=</font><font color="#000000"> r</font><font color="#0000FF">+</font><font color="#008000">&rsquo;0&rsquo;</font>
+<font color="#000000">        d2</font><font color="#0000FF"> =</font><font color="#7060A8"> trim_head</font><font color="#0000FF">(</font><font color="#000000">d2</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">)</font>
+<font color="#008080">    end while
+    return</font><font color="#7060A8"> reverse</font><font color="#0000FF">(</font><font color="#000000">d10</font><font color="#0000FF">)</font>
+<font color="#008080">end function
+
+function</font><font color="#000000"> act3</font><font color="#0000FF">(</font><font color="#004080">string</font><font color="#000000"> b</font><font color="#0000FF">)</font>
+<font color="#004080">    sequence</font><font color="#000000"> d2</font><font color="#0000FF"> =</font><font color="#7060A8"> sq_sub</font><font color="#0000FF">(</font><font color="#000000">b</font><font color="#0000FF">,</font><font color="#008000">&rsquo;0&rsquo;</font><font color="#0000FF">)</font>
+<font color="#004080">    string</font><font color="#000000"> d10</font><font color="#0000FF"> =</font><font color="#008000"> ""</font>
+<font color="#000080"><i>    -- convert d2 (in base 2) to d10 (in base 10)
+    -- note that d2 is {1,0,0,0,0,0,0,0} for 0b10000000 aka 128,
+    --  whereas d10 is constructed as {8,2,1}, ie in reverse</i></font>
+<font color="#008080">    while</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">d2</font><font color="#0000FF">)</font><font color="#008080"> do    </font><font color="#000080"><i> -- (will be 302 iterations)</i></font>
+<font color="#004080">        integer</font><font color="#000000"> r</font><font color="#0000FF"> =</font><font color="#000000"> 0</font>
+<font color="#008080">        for</font><font color="#000000"> i</font><font color="#0000FF">,</font><font color="#000000">digit</font><font color="#008080"> in</font><font color="#000000"> d2</font><font color="#008080"> do   </font><font color="#000080"><i> -- (&lt;=1000 iterations)</i></font>
+<font color="#000000">            r</font><font color="#0000FF"> =</font><font color="#000000"> r</font><font color="#0000FF">*</font><font color="#000000">2</font><font color="#0000FF">+</font><font color="#000000">digit      </font><font color="#000080"><i> -- (times by inbase)</i></font>
+<font color="#000000">            d2</font><font color="#0000FF">[</font><font color="#000000">i</font><font color="#0000FF">] =</font><font color="#7060A8"> floor</font><font color="#0000FF">(</font><font color="#000000">r</font><font color="#0000FF">/</font><font color="#000000">10</font><font color="#0000FF">)</font><font color="#000080"><i> -- (divide by outbase)</i></font>
+<font color="#000000">            r</font><font color="#0000FF"> =</font><font color="#7060A8"> rmdr</font><font color="#0000FF">(</font><font color="#000000">r</font><font color="#0000FF">,</font><font color="#000000">10</font><font color="#0000FF">)</font>
+<font color="#008080">        end for</font>
+<font color="#000000">        d10</font><font color="#0000FF"> &amp;=</font><font color="#000000"> r</font><font color="#0000FF">+</font><font color="#008000">&rsquo;0&rsquo;</font>
+<font color="#000000">        d2</font><font color="#0000FF"> =</font><font color="#7060A8"> trim_head</font><font color="#0000FF">(</font><font color="#000000">d2</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">)</font>
+<font color="#008080">    end while
+    return</font><font color="#7060A8"> reverse</font><font color="#0000FF">(</font><font color="#000000">d10</font><font color="#0000FF">)</font>
+<font color="#008080">end function
+
+</font>
+<font color="#7060A8">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"Nonnegative Powers of Two\n"</font><font color="#0000FF">);</font>
+<font color="#7060A8">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"========================\n"</font><font color="#0000FF">);</font>
+<font color="#008080">for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#000000"> 1024</font><font color="#008080"> do</font>
+<font color="#000080"><i>--for i=1 to 9 do --ok
+--if i&gt;=76 and i&lt;=84 then</i></font>
+<font color="#008080">if</font><font color="#000000"> i</font><font color="#0000FF">&gt;=</font><font color="#000000">183</font><font color="#008080"> and</font><font color="#000000"> i</font><font color="#0000FF">&lt;=</font><font color="#000000">188</font><font color="#008080"> then</font>
+<font color="#000080"><i>--if i</i></font>
+<font color="#7060A8">  printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"2^%d: %.0f (%d)\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">i</font><font color="#0000FF">-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">po2</font><font color="#0000FF">,</font><font color="#7060A8">count_bits</font><font color="#800080">(</font><font color="#000000">po2</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">);</font>
+<font color="#7060A8">  printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"2^%d: %d (%d)\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">i</font><font color="#0000FF">-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">po2</font><font color="#0000FF">,</font><font color="#7060A8">count_bits</font><font color="#800080">(</font><font color="#000000">po2</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">);</font>
+<font color="#000080"><i>--  printf(1,"2^%d: %b (%d)\n",{i-1,po2,count_bits(po2)});</i></font>
+<font color="#7060A8">    printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"2^%d: %s (%d)\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">i</font><font color="#0000FF">-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">act2</font><font color="#800080">(</font><font color="#000000">i</font><font color="#800080">)</font><font color="#0000FF">,</font><font color="#7060A8">count_bits</font><font color="#800080">(</font><font color="#000000">po2</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">);</font>
+<font color="#7060A8">    printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"2^%d: %s (%d)\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">i</font><font color="#0000FF">-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">act3</font><font color="#800080">(</font><font color="#7060A8">sprintf</font><font color="#00FF00">(</font><font color="#008000">"%b"</font><font color="#0000FF">,</font><font color="#000000">po2</font><font color="#00FF00">)</font><font color="#800080">)</font><font color="#0000FF">,</font><font color="#7060A8">count_bits</font><font color="#800080">(</font><font color="#000000">po2</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">);</font>
+<font color="#008080">end if</font>
+<font color="#000000">  po2</font><font color="#0000FF"> *=</font><font color="#000000"> 2</font><font color="#0000FF">;</font>
+<font color="#008080">end for
+</font>
+<font color="#000080"><i>--/*
+Negative Powers of Two
+======================
+2^-1: 0.5
+2^-2: 0.25
+2^-3: 0.125
+2^-4: 0.0625
+2^-5: 0.03125
+2^-6: 0.015625
+2^-7: 0.0078125
+2^-8: 0.00390625
+2^-9: 0.001953125
+2^-10: 0.0009765625
+2^-11: 0.00048828125
+2^-12: 0.000244140625
+2^-13: 0.0001220703125
+2^-14: 0.00006103515625
+2^-15: 0.000030517578125
+2^-16: 0.0000152587890625
+2^-17: 0.0000076293945312
+2^-18: 0.0000038146972656
+2^-19: 0.0000019073486328
+2^-20: 0.0000009536743164
+
+Negative Powers of Two
+======================
+2^-1: 0.5
+2^-2: 0.25
+2^-3: 0.125
+2^-4: 0.0625
+2^-5: 0.03125
+2^-6: 0.015625
+2^-7: 0.0078125
+2^-8: 0.00390625
+.
+.
+.
+2^-50: 0.00000000000000088817841970012523233890533447265625
+2^-51: 0.000000000000000444089209850062616169452667236328125
+2^-52: 0.0000000000000002220446049250313080847263336181640625
+2^-53: 0.00000000000000011102230246251565404236316680908203125
+2^-54: 0.000000000000000055511151231257827021181583404541015625
+2^-55: 0.0000000000000000277555756156289135105907917022705078125
+.
+.
+Phix: (good!)
+2^-50: 0.00000000000000088817841970012523233890533447265625
+2^-51: 0.000000000000000444089209850062616169452667236328125
+2^-52: 0.0000000000000002220446049250313080847263336181640625
+2^-53: 0.00000000000000011102230246251565404236316680908203125
+2^-54: 0.000000000000000055511151231257827021181583404541015625
+2^-55: 0.0000000000000000277555756156289135105907917022705078125
+
+Nonnegative Powers of Two
+========================
+2^0: 1
+2^1: 2
+2^2: 4
+2^3: 8
+2^4: 16
+2^5: 32
+2^6: 64
+2^7: 128
+2^8: 256
+.
+.
+.
+2^182: 6129982163463555433433388108601236734474956488734408704
+2^183: 12259964326927110866866776217202473468949912977468817408
+2^184: 24519928653854221733733552434404946937899825954937634816
+2^185: 49039857307708443467467104868809893875799651909875269632
+2^186: 98079714615416886934934209737619787751599303819750539264
+2^187: 196159429230833773869868419475239575503198607639501078528
+.
+.
+
+Phix: (this might be out of date...)
+Nonnegative Powers of Two
+========================
+2^182: 6129982163463554284126732709696982227059464479679971328 (1)
+2^182: 6129982163463555433433388108601236734474956488734408704 (1)
+2^183: 12259964326927110609823056809472241841378405049603981312 (1)
+2^183: 12259964326927110866866776217202473468949912977468817408 (1)
+2^184: 24519928653854221176987498798866189691551903273132752896 (1)
+2^184: 24519928653854221733733552434404946937899825954937634816 (1)
+2^185: 49039857307708440652394899964511751250874601852710682624 (1)
+2^185: 49039857307708443467467104868809893875799651909875269632 (1)
+2^186: 98079714615416885388051641219717931021204724817896407040 (1)
+2^186: 98079714615416886934934209737619787751599303819750539264 (1)
+
+2^187: 196159429230833763970291579175725342047380071173039587328 (1)
+2^187: 196159429230833773869868419475239575503198607639501078528 (1)
+
+2^182: 6129982163463554284126732709696982227059464479679971328
+2^183: 12259964326927110609823056809472241841378405049603981312
+2^184: 24519928653854221176987498798866189691551903273132752896
+2^185: 49039857307708440652394899964511751250874601852710682624
+2^186: 98079714615416885388051641219717931021204724817896407040
+2^187: 196159429230833763970291579175725342047380071173039587328
+--*/
+</i></font>
+</pre>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

@@ -6,29 +6,173 @@
      <stripped>
       <h1 class="title">xpGUI</h1>
       <div id="mainSection">
-        <b>*Draft*</b>: in particular expect many pages copied verbatim from the pGUI docs to contain broken/cross links.<br>
-        Certainly if you spot (say) an IupHandle it is a pretty clear indication that has not been updated/implemented/tested.
+<!--
+        <i><b>*Draft*</b>: in particular expect many pages copied verbatim from the pGUI docs to contain broken/cross links.<br>
+        Pay particular attention to any ? against an attribute as that indicates it has not yet been implemented/tested.</i>
         <br>
         <br>
-        xpGUI is the Phix Cross Platform Graphical User Interface. Not that you really need to know, it uses:<br>
+-->
+        xpGUI is the Phix Cross Platform Graphical User Interface.
+        <style>
+            #accordion .panel{
+              cursor: pointer;
+            }
+            #accordion .body{
+              display : none;
+              padding : 10px;
+            }
+            #accordion .active .body {
+              display : block;
+            }
+            #accordion .header:before {
+              content: '+';
+              float: right;
+              margin-left: 5px;
+              margin-right: 5px;
+            }
+            #accordion .active .header:before {
+              content: '-';
+            }
+        </style>
+        <div id="accordion">
+         <ul>
+          <li>
+           <div class="panel">
+            <div class="header">
+            Easy to learn and use - the API was inspired by that of IUP but is even simpler.
+            </div>
+            <div class="body">
+             <small>
+                At the time of writing xpGUI (but not including OpenGL) has just 91 entry points and 221 global constants, plus to be fair 
+                (but still not including OpenGL) at least 29 named handlers and 109 named attributes, a combined total of just 450, which must 
+                make it one of the smallest and easiest ever. In comparison:<br>
+                pGUI (which it is intended to replace) has ~450 entry points, 490 global constants, over 70 named handlers and well over 500 
+                named attributes.<br>
+                The GTK3 dlls contain (I can back this up) <i>at least</i> 21,774 public entry points - and that&rsquo;s not including any 
+                constants, structures, or callbacks (or OpenGL).<br>
+                The mini.chm I built ages ago from MSDN has 22,451 pages and indexes 12,135 things from WinAPI, though whether those numbers 
+                have any real meaning... <br>
+                The JavaScript DOM might actually boil down to something more reasonable, all I can say is that my time in the browser 
+                development tools is dominated by paging through seemingly <i>endless</i> screenfuls of functions and attributes on every
+                node, in a meaninglessly deeply nested inheritance structure.<br>
+                Not that xpGUI has anything like all the bells and whistles of those, you understand, but should [eventually] contain most
+                things you actually need.
+             </small>
+            </div>
+           </div>
+          </li>
+          <li>
+           <div class="panel">
+            <div class="header">
+            Minimal dependencies - requires a working GTK install on Linux, or just a Windows OS, or just a working browser.
+            </div>
+            <div class="body">
+             <small>
+                I should probably admit that all development and testing has occurred on a Windows 10 box (plus VirtualBox).
+             </small>
+            </div>
+           </div>
+          </li>
+          <li>
+           <div class="panel">
+            <div class="header">
+            Zero build overhead - no additional compiler/toolchain needed, just edit &amp; go.
+            </div>
+            <div class="body">
+             <small>
+                Of course some bugs may be difficult to find/remedy, but if you can edit the xpGUI source code, you&rsquo;re done, unless you
+                happen to need the same fix in both xpGUI.e and xpGUI.js, which may itself also (hopefully) be a pretty trivial step.
+             </small>
+            </div>
+           </div>
+          </li>
+          <li>
+           <div class="panel">
+            <div class="header">
+            Platform dependent functionality only as steps towards platform independent code.
+            </div>
+            <div class="body">
+             <small>
+                For instance load image from disk ==&gt; local constant, to stop the browser throwing stupid CORS errors on localhost.<br>
+                That said, there is no prohibition on and no expectation that you will never need minor platform-specific tweaks.
+             </small>
+            </div>
+           </div>
+          </li>
+         </ul>
+         <script>
+            function initAccordion(accordionElem) {
+              function handlePanelClick(event) {
+                let expandel = accordionElem.querySelector(".active");
+                if (expandel && expandel !== event.currentTarget) {
+                  expandel.classList.remove("active");
+                }
+                event.currentTarget.classList.toggle("active");
+              }
+              let allPanels = accordionElem.querySelectorAll(".panel");
+              for (var i = 0, len = allPanels.length; i < len; i++) {
+                allPanels[i].addEventListener("click", handlePanelClick);
+              }
+            }
+            initAccordion(document.getElementById("accordion"));
+         </script>
+<!--
+        Lowest common denominator
+        Load image from disk...
+        Example (with image)
+        Status/todo
+        <br>
+        <br>
+        The public API was initially modelled on that of IUP, carefully reworked to lie squarely between the simplest thing that could possibly ever work, 
+        and the easiest possible interface to learn and use. Some may feel it falls a little short in some areas, especially those not absolutely needed, 
+        such as loading images from disk - what little there is tends to be platform-specific and therefore officially unsupported, and instead relying on 
+        informal routines and utilities to get such into data constants that can easily be converted into (or already are) a suitable image format. Any and
+        all such non-cross-platform features should be clearly marked and terminate with a clear no-nonsense message when run on an inappropriate platform.
+        <br>
+        <br>
+        It has deliberately been made as simple as possible, both in use and internal complexity, but without knowingly sacrificing functionality, except 
+        for a few patently single-platform features. It has been designed to be <a href="glossary.htm#failfast">fail fast</a>, so that errors are reported 
+        as soon as and as close as posible to their origin, as opposed to quietly ignoring them and potentially leading to a catastrophic and misleading 
+        error on some completely unrelated later statement. If it can do all I want, and run all the demos on rosettacode, that should be enough (flw). 
+        Not that you really need to know, it uses:<br>
         * WinAPI on Windows (ie %windir%(System32|SysWOW64)\user32.dll and friends),<br>
         * GTK on Linux (such as gtk_window_new(), from some already-installed gtk package), and<br>
         * a hand_crafted pwa/xpGUI.js (ie document.createElement() and similar) in a web browser.<br>
-        Of course, being fully open source with no packaging issues and not one or two but three examples of how to do everything, <br>
-        it should be as straightforward as possible to squidge in any other back-end you can think of.<br>
-        It is a planned <a href="xpport.htm">replacement for pGUI</a>, specifically to alleviate Linux installation issues more
-        than anything else.<br>
-<!--
+        Incidentally, the "xp" has <i>nothing</i> to do with Windows XP, which I last used well over a decade before starting xpGUI,<br>
+        and in fact all development occured on Windows 10 (including various Linux distros in VirtualBox), as did most testing.<br>
+        &nbsp;&nbsp;<small><i>(I might well revert to "pGUI", once the IUP-based original is fully deprecated/outshined in every way...)</i></small><br>
+<X!X-- ? gUI.e ? Nah, I ditched "Gui.e" for a reason... --X>
+        Implemented in demo\xpGUI\xpGUI.e for desktop/Phix and pwa\xpGUI.js for use under pwa/p2js.<br>
+        It is a planned <a href="xpport.htm">replacement for pGUI</a>, specifically to alleviate Linux installation issues more than anything else, <br>
+        and designed to be as simple and intuitive as possible, and hopefully nothing short of an utter joy to use.
+<X!--
+        but easily extendable.<br>
         Unlike pGUI, xpGUI will only contain js-compatible things, and perhaps some non-js pieces I actually need.<br>
         On Windows, uses the native windows API but can be made to use GTK, for testing purposes only.<br>
         On Linux, uses GTK and assumes that is already installed, and besides IUP does/did so too anyway.<br>
         In a browser, uses pwa/xpGUI.js which is a laboriously hand-crafted drop-in replacement.<br>
-        The Windows part is based on Arwen, pGUI.js only needs fairly superficial mods, guess I&rsquo;ll wing it for GTK<sup><small>1</small></sup>.<br>
+//      The Windows part is based on Arwen, pGUI.js only needs fairly superficial mods, guess I&rsquo;ll wing it for GTK<sup><small>1</small></sup>.<br>
         To avoid confusion, none/few of the Windows API, Arwen, GTK, or IUP-style globals/names are exposed or (re-)used.<br>
--->
-        Implemented in demo\xpGUI\xpGUI.e for desktop/Phix and pwa\xpGUI.js for use under pwa/p2js.
-<!--    <small>(Note that ppGUI.js is currently being used for some delta debugging, with xpGUI.js being a
-        modified copy of [parts of] that, and relevant diffs manually maintained as comments)<br></small>   -->
+--X>
+<X!X--  <small>(Note that ppGUI.js is currently being used for some delta debugging, with xpGUI.js being a
+        modified copy of [parts of] that, and relevant diffs manually maintained as comments)<br></small>   --X>
+        <br>
+        <br>
+        Conspicuously absent/incomplete items include <a href="gBox.htm">gSplit</a>, <a href="gDatePick.htm">gDatePick</a> on GTK, 
+        <a href="gImage.htm">gImage</a>, as well as PADDING, GAP, and EXPAND attributes for 
+        <a href="xplayout.htm">Layout Management</a> (itself still half-baked), normalisation, modal popups, single instance and 
+        drag/drop handling, and a scrollable <a href="gCanvas.htm#PLANNED">gCanvas</a>. 
+        The majority of attributes and callbacks are tagged with a '?' indicating their incomplete/untested status. <br>
+        No work at all on <a href="opengl.htm">OpenGL/WebGL</a> has even started, either.<br>
+        That said, I&rsquo;m pretty pleased with the state of the mini <a href="xpelements.htm">gallery of element screenshots</a> which gives a 
+        nice though possibly slightly optimistic overview.
+        <br>
+        <br>
+        Of course, you can ask me (nicely) to improve something, but being fully open source with no setup or packaging issues, <br>
+        there should be no real barrier to do so yourself. Also, with not one or two but three examples of how to do everything, <br>
+        it should be as straightforward as possible to squidge in any other back-end you can think of. Bear in mind, however, that<br>
+        especially on the <a href="xplayout.htm">layout management</a> side of things, I&rsquo;ve largely gone with "do what GTK does" 
+        and you may hit problems <br>should the underlying mechanisms for that be simply too different.
         <br>
         <br>
         Layout and positioning use a <a href="xplayout.htm#BoxModel">box model</a>, primarily for compatibility with JavaScript.<br>
@@ -40,26 +184,59 @@
         <br>
         <a href="xptypes.htm">Types</a>: xpGUI uses a pretty minimal set of types, plus the odd helper utility<br>
         <a href="xpattr.htm">Attributes</a>: attributes control and configure almost everything in xpGUI<br>
-        <a href="xpelements.htm">Elements</a>: child interface elements supported in xpGUI<br>
         <a href="xpcontainers.htm">Containers</a>: parent interface elements supported in xpGUI<br>
+        <a href="xpelements.htm">Elements</a>: child interface elements supported in xpGUI<br>
         <a href="xpctrl.htm">Control</a>: startup, shutdown, and everything inbetween<br>
         <a href="opengl.htm">OpenGL/WebGL</a>: for rendering 2D and 3D vector graphics<br>
         <a href="xpport.htm">porting from pGUI</a>: a brief guide<br>
-
-        <h3>Example</h3>
+-->
+        <h3 style="margin-bottom: 0;">Example</h3>
+         <table style="border: 0;">
+          <col style="width: 5%"/>
+          <tr>
+           <td style="border: 0;">
 <!--eucode>
 include xpGUI.e
-gdx dlg = gDialog(NULL,gLabel("World","PADDING=80x10"),"TITLE=Hello")
+gdx lbl = gLabel(`This is a label`),
+    box = gHbox({lbl},"MARGIN=13x13"),
+    dlg = gDialog(box,`gLabel`,"SIZE=240x60`)
 gShow(dlg)
 gMainLoop()
 </eucode-->
 <pre>
 <font color="#008080">include</font><font color="#000000"> xpGUI.e</font>
-<font color="#7060A8">gdx</font><font color="#000000"> dlg</font><font color="#0000FF"> =</font><font color="#7060A8"> gDialog</font><font color="#0000FF">(</font><font color="#004600">NULL</font><font color="#0000FF">,</font><font color="#000000">gLabel</font><font color="#800000">(</font><font color="#008000">"World"</font><font color="#0000FF">,</font><font color="#008000">"PADDING=80x10"</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#008000">"TITLE=Hello"</font><font color="#0000FF">)</font>
+<font color="#7060A8">gdx</font><font color="#000000"> lbl</font><font color="#0000FF"> =</font><font color="#7060A8"> gLabel</font><font color="#0000FF">(</font><font color="#008000">`This is a label`</font><font color="#0000FF">),</font>
+<font color="#000000">    box</font><font color="#0000FF"> =</font><font color="#7060A8"> gHbox</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">lbl</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000">"MARGIN=13x13"</font><font color="#0000FF">),</font>
+<font color="#000000">    dlg</font><font color="#0000FF"> =</font><font color="#7060A8"> gDialog</font><font color="#0000FF">(</font><font color="#000000">box</font><font color="#0000FF">,</font><font color="#008000">`gLabel`</font><font color="#0000FF">,</font><font color="#008000">"SIZE=240x60</font><font color="#FF0000">`</font><font color="#0000FF">)</font>
 <font color="#7060A8">gShow</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">)</font>
 <font color="#7060A8">gMainLoop</font><font color="#0000FF">()</font>
 </pre>
+           </td>
+           <td style="border: 0;">
+                <p align="center"><img alt="gLabel" src="images/gLabel.png" width="240" height="80"/></p>
+           </td>
+          </tr>
+         </table>
+
+        <h3>Roadmap / todo</h3>
+
+        The layout manager - needs to be done in baby steps would be the understatement of the year.<br>
+        Last few elements: gImage(esp on menus), gDatePick under GTK (needs layout manager first), gSpin, gSplit,...<br>
+        All attributes with a ? next to them still need actually implementing or at least thorough testing.<br>
+        Scrollable canvas: Consider the following four ways to create (/specify sizes on) a trivial dialog with just a canvas:
+        <ul>
+        <li>gDialog(gCanvas()) - silly small size of no practical use, and no-one should care.</li>
+        <li>gDialog(gCanvas(),"SIZE=100x100") - canvas automatically fills/shrinks to fit.</li>
+        <li>gDialog(gCanvas("SIZE=100x100,EXPAND=NO")) - fixed size canvas, dialog initially large enough (within reason).</li>
+        <li>gDialog(gCanvas("SIZE=400x400,EXPAND=NO"),"SIZE=100x100") - fixed size canvas, initially with scrollbars.</li>
+        </ul>   
+        Similar behaviour should occur when the canvas is a sole child, especially of gTabs and gFrame, or its siblings are fixed size.<br>
+        The REDRAW handler needs to know/honour when top left is {0,0} or something else (or maybe paint all would be ok).<br>
+        The file demo\xpGUI\scrolla.exw contains a win32-only version of the sort of thing I&rsquo;m after [similar for GTK/JS rqd].<br>
+        Work on integrating with OpenGL not started at all, but hopefully that should be reasonably superficial.<br>
+        Ultimately, this paves the way for Phix on ARM, since with no viable GUI that would be utterly pointless.
 <!--
+        Attribute inheritance (probably a far lighter touch than pGUI, possibly overlapping the above) [FONT now seems ok].<br>
         IUP has four important concepts that are implemented in a very different way from other toolkits.
         <br>
         <ul>
@@ -71,7 +248,7 @@ gMainLoop()
         <br>
         <li>Second is the attribute system. <br>
         IUP has only a few functions because it uses string attributes to access the properties of each control. <br>
-        So get used to <a href="IupSetAttribute.htm">IupSetAttribute</a> and <a href="IupGetAttribute.htm">IupGetAttribute</a>, 
+//      So get used to <a href="IupSetAttribute.htm">IupSetAttribute</a> and <a href="IupGetAttribute.htm">IupGetAttribute</a>, 
         because you are going to use them a lot.</li>
         <br>
         <li>Third is the abstract layout positioning. <br>
@@ -80,10 +257,10 @@ gMainLoop()
         So get used to <a href="IupHbox.htm">IupHbox</a>, <a href="IupVbox.htm">IupVbox</a>, and <a href="IupFill.htm">IupFill</a> 
         controls as the way to position things in a dialog.</li>
         <br>
-        <li>Fourth is the callback system. <br>
-        Use the <a href="IupSetCallback.htm">IupSetCallback</a> function to associate a callback for a control.</li>
+        <li>Fourth is the handler system. <br>
+        Use the <a href="gSetHandler.htm">gSetHandler</a> function to associate a handler for a control.</li>
         </ul>
-        Elements, containers, attributes, and callbacks are (slowly being) marked if/when they are supported by 
+        Elements, containers, attributes, and handlers are (slowly being) marked if/when they are supported by 
         <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a>.
         <br>
         <br>
@@ -161,8 +338,8 @@ gMainLoop()
         <br>
 -->
 <!--
-        <sup><small>1</small></sup> Help welcome, and/or better (non-heredoc) GTK documentation.
-        <small><sup><small>1<small></sup> Forgive me for saying this, but the GTK documentation is by far the worst 
+//      <sup><small>1</small></sup> Help welcome, and/or better (non-heredoc) GTK documentation.
+//      <small><sup><small>1<small></sup> Forgive me for saying this, but the GTK documentation is by far the worst 
         I have ever seen in my entire life.<br>
         The GTK documentation has zero meaningful structure; every routine is independently defined with almost no 
         cross-references whatsoever, and all in segregated implementation "units" without any explanation.<br>
@@ -178,6 +355,62 @@ gMainLoop()
         Of course I am aware of the difficulties and similar deficiencies in my own docs, but absolutely refusing to even
         acknowledge there is a problem frankly just astonishes me.</small>
 -->
+        <h3>Licence</h3>
+        As stated in the <a href="licence.htm">introduction</a>. You may freely use xpGUI in an otherwise closed source commercial 
+        proprietary application, but any modifications, bugfixes, and enhancements to xpGUI itself must be made public - besides
+        you probably would not want to have to manually re-apply any such changes to every new release.
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
         <br>
         <br>
       </div>

@@ -1,0 +1,1024 @@
+--
+-- demo\xpGUI\aaline.exw
+-- =====================
+-- (apart from the dialog title, [will be] the 
+--  same as demo\rosetta\XiaolinWuLine.exw)
+--
+--  Resize the window to show lines at any angle
+--
+--  TODO: get dashed/dotted and width>1 lines working, then shift into xpGUI.e
+--          (WOW, that all seems just //too// easy!!!)
+--
+--DEV this all needs quite a bit of cleanup...
+--  For education/comparision purposes only: see demo\pGUI\aaline.exw
+--  for a much shorter version, but "wrong algorithm" for the RC task.
+--DEV:???
+--  Also note this blends with BACK rather than the actual pixel,
+--  whereas ??aaline.exw does it properly.
+--
+with javascript_semantics   -- not really fair: pwa/p2js uses OpenGL
+-- and does not draw bresenham lines anyway/ever.
+
+--requires(64,true)
+--requires("1.0.3")
+include xpGUI.e
+--gUseGTK()     -- ditto, GTK does not draw bresenham lines either
+--gwu(true)
+
+constant TITLE = "Anti aliased lines"
+
+--bool wuline = true    -- space toggles, for comparison
+bool wuline = false -- space toggles, for comparison
+                    -- when false, at least under WinAPI, it draws bresenham 
+                    --  lines (ie jagged, without anti-aliasing [desktop only]).
+bool collect = false
+sequence xs = {},
+         ys = {},
+         cs = {}
+
+integer BACK = XPG_PARCHMENT,
+        LINE = XPG_BLUE,
+        {rB, gB, bB} = to_rgba(BACK),
+        {rL, gL, bL} = to_rgba(LINE)
+
+procedure plot(gdx canvas, atom x, y, c, bool bFlip=false)
+--  plot the pixel at (x, y) with brightness c (where 0 <= c <= 1)
+--  note that bFlip is exclusively intended for wu_line() only.
+    if bFlip then {x,y} = {y,x} end if
+if collect then
+    xs &= x
+    ys &= y
+    cs &= c
+else
+    atom C = 1-c
+    c = rgba(rL*c+rB*C,gL*c+gB*C,bL*c+bB*C)
+    gCanvasPixel(canvas, x, y, c)
+end if
+end procedure
+
+procedure plot2(gdx canvas, atom x, y, f, xgap, integer width, bool bFlip)
+--  plot(canvas,x,y,(1-f)*xgap,bFlip)
+--  plot(canvas,x,y+1,(f)*xgap,bFlip)
+--/!*
+    integer d = floor(width/2)
+    plot(canvas,x,y-d,(1-f)*xgap,bFlip)
+    if d=0 then
+        plot(canvas,x,y+1,(f)*xgap,bFlip)
+    else
+        for i=-d+1 to d-1 do 
+            plot(canvas,x,y+i,1,bFlip)
+        end for
+        plot(canvas,x,y+d,(f)*xgap,bFlip)
+    end if
+--*!/
+end procedure
+
+function fpart(atom x)
+    return x-floor(x)   -- fractional part of x
+end function
+
+procedure wu_line(gdx canvas, atom x1, y1, x2, y2, integer width=1)
+    bool flip := abs(y2-y1) > abs(x2-x1) -- (aka steep)
+    if flip then
+        {x1, y1, x2, y2} := {y1, x1, y2, x2}
+    end if
+    if x1>x2 then
+        {x1, x2, y1, y2} := {x2, x1, y2, y1}
+    end if
+    
+    atom dx := x2-x1,
+         dy := y2-y1,
+         gradient := iff(dx=0? 1 : dy/dx),
+         x1end := round(x1),
+         x2end := round(x2),
+         y1end := y1 + gradient*(x1end-x1),
+         y2end := y2 + gradient*(x2end-x2)
+
+    -- handle first endpoint
+    plot2(canvas, x1end, floor(y1end), fpart(y1end), 1-fpart(x1+0.5), width, flip)
+    
+    -- main loop
+    atom intery := y1end + gradient -- first y-intersection for the main loop
+--integer dots = 0
+    for x = x1end+1 to x2end-1 do
+--dots += 1
+--if remainder(dots,8)<4 then
+        plot2(canvas, x, floor(intery), fpart(intery), 1, width, flip)
+--end if
+        intery += gradient
+    end for
+
+    -- handle second endpoint
+    plot2(canvas, x2end, floor(y2end), fpart(y2end), fpart(x2+0.5), width, flip)
+
+end procedure
+
+procedure plot_4_points(gdx canvas, integer xc, yc, x, y, atom f, angle1=0, angle2=360, angle=0)
+    integer x1 = xc+x, x2 = xc-x,
+            y1 = yc+y, y2 = yc-y
+--DEV angles have changed meaning, comments may be out of date/inverted...
+    if angle<0 or angle>90.01 then ?9/0 end if
+    if      angle >=angle1 and      angle <=angle2 then plot(canvas,x1, y1, f) end if   -- top right
+    if (180-angle)>=angle1 and (180-angle)<=angle2 then plot(canvas,x2, y1, f) end if   -- top left
+    if (180+angle)>=angle1 and (180+angle)<=angle2 then plot(canvas,x2, y2, f) end if   -- btm left
+    if (360-angle)>=angle1 and (360-angle)<=angle2 then plot(canvas,x1, y2, f) end if   -- btm right
+end procedure
+
+procedure wu_ellipse(gdx canvas, atom xc, yc, w, h, angle1=0, angle2=360, integer width=1)
+--procedure wu_ellipse(gdx canvas, atom xc, yc, h, w, angle1=0, angle2=360)
+--procedure wu_ellipse(gdx canvas, atom yc, xc, w, h, angle1=0, angle2=360)
+--
+-- (draws a circle when w=h) credit:
+-- https://yellowsplash.wordpress.com/2009/10/23/fast-antialiased-circles-and-ellipses-from-xiaolin-wus-concepts/
+--
+    if w<=0 or h<=0 then return end if
+    xc = round(xc)
+    yc = round(yc)
+    w = round(w)
+    h = round(h)
+    angle1 = mod(angle1,360)
+    angle2 = mod(angle2,360)
+
+    -- Match gCanvasArc/Sector angles:
+    angle1 = atan2((h/2)*sin(angle1*XPG_DEG2RAD), (w/2)*cos(angle1*XPG_DEG2RAD))*XPG_RAD2DEG
+    angle2 = atan2((h/2)*sin(angle2*XPG_DEG2RAD), (w/2)*cos(angle2*XPG_DEG2RAD))*XPG_RAD2DEG
+
+    if angle2<=angle1 then angle2 += 360 end if
+
+    atom a := w/2, asq := a*a, 
+         b := h/2, bsq := b*b,
+         sqab = sqrt(asq+bsq),
+         ffd = round(asq/sqab), -- forty-five-degree coord
+         xj, yj, frc, flr, angle
+
+    -- draw top right, and the 3 mirrors of it in horizontal fashion
+    --  (ie 90 to 45 degrees for a circle)
+
+    integer d = floor(width/2)
+--integer dots = 0
+    for xi=0 to ffd do
+--dots += 1
+--if remainder(dots,8)<4 then
+        yj := b*sqrt(1-xi*xi/asq)   -- real y value
+        frc := fpart(yj)
+        flr := floor(yj)
+        angle := iff(xi=0?90:arctan(yj/xi)*XPG_RAD2DEG)
+--      plot_4_points(canvas, xc, yc, xi, flr, 1-frc, angle1, angle2, angle)
+--      plot_4_points(canvas, xc, yc, xi, flr+1, frc, angle1, angle2, angle)
+--/!*
+        plot_4_points(canvas, xc, yc, xi, flr-d, 1-frc, angle1, angle2, angle)
+        if d=0 then
+            plot_4_points(canvas, xc, yc, xi, flr+1, frc, angle1, angle2, angle)
+        else
+            for i=-d+1 to d-1 do
+                plot_4_points(canvas, xc, yc, xi, flr+i, 1, angle1, angle2, angle)
+            end for
+            plot_4_points(canvas, xc, yc, xi, flr+d,   frc, angle1, angle2, angle)
+        end if
+--*!/
+--end if
+    end for
+
+    -- switch from horizontal to vertial mode for the rest, ditto 3
+    -- (ie 45..0 degrees for a circle)
+
+    ffd = round(bsq/sqab)
+    for yi=0 to ffd do
+--dots += 1
+--if remainder(dots,8)<4 then
+        xj := a*sqrt(1-yi*yi/bsq)   -- real x value
+        frc := fpart(xj)
+        flr := floor(xj)
+        angle = iff(xj=0?0:arctan(yi/xj)*XPG_RAD2DEG)
+--      plot_4_points(canvas, xc, yc, flr, yi, 1-frc, angle1, angle2, angle)
+--      plot_4_points(canvas, xc, yc, flr+1, yi, frc, angle1, angle2, angle)
+--/!*
+        plot_4_points(canvas, xc, yc, flr-d, yi, 1-frc, angle1, angle2, angle)
+        if d=0 then
+            plot_4_points(canvas, xc, yc, flr+1, yi, frc, angle1, angle2, angle)
+        else
+            for i=-d+1 to d-1 do
+                plot_4_points(canvas, xc, yc, flr+i, yi, 1, angle1, angle2, angle)
+            end for
+            plot_4_points(canvas, xc, yc, flr+d, yi,   frc, angle1, angle2, angle)
+        end if
+--*!/
+--end if
+    end for
+
+end procedure
+
+--Aside: my very first use drew a 600 pixel wide and 420 pixel high curve, and
+--       called itself recursively 2,458 times, with a maximum call depth of a
+--       mere 12, and plotting just 1,230 pixels, pretty good methinks for a
+--       wild stab of "dx<=1 and dy<=1". Clearly 615 pixels would not suffice,
+--       so that puts a hard ceiling of less than twofold improvement on it.
+--       update: with the ceils, just 821 pixel pairs now get plotted.
+--       
+--integer cbc = 0
+--integer maxd = 0, d = 0
+--integer cbp = 0
+--integer dots = 0
+integer wu_d
+procedure wu_bezier(gdx canvas, atom x1, y1, x2, y2, x3, y3, x4, y4)
+--if cbc=0 then
+--  ?{"CanvasCubicBezier",x1, y1, x2, y2, x3, y3, x4, y4}
+--end if
+--cbc += 1
+--d += 1
+--if d>maxd then maxd = d end if
+    -- draw a cubic bezier curve from x1,y1 to x4,y4 
+    --          using control points x2,y2 and x3,y3
+    -- aside: {x2,y2}={x3,y3} shd == gCanvasQuadBezier
+    --
+    -- Uses the de Castejau method, with particular credit to 
+    -- https://hcklbrrfnn.files.wordpress.com/2012/08/bez.pdf
+    --
+    atom dx = abs(x1-x4),
+         dy = abs(y1-y4)
+--?{dx,dy}
+--sleep(1)
+    if dx<=1 and dy<=1 then
+        --
+        -- It is quite likely we will have split a segment length 1.5
+        -- into 0.76 and 0.77, since nowt here is genuinely straight,
+        -- and one of those straddles (say) y=12 whereas the other is 
+        -- entirely between y=12 and y=13. For the straddler estimate
+        -- x using straight-line algebra and draw two pixels, whereas
+        -- we can/should just ignore the other and let prev/next segs
+        -- set their more accurate pixels (on y=12 and y=13).
+        --
+        -- For a steep line we want to draw x and x+1 for some int y.
+        -- For a flat line we want to draw y and y+1 for some int x.
+        --
+        bool bSteep = abs(dx)<abs(dy)
+        if bSteep then
+            integer ly = ceil(y1)
+            if ly!=ceil(y4) then -- straddler
+--dots += 1
+--if remainder(dots,8)<4 then
+                x1 += (ly-y1)*dx/dy
+                integer x = floor(x1)
+                atom fx = x1-x
+--              plot(canvas,x,ly,1-fx)
+--              plot(canvas,x+1,ly,fx)
+                plot(canvas,x-wu_d,ly,1-fx)
+                if wu_d=0 then
+                    plot(canvas,x+1,ly,fx)
+                else
+                    for i=-wu_d+1 to wu_d-1 do
+                        plot(canvas,x+i,ly,1)
+                    end for
+                    plot(canvas,x+wu_d,ly,fx)
+                end if
+--cbp += 1
+--end if
+            end if
+        else -- flat
+            integer lx = ceil(x1)
+            if lx!=ceil(x4) then -- straddler
+--dots += 1
+--if remainder(dots,8)<4 then
+                y1 += (lx-x1)*dy/dx
+                integer y = floor(y1)
+                atom fy = y1-y
+--              plot(canvas,lx,y,1-fy)
+--              plot(canvas,lx,y+1,fy)
+                if wu_d=0 then
+                    plot(canvas,lx,y,1-fy)
+                    plot(canvas,lx,y+1,fy)
+                else
+                    lx -= 1
+                    plot(canvas,lx,y-wu_d,1-fy)
+                    for i=-wu_d+1 to wu_d-1 do
+                        plot(canvas,lx,y+i,1)
+                    end for
+                    plot(canvas,lx,y+wu_d,fy)
+                end if
+--cbp += 1
+--end if
+            end if
+        end if
+    else
+
+--DEV/SUG as per gCanvas.exw, pen a ditty to show the de Casteljau construction
+--        similar to the second diagram in above doc, with draggable end-points.
+
+        -- l,m,r are the first mid-points,
+        -- n,p are the secondary mid-points,
+        -- q is the (single) found point on the curve.
+        atom lx = (x1+x2)/2,  ly = (y1+y2)/2,
+             mx = (x2+x3)/2,  my = (y2+y3)/2,
+             rx = (x3+x4)/2,  ry = (y3+y4)/2,
+             nx = (lx+mx)/2,  ny = (ly+my)/2,
+             px = (mx+rx)/2,  py = (my+ry)/2,
+             qx = (nx+px)/2,  qy = (ny+py)/2
+        wu_bezier(canvas, x1, y1, lx, ly, nx, ny, qx, qy)
+--      gCanvasPixel(canvas,qx,qy,XPG_BLUE) -- (temp)
+        wu_bezier(canvas, qx, qy, px, py, rx, ry, x4, y4)
+    end if
+--d -= 1
+end procedure
+
+procedure xCanvasCubicBezier(gdx canvas, atom x1, y1, xc1, yc1, xc2, yc2, x2, y2, integer style=-1, width=-1, atom colour=-1, bool aa=true)
+    integer pstyle, pwidth
+    if style!=-1 then
+        pstyle = gCanvasGetLineStyle(canvas)
+        gCanvasSetLineStyle(canvas,style)
+    end if
+    if width!=-1 then
+        pwidth = gCanvasGetLineWidth(canvas)
+        gCanvasSetLineWidth(canvas,width)
+    end if
+    atom pcolour
+    if colour!=-1 then
+        pcolour = gCanvasGetForeground(canvas)
+        gCanvasSetForeground(canvas,colour)
+    end if
+    if aa then
+--      wu_d = floor(width/2)
+        wu_d = floor(gCanvasGetLineWidth(canvas)/2)
+        wu_bezier(canvas,x1,y1,xc1,yc1,xc2,yc2,x2,y2)
+    else
+        gCanvasCubicBezier(canvas,x1,y1,xc1,yc1,xc2,yc2,x2,y2)
+    end if
+    if colour!=-1 then
+        gCanvasSetForeground(canvas,pcolour)
+    end if
+    if width!=-1 then
+        gCanvasSetLineWidth(canvas,pwidth)
+    end if
+    if style!=-1 then
+        gCanvasSetLineStyle(canvas,pstyle)
+    end if
+end procedure
+
+procedure gCanvasQuadBezier(gdx canvas, atom x1, y1, cx, cy, x2, y2, integer style=-1, width=-1, colour=-1, bool aa=true)
+    -- draw a cubic bezier curve from x1,y1 to x2,y2 
+    --                 using the control point cx,cy
+    xCanvasCubicBezier(canvas, x1, y1, cx, cy, cx, cy, x2, y2, style, width, colour, aa)
+end procedure
+
+--/*
+procedure fill_poly(sequence wutags, integer hv='h', ledget=-1, ledgeb=-1, 
+                                                     redget=-1, redgeb=-1, 
+                                                     tedgel=-1, tedger=-1,
+                                                     bedgel=-1, bedger=-1)
+--
+-- (x)edge(b|r) are ignored if the corresponding (x)edge(t|l) is -1.
+--
+-- if h then
+--      if (l|r)edget then
+--          scan wutags for singles (ie l+r or s), nowt else in that line
+--          (should you find one with both it's probably an error...)
+--      else
+--          scan wutags for pairs (ie 2l+2r, l+r+s, or 2s), nowt else in that line
+--      end if
+--  else -- v 
+--      if (t|b)edget then
+--          scan wutags for singles (ie t+b or s), nowt else in that column
+--          (should you find one with both it's probably an error...)
+--      else
+--          scan wutags for pairs (ie 2t+2b, t+b+s, or 2s), nowt else in that column
+--      end if
+--  end if
+--  for any block of lines we can[not] draw,
+--      fill_poly(resort(wutags[before]),vh->hv,setting new edges)
+--      fill_poly(resort(wutags[after]),vh->hv,setting new edges)
+--  end for
+--DOH:
+--  integer last = l
+--  sequence xy = vslice(extract(??,wutags),X|Y)
+--  for i=l-1 to 1 by -1 do
+--      if i=1 or xy[i]!=xy[i-1] then
+--          process i..last
+--          if could_process ?or i=1? then
+--              if last<length(wutags) then
+--                  fill_poly(resort(wutags[last+1..$]),vh->hv,setting new edges)
+--              end if
+--              wutags = wutags[1..i-1]
+--              set new edges
+--          end if
+--          last = i-1
+--      end if
+--  end for
+end procedure
+--*/
+
+procedure redraw(gdx canvas)
+--  integer {w, h} = sq_sub(gGetIntInt(canvas, "DRAWSIZE"),10)
+    integer {w, h} = sq_sub(gGetIntInt(canvas, "SIZE"),10),
+            hm200 = h-200
+--  gCanvasSetLineStyle(canvas,XPG_DASHED)
+--  cdCanvasActivate(canvas)
+--  cdCanvasClear(canvas)
+--  if platform()=JS then
+--      gCanvasSetLineWidth(canvas,iff(wuline?1:4))
+--  end if
+--if wuline then
+--  wu_line(canvas,0,h,200,hm200)
+--  wu_line(canvas,w,h,200,hm200)
+--  wu_line(canvas,0,0,200,hm200)
+--  wu_line(canvas,w,0,200,hm200)
+--else
+--  gCanvasLine(canvas,0,h,200,hm200,aa:=wuline)
+    gCanvasLine(canvas,0,h,200,hm200)
+    gCanvasLine(canvas,w,h,200,hm200)
+    gCanvasLine(canvas,0,0,200,hm200)
+    gCanvasLine(canvas,w,0,200,hm200)
+--end if
+
+if wuline then
+    wu_ellipse(canvas,200,hm200,200,200)
+--  gCanvasArc[with flags|=XPG_SECTOR](canvas, 200, 200, 200, 200, 0, 360) 
+    wu_ellipse(canvas,200,hm200,300,100)
+--  wu_ellipse(canvas,200,hm200,300,100,15,50)
+--  wu_ellipse(200,200,300,100,15,85)
+--  gCanvasArc(canvas, 205, 205, 300, 100, 15, 85) 
+else
+    gCanvasArc(canvas,200,hm200,200,200,0,360) 
+--  gCanvasSetForeground(canvas, XPG_GREEN)
+
+--  gCanvasArc[with flags|=XPG_SECTOR](canvas, 200, 200, 200, 200, 0, 360) 
+    gCanvasArc(canvas,200,hm200,300,100,0,360) 
+--  gCanvasArc(canvas,200,hm200,300,100,15,50) 
+--  gCanvasSetForeground(canvas, LINE)
+
+end if
+--test - it works (much better) if you draw the polygon /after/ the lines!!
+--  cdCanvasBegin(canvas,CD_FILL)
+--  cdCanvasVertex(canvas,w,h)
+--  cdCanvasVertex(canvas,0,h)
+--  cdCanvasVertex(canvas,200,200)
+--  cdCanvasEnd(canvas)
+--/test
+--  gCanvasSetBackground[original](canvas)
+--  cdCanvasSetBackground(canvas, BACK)
+--  cdCanvasSetForeground(canvas, LINE)
+--  gCanvasBezier(canvas,10,10,w-10,10,0,h-10,w-10,h-10)
+--dots = 50
+if wuline then
+    xCanvasCubicBezier(canvas,10,10,w,10,10,h,w,h)
+--  xCanvasCubicBezier(canvas,10,10,w,10,10,h,w,h,width:=5)
+--  gCanvasQuadBezier(canvas,10,10,w,10,w,h)
+--  gCanvasQuadBezier(canvas,10,10,10,h,w,h)
+else
+    gCanvasCubicBezier(canvas,10,10,w,10,10,h,w,h)
+end if
+--?cbc
+--?{"maxd",maxd}
+--?cbp -- 821
+
+--for y=0 to 100 do
+----?y
+--  for x=0 to 100 do
+--      atom c = gCanvasGetPixel(canvas, x+10, y+20)
+----        atom c = iff(y=10?XPG_RED:gCanvasGetPixel(canvas, x+10, y+25))
+--      gCanvasPixel(canvas, x+100, y+100, c)
+--  end for
+--end for
+end procedure
+
+gdx dlg
+
+procedure set_title()
+    string title = TITLE & iff(wuline?" (anti-aliased)":" (bresenham)")
+    gSetAttribute(dlg,"TITLE",title)
+end procedure
+
+--function key_handler(gdx dlg, integer c)
+--?{"key_handler",c,{sprintf("#%x",c),gGetKeyName(c)}}
+--function key_handler(gdx dlg, integer c, ctrl, shift, alt)
+function key_handler(gdx dlg, integer c, bool ctrl, shift, alt)
+--?{"key_handler",c,{sprintf("#%x",c),gGetKeyName(c)},ctrl,shift,alt,gVersion(true)}
+--sleep(1)
+--  if c=VK_ESC then return XPG_CLOSE end if -- (standard practice for me)
+--DEV:
+--  if c=VK_F5 then return XPG_DEFAULT end if -- (let browser reload work)
+    if c=' ' then
+        wuline = not wuline
+        set_title()
+        gRedraw(dlg)
+--else
+--  ?c
+    end if
+--if alt then return XPG_IGNORE end if
+    return XPG_CONTINUE
+end function
+
+--gdx canvas = gCanvas()
+gdx canvas = gCanvas(redraw)
+--gSetAttribute(canvas, "RASTERSIZE", "640x480")
+--gSetHandler(canvas,"REDRAW", redraw)
+gCanvasSetBackground(canvas, BACK)
+gCanvasSetForeground(canvas, LINE)
+--dlg = gDialog(canvas)
+dlg = gDialog(canvas,"SIZE=640x480")
+set_title()
+--DEV
+gSetHandler(dlg, `KEY`, key_handler)
+gShow(dlg)
+--gSetAttribute(canvas, "RASTERSIZE", NULL)
+gMainLoop()
+
+--/*
+--*/
+--/*
+'just some simple code for drawing beziers.
+#Define Dist(p1, p2) (Sqr((p1.x-p2.x)^2 + (p1.y-p2.y)^2))
+
+'you can play with this variable to adjust the additional accuracy.
+'minus values = more speed, less accurate.
+'positive values =less speed, more accurate.
+'Values beyond 2 have no effect.
+Const ACCURACY_OVERKILL = -0.3
+
+Type TPoint
+    x As Single
+    y As Single
+End Type
+
+Sub DrawDot(ByVal x As Single, ByVal y As Single, radius As Single, r As uByte, g As uByte, b As uByte, a As uByte)
+    Dim d As Single
+    Dim As Single px,py
+    Dim As Single rad2
+    DIm As Single cr
+    Dim As Single x1,y1,x2,y2
+    'Print y
+    
+    If a > 255 Then a = 255
+    
+    cr=(radius/1.5)
+    x1 = Int(x-radius-ACCURACY_OVERKILL)
+    y1 = Int(y-radius-ACCURACY_OVERKILL)
+    x2 = Int(x+radius+ACCURACY_OVERKILL)
+    y2 = Int(y+radius+ACCURACY_OVERKILL)
+    
+    For py= y1 To y2
+        For px = x1 To x2
+            d = Sqr(((px-x)^2)+((py-y)^2))
+            d = d / radius
+            If d < 1 Then
+                d ^= cr
+                Line(px, py)-(px, py),RGBA(r,g,b,a*(1-d)),BF
+            End If
+        Next
+    Next
+End Sub
+
+'this is an adaptive algorithm that I discovered myself.
+'TODO: make it smarter when working with widths.
+Sub RenderBezier (p1 As TPoint, p2 As TPoint, p3 As TPoint, p4 As TPoint, lwidth As Single, r As uByte, g As uByte, b As uByte, alpha As uByte)
+    Dim t As Single = 1 'the most important value in the whole procedure
+    Dim vert As Single = 0
+    Dim binc As Single
+    Dim bdist As Single
+    Dim cp As TPoint
+    Dim lp As TPoint
+    Dim c As Integer=0
+    'calculate the base increment (binc) using the base distance (bdist).
+    'I'm too lazy to conjure up a direct algorithm to do this.
+    'I just use a converging loop.
+    binc = 0.3
+    For i As Integer = 1 To 10 'don't do an infinite loop if it doesn't seem to converge.
+        t = binc
+        cp.x = p1.x*(1-t)^3 + 3*p2.x*((1-t)^2)*t + 3*p3.x*(1-t)*(t^2) + p4.x*(t^3)
+        cp.y = p1.y*(1-t)^3 + 3*p2.y*((1-t)^2)*t + 3*p3.y*(1-t)*(t^2) + p4.y*(t^3)
+        bdist = Dist(cp, p1)
+        binc /= bdist
+        If (1 > (bdist - 0.02)) And (1 < (bdist + 0.02)) Then Exit For 'converged. yay!
+    Next i
+    
+    'Now, just go up the curve, adjusting the base increment whenever necessary.
+    t = 0
+    Do Until (t > 1)
+        vert = 1-t
+        cp.x = p1.x*vert^3 + 3*p2.x*vert*vert*t + 3*p3.x*vert*t*t + p4.x*(t^3)
+        cp.y = p1.y*vert^3 + 3*p2.y*vert*vert*t + 3*p3.y*vert*t*t + p4.y*(t^3)
+        
+        bdist = Dist(cp, lp)
+        binc /= bdist
+
+        If (lwidth <= 1.5) Or (c=0) Then DrawDot (cp.x, cp.y, lwidth, r, g, b, 2*alpha/lwidth)
+        lp.x = cp.x
+        lp.y = cp.y
+        t += binc
+        c = 1-c
+    Loop
+End Sub
+
+
+ScreenRes 600,600, 32, 1, &H40
+Randomize Timer
+
+Line (0,0)-(600,600),RGBA(255,255,255,255),BF
+
+RenderBezier (type<TPoint>(100,100), type<TPoint>(300,100), type<TPoint>(300,300), type<TPoint>(500,300), _
+                    1.1, 0,0,0,255)
+Dim As Single cx, cy, lx, ly, ctx, cty, ltx, lty, tim
+
+Print "Press any key to draw a continuous curve"
+Sleep
+Line (0,0)-(600,600),RGBA(255,255,255,255),BF
+tim = timer
+For i As Integer = 0 To 20
+    cy = 600 * rnd
+    cx = 600 * rnd
+    ctx = (200 * rnd) - 100
+    cty = (200 * rnd) - 100
+    RenderBezier (type<TPoint>(lx,ly), type<TPoint>(lx-ltx,ly-lty), type<TPoint>(cx+ctx,cy+cty), type<TPoint>(cx,cy), _
+                    1.4, 0,0,0,255)
+    ltx = ctx: lty = cty
+    lx = cx: ly = cy
+Next i
+Print "Time: " & Timer - tim
+
+Print "Press any key to draw 50 antialiased bezier curves of various widths, colors, and alphas."
+Sleep
+Line (0,0)-(600,600),RGBA(255,255,255,255),BF
+For i As Integer = 0 To 50
+    RenderBezier (type<TPoint>(600*rnd,600*rnd), type<TPoint>(600*rnd,600*rnd), type<TPoint>(600*rnd,600*rnd), type<TPoint>(600*rnd,600*rnd), _
+                    1+(2*Rnd), 255*rnd, 255*rnd, 255*rnd, 155+(100*rnd))
+Next i
+Sleep
+--*/
+
+--/*
+procedure plotQuadRationalBezierWidth(gdx canvas, atom x0, y0, x1, y1, x2, y2, w, th)
+    /* plot any anti-aliased quadratic rational Bezier curve */
+    atom x = x0-2*x1+x2,
+         y = y0-2*y1+y2,
+        xx = x0-x1,
+        yy = y0-y1, ww, t, q;
+
+    if xx*(x2-x1)>0 then                        /* horizontal cut at P4? */
+        if yy*(y2-y1)>0 then                  /* vertical cut at P6 too? */
+            if abs(xx*y)>abs(yy*x) then                  /* which first? */
+                x0 = x2;
+                x2 = xx + x1;
+                y0 = y2;
+                y2 = yy + y1;                             /* swap points */
+            end if               /* now horizontal cut at P4 comes first */
+        end if
+        if x0==x2 or w==1 then
+            t = (x0-x1)/x;
+        else                            /* non-rational or rational case */
+            q = sqrt(4*w*w*(x0-x1)*(x2-x1) +
+                           (x2-x0)*(x2-x0));
+            if x1<x0 then q = -q end if
+            t = (2*w*(x0-x1)-x0+x2+q)/(2*(1-w)*(x2-x0))      /* t at P4 */
+        end if
+        q = 1/(2*t*(1-t)*(w-1)+1)                    /* sub-divide at t */
+        xx = (t*t*(x0-2*w*x1+x2)+2*t*(w*x1-x0)+x0)*q            /* = P4 */
+        yy = (t*t*(y0-2*w*y1+y2)+2*t*(w*y1-y0)+y0)*q;
+        ww = t*(w-1)+1;
+        ww *= ww*q                                /* squared weight P3 */
+        w = ((1-t)*(w-1)+1)*sqrt(q);                      /* weight P8 */
+        x = floor(xx+0.5);
+        y = floor(yy+0.5);                                       /* P4 */
+        yy = (xx-x0)*(y1-y0)/(x1-x0)+y0        /* intersect P3 | P0 P1 */
+        plotQuadRationalBezierWidthSeg(canvas,x0,y0,x,floor(yy+0.5),x,y,ww,th);
+        yy = (xx-x2)*(y1-y2)/(x1-x2)+y2        /* intersect P4 | P1 P2 */
+        y1 = floor(yy+0.5);
+        x1 = x
+        x0 = x1
+        y0 = y                                     /* P0 = P4, P1 = P8 */
+    end if
+    if (y0-y1)*(y2-y1)>0 then                   /* vertical cut at P6? */
+        if y0==y2 or w==1 then
+            t = (y0-y1)/(y0-2*y1+y2);
+        else                          /* non-rational or rational case */
+            q = sqrt(4*w*w*(y0-y1)*(y2-y1)+(y2-y0)*(y2-y0));
+            if y1<y0 then q = -q end if
+            t = (2*w*(y0-y1)-y0+y2+q)/(2*(1-w)*(y2-y0))     /* t at P6 */
+        end if
+        q = 1/(2*t*(1-t)*(w-1)+1)                   /* sub-divide at t */
+        xx = (t*t*(x0-2*w*x1+x2)+2*t*(w*x1-x0)+x0)*q           /* = P6 */
+        yy = (t*t*(y0-2*w*y1+y2)+2*t*(w*y1-y0)+y0)*q;
+        ww = t*(w-1)+1;
+        ww *= ww*q                                /* squared weight P5 */
+        w = ((1-t)*(w-1)+1)*sqrt(q)                       /* weight P7 */
+        x = floor(xx+0.5);
+        y = floor(yy+0.5);                                       /* P6 */
+        xx = (x1-x0)*(yy-y0)/(y1-y0)+x0        /* intersect P6 | P0 P1 */
+        plotQuadRationalBezierWidthSeg(canvas,x0,y0,floor(xx+0.5),y,x,y,ww,th);
+        xx = (x1-x2)*(yy-y2)/(y1-y2)+x2        /* intersect P7 | P1 P2 */
+        x1 = floor(xx+0.5);
+        x0 = x
+        y1 = y
+        y0 = y1                                    /* P0 = P6, P1 = P7 */
+    end if
+    plotQuadRationalBezierWidthSeg(canvas,x0,y0,x1,y1,x2,y2,w*w,th);
+end procedure
+
+--??? (ditto above)
+procedure plotQuadBezierWidth(gdx canvas, atom x0, y0, x1, y1, x2, y2, wd)
+    plotQuadRationalBezierWidth(canvas,x0,y0,x1,y1,x2,y2,1,wd)
+end procedure
+--*/
+
+--/*
+procedure setPixelAA(gdx canvas, atom x, y, c, bool steep=false)
+--?{procedure setPixelAA(gdx canvas, atom x, y, c, bool steep=false)
+--  plot(canvas, x, y, c/255, steep)
+    plot(canvas, x, y, 1-c/255, steep)
+end procedure
+
+procedure plotLineWidth(gdx canvas, atom x0, y0, x1, y1, th)
+    /* plot an anti-aliased line of width th pixel */
+    atom dx = abs(x1-x0), sx = iff(x0 < x1 ? 1 : -1), 
+         dy = abs(y1-y0), sy = iff(y0 < y1 ? 1 : -1) ,
+         e2 = sqrt(dx*dx+dy*dy), err;                               /* length */
+
+    if th<=1 or e2 == 0 then                                        /* assert */
+--      plotLineAA(x0,y0, x1,y1);
+        wu_line(canvas,x0,y0,x1,y1)
+        return 
+    end if
+    dx *= 255/e2; dy *= 255/e2; th = 255*(th-1);              /* scale values */
+
+    if dx<dy then                                               /* steep line */
+        x1 = round((e2+th/2)/dy);                             /* start offset */
+        err = x1*dy-th/2;                /* shift error value to offset width */
+        x0 -= x1*sx
+        while true do
+--       setPixelAA(x1 = x0, y0, err);                  /* aliasing pre-pixel */
+            x1 = x0
+            setPixelAA(canvas,x0,y0,err)                /* aliasing pre-pixel */
+--          plot(canvas,x0,y0,err,true);                /* aliasing pre-pixel */
+            e2 = dy-err-th
+            while e2+dy<255 do
+                x1 += sx    
+                gCanvasPixel(canvas,x1,y0,LINE);         /* pixel on the line */
+                e2 += dy  
+            end while
+            setPixelAA(canvas,x1+sx,y0,e2)             /* aliasing post-pixel */
+--          plot(canvas,x1+sx,y0,e2,true)              /* aliasing post-pixel */
+            if y0==y1 then exit end if
+            err += dx;                                              /* y-step */
+            if err>255 then err -= dy; x0 += sx; end if             /* x-step */ 
+            y0 += sy
+        end while
+    else                                                         /* flat line */
+        y1 = round((e2+th/2)/dx);                             /* start offset */
+        err = y1*dx-th/2;                /* shift error value to offset width */
+        y0 -= y1*sy
+        while true do
+            y1 = y0
+            setPixelAA(canvas,x0,y0,err)                /* aliasing pre-pixel */
+            e2 = dx-err-th;
+            while e2+dx<255 do
+                y1 += sy
+                gCanvasPixel(canvas,x0,y1,LINE)          /* pixel on the line */
+                e2 += dx
+            end while
+            setPixelAA(canvas,x0,y1+sy,e2);            /* aliasing post-pixel */
+            if x0==x1 then exit end if
+            err += dy;                                              /* x-step */ 
+            if err>255 then err -= dx; y0 += sy; end if             /* y-step */
+            x0 += sx
+        end while
+    end if
+end procedure
+
+procedure plotQuadRationalBezierWidthSeg(gdx canvas, atom x0, y0, x1, y1, x2, y2, w, th)
+    -- plot a limited rational Bezier segment of weight w and thickness th
+    atom sx = x2-x1, sy = y2-y1,  -- relative values for checks
+         dx = x0-x2, dy = y0-y2,
+         xx = x0-x1, yy = y0-y1,
+         xy = xx*sy+yy*sx, cur = xx*sy-yy*sx, err, e2, 
+         ed -- curvature
+    bool fullBreak = false;
+
+    if cur!=0 and w>0 then -- no straight line
+        if sx*sx+sy*sy > xx*xx+yy*yy then -- begin with longer part
+            x2 = x0;
+            x0 -= dx;
+            y2 = y0;
+            y0 -= dy;
+            cur = -cur; /* swap P0 P2 */
+        end if
+        xx = 2*(4*w*sx*xx+dx*dx); /* differences 2nd degree */
+        yy = 2*(4*w*sy*yy+dy*dy);
+        sx = iff(x0 < x2 ? 1 : -1); /* x step direction */
+        sy = iff(y0 < y2 ? 1 : -1); /* y step direction */
+        xy = -2*sx*sy*(2*w*xy+dx*dy);
+
+        if cur*sx*sy < 0 then -- negated curvature?
+            xx = -xx; yy = -yy; cur = -cur; xy = -xy;
+        end if
+        dx = 4*w*(x1-x0)*sy*cur+xx/2; /* differences 1st degree */
+        dy = 4*w*(y0-y1)*sx*cur+yy/2;
+
+        if w<0.5
+        and (dx+xx<=0 or dy+yy>=0) then -- flat ellipse, algo fails
+            cur = (w+1)/2;
+            w = floor(sqrt(w));
+            xy = 1/(w+1);
+            sx = floor((x0+2*w*x1+x2)*xy/2+0.5); /* subdivide curve  */
+            sy = floor((y0+2*w*y1+y2)*xy/2+0.5); /* plot separately */
+            dx = floor((w*x1+x0)*xy+0.5);
+            dy = floor((y1*w+y0)*xy+0.5);
+            plotQuadRationalBezierWidthSeg(canvas,x0,y0,dx,dy,sx,sy,cur,th);
+            dx = floor((w*x1+x2)*xy+0.5);
+            dy = floor((y1*w+y2)*xy+0.5);
+            plotQuadRationalBezierWidthSeg(canvas,sx,sy,dx,dy,x2,y2,cur,th);
+            return
+        end if
+        
+        err = 0
+        while dy+2*yy<0 
+          and dx+2*xx>0 do /* loop of steep/flat curve */
+            if dx+dy+xy<0 then /* steep curve */
+                do
+                    ed = -dy-2*dy*dx*dx/(4*dy*dy+dx*dx);     /* approximate sqrt */
+                    w = (th-1)*ed;                           /* scale line width */
+                    x1 = floor((err-ed-w/2)/dy);                 /* start offset */
+                    e2 = err-x1*dy-w/2;                 /* error value at offset */
+                    x1 = x0-x1*sx;                                /* start point */
+                    setPixelAA(canvas,x1,y0,255*e2/ed)     /* aliasing pre-pixel */
+--                  plot(canvas,x1,y0,255*e2/ed,true);     /* aliasing pre-pixel */
+                    e2 = -w-dy-e2;
+                    while e2-dy<ed do
+                        x1 += sx
+                        gCanvasPixel(canvas,x1,y0,LINE);  /* pixel on thick line */
+                        e2 -= dy
+                    end while
+                    setPixelAA(canvas,x1+sx,y0,255*e2/ed) /* aliasing post-pixel */
+--                  plot(canvas,x1+sx,y0,255*e2/ed,true)  /* aliasing post-pixel */
+                    if y0==y2 then return end if /* last pixel -> curve finished */
+                    y0 += sy;
+                    dy += xy;
+                    err += dx;
+                    dx += xx;                                          /* y step */
+                    if 2*err+dy>0 then                           /* e_x+e_xy > 0 */
+                        x0 += sx;
+                        dx += xy;
+                        err += dy;
+                        dy += yy;                                      /* x step */
+                    end if
+                    if x0!=x2 and (dx+2*xx<=0 or dy+2*yy>=0) then
+                        fullBreak := abs(y2-y0)>abs(x2-x0) 
+                        exit                                 /* other curve near */
+                    end if
+                until dx+dy+xy>=0                       /* gradient still steep? */
+
+                if fullBreak then exit end if
+
+                /* change from steep to flat curve */
+                cur = err - dy - w / 2
+                y1 = y0;
+                while cur<ed do
+                    e2 = cur
+                    x1 = x0
+                    while e2-dy<ed do
+                        x1 -= sx    
+                        gCanvasPixel(canvas,x1,y1,LINE);    /* pixel on thick line */
+                        e2 -= dy
+                    end while
+                    setPixelAA(canvas,x1-sx,y1,255*e2/ed);  /* aliasing post-pixel */
+                    y1 += sy
+                    cur += dx
+                end while
+            else /* flat curve */
+                do
+                    ed = dx+2*dx*dy*dy/(4*dx*dx+dy*dy);       /* approximate sqrt */
+                    w = (th-1)*ed;                            /* scale line width */
+                    y1 = floor((err+ed+w/2)/dx);                  /* start offset */
+                    e2 = y1*dx-w/2-err;                  /* error value at offset */
+                    y1 = y0-y1*sy;                                 /* start point */
+--                  plot(canvas,x0,y1,255*e2/ed);           /* aliasing pre-pixel */
+                    setPixelAA(canvas,x0,y1,255*e2/ed);     /* aliasing pre-pixel */
+                    e2 = dx-e2-w;
+                    while e2+dx<ed do
+                        y1 += sy
+                        gCanvasPixel(canvas,x0,y1,LINE);   /* pixel on thick line */
+                        e2 += dx
+                    end while
+--                  plot(canvas,x0,y1+sy,255*e2/ed);       /* aliasing post-pixel */
+                    setPixelAA(canvas,x0,y1+sy,255*e2/ed)  /* aliasing post-pixel */
+                    if x0==x2 then return end if  /* last pixel -> curve finished */
+                    x0 += sx;
+                    dx += xy;
+                    err += dy;
+                    dy += yy;                                          /* x step */
+                    if 2*err+dx<0 then                           /* e_y+e_xy < 0 */
+                        y0 += sy;
+                        dy += xy;
+                        err += dx;
+                        dx += xx;                                      /* y step */
+                    end if
+                    if y0!=y2 and (dx+2*xx<=0 or dy+2*yy>=0) then
+                        fullBreak = abs(y2-y0)<=abs(x2-x0)
+                        exit                                 /* other curve near */
+                    end if
+                until dx+dy+xy<0                         /* gradient still flat? */
+
+                if fullBreak then exit end if
+
+                /* change from flat to steep curve */
+                cur = -err+dx-w/2
+                x1 = x0
+                while cur<ed do
+                    e2 = cur
+                    y1 = y0
+                    while e2+dx<ed do
+                        y1 -= sy
+                        gCanvasPixel(canvas,x1,y1,LINE); /* pixel on thick line */
+                        e2 += dx
+                    end while
+--                  plot(canvas,x1,y1-sy,255*e2/ed)      /* aliasing post-pixel */
+                    setPixelAA(canvas,x1,y1-sy,255*e2/ed) /* aliasing post-pixel */
+--                  plot(canvas,x1,y1-sy,255*e2/ed,true) /* aliasing post-pixel */
+                    x1 += sx
+                    cur -= dy
+                end while
+            end if
+        end while
+    end if
+    plotLineWidth(canvas,x0,y0,x2,y2,th); /* confusing error values */
+end procedure
+
+procedure plotCubicBezierSegWidth(gdx canvas, atom x0,y0,x1,y1,x2,y2,x3,y3,th)
+    /* split cubic Bezier segment in two quadratic segments */
+    atom x = floor((x0+3*x1+3*x2+x3+4)/8), 
+         y = floor((y0+3*y1+3*y2+y3+4)/8);
+    plotQuadRationalBezierWidthSeg(canvas,x0,y0,floor((x0+3*x1+2)/4),floor((y0+3*y1+2)/4), x,y, 1,th);
+    plotQuadRationalBezierWidthSeg(canvas,x,y,floor((3*x2+x3+2)/4),floor((3*y2+y3+2)/4), x3,y3, 1,th);
+end procedure
+
+procedure plotCubicBezierWidth(gdx canvas, atom x0, y0, x1, y1, x2, y2, x3, y3, th)
+   /* plot any cubic Bezier curve */
+    atom n = 0, i = 0,
+        xc = x0+x1-x2-x3, xa = xc-4*(x1-x2),
+        xb = x0-x1-x2+x3, xd = xb+4*(x1+x2),
+        yc = y0+y1-y2-y3, ya = yc-4*(y1-y2),
+        yb = y0-y1-y2+y3, yd = yb+4*(y1+y2),
+       fx0 = x0, fx1, fx2, fx3, 
+       fy0 = y0, fy1, fy2, fy3,
+        t1 = xb*xb-xa*xc, t2
+    sequence t = repeat(0,7)
+                                 /* sub-divide curve at gradient sign changes */
+    if xa==0 then                                               /* horizontal */
+        if abs(xc)<2*abs(xb) then                               /* one change */
+            n += 1
+            t[n] = xc/(2*xb)
+        end if
+    elsif t1>0 then                                            /* two changes */
+        t2 = sqrt(t1);
+        t1 = (xb-t2)/xa; if abs(t1)<1 then n += 1; t[n] = t1 end if
+        t1 = (xb+t2)/xa; if abs(t1)<1 then n += 1; t[n] = t1 end if
+    end if
+    t1 = yb*yb-ya*yc;
+    if ya==0 then                                                 /* vertical */
+        if abs(yc)<2*abs(yb) then                               /* one change */
+            n += 1
+            t[n] = yc/(2.0*yb)
+        end if
+    elsif t1>0 then                                            /* two changes */
+        t2 = sqrt(t1);
+        t1 = (yb-t2)/ya; if abs(t1)<1 then n += 1; t[n] = t1 end if
+        t1 = (yb+t2)/ya; if abs(t1)<1 then n += 1; t[n] = t1 end if
+    end if
+    t1 = 2*(xa*yb-xb*ya); t2 = xa*yc-xc*ya;     /* divide at inflection point */
+    i = t2*t2-2*t1*(xb*yc-xc*yb);
+    if i>0 then
+        i = sqrt(i)
+        n += 1
+        t[n] = (t2+i)/t1; if abs(t[n])<1 then n += 1 end if
+        t[n] = (t2-i)/t1; if abs(t[n])<1 then n += 1 end if
+        n -= 1
+    end if
+--  for (i = 1; i < n; i++)                        /* bubble sort of 4 points */
+--  for i=2 to n do                                /* bubble sort of 4 points */
+--      t1 = t[i-1]
+--      if t1>t[i] then t[i-1] = t[i]; t[i] = t1; i = 0; }
+--  end for
+    t[1..n] = sort(t[1..n])
+    n += 1
+    t1 = -1; t[n] = 1;                                  /* begin / end points */
+--   for (i = 0; i <= n; i++) {               /* plot each segment separately */
+    for i=1 to n do                           /* plot each segment separately */
+        t2 = t[i];                              /* sub-divide at t[i-1], t[i] */
+        fx1 = (t1*(t1*xb-2*xc)-t2*(t1*(t1*xa-2*xb)+xc)+xd)/8-fx0;
+        fy1 = (t1*(t1*yb-2*yc)-t2*(t1*(t1*ya-2*yb)+yc)+yd)/8-fy0;
+        fx2 = (t2*(t2*xb-2*xc)-t1*(t2*(t2*xa-2*xb)+xc)+xd)/8-fx0;
+        fy2 = (t2*(t2*yb-2*yc)-t1*(t2*(t2*ya-2*yb)+yc)+yd)/8-fy0;
+        fx3 = (t2*(t2*(3*xb-t2*xa)-3*xc)+xd)/8;
+        fx0 -= fx3
+        fy3 = (t2*(t2*(3*yb-t2*ya)-3*yc)+yd)/8;
+        fy0 -= fy3
+        x3 = floor(fx3+0.5); y3 = floor(fy3+0.5);             /* scale bounds */
+        if fx0!=0 then fx0 = (x0-x3)/fx0; fx1 *= fx0; fx2 *= fx0; end if
+        if fy0!=0 then fy0 = (y0-y3)/fy0; fy1 *= fy0; fy2 *= fy0; end if
+        if x0!=x3 or y0!=y3 then                           /* segment t1 - t2 */
+            plotCubicBezierSegWidth(canvas,x0,y0,x0+fx1,y0+fy1,x0+fx2,y0+fy2,x3,y3,th);
+        end if
+        x0 = x3; y0 = y3; fx0 = fx3; fy0 = fy3; t1 = t2;
+    end for
+end procedure
+
+-- pah, this is bug-ridden anyway...!
+--  plotCubicBezierWidth(canvas,10,10,w,10,0,h,w,h,1)
+--*/
+

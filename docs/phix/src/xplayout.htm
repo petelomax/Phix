@@ -4,40 +4,165 @@
    <these>
     <get>
      <stripped>
-      <h1 class="title">box model layout</h1>
+      <h1 class="title">Layout Management</h1>
       <div id="mainSection">
-        <a name=BoxModel></a>
-        <h3>Browser</h3>
-        HTML/JavaScript/CSS uses a box model, and hence xpGUI.e uses the same on desktop/Phix:
+<!--        <b>WARNING</b>: woefully incomplete...<br><br> -->
+        In short: we want to rely on the "natural" sizes of elements as much as possible, specify the few(est) [default|initial] sizes
+        that actually matter, and rely on the layout manager to figure out the rest for us. Sometimes we might want a specific control
+        to be (say) 200x150, sometimes fixed, sometimes expand/shrink-able. Sometimes we might want a whole dialog to be (say) 400x300
+        and have the layout manager automatically expand/shrink/position the various elements appropriately. Quite often we might only
+        want to specify what the elements are, and have all the positions and sizes (including the dialog) get sensible defaults.
         <br>
         <br>
-        <div style="width: 60%; margin: auto; display: block;">
-<!--          <p align="center"> -->
-          <img border="0" src="images/boxmodel.png" width="200" height="160" />
-<!--        </p>-->
-        </div>
+        xpGUI uses an abstract layout model, whereby otherwise invisible <a href="gBox.htm">gHbox</a> and <a href="gBox.htm">gVbox</a>
+        containers arrange their children horizontally and vertically respectively, forming a natural tree-like hierarchy, similar to 
+        that required by HTML/CSS and GTK. WinAPI expects a slightly "flatter" layout with explicit pixel offset positions, but we can 
+        easily make the gH/Vbox "virtual" for that, and calculate the said offsets on behalf of the programmer. 
+        In practice GTK is so highly opinionated on such matters it turns out much easier to effectively disable the internal layout 
+        manager, use GtkFixed containers (tellingly IUP does so too), and rely instead on similar internal calculations to WinAPI.
         <br>
-        Likewise the best way to manage layout in a browser is a flexbox, so xpGUI.e mimics that too.<br>
-        Hence while PADDING and MARGIN can stay, GAP and IupFill() (from pGUI.e) have to go/be replaced.<br>
+        <br>
+        Under this scheme, all dialogs are naturally resizable with relatively little effort on the part of the programmer, as in the 
+        target user of xpGUI, that is compared to explicit pixel offets, which would probably be painfully problematical under HTML/CSS.
+        <br>
+        <br>
+        One key point to note, especially during initial experiments and when reading the examples, is that several are deliberately a
+        direct sole child of the dialog, which makes the element expand to fill the dialog naturally, specifically the 
+        <a href="gTreeView.htm">gTreeView</a>() and <a href="gCanvas.htm">gCanvas</a> examples, along with the canvas-derived controls 
+        <a href="gGraph.htm">gGraph</a>(), <a href="gList.htm">gList</a>(), and <a href="gTable.htm">gTable</a>(). 
+        However most of the other examples, in particular <a href="gButton.htm">gButton</a>(), <a href="gCheckbox.htm">gCheckbox</a>(), 
+        <a href="gDatePick.htm">gDatePick</a>(), <a href="gDropDown.htm">gDropDown</a>(), <a href="gLabel.htm">gLabel</a>(), and 
+        <a href="gText.htm">gText</a>(), all wrap the element(s) in otherwise invisible containers <a href="gBox.htm">gHbox</a>(), 
+        <a href="gBox.htm">gVbox</a>(), or both, to <i>prevent</i> such expansion.
+        Should a dialog be resizeable, something has to take up the excess space/slack, and those two invisible containers are often 
+        the best candidates, and offer <a href="gBox.htm#GAP">GAP</a> and <a href="gBox.htm#SPACE">SPACE</a> settings in addition to 
+        the more generally available <a href="gSetAttribute.htm#MARGIN">MARGIN</a> to control how they do so.<br>
 <!--
-        Hence certain layout attributes, especially GAP, are rather difficult to implement. <br>
-        Layout is generally based on (nested) flex box with space-evenly...<br>
+the visible child elements of a dialog are held in a suitably nested 
+        hierarcy, hopefully reasonably intuitive, of 
 -->
-        If at all possible, use RASTERSIZE, MARGIN, and PADDING in preference to most anything else (??).<br>
-        Note that SIZE is converted to "rem", which obey the browser&rsquo;s user preferences settings, whereas<br>
-        RASTERSIZE is the same as "px", and therefore may be more consistent between pwa/p2js and desktop/Phix.<br>
-<br>
-<br>
-        TBC... (everything below is copied verbatim from pGUI and needs a complete rewrite/rethink)
-        <br>
 
-        <h2>Native Sizes (Window and Client)</h2>
-        Because of the dynamic nature of the abstract layout IUP elements have implicit many types of size. 
-        But the native elements have only two types of size: Window and Client. <br>
-        The Window size reflects the bounding rectangle of the element. <br>
-        The Client size reflects the inner size of the window that excludes the decorations and margins. <br>
-        For many elements these two sizes are equal, but for many containers they are quite different. 
-        Some examples:
+        <a name=BoxModel></a>
+        <h3>The HTML/CSS Box Model</h3>
+        <p align="center"><img alt="boxlayout" src="images/boxlayout.png" width="166" height="129"></p>
+
+        HTML/CSS/JavaScript uses a box model (you may recognise the above from the Browser Development Tools), and pretty much everything 
+        is constructed from nested &lt;div&gt; - even the trusty old &lt;table&gt;, &lt;tr&gt;, &lt;th&gt;, &lt;td&gt; are just div in 
+        disguise, and you could theoretically achieve <i>exactly</i> the same effect using div with explicit inline attributes or the 
+        appropriate CSS and &lt;div class=table&gt;, etc.
+        <br>
+        <br>
+        In JavaScript, the margins can be set with anything between one and four values:<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;50px: all four margins will be 50px<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;50px 10px: the top and bottom margins will be 50px, left and right margins will be 10px<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;50px 10px 20px: the top margin will be 50px, left and right 10px, and bottom 20px<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;50px 10px 20px 30px: the top margin will be 50px, right 10px, bottom 20px, and left 30px<br>
+        and we may as well adopt a near-identical but cross-platform scheme, ie/eg "50x10x20x30" or {50,10,20,30}.<br>
+        <small>(Aside: The ability to set margins and so forth in units other than pixels will/may be added at a later date.)<br></small>
+        In other words, margin, border, and padding all spell trbl <img src="images/ksk-smile.png" alt="smile" />.
+        <br>
+        <br>
+        Note that border has direct use on <a href="gButton.htm">gButton</a>, <a href="gDatePick.htm">gDatePick</a>, 
+        <a href="gDropDown.htm">gDropDown</a>, <a href="gFrame.htm">gFrame</a>, <a href="gProgressBar.htm">gProgressBar</a>, and
+        <a href="gText.htm">gText</a>, where it is a fixed non-overrideable width of 1, and there is no sense allowing it to be set on 
+        any other control, so from an xpGUI [user] perspective, we can forget about that.
+        Technically speaking, the <a href="gSetAttribute.htm#SIZE">SIZE</a> attribute refers to the inner (blue) content box, with any
+        such drawn hard against the top left. For gButton/gDatePick/gDropDown/gText <!--(some of the) controls just listed --> we (will) 
+        also allow a <a href="gSetAttribute.htm#PADDING">PADDING</a> so we can put the border in the right place, and in practice any such 
+        is (/will be) effectively subtracted from any specified size when setting that inner box size. 
+        Obviously <a href="gSetAttribute.htm#MARGIN">MARGIN</a> can and should be used instead of padding and would have much the same 
+        effect on all other (borderless) controls, and that is <i>never</i> subtracted from any usersize. 
+        Assuming controls can take care of their own borders and padding, the layout manager only has to deal with/worry about margins, 
+        which makes my life at least much simpler.
+        <br>
+        <br>
+        There is no getting around that basic model, whatever we do simply <i>has</i> to be expressible in terms of nested containers 
+        with margins. No particular problem there, just explicitly stating a simple and completely undeniable fact. In particular, 
+        should we want, say, a <a href="gBox.htm#GAP">GAP</a>, we have to (be able to) do it in terms of margins (which we can).
+        It is not so much that model being actually reimplemented on the desktop, but rather that everything we say and do regarding 
+        sizes and positioning is expressed in those terms.
+        <br>
+        <br>
+        In practice, xpGUI.js can perhaps also use "display: flex;" and friends to smooth a few things out within h/vbox containers, but
+        we&rsquo;ll quietly gloss over that and perhaps mimic a bit of that automatically, rather than explicitly re-implement flexbox
+        features (and all the rest) for desktop/Phix. In practice, xpGUI.js uses that and explicitly calculated margins rather than what
+        follows, but the result is pretty much the same.
+<!--        , apart from or beyond the <a href="gBox.htm#SPREAD">SPREAD</a> attribute of h/vbox. -->
+<!--
+        we can arrange children horizontally/vertically using  with
+        "flex-direction: row/column;", but otherwise let&rsquo;s stick to "justify-content: flex-start;" and rely 
+        on explicit margins for any finer control.
+
+        <br>
+        <br>
+        (At this stage, lets just get pixels working: later we can consider (eg) something CHARSIZE-based)<br>
+
+        For the purposes of an xpGUI layout manager, we have to focus exclusively on the spacing within v/hbox, as far as border and padding are concerned 
+        In practice, any internal padding would only have any visual impact on <a href="gButton.htm">gButton</a>, 
+        <a href="gText.htm">gText</a>, and possibly <a href="gDatePick.htm">gDatePick</a> controls, being those that
+        actually have a visible border, and even then would achieve nothing and possibly clash with the
+        <a href="#SIZE">SIZE</a> attribute. There isn&rsquo;t much call for changing the border on those controls,
+        or for that matter adding a border to, say, a <a href="gLabel.htm">gLabel</a>, so we&rsquo;ll mention that no more.<br>
+        Single-child containers such as <a href="gDialog.htm">gDialog</a> and <a href="gFrame.htm">gFrame</a> would gain nothing
+        from padding that the margin|padding of a nested h/vbox would not provide, and therefore would just muddy the waters, so
+        at least for 0.x releases (ie those not ready for active duty) that won&rsquo;t be supported.<br?
+        Hence as far as xpGUI is concerned, for any visible controls the margin is king, though/and we are at liberty to 
+        use padding [only] on h/vbox containers as part of our layout management.<br>
+-->
+<!--
+        ...padding and border are really part of the child element, 
+        only the (independently settable top/left/right/bottom) margin is suitable for controlling the 
+        layout within a container (which will do just fine, though we want to avoid border-collapse).
+-->
+<!-- No, applying PADDING just feels better:
+        ?A GAP attribute can/could be implemented simply by adjusting the top/left margin on children[2..$].<br>
+        ?Note that for h/vbox (which have no border), xpGUI (?also?) applies the left/top padding to [the margin of] every child.?<br>
+        ?Also note that as fas as xpGUI is concerned and border/padding of visible elements is treated as content.?<br>
+-->
+<!--
+margin: 10px 5px 15px 20px; top margin is 10px. right margin is 5px. bottom margin is 15px. left margin is 20px.
+margin: 20px auto; Then that means top and bottom margin of 20px and left and right margin of auto. 
+                   And auto means that the left/right margin are automatically set based on the container.
+
+This property can take from one to four values:
+
+One value, like: div {margin: 50px} - all four margins will be 50px
+Two values, like: div {margin: 50px 10px} - the top and bottom margins will be 50px, left and right margins will be 10px
+Three values, like: div {margin: 50px 10px 20px}- the top margin will be 50px, left and right margin will be 10px, bottom margin will be 20px
+Four values, like: div {margin: 50px 10px 20px 30px} - the top margin will be 50px, right margin will be 10px, bottom margin will be 20px, left margin will be 30px
+
+The padding property sets or returns the padding of an element.
+
+This property can take from one to four values:
+
+Both the margin property and the padding property insert space around an element. However, the difference is that margin inserts the space around the border, while padding inserts the space within the border of an element.
+
+One value, like: div {padding: 50px} - all four sides will have a padding of 50px
+Two values, like: div {padding: 50px 10px} - the top and bottom padding will be 50px, left and right padding will be 10px
+Three values, like: div {padding: 50px 10px 20px} - the top padding will be 50px, left and right padding will be 10px, bottom padding will be 20px
+Four values, like: div {padding: 50px 10px 20px 30px} - the top padding will be 50px, right padding will be 10px, bottom padding will be 20px, left padding will be 30px
+
+    margin-top:16px;
+    margin-right: auto;
+    margin-bottom:0;
+    margin-left: auto; 
+
+/*  padding-top:10px;*/
+/*  padding-right:8px;*/
+/*  padding-bottom:10px;*/
+/*  padding-left:8px;*/
+    padding:10px 8px 10px 8px;
+
+We (xpGUI) could say: GAP on a h/bbox is added to the margin-left/top of all children except the first....
+
+-->
+
+        <h3>Native sizes (window and client)</h3>
+        Because of the dynamic nature of the abstract layout, xpGUI elements implicitly have many types of size, <br>
+        but the native (/actual) elements have only two types of size: window and client. <br>
+        The window size reflects the bounding rectangle of the element. <br>
+        The client size reflects the inner size of the window that excludes any decorations and margins. <br>
+        For many elements those two sizes are equal, but for many containers they are quite different, some examples:
         <br>
         <br>
         <div align="center">
@@ -45,27 +170,506 @@
           <table style="border:1px solid #ffffff " border="0" cellpadding="0" cellspacing="0" width="100%">
             <tr>
               <td style="border:1px solid #ffffff " width="33%" class="style2">
-              <p align="center">
-              <img border="0" src="images/nativesize1.gif" width="297" height="199" /></p></td>
+              <p align="center"><img border="0" src="images/clientsize1.png" width="213" height="95" /></p></td>
               <td style="border:1px solid #ffffff " width="33%" class="style2">
-              <p align="center">
-              <img border="0" src="images/nativesize2.gif" width="210" height="146" /></p></td>
+              <p align="center"><img border="0" src="images/clientsize2.png" width="136" height="63" /></p></td>
               <td style="border:1px solid #ffffff " width="34%" class="style2">
-              <p align="center">
-              <img border="0" src="images/nativesize3.gif" width="268" height="204" /></p></td>
+              <p align="center"><img border="0" src="images/clientsize3.png" width="130" height="78" /></p></td>
             </tr>
           </table>
           </center>
         </div>
         <br>
         <br>
-        The IUP sizes (User, Natural and Current) described below are all related to the Window size. 
+        The xpGUI sizes (user, natural and current) described below are (in theory at least) all related to the window size. <br>
+        Note that in their own ways both GTK and WinAPI are highly opinionated on such matters: GTK generally only "speaks" client sizes, and 
+        in fact the docs adamantly state you <i>cannot</i> get/set the window size (in truth G<i>D</i>K <i>does</i> kinda know), whereas WinAPI 
+        normally (with a couple of exceptions) operates on windows sizes, however apparently since Windows Vista there is now an undocumented
+        "invisible 8 pixel border" somewhere. You would think that if you did somehow get hold of both sizes (and WinAPI certainly purports to
+        that) you could simply subtract one from the other to determine the decoration sizes, but it is just not that simple, so instead xpGUI
+        restorts to various hard-coded numbers, which may warrant further tweaks depending on [OS] versions, hardware, and system settings.
+        Thankfully HTML/CSS/JavaScript is more likely to do what you ask, but in any case such differences should be and are abstracted away by 
+        xpGUI, and you should barely notice even if the numbers/adjustments just mentioned are (sometimes) slightly wrong.
         <br>
         <br>
-        The native Client size is used only internally to reposition the elements in the abstract layout, but it is available using the 
-        <a href="gSetAttribute.htm#CLIENTSIZE">CLIENTSIZE</a> attribute.
+        The internal read-only native client size is used only to reposition the elements in the abstract layout, but is available using the 
+        <a href="gGetAttribute.htm#CLIENTSIZE">CLIENTSIZE</a> attribute should it be needed for any reason. You can actually set it on a
+        gDialog, which may lead to more conststent (inner) behaviour. [DEV: needs more testing]
+
+        <a name=gNormalise></a>
+        <h3>Normalisaton</h3>
+        Sometimes you may want to line things up, which is achieved by setting them to the same (largest) natural width/height/both:<br>
+        <b>gNormalise</b>(<a href="gdx.htm">gdx</a> ids, <a href="string.htm">string</a> direction="BOTH")<br>
+        ids: a sequence of elements to be normalised.<br>
+        direction: can also be "HEIGHT" or "WIDTH".
         <br>
         <br>
+        You can also use the alias <b>gNormalize</b>(). This routine must be invoked before any elements are mapped<small> (or not at all)</small>.<br>
+        All elements must be in the same gDialog(), but can be anywhere within its hierarcy, specifically in completely different gH/Vbox. <br>
+        There is no support for normalising containers, or updating normalisation after mapping/initial display when manually/explicitly updating
+        the size/text of one (or more) of the elements involved. [Were containers allowed, at the very least there would need to be additional code
+        to ensure none of their children were in the same group(s).] The precise behaviour of elements which are part of more than one normalisation 
+        group is formally undefined, as in it will end up with the largest width/height of at least some of the groups but not necessarily all of 
+        them. However it should be fine to normalise widthwise in <i>one</i> group and heightwise in another <i>one</i>. Note that elements can
+        still expand/shrink to fit their containers <i>after</i> normalisation. Should normalisation not behave as required, you are expected to 
+        explicitly set all the element sizes manually instead, and/or perhaps also set some sizes on some containers.
+<!--
+        <del>Right now I cannot decide whether to implement this as</del> see (when I write it) --Z>
+//      gNormalise({ids},"WIDTH|HEIGHT|BOTH")<br>
+<Z!Z--
+                <del>or have named groupings on individual elements,</del> and/or everything in a h/vbox... It may also require mulitple passes
+        to update the natural sizes and re-accumlulate them upwards, until no more changes occur...<br>
+--X>
+?       The NORMALWIDTH, NORMALHEIGHT, and NORMALBOTH attributes on gHbox and gVbox achieve much the same effect, however
+        they apply to all top level elements, with no way to achieve any finer control such as selected or nested elements.<br>
+<X!X--
+?       Note that only visible elements can actually be normalised: If you have (say) gVbox({gHbox,gHbox}) then the two
+        children are (with the default EXPAND in place) automatically given the same width, however there is no facility
+        to automate same width/height on two or more disjoint gHbox/gVbox, though you can use a fixed SIZE setting.<br>
+        <small>(That should hardly be particularly suprising given that h/vbox are virtual under WinAPI.)</small><br>
+-->
+        <h3>Attributes</h3>
+        Layout management observes and is controlled by just a small handful of attributes:<br>
+        <ul>
+        <li><a href="gSetAttribute.htm#SIZE">SIZE</a>: Allows the natural size to be overidden.</li>
+        <li><a href="gSetAttribute.htm#MAXSIZE">MAXSIZE/MINSIZE</a>: Should be self-explanatory.</li>
+        <li><a href="gSetAttribute.htm#EXPAND">EXPAND</a>: Allows an element or container to grow, widthwise, heightwise, or both.</li>
+<!--    <li><a href="gSetAttribute.htm#SHRINK">SHRINK</a>: Allows an element to be cropped smaller than its natural size (default NO).</li> -->
+        <li><a href="gSetAttribute.htm#MARGIN">MARGIN</a>: As per the <a href="#BoxModel">box model</a> above.</li>
+        <li><a href="gBox.htm#GAP">GAP</a>/<a href="gBox.htm#SPACE">SPACE</a>: (gH/Vbox only) Additional space between/around elements.</li>
+        </ul>
+        These often interact with each other, sometimes rather subtly, for instance a gH/Vbox typically only expands in a given direction
+        if at least one of its children is capable of expanding in that same direction. Often a bit of trial and error is required to find 
+        the perfect combination.
+
+        <h3>Inheritance</h3>
+        Note that the inheritance model differs somewhat between pGUI and xpGUI. While some aspects such as fonts inherit as you might 
+        hope and expect, I found having GAP/MARGIN/PADDING etc apply to all child elements as well as the immediate (container) just 
+        annoying <small>(You want an extra 5 pixels? Sure, here you go, and that five-level nested sub-child gets 25 pixels, that&rsquo;s 
+        what you meant, <i>obviously</i>)</small>.
+        Hopefully <a href="gSetAttribute.htm">gSetAttribute</a>({elements},..) should help when that sort of thing <i>is</i> actually wanted.
+        Of course no-one should expect legacy code to run flawlessly without some tweaks, anyway.
+
+        <h3>Implementation</h3>
+        The layout manager works by juggling a whole heap of sizes: natural, user, min, max, normalised, and final, and applying margins,
+        initially accumulating sizes up the hierarchy, and then applying spacing/expansion downwards. Much of the code is a little vague
+        and/or experimental, rather than adhering to some clear easily digestible overall design, since there isn&rsquo;t one - these docs 
+        are the closest you&rsquo;ll get to that. The reality is my efforts to come up with a proper design certainly helped to simplify 
+        things a great deal at first, but beyond a certain point started going in circles, so after that I just started trying to use it, 
+        and fixing the many inevitable "bugs" as and when they got in the way. Should you want to study the layout management code, the 
+        relevent (local) routines in xpGUI.e all begin with "xpg_lm_"/are the only ones that contain "lm":
+        <ul>
+        <li>xpg_lm_get_dialog_decoration_size()</li>
+        <li>xpg_lm_set_element_sizes()</li>
+        <li>xpg_lm_gather_normal_groups()</li>
+        <li>xpg_lm_normalise_sizes()</li>
+        <li>xpg_lm_accumulate_sizes()</li>
+        <li>xpg_lm_disperse_user_sizes()</li>
+        <li>xpg_lm_calculate_offsets()</li>
+        <li>xpg_lm_apply_offsets()</li>
+        <li>xpg_lm_dump_ctrls()</li>
+        </ul>
+
+        Be warned that layout management is by far the trickiest part of xpGUI. Getting xpg_lm_dump_ctrls() to show that you
+        have calculated everything properly is just the first step: getting WinAPI and GTK to obey you is altogether another 
+        matter entirely. As mentioned above, there are a fair few places where hard-coded adjustments/fudges are used, that
+        probably deserve to be replaced with the "proper calculation via API", whatever that might actually be. My attempts
+        to break the task down into eight smaller/simpler pieces (plus one diagnostic routine) have not really helped.
+        There is also an otherwise undocumented gSetBodge() debug aid that I found helpful, at least initially, and which may
+        one day become the basis for some much-needed unit/regression testing.
+        <br>
+        <br>
+        Note there is no intention to achieve pixel-perfect consistency between different backends, since they have different 
+        window decorations and subtly different fonts, and even GTK2 and GTK3 on the same box are visually rather different. 
+        Besides, should you display a screenshot of a Windows program on a Linux desktop, or vice versa, it might look rather 
+        odd and out-of-place, and you are probably more likely to want to hide the standard window decorations in a browser 
+        than on the desktop. Things should however be reasonably similar and more importantly perfectly/intuitively use-able.
+        That said, there is no prohibition on and no expectation that you will never need minor platform-specific tweaks, and
+        at least some uses/tests of <a href="gUseGTK.htm">gUseGTK</a>() on Windows do actually attain pixel perfection (often
+        with slightly different background colours).
+        <br>
+        <br>
+<!--
+<hr>
+<hr>
+
+        <b>Short Version:</b> Most interface elements get a sensible "natural size", with the notable exception of
+        <a href="gCanvas.htm">gCanvas</a> (and hence <a href="gGraph.htm">gGraph</a>) and <a href="gTreeView.htm">gTreeView</a>.
+        The usual approach is to construct a dialog using nested gH/VBox without worrying about the precise size or position of 
+        anything and just let the layout manager figure it out. When any of the three mentioned is involved, you would normally 
+        specify a size on those or the final size of the dialog and let the layout manager expand them to fit. In all probability
+        some minor adjustments to spacing and alignment will be required, and it is often a good idea to set an explicit minimum 
+        size on the dialog, which I normally get from a <code>?gGetAttribute(dlg,"SIZE")</code>.
+
+        <h3>Long Version</h3>
+        Properly resizable dialogs can often empower the final end users in ways that static fixed layouts never could,
+        in some cases expanding things where needed and in others possibly freeing up some valuable screen real estate.
+        <br>
+        <br>
+        In short, the old-school method of explicitly specifying the position on every element is not only downright tedious but
+        would never work in the HTML <a href="#BoxModel">box model</a> (or at least be rather difficult), so that&rsquo;s out.
+        Instead, you can either just specify the desired (initial) dialog size (recommended) and let the layout manager figure 
+        out everything for whatever that contains, or rely on it summing up the natural sizes of the elements it contains. 
+        Note that the latter would typically still need explicit sizes on <a href="gCanvas.htm">gCanvas</a> (and hence 
+        <a href="gGraph.htm">gGraph</a>), and <a href="gTreeView.htm">gTreeView</a>, and quite probably 
+        <a href="gSlider.htm">gSlider</a>, <a href="gProgressBar.htm">gProgressBar</a>, and <a href="gText.htm">gText</a> as well, 
+        whereas <a href="gButton.htm">gButton</a>, <a href="gCheckbox.htm">gCheckbox</a>, <a href="gDatePick.htm">gDatePick</a>, 
+        <a href="gDropDown.htm">gDropDown</a>, <a href="gList.htm">gList</a>, and <a href="gTable.htm">gTable</a> are more likely 
+        to get a decent common-sense natural size.
+        In general, xpGUI is easier and more likely to work as expected with an explicit size setting on the containing
+        <a href="gDialog.htm">gDialog</a>, though the more "trivial" dialogs should often simply "just work" without one.
+        <br>
+        <br>
+        The <a href="gBox.htm">gHbox</a> and <a href="gBox.htm">gVbox</a> containers are the "sand and cement between the bricks",
+        responsible for almost all spacing around and between their child elements, and certainly any and all variable spacing.
+        Technically this model is a closer fit to the underlying GTK and HTML/CSS/JavaScript mechanics (details below) but in any
+        case manually specifying the pixel offsets of every element, as raw WinAPI expects, would be much more tedious, especially
+        in getting things to line up and not overlap or be clipped. While it could theoretically be possible to work backwards
+        from "correct" offsets onto the GTK/CSS models, it might actually be impossible to do so from some "bug-ridden" offsets.
+        The <a href="gDialog.htm">gDialog</a> and <a href="gFrame.htm">gFrame</a> containers only have a single child, and
+        likewise only one of the immediate children of a <a href="gTabs.htm">gTabs</a> control is visible at any given
+        moment, and that occupies <i>all</i> space within them. 
+-->
+        <!--, apart from any <a href="#PADDING">PADDING</a>.-->
+<!--        <i>without any</i> <a href="#MARGIN">MARGIN</a>.<br>-->
+
+<!--
+        In any case, manually specifying the pixel offsets of every element is just simply tedious, so instead that gets done automatically.
+-->
+<!--
+        <br>
+        <br>
+        In particular, a <a href="gDialog.htm">gDialog</a>(<a href="gCanvas.htm">gCanvas</a>()), and similarly for canvas-derived
+        elements <a href="gGraph.htm">gGraph</a>, <a href="gList.htm">gList</a>, and <a href="gTable.htm">gTable</a>, is (almost) 
+        treated as a special case with the canvas always completely filling the dialog, and as such the layout manager has very
+        little to do. The natural size of a canvas is rather small, the size of one character, and hence in such cases you will
+        almost certainly want to specify a [MIN]SIZE on either the canvas or dialog. The "not quite" part of it arises when the 
+        canvas is (explicitly) scrolled, in which case you must/have specified sizes on both. Otherwise the rest of this page is
+        primarily concerned with the handling of [nested] <a href="gBox.htm">gVbox</a> and <a href="gBox.htm">gHbox</a>.
+        <br>
+        <br>
+        The key take-homes from a nested h/vbox model are:
+        <ul>
+        <li>Every visible element is automatically given a <i>natural size</i> that ensures the contents are fully displayed.</li>
+        <li>Containers get a natural size width/height sum and sufficient height/width for the largest of their children.</li>
+        <li>Elements and containers may be assigned straightforward EXPAND/MARGIN/PADDING/SIZE (etc) attributes.</li>
+        <li>When a dialog is created/resized the layout manager uses the above to reposition/resize them and their children.</li>
+        </ul>
+        While some elements (esp. <a href="gCanvas.htm">gCanvas</a>) may benefit from being given an explicit size, it is not 
+        normally needed on things like <a href="gButton.htm">gButton</a> and <a href="gLabel.htm">gLabel</a>, and sometimes
+        the outer <a href="gDialog.htm">gDialog</a> benefits, but it is fairly unusual to need/want a size on other containers.<br>
+        For gDialog(gCanvas("400x400")), the dialog is automatically made large enough to contain that canvas.<br>
+        For gDialog(gCanvas(),"200x200"), the canvas is automatically made large enough to fill that dialog.<br>
+        For gDialog(gCanvas("400x400"),"200x200") there would naturally be automatic scrollbars around the canvas.<br>
+        When the dialog is subsequently manually resized, everything should continue to cope/look and feel quite natural.
+-->
+<!--
+        <br>
+        <br>
+        To-do: add a pretty picture here (once it actually works)...<br>
+ <pre>
+        Example (gFrame annotated)          Source code
+            XXXXXXXXXXXXXXXXX               buttons = gHbox({gLabel("EXPAND=HORIZONTAL"),gButton("OK"),gButton("Cancel")}),
+            X               X                dialog = gDialog(gVbox({canvas,buttons}))  
+            XXXXXXXXXXXXXXXXX
+ </pre>
+        <br>
+        <br>
+        Run demo\xpGUI\lmdemo??.exw (the above), play with the "Show frames?" toggle, and then try reading/running/resizing 
+        demo\xpGUI\gSample.exw for something a bit more involved, or any of the many other demos in that directory.
+        <br>
+-->
+<!--
+        <h3>Internals</h3>
+        The following contains far more detail than you really need to know for day-to-day use, but I think it is important to
+        document at least some of the design decisions, and it should be helpful for anyone wishing to take a deeper dive into
+        the inner workings of xpGUI.
+
+        <br>
+        <br>
+        WinAPI has absolutely <i>no layout managment at all</i>, instead the programmer is expected to provide/set 
+        explicit (pixel) offsets/sizes - that&rsquo;s fine; we&rsquo;re instantly committed to <i>having</i> to 
+        write our own layout manager, which is exactly what IUP does anyway. 
+        Both HTML/CSS and GTK pretty much force us to adopt a nested container model, though WinAPI does not actually 
+        have anything like that, hence in practice xpGUI maps (fake) hbox/vbox to internal/hidden pixel offsets when 
+        using the WinAPI backend. Again, no big deal.
+        <br>
+        <br>
+        GTK: to cut a long story short, we <i>could</i> faff about trying to convince the gtk layout manager to do 
+        our bidding, or just use GtkFixed containers (tellingly IUP uses them too) and that way leave ourselves in 
+-->
+<!--        the same boat as WinAPI - which just means we can use a bit of shared code.<br>-->
+<!--        the same boat as WinAPI - and use some shared code.<br>-->
+<!--
+        the same boat as WinAPI - and hopefully use some shared code.<br>
+        The instant I switched from gtk_hbox_new() (ditto vbox) to gtk_fixed_new() I was immediately struck by the 
+        fact that at least five quite thorny issues had, quite simply, just vanished.
+        For instance, GTK delegates expand handling to the container, so preventing (say) a gButton going full-width 
+        in a gVbox would require a nested gHbox the other two backends don&rsquo;t need, that is unless we effectively 
+        disable the gtk layout manager, as we now do.
+        Note however that GTK is outrageously obstinate
+        in respect to setting and retrieving sizes, and likewise has a mind of its own when it comes to the
+        matter of focus control. In practice xpGUI tries to use GTK itself as lightly as possible; whereas cairo 
+        (graphics) and pango (text/fonts) are perhaps more heavily relied and depended on.
+-->
+<!--, ludicrously overcomplicated, and downright pathetic -->
+<!--
+        GTK uses a tantalisingly similar nested control structure to js, with hbox/vbox, all initially looking quite 
+        appealing, but ultimately turns out to be very opinionated, with weird packing rules, a parallel and scantily 
+        documented and virtually unfathomable GtkAlignment(xalign,yalign,xscale,yscale), which tellingly IUP deigned 
+        not to use, and spacing being delegated away from individual controls onto the container - so, for example, 
+        if you wanted to put a button inside a vbox, you simply <i>cannot</i> tell it not to expand horizontally, at 
+        least not without putting it inside a further-nested hbox. That would not be a problem if it was "only" GTK, 
+        but needing things for GTK that you don&rsquo;t for JS/WinAPI would be quite an issue. Thankfully, there is 
+        a half-hidden GtkFixed(), that tellingly IUP <i>does</i> use, which leaves us in the same boat as WinAPI.
+        <br>
+        <br>
+-->
+<!--
+        In short, whatever we do has to be possible with the HTML/CSS box model, and thankfully that is not the same
+        as saying we have to implement CSS on the desktop - I am breathing a huge sigh of relief at that, but I can 
+        already hear someone somewhere going <i>awww!</i>... 
+-->
+<!-- you wish, HTML/CSS has to be done via the box model!! (now reworded)
+//      It is also fair to say that in the original pGUI.js I struggled to replicate (in JavaScript) whatever it was 
+//      that IUP was doing, whereas in being forced to write all that handling for WinAPI (and deciding to do exactly
+//      the same for GTK) I ended up with some easily transpilable code (a manual step) that could be pasted straight
+//      into the xpGUI.js replacement.
+//      <br>
+//      <br>
+-->
+<!--
+        It is also fair to say that in the original pGUI.js I struggled to replicate (in JavaScript) whatever it was 
+        that IUP was doing, whereas in being forced to write all that handling for WinAPI (and deciding to do exactly
+        the same for GTK) I could do so with the box model firmly in mind from the get-go, and even manually transpile
+        a few bits of the desktop handler code for use in xpGUI.js.
+        <br>
+        <br>
+        Resizing the layout (using the mouse) automatically sets/overrides the user size (even if set programmatically).
+        <br>
+        <br>
+        The following attributes are used to define and control layout management (click them for more details):
+        <br>
+        <br>
+        <a name=MARGIN></a>
+        <a href="gSetAttribute.htm#MARGIN">MARGIN</a>: ?It is illegal to specify a margin on any element that is 
+        not the immediate child of either a <a href="gBox.htm">gHbox</a> or <a href="gBox.htm">gVbox</a>, and that 
+        <i>includes</i> any such top-level container, which must instead use the PADDING and ?GAP? attributes instead.
+        <br>
+        <br>
+        <a name=PADDING></a>
+        <a href="gSetAttribute.htm#PADDING">PADDING</a>: Specifies the fixed internal spacing around any content. 
+        For <a href="gBox.htm">gHbox</a> and <a href="gBox.htm">gVbox</a> (only), the left/top is seamlessly added to 
+        the left/top MARGIN of any child element.
+        <br>
+        <br>
+-->
+<!--
+//      <a name=GAP></a>
+//      <a href="gSetAttribute.htm#GAP">GAP</a>: Specifies the initial spacing between any content. Applies to 
+//      <a href="gBox.htm">gHbox</a> and <a href="gBox.htm">gVbox</a> only, an error occurs on attempting to set this 
+//      on any other control. As with PADDING this is seamlessly added to the MARGIN of any child element.
+//      <br>
+//      <br>
+-->
+<!--
+        The actual layout management is performed in several stages:<br>
+        There is no measurable performance penalty from traversing the hierarchy multiple times, however there <i>is</i>
+        a potential maintenance gain from one pass one task, giving each stage a sensible and meangingful name, and 
+        comparing interim results between backends.<br>
+        The natural sizes are normalised, to the widest/tallest of any normalisation group(s), see below. [not yet attempted]<br>
+        The normal sizes are accumulated up the hierarchy, such that a gHbox has the sum of the widths of its children
+        and the maximum of their heights, and a gVbox has the maximum of their widths and the sum of their heights, plus
+        any appropriate margins, along with allowances for the standard decorations on a <a href="gDialog.htm">gDialog</a> 
+        (including any <a href="gMenu.htm">gMenu</a>), <a href="gFrame.htm">gFrame</a>, and <a href="gTabs.htm">gTabs</a>.<br>
+        Any overidden user sizes bubble up the hierarchy, such that in gDialog(gCanvas("100x100")) the dialog expands.<br>
+?X      Likewise any shrinkable elements accumulate a total shrinkable amount/limit up the hierarchy, which is used in 
+        the following instead, should (a user size have been set and) the slack turn out to be negative.<br>
+        The user sizes are distributed down the hierarchy, such that for slack := user-natural, if there are n expandable 
+        children the first gets <small><sup>1</sup></small>&frasl;<small><sub>n</sub><sup>th</sup></small> of slack, then 
+        slack is reduced by that (rounded) amount and n decreased by 1, and that process repeated for any remaining children. 
+        Hence the final (expandable) child gets <small><sup>1</sup></small>&frasl;<small><sub>1</sub><sup>th</sup></small> 
+        or exactly all of the remaining slack, with any required &plusmn;1s being fairly evenly dispersed. In practice it
+        actually pro-ratas based on the natural sizes, but the idea is essentially the same, for instance the expandable
+        widths of {80,20,100} would get {<small><sup>80</sup></small>&frasl;<small><sub>200</sub><sup>th</sup></small>,
+        <small><sup>20</sup></small>&frasl;<small><sub>120</sub><sup>th</sup></small>, and
+        <small><sup>100</sup></small>&frasl;<small><sub>100</sub><sup>th</sup></small>} of any remaining slack.<br>
+        Consequently, the overall effect is that for something like gDialog(gCanvas(),"100x100"), the canvas expands.<br>
+        The visible element offsets can be calculated [and saved] in a separate pass or during either of the previous stage 
+        or the next, but again there are potential maintenace benefits in keeping it separate, and in keeping a permanent
+        copy of those calculations.<br>
+        Finally the results are applied in a backend-specific manner, and so it becomes a six (or more) stage process
+        (as said, not an issue).
+-->
+<!--
+         While that could theoretically be done as part of
+        the previous pass, no measurable performance gain would arise from traversing the hierarchy one less time, and
+        in fact in practice it probably would not matter one jot if there were thirty seven different stages, as long as 
+        you could still give each of them a pithy/sensible/meangingful/intuitive name.<br>
+-->
+<!--
+        Of course if there are no user sizes, there is no slack, and the second stage could be entirely skipped, not that 
+        doing so would ever realise any measurable performance benefits, either. On the other hand, such skipping could
+        let a glitch slip through that does&rsquo;t show up until a resize, hence it never ever bothers with any of that.
+        <hr>
+        <hr>
+        <small>
+        <br>
+        <br>
+        ...TBC... (the stuff immediately below is outdated, and below that, things just copied from the pGUI docs)
+-->
+
+<!-- (SUG)
+        This page is a deep dive into all the constraints and workarounds involved, and while it may be helpful to
+        understand what is really going on, the <a href="xplayout_guide.htm">layout guide</a> sub-page is probably
+        a more useful day-to-day reference.
+        The point of this page is to ?share know? and perhaps more importantly <i>elicit corrections</i>.
+explain the implementation
+SUG:
+        Since you've read gSample.exw thare is not much else to say, however ... several common design patterns:
+        The nested versions are for educational purposes only, it is much easier to maintain several sensibly
+        named statements than one single convoluted and potentialy confusing nested statement.
+        <br>
+        <br>
+-->
+<!-- (erm, what am I actually tring to say here??...) -->
+<!--
+        The aim, anyway, is to achieve general consistency between platforms, rather than pixel-perfect agreement.<br>
+        For instance, when a "Quit" button defaults to 33x26 on GTK but 52x30 on WinAPI, no-one should really care.<br>
+        It should (/must) be possible to create responsive layouts, so the same program can be used on a 27&Prime;
+        desktop screen and a 5&Prime; mobile phone, which is not the same as saying that should be automatically
+        achieved without any assistance from the application code, or will work flawlessly without any testing.
+        <br>
+        <br>
+        From my perspective, GTK is probably the most troublesome in that it does what it does, and I have the least 
+        tools/experience in debugging or tweaking it. The developer tools in a web browser permit a much more detailed
+        investigation of what things are doing and many more opportunities for experimenting, and the only (partial)
+        drawback is that many things can end up one step removed in xpGUI.css rather than under more direct control. 
+        Finally, on the WinAPI side of things, all that is entirely within xpGUI.e, as debuggable and fully under my
+        control as it gets. It is therefore, at least in the first release, more a case of replicating what GTK does,
+        rather than deciding for myself precisely what things should do.
+        <br>
+        <br>
+        
+        At the smaller and of the scale, and more concerned with how things will look at the smallest or natural size, 
+        each individual display element and container uses a box model. 
+-->
+        <!--similar to the one used by HTML/JavaScript/CSS,-->
+<!--
+        which is of course (often incorrectly touted as) the primary mechanism for that, and somehow both ridiculously
+        over-complicated for what it actually achieves and entirely inadequate for our purposes (but we&rsquo;ll cope).
+
+        Since the advent of HTML5 we have flexbox (and gridbox) so our overall strategy will be something that can be
+        relatively easily mapped to leverage that, and rely a bit less on the traditional box model, especially for any
+        responsive layout style handling. 
+-->
+        <!--It does however mean some pGUI/IUP layouts may need a bit of a rethink when
+        that code is ported to xpGUI, but that should (hopefully) be a minor issue.-->
+<!--
+        <br>
+        <br>
+        Apart of course from the content, the border is the only (optionally) visible part, padding prevents it looking 
+        too cramped with (say) text hard against the border, while margin prevents controls getting too close, with the
+        borders touching that of the next, or even overlapping. 
+        Note that we do not use the alternative "border-box" style of "box-sizing", whereby w<small>x</small>h includes 
+        the padding and border, instead  the latter default to the natural size of the content. Likewise layout control 
+        (see below) is based on the "flex" display model so there is no margin collapsing [DEV?]. 
+        Sensible defaults are provided for margin, border, and padding, so in most cases you should not need to bother
+        doing anything with these settings, particularly if everything looks OK at the initial/minimal/natural size.
+        <br>
+        <br>
+        <h3>The HTML/CSS flexbox</h3>
+        <p align="center"><img alt="flexbox" src="images/flexbox.png" width="670" height="204"><br>
+         <small><i>(gratuitously overcomplicated diagram showing a tiny fraction of flexbox capabilities.)</i></small>
+        </p>
+-->
+<!--
+        <p align="center"><img alt="flexbox" src="images/flexbox.png" width="670" height="204"></p>
+        <center><small><i>(gratuitously overcomplicated diagram showing a tiny fraction of flexbox capabilities.)</i></small></center>
+        <br>
+-->
+<!--
+        To keep things simple, 
+        <ul>
+        <li> display: flex; - basic starting point, at container. I&rsquo;m just going to ignore inline-flex.</li>
+        <li> flex-direction: row/column; - h/vbox, at container. I&rsquo;m going to assume/stick to the default of flex-wrap: nowrap;</li>
+        <li> justify-content: flex-start/center/flex-end/space-between/space-around/space-evenly; - at container, see below.</li>
+        <li> align-items:baseline; - at container. I&rsquo;m just going to ignore stretch/flex-start/center/flex-end.</li>
+        <li> align-content: stretch/flex-start/center/flex-end/space-between/space-around/space-evenly; -- n/a, see below.</li>
+        <li> align-self: stretch/flex-start/center/flex-end/baseline; - at element, ignored.<br>
+        <li> order: <i>number</i>; - at element, ignored.<br>
+        <li> flex-grow: <i>number</i>; - at element, ignored.<br>
+        <li> flex-shrink: <i>number</i>; - at element, ignored.<br>
+        <li> flex-basis: <i>size</i>; - at element. I&rsquo;m going to assume/stick to the default of flex-basis: auto;<br>
+        </ul>
+        In short, there is more than enough power there to replicate whatever GTK does, and I&rsquo;m certainly not keen to implement
+        too much of all that by hand for WinAPI. In particular use of justify_content is/shd be limited to flex-start, and/or maybe
+        space-evenly, and we&rsquo;re not about to override that per-element. The key takeaway is simply that "it is different".
+
+        <h3>The GTK situation</h3>
+        <p align="center"><img alt="gtklayout" src="images/gtklayout.png" width="240" height="67">
+        </p>
+        Many a GTK fanboy will no doubt gleefully use their best Gordon Brittas (the well-intended but hugely incompetent manager)
+        impression and claim the GTK docs are <i>absolutely marvelous</i>. However they are built from <a href="heredoc.htm">heredoc</a>
+        (specifically gi-docgen) and as such are in fact <i>utter garbage</i>. 
+        Thankfully there are plenty of other web pages and tutorials that can be fairly easily found and used to fill in some of the 
+        "no further description is available" and/or do better than "the fill parameter specifies the fill setting", albeit not 
+        necessarily in an entirely consistent manner.
+        <br>
+        <br>
+        gtk_hbox_new(gboolean homogeneous, gint spacing),<br>
+        gtk_box_set_spacing(GtkBox* box, gint spacing)<br>
+        homogeneous: always false here.<br>
+        spacing: gap in pixels between children.<br>
+        gtk_box_pack_start(GtkBox* box, GtkWidget* child, gboolean expand, gboolean fill, guint padding),<br>
+        gtk_box_set_child_packing(GtkBox* box, GtkWidget* child, gboolean expand, gboolean fill, guint padding, GtkPackType pack_type)<br>
+        expand: false puts widgets together, true spreads them out.<br>
+        fill: (when expend is true only) true expands widgets, false makes gaps.<br>
+        padding: added on either side of the child.<br>
+        pack_type: always GTK_PACK_START(0) here - the child is packed into the start of the box.<br>
+        gtk_container_set_border_width(GtkContainer* container, guint border_width)<br>
+        border_width: space around the hbox.
+        <br>
+        <br>
+        Note there is no visible "border" like HTML/CSS, that&rsquo;s automatically part of the GTK widget itself, if any.      
+        <br>
+        <br>
+        Finally, of course, xpGUI must manually implement the equivalent (unified) behaviour for WinAPI, in absolute pixel placement terms.
+
+        <h3>The pGUI model</h3>
+        <p align="center"><img alt="gtklayout" src="images/gtklayout.png" width="240" height="67">
+        <br>
+         <small><i>(details yet to be completed)</i></small>
+        </p>
+
+        <h3>Alignment and Normalisation</h3>
+        ...
+        <h3>Expanding and Shrinking</h3>
+        ...
+        <br>
+        <br>
+        Likewise the best way to manage layout in a browser is a flexbox, so xpGUI.e mimics that too.<br>
+        Hence while PADDING and MARGIN can stay, GAP and IupFill() (from pGUI.e) have to go/be replaced.<br>
+-->
+<!--
+        Hence certain layout attributes, especially GAP, are rather difficult to implement. <br>
+        Layout is generally based on (nested) flex box with space-evenly...<br>
+-->
+<!--
+//      If at all possible, use RASTERSIZE, MARGIN, and PADDING in preference to most anything else (??).<br>
+//?     Note that SIZE is converted to "rem", which obey the browser&rsquo;s user preferences settings, whereas<br>
+//      RASTERSIZE is the same as "px", and therefore may be more consistent between pwa/p2js and desktop/Phix.<br>
+<br>
+<br>
+        TBC... (everything below is copied verbatim from pGUI and needs a complete rewrite/rethink)
+        <br>
+Erm, pGUI had SIZE (relative to font size) and RASTERSIZE (in pixels), where a SIZE would be converted to RASTERSIZE by width*4/charwidth
+and height*8/charheight. In xpGUI all sizes are in pixels. I might add a (read-only) CHARSIZE that returns {w,h}... (would that actually help??)
+The average size of a character in the default font is 6x15 (since it is a proportional font, the width actually varies between 3 and 11) and
+that is what the old pGUI.js used, which seemed about right.
+        <br>
+        <br>
+
         <h2>IUP Sizes</h2>
         <h3>Natural Size</h3>
         IUP does not require that the application specifies the size of any element. 
@@ -85,7 +689,7 @@
         <br>
         <br>
         But notice that some controls do not have contents that can provide a Natural size. 
-        In this case they usually have <a href="gSetAttribute.htm#SIZE">SIZE</a> or <a href="gSetAttribute.htm#RASTERSIZE">RASTERSIZE</a> pre-set.
+//      In this case they usually have <a href="gSetAttribute.htm#SIZE">SIZE</a> or <a href="gSetAttribute.htm#RASTERSIZE">RASTERSIZE</a> pre-set.
         <br>
         <br>
         To obtain the last computed Natural size of the control in pixels, use the read-only attribute <a href="gSetAttribute.htm#NATURALSIZE">NATURALSIZE</a> (since 3.6).
@@ -96,7 +700,7 @@
             <tr>
               <td style="border:1px solid #ffffff " width="50%" class="style2">
                <small>
-<!--eucode>
+<X!X--eucode>
 with javascript_semantics
 include pGUI.e
 IupOpen()
@@ -108,8 +712,8 @@ IupShow(dlg)
 if platform()!=JS then
     IupMainLoop()
 end if
-</eucode-->
-<pre>
+</eucode--X>
+ <pre>
 <font color="#2C5C2C">with javascript_semantics</font>
 <font color="#008080">include</font><font color="#000000"> pGUI.e</font>
 <font color="#7060A8">IupOpen</font><font color="#0000FF">()</font>
@@ -121,25 +725,24 @@ end if
 <font color="#008080">if</font><font color="#7060A8"> platform</font><font color="#0000FF">()!=</font><font color="#004600">JS</font><font color="#008080"> then</font>
 <font color="#7060A8">    IupMainLoop</font><font color="#0000FF">()</font>
 <font color="#008080">end if</font>
-</pre>
+ </pre>
                </small>
               </td>
               <td style="border:1px solid #ffffff " width="50%" class="style2">
               <p align="center">
-<!--
-              <img border="0" src="images/naturalsize.gif" width="251" height="179" /></p></td>
--->
-              <img border="0" src="images/naturalsize.png" width="264" height="122" /></p></td>
+              <img border="0" src="images/naturalsize.png" width="264" height="122" />
+              </p>
+              </td>
             </tr>
           </table>
         </div>
         <br>
         <br>
         <h3>User Size</h3>
-        When the application defines the <a href="gSetAttribute.htm#SIZE">SIZE</a> or <a href="gSetAttribute.htm#RASTERSIZE">RASTERSIZE</a> attributes, 
+//      When the application defines the <a href="gSetAttribute.htm#SIZE">SIZE</a> or <a href="gSetAttribute.htm#RASTERSIZE">RASTERSIZE</a> attributes, 
         it changes the User size in IUP. The initial internal value is "0x0". <br>
         When set to NULL the User size is internally set to "0x0". <br>
-        If the element is not mapped then the returned value by <a href="gSetAttribute.htm#SIZE">SIZE</a> or <a href="gSetAttribute.htm#RASTERSIZE">RASTERSIZE</a> 
+//      If the element is not mapped then the returned value by <a href="gSetAttribute.htm#SIZE">SIZE</a> or <a href="gSetAttribute.htm#RASTERSIZE">RASTERSIZE</a> 
         is the User size, if the element is mapped then the returned value is the Current size. <br>
         To obtain the User size after the element is mapped use the USERSIZE attribute (since 3.12).
         <br>
@@ -162,7 +765,7 @@ end if
         But the dialog contents will always occupy the Natural size available, being smaller or bigger than the dialog Current size.
         <br>
         <br>
-        When <a href="gSetAttribute.htm#SIZE">SIZE</a> or <a href="gSetAttribute.htm#RASTERSIZE">RASTERSIZE</a> attributes are set for the dialog (changing the User size) 
+//      When <a href="gSetAttribute.htm#SIZE">SIZE</a> or <a href="gSetAttribute.htm#RASTERSIZE">RASTERSIZE</a> attributes are set for the dialog (changing the User size) 
         the Current size is also reset to "0x0". <br>
         Allowing the application to force an update of its Window size. To only change the User size in pixels, without resetting the Current size, set the USERSIZE attribute (since 3.12).
         <br>
@@ -176,7 +779,7 @@ end if
         the Window size and position are set for the native elements. The Window size is set exactly to the Current size.
         <br>
         <br>
-        After the element is mapped the returned value for <a href="gSetAttribute.htm#SIZE">SIZE</a> or <a href="gSetAttribute.htm#RASTERSIZE">RASTERSIZE</a> is the Current size. 
+//      After the element is mapped the returned value for <a href="gSetAttribute.htm#SIZE">SIZE</a> or <a href="gSetAttribute.htm#RASTERSIZE">RASTERSIZE</a> is the Current size. 
         It actually returns the native Window size of the element. 
         Before mapping, the returned value is the User size.
         <br>
@@ -190,7 +793,7 @@ end if
             <tr>
               <td style="border:1px solid #ffffff " width="50%" class="style2">
                <small>
-<!--eucode>
+<X!X--eucode>
 with javascript_semantics
 include pGUI.e
 IupOpen()
@@ -202,8 +805,8 @@ IupShow(dlg)
 if platform()!=JS then
     IupMainLoop()
 end if
-</eucode-->
-<pre>
+</eucode--X>
+ <pre>
 <font color="#2C5C2C">with javascript_semantics</font>
 <font color="#008080">include</font><font color="#000000"> pGUI.e</font>
 <font color="#7060A8">IupOpen</font><font color="#0000FF">()</font>
@@ -215,14 +818,11 @@ end if
 <font color="#008080">if</font><font color="#7060A8"> platform</font><font color="#0000FF">()!=</font><font color="#004600">JS</font><font color="#008080"> then</font>
 <font color="#7060A8">    IupMainLoop</font><font color="#0000FF">()</font>
 <font color="#008080">end if</font>
-</pre>
+ </pre>
                </small>
               </td>
               <td style="border:1px solid #ffffff " width="50%" class="style2">
               <p align="center">
-<!--
-              <img border="0" src="images/usersize.gif" width="279" height="214" /></p></td>
--->
               <img border="0" src="images/usersize.png" width="234" height="122" /></p></td>
             </tr>
           </table>
@@ -233,7 +833,7 @@ end if
         <br>
         <br>
         If you want to adjust sizes in the dialog do it after the layout size and positioning are done, i.e. after the dialog is mapped or 
-        after <a href="IupRefresh.htm">IupRefresh</a>() is called.
+        after <a href="gRedraw.htm">gRedraw</a>() is called.
         <br>
         <br>
         <h3>EXPAND</h3>
@@ -253,7 +853,7 @@ end if
             <tr>
               <td style="border:1px solid #ffffff " width="50%" class="style2">
                <small>
-<!--eucode>
+<X!X--eucode>
 with javascript_semantics
 include pGUI.e
 IupOpen()
@@ -265,8 +865,8 @@ IupShow(dlg)
 if platform()!=JS then
     IupMainLoop()
 end if
-</eucode-->
-<pre>
+</eucode--X>
+ <pre>
 <font color="#2C5C2C">with javascript_semantics</font>
 <font color="#008080">include</font><font color="#000000"> pGUI.e</font>
 <font color="#7060A8">IupOpen</font><font color="#0000FF">()</font>
@@ -278,7 +878,7 @@ end if
 <font color="#008080">if</font><font color="#7060A8"> platform</font><font color="#0000FF">()!=</font><font color="#004600">JS</font><font color="#008080"> then</font>
 <font color="#7060A8">    IupMainLoop</font><font color="#0000FF">()</font>
 <font color="#008080">end if</font>
-</pre>
+ </pre>
                </small>
               </td>
               <td style="border:1px solid #ffffff " width="50%" class="style2">
@@ -330,7 +930,7 @@ end if
             <tr>
               <td style="border:1px solid #ffffff " width="50%" class="style2">
                <small>
-<!--eucode>
+<X!X--eucode>
 with javascript_semantics
 include pGUI.e
 IupOpen()
@@ -342,8 +942,8 @@ IupShow(dlg)
 if platform()!=JS then
     IupMainLoop()
 end if
-</eucode-->
-<pre>
+</eucode--X>
+ <pre>
 <font color="#2C5C2C">with javascript_semantics</font>
 <font color="#008080">include</font><font color="#000000"> pGUI.e</font>
 <font color="#7060A8">IupOpen</font><font color="#0000FF">()</font>
@@ -355,7 +955,7 @@ end if
 <font color="#008080">if</font><font color="#7060A8"> platform</font><font color="#0000FF">()!=</font><font color="#004600">JS</font><font color="#008080"> then</font>
 <font color="#7060A8">    IupMainLoop</font><font color="#0000FF">()</font>
 <font color="#008080">end if</font>
-</pre>
+ </pre>
                </small>
               </td>
               <td style="border:1px solid #ffffff " width="50%" class="style2">
@@ -373,8 +973,6 @@ end if
         <a href="IupButton.htm">IupButton</a>(), <a href="IupCanvas.htm">IupCanvas</a>(), and so on. <br>
         To create a branch just call the constructors of containers like <a href="IupDialog.htm">IupDialog</a>(),
         <a href="IupFrame.htm">IupFrame</a>(), <a href="IupVbox.htm">IupVbox</a>(), and so on. <br>
-        Internally they all call <a href="IupCreate.htm">IupCreate</a>() to create branches or nodes. 
-        To destroy a node or branch call <a href="IupDestroy.htm">IupDestroy</a>().
         <br>
         <br>
         Some of the constructors already append children to its branch, but you can add other children using 
@@ -382,27 +980,26 @@ end if
         To remove from the tree call <a href="IupDetach.htm">IupDetach</a>().
         <br>
         <br>
-        For the element to be visible <a href="IupMap.htm">IupMap</a>() must be called so it can be associated with a native control. <br>
-        <a href="IupShow.htm">IupShow</a>(), <a href="IupShowXY.htm">IupShowXY</a>() or <a href="IupPopup.htm">IupPopup</a>() will 
-        automatically call <a href="IupMap.htm">IupMap</a>() before showing a dialog. 
-        To remove this association call <a href="IupUnmap.htm">IupUnmap</a>().
+        For the element to be visible <a href="gMap.htm">gMap</a>() must be called so it can be associated with a native control. <br>
+        <a href="gShow.htm">gShow</a>() automatically calls <a href="gMap.htm">gMap</a>() before showing a dialog. 
         <br>
         <br>
         But there is a call order to be able to call theses functions that depends on the state of the element. <br>
         As you can see from these functions there are 3 states: created, appended and mapped. From created to mapped it is performed one step at a time. <br>
         Even when the constructor receives the children as a parameter <a href="IupAppend.htm">IupAppend</a>() is called internally. <br>
+[DEV...] <br>
         When you detach an element it will be automatically unmapped if necessary. <br>
         When you destroy an element it will be automatically detached if necessary. <br>
         So explicitly or implicitly, there will be always a call to:
 
-<!--eucode>
-IupCreate  -> IupAppend -> IupMap
-IupDestroy <- IupDetach <- IupUnmap
-</eucode-->
-<pre>
-<font color="#7060A8">IupCreate </font><font color="#0000FF"> -&gt;</font><font color="#7060A8"> IupAppend</font><font color="#0000FF"> -&gt;</font><font color="#7060A8"> IupMap
-IupDestroy</font><font color="#0000FF"> &lt;-</font><font color="#7060A8"> IupDetach</font><font color="#0000FF"> &lt;-</font><font color="#7060A8"> IupUnmap</font>
-</pre>
+<X!X--eucode>
+?IupCreate  -> ?IupAppend -> IupMap
+?IupDestroy <- ?IupDetach <- IupUnmap?
+</eucode--X>
+ <pre>
+<font color="#0000FF">?</font><font color="#7060A8">IupCreate </font><font color="#0000FF"> -&gt; ?</font><font color="#7060A8">IupAppend</font><font color="#0000FF"> -&gt;</font><font color="#7060A8"> IupMap</font>
+<font color="#0000FF">?</font><font color="#7060A8">IupDestroy</font><font color="#0000FF"> &lt;- ?</font><font color="#7060A8">IupDetach</font><font color="#0000FF"> &lt;-</font><font color="#7060A8"> IupUnmap</font><font color="#0000FF">?</font>
+ </pre>
         A simpler and faster way to move an element from one position in the hierarchy to another is <a href="IupReparent.htm">IupReparent</a>().
         <br>
         <br>
@@ -416,14 +1013,14 @@ IupDestroy</font><font color="#0000FF"> &lt;-</font><font color="#7060A8"> IupDe
         <br>
         <br>
         <h2>Layout Display</h2>
-        The layout size and positioning is automatically updated by <a href="IupMap.htm">IupMap</a>(). <br>
-        <a href="IupMap.htm">IupMap</a>() also updates the dialog layout even if it is already mapped, so using it or using <a href="IupShow.htm">IupShow</a>(), 
-        <a href="IupShowXY.htm">IupShowXY</a>() or <a href="IupPopup.htm">IupPopup</a>() (they all call <a href="IupMap.htm">IupMap</a>()) will also update the dialog layout. 
-        The layout size and positioning can be manually updated using <a href="IupRefresh.htm">IupRefresh</a>(), even if the dialog is not mapped.
+//      The layout size and positioning is automatically updated by <a href="IupMap.htm">IupMap</a>(). [??] <br>
+        <a href="gMap.htm">gMap</a>() also updates the dialog layout[??] even if it is already mapped, so using it or using <a href="gShow.htm">gShow</a>() 
+        also updates the dialog layout. 
+        The layout size and positioning can be manually updated using <a href="gRedraw.htm">gRedraw</a>(), even if the dialog is not mapped. [??]
         <br>
         <br>
         After changing containers attributes or element sizes that affect the layout the elements are NOT immediately repositioned. <br>
-        Call <a href="IupRefresh.htm">IupRefresh</a>() for an element inside the dialog to update the dialog layout. 
+        Call <a href="gRedraw.htm">gRedraw</a>() for an element inside the dialog to update the dialog layout. 
         <br>
         <br>
         The Layout update is done in two phases. <br>
@@ -435,7 +1032,7 @@ IupDestroy</font><font color="#0000FF"> &lt;-</font><font color="#7060A8"> IupDe
         <br>
         <br>
         The Natural size computation is done from the inner elements up to the dialog (first for the children then the element). <br>
-        User size (set by <a href="gSetAttribute.htm#RASTERSIZE">RASTERSIZE</a> or <a href="gSetAttribute.htm#SIZE">SIZE</a>) is used as the 
+//      User size (set by <a href="gSetAttribute.htm#RASTERSIZE">RASTERSIZE</a> or <a href="gSetAttribute.htm#SIZE">SIZE</a>) is used as the 
         Natural size if defined, if not usually the contents of the element are used to calculate the Natural size. <br>
         Then the Current size is computed starting at the dialog down to the inner elements on the layout hierarchy (first the element then the children). <br>
         Children Current size is computed according to layout distribution and containers decoration. <br>
@@ -445,29 +1042,18 @@ IupDestroy</font><font color="#0000FF"> &lt;-</font><font color="#7060A8"> IupDe
         <br>
         <h2>Element Update</h2>
         Usually IUP automatically updates everything for the application, for instance there is no need to force a display update after an attribute is changed. <br>
-        However there are some situations where you need to force an update. Here is a summary of the functions that can be used to update an element state:
+        However there are some situations where you need to force an update, for which you would use <a href="gRedraw.htm">gRedraw</a>().
         <br>
         <br>
-        <a href="IupUpdate.htm">IupUpdate</a>() - update the element look by telling the system to schedule a redraw.
-        <br>
-        <br>
-        <a href="IupRedraw.htm">IupRedraw</a>() - has the same effect of IupUpdate but forces the element to redraw now.    
-        <br>
-        <br>
-        <a href="IupRefresh.htm">IupRefresh</a>() - if the application changed some attribute that affects the natural size, 
-        for instance <a href="gSetAttribute.htm#SIZE">SIZE</a> or <a href="gSetAttribute.htm#RASTERSIZE">RASTERSIZE</a> among others, the 
-        actual element size is NOT immediately updated, because it can affect the size and position of other elements in the dialog. <br>
-        <a href="IupRefresh.htm">IupRefresh</a>() will force an update in the layout of the whole dialog, and of course if 
-        the size of an element is/has changed then the appearance will be automatically updated.
-        <br>
-        <br>
-        <a href="IupFlush.htm">IupFlush</a>() - process all events that are waiting to be processed. <br>
+//?     <a href="IupFlush.htm">IupFlush</a>() - process all events that are waiting to be processed. <br>
         When you set an attribute, a system event is generated, but remains pending until processed by the event loop. <br>
-        Sometimes the application needs an immediate result, so calling IupFlush() will process said event and also 
-        every other event waiting to be processed, so other callbacks could be triggered during an IupFlush() call,
-        for instance a pending IupUpdate() may propagate all the way down a dialog hierarchy, invoking several
+//      Sometimes the application needs an immediate result, so calling IupFlush() will process said event and also 
+//      every other event waiting to be processed, so other callbacks could be triggered during an IupFlush() call,
+        for instance a pending gRedraw() may propagate all the way down a dialog hierarchy, invoking several
         RESIZE_CB and even the REDRAW on a canvas as it goes, as well as respond to recent user input events.
         <br>
+</small>
+-->
         <br>
       </div>
      </stripped>

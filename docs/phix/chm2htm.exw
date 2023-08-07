@@ -100,6 +100,7 @@ function fixup(string dir_name, bool toplevel=true)
                                 exit
                             end if
                         end for
+--/*
                     else
 --eg                -- (we are not about to win any awards for neatness here...)
 --                                     k                             s      e                           ps
@@ -127,6 +128,40 @@ function fixup(string dir_name, bool toplevel=true)
                         if cs!=`');"` then ?9/0 end if
                         text[ps..ps+3]="'"      -- 1: kill `);"`
                         text[k+5..e+2]="'"      -- 2: kill `"javascript:ExternalLink('ext004','`
+                        text[k-28-l..k-23] = "" -- 3: kill `id="ext004" `
+--?text[k-37..match(`</a>`,text,k)+3]
+--{} = wait_key()
+--*/
+                    else
+--eg                -- (we are not about to win any awards for neatness here...)
+--                                     k                              s     e                                    ps
+--<a id="ext004" style="color:#9B5565" href="javascript:ExternalLink('ext004');" title='http://www.virustotal.com'>http://www.virustotal.com</a>
+--==><a style="color:#9B5565" href='http://www.virustotal.com'>http://www.virustotal.com</a>
+--TIP: consider editing src and rebuilding/re-extracting chm, rather than faffing about here... (if any new crashes occur, that is)
+                        string style = text[k-24..k-1]
+--DEV see notes below...
+                        if style!=`" style="color:#9B5565" ` then ?9/0 end if
+                        integer ca = match(`</a>`,text,k)
+                        if ca=0 then ?9/0 end if
+--?text[k-37..ca+3]
+                        integer s = k+length(elink),
+                                e = find('\'',text,s),
+                                ps = match(`'>`,text,e),
+                                l = e-s
+                        if e=0 then ?9/0 end if
+--DEV see note just below...
+                        if ps=0 then ?9/0 end if
+                        if l<=0 then ?9/0 end if
+                        if text[s-1]!='\'' then ?9/0 end if
+--DEV if no title, use the innerText... (ps will be 0 too)
+                        if text[e..e+11]!=`');" title='` then ?9/0 end if
+                        string id = text[s..e-1],
+                               ide = text[k-28-l..k-23]
+                        if ide!=`id="`&id&`" ` then ?9/0 end if
+--                      string cs = text[ps..ps+3]
+--                      if cs!=`');"` then ?9/0 end if
+--                      text[ps..ps+3]="'"      -- 1: kill `);"`
+                        text[k+5..e+10]=""      -- 2: kill `"javascript:ExternalLink('ext004');" title=`
                         text[k-28-l..k-23] = "" -- 3: kill `id="ext004" `
 --?text[k-37..match(`</a>`,text,k)+3]
 --{} = wait_key()

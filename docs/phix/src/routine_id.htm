@@ -21,8 +21,8 @@
           <b>Description:</b>
          </td>
          <td>
-            <b>Deprecated</b>, since 0.8.2 you can just code <code>my_rtn</code> (without quotes and not followed by '(') instead of 
-            <code>routine_id("my_rtn")</code>, although both remain perfectly valid, plus the get_routine_info() as documented below
+            <b>Semi-deprecated</b>, since 0.8.2 you can just code <code>my_rtn</code> (without quotes and not followed by '(') instead
+            of <code>routine_id("my_rtn")</code>, although both remain perfectly valid, plus the get_routine_info() as documented below
             is still independently useful, and finally most of the remarks below about hll_stubs continue to apply.
             <br>
             <br>
@@ -39,13 +39,13 @@
             if you use bare routine names.
             <br>
             <br>
-            Return an integer id number, in fact an index to the symbol table, for a user-defined procedure or function.
+            Returns an integer id number, in fact an index to the symbol table, for a user-defined procedure or function.
             <br>
             <br>
             The name of the procedure or function is given by the string sequence rtn_name.
             <br>
             <br>
-            -1 is returned if the named routine cannot be found (see Technicalia).
+            -1 is returned if the named routine cannot be found (see <a href="#tech" onclick="opentech()">technicalia</a>).
          </td>
         </tr>
         <tr>
@@ -54,8 +54,10 @@
          </td>
          <td>
             Supported, although as of 0.8.2 a bare <code>action_cb</code> is equivalent to <code>routine_id("action_cb")</code>, 
-            and is recommended. Be advised that JavaScript is fundamentally a function-scoped language and there are no namespaces 
-            or different scopes for different include files.
+            and is recommended. Note they are small integers on desktop/Phix (almost meaningless indexes into the symbol table),
+            whereas in JavaScript they are the actual function, so avoid things like printing them or tying to use them as some 
+            sort of index or lookup, since that simply won&rsquo;t work. Also be advised that JavaScript is fundamentally a 
+            function-scoped language and there are no namespaces or different scopes for different include files.
             
 <!--
             <br>
@@ -83,10 +85,11 @@ it is: window["functionName"](arguments);
             <br>
             <br>
 <!--
-            Also note that get_routine_info() is not supported by p2js: the one place it was really needed, in the heart of 
-            <a href="apply.htm">apply</a>(), is coded somewhat differently in p2js.js (with considerably relaxed error checking).
+// (it is)  Also note that get_routine_info() is not supported by p2js: the one place it was really needed, in the heart of 
+//          <a href="apply.htm">apply</a>(), is coded somewhat differently in p2js.js (with considerably relaxed error checking).
             JavaScript does in fact have an fn.length property, which can be used to determine maxp, however there is no minp,
-            obviously no sig in a <i>typeless</i> language, and the routine name would be a fiddly regex on fn.toString;
+            obviously no sig in a <i><a href="glossary.htm#typeless">typeless</a></i> language, and the routine name would be 
+            a fiddly regex on fn.toString;
             <br>
             <br>
             Likewise s-->
@@ -130,12 +133,12 @@ it is: window["functionName"](arguments);
           <br>
              Note that C routines, callable by Phix, also have (non-first-class) routine ids, but from
              <a href="define_c_proc.htm">define_c_proc</a>() and <a href="define_c_func.htm">define_c_func</a>(), not this.
-            <a name=aux></a>
          </td>
         </tr>
         <tr>
          <td>
-          <b>Auxillary function:</b>
+            <a name=aux></a>
+          <b>Auxillary functions:</b>
          </td>
          <td>
             {<a href="integer.htm">integer</a> maxp, 
@@ -143,10 +146,10 @@ it is: window["functionName"](arguments);
              <a href="string.htm">string</a> sig[, 
              <a href="object.htm">object</a> name]} = <b>get_routine_info</b>(<a href="integer.htm">integer</a> rid,
                                                                               <a href="integer.htm#bool">bool</a> bName=true)<br>
-            Returns the maximum and minimum number of parameters, along with a string representing the signature in roottype format,
-            and optionally the actual name of the routine, except when rid refers to a class method, when -1 is returned <small>(on 
-            purpose, since their proper names are kept in builtins\structs.e, and are passed in as text anyway, so you don&rsquo;t 
-            want or need multiple conflicting entries messing up the symtab. You still(/only) get max/min/sig for class methods.)</small>
+            Returns the maximum and minimum number of parameters, along with a string signature in roottype format ("(P|F|T)&{I|N|S|P|O}"), 
+            and optionally the actual name of the routine, except when rid refers to a class method, when -1 is returned 
+            <small>(on purpose, since their proper names are kept in builtins\structs.e, and are passed in as text anyway, so you 
+            don&rsquo;t want/need conflicting entries messing up the symtab. You still(/only) get max/min/sig for class methods.)</small>
             <br>
             <br>
             For instance get_routine_info(<a href="apply.htm">apply</a>) yields {3,2,"FOIO","apply"}. Note that invoking this routine
@@ -155,9 +158,13 @@ it is: window["functionName"](arguments);
             notice, but if you don&rsquo;t need the name there is not a lot of point asking for it.
             <br>
             <br>
-            Under <a href="p2js.htm">pwa/p2js</a> minp is always 0 and sig is always "" (hardly surprising in a typeless language), 
-            but maxp and name are fine, and unlike desktop/Phix there is no associated penalty of populating the symbol table names, 
-            so a bName of false is ignored and name is always returned.
+            Under <a href="p2js.htm">pwa/p2js</a> minp is always 0 and sig is always "" (which should hardly be surprising in a 
+            <a href="glossary.htm#typeless">typeless</a> language), but maxp and name are fine, and unlike desktop/Phix there is 
+            no associated penalty of populating the symbol table names, so a bName of false is ignored and name is always returned.
+            <br>
+            <br>
+            If rid is &lt;=0 (and &gt;-9 as next) the call stack is consulted, with 0 meaning whichever routine actually invoked
+            get_routine_info(), and -1 meaning one down from that, and so on.
             <br>
             <br>
             Note that p.exw deliberately invokes get_routine_info(-9) to permanently disable it, that is within p.exe itself, since 
@@ -171,11 +178,50 @@ it is: window["functionName"](arguments);
             in structs.e, to check the validity of any getters and setters it finds before invoking them, and twice in pGUI.e, in the
             <a href="Icallback.htm">Icallback[i]</a>() routine, and to check the <a href="callbacks.htm#K_ANY">K_ANY</a> callback does 
             not have a time-bomb signature, since I&rsquo;ve managed to put quite a few of those in myself while translating C code.
-            <a name=hllstubs></a>
          </td>
         </tr>
         <tr>
          <td>
+            <a name=get_possible_constant_names></a>
+          <b>Diagnostics:</b>
+         </td>
+         <td>
+            <a href="sequence.htm">sequence</a> names = <b>get_possible_constant_names</b>(<a href="object.htm">object</a> v, fdx=0, 
+                                                                                           <a href="integer.htm#bool">bool</a> bool bGlobal=true)
+            <br>
+            <br>
+            Returns a list of [global] S_Const symtab entry names with [S_value]==v.
+            <br>
+            <br>
+            fdx: 0 for any, or a file number, usually obtained from <a href="include_paths.htm#includefiles">include_file</a>[s](), or a 
+            sequence of them.<br>
+            bGlobal: true(default) return globals only, false gives <i>non-</i>globals only.
+            <br>
+            <br>
+            This routine is intended for diagnostic purposes only, and <i>only</i> works when interpreted, <b>not</b> when compiled, and 
+            <b>not</b> when transpiled under pwa/p2js. As per example 3 below, should more than one name be returned it is entirely the 
+            programmer&rsquo;s responsibility to further deal with/filter that. 
+            Even in an otherwise empty file, get_possible_constant_names(1) [ie fdx=0 aka all] returns a list of ~27 builtin constant names.
+            <br>
+            <br>
+            This routine <i>may</i> work when compiled in some integer-only cases, but that would be a free bonus rather than an
+            excuse to want, expect, or demand anything better. <img src="images/ksk-smile.png" alt="smile" />
+            <br>
+            <br>
+            Note that Phix "pools" and inlines constants whenever it can. In the first instance, you are never (I hope) going to code 
+            say `whats_the_name_of(WM_PAINT)` but instead be asking `whats_the_name_of(15)` at run-time. Secondly, were you asking 
+            `whats_the_name_of(msg)` then you cannot argue that "msg" would not be a valid but completely useless answer, apart from 
+            the fact that the closest thing possible to that nonsense would always get "v", ie the name of whatever parameter you had 
+            just <i>copied</i> msg into, if you get my drift. In other words this routine simply cannot perform any of the common-sense 
+            inferences a human being might, and certainly cannot hunt down some mythical variable assignment chain, looking for a constant 
+            on the rhs, so instead it can only answer the question "well, what <i>could</i> that 15 have (once) been?". Plus of course a 
+            WM_PAINT/15 of interest might very well have originated from somewhere deep inside kernel32.dll anyway, and there simply be 
+            no suitable matches for that anywhere at all in the current program.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a name=hllstubs></a>
           <b>hll_stubs:</b>
          </td>
          <td>
@@ -188,7 +234,7 @@ it is: window["functionName"](arguments);
             for performance or practical reasons, eg you might struggle to use a hll routine as any part of the mechanism for calling a 
             hll routine, and between them <a href="length.htm">length</a>() and <a href="append.htm">append</a>() are so ubiquitous that 
             just making those two alone always use a hll wrapper could easily make almost everything (including the compiler itself) 
-            run three or four times slower<sup><small>2</small></sup>.<br>
+            run three or four times <a name=slower></a>slower<sup><small><a href="#slower2" onclick="opentech()">2</a></small></sup>.<br>
             It would probably not be helpful (except as noted below) for either you to study or me to document which is which, rather 
             simply you should just assume anything (genuinely useful) should be available, and let me know of anything that ain&rsquo;t.<br>
             Equally you should not get too miffed should a new release "upgrade" an existing hll routine to asm in the name of performance,
@@ -287,6 +333,33 @@ function</font><font color="#000000"> add1</font><font color="#0000FF">(</font><
         </tr>
         <tr>
          <td>
+          <b>Example 3:</b>
+         </td>
+         <td>
+<!--eucode>
+constant two = 2, duo = 2, WM_DESTROY = 2
+
+sequence res = get_possible_constant_names(2,include_file(),false)
+?res -- {"two","duo","WM_DESTROY"}
+function begins_wm(string s) return begins("WM_",s) end function
+sequence wm_only = filter(res,begins_wm)
+if length(wm_only) then res = wm_only end if
+?res -- {"WM_DESTROY"}
+</eucode-->
+<pre>
+<font color="#008080">constant</font><font color="#000000"> two</font><font color="#0000FF"> =</font><font color="#000000"> 2</font><font color="#0000FF">,</font><font color="#000000"> duo</font><font color="#0000FF"> =</font><font color="#000000"> 2</font><font color="#0000FF">,</font><font color="#000000"> WM_DESTROY</font><font color="#0000FF"> =</font><font color="#000000"> 2
+</font>
+<font color="#004080">sequence</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#7060A8"> get_possible_constant_names</font><font color="#0000FF">(</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#7060A8">include_file</font><font color="#800000">()</font><font color="#0000FF">,</font><font color="#004600">false</font><font color="#0000FF">)
+?</font><font color="#000000">res</font><font color="#000080"><i> -- {"two","duo","WM_DESTROY"}</i></font>
+<font color="#008080">function</font><font color="#000000"> begins_wm</font><font color="#0000FF">(</font><font color="#004080">string</font><font color="#000000"> s</font><font color="#0000FF">)</font><font color="#008080"> return</font><font color="#7060A8"> begins</font><font color="#0000FF">(</font><font color="#008000">"WM_"</font><font color="#0000FF">,</font><font color="#000000">s</font><font color="#0000FF">)</font><font color="#008080"> end function</font>
+<font color="#004080">sequence</font><font color="#000000"> wm_only</font><font color="#0000FF"> =</font><font color="#7060A8"> filter</font><font color="#0000FF">(</font><font color="#000000">res</font><font color="#0000FF">,</font><font color="#000000">begins_wm</font><font color="#0000FF">)</font>
+<font color="#008080">if</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">wm_only</font><font color="#0000FF">)</font><font color="#008080"> then</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#000000"> wm_only</font><font color="#008080"> end if</font>
+<font color="#0000FF">?</font><font color="#000000">res</font><font color="#000080"><i> -- {"WM_DESTROY"}</i></font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td>
           <b>Implementation:</b>
          </td>
          <td>
@@ -310,7 +383,8 @@ function</font><font color="#000000"> add1</font><font color="#0000FF">(</font><
           <a href="call_back.htm">call_back</a>,
           <a href="define_c_func.htm">define_c_func</a>,
           <a href="define_c_proc.htm">define_c_proc</a>,
-          <a href="ccall.htm">Calling C Functions</a>
+          <a href="ccall.htm">Calling C Functions</a><br>
+          <a name=tech></a>
          </td>
         </tr>
         <tr id="Technicalia" style="display:none;">
@@ -459,19 +533,22 @@ old/partially attempted before deciding against:
             routine_id("rtn_name") might but is not guaranteed to and instead generate -1 at run-time, which may of course be a tad trickier to track down.
             <br>
             <br>
-            There is inevitably<sup><small>1</small></sup> perhaps three or four times as much overhead on a call_func/proc(), and equivalently on r_show()-style, as there is 
-            on a direct call, however that should be of no concern unless you are invoking it millions of times, in which case I would suggest you consider three versions of 
-            a tight inner loop rather than just the one inner loop that can call any of three different routines.<br>
-            <sup><small>1</small></sup> The arguments are boxed into a single sequence, additional validation occurs on rid and the length of said sequence, then each element
-            of the sequence is individually extracted and put into place (same deal for r_show()-style), whereas of course a direct call has no rid to validate, the number 
-            and type of arguments is validated (and fairly often only) at compile-time, and each argument is put directly into place. Each routine that might be a target of
-            routine_id/call_func/proc is also marked with K_ridt, which forces full typechecking on all parameters, whereas for direct-only routines the compiler uses type
-            inferencing and omits any provably unnecessary typechecking.
-            <sup><small>2</small></sup> A similar argument applies to hll routines with their variables in memory and typechecks vs. asm and direct/specific CPU registers.
+            There is <a name=inevit></a>inevitably<sup><small><a href="#inevit1">1</a></small></sup> perhaps three or four times as much overhead on a call_func/proc(), and 
+            equivalently on r_show()-style, as there is on a direct call, however that should be of no concern unless you are invoking it millions of times, in which case I 
+            would suggest you consider three versions of a tight inner loop rather than just the one inner loop that can call any of three different routines.<br>
+            <small>
+            <a name=inevit1></a><sup><small><a href="#inevit">1</a></small></sup> The arguments are boxed into a single sequence, additional validation occurs on rid and the 
+            length of said sequence, then each element of the sequence is individually extracted and put into place (same deal for r_show()-style), whereas of course a direct 
+            call has no rid to validate, the number and type of arguments is validated (and fairly often only) at compile-time, and each argument is put directly into place. 
+            Each routine that might be a target of routine_id/call_func/proc is also marked with K_ridt, which forces full typechecking on all parameters, whereas for 
+            direct-only routines the compiler uses type inferencing and omits any provably unnecessary typechecking.<br>
+            <a name=smaller2></a><sup><small><a href="#smaller">2</a></small></sup> A similar argument applies to hll routines with their variables in memory and typechecks 
+            vs. asm and direct/specific CPU registers.
+            </small>
          </td>
         </tr>
        </table>
-       <img src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <img id="Timg" src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
        <br>
        <br>
       </div>

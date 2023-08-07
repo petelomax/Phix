@@ -1,0 +1,76 @@
+--
+-- demo\rosetta\Tupper.exw
+-- =======================
+--
+--requires("1.0.3") -- mpfr_fmod(), mpfr_si_pow_si() added
+include mpfr.e
+function make_bitmap()
+    mpfr_set_default_precision(-8000)
+    string kstr = """
+960_939_379_918_958_884_971_672_962_127_852_754_715_004_339_660_129_306_651_505
+519_271_702_802_395_266_424_689_642_842_174_350_718_121_267_153_782_770_623_355
+993_237_280_874_144_307_891_325_963_941_337_723_487_857_735_749_823_926_629_715
+517_173_716_995_165_232_890_538_221_612_403_238_855_866_184_013_235_585_136_048
+828_693_337_902_491_454_229_288_667_081_096_184_496_091_705_183_454_067_827_731
+551_705_405_381_627_380_967_602_565_625_016_981_482_083_418_783_163_849_115_590
+225_610_003_652_351_370_343_874_461_848_378_737_238_198_224_849_863_465_033_159
+410_054_974_700_593_138_339_226_497_249_461_751_545_728_366_702_369_745_461_014
+655_997_933_798_537_483_143_786_841_806_593_422_227_898_388_722_980_000_748_404_719"""
+    mpz k = mpz_init(filter(kstr,"out","_\n")), y = mpz_init()
+    mpfr half = mpfr_init(1/2), two = mpfr_init(2), t3 = mpfr_init()
+    sequence bitmap = repeat(repeat(' ',106),17)
+    for i=1 to 17 do
+        mpz_add_si(y,k,i-1)
+        integer r17 = mpz_fdiv_q_ui(y,y,17)
+        for j=1 to 106 do
+            mpfr_si_pow_si(t3,2,-17*floor(j-1)-r17)
+            mpfr_mul_z(t3,t3,y)
+            mpfr_fmod(t3,t3,two)
+            mpfr_floor(t3,t3)
+            if mpfr_cmp(half,t3)<0 then
+                bitmap[i,j] = '#'
+            end if
+        end for
+    end for
+    return bitmap
+end function
+constant bitmap = make_bitmap()
+
+include pGUI.e
+
+Ihandle dlg, canvas
+cdCanvas cddbuffer, cdcanvas
+
+function redraw_cb(Ihandle /*canvas*/)
+    integer {width, height} = IupGetIntInt(canvas,"RASTERSIZE"),
+    ms = max(1,min(floor((width-109)/107),floor((height-19)/18))),
+    mm = ms+1, cx = floor(width/2), cy = floor(height/2)
+    cdCanvasActivate(cddbuffer)
+    {} = cdCanvasMarkType(cddbuffer, CD_BOX) 
+    {} = cdCanvasMarkSize(cddbuffer, ms) 
+    for i=1 to 17 do
+        for j=1 to 106 do
+            if bitmap[i,j]='#' then
+                cdCanvasMark(cddbuffer, cx+(53-j)*mm, cy+(8-i)*mm+ms)
+            end if
+        end for
+    end for
+    cdCanvasFlush(cddbuffer)
+    return IUP_DEFAULT
+end function
+
+IupOpen()
+
+canvas = IupCanvas(Icallback("redraw_cb"))
+dlg = IupDialog(canvas,"RASTERSIZE=553x130, MINSIZE=231x76")
+IupSetAttribute(dlg, "TITLE", "Tupper's self-referential formula")
+
+IupMap(dlg)
+cdcanvas = cdCreateCanvas(CD_IUP, canvas)
+cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+IupShow(dlg)
+if platform()!=JS then
+    IupMainLoop()
+    IupClose()
+end if
+

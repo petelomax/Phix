@@ -1,0 +1,375 @@
+--
+-- demo\xpGUI\sample.exw
+-- =====================
+--
+--  add a statusbar, messages -> statusbar (also added, as a nod to demo\arwen\arwendemo.exw)
+--  move val/progress into new frame under button/label/toggle, and IupNormalise them. [DONE]
+--  add gTable, gGraph, IupCalendar to the gTabs (making them larger) [DONE]
+--  rename calendar.exw as IupCalendar.exw [DONE], get that working copy it here. (I only managed IupDatePick, which I don't want here)
+--  DOCS: move gTreeView to top, mark Iup[Flat]Tree as non-p2js
+--  move pwa\phix\gTreeView.exw to demo\pGUI\gTreeView.exw
+--  add this to 7z.lst [DONE]
+--
+--with javascript_semantics
+without js -- IupCalendar(), IupValuator(), Iup/cdVersion[Date](), IupGetClassName(),
+/* and:
+gMenuItem(VALUE,ON)??
+gMenuItem(ACTIVE,NO)??
+gButton(BGCOLOR,#FF0080)??
+gText(MULTILINE,YES)?? -- (and maybe not at all...)
+IupList(VALUE,1)??
+IupList(TIP,Listâ??1)??
+IupList(DROPDOWN,YES)??
+IupList(EDITBOX,YES)??
+IupH/Vbox(NORMALIZESIZE,HORIZONTAL)
+gSetHandler(tree,SELECTION_CB)??
+gCanvas(EXPAND,HORIZONTAL)??
+*/
+-- would probably also benefit from a fixed size on tabs... (or just get that "NORMALIZESIZE=HORIZONTAL" working properly!?)
+-- IupProgressBar comes out wrong size (plus all the usual craziness on resize!)
+--requires("1.0.3")
+--requires(64,true)
+include xpGUI.e
+--include backup\xpGUI.2320.e -- very different!
+
+--gUseGTK() -- DEV: gDatePick... and clicking on gTable tab kills it
+
+gdx dlg
+--, statusbar
+
+procedure toggle_changed(gdx id, bool bChecked)
+--  printf(1,"VALUE_CHANGED(%s)=%s\n",{gGetAttribute(id,"CLASSNAME"), gGetAttribute(id,"VALUE")})
+    printf(1,"VALUE_CHANGED(%s,%t)=%v\n",{gGetAttribute(id,"CLASSNAME"), bChecked, gGetAttribute(id,"VALUE")})
+end procedure
+
+procedure value_changed(gdx id)
+--  printf(1,"VALUE_CHANGED(%s)=%s\n",{gGetAttribute(id,"CLASSNAME"), gGetAttribute(id,"VALUE")})
+    printf(1,"VALUE_CHANGED(%s)=%v\n",{gGetAttribute(id,"CLASSNAME"), gGetAttribute(id,"VALUE")})
+end procedure
+
+procedure list_select(gdx id, integer item)
+    --DEV lst3 needs to set txt3...
+    printf(1,"SELECTED(%s)=%d\n",{gGetAttribute(id,"CLASSNAME"), item})
+end procedure
+
+procedure drop_changed(gdx id)--, integer item)
+--  printf(1,"CHANGED(%s)=%d\n",{gGetAttribute(id,"CLASSNAME"), item})
+    printf(1,"CHANGED(%s)\n",{gGetAttribute(id,"CLASSNAME")})
+end procedure
+
+--procedure set_valuechanged_cb(gdx id)
+----    gSetHandler(id, "VALUECHANGED_CB", valuechanged_cb)
+--  gSetHandler(id, "VALUE_CHANGED", value_changed)
+--end procedure
+
+function text_click_cb(gdx /*id*/)
+    return XPG_DEFAULT
+end function
+
+function action2_cb(gdx /*id*/)
+    printf(1,"ACTION2\n")
+    return XPG_DEFAULT
+end function
+
+function action3_cb(gdx /*id*/)
+    printf(1,"ACTION3\n")
+    return XPG_DEFAULT
+end function
+
+gdx pbar
+integer pval = 0
+procedure timer_handler(gdx /*id*/)
+    gSetAttribute(pbar, "VALUE", "%2.1f",{pval/10})
+    if pval=11 then -- (needed an extra 1 to let it complete...)
+        pval = 0
+    else
+        pval += 1
+    end if
+end procedure
+
+--constant columns = {{"Chq",40,"ARIGHT"},{"Date",80,"ACENTER"},{"Amount",70,"ARIGHT"}},
+constant columns = {{"Chq",40,"R"},{"Date",80,"C"},{"Amount",70,"R"}},
+         data = {{{1,{2020,1,13},1500.89},
+                  {2,{2020,7,10},3646.86},
+                  {3,{2019,3,20},3807.94}},
+                 {0,
+                  "%[3]02d/%[2]02d/%[1]4d",
+                  "%.2f"}},
+         x = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
+         y = {2.7, 2.8, 31.4, 38.1, 58.0, 76.2, 100.5, 130.0, 149.3, 180.0},
+         tree_nodes = {"Figures",               -- (branch with 5 children)
+                       {"Other",                -- (leaf)
+                        {"triangle",            -- (branch with 3 children)
+                         {"STATE","COLLAPSED"},
+                         {"equilateral",
+                          {"isoceles",          -- (branch with 2 children)
+                           {"STATE","COLLAPSED"},
+                           {"acute",
+                            "obtuse"}},
+                          "scalenus"}
+                        },
+                        {"parallelogram",       -- (branch with 2 children)
+                         {"square",
+                          "diamond"}},
+                        "2D",                   -- (leaf)
+                        {"3D",                  -- (branch)
+                         {"STATE","COLLAPSED"}, -- (needed here)
+                         {}},                   -- (empty)
+                        {"4D",
+                         {"STATE","COLLAPSED"},
+                         {"some",
+                          "other",
+                          "branch"},
+                         {"random data"}        -- (iff attr and children present)
+                        }
+                       }
+                      }
+
+function get_data(gdx /*graph*/) return {{x,y,XPG_BLUE}} end function
+
+function selection_cb(gdx ih, integer id, status)
+    ?{"selection_cb",ih, id, status}
+    return XPG_DEFAULT
+end function
+
+--function about_cb(gdx /*id*/)
+function about(gdx /*menu*/, integer id)
+    string help_text = gVersion()
+--  if platform()=JS then
+--      help_text = sprintf("Version: %s",{version()})
+--  else
+--      help_text = sprintf("gVersion: %s %s\nCdVersion: %s %s",
+--       {gVersion(),gVersionDate(),cdVersion(),cdVersionDate()})
+--  end if
+    ?{`IupMessage("About",`,help_text,id,`t)`}
+    return XPG_DEFAULT
+end function
+
+constant MAIN_MENU = {{"Submenu 1",{{"?Item 1 Checked",I1C:=$},
+                                    '-',
+                                    {"Item 1 Disabled",I2D:=$}}},
+                      {"Item 3",I3:=$},
+                      {"Item 4",I4:=$},
+                      {"About",Iabout:=$},
+                      {"&Help",HELP:=$}}
+
+procedure SampleTest()
+    gdx hbox_1, vbox_1, cnv_1, hbox_2, /*hbox_3,*/ vbox_2,
+    btn_1, btn_2, btn_3,  
+    tgl_1, tgl_2, tgl_3, 
+    frm_1, frm_2, frm_3, frm_4, frm_5, frm_6, val, tabs, graph,
+    list_1, list_3, text_1, ml_1, tree
+
+--  if platform()!=JS then
+--      IupSetGlobal("UTF8MODE","YES")
+--  end if
+
+--  menu1 = gMenu({gMenuItem("gMenuItem 1 Checked", "VALUE=ON"),
+--                   gSeparator(),
+--                   gMenuItem("gMenuItem 2 Disabled", "ACTIVE=NO")})
+--  mnu = gMenu({gSubmenu("gSubmenu 1", menu1),
+--                 gMenuItem("gMenuItem 3", NULL),
+--                 gMenuItem("gMenuItem 4", NULL),
+--                 gMenuItem("About", cb_about)})
+    gdx mnu = gMenu(MAIN_MENU,about)
+    gMenuSetAttribute(mnu,I1C,"CHECKED",true)
+--  gMenuSetAttribute(mnu,I1C,"ACTIVE",true)
+    gMenuSetAttribute(mnu,I2D,"ACTIVE",false)
+
+    btn_1 = gButton("Button Text", "PADDING=5x5")
+    btn_2 = gButton("Text", text_click_cb, "PADDING=5x5")
+--DEV would need a gImage here...
+--  btn_3 = gButton(NULL, action3_cb, `BGCOLOR="#FF0080", SIZE[*charsize]=20x10`)
+--  btn_3 = gButton(NULL, action3_cb, `BGCOLOR="#FF0080", SIZE=20x10`)
+    btn_3 = gButton(NULL, action3_cb, `SIZE=20x10`)
+    frm_1 = gFrame(gVbox({btn_1,btn_2,btn_3}),"TITLE=gButton")
+
+    frm_2 = gFrame(gVbox({gLabel("Label Text"),
+--                            gLabel(NULL,"SEPARATOR=HORIZONTAL, MAXSIZE=150"),
+--why bother...
+--                            gLabel(NULL,"SEPARATOR=HORIZONTAL"),
+--                            IupLink("http://google.co.uk"),
+                              gLabel("Another label")}),
+                     "TITLE=gLabel")
+
+    tgl_1 = gCheckbox("Toggle Text", "VALUE=ON")
+--DEV?
+--  tgl_1 = gCheckbox("Toggle Text", "VALUE=ON, 3STATE=YES")
+    tgl_2 = gCheckbox("Toggle Text")
+    tgl_3 = gCheckbox("Toggle Text")
+    gSetHandler({tgl_1,tgl_2,tgl_3}, "VALUE_CHANGED", toggle_changed)
+
+--  frm_3 = gFrame(IupRadio(gVbox({tgl_2,tgl_3})), "TITLE=IupRadio")
+--  frm_3 = gFrame(gVbox({tgl_2,tgl_3},"RADIO=TRUE"), "gRadio")
+    frm_3 = gFrame(gVbox({tgl_2,tgl_3}), "gRadio")
+    gRadio({tgl_2,tgl_3})
+
+    frm_4 = gFrame(gVbox({tgl_1,frm_3}),"gCheckbox")
+--  gSetAttribute(frm_4,"TITLE","gCheckbox")
+
+    text_1 = gText()
+    gSetAttribute(text_1,"VALUE","Single Line of Text")
+--  gSetAttribute(text_1,"SIZE[*charsize]","80x")
+---?DEV
+--  gSetAttribute(text_1,"USERWIDTH",80)
+
+--  ml_1 = IupMultiLine()
+--  ml_1 = gText()
+    sequence mlt = split("Multiline Text\nSecond Line\nThird Line\nUnicode\u279CText") 
+    ml_1 = gList(mlt)
+--  gSetAttribute(ml_1, "MULTILINE", "YES")
+--  gSetAttribute(ml_1,"VALUE","Multiline Text\nSecond Line\nThird Line\nUnicode\u279CText")
+    gSetAttribute(ml_1,"EXPAND","YES")
+--  gSetAttribute(ml_1,"SIZE[*charsize]","80x40")
+    gSetAttribute(ml_1,"SIZE","80x40")
+--  gSetAttribute(ml_1,"FONT","Courier, 8")
+
+    gSetHandler(text_1, "VALUE_CHANGED", value_changed)
+
+    frm_5 = gFrame(gVbox({text_1,ml_1}))
+    gSetAttribute(frm_5,"TITLE","gText")
+
+--  list_1 = IupList()
+    sequence i3 = {"Item 1 Text","Item 2 Text","Item 3 Text"}
+    list_1 = gList(i3,`TIP="List 1"`)
+--  gSetAttribute(list_1,"EXPAND","YES")
+--  gSetAttribute(list_1,"VALUE","1")
+--  gSetAttribute(list_1,"1","Item 1 Text")
+--  gSetAttribute(list_1,"2","Item 2 Text")
+--  gSetAttribute(list_1,"3","Item 3 Text")
+--  gSetAttribute(list_1,"TIP","List 1")
+
+--  list_2 = IupList()
+    gdx drop_2 = gDropDown(i3,`TIP="List 2"`)
+--  gSetAttribute(drop_2,"DROPDOWN","YES")
+--  gSetAttribute(drop_2,"EXPAND","YES")
+--  gSetAttribute(drop_2,"VALUE","2")
+    gSetAttribute(drop_2,"VALINT",2)
+--  gSetAttribute(drop_2,"1","Item 1 Text")
+--  gSetAttribute(drop_2,"2","Item 2 Text")
+--  gSetAttribute(drop_2,"3","Item 3 Text")
+--  gSetAttribute(drop_2,"TIP","List 2")
+
+--  list_3 = IupList()
+    gdx txt3 = gText(),
+        lst3 = gList(i3,`TIP="List 3"`)
+    list_3 = gVbox({txt3,lst3})
+--  gSetAttribute(list_3,"EDITBOX","YES")
+--  gSetAttribute(list_3,"EXPAND","YES")
+--  gSetAttribute(list_3,"VALUE","3")
+--DEV no highlighting as yet...
+    gSetAttribute(lst3,"VALINT",3)
+    gSetAttribute(txt3,"VALUE",gGetAttribute(lst3,"VALUESTR"))
+--  gSetAttribute(list_3,"1","Item 1 Text")
+--  gSetAttribute(list_3,"2","Item 2 Text")
+--  gSetAttribute(list_3,"3","Item 3 Text")
+--  gSetAttribute(list_3,"TIP","List 3")
+
+--  gSetHandler({list_1,drop_2,list_3}, "VALUE_CHANGED", value_changed)
+    gSetHandler({list_1,lst3}, "SELECTED", list_select)
+    gSetHandler(drop_2, "CHANGED", drop_changed)
+    frm_6 = gFrame(gVbox({list_1,drop_2,list_3}))
+    gSetAttribute(frm_6,"TITLE","gList")
+
+    val = gSlider()
+--  val = gSlider("VERTICAL")
+--  val = gLabel("gSlider() [DEV]")
+    gSetHandler(val, "VALUE_CHANGED", value_changed)
+
+    pbar = gProgressBar()
+--  pbar = gProgressBar("DASHED=YES") -- (still no effect on windows 10)
+--  pbar = gLabel("gProgressBar() [DEV]")
+--  gSetAttribute(pbar, "VALUE", "0")
+--  gSetAttribute(pbar, "DASHED", "YES") -- (no effect on windows 10)
+--  gSetAttribute(pbar, "MARQUEE", "YES")
+
+--  {} = IupDestroy(IupNormalizer({val,pbar},"NORMALIZE=HORIZONTAL"))
+--DEV (implement and add to docs)
+--  IupNormalize({val,pbar},"HORIZONTAL")
+
+    hbox_1 = gHbox({frm_1,frm_2,frm_4})
+--  vbox_1 = gVbox({hbox_1,val,pbar},"NORMALIZESIZE=HORIZONTAL")
+    vbox_1 = gVbox({hbox_1,val,pbar})
+--DEV...
+--  gNormalise({hbox_1,val,pbar},"HORIZONTAL")
+
+    hbox_2 = gHbox({vbox_1,frm_5,frm_6})
+
+    gdx hTimer = gTimer(timer_handler, 300)
+
+--DEV gTable, gGraph, IupCalendar
+    graph = gGraph(get_data,"SIZE=300x200")
+--  graph = gGraph(get_data)
+--  graph = gGraph(get_data,"XTICK=1,XMIN=0,XMAX=9,YTICK=20,YMIN=0,YMAX=180")
+    gSetAttributes(graph,"XTICK=1,XMIN=0,XMAX=9")
+    gSetAttributes(graph,"YTICK=20,YMIN=0,YMAX=180")
+
+--  tabs = gTabs({gVbox({gLabel()}),
+--  gdx datepick = gDatePick()
+--  gSetHandler(datepick, "VALUE_CHANGED", value_changed)
+    gdx datepick = gLabel(`gDatePick()`)
+    tabs = gTabs({gVbox({gTable(columns,data,3)},"TABTITLE=gTable"),
+--                gVbox({IupFill()}),
+                  gVbox({graph},"TABTITLE=gGraph"),
+--                gVbox({IupFill()},"TABTITLE=IupCalendar")})
+                  gVbox({datepick},"TABTITLE=gDatePick")})
+--DEV:
+--                  gVbox({IupCalendar()},"TABTITLE=IupCalendar")})
+--DEV not currently supported by pwa/p2js...
+--  gSetAttribute(tabs,"TABTITLE0","gTable")
+--  gSetAttribute(tabs,"TABTITLE1","gGraph")
+--  gSetAttribute(tabs,"TABTITLE2","Tab Title 2")
+--  gSetAttribute(tabs,"TABTITLE2","IupCalendar")
+--  gSetAttribute(tabs,"SIZE","300x50")
+--  gSetAttribute(tabs,"EXPAND","YES")
+--  hbox_3 = gHbox({tabs})
+--  {} = IupDestroy(IupNormalizer({hbox_2,hbox_3},"NORMALIZE=HORIZONTAL"))
+--DEV (implement and add to docs)
+--  IupNormalize({hbox_2,tabs},"HORIZONTAL")
+
+--DEV should be TABCHANGE_CB or TABCHANGEPOS_CB
+--  set_valuechanged_cb(tabs)
+
+    tree = gTreeView(tree_nodes)
+--  gSetAttribute(tree,"SIZE","100x150")
+--DEV check this:
+--  set_valuechanged_cb(tree)
+--DEV...
+puts(1,"gSetHandler(tree, \"SELECTION_CB\", selection_cb) [sample.exw line 326]\n")
+--  gSetHandler(tree, "SELECTION_CB", selection_cb)
+
+    cnv_1 = gCanvas()
+--  gSetAttribute(cnv_1,"BGCOLOR","128 255 0")
+--  gSetAttribute(cnv_1,"BGCOLOR",XPG_PARCHMENT)
+    gCanvasSetBackground(cnv_1,XPG_PARCHMENT)
+--  gSetAttribute(cnv_1,"SCROLLBAR","YES")
+    gSetAttribute(cnv_1,"EXPAND","HORIZONTAL")
+    gSetAttribute(cnv_1,"SIZE","x100")
+--  gSetAttribute(cnv_1,"CANFOCUS","NO")
+
+    vbox_2 = gVbox({mnu,
+                    hbox_2,
+--                  gHbox({gFrame(gHbox({val}),"TITLE=gSlider"),
+--                         gFrame(gHbox({pbar}),"TITLE=gProgressBar"),
+--                         gFrame(gHbox({tabs}),"TITLE=gTabs")}),
+                    gHbox({gFrame(gHbox({tabs}),"TITLE=gTabs")}),
+--                  gHbox({gFrame(hbox_3,"TITLE=gTabs")}),
+                    gHbox({gFrame(gHbox({cnv_1}),"TITLE=gCanvas"),
+                           gFrame(gHbox({tree}),"TITLE=gTreeView")})})
+--                   "NORMALIZESIZE=HORIZONTAL")
+    gSetAttribute(vbox_2,"MARGIN","5x5")
+    gSetAttribute(vbox_2,"GAP","5")
+
+    dlg = gDialog(vbox_2,"xpGUI Sample Dialog")
+--  IupSetHandle("dlg",dlg)
+--  gSetAttributeHandle(NULL,?PARENTDIALOG?, dlg)
+--  gSetAttributeHandle(dlg,"MENU",mnu)
+--  gSetAttribute(dlg,"TITLE","xpGUI Sample Dialog")
+
+    gShow(dlg)
+end procedure
+
+
+SampleTest()
+gMainLoop()
+

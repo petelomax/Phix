@@ -29,11 +29,18 @@
             <br>
             <br>
             Use this to define interface element variables. It is probably <a href="usingtypes.htm#can">unwise</a> to use this to determine 
-            whether an object is in fact such, as many things which are clearly not (eg 0, 1, '2', "345") may pass, the latter only when 53
-            (=='5') or more interface elements have been defined, it does however check [each element] is a non-negative integer between 
-            zero (inclusive) and the current control table length. Some <i>uses</i> of a gdx may prohibit [embedded] nulls, but it is never
-            an error for a variable declared as type gdx to hold such.
+            whether an object is in fact such, as many things which are clearly not (eg 0, 1, '2', {3,4,5}, {' '}) may pass, the latter only 
+            when 32 or more interface elements have been defined, it does however check [each element] is a non-negative integer between zero 
+            (inclusive) and the current control table length. Some <i>uses</i> of a gdx may prohibit [embedded] nulls, but it is never an
+            error for a variable declared as type gdx to hold such.
             <br>
+            <a name=gdc></a>
+            <br>
+            A <b>gdc</b> is either a single gdx from <a href="gCanvas.htm">gCanvas</a> <!--(but <i>not</i> 
+            <a href="gGraph.htm">gGraph</a>/<a href="gList.htm">gList</a>/<a href="gTable.htm">gTable</a>/<a href="gBox.htm">gSplit</a>)-->
+            <!--(or therefore <a href="gGraph.htm">gGraph</a>/<a href="gList.htm">gList</a>/<a href="gTable.htm">gTable</a> and suchlike)-->
+            or a single (sequence) result from <a href="gImage.htm">gImage</a>. Note the latter is <b>not</b> an interface element and 
+            <i>cannot</i> be added to a layout hierarchy. A gdc may not be NULL.
          </td>
         </tr>
         <tr>
@@ -41,8 +48,14 @@
           <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
          </td>
          <td>
-          Supported, or at least understood by pwa/p2js and mapped to "let /*gdx*/".<br>
-          As per <a href="usingtypes.htm#can">unwise</a>, xpGUI.js does not even have a fake version.
+          Supported, or at least understood by pwa/p2js and mapped to "let /*gdx*/" aka (almost) completely ignored, since JavaScript is a 
+          <a href="glossary.htm#typeless">typeless</a> language.<br>
+          As per <a href="usingtypes.htm#can">unwise</a>, xpGUI.js does not even have a fake version, which <i>you should not ever want</i> anyway.<br>
+          Note that on desktop/Phix a gdx is an integer (index to private tables) whereas in JavaScript it is a (private) HtmlElement.<br>
+          A statement such as ?{"clicked",id} might print {"clicked",5} on the desktop but {"clicked","&lt;HtmlElement&gt;"} in a browser,<br>
+          however getting "&lt;HtmlElement&gt;" rather than crashing is in no way guaranteed for the many different browsers, (s)printf(), etc.<br>
+          To be blunt, application code has no real business doing <i>anything at all</i> with a gdx other than passing it back to xpGUI.<br>
+          There is even less support for an application doing rude things with a gdc (such as trying to print it or test for gdc-ness).
          </td>
         </tr>
         <tr>
@@ -67,7 +80,10 @@ gdx quit_bt = gButton("Quit")
           <b>See Also:</b>
          </td>
          <td>
-          <a href="gButton.htm">gButton</a>
+          <a href="gButton.htm">gButton</a>,
+          <a href="gCanvas.htm">gCanvas</a>,
+          <a href="gImage.htm">gImage</a><br>
+          <a name=tech></a>
          </td>
         </tr>
         <tr id="Technicalia" style="display:none;">
@@ -80,19 +96,74 @@ gdx quit_bt = gButton("Quit")
             Note that the pGUI distinctions between IupHandl(e|n)[s] have been dropped in favour of crashing when some element/container 
             cannot be created or attempting to use a NULL or multiple handle[s] inappropriately. One thing in particular is that
             IupG/SetAttribute(NULL,...) being equivalent to IupG/SetGlobal(...) has been completely dropped, in favour of having
-            gGet/SetAttribute(NULL,...) immediately crash, since that <i>should</i> help catch a few more little slip-ups.
+            gGet/SetAttribute(NULL,...) immediately crash, since that <i>should</i> help catch a few more silly little slip-ups.
             <br>
             <br>
             Also it is now a more routine-specific choice as to whether an [embedded] NULL is ignored or invalid, for instance the parent of 
-            a new control can be NULL, and gDestroy() [which you might be handling within a try/catch, and initialising things to NULL] skips 
-            any that were not needed or some other failure occurred before they were created, but (eg) gSetAttribute() as just said will crash.<br>
+            a new dialog can be NULL, and gDestroy() [which you might be handling within a try/catch, and initialising things to NULL] skips 
+            any that were not needed or some other failure occurred before they were created, but (eg) gSetAttribute() as just said will crash.
+            <br>
+            <br>
             Likewise the distinction between Ihandle and Ihandles has also been ditched, but you will for instance get an error should you try
             to specify more than one parent (and in some cases child) when creating a new interface element.
             <br>
+            <br>
+            I could fairly easily be persuaded to (re-)introduce some optional types, and may well quietly do so anyway, such as<br>
+            &nbsp;&nbsp;gdi - must be a non-null integer (gDialog, gFrame, gGetDialog..gGetParent, and gGetAttribute),<br>
+            &nbsp;&nbsp;gds - must be a sequence (eg gH/Vbox and gTabs), and<br>
+            &nbsp;&nbsp;gdn - may contain nulls (no specific internal use springs to mind),<br>
+            however they would probably be more useful within an application than internally by xpGUI.e, and these documents are
+            probably best kept/easier to digest with just the one single gdx type.
          </td>
         </tr>
        </table>
-       <img src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <img id="Timg" src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
        <br>
        <br>
       </div>

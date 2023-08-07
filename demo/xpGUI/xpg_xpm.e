@@ -129,7 +129,7 @@ local function xpg_winAPI_create_DIB_from_xpm(sequence xpm, integer callback)
 --
     assert(platform()=WINDOWS)
 
-    -- extract the values: "<wide> <tall> <colours> <chars per pixel>"
+    -- extract the values: "<wide> <tall> <colours> <chars per pixel> [<hotspot x> <y>]"
     string data = xpm[1]
     sequence dnn = {}
     integer N = 0
@@ -223,6 +223,8 @@ local function xpg_winAPI_create_DIB_from_xpm(sequence xpm, integer callback)
     sequence cc             -- colour code, eg 'x' ==> palette[7] (ie cc[7] would be 'x').
                             -- cc[i] may be char (if codeWide=1) or string (if >1).
     cc = repeat(0,colours)  -- colour code map of <charsWide> chars --> palette index
+    atom pTransparent = NULL, cTrans = #000000
+    sequence cused = {}
 
     xpm = xpm[2..length(xpm)]   -- discard header
 
@@ -255,6 +257,7 @@ local function xpg_winAPI_create_DIB_from_xpm(sequence xpm, integer callback)
                 exit
             end if
         end for
+assert(bOK)
         if bOK then
             -- convert to an {r,g,b} code
             if data[1]='#' then
@@ -264,6 +267,10 @@ local function xpg_winAPI_create_DIB_from_xpm(sequence xpm, integer callback)
                         gg = xpg_hexstr_to_int(data[4..5]),
                         bb = xpg_hexstr_to_int(data[6..7])
                 poke(mbPtr,{bb,gg,rr,0})
+                cused &= rr*#10000+gg*#100+bb
+            elsif data="none" then
+                assert(pTransparent=NULL)
+                pTransparent = mbPtr
             else
                 crash("hex colours only!")
             end if
@@ -271,6 +278,13 @@ local function xpg_winAPI_create_DIB_from_xpm(sequence xpm, integer callback)
         mbPtr += 4
 
     end for
+    if pTransparent!=NULL then
+        -- find an unused colour, any of the 16,777,215
+        --    which are not XPG_BLACK aka NULL will do:
+        cTrans = #FFFFFF
+        while find(cTrans,cused) do cTrans -= 1 end while
+        poke4(pTransparent,cTrans) -- (rgb->bgr'd later)
+    end if
 
     xpm = xpm[colours+1..length(xpm)]   -- discard colour table
     assert(length(xpm)=height)
@@ -293,7 +307,8 @@ local function xpg_winAPI_create_DIB_from_xpm(sequence xpm, integer callback)
         -- Now convert this array of colour indexes into a packed scanline:
         --
         if bpp=8 then -- 1:1
-            packed = pi
+--          packed = pi
+            packed = deep_copy(pi)
         else
             integer oidx = 1
             if bpp=4 then -- 4:1
@@ -324,18 +339,20 @@ local function xpg_winAPI_create_DIB_from_xpm(sequence xpm, integer callback)
 
     atom hDIB = callback({"NEWDIB",{memBitmapInfo,headerSize}})
     free(memBitmapInfo)
-    return hDIB
+--  return hDIB
+--  return {hDIB,width,height,bTransparent}
+    return {hDIB,width,height,cTrans}
 end function
 
-local function xpg_create_image_list(bool bUseGTK, integer callback)
+local function xpg_create_image_list(string plat, integer callback)
     -- called from xpg_Init() [only]
-    if bUseGTK then
+    if plat="GTK" then
         sequence tree_images = repeat(0,3)
         for i,xpm in {dir_closed_xpm,dir_open_xpm,dot_xpm} do
             tree_images[i] = callback(xpm)
         end for
         return tree_images
-    else
+    elsif plat="WinAPI" then
         idBITMAPINFOHEADER = define_struct("""typedef struct tagBITMAPINFOHEADER {
                                                 DWORD   biSize;
                                                 LONG    biWidth;
@@ -359,14 +376,25 @@ local function xpg_create_image_list(bool bUseGTK, integer callback)
 
         atom tree_himl = callback({"NEWLIST"})
         for i,xpm in {dir_closed_xpm,dir_open_xpm,dot_xpm} do
-            atom icon = xpg_winAPI_create_DIB_from_xpm(xpm,callback)
+--          atom icon = xpg_winAPI_create_DIB_from_xpm(xpm,callback)
+            atom icon = xpg_winAPI_create_DIB_from_xpm(xpm,callback)[1]
             {} = callback({"ADDICON",tree_himl,icon})           
         end for
         return tree_himl
+    else
+        ?9/0 -- (unknown plat)
     end if
 end function
 
-gSetGlobal("XPM_INIT",xpg_create_image_list)
+--local function xpg_winAPI_size(atom pBitmap)
+--  integer w = get_struct_field(idBITMAPINFOHEADER,pBitmap,"biWidth"),
+--          h = get_struct_field(idBITMAPINFOHEADER,pBitmap,"biHeight")
+--  return {w,h}
+--end function
+
+--gSetGlobal("XPM_INIT",xpg_create_image_list)
+--gSetGlobal("XPM_INIT",{xpg_create_image_list,xpg_winAPI_create_DIB_from_xpm,xpg_winAPI_size})
+gSetGlobal("XPM_INIT",{xpg_create_image_list,xpg_winAPI_create_DIB_from_xpm})
 
 -- I found this...:
 --;(function($){

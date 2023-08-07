@@ -46,9 +46,14 @@
 --      the user randomly opens more branches before others have completed...
 --
 with javascript_semantics
+--requires(64,true)
 include xpGUI.e
---requires(64)
---gUseGTK()
+--include "backup\\xpGUI - Copy.0092.e" --14/6 03.19 no gdx
+--include backup\xpGUI.0011.e   --14/6 03.19 duff
+--include backup\xpGUI.0205.e   --15/6 21.47 duff
+--include backup\xpGUI.1183.e   --23/6 06.40 duff
+--include backup\xpGUI.1618.e   --26/6 13.53 duff
+gUseGTK()
 
 --
 -- While a literal constant such as this is a bit eye-wateringly ugly, and
@@ -129,7 +134,7 @@ procedure branchopen(object treenode)
     integer userid = gTreeGetUserId(treenode)
     if userid!=0 
     and tree_data[userid]!=0 then -- (deferred load (still) rqd for this node)
-        gTreeDeleteChildren(treenode) -- first kill off "dummy" (which ensured a '+')
+--X     gTreeDeleteChildren(treenode) -- first kill off "dummy" (which ensured a '+')
         sequence children = tree_data[userid]
         gTreeAddNodes(treenode, children)
         -- finally remove the deferred load (or otherise mark as done, if
@@ -240,18 +245,22 @@ procedure branchopen(object treenode)
     and tree_data[userid]!=0 then -- (deferred load (still) rqd for this node)
 --      defer = append(defer,{treenode,rand(5)})
 --      gSetAttribute(timer,"ACTIVE",true)
-        gTreeDeleteChildren(treenode) -- first kill off "dummy" (which ensured a '+')
+--XX    gTreeDeleteChildren(treenode) -- first kill off "dummy" (which ensured a '+')
         sequence children = tree_data[userid]
+        tree_data[userid] = 0
+--?"add>"
         gTreeAddNodes(treenode, children)
+--?"<add"
          -- (DEV for winAPI treenode shd be {handle,id}, may need to re-fetch userid)
         -- finally remove the deferred load (or otherise mark as done, if
         -- this isn't done then any sub-trees get deleted and collapsed.)
-        tree_data[userid] = 0
+--      tree_data[userid] = 0
     end if
 end procedure
 
-gdx tree_view = gTreeView(tree_nodes,branchopen),
-          dlg = gDialog(tree_view,`TITLE="Tree View2",SIZE=350x300`)
+--gdx tree_view = gTreeView(tree_nodes,branchopen),
+gdx tree_view = gTreeView(tree_nodes,branchopen,`SIZE=350x300`),
+          dlg = gDialog(tree_view,"Tree View2",`SIZE=350x300`)
 gShow(dlg)
 gMainLoop()
 

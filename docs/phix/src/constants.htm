@@ -43,7 +43,10 @@
         Typically such desequencing makes much more sense when the rhs is dynamically generated, for instance a function call.
         <br>
         <br>
-        Phix also allows nested constant declarations via the ':=' operator, within a (nested) rhs<small><sup>1</sup></small> sequence constant declaration, so instead of 
+        <a name="nested"></a>
+        Phix also allows nested constant declarations via the ':=' operator, within a (nested) 
+        <a name=ncd></a>rhs<small><sup><a href="#ncd1" onclick="opentech()">1</a></sup></small> 
+        sequence constant declaration, so instead of 
 <!--eucode>
     constant WSAEINTR  = 10004,
              WSAEACCES = 10013
@@ -69,11 +72,36 @@
 <font color="#800000">            {</font><font color="#800080">{</font><font color="#000000">WSAEINTR </font><font color="#0000FF"> :=</font><font color="#000000"> 10004</font><font color="#0000FF">,</font><font color="#008000"> "WSAEINTR"</font><font color="#0000FF">, </font><font color="#008000"> "Interrupted function call."</font><font color="#800080">}</font><font color="#0000FF">,</font>
 <font color="#800080">             {</font><font color="#000000">WSAEACCES</font><font color="#0000FF"> :=</font><font color="#000000"> 10013</font><font color="#0000FF">,</font><font color="#008000"> "WSAEACCES"</font><font color="#0000FF">,</font><font color="#008000"> "Permission denied."</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">)</font>
 </pre>
-        ie on the second line before the first ',' we see both a definition of WSAEINTR and a reference to it (the spaces around := are optional).
+        ie on the second line before the first ',' we see both a definition of WSAEINTR and a reference to it (the spaces around := are optional).<br>
+        If <a href="with.htm#nestedglobals">with nested_globals</a> is in force, WSAEINTR and WSAEACCES (ie anything declared via the ':=' operator)
+        would be global, even when ERROR_XX are local. There is (as yet) no direct converse, but all local then global E_XX=ERROR_XX is close enough.
+
 <!-- (backtrack)
         <b><i>NB</i></b>: nested constants are <i>not</i> supported by <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js</b></span></a>, 
         since there is no JavaScript equivalent.
 -->
+       <br>
+        <a name=nested_declarations></a>
+       <br>
+        You can also, with some caution, use ":=$" syntax to declare basic-enum-style nested constants, for example
+<!--eucode>
+    constant ABCD = {A:=$, B:=$, C:=$, D:=$}
+--  constant ABCD = {A:=1, B:=2, C:=3, D:=4} -- equivalent
+</eucode-->
+<pre>
+<font color="#008080">    constant</font><font color="#000000"> ABCD</font><font color="#0000FF"> = {</font><font color="#000000">A</font><font color="#0000FF">:=</font><font color="#000000">$</font><font color="#0000FF">,</font><font color="#000000"> B</font><font color="#0000FF">:=</font><font color="#000000">$</font><font color="#0000FF">,</font><font color="#000000"> C</font><font color="#0000FF">:=</font><font color="#000000">$</font><font color="#0000FF">,</font><font color="#000000"> D</font><font color="#0000FF">:=</font><font color="#000000">$</font><font color="#0000FF">}</font>
+<font color="#000080"><i>--  constant ABCD = {A:=1, B:=2, C:=3, D:=4} -- equivalent</i></font>
+</pre>
+        Note however that pmain.e/ncdollar is reset to 1 by the `constant` keyword and incremented on use in this fashion only, and <i>cannot</i> 
+        be overidden mid-declaration, so if you tried for instance "1,$,3,$" (iyswim) you would get "1,1,3,2" rather than "1,2,3,4". 
+        Also note $ has a completely different meaning within an <a href="enum.htm#dollar">enum</a> (previous item), and within 
+        <a href="subscripts.htm#dollar">subscripts</a> (such that s[$] means s[-1] aka s[length(s)]), plus of course this must all be supported 
+        by both the normal desktop/Phix and by <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js</b></span></a>, hence: the implementation 
+        of ":=$" within constant definitions is deliberately kept as trivial as possible, and constructs such as <code>s[NXT:=$]</code> are 
+        <i>not</i> supported and may give unpredictable results (usu -1), in which case you will need to resort to a preceding enum or explicit 
+        values (such as <code>s[NXT:=7]</code>), and likewise you <i>cannot</i> use <code>A:=100+$</code> or <code>A:=$+100</code>, since 
+        that&rsquo;s not (a plain and simple) ":=$". 
+        On the plus side it should be perfectly possible to use ":=$" in as deeply nested sequences as you like.
        <br>
        <br>
 <!-- nah - this just reiterates what is said in Technicalia, and anyone confused will read that anyway...
@@ -89,6 +117,7 @@
         or other modification is prohibited. The actual constant values, both named and unnamed, are "pooled" so that only a single copy ever 
         gets written out to a compiled executable file.
         <br>
+        <a name=NULL></a>
         <br>
         Several builtin constants are automatically defined in psym.e/syminit(), such as C_CHAR, C_BYTE, C_PTR, NULL, WINDOWS, LINUX, PI,
         LOCK_SHARED, LOCK_EXCLUSIVE, BLACK, GREEN, BLUE, DB_OK, DB_OPEN_FAIL, DB_EXISTS_ALREADY, MB_OK, MB_OKCANCEL, IDOK, IDCANCEL,
@@ -320,8 +349,8 @@ procedure</font><font color="#000000"> p2</font><font color="#0000FF">()</font>
           </a>
          </td>
          <td>
-          <small><sup>1</sup></small> (nested constant declarations) Specifically when pmain.e/DoSequence() with asConst!=-1, as set and reset 
-            by DoConstant(), encounters the aforementioned ":=" operator.
+          <a name=ncd1></a><small><sup><a href="#ncd">1</a></sup></small> (nested constant declarations) Specifically when pmain.e/DoSequence() 
+          with asConst!=-1, as set and reset by DoConstant(), encounters the aforementioned ":=" operator.
           <br>
           <br>
           Obviously nested constants <i>cannot</i> clash with an existing name or overwrite an existing value.
@@ -338,28 +367,78 @@ procedure</font><font color="#000000"> p2</font><font color="#0000FF">()</font>
             as a clear indication that everything is fine.
            </dd>
           </dl>
+            Prior to the introduction of <a href="with.htm#nestedglobals">with nested_globals</a> I said this:
+            <br>
+            <br>
+            <small>
             It is not possible to micro-manage global status of nested declarations: ERROR_NO, ERROR_NAME, ERROR_SHORT, WSAEINTR, and WSAEACCES 
             are either <i>all</i> global, or <i>none</i> of them are. However you can of course split the above definition as follows
             <br>
-            <br>
 <!--eucode>
-    constant ERRORS = 
-            {{WSAEINTR  := 10004, "WSAEINTR",  "Interrupted function call."},
-             {WSAEACCES := 10013, "WSAEACCES", "Permission denied."}}
+    constant ERRORS = {{WSAEINTR  := 10004, "WSAEINTR",  "Interrupted function call."},
+                       {WSAEACCES := 10013, "WSAEACCES", "Permission denied."}}
     global constant {ERROR_NO, ERROR_NAME, ERROR_SHORT} = columnize(ERRORS)
 </eucode-->
 <pre>
-<font color="#008080">    constant</font><font color="#000000"> ERRORS</font><font color="#0000FF"> = 
-            {</font><font color="#800000">{</font><font color="#000000">WSAEINTR </font><font color="#0000FF"> :=</font><font color="#000000"> 10004</font><font color="#0000FF">,</font><font color="#008000"> "WSAEINTR"</font><font color="#0000FF">, </font><font color="#008000"> "Interrupted function call."</font><font color="#800000">}</font><font color="#0000FF">,</font>
-<font color="#800000">             {</font><font color="#000000">WSAEACCES</font><font color="#0000FF"> :=</font><font color="#000000"> 10013</font><font color="#0000FF">,</font><font color="#008000"> "WSAEACCES"</font><font color="#0000FF">,</font><font color="#008000"> "Permission denied."</font><font color="#800000">}</font><font color="#0000FF">}</font>
+<font color="#008080">    constant</font><font color="#000000"> ERRORS</font><font color="#0000FF"> = {</font><font color="#800000">{</font><font color="#000000">WSAEINTR </font><font color="#0000FF"> :=</font><font color="#000000"> 10004</font><font color="#0000FF">,</font><font color="#008000"> "WSAEINTR"</font><font color="#0000FF">, </font><font color="#008000"> "Interrupted function call."</font><font color="#800000">}</font><font color="#0000FF">,</font>
+<font color="#800000">                       {</font><font color="#000000">WSAEACCES</font><font color="#0000FF"> :=</font><font color="#000000"> 10013</font><font color="#0000FF">,</font><font color="#008000"> "WSAEACCES"</font><font color="#0000FF">,</font><font color="#008000"> "Permission denied."</font><font color="#800000">}</font><font color="#0000FF">}</font>
 <font color="#008080">    global constant</font><font color="#0000FF"> {</font><font color="#000000">ERROR_NO</font><font color="#0000FF">,</font><font color="#000000"> ERROR_NAME</font><font color="#0000FF">,</font><font color="#000000"> ERROR_SHORT</font><font color="#0000FF">} =</font><font color="#7060A8"> columnize</font><font color="#0000FF">(</font><font color="#000000">ERRORS</font><font color="#0000FF">)</font>
 </pre>
-          <br>
           and that way make ERROR_NO, ERROR_NAME, and ERROR_SHORT global, but keep WSAEINTR and WSAEACCES (and ERRORS) private.
+          </small>
+          <br>
+          <br>
+          In effect the opposite is now (a bit more) possible, although it would be quite fair to say that (the new) option is a little blunt 
+          and "all-or-nothing". Let me know if you want or have a bright idea for something a little better, but I would rather avoid making 
+          anything in this regard overly fiddly, repetitive, or downright tedious.
          </td>
         </tr>
        </table>
-       <img src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <img id="Timg" src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
        <br>
        <br>
       </div>

@@ -16,7 +16,15 @@
             include xpGUI.e
             <br>
             <br>
-            <a href="string.htm">string</a> res = gGetGlobal(<a href="string.htm">string</a> name)
+            <a href="object.htm">object</a> res = gGetGlobal(<a href="string.htm">string</a> name)
+            <br>
+            <i>-- or --</i>
+            <br>
+            <a href="integer.htm">integer</a> i = gGetGlobalInt(<a href="string.htm">string</a> name)
+            <br>
+            <i>-- or --</i>
+            <br>
+            <a href="integer.htm">integer</a> {i1,i2} = gGetGlobalIntInt(<a href="string.htm">string</a> name)
          </td>
         </tr>
         <tr>
@@ -31,7 +39,8 @@
             name: name of the attribute.
             <br>
             <br>
-            Returns: the attribute value. If the attribute does not exist, "" is returned.
+            Returns: the attribute value, see individual attributes for the format/type that will be.
+            <!-- If the attribute does not exist, NULL is returned.-->
          </td>
         </tr>
         <tr>
@@ -53,7 +62,7 @@
           <b>See Also:</b>
          </td>
          <td>
-          <a href="IupSetGlobal.htm">IupSetGlobal</a>
+          <a href="gSetGlobal.htm">gSetGlobal</a>
          </td>
         </tr>
         <tr>
@@ -61,13 +70,19 @@
           <b>Notes:</b>
          </td>
          <td>
+            The gGetGlobalIntInt() routine is fairly obviously limited to attributes such as <a href="#SCREENSIZE">SCREENSIZE</a>
+            that actually return two integers, and can help make code more self-documenting, but note that gGetGlobal() would return 
+            the exact same value, rather than (say) converting it into a string.<br>
+            Likewise gGetGlobalInt() is restricted to attributes such as <a href="#SHIFTKEY">SHIFTKEY</a>.
+<!--
+            <br>
 [DEV] what...<br><br>
             This function&rsquo;s return value is not necessarily the same one used by the application to set the attribute&rsquo;s value.
             <br>
             <br>
             The returned value is not necessarily the same pointer used by the application to define the attribute value. 
             The pointers of internal IUP attributes returned by IupGetGlobal should never be freed or changed, except 
-            when it is a custom application pointer that was stored using <a href="IupSetGlobal.htm">IupSetGlobal</a>() and 
+            when it is a custom application pointer that was stored using <a href="gSetGlobal.htm">gSetGlobal</a>() and 
             allocated by the application.
             <br>
             <br>
@@ -81,17 +96,18 @@
 [DEV] reword...<br><br>
             The function <a href="atom.htm">atom</a> res = <b>IupGetGlobalInt</b>(<a href="string.htm">string</a> name) is a simple wrapper to 
             <a href="IupGetAttribute.htm#utility">IupGetInt</a>(NULL,name) mainly for consistency with 
-            <a href="IupSetGlobal.htm">IupSetGlobalInt</a>() and to help make code more self-documenting. 
+            <a href="gSetGlobal.htm">gSetGlobalInt</a>() and to help make code more self-documenting. 
             Likewise <a href="atom.htm">atom</a> {a1,a2} = <b>gGetGlobalIntInt</b>(string</a> name) is a simple wrapper to 
             <a href="IupGetAttribute.htm#utility">IupGetIntInt</a>(NULL,name), not that there is (yet) any such thing as an
-            IupSetGlobalIntInt function.
+            gSetGlobalIntInt function.
+-->
             <br>
             <br>
-            The function <b>gVersion</b>() is equivalent to <nobr>gGetGlobal("VERSION")</nobr> and returns a string such as
-            "xpGUI 0.1 on Phix version 1.0.2 (32 bits) on Windows, using WinAPI", or
-            "xpGUI 0.1 on Phix version 1.0.2 (64 bits) on Linux, using GTK", or
-            "xpGUI.js version 0.1 (32 bits)", suitable for use in an about popup or similar.
-            Note there are no xpGUI equivalents for IupVersionDate(), IupVersionNumber(), or IupVersionShow().
+            The function <b>gVersion</b>(bool bBack=false) is equivalent to <nobr>gGetGlobal(`<a href="#VERSION">VERSION</a>`)</nobr> 
+            (see below) when bBack is omitted or false, and when true it returns "GTK" or "WinAPI", which may be useful for
+            diagnostic purposes when on Windows and <a href="gUseGTK.htm">gUseGTK</a>() may or may not have been called.<br>
+            Note there are no xpGUI equivalents for IupVersionDate(), IupVersionNumber(), or IupVersionShow(), or for that matter
+            and more obviously cdVersion(), cdVersionDate(), and cdVersionNumber().
 <!--            Also, <b>IupVersionDate</b>() returns eg "2015/09/15" and <b>IupVersionNumber</b>() returns eg 316000 (an integer).
             <br>
             <br>
@@ -105,6 +121,18 @@
           <b>General</b>
          </td>
          <td>
+          <br>
+          <a name=COPYRIGHT></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          COPYRIGHT
+         </td>
+         <td>
+            (read-only) Returns eg "Copyright (C) 2023 Pete Lomax / Open Software License version 3.0".
+            <br>
+          <a name=VERSION></a>
          </td>
         </tr>
         <tr>
@@ -112,31 +140,19 @@
           VERSION
          </td>
          <td>
-            (read-only) Returns the name of IUP&rsquo;s version.
+            (read-only) Returns a string such as:<br>
+            "xpGUI 0.1 on Phix version 1.0.3 (32 bits) on Windows, using WinAPI", or<br>
+            "xpGUI 0.1 on Phix version 1.0.3 (64 bits) on Linux, using GTK 3.22.30", or<br>
+            "xpGUI.js version 0.1 (32 bits)", suitable for use in an about popup or similar.
             <br>
             <br>
-            The value follows the "major.minor.micro" format, major referring to broader changes, minor referring to 
-            smaller changes, and micro referring to corrections only. Ex.: "1.7.2".
-            <br>
+            Use <a href="requires.htm">requires</a>() instead to check/enforce compatibility.
          </td>
         </tr>
 <!--
-        <tr>
-         <td>
-          <a name=COPYRIGHT></a>
-          COPYRIGHT
-         </td>
-         <td>
-            (read-only) Returns the IUP&rsquo;s copyright.
-            <br>
-            <br>
-            Ex: "Copyright (C) 1994-2014 Tecgraf/PUC-Rio".
-            <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
           <a name=DRIVER></a>
+        <tr>
+         <td>
           DRIVER
          </td>
          <td>
@@ -152,131 +168,148 @@
           <b>System Control</b>
          </td>
          <td>
+          <br>
+          <a name=SINGLEINSTANCE></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+?         SINGLEINSTANCE
+         </td>
+         <td>
+            [Windows Only]
+            Restricts the number of instances of the application by using a name to identify it. <br>
+            The value must also be a partial match to the title of a dialog that will receive the COPYDATA_CB handler with the command line of the second instance. <br>
+            When consulted returns NULL if inside the second instance. <br>
+            So usually in the application initialization after <a href="IupOpen.htm">IupOpen</a>, set 
+            SINGLEINSTANCE
+            and then consult its value, 
+            if NULL abort the second instance by calling <a href="IupClose.htm">IupClose</a> and returning from main.
          </td>
         </tr>
 <!--
-        <tr>
-         <td>
-          <a name=LOCKLOOP></a>
-          LOCKLOOP
-         </td>
-         <td>
-            When the last visible dialog is closed the <a href="IupExitLoop.htm">IupExitLoop</a> function is called. <br>
-            To avoid that set LOCKLOOP=YES before hiding the last dialog. <br>
-            Possible values: "YES" or "NO". Default: "NO". 
-            <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          EXITLOOP
-         </td>
-         <td>
-            Disable the IupExitLoop function when IupMainLoopLevel is 1. <br>
-            Used when the application runs secondary dialogs that behave as full applications but sharing the same IUP environment, 
-            like in "iupluascripter". <br>
-            Possible values: "YES" or "NO". Default: "YES". (since 3.23)
-            <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          CUSTOMQUITMESSAGE
-         </td>
-         <td>
-            [Windows Only]  (since 3.28) Enable a custom quit message instead of using WM_QUIT.
-            <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <a name=LASTERROR></a>
-          LASTERROR
-         </td>
-         <td>
-            [Windows Only]  (read-only) If an error is found, returns a string with the system error description.
-            <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <a name=UTF8MODE></a>
-          UTF8MODE<a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a>
-         </td>
-         <td>
-            [Windows and GTK Only] By default IUP uses strings in the current locale (See <a href="common.htm#FONT">FONT</a> attribute). 
-            To use UTF-8 strings set this attribute to Yes. Default: NO.
-            Ignored by pwa/p2js since it is already/permanently enabled in JavaScript.
-            <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <a name=UTF8MODE_FILE></a>
-          UTF8MODE_FILE
-         </td>
-         <td>
-            [Windows Only] By default IUP uses file names in the current locale, even when 
-            <a href="iupgattr.htm#UTF8MODE">UTF8MODE</a><a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a>=Yes. 
-            To use UTF-8 file names set this attribute to Yes. Default: NO.
-            <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <a name=DEFAULTPRECISION></a>
-          DEFAULTPRECISION
-         </td>
-         <td>
-            The default number of decimal places used in floating point output by some controls (<a href="IupMatrixEx.htm">IupMatrixEx</a> and IupGetParam). 
-            Local attributes may overwrite the default. Default: 2.
-            <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <a name=DEFAULTDECIMALSYMBOL></a>
-          DEFAULTDECIMALSYMBOL
-         </td>
-         <td>
-            Symbol used for decimal separator in numeric values used in floating point output by some controls (<a href="IupMatrixEx.htm">IupMatrixEx</a>,
-            IupGetParam and IupPlot). <br>
-            Can be "." or "," only. Default uses the one defined by the system locale.
-            <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          SB_BGCOLOR
-         </td>
-         <td>
-            [GTK and Motif Only] (since 3.25) By default the scrollbars will not be affected by the BGCOLOR in native controls. <br>
-            If set to Yes, the system will try to render scrollbars in the same color of the BGCOLOR, but notice that this may affect scrollbars visibility. <br>
-            Up to version 3.24, IUP by default changed the background color of the scrollbars in GTK and Motif. This affects IupCanvas, IupList, IupText and IupTree.
-            <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <a name=SHOWMENUIMAGES></a>
-          SHOWMENUIMAGES
-         </td>
-         <td>
-            [GTK Only] Force the display of images in menus. Default: Yes <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          OVERLAYSCROLLBAR
-         </td>
-         <td>
-            [GTK Only] (since 3.19) Allow the overlay scrollbar in IupCanvas to use a minimum space. <br>
-            By default IUP will use a regular scrollbar space even when overlay scrollbar is enabled in the system.<br>
-         </td>
-        </tr>
-        <tr>
-         <td>
+//        <a name=LOCKLOOP></a>
+//      <tr>
+//       <td>
+//        LOCKLOOP
+//       </td>
+//       <td>
+//          When the last visible dialog is closed the <a href="IupExitLoop.htm">IupExitLoop</a> function is called. <br>
+//          To avoid that set LOCKLOOP=YES before hiding the last dialog. <br>
+//          Possible values: "YES" or "NO". Default: "NO". 
+//          <br>
+//       </td>
+//      </tr>
+//      <tr>
+//       <td>
+//        EXITLOOP
+//       </td>
+//       <td>
+//          Disable the IupExitLoop function when IupMainLoopLevel is 1. <br>
+//          Used when the application runs secondary dialogs that behave as full applications but sharing the same IUP environment, 
+//          like in "iupluascripter". <br>
+//          Possible values: "YES" or "NO". Default: "YES". (since 3.23)
+//          <br>
+//       </td>
+//      </tr>
+//      <tr>
+//       <td>
+//        CUSTOMQUITMESSAGE
+//       </td>
+//       <td>
+//          [Windows Only]  (since 3.28) Enable a custom quit message instead of using WM_QUIT.
+//          <br>
+//       </td>
+//      </tr>
+//        <a name=LASTERROR></a>
+//      <tr>
+//       <td>
+//        LASTERROR
+//       </td>
+//       <td>
+//          [Windows Only]  (read-only) If an error is found, returns a string with the system error description.
+//          <br>
+//       </td>
+//      </tr>
+//        <a name=UTF8MODE></a>
+//      <tr>
+//       <td>
+//        UTF8MODE<a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a>
+//       </td>
+//       <td>
+//          [Windows and GTK Only] By default IUP uses strings in the current locale (See <a href="gSetAttribute.htm#FONT">FONT</a> attribute). 
+//          To use UTF-8 strings set this attribute to Yes. Default: NO.
+//          Ignored by pwa/p2js since it is already/permanently enabled in JavaScript.
+//          <br>
+//       </td>
+//      </tr>
+//        <a name=UTF8MODE_FILE></a>
+//      <tr>
+//       <td>
+//        UTF8MODE_FILE
+//       </td>
+//       <td>
+//          [Windows Only] By default IUP uses file names in the current locale, even when 
+//          <a href="gGetGlobal?.htm#UTF8MODE">UTF8MODE</a><a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a>=Yes. 
+//          To use UTF-8 file names set this attribute to Yes. Default: NO.
+//          <br>
+//       </td>
+//      </tr>
+//        <a name=DEFAULTPRECISION></a>
+//      <tr>
+//       <td>
+//        DEFAULTPRECISION
+//       </td>
+//       <td>
+//          The default number of decimal places used in floating point output by some controls (<a href="IupMatrixEx.htm">IupMatrixEx</a> and IupGetParam). 
+//          Local attributes may overwrite the default. Default: 2.
+//          <br>
+//       </td>
+//      </tr>
+//        <a name=DEFAULTDECIMALSYMBOL></a>
+//      <tr>
+//       <td>
+//        DEFAULTDECIMALSYMBOL
+//       </td>
+//       <td>
+//          Symbol used for decimal separator in numeric values used in floating point output by some controls (<a href="IupMatrixEx.htm">IupMatrixEx</a>,
+//          IupGetParam and IupPlot). <br>
+//          Can be "." or "," only. Default uses the one defined by the system locale.
+//          <br>
+//       </td>
+//      </tr>
+//      <tr>
+//       <td>
+//        SB_BGCOLOR
+//       </td>
+//       <td>
+//          [GTK and Motif Only] (since 3.25) By default the scrollbars will not be affected by the BGCOLOR in native controls. <br>
+//          If set to Yes, the system will try to render scrollbars in the same color of the BGCOLOR, but notice that this may affect scrollbars visibility. <br>
+//          Up to version 3.24, IUP by default changed the background color of the scrollbars in GTK and Motif. This affects IupCanvas, IupList, IupText and IupTree.
+//          <br>
+//       </td>
+//      </tr>
+//        <a name=SHOWMENUIMAGES></a>
+//      <tr>
+//       <td>
+//        SHOWMENUIMAGES
+//       </td>
+//       <td>
+//          [GTK Only] Force the display of images in menus. Default: Yes <br>
+//       </td>
+//      </tr>
+//      <tr>
+//       <td>
+//        OVERLAYSCROLLBAR
+//       </td>
+//       <td>
+//          [GTK Only] (since 3.19) Allow the overlay scrollbar in IupCanvas to use a minimum space. <br>
+//          By default IUP will use a regular scrollbar space even when overlay scrollbar is enabled in the system.<br>
+//       </td>
+//      </tr>
           <a name=GLOBALMENU></a>
+        <tr>
+         <td>
           GLOBALMENU
          </td>
          <td>
@@ -299,12 +332,12 @@
          </td>
          <td>
             Flag to enable the global keys Ctrl+'+' and Ctrl+'-' that change the FONTSIZE and refresh the layout of the dialog. <br>
-            If element sizes are NOT set using RASTERSIZE their sizes will be automatically increased and decreased. Images are not changed.<br>
+//          If element sizes are NOT set using ?RASTER?SIZE their sizes will be automatically increased and decreased. Images are not changed.<br>
          </td>
         </tr>
+          <a name=IMAGEAUTOSCALE></a>
         <tr>
          <td>
-          <a name=IMAGEAUTOSCALE></a>
           IMAGEAUTOSCALE
          </td>
          <td>
@@ -316,16 +349,15 @@
         </tr>
         <tr>
          <td>
-          <a name=IMAGESDPI></a>
           IMAGESTOCKAUTOSCALE
          </td>
          <td>
             Stock images are automatically scaled by default. Default: Yes.<br>
          </td>
         </tr>
+          <a name=IMAGESDPI></a>
         <tr>
          <td>
-          <a name=IMAGESDPI></a>
           IMAGESDPI
          </td>
          <td>
@@ -333,9 +365,9 @@
             <br>
          </td>
         </tr>
+          <a name=IMAGESTOCKSIZE></a>
         <tr>
          <td>
-          <a name=IMAGESTOCKSIZE></a>
           IMAGESTOCKSIZE
          </td>
          <td>
@@ -353,44 +385,32 @@
 -->
         <tr>
          <td>
-          <a name=SINGLEINSTANCE></a>
-          SINGLEINSTANCE<a href="notpgui.htm#IupSetGlobal"><span style="color:red;"><sup>x</sup></span></a>
-         </td>
-         <td>
-            [Windows Only]
-            Restricts the number of instances of the application by using a name to identify it. <br>
-            The value must also be a partial match to the title of a dialog that will receive the COPYDATA_CB callback with the command line of the second instance. <br>
-            When consulted returns NULL if inside the second instance. <br>
-            So usually in the application initialization after <a href="IupOpen.htm">IupOpen</a>, set 
-            SINGLEINSTANCE<a href="notpgui.htm#IupSetGlobal"><a href="notpgui.htm#IupSetGlobal"><span style="color:red;"><sup>x</sup></span></a>
-            and then consult its value, 
-            if NULL abort the second instance by calling <a href="IupClose.htm">IupClose</a> and returning from main.
-         </td>
-        </tr>
-
-        <tr>
-         <td>
           <b>System Mouse and Keyboard</b>
          </td>
          <td>
+          <br>
+          <a name=MOUSEPOS></a>
          </td>
         </tr>
         <tr>
          <td>
-          <a name=MOUSEPOS></a>
-          MOUSEPOS
+?         MOUSEPOS
          </td>
          <td>
             (renamed from CURSORPOS) Controls and returns the cursor position in absolute coordinates relative to the origin of the main screen. <br>
             The origin of the main screen is at the upper left corner, in Windows it is affected by the position of the Start Menu when it is at the top or left side of the screen. <br>
-            Accepts values in the format "XxY" (in C "%dx%d), example "200x200". In GTK and Motif also generates mouse motion messages. (since GTK 2.8)
+            Accepts values in the format "XxY" (in C "%dx%d"), example "200x200". In GTK and Motif also generates mouse motion messages. (since GTK 2.8)
             <br>
+            <br>
+            Returns: {x,y}, a pair of integer pixel offsets.
+            <br>
+          <a name=SHIFTKEY></a>
          </td>
         </tr>
 <!--
+          <a name=MOUSEBUTTON></a>
         <tr>
          <td>
-          <a name=MOUSEBUTTON></a>
           MOUSEBUTTON
          </td>
          <td>
@@ -410,61 +430,63 @@
             <br>
          </td>
         </tr>
+-->
         <tr>
          <td>
-          <a name=SHIFTKEY></a>
-          SHIFTKEY
+?         SHIFTKEY
          </td>
          <td>
-            (read-only) Returns the state of the Shift keys (left and right). Possible values: "ON" or "OFF".
+            (read-only) Returns the state of the Shift keys (left and right). ??Possible values: "ON" or "OFF".
             <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
           <a name=CONTROLKEY></a>
-          CONTROLKEY
-         </td>
-         <td>
-            (read-only) Returns the state of the Control keys (left and right). Possible values: "ON" or "OFF".
-            <br>
          </td>
         </tr>
         <tr>
          <td>
-          <a name=MODKEYSTATE></a>
-          MODKEYSTATE
+?         CONTROLKEY
          </td>
          <td>
-            (read-only) Returns the state of the keyboard modifier keys: Shift, Ctrl, Alt and sYs(Win/Apple). <br>
-            In the format of 4 characters: "SCAY". When not pressed the respective letter is replaced by a space " ". 
+            (read-only) Returns the state of the Control keys (left and right). ??Possible values: "ON" or "OFF".
             <br>
          </td>
         </tr>
-        <tr>
-         <td>
-          <a name=KEYPRESS></a>
-          KEYPRESS
-         </td>
-         <td>
-            (write-only) Sends a key press message to the element with the focus. The value is a key code. <br>
-            See the Keyboard Codes table for a list of the possible values. 
-            <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <a name=KEYRELEASE></a>
-          KEYRELEASE
-         </td>
-         <td>
-            (write-only) Sends a key release message to the element with the focus. The value is a key code. See the Keyboard Codes table for a list of the possible values. 
-            <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
+<!--
+<X!X--
+//        <a name=MODKEYSTATE></a>
+//      <tr>
+//       <td>
+//        MODKEYSTATE
+//       </td>
+//       <td>
+//          (read-only) Returns the state of the keyboard modifier keys: Shift, Ctrl, Alt and sYs(Win/Apple). <br>
+//          In the format of 4 characters: "SCAY". When not pressed the respective letter is replaced by a space " ". 
+//          <br>
+//       </td>
+//      </tr>
+//        <a name=KEYPRESS></a>
+//      <tr>
+//       <td>
+//        KEYPRESS
+//       </td>
+//       <td>
+//          (write-only) Sends a key press message to the element with the focus. The value is a key code. <br>
+//          See the Keyboard Codes table for a list of the possible values. 
+//          <br>
+//       </td>
+//      </tr>
+//        <a name=KEYRELEASE></a>
+//      <tr>
+//       <td>
+//        KEYRELEASE
+//       </td>
+//       <td>
+//          (write-only) Sends a key release message to the element with the focus. The value is a key code. See the Keyboard Codes table for a list of the possible values. 
+//          <br>
+//       </td>
+//      </tr>
           <a name=KEY></a>
+        <tr>
+         <td>
           KEY
          </td>
          <td>
@@ -472,9 +494,9 @@
             <br>
          </td>
         </tr>
+          <a name=AUTOREPEAT></a>
         <tr>
          <td>
-          <a name=AUTOREPEAT></a>
           AUTOREPEAT
          </td>
          <td>
@@ -482,18 +504,18 @@
             <br>
          </td>
         </tr>
+          <a name=INPUTCALLBACKS></a>
         <tr>
          <td>
-          <a name=INPUTCALLBACKS></a>
-          INPUTCALLBACKS<a href="notpgui.htm#IupSetGlobal"><span style="color:red;"><sup>x</sup></span></a>
+          INPUTCALLBACKS
          </td>
          <td>
             Turns on/off  ("YES" or "NO") the global callbacks used to intercept global mouse and keyboard events. <br>
             The callbacks must be set using the <a href="IupSetGlobalFunction.htm">IupSetGlobalFunction</a> function using the following names: 
-            GLOBALKEYPRESS_CB, GLOBALMOTION_CB, GLOBALBUTTON_CB and GLOBALWHEEL_CB (Windows Only). <br>
+?           GLOBALKEYPRESS_CB, GLOBALMOTION_CB, GLOBALBUTTON_CB and GLOBALWHEEL_CB (Windows Only). <br>
             Their parameters are the same as the standard callbacks, but without the Ihandle parameter. <br>
-            (ie/see <a href="callbacks.htm#KEYPRESS_CB">KEYPRESS_CB</a>, <a href="callbacks.htm#MOTION_CB">MOTION_CB</a>, 
-             <a href="callbacks.htm#BUTTON_CB">BUTTON_CB</a>, and <a href="callbacks.htm#WHEEL_CB">WHEEL_CB</a>)
+?           (ie/see <a href="gSetHandler.htm#KEYPRESS_CB">KEYPRESS_CB</a>, <a href="gSetHandler.htm#MOUSEMOVE">MOUSEMOVE</a>, 
+?            <a href="gSetHandler.htm#CLICK">CLICK</a>, and <a href="gSetHandler.htm#WHEEL_CB">WHEEL_CB</a>)
          </td>
         </tr>
 
@@ -504,9 +526,9 @@
          <td>
          </td>
         </tr>
+          <a name=SYSTEM></a>
         <tr>
          <td>
-          <a name=SYSTEM></a>
           SYSTEM
          </td>
          <td>
@@ -533,9 +555,9 @@
             <br>
          </td>
         </tr>
+          <a name=SYSTEMVERSION></a>
         <tr>
          <td>
-          <a name=SYSTEMVERSION></a>
           SYSTEMVERSION
          </td>
          <td>
@@ -547,9 +569,9 @@
             <br>
          </td>
         </tr>
+          <a name=SYSTEMLANGUAGE></a>
         <tr>
          <td>
-          <a name=SYSTEMLANGUAGE></a>
           SYSTEMLANGUAGE
          </td>
          <td>
@@ -557,9 +579,9 @@
             <br>
          </td>
         </tr>
+          <a name=SYSTEMLOCALE></a>
         <tr>
          <td>
-          <a name=SYSTEMLOCALE></a>
           SYSTEMLOCALE
          </td>
          <td>
@@ -567,9 +589,9 @@
             <br>
          </td>
         </tr>
+          <a name=SCROLLBARSIZE></a>
         <tr>
          <td>
-          <a name=SCROLLBARSIZE></a>
           SCROLLBARSIZE
          </td>
          <td>
@@ -577,9 +599,9 @@
             <br>
          </td>
         </tr>
+          <a name=COMCTL32VER6></a>
         <tr>
          <td>
-          <a name=COMCTL32VER6></a>
           COMCTL32VER6
          </td>
          <td>
@@ -587,9 +609,9 @@
             <br>
          </td>
         </tr>
+          <a name=GTKVERSION></a>
         <tr>
          <td>
-          <a name=GTKVERSION></a>
           GTKVERSION
          </td>
          <td>
@@ -598,9 +620,9 @@
             <br>
          </td>
         </tr>
+          <a name=GTKDEVVERSION></a>
         <tr>
          <td>
-          <a name=GTKDEVVERSION></a>
           GTKDEVVERSION
          </td>
          <td>
@@ -609,9 +631,9 @@
             <br>
          </td>
         </tr>
+          <a name=MOTIFVERSION></a>
         <tr>
          <td>
-          <a name=MOTIFVERSION></a>
           MOTIFVERSION
          </td>
          <td>
@@ -619,9 +641,9 @@
             <br>
          </td>
         </tr>
+          <a name=MOTIFNUMBER></a>
         <tr>
          <td>
-          <a name=MOTIFNUMBER></a>
           MOTIFNUMBER
          </td>
          <td>
@@ -629,9 +651,9 @@
             <br>
          </td>
         </tr>
+          <a name=COMPUTERNAME></a>
         <tr>
          <td>
-          <a name=COMPUTERNAME></a>
           COMPUTERNAME
          </td>
          <td>
@@ -639,9 +661,9 @@
             <br>
          </td>
         </tr>
+          <a name=USERNAME></a>
         <tr>
          <td>
-          <a name=USERNAME></a>
           USERNAME
          </td>
          <td>
@@ -659,9 +681,9 @@
             <br>
          </td>
         </tr>
+          <a name=GL_VERSION></a>
         <tr>
          <td>
-          <a name=GL_VERSION></a>
           GL_VERSION
          </td>
          <td>
@@ -669,9 +691,9 @@
             <br>
          </td>
         </tr>
+          <a name=GL_VENDOR></a>
         <tr>
          <td>
-          <a name=GL_VENDOR></a>
           GL_VENDOR
          </td>
          <td>
@@ -679,9 +701,9 @@
             <br>
          </td>
         </tr>
+          <a name=GL_RENDERER></a>
         <tr>
          <td>
-          <a name=GL_RENDERER></a>
           GL_RENDERER
          </td>
          <td>
@@ -689,9 +711,9 @@
             <br>
          </td>
         </tr>
+          <a name=XSERVERVENDOR></a>
         <tr>
          <td>
-          <a name=XSERVERVENDOR></a>
           XSERVERVENDOR
          </td>
          <td>
@@ -699,9 +721,9 @@
             <br>
          </td>
         </tr>
+          <a name=XVENDORRELEASE></a>
         <tr>
          <td>
-          <a name=XVENDORRELEASE></a>
           XVENDORRELEASE
          </td>
          <td>
@@ -714,12 +736,29 @@
           <b>System Information</b>
          </td>
          <td>
+          <br>
+          <a name=SCREENSIZE></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          SCREENSIZE
+         </td>
+         <td>
+            (read-only) Returns the screen size in pixels available for dialogs, i.e. not including menu bars, task bars, etc.<br>
+<!--            In Motif has the same value as the FULLSIZE attribute. <br> -->
+            The main screen size does not include additional monitors.
+            <br>
+            <br>
+<!--            String in the "widthxheight" format. -->
+            Returns: {width,height}, a pair of integers.
+            <br>
          </td>
         </tr>
 <!--
+          <a name=FULLSIZE></a>
         <tr>
          <td>
-          <a name=FULLSIZE></a>
           FULLSIZE
          </td>
          <td>
@@ -730,25 +769,10 @@
          </td>
         </tr>
 -->
-        <tr>
-         <td>
-          <a name=SCREENSIZE></a>
-          SCREENSIZE
-         </td>
-         <td>
-            (read-only) Returns the screen size in pixels available for dialogs, i.e. not including menu bars, task bars, etc. <br>
-            In Motif has the same value as the FULLSIZE attribute. <br>
-            The main screen size does not include additional monitors.
-            <br>
-            <br>
-            String in the "widthxheight" format.
-            <br>
-         </td>
-        </tr>
 <!--
+          <a name=SCREENDEPTH></a>
         <tr>
          <td>
-          <a name=SCREENDEPTH></a>
           SCREENDEPTH
          </td>
          <td>
@@ -756,9 +780,9 @@
             <br>
          </td>
         </tr>
+          <a name=SCREENDPI></a>
         <tr>
          <td>
-          <a name=SCREENDPI></a>
           SCREENDPI
          </td>
          <td>
@@ -766,9 +790,9 @@
             <br>
          </td>
         </tr>
+          <a name=TRUECOLORCANVAS></a>
         <tr>
          <td>
-          <a name=TRUECOLORCANVAS></a>
           TRUECOLORCANVAS
          </td>
          <td>
@@ -777,53 +801,53 @@
             <br>
          </td>
         </tr>
-        <tr>
-         <td>
-          <a name=DWM_COMPOSITION></a>
-          DWM_COMPOSITION
-         </td>
-         <td>
-            (read-only) [Win32 Only] Returns the Desktop Window Manager Composition flag. Returns "YES" or "NO". <br>
-            Works only in Windows Vista and newer. Returns NULL if not supported.
-            <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <a name=VIRTUALSCREEN></a>
-          VIRTUALSCREEN
-         </td>
-         <td>
-            (read-only) [Win32 and GTK Only] Returns the virtual screen position and size in pixels. <br>
-            It is the virtual space defined by all monitors in the system.
-            <br>
-            <br>
-            String in the "x y width height" format.
-            <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          MONITORSCOUNT
-         </td>
-         <td>
-            (read-only) [Windows and GTK Only] (since 3.17) Returns the number of monitors.
-            <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <a name=MONITORSINFO></a>
-          MONITORSINFO
-         </td>
-         <td>
-            (read-only) [Win32 and GTK Only] Returns the position and size in pixels of all monitors. <br>
-            Each monitor information is terminated by a "\n" character.
-            <br>
-            <br>
-            String in the "x y width height\nx y width height\n..." format.
-         </td>
-        </tr>
+//        <a name=DWM_COMPOSITION></a>
+//      <tr>
+//       <td>
+//        DWM_COMPOSITION
+//       </td>
+//       <td>
+//          (read-only) [Win32 Only] Returns the Desktop Window Manager Composition flag. Returns "YES" or "NO". <br>
+//          Works only in Windows Vista and newer. Returns NULL if not supported.
+//          <br>
+//       </td>
+//      </tr>
+//        <a name=VIRTUALSCREEN></a>
+//      <tr>
+//       <td>
+//        VIRTUALSCREEN
+//       </td>
+//       <td>
+//          (read-only) [Win32 and GTK Only] Returns the virtual screen position and size in pixels. <br>
+//          It is the virtual space defined by all monitors in the system.
+//          <br>
+//          <br>
+//          String in the "x y width height" format.
+//          <br>
+//       </td>
+//      </tr>
+//      <tr>
+//       <td>
+//        MONITORSCOUNT
+//       </td>
+//       <td>
+//          (read-only) [Windows and GTK Only] (since 3.17) Returns the number of monitors.
+//          <br>
+//       </td>
+//      </tr>
+//        <a name=MONITORSINFO></a>
+//      <tr>
+//       <td>
+//        MONITORSINFO
+//       </td>
+//       <td>
+//          (read-only) [Win32 and GTK Only] Returns the position and size in pixels of all monitors. <br>
+//          Each monitor information is terminated by a "\n" character.
+//          <br>
+//          <br>
+//          String in the "x y width height\nx y width height\n..." format.
+//       </td>
+//      </tr>
 
         <tr>
          <td>
@@ -832,9 +856,9 @@
          <td>
          </td>
         </tr>
+          <a name=HINSTANCE></a>
         <tr>
          <td>
-          <a name=HINSTANCE></a>
           HINSTANCE
          </td>
          <td>
@@ -842,9 +866,9 @@
             <br>
          </td>
         </tr>
+          <a name=DLL_HINSTANCE></a>
         <tr>
          <td>
-          <a name=DLL_HINSTANCE></a>
           DLL_HINSTANCE
          </td>
          <td>
@@ -852,9 +876,9 @@
             <br>
          </td>
         </tr>
+          <a name=APPSHELL></a>
         <tr>
          <td>
-          <a name=APPSHELL></a>
           APPSHELL
          </td>
          <td>
@@ -862,9 +886,9 @@
             <br>
          </td>
         </tr>
+          <a name=XDISPLAY></a>
         <tr>
          <td>
-          <a name=XDISPLAY></a>
           XDISPLAY
          </td>
          <td>
@@ -872,16 +896,17 @@
             <br>
          </td>
         </tr>
+          <a name=XSCREEN></a>
         <tr>
          <td>
-          <a name=XSCREEN></a>
           XSCREEN
          </td>
          <td>
             (read-only) [GTK and Motif Only] Returns the X-Windows Screen. 
          </td>
         </tr>
-
+-->
+<!--
         <tr>
          <td>
           <b>Default Attributes</b>
@@ -889,93 +914,94 @@
          <td>
          </td>
         </tr>
-        <tr>
-         <td>
-          <a name=DLGBGCOLOR></a>
-          DLGBGCOLOR
-         </td>
-         <td>
-            The default background color for all elements that have the background similar of the dialog.
-            <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <a name=DLGFGCOLOR></a>
-          DLGFGCOLOR
-         </td>
-         <td>
-            The default foreground color for all elements that have text over the background of the dialog or similar. Usually is "0 0 0".
-            <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <a name=MENUBGCOLOR></a>
-          MENUBGCOLOR
-         </td>
-         <td>
-            [Windows Only] The default menu background color. Usually is "255 255 255".
-            <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <a name=MENUFGCOLOR></a>
-          MENUFGCOLOR
-         </td>
-         <td>
-            [Windows Only] The system default menu foreground color. Usually is "0 0 0". Unused in IUP.
-            <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <a name=TXTBGCOLOR></a>
-          TXTBGCOLOR
-         </td>
-         <td>
-            The default background color for editable text, also used by lists and tree. Usually is "255 255 255".
-            <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <a name=TXTFGCOLOR></a>
-          TXTFGCOLOR
-         </td>
-         <td>
-            The default foreground color for editable text, also used by lists and tree. Usually is "0 0 0".
-            <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <a name=TXTHLCOLOR></a>
-          TXTHLCOLOR
-         </td>
-         <td>
-            The default highlight color for editable text, also used by lists and tree. <br>
-            The highlight color is used when the text is selected. <br>
-            Usually is "0 0 0" in Motif, and "51 153 255" in Windows. <br>
-            Can be changed only in <a href="IupTree.htm">IupTree</a>, and only in Windows and Motif. <br>
-            But it can be used for drawing selected areas in custom controls.
-            <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <a name=LINKFGCOLOR></a>
-          LINKFGCOLOR
-         </td>
-         <td>
-            The default foreground color for linked text. In GTK and Motif is "0 0 238".
-            <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
+//        <a name=DLGBGCOLOR></a>
+//      <tr>
+//       <td>
+//?       DLGBGCOLOR
+//       </td>
+//       <td>
+//          The default background color for all elements that have the background similar of the dialog.
+//          <br>
+//       </td>
+//      </tr>
+//        <a name=DLGFGCOLOR></a>
+//      <tr>
+//       <td>
+//?       DLGFGCOLOR
+//       </td>
+//       <td>
+//          The default foreground color for all elements that have text over the background of the dialog or similar. 
+//          Usually <a href="gCanvas.htm#XPG_colours">XPG_BLACK</a>.
+//          <br>
+//       </td>
+//      </tr>
+//        <a name=MENUBGCOLOR></a>
+//      <tr>
+//       <td>
+//        MENUBGCOLOR
+//       </td>
+//       <td>
+//          [Windows Only] The default menu background color. Usually is "255 255 255".
+//          <br>
+//       </td>
+//      </tr>
+//        <a name=MENUFGCOLOR></a>
+//      <tr>
+//       <td>
+//        MENUFGCOLOR
+//       </td>
+//       <td>
+//          [Windows Only] The system default menu foreground color. Usually is "0 0 0". Unused in IUP.
+//          <br>
+//       </td>
+//      </tr>
+//        <a name=TXTBGCOLOR></a>
+//      <tr>
+//       <td>
+//?       TXTBGCOLOR
+//       </td>
+//       <td>
+//          The default background color for editable text, also used by lists and tree. Usually is "255 255 255".
+//          <br>
+//       </td>
+//      </tr>
+//        <a name=TXTFGCOLOR></a>
+//      <tr>
+//       <td>
+//?       TXTFGCOLOR
+//       </td>
+//       <td>
+//          The default foreground color for editable text, also used by lists and tree. Usually is "0 0 0".
+//          <br>
+//       </td>
+//      </tr>
+//        <a name=TXTHLCOLOR></a>
+//      <tr>
+//       <td>
+//        TXTHLCOLOR
+//       </td>
+//       <td>
+//          The default highlight color for editable text, also used by lists and tree. <br>
+//          The highlight color is used when the text is selected. <br>
+//          Usually is "0 0 0" in Motif, and "51 153 255" in Windows. <br>
+//          Can be changed only in <a href="IupTree.htm">IupTree</a>, and only in Windows and Motif. <br>
+//          But it can be used for drawing selected areas in custom controls.
+//          <br>
+//       </td>
+//      </tr>
+//        <a name=LINKFGCOLOR></a>
+//      <tr>
+//       <td>
+//        LINKFGCOLOR
+//       </td>
+//       <td>
+//          The default foreground color for linked text. In GTK and Motif is "0 0 238".
+//          <br>
+//       </td>
+//      </tr>
           <a name=DEFAULTFONT></a>
+        <tr>
+         <td>
           DEFAULTFONT
          </td>
          <td>
@@ -983,61 +1009,110 @@
             <br>
          </td>
         </tr>
+          <a name=DEFAULTFONTFACE></a>
         <tr>
          <td>
-          <a name=DEFAULTFONTFACE></a>
           DEFAULTFONTFACE
          </td>
          <td>
             Auxiliary attribute to retrieve and set the default font face used by all elements. <br>
-            It retrieves the typeface from <a href="iupgattr.htm#DEFAULTFONT">DEFAULTFONT</a>.
+            It retrieves the typeface from <a href="gGetGlobal?.htm#DEFAULTFONT">DEFAULTFONT</a>.
             When changed will actually change the DEFAULTFONT.
             <br>
          </td>
         </tr>
+          <a name=DEFAULTFONTSIZE></a>
         <tr>
          <td>
-          <a name=DEFAULTFONTSIZE></a>
           DEFAULTFONTSIZE
          </td>
          <td>
             Auxiliary attribute to retrieve and set the default font size used by all elements. <br>
-            It retrieves the size from <a href="iupgattr.htm#DEFAULTFONT">DEFAULTFONT</a>.
+            It retrieves the size from <a href="gGetGlobal?.htm#DEFAULTFONT">DEFAULTFONT</a>.
             When changed will actually change the DEFAULTFONT.
             <br>
          </td>
         </tr>
+          <a name=DEFAULTFONTSTYLE></a>
         <tr>
          <td>
-          <a name=DEFAULTFONTSTYLE></a>
           DEFAULTFONTSTYLE
          </td>
          <td>
             Auxiliary attribute to retrieve and set the default font style used by all elements. <br>
-            It retrieves the style from <a href="iupgattr.htm#DEFAULTFONT">DEFAULTFONT</a>. 
+            It retrieves the style from <a href="gGetGlobal?.htm#DEFAULTFONT">DEFAULTFONT</a>. 
             When changed will actually change the DEFAULTFONT.
             <br>
          </td>
         </tr>
-        <tr>
-         <td>
-          <a name=DEFAULTBUTTONPADDING></a>
-          DEFAULTBUTTONPADDING
-         </td>
-         <td>
-            Default button padding used in pre-defined dialogs. Default: 12x4".
-         </td>
-        </tr>
+//        <a name=DEFAULTBUTTONPADDING></a>
+//      <tr>
+//       <td>
+//        DEFAULTBUTTONPADDING
+//       </td>
+//       <td>
+//          Default button padding used in pre-defined dialogs. Default: 12x4".
+//       </td>
+//      </tr>
         <tr>
          <td>
           DEFAULTTHEME
          </td>
          <td>
-            Applies a default theme for all controls. See <a href="common.htm#THEME">THEME</a> attribute for more information.
+            Applies a default theme for all controls. See <a href="gSetAttribute.htm#THEME">THEME</a> attribute for more information.
          </td>
         </tr>
 -->
        </table>
+        <div style="clear:both;height:1px;"> </div>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
        <br>
        <br>
       </div>

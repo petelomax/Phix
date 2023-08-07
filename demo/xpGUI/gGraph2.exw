@@ -1,0 +1,47 @@
+--
+-- demo\xpGUI\gGraph2.exw
+-- ======================
+--
+with javascript_semantics
+--requires("1.0.3")
+include xpGUI.e
+gUseGTK()
+include builtins\timedate.e
+
+constant factor = 1e-6,
+         dayone = parse_date_string("1/1/1999",{"D/M/YYYY"}),
+         oneday = timedelta(days:=1)
+
+function format_as_date(integer d)
+    timedate td = adjust_timedate(dayone,oneday*d)
+    return format_timedate(td,"DD/MM/YYYY")
+end function
+
+function get_data(gdx /*graph*/)
+    sequence x = {}, y = {}
+    for i=1 to 7000 do
+        x &= i
+        y &= factor*i*i*i+0.2
+    end for
+    return {{x,y,XPG_RED}}
+end function
+
+
+--gdx graph = gGraph(get_data,"RASTERSIZE=640x480")
+gdx graph = gGraph(get_data)
+gdx dlg = gDialog(graph,`TITLE="temperature/moisture"`)
+--gSetAttributes(dlg,"MINSIZE=320x340") -- (nb not raster units/pixels)
+--gSetAttributes(dlg,"SIZE=320x340") -- (nb not raster units/pixels)
+gSetAttributes(dlg,"SIZE=640x480") -- (nb not raster units/pixels)
+gSetAttributes(graph,"XTICK=500,XMIN=0,XMAX=7000")
+gSetAttributes(graph,"YTICK=5e4,YMIN=0,YMAX=3.5e5")
+gSetAttributes(graph,`YTICKFMT="%.1e"`)
+gSetAttributes(graph,`XMARGIN=30, XANGLE=90, YMARGIN=45`)
+gSetHandler(graph,"XRID",format_as_date)
+if platform()=JS then
+    gSetAttributes(graph,`XYSHIFT=-20`)
+end if
+gShow(dlg)
+--gSetAttribute(graph,`RASTERSIZE`,NULL)
+gMainLoop()
+

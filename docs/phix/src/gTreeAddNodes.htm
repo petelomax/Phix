@@ -27,12 +27,14 @@
             Populates a tree from a nested <a href="sequence.htm">sequence</a> of branches and leaves.
           <br>
           <br>
-            treenode: As provided to the <a href="gTreeView.htm#BRANCHOPEN">BRANCHOPEN</a> handler, or a <a href="gdx.htm">gdx</a> from <a href="gTerrView.htm">gTreeView</a>().<br>
+            treenode: As provided to the <a href="gTreeView.htm#BRANCHOPEN">BRANCHOPEN</a> handler, 
+                      or a <a href="gdx.htm">gdx</a> from <a href="gTerrView.htm">gTreeView</a>().<br>
             tree_nodes: a nested collection of nodes (see examples below).
             <br>
             <br>
             If a plain <a href="gdx.htm">gdx</a> is specified as the treenode, the entire treeview contents are replaced, whereas the 
-            more opaque values fed through from BRANCHOPEN permit deferrred loading of sub-trees.<br>
+            more opaque values fed through from BRANCHOPEN permit deferrred loading of sub-trees. In both case there is an implicit
+            deletion of all existing children of the specified node.<br>
             <small>Of course one day there <i>should</i> be a way to update any sub-tree whenever you like, but I haven&rsquo;t quite 
             designed/implemented or more importantly run into the need for that just yet. I expect it would take the form of a tree 
             traversal handler routine, not vastly different to the branchopen code, that can decide which nodes to navigate down into, 
@@ -58,6 +60,132 @@
          <td>
             <a href="gSetHandler.htm">gSetHandler</a>,
             <a href="gTreeView.htm">gTreeView</a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Example:</b>
+         </td>
+         <td>
+            <small>
+<!--eucode>
+-- demo\xpGUI\gTreeView2.exw
+include xpGUI.e
+constant tree_nodes = {"Figures",               -- (branch with 5 children)
+                       {"Other",                -- (leaf)
+                        {"triangle",            -- (branch with 3 children)
+                         {"STATE","COLLAPSED"},
+                         {"equilateral",
+                          {"isoceles",          -- (branch with 2 children)
+                           {"STATE","COLLAPSED","USERDATA",3},
+                           {}},                 -- ([we don't get a '+'])
+                          "scalenus",
+                         }},
+                        {"triangle2",           -- (branch with 3 children)
+                         {"STATE","COLLAPSED","USERDATA",1},
+                         {"dummy"}},            -- (ensures we get a '+')
+                        {"parallelogram",       -- (branch with 2 children)
+                         {"square",
+                          "diamond"
+                         }},
+                        "2D",                   -- (leaf)
+                        {"3D",
+                         {"STATE","COLLAPSED"},
+                         {}},                   -- (branch, empty)
+                        {"4D",
+                         {"STATE","COLLAPSED","USERDATA",2},
+                         {"dummy"}}             -- (branch, deferred load)
+                       }
+                      }
+
+sequence tree_data = {{"equilateral",       -- 1 (for Figures/triangle2)
+                       {"isoceles",         --    (branch with 2 children)
+                       {"STATE","COLLAPSED","USERDATA",4},  -- see tree_data[4]
+                       {"dummy"}},          --    (ensures we get a '+')
+                       "scalenus"},
+                      {"some",              -- 2 (for Figures/4D)
+                       "other",
+                       "branch"},
+                      {},                   -- 3 (kills + w/o opening, for Figures/triangle/isoceles)
+                      {"acute",             -- 4 (for Figures/triangle2/isoceles [a nested deferral])
+                       "obtuse"}
+                     }
+
+procedure branchopen(object treenode)
+    integer userid = gTreeGetUserId(treenode)
+    if userid!=0 
+    and tree_data[userid]!=0 then -- (deferred load (still) rqd for this node)
+        sequence children = tree_data[userid]
+        tree_data[userid] = 0
+        gTreeAddNodes(treenode, children)
+    end if
+end procedure
+
+gdx tree_view = gTreeView(tree_nodes,branchopen),
+    dlg = gDialog(tree_view,"Tree View2",`SIZE=350x300`)
+gShow(dlg)
+gMainLoop()
+</eucode-->
+<pre>
+<font color="#000080"><i>-- demo\xpGUI\gTreeView2.exw</i></font>
+<font color="#008080">include</font><font color="#000000"> xpGUI.e</font>
+<font color="#008080">constant</font><font color="#000000"> tree_nodes</font><font color="#0000FF"> = {</font><font color="#008000">"Figures"</font><font color="#0000FF">,              </font><font color="#000080"><i> -- (branch with 5 children)</i></font>
+<font color="#800000">                       {</font><font color="#008000">"Other"</font><font color="#0000FF">,               </font><font color="#000080"><i> -- (leaf)</i></font>
+<font color="#800080">                        {</font><font color="#008000">"triangle"</font><font color="#0000FF">,           </font><font color="#000080"><i> -- (branch with 3 children)</i></font>
+<font color="#00FF00">                         {</font><font color="#008000">"STATE"</font><font color="#0000FF">,</font><font color="#008000">"COLLAPSED"</font><font color="#00FF00">}</font><font color="#0000FF">,</font>
+<font color="#00FF00">                         {</font><font color="#008000">"equilateral"</font><font color="#0000FF">,</font>
+<font color="#000080">                          {</font><font color="#008000">"isoceles"</font><font color="#0000FF">,         </font><font color="#000080"><i> -- (branch with 2 children)</i></font>
+<font color="#008000">                           {"STATE"</font><font color="#0000FF">,</font><font color="#008000">"COLLAPSED"</font><font color="#0000FF">,</font><font color="#008000">"USERDATA"</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#008000">}</font><font color="#0000FF">,</font>
+<font color="#008000">                           {}</font><font color="#000080">}</font><font color="#0000FF">,                </font><font color="#000080"><i> -- ([we don&rsquo;t get a &rsquo;+&rsquo;])</i></font>
+<font color="#008000">                          "scalenus"</font><font color="#0000FF">,</font>
+<font color="#00FF00">                         }</font><font color="#800080">}</font><font color="#0000FF">,</font>
+<font color="#800080">                        {</font><font color="#008000">"triangle2"</font><font color="#0000FF">,          </font><font color="#000080"><i> -- (branch with 3 children)</i></font>
+<font color="#00FF00">                         {</font><font color="#008000">"STATE"</font><font color="#0000FF">,</font><font color="#008000">"COLLAPSED"</font><font color="#0000FF">,</font><font color="#008000">"USERDATA"</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#00FF00">}</font><font color="#0000FF">,</font>
+<font color="#00FF00">                         {</font><font color="#008000">"dummy"</font><font color="#00FF00">}</font><font color="#800080">}</font><font color="#0000FF">,           </font><font color="#000080"><i> -- (ensures we get a &rsquo;+&rsquo;)</i></font>
+<font color="#800080">                        {</font><font color="#008000">"parallelogram"</font><font color="#0000FF">,      </font><font color="#000080"><i> -- (branch with 2 children)</i></font>
+<font color="#00FF00">                         {</font><font color="#008000">"square"</font><font color="#0000FF">,</font>
+<font color="#008000">                          "diamond"</font>
+<font color="#00FF00">                         }</font><font color="#800080">}</font><font color="#0000FF">,</font>
+<font color="#008000">                        "2D"</font><font color="#0000FF">,                  </font><font color="#000080"><i> -- (leaf)</i></font>
+<font color="#800080">                        {</font><font color="#008000">"3D"</font><font color="#0000FF">,</font>
+<font color="#00FF00">                         {</font><font color="#008000">"STATE"</font><font color="#0000FF">,</font><font color="#008000">"COLLAPSED"</font><font color="#00FF00">}</font><font color="#0000FF">,</font>
+<font color="#00FF00">                         {}</font><font color="#800080">}</font><font color="#0000FF">,                  </font><font color="#000080"><i> -- (branch, empty)</i></font>
+<font color="#800080">                        {</font><font color="#008000">"4D"</font><font color="#0000FF">,</font>
+<font color="#00FF00">                         {</font><font color="#008000">"STATE"</font><font color="#0000FF">,</font><font color="#008000">"COLLAPSED"</font><font color="#0000FF">,</font><font color="#008000">"USERDATA"</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#00FF00">}</font><font color="#0000FF">,</font>
+<font color="#00FF00">                         {</font><font color="#008000">"dummy"</font><font color="#00FF00">}</font><font color="#800080">}            </font><font color="#000080"><i> -- (branch, deferred load)</i></font>
+<font color="#800000">                       }</font>
+<font color="#0000FF">                      }
+</font>
+<font color="#004080">sequence</font><font color="#000000"> tree_data</font><font color="#0000FF"> = {</font><font color="#800000">{</font><font color="#008000">"equilateral"</font><font color="#0000FF">,      </font><font color="#000080"><i> -- 1 (for Figures/triangle2)</i></font>
+<font color="#800080">                       {</font><font color="#008000">"isoceles"</font><font color="#0000FF">,        </font><font color="#000080"><i> --    (branch with 2 children)</i></font>
+<font color="#00FF00">                       {</font><font color="#008000">"STATE"</font><font color="#0000FF">,</font><font color="#008000">"COLLAPSED"</font><font color="#0000FF">,</font><font color="#008000">"USERDATA"</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#00FF00">}</font><font color="#0000FF">, </font><font color="#000080"><i> -- see tree_data[4]</i></font>
+<font color="#00FF00">                       {</font><font color="#008000">"dummy"</font><font color="#00FF00">}</font><font color="#800080">}</font><font color="#0000FF">,         </font><font color="#000080"><i> --    (ensures we get a &rsquo;+&rsquo;)</i></font>
+<font color="#008000">                       "scalenus"</font><font color="#800000">}</font><font color="#0000FF">,</font>
+<font color="#800000">                      {</font><font color="#008000">"some"</font><font color="#0000FF">,             </font><font color="#000080"><i> -- 2 (for Figures/4D)</i></font>
+<font color="#008000">                       "other"</font><font color="#0000FF">,</font>
+<font color="#008000">                       "branch"</font><font color="#800000">}</font><font color="#0000FF">,</font>
+<font color="#800000">                      {}</font><font color="#0000FF">,                  </font><font color="#000080"><i> -- 3 (kills + w/o opening, for Figures/triangle/isoceles)</i></font>
+<font color="#800000">                      {</font><font color="#008000">"acute"</font><font color="#0000FF">,            </font><font color="#000080"><i> -- 4 (for Figures/triangle2/isoceles [a nested deferral])</i></font>
+<font color="#008000">                       "obtuse"</font><font color="#800000">}</font>
+<font color="#0000FF">                     }
+</font>
+<font color="#008080">procedure</font><font color="#000000"> branchopen</font><font color="#0000FF">(</font><font color="#004080">object</font><font color="#000000"> treenode</font><font color="#0000FF">)</font>
+<font color="#004080">    integer</font><font color="#000000"> userid</font><font color="#0000FF"> =</font><font color="#7060A8"> gTreeGetUserId</font><font color="#0000FF">(</font><font color="#000000">treenode</font><font color="#0000FF">)</font>
+<font color="#008080">    if</font><font color="#000000"> userid</font><font color="#0000FF">!=</font><font color="#000000">0 </font>
+<font color="#008080">    and</font><font color="#000000"> tree_data</font><font color="#0000FF">[</font><font color="#000000">userid</font><font color="#0000FF">]!=</font><font color="#000000">0</font><font color="#008080"> then</font><font color="#000080"><i> -- (deferred load (still) rqd for this node)</i></font>
+<font color="#004080">        sequence</font><font color="#000000"> children</font><font color="#0000FF"> =</font><font color="#000000"> tree_data</font><font color="#0000FF">[</font><font color="#000000">userid</font><font color="#0000FF">]</font>
+<font color="#000000">        tree_data</font><font color="#0000FF">[</font><font color="#000000">userid</font><font color="#0000FF">] =</font><font color="#000000"> 0</font>
+<font color="#7060A8">        gTreeAddNodes</font><font color="#0000FF">(</font><font color="#000000">treenode</font><font color="#0000FF">,</font><font color="#000000"> children</font><font color="#0000FF">)</font>
+<font color="#008080">    end if
+end procedure
+</font>
+<font color="#7060A8">gdx</font><font color="#000000"> tree_view</font><font color="#0000FF"> =</font><font color="#7060A8"> gTreeView</font><font color="#0000FF">(</font><font color="#000000">tree_nodes</font><font color="#0000FF">,</font><font color="#000000">branchopen</font><font color="#0000FF">),</font>
+<font color="#000000">    dlg</font><font color="#0000FF"> =</font><font color="#7060A8"> gDialog</font><font color="#0000FF">(</font><font color="#000000">tree_view</font><font color="#0000FF">,</font><font color="#008000">"Tree View2"</font><font color="#0000FF">,</font><font color="#008000">`SIZE=350x300`</font><font color="#0000FF">)</font>
+<font color="#7060A8">gShow</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">)</font>
+<font color="#7060A8">gMainLoop</font><font color="#0000FF">()</font>
+</pre>
+            </small><br>
+            See also <a href="gTreeView.htm">gTreeView</a> for a simpler example without deferred loading.
          </td>
         </tr>
         <tr>
@@ -134,7 +262,7 @@
             accepts an id, ie one from the <a href="IupFlatTree.htm#Nodes">Nodes</a> or 
             <a href="IupFlatTree.htm#Images">Images</a> section of the Attributes table 
             as shown in the documentation for <a href="IupFlatTree.htm">IupFlatTree</a>.
-            The even elements are strings, except for "USERDATA" which requires a positive integer, 
+            The even elements are strings, except for "USERDATA" which requires an integer, 
             intended to be an index into some application-specific table.
 <!--
              Note that setting custom 
@@ -170,178 +298,97 @@
             node, and have that auto-populated, and perhaps repeat that down to some target.
             <br>
             <br>
-            To defer load, you must specify {"STATE","COLLAPSED","USERDATA",7} where 7 is some
+            To defer load, you must specify {"STATE","COLLAPSED","USERDATA",4} where 4 is some
             unique userid for the branch, and create a "dummy" entry (to get a '+' shown), and
-            lastly invoke gTreeAddNodes() inside the branchopen as per demo\xpGUI\sample.exw [DEV]
-            and as reproduced below.
+            lastly invoke gTreeAddNodes() inside the branchopen as above.
+            <br>
+            <br>
+            Note that USERDATA is generally useful for other purposes, and would normally be allocated 
+            sequentially on that basis, hence the "plucked out of the air" aspect of that 4: should 
+            you need to defer-load three nodes, there is no requirement to use {1,2,3} over {38,5,17},
+            other than your branchopen code coping with the latter from gTreeGetUserId().
          </td>
         </tr>
         <tr>
          <td>
-          <b>Additional routines:</b>
+          <b>Additional:</b>
          </td>
          <td>
-            integer treeIdx = <b>gTreeGetUserId</b>(object treenode)<br>
-            <b>gTreeDeleteChildren</b>(object treenode)
+            integer treeIdx = <b>gTreeGetUserId</b>(object treenode)
             <br>
             <br>
-            I trust these are self explanatory, at least after reading the branchopen() example code in 
-            <a href="gTreeView.htm">gTreeView</a>.<br>
-            The treenode value is backend-specific and should be considered opaque.
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <b>Example:</b>
-         </td>
-         <td>
-[DEV] replace with gTreeView2.exw, when finished (including the planned timer experiments)
-<br>
-<br>
-            Snippets taken from demo\pGUI\sample.exw:
-            <br>
-            <br><small>
-<!--eucode>
--- This shows how to defer-load nodes on expand/demand:
--- Obviuously would probably be more dynamically set in a real app,
--- and of course elements can be more than plain-string leaf nodes,
--- with daisy-chains of unique userids to control things properly.
--- (7 is plucked out of the air, matches the 7 in tree_nodes below)
--- (also feel free to use xxx[7]!=0 instead of find(7,toload)!=0..)
-
-sequence {toload,tolkids} = columnize({{7,{"equilateral",
-                                           "isoceles",
-                                           "scalenus"}},
---                                     {8,{"some",      -- (works just fine, if)
---                                         "other",     -- (8 uncommented below)
---                                         "branch"}},
-                                      })
-
-procedure branchopen(object treenode)
-    integer userid = dTreeGetUserId(treenode),
-            k = find(userid,toload)
-    if k!=0 then -- (deferred load rqd for this node)
-        -- first kill off "dummy" (which ensured a '+'):
-        gTreeDeleteChildren(treenode)
-        sequence children = tolkids[k]
-        gTreeAddNodes(treenode, children)
-        -- finally remove load from the to-do lists:
-        toload[k..k] = {}
-        tolkids[k..k] = {}
-    end if
-    return XPG_DEFAULT;
-end function
-
-        sequence tree_nodes = {"Figures",               -- (branch with 5 children)
---                             {"STATE","COLLAPSED"},   --  (works fine, btw)
-                               {"Other",                -- (leaf)
---                              {"triangle",            -- (branch with 3 children)
---                               {"STATE","COLLAPSED"},
---                               {"equilateral",
---                                "isoceles",
---                                "scalenus",
---                               }},
-                                {"triangle",            -- (branch with 3 children)
-                                 {"STATE","COLLAPSED","USERDATA",7},
-                                 {"dummy"}},            -- (ensures we get a '+')
-                                {"parallelogram",       -- (branch with 2 children)
-                                 {"square",
-                                  {"diamond",
-                                   {"COLOR","92 92 255","TITLEFONT","Courier, 8"},
-                                   0}   -- (nb: this is a leaf, non-optional here)
-                                 }},
-                                "2D",                   -- (leaf)
---                              {"2D"},                 -- (same)
---                              {"2D",0},               -- (same)
---                              {"2D",{},0},            -- (same)
-                                {"3D",{}},              -- (branch, empty)
---                              {"4D",                  -- (works just fine, if)
---                                                      -- (8 uncommented above)
---                               {"STATE","COLLAPSED","USERDATA",8},
---                               {"dummy"}}             -- (branch, deferred load)
-                               }
-                              }
-        gSetCallback(tree, "BRANCHOPEN",  branchopen));
---DEV...
-        gTreeAddNodes(tree, tree_nodes)
-</eucode-->
-<pre>
-<font color="#000080"><i>-- This shows how to defer-load nodes on expand/demand:
--- Obviuously would probably be more dynamically set in a real app,
--- and of course elements can be more than plain-string leaf nodes,
--- with daisy-chains of unique userids to control things properly.
--- (7 is plucked out of the air, matches the 7 in tree_nodes below)
--- (also feel free to use xxx[7]!=0 instead of find(7,toload)!=0..)
-</i></font>
-<font color="#004080">sequence</font><font color="#0000FF"> {</font><font color="#000000">toload</font><font color="#0000FF">,</font><font color="#000000">tolkids</font><font color="#0000FF">} =</font><font color="#7060A8"> columnize</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#800080">{</font><font color="#000000">7</font><font color="#0000FF">,</font><font color="#00FF00">{</font><font color="#008000">"equilateral"</font><font color="#0000FF">,</font>
-<font color="#008000">                                           "isoceles"</font><font color="#0000FF">,</font>
-<font color="#008000">                                           "scalenus"</font><font color="#00FF00">}</font><font color="#800080">}</font><font color="#0000FF">,</font>
-<font color="#000080"><i>--                                     {8,{"some",      -- (works just fine, if)
---                                         "other",     -- (8 uncommented below)
---                                         "branch"}},</i></font>
-<font color="#800000">                                      }</font><font color="#0000FF">)
-</font>
-<font color="#008080">procedure</font><font color="#000000"> branchopen</font><font color="#0000FF">(</font><font color="#004080">object</font><font color="#000000"> treenode</font><font color="#0000FF">)</font>
-<font color="#004080">    integer</font><font color="#000000"> userid</font><font color="#0000FF"> =</font><font color="#000000"> dTreeGetUserId</font><font color="#0000FF">(</font><font color="#000000">treenode</font><font color="#0000FF">),</font>
-<font color="#000000">            k</font><font color="#0000FF"> =</font><font color="#7060A8"> find</font><font color="#0000FF">(</font><font color="#000000">userid</font><font color="#0000FF">,</font><font color="#000000">toload</font><font color="#0000FF">)</font>
-<font color="#008080">    if</font><font color="#000000"> k</font><font color="#0000FF">!=</font><font color="#000000">0</font><font color="#008080"> then</font><font color="#000080"><i> -- (deferred load rqd for this node)
-        -- first kill off "dummy" (which ensured a &rsquo;+&rsquo;):</i></font>
-<font color="#7060A8">        gTreeDeleteChildren</font><font color="#0000FF">(</font><font color="#000000">treenode</font><font color="#0000FF">)</font>
-<font color="#004080">        sequence</font><font color="#000000"> children</font><font color="#0000FF"> =</font><font color="#000000"> tolkids</font><font color="#0000FF">[</font><font color="#000000">k</font><font color="#0000FF">]</font>
-<font color="#7060A8">        gTreeAddNodes</font><font color="#0000FF">(</font><font color="#000000">treenode</font><font color="#0000FF">,</font><font color="#000000"> children</font><font color="#0000FF">)</font>
-<font color="#000080"><i>        -- finally remove load from the to-do lists:</i></font>
-<font color="#000000">        toload</font><font color="#0000FF">[</font><font color="#000000">k</font><font color="#0000FF">..</font><font color="#000000">k</font><font color="#0000FF">] = {}</font>
-<font color="#000000">        tolkids</font><font color="#0000FF">[</font><font color="#000000">k</font><font color="#0000FF">..</font><font color="#000000">k</font><font color="#0000FF">] = {}</font>
-<font color="#008080">    end if
-    return</font><font color="#004600"> XPG_DEFAULT</font><font color="#0000FF">;</font>
-<font color="#008080">end function
-</font>
-<font color="#004080">        sequence</font><font color="#000000"> tree_nodes</font><font color="#0000FF"> = {</font><font color="#008000">"Figures"</font><font color="#0000FF">,              </font><font color="#000080"><i> -- (branch with 5 children)
---                             {"STATE","COLLAPSED"},   --  (works fine, btw)</i></font>
-<font color="#800000">                               {</font><font color="#008000">"Other"</font><font color="#0000FF">,               </font><font color="#000080"><i> -- (leaf)
---                              {"triangle",            -- (branch with 3 children)
---                               {"STATE","COLLAPSED"},
---                               {"equilateral",
---                                "isoceles",
---                                "scalenus",
---                               }},</i></font>
-<font color="#800080">                                {</font><font color="#008000">"triangle"</font><font color="#0000FF">,           </font><font color="#000080"><i> -- (branch with 3 children)</i></font>
-<font color="#00FF00">                                 {</font><font color="#008000">"STATE"</font><font color="#0000FF">,</font><font color="#008000">"COLLAPSED"</font><font color="#0000FF">,</font><font color="#008000">"USERDATA"</font><font color="#0000FF">,</font><font color="#000000">7</font><font color="#00FF00">}</font><font color="#0000FF">,</font>
-<font color="#00FF00">                                 {</font><font color="#008000">"dummy"</font><font color="#00FF00">}</font><font color="#800080">}</font><font color="#0000FF">,           </font><font color="#000080"><i> -- (ensures we get a &rsquo;+&rsquo;)</i></font>
-<font color="#800080">                                {</font><font color="#008000">"parallelogram"</font><font color="#0000FF">,      </font><font color="#000080"><i> -- (branch with 2 children)</i></font>
-<font color="#00FF00">                                 {</font><font color="#008000">"square"</font><font color="#0000FF">,</font>
-<font color="#000080">                                  {</font><font color="#008000">"diamond"</font><font color="#0000FF">,</font>
-<font color="#008000">                                   {"COLOR"</font><font color="#0000FF">,</font><font color="#008000">"92 92 255"</font><font color="#0000FF">,</font><font color="#008000">"TITLEFONT"</font><font color="#0000FF">,</font><font color="#008000">"Courier, 8"}</font><font color="#0000FF">,</font>
-<font color="#000000">                                   0</font><font color="#000080">}  <i> -- (nb: this is a leaf, non-optional here)</i></font>
-<font color="#00FF00">                                 }</font><font color="#800080">}</font><font color="#0000FF">,</font>
-<font color="#008000">                                "2D"</font><font color="#0000FF">,                  </font><font color="#000080"><i> -- (leaf)
---                              {"2D"},                 -- (same)
---                              {"2D",0},               -- (same)
---                              {"2D",{},0},            -- (same)</i></font>
-<font color="#800080">                                {</font><font color="#008000">"3D"</font><font color="#0000FF">,</font><font color="#00FF00">{}</font><font color="#800080">}</font><font color="#0000FF">,             </font><font color="#000080"><i> -- (branch, empty)
---                              {"4D",                  -- (works just fine, if)
---                                                      -- (8 uncommented above)
---                               {"STATE","COLLAPSED","USERDATA",8},
---                               {"dummy"}}             -- (branch, deferred load)</i></font>
-<font color="#800000">                               }</font>
-<font color="#0000FF">                              }</font>
-<font color="#000000">        gSetCallback</font><font color="#0000FF">(</font><font color="#000000">tree</font><font color="#0000FF">,</font><font color="#008000"> "BRANCHOPEN"</font><font color="#0000FF">, </font><font color="#000000"> branchopen</font><font color="#0000FF">)</font><font color="#00FFFF">)</font><font color="#0000FF">;</font>
-<font color="#000080"><i>--DEV...</i></font>
-<font color="#7060A8">        gTreeAddNodes</font><font color="#0000FF">(</font><font color="#000000">tree</font><font color="#0000FF">,</font><font color="#000000"> tree_nodes</font><font color="#0000FF">)</font>
-</pre>
-            </small><br>
-            The output does differ slightly[??], in diamond and 2D (just run demo\xpGUI\sample.exw if at all worried about that), 
-            but otherwise it should be fairly similar to (an image I already had):
+            I trust that is self explanatory, at least after reading the branchopen() example code as
+            shown above.
+<!--        in <a href="gTreeView.htm">gTreeView</a>.-->
             <br>
             <br>
-            <img src="images/iuptree2_addbranch9.png"/>
+            A deeply nested tree_nodes as passed directly to <a href="gTreeView.htm">gTreeView</a>()
+            on creation could be not only very slow (eg should it contain the full recursive contents 
+            of your root drive) but somewhat tricky to later navigate. In contrast, splitting the 
+            structure in two as shown above, with both the original tree_nodes and tree_data itself
+            referencing deeper nested/deferred nodes via application-defined USERDATA indexes solves
+            both issues. You could in theory use negative indexes to reference tree_nodes and positive
+            ones to reference tree_data, and/or you might want to reserve special a value such as -1
+            or -9999 to mean "go and fetch it".
             <br>
             <br>
-            Note that USERDATA is generally useful for other purposes, and would normally be allocated sequentially on that basis, hence the
-            "plucked out of the air" aspect: if you need to defer-load three nodes, avoid thinking that you must use {1,2,3}.
+            Of course there should be no problem dynamically extending tree_data as needed, since that 
+            firmly belongs to the application and xpGUI only gets to see the bits of it the application 
+            deigns to show it, and it really won&rsquo;t care should any of those get deleted or reused, 
+            that is after gTreeAddNodes() returns. You could equally store the contents of tree_data in
+            a dictionary or database or anything else you can think of.
+            <br>
+            <br>
+            The treenode value is backend-specific and should normally be considered opaque.
          </td>
         </tr>
        </table>
+        <div style="clear:both;height:1px;"> </div>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
        <br>
        <br>
       </div>

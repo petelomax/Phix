@@ -1,0 +1,34 @@
+--
+-- demo\xpGUI\gTimer.exw
+-- =====================
+--   There is a deliberately slightly simpler version of this in the docs.
+--
+--requires(64)
+with javascript_semantics
+include xpGUI.e
+--gUseGTK()
+constant title = "gTimer",
+         interval = 100,
+--       interval = 500,
+         bCorrectDrift = false
+--       bCorrectDrift = true
+integer t5
+gdx timer, dlg
+
+procedure action(gdx /*id*/)
+    integer drift = floor(time()*1000)-t5
+    string sdrift = iff(bCorrectDrift and drift?sprintf("(%d)",drift):"")
+    gSetAttribute(dlg,"TITLE","%s:%.1f%s",{title,time(),sdrift})
+    if drift and bCorrectDrift then
+        gSetAttribute(timer,"MSECS",max(interval-drift,10))
+    end if
+    t5 += interval
+end procedure
+
+t5 = floor(time()*1000/interval)*interval+interval
+integer i5 = iff(bCorrectDrift?t5-time()*1000:interval)
+timer = gTimer(action,i5,true)
+dlg = gDialog(NULL,title,`SIZE=240x80`)
+--gSetAttribute(dlg,"TTL",NULL)
+gShow(dlg)
+gMainLoop()

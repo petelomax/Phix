@@ -4,15 +4,15 @@
    <these>
     <get>
      <stripped>
-      <h1 class="title">Paranormalised Functions</h1>
+      <h1 class="title">Paranormalisation</h1>
       <div id="mainSection">
-        Several routines perform a little trickery that, once you get used to the idea, make them easier to use. For example this help contains:
+        Several routines perform a little trickery that, once you get used to the idea, make them easier to use. For instance:
         <br>
         <br>
         <small>
         <code>
         <a href="gButton.htm">gButton</a>([<a href="string.htm">nullable_string</a> title=NULL,]
-                                          [<a href="rtn.htm">rtn</a> click=NULL,] 
+                                          [<a href="rtn.htm">rtn</a> action=NULL,] 
                                            <a href="string.htm">string</a> attributes="", 
                                            <a href="html/glossary.htm#dwordseq">dword_seq</a> args={})</code>
 <!--
@@ -27,8 +27,9 @@
         </small>
         <br>
         <br>
-        The idea is that (in this specific case) title and click are doubly-optional.<br>
-        You might want to study <a href="gText.htm">gText</a>() first, as the simplest possible use case for this concept.
+        The idea is that (in this specific case) title and action are doubly-optional.<br>
+        You might want to study <a href="gLabel.htm">gLabel</a>() first, as perhaps the simplest possible use case for this concept.<br>
+        On first reading, all you need to take away is "bit more flexible, it&rsquo;ll probably cope" and not really care how.
         <br>
         <br>
 <!--
@@ -38,63 +39,80 @@
 //      Unless you are using <a href="procedures.htm#namedparams">named parameters</a>, should you want to provide any of the parameters 
 //      after the "[", you must provide everything before it. 
 -->
-        I made up the term paranormalise as a jokey way to explain that you have more flexibility than normal in how you can provide the parameters. <br>
+        I made up the term paranormalise as a jokey way to explain you have more flexibility than usual in providing the parameters. <br>
         In short, and with no expectation that you should attempt to memorise this lot, you can assume that <i>any</i> and <i>all</i> of the following 
-        are perfectly valid, via a common "shuffle arguments into the right place" process using a wee bit of good old crafty/common sense logic:
+        are perfectly valid, via shared "shuffle arguments into the right place" routines using a wee bit of good old crafty/common sense logic:
         <small>
  <pre>
     gButton()
     gButton(title)
-    gButton(title, click)
-    gButton(title, attributes[,args])
-    gButton(title, click, attributes[,args])
-    gButton(click)
-    gButton(click, attributes[,args])
-    gButton(attributes, args)                       -- [NB gButton(attributes) treated as gButton(title)]
-    gButton(attributes:="FLAT=YES", click:=click, title:="OK")  -- [an example of using named parameters]</pre>
+    gButton(title, action)
+    gButton(title, attributes)
+    gButton(title, attributes, args)
+    gButton(title, action, attributes)
+    gButton(title, action, attributes, args)
+    gButton(action)
+    gButton(action, attributes)
+    gButton(action, attributes, args)
+    gButton(attributes)                                                           -- [see note regarding '=']
+    gButton(attributes, args)
+    gButton(attributes:="SIZE=60x40", action:=action, title:="OK")  -- [an example of using named parameters]</pre>
         </small>
-<!--
-        You can imagine the same less "title" for <a href="gText.htm">gText</a>.<br>
--->
         Fairly obviously and as per all subroutine calls in Phix, no other (unnamed) ordering of the parameters will be successful.<br>
-        Having 11 or 12 ways to call something might not sound like fun, but trust me it is really nifty once you get used to the idea.<br>
-        Named parameters may carry some additional risk of confusion, and are probably just simply more trouble than they are worth. (here, anyway)<br>
-        The title and click parameters are actually declared as <a href="object.htm">object</a>, attributes as <a href="sequence.htm">sequence</a>, 
+        Having two dozen ways to call something might not sound like fun, but it is really pretty nifty once you get used to the idea.<br>
+        Named parameters carry some additional risk of confusion, and are probably just simply more trouble than worth, at least here.<br>
+        The title and action parameters are actually declared as <a href="object.htm">object</a>, attributes as <a href="sequence.htm">sequence</a>, 
         and args as <a href="html/glossary.htm#dwordseq">dword_seq</a>, but carefully and<br>
         thoroughly verified to be of the documented types, after they have all been properly repositioned.<br>
-        An assertion failure, such as `"what?" != "" (and not dword_seq)`, is shown on the gButton() call itself for any parameter it failed 
+        An assertion failure<!--, such as `"what?" != "" (and not dword_seq)`,--> is shown on the gButton() call itself for any parameter it failed 
         to understand, along with what it would have found acceptable in that parameter position. That can also occur if it has decided you
         must be passing, say, at most 3 parameters, but the 4th is not the usual default. Let me know of any such messages that don&rsquo;t 
-        make perfect sense, and/or could be improved.
+        make perfect sense, and/or could be improved.<br>
+
+        <a name=eqch></a>
+        <h3>'=' characters in titles, etc.</h3>
+        Note that gButton(str) is treated as gButton(attributes) if str contains one or more '=', or gButton(title) when it does not.<br>
+        In other words when attributes is still "" (ie you need none), a title containing an '=' replaces it (and becomes "" itself).<br>
+        Naturally such a so-moved string could easily be `TITLE="The title",...` so that behaviour is often exactly what we want.<br>
+        Should you actually want '=' in the title (and no attributes), using (say)
+        <a href="gSetAttribute.htm">gSetAttribute</a>(button,"<a href="gSetAttribute.htm#TITLE">TITLE</a>","...=..."[,args])
+        as a separate call sometime after the initial creation statement has no such issues and is probably the easiest thing to do.
+        However one thing I cannot recommend, which also applies to <a href="gDialog.htm">gDialog</a>, <a href="gCheckbox.htm">gCheckbox</a>, 
+        <a href="gFrame.htm">gFrame</a>, and <a href="gLabel.htm">gLabel</a>, is going down the `TITLE="The=title",...` route, as that is just 
+        begging for trouble. <small>(Actually that last statement has nothing to do with paranormalisation, just a general observation that could 
+        be reworded as "don&rsquo;t deliberately try to confuse gSetAttributes()", and even if it doesn&rsquo;t confuse that, it almost certainly 
+        will confuse some poor human later reading the code, which could well be you.)</small>
         <br>
         <br>
         While pGUI had just one paranormalise() routine which only dealt with [action,func,attr,args], xpGUI.e has relaxed the "always present"
-        restrictions on preceding arguments and now has (at least) four versions: <br>
-        firstly ~_traa() which is used by (at least) <a href="gButton.htm">gButton</a>(), gLink(), gMenuItem(), gToggle(), and gValuator(), <br>
-        secondly ~_qraa for (at least) <a href="gTreeView.htm">gTreeView</a>(), <br>
-        thirdly ~_raa() for (at least) <a href="gText.htm">gText</a>(), gDatePick(), <a href="gCanvas.htm">gCanvas</a>(),  gDetachBox(), gList(), 
-                                       and gSpinBox(), and <br>
-        fourth and lastly ~_paab() currently just for <a href="gDialog.htm">gDialog</a>(). <br>
+        restrictions on preceding arguments and now has (at least) five (private) versions: <br>
+        firstly ~_traa() which is used by (at least) <a href="gButton.htm">gButton</a>(), <!--gLink(), -->
+                                                     <a href="gCheckbox.htm">gCheckbox</a>(), and <a href="gSlider.htm">gSlider</a>(), <br>
+        secondly ~_qraa() for (at least) <a href="gDropDown.htm">gDropDown</a>() and <a href="gTreeView.htm">gTreeView</a>(), <br>
+        thirdly ~_raa() for (at least) <a href="gText.htm">gText</a>(), <a href="gDatePick.htm">gDatePick</a>(), <a href="gCanvas.htm">gCanvas</a>(),
+                                       <!--gDetachBox(), gSpinBox(), -->
+                                       and <a href="gList.htm">gList</a>(), <br>
+        fourth ~_taa() for (at least) <a href="gFrame.htm">gFrame</a>() and <a href="gLabel.htm">gLabel</a>(), and <br>
+        fifth and lastly ~_paab() currently just for <a href="gDialog.htm">gDialog</a>(). <br>
         In those you can find the the precise nitty-gritty details of this handling, which is of course generally speaking pretty much identical 
         across all the interface elements that use it, plus a full set of unit tests. <br>
-        Note that, should you modify these in xpGUI.e, xpGUI.js contains the equivalent manually transpiled and pasted into JavaScript.
+        Note that, should you modify those in xpGUI.e, xpGUI.js contains the equivalent manually transpiled and pasted into JavaScript.
+<!--
         <br>
         <br>
         There are a couple of mini-gotchas with this approach, which are individually documented on all affected routines, for instance
         <a href="gButton.htm">gButton</a>(attributes) would be treated as <a href="gButton.htm">gButton</a>(title), which in that case 
-        can easily be fixed by a leading NULL, or a trailing {}, or using named parameters, or as next, and simply cannot happen if a
-        click routine is specified, which it pretty much almost always is.
-        <br>
-        <br>
-<!--
-//      If any of this troubles you, just provide the full set of parameters every time, and re-visit this once you 
-//      get bored with that. 
+        can easily be fixed by a leading NULL, or a trailing {}, or using named parameters, or as next, and simply cannot happen if an
+        action routine is specified, which it pretty much almost always is.
 -->
-        Alternatively, a control declaration can be broken up into several discrete statements, ie/eg:
+        <br>
+        <br>
+        Should any of this trouble you, just provide the full set of parameters every time, and re-visit this once you 
+        get bored with that. Alternatively, a control declaration can be broken up into several discrete statements, ie/eg:
         <small>
  <pre>
     gdx button = gButton([title])
-    gSetHandler(button, "CLICK", <i>btn_clicked</i>) 
+    gSetHandler(button, "ACTION", <i>btn_clicked</i>) 
     gSetAttributes(button, attributes[, args]) 
     gSetAttribute(button, name, v) </pre>
         </small>    
@@ -137,6 +155,50 @@ It also provides a unified and consistent mechanism for declaring interface elem
         I started with IUP that was no longer necessary, and I frowned upon it then, and have removed all traces of it completely from 
         xpGUI, and besides (obviously) it is not using any of that code(/dll/so) any more anyway. 
         The restrictions on everything before the "[[" must be present have also been relaxed.
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
         <br>
         <br>
       </div>

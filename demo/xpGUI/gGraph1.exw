@@ -1,0 +1,48 @@
+--
+-- demo\xpGUI\gGraph1.exw
+-- ======================
+--
+--  p2js-compatible version of demo\pGUI\plot1.exw
+--  Author: Pete Lomax 10/4/2023
+--
+--requires(64,true)
+with javascript_semantics
+--requires("1.0.3")
+include xpGUI.e
+--include backup\xpGUI.7381.e -- good! (7:00)
+--include backup\xpGUI.7387.e -- bad (7:51) [now fixed, via cairo_save/restore]
+--gUseGTK()
+
+constant factor = 1e-6
+
+function get_data(gdx graph)
+    sequence x = {}, y = {}
+    for i=-100 to 100 by 10 do
+        x &= i
+        y &= factor*i*i*i+0.2
+    end for
+    integer {w,h} = gGetAttribute(graph,"SIZE")
+    gSetDouble(graph,"XTICK",iff(w<440?iff(w<280?50:25):20))
+    gSetDouble(graph,"YTICK",iff(h<240?0.4:0.2))
+    return {{x,y,XPG_RED}}
+end function
+
+
+--DEV: MINSIZE 230x140
+gdx graph = gGraph(get_data)
+--gdx graph = gGraph(get_data,`SIZE=640x480`)
+--gdx dlg = gDialog(graph,`resize me!`)
+gdx dlg = gDialog(graph,`resize me!`,`SIZE=640x480`)
+--gSetAttributes(dlg,"MINSIZE=320x340") -- (nb not raster units/pixels)
+gSetAttribute(graph,`GTITLE`,"test")
+gSetAttributes(graph,`YNAME="y-axis",XNAME="x-axis"`)
+gSetAttributes(graph,"XTICK=20,XMIN=-100,XMAX=100")
+gSetAttributes(graph,"YTICK=0.2,YMIN=-0.8,YMAX=1.2")
+gSetAttributes(graph,`XTICKFMT="%d", YTICKFMT="%.1f"`)
+gSetAttributes(graph,`XACROSS=YES, YACROSS=YES`)
+--gSetInt(graph,`GRID`,false)
+gShow(dlg)
+--gSetAttribute(graph,`RASTERSIZE`,NULL)
+?gGetAttribute(graph,`SIZE`)
+gMainLoop()
+

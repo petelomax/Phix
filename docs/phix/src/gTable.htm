@@ -1,0 +1,669 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">gTable</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td>
+          <b>Definition:</b>
+         </td>
+         <td>
+            include xpGUI.e
+           <br>
+           <br>
+            <a href="gdx.htm">gdx</a> id = gTable(<a href="sequence.htm">sequence</a> columns, data,
+                                                 [<a href="integer.htm">integer</a> rows=10, ]
+                                                  <a href="string.htm">string</a> attributes="", 
+                                                  <a href="html/glossary.htm#dwordseq">dword_seq</a> args={})
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Description:</b>
+         </td>
+         <td>
+            INCOMPLETE: There is no scrolling, sorting, or selection or any kind, as yet...
+            <br><small>(The plan is to implement scrolling and selection on a gList first)</small>
+<!--
+            NOT STARTED... (needs a complete rewrite, but the xpGUI.js version should be a fairly good start for that,
+            need to finish gCanvas first, then gGraph, and the latter also promises to be helpful here [BOTH NOW DONE])
+-->
+            <br>
+            <br>
+            Creates a resizeable table with multiple sortable columns.
+            <br>
+            <br>
+            columns: each element should be "title" or {"title",width[,"align"]}, see below.<br>
+            data: data[1] contains the raw sortable data, data[2] contains formatting info or pre-formatted data, see below.<br>
+            rows: the default number of visible lines to display, should be &lt;= length(data[1]).<br>
+            For more information on the attributes and args parameters see <a href="gSetAttributes.htm">gSetAttributes</a>.<br>
+            This is a (lightly) <a href="g_paranormal.htm">paranormalised function</a> <small>(see <a href="#tech" onclick="opentech()">technicalia</a>).</small>
+            <br>
+            <br>
+            Returns: the identifier of the created element.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+            Outdated: still uses a HTML &lt;table&gt; approach, whereas desktop/Phix has been(/is being) replaced 
+            by a <a href="gCanvas.htm">gCanvas</a>-based approach, which deserves properly porting when finished.
+<!-- [IN PROGRESS...]
+             Quite possibly deserves a complete rewrite along the lines of <a href="gGraph.htm">gGraph</a>, though,
+            so if you can&rsquo;t quite get this to behave, maybe a gentle prod in that direction...
+-->
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="gCanvas.htm">gCanvas</a>,
+          <a href="gList.htm">gList</a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Example:</b>
+         </td>
+         <td>
+            <p align="center"><img alt="gTable" src="images/gTable.png" width="240" height="129"/></p>
+<!--
+            <div class="parent">
+              <div class="child" style="border: solid 1px #dfdfdf;">
+                Initial appearance:
+                <br>
+                <br>
+                <img width="266" height="127" src="images/IupTable.png">
+              </div>
+              <div class="child">
+                &nbsp;
+              </div>
+              <div class="child" style="border: solid 1px #dfdfdf;">
+                Sorted appearance:
+                <br>
+                <br>
+                <img width="266" height="127" src="images/IupTable2.png">
+              </div>
+              <div class="child">
+                &nbsp;
+              </div>
+              <div class="child" style="border: solid 1px #dfdfdf;">
+                Browser appearance:
+                <br>
+                <br>
+                <img width="268" height="148" src="images/IupTableb.png">
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
+-->
+<!--
+        <small>(Note the browser image is from a hand-written proof-of-concept rather than actually transpiled code)</small>
+//IupSetAttribute(dlg,"RASTERSIZE","280x134") -- (see note)
+//?IupSetAttribute(dlg,"TITLE","IupTable demo")
+//IupSetAttributeHandle(NULL,"PARENTDIALOG",dlg)
+          <br>
+-->
+        <small>
+<!--eucode>
+-- demo\xpGUI\gTable.exw
+include xpGUI.e
+constant columns = {{"Chq",38,"R"},
+                    {"Date",86,"C"},
+                    {"Amount",100,"R"}},
+         -- or just {"Chq","Date","Amount"},
+         data = {{{1,{2020,1,13},1500.89},
+                  {2,{2020,7,10},3646.86},
+                  {3,{2019,3,20},3807.94}},
+                 {0,
+--                {`13/07/2020`,`20/01/2020`,`10/03/2019`},
+                  "%[3]2d/%[2]02d/%[1]4d",
+--                {`1500.89`,`3646.86`,`3807.94`},
+                  "%.2f"}}  -- (see note)
+gdx table = gTable(columns,data,3),
+      dlg = gDialog(table,"gTable") 
+gShow(dlg)
+gMainLoop()
+</eucode-->
+<pre>
+<font color="#000080"><i>-- demo\xpGUI\gTable.exw</i></font>
+<font color="#008080">include</font><font color="#000000"> xpGUI.e</font>
+<font color="#008080">constant</font><font color="#000000"> columns</font><font color="#0000FF"> = {</font><font color="#800000">{</font><font color="#008000">"Chq"</font><font color="#0000FF">,</font><font color="#000000">38</font><font color="#0000FF">,</font><font color="#008000">"R"</font><font color="#800000">}</font><font color="#0000FF">,</font>
+<font color="#800000">                    {</font><font color="#008000">"Date"</font><font color="#0000FF">,</font><font color="#000000">86</font><font color="#0000FF">,</font><font color="#008000">"C"</font><font color="#800000">}</font><font color="#0000FF">,</font>
+<font color="#800000">                    {</font><font color="#008000">"Amount"</font><font color="#0000FF">,</font><font color="#000000">100</font><font color="#0000FF">,</font><font color="#008000">"R"</font><font color="#800000">}</font><font color="#0000FF">},</font>
+<font color="#000080"><i>         -- or just {"Chq","Date","Amount"},</i></font>
+<font color="#000000">         data</font><font color="#0000FF"> = {</font><font color="#800000">{</font><font color="#800080">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#00FF00">{</font><font color="#000000">2020</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">13</font><font color="#00FF00">}</font><font color="#0000FF">,</font><font color="#000000">1500.89</font><font color="#800080">}</font><font color="#0000FF">,</font>
+<font color="#800080">                  {</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#00FF00">{</font><font color="#000000">2020</font><font color="#0000FF">,</font><font color="#000000">7</font><font color="#0000FF">,</font><font color="#000000">10</font><font color="#00FF00">}</font><font color="#0000FF">,</font><font color="#000000">3646.86</font><font color="#800080">}</font><font color="#0000FF">,</font>
+<font color="#800080">                  {</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#00FF00">{</font><font color="#000000">2019</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">20</font><font color="#00FF00">}</font><font color="#0000FF">,</font><font color="#000000">3807.94</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">,</font>
+<font color="#800000">                 {</font><font color="#000000">0</font><font color="#0000FF">,</font>
+<font color="#000080"><i>--                {`13/07/2020`,`20/01/2020`,`10/03/2019`},</i></font>
+<font color="#008000">                  "%[3]2d/%[2]02d/%[1]4d"</font><font color="#0000FF">,</font>
+<font color="#000080"><i>--                {`1500.89`,`3646.86`,`3807.94`},</i></font>
+<font color="#008000">                  "%.2f"</font><font color="#800000">}</font><font color="#0000FF">} </font><font color="#000080"><i> -- (see note)</i></font>
+<font color="#7060A8">gdx</font><font color="#000000"> table</font><font color="#0000FF"> =</font><font color="#7060A8"> gTable</font><font color="#0000FF">(</font><font color="#000000">columns</font><font color="#0000FF">,</font><font color="#000000">data</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">),</font>
+<font color="#000000">      dlg</font><font color="#0000FF"> =</font><font color="#7060A8"> gDialog</font><font color="#0000FF">(</font><font color="#000000">table</font><font color="#0000FF">,</font><font color="#008000">"gTable"</font><font color="#0000FF">) </font>
+<font color="#7060A8">gShow</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">)</font>
+<font color="#7060A8">gMainLoop</font><font color="#0000FF">()</font>
+</pre>
+          <br>
+          </small>
+<!--
+          In the above, data[2][1] is 0, meaning that values from data[1][i][1] should be displayed for column 1. <br>
+          Putting pre-formatted strings in data[1] for dates and amounts would not sort correctly so instead we provide a format 
+          string (and prior to 1.0.1 had to supply a complete table of pre-formatted strings). Without that final %.2f format the 
+          amounts could appear with an apparently random number of decimal places, likewise dates as eg "{2020,1,13}".<br>
+          Note that while data[2] could contain formatting routines for each column (see demo\xpGUI\gTable.exw for examples), 
+          it simply <i>cannot</i>, for instance, "undo" case-insensitive values stored in data[1]. The "double storage" cost
+          of case-insensitive columns is deemed a small and rare edge case price to pay for keeping the interface simple.
+          <br>
+          <br>
+          Note my efforts have focused on getting width-wise fitting. The table is rarely as neatly fitting vertically as
+          the above images imply, not that it really matters when the table is longer than the viewport, which many are.
+          With the latter in mind, I have deliberately shown a vertical scrollbar (via explicitly setting SIZE), 
+          although it isn&rsquo;t really needed. I have also lost several handfuls of hair over trying to force when the
+          scrollbars should and should not appear: there are still a few minor hiccups which are beyond my ability to fix,
+          see demo\xpGUI\xpGUI.e routine IupTableResize_cb() for more details.
+          <br>
+          <br>
+          <h4>UPDATE</h4>
+          Creating IupTable() as a p2js-compatible alternative for IupMatrix() was my first foray into such adventures, beguiled
+          by the idea that I could use IupMatrix on desktop/Phix for not much effort, however in reality I have spent far longer
+          fighting it than I would have spent writing code to perform all the drawing and mouse handling operations directly.<br>
+          In the more recent IupGraph() alternative for IupPlot() I took a more sensible approach, namely creating an IupCanvas() 
+          and doing everything by hand, as opposed to wrapping IupPlot() on the desktop and doing things manually only inside
+          pGUI.js, and as a bonus just auto-transpiling it and not having to write any JavaScript at all. A complete rewite of 
+          all this using lessons learnt from the latter is probably in order, but layout/sizing issues, in general across all 
+          containers and controls, have a much higher priority - though I&rsquo;ll quietly ignore any such in IupTable!
+-->
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Comments:</b>
+         </td>
+         <td>
+            Fairly obviously, length(data[1]) determines how many rows there are in the table.<br>
+            Likewise length(columns) determines how many columns are shown, and must match the length of every data[1][i].<br>
+            Logically it should also match length(data[2]), except trailing 0 are assumed should the latter be shorter.
+            <br>
+            <br>
+            If column[i] is a string, it is treated as width 80 and left aligned.<br>
+            If instead it is {"title",width[,"align"]}, width specifies the minimum width, and maximum if negative, else it gets a pro-rata share of
+            any available space. The align string should be "L", "C", or "R" for left/centre/right alignment, or a similar two-character version 
+            should you want to specify the {title,data} alignment differently, eg "CR" makes the column title centred but the data right-aligned.
+            <br>
+            <br>
+            The values in data[1] should sort naturally, which is not the case for display/formatted versions of dates and amounts, so those need to 
+            go in data[2], as a complete set of pre-formatted strings (as shown commented out), or a single format string (as shown), or a formatting 
+            routine (not shown, but there is one in demo\xpGUI\gTable.exw), or 0 for "common sense" formatting of the values in data[1]. Without that 
+            final %.2f format the amounts could appear with an apparently random number of decimal places, likewise (correctly sortable) dates as eg 
+            "{2020,12,31}".
+            <br>
+            <br>
+            For case-insensitive sorting, data[1][i] should contain lower/upper versions and data[2][i] the originals: the "double storage" cost is 
+            deemed a small <!--and rare edge case--> price to pay for keeping the interface simple.
+            <br>
+            <br>
+            Columns can be sorted by clicking on their headings, with twice flipping the order, and a third click removing it.<br>
+            It maintains a stack of sort orders, so for instance if you click on amount then date, 
+            it shows items in amount order within each unique date, plus any with both the same 
+            amount and date matching (aka all clicked columns) in their original order.<br>
+            Columns can also be resized by dragging the edges between column headings, and resizing 
+            the window expands the table to fit, allocating any slack in a pro-rata fashion, for example
+            column widths of {80,20,100} get 80/200, 20/120, and 100/100 respectively, with the slack 
+            reduced by the width actually alloted to each column after each step.<br>
+?           Column titles can also be dragged left/right to reorder them.
+            <br>
+            <br>
+            Only a single line can be selected at a time (currently), and the tables are always read-only. The intention is that 
+            instead of any in-place editing, updates would be performed via a set of fields for the currently selected row shown 
+            below or to one side of the main table, probably with an "Apply" button or similar, and all specified/maintained by 
+            the programmer rather than by the gTable() itself.
+<!--        demo/??? demonstrates a recommended alternative to in-place editing.-->
+            <br>
+            <br>
+            The number of visible lines may of course change when the table is resized, or be ignored/overidden by [outer] SIZE settings.<br>
+?           If rows is negative, a fixed length table is assumed and resizing (heightwise) disabled, though it can still get cropped, it
+            would be down to a MINSIZE on the dialog to prevent that, or perhaps intervening containers, rather than on the table itself.
+<br>[DEV] (""preemptively written, need to check what transpires nearer completion...)
+            <br>
+            <br>
+<!--
+            Internally, pGUI.e implements an IupTable via an IupMatrix, whereas<br>
+            (obviously) pGUI.js implements an IupTable via &lt;table&gt;.
+            <br>
+            <br>
+            The internals of IupTable are really quite straightforward: they just adopt a very narrow view of what we 
+            need to achieve from an IupMatrix, and/or the html, css, and JavaScript we need to use in a browser.<br>
+            Obviously, should IupTable not quite meet your needs, you are free to take a copy of it and tweak it, 
+            the only real question being whether you or I can make such changes work on both the desktop and browser.
+            <br>
+            <br>
+            columns: each title can be a string or a {title,width,align} triplet.<br>
+            data: should be length 2 with length(data[1][row])=length(columns) and length(data[2])&lt;=length(columns).<br>
+            rows: the number of lines to show.<br>
+            For more information on the attributes and args<small>[nee data]</small> parameters see 
+            <a href="gSetAttributes.htm">gSetAttributes</a>.
+            <br>
+            <br>
+-->
+            data[1] contains the master/sortable values.<br>
+            data[2] is reserved for (string) display versions of data[1] or format string/handlers:<br>
+            if data[2] is too short or data[2][col] is 0, then data[1][row][col] is displayed as-is/<a href="sprint.htm">sprint</a>()d<br>
+            if data[2][col] is a (single) string then sprintf(data[2][col],data[1][row][col]) is displayed.<br>
+            if data[2][col] is a non-zero integer it is assumed to be a function that can format data[1][row][col] 
+            properly for display (see demo\xpGUI\gTable.exw for examples),<br>
+            or data[2][col] can be a sequence of pre-formatted strings, as now commented out in the example above.
+            <br>
+            <br>
+            For dates, data[1][row][col] should be eg 20201122 or timedate-format, and data[2][col] a format string/routine, 
+            or data[2][col][row] the appropriate matching preformatted string.<br>
+            For case-insensitive sorting, data[1][row][col] should be lower/upper(data[2][col][row]).<br>
+            Note that data[1] is one-per-row whereas data[2] is one-per-column (see example above).
+<!--
+            <br>
+            <br>
+            If column titles are specified as strings (as per the example above), the width defaults to 80, corresponding
+            to 20 characters, and the alignment to "L" (legal values are that, "R" for right, and "C" for centre).
+-->
+<!--
+            Note that IupMatrix() and hence IupTable() does not support individual column heading alignment, afaik,
+            whereas under p2js column headings are aligned the same as the column data.
+            <br>
+            <br>
+            Returns: the identifier of the created element.
+-->
+            <br>
+            <br>
+            A <a href="gList.htm">gList</a>() is designed to cope with rapidly changing data much more efficiently
+            than a gTable.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Extra Functions:</b>
+         </td>
+         <td>
+            [DEV: not yet implemented/tested]
+            <br>
+<!--
+?           IupTableClick_cb(): see <a href="#CLICK_CB">CLICK_CB</a><br>
+            IupTableEnterItem_cb(): see <a href="#ENTERITEM_CB">ENTERITEM_CB</a><br>
+            IupTableResize_cb(): see <a href="#RESIZE_CB">RESIZE_CB</a><br>
+          <br>
+          <br>
+-->
+            <a name="gTableGetSelected"></a>
+            <br>
+            <a href="integer.htm">integer</a> idx = <b>gTableGetSelected</b>(<a href="gdx.htm">gdx</a> table)<br>
+            table: Identifier of the interface element.
+          <br>
+          <br>
+            Returns the index of the currently selected line, or 0 if none.<br>
+            Note this can subscript the data, whereas the line numbers passed to click_cb and enteritem_cb cannot, at least
+            certainly not with column sorting in effect (if needed an IupTableMapLine() function could easily be added).
+          <br>
+            <a name="gTableSetSelected"></a>
+          <br>
+            <b>gTableClearSelected</b>(<a href="gdx.htm">gdx</a> table, <a href="integer.htm">integer</a> idx)<br>
+            table: Identifier of the interface element.<br>
+            idx: Specify 0 to clear the currently selected line, if any, otherwise it should be 1..length(data[1]), noting
+            that may be automatically mapped to a different row on-screen if the table has been sorted (by clicking on 
+            the column headers)
+          <br>
+            <a name="gTableGetData"></a>
+          <br>
+            <a href="sequence.htm">sequence</a> data = <b>gTableGetData</b>(<a href="gdx.htm">gdx</a> table)<br>
+            table: Identifier of the interface element.
+          <br>
+          <br>
+            Returns a copy of the data stored for display in the table - probably not needed in most cases, since the
+            application is probably perfectly aware what data it previously associated with which table, and still has
+            a copy of that.
+          <br>
+            <a name="gTableSetData"></a>
+          <br>
+            <b>gTableSetData</b>(<a href="gdx.htm">gdx</a> table, <a href="sequence.htm">sequence</a> data,
+                                 <a href="integer.htm#bool">bool</a> bReset=true)<br>
+            table: Identifier of the interface element.<br>
+            data: an updated copy of the data to be stored for display in the table.<br>
+            bReset: removes any column-sorting and selection if either bReset is true or the length of data[1] is changed.<br>
+            The display is automatically refreshed.
+          <br>
+          <br>
+            As per the parameter in the initial gTable() call, data must be a sequence of length 2.<br>
+            It may be helpful/necessary to set data to {} to avoid a "p2js violation: relies on copy on write semantics",
+            that is before putting the whole thing back after modification.<br>
+            [DEV] It may or may not prove helpful to add an idx=0 parameter to both the above routines, such that if zero then
+            data is the whole shebang, otherwise it is a single element.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Attributes:</b>
+         </td>
+         <td>
+            General
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="gSetAttribute.htm#SIZE">SIZE</a>
+         </td>
+         <td>
+<!-- DEV: so a gTable //does// get a decent-ish natural size... Search/replace mentions of gTable in these docs accordingly. -->
+            (non inheritable) the initial size is determined from the sum of the column widths and the number of visible lines.<br>
+            Explicitly setting a size causes auto-expansion/cropping of columns, and the "rows" parameter of creation to be completely ignored. 
+<!--
+            <br>
+            Unlike some other controls it should <i>not</i> be necessary to set this to null to allow the automatic layout to use smaller values.
+-->
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="gSetAttribute.htm#EXPAND">EXPAND</a>
+         </td>
+         <td>
+            (non inheritable) The default value is "YES".<br>
+            Similar consequences to setting <a href="#SIZE">SIZE</a> occur when a gTable() expands to fill its parent.
+         </td>
+        </tr>
+<!--
+//      <tr>
+//       <td>
+//        SPACING
+//       </td>
+//       <td>
+//          vertical internal padding for each node. Notice that the distance between each node will actually be 2x the spacing. (since 3.0)
+//       </td>
+//      </tr>
+//      <tr>
+//       <td>
+//        CSPACING
+//       </td>
+//       <td>
+//          same as SPACING but using the units of the vertical part of the SIZE attribute. It will actually set the SPACING attribute. (since 3.29)
+//       </td>
+//      </tr>
+-->
+        <tr>
+         <td>
+          Also:
+         </td>
+         <td>
+?           <a href="gSetAttribute.htm#ACTIVE">ACTIVE</a>,
+            <a href="gSetAttribute.htm#EXPAND">EXPAND</a>, 
+            <a href="gSetAttribute.htm#FONT">FONT</a>,
+<!--            <a href="gSetAttribute.htm#NAME">NAME</a>, -->
+<!--            <a href="gGetAttribute.htm#POSITION">POSITION</a>, -->
+<!--            <a href="gGetAttribute.htm#SCREENPOSITION">SCREENPOSITION</a>, -->
+            <a href="gSetAttribute.htm#MINSIZE">MINSIZE</a>, 
+            <a href="gSetAttribute.htm#MAXSIZE">MAXSIZE</a>,
+            <a href="gSetAttribute.htm#TIP">TIP</a>, 
+            <a href="gSetAttribute.htm#SIZE">SIZE</a>,
+<!--            <a href="gSetAttribute.htm#ZORDER">ZORDER</a>,-->
+            <a href="gSetAttribute.htm#VISIBLE">VISIBLE</a>
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+          <b>Handlers:</b>
+         </td>
+         <td>
+<!--
+[?DEV?]     You may <i>not</i> use or override VALUE_CB or COLRESIZE_CB.
+??          (You <i>can</i> use MAP_CB on the dialog, just not on the table itself.)
+            <br>
+            <br>
+            Internally it uses <a href="#CLICK_CB">CLICK_CB</a>, <a href="#ENTERITEM_CB">ENTERITEM_CB</a>, 
+            and the containing dialog&rsquo;s <a href="#RESIZE_CB">RESIZE_CB</a>,
+            however they can be overidden/extended as below.
+            <br>
+            <br>
+            It also uses MOUSEMOVE_CB and LEAVEWINDOW_CB, if ever needed the internal routines could easily 
+            be made global as per CLICK_CB etc, but any override implies the default hover effects are not wanted, 
+            and everything (bar said) will work just fine without them.
+-->
+            Note that a gTable uses the standard CLICK, KEY, and REDRAW handlers of the <a href="gCanvas.htm">gCanvas</a> on
+            which it is based, and unpredictable results will occur if said are overridden, at least as things stand.<br>
+          <a name=SELECTED></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          SELECTED
+         </td>
+         <td>
+            [DEV not yet implemented] Action generated when a row is selected, becoming the current row.
+<!--
+            Also called when matrix is getting focus. Also called when focus is changed because lines or columns were added or removed (since 3.9).
+-->
+            <br>
+            <br>
+            procedure selected(<a href="gdx.htm">gdx</a> table, <a href="integer.htm">integer</a> line)
+            <br>
+            <br>
+            id: identifier of the gTable element that activated the event.<br>
+            line: The row selected. Note that gTable automatically maps from any internal sort ordering to a suitable index into data[1].
+<!--
+            <br>
+            <br>
+            If overidden, it should invoke the internal default, which implements proper line selection/marking/focus settings, as follows:
+            <br>
+            <br>
+            <small>
+<X!X--eucode>
+function enteritem_cb(Ihandle table, integer lin, col)
+    {} = IupTableEnterItem_cb(table,lin,col)
+    integer idx = IupTableGetSelected(table) -- (usually rqd)
+    ...
+    return IUP_DEFAULT
+end function
+</eucode--X>
+<pre>
+<font color="#008080">function</font><font color="#000000"> enteritem_cb</font><font color="#0000FF">(</font><font color="#7060A8">Ihandle</font><font color="#000000"> table</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> lin</font><font color="#0000FF">,</font><font color="#000000"> col</font><font color="#0000FF">)
+    {} =</font><font color="#7060A8"> IupTableEnterItem_cb</font><font color="#0000FF">(</font><font color="#000000">table</font><font color="#0000FF">,</font><font color="#000000">lin</font><font color="#0000FF">,</font><font color="#000000">col</font><font color="#0000FF">)</font>
+<font color="#004080">    integer</font><font color="#000000"> idx</font><font color="#0000FF"> =</font><font color="#7060A8"> IupTableGetSelected</font><font color="#0000FF">(</font><font color="#000000">table</font><font color="#0000FF">)</font><font color="#000080"><i> -- (usually rqd)</i></font>
+<font color="#0000FF">    ...</font>
+<font color="#008080">    return</font><font color="#004600"> IUP_DEFAULT</font>
+<font color="#008080">end function</font>
+</pre>
+            </small>
+-->
+         </td>
+        </tr>
+<!--
+          <a name=CLICK_CB></a>
+        <tr>
+         <td>
+?         CLICK_CB
+         </td>
+         <td>
+            Action generated when any mouse button is pressed over a cell.
+            <br>
+            <br>
+            function click_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> lin, col, <a href="atom.htm">atom</a> pStatus)
+            <br>
+            <br>
+            ih: identifier of the element that activated the event.<br>
+            lin, col: Coordinates of the cell where the mouse button was pressed.<br>
+            pStatus: (a char*) Status of the mouse buttons and some keyboard keys at the moment the event is generated. <br>
+<X!X-- (DEV maybe, but it's not "routines" any longer, or in this case apparently "macros")
+            The same macros used for <a href="gSetHandler.htm#CLICK">CLICK</a> can be used for this status.
+--X>
+            <br>
+            <br>
+            If overidden, it should invoke the internal default, which implements column sorting, as follows:
+            <br>
+            <br>
+            <small>
+<X!X--eucode>
+function click_cb(Ihandle ih, integer l, c, atom pStatus)
+    if l=0 then return IupTableClick_cb(ih, l, c, pStatus) end if
+    ...
+    return IUP_DEFAULT
+end function
+</eucode--X>
+<pre>
+<font color="#008080">function</font><font color="#000000"> click_cb</font><font color="#0000FF">(</font><font color="#7060A8">Ihandle</font><font color="#000000"> ih</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> l</font><font color="#0000FF">,</font><font color="#000000"> c</font><font color="#0000FF">,</font><font color="#004080"> atom</font><font color="#000000"> pStatus</font><font color="#0000FF">)</font>
+<font color="#008080">    if</font><font color="#000000"> l</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#008080"> then return</font><font color="#7060A8"> IupTableClick_cb</font><font color="#0000FF">(</font><font color="#000000">ih</font><font color="#0000FF">,</font><font color="#000000"> l</font><font color="#0000FF">,</font><font color="#000000"> c</font><font color="#0000FF">,</font><font color="#000000"> pStatus</font><font color="#0000FF">)</font><font color="#008080"> end if</font>
+<font color="#0000FF">    ...</font>
+<font color="#008080">    return</font><font color="#004600"> IUP_DEFAULT</font>
+<font color="#008080">end function</font>
+</pre>
+            </small>
+         </td>
+        </tr>
+-->
+<!--
+          <a name=RESIZE_CB></a>
+        <tr>
+         <td>
+?         <a href="gSetHandler.htm#RESIZE_CB">RESIZE_CB</a>
+         </td>
+         <td>
+            If overidden, or a dialog contains more than one IupTable, it should replicate/replace the internal workings as follows:
+            <br>
+            <br>
+            <small>
+<X!X--eucode>
+function resize_cb(Ihandle dlg, integer width, height)
+    for t=1 to length(tables) do -- (declared/set manually)
+        IupSetAttributePtr(dlg,"TABLE",tables[i])
+        {} = IupTableResize_cb(dlg, width, height)
+    end for
+    ...
+    return IUP_DEFAULT
+end function
+</eucode--X>
+<pre>
+<font color="#008080">function</font><font color="#000000"> resize_cb</font><font color="#0000FF">(</font><font color="#7060A8">Ihandle</font><font color="#000000"> dlg</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> width</font><font color="#0000FF">,</font><font color="#000000"> height</font><font color="#0000FF">)</font>
+<font color="#008080">    for</font><font color="#000000"> t</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">tables</font><font color="#0000FF">)</font><font color="#008080"> do</font><font color="#000080"><i> -- (declared/set manually)</i></font>
+<font color="#7060A8">        IupSetAttributePtr</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">,</font><font color="#008000">"TABLE"</font><font color="#0000FF">,</font><font color="#000000">tables</font><font color="#800000">[</font><font color="#000000">i</font><font color="#800000">]</font><font color="#0000FF">)
+        {} =</font><font color="#7060A8"> IupTableResize_cb</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">,</font><font color="#000000"> width</font><font color="#0000FF">,</font><font color="#000000"> height</font><font color="#0000FF">)</font>
+<font color="#008080">    end for</font>
+<font color="#0000FF">    ...</font>
+<font color="#008080">    return</font><font color="#004600"> IUP_DEFAULT</font>
+<font color="#008080">end function</font>
+</pre>
+            </small>
+         </td>
+        </tr>
+-->
+        <tr>
+         <td>
+          also
+         </td>
+         <td>
+            <a href="gSetHandler.htm#CLICK">CLICK</a>, 
+            <a href="gCanvas.htm#DROP">DROP</a>, 
+<!--
+//          <a href="gSetHandler.htm#DESTROY_CB">DESTROY_CB</a>,
+            <a href="gSetHandler.htm#GETFOCUS_CB">GETFOCUS_CB</a>,
+            <a href="gSetHandler.htm#KILLFOCUS_CB">KILLFOCUS_CB</a>, 
+            <a href="gSetHandler.htm#ENTERWINDOW_CB">ENTERWINDOW_CB</a>,
+            <a href="gSetHandler.htm#LEAVEWINDOW_CB">LEAVEWINDOW_CB</a>, 
+//          <a href="gSetHandler.htm#HELP_CB">HELP_CB</a>: All common handlers are supported.
+-->
+            <a href="gSetHandler.htm#KEY">KEY</a>,
+            <a href="gSetHandler.htm#MOUSEMOVE">MOUSEMOVE</a>: All common handlers are supported.<br>
+          <a name=tech></a>
+         </td>
+        </tr>
+<!--
+        <tr>
+         <td>
+          <b>Example:</b>
+         </td>
+         <td>
+            See demo\xpGUI\gTable.exw
+         </td>
+        </tr>
+-->
+        <tr id="Technicalia" style="display:none;">
+         <td>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+            As this is a <a href="g_paranormal.htm">paranormalised function</a>, with columns and data non-optional, and with no expectation that 
+            you should attempt to memorise this lot, except maybe "cdraa", you can assume that all of the following are potentially perfectly valid, 
+            with the fairly obvious restrictions that any parameters <i>must</i> be in strict cdraa-order, and no args without attributes:
+            <br>
+            <br>
+<small>
+<!--eucode>
+                        gTable(columns,data)
+                        gTable(columns,data,rows)
+                        gTable(columns,data,attributes)
+                        gTable(columns,data,attributes,args)
+                        gTable(columns,data,rows,attributes)
+                        gTable(columns,data,rows,attributes,args)  -- (the full set)
+</eucode-->
+<pre>
+<font color="#7060A8">                        gTable</font><font color="#0000FF">(</font><font color="#000000">columns</font><font color="#0000FF">,</font><font color="#000000">data</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gTable</font><font color="#0000FF">(</font><font color="#000000">columns</font><font color="#0000FF">,</font><font color="#000000">data</font><font color="#0000FF">,</font><font color="#000000">rows</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gTable</font><font color="#0000FF">(</font><font color="#000000">columns</font><font color="#0000FF">,</font><font color="#000000">data</font><font color="#0000FF">,</font><font color="#000000">attributes</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gTable</font><font color="#0000FF">(</font><font color="#000000">columns</font><font color="#0000FF">,</font><font color="#000000">data</font><font color="#0000FF">,</font><font color="#000000">attributes</font><font color="#0000FF">,</font><font color="#000000">args</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gTable</font><font color="#0000FF">(</font><font color="#000000">columns</font><font color="#0000FF">,</font><font color="#000000">data</font><font color="#0000FF">,</font><font color="#000000">rows</font><font color="#0000FF">,</font><font color="#000000">attributes</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gTable</font><font color="#0000FF">(</font><font color="#000000">columns</font><font color="#0000FF">,</font><font color="#000000">data</font><font color="#0000FF">,</font><font color="#000000">rows</font><font color="#0000FF">,</font><font color="#000000">attributes</font><font color="#0000FF">,</font><font color="#000000">args</font><font color="#0000FF">) </font><font color="#000080"><i> -- (the full set)</i></font>
+</pre>
+</small>
+            <br>
+            Note that in practice rows is actually defined as <a href="object.htm">object</a>, and attributes as <a href="sequence.htm">sequence</a> 
+            rather than <a href="string.htm">string</a>, but they are all manually and thoroughly verified to be of the documented types, after 
+            being repositioned (if necessary) by xpGUI.e/paranormalise_raa(bCheckRid:=false).
+         </td>
+        </tr>
+       </table>
+       <img id="Timg" src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

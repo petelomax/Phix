@@ -4,7 +4,7 @@
    <these>
     <get>
      <stripped>
-      <h1 class="title">gcd / lcm</h1>
+      <h1 class="title">gcd / lcm / phi</h1>
       <div id="mainSection">
        <table>
         <col style="width: 5%"/>
@@ -13,11 +13,15 @@
           <b>Definition:</b>
          </td>
          <td>
-         <a href="atom.htm">atom</a> a = gcd(<a href="object.htm">object</a> u, <a href="atom.htm">atom</a> v=0)
+         <a href="atom.htm">atom</a> res = gcd(<a href="object.htm">object</a> u, <a href="atom.htm">atom</a> v=0)
           <br>
           <i>-- or --</i>
           <br>
-         <a href="atom.htm">atom</a> a = lcm(<a href="object.htm">object</a> u, <a href="atom.htm">atom</a> v=0)
+         <a href="atom.htm">atom</a> res = lcm(<a href="object.htm">object</a> u, <a href="atom.htm">atom</a> v=0)
+          <br>
+          <i>-- or --</i>
+          <br>
+          <a href="integer.htm">integer</a> res = phi(<a href="integer.htm">integer</a> n)
          </td>
         </tr>
         <tr>
@@ -25,8 +29,9 @@
           <b>Description:</b>
          </td>
          <td>
-            gcd() returns the greatest common divisor of two numbers or a <a href="sequence.htm">sequence</a> of numbers.<br>
-            lcm() returns the lowest common multiple of two numbers or a <a href="sequence.htm">sequence</a> of numbers.<br>
+            gcd() returns the greatest common divisor of two or more numbers.<br>
+            lcm() returns the lowest common multiple of two or more numbers.<br>
+            phi() returns Euler&rsquo;s totient function, with memoisation.<br>
          </td>
         </tr>
         <tr>
@@ -48,18 +53,41 @@
             atom parameters allow greater precision, but any fractional parts are immediately and deliberately discarded.
             <br>
             <br>
-            if the first parameter is a <a href="sequence.htm">sequence</a> then the second parameter is completely ignored.<br>
-            if the sequence contains only one element, then (floored and unsigned) it is the result, ie gcd({N}) is 
-            <a href="floor.htm">floor</a>(<a href="abs.htm">abs</a>(N)).
+            If the first parameter u is a <a href="sequence.htm">sequence</a> then the second parameter is completely ignored.<br>
+            Should it contain only one element, ie gcd({N}), then the result is <a href="floor.htm">floor</a>(<a href="abs.htm">abs</a>(N)).
             <br>
             <br>
             Should you be looking for <b>hcf</b>(), aka highest common factor, that&rsquo;s the same as gcd() and is in fact
             aliased to that in psym.e and of course also in p2js.
+            <br>
+            <br>
+            From Wikipedia/MathWorld:
+            <br>
+            <br>
+            Euler&rsquo;s totient function is not to be confused with the Euler function.
+            <br>
+            <br>
+            In number theory, Euler&rsquo;s totient function is the number of positive integers &lt;= n that are relatively prime to n, <br>
+            ie do not contain any factor in common with n, where 1 is counted as being relatively prime to all numbers. <br>
+            In other words, it is the number of integers k in 1..n for which <a href="gcd.htm">gcd</a>(n,k)=1.<br>
+            The integers k of this form are sometimes referred to as totatives of n.<br>
+            It is written using the Greek letter phi as <i>&phi;(n)</i> or <i>&varphi;(n)</i>, and may also be called Euler&rsquo;s phi function.
+            <br>
+            <br>
+            For example, the totatives of n = 9 are the six numbers 1, 2, 4, 5, 7 and 8. <br>
+            They are all relatively prime to 9, but the other three numbers in this range, 3, 6, and 9 are not, since gcd(9,3) = gcd(9,6) = 3 
+            and gcd(9,9) = 9. Therefore, &phi;(9) = 6. <br>
+            As another example, &phi;(1) = 1 since 1 is the only integer in the range 1..1, and gcd(1,1) = 1.<br>
+            Lastly, &phi;(p) = p-1 for all primes p (and only primes).
+            <br>
+            <br>
+            Euler&rsquo;s totient function is a multiplicative function, meaning that if two numbers m and n are relatively prime, then 
+            &phi;(mn) = &phi;(m)&phi;(n).
          </td>
         </tr>
         <tr>
          <td>
-          <b>Example:</b>
+          <b>Examples:</b>
          </td>
          <td>
 <!--eucode>
@@ -71,16 +99,18 @@
 ?lcm(21,14) -- 42 (=2*21=3*14)
 ?lcm(3,4)   -- 12
 ?lcm(4,6)   -- 12
+?apply(tagset(10),phi)  -- {1,1,2,2,4,2,6,4,6,4}
 </eucode-->
 <pre>
-<font color="#0000FF">?</font><font color="#5E005E">gcd</font><font color="#0000FF">(-</font><font color="#000000">9</font><font color="#0000FF">,</font><font color="#000000">6</font><font color="#0000FF">)</font><font color="#000080"><i> -- 3</i></font>
-<font color="#0000FF">?</font><font color="#5E005E">gcd</font><font color="#0000FF">(</font><font color="#000000">70000000000000000000</font><font color="#0000FF">,</font><font color="#000000"> 60000000000000000000000</font><font color="#0000FF">)</font><font color="#000080"><i> -- 10000000000000000000</i></font>
-<font color="#0000FF">?</font><font color="#5E005E">gcd</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">57</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,-</font><font color="#000000">45</font><font color="#0000FF">,-</font><font color="#000000">18</font><font color="#0000FF">,</font><font color="#000000">90</font><font color="#0000FF">,</font><font color="#000000">447</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#000080"><i> -- 3</i></font>
-<font color="#0000FF">?</font><font color="#5E005E">gcd</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#0000FF">-</font><font color="#000000">9.3</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#000080"><i> -- 9</i></font>
-<font color="#0000FF">?</font><font color="#5E005E">gcd</font><font color="#0000FF">(</font><font color="#000000">21</font><font color="#0000FF">,</font><font color="#000000">14</font><font color="#0000FF">)</font><font color="#000080"><i> -- 7 (21=3*7, 14=2*7)</i></font>
-<font color="#0000FF">?</font><font color="#5E005E">lcm</font><font color="#0000FF">(</font><font color="#000000">21</font><font color="#0000FF">,</font><font color="#000000">14</font><font color="#0000FF">)</font><font color="#000080"><i> -- 42 (=2*21=3*14)</i></font>
-<font color="#0000FF">?</font><font color="#5E005E">lcm</font><font color="#0000FF">(</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">)  </font><font color="#000080"><i> -- 12</i></font>
-<font color="#0000FF">?</font><font color="#5E005E">lcm</font><font color="#0000FF">(</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">6</font><font color="#0000FF">)  </font><font color="#000080"><i> -- 12</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">gcd</font><font color="#0000FF">(-</font><font color="#000000">9</font><font color="#0000FF">,</font><font color="#000000">6</font><font color="#0000FF">)</font><font color="#000080"><i> -- 3</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">gcd</font><font color="#0000FF">(</font><font color="#000000">70000000000000000000</font><font color="#0000FF">,</font><font color="#000000"> 60000000000000000000000</font><font color="#0000FF">)</font><font color="#000080"><i> -- 10000000000000000000</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">gcd</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">57</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,-</font><font color="#000000">45</font><font color="#0000FF">,-</font><font color="#000000">18</font><font color="#0000FF">,</font><font color="#000000">90</font><font color="#0000FF">,</font><font color="#000000">447</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#000080"><i> -- 3</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">gcd</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#0000FF">-</font><font color="#000000">9.3</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#000080"><i> -- 9</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">gcd</font><font color="#0000FF">(</font><font color="#000000">21</font><font color="#0000FF">,</font><font color="#000000">14</font><font color="#0000FF">)</font><font color="#000080"><i> -- 7 (21=3*7, 14=2*7)</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">lcm</font><font color="#0000FF">(</font><font color="#000000">21</font><font color="#0000FF">,</font><font color="#000000">14</font><font color="#0000FF">)</font><font color="#000080"><i> -- 42 (=2*21=3*14)</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">lcm</font><font color="#0000FF">(</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">)  </font><font color="#000080"><i> -- 12</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">lcm</font><font color="#0000FF">(</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">6</font><font color="#0000FF">)  </font><font color="#000080"><i> -- 12</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">apply</font><font color="#0000FF">(</font><font color="#7060A8">tagset</font><font color="#800000">(</font><font color="#000000">10</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#7060A8">phi</font><font color="#0000FF">) </font><font color="#000080"><i> -- {1,1,2,2,4,2,6,4,6,4}</i></font>
 </pre>
          </td>
         </tr>

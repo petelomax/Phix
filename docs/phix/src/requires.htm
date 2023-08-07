@@ -13,7 +13,7 @@
           <b>Definition:</b>
          </td>
          <td>
-           requires(<a href="object.htm">object</a> x, <a href="integer.htm#bool">bool</a> bPrefW = false)
+           requires(<a href="object.htm">object</a> x, <a href="integer.htm#bool">bool</a> bQuiet = false)
          </td>
         </tr>
         <tr>
@@ -45,16 +45,16 @@
             displays a message and terminates execution when necessary.
             <br>
             <br>
-            If x is an integer between 0 and 31, it compares it against <a href="platform.htm">platform</a>() and displays 
-            a message and terminates execution when necessary. See technicalia for combinations.
+            If x is an integer between 0 and 31, it compares it against <a href="platform.htm">platform</a>() and displays a message 
+            and terminates execution when necessary. See <a href="#tech" onclick="opentech()">technicalia</a> for combinations.
             <br>
             <br>
             Otherwise x should be 32 or 64, which is compared against <a href="machine_bits.htm">machine_bits</a>() 
-            and when necessary it uses <a href="get_interpreter.htm">get_interpreter</a>(true,{x},platform(),bPrefW) 
-            to construct a suitable replacement commandline, which it then offers to execute, see example below.<br>
-            The bPrefW parameter is only used for <a href="get_interpreter.htm">get_interpreter</a>() calls, see that 
-            for details. The default of false is usually appropriate given that it has already opened a console window 
-            with the prompt, even when running a gui application.
+            and when necessary it uses bQuiet and <a href="get_interpreter.htm">get_interpreter</a>(true,{x},platform(),bPrefW) 
+            to construct a suitable replacement commandline, which it then either offers to execute when bQuiet is
+            false (or 2), or executes automatically when bQuiet is true (or 3), see examples and details below.
+            In short, eg <code>requires(64)</code> is "let them know" whereas <code>requires(64,true)</code> is your 
+            "just do it", see <a href="#tech" onclick="opentech()">technicalia</a> for the minutae.
             <br>
             <br>
             If no suitable interpreter can be found it displays an appropriate message instead.
@@ -83,10 +83,10 @@ requires(96-machine_bits()) -- (toggle 32<==>64 [a rather daft thing to do!])
 --Press Escape to abandon, Enter to retry as above...
 </eucode-->
 <pre>
-<font color="#5E005E">requires</font><font color="#0000FF">(</font><font color="#008000">"0.8.2"</font><font color="#0000FF">)                          </font><font color="#000080"><i> -- crashes on 0.8.1 and earlier</i></font>
-<font color="#5E005E">requires</font><font color="#0000FF">(</font><font color="#004600">WINDOWS</font><font color="#0000FF">)                          </font><font color="#000080"><i> -- crashes on Linux</i></font>
-<font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"running %d-bit\n"</font><font color="#0000FF">,</font><font color="#7060A8">machine_bits</font><font color="#800000">()</font><font color="#0000FF">)</font>
-<font color="#5E005E">requires</font><font color="#0000FF">(</font><font color="#000000">96</font><font color="#0000FF">-</font><font color="#7060A8">machine_bits</font><font color="#800000">()</font><font color="#0000FF">)</font><font color="#000080"><i> -- (toggle 32&lt;==&gt;64 [a rather daft thing to do!])
+<font color="#7060A8">requires</font><font color="#0000FF">(</font><font color="#008000">"0.8.2"</font><font color="#0000FF">)                          </font><font color="#000080"><i> -- crashes on 0.8.1 and earlier</i></font>
+<font color="#7060A8">requires</font><font color="#0000FF">(</font><font color="#004600">WINDOWS</font><font color="#0000FF">)                          </font><font color="#000080"><i> -- crashes on Linux</i></font>
+<font color="#7060A8">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"running %d-bit\n"</font><font color="#0000FF">,</font><font color="#7060A8">machine_bits</font><font color="#800000">()</font><font color="#0000FF">)</font>
+<font color="#7060A8">requires</font><font color="#0000FF">(</font><font color="#000000">96</font><font color="#0000FF">-</font><font color="#7060A8">machine_bits</font><font color="#800000">()</font><font color="#0000FF">)</font><font color="#000080"><i> -- (toggle 32&lt;==&gt;64 [a rather daft thing to do!])
 
 -- example output (forever in this rather silly little case):
 --running 32-bit
@@ -123,7 +123,8 @@ requires(96-machine_bits()) -- (toggle 32<==>64 [a rather daft thing to do!])
           <a href="get_interpreter.htm">get_interpreter</a>,
           <a href="machine_bits.htm">machine_bits</a>,
           <a href="platform.htm">platform</a>,
-          <a href="version.htm">version</a>
+          <a href="version.htm">version</a><br>
+          <a name=tech></a>
          </td>
         </tr>
         <tr id="Technicalia" style="display:none;">
@@ -153,10 +154,33 @@ requires(96-machine_bits()) -- (toggle 32<==>64 [a rather daft thing to do!])
             in but commented out: it may be possible to (partially) reinstate that to at least offer a warning (an outright ban would
             however cripple the compiler&rsquo;s own self-hosting, where such cross-compilation concerns happen to be one of the less 
             important things the "four rounds" mechanism described in <a href="Installation.htm">Installation</a> happens to solve).
+            <br>
+            <br>
+            The bQuiet parameter is only used for an x of 32 or 64 and in fact has four possible settings:<br>
+            0b00 (0/false): prompt and pass a bPrefW of -1,<br>
+            0b01 (1/true): no prompt and pass a bPrefW of -1,<br>
+            0b10 (2): prompt and pass a bPrefW of false, and <br>
+            0b11 (3): no prompt and pass a bPrefW of false.<br>
+            A bPrefW of -1 means pick a p.exe or pw.exe depending on whether command_line()[1] contains a 'w'.<br>
+            A bPrefW of false (prefer p.exe over pw.exe), in other words a bQuiet of 2 over false, may be more appropriate 
+            given that it has already opened a console window with a prompt, even when running a gui application, so that 
+            any subsequent messages appear in that same window rather than opening up yet another one. There is possibly
+            not much practical use for a bQuiet of 3, so that is probably best ignored, and indeed 2 is not particularly
+            common either. False is probably the best option when publishing code, and it is obviously better to encourage
+            long-term/frequent users to start it properly in the first place, while true can make working on it easier.<br>
+            You should however <b><i>never</i></b> specify a bQuiet of true (or 3) in any re-usable component.
+            <br>
+            <br>
+            Should requires() detect that a <code>requires(32)</code> has already passed when <code>requires(64,true)</code> 
+            is attempted (or vice versa), then it will simply crash("would go bananas"), since otherwise it would quietly 
+            spawn processes until you ran out of memory. Be warned you could easily defeat that by using you own checks
+            on machine_bits(), should you for some reason feel it is about time to force a hard reboot. In other words it
+            is generally a spectacularly bad idea to call requires(), in particular with (32|64), anywhere other than near 
+            the start of a source file, and it should always be invoked <i>outside of any conditional statements</i>.
          </td>
         </tr>
        </table>
-       <img src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <img id="Timg" src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
        <br>
        <br>
       </div>

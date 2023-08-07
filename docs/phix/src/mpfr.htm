@@ -27,14 +27,14 @@
         you may have to install gmp/mpfr manually on Linux.
 <!--
         Included in the distribution as builtins\mpfr.e (not an autoinclude), but you have to download the dlls from
-        <a href="javascript:ExternalLink('ext273','http://phix.x10.mx/pmwiki/pmwiki.php?n=Main.Mpfr');"
-           id="ext273" style="color:#9B5565" >PCAN</a> or perhaps
+        <a href="javascript:ExternalLink('ext273');" title='http://phix.x10.mx/pmwiki/pmwiki.php?n=Main.Mpfr'
+           id="ext273" style="color:#9B5565">PCAN</a> or perhaps
 <x!--
-        <a href="javascript:ExternalLink('ext272','http://www.atelierweb.com/mpir-and-mpfr');"
-           id="ext272" style="color:#9B5565"      >directly</a>
+        <a href="javascript:ExternalLink('ext272');" title='http://www.atelierweb.com/mpir-and-mpfr'
+           id="ext272" style="color:#9B5565">directly</a>
 --x>
-        <a href="javascript:ExternalLink('ext272','https://freebasic.net/forum/viewtopic.php?t=24110');"
-           id="ext272" style="color:#9B5565"      >directly</a>
+        <a href="javascript:ExternalLink('ext272');" title='https://freebasic.net/forum/viewtopic.php?t=24110'
+           id="ext272" style="color:#9B5565">directly</a>
        <br>
         You should get a readable and straightforward error message when the required dlls cannot be opened.<br>
         It is entirely up to you whether to install (simple copy) them to system32/syswow64, builtins, or the application directory.<br>
@@ -395,6 +395,7 @@ dl {
             <dd class="pad">
             <b>mpz_set_si</b>(mpz rop, integer op) -- "" except op is a phix integer, -1GB..+1GB - use this instead of <span class="illegal">mpz_set_ui</span>().<br>
             <b>mpz_set_d</b>(mpz rop, atom op) -- "" except op is a phix <a href="atom.htm">atom</a>.<br>
+            <b>mpz_set_q</b>(mpz rop, mpq op) -- "" except op is an mpq (truncated to make it an integer).<br>
             <b>mpz_set_str</b>(mpz rop, string s, integer base=0) -- set x from s in the specified base. See also mpz_init.<br>
             A base of 0 allows bases 2 and 16 to be auto-detected (after a leading +/-) by '0b', '0B', '0x' or '0X', otherwise base 10 is assumed.<br>
             A Phix-specific enhancement is to allow eg "1e200" (only base 10 is officially supported, though some others may work).
@@ -1250,7 +1251,7 @@ dl {
           <td align="left" style="padding: 0; border-style: none;">
            <dl>
             <dt>
-            <b>mpz_min</b>(sequence s, boolean return_index=false) - return the smallest element of s, or it&rsquo;s index.
+            <b>mpz_min</b>(sequence s, boolean return_index=false) - return the smallest element of s, or its index.
             </dt>
             <dd class="pad">
             s must be a flat and non-empty sequence of mpz.<br>
@@ -1393,8 +1394,8 @@ dl {
             multiple strings in the result, even when bAsStrings is false.<br>
 <!-- (what, am I bragging about having a backlog, deliberately trying to disappoint, or something else??)
             It is planned, but not a high priority, to further improve this routine using the code from
-            <a href="javascript:ExternalLink('ext732','https://rosettacode.org/wiki/Factors_of_a_Mersenne_number#Phix');"
-               id="ext732" style="color:#9B5565" >rosettacode/Factors_of_a_Mersenne_number</a>.<br>
+            <a href="javascript:ExternalLink('ext732');" id="ext732" 
+               style="color:#9B5565">https://rosettacode.org/wiki/Factors_of_a_Mersenne_number#Phix</a>.<br>
 -->
             Since this routine invokes <a href="mpfr.htm#mpz_prime">mpz_prime</a>() in the main loop anyway, there is not likely to be much benefit from 
             calling it first.<br>
@@ -1420,7 +1421,7 @@ dl {
             an unwrapped mpz as an integer <small>(and pretend to work, as opposed to terminating with a more helpful error)</small>.<br>
 <!--
             When I say integer, I mean an atom with no fractional part that passes
-            builtins/pfactors.e/check_limits() or it&rsquo;s equivalent, so maybe
+            builtins/pfactors.e/check_limits() or its equivalent, so maybe
             "small" isn&rsquo;t quite the right word, but I think you get what I mean.<br>
 -->
             if bAsAtmStr is false, the result is a sequence of mpz, otherwise (the default) result is a mixture of atoms (when they fit) and strings
@@ -1512,6 +1513,26 @@ dl {
            </dl>
           </td>
          </tr>
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+            <a name=mpz_nextprime></a>
+           <!-- procedure -->
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
+            <b>mpz_nextprime</b>(mpz rop, op) - set rop to the next prime greater than op.
+            </dt>
+            <dd class="pad">
+            I needed this for a rosettacode task but found it horribly slow and don&rsquo;t recommend it at all.<br>
+            Note that it no longer tries to use either of the (deprecated) mpz_nextprime or (its presumed successor) 
+            mpz_next_prime_candidate C functions and instead just throws successive odd numbers at mpz_prime(), so it may be
+            even slower, but in my tests at least, not by much.
+            </dd>
+           </dl>
+          </td>
+         </tr>
+
          <tr>
           <td align="right" style="padding: 0; border-style: none;">
             <a name=mpz_rand></a>
@@ -1961,6 +1982,20 @@ dl {
          </tr>
          <tr>
           <td align="right" style="padding: 0; border-style: none;">
+            <a name=mpfr_fmod></a>
+           <!-- procedure -->
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
+            <dt>
+            <b>mpfr_fmod</b>(mpfr r, x, y, integer rounding=default_rounding) - r := mod(x,y)
+            </dt>
+            <dd class="pad">
+            Set r to the value of x - ny, rounded as specified, where n is the integer quotient of x divided by y, rounded toward zero.
+            </dd>
+          </td>
+         </tr>
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
             <a name=mpfr_sqr></a>
            <!-- procedure -->
           </td>
@@ -2000,9 +2035,10 @@ dl {
             <b>mpfr_pow_si</b>(mpfr rop, op1, integer op2, integer rounding=default_rounding) - ""  except op2 is a phix integer, -1GB..+1GB<br>
             <b>mpfr_ui_pow</b>(mpfr rop, integer op1, mpfr op2, integer rounding=default_rounding) - "" except op1 is a phix integer, 0..+1GB<br>
             <b>mpfr_ui_pow_ui</b>(mpfr rop, integer op1, op2, rounding=default_rounding) - "" except op1 and op2 are phix integer, 0..+1GB<br>
+            <b>mpfr_si_pow_si</b>(mpfr rop, integer op1, op2, rounding=default_rounding) - "" except op1 and op2 can be -1GB..+1GB<br>
             Set rop to op1 raised to op2, rounded in the specified direction.<br>
             Note that mpfr_pow_si must be used instead of <span class="illegal">mpfr_pow_ui</span> (no benefit to be had), whereas there are no 
-            C mpfr_si_pow[_si] functions.<br>
+            C mpfr_si_pow[_si] functions, that last one is a Phix-specific extra.<br>
             0^0 is 1 (as per the standard phix <a href="log.htm">power</a>() function), see mpfr.e for more specific details of +/-0/Inf/NaN handling.<br>
             </dd>
            </dl>
@@ -2035,12 +2071,12 @@ dl {
             As precise as needed/specified in some prior mpfr_set_precision(x) or the x = mpfr_init() call.<br>
             Unfortunately trying to print more than about 42,000 digits of pi crashes (in the dll) on desktop/Phix.<br>
             Note that in pwa/p2js, mpfr_const_pi() uses a very simple 
-            <a href="javascript:ExternalLink('ext357','https://en.wikipedia.org/wiki/Bailey-Borwein-Plouffe_formula');"
+            <a href="javascript:ExternalLink('ext357');" title='https://en.wikipedia.org/wiki/Bailey-Borwein-Plouffe_formula'
                id="ext357" style="color:#9B5565" >BPP</a> based method, which yields 12,000 digits in 4.5s, without 
             any attempt at optimisation, however it should probably not be used for more than say 1000 decimal digits 
             (and in fact I have limited use on rosettacode to 1000 digits), plus it makes no attempt to cache results. 
             In contrast, the gmp routine invoked by desktop/Phix uses a state-of-the-art 
-            <a href="javascript:ExternalLink('ext375','https://en.wikipedia.org/wiki/Chudnovsky_algorithm');"
+            <a href="javascript:ExternalLink('ext375');" title='https://en.wikipedia.org/wiki/Chudnovsky_algorithm'
                id="ext375" style="color:#9B5565" >Chudnovsky</a> method - should anyone want to contribute a (normal 
             hll Phix, or even JavaScript) version of that, feel free. Note however that generating a 100,000 digit string
             in a browser is going to cause it significantly more grief than a 100,000,000 digit string does desktop/Phix,

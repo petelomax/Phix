@@ -1,0 +1,186 @@
+--
+-- demo\xpGUI\gDatePick.exw
+-- ========================
+-- 
+--requires(64)
+with javascript_semantics
+include xpGUI.e
+--gUseGTK() --DEV **not yet attempted**
+
+--gdx date_pick = gDatePick(), -- nb fills the dialog
+--gdx date_pick = gHbox({gDatePick()}),
+gdx date_pick = gHbox({gDatePick()},"MARGIN=13x13"),
+--gdx date_pick = gVbox({gHbox({gDatePick()})}),
+    dialog = gDialog(date_pick,`TITLE="gDatePick",SIZE=240x80`)
+gShow(dialog)
+gMainLoop()
+--/*
+--DEV generate this from "_datepick_icon.png" (or just use Greenfish)
+constant xpm_txt = """
+22 16 23 1
+. c None
+d c #4D6185
+@ c #AFA8A6
+w c #FBFBFB
+x c #F3F3F3
+b c #776B68
+e c #FFFFFF
+f c #EFF2F9
+g c #EAEFF7
+h c #FDFDFD
+i c #F7F7F7
+j c #F3F3F3
+k c #EFEFEF
+l c #F1F1F1
+m c #E1E1E1
+n c #DBDBDB
+o c #CFCFCF
+p c #C8C8C8
+q c #D3D3D3
+r c #CAC9C9
+s c #C3C2C2
+t c #958E8C
+u c #5D5452
+......................
+.@bbbbbbbbb@..........
+.bepppppppfb..........
+.beeeeeeeegbw.........
+.bepppppppgbx.........
+.bepgpgpgpgbk.ddddddd.
+.bepppppppgbk..ddddd..
+.bepgpgpgpgbk...ddd...
+.bepppppppgbk....d....
+.bepgpgpgpgbk.........
+.bfppppppubbk.........
+.bfffffffbtrl.........
+.@bbbbbbbbsmi.........
+..xnoooooqmjh.........
+..wxkkkkklih..........
+......................
+"""
+--/* XPM */
+--static char *_datepick_icon[] = {
+constant xpm_txt = """
+22 16 41 1
+. c None
+! c #AFA8A6
+# c #776B68
+$ c #C8C8C8
+% c #C6C7C7
+& c #C4C5C6
+' c #C2C3C6
+( c #BFC0C4
+) c #EFF2F9
+* c #FDFEFE
++ c #FAFBFD
+, c #F7F8FC
+- c #F3F5FA
+. c #EAEFF7
+/ c #FBFBFB
+0 c #BBBEC3
+1 c #B8BBC2
+2 c #E7ECF5
+3 c #F3F3F3
+4 c #B5B9C0
+5 c #E2E8F4
+6 c #EFEFEF
+7 c #4D6185
+8 c #B1B6BF
+9 c #DEE5F2
+: c #AEB4BE
+; c #DBE3F1
+< c #ACB2BD
+= c #D8E1F0
+> c #A9B0BC
+? c #D6DFEF
+@ c #5D5452
+A c #958E8C
+B c #CAC9C9
+C c #F1F1F1
+D c #C3C2C2
+E c #E1E1E1
+F c #F7F7F7
+G c #DBDBDB
+H c #CFCFCF
+I c #D3D3D3
+J c #FDFDFD
+......................
+.!#########!..........
+.#.$$$%&'()#..........
+.#...*+,-).#/.........
+.#.$%&'(012#3.........
+.#.%+'-0.45#6.7777777.
+.#*&'(01489#6..77777..
+.#+'-0.45:;#6...777...
+.#,(0148:<=#6....7....
+.#-0.45:;>?#6.........
+.#)148:<>@##6.........
+.#.259;=?#ABC.........
+.!########DEF.........
+..3GHHHHHIE3J.........
+../366666CFJ..........
+......................
+"""
+--*/
+
+--/*
+--  (translated from demo\pGUI\IupCalendar, simplified)
+--
+--
+-- demo\pGUI\IupCalendar.exw
+--
+with javascript_semantics
+include pGUI.e
+
+Ihandle datepick
+
+function action_cb(Ihandle /*btn*/)
+    IupSetAttribute(datepick, "VALUE", "1970/07/11")
+    return IUP_DEFAULT
+end function
+
+function value_cb(Ihandle ih)
+    printf(1, "VALUE_CB(%s)\n", IupGetAttribute(ih, "VALUE"))
+    return IUP_DEFAULT
+end function
+
+IupOpen()
+--datepick = IupDatePick("VALUECHANGED_CB", Icallback("value_cb"))
+datepick = IupDatePick("VALUECHANGED_CB", Icallback("value_cb"),
+                       "ZEROPRECED=YES, MONTHSHORTNAMES=Yes")
+Ihandle btn = IupButton("Set Value","ACTION", Icallback("action_cb")),
+        box = IupHbox({datepick,IupFill(),btn},
+                       "NORMALIZESIZE=VERTICAL,MARGIN=10x10"),
+        dlg = IupDialog(box,`TITLE="IupCalendar Test"`)
+-- the following prevents the title getting cropped:
+IupSetAttribute(dlg,"MINSIZE","280x82")
+IupShow(dlg)
+if platform()!=JS then
+    IupMainLoop()
+end if
+--*/
+--/*
+--needs gHbox, NORMALIZESIZE, MARGIN, MINSIZE, IupFill() replacement...
+with javascript_semantics
+include xpGUI.e
+
+gdx datepick
+
+function click(rtn /*btn*/)
+    gSetAttribute(datepick, "VALUE", "1970/07/11")
+    return XPG_DEFAULT
+end function
+
+function value_cb(Ihandle ih)
+    printf(1, "VALUE_CB(%s)\n", IupGetAttribute(ih, "VALUE"))
+    return XPG_DEFAULT
+end function
+
+datepick = gpDatePick("VALUECHANGED", value_cb, "ZEROPRECED=YES, MONTHSHORTNAMES=Yes")
+gdx btn = gButton("Set Value",click),
+    box = gHbox({datepick,IupFill(),btn},"NORMALIZESIZE=VERTICAL,MARGIN=10x10"),
+    dlg = gDialog(box,`gDatePick Test`,"MINSIZE=280x82")
+gSetAttribute(dlg,)
+gShow(dlg)
+gMainLoop()
+--*/

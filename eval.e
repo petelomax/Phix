@@ -224,7 +224,7 @@ global function eval(string code, sequence rset={}, iset={}, ival={})
                                     -- only used for GVars
 
                 K_lit  = #004000,   -- literal flag
-                K_litnoclr = #4200, -- K_lit+K_noclr,               -- DEV S_lnc
+                S_lnc  = #4200,     -- K_lit+K_noclr
 
                     if sv[S_NTyp]<=S_GVar2 then
                         vno = sv[S_Slink]   --DEV +gbase

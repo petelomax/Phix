@@ -2,30 +2,76 @@
 -- demo\xpGUI\gButton.exw
 -- ======================
 -- 
---requires(64)
+--  DEV initial focus... initial size...
+--
+--with trace
 with javascript_semantics
+--requires(64,true)
 include xpGUI.e
+--include backup\xpGUI.4098.e   -- ok
+--include backup\xpGUI.2344.e   -- ok
+--include backup\xpGUI.2355.e   -- ok
+--include backup\xpGUI.2357.e   -- ok
+--include backup\xpGUI.2366.e   -- bad
+--include backup\xpGUI.2367.e   -- bad
+--include backup\xpGUI.2380.e   -- bad
 --gUseGTK()
+--win32/64: 99x24 +{2,2} - yep, 101x26.
+--gtk32: 95x26
+--gtk64: 117x34 -- (got 1x1 belatedly) -- 119x34 belatedly -- now 117x34 (yeah!)
 
--- function mini_porting_helper(bool bJustCheck) // or include pGUI_to_xpGUI.e, maybe.
---  if bJustCheck is false, converts the clipboard contents, as per the
---  "porting from pGUI" entry in the xpGUI docs (just text mangling).
---  returns true if the clipboard contains "include pGUI.e" (not xpGUI.e)
--- end function
-
-function click(gdx btn)
-    ?"click"
---  gSetInt(btn,"ACTIVE",mini_porting_helper(false))
---  return XPG_IGNORE
-    return 0
+-- aside: this code will hopefully be gone by 2024:
+-- ("click me" -> "clicked %d times", I expect)
+include builtins\xpGUI_from_pGUI.e
+gdx clipboard = gClipboard()
+function mini_porting_helper(bool bJustCheck)
+    object text = gGetAttribute(clipboard,"TEXT","")
+    if not string(text) then return false end if
+    if not bJustCheck then
+        text = xpGUI_from_pGUI(text)
+        gSetAttribute(clipboard,"TEXT",text)
+    end if
+    return match("include pGUI.e",text)
+    --     aside: ^mangled by xpGUI_from_pGUI()
 end function
 
-gdx button = gButton(`port from pGUI`,click),
-    window = gDialog(button,`TITLE="Button",SIZE=350x300`)
---gSetAttribute(button,"ACTIVE",mini_porting_helper(true))
-gShow(window)
-gMainLoop()
---?"done"
---wait_key()
+function action(gdx btn)
+--?"action!"
+    gSetAttribute(btn,"ACTIVE",mini_porting_helper(false))
+    gSetAttribute(btn,"TITLE","ported")
+    return XPG_DEFAULT
+end function
 
+--function key_handler(gdx id, integer c, bool ctrl, shift, alt) 
+--  ?{"key_handler",id,c,ctrl,shift,alt}
+--  return XPG_DEFAULT
+--end function
+
+--gdx btn = gButton(`port from pGUI`,action),        -- nb fills the window
+--gdx btn = gHbox({gButton(`port from pGUI`,action)}), -- WinAPI ok, GTK not
+gdx btn = gButton(`&port from pGUI`,action),
+--gdx btn = gButton(`&port from pGUI`,action,"MARGIN=11x11"),
+--gdx btn = gButton(`&port from pGUI`,action,"FLAT=YES"),
+--gdx btn = gButton(`port from pGUI`,action,"PADDING=10"),
+--  hbx = gVbox({gHbox({btn})}),
+--  hbx = gVbox({btn}),
+    hbx = gHbox({btn},`MARGIN=11x11`),
+--  hbx = btn,
+    dlg = gDialog(hbx,`gButton`,`SIZE=240x80`)
+--  dlg = gDialog(hbx,`gButton`,`SIZE=226x73`)
+--DEV 236x68...
+--  dlg = gDialog(hbx,`TITLE="gButton",SIZE=226x73,RESIZE=NO`)
+--gSetHandler(dlg,"KEY",key_handler)
+--gSetAttribute(btn,"ACTIVE",mini_porting_helper(true))
+gSetAttribute(btn,"TIP","This is a button")
+--gSetBodge(btn,{0,0,101,26})
+gShow(dlg)
+--DEV (win32) tab still/somehow kills focus, onto nothing
+--gSetFocus(btn) -- (test, should not change (active) behaviour/apparance...) [DEV, it does...]
+--gSetFocus(NULL) -- (test, should not change (active) behaviour/apparance...) [DEV, it does...]
+--?gGetAttribute(btn,"TITLE")
+--rtn q = gGetHandler(btn,"CLICK")
+----integer q = gGetHandler(btn,"CLICK")
+--?q(btn) -- (-2)
+gMainLoop()
 

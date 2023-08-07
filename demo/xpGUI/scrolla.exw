@@ -1,0 +1,973 @@
+-- Starter for arwen-cutdowns: includes, globals, and most constants sorted out...
+--include ../arwen/Arwen.ew
+without profile
+requires(32)
+requires(WINDOWS)
+include builtins\peekstr.e
+include builtins\VM\pcmdlnN.e
+include builtins\pmaths.e
+include builtins\ptagset.e
+include builtins\VM\pcfunc.e
+include builtins\VM\pFloatN.e
+include builtins\find.e
+include builtins\VM\pprntfN.e
+include builtins\porall.e
+
+with profile
+
+object void -- ubiquitous assignee variable
+
+constant
+
+    GWL_USERDATA = -21,
+
+    ---------------
+    -- Class Styles
+    ---------------
+    CS_VREDRAW = 1,
+    CS_HREDRAW = 2,
+    CS_DBLCLKS = 8,
+    CS_OWNDC = #20,
+
+    -----------------
+    -- Windows Styles
+    -----------------
+    WS_HSCROLL          =  #00100000,
+    WS_VSCROLL          =  #00200000,
+
+    WS_OVERLAPPEDWINDOW =  #00CF0000,   --= WS_BORDER+WS_DLGFRAME+WS_SYSMENU+WS_SIZEBOX+WS_MINIMISEBOX+WS_MAXIMISEBOX
+
+    --------------------------
+    -- Extended Windows Styles
+    --------------------------
+    WS_EX_ACCEPTFILES       =  #00000010,
+
+    SW_NORMAL          = 1,
+    WM_DESTROY = 2,
+    WM_SIZE = 5,
+    WM_PAINT = 15,
+    WM_CLOSE = 16,
+    WM_MOUSEACTIVATE = 33,
+
+--  WM_KEYFIRST = 256,
+    WM_KEYDOWN = 256,
+--  WM_KEYUP = 257,
+    WM_CHAR = 258,
+    WM_SYSKEYDOWN = 260,
+--  WM_SYSKEYUP = 261,
+--  WM_SYSCHAR = 262,
+--  WM_KEYLAST = 264,
+
+    WM_HSCROLL = 276,
+    WM_VSCROLL = 277,
+
+--  WM_MOUSEFIRST = 512,
+        WM_MOUSEMOVE = 512,
+--      WM_LBUTTONDOWN = 513,
+--      WM_LBUTTONUP = 514,
+--      WM_LBUTTONDBLCLK = 515,
+--      WM_RBUTTONDOWN = 516,
+--      WM_RBUTTONUP = 517,
+--      WM_RBUTTONDBLCLK = 518,
+--      WM_MBUTTONDOWN = 519,
+--      WM_MBUTTONUP = 520,
+        WM_MBUTTONDBLCLK = 521,
+--  WM_MOUSELAST = 521,
+
+    WM_SIZING = 532,    -- (see WMSZ_xxx below)
+    WM_MOVING = 534,
+    WM_MOUSEHOVER = #02A1, -- 673
+    WM_MOUSELEAVE = #02A3, -- 675
+
+    IDI_APPLICATION = 32512, -- icon signifying plain window
+    NULL_BRUSH = 5,
+    COLOR_BTNFACE = 15,
+    SRCCOPY     =  #CC0020,
+
+    --------------
+    -- SCROLL BARS  
+    --------------
+    -- style
+--  SBS_BOTTOMALIGN = 4,
+--  SBS_HORZ = 0,
+--  SBS_VERT = 1,
+--  SBS_LEFTALIGN = 2,
+--  SBS_RIGHTALIGN = 4,
+--  SBS_SIZEBOX = 8,
+--  SBS_SIZEBOXBOTTOMRIGHTALIGN = 4,
+--  SBS_SIZEBOXTOPLEFTALIGN = 2,
+--  SBS_SIZEGRIP = 16,
+--  SBS_TOPALIGN = 2,
+    -- sort
+    SB_HORZ = 0,
+    SB_VERT = 1,
+--  SB_CTL = 2,
+--  SB_BOTH = 3,
+    -- scroll notifications
+    SB_LINEUP = 0,
+--  SB_LINELEFT = 0,
+    SB_LINEDOWN = 1,
+--  SB_LINERIGHT = 1,
+    SB_PAGEUP = 2,
+--  SB_PAGELEFT = 2,
+    SB_PAGEDOWN = 3,
+--  SB_PAGERIGHT = 3,
+--  SB_THUMBPOSITION = 4,
+    SB_THUMBTRACK = 5,
+    SB_TOP = 6,
+--  SB_LEFT = 6,
+    SB_BOTTOM = 7,
+--  SB_RIGHT = 7,
+--  SB_ENDSCROLL = 8,
+    -- scroll info flags
+    SIF_RANGE = #1,
+    SIF_PAGE = #2,
+    SIF_POS = #4,
+--  SIF_DISABLENOSCROLL = #8,
+    SIF_TRACKPOS = #10,
+
+    SIF_ALL = or_all({SIF_RANGE,SIF_PAGE,SIF_POS,SIF_TRACKPOS}),
+    
+    -- scroll bar messages
+--  SBM_ENABLE_ARROWS = 228,
+--  SBM_GETPOS = 225,
+--  SBM_GETRANGE = 227,
+--  SBM_GETSCROLLINFO = 234,
+--  SBM_SETPOS = 224,
+--  SBM_SETRANGE = 226,
+--  SBM_SETRANGEREDRAW = 230,
+--  SBM_SETSCROLLINFO = 233,
+
+    VK_ESCAPE = 27,
+    R2_COPYPEN = 13,        -- Pixel is the pen color.
+    Solid = 0
+
+--/**/include builtins\misc.e
+--/**/include builtins\machine.e
+--/**/include builtins\dll.e
+
+--#without reformat
+constant
+    user32   = open_dll("user32.dll"),
+    gdi32    = open_dll("gdi32.dll"),
+
+    xCreateCompatibleDC = define_c_func(gdi32, "CreateCompatibleDC",
+        {C_PTR},    --  HDC  hdc    // handle of memory device context
+        C_PTR),     -- HDC
+
+    xGetDC = define_c_func(user32, "GetDC",
+        {C_PTR},    --  HWND  hWnd  // handle of window
+        C_PTR),     -- HDC
+
+    xBeginPaint = define_c_func(user32, "BeginPaint",
+        {C_PTR,     --  HWND  hwnd, // handle of window
+         C_PTR},    --  LPPAINTSTRUCT  lpPaint  // address of structure for paint information
+        C_PTR),     -- HDC
+
+    xEndPaint = define_c_proc(user32, "EndPaint",
+        {C_PTR,     --  HWND  hWnd, // handle of window
+         C_PTR}),   -- CONST PAINTSTRUCT  *lpPaint  // address of structure for paint data
+--      C_INT),     -- BOOL (function always returns true so linked as c_proc)
+
+    xInvalidateRect = define_c_func(user32, "InvalidateRect",
+        {C_PTR,     --  HWND  hWnd, // handle of window with changed update region
+         C_PTR,     --  CONST RECT  * lpRect,   // address of rectangle coordinates
+         C_USHORT}, --  BOOL  bErase    // erase-background flag
+        C_USHORT),  -- BOOL
+
+    xGetStockObject = define_c_func(gdi32, "GetStockObject",
+        {C_INT},    --  int  fnObject   // type of stock object
+        C_INT),     -- HGDIOBJ GetStockObject(
+
+    xSelectObject = define_c_func(gdi32, "SelectObject",
+        {C_PTR,     --  HDC  hdc,   // handle of device context
+         C_PTR},    --  HGDIOBJ  hgdiobj    // handle of object
+        C_PTR),     -- HGDIOBJ
+
+    xDeleteObject = define_c_func(gdi32, "DeleteObject",
+        {C_PTR},    --  HGDIOBJ  hObject    // handle of graphic object
+        C_LONG),    -- BOOL
+           
+    xCreateSolidBrush = define_c_func(gdi32, "CreateSolidBrush",
+        {C_UINT},   --  COLORREF  crColor   // brush color value
+        C_PTR),     -- HBRUSH
+
+    xSetBkColor = define_c_func(gdi32, "SetBkColor",
+        {C_PTR,     --  HDC  hdc,   // handle of device context
+         C_PTR},    --  COLORREF  crColor   // background color value
+        C_PTR),     -- COLORREF
+
+    xGetSysColor = define_c_func(user32, "GetSysColor",
+        {C_INT},    --  int  nIndex     // display element
+        C_LONG),    -- DWORD
+
+    xRectangle = define_c_func(gdi32, "Rectangle",
+        {C_PTR,     --  HDC  hdc,   // handle of device context
+         C_INT,     --  int  nLeftRect,     // x-coord. of bounding rectangle's upper-left corner
+         C_INT,     --  int  nTopRect,      // y-coord. of bounding rectangle's upper-left corner
+         C_INT,     --  int  nRightRect,    // x-coord. of bounding rectangle's lower-right corner
+         C_INT},    --  int  nBottomRect    // y-coord. of bounding rectangle's lower-right corner
+        C_LONG),    -- BOOL
+
+    xCreateCompatibleBitmap = define_c_func(gdi32, "CreateCompatibleBitmap", {C_PTR, C_INT, C_INT}, C_PTR),
+
+    xLoadIcon   = define_c_func(user32, "LoadIconA", {C_PTR, C_PTR}, C_PTR),
+    xLoadCursor = define_c_func(user32, "LoadCursorA", {C_PTR, C_INT}, C_INT),
+    xBitBlt     = define_c_func(gdi32, "BitBlt", {C_LONG, C_INT, C_INT, C_INT, C_INT, C_LONG, C_INT, C_INT, C_LONG}, C_INT),
+    xStretchBlt = define_c_func(gdi32, "StretchBlt", {C_LONG, C_INT, C_INT, C_INT, C_INT, C_LONG, C_INT, C_INT, C_INT, C_INT, C_LONG}, C_INT),
+
+    xRegisterClassEx = define_c_func(user32, "RegisterClassExA",
+        {C_PTR},    --  CONST WNDCLASSEX FAR *lpwcx // address of structure with class data
+        C_PTR),     -- ATOM
+
+    xCreateWindowEx = define_c_func(user32,"CreateWindowExA",
+        {C_LONG,    --  DWORD  dwExStyle,   // extended window style
+         C_PTR,     --  LPCTSTR  lpClassName,       // address of registered class name
+         C_PTR,     --  LPCTSTR  lpWindowName,      // address of window name
+         C_LONG,    --  DWORD  dwStyle,     // window style
+         C_INT,     --  int  x,     // horizontal position of window
+         C_INT,     --  int  y,     // vertical position of window
+         C_INT,     --  int  nWidth,        // window width
+         C_INT,     --  int  nHeight,       // window height
+         C_PTR,     --  HWND  hWndParent,   // handle of parent or owner window
+         C_PTR,     --  HMENU  hMenu,       // handle of menu or child-window identifier
+         C_PTR,     --  HANDLE  hInstance,  // handle of application instance
+         C_PTR},    --  LPVOID  lpParam     // address of window-creation data
+        C_PTR),     -- HWND
+
+    xShowWindow = define_c_proc(user32, "ShowWindow",
+        {C_PTR,     --  HWND  hwnd, // handle of window
+         C_INT}),   --  int  nCmdShow   // show state of window
+
+    xDestroyWindow = define_c_func(user32, "DestroyWindow",
+        {C_PTR},    --  HWND  hWnd  // handle of window to destroy
+        C_LONG),    -- BOOL
+
+    xGetWindowLong = define_c_func(user32, "GetWindowLongA",
+        {C_PTR,     --  HWND  hWnd,     // handle of window
+         C_UINT},   --  int  nIndex     // offset of value to retrieve
+        C_LONG),    -- LONG
+
+    xSetWindowLong = define_c_func(user32, "SetWindowLongA",
+        {C_PTR,     --  HWND  hWnd,     // handle of window
+         C_UINT,    --  int  nIndex     // offset of value to store
+         C_LONG},   --  LONG dwNewLong  // value to store
+        C_LONG),    -- LONG             // previous value
+
+    xGetClientRect = define_c_func(user32, "GetClientRect", {C_PTR, C_PTR}, C_LONG),
+
+    xGetMessage = define_c_func(user32, "GetMessageA",
+        {C_PTR,     --  LPMSG  lpMsg,       // address of structure with message
+         C_PTR,     --  HWND  hWnd, // handle of window
+         C_UINT,    --  UINT  wMsgFilterMin,        // first message
+         C_UINT},   --  UINT  wMsgFilterMax         // last message
+         C_INT),    -- BOOL
+
+    xTranslateMessage = define_c_proc(user32, "TranslateMessage",
+        {C_PTR}),   --  CONST MSG  *lpmsg   // address of structure with message
+        -- BOOL
+
+    xDispatchMessage = define_c_func(user32, "DispatchMessageA",
+        {C_PTR},    --  CONST MSG  * lpmsg  // address of structure with message
+        C_LONG),    -- LONG
+
+    xSendMessage = define_c_func(user32, "SendMessageA",
+        {C_PTR,     --  HWND  hwnd, // handle of destination window
+         C_UINT,    --  UINT  uMsg, // message to send
+         C_UINT,    --  WPARAM  wParam, // first message parameter
+         C_UINT},   --  LPARAM  lParam  // second message parameter
+        C_LONG),    -- LRESULT
+
+    xPostQuitMessage = define_c_proc(user32, "PostQuitMessage",
+        {C_INT}),   --  int  nExitCode      // exit code
+
+    xDefWindowProc = define_c_func(user32, "DefWindowProcA",
+        {C_PTR,     --  HWND  hWnd, // handle of window
+         C_UINT,    --  UINT  Msg,  // message identifier
+         C_UINT,    --  WPARAM  wParam, // first message parameter
+         C_UINT},   --  LPARAM  lParam  // second message parameter
+        C_PTR),     -- LRESULT
+
+    xCallWindowProc = define_c_func(user32, "CallWindowProcA",  {C_PTR,C_PTR,C_UINT,C_UINT,C_UINT}, C_PTR),
+
+    xGetScrollInfo = define_c_func(user32, "GetScrollInfo", {C_PTR, C_INT, C_PTR}, C_INT),
+    xSetScrollInfo = define_c_func(user32, "SetScrollInfo", {C_PTR, C_INT, C_PTR, C_INT}, C_INT),   
+--/*
+    xGetScrollPos = define_c_func(user32, "GetScrollPos", {C_PTR, C_INT}, C_INT),
+--  xSetScrollPos = define_c_func(user32, "SetScrollPos", {C_PTR, C_INT, C_PTR, C_SHORT}, C_INT),
+--*/
+    xCreatePen = define_c_func(gdi32,"CreatePen",
+        {C_INT,     --  int  fnPenStyle,    // pen style 
+         C_INT,     --  int  nWidth,    // pen width  
+         C_INT},    --  COLORREF  crColor   // pen color 
+        C_PTR),     -- HPEN handle to pen
+
+    xSetROP2 = define_c_func(gdi32, "SetROP2", {C_PTR, C_LONG}, C_LONG),
+
+    xRoundRect = define_c_func(gdi32,"RoundRect",{C_PTR,C_INT,C_INT,C_INT,C_INT,C_INT,C_INT},C_INT),
+$
+
+sequence ListOfStructures = {}  -- holds sizes of each structure
+integer CurrentStructure,   -- points to latest structure being built
+        LatestSize          -- current size of latest structure being built
+
+function new_struct()
+    ListOfStructures &= 0
+    CurrentStructure = length(ListOfStructures)
+    LatestSize = 0
+    return CurrentStructure
+end function
+
+function sizeofstruct(integer id)
+    return ListOfStructures[id]
+end function
+
+function struc(integer sType)
+    integer disp = LatestSize, size
+    if sType > #00FFFFFF then -- this type is defined in dll.e
+        size = and_bits(sType, #00FFFFFF)
+    else
+        size = ListOfStructures[sType]
+    end if
+    LatestSize += size
+    ListOfStructures[CurrentStructure] = LatestSize
+    return disp
+end function
+
+function anySize(integer size) -- allow arbitrary sized elements
+    return or_bits(#01000000, size)
+end function
+
+constant
+    -- Define RECT Structure
+    RECT        = new_struct(), 
+    RECT_left   = struc(C_LONG),
+    RECT_top    = struc(C_LONG),
+    RECT_right  = struc(C_LONG),
+    RECT_bottom = struc(C_LONG),
+    pRECT = allocate(sizeofstruct(RECT)),
+
+    -- Define POINT Structure
+    POINT       = new_struct(),
+    POINT_x     = struc(C_LONG),
+    POINT_Y     = struc(C_LONG),
+
+    -- Define PAINTSTRUCT Structure
+    PAINTSTRUCT             = new_struct(),
+    PAINTSTRUCT_hdc         = struc(C_LONG),
+    PAINTSTRUCT_fErase      = struc(C_UINT),
+    PAINTSTRUCT_rcPaint     = struc(RECT),
+    PAINTSTRUCT_fRestore    = struc(C_UINT),
+    PAINTSTRUCT_fIncUpdate  = struc(C_UINT),
+    PAINTSTRUCT_rgbReserved = struc(anySize(32)),
+    pPAINT = allocate(sizeofstruct(PAINTSTRUCT)),
+
+    -- Define WNDCLASSEX Structure
+    WNDCLASSEX                  = new_struct(),
+    WNDCLASSEX_cbSize           = struc(C_LONG), 
+    WNDCLASSEX_style            = struc(C_LONG), 
+    WNDCLASSEX_lpfnWndProc      = struc(C_PTR), 
+    WNDCLASSEX_cbClsExtra       = struc(C_LONG), 
+    WNDCLASSEX_cbWndExtra       = struc(C_LONG), 
+    WNDCLASSEX_hInstance        = struc(C_LONG), 
+    WNDCLASSEX_hIcon            = struc(C_LONG), 
+    WNDCLASSEX_hCursor          = struc(C_LONG), 
+    WNDCLASSEX_hbrBackground    = struc(C_LONG), 
+    WNDCLASSEX_lpszMenuName     = struc(C_PTR), 
+    WNDCLASSEX_lpszClassName    = struc(C_PTR), 
+    WNDCLASSEX_hIconSm          = struc(C_LONG),
+    pWNDCLASS = allocate(sizeofstruct(WNDCLASSEX)),
+
+    -- Define MSG Structure
+    MSG             = new_struct(),
+    MSG_hwnd        = struc(C_PTR),
+    MSG_message     = struc(C_UINT),
+    MSG_wParam      = struc(C_UINT),
+    MSG_lParam      = struc(C_UINT),
+    MSG_time        = struc(C_LONG),
+    MSG_pt          = struc(POINT),
+    pMSG = allocate(sizeofstruct(MSG)),
+
+    -- Define SCROLLINFO Structure
+    SCROLLINFO              = new_struct(),
+    SCROLLINFO_cbSize       = struc(C_UINT),
+    SCROLLINFO_fMask        = struc(C_UINT),
+    SCROLLINFO_nMin         = struc(C_INT),
+    SCROLLINFO_nMax         = struc(C_INT),
+    SCROLLINFO_nPage        = struc(C_UINT),
+    SCROLLINFO_nPos         = struc(C_INT),
+    SCROLLINFO_nTrackPos    = struc(C_INT),
+    pSCROLL = allocate(sizeofstruct(SCROLLINFO))
+
+constant WINDOW = 0,
+         Window = 1
+
+sequence className = {""},
+         classBase = {WINDOW},
+        classStyle = {WS_OVERLAPPEDWINDOW},
+      classStyleEx = {WS_EX_ACCEPTFILES}
+
+constant UNDEFINED = -1
+
+integer PrimaryWindowID = UNDEFINED -- id of the main application window
+
+function rgb(integer r, integer g, integer b)
+    return r + g*256 + b*65536
+end function
+
+constant
+    Black           = rgb(  0,   0,   0),
+    Green           = rgb(  0, 128,   0),
+    BrightRed       = rgb(255,   0,   0),
+    Parchment       = rgb(255, 255, 224),
+    BrightWhite     = rgb(255, 255, 255)
+
+atom WndProcCallBack        -- 32-bit callback address for WndProc routine
+
+sequence
+    ObjectClass = {},       -- integer:     holds the base class for each entity
+    ObjectType = {},        -- integer:     Holds the type of each control defined in classes.ew
+    ObjectHwnd = {},        -- atom:        Hwnd of each control.
+    ObjectDC = {},
+    HandlerRoutine = {}     -- integer:     routine id's for each control
+
+function addControl(integer ControlType, atom hwnd)
+    ObjectClass     &= 0
+    ObjectType      &= 0
+    ObjectHwnd      &= 0
+    ObjectDC        &= 0
+    HandlerRoutine  &= 0
+    integer id = length(ObjectHwnd)
+    ObjectClass     [id] = classBase[ControlType]
+    ObjectType      [id] = ControlType
+    ObjectHwnd      [id] = hwnd
+    ObjectDC        [id] = UNDEFINED
+    HandlerRoutine  [id] = UNDEFINED
+    return id
+end function
+
+function getID(atom hwnd)
+    return c_func(xGetWindowLong,{hwnd,GWL_USERDATA})
+end function
+
+procedure setID(atom hwnd, integer id)
+    void = c_func(xSetWindowLong,{hwnd,GWL_USERDATA,id})
+end procedure
+
+function sendMessage(integer id, atom cmd, wParam, lParam)
+    atom result = c_func(xSendMessage,{ObjectHwnd[id],cmd,wParam,lParam})
+    return result
+end function
+
+function loadCursor(integer fName)
+    return c_func(xLoadCursor, {NULL, fName})
+end function
+
+function getClientRect(integer id)
+-- returns {left,top,width,height}
+    atom hwnd = ObjectHwnd[id]
+    assert(c_func(xGetClientRect, {hwnd, pRECT}))
+    sequence rect = peek4u({pRECT,4})
+    return rect
+end function
+
+procedure openWindow(integer id, integer styleFlag)
+    atom hwnd = ObjectHwnd[id]
+    c_proc(xShowWindow,{hwnd,styleFlag})
+end procedure
+
+procedure closeWindow(integer id)
+    void = c_func(xSendMessage,{ObjectHwnd[id],WM_CLOSE,0,0}) -- this line has the better way of closing!!!
+--  void = c_func(xCloseWindow,{ObjectHwnd[id]}) -- this function will minimize a child window or minimize & 
+--                                               --  half close a main window. very poor name & behaviour!
+end procedure
+
+procedure repaintWindow(object id, integer bErase=0)
+    if c_func(xInvalidateRect,{ObjectHwnd[id],NULL,bErase}) then
+        void = sendMessage(id,WM_PAINT,0,0)
+    end if
+end procedure
+
+procedure setScrollInfo(sequence id, object settings, integer fRedraw)
+-- settings is a sequence [Min]MaxPagePosTrack for scroll bars
+-- or MinMax[PagePos] for track bars, NB: line size is 1 for TrackBars unless user sends message to do other
+-- or MinMax[StepPos] for ProgressBars
+    integer {id1,fnBar} = id
+    atom hwnd = ObjectHwnd[id1]
+    poke4(pSCROLL + SCROLLINFO_cbSize,      sizeofstruct(SCROLLINFO))
+    poke4(pSCROLL + SCROLLINFO_fMask,       SIF_ALL)-- THIS WAS PREVIOUSLY ONE OF THE routine parameters
+    poke4(pSCROLL + SCROLLINFO_nMin,        settings) -- single call to insert up to 5 values (MinMaxPagePosTrack)
+--  poke4(pSCROLL + SCROLLINFO_nMax,        max)
+--  poke4(pSCROLL + SCROLLINFO_nPage,       page)
+--  poke4(pSCROLL + SCROLLINFO_nPos,        pos)
+--  poke4(pSCROLL + SCROLLINFO_nTrackPos, trackpos)
+    void = c_func(xSetScrollInfo, {hwnd, fnBar, pSCROLL, fRedraw})
+end procedure
+
+procedure setHandler(integer id, integer r_id)
+    HandlerRoutine[id] = r_id
+end procedure
+
+local function get_raw_string_ptr(string s)
+--
+-- Returns a raw string pointer for s, somewhat like allocate_string(s) but using the existing memory.
+-- NOTE: The return is only valid as long as the value passed as the parameter remains in existence.
+--       In particular, callbacks must make a semi-permanent copy somewhere other than locals/temps.
+--       (one example in xpGUI where that /still/ applies would be in setting say tvItem.pszText)
+--
+    atom res
+    #ilASM{
+        [32]
+            mov eax,[s]
+            lea edi,[res]
+            shl eax,2
+        [64]
+            mov rax,[s]
+            lea rdi,[res]
+            shl rax,2
+        []
+            call :%pStoreMint
+          }
+    return res
+end function
+
+function registerClass(sequence classname, atom classstyle, atom wndproc, atom icon_handle, atom cursor_handle, atom brush)
+    atom szAppName = get_raw_string_ptr(classname)
+    poke4(pWNDCLASS + WNDCLASSEX_cbSize,            sizeofstruct(WNDCLASSEX))
+    poke4(pWNDCLASS + WNDCLASSEX_style,             classstyle)
+    poke4(pWNDCLASS + WNDCLASSEX_lpfnWndProc,       wndproc) -- default message handler
+    poke4(pWNDCLASS + WNDCLASSEX_cbClsExtra,        0) -- no more than 40 bytes for win95
+    poke4(pWNDCLASS + WNDCLASSEX_cbWndExtra,        0) -- "		"      "		"        "
+    poke4(pWNDCLASS + WNDCLASSEX_hInstance,         instance())
+    poke4(pWNDCLASS + WNDCLASSEX_hIcon,             icon_handle)    -- (32 x 32)
+    poke4(pWNDCLASS + WNDCLASSEX_hIconSm,           icon_handle)    -- (16 x 16)
+    poke4(pWNDCLASS + WNDCLASSEX_hCursor,           cursor_handle)
+    poke4(pWNDCLASS + WNDCLASSEX_hbrBackground,     brush)
+    poke4(pWNDCLASS + WNDCLASSEX_lpszMenuName,      NULL)
+    poke4(pWNDCLASS + WNDCLASSEX_lpszClassName,     szAppName)
+    atom regdclass = c_func(xRegisterClassEx,{pWNDCLASS})
+    return regdclass -- could be NULL at times
+end function
+
+integer nextWinClass = 1
+atom hwIcon = c_func(xLoadIcon,{instance(),10})
+
+function create(integer ControlType, object lbl, atom x, atom y, atom nWidth, atom nHeight, style)
+    assert(ControlType=Window)
+    atom dwStyle = or_bits(style, classStyle[ControlType]),
+         dwExStyle = classStyleEx[ControlType],
+         vWindowClassStyle = or_all({CS_DBLCLKS, CS_HREDRAW, CS_VREDRAW, CS_OWNDC}),
+         pHwnd = NULL
+
+    string classname = sprintf("ARWEN Win32%d",nextWinClass)
+    nextWinClass += 1
+    if not registerClass(classname,
+                         vWindowClassStyle,
+                         WndProcCallBack,
+                         hwIcon,
+                         loadCursor(IDI_APPLICATION),
+                         COLOR_BTNFACE+1) then  -- NB: other brushes have restrictions
+                                                --  (see GetStockObject in win32.hlp)
+        crash("Registration of new window class: "& classname &" failed.")
+    end if
+
+    sequence cwp = {dwExStyle,      -- extended style
+                    classname,  -- window class name
+                    lbl,    -- window caption or Button text etc..
+                    dwStyle,            -- window style
+                    x,              -- initial x position
+                    y,              -- initial y position
+                    nWidth,         -- initial x size
+                    nHeight,            -- initial y size
+                    pHwnd,          -- parent window handle
+                    NULL,           -- window menu handle OR user id for child windows
+                    NULL,           -- program instance handle - Legacy of Win16 apps. 0 will work too.
+                    NULL}           -- creation parameters
+    atom hwnd = c_func(xCreateWindowEx, cwp)
+
+    -- add new object to internally maintained object list
+    integer id = addControl(ControlType, hwnd)
+
+    setID(hwnd, id)
+
+    -- WINDOW
+    if ControlType=Window then
+
+        -- store the Private DC
+        atom tmp = c_func(xGetDC,{hwnd})
+        ObjectDC[id] = tmp
+
+        -- catch the handle of the first window created
+        if PrimaryWindowID=UNDEFINED then
+            PrimaryWindowID = id
+        end if
+
+        -- STANDARD (builtin)SCROLL BARS
+        if and_bits(dwStyle, WS_HSCROLL) then
+            setScrollInfo({id,SB_HORZ},{1,100,10,1},1)
+        end if
+        if and_bits(dwStyle, WS_VSCROLL) then
+            setScrollInfo({id,SB_VERT},{1,100,10,1},1)
+        end if
+    end if
+    return id
+end function
+
+function proc_ScrollMessage(integer id, integer fnBar, atom request)
+    request = and_bits(request, #FFFF)
+    integer ssize = sizeofstruct(SCROLLINFO)
+    atom hwnd = ObjectHwnd[id]
+    poke4(pSCROLL + SCROLLINFO_cbSize, ssize)
+    poke4(pSCROLL + SCROLLINFO_fMask, SIF_ALL)
+    assert(c_func(xGetScrollInfo, {hwnd, fnBar, pSCROLL}))
+
+    -- retrieve the values
+    atom minp = peek4s(pSCROLL + SCROLLINFO_nMin),
+         maxp = peek4s(pSCROLL + SCROLLINFO_nMax),
+         page = peek4u(pSCROLL + SCROLLINFO_nPage),
+          pos = peek4s(pSCROLL + SCROLLINFO_nPos),
+     trackpos = peek4s(pSCROLL + SCROLLINFO_nTrackPos),
+     max_move = maxp - page + 1,
+         temp = pos
+
+    -- process each scroll request, note dragging has first priority
+    if request=SB_THUMBTRACK then--or request=SB_THUMBPOSITION then
+        temp = trackpos
+    elsif request=SB_PAGEDOWN then -- ==SB_PAGERIGHT
+        temp += page
+
+    elsif request=SB_PAGEUP then -- ==SB_PAGELEFT
+        temp -= page
+
+    elsif request=SB_LINEDOWN then -- ==SB_LINERIGHT
+        temp += 1
+
+    elsif request=SB_LINEUP then -- ==SB_LINELEFT
+        temp -= 1
+
+    elsif request=SB_BOTTOM then
+        temp = max_move
+
+    elsif request=SB_TOP then
+        pos = minp
+
+    else -- must be other scroll message that I don't want to process
+        return {}
+    end if
+
+    -- ensure boundaries are maintained
+    if temp<minp then
+        temp = minp
+    elsif temp>max_move then
+        temp = max_move
+    end if
+    -- exit if no real movement occurred
+    if temp=pos then return {} end if
+    poke4(pSCROLL + SCROLLINFO_nPos, temp)
+    void = c_func(xSetScrollInfo, {hwnd, fnBar, pSCROLL, True})
+    return temp
+end function
+
+function proc_SizeMessage(integer id)
+    assert(c_func(xGetClientRect, {ObjectHwnd[id], pRECT}))
+    -- (client rects are {0,0,width,height})
+    integer width = peek4s(pRECT + RECT_right),
+           height = peek4s(pRECT + RECT_bottom)
+    return {0, 0, width, height}
+end function
+
+function proc_MouseMessage(atom lParam)
+    integer xPos = and_bits(lParam, #FFFF),
+            yPos = floor(lParam / #10000)   
+    if xPos>32767 then xPos -= 65536 end if
+    if yPos>32767 then yPos -= 65536 end if
+    return {xPos, yPos}
+end function
+
+function isMouseMsg(integer msg)
+    if msg>=WM_MOUSEMOVE and msg<=WM_MBUTTONDBLCLK then
+        return True
+    elsif msg=WM_MOUSEHOVER then
+        return True
+    elsif msg=WM_MOUSELEAVE then
+        return True
+    elsif msg=WM_MOUSEACTIVATE then
+        return True
+    end if
+    return False
+end function
+
+function WndProc(atom hwnd, atom msg, atom wParam, atom lParam)
+    integer id = getID(hwnd)
+    if id!=0 then
+        integer iHandler = HandlerRoutine[id]
+        object return_value = 0, temp
+        if isMouseMsg(msg) then -- mouse event occurred
+            temp = proc_MouseMessage(lParam) -- {x, y} coords
+            if iHandler!=UNDEFINED then
+                return_value = call_func(iHandler, {id, msg, wParam, temp}) -- PL fixed bug here
+            end if
+            return 0
+        elsif msg=WM_PAINT then
+            atom hdc = c_func(xBeginPaint,{hwnd,pPAINT})
+            if iHandler!=UNDEFINED then
+                -- extract client paint coords & send to the handler routine with the DC
+                temp = peek4u({pPAINT+PAINTSTRUCT_rcPaint,4})
+                void = call_func(iHandler, {id, msg, hdc, temp})
+            end if
+            c_proc(xEndPaint, {hwnd, pPAINT})
+            return 0
+        elsif msg=WM_KEYDOWN 
+           or msg=WM_SYSKEYDOWN then
+            if iHandler!=UNDEFINED then
+                return_value = call_func(iHandler, {id, msg, wParam, lParam})
+            end if
+            return c_func(xDefWindowProc, {hwnd, msg, wParam, lParam})
+        elsif (msg=WM_HSCROLL or msg=WM_VSCROLL) then
+            integer iPart = iff(msg=WM_VSCROLL?SB_VERT:SB_HORZ)
+            temp = proc_ScrollMessage(id,iPart,wParam)
+            if atom(temp) and iHandler!=UNDEFINED then
+                void = call_func(iHandler, {id, msg, temp, 0})
+            end if
+            return 0
+        elsif msg=WM_SIZE then
+            sequence client_rect = proc_SizeMessage(id)
+            if iHandler!=UNDEFINED then
+                void = call_func(iHandler,{id,msg,wParam,client_rect})
+            end if
+            return c_func(xDefWindowProc, {hwnd, msg, wParam, lParam})
+        elsif msg=WM_SIZING 
+           or msg=WM_MOVING then
+            if iHandler!=UNDEFINED then
+                sequence rect = peek4s({lParam,4})
+                return_value = call_func(iHandler, {id, msg, wParam, rect})
+            end if
+            return 0 -- False
+        elsif msg=WM_CLOSE then
+            if iHandler!=UNDEFINED then
+                return_value = call_func(iHandler, {id, msg, wParam, lParam})
+            end if
+            if id=PrimaryWindowID then
+                void = c_func(xDestroyWindow,{hwnd})
+            end if
+            return 0
+        elsif msg=WM_DESTROY and id=PrimaryWindowID then
+            c_proc(xPostQuitMessage, {0})
+            return  0
+        end if
+        -- was user handler set up for this window/control?
+        if iHandler!=UNDEFINED then -- call user handler
+            return_value = call_func(iHandler, {id, msg, wParam, lParam})
+        end if
+    end if
+    return c_func(xDefWindowProc, {hwnd, msg, wParam, lParam})
+end function
+WndProcCallBack = call_back(WndProc)
+
+procedure WinMain(integer id, integer sw_style)
+    assert(id=PrimaryWindowID)
+    openWindow(PrimaryWindowID, sw_style)
+    while c_func(xGetMessage, {pMSG, NULL, 0, 0})>0 do
+        c_proc(xTranslateMessage,{pMSG})
+        void = c_func(xDispatchMessage,{pMSG})
+    end while
+end procedure
+
+constant NullBrushID = c_func(xGetStockObject, {NULL_BRUSH})
+
+integer PenColor = Black
+
+procedure setPenColor(integer nColor)
+    PenColor = nColor
+end procedure
+
+procedure createPen(atom hdc, atom colour)
+    atom hPen = c_func(xCreatePen, {Solid,1,colour})
+    hPen = c_func(xSelectObject,{hdc, hPen})
+    {} = c_func(xSetBkColor,{hdc,COLOR_BTNFACE})
+    {} = c_func(xDeleteObject,{hPen})
+    {} = c_func(xSetROP2, {hdc, R2_COPYPEN})
+end procedure
+
+procedure createBrush(integer filled, atom hdc)
+    atom hBrush = iff(filled=0?NullBrushID:c_func(xCreateSolidBrush,{PenColor}))
+    hBrush = c_func(xSelectObject,{hdc, hBrush})
+    {} = c_func(xDeleteObject,{hBrush})
+end procedure
+
+procedure drawRectangleh(atom hdc, integer filled, integer xLeft, integer yTop, atom xRight, atom yBottom)
+    createPen(hdc,PenColor)
+    createBrush(filled, hdc)
+    void = c_func(xRectangle, {hdc, xLeft, yTop, xRight, yBottom})
+end procedure
+
+--
+-- scrolla.exw
+-- ============
+--  Ported to Arwen from a Win32lib demo posted on EuForum (see file of same name in ..\win32libdemo\)
+--  Completely rewrote the focus handling, added double buffered display and zooming.
+--
+-- TODO: support drag (WM_LBUTTONDOWN/WM_MOUSEMOVE/MK_LBUTTON) and (shift) WM_MOUSEWHEEL.
+
+-- Terminology:
+--  main: the (resizeable) window (X/Y/DC).
+--  view: the display buffer bitmap, at least as large as main (X/Y/DC/BM).
+--  image: the (fixed) object being scrolled/panned/zoomed (X/Y/DC/BM).
+--  focus: the point in the image corresponding to the centre of the view.
+
+integer mainX = 640,    -- (x size of window, less borders, scrollbars etc.)
+        mainY = 480,    --  y                   ""
+        viewX,          -- (x size of viewBM, kept >= size of window, ie mainX)
+        viewY           --  y                   ""                          Y
+atom viewBM = NULL      -- display buffer (from xCreateCompatibleBitmap).
+
+constant Main = create(Window, "Virtual Window Demo", 25, 25, mainX, mainY, or_all({WS_HSCROLL,WS_VSCROLL})),
+         mainDC = ObjectDC[Main],
+         imageX = 1280,
+         imageY = 960,
+         imageDC = c_func(xCreateCompatibleDC,{mainDC}),
+         imageBM = c_func(xCreateCompatibleBitmap,{mainDC, imageX, imageY}),
+         viewDC = c_func(xCreateCompatibleDC,{mainDC})
+
+--
+-- {focusX,focusY} represents the logical focus point, moved by scrolling, but *not* by resizing or zooming.
+-- As an example, if we were viewing a map, zoomed in to Hampstead, as we zoom out that stays in the centre, until we hit an 
+--  edge of the map, after which futher zooming pulls Hamstead towards that edge, until eventually the whole map fits on the 
+--  screen, centred, with Muswell Hill slap in the middle. Now, as we zoom back in or un-maximise the window, then it should 
+--  return to Hampstead rather than Muswell Hill. The same idea is good for any image or document, obviously in the latter 
+--  it is a sentence or paragraph, whereas things like google maps, fractal images and artificial worlds don't necessarily
+--  have any edges, in which case this would still work fine just not really achieve anything.
+--
+atom focusX, focusY         -- (stored as atoms so that single-step scroll at very high magnification still works)
+bool firsttime = true,      -- (controls setting of {focusX, focusY}, and calling drawImage)
+     drawfocus = false
+
+procedure drawImage()
+-- initialise imageBM, and optionally redraw when the focus changes
+    if firsttime then
+        {} = c_func(xDeleteObject,{c_func(xSelectObject,{imageDC, imageBM})})
+    end if
+    setPenColor(BrightWhite)    drawRectangleh(imageDC, True, 0, 0, imageX, imageY)
+    setPenColor(Black)          drawRectangleh(imageDC, False, 10, 10, floor((imageX-80)/2), floor((imageY-130)/2))
+    setPenColor(BrightRed)      drawRectangleh(imageDC, False, floor(imageX/4), floor(imageY/4), imageX-75, imageY-75)
+    setPenColor(Green)          drawRectangleh(imageDC, False, 5, 5, imageX-5, imageY-5)
+    if drawfocus then
+        setPenColor(Green)      drawRectangleh(imageDC, False, floor(focusX-2), floor(focusY-2), floor(focusX+2), floor(focusY+2))
+    end if
+end procedure
+
+integer zoom = 10   -- in tenths (1..1000+, upper limit depends solely on how quickly you get bored), or -1= fit to screen
+
+function Zoom(atom v)       return v*zoom/10            end function
+function Zoomf(atom v)      return floor(Zoom(v)+0.5)   end function
+function UnZoom(integer v)  return v*10/zoom            end function
+function UnZoomf(integer v) return floor(UnZoom(v)+0.5) end function
+
+function mainHandler(integer id, integer msg, atom wParam, object /*lParam*/)
+    if msg=WM_PAINT then
+        integer ZimageX = Zoomf(imageX),
+                ZimageY = Zoomf(imageY),
+                ZfocusX, ZfocusY, halfX, halfY
+        if not firsttime then
+            ZfocusX = Zoomf(focusX)
+            ZfocusY = Zoomf(focusY)
+        end if
+        for max_iterations=1 to 2 do                -- (repeat if the scrollbar visibility changes)
+            sequence mcr = getClientRect(Main)      -- (less scroll bars, status line, and menu)
+            {halfX,halfY,mainX,mainY} = mcr
+            assert(halfX=0 and halfY=0)             -- sanity check
+            halfX = floor(mainX/2)
+            halfY = floor(mainY/2)
+            if firsttime then
+                {focusX,focusY} = {halfX,halfY}
+                ZfocusX = Zoomf(focusX)
+                ZfocusY = Zoomf(focusY)
+            end if
+            -- (a zoom of -1 is fit to screen, so deliberately disable/hide the scrollbars)
+            sequence six = {1,100,100,1}, siy = six             -- scroll info (scratch)
+            if zoom!=-1 then 
+                six = {halfX,ZimageX+halfX,mainX,ZfocusX}       -- {Min/Max/Pagesize/Pos}
+                siy = {halfY,ZimageY+halfY,mainY,ZfocusY}
+            end if
+            setScrollInfo({id,SB_HORZ},six,1)
+            setScrollInfo({id,SB_VERT},siy,1)
+            if getClientRect(Main)=mcr then exit end if
+        end for
+        if viewBM=NULL
+        or mainX>viewX
+        or mainY>viewY then
+            {viewX,viewY} = {mainX,mainY}
+            viewBM = c_func(xCreateCompatibleBitmap,{mainDC, viewX, viewY})
+            {} = c_func(xDeleteObject,{c_func(xSelectObject,{viewDC, viewBM})})
+        end if
+
+        integer dstX = 0, dstY = 0, dstW = mainX, dstH = mainY,
+                srcX = 0, srcY = 0, srcW = imageX, srcH = imageY
+        if zoom!=-1 then
+            if firsttime or drawfocus then
+                drawImage()
+            end if
+
+            setPenColor(Parchment)
+            drawRectangleh(viewDC, True, 0, 0, mainX, mainY)        -- clear background
+
+            srcX = ZfocusX-halfX
+            integer gap = mainX-ZimageX
+            if gap>=0 then                  -- (enough for) gap on both sides
+                dstX = floor(gap/2)         -- so just center it
+                dstW = ZimageX
+                srcX = 0
+            elsif srcX<=0 then              -- gap on lhs? (and overhang>gap on rhs)
+                srcX = 0                    -- so move to "hard left" (some overhang remains on rhs)
+            elsif srcX>ZimageX-mainX then   -- gap on rhs? (and overhang>gap on lhs)
+                srcX = ZimageX-mainX        -- so move to "hard right" (some overhang remains on lhs)
+            end if
+            srcY = ZfocusY-halfY
+            gap = mainY-ZimageY
+            if gap>=0 then                  -- (enough for) gap on both sides
+                dstY = floor(gap/2)         -- so just center it
+                dstH = ZimageY
+                srcY = 0
+            elsif srcY<=0 then              -- gap on top? (and overhang>gap on btm)
+                srcY = 0                    -- so move to "hard top" (some overhang remains on btm)
+            elsif srcY>ZimageY-mainY then   -- gap on btm? (and overhang>gap on top)
+                srcY = ZimageY-mainY        -- so move to "hard btm" (some overhang remains on top)
+            end if
+            srcX = UnZoomf(srcX)
+            srcY = UnZoomf(srcY)
+            srcW = UnZoomf(dstW)
+            srcH = UnZoomf(dstH)
+        end if
+        {} = c_func(xStretchBlt, {viewDC,dstX,dstY,dstW,dstH,imageDC,srcX,srcY,srcW,srcH,SRCCOPY})
+        {} = c_func(xBitBlt, {mainDC, 0, 0, mainX, mainY, viewDC, 0, 0, SRCCOPY})
+        firsttime = false
+    elsif msg=WM_HSCROLL then
+        focusX = UnZoom(wParam)
+        repaintWindow(Main,False)
+    elsif msg=WM_VSCROLL then
+        focusY = UnZoom(wParam)
+        repaintWindow(Main,False)
+    elsif msg=WM_CHAR then
+        if wParam=VK_ESCAPE then
+            closeWindow(Main)
+        elsif find(wParam,"=#-+fF") then
+            integer oldzoom = zoom
+            if    wParam='#'            then zoom = -1
+            elsif wParam='=' or zoom<0  then zoom = 10
+            elsif wParam='-' and zoom>1 then zoom -= 1
+            elsif wParam='+'            then zoom += 1
+            elsif lower(wParam)='f'     then 
+                drawfocus = not drawfocus; oldzoom = 0
+                drawImage()
+            end if
+            if zoom!=oldzoom then
+                repaintWindow(Main,False)
+            end if
+        end if
+    end if
+    return 0
+end function
+setHandler(Main, mainHandler)
+
+WinMain(Main, SW_NORMAL) 
+

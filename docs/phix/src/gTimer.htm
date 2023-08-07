@@ -16,8 +16,9 @@
             include xpGUI.e
             <br>
             <br>
-            <a href="gdx.htm">gdx</a> res = gTimer(rtn action, <a href="integer.htm">integer</a> msecs, 
-                                                               <a href="integer.htm#bool">boolean</a> active=<a href="logicops.htm">true</a>)
+            <a href="gdx.htm">gdx</a> id = gTimer(<a href="rtn.htm">rtn</a> action, 
+                                                  <a href="integer.htm">integer</a> msecs, 
+                                                  <a href="integer.htm#bool">boolean</a> active=<a href="logicops.htm">true</a>)
          </td>
         </tr>
         <tr>
@@ -25,21 +26,18 @@
           <b>Description:</b>
          </td>
          <td>
-[DEV] not yet implemented...
-<br>
-<br>
             Creates a timer which periodically invokes a handler when the time is up.
             <br>
             <br>
-            func: a callback address, usually specified as <a href="Icallback.htm">Icallback</a>(<i>"name"</i>).<br>
-            msecs: an interval in miliseconds.<br>
-            active: true or false, you can change the "RUN" attribute later.<br>
+            action: a procedure identifier, invoked periodically, see <a href="#ACTION">ACTION</a> below.<br>
+            msecs: an interval in miliseconds, you can change the <a href="#TIME">TIME</a> attribute later.<br>
+            active: true or false, you can change the <a href="#RUN">RUN</a> attribute later.
 <!--
             This is <i>not</i> a paranormalised routine.
+            <br>
+            <br>
+?           Each timer should be destroyed using <a href="IupDestroy.htm">IupDestroy</a>.
 -->
-            <br>
-            <br>
-            Each timer should be destroyed using <a href="IupDestroy.htm">IupDestroy</a>.
          </td>
         </tr>
         <tr>
@@ -55,16 +53,61 @@
           <b>Example:</b>
          </td>
          <td>
+            <p align="center"><img alt="gTimer" src="images/gTimer.png" width="240" height="80"></p>
+<!--eucode>
+-- simplified version of demo\xpGUI\gTimer.exw
+include xpGUI.e
+constant title = "Timer"
+gdx timer, dlg
+
+procedure action(gdx /*id*/)
+    gSetAttribute(dlg,"TITLE","%s:%.1fs",{title,time()})
+end procedure
+
+timer = gTimer(action,100,true)
+dlg = gDialog(NULL,title,`SIZE=260x80`)
+gShow(dlg)
+gMainLoop()
+</eucode-->
+<pre>
+<font color="#000080"><i>-- simplified version of demo\xpGUI\gTimer.exw</i></font>
+<font color="#008080">include</font><font color="#000000"> xpGUI.e</font>
+<font color="#008080">constant</font><font color="#000000"> title</font><font color="#0000FF"> =</font><font color="#008000"> "Timer"</font>
+<font color="#7060A8">gdx</font><font color="#000000"> timer</font><font color="#0000FF">,</font><font color="#000000"> dlg
+</font>
+<font color="#008080">procedure</font><font color="#000000"> action</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000080"><i> /*id*/</i></font><font color="#0000FF">)</font>
+<font color="#7060A8">    gSetAttribute</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">,</font><font color="#008000">"TITLE"</font><font color="#0000FF">,</font><font color="#008000">"%s:%.1fs"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">title</font><font color="#0000FF">,</font><font color="#7060A8">time</font><font color="#800080">()</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#008080">end procedure
+</font>
+<font color="#000000">timer</font><font color="#0000FF"> =</font><font color="#7060A8"> gTimer</font><font color="#0000FF">(</font><font color="#000000">action</font><font color="#0000FF">,</font><font color="#000000">100</font><font color="#0000FF">,</font><font color="#004600">true</font><font color="#0000FF">)</font>
+<font color="#000000">dlg</font><font color="#0000FF"> =</font><font color="#7060A8"> gDialog</font><font color="#0000FF">(</font><font color="#004600">NULL</font><font color="#0000FF">,</font><font color="#000000">title</font><font color="#0000FF">,</font><font color="#008000">`SIZE=260x80`</font><font color="#0000FF">)</font>
+<font color="#7060A8">gShow</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">)</font>
+<font color="#7060A8">gMainLoop</font><font color="#0000FF">()</font>
+</pre>
+            <br>
+            Note that timers are highly system dependent, and not generally noted for their pin-point accuracy. It is almost inevitable that
+            some timer events will trigger a few milliseconds late, and worse, that effect is often cumulative, at least it is so on Windows.
+            For instance should you run the above with a 1000ms (1s) interval, you will likely see 4.0,5.0,6.1,...11.2,12.3, and so forth. In 
+            some cases you may want to periodically restart the timer with a fractionally shorter interval, to counteract any such "drift", 
+            and quite probably restart it again on the very next iteration with the full-length interval. The full demo\xpGUI\gTimer.exw has
+            a bCorrectDrift constant and the code needed for at least one way of doing just that.
+            <br>
+            <br>
             A generally useful example of using a timer to allow any currently active drawing processes to abandon before starting a new one can
             be found in <b>demo\rosetta\VoronoiDiagram.exw</b>. While relatively simple, it can make a huge difference to responsiveness (and in 
             that particular case, not crashing).
             <br>
             <br>
+DEV re-test:<br>
             In one case (Conway&rsquo;s game of life) setting a timer <i>before</i> the IupShow() prevented the latter from returning for quite 
             some time, and perhaps not until Escape had been keyed, so from that experience I strongly recommend not creating a timer until after
-            an initial IupShow() has returned, and probably after setting any RASTERSIZE to NULL, otherwise it may misbehave - in the program
+            an initial gShow() has returned, and probably after setting any ?RASTER?SIZE to NULL, otherwise it may misbehave - in the program
             just mentioned two things went wrong: Escape had to be keyed twice to close the window, and the canvas did not resize properly, and
-            both were fixed simply by moving the IupTimer() creation down three lines.
+            both were fixed simply by moving the [Iup/]gTimer() creation down three lines.
+            <br>
+            <br>
+            Using a timer should keep the CPU usage in the low single digits, as opposed to the 100% of a busy loop (which would not be compatible
+            with JavaScript anyway), which is obviously a good thing and especially so should it prolong the battery life of a portable device.
          </td>
         </tr>
         <tr>
@@ -72,15 +115,18 @@
           <b>Attributes:</b>
          </td>
          <td>
-            
+          <br>
+          <a name=MSECS></a>
          </td>
         </tr>
         <tr>
          <td>
-          TIME
+          MSECS
          </td>
          <td>
-            The time interval in milliseconds. In Windows the minimum value is 10ms.
+            The time interval in milliseconds. In Windows the minimum value is 10ms.<br>
+            The aliases "MSEC" and "TIME" can also be used for this.<br>
+          <a name=RUN></a>
          </td>
         </tr>
         <tr>
@@ -93,25 +139,27 @@
             , <a href="IupSetStrAttribute.htm#utility">IupSetInt</a>() with true/1/false/0 
             also works, as does <a href="IupSetStrAttribute.htm#utility">IupToggleInt</a>().<br>
 -->
-            Returns the current timer state. If you have multiple threads start the timer in the main thread.
+            Returns the current timer state. If you have multiple threads start the timer in the main thread.<br>
+            The aliases "RUNNING" and "ACTIVE" can also be used for this.
          </td>
         </tr>
 <!--
-        <tr>
-         <td>
-          <a href="common.htm#WID">WID</a>
-         </td>
-         <td>
-            (read-only): Returns the native serial number of the timer. Returns -1 if not running. A timer is mapped only when it is running.
-         </td>
-        </tr>
+//      <tr>
+//       <td>
+//        <a href="gSetAttribute.htm#WID">WID</a>
+//       </td>
+//       <td>
+//          (read-only): Returns the native serial number of the timer. Returns -1 if not running. A timer is mapped only when it is running.
+//       </td>
+//      </tr>
 -->
         <tr>
          <td>
           <b>Handlers:</b>
          </td>
          <td>
-
+          <br>
+          <a name=ACTION></a>   
          </td>
         </tr>
         <tr>
@@ -130,16 +178,62 @@
             <br>
             <br>
 -->
-            Called every time the defined time interval is reached. To stop the handler from being called again simply stop the timer by
-            setting RUN to "NO" or false. 
+            Called every time the defined time interval is reached. To stop the handler being called again simply set RUN to false. 
 <!--
             <br>
             <br>
-            Inside the callback the attribute ELAPSEDTIME returns the time elapsed since the timer was started (since 3.15).
+            Inside the handler the attribute ELAPSEDTIME returns the time elapsed since the timer was started (since 3.15).
 -->
          </td>
         </tr>
        </table>
+        <div style="clear:both;height:1px;"> </div>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
        <br>
        <br>
       </div>

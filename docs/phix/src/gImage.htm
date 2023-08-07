@@ -1,0 +1,599 @@
+﻿<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">gImage</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td>
+          <b>Definition:</b>
+         </td>
+         <td>
+          include xpGUI.e
+          <br>
+          <br>
+<!--      <a href="gdx.htm">gdx</a> id = gImage(<a href="integer.htm">integer</a> width, height, <a href="object.htm">object</a> pixels) -->
+          <a href="gdx.htm#gdc">gdc</a> img = gImage(<a href="integer.htm">integer</a> width, height,
+                                                     <a href="sequence.htm">sequence</a> pixels={XPG_WHITE}, palette={})
+          <small><br><i>-- or --</i><br></small>
+          <a href="gdx.htm#gdc">gdc</a> img = gImageRGB(<a href="integer.htm">integer</a> width, height,
+                                                        <a href="sequence.htm">sequence</a> pixels={XPG_WHITE})
+          <small><br><i>-- or --</i><br></small>
+          <a href="gdx.htm#gdc">gdc</a> img = gImageRGBA(<a href="integer.htm">integer</a> width, height,
+                                                         <a href="sequence.htm">sequence</a> pixels={XPG_WHITE})
+          <small><br><i>-- or --</i><br></small>
+          <a href="gdx.htm#gdc">gdc</a> img = gImage_from_XPM(<a href="sequence.htm">sequence</a> xpm)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Description:</b>
+         </td>
+         <td>
+            Creates an array of pixel information that can be further manipulated and drawn onto actual interface elements. 
+            <br>            
+            <br>            
+            width: image width in pixels.<br>
+            height: image height in pixels.<br>
+            pixels: the individual values of each pixel. <br>
+            palette: up to 255 colours, with an empty palette being replaced/defaulted as below.<br>
+            xpm: a [locally defined constant] text or sequence of text strings in human readable form <small><i>(<b>not</b> a filename)</i></small>.
+            <br>
+            <br>
+            The pixels parameter must be a non-empty sequence either of length height*width or a sequence of height rows of length&lt;=width each,
+            with short items padded using pixels[[i]][$]. Note that it decides via sequence(pixels[1]) whether to treat it as [height*width] or 
+            [height][width], however the latter may have atom elements &gt;= [2], which are treated as if repeated width times, whereas of 
+            course the former/flat baulks should it suddenly run into an unexpected nested sequence.<br>
+            Origin is at the top-left corner (nb <i>not</i> bottom-left) and data is oriented top to bottom, and left to right.
+<!-- (this is not C... we don't need to say this, ever [except, perhaps, for atom memory pointers].)
+            The pixels and palette arrays are duplicated internally and hence can be discarded after the call. -->
+            <br>
+            <br>
+            Note that a gImage is <b>not</b> an interface element and <i>cannot</i> be added to a layout hierarchy. The <a href="gdx.htm#gdc">gdc</a> 
+            result here is actually a (backend-specific) <a href="sequence.htm">sequence</a>, such as <code>{"gImage",GtkPixBuf}</code> under GTK or 
+            <code>{"gImage",hDIB,w,h,t}</code> under WinAPI (at least as at the time of writing), but all that is an implementation detail and there
+            would be nothing to stop it being (say) either a standard two-dimensional sequence of length height lines of width pixels each, or a flat
+            width*height sequence, or even some collection of (possibly somehow compacted) binary strings - all such, one expects, properly tagged.
+            [DEV] The file demo\xpGUI\gImage.exw shows how (trivial it is) to display gImages.
+            <br>
+            <br>
+<small>[DEV some such routines may yet get renamed...]<br></small>
+            Routines such as <a href="gCanvas.htm#gCanvasLine">gCanvasLine</a>() accept a <a href="gdx.htm#gdc">gdc</a>, meaning 
+            they can be applied to both a gGanvas or a gImage, however <a href="gCanvas.htm#gCanvasText">gCanvasText</a>() (as the 
+            name implies) is gCanvas-only, and likewise/conversely <a href="#gImageGetPixel">gImageGetPixel</a>() is gImage-only.
+            <br>
+            <br>
+            <b>gImageDraw</b>(<a href="gdx.htm#gdc">gdc</a> src, tgt, atom x=0, y,0)<br>
+            Note that src can only be a gImage, not a gCanvas, whereas tgt can be either.<br>
+            When tgt is a gCanvas, this routine should only ever be invoked from within a <a href="gCanvas.htm#REDRAW">REDRAW</a> handler.<br>
+            Any fractional part of x and y is automatically truncated/ignored.
+            <br>
+            <a name=gImageGetPixel></a>
+            <br>
+            gImageGetPixel()...
+            <br>
+            <br>
+            NOT STARTED...
+            <br>
+            <br>
+            Creates an image to be shown on a label, button, toggle, or as a cursor.
+            <br>
+            <br>
+            gImage() uses 1 byte per pixel (limited to 256 colours), gImageRGB uses 3 bytes and gImageRGBA uses 4 bytes per pixel, aka 8/24/32 bit bitmaps.
+            <br>
+            <br>
+            Returns: the identifier of the created element.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+<!--
+          <a href="notpgui.htm"><span class="illegal">Not supported</span></a>, but it&rsquo;s on my wish list
+-->
+<!-- (kept for copying purposes)
+          <a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a>
+          <a href="notpgui.htm#IupImage"><span style="color:red;"><sup>x</sup></span></a>
+          <a href="notpgui.htm#IupImage"><span style="color:orange; font-size:75%;"><sup>?</sup></span></a>
+-->
+--DEV fix this.. (defer creation until actual use) - better yet allow a pallette up-front<br><br>
+            Supported, note however that gImage() creates the image data immediately and is limited to the default 16 colours 
+            listed below (reproduced as constant $gImageDefaultColours within p2js.js/gImage(), fyi and should that help any).
+            Therefore, you <i>cannot</i> set the colour indices ("0","1",etc) <i>after</i> calling IupImage(), and you haven&rsquo;t 
+            got a handle with which to try that <i>before</i>, and hence must resort to using IupImageRGB[A]() when those 16 colours 
+            do not suffice (and which you would need for any image with more than 256 colours anyway). 
+            Also note there is a potentially significant performance issue when using binary strings to construct the pixel data, as
+            explained in <a href="repeat.htm">repeat</a>(), that can be allieviated by setting the (new in 1.0.2, not necessary for 
+            repeat 0) allow_strings parameter of that function to false.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>See Also:</b>
+         </td>
+         <td>
+<!--
+//        <a href="IupLoadImage.htm">IupLoadImage</a>,
+//        <a href="IupImageLibOpen.htm">IupImageLibOpen</a>,
+//        <a href="imFileImageLoadBitmap.htm">imFileImageLoadBitmap</a>,
+-->
+          <a href="gCanvas.htm">gCanvas</a>,
+          <a href="gButton.htm">gButton</a>,
+          <a href="gLabel.htm">gLabel</a>,
+          <a href="gCheckbox.htm">gCheckbox</a>
+<!--          <a href="IupDestroy.htm">IupDestroy</a> -->
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Example:</b>
+         </td>
+         <td>
+<!--DEV alt image?-->
+            <p align="center"><img alt="gCanvas" src="images/gCanvasACS.png" width="240" height="156"/></p>
+
+<!--eucode>
+-- as demo\xpGUI\gCanvas.exw but using
+procedure redraw(gdx canvas)
+    integer {w,h} = gGetAttribute(canvas,"SIZE")
+//  if bUseImage then
+        gdc image = gImageRGBA(w,h,{gCanvasGetBackground(canvas)})
+        draw(image,w,h)
+        gImageDraw(image,canvas)
+//  else
+//      draw(canvas,w,h)
+//  end if
+end procedure
+</eucode-->
+<pre>
+<font color="#000080"><i>-- as demo\xpGUI\gCanvas.exw but using</i></font>
+<font color="#008080">procedure</font><font color="#000000"> redraw</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> canvas</font><font color="#0000FF">)</font>
+<font color="#004080">    integer</font><font color="#0000FF"> {</font><font color="#000000">w</font><font color="#0000FF">,</font><font color="#000000">h</font><font color="#0000FF">} =</font><font color="#7060A8"> gGetAttribute</font><font color="#0000FF">(</font><font color="#000000">canvas</font><font color="#0000FF">,</font><font color="#008000">"SIZE"</font><font color="#0000FF">)</font>
+<font color="#000080"><i>//  if bUseImage then</i></font>
+<font color="#7060A8">        gdc</font><font color="#000000"> image</font><font color="#0000FF"> =</font><font color="#7060A8"> gImageRGBA</font><font color="#0000FF">(</font><font color="#000000">w</font><font color="#0000FF">,</font><font color="#000000">h</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#7060A8">gCanvasGetBackground</font><font color="#800080">(</font><font color="#000000">canvas</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#000000">        draw</font><font color="#0000FF">(</font><font color="#000000">image</font><font color="#0000FF">,</font><font color="#000000">w</font><font color="#0000FF">,</font><font color="#000000">h</font><font color="#0000FF">)</font>
+<font color="#7060A8">        gImageDraw</font><font color="#0000FF">(</font><font color="#000000">image</font><font color="#0000FF">,</font><font color="#000000">canvas</font><font color="#0000FF">)</font>
+<font color="#000080"><i>//  else
+//      draw(canvas,w,h)
+//  end if</i></font>
+<font color="#008080">end procedure</font>
+</pre>
+            <br>
+            <br>
+            Anti-aliased lines, filled shapes, WinAPI, ... (this paragraph to be properly rewritten)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Notes:</b>
+         </td>
+         <td>
+            Given the propensity for browsers to throw pointless <a name=cors></a>CORS violations<sup><small><a href="#cors1">1</a></small></sup>, 
+            xpGUI is much more concerned with loading images from locally defined data rather than file, but of course this is all open source, 
+            yada-yada-ya.
+            <br>
+            <br>
+            There is (quite deliberately) no separate routine for loading an xpm file, instead just use <a href="get_text.htm">get_text</a>() 
+            on it, or better yet declare it as a text constant (noting it is ill-advised to rely on leading and trailing space preservation 
+            in a multiline backtick or triple-quoted string, especially under GTK), or one of the slightly more efficient formats.
+            <br>
+            <br>
+            
+            Application icons are usually 32x32. Toolbar bitmaps are 24x24 or smaller. Menu bitmaps and small icons are 16x16 or smaller.
+            <br>
+            <br>
+            Images created with the IupImage* constructors can be reused in different elements.
+            <br>
+            <br>
+<!--
+?           The images should be destroyed when they are no longer necessary, by means of the <a href="IupDestroy.htm">IupDestroy</a> function. <br>
+?           To destroy an image, it cannot be in use, i.e the controls where it is used should be destroyed first. <br>
+??          Images that were associated with controls by names are automatically destroyed in <a href="IupClose.htm">IupClose</a>.
+            <br>
+            <br>
+-->
+            Please observe the rules for creating cursor images: <a href="gSetAttribute.htm#CURSOR">CURSOR</a>.
+            <br>
+            <br>
+            Some examples can be found in demo\pGUI\sample.exw
+            <br>
+            <br>
+            The polygon filling method is a simple pairwise bisection algorithm: rather than actually draw all the points on the perimeter,
+            it first collects all wu-pairs and sorts them column-wise, with any horizontal and vertical segments treated specially. It then 
+            looks for any columns containing exactly two vertical pairs, or a single vertical segment, which can then be drawn immediately. 
+            Should two wu-pairs overlap, their overlappng pixels are simply averaged, otherwise their inner pixels and everything inbetween
+            are drawn in the full fill colour. Any blocks of columns which cannot be so painted are passed to a recursive subroutine, with 
+            the left/right edge information, which re-sorts those points row-wise and repeats the process laterally, with the addition that 
+            single wu-pairs can match with one of the edges. An error may be raised should no such bisection in the direction specified be
+            possible for any such subset of pixels (or, perhaps, the fill simply abandoned). Should that happen you may need to find a
+            different way to draw the shape, ie effectively bisect or perhaps/probably quadsect it yourself, bearing in mind the algorithm
+            will thank you for using as many abutting horizontal and vertical lines as you can. The special handling of horizontal and
+            vertical segments as mentioned also means that (square-cornered) rectangles are filled particularly efficiently.
+            <br>
+            <br>
+            <small>
+            <a name=cors1></a><small><sup><a href="#cors">1</a></sup></small> Anything that refuses to work on localhost but works fine when 
+            the exact same files are uploaded to a server is clearly utterly pointless total pigheaded stupidity, and please don&rsquo;t waste 
+            your breath willfully misinterpreting imprecise parts of the standard, or bang on about installing a local server, or bother trying
+            to convince me it is in any way any kind of sensible, excusable, or forgivable. The CORS specs are at fault for not containing an
+            "or they resolve to the same thing" clause, and individual browser implementations are at fault for <i>always</i> assuming that on 
+            a server but adamantly/beligerently <i>not</i> doing the same on localhost. If that would introduce any kind of security compromise, 
+            I certainly cannot see it.</small>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Usage:</b>
+         </td>
+         <td>
+?           Images are used in elements such as buttons and labels by attributes that points to names registered with <a href="IupSetHandle.htm">IupSetHandle</a>. <br>
+            You can also use <a href="IupSetAttributeHandle.htm">IupSetAttributeHandle</a> to shortcut the setting of an image as an attribute. For example:
+            <br>
+            <br>
+            <small>
+<!--eucode>
+Ihandle image = IupImage(width, height, pixels);
+
+IupSetHandle("MY_IMAGE_NAME", image);
+IupSetAttribute(label, "IMAGE", "MY_IMAGE_NAME");
+or
+IupSetAttributeHandle(label, "IMAGE", image); -- an automatic name will be created internally
+</eucode-->
+<pre>
+<font color="#7060A8">Ihandle</font><font color="#000000"> image</font><font color="#0000FF"> =</font><font color="#7060A8"> IupImage</font><font color="#0000FF">(</font><font color="#000000">width</font><font color="#0000FF">,</font><font color="#000000"> height</font><font color="#0000FF">,</font><font color="#000000"> pixels</font><font color="#0000FF">);
+</font>
+<font color="#7060A8">IupSetHandle</font><font color="#0000FF">(</font><font color="#008000">"MY_IMAGE_NAME"</font><font color="#0000FF">,</font><font color="#000000"> image</font><font color="#0000FF">);</font>
+<font color="#7060A8">IupSetAttribute</font><font color="#0000FF">(</font><font color="#000000">label</font><font color="#0000FF">,</font><font color="#008000"> "IMAGE"</font><font color="#0000FF">,</font><font color="#008000"> "MY_IMAGE_NAME"</font><font color="#0000FF">);</font>
+<font color="#008080">or</font>
+<font color="#7060A8">IupSetAttributeHandle</font><font color="#0000FF">(</font><font color="#000000">label</font><font color="#0000FF">,</font><font color="#008000"> "IMAGE"</font><font color="#0000FF">,</font><font color="#000000"> image</font><font color="#0000FF">);</font><font color="#000080"><i> -- an automatic name will be created internally</i></font>
+</pre>
+            </small>
+            <br>
+            In Windows, names of resources in RC files linked with the application are also accepted. <br>
+            In GTK, names of GTK Stock Items are also accepted. <br>
+            In Motif, names of bitmaps installed on the system are also accepted. For example:
+            <br>
+            <br>
+            <small>
+<!--eucode>
+IupSetAttribute(label, "IMAGE", "TECGRAF_BITMAP");  // available in the "etc/iup.rc" file
+or
+IupSetAttribute(label, "IMAGE", "gtk-open");  // available in the GTK Stock Items
+</eucode-->
+<pre>
+<font color="#7060A8">IupSetAttribute</font><font color="#0000FF">(</font><font color="#000000">label</font><font color="#0000FF">,</font><font color="#008000"> "IMAGE"</font><font color="#0000FF">,</font><font color="#008000"> "TECGRAF_BITMAP"</font><font color="#0000FF">); </font><font color="#000080"><i> // available in the "etc/iup.rc" file</i></font>
+<font color="#008080">or</font>
+<font color="#7060A8">IupSetAttribute</font><font color="#0000FF">(</font><font color="#000000">label</font><font color="#0000FF">,</font><font color="#008000"> "IMAGE"</font><font color="#0000FF">,</font><font color="#008000"> "gtk-open"</font><font color="#0000FF">); </font><font color="#000080"><i> // available in the GTK Stock Items</i></font>
+</pre>
+            </small>
+            <br>
+            In all drivers, a path to a file name can also be used as the attribute value (since 3.0). <br>
+            But the available file formats supported are system dependent. <br>
+            The Windows driver supports BMP, ICO and CUR. <br>
+            The GTK driver supports the formats supported by the GDK-PixBuf library, such as BMP, GIF, JPEG, PCX, PNG, TIFF and many others. <br>
+            The Motif driver supports the X-Windows bitmap. For example:
+            <br>
+            <br>
+            <small>
+<!--eucode>
+IupSetAttribute(label, "IMAGE", "../etc/tecgraf.bmp");
+</eucode-->
+<pre>
+<font color="#7060A8">IupSetAttribute</font><font color="#0000FF">(</font><font color="#000000">label</font><font color="#0000FF">,</font><font color="#008000"> "IMAGE"</font><font color="#0000FF">,</font><font color="#008000"> "../etc/tecgraf.bmp"</font><font color="#0000FF">);</font>
+</pre>
+            </small>
+            <br>
+            A more format independent approach can be reached using the IUP-IM Functions.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Colors:</b>
+         </td>
+         <td>
+<!--            In Motif, the alpha channel in RGBA images is always composed with the control <a href="gSetAttribute.htm#BGCOLOR">BGCOLOR</a> by IUP prior to setting the image at the control. <br>-->
+<!--
+            In Windows and in GTK, the alpha channel is composed internally by the system. <br>
+            But in Windows for some controls the alpha must be composed a priori also, it includes: <a href="IupMenuItem.htm">IupMenuItem</a> 
+            and <a href="IupSubmenu.htm">IupSubmenu</a> always; and <a href="gCheckbox.htm">gCheckbox</a> when NOT using Visual Styles. <br>
+            This implies that if the control background is not uniform then probably there will be a visible difference where it should be transparent.
+            <br>
+            <br>
+-->
+            For IupImage, if a color is not set, then it is used a default color for the 16 first colors. The default color table is the same for Windows, GTK and HTML/CSS:
+            <br>
+            <br>
+ <pre>
+ 0 =   0,  0,  0 (black)
+ 1 = 128,  0,  0 (dark red)
+ 2 =   0,128,  0 (dark green) 
+ 3 = 128,128,  0 (dark yellow)
+ 4 =   0,  0,128 (dark blue)
+ 5 = 128,  0,128 (dark magenta) 
+ 6 =   0,128,128 (dark cian) 
+ 7 = 192,192,192 (gray)
+ 8 = 128,128,128 (dark gray)
+ 9 = 255,  0,  0 (red)     
+10 =   0,255,  0 (green)
+11 = 255,255,  0 (yellow)
+12 =   0,  0,255 (blue)
+13 = 255,  0,255 (magenta)
+14 =   0,255,255 (cian)  
+15 = 255,255,255 (white)
+ </pre>
+<!--
+Mapped to the standard colours:
+ 0 =   0,  0,  0 (black)            XPG_BLACK
+ 1 = 128,  0,  0 (dark red)         XPG_DARK_RED
+ 2 =   0,128,  0 (dark green)       XPG_DARK_GREEN
+ 3 = 128,128,  0 (dark yellow)      XPG_OLIVE
+ 4 =   0,  0,128 (dark blue)        XPG_NAVY
+ 5 = 128,  0,128 (dark magenta)     XPG_DARK_PURPLE
+ 6 =   0,128,128 (dark cian)        XPG_TEAL
+ 7 = 192,192,192 (gray)             XPG_GREY
+ 8 = 128,128,128 (dark gray)        XPG_DARK_GREY
+ 9 = 255,  0,  0 (red)              XPG_RED
+10 =   0,255,  0 (green)            XPG_LIGHT_GREEN
+11 = 255,255,  0 (yellow)           XPG_YELLOW
+12 =   0,  0,255 (blue)             XPG_BLUE
+13 = 255,  0,255 (magenta)          XPG_MAGENTA (actually #F032E6 but close enough)
+14 =   0,255,255 (cian)             XPG_CYAN
+15 = 255,255,255 (white)            XPG_WHITE
+-->
+            <br>
+            For images with more than 16 colors, and up to 256 colors, all the color indices must be defined up to the maximum number of colors. 
+            For example, if the biggest image index is 100, then all the colors from i=16 up to i=100 must be defined even if some indices are not used.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Samples:</b>
+         </td>
+         <td>
+?           You can obtain several images from the IupImageLib, a library of pre-defined images. <br>
+            To view the images you can use the IupView in the applications included in the distribution, available at the Download. <br>
+            IupView is also capable of converting several image formats into an IupImage, and save IUP images as LED, Lua or ICO.
+            <br>
+            <br>
+            The EdPatt and the IMLAB applications can load and save images in simplified LED format. <br>
+            They allow operations such as importing GIF images and exporting them as IUP images. <br>
+            EdPatt allows you to manually edit the images, and also have support for images in IupLua.
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+          <b>Attributes:</b>
+         </td>
+         <td>
+            
+         </td>
+        </tr>
+<!--
+        <tr>
+         <td>
+          "0","1",etc<a href="notpgui.htm#IupImage"><span style="color:red;"><sup>x</sup></span></a>
+         </td>
+         <td>
+            Color in index 0,1,etc. The indices can range from 0 to 255. The total number of colors is limited to 256 colors. 
+            Be careful when setting colors, since they are attributes they follow the same storage rules for standard attributes.
+            <br>
+            <br>
+            The values are integer numbers from 0 to 255, one for each color in the RGB triple (For ex: "64 190 255"). 
+<X!X--
+//          If the value of a given index is "BGCOLOR", the color used will be the background color of the element on which the image will be inserted. 
+//          The "BGCOLOR" value must be defined within an index less than 16.
+--X>
+            <br>
+            <br>
+            Used only for images created with IupImage. As noted above, not supported under pwa/p2js.
+         </td>
+        </tr>
+-->
+<!--
+//      <tr>
+//       <td>
+//?       AUTOSCALE
+//       </td>
+//       <td>
+//          automatically scale the image by a given real factor. 
+//          If not defined the global attribute IMAGEAUTOSCALE will be used. 
+//          Values are the same of the global attribute. (since 3.16)
+//       </td>
+//      </tr>
+-->
+<!--
+//      <tr>
+//       <td>
+//<X!X--          <a href="gSetAttribute.htm#BGCOLOR">BGCOLOR</a>--X>
+//?       BGCOLOR
+//       </td>
+//       <td>
+//          The color used for transparency. If not defined uses ??[DEV] the BGCOLOR of the control that contains the image.
+//       </td>
+//      </tr>
+-->
+        <tr>
+         <td>
+?         BPP
+         </td>
+         <td>
+            (read-only) returns the number of bits per pixel in the image. Images created with IupImage returns 8, with IupImageRGB returns 24 and with IupImageRGBA returns 32. (since 3.0)
+         </td>
+        </tr>
+<!--
+//      <tr>
+//       <td>
+//?       CLEARCACHE
+//       </td>
+//       <td>
+//          (write-only): clears the internal native image cache, so WID can be dynamically changed. (since 3.24)
+//       </td>
+//      </tr>
+-->
+        <tr>
+         <td>
+?         CHANNELS
+         </td>
+         <td>
+            (read-only) returns the number of channels in the image. Images created with IupImage returns 1, with IupImageRGB returns 3 and with IupImageRGBA returns 4. (since 3.0)
+         </td>
+        </tr>
+        <tr>
+         <td>
+?         DPI
+         </td>
+         <td>
+            resolution expected for display. Used when AUTOSCALE=DPI. If not defined the global attribute IMAGESDPI will be used. (since 3.23)
+         </td>
+        </tr>
+        <tr>
+         <td>
+?         HEIGHT
+         </td>
+         <td>
+            (read-only) Image height in pixels.
+         </td>
+        </tr>
+        <tr>
+         <td>
+?         HOTSPOT
+         </td>
+         <td>
+            Hotspot is the position inside a cursor image indicating the mouse-click spot. <br>
+            Its value is given by the x and y coordinates inside a cursor image. <br>
+            Its value has the format "x:y", where x and y are integers defining the coordinates in pixels. Default: "0:0".
+         </td>
+        </tr>
+        <tr>
+         <td>
+?         <a href="gSetAttribute.htm#SIZE">SIZE</a>
+         </td>
+         <td>
+            (read-only) returns the image size in pixels.
+         </td>
+        </tr>
+<!--
+//      <tr>
+//       <td>
+//?       RESHAPE
+//       </td>
+//       <td>
+//          (write-only): given a new size if format "widthxheight", allocates enough memory for the new size and changes WIDTH and HEIGHT attributes. <br>
+//          The image contents are ignored and it will contain trash after the reshape. (since 3.24)
+//       </td>
+//      </tr>
+-->
+<!--
+//      <tr>
+//       <td>
+//?       RESIZE
+//       </td>
+//       <td>
+//          (write-only): given a new size if format "widthxheight", changes WIDTH and HEIGHT attributes, and resizes 
+//          the image contents using bilinear interpolation for RGB and RGBA images and nearest neighborhood for 8 bits. (since 3.24)<br>
+//          PL: Does nothing on a previoously displayed image unless CLEARCACHE is first set. I then found I had to recreate the image from the original 
+//          pixel array, otherwise repeated bilinear interpolation rather rapidly degrades it, in my case to all black, and consequently setting CLEARCACHE 
+//          on the brand new image was no longer necessary or helpful.
+//       </td>
+//      </tr>
+-->
+<!--
+//      <tr>
+//       <td>
+//?       SCALED
+//       </td>
+//       <td>
+//          (read-only): returns Yes if the image has been resized. (since 3.25)
+//       </td>
+//      </tr>
+//      <tr>
+//       <td>
+//?       ORIGINALSCALE
+//       </td>
+//       <td>
+//          (read-only): returns the width and height before the image was scaled. (since 3.25)
+//       </td>
+//      </tr>
+-->
+<!--
+//      <tr>
+//       <td>
+//        <a href="gSetAttribute.htm#WID">WID</a>
+//       </td>
+//       <td>
+//          (read-only) returns the internal pixels data pointer. (since 3.0)
+//       </td>
+//      </tr>
+-->
+        <tr>
+         <td>
+?         WIDTH
+         </td>
+         <td>
+            (read-only) Image width in pixels.
+         </td>
+        </tr>
+       </table>
+        <div style="clear:both;height:1px;"> </div>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

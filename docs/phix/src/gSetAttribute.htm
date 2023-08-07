@@ -1,4 +1,4 @@
-<head>
+﻿<head>
  <body>
   <toc>
    <these>
@@ -23,7 +23,7 @@
             <br>
             <i>-- or --</i>
             <br>
-            IupSetAttributePtr(<a href="Ihandle.htm">Ihandln</a> ih, <a href="string.htm">string</a> name, <a href="atom.htm">atom</a> v)
+//          IupSetAttributePtr(<a href="Ihandle.htm">Ihandln</a> ih, <a href="string.htm">string</a> name, <a href="atom.htm">atom</a> v)
 -->
          </td>
         </tr>
@@ -39,9 +39,9 @@
 <!--
             If NULL will set in the global environment.
 -->
-            name: name of the attribute, usually a literal string such as "SIZE".<br>
+            name: name of the attribute, usually a literal string such as "SIZE", several more examples below.<br>
             v: value of the attribute. If NULL the default setting will be used (at least in most cases).<br>
-            args: (optional) if not {} then v = sprintf(v,args) is performed.
+            args: (optional) if not {} then <code>v = <a href="sprintf.htm">sprintf</a>(v,args)</code> is performed.
          </td>
         </tr>
         <tr>
@@ -51,16 +51,16 @@
          <td>
           Supported.
 <!--
-         Note that under pwa/p2js there is no distinction between IupSetAttribute() and IupSetStrAttribute(), largely due to the
+//       Note that under pwa/p2js there is no distinction between IupSetAttribute() and IupSetStrAttribute(), largely due to the
           fact that everything is mapped to JavaScript attributes and CSS style settings. I suppose that means there could be some desktop/Phix
           programs which either accidentally or deliberately store a machine address and then poke that memory to effect an attribute change,
           and obviously that sort of thing will simply not work in a browser. Thankfully nothing like that has yet been encountered.
           <br>
           <br>
-          In contrast under pwa/p2js IupSetAttributePtr() simply stores a value without any of the validation or mapping performed by
-          IupSet[Str]Attribute(), and IupGetAttributePtr() will crash rather than fail should there have been no prior corresponding 
-          invocation of IupSetAttributePtr(), or perhaps IupSetCallback() and similar. Said crash may or may not be replaced with (say)
-          <code>return NULL;</code>, as further implementation and refinement of pGUI.js progresses, and as needs demand.
+//        In contrast under pwa/p2js IupSetAttributePtr() simply stores a value without any of the validation or mapping performed by
+//        IupSet[Str]Attribute(), and IupGetAttributePtr() will crash rather than fail should there have been no prior corresponding 
+//        invocation of IupSetAttributePtr(), or perhaps gSetHandler() and similar. Said crash may or may not be replaced with (say)
+//        <code>return NULL;</code>, as further implementation and refinement of pGUI.js progresses, and as needs demand.
 -->
          </td>
         </tr>
@@ -71,30 +71,80 @@
          <td>
             Note that, unlike say <a href="gSetHandler.htm">gSetHandler[s]</a>(), the "with-s" version of this routine, ie
             <a href="gSetAttributes.htm">gSetAttributes</a>(), has a different purpose/api, being multiple attributes in one string, 
-            whereas this "without-s" version sets a single attribute, potentially to a non-string value, and with both being able to 
-            apply said to one or more elements.
+            the common implementation of inlined attributes as part of most interface element creation routines, and in fact invokes 
+            this routine multiple times, whereas this "without-s" version sets a single attribute, potentially to a non-string value, 
+            and with both being able to apply said to one or more elements.
             <br>
             <br>
-            When args is not {}, the implicit sprintf would obviously typecheck were v is not string, etc. Otherwise v can be anything,
-            including integer, atom, string, or a nested sequence (see technicalia below).
+            When args is not {}, the implicit sprintf obviously crashes when v is not string, contains bad format specifiers, etc. <br>
+            Otherwise v can be anything, including integer, atom, string, [nested] sequence, or an equivalent string representation, eg:<br>
+<!--eucode>
+        integer w = 100, h = 180
+        gSetAttribute(id,"SIZE",{w,h})
+        gSetAttribute(id,"SIZE","%dx%d",{w,h})
+        gSetAttributes(id,"SIZE=%dx%d",{w,h})
+        gSetAttribute(id,"SIZE",{100,180})
+        gSetAttribute({id},"SIZE",{100,180})
+        gSetAttribute(id,"SIZE","100x180")
+        gSetAttribute(id,"SIZE","{100,180}")
+        gSetAttributes(id,"SIZE={100,180}")
+        gSetAttributes(id,"SIZE=100x180")
+</eucode-->
+<pre>
+<font color="#004080">        integer</font><font color="#000000"> w</font><font color="#0000FF"> =</font><font color="#000000"> 100</font><font color="#0000FF">,</font><font color="#000000"> h</font><font color="#0000FF"> =</font><font color="#000000"> 180</font>
+<font color="#7060A8">        gSetAttribute</font><font color="#0000FF">(</font><font color="#000000">id</font><font color="#0000FF">,</font><font color="#008000">"SIZE"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">w</font><font color="#0000FF">,</font><font color="#000000">h</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#7060A8">        gSetAttribute</font><font color="#0000FF">(</font><font color="#000000">id</font><font color="#0000FF">,</font><font color="#008000">"SIZE"</font><font color="#0000FF">,</font><font color="#008000">"%dx%d"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">w</font><font color="#0000FF">,</font><font color="#000000">h</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#7060A8">        gSetAttributes</font><font color="#0000FF">(</font><font color="#000000">id</font><font color="#0000FF">,</font><font color="#008000">"SIZE=%dx%d"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">w</font><font color="#0000FF">,</font><font color="#000000">h</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#7060A8">        gSetAttribute</font><font color="#0000FF">(</font><font color="#000000">id</font><font color="#0000FF">,</font><font color="#008000">"SIZE"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">100</font><font color="#0000FF">,</font><font color="#000000">180</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#7060A8">        gSetAttribute</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">id</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000">"SIZE"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">100</font><font color="#0000FF">,</font><font color="#000000">180</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#7060A8">        gSetAttribute</font><font color="#0000FF">(</font><font color="#000000">id</font><font color="#0000FF">,</font><font color="#008000">"SIZE"</font><font color="#0000FF">,</font><font color="#008000">"100x180"</font><font color="#0000FF">)</font>
+<font color="#7060A8">        gSetAttribute</font><font color="#0000FF">(</font><font color="#000000">id</font><font color="#0000FF">,</font><font color="#008000">"SIZE"</font><font color="#0000FF">,</font><font color="#008000">"{100,180}"</font><font color="#0000FF">)</font>
+<font color="#7060A8">        gSetAttributes</font><font color="#0000FF">(</font><font color="#000000">id</font><font color="#0000FF">,</font><font color="#008000">"SIZE={100,180}"</font><font color="#0000FF">)</font>
+<font color="#7060A8">        gSetAttributes</font><font color="#0000FF">(</font><font color="#000000">id</font><font color="#0000FF">,</font><font color="#008000">"SIZE=100x180"</font><font color="#0000FF">)</font>
+</pre>
+            <small><i>(obviously that&rsquo;s nine slightly different ways to achieve exactly the same thing, <br>
+            the first being the fastest, inlined like the last generally the neatest overall code.)</i></small>
             <br>
+            <br>
+            You can also use the following near-aliases:<br>
+            <a name=gSetInt></a>
+            <br>
+            <b>gSetInt</b>(<a href="gdx.htm">gdx</a> id, <a href="string.htm">string</a> name, <a href="integer.htm">integer</a> i)<br>
+            <a name=gSetDouble></a>
+            <b>gSetDouble</b>(<a href="gdx.htm">gdx</a> id, <a href="string.htm">string</a> name, <a href="atom.htm">atom</a> a)<br>
+            <br>
+            Apart from the tighter validation of the third parameter (on desktop/Phix only), and perhaps more crucially a clearer declaration 
+            of intent which can help make the code a bit more self-documenting, they behave identically to gSetAttribute(). 
+<!-- [DEV I might yet change my mind about this...] -->
+            Since JavaScript is a <a href="glossary.htm#typeless">typeless</a> language, under 
+            <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a>, there isn&rsquo;t 
+            actually any additional validation (not that I&rsquo;d struggle to add some), and 
+            for now they really are just pure aliases.
+            <br>
+            <a name=gToggleInt></a>
+            <br>
+            For boolean attributes <b>gToggleInt</b>(id,"NAME") can be used instead of gSetInt(id,"NAME",not gGetInt(id,"NAME")).
+<!-- worth sayin when it was called a gToglle, but now it's not:
+            , and of
+            course it&rsquo;ll do a <a href="gCheckbox.htm">gCheckbox</a>&rsquo;s "VALUE" just as well as all kinds of other things.
+-->
 <!--
-            <br>
-            IupSetAttribute can store only constant strings (like "Title", "30", etc) or application pointers.<br>
-            An error occurs if val is neither an atom nor a string.<br>
-            The given value is not duplicated as a string, only a reference is stored.<br>
-            Therefore, you can store application custom attributes, such as a context structure to be used in a callback.
-            <br>
-            <br>
-            <b>IMPORTANT</b>: The value of the v parameter <b>must</b> be a literal constant or otherwise outlive the interface element:<br>
-            <i>Unacceptable</i>: IupSetAttribute(ih,name,sprintf(fmt,x)) <small> -- (never ever ever do this)</small><br>
-            Acceptable: <a href="IupSetStrAttribute.htm">IupSet<b>Str</b>Attribute</a>(ih,name,sprint(fmt,x))<br>
-            Acceptable: <a href="IupSetStrAttribute.htm">IupSet<b>Str</b>Attribute</a>(ih,name,fmt,x)<br>
-            Acceptable: <a href="IupSetAttributes.htm">IupSetAttributes</a>(ih,"name="&fmt,x)<br>
-            Acceptable: <a href="IupSetAttributes.htm">IupSetAttributes</a>(ih,sprintf("name=%s",{fmt}),x)<br>
-            <i>Unacceptable</i>: IupSetAttribute(ih,name,stringvar) <small> -- (unless stringvar is suitably long-lived or actually a constant)</small><br>
-            Acceptable: <a href="IupSetStrAttribute.htm">IupSet<b>Str</b>Attribute</a>(ih,name,stringvar)<br>
-            Acceptable: <a href="IupSetAttributes.htm">IupSetAttributes</a>(ih,"%s=%s",{name,stringvar})<br>
+//          <br>
+//          IupSetAttribute can store only constant strings (like "Title", "30", etc) or application pointers.<br>
+//          An error occurs if val is neither an atom nor a string.<br>
+//          The given value is not duplicated as a string, only a reference is stored.<br>
+//          Therefore, you can store application custom attributes, such as a context structure to be used in a handler.
+//          <br>
+//          <br>
+//          <b>IMPORTANT</b>: The value of the v parameter <b>must</b> be a literal constant or otherwise outlive the interface element:<br>
+//          <i>Unacceptable</i>: IupSetAttribute(ih,name,sprintf(fmt,x)) <small> -- (never ever ever do this)</small><br>
+//          Acceptable: <a href="IupSetStrAttribute.htm">IupSet<b>Str</b>Attribute</a>(ih,name,sprint(fmt,x))<br>
+//          Acceptable: <a href="IupSetStrAttribute.htm">IupSet<b>Str</b>Attribute</a>(ih,name,fmt,x)<br>
+//          Acceptable: <a href="IupSetAttributes.htm">IupSetAttributes</a>(ih,"name="&fmt,x)<br>
+//          Acceptable: <a href="IupSetAttributes.htm">IupSetAttributes</a>(ih,sprintf("name=%s",{fmt}),x)<br>
+//          <i>Unacceptable</i>: IupSetAttribute(ih,name,stringvar) <small> -- (unless stringvar is suitably long-lived or actually a constant)</small><br>
+//          Acceptable: <a href="IupSetStrAttribute.htm">IupSet<b>Str</b>Attribute</a>(ih,name,stringvar)<br>
+//          Acceptable: <a href="IupSetAttributes.htm">IupSetAttributes</a>(ih,"%s=%s",{name,stringvar})<br>
 -->
 <!-- now in technicalia:
             Should v be a raw memory pointer, you must ensure it remains valid for the lifetime of the interface element.
@@ -106,32 +156,34 @@
 <!--
 DEV everything following may need to be rewritten...<br><br>
             <br>
-            While IupSetAttribute can set strings and pointers, they must be retrieved differently (see <a href="IupGetAttribute.htm">IupGetAttribute</a>).
+//          While IupSetAttribute can set strings and pointers, they must be retrieved differently (see <a href="IupGetAttribute.htm">IupGetAttribute</a>).
             <br>
             <br>
-            Apart from the tighter validation of the last parameter, IupSetAttributePtr behaves identically to IupSetAttribute.<br>
-            While technically unnecessary, IupSetAttributePtr allows code to be more self-documenting, and is the logical counterpart to 
-            <a href="IupGetAttribute.htm">IupGetAttributePtr</a> (for which, in contrast, there is a very real need).<br>
-            Note that IupSetAttributePtr should only be used for "always pointer/handle/NULL" rather than "string/NULL" settings.
+//          Apart from the tighter validation of the last parameter, IupSetAttributePtr behaves identically to IupSetAttribute.<br>
+//          While technically unnecessary, IupSetAttributePtr allows code to be more self-documenting, and is the logical counterpart to 
+//          <a href="IupGetAttribute.htm">IupGetAttributePtr</a> (for which, in contrast, there is a very real need).<br>
+//          Note that IupSetAttributePtr should only be used for "always pointer/handle/NULL" rather than "string/NULL" settings.
             <br>
             <br>
             Note that, unlike (say) <a href="gSetHandle.htm">gSetHandler</a>[s](), gSetAttribute() and <a href="gSetAttributes.htm">gSetAttributes</a>()
             are quite different.
+-->
          </td>
         </tr>
+<!--
+          <a name=utility></a>
         <tr>
          <td>
-          <a name=utility></a>
           <b>Utility Functions</b>
          </td>
          <td>
             The following procedures can also be used to set attributes on an interface element:
             <br>
             <br>
-            <b>IupSetAttributeId</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="string.htm">string</a> name, <a href="integer.htm">integer</a> id, 
-                                     <a href="string.htm">atom_string</a> v)<br>
-            <b>IupSetAttributeId2</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="string.htm">string</a> name, <a href="integer.htm">integer</a> lin, col, 
-                                      <a href="string.htm">atom_string</a> v)
+//          <b>IupSetAttributeId</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="string.htm">string</a> name, <a href="integer.htm">integer</a> id, 
+//                                   <a href="string.htm">atom_string</a> v)<br>
+//          <b>IupSetAttributeId2</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="string.htm">string</a> name, <a href="integer.htm">integer</a> lin, col, 
+//                                    <a href="string.htm">atom_string</a> v)
             <br>
             <br>
             id, lin, col: used when the attribute has additional ids.
@@ -143,9 +195,9 @@ DEV everything following may need to be rewritten...<br><br>
             The same rules for non-volatility of v also apply here.
             <br>
             <br>
-            See also the Utility Functions in <a href="IupSetStrAttribute.htm#utility">IupSetStrAttribute</a>, which allow direct setting of integer, floating point, and RGB values.
-            Note that the C function <span class="illegal">IupSetfAttributeId</span> is not wrapped by pGUI, however that functionality is covered by the optional parameters of 
-            <a href="IupSetStrAttribute.htm#utility">IupSetStrAttributeId</a>.
+//          See also the Utility Functions in <a href="IupSetStrAttribute.htm#utility">IupSetStrAttribute</a>, which allow direct setting of integer, floating point, and RGB values.
+//          Note that the C function <span class="illegal">IupSetfAttributeId</span> is not wrapped by pGUI, however that functionality is covered by the optional parameters of 
+//          <a href="IupSetStrAttribute.htm#utility">IupSetStrAttributeId</a>.
          </td>
         </tr>
 -->
@@ -176,31 +228,19 @@ gSetAttribute(text, "VALUE", "Hello!")
           <b>Example 2:</b>
          </td>
          <td>
-            Defines a radio&rsquo;s initial value:
-         </td>
-        </tr>
-        <tr>
-         <td>
-         </td>
-         <td>
-<!--
-IupSetHandle("landscape", landscape) -- associates a name to initialize the radio
-IupSetAttribute(mode, "VALUE", "landscape") -- defines the radio's initial value
--->
 <!--eucode>
-gdx portrait = IupToggle("Portrait", NULL),
-   landscape = IupToggle("landscape", NULL),
-         box = IupVbox({portrait, IupFill(), landscape}),
-        mode = IupRadio(box)
-IupSetAttribute(mode, "VALUE", landscape) -- defines the radio's initial value
+-- Enable or disable several buttons and/or menu entries simultaneously
+gSetAttribute({b_cut,b_copy,b_delete,m_cut,m_copy,m_delete}, "ACTIVE", selected_text!={})
 </eucode-->
 <pre>
-<font color="#7060A8">gdx</font><font color="#000000"> portrait</font><font color="#0000FF"> =</font><font color="#7060A8"> IupToggle</font><font color="#0000FF">(</font><font color="#008000">"Portrait"</font><font color="#0000FF">,</font><font color="#004600"> NULL</font><font color="#0000FF">),</font>
-<font color="#000000">   landscape</font><font color="#0000FF"> =</font><font color="#7060A8"> IupToggle</font><font color="#0000FF">(</font><font color="#008000">"landscape"</font><font color="#0000FF">,</font><font color="#004600"> NULL</font><font color="#0000FF">),</font>
-<font color="#000000">         box</font><font color="#0000FF"> =</font><font color="#7060A8"> IupVbox</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">portrait</font><font color="#0000FF">,</font><font color="#7060A8"> IupFill</font><font color="#800080">()</font><font color="#0000FF">,</font><font color="#000000"> landscape</font><font color="#800000">}</font><font color="#0000FF">),</font>
-<font color="#000000">        mode</font><font color="#0000FF"> =</font><font color="#7060A8"> IupRadio</font><font color="#0000FF">(</font><font color="#000000">box</font><font color="#0000FF">)</font>
-<font color="#7060A8">IupSetAttribute</font><font color="#0000FF">(</font><font color="#000000">mode</font><font color="#0000FF">,</font><font color="#008000"> "VALUE"</font><font color="#0000FF">,</font><font color="#000000"> landscape</font><font color="#0000FF">)</font><font color="#000080"><i> -- defines the radio&rsquo;s initial value</i></font>
+<font color="#000080"><i>-- Enable or disable several buttons and/or menu entries simultaneously</i></font>
+<font color="#7060A8">gSetAttribute</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">b_cut</font><font color="#0000FF">,</font><font color="#000000">b_copy</font><font color="#0000FF">,</font><font color="#000000">b_delete</font><font color="#0000FF">,</font><font color="#000000">m_cut</font><font color="#0000FF">,</font><font color="#000000">m_copy</font><font color="#0000FF">,</font><font color="#000000">m_delete</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000"> "ACTIVE"</font><font color="#0000FF">,</font><font color="#000000"> selected_text</font><font color="#0000FF">!=</font><font color="#800000">{}</font><font color="#0000FF">)</font>
 </pre>
+<!--
+            <br>
+            You could equivalently use <a href="IupSetStrAttribute.htm#utility">IupSetInt</a> and a 
+            <a href="integer.htm#bool">bool</a>, probably ever-so-slightly faster, but probably not by enough to ever actually measure.
+-->
          </td>
         </tr>
         <tr>
@@ -208,147 +248,794 @@ IupSetAttribute(mode, "VALUE", landscape) -- defines the radio's initial value
           <b>See Also:</b>
          </td>
          <td>
-<!--      <a href="IupSetCallback.htm">IupSetCallback</a>,-->
-<!--      <a href="IupSetStrAttribute.htm">IupSetStrAttribute</a>,-->
-          <a href="IupGetAttribute.htm">IupGetAttribute</a>,
-          <a href="IupSetAttributes.htm">IupSetAttributes</a>,
-          <a href="IupGetAllAttributes.htm">IupGetAllAttributes</a>,
-          <a href="IupSetGlobal.htm">IupSetGlobal</a>,
-          <a href="IupGetGlobal.htm">IupGetGlobal</a>
+          <a href="gSetHandler.htm">gSetHandler</a>,
+          <a href="gGetAttribute.htm">gGetAttribute</a>,
+          <a href="gSetAttributes.htm">gSetAttributes</a>,
+<!--          <a href="IupGetAllAttributes.htm">IupGetAllAttributes</a>,-->
+          <a href="gSetGlobal.htm">gSetGlobal</a>,
+          <a href="gGetGlobal.htm">gGetGlobal</a>
           <br>
+          <a name=COMMON></a>   
          </td>
         </tr>
         <tr>
          <td>
-          <b>Common Attributes</b>
+          <b>Common:</b>
          </td>
          <td>
-            The following attributes are common to several controls/interface element types
-         </td>
-        </tr>
-<!--DEV-->
-        <tr>
-         <td>
+            The following attributes are common to several controls/interface element types.<br>
+            See also <a href="gGetAttribute.htm#COMMON">gGetAttribute</a> for some other common read-only attributes.<br>
           <a name=ACTIVE></a>
-          ACTIVE<a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          ACTIVE
          </td>
          <td>
-            Activates or inhibits user interaction. Value "YES" (active), "NO" (inactive). Default: "YES". 
-            Alternatively, <a href="IupSetStrAttribute.htm#utility">IupSetInt</a>() and <a href="IupGetAttribute.htm#utility">IupGetInt</a>()
-            can be used with true/false, or <a href="IupSetStrAttribute.htm#utility">IupToggleInt</a>().<br>
+            (inherited) Activates or inhibits user interaction. Value true/"YES" (active), false/"NO" (inactive). Default: true. <br>
+<!--
+//          Alternatively, <a href="IupSetStrAttribute.htm#utility">IupSetInt</a>() and <a href="IupGetAttribute.htm#utility">IupGetInt</a>()
+//          can be used with true/false, or <a href="IupSetStrAttribute.htm#utility">IupToggleInt</a>().<br>
+-->
             An interface element is only active if its native parent is also active.<br>
-            ACTIVE can also be set for controls that do not have user interaction because they may have a visual feedback to indicate the inactive state.<br>
-            In GTK and Motif the inactive dialogs will still be able to move, resize and change their Z-order.<br>
+            ACTIVE can also be set for non-interactive controls and may affect their visual feedback.<br>
+<!-- ??
+            In GTK the inactive dialogs will still be able to move, resize and change their Z-order.<br>
+-->
             Affects: All controls that have visual representation.
             <br>
+          <a name=CANFOCUS></a>
          </td>
         </tr>
         <tr>
          <td>
-          <a name=BGCOLOR></a>
-          BGCOLOR<a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a>
+          CANFOCUS
          </td>
          <td>
-            Element&rsquo;s background color.
-            <br>
-            <br>
-            Value: The RGB components.
-            <br>
-            <br>
-            Values should be between 0 and 255, separated by a blank space. For example "255 0 128", red=255 blue=0 green=128.
-            <br>
-            <br>
-            Default: It is the value of the <a href="iupgattr.htm#DLGBGCOLOR">DLGBGCOLOR</a> global attribute. <br>
-            On some controls if not defined will inherit the background of the native parent.
-            <br>
-            <br>
-            Hexadecimal notation in the format "#RRGGBB" is also accepted in all color attributes. For example, "255 0 128" can also be written as "#FF0080".<br>
-            Note that double quotes are still required when using <a href="IupSetAttributes.htm">IupSetAttributes</a>(), and therefore the inline string attributes 
-            of control creation, eg IupSetAttributes(ih,`BGCOLOR="#FF0080"`).
-            <br>
-            <br>
-            Affects: All controls that have visual representation, but with some restrictions. 
-            <br>
-            <br>
-            Several controls have transparent parts that are not affected by the BGCOLOR.
-            <br>
-            <br>
-            Run demo\pGUI\sample.exw and use the menu to toggle the dialog BACKGROUND, the dialog BGCOLOR and the children BGCOLOR. 
-            <br>
-            <br>
-            See Also: <a href="#FGCOLOR">FGCOLOR</a>, <a href="iupgattr.htm#DLGBGCOLOR">DLGBGCOLOR</a> 
-            <br>
+            <!--(creation only)--> 
+            Enables the focus traversal of the control. Default: true.<br>
+<!--??          In Windows the button will respect CANFOCUS in opposite to the other controls. <br>-->
+          <a name=EXPAND></a>
          </td>
         </tr>
         <tr>
          <td>
-          <a name=CLIENTOFFSET></a>
-          CLIENTOFFSET
+?         EXPAND
          </td>
          <td>
-            (read-only, non inheritable)<br>
-            Returns the container native offset to the Client area, see <a href="xplayout.htm">box model layout</a>.<br>
-            Useful for <a href="IupFrame.htm">IupFrame</a>, <a href="IupTabs.htm">IupTabs</a> and <a href="IupDialog.htm">IupDialog</a> that have decorations. <br>
-            Can also be consulted in other containers, it will simply return "0x0". <br>
-            This attribute can be used in conjunction with the <a href="#POSITION">POSITION</a> attribute of a child so the coordinates of a child relative to the native parent can be obtained.
+            Allows the element to expand, fulfilling empty spaces inside its container.
             <br>
             <br>
-            Value: "dxxdy", where dx and dy are integer values corresponding to the horizontal and vertical offsets, respectively, in pixels.
+            It is a non inheritable attribute, but fairly obviously the overall behaviour depends on the expansion settings of both
+            a container and its children: if expansion is disabled on a container then it gets a (fixed) minumum width/height that
+            accomodates the largest of its children, none of the other children (including any sub-containers) being able to expand 
+            into anything beyond that. Conversely a container can only expand in a given direction if at least one of its children 
+            can also expand in that direction, except when the container itself is a "sole child", namely being the single child of a
+            <a href="gDialog.htm">gDialog</a>, <a href="gFrame.htm">gFrame</a>, or a direct child of <a href="gTabs.htm">gTabs</a>, 
+            in which case it still expands but uses the <a href="gBox.htm#SPACE">SPACE</a> attribute to distribute any excess and
+            reposition its children appropriately, with XPG_SPACE_NONE being the thing that completely disables expansion.
+            Note that a fatal error may trigger on attempts to completely disable expansion on such "sole child" containers, that 
+            is when you should instead be disabling resizing on the dialog or expansion on the gFrame/gTabs.
+<!--
+                        and in fact an error 
+            occurs on any attempt to set EXPAND to anything other than BOTH/YES on any such <a href="gBox.htm">gH/Vbox</a>.</small>
+-->
+<!-- I think I just said that!...
             <br>
             <br>
-            Affects: All elements that are containers, except menus.
+            Likewise no child element can expand beyond the limits of its parent container and therefore the expansion of all 
+            child elements is effectively constrained by the expansion settings of its parent.
+-->
+<!-- NO: Just put expand=NO on the container!
             <br>
             <br>
-            Notes:<br>
-            In GTK and Motif, for the <a href="IupDialog.htm">IupDialog</a>, the dy value is negative when there is a menu. <br>
-            This occurs because in those systems the menu is placed inside the Client Area and all children must be placed below the menu.<br>
-            In Windows, for the <a href="IupFrame.htm">IupFrame</a>, the value is always "0x0" the position of the child is still relative to the top-left corner of the frame. <br>
-            This is automatically compensated in calculation of the <a href="#POSITION">POSITION</a> attribute.
+            A further caveat is "FREE" expansion, whereby a child can expand in the specified direction but does not affect the
+            expansion of the container, for instance a separator might want to be full width/height but only as a shorthand for
+            matching its siblings.
+-->
             <br>
             <br>
-            See Also: <a href="#SIZE">SIZE</a><a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a>, 
-                      <a href="#RASTERSIZE">RASTERSIZE</a><a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a>, 
-                      <a href="#CLIENTSIZE">CLIENTSIZE</a>, 
-                      <a href="#POSITION">POSITION</a>
+<!--
+             a container  expansion a container inherit its parents EXPAND attribute. <br>
+            In other words, although EXPAND is non inheritable, it is inheritable for containers. <br>
+            So if you set it at a container it will not affect its children, except for those who are containers.<br>
+            The expansion is done equally for all expandable elements in the same container.<br>
             <br>
+            For a container, the actual EXPAND value will be always a combination of its own value and the value of its children, <br>
+            in the sense that a container can only expand if its children can expand too in the same direction.<br>
+            <br>
+            The HORIZONTALFREE and VERTICALFREE values will not behave as normal expansion. <br>
+            These values will NOT affect the expansion of the container when set at its children, <br>
+            the children will simply expand to the available free space at the container.<br>
+            See <a href="xplayout.htm">Layout Management</a> for more details on sizes.<br>
+-->
+<!--<wbr>"HORIZONTALFREE", <wbr>"VERTICALFREE"-->
+            Value: "NONE"[/"NO"/"FALSE"], <wbr>"HORIZONTAL", <wbr>"VERTICAL", or "BOTH"[/"YES"]. <small>(must be a string)</small><br>
+            While gGetAttribute(id,"EXPAND") returns one of the above four strings, gGetInt(id,"EXPAND") returns 0..3, with bit 0b01
+            indicating horizontal expansion and bit 0b10 indicating vertical expansion.
+            <br>
+            <br>
+            Defaults:<br>
+            "NONE" for <a href="gButton.htm">gButton</a>,
+                       <a href="gCheckbox.htm">gCheckbox</a>, 
+                       <a href="gDatePick.htm">gDatePick</a>,   
+                       <a href="gDropDown.htm">gDropDown</a>,
+                       <a href="gLabel.htm">gLabel</a>,
+                       <a href="gProgressBar.htm">gProgressBar</a>,
+                       <a href="gSlider.htm">gSlider</a>,
+                       <a href="gSpin.htm">gSpin</a>,
+                       <a href="gText.htm">gText</a>, <br>
+<!--        "HORIZONTAL" for <a href="gCheckbox.htm">gCheckbox</a>, -->
+            "BOTH" for <a href="gCanvas.htm">gCanvas</a>,
+                       <a href="gGraph.htm">gGraph</a>,
+                       <a href="gList.htm">gList</a>,
+                       <a href="gTable.htm">gTable</a>,
+                       <a href="gTreeView.htm">gTreeView</a>, <br>
+            "BOTH" for <a href="gDialog.htm">gDialog</a>, 
+                       <a href="gBox.htm">gH/Vbox</a>,
+                       <a href="gFrame.htm">gFrame</a>,
+                       <a href="gSplit.htm">gSplit</a>,
+                       <a href="gTabs.htm">gTabs</a>.
+            <br>
+            <br>
+            Note that the natural size of a gCanvas, and hence all the (next three) canvas-based controls, is just the size of 
+            one character, and a gTreeView, with a natural size of {0,0}, is even smaller. Hence should you disable expansion 
+            on any of them you will almost certainly need to specify an explicit <a href="#SIZE">SIZE</a>.
+            <br>
+            <br>
+            Affects: All elements, except menus.<br>
+<!--
+            See Also: <a href="#SHRINK">SHRINK</a>
+-->
+          <a name=FONT></a>
          </td>
         </tr>
         <tr>
          <td>
-          <a name=CLIENTSIZE></a>
-          CLIENTSIZE
+          FONT
          </td>
          <td>
-            (read-only [except on IupDialog], non inheritable)<br>
-            Returns the client area size of a container. <br>
-            It is the space available for positioning and sizing children, see <a href="xplayout.htm">box model layout</a>.<br>
-            It is the container Current size excluding the decorations (if any). 
+            (inherited) A string defining the font, in the format "&lt;face&gt;, &lt;styles&gt; &lt;size&gt;". Default: "Helvetica, 9".
             <br>
             <br>
-            Value: "widthxheight", where width and height are integer values corresponding to the horizontal and vertical size, respectively, in pixels.
+            Since font face names are not a standard between Windows and GTK, a few names are specially handled to improve application portability. 
+            Should you want to use fonts that work for all systems we recommend using Helvetica, Courier, and Times, which (are used directly for
+            HTML/CSS/JavaScript and) always have a native system equivalent:
             <br>
             <br>
-            Affects: All elements that are containers, except menus.
+            <p align="center"><img alt="Fonts" src="images/xpgFonts.png" width="502" height="98"/></p>
+
+<!-- Drove meself mad trying to centre this, easy peasy in a browser, but simply impossible in a chm file, I reluctantly concluded.
+DOH: 
+            <center>
+            <p align="center">
+            <div class="wraptocenter">
+             <div id="images" class="images">
+            <table>
+-->
+<!--            <table style="border:1px solid black;margin-left:auto;margin-right:auto;">-->
+<!--            <table align="center"> -->
+<!--            <center style="display:block;">-->
+<!--
+            <table style="display:block;border:none;width:fit-content;float:none;margin-left:auto;margin-right:auto;">
+            <tr>
+                <th>Recommended</th>
+                <th style="text-align:center">Windows</th>
+                <th style="text-align:center">GTK</th>
+                <th>Description</th>
+            </tr>
+            <tr>
+                <td><strong>Helvetica</strong></td>
+                <td style="text-align:center">Arial</td>
+                <td style="text-align:center">Sans</td>
+                <td>without serif, variable spacing</td>
+            </tr>
+            <tr>
+                <td><strong>Courier</strong></td>
+                <td style="text-align:center">Courier New</td>
+                <td style="text-align:center">Monospace</td>
+                <td>with serif, fixed spacing</td>
+            </tr>
+            <tr>
+                <td><strong>Times</strong></td>
+                <td style="text-align:center">Times New Roman</td>
+                <td style="text-align:center">Serif</td>
+                <td>with serif, variable spacing</td>
+            </tr>
+            </table>
+-->
+<!--
+             </div>
+            </div>
+            <div class="clear"></div>
+            </p>
+            </center>
+            <br>
+-->
+            <br>
+            All nine fonts listed above work on any backend - it is no harder to map all three columns three ways than only do one column two ways.
+            The supported font style is a combination of: Bold and Italic (or omit both for "Normal"). <br>
+            Note that Underline and Strikeout are <i>not</i> supported by pango/GTK (and cairo fonts are indeed pretty hideous) and hence those styles
+            are not supported by xpGUI either. 
+<!-- it might be possible to fake it with gCanvasLine(), there is probably some hideous CSS hack for that -->
+<!--
+erm, lets not promise vapourware, and `invoked via "FONT"` must have meant set those attributes there, but implement them via some internal REDRAW. Better:
+            Note that Underline and Strikeout are are not directly supported by pango/GTK (and cairo fonts are indeed pretty hideous) and hence in fact 
+            implemented as entirely separate UNDERLINE and STRIKEOUT attributes, which can theoretically be used independently, but are clobbered every 
+            time FONT is set.
+            - if needed it might be possible/would be more sensible to add entirely separate UNDERLINE and STRIKEOUT attributes to selected controls, 
+            which could then I suppose be indirectly invoked via "FONT", that is if/when they actually exist, which may be never. <br>
+-->
+            Unsupported values raise an error. The face names are case-sensitive and must exactly match those shown above, whereas in contrast "bold" 
+            and "italic" (for no particularly good reason) are actually perfectly acceptable and automatically mapped to their capitalised equivalents. 
             <br>
             <br>
-            Notes: <br>
-            For <a href="IupHbox.htm">IupHbox</a>, <a href="IupVbox.htm">IupVbox</a> and <a href="IupGridBox.htm">IupGridBox</a> it consider the MARGIN attribute as a decoration.<br>
-            For <a href="IupBackgroundBox.htm">IupBackgroundBox</a>, is only available after the control is mapped.<br>
-            For <a href="IupDialog.htm">IupDialog</a> is NOT read-only, and it will re-define 
-                <a href="#RASTERSIZE">RASTERSIZE</a><a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a>
-                                                     by adding the decorations to the actual Client size.<br>
-            For <a href="IupSplit.htm">IupSplit</a> returns the total area available for the two children.
+            Fonts are automatically inherited at the point of mapping/display, and cached/pooled to minimise 
+            <a name=mru></a>resource usage<small><sup><a href="#mru1">1</a></sup></small>.
+<!--
+//          Note that means if you gSetAttribute(id1,"FONT","Helvetica, 9") and gSetAttribute(id2,"FONT","Sans, 9"), then gGetAttribute(id2,"FONT")
+//          will likely return "Helvetica" rather than "Sans", that is assuming they have both been internally mapped to the same thing (eg "Arial").
+            <small><i>(Excess cacheing might itself cause problems:
+            should you ever need an automatic purge of unused fonts, say on every 10<small><sup>th</sup></small> new, just let me know.)</i></small>
+-->
             <br>
             <br>
-            See Also: <a href="#SIZE">SIZE</a><a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a>, 
-                      <a href="#RASTERSIZE">RASTERSIZE</a><a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a>, 
-                      <a href="#CLIENTOFFSET">CLIENTOFFSET</a>
+            Font size is in points (1/72 inch) or in pixels (using negative values).
             <br>
+            <br>
+            Examples:
+            <br>
+            <br>
+<!--eucode>
+    "Times, Bold 18"
+    "Arial, 24" -- (no style)
+    "Courier New, Italic -30" -- (size in pixels)
+</eucode-->
+<pre>
+<font color="#008000">    "Times, Bold 18"
+    "Arial, 24"</font><font color="#000080"><i> -- (no style)</i></font>
+<font color="#008000">    "Courier New, Italic -30"</font><font color="#000080"><i> -- (size in pixels)</i></font>
+</pre>
+<!--
+            <br>
+            On Windows the native handle can be obtained using the "HFONT" attribute.<br>
+            On Motif the native handle can be obtained using the "XMFONTLIST" and "XFONTSTRUCT" attributes. The selected X Logical Font Description string can be obtained from the attribute "XLFD".<br>
+            On GTK the native handle can be obtained using the "PANGOFONTDESC" attribute.
+            <br>
+-->
+<!--
+            <br>
+            <h3>Auxiliary Attributes</h3>
+            These will change the FONT attribute, and depend on it. <br>
+            They are used only to set partial FONT parameters of style and size. <br>
+            To do that the FONT attribute is parsed, changed and updated to the new value in the common format definition. <br>
+            This means that if the attribute was set in X-Windows format or in the old Windows and IUP formats, the previous value will be replaced by a new value in the common format definition. <br>
+            Pango additional styles will also be removed.
+            <br>
+            <br>
+            <table>
+             <tr><td>FONTSTYLE</td><td>(non inheritable) Replaces or returns the style of the current FONT attribute. Since font styles are case sensitive, this attribute is also case sensitive.</td></tr>
+             <tr><td>FONTSIZE</td><td>(non inheritable) Replaces or returns the size of the current FONT attribute.</td></tr>
+             <tr><td>FONTFACE</td><td>(non inheritable) Replaces or returns the face name of the current FONT attribute.</td></tr>
+             <tr><td>CHARSIZE</td><td>(read-only, non inheritable) Returns the average character size of the current FONT attribute. 
+[DEV]...
+                                        This is the factor used by the 
+                    <a href="#SIZE">SIZE</a><a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a>
+                                        attribute to convert its units to pixels.</td></tr>
+            </table>
+-->
+            <br>
+            Affects: All, except <a name=em></a>menus<small><sup><a href="#em2">2</a></sup>.
+            <br>
+            <br>
+            <a name=mru1></a><small><sup><a href="#mru">1</a></sup>
+            That means for example under WinAPI after setting the font to "Sans, italic 9", gGetAttribute() returns "Arial, Italic 9", which is quite
+            correct, since the internal font cache is for obvious reasons keyed/indexed on all the post-mapped/platform specific values, and further,
+            any changes it has made would in fact still work just fine even on a different backend, though would obviously get a different mapping. 
+            You can of course experiment with other fonts, but there is no guarantee they will be portable, and should you find any other (useful) 
+            sets that seem consistent/equivalent between WinAPI, GTK, and JavaScript I will happily add them to the internal code and above table.
+            </small>
+            <br><br>
+            <a name=em2></a><small><sup><a href="#em">2</a></sup> Note that any attempt to set the font on a menu triggers an error, especially under 
+            WinAPI, hence that is not supported, and probably never will be.<br>
+            </small>
+          <a name=MARGIN></a>
          </td>
         </tr>
         <tr>
          <td>
+          MARGIN
+         </td>
+         <td>
+            (not inherited) Specifies the initial spacing around any content. See <a href="xplayout.htm">Layout Management</a>.
+            <br>
+            <br>
+<!--
+            While there is a fairly clear distinction between them on (say) a <a href="gButton.htm">gButton</a>, where the
+            MARGIN is outside the button border and the PADDING is inside, on most controls the difference is a little more
+            subtle. In some senses a containing <a href="gBox.htm">gH/Vbox</a> "owns" the child margins but "applies" the
+            child padding a bit more selectively, and of course "owns" its own padding, but actually does nothing with its
+            own margins, since that is a parental responsibility. The lines are indeed often a little blurred, for instance
+            a <a href="gButton.htm">gButton</a> absolutely must deal with its own PADDING, but it just makes more sense for
+            a container to deal with that of a <a href="gLabel.htm">gLabel</a> and several other similar controls, rather 
+            than duplicate the exact same code on <i>every</i> single control type. With a few obvious exceptions, it is
+            probably fair to say that any given layout could be achieved using only MARGIN, or only PADDING, or any one of
+            several dozen different mixtures of the two. The only unbreakable rule is that margins are always dealt with by
+            the parent, whereas padding is sometimes handled by the element itself and sometimes by the parent. The general
+            advice is to favour using MARGIN whenever you can, and PADDING only when you must.
+            <br>
+            <br>
+            Technically a <a href="gDialog.htm">gDialog</a> cannot have a MARGIN, but it quietly sets the PADDING instead,
+            since that is almost certainly what you meant.
+-->
+            Note that on desktop/Phix margins are always handled by the parent container, and as such cannot be set on a 
+            <a href="gDialog.htm">gDialog</a> but must instead be set on its (sole) child.
+            <br>
+            <br>
+            Specified as between one and four values: <br>
+            &nbsp;&nbsp;&nbsp;&nbsp;m or {m} or "m" =&gt; {m,m,m,m}, <br>
+            &nbsp;&nbsp;&nbsp;&nbsp;{tb,lr} or "tbxtl" =&gt; {tb,lr,tb,lr}, <br>
+            &nbsp;&nbsp;&nbsp;&nbsp;{t,lr,b} or "txlrxb"=&gt; {t,lr,b,lr}, or <br>
+            &nbsp;&nbsp;&nbsp;&nbsp;{t,r,b,l} or "txrxbxl" <small><i>[unchanged]</i></small><br>
+            as integer values corresponding to the top, right, bottom, and left margins(/padding) respectively/clockwise.
+            <br>
+            <br>
+            Default: 0 (no margin). [DEV that may not be quite true...]<br>
+            Returns: a sequence of length 1..4, or the atom 0 if not set.
+
+<!--
+[DEV]
+//          <b><a href="gSetAttribute.htm#PADDING">PADDING</a></b>:
+//          For <a href="gBox.htm">gHbox</a> and <a href="gBox.htm">gVbox</a> (only), is seamlessly added to the MARGIN of 
+//          any child element.
+//          <br>
+//          <a name=GAP></a>
+//          <br>
+//          <b><a href="gSetAttribute.htm#GAP">GAP</a></b>: Specifies the initial spacing between any content. Applies to 
+//          <a href="gBox.htm">gHbox</a> and <a href="gBox.htm">gVbox</a> only, an error occurs on attempting to set this 
+//          on any other control. As with PADDING this is seamlessly added to the MARGIN of any child element.
+//          <br>
+//          <br>
+//          <b><a href="gSetAttribute.htm#MARGIN">MARGIN</a></b>: It is illegal to specify a margin on any element that is 
+//          not the immediate child of either a <a href="gBox.htm">gHbox</a> or <a href="gBox.htm">gVbox</a>, and that 
+//          <i>includes</i> any such top-level container, which must instead use the PADDING and GAP attributes instead.
+-->
+            <br>
+            <br>
+            Affects: All elements except <a href="gDialog.htm">gDialog</a> and <a href="gMenu.htm">menus</a>.
+            <br>
+            <br>
+<!--
+            Aside: Under pGUI/IUP, these and similar attributes <i>are</i> inherited, which meant that often I would look
+            at a layout and say "I just need an extra 5 pixels there", and BOOM, I got an extra 525 pixels with everything
+            now completely out of place, and/or it has explicitly non-inheritable versions of dozens of such things, which 
+            is fine in a way I guess, but not exactly elegant either. There may be some cases where inheritable versions
+            get the first prototype up and running a tiny bit quicker, but having to avoid them for the rest of eternity 
+            after that point just seems completely wrong, and I would much rather do it the other way: add explicitly
+            inherited versions should they ever be useful, instead of explicitly non-inherited ones of <i>everything</i>
+            to get around the inevitable issues that would occur (hindsight always has 20/20 vision and all that). Or I
+            could perhaps just have "gApplyAttributeRecursivelyIfNotSet()", with (inlined) gSetAttributes using "*="...
+            <br>
+            <br>
+-->
+            See also: <a href="gBox.htm#GAP">GAP</a>,
+                      <a href="#PADDING">PADDING</a>,
+                      <a href="xplayout.htm#BoxModel">The HTML/CSS Box Model</a>.
+            <br>
+          <a name=MAXSIZE></a>
+          <a name=MINSIZE></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+?         MAXSIZE,<br>
+          MINSIZE
+         </td>
+         <td>
+            (non inheritable) Specifies the element maximum/minimum size in pixels during the layout process. <br>
+??          Default: 0x0 (None), except for <a href="gDialog.htm">gDialog</a>() and <a href="gFrame.htm">gFrame</a>,
+            which get a default MINSIZE based on their <a href="#TITLE">TITLE</a> at creation time. Note that for
+            many elements the <a href="gGetAttribute.htm#NATURALSIZE">NATURALSIZE</a> also acts as a MINSIZE.
+            <br>
+            <br>
+            See <a href="xplayout.htm">Layout Management</a> for more details on sizes.
+            <br>
+            <br>
+            Value; "widthxheight", where width and height are integer values corresponding to the horizontal and vertical size, respectively, in pixels.
+            <br>
+            <br>
+            You can also set only one of the parameters by removing the other one and maintaining the separator "x", but this is equivalent of setting the other value to 0. 
+            For example: "x40" (height only = "0x40") or "40x" (width only = "40x0").
+            <br>
+            <br>
+            Affects: All, except menus.
+            <br>
+            <br>
+            Notes: The limits are applied during the layout computation. It will(/may?) limit the Natural size and the Current size. 
+            <br>
+            <br>
+            If the element can be expanded, then its empty space will NOT be occupied by other controls although its size will be limited.
+            <br>
+            <br>
+            On a <a href="gDialog.htm">gDialog</a> will also limit the interactive resize of the dialog, and if less than the natural size
+            will allow/cause some elements to be cropped, and/or introduce automatic scrollbars[?].
+            <br>
+            <br>
+            See Also: <a href="#SIZE">SIZE</a>
+<!--
+            <a href="gSetAttribute.htm#MAXSIZE">MAXSIZE</a>,
+            The windowing system will not be able to change the size beyond this limit. Default: 65535x65535.
+            <a href="gSetAttribute.htm#MINSIZE">MINSIZE</a>
+DEV: needs testing, then the apppropriate comment adding here...
+            Some systems define a very minimum size greater than this, for instance in Windows the horizontal minimum size includes the window decoration buttons.
+-->
+            <br>
+          <a name=PADDING></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+?         PADDING
+         </td>
+         <td>
+<!--            DEV <b>NB</b> PADDING seems to be doing the job of MARGIN at the moment, that will probably get "fixed".<br>-->
+            (not inherited, creation only) Similar to <a href="#MARGIN">MARGIN</a>, but only applicable to controls with a visible border
+            (as listed below) and inside rather than outside that.
+            <br>
+            <br>
+            Note that (unlike <a href="#MARGIN">MARGIN</a>) if both PADDING and <a href="#SIZE">SIZE</a> are set on a control, 
+            in the <a href="xplayout.htm#BoxModel">box model</a> the former is subtracted from the latter when setting the 
+            inner content size. In other words when set <a href="#SIZE">SIZE</a> always directly controls the border position 
+            and changing the padding (impossible values aside) does not alter that, however padding when no usersize is set 
+            <i>can and does</i> change the border position.
+            <br>
+            <br>
+            Default: 0 (no padding). [DEV that may not be quite true...]<br>
+            Returns: a sequence of length 1..4 (see <a href="#MARGIN">MARGIN</a>), or the atom 0 if not set.
+            <br>
+            <br>
+            Affects: <a href="gButton.htm">gButton</a>, 
+                     <a href="gDatePick.htm">gDatePick</a>,
+                     <a href="gDropDown.htm">gDropDown</a>, 
+<!--                    <a href="gFrame.htm">gFrame</a>, <a href="gProgressBar.htm">gProgressBar</a>, -->
+                     <a href="gText.htm">gText</a>.
+            <br>
+            <br>
+            See also: <a href="gBox.htm#GAP">GAP</a>,
+                      <a href="#MARGIN">MARGIN</a>,
+                      <a href="#SIZE">SIZE</a>,
+                      <a href="xplayout.htm#BoxModel">The HTML/CSS Box Model</a>.
+            <br>
+          <a name=SIZE></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          SIZE
+         </td>
+         <td>
+            (non inheritable) Specifies the element User size, and returns the Current size, in pixels.
+            <!--units proportional to the size of a character.-->
+<!--
+            <br>
+            <br>
+            See <a href="xplayout.htm">Layout Management</a> for more details on sizes.
+-->
+            <br>
+            <br>
+            Value: "widthxheight", where width and height are integer values corresponding to the horizontal and vertical size, respectively.
+            <!--, in characters fraction unit (see Notes below). -->
+            <br>
+            <br>
+            You can also set only one of the parameters by removing the other one and maintaining the separator "x", but this is equivalent to 
+            setting the other value to 0. <br>
+            For example: "x40" (height only = "0x40") or "40x" (width only = "40x0").
+            <br>
+            <br>
+            When this attribute is consulted the Current size of the control is returned.
+            <br>
+            <br>
+<!--
+            Notes<br>
+            The size units observes the following heuristics:
+            <br>
+            <br>
+            Width in 1/4&rsquo;s of the average width of a character for the current <a href="#FONT">FONT</a> of each control. <br>
+            Height in 1/8&rsquo;s of the average height of a character for the current <a href="#FONT">FONT</a> of each control. <br>
+            So, a SIZE="4x8" means 1 character width and 1 character height.
+            <br>
+            <br>
+            Notice that this is the average character size, the space occupied by a specific string is always different to
+            the number of characters times the average character size, except when using a monospaced font like Courier. <br>
+            Usually for common strings this size is smaller than the actual size, so it is a good practice to leave more room than expected if you use the SIZE attribute. <br>
+            For smaller font sizes this difference is more noticeable than for larger font sizes.
+            <br>
+            <br>
+//          When this attribute is changed, the <a href="#RASTERSIZE">RASTERSIZE</a> attribute is automatically updated.
+            <br>
+            <br>
+            SIZE depends on <a href="#FONT">FONT</a>, so when <a href="#FONT">FONT</a> is changed and SIZE is set, 
+//          then <a href="#RASTERSIZE">RASTERSIZE</a> is also updated. [DEV?]
+            <br>
+            <br>
+            The average character size of the current <a href="#FONT">FONT</a> can be obtained from the CHARSIZE attribute.
+            <br>
+            <br>
+            To obtain the last computed Natural size of the element in pixels, use the read-only attribute 
+            <a href="gGetAttribute.htm#NATURALSIZE">NATURALSIZE</a>.
+            <br>
+            <br>
+            To obtain the User size of the element in pixels after it is mapped, use the attribute USERSIZE. (Since 3.12)
+            <br>
+            <br>
+-->
+            A User size of "0x0" can be set, it can also be set using NULL. If both values are 0 then NULL is returned.
+            <br>
+            <br>
+            If you wish to use the User size only as an initial size, change this attribute to NULL after the control is mapped, 
+            the returned size in <a href="gGetAttribute.htm">gGetAttribute</a> will still be the Current size.
+            <br>
+            <br>
+            The element is NOT immediately repositioned. Call <a href="gRedraw.htm">gRedraw</a> to update the dialog layout.
+            <br>
+            <br>
+<!--
+            <a href="IupMap.htm">IupMap</a> also updates the dialog layout even if it is already mapped, so calling it or calling <a href="IupShow.htm">IupShow</a>, 
+            <a href="IupShowXY.htm">IupShowXY</a> or <a href="IupPopup.htm">IupPopup</a> (they all call <a href="IupMap.htm">IupMap</a>) will also update the dialog layout.
+            <br>
+            <br>
+-->
+            See <a href="xplayout.htm">Layout Management</a> for mode details on sizes.
+            <br>
+            <br>
+<!--
+            Note that GTK is obscenely obstinate and outrageously overcomplicated when it comes to setting and retrieving sizes.
+            <br>
+            <br>
+-->
+            Note this replaces the RASTERSIZE attribute of pGUI, and xpGI_from_pGUI.e replaces "SIZE" with "SIZE[*charsize]" which needs manual fixup.
+            <br>
+            <br>
+            A possible future enhancement is to allow say "[r]em:20x1" which would set the size to the [root] width of 20 and height of one 'm', with
+            "pt", "px" and perhaps some other JavaScript-compatible size units also being allowed, and perhaps do better than that "SIZE[*charsize]".
+            Or perhaps "SIZE:PT", "MARGIN:EM", etc..
+            <br>
+            <br>
+            Affects: All, except menus.
+            <br>
+            <br>
+            See Also: 
+            <a href="#FONT">FONT</a>, 
+<!--            <a href="#RASTERSIZE">RASTERSIZE</a>, -->
+            <a href="gRedraw.htm">gRedraw</a>
+            <br>
+          <a name=TIP></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TIP
+         </td>
+         <td>
+            (non inheritable, write-only) Text to be shown when the mouse lies over the element.
+            <br>
+            <br>
+            Value: Text.<br>
+<!--
+//          <br>
+//          <br>
+//          Additional Tip Attributes: These attributes affect the TIP display.
+//          <br>
+//          <br>
+//          TIPBALLOON [Windows Only]: The tip window will have the appearance of a cartoon "balloon" with rounded corners and a stem pointing to the item. Default: NO.
+//          <br>
+//          <br>
+//          TIPBALLOONTITLE [Windows Only]: When using the balloon format, the tip can also has a title in a separate area.
+//          <br>
+//          <br>
+//          TIPBALLOONTITLEICON [Windows Only]: When using the balloon format, the tip can also has a pre-defined icon in the title area. <br>
+//          Values can be:<br>
+//          "0" - No icon (default)<br>
+//          "1" - Info icon <br>
+//          "2" - Warning icon<br>
+//          "3" - Error Icon
+//          <br>
+//          <br>
+//          TIPBGCOLOR [Windows and Motif Only]: The tip background color. Default: "255 255 225" (Light Yellow)
+//          <br>
+//          <br>
+//          TIPDELAY [Windows and Motif Only]: Time the tip will remain visible. Default: "5000". In Windows the maximum value is 32767 milliseconds.
+//          <br>
+//          <br>
+//          TIPFGCOLOR [Windows and Motif Only]: The tip text color. Default: "0 0 0" (Black)
+//          <br>
+//          <br>
+//          TIPFONT [Windows and Motif Only]: The font for the tip text. If not defined the font used for the text is the same as the FONT attribute for the element. <br>
+//          If the value is SYSTEM then, no font is selected and the default system font for the tip will be used.
+//          <br>
+//          <br>
+//          TIPICON [GTK only]: name of an image to be displayed in the TIP. See <a href="IupImage.htm">IupImage</a>. (GTK 2.12)
+//          <br>
+//          <br>
+//          TIPMARKUP [GTK only]: allows the tip string to contains Pango markup commands. Can be "YES" or "NO". Default: "NO". Must be set before setting the TIP attribute. (GTK 2.12)
+//          <br>
+//          <br>
+//          TIPRECT (non inheritable): Specifies a rectangle inside the element where the tip will be activated. Format: "%d %d %d %d"="x1 y1 x2 y2". Default: all the element area. (GTK 2.12)
+//          <br>
+//          <br>
+//          TIPVISIBLE: Shows or hides the tip under the mouse cursor. Use values "YES" or "NO". <br>
+//          In GTK will only trigger the tip state, the given value will be ignored. Returns the current visible state. (GTK 2.12) (get since 3.5)
+//          <br>
+//          <br>
+//          Additional Tip Handlers (since 3.5)
+//          <br>
+//          <br>
+//          TIPS_CB: Action before a tip is displayed.
+//          <br>
+//          <br>
+//          functiontiops_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> x, y)<br>
+//          ih: identifier of the element that activated the event.<br>
+//          x, y: cursor position relative to the top-left corner of the element
+//          <br>
+//          <br>
+//          Affects: All controls that have visual representation, except menus.
+//          <br>
+-->
+          <a name=TITLE></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TITLE
+         </td>
+         <td>
+            The textual title/description of the interface element, often used to modify otherwise static text, such as that on a 
+            <a href="gButton.htm">gButton</a>, <a href="gCheckbox.htm">gCheckbox</a>, <a href="gDialog.htm">gDialog</a>, 
+            <a href="gFrame.htm">gFrame</a>, <a href="gLabel.htm">gLabel</a>, and maybe more. 
+            In most cases (except gDialog) the natural size is made large enough to include all the text in the selected font, even using multiple 
+            lines, plus things like the button/frame borders or the check box, if any. 
+            <br>
+            <br>
+            There is a completely unrelated GTITLE attribute on a <a href="gGraph.htm">gGraph</a>, similar things are handled quite differently
+            on <a href="gTable.htm">gTable</a> and <a href="gTabs.htm">gTabs</a> (see links for detals), and the static text on menus is handled 
+            by <a href="gMenu.htm#MenuAttr">gMenuSetAttribute</a>() rather than this routine.
+            <br>
+            <br>
+            Value: Text.
+            <br>
+            <br>
+            Default: ""
+            <br>
+            <br>
+            Notes<br>
+            The '\n' character usually is accepted for line change (except for menus, but they&rsquo;re not handled here anyway). <br>
+            The "&" character can be used to define a MNEMONIC, use "&&" to show the "&" character instead of defining a mnemonic. <br>
+            If a mnemonic is defined such as "&File" then the 'F' is underlined and pressing &lt;Alt F&gt; activates the control.<br>
+            In some cases/platforms/backends the underline only appears while the Alt key is being held down.
+            <br>
+            <br>
+            An automatic mapping of "&&","&","_" to "&","_","__" occurs under GTK, since that does mnemonics differently.<br>
+            Likewise HTML/JS/CSS uses (eg) &lt;span class="malt"&gt;F&lt;/span&gt;ile, though that is stripped when read back.<br>
+            Hence <a href="gGetAttribute.htm">gGetAttribute</a>(id,"TITLE") might not perfectly match that previously set, that is 
+            consistently between platforms/backends, and gSetAttribute(id,"TITLE",gGetAttribute(id,"TITLE")) or similar may have 
+            detrimental effects, on some. 
+            However, it should be fairly rare to ever fetch a static title, I would hope, since that cannot possibly ever be manually 
+            modified by the user anyway, but if you must, use say match("File",txt) rather than txt=="&File".
+            <br>
+            <br>
+            Aside: I am not sure what this ever meant, and I&rsquo;ve not deliberately put anything like this in, but I shall reproduce 
+            the following quote from the original IUP documentation: <i>&ldquo;For the benefit of GTK, should you define a mnemonic using 
+            "&" and the string has an underscore, then make sure that the mnemonic comes before the underscore&rdquo;</i>. 
+            I suspect but cannot be sure it is an outdated remark, from before "_"-&gt;"__", or some subtle buglette I have hopefully 
+            <i>not</i> accidentally managed to replicate.
+            <br>
+            <br>
+<!--
+            In GTK, if the MARKUP attribute is defined then the title string can contains pango markup commands. 
+            Works only if a mnemonic is NOT defined in the title. Not valid for menus.
+            <br>
+            <br>
+-->
+            Note that <a href="gRedraw.htm">gRedraw</a>() may be required after changing the title for all characters to be shown.
+            <br>
+            <br>
+            The following generally applies <small><i>(named parameters used for illustrative purposes, but probably best avoided on 
+            xpGUI&rsquo;s <a href="g_paranormal.htm">paranormalised</a> routines)</i>:
+            <br>
+            <br>
+<!--eucode>
+            gdx id = gElement(title:=`This loses`, attributes:=`TITLE:="This beats that but..."`)
+            gSetAttribute(id,`TITLE`,`This wins`)
+</eucode-->
+<pre>
+<font color="#7060A8">            gdx</font><font color="#000000"> id</font><font color="#0000FF"> =</font><font color="#000000"> gElement</font><font color="#0000FF">(</font><font color="#000000">title</font><font color="#0000FF">:=</font><font color="#008000">`This loses`</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">:=</font><font color="#008000">`TITLE:="This beats that but..."`</font><font color="#0000FF">)</font>
+<font color="#7060A8">            gSetAttribute</font><font color="#0000FF">(</font><font color="#000000">id</font><font color="#0000FF">,</font><font color="#008000">`TITLE`</font><font color="#0000FF">,</font><font color="#008000">`This wins`</font><font color="#0000FF">)</font>
+</pre>
+            </small>
+            <br>
+            Affects: All elements with an associated text.
+            <br>
+            <br>
+            See Also: <a href="#FONT">FONT</a>
+            <br>
+          <a name=VISIBLE></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+?         VISIBLE
+         </td>
+         <td>
+            Shows or hides the element.
+            <br>
+            <br>
+            Value: "YES" (visible), "NO" (hidden). Default: "YES"
+            <br>
+            <br>
+            Notes: An interface element is only visible if its native parent is also visible.
+            <br>
+            <br>
+            Affects: All controls that have visual representation, except menus.<br>
+          <a name=tech></a>
+         </td>
+        </tr>
+<!--
+//        <a name=BGCOLOR></a>
+//      <tr>
+//       <td>
+//?           BGCOLOR
+//       </td>
+//       <td>
+//          The element&rsquo;s background color.
+//          <br>
+//          <br>
+//          On a <a href="gCanvas.htm">gCanvas</a>, and hence <a href="gGraph.htm">gGraph</a>, <a href="gList.htm">gList</a>, and 
+//          <a href="gTable.htm">gTable</a>, equivalent to <a href="gCanvas.htm#gCanvasSetBackground.htm">gCanvasSetBackground</a>().
+-->
+<!--
+//          <br>
+//          <br>
+//          Value: The RGB components, eg #FF0080 or equivalently "255 0 128" (three numbers 0..255).
+//          <br>
+//          <br>
+//<X!X--
+//          Values should be between 0 and 255, separated by a blank space. For example "255 0 128", red=255 blue=0 green=128.
+//          <br>
+//          <br>
+//--X>
+//          Default: The <a href="gGetGlobal.htm#DLGBGCOLOR">DLGBGCOLOR</a> global attribute, or inherited from the parent.
+//<X!X--
+//          <br>
+//          <br>
+//          Hexadecimal notation in the format "#RRGGBB" is also accepted, eg "255 0 128" can also be written as "#FF0080".--X>
+//<X!X-- DEV test me
+//          Note that double quotes are still required when using <a href="IupSetAttributes.htm">IupSetAttributes</a>(), and therefore the inline string attributes 
+//          of control creation, eg IupSetAttributes(ih,`BGCOLOR="#FF0080"`).
+//--X>
+//          <br>
+//          <br>
+//          Affects: All controls that have visual representation, but with some restrictions. 
+//          <br>
+//          <br>
+//          Several controls have transparent parts that are not affected by the BGCOLOR.
+//          <br>
+//          <br>
+//          Run demo\pGUI\sample.exw and use the menu to toggle the dialog BACKGROUND, the dialog BGCOLOR and the children BGCOLOR. 
+//          <br>
+//          <br>
+//          See Also: <a href="#FGCOLOR">FGCOLOR</a>, <a href="gGetGlobal.htm#DLGBGCOLOR">DLGBGCOLOR</a> 
+//          <br>
+-->
+<!--
+//       </td>
+//      </tr>
+-->
+<!--
+DEV we's gona need this... or something much simpler...
           <a name=CURSOR></a>
+        <tr>
+         <td>
           CURSOR
          </td>
          <td>
@@ -440,13 +1127,13 @@ IupSetAttribute(mode, "VALUE", landscape) -- defines the radio's initial value
             Cursor sizes are usually less than or equal to 32x32.
             <br>
             <br>
-            The cursor will only change when the interface system regains control or when <a href="IupFlush.htm">IupFlush</a> is called.
+//          The cursor will only change when the interface system regains control or when <a href="IupFlush.htm">IupFlush</a> is called.
             <br>
             <br>
             The Windows SDK recommends that cursors and icons should be implemented as resources rather than created at run time.
             <br>
             <br>
-            When the cursor image is no longer necessary, it must be destroyed through function <a href="IupDestroy.htm">IupDestroy</a>. <br>
+?           When the cursor image is no longer necessary, it must be destroyed through function <a href="IupDestroy.htm">IupDestroy</a>. <br>
             Attention: the cursor cannot be in use when it is destroyed. 
             <br>
             <br>
@@ -457,190 +1144,37 @@ IupSetAttribute(mode, "VALUE", landscape) -- defines the radio's initial value
             <br>
          </td>
         </tr>
-        <tr>
-         <td>
-          <a name=EXPAND></a>
-          EXPAND
-         </td>
-         <td>
-            Allows the element to expand, fulfilling empty spaces inside its container.
-            <br>
-            <br>
-            It is a non inheritable attribute, but a container inherit its parents EXPAND attribute. <br>
-            In other words, although EXPAND is non inheritable, it is inheritable for containers. <br>
-            So if you set it at a container it will not affect its children, except for those who are containers.<br>
-            The expansion is done equally for all expandable elements in the same container.<br>
-            <br>
-            For a container, the actual EXPAND value will be always a combination of its own value and the value of its children, <br>
-            in the sense that a container can only expand if its children can expand too in the same direction.<br>
-            <br>
-            The HORIZONTALFREE and VERTICALFREE values will not behave as normal expansion. <br>
-            These values will NOT affect the expansion of the container when set at its children, <br>
-            the children will simply expand to the available free space at the container.<br>
-            See <a href="xplayout.htm">box model layout</a> for more details on sizes.<br>
-            Value: "YES" (both directions), <wbr>"HORIZONTAL", <wbr>"VERTICAL", <wbr>"HORIZONTALFREE", <wbr>"VERTICALFREE" or "NO".<br>
-            Default: "NO". For containers the default is "YES".<br>
-            Affects: All elements, except menus.
-            <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <a name=FGCOLOR></a>
-          FGCOLOR
-         </td>
-         <td>
-            Elements foreground color. Usually it is the color of the associated text.
-            <br>
-            <br>
-            Value: The RGB components. Values should be between 0 and 255, separated by a blank space. Default: "0 0 0".
-            <br>
-            <br>
-            Hexadecimal notation in the format "#RRGGBB" is also accepted in all color attributes. For example, "255 0 128" can also be written as "#FF0080".<br>
-            Note that double quotes are still required when using <a href="IupSetAttributes.htm">IupSetAttributes</a>(), and therefore the inline string attributes 
-            of control creation, eg IupSetAttributes(ih,`FGCOLOR="#FF0080"`).
-            <br>
-            <br>
-            Affects: All controls that have visual representation.
-            <br>
-            <br>
-            See Also: <a href="#BGCOLOR">BGCOLOR</a>
-            <br>
-         </td>
-        </tr>
-<!--(???)
-        <tr>
-         <td>
-          <a name=FLOATING></a>
-          FLOATING
-         </td>
-         <td>
-            (non inheritable) If an element has FLOATING=YES then its size and position will be ignored by the layout processing 
-            in <a href="IupHbox.htm">IupHbox</a>, <a href="IupVbox.htm">IupVbox</a> and <a href="IupZbox.htm">IupZbox</a>. <br>
-            But the element size and position will still be updated in the native system allowing the usage of 
-            <a href="#SIZE">SIZE</a><a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a> or 
-            <a href="#RASTERSIZE">RASTERSIZE</a><a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a> and 
-            <a href="#POSITION">POSITION</a> 
-            to manually position and size the element. <br>
-            And must ensure that the element will be on top of other using <a href="#ZORDER">ZORDER</a>, if there is overlap.
-            <br>
-            <br>
-            This is useful when you do not want that an invisible element to be computed in the box size.
-            <br>
-            <br>
-            If the value IGNORE is used then it will behave as YES, but also it will not update the the size and position in the native system.
-            <br>
-            <br>
-            Value: "YES", "IGNORE" or "NO". Default: "NO".
-            <br>
-            <br>
-            Affects: All elements, except menus.
-            <br>
-            <br>
-            See Also: <a href="IupHbox.htm">IupHbox</a>, <a href="IupVbox.htm">IupVbox</a>, <a href="IupZbox.htm">IupZbox</a>
-            <br>
-         </td>
-        </tr>
 -->
-        <tr>
-         <td>
-          <a name=FONT></a>
-          FONT
-         </td>
-         <td>
-            A string defining the font, in the format "&lt;face&gt;, &lt;styles&gt; &lt;size&gt;".
-            <br>
-            <br>
-            Since font face names are not a standard between Windows, Motif and GTK, a few names are specially handled to improve application portability. 
-            If you want to use names that work for all systems we recommend using: Courier, Times and Helvetica (same as Motif). Those names always have 
-            a native system equivalent, see the table below:
-            <br>
-            <div class="wraptocenter">
-             <div id="images" class="images">
-            <br>
-            <table>
-            <tr>
-                <th>Recommended/Motif</th>
-                <th style="text-align:center">Windows</th>
-                <th style="text-align:center">GTK</th>
-                <th>Description</th>
-            </tr>
-            <tr>
-                <td><strong>Helvetica</strong></td>
-                <td style="text-align:center">Arial</td>
-                <td style="text-align:center">Sans</td>
-                <td>without serif, variable spacing</td>
-            </tr>
-            <tr>
-                <td><strong>Courier</strong></td>
-                <td style="text-align:center">Courier New</td>
-                <td style="text-align:center">Monospace</td>
-                <td>with serif, fixed spacing</td>
-            </tr>
-            <tr>
-                <td><strong>Times</strong></td>
-                <td style="text-align:center">Times New Roman</td>
-                <td style="text-align:center">Serif</td>
-                <td>with serif, variable spacing</td>
-            </tr>
-            </table>
-             </div>
-            </div>
-            <div class="clear"></div>
-            <br>
-            The supported font style is a combination of: Bold, Italic, Underline and Strikeout. Unsupported values are simply ignored. 
-            The names must be in the same case described here.
-            <br>
-            <br>
-            Font size is in points (1/72 inch) or in pixels (using negative values).
-            <br>
-            <br>
-            Examples:
-            <br>
-            <br>
-<!--eucode>
-    "Times, Bold 18"
-    "Arial, 24" -- (no style)
-    "Courier New, Italic Underline -30" -- (size in pixels)
-</eucode-->
-<pre>
-<font color="#008000">    "Times, Bold 18"
-    "Arial, 24"</font><font color="#000080"><i> -- (no style)</i></font>
-<font color="#008000">    "Courier New, Italic Underline -30"</font><font color="#000080"><i> -- (size in pixels)</i></font>
-</pre>
-            <br>
-            On Windows the native handle can be obtained using the "HFONT" attribute.<br>
-            On Motif the native handle can be obtained using the "XMFONTLIST" and "XFONTSTRUCT" attributes. The selected X Logical Font Description string can be obtained from the attribute "XLFD".<br>
-            On GTK the native handle can be obtained using the "PANGOFONTDESC" attribute.
-            <br>
-            <br>
-            <h3>Auxiliary Attributes</h3>
-            These will change the FONT attribute, and depend on it. <br>
-            They are used only to set partial FONT parameters of style and size. <br>
-            To do that the FONT attribute is parsed, changed and updated to the new value in the common format definition. <br>
-            This means that if the attribute was set in X-Windows format or in the old Windows and IUP formats, the previous value will be replaced by a new value in the common format definition. <br>
-            Pango additional styles will also be removed.
-            <br>
-            <br>
-            <table>
-             <tr><td>FONTSTYLE</td><td>(non inheritable) Replaces or returns the style of the current FONT attribute. Since font styles are case sensitive, this attribute is also case sensitive.</td></tr>
-             <tr><td>FONTSIZE</td><td>(non inheritable) Replaces or returns the size of the current FONT attribute.</td></tr>
-             <tr><td>FONTFACE</td><td>(non inheritable) Replaces or returns the face name of the current FONT attribute.</td></tr>
-             <tr><td>CHARSIZE</td><td>(read-only, non inheritable) Returns the average character size of the current FONT attribute. 
-                                        This is the factor used by the 
-                    <a href="#SIZE">SIZE</a><a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a>
-                                        attribute to convert its units to pixels.</td></tr>
 <!--
-             <tr><td>FOUNDRY</td><td>[Motif Only] (non inheritable) Allows to select a foundry for the FONT being selected. Must be set before setting the FONT attribute.</td></tr>
--->
-            </table>
-            <br>
-         </td>
-        </tr>
-<!--
+//        <a name=FGCOLOR></a>
 //      <tr>
 //       <td>
+//?       FGCOLOR
+//       </td>
+//       <td>
+//          The foreground color, usually of the text.
+//          <br>
+//          <br>
+//          Value: The RGB components, eg #FF0080 or equivalently "255 0 128" (three numbers 0..255). 
+//          Default: <a href="gCanvas.htm#XPG_colours">XPG_BLACK</a>.
+//<X!X-- DEV test me
+//          Note that double quotes are still required when using <a href="IupSetAttributes.htm">IupSetAttributes</a>(), and therefore the inline string attributes 
+//          of control creation, eg IupSetAttributes(ih,`FGCOLOR="#FF0080"`).
+//--X>
+//          <br>
+//          <br>
+//          Affects: All controls that have visual representation.
+//          <br>
+//          <br>
+//          See Also: <a href="#BGCOLOR">BGCOLOR</a>
+//          <br>
+//       </td>
+//      </tr>
+-->
+<!--
 //        <a name=NAME></a>
+//      <tr>
+//       <td>
 //        NAME
 //       </td>
 //       <td>
@@ -661,134 +1195,11 @@ IupSetAttribute(mode, "VALUE", landscape) -- defines the radio's initial value
 //       </td>
 //      </tr>
 -->
-        <tr>
-         <td>
-          <a name=NATURALSIZE></a>
-          NATURALSIZE
-         </td>
-         <td>
-            (non inheritable, read-only) Returns the element last computed Natural size in pixels.
-            <br>
-            <br>
-            See <a href="xplayout.htm">box model layout</a> for more details on sizes.
-            <br>
-            <br>
-            Value: "widthxheight", where width and height are integer values corresponding to the horizontal and vertical size, respectively, in pixels.
-            <br>
-            <br>
-            See Also: <a href="#SIZE">SIZE</a><a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a>, 
-                      <a href="#RASTERSIZE">RASTERSIZE</a><a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a>
-            <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <a name=MAXSIZE></a>
-          MAXSIZE<a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a>
-         </td>
-         <td>
-            (non inheritable) Specifies the element maximum size in pixels during the layout process.
-            <br>
-            <br>
-            See <a href="xplayout.htm">box model layout</a> for more details on sizes.
-            <br>
-            <br>
-            Value; "widthxheight", where width and height are integer values corresponding to the horizontal and vertical size, respectively, in pixels.
-            <br>
-            <br>
-            You can also set only one of the parameters by removing the other one and maintaining the separator "x", but this is equivalent of setting the other value to 0. 
-            For example: "x40" (height only = "0x40") or "40x" (width only = "40x0").
-            <br>
-            <br>
-            Affects: All, except menus.
-            <br>
-            <br>
-            Notes: The limits are applied during the layout computation. It will limit the Natural size and the Current size. 
-            <br>
-            <br>
-            If the element can be expanded, then its empty space will NOT be occupied by other controls although its size will be limited.
-            <br>
-            <br>
-            In the IupDialog will also limit the interactive resize of the dialog.
-            <br>
-            <br>
-            See Also: <a href="#RASTERSIZE">RASTERSIZE</a><a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a>,
-                      <a href="#MINSIZE">MINSIZE</a>
-            <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <a name=MINSIZE></a>
-          MINSIZE<a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a>
-         </td>
-         <td>
-            (non inheritable) Specifies the element minimum size in pixels during the layout process.
-            <br>
-            <br>
-            See <a href="xplayout.htm">box model layout</a> for more details on sizes.
-            <br>
-            <br>
-            Value: "widthxheight", where width and height are integer values corresponding to the horizontal and vertical size, respectively, in pixels.
-            <br>
-            <br>
-            You can also set only one of the parameters by removing the other one and maintaining the separator "x", but this is equivalent of setting the other value to 0. 
-            For example: "x40" (height only = "0x40") or "40x" (width only = "40x0").
-            <br>
-            <br>
-            Affects: All, except menus.
-            <br>
-            <br>
-            Notes: The limits are applied during the layout computation. It will limit the Natural size and the Current size. 
-            <br>
-            <br>
-            If the element can be expanded, then its empty space will NOT be occupied by other controls although its size will be limited.
-            <br>
-            <br>
-            In the IupDialog will also limit the interactive resize of the dialog.
-            <br>
-            <br>
-            See Also: <a href="#RASTERSIZE">RASTERSIZE</a><a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a>,
-                      <a href="#MAXSIZE">MAXSIZE</a>
-            <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <a name=SCREENPOSITION></a>
-          SCREENPOSITION<!--/X/Y-->
-         </td>
-         <td>
-            (read-only) (non inheritable) Returns the absolute horizontal and<!--/or--> vertical position of the top left corner 
-            <!--of the client area -->
-            <!--relative to the origin of the main screen--> in pixels. <br>
-            It is similar to <a href="#POSITION">POSITION</a> but relative to the origin of the main screen, instead of the origin of the client area. <br>
-            The origin of the main screen is at the upper left corner, <!--in Windows it is--> which may be affected by the position of the Start Menu 
-            when it is at the top or left side of the screen. 
-            <br>
-            <br>
-            IMPORTANT: For the dialog, it is the position of the top left corner of the window, NOT the client area. <br>
-            It is the same position used in <a href="gShow.htm">gShow</a> and <a href="IupPopup.htm">IupPopup</a>. <br>
-            In GTK, if the dialog is hidden the values can be outdated.
-            <br>
-            <br>
-            Value: "x,y", where x and y are integer values corresponding to the horizontal and vertical position, respectively, in pixels. <br>
 <!--
-            When X or Y are used a single value is returned.
--->
-            <br>
-            <br>
-            Affects: All controls that have visual representation.
-            <br>
-            <br>
-            See Also: <a href="#POSITION">POSITION</a>
-            <br>
-         </td>
-        </tr>
+          <a name=SCROLLBAR></a>
         <tr>
          <td>
-          <a name=SCROLLBAR></a>
-          SCROLLBAR<a href="notpgui.htm#IupCanvas"><span style="color:orange; font-size:75%;"><sup>?</sup></span></a>
+?         SCROLLBAR<a href="notpgui.htm#IupCanvas">
          </td>
          <td>
             (creation only) Associates a horizontal and/or vertical scrollbar to the element.
@@ -837,7 +1248,7 @@ IupSetAttribute(mode, "VALUE", landscape) -- defines the radio's initial value
             <br>
             <br>
             Usually applications configure XMIN and XMAX to a region in World coordinates, and set DX to the canvas visible area in World coordinates. <br>
-            Since the canvas can have scrollbars and borders, its visible area in pixel coordinates can be easily obtained using the DRAWSIZE attribute.
+//          Since the canvas can have scrollbars and borders, its visible area in pixel coordinates can be easily obtained using the DRAWSIZE attribute.
             <br>
             <br>
             IMPORTANT: the LINEX, XMAX and XMIN attributes are only updated in the scrollbar when the DX attribute is updated.
@@ -856,9 +1267,9 @@ IupSetAttribute(mode, "VALUE", landscape) -- defines the radio's initial value
             So if you want to consider YMIN and YMAX as bottom-up oriented, then the actual YPOS must be obtained using YMAX-DY-POSY.
             <br>
             <br>
-            IMPORTANT: Changes in the scrollbar parameters do NOT generate ACTION nor <a href="callbacks.htm#SCROLL_CB">SCROLL_CB</a> callback events. <br>
-            If you need to update the canvas contents call your own action callback or call <a href="IupUpdate.htm">IupUpdate</a>. <br>
-            But a change in the DX attribute may generate a RESIZE_CB callback event if XAUTOHIDE=Yes.
+            IMPORTANT: Changes in the scrollbar parameters do NOT generate ACTION nor <a href="gSetHandler.htm#SCROLL_CB">SCROLL_CB</a> handler events. <br>
+            If you need to update the canvas contents call your own action handler or call <a href="gRedraw.htm">gRedraw</a>. <br>
+            But a change in the DX attribute may generate a RESIZE_CB handler event if XAUTOHIDE=Yes.
             <br>
             <br>
             If you have to change the properties of the scrollbar (XMIN, XMAX and DX) but you want to keep the thumb still (if possible) in the same relative position, <br>
@@ -878,7 +1289,7 @@ IupSetAttribute(mode, "VALUE", landscape) -- defines the radio's initial value
             Here is a helpful algorithm:
             <br>
             <br><small>
-<!--eucode>
+<X!X--eucode>
 procedure scrollbar_update(Ihandle ih, integer view_width, integer view_height)
 -- view_width and view_height are the virtual space size
 -- here we assume XMIN=0, XMAX=1, YMIN=0, YMAX=1
@@ -912,7 +1323,7 @@ integer border = IupGetInt(ih, "BORDER")
     IupSetFloat(ih, "DX", canvas_width/view_width)
     IupSetFloat(ih, "DY", canvas_height/view_height)
 end procedure
-</eucode-->
+</eucode--X>
 <pre>
 <font color="#008080">procedure</font><font color="#000000"> scrollbar_update</font><font color="#0000FF">(</font><font color="#7060A8">Ihandle</font><font color="#000000"> ih</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> view_width</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> view_height</font><font color="#0000FF">)</font>
 <font color="#000080"><i>-- view_width and view_height are the virtual space size
@@ -949,15 +1360,15 @@ end procedure
 <font color="#008080">end procedure</font>
 </pre>
             <br></small>
-            Inside the canvas REDRAW callback, the (x,y) offset for drawing is calculated as:
+            Inside the canvas REDRAW handler, the (x,y) offset for drawing is calculated as:
             <br>
             <br><small>
-<!--eucode>
+<X!X--eucode>
 integer x, y, canvas_width, canvas_height
 atom posy = IupGetFloat(ih, "POSY")
 atom posx = IupGetFloat(ih, "POSX")
 
-{canvas_width, canvas_height} = IupGetIntInt(ih, "DRAWSIZE")
+//{canvas_width, canvas_height} = IupGetIntInt(ih, "DRAWSIZE")
 
 if canvas_width<view_width then
     x = floor(-posx*view_width)
@@ -973,7 +1384,7 @@ if canvas_height<view_height then
 else
     y = floor((canvas_height-view_height)/2)  -- for example, center the view
 end if
-</eucode-->
+</eucode--X>
 <pre>
 <font color="#004080">integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#000000"> canvas_width</font><font color="#0000FF">,</font><font color="#000000"> canvas_height</font>
 <font color="#004080">atom</font><font color="#000000"> posy</font><font color="#0000FF"> =</font><font color="#7060A8"> IupGetFloat</font><font color="#0000FF">(</font><font color="#000000">ih</font><font color="#0000FF">,</font><font color="#008000"> "POSY"</font><font color="#0000FF">)</font>
@@ -997,7 +1408,7 @@ if</font><font color="#000000"> canvas_height</font><font color="#0000FF">&lt;</
 <font color="#008080">end if</font>
 </pre>
             <br></small>
-            Call scrollbar_update from the RESIZE_CB callback and when you change the zoom factor that affects view_width or view_height.
+            Call scrollbar_update from the RESIZE_CB handler and when you change the zoom factor that affects view_width or view_height.
             <br>
             <br>
             Affects: <a href="IupList.htm">IupList</a>, <a href="IupText.htm#IupMultiLine">IupMultiLine</a>, <a href="IupCanvas.htm">IupCanvas</a>
@@ -1007,45 +1418,19 @@ DEV         See Also: POSX, XMIN, XMAX, DX, POSY, YMIN, YMAX, DY
             <br>
          </td>
         </tr>
-        <tr>
-         <td>
-          <a name=POSITION></a>
-          POSITION
-         </td>
-         <td>
-            (non inheritable) The position of the element relative to the origin of the Client area of the native parent. <br>
-            If you add the <a href="#CLIENTOFFSET">CLIENTOFFSET</a> attribute of the native parent, you can obtain the 
-            coordinates relative to the Window area of the native parent. 
-            See <a href="xplayout.htm">box model layout</a>.
-            <br>
-            <br>
-            It will be changed during the layout computation, except when FLOATING=YES or when used inside a concrete layout container.
-            <br>
-            <br>
-            Value: "x,y", where x and y are integer values corresponding to the horizontal and vertical position, respectively, in pixels.
-            <br>
-            <br>
-            Affects: All, except menus.
-            <br>
-            <br>
-            See Also: <a href="#SIZE">SIZE</a><a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a>,
-                      <a href="#RASTERSIZE">RASTERSIZE</a><a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a>, 
-                      <a href="#FLOATING">FLOATING</a>,
-                      <a href="#CLIENTOFFSET">CLIENTOFFSET</a>
-            <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
+-->
+<!--
           <a name=RASTERSIZE></a>
-          RASTERSIZE<a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a>
+        <tr>
+         <td>
+?         RASTERSIZE
          </td>
          <td>
             (non inheritable)
             Specifies the element User size, and returns the Current size, in pixels.
             <br>
             <br>
-            See <a href="xplayout.htm">box model layout</a> for more details on sizes.
+            See <a href="xplayout.htm">Layout Management</a> for more details on sizes.
             <br>
             <br>
             Value: "widthxheight", where width and height are integer values corresponding to the horizontal and vertical size, respectively, in pixels.
@@ -1061,129 +1446,86 @@ DEV         See Also: POSX, XMIN, XMAX, DX, POSY, YMIN, YMAX, DY
             Affects: All, except menus.
             <br>
             <br>
-            Notes: When this attribute is set, it resets the 
-            <a href="#SIZE">SIZE</a><a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a>
-            attribute. 
+            Notes: When this attribute is set, it resets the <a href="#SIZE">SIZE</a> attribute. 
             So changes to the <a href="#FONT">FONT</a> attribute will not affect the User size of the element.
+<X!X--
             <br>
             <br>
             To obtain the last computed Natural size of the control in pixels, use the read-only attribute 
-            <a href="#NATURALSIZE">NATURALSIZE</a>. (Since 3.6)
+            <a href="gGetAttribute.htm#NATURALSIZE">NATURALSIZE</a>.
             <br>
             <br>
-            To obtain the User size of the element in pixels after it is mapped, use the attribute USERSIZE. (Since 3.12)
+            To obtain the User size of the element in pixels after it is mapped, use the attribute USERSIZE.
+--X>
             <br>
             <br>
             A User size of "0x0" can be set, it can also be set using NULL. If both values are 0 then NULL is returned.
             <br>
             <br>
             If you wish to use the User size only as an initial size, change this attribute to NULL after the control is mapped, 
-            the returned size in <a href="IupGetAttribute.htm">IupGetAttribute</a> will still be the Current size. <b>NB</b>:
+            the returned size in <a href="gGetAttribute.htm">gGetAttribute</a> will still be the Current size.<br>
+DEV re-test:<br>
+            <b>NB</b>:
             In one case (Conway&rsquo;s game of life) setting a timer <i>before</i> the IupShow() prevented the latter from 
             returning for quite some time, and perhaps not until Escape had been keyed, so it may be prudent not to create a
             timer until after RASTERSIZE has been set to NULL, otherwise it may not behave as desired.
             <br>
             <br>
-            The element is NOT immediately repositioned. Call <a href="IupRefresh.htm">IupRefresh</a> to update the dialog layout. 
+            The element is NOT immediately repositioned. Call <a href="gRedraw.htm">gRedraw</a>() to update the dialog layout. 
             <br>
             <br>
+<X!X--
             <a href="IupMap.htm">IupMap</a> also updates the dialog layout even if it is already mapped, so calling it or calling 
             <a href="IupShow.htm">IupShow</a>, <a href="IupShowXY.htm">IupShowXY</a> or <a href="IupPopup.htm">IupPopup</a> (they 
             all call <a href="IupMap.htm">IupMap</a>) will also update the dialog layout.
             <br>
             <br>
-            See Also: <a href="#SIZE">SIZE</a><a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a>,
+--X>
+            See Also: <a href="#SIZE">SIZE</a>,
                       <a href="#FONT">FONT</a>
             <br>
          </td>
         </tr>
+-->
+<!-- no: use minsize on the dialog...
+          <a name=SHRINK></a>
         <tr>
          <td>
-          <a name=SIZE></a>
-          SIZE
+?         SHRINK
          </td>
          <td>
-            (non inheritable) Specifies the element User size, and returns the Current size, in units proportional to the size of a character.
+[DEV not yet attempted]<br>
+            An element marked as shrinkable can become smaller than its natural size.<br>
+            Value: "YES" (both directions), <wbr>"HORIZONTAL", <wbr>"VERTICAL", <wbr>"HORIZONTALFREE", <wbr>"VERTICALFREE" or "NO".<br>
+            Default: "NO".
             <br>
             <br>
-            See <a href="xplayout.htm">box model layout</a> for more details on sizes.
+            The *FREE settings mean an element should be clipped by default, ie its natural size does not propagate to its container.<br>
+            Therefore, zero width/height consequences are to be expected should every child be so marked, though things should start
+            to reappear on manual resizing (which may be precisely the effect you are after).
             <br>
             <br>
-            Value: "widthxheight", where width and height are integer values corresponding to the horizontal and vertical size, respectively, in characters fraction unit (see Notes below). 
+<X!X--          It is meaningless and invalid to set the *FREE values on a container.--X>
+<X!X--
+            It is meaningless and invalid to set SHRINK on a container.
+            Maybe: (if we can actually get it to work, I'd certainly love the implied default "NO" behaviour in the first place!)
+            The HORIZONTALFREE setting has special meaning on gDialog and gFrame, being that TITLE does not impose a minimum size.
             <br>
             <br>
-            You can also set only one of the parameters by removing the other one and maintaining the separator "x", but this is equivalent of setting the other value to 0. <br>
-            For example: "x40" (height only = "0x40") or "40x" (width only = "40x0").
+            Maybe:
+            Note that the FREE bit is shared by EXPAND and SHRINK, so gSetAttributes(id,"SHRINK=HORIZONTALFREE, EXPAND=HORIZONTAL")
+            leaves free off on both, whereas gSetAttributes(id,"SHRINK=HORIZONTAL, EXPAND=HORIZONTALFREE") leaves it on on both.
             <br>
             <br>
-            When this attribute is consulted the Current size of the control is returned.
-            <br>
-            <br>
-            Notes<br>
-            The size units observes the following heuristics:
-            <br>
-            <br>
-            Width in 1/4&rsquo;s of the average width of a character for the current <a href="#FONT">FONT</a> of each control. <br>
-            Height in 1/8&rsquo;s of the average height of a character for the current <a href="#FONT">FONT</a> of each control. <br>
-            So, a SIZE="4x8" means 1 character width and 1 character height.
-            <br>
-            <br>
-            Notice that this is the average character size, the space occupied by a specific string is always different to
-            the number of characters times the average character size, except when using a monospaced font like Courier. <br>
-            Usually for common strings this size is smaller than the actual size, so it is a good practice to leave more room than expected if you use the SIZE attribute. <br>
-            For smaller font sizes this difference is more noticeable than for larger font sizes.
-            <br>
-            <br>
-            When this attribute is changed, the 
-            <a href="#RASTERSIZE">RASTERSIZE</a><a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a> 
-            attribute is automatically updated.
-            <br>
-            <br>
-            SIZE depends on <a href="#FONT">FONT</a>, so when <a href="#FONT">FONT</a> is changed and SIZE is set, 
-            then <a href="#RASTERSIZE">RASTERSIZE</a><a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a>
-            is also updated.
-            <br>
-            <br>
-            The average character size of the current <a href="#FONT">FONT</a> can be obtained from the CHARSIZE attribute.
-            <br>
-            <br>
-            To obtain the last computed Natural size of the element in pixels, use the read-only attribute <a href="#NATURALSIZE">NATURALSIZE</a>. (Since 3.6)
-            <br>
-            <br>
-            To obtain the User size of the element in pixels after it is mapped, use the attribute USERSIZE. (Since 3.12)
-            <br>
-            <br>
-            A User size of "0x0" can be set, it can also be set using NULL. If both values are 0 then NULL is returned.
-            <br>
-            <br>
-            If you wish to use the User size only as an initial size, change this attribute to NULL after the control is mapped, 
-            the returned size in <a href="IupGetAttribute.htm">IupGetAttribute</a> will still be the Current size.
-            <br>
-            <br>
-            The element is NOT immediately repositioned. Call <a href="IupRefresh.htm">IupRefresh</a> to update the dialog layout.
-            <br>
-            <br>
-            <a href="IupMap.htm">IupMap</a> also updates the dialog layout even if it is already mapped, so calling it or calling <a href="IupShow.htm">IupShow</a>, 
-            <a href="IupShowXY.htm">IupShowXY</a> or <a href="IupPopup.htm">IupPopup</a> (they all call <a href="IupMap.htm">IupMap</a>) will also update the dialog layout.
-            <br>
-            <br>
-            See <a href="xplayout.htm">box model layout</a> for mode details on sizes.
-            <br>
-            <br>
-            Affects: All, except menus.
-            <br>
-            <br>
-            See Also: 
-            <a href="#FONT">FONT</a>, 
-            <a href="#RASTERSIZE">RASTERSIZE</a>, 
-            <a href="IupRefresh.htm">IupRefresh</a>
-            <br>
+--X>
+            See Also: <a href="#EXPAND">EXPAND</a>
          </td>
         </tr>
+-->
 <!--
+//        <a name=THEME></a>
 //      <tr>
 //       <td>
-//        <a name=THEME></a>
 //        THEME<br>
 //        NTHEME
 //       </td>
@@ -1203,7 +1545,7 @@ DEV         See Also: POSX, XMIN, XMAX, DX, POSY, YMIN, YMAX, DY
 //          Only attributes that are registered in the element will receive its theme value.
 //          <br>
 //          <br>
-//          Attributes that are registered as not being strings, read-only, write-only or callbacks will NOT be applied.
+//          Attributes that are registered as not being strings, read-only, write-only or handlers will NOT be applied.
 //          <br>
 //          <br>
 //          The theme can contain an specialized sub-theme for the element class. <br>
@@ -1224,146 +1566,10 @@ DEV         See Also: POSX, XMIN, XMAX, DX, POSY, YMIN, YMAX, DY
 //       </td>
 //      </tr>
 -->
-        <tr>
-         <td>
-          <a name=TIP></a>
-          TIP
-         </td>
-         <td>
-            (non inheritable) Text to be shown when the mouse lies over the element.
-            <br>
-            <br>
-            Value: Text.
 <!--
-            <br>
-            <br>
-            Additional Tip Attributes: These attributes affect the TIP display.
-            <br>
-            <br>
-            TIPBALLOON [Windows Only]: The tip window will have the appearance of a cartoon "balloon" with rounded corners and a stem pointing to the item. Default: NO.
-            <br>
-            <br>
-            TIPBALLOONTITLE [Windows Only]: When using the balloon format, the tip can also has a title in a separate area.
-            <br>
-            <br>
-            TIPBALLOONTITLEICON [Windows Only]: When using the balloon format, the tip can also has a pre-defined icon in the title area. <br>
-            Values can be:<br>
-            "0" - No icon (default)<br>
-            "1" - Info icon <br>
-            "2" - Warning icon<br>
-            "3" - Error Icon
-            <br>
-            <br>
-            TIPBGCOLOR [Windows and Motif Only]: The tip background color. Default: "255 255 225" (Light Yellow)
-            <br>
-            <br>
-            TIPDELAY [Windows and Motif Only]: Time the tip will remain visible. Default: "5000". In Windows the maximum value is 32767 milliseconds.
-            <br>
-            <br>
-            TIPFGCOLOR [Windows and Motif Only]: The tip text color. Default: "0 0 0" (Black)
-            <br>
-            <br>
-            TIPFONT [Windows and Motif Only]: The font for the tip text. If not defined the font used for the text is the same as the FONT attribute for the element. <br>
-            If the value is SYSTEM then, no font is selected and the default system font for the tip will be used.
-            <br>
-            <br>
-            TIPICON [GTK only]: name of an image to be displayed in the TIP. See <a href="IupImage.htm">IupImage</a>. (GTK 2.12)
-            <br>
-            <br>
-            TIPMARKUP [GTK only]: allows the tip string to contains Pango markup commands. Can be "YES" or "NO". Default: "NO". Must be set before setting the TIP attribute. (GTK 2.12)
-            <br>
-            <br>
-            TIPRECT (non inheritable): Specifies a rectangle inside the element where the tip will be activated. Format: "%d %d %d %d"="x1 y1 x2 y2". Default: all the element area. (GTK 2.12)
-            <br>
-            <br>
-            TIPVISIBLE: Shows or hides the tip under the mouse cursor. Use values "YES" or "NO". <br>
-            In GTK will only trigger the tip state, the given value will be ignored. Returns the current visible state. (GTK 2.12) (get since 3.5)
-            <br>
-            <br>
-            Additional Tip Callbacks (since 3.5)
-            <br>
-            <br>
-            TIPS_CB: Action before a tip is displayed.
-            <br>
-            <br>
-            functiontiops_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> x, y)<br>
-            ih: identifier of the element that activated the event.<br>
-            x, y: cursor position relative to the top-left corner of the element
-            <br>
-            <br>
-            Affects: All controls that have visual representation, except menus.
-            <br>
--->
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <a name=TITLE></a>
-          TITLE<a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a>
-         </td>
-         <td>
-            (non inheritable) Element&rsquo;s title. <br>
-            It is often used to modify some static text of the element (which cannot be changed by the user).
-            <br>
-            <br>
-            Value: Text.
-            <br>
-            <br>
-            Default: ""
-            <br>
-            <br>
-            Notes<br>
-            The '\n' character usually is accepted for line change (except for menus). 
-            <br>
-            <br>
-            The "&" character can be used to define a MNEMONIC, use "&&" to show the "&" character instead on defining a mnemonic.
-            <br>
-            <br>
-            If a mnemonic is defined then the character relative to it is underlined and a key is associated so that when pressed together with the Alt key activates the control.
-            <br>
-            <br>
-            For the benefit of GTK, should you define a mnemonic using "&" and the string has an underscore, then make sure that the mnemonic comes before the underscore.
-            <br>
-            <br>
-<!--
-            In GTK, if the MARKUP attribute is defined then the title string can contains pango markup commands. 
-            Works only if a mnemonic is NOT defined in the title. Not valid for menus.
-            <br>
-            <br>
--->
-            Note that an <a href="IupRefresh.htm">IupRefresh</a>() may be required after changing the title text, for all characters to be shown.
-            <br>
-            <br>
-            Affects: All elements with an associated text.
-            <br>
-            <br>
-            See Also: <a href="#FONT">FONT</a>
-            <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <a name=VISIBLE></a>
-          VISIBLE
-         </td>
-         <td>
-            Shows or hides the element.
-            <br>
-            <br>
-            Value: "YES" (visible), "NO" (hidden). Default: "YES"
-            <br>
-            <br>
-            Notes: An interface element is only visible if its native parent is also visible.
-            <br>
-            <br>
-            Affects: All controls that have visual representation, except menus.
-            <br>
-         </td>
-        </tr>
-<!--
+//        <a name=WID></a>
 //      <tr>
 //       <td>
-//        <a name=WID></a>
 //        WID
 //       </td>
 //       <td>
@@ -1390,9 +1596,9 @@ DEV         See Also: POSX, XMIN, XMAX, DX, POSY, YMIN, YMAX, DY
 //          <br>
 //       </td>
 //      </tr>
+          <a name=ZORDER></a>
         <tr>
          <td>
-          <a name=ZORDER></a>
           ZORDER
          </td>
          <td>
@@ -1406,9 +1612,9 @@ DEV         See Also: POSX, XMIN, XMAX, DX, POSY, YMIN, YMAX, DY
             Affects: All controls that have visual representation.
          </td>
         </tr>
+          <a name=FLATSCROLLBAR></a>
         <tr>
          <td>
-          <a name=FLATSCROLLBAR></a>
           FLATSCROLLBAR
          </td>
          <td>
@@ -1430,22 +1636,22 @@ DEV         See Also: POSX, XMIN, XMAX, DX, POSY, YMIN, YMAX, DY
             Also, all numeric attributes are integer numbers.
          </td>
         </tr>
-        <tr>
-         <td>
-          SB_BACKCOLOR
-         </td>
-         <td>
-            color used as background for the scrollbar. By default it will inherit from BGCOLOR.
-         </td>
-        </tr>
-        <tr>
-         <td>
-          SB_FORECOLOR
-         </td>
-         <td>
-            handler and arrow color. Default: "220 220 220". Used instead of FGCOLOR to avoid inheritance problems.
-         </td>
-        </tr>
+//      <tr>
+//       <td>
+//        SB_BACKCOLOR
+//       </td>
+//       <td>
+//          color used as background for the scrollbar. By default it will inherit from BGCOLOR.
+//       </td>
+//      </tr>
+//      <tr>
+//       <td>
+//        SB_FORECOLOR
+//       </td>
+//       <td>
+//          handler and arrow color. Default: "220 220 220". Used instead of FGCOLOR to avoid inheritance problems.
+//       </td>
+//      </tr>
         <tr>
          <td>
           SB_HIGHCOLOR
@@ -1513,17 +1719,17 @@ DEV         See Also: POSX, XMIN, XMAX, DX, POSY, YMIN, YMAX, DY
             replace the drawn arrows by the following images.
          </td>
         </tr>
-        <tr>
-         <td>
-          SB_IMAGELEFT, <br>SB_IMAGERIGHT, <br>SB_IMAGETOP, <br>SB_IMAGEBOTTOM
-         </td>
-         <td>
-            Arrow image name (the attribute is relative to where the arrow is pointing). <br>
-            Use <a href="IupSetHandle.htm">IupSetHandle</a> or <a href="IupSetAttributeHandle.htm">IupSetAttributeHandle</a> to associate an image to a name. 
-            See also <a href="IupImage.htm">IupImage</a>. <br>
-            IMPORTANT = all images must be square with side equals to SCROLLBARSIZE.
-         </td>
-        </tr>
+//      <tr>
+//       <td>
+//        SB_IMAGELEFT, <br>SB_IMAGERIGHT, <br>SB_IMAGETOP, <br>SB_IMAGEBOTTOM
+//       </td>
+//       <td>
+//          Arrow image name (the attribute is relative to where the arrow is pointing). <br>
+//          Use <a href="IupSetHandle.htm">IupSetHandle</a> or <a href="IupSetAttributeHandle.htm">IupSetAttributeHandle</a> to associate an image to a name. 
+//          See also <a href="IupImage.htm">IupImage</a>. <br>
+//          IMPORTANT = all images must be square with side equals to SCROLLBARSIZE.
+//       </td>
+//      </tr>
         <tr>
          <td>
           SB_IMAGE*HIGHLIGHT
@@ -1557,28 +1763,89 @@ DEV         See Also: POSX, XMIN, XMAX, DX, POSY, YMIN, YMAX, DY
           </a>
          </td>
          <td>
-            While pGUI had all manner of convoluted restrictions on attributes, such as v being <a href="string.htm">atom_string</a> or
-            the dire distinction between <a href="IupSetAttribute.htm">IupSetAttribute</a>() and <a href="IupSetStrAttribute.htm">IupSetStrAttribute</a>(),
-            largely because C and C-based languages cannot distinguish between an integer and a string, this one routine covers and replaces at least 5
-            and probably more pGUI routines, including things like <a href="IupSetStrAttribute.htm#utility">IupSetInt</a>().
+            While pGUI had all manner of convoluted restrictions on attributes, such as v being <a href="string.htm">atom_string</a> or the dire 
+            distinction between <a href="IupSetAttribute.htm">IupSetAttribute</a>() and <a href="IupSetStrAttribute.htm">IupSetStrAttribute</a>(),
+            largely because C and C-based languages cannot distinguish between an integer and a 
+            <a name=str></a>string (aka char*)<small><sup><a href="#str1">1</a></sup></small>, this 
+            one routine covers and replaces at least 5 and probably more pGUI routines, even technically (and apart from gSetInt() as noted above) 
+            including things like <a href="IupSetStrAttribute.htm#utility">IupSetInt</a>().
             <br>
             <br>
-            You can of course replace eg gSetAttribute(id,"SIZE","%dx%d",{w,h}) with 
-                                         gSetAttribute(id,"SIZE",{w,h}) which is not
-            only neater but also faster (to be fair, insignificantly so).
+            As well as not replicating that particular distinction, xpGUI either actions things immediately or makes a (reference counted) copy, 
+            so (unlike pGUI) there is no danger here of a value "vanishing" before it can be used.
             <br>
             <br>
-            As just noted, xpGUI does not replicate the distinction between <a href="IupSetAttribute.htm">IupSetAttribute</a>() and
-            <a href="IupSetStrAttribute.htm">IupSetStrAttribute</a>() but instead either actions it immediately or makes a (reference counted) copy, 
-            so there is no danger here of a value "vanishing" before it can be used.
+<!-- (while technically true, it really adds nothing...)
+            While pGUI sometimes treated say "50x" as "set w but leave h unchanged" there is no similar facility in xpGUI, which treats that the
+            same as "50x0", and you would indeed usually have to fetch the prior values and then set them both. Specific future enhancements are 
+            always a possibility, though, for instance I would have little to say against "SIZEW" and "SIZEH", were there a genuine need.
             <br>
             <br>
+-->
             Appropriate care may still sometimes be required with some values, such as a raw memory address, which must fairly obviously
-            remain valid for the entire lifetime of the interface element, or at least until it is replaced.
+            remain valid for the entire lifetime of the interface element, or at least until all copies/references to it are replaced.
+            <br>
+            <br>
+<!-- Why offer, when a) you can't think of a use, and b) a dictionary can do it all, and quite probably far more anyway.
+            Aside: I foresee little difficulty and would have no objections to providing gSetCustomAttribute() and a matching get routine,
+            not that I can think of any practical use just yet, but I would consider it utter madness to have gSetAttribute() effectively 
+            ignore any attribute names it does not recognise, rather than reject my many typos. By ignore I really mean <i>quietly</i> obey, 
+            which is what IUP does.
+            <br>
+            <br>
+-->
+            <a name=str1></a><small><sup><a href="#str">1</a></sup></small> Of course Phix manages that via a combination of limiting integers 
+            to 31/63 bits, storing 32/64 bit "integers" in an atom, and not having/depending on a pointer type, rather you store pointers in an 
+            atom and it becomes your sole responsibility to use them as such, for instance the language itself would not raise an eyebrow should 
+            you ask for the square root of a pointer, or for that matter use the pointer itself when you should be using whatever it points at, 
+            though one it <i>would</i> catch is char* vs string. Swings and roundabouts, I guess.
          </td>
         </tr>
        </table>
-       <img src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <img id="Timg" src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
        <br>
        <br>
       </div>

@@ -1,0 +1,544 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">gMenu</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td>
+          <b>Definition:</b>
+         </td>
+         <td>
+            include xpGUI.e
+          <br>
+          <br>
+            <a href="gdx.htm">gdx</a> menu = gMenu(<a href="sequence.htm">sequence</a> children,
+                                                   <a href="rtn.htm">rtn</a> handler,
+                                                   <a href="integer.htm#bool">bool</a> bRadio=false)
+          <!--
+                                                   <a href="string.htm">string</a> attributes="",
+                                                   <a href="html/glossary.htm#dwordseq">dword_seq</a> args={})
+-->
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Description:</b>
+         </td>
+         <td>
+            Creates a menu element, with items, submenus and separators, which can be attached to a gDialog() or shown
+            as an standalone popup menu.
+          <br>
+          <br>
+            children: simple nested structure detailing the menu contents, see example below.
+          <br>
+            handler: function for processing menu interactions, see <a href="#HANDLER">HANDLER</a> below.<br>
+            bRadio: for popup menus only, instead of '?' in the (non-existent) submenu title, see below.
+          <!--            For more information on the attributes and args parameters see <a href="gSetAttributes.htm">gSetAttributes</a>. -->
+          <br>
+          <br>
+            Returns: the identifier of the created element.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="p2js.htm">
+          <span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+          Supported. (However checkbox/radio group handling is incomplete, actually all handling is incomplete, and gPopupMenu not even started.)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="gDialog.htm">gDialog</a>
+          <!--
+//        <a href="gMenuItem.htm">gMenuItem</a>,
+//        <a href="gSeparator.htm">gSeparator</a>,
+//        <a href="gSubmenu.htm">gSubmenu</a>
+-->
+          <!--          <a href="IupPopup.htm">IupPopup</a> -->
+          <!--          <a href="IupDestroy.htm">IupDestroy</a>-->
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Example:</b>
+         </td>
+         <td>
+          <p align="center">
+           <img alt="gMenu" src="images/gMenu.png" width="240" height="80"/>
+          </p>
+<!--eucode>
+-- demo\xpGUI\gMenu.exw, somewhat simplified
+include xpGUI.e
+constant MAIN_MENU = {{"&File",{{"&New",NEW:=$},
+                                {"&Open",OPEN:=$},
+                                {"&Close",CLOSE:=$},
+                                "|",
+                                {"E&xit",EXIT:=$}}},
+                      {"&Edit",EDIT_MENU:=$,
+                               {{"Copy",COPY:=$}}},
+                      {"&Help",HELP:=$}}
+
+function menu_handler(gdx menu, integer id, bool bHighlight)
+    string s = gMenuGetAttribute(menu,id,"TITLE")
+    printf(1,"%s%s\n",{s,iff(bHighlight?" (highlight)","")})
+    return iff(id=EXIT and not bHighlight?XPG_CLOSE:XPG_DEFAULT)
+end function
+
+gdx menu = gMenu(MAIN_MENU,menu_handler),
+    vbox = gVbox({menu/*,...*/}),
+     dlg = gDialog(vbox,`gMenu`,`SIZE = 240x80`)
+gShow(dlg)
+gMainLoop()
+</eucode-->
+<pre>
+<font color="#000080"><i>-- demo\xpGUI\gMenu.exw, somewhat simplified</i></font>
+<font color="#008080">include</font><font color="#000000"> xpGUI.e</font>
+<font color="#008080">constant</font><font color="#000000"> MAIN_MENU</font><font color="#0000FF"> = {</font><font color="#800000">{</font><font color="#008000">"&amp;File"</font><font color="#0000FF">,</font><font color="#800080">{</font><font color="#00FF00">{</font><font color="#008000">"&amp;New"</font><font color="#0000FF">,</font><font color="#000000">NEW</font><font color="#0000FF">:=</font><font color="#000000">$</font><font color="#00FF00">}</font><font color="#0000FF">,</font>
+<font color="#00FF00">                                {</font><font color="#008000">"&amp;Open"</font><font color="#0000FF">,</font><font color="#000000">OPEN</font><font color="#0000FF">:=</font><font color="#000000">$</font><font color="#00FF00">}</font><font color="#0000FF">,</font>
+<font color="#00FF00">                                {</font><font color="#008000">"&amp;Close"</font><font color="#0000FF">,</font><font color="#000000">CLOSE</font><font color="#0000FF">:=</font><font color="#000000">$</font><font color="#00FF00">}</font><font color="#0000FF">,</font>
+<font color="#008000">                                "|"</font><font color="#0000FF">,</font>
+<font color="#00FF00">                                {</font><font color="#008000">"E&amp;xit"</font><font color="#0000FF">,</font><font color="#000000">EXIT</font><font color="#0000FF">:=</font><font color="#000000">$</font><font color="#00FF00">}</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">,</font>
+<font color="#800000">                      {</font><font color="#008000">"&amp;Edit"</font><font color="#0000FF">,</font><font color="#000000">EDIT_MENU</font><font color="#0000FF">:=</font><font color="#000000">$</font><font color="#0000FF">,</font>
+<font color="#800080">                               {</font><font color="#00FF00">{</font><font color="#008000">"Copy"</font><font color="#0000FF">,</font><font color="#000000">COPY</font><font color="#0000FF">:=</font><font color="#000000">$</font><font color="#00FF00">}</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">,</font>
+<font color="#800000">                      {</font><font color="#008000">"&amp;Help"</font><font color="#0000FF">,</font><font color="#000000">HELP</font><font color="#0000FF">:=</font><font color="#000000">$</font><font color="#800000">}</font><font color="#0000FF">}
+</font>
+<font color="#008080">function</font><font color="#000000"> menu_handler</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> menu</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> bool</font><font color="#000000"> bHighlight</font><font color="#0000FF">)</font>
+<font color="#004080">    string</font><font color="#000000"> s</font><font color="#0000FF"> =</font><font color="#7060A8"> gMenuGetAttribute</font><font color="#0000FF">(</font><font color="#000000">menu</font><font color="#0000FF">,</font><font color="#000000">id</font><font color="#0000FF">,</font><font color="#008000">"TITLE"</font><font color="#0000FF">)</font>
+<font color="#7060A8">    printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"%s%s\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#7060A8">iff</font><font color="#800080">(</font><font color="#000000">bHighlight</font><font color="#0000FF">?</font><font color="#008000">" (highlight)"</font><font color="#0000FF">,</font><font color="#008000">""</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#008080">    return</font><font color="#7060A8"> iff</font><font color="#0000FF">(</font><font color="#000000">id</font><font color="#0000FF">=</font><font color="#000000">EXIT</font><font color="#008080"> and not</font><font color="#000000"> bHighlight</font><font color="#0000FF">?</font><font color="#004600">XPG_CLOSE</font><font color="#0000FF">:</font><font color="#004600">XPG_DEFAULT</font><font color="#0000FF">)</font>
+<font color="#008080">end function
+</font>
+<font color="#7060A8">gdx</font><font color="#000000"> menu</font><font color="#0000FF"> =</font><font color="#7060A8"> gMenu</font><font color="#0000FF">(</font><font color="#000000">MAIN_MENU</font><font color="#0000FF">,</font><font color="#000000">menu_handler</font><font color="#0000FF">),</font>
+<font color="#000000">    vbox</font><font color="#0000FF"> =</font><font color="#7060A8"> gVbox</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">menu</font><font color="#000080"><i>/*,...*/</i></font><font color="#800000">}</font><font color="#0000FF">),</font>
+<font color="#000000">     dlg</font><font color="#0000FF"> =</font><font color="#7060A8"> gDialog</font><font color="#0000FF">(</font><font color="#000000">vbox</font><font color="#0000FF">,</font><font color="#008000">`gMenu`</font><font color="#0000FF">,</font><font color="#008000">`SIZE = 240x80`</font><font color="#0000FF">)</font>
+<font color="#7060A8">gShow</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">)</font>
+<font color="#7060A8">gMainLoop</font><font color="#0000FF">()</font>
+</pre>
+<!--          </small>-->
+          <br>
+            The "children" structure should be fairly self-explanatory. Each entry is:
+            <ul>
+              <li>{string menu_item, integer id} for a "leaf" menu entry, or </li>
+              <li>any of {"|","-",'|','-'} for a separator (which are all treated identically), or </li>
+              <li>{string submenu, [integer id,] sequence children}</li>
+            </ul>
+            That final [nested sub-]children obviously follows the exact same rules, recursively.
+            <br>
+            <br>
+            There is no id on the &File menu, hence you cannot enable/disable it, and won&rsquo;t be notified on open or mouseover.<br>
+            It would also not be possible to set/get the checked status, except for the two facts that you cannot have checkboxes
+            on a [sub]menu[header], only menu items, and also it is an outright error not to have an id on "leaf" items anyway.
+            In contrast, the presence of EDIT_MENU means you get events, can change the text, etc.
+            <br>
+            <br>
+            Aside: Should you not have met them before, "NEW:=$" is just a <a href="constants.htm#nested_declarations">nested declaration</a>, 
+            and no different to using a preceding "enum NEW,...", less the tedious repetition and first opportunity for silly typos. 
+            You could of course also use [nested] "NEW:=17" style declarations instead if preferred, perhaps more effort to maintain but 
+            possibly sometimes a little easier to debug, since you can see straightaway what a 17 might refer to, without any counting.
+            <br>
+            <br>
+            There is no need to keep ids in ascending order, nor any prohibition on using say [#]020301 as some app-specific meaning.
+            <br>
+            <br>
+            See below or the unabridged gMenu.exw for further details of popups, radios, checkboxes, and [DEV] images.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Notes:</b>
+         </td>
+         <td>
+            A menu can be the menubar of a dialog, as shown above, or a popup menu.<br>
+            For the former it <i>must</i> be the first element of a gDialog(gVBox({})) construct.<br>
+            For the latter it <i>must not</i> have a parent, ie be no part of any dialog hierarchy. 
+            <br>
+<!--
+            Technically speaking, all menus apart from the menubar shown above are popup menus, but in these docs we&rsquo;ll stick to the more usual
+            convention of a popup meaning one that can appear anywhere, usually triggered by a right click, and use menu (and usually submenu) when we 
+            mean anything attached to the menubar.
+            <br>
+            <br>
+-->
+            <a name=gPopupMenu></a>
+            <br>
+            <b>gPopupMenu</b>(<a href="gdx.htm">gdx</a> menu, <a href="integer.htm">integer</a> x=XPG_MOUSEPOS, y=XPG_MOUSEPOS)<br>
+            menu: a result from gMenu() which has <i>not</i> already been used as a child of any other element.<br>
+            x,y: screen position, literal values or <a href="gShow.htm#XPG_MOUSEPOS">XPG_MOUSEPOS</a> as per <a href="gShow.htm">gShow</a>, 
+            which is the only such flag supported here, and implicitly uses <a href="gGetGlobal.htm">gGetGlobalIntInt</a>("MOUSEPOS").
+            <br>
+            <br>
+            A popup menu is displayed for the user and disappears when an item is selected. Under GTK and JavaScript control returns
+            immediately, however under WinAPI that does not happen until the menu has gone, though the main message loop remains active.
+            <br>
+            <a name=menuchk></a>
+            <br>
+            A menu item with a leading '?' generates a checked menu item (with the '?' removed).<br>
+            A submenu item with a leading '?' makes the first set of checked menu items on the submenu ("") into a radio set.<br>
+            In the case of a popup menu there is no (top-level) submenu item title for that, so the bRadio flag is used instead.<br>
+            That set is terminated by the next separator or submenu after one or more checked items have been seen.<br>
+            <small><i>[I could probably quite easily make "?-" a separator that starts a 2nd+ radio group, should that ever be needed.]</i><br></small>
+            <small><i>[DEV: perhaps I should instead use "??" to start a new group, "?+" to specify checked, "?." to end a group?]</i><br></small>
+            The command ids on those items (such as NEW/OPEN/CLOSE above) must form a contiguous integer range, that is for a radio group, though 
+            they need not be in order, with the lowest numerically being initially selected. Should you want to set a default radio from some kind 
+            of config file, then your command-ids would have to be variables rather than constants, and I would recommend starting with say 
+            {2,3,4,5} then just swapping the 2 with whichever one you wanted to be the default, ie {2,3,4,5}|{3,2,4,5}|{4,3,2,5}|{5,3,4,2} iyswim.
+<!--
+            <br>
+            <br>
+            Some more examples can also be seen in demo\xpGUI\sample.exw
+-->
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Attributes:</b>
+         </td>
+         <td>
+            <a name=MenuAttr></a>
+            All menu attributes are set via gMenuSetAttribute() rather than the usual gSetAttribute(), likewise get.
+            <br>
+            <br>
+            <b>gMenuSetAttribute</b>(<a href="gdx.htm">gdx</a> menu, <a href="integer.htm">integer</a> id, 
+                                     <a href="string.htm">string</a> name, <a href="object.htm">object</a> v)<br>
+            <a href="object.htm">object</a> v = <b>gMenuGetAttribute</b>(<a href="gdx.htm">gdx</a> menu, <a href="integer.htm">integer</a> id, 
+                                                                         <a href="string.htm">string</a> name)<br>
+            menu,id: both must always be provided, and id be non-zero.<br>
+            name,v: as detailed below
+<!--
+            <br>
+            <br>
+            A fatal error normally occurs should either of these routines be invoked before the menu has been mapped, 
+            which might actually help by exposing the odd logic error, such as trying to update a menu on the wrong 
+            window. You could of course invoke <a href="gMap.htm">gMap</a>() explicitly yourself.
+-->
+         </td>
+        </tr>
+<!--
+//      <tr>
+//       <td>
+//        <a href="gSetAttribute.htm#BGCOLOR">BGCOLOR</a>
+//       </td>
+//       <td>
+//          the background color of the menu, affects all items in the menu. (since 3.0)
+//       </td>
+//      </tr>
+-->
+        <tr>
+         <td>
+          <a href="gSetAttribute.htm#ACTIVE">ACTIVE</a>
+         </td>
+         <td>
+            Same as the standard attribute, except for needing both a gdx and (non-zero) command-id.<br>
+            The above example could perhaps contain gMenuSetAttribute(menu,CLOSE,"ACTIVE",bThereIsAnOpenFile)
+<!--
+            <br>
+            <br>
+            It is usually considered bad UI design and potentially very frustrating to "randomly" hide menu elements (except perhaps via 
+            system settings), hence there is no facility to do that at all, not that I can stop you from creating multiple/confusing menus.
+            Disabling menu entries carries a similar risk of frustration, especially for novice end users of a finished application.
+            While things like cut/copy/paste/undo/redo being disabled/enabled is perfectly acceptable, it may be much better to leave 
+            the more obscure entries active but display an explanatory message when inappropriately clicked.
+-->
+         </td>
+        </tr>
+        <tr>
+         <td>
+          CHECKED
+         </td>
+         <td>
+            Set or retrieve the state of a specified checked menu item.<br>
+            Unlike <a href="gCheckbox.htm#gRadioItem">gRadioItem</a>(), there is no "which one is selected?" query for a radio group on a menu,
+            you&rsquo;ll either have to remember what events your handler was sent, or iterate through all of the menu items until you find it. 
+            Also, attempting to unset any member of a radio group quietly does nothing, since the internal handling of clicking on an already set 
+            item is significantly simpler that way, plus you don&rsquo;t want to risk it getting left in a nothing selected/invalid state anyway.
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+?         IMAGE, IMPRESS
+         </td>
+         <td>
+            Sadly, not particularly high on my to-do list. Needs more work, of course, on <a href="gImage.htm">gImage</a>() first.
+         </td>
+        </tr>
+
+<!--
+        <tr>
+         <td>
+          POPUPALIGN
+         </td>
+         <td>
+            (non inheritable) alignment of the popup menu relative to the given point in the format "horiz_align:vert_align". <br>
+            Where horiz_align can be: ALEFT, ACENTER or ARIGHT; and vert_align can be ATOP, ACENTER or ABOTTOM. Default: ALEFT:ATOP. (since 3.28)
+         </td>
+        </tr>
+-->
+<!-- (done textually instead)
+//      <tr>
+//       <td>
+//?       RADIO
+//       </td>
+//       <td>
+//          (non inheritable) enables the automatic toggle of one child item. When a child item is selected the other item is automatically deselected. 
+//          The menu acts like <a href="gBox.htm#RADIO">RADIO</a> for its children. Submenus and their children are not affected.
+//       </td>
+//      </tr>
+-->
+<!--
+        <tr>
+         <td>
+?         TIP
+         </td>
+         <td>
+            ...
+         </td>
+        </tr>
+-->
+        <tr>
+         <td>
+          TITLE
+         </td>
+         <td>
+            Use a '&' to indicate a mnemonic, and "&&" for a literal ampersand. UTF-8 should be fully supported.<br>
+            The separator characters '|', '-' and initial '?' for checkboxes and radio groups do <i><b>not</b></i> apply here, 
+            only as initially embedded inside the children structure, in other words they are strictly creation-only.<br>
+            Note that retrieved titles may have been preprocessed to GTK or other standards, ie/eg replacing '&' with '_' (etc).
+            <br>
+            <br>
+            A fatal error occurs if an attempt is made to retrieve a menu title before the menu has been mapped - strings within the original 
+            nested children structure parameter of gMenu() would not have been processed before that point, and it is a fairly strong indicator
+            of some sort of logic error to attempt such before the window/popup menu has even been displayed, anyway. At a push you could perhaps 
+            invoke <a href="gMap.htm">gMap</a> explicitly yourself, assuming you are really sure that&rsquo;s alright.
+         </td>
+        </tr>
+<!--
+//      <tr>
+//       <td>
+//?       TOGGLE (done textually instead)
+//       </td>
+//       <td>
+//          Erm... (non inheritable) enables the automatic toggle of one child item. When a child item is selected the other item is automatically deselected. 
+//          The menu acts like <a href="gBox.htm#RADIO">RADIO</a> for its children. Submenus and their children are not affected.
+//       </td>
+//      </tr>
+//      <tr>
+//       <td>
+//?       VALUE (see CHECKED instead...)
+//       </td>
+//       <td>
+//          (non inheritable) enables the automatic toggle of one child item. When a child item is selected the other item is automatically deselected. 
+//          The menu acts like <a href="gBox.htm#RADIO">RADIO</a> for its children. Submenus and their children are not affected.
+//       </td>
+//      </tr>
+-->
+<!--
+//      <tr>
+//       <td>
+//        <a href="gSetAttribute.htm#WID">WID</a>
+//       </td>
+//       <td>
+//          (non inheritable) In Windows, returns the HMENU of the menu.
+//       </td>
+//      </tr>
+-->
+        <tr>
+         <td>
+          <b>Handlers:</b>
+         </td>
+         <td>
+          <br>
+          <a name=HANDLER></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          HANDLER
+         </td>
+         <td>
+            A function that handles all menu interactions.
+            <br>
+            <br>
+            function handler(<a href="gdx.htm">gdx</a> menu, integer id [,bool bHighlight])<br>
+            menu: identifier of the (toplevel) menu, as originally returned from gMenu().<br>
+            id: identifier of the menu entry (must be unique within each menu).<br>
+            bHighlight: (optional) if true the event is just select/mouseover, false for an actual click.
+<!-- aside: since JavaScript is a typeless language, it would never be able to distinguish handler(menu,id) from handler(id,bHighlight). -->
+            <br>
+            <br>
+<!-- I think we can, but it is untested and in fact *NO* handler stuff has yet been properly implemented...
+DEV: pwa/p2js is going to need unique ids, unless we can make them say "mid%d_%d",{menu_id,item_id}...<br>
+            The menu parameter is required should you need to modify any menu sttributes such as ACTIVE, or perhaps if you have a
+            single handler for several menus with potentially overlapping ids (no need for them to be globally unique, ymbrth).
+            <br>
+            <br>
+-->
+            If there is no bHighlight parameter, only click events are forwarded. Some applications may benefit from displaying 
+            a longer description of what a menu entry does in a status bar, say, as mouseover and similar events occur. As noted 
+            above, signals from sub-menus opening (there are no close signals) and highlighting events are only sent when an id 
+            is actually specified on the individual menu[item]s.
+<!--
+             Note that
+            highlight events are only guaranteed on menu items (such as COPY above) but may or may not occur on sub-menus (such
+            as EDIT_MENU above) on different run-time backends.
+-->
+            <br>
+            <br>
+            This handler is usually specified on the initial gMenu() call that creates the menu, but technically that can be NULL and the  
+            handler set later in the usual manner, being specifically here <a href="gSetHandler.htm">gSetHandler</a>(menu,"HANDLER",handler).
+            It is completely illegal, however, for a menu not to have a valid handler by the time it is shown (ie it crashes rather loudly 
+            in preference to mutely doing nowt).
+            <br>
+            <br>
+<!--        You might, for instance, want to <a href="#MenuAttr">gMenuSetAttribute</a>(menu,PASTE,"ACTIVE",clipboard_contains_text()). -->
+            There is no guarantee of cross-platform/backend consistency of event signals, for instance changing a radio menu entry may
+            signal {old,new} or {new,old}, heck some backends might only send new, or even send them in command-id or menu order. 
+            Under WinAPI, you may also get mouseover events from disabled menu items and sub-menus, but not disabled MenuBar items, in
+            contrast with none such at all for any and all disabled items under GTK. 
+<!-- yeah, but why bother saying it here, really?
+            Bright ideas to minimise the impact of any such backend discrepancies would be warmly welcomed.
+-->
+            <br>
+            <br>
+            Returns of <a href="gSetHandler.htm#XPG_CLOSE">XPG_CLOSE</a> are honoured for a menu attached to a dialog (closing it), but 
+            simply ignored from a popup menu handler.<br>
+          <a name=tech></a>
+         </td>
+        </tr>
+
+<!--
+        <tr>
+         <td>
+          OPEN_CB
+         </td>
+         <td>
+            Called just before the menu is opened.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          MENUCLOSE_CB
+         </td>
+         <td>
+            Called just after the menu is closed.
+         </td>
+        </tr>
+-->
+<!--
+//      <tr>
+//       <td>
+//        also
+//       </td>
+//       <td>
+//          <a href="gSetHandler.htm#DESTROY_CB">DESTROY_CB</a> : common handlers are supported.
+//       </td>
+//      </tr>
+-->
+        <tr id="Technicalia" style="display:none;">
+         <td>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+            On the desktop, a plain Alt opens the app&rsquo;s menu, and causes any accelerator keys to be underlined,
+            but in a browser that opens the browser&rsquo;s menu, not the app-within-the-browser&rsquo;s menu.<br>
+            In the browser, you can use Alt Gr or Ctrl+Alt, but they don&rsquo;t work on the desktop.<br>
+            However, Shift+Alt works consistently in the browser and on the desktop, at least in my tests,<br>
+            so it might be sensible to get into the habit of using that.
+            <br>
+            <br>
+            The "look and feel" under pwa/p2js is currently 100% windows-based. Should you want something more consistent with 
+            linux applications, try modifying pwa/js/poc/menus.css (and maybe .html/js): hopefully I might then be able to use
+            that, along with (say) gSetGlobal("MENU_OS","LINUX") [which could be quietly ignored by desktop/Phix], and change 
+            all "menuitem" to say "wmenumiten" and "lmenuitem", etc.
+            <br>
+            <br>
+            The standard practice of popping up left of the cursor occurs when using XPG_MOUSPOS and clicking too near the right hand
+            edge of the screen (on all, GTK2 too), and similarly above/too near the bottom, except for GTK2 (which is a law unto itself) 
+            whereby menus first get scrollbars then become too small to be usable, sadly not much I can realistically do about that, even
+            if I used a GtkMenuPositionFunc, there is a gboolean *push_in but not a gboolean *push_up, though at least it works fine on 
+            GTK3+, when they added gtk_menu_popup_at_pointer(), and other than for testing no-one should still be using GTK2 anyway.
+<!--        Note that unlike <a href="IupPopup.htm">IupPopup</a>() this never interrupts processing (mainly for js compatibility reasons)0-->
+            <br>
+<!--            <a href="IupDestroy.htm">IupDestroy</a> should be called only for popup menus.
+            Menu bars associated with dialogs are automatically destroyed when the dialog is destroyed. 
+//          But if you change the menu of a dialog for another menu, the previous one should be destroyed using <a href="IupDestroy.htm">IupDestroy</a>. 
+            If you replace a menu bar of a dialog, the previous menu is unmapped.
+            <br>
+            <br>
+            Any item inside a menu bar can retrieve attributes from the dialog using <a href="gGetAttribute.htm">gGetAttribute</a>. 
+            It is not necessary to call <a href="gGetDialog.htm">gGetDialog</a>().
+            <br>
+            <br>
+            The menu can be created with no elements and filled dynamically using <a href="IupAppend.htm">IupAppend</a>() or <a href="IupInsert.htm">IupInsert</a>(). 
+            <br>
+            <br>
+//?         The ?gMenuItem? check is affected by the RADIO attribute in gMenu(). (erm, that just needs a little rewording...)
+-->
+
+         </td>
+        </tr>
+       </table>
+       <img id="Timg" src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

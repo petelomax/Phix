@@ -9,13 +9,15 @@
         xpGUI is the Phix Cross Platform Graphical User Interface, a planned replacement for <a href="pGUI.htm">pGUI</a>.
         <br>
         <br>
-        Unlike pGUI, xpGUI will only contain js-compatible things, and perhaps some non-js pieces I actually need.<br>
+        Unlike pGUI, xpGUI will only contain js-compatible things, and perhaps some incompatible bits I actually need, <br>
+        such as loading an image from disk so I can generate the equivalent (source code of a) constant that <i>is</i> js-compatible.<br>
+        Likewise there is a general avoidance of any Windows-only or GTK-only appearance or functionality.<br>
         On Windows, uses the native windows API but can be made to use GTK, for testing purposes only (see <a href="gUseGTK.htm">gUseGTK</a>).<br>
         On Linux, uses GTK and assumes that is already installed, and besides IUP does/did the same anyway.<br>
-        In a web browser, uses pwa/xpGUI.js which is a laboriously hand-crafted drop-in replacement.
+        In a web browser, uses pwa/xpGUI.js which is a laboriously and lovingly hand-crafted drop-in replacement.
         <br>
         <br>
-        The Windows part is based on Arwen (tougher than expected), pGUI.js only needs superficial mods, GTK is proving easier than feared.<br>
+        The Windows part is based on Arwen (tougher than expected), pGUI.js only needs superficial mods, GTK began easy and got messy.<br>
         With a bit of luck, OpenGL/WebGL should only require the lightest of tweaks to make it [x]pGUI-agnostic, or an easy fork.<br>
         To minimise confusion, none/few of the Windows API, Arwen, GTK, or IUP-style globals/names are exposed or (re-)used, one<br>
         notable exception being VK_F1 (etc) of arwen <small>(as per the aside <a href="gSetHandler.htm#KEY">here</a>).</small><br>
@@ -39,7 +41,8 @@
         Many things have been simplified, unified and consolidated, for instance "just" <a href="gSetAttribute.htm">gSetAttribute</a>(),
         several attributes have been renamed and several controls have been dropped, and the use of normal first class routines as handlers 
         instead of callbacks, all of which makes it a touch impractial to summarise everything properly on a/this single page.
-        Should the <a href="pGUI.htm">pGUI</a> docs tag pwa/p2js as not supported, then it won&rsquo;t be in <a href="xpGUI.htm">xpGUI</a>.
+        Should the old <a href="pGUI.htm">pGUI</a> docs tag pwa/p2js as not supported, then like as not it probably won&rsquo;t have made
+        it into <a href="xpGUI.htm">xpGUI</a>.
 <!--
         (Whether controls within a dialog can be "post-parented" in an IupH/Vbox-like fashion is as yet unknown, but I hope so.)<br>
 -->
@@ -59,21 +62,22 @@
 -->
         <br>
         <br>
-        There is a mini-helper defined in builtins\xpGUI_from_pGUI.e intended to alleviate most of the tedious editing needed 
-        when porting code from pGUI to xpGUI:<br>
+        The following mini-helper is intended to alleviate most of the tedious editing needed:<br>
         <br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;include builtins\xpGUI_from_pGUI.e<br>
         &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a href="string.htm">string</a> res = <b>xpGUI_from_pGUI</b>(<a href="string.htm">string</a> src)
         <br>
         <br>
-        Should you copy some source code into the clipboard, run demo\xpGUI\gButton.exw, and click on the "port from pGUI" button
-        (which should be disabled if the clipboard does not contain "include pGUI.e"), then it updates the clipboard contents
+        Should you copy some source code into the clipboard, run demo\xpGUI\gButton.exw, and click on the "port from pGUI" button, which should be disabled 
+        if the clipboard does not contain "include pGUI.e", and as next will be disabled as soon as you click it, then it updates the clipboard contents
         modified roughly as follows:<br>
-        `include pGUI.e` is replaced with `include xpGUI.e`<br>
-        `<a href="IupOpen.htm">IupOpen</a>()` (ditto `<a href="IupClose.htm">IupClose</a>()`) is simply deleted
-          <small>[xpGUI has a private and auto-invoked when actually needed xpg_Init()]</small><br>
-        `IHandl(e|n)[s]` is replaced with `<a href="gdx.htm">gdx</a>` <small>[note there is now only one gdx type, not four.]</small><br>
+        "include pGUI.e" is replaced with "requires(\"1.0.3\")\n" & "include xpGUI.e"<br>
+        `<a href="IupOpen.htm">IupOpen</a>()` and `<a href="IupClose.htm">IupClose</a>()` are simply deleted
+          <small>[xpGUI.e has a private and auto-invoked when actually needed xpg_Init() instead]</small><br>
+        `IHandl(e|n)[s]` are replaced with `<a href="gdx.htm">gdx</a>` <small>[note there is now only one gdx type, not four.]</small><br>
         `IupDialog` is replaced with `<a href="gDialog.htm">gDialog</a>` <small>(must manually specify any parent, when needed, <i>after</i> the child)</small><br>
         `"PARENTDIALOG"` is replaced with ?PARENTDIALOG? <small>(as prior, needs further editing)</small><br>
+        Likewise "MAP_CB" and "UNMAP_CB", since you can probably just delete those<br>
         `Iup(Set[Str]|Store)Attribute` are all replaced with `<a href="gSetAttribute.htm">gSetAttribute</a>`<br>
         `Icallback("xxx")` is replaced with `xxx` <small>(quotes removed)</small><br>
         `IupSetCallback[s](` is replaced with `<a href="gSetHandler.htm">gSetHandler</a>[s](?` <small>(you&rsquo;ll need to fixup quotes, remove call_back(), etc.)</small><br>
@@ -82,19 +86,28 @@
         `"XXX_CB"` is replaced with `"XXX"` <small>(ditto, plus `"K_ANY"` -> `"<a href="gSetHandler.htm#KEY">KEY</a>"`)</small><br>
         `IUP_` is replaced with `XPG_` <small>(blanket, unverified)</small><br>
         `K_` is replaced with `VK_` <small>(blanket, unverified)</small><br>
-        More tweaks may be added as necessary.<br>
-        <small>(or rather <i>will</i>, it&rsquo;ll probably <i>never</i> be totally finished/perfected, besides
-                xpGUI_from_pGUI() is one-shot, not meant to be long-term, and more than likely will be me-only)</small><br>
-        I also plan to incorporate similar code into the new demo\Edita\xpEditer.exw if that ever gets going properly, and/or Edita/Edix if not.<br>
+        More tweaks may/will be added as necessary. <small>(it&rsquo;ll probably <i>never</i> be totally finished/perfected)</small><br>
+        I also plan to incorporate similar into the new demo\Edita\xpEditer.exw if that ever gets going properly, and/or Edita/Edix if not.<br>
         <small>(Mind you, should xpEditer.exw somehow fail to become a reality, by 2024|5, then I&rsquo;ll consider xpGUI an abject failure...)</small>
         <br>
+        <br>
+        Note that the <a href="gCheckbox.htm#gRadio">gRadio</a>() of xpGUI is quite different to the <a href="IupRadio.htm">IupRadio</a>() of pGUI,
+        and that will need to be manually changed. Typically you should get/expect an error that gRadio() is not a function, since it isn&rsquo;t.
+        See demo\xpGUI\gRadio.exw for an example.
+        <br>
+        <br>
+        Attribute inheritance has been replaced with recursive application in a few places, but largely dropped and in any case would require
+        a manual attribute-specific reimplementation in xpGUI, so don&rsquo;t be too surprised if/when that needs a few tweaks.
+        <br>
         <br>        
-        Obviously there is no guarantee or even likelihood of the result running without any further changes, and no apologies
-        whatsoever should <i>you</i> clobber the only working version you have <i>without</i> making an adequate backup first.
+        Obviously there is <b>no guarantee or even likelihood</b> of the result running without any further changes, in fact at least a dozen
+        things deliberately trigger compilation errors that need to be manually fixed up (List/DropDown/Menu amongst the most likely), and no 
+        apologies whatsoever should <i>you</i> clobber the only working version you have <i>without</i> making an adequate backup first.
 
         <h3>Handler changes</h3>
         Several run-time errors, specifically designed to assist in the porting process, can also occur in xpGUI.e such as<br>
-        &nbsp;&nbsp;<a href="crash.htm">crash</a>(`setHandler(BUTTON,"ACTION",rtn) should be changed to "CLICK"`)<br>
+        &nbsp;&nbsp;<a href="crash.htm">crash</a>(`setHandler(Canvas,"ACTION",rtn) should be changed to "REDRAW"`)<br>
+        <small>(obviously I&rsquo;ll give it my best shot, but no doubt some will be missed and some will just be too tricky)</small><br>
         and you should take appropriate care to ensure any required associated updates are also made, as follows:
         <br>
         <br>
@@ -114,6 +127,7 @@
             Notes
           </th>
          </tr>
+<!--
          <tr>
           <td>
            <a href="gButton.htm">
@@ -130,6 +144,7 @@
             Just a more intuitive name
           </td>
          </tr>
+-->
          <tr>
           <td>
            <a href="gCanvas.htm">
@@ -146,14 +161,32 @@
             The callback function has now become a procedure instead
           </td>
          </tr>
+         <tr>
+          <td>
+           <a href="gCheckbox.htm">
+            <b>gCheckbox</b>
+           </a>
+          </td>
+          <td>
+            "ACTION"
+          </td>
+          <td>
+            "VALUE_CHANGED"
+          </td>
+          <td>
+            Just a more intuitive name, and the callback has also become a procedure.
+          </td>
+         </tr>
         </table>
+        <br>
+        <br>
 <!--
 (I've gotten used to the GTK docs a bit more now...)
-        <small><sup><small>1</small></sup> Help welcome, and/or better (non-heredoc) GTK documentation.</small>
-        <small><sup><small>1</small></sup> Help welcome, and/or much better (non-bloody-useless-heredoc) GTK documentation.</small>
+//      <small><sup><small>1</small></sup> Help welcome, and/or better (non-heredoc) GTK documentation.</small>
+//      <small><sup><small>1</small></sup> Help welcome, and/or much better (non-bloody-useless-heredoc) GTK documentation.</small>
         (any GTK-fanboy feeling the urge to defend the GTK docs should first see how many times that can find the phrase
         "No description available" -- oh, don't set them off...
-        <small><sup><small>1<small></sup> Forgive me for saying this, but the GTK documentation is by far the worst 
+//      <small><sup><small>1<small></sup> Forgive me for saying this, but the GTK documentation is by far the worst 
         I have ever seen in my entire life.<br>
         The GTK documentation has zero meaningful structure; every routine is independently defined with almost no 
         cross-references whatsoever, and all in segregated implementation "units" without any explanation.<br>

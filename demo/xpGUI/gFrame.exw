@@ -1,0 +1,164 @@
+--
+-- demo\xpGUI\gFrame.exw
+-- =====================
+--
+--DEV needs gH/Vbox, really...
+--  IupFrame with a label, filler, and button.
+--
+--  You make like to change the sizes, margins, etc.
+--
+--without js -- multiline labels are not supported (yet, or ?ever? - is there /really/ any need?)
+--requires(64,true)
+with javascript_semantics
+include xpGUI.e
+--gUseGTK()
+
+--/*
+--Manual screenshot version:
+gdx frame = gFrame(NULL,`gFrame`,`SIZE=160x35`),
+    hbox = gHbox({gVbox({frame})},"MARGIN=10x0"),
+    dlg = gDialog(hbox,"gFrame","SIZE=240x80")
+gShow(dlg)
+gMainLoop()
+--*/
+--/!*
+
+--/*
+--GTK: (paint says 33x26!!)
+gSetAttribute(BOX,"MARGIN",{10,10})...
+id ----ctyp----   x   y   w   h  nw  nh  p  children   flags
+ 1 Button         0  28  33  26  33  26  3  0          CF_MAPPED
+ 2 Label          0   0 114  28 114  28  3  0          CF_MAPPED
+ 3 Vbox           0   0 114  54 114  54  4  {2,1}      CF_MAPPED
+ 4 Frame          0   0 118  72 118  72  5  {3}        CF_MAPPED
+ 5 Vbox           0   0 118  72 118  72  6  {4}        CF_MAPPED
+ 6 Hbox           0   0 118  72 118  72  7  {5}        CF_MAPPED
+ 7 Dialog         0   0 118  72 118  72  0  {6}        CF_MAPPED+CF_CLOSE_ON_ESC
+{240,180}
+
+id ----ctyp----   x   y   w   h  nw  nh  p  children   flags
+ 1 Button         0   0  33  26  33  26  3  0          CF_MAPPED
+ 2 Label          0   0 114  28 114  28  3  0          CF_MAPPED
+ 3 Vbox           0   0 114  54   0   0  4  {2,1}      CF_MAPPED
+ 4 Frame          0   0 114  54 210 170  5  {3}        CF_MAPPED
+ 5 Vbox           0   0 114  54   0   0  6  {4}        CF_MAPPED
+ 6 Hbox           0   0 114  54   0   0  7  {5}        CF_MAPPED
+ 7 Dialog         0   0 114  54   0   0  0  {6}        CF_MAPPED+CF_CLOSE_ON_ESC
+
+-WinAPI: (paint says 50x28, lets assume I cropped a border I shouldn't have...)
+gSetAttribute(BOX,"MARGIN",{10,10})...
+id ----ctyp----   x   y   w   h  nw  nh  p  children   flags
+ 1 Button         1  47  33  26  33  26  3  0          CF_MAPPED
+ 2 Label          1  15 130  32 130  32  3  0          CF_MAPPED
+ 3 Vbox           1  15 130  58   0   0  4  {2,1}      CF_MAPPED
+ 4 Frame          0   0 134  78  93  15  5  {3}        CF_MAPPED
+ 5 Vbox           0   0 134  78   0   0  6  {4}        CF_MAPPED
+ 6 Hbox           0   0 134  78   0   0  7  {5}        CF_MAPPED
+ 7 Dialog         0   0 134  78   0   0  0  {6}        CF_MAPPED+CF_CLOSE_ON_ESC
+{210,170}
+
+gSetAttribute(BOX,"MARGIN",{10,10})...
+id ----ctyp----   x   y   w   h  nw  nh  p  children   flags
+ 1 Button         1 110  33  26  33  26  3  0          CF_MAPPED
+ 2 Label          1  78 130  32 130  32  3  0          CF_MAPPED
+ 3 Vbox           1  78 130  58 130  58  4  {2,1}      CF_MAPPED
+ 4 Frame          0   0 134  78 134  78  5  {3}        CF_MAPPED
+ 5 Vbox           0   0 134  78 134  78  6  {4}        CF_MAPPED
+ 6 Hbox           0   0 134  78 134  78  7  {5}        CF_MAPPED
+ 7 Dialog         0   0 134  78 134  78  0  {6}        CF_MAPPED+CF_CLOSE_ON_ESC
+{210,170}
+
+id ----ctyp----   x   y   w   h  nw  nh  p  children   flags
+ 1 Button         0   0  52  30  52  30  3  0          CF_MAPPED
+ 2 Label          0   0 130  32 130  32  3  0          CF_MAPPED
+ 3 Vbox           0   0 130  62   0   0  4  {2,1}      CF_MAPPED
+ 4 Frame          0   0 130  62  92  15  5  {3}        CF_MAPPED
+ 5 Vbox           0   0 130  62   0   0  6  {4}        CF_MAPPED
+ 6 Hbox           0   0 130  62   0   0  7  {5}        CF_MAPPED
+ 7 Dialog         0   0 130  62   0   0  0  {6}        CF_MAPPED+CF_CLOSE_ON_ESC
+
+--*/
+
+--?gVersion()
+
+--function quit(gdx /*id*/)
+function quit(gdx btn)
+?{"quit, closing, dlg size is:",gGetAttribute(gGetDialog(btn),"SIZE")}
+?{"quit, closing, frame size is:",gGetAttribute(gGetParent(gGetParent(btn)),"SIZE")}
+-- 152,119 wanted, got 136,78
+sleep(2)
+    return XPG_CLOSE
+end function
+
+--constant frametitle = sprintf(`gFrame (%s)`,gVersion(true)),
+constant frametitle = `gFrame`,
+--constant frametitle = ``,
+--        frameattr = `SIZE=160x100, XXX FGCOLOR="0 128 128" `,
+--        frameattr = `SIZE=160x35`,
+--        frameattr = `SIZE=210x170`,
+          frameattr = `SIZE=210x170`,
+--        frameattr = ``,
+--        frameattr = `ACTIVE=YES`,
+--        frameattr = `ACTIVE=NO`,
+          sane_attr = substitute_all(frameattr,{", ","="},{"\n",":"}),
+--        labeltext = "IupFrame Attributes:\n"&sane_attr
+          labeltext = "IupFrame Attributes: "&sane_attr
+
+gdx quit_bt = gButton("Quit", quit),
+--gdx quit_bt = gButton("Quit", quit_cb, "EXPAND=FALSE"),
+    vbox = gVbox({gLabel(labeltext),
+--DEV:
+--  vbox = gVbox({gCanvas("SIZE=100x100"),
+--                gFill(),
+                  quit_bt}),
+--                gHbox({quit_bt})}),
+--  frame = gFrame(vbox,"This is the frame",frameattr),
+--  frame = gFrame(vbox,frametitle,frameattr),
+--  frame = gFrame(vbox,frameattr),
+    frame = gFrame(NULL,frametitle,frameattr),
+--  hbox = gHbox({frame},"MARGIN=10x10"),
+    hbox = gHbox({gVbox({frame})}),
+--  hbox = gHbox({gVbox({frame})},"MARGIN=10x0"),
+    dlg = gDialog(hbox,"gFrame","SIZE=240x80")
+gSetBodge(frame,{5,0,110,42})
+--  dlg = gDialog(hbox,"gFrame")
+--  dlg = gDialog(frame,"gFrame")
+--  dlg = gDialog(frame,"gFrame","SIZE=240x180")
+--?"frame_title..."
+--?gGetAttribute(frame,"TITLE","??")
+
+--/*
+gdx dlg = gDialog(gHbox({gFrame(gVbox({gLabel(labeltext),
+--                                        gFill(),
+                                          quit_bt}),
+                            "This is the frame",            
+                            frameattr)},"MARGIN=10x10"),
+--                    "TITLE=gFrame")
+                     "gFrame","SIZE=240x180")
+--*/
+--/*
+gdx label = gLabel(labeltext),
+--DEV label mis-positioned... (as below)
+--gdx label = gLabel("123"),
+    frame = gFrame(label,"This is the frame",frameattr),
+--DEV I've set a size here because gShow is not yet doing the natural size thing...
+    dlg = gDialog(frame,"gFrame","SIZE=240x180")
+--*/
+
+--  IupSetAttributeHandle(dlg, "DEFAULTESC", quit_bt)
+
+gShow(dlg)
+--?"shown"
+--gSetFocus(quit_bt)
+--?"focus"
+--gSetFocus(vbox)
+--?gGetAttribute(frame,"SIZE")
+--?"frame_title..."
+--?gGetAttribute(frame,"TITLE","??")
+
+--DEV does not get the frame resize right...
+--gSetAttribute(frame,"TITLE","??")
+--gRedraw(dlg)
+
+gMainLoop()
+--*!/

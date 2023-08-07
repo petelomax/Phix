@@ -1,0 +1,58 @@
+--
+-- demo\xpGUI\gSplit.exw
+-- =====================
+--
+--  DEV ONLY JUST ABOUT STARTED... (doc image fudged)
+-- Need to get EXPAND working properly.
+-- SIZE on a gCanvas /should/ overrule naturalsize. (or we can just fix that inside xpGUI.e)
+-- XPG_DOTTED is a bit too dashy for this... XPG_CUSTOM??
+-- Get resize cursors working
+-- Add CLICK and MOUSEMOVE handlers... (any needed data to be stored in ctrl_xtra[id])
+--
+--requires(64,true)
+with javascript_semantics
+include xpGUI.e
+--gUseGTK()
+
+procedure redraw(gdx canvas)
+    integer {w,h} = gGetAttribute(canvas,"SIZE")
+    string orientation = gGetAttribute(gGetParent(canvas),"ORIENTATION")
+    ?{"redraw",w,h,orientation}
+    if orientation="HORIZONTAL" then
+        gCanvasLine(canvas,2,0,2,h)
+    else
+        gCanvasLine(canvas,0,2,w,2)
+    end if
+end procedure
+
+--DEV to be moved into xpGUI.e and o/c pGUI.js
+function gSplit(gdx child1, child2, string orientation="VERTICAL", string attributes="", args={})
+    gdx splitter = gCanvas(redraw,attributes,args)
+?{"EXPAND",orientation}
+    gSetAttribute(splitter,"EXPAND",orientation)
+    gCanvasSetLineStyle(splitter,XPG_DOTTED)
+--DEV put this back once it's working....
+--  gCanvasSetBackground(splitter,#F0F0F0)
+    gCanvasSetForeground(splitter,#C0C0C0)
+    if orientation="VERTICAL" then
+        gSetAttribute(splitter,"SIZE","3x")
+        return gVbox({child1,splitter,child2})
+    elsif orientation="HORIZONTAL" then
+        gSetAttribute(splitter,"SIZE","x3")
+        return gHbox({child1,splitter,child2})
+    end if
+    crash("Unknown gSplit orientation:%s",{orientation})
+end function
+
+gdx tx1 = gLabel(`1`), tx2 = gLabel(`2`), tx3 = gLabel(`3`)
+    gSetAttribute({tx1,tx2,tx3},"SIZE","40x12")
+--  gSetAttribute({tx1,tx2,tx3},"MARGIN","1x1")
+gdx shv = gSplit(tx1,gSplit(tx2,tx3),"HORIZONTAL"),
+    dlg = gDialog(shv,"gSplit","SIZE=240x80")
+gShow(dlg)
+--gSetAttribute(txt,"FONT","Helvetica, Italic 19")
+--?gGetAttribute(txt,"VALUE")
+--gSetAttribute(txt,"SIZE","40x20")
+--?gGetAttribute(txt,"SIZE")
+?gGetAttribute(shv,"EXPAND","YES")
+gMainLoop()

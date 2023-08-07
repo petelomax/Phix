@@ -1,0 +1,655 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">gTabs</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td>
+          <b>Definition:</b>
+         </td>
+         <td>
+            include pGUI.e
+            <br>
+            <br>
+            <a href="gdx.htm">gdx</a> id = gTabs([<a href="gdx.htm">gdx</a> children={},]
+                                                 [<a href="rdx.htm">rdx</a> tabchange=NULL,]
+                                                  <a href="string.htm">string</a> attributes="",
+                                                  <a href="html/glossary.htm#dwordseq">dword_seq</a> args={})
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Description:</b>
+         </td>
+         <td>
+            <b>NB WOEFULLY INCOMPLETE</b>: no further work is planned until <i>after</i> the basics of layout management are sorted out...
+            <br>
+            <br>
+            Creates a native container for composing elements in hidden layers with only one layer visible, which can be interactively controlled
+            via a line of tabs with titles. <!-- arranged according to the tab type.--> Also known as a notebook in some systems. 
+            <br>
+            <br>
+            children: List of elements|titles|images for each tab, see notes.<!--that will be placed in the box, each one becoming a separate tab.--> It can be empty.<br>
+            tabchange: an optional procedure, which should be invoked whenever the user changes the selected tab.<br>
+            For more information on the attributes and args parameters see <a href="gSetAttributes.htm">gSetAttributes</a>.
+            This is a <a href="g_paranormal.htm">paranormalised function</a> <small>(see <a href="#tech" onclick="opentech()">technicalia</a>).</small>
+            <br>
+            <br>
+            Returns: the identifier of the created element.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+          Supported.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="gImage.htm">gImage</a>,
+          <a href="gButton.htm">gButton</a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Example:</b>
+         </td>
+         <td>
+            <p align="center"><img alt="gTabs" src="images/gTabs.png" width="240" height="80"/></p>
+        <small>
+<!--eucode>
+-- demo\xpGUI\gTabs.exw
+include xpGUI.e
+gdx tabs = gTabs({"First Tab","Second Tab","Third Tab","Fourth Tab"}),
+    dlg = gDialog(tabs,"gTabs","SIZE=240x80")
+gShow(dlg)
+gMainLoop()
+</eucode-->
+<pre>
+<font color="#000080"><i>-- demo\xpGUI\gTabs.exw</i></font>
+<font color="#008080">include</font><font color="#000000"> xpGUI.e</font>
+<font color="#7060A8">gdx</font><font color="#000000"> tabs</font><font color="#0000FF"> =</font><font color="#7060A8"> gTabs</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#008000">"First Tab"</font><font color="#0000FF">,</font><font color="#008000">"Second Tab"</font><font color="#0000FF">,</font><font color="#008000">"Third Tab"</font><font color="#0000FF">,</font><font color="#008000">"Fourth Tab"</font><font color="#800000">}</font><font color="#0000FF">),</font>
+<font color="#000000">    dlg</font><font color="#0000FF"> =</font><font color="#7060A8"> gDialog</font><font color="#0000FF">(</font><font color="#000000">tabs</font><font color="#0000FF">,</font><font color="#008000">"gTabs"</font><font color="#0000FF">,</font><font color="#008000">"SIZE=240x80"</font><font color="#0000FF">)</font>
+<font color="#7060A8">gShow</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">)</font>
+<font color="#7060A8">gMainLoop</font><font color="#0000FF">()</font>
+</pre>
+          <br>
+          </small>
+<!--
+            <br>
+            <br>
+            Note that the main Edix window uses a "zero height" IupTabs and a single canvas that is fully redrawn on tab change, and 
+            filedump.exw does a similar trick over a single listview, hence neither should be copied(/studied) for more traditional uses,
+            by which I specifically mean where selecting a different tab automatically hides some controls and displays some others.
+-->
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Notes:</b>
+         </td>
+         <td>
+            There are at least two very distinct uses of a tab control. The first, which is depicted above and I shall dub "obvious", 
+            has a fixed number of tabs with different interface elements on each, only one set of which is visible at any given time. 
+            The second, which is used by gEditor and I shall dub "virtual", does not actually have a body as such on each tab, and it 
+            becomes the sole responsibility of the application (rather than xpGUI) to change the contents of some other (unspecified) 
+            display element, and for that matter to independently ensure the sizes of the tab bar and that any corresponding contents 
+            remain in sync, if/when appropriate. 
+            In the case of gEditor the latter is achieved simply by putting them in the same <a href="gBox.htm">gVbox</a>().
+            <br>
+            <a name=NOTES></a>
+            <br>
+            Each element of children can therefore be a gdx, title, {gdx,title[,image]}, or {title[,image]}, where title is a string. <br>
+            Note that gTabs does <i>not</i> support an image [see <a href="gImage.htm">gImage</a>() for details] with no text. <br>
+            The children parameter is expected to be reasonably homogenous: while some child tabs might not have an image, they should 
+            either all have a gdx or none. It also makes little sense to specify half the titles via the children parameter and the 
+            other half via the TABTITLE attribute, and there is certainly no guarantee of consistent cross-platform behaviour should 
+            both be provided. Overriding it after display is fine, but should two different titles have been specified before display,
+            I simply don&rsquo;t care which shows up. A completely missing title on any tab is not likely to look very good either,
+            and of course within that statement I&rsquo;m including a run-time crash that rudely terminates the entire application,
+            but equally I am not about to guarantee it will not work, just look like it has been dragged through a hedge backwards.
+            Mnemonics on tab titles are only formally supported in the fixed "obvious"/with-gdx case: ymmv, the fundamental issue is 
+            with removing/replacing mnemonics, and besides which it is probably not a good GUI design to have say Alt H only available 
+            half the time.
+            <br>
+            <br>
+            Note that gEditor uses a "virtual" gTabs and a single <a href="gCanvas.htm">gCanvas</a> that is fully redrawn on tab change, 
+            and likewise filedump.exw does a similar trick over a single <a href="gTable.htm">gTable</a>, hence neither should be copied
+            or studied for more traditional uses, by which I specifically mean where selecting a different tab automatically hides some 
+            controls and displays some others. Neither of those make any attempt to use mnemonics on tab titles, either.
+            <br>
+            <br>
+<hr>
+<hr>
+DEV...<br>
+            The tab control can be created with no children and filled dynamically using <a href="IupAppend.htm">IupAppend</a>.<br>
+            There is no "IupTabItem", instead the children can be any standard element, with <a href="IupHbox.htm">IupHbox</a>
+            and <a href="IupVbox.htm">IupVbox</a> being the most likely/useful.
+<!--
+            <br>
+            <br>
+            The <a href="gSetHandler.htm#ENTERWINDOW_CB">ENTERWINDOW_CB</a> and <a href="gSetHandler.htm#LEAVEWINDOW_CB">LEAVEWINDOW_CB</a> handlers 
+            are called only when the mouse enter or leaves the tabs buttons area.
+-->
+            <br>
+            <br>
+!!          Its children automatically receives a name when the child is appended or inserted into the tabs. 
+            <br>
+            <br>
+?           Differently from <a href="IupZbox.htm">IupZbox</a>, IupTabs does NOT depend on the <a href="gSetAttribute.htm#VISIBLE">VISIBLE</a> attribute.
+            <br>
+            <br>
+            In GTK, when the tabs buttons are scrolled, the active tab is also changed.
+            <br>
+            <br>
+            When you change the active tab the focus is usually not changed. 
+            If you want to control the focus behavior call <a href="IupSetFocus.htm">IupSetFocus</a> in the TABCHANGE_CB handler. 
+            Unfortunately this does not works in GTK and in Motif, because in both systems the focus will be set by the system after the handler is called.
+            <br>
+            <br>
+            Notice that there is no attribute to disable a single tab. 
+            This is a design decision of all native toolkits, not a IUP decision. 
+            It is so because a disabled tab is a confusing interface situation.
+            <br>
+            <br>
+            In Windows, when an <a href="IupValuator.htm">IupValuator</a> is inside an IupTabs, the tabs disappear when the mouse moves over it after being used in the valuator. 
+            A workaround is to put the valuator inside an <a href="IupFrame.htm">IupFrame</a> and then inside the IupTabs, so the problem does not occur. 
+            <br>
+            <br>
+?           The utility functions <a href="IupSetAttribute.htm#utility">IupSetAttributeId</a>, <a href="IupGetAttribute.htm#utility">IupGetAttributeId</a>, 
+            <a href="IupGetAttribute.htm#utility">IupGetIntId</a>, <a href="IupGetAttribute.htm#utility">IupGetFloatId</a>, 
+            <a href="IupSetStrAttribute.htm#utility">IupSetIntId</a>, and <a href="IupSetStrAttribute.htm#utility">IupSetFloatId</a>
+            can also be used here. Note that the C function <span class="illegal">IupSetfAttributeId</span> is not wrapped by pGUI, however that functionality is 
+            covered by the optional parameters of <a href="IupSetStrAttribute.htm#utility">IupSetStrAttributeId</a>.
+            <br>        
+            <br>        
+            They work just like the respective traditional set and get functions, but the attribute string is complemented with the id value. 
+            For example IupSetAttributeId(ih, "TABTITLE", 3, value) is the same as IupSetAttribute(ih, "TABTITLE3", value)
+            <br>
+            <br>
+            These functions are faster than the traditional functions because they do not need to parse the attribute name string and the application 
+            does not need to concatenate the attribute name with the id.
+            <br>
+            <br>
+            The C function <span class="illegal">IupTabsv</span> is not wrapped: children must be a sequence, rather than a pointer to dword-null-terminated memory.
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+          <b>Attributes:</b>
+         </td>
+         <td>
+            
+         </td>
+        </tr>
+<!--
+//      <tr>
+//       <td>
+//?       <a href="gSetAttribute.htm#BGCOLOR">BGCOLOR</a>
+//       </td>
+//       <td>
+//          In Windows and in GTK when in Windows, the tab buttons background it will be always defined by the system. <br>
+//          In Windows the default background is different from the dialog background. <br>
+//          Default: the global attribute <a href="gGetGlobal.htm#DLGBGCOLOR">DLGBGCOLOR</a>.
+//       </td>
+//      </tr>
+-->
+<!--
+        <tr>
+         <td>
+          CHILDOFFSET
+         </td>
+         <td>
+            Allow to specify a position offset for the child. Available for native containers only. 
+            It will not affect the natural size, and allows to position controls outside the client area. 
+            Format "dxxdy", where dx and dy are integer values corresponding to the horizontal and vertical offsets, respectively, in pixels. Default: 0x0. (since 3.14)
+         </td>
+        </tr>
+-->
+        <tr>
+         <td>
+?         CHILDSIZEALL
+         </td>
+         <td>
+            (non inheritable): compute the natural size using all children. If set to NO will compute using only the current tab. Default: Yes. (since 3.27)
+         </td>
+        </tr>
+        <tr>
+         <td>
+?         COUNT
+         </td>
+         <td>
+            (read-only) (non inheritable) returns the number of tabs. Same value returned by <a href="IupGetChildCount.htm">IupGetChildCount</a>. (since 3.3)
+         </td>
+        </tr>
+        <tr>
+         <td>
+?         <a href="gSetAttribute.htm#EXPAND">EXPAND</a>
+         </td>
+         <td>
+            (non inheritable) The default value is "YES".
+         </td>
+        </tr>
+<!--
+//      <tr>
+//       <td>
+//?       <a href="gSetAttribute.htm#FGCOLOR">FGCOLOR</a>
+//       </td>
+//       <td>
+//          Tabs title color. Default: the global attribute <a href="gGetGlobal.htm#DLGFGCOLOR">DLGFGCOLOR</a>.
+//       </td>
+//      </tr>
+-->
+        <tr>
+         <td>
+?         MULTILINE
+         </td>
+         <td>
+            [Windows Only] (non inheritable) Enable multiple lines of tab buttons. This will hide the tab scroll and fits to make all tab buttons visible. 
+            Can be "YES" or "NO". Default "NO". It is always enabled when TABTYPE=LEFT or TABTYPE=RIGHT. (since 3.0)
+         </td>
+        </tr>
+        <tr>
+         <td>
+?         SHOWCLOSE
+         </td>
+         <td>
+            [Windows and GTK Only] (non inheritable) enables the close button on each tab. Default value: "NO". 
+            In Windows the close button imply the classic visual for the control. By default when closed the tab is hidden. 
+            To change that behavior use the TABCLOSE_CB handler. (since 3.10)
+         </td>
+        </tr>
+        <tr>
+         <td>
+?         <a href="gSetAttribute.htm#SIZE">SIZE</a>
+         </td>
+         <td>
+            (non inheritable) The default size is the smallest size that fits its largest child. All child elements are considered even invisible ones.
+         </td>
+        </tr>
+        <tr>
+         <td>
+?         TABIMAGEn
+         </td>
+         <td>
+            (non inheritable) image name to be used in the respective tab. 
+            Use <a href="IupSetHandle.htm">IupSetHandle</a> or <a href="IupSetAttributeHandle.htm">IupSetAttributeHandle</a> to associate an image to a name. 
+            n starts at 0. See also <a href="gImage.htm">gImage</a>. 
+<!--
+//          In Motif, the image is shown only if TABTITLEn is NULL. 
+//          In Windows and Motif set the <a href="gSetAttribute.htm#BGCOLOR">BGCOLOR</a> attribute before setting the image. 
+-->
+            When set after map will update the TABIMAGE attribute on the respective child (since 3.10). (since 3.0)
+         </td>
+        </tr>
+<!--
+        <tr>
+         <td>
+?         TABORIENTATION
+         </td>
+         <td>
+            (non inheritable) Indicates the orientation of tab text, which can be "HORIZONTAL" or "VERTICAL". Default is "HORIZONTAL". 
+            VERTICAL is supported only in GTK and in Windows. 
+            In Windows, it can NOT be set, it is dependent on the TABTYPE attribute, 
+            if TABTYPE=LEFT or TABTYPE=RIGHT then TABORIENTATION=VERTICAL, 
+            if TABTYPE=TOP or TABTYPE=BOTTOM then TABORIENTATION=HORIZONTAL. (GTK 2.6)
+         </td>
+        </tr>
+-->
+        <tr>
+         <td>
+?         TABPADDING
+         </td>
+         <td>
+            (non inheritable) internal margin of the tab title. 
+            Works just like the MARGIN attribute of the <a href="gHbox.htm">gHbox</a> and <a href="gVbox.htm">gVbox</a> containers, 
+            but uses a different name to avoid inheritance problems. Default value: "0x0".<br>
+          <a name=TABVISIBLE></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+?         TABVISIBLEn
+         </td>
+         <td>
+            (non inheritable) Allows to hide a tab. n starts at 0. When a tab is hidden the tabs indices are not changed. Can be Yes or No. Default: Yes. (since 3.8)
+         </td>
+        </tr>
+        <tr>
+         <td>
+?         TABTITLEn
+         </td>
+         <td>
+            (non inheritable) Contains the text to be shown in the respective tab title. n starts at 0. If this value is NULL, it will remain empty. 
+            The "&" character can be used to define a mnemonic, the next character will be used as key. 
+            Use "&&" to show the "&" character instead of defining a mnemonic. 
+            The button can be activated from any control in the dialog using the "Alt+key" combination.
+            When set after map will update the TABTITLE attribute on the respective child.
+         </td>
+        </tr>
+<!--
+        <tr>
+         <td>
+          TABTYPE<a href="notpgui.htm#IupTabs"><span style="color:orange; font-size:75%;"><sup>?</sup></span></a>
+         </td>
+         <td>
+            (non inheritable) (creation only in Windows) Indicates the type of tab, which can be "TOP", "BOTTOM", "LEFT" or "RIGHT". 
+            Default is "TOP". 
+            In Windows, if LEFT or RIGHT then MULTILINE=YES and TABORIENTATION=VERTICAL are set, 
+                        if TOP or BOTTOM then TABORIENTATION=HORIZONTAL is set. 
+            In Windows, when not TOP, then visual style is removed from tabs.
+         </td>
+        </tr>
+-->
+        <tr>
+         <td>
+?         VALUE
+         </td>
+         <td>
+<!--
+            (non inheritable) Changes the active tab by its name. The value passed must be the name of one of the elements contained in the tabs. 
+            Use <a href="IupSetHandle.htm">IupSetHandle</a> or <a href="IupSetAttributeHandle.htm">IupSetAttributeHandle</a> to associate a child to a name.
+         </td>
+        </tr>
+        <tr>
+         <td>
+?         VALUE_HANDLE
+         </td>
+         <td>
+-->
+            (non inheritable) Changes the active tab by its handle. <br>
+            The value passed must be the handle of a child contained in the tabs. <br>
+            When the tabs is created, the first element inserted is set as the visible child.
+         </td>
+        </tr>
+        <tr>
+         <td>
+?         VALUEPOS
+         </td>
+         <td>
+            (non inheritable) Changes the active tab by its position, starting at 0. <br>
+            When the tabs is created, the first element inserted is set as the visible child. <br>
+            In GTK, inside the handler the returned value is still the previous one.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          also
+         </td>
+         <td>
+            <a href="gSetAttribute.htm#ACTIVE">ACTIVE</a>, 
+            <a href="gSetAttribute.htm#FONT">FONT</a>, 
+<!--            <a href="gSetAttribute.htm#NAME">NAME</a>, -->
+<!--?           <a href="gGetAttribute.htm#POSITION">POSITION</a>, -->
+<!--?           <a href="gGetAttribute.htm#SCREENPOSITION">SCREENPOSITION</a>, -->
+            <a href="gGetAttribute.htm#CLIENTSIZE">CLIENTSIZE</a>, 
+<!--            <a href="gGetAttribute.htm#CLIENTOFFSET">CLIENTOFFSET</a>,-->
+            <a href="gSetAttribute.htm#MINSIZE">MINSIZE</a>, 
+            <a href="gSetAttribute.htm#MAXSIZE">MAXSIZE</a>,
+            <a href="gSetAttribute.htm#TIP">TIP</a>, 
+<!--            <a href="gSetAttribute.htm#RASTERSIZE">RASTERSIZE</a>,-->
+<!--            <a href="gSetAttribute.htm#ZORDER">ZORDER</a>,-->
+            <a href="gSetAttribute.htm#VISIBLE">VISIBLE</a>.
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+          <b>Attributes:</b>
+         </td>
+         <td>
+            (non inheritable, at children only)
+         </td>
+        </tr>
+<!--
+        <tr>
+         <td>
+?         FLOATING
+         </td>
+         <td>
+            If a child has FLOATING=YES then its size and position will be ignored by the layout processing. Default: "NO". (since 3.27)
+         </td>
+        </tr>
+-->
+        <tr>
+         <td>
+?         TABTITLE
+         </td>
+         <td>
+            Same as TABTITLEn but set in each child. (TESTME:) Works only if set before the child is added to the tabs.
+         </td>
+        </tr>
+        <tr>
+         <td>
+?         TABIMAGE
+         </td>
+         <td>
+            Same as TABIMAGEn but set in each child. (TESTME:) Works only if set before the child is added to the tabs.
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+          <b>Handlers:</b>
+         </td>
+         <td>
+
+         </td>
+        </tr>
+        <tr>
+         <td>
+?         TABCHANGED
+         </td>
+         <td>
+            Handler called when the user shifts the active tab.
+            <br>
+            <br>
+            procedure tabchange(<a href="gdx.htm">gdx</a> id, <a href="integer.htm">integer</a> new_pos, old_pos)<br>
+            id: identifier of the element that activated the event.<br>
+<!--
+            new_tab: the new tab selected by the user <br>
+            old_tab: the previously selected tab 
+         </td>
+        </tr>
+        <tr>
+         <td>
+?         TABCHANGEPOS_CB
+         </td>
+         <td>
+            Handler called when the user shifts the active tab. Called only when TABCHANGE_CB is not defined. (since 3.3)
+            <br>
+            <br>
+            function tabchangepos_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> new_pos, old_pos)<br>
+            ih: identifier of the element that activated the event.<br>
+-->
+            new_pos: the new tab position selected by the user <br>
+            old_pos: the previously selected tab position
+         </td>
+        </tr>
+        <tr>
+         <td>
+?         TABCLOSE_CB
+         </td>
+         <td>
+            [Windows and GTK Only] Handler called when the user clicks on the close button. Called only when SHOWCLOSE=Yes.
+            <br>
+            <br>
+            function tabclose_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> pos)<br>
+            ih: identifier of the element that activated the event.<br>
+            pos: the tab position
+            <br>
+            <br>
+            Returns: the tab will be hidden if the handler returns <a href="gSetHandler.htm#XPG_DEFAULT">XPG_DEFAULT</a> or if it does not exists. 
+            If <a href="gSetHandler.htm#XPG_CONTINUE">XPG_CONTINUE</a> is returned the tab is removed and its children are destroyed. <br>
+            If <a href="gSetHandler.htm#XPG_IGNORE">XPG_IGNORE</a> is returned does nothing.
+         </td>
+        </tr>
+<!--
+        <tr>
+         <td>
+?         FOCUS_CB
+         </td>
+         <td>
+            Called when a child of the container gets or looses the focus. <br>
+            It is called only if PROPAGATEFOCUS is defined in the child.
+            <br>
+            <br>
+            function focus_cb(a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> focus)<br>
+            ih: identifier of the element that activated the event.<br>
+            focus: is non zero if the canvas is getting the focus, is zero if it is loosing the focus.
+         </td>
+        </tr>
+-->
+<!--
+        <tr>
+         <td>
+?         RIGHTCLICK_CB
+         </td>
+         <td>
+            Handler called when the user clicks on some tab using the right mouse button.
+            <br>
+            <br>
+            function rightclick_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> pos)<br>
+            ih: identifier of the element that activated the event.<br>
+            pos: the tab position
+         </td>
+        </tr>
+-->
+        <tr>
+         <td>
+          also
+         </td>
+         <td>
+<!--
+//          <a href="gSetHandler.htm#MAP_CB">MAP_CB</a>,
+//          <a href="gSetHandler.htm#UNMAP_CB">UNMAP_CB</a>,
+//          <a href="gSetHandler.htm#DESTROY_CB">DESTROY_CB</a>, 
+-->
+<!--
+?           <a href="gSetHandler.htm#GETFOCUS_CB">GETFOCUS_CB</a>, 
+            <a href="gSetHandler.htm#KILLFOCUS_CB">KILLFOCUS_CB</a>, 
+            <a href="gSetHandler.htm#ENTERWINDOW_CB">ENTERWINDOW_CB</a>,
+            <a href="gSetHandler.htm#LEAVEWINDOW_CB">LEAVEWINDOW_CB</a>, 
+-->
+<!--            <a href="gSetHandler.htm#HELP_CB">HELP_CB</a> -->
+            <a href="gSetHandler.htm#CLICK">CLICK</a>,
+            <a href="gSetHandler.htm#KEY">KEY</a>: All common handlers are supported.<br>
+          <a name=tech></a>
+         </td>
+        </tr>
+        <tr id="Technicalia" style="display:none;">
+         <td>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+            As this is a <a href="g_paranormal.htm">paranormalised function</a>, and with no expectation that you should attempt to memorise 
+            this lot, except maybe "qraa", you can assume that all of the following are potentially perfectly valid, with the fairly obvious 
+            restrictions that any parameters <i>must</i> be in strict qraa-order, and no args without attributes:
+            <br>
+            <br>
+<small>
+<!--eucode>
+                        gTabs()
+                        gTabs(tabchange)
+                        gTabs(tabchange, attributes)
+                        gTabs(tabchange, attributes, args)
+                        gTabs(attributes, args)
+                        gTabs(attributes)
+                        gTabs(children)
+                        gTabs(children, tabchange)
+                        gTabs(children, attributes)
+                        gTabs(children, attributes, args)
+                        gTabs(children, tabchange, attributes)
+                        gTabs(children, tabchange, attributes, args)  -- (the full set)
+</eucode-->
+<pre>
+<font color="#7060A8">                        gTabs</font><font color="#0000FF">()</font>
+<font color="#7060A8">                        gTabs</font><font color="#0000FF">(</font><font color="#000000">tabchange</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gTabs</font><font color="#0000FF">(</font><font color="#000000">tabchange</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gTabs</font><font color="#0000FF">(</font><font color="#000000">tabchange</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gTabs</font><font color="#0000FF">(</font><font color="#000000">attributes</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gTabs</font><font color="#0000FF">(</font><font color="#000000">attributes</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gTabs</font><font color="#0000FF">(</font><font color="#000000">children</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gTabs</font><font color="#0000FF">(</font><font color="#000000">children</font><font color="#0000FF">,</font><font color="#000000"> tabchange</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gTabs</font><font color="#0000FF">(</font><font color="#000000">children</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gTabs</font><font color="#0000FF">(</font><font color="#000000">children</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gTabs</font><font color="#0000FF">(</font><font color="#000000">children</font><font color="#0000FF">,</font><font color="#000000"> tabchange</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gTabs</font><font color="#0000FF">(</font><font color="#000000">children</font><font color="#0000FF">,</font><font color="#000000"> tabchange</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">) </font><font color="#000080"><i> -- (the full set)</i></font>
+</pre>
+</small>
+            <br>
+            Note that in practice children and tabchange are actually defined as <a href="object.htm">object</a>, and attributes as
+            a <a href="sequence.htm">sequence</a> rather than a string, but they are all manually and thoroughly verified to be of
+            the documented types, after being repositioned via xpGUI.e/paranormalise_qraa().
+            <br>
+            <br>
+            Also as per the <a href="#NOTES">notes section above</a>, the elements of children can be any of six different formats.
+         </td>
+        </tr>
+       </table>
+       <img id="Timg" src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

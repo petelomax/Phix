@@ -27,7 +27,7 @@
             Associates one or more handlers for an event on one or more controls.
             <br>
             <br>
-            id: identifier of the interface element(s), can be a single integer or a (flat) sequence of them.<br>
+            id: identifier of the interface element(s), can be a single integer or a (flat, NULL-free) sequence of them.<br>
             name: a string identifying the handler, eg <a href="#KEY">"KEY"</a>, or an even-length sequence of string,rtn pairs.<br>
             handler: a (bare) function or procedure, or NULL. Must be NULL (/omitted) if name is pairs and not a string.
             <br>
@@ -35,7 +35,7 @@
             A NULL rtn when name is a string, or any NULL even element of name, simply removes any association. 
             <br>
             <br>
-            See the documentation of each specific interface element for a list of valid/meaningful names, and the required routine signatures.
+            Refer to each specific interface element for valid/meaningful names and their required routine signatures.
          </td>
         </tr>
         <tr>
@@ -57,18 +57,21 @@
             You can also invoke this as the simple alias <b>gSetHandlers</b>(), with the implication but not enforcement that id or name 
             or both are non-unitary, or just stick with the non-s name for everything. Note however that is in stark contrast to (say)
             <a href="gSetAttribute.htm">gSetAttribute</a>() and <a href="gSetAttributes.htm">gSetAttributes</a>(), which are in fact quite 
-            different, although they too can also both set one or more things on one or more elements, and likewise that is not dependent 
-            on a trailing s.
+            different, although they too can both set something on one or more elements, likewise unconnected to a trailing s, though only
+            the latter can set something<b><i>s</i></b> in a single call.
             <br>
             <br>
-            Handlers are used by the application to receive notifications from the system that the user or the system itself has interacted with 
-            the user interface of the application. 
+            Handlers are used by the application to receive and process notifications from the system that the user or the system itself 
+            has interacted with the user interface of the application. In particular that means everything (directly and indirectly) from
+            the mouse and keyboard, as well as things like timers and other alerts, such as "going idle" (ie/aka "msg queue is empty").
             <br>
             <br>
+<!--
             On the other hand attributes are used by the application to communicate with the user interface system.
             <br>
             <br>
-            Even though handlers have different purposes from attributes, they are also associated to an element by means of a name. <br>
+            Even though handlers have different purposes from attributes, they are also associated to elements via a name. <br>
+-->
             All handlers receive at least the element for which the event was triggerd as a parameter, almost always in the form of a 
             <a href="gdx.htm">gdx</a>, though it may be a tad more opaque for some, such as <a href="gTreeView.htm#BRANCHOPEN">BRANCHOPEN</a>.
             <br>
@@ -79,41 +82,56 @@
             <br>
             Most handlers (except those defined as procedures) must return one of the following values:
             <ul>
-            <li>XPG_DEFAULT: Proceeds normally with user interaction. Should other return values do not apply, the handler should return this value. </li>
-            <li>XPG_CLOSE: Close the parent window of the element and in some cases exit the application. Applies only to some events. </li>
-            <li>XPG_IGNORE: Perform no further processing of this event. Applies only to some events. </li>
-            <li>XPG_CONTINUE: Pass the treatment of the event to the parent element. Applies only to some events. </li>
+            <li>XPG_DEFAULT (-1): Proceed normally with user interaction. <!--Should other return values not apply, the handler should return this value.--> </li>
+            <li>XPG_IGNORE (-2): Perform no further processing of this event. <!--Applies only to some events.--> </li>
+            <li>XPG_CLOSE (-3): Close the parent window and in some cases exit the application. <!--Applies only to some events.--> </li>
+            <li>XPG_CONTINUE (-4): Pass the treatment of the event to the parent element. <!--Applies only to some events.--> </li>
             </ul>
+            Only some handlers support the last 3 return values, check each handler documentation. <!--When nothing is documented then only XPG_DEFAULT 
+            is supported (and in all probability that handler should therefore be a procedure).-->
+            <br>
+            <br>
             <b>NB</b>: returning XPG_CLOSE does <i>not</i> automatically invoke CLOSE_CB handlers.
             <br>
             <br>
-            Only some handlers support the last 3 return values. Check each handler documentation. When nothing is documented then only XPG_DEFAULT 
-            is supported (and in all probability that handler should therefore be a procedure).
+            Note: Avoid using XPG_IGNORE (and XPG_CLOSE) unless it is specifically documented for that handler. <br>
+            For example, it is and always was the documented behaviour for an <a href="gSetHandler.htm#IDLE_ACTION">IDLE_ACTION</a> handler 
+            to be removed when it returns XPG_IGNORE. However, the act of IUP_IGNORE removing the callback on an IupButton in pGUI (which was 
+            in fact undocumented until I myself piped up) has <i>not</i> been replicated in xpGUI, you may be relieved to hear.
+            <br>
+            <br>
+            An important detail when using handlers is that they are only triggered when the user physically performs an action on an element. <br>
+            In particular, a handler is <i>not</i> invoked when the programmer sets a value via <a href="gSetAttribute.htm">gSetAttribute</a>().<br>
+            For instance: should the code change the selected item on a list, no handler is called and it is up to the programmer to
+            ensure any additional appropriate processing occurs, by some more direct means.
+<!--
             <br>
             <br>
 DEV rewrite rqd from this point on:
             <br>
             <br>
-            Note: Avoid using XPG_IGNORE (and XPG_CLOSE) unless it is specifically documented for that callback. <br>
-            For example, it is and always was the documented behaviour for an <a href="callbacks.htm#IDLE_ACTION">IDLE_ACTION</a> callback to be removed when it 
-            returns XPG_IGNORE.
-            <br>
-            <br>
-            An important detail when using handlers is that they are only triggered when the user physically performs an action on an element. <br>
-            A handler is <i>not</i> invoked when the programmer sets a value via <a href="gSetAttribute.htm">gSetAttribute</a>.<br>
-            For instance: when the programmer changes a selected item on a list, no handler is called and it is up to the programmer to
-            ensure any additional appropriate processing occurs, by some more direct means.
-            <br>
-            <br>
-            The order of callback calling is system dependent. <br>
-            For instance, the <a href="callbacks.htm#RESIZE_CB">RESIZE_CB</a> and the SHOW_CB are called in different order in Win32 and in X-Windows when the dialog is shown for the first time.
+--X>
+            The order in which handlers are called is sometimes system dependent, for instance, <a href="gSetHandler.htm#RESIZE_CB">RESIZE_CB</a> 
+            and SHOW_CB are called in a different order on Windows and Linux when a dialog is shown for the first time.
+<X!X--
             <br>
             <br>
             As well as its normal duty of verifying parameters, the <a href="Icallback.htm">cbfunc</a> type can be used to declare variables suitable for storing callbacks.<br>
             The C header file "iupcbs.h" lists some 50 different typedefs for callbacks (IFxxx/sIFxxx/dIFxxx). <br>
             In Phix you can always get by with "atom" for each parameter, if need be.
+-->
             <br>
+            <a name=gGetHandler><a/>
             <br>
+            <a href="rtn.htm">rtn</a> handler = <b>gGetHandler</b>(<a href="gdx.htm">gdx</a> id, 
+                                                                   <a href="string.htm">string</a> name,
+                                                                   <a href="integer.htm">integer</a> dflt=0) <br>
+            can be used to retrieve a previously set handler, primarily intended for use inside xpGUI.e itself, and to be honest I cannot offhand
+            think of any good reason user code should ever want to use it, but it costs absolutely nothing to be available anyway. There is also<br>
+            <a href="rtn.htm">rtn</a> handler = <b>gGetInheritedHandler</b>(<a href="gdx.htm">gdx</a> id, 
+                                                                   <a href="string.htm">string</a> name) <br>
+            which is currently only used for <a href="#KEY">KEY</a> (and deliberately has no default/returns NULL if not defined).
+            <!--, please refer to that source file for further details and examples if needed.-->
          </td>
         </tr>
         <tr>
@@ -127,7 +145,7 @@ gSetHandler(canvas,"REDRAW",redraw)
 -- set the same handler on two elements:
 gSetHandler({canvas1,canvas2},"REDRAW",redraw)
 -- set two handlers on both elements:
-gSetHandlers({canvas1,canvas2},{"REDRAW",redraw,"RESIZE",resize})
+gSetHandler({canvas1,canvas2},{"REDRAW",redraw,"CLICK",click})
 </eucode-->
 <pre>
 <font color="#000080"><i>-- set one handler on one interface element:</i></font>
@@ -135,10 +153,8 @@ gSetHandlers({canvas1,canvas2},{"REDRAW",redraw,"RESIZE",resize})
 <font color="#000080"><i>-- set the same handler on two elements:</i></font>
 <font color="#7060A8">gSetHandler</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">canvas1</font><font color="#0000FF">,</font><font color="#000000">canvas2</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000">"REDRAW"</font><font color="#0000FF">,</font><font color="#000000">redraw</font><font color="#0000FF">)</font>
 <font color="#000080"><i>-- set two handlers on both elements:</i></font>
-<font color="#7060A8">gSetHandlers</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">canvas1</font><font color="#0000FF">,</font><font color="#000000">canvas2</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">"REDRAW"</font><font color="#0000FF">,</font><font color="#000000">redraw</font><font color="#0000FF">,</font><font color="#008000">"RESIZE"</font><font color="#0000FF">,</font><font color="#000000">resize</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#7060A8">gSetHandler</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">canvas1</font><font color="#0000FF">,</font><font color="#000000">canvas2</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">"REDRAW"</font><font color="#0000FF">,</font><font color="#000000">redraw</font><font color="#0000FF">,</font><font color="#008000">"CLICK"</font><font color="#0000FF">,</font><font color="#000000">click</font><font color="#800000">}</font><font color="#0000FF">)</font>
 </pre>
-            <br>
-          <br>
          </td>
         </tr>
 <!--
@@ -147,8 +163,8 @@ gSetHandlers({canvas1,canvas2},{"REDRAW",redraw,"RESIZE",resize})
           <b>See Also:</b>
          </td>
          <td>
-          <a href="IupGetCallback.htm">IupGetCallback</a>,
-          <a href="IupSetGlobalFunction.htm">IupSetGlobalFunction</a>
+//        <a href="IupGetCallback.htm">IupGetCallback</a>,
+//        <a href="IupSetGlobalFunction.htm">IupSetGlobalFunction</a>
          </td>
         </tr>
 -->
@@ -157,37 +173,54 @@ gSetHandlers({canvas1,canvas2},{"REDRAW",redraw,"RESIZE",resize})
             <b>Common:</b>
          </td>
          <td>
-          The following callbacks are common to several controls/interface elements (they just got <i>no class</i>):
+          The following handlers are common to several controls/interface elements:<br>
+          <!-- (they just got <i>no class</i>):-->
+          <a name=CLICK></a>
          </td>
         </tr>
-<!--
         <tr>
          <td>
-          <a name=ACTION></a>
-          "ACTION"
-         </td>
-         <td>
-            While common to several elements, the callback parameters vary - see specific elements for details.
-            <br>
-            <br>
-            Affects: <a href="gButton.htm">gButton</a>, <a href="IupMenuItem.htm">IupMenuItem</a>, <a href="IupList.htm">IupList</a>, 
-                     <a href="gText.htm">gText</a>, <a href="gCanvas.htm">gCanvas</a>, <a href="IupToggle.htm">IupToggle</a>
-            <br>
-         </td>
-        </tr>
--->
-        <tr>
-         <td>
-          <a name=BUTTON_CB></a>
-          BUTTON_CB
+          CLICK
          </td>
          <td>
             Event generated when any mouse button is pressed or released.
             <br>
             <br>
-            function button_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> button, pressed, x, y, <a href="atom.htm">atom</a> pStatus)<br>
-            ih: identifies the element that activated the event.<br>
-            button: identifies the activated mouse button:<br>
+            function click(<a href="gdx.htm">gdx</a> id, <a href="sequence.htm">sequence</a> status[,
+                                                         <a href="integer.htm">integer</a> x, y])
+            <br>
+            <br>
+            id: identifies the interface element that activated the event.<br>
+            status: a sequence of two characters and three bools that qualify the precise event that just occurred:<br>
+            &nbsp;The first character is 'L', 'M',  or 'R' for Left, Middle, or Right button.<br>
+            &nbsp;The second character is 'S', 'D', or 'R' for Single-click, Double-click, or Release events, see note.<br>
+            &nbsp;The third element is true if the ctrl key is depressed, false otherwise.<br>
+            &nbsp;The fourth element is true if the shift key is depressed, false otherwise.<br>
+            &nbsp;The fifth element is true if the alt key is depressed, false otherwise.<br>
+            &nbsp;You may prefer to code <code>integer {button,pressed,ctrl,shift,alt} = status</code> over using [1..5]s.<br>
+            x,y: (optional) pixel co-ordinates of the mouse cursor when the click/release occurred.
+            <br>
+            <br>
+            Note that for a double left-click, and with CSA omitted for clarity, GTK sends "LS", "LR", "LS", "LD", "LR", 
+            whereas WinAPI slightly more sensibly just sends: "LS", "LR", "LD", "LR" (ie no second "LS").
+            <br>
+            <br>
+            The <a href="gButton.htm#ACTION">ACTION</a> event is usually much more suitable for a <a href="gButton.htm">gButton</a>.<br>
+            The <a href="gCheckbox.htm#VALUE_CHANGED">VALUE_CHANGED</a> event is usually much more suitable for a <a href="gCheckbox.htm">gCheckbox</a>.
+            <br>
+            <br>
+<!-- erm, test this...
+            When both action and click handlers are assigned to a <a href="gButton.htm">gButton</a>, the click handler
+            is <i>not</i> invoked after the action handler (ie on left-release), but it is still invoked for button presses
+            and middle/right releases.
+            <br>
+            <br>
+-->
+<!--
+            The status parameter is a <a href="html/glossary.htm#dwordseq">dword-sequence</a> rather than a string to permit
+             without accidentally and needlessly triggering 
+            a "p2js violation: JavaScript does not support string subscript destructuring" error.
+            <br>
             <br>
             IUP_BUTTON1 - left mouse button (button 1);<br>
             IUP_BUTTON2 - middle mouse button (button 2);<br>
@@ -223,41 +256,46 @@ gSetHandlers({canvas1,canvas2},{"REDRAW",redraw,"RESIZE",resize})
             <br>
             Notes<br>
             This handler can be used to customize a button behavior. 
-            For standard button behavior use the <a href="gButton.htm#CLICK">CLICK</a> handler of the <a href="gButton.htm">gButton</a>.
+            For standard button behavior use the <a href="gButton.htm#ACTION">ACTION</a> handler of the <a href="gButton.htm">gButton</a>.
             <br>
             <br>
             For a single click the handler is called twice, one for pressed=1 and one for pressed=0. <br>
             The CLICK handler is only invoked after both calls.<br>
-            In Windows, if a dialog is shown or popup in any situation there could be unpredictable results because the native system still has processing to be done even after the callback is called.
+            In Windows, if a dialog is shown or popup in any situation there could be unpredictable results because the native system still has processing to be done even after the handler is called.
             <br>
             <br>
             A double click is preceded by two single clicks, one for pressed=1 and one for pressed=0, and followed by a pressed=0, all three without the double click flag set. <br>
             In GTK, it is preceded by an additional two single clicks sequence. For example, for one double click all the following calls are made:<br><br>
- <pre>
-BUTTON_CB(but=1 (1), x=154, y=83 [  1       ])
-BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
-    BUTTON_CB(but=1 (1), x=154, y=83 [  1       ])     (in GTK only)
-    BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])     (in GTK only)
-BUTTON_CB(but=1 (1), x=154, y=83 [  1  D    ])
-BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
- </pre>
+// <pre>
+//BUTTON_CB(but=1 (1), x=154, y=83 [    1       ])
+//BUTTON_CB(but=1 (0), x=154, y=83 [    1       ])
+//  BUTTON_CB(but=1 (1), x=154, y=83 [  1       ])     (in GTK only)
+//  BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])     (in GTK only)
+//BUTTON_CB(but=1 (1), x=154, y=83 [    1  D    ])
+//BUTTON_CB(but=1 (0), x=154, y=83 [    1       ])
+// </pre>
             <br>
-            Affects: <a href="gCanvas.htm">gCanvas</a>, <a href="gButton.htm">gButton</a>, <a href="gText.htm">gText</a>, 
-                     <a href="IupList.htm">IupList</a>
+-->
+            Affects: <a href="gCanvas.htm">gCanvas</a>, ...
+<!--
+                     <a href="gButton.htm">gButton</a>, 
+                     <a href="gText.htm">gText</a>, 
+                     <a href="gList.htm">gList</a> [DEV...]
+-->
             <br>
+          <a name=CLOSE_CB></a>
          </td>
         </tr>
         <tr>
          <td>
-          <a name=CLOSE_CB></a>
-          CLOSE_CB
+?         CLOSE_CB
          </td>
          <td>
             Called just before a dialog is closed when the user clicks the close button of the title bar or an equivalent action.<br>
-            <b>NB</b>: other callbacks returning <a href="#XPG_CLOSE">XPG_CLOSE</a>, or any code invoking 
-            <a href="IupExitLoop.htm">IupExitLoop</a>(), does <i>not</i> invoke any CLOSE_CB callback, instead any required final
+            <b>NB</b>: other handlers returning <a href="#XPG_CLOSE">XPG_CLOSE</a><!--, or any code invoking 
+            <a href="IupExitLoop.htm">IupExitLoop</a>(), does--> do <i>not</i> invoke any CLOSE_CB handler, instead any required final
             processing, such as saving files or invoking <a href="IupConfigDialogClosed.htm">IupConfigDialogClosed</a>(),
-            must be performed manually/explicitly, that is, just before returning XPG_CLOSE or when invoking IupExitLoop.<br>
+            must be performed manually/explicitly, that is, just before returning XPG_CLOSE.<!-- or when invoking IupExitLoop.--><br>
             Penning (say) my_shutdown() and invoking it from several places, including close_cb, is probably a wise move.<br>
             Note that you are not allowed to (re-)use the name <a href="close.htm">close</a>() as a handler since that is already
             reserved for the builtin.
@@ -275,39 +313,370 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
             <br>
             Affects: <a href="gDialog.htm">gDialog</a>
             <br>
+          <a name=IDLE_ACTION></a>
          </td>
         </tr>
         <tr>
          <td>
-          <a name=DESTROY_CB></a>
-          DESTROY_CB
+?         IDLE_ACTION
          </td>
          <td>
-            Called right before an element is destroyed.
+            Predefined, generated when there are no events or messages to be processed. Often used to perform background operations.
             <br>
             <br>
-            function destroy_cb(<a href="Ihandle.htm">Ihandle</a> ih)<br>
-            ih: identifier of the element that activated the event.
+            function idle_action()<br>
+            Returns: if <a href="#XPG_CLOSE">XPG_CLOSE</a> is returned the current loop will be closed and the handler will be removed. <br>
+            If <a href="#XPG_IGNORE">XPG_IGNORE</a> is returned the handler is removed and normal processing continues.
             <br>
             <br>
-            If the dialog is visible then it is hidden before it is destroyed. The callback will be called right after it is hidden.
+            Notes<br>
+            The idle handler is called whenever there are no messages left to be processed. <br>
+            This may occur more frequently than expected, for example if you move the mouse over the application the idle handler will be called
+            many times because the mouse move message is processed so fast that the Idle will be called before another mouse move message occurs.<br>
+            <small>[No mouse(/user) is likely to generate 100 messages/s, which on a GHz box means ten million clocks between each in which to
+            perform some idle processing.]</small>
             <br>
             <br>
-            The callback will be called before all other destroy procedures - for instance, if the element has children then it is called before the children are destroyed. 
+            So this handler changes the message loop to a more CPU consuming one. <br>
+            It is important it be set NULL when not used, otherwise the application consumes CPU even if the handler is doing nothing.
             <br>
             <br>
-            For language binding implementations use the callback name "LDESTROY_CB" to release memory allocated by the binding for the element. 
-            Also the callback will be called before the language callback.
+??          It can only be set using <a href="IupSetGlobalFunction.htm">IupSetGlobalFunction</a>("IDLE_ACTION", idle_action).
             <br>
             <br>
-            Affects: All
+            Long Time Operations<br>
+            If you create a loop or an operation that takes a long time to complete inside a handler of your application then 
+            the user interface message loop processing is interrupted until the handler returns, so the user can not click on 
+            any control of the application. But there are ways to handle that:
+            <ul>
+<!--            <li>call <a href="IupLoopStep.htm">IupLoopStep</a> or <a href="IupFlush.htm">IupFlush</a> inside the application handler when it is performing long time operations. <br>
+            This will allow the user to click on a cancel button for instance, because the user interface message loop will be processed.</li>-->
+
+            <li>split the operation in several parts that are processed by the Idle function when no messages are left to be processed for the user interface message loop. <br>
+            This will make a heavy use of the CPU, even if the handler is doing nothing. </li>
+
+            <li>split the operation in several parts but use a Timer to process each part. </li>
+            </ul>
+            If you just want to do something simple as a background redraw of an <a href="IupCanvas.htm">IupCanvas</a>, 
+            then a better idea is to handle the "idle" state yourself. <br>
+            For example, register a timer for a small time like 500ms, and reset the timer in all the mouse and keyboard handlers of the <a href="IupCanvas.htm">IupCanvas</a>. <br>
+            If the timer is trigged then you are in idle state. If the <a href="IupCanvas.htm">IupCanvas</a> loses its focus then stop the timer.
             <br>
+            <br>
+            <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a> Uses window.requestIdleCallback() which is marked on 
+            <a href="javascript:ExternalLink('ext373');" title='https://developer.mozilla.org/en-US/docs/Web/API/Window/requestIdleCallback'
+            id="ext373" style="color:#9B5565" >MDN</a> as experimental, but that has not changed since 2015. Note that according to 
+            <a href="javascript:ExternalLink('ext382');" title='https://caniuse.com/requestidlecallback'
+            id="ext382" style="color:#9B5565" >caniuse.com</a> for this to work in Safari you (and/or you users) must enable requestIdleCallback 
+            in Experimental (Webkit) Features, and the same may be true for Chrome on macOS (not that desktop/Phix works on macOS, yet).<br>
+            Also note I am not quite sure what "current loop will be closed" above means for XPG_CLOSE returns, so XPG_CLOSE and XPG_IGNORE do
+            the same thing, which is in fact <i>don&rsquo;t</i> re-apply requestIdleCallback.<br>
+            If at all possible you should strive to return within 50ms/break up idle processing into chucks of work shorter than that, to
+            avoid (otherwise fairly harmless) JavaScript violation messages being logged to the (hidden) console. A future version may
+            incorporate a means to get <code>(deadline.timeRemaining() > 0 || deadline.didTimeout)</code> in pwa/p2js, with a matching
+            mechanism to get <code>true</code> on desktop/Phix, should that ever be desired/requested.
+            <br>
+            <br>
+            See Also: <a href="IupSetGlobalFunction.htm">IupSetGlobalFunction</a>, <a href="gTimer.htm">gTimer</a>.
+            <br>
+          <a name=KEY></a>
          </td>
         </tr>
         <tr>
          <td>
+          KEY 
+         </td>
+         <td>
+            (inherited) Event generated when a keyboard event occurs.
+            <br>
+            <br>
+            function key_handler(<a href="gdx.htm">gdx</a> id, <a href="integer.htm">integer</a> c,
+                                                             [[<a href="integer.htm#bool">bool</a>] ctrl[, shift[, alt ]]])
+            <br>
+            <br>
+            id: the interface element that had focus when the key event occurred, or maybe its parent.<br>
+            c: the typed key. Some possible (special) values are listed below.<br>
+            ctrl, shift, alt: (optional) any key modifiers that were also pressed.
+            <br>
+            <br>
+            Note that, unlike pGUI, a key such as &lt;Ctrl C&gt; is passed to key_handler as 'c' or 'C' with ctrl=true, depending
+            on the state of caps lock. While the latter is honoured, there is no forwarding of its state with every keypress, and
+            obviously no guarantee of any correlation at all between shift and 'C' or 'c'.
+<!--
+            , 
+            and there will also doubtless be cases (sic) where you have to use upper/lower or check for 'x' and 'X' to avoid confusing 
+            yourself or your users or both.
+-->
+            <br>
+            <br>
+            While pGUI/IUP defines literally hundreds of key constants, xpGUI limits itself to a much more reasonable subset.<br>
+            You should, typically as and when the compiler complains, replace eg VK_a with 'a', and any specially prefixed keys 
+            such as VK_cC with (say) "ctrl and upper(c)='C'".
+            <br>
+            <br>
+            xpGUI defines the following key constants, in particular those that cannot (intuitively) be written as a normal character 
+            constant, like say 'X' can, plus, as you can see, a few/five that could be:<br>
+            VK_ESC, VK_F1, VK_F2, VK_F3, VK_F4, VK_F5, VK_F6, VK_F7, VK_F8, VK_F9, VK_F10, VK_F11, VK_F12, <br>
+            VK_SCROLL, VK_PAUSE, VK_NUMLOCK, VK_CAPSLOCK, <br>
+            VK_BS (or '\b'), VK_TAB (or '\t'), VK_CR (or '\r'), VK_LF (or '\n'), VK_SP (' '), <br>
+            VK_INS, VK_DEL, VK_HOME, VK_END, VK_PGUP, VK_PGDN, VK_UP, VK_RIGHT, VK_DOWN, VK_LEFT, <br>
+            VK_LCTRL, VK_RCTRL, VK_LSHIFT, VK_RSHIFT, VK_LALT, VK_RALT, VK_APPS, and VK_POUND (&pound;, see below).
+            <br>
+            <br>
+            Aside: instead of (re-)using say K_DEL from pGUI, the equivalent constant is VK_DEL (as per arwen), partly because
+            I did not want to break pGUI help lookup too soon (which is neither a concern nor a reality with what little arwen
+            docs there are in this file), but more importantly I certainly did not want to end up with K_C/K_D/K_E linking to 
+            pGUI but K_DEL linking to (this) xpGUI help section, and probably getting left in that mess pretty much forever.
+            <br>
+            <br>
+            Note that (eg) VK_F1 is (the freshly made up, unsigned) #F1 (241) rather than the potentially confusing WinAPI value of 
+            'p' (ie #70 or 112, or for that matter the GTK value of #FFBE which is 65470 or -66), and likewise most other keys.
+<!--
+            , and xpGUI.js manually maps string
+            event.key of length 1 using codePointAt(0) and lengths &gt; 1 manually/laboriously, in this case "F1" ==&gt; 0xF1), -->
+            There is a relatively straightforward mapping table in xpGUI.e which should be fairly easy to tweak if ever needed,
+            and some (hopefully) matching definitions/manual mapping in xpGUI.js. <small>(obvs. just search for VK_F1)</small>
+<!-- DEV, nah, just do it right!
+            Also, while xpGUI.e maps keystrokes from WinAPI and GTK to consistent values, there is no correlation whatsoever
+            between those and the values used in xpGUI.js (no problem unless you&rsquo;re using literal constants or bit-tricks,
+            and I only mention it because I&rsquo;ve seen more than my fair share of code that uses, say, 13 rather than VK_CR).
+-->
+            <br>
+            <br>
+            An error occurs if c is defined as an <a href="atom.htm">atom</a>: the original <a href="pGUI.htm">pGUI</a> went 
+            to great lengths to enforce that and prevent a "time-bomb" routine signature error as I then dubbed it. Should 
+            such occur you would be advised to review and update the (legacy) code as necessary, at the same time as changing 
+            the c parameter to be an integer.
+            <br>
+            <br>
+            In a similar fashion to <a href="g_paranormal.htm">paranormalised</a> functions, only without any reshuffling of the
+            parameters, you can assume that all of the following are potentially perfectly valid, with the fairly obvious point 
+            that the third parameter, if present, always contains the ctrl flag, and likewise the fouth contains shift and the
+            fifth contains alt, in spite of whatever the parameters may actually be named, and even if you only wanted to check 
+            for the alt key, you would still be required to declare the full five parameters:
+            <br>
+            <br>
+<small>
+<!--eucode>
+                        key_handler(gdx id, integer c)
+                        key_handler(gdx id, integer c, ctrl)
+                        key_handler(gdx id, integer c, ctrl, shift)
+                        key_handler(gdx id, integer c, ctrl, shift, alt)
+                        key_handler(gdx id, integer c, bool ctrl)
+                        key_handler(gdx id, integer c, bool ctrl, shift)
+                        key_handler(gdx id, integer c, bool ctrl, shift, alt)
+</eucode-->
+<pre>
+<font color="#000000">                        key_handler</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> c</font><font color="#0000FF">)</font>
+<font color="#000000">                        key_handler</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> c</font><font color="#0000FF">,</font><font color="#000000"> ctrl</font><font color="#0000FF">)</font>
+<font color="#000000">                        key_handler</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> c</font><font color="#0000FF">,</font><font color="#000000"> ctrl</font><font color="#0000FF">,</font><font color="#000000"> shift</font><font color="#0000FF">)</font>
+<font color="#000000">                        key_handler</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> c</font><font color="#0000FF">,</font><font color="#000000"> ctrl</font><font color="#0000FF">,</font><font color="#000000"> shift</font><font color="#0000FF">,</font><font color="#000000"> alt</font><font color="#0000FF">)</font>
+<font color="#000000">                        key_handler</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> c</font><font color="#0000FF">,</font><font color="#004080"> bool</font><font color="#000000"> ctrl</font><font color="#0000FF">)</font>
+<font color="#000000">                        key_handler</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> c</font><font color="#0000FF">,</font><font color="#004080"> bool</font><font color="#000000"> ctrl</font><font color="#0000FF">,</font><font color="#000000"> shift</font><font color="#0000FF">)</font>
+<font color="#000000">                        key_handler</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> c</font><font color="#0000FF">,</font><font color="#004080"> bool</font><font color="#000000"> ctrl</font><font color="#0000FF">,</font><font color="#000000"> shift</font><font color="#0000FF">,</font><font color="#000000"> alt</font><font color="#0000FF">)</font>
+</pre>
+</small>
+            <br>
+            When ctrl/shift/alt are absent, the backend avoids relaying characters and other keystrokes that it knows the 
+            handler cannot cope with or might mis-interpret. In the case (sic) of shift, you&rsquo;ll still get '!' (#21) 
+            all the way to '~' (#7E) but not space or below, or VK_DEL and above (including all the function keys), that 
+            is when shift is down but there&rsquo;s no shift parameter on your key_handler() routine (or whatever it is 
+            actually called), and you would of course still get all un-shifted keys. Should you <i>want</i> to treat say
+            &lt;F1&gt;, &lt;Ctrl F1&gt;, &lt;Shift F1&gt;, &lt;Alt F1&gt;, and the other four possible combinations of
+            multiple modifiers the same, you would have to declare all five parameters but then ignore the last three.
+            Caps lock and Num lock do not of course alter which physical keys are relayed, just some of their values.
+            <br>
+            <a name=KEYDIFFS></a>
+            <br>
+<!--
+            Also, the global attribute <a href="gGetGlobal?.htm#MODKEYSTATE">MODKEYSTATE</a> can be used to detect the combination of two or more modifiers.
+            <br>
+            <br>
+-->
+            Small differences in handling will almost certainly exist and quite likely remain forever, for instance in my testing of GTK on Windows, 
+            it did not generate the VK_CAPSLOCK key, and GTK2 did not generate the VK_PAUSE key. GTK also appears unable or unwilling to permit the
+            capture of Alt-Space or Alt-F4. On the other hand, Windows does some things with the Alt key (alone) and F10 that sort of put it into a
+            "special mode" until you hit them a second time, all of which I don&rsquo;t completely grok. And of course a browser is going to do some
+            browser-like things with some keystrokes and that may differ between browsers. Oh, and of course there is a "Windows" key one away from 
+            the spacebar, but that&rsquo;s for the OS, not your app, OK? (ie/aka ymmv) However otherwise, more normal things are generally speaking 
+            pretty consistent, and avoiding the odd dicey one shouldn&rsquo;t really be a problem when there are perhaps 252 other key combinations 
+            that you could certainly always use, as in 4 combinations of ctrl/shift times ~63 suitable keys, at least, and nearly but not quite as
+            many again that involve the alt key.
+            <br>
+            <br>
+            Note that VK_POUND is (currently) the pseudo-UTF-8 value #C2A3 representing the UTF-32 code point #00A3, aka &pound;, and may well need 
+            special treatment, perhaps by being substituted with x"C2A3". In truth I accidentally made VK_DOWN #A3, but it would be trivial to change 
+            both VK_DOWN and VK_POUND to almost anything else, should doing so actually make anything any easier, just let me know.
+            <br>
+            <br>
+            Finally, I own/use a UK keyboard, and haven&rsquo;t done <i>any</i> testing of non-latin-alphabet input, but I strongly doubt changes
+            that might yet be needed in that regard would be spectacularly difficult, at least assuming there is no need for tens of thousands of
+            new vk_constants, and I will of course be happy to assist as best I can (once provided with suitable details/links/photos/whatever).
+            <br>
+            <br>
+            Returns: <br>
+            If <a href="#XPG_IGNORE">XPG_IGNORE</a> is returned the key is ignored and not processed by the control and not propagated. <br>
+            There are cases where <a href="#XPG_IGNORE">XPG_IGNORE</a> may start disabling generic OS/backend-specific behaviour, and cases where
+            it simply doesn&rsquo;t get that chance, such as &lt;Alt F4&gt;, ymmv.<br>
+<!--???         Take care not to overdo that... -->
+<!--
+            If <a href="#XPG_CONTINUE">XPG_CONTINUE</a> is returned the key is processed and the event propagated to the parent of the element receiving it. (default behavior)<br>
+            If <a href="#XPG_DEFAULT">XPG_DEFAULT</a> is returned the key is processed but it is not propagated. <br>
+-->
+            <a href="#XPG_CLOSE">XPG_CLOSE</a> will be processed. <br>
+?[DEV/SUG]
+            A positive atom will be treated as a unicode replacement (0..#10FFFF) for whatever was keyed, a string as a UTF-8 replacement, and a 
+            sequence of length 4 will be treated as that (ie either) plus three bool flags for ctrl, shift, and alt.
+            <br>
+            <br>
+            Notes<br>
+            Keyboard handlers depend on the keyboard usage of the control with the focus. <br>
+            So if you return <a href="#XPG_IGNORE">XPG_IGNORE</a> the control will usually not process the key. <br>
+            But be aware that sometimes the control processes the key in another event so even when returning <a href="#XPG_IGNORE">XPG_IGNORE</a> 
+            the key can still get processed, although it will(/should) not be propagated, again ymmv.
+            <br>
+            <br>
+            If the handler does not exist it is automatically propagated to the parent of the element (aka inherited).
+            <br>
+            <br>
+            Affects: All elements with keyboard interaction.
+            <br>
+          <a name=MOUSEMOVE></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          MOUSEMOVE
+         </td>
+         <td>
+            Event generated when the mouse moves.
+            <br>
+            <br>
+            procedure mousemove(<a href="gdx.htm">gdx</a> id, <a href="integer.htm">integer</a> x, y[, 
+                                                             [<a href="bool.htm">bool</a>] left,middle,right[,
+                                                                                           ctrl,shift,alt]])
+            <br>
+            <br>
+            id: identifier of the interface element that activated the event.<br>
+            x, y: position in the canvas where the event has occurred, in pixels.<br>
+            left,middle,right: (optional) status of the mouse buttons, true for down and false for up.<br>
+            ctrl,shift,alt: (optional) status of the modifier keys, true for down and false for up.
+            <br>
+            <br>
+            In a similar fashion to <a href="g_paranormal.htm">paranormalised</a> functions, only without any reshuffling of the
+            parameters, you can assume that all of the following are potentially perfectly valid (ie "in sets of 3"):
+            <br>
+            <br>
+<small>
+<!--eucode>
+                mousemove(gdx id, integer x, y)
+                mousemove(gdx id, integer x, y, left, middle, right)
+                mousemove(gdx id, integer x, y, left, middle, right, ctrl, shift, alt)
+                mousemove(gdx id, integer x, y, bool left, middle, right)
+                mousemove(gdx id, integer x, y, bool left, middle, right, ctrl, shift, alt)
+</eucode-->
+<pre>
+<font color="#000000">                mousemove</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">)</font>
+<font color="#000000">                mousemove</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#000000"> left</font><font color="#0000FF">,</font><font color="#000000"> middle</font><font color="#0000FF">,</font><font color="#000000"> right</font><font color="#0000FF">)</font>
+<font color="#000000">                mousemove</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#000000"> left</font><font color="#0000FF">,</font><font color="#000000"> middle</font><font color="#0000FF">,</font><font color="#000000"> right</font><font color="#0000FF">,</font><font color="#000000"> ctrl</font><font color="#0000FF">,</font><font color="#000000"> shift</font><font color="#0000FF">,</font><font color="#000000"> alt</font><font color="#0000FF">)</font>
+<font color="#000000">                mousemove</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#004080"> bool</font><font color="#000000"> left</font><font color="#0000FF">,</font><font color="#000000"> middle</font><font color="#0000FF">,</font><font color="#000000"> right</font><font color="#0000FF">)</font>
+<font color="#000000">                mousemove</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#004080"> bool</font><font color="#000000"> left</font><font color="#0000FF">,</font><font color="#000000"> middle</font><font color="#0000FF">,</font><font color="#000000"> right</font><font color="#0000FF">,</font><font color="#000000"> ctrl</font><font color="#0000FF">,</font><font color="#000000"> shift</font><font color="#0000FF">,</font><font color="#000000"> alt</font><font color="#0000FF">)</font>
+</pre>
+</small>
+            <br>
+            An error occurs if the handler does not have 3, 6, or 9 parameters, or the last 2..8 are not integer/bool.
+            <br>
+            <br>
+            On Windows, as similarly noted in <a href="#KEYDIFFS">KEY</a> above, if you dab on the Alt key, <i>then</i> try moving the mouse,
+            you may find it is effectively disabled until you tap the Alt key again. Holding the Alt key while moving however works fine.
+            <br>
+            <br>
+<!-- (DEV maybe, but it's not "routines" any longer)
+            Use the same routines for pStatus as <a href="gSetHandler.htm#CLICK">CLICK</a>.
+            <br>
+            <br>
+-->
+            Affects: <a href="IupCanvas.htm">IupCanvas</a>, ...
+<!--
+            <a href="IupGLCanvas.htm">IupGLCanvas</a>,
+                     <a href="IupList.htm">IupList</a>, <a href="IupMatrix.htm">IupMatrix</a>, 
+                     <a href="IupText.htm">IupText</a>, <a href="IupTree.htm">IupTree</a>
+-->
+            <br>
+          <a name=VALUE_CHANGED></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          VALUE_CHANGED
+         </td>
+         <td>
+            Event generated when the value of a control is changed.
+            <br>
+            <br>
+            function value_changed(<a href="gdx.htm">gdx</a> id)<br>
+            ih: identifier of the element that activated the event.<br>
+            Note this handler on a <a href="gCheckbox.htm#VALUE_CHANGED">gCheckbox</a>() also gets a bool bChecked parameter.
+            <br>
+            <br>
+            Affects: 
+            <a href="gDatePick.htm#VALUE_CHANGED">gDatePick</a>,
+            <a href="gList.htm#VALUE_CHANGED">gList</a>,
+            <a href="gText.htm#VALUE_CHANGED">gText</a>,
+            <a href="gCheckbox.htm#VALUE_CHANGED">gCheckbox</a><br>
+          <a name=tech></a>
+         </td>
+        </tr>
+<!--
+          <a name=ACTION></a>
+        <tr>
+         <td>
+          "ACTION"
+         </td>
+         <td>
+            While common to several elements, the handler parameters vary - see specific elements for details.
+            <br>
+            <br>
+            Affects: <a href="gButton.htm">gButton</a>, <a href="IupMenuItem.htm">IupMenuItem</a>, <a href="IupList.htm">IupList</a>, 
+                     <a href="gText.htm">gText</a>, <a href="gCanvas.htm">gCanvas</a>, <a href="IupToggle.htm">IupToggle</a>
+            <br>
+         </td>
+        </tr>
+-->
+<!--
+//        <a name=DESTROY_CB></a>
+//      <tr>
+//       <td>
+//?       DESTROY_CB
+//       </td>
+//       <td>
+//          Called right before an element is destroyed.
+//          <br>
+//          <br>
+//          function destroy_cb(<a href="Ihandle.htm">Ihandle</a> ih)<br>
+//          ih: identifier of the element that activated the event.
+//          <br>
+//          <br>
+//          If the dialog is visible then it is hidden before it is destroyed. The handler will be called right after it is hidden.
+//          <br>
+//          <br>
+//          The handler will be called before all other destroy procedures - for instance, if the element has children then it is called before the children are destroyed. 
+//          <br>
+//          <br>
+//          For language binding implementations use the handler name "LDESTROY_CB" to release memory allocated by the binding for the element. 
+//          Also the handler will be called before the language handler.
+//          <br>
+//          <br>
+//          Affects: All
+//          <br>
+//       </td>
+//      </tr>
+-->
+<!--
           <a name=ENTERWINDOW_CB></a>
-          ENTERWINDOW_CB
+        <tr>
+         <td>
+?         ENTERWINDOW_CB
          </td>
          <td>
             Event generated when the mouse enters the native element. 
@@ -319,26 +688,26 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
             <br>
             Notes<br>
             When the cursor is moved from one element to another, the call order in all platforms will be first the 
-            <a href="callbacks.htm#LEAVEWINDOW_CB">LEAVEWINDOW_CB</a> callback of the old control followed by the 
-            ENTERWINDOW_CB callback of the new control.
+            <a href="gSetHandler.htm#LEAVEWINDOW_CB">LEAVEWINDOW_CB</a> handler of the old control followed by the 
+            ENTERWINDOW_CB handler of the new control.
             <br>
             <br>
             Affects: All controls with user interaction.
             <br>
             <br>
-            See Also: <a href="callbacks.htm#LEAVEWINDOW_CB">LEAVEWINDOW_CB</a>
+            See Also: <a href="gSetHandler.htm#LEAVEWINDOW_CB">LEAVEWINDOW_CB</a>
             <br>
          </td>
         </tr>
+          <a name=GETFOCUS_CB></a>
         <tr>
          <td>
-          <a name=GETFOCUS_CB></a>
-          GETFOCUS_CB
+?         GETFOCUS_CB
          </td>
          <td>
             Event generated when an element is given keyboard focus. <br>
-            This callback is called after the <a href="callbacks.htm#KILLFOCUS_CB">KILLFOCUS_CB</a> of the element that lost the focus. <br>
-            The <a href="IupGetFocus.htm">IupGetFocus</a> function during the callback returns the element that lost the focus.
+            This handler is called after the <a href="gSetHandler.htm#KILLFOCUS_CB">KILLFOCUS_CB</a> of the element that lost the focus. <br>
+            The <a href="IupGetFocus.htm">IupGetFocus</a> function during the handler returns the element that lost the focus.
             <br>
             function getfocus_cb(<a href="Ihandle.htm">Ihandle</a> ih)
             <br>
@@ -349,105 +718,42 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
             Affects: All elements with user interaction, except menus.
             <br>
             <br>
-            See Also: <a href="callbacks.htm#KILLFOCUS_CB">KILLFOCUS_CB</a>, <a href="IupGetFocus.htm">IupGetFocus</a>, <a href="IupSetFocus.htm">IupSetFocus</a> 
+            See Also: <a href="gSetHandler.htm#KILLFOCUS_CB">KILLFOCUS_CB</a>, <a href="IupGetFocus.htm">IupGetFocus</a>, <a href="IupSetFocus.htm">IupSetFocus</a> 
             <br>
          </td>
         </tr>
-        <tr>
-         <td>
-          <a name=HELP_CB></a>
-          HELP_CB
-         </td>
-         <td>
-            Event generated when the user presses F1 at a control. <br>
-            In Motif is also activated by the Help button in some workstations keyboard.
-            <br>
-            <br>
-            function help_cb(<a href="Ihandle.htm">Ihandle</a> ih)<br>
-            ih: identifier of the element that activated the event.
-            <br>
-            <br>
-            Returns: <a href="#XPG_CLOSE">XPG_CLOSE</a> will be processed.
-            <br>
-            <br>
-            Affects: All elements with user interaction.
-            <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <a name=IDLE_ACTION></a>
-          IDLE_ACTION
-         </td>
-         <td>
-            Predefined, generated when there are no events or messages to be processed. Often used to perform background operations.
-            <br>
-            <br>
-            function idle_action()<br>
-            Returns: if <a href="#XPG_CLOSE">XPG_CLOSE</a> is returned the current loop will be closed and the callback will be removed. <br>
-            If <a href="#XPG_IGNORE">XPG_IGNORE</a> is returned the handler is removed and normal processing continues.
-            <br>
-            <br>
-            Notes<br>
-            The Idle callback will be called whenever there are no messages left to be processed. <br>
-            This may occur more frequently than expected, for example if you move the mouse over the application the idle callback will be called
-            many times because the mouse move message is processed so fast that the Idle will be called before another mouse move message occurs.<br>
-            <small>[No mouse(/user) is likely to generate 100 messages/s, which on a GHz box means ten million clocks between each in which to
-            perform some idle processing.]</small>
-            <br>
-            <br>
-            So this callback changes the message loop to a more CPU consuming one. <br>
-            It is important it be set NULL when not used, otherwise the application consumes CPU even if the callback is doing nothing.
-            <br>
-            <br>
-            It can only be set using <a href="IupSetGlobalFunction.htm">IupSetGlobalFunction</a>("IDLE_ACTION", idle_action).
-            <br>
-            <br>
-            Long Time Operations<br>
-            If you create a loop or an operation that takes a long time to complete inside a callback of your application then 
-            the user interface message loop processing is interrupted until the callback returns, so the user can not click on 
-            any control of the application. But there are ways to handle that:
-            <ul>
-            <li>call <a href="IupLoopStep.htm">IupLoopStep</a> or <a href="IupFlush.htm">IupFlush</a> inside the application callback when it is performing long time operations. <br>
-            This will allow the user to click on a cancel button for instance, because the user interface message loop will be processed.</li>
-
-            <li>split the operation in several parts that are processed by the Idle function when no messages are left to be processed for the user interface message loop. <br>
-            This will make a heavy use of the CPU, even if the callback is doing nothing. </li>
-
-            <li>split the operation in several parts but use a Timer to process each part. </li>
-            </ul>
-            If you just want to do something simple as a background redraw of an <a href="IupCanvas.htm">IupCanvas</a>, 
-            then a better idea is to handle the "idle" state yourself. <br>
-            For example, register a timer for a small time like 500ms, and reset the timer in all the mouse and keyboard callbacks of the <a href="IupCanvas.htm">IupCanvas</a>. <br>
-            If the timer is trigged then you are in idle state. If the <a href="IupCanvas.htm">IupCanvas</a> loses its focus then stop the timer.
-            <br>
-            <br>
-            <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a> Uses window.requestIdleCallback() which is marked on 
-            <a href="javascript:ExternalLink('ext373','https://developer.mozilla.org/en-US/docs/Web/API/Window/requestIdleCallback');"
-            id="ext373" style="color:#9B5565" >MDN</a> as experimental, but that has not changed since 2015. Note that according to 
-            <a href="javascript:ExternalLink('ext382','https://caniuse.com/requestidlecallback');"
-            id="ext382" style="color:#9B5565" >caniuse.com</a> for this to work in Safari you (and/or you users) must enable requestIdleCallback 
-            in Experimental (Webkit) Features, and the same may be true for Chrome on macOS (not that desktop/Phix works on macOS, yet).<br>
-            Also note I am not quite sure what "current loop will be closed" above means for XPG_CLOSE returns, so XPG_CLOSE and XPG_IGNORE do
-            the same thing, which is in fact <i>don&rsquo;t</i> re-apply requestIdleCallback.<br>
-            If at all possible you should strive to return within 50ms/break up idle processing into chucks of work shorter than that, to
-            avoid (otherwise fairly harmless) JavaScript violation messages being logged to the (hidden) console. A future version may
-            incorporate a means to get <code>(deadline.timeRemaining() > 0 || deadline.didTimeout)</code> in pwa/p2js, with a matching
-            mechanism to get <code>true</code> on desktop/Phix, should that ever be desired/requested.
-            <br>
-            <br>
-            See Also: <a href="IupSetGlobalFunction.htm">IupSetGlobalFunction</a>, <a href="IupTimer.htm">IupTimer</a>.
-            <br>
-         </td>
-        </tr>
+-->
 <!--
+//        <a name=HELP_CB></a>
+//      <tr>
+//       <td>
+//?       HELP_CB
+//       </td>
+//       <td>
+//          Event generated when the user presses F1 at a control. <br>
+//          In Motif is also activated by the Help button in some workstations keyboard.
+//          <br>
+//          <br>
+//          function help_cb(<a href="Ihandle.htm">Ihandle</a> ih)<br>
+//          ih: identifier of the element that activated the event.
+//          <br>
+//          <br>
+//          Returns: <a href="#XPG_CLOSE">XPG_CLOSE</a> will be processed.
+//          <br>
+//          <br>
+//          Affects: All elements with user interaction.
+//          <br>
+//       </td>
+//      </tr>
+-->
+<!--
+          <a name=GLOBALCTRLFUNC_CB></a>
         <tr>
          <td>
-          <a name=GLOBALCTRLFUNC_CB></a>
           GLOBALCTRLFUNC_CB
          </td>
          <td>
-            Global callback for a restricted set of keys. (since 3.20)<br>
+            Global handler for a restricted set of keys. (since 3.20)<br>
             Called only when the Ctrl+F? key combinations are pressed. <br>
             It was designed to be used for internal application debugging porpoises only. <br>
             Do not use it for release code.
@@ -457,17 +763,18 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
             c: identifier of typed key. Please refer to <a href="#KEY">KEY</a> below for a list of possible values.
             <br>
             <br>
-            It can only be set using (eg) <a href="IupSetGlobalFunction.htm">IupSetGlobalFunction</a>("GLOBALCTRLFUNC_CB", <a href="Icallback.htm">Icallback</a>("ctrl_func")).
+//          It can only be set using (eg) <a href="IupSetGlobalFunction.htm">IupSetGlobalFunction</a>("GLOBALCTRLFUNC_CB", <a href="Icallback.htm">Icallback</a>("ctrl_func")).
             <br>
             <br>
-            See Also: <a href="IupSetGlobalFunction.htm">IupSetGlobalFunction</a>.
+//          See Also: <a href="IupSetGlobalFunction.htm">IupSetGlobalFunction</a>.
             <br>
          </td>
         </tr>
 -->
+<!--
+          <a name=ENTRY_POINT></a>
         <tr>
          <td>
-          <a name=ENTRY_POINT></a>
           ENTRY_POINT
          </td>
          <td>
@@ -478,7 +785,7 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
             <br>
             It is called only once, when the main loop is processed, but after <a href="IupOpen.htm">IupOpen</a>(). <br>
             For regular systems is called right before the actual event loop is started.<br>
-            It can only be set using (eg) <a href="IupSetGlobalFunction.htm">IupSetGlobalFunction</a>("ENTRY_POINT", 
+//          It can only be set using (eg) <a href="IupSetGlobalFunction.htm">IupSetGlobalFunction</a>("ENTRY_POINT", 
             <a href="Icallback.htm">Icallback</a>("entry_func")).
             <br>
             <br>
@@ -487,9 +794,9 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
          </td>
         </tr>
 
+          <a name=EXIT_CB></a>
         <tr>
          <td>
-          <a name=EXIT_CB></a>
           EXIT_CB
          </td>
          <td>
@@ -502,392 +809,50 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
             For regular systems is called right after the actual event loop is ended, every time when the main loop level returns to 0.
             <br>
             <br>
-            It can only be set using (eg) <a href="IupSetGlobalFunction.htm">IupSetGlobalFunction</a>("EXIT_CB", 
+//          It can only be set using (eg) <a href="IupSetGlobalFunction.htm">IupSetGlobalFunction</a>("EXIT_CB", 
             <a href="Icallback.htm">Icallback</a>("exit_func")).
             <br>
          </td>
         </tr>
-
-        <tr>
-         <td>
-          <a name=KEY></a>
-          "KEY" 
-         </td>
-         <td>
-            Event generated when a keyboard event occurs.
-            <br>
-            <br>
-            function key(<a href="gdx.htm">gdx</a> h, <a href="integer.htm">integer</a> c,
-                                                      [<a href="integer.htm#bool">bool</a> ctrl[, shift[, alt [, sys]]]])
-            <br>
-            <br>
-            h: the element that activated the event.<br>
-            c: the typed key. Some possible (special) values are listed below.<br>
-            ctrl, shift, alt, sys: any key modifiers that were also pressed. When absent, the backend avoids relaying characters
-            and other keystrokes that it knows the handler cannot cope with or might mis-interpret.
-            <br>
-            <br>
-            Aside: instead of (re-)using say K_DEL from pGUI, the equivalent constant is VK_DEL (as per arwen), partly because
-            I did not want to break pGUI help lookup too soon (which is neither a concern nor a reality with what little arwen
-            docs there are in this file), but more importantly I certainly did not want to end up with K_C/K_D/K_E linking to 
-            pGUI but K_DEL linking to (this) xpGUI help section, and probably being left in that mess pretty much forever.
-            <br>
-            <br>
+-->
 <!--
-            In previous versions of pGUI.e defining c as type integer would work, until an alt or sys key was entered, at which
-            point they would fail with a run-time typecheck. Newer versions of pGUI.e now check for such a "time-bomb" signature
-            and raise an error much earlier in the process, which significantly helps to avoid shipping code with that problem.
+//        <a name=KEYPRESS_CB></a>
+//      <tr>
+//       <td>
+//?       KEYPRESS_CB
+//       </td>
+//       <td>
+//          Event generated when a key is pressed or released. <br>
+//          If the key is pressed and held several calls will occur. <br>
+//          It is called after the handler <a href="#KEY">KEY</a> is processed.
+//          <br>
+//          <br>
+//          function keypress_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> c, <a href="integer.htm#bool">bool</a> press)
+//          <br>
+//          <br>
+//          ih: identifier of the element that activated the event.<br>
+//          c: identifier of typed key. See <a href="#KEY">KEY</a> above for possible values.<br>
+//          press: 1(true) when the key is pressed, 0(false) when the key is released.
+//          <br>
+//          <br>
+//          Returns: If <a href="#XPG_IGNORE">XPG_IGNORE</a> is returned the key is ignored by the system. <br>
+//          <a href="#XPG_CLOSE">XPG_CLOSE</a> will be processed.
+//          <br>
+//          <br>
+//          Affects: <a href="IupCanvas.htm">IupCanvas</a>
+//          <br>
+//       </td>
+//      </tr>
 -->
-            [DEV/maybe...]
-            Aside: <a href="setHandler.htm">setHandler</a>() actually stores the handler under "KEY", "KEYC", "KEYCS", "KEYCSA",
-            or "KEYCSAS" depending on how many parameters were specified and therefore both how many it needs to relay on, and 
-            what keystrokes it should not forward at all, and it is the sole responsibility of pwa/p2js.exw for the benefit of 
-            pwa/xpGUI.js to replace "KEY" in a similar fashion. The precise behaviour should it somehow set more than one of 
-            those handlers is formally undefined and not supported. Fairly obviously, I should hope, you need to specify say
-            "bool ctrl, shift" rather than "bool shift" as the latter would simply get the ctrl key in the shift parameter,
-            and of course that remains unavoidably true even if you have no other use for the ctrl parameter.
-<br>
-<br>
-<i>OR [DEV] </i>
-<br>
-<br>
-            integer c, csas: if csas is zero it is a plain keystroke otherwise some other key[s] were held down, use say<br>
-<!--eucode>
-            bool ctrl = and_bits(csac,VK_CTRL)!=0,
-                shift = and_bits(csac,VK_SHIFT)!=0,
-                  alt = and_bits(csac,VK_ALT)!=0,
-                  sys = and_bits(csac,VK_SYS)!=0
-</eucode-->
-<pre>
-<font color="#004080">            bool</font><font color="#000000"> ctrl</font><font color="#0000FF"> =</font><font color="#7060A8"> and_bits</font><font color="#0000FF">(</font><font color="#000000">csac</font><font color="#0000FF">,</font><font color="#000000">VK_CTRL</font><font color="#0000FF">)!=</font><font color="#000000">0</font><font color="#0000FF">,</font>
-<font color="#000000">                shift</font><font color="#0000FF"> =</font><font color="#7060A8"> and_bits</font><font color="#0000FF">(</font><font color="#000000">csac</font><font color="#0000FF">,</font><font color="#000000">VK_SHIFT</font><font color="#0000FF">)!=</font><font color="#000000">0</font><font color="#0000FF">,</font>
-<font color="#000000">                  alt</font><font color="#0000FF"> =</font><font color="#7060A8"> and_bits</font><font color="#0000FF">(</font><font color="#000000">csac</font><font color="#0000FF">,</font><font color="#000000">VK_ALT</font><font color="#0000FF">)!=</font><font color="#000000">0</font><font color="#0000FF">,</font>
-<font color="#000000">                  sys</font><font color="#0000FF"> =</font><font color="#7060A8"> and_bits</font><font color="#0000FF">(</font><font color="#000000">csac</font><font color="#0000FF">,</font><font color="#000000">VK_SYS</font><font color="#0000FF">)!=</font><font color="#000000">0</font>
-</pre>
-            Note that while caps lock is honoured, there is no forwarding of it&rsquo;s state with every keypress, and there 
-            will also doubtless be cases (sic) where you have to use upper/lower or check for 'x' and 'X' to avoid confusing 
-            yourself or your users or both.
-            <br>
-            <br>
-            While pGUI/IUP defines hundreds of key constants, xpGUI limits itself to a much more reasonable subset.<br>
-            You should, typically as and when the compiler complains, replace eg [V]K_a with 'a', and [V]K_cC with "ctrl and c='C'"
-            or "ctrl and upper(c)='C'", etc.
-            <br>
-            <br>
-            xpIUP defines several key constants, in particular for any that cannot be written as a normal character constant (like say 'a' can):<br>
-            VK_ESC, VK_CR (or '\r'), VK_LF (or '\n'), VK_BS (or '\b'), VK_TAB (or '\t'), VK_SP (' '), VK_INS, VK_DEL, 
-            VK_HOME, VK_UP, VK_PGUP, VK_LEFT, VK_MIDDLE, VK_RIGHT, VK_END, VK_DOWN, VK_PGDN, VK_PAUSE, VK_Print, VK_Menu, 
-            VK_F1, VK_F2, VK_F3, VK_F4, VK_F5, VK_F6, VK_F7, VK_F8, VK_F9, VK_F10, VK_F11, VK_F12,
-            VK_LSHIFT, VK_RSHIFT, VK_LCTRL, VK_RCTRL, VK_LALT, VK_RALT, VK_SCROLL, VK_NUM, and VK_CAPS.
-            <br>
-            <br>
 <!--
-            Other standard key identifiers include (aside: full lists rather than say "VK_A, VK_B, .. VK_Z" permit search/index):<br>
-            VK_exclam ('!'), VK_quotedbl ('\"'), VK_numbersign ('#'), VK_dollar ('$'), VK_percent ('%'),
-            VK_ampersand ('&'), VK_apostrophe '\'', VK_parentleft ('('), VK_parentright (')'), VK_asterisk ('*'), VK_plus ('+'),
-            VK_comma (','), VK_minus ('-'), VK_period ('.'), VK_slash ('/'), VK_0, VK_1, VK_2, VK_3, VK_4, VK_5, VK_6, VK_7, VK_8, VK_9 ('0'..'9'), 
-            VK_colon (':'), VK_semicolon (';'), VK_less ('&lt;'), VK_equal ('='), VK_greater ('&gt;'), VK_question ('?'), VK_at ('@'), VK_A, VK_B,
-            VK_C, VK_D, VK_E, VK_F, VK_G, VK_H, VK_I, VK_J, VK_K, VK_L, VK_M, VK_N, VK_O, VK_P, VK_Q, VK_R, VK_S, VK_T, VK_U, VK_V, VK_W, VK_X, VK_Y, VK_Z 
-            ('A'..'Z'), VK_a, VK_b, VK_c, VK_d, VK_e, VK_f, VK_g, VK_h, VK_i, VK_j, VK_k, VK_l, VK_m, VK_n, VK_o, VK_p, VK_q, VK_r, VK_s, VK_t, VK_u, VK_v, VK_w, 
-            VK_x, VK_y, VK_z ('a'..'z'), VK_bracketleft ('['), VK_backslash ('\\'), VK_bracketright (']'), VK_circum ('^'), VK_underscore ('_'), 
-            VK_grave ('`'), VK_braceleft ('{'), VK_bar ('|'), VK_braceright ('}'), and VK_tilde ('~'). 
-            My preference and recommendation is to use the literal values instead of the constant names for 'plain' keystrokes, since 
-            for example I <i>cannot</i> get '!' wrong, however I could very easily mis-spell VK_exclam as VK_exclaim, or VK_parentleft as 
-            VK_parenthleft or VK_leftparenth, VK_period as VK_dot, VK_greater as VK_gt, ... sure the syntax colouring/compiler would catch it, 
-            but there is little benefit in you or me sitting there going "OK, how <i>do</i> you spell it then?". 
--->
-Erm... [DEV]<br>
-            In contrast, the modified keystrokes as listed below are usually much easier, for instance using <code>VK_cA</code> beats 
-            <code>iup_XkeyCtrl('A')</code> hands down.
-            <br>
-            <br>
-<!--
-            The following are deprecated/untested:<br>
-            <span class="illegal">VK_acute</span> ('´', #B4), <span class="illegal">VK_ccedilla</span> ('ç', #E7), and 
-            <span class="illegal">VK_diaeresis</span> ('¨', #A8). While those are valid for UTF-32, Windows-1252, and
-            ISO 8859-1, the same cannot be said for UTF-8, and quite possibly several legacy 8-bit code pages, hence the exclusion.
-            pGUI/IUP would probably understand them, but your app probably won&rsquo;t. Obviously not having those constants only
-            affects what is valid source code and in no way prevents a user keying such characters into your finished application.
-            <br>
-            <br>
--->
-            Special note: When using Edix, and therefore similar pGUI applications, you may notice that it will not let you type a pound 
-            sign (&pound;) into an ansi file [not even using the old Alt-0163 trick]. Quite a shock, I know, but when you think about it, 
-            also quite correct. It will of course let you type that sort of thing into a UTF-8 file. The critical thing is that a call to
-            <a href="IupSetGlobal.htm">IupSetGlobal</a>("<a href="iupgattr.htm#UTF8MODE">UTF8MODE</a><a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a>","YES") 
-            exists somewhere.
-            <br>
-            <br>
-            For some keys, change the prefix to VK_c*, VK_m*, VK_s*, and VK_y* to add the respective modifier (Control, Alt, Shift, and Sys).<br>
-            Sys in Windows is the Windows key and in Mac is the Apple key.<br>
-            Modifier prefixes are always applied in the above order, for instance &lt;Ctrl Shift C&gt; is VK_csC, not VK_scC.
-            <br>
-            <br>
-<!--
-            Note that some keys have not yet made it into pGUI. Only keys that make sense and I get round to testing will (ever) be added: 
-            for instance VK_sexclam (heh) makes no sense because you cannot (on my keyboard anyhow) get a '!' without the shift key being 
-            down, and the same for VK_sPrint, VK_sSCROLL, and VK_sPAUSE. (Apart from a general reluctance to add rafts of untested things, I
-            am also trying to keep the documentation in step with the implementation.) <br>
-            The following keys (ditto re full lists) do however exist:
-            <br>
-            <br>
-            Ctrl:<br>
-            VK_cSP,
-            VK_cPlus,
-            VK_cMinus,
-            VK_cEqual,
-            VK_cA,
-            VK_cB,
-            VK_cC,
-            VK_cD,
-            VK_cE,
-            VK_cF,
-            VK_cG,
-            VK_cH,
-            VK_cI,
-            VK_cJ,
-            VK_cK,
-            VK_cL,
-            VK_cM,
-            VK_cN,
-            VK_cO,
-            VK_cP,
-            VK_cQ,
-            VK_cR,
-            VK_cS,
-            VK_cT,
-            VK_cU,
-            VK_cV,
-            VK_cW,
-            VK_cX,
-            VK_cY,
-            VK_cZ,
-            VK_cPGUP,
-            VK_cPGDN,
-            VK_cHOME,
-            VK_cEND,
-            VK_cF1,
-            VK_cF2,
-            VK_cF3,
-            VK_cF4,
-            VK_cF5,
-            VK_cF6,
-            VK_cF7,
-            VK_cF8,
-            VK_cF9,
-            VK_cF10,
-            VK_cF11,
-            VK_cF12
-            <br>
-            <br>
-            Alt:<br>
-            VK_mA,
-            VK_mB,
-            VK_mC,
-            VK_mD,
-            VK_mE,
-            VK_mF,
-            VK_mG,
-            VK_mH,
-            VK_mI,
-            VK_mJ,
-            VK_mK,
-            VK_mL,
-            VK_mM,
-            VK_mN,
-            VK_mO,
-            VK_mP,
-            VK_mQ,
-            VK_mR,
-            VK_mS,
-            VK_mT,
-            VK_mU,
-            VK_mV,
-            VK_mW,
-            VK_mX,
-            VK_mY,
-            VK_mZ
-            <br>
-            <br>
-            Shift:<br>
-            VK_sSP
-            <br>
-            <br>
-            Ctrl Shift:<br>
-            VK_csSP,
-            VK_csA,
-            VK_csB,
-            VK_csC,
-            VK_csD,
-            VK_csE,
-            VK_csF,
-            VK_csG,
-            VK_csH,
-            VK_csI,
-            VK_csJ,
-            VK_csK,
-            VK_csL,
-            VK_csM,
-            VK_csN,
-            VK_csO,
-            VK_csP,
-            VK_csQ,
-            VK_csR,
-            VK_csS,
-            VK_csT,
-            VK_csU,
-            VK_csV,
-            VK_csW,
-            VK_csX,
-            VK_csY,
-            VK_csZ,
-            <br>
-            <br>
-            Alt Shift:<br>
-            VK_msA,
-            VK_msB,
-            VK_msC,
-            VK_msD,
-            VK_msE,
-            VK_msF,
-            VK_msG,
-            VK_msH,
-            VK_msI,
-            VK_msJ,
-            VK_msK,
-            VK_msL,
-            VK_msM,
-            VK_msN,
-            VK_msO,
-            VK_msP,
-            VK_msQ,
-            VK_msR,
-            VK_msS,
-            VK_msT,
-            VK_msU,
-            VK_msV,
-            VK_msW,
-            VK_msX,
-            VK_msY,
-            VK_msZ
-            <br>
-            <br>
-            Further keys will be added as needed and when time allows for adequate testing. In the short term, it should not prove difficult
-            to add any missing ones that you need to pGUI.e, where you will find several potential but untested candidates commented out,
-            maybe including the one you are after.
-            <br>
-            <br>
-            To obtain a key code for a generic combination you can also start with a base key and combine it repeated times using 
-            iup_XkeyCtrl(key), iup_XkeyAlt(key), iup_XkeyShift(key), and iup_XkeySys(key).
-            For instance <code>constant control_shift_c = iup_XkeyCtrl(iup_XkeyShift('C'))</code>. Note that, depending on the 
-            driver/firmware for your particular keyboard, iup_XkeyShift('c') might have use when caps lock is on, (now there&rsquo;s 
-            a way to confuse your users) but you are unlikely to get very far with iup_XkeyCtrl(iup_XkeyShift('c')). In general,
-            pGUI/IUP cannot guarantee the behaviour of various combinations of Caps Lock, Shift, and other key modifiers with
-            regard to the case<wbr>/<wbr>capitalisation of alphabetic base keys, since that is 
-            system<wbr>/<wbr>driver<wbr>/<wbr>hardware dependent, instead the prudent programmer will ensure that eg 'c' and 'C' 
-            are both tested for.<br>
-             <a name=iup_XkeyBase></a>
-            The function <a href="integer.htm">integer</a> ch = <b>iup_XkeyBase</b>(<a href="atom.htm">atom</a> c) can be used 
-            to obtain the raw keystroke less any modifiers, and you can use the global attributes
-            <a href="iupgattr.htm#SHIFTKEY">SHIFTKEY</a> and <a href="iupgattr.htm#CONTROLKEY">CONTROLKEY</a> instead of disecting the c
-            parameter.<br>
-<!-- DEV: (full search rqd, index all of these) -->
-<!--        The functions iupCtrl, iupAlt, iupShift, iupSys, and iupBase are simple aliases of the above functions.<br> -->
-            Also, the global attribute <a href="iupgattr.htm#MODKEYSTATE">MODKEYSTATE</a> can be used to detect the combination of two or more modifiers.
-            <br>
-            <br>
-            Literal string versions of these names may be used to assign callbacks, eg "VK_cC", for &lt;Ctrl C&gt;, <i>with</i> the quotes, see below.
--->
-            <br>
-            <br>
-            The above keys are also used in <a href="callbacks.htm#KEYPRESS_CB">KEYPRESS_CB</a> callbacks.
-<!--
-             <a name=iup_isxxx></a>
-            <br>
-            <br>
-            The iup_isprint(key) function returns true if a key can be directly used as a printable character.<br>
-<!--            The iup_isXkey(key) macro informs if a given key is an extended code.<br> -->
-            The iup_isShiftXkey(key) function returns true if a given key is an extended code using the Shift modifier.<br>
-            The iup_isCtrlXkey(key) function returns true for the Ctrl modifier.<br>
-            The iup_isAltXkey(key) function returns true for the Alt modifier.<br>
-            The iup_isSysXkey(key) function returns true for the Sys modifier.<br>
-            <a href="string.htm">string</a> name = iupKeyCodeToName(key) returns a human-readable version of the key.
--->
-            <br>
-            <br>
-            Note: GTK in Windows does not generate the Win modifier key, the VK_Print and the VK_Pause keys (up to GTK version 2.8.18).
-            <br>
-            <br>
-            Returns: <br>
-            If <a href="#XPG_IGNORE">XPG_IGNORE</a> is returned the key is ignored and not processed by the control and not propagated. <br>
-            If <a href="#XPG_CONTINUE">XPG_CONTINUE</a> is returned the key is processed and the event propagated to the parent of the element receiving it. (default behavior)<br>
-            If <a href="#XPG_DEFAULT">XPG_DEFAULT</a> is returned the key is processed but it is not propagated. <br>
-            <a href="#XPG_CLOSE">XPG_CLOSE</a> will be processed. 
-            <br>
-            <br>
-            Notes<br>
-            Keyboard callbacks depend on the keyboard usage of the control with the focus. <br>
-            So if you return <a href="#XPG_IGNORE">XPG_IGNORE</a> the control will usually not process the key. <br>
-            But be aware that sometimes the control processes the key in another event so even when returning <a href="#XPG_IGNORE">XPG_IGNORE</a> 
-            the key can still get processed, although it will not be propagated.
-<!--??
-            <br>
-            <br>
-            IMPORTANT: The callbacks "VK_*" of the dialog or native containers depend on the <a href="#XPG_CONTINUE">XPG_CONTINUE</a> 
-            return value to work while the control is in focus.
--->
-            <br>
-            <br>
-            If the callback does not exist it is automatically propagated to the parent of the element.
-<!--
-            <br>
-            <br>
-            VK_* callbacks<br>
-            All defined keys are also callbacks of any element, called when the respective key is activated. <br>
-            For example: "VK_cC" is also a callback activated when the user press Ctrl+C, when the focus is at the element or at a children with focus. <br>
-            This is the way an application can create shortcut keys, also called hot keys.
--->
-            <br>
-            <br>
-            Affects: All elements with keyboard interaction.
-            <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <a name=KEYPRESS_CB></a>
-          KEYPRESS_CB
-         </td>
-         <td>
-            Event generated when a key is pressed or released. <br>
-            If the key is pressed and held several calls will occur. <br>
-            It is called after the callback <a href="setHandler.htm#KEY">KEY</a> is processed.
-            <br>
-            <br>
-            function keypress_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> c, <a href="integer.htm#bool">bool</a> press)
-            <br>
-            <br>
-            ih: identifier of the element that activated the event.<br>
-            c: identifier of typed key. See <a href="setHandler.htm#KEY">KEY</a> above for possible values.<br>
-            press: 1(true) when the key is pressed, 0(false) when the key is released.
-            <br>
-            <br>
-            Returns: If <a href="#XPG_IGNORE">XPG_IGNORE</a> is returned the key is ignored by the system. <br>
-            <a href="#XPG_CLOSE">XPG_CLOSE</a> will be processed.
-            <br>
-            <br>
-            Affects: <a href="IupCanvas.htm">IupCanvas</a>
-            <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
           <a name=KILLFOCUS_CB></a>
-          KILLFOCUS_CB
+        <tr>
+         <td>
+?         KILLFOCUS_CB
          </td>
          <td>
             Event generated when an element loses keyboard focus. <br>
-            This callback is called before the <a href="callbacks.htm#GETFOCUS_CB">GETFOCUS_CB</a> of the element that gets the focus.
+            This handler is called before the <a href="gSetHandler.htm#GETFOCUS_CB">GETFOCUS_CB</a> of the element that gets the focus.
             <br>
             <br>
             function killfocus_cb(<a href="Ihandle.htm">Ihandle</a> ih)
@@ -899,20 +864,20 @@ Erm... [DEV]<br>
             Affects: All elements with user interaction, except menus.
             <br>
             <br>
-            In Windows, there are restrictions when using this callback. <br>
+            In Windows, there are restrictions when using this handler. <br>
             From MSDN on WM_KILLFOCUS: <br>
             While processing this message, do not make any function calls that display or activate a window. <br>
             &nbsp;This causes the thread to yield control and can cause the application to stop responding to messages. 
             <br>
             <br>
-            See Also: <a href="callbacks.htm#GETFOCUS_CB">GETFOCUS_CB</a>, <a href="IupGetFocus.htm">IupGetFocus</a>, <a href="IupSetFocus.htm">IupSetFocus</a> 
+            See Also: <a href="gSetHandler.htm#GETFOCUS_CB">GETFOCUS_CB</a>, <a href="IupGetFocus.htm">IupGetFocus</a>, <a href="IupSetFocus.htm">IupSetFocus</a> 
             <br>
          </td>
         </tr>
+          <a name=LEAVEWINDOW_CB></a>
         <tr>
          <td>
-          <a name=LEAVEWINDOW_CB></a>
-          LEAVEWINDOW_CB
+?         LEAVEWINDOW_CB
          </td>
          <td>
             Event generated when the mouse leaves the native element.
@@ -923,21 +888,22 @@ Erm... [DEV]<br>
             <br>
             <br>
             Notes<br>
-            When the cursor is moved from one element to another, the call order in all platforms will be first the LEAVEWINDOW_CB callback 
-            of the old control followed by the <a href="callbacks.htm#ENTERWINDOW_CB">ENTERWINDOW_CB</a> callback of the new control.
+            When the cursor is moved from one element to another, the call order in all platforms will be first the LEAVEWINDOW_CB handler 
+            of the old control followed by the <a href="gSetHandler.htm#ENTERWINDOW_CB">ENTERWINDOW_CB</a> handler of the new control.
             <br>
             <br>
             Affects: All controls with user interaction.
             <br>
             <br>
-            See Also: <a href="callbacks.htm#ENTERWINDOW_CB">ENTERWINDOW_CB</a>
+            See Also: <a href="gSetHandler.htm#ENTERWINDOW_CB">ENTERWINDOW_CB</a>
             <br>
          </td>
         </tr>
+-->
 <!--
+//        <a name=MAP_CB></a>
 //      <tr>
 //       <td>
-//        <a name=MAP_CB></a>
 //        MAP_CB
 //       </td>
 //       <td>
@@ -957,34 +923,11 @@ Erm... [DEV]<br>
 //       </td>
 //      </tr>
 -->
-        <tr>
-         <td>
-          <a name=MOTION_CB></a>
-          MOTION_CB
-         </td>
-         <td>
-            Event generated when the mouse moves.
-            <br>
-            <br>
-            function motion_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> x, y, <a href="atom.htm">atom</a> pStatus)<br>
-            ih: identifier of the element that activated the event.<br>
-            x, y: position in the canvas where the event has occurred, in pixels.<br>
-            pStatus: status of mouse buttons and certain keyboard keys at the moment the event was generated (a char*).
-            <br>
-            <br>
-            Use the same routines for pStatus as <a href="callbacks.htm#BUTTON_CB">BUTTON_CB</a>.
-            <br>
-            <br>
-            Affects: <a href="IupCanvas.htm">IupCanvas</a>, <a href="IupGLCanvas.htm">IupGLCanvas</a>,
-                     <a href="IupList.htm">IupList</a>, <a href="IupMatrix.htm">IupMatrix</a>, 
-                     <a href="IupText.htm">IupText</a>, <a href="IupTree.htm">IupTree</a>
-            <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
+<!--
           <a name=RESIZE_CB></a>
-          RESIZE_CB
+        <tr>
+         <td>
+?         RESIZE_CB
          </td>
          <td>
             Event generated when the canvas or dialog size is changed.
@@ -1001,23 +944,26 @@ Erm... [DEV]<br>
             For a dialog, this event is also generated when the dialog is mapped, after the map and before the show.
             <br>
             <br>
-            When XAUTOHIDE=Yes or YAUTOHIDE=Yes, if the canvas scrollbar is hidden/shown after changing the DX or DY attributes from inside the callback, 
+            When XAUTOHIDE=Yes or YAUTOHIDE=Yes, if the canvas scrollbar is hidden/shown after changing the DX or DY attributes from inside the handler, 
             the size of the drawing area will immediately change, so the parameters with and height will be invalid. <br>
-            To update the parameters consult the DRAWSIZE attribute. Also activate the drawing toolkit only after updating the DX or DY attributes.
+<X!X--          To update the parameters consult the DRAWSIZE attribute. --X>
+            Also activate the drawing toolkit only after updating the DX or DY attributes.
             <br>
             <br>
             Affects: <a href="IupCanvas.htm">IupCanvas</a>, <a href="IupGLCanvas.htm">IupGLCanvas</a>, <a href="IupDialog.htm">IupDialog</a>
             <br>
          </td>
         </tr>
+-->
+<!--
+          <a name=SCROLL_CB></a>
         <tr>
          <td>
-          <a name=SCROLL_CB></a>
-          SCROLL_CB
+?         SCROLL_CB
          </td>
          <td>
             Called when some manipulation is made to the scrollbar. <br>
-            The canvas is automatically redrawn only if this callback is NOT defined.
+            The canvas is automatically redrawn only if this handler is NOT defined.
             <br>
             <br>
             (GTK 2.8) Also the POSX and POSY values will not be correctly updated for older GTK versions.
@@ -1026,7 +972,6 @@ Erm... [DEV]<br>
             In Ubuntu, when liboverlay-scrollbar is enabled (the new tiny auto-hide scrollbar) only the IUP_SBPOSV and IUP_SBPOSH codes are used.
             <br>
             <br>
-            Callback<br>
             function scroll_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> op)<br>
             ih: identifier of the element that activated the event.<br>
             op: indicates the operation performed on the scrollbar:
@@ -1058,14 +1003,15 @@ Erm... [DEV]<br>
             IUP_SBDRAGH and IUP_SBDRAGV are not supported in GTK.<br>
             <br>
             <br>
-            Affects: <a href="IupCanvas.htm">IupCanvas</a>, <a href="IupGLCanvas.htm">IupGLCanvas</a>, <a href="common.htm#SCROLLBAR">SCROLLBAR</a>
+            Affects: <a href="gCanvas.htm">gCanvas</a>, <a href="gSetAttribute.htm#SCROLLBAR">SCROLLBAR</a>
             <br>
          </td>
         </tr>
+-->
 <!--
+//        <a name=UNMAP_CB></a>
 //      <tr>
 //       <td>
-//        <a name=UNMAP_CB></a>
 //        UNMAP_CB
 //       </td>
 //       <td>
@@ -1080,15 +1026,16 @@ Erm... [DEV]<br>
 //       </td>
 //      </tr>
 -->
+<!--
+          <a name=WHEEL_CB></a>
         <tr>
          <td>
-          <a name=WHEEL_CB></a>
-          WHEEL_CB
+?         WHEEL_CB
          </td>
          <td>
             Event generated when the mouse wheel is rotated.<br>
-            If this callback is not defined the wheel will automatically scroll the canvas in the vertical direction by some lines, 
-            the SCROLL_CB callback if defined will be called with the IUP_SBDRAGV operation.
+            If this handler is not defined the wheel will automatically scroll the canvas in the vertical direction by some lines, 
+            the SCROLL_CB handler if defined will be called with the IUP_SBDRAGV operation.
             <br>
             <br>
             function wheel_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="atom.htm">atom</a> delta, <a href="integer.htm">integer</a> x, y, <a href="atom.htm">atom</a> pStatus)<br>
@@ -1098,16 +1045,19 @@ Erm... [DEV]<br>
             pStatus: status of mouse buttons and certain keyboard keys at the moment the event was generated (a char*).
             <br>
             <br>
-            Use the same routines for pStatus as <a href="callbacks.htm#BUTTON_CB">BUTTON_CB</a>.
+<X!X-- (DEV maybe, but it's not "routines" any longer)
+            Use the same routines for pStatus as <a href="gSetHandler.htm#CLICK">CLICK</a>.
             <br>
             <br>
+--X>
             Notes: In Motif and GTK delta is always 1 or -1. In Windows is some situations delta can reach the value of two. 
             In the future with more precise wheels this increment can be changed.
             <br>
             <br>
-            Affects: <a href="IupCanvas.htm">IupCanvas</a>, <a href="IupGLCanvas.htm">IupGLCanvas</a>
+            Affects: <a href="gCanvas.htm">gCanvas</a>
          </td>
         </tr>
+-->
         <tr id="Technicalia" style="display:none;">
          <td>
           <a href="glossary.htm#technicalia">
@@ -1116,13 +1066,14 @@ Erm... [DEV]<br>
          </td>
          <td>
             Since xpGUI uses normal first class routines as handlers instead of callbacks, IupSetCallback() has been renamed/needs to be replaced with 
-            gSetHandler(), and importantly any quotes around the routine name must be removed.<br>
+            gSetHandler(), and importantly any quotes around the routine name must be removed, though <a href="xpport.htm">xpGUI_from_pGUI</a>() does 
+            all that automatically for you if you let it.<br>
             There are no equivalents in xpGUI for <a href="Icallback.htm">Icallback(), cbfunc(), iup_name_from_cb(), or iup_cb_from_name()</a>, nor
             <a href="IupGetCallback.htm">IupGetCallback</a>().<br>
          </td>
         </tr>
        </table>
-       <img src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <img id="Timg" src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
        <br>
        <br>
       </div>
