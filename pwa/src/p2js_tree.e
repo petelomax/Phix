@@ -163,9 +163,12 @@ function is_symbol(integer c)
     return c<=127 and find(c,symbols)
 end function
 
+--with trace
 procedure tt_keywords(sequence defs)
-    integer bRebuild = false, errcount = 0, errskip = 0, pctd = 0
-    sequence lq = repeat("",length(defs))
+    bool bRebuild = false
+    integer errcount = 0, errskip = 0, pctd = 0, ld = length(defs)
+    sequence lq = repeat("",ld)
+--           zeds = repeat(false,ld)
     defs = deep_copy(defs)
     for i=1 to length(defs) do
 --p2js:
@@ -179,6 +182,7 @@ procedure tt_keywords(sequence defs)
             txt = txt[2..$]
             defs[i][1] = txt
         end if
+if chk!=0 then
         if chk<=TOKMAX then ?9/0 end if
         if is_symbol(chk) then ?9/0 end if
         -- ^^
@@ -186,9 +190,11 @@ procedure tt_keywords(sequence defs)
         --  string/nullable_string/atom_string gave ttidx of 'X'
         --  for nullable_string being the only potential clash.
         --
+end if
         src = txt               -- (src is defined in p2js_basics.e)
         integer ttidx = tt_idx(1,length(txt))--,false)
-        if chk!=ttidx then
+--      if chk!=ttidx then
+        if chk!=0 and chk!=ttidx then
             bRebuild = true
             defs[i][3] = ttidx
             if chk-ttidx!=pctd then
@@ -201,6 +207,9 @@ procedure tt_keywords(sequence defs)
             else
                 errskip += 1
             end if
+        else
+            defs[i][3] = ttidx
+--          zeds[i] = true
         end if
 --      -- you need to correct the (recently-added/moved) 
 --      -- keyword entry, as is explained shortly below.
@@ -259,13 +268,17 @@ procedure tt_keywords(sequence defs)
         integer clen = 0
         for i=1 to length(defs) do
             {string n, integer t, integer c} = defs[i]
+--if n="private" then trace(1) end if
             string nq = `"` & lq[i] & n & `",`,
                    tq = TYPES[t][2]
             bool dollar = false
+--          , z = zeds[i]
             if n[1]='$' then dollar = true; n = n[2..$] end if
             if n[$]='$' then dollar = true; n = n[1..$-1] end if
 --          string ci = sprintf(`    {%-30s %4s,   T_%-29s := %d},`,{nq,tq,n,c})
-            string ci = sprintf(`    {%-34s %4s,   T_%-33s := %d},`,{nq,tq,n,c})
+--          string ci = sprintf(`....{%-34s %4s,...T_%-33s := %d},`,{nq,tq,n,c})
+            string ci = iff(c?sprintf(`    {%-34s %4s,    T_%-33s := %d},`,{nq,tq,n,c})
+                             :sprintf(`    {%-34s %4s,   0},`,{nq,tq}))
             if c>=32 and c<128 then
                 if clen=0 then
                     clen = length(ci)+4

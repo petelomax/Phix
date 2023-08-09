@@ -242,6 +242,8 @@ zIndex
     {"bind",                            BADT,   T_bind                              := 22956},
     {"contains",                        BADT,   T_contains                          := 4736},
     {"dictionary",                      TYPI,   T_dictionary                        := 328},
+    {"toggle",                          BADT,    T_toggle                            := 24740},
+    {"atan",                            BADT,    T_atan                              := 2264},
 
 
 just in case:
@@ -758,7 +760,7 @@ end function
 
 --global string src -- now in p2js_basics...
 --integer src_offset    -- (for js embeddded in html) [ now in p2js_basics]
-bool pGUI, pMPFR, pSHA256, pTIMEDATE
+bool pGUI, xpGUI, pMPFR, pSHA256, pTIMEDATE
 --bool pGUI, pOpenGL, pMPFR, pSHA256, pTIMEDATE
 
 --function load(string src="", integer ext=0)
@@ -772,6 +774,7 @@ function load_tokens(Ihandle mle=multitext, mtype=ctype)
     src = IupGetAttribute(mle, "VALUE")
     src_offset = 0
     pGUI = false
+    xpGUI = false
 --  pOpenGL = false
     pMPFR = false
     pSHA256 = false
@@ -814,6 +817,8 @@ function load_tokens(Ihandle mle=multitext, mtype=ctype)
             src_offset = length(split(pre,'\n'))-1
 --aside: js->phix will not resurrect an "include [`..\pGUI\`]opengl.e .. (yet) [or can we do it from comment??]
             pGUI = match("pGUI.js",pre)!=0
+            xpGUI = match("xpGUI.js",pre)!=0
+            if xpGUI then pGUI = false end if
 --          pOpenGL = match(`..\pGUI\opengl.e`,pre)!=0 -- ???!
             pMPFR = match("mpfr.js",pre)!=0
             pSHA256 = match("sha256.js",pre)!=0
@@ -1561,7 +1566,7 @@ function treeify(sequence ast, bool bRoot=true)
         elsif nodetype=T_include then
 --?children
 --if not find(strip_builtin(children[1]),{"pGUI.e",`..\pGUI\opengl.e`,"mpfr.e","sha256.e","timedate.e"}) then
-            if not find(strip_builtin(children[1]),{"pGUI.e","opengl.e",
+            if not find(strip_builtin(children[1]),{"pGUI.e","xpGUI.e","opengl.e",
                              "mpfr.e","sha256.e","timedate.e","pComN.ew"}) then
                 restore_source(children[2])
             end if
@@ -1583,10 +1588,10 @@ function treeify(sequence ast, bool bRoot=true)
 --DEV...
     elsif nodetype="format"
        or nodetype="ilASM" then
-        for child in children do
+        for fchild in children do
 --          res[$] = append(res[$],commentify(child))
-            child = commentify(child)
-            res[$] = append(res[$],child)
+            fchild = commentify(fchild)
+            res[$] = append(res[$],fchild)
         end for
     elsif nodetype!="global"
       and nodetype!="use strict" then
@@ -1616,6 +1621,9 @@ function treeify(sequence ast, bool bRoot=true)
                 -- 3/8/21 it is now {T_for,{ctrl,bPreDef,lim,step,body}}
                 if nodetype = `for` and cdx=3 and find(child,{true,false}) then
                     child = sprintf("predef:%f",child)
+--8/7/23: (gMenu.exw)
+                elsif nodetype=`function` and cdx=5 and find(child,{true,false}) then
+                    child = sprintf("bNested:%t",child)
                 else
                     ?9/0
 --/*
@@ -1918,11 +1926,11 @@ function validate(string testname, integer itype)
     if not load_tokens() then ?9/0 end if
     sequence ast = parse()
     if parse_error() then ?9/0 end if
-    if not verify(generate_source(ast,JSS,0,false,false,false,false),test_js) then
+    if not verify(generate_source(ast,JSS,0,false,false,false,false,false),test_js) then
         return false
     end if
     IupSetInt(otype,"VALUE",PHIX)
-    return verify(generate_source(ast,PHIX,0,false,false,false,false),test_exw)
+    return verify(generate_source(ast,PHIX,0,false,false,false,false,false),test_exw)
 end function
 
 constant unix_text_dot_js = """
@@ -1956,7 +1964,7 @@ procedure rebuild_builtins_and_run_tests()
     bBuiltinAliases = true
     for i=1 to length(rebuild_required) do
         string ri = strip_builtin(rebuild_required[i]), output
-        if find(ri,{"pGUI.e","mpfr.e","sha256.e"}) then
+        if find(ri,{"pGUI.e","xpGUI.e","mpfr.e","sha256.e"}) then
             -- [see p2js_scope.e/check_builtins()]
 --          ?"rebuild_required includes "&ri&"..."
             crash("rebuild_required includes "&ri&"...")
@@ -1978,7 +1986,7 @@ procedure rebuild_builtins_and_run_tests()
                 if not load_tokens() then ?9/0 end if
                 sequence ast = parse()
                 if parse_error() then ?9/0 end if
-                output = generate_source(ast,JSS,0,false,false,false,false)
+                output = generate_source(ast,JSS,0,false,false,false,false,false)
                 ast = {} -- (keep ex.err clean, now we no longer need it)
                 tokens = {} -- ""
 --output = output[20000..$]
@@ -2296,7 +2304,7 @@ w wildcard.js       {`find.e`, `match.e`, `pcase.e`, `wildcard.e`}
             else
 
                 integer oval = IupGetInt(otype,"VALUE")
-                string output = generate_source(ast,oval,src_offset,pGUI,pMPFR,pSHA256,pTIMEDATE)
+                string output = generate_source(ast,oval,src_offset,pGUI,xpGUI,pMPFR,pSHA256,pTIMEDATE)
 --              string output = generate_source(ast,oval,src_offset,pGUI,pOpenGL,pMPFR,pSHA256,pTIMEDATE)
 
                 if what="OUTPUT" then
@@ -2700,9 +2708,20 @@ function short_id(integer n)
 -- 3,224 two character ids, 
 -- 199,888 three character ids,
 -- 12,393,056 four character ids (that'll do!)
--- we do however have to avoid already used, keywords: i, as, by, to, do, in
+-- we do however have to avoid already used, keywords: i, as, by, do, if, in, JS, ln, or, PI, pp, to, 
+--  abs, and, cos, dir, end, exp, for, gcd, gdc, gdx, get, has, iff, iif, int, lcm, let, log, 
+--  map, max, min, mod, mpq, mpz, new, not, odd, ord, pad, phi, pop, ppf, put, RED, rgb,
+--  rnd, rtn, seq, sin, sum, tan, try, var, [WEB,], xor
+--  atom, beep, bind, BLUE, bool, call, case, ceil, CYAN, date, deld, else, enum, eval, even, exit, 
+--  find, free, from, getc, getd, gets, gMap, goto, GRAY, gsub, hash, head, join, keys, log2, mpfr,
+--  null/NULL, open, peek, peep, poke, popn, ppEx, push, putd, puts, rand, recv, rgba, rmdr, seek,
+--  send, sha1, sign, size, sort, sqrt, tail, this, time, trim, true/True/TRUE, type, void, with,
+--  wrap, 
+-- NB: #ilASM{} ==> crash/refuse!
 -- it simply isn't worth trying to use any more than once, as it were,
 -- and most common first is clearly the better strategy.
+-- OH: each routine can re-use all the nice short ones it ain't referencing!!
+-- SO: globals, then file-level, then locals/routines. (a proper parse tree would help!)
 -- Also figure out the minimum conditions for needing to insert a space.
 -- (Watch out for " ""?, - -, / /, + +, aZ9 aZ9,)
 --

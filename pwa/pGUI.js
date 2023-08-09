@@ -881,7 +881,7 @@ function IupOpen() {
 
     function set_vbox(ih, name, val) {
         let cn = ih.classList[0];
-        assert(cn === "vbox") || (cn === "hbox");
+        assert((cn === "vbox") || (cn === "hbox"));
 //DEV common up??
         if (name === "MARGIN") {
 //          set_style(ih,"margin",val);
@@ -2934,10 +2934,17 @@ function IupDialog(child, attributes = "", args = [], bEsc = true) {
 //div.setAttribute("class", "note");
 //  header.innerHTML = "<b>" + htitle + "</b>";
     header.innerHTML = "<b><i>untitled</i></b>";
+    headiv.appendChild(header_button("Application", "M3,15l8,6L26,0L12,27L3,15z", "-12 -8 48 48", "icon"));
+//  headiv.appendChild(header_button("Application", "M 3 15 l 8 6 L 26 0 L 12 27 L 3 15 z", "-12 -8 48 48", "icon"));
+//  headiv.appendChild(header_button("Application", "M 0 13 L 11 17 L 26 0 L 12 27 L 0 13 z", "-12 -8 48 48", "icon"));
+//  headiv.appendChild(header_button("Application", "M0,13l6-0c2,1,4,3,6,5C16,11,21,5,26,0h4 "+
+//                                   "C23,8.5,17,18,12,27C9,22,5,17,0,13L0,13z", "-12 -8 48 48", "icon"));
+/*
     headiv.appendChild(header_button("Application", "M28 0h-24c-2.2 0-4 1.8-4 4v24c0 2.2 "+
                                      "1.8 4 4 4h24c2.2 0 4-1.8 4-4v-24c0-2.2-1.8-4-4-4zM14 "+
                                      "24.828l-7.414-7.414 2.828-2.828 4.586 4.586 9.586-9.586 "+
                                      "2.828 2.828-12.414 12.414z", "-12 -8 48 48", "icon"));
+*/
 // <svg class="icon icon-checkbox-checked"><use xlink:href="#icon-checkbox-checked"></use></svg>
 // <symbol id="icon-checkbox-checked" viewBox="0 0 32 32">
 // <path d="M28 0h-24c-2.2 0-4 1.8-4 4v24c0 2.2 1.8 4 4 4h24c2.2 0 4-1.8 4-4v-24c0-2.2-1.8-4-4-4zM14 24.828l-7.414-7.414 2.828-2.828 4.586 4.586 9.586-9.586 2.828 2.828-12.414 12.414z"></path>
@@ -4902,6 +4909,8 @@ function IupCanvas(action = null, func = null, attributes = "", args = []) {
 //  canvas.onload = func; // nope...
 //  canvas.onloadstart = func;
 //  canvas.onresize = func;
+    ih.fillStyle = CD_BLACK;
+    ih.strokeStyle = CD_BLACK;
     if (attributes) {
         IupSetAttributes(ih, attributes, args);
     }
@@ -4927,6 +4936,12 @@ function rgb(/*atom*/ red, green, blue, alpha=0) {
 //  let colour = sprintf("#%02x%02x%02x",["sequence",red,green,blue]);
     let colour = sprintf("#%02x%02x%02x",["sequence",red&0xFF,green&0xFF,blue&0xFF]);
 // works the same, but above was 10s, this 13s (Julia set)...
+//  let res = "#";
+//  if (alpha!=0) { res += (alpha&0xFF).toString(16).padStart(2,"0"); }
+//  res += (  red&0xFF).toString(16).padStart(2,"0")
+//       + (green&0xFF).toString(16).padStart(2,"0")
+//       + ( blue&0xFF).toString(16).padStart(2,"0");
+//  return res;
 //  let colour = (red&0xFF)*0x10000+(green&0xFF)*0x100+(blue&0xFF);
 //DEV (untried, check online first) [tried, they're all different...]
 //  let colour = sprintf("#%02x%02x%02x%02x",["sequence",alpha&0xFF,red&0xFF,green&0xFF,blue&0xFF]);
@@ -5037,7 +5052,9 @@ function cdCreateCanvas(context, ih) {
 //          let ctx = ih.getContext("2d");
             let ctx = ih.getContext("2d") || ih.getContext("webgl");
 //if (ctx) {
-            ctx.fillStyle = "white";
+//          ctx.fillStyle = "white";
+            ctx.fillStyle = CD_BLACK;
+            ctx.strokeStyle = CD_BLACK;
             ctx.backGround = "#ffffff"; // (custom attribute)
             return ctx;
 //}

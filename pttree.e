@@ -1266,6 +1266,9 @@ global constant T_ARM           = 5844  tt_stringF("ARM",T_ARM)
 global constant T_from          = 5856  tt_stringF("from",T_from)
 global constant T_nested        = 5876  tt_stringF("nested",T_nested)
 global constant T_local         = 5888  tt_stringF("local",T_local)
+global constant T_nested_locals = 5920  tt_stringF("nested_locals",T_nested_locals)
+global constant T_nested_globals= 5952  tt_stringF("nested_globals",T_nested_globals)
+
 --CVTTSS2SI
 --cvttss2si
 

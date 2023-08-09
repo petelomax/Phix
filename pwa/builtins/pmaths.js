@@ -114,6 +114,7 @@
     }
     return ((return_index) ? rdx : res);
 }
+let smallest = minsq;
 
 /*global*/ function max(/*object*/ a, b) {
     if (compare(a,b)>0) { return a; } else { return b; }
@@ -129,6 +130,15 @@
         }
     }
     return ((return_index) ? rdx : res);
+}
+let largest = maxsq;
+
+/*global*/ function median(/*sequence*/ s) {
+    // for even length lists return average of the middle two
+    // for odd length lists just return the middle entry
+    // s must be sorted on entry.
+    let /*atom*/ m = length(s)/2;
+    return ((integer(m)) ? ($subse(s,m)+$subse(s,m+1))/2 : $subse(s,ceil(m)));
 }
 
 /*global*/ function mod(/*atom*/ x, y) {

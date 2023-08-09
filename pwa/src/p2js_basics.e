@@ -123,10 +123,12 @@ global function strip_builtin(string s)
         sequence p = split_path(s)
         if p[1] = "builtins" then
             s = join_path(p[2..$])
-        elsif length(p)>2
-          and p[1..2] = {`..`,`pGUI`} then
-            -- (probably opengl.e)
-            s = join_path(p[3..$])
+        elsif length(p)>2 then
+            if p[1..2] = {`..`,`pGUI`}
+            or p[1..2] = {`..`,`xpGUI`} then
+                -- (probably opengl.e)
+                s = join_path(p[3..$])
+            end if
         end if
     end if
     return s

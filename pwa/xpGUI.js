@@ -1,17 +1,143 @@
-"use strict";
+﻿"use strict";
 //
 // xpGUI.js
 // ========
 //
 //  Emulates xpGUI.e in the browser, so (with a little help from p2js) we
 //  can develop/test on the desktop and publish straight to the web.
-//  Naturally it is and will always be a subset of the Phix language...
 //
 requires(JS);
 
-function gVersion() { return "xpGUI.js version 0.1 (32 bits)"; }
+const VK_BS = 0X08,
+      VK_CR = 0X0D,
+      VK_DEL = 0XFFFF,
+      VK_DOWN = 0xFF54,
+//    VK_END = 0xFF57,
+//    VK_ESC = 0X1B,
+////      VK_ESC = 0xFF1B,  (untried...)
+//    VK_F1 = 0xFFBE,
+//    VK_F2 = 0xFFBF,
+//    VK_F3 = 0xFFC0,
+//    VK_F4 = 0xFFC1,
+//    VK_F5 = 0xFFC2,
+//    VK_F6 = 0xFFC3,
+//    VK_F7 = 0xFFC4,
+//    VK_F8 = 0xFFC5,
+//    VK_F9 = 0xFFC6,
+//    VK_F10 = 0xFFC7,
+//    VK_F11 = 0xFFC8,
+//    VK_F12 = 0xFFC9,
+//DEV and the rest
+      VK_F1 = 0xF1,
+      VK_F2 = 0xF2,
+      VK_F3 = 0xF3,
+      VK_F4 = 0xF4,
+      VK_F5 = 0xF5,
+      VK_F6 = 0xF6,
+      VK_F7 = 0xF7,
+      VK_F8 = 0xF8,
+      VK_F9 = 0xF9,
+      VK_F10 = 0xFA,
+      VK_F11 = 0xFB,
+      VK_F12 = 0xFC,
+//    VK_HOME = 0xFF50,
+//    VK_INS = 0xFF63,
+      VK_LEFT = 0xFF51,
+//    VK_MIDDLE = 0xFF0B,
+      VK_PGDN = 0xFF56,
+      VK_PGUP = 0xFF55,
+      VK_RIGHT = 0xFF53,
+//    VK_SP = 0X20,
+//    VK_TAB = 0X09,
+      VK_UP = 0xFF52,
+//    VK_a = 0X61,      // 'a' / 97
+//    VK_b = 0X62,      // 'b' / 98
+//    VK_c = 0X63,      // 'c' / 99
+//    VK_d = 0X64,      // 'd' / 100
+//    VK_e = 0X65,      // 'e' / 101
+//    VK_f = 0X66,      // 'f' / 102
+//    VK_g = 0X67,      // 'g' / 103
+//    VK_h = 0X68,      // 'h' / 104
+//    VK_i = 0X69,      // 'i' / 105
+//    VK_j = 0X6A,      // 'j' / 106
+//    VK_p = 0X70,      // 'p' / 112
+//    VK_r = 0X72,      // 'r' / 114
+//    VK_s = 0X73,      // 's' / 115
+//    VK_cA = 1,
+//    VK_cC = 3,
+//    VK_cD = 4;
+      XPG_CONTINUE  = -4,   
+      XPG_CLOSE    = -3,
+      XPG_DEFAULT = -2,
+      XPG_IGNORE = -1,
+      XPG_CURRENT       = 0xFFF0,   // 0b0000   -- 65520
+      XPG_LEFT          = 0xFFF1,   // 0b0001   -- 65521
+      XPG_RIGHT         = 0xFFF2,   // 0b0010   -- 65522
+      XPG_CENTER        = 0xFFF3,   // 0b0011   -- 65523
+      XPG_MOUSEPOS      = 0xFFF4,   // 0b0100   -- 65524
+      XPG_LEFTPARENT    = 0xFFF5,   // 0b0101   -- 65525
+      XPG_RIGHTPARENT   = 0xFFF6,   // 0b0110   -- 65526
+      XPG_CENTERPARENT  = 0xFFF7,   // 0b0111   -- 65527
+      XPG_TOP           = XPG_LEFT,
+      XPG_TOPPARENT     = XPG_LEFTPARENT,
+      XPG_BOTTOM        = XPG_RIGHT,
+      XPG_BOTTOMPARENT  = XPG_RIGHTPARENT,
 
-function gUseGTK() { /* do nothing */ }
+      XPG_BLACK             = "#000000",
+      XPG_NAVY              = "#000080",
+      XPG_BLUE              = "#0000FF",
+      XPG_LIGHT_BLUE        = "#4363D8",
+      XPG_TEAL              = "#008080",
+      XPG_CYAN              = "#00FFFF",
+      XPG_DARK_GREEN        = "#008000",
+      XPG_GREEN             = "#3CB44B",
+      XPG_LIGHT_GREEN       = "#00FF00",
+      XPG_OLIVE             = "#808000",
+      XPG_ORANGE            = "#FF8C00",
+      XPG_AMBER             = "#FFBF00",
+      XPG_DARK_YELLOW       = "#EBEB00",
+      XPG_YELLOW            = "#FFFF00",
+      XPG_INDIGO            = "#4B0082",
+      XPG_PURPLE            = "#911EB4",
+      XPG_DARK_PURPLE       = "#800080",
+      XPG_MAGENTA           = "#FF00FF",
+      XPG_VIOLET            = "#EE82EE",
+      XPG_DARK_RED          = "#800000",
+      XPG_RED               = "#FF0000",
+      XPG_SLATE             = "#404040",
+      XPG_DARK_GRAY         = "#808080",    XPG_DARK_GREY = XPG_DARK_GRAY,
+      XPG_GRAY              = "#C0C0C0",    XPG_GREY = XPG_GRAY, 
+                                            XPG_SILVER = XPG_GRAY,
+      XPG_LIGHT_GREY        = "#E4E4E4",    XPG_LIGHT_GRAY = XPG_LIGHT_GREY,
+      XPG_PARCHMENT         = "#FFFFE0",
+      XPG_LIGHT_PARCHMENT   = "#FAF8EF",
+      XPG_WHITE             = "#FFFFFF",
+    
+      XPG_CONTINUOUS = 0,
+      XPG_DASHED = 1,
+      XPG_DOTTED = 2,
+      XPG_DASH_DOT = 3,
+      XPG_DASH_DOT_DOT = 4,
+    
+      XPG_NORMAL        = 0x0,
+      XPG_BOLD          = 0x1,
+      XPG_ITALIC        = 0x2,
+      XPG_BOLDITALIC    = 0x3,
+
+      XPG_FILLED = 0b001, // (nb same as true[/false])
+      XPG_CHORD  = 0b010,
+      XPG_SECTOR = 0b100,
+
+      XPG_C  = 0b0000,  XPG_CENTRE    = XPG_C,
+      XPG_NW = 0b1010,  XPG_NORTHWEST = XPG_NW,
+      XPG_W  = 0b1000,  XPG_WEST      = XPG_W,
+      XPG_SW = 0b1001,  XPG_SOUTHWEST = XPG_SW,
+      XPG_N  = 0b0010,  XPG_NORTH     = XPG_N,
+      XPG_S  = 0b0001,  XPG_SOUTH     = XPG_S,
+      XPG_NE = 0b0110,  XPG_NORTHEAST = XPG_NE,
+      XPG_E  = 0b0100,  XPG_EAST      = XPG_E,
+      XPG_SE = 0b0101,  XPG_SOUTHEAST = XPG_SE;
+
 
 //let $storeAttr = {};  // element-specific attribute handlers/setters
 let $storeAttr; // element-specific attribute handlers/setters
@@ -24,13 +150,89 @@ function $to_bool(val) {
     // convert YES/NO to true/false (as a common requirement)
     if (typeof(val) !== "string") { return val; }
     val = val.toUpperCase();
-    if (val === "YES" || val === "ON" || val === "1") { return true; }
-    if (val === "NO" || val === "OFF" || val === "0") { return false; }
+    if (val === "YES" || val === "ON" || val === "1" || val === "TRUE") { return true; }
+    if (val === "NO" || val === "OFF" || val === "0" || val === "FALSE") { return false; }
     crash("uh?");
 }
 
 let $ctrlKey  = false, /// or event.ctrlKey, for IupGetInt(NULL,"CONTROLKEY")
     $shiftKey = false; /// or event.shiftKey, for IupGetInt(NULL,"SHIFTKEY")
+
+function rgba(/*atom*/ red, green, blue, alpha=0) {
+//function rgba(/*atom*/ red, green, blue, alpha=0xFF) {
+//  if (alpha!=0xFF) {
+    if (alpha!=0) {
+//      return sprintf("#%02%02x%02x%02x",["sequence",0xFF-(alpha&0xFF),red&0xFF,green&0xFF,blue&0xFF]);
+        return sprintf("#%02%02x%02x%02x",["sequence",alpha&0xFF,red&0xFF,green&0xFF,blue&0xFF]);
+    }
+    return sprintf("#%02x%02x%02x",["sequence",red&0xFF,green&0xFF,blue&0xFF]);
+//tryme (performancewise, if/when Julia set works in xpGUI... [no measurable gain in pGUI.js...])
+//  let res = "#";
+//  if (alpha!=0) { res += (alpha&0xFF).toString(16).padStart(2,"0"); }
+//  res += (  red&0xFF).toString(16).padStart(2,"0")
+//       + (green&0xFF).toString(16).padStart(2,"0")
+//       + ( blue&0xFF).toString(16).padStart(2,"0");
+//  return res;
+// works the same, but above was 10s, this 13s (Julia set)...
+//  let colour = (red&0xFF)*0x10000+(green&0xFF)*0x100+(blue&0xFF);
+//  return colour;
+}
+
+function to_rgba(/*atom*/ colour) {
+    if (string(colour)) {
+        colour = colour.toUpperCase();
+        let l = colour.length, n = 0;
+        if (colour[0] !== '#') { crash("colour must start with #"); }
+        for (let i = 1; i < l; i += 1) {
+            let d = colour.codePointAt(i);
+            d -= (d <= 0X39) ? 0X30 : 0X41-10; // (ie ch-('0'|'A'-10))
+            if ((d < 0) || d > 15) { crash("colour not hex digits"); }
+            n = n*16 + d;
+        }
+        colour = n;
+    }
+    let alpha = and_bits(colour,0xFF000000)/0x1000000,
+          red = and_bits(colour,0xFF0000)/0x10000,
+        green = and_bits(colour,0xFF00)/0x100,
+         blue = and_bits(colour,0xFF);
+//  return ["sequence",red(colour),green(colour),blue(colour),alpha(colour)];
+//  return ["sequence",red,green,blue,255-alpha];
+    return ["sequence",red,green,blue,alpha];
+}
+
+function hsv_to_rgba(/*atom*/ h, s, v, a=0) {
+    let /*integer*/ i = floor(h*6);
+    let /*atom*/ f = h*6-i, 
+                 p = v*(1-s), 
+                 q = v*(1-s*f), 
+                 t = v*(1-s*(1-f)), 
+                 r, g, b;
+    switch (i) {
+        case 0: case 6: [r,g,b] = [v,t,p];  break;
+                case 1: [r,g,b] = [q,v,p];  break;
+                case 2: [r,g,b] = [p,v,t];  break;
+                case 3: [r,g,b] = [p,q,v];  break;
+                case 4: [r,g,b] = [t,p,v];  break;
+                case 5: [r,g,b] = [v,p,q];
+    }
+//  return rgba(r*255,g*255,b*255,a);
+    return rgba(r*255,g*255,b*255,a*255);
+}
+
+//cdEncodeColor() returns a codified triple (r,g,b) in an integer such as 0x00RRGGBB, where RR are the red components, GG are the green ones and BB are the blue ones. 
+//cdEncodeColorAlpha() returns a codified quadriple (r,g,b,a) in an atom such as 0xAARRGGBB, where AA are the alpha components, and as above.
+
+//function cdEncodeColorAlpha(/*atom*/ red, green, blue, alpha) {
+////    return alpha<<24 + red<<16 + green<<8 + blue;
+//  return and_bits(alpha,#FF)*0x1000000 +
+//         and_bits(red,  #FF)*0x10000 +
+//         and_bits(green,#FF)*0x100 +
+//         and_bits(blue ,#FF);
+//}
+//
+//function cdEncodeColor(/*atom*/ red, green, blue) {
+//  return cdEncodeColorAlpha(red, green, blue, 0)
+//}
 
 //function IupOpen() {
 function $gInit() {
@@ -38,13 +240,6 @@ function $gInit() {
 //try first:
     // invoke using if(!$storeAttr) { $gInit(); }, as needed
     $storeAttr = {};
-    //
-    // DEV/SUG: [not yet implemented!]
-    // Note that pwa/p2js collates elems/names from all the store_attrs()
-    //           calls in this (pGUI.js) to determine which attributes 
-    //           it should permit(/or warn about) on the desktop (!!!).
-    //           [done whenever file modified!=last analysed date&time]
-    //
 
     // Handle the case of "save as" running locally: it will dump a 
     // complete copy of the generated dialog without any handlers, so 
@@ -123,12 +318,12 @@ function $gInit() {
             if (x !== -1) {
                 y = val.slice(x+1);
                 x = val.slice(0,x);
-                function fulleighth(s,x,f) {
+                function fulleighth(s,x,f,name) {
                     let n = Number(s);
                     if (Number.isInteger(n)) {
-                        if (name === "SIZE") {
-                            n *= f;
-                        }
+//                      if (name === "SIZE") {
+//                          n *= f;
+//                      }
                         return floor(n);
                     }
                     if (s === "FULL") { s = x; }
@@ -138,8 +333,8 @@ function $gInit() {
                     if (s === "EIGHTH") { s = floor(x/8); }
                     return s;
                 }
-                x = fulleighth(x,w,6/4);
-                y = fulleighth(y,h,15/8);
+                x = fulleighth(x,w,6/4,name);
+                y = fulleighth(y,h,15/8,name);
                 if (Number.isInteger(x) &&
                     Number.isInteger(y)) {
                     val = [x,y];
@@ -153,7 +348,20 @@ function $gInit() {
         return val;
     }
 
-    function set_style(ih, sname, val) {
+    function set_active(id, sname, val) {
+        val = $to_bool(val);
+        id.disabled = !val;
+        let children = id.childNodes,
+        l = children.length;
+        for (let i=0; i<l; i += 1) {
+            set_active(children[i],sname,val);
+        }
+    }
+    store_attrs(["button","canvas","datepick","dialog","drop","frame","hbox","label",
+//               "list","menuitem","text","vbox","tabcontainer","progress"], ["ACTIVE"], set_active);
+                 "list","text","vbox","tabcontainer","progress"], ["ACTIVE"], set_active);
+
+    function set_style(id, sname, val) {
         if (val.indexOf('x') === -1) {
             // treat eg "200" as "200x"
             val = val + "x";
@@ -161,13 +369,13 @@ function $gInit() {
         let [w,h] = intint(val);
         w += "px";
         h += "px";
-        ih.style[sname+"Top"] = h;
-        ih.style[sname+"Left"] = w;
-        ih.style[sname+"Right"] = w;
-        ih.style[sname+"Bottom"] = h;
+        id.style[sname+"Top"] = h;
+        id.style[sname+"Left"] = w;
+        id.style[sname+"Right"] = w;
+        id.style[sname+"Bottom"] = h;
     }
 
-    function set_font(ih,val) {
+    function set_font(id,val) {
         let face = val, fallback,
             comma = val.indexOf(',');
         if (comma !== -1) {
@@ -176,16 +384,16 @@ function $gInit() {
                 space = stylesize.indexOf(' ');
             while (space !== -1) {
                 if (space) {
-                    let stylename = val.slice(0,space);
+                    let stylename = stylesize.slice(0,space).toLowerCase();
                     // Bold, Italic, Underline and Strikeout
-                    if (stylename === "Bold") {
-                        ih.style.fontWeight = "bold";
-                    } else if (stylename === "Italic") {
-                        ih.style.fontStyle = "italic";
-                    } else if (stylename === "Underline") {
-                        ih.style.textDecoration = "underline";
-                    } else if (stylename === "Strikeout") {
-                        ih.style.textDecoration = "line-through";
+                    if (stylename === "bold") {
+                        id.style.fontWeight = "bold";
+                    } else if (stylename === "italic") {
+                        id.style.fontStyle = "italic";
+                    } else if (stylename === "underline") {
+                        id.style.textDecoration = "underline";
+                    } else if (stylename === "strikeout") {
+                        id.style.textDecoration = "line-through";
 //text-decoration: underline;
 //text-decoration: line-through;
 //font-style: italic;
@@ -201,9 +409,9 @@ function $gInit() {
             if (!stylesize) {
                 crash("FONT="+val+"??\n");
             } else if (stylesize < 0) {
-                ih.style.fontSize = -stylesize + "px";
+                id.style.fontSize = -stylesize + "px";
             } else {
-                ih.style.fontSize = stylesize + "pt";
+                id.style.fontSize = stylesize + "pt";
             }
         }
         if (face === "Tahoma" ||
@@ -217,7 +425,7 @@ function $gInit() {
 //          crash("FONT="+val+"??\n");
             puts(1,"FONT="+val+"??\n"); // placeholder
         }
-        ih.style.fontFamily = `"` + face + `", ` + fallback;
+        id.style.fontFamily = `"` + face + `", ` + fallback;
 //font-family: "Tahoma", sans-serif;
 //font-size: 12px;
 //  "Times, Bold 18"
@@ -225,29 +433,29 @@ function $gInit() {
 //  "Courier New, Italic Underline -30" (size in pixels)
     }
 
-    function rastersize(ih, name, val) {
+    function rastersize(id, name, val) {
         // applies to dialog, label, text, canvas, ...
         assert(name === "SIZE" || name === "RASTERSIZE");
-        let cn = ih.classList[0];
+        let cn = id.classList[0];
         if ((val === null) || (val === NULL)) {
             if (cn === "canvas") {
-                ih = IupGetDialog(ih);
+                id = IupGetDialog(id);
                 cn = "dialog";
             }
             if (cn === "dialog") {
 //DEV still not sure about this...
 //9/5/22:
-//              ih.minWidth = 260;
-                if (!ih.minWidth) { ih.minWidth = 260; }
-//              ih.minimumWidth = 0;
-//              ih.minHeight = 160;
-                if (!ih.minHeight) { ih.minHeight = 160; }
-//              ih.minimumHeight = 0;
+//              id.minWidth = 260;
+                if (!id.minWidth) { id.minWidth = 260; }
+//              id.minimumWidth = 0;
+//              id.minHeight = 160;
+                if (!id.minHeight) { id.minHeight = 160; }
+//              id.minimumHeight = 0;
 //put back for Sierpinski_curve 5/4/22:
-//              ih.minimumWidth = 0;
-                ih.minimumWidth = ih.minWidth;
-//              ih.minimumHeight = 0;
-                ih.minimumHeight = ih.minHeight;
+//              id.minimumWidth = 0;
+                id.minimumWidth = id.minWidth;
+//              id.minimumHeight = 0;
+                id.minimumHeight = id.minHeight;
             }
         } else {
             let w, h;
@@ -262,105 +470,173 @@ function $gInit() {
                     val = "x" + val;
                 }
                 [w, h] = intint(val);
-                if (name === "SIZE") {
-                    // assume CHARSIZE of 6x15
-                    w *= 6/4;
-                    h *= 15/8;
-                }
+//              if (name === "SIZE") {
+//                  // assume CHARSIZE of 6x15
+//                  w *= 6/4;
+//                  h *= 15/8;
+//              }
             }
             if (cn === "canvas") {
-                if (w) { ih.width = w; }
-                if (h) { ih.height = h; }
+                if (w) { id.width = w; }
+                if (h) { id.height = h; }
             } else {
 //DEV still not sure about this...
-//              if (w) { ih.style.width = w + "px"; }
-                ih.style.width = w ? w + "px" : "";
-//              if (h) { ih.style.height = h-10 + "px"; }
-                ih.style.height = h ? h-10 + "px" :"";
+//              if (w) { id.style.width = w + "px"; }
+                id.style.width = w ? w-2 + "px" : "";
+//              if (h) { id.style.height = h-10 + "px"; }
+//              id.style.height = h ? h-10 + "px" :"";
+                id.style.height = h ? h-2 + "px" :"";
             }
         }
     }
     store_attrs(["button","canvas","dialog","frame","hbox","label","text","vbox","tabcontainer","progress"], ["RASTERSIZE","SIZE"], rastersize);
 
-    function set_dialog(ih, name, val) {
-        assert(ih.classList[0] === "dialog");
+    function expand(id,val) {
+//Value: "YES" (both directions), "HORIZONTAL", "VERTICAL", "HORIZONTALFREE", "VERTICALFREE" or "NO".
+//Default: "NO". For containers the default is "YES".
+//Affects: All elements, except menus. 
+        if (val === "YES" || val === "BOTH") {
+            id.classList.add("expandv");
+            id.classList.add("expandh");
+        } else if (val === "HORIZONTAL") {
+            id.classList.remove("expandv");
+            id.classList.add("expandh");
+        } else if (val === "VERTICAL") {
+            id.classList.add("expandv");
+            id.classList.remove("expandh");
+        } else if (val === "NO") {
+            id.classList.remove("expandv");
+            id.classList.remove("expandh");
+        } else {
+            crash("gSetAttribute(id,\"EXPAND\", \"" + val + "\"??)");
+        }
+    }
+
+    function align(id,val,elem) {
+//ALIGNMENT  (non inheritable) horizontal and vertical alignment. 
+//              Possible values: "ALEFT", "ACENTER" and "ARIGHT", combined to "ATOP", "ACENTER" and "ABOTTOM". 
+//              Default: "ALEFT:ACENTER". 
+//??            Partial values are also accepted, like "ARIGHT" or ":ATOP", the other value will be used from the current alignment. 
+        id.style.display = "flex";
+        let k = val.indexOf(':');
+        if (k !== -1) {
+            let vtb = val.slice(k+1);
+                val = val.slice(0,k);
+            if (vtb === "ATOP" ||
+                vtb === "ALEFT") {
+                id.style.alignItems = "flex-start";
+//              id.classList.add("expandv");
+//              id.classList.add("expandh");
+            } else if (vtb === "ACENTER") {
+                id.style.alignItems = "center";
+//              id.classList.remove("expandv");
+//              id.classList.add("expandh");
+            } else if (vtb === "ABOTTOM" ||
+                       vtb === "ARIGHT") {
+                id.style.alignItems = "flex-end";
+//              id.classList.add("expandv");
+//              id.classList.remove("expandh");
+            } else {
+                crash("IupStoreAttribute(" + elem + ",\"ALIGNMENT\", \":" + vtb + "\"??)");
+            }
+//          puts(1,"IupStoreAttribute(IupLabel,\"ALIGNMENT\", \":" + vtb + "\" not yet implemented)");
+        }
+        if (val.length) {
+//          id.style.display = "grid";
+            if (val === "ALEFT") {
+//              id.style.placeItems = "start";  // (top left)
+                id.style.justifyContent = "flex-start";
+            } else if (val === "ACENTER") {
+//              id.style.placeItems = "center"; // (mid/mid)
+                id.style.justifyContent = "center";
+            } else if (val === "ARIGHT") {
+//              id.style.placeItems = "end";    // (btm right)
+                id.style.justifyContent = "flex-end";
+            } else {
+                crash("IupStoreAttribute(" + elem + ",\"ALIGNMENT\", \"" + val + "\"??)");
+            }
+        }
+    }   
+
+    function set_dialog(id, name, val) {
+        assert(id.classList[0] === "dialog");
         if (name === "TITLE") {
-            const hdr = ih.querySelector(".dialog-handle");
+            const hdr = id.querySelector(".dialog-handle");
             hdr.innerHTML = val;
         } else if (name === "MINSIZE") {
             let [w, h] = intint(val);
             h += 10;
-//          if (ih.style.width < w)  { ih.style.width = w + "px"; }
-//          if (ih.style.height < h) { ih.style.height = h + "px"; }
-            ih.minWidth = w;
-            ih.minimumWidth = w;
-            ih.minHeight = h;
-            ih.minimumHeight = h;
+//          if (id.style.width < w)  { id.style.width = w + "px"; }
+//          if (id.style.height < h) { id.style.height = h + "px"; }
+            id.minWidth = w;
+            id.minimumWidth = w;
+            id.minHeight = h;
+            id.minimumHeight = h;
 //9/5/22:
-            if (ih.isConnected) {
+            if (id.isConnected) {
 //7/5/22:
-                if (!ih.style.width || ih.style.width < w) {
-                    ih.style.width = w ? w + "px" : "";
+                if (!id.style.width || id.style.width < w) {
+                    id.style.width = w ? w + "px" : "";
                 }
-                if (!ih.style.height || ih.style.height < h) {
-                    ih.style.height = h ? h-10 + "px" :"";
+                if (!id.style.height || id.style.height < h) {
+                    id.style.height = h ? h-10 + "px" :"";
                 }
             }
         } else if (name === "MAXSIZE") {
             let [w, h] = intint(val);
-//          ih.maxWidth = w;
-            ih.maximumWidth = w;
-//          ih.minHeight = h;
-            ih.maximumHeight = h;
+//          id.maxWidth = w;
+            id.maximumWidth = w;
+//          id.minHeight = h;
+            id.maximumHeight = h;
 //7/5/22:
-            if (!ih.style.width || ih.style.width > w) {
-                ih.style.width = w ? w + "px" : "";
+            if (!id.style.width || id.style.width > w) {
+                id.style.width = w ? w + "px" : "";
             }
-            if (!ih.style.height || ih.style.height > h) {
-                ih.style.height = h ? h-10 + "px" :"";
+            if (!id.style.height || id.style.height > h) {
+                id.style.height = h ? h-10 + "px" :"";
             }
 //      } else if (name === "MARGIN" || name === "GAP") {
         } else if (name === "MARGIN") {
 //DEV tryme:
-//          set_style(ih,"margin",val);
+//          set_style(id,"margin",val);
             let [w, h] = intint(val);
             if (h) {
-                ih.style.marginTop = h;
-                ih.style.marginBottom = h;
+                id.style.marginTop = h;
+                id.style.marginBottom = h;
             }
             if (w) {
-                ih.style.marginLeft = w;
-                ih.style.marginRight = w;
+                id.style.marginLeft = w;
+                id.style.marginRight = w;
             }
 //DEV...?? (in general and above)
         } else if (name === "GAP") {
             let g = Number(val);
-            ih.style.margin = g;
+            id.style.margin = g;
         } else if (name === "RESIZE") {
             val = $to_bool(val);
 //          ,["YES"])
-//          let maxbtn = ih.getElementsByClassName("Maximise")[0],
-            let maxbtn = ih.querySelector(".Maximise"),
-//              resizers = ih.getElementsByClassName("dialog-resizers")[0],
-                resizers = ih.querySelector(".dialog-resizers"),
+//          let maxbtn = id.getElementsByClassName("Maximise")[0],
+            let maxbtn = id.querySelector(".Maximise"),
+//              resizers = id.getElementsByClassName("dialog-resizers")[0],
+                resizers = id.querySelector(".dialog-resizers"),
                 display_style = val ? "block" : "none";
             maxbtn.style.display = display_style;
             resizers.style.display = display_style;
 //      } else if (name === "SIZE") {
 //          puts(1,"IupDialog(SIZE,"+val+")??\n"); // placeholder
         } else if (name === "OPACITY") {
-            ih.style.opacity = Number(val)/255;
+            id.style.opacity = Number(val)/255;
         } else if (name === "PLACEMENT") {
 //          val = $to_bool(val,["MAXIMIZED"]) [maybe not]
             if (val==="MAXIMIZED") {
-//              $maxWindow(ih);
-                if (!ih.classList.contains("window-maximized")) {
-                    setTimeout($maxWindow, 100, ih);
+//              $maxWindow(id);
+                if (!id.classList.contains("window-maximized")) {
+                    setTimeout($maxWindow, 100, id);
                 }
 //          } else if (val === "MINIMIZED") {   // not supported..
             } else if (val === "NORMAL") {  // not supported..
-                if (ih.classList.contains("window-maximized")) {
-                    setTimeout($maxWindow, 100, ih);
+                if (id.classList.contains("window-maximized")) {
+                    setTimeout($maxWindow, 100, id);
                 }
             } else {
                 crash("IupStoreAttribute(dialog,\"" + name + "\",\"" + val + "\") not yet implemented");
@@ -369,36 +645,36 @@ function $gInit() {
 //          puts(1,"IupDialog(VISIBLE,"+val+")??\n"); // placeholder
             val = $to_bool(val);
             let display_style = val ? "block" : "none";
-            ih.style.display = display_style;
+            id.style.display = display_style;
         } else if (name === "FULLSCREEN") {
 //          puts(1,"IupDialog(FULLSCREEN,"+val+")??\n"); // placeholder
             val = $to_bool(val);
-            let header = ih.querySelector(".dialog-header"),
-                resizers = ih.querySelector(".dialog-resizers");
+            let header = id.querySelector(".dialog-header"),
+                resizers = id.querySelector(".dialog-resizers");
             if (val) {
                 header.style.display = "none";
                 resizers.style.display = "none";
-                set_dialog(ih, "PLACEMENT", "MAXIMIZED");
+                set_dialog(id, "PLACEMENT", "MAXIMIZED");
                 document.documentElement.requestFullscreen();
             } else if (document.fullscreenElement) {
                 document.exitFullscreen();
                 header.style.display = "flex";
                 resizers.style.display = "block";
-//              set_dialog(ih, "PLACEMENT", "NORMAL");
-                if (ih.classList.contains("window-maximized")) {
-                    $maxWindow(ih);
+//              set_dialog(id, "PLACEMENT", "NORMAL");
+                if (id.classList.contains("window-maximized")) {
+                    $maxWindow(id);
                 }
             }
         } else if (name === "SHRINK") {
 //          puts(1,"IupDialog(SHRINK,"+val+")??\n"); // placeholder
-            ih.minWidth = 260;
-            ih.minimumWidth = 0;
-            ih.minHeight = 160;
-            ih.minimumHeight = 0;
+            id.minWidth = 260;
+            id.minimumWidth = 0;
+            id.minHeight = 160;
+            id.minimumHeight = 0;
         } else if (name === "DIALOGFRAME") {
             // Set the common decorations for modal dialogs. This means RESIZE=NO, MINBOX=NO and MAXBOX=NO. 
             // In Windows, if the PARENTDIALOG is defined then the MENUBOX is also removed, but the Close button remains. 
-            set_dialog(ih, "RESIZE", false);
+            set_dialog(id, "RESIZE", false);
 //          puts(1,"IupDialog(DIALOGFRAME,"+val+")??\n"); // placeholder
         } else if (name === "CHILDOFFSET") {
 // ignore for now (demo\rosetta\Animation.exw)
@@ -423,108 +699,105 @@ function $gInit() {
 //--    dlg = IupDialog(lbl,`TITLE="Hello", MINSIZE=225x75, PLACEMENT=MAXIMIZED`) -- (more like it)
 //--    dlg = IupDialog(lbl,`TITLE="Hello", MINSIZE=225x75, FULLSCREEN=YES`) (be like F11 in the browser...)
 
-    function expand(ih,val) {
-//Value: "YES" (both directions), "HORIZONTAL", "VERTICAL", "HORIZONTALFREE", "VERTICALFREE" or "NO".
-//Default: "NO". For containers the default is "YES".
-//Affects: All elements, except menus. 
-        if (val === "YES" || val === "BOTH") {
-            ih.classList.add("expandv");
-            ih.classList.add("expandh");
-        } else if (val === "HORIZONTAL") {
-            ih.classList.remove("expandv");
-            ih.classList.add("expandh");
-        } else if (val === "VERTICAL") {
-            ih.classList.add("expandv");
-            ih.classList.remove("expandh");
-        } else if (val === "NO") {
-            ih.classList.remove("expandv");
-            ih.classList.remove("expandh");
+//DEV gDropDown...
+    function set_drop(id, name, val) {
+        assert(id.classList[0] === "drop");
+        if (name === "CANFOCUS") {
+            puts(1,"gDropDown(CANFOCUS,"+val+")??\n"); // placeholder
+        } else if (name === "EXPAND") {
+            expand(id,val);
+//      } else if (name === "ALIGNMENT") {
+//          align(id,val,"IupList");
+        } else if (name === "PADDING") {
+//          puts(1,"gList(PADDING,"+val+")??\n"); // erm, now banned? [or rather utilised by gH/Vbox?]
+            set_style(id,"padding",val);
+//      } else if (name === "DROPDOWN") {
+//          puts(1,"IupList(DROPDOWN,"+val+")??\n"); // placeholder
+//          val = $to_bool(val);
+//          id.DROPDOWN = val;
+//      } else if (name === "APPENDITEM") {
+//          puts(1,"IupList(APPENDITEM,"+val+")??\n"); // placeholder
+//      } else if (name === "REMOVEITEM") {
+//          puts(1,"IupList(REMOVEITEM,"+val+")??\n"); // placeholder
+        } else if (name === "TIP") {
+            puts(1,"gDropDown(TIP,"+val+")??\n"); // placeholder
+        } else if (name === "VALUE") {
+            puts(1,"gDropDown(VALUE,"+val+")??\n"); // placeholder
+        } else if (name === "VISIBLE") {
+            puts(1,"gDropDown(VISIBLE,"+val+")??\n"); // placeholder
+//      } else if (name === "VISIBLELINES") {
+//          puts(1,"gDropDown(VISIBLELINES,"+val+")??\n"); // placeholder
+//      } else if (name === "VISIBLECOLUMNS") {
+//          puts(1,"IupList(VISIBLECOLUMNS,"+val+")??\n"); // placeholder
+//      } else if (name === "VISIBLEITEMS") {
+//          puts(1,"IupList(VISIBLEITEMS,"+val+")??\n"); // placeholder
+//      } else if (name === "SHOWDROPDOWN") {
+//          puts(1,"IupList(SHOWDROPDOWN,"+val+")??\n"); // placeholder
+//      } else if (name === "NAME") {
+//          puts(1,"IupList(NAME,"+val+")??\n"); // placeholder
+//      } else if (name === "EDITBOX") {
+//          puts(1,"IupList(EDITBOX,"+val+")??\n"); // placeholder
+        } else if (name === "VALINT") {
+            puts(1,"gDropDown(VALINT,"+val+")??\n"); // placeholder
+/*
+    } else if (name === "VALINT" ||
+               name === "VALSTR" ) {
+        if (t === "list") {
+            let children = id.childNodes,
+                l = children.length;
+            for (let i=0; i<l; i += 1) {
+                if (children[i].selected) {
+                    if (name === "VALINT") {
+                        return i+1;
+                    }
+                    return children[i].text;
+                }
+            }
+            if (name === "VALINT") {
+                return 0;
+            }
+            return "";
+        }
+*/
         } else {
-            crash("IupStoreAttribute(IupLabel,\"EXPAND\", \"" + val + "\"??)");
+            crash("gSetAttribute(gDropDown,\"" + name + "\") not yet implemented\n");
         }
     }
+    // note: "OPTIONS" is handled specially, see gSetAttribute().
+//"DROPDOWN","APPENDITEM","REMOVEITEM","VISIBLELINES","VISIBLECOLUMNS","VISIBLEITEMS","SHOWDROPDOWN","NAME","EDITBOX"
+    store_attrs(["drop"], ["CANFOCUS","EXPAND","VALINT","TIP","VALUE","VISIBLE"], set_drop);
 
-    function align(ih,val,elem) {
-//ALIGNMENT  (non inheritable) horizontal and vertical alignment. 
-//              Possible values: "ALEFT", "ACENTER" and "ARIGHT", combined to "ATOP", "ACENTER" and "ABOTTOM". 
-//              Default: "ALEFT:ACENTER". 
-//??            Partial values are also accepted, like "ARIGHT" or ":ATOP", the other value will be used from the current alignment. 
-        ih.style.display = "flex";
-        let k = val.indexOf(':');
-        if (k !== -1) {
-            let vtb = val.slice(k+1);
-                val = val.slice(0,k);
-            if (vtb === "ATOP" ||
-                vtb === "ALEFT") {
-                ih.style.alignItems = "flex-start";
-//              ih.classList.add("expandv");
-//              ih.classList.add("expandh");
-            } else if (vtb === "ACENTER") {
-                ih.style.alignItems = "center";
-//              ih.classList.remove("expandv");
-//              ih.classList.add("expandh");
-            } else if (vtb === "ABOTTOM" ||
-                       vtb === "ARIGHT") {
-                ih.style.alignItems = "flex-end";
-//              ih.classList.add("expandv");
-//              ih.classList.remove("expandh");
-            } else {
-                crash("IupStoreAttribute(" + elem + ",\"ALIGNMENT\", \":" + vtb + "\"??)");
-            }
-//          puts(1,"IupStoreAttribute(IupLabel,\"ALIGNMENT\", \":" + vtb + "\" not yet implemented)");
-        }
-        if (val.length) {
-//          ih.style.display = "grid";
-            if (val === "ALEFT") {
-//              ih.style.placeItems = "start";  // (top left)
-                ih.style.justifyContent = "flex-start";
-            } else if (val === "ACENTER") {
-//              ih.style.placeItems = "center"; // (mid/mid)
-                ih.style.justifyContent = "center";
-            } else if (val === "ARIGHT") {
-//              ih.style.placeItems = "end";    // (btm right)
-                ih.style.justifyContent = "flex-end";
-            } else {
-                crash("IupStoreAttribute(" + elem + ",\"ALIGNMENT\", \"" + val + "\"??)");
-            }
-        }
-    }   
-    
-    function set_frame(ih, name, val) {
-        assert(ih.classList[0] === "frame");
+    function set_frame(id, name, val) {
+        assert(id.classList[0] === "frame");
 //DEV spotted in passing: some of these are not reachable aka not set in store_attrs below...
         if (name === "EXPAND") {
-            expand(ih,val);
+            expand(id,val);
 //      } else if (name === "ALIGNMENT") {
-//          align(ih,val,"IupList");
+//          align(id,val,"IupList");
         } else if (name === "PADDING") {
-            set_style(ih,"padding",val);
+            set_style(id,"padding",val);
         } else if (name === "MARGIN") {
 //DEV tryme:
-            set_style(ih,"margin",val);
+            set_style(id,"margin",val);
 //          let [w, h] = intint(val);
 //          if (h) {
-//              ih.style.marginTop = h;
-//              ih.style.marginBottom = h;
+//              id.style.marginTop = h;
+//              id.style.marginBottom = h;
 //          }
 //          if (w) {
-//              ih.style.marginLeft = w;
-//              ih.style.marginRight = w;
+//              id.style.marginLeft = w;
+//              id.style.marginRight = w;
 //          }
-        } else if (name === "ACTIVE") {
-            val = $to_bool(val);
-            ih.disabled = !val;
-            puts(1,"?!IupFrame(ACTIVE"+val+")??\n"); // placeholder
         } else if (name === "TITLE") {
-            ih.childNodes[0].innerText = val;
+            id.childNodes[0].innerText = val;
         } else if (name === "VISIBLE") {
             puts(1,"IupFrame(VISIBLE"+val+")??\n"); // placeholder
         } else if (name === "FGCOLOR") {
 //DEV tryme:
-//          set_style(ih,"margin",val);
+//          set_style(id,"margin",val);
             puts(1,"IupFrame(FGCOLOR"+val+")??\n"); // placeholder
         } else if (name === "NAME") {
-            ih["NAME"] = val;
+            id["NAME"] = val;
             puts(1,"?!IupFrame(NAME,"+val+")??\n"); // placeholder
         } else {
             crash("IupStoreAttribute(IupFrame,\"" + name + "\") not yet implemented\n");
@@ -532,9 +805,9 @@ function $gInit() {
     }
     store_attrs(["frame"], ["PADDING","MARGIN","TITLE","VISIBLE","FGCOLOR","NAME"], set_frame);
 
-//Ihandle lbl = IupLabel("World","EXPAND=YES, ALIGNMENT=ACENTER"),
-    function set_label(ih, name, val) {
-        assert(ih.classList[0] === "label");
+//gdx lbl = gLabel("World","EXPAND=YES, ALIGNMENT=ACENTER"),
+    function set_label(id, name, val) {
+        assert(id.classList[0] === "label");
         if (name === "TITLE") {
             if (typeof(val) === "string") {
                 const sp = new RegExp("[ ]","g"),
@@ -554,24 +827,20 @@ function $gInit() {
                 val = val.replace(sp,"&ensp;")
                          .replace(lf,"<br>");
             }
-//          ih.innerHTML = val;
-//          ih.innerText = val;
-            ih.innerHTML = "<nobr>"+val+"</nobr>";
+//          id.innerHTML = val;
+//          id.innerText = val;
+            id.innerHTML = "<nobr>"+val+"</nobr>";
         } else if (name === "EXPAND") {
-            expand(ih,val);
+            expand(id,val);
         } else if (name === "ALIGNMENT") {
-            align(ih,val,"IupLabel");
+            align(id,val,"IupLabel");
         } else if (name === "PADDING") {
-            set_style(ih,"padding",val);
+            set_style(id,"padding",val);
 //          let [w, h] = intint(val);
-//          ih.style.paddingTop = h + "px";
-//          ih.style.paddingBottom = h + "px";
-//          ih.style.paddingLeft = w + "px";
-//          ih.style.paddingRight = w + "px";
-        } else if (name === "ACTIVE") {
-            val = $to_bool(val);
-            ih.disabled = !val;
-            puts(1,"?!IupLabel(ACTIVE,"+val+")??\n"); // placeholder
+//          id.style.paddingTop = h + "px";
+//          id.style.paddingBottom = h + "px";
+//          id.style.paddingLeft = w + "px";
+//          id.style.paddingRight = w + "px";
         } else if (name === "VISIBLE") {
             puts(1,"IupLabel(VISIBLE,"+val+")??\n"); // placeholder
         } else if (name === "FGCOLOR") {
@@ -594,27 +863,27 @@ function $gInit() {
 */
             }
             if (val.indexOf("#") !== -1) {
-//              ih.style.background=val;
-                ih.style.color=val;
+//              id.style.background=val;
+                id.style.color=val;
             } else {
                 puts(1,"IupLabel(FGCOLOR,"+val+")??\n"); // placeholder??
             }
         } else if (name === "FONT" || name === "FONTFACE") {
-            set_font(ih,val);
+            set_font(id,val);
 //          puts(1,"IupLabel(FONT,"+val+")??\n"); // placeholder
         } else if (name === "FONTSTYLE") {
             puts(1,"IupLabel(FONTSTYLE,"+val+")??\n"); // placeholder
         } else if (name === "SEPARATOR") {
 //          val = $to_bool(val);
             if (val === "HORIZONTAL") {
-                ih.classList.add("labelhsep");
+                id.classList.add("labelhsep");
             } else {
-                ih.classList.remove("labelhsep");
+                id.classList.remove("labelhsep");
             }
 //DEV seems to work for IupLabel(NULL,"SEPARATOR=HORIZONTAL") anyway...
 //          puts(1,"?IupLabel(SEPARATOR,"+val+")??\n"); // placeholder
         } else if (name === "NAME") {
-            ih["NAME"] = val;
+            id["NAME"] = val;
             puts(1,"?!IupLabel(NAME,"+val+")??\n"); // placeholder
         } else if (name === "TIP") {
             puts(1,"IupLabel(TIP,"+val+")\n"); // placeholder
@@ -624,30 +893,27 @@ function $gInit() {
             crash("IupStoreAttribute(IupLabel,\"" + name + "\") not yet implemented\n");
         }
     }
-    store_attrs(["label"], ["TITLE","EXPAND","ALIGNMENT","MARGIN","PADDING","ACTIVE","VISIBLE",
+    store_attrs(["label"], ["TITLE","EXPAND","ALIGNMENT","MARGIN","PADDING","VISIBLE",
                             "FGCOLOR","FONT","FONTFACE","FONTSTYLE","SEPARATOR","NAME","TIP",
                             "TEXTWRAP"], set_label);
 //  store_values("EXPAND",[["YES","NO","HORIZONTAL","HORIZONTALFREE","VERTICAL","VERTICALFREE"]])
 //  store_values("ALIGNMENT",[["ALEFT","ACENTER","ARIGHT"],":",["ATOP","ACENTER","ABOTTOM"]])
 
-    function set_list(ih, name, val) {
-        assert(ih.classList[0] === "list");
+    function set_list(id, name, val) {
+        assert(id.classList[0] === "list");
         if (name === "CANFOCUS") {
             puts(1,"IupList(CANFOCUS,"+val+")??\n"); // placeholder
         } else if (name === "EXPAND") {
-            expand(ih,val);
+            expand(id,val);
 //      } else if (name === "ALIGNMENT") {
-//          align(ih,val,"IupList");
+//          align(id,val,"IupList");
         } else if (name === "PADDING") {
-            set_style(ih,"padding",val);
-        } else if (name === "ACTIVE") {
-            val = $to_bool(val);
-            ih.disabled = !val;
-            puts(1,"?!IupList(ACTIVE,"+val+")??\n"); // placeholder
+//          puts(1,"gList(PADDING,"+val+")??\n"); // erm, now banned? [or rather utilised by gH/Vbox?]
+            set_style(id,"padding",val);
         } else if (name === "DROPDOWN") {
             puts(1,"IupList(DROPDOWN,"+val+")??\n"); // placeholder
             val = $to_bool(val);
-            ih.DROPDOWN = val;
+            id.DROPDOWN = val;
         } else if (name === "APPENDITEM") {
             puts(1,"IupList(APPENDITEM,"+val+")??\n"); // placeholder
         } else if (name === "REMOVEITEM") {
@@ -666,80 +932,82 @@ function $gInit() {
             puts(1,"IupList(VISIBLEITEMS,"+val+")??\n"); // placeholder
         } else if (name === "SHOWDROPDOWN") {
             puts(1,"IupList(SHOWDROPDOWN,"+val+")??\n"); // placeholder
-        } else if (name === "<list_id>") {
-//          puts(1,"IupList(<list_id>,"+val+")??\n"); // placeholder
-            [/*integer*/ name, /*string*/ val] = val;
-            //... (DEV)
-            let n = ih.childElementCount;
-            if (name>n) {
-                let childoption = document.createElement("option"),
-                    t = document.createTextNode(val);
-                childoption.setAttribute("value", name.toString());
-                childoption.appendChild(t);
-                ih.appendChild(childoption);
-                n += 1;
-            } else {
-                let childoption = ih.children[n-1],
-                    t = childoption.childNodes[0];
-                t.textContent = val;
-//              crash("IupList replace???"); // placeholder
-            }
-            if (!ih.DROPDOWN) { ih.size = n; }
         } else if (name === "NAME") {
             puts(1,"IupList(NAME,"+val+")??\n"); // placeholder
         } else if (name === "EDITBOX") {
             puts(1,"IupList(EDITBOX,"+val+")??\n"); // placeholder
+        } else if (name === "VALINT") {
+            puts(1,"IupList(VALINT,"+val+")??\n"); // placeholder
+/*
+    } else if (name === "VALINT" ||
+               name === "VALSTR" ) {
+        if (t === "list") {
+            let children = id.childNodes,
+                l = children.length;
+            for (let i=0; i<l; i += 1) {
+                if (children[i].selected) {
+                    if (name === "VALINT") {
+                        return i+1;
+                    }
+                    return children[i].text;
+                }
+            }
+            if (name === "VALINT") {
+                return 0;
+            }
+            return "";
+        }
+*/
         } else {
-            crash("IupStoreAttribute(IupList,\"" + name + "\") not yet implemented\n");
+            crash("gSetAttribute(IupList,\"" + name + "\") not yet implemented\n");
         }
     }
 //DEV must do better...
 //maybe: return ((parseInt(str, 10).toString() == str) && str.indexOf('-') === -1);
 
-    // note: "1", "2", etc are handled specially, see IupSetStrAttribute() and IupSetAttributeId().
-    store_attrs(["list"], ["<list_id>","CANFOCUS","DROPDOWN","EXPAND","APPENDITEM","REMOVEITEM",
+    store_attrs(["list"], ["CANFOCUS","DROPDOWN","EXPAND","APPENDITEM","REMOVEITEM","VALINT",
                            "TIP","VALUE","VISIBLE","VISIBLELINES","VISIBLECOLUMNS","VISIBLEITEMS",
                            "SHOWDROPDOWN","NAME","EDITBOX"], set_list);
 
-    function set_vbox(ih, name, val) {
-        let cn = ih.classList[0];
-        assert(cn === "vbox") || (cn === "hbox");
+    function set_vbox(id, name, val) {
+        let cn = id.classList[0];
+        assert((cn === "vbox") || (cn === "hbox"));
 //DEV common up??
         if (name === "MARGIN") {
-//          set_style(ih,"margin",val);
+//          set_style(id,"margin",val);
             let [w, h] = intint(val);
             if (w) {
-                ih.style.marginLeft = w + "px";
-                ih.style.marginRight = w + "px";
+                id.style.marginLeft = w + "px";
+                id.style.marginRight = w + "px";
             }
             if (h) {
-                ih.style.marginTop = h + "px";
-                ih.style.marginBottom = h + "px";
+                id.style.marginTop = h + "px";
+                id.style.marginBottom = h + "px";
             }
         } else if (name === "NMARGIN") {
-//          set_style(ih,"margin",val);
+//          set_style(id,"margin",val);
             puts(1,"IupH/Vbox(NMARGIN," + val + ")\n"); // placeholder
         } else if (name === "TABTITLE") {
-            ih.TABTITLE = val;
+            id.TABTITLE = val;
         } else if (name === "ALIGNMENT") {
 //21/10/21:
-//          align(ih,val,"IupH/Vbox");
-            align(ih,":"+val,"IupH/Vbox");
+//          align(id,val,"IupH/Vbox");
+            align(id,":"+val,"IupH/Vbox");
         } else if (name === "PADDING") {
-            set_style(ih,"padding",val);
+            set_style(id,"padding",val);
 //          puts(1,"IupH/Vbox(PADDING,"+val+")\n"); // placeholder
         } else if (name === "NORMALIZESIZE") {
             puts(1,"IupH/Vbox(NORMALIZESIZE," + val + ")\n"); // placeholder
-//          $normalize(ih.children,val);
+//          $normalize(id.children,val);
         } else if (name === "GAP") {
 //for now do nothing...
 //          puts(1,"IupH/Vbox(GAP,"+val+")\n"); // placeholder
 //      } else if (name === "SIZE") {
 //          puts(1,"IupH/Vbox(SIZE," + val + ")\n"); // placeholder
-        } else if (name === "LINEBREAK") {
-            puts(1,"IupH/Vbox(LINEBREAK," + val + ")\n"); // placeholder
+//      } else if (name === "LINEBREAK") {
+//          puts(1,"IupH/Vbox(LINEBREAK," + val + ")\n"); // placeholder
         } else if (name === "FONT") {
-            set_font(ih,val);
+            set_font(id,val);
 //      } else if (name === "NORMALSIZE") {
 //          puts(1,"IupH/Vbox(LINEBREAK," + val + ")\n"); // placeholder
         } else if (name === "BGCOLOR") {
@@ -749,19 +1017,20 @@ function $gInit() {
         }
     }
     store_attrs(["vbox","hbox"], ["MARGIN","NMARGIN","TABTITLE","ALIGNMENT","PADDING",
-                                  "NORMALIZESIZE","GAP","LINEBREAK","FONT","BGCOLOR"], set_vbox);
+//                                "NORMALIZESIZE","GAP","LINEBREAK","FONT","BGCOLOR"], set_vbox);
+                                  "NORMALIZESIZE","GAP","FONT","BGCOLOR"], set_vbox);
 
-    function set_text(ih, name, val) {
-        assert(ih.classList[0] === "text");
+    function set_text(id, name, val) {
+        assert(id.classList[0] === "text");
         if (name === "VALUE") {
-//          ih.innerHTML = val;
-//          ih.value = val;
+//          id.innerHTML = val;
+//          id.value = val;
 //          const lf = new RegExp("\\n","g");
 //          val = val.replace(lf,"<br>");
-//          ih.innerHTML = val;
-            ih.value = val;
-//          ih.innerText = val;
-//          ih.textContent = val;
+//          id.innerHTML = val;
+            id.value = val;
+//          id.innerText = val;
+//          id.textContent = val;
 /*
     const am = new RegExp("&","g"),
           lt = new RegExp("[<]","g"),
@@ -774,42 +1043,38 @@ function $gInit() {
                .replace(sp,"&ensp;")
                .replace(lf,"<br>");
 */
-//          ih.innerText = val;
+//          id.innerText = val;
         } else if (name === "EXPAND") {
-            expand(ih,val);
+            expand(id,val);
         } else if (name === "MASK") {
 //          puts(1,"IupText(MASK,"+val+")??\n"); // placeholder
-            ih.type = "number";
-//          ih.type = "text";
-            ih.pattern = val;
+            id.type = "number";
+//          id.type = "text";
+            id.pattern = val;
         } else if (name === "PADDING") {
-            set_style(ih,"margin",val);
+            set_style(id,"margin",val);
         } else if (name === "SPIN") {
 //          puts(1,"IupText(SPIN,"+val+")??\n"); // placeholder
 //          val = $to_bool(val); // (maybe??)
-            ih.setAttribute("type", "number");
-//          ih.setAttribute("type", "number");
+            id.setAttribute("type", "number");
+//          id.setAttribute("type", "number");
         } else if (name === "SPINMIN") {
 //          puts(1,"IupText(SPINMIN,"+val+")??\n"); // placeholder
-            ih.setAttribute("min", val);
+            id.setAttribute("min", val);
         } else if (name === "SPINMAX") {
 //          puts(1,"IupText(SPINMAX,"+val+")??\n"); // placeholder
-            ih.setAttribute("max", val);
-        } else if (name === "ACTIVE") {
-            val = $to_bool(val);
-            ih.disabled = !val;
-//          puts(1,"?!IupText(ACTIVE,"+val+")??\n"); // placeholder -- worked fine, 21/10/21.
+            id.setAttribute("max", val);
         } else if (name === "FILTER") {
 //[DEV] not really what I was hoping for...
 //          if (val === "NUMBER") {
-//              ih.pattern = `^\d*$`;
+//              id.pattern = `^\d*$`;
 //          } else {
                 puts(1,"IupText(FILTER," + val + ")??\n"); // placeholder
 //          }
         } else if (name === "CUEBANNER") {
             puts(1,"IupText(CUEBANNER," + val + ")??\n"); // placeholder
         } else if (name === "NAME") {
-            ih["NAME"] = val;
+            id["NAME"] = val;
             puts(1,"?!IupText(NAME," + val + ")??\n"); // placeholder
         } else if (name === "TIP") {
             puts(1,"IupText(TIP," + val + ")??\n"); // placeholder
@@ -833,7 +1098,7 @@ function $gInit() {
             puts(1,"IupText(VISIBLECOLUMNS," + val + ")??\n"); // placeholder
         } else if (name === "SELECTION") {
             if (val === "ALL") {
-                ih.select();
+                id.select();
             } else {
                 puts(1,"IupText(SELECTION," + val + ")??\n"); // placeholder
             }
@@ -841,27 +1106,27 @@ function $gInit() {
             crash("IupStoreAttribute(IupText,\"" + name + "," + val + "\") not yet implemented\n");
         }
     }
-    store_attrs(["text"], ["VALUE","EXPAND","MASK","PADDING","SPIN","SPINMIN","SPINMAX","ACTIVE","FILTER",
+    store_attrs(["text"], ["VALUE","EXPAND","MASK","PADDING","SPIN","SPINMIN","SPINMAX","FILTER",
                            "CUEBANNER","NAME","TIP","MULTILINE","FORMATTING","APPEND","INSERT","WORDWRAP",
                            "SCROLLBAR","SELECTION","READONLY","BGCOLOR","VISIBLECOLUMNS"], set_text);
 
-    function set_toggle(ih, name, val) {
-        assert(ih.classList[0] === "toggle");
+    function set_toggle(id, name, val) {
+        assert(id.classList[0] === "toggle");
         if (name === "VALUE") {
-//          ih.innerHTML = val;
+//          id.innerHTML = val;
             val = $to_bool(val);
 //21/10/21:
-//          ih.checked = val;
-            ih.children[1].checked = val;
+//          id.checked = val;
+            id.children[1].checked = val;
         } else if (name === "RIGHTBUTTON") {
 //          puts(1,"IupToggle(RIGHTBUTTON,"+val+")??\n"); // placeholder
             val = $to_bool(val);
-            ih.style.flexDirection = val?"row":"row-reverse";
+            id.style.flexDirection = val?"row":"row-reverse";
         } else if (name === "PADDING") {
-            set_style(ih,"padding",val);
+            set_style(id,"padding",val);
 //          puts(1,"IupToggle(PADDING,"+val+")??\n"); // placeholder
 //      } else if (name === "EXPAND") {
-//          expand(ih,val);
+//          expand(id,val);
 //      } else if (name === "MASK") {
 //          puts(1,"IupToggle(MASK,"+val+")??\n"); // placeholder
 //      } else if (name === "SPIN") {
@@ -880,35 +1145,31 @@ function $gInit() {
     }
     store_attrs(["toggle"], ["CANFOCUS","NOTE","PADDING","RIGHTBUTTON","VALUE","TIP"], set_toggle);
 
-    function linebreak(ih, name, val) {
-        // applies to dialog, label, text
-        if (name !== "LINEBREAK") { crash("LINEBREAK expected!"); }
-        let cn = ih.classList[0];
-        puts(1,"linebreak("+cn+","+val+")??\n"); // placeholder
-//      ih[LINEBREAK] = val;
-//      ih.LINEBREAK = val;
-    }
+//  function linebreak(id, name, val) {
+//      // applies to dialog, label, text
+//      if (name !== "LINEBREAK") { crash("LINEBREAK expected!"); }
+//      let cn = id.classList[0];
+//      puts(1,"linebreak("+cn+","+val+")??\n"); // placeholder
+////        id[LINEBREAK] = val;
+////        id.LINEBREAK = val;
+//  }
 
-    function set_button(ih, name, val) {
-        assert(ih.classList[0] === "button");
-        if (name === "ACTIVE") {
-            val = $to_bool(val);
-            ih.disabled = !val;
-//          puts(1,"?!IupButton(ACTIVE,"+val+")??\n"); // placeholder
-        } else if (name === "GAP") {
+    function set_button(id, name, val) {
+        assert(id.classList[0] === "button");
+        if (name === "GAP") {
 //DEV should be hbox/vbox only???
 //          puts(1,"IupButton(GAP,"+val+")??\n"); // placeholder
             crash("IupButton(GAP,"+val+")??\n");
         } else if (name === "EXPAND") {
             puts(1,"IupButton(EXPAND,"+val+")??\n"); // placeholder
-//          expand(ih,val);
+//          expand(id,val);
         } else if (name === "PADDING") {
-            set_style(ih,"padding",val);
+            set_style(id,"padding",val);
 //          puts(1,"IupButton(PADDING,"+val+")??\n"); // placeholder
         } else if (name === "RUNNING") {
 //DEV I think this is a hack for demo\rosetta\Morpion_solitaire.exw ...
             val = $to_bool(val);
-            ih[name] = val;
+            id[name] = val;
         } else if (name === "TIP") {
             puts(1,"IupButton(TIP,"+val+")??\n"); // placeholder
         } else if (name === "IMAGE") {
@@ -918,22 +1179,22 @@ function $gInit() {
         } else if (name === "BGCOLOR") {
             puts(1,"IupButton(BGCOLOR,"+val+")??\n"); // placeholder
         } else if (name === "TITLE") {
-            ih.innerHTML = "<nobr>" + val + "</nobr>";
+            id.innerHTML = "<nobr>" + val + "</nobr>";
         } else {
             crash("IupStoreAttribute(IupButton,\"" + name + "," + val + "\") not yet implemented\n");
         }
     }
-    store_attrs(["button"], ["ACTIVE","GAP","EXPAND","PADDING","RUNNING","TIP","IMAGE","IMPRESS","BGCOLOR",
+    store_attrs(["button"], ["GAP","EXPAND","PADDING","RUNNING","TIP","IMAGE","IMPRESS","BGCOLOR",
                              "TITLE"], set_button);
-    store_attrs(["button"], ["LINEBREAK"], linebreak);
+//  store_attrs(["button"], ["LINEBREAK"], linebreak);
 //ToDo: (found while surfin)
 //button.setAttribute("disabled", "true");
 //button.removeAttribute("disabled");
 //[attribute]   [target]        Selects all elements with a target attribute            (PL: eg [inactive] ??)
 //[attribute=value]     [target=_blank] Selects all elements with target="_blank"       (PL: eg [type=button] ??)
 
-    function set_canvas(ih, name, val) {
-        assert(ih.classList[0] === "canvas");
+    function set_canvas(id, name, val) {
+        assert(id.classList[0] === "canvas");
         if (name === "BORDER") {
             puts(1,"IupCanvas(BORDER,"+val+")??\n"); // placeholder
         } else if (name === "BUFFER") {
@@ -956,11 +1217,11 @@ function $gInit() {
                    name === "YRID" ||
                    name === "XTICKFMT" ||
                    name === "YTICKFMT") {
-            ih[name] = val;
+            id[name] = val;
         } else if (name === "GRID" ||
                    name === "LEGENDBOX") {
             val = $to_bool(val);
-            ih[name] = val;
+            id[name] = val;
         } else if (name === "TITLESTYLE" ||
                    name === "XANGLE" ||
                    name === "XCROSSORIGIN" ||
@@ -976,12 +1237,12 @@ function $gInit() {
                    name === "YMIN" ||
                    name === "YTICK" ||
                    name === "YXSHIFT") {
-            ih[name] = Number(val);
+            id[name] = Number(val);
         } else if (name === "DRAWCOLOR") {
             // IupBackgroundBox really, as cdCanvasSetForeground(ctx, colour):
 //  if (integer(colour)) { colour = sprintf("#%06x",colour); }
-            ih.fillStyle = val;
-            ih.strokeStyle = val;
+            id.fillStyle = val;
+            id.strokeStyle = val;
         } else if (name === "DRAWSTYLE") {
             puts(1,"IupCanvas(DRAWSTYLE,"+val+")??\n"); // placeholder
         } else if (name === "DRAWFONT") {
@@ -989,13 +1250,13 @@ function $gInit() {
         } else if (name === "DRAWTEXTORIENTATION") {
             puts(1,"IupCanvas(DRAWTEXTORIENTATION,"+val+")??\n"); // placeholder
         } else if (name === "DATA") {
-            ih.DATA = Number(val);
+            id.DATA = Number(val);
         } else if (name === "FONT") {
             puts(1,"IupCanvas(FONT,"+val+")??\n"); // placeholder
         } else if (name === "SCROLLBAR") {
             puts(1,"IupCanvas(SCROLLBAR,"+val+")??\n"); // placeholder
 // gah, null at this point...
-//          ih.parentNode.style.overflow = "scroll";
+//          id.parentNode.style.overflow = "scroll";
         } else if (name === "DX") {
             puts(1,"IupCanvas(DX,"+val+")??\n"); // placeholder
         } else if (name === "DY") {
@@ -1011,101 +1272,85 @@ function $gInit() {
                              "YANGLE","YCROSSORIGIN","YMARGIN","YMAX","YMIN","YRID","YTICK","YTICKFMT","YXSHIFT",
                              "FONT","SCROLLBAR","DX","DY","LEGENDBOX"], set_canvas);
 
-    function set_datepick(ih, name, val) {
-        assert(ih.classList[0] === "datepick");
-        if (name === "ACTIVE") {
-//          val = $to_bool(val);
-//          ih.disabled = !val;
-            puts(1,"IupDatePick(ACTIVE,"+val+")??\n"); // placeholder
-        } else if (name === "MONTHSHORTNAMES") {
+    function set_datepick(id, name, val) {
+        assert(id.classList[0] === "datepick");
+        if (name === "MONTHSHORTNAMES") {
             puts(1,"IupDatePick(MONTHSHORTNAMES,"+val+")??\n"); // placeholder
         } else if (name === "ZEROPRECED") {
             puts(1,"IupDatePick(ZEROPRECED,"+val+")??\n"); // placeholder
         } else if (name === "VALUE") {
             const fs = new RegExp("/","g");
             val = val.replace(fs,"-");
-            ih.value = val;
+            id.value = val;
         } else {
             crash("IupStoreAttribute(IupDatePick,\"" + name + "," + val + "\") not yet implemented\n");
         }
     }
-    store_attrs(["datepick"], ["ACTIVE","MONTHSHORTNAMES","ZEROPRECED","VALUE"], set_datepick);
+    store_attrs(["datepick"], ["MONTHSHORTNAMES","ZEROPRECED","VALUE"], set_datepick);
 
-    function set_menuitem(ih, name, val) {
-        assert(ih.classList[0] === "menuitem");
-        if (name === "ACTIVE") {
-//          val = $to_bool(val);
-//          ih.disabled = !val;
-            puts(1,"IupMenuItem(ACTIVE,"+val+")??\n"); // placeholder
-        } else if (name === "VALUE") {
-//          val = $to_bool(val);
-//          ih.disabled = !val;
-            puts(1,"IupMenuItem(VALUE,"+val+")??\n"); // placeholder
-        } else if (name === "AUTOTOGGLE") {
-//          val = $to_bool(val);
-//          ih.disabled = !val;
-            puts(1,"IupMenuItem(AUTOTOGGLE,"+val+")??\n"); // placeholder
-        } else {
-            crash("IupStoreAttribute(IupMenuItem,\"" + name + "\"," + val + ") not yet implemented\n");
-        }
-    }
-    store_attrs(["menuitem"], ["ACTIVE","VALUE","AUTOTOGGLE"], set_menuitem);
+//  function set_menuitem(id, name, val) {
+//      assert(id.classList[0] === "menuitem");
+//      if (name === "VALUE") {
+////            val = $to_bool(val);
+////            id.disabled = !val;
+//          puts(1,"IupMenuItem(VALUE,"+val+")??\n"); // placeholder
+//      } else if (name === "AUTOTOGGLE") {
+////            val = $to_bool(val);
+////            id.disabled = !val;
+//          puts(1,"IupMenuItem(AUTOTOGGLE,"+val+")??\n"); // placeholder
+//      } else {
+//          crash("IupStoreAttribute(IupMenuItem,\"" + name + "\"," + val + ") not yet implemented\n");
+//      }
+//  }
+//  store_attrs(["menuitem"], ["VALUE","AUTOTOGGLE"], set_menuitem);
 
-    function set_multibox(ih, name, val) {
-        assert(ih.classList[0] === "multibox");
-//      if (name === "ACTIVE") {
-//          val = $to_bool(val);
-//          ih.disabled = !val;
-//          puts(1,"?!IupMultiBox(ACTIVE,"+val+")??\n"); // placeholder
-//      } else if (name === "GAP") {
-//          puts(1,"IupMultiBox(GAP,"+val+")??\n"); // placeholder
-//      } else if (name === "EXPAND") {
-//          expand(ih,val);
-//      } else if (name === "PADDING") {
-//          set_style(ih,"padding",val);
-//          puts(1,"IupMultiBox(PADDING,"+val+")??\n"); // placeholder
-        if (name === "MARGIN") {
-            puts(1,"IupMultiBox(MARGIN,"+val+")??\n"); // placeholder
-        } else if (name === "GAPHORIZ") {
-            puts(1,"IupMultiBox(GAPHORIZ,"+val+")??\n"); // placeholder
-        } else if (name === "GAPVERT") {
-            puts(1,"IupMultiBox(GAPVERT,"+val+")??\n"); // placeholder
-        } else if (name === "NMARGIN") {
-//          set_style(ih,"margin",val);
-            puts(1,"IupMultiBox(NMARGIN," + val + ")\n"); // placeholder
-        } else {
-            crash("IupStoreAttribute(IupMultiBox,\"" + name + "\"," + val + ") not yet implemented\n");
-        }
-    }
-    store_attrs(["multibox"], ["MARGIN","NMARGIN","GAPHORIZ","GAPVERT"], set_multibox);
+//  function set_multibox(id, name, val) {
+//      assert(id.classList[0] === "multibox");
+////        if (name === "GAP") {
+////            puts(1,"IupMultiBox(GAP,"+val+")??\n"); // placeholder
+////        } else if (name === "EXPAND") {
+////            expand(id,val);
+////        } else if (name === "PADDING") {
+////            set_style(id,"padding",val);
+////            puts(1,"IupMultiBox(PADDING,"+val+")??\n"); // placeholder
+//      if (name === "MARGIN") {
+//          puts(1,"IupMultiBox(MARGIN,"+val+")??\n"); // placeholder
+//      } else if (name === "GAPHORIZ") {
+//          puts(1,"IupMultiBox(GAPHORIZ,"+val+")??\n"); // placeholder
+//      } else if (name === "GAPVERT") {
+//          puts(1,"IupMultiBox(GAPVERT,"+val+")??\n"); // placeholder
+//      } else if (name === "NMARGIN") {
+////            set_style(id,"margin",val);
+//          puts(1,"IupMultiBox(NMARGIN," + val + ")\n"); // placeholder
+//      } else {
+//          crash("IupStoreAttribute(IupMultiBox,\"" + name + "\"," + val + ") not yet implemented\n");
+//      }
+//  }
+//  store_attrs(["multibox"], ["MARGIN","NMARGIN","GAPHORIZ","GAPVERT"], set_multibox);
 
-    function set_progress(ih, name, val) {
-        assert(ih.classList[0] === "progress");
-//      if (name === "ACTIVE") {
-//          val = $to_bool(val);
-//          ih.disabled = !val;
-//          puts(1,"?!IupProgressBar(ACTIVE,"+val+")??\n"); // placeholder
-//      } else if (name === "EXPAND") {
-//          expand(ih,val);
+    function set_progress(id, name, val) {
+        assert(id.classList[0] === "progress");
+//      if (name === "EXPAND") {
+//          expand(id,val);
         if (name === "ORIENTATION") {
             puts(1,"IupProgressBar(ORIENTATION,"+val+")??\n"); // placeholder
 //          if (val === "HORIZONTAL") {
 //              drag.className = "drag-y"
-//              ih.style.flexDirection = "column";
+//              id.style.flexDirection = "column";
 //          } else {
 //              assert(val === "VERTICAL");
 //              drag.className = "drag-x"
-//              ih.style.flexDirection = "row";
+//              id.style.flexDirection = "row";
 //          }
         } else if (name === "MIN") {
             puts(1,"IupProgressBar(MIN,"+val+")??\n"); // placeholder
-            ih.max = val;
+            id.max = val;
         } else if (name === "MAX") {
             puts(1,"IupProgressBar(MAX,"+val+")??\n"); // placeholder
-            ih.min = val;
+            id.min = val;
         } else if (name === "VALUE") {
 //          puts(1,"IupProgressBar(MAX,"+val+")??\n"); // placeholder
-            ih.value = val;
+            id.value = val;
         } else if (name === "EXPAND") {
             puts(1,"IupProgressBar(EXPAND,"+val+")??\n"); // placeholder
         } else {
@@ -1114,26 +1359,22 @@ function $gInit() {
     }
     store_attrs(["progress"], ["ORIENTATION","MIN","MAX","VALUE","EXPAND"], set_progress);
 
-    function set_split(ih, name, val) {
-        assert(ih.classList[0] === "split");
-//      if (name === "ACTIVE") {
-//          val = $to_bool(val);
-//          ih.disabled = !val;
-//          puts(1,"?!IupMultiBox(ACTIVE,"+val+")??\n"); // placeholder
-//      } else if (name === "GAP") {
+    function set_split(id, name, val) {
+        assert(id.classList[0] === "split");
+//      if (name === "GAP") {
 //          puts(1,"IupMultiBox(GAP,"+val+")??\n"); // placeholder
 //      } else if (name === "EXPAND") {
-//          expand(ih,val);
+//          expand(id,val);
         if (name === "ORIENTATION") {
 //          puts(1,"IupSplit(ORIENTATION,"+val+")??\n"); // placeholder
-            let drag = ih.children[1];
+            let drag = id.children[1];
             if (val === "HORIZONTAL") {
                 drag.className = "drag-y"
-                ih.style.flexDirection = "column";
+                id.style.flexDirection = "column";
             } else {
                 assert(val === "VERTICAL");
                 drag.className = "drag-x"
-                ih.style.flexDirection = "row";
+                id.style.flexDirection = "row";
             }
         } else if (name === "MINMAX") {
             puts(1,"IupSplit(MINMAX,"+val+")??\n"); // placeholder
@@ -1143,18 +1384,14 @@ function $gInit() {
     }
     store_attrs(["split"], ["ORIENTATION","MINMAX"], set_split);
 
-    function set_tabcontainer(ih, name, val) {
-        assert(ih.classList[0] === "tabcontainer");
-//      if (name === "ACTIVE") {
-//          val = $to_bool(val);
-//          ih.disabled = !val;
-//          puts(1,"?!IupMultiBox(ACTIVE,"+val+")??\n"); // placeholder
-//      } else if (name === "GAP") {
+    function set_tabcontainer(id, name, val) {
+        assert(id.classList[0] === "tabcontainer");
+//      if (name === "GAP") {
 //          puts(1,"IupMultiBox(GAP,"+val+")??\n"); // placeholder
 //      } else if (name === "EXPAND") {
-//          expand(ih,val);
+//          expand(id,val);
 //      } else if (name === "PADDING") {
-//          set_style(ih,"padding",val);
+//          set_style(id,"padding",val);
 //          puts(1,"IupMultiBox(PADDING,"+val+")??\n"); // placeholder
         if (name === "TABTYPE") {
             puts(1,"IupTabs(TABTYPE,"+val+")??\n"); // placeholder
@@ -1164,38 +1401,38 @@ function $gInit() {
     }
     store_attrs(["tabcontainer"], ["TABTYPE"], set_tabcontainer);
 
-    function set_slider(ih, name, val) {
-        assert(ih.classList[0] === "slider");
+    function set_slider(id, name, val) {
+        assert(id.classList[0] === "slider");
         if (name === "ORIENTATION") {
 //          puts(1,"IupValuator(ORIENTATION,"+val+")??\n"); // placeholder
             if (val === "VERTICAL") {
-                ih.style.transform = "rotate(90deg)";
+                id.style.transform = "rotate(90deg)";
             } else if (val === "HORIZONTAL") {
-                ih.style.transform = "";
+                id.style.transform = "";
             } else {
                 crash("uh?");
             }
         } else if (name === "MAX") {
 //          puts(1,"IupValuator(MAX,"+val+")??\n"); // placeholder
-            ih.setAttribute("max", val);
+            id.setAttribute("max", val);
         } else if (name === "MIN") {
 //          puts(1,"IupValuator(MIN,"+val+")??\n"); // placeholder
-            ih.setAttribute("min", val);
+            id.setAttribute("min", val);
         } else if (name === "VALUE") {
 //          puts(1,"IupValuator(VALUE,"+val+")??\n"); // placeholder
-            ih.setAttribute("value", val);
+            id.setAttribute("value", val);
         } else if (name === "STEP") {
 //          puts(1,"IupValuator(STEP,"+val+")??\n"); // placeholder
-            ih.setAttribute("step", val);
+            id.setAttribute("step", val);
         } else if (name === "PAGESTEP") {
             puts(1,"IupValuator(PAGESTEP,"+val+")??\n"); // placeholder
-//          ih.setAttribute("step", val);
+//          id.setAttribute("step", val);
         } else if (name === "EXPAND") {
 //          puts(1,"IupValuator(EXPAND,"+val+")??\n"); // placeholder
-            ih.style.flexGrow = 1;
+            id.style.flexGrow = 1;
         } else if (name === "TIP") {
             puts(1,"IupValuator(TIP,"+val+")??\n"); // placeholder
-//          ih.setAttribute("step", val);
+//          id.setAttribute("step", val);
         } else if (name === "CANFOCUS") {
 // just ignore for now...
 //          puts(1,"IupValuator(CANFOCUS,"+val+")??\n"); // placeholder
@@ -1206,16 +1443,16 @@ function $gInit() {
     store_attrs(["slider"], ["ORIENTATION","MAX","MIN","VALUE","STEP","PAGESTEP","EXPAND","TIP",
                              "CANFOCUS"], set_slider);
 
-    function set_clipboard(ih, name, val) {
-        assert(ih.classList[0] === "clipboard");
+    function set_clipboard(id, name, val) {
+        assert(id.classList[0] === "clipboard");
         if (name === "TEXT") {
 //          puts(1,"IupClipboard(TEXT,"+val+")??\n"); // placeholder
-            ih.value = val;
-            document.body.appendChild(ih);
-            ih.focus();
-            ih.select();
+            id.value = val;
+            document.body.appendChild(id);
+            id.focus();
+            id.select();
             document.execCommand("copy");
-            document.body.removeChild(ih);
+            document.body.removeChild(id);
 //          window.Clipboard.prototype.writeText(val);
         } else {
             crash("IupStoreAttribute(IupClipboard,\"" + name + "\"," + val + ") not yet implemented\n");
@@ -1223,20 +1460,3965 @@ function $gInit() {
     }
     store_attrs(["clipboard"], ["TEXT"], set_clipboard);
 
+} // $gInit() ends
+
+function gSetGlobal(name, v) {
+//  if (name === "UTF8MODE") {
+//      // do nothing... (it is already/permanently enabled in JavaScript)
+//  } else if (name === "SINGLEINSTANCE") {
+//      puts(1,"gSetGlobal(" + name + "," + v + ")...\n");
+//  } else if (name === "INPUTCALLBACKS") {
+//      puts(1,"gSetGlobal(" + name + "," + v + ")...\n");
+//  } else {
+//      crash("gSetGlobal(" + name + "," + v + ")...");
+        puts(1,"gSetGlobal(" + name + "," + v + ")...\n");
+//  }
+}
+//const gSetGlobalInt = gSetGlobal;
+
+function gGetGlobalInt(/*string*/ name) {
+    if (name === "CONTROLKEY") { return $ctrlKey; }
+    if (name === "SHIFTKEY") { return $shiftKey; }
+    if (name === "UTF8MODE") { return true; }
+    crash("gGetGlobalInt(%s) not supported",["sequence",name]);
 }
 
-//function IupTreeGetUserId(tree, id) {
-function gTreeGetUserId(tree, id) {
-//DEV/DOC this is effectively a null-op on the web browser.
-//  let leaf = tree.querySelector(`[data-tree-id="` + id + `"]`);
-//  let /*integer*/ userid = leaf.getAttribute("data-tree-id");
-//  if (userid!==id) { crash("userid error?"); }
-//  return userid;
+function gGetGlobalIntInt(/*string*/ name) {
+    if (name === "SCREENSIZE") { return ["sequence",window.innerWidth,window.innerHeight]; }
+    crash("gGetGlobalIntInt(%s) not supported",["sequence",name]);
+}
+
+function gVersion() { return "xpGUI.js version 0.1 (32 bits)"; }
+
+function gGetGlobal(/*string*/ name) {
+    if (name === "VERSION") {
+        return gVersion();
+    } else if (name === "DLGBGCOLOR") {
+//      return "240 240 240";
+        return ["sequence",0xF0,0xF0,0xF0];
+    } else if (name === "SCREENSIZE") {
+//      return window.innerWidth + "x" + window.innerHeight;
+//      return ["sequence",window.innerWidth,window.innerHeight];
+        return gGetGlobalIntInt(name);
+    } else if (name === "CONTROLKEY" ||
+               name === "SHIFTKEY" ||
+               name === "UTF8MODE") {
+        return gGetGlobalInt(name);
+    }
+    crash("gGetGlobal(" + name + ")...");
+}
+
+function gSetGlobalFunction(name, v) {
+    if (name === "IDLE_ACTION") {
+        function cb() {
+            let res = v();
+//? !=XPG_IGNORE ?
+            if (res === XPG_DEFAULT) {
+                window.requestIdleCallback(cb); 
+            }
+        }
+        window.requestIdleCallback(cb);
+    } else {
+        crash("gSetGlobalFunction(" + name + ")...");
+    }
+}
+
+function $timer(/*string*/cmd, id, name, v) { // nb: mapped to ("create",func,msecs,active)
+    // timer handling, used by IupTimer(), IupSetInt(), and IupGetInt()
+    // (bundled like this mainly just so that the next enum can be local)
+    const TIMER=0, FUNC=1, MSECS=2, ACTIVE=3, ID=4, CB=5
+    if (cmd === "create") {
+        function action_cb(timer) {
+            if (!timer[ACTIVE]) { 
+                if (timer[ID]) {
+                    // shouldn't really happen... not very often anyway
+                    clearInterval(timer[ID]);
+                    timer[ID] = 0;
+                }
+            } else {
+                let fn = timer[FUNC],
+                    res = fn(timer);
+    //          if (res === IUPCLOSE) { uh?? [now documented as not supported] }
+            }
+        }
+        //function IupTimer(/*cbfunc*/ func=NULL, /*integer*/ msecs=0, /*boolean*/ active=true) {
+        //  return $timer("create",func,msecs,active);
+        let func = id, msecs = name, active = v; // map args to more sensible names
+        id = ["timer",func,msecs,active,0,action_cb];
+        if (active) {
+            id[ID] = setInterval(action_cb,msecs,id);
+        }
+        return id;
+
+    } else if (cmd === "is") {
+        return Array.isArray(id) && id[TIMER] === "timer";
+    } else {
+        if (name === "RUNNING" || name === "ACTIVE") { name = "RUN"; }
+        if (name === "MSECS" || name === "MSEC") { name = "TIME"; }
+        if (cmd === "set") {
+            if (id[ID]) {
+                clearInterval(id[ID]);
+                id[ID] = 0;
+            }
+            if (name === "RUN") {
+                id[ACTIVE] = v;
+            } else if (name === "TIME") {
+                id[MSECS] = v;
+            } else {
+                crash("timer??");
+            }
+            if (id[ACTIVE]) {
+                id[ID] = setInterval(id[CB],id[MSECS],id);
+            }
+        } else if (cmd === "get") {
+            if (name === "RUN") { return id[ACTIVE]; }
+            if (name === "TIME") { return id[MSECS]; }
+            crash("timer??")
+        }
+    }
+}   
+
+//(gdx id, string name, nullable_string v, sequence args={}) 
+function gSetAttribute(id, name, v, args = []) {
+    if ($timer("is",id)) {
+        if (args.length) {
+            v = sprintf(v, args);
+        }
+        v = $to_bool(v);
+        $timer("set",id,name,v);
+        return;
+    }
+    if (sequence(id)) {
+        for (let i=length(id); i >= 1; i -= 1) {
+            gSetAttribute(id[i], name, v);
+        }
+        return;
+    }
+//  let t = id.className;
+    let t = id.classList[0];
+//  let t = $class_name(id);
+    if (!t || !$storeAttr.hasOwnProperty(t)) {
+        crash("invalid type");
+    }
+    if (typeof(name) === "string") {
+        if (args.length) {
+            v = sprintf(v, args);
+        }
+        if (t === "drop" && name === "OPTIONS") {
+//      } else if (name === "<list_id>") {
+//          puts(1,"IupList(<list_id>,"+val+")??\n"); // placeholder
+//          [/*integer*/ name, /*string*/ val] = val;
+            //... (DEV)
+            let n = id.childElementCount;
+            if (n) {
+                // placeholder
+                crash("delete prior options not yet implemented");
+            }
+            n = length(v);
+//          if (name>n) {
+            for (let i = 1; i <= n; i += 1) {
+                let vi = v[i],
+                    childoption = document.createElement("option"),
+                    t = document.createTextNode(vi);
+//              childoption.setAttribute("value", name.toString());
+                childoption.appendChild(t);
+                id.appendChild(childoption);
+//              n += 1;
+            } 
+/*
+            else {
+                let childoption = id.children[n-1],
+                    t = childoption.childNodes[0];
+                t.textContent = val;
+//              crash("IupList replace???"); // placeholder
+            }
+*/
+//DEV??
+//          if (!id.DROPDOWN) { id.size = n; }
+//          id.size = n; (NO!!)
+            return;
+        }
+/*
+        let bOK = $storeAttr[t].hasOwnProperty(name);
+//DEV..
+        if ((!bOK) && (t === "list")) {
+            // map "1", "2", etc. to ("<list_id>",[n,v]):
+//DEV define almost like this in p2js.js and exclude from transpilation, for use in [s]printf()?
+//          let n = to_integer(name);
+            let l = name.length, n = 0;
+            for (let i = 0; i < l; i += 1) {
+                let d = name.codePointAt(i) - 0X30; // (ie ch-'0')
+                if ((d > 9) || d < (i === 0)) { // (not leading 0)
+                    n = 0;
+                    break;
+                }
+                n = n*10 + d;
+            }
+            if (n > 0) {
+                bOK = true;
+                v = [n,v]; // (set_list() does matching desequence)
+                name = "<list_id>";
+            }
+        }
+        if (bOK) {
+*/
+        if ($storeAttr[t].hasOwnProperty(name)) {
+            let fn = $storeAttr[t][name];
+            if (typeof(fn) !== "function") {
+                crash("invalid fn");
+            }
+            fn(id, name, v);
+            return;
+        }
+    }
+    crash("invalid attr name (%s for %s)",["sequence",name,t]);
+}
+const gSetInt = gSetAttribute;
+const gSetDouble = gSetAttribute;
+
+//const IupStoreAttribute = IupSetStrAttribute;
+//const IupSetAttribute = IupSetStrAttribute;
+
+//function IupSetAttributeId(id, name, idx, v) {
+//  let t = id.classList[0];
+//  if (t === "list" && name === "") {
+//      name = "<list_id>"
+//      let fn = $storeAttr[t][name];
+//      v = [idx,v]; // (set_list() does matching desequence)
+//      fn(id, name, v);
+//      return;
+//  }
+//  printf(1,"IupSetAttributeId(%s,\"%s\",%d,%V)??\n",["sequence",t,name,id,v]);
+////    id[name] = v;
+//}
+
+//DEV gSetInt === gSetAttribute...
+function IupSetInt(id, name, v) {
+    if (name!="GRIDCOLOR") {
+        let tv = typeof(v);
+        if (tv !== "number" && 
+            tv !== "boolean" && 
+            tv !== "function") {
+            crash("gSetInt("+name+","+tv+")??");
+        }
+    }
+    if ($timer("is", id)) {
+        $timer("set", id, name, v);
+    } else if (sequence(id)) {
+        for (let i=length(id); i >= 1; i -= 1) {
+            gSetAttribute(id[i], name, v);
+        }
+    } else {
+        gSetAttribute(id, name, v);
+    }
+}
+
+function gGetAttribute(id, name, dflt) {
+//  if (string(id) && id === "clipboard") {
+//      if (name !== "TEXT") { crash("uh?"); }
+//      puts(1,"gGetAttribute(clipboard,`TEXT`)==>``??\n");
+////        let text = window.clientInformation.clipboard.readText(); // ugh, a /Promise/...
+////        let text = window.clientInformation.clipboard.read();
+////        return text;
+//      return "";
+//  }
+    if ($timer("is",id)) {
+        return $timer("get",id,name);
+    }
+    let t = id.classList[0];
+    if (name === "VALUE") {
+        if (t === "text" ||
+            t === "datepick") { // nb eg 2021-11-05 (for docs)
+            return id.value;
+        }
+    } else if (name === "VALINT" ||
+               name === "VALSTR" ) {
+        if (t === "drop") {
+            let children = id.childNodes,
+                l = children.length;
+            for (let i=0; i<l; i += 1) {
+                if (children[i].selected) {
+                    if (name === "VALINT") {
+                        return i+1;
+                    }
+                    return children[i].text;
+                }
+            }
+            if (name === "VALINT") {
+                return 0;
+            }
+            return "";
+        }
+    } else if (name === "TITLE") {
+        if (t === "button" ||
+            t === "toggle" ||
+            t === "label" ) {
+// "menu"??
+            return id.innerText;
+        } else if (t === "frame") {
+            return id.childNodes[0].innerText;
+//DEV??
+        } else if (t === "hbox" ||
+//      } else if (t === "hbox" ) {
+                   t === "canvas") {
+            return gGetAttribute(id.parentNode,name);
+        }
+//  } else if (t === "dialog") {
+    } else if (t === "canvas" ) {
+        if (name === "GTITLE" ||
+            name === "XNAME" ||
+            name === "YNAME" ||
+            name === "MODE" ||
+            name === "MARKSTYLE" ||
+            name === "LEGENDBOX") {
+            if (!id[name]) { return dflt; }
+            return id[name];
+        }
+    } else if (name === "RASTERSIZE" || name === "SIZE") {
+//      if (name === "RASTERSIZE") {
+//          return ["sequence", $eWidth(id), $eHeight(id)];
+        return sprintf("%dx%d",["sequence",$eWidth(id), $eHeight(id)]);
+//      }
+    } else if (name === "TEXT") {
+        if (t === "clipboard" ) {
+//          puts(1,"IupClipboard(TEXT,"+val+")??\n"); // placeholder
+//          id.value = "paste";
+            id.value = "1";
+            document.body.appendChild(id);
+            id.style.display = "block";
+            id.select();
+            id.focus();
+//DEV does not work:
+//          document.execCommand("copy");
+//                  if (document.execCommand !== undefined && document.execCommand("copy") !== true) {
+//                      throw new Error(`Unsupported "copy" clipboard command`);
+//                  }
+//                  if (document.execCommand !== undefined && document.execCommand("paste", null, null)) {
+//                      return clip.value;
+            let res = document.execCommand("paste",null,null);
+            document.body.removeChild(id);
+            return id.value;
+// "illegal invocation"...
+//          return window.Clipboard.prototype.readText();
+        }
+    }
+//DEV??
+    if (id.hasOwnProperty(name)) { // (DBUFFER etc)
+        return id[name];
+//  } else if (t === "canvas" && dflt &&
+//             (name === "XTICTFMT" ||
+//              name === "YTICTFMT") {
+    } else if (dflt) {
+        return dflt
+    }
+    crash("gGetAttribute(%s,%s) not supported",["sequence",t,name]);
+}   
+
+//DEV gGetInt:
+//  if name="EXPAND" then
+//      return and_bits(ctrl_flags[id],CF_EXPANDH+CF_EXPANDV)
+//  end if
+
+function gGetInt(id, name, dflt) {
+    if (name === "EXPAND") {
+        let res = 0;
+        if (id.classList.contains("expandh")) { res += 1; }
+        if (id.classList.contains("expandv")) { res += 2; }
+        return res;
+    }
+    return gGetAttribute(id, name, dflt);
+}
+const gGetDouble = gGetAttribute;
+
+//function IupSetAttributePtr(id, name, v) {
+//  id[name] = v;
+//}
+
+// 28/4/22 (may have jumped the gun.. [while updating the docs, rather than actually using])
+//let IupGetAttributePtr = IupGetAttribute; // NO!!
+//function IupGetAttributePtr(id, name) {
+//  return id[name];
+//}
+
+//function IupGetAttributeId(id, name, id) {
+//  let t = id.classList[0];
+//  if (t === "list") {
+//      if (name === "") {
+//          let n = id.childElementCount;
+//          if (id<=n) {
+//              let childoption = id.children[n-1],
+//                  t = childoption.childNodes[0];
+//              return t.textContent;
+//          }
+//          crash("uh?");
+////            return "";
+//      }
+//  }
+//  crash("IupGetAttributeId(%s,%s,%d) not supported",["sequence",t,name,id]); // placeholder
+//} 
+
+//DEV... gGetInt === gGetAttribute....
+function IupGetInt(id, name, dflt=0) {
+//  if (id === 0) {
+//      return IupGetGlobalInt(name);
+////        if (name === "CONTROLKEY") { return $ctrlKey; }
+////        if (name === "SHIFTKEY") { return $shiftKey; }
+////        crash("IupGetInt(NULL,%s) not supported",["sequence",name]);
+//  } else 
+    if ($timer("is",id)) {
+        return $timer("get",id,name);
+    }
+    let t = id.classList[0];
+    if (t === "button") {
+        if (name === "ACTIVE") {
+            return !id.disabled;
+//DEV...
+        } else if (name === "RUNNING") {
+            return id[name];
+        }
+    } else if (t === "text") {
+        if (name === "VALUE") {
+            if (id.value === "") { return 0; }
+            return parseInt(id.value);
+        }
+    } else if (t === "label") {
+        if (name === "TITLE") {
+            if (id.innerText === "") { return 0; }
+            return parseInt(id.innerText);
+        }
+    } else if (t === "toggle") {
+        if (name === "VALUE") {
+//          val = $to_bool(val);
+//DEV to_bool not in scope...? (is innerText actually so???) [IupToggle is ~1% implemented, if that]
+//          let val = id.innerText;
+//          if (string(val)) { val = (val.toUpperCase()==="YES"); }
+//8/4/22 (for Spinning Rod Animation)
+//          return id.innerText.toUpperCase() === "YES";
+            return id.childNodes[1].checked;
+        }
+    } else if (t === "canvas") {
+        if (name === "DATA" ||
+            name === "DRID" ||
+            name === "GRID" ||
+            name === "GRIDCOLOR" ||
+            name === "LEGENDBOX" ||
+            name === "POSX" ||
+            name === "POSY" ||
+            name === "TITLESTYLE" ||
+            name === "XANGLE" ||
+            name === "XCROSSORIGIN" ||
+            name === "XMARGIN" ||
+            name === "XMAX" ||
+            name === "XMIN" ||
+            name === "XRID" ||
+            name === "XTICK" ||
+            name === "XTICKFMT" ||
+            name === "XYSHIFT" ||
+            name === "YANGLE" ||
+            name === "YCROSSORIGIN" ||
+            name === "YMARGIN" ||
+            name === "YMAX" ||
+            name === "YMIN" ||
+            name === "YRID" ||
+            name === "YTICK" ||
+            name === "YTICKFMT" ||
+            name === "YXSHIFT") {
+            return id[name] || dflt;
+        }
+    } else if (t === "list") {
+        if (name === "VALUE") {
+            let children = id.childNodes,
+                l = children.length;
+            for (let i=0; i<l; i += 1) {
+                if (children[i].selected) {
+                    return i+1;
+                }
+            }
+            return 0;
+        } else if (name === "COUNT") {
+            return id.childElementCount;
+        }
+    } else if (t === "dialog") {
+        if (name === "VISIBLE") {
+//          return !id.hidden;
+            return id.isConnected;
+        }
+    } else if (t === "slider") {
+        if (name === "VALUE") {
+            return id.valueAsNumber;
+        }
+    }
+    crash("IupGetInt(%s,%s) not supported",["sequence",t,name]);
+}   
+
+function gToggleInt(/*gdx*/ id, /*string*/ name) {
+    gSetInt(id,name,!gGetInt(id,name))
+}
+
+function IupGetIntInt(id, name) {
+//  if (typeof(name) !== "string" ...??
+    let t = id.classList[0];
+    if (name == "RASTERSIZE") {
+        if (t === "canvas" ||
+            t === "dialog") {
+//erm...
+//          const rect = id.getBoundingClientRect(),    // (nb: recalc in DOM)
+//                w = rect.width,
+//                h = rect.height;
+//          crash("RASTERSIZE expected!");
+//          return ["sequence",w,h];
+//          return ["sequence",id.width,id.height];
+            return ["sequence",id.clientWidth,id.clientHeight];
+//dialog:
+//          if (w) { id.style.width = w + "px"; }
+//          if (h) { id.style.height = h + "px"; }
+//canvas:
+//          if (w) { id.width = w; }
+//          if (h) { id.height = h; }
+        }
+        if (t === "button" ||
+            t === "label") {
+//DEV all 0...
+//          let cse = getComputedStyle(id);
+//          return ["sequence",$pxFloat(cse.width),$pxFloat(cse.height)];
+            let brect = id.getBoundingClientRect();
+            return ["sequence",brect.width,brect.height];
+        }
+    } else if (t === "canvas") {
+        if (name === "DRAWSIZE") {
+            return ["sequence",id.width,id.height];
+        }
+    } else if (t === "dialog") {
+        if (name === "SCREENPOSITION") {
+            return ["sequence",id.offsetLeft,id.offsetTop];
+        }
+    }
+//  if (!t || !$storeAttr.hasOwnProperty(t)) {
+//      crash("invalid type");
+//  }
+/*
+    let val = id[name];
+//aw bollocks, it's a *lot* more involved than this...
+//  if (!val || $storeAttr[t].hasOwnProperty(name)) {
+//      val = $storeAttr[t][name];
+//  }
+    if (typeof(val) === "string") {
+        // convert eg "225x75" to ["sequence",225,75]
+        let x = val.indexOf('x');
+        if (x) {
+            let y = Number(val.slice(x+1));
+                x = Number(val.slice(0,x));
+            if (Number.isInteger(x) &&
+                Number.isInteger(y)) {
+                val = ["sequence",x,y];
+            }
+        }
+    }
+    if (!sequence(val) || length(val)!==2) {
+        crash("invalid IupGetIntInt value");
+//or maybe just:
+//      val = ["sequence",0,0];
+    }
+    return val;
+*/
+    crash("IupGetIntInt(%s,%s) not supported",["sequence",t,name]);
+}
+
+//DEV gGetDouble === gGetAttribute...
+function IupGetDouble(id, name, dflt=0) {
+//  let t = id?id.classList[0]:"NULL";
+    let t = id.classList[0];
+//DEV we're not allowing this anymore...
+//  if (id === NULL) {
+//      if (name === "SCREENDPI") {
+//          return window.devicePixelRatio * 96;
+//      }
+//  } else 
+    if (t === "canvas") {
+        if (name === "XTICK" ||
+//          name === "DATA" ||
+//          name === "DRID" ||
+            name === "XANGLE" ||
+//          name === "XCROSSORIGIN" ||
+            name === "XMARGIN" ||
+            name === "XMAX" ||
+            name === "XMIN" ||
+            name === "XYSHIFT" ||
+            name === "YANGLE" ||
+//          name === "YCROSSORIGIN" ||
+            name === "YMARGIN" ||
+            name === "YMAX" ||
+            name === "YMIN" ||
+            name === "YTICK" ||
+            name === "YXSHIFT") {
+            return id[name] || dflt;
+        }
+    } else if (t === "slider") {
+        if (name === "VALUE") {
+            return Number(id.value);
+        }
+    }
+    crash("IupGetDouble(%s,%s) not supported",["sequence",t,name]);
+}
+
+//DEV gSetDouble = gSetAttribute;
+function IupSetDouble(id, name, v) {
+//  let t = id?id.classList[0]:"NULL";
+    let t = id.classList[0];
+//  if (t === "slider") {
+    if (t === "progress") {
+        if (name === "VALUE") {
+            id.value = v;
+            return;
+        }
+    } else if (t === "canvas") {
+        if (name === "XTICK" ||
+            name === "YTICK") {
+            id[name] = v;
+            return;
+        }
+    }
+    crash("IupSetDouble(%s,%s,%V) not supported",["sequence",t,name,v]);
+}
+
+// translated from iup_attrib.c:
+function gSetAttributes(id, attributes, args = []) {
+    if (attributes && typeof(attributes) === "string" && attributes.length>0) {
+        let i = 0;
+        let token = "";
+        const IUPLEX_TK_END   = 0,
+              IUPLEX_TK_SET   = 1,
+              IUPLEX_TK_COMMA = 2,
+              IUPLEX_TK_NAME  = 3;
+
+        function iAttribCapture(delims) {
+            token = "";
+            while (i < attributes.length) {
+                let c = attributes[i];
+                i += 1;
+                if (delims.indexOf(c) !== -1) {
+                    return;
+                }
+                token += c;
+            }
+            i += 1;
+        }
+
+        function iAttribToken() {
+            while (i < attributes.length) {
+                let c = attributes[i];
+                i += 1;
+                switch (c) {
+                case 0:
+                    return IUPLEX_TK_END;
+
+                case '#':
+                case '%':
+                    // Skip comment
+//                  while (i < attributes.length && attributes[i++] !== '\n') {}
+                    while (i < attributes.length) {
+                        c = attributes[i];
+                        i += 1;
+                        if (c === '\n') { break; }
+                    }
+                    break;
+
+                case ' ':
+//              case '\t':
+//              case 0X9:
+                case '\n':
+                case '\r':
+                case '\f':
+//              case '\v':
+                    break;
+
+                case '=':
+                    return IUPLEX_TK_SET;
+
+                case ',':
+                    return IUPLEX_TK_COMMA;
+
+//              case '\"':                                  // string
+                case '"':                                   // string
+                    iAttribCapture("\"");
+                    return IUPLEX_TK_NAME;
+
+                default:
+                    if (c > " ") {                          // identifier
+                        i -= 1;                             // unget first character of env_buffer
+//                      iAttribCapture("=, \t\n\r\f\v");    // get env_buffer until delimiter
+//                      iAttribCapture("=, \t\n\r\f");      // get env_buffer until delimiter
+                        iAttribCapture("=, \n\r\f");        // get env_buffer until delimiter
+                        i -= 1;                             // unget delimiter
+                        return IUPLEX_TK_NAME;
+                    }
+                } // (end switch)
+            } // (end while)
+            return IUPLEX_TK_END;
+        }
+
+        let name = null;
+        let val = null;
+        let get_name = true; // (else get_value)
+        let bEnd = false;
+        if (args.length>0) {
+            attributes = sprintf(attributes,args)
+        }
+
+//      for (;;) {
+        while (true) {
+            switch (iAttribToken()) {
+            case IUPLEX_TK_END:         // same as IUPLEX_TK_COMMA
+                bEnd = 1;
+            case IUPLEX_TK_COMMA:
+                if (name) {
+                    gSetAttribute(id, name, val);
+                }
+                if (bEnd) { return; }
+                name = null;
+                val = null;
+                get_name = true;
+                break;
+
+            case IUPLEX_TK_SET:
+                get_name = false;
+                break;
+
+            case IUPLEX_TK_NAME:
+                if (get_name) {
+                    name = token;
+                } else {
+                    val = token;
+                }
+                break;
+            } // (end switch)
+        }
+//  } else {
+    } else if (attributes === null || typeof(attributes) !== "string") {
+        crash("attributes not string");
+    }   
+}
+
+//      function IupSetAttributeHandle(/*gdx*/ id, /*string*/ name, /*gdx*/ id_named) {
+//          // NB currently only handles dialog/MENU..
+//          if (name === "IMAGE") {
+//      //      inputDataUrl.value = dataUrl;
+//      //      imagePreview.src = dataUrl;
+//      //      id.value = id_named;
+//      //      id.src = id_named;
+//      //      imagePreview.style.display = "block";
+//      //      id.style.display = "block";
+//      //  imagePreview.style.maxWidth = `${inputWidth.value}px`;
+//      //      id.style.maxWidth = `32px`;
+//              let img = new Image();
+//              img.src = id_named;
+//              id.appendChild(img);
+//              return;
+//          }
+//          let t = id?id.classList[0]:"NULL",
+//              n = id_named?id_named.classList[0]:"NULL";
+//          if (t === "dialog" && name === "MENU" && n === "submenu") {
+//              // id_named is a ul.submenu...
+//              const mh = document.createElement("div"),
+//                    mb = document.createElement("div"),
+//                   nav = document.createElement("nav");
+//      //<div id="mobbtn">&#9776;</div>
+//      //<nav id="menu"><ul class="menubar">
+//      //      mh.setAttribute("class", "menuheader");
+//              mh.className = "menuheader";
+//      //      mh.id = "menuheader";
+//              mb.id = "mobbtn";
+//              mb.innerHTML = "&#9776;";
+//              nav.id = "menu";
+//              nav.appendChild(id_named);
+//              mh.appendChild(mb);
+//              mh.appendChild(nav);
+//              if (id_named.className !== "submenu") { crash("uh?"); }
+//      //      id_named.setAttribute("class", "menubar");
+//              id_named.className = "menubar";
+//              let l = id_named.children.length;
+//              for (let i = 0; i < l; i += 1) {
+//                  let ci = id_named.children[i],
+//                      cn = ci.className;
+//                  // quick sanity check:
+//                  assert(cn === "nestmenu" || cn === "menuitem" );
+//                  ci.className = "topmenu";
+//              }
+//              let dlgbod = id.querySelector(".dialog-body");
+//              dlgbod.insertAdjacentElement("afterbegin", mh);
+//              // Open sub-menu on click/hover
+//              nav.mstack = [];
+//              function close_to(mitem,clicked) {
+//                  //
+//                  // For an explanation, run demo/pGUI/submenu.exw
+//                  // (on the desktop or in the browser!) and open
+//                  // Edit/Create/Triangle. They should be "sticky"
+//                  // and remain as you move the mouse around over 
+//                  // the rest of the window/document. Sneak back 
+//                  // onto File or Edit/Copy and several menus are 
+//                  // hidden in one go, and one new menu opened.
+//                  //
+//                  // Called by click(topmenu),
+//                  //           enter(topmenu/nestmenu/menuitem),
+//                  //           click(doc).
+//                  //
+//                  let mstack = nav.mstack,
+//                      wasmlen = mstack.length,
+//                      p = mitem?.parentNode.parentNode;
+//                  while (mstack.length &&
+//                         mstack[mstack.length-1]!==p) {
+//                      mstack.pop().classList.remove("open");
+//                  }
+//                  if (mitem!==null && (clicked || wasmlen)) {
+//                      mitem.classList.toggle("open");
+//                      if (mitem.classList.contains("open")) {
+//                          mstack.push(mitem);
+//                      }
+//                  }
+//              }
+//              function li_click(event,mitem) {
+//                  // (m is an element from ml)
+//                  //event.preventDefault(); // avoids default right click menu (no help...)
+//                  event.stopPropagation(); // important!
+//                  close_to(mitem,true);
+//              }
+//              let ml = id_named.querySelectorAll(".topmenu");
+//              for (let i = 0; i < ml.length; i += 1) {
+//                  let m = ml[i];
+//                  m.addEventListener("click", (event) => li_click(event,m), false);
+//                  m.addEventListener("mouseenter", () => { close_to(m,false); }, false);
+//              }
+//              let nm = id_named.querySelectorAll(".nestmenu, .menuitem");
+//              for (let i = 0; i < nm.length; i += 1) {
+//                  let m = nm[i];
+//                  m.addEventListener("mouseenter", () => { close_to(m,false); }, false);
+//              }
+//              function hide_menu() {
+//                  close_to(null,false);
+//                  // alt-keys (mush === Menu Underline SHow, topmenu only)
+//                  const mush = id_named.querySelectorAll(".mush");
+//                  mush.forEach((item) => { item.classList.remove("mush"); });
+//              }
+//              document.addEventListener("click", hide_menu);
+//              document.addEventListener("contextmenu", hide_menu);
+//
+//      //      let menu = id_named.getElementById("menu");
+//      //      menu.addEventListener("contextmenu", (event)=> {event.preventDefault(); event.stopPropagation(); return false; });
+//              nav.addEventListener("contextmenu", (event)=> {event.preventDefault(); event.stopPropagation(); return false; });
+//
+//              function window_resize() {
+//                  hide_menu();
+//                  //DEV/SUG calc the 640 from sum of toplevel sizes...
+//                  if (window.innerWidth < 140) {
+//                      nav.classList.add("mobile");
+//                  } else {
+//                      nav.classList.remove("mobile");
+//                  }
+//              }   
+//              window_resize();
+//              id.addEventListener("resize", window_resize);
+//
+//      //      let me = id_named.querySelectorAll(".topmenu > span");
+//
+//              function listenKeys(event) {
+//                  var key = event.keyCode;
+//                  switch (key) {
+//      //            case 16: // Shift
+//      //            case 17: // Ctrl
+//                    case 18: // Alt (with shift) or AltGr
+//                              const malt = document.querySelectorAll(".malt");
+//                              // (mush === Menu Underline SHow, topmenu only)
+//                              malt.forEach((item) => { item.classList.toggle("mush"); });
+//      //                      me[0].focus();
+//                              id_named.querySelector(".topmenu > span").focus();
+//                              event.preventDefault();
+//                              break;
+//                    case 27: // Escape
+//                              hide_menu();
+//                              break;
+//      //            case 37: // left
+//      //            case 38: // up
+//      //            case 39: // right
+//      //            case 40: // down
+//                  }
+//      //console.log(key);
+//      //http://keycode.info/
+//              }
+//      //window.onkeydown = listenKeys;
+//              id.addEventListener("keydown", listenKeys)
+//
+//              // TOGGLE SLIDE MOBILE MENU
+//      //      let mobbtn = id_named.querySelector("#mobbtn");
+//      //      ==> mb
+//              function mobbtn_click() {
+//                  let mobile = id.querySelector(".mobile");
+//                  if (mb.classList.contains("active")) {
+//                      mb.classList.remove("active");
+//                      mb.innerHTML = "&#9776;";
+//                      if (mobile) {
+//                          mobile.style.right = "-220px";
+//                      }
+//                      mb.style.right = "0";
+//                  } else {
+//                      mb.classList.add("active");
+//                      mb.innerHTML = "&#9587;";
+//                      if (mobile) {
+//                          mobile.style.right = "0";
+//                      }
+//                      mb.style.right = "220px";
+//                  } 
+//              }
+//              mb.addEventListener("click", mobbtn_click);
+//
+//      //DEV is this not the same as/should be in doc_click??
+//      //      let content = document.querySelector(".content");
+//      //$(".content").on("click", function() { 
+//              function content_click() {
+//                  if (mb.classList.contains("active")) {
+//                      mb.classList.remove("active");
+//                      mb.innerHTML = "&#9776;";
+//                      let mobile = document.querySelector(".mobile");
+//                      if (mobile) {
+//                          mobile.style.right = "-220px";
+//                      }
+//                      mb.style.right = "0";
+//                  } 
+//              }
+//      //      content.addEventListener("click", content_click);
+//              window.addEventListener("click", content_click);
+//      //      let h = $eHeight(id);
+//              let h = $pxFloat(id.style.height);
+//              id.style.height = (h+21) + "px";
+//          } else if (t === "NULL" && name === "PARENTDIALOG") {
+//              // (not something we have to worry about in a browser...)
+//          } else {
+//              puts(1,"IupSetAttributeHandle(" + t +",\"" + name + "\"," + n +")??\n");
+//          }
+//      }
+
+function iup_XkeyBase(c) { return c; }
+
+function iup_isdouble(/*atom*/ pStatus) {
+// double click
+//  return peek(pStatus+5)='D'
+    puts(1,"iup_isdouble\n");
+    return false;
+}
+
+function iup_isprint(/*atom*/ c) {
+    return c>31 && c<127;   // K_SP..K_tidle
+}
+
+function iupKeyCodeToName(/*atom*/ ch) {
+//  atom pKeyName = c_func(xiupKeyCodeToName,{ch})
+//  return peek_string(pKeyName)
+    if (ch === K_F5) {
+        return "F5";
+    }
+    crash("iupKeyCodeToName(" + ch + ")\n");
+}
+
+function gSetHandler(id, name, func) {
+    if (sequence(id)) {
+        let l = length(id);
+        for (let i=1; i<=l; i += 1) {
+            let /*gdx*/ idi = id[i];
+            gSetHandler(idi,name,func);
+        }
+    } else if (!string(name)) {
+//      assert(handler==NULL)
+//      assert(even(length(name)))
+        let l = length(name);
+        for (let i=1; i<=l; i += 2) {
+            let /*string*/ ni = name[i];
+            let /*integer*/ f = name[i+1];
+            gSetHandler(id,ni,f);
+        }
+    } else {
+        let cn = id.classList[0];
+        id[name] = func;
+        function mapkey(event) {
+            // (common code for KEY_CB and text/ACTION)
+            let key = event.key;
+//          $shiftKey = event.shiftKey; // for IupGetInt()
+//puts(1,"shiftKey:"+shiftKey+"\n");
+            if (string(key) && key.length === 1) {
+                key = key.codePointAt(0);
+                if (event.ctrlKey) {
+                    if (key>=65 && key<=90) { // A..Z
+                        key -= 64;
+                    } else if (key>=97 && key<=122) { // a..z
+                        key -= 96;
+                    }
+                }
+            } else if (key == "Backspace") {
+                key = VK_BS;
+            } else if (key == "Delete") {
+                key = VK_DEL;
+            } else if (key == "Enter") {
+                key = VK_CR;
+            } else if (key == "Shift") {
+                return true;
+            } else if (key == "F1") {
+                key = VK_F1;
+            } else if (key == "F2") {
+                key = VK_F2;
+            } else if (key == "F3") {
+                key = VK_F3;
+            } else if (key == "F4") {
+                key = VK_F4;
+            } else if (key == "F5") {
+                key = VK_F5;
+            } else if (key == "F6") {
+                key = VK_F6;
+            } else if (key == "F7") {
+                key = VK_F7;
+            } else if (key == "F8") {
+                key = VK_F8;
+            } else if (key == "F9") {
+                key = VK_F9;
+            } else if (key == "F10") {
+                key = VK_F10;
+            } else if (key == "F11") {
+                key = VK_F11;
+            } else if (key == "F12") {
+                key = VK_F12;
+            } else if (key == "PageDown") {
+                key = VK_PGDN;
+            } else if (key == "PageUp") {
+                key = VK_PGUP;
+            } else if (key == "ArrowUp") {
+                key = VK_UP;
+            } else if (key == "ArrowDown") {
+                key = VK_DOWN;
+            } else if (key == "ArrowLeft") {
+                key = VK_LEFT;
+            } else if (key == "ArrowRight") {
+                key = VK_RIGHT;
+            } else {    
+                console.log("key is " + key);
+            }
+            return key;
+        }
+//      if (name==="KEY_CB" || name==="K_ANY") {
+        if (name==="KEY") {
+            function key_cb(event) {
+//puts(1,"key_cb("+event.keyCode+")\n");
+                let tgt = event.currentTarget,
+                    key = mapkey(event);
+//19/10/21:
+//              let res = func(tgt,key);
+                let res = func(id,key);
+                // XPG_DEFAULT and XPG_IGNORE 
+                // should prevent propagation,
+                // am not going to bother with
+                // XPG_CLOSE handling here:
+                if (res !== XPG_DEFAULT &&
+                    res !== XPG_CONTINUE) {
+                    event.preventDefault();
+                }
+                return (res === XPG_CONTINUE);
+            }
+//          id.onkeydown = key_cb;
+//          id.addEventListener("keydown",key_cb);
+//          document.addEventListener("keydown",key_cb);
+            $docBody.addEventListener("keydown",key_cb);
+//          id.tabIndex="-1";   // important!
+        } else if (name=="MOTION_CB") {
+            function motion_cb(event) {
+//puts(1,"motion_cb("+event.clientX+","+event.clientY+")\n");
+                let ctrl = event.currentTarget,
+                    parent = IupGetDialog(ctrl),
+                    x = event.clientX - ctrl.offsetLeft - parent.offsetLeft,
+                    y = event.clientY - ctrl.offsetTop - parent.offsetTop;
+                func(ctrl,x,y,NULL);
+            }
+            id.addEventListener("mousemove",motion_cb);
+        } else if (name=="BUTTON_CB") {
+            function button_cb(event) {
+                const buttons = [IUP_BUTTON1,IUP_BUTTON2,IUP_BUTTON3];
+                let code = buttons[event.button],
+                    ctrl = event.currentTarget,
+                    parent = IupGetDialog(ctrl),
+                    x = event.clientX - ctrl.offsetLeft - parent.offsetLeft,
+                    y = event.clientY - ctrl.offsetTop - parent.offsetTop,
+//et = event.type,
+//                  pressed = 0; // (not pressed)
+                    pressed = (event.type==="mousedown");
+                func(ctrl,code,pressed,x,y,NULL);
+            }
+//          id.addEventListener("click",button_cb);
+            id.addEventListener("mousedown",button_cb);
+            id.addEventListener("mouseup",button_cb);
+//          id.addEventListener("contextmenu",button_cb);
+        } else if (name=="VALUECHANGED") {
+            function change_cb(event) {
+                func(event.currentTarget);
+            }
+//21/10/21: (for guessthenumber)
+            if (cn === "datepick" ||
+                cn === "list" ||
+                cn === "toggle") {
+                id.addEventListener("change",change_cb);
+            } else if (cn === "slider") {
+                id.addEventListener("input",change_cb);
+            } else {
+                id.addEventListener("keyup",change_cb);
+            }
+        } else if (name=="CHANGED") {
+            function change_cb(event) {
+                func(event.currentTarget);
+            }
+            if (cn === "drop") {
+                id.addEventListener("change",change_cb);
+            }
+//      } else if (name=="ACTION") {
+        } else if (name=="CLICK") {
+            if (cn === "button" ||
+//DEV menuitems should now have "HANDLER"...
+                cn === "menuitem") {
+                // action with just an id parameter
+                function action_cb(event) {
+                    let id = event.currentTarget,
+                        res = func(id);
+                    if (res === XPG_CLOSE) {
+                        let dialog = IupGetDialog(id);
+                        IupHide(dialog);
+                    }
+                }
+//              id.addEventListener("click", action_cb);
+                id.onclick = action_cb;
+            } else if (cn === "text") {
+                // action with id, c, pNewValue parameters [not that we could ever actually provide the latter??
+                //                                          - maybe change pGUI.e/docs to provide it as a string?
+                //                                          - can we even can get a "cancellable-post-key" here?]
+                function action_cb(event) {
+                    let id = event.currentTarget,
+//                       c = event.keyCode,
+//                       c = event.key.charCodeAt(0),
+                         c = mapkey(event),
+//                     res = func(id);
+                       res = func(id,c);
+//                     res = func(id,c,pNewValue);
+                    if (res === XPG_CLOSE) {
+                        let dialog = IupGetDialog(id);
+                        IupHide(dialog);
+                    } else if (res == XPG_IGNORE) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    } else if (res && res !== XPG_DEFAULT && res !== c) {
+//                      event.keyCode = res; // not alowed
+//                      event.charCode = res;
+                        //DEV no idea what to do here...
+                        printf(1,"text/action_cb(%d) ==> %d???\n",["sequence",c,res]);
+                    }
+                }
+//              id.addEventListener("click", action_cb);
+                id.addEventListener("keydown", action_cb);
+//              id.onclick = action_cb;
+            } else {
+                puts(1,"gSetHandler(" + cn + "," + name + ")??\n"); // placeholder
+            }
+        } else if (name=="REDRAW") {
+            if (cn === "canvas") {
+//              id.ACTION = func;
+                id.REDRAW = func;
+            } else {
+                puts(1,"gSetHandler(" + cn + "," + name + ")??\n"); // placeholder
+            }   
+        } else //if (//name!=="MAP_CB" &&
+//                 name!=="UNMAP_CB" &&
+//                 name!=="ACTION" &&
+//                 name!=="RESIZE_CB") 
+                                       {
+            puts(1,"gSetHandler(" + cn + "," + name + ")??\n"); // placeholder
+        }
+    }
+}
+
+//function gSetHandlers(/*gdx*/ id, /*sequence*/ namefuncpairs) {
+//  let l = length(namefuncpairs);
+//  assert(even(l));
+//  for (let i = 1; i <= l; i+=2) {
+////        gSetHandler(id,$subse(namefuncpairs,i),$subse(namefuncpairs,i+1));
+//      gSetHandler(id,namefuncpairs[i],namefuncpairs[i+1]);
+//  }
+//}
+const gSetHandlers = gSetHandler;
+
+//DEV gGetHandler, gGetInheritedHandler
+
+function $paranormalise(action, func, attributes, args) {
+    crash("wrong un");
+}
+
+// gdx replaced with integer, all assert() and rtn() checks deleted:
+
+/*include C:\Program Files (x86)\Phix\builtins\ptypes.e*/
+///*global*/ function atom_string(/*object*/ o) {
+//  return (string(o) || (integer(o) && compare(o,NULL)>=0)) || ((atom(o) && compare(o,NULL)>=0) && (equal(o,floor(o))));
+//}
+//
+///*global*/ function rid_string(/*object*/ o) {
+//  return string(o) || (integer(o) && compare(o,15)>0);
+//}
+//
+/*global*/ function nullable_string(/*object*/ o) {
+    return string(o) || (equal(o,NULL));
+}
+///*global*/ function boolean(/*object*/ o) {
+//  return integer(o) && ((equal(o,true)) || (equal(o,false)));
+//}
+/*local*/ function dword_seq(/*object*/ s) { // (technically qword_seq on 64-bit)
+    return sequence(s) && !string(s);
+}
+
+/*local*/ function $paranormalise_traa(/*object*/ title, click, /*sequence*/ attributes, /*dword_seq*/ args) {
+// used by gButton([nullable_string title=NULL,] [rtn click=NULL,] string attributes="", sequence args={})
+// and gLink(), gMenuItem(), gToggle(), and gValuator(). (See the docs for the full details)
+    if (!nullable_string(title)) {
+        // assume title omitted (and at least one other parameter passed)
+        if (atom(title)) {  // (and, of course, title is not NULL here)
+            // assume gButton(click,[attributes[,args]])                -- (intended)
+            //                ^title ^click      ^attributes            -- (actual)
+            if (length(attributes)) {  // (args really?)
+                args = attributes;                                      // (verified dword_seq now)
+                attributes = click;                                     // (verified string below)
+            } else if (string(click)) {
+                attributes = click;                                     // (verified string below)
+            }
+            click = title;                                              // (verified rtn below)
+            title = NULL;
+        } else {
+            // assume gButton(attributes[,args])                        -- (intended)
+            //                ^title      ^click                        -- (actual)
+            if (sequence(click)) {  // (args really?)
+                args = click;                                           // (verified dword_seq now)
+            }
+            attributes = title;                                         // (verified string below)
+            click = NULL;
+            title = NULL;
+        }
+    } else if (string(click)) {
+        // assume gButton(title,attributes[,args]))                     -- (intended)
+        //                      ^click      ^attributes                 -- (actual)
+        if (!string(attributes)) {     // (args really?)
+            args = attributes;                                          // (verified dword_seq now)
+        }
+        attributes = click;                                             // (verified string below)
+        click = NULL;
+    } else if (sequence(click)) { // (and not string)
+        // assume gButton(attributes,args)                              -- (intended)
+        //                ^title     ^click                             -- (actual)
+        attributes = title;                                             // (verified string below)
+        args = click;                                                   // (verified dword_seq now)
+        title = NULL;
+        click = NULL;
+//  else assume 3 or 4 parameters were passed (title,click,attributes[,args])
+    }
+    if (equal(click,NULL) && 
+        equal(attributes,"") && 
+        string(title) && 
+        find(0X3D,title)) {     // 0x3D === '='
+        attributes = title;
+        title = "";
+    }
+    return ["sequence",title,click,attributes,args];
+}
+
+function $paranormalise_qraa(/*object*/ q, rid, /*sequence*/ attributes, /*dword_seq*/ args) {
+// used by gTreeView([sequence q={},] [rtn rid=NULL,] string attributes="", sequence args={})
+// (where q is tree_nodes and rid is branchopen)  (See the docs for the full details)
+    if (!dword_seq(q)) {
+        // assume q omitted (and at least one other parameter passed)
+        if (atom(q)) {  // assume q is really rid
+            // assume gTreeView(rid,[attributes[,args]])                -- (intended)
+            //                  ^q   ^rid        ^attributes            -- (actual)
+            if (length(attributes)) {  // (args really?)
+                args = attributes;                                      // (verified qword_seq now)
+                attributes = rid;                                       // (verified string below)
+            } else if (string(rid)) { // (attributes really?)
+                attributes = rid;                                       // (verified string below)
+            }
+            rid = q;                                                    // (verified rtn below)
+            q = ["sequence"];
+        } else {
+            // assume gTreeView(attributes[,args])                      -- (intended)
+            //                  ^q         ^rid                         -- (actual)
+            if (sequence(rid)) {  // (args really?)
+                args = rid;                                             // (verified dword_seq now)
+            }
+            attributes = q;                                             // (verified string below)
+            rid = NULL;
+            q = ["sequence"];
+        }
+    } else if (string(rid)) {
+        // assume gTreeView(q,attributes[,args]))                       -- (intended)
+        //                    ^rid        ^attributes                   -- (actual)
+        if (!string(attributes)) {     // (args really?)
+            args = attributes;                                          // (verified dword_seq now)
+        }
+        attributes = rid;                                               // (verified string below)
+        rid = NULL;
+    } else if (sequence(rid)) { // (and not string)
+        // assume gTreeView(attributes,args)                            -- (intended)
+        //                  ^ in q     ^ in rid                         -- (actual)
+        attributes = q;                                                 // (verified string below)
+        args = rid;                                                     // (verified dword_seq now)
+        q = ["sequence"];
+        rid = NULL;
+//  else assume 3 or 4 parameters were passed (q,rid,attributes[,args])
+    }
+    return ["sequence",q,rid,attributes,args];
+}
+
+function $paranormalise_raa(/*object*/ rid, /*sequence*/ attributes, /*dword_seq*/ args) {
+// used by gText([rtn rid=NULL,] string attributes="", sequence args={}) and gCanvas(), gDatePick(), 
+//  gDetachBox(), gList(), gTable(), and gSpinBox(). (See the docs for the full details)
+    if (dword_seq(attributes)) {
+        // assume gText(attributes,args)                                    -- (intended)
+        //              ^ in rid   ^ in attributes                          -- (actual)
+        args = attributes;                                                  // (verified dword_seq now)
+        attributes = rid;                                                   // (verified string below)
+        rid = NULL;
+    } else if (string(rid)) {
+        // assume gText(attributes)                                         -- (intended)
+        //              ^ in rid                                            -- (actual)
+        attributes = rid;                                                   // (verified string below)      
+        rid = NULL;
+    }
+    return ["sequence",rid,attributes,args];
+}
+
+function $paranormalise_taa(/*nullable_string*/ title, /*sequence*/ attributes, /*dword_seq*/ args) {
+// used by gLabel([nullable_string title=NULL,] string attributes="", sequence args={}) (only)
+    if (dword_seq(attributes)) {
+        // assume gLable(attributes,args)                                   -- (intended)
+        //               ^ title    ^ attributes                            -- (actual)
+        args = attributes;                                                  // (verified dword_seq now)
+        attributes = title;                                                 // (verified string below)
+        title = NULL;
+    } else if (string(title) && find(0X3D,title)) {     // 0x3D === '='
+        // assume gText(attributes)                                         -- (intended)
+        //              ^ title                                             -- (actual)
+        attributes = title;                                                 // (verified string below)      
+        title = NULL;
+    }
+    return ["sequence",title,attributes,args];
+}
+
+function $paranormalise_ptaab(/*object*/ parent, title, attr, args, /*bool*/ bEsc) {
+// used by gDialog(gdx child, [parent=NULL,] [string [title="",] attr=""[, sequence args={}]], bool bEsc=true)
+    if (!integer(parent)) {
+        // assume parent omitted, and at least one other parameter passed,
+        // and in fact the first **must** then be the (string) attr/title.
+        if (find(0X3D,parent)) {    // assume parent is attr (and not title), 0x3D === '='
+            if (bool(title)) {
+                // assume gDialog(child,attr,bEsc)                  -- (intended)
+                //                parent^    ^title                 -- (actual)
+                bEsc = title;
+            } else {
+                // assume gDialog(child,attr,args[,bEsc])           -- (intended)
+                //                parent^  title^  ^attr            -- (actual)
+                if (bool(attr)) {
+                    bEsc = attr;                                    // (verified bool now)
+                }
+                if (dword_seq(title)) {
+                    args = title;                                   // (verified dword_seq below)
+                }
+            }
+            title = "";
+            attr = parent;                                          // (verified string below)
+        } else { // assume parent is really title
+            if (string(title)) {    // attr
+                if (dword_seq(attr)) {
+                    if (bool(args)) {
+                        bEsc = args;
+                    }
+                    args = attr;
+                } else if (bool(attr)) {
+                    bEsc = attr;
+                }
+                attr = title;
+            } else {
+                bEsc = title;
+            }
+            title = parent;
+        }
+        parent = NULL;
+    } else if (bool(title)) {
+        // assume gDialog(child,parent,bEsc):                   -- (intended)
+        //                             ^title                   -- (actual)
+        bEsc = title;                                           // (verified bool now)
+        title = "";
+    } else if (find(0X3D,title)) {      // 0x3D === '='
+        // assume gDialog(child,parent,attr[,args][,bEsc]):     -- (intended)
+        //                        title^     ^attr  ^args       -- (actual)
+        if (bool(attr)) {
+            bEsc = attr;
+        } else if (dword_seq(attr)) {
+            if (bool(args)) {
+                bEsc = args;
+            }
+            args = attr;
+        }
+        attr = title;
+        title = "";
+    } else if (bool(attr)) {
+        // assume gDialog(child,parent,title,bEsc):     -- (intended)
+        //                                   ^attr      -- (actual)
+        bEsc = attr;                                            // (verified bool now)
+        attr = "";
+    } else if (bool(args)) {
+        // assume gDialog(child,parent,title,attr,bEsc):        -- (intended)
+        //                                        ^args         -- (actual)
+        bEsc = args;                                            // (verified bool now)
+        args = ["sequence"];
+    }
+    return ["sequence",parent,title,attr,args,bEsc];
+}
+
+function $topZindex(dlg) {
+    // make dlg the topmost dialog [also done before removal]
+    const dlgs = document.getElementsByClassName("dialog"),
+          maxz = dlgs.length,
+          thisz = dlg.style.zIndex;
+    if (thisz !== maxz) {
+        // eg 321 ==click2==> ([loop] 221==>) 231 [last]
+        if (thisz) {
+            for (let i = 0; i < dlgs.length; i += 1) {
+                const di = dlgs[i], thatz = di.style.zIndex;
+                if (thatz > thisz) { di.style.zIndex = thatz - 1; }
+            }
+        }
+        dlg.style.zIndex = maxz;
+    }
+}
+
+function gClipboard() {
+//  return "clipboard";
+//string text = gGetAttribute(clipboard,"TEXT")
+    const id = document.createElement("textarea");
+    id.setAttribute("class", "clipboard");
+    id.setAttribute("readonly", "");
+//  id.style = { position: "absolute", left: "-9999px" };
+//              this.$clipboard.setAttribute("style", "display:none;position:fixed;left:-99em;top:-99em;");
+    id.setAttribute("style", "display:none;position:fixed;left:-99em;top:-99em;");
     return id;
 }
 
+function $xpg_CloseOnEscape(/* gdx */ dlg) {
+    function hide_dlg(event) {
+//      let keyCode = window.event ? window.event.keyCode : e.which;
+//      if (keyCode === 27) {
+        if (event.key === "Escape") {
+            IupHide(dlg);
+        }
+    }
+//  document.onkeydown = hide_dlg;
+//  dlg.onkeydown = hide_dlg;
+//  dlg.addEventListener("keydown",hide_dlg);
+//  document.addEventListener("keydown",hide_dlg);
+    $docBody.addEventListener("keydown",hide_dlg);
+//  dlg.tabIndex="-1";
+}
+
+//9/11/21 pretty sure I should be using css to resize...
+//21/8/21:
+function $resize_children(id, w, h) {
+//function $resize_children(id, w, h, nest=0) {
+    // recursively, honouring EXPAND (etc) and invoking any RESIZE_CB/REDRAW_CB
+//  let cn = id.classList[0];
+    let cn = id.classList[0] || id.localName;
+    if (cn !== "dialog-header" &&   // (there can be no ["ACTION"] attached
+        cn !== "dialog-resizers") { //  to either, so simplify debugging..)
+//if (nest===0) {
+//printf(1,"resize_children(%s,%d,%d,%d)\n",["sequence",cn,w,h,nest]);
+//}
+
+        let bSizeChanged = false,
+             bDoChildren = false,
+//                prev_w = id.width,
+//                prev_h = id.height;
+                  prev_w,
+                  prev_h;
+
+        if (cn === "canvas") {
+//          if (id.width !== w || id.height !== h) {
+            prev_w = id.width;
+            prev_h = id.height;
+            if (prev_w !== w || prev_h !== h) {
+                let ctx = id.getContext("2d") || id.getContext("webgl"),
+                    // save, since they get trashed(!!):
+                    fs = ctx.fillStyle,
+                    ss = ctx.strokeStyle,
+                    ta = ctx.textAlign,
+                    tb = ctx.textBaseline,
+                    cf = ctx.font;
+    
+//console.log("canvas.width: "+id.width+" => "+w);
+//console.log("canvas.height: "+id.height+" => "+h);
+                id.width = w;
+                id.height = h;
+//no diff:
+//ctx.canvas.width  = w;
+//ctx.canvas.height = h;
+                ctx.fillStyle = fs;
+                ctx.strokeStyle = ss;
+                ctx.textAlign = ta;
+                ctx.textBaseline = tb;
+                ctx.font = cf;
+//              if (l) { crash("uh?"); }
+                bSizeChanged = true;
+            }
+        } else if (cn === "container" ||
+                   cn === "table") {
+//          if (id.width !== w || id.height !== h) {
+//          if (prev_w !== w || prev_h !== h) {
+//              id.width = w;
+//              id.height = h;
+//              bSizeChanged = true;
+//              l = 1; // (the table only)
+//          }
+/*
+//no good: need to split between, or something...
+// and, erm, which children are expandable? and what ratio should they get?
+// append to affectedchildren if EXPAND in "YES" (both directions), "HORIZONTAL", 
+//      "VERTICAL", ?"HORIZONTALFREE", "VERTICALFREE" [but not "NO" or undefined].
+        } else if (cn === "vbox" ||
+                   cn === "hbox") {
+// not even sure this is a good idea...
+//          if (id.width !== w || id.height !== h) {
+            if (prev_w !== w || prev_h !== h) {
+                id.width = w;
+                id.height = h;
+                bSizeChanged = true;    
+//              bDoChildren = true;
+            }
+*/
+//      } else {
+//      } else if (cn === "menuheader") {
+//          h -= 21;
+//6/5/22:
+        } else {
+//      } else if (false) {
+            prev_w = id.offsetWidth,
+//          prev_w = id.offsetWidth-($pxFloat(id.style.marginLeft)+$pxFloat(id.style.marginRight)),
+//id.style.marginBottom
+//marginBottom: "5px"
+//marginLeft: "10px"
+//marginRight: "10px"
+//marginTop: "5px
+//          prev_w = id.offsetWidth-id.offsetLeft,
+//          prev_w = id.clientWidth,
+            prev_h = id.offsetHeight;
+//          prev_h = id.offsetHeight-($pxFloat(id.style.marginTop)+$pxFloat(id.style.marginBottom));
+//          prev_h = id.offsetHeight-id.offsetTop;
+//          prev_h = id.clientHeight;
+//          w -= id.offsetLeft;
+            let nw = w-id.offsetLeft,
+                nh = h-(id.offsetTop-45);
+//          h += id.offsetTop;
+//          h += id.offsetTop-45;   // well, it appears to work 21/10/21!! (on drag, that is)
+//          if (prev_w !== w || prev_h !== h) {
+            if (prev_w !== nw || prev_h !== nh) {
+//              id.offsetWidth = w;
+//              id.clientWidth = w;
+//              id.style.width = w + "px";
+//              id.offsetHeight = h;
+//              id.clientHeight = h;
+//              id.style.height = h + "px";
+                bSizeChanged = true;    
+//bollocks, see function expand(id,val) {...
+                let expand = id.EXPAND;
+                if (expand && expand !== "NO") {
+//              if ((expand && expand !== "NO") ||
+//                  (cn === "dialog-body")){
+                    bDoChildren = true;
+//X             w_children = repeat(0,l);
+//X             h_children = repeat(0,l);
+//X             if (expand === "YES") {
+//
+//DEV will probably get rid of this once demo/pGUI/sample.exw is done.
+//          puts(1,"resize_children("+cn+")??\n"); // placeholder
+                }
+            }
+        }
+
+        if (bSizeChanged) {
+            let resize_cb = id.RESIZE_CB,
+//DEV redraw...
+                action_cb = id.ACTION;
+
+            if (resize_cb) {
+                resize_cb(id,w,h);
+            }
+            if (action_cb && cn === "canvas") { 
+                action_cb(id); 
+            }
+
+//28/12/21:
+//          if (bDoChildren) {
+            if (bDoChildren || cn === "dialog" || cn === "dialog-body") {
+//          if (false) {
+                // for eg {button,fill,button,fill,button}, we want {0,1,0,2,0} and v_count of 2.
+                // each non-zero gets (2-1+1)/2, (2-2+1)/1 of the remaining prev_w-w, iyswim.
+                let w_children = [],    w_count = 0,    // width candidates
+                    h_children = [],    h_count = 0,    // height candidates
+                      children = id.childNodes,
+                  l = children.length;
+
+                for (let i=0; i<l; i += 1) {
+// what about w,h???
+//crash("wtf?"); // (test!)
+//              $resize_children(children[i]);
+                    let ci = children[i],
+                        expand = ci.EXPAND,
+                        cin = ci.classList[0] || ci.localName;
+//28/12/21:
+                    if (cin === "dialog-body") {
+                        expand = "YES";
+                    } else if (!expand) {
+                        let ccv = ci.classList.contains("expandv"),
+                            cch = ci.classList.contains("expandh");
+                        expand = ccv ? (cch ? "YES" : "HORIZONTAL")
+                                     : (cch ? "VERTICAL" : "NO");
+                    }
+//fill
+//DEV more complex: If User size is not defined, then when inside an IupHbox or IupGridBox EXPAND is HORIZONTAL, 
+//                  when inside a IupVbox EXPAND is VERTICAL.If User size is defined then EXPAND is NO. 
+//                  if (cn === "menuheader") {
+//                      h -= 21;
+//                  } else {
+                        if (cin === "fill") {
+                            if (cn === "hbox") {
+                                expand = "HORIZONTAL";
+                            } else if (cn === "vbox") {
+                                expand = "VERTICAL";
+                            }
+                        }
+                        if (expand && expand !== "NO") {
+//Value: "YES" (both directions), "HORIZONTAL", "VERTICAL", "HORIZONTALFREE", "VERTICALFREE" or "NO".
+//Default: "NO". For containers the default is "YES".
+                            if (expand === "YES" ||
+                                expand === "HORIZONTAL") {
+                                w_count += 1;
+                                w_children[i] = w_count;
+                            }
+                            if (expand === "YES" ||
+                                expand === "VERTICAL") {
+                                h_count += 1;
+                                h_children[i] = h_count;
+                            }
+                        }
+//                  }
+                }
+                if (w_count || h_count) {
+//                  let rem_w = prev_w-w,
+//                      rem_h = prev_h-h,
+                    let rem_w = w-prev_w,
+                        rem_h = h-prev_h,
+                        wcrem = w_count,
+                        hcrem = h_count;
+                    for (let i=0; i<l; i += 1) {
+                        let w = w_children[i],
+                            h = h_children[i];
+                        if (w || h) {
+                            let ci = children[i],
+//                              cw = ci.width,
+//                              cw = ci.clientWidth,
+                                cw = ci.offsetWidth,
+//                              cw = ci.offsetWidth-($pxFloat(ci.style.marginLeft)+$pxFloat(ci.style.marginRight)),
+//                              ch = ci.height;
+                                ch = ci.clientHeight;
+//                              ch = ci.offsetHeight-($pxFloat(id.style.marginTop)+$pxFloat(id.style.marginBottom));
+//                          if (ci.style.marginLeft   !== "") { cw -= $pxFloat(ci.style.marginLeft); }
+//                          if (ci.style.marginRight  !== "") { cw -= $pxFloat(ci.style.marginRight); }
+//                          if (ci.style.marginTop    !== "") { ch -= $pxFloat(ci.style.marginTop); }
+//                          if (ci.style.marginBottom !== "") { ch -= $pxFloat(ci.style.marginBottom); }
+                            if (w) {
+                                let dw = ((w_count-w+1)/wcrem)*rem_w;
+                                cw += dw;
+                                rem_w -= dw;
+                                wcrem -= 1;
+                            }
+                            if (h) {
+                                let dh = ((h_count-h+1)/hcrem)*rem_h;
+                                ch += dh;
+                                rem_h -= dh;
+                                hcrem -= 1;
+                            }
+                            $resize_children(ci,cw,ch);
+//                          $resize_children(ci,cw,ch,nest+1);
+                        }
+                    }
+                    if ((w_count !== 0 && (rem_w !== 0 || wcrem !== 0)) ||
+                        (h_count !== 0 && (rem_h !== 0 || hcrem !== 0))) {
+                        crash("uh?");
+                    }
+                }
+            }
+        }
+    }
+//  console.log("dialog.resize " + w + " " + h);
+}
+
+function $maxWindow(dialog) {
+//  const maxbtn = dialog.getElementsByClassName("Maximise")[0],
+    const maxbtn = dialog.querySelector(".Maximise");
+    if (maxbtn.style.display !== "none") {
+        const maxsvg = maxbtn.children[0],
+//            dlgbod = dialog.getElementsByClassName("dialog-body")[0],
+              dlgbod = dialog.querySelector(".dialog-body"),
+              child = dlgbod.children[0];
+        $topZindex(dialog);
+        if (dialog.classList.toggle("window-maximized")) {
+            dialog.wastop = dialog.style.top;
+            dialog.wasleft = dialog.style.left;
+            dialog.waswidth = dialog.style.width;
+            dialog.washeight = dialog.style.height;
+            dialog.style.top = "-1px";
+            dialog.style.left = "-1px";
+//          dialog.style.width = (dialog.maximumWidth || window.innerWidth) + "px";
+            dialog.style.width = (dialog.maximumWidth || (window.innerWidth-4)) + "px";
+            dialog.style.height = (dialog.maximumHeight || window.innerHeight) + "px";
+//          dialog.style.height = (dialog.maximumHeight || (window.innerHeight-34)) + "px";
+//console.log("dialog.width: "+dialog.waswidth+" => "+dialog.style.width);
+//console.log("dialog.height: "+dialog.washeight+" => "+dialog.style.height);
+            maxbtn.title = "Restore";
+        } else {
+            if ($pxFloat(dialog.washeight)<dialog.minimumHeight) { dialog.washeight = dialog.minimumHeight + "px"; }
+            if ($pxFloat(dialog.waswidth) <dialog.minimumWidth ) { dialog.waswidth  = dialog.minimumWidth  + "px"; }
+//console.log("dialog.width: "+dialog.style.width+" => "+dialog.waswidth);
+//console.log("dialog.height: "+dialog.style.height+" => "+dialog.washeight);
+            dialog.style.top = dialog.wastop;
+            dialog.style.left = dialog.wasleft;
+            dialog.style.width = dialog.waswidth;
+            dialog.style.height = dialog.washeight;
+            maxbtn.title = "Maximise";
+        }
+        maxsvg.classList.toggle("restore");
+//      $resize_children(child,$eWidth(dialog),$eHeight(dialog));
+//              dialog.style.width = w + "px";
+//              dialog.style.height = h + "px";
+//              $resize_children(child,w-4,h-34);
+
+//      $resize_children(child,$eWidth(dialog)-4,$eHeight(dialog)-34);
+//      $resize_children(child,$eWidth(dialog)-4,$eHeight(dialog)-34-45);
+//      $resize_children(child,$eWidth(dlgbod),$eHeight(dlgbod));
+//getBoundingClientRect
+//(removed 27/5/22...)
+        $resize_children(child,dlgbod.clientWidth-2,dlgbod.clientHeight-2);
+//      $resize_children(child,dlgbod.clientWidth-5,dlgbod.clientHeight-5);
+//      $resize_children(child,dialog.clientWidth-4,dialog.clientHeight-34);
+//      const rect = dialog.getBoundingClientRect(),    // (nb: recalc in DOM)
+//      const rect = dlgbod.getBoundingClientRect(),    // (nb: recalc in DOM)
+//getComputedStyle
+//               w = rect.width,
+//               h = rect.height;
+//      $resize_children(child,w-2,h-2);
+    }
+}
+
+//function xpg_set_menu(/*gdx*/ id, /*string*/ name, /*gdx*/ id_named) {
+function $xpg_set_menu(/*gdx*/ id, /*gdx*/ id_named) {
+//  let t = id?id.classList[0]:"NULL",
+//      n = id_named?id_named.classList[0]:"NULL";
+//  if (t === "dialog" && name === "MENU" && n === "submenu") {
+        // id_named is a ul.submenu...
+        const mh = document.createElement("div"),
+              mb = document.createElement("div"),
+             nav = document.createElement("nav");
+        mh.className = "menuheader";
+        mb.id = "mobbtn";
+        mb.innerHTML = "&#9776;";
+        nav.id = "menu";
+        nav.appendChild(id_named);
+        mh.appendChild(mb);
+        mh.appendChild(nav);
+        if (id_named.className !== "submenu") { crash("uh?"); }
+        id_named.className = "menubar";
+        let l = id_named.children.length;
+        for (let i = 0; i < l; i += 1) {
+            let ci = id_named.children[i],
+                cn = ci.className;
+            // quick sanity check:
+            assert(cn === "nestmenu" || cn === "menuitem" );
+            ci.className = "topmenu";
+        }
+        let dlgbod = id.querySelector(".dialog-body");
+        dlgbod.insertAdjacentElement("afterbegin", mh);
+        // Open sub-menu on click/hover
+        nav.mstack = [];
+        function close_to(mitem,clicked) {
+            //
+            // For an explanation, run demo/pGUI/submenu.exw
+            // (on the desktop or in the browser!) and open
+            // Edit/Create/Triangle. They should be "sticky"
+            // and remain as you move the mouse around over 
+            // the rest of the window/document. Sneak back 
+            // onto File or Edit/Copy and several menus are 
+            // hidden in one go, and one new menu opened.
+            //
+            // Called by click(topmenu),
+            //           enter(topmenu/nestmenu/menuitem),
+            //           click(doc).
+            //
+            let mstack = nav.mstack,
+                wasmlen = mstack.length,
+                p = mitem?.parentNode.parentNode;
+            while (mstack.length &&
+                   mstack[mstack.length-1]!==p) {
+                mstack.pop().classList.remove("open");
+            }
+            if (mitem!==null && (clicked || wasmlen)) {
+                mitem.classList.toggle("open");
+                if (mitem.classList.contains("open")) {
+                    mstack.push(mitem);
+                }
+            }
+        }
+        function li_click(event,mitem) {
+            // (m is an element from ml)
+            //event.preventDefault(); // avoids default right click menu (no help...)
+            event.stopPropagation(); // important!
+            close_to(mitem,true);
+        }
+        let ml = id_named.querySelectorAll(".topmenu");
+        for (let i = 0; i < ml.length; i += 1) {
+            let m = ml[i];
+            m.addEventListener("click", (event) => li_click(event,m), false);
+            m.addEventListener("mouseenter", () => { close_to(m,false); }, false);
+        }
+        let nm = id_named.querySelectorAll(".nestmenu, .menuitem");
+        for (let i = 0; i < nm.length; i += 1) {
+            let m = nm[i];
+            m.addEventListener("mouseenter", () => { close_to(m,false); }, false);
+        }
+        function hide_menu() {
+            close_to(null,false);
+            // alt-keys (mush === Menu Underline SHow, topmenu only)
+            const mush = id_named.querySelectorAll(".mush");
+            mush.forEach((item) => { item.classList.remove("mush"); });
+        }
+        document.addEventListener("click", hide_menu);
+        document.addEventListener("contextmenu", hide_menu);
+
+        nav.addEventListener("contextmenu", (event)=> {event.preventDefault(); event.stopPropagation(); return false; });
+
+        function window_resize() {
+            hide_menu();
+            //DEV/SUG calc the 640 from sum of toplevel sizes...
+            if (window.innerWidth < 140) {
+                nav.classList.add("mobile");
+            } else {
+                nav.classList.remove("mobile");
+            }
+        }   
+        window_resize();
+        id.addEventListener("resize", window_resize);
+
+//      let me = id_named.querySelectorAll(".topmenu > span");
+
+        function listenKeys(event) {
+            var key = event.keyCode;
+            switch (key) {
+//            case 16: // Shift
+//            case 17: // Ctrl
+              case 18: // Alt (with shift) or AltGr
+                        const malt = document.querySelectorAll(".malt");
+                        // (mush === Menu Underline SHow, topmenu only)
+                        malt.forEach((item) => { item.classList.toggle("mush"); });
+//                      me[0].focus();
+                        id_named.querySelector(".topmenu > span").focus();
+                        event.preventDefault();
+                        break;
+              case 27: // Escape
+                        hide_menu();
+                        break;
+//            case 37: // left
+//            case 38: // up
+//            case 39: // right
+//            case 40: // down
+            }
+//console.log(key);
+//http://keycode.info/
+        }
+//window.onkeydown = listenKeys;
+        id.addEventListener("keydown", listenKeys)
+
+        // TOGGLE SLIDE MOBILE MENU
+//      let mobbtn = id_named.querySelector("#mobbtn");
+//      ==> mb
+        function mobbtn_click() {
+            let mobile = id.querySelector(".mobile");
+            if (mb.classList.contains("active")) {
+                mb.classList.remove("active");
+                mb.innerHTML = "&#9776;";
+                if (mobile) {
+                    mobile.style.right = "-220px";
+                }
+                mb.style.right = "0";
+            } else {
+                mb.classList.add("active");
+                mb.innerHTML = "&#9587;";
+                if (mobile) {
+                    mobile.style.right = "0";
+                }
+                mb.style.right = "220px";
+            } 
+        }
+        mb.addEventListener("click", mobbtn_click);
+
+//DEV is this not the same as/should be in doc_click??
+//      let content = document.querySelector(".content");
+//$(".content").on("click", function() { 
+        function content_click() {
+            if (mb.classList.contains("active")) {
+                mb.classList.remove("active");
+                mb.innerHTML = "&#9776;";
+                let mobile = document.querySelector(".mobile");
+                if (mobile) {
+                    mobile.style.right = "-220px";
+                }
+                mb.style.right = "0";
+            } 
+        }
+//      content.addEventListener("click", content_click);
+        window.addEventListener("click", content_click);
+//      let h = $eHeight(id);
+        let h = $pxFloat(id.style.height);
+        id.style.height = (h+21) + "px";
+//  } else if (t === "NULL" && name === "PARENTDIALOG") {
+//      // (not something we have to worry about in a browser...)
+//  } else {
+//      puts(1,"IupSetAttributeHandle(" + t +",\"" + name + "\"," + n +")??\n");
+//  }
+}
+
+//function IupDialog(child, attributes = "", args = [], bEsc = true) {
+function gDialog(child, parent = NULL, title = "", attributes = "", args = [], bEsc = true) {
+// as close as possible to xpGUI.e, see phix.chm
+    [,parent,title,attributes,args,bEsc] = $paranormalise_ptaab(parent,title,attributes,args,bEsc);
+
+    function create_svg(classname, viewbox, path) {
+        // (private helper function)
+        const svgns = "http://www.w3.org/2000/svg",
+                svg = document.createElementNS(svgns, "svg"),
+                pth = document.createElementNS(svgns, "path");
+        svg.setAttribute("class", classname);
+        svg.setAttribute("viewBox", viewbox);
+        pth.setAttribute("d", path);
+        svg.appendChild(pth);
+        return svg;
+    }
+
+    function header_button(htitle, path, viewbox = "0 0 30 30", classname = "minmax") {
+        // (private helper function)
+        const div = document.createElement("div"),
+              svg = create_svg(classname, viewbox, path);
+        div.classList.add(htitle);
+        div.title = htitle;
+        svg.classList.add(htitle);
+        div.appendChild(svg);
+        return div;
+    }
+
+    //
+    // First create the (dialog) window with a draggable header.
+    // =========================================================
+    //
+    const dialog = document.createElement("div"),
+          headiv = document.createElement("div"),
+          header = document.createElement("div"),
+          dlgbod = document.createElement("div"),
+          maxbtn = header_button("Maximise", "M10,10 L10,20 L20,20 L20,10 Z"),
+          maxsvg = maxbtn.children[0],
+          clsbtn = header_button("Close", "M10,10 L20,20 M20,10 L10,20");
+    headiv.classList.add("dialog-header");
+    header.classList.add("dialog-handle");
+//div.setAttribute("class", "note");
+//  header.innerHTML = "<b>" + htitle + "</b>";
+    header.innerHTML = "<b><i>untitled</i></b>";
+    headiv.appendChild(header_button("Application", "M3,15l8,6L26,0L12,27L3,15z", "-12 -8 48 48", "icon"));
+//  headiv.appendChild(header_button("Application", "M0,13L10,5L26,0L12,27L0,13z", "-12 -8 48 48", "icon"));
+//  headiv.appendChild(header_button("Application", "M 0 13 L 10 5 L 26 0 L 12 27 L 0 13 z", "-12 -8 48 48", "icon"));
+//  headiv.appendChild(header_button("Application", "M0,13l6-0c2,1,4,3,6,5C16,11,21,5,26,0h4 "+
+//                                   "C23,8.5,17,18,12,27C9,22,5,17,0,13L0,13z", "-12 -8 48 48", "icon"));
+//  headiv.appendChild(header_button("Application", "M28 0h-24c-2.2 0-4 1.8-4 4v24c0 2.2 "+
+//                                   "1.8 4 4 4h24c2.2 0 4-1.8 4-4v-24c0-2.2-1.8-4-4-4zM14 "+
+//                                   "24.828l-7.414-7.414 2.828-2.828 4.586 4.586 9.586-9.586 "+
+//                                   "2.828 2.828-12.414 12.414z", "-12 -8 48 48", "icon"));
+// <svg class="icon icon-checkbox-checked"><use xlink:href="#icon-checkbox-checked"></use></svg>
+// <symbol id="icon-checkbox-checked" viewBox="0 0 32 32">
+// <path d="M28 0h-24c-2.2 0-4 1.8-4 4v24c0 2.2 1.8 4 4 4h24c2.2 0 4-1.8 4-4v-24c0-2.2-1.8-4-4-4zM14 24.828l-7.414-7.414 2.828-2.828 4.586 4.586 9.586-9.586 2.828 2.828-12.414 12.414z"></path>
+// </symbol>
+//.icon {
+//  display: inline-block;
+//  width: 1em;
+//  height: 1em;
+//  stroke-width: 0;
+//  stroke: currentColor;
+//  fill: currentColor;
+//}
+    headiv.appendChild(header);
+    headiv.appendChild(maxbtn);
+    headiv.appendChild(clsbtn);
+    dlgbod.classList.add("dialog-body");
+//  dlgbod.innerHTML = "<p>Move</p><p>this</p><p>div</p>";
+//  dlgbod.innerHTML = "Move<br>this<br>div<br>";
+    dlgbod.appendChild(child);
+    dialog.className = "dialog";
+    dialog.setAttribute("EXPAND", "YES");
+//26/5 (see if this helps with boids...)
+//  dialog.setAttribute("data-sizing","intrinsic");
+    dialog.appendChild(headiv);
+    dialog.appendChild(dlgbod);
+    let menu = child.MENU;
+    if (menu) {
+        $xpg_set_menu(dialog,menu);
+    }       
+
+    function mouseDown(event) {
+        event.preventDefault();  // prevent selection start (browser action)
+
+        const rect = dialog.getBoundingClientRect(),
+            shiftX = event.clientX - rect.left,
+            shiftY = event.clientY - rect.top;
+
+        function doMove(event) {
+            const Lft = event.clientX - shiftX,
+                  Top = event.clientY - shiftY,
+                  Rht = window.innerWidth - dialog.offsetWidth + 1,
+                  Btm = window.innerHeight - dialog.offsetHeight + 1;
+
+            function clamp(num, min, max) {
+                return (num <= min ? min : (num >= max ? max : num));
+            }
+
+            function above(num, low) {
+                return (num <= low ? low : num);
+            }
+
+            dialog.style.top = clamp(Top, -1, above(Btm, -1)) + "px";
+            dialog.style.left = clamp(Lft, -1, above(Rht, -1)) + "px";
+        }
+
+        function stopMove() {
+            document.documentElement.removeEventListener("mousemove", doMove);
+            document.documentElement.removeEventListener("mouseup", stopMove);
+        }
+
+        document.documentElement.addEventListener("mousemove", doMove);
+        document.documentElement.addEventListener("mouseup", stopMove);
+    }
+
+    function maxWindow() { $maxWindow(dialog); }
+
+    header.onmousedown = mouseDown;
+    maxbtn.onclick = maxWindow;
+    header.ondblclick = maxWindow;
+//  header.ondragstart = function ds() { return false; }
+//  clsbtn.onclick = function hd() { IupHide(dialog); }
+//  dialog.onmousedown = function md() { $topZindex(dialog); }
+    function ds() { return false; }
+    function hd() { IupHide(dialog); }
+    function md() { $topZindex(dialog); }
+    header.ondragstart = ds;
+    clsbtn.onclick = hd;
+    dialog.onmousedown = md;
+
+    //
+    // Next, allow re-sizing, aka dragging corners and edges.
+    // ======================================================
+    //
+    function initSize(event) {
+        event.preventDefault();
+//      const resizer = this,  // (one of 8)
+        const resizer = event.currentTarget,  // (one of 8)
+              originalTop = dialog.offsetTop,
+              originalLeft = dialog.offsetLeft,
+              originalWidth = dialog.clientWidth,
+              originalHeight = dialog.clientHeight,
+              originalPageX = event.pageX,
+              originalPageY = event.pageY;
+
+        function doSize(event) {
+            //
+            // Note: use of "resize: both;" displays the handle *AND* effectively
+            //       disables this routine on the bottom right resizer. This must
+            //       handle the other seven resizers anyway, and hence instead we
+            //       shun resize:both and draw our own (br) resize handle.
+            //
+            // Also: We deliberately allow dragging/resizing to {-1,-1}, effectively
+            //       overlapping our and the browser's top 1-pixel borders, whereas
+            //       limiting it to {0,0} left it looking too fat (2px). Note that
+            //       the left/right/bottom borders can & do in fact end up hidden.
+            //       A bug during developent allowed drag to {-2,-2}, and it looked
+            //       barely any different, in other words we cannot, and would not
+            //       actually want to get rid of the top border completely anyway.
+            //
+            let xd = event.pageX - originalPageX,
+                yd = event.pageY - originalPageY,
+                 w = originalWidth + resizer.xm*xd,
+                 h = originalHeight + resizer.ym*yd;
+//              bResize = false;
+
+            if (w >= dialog.maximumWidth) {
+                w = dialog.maximumWidth;
+            } else if (w >= dialog.minimumWidth) {
+                if (resizer.xm === -1) {
+                    // move left edge
+                    xd += originalLeft;
+                    if (xd < -1) {
+                        w += xd + 1;
+                        xd = -1;
+                    }
+                    dialog.style.left = xd + "px";
+                } else if (originalLeft + w > window.innerWidth) {
+                    // move right edge
+                    w = window.innerWidth - originalLeft;
+                }
+//              dialog.style.width = w + "px";
+//              bResize = true;
+//              bResize = (w!=dialog.clientWidth);
+//              if (w!=dialog.clientWidth) { bResize = true; }
+            } else {
+                w = dialog.minimumWidth;
+            }
+
+            if (h >= dialog.maximumHeight) {
+                h = dialog.maximumHeight;
+            } else if (h >= dialog.minimumHeight) {
+                if (resizer.ym === -1) {
+                    // move top edge
+                    yd += originalTop;
+                    if (yd < -1) {
+                        h += yd + 1;
+                        yd = -1;
+                    }
+                    dialog.style.top = yd + "px";
+                } else if (originalTop + h > window.innerHeight) {
+                    // move btm edge
+                    h = window.innerHeight - originalTop;
+                }
+//              dialog.style.height = h + "px";
+//              bResize = true;
+//              bResize = (h!=dialog.clientHeight);
+//              if (h!=dialog.clientHeight) { bResize = true; }
+            } else {
+                h = dialog.minimumHeight;
+            }
+//          if (bResize) {
+            if (w !== dialog.clientWidth ||
+                h !== dialog.clientHeight) {
+                dialog.style.width = w + "px";
+                dialog.style.height = h + "px";
+                if (dialog.querySelector(".menuheader")) { h -= 21; }
+                $resize_children(child,w-4,h-34);
+//              $resize_children(dialog.children[1],w-4,h-34);
+//              $resize_children(child,w-4,h-34-45);
+            }
+        }
+
+//ditto $docBody??
+        function stopSize() {
+            document.documentElement.removeEventListener("mousemove", doSize, false);
+            document.documentElement.removeEventListener("mouseup", stopSize, false);
+        }
+
+        document.documentElement.addEventListener("mousemove", doSize, false);
+        document.documentElement.addEventListener("mouseup", stopSize, false);
+        $topZindex(dialog);
+    }
+
+    // add eight resizers, and all their handling, to the dialog window
+    const rd = ["tl", "top", "tr", "left", "right", "bl", "bottom", "br"],
+          xms = [-1,    0,    +1,    -1,      +1,    -1,      0,     +1],
+          yms = [-1,   -1,    -1,     0,       0,    +1,     +1,     +1],
+          rc = ["nw",  "n",  "ne",   "e",    "e",   "ne",    "n",   "nw"],
+          rdiv = document.createElement("div");
+
+//  rd.forEach((id, idx) => {
+    function addSizer(id, idx) {
+        const xm = xms[idx],
+              ym = yms[idx],
+              r = document.createElement("div");
+        r.className = "resizer-" + id;  // (no longer strictly necessary)
+        r.xm = xm;                      // for use in doSize()
+        r.ym = ym;                      //      """
+        r.style.width = xm === 0 ? "100%" : "5px";  // (edge | corner)
+        r.style.height = ym === 0 ? "100%" : "5px"; //      """
+        r.style.background = "transparent";
+        r.style.position = "absolute";
+        r.style.cursor = rc[idx] + "-resize";
+        // ensure corner resizers are atop side resizers:
+        r.style.zIndex = (xm === 0 || ym === 0) ? 1 : 10;
+        if (ym === -1) { r.style.top = 0; } else { r.style.bottom = 0; }
+        if (xm === -1) { r.style.left = 0; } else { r.style.right = 0; }
+        r.onmousedown = initSize;
+//      r.addEventListener("mousedown", initSize, false);
+        rdiv.appendChild(r);
+//    });
+    }
+    rd.forEach(addSizer);
+
+    rdiv.className = "dialog-resizers"; // (so they can be hidden/disabled)
+
+    const drag_handle = create_svg("resize","0 0 7 7","M0,6 L6,0 M4,6 L6,4");
+    rdiv.appendChild(drag_handle);
+    dialog.appendChild(rdiv);
+
+    if (length(title)) {
+        gSetAttribute(dialog,"TITLE",title);
+    }
+    gSetAttributes(dialog, attributes, args);
+
+    if (bEsc) { $xpg_CloseOnEscape(dialog); }
+
+//DEV: IupShow/IupPopup??
+/*
+    // Then, almost last, make it top dog, and add it to the DOM.
+    dialog.style.zIndex = document.getElementsByClassName("dialog").length;
+//  document.body.appendChild(dialog);
+    $docBody.appendChild(dialog);
+
+    // Originally, dragging a window behaved rather differently before and
+    // after resizing the window, hence this...
+    const rect = dialog.getBoundingClientRect(),    // (nb: recalc in DOM)
+             w = rect.width,
+             h = rect.height;
+    dialog.style.width = w + "px";
+    dialog.style.height = h + "px";
+    // It may be possible to allow some squishing, not entirely sure...
+    dialog.minimumWidth = w;                        // for use in doSize()
+    dialog.minimumHeight = h;                       //      """
+*/
+//temp:
+//let s = sprintf("minsize: {%d,%d}\n",[w,h]);
+//let s = sprintf("%v\n",[intint("225x75")]);   // (NB: I had to move it to test it)
+//puts(2,s);
+//document.body.insertAdjacentHTML("afterbegin", s);
+//$docBody.insertAdjacentHTML("afterbegin", s);
+//minsize: {208,202}
+//minsize: {142,202}
+
+//21/8/21: (bust)
+/*
+    dialog.onresize = function() {
+//      id.width = this.innerWidth;
+//  c.height = this.innerHeight;
+        console.log("dialog_resize?");
+    }
+*/
+
+    return dialog;
+} // (IupDialog() ends...)
+
+function gMap(id) {
+/*
+    let cn = id.className;
+    if (cn !== "dialog-header" &&   // (there can be no ["MAP_CB"] attached
+        cn !== "dialog-resizers") { //  to either, so simplify debugging..)
+        let map_cb = id["MAP_CB"];
+//28/12/21: (decided against)
+//          resize_cb = id.RESIZE_CB;
+        if (map_cb) { 
+            map_cb(id); 
+            id["MAP_CB"] = null;
+        }
+//      if (resize_cb) {
+//>>
+//          resize_cb(id,w,h);
+//      }
+        let children = id.childNodes,
+            l = children.length;
+        for (let i = 0; i < l; i += 1) { gMap(children[i]); }
+    }
+*/
+}
+
+function IupRedraw(id) {
+    if (sequence(id)) {
+        let len = length(id);
+        for (let i = 1; i <= len; i += 1) {
+            IupRedraw(id[i]);
+        }
+    } else {
+        let cn = id.className;
+        if (cn !== "dialog-header" &&   // (there can be no ["ACTION"] attached
+            cn !== "dialog-resizers") { //  to either, so simplify debugging..)
+            let redraw = id["REDRAW"];
+            if (redraw && cn === "canvas") { 
+                redraw(id); 
+            }
+            let children = id.childNodes,
+                l = children.length;
+            for (let i=0; i<l; i += 1) { IupRedraw(children[i]); }
+        }
+    }
+}
+const IupRefresh = IupRedraw;
+const IupRefreshChildren = IupRedraw;
+
+function gShow(id, x = XPG_CURRENT, y = XPG_CURRENT) {
+    // Make it top dog, and add it to the DOM.
+    id.style.zIndex = document.getElementsByClassName("dialog").length;
+// 25/9/21: (for "save as" handling)
+//  $docBody.appendChild(id);
+    $docBody.insertAdjacentElement("afterbegin", id);
+
+    function xpg_placement(/*integer*/ xy, os, ol, is, il) {
+        // xy is the x or y of gShow(), which can be an absolute value such as 100 (returned as is)
+        // or one of the XPG_XXX - which obviously need the outer and inner starts and lengths.
+        let /*integer*/ res = is;
+        if (xy<XPG_CURRENT) {
+            res = xy;
+        } else if (xy>XPG_CURRENT) {
+            switch (xy & 0b0011) {
+                case 0b11: res = os+floor((ol-il)/2)    // centre
+                case 0b10: res = os+ol-il               // right/btm
+                case 0b01: res = os                     // left/top
+                case 0b00: res = is-(is+il<=ol?0:il)    // mousepos [DEV untested]
+            }
+        }
+        return res;
+    }
+
+//global procedure gShow(gdx id, integer x=XPG_CURRENT, y=XPG_CURRENT)
+    let pid = gGetParent(id),
+        [sx,sy] = [0,0],
+        [,sw,sh] = gGetGlobalIntInt("SCREENSIZE")
+//  -- catch the handle of the first window displayed (nb arwen saves first created)
+//  if PrimaryWindowID=UNDEFINED then
+//      assert(pid=0,"first window displayed must be parent-less")
+//      PrimaryWindowID = id
+//  end if
+    const XPG_PARENT = 0x0004;  // 0b0100
+    if (pid) {
+        let prect = pid.getBoundingClientRect();    // (nb: recalc in DOM)
+        if (and_bits(x,XPG_PARENT)) { sx = prect.offsetLeft; sw = prect.width; }
+        if (and_bits(y,XPG_PARENT)) { sy = prect.offsetTop; sh = prect.height; }
+    }
+    if (!id.PREVIOUSLYSHOWN) {
+        if (x === XPG_CURRENT) { x = XPG_CENTER; }
+        if (y === XPG_CURRENT) { y = XPG_CENTER; }
+        id.PREVIOUSLYSHOWN = true;
+    }
+//  sequence gwr = xpg_get_window_rect(id)
+//  integer {wx,wy,ww,wh} = gwr
+    let wx = id.offsetLeft,
+        wy = id.offsetTop,
+        ww = id.width,
+        wh = id.height;
+    if ((x === XPG_MOUSEPOS) || (y === XPG_MOUSEPOS)) {
+//      assert(x==y,"gShow: XPG_MOUSEPOS is both-only")
+//      ?9/0 -- (placeholder)
+        crash("placeholder");
+//      {wx,wy} = gGetGlobalIntInt("MOUSEPOS") -- (nee CURSORPOS)
+    }
+    x = xpg_placement(x,sx,sw,wx,ww);
+    y = xpg_placement(y,sy,sh,wy,wh);
+//--?{"win/rect",{h,gwr},{x},wx,ww,{y},wy,wh}
+//  xpg_move_window(id,wx,wy)
+//--?"moved"
+//--DEV setAttribute(h,"VISIBLE",true)...
+
+//function IupShow(id, x = XPG_CURRENT, y = XPG_CURRENT) {
+//  // Make it top dog, and add it to the DOM.
+//  id.style.zIndex = document.getElementsByClassName("dialog").length;
+//// 25/9/21: (for "save as" handling)
+////    $docBody.appendChild(id);
+//  $docBody.insertAdjacentElement("afterbegin", id);
+////    gMap(id);
+////$resize_children(id,id.clientWidth-2,id.clientHeight-2);
+
+    // Originally, dragging a window behaved rather differently before and
+    // after resizing the window, hence this...
+    const rect = id.getBoundingClientRect();    // (nb: recalc in DOM)
+    let w = rect.width,
+//      w = floor(rect.width),
+        h = rect.height;
+//      h = floor(rect.height);
+    id.style.width = w + "px";
+    id.style.height = h + "px";
+//  if (x && y) {
+//      if (x === IUP_CENTER) { x = (window.innerWidth-w)/2; }
+//      if (y === IUP_CENTER) { y = (window.innerHeight-h)/2; }
+        id.style.left = x + "px";
+        id.style.top = y + "px";
+//  }
+//28/12/21: (total bust...)
+//  $resize_children(id, w, h);
+//  const r2 = id.getBoundingClientRect();
+//  $resize_children(id, r2.width, r2.height);
+//  IupUpdate(id);
+//  const dlgbod = id.querySelector(".dialog-body");
+//  $resize_children(id,dlgbod.clientWidth-2,dlgbod.clientHeight-2);
+//  $resize_children(id,id.clientWidth-2,id.clientHeight-2);
+//          if (w !== dialog.clientWidth ||
+//              h !== dialog.clientHeight) {
+//              dialog.style.width = w + "px";
+//              dialog.style.height = h + "px";
+//              if (dialog.querySelector(".menuheader")) { h -= 21; }
+//              $resize_children(child,w-4,h-34);
+//
+//  let resize_cb = id.RESIZE_CB;
+//  if (resize_cb) {
+//      resize_cb(id,w,h);
+//  }
+    // It may be possible to allow some squishing, not entirely sure...
+//26/9/21:
+    if (id.minWidth) { w = id.minWidth; }
+    if (id.minHeight) { h = id.minHeight; }
+//DEV probably wrong 5/4/22...
+    id.minimumWidth = w;                        // for use in doSize()
+    id.minimumHeight = h;                       //      """
+//  id.onresize(id,w,h);
+//--DEV REDRAW_CB? ACTION? (triggers violation too)
+//  const event = new Event("resize");
+//  id.dispatchEvent(event);
+//  window.setTimeout(id.dispatchEvent,10,event);
+//  window.setTimeout(function() { id.dispatchEvent(event); }, 100);
+    IupRedraw(id);
+//  id.focus();
+//  const r2 = id.getBoundingClientRect();
+//  $resize_children(id, r2.width, r2.height);
+// 31/21/21: bingo!!
+/* SUG... (total failure)
+const config = { attributes: true, childList: true, subtree: true };
+const callback = function(mutationList, observer) {
+    for(const mutation of mutationList) {
+        if (mutation.type === "childList") {
+            console.log("A child node has been added or removed.");
+        }
+        else if (mutation.type === "attributes") {
+            console.log("The " + mutation.attributeName + " attribute was modified.");
+        }
+    }
+};
+const observer = new MutationObserver(callback);
+observer.observe(id, config);
+*/
+//console.log("maxmax");
+    $maxWindow(id);
+    $maxWindow(id);
+//console.log("mmout");
+/*
+observer.disconnect();
+*/
+}
+//const IupShowXY = IupShow;
+//IupPopup?
+
+function gSetFocus(id) {
+    id.focus();
+}
+
+function gHide(id) {
+    const dialogs = document.getElementsByClassName("dialog");
+    if (dialogs.length === 1) {
+        window.close();  // close the whole page, if allowed
+    } else {
+        $topZindex(id); // (specifically, fixup the rest)
+        $docBody.removeChild(id);
+    }
+}
+
+function gGetChild(/*gdx*/ id, /*integer*/ pos) {
+    return id.children[pos-1];
+}
+
+function gGetChildCount(/*gdx*/ id) {
+    return id.childElementCount;
+}
+
+//DEV CLASSNAME, should make it match...
+//function IupGetClassName(/*gdx*/ id) {
+//  return id.classList[0];
+//}
+
+function gGetDialog(id) {
+    let parent = id.offsetParent;
+    while (parent === null || parent.classList[0] !== "dialog") { // nb not NULL!
+        id = id.parentNode;
+        if (id.classList[0] === "dialog") {
+            parent = id;
+            break;
+        }
+    }
+//  assert(parent.classList[0] === "dialog");
+    return parent;
+}
+
+//function IupGetDialogChild(/*gdx*/ id, /*string*/ name) {
+//  function get_child(id, name) {
+//      let count = id.childElementCount;
+//      for (let pos = 0; pos < count; pos += 1) {
+//          let cp = id.children[pos];
+//          if (cp["NAME"] === name) { return cp; }
+//          cp = get_child(cp,name);
+//          if (cp) { return cp; }      
+//      }
+//      return NULL;
+//  }
+//  if (id.classList[0] !== "dialog") {
+//      id = IupGetDialog(id);
+//  }
+//  return get_child(id,name);
+//}
+
+function gGetFocus() {
+    return document.activeElement;
+}
+
+function gGetParent(id) {
+    return id.parentNode || NULL;
+}
+
+function gGetBrother(id, bPrev=false) {
+    let parent = id.parentNode,
+//      siblings = parent.children,
+        siblings = [...parent.children],
+        pos = siblings.indexOf(id),
+        brother = siblings[bPrev?pos-1:pos+1];
+    return brother;
+}
+
+function IupNextField(id) {
+    let next = IupGetBrother(id);
+    IupSetFocus(next);
+    return next;
+}
+function IupPreviousField(id) {
+    let prev = IupGetBrother(id,true);
+    IupsetFocus(prev);
+    return prev;
+}
+
+//gButton([nullable_string title=NULL,][rtn click=NULL,] string attributes="", sequence args={}) 
+function gButton(title = null, click = null, func = null, attributes = "", args = []) {
+    if(!$storeAttr) { $gInit(); }
+    const id = document.createElement("button");
+    id.setAttribute("class", "button");
+    [,title,click,attributes,args] = $paranormalise_traa(title,click,attributes,args);
+    if (title) {
+        gSetAttribute(id,"TITLE",title);
+    }
+    if (click) {
+        gSetHandler(id, "CLICK", click);
+    }
+    gSetAttributes(id, attributes, args);
+    return id;
+}
+
+//function gDatePick(action = null, func = null, attributes = "", args = []) {
+//DEV
+//function gDatePick(value_changed = null, attributes = "", args = []) {
+function gDatePick(attributes = "", args = []) {
+    if(!$storeAttr) { $gInit(); }
+    const id = document.createElement("input");
+    id.setAttribute("class", "datepick");
+    id.setAttribute("type", "date");
+/*
+    [,value_changed,attributes,args] = $paranormalise_raa(value_changed,attributes,args);
+    if (value_changed) {
+//      if (action !== null && action !== "VALUECHANGED_CB") { crash("?9/0"); }
+        gSetHandler(id, "VALUECHANGED", value_changed);
+    }
+*/
+    gSetAttribute(id,"VALUE","%4d-%02d-%02d",date());
+    gSetAttributes(id, attributes, args);
+    return id;
+}
+
+function gDropDown(/*object*/ options, changed=NULL, /*sequence*/ attributes="", args={}) {
+    if(!$storeAttr) { $gInit(); }
+    [,options,changed,attributes,args] = $paranormalise_qraa(options,changed,attributes,args);
+//  const id = document.createElement("list");
+    const id = document.createElement("select");
+    id.setAttribute("class", "drop");
+//  const id = document.createElement("input");
+//  let /*integer id = xpg_add_control(DROPDOWN)
+//--test_elem = id
+//  xpg_register_handler(DROPDOWN,"CHANGED",{{1,1,"PO"}})
+//  set_ctrl_msg(DROPDOWN,xpg_DropDown,xpg_set_dropdown_attribute,
+//                                     xpg_get_dropdown_attribute)
+//? id.DROPDOWN = true;
+    if (options) {
+        gSetAttribute(id,"OPTIONS",options);
+    }
+    if (changed) {
+        gSetHandler(id,"CHANGED",changed);
+    }
+    gSetAttributes(id,attributes,args);
+//  ctrl_xtra[id] = options
+    return id;
+}
+
+//DOC: [RASTER]SIZE must use wxh format, one of which will be ignored... or... must be 0.
+//      Any attributes must be set before the element is inserted into the hierarchy (not normally an issue).
+//function IupFill(attributes = "", args = []) {
+//  const id = document.createElement("div");
+//  id.setAttribute("class", "fill");
+////DEV more complex: If User size is not defined, then when inside an IupHbox or IupGridBox EXPAND is HORIZONTAL, 
+////                    when inside a IupVbox EXPAND is VERTICAL.If User size is defined then EXPAND is NO. 
+////    id.setAttribute("EXPAND", "YES");
+//  gSetAttributes(id, attributes, args);
+//  return id;
+//}
+
+//function IupFlush() { }
+
+//function gFrame(child = NULL, attributes = "", args = []) {
+function gFrame(/*gdx*/ child, /*object*/ title = NULL, /*sequence*/ attributes = "", args = []) {
+    if(!$storeAttr) { $gInit(); }
+    [,title,attributes,args] = $paranormalise_taa(title,attributes,args);
+    const id = document.createElement("fieldset"),
+          legend = document.createElement("legend");
+    id.setAttribute("class", "frame");
+    legend.setAttribute("padding", "0px 5px 0px 5px");
+//  id.setAttribute("EXPAND", "YES");
+    id["EXPAND"] = "YES";
+    id.appendChild(legend);
+    if (child) {
+        id.appendChild(child);
+    }
+    gSetAttributes(id, attributes, args);
+    return id;
+}
+
+function gHbox(children, attributes = "", args = []) {
+    if(!$storeAttr) { $gInit(); }
+//  if (!Array.isArray(children)) {
+    if (!sequence(children)) {
+//      crash("vbox children must be an array!");
+        crash("hbox children must be a sequence!");
+    }
+    const id = document.createElement("div");
+    id.setAttribute("class", "hbox");
+//  id.setAttribute("EXPAND", "YES");
+    id["EXPAND"] = "YES";
+//  id.className = "hbox";
+//9/4/21:
+//  for (let i = 0; i < children.length; i += 1) {
+    let l = length(children);
+    for (let i = 1; i <= l; i += 1) {
+        let ci = children[i];
+// ?    if (ci.className === "fill") {
+//          IupSetAttribute(ci,"EXPAND","HORIZONTAL");
+//      }
+        id.appendChild(ci);
+    }
+    gSetAttributes(id, attributes, args);
+    return id;
+}
+
+function gVbox(children, attributes = "", args = []) {
+    if(!$storeAttr) { $gInit(); }
+//  if (!Array.isArray(children)) {
+    if (!sequence(children)) {
+//      crash("vbox children must be an array!");
+        crash("vbox children must be a sequence!");
+    }
+    const id = document.createElement("div");
+    id.setAttribute("class", "vbox");
+//  id.setAttribute("EXPAND", "YES");
+    id["EXPAND"] = "YES";
+//  id.className = "vbox";
+    let l = length(children);
+    for (let i = 1; i <= l; i += 1) {
+        let ci = children[i];
+
+// ?    if (ci.className === "fill") {
+//          IupSetAttribute(ci,"EXPAND","VERTICAL");
+//      }
+        if (i === 1 && ci.className === "submenu") {
+//          $xpg_set_menu(??,ci);
+//          $xpg_set_menu(id,ci);
+            id.MENU = ci
+        } else {
+            id.appendChild(ci);
+        }
+    }
+    gSetAttributes(id, attributes, args);
+    return id;
+}
+
+function gImageRGBA(/*integer*/ width, height, /*sequence*/ pixels) {
+    let id = document.createElement("canvas");
+    id.width = width;
+    id.height = height;
+    let ctx = id.getContext("2d"),
+        imgData = ctx.createImageData(width, height),
+        len = length(pixels);
+    for (let i = 0; i < len; i += 1) {
+        imgData.data[i] = pixels[i+1];
+    }
+    ctx.putImageData(imgData,0,0);
+//  return id;
+//or, maybe:
+    let res = id.toDataURL();
+    return res;
+}
+
+function gImageRGB(/*integer*/ width, height, /*sequence*/ pixels) {
+    let id = document.createElement("canvas");
+    id.width = width;
+    id.height = height;
+    let ctx = id.getContext("2d"),
+        imgData = ctx.createImageData(width, height),
+        len = length(pixels),
+        k = 0;
+    for (let i = 0; i < len; i += 3) {
+        imgData.data[k+0] = pixels[i+1];
+        imgData.data[k+1] = pixels[i+2];
+        imgData.data[k+2] = pixels[i+3];
+        imgData.data[k+3] = 255; // (alpha)
+        k += 4
+    }
+    ctx.putImageData(imgData,0,0);
+    let res = id.toDataURL();
+    return res;
+}
+
+function gImage(/*integer*/ width, height, /*sequence*/ pixels, palette) {
+    let id = document.createElement("canvas");
+    id.width = width;
+    id.height = height;
+    let ctx = id.getContext("2d"),
+        imgData = ctx.createImageData(width, height),
+        len = length(pixels),
+        k = 0;
+//DEV defer this until actually used, or better yet optionally allow a palette.
+    if (!palette || length(palette) === 0) {
+        palette = [[  0,  0,  0], // ( 0 black)
+                   [128,  0,  0], // ( 1 dark red)
+                   [  0,128,  0], // ( 2 dark green) 
+                   [128,128,  0], // ( 3 dark yellow)
+                   [  0,  0,128], // ( 4 dark blue)
+                   [128,  0,128], // ( 5 dark magenta) 
+                   [  0,128,128], // ( 6 dark cyan) 
+                   [192,192,192], // ( 7 gray)
+                   [128,128,128], // ( 8 dark gray)
+                   [255,  0,  0], // ( 9 red)    
+                   [  0,255,  0], // (10 green)
+                   [255,255,  0], // (11 yellow)
+                   [  0,  0,255], // (12 blue)
+                   [255,  0,255], // (13 magenta)
+                   [  0,255,255], // (14 cyan)
+                   [255,255,255]] // (15 white)
+//    XPG_BLACK         = 0x000000,
+//    XPG_DARK_RED      = 0x800000,
+//    XPG_DARK_GREEN    = 0x008000,
+//    XPG_DARK_YELLOW   = 0x808000,     -- aka XPG_OLIVE
+//    XPG_DARK_BLUE     = 0x000080,     -- aka XPG_NAVY
+//    XPG_DARK_MAGENTA  = 0x800080,
+//    XPG_DARK_CYAN     = 0x008080,
+//    XPG_GRAY          = 0xC0C0C0,     -- aka XPG_GREY, XPG_SILVER
+//    XPG_DARK_GRAY     = 0x808080,     -- aka XPG_DARK_GREY
+//    XPG_RED           = 0xFF0000,
+//    XPG_GREEN         = 0x00FF00,     -- aka XPG_LIGHT_GREEN
+//    XPG_YELLOW        = 0xFFFF00,
+//    XPG_BLUE          = 0x0000FF,
+//    XPG_MAGENTA       = 0xFF00FF,
+//    XPG_CYAN          = 0x00FFFF,
+//    XPG_WHITE         = 0xFFFFFF,
+    } else {
+        let plen = length(palette);
+        for (let i = 0; i < plen; i += 1) {
+            if (!sequence(palette[i])) {
+                palette[i] = to_rgba(palette[i]);
+            }
+        }
+    }   
+
+//  if (length(palette) === 0) { palette = ["sequence",XPG_BLACK, etc.]; }
+    for (let i = 0; i < len; i += 1) {
+//      let pi = pixels[i+1],
+        let /*integer*/ pi = $subse(pixels,i+1),
+//          p3 = $gImageDefaultColours[pi];
+//          p3 = to_rgba(palette[pi]);
+            /* sequence */ p3 = palette[pi];
+        for (let j = 0; j < 3; j += 1) {
+            imgData.data[k] = p3[j];
+            k += 1;
+        }   
+        imgData.data[k] = 255; // (alpha)
+        k += 1;
+    }
+    ctx.putImageData(imgData,0,0);
+    let res = id.toDataURL();
+    return res;
+}
+
+function gLabel(title=null, attributes = "", args = []) {
+    if(!$storeAttr) { $gInit(); }
+    [,title,attributes,args] = $paranormalise_taa(title,attributes,args);
+    const id = document.createElement("div");
+    id.setAttribute("class", "label");
+//  id["EXPAND"] = "YES";
+    if (title) {
+        gSetAttribute(id,"TITLE",title);
+    }
+    gSetAttributes(id, attributes, args);
+    return id;
+}
+
+function IupList(action = null, func = null, attributes = "", args = []) {
+    const id = document.createElement("select");
+    id.setAttribute("class", "list");
+    [action,func,attributes,args] = $paranormalise(action,func,attributes,args);
+    if (func) {
+//      if (!action) {
+//          action = "ACTION";
+//      } else if (action !== "VALUECHANGED_CB" &&
+//                 action !== "ACTION") {
+//          crash("?9/0");
+//      }
+        gSetHandler(id, "VALUECHANGED", func);
+    }
+    gSetAttributes(id, attributes, args);
+    return id;
+}
+//const IupFlatList = IupList;
+
+/*
+  <div id="menuheader">
+    <div id="mobbtn">&#9776;</div>
+    <nav id="menu">
+      <ul class="menubar">                                          -- (Menu)
+        <li class="topmenu">                                        -- (SubMenu)
+          <span tabindex="0"><span class="malt">F</span>ile</span>
+          <ul class="submenu">                                      -- (Menu)
+//         <li class="menuitem"><span><i></i>New</span></li>        -- (MenuItem)
+//         <li class="separator"></li>                              -- (Separator)
+           <li class="nestmenu">                                    -- (SubMenu)
+            <span><i></i>Paste</span>
+            <ul class="submenu">                                    -- (Menu)
+//           <li class="menuitem"><span><i></i>Normal</span></li>
+//           <li class="nestmenu">                                  -- (SubMenu)
+//            <span><i></i>Circle</span>
+//            <ul class="submenu">                                  -- (Menu)
+//             <li class="separator"></li>
+//            </ul>
+//           </li>
+            </ul>
+           </li>
+          </ul>
+        </li>
+        <li class="topmenu"><span tabindex="0"><span class="malt">H</span>elp</span></li>
+      </ul>
+    </nav>
+  </div>    
+*/
+
+function $get_menu_with_id(menu, id) {
+//  let res = menu.querySelector("#" + id);
+//  let res = menu.querySelector("[menuid=mid" + id + "]");
+    let res = menu.querySelector("[menuid=mid" + menu.id + "_" + id + "]");
+//  if (menu.ID !== id) {
+////        let clen = 
+//
+//      return null;
+//  }
+    return res;
+}
+
+function $xpg_mnemonicalize_menu_title(text) {
+    if (text) {
+        let adx = text.indexOf('&');
+        if (adx !== -1) {
+            // replace eg "&File" with "<span class="malt">F</span>ile"
+            text = text.slice(0,adx) + `<span class="malt">` + text.slice(adx+1,adx+2) + `</span>` + text.slice(adx+2);
+        }
+    }
+    return "<i></i>" + text;
+}
+
+function gMenuSetAttribute(/*gdx*/ menu, /*integer*/ id, /*string*/ name, /*object*/ v) {
+    // DEV convert menu, id into handle...
+//  id = $get_menu_with_id(menu,id);
+//  id = menu.querySelector(".??");
+//  let mi = menu.getElementById(id);
+    let mi = $get_menu_with_id(menu,id);
+    if (name === "TITLE") {
+//      mi.innerHTML = $xpg_mnemonicalize_menu_title(v);
+        mi.children[0].innerHTML = $xpg_mnemonicalize_menu_title(v);
+    } else if (name === "ACTIVE") {
+        val = $to_bool(val);
+        mi.disabled = !val;
+    } else if (name === "CHECKED") {
+        puts(1,"gMenuSetAttribute(CHECKED)\n");
+    }
+}
+
+function gMenuGetAttribute(/*gdx*/ menu, /*integer*/ id, /*string*/ name) {
+    let mi = $get_menu_with_id(menu,id);
+    if (name === "TITLE") {
+//      return mi.innerText;
+        return mi.children[0].innerText;
+    } else if (name === "ACTIVE") {
+        return !mi.disabled;
+    } else if (name === "CHECKED") {
+        puts(1,"gMenuGetAttribute(CHECKED)\n");
+        return false;
+    }
+}
+
+let $next_menu_id = 1;
+
+//function gMenu(/*gdx*/ children=[], /*sequence*/ attributes="", /*dword_seq*/ args=[]) {
+function gMenu(/*sequence*/ children, /*rtn*/ handler, /*bool*/ bRadio=false) {
+// Note: the class of a menu is "submenu", maybe replaced with "menubar" later, whereas
+//       the class of a submenu is "nestmenu", maybe replaced with "topmenu" later...
+//atom pChildren = iup_ptr_array(children)
+//gdx id = c_func(xIupMenuv, {pChildren})
+//  free(pChildren)
+//DEV NO, this needs to be done at the IupSetAttributeHandle(dlg,"MENU",menu) stage:
+/*
+    const mh = document.createElement("div"),
+          mb = document.createElement("div"),
+         nav = document.createElement("nav"),
+          ul = document.createElement("ul");
+//<div id="mobbtn">&#9776;</div>
+//<nav id="menu"><ul class="menubar">
+//  id.setAttribute("class", "menuheader");
+    id.id = "menuheader";
+    mb.id = "mobbtn";
+    mb.innerHTML = "&#9776;";
+    nav.id = "menu";
+//  ul.setAttribute("class", "menubar");
+    ul.className = "menubar";
+           <li class="nestmenu">
+            <span><i></i>Create</span>
+            <ul class="submenu">
+
+           <li class="nestmenu">
+            <span><i></i>Paste</span>
+            <ul class="submenu">
+//           <li class="menuitem"><span><i></i>Normal</span></li>
+//           <li class="menuitem"><span><i></i>html-stripped</span></li>
+            </ul>
+           </li>
+              <ul class="submenu">
+               <li class="menuitem"><span><i></i>Normal</span></li>
+               <li class="menuitem"><span><i></i>Dotted</span></li>
+               <li class="separator"></li>
+               <li class="menuitem"><span><i></i>Filled</span></li>
+              </ul>
+
+*/
+//  const id = document.createElement("li"),
+//        sp = document.createElement("span");
+    const id = document.createElement("ul");
+    id.className = "submenu";   // (maybe replaced with "topmenu" later, along with a tabindex of 0)
+    id.id = $next_menu_id;
+    $next_menu_id += 1;
+
+//  function xpg_add_menu(/*integer*/ pmid, /*atom*/ menu, /*sequence*/ children, /*bool*/ bRadio) {
+    function xpg_add_menu(/*atom*/ menu, /*sequence*/ children, /*bool*/ bRadio) {
+        let /*string*/ text;
+        let /*integer*/ mdx;
+        let /*sequence*/ rdi = ["sequence"];
+        let /*integer*/ rdimin = 0;
+        let /*atom*/ rdimh;
+        let /*integer*/ lc = length(children);
+        for (let i = 1; i <= lc; i += 1) {
+            let /*object*/ c = $subse(children,i);
+            if (string(c)) {
+                assert((equal(c,"|")) || (equal(c,"-")));
+                c = $subse(c,1);
+            }
+            if (atom(c)) {
+                assert((equal(c,0X7C)) || (equal(c,0X2D))); // c='|' or c='-'
+                let sep = document.createElement("li");
+                sep.className = "separator";
+                menu.appendChild(sep);
+                if (length(rdi)) { bRadio = false; }
+//              if (rdi.length) { bRadio = false; }
+            } else if ((equal(length(c),2)) && integer($subse(c,2))) {
+                // eg {"Cut",CUT=$}
+                [,text,mdx] = c;
+                let /*bool*/ bCheck = equal($subse(text,1),0X3F);   // text[1]=='?'
+                if (bCheck) { text = $subss(text,2,-1); }
+                const mi = document.createElement("li"),
+                      sp = document.createElement("span"),
+                    html = $xpg_mnemonicalize_menu_title(text);
+                mi.className = "menuitem";
+                sp.innerHTML = html;
+                mi.appendChild(sp);
+//              if (mdx) { mi.id = mdx; }
+//              if (mdx) { mi.menuid = mdx; }
+//              if (mdx) { mi.setAttribute("menuid",mdx); }
+//              if (mdx) { mi.setAttribute("menuid","mid" + mdx); }
+                if (mdx) { mi.setAttribute("menuid","mid" + menu.id + "_" + mdx); }
+                menu.appendChild(mi);
+                if (bCheck) {
+                    if (bRadio) {
+//                      rdi = $conCat(rdi, mdx, false); // (full set stored on each below)
+                        rdi = $conCat(rdi, mi, false); // (full set stored on each below)
+                        if ((rdimin === 0) || mdx < rdimin) {
+                            rdimin = mdx;
+                            rdimh = mi;
+                        }
+//DEV?? (lets worry about this later!)
+//                      else
+//                          setd({pmid,mdx},0,WIN_MENU_CHECKED)
+                    }
+                }
+            } else {
+                text = $subse(c,1);
+                mdx = ((length(c) === 3) ? $subse(c,2) : 0);
+                let /*sequence*/ grandkids = $subse(c,-1);
+                let /*bool*/ bSubRadio = equal($subse(text,1),0X3F); // text[1]='?'
+                if (bSubRadio) { text = $subss(text,2,-1); }
+                let nestmenu = document.createElement("li"),
+                    nm_span = document.createElement("span"),
+                    submenu = document.createElement("ul"),
+//                  sm_span = document.createElement("span"),
+                    html = $xpg_mnemonicalize_menu_title(text);
+                nestmenu.className = "nestmenu";  // (maybe replaced with "topmenu" later)
+                submenu.className = "submenu";
+                nm_span.innerHTML = html;
+                nestmenu.appendChild(nm_span);
+                nestmenu.appendChild(submenu);
+//              if (mdx) { nestmenu.menuid = mdx; }
+//              if (mdx) { nestmenu.setAttribute("menuid",mdx); }
+//              if (mdx) { nestmenu.setAttribute("menuid","mid" + mdx); }
+                if (mdx) { nestmenu.setAttribute("menuid","mid" + menu.id + "_" + mdx); }
+//DEV (untried...)
+//              if (mdx) { submenu.menuid = mdx; }
+
+//              xpg_add_menu(pmid,submenu,grandkids,bSubRadio)
+                xpg_add_menu(submenu,grandkids,bSubRadio);
+                menu.appendChild(nestmenu);
+
+                if (length(rdi)) { bRadio = false; }
+//              if (rdi.length) { bRadio = false; }
+            }
+        }
+// (lets worry about this later!)
+        let /*integer*/ lr = length(rdi);
+        if (lr) {
+    //      rdi = sort(rdi)
+    //      integer f = rdi[1], l = rdi[$]
+    //      assert((l-f)=(length(rdi)-1))
+    //      bOK = c_func(xCheckMenuRadioItem,{menu,f,l,f,MF_BYCOMMAND})
+//DEV (checked)
+//          rdimh.?? = true;
+            // and stash the full set against every entry
+//          for mdx in rdi do
+//              setd({pmid,mdx},{rdi,menu},WIN_MENU_CHECKED)
+            for (let i=1; i <= lr; i += 1) {
+                let /*atom*/ m = $subse(rdi,i);
+                m.RADIOGROUP = rdi;
+            }
+        }
+    }
+    xpg_add_menu(id,children,bRadio);
+
+//  if (children.length) {
+//      let l = length(children);
+//      for (let i = 1; i <= l; i += 1) {
+//          let ci = children[i];
+////DEV NO, this needs to be done at the IupSetAttributeHandle(dlg,"MENU",menu) stage:
+///*
+//Each entry of the children structure is: 
+// * {string menu_item, integer id} for a "leaf" menu entry, or 
+// * any of {"|","-",'|','-'} for a separator (which are all treated identically), or 
+// * {string submenu, [integer id,] sequence children}
+//
+//          cs = ci.children[0];
+//      ci.className = "topmenu";
+//      cs.tabIndex = 0;
+//*/
+//crash("menus!")
+////            id.appendChild(ci);
+//      }
+//  }
+//  nav.appendChild(ul);
+//  id.appendChild(mb);
+//  id.appendChild(nav);
+//  gSetAttributes(id, attributes, args);
+//  if length(attributes) then
+//      gSetAttributes(id, attributes, args)
+//  end if
+    return id;
+}
+
+function gPopupMenu(/*gdx*/ menu, /*integer*/ x=XPG_MOUSEPOS, y=XPG_MOUSEPOS) {
+    crash("gPopupMenu");
+/*
+    integer ct = ctrl_types[menu]
+    assert(ct=MENU)
+    bool bMap = and_bits(ctrl_flags[menu],CF_MAPPED)=0
+    if bMap then gMap(menu) end if
+    atom handle = ctrl_handles[menu]
+    if x=XPG_MOUSEPOS
+    or y=XPG_MOUSEPOS then
+        assert(x==y,"gPopupMenu: XPG_MOUSEPOS is both-only")
+        {x,y} = gGetGlobal("MOUSEPOS")
+    end if
+    if backend=GTK then
+        if bGTK3 then
+            c_proc(gtk_menu_popup_at_pointer,{handle,NULL})
+        else
+            atom cb = call_back(gtk_menu_position_func),
+               data = x*#8000+y,
+             cevntt = c_func(gtk_get_current_event_time,{})
+            c_proc(gtk_menu_popup,{handle,NULL,NULL,cb,data,0,cevntt})
+        end if
+    elsif backend=WinAPI then
+        atom hwnd = any_active_window()
+        tracked_menu = menu
+        integer res = c_func(xTrackPopupMenuEx,{handle,TPM_RETURNCMD,x,y,hwnd,NULL})
+        tracked_menu = 0
+        if res then
+            {} = xpg_menu_common(menu,res,false)
+        end if
+    else
+        ?9/0 -- (unknown backend)
+    end if
+*/
+}
+
+//function gMenuItem(/*nullable_string*/ title=NULL, /*object*/ func=NULL, /*sequence*/ attributes="", args=[]) {
+////<li class="menuitem"><span><i></i>Normal</span></li>
+//  [,title,func,attributes,args] = $paranormalise_traa(title,func,attributes,args);
+//  const id = document.createElement("li"),
+//        sp = document.createElement("span");
+//  id.className = "menuitem";
+//  sp.innerHTML = $xpg_mnemonicalize_menu_title(title);
+//  id.appendChild(sp);
+//  if (func) {
+//      gSetHandler(id,"CLICK",func);
+//  }
+//  gSetAttributes(id, attributes, args);
+//  return id;
+//}
+
+//function gSeparator() {
+////<li class="separator"></li>
+//  const id = document.createElement("li");
+//  id.className = "separator";
+//  return id;
+//}
+
+//function gSubmenu(/*nullable_string*/ title=NULL, /*gdx*/ menu=NULL, /*string*/ attributes="", /*sequence*/ args=[]) {
+//  const id = document.createElement("li"),
+//        sp = document.createElement("span");
+//
+//  id.className = "nestmenu";   // (maybe replaced with "topmenu" later)
+//  sp.innerHTML = $xpg_mnemonicalize_menu_title(title);
+//  id.appendChild(sp);
+//  id.appendChild(menu);
+////    id.appendChild(ul);
+////             <li class="nestmenu">
+////              <span><i></i>Triangle</span>
+////              <ul class="submenu">
+////               <li class="menuitem"><span><i></i>Equilateral</span></li>
+////               <li class="menuitem"><span><i></i>Isoceles</span></li>
+////               <li class="menuitem"><span><i></i>Scalenus</span></li>
+////              </ul>
+////             </li>
+//
+////        <li class="topmenu">
+////          <span tabindex="0"><span class="malt">E</span>dit</span>
+////          <ul class="submenu">
+////           <li class="menuitem"><span><i></i>Copy</span></li>
+////           <li class="nestmenu">
+////            <span><i></i>Paste</span>
+////            <ul class="submenu">
+////             <li class="menuitem"><span><i></i>Normal</span></li>
+////             <li class="menuitem"><span><i></i>html-stripped</span></li>
+////            </ul>
+////           </li>
+//
+//  gSetAttributes(id, attributes, args);
+//  return id;
+//}
+
+//DEV re-do the snapshots in the manual...
+//function IupMultiBox(children, attributes = "", args = []) {
+//  if (!sequence(children)) {
+////        children = IupGetChildren(children);
+//      crash("multibox children must be a sequence!");
+//  }
+////DEV (and elsewhere)
+////    assert(sequence(children),
+//  const id = document.createElement("div");
+//  id.setAttribute("class", "multibox");
+//  id["EXPAND"] = "YES";
+////    id.className = "multibox";
+//  let l = length(children);
+//  for (let i = 1; i <= l; i += 1) {
+//      let ci = children[i];
+//      id.appendChild(ci);
+//  }
+//  gSetAttributes(id, attributes, args);
+//  return id;
+//}
+
+function gProgressBar(attributes = "", args = []) {
+    if(!$storeAttr) { $gInit(); }
+    const id = document.createElement("progress");
+    id.setAttribute("class", "progress");
+    id.setAttribute("min", 0);
+    id.setAttribute("max", 1);
+    gSetAttributes(id, attributes, args);
+    return id;
+}
+
+
+//DEV IupSplit.
+// see file:///E:/downloads/misc/js/vanillajs/vanillajs-resizable-panes/dist/index.html
+//C:\Program Files (x86)\Phix\demo\rosetta\hexapawn.exw:538           left = IupSplit(board_frame,moves_frame,"ORIENTATION=HORIZONTAL,MINMAX=100:900"),
+//C:\Program Files (x86)\Phix\demo\rosetta\hexapawn.exw:540           full = IupSplit(left,right,"ORIENTATION=VERTICAL,MINMAX=100:900")
+function IupSplit(/*gdx*/ child1=NULL, child2=NULL, /*string*/ attributes="", /*sequence*/ args=[]) {
+//
+// Creates something like this:
+//
+//  <div class="split">
+//    (child1)
+//    <div class="drag-y"></div>    -- (or drag-x iff HORIZONTAL/VERTICAL)
+//    (child2)
+//  </div>
+//
+    let id = document.createElement(`div`),
+      drag = document.createElement(`div`);
+    id.style.display = "flex";
+    id.style.flexDirection = "column";  // ("row" if HORIZONTAL)
+    id.EXPAND = "YES"
+    id.className = "split";
+    drag.className = "drag-y";          // ("drag-x" if HORIZONTAL)
+//DEV??
+//  id.style.height = "100vh";
+    child1.style.flex = "0 0 50%";
+    child2.style.flex = "1";
+    id.appendChild(child1);
+    id.appendChild(drag);
+    id.appendChild(child2);
+
+    let startX = 0,
+        startY = 0,
+        dragElement;
+//   _leftPane = document.querySelector(".box-1");
+//var _rightPane = document.querySelector(".box-2");
+//var _container = document.querySelector(".main-holder");  // the div split...
+//var _topPane = document.querySelector(".top-pane");
+
+//InitDragDrop();
+
+//console.log(document)
+
+//function InitDragDrop(){
+//  drag.onmousedown = OnMouseDown;
+//  drag.onmouseup = OnMouseUp;
+//}
+
+    function OnMouseMoveX(e){
+        if (e == null)
+            var e = window.event; 
+//      _leftPane.style.flex = "0 0" + (e.clientX/(_container.clientWidth/100)) + "%";
+        child1.style.flex = "0 0" + (e.clientX/(id.clientWidth/100)) + "%";
+    }
+
+    function OnMouseMoveY(e){
+        if (e == null)
+            var e = window.event; 
+//      _topPane.style.flex = "0 0" + (e.clientY/(_container.clientHeight/100)) + "%";
+        child1.style.flex = "0 0" + (e.clientY/(id.clientHeight/100)) + "%";
+    }
+
+    function ff() { return false; }
+
+    function OnMouseDown(e){
+//DEV??
+        if (e == null) {
+            e = window.event; 
+        }
+    
+//      var target = e.target != null ? e.target : e.srcElement;
+        let target = e.target;
+    
+        if ((e.button == 1 && window.event != null || e.button == 0) && target.className == "drag-x") {
+            startX = e.clientX;
+            dragElement = target;
+            document.onmousemove = OnMouseMoveX;
+            document.body.focus();
+            document.onselectstart = ff;
+            target.ondragstart = ff;
+            return false;
+        } else if ((e.button == 1 && window.event != null || e.button == 0) && target.className == "drag-y") {
+            startY = e.clientY;
+            dragElement = target;
+            document.onmousemove = OnMouseMoveY;
+            document.body.focus();
+            document.onselectstart = ff;
+            target.ondragstart = ff;
+            return false;
+        }
+    }
+
+    function OnMouseUp(e){
+        if (dragElement != null){
+            document.onmousemove = null;
+            document.onselectstart = null;
+            dragElement.ondragstart = null;
+            dragElement = null;
+        }
+    }
+
+    drag.onmousedown = OnMouseDown;
+//  drag.onmouseup = OnMouseUp;
+    document.onmouseup = OnMouseUp;
+
+    gSetAttributes(id, attributes, args);
+    return id;
+}
+
+
+//DEV erm, hello, where are IupTableClick_cb(), IupTableEnterItem_cb(), IupTableResize_cb(),
+//                          IupTableGetSelected(), IupTableGetData(), IupTableSetData()???
+function gTable(columns, data, rows=10, attributes="", args=[]) {
+    [,rows,attributes,args] = $paranormalise_raa(rows,attributes,args)//,bCheckRid:=false)
+    if (rows === 0) { rows = 10; }
+    let table = document.createElement(`table`),
+        container = document.createElement(`div`);  // wraps table+resizers
+    table.style.height = rows*23+27 + "px";
+//  table.classList = "table";
+    container.appendChild(table);
+    container.classList = "container";
+    container.style.width = "100%";
+    container.style.height = "100%";
+
+    let nColumns = length(columns),
+        nRows = length(data[1]),
+        tags = tagset(nRows),
+        sort_col = 1,
+        sort_dir = 1,
+        table_widths = [],
+        table_aligns = [],
+        iObserver,
+        iObservedNodes = [],
+        created = 0,
+        updated = 0;
+
+    function coldata(i,c) {
+        let ti = tags[i],
+            l2 = length(data[2]);
+        if (c<=l2) {
+            let d2c = data[2][c];
+            if (string(d2c)) {
+                return sprintf(d2c,data[1][ti][c]);
+            } else if (sequence(d2c)) {
+                return d2c[ti];
+            } else if (typeof(d2c) === "function") {
+                return d2c(data[1],ti,c);
+            }
+        }
+        return data[1][ti][c];
+    }
+
+    function update_item(node) {
+        let id = Number(node.id),
+            tds = Array.from(node.querySelectorAll("td"));
+        if (tds.length===1) {
+            for (let i=1; i<=nColumns; i += 1) {
+                let td = document.createElement("td");
+                node.appendChild(td);
+                tds[i] = td;
+            }
+        }
+        for (let c=1; c<=nColumns; c += 1) {
+            let td = tds[c-1];
+            td.textContent = coldata(id,c);
+            td.style.width = table_widths[c];
+            td.style.maxWidth = table_widths[c];
+            td.style.textAlign = table_aligns[c];
+        }
+    }
+
+    function background_refresh() {
+        // Note this can take 15s to update 5000 records, the point
+        //      is to make more "reasonable" scrolling silky-smooth,
+        //      (without it, every page down jumps quite jarringly)
+        //      and for the first display to be near-instantaneous,
+        //      at least, that is, post-buildDummyData() timings.
+        let last = Math.min(updated+100, nRows);
+//p2js:
+//      for (; updated<last; updated += 1) {
+        for (let i=updated; i<last; i += 1) {
+            updated = i;
+            update_item(iObservedNodes[updated]);
+        }
+        // let UI update / do next block in 0.01s:
+        if (updated<nRows) { setTimeout(background_refresh, 10); }
+    }
+
+    function refresh_observer() {
+        // works fine, and perfectly fast enough on 10,000 nodes.
+        if (created===nRows) {
+            iObserver.disconnect();
+            for (let i=0; i<nRows; i += 1) {
+                let node = iObservedNodes[i];
+//              iObserver.unobserve(node);
+                iObserver.observe(node);
+            }
+            updated = 0;
+            setTimeout(background_refresh,10);
+        } else {
+            setTimeout(refresh_observer,100); // (try again in 0.1s)
+        }
+    }
+
+    function xSorter(i, j) {
+//$share:
+//      if (i==="sequence") { return -1; }
+//      if (j==="sequence") { return +1; }
+        if (typeof(i) !== "number") { return -1; }
+        if (typeof(j) !== "number") { return +1; }
+
+//maybe:
+//      let cmp = compare(data[1][i][sort_col],
+//                        data[1][j][sort_col])
+        let ti = data[1][i][sort_col],
+            tj = data[1][j][sort_col],
+            cmp = ti < tj ? -1 
+                : ti > tj ? +1 
+                          :  0;
+        return cmp*sort_dir;
+    }
+
+    function sortTable(event) {
+        let th = event.currentTarget,
+            ad = th.getAttribute("data-sorted"),
+            ths = th.parentNode.querySelectorAll("th");
+        for (let i=0; i<ths.length; i += 1) {
+            let ti = ths[i];
+            ti.removeAttribute("data-sorted");
+        }
+        ad = ad==='A' ? 'D' : 'A';
+        sort_col = Number(th.id);
+        sort_dir = ad==='A' ? +1 : -1;
+        tags.sort(xSorter);
+        th.setAttribute("data-sorted", ad);
+        refresh_observer();
+    }
+
+    function set_intersection_observer() {
+        function iob_handler(entries, iObserver) {
+//p2js:
+/*
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    update_item(entry.target);
+                }
+            });
+*/
+            let l = entries.length;
+            for (let i=0; i < l; i += 1) {
+                let entry = entries[i];
+                if (entry.isIntersecting) {
+                    update_item(entry.target);
+                }
+            }
+        }
+        iObserver = new IntersectionObserver(iob_handler, {});
+    }
+
+    function trHide(trOld) {
+        if (trOld) { trOld.classList.remove("trActive"); }
+        return false;
+    }
+
+//  let shift, ctrl;
+
+    function trSelect(trOld, trNew, bPageKey=0) {
+// maybe not for pageup/down:...
+        if (trNew==null) { return true; }   // pass keybd input up
+        trHide(trOld);
+        trNew.classList.add("trActive");
+        let tbody = trNew.parentNode,
+            tableHeight = $eHeight(tbody);
+        if (bPageKey) {
+            if (typeof(bPageKey)==="string") { return true; } // ditto
+            tbody.scrollTop += bPageKey*tableHeight+bPageKey;
+            return false;
+        }
+        // scrolling magic
+        let rowTop = trNew.offsetTop - tbody.scrollTop - tbody.offsetTop,
+            rowBtm = rowTop + $eHeight(trNew);
+        if (rowTop < 0) {
+            tbody.scrollTop += rowTop;                  // scroll up
+        } else if (rowBtm > tableHeight) {
+            tbody.scrollTop += rowBtm - tableHeight;    // scroll down
+        }
+        return false;
+    }
+
+    function trPage(trSel, direction) {
+        let n = Math.floor($eHeight(trSel.parentNode)/$eHeight(trSel));
+        for (let i=1; i<=n; i+=1) {
+            let trNxt = (direction===-1) ? trSel.previousElementSibling
+                                         : trSel.nextElementSibling;
+            if (!trNxt) { break; }
+            trSel = trNxt;
+        }
+        return trSel;
+    }
+
+    function trClick(event) {
+      let trNew = event.currentTarget,
+          trOld = trNew.parentNode.querySelector(".trActive");
+      trSelect(trOld,trNew);
+    }
+
+    function table_keyhandler(event) {
+        let table = event.currentTarget,
+            tbody = table.querySelector("tbody"),
+            trSel = tbody.querySelector(".trActive");
+        if (trSel!=null) {
+//          shift = event.shiftKey;
+//          ctrl = event.ctrlKey;
+            switch(event.key)
+            {
+                case "ArrowDown":   return trSelect(trSel,trSel.nextElementSibling);
+                case "ArrowUp":     return trSelect(trSel,trSel.previousElementSibling);
+                case "PageDown":    return trSelect(trSel,trPage(trSel,+1),+1);
+                case "PageUp":      return trSelect(trSel,trPage(trSel,-1),-1);
+                case "Home":        return trSelect(trSel,trSel.parentNode.firstElementChild,"Home");
+                case "End":         return trSelect(trSel,trSel.parentNode.lastElementChild,"End");
+                case "Escape":      return trHide(trSel);
+            }
+        }
+    }
+
+    function populate_table() {
+        let tbody, bRefresh = false;
+        if (created===0) {
+            let thead = document.createElement("thead"),
+                headr = document.createElement("tr");
+            tbody = document.createElement("tbody");
+//          tbody.classList = "tbody";
+//23/8/21 (when making KEY_CB work... put back if focus goes wrong)
+//          tbody.setAttribute("tabindex", "0");
+            tbody.setAttribute("tabindex", "-1");
+            thead.appendChild(headr);
+            table.appendChild(thead);
+            table.appendChild(tbody);
+            for (let i=1; i<=nColumns; i += 1) {
+                let th = document.createElement("th"),
+                    ci = columns[i];
+                if (Array.isArray(ci)) {
+                    let wydth = (columns[i][2]-11) + "px",
+                        align = columns[i][3].toLowerCase().slice(1);
+                    th.style.width = wydth;
+                    th.style.maxWidth = wydth;
+                    th.style.textAlign = align;
+                    table_widths[i] = wydth;
+                    table_aligns[i] = align;
+                    ci = ci[1];
+                }
+                th.textContent = ci;
+                th.id = i;
+                th.classList.add("sortable");
+                th.onclick = sortTable;
+                headr.appendChild(th);
+            }   
+            let th = document.createElement("th");
+            th.classList.add("thlast");
+            headr.appendChild(th);
+            bRefresh = true;
+        } else {
+            tbody = table.querySelector("tbody");
+        }
+//      for (let i=1; i<=nRows; i++) { // (now in timslices)
+        let last = Math.min(created+100-0, nRows);
+//p2js:
+//      for (; created<last; created += 1) {
+        for (let i=created; i<=last; i += 1) {
+            created = i;
+            let tr = document.createElement("tr");
+            for (let c=1; c<=nColumns; c += 1) {
+                tr.appendChild(document.createElement("td"));
+            }
+            tr.id = created+1;
+            tr.onclick = trClick;
+            tbody.appendChild(tr);
+            iObserver.observe(tr);
+            iObservedNodes.push(tr);
+        }
+        if (created<nRows) { setTimeout(populate_table, 10); }
+        if (bRefresh) { refresh_observer(); }
+    }
+
+    function createResizeDivs() {
+        let dragActive = false, startX, 
+            bodyLeft = document.body.getBoundingClientRect().left,
+            resizer,                    // as clicked on
+            resizeLeft,                 //      ""       initial left (pos)
+            left_th, right_th,          //      "" twixt
+            leftWidth, rightWidth,      // initial widths
+            resizer_array = [],
+            table_th = table.querySelectorAll("th"),
+            leftPos = 0,
+            colIndex;
+
+        function rd_mouseDown(event) {
+            dragActive = true;
+            startX = event.pageX;
+            resizer = event.currentTarget;
+            colIndex = resizer_array.indexOf(resizer);
+            left_th = table_th[colIndex];
+            right_th = table_th[colIndex+1];
+            leftWidth = $eWidth(left_th);
+            rightWidth = $eWidth(right_th);
+            resizeLeft = resizer.getBoundingClientRect().left - bodyLeft;
+        }
+
+        function mouseMove(event) {
+            if (dragActive) {
+                let movement = event.pageX - startX,
+                    new_left = leftWidth + movement,
+                    new_right = rightWidth - movement;
+
+                if (new_left > 40 &&
+                    new_right > 40) {
+                    let leftpx = new_left + "px",
+                        rightpx = new_right + "px";
+                    left_th.style.width = leftpx;
+                    left_th.style.maxWidth = leftpx;
+                    right_th.style.width = rightpx;
+                    right_th.style.maxWidth = rightpx;
+                    table_widths[colIndex+1] = leftpx;
+                    table_widths[colIndex+2] = rightpx;
+                    resizer.style.left = resizeLeft + movement + "px";
+                    refresh_observer();
+                }
+            }
+        }
+
+        function mouseUp(){
+            dragActive = false;
+        }
+
+        for (let i=1; i<table_th.length-1; i += 1) {
+            let resizer = document.createElement("div");
+            resizer.className = "column_resizer";
+            leftPos += $eWidth(table_th[i-1])+11;
+            resizer.style.left = (leftPos-3)+"px";
+//          resizer.addEventListener("mousedown", rd_mouseDown);
+            resizer.onmousedown = rd_mouseDown;
+            container.appendChild(resizer);
+            resizer_array.push(resizer);
+        }
+//      table.addEventListener("mousemove", mouseMove);
+        table.onmousemove = mouseMove;
+//      document.addEventListener("mouseup", mouseUp);
+        $docBody.addEventListener("mouseup", mouseUp);
+    }
+
+    set_intersection_observer();
+    populate_table();
+    createResizeDivs(container,table);
+    table.onkeydown = table_keyhandler;
+//  table.addEventListener("keydown", table_keyhandler);
+
+    return container;
+}
+
+function gTableGetSelected(/*gdx*/ table) {
+//  crash("testme");
+    puts(1,"gTableGetSelected\n");
+//  let tr = table.parentNode.querySelector(".trActive"),
+    let tr = table.querySelector(".trActive"),
+        idx = tr.id;
+//      idx = tr.id || 0;
+//  integer idx = IupGetInt(table,"FOCUSCELL") -- (line only)
+//  if idx!=0 then
+//      integer dsidx = IupGetInt(table,"DSIDX")
+//      idx = table_tagsets[dsidx][idx]
+//  end if
+    return idx;
+}
+
+function gTableClearSelected(/*gdx*/ table) {
+//  crash("testme");
+    puts(1,"gTableClearSelected\n");
+//  let tr = table.parentNode.querySelector(".trActive"),
+    let tr = table.querySelector(".trActive");
+    if (tr) {
+        tr.classList.remove("trActive");
+    }
+}
+
+function IupTableClick_cb(/*gdx*/ table, /*integer*/ l, c/*, atom pStatus*/) {
+// default CLICK_CB for IupTable (callable directly, when overridden)
+    puts(1,"IupTableClick_cb\n"); // placeholder
+/*
+    integer numcol = IupGetInt(table,"NUMCOL")
+    if l=0 and c>0 and c<=numcol then
+        dsidx = IupGetInt(table,"DSIDX")
+        sequence data = table_datasets[dsidx],
+                 cols = table_sortcols[dsidx]
+        integer sel = IupTableGetSelected(table),
+                  k = find(c,cols)
+        integer sortcol = iff(length(cols)?cols[1]:0)
+        if k=1 then
+            table_sortdirs[dsidx][1] *= -1
+        else
+            if k then
+                table_sortcols[dsidx][k..k] = {}
+                table_sortdirs[dsidx][k..k] = {}
+            end if
+            table_sortcols[dsidx] = prepend(table_sortcols[dsidx],c)
+            table_sortdirs[dsidx] = prepend(table_sortdirs[dsidx],1)
+        end if
+        if sortcol!=0 and sortcol!=c then
+            IupSetAttributeId(table,"SORTSIGN",sortcol,"NO")
+        end if
+        integer sortdir = iff(gGetAttributeId(table,"SORTSIGN",c)="DOWN"?-1:1)
+        IupSetAttributeId(table,"SORTSIGN",c,iff(sortdir=-1?"UP":"DOWN"))
+        table_tagsets[dsidx] = custom_sort(routine_id("by_column"),table_tagsets[dsidx])
+        IupSetAttribute(table,"REDRAW","ALL")
+        -- restore selection - it stays off-screen, but user can use up/down
+        --  to force it into the viewport, should they be inclined to do so.
+        sel = find(sel,table_tagsets[dsidx])
+        {} = IupTableEnterItem_cb(table, sel, 1)
+    end if
+*/
+    return XPG_DEFAULT;
+}
+
+function gTabs(/*gdx*/ children = [], /*string*/ attributes="", /*sequence*/ args = []) {
+//
+// Creates something like this:
+//
+//   <div class="tabcontainer">
+//    <ul class="tabs">
+//      <li class="tab active"> (children[1].TABTITLE) </li>
+//      <li class="tab"       > (children[2].TABTITLE) </li>
+//    </ul>
+//    <div class="panels">
+//      <div class="panel active"> (children[1]) </div>
+//      <div class="panel"       > (children[2]) </div>
+//    </div>
+//   </div>
+//
+//maybe?:
+//  if (!Array.isArray(children)) {
+//      children = ["sequence",children];
+//  }
+//or: (though children.length crashing is probably just as good)
+//  assert(Array.isArray(children),"IupTabs children must be a sequence!");
+    const id = document.createElement("div"),
+        tabs = document.createElement("ul"),
+      panels = document.createElement("div");
+    id.setAttribute("class", "tabcontainer");
+    tabs.setAttribute("class", "tabs");
+    panels.setAttribute("class", "panels");
+//  id.setAttribute("EXPAND", "YES");
+    id["EXPAND"] = "YES";
+//  id.className = "tabs";
+
+    function tabclick(event) {
+        let tgt = event.target;
+        if (tgt.classList.contains("tab")) {
+            let tabul = tgt.parentNode,                 // the <ul tabs> (lone)
+                tabch = [...tabul.children],            // the <li tab>s (Array)
+                 pdiv = tabul.parentNode.children[1],   // the <div panel>s
+                  act = tabul.querySelector(".active"),
+                  adx = tabch.indexOf(act),
+                  apt = pdiv.children[adx],
+                  tdx = tabch.indexOf(tgt),
+                  pnl = pdiv.children[tdx];
+            act.classList.remove("active");
+            apt.classList.remove("active");
+            tgt.classList.add("active");
+            pnl.classList.add("active");
+        }
+    }
+
+    let l = children.length;
+    for (let i = 1; i < l; i += 1) {
+        let ci = children[i],
+            li = document.createElement("li"),
+            pi = document.createElement("div");
+        li.innerText = ci.TABTITLE;
+        li.setAttribute("class", "tab");
+        pi.setAttribute("class", "panel");
+        if (i === 1) {
+            li.classList.add("active");
+            pi.classList.add("active");
+        }
+        li.addEventListener("click", tabclick);
+        pi.appendChild(ci);
+        tabs.appendChild(li);
+        panels.appendChild(pi);
+    }
+    id.appendChild(tabs);
+    id.appendChild(panels);
+    gSetAttributes(id, attributes, args);
+    return id;
+}       
+
+function gText(value_changed=null, attributes = "", args = []) {
+    if(!$storeAttr) { $gInit(); }
+    const id = document.createElement("input");
+    id.setAttribute("class", "text");
+    [,value_changed,attributes,args] = $paranormalise_raa(value_changed,attributes,args);
+    if (value_changed) {
+        gSetHandler(id,"VALUECHANGED",value_changed);
+//          if (action === "VALUECHANGED") {
+//  //          printf(1,"warning: IupText(VALUECHANGED) not yet supported\n");
+//              gSetHandler(id,action,func);
+//          } else {
+//              if (action !== null && action !== "ACTION") { crash("?9/0"); }
+//  //          if (!action) { action = "ACTION"; }
+//              function action_cb(event) {
+//                  puts(1,"action_cb");    // placeholder...
+//  //              let c = ??,
+//  //                  pNewValue = ??,
+//  //                  res = func(/*gdx*/ id, /*integer*/ c, /*atom*/ pNewValue);
+//  //              if (res===XPG_IGNORE) {
+//  //              }
+//              }
+//              id.onkeyup = action_cb;
+//  //          id.addEventListener("keyup", action_cb);
+//          }
+    }
+    gSetAttributes(id, attributes, args);
+    return id;
+}       
+
+//DEV document this, MULTILINE not supported.
+//(might also warrant a class of "multiline")
+//function IupMultiLine(action=null, func=null, attributes = "", args = []) {
+////    let id = IupText(action, func, attributes, args);
+////    IupSetAttribute(id, "MULTILINE", "YES")
+//  const id = document.createElement("textarea");
+//  id.setAttribute("class", "text");
+//  [action,func,attributes,args] = $paranormalise(action,func,attributes,args);
+//  if (func) {
+//      if (!action) { action = "ACTION"; }
+//      IupSetCallback(id,action,func);
+//  }
+//  gSetAttributes(id, attributes, args);
+//  return id;
+//}     
+
+let $radio_id = 1;
+
+//--DEV: RADIO on a h/vbox...
+function IupRadio(/*gdx*/ child=NULL, /*string*/ attributes="", /*sequence*/ args=[]) {
+    const id = document.createElement("div"),
+        name = "radio"+$radio_id;
+    $radio_id += 1;
+    id.setAttribute("class", "radio");
+    function radiate(id) {
+        let cn = id.classList[0];
+        if (cn === "toggle") {
+            let input = id.children[1];
+            assert(input.type === "checkbox");
+            input.type = "radio";
+            input.name = name;
+        } else {
+            let l = id.children.length;
+            for (let i = 0; i < l; i += 1) {
+                radiate(id.children[i]);
+            }
+        }
+    }
+    radiate(child);
+    id.appendChild(child);
+    gSetAttributes(id, attributes, args);
+    return id;
+}       
+
+let $toggle_id = 1;
+
+function gCheckbox(/*nullable_string*/ title=null, /*rtn*/ value_changed=null, /*string*/ attributes = "", /*sequence*/ args = []) {
+//<label accesskey="s" for="strict-mode"><input type="checkbox" id="strict-mode" /> <u>S</u>trict Mode</label accesskey="x">
+    if(!$storeAttr) { $gInit(); }
+    [,title,value_changed,attributes,args] = $paranormalise_traa(title,value_changed,attributes,args);
+//  const id = document.createElement("div");
+    const id = document.createElement("label"),
+          cb = document.createElement("input"),
+          span = document.createElement("span"),
+          tid = "toggle"+$toggle_id;
+    $toggle_id += 1;
+    cb.type = "checkbox";
+    cb.id = tid;
+    id.for = tid;   
+    id.setAttribute("class", "toggle");
+    if (title) {
+//      id.innerHTML = title;
+        let adx = title.indexOf('&');
+        if (adx !== -1) {
+            crash("not yet done...");
+//          let key = title[adx];
+//          title = title.slice(0,adx) + "<u>" + key + "</u>" + title.slice(adx+1);
+//          lbl.accesskey = key.toLowerCase();
+        }
+        span.innerHTML = "<nobr>" + title + "</nobr>";
+//DEV:
+//      IupSetAtribute(id,"TITLE",title);
+    }
+//  id.addChild
+    id.appendChild(span);
+    id.appendChild(cb);
+    id.style.display = "flex";
+    id.style.flexDirection = "row-reverse";
+    if (value_changed) {
+//      if (!action) { action = "ACTION"; }
+//      gSetHandler(id,action,func);
+//      if (action === "VALUECHANGED") {
+//          printf(1,"warning: IupToggle(VALUECHANGED) not yet supported\n");
+//      } else {
+//DEV
+//          gSetHandler(id,action,func);
+//          if (action !== null && action !== "ACTION") { crash("?9/0"); }
+//          if (!action) { action = "ACTION"; }
+//DEV/SUG:  gSetHandler(id,"TOGGLEACTION",func); (it has/needs an extra parameter...)
+            function value_changed_cb(event) {
+//              puts(1,"action_cb");    // placeholder...
+                let tgl = event.currentTarget;
+//              func(tgl,tgl.children[1].checked);
+                value_changed(tgl.parentNode,tgl.checked);
+//              let c = ??,
+//                  pNewValue = ??,
+//                  res = func(/*gdx*/ id, /*integer*/ c, /*atom*/ pNewValue);
+//              if (res===XPG_IGNORE) {
+//              }
+            }
+//          id.addEventListener("keyup", action_cb);
+//          id.addEventListener("change", action_cb);
+            cb.addEventListener("change", value_changed_cb);
+//          id.onkeyup = action_cb;
+//      }
+    }
+    gSetAttributes(id, attributes, args);
+    return id;
+}       
+//const IupFlatToggle = IupToggle;
+
+//function IupTreeGetUserId(tree, id) {
+//function gTreeGetUserId(tree, id) {
+function gTreeGetUserId(treenode) {
+//DEV/DOC this is effectively a null-op on the web browser. [BLUFF!]
+    let [,tree,id] = treenode;
+//  let leaf = tree.querySelector(`[data-tree-id="` + id + `"]`);
+//  let /*integer*/ userid = Number(leaf.getAttribute("data-tree-id"));
+//  if (userid!==id) { crash("userid error?"); }
+//  return userid;
+    return id;
+//  return treenode;
+}
+
 //p2js [DEV/temp]
-//function IupTreeAddNodes(/*Ihandle*/ tree, /*sequence*/ tree_nodes, /*integer*/ id=-1) {
+//function IupTreeAddNodes(/*gdx*/ tree, /*sequence*/ tree_nodes, /*integer*/ id=-1) {
 //function IupTreeAddNodes(tree, tree_nodes, id=-1) {
 function gTreeAddNodes(tree, tree_nodes, id=-1) {
 
@@ -1285,7 +5467,7 @@ function gTreeAddNodes(tree, tree_nodes, id=-1) {
     }
 
 //p2js [DEV/temp]
-//  function iupTreeAddNodesRec(/*Ihandle*/ tree, /*sequence*/ tree_nodes, /*bool*/ bRoot=true) {
+//  function iupTreeAddNodesRec(/*gdx*/ tree, /*sequence*/ tree_nodes, /*bool*/ bRoot=true) {
 //  function iupTreeAddNodesRec(tree, tree_nodes, bRoot=true) {
     function xpg_TreeAddNodesRec(tree, tree_nodes, bRoot=true) {
         //
@@ -1331,23 +5513,28 @@ function gTreeAddNodes(tree, tree_nodes, id=-1) {
         }
     }
 
-    function xpg_DeleteTreeChildren(node) {
+    function xpg_tree_delete_children(node) {
+        if (sequence(node)) { node = node[1]; }
         while (node.hasChildNodes()) {  
             node.removeChild(node.firstChild);
         }
     }
 
-    if (id===-1) {
+//  if (id===-1) {
+    if (!sequence(tree)) {
 //      IupSetAttributeId(tree,"DELNODE",0,"ALL");  // (maybe...)
-        xpg_DeleteTreeChildren(tree);
+        xpg_tree_delete_children(tree);
         xpg_TreeAddNodesRec(tree, tree_nodes, true);
     } else {
         // tree_nodes is actually just children
         let children = tree_nodes,
-            lench = length(children);
-        tree = tree.querySelector(`[data-tree-id="` + id + `"]`);
+            lench = length(children),
+            tree12 = tree, // (debug aid)
+            id = tree[2];
+        tree = tree[1];
+//      tree = tree.querySelector(`[data-tree-id="` + id + `"]`);
         let list = tree.querySelector("ul");
-        if (list) { xpg_DeleteTreeChildren(list); }
+        if (list) { xpg_tree_delete_children(list); }
         if (!lench) {
             tree.classList.remove("showExpander");
             tree.classList.add("closed");
@@ -1360,19 +5547,21 @@ function gTreeAddNodes(tree, tree_nodes, id=-1) {
 }
 
 //p2js [DEV/temp]
-//function IupTreeView(/*sequence*/ tree_nodes, /*atom*/ branchopen_cb=null, /*string*/ attributes="", /*sequence*/ args=[]) {
-//function IupTreeView(tree_nodes, branchopen_cb=null, attributes="", args=[]) {
-function gTreeView(tree_nodes, branchopen_cb=null, attributes="", args=[]) {
+//function IupTreeView(/*sequence*/ tree_nodes, /*atom*/ branchopen=null, /*string*/ attributes="", /*sequence*/ args=[]) {
+//function IupTreeView(tree_nodes, branchopen=null, attributes="", args=[]) {
+function gTreeView(tree_nodes = [], branchopen = null, attributes = "", args = []) {
 //
 // Creates a tree from a recursive [callback] data structure.
 //
 // tree_nodes is as per gTreeAddNodes()
-// branchopen_cb can be used for deferred loading, or be null if tree_nodes is complete.
-// you can also set branchopen_cb later, via IupSetCallback(tree,"BRANCHOPEN_CB",Icallback("branchopen_cb")) [DEV]
+// branchopen can be used for deferred loading, or be null if tree_nodes is complete.
+// you can also set branchopen later, via gSetHandler(tree,"BRANCHOPEN",branchopen)
 //
+    if(!$storeAttr) { $gInit(); }
+    [,tree_nodes,branchopen,attributes,args] = $paranormalise_qraa(tree_nodes,branchopen,attributes,args);
     const createTVelem = gTreeAddNodes("createTVelem");
-    let /*Ihandle*/ tree = createTVelem("ul", "tree");
-//  let /*Ihandle*/ tree = gTreeAddNodes.createTVelem("ul", "tree"); // does not work...
+    let /*gdx*/ tree = createTVelem("ul", "tree");
+//  let /*gdx*/ tree = gTreeAddNodes.createTVelem("ul", "tree"); // does not work...
     tree.setAttribute("EXPAND", "YES");
 
     function xpg_tree_clickHandler(event) {
@@ -1398,11 +5587,13 @@ function gTreeView(tree_nodes, branchopen_cb=null, attributes="", args=[]) {
                 if (open_cb) {
                     open_cb(it, ", wowee"); //DEV (testing relic??)
                 }
-                let branchopen_cb = tree.BRANCHOPEN_CB;
-                if (branchopen_cb) {
-                    let id = leaf.parentNode.getAttribute("data-tree-id");
+                let branchopen = tree.BRANCHOPEN;
+                if (branchopen) {
+                    let id = Number(leaf.parentNode.getAttribute("data-tree-id"));
                     if (id) {
-                        branchopen_cb(tree,id);
+//                      branchopen(tree,id);
+//                      branchopen(["sequence",tree,id]);
+                        branchopen(["sequence",leaf.parentNode,id]);
                     }
                 }
             } else {
@@ -1440,19 +5631,1228 @@ function gTreeView(tree_nodes, branchopen_cb=null, attributes="", args=[]) {
     }
 */
 
-    if (branchopen_cb) {
+    if (branchopen) {
 //DEV we (also) need to support this, btw:
-//      IupSetCallback(tree, "BRANCHOPEN_CB",  branchopen_cb);
-//      tree.branchopen_cb = branchopen_cb;
-        tree["BRANCHOPEN_CB"] = branchopen_cb;
+//      gSetHandler(tree, "BRANCHOPEN",  branchopen);
+//      tree.branchopen = branchopen;
+        tree["BRANCHOPEN"] = branchopen;
     }
     gTreeAddNodes(tree, tree_nodes);
 //DEV gSetAttributes(tree,attributes,args); // maybe, MARKMULTIPLE
     return tree;
 }
 
-//DEV/SUG pwa/p2js() could perhaps suppress a trailing gMainLoop()....
-//function gMainLoop() { crash("if platform()!=JS missing"); }
-function gMainLoop() { return false; }
+//<input type="range" min="1" max="10" value="3" step="0.1" class="slider" id="lengthRange">
+//IupValuator
+function gSlider(/*nullable_string*/ orientation=NULL, /*rtn*/ value_changed=NULL, /*string*/ attributes="", /*sequence*/ args = []) {
+    if(!$storeAttr) { $gInit(); }
+    [,orientation,value_changed,attributes,args] = $paranormalise_traa(orientation,value_changed,attributes,args);
+    const id = document.createElement("input");
+    id.setAttribute("class", "slider");
+    id.setAttribute("type", "range");
+    id.setAttribute("min", 0);
+    id.setAttribute("max", 1);
+    id.setAttribute("step", "any");
+    if (orientation) {
+        gSetAttribute(id,"ORIENTATION",orientation);
+    }
+    if (value_changed) {
+//      gSetHandler(id, "VALUE_CHANGED", value_changed);
+        gSetHandler(id, "VALUECHANGED", value_changed);
+//      btn.addEventListener("click", toggleHide);
+/*
+solveSlider.addEventListener("input", (e) => {
+  solveMilliseconds = parseInt(e.target.value, 10);
+  solveTimeContainer.innerText = e.target.value;
+});
+*/
+    }
+    gSetAttributes(id, attributes, args);
+    return id;
+}
+
+function gMainLoop() { }
+
+function gDestroy(/* gdx */ dlg) {
+//  NB: IupMainLoop() is a null-op in xpGUI.js so it ends up invoking following code immediately...
+//  instead, do (say) this:
+//
+//      if platform()!=JS then
+//          gMainLoop()
+//          dlg = gDestroy(dlg)
+//      end if
+//
+//  Note however that eg gDestroy(IupNormaliser(...)) should [one day] be perfectly valid.
+//
+//27/9/21 try it anyways...(NULL is probably better but neither has really been properly tested)
+//  return null;  //DEV would be good for id, fatal for non-if-not-JS-wrapped (main)dlg=gDestroy(dlg)...
+    return NULL;  //DEV would be good for id, fatal for non-if-not-JS-wrapped (main)dlg=gDestroy(dlg)...
+//  return dlg;
+}
+
+function gCanvas(redraw = null, attributes = "", args = []) {
+    if(!$storeAttr) { $gInit(); }
+    let id = document.createElement("canvas");
+    id.setAttribute("class", "canvas");
+    id["EXPAND"] = "YES";
+    [,redraw,attributes,args] = $paranormalise_raa(redraw,attributes,args);
+    if (attributes) {
+        gSetAttributes(id, attributes, args);
+    }
+    if (redraw) {
+        id.REDRAW = redraw;
+        function redraw_closure() { redraw(id); }
+        window.requestAnimationFrame(redraw_closure);
+    }
+        if (typeof(id.getContext) === "function") {
+//          let ctx = id.getContext("2d");
+            let ctx = id.getContext("2d") || id.getContext("webgl");
+//if (ctx) {
+            ctx.fillStyle = "white";
+            ctx.backGround = "#ffffff"; // (custom attribute)
+            id.ctx = ctx;
+//          return ctx;
+//}
+        }
+
+    return id;
+}
+// a scrollable canvas:
+//  <!DOCTYPE html>
+//  <html>
+//   <head>
+//    <title>Canvas scroll bar</title>
+//   </head>
+//   <body>
+//    <h2 style="color:black"><i>Canvas scroll bar</i></h2>
+//    <style>
+//      html, body {
+//          width:100%;
+//          height:100%;
+//          margin:0;
+//          overflow:hidden
+//          }
+//      #parent {
+//          width:400px;
+//          height:400px;
+//          border:1px solid #000;
+//          overflow:auto;
+//      }
+//      .canvas {
+//          width:auto;
+//          height:200%;
+//      }
+//    </style>
+//    <div id="parent">
+//      <canvas id="canvas" class="canvas" width="2500" height="3500"></canvas>
+//    </div>
+//    <script>
+//          var canvas = document.getElementById("canvas");
+//          var context = canvas.getContext('2d');
+//          context.lineWidth = 1;
+//          context.strokeStyle = 'pink';
+//          for (let i = 10; i < canvas.height; i += 100) {
+//              context.moveTo(i, 0);
+//              context.lineTo(0, i);
+//          }
+//          context.stroke();
+//    </script>
+//   </body>
+//  </html>
+
+//DEV we might still need this...
+//function cdCreateCanvas(context, id) {
+//  if (context===CD_DBUFFER ||
+//      context===CD_IUP) {
+//      if (typeof(id.getContext) === "function") {
+////            let ctx = id.getContext("2d");
+//          let ctx = id.getContext("2d") || id.getContext("webgl");
+////if (ctx) {
+//          ctx.fillStyle = "white";
+//          ctx.backGround = "#ffffff"; // (custom attribute)
+//          return ctx;
+////}
+//      }
+////        id.style.textAlign = "start";
+////        id.textAlign = "start";
+////        id.textBaseline = "alphabetic";
+//      return id;
+//  } else if (context===CD_GL) {
+////        if ($gl) { return $gl; }
+//////      crash("CD_GL not supported by JavaScript");
+////        crash("cdCreateCanvas(CD_GL) requires that IupGLMakeCurrent() has been called");
+//      // (see for example demo/rosetta/animate_pendulum2.exw)
+//      crash(`needs "cdCreateCanvas(CD_GL)" ==> "if JS then cdCreateCanvas(CD_IUP,canvas) else ..."`);
+//  }
+//  crash("cdCreateCanvas(" + context + ",...) not supported");
+//}
+
+//function cdCanvasActivate(ctx) {
+//  // nuthin needs doin here...
+//}
+
+//DEV use       XPG_FILLED = 0b001, -- (nb same as true[/false])
+//              XPG_CHORD  = 0b010,
+//              XPG_SECTOR = 0b100
+
+//function cdCanvasSetAttribute(/*cdCanvas*/ ctx, /*string*/ name, /*nullable_string*/ val, /*sequence*/ args=[]) {
+//  if (name=="SIZE") {
+//      if (val!=="%dx%d %g") { crash(`"%dx%d %g" expected`); }
+//      let [,w,h] = args;
+//      $resize_children(ctx.canvas,w,h);
+////C:\Program Files (x86)\Phix\demo\pGUI\simple_paint.exw:785     cdCanvasSetAttribute(rgb_canvas, "RESOLUTION", "%g", {res})
+////C:\Program Files (x86)\Phix\demo\pGUI\simple_paint.exw:859         cdCanvasSetAttribute(cd_canvas, "IMGINTERP", "NEAREST")  -- affects only drivers that have this attribute
+////C:\Program Files (x86)\Phix\demo\pGUI\simple_play.exw:766   cdCanvasSetAttribute(canvas, "ROTATE", NULL)
+//  } else {
+//      puts(1,"cdCanvasSetAttribute("+name+")??\n"); // placeholder
+//  }
+//}
+
+//function gCanvasSetBackground(ctx, colour) {
+function gCanvasSetBackground(canvas, colour) {
+    if (integer(colour)) { colour = sprintf("#%06x",colour); }
+//  ctx.fillStyle = colour;
+//  ctx.backGround = colour; // (custom attribute)
+    canvas.ctx.backGround = colour; // (custom attribute)
+}
+
+//function gCanvasGetBackground(ctx) {
+function gCanvasGetBackground(canvas) {
+//  return ctx.backGround;
+    return canvas.ctx.backGround;
+}
+
+//function gCanvasSetForeground(ctx, colour) {
+function gCanvasSetForeground(canvas, colour) {
+    if (integer(colour)) { colour = sprintf("#%06x",colour); }
+    let ctx = canvas.ctx;
+    ctx.fillStyle = colour;
+    ctx.strokeStyle = colour;
+}
+
+//function gCanvasGetForeground(ctx) {
+function gCanvasGetForeground(canvas) {
+//  return ctx.strokeStyle;
+    return canvas.ctx.strokeStyle;
+}
+
+//function cdCanvasSetFillMode(ctx, mode) {
+//  if (mode === CD_WINDING) {
+//      // default, do nothing for now
+////    } else if (mode === CD_EVENODD) {
+//      // not even sure this is possible...
+//  } else {
+//      crash("uh?");
+//  }
+//}
+//
+//function cdCanvasSetInteriorStyle(/*cdCanvas*/ ctx, /*integer*/ style) {
+///*
+//Configures or retrieves the current style for the area filling primitives: 
+//  CD_SOLID, CD_HOLLOW, CD_HATCH, CD_STIPPLE or CD_PATTERN.
+//Note that only CD_HATCH and CD_STIPPLE are affected by the backopacity.
+//Default value: CD_SOLID.
+//If a stipple or a pattern were not defined, when they are selected the state of the attribute is not changed. 
+//When the style CD_HOLLOW is defined, functions cdCanvasBox() and cdCanvasSector() 
+//behave as their equivalent cdCanvasRect() and gCanvasArc()+cdCanvasLine()s,
+//and the polygons with style CD_FILL behave like CD_CLOSED_LINES. 
+//*/
+////    ctx.??? = style;
+//  if (style===CD_SOLID) {
+//      // nowt yet, but may have to undo other things this does...
+//  } else {
+//      puts(1,"cdCanvasSetInteriorStyle(" + style + ",...) not supported\n");
+//  }
+//}
+
+//function cdCanvasGetInteriorStyle(/*cdCanvas*/ canvas) {
+////    let /*integer*/ style = canvas.???;
+//  return style;
+//}
+
+//function gCanvasSetLineStyle(/*cdCanvas*/ ctx, /*integer*/ style) {
+function gCanvasSetLineStyle(/*cdCanvas*/ canvas, /*integer*/ style) {
+    let ctx = canvas.ctx;
+//    XPG_CONTINUOUS = 0,
+//    XPG_DASHED = 1,
+//    XPG_DOTTED = 2,
+//    XPG_DASH_DOT = 3,
+//    XPG_DASH_DOT_DOT = 4,
+//  ctx.?lineXXX = style;
+//  ctx.lineDashOffset = style*5;
+//  let lds = ctx.getLineDash();
+//  let lds = [[],[15,5],[5,5],[],[]][style];
+//  ctx.setLineDash(lds);
+//  ctx.setLineDash([[],[24,8],[4,4],[12,8,4,8],[12,4,4,4,4,4]][style]);
+//  if (style !== CD_CUSTOM) {
+    ctx.setLineDash([[],[8,8],[4,4],[12,8,4,8],[12,4,4,4,4,4]][style]);
+    ctx.LINESTYLE = style;
+    if (style!==XPG_CONTINUOUS) { ctx.lineWidth = 1; }
+//  }
+//  puts(1,"cdCanvasSetLineStyle() not yet supported\n"); // placeholder
+}
+
+//function gCanvasGetLineStyle(/*cdCanvas*/ ctx) {
+function gCanvasGetLineStyle(/*cdCanvas*/ canvas) {
+//  return ctx.LINESTYLE || XPG_CONTINUOUS;
+    return canvas.ctx.LINESTYLE || XPG_CONTINUOUS;
+}
+
+//function gCanvasSetLineWidth(/*cdCanvas*/ ctx, /*atom*/ width) {
+function gCanvasSetLineWidth(/*cdCanvas*/ canvas, /*atom*/ width) {
+    let ctx = canvas.ctx;
+    ctx.lineWidth = width;
+    if (width!==1) { ctx.setLineDash([]); }
+//  puts(1,"cdCanvasSetLineWidth() not yet supported\n"); // placeholder
+}
+
+//function gCanvasGetLineWidth(/*cdCanvas*/ ctx) {
+function gCanvasGetLineWidth(/*cdCanvas*/ canvas) {
+//  return ctx.lineWidth;
+    return canvas.ctx.lineWidth;
+}
+
+//function gCanvasArc(ctx, xc, yc, w, h, angle1, angle2, flags) {
+function gCanvasArc(canvas, xc, yc, w, h, angle1, angle2, flags) {
+    puts(1,"gCanvasArc() incomplete...\n")
+    let ctx = canvas.ctx;
+//  let ch = ctx.canvas.clientHeight;
+    let ch = ctx.canvas.clientHeight - yc;
+    if (xc > 0 && ch > 0 && w >= 2 && h >= 2) {
+        ctx.beginPath();
+//  ctx.arc(xc,ch-yc,w/2,angle1*Math.PI/180,angle2*Math.PI/180);
+//  ctx.ellipse(xc,ch-yc,w/2,h/2,0,angle1*Math.PI/180,angle2*Math.PI/180);
+        ctx.ellipse(xc,ch,w/2,h/2,0,angle1*Math.PI/180,angle2*Math.PI/180);
+        ctx.stroke();
+    }
+}
+
+////cdCanvasSector(cdCanvas canvas, atom xc, yc, w, h, angle1, angle2) 
+//function gCanvasSector(ctx, xc, yc, w, h, angle1, angle2, sector=true) {
+//  let ch = ctx.canvas.clientHeight,
+//      fs = ctx.fillStyle;
+//  ctx.fillStyle = ctx.strokeStyle;
+//  ctx.beginPath();
+////void ctx.arc(x, y, radius, startAngle, endAngle [, counterclockwise]);
+////void ctx.ellipse(x, y, radiusX, radiusY, rotation, startAngle, endAngle [, counterclockwise]);
+////    ctx.arc(xc,ch-yc,w/2,angle1*Math.PI/180,angle2*Math.PI/180);
+//  ctx.ellipse(xc,ch-yc,w/2,h/2,0,(360-angle2)*Math.PI/180,(360-angle1)*Math.PI/180);
+//  if (sector) { ctx.lineTo(xc,ch-yc); } // else chord
+//  ctx.fill();
+//  ctx.fillStyle = fs;
+//}
+//
+//function gCanvasChord(ctx, xc, yc, w, h, angle1, angle2) {
+//  cdCanvasSector(ctx, xc, yc, w, h, angle1, angle2, false);
+//}
+
+function gCanvasCircle(/*cdCanvas*/ canvas, /*atom*/ x, y, r, /*boolean*/ filled=false) {
+//  if (filled) {
+//      cdCanvasSector(ctx,x,y,r,r,0,360);
+//  } else {
+        gCanvasArc(canvas,x,y,r,r,0,360,filled);
+//  }
+}
+
+//function cdCanvasBegin(ctx, mode) {
+//  ctx.beginPath();
+//  ctx["MODE"] = mode;
+//}
+//
+//function cdCanvasClear(ctx) {
+////    ctx.fillStyle = "white";
+////3/10/21: (bust)
+////    if (ctx.canvas) { ctx = ctx.canvas; }
+//  let fs = ctx.fillStyle,
+//      bs = ctx.backGround;
+//  if (bs) { ctx.fillStyle = bs; }
+////if (ctx.canvas) {
+////    ctx.fillRect(0,0,ctx.canvas.clientWidth,ctx.canvas.clientHeight);
+//  ctx.fillRect(0,0,ctx.canvas.width,ctx.canvas.height);
+////    ctx.fillRect(0,0,ctx.clientWidth,ctx.clientHeight);
+////    ctx.canvas.fillRect(0,0,ctx.canvas.clientWidth,ctx.canvas.clientHeight);
+////}
+////    ctx.fillRect(0,0,ctx.clientWidth,ctx.clientHeight);
+//  ctx.fillStyle = fs;
+//}
+//
+//function cdCanvasEnd(ctx) {
+//  let mode = ctx["MODE"];
+//  if (mode === CD_FILL) {
+//      let fs = ctx.fillStyle;
+//      ctx.fillStyle = ctx.strokeStyle;
+//      ctx.fill();
+//      ctx.fillStyle = fs;
+//  } else if (mode === CD_OPEN_LINES) {
+//      ctx.stroke();
+//  } else if (mode === CD_CLOSED_LINES) {
+//      ctx.closePath();
+//      ctx.stroke();
+//  } else {
+//      crash("unsupported mode");
+//  }
+//}
+
+//function cdCanvasFlush() {}
+
+//DEV we mighht still need this, via attributes
+//function cdCanvasFont(/*cdCanvas*/ ctx, /*nullable_string*/ font, /*integer*/ style, /*integer*/ size) {
+////CD_PLAIN (0), CD_BOLD (1), CD_ITALIC (2), CD_UNDERLINE (4) and CD_STRIKEOUT (8).
+////pGUI also provides the constant CD_BOLD_ITALIC (3) for convenience.
+////ctx.font = "bold 48px serif";
+////ctx.font = "50px serif";
+//  if (font === "Courier") {
+//      font = "courier";
+//  } else if (font === "Times") {
+//      font = "serif";
+//  } else if (font === "Helvetica" ||
+//             font === "Calibri") {
+//      font = "sans-serif";
+//  } else {
+//      crash("cdCanvasFont(font="+font+") not supported"); // placeholder??
+//  }       
+//  if (style === CD_PLAIN) {
+//      style = "";
+//  } else if (style === CD_BOLD) {
+//      style = "bold ";
+//  } else if (style === CD_ITALIC) {
+//      style = "italic ";
+//  } else if (style === CD_BOLD_ITALIC) {
+//      style = "bold italic ";
+//  } else {
+//      crash("cdCanvasFont(style="+style+") not supported"); // placeholder
+//  }
+//  if (size>=0) {
+////        crash("cdCanvasFont(size="+size+") not supported (must use -ve pixels)");
+//      size = size/12 + "em ";
+//  } else {
+//      size = -size + "px ";
+//  }
+////    size = -size;
+////    font = style + size + "px " + font;
+//  font = style + size + font; // eg "bold 12px sans-serif"
+//  ctx.font = font;
+////    puts(1,"cdCanvasFont() not yet supported..\n"); // placeholder
+//}
+
+//function cdCanvasGetSize(id) {
+////    let w = id.canvas.width,
+////        h = id.canvas.height;
+//  if (id.canvas) { id = id.canvas; }
+//  let w = id.width,
+//      h = id.height;
+//  // (conversion to mm tbd...)
+//  return ["sequence", w, h];
+//}
+
+//DEV we may want to retrieve a(lpha) as well, see recent mods to pGUI.e
+function cdCanvasGetImageRGB(/*cdCanvas*/ ctx, /*atom*/ x, y, w, h) {
+    let /*integer*/ l = w*h,
+//  let /*integer*/ l = (w-x)*(h-y),
+        /*atom*/ r = repeat(0,l),
+                 g = repeat(0,l),
+                 b = repeat(0,l),
+           imgdata = ctx.getImageData(x, y, w, h),
+                dl = imgdata.data.length,
+               dtx = 0;
+    for (let i = 1; i <= l; i += 1) {
+        r[i] = imgdata.data[dtx];
+        g[i] = imgdata.data[dtx+1];
+        b[i] = imgdata.data[dtx+2];
+        dtx += 4;
+    }
+//getImageData()??
+//createImageData()??
+//putImageData()??
+//--24/10/21..
+//  iup_init_cd()
+//--?pR
+//--?{xcdCanvasGetImageRGB,canvas,x,y,w,h}
+//  c_proc(xcdCanvasGetImageRGB, {canvas, pR, pG, pB, x, y, w, h})
+//--?pR
+//  sequence r = peek({pR, w*h}),
+//           g = peek({pG, w*h}),
+//           b = peek({pB, w*h})
+//  free({pR,pG,pB})
+    return ["sequence",r,g,b];
+}
+
+/*
+//function cdCanvasPixel(ctx,x,y,colour) {
+//  if (integer(colour)) { colour = sprintf("#%06x",colour&0xFFFFFF); }
+//  ctx.strokeStyle = colour;
+//  ctx.strokeRect(x,ctx.canvas.clientHeight-y,1,0);
+//}
+
+global procedure cdCanvasPutImageRectRGB(cdCanvas canvas, atom iw, ih, sequence rgb3, 
+                                         atom x=0, y=0, w=0, h=0, xmin=0, xmax=0, ymin=0, ymax=0)
+    integer l = length(rgb3[1])
+    if length(rgb3)!=3
+    or length(rgb3[2])!=l
+    or length(rgb3[3])!=l then
+        ?9/0
+    end if
+    atom pR = allocate(l),
+         pG = allocate(l),
+         pB = allocate(l)
+    poke(pR, rgb3[1])
+    poke(pG, rgb3[2])
+    poke(pB, rgb3[3])
+    c_proc(xcdCanvasPutImageRectRGB, {canvas, iw, ih, pR, pG, pB, x, y, w, h, xmin, xmax, ymin, ymax})
+    free({pR,pG,pB})
+end procedure
+
+global procedure cdCanvasPutImageRectRGBA(cdCanvas canvas, atom iw, ih, sequence rgba, 
+                                          atom x=0, y=0, w=0, h=0, xmin=0, xmax=0, ymin=0, ymax=0)
+    integer l = length(rgba[1])
+    if length(rgba)!=4
+    or length(rgba[2])!=l
+    or length(rgba[3])!=l
+    or length(rgba[4])!=l then
+        ?9/0
+    end if
+    atom pR = allocate(l),
+         pG = allocate(l),
+         pB = allocate(l),
+         pA = allocate(l)
+    poke(pR, rgba[1])
+    poke(pG, rgba[2])
+    poke(pB, rgba[3])
+    poke(pA, rgba[4])
+    c_proc(xcdCanvasPutImageRectRGBA, {canvas, iw, ih, pR, pG, pB, pA, x, y, w, h, xmin, xmax, ymin, ymax})
+    free({pR,pG,pB,pA})
+end procedure
+global procedure cdCanvasPutImageRectMap(cdCanvas canvas, atom iw, ih, sequence index, colors,
+                                                          atom x, y, w, h, 
+                                                          atom xmin, xmax, ymin, ymax)
+    atom pColors = allocate(4*256+length(index)),
+         pIndex = pColors+4*256
+    poke4(pColors, colors)
+    poke(pIndex, index)
+    c_proc(xcdCanvasPutImageRectMap, {canvas, iw, ih, pIndex, pColors, x, y, w, h, xmin, xmax, ymin, ymax})
+    free(pColors)
+end procedure
+*/
+
+//function gCanvasLine(ctx, x1, y1, x2, y2, style=-1, width=-1) {
+function gCanvasLine(canvas, x1, y1, x2, y2, style=-1, width=-1) {
+//DEV
+//  if (atom(ctx)) {
+    let pstyle, pwidth;
+    if (style!=-1) { pstyle = gCanvasGetLineStyle(canvas); gCanvasSetLineStyle(canvas,style); }
+    if (width!=-1) { pwidth = gCanvasGetLineWidth(canvas); gCanvasSetLineWidth(canvas,width); }
+    let ctx = canvas.ctx;
+//function gCanvasSetLineStyle(/*cdCanvas*/ ctx, /*integer*/ style) {
+//    XPG_CONTINUOUS = 0,
+//    XPG_DASHED = 1,
+//    XPG_DOTTED = 2,
+//    XPG_DASH_DOT = 3,
+//    XPG_DASH_DOT_DOT = 4,
+//  if (style!==XPG_CONTINUOUS) { ctx.lineWidth = 1; }
+//function gCanvasGetLineStyle(/*cdCanvas*/ ctx) {
+//function gCanvasSetLineWidth(/*cdCanvas*/ ctx, /*atom*/ width) {
+//function gCanvasGetLineWidth(/*cdCanvas*/ ctx) {
+    let h = ctx.canvas.clientHeight;
+    ctx.beginPath();
+    ctx.moveTo(x1, h-y1);
+    ctx.lineTo(x2, h-y2);
+    ctx.stroke();
+    if (style!=-1) { gCanvasSetLineStyle(canvas,pstyle); }
+    if (width!=-1) { gCanvasSetLineWidth(canvas,pwidth); }
+}
+
+//function cdCanvasMark(ctx, x, y) {
+//  let msize = ctx.MarkSize || 10;
+////    cdCanvasBox(ctx, x, y, x+msize, y+msize);
+//  cdCanvasBox(ctx, x, x+msize, y, y+msize);
+///*
+//                      elsif dms="PLUS" then
+//                          cdCanvasLine(cd_canvas,x2,y2-3,x2,y2+3)
+//                          cdCanvasLine(cd_canvas,x2-3,y2,x2+3,y2)
+//                      else --default/x
+//                          cdCanvasLine(cd_canvas,x2-3,y2-3,x2+3,y2+3)
+//                          cdCanvasLine(cd_canvas,x2-3,y2+3,x2+3,y2-3)
+//*/
+//}
+//
+//function cdCanvasMarkSize(ctx, mark_size) {
+//  let prev = ctx.MarkSize || 10;
+//  if (mark_size !== CD_QUERY) {
+//      ctx.MarkSize = mark_size;
+//  }
+//  return prev;
+//}
+//
+//function cdCanvasMarkType(ctx, mark_type) {
+//  let prev = ctx.MarkType || CD_BOX;
+//  if (mark_type !== CD_QUERY) {
+//      ctx.MarkType = mark_type;
+//  }
+//  return prev;
+//}
+
+function gCanvasPixel(ctx,x,y,colour) {
+//DEV
+//  if (atom(ctx)) {
+    if (integer(colour)) { colour = sprintf("#%06x",colour&0xFFFFFF); }
+//24/7/22 put back for gaussian primes... (much sharper)
+//      (no performance difference to brownian tree, death star...)
+    let fs = ctx.fillStyle;
+    ctx.fillStyle = colour;
+    ctx.fillRect(x,ctx.canvas.clientHeight-y,1,1);
+    ctx.fillStyle = fs;
+
+//  ctx.strokeStyle = colour;
+//  ctx.strokeRect(x,ctx.canvas.clientHeight-y,1,0);
+}
+
+function gCanvasRect(/*cdCanvas*/ ctx, /*atom*/ xmin, xmax, ymin, ymax, /*bool*/ bFilled=false, /*integer*/ rc=0) {
+    puts(1,"gCanvasRect incomplete...\n");
+//DEV see cdCanvasBox...
+//  let h = ctx.canvas.clientHeight;
+    let h = ctx.canvas? ctx.canvas.clientHeight : ctx.clientHeight;
+    ymax = ymin-ymax;
+    ymin = h-ymin;
+//  ctx.strokeRect(xmin,h-ymin,xmax,h-ymax);
+//  ctx.strokeRect(xmin+1,ymin+1,xmax-xmin-1,ymax-2);
+    ctx.strokeRect(xmin,ymin,xmax-xmin,ymax);
+//  ctx.strokeRect(xmin,h-ymin,xmax-3,h-ymax-3);
+//  puts(1,"cdCanvasRect() not yet supported..\n"); // placeholder
+}
+
+function cdCanvasBox(/*cdCanvas*/ ctx, /*atom*/ xmin, xmax, ymin, ymax) {
+//  puts(1,"cdCanvasBox("+xmin+","+xmax+","+ymin+","+ymax+")\n");
+//DEV Probably still not quite right. Need to get my head around pixel co-ord mappings properly.
+//    (write that demo/PGUI/cdCanvasBox.exw demo)
+    let x = xmin,
+     ccch = ctx.canvas.clientHeight,
+//      y = ccch-ymin,
+        y = ccch-ymax-1,
+//      h = ymin-ymax-1,
+        h = ymax-ymin+1,
+//  ymin = h-ymin;
+        w = xmax-xmin+1;
+//  ctx.strokeRect(xmin,h-ymin,xmax,h-ymax);
+//  ctx.fillRect(xmin+1,ymin+1,xmax-xmin-1,ymax-2);
+    ctx.fillRect(x,y,w,h);
+}
+
+function cdCanvasRoundedBox(/*cdCanvas*/ canvas, /*atom*/ xmin, xmax, ymin, ymax, w, h) {
+    // first draw the filled rectangle with straight-clipped corners (aka an octagon)
+    cdCanvasBegin(canvas,CD_FILL);
+    cdCanvasVertex(canvas,xmin+w,ymin);
+    cdCanvasVertex(canvas,xmax-w,ymin);
+    cdCanvasVertex(canvas,xmax,ymin+h);
+    cdCanvasVertex(canvas,xmax,ymax-h);
+    cdCanvasVertex(canvas,xmax-w,ymax);
+    cdCanvasVertex(canvas,xmin+w,ymax);
+    cdCanvasVertex(canvas,xmin,ymax-h);
+    cdCanvasVertex(canvas,xmin,ymin+h);
+    cdCanvasEnd(canvas);
+    // then round/fill in the corners using cdCanvasSector
+//  cdCanvasSector(cdCanvas canvas, atom xc, yc, w, h, angle1, angle2) 
+//  cdCanvasSetForeground(cddbuffer, CD_RED)
+    cdCanvasSector(canvas,xmin+w,ymin+h,w*2,h*2,180,270);   // btm left
+    cdCanvasSector(canvas,xmax-w,ymin+h,w*2,h*2,270,0);     // btm right
+    cdCanvasSector(canvas,xmin+w,ymax-h,w*2,h*2,90,180);    // top left
+    cdCanvasSector(canvas,xmax-w,ymax-h,w*2,h*2,0,90);      // top right
+}
+
+//function cdCanvasRoundedRect(/*cdCanvas*/ canvas, /*atom*/ xmin, xmax, ymin, ymax, w, h) {
+//  // first draw four edges, not-quite-meeting
+//  cdCanvasLine(canvas,xmin+w,ymin,xmax-w,ymin);
+//  cdCanvasLine(canvas,xmax,ymin+h,xmax,ymax-h);
+//  cdCanvasLine(canvas,xmax-w,ymax,xmin+w,ymax);
+//  cdCanvasLine(canvas,xmin,ymax-h,xmin,ymin+h);
+//  // then round/connect the corners using cdCanvasArc
+////    cdCanvasArc(cdCanvas canvas, atom xc, yc, w, h, a1, a2) 
+////    cdCanvasSetForeground(cddbuffer, CD_RED)
+//  cdCanvasArc(canvas,xmin+w,ymin+h,w*2,h*2,180,270);
+//  cdCanvasArc(canvas,xmax-w,ymin+h,w*2,h*2,270,0);
+//  cdCanvasArc(canvas,xmin+w,ymax-h,w*2,h*2,90,180);
+//  cdCanvasArc(canvas,xmax-w,ymax-h,w*2,h*2,0,90);
+//}
+
+//function gCanvasText(/*cdCanvas*/ ctx, /*atom*/ x, y, /*string*/ text, /*integer*/ align, /*atom*/ angle, colour=-1) {
+function gCanvasText(/*cdCanvas*/ canvas, /*atom*/ x, y, /*string*/ text, /*integer*/ align, /*atom*/ angle, colour=-1) {
+    puts(1,"gCanvasText incomplete (align/angle/colour)...\n")
+    let ctx = canvas.ctx;
+    let h = ctx.canvas.clientHeight
+//      angle = ctx.textOrientation || 0;
+    if (!string(text)) { text = String.fromCodePoint(...text.slice(1)); }
+    if (angle) {
+        ctx.save();
+        ctx.textAlign="center";
+        ctx.textBaseline="middle";
+        ctx.translate(x,h-y);
+        ctx.rotate((Math.PI/180)*angle);
+        ctx.fillText(text,0,0);
+        ctx.restore();
+//3/10/21: (bust, went with glCanvasSpecialText() instead)
+//  } else if (typeof(ctx.fillText) !== "function") {
+//      if (typeof(ctx.getContext) !== "function") { ctx = ctx.canvas; }
+//      let textCtx = ctx.getContext("2d");
+//      if (!textCtx) { textCtx = ctx.getContext("webgl"); }
+////        let textCtx = ctx.canvas.getContext("2d") || ctx.canvas.getContext("webgl");
+//      textCtx.fillText(text, x, h-y);
+    } else {
+        ctx.fillText(text, x, h-y);
+    }
+//  puts(1,"cdCanvasText() not yet supported..\n"); // placeholder
+}
+
+//function glCanvasSpecialText(/*gdx*/ cd_canvas, /*integer*/ w, h, fontsize, /*string*/ text) {
+//  let textCtx = document.createElement("canvas").getContext("2d");
+//  textCtx.canvas.width = w;
+//  textCtx.canvas.height = h;
+////    textCtx.font = Math.floor(fontsize*1.15) + "px monospace";
+//  textCtx.font = Math.floor(fontsize*1.25) + "px courier";
+//  textCtx.textAlign = "center";
+//  textCtx.textBaseline = "middle";
+//  textCtx.fillStyle = "black";
+//  textCtx.clearRect(0, 0, w, h);
+////    textCtx.direction = "ltr";
+////    textCtx.direction = "rtl";
+//  textCtx.fillText(text, w / 2, h / 2);
+////    textCtx.rotate(285);
+////    textCtx.setTransform(1,2,3,4,5,6);
+//  return textCtx.canvas;
+//}
+
+//function cdCanvasSetTextAlignment(/*cdCanvas*/ ctx, /*integer*/ alignment) {
+////DEV (oh, could get messy... see diagram in phix.htm)
+////Defines the vertical and horizontal alignment of a text as: CD_NORTH,
+////CD_SOUTH, CD_EAST, CD_WEST, CD_NORTH_EAST, CD_NORTH_WEST, CD_SOUTH_EAST, 
+////CD_SOUTH_WEST, CD_CENTER, CD_BASE_LEFT, CD_BASE_CENTER, or CD_BASE_RIGHT. 
+////    CD_NORTH = 0,
+////    CD_SOUTH = 1,
+////    CD_EAST = 2,
+////    CD_WEST = 3,
+////    CD_NORTH_EAST = 4,
+////    CD_NORTH_WEST = 5,
+////    CD_SOUTH_EAST = 6,
+////    CD_SOUTH_WEST = 7,
+////    CD_CENTER = 8,
+////    CD_BASE_LEFT = 7, (was 9)
+////    CD_BASE_CENTER = 1,  (was 10)
+////    CD_BASE_RIGHT = 6, (was 11)
+////Returns the previous value. 
+////Default value: CD_BASE_LEFT. -- (ok!)
+////    let ta = ctx.textAlign || ctx.style.textAlign,
+//  let ta, tb;
+//  if (alignment === CD_CENTER) {
+//      ta = "center";
+//      tb = "middle";
+//  } else if (alignment === CD_NORTH) {
+//      ta = "center";
+//      tb = "top";
+//  } else if (alignment === CD_NORTH_EAST) {
+//      ta = "right";
+//      tb = "top";
+//  } else if (alignment === CD_NORTH_WEST) {
+//      ta = "left";
+//      tb = "top";
+//  } else if (alignment === CD_SOUTH) {
+//      ta = "center";
+//      tb = "bottom";
+//  } else if (alignment === CD_SOUTH_EAST) {
+//      ta = "right";
+//      tb = "bottom";
+//  } else if (alignment === CD_SOUTH_WEST) {
+//      ta = "left";
+//      tb = "bottom";
+//  } else if (alignment === CD_WEST) {
+//      ta = "left";
+//      tb = "middle";
+//  } else if (alignment === CD_EAST) {
+//      ta = "right";
+//      tb = "middle";
+//  } else {
+//      crash("cdCanvasTextAlignment("+alignment+") not yet supported\n"); // placeholder
+//  }
+//  ctx.textAlign = ta;
+//  ctx.textBaseline = tb;
+//}
+
+//function cdCanvasGetTextAlignment(canvas) {
+//  let ta = ctx.textAlign,
+//      tb = ctx.textBaseline,
+//      /*integer*/ alignment = -1;
+////ctx.textAlign = "left" || "right" || "center" || "start" || "end";
+////ctx.textBaseline = "top" || "hanging" || "middle" || "alphabetic" || "ideographic" || "bottom";
+//  if (ta === "center") {
+//      if (tb === "middle") {
+//          alignment = CD_CENTER;
+//      } else if (tb === "top") {
+//          alignment = CD_NORTH;
+//      } else if (tb === "bottom") {
+//          alignment = CD_SOUTH;
+//      }
+//  } else if (ta === "start") {
+//      if (tb === "alphabetic") {
+//          alignment = CD_BASE_LEFT;
+//      }
+//  } else if (ta === "left") {
+//      if (tb === "middle") {
+//          alignment = CD_WEST;
+//      } else if (tb === "top") {
+//          alignment = CD_NORTH_WEST;
+//      } else if (tb === "bottom") {
+//          alignment = CD_SOUTH_WEST;
+//      }
+//  } else if (ta === "right") {
+//      if (tb === "middle") {
+//          alignment = CD_EAST;
+//      } else if (tb === "top") {
+//          alignment = CD_NORTH_EAST;
+//      } else if (tb === "bottom") {
+//          alignment = CD_SOUTH_EAST;
+//      }
+//  }
+//  if (alignment===-1) {
+//      crash("cdCanvasGetTextAlignment("+ta+","+tb+") not yet supported\n"); // placeholder
+//  }
+//  return alignment;
+//}
+
+//function cdCanvasGetTextSize(/*cdCanvas*/ ctx, /*string*/ text) {
+////    const am = new RegExp("&","g"),
+////              lt = new RegExp("[<]","g"),
+////              gt = new RegExp("[>]","g"),
+//  const sp = new RegExp("[ ]","g");
+////              lf = new RegExp("\\n","g");
+////        text = text.replace(am,"&amp;")
+////                   .replace(lt,"&lt;")
+////                   .replace(gt,"&gt;")
+////                   .replace(sp,"&ensp;")
+//  text = text.replace(sp,"_");
+//  let tm = ctx.measureText(text),
+///*
+//actualBoundingBoxAscent: 7
+//actualBoundingBoxDescent: 0
+//actualBoundingBoxLeft: 1
+//actualBoundingBoxRight: 10
+//fontBoundingBoxAscent: 9
+//fontBoundingBoxDescent: 2
+//width: 9.4384765625
+//tm.actualBoundingBoxRight
+//*/
+//      w = tm.actualBoundingBoxLeft + tm.actualBoundingBoxRight,
+//      h = tm.fontBoundingBoxAscent + tm.fontBoundingBoxDescent;
+////    return ["sequence",tm.actualBoundingBoxRight,tm.fontBoundingBoxAscent+tm.fontBoundingBoxDescent];
+//  return ["sequence",w,h];
+//}
+
+//function cdCanvasSetTextOrientation(/*cdCanvas*/ ctx, /*atom*/ angle) {
+//  // (applies to cdCanvasText() above only)
+//  ctx.textOrientation = -angle;
+//}
+//
+//function cdCanvasGetTextOrientation(/*cdCanvas*/ ctx) {
+//  // (applies to cdCanvasText() above only)
+//  let prev = ctx.textOrientation || 0;
+//  return -prev;
+//}
+
+//function cdCanvasVectorText(/*cdCanvas*/ ctx, /*atom*/ x, y, /*string*/ text) {
+//  puts(1,"cdCanvasVectorText...\n"); // placeholder
+//}
+//let cdCanvasMultiLineVectorText = cdCanvasVectorText;
+//
+//function cdCanvasVectorTextDirection(/*cdCanvas*/ canvas, /*integer*/ x1, y1, x2, y2) {
+//  puts(1,"cdCanvasVectorTextDirection...\n"); // placeholder
+//}
+//
+//function cdCanvasVectorTextSize(/*cdCanvas*/ ctx, /*atom*/ w, h, /*string*/ text) {
+//  puts(1,"cdCanvasVectorTextSize...\n"); // placeholder
+//}
+
+//function cdCanvasVertex(ctx, x, y) {
+////DEV see cdCanvasBox?
+//  let h = ctx.canvas.clientHeight;
+////DEV should the first one be a moveTo?
+//  ctx.lineTo(x, h-y);
+//}
+
+//function cdKillCanvas() {}
+
+function gTimer(/*cbfunc*/ action=NULL, /*integer*/ msecs=0, /*boolean*/ active=true) {
+    if(!$storeAttr) { $gInit(); }
+    return $timer("create",action,msecs,active);
+}
+
+function IupUpdate(id) {
+//IupRedraw
+//  let action = id["ACTION"]
+//  if (action) { action(id); }
+    function redraw() { IupRedraw(id); }
+    setTimeout(redraw, 100);
+// no better:
+//  window.requestAnimationFrame(redraw);
+}
+
+let $gl;
+
+function IupGLMakeCurrent(canvas) {
+    if (canvas === NULL) {
+        // enabling call from opengl.js
+//1/10/21... (on a whim)
+//      $gl = NULL;
+        $gl = true;
+//  } else if ($gl === NULL) { // ie not "undefined"
+    } else if ($gl) { // ie not "undefined"
+        const names = ["webgl", "experimental-webgl", "webkit-3d", "moz-webgl"];
+        for (let i = 0; i < names.length; ++i) {
+//          try {
+            $gl = canvas.getContext(names[i]);
+//          }
+            if ($gl) break;
+        }
+        if (!$gl) { crash("unable to create webgl context"); }
+    }
+}
+
+//DEV these should probably be moved to opengl.js:
+function glAttachShader(/*integer*/ program, shader) {
+    $gl.attachShader(program,shader);
+}
+
+function glBindBuffer(/*integer*/ target, buffer) {
+    $gl.bindBuffer(target,buffer);
+}
+
+function glBindTexture(/*integer*/ target, /*atom*/ texture) {
+    $gl.bindTexture(target,texture);
+}
+
+function glBufferData(/*integer*/ target, size, /*atom*/ pData, /*integer*/ usage) {
+//  $gl.bufferData(target, size, pData, usage);
+    $gl.bufferData(target, pData, usage);
+}
+
+function glClear(/*integer*/ mask) {
+    $gl.clear(mask);
+}
+
+function glClearColor(/*atom*/ r, g, b, a) {
+    $gl.clearColor(r,g,b,a);
+}
+
+function glCompileShader(/*integer*/ shader) {
+    $gl.compileShader(shader);
+}
+
+function glCreateBuffer() {
+    return $gl.createBuffer();
+}
+
+function glCreateProgram() {
+    return $gl.createProgram();
+}
+
+function glCreateShader(/*integer*/ shaderType) {
+    return $gl.createShader(shaderType);
+}
+
+function glCreateTexture() {
+    return $gl.createTexture();
+}
+
+function glDeleteProgram(/*integer*/ program) {
+    $gl.deleteProgram(program);
+    return NULL;
+}
+
+function glDeleteShader(/*integer*/ shader) {
+    $gl.deleteShader(shader);
+    return NULL;
+}
+
+function glDrawArrays(/*integer*/ mode, first, count) {
+    $gl.drawArrays(mode, first, count);
+}
+
+function glEnable(/*integer*/ what) {
+    $gl.enable(what);
+}
+
+function glEnableVertexAttribArray(/*integer*/ index) {
+    $gl.enableVertexAttribArray(index);
+}
+
+function glFloat32Array(/*sequence*/ data) {
+    let /*integer*/ size = length(data)*4;
+    let /*atom*/ pData = new Float32Array(data.slice(1));
+    return ["sequence",size,pData];
+}
+
+function glInt32Array(/*sequence*/ data) {
+    let /*integer*/ size = length(data)*4;
+    let /*atom*/ pData = new Int32Array(data.slice(1));
+    return ["sequence",size,pData];
+}
+
+function glFlush() {
+    $gl.flush();
+}
+
+function glGetAttribLocation(/*integer*/ program, /*string*/ name) {
+    return $gl.getAttribLocation(program,name);
+}
+
+function glGetError() {
+    return $gl.getError();
+}
+
+function glGetProgramInfoLog(/*integer*/ program) {
+    return $gl.getProgramInfoLog(program);
+}
+
+function glGetProgramParameter(/*integer*/ program, pname, dflt=0) {
+    if (pname === GL_INFO_LOG_LENGTH) {
+        crash("GL_INFO_LOG_LENGTH not supported");
+    }
+    return $gl.getProgramParameter(program, pname);
+}
+
+function glGetShaderInfoLog(/*integer*/ shader) {
+    return $gl.getShaderInfoLog(shader);
+}
+
+function glGetShaderParameter(/*integer*/ shader, pname, dflt=0) {
+    if (pname === GL_INFO_LOG_LENGTH) {
+        crash("GL_INFO_LOG_LENGTH not supported");
+    }
+    if (pname === GL_SHADER_SOURCE_LENGTH) {
+        crash("GL_SHADER_SOURCE_LENGTH not supported");
+    }
+    return $gl.getShaderParameter(shader, pname);
+}
+
+function glGetUniformLocation(/*integer*/ prog, /*string*/ name) {
+    return $gl.getUniformLocation(prog,name);
+}
+
+function glLinkProgram(/*integer*/ prog) {
+    $gl.linkProgram(prog);
+}
+
+function glShaderSource(/*integer*/ shader, /*string*/ source) {
+    $gl.shaderSource(shader,source);
+}
+
+function glTexImage2Dc(/*integer*/ target, level, internalformat, width, height, border, fmt, datatype, /*cdCanvas*/ canvas) {
+    $gl.texImage2D(target, level, internalformat, fmt, datatype, canvas);
+}
+
+function glTexParameteri(/*integer*/ target, pname, param) {
+    $gl.texParameteri(target, pname, param);
+}
+
+function glUniform1f(/*integer*/ location, /*atom*/ v0) {
+    $gl.uniform1f(location, v0);
+}
+
+function glUniform1i(/*integer*/ location, /*integer*/ v0) {
+    $gl.uniform1i(location, v0);
+}
+
+//function glUniformMatrix4fv(/*integer*/ location, count, transpose, /*atom*/ pData) {
+function glUniformMatrix4fv(/*integer*/ location, transpose, /*atom*/ pData) {
+//DEV check... (count?)
+//  gl.uniformMatrix4fv(matrixLocation, false, matrix);
+    $gl.uniformMatrix4fv(location, transpose, pData);
+}
+
+function glUseProgram(/*integer*/ prog) {
+    $gl.useProgram(prog);
+}
+
+function glVertexAttribPointer(/*integer*/ index, size, datatype, normalized, stride, /*atom*/ pVertices) {
+    $gl.vertexAttribPointer(index,size, datatype, normalized, stride, pVertices);
+}
+
+function glViewport(/*integer*/ x, y, w, h) {
+    $gl.viewport(x,y,w,h);
+}
+
+//function IupDrawBegin(/*gdx id*/) {
+//}
+//const IupDrawEnd = IupDrawBegin;
+//const IupDrawGetSize = cdCanvasGetSize;
+
+//function IupDrawArc(/*gdx*/ id, /*integer*/ x1, y1, x2, y2, /*atom*/ a1, a2) {
+//  let ctx = id.getContext("2d") || id.getContext("webgl");
+//  cdCanvasArc(ctx,x1,y1,x2,y2,a1,a2);
+//}
+
+//function IupDrawGetTextSize(/*gdx*/ id, /*string*/ text) {
+//  let ctx = id.getContext("2d") || id.getContext("webgl");
+//  return cdCanvasGetTextSize(ctx, text);
+//}
+
+//function IupDrawLine(/*gdx*/ id, /*integer*/ x1, y1, x2, y2) {
+//  let ctx = id.getContext("2d") || id.getContext("webgl");
+//  cdCanvasLine(ctx,x1,y1,x2,y2);
+//}
+
+////cdCanvasRect(/*cdCanvas*/ ctx, /*atom*/ xmin, xmax, ymin, ymax) {
+//function IupDrawRectangle(/*gdx*/ id, /*integer*/ x1, y1, x2, y2) {
+//  let ctx = id.getContext("2d") || id.getContext("webgl");
+////    cdCanvasRect(id,x1,x2,y1,y2);
+//  cdCanvasRect(ctx,x1,x2,y1,y2);
+//}
+
+//function IupDrawText(/*gdx*/ id, /*string*/ text, /*integer*/ x, y, w=0, h=0) {
+////    cdCanvasText(id, x, y, text);
+//  let ctx = id.getContext("2d") || id.getContext("webgl");
+//  cdCanvasText(ctx, x, y, text);
+//}
+
+function IupMessage(msg_title=NULL, msg=NULL, args=[], bWrap=true) {
+    if (args.length) {
+        msg = sprintf(msg, args);
+    }
+    if (msg_title) { msg = msg_title + "\n\n" + msg;}
+    alert(msg);
+}
+
+/* (return to this when(if) I get wifi back!)
+integer res = IupAlarm(string title, string msg, string b1, nullable_string b2=NULL, nullable_string b3=NULL) 
+function IupAlarm(title, msg, b1, b2, b3) {
+    alert(title + "\n\n" + msg);
+}
+*/
+
+function IupGLCanvasOpen() {
+    // (does nothing)
+}
+
+function gUseGTK() { /* do nothing */ }
+
+//const CD_AMBER = "#FFBF00",
+//    CD_BASE_CENTER = 1, // (=== CD_SOUTH)
+//    CD_BASE_LEFT = 7, // (=== CD_SOUTH_WEST)
+//    CD_BASE_RIGHT = 6, // (=== CD_SOUTH_EAST)
+//x   CD_BLACK = "#000000",
+//x   CD_BLUE = "#0000FF",
+//    CD_BOLD = 1,
+//    CD_BOLD_ITALIC = 3,
+//    CD_BOX = 4,
+//    CD_CENTER = 8,
+//    CD_CIRCLE = 2,
+//    CD_CLOSED_LINES = 2,
+//x   CD_CONTINUOUS = 0,
+//x   CD_CUSTOM = 5,
+//    CD_CYAN = "cyan",
+//x   CD_DARK_BLUE = "#000080",
+//x   CD_DARK_CYAN = "#008080",
+//x   CD_DARK_GRAY = "#808080",
+//x   CD_DARK_GREY = "#808080",
+//    CD_DARK_GREEN = "green",
+//x   CD_DARK_MAGENTA = "#800080",
+//x   CD_DARK_RED = "#800000",
+//    CD_DARK_YELLOW = "#EBEB00",
+//x   CD_DASHED = 1,
+//x   CD_DOTTED = 2,
+//x   CD_DASH_DOT = 3,
+//x   CD_DASH_DOT_DOT = 4,
+//    CD_DBUFFER = 2,
+//    CD_DEG2RAD = PI/180,
+//    CD_DIAMOND = 5,
+//    CD_EAST = 2,
+//    CD_EVENODD = 0,
+//    CD_FILL = 0,
+//    CD_GL = "CD_GL",
+//x   CD_GRAY = "#C0C0C0",
+//x   CD_GREY = "#C0C0C0",
+//    CD_GREEN = "#3cb44b",
+//    CD_HATCH = 1,
+//    CD_HOLLOW = 4,
+//    CD_HOLLOW_BOX = 7,
+//    CD_HOLLOW_CIRCLE = 6,
+//    CD_HOLLOW_DIAMOND = 8,
+//    CD_INDIGO = "#4B0082",
+//    CD_ITALIC = 2,
+////      CD_IUP = 1,
+//    CD_IUP = "CD_IUP",
+//    CD_LIGHT_BLUE = "#4363d8",
+//    CD_LIGHT_GRAY = "#E4E4E4",
+//    CD_LIGHT_GREY = "#E4E4E4",
+//x   CD_LIGHT_GREEN = "#00FF00",
+//    CD_LIGHT_PARCHMENT = "#FAF8EF",
+//    CD_MAGENTA = "#f032e6",
+//x   CD_NAVY = "#000080",
+//    CD_NORTH = 0,
+//    CD_NORTH_EAST = 4,
+//    CD_NORTH_WEST = 5,
+//x   CD_OLIVE = "#808000",
+//    CD_OPEN_LINES = 1,
+//    CD_ORANGE = "#FF8C00",
+////      CD_PARCHMENT = "parchment",
+//    CD_PARCHMENT = "#FFFFE0",         IUP_PARCHMENT = CD_PARCHMENT,
+//    CD_PATTERN = 3,
+//    CD_PLAIN = 0,
+//    CD_PLUS = 0,
+//    CD_PURPLE = "#911eb4",
+//    CD_QUERY = -1,
+//    CD_RAD2DEG = 180/PI,
+//x   CD_RED = "#FF0000",
+//x   CD_SILVER = "#C0C0C0",  // (=== CD_GREY)
+//    CD_SOLID = 0,
+//    CD_SOUTH = 1,
+//    CD_SOUTH_EAST = 6,
+//    CD_SOUTH_WEST = 7,
+//    CD_STAR = 1,
+//    CD_STIPPLE = 2,
+//    CD_STRIKEOUT = 8,
+//    CD_UNDERLINE = 4,
+//    CD_VIOLET = "#EE82EE",
+//    CD_WEST = 3,
+//x   CD_WHITE  = "#FFFFFF",
+//    CD_WINDING = 1,
+//    CD_X = 3,
+//x   CD_YELLOW = "#FFFF00",
+////DEV move to builtins/opengl.js... (along with much other code)
+//    GL_ARRAY_BUFFER = 0x8892,
+//    GL_INFO_LOG_LENGTH = 0x8B84,
+//    GL_SHADER_SOURCE_LENGTH = 0x8B88,
+//    GL_CLAMP = 0x2900,
+//    GL_CLAMP_TO_BORDER = 0x812D,
+//    GL_CLAMP_TO_EDGE = 0x812F,
+//    GL_COLOR_BUFFER_BIT = 0x00004000,
+//    GL_COMPILE_STATUS = 0x8B81, 
+//    GL_CULL_FACE = 0x0B44,
+//    GL_DEPTH_BUFFER_BIT = 0x00000100,
+//    GL_DEPTH_TEST = 0x0B71,
+////      GL_DEPTH_TEST = 0,
+//    GL_FLOAT = 0x1406,
+//    GL_FRAGMENT_SHADER = 0x8B30,
+//    GL_LINEAR = 0x2601,
+//    GL_LINK_STATUS = 0x8B82,
+//    GL_MODELVIEW = 0x1700,
+//    GL_NO_ERROR = 0,
+//    GL_NEAREST = 0x2600,
+//    GL_PROJECTION = 0x1701,
+//    GL_REPEAT = 0x2901,
+//    GL_RGB = 0x1907,
+//    GL_RGBA = 0x1908,
+//    GL_STATIC_DRAW = 0x88E4,
+//    GL_TEXTURE_2D = 0x0DE1,
+//    GL_TEXTURE_MAG_FILTER = 0x2800,
+//    GL_TEXTURE_MIN_FILTER = 0x2801,
+//    GL_TEXTURE_WRAP_S = 0x2802,
+//    GL_TEXTURE_WRAP_T = 0x2803,
+//    GL_TRIANGLES = 4,
+//    GL_UNSIGNED_BYTE = 0x1401,
+//    GL_VERTEX_SHADER = 0x8B31,
+//    IUP_BUTTON1 = 0X31, /* '1' */
+//    IUP_BUTTON2 = 0X32, /* '2' */
+//    IUP_BUTTON3 = 0X33, /* '3' */
+//    IUP_CENTER = 0xFFFF, /* 65535 */
+//    IUP_MASK_UINT = "/d+",
+//    IUP_MASK_INT = "[+/-]?/d+",
+//    IUP_MOUSEPOS = 0xFFFC, /* 65532 */
+
 
 

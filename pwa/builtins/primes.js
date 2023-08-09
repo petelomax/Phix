@@ -4,7 +4,7 @@
 // builtins/$primes.e
 // =================
 //
-//DEV/SUG:
+/*without debug*/ //DEV/SUG:
  /*
 for n=1 to 10 do
     sequence p = get_primes(-n)
@@ -317,13 +317,288 @@ function $add_block() {
     if hi>1e9 then return segmented_primes(hi,show_progress) end if
 */
 
-/*global*/ function get_primes_le(/*integer*/ hi) {
+/*global*/ function get_primes_le(/*integer*/ hi, overrun=0) {
+    assert(hi>=0 && overrun>=0);
     if ($sieved===0) { $init_sieve(); }
     while (compare($subse($primes,-1),hi)<0) {
         $add_block();
     }
     hi = binary_search(hi,$primes);
     if (hi<0) { hi = abs(hi)-1; }
-    let /*sequence*/ res = $subss($primes,1,hi);
+    while (compare(hi+overrun,length($primes))>0) {
+        $add_block();
+    }
+    let /*sequence*/ res = $subss($primes,1,hi+overrun);
     return res;
 }
+// my go at the prime sieve shootout: (see also demo/prime_drag_race.exw, 2 years earlier that I'd forgotten about)
+ /*
+enum SIEVE_SIZE, NUM_BITS, SIEVE 
+constant STDOUT = 1 
+ 
+without type_check 
+constant BIT8_TABLE = x"0102040810204080",  -- (or use power(2,xx) as commented out below) 
+     NOT_BIT8_TABLE = x"FEFDFBF7EFDFBF7F"
+ 
+function set_bits(integer num_bits) 
+    -- create a binary string of precisely num-bits 1s 
+    integer num_bytes = floor((num_bits + 7) / 8), 
+        leftover_bits = 1 + and_bits(num_bits - 1, 0x7), 
+        leftover_byte = BIT8_TABLE[leftover_bits] * 2 - 1 
+--      leftover_byte = power(2,leftover_bits)-1 
+    return repeatch('\xFF',num_bytes-1) & leftover_byte 
+end function 
+ 
+function clear_bits(sequence this, integer num_bits, integer start, integer step) 
+    integer byte_num = 1 + floor((start - 1) / 8), 
+             bit_pos = 1 + and_bits(start - 1, 0x7), 
+            byte_inc = floor(step / 8), 
+             bit_inc = and_bits(step, 0x7) 
+    for k = start to num_bits by step do 
+        this[byte_num] = and_bits(this[byte_num], NOT_BIT8_TABLE[bit_pos]) 
+--      this[byte_num] = and_bits(this[byte_num], not_bits(power(2,bit_pos-1))) 
+        byte_num += byte_inc 
+         bit_pos +=  bit_inc 
+        if bit_pos > 8 then 
+            bit_pos -= 8 
+            byte_num += 1 
+        end if 
+    end for 
+    return this 
+end function 
+ 
+function get_bit(sequence sieve, integer bit) 
+    integer byte_pos = 1 + floor((bit - 1) / 8), 
+             bit_pos = 1 + and_bits(bit - 1, 0x7) 
+    return and_bits(sieve[byte_pos], BIT8_TABLE[bit_pos]) 
+--  return and_bits(sieve[byte_pos], power(2,bit_pos-1)) 
+end function 
+ 
+function run_sieve(integer sieve_size) 
+    integer num_bits = floor((sieve_size - 1) / 2) 
+    sequence sieve = set_bits(num_bits) 
+    integer q = floor(sqrt(sieve_size) / 2) 
+    -- 
+    -- we start off with a sieve of all 1s, and (should) end up with 
+    --    < byte2>< byte1> 
+    --  0b0110010110110111  -- (little-endian, 33 first, 3 last) 
+    --     19  3 97 31 753  -- ie 3,5,7,11,13,17,19,23,29,31 prime 
+    --    3  75 1  5  9     --      and 9,15,21,25,27,33 not prime 
+    --   30>< 20>< 10> 
+    -- (as shown the first byte of sieve contains the flags for 3..17) 
+    -- 
+    -- Of course this is complete madness, no-one would ever want to 
+    -- code like this on a day-to-day basis, but performance-critical 
+    -- things can be done the once and then forgotten about. 
+    -- 
+    -- I already knew the algorithm, though not used an odd-only bitmap.
+    -- I figured out which byte/bit needed testing and let my brain stew
+    -- on it for a couple of days before drumming up this little monster.
+    --
+    integer step -- (needed due to v.high reg pressure, 64-bit uses r9) 
+    #ilASM{ 
+            [32] 
+                xor edi,edi     -- for bit=1 to q do (using 0-based idx) 
+                mov esi,[sieve] 
+                shl esi,2       -- esi := raw_address(sieve) 
+              ::bitloop 
+                    -- if sieve[bit] then 
+                    -- edi (p) ax/dl  test  
+                    --  0   3   0/01  true 
+                    --  1   5   0/02  true 
+                    --  2   7   0/04  true 
+                    --  3   9   0/08  false 
+                    --  4  11   0/10  true 
+                    --  5  13   0/20  true 
+                    --  6  15   0/40  false 
+                    --  7  17   0/80  true 
+                    --  8  19   1/01  true 
+                    --  9  21   1/02  false 
+                    mov eax,edi 
+                    mov dl,1 
+                    mov cl,al 
+                    shr eax,3 
+                    and cl,7    -- edi -> byte, bit 
+                    shl dl,cl   -- bit -> mask 
+                    test byte[esi+eax],dl 
+                    jz :notset 
+                        -- clear_bits: 
+                        push edi 
+                        -- for edx=p*p to num_bits by p do (0/odd-only)
+                        --  sieve[edx] = 0 
+                        -- edx step (ea/dx) al/cl (p) bl
+                        --  0   3     9/3    0/3   9  08
+                        --              6    0/6  15  40
+                        --              9    1/1  21  02
+                        --              12   1/4  27  10
+                        --              15   1/7  33  80
+                        --              18   2/2  39  04
+                        --  1   5    25/11   1/3  25  08
+                        --              16   2/0  35  01
+                        --              21   2/5  45  20
+                        --              26   3/2  55  04
+                        --  2   7    49/23   2/7  49  80
+                        --  3   n/a 
+                        --  4  11   121/60  ... 
+                        lea ecx,[ebx+edi*2+3]   -- step 
+                        mov eax,ecx 
+                        mul ecx 
+                        mov [step],ecx          -- (regs v scarce here!) 
+                        shr eax,1 
+                        sub eax,1               -- (0-based) 
+                        mov edx,eax             -- start 
+ 
+                      ::innerloop 
+                        mov cl,al 
+                        shr eax,3 
+                        and cl,7                -- -> byte,bit 
+                        mov bl,1 
+                        shl bl,cl 
+                        not bl                  -- bit -> not mask 
+                        mov ecx,[step] 
+                        add edx,ecx 
+                        and byte[esi+eax],bl 
+                        mov eax,edx 
+                        cmp edx,[num_bits] 
+                        jle :innerloop 
+ 
+                        pop edi 
+                        xor ebx,ebx -- important!! 
+              ::notset           
+                add edi,1 
+                cmp edi,[q] 
+                jle :bitloop 
+            [64] 
+                xor rdi,rdi     -- for bit=1 to q do (using 0-based idx) 
+                mov rsi,[sieve] 
+                shl rsi,2       -- rsi := raw_address(sieve) 
+              ::bitloop 
+                    -- if sieve[bit] then (as above) 
+                    mov rax,rdi 
+                    mov dl,1 
+                    mov cl,al 
+                    shr rax,3 
+                    and cl,7 
+                    shl dl,cl 
+                    test byte[rsi+rax],dl 
+                    jz :notset 
+                        -- clear_bits: (as above) 
+                        push rdi 
+                        lea rcx,[rbx+rdi*2+3]   -- step 
+                        mov rax,rcx 
+                        mul rcx 
+                        mov r9,rcx              -- (save step) 
+                        shr rax,1               -- start 
+                        sub rax,1               -- (0-based) 
+                        mov rdx,rax             -- start/k 
+                        mov r10,[num_bits]      -- (may as well) 
+ 
+                      ::innerloop 
+                        mov cl,al 
+                        shr rax,3 
+                        and cl,7                -- -> byte,bit 
+                        mov bl,1 
+                        shl bl,cl 
+                        not bl 
+                        add rdx,r9              -- + step 
+                        and byte[rsi+rax],bl 
+                        mov rax,rdx 
+                        cmp rdx,r10 
+                        jle :innerloop 
+ 
+                        pop rdi 
+                        xor rbx,rbx -- important!! 
+              ::notset           
+                add rdi,1 
+                cmp rdi,[q] 
+                jle :bitloop 
+            [] 
+          } 
+    return {sieve_size, num_bits, sieve} 
+end function 
+ 
+function count_primes(sequence this, bool show_results=FALSE) 
+    integer count = 1, count2 = 1 
+    if show_results then 
+        printf(STDOUT, "2, ") 
+    end if 
+ 
+    for bit=1 to this[NUM_BITS] do 
+        if get_bit(this[SIEVE], bit) then 
+            count += 1 
+            if show_results then 
+                printf(STDOUT, "%d, ", 2 * bit + 1) 
+            end if 
+        end if 
+    end for 
+    -- or, maybe: 
+    for b in this[SIEVE] do count2 += count_bits(b) end for 
+    assert(count=count2) 
+    -- or even: (just showing off now, ain't I?) 
+    assert(count == 1+sum(apply(this[SIEVE],count_bits))) 
+ 
+    if show_results then 
+        printf(STDOUT, "\n") 
+    end if 
+ 
+    return count 
+end function 
+ 
+-- Erm, this might deserve re-testing?? 
+-- Cannot support sieve size greater than 1 billion -- 
+constant {sizes,expected} = columnize({{10,4}, 
+                                       {100,25}, 
+                                       {1_000,168}, 
+                                       {10_000,1229}, 
+                                       {100_000,9592}, 
+                                       {1_000_000,78498}, 
+                                       {10_000_000,664579}, 
+                                       {100_000_000,5761455}, 
+                                       {1_000_000_000,50847534}}) 
+ 
+function validate_results(sequence this) 
+    integer k = find(this[SIEVE_SIZE],sizes) 
+    assert(k!=0,"Invalid sieve size") 
+    integer expected_count = expected[k] 
+    return count_primes(this) = expected_count 
+end function 
+ 
+procedure print_results(sequence this, integer show_results, atom duration, integer passes) 
+    printf( 
+        STDOUT, 
+        "Passes: %d, Time: %.8f, Avg: %.8f, Limit: %d, Count: %d, Valid: %s\n", 
+        { 
+            passes, 
+            duration, 
+            duration / passes, 
+            this[SIEVE_SIZE], 
+            count_primes(this, show_results), 
+            iff(validate_results(this), "true", "false") 
+        } 
+    ) 
+    printf( 
+        STDOUT, 
+        "\nrzuckerm;%d;%.8f;1;algorithm=base,faithful=yes,bits=1\n", 
+        {passes, duration} 
+    ) 
+end procedure 
+ 
+procedure main() 
+    -- should these be obtained from command_line()?? 
+    integer n = 1_000_000, 
+            show_results = false 
+    atom start = time(), passes = 0 
+    sequence sieve 
+    while 1 do 
+        passes += 1 
+        sieve = run_sieve(n) 
+        atom duration = time() - start 
+        if duration >= 5 then 
+            print_results(sieve, show_results, duration, passes) 
+            exit 
+        end if 
+    end while 
+end procedure 
+ 
+main() 
+*/ 

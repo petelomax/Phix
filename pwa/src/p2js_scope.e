@@ -197,7 +197,7 @@ tokstack[1..2] = {{`C:\Program Files (x86)\Phix\builtins`},{`C:\Program Files (x
 --*/
             return 1
         elsif path=pwadir then
-            if find(file,{"p2js.js","pGUI.js"}) then
+            if find(file,{"p2js.js","pGUI.js","xpGUI.js"}) then
                 return 1 -- assume legal
             end if
         end if
@@ -727,6 +727,7 @@ procedure check_builtins()
     for i=1 to length(autoincludes) do
         string ai = strip_builtin(autoincludes[i])
         if ai!="pGUI.e"
+        and ai!="xpGUI.e"
         and ai!="mpfr.e"
         and ai!="sha256.e"
         and ai!="speak.e"
@@ -849,7 +850,7 @@ constant depend = """
 --
 -- Each entry is {"builtin.e",{dependencies, if any},{locals, if any},{{routine,{args}}}} 
 -- Rebuild builtins (Ctrl R) verifies no locals clash, and renames them with a $-prefix.
--- Note that "pGUI.e"/"mpfr.e"/"timedate.e" are manually maintained, the rest auto-built,
+-- Note that "[x]pGUI.e"/"mpfr.e"/"timedate.e" are manually maintained, the rest auto-built,
 -- though you do (usually) have to kick things off with a suitable empty entry, I think.
 --
 global sequence p2js_depend = 

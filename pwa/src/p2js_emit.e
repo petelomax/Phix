@@ -26,7 +26,9 @@ constant html_headerf = """
   <scr!ipt>
 """,
         pGUIcs = "\n"&`  <link type="text/css" rel="stylesheet" media="screen" href="pGUI.css" />`,
+       xpGUIcs = "\n"&`  <link type="text/css" rel="stylesheet" media="screen" href="xpGUI.css" />`,
         pGUIjs = "\n"&`  <scr!ipt src="pGUI.js"></scr!ipt>`,
+       xpGUIjs = "\n"&`  <scr!ipt src="xpGUI.js"></scr!ipt>`,
         OpenGL = "\n"&`  <scr!ipt src="builtins/glmath.js"></scr!ipt>`&
                  "\n"&`  <scr!ipt src="builtins/opengl.js"></scr!ipt>`,
         use_strict = """
@@ -67,13 +69,15 @@ constant html_headerf = """
 global bool testing = false     -- set to true in p2js.exw/
 
 bool bGUI = false,
+     bxpGUI = false,
      bOpenGL = false,
      bMPFR = false,
      bSHA256 = false,
      bTIMEDATE = false
 integer initp = 0,
         wasext = 0,
-        tokline = 0
+        tokline = 0,
+        ncdollar = 0
 --      massN = 0
 --sequence massn = {}
 string output = "", oneline = ""
@@ -483,6 +487,8 @@ function emit_expr(sequence expr, integer p, pandtype=0)
         elsif nodetype='?' then     -- (as in {a,?,c} = abc)
             res = iff(is_phix()?"?":"")
         elsif nodetype='[' then
+            integer wasncdollar = ncdollar
+            ncdollar = 0 -- disable over subscripts
             expr = expr[2]
             sequence edx = ""
             if length(expr)!=2 then
@@ -532,6 +538,7 @@ expr = deep_copy(expr)
 --              end if
                 end if
             end if
+            ncdollar = wasncdollar -- un-disable
 --      elsif nodetype=TWIDDLE then
         elsif nodetype='~' then
 --5/5/21 (~ is length() shorthand in phix, not_bits in javascript)
@@ -541,7 +548,13 @@ expr = deep_copy(expr)
 --  expr = {91'[',{{4,371,376,13,59';',5172}}}
 
         elsif nodetype='$' then
-            res = iff(is_phix()?"$":"-1")
+--?{"nodetype=$, ncdollar=",ncdollar}
+            if ncdollar then
+                res = sprintf("%d",ncdollar)
+                ncdollar += 1
+            else
+                res = iff(is_phix()?"$":"-1")
+            end if
         elsif nodetype=T_iff
            or nodetype=T_iif then
 -- let where =  ?  : {1168,{{159,{{4,3312,3313,85,15,20668},
@@ -1114,6 +1127,8 @@ constant {ibctypes,ibtypes} = columnize({{"/*atom*/","atom"},
 --                                       {`{"sequence",`,"{"},
                                          {"/*object*/","object"}})
 --                                       {"/*object*/","object"},
+--                                       {"/*gdc*/","gdc"},
+--                                       {"/*gdx*/","gdx"},
 --                                       {"/*Ihandle*/","Ihandle"},
 --                                       {"/*Ihandln*/","Ihandln"}})
 
@@ -1136,14 +1151,15 @@ procedure emit(sequence nodes, integer indent=0, bool bNested=false)
                 and cmt[1..10]="/*include " then
                     string cs = strip_builtin(cmt[11..-3])
 --                  integer k = find(cmt,{"pGUI.e", `..\pGUI\opengl.e`, "mpfr.e", "sha256.e", "timedate.e"})
-                    integer k = find(cmt,{"pGUI.e", "opengl.e", "mpfr.e", "sha256.e", "timedate.e"})
+                    integer k = find(cmt,{"pGUI.e", "xpGUI.e", "opengl.e", "mpfr.e", "sha256.e", "timedate.e"})
                     if k then
                         cmt = cmt[3..-3]
                         if k=1 then bGUI = true end if
-                        if k=2 then bOpenGL = true end if
-                        if k=3 then bMPFR = true end if
-                        if k=4 then bSHA256 = true end if
-                        if k=5 then bTIMEDATE = true end if
+                        if k=2 then bxpGUI = true end if
+                        if k=3 then bOpenGL = true end if
+                        if k=4 then bMPFR = true end if
+                        if k=5 then bSHA256 = true end if
+                        if k=6 then bTIMEDATE = true end if
                     end if
                 end if
                 cdent(cmt,nodetype,line,col)
@@ -1592,6 +1608,8 @@ end if
                 string n21 = strip_builtin(node[2][1])
                 if n21="pGUI.e" then
                     bGUI = true
+                elsif n21="xpGUI.e" then
+                    bxpGUI = true
 --              elsif n21=`..\pGUI\opengl.e` then
                 elsif match("opengl.e",n21) then
                     bOpenGL = true
@@ -1995,6 +2013,7 @@ end if
                             ?9/0  -- DEV violation
                         end if
                     else
+                        ncdollar = 1 -- (also set below for non-phix)
                         if vartype="const" then
                             vartype = "constant "
                         else
@@ -2015,6 +2034,7 @@ end if
                     bAod = true
                     softdent("if (!",indent)
                 elsif find(vartype,{"const","constant"}) then
+                    ncdollar = 1 -- (also set above for is_phix)
 --apath = 4
 --                  softdent(iff(is_phix()?"constant ":"const "),indent)
 --                  if bNested then
@@ -2151,6 +2171,7 @@ end if
 --              if not is_phix() then oneline &= ";" end if
                 if not is_phix() and not bAod then oneline &= ";" end if
                 bAod = false
+                ncdollar = 0 -- switch off, if did happen to have been on
             elsif nodetype="SASS"
                or nodetype="SAST" then  -- (SASS that requires one or more temps)
 --?(s)SASS:{"SASS",{{91,{{4,5007,5013,136,16,5656},         '['
@@ -2393,7 +2414,7 @@ function add_includes(sequence ai, axtra)
     return ai
 end function
 
-global function generate_source(sequence ast, integer oxt, src_offset, bool pGUI, pMPFR, pSHA256, pTIMEDATE)
+global function generate_source(sequence ast, integer oxt, src_offset, bool pGUI, xpGUI, pMPFR, pSHA256, pTIMEDATE)
 --global function generate_source(sequence ast, integer oxt, src_offset, bool pGUI, pOpenGL?, pMPFR, pSHA256, pTIMEDATE)
     wasext = ext    -- save input language
     ext = oxt       -- set output language, so we can use is_phix() etc.
@@ -2404,6 +2425,7 @@ global function generate_source(sequence ast, integer oxt, src_offset, bool pGUI
     output = ""
     tokline = src_offset+1
     bGUI = false
+    bxpGUI = false
     bOpenGL = false
     bMPFR = false
     bSHA256 = false
@@ -2423,10 +2445,18 @@ global function generate_source(sequence ast, integer oxt, src_offset, bool pGUI
                 hdr_args = {pGUIcs,pGUIjs}
             end if
         end if
+        if bxpGUI or xpGUI then
+            if bOpenGL then
+                hdr_args = {xpGUIcs,xpGUIjs&OpenGL}
+            else
+                hdr_args = {xpGUIcs,xpGUIjs}
+            end if
+        end if
         string header = sprintf(html_headerf,hdr_args),
                aincs = ""
         sequence ai = get_autoincludes()[1]
-        if bGUI or pGUI then
+        if bGUI or pGUI
+        or bxpGUI or xpGUI then
             ai = add_includes(ai,{"find.e","pmaths.e","ptagset.e"})
         elsif bOpenGL then
             ?9/0
@@ -2458,6 +2488,9 @@ global function generate_source(sequence ast, integer oxt, src_offset, bool pGUI
     elsif is_phix() then
         if pGUI and not bGUI then
             output = "include pGUI.e\n" & output
+        end if
+        if xpGUI and not bxpGUI then
+            output = "include xpGUI.e\n" & output
         end if
 --      if pOpenGL and not bOpenGL then
 --          output = `include ..\pGUI\opengl.e` & "\n" & output

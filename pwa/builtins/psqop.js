@@ -168,8 +168,8 @@ function $sq_general(/*object*/ a, b, /*integer*/ fn, /*bool*/ recursive=true) {
     }
     return res;
 }
-function $sq_unary(/*object*/ a, /*integer*/ fn, /*bool*/ recursive=true) {
-    if (atom(a) || !recursive) {
+function $sq_unary(/*object*/ a, /*integer*/ fn, level=1, /*bool*/ recursive=true) {
+    if (atom(a) || (!recursive && level>1)) {
         switch (fn) {
             case 0X61: a = abs(a);
                 break;
@@ -231,7 +231,8 @@ function $sq_unary(/*object*/ a, /*integer*/ fn, /*bool*/ recursive=true) {
 //  sequence res = repeat(0,la)
     let /*sequence*/ res = repeat(((string(a)) ? 0X20 : 0),la);
     for (let i=1, i$lim=la; i<=i$lim; i+=1) {
-        res = $repe(res,i,$sq_unary($subse(a,i),fn));
+//      res[i] = $sq_unary(a[i],fn)
+        res = $repe(res,i,$sq_unary($subse(a,i),fn,level+1,recursive));
     }
     return res;
 }

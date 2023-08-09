@@ -1153,7 +1153,7 @@ atom res
         res = open_dll(path,false)
         if chdir(curr_dir)=0 then ?9/0 end if
     elsif platform()=LINUX then
---      for now, see demo/pGUI/lnx/installation.txt...
+--      for now, see demo\pGUI\lnx\installation.txt...
 --      path = dll_path&path
         res = open_dll(path,false)
 --no friggin help...
@@ -3073,7 +3073,7 @@ global function IupGetNextChild(Ihandln ih, Ihandln child)
     return nextchild
 end function
 
-global function IupGetBrother(Ihandle ih, bool bPrev)
+global function IupGetBrother(Ihandle ih, bool bPrev=false)
     Ihandln brother
     if bPrev then
         Ihandle parent = IupGetParent(ih)
@@ -4257,7 +4257,7 @@ global function IupTableResize_cb(Ihandle dlg, integer width, /*height*/)
     --        critical limit point from a different direction.
     --        There may or may not be a slighly better setting of
     --        +28/9/30 and (less likely) *8+17* which I missed...
-    --        Use demo/pGUI/IupTable.exw to test any changes (as
+    --        Use demo\pGUI\IupTable.exw to test any changes (as
     --        well as whatever it is that you're working on).
     --
     integer {cx,cy} = IupGetIntInt(parent,"CLIENTSIZE"),

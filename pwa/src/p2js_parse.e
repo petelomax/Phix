@@ -17,7 +17,7 @@ with trace
 constant vartypes = {T_integer,T_atom,T_string,T_sequence,T_object,
 --                   T_bool,T_boolean,T_dictionary,T_int,T_seq,T_timedate,
                      T_bool,T_boolean,T_int,T_seq,T_timedate,
-                     T_Ihandle,T_Ihandln,T_Ihandles,
+                     T_Ihandle,T_Ihandln,T_Ihandles,T_gdc,T_gdx,T_rtn,
                      T_cdCanvas,T_cdCanvan,
                      T_atom_string,T_nullable_string,
 --                   T_timedate,T_constant,T_static},
@@ -805,6 +805,7 @@ function vardef(integer thistdx, skip=0, iForPar=0)
 --  if vtype=0 and iForPar!=4 then ?9/0 end if
     res[1][TOKALTYPE] = vtype
     if vtype=TYPK and ttidx=T_constant then
+--? ncdollar = 1?
         vtype=TYPO
 --???
 --      vtype=TYKO
@@ -1309,6 +1310,7 @@ function statement()
 --                      if ttidx=T_include then
                         if ttidx=T_include
                         and filename!="pGUI.e"
+                        and filename!="xpGUI.e"
 --                      and filename!=`..\pGUI\opengl.e`
                         and not match("opengl.e",filename)
                         and filename!="mpfr.e"
@@ -1918,12 +1920,14 @@ end if
                         if bVar then
 --if ttidx=T_let then trace(1) end if
                             -- kludge: treat eg "constant string x" as "constant x"
-                            if is_phix() and ttidx=T_constant 
-                            and tokens[tdx][TOKTYPE]=LETTER
-                            and (find(tokens[tdx][TOKTTIDX],vartypes) or 
-                                 find(tokens[tdx][TOKTTIDX],udts)) then
-                                tdx += 1
---                              tok[TOKALTYPE] = TYPO
+                            if is_phix() and ttidx=T_constant then
+--? ncdollar = 1?
+                                if tokens[tdx][TOKTYPE]=LETTER
+                                and (find(tokens[tdx][TOKTTIDX],vartypes) or 
+                                     find(tokens[tdx][TOKTTIDX],udts)) then
+                                    tdx += 1
+--                                  tok[TOKALTYPE] = TYPO
+                                end if
                             end if
                             ast = append(ast,vardef(thistdx))
 --?ast

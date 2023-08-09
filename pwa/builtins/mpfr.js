@@ -282,6 +282,10 @@ function mpz_set_si(rop, op) {
 }
 let mpz_set_d = mpz_set_si;
 
+function mpz_set_q(rop, op) {
+    rop[MPZ$B] = op[MPQ$N] / op[MPQ$D];
+//  rop[MPZ$B] = op[MPQ$D] / op[MPQ$N];
+}
 //function mpz_set_ui(op1, op2) {
 //  op1[MPZ$B] = BigInt(op2);
 //}
@@ -1041,6 +1045,17 @@ function mpz_prime(/*mpz*/ p, /*integer*/ k=10) {
 }
 //let mpz_prime_mr = mpz_prime;
 
+function mpz_nextprime(/*mpz*/ rop, op) {
+    if (compare(mpz_cmp_si(op,2),0)<0) {
+        mpz_set_si(rop,2);
+    } else {
+        mpz_add_si(rop,op,((mpz_odd(op)) ? 2 : 1));
+        while (!mpz_prime(rop)) {
+            mpz_add_si(rop,rop,2);
+        }
+    }
+}
+
 function mpz_prime_factors(/*mpz*/ s, /*integer*/ maxprime=100) {
 //
 // Attempts to decompose the integer s into powers of small primes.
@@ -1593,20 +1608,6 @@ function mpz_popcount(/*mpz*/ op) {
     return count;
 }
 
-function mpq_init() {
-    return ["mpq",0n,1n];
-}
-
-function mpq_inits(n) {
-    let res = repeat(0,n);
-    for (let i = 1; i <= n; i += 1) {
-        res[i] = mpq_init();
-    }
-    return res;
-}
-
-let mpq_free = mpz_free;
-
 function MPFR$GCD(a, b) {
 /*
     while (b > 0n) {
@@ -1739,6 +1740,51 @@ function mpq_init_set_z(/*mpz*/ n, d=NULL) {
     mpq_set_z(res,n,d);
     return res;
 }
+
+function mpq_init(/*object*/ v=0) {
+    let /*object*/ res = ["mpq",0n,1n];
+    if (!equal(v,0)) {
+//      if mpq(v) then              -- NO!!
+//          mpq_set(res, v)
+//      elsif mpz(v) then           -- NO!!
+//          mpq_set_z(res, v)
+        if (integer(v)) {
+            mpq_set_si(res,v);
+        } else if (string(v)) {
+            mpq_set_str(res,v);
+        } else {
+            crash("9/0"); // what's v then?? (non-integer atom is invalid)
+        }
+    }
+    return res;
+}
+
+//function mpq_init() {
+//  return ["mpq",0n,1n];
+//}
+
+function mpq_inits(/*integer*/ n, /*object*/ v=0) {
+    let /*object*/ res = repeat(0,n);
+    if (sequence(v) && !string(v)) {
+        if (!equal(length(v),n)) { crash("9/0"); }
+        for (let i=1, i$lim=n; i<=i$lim; i+=1) {
+            res = $repe(res,i,mpq_init($subse(v,i))); }
+    } else {
+        for (let i=1, i$lim=n; i<=i$lim; i+=1) {
+            res = $repe(res,i,mpq_init(v)); }
+    }
+    return res;
+}
+
+//function mpq_inits(n) {
+//  let res = repeat(0,n);
+//  for (let i = 1; i <= n; i += 1) {
+//      res[i] = mpq_init();
+//  }
+//  return res;
+//}
+
+let mpq_free = mpz_free;
 
 function mpq_get_num(/*mpz*/ numerator, /*mpq*/ rational) {
     numerator[MPZ$B] = rational[MPQ$N];
@@ -2462,12 +2508,35 @@ function mpfr_div_z(/*mpfr*/ rop, op1, /*mpz*/ op2, /*integer*/ rounding=MPFR$de
     MPFR$normalise(rop,n,d);
 }
 
+function mpfr_fmod(/*mpfr*/ r, x, y, /*integer*/ rounding=MPFR$default_rounding) {
+// Set r to the value of x - ny, rounded according to the direction rnd, 
+// where n is the integer quotient of x divided by y, rounded toward zero
+    let ny = y[MPFR$N],
+        dy = y[MPFR$D],
+        n = x[MPFR$N] * dy,
+        d = x[MPFR$D] * ny,
+        p = x[MPFR$P];
+    n = n/d;
+//  r[MPFR$N] = n*ny
+//  r[MPFR$D] = dy
+    tmp = ["mpfr",n*ny,dy,0,rounding,p];
+    mpfr_sub(r, x, tmp, rounding)
+}
+
 function mpfr_pow_si(/*mpfr*/ rop, op1, /*integer*/ op2, rounding=MPFR$default_rounding) {
     let p = BigInt(op2),
         n = op1[MPFR$N]**p,
         d = op1[MPFR$D]**p;
     MPFR$normalise(rop,n,d);
 }
+
+//function mpfr_ui_pow(/*mpfr*/ rop, /*integer*/ op1, /*mpfr*/ op2, /*integer*/ rounding=MPFR$default_rounding) {
+//  let pn = op2[MPFR$N],
+//      pd = op2[MPFR$D],
+//      n = BigInt(op1)**pn,
+//      d = BigInt(1);
+//  MPFR$normalise(rop,n,d);
+//}
 
 function mpfr_ui_pow_ui(/*mpfr*/ rop, /*integer*/ op1, op2, rounding=MPFR$default_rounding) {
     let p = BigInt(op2),
@@ -2476,6 +2545,18 @@ function mpfr_ui_pow_ui(/*mpfr*/ rop, /*integer*/ op1, op2, rounding=MPFR$defaul
     MPFR$normalise(rop,n,d);
 }
 
+let MPFR$ONE = NULL;
+
+function mpfr_si_pow_si(/*mpfr*/ rop, /*integer*/ op1, op2, rounding=MPFR$default_rounding) {
+    mpfr_ui_pow_ui(rop,abs(op1),abs(op2),rounding);
+    if (op1<0 && odd(op2)) {
+        mpfr_neg(rop,rop,rounding);
+    }
+    if (op2<0) {
+        if (MPFR$ONE === NULL) { MPFR$ONE = mpfr_init(1); }
+        mpfr_div(rop,MPFR$ONE,rop,rounding);
+    }
+}
 
 function mpfr_get_si(/*mpfr*/ op, /*integer*/ rounding=MPFR$default_rounding) {
 // res := op as an integer.

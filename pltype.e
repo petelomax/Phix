@@ -164,12 +164,17 @@ global function rootType(integer N)
 --    type am_shift(opening_hour h) return h<=12 end type
 -- for a variable declared as type am_shift, return the fact
 --  that it is an extension of the builtin type integer.
-integer nxt
+integer nxt, N0 = N
 --DEV broken/atom on 64bit...
 --!/**/ #isginfo{N,integer,MIN,MAX,object,-1}
     while N>T_object do
         if DEBUG then
-            if symtab[N][S_NTyp]!=S_Type then ?9/0 end if
+--23/6/23
+--          if symtab[N][S_NTyp]!=S_Type then ?9/0 end if
+            if symtab[N][S_NTyp]!=S_Type then
+                ?{"9/0 rootType",N,N0}
+                return T_object
+            end if
         end if
         nxt = symtab[N][S_sig][2]
         N = nxt
@@ -688,8 +693,10 @@ integer ldx
         if dltyp<=T_object
         and ptyp<=T_object
         and dltyp!=ptyp then
+--      and dltyp!=ptyp
+--      and (dltyp!=T_atom or ptyp!=T_integer) then
 --          ?9/0
-            ?"9/0 (pltype.e line 676)"
+            ?{"9/0 (pltype.e line 699)",dltyp,ptyp}
 ltAddshowmapsymtab = v
 --          if diag then
             if 1 then
@@ -709,7 +716,10 @@ ltAddshowmapsymtab = v
 --      ?9/0
 --      Lmin = MININT
 --      Lmax = MAXINT
-        ntyp = or_bits(ntyp,T_N)
+--23/6/23: (or should I use or_type() [for consistency sake only, that is]?)
+--         (better yet: if not and_bits(rootType(ntyp),T_N)=T_N then... but save that for 2.0+)
+--      ntyp = or_bits(ntyp,T_N)
+        ntyp = or_bits(rootType(ntyp),T_N)
     end if
     --
     --  *** NOTE *** we maintain [S_ltype], as (historically) it is 
@@ -1055,14 +1065,25 @@ function or_type(integer t1, integer t2)
 --
 -- Of course, [eg] or_type(integer,integer) just returns integer.
 --
+--integer t10 = t1, t20 = t2 -- no help...
     while 1 do
         if t1>T_object and t1>t2 then
+--sequence t1d = symtab[t1]
             t1 = symtab[t1][S_sig][2]
         elsif t2>T_object and t2>t1 then
+--sequence t2d = symtab[t2]
             t2 = symtab[t2][S_sig][2]
         else
+--22/6/23 (clutching at straws a bit here...)
+if t1>T_object or t2>T_object then
+    if t1!=t2 then
+        ?{"or_type",t1,t2,symtab[t1],symtab[t2]}
+        t1 = T_object
+    end if
+else
             -- (btw: in the t1=t2 case, the next does no harm)
             t1 = or_bits(t1,t2)
+end if
             exit
         end if
     end while
@@ -1375,14 +1396,14 @@ sequence optxt
 --                                                  if symtab[vno][S_ltype]!=Ltype then ?9/0 end if
                         --                      Ltype = xor_bits(Ltype,T_object)
                         if Ltype>T_object then ?9/0 end if
-if 0 then -- 23/9/15.
-                        if lptyp[ldx]>T_object then ?9/0 end if
-                        Ltype = xor_bits(Ltype,lptyp[ldx])
-else
+--if 0 then -- 23/9/15.
+--                      if lptyp[ldx]>T_object then ?9/0 end if
+--                      Ltype = xor_bits(Ltype,lptyp[ldx])
+--else
 --                      Ltype = xor_bits(Ltype,rootType(lptyp[ldx]))
                         ptype = lptyp[ldx]
                         Ltype = xor_bits(Ltype,rootType(ptype))
-end if
+--end if
 --if diag and ltypetoo then
 --  dprintf("ltFlip(1276): symtab[%d][S_ltype] = %d\n",{vno,Ltype})
 --end if

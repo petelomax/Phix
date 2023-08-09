@@ -657,7 +657,8 @@ integer res
 
     if not sequence(args) then ?9/0 end if
     integer convention = STDCALL,
-            level = 2+(return_type=0)
+--          level = 2+(return_type=0)
+            level = 2
     if platform()!=WINDOWS then
         convention = CDECL
     end if
@@ -712,7 +713,8 @@ integer res
         {addr,safe} = get_proc_address(lib,name)
         if addr=NULL then
             if bCrash then
-                crash("cannot link "&name,nFrames:=level+1)
+--              crash("cannot link "&name,nFrames:=level+1)
+                crash("cannot link "&name,nFrames:=level)
             end if
             return -1
         end if
@@ -757,7 +759,8 @@ global function define_c_proc(object lib, object name, sequence args, bool bCras
 --  * a C function with a VOID return type / ignored return value, or
 --  * a machine-code routine at a given address.
 --
-    if bCrash>1 then ?9/0 end if
+--  if bCrash>1 then ?9/0 end if
+    assert(bCrash=false or bCrash=true," define_c_proc: bCrash is #%x",{bCrash})
     return define_c(lib, name, args, 0, bCrash)
 end function
 
@@ -1363,6 +1366,8 @@ integer esp4
         argi = args[i]
         argdefi = argdefs[i]
         integer xi = xmmi[i]
+--DEV 20/6/23...
+bool bAtom = atom(argi)
         if integer(argi) then
 --DEV inline this
 --          if find(argdefi,{
@@ -1591,7 +1596,9 @@ end if
             else
                 ?9/0
             end if
-        elsif atom(argi) then
+--20/6/23 spurious ple....
+--      elsif atom(argi) then
+        elsif bAtom then
 --DEV inline this
 --          if find(argdefi,{
 --                           #01000004,     -- C_INT

@@ -298,15 +298,13 @@ sequence opstack, opstype, opsltrl, opsline, opstcol
 -- #isginfo emits no code or otherwise alters compiler behaviour, it 
 --  just verifies the result of gvar_scan. See pemit.e for details.
 
-integer opsidx              -- index to above
-        opsidx = 0
+integer opsidx = 0          -- index to above
 integer opsidxm1, opsidxm2, opsidxm3
 
 integer isGlobal            -- set when "global" found
         isGlobal = 0        -- (0==false, 1==true, 2==export)
 
-integer opTopIsOp       -- zero or one of the following groups
-        opTopIsOp = 0
+integer opTopIsOp = 0       -- zero or one of the following groups
 
 constant UnaryOp        = 1, 
          MathOp         = 2, 
@@ -427,7 +425,9 @@ procedure Abork(sequence msg, integer k)
     Aborp(msg)
 end procedure
 
-bool not_js = false     -- catch "with js" occurring too late...
+bool not_js = false,    -- catch "with js" occurring too late...
+     nested_locals = false, -- "with nested_locals" in force?
+     nested_globals = false -- "with nested_globals" in force?
 string nj_reason
 
 constant WITH=1, WITHOUT=0, FROMROUTINE=1
@@ -486,9 +486,8 @@ integer k
             if toktype=LETTER and ttidx=T_strict then getToken() end if
             return
         elsif not fromroutine then
-            --DEV deprecated (see DoFormat)
             if ttidx=T_console
-            or ttidx=T_gui then
+            or ttidx=T_gui then -- DEV (both) deprecated (see DoFormat)
                 if ttidx=T_gui then
                     -- gui is antonym for console, ie
                     --  with gui == without console
@@ -549,6 +548,14 @@ end if
             elsif ttidx=T_safe_mode then
                 if not OptOn then Aborp("meaningless") end if
                 safe_mode = 0
+                getToken()
+                return
+            elsif ttidx=T_nested_globals then
+                nested_globals = OptOn
+                getToken()
+                return
+            elsif ttidx=T_nested_locals then
+                nested_locals = OptOn
                 getToken()
                 return
             end if
@@ -876,7 +883,7 @@ sequence symtabN
 --              -- assume constants are init when binding
 --              -- (can be broken by forward calls from above
 --              --  the constant definition, that is when the
---              --  constant cannot be K_litnoclr'd.)
+--              --  constant cannot be S_lnc'd.)
 --              isInit = 1
 --          end if
             s5 = append(s5,isInit)
@@ -3377,6 +3384,7 @@ integer SideEffects
         SideEffects = E_none
 
 integer asConst = -1    -- else isGlobal
+integer ncdollar = 1
 
 --27/10/19:
 --procedure DoSequence()
@@ -3432,51 +3440,67 @@ integer nestedConst = 0, wastokcol
                 wastokcol = tokcol
                 getToken()
                 MatchChar(':',false)
+--15/3/23:
+                mapEndToMinusOne = -2
                 MatchChar('=',float_valid:=true)
             end if
         end if
-        Expr(pAllops, asBool)
-        if nestedConst then
+--15/3/23:
+        if nestedConst and mapEndToMinusOne='$' and toktype=DIGIT and TokN=-1 then  -- ...,x:=$ case
+            assert(not opTopIsOp)
+            N = addUnnamedConstant(ncdollar, T_integer)
+            ncdollar += 1
+--          symtabO = symtab[O]
+--          PushFactor(N,false,T_integer)
+            PushFactor(N,true,T_integer)
+            getToken()
+--          nestedConst = 0
+            mapEndToMinusOne = 0
+        else
+            Expr(pAllops, asBool)
+        end if
+            if nestedConst then
 --/!*
 --1/11/2020: (nested constants not properly marked as such, eg SPREAD in p2js_basics.e)
-if not opTopIsOp 
+                if not opTopIsOp 
 --and opsidx=1
-and opsltrl[opsidx]=1 then
-            -- (I just mimiced the one in DoConstant())
---          N = addSymEntryAt(wasttidx,isGlobal,S_Const,Ntype,0,K_litnoclr,wastokcol)
-            integer O = opstack[opsidx]
-            sequence symtabO = symtab[O]
-            if and_bits(symtabO[S_State],K_Fres) then ?9/0 end if
-            N = addSymEntryAt(nestedConst,asConst,S_Const,T_object,0,K_litnoclr,wastokcol)
-            symtab[N][S_value] = symtabO[S_value]
-            symtab[N][S_Init]  = symtabO[S_Init]
-            symtab[N][S_Clink] = symtabO[S_Clink]
-            symtab[O][S_Clink] = N
-            RHStype = opstype[opsidx]
---          symtab[N][S_vtype] = RHStype (done below anyway)
-            symtab[N][S_ltype] = RHStype
-            symtab[N][S_ErrV] = wastokcol
-            opsidx -= 1
-else
+                and opsltrl[opsidx]=1 then
+                    -- (I just mimiced the one in DoConstant())
+--                  N = addSymEntryAt(wasttidx,isGlobal,S_Const,Ntype,0,S_lnc,wastokcol)
+                    integer O = opstack[opsidx]
+                    sequence symtabO = symtab[O]
+                    if and_bits(symtabO[S_State],K_Fres) then ?9/0 end if
+                    N = addSymEntryAt(nestedConst,asConst,S_Const,T_object,0,S_lncu,wastokcol)
+                    symtab[N][S_value] = symtabO[S_value]
+                    symtab[N][S_Init]  = symtabO[S_Init]
+                    symtab[N][S_Clink] = symtabO[S_Clink]
+                    symtab[O][S_Clink] = N
+                    RHStype = opstype[opsidx]
+--                  symtab[N][S_vtype] = RHStype (done below anyway)
+                    symtab[N][S_ltype] = RHStype
+                    symtab[N][S_ErrV] = wastokcol
+                    opsidx -= 1
+                else
 --*!/
-            N = addSymEntryAt(nestedConst,asConst,S_Const,T_object,0,S_used,wastokcol)
-            if opsidx=1 then
-                integer k = opstack[1]
-                if and_bits(symtab[k][S_State],K_Fres)
-                and not find(symtab[k+1][S_Efct],{E_none,E_other}) then
-                    symtab[N][S_State] = or_bits(symtab[N][S_State],S_used)
+                    N = addSymEntryAt(nestedConst,asConst,S_Const,T_object,0,S_used,wastokcol)
+                    if opsidx=1 then
+                        integer k = opstack[1]
+                        if and_bits(symtab[k][S_State],K_Fres)
+                        and not find(symtab[k+1][S_Efct],{E_none,E_other}) then
+                            symtab[N][S_State] = or_bits(symtab[N][S_State],S_used)
+                        end if
+                    end if
+                    storeConst = 1
+                    onDeclaration = 1
+                    StoreVar(N,T_object)
+                    storeConst = 0
+                    onDeclaration = 0
                 end if
+                symtab[N][S_vtype] = RHStype
+                PushFactor(N,false,RHStype)
+                nestedConst = 0
             end if
-            storeConst = 1
-            onDeclaration = 1
-            StoreVar(N,T_object)
-            storeConst = 0
-            onDeclaration = 0
-end if
-            symtab[N][S_vtype] = RHStype
-            PushFactor(N,false,RHStype)
-            nestedConst = 0
-        end if
+--      end if
         integer tidx = opstack[opsidx]
         if not opTopIsOp
         and tidx!=0
@@ -3491,36 +3515,36 @@ end if
                 symtabN = symtab[tidx]
 --isRID = append(isRID,and_bits(symtabN[S_State],K_rtn))
 --8/6/15:
-if and_bits(symtabN[S_State],K_rtn) then
-    allconst = 0
-else
-                t = opstype[opsidx]
-                etype = or_bits(etype,t)
---DEV/SUG if not compiling (with matching changes to pemit2.e)
---                  v = symtabN[S_value]
-                if t=T_string then
---                  v = {-symtabN[S_Name]}  -- aka {-ttidx}
-                    v = {-symtabN[S_Init]}  -- aka {-ttidx}
-                elsif and_bits(t,T_sequence) then   -- T_sequence or T_Dsq
---                  v = {symtabN[S_Name]}   -- aka {ttidx}
-                    v = {symtabN[S_Init]}   -- aka {ttidx}
+                if and_bits(symtabN[S_State],K_rtn) then
+                    allconst = 0
                 else
+                    t = opstype[opsidx]
+                    etype = or_bits(etype,t)
+--DEV/SUG if not compiling (with matching changes to pemit2.e)
+--                      v = symtabN[S_value]
+                    if t=T_string then
+--                      v = {-symtabN[S_Name]}  -- aka {-ttidx}
+                        v = {-symtabN[S_Init]}  -- aka {-ttidx}
+                    elsif and_bits(t,T_sequence) then   -- T_sequence or T_Dsq
+--                      v = {symtabN[S_Name]}   -- aka {ttidx}
+                        v = {symtabN[S_Init]}   -- aka {ttidx}
+                    else
 --DEV this might need to change for floats under newEmit...
 --if newEmit then -- 9/10/14... nope...
---                  v = {symtabN[S_Init]}   -- aka {ttidx}
+--                      v = {symtabN[S_Init]}   -- aka {ttidx}
 --else
-                    v = symtabN[S_value]
-if newEmit then
+                        v = symtabN[S_value]
+                        if newEmit then
 --3/1/16:
---  if not integer(v) then
-    if isFLOAT(v) then
-        v = symtabN[S_Init]+0.5
-    end if
-end if
+--                          if not integer(v) then
+                            if isFLOAT(v) then
+                                v = symtabN[S_Init]+0.5
+                            end if
+                        end if
 --end if
+                    end if
+                    constseq = append(constseq,v)
                 end if
-                constseq = append(constseq,v)
-end if
             end if
         end if
         len += 1
@@ -4228,6 +4252,9 @@ end function
 
 forward procedure MultipleAssignment(integer isDeclaration, integer Typ)
 
+--13/4/23:
+integer atokline, atokcol
+
 procedure Locals(integer AllowOnDeclaration)
 -- process local declarations
 --  invoked from DoRoutineDef and Block
@@ -4276,6 +4303,9 @@ integer SNtyp
                     if InTable(-InVeryTop) then Duplicate() end if
                 end if
                 N = addSymEntry(ttidx,false,S_TVar,Typ,0,0)
+--13/4/23:
+                atokline = tokline
+                atokcol = tokcol
                 getToken()
 --22/2/17:
                 if toktype=':' and Ch='=' then MatchChar(':',false) end if
@@ -4772,7 +4802,7 @@ end if
             if symtab[lastparam][S_Name]=-1
             and symtab[lastparam][S_NTyp]=S_Const
             and symtab[lastparam][S_ltype]=T_string
-            and and_bits(symtab[lastparam][S_State],K_litnoclr)=K_litnoclr then
+            and and_bits(symtab[lastparam][S_State],S_lnc)=S_lnc then
                 k = symtab[wasRoutineNo][S_Parm1]+length(actsig)
                 if and_bits(symtab[k][S_State],K_drid) then
                     TokStr = symtab[lastparam][S_value]
@@ -6189,6 +6219,9 @@ procedure Statics()
 --              S_ltype = 12,   -- local type (see pltype.e)
             symtab[N][S_vtype] = Typ
 --          symtab[N][S_ltype] = Typ -- no help...
+--13/4/23:
+            atokline = tokline
+            atokcol = tokcol
             getToken()
             if toktype=':' and Ch='=' then MatchChar(':',false) end if
             if toktype!='=' then
@@ -7463,7 +7496,8 @@ procedure isginfo()
 --  See t49ginfo.exw and/or search the sources of p.exw for examples.
 --
 sequence symtabN
-integer tl,tc,N,typ,iMin,iMax,etyp,len,ok
+integer tl,tc,N,typ,etyp,len,ok
+atom iMin,iMax
 
     tl = tokline
     tc = tokcol
@@ -7604,6 +7638,9 @@ end function
 
 procedure p2jssqv(string op, integer line, col)
     if with_js=1 then
+-- added 18/4/23:
+        tokline = line
+        tokcol = col
         Abort("p2js violation: "&op&"() must be used here")
     end if
     not_js = true
@@ -7900,7 +7937,9 @@ object sig
 
 --DEV...?
 --          if emitON then
-                    if not and_bits(sig,T_integer) then
+--14/4/2023:
+--                  if not and_bits(sig,T_integer) then
+                    if not and_bits(rootType(sig),T_integer) then
 --good, temp. removed while I improve the horrid runtime error...
 -- (-8 for now, see pcallfunc.e line 151, alas I cannot do any better...)
                         Aborp("cannot be routine_id")
@@ -8784,7 +8823,15 @@ integer pstype, etype, petype, fN, s, const
 --  symtabN = deep_copy(symtab[tidx])
     snNtyp = symtabN[S_NTyp]
     if snNtyp=S_Const then
-        Aborp("may not change the value of a constant")
+--13/4/23:
+        tokline = atokline
+        tokcol = atokcol
+--28/6/23:
+        if returnvar=0 and tokline=CheckForFunctionReturn then
+            Aborp("routine does not return a value")
+        else
+            Aborp("may not change the value of a constant")
+        end if
     else
         state = symtabN[S_State]
         if and_bits(state,S_for) then
@@ -8914,20 +8961,22 @@ integer pstype, etype, petype, fN, s, const
                             assert(opTopIsOp==MkSqOp)
                             PopFactor()
                             if opsidx!=2 then ?9/0 end if
-                            integer p1 = opstack[1],
-                                    p2 = opstack[2]
-                            if not symtab[p1][S_Init] then
-                                Unassigned(p1)
-                            end if
-                            if not symtab[p2][S_Init] then
-                                Unassigned(p2)
-                            end if
-                            agcheckop(opCallProc)
-                            apnds5({opCallProc,p1,p2})
+                            if emitON then -- added 6/5/23
+                                integer p1 = opstack[1],
+                                        p2 = opstack[2]
+                                if not symtab[p1][S_Init] then
+                                    Unassigned(p1)
+                                end if
+                                if not symtab[p2][S_Init] then
+                                    Unassigned(p2)
+                                end if
+                                agcheckop(opCallProc)
+                                apnds5({opCallProc,p1,p2})
 --4/1/22...
 --                          freeTmp(-opsidx)
-                            zero_temp(p2)
-                            opsidx -= 1
+                                zero_temp(p2)
+                                opsidx -= 1
+                            end if
                             freeTmp(-opsidx)
                             new_struct = 0
                             return
@@ -10640,6 +10689,7 @@ procedure DoReturn()
 --      Aborp("invalid (circumvents try handler reset)")
 --  end if
 
+    integer rtokline = tokline
     MatchString(T_return,float_valid:=true)
     if returnvar then
         Expr(pAllops,asBool)
@@ -10722,7 +10772,8 @@ end if
     end if
 --  LastStatementWasReturn = 1
     if emitON then
-        CheckForFunctionReturn = 1
+--      CheckForFunctionReturn = 1
+        CheckForFunctionReturn = rtokline
     end if
 end procedure
 
@@ -11600,6 +11651,9 @@ integer Typ, rootInt
                 N = addSymEntry(Name,isGlobal,S_GVar2,Typ,0,0)
 --DEV (not yet supported)
 --              if isGlobal=2 and fileno=1 and DLL then exports = append(exports,N) end if
+--13/4/23:
+                atokline = tokline
+                atokcol = tokcol
                 getToken()
                 --
                 -- Assignment on declaration:
@@ -13061,6 +13115,9 @@ integer InElement = 0,
         Expr(pAllops,asBool)
 --6/5/22: (undone)
         if opTopIsOp then PopFactor() end if
+--19/6/23!
+        saveFunctionResultVars(opsidx,NOTINTS)
+
 -- 27/10/22:
 if toktype=LETTER and ttidx=T_from then
     MatchString(T_from)
@@ -13715,6 +13772,9 @@ integer N, isLit, etype
                 col = tokcol
                 Ch = field_name[1]
                 Type = symtab[N][S_vtype]   -- (==S_sig)
+--13/4/23 (wrong/bit late on this case...)
+                atokline = tokline
+                atokcol = tokcol
                 Assignment(N,Type)
             else
                 if Ch!='(' then Undefined() end if
@@ -13765,10 +13825,11 @@ integer N, isLit, etype
 --  mov esi,[#0040225C]                   ;#004270AA: 213065 5C224000            vu 40 00  1   4      
 --  call #00432016 (:%opCallProc)         ;#004270B0: 350 61AF0000               v  00 00  1   5      
 
---DEV...?
+--DEV...? (finally put in, a bit lower down, 5/5/23!!)
 --          if emitON then
+
                 if not and_bits(Type,T_integer) then
-                    Aborp("cannot be routine_id")
+                    Aborp(sprintf("cannot be routine_id (Type is 0b%04b)",Type))
                 end if
                 isLit = (and_bits(symtab[N][S_State],K_lit)=K_lit)
                 PushFactor(N,isLit,T_integer)
@@ -13779,18 +13840,19 @@ integer N, isLit, etype
                 saveFunctionResultVars(opsidx,NOTINTS)  -- save eax if rqd
                 if opTopIsOp then PopFactor() end if
                 if opsidx!=2 then ?9/0 end if
-                integer p1 = opstack[1],
-                        p2 = opstack[2],
-                        opcode = opCallProc
-                if not symtab[p1][S_Init] then
-                    Unassigned(p1)
+                if emitON then -- added 5/5/23
+                    integer p1 = opstack[1],
+                            p2 = opstack[2],
+                            opcode = opCallProc
+                    if not symtab[p1][S_Init] then
+                        Unassigned(p1)
+                    end if
+                    if not symtab[p2][S_Init] then
+                        Unassigned(p2)
+                    end if
+                    agcheckop(opcode)
+                    apnds5({opcode,p1,p2})
                 end if
-                if not symtab[p2][S_Init] then
-                    Unassigned(p2)
-                end if
-                agcheckop(opcode)
-                apnds5({opcode,p1,p2})
---??            apnds5({opCleanup,p2})
                 freeTmp(-opsidx)
 --              ?9/0
             elsif symtab[Type][S_NTyp]=S_Type then
@@ -13798,6 +13860,9 @@ integer N, isLit, etype
 --if tokline=201 and Ch='.' then trace(1) end if
 --if tokline=200 and fileno=1 then trace(1) end if
 --?tokline
+--13/4/23:
+                atokline = tokline
+                atokcol = tokcol
                 getToken()
                 Assignment(N,Type)
 --              Assignment(N,symtab[N][S_ltype])    -- NO NO! 
@@ -13928,7 +13993,15 @@ integer SNtyp
         if opsidx!=0 then ?9/0 end if
     end if
     integer Ntype = T_object
-    asConst = isGlobal
+--  asConst = isGlobal
+--  asConst = iff(nested_globals?true:isGlobal)
+--  asConst = iff(isGlobal?not nested_locals:nested_globals)
+    if isGlobal then
+        asConst = not nested_locals
+    else
+        asConst = nested_globals
+    end if
+    ncdollar = 1
 --DEV/sub allow "constant nested global" and "global constant nested private"... 
 --[erm, "constant global"?? (not that I care, just expected it already was allowed)]
 --[apparently we already allow "global forward" and "forward global", and 
@@ -14094,8 +14167,8 @@ integer SNtyp
                         --  yields the named constant x, so clone and S_Clink it.
                         -- DEV: could we get away with just setting tt[wasttidx+EQ] to O (if same fileno)?
                         --
-        --              N = addSymEntryAt(wasttidx,isGlobal,S_Const,T_object,0,K_litnoclr,wastokcol)
-                        N = addSymEntryAt(wasttidx,isGlobal,S_Const,Ntype,0,K_litnoclr,wastokcol)
+        --              N = addSymEntryAt(wasttidx,isGlobal,S_Const,T_object,0,S_lnc,wastokcol)
+                        N = addSymEntryAt(wasttidx,isGlobal,S_Const,Ntype,0,S_lnc,wastokcol)
                         symtabN = symtab[N]
 --2/1/17: (re-fetch in case S_Nlink updated by addSymEntry! [full desc also added to readme.txt])
                         symtabO = symtab[O]
@@ -14602,7 +14675,7 @@ bool prevset = false
             --
             -- symtab[O] already has a name, so clone and S_Clink it.
             --
-            N = addSymEntryAt(wasttidx,isGlobal,S_Const,T_integer,0,K_litnoclr,wastokcol)
+            N = addSymEntryAt(wasttidx,isGlobal,S_Const,T_integer,0,S_lnc,wastokcol)
             symtabN = symtab[N]
             symtab[N] = 0
             symtab[O] = 0

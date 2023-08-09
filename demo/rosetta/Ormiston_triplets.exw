@@ -7,6 +7,7 @@
 --  can cope with, and use over 6GB of ram, [and take about 11mins 44s, that is on this box at least,]
 --  whereas this processes them on-the-fly, and only uses about 6MB of memory (ie 0.1% of 6GB).
 --
+--/!*
 with javascript_semantics
 
 atom t0 = time()
@@ -106,6 +107,7 @@ end procedure
 ormiston_triplets(iff(platform()=JS?1e8:1e9))
 ?"done"
 wait_key()
+--*!/
 --/*
 {{out}}
 With limit upped to 1e10
@@ -128,6 +130,9 @@ I have not the patience to see whether JavaScript would actually cope with 1e10,
 --faster version (win64 only)
 --Uses that primesieve dll I found, almost no memory at all, like less than 10MB, and is over twelve times faster than the above.
 --It would be nice to find a primesieve.js, obviously capped at 53 not 64 bits but that's way, way, past what this needs anyway.
+--DEV/Known Bug: if p is defined as integer instead of atom, the compiler optimises "while p<1e10 do" to "while true do", since
+--pglobals.e defines MAXINT as #3FFFFFFF (~1e9), and attempts to fix that led to catastrophic failure, especially when running on 
+--64-bit Linux, such that the compiler would no longer self-host. A proper fix has been deferred to 2.0.0 (or later)...
 --/*
 requires("1.0.3")
 requires(WINDOWS)
@@ -171,6 +176,8 @@ while p<1e10 do
     end if
 end while
 showt()
+?"done"
+wait_key()
 --*/
 
 --/*

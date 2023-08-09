@@ -231,12 +231,15 @@ function integer(i, name = "") {
     if ((ti === "undefined") || 
         (ti === "object") || 
         (ti === "string") || 
-        ((ti !== "boolean") && (ti !== "function") && (i!=~~i))) {
+//      ((ti !== "boolean") && (ti !== "function") && (i!=~~i))) {
+        (ti === "function") ||
+        ((ti !== "boolean") && (i!=~~i))) {
         return $typeCheckError(name,i);
     }
     return true;
 }
 let int = integer;
+let bool = integer;
 
 function atom(a, name = "") {
 //7/8/21...
@@ -438,10 +441,10 @@ function sprintf(fmt, args = []) {
 // possible alternative + 94 test cases, see 
 // https://stackoverflow.com/questions/1685680/how-to-avoid-scientific-notation-for-large-numbers-in-javascript
 //  function eToNumber(num) {
-//    let sign = "";
-//    (num += "").charAt(0) == "-" && (num = num.substring(1), sign = "-");
+//    let sgn = "";
+//    (num += "").charAt(0) == "-" && (num = num.substring(1), sgn = "-");
 //    let arr = num.split(/[e]/ig);
-//    if (arr.length < 2) return sign + num;
+//    if (arr.length < 2) return sgn + num;
 //    let n = arr[0], exp = +arr[1];
 //    let w = (n = n.replace(/^0+/, '')).replace('.', ''),
 //      pos = n.split('.')[1] ? n.indexOf('.') + exp : w.length + exp,
@@ -449,7 +452,7 @@ function sprintf(fmt, args = []) {
 //    function r() {return w.replace(new RegExp(`^(.{${pos}})(.)`), `$1.$2`)}
 //    w = exp >= 0 ? (L >= 0 ? s + "0".repeat(L) : r()) : (pos <= 0 ? "0." + "0".repeat(Math.abs(pos)) + s : r());
 //    if (!+w) w = 0;
-//    return sign + w;
+//    return sgn + w;
 //  }
     function flti(precision) {
         let res = argi(),
@@ -558,13 +561,13 @@ function sprintf(fmt, args = []) {
         return n.toString(b);
     }
 
-//  function callback(expr, sign, size, dot, precision, specifier) {
-    function callback(expr, subscript, sign, size, dot, precision, specifier) {
+//  function callback(expr, sgn, size, dot, precision, specifier) {
+    function callback(expr, subscript, sgn, size, dot, precision, specifier) {
         //
         // Replaces a single formatting specification:
         // expr is eg "%4.2f" or "%-20s" (the whole thing)
         // subscript is eg "[2]" for positional args, or undefined
-        // sign is eg '-' or one of "+,=|", or undefined
+        // sgn is eg '-' or one of "+,=|", or undefined
         // size is eg "4" (leading 0 === zero-fill), or undefined
         // dot is eg ".2" or "." or undefined
         // precision is eg "2" or undefined
@@ -621,9 +624,9 @@ function sprintf(fmt, args = []) {
             case 'G': res = eorf(precision).toUpperCase(); break;
             default: crash("unrecognised specifier");
         }
-        if (sign === ',') {
-            if ("df".indexOf(specifier) === -1) {
-                crash('comma only permitted on %d and %f');
+        if (sgn === ',') {
+            if ("aAdf".indexOf(specifier) === -1) {
+                crash('comma-fill only permitted on %a, %A, %d, and %f');
             }
             let showcommas = res.indexOf('.');
             if (showcommas === -1) { showcommas = res.length; }
@@ -632,15 +635,15 @@ function sprintf(fmt, args = []) {
                 showcommas -= 3;
                 res = res.slice(0,showcommas) + ',' + res.slice(showcommas);
             }
-        } else if (sign === '+' && res[0] !== '-') {
+        } else if (sgn === '+' && res[0] !== '-') {
             res = '+' + res;
         }
         if (size) {
-            let pad = (size[0] === '0' && "-+=|".indexOf(sign) === -1 && res.indexOf('-') === -1) ? '0' : ' ';
+            let pad = (size[0] === '0' && "-+=|".indexOf(sgn) === -1 && res.indexOf('-') === -1) ? '0' : ' ';
             let padlen = parseInt(size,10)-res.length;
             if (padlen>0) {
                 let half = Math.floor(padlen/2);
-                switch (sign) {
+                switch (sgn) {
                     case '=': res = pad.repeat(half) + res + pad.repeat(padlen-half); break;
                     case '|': res = pad.repeat(padlen-half) + res + pad.repeat(half); break;
                     case '-': res = res + pad.repeat(padlen); break;
@@ -651,8 +654,8 @@ function sprintf(fmt, args = []) {
         return res;
     }
     //
-    // Replace each %[subscript][sign][[0]size][.[precision]]specifier (eg "%,7.2f") in turn
-    //  (where sign is one of "-+=|," or undefined)
+    // Replace each %[subscript][sgn][[0]size][.[precision]]specifier (eg "%,7.2f") in turn
+    //  (where sgn is one of "-+=|," or undefined)
     //
     const regex = new RegExp(`%(\[-?[0-9]+\])?([-+=|,])?(0?[0-9]+)?([.]([0-9]+)?)?([sqQtncvVdboxXaAeEfgG%])`,'g');
     if (string(args)) {
@@ -724,6 +727,8 @@ function sprint(o,asCh) {
         res = o.toString();
     } else if (o === null) {
         res = "null";
+    } else if (o instanceof Element) {
+        res = "<HtmlElement>";
     } else {
         function cut_tz(v) {
             // remove trailing zeroes
@@ -1072,7 +1077,7 @@ function machine_word() {
 }
 
 function version() {
-    return "1.0.2";
+    return "1.0.3";
 }
 //let IupVersion = version;
 
@@ -1327,7 +1332,16 @@ function date(bMSecs = false) {
 }
 
 function get_routine_info(fn) {
-    return ["sequence",fn.length,0,"",fn.name];
+    let minp = 0, fname;
+    if (integer(fn)) {
+        const e = new Error();
+        const frame = e.stack.split("\n")[2-fn];
+        fname = frame.split(" ")[5];
+    } else {
+        minp = fn.length;
+        fname = fn.name;
+    }
+    return ["sequence",minp,0,"",fname];
 }
 
 // (transpiled directly from pfile.e)
@@ -1496,6 +1510,7 @@ function trace(/*integer*/ i) {
 
 function clear_screen() {
     if (typeof(IupOpen) === "function") { crash("clear_screen() when pGUI detected"); }
+    if (typeof(gMainLoop) === "function") { crash("clear_screen() when xpGUI detected"); }
     $docBody.innerHTML = "";
 //  position(0,0);
 }

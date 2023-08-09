@@ -881,6 +881,7 @@ end procedure
 
 procedure emitHex3(sequence op2, integer i8)
 -- emit a two byte opcode and a one byte immediate
+--DEV 20/6/23 getting 6 (0b0110) vs 4 (0b0100) when compiling p64 with new MAXINT...
 --/**/  #isginfo{op2,0b0100,MIN,MAX,integer,2}  -- sequence of integer length 2
     if length(op2)!=2 then ?9/0 end if  -- compiler should optimise this away!
 --  if not sched then
@@ -2992,7 +2993,7 @@ end if -- NOLT
             return
         end if
         if and_bits(slroot,T_sequence)
-        and and_bits(state1,K_litnoclr)=K_litnoclr then
+        and and_bits(state1,S_lnc)=S_lnc then
             slen = length(ss[S_value])
         end if
 --      if and_bits(state1,K_lit) then return end if
@@ -3114,7 +3115,7 @@ end if -- NOLT
             return
         end if
         if and_bits(slroot2,T_sequence)
-        and and_bits(state2,K_litnoclr)=K_litnoclr then
+        and and_bits(state2,S_lnc)=S_lnc then
             slen2 = length(ss[S_value])
         end if
 --      if and_bits(state2,K_lit) then return end if
@@ -5557,7 +5558,11 @@ end if
                         getSrc()
                         if isFresDst then -- no decref/dealloc:
                             if slroot=T_integer and smin=smax then
-if and_bits(state1,K_rtn) then ?9/0 end if
+--9/7/23:
+--if and_bits(state1,K_rtn) then ?9/0 end if
+if and_bits(state1,K_rtn) then
+    printf(1,"checkme: line 5564 pilx86.e, (emitline=%d, %s)\n",{emitline,filenames[symtab[vi][S_FPno]][2]})
+end if
 --                              emitHex5w(mov_eax_imm32,smin)                   -- mov eax,smin
                                 movRegImm32(eax,smin)                           -- mov eax,smin
                             elsif not isFresSrc then
@@ -15294,6 +15299,8 @@ printf(1,"warning: emitHex5call(%d=%s) skipped for newEmit, pilx86.e line 15009\
 --DEV probably not needed:
                     text = allfiles[fileno]
                     if sequence(gi) then
+?gi
+?symk
 --DEV added 11/12/2011, should (perhaps) be a temporary measure (newEBP) {warning not error, that is)
 --DEV output p1[2] as eg 0b1101, MIN/MAX etc...
                         slen = s5[pc+6]

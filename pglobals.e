@@ -34,7 +34,8 @@ global constant newEBP = 04 -- 4=on, 0=off(ie old style/working)
 --global constant pxversion = {0,8,3},  -- 0.8.3    -- 02/02/21
 --global constant pxversion = {1,0,0},  -- 1.0.0    -- 04/07/21
 --global constant pxversion = {1,0,1},  -- 1.0.1    -- 25/11/21
-global constant phixversion = {1,0,2},  -- 1.0.2    -- 26/02/23
+--global constant pxversion = {1,0,2},  -- 1.0.2    -- 26/02/23
+global constant phixversion = {1,0,3},  -- 1.0.3    -- 07/08/23
                 phixverstr = sprintf("%d.%d.%d",phixversion)
 sequence phixver = phixversion  -- (debug aid, otherwise unused)
 if sequence(phixver) then end if
@@ -227,7 +228,9 @@ global constant S_used = #000001,   -- bit for not used warnings
                 S_used_set_gbl = #1003, -- K_gbl+S_set+S_used       -- DEV S_gsu
                 K_Fres = #002000,   -- a function result
                 K_lit  = #004000,   -- literal flag
-                K_litnoclr = #4200, -- K_lit+K_noclr,               -- DEV S_lnc
+--              K_litnoclr = #4200, -- K_lit+K_noclr,               -- DEV S_lnc
+                S_lnc  = #4200,     -- K_lit+K_noclr,
+                S_lncu = #4201,     -- K_lit+K_noclr+S_Used,
                 K_type = #008000,   -- type() routine parameter
                 K_othr = #010000,   -- other routine parameter
                 K_ridt = #020000,   -- known routine_id target
@@ -894,12 +897,21 @@ global integer LastStatementWasAbort -- avoid emitting opCleanUp after an abort.
 global constant scMerge=1, exprMerge=2, exitMerge=3, ifMerge=4, endIfMerge=5, breakMerge=6
 
 --DEV should these be set to -#FFFFFFFF .. #FFFFFFFF when a 32-bit p.exe is creating a 64-bit exe??
+--20/6/23!! (fail, leave till 2.0.0...)
+--/!*
 global constant MININT =-#40000000,                                             -- -1073741824
+--global atom MININT =-#40000000,                                           -- -1073741824
                 MAXINT = #3FFFFFFF,                                             -- +1073741823
 --              MINATM = float64_to_atom({#FF,#FF,#FF,#FF,#FF,#FF,#EF,#FF}),    -- -1.7976931348623146e308
 --              MAXATM = float64_to_atom({#FF,#FF,#FF,#FF,#FF,#FF,#EF,#7F}),    -- +1.7976931348623146e308
                 MAXLEN = #30000000  -- assume eg length(s)+1 is an integer
-
+--*!/
+--/*
+local constant m = machine_bits()=32
+global atom T_MININT = iff(m?-#4000_0000:-#4000_0000_0000_0000),            -- -1073741824/
+            T_MAXINT = iff(m?+#3FFF_FFFF:+#3FFF_FFFF_FFFF_FFFF),            -- +1073741823/
+            T_MAXLEN = iff(m?+#3000_0000:+#3000_0000_0000_0000) -- assume eg length(s)+1 is an integer
+--*/
 global constant 
     -- (values #00..#FF are as-is bytes)
     --                          -- [read all the following 4s as 8s for 64-bit]

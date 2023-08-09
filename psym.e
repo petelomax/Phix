@@ -1095,7 +1095,7 @@ integer snext
     if not optset[OptWarning] then
         state = S_used_and_set
     end if
-    state += K_litnoclr
+    state += S_lnc
     if slink then
         snext = symtab[slink][S_Clink]
     else
@@ -1589,6 +1589,11 @@ global procedure Alias_C_flags()
     Alias("C_HANDLE",ptr)
     Alias("C_HWND",ptr)
 
+--20/6/23!! (fail)
+--  MININT = iff(X64=0?-#4000_0000:-#4000_0000_0000_0000)
+--  MAXINT = iff(X64=0? #3FFF_FFFF: #3FFF_FFFF_FFFF_FFFF)
+--  MAXLEN = iff(X64=0? #3000_0000: #3000_0000_0000_0000)
+
     ttidx = wasttidx
 end procedure
 
@@ -1966,7 +1971,7 @@ atom pi, inf, nan
     initialConstant("W_BAD_PATH",      -1)
     -- the following is re-calculated/overwritten in DoFormat():
     tt_string("SLASH",-2)
-    T_SLASH = addSymEntry(ttidx,1,T_integer,S_Const,0,K_litnoclr)
+    T_SLASH = addSymEntry(ttidx,1,T_integer,S_Const,0,S_lnc)
     symtab[T_SLASH][S_value] = iff(platform()=WINDOWS?'\\':'/')
 
     -- from pfile.e:
@@ -2645,7 +2650,8 @@ end if
     IAEType = T_integer
 
     initialAutoEntry("bankers_rounding",        S_Func,"FNI",   "pmaths.e",0,E_none,1)
-    initialAutoEntry("begins",                  S_Func,"FOP",   "pvlookup.e",0,E_none)
+--  initialAutoEntry("begins",                  S_Func,"FOP",   "pvlookup.e",0,E_none)
+    initialAutoEntry("begins",                  S_Func,"FOP",   "match.e",0,E_none)
 --9/4/22:
 --  initialAutoEntry("binary_search",           S_Func,"FOP",   "bsearch.e",0,E_none)
     initialAutoEntry("binary_search",           S_Func,"FOPIII","bsearch.e",0,E_none,2)
@@ -2765,7 +2771,7 @@ end if
 --  initialAutoEntry("where",                   S_Func,"FI",    "pfileio.e",0,E_other)
 --  initialAutoEntry("lock_file",               S_Func,"FIIP",  "pfileio.e",0,E_other)
 --end if
-    initialAutoEntry("phi",                     S_Func,"FI",    "phi.e",0,E_other)
+    initialAutoEntry("phi",                     S_Func,"FI",    "gcd.e",0,E_other)
     initialAutoEntry("pq_new",                  S_Func,"FII",   "pqueue.e",0,E_other,0)
     initialAutoEntry("pq_size",                 S_Func,"FI",    "pqueue.e",0,E_none,0)
     initialAutoEntry("pq_empty",                S_Func,"FI",    "pqueue.e",0,E_none,0)
@@ -2817,6 +2823,7 @@ end if
     initialAutoEntry("arccos",                  S_Func,"FN",    "misc.e",0,E_none)
     initialAutoEntry("arcsin",                  S_Func,"FN",    "misc.e",0,E_none)
     initialAutoEntry("atan2",                   S_Func,"FNN",   "pmaths.e",0,E_none)
+    initialAutoEntry("average",                 S_Func,"FON",   "psum.e",0,E_none,1)
     initialAutoEntry("bytes_to_int",            S_Func,"FPI",   "machine.e",0,E_none,1)
     initialAutoEntry("bits_to_int",             S_Func,"FP",    "machine.e",0,E_none)
     initialAutoEntry("ceil",                    S_Func,"FN",    "pmaths.e",0,E_none)
@@ -2861,6 +2868,7 @@ end if
     initialAutoEntry("lcm",                     S_Func,"FON",   "gcd.e",0,E_none,1)
     initialAutoEntry("log10",                   S_Func,"FN",    "log10.e",0,E_none)
     initialAutoEntry("log2",                    S_Func,"FN",    "log10.e",0,E_none)
+    initialAutoEntry("median",                  S_Func,"FP",    "pmaths.e",0,E_none)
     initialAutoEntry("mod",                     S_Func,"FNN",   "pmaths.e",0,E_none)
     initialAutoEntry("mulmod",                  S_Func,"FNNN",  "pmaths.e",0,E_none)
     initialAutoEntry("not_bitsu",               S_Func,"FN",    "ubits.e",0,E_none)
@@ -2957,8 +2965,9 @@ end if
     initialAutoEntry("get_file_name_and_path",      S_Func,"FSI",   "file_utils.e",0,E_none,1)
     initialAutoEntry("get_logical_drives",          S_Func,"FP",    "pfile.e",   0,E_none)
     initialAutoEntry("get_primes",                  S_Func,"FI",    "primes.e",  0,E_none,0)
-    initialAutoEntry("get_primes_le",               S_Func,"FI",    "primes.e",  0,E_none)
+    initialAutoEntry("get_primes_le",               S_Func,"FII",   "primes.e",  0,E_none,1)
     initialAutoEntry("get_routine_info",            S_Func,"FII",   "get_routine_info.e",0,E_none,1)
+    initialAutoEntry("get_possible_constant_names", S_Func,"FOOI",  "get_routine_info.e",0,E_none,1)
 --sequence/string result:
     initialAutoEntry("hll_append",                  S_Func,"FOO",   "hll_stubs.e",0,E_none)     hll_stubs[Z_append] = symlimit
     initialAutoEntry("hll_prepend",                 S_Func,"FOO",   "hll_stubs.e",0,E_none)     hll_stubs[Z_prepend] = symlimit
@@ -3084,8 +3093,10 @@ end if
     initialAutoEntry("machine_func",        S_Func,"FIO",   "pmach.e",0,E_other)
     initialAutoEntry("max",                 S_Func,"FOO",   "pmaths.e",0,E_none)        T_max = symlimit
     initialAutoEntry("maxsq",               S_Func,"FPI",   "pmaths.e",0,E_none,1)      T_maxsq = symlimit
+    Alias("largest",symlimit,"maxsq")
     initialAutoEntry("min",                 S_Func,"FOO",   "pmaths.e",0,E_none)        T_min = symlimit
     initialAutoEntry("minsq",               S_Func,"FPI",   "pmaths.e",0,E_none,1)      T_minsq = symlimit
+    Alias("smallest",symlimit,"minsq")
     initialAutoEntry("peekns",              S_Func,"FOII",  "peekns.e",0,E_other,1)
     initialAutoEntry("peeknu",              S_Func,"FOII",  "peekns.e",0,E_other,1)
     initialAutoEntry("peep",                S_Func,"FII",   "pqueue.e",0,E_other,1)
@@ -3119,8 +3130,8 @@ end if
     initialAutoEntry("read_lines",          S_Func,"FO",    "pfile.e",0,E_other)
     initialAutoEntry("series",              S_Func,"FOOII", "pseries.e",0,E_none,2)
     initialAutoEntry("shift_bits",          S_Func,"FOI",   "shift_bits.e",0,E_none)
-    initialAutoEntry("largest",             S_Func,"FPI",   "psmall.e",0,E_none)
-    initialAutoEntry("smallest",            S_Func,"FPI",   "psmall.e",0,E_none)
+--  initialAutoEntry("largest",             S_Func,"FPI",   "psmall.e",0,E_none)
+--  initialAutoEntry("smallest",            S_Func,"FPI",   "psmall.e",0,E_none)
     initialAutoEntry("set_file_size",       S_Func,"FSN",   "pfile.e",0,E_other)
 
     --DEV 23/3 we do /not/ want these 10 auto-converted to sq_xxx()...

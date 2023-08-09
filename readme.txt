@@ -24,6 +24,20 @@ it will create both a new p.exe and a new pw.exe, again automatically for you.
 
 Please note the following entries are probably more for my benefit than yours.
 
+Version 1.0.3
+13/04/2023: Improved the compilation error reporting in the following case:
+                procedure p()
+                    return true
+                           ^ may not change the value of a constant -- (new)
+                end function
+--(old)         ^ may not change the value of a constant    
+            To achieve this, two new local variables atokline and atokcol are
+            now saved before invoking Assignment() in pmain.e (in one case,
+            quite wrongly, but not sure how that could be improved on, and 
+            in fact merely replicating where it always used to be reported.)
+28/06/2023: Improved the above error to "routine does not return a value",
+            in at least one patently incorrect instance anyway.
+
 Version 1.0.2
 =============
 26/11/2021: Spurious C_PTR in demo\arwen\dll_links.ew caused a cryptic error

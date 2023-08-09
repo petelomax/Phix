@@ -4676,8 +4676,12 @@ local function xpg_gtk_mousemove(atom widget, event, gdx id)
                   ctrl = and_bits(state,GDK_CONTROL_MASK)!=0,
                  shift = and_bits(state,GDK_SHIFT_MASK)!=0,
                    alt = and_bits(state,GDK_ALT_MASK)!=0,
-                     x = get_struct_field(idGdkEventMotion,event,"x",true),
-                     y = get_struct_field(idGdkEventMotion,event,"y",true)
+--DEV under 64-bit GTK3, x was 68.22259521 ... summat not right... [round() prob.temp]
+--                   x = get_struct_field(idGdkEventMotion,event,"x",true),
+--                   y = get_struct_field(idGdkEventMotion,event,"y",true)
+                     x = round(get_struct_field(idGdkEventMotion,event,"x",true)),
+                     y = round(get_struct_field(idGdkEventMotion,event,"y",true))
+
 --printf(1,"mousemove: x:%d, y:%d, ctrl:%d, shift:%d, alt:%d, state:%b\n",
 --          {x,y,ctrl,shift,alt,state})
 --printf(1,"mousemove: x:%d, y:%d, left:%d, middle:%d, right:%d, ctrl:%d, shift:%d, alt:%d\n",
@@ -6334,13 +6338,13 @@ local procedure xpg_Init()
                           :"libgobject-2.0-0.dll"),
                gtp = iff(L?"libgdk_pixbuf-2.0.so.0"
                           :"libgdk_pixbuf-2.0-0.dll"),
-               glb = iff(L?"libglib-2.0-0.so.0"
+               glb = iff(L?"libglib-2.0.so.0"
                           :"libglib-2.0-0.dll"),
-               pan = iff(L?"libpango-1.0-0.so.0"
+               pan = iff(L?"libpango-1.0.so.0"
                           :"libpango-1.0-0.dll"),
-               pnc = iff(L?"libpangocairo-1.0-0.so.0"
+               pnc = iff(L?"libpangocairo-1.0.so.0"
                           :"libpangocairo-1.0-0.dll"),
-               car = iff(L?"libcairo-2.so.0"
+               car = iff(L?"libcairo.so.2"
                           :"libcairo-2.dll"),
         initial_dir = current_dir()
         if bWinders then

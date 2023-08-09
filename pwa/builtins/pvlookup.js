@@ -937,33 +937,3 @@
     }
     return result;
 }
-//**
-// Test whether a sequence is the head of another one.
-// 
-// Parameters:
-//      # ##sub_text## : an object to be looked for
-//  # ##full_text## : a sequence, the head of which is being inspected.
-//
-// Returns:
-//              An **integer**, 1 if ##sub_text## begins ##full_text##, else 0.
-//
-// Example 1:
-// <eucode>
-// s = begins("abc", "abcdef")
-// -- s is 1
-// s = begins("bcd", "abcdef")
-// -- s is 0
-// </eucode>
-//
-// See Also:
-//     [[:ends]], [[:head]]
-
-/*global*/ function begins(/*object*/ sub_text, /*sequence*/ full_text) {
-    let /*integer*/ lf = length(full_text);
-    if (lf===0) { return false; }
-    if (atom(sub_text)) {
-        return equal(sub_text,$subse(full_text,1));
-    }
-    let /*integer*/ ls = length(sub_text);
-    return ls<=lf && (equal(sub_text,$subss(full_text,1,ls)));
-}
