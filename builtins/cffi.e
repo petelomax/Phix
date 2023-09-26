@@ -1085,7 +1085,9 @@ global function define_struct(string struct_str, integer machine=machine_bits(),
         sidx += length(pp1)
         ch = s[sidx]
         skipspaces()
-        pack1 = true
+        if machine=32 then -- as per docs
+            pack1 = true
+        end if
     end if
     integer typedef = 0
     string token = stoken()
