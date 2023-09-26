@@ -566,7 +566,9 @@ bool bFunc = false
     return {mname,substruct,mtype,size,align,signed}
 end function
 
-function parse_c_struct(bool bStruct, integer machine, base)
+--26/9/23
+--function parse_c_struct(bool bStruct, integer machine, base)
+function parse_c_struct(bool bStruct, integer machine, base, bool pack1=false)
 --
 -- internal routine:
 --  bStruct is 1 for struct, 0 for union
@@ -615,15 +617,18 @@ sequence res
 --      isstruct = equal(mtype,"struct")
         isstruct = (equal(mtype,"struct") and ch='{')
         if isstruct or equal(mtype,"union") then
-            res = parse_c_struct(isstruct,machine,base+sizeofS)
+--          res = parse_c_struct(isstruct,machine,base+sizeofS)
+            res = parse_c_struct(isstruct,machine,base+sizeofS,pack1)
             {subname,subsize,align,submembers} = res
 
 --DEV pad to align?
-            k = remainder(sizeofS,align)
-            if k then ?9/0 end if
---              padding = align-k
---              sizeofS += padding
---          end if
+            if not pack1 then
+                k = remainder(sizeofS,align)
+                if k then ?9/0 end if
+--                  padding = align-k
+--                  sizeofS += padding
+--              end if
+            end if
             for i=1 to length(submembers[1]) do
                 mname = submembers[1][i]
                 if length(subname) then
@@ -678,7 +683,8 @@ sequence res
                 if size>widest then
                     widest = size
                 end if
-                if bStruct then
+--              if bStruct then
+                if bStruct and not pack1 then
                     k = remainder(sizeofS,align)
                     if k then
                         sizeofS += align-k
@@ -704,9 +710,11 @@ sequence res
         end if
         if ch='}' then exit end if
     end while
-    k = remainder(sizeofS,widest)
-    if k then
-        sizeofS += widest-k
+    if not pack1 then
+        k = remainder(sizeofS,widest)
+        if k then
+            sizeofS += widest-k
+        end if
     end if
     {} = stoken()   -- discard '}'
     if ch!=-1 then
@@ -1039,6 +1047,7 @@ procedure init_cffi()
 end procedure
 
 --<?
+--with trace
 --global function define_struct(string struct_str, integer machine=0, integer add=1)
 global function define_struct(string struct_str, integer machine=machine_bits(), bAdd=true)
 --
@@ -1063,10 +1072,21 @@ global function define_struct(string struct_str, integer machine=machine_bits(),
 ----        end if
 --      machine = machine_bits()
 --  end if
+--trace(1)
     s = struct_str
     sidx = 1
     ch = s[1]
     skipspaces()
+--26/9/23:
+    bool pack1 = false
+    if ch='#' then
+        string pp1 = "#pragma pack(1)"
+        assert(s[sidx..sidx+length(pp1)-1]==pp1)
+        sidx += length(pp1)
+        ch = s[sidx]
+        skipspaces()
+        pack1 = true
+    end if
     integer typedef = 0
     string token = stoken()
     if equal(token,"typedef") then
@@ -1078,7 +1098,8 @@ global function define_struct(string struct_str, integer machine=machine_bits(),
     end if
 --?"pcs"
 -- 19/2/21
-    sequence res = parse_c_struct(1,machine,0)
+--  sequence res = parse_c_struct(1,machine,0)
+    sequence res = parse_c_struct(1,machine,0,pack1)
 --/*
     try
         res = parse_c_struct(1,machine,0)
