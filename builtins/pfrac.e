@@ -1,7 +1,7 @@
 --DEPRECATED - just use mpq, see eg bernoulli() below
 --erm/DEV belay that, see https://rosettacode.org/wiki/Arithmetic/Rational#Phix which is 30% faster than mpq...
 --
--- builtins/pfrac.e
+-- builtins\pfrac.e
 --
 --  DEV incomplete/in progress/undocumented 
 --  rational fraction handling
@@ -520,7 +520,7 @@ for m=0 to 60 do
 end for
 
 ==oh, that has since been replaced by:
-include builtins/mpfr.e
+include builtins\mpfr.e
 procedure bernoulli(mpq rop, integer n)
     sequence a = mpq_inits(n+1)
     for m=1 to n+1 do

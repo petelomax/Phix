@@ -18,7 +18,7 @@
           <br>
             <a href="gdx.htm">gdx</a> menu = gMenu(<a href="sequence.htm">sequence</a> children,
                                                    <a href="rtn.htm">rtn</a> handler,
-                                                   <a href="integer.htm#bool">bool</a> bRadio=false)
+                                                   <a href="integer.htm#bool">bool</a> bRadio=<a href="logicops.htm#tf">false</a>)
           <!--
                                                    <a href="string.htm">string</a> attributes="",
                                                    <a href="html/glossary.htm#dwordseq">dword_seq</a> args={})
@@ -38,7 +38,7 @@
           <br>
             handler: function for processing menu interactions, see <a href="#HANDLER">HANDLER</a> below.<br>
             bRadio: for popup menus only, instead of '?' in the (non-existent) submenu title, see below.
-          <!--            For more information on the attributes and args parameters see <a href="gSetAttributes.htm">gSetAttributes</a>. -->
+          <!--            For more information on the attributes and args parameters see <a href="gSetAttributes.htm">gSetAttributes</a>(). -->
           <br>
           <br>
             Returns: the identifier of the created element.
@@ -73,9 +73,7 @@
           <b>Example:</b>
          </td>
          <td>
-          <p align="center">
-           <img alt="gMenu" src="images/gMenu.png" width="240" height="80"/>
-          </p>
+          <div style="float:left;">
 <!--eucode>
 -- demo\xpGUI\gMenu.exw, somewhat simplified
 include xpGUI.e
@@ -124,20 +122,27 @@ gMainLoop()
 <font color="#7060A8">gShow</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">)</font>
 <font color="#7060A8">gMainLoop</font><font color="#0000FF">()</font>
 </pre>
-<!--          </small>-->
+          </div>
+          <div style="float:right;">
+           <img alt="gMenu" src="images/gMenu.png" width="240" height="80"/>
+           <div style="clear:right;" ><small><i>and when opened, showing an icon on a menu entry:</i></small></div>
+           <img alt="gMenu open" style="clear:right;" src="images/gMenuo.png" style="padding-top: 5px;" width="240" height="122"/>
+          </div>
+          <div class="clear"></div>
           <br>
-            The "children" structure should be fairly self-explanatory. Each entry is:
+            The "children" structure (MAIN_MENU above) should be fairly self-explanatory. Each entry is:
             <ul>
-              <li>{string menu_item, integer id} for a "leaf" menu entry, or </li>
+              <li>{string menu_item, [<a href="gImage.htm">gImage</a>,] integer id} for a "leaf" menu entry, or </li>
               <li>any of {"|","-",'|','-'} for a separator (which are all treated identically), or </li>
               <li>{string submenu, [integer id,] sequence children}</li>
             </ul>
-            That final [nested sub-]children obviously follows the exact same rules, recursively.
+            That final [nested sub-]children obviously follows the exact same rules, recursively, as deep as you like.<br>
+            There is of course nothing to prevent such a menu from being built dynamically, rather than it being a constant.
             <br>
             <br>
             There is no id on the &File menu, hence you cannot enable/disable it, and won&rsquo;t be notified on open or mouseover.<br>
-            It would also not be possible to set/get the checked status, except for the two facts that you cannot have checkboxes
-            on a [sub]menu[header], only menu items, and also it is an outright error not to have an id on "leaf" items anyway.
+            It would also not be possible to set/get the checked status, except for the fact that you cannot have checkboxes on
+            [sub]menu[header]s, only menu items, and also it is an outright error not to have an id on "leaf" items anyway.
             In contrast, the presence of EDIT_MENU means you get events, can change the text, etc.
             <br>
             <br>
@@ -145,12 +150,17 @@ gMainLoop()
             and no different to using a preceding "enum NEW,...", less the tedious repetition and first opportunity for silly typos. 
             You could of course also use [nested] "NEW:=17" style declarations instead if preferred, perhaps more effort to maintain but 
             possibly sometimes a little easier to debug, since you can see straightaway what a 17 might refer to, without any counting.
+            On that note, pGUI.e contains several uses of vslice() to help map between meaningless numbers and human readable strings.
             <br>
             <br>
-            There is no need to keep ids in ascending order, nor any prohibition on using say [#]020301 as some app-specific meaning.
+            There is no need to keep ids in ascending order, nor any prohibition on using say [#]0301 as some app-specific meaning,
+            though certainly under WinAPI you are limited to 16 bits, and it is probably wise to limit yourself to 1..#7FFF (=32767),
+            and of course separate menus can use the same ids for completely different purposes, as long as they either have different
+            <a href="#HANDLER">HANDLER</a> or it copes/uses the menu gdx parameter to differentiate any clashes.
             <br>
             <br>
-            See below or the unabridged gMenu.exw for further details of popups, radios, checkboxes, and [DEV] images.
+            See below or the unabridged gMenu.exw for further details of popups, radios, checkboxes, and images [the cut and paste entries
+            of the second image have been removed from the source code here for clarity, see that file].
          </td>
         </tr>
         <tr>
@@ -159,7 +169,7 @@ gMainLoop()
          </td>
          <td>
             A menu can be the menubar of a dialog, as shown above, or a popup menu.<br>
-            For the former it <i>must</i> be the first element of a gDialog(gVBox({})) construct.<br>
+            For the former it <i>must</i> be the first element of a gDialog(gVbox({})) construct.<br>
             For the latter it <i>must not</i> have a parent, ie be no part of any dialog hierarchy. 
             <br>
 <!--
@@ -179,6 +189,8 @@ gMainLoop()
             <br>
             A popup menu is displayed for the user and disappears when an item is selected. Under GTK and JavaScript control returns
             immediately, however under WinAPI that does not happen until the menu has gone, though the main message loop remains active.
+            Obviously, therefore, you need to deal with the menu selection immediately in the <a href="#HANDLER">HANDLER</a> routine; were
+            you instead to save that and deal with it when gPopupMenu returns, that would only work properly under WinAPI.
             <br>
             <a name=menuchk></a>
             <br>
@@ -186,12 +198,22 @@ gMainLoop()
             A submenu item with a leading '?' makes the first set of checked menu items on the submenu ("") into a radio set.<br>
             In the case of a popup menu there is no (top-level) submenu item title for that, so the bRadio flag is used instead.<br>
             That set is terminated by the next separator or submenu after one or more checked items have been seen.<br>
+<!-- Erm, it is not particularly helpful to advertise very single one of my random thoughts...
             <small><i>[I could probably quite easily make "?-" a separator that starts a 2nd+ radio group, should that ever be needed.]</i><br></small>
             <small><i>[DEV: perhaps I should instead use "??" to start a new group, "?+" to specify checked, "?." to end a group?]</i><br></small>
+-->
             The command ids on those items (such as NEW/OPEN/CLOSE above) must form a contiguous integer range, that is for a radio group, though 
-            they need not be in order, with the lowest numerically being initially selected. Should you want to set a default radio from some kind 
+            they need not be in order, with the lowest numerically being initially selected. 
+<!-- Grandma, see this here egg, this is how you should suck it...
+            Should you want to set a default radio from some kind 
             of config file, then your command-ids would have to be variables rather than constants, and I would recommend starting with say 
             {2,3,4,5} then just swapping the 2 with whichever one you wanted to be the default, ie {2,3,4,5}|{3,2,4,5}|{4,3,2,5}|{5,3,4,2} iyswim.
+-->
+            <br>
+            <br>
+            Menu items can also show an icon before the text, how nicely that plays with checkboxes and radio buttons has not yet been tested.<br>
+            Under WinAPI such icons are not naturally transparent, so <a href="gImage.htm">gImage_from_XPM</a> lets you specify "MENU" as the
+            usage, to replace any transparent pixels with the menu background colour.
 <!--
             <br>
             <br>
@@ -205,7 +227,7 @@ gMainLoop()
          </td>
          <td>
             <a name=MenuAttr></a>
-            All menu attributes are set via gMenuSetAttribute() rather than the usual gSetAttribute(), likewise get.
+            All menu attributes are set via gMenuSetAttribute() rather than the usual gSetAttribute(), likewise Get.
             <br>
             <br>
             <b>gMenuSetAttribute</b>(<a href="gdx.htm">gdx</a> menu, <a href="integer.htm">integer</a> id, 
@@ -263,16 +285,35 @@ gMainLoop()
             item is significantly simpler that way, plus you don&rsquo;t want to risk it getting left in a nothing selected/invalid state anyway.
          </td>
         </tr>
-
+<!-- done differently (DEV: still needs work, eg change transparency/replace image with a different background version when highlit...)-->
         <tr>
          <td>
-?         IMAGE, IMPRESS
+          IMAGE
+<!--        , IMPRESS-->
          </td>
          <td>
-            Sadly, not particularly high on my to-do list. Needs more work, of course, on <a href="gImage.htm">gImage</a>() first.
+<!--            Sadly, not particularly high on my to-do list. Needs more work, of course, on <a href="gImage.htm">gImage</a>() first.-->
+            (replace only) Under GTK xpGUI initially creates a GtkImageMenuItem rather than GtkMenuItem when the menu is first created, hence 
+            you <i>cannot</i> set an image on a menu item which has not had one from the get-go, you can however replace it. <small>(Of course
+            I could make it destroy one and create the other, but you/the programmer could always use a blank image.)</small>
+            <br>
+            <br>
+DEV: in progress, or at least planned:<br>
+            Under WinAPI xpGUI uses this to replace highlit menu item icons with the appropriate background colour, to mimic transparency.
+<!--
+            , rather than faff 
+            about(/pick a fight) with "pre-multiplied alpha" images or load WIC and add 12-15 seconds to startup (I kid thee not). WIC is the
+            new (2006) Windows Imaging Component that supports (a very scattered few) third party codecs but of course does not support (say) 
+            XPG or SVG (or for that matter many of the newer web-optimised image formats, not that xpGUI does any better), and does not allow 
+            any metadata to be stored against PNG images (quite specifically, for reasons unknown), and (surprise!) needs .NET 3.0 installed.
+            Anyway, what I really meant to say is: be warned, stuff that should be dirt-simple rarely is.
+-->
+            <br>
+            <br>
+            Note that images + check/radio buttons would be considered poor design and rather mangle the menu layout (on WinAPI anyway).
+            <br>
          </td>
         </tr>
-
 <!--
         <tr>
          <td>
@@ -319,7 +360,7 @@ gMainLoop()
             A fatal error occurs if an attempt is made to retrieve a menu title before the menu has been mapped - strings within the original 
             nested children structure parameter of gMenu() would not have been processed before that point, and it is a fairly strong indicator
             of some sort of logic error to attempt such before the window/popup menu has even been displayed, anyway. At a push you could perhaps 
-            invoke <a href="gMap.htm">gMap</a> explicitly yourself, assuming you are really sure that&rsquo;s alright.
+            invoke <a href="gMap.htm">gMap</a> explicitly yourself, assuming you were really sure that&rsquo;s alright.
          </td>
         </tr>
 <!--
@@ -372,7 +413,8 @@ gMainLoop()
             function handler(<a href="gdx.htm">gdx</a> menu, integer id [,bool bHighlight])<br>
             menu: identifier of the (toplevel) menu, as originally returned from gMenu().<br>
             id: identifier of the menu entry (must be unique within each menu).<br>
-            bHighlight: (optional) if true the event is just select/mouseover, false for an actual click.
+            bHighlight: (optional) when <a href="logicops.htm#tf">true</a> the event is just select/mouseover, 
+            <a href="logicops.htm#tf">false</a> for an actual click or keyboard activation.
 <!-- aside: since JavaScript is a typeless language, it would never be able to distinguish handler(menu,id) from handler(id,bHighlight). -->
             <br>
             <br>
@@ -387,17 +429,29 @@ DEV: pwa/p2js is going to need unique ids, unless we can make them say "mid%d_%d
             a longer description of what a menu entry does in a status bar, say, as mouseover and similar events occur. As noted 
             above, signals from sub-menus opening (there are no close signals) and highlighting events are only sent when an id 
             is actually specified on the individual menu[item]s.
+<!-- erm, not really helpful:
+            <br>
+            <br>
+            I considered making gdx menu optional, since it is often of limited practical use, however it is simply not possible
+            to distinguish (menu,id) from (id,bHighlight), say, at least not unambiguously in the general case, especially (with
+            JavaScript being a <a href="glossary.htm#typeless">typeless</a> language and) since there is no and cannot be any 
+            guarantee some id does not have a completely different meaning on two different menus. Likewise there is no possible 
+            prohibition on using the same handler for multiple menus. <small>(There isn&rsquo;t and there clearly shouldn&rsquo;t 
+            be, albeit quite unnecessary and probably bad form should there be <i>zero</i> overlap.)</small>
+-->
 <!--
              Note that
             highlight events are only guaranteed on menu items (such as COPY above) but may or may not occur on sub-menus (such
             as EDIT_MENU above) on different run-time backends.
 -->
+<!-- no real need to say his either...
             <br>
             <br>
-            This handler is usually specified on the initial gMenu() call that creates the menu, but technically that can be NULL and the  
-            handler set later in the usual manner, being specifically here <a href="gSetHandler.htm">gSetHandler</a>(menu,"HANDLER",handler).
-            It is completely illegal, however, for a menu not to have a valid handler by the time it is shown (ie it crashes rather loudly 
-            in preference to mutely doing nowt).
+            This handler is usually specified on the initial gMenu() call that creates the menu, but technically that can be NULL 
+            and the handler set later in the usual manner, ie <a href="gSetHandler.htm">gSetHandler</a>(menu,"HANDLER",handler).
+            A fatal error occurs should a menu not to have a valid handler by the time it is shown, ie it crashes rather loudly 
+            in preference to mutely doing nowt.
+-->
             <br>
             <br>
 <!--        You might, for instance, want to <a href="#MenuAttr">gMenuSetAttribute</a>(menu,PASTE,"ACTIVE",clipboard_contains_text()). -->

@@ -28,12 +28,12 @@
           <b>Description:</b>
          </td>
          <td>
-            Creates a checkbox interface element, also sometimes known as a toggle. It is a two-state (on/off) button.
+            Creates a checkbox interface element, also known as a toggle. It is a two-state (on/off) button.
             <br>
             <br>
             title: Text to be shown, can be NULL. Sets the <a href="gSetAttribute.htm#TITLE">TITLE</a> attribute.<br>
             value_changed: an (optional) procedure invoked when toggled, see <a href="#VALUE_CHANGED">VALUE_CHANGED</a> below.<br>
-            For more information on the attributes and args parameters see <a href="gSetAttributes.htm">gSetAttributes</a>.<br>
+            For more information on the attributes and args parameters see <a href="gSetAttributes.htm">gSetAttributes</a>().<br>
             This is a <a href="g_paranormal.htm">paranormalised function</a> <small>(see <a href="#tech" onclick="opentech()">technicalia</a>).</small>
             <br>
             <br>
@@ -64,13 +64,14 @@
           <b>Example:</b>
          </td>
          <td>
-            <p align="center"><img alt="gCheckbox" src="images/gCheckbox.png" width="240" height="80"/></p>
+          <div style="float:left;">
 <!--eucode>
 -- demo\xpGUI\gCheckbox.exw
 include xpGUI.e
 
-procedure value_changed(gdx chk, bool bChecked)
-    gSetAttribute(gGetDialog(chk),"TITLE","gCheckbox:%t",{bChecked})
+procedure value_changed(gdx chk, bool bState)
+    gdx dlg = gGetDialog(chk)
+    gSetAttribute(dlg,"TITLE","gCheckbox:%t",{bState})
 end procedure
 
 gdx chk = gCheckbox("Is this checked?",value_changed),
@@ -83,8 +84,9 @@ gMainLoop()
 <font color="#000080"><i>-- demo\xpGUI\gCheckbox.exw</i></font>
 <font color="#008080">include</font><font color="#000000"> xpGUI.e
 </font>
-<font color="#008080">procedure</font><font color="#000000"> value_changed</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> chk</font><font color="#0000FF">,</font><font color="#004080"> bool</font><font color="#000000"> bChecked</font><font color="#0000FF">)</font>
-<font color="#7060A8">    gSetAttribute</font><font color="#0000FF">(</font><font color="#7060A8">gGetDialog</font><font color="#800000">(</font><font color="#000000">chk</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#008000">"TITLE"</font><font color="#0000FF">,</font><font color="#008000">"gCheckbox:%t"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">bChecked</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#008080">procedure</font><font color="#000000"> value_changed</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> chk</font><font color="#0000FF">,</font><font color="#004080"> bool</font><font color="#000000"> bState</font><font color="#0000FF">)</font>
+<font color="#7060A8">    gdx</font><font color="#000000"> dlg</font><font color="#0000FF"> =</font><font color="#7060A8"> gGetDialog</font><font color="#0000FF">(</font><font color="#000000">chk</font><font color="#0000FF">)</font>
+<font color="#7060A8">    gSetAttribute</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">,</font><font color="#008000">"TITLE"</font><font color="#0000FF">,</font><font color="#008000">"gCheckbox:%t"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">bState</font><font color="#800000">}</font><font color="#0000FF">)</font>
 <font color="#008080">end procedure
 </font>
 <font color="#7060A8">gdx</font><font color="#000000"> chk</font><font color="#0000FF"> =</font><font color="#7060A8"> gCheckbox</font><font color="#0000FF">(</font><font color="#008000">"Is this checked?"</font><font color="#0000FF">,</font><font color="#000000">value_changed</font><font color="#0000FF">),</font>
@@ -93,6 +95,8 @@ gMainLoop()
 <font color="#7060A8">gShow</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">)</font>
 <font color="#7060A8">gMainLoop</font><font color="#0000FF">()</font>
 </pre>
+          </div>
+          <img alt="gCheckbox" style="float:right;" src="images/gCheckbox.png" width="240" height="80"/>
          </td>
         </tr>
         <tr>
@@ -106,7 +110,7 @@ gMainLoop()
             <br>
             <br>
 -->
-            Checkboxes are activated using the Space key, or by being clicked.
+            Checkboxes are activated/toggled using the Space key, or by being clicked.
             <br>
             <br>
             Since GTK offers no apparent facility for checkboxes on the right of the text, the native support for such in WinAPI is not exposed, 
@@ -121,7 +125,7 @@ gMainLoop()
          <td>
             <b>gRadio</b>(<a href="gdx.htm">gdx</a> ids) specifies a set of mutually exclusive toggles, where ids is a (flat) 
             <a href="sequence.htm">sequence</a> of toggles which have already been added to the dialog hierarchy by some other means.
-            Note that radio groups (and checkboxes) on <a href="gMenu.htm#menuchk">menus</a> are handled quite differently.
+            Note that radio groups (and checkboxes) are <a href="gMenu.htm#menuchk">handled quite differently on menus</a>.
             <br>
             <br>
             Should a dialog contain more than one radio group, be aware the first element of ids and the tab order of the dialog determine 
@@ -137,14 +141,17 @@ gMainLoop()
             Also note that results from gRadioItem() before the dialog has been mapped/displayed are officially undefined/unsupported.
             <br>
             <br>
-            You would normally set a default explicitly, and can use the <a href="#VALUE">VALUE</a> attribute on individual toggles normally,
-            except that it is illegal to set a toggle in a radio group off, and while you can set a <i>single</i> toggle on as a default, 
+            You would normally set a default explicitly, otherwise different backends <i>may</i> default differently, and otherwise the 
+            <a href="#VALUE">VALUE</a> attribute may be used as normal, except it is illegal to set a radio group toggle off, and that 
+            any multiple pre-mapping ons would be applied in mapping rather than chronological order.
+            <!--, and while you can set a <i>single</i> toggle on as a default, 
             attempting to then alter that <i>before</i> mapping/display would most likely a) elude some special magic in the backend since
             that hasn&rsquo;t kicked in yet, eg leaving two items selected, <i>and</i> b) flip some valid internal "todo" entry into an 
             "illegal off". Some earlier code which automatically sets the default, if none, to the numerically lowest id in ids has been
             left in, but I wouldn&rsquo;t personally rely on that: obviously if it works, fine, but should it start to behave mysteriously
             after modifying something apparently unrelated, don&rsquo;t say I didn&rsquo;t warn you, and I shall only care if an explicit
             "set that" should singularly somehow fail to instantly fix it.
+-->
             <br>
             <br>
             See demo\xpGUI\gRadio.exw for an example, screenshot <a href="xpelements.htm#gRadio">here</a>.
@@ -169,7 +176,7 @@ gMainLoop()
             Possible values: "ALEFT", "ACENTER" and "ARIGHT",  combined to "ATOP", "ACENTER" and "ABOTTOM". Default: "ACENTER:ACENTER". 
             Partial values are also accepted, like "ARIGHT" or ":ATOP", the other value will be used from the current alignment. 
             In Motif, vertical alignment is restricted to "ACENTER". 
-            In Windows works only when Visual Styles is active. Text is always left aligned. (since 3.0)
+            In Windows works only when Visual Styles is active. Text is always left aligned.
          </td>
         </tr>
 -->
@@ -190,7 +197,7 @@ gMainLoop()
 ?         PROPAGATEFOCUS
          </td>
          <td>
-            (non inheritable): enables the focus handler forwarding to the next native parent with FOCUS_CB defined. Default: NO. (since 3.23)
+            (non inheritable): enables the focus handler forwarding to the next native parent with FOCUS_CB defined. Default: NO.
          </td>
         </tr>
 -->
@@ -215,7 +222,7 @@ gMainLoop()
          <td>
             (creation only) Hides the toggle borders until the mouse enter the toggle area when the toggle is not checked. 
             If the toggle is checked, then the borders will be shown even if flat is enabled. 
-            Used only when IMAGE is defined. Can be YES or NO. Default: NO. (since 3.3)
+            Used only when IMAGE is defined. Can be YES or NO. Default: NO.
          </td>
         </tr>
 -->
@@ -294,7 +301,8 @@ gMainLoop()
           VALUE
          </td>
          <td>
-            Toggle&rsquo;s state. Can be true/"ON", false/"OFF" or "TOGGLE" (inverts the current state). Default: false. <br>
+            Toggle&rsquo;s state. Can be <a href="logicops.htm#tf">true</a>/"ON", <a href="logicops.htm#tf">false</a>/"OFF" or "TOGGLE" 
+            (inverts the current state). Default: <a href="logicops.htm#tf">false</a>. <br>
             A toggle in a radio group cannot be set to false/off, setting it on automatically clears the "previously on" toggle.
          </td>
         </tr>
@@ -324,7 +332,7 @@ gMainLoop()
 <!--            <a href="gSetAttribute.htm#MAXSIZE">MAXSIZE</a>,-->
             <a href="gSetAttribute.htm#TIP">TIP</a>, 
             <a href="gSetAttribute.htm#TITLE">TITLE</a>
-            <a href="gSetAttribute.htm#SIZE">SIZE</a>,
+            <a href="gGetAttribute.htm#SIZE">SIZE</a>,
 <!--            <a href="gSetAttribute.htm#RASTERSIZE">RASTERSIZE</a>,-->
 <!--            <a href="gSetAttribute.htm#ZORDER">ZORDER</a>, -->
             <a href="gSetAttribute.htm#VISIBLE">VISIBLE</a>.
@@ -367,16 +375,18 @@ gMainLoop()
             <!--Called after the <a href="#CLICK">CLICK</a> handler, but under the same context.-->
             <br>
             <br>
-            procedure value_changed(<a href="gdx.htm">gdx</a> id, <a href="integer.htm#bool">bool</a> bChecked)<br>
+            procedure value_changed(<a href="gdx.htm">gdx</a> id[, <a href="integer.htm#bool">bool</a> bChecked])<br>
             id: identifier of the element that activated the event.<br>
-            bChecked: true(1) if the toggle&rsquo;s state is on; false(0) if it is off.
+            bChecked: <a href="logicops.htm#tf">true</a>(1) if the toggle&rsquo;s state is on; <a href="logicops.htm#tf">false</a>(0) if it is off.
             <br>
             <br>
             Note that in a radio group, the raw WinAPI has a tendency to send "off" signals to all other toggles, whereas GTK more 
-            sensibly only signals the one off toggle that actually changed, hence xpGUI deliberately only forwards the "on" signal.
+            sensibly only signals the one off toggle that actually changed, hence xpGUI deliberately only forwards the "on" signal
+            for toggles that are part of a radio group.
             As mentioned above, using <a href="#gRadioItem">gRadioItem</a>() within a VALUE_CHANGED handler (for an item of that
             very same radio group) is rather foolish, and thankfully completely pointless, since you have already been (/only get) 
-            passed the "on" id anyway.
+            passed the "on" id anyway. For that reason, bChecked can be omitted, however a fatal error occurs should a handler 
+            without it ever be triggered on a non-radio checkbox.
          </td>
         </tr>
         <tr>
@@ -444,8 +454,11 @@ gMainLoop()
             be of the documented types, after being repositioned via xpGUI.e/paranormalise_traa().
             <br>
             <br>
-            Note that gCheckbox(attributes) is distinguished from gCheckbox(title) by the presence of an '=' character,
+            Note that at creation gCheckbox(attributes) is distinguished from gCheckbox(title) by the presence of an '=' character,
             see <a href="g_paranormal.htm#eqch">here</a>.
+            <br>
+            <br>
+            Tri-state checkboxes, which I have never personally found much use for, are left as an exercise for the reader.
          </td>
         </tr>
        </table>

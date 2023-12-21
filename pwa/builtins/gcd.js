@@ -4,7 +4,7 @@
 // builtins\gcd.e
 // ==============
 //
-//  Implements gcd(), lcm() [aka hcf(), aliased in psym.e], and $phi().
+//  Implements gcd(), lcm() [aka hcf(), aliased in psym.e], and phi().
 //
 
 /*global*/ function gcd(/*object*/ u, /*atom*/ v=0) {
@@ -67,7 +67,7 @@ let hcf = gcd;
 }
 //
 //moved from:
-// builtins\$phi.e (an autoinclude)
+// builtins\phi.e (an autoinclude)
 // ==============
 //
 //  Implements Euler's $totient function
@@ -76,9 +76,9 @@ let hcf = gcd;
                  // max()
 let /*integer*/ $pinit = 0; // 0 = uninitialised, else kept as length($fact)
 let /*sequence*/ $fact,  // smallest prime factor of n (1 if n is prime)
-                 $totient; // cached $phi(n) values
+                 $totient; // cached phi(n) values
 
-/*global*/ function $phi(/*integer*/ n) {
+/*global*/ function phi(/*integer*/ n) {
     if (n<=1) { return 1; }
     if (n>$pinit) {
         if ($pinit===0) {
@@ -133,7 +133,7 @@ let /*sequence*/ $fact,  // smallest prime factor of n (1 if n is prime)
                 fp *= f
                 m /= f
             end while
-            res = $phi(m)*(f-1)*fp
+            res = phi(m)*(f-1)*fp
         end if
         $totient[n] = res
     end if

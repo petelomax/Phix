@@ -1,0 +1,1020 @@
+--
+-- demo\xpGUI\gtk_scroll.exw
+-- =========================
+--
+-- DEV this is all wrong: what I want is a couple of independent scrollbars
+--      and a fixed size canvas, and draw the right bits on that from "".
+--      (oh, yeah, the canvas should be properly shrinkable too....)
+--
+--  See demo\xpGUI\scrolla.exw for the WinAPI equivalent, and (hopefully!)
+--      demo\xpGUI\scroller.exw for the xpGUI equivalent.                       -- [DONE]
+--ERM:
+--X     demo\xpGUI\gScrollbar.exw for the xpGUI equivalent.
+--
+--X NOTE: the stupid disappearng scrollbars of GTK3 are not my problem.
+--
+-- TODO: parchment background, limited/fixed canvas size, centering, focus rect,
+--  but: zoom should really be re-done in scrolla.exw as drawRectangleh() mods
+--       rather than via StretchBlt(), or am I talking nonsense...??
+-- AHHH: This is all wrong: it could trigger the creation of a 188TBcanvas!!
+--       Actually, scrolla is almost right, except it is still risking "".
+--  The final xpGUI version should also have the canvas be draggable.   [FIXED in scroller.exw]
+--
+--(with NULL to auto-create an adjustment)
+--GtkWidget *gtk_hscrollbar_new( GtkAdjustment *adjustment );
+--GtkWidget *gtk_vscrollbar_new( GtkAdjustment *adjustment );
+--with trace
+--requires(64,true)
+include cffi.e
+
+constant currdir = current_dir(),
+         m = machine_bits(),
+         gtkdir = sprintf("win_gtk%d",m)
+printf(1,"begin(%d bits)\n",m)
+assert(chdir(gtkdir))
+constant gtk = iff(m=32?"libgtk-win32-2.0-0.dll":"libgtk-3-0.dll"),
+         gdk = iff(m=32?"libgdk-win32-2.0-0.dll":"libgdk-3-0.dll"),
+         GTKLIB = open_dll(gtk), 
+         GDKLIB = open_dll(gdk),
+         GTKGDO = open_dll("libgobject-2.0-0.dll"),
+         CAIRO  = open_dll("libcairo-2.dll"),
+         C_DBL = C_DOUBLE,
+         gtk_init_check = define_c_func(GTKLIB,"gtk_init_check",
+            {C_PTR,     --  int* argc
+             C_PTR},    --  char*** argv
+            C_INT)      -- gboolean
+if gtk_init_check < 1 or c_func(gtk_init_check,{0,0})=0 then 
+  crash("Failed to initialize GTK library!") 
+end if 
+assert(chdir(currdir))
+constant GTK_WINDOW_TOPLEVEL = 0,
+--       GTK_POLICY_ALWAYS    = 0,
+         GTK_POLICY_AUTOMATIC = 1,
+--       GTK_POLICY_NEVER     = 2,
+--DEV/NB since 3.16...
+--       GTK_POLICY_EXTERNAL  = 3,
+         GTK_SHADOW_NONE = 0,
+--       GTK_ORIENTATION_HORIZONTAL = 0,
+--       GTK_ORIENTATION_VERTICAL = 1,
+--       GTK_WIN_POS_CENTER = 1,
+         cairo_set_source_rgb = define_c_proc(CAIRO,"cairo_set_source_rgb",
+            {C_PTR,     --  cairo_t* cr
+             C_DBL,     --  double red
+             C_DBL,     --  double green
+             C_DBL}),   --  double blue
+         cairo_paint = define_c_proc(CAIRO,"cairo_paint",
+            {C_PTR}),   --  cairo_t* cr
+         cairo_set_line_width = define_c_proc(CAIRO,"cairo_set_line_width",
+            {C_PTR,     --  cairo_t* cr
+             C_DBL}),   --  double width
+         cairo_rectangle = define_c_proc(CAIRO,"cairo_rectangle",
+            {C_PTR,     --  cairo_t* cr
+             C_DBL,     --  double x
+             C_DBL,     --  double y
+             C_DBL,     --  double width
+             C_DBL}),   --  double height
+         cairo_stroke = define_c_proc(CAIRO,"cairo_stroke",
+            {C_PTR}),   --  cairo_t* cr
+         cairo_destroy = define_c_proc(CAIRO,"cairo_destroy",
+            {C_PTR}),   --  cairo_t* cr
+         gdk_cairo_create = define_c_func(GDKLIB,"gdk_cairo_create",
+            {C_PTR},    --  GdkDrawable *drawable
+            C_PTR),     -- cairo_t *
+         gtk_adjustment_new = define_c_func(GTKLIB,"gtk_adjustment_new",
+            {C_DBL,     --  gdouble value
+             C_DBL,     --  gdouble lower
+             C_DBL,     --  gdouble upper
+             C_DBL,     --  gdouble step_increment
+             C_DBL,     --  gdouble page_increment
+             C_DBL},    --  gdouble page_size
+            C_PTR),     -- GtkObject*
+--      gtk_adjustment_changed = define_c_proc(GTKLIB,"gtk_adjustment_changed",
+--          {C_PTR})    --  GtkAdjustment *adjustment
+--DEV less than helpful message....
+--       gtk_adjustment_get_upper = define_c_proc(GTKLIB,"gtk_adjustment_get_upper",
+         gtk_adjustment_get_upper = define_c_func(GTKLIB,"gtk_adjustment_get_upper",
+            {C_PTR},    --  GtkAdjustment *adjustment
+             C_DBL),    -- gdouble
+         gtk_adjustment_get_page_size = define_c_func(GTKLIB,"gtk_adjustment_get_page_size",
+            {C_PTR},    --  GtkAdjustment *adjustment
+             C_DBL),    -- gdouble
+--      gtk_adjustment_set_lower = define_c_proc(GTKLIB,"gtk_adjustment_set_lower",
+--          {C_PTR,     --  GtkAdjustment *adjustment
+--           C_DBL})    --  gdouble lower
+--      gtk_adjustment_set_step_increment = define_c_proc(GTKLIB,"gtk_adjustment_set_step_increment",
+--          {C_PTR,     --  GtkAdjustment *adjustment
+--           C_DBL})    --  gdouble step_increment
+--      gtk_adjustment_set_page_increment = define_c_proc(GTKLIB,"gtk_adjustment_set_page_increment",
+--          {C_PTR,     --  GtkAdjustment *adjustment
+--           C_DBL})    --  gdouble page_increment
+--      gtk_adjustment_set_page_size = define_c_proc(GTKLIB,"gtk_adjustment_set_page_size",
+--          {C_PTR,     --  GtkAdjustment *adjustment
+--           C_DBL})    --  gdouble page_size
+--      gtk_adjustment_set_upper = define_c_proc(GTKLIB,"gtk_adjustment_set_upper",
+--          {C_PTR,     --  GtkAdjustment *adjustment
+--           C_DBL})    --  gdouble upper
+--Erm, GTK3 only??...
+--       gtk_box_new = define_c_func(GTKLIB,"gtk_box_new",
+--          {C_INT,     --  GtkOrientation orientation
+--           C_BOOL,    --  gboolean homogeneous
+--           C_INT},    --  gint spacing
+--          C_PTR),     -- GtkWidget*
+--       gtk_box_pack_end = define_c_proc(GTKLIB,"gtk_box_pack_end",
+--          {C_PTR,     --  GtkBox* box
+--           C_PTR,     --  GtkWidget* child
+--           C_INT,     --  gboolean expand
+--           C_INT,     --  gboolean fill
+--           C_INT}),   --  guint padding
+--       gtk_box_pack_start = define_c_proc(GTKLIB,"gtk_box_pack_start",
+--          {C_PTR,     --  GtkBox* box
+--           C_PTR,     --  GtkWidget* child
+--           C_INT,     --  gboolean expand
+--           C_INT,     --  gboolean fill
+--           C_INT}),   --  guint padding
+         gtk_button_new_with_label = define_c_func(GTKLIB,"gtk_button_new_with_label",
+            {C_PTR},    --  const gchar* label
+            C_PTR),     -- GtkWidget*
+         gtk_container_add = define_c_proc(GTKLIB,"gtk_container_add",
+            {C_PTR,     --  GtkContainer* container
+             C_PTR}),   --  GtkWidget *widget
+         gtk_drawing_area_new = define_c_func(GTKLIB,"gtk_drawing_area_new",
+            {},         --  void
+            C_PTR),     -- GtkWidget*
+         gtk_fixed_new = define_c_func(GTKLIB,"gtk_fixed_new",
+            {},         --  (void)
+            C_PTR),     -- GtkWidget*
+         gtk_fixed_put = define_c_proc(GTKLIB,"gtk_fixed_put",
+            {C_PTR,     --  GtkFixed *fixed
+             C_PTR,     --  GtkWidget *widget
+             C_INT,     --  gint x
+             C_INT}),   --  gint y
+         gtk_label_new = define_c_func(GTKLIB,"gtk_label_new",
+            {C_PTR},    --  const gchar* str
+            C_PTR),     -- GtkWidget*
+         gtk_label_set_text = define_c_proc(GTKLIB,"gtk_label_set_text",
+            {C_PTR,     --  GtkLabel *label
+             C_PTR}),   --  const gchar *str
+         gtk_main       = define_c_proc(GTKLIB,"gtk_main",{}),
+         gtk_main_quit = define_c_proc(GTKLIB,"gtk_main_quit",{}),
+--  if bGTK3 then
+--       gtk_scrollbar_new = define_c_func(GTKLIB,"gtk_scrollbar_new",
+--          {C_PTR,     --  GtkOrientation orientation
+--           C_PTR},    --  GtkAdjustment *adjustment
+--          C_PTR),     -- GtkWidget*
+--  else
+         gtk_hscrollbar_new = define_c_func(GTKLIB,"gtk_hscrollbar_new",
+            {C_PTR},    --  GtkAdjustment *adjustment
+            C_PTR),     -- GtkWidget*
+         gtk_vscrollbar_new = define_c_func(GTKLIB,"gtk_vscrollbar_new",
+            {C_PTR},    --  GtkAdjustment *adjustment
+            C_PTR),     -- GtkWidget*
+--  end if
+         gtk_range_get_value = define_c_func(GTKLIB,"gtk_range_get_value",
+            {C_PTR},    --  GtkRange *range
+             C_DBL),    -- gdouble
+         gtk_scrolled_window_new = define_c_func(GTKLIB,"gtk_scrolled_window_new",
+            {C_PTR,     --  GtkAdjustment* hadjustment (NULL)
+             C_PTR},    --  GtkAdjustment* vadjustment (NULL)
+            C_PTR),     -- GtkWidget*
+         gtk_scrolled_window_set_policy = define_c_proc(GTKLIB,"gtk_scrolled_window_set_policy",
+            {C_PTR,     --  GtkScrolledWindow* scrolled_window
+             C_PTR,     --  GtkPolicyType hscrollbar_policy
+             C_PTR}),   --  GtkPolicyType vscrollbar_policy
+         gtk_scrolled_window_set_shadow_type = define_c_proc(GTKLIB,"gtk_scrolled_window_set_shadow_type",
+            {C_PTR,     --  GtkScrolledWindow* scrolled_window
+             C_INT}),   --  GtkShadowType type
+         gtk_viewport_new = define_c_func(GTKLIB,"gtk_viewport_new",
+            {C_PTR,     --  GtkAdjustment *hadjustment
+             C_PTR},    --  GtkAdjustment *vadjustment
+            C_PTR),     -- GtkWidget*
+         gtk_viewport_set_shadow_type = define_c_proc(GTKLIB,"gtk_viewport_set_shadow_type",
+            {C_PTR,     --  GtkViewport *viewport
+             C_INT}),   --  GtkShadowType type
+         gtk_widget_get_window = define_c_func(GTKLIB,"gtk_widget_get_window",
+            {C_PTR},    --  GtkWidget* widget
+            C_PTR),     -- GdkWindow*
+         gtk_widget_queue_draw = define_c_proc(GTKLIB,"gtk_widget_queue_draw",
+            {C_PTR}),   --  GtkWidget* widget
+         gtk_widget_set_size_request = define_c_proc(GTKLIB,"gtk_widget_set_size_request",
+            {C_PTR,     --  GtkWidget* widget   // aka handle
+             C_INT,     --  gint width,
+             C_INT}),   --  gint height
+--       gtk_widget_show = define_c_proc(GTKLIB,"gtk_widget_show",
+--          {C_PTR}),   --  GtkWindow* window,  // aka handle
+         gtk_widget_show_all = define_c_proc(GTKLIB,"gtk_widget_show_all",
+            {C_PTR}),   --  GtkWindow* window,  // aka handle
+         gtk_window_new = define_c_func(GTKLIB,"gtk_window_new",
+            {C_INT},    --  GtkWindowType type // usually GTK_WINDOW_TOPLEVEL (nb gone in GTK4)
+            C_PTR),     -- GtkWidget* // handle
+         gtk_window_set_default_size = define_c_proc(GTKLIB,"gtk_window_set_default_size",
+            {C_PTR,     --  GtkWindow* window
+             C_INT,     --  gint width
+             C_INT}),   --  gint height
+--GTK2 only...
+--       gtk_window_set_policy = define_c_proc(GTKLIB,"gtk_window_set_policy",
+--          {C_PTR,     --  GtkWindow *window
+--           C_INT,     --  gint allow_shrink
+--           C_INT,     --  gint allow_grow
+--           C_INT}),   --  gint auto_shrink
+         gtk_window_set_position = define_c_proc(GTKLIB,"gtk_window_set_position",
+            {C_PTR,     --  GtkWindow *window
+             C_INT}),   --  GtkWindowPosition position
+         gtk_window_set_resizable = define_c_proc(GTKLIB,"gtk_window_set_resizable",
+            {C_PTR,     --  GtkWindow *window
+             C_BOOL}),  --  gboolean resizable
+         gtk_window_set_title = define_c_proc(GTKLIB,"gtk_window_set_title",
+            {C_PTR,     --  GtkWindow* window,  // aka handle
+             C_PTR}),   --  const gchar* title  // a string
+         -- use this instead of g_object_set(), which is a null-terminated vararg, one at a time.
+         g_object_set_property = define_c_proc(GTKGDO,"g_object_set_property",
+            {C_PTR,     --  GObject* object
+             C_PTR,     --  const gchar* property_name
+             C_PTR}),   --  const GValue* value
+         -- note that g_signal_connect is defined in the GTK sources as a #define of
+         -- g_signal_connect_data(....,NULL,0), and is not exported from the dll/so.
+         g_signal_connect_data = define_c_func(GTKGDO,"g_signal_connect_data",
+            {C_PTR,     --  GObject* instance,              // aka handle
+             C_PTR,     --  const gchar* detailed_signal,   // a string
+             C_PTR,     --  GCallback c_handler,            // a callback
+             C_PTR,     --  gpointer data,                  // data for ""
+             C_PTR,     --  GClosureNotify destroy_data,    // (NULL here)
+             C_INT},    --  GConnectFlags connect_flags     //     ""
+            C_INT),     -- gulong // handler id (>0 for success)
+         tGdkEventKey = """typedef struct GdkEventKey {
+                            GdkEventType event_type;
+                            GdkWindow* window;
+                            byte sendEvent;
+                            uint time;
+                            ModifierType state;
+                            uint keyval;
+                            int length;
+                            char* string_;
+                            ushort hardwareKeycode;
+                            ubyte group;
+                           }""",
+--/*
+typedef enum
+{
+  GDK_NOTHING       = -1,
+  GDK_DELETE        = 0,
+  GDK_DESTROY       = 1,
+  GDK_EXPOSE        = 2,
+  GDK_MOTION_NOTIFY = 3,
+  GDK_BUTTON_PRESS  = 4,
+  GDK_2BUTTON_PRESS = 5,
+  GDK_3BUTTON_PRESS = 6,
+  GDK_BUTTON_RELEASE    = 7,
+  GDK_KEY_PRESS     = 8,
+  GDK_KEY_RELEASE   = 9,
+  GDK_ENTER_NOTIFY  = 10,
+  GDK_LEAVE_NOTIFY  = 11,
+  GDK_FOCUS_CHANGE  = 12,
+  GDK_CONFIGURE     = 13,
+  GDK_MAP       = 14,
+  GDK_UNMAP     = 15,
+  GDK_PROPERTY_NOTIFY   = 16,
+  GDK_SELECTION_CLEAR   = 17,
+  GDK_SELECTION_REQUEST = 18,
+  GDK_SELECTION_NOTIFY  = 19,
+  GDK_PROXIMITY_IN  = 20,
+  GDK_PROXIMITY_OUT = 21,
+  GDK_DRAG_ENTER        = 22,
+  GDK_DRAG_LEAVE        = 23,
+  GDK_DRAG_MOTION       = 24,
+  GDK_DRAG_STATUS       = 25,
+  GDK_DROP_START        = 26,
+  GDK_DROP_FINISHED     = 27,
+  GDK_CLIENT_EVENT  = 28,
+  GDK_VISIBILITY_NOTIFY = 29,
+  GDK_NO_EXPOSE     = 30,
+  GDK_SCROLL            = 31,
+  GDK_WINDOW_STATE      = 32,
+  GDK_SETTING           = 33,
+  GDK_OWNER_CHANGE      = 34,
+  GDK_GRAB_BROKEN       = 35,
+  GDK_DAMAGE            = 36,
+  GDK_EVENT_LAST        /* helper variable for decls */
+} GdkEventType;
+struct _GdkEventExpose
+{
+  GdkEventType type;
+  GdkWindow *window;
+  gint8 send_event;
+  GdkRectangle area;
+  GdkRegion *region;
+  gint count; /* If non-zero, how many more events follow. */
+};
+--*/
+        idGdkEventKey = define_struct(tGdkEventKey)
+
+local function xpg_gtk_quit(atom winmain, /*user_data*/) -- (GTK only)
+    c_proc(gtk_main_quit) 
+    return 0 
+end function 
+constant quit_cb = call_back({'+',xpg_gtk_quit})
+
+constant GTK_ESC = #FF1B
+
+local function xpg_gtk_check_escape(atom winmain, event, /*data*/) -- (GTK only)
+    integer keyval = get_struct_field(idGdkEventKey,event,"keyval")
+    if keyval=GTK_ESC then
+        c_proc(gtk_main_quit)
+    end if
+    return true
+end function
+constant key_cb = call_back({'+',xpg_gtk_check_escape})
+
+--/!*
+constant imgX = 1280,
+         imgY = 960
+
+--atom t1 = time()-1
+
+local procedure crect(atom cairo, x,y,w,h)
+    x = round(x)+0.5;
+    y = round(y)+0.5;
+    w = round(w);
+    h = round(h);
+    c_proc(cairo_rectangle,{cairo, x, y, w, h});
+end procedure
+
+--gboolean draw(GtkWidget* self, cairo_t* cr, gpointer user_data)
+local function draw(atom widget, cairo, user_data)
+    -- GTK3 version, which gets the cairo context it should draw on.
+    --  (also invoked from GTK2 version, with the cairo it created)
+
+--  c_proc(cairo_set_source_rgb,{cairo, 1, 1, 1});
+  c_proc(cairo_set_source_rgb,{cairo, #FA/255, #F8/255, #EF/255});    -- (light parchment)
+  c_proc(cairo_paint,{cairo});
+  c_proc(cairo_set_source_rgb,{cairo, 0, 0, 0});                                -- (black)
+    c_proc(cairo_set_line_width,{cairo,1});
+--  c_proc(cairo_rectangle,{cairo, 10, 10, (imgX-80)/2-10, (imgY-130)/2-10});
+  crect(cairo, 10, 10, (imgX-80)/2-10, (imgY-130)/2-10);
+--  c_proc(cairo_rectangle,{cairo, 10.5, 10.5, (imgX-80)/2-10+0.5, (imgY-130)/2-10+0.5});
+  c_proc(cairo_stroke,{cairo});
+  c_proc(cairo_set_source_rgb,{cairo, 1, 0, 0});                                  -- (red)
+--  c_proc(cairo_rectangle,{cairo, imgX/4, imgY/4, imgX-75-imgX/4, imgY-75-imgY/4});
+  crect(cairo, imgX/4, imgY/4, imgX-75-imgX/4, imgY-75-imgY/4);
+--  c_proc(cairo_rectangle,{cairo, imgX/4+0.5, imgY/4+0.5, imgX-75-imgX/4+0.5, imgY-75-imgY/4+0.5});
+  c_proc(cairo_stroke,{cairo});
+
+--  c_proc(cairo_set_source_rgb,{cairo, 0.42, 0.65, 0.80});
+  c_proc(cairo_set_source_rgb,{cairo, 0, 1, 0});                                -- (green)
+--  c_proc(cairo_set_source_rgb,{cairo, 0, 0.4, 0});                                -- (green)
+--  c_proc(cairo_set_line_width,{cairo,1});
+--  c_proc(cairo_rectangle,{cairo, 3, 3, 400, 100});
+--  c_proc(cairo_rectangle,{cairo, 5, 5, imgX-5-5, imgY-5-5});
+  crect(cairo, 5, 5, imgX-5-5, imgY-5-5);
+--  c_proc(cairo_rectangle,{cairo, 5.5, 5.5, imgX-5-5+0.5, imgY-5-5+0.5});
+  c_proc(cairo_stroke,{cairo});
+--/*
+    setPenColor(BrightWhite)    drawRectangleh(imageDC, True, 0, 0, imgX, imgY)
+    setPenColor(Black)          drawRectangleh(imageDC, False, 10, 10, floor((imgX-80)/2), floor((imgY-130)/2))
+    setPenColor(BrightRed)      drawRectangleh(imageDC, False, floor(imgX/4), floor(imgY/4), imgX-75, imgY-75)
+    setPenColor(Green)          drawRectangleh(imageDC, False, 5, 5, imgX-5, imgY-5)
+    if drawfocus then
+        setPenColor(Green)      drawRectangleh(imageDC, False, floor(focusX-2), floor(focusY-2), floor(focusX+2), floor(focusY+2))
+    end if
+--*/
+    -- TRUE to stop other handlers from being invoked for the event. FALSE to propagate the event further.
+    return true
+end function
+constant draw_cb = call_back({'+',draw})
+
+--static gboolean draw_cb (GtkWidget *widget, GdkEventExpose *event) {
+--local function draw(atom widget, event)
+--gboolean expose_event(GtkWidget *widget, GdkEvent *event, gpointer user_data)
+local function expose_event(atom widget, /*event*/, user_data)
+    -- GTK2 version, which needs to create a cairo context to draw on.
+    --  (then invokes GTK3 version, passing said cairo just created)
+    atom win = c_func(gtk_widget_get_window,{widget}),
+       cairo = c_func(gdk_cairo_create,{win})
+    integer res = draw(widget,cairo,user_data)
+--DEV this needs to be in resize instead...
+--  c_proc(gtk_widget_queue_draw,{widget})
+    c_proc(cairo_destroy,{cairo});
+    return res
+end function
+constant expose_cb = call_back({'+',expose_event})
+
+atom winmain = c_func(gtk_window_new,{GTK_WINDOW_TOPLEVEL}), id = 0
+c_proc(gtk_window_set_title,{winmain,"Virtual Window Demo (GTK)"})
+atom r = c_func(g_signal_connect_data,{winmain,"destroy",quit_cb,id,NULL,0})
+assert(r>0)
+r = c_func(g_signal_connect_data,{winmain,"key_press_event",key_cb,id,NULL,0})
+assert(r>0)
+
+--/*
+atom 
+  swindow = c_func(gtk_scrolled_window_new,{NULL,NULL}),
+--  viewport = c_func(gtk_viewport_new,{NULL,NULL}),
+  darea = c_func(gtk_drawing_area_new,{})
+
+c_proc(gtk_widget_set_size_request,{winmain, 200, 100});
+c_proc(gtk_widget_set_size_request,{darea, 406, 106});
+
+--c_proc(gtk_container_add,{viewport, darea});
+c_proc(gtk_container_add,{swindow, darea});
+--c_proc(gtk_container_add,{swindow, viewport});
+--c_proc(gtk_container_add,{winmain, grid});
+c_proc(gtk_container_add,{winmain, swindow});
+
+--  g_signal_connect (window, "destroy", G_CALLBACK (gtk_main_quit), NULL);
+r = c_func(g_signal_connect_data,{darea, "draw", draw_cb, NULL,NULL,0});
+assert(r>0)
+--*/
+--  GtkWidget *winmain = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+
+  atom swindow = c_func(gtk_scrolled_window_new,{NULL,NULL});
+--  c_proc(gtk_scrolled_window_set_policy,{swindow,GTK_POLICY_ALWAYS,GTK_POLICY_ALWAYS});
+  c_proc(gtk_scrolled_window_set_policy,{swindow,GTK_POLICY_AUTOMATIC,GTK_POLICY_AUTOMATIC});
+--  c_proc(gtk_widget_set_size_request,{swindow, 640, 480});
+--  c_proc(gtk_widget_set_size_request,{swindow, 624, 441});
+
+  c_proc(gtk_scrolled_window_set_shadow_type,{swindow,GTK_SHADOW_NONE})
+
+  atom viewport = c_func(gtk_viewport_new,{NULL,NULL})
+  c_proc(gtk_viewport_set_shadow_type,{viewport,GTK_SHADOW_NONE})
+
+  atom darea = c_func(gtk_drawing_area_new,{});
+  c_proc(gtk_widget_set_size_request,{darea, imgX, imgY});
+
+  c_proc(gtk_container_add,{winmain, swindow});
+  c_proc(gtk_container_add,{swindow, viewport});
+  c_proc(gtk_container_add,{viewport, darea});
+
+--  string signal = iff(m=32?"expose-event":"draw")
+--/*
+  string signal = iff(m=32?"expose_event":"draw")
+  r = c_func(g_signal_connect_data,{darea, signal, draw_cb, NULL,NULL,0});
+--*/
+  if m=32 then
+      r = c_func(g_signal_connect_data,{darea, "expose_event", expose_cb, NULL,NULL,0});
+  else
+      r = c_func(g_signal_connect_data,{darea, "draw", draw_cb, NULL,NULL,0});
+  end if
+--  r = c_func(g_signal_connect_data,{darea, "draw", draw_cb, NULL,NULL,0});
+  assert(r>0)
+
+--/* more complete bollocks:
+local function xpg_gtk_configure_event(atom widget, event, /*gdx*/ id)
+?{"xpg_gtk_configure_event",widget,event,id}
+    -- GTK only part (WinAPI equivalent in xpg_WinAPI_resize)
+--  assert(id=xpg_getID(widget))
+--  integer ct = ctrl_types[id] 
+--  assert(ct=DIALOG)
+--  integer event_type = get_struct_field(idGdkEventConfigure,event,"event_type"),
+
+--DEV:::
+--/*
+    integer w = get_struct_field(idGdkEventConfigure,event,"width"),
+            h = get_struct_field(idGdkEventConfigure,event,"height")
+    xpg_resize(id,w,h)
+--*/
+--  c_proc(gtk_widget_queue_draw,{winmain})
+--  c_proc(gtk_widget_queue_draw,{widget})
+--  c_proc(gtk_widget_queue_draw,{darea})
+
+--NB: this stopped gCanvas resizing itself...
+--  return true
+    return false
+end function
+constant resize_cb = call_back({'+',xpg_gtk_configure_event})
+--r = c_func(g_signal_connect_data,{winmain,"configure-event",resize_cb,1,NULL,0});
+r = c_func(g_signal_connect_data,{winmain,"configure_event",resize_cb,1,NULL,0});
+--r = c_func(g_signal_connect_data,{swindow,"configure-event",resize_cb,1,NULL,0});
+--r = c_func(g_signal_connect_data,{viewport,"configure-event",resize_cb,1,NULL,0});
+assert(r>0)
+--*/
+
+--/*
+gboolean
+scroll_child (
+  GtkScrolledWindow* self,
+  GtkScrollType* scroll,
+  gboolean horizontal,
+  gpointer user_data
+)
+--*/
+--/* bollocks:
+--local function xpg_gtk_scroll_changed(atom winmain, object id) -- (GTK only)
+local function xpg_gtk_scroll_child(atom self, scrolltype, horizontal, object id) -- (GTK only)
+--  assert(id=xpg_getID(winmain))
+--?{"xpg_gtk_scroll_changed",winmain,id}
+?{"xpg_gtk_scroll_child",self,scrolltype,horizontal,id}
+    c_proc(gtk_widget_queue_draw,{winmain})
+    return false -- (ignored)
+end function
+--constant scroll_cb = call_back({'+',xpg_gtk_scroll_changed})
+constant scroll_cb = call_back({'+',xpg_gtk_scroll_child})
+
+--      xpg_signal_connect(slider,"value-changed",xpg_gtk_slider_changed,id)
+--local procedure xpg_signal_connect(atom winmain, string signal, integer rid, integer id)
+--  -- note that g_signal_connect is defined in the GTK sources as a #define of
+--  -- g_signal_connect_data(....,NULL,0), and is not exported from the dll/so.
+--  atom r = c_func(g_signal_connect_data,{winmain,signal,call_back({'+',rid}),id,NULL,0})
+--  assert(r>0)
+--end procedure
+--r = c_func(g_signal_connect_data,{swindow,"value-changed",scroll_cb,1234,NULL,0});
+--r = c_func(g_signal_connect_data,{swindow,"value_changed",scroll_cb,1234,NULL,0});
+r = c_func(g_signal_connect_data,{swindow,"scroll_child",scroll_cb,1234,NULL,0}); -- never triggers
+--r = c_func(g_signal_connect_data,{winmain,"scroll_child",scroll_cb,1234,NULL,0}); -- invalid
+--r = c_func(g_signal_connect_data,{viewport,"scroll_child",scroll_cb,1234,NULL,0}); -- invalid
+assert(r>0)
+--*/
+
+
+--  c_proc(gtk_widget_queue_draw,{widget})
+
+
+procedure show() 
+    c_proc(gtk_widget_show_all,{winmain})
+end procedure 
+ 
+--?1
+--c_proc(gtk_window_set_policy,{winmain,true,true,true})
+c_proc(gtk_window_set_resizable,{winmain,true})
+--c_proc(gtk_window_set_default_size,{winmain, 0, 0})
+c_proc(gtk_window_set_default_size,{winmain, 624, 441});
+show() 
+--c_proc(gtk_window_set_default_size,{winmain, 0, 0});
+--if grow then gtk window set resizable (win, TRUE) else void
+--?2
+c_proc(gtk_main)
+--?3
+--*!/
+
+--/*
+
+--#include <gtk/gtk.h>
+
+--#define WINDOW_WIDTH  200
+--#define WINDOW_HEIGHT 80
+
+--static gboolean draw_cb (GtkWidget *widget, GdkEventExpose *event) {
+--  cairo_t *cr;
+--  cr = gdk_cairo_create (gtk_widget_get_window (widget));
+--  cairo_set_source_rgb(cr, 1, 1, 1);
+--  cairo_paint(cr);
+--  cairo_set_source_rgb (cr, 0.42, 0.65, 0.80);
+--  cairo_set_line_width (cr,6);
+--  cairo_rectangle (cr, 3, 3, 400, 100);
+--  cairo_stroke (cr);
+--  cairo_destroy(cr);
+--  return TRUE;
+--}
+
+--int main (int argc, char *argv[]) {
+--  gtk_init (&argc, &argv);
+--  GtkWidget *window;
+  GtkWidget *grid;
+  GtkWidget *swindow;
+  GtkWidget *viewport;
+  GtkWidget *darea;
+
+--  window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+X  grid = gtk_grid_new();
+  swindow = gtk_scrolled_window_new (NULL,NULL);
+  viewport = gtk_viewport_new (NULL,NULL);
+  darea = gtk_drawing_area_new();
+
+  gtk_widget_set_size_request (window, 200, 100);
+  gtk_widget_set_size_request (darea, 406, 106);
+
+  gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (swindow),
+                                  GTK_POLICY_ALWAYS,
+                                  GTK_POLICY_NEVER);
+
+  gtk_container_add (GTK_CONTAINER(viewport), darea);
+  gtk_container_add (GTK_CONTAINER(swindow), viewport);
+  gtk_grid_attach (GTK_GRID(grid), swindow, 0, 0, 1, 1);                 
+X  gtk_container_add (GTK_CONTAINER(window), grid);
+
+  g_signal_connect (window, "destroy", G_CALLBACK (gtk_main_quit), NULL);
+  g_signal_connect (darea, "draw", G_CALLBACK(draw_cb),  NULL);
+
+  gtk_widget_show_all (window);
+--  gtk_main ();
+--  return 0;
+--  }
+--*/
+-- https://github.com/ruifengx/gnome-build/releases/tag/v0.1-20220403
+
+--/* This should be good on gtk2 (just missing gtk_widget_set_size_request apparently...)
+--https://stackoverflow.com/questions/12490400/gtkdrawingarea-with-cairo-how-to-make-it-scrollable?rq=3
+#include <gtk/gtk.h>
+
+static gboolean draw_cb (GtkWidget *widget, GdkEventExpose *event) {
+  cairo_t *cr = gdk_cairo_create (widget->window);
+  cairo_set_source_rgb(cr, 1, 1, 1);
+  cairo_paint(cr);
+  cairo_set_source_rgb (cr, 0.42, 0.65, 0.80);
+  cairo_set_line_width (cr,6);
+  cairo_rectangle (cr, 30, 30, 100, 100);
+  cairo_stroke (cr); 
+  cairo_destroy(cr);
+  return FALSE;
+}
+
+int main (int argc, char *argv[]) {
+--  gtk_init (&argc, &argv);
+  GtkWidget *window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+
+X  gtk_window_set_policy((GtkWindow *)window, FALSE, FALSE, FALSE);
+  GtkWidget *sw = gtk_scrolled_window_new (NULL,NULL);
+X  gtk_widget_set_usize(sw, 100, 100);
+  GtkWidget *cr = gtk_drawing_area_new();
+
+X  gtk_scrolled_window_add_with_viewport(GTK_CONTAINER(sw), cr);
+  gtk_container_add (GTK_CONTAINER(window), sw);
+
+  g_signal_connect (window, "destroy", G_CALLBACK (gtk_main_quit), NULL);
+  g_signal_connect (cr, "expose-event", G_CALLBACK(draw_cb),  NULL);
+
+  gtk_widget_show_all (window);
+  gtk_main ();
+  return 0;
+}
+
+window = gtk.Window()
+window.resize(image.size[0], image.size[1])
+
+scrolled = gtk.ScrolledWindow()
+scrolled.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+scrolled.set_shadow_type(gtk.SHADOW_NONE)
+
+viewport = gtk.Viewport()
+viewport.set_shadow_type(gtk.SHADOW_NONE)  // Get rid of the border.
+
+area = gtk.DrawingArea()
+area.set_size_request(image.size[0], image.size[1])
+
+window.add(scrolled)
+scrolled.add(viewport)
+viewport.add(area)
+window.showall()
+--*/
+--/*
+max-height: 600px;
+--*/
+
+--/*
+--#include <gtk/gtk.h>
+
+--gboolean
+--adj_page_sizechanged (GtkAdjustment *adjustment,
+--                    GdkEvent      *unused,
+--                    GtkScrollbar  *scrollbar)
+--{
+function adj_page_sizechanged(atom adjustment, /*event*/, scrollbar)
+--  gdouble maxValue = gtk_adjustment_get_upper (adjustment);
+--  gdouble maxSize = gtk_adjustment_get_page_size  (adjustment);
+  atom maxValue = c_func(gtk_adjustment_get_upper,{adjustment}),
+       maxSize = c_func(gtk_adjustment_get_page_size,{adjustment});
+--  gboolean show = (maxValue - maxSize >= 0.000001);
+  bool show = (maxValue - maxSize >= 0.000001);
+--/*
+--*/
+?{"adj_page_sizechanged",maxValue,maxSize,show}
+  c_proc(g_object_set_property,{scrollbar, "visible", show});
+  return false
+end function
+constant adj_page_sizechanged_cb = call_back({'+',adj_page_sizechanged})
+
+--void add_button (GtkButton *button,
+--               GtkBox    *box) {
+function add_button(atom button, box)
+--  g_print("add button\n");
+  atom btn = c_func(gtk_button_new_with_label,{"b 2"})
+  c_proc(gtk_container_add,{box,btn});
+  c_proc(gtk_widget_show_all,{box})
+  return false
+end function
+constant add_button_cb = call_back({'+',add_button})
+
+
+/**
+ *  standard stuff. See `create_ui()`
+ **/
+--int main(int argc, char *argv[]) {
+--  gtk_init (&argc, &argv);
+
+--  GtkWidget *window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+  atom window = c_func(gtk_window_new,{GTK_WINDOW_TOPLEVEL});
+  c_proc(gtk_window_set_default_size,{window, -1, 60});
+
+--  GtkWidget * ui = create_ui();
+--GtkWidget * create_ui() {
+--  GtkWidget * action_button = gtk_button_new_with_label ("click me");
+--  GtkWidget * box_inner   = gtk_box_new (GTK_ORIENTATION_VERTICAL, 5);
+  atom action_button = c_func(gtk_button_new_with_label,{"click me"}),
+       box_inner = c_func(gtk_box_new,{GTK_ORIENTATION_VERTICAL, false, 5});
+--  GtkWidget * box_outer   = gtkx_scrollable_widget_vertical_new (box_inner, NULL);
+/**
+ *  Creates a `automatic` scollbar for `widget`, that will never
+ *  overlay (hide) the content of `widget`.
+ **/
+--GtkWidget *
+--gtkx_scrollable_widget_vertical_new (GtkWidget       *widget,
+--                                   GtkAdjustment *adjustment_nullable)
+--{
+--  GtkWidget *root = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 0);
+  atom box_outer = c_func(gtk_box_new,{GTK_ORIENTATION_HORIZONTAL, false, 0});
+
+  // setup adjustment
+--  GtkAdjustment * adj_v = adjustment_nullable;
+--  atom adj_v = NULL;
+--  if (NULL == adj_v)
+    atom adj_v = c_func(gtk_adjustment_new,{0,0,100,1,10,10});
+
+  // setup scrollbar
+--  {
+--  GtkWidget * scrollbar = gtk_scrollbar_new (GTK_ORIENTATION_VERTICAL, adj_v);
+--(GTK2 shd use gtk_vscrollbar_new)
+    atom scrollbar = c_func(gtk_scrollbar_new,{GTK_ORIENTATION_VERTICAL, adj_v});
+--  atom scrollbar = c_func(gtk_scrollbar_new,{GTK_ORIENTATION_VERTICAL, NULL}); -- (no help)
+--  g_signal_connect(adj_v, "notify::page-size", G_CALLBACK (adj_page_sizechanged), scrollbar);
+    atom r = c_func(g_signal_connect_data,{adj_v, "notify::page-size", adj_page_sizechanged_cb, scrollbar,NULL,0});
+assert(r>0)
+    c_proc(gtk_box_pack_end ,{box_outer, scrollbar, FALSE, FALSE, 0});
+--  }
+?-4
+
+  // setup scrollable area
+--  {
+--  GtkWidget * scrolled_window = gtk_scrolled_window_new (NULL, adj_v);
+--  atom scrolled_window = c_func(gtk_scrolled_window_new,{NULL, adj_v});
+    atom scrolled_window = c_func(gtk_scrolled_window_new,{NULL, NULL});
+?-3
+?scrolled_window
+?box_inner
+--  gtk_container_add (GTK_CONTAINER (scrolled_window), widget);
+    c_proc(gtk_container_add,{scrolled_window, box_inner});
+--  gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (scrolled_window),
+--                                GTK_POLICY_NEVER, GTK_POLICY_EXTERNAL);
+?-2
+    c_proc(gtk_scrolled_window_set_policy,{scrolled_window,GTK_POLICY_NEVER,GTK_POLICY_EXTERNAL});
+?-1
+    c_proc(gtk_box_pack_start,{box_outer, scrolled_window, TRUE, TRUE, 0});
+--  }
+
+--  return root;
+--}
+?0
+  c_proc(gtk_container_add,{box_inner, action_button});
+  r = c_func(g_signal_connect_data,{action_button, "clicked", add_button_cb, box_inner,NULL,0});
+assert(r>0)
+--  return box_outer;
+--}
+  c_proc(gtk_container_add,{window, box_outer});
+
+  r = c_func(g_signal_connect_data,{window, "destroy", quit_cb, window, NULL,0});
+assert(r>0)
+
+?1
+  c_proc(gtk_widget_show_all,{window});
+?2
+  c_proc(gtk_main,{});
+
+--  return 0;
+--}
+--*/
+
+--how about: gScrollBox: a container with automatic (unlimited) scrollbars.
+--
+--Note this is specifically intended for use with a (single) child element which is a canvas or one of the
+--canvas-derived controls (gGraph, gList, and gTable). The scrolling of a gTreeView is achieved using the
+--builtin scrollbars of that control instead, whereas attempting said on the planned use of a gList in the
+--new xpEdit could in the worst case require the creation of a 188TB canvas, which ain&rsquo;t gona work.
+--
+--Horizontal and vertical scrollbars are automatically placed on the right and bottom edges when required,
+--and automatically hidden when not required.
+
+--from https://whyareyoureadingthisurl.wordpress.com/2011/02/15/howto-gtk-scrollbars-and-floating-widgets/
+--/*
+void gtk_table_attach (GtkTable     *table,
+                       GtkWidget    *child,
+                       guint        left_attach,
+                       guint        right_attach,
+                       guint        top_attach,
+                       guint        bottom_attach,
+                       GtkAttachOptions xoptions,
+                       GtkAttachOptions yoptions,
+                       guint        xpadding,
+                       guint        ypadding);
+typedef enum
+{
+  GTK_EXPAND = 1 << 0,
+  GTK_SHRINK = 1 << 1,
+  GTK_FILL   = 1 << 2
+} GtkAttachOptions;
+
+
+class ScrolledWindowWithFloatingWidget : Gtk.Table {
+
+    private Gtk.HScrollbar hscrollbar;
+    private Gtk.VScrollbar vscrollbar;
+
+    private Gtk.Adjustment hadjustment = new Gtk.Adjustment(0, 0, 0, 0, 0, 0);
+    private Gtk.Adjustment vadjustment = new Gtk.Adjustment(0, 0, 0, 0, 0, 0);
+
+    private Gtk.VBox vbox;
+    
+    private void on_hadjustment_changed() {
+        // If the scrollbar is needed, show it, otherwise hide it
+        if (this.hadjustment.page_size == this.hadjustment.upper) {
+            this.hscrollbar.hide();
+        } else {
+            this.hscrollbar.show();
+        }
+    }
+    
+    private void on_vadjustment_changed() {
+        // If the scrollbar is needed, show it, otherwise hide it
+        if (this.vadjustment.page_size == this.vadjustment.upper) {
+            this.vscrollbar.hide();
+        } else {
+            this.vscrollbar.show();
+        }
+    }
+
+    public ScrolledWindowWithFloatingWidget() {
+        this.vbox = new Gtk.VBox(false, 0);
+
+        this.hadjustment.changed.connect(this.on_hadjustment_changed);
+        this.vadjustment.changed.connect(this.on_vadjustment_changed);
+
+        this.hscrollbar = c_func(gtk_hscrollbar_new,{this.hadjustment});
+        this.vscrollbar = c_func(gtk_vscrollbar_new,{this.vadjustment});
+
+        this.attach(this.vbox, 0, 1, 0, 1, Gtk.AttachOptions.EXPAND|Gtk.AttachOptions.FILL, Gtk.AttachOptions.EXPAND|Gtk.AttachOptions.FILL, 0, 0);
+        this.attach(hscrollbar, 0, 1, 1, 2, Gtk.AttachOptions.EXPAND|Gtk.AttachOptions.FILL, Gtk.AttachOptions.FILL, 0, 0);
+        this.attach(vscrollbar, 1, 2, 0, 1, Gtk.AttachOptions.FILL, Gtk.AttachOptions.EXPAND|Gtk.AttachOptions.FILL, 0, 0);
+    }
+
+    public void add_scrollable_widget(Gtk.Widget widget) {
+        widget.set_scroll_adjustments(this.hadjustment, this.vadjustment);
+        widget.scroll_event.connect(this.on_widget_scroll_event);
+        widget.set_size_request(1, 1);
+        this.vbox.pack_start(widget, true, true);
+    }
+    
+    public void add_floating_widget(Gtk.Widget widget) {
+        this.vbox.pack_start(widget, true, true);
+        this.vbox.reorder_child(widget, 0);
+    }
+
+    private bool on_widget_scroll_event(Gdk.EventScroll event) {
+        if ((event.direction == Gdk.ScrollDirection.UP) || (event.direction == Gdk.ScrollDirection.DOWN)) {
+            this.vscrollbar.scroll_event(event);
+        } else if ((event.direction == Gdk.ScrollDirection.LEFT) || (event.direction == Gdk.ScrollDirection.RIGHT)) {
+            this.hscrollbar.scroll_event(event);
+        }
+        return true;
+    }
+}
+--*/
+
+-- The GtkScrollable approach is the following, first you implement vadjustment and hadjustment setters and getters, then when 
+-- the GtkAdjustments are set, you set its lower and upper limits and the page size(how much of the widget is visible at once). 
+-- After that, you connect their value-changed signal so you can refresh your widget when the scrollbars are dragged. 
+-- A GtkScrollable doesn't get to check the scrollbars, only the adjustments that will be bound to the scrollbars. 
+-- When drawing the widget you get the adjustments' value property in order to determine how much the scrollbars have shifted 
+-- in the horizontal and vertical axes.
+
+
+--/*
+--import gtk
+
+--class PyApp(gtk.Window):
+   
+--   def __init__(self):
+--    super(PyApp, self).__init__()
+constant win = c_func(gtk_window_new,{GTK_WINDOW_TOPLEVEL});
+--    self.set_title("Range widgets Demo")
+--    self.set_default_size(250, 200)
+c_proc(gtk_window_set_title,{win,"Range widgets Demo"});
+c_proc(gtk_window_set_default_size,{win, 250, 250});
+atom r = c_func(g_signal_connect_data,{win,"key_press_event",key_cb,1,NULL,0})
+assert(r>0)
+
+--DEV misleading error message on 64 bit (requires 6 params not 5 should be 2 not 1)
+--?697
+--trace(1)
+c_proc(gtk_window_set_position,{win,GTK_WIN_POS_CENTER});
+--?698    
+
+atom --adj1 = c_func(gtk_adjustment_new,{0,0,101,0.1,1,1}),
+     adj2 = c_func(gtk_adjustment_new,{10,0,101,5,1,1});
+--    adj1 = gtk.Adjustment(0.0, 0.0, 101.0, 0.1, 1.0, 1.0)
+--    self.adj2 = gtk.Adjustment(10,0,101,5,1,1)
+      
+--    scale1 = gtk.HScale(adj1)
+--    scale1.set_update_policy(gtk.UPDATE_CONTINUOUS)
+--    scale1.set_digits(1)
+--    scale1.set_value_pos(gtk.POS_TOP)
+--    scale1.set_draw_value(True)
+      
+-- Nah, put it in a GtkFixed, with a canvas! Or maybe a GtkGrid...
+--    vb = gtk.VBox()
+atom vb = c_func(gtk_fixed_new,{})
+--      gtk_fixed_put = define_c_proc(GTKLIB,"gtk_fixed_put",
+--          {C_PTR,     --  GtkFixed *fixed
+--           C_PTR,     --  GtkWidget *widget
+--           C_INT,     --  gint x
+--           C_INT})    --  gint y
+
+--    vb.add(scale1)
+--    lbl1 = gtk.Label("HScale")
+      
+--    vb.add(lbl1)
+atom bar1 = c_func(gtk_hscrollbar_new,{adj2})
+c_proc(gtk_fixed_put,{vb,bar1,100,100})
+--    self.bar1 = gtk.HScrollbar(self.adj2)
+--??
+--    self.bar1.set_update_policy(gtk.UPDATE_CONTINUOUS)
+--    vb.add(self.bar1)
+      
+local function draw(atom widget, event)
+?"draw"
+  atom win = c_func(gtk_widget_get_window,{widget}),
+--DEV/SUG:
+     cairo = c_func(gdk_cairo_create,{win})
+--   cairo = c_func(gdk_cairo_create,{widget})
+--  c_proc(cairo_set_source_rgb,{cairo, 1, 1, 1});
+  c_proc(cairo_set_source_rgb,{cairo, #FA/255, #F8/255, #EF/255});    -- (light parchment)
+  c_proc(cairo_paint,{cairo});
+--/*
+  c_proc(cairo_set_source_rgb,{cairo, 0, 0, 0});                                -- (black)
+  c_proc(cairo_rectangle,{cairo, 10, 10, (imgX-80)/2-10, (imgY-130)/2-10});
+  c_proc(cairo_stroke,{cairo});
+  c_proc(cairo_set_source_rgb,{cairo, 1, 0, 0});                                  -- (red)
+  c_proc(cairo_rectangle,{cairo, imgX/4, imgY/4, imgX-75-imgX/4, imgY-75-imgY/4});
+  c_proc(cairo_stroke,{cairo});
+--*/
+--  c_proc(cairo_set_source_rgb,{cairo, 0.42, 0.65, 0.80});
+  c_proc(cairo_set_source_rgb,{cairo, 0, 1, 0});                                -- (green)
+--  c_proc(cairo_set_line_width,{cairo,1});
+--  c_proc(cairo_rectangle,{cairo, 3, 3, 400, 100});
+integer imgX = 100, imgY = 100 --DEV...
+  c_proc(cairo_rectangle,{cairo, 5, 5, imgX-5-5, imgY-5-5});
+  c_proc(cairo_stroke,{cairo});
+--/*
+    setPenColor(BrightWhite)    drawRectangleh(imageDC, True, 0, 0, imgX, imgY)
+    setPenColor(Black)          drawRectangleh(imageDC, False, 10, 10, floor((imgX-80)/2), floor((imgY-130)/2))
+    setPenColor(BrightRed)      drawRectangleh(imageDC, False, floor(imgX/4), floor(imgY/4), imgX-75, imgY-75)
+    setPenColor(Green)          drawRectangleh(imageDC, False, 5, 5, imgX-5, imgY-5)
+    if drawfocus then
+        setPenColor(Green)      drawRectangleh(imageDC, False, floor(focusX-2), floor(focusY-2), floor(focusX+2), floor(focusY+2))
+    end if
+--*/
+  c_proc(gtk_widget_queue_draw,{widget})
+  c_proc(cairo_destroy,{cairo});
+--  return true
+  return false
+end function
+constant draw_cb = call_back({'+',draw})
+
+atom darea = c_func(gtk_drawing_area_new,{});
+string signal = iff(m=32?"expose-event":"draw")
+r = c_func(g_signal_connect_data,{darea,signal,draw_cb,NULL,NULL,0});
+assert(r>0)
+--    self.lbl2 = gtk.Label("HScrollbar value: ")
+atom lbl2 = c_func(gtk_label_new,{"HScrollbar value: "})
+c_proc(gtk_fixed_put,{vb,lbl2,10,10})
+c_proc(gtk_fixed_put,{vb,darea,0,0})
+
+
+--    vb.add(self.lbl2)
+--local function on_scrolled(atom adjustment, event, data)
+local function on_scrolled(atom adjustment, data)
+--  atom v = c_func(gtk_range_get_value,{winmain})
+    atom v = c_func(gtk_adjustment_get_upper,{adjustment})
+--  ?{"on_scrolled",adjustment,event,data,v}
+    ?{"on_scrolled",adjustment,data,v}
+--  c_proc(gtk_label_set_text,{lbl2,sprintf("HScrollbar value: %g",{v})})
+--local function on_scrolled(atom winmain, event, /*data*/) -- (GTK only)
+    return true
+end function
+constant scroll_cb = call_back({'+',on_scrolled})
+
+--    self.adj2.connect("value_changed", self.on_scrolled)
+r = c_func(g_signal_connect_data,{adj2,"value_changed",scroll_cb,2,NULL,0})
+assert(r>0)
+
+--    self.add(vb)
+c_proc(gtk_container_add,{win, vb});
+--    self.connect("destroy", gtk.main_quit)
+r = c_func(g_signal_connect_data,{win,"destroy",quit_cb,0,NULL,0})
+assert(r>0)
+      
+--  self.show_all()
+c_proc(gtk_widget_show_all,{win})
+   
+--   def on_scrolled(self, widget, data=None):
+--    self.lbl2.set_text("HScrollbar value: "+str(int(self.adj2.value)))
+--if __name__ == '__main__':
+--   PyApp()
+--   gtk.main()
+c_proc(gtk_main)
+--*/

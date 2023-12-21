@@ -29,19 +29,21 @@
             <br>
             <br>
             Use this to define interface element variables. It is probably <a href="usingtypes.htm#can">unwise</a> to use this to determine 
-            whether an object is in fact such, as many things which are clearly not (eg 0, 1, '2', {3,4,5}, {' '}) may pass, the latter only 
-            when 32 or more interface elements have been defined, it does however check [each element] is a non-negative integer between zero 
-            (inclusive) and the current control table length. Some <i>uses</i> of a gdx may prohibit [embedded] nulls, but it is never an
-            error for a variable declared as type gdx to hold such.
-            <br>
-            <a name=gdc></a>
-            <br>
-[DEV I might yet ditch <a href="gImage.htm">gImage</a>()...]<br>
-            A <b>gdc</b> is either a single gdx from <a href="gCanvas.htm">gCanvas</a> <!--(but <i>not</i> 
-            <a href="gGraph.htm">gGraph</a>/<a href="gList.htm">gList</a>/<a href="gTable.htm">gTable</a>/<a href="gBox.htm">gSplit</a>)-->
-            <!--(or therefore <a href="gGraph.htm">gGraph</a>/<a href="gList.htm">gList</a>/<a href="gTable.htm">gTable</a> and suchlike)-->
-            or a single (sequence) result from <a href="gImage.htm">gImage</a>. Note the latter is <b>not</b> an interface element and 
-            <i>cannot</i> be added to a layout hierarchy. A gdc may not be NULL.
+            whether an object is in fact such, as many things which are clearly not (eg 0, 1, '2', {3,4,5}, {'6'}) may pass, the latter only 
+            when 54(==#36=='6') or more interface elements have been defined, it does however check [each element] is a non-negative integer 
+            between zero (inclusive) and the current control table length. Some <i>uses</i> of a gdx may prohibit [embedded] nulls, but it 
+            is never an inherent error for a variable declared as type gdx to hold such.
+<!--
+//          <br>
+//          <a name=gdc></a>
+//          <br>
+//[DEV I might yet ditch <a href="gImage.htm">gImage</a>()...]<br> - erm, I might yet resurrect this...
+//          A <b>gdc</b> is either a single gdx from <a href="gCanvas.htm">gCanvas</a> <X!X--(but <i>not</i> 
+//          <a href="gGraph.htm">gGraph</a>/<a href="gList.htm">gList</a>/<a href="gTable.htm">gTable</a>/<a href="gBox.htm">gSplit</a>)--X>
+//          <X!X--(or therefore <a href="gGraph.htm">gGraph</a>/<a href="gList.htm">gList</a>/<a href="gTable.htm">gTable</a> and suchlike)--X>
+//          or a single (sequence) result from <a href="gImage.htm">gImage</a>. Note the latter is <b>not</b> an interface element and 
+//          <i>cannot</i> be added to a layout hierarchy. A gdc may not be NULL.
+-->
          </td>
         </tr>
         <tr>
@@ -50,13 +52,26 @@
          </td>
          <td>
           Supported, or at least understood by pwa/p2js and mapped to "let /*gdx*/" aka (almost) completely ignored, since JavaScript is a 
-          <a href="glossary.htm#typeless">typeless</a> language.<br>
-          As per <a href="usingtypes.htm#can">unwise</a>, xpGUI.js does not even have a fake version, which <i>you should not ever want</i> anyway.<br>
-          Note that on desktop/Phix a gdx is an integer (index to private tables) whereas in JavaScript it is a (private) HtmlElement.<br>
+          <a href="glossary.htm#typeless">typeless</a> language.
+          As per <a href="usingtypes.htm#can">unwise</a>, xpGUI.js does not even have a fake version, which <i>you should not ever want anyway</i>.<br>
+          Note that on desktop/Phix a gdx is an integer (index to private tables) whereas in JavaScript it is in fact the HtmlElement.<br>
+          Therefore, an application should refrain from printing, comparing (etc) gdx variables, except perhaps during initial debugging.<br>
+          <small>[Equality tests and find() are in fact fine, but <code>gdxvar1 &lt; gdxvar2</code> and similar are potentially problematical.]</small>
+<!--
+            
           A statement such as ?{"clicked",id} might print {"clicked",5} on the desktop but {"clicked","&lt;HtmlElement&gt;"} in a browser,<br>
-          however getting "&lt;HtmlElement&gt;" rather than crashing is in no way guaranteed for the many different browsers, (s)printf(), etc.<br>
-          To be blunt, application code has no real business doing <i>anything at all</i> with a gdx other than passing it back to xpGUI.<br>
-          There is even less support for an application doing rude things with a gdc (such as trying to print it or test for gdc-ness).
+          however getting "&lt;HtmlElement&gt;" rather than crashing is in no way guaranteed for the many different browsers, (s)printf(), etc.
+            <a name=gdxp2jsuse></a>
+          To be blunt, application code has no real business doing much with a gdx other than passing it back to xpGUI, or comparing it for  
+          equality against other known gdx, using = or != or <a href="find.htm">find</a>() and similar, which all work just as they should 
+          under p2js, but not &lt;[=] or &gt[=], etc. It may also be possible to use a gdx as a key to a <a href="dict.htm">dictionary</a> 
+          (for instance) and that will certainly work on desktop/Phix, but unfortunately I simply cannot guarantee that will work consistently 
+          on all browsers and/or operating systems, due to the implicit use of &lt; and &gt;.
+-->
+<!--
+//      <br>
+//        There is even less support for an application doing rude things with a gdc (such as trying to print it or test for gdc-ness).
+-->
          </td>
         </tr>
         <tr>
@@ -81,9 +96,7 @@ gdx quit_bt = gButton("Quit")
           <b>See Also:</b>
          </td>
          <td>
-          <a href="gButton.htm">gButton</a>,
-          <a href="gCanvas.htm">gCanvas</a>,
-          <a href="gImage.htm">gImage</a><br>
+          <a href="gButton.htm">gButton</a>
           <a name=tech></a>
          </td>
         </tr>
@@ -94,7 +107,7 @@ gdx quit_bt = gButton("Quit")
           </a>
          </td>
          <td>
-            Note that the pGUI distinctions between IupHandl(e|n)[s] have been dropped in favour of crashing when some element/container 
+            Note the pGUI distinctions between IupHandl(e|n)[s] have been dropped in favour of crashing when some element/container 
             cannot be created or attempting to use a NULL or multiple handle[s] inappropriately. One thing in particular is that
             IupG/SetAttribute(NULL,...) being equivalent to IupG/SetGlobal(...) has been completely dropped, in favour of having
             gGet/SetAttribute(NULL,...) immediately crash, since that <i>should</i> help catch a few more silly little slip-ups.
@@ -107,14 +120,16 @@ gdx quit_bt = gButton("Quit")
             <br>
             Likewise the distinction between Ihandle and Ihandles has also been ditched, but you will for instance get an error should you try
             to specify more than one parent (and in some cases child) when creating a new interface element.
-            <br>
-            <br>
-            I could fairly easily be persuaded to (re-)introduce some optional types, and may well quietly do so anyway, such as<br>
-            &nbsp;&nbsp;gdi - must be a non-null integer (gDialog, gFrame, gGetDialog..gGetParent, and gGetAttribute),<br>
-            &nbsp;&nbsp;gds - must be a sequence (eg gH/Vbox and gTabs), and<br>
-            &nbsp;&nbsp;gdn - may contain nulls (no specific internal use springs to mind),<br>
-            however they would probably be more useful within an application than internally by xpGUI.e, and these documents are
-            probably best kept/easier to digest with just the one single gdx type.
+<!-- why put silly ideas...
+//          <br>
+//          <br>
+//          I could fairly easily be persuaded to (re-)introduce some optional types, and may well quietly do so anyway, such as<br>
+//          &nbsp;&nbsp;gdi - must be a non-null integer (gDialog, gFrame, gGetDialog..gGetParent, and gGetAttribute),<br>
+//          &nbsp;&nbsp;gds - must be a sequence (eg gH/Vbox and gTabs), and<br>
+//          &nbsp;&nbsp;gdn - may contain nulls (no specific internal use springs to mind),<br>
+//          however they would probably be more useful within an application than internally by xpGUI.e, and these documents are
+//          probably best kept/easier to digest with just the one single gdx type.
+-->
          </td>
         </tr>
        </table>

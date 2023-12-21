@@ -1,5 +1,5 @@
 --
--- builtins/sha1.e
+-- builtins\sha1.e
 -- ===============
 --
 --  NB no longer considered secure. Non-optimised.

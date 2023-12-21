@@ -86,4 +86,21 @@ function hideorshow(btn, obj) {
     }
     return false;
 }
+function initAccordion() {
+    function handlePanelClick(event) {
+        let expandel = accordionElem.querySelector(".active");
+        if (expandel && expandel !== event.currentTarget) {
+            expandel.classList.remove("active");
+        }
+        event.currentTarget.classList.toggle("active");
+    }
+    let accordionElem = document.getElementById("accordion");
+    if (accordionElem) {
+        let allPanels = accordionElem.querySelectorAll(".panel");
+        for (var i = 0, len = allPanels.length; i < len; i++) {
+            allPanels[i].addEventListener("click", handlePanelClick);
+        }
+    }
+}
+
 

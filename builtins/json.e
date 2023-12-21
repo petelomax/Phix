@@ -1,5 +1,5 @@
 --
--- builtins/json.e
+-- builtins\json.e
 -- ===============
 --
 --  A simple json parser/printer/converter
@@ -76,7 +76,7 @@ global constant true=(1=1), false=(1=0)
 type bool(object b)
     return integer(b) and (b=true or b=false)
 end type
---include builtins/ptrim.e
+--include builtins\ptrim.e
 include std\types.e
 include std\text.e
 include std\console.e
@@ -318,6 +318,7 @@ integer tokstart
         token = text[tokstart..col-1]
         nextCh()
     elsif toktype=DQUOTE then
+        token = ""
         while 1 do
             col += 1
             if col>textlen then
@@ -327,13 +328,15 @@ integer tokstart
             end if
             nxtCh = text[col]
             if nxtCh='\\' then
+                token &= text[tokstart+1..col-1]
+                tokstart = col
                 col += 1
             elsif nxtCh='"' then
                 col += 1
                 exit
             end if
         end while
-        token = text[tokstart+1..col-2]
+        token &= text[tokstart+1..col-2]
         nextCh()
     elsif toktype=DOT then
         tokint = 0
@@ -380,7 +383,9 @@ object res
         Match("{")
         if toktype!=SYMBOL or not equal(token,"}") then
             while 1 do
-                if toktype!=DQUOTE then invalid = 2 exit end if
+--19/8/23: (allow unquoted keys)
+--              if toktype!=DQUOTE then invalid = 2 exit end if
+                if toktype!=DQUOTE and toktype!=LETTER then invalid = 2 exit end if
                 string name = token
                 getToken()
                 Match(":")
@@ -390,6 +395,8 @@ object res
                 if toktype!=SYMBOL then invalid = 2 exit end if
                 if equal(token,"}") then exit end if
                 Match(",")
+--19/8/23: (allow trailing commas)
+                if equal(token,"}") then exit end if
             end while
         end if
     elsif toktype=SYMBOL and equal(token,"[") then
@@ -403,6 +410,8 @@ object res
                 if toktype!=SYMBOL then invalid = 2 exit end if
                 if equal(token,"]") then exit end if
                 Match(",")
+--19/8/23: (allow trailing commas)
+                if equal(token,"]") then exit end if
             end while
         end if
     elsif toktype=SYMBOL and equal(token,"-") then

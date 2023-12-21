@@ -7,7 +7,7 @@
 --  memory after printing the 99th line)
 --  I also tried a log version (similar to [[Hamming_numbers#Phix]]) but inaccuracies crept in over 10 digits.
 --
-with javascript_semantics 
+--with javascript_semantics 
 include mpfr.e
 include builtins/ptrim.e    -- (shorten(), pre-0.8.1)
  
@@ -66,7 +66,7 @@ end procedure
 
 if 01 then
 humble(50)
-humble(42,true)
+--humble(42,true)
 --humble(100,true)
 end if
 /*
@@ -176,9 +176,11 @@ First 50 humble numbers: 1 2 3 4 5 6 7 8 9 10 12 14 15 16 18 20 21 24 25 27 28 3
    2,003,661 humble numbers have 100 digits (17 minutes and 49s, total:51,428,827)
 --*/
 
---/!* This is the attempt at a log version mentioned above:
--- numbers kept as {log,{pow2,pow3,pow5}},
---  value is ~= exp(log), == (2^pow2)*(3^pow3)*(5^pow5)
+--/* This is the attempt at a log version mentioned above:
+-- numbers kept as {log,{pow2,pow3,pow5,pow7}},
+--  value is ~= exp(log), == (2^pow2)*(3^pow3)*(5^pow5)*(7^pow7)
+-- There is a terrible memory leak somewhere, I assume in the mpir/mpfr dlls...
+--  (maybe I could try this with string maths...)
 enum LOG, POWS
 enum POW2, POW3, POW5, POW7
 
@@ -194,6 +196,8 @@ function hcalc(sequence hn)
     mpz_mul(res,res,tmp)
     mpz_ui_pow_ui(tmp,7,i7)
     mpz_mul(res,res,tmp)
+--no help:
+--  tmp = mpz_free(tmp)
     return res
 end function
 
@@ -206,24 +210,35 @@ sequence h = {{lg1,{0,0,0,0}}},
          x5 = {lg5,{0,0,1,0}},
          x7 = {lg7,{0,0,0,1}}
 integer i2 = 1, i3 = 1, i5 = 1, i7 = 1,
-        digits = 1, count = 1, tc = 0
+        digits = 0, count = 1, tc = 0
     atom t0 = time()
     while (countdigits=false and length(h)<n)
        or (countdigits=true and digits<n) do
         sequence x = min({x2,x3,x5,x7})
+--?{x,i2,i3,i5,i7,x2,x3,x5,x7}
+--      sequence x = deep_copy(min({x2,x3,x5,x7}))
         h = append(h,x)
+--      h = append(h,deep_copy(x))
         if countdigits then
 -- (This solves the inaccuracy issue, but reduces performance to about the same as above or worse...)
 --          integer d = mpz_sizeinbase(hcalc(x),10)
             if floor(x[LOG])>digits then
 --          if d>digits then
                 digits += 1
+                -- kludge: check prev for log10 inaccuracy, really it should probably also check
+                -- x and iterate up/down, but [0,-1] seems sufficient till it runs out of memory.
+                integer adj = mpz_sizeinbase(hcalc(h[-2]),10)>digits
+--no help:
+--              mpz tmp = hcalc(h[-2])
+--              integer adj = mpz_sizeinbase(tmp,10)>digits
+--              tmp = mpz_free(tmp)
+                count -= adj
                 tc += count
                 string s = iff(digits=1?"":"s"),
                        e = elapsed(time()-t0)
                 e &= sprintf(", total:%,d",{tc})
-                printf(1,"%,12d humble numbers have %d digit%s (%s)\n",{count,digits,s,e})
-                count = 1
+                printf(1,"%,12d humble numbers have %d digit%s (%s)[%d]\n",{count,digits,s,e,adj})
+                count = 1+adj
             else
                 count += 1
             end if
@@ -242,14 +257,91 @@ integer i2 = 1, i3 = 1, i5 = 1, i7 = 1,
     end if
 end procedure
  
-if 0 then
+if 01 then
 atom t0 = time()
 humbled(50)
+--integer lim = iff(machine_bits()=32?73:83)
+--humbled(lim,true)
 humbled(70,true)
 --humbled(100,true) -- [DEV] crashes...
 ?elapsed(time()-t0)
 end if
---*!/
+--*/
+
+--/* I was also going to play with a priority queue, but...
+--constant limit = 2000 -- 2mins 20s
+--constant limit = 1000 -- 11.3s
+constant limit = 250    -- 0.3s
+include pqueue.e
+include mpfr.e
+integer pqid = pq_new(MIN_HEAP, routine_id("mpz_cmp"))
+pq_add({0,mpz_init(1)},pqid)
+sequence p = {{},{}}
+mpz y, z
+atom t0 = time()
+atom t1 = time()+1
+while length(p[1])<limit
+   or length(p[2])<limit do
+    {?,z} = pq_pop(pqid)
+    if length(p[1])<limit then
+        y = mpz_init()
+        mpz_add_ui(y,z,1)
+        if mpz_prime(y) then
+            p[1] = append(p[1],y)
+        end if
+    end if
+    if length(p[2])<limit then
+        y = mpz_init()
+        mpz_sub_ui(y,z,1)
+        if mpz_prime(y) then
+            p[2] = append(p[2],y)
+        end if
+    end if
+    while not pq_empty(pqid) do
+        -- remove duplicates
+        -- (eg both 2*2*3 and 2*3*2 get added, but generally we cannot be sure which 
+        --  first, and therefore would probably struggle to avoid adding the second.
+        --  Thankfully however, we can be certain that by the time any bubble up to
+        --  the front of the queue, then all such duplicates have all been added.)
+        {?,y} = pq_peek(pqid)
+        if mpz_cmp(y,z)!=0 then exit end if
+        {} = pq_pop(pqid)
+    end while
+    -- add z*2 and z*3 back into the priority queue
+    y = mpz_init()
+    mpz_mul_si(y,z,2)
+    pq_add({0,y},pqid)
+    mpz_mul_si(z,z,3)
+    pq_add({0,z},pqid)
+    if time()>t1 then
+        printf(1,"Found: 1st:%d, 2nd:%d (queue size %d)\r",{length(p[1]),length(p[2]),pq_size(pqid)})
+        t1 = time()+1
+    end if
+end while
+
+constant fs = {"first","second"}
+
+for i=1 to length(fs) do
+    printf(1,"First 50 Pierpont primes of the %s kind:\n",{fs[i]})
+    for j=1 to 50 do
+        printf(1,"%8s ", {mpz_get_str(p[i][j])})
+        if mod(j,10)=0 then printf(1,"\n") end if
+    end for
+    printf(1,"\n")
+end for
+
+constant t = {250,1000,2000}
+for i=1 to length(t) do
+    integer ti = t[i]
+    if ti>limit then exit end if
+    for j=1 to length(fs) do
+        string zs = shorten(mpz_get_str(p[j][ti]))
+        printf(1,"%dth Pierpont prime of the %s kind: %s\n",{ti,fs[j],zs})
+    end for
+    puts(1,"\n")
+end for
+printf(1,"Took %s\n", elapsed(time()-t0))
+--*/
 
 ?"done"
 {} = wait_key() 

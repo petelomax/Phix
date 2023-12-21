@@ -3,7 +3,7 @@
 -- ===========================
 --
 without debug
-include builtins/VM/pStack.e    -- :%opGetST
+include builtins\VM\pStack.e    -- :%opGetST
 
 -- These must match pglobals.e:
 --  (include pglobals.e is not on as it introduces a bunch of compiler-
@@ -90,7 +90,7 @@ global function get_routine_info(integer rid, bool bName=true)
     object sr = symtab[rid]
 --  string name = sr[S_Name]
     object name = sr[S_Name]    -- 22/12/20 class methods have a [symtab] name of -1, on purpose
-                                --          (their proper names are kept in builtins/structs.e,
+                                --          (their proper names are kept in builtins\structs.e,
                                 --           and are passed in as text anyway, so you don't need
                                 --           multiple conflicting entries messing up the symtab,
                                 --           or ever allow a "do()" that should be an "s.do()".)

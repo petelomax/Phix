@@ -2,7 +2,7 @@
 -- builtins\match.e
 -- ================
 --
---  hll implementation of match()  (replaces builtins/VM/pMatch.e)
+--  hll implementation of match()  (replaces builtins\VM\pMatch.e)
 --
 --  Changes noted below ("Euphoria") arose from a protracted discussion on EuForum in 2002.
 --

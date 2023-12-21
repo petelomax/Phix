@@ -30,11 +30,15 @@
             <br>
             <br>
             redraw: a procedure invoked whenever the canvas needs to be redrawn, see <a href="#REDRAW">REDRAW</a> below.<br>
-            For more information on the attributes and args parameters see <a href="gSetAttributes.htm">gSetAttributes</a>.<br>
+            For more information on the attributes and args parameters see <a href="gSetAttributes.htm">gSetAttributes</a>().<br>
             This is a <a href="g_paranormal.htm">paranormalised function</a>. <small>(see <a href="#tech" onclick="opentech()">technicalia</a>)</small>
             <br>
             <br>
             Returns the identifier of the created element.
+            <br>
+            <br>
+            A gCanvas is also used to implement <a href="gGraph.htm">gGraph</a>, <a href="gList.htm">gList</a>, and <a href="gTable.htm">gTable</a>.
+            <br>
          </td>
         </tr>
         <tr>
@@ -52,9 +56,10 @@
          <td>
           <a href="gGraph.htm">gGraph</a>,
           <a href="gImage.htm">gImage</a>,
+          <a href="gImage.htm">gImage_from_XPM</a>,
+          <a href="gImage.htm#gImageDraw">gImageDraw</a>,
           <a href="gList.htm">gList</a>,
           <a href="gTable.htm">gTable</a>,
-<!--          <a href="IupBackgroundBox.htm">IupBackgroundBox</a>,-->
           <a href="gRedraw.htm">gRedraw</a>
          </td>
         </tr>
@@ -63,18 +68,15 @@
           <b>Example:</b>
          </td>
          <td>
-            <p align="center"><img alt="gCanvas" src="images/gCanvasACS.png" width="240" height="156"/></p>
-
+           <div style="float:left;">
 <!--eucode>
--- a somewhat simplified version of demo\xpGUI\gCanvas.exw
+-- demo\xpGUI\gCanvas.exw (simplified)
 include xpGUI.e
 
-procedure redraw(gdx canvas)
-    integer {w,h} = gGetAttribute(canvas,"SIZE")
-    atom {cx,cy} = {w/2,h/2}
-    gCanvasSetForeground(canvas,XPG_GREEN)
-    gCanvasLine(canvas,0,cy,w,cy)
---  ...
+procedure redraw(gdx canvas, integer w, h)
+    gCanvasLine(canvas,0,h/2,w,h/2,-1,1,XPG_GREEN)
+--  ... more gCanvasLine/Arc/Text/Polygon/Circle
+--      plus one gImageDraw(gImage_from_XPM())
 end procedure
 
 gdx canvas = gCanvas(redraw),
@@ -84,28 +86,27 @@ gShow(dialog)
 gMainLoop()
 </eucode-->
 <pre>
-<font color="#000080"><i>-- a somewhat simplified version of demo\xpGUI\gCanvas.exw</i></font>
+<font color="#000080"><i>-- demo\xpGUI\gCanvas.exw (simplified)</i></font>
 <font color="#008080">include</font><font color="#000000"> xpGUI.e
 </font>
-<font color="#008080">procedure</font><font color="#000000"> redraw</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> canvas</font><font color="#0000FF">)</font>
-<font color="#004080">    integer</font><font color="#0000FF"> {</font><font color="#000000">w</font><font color="#0000FF">,</font><font color="#000000">h</font><font color="#0000FF">} =</font><font color="#7060A8"> gGetAttribute</font><font color="#0000FF">(</font><font color="#000000">canvas</font><font color="#0000FF">,</font><font color="#008000">"SIZE"</font><font color="#0000FF">)</font>
-<font color="#004080">    atom</font><font color="#0000FF"> {</font><font color="#000000">cx</font><font color="#0000FF">,</font><font color="#000000">cy</font><font color="#0000FF">} = {</font><font color="#000000">w</font><font color="#0000FF">/</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">h</font><font color="#0000FF">/</font><font color="#000000">2</font><font color="#0000FF">}</font>
-<font color="#7060A8">    gCanvasSetForeground</font><font color="#0000FF">(</font><font color="#000000">canvas</font><font color="#0000FF">,</font><font color="#004600">XPG_GREEN</font><font color="#0000FF">)</font>
-<font color="#7060A8">    gCanvasLine</font><font color="#0000FF">(</font><font color="#000000">canvas</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">cy</font><font color="#0000FF">,</font><font color="#000000">w</font><font color="#0000FF">,</font><font color="#000000">cy</font><font color="#0000FF">)</font>
-<font color="#000080"><i>--  ...</i></font>
+<font color="#008080">procedure</font><font color="#000000"> redraw</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> canvas</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> w</font><font color="#0000FF">,</font><font color="#000000"> h</font><font color="#0000FF">)</font>
+<font color="#7060A8">    gCanvasLine</font><font color="#0000FF">(</font><font color="#000000">canvas</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">h</font><font color="#0000FF">/</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">w</font><font color="#0000FF">,</font><font color="#000000">h</font><font color="#0000FF">/</font><font color="#000000">2</font><font color="#0000FF">,-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#004600">XPG_GREEN</font><font color="#0000FF">)</font>
+<font color="#000080"><i>--  ... more gCanvasLine/Arc/Text/Polygon/Circle
+--      plus one gImageDraw(gImage_from_XPM())</i></font>
 <font color="#008080">end procedure
 </font>
 <font color="#7060A8">gdx</font><font color="#000000"> canvas</font><font color="#0000FF"> =</font><font color="#7060A8"> gCanvas</font><font color="#0000FF">(</font><font color="#000000">redraw</font><font color="#0000FF">),</font>
-<font color="#000000">    window</font><font color="#0000FF"> =</font><font color="#7060A8"> gDialog</font><font color="#0000FF">(</font><font color="#000000">canvas</font><font color="#0000FF">,</font><font color="#008000">`gCanvas`</font><font color="#0000FF">,</font><font color="#008000">`SIZE=240x163`</font><font color="#0000FF">)</font>
+<font color="#000000">    dialog</font><font color="#0000FF"> =</font><font color="#7060A8"> gDialog</font><font color="#0000FF">(</font><font color="#000000">canvas</font><font color="#0000FF">,</font><font color="#008000">`gCanvas`</font><font color="#0000FF">,</font><font color="#008000">`SIZE=240x163`</font><font color="#0000FF">)</font>
 <font color="#7060A8">gCanvasSetBackground</font><font color="#0000FF">(</font><font color="#000000">canvas</font><font color="#0000FF">,</font><font color="#004600"> XPG_PARCHMENT</font><font color="#0000FF">)</font>
-<font color="#7060A8">gShow</font><font color="#0000FF">(</font><font color="#000000">window</font><font color="#0000FF">)</font>
+<font color="#7060A8">gShow</font><font color="#0000FF">(</font><font color="#000000">dialog</font><font color="#0000FF">)</font>
 <font color="#7060A8">gMainLoop</font><font color="#0000FF">()</font>
 </pre>
-
-            See demo\xpGUI\gCanvas.exw (from whence the above screenshot came), and <br>
-            demo\xpGUI\GraphR.exw,<br>
-            demo\xpGUI\aaline.exw ([will be] the same as demo\rosetta\XiaolinWuLine.exw)<br>
-            demo\xpGUI\scroller.exw (incomplete)<br>
+           </div>
+            <img alt="gCanvas" style="float:right;" src="images/gCanvasACS.png" width="240" height="156"/>
+            <div class="clear"></div>
+            <br>
+            Other examples include demo\xpGUI\GraphR.exw, aaline.exw, and scroller.exw<br>
+<!--DEV/SUG     , and at the time of writing there were ??? uses in demo\rosetta\.<br> -->
             <a name=XPG_colours></a>
          </td>
         </tr>
@@ -171,81 +172,84 @@ gMainLoop()
             <p align="center">
              <small>
 <!--
-              <table>
-                <tr>
-                  <th bgcolor="#C0C0C0">Eg</th>
-                  <th bgcolor="#C0C0C0">Name</th>
-                  <th bgcolor="#C0C0C0">Value/Aliases</th>
-                </tr>
-                <tr><td style="background-color:#000000;"></td> <td>XPG_BLACK           </td> <td>#000000 (0)           </td>
-                <tr><td style="background-color:#000080;"></td> <td>XPG_DARK_BLUE       </td> <td>#000080 (128)     XPG_NAVY  </td>
-                <tr><td style="background-color:#0000FF;"></td> <td>XPG_BLUE            </td> <td>#0000FF (255)         </td>
-                <tr><td style="background-color:#4363d8;"></td> <td>XPG_LIGHT_BLUE      </td> <td>#4363D8 (4416472)     </td>
-                <tr><td style="background-color:#008080;"></td> <td>XPG_DARK_CYAN       </td> <td>#008080 (32896)   XPG_TEAL  </td>
-                <tr><td style="background-color:#00FFFF;"></td> <td>XPG_CYAN            </td> <td>#00FFFF (65535)       </td>
-                <tr><td style="background-color:#008000;"></td> <td>XPG_DARK_GREEN      </td> <td>#008000 (32768)       </td>
-                <tr><td style="background-color:#3cb44b;"></td> <td>XPG_GREEN           </td> <td>#3CB44B (3978315)     </td>
-                <tr><td style="background-color:#00FF00;"></td> <td>XPG_LIGHT_GREEN     </td> <td>#00FF00 (65280)       </td>
-                <tr><td style="background-color:#808000;"></td> <td>XPG_OLIVE           </td> <td>#808000 (8421376)     </td>
-                <tr><td style="background-color:#FF8C00;"></td> <td>XPG_ORANGE          </td> <td>#FF8C00 (16747520)    </td>
-                <tr><td style="background-color:#FFBF00;"></td> <td>XPG_AMBER           </td> <td>#FFBF00 (16760576)    </td>
-                <tr><td style="background-color:#EBEB00;"></td> <td>XPG_DARK_YELLOW     </td> <td>#EBEB00 (15461120)    </td>
-                <tr><td style="background-color:#FFFF00;"></td> <td>XPG_YELLOW          </td> <td>#FFFF00 (16776960)    </td>
-                <tr><td style="background-color:#4B0082;"></td> <td>XPG_INDIGO          </td> <td>#4B0082 (4915330)     </td>
-                <tr><td style="background-color:#800080;"></td> <td>XPG_DARK_PURPLE     </td> <td>#800080 (8388736)     </td>
-                <tr><td style="background-color:#911eb4;"></td> <td>XPG_PURPLE          </td> <td>#911EB4 (9510580)     </td>
-                <tr><td style="background-color:#f032e6;"></td> <td>XPG_MAGENTA         </td> <td>#F032E6 (15741670)    </td>
-                <tr><td style="background-color:#EE82EE;"></td> <td>XPG_VIOLET          </td> <td>#EE82EE (15631086)    </td>
-                <tr><td style="background-color:#800000;"></td> <td>XPG_DARK_RED        </td> <td>#800000 (8388608)     </td>
-                <tr><td style="background-color:#FF0000;"></td> <td>XPG_RED             </td> <td>#FF0000 (16711680)    </td>
-                <tr><td style="background-color:#808080;"></td> <td>XPG_DARK_GREY       </td> <td>#808080 (8421504) XPG_DARK_GRAY </td>
-                <tr><td style="background-color:#C0C0C0;"></td> <td>XPG_GREY            </td> <td>#C0C0C0 (12632256) XPG_GRAY, XPG_SILVER  </td>
-                <tr><td style="background-color:#E4E4E4;"></td> <td>XPG_LIGHT_GREY      </td> <td>#E4E4E4 (15000804) XPG_LIGHT_GRAY </td>
-                <tr><td style="background-color:#FFFFE0;"></td> <td>XPG_PARCHMENT       </td> <td>#FFFFE0 (16777184)    </td>
-                <tr><td style="background-color:#FAF8EF;"></td> <td>XPG_LIGHT_PARCHMENT </td> <td>#FAF8EF (16447727)    </td>
-                <tr><td style="background-color:#FFFFFF;"></td> <td>XPG_WHITE           </td> <td>#FFFFFF (16777215)    </td>
-              </table>
+//            <table>
+//              <tr>
+//                <th bgcolor="#C0C0C0">Eg</th>
+//                <th bgcolor="#C0C0C0">Name</th>
+//                <th bgcolor="#C0C0C0">Value/Aliases</th>
+//              </tr>
+//              <tr><td style="background-color:#000000;"></td> <td>XPG_BLACK           </td> <td>#000000 (0)           </td>
+//              <tr><td style="background-color:#000080;"></td> <td>XPG_DARK_BLUE       </td> <td>#000080 (128)     XPG_NAVY  </td>
+//              <tr><td style="background-color:#0000FF;"></td> <td>XPG_BLUE            </td> <td>#0000FF (255)         </td>
+//              <tr><td style="background-color:#4363d8;"></td> <td>XPG_LIGHT_BLUE      </td> <td>#4363D8 (4416472)     </td>
+//              <tr><td style="background-color:#008080;"></td> <td>XPG_DARK_CYAN       </td> <td>#008080 (32896)   XPG_TEAL  </td>
+//              <tr><td style="background-color:#00FFFF;"></td> <td>XPG_CYAN            </td> <td>#00FFFF (65535)       </td>
+//              <tr><td style="background-color:#008000;"></td> <td>XPG_DARK_GREEN      </td> <td>#008000 (32768)       </td>
+//              <tr><td style="background-color:#3cb44b;"></td> <td>XPG_GREEN           </td> <td>#3CB44B (3978315)     </td>
+//              <tr><td style="background-color:#00FF00;"></td> <td>XPG_LIGHT_GREEN     </td> <td>#00FF00 (65280)       </td>
+//              <tr><td style="background-color:#808000;"></td> <td>XPG_OLIVE           </td> <td>#808000 (8421376)     </td>
+//              <tr><td style="background-color:#FF8C00;"></td> <td>XPG_ORANGE          </td> <td>#FF8C00 (16747520)    </td>
+//              <tr><td style="background-color:#FFBF00;"></td> <td>XPG_AMBER           </td> <td>#FFBF00 (16760576)    </td>
+//              <tr><td style="background-color:#EBEB00;"></td> <td>XPG_DARK_YELLOW     </td> <td>#EBEB00 (15461120)    </td>
+//              <tr><td style="background-color:#FFFF00;"></td> <td>XPG_YELLOW          </td> <td>#FFFF00 (16776960)    </td>
+//              <tr><td style="background-color:#4B0082;"></td> <td>XPG_INDIGO          </td> <td>#4B0082 (4915330)     </td>
+//              <tr><td style="background-color:#800080;"></td> <td>XPG_DARK_PURPLE     </td> <td>#800080 (8388736)     </td>
+//              <tr><td style="background-color:#911eb4;"></td> <td>XPG_PURPLE          </td> <td>#911EB4 (9510580)     </td>
+//              <tr><td style="background-color:#f032e6;"></td> <td>XPG_MAGENTA         </td> <td>#F032E6 (15741670)    </td>
+//              <tr><td style="background-color:#EE82EE;"></td> <td>XPG_VIOLET          </td> <td>#EE82EE (15631086)    </td>
+//              <tr><td style="background-color:#800000;"></td> <td>XPG_DARK_RED        </td> <td>#800000 (8388608)     </td>
+//              <tr><td style="background-color:#FF0000;"></td> <td>XPG_RED             </td> <td>#FF0000 (16711680)    </td>
+//              <tr><td style="background-color:#808080;"></td> <td>XPG_DARK_GREY       </td> <td>#808080 (8421504) XPG_DARK_GRAY </td>
+//              <tr><td style="background-color:#C0C0C0;"></td> <td>XPG_GREY            </td> <td>#C0C0C0 (12632256) XPG_GRAY, XPG_SILVER  </td>
+//              <tr><td style="background-color:#E4E4E4;"></td> <td>XPG_LIGHT_GREY      </td> <td>#E4E4E4 (15000804) XPG_LIGHT_GRAY </td>
+//              <tr><td style="background-color:#FFFFE0;"></td> <td>XPG_PARCHMENT       </td> <td>#FFFFE0 (16777184)    </td>
+//              <tr><td style="background-color:#FAF8EF;"></td> <td>XPG_LIGHT_PARCHMENT </td> <td>#FAF8EF (16447727)    </td>
+//              <tr><td style="background-color:#FFFFFF;"></td> <td>XPG_WHITE           </td> <td>#FFFFFF (16777215)    </td>
+//            </table>
 -->
-              <table>
+              <table style="width: auto;">
                 <tr>
                   <th bgcolor="#C0C0C0" style="text-align:center">EG</th>
                   <th bgcolor="#C0C0C0">Value/Names</th>
                   <th bgcolor="#C0C0C0" style="text-align:center">EG</th>
                   <th bgcolor="#C0C0C0">Value/Names</th>
                 </tr>
-                <tr><td style="background-color:#000000;"></td> <td>#000000 XPG_BLACK                       </td>
-                    <td style="background-color:#4B0082;"></td> <td>#4B0082 XPG_INDIGO                      </td></tr>
-                <tr><td style="background-color:#000080;"></td> <td>#000080 XPG_NAVY                        </td>
-                    <td style="background-color:#800080;"></td> <td>#800080 XPG_DARK_PURPLE                 </td></tr>
-                <tr><td style="background-color:#0000FF;"></td> <td>#0000FF XPG_BLUE                        </td>
-                    <td style="background-color:#911eb4;"></td> <td>#911EB4 XPG_PURPLE                      </td></tr>
-                <tr><td style="background-color:#4363d8;"></td> <td>#4363D8 XPG_LIGHT_BLUE                  </td>
-                    <td style="background-color:#f032e6;"></td> <td>#F032E6 XPG_MAGENTA                     </td></tr>
+                <tr><td style="background-color:#000000;"></td> <td><code>#000000</code> XPG_BLACK                      </td>
+                    <td style="background-color:#4B0082;"></td> <td><code>#4B0082</code> XPG_INDIGO                     </td></tr>
+                <tr><td style="background-color:#000080;"></td> <td><code>#000080</code> XPG_NAVY                       </td>
+                    <td style="background-color:#800080;"></td> <td><code>#800080</code> XPG_DARK_PURPLE                </td></tr>
+                <tr><td style="background-color:#0000FF;"></td> <td><code>#0000FF</code> XPG_BLUE                       </td>
+                    <td style="background-color:#911eb4;"></td> <td><code>#911EB4</code> XPG_PURPLE                     </td></tr>
+                <tr><td style="background-color:#4363d8;"></td> <td><code>#4363D8</code> XPG_LIGHT_BLUE                 </td>
+                    <td style="background-color:#f032e6;"></td> <td><code>#F032E6</code> XPG_DARK_VIOLET                </td></tr>
 <!-- (test)
-                <tr><td style="background-color:#4363d8;"></td> <td>#4363D8 ?XPG_LIGHT_BLUE                 </td>
-                    <td style="background-color:#ff00ff;"></td> <td>#FF00FF ?XPG_MAGENTA                    </td></tr>
+                <tr><td style="background-color:#4363d8;"></td> <td><code>#4363D8</code> ?XPG_LIGHT_BLUE                </td>
+                    <td style="background-color:#ff00ff;"></td> <td><code>#FF00FF</code> ?XPG_MAGENTA                   </td></tr>
 -->
-                <tr><td style="background-color:#008080;"></td> <td>#008080 XPG_TEAL                        </td>
-                    <td style="background-color:#EE82EE;"></td> <td>#EE82EE XPG_VIOLET                      </td></tr>
-                <tr><td style="background-color:#00FFFF;"></td> <td>#00FFFF XPG_CYAN                        </td>
-                    <td style="background-color:#800000;"></td> <td>#800000 XPG_DARK_RED                    </td></tr>
-                <tr><td style="background-color:#008000;"></td> <td>#008000 XPG_DARK_GREEN                  </td>
-                    <td style="background-color:#FF0000;"></td> <td>#FF0000 XPG_RED                         </td></tr>
-                <tr><td style="background-color:#3cb44b;"></td> <td>#3CB44B XPG_GREEN                       </td>
-                    <td style="background-color:#404040;"></td> <td>#404040 XPG_SLATE                       </td></tr>
-                <tr><td style="background-color:#00FF00;"></td> <td>#00FF00 XPG_LIGHT_GREEN                 </td>
-                    <td style="background-color:#808080;"></td> <td>#808080 XPG_DARK_GREY, XPG_DARK_GRAY    </td></tr>
-                <tr><td style="background-color:#808000;"></td> <td>#808000 XPG_OLIVE                       </td>
-                    <td style="background-color:#C0C0C0;"></td> <td>#C0C0C0 XPG_GREY, XPG_GRAY, XPG_SILVER  </td></tr>
-                <tr><td style="background-color:#FF8C00;"></td> <td>#FF8C00 XPG_ORANGE                      </td>
-                    <td style="background-color:#E4E4E4;"></td> <td>#E4E4E4 XPG_LIGHT_GREY, XPG_LIGHT_GRAY  </td></tr>
-                <tr><td style="background-color:#FFBF00;"></td> <td>#FFBF00 XPG_AMBER                       </td>
-                    <td style="background-color:#FFFFE0;"></td> <td>#FFFFE0 XPG_PARCHMENT                   </td></tr>
-                <tr><td style="background-color:#EBEB00;"></td> <td>#EBEB00 XPG_DARK_YELLOW                 </td>
-                    <td style="background-color:#FAF8EF;"></td> <td>#FAF8EF XPG_LIGHT_PARCHMENT             </td></tr>
-                <tr><td style="background-color:#FFFF00;"></td> <td>#FFFF00 XPG_YELLOW                      </td>
-                    <td style="background-color:#FFFFFF;"></td> <td>#FFFFFF XPG_WHITE                       </td></tr>
+                <tr><td style="background-color:#008080;"></td> <td><code>#008080</code> XPG_TEAL                       </td>
+                    <td style="background-color:#EE82EE;"></td> <td><code>#EE82EE</code> XPG_VIOLET                     </td></tr>
+                <tr><td style="background-color:#00C0C0;"></td> <td><code>#00C0C0</code> XPG_DARK_CYAN                  </td>
+                    <td style="background-color:#FF00FF;"></td> <td><code>#FF00FF</code> XPG_MAGENTA                    </td></tr>
+                <tr><td style="background-color:#00FFFF;"></td> <td><code>#00FFFF</code> XPG_CYAN                       </td>
+                    <td style="background-color:#800000;"></td> <td><code>#800000</code> XPG_DARK_RED                   </td></tr>
+                <tr><td style="background-color:#008000;"></td> <td><code>#008000</code> XPG_DARK_GREEN                 </td>
+                    <td style="background-color:#FF0000;"></td> <td><code>#FF0000</code> XPG_RED                        </td></tr>
+                <tr><td style="background-color:#3cb44b;"></td> <td><code>#3CB44B</code> XPG_GREEN                      </td>
+                    <td style="background-color:#404040;"></td> <td><code>#404040</code> XPG_SLATE                      </td></tr>
+                <tr><td style="background-color:#00FF00;"></td> <td><code>#00FF00</code> XPG_LIGHT_GREEN                </td>
+                    <td style="background-color:#808080;"></td> <td><code>#808080</code> XPG_DARK_GREY, XPG_DARK_GRAY   </td></tr>
+                <tr><td style="background-color:#808000;"></td> <td><code>#808000</code> XPG_OLIVE                      </td>
+                    <td style="background-color:#C0C0C0;"></td> <td><code>#C0C0C0</code> XPG_GREY, XPG_GRAY, XPG_SILVER </td></tr>
+                <tr><td style="background-color:#FF8C00;"></td> <td><code>#FF8C00</code> XPG_ORANGE                     </td>
+                    <td style="background-color:#E4E4E4;"></td> <td><code>#E4E4E4</code> XPG_LIGHT_GREY, XPG_LIGHT_GRAY </td></tr>
+                <tr><td style="background-color:#FFBF00;"></td> <td><code>#FFBF00</code> XPG_AMBER                      </td>
+                    <td style="background-color:#FFFFE0;"></td> <td><code>#FFFFE0</code> XPG_PARCHMENT                  </td></tr>
+                <tr><td style="background-color:#EBEB00;"></td> <td><code>#EBEB00</code> XPG_DARK_YELLOW                </td>
+                    <td style="background-color:#FAF8EF;"></td> <td><code>#FAF8EF</code> XPG_LIGHT_PARCHMENT            </td></tr>
+                <tr><td style="background-color:#FFFF00;"></td> <td><code>#FFFF00</code> XPG_YELLOW                     </td>
+                    <td style="background-color:#FFFFFF;"></td> <td><code>#FFFFFF</code> XPG_WHITE                      </td></tr>
               </table>
+              <div class="clear"></div>
              </small>
             </p>
             <br>
@@ -257,9 +261,20 @@ gMainLoop()
             and green, in other words quite unlike mixing blue and yellow paint to make green paint (since paints are/use the 
             <a href="javascript:ExternalLink('ext147');" title='https://en.wikipedia.org/wiki/Subtractive_color'
             id="ext147" style="color:#9B5565" >RYB/subtractive</a> colour model),
-            and in fact mixing blue and yellow in the RGB model end ups with <i>white!</i><br>
+            and in fact mixing blue and yellow in the RGB model end ups with <i>white!</i> The WinAPI backend actually uses BGR
+            colour encodings, but xpGUI quietly maps to/from RGB automatically, a fact you may need to know when porting some
+            (legacy) Windows-based code to xpGUI. Colour codes are often declared as atom, however integer is also fine except
+            under 32-bit when the alpha channel is #40..#BF, which it probably only very rarely ever would be.
+            <br>
+            <br>
+            All the standard colours are fully opaque, ie have an alpha channel of #00 <small>(which may get flipped to/from #FF 
+            on some backends)</small>.
+            <br>
+            <a name=gGetColourName></a>
+            <br>
             <a href="string.htm">string</a> res = <b>gGetColourName</b>(<a href="atom.htm">atom</a> colour) returns one of the 
-            above, "#RRGGBB", or "-1".<br>
+            (leftmost) names above, "#RRGGBB", or "-1".
+            <br>
 <!--
             </div>
             <div class="clear"></div>           
@@ -267,6 +282,22 @@ gMainLoop()
             <br>
 -->
             <a name=rgba></a>
+            <br>
+            <a href="atom.htm">atom</a> colour = <b>rgba</b>(<a href="atom.htm">atom</a> red, green, blue, alpha=0)<br>
+            &nbsp;&nbsp;Values should be 0..255 (fractions discarded). An alpha of 0 is fully opaque, 255 is fully transparent.
+            <br>
+            <a name=to_rgba></a>
+            <br>
+            <a href="integer.htm">integer</a> {red,green,blue,alpha} = <b>to_rgba</b>(<a href="atom.htm">atom</a> colour)<br>
+            &nbsp;&nbsp;For example, to_rgba(XPG_YELLOW) yields {255,255,0,0}, ie red+green <small>[as it <i>is</i> in the RGB model]</small>.
+            <br>
+            <a name=hsv_to_rgba></a>
+            <br>
+            <a href="atom.htm">atom</a> colour = <b>hsv_to_rgba</b>(<a href="atom.htm">atom</a> h, s, v, a=0)<br>
+            &nbsp;&nbsp;h,s,v: hue (0..&lt;360), saturation (0..1), value (0..1). For more info see <a href="javascript:ExternalLink('ext415');" 
+            id="ext415" style="color:#9B5565" >https://en.wikipedia.org/wiki/HSL_and_HSV</a><br>
+            &nbsp;&nbsp;a: An alpha of 0.0 is fully opaque, 1.0 fully transparent.
+            <br>
          </td>
         </tr>
 <!--
@@ -295,53 +326,43 @@ gMainLoop()
             <br>
             <br>
             IMPORTANT: all functions can be used only in <a href="gCanvas.htm">gCanvas</a> or <a href="IupBackgroundBox.htm">IupBackgroundBox</a>-->
-            <a href="atom.htm">atom</a> colour = <b>rgba</b>(<a href="atom.htm">atom</a> red, green, blue, alpha=0)<br>
-            &nbsp;&nbsp;Values should be 0..255 (fractions discarded). An alpha of 0 is fully opaque, 255 is fully transparent.
-            <br>
-            <a name=to_rgba></a>
-            <br>
-            <a href="integer.htm">integer</a> {red,green,blue,alpha} = <b>to_rgba</b>(<a href="atom.htm">atom</a> colour)<br>
-            &nbsp;&nbsp;For example, to_rgba(XPG_YELLOW) yields {255,255,0,0}, ie red+green <small>[as it <i>is</i> in the RGB model]</small>.
-            <br>
-            <a name=hsv_to_rgba></a>
-            <br>
-            <a href="atom.htm">atom</a> colour = <b>hsv_to_rgba</b>(<a href="atom.htm">atom</a> h, s, v, a=0)<br>
+<!--
             &nbsp;&nbsp;Values should be 0.0..1.0. An alpha of 0.0 is fully opaque, 1.0 is fully transparent.
-            <br>
-            <br>
-            A gCanvas is also used to implement <a href="gGraph.htm">gGraph</a>, <a href="gList.htm">gList</a>, and <a href="gTable.htm">gTable</a>,
-            and therefore the result from any of those can also be used wherever a <a href="gdx.htm#gdc">gdc</a> type is required, as well as a
-            <a href="gImage.htm">gImage</a>.
-            <br>
-            <br>
+//          and therefore the result from any of those can also be used wherever a <a href="gdx.htm#gdc">gdc</a> type is required, as well as a
+//          <a href="gImage.htm">gImage</a>.
+-->
             You can set defaults for several subsequent calls, or override on each <small>(in small font below, just to keep lines short)</small>:
+            <br><small>[DEV: these (8) may get/shd be replaced with (4) attributes...]</small>
             <br>
             <a name=gCanvasSetBackground></a>
+            <a name=gCanvasGetBackground></a>
             <br>
             <b>gCanvasSetBackground</b>(<a href="gdx.htm">gdx</a> canvas, <a href="atom.htm">atom</a> colour)<br>
-<!--DEV times ten:
-            <b>gCanvasSetBackground</b>(<a href="gdx.htm#gdc">gdc</a> canvas, <a href="atom.htm">atom</a> colour)<br> -->
-            &nbsp;&nbsp;The colour can be eg XPG_PARCHMENT or a similar literal constant or a result from [hsv_to]rgba().<br>
-            &nbsp;&nbsp;The canvas is initially cleared to this colour, <i>prior</i> to a <a href="#REDRAW">REDRAW</a> handler, <br>
-            &nbsp;&nbsp;and automatically restored after said, so you do not have to remember to,<br>
-            &nbsp;&nbsp;and also used as the default fill colour. Default: XPG_WHITE.<br>
-<!-- DEV test/update this... (commented out when I suddenly spotted my own "but not fills" below...)
-            &nbsp;&nbsp;To manually clear an area, draw a filled shape after gCanvasSetForeground() instead.<br>
+<!--            &nbsp;&nbsp;The colour can be eg <a href="#XPG_colours">XPG_PARCHMENT</a> or a similar literal constant or result from [hsv_to]rgba().<br>-->
+            &nbsp;&nbsp;The canvas is initially cleared to this colour, <i>prior</i> to a <a href="#REDRAW">REDRAW</a> handler. Default: <a href="#XPG_colours">XPG_WHITE</a>.
+<!-- I can think of no reason why anytmore...
+            &nbsp;&nbsp;Automatically restored after each redraw, so you do not have to remember to.<br>
+            &nbsp;&nbsp;<small>Note however it makes no attempt to retain/restore foreground or line style/width between redraw handler calls,
+                                esp. should any scrollbars be getting drawn.<br></small>
 -->
-            <a name=gCanvasGetBackground></a>
+<!-- DEV test/update this... (commented out when I suddenly spotted my own "but not fills" below...)
+            &nbsp;&nbsp;To manually clear an area, draw a filled shape after <a href="#gCanvasSetForeground">gCanvasSetForeground</a>() instead.<br>
             &nbsp;&nbsp;<a href="atom.htm">atom</a> colour = <b>gCanvasGetBackground</b>(<a href="gdx.htm">gdx</a> canvas) is also provided.
+-->
             <br>
             <a name=gCanvasSetForeground></a>
+            <a name=gCanvasGetForeground></a>
             <br>
             <b>gCanvasSetForeground</b>(<a href="gdx.htm">gdx</a> canvas, <a href="atom.htm">atom</a> colour)<br>
-            &nbsp;&nbsp;Outer lines and text are drawn in this colour, but not fills. Default: <a href="#XPG_colours">XPG_BLACK</a>.<br>
-            <a name=gCanvasGetForeground></a>
-            &nbsp;&nbsp;<a href="atom.htm">atom</a> colour = <b>gCanvasGetForeground</b>(<a href="gdx.htm">gdx</a> canvas) is also provided.
+            &nbsp;&nbsp;Text, outer lines, and fills are drawn in this colour. Default: <a href="#XPG_colours">XPG_BLACK</a>.<br>
+            &nbsp;&nbsp;Programs usually set the background once at the start but foreground often, via this directly or implicitly/transiently as below.<br>
+            &nbsp;&nbsp;<a href="atom.htm">atom</a> colour = <b>gCanvasGetForeground</b>(<a href="gdx.htm">gdx</a> canvas) is also provided,
+            ditto <b>gCanvasGetBackground</b>().
             <br>
             <a name=gCanvasSetLineStyle></a>
             <br>
-            <b>gCanvasSetLineStyle</b>(<a href="gdx.htm">gdx</a> canvas, <a href="integer.htm">integer</a> style)<br>
-            &nbsp;&nbsp;Default: XPG_CONTINUOUS, valid styles are:<br>
+            <b>gCanvasSetLineStyle</b>(<a href="gdx.htm">gdx</a> canvas, <a href="object.htm">object</a> style)<br>
+            &nbsp;&nbsp;Default: XPG_CONTINUOUS(==1), valid styles are:<br>
             <img src="images/gCanvasLineStyles.png" border="2" width="262" height="62"/>
             <span style="visibility: hidden;"><small>XPG_DASHED XPG_DOTTED XPG_DASH_DOT XPG_DASH_DOT_DOT</small></span><br>
 <!--
@@ -350,9 +371,12 @@ gMainLoop()
             Note that values other than XPG_CONTINUOUS with a line width other than 1 appear as rhomboids, and perhaps for that 
             same reason native WinAPI/GTK do not support such, but while that effect may be less than ideal it is reasonably acceptable on
             slightly thicker lines, and just seems churlish to remove it completely.<br>
+            &nbsp;&nbsp;style may also be a sequence (of 1/0, see xpGUI.e) which sets XPG_CUSTOM_DASH(==6).<br>
+            &nbsp;&nbsp;<small><i>(XPG_CUSTOM_DASH is currently set at the system level rather than per canvas, for no good reason, shout should that sting.)</i></small><br>
             <a name=gCanvasGetLineStyle></a>
-            &nbsp;&nbsp;<a href="integer.htm">integer</a> style = <b>gCanvasGetLineStyle</b>(<a href="gdx.htm">gdx</a> canvas) is also provided.<br>
-            &nbsp;&nbsp;Use <a href="string.htm">string</a> res = <b>gGetLineStyleName</b>(<a href="integer.htm">integer</a> style) to 
+            &nbsp;&nbsp;<a href="object.htm">object</a> style = <b>gCanvasGetLineStyle</b>(<a href="gdx.htm">gdx</a> canvas) is also provided
+            (returns 1..5 but pattern not XPG_CUSTOM_DASH).<br>
+            &nbsp;&nbsp;Use <a href="string.htm">string</a> res = <b>gGetLineStyleName</b>(<a href="object.htm">object</a> style) to 
             convert a style to a human readable string.
             <br>
             <a name=gCanvasSetLineWidth></a>
@@ -363,38 +387,59 @@ gMainLoop()
             &nbsp;&nbsp;<a href="atom.htm">atom</a> width = <b>gCanvasGetLineWidth</b>(<a href="gdx.htm">gdx</a> canvas) is also provided.
             <br>
             <br>
-            When id refers to a gCanvas, the following routines should only be used inside its <a href="#REDRAW">REDRAW</a> handler, or of
-            course anything (only) invoked from such a routine, whereas when id refers to a <a href="gImage.htm">gImage</a>() they can be 
-            invoked from anywhere and at any time. Use <a href="gRedraw.htm">gRedraw</a>() to force a repaint.
+            The following routines should only be used inside its <a href="#REDRAW">REDRAW</a> handler.
+            Use <a href="gRedraw.htm">gRedraw</a>() to force a repaint.<br>
+            Non-1 style/width/colour perform implicit (but transient) 
+            <a href="#gCanvasSetLineStyle">gCanvasSetLineStyle</a>(), 
+            <a href="#gCanvasSetLineWidth">gCanvasSetLineWidth</a>(), or 
+            <a href="#gCanvasSetForeground">gCanvasSetForeground</a>().
+            <br>
+            <br>
+            Note that pixels are 0-indexed, so on a 200x200 canvas valid co-ordinates are {0,0} to {199,199}, with any attempts to draw 
+            off-canvas pixels simply quietly ignored, and say a line from {50,50} to {-300,27000} just drawing the bit it can.<br>
+            All co-ordinates are in pixels, with fractions permitted, but simply ignored/truncated.
+<!-- no longer so:
+            <br>
+            <br>
+            Anti-aliasing on a gCanvas is performed using just the two currently-in-force foreground and background colours, whereas on a 
+            gImage it more properly merges the painted colour with the existing pixels.
+-->
             <br>
             <a name=gCanvasLine></a>
             <br>
-            <b>gCanvasLine</b>(<a href="gdx.htm#gdc">gdc</a> canvas, <a href="atom.htm">atom</a> x1, y1, x2, y2, <small>
-                                                                     <a href="integer.htm">integer</a> style=-1, width=-1,
-                                                                     <a href="atom.htm">atom</a> colour=-1</small>)<br>
-            &nbsp;&nbsp;Draw a line from {x1,y1} to {x2,y2} (inclusive).<br>
-            &nbsp;&nbsp;Non-1 style/width/colour perform implicit (but transient) gCanvasSetLineStyle/Width/Foreground().
+            <b>gCanvasLine</b>(<a href="gdx.htm">gdx</a> canvas, <a href="atom.htm">atom</a> x1, y1, x2, y2, <small>
+                                                                 <a href="integer.htm">integer</a> style=-1, width=-1,
+                                                                 <a href="atom.htm">atom</a> colour=-1</small>)<br>
+            &nbsp;&nbsp;Draw a line from {x1,y1} to {x2,y2} (inclusive, zero-based).
+<!--
+//          &nbsp;&nbsp;<small>(Note that GTK does not really do width-1 lines, and instead draws width-2 lines in a slightly lighter colour.</small><br>
+//<X-- DEV ah: need +0.5 everywhere, see eg https://forum.affinity.serif.com/index.php?/topic/82479-how-to-draw-a-one-pixel-opaque-line/ --X>
+//          &nbsp;&nbsp;<small> Easily emulated under WinAPI, but that would be your call not someone else&rsquo;s opinion rudely foisted on you,</small><br>
+//          &nbsp;&nbsp;<small> and I would agree it sometimes/often looks better, but disagree with GTK blanket-saying <i>not</i> my/your choice.)</small>
+-->
             <br>
             <a name=gCanvasArc></a>
             <br>
             <b>gCanvasArc</b>(<a href="gdx.htm">gdx</a> canvas, <a href="atom.htm">atom</a> xc, yc, w, h, angle1, angle2,
-                                                                <a href="integer.htm">integer</a> flags=0, <small>style=-1, width=-1,
-                                                                <a href="atom.htm">atom</a> colour=-1, fillcolour=-1</small>)<br>
+                                                                <a href="integer.htm">integer</a> flags=0, <small>style=-1, width=-1, colour=-1</small>)<br>
             <a name=gCanvasCircle></a>
             <b>gCanvasCircle</b>(<a href="gdx.htm">gdx</a> canvas, <a href="atom.htm">atom</a> xc, yc, radius, 
                                                                    <a href="integer.htm#bool">bool</a> filled=false, <small>
-                                                                   <a href="integer.htm">integer</a> style=-1, width=-1,
-                                                                   <a href="atom.htm">atom</a> colour=-1, fillcolour=-1</small>)<br>
+                                                                   <a href="integer.htm">integer</a> style=-1, width=-1, colour=-1</small>)<br>
             &nbsp;&nbsp;Co-ordinates are in pixels, angles in degrees, flags can be XPG_FILLED with XPG_CHORD or XPG_SECTOR.<br>
             &nbsp;&nbsp;The angles define the arc start and end, but they are <i>not</i> the angle relative to the center, except for w==h aka a circle.<br>
             &nbsp;&nbsp;The arc starts at the point (xc+(w/2)*cos(angle1), yc+(h/2)*sin(angle1)) and ditto ends/angle2 (always clockwise).<br>
             &nbsp;&nbsp;A complete ellipse can be drawn using 0 and 360 as the angles.<br>
             &nbsp;&nbsp;gCanvasCircle just invokes gCanvasArc(w=h=2*radius,0,360).<br>
             &nbsp;&nbsp;If angle2 is less than angle1 it will be increased by 360 until it is greater than angle1.<br>
-            &nbsp;&nbsp;True(/false) can also be used in place of XPG_FILLED, and the latter passed to gCanvasCircle.<br>
-            &nbsp;&nbsp;Non-1 style/width/[fill]colour perform implicit (but transient) gCanvasSetLineStyle/Width/Fore/Background().<br>
-            &nbsp;&nbsp;There is no real difference between XPG_FILLED and XPG_CHORD|SECTOR+XPG_FILLED when Fore/Back are the same.<br>
-            &nbsp;&nbsp;See the initial screenshot above.
+            &nbsp;&nbsp;<a href="logicops.htm#tf">True</a>(/<a href="logicops.htm#tf">false</a>) can also be used in place of XPG_FILLED, and 
+                        the latter passed to gCanvasCircle.<br>
+<!--            &nbsp;&nbsp;There is no real difference between XPG_FILLED and XPG_CHORD|SECTOR+XPG_FILLED when Fore/Back are the same.<br> -->
+            &nbsp;&nbsp;Note that filled arcs (and cirles/chords/sectors) (currently) have bresenham edges under WinAPI 
+                        <small>(fixable, see <a href="#warch" onclick="opentech()">technicalia</a>)</small>.<br>
+<!--            &nbsp;&nbsp;Also note that XPG_FILLED may appear to have little or no effect unless the fillcolour is != the existing background.<br> -->
+            &nbsp;&nbsp;See the initial screenshot above <small>(there&rsquo;s a bUsePoly fudge in that for "", which achieves roughly what I plan to 
+            make it do automatically, one day)</small>.
             <br>
             <a name=gCanvasCubicBezier></a>
             <br>
@@ -404,17 +449,44 @@ gMainLoop()
             <b>gCanvasQuadBezier</b>(<a href="gdx.htm">gdx</a> canvas, <a href="atom.htm">atom</a> x1, y1, cx, cy, x2, y2,
                                                                                                     <small>colour=-1</small>)<br>
             &nbsp;&nbsp;<small><i>NB: additional parameters not yet finalised, migration from aaline.exw to xpGUI.e still outstanding</i></small><br>
-            &nbsp;&nbsp;<small><i>UPDATE: said migration revealed performance/fill issues, Line/Arc/Bezier need a bit of a rethink/redo, but <b>after</b> gImage()</i></small><br>
+<!--        &nbsp;&nbsp;<small><i>UPDATE: said migration revealed performance/fill issues, Line/Arc/Bezier need a bit of a rethink/redo, but <b>after</b> gImage()</i></small><br> -->
             &nbsp;&nbsp;Draws a curve from x1,y1 to x2,y2 using control points xc1,yc1 and xc2,yc2.<br>
-            &nbsp;&nbsp;The (simpler) quadratic version just invokes the cubic one using the same control point twice.<br>
-            &nbsp;&nbsp;Co-ordinates are in pixels, with fractions permitted.
+            &nbsp;&nbsp;The (simpler) quadratic version just invokes the cubic one using the same control point twice.
+            <br>
+            <a name=gCanvasPolygon></a>
+            <br>
+            <b>gCanvasPolygon</b>(<a href="gdx.htm">gdx</a> canvas, <a href="sequence.htm">sequence</a> poly, <small>
+                                                                    <a href="integer.htm#bool">bool</a> bFilled=<a href="logicops.htm#tf">true</a>, 
+                                                                    <a href="integer.htm">integer</a> colour=-1, style=-1, width=-1</small>)<br>
+            &nbsp;&nbsp;poly: a list of vertices aka starting points of each segment to be drawn. <br>
+            &nbsp;&nbsp;If a segment is just {x,y} a straight line is drawn to the end point (ie next/first segment).<br>
+            &nbsp;&nbsp;If a segment is length 4 aka {x,y,cx,cy} a quadratic bezier is drawn, likewise length 6 a cubic bezier. <br>
+            &nbsp;&nbsp;The poly can also contain {} which makes it a multi-part polygon, such as a metal washer, polo mint or doughnut. <br>
+            &nbsp;&nbsp;An error occurs for any part containing less than three vertices, or any segment not length 0|2|4|6.<br>
+            &nbsp;&nbsp;Polygon filling occurs on the full collection of segments, rather than each individually.<br>
+            &nbsp;&nbsp;A filled polygon may <i>not</i> have a style other than XPG_CONTINUOUS or width other than 1.<br>
+            &nbsp;&nbsp;bFilled/colour/style/width: assumed to be self-explanatory.<br>
+            &nbsp;&nbsp;see|run demo/xpGUI/gCanvasPolygon.exw and/or PhixLogo.exw for some examples.
+            <br>
+            <a name=gRotatePolygon></a>
+            <br>
+            <a href="sequence.htm">sequence</a> poly = <b>gRotatePolygon</b>(<a href="sequence.htm">sequence</a> poly, 
+                                                                             <a href="object.htm">object</a> angle)<br>
+            &nbsp;&nbsp;poly: as <a href="#gCanvasPolygon">gCanvasPolygon above</a> but less restrictive, so (eg) you can rotate a single point. <br>
+            &nbsp;&nbsp;angle: rotate all the points of poly. If angle is an atom, rotation occurs about poly[1][1..2], <br>
+            &nbsp;&nbsp;&nbsp;&nbsp;otherwise it must be a three-atom {angle,cx,cy} triplet with rotation about {cx,cy}.<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;The angle should be specified in degrees, clockwise, usually but does not have to be 0..+/-360.<br>
+            &nbsp;&nbsp;<small>[Be warned this seems significantly slower than anticipated, possibly only managing ~150 points per second,<br>
+            &nbsp;&nbsp;&nbsp;  whereas I would have confidently predicted it was going to be 10 or even 100 times faster than that...]</small>
+            
+
 <!--
 Drag and drop:
 The term drag and drop is often (imo) misunderstood.
-If you are talking about dragging a point around on a canvas, that is just "dragging": there is not "drop" as such, except perhaps in
+If you are talking about dragging a point around on a canvas, that is just "dragging": there is no "drop" as such, except perhaps in
 the simpler sense of "stop".
 True drag and drop is grabbing something from one application and dropping it onto another, for instance you can drag a file from
-Windows Explorer or the Linux equivalent and drop it onto (a running instance of) xpEditor, which should then behave much the same
+Windows Explorer or the Linux equivalent and drop it onto (a running instance of) xpEditer, which should then behave much the same
 as if you had pressed <Ctrl O>, navigated to, and selected the same file(s). It is a slightly greyer area when source and target
 are in the same application, since you can fake a few things in that case, but true drag and drop is all about adhering to the 
 formal inter-process communication protocols. For instance when you dragged those files out of Windows Explorer, those drag images
@@ -425,43 +497,60 @@ your application, you would have to do the same. (catch22 ref)
             <a name=gCanvasRect></a>
             <br>
             <b>gCanvasRect</b>(<a href="gdx.htm">gdx</a> canvas, <small><a href="atom.htm">atom</a> xmin, xmax, ymin, ymax,
-                                                                <a href="integer.htm#bool">bool</a> bFill=false,
+                                                                <a href="integer.htm#bool">bool</a> bFill=<a href="logicops.htm#tf">false</a>,
                                                                 <a href="integer.htm">integer</a> rc=0, <small>style=-1, width=-1,
-                                                                <a href="atom.htm">atom</a> colour=-1, fillcolour=-1</small></small>)<br>
+                                                                <a href="atom.htm">atom</a> colour=-1</small></small>)<br>
             &nbsp;&nbsp;Draws a rectangle, optionally filled and/or with rounded corners.<br>
-            &nbsp;&nbsp;Non-1 style/width/[fill]colour perform implicit (but transient) gCanvasSetLineStyle/Width/Fore/Background().
+            &nbsp;&nbsp;xmin/xmax/ymin/ymax: includive, so {0,0,0,0} draws a single pixel top-left.<br>
+            &nbsp;&nbsp;rc: 0 for square corners, else the radius of the a quadrant/arc to use. Unpredictable results when &gt; w/2 or h/2.<br>
+            &nbsp;&nbsp;bFill/style/width/colour: assumed to be self-explanatory.<br>
+            &nbsp;&nbsp;Replaces <a href="cdCanvasBox.htm">cdCanvas[Rounded](Box|Rect)</a>() of pGUI.
             <br>
             <a name=gCanvasPixel></a>
             <br>
-<!--DEV gSetPixel(gdc canvas,...)-->
             <b>gCanvasPixel</b>(<a href="gdx.htm">gdx</a> canvas, <a href="atom.htm">atom</a> x, y, colour=-1)<br>
             &nbsp;&nbsp;Draws a single pixel in a specified colour or the current foreground colour if omitted or -1.<br>
-            &nbsp;&nbsp;<small>(It is expected to be more common that a colour is provided on every call than using the latter defaulting.)</small><br>
-            There is a planned gImageGetPixel(), but a gCanvasGetPixel() would have (/my attempts had) rather poor performance under WinAPI, 
+            &nbsp;&nbsp;<small>(It is expected to be more common that a colour is provided on every call than using the latter defaulting.)</small>
+<!--
+            <br>
+DEV:        There is a planned gImageGetPixel(), but a gCanvasGetPixel() would have (/my attempts had) rather poor performance under WinAPI, 
             and just outrageously awful performance under GTK - 4 or 5 pixels per <i>second</i>, I kid thee not, and (that was) without 
             performing a GdiFlush/gdk_flush between each (and thus getting some highly suspect results anyway).
+-->
             <br>
             <a name=gCanvasText></a>
             <br>
             <b>gCanvasText</b>(<a href="gdx.htm">gdx</a> canvas, <a href="atom.htm">atom</a> x, y,
                                                                 <a href="string.htm">string</a> text, <small>
                                                                 <a href="integer.htm">integer</a> align=XPG_E,
-                                                                <a href="object.htm">object</a> angle=0, 
-                                                                <a href="atom.htm">atom</a> colour=-1, style=-1)</small><br>
+                                                                <a href="object.htm">object</a> angle=0, colour=-1, 
+                                                                <a href="integer.htm">integer</a> style=-1)</small><br>
             &nbsp;&nbsp;Draws text, with full UTF-8 support, optionally realigned, rotated, and/or coloured.<br>
             &nbsp;&nbsp;align: replaces <a href="cdCanvasSetTextAlignment.htm">cdCanvasSetTextAlignment</a>() of pGUI (transiently):<br>
             <img alt="gCanvasText" src="images/gCanvasText.png" width="195" height="75"/>
             <span style="visibility: hidden;"><small>XPG_N XPG_S XPG_W XPG_E XPG_NW XPG_NE XPG_SW XPG_SE</small></span><br>
-            &nbsp;&nbsp;The longhand aliases XPG_NORTH, XPG_SOUTH, XPG_WEST, XPG_EAST (the default) can also be used, along<br>
-            &nbsp;&nbsp;with XPG_NORTHWEST, XPG_NORTHEAST, XPG_SOUTHWEST, XPG_SOUTHEAST, and XPG_CENTRE.<br>
-            &nbsp;&nbsp;&nbsp;<small>(Technically <a href="gShow.htm">XPG_CENTER</a> is the wrong constant, but treated as XPG_CENTRE here.)</small><br>
-            &nbsp;&nbsp;You might also imagine the red centre of XPG_C being shifted to one of the eight surrounding orange crosses.<br>
-            &nbsp;&nbsp;<a href="string.htm">string</a> res = <b>gGetAlignName</b>(<a href="integer.htm">integer</a> align) converts
+            &nbsp;&nbsp;&nbsp;&nbsp;The longhand aliases XPG_NORTH, XPG_SOUTH, XPG_WEST, XPG_EAST (the default) can also be used, along<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;with XPG_NORTHWEST, XPG_NORTHEAST, XPG_SOUTHWEST, XPG_SOUTHEAST, and XPG_CENTRE.<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<small>(Technically <a href="gShow.htm">XPG_CENTER</a> is the wrong constant, but explicitly/deliberately treated as XPG_CENTRE here.)</small><br>
+            &nbsp;&nbsp;&nbsp;&nbsp;You might also imagine the red centre of XPG_C being shifted to one of the eight surrounding orange crosses.<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;Should the text end up too close to {x,y} you are expected to explicitly adjust {x,y} as a form of "padding",<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;and further it is fairly likely that certain fonts and/or backends may have subtly different requirements.<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;<a href="string.htm">string</a> res = <b>gGetAlignName</b>(<a href="integer.htm">integer</a> align) converts
                         an alignnent to a human readable string.<br>
-            &nbsp;&nbsp;angle: in degrees, replaces <a href="cdCanvasSetTextOrientation.htm">cdCanvasSetTextOrientation</a>() of pGUI (transiently).<br>
+            &nbsp;&nbsp;angle: in degrees, clockwise, replaces <a href="cdCanvasSetTextOrientation.htm">cdCanvasSetTextOrientation</a>() of pGUI (transiently).<br>
 <!-- (gCanvas now defaults to "Helvetic, 9", but maybe that should be gDialog() - but attribute inhertiance is not yet in place... [DEV])
             &nbsp;&nbsp;Note that on Windows a FONT must have been explicitly applied to the canvas before any rotation can occur.<br> -->
-            &nbsp;&nbsp;Rotation normally occurs around the top left (XPG_NW) corner. <br>
+            &nbsp;&nbsp;&nbsp;&nbsp;Rotation normally occurs around the top left (XPG_NW) corner of wherever the text ended up. <br>
+            &nbsp;&nbsp;&nbsp;&nbsp;The rotation point may be overidden by specifying the angle as eg {XPG_SE,90}.<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;Note rotation points are relative to text, and the logical inverse of align <small>(aka txt-&gt;pt vs. pt-&gt;txt)</small><br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<small>[Arguably align is at fault, but north putting it below would just be completely counter-intuitive.]</small><br>
+            &nbsp;&nbsp;&nbsp;&nbsp;There are a full 81 combinations of align and rotation point for any given angle, which should suffice!<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;Fairly obviously, (eg) align:=XPG_NE and angle:={XPG_SW,90} actually results in the text being XPG_SE of {x,y},<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;and likewise, the same align:=XPG_NE but angle:={XPG_SW,270} actually results in the text being XPG_NW of {x,y}.<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;You may prefer to use the following diagram to select a rotation point (<small>XPG_C is its own logical inverse, no others are.</small>):<br>
+            <img alt="gCanvasText" src="images/gCanvasTextRot.png" width="195" height="75"/><br>
+<!--
+            &nbsp;&nbsp;&nbsp;&nbsp;<small>XPG_C is of course its own logical inverse, no others are.<br></small>
             &nbsp;&nbsp;For a rotation of +90 only, the rotation point may be overidden by specifying an angle as eg {XPG_SE,90}.<br>
             &nbsp;&nbsp;&nbsp;&nbsp;<small>(Other angles are obviously doable, but need basic trig & more significantly a 
                                             bucketload of testing that I simply don&rsquo;t have time for.</small><br>
@@ -469,22 +558,27 @@ your application, you would have to do the same. (catch22 ref)
                                             {+90,-90}, or a decent demo/proof that it works.</small><br>
             &nbsp;&nbsp;&nbsp;&nbsp;<small>&nbsp;For the 9 simple cases it <i>does</i> work for, as per xpGUI.e/xpg_shifta() I literally 
                                             drew 9 tiny diagrams to work out the shifts needed.)</small><br>
-            &nbsp;&nbsp;colour: if other than -1 is specified, an implicit (but transient) gCanvasSetForeground() occurs.<br>
-            &nbsp;&nbsp;style: may be XPG_NORMAL, XPG_BOLD, XPG_ITALIC, or XPG_BOLDITALIC. A transient gSetAttribute(canvas,"FONT") occurs.<br>
-            &nbsp;&nbsp;You may also use <a href="gGetAttribute.htm#gGetTextExtent">gGetTextExtent</a>(), but any rotation is down to you.
+-->
+            &nbsp;&nbsp;colour: as usual, an atom other than -1 performs an implicit (but transient) <a href="#gCanvasSetForeground">gCanvasSetForeground</a>() occurs,<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;should colour be a {fore,back} pair such as {XPG_RED,XPG_BLUE} (note unlike other functions it is object not atom), then<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;while WinAPI/DrawText copes, under GTK it does a <a href="#gCanvasRect">gCanvasRect</a>() or if angle!=0 a rotated
+                                                                                     <a href="#gCanvasPolygon">gCanvasPolygon</a>() first.<br>
+            &nbsp;&nbsp;style: may be XPG_NORMAL, XPG_BOLD, XPG_ITALIC, or XPG_BOLDITALIC. A transient set <a href="gSetAttribute.htm#FONT">FONT</a> occurs.<br>
+            &nbsp;&nbsp;Note that underline and strikeout are not supported (by most/all backends), you&rsquo;d&rsquo;ve to <a href="#gCanvasLine">gCanvasLine</a>() it.<br>
+            &nbsp;&nbsp;You may also use <a href="gGetAttribute.htm#gGetTextExtent">gGetTextExtent</a>(), but applying any rotation/align 
+                        to the results from that is down to you.
             <br>
-
-            <a name=PLANNED></a>
+<!--            <a name=PLANNED></a>
             <br>
-<!-- I might well still add gCanvasMark(), but its simply not worth even stating that... -->
-            Planned: gCanvasPolygon(), gImage([SVG/XPM?]), and gGet/PutImageRGB[A]().<br>
-            A larger canvas (than the window that holds it) with automatic scroll bars is pretty high on my wish list.<br>
-            GDI on Windows does not support anti-aliased lines, but demo\xpGUI\aaline.exw is quite possibly everything needed,
-            except perhaps for filling shapes. Getting a gImage() of some kind up and running is probably more important, and 
-            perhaps even incorporating some of the <a href="arwen32dib.htm">arwen32dib</a> code in a GTK/JavaScript compatible way.<br>
-
-
+            Planned: <br>
+//          A larger canvas (than the window that holds it) with automatic scroll bars is pretty high on my wish list (i/p, see scroller.exw).<br>
+            GTK wants +0.5 everywhere, see eg https://forum.affinity.serif.com/index.php?/topic/82479-how-to-draw-a-one-pixel-opaque-line/ <br>
+            I suppose I should have a gCanvasGetPixel(), even if it may be outrageously slow under GTK <small>(like 4 or 5 pixels per second...)</small>.<br> 
+            There is quite a bit of work left on gImage() (SVG?), and perhaps I could even incorporate some of the 
+            <a href="arwen32dib.htm">arwen32dib</a> code in a GTK/JavaScript compatible way.<br>
+-->
 <!--
+// I might well still add gCanvasMark(), but its simply not worth even stating that...
 maybe useful: https://stackoverflow.com/questions/12490400/gtkdrawingarea-with-cairo-how-to-make-it-scrollable
                 https://stackoverflow.com/questions/11132177/cairo-in-scrollable-drawing-area
                 https://stackoverflow.com/questions/48725156/gtk3-and-cairo-too-slow (timer...)
@@ -506,10 +600,10 @@ maybe useful: https://stackoverflow.com/questions/12490400/gtkdrawingarea-with-c
 <!--
 MAYBE (xpGUI_from_pGUI):
 //csCanvasArc/IupDrawArc => gCanvasArc (ditto Sector, Chord)
-// nah, force use of gDrawPolygon
-//cdCanvasBegin => gPolygonBegin (new)  ==> gDrawPolygon{}
-//cdCanvasVertex => gPolygonVertex (new) ==> gDrawPolygon{}&=
-//cdCanvasEnd/IupDrawPolygon => gPolygonEnd (new) ==> gDrawPolygon(,?)
+// nah, force use of gCanvasPolygon
+//cdCanvasBegin => gPolygonBegin (new)  ==> gPolygon{}
+//cdCanvasVertex => gPolygonVertex (new) ==> gPolygon{}&=
+//cdCanvasEnd/IupDrawPolygon => gPolygonEnd (new) ==> gPolygon(,?)
 //cdCanvas[Rounded]Box => gDraw[Rounded]Box (new, filled)
 //cdCanvas[Rounded]Rect/IupDrawRectangle => gDraw[Rounded]Rect (new, not filled) [get rid of that trailing "angle"]
 //cdCanvasFont => gDrawFont (new)
@@ -551,9 +645,6 @@ cdCanvasMark[Type|Size] => gDrawMark[Type|Size] (new)
             The FILL value when set before IupDrawLine has the same effect as STROKE.
             <br>
             <br>
-            The line width default is 1, but it can be controlled by the DRAWLINEWIDTH attribute. (since 3.24)
-            <br>
-            <br>
 //          <b>IupDrawParentBackground</b>(Ihandle ih) - Fills the canvas with the native parent background 
 //          color<a href="notpgui.htm#IupDrawXxxx"><span style="color:orange; font-size:75%;"><sup>?</sup></span></a>.
             <br>
@@ -576,20 +667,20 @@ cdCanvasMark[Type|Size] => gDrawMark[Type|Size] (new)
             <br>
             <br>
 //          <b>IupDrawText</b>(Ihandle ih, string str, integer x, y, w=0, h=0) - Draws a text in the given position using 
-//          the font defined by DRAWFONT (since 3.22), 
+//          the font defined by DRAWFONT, 
 //          if not defined then use <a href="gSetAttribute.htm#FONT">FONT</a>. <br>
 //          The coordinates are relative the top-left corner of the text. <br>
 //          Strings with multiple line are accepted using '\n' as line separator. <br>
-            Horizontal text alignment for multiple lines can be controlled using DRAWTEXTALIGNMENT attribute: ALEFT (default), ARIGHT and ACENTER options (since 3.22).<br>
+            Horizontal text alignment for multiple lines can be controlled using DRAWTEXTALIGNMENT attribute: ALEFT (default), ARIGHT and ACENTER options.<br>
             For single line texts if the text is larger than its box and DRAWTEXTWRAP=Yes, then the line will be automatically broken in multiple lines. <br>
             Notice that this is done internally by the system, the element natural size will still use only a single line. <br>
-//          For the remaining lines to be visible the element should use EXPAND=VERTICAL or set a SIZE?/RASTERSIZE? with enough height for the wrapped lines. (since 3.25) <br>
+//          For the remaining lines to be visible the element should use EXPAND=VERTICAL or set a SIZE?/RASTERSIZE? with enough height for the wrapped lines. <br>
             If the text is larger that its box and DRAWTEXTELLIPSIS=Yes, an ellipsis ("...") will be placed near the last visible part of the text and replace the invisible part. <br>
-            It will be ignored when WRAP=Yes (since 3.25). w and h are optional and can be -1 or 0, the text size will be used, so WRAP nor ELLIPSIS will not produce any changes. <br>
+            It will be ignored when WRAP=Yes. w and h are optional and can be -1 or 0, the text size will be used, so WRAP nor ELLIPSIS will not produce any changes. <br>
             The text is not automatically clipped to the rectangle, if DRAWTEXTCLIP=Yes it will be clipped but depending on the driver may affect the clipping set 
-            by IupDrawSetClipRect (since 3.25). <br>
+            by IupDrawSetClipRect. <br>
 //          The text can be draw in any angle using DRAWTEXTORIENTATION<a href="notpgui.htm#IupCanvas"><span style="color:orange; font-size:75%;"><sup>?</sup></span></a>,
-//          in degrees and counterclockwise (since 3.25), its layout is not centered inside the 
+//          in degrees and counterclockwise, its layout is not centered inside the 
 //          given rectangle when text is oriented, to center the layout use DRAWTEXTLAYOUTCENTER=Yes. <br>
 //          Text orientation, ellipsis and wrap are not supported in X11.
             <br>
@@ -602,7 +693,7 @@ cdCanvasMark[Type|Size] => gDrawMark[Type|Size] (new)
             See also <a href="IupImage.htm">IupImage</a>. <br>
             The DRAWMAKEINACTIVE attribute can be used to force the image to be draw with an inactive state appearance. <br>
 //          The DRAWBGCOLOR can be used to control the inactive state background color or when transparency is flatten. <br>
-            w and h are optional and can be -1 or 0, then the image size will be used and no zoom will be performed (since 3.25). <br>
+            w and h are optional and can be -1 or 0, then the image size will be used and no zoom will be performed. <br>
             Image zoom is not supported in X11 and GDK.
             <br>
             <br>
@@ -636,9 +727,149 @@ cdCanvasMark[Type|Size] => gDrawMark[Type|Size] (new)
           <b>Attributes:</b>
          </td>
          <td>
-            
+<!--            <a name=DRAWAREA></a>-->
+            <a name=EXPAND></a>
          </td>
         </tr>
+        <tr>
+         <td>
+?         <a href="gSetAttribute.htm#EXPAND">EXPAND</a>
+         </td>
+         <td>
+            (non inheritable): The default value is "YES". The natural size is the size of 1 character.
+            <br>
+            <br>
+            Note that an explicit <a href="gGetAttribute.htm#SIZE">SIZE</a> on the gCanvas(/<a href="gGraph.htm">gGraph</a>) itself 
+            or whatever container it expands into is strongly recommended. Said parent container may itself may be inheriting from
+            or expanding into the size of its parent, and of course should any <a href="gSetAttribute.htm#MAXSIZE">MAXSIZE</a> or 
+            <a href="gSetAttribute.htm#MINSIZE">MINSIZE</a> be in use, any (initial) size should not exceed those limits. 
+            Only the width is critical on a (non-expanding) <a href="gList.htm">gList</a>, whereas a <a href="gTable.htm">gTable</a> 
+            has column widths in the column data itself, and the height of both can be deduced from the number of rows, unless that 
+            needs to be virtual (as next).
+            <br>
+            <a name=SCROLLSIZE></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+            SCROLLSIZE
+         </td>
+         <td>
+<!--            (creation only, non inheritable): Enable or disable builtin scrollbars. Default: NO/0/false.<br>
+            Fairly obviously, scrollbars are only suitable for a finite area with impassible boundaries, and would not be needed/the wrong choice anyway 
+            on (say) an infinitely draggable edgeless road map, or most games and other simulations, but would be useful when zoomed in on an image, in
+            much the same way as the standard mspaint and other image editors. See demo\xpGUI\scroller.exw for an example. [DEV...]
+            <small><i>Not yet implemented.</i></small>-->
+            <div id="accordion">
+               <div class="panel">
+                <div class="header">
+                Specify or retrieve some (larger) virtual canvas of which the real canvas should show some (smaller) <a href="#VIEWPORT">VIEWPORT</a>.
+                </div>
+                <div class="body">
+                 <small>
+                    Were you to (eg) accidentally open a video file in xpEditer, and that treated it as a text file of 500K lines, some of which were 
+                    500K characters long, it might try (and fail) to create a 236<i><b>TB</b></i> canvas, of which at most 16MB (0.000006%) would ever be shown, 
+                    and obviously even if something significantly smaller did actually work it could quite literally be millions of times slower than needed.
+                    The file demo/xpGUI/scroller.exw allows (after editing) the creation of a 138TB virtual canvas that only actually uses 1.05MB or 0.000001%.
+                    Such extreme cases probably aren&rsquo;t of themselves all that useful, but not crashing (the whole machine), not hogging memory, and not
+                    running ridiculously slowly, probably are.
+                 </small>
+                </div>
+               </div>
+             <script>
+                initAccordion();
+             </script>
+            <br>
+<!--
+            <blockquote>
+            <small>Were you to (eg) accidentally open a video file in xpEditer, and that treated it as a text file of 500K lines, some of which were 
+            500K characters long, it might try (and fail) to create a 236<i><b>TB</b></i> canvas, of which at most 16MB (0.000006%) would ever be shown, 
+            and obviously even if something significantly smaller did actually work it could quite literally be millions of times slower than needed.
+            The file demo/xpGUI/scroller.exw allows (after editing) the creation of a 138TB virtual canvas that only actually uses 1.05MB or 0.000001%.
+            Such extreme cases probably aren&rsquo;t of themselves all that useful, but not crashing (the whole machine), not hogging memory, and not
+            running ridiculously slowly, probably are.</small>
+            </blockquote>
+-->
+            If not set then (the [variable/non-constant] attribute) <a href="gGetAttribute.htm#SIZE">SIZE</a> is used instead.<br>
+            It is whether SCROLLSIZE is larger than VIEWPORT (which also defaults from SIZE) that determines the presence or absence of scrollbars.
+            <br>
+            <br>
+            Automatically handled on <a href="gList.htm">gList</a> (see <a href="gList.htm#ROWS">ROWS</a>) and <a href="gTable.htm">gTable</a> (see
+            the rows parameter).
+            <br>
+            <br>
+            This setting is entirely independent of 
+            <a href="gSetAttribute.htm#MAXSIZE">MAXSIZE</a> and 
+            <a href="gSetAttribute.htm#MINSIZE">MINSIZE</a>, 
+            and should you (for instance) want to centre a smaller SCROLLSIZE within a larger 
+            <a href="gGetAttribute.htm#SIZE">SIZE</a> that is <i>entirely</i> the responsibility of the
+            <a href="#REDRAW">REDRAW</a> handler, ditto honoring <a href="#VIEWPORT">VIEWPORT</a>.
+            <br>
+            <br>
+            See demo/xpGUI/scroller.exw for an example (and be amazed at how trivial and easy all this actually is).
+            <br>
+            <br>
+            Returns {w,h} with as just mentioned either being zero (their defaults) resorting to <a href="gGetAttribute.htm#SIZE">SIZE</a>.<br>
+<!-- PETE! version 2 or never.. (I could easily cope with the docs and draft code, just not the extra testing for no good reason at all as yet...)
+            When setting, an optional 3rd and 4th parameter can also be provided to set the vertical scrollbar width and horizontal scrollbar height, 
+            with a length 3 sequence setting both to the 3rd entry.
+-->
+            <a name=SCROLLPORT><a/>
+            <a name=VIEWPORT><a/>
+         </td>
+        </tr>
+        <tr>
+         <td>
+<!--?         SCROLLINFO-->
+            SCROLLPORT,<br>
+            VIEWPORT
+         </td>
+         <td>
+<!--            Obtain or set the scrollbar status.-->
+<!--            <small><i>Not yet implemented.</i></small>-->
+            Retrieve or specify which part of a larger virtual <a href="#SCROLLSIZE">SCROLLSIZE</a> should be shown on the actual canvas.<br>
+            SCROLLPORT and VIEWPORT and just aliases of each other and refer to exactly the same thing.
+            <br>
+            <br>
+            Automatically handled on <a href="gList.htm">gList</a> and <a href="gTable.htm">gTable</a>.
+            <br>
+            <br>
+            Returns {x,y,w,h} where x,y are initially 0 and indicate the [virtual] pixel position of the top left corner of the canvas, and w,h 
+            are from <a href="gGetAttribute.htm#SIZE">SIZE</a>, reduced to account for any visible scrollbars, with {0,0,w,h} being returned if 
+            <a href="#SCROLLSIZE">SCROLLSIZE</a> is not set, or it is smaller than the <a href="gGetAttribute.htm#SIZE">SIZE</a>, but in the 
+            latter case not necessarily strictly enforced.
+            <br>
+            <br>
+            The scrollbars are drawn as/when needed <i>after</i> the <a href="#REDRAW">REDRAW</a> handler returns, and that should of course
+            draw the (virtual) contents determined by x,y in the (actual) rectangle defined by 0..w-1 and 0..h-1, with any attempts to draw 
+            pixels outside of that area being, as usual, simply quietly ignored <small>(or, to be excessively pedantic, duly soon obliterated 
+            by a scrollbar)</small>.
+            <br>
+            <br>
+            When setting this attribute, only the origin (first two elements) should be provided. Negative values are not permitted, however they 
+            can exceed the natural limits that using the scrollbars would normally attain, so that for instance a <a href="gList.htm">gList</a> 
+            can "go to line" and show only a few lines, with "dead space" filling up the rest of the visible/actual canvas.
+            <br>
+            <br>
+            Setting this attribute automatically updates the otherwise private scrollbars. Any and all handling of the latter is achieved via the
+            VIEWPORT attribute. Settings that result in the entire visible area being "dead space" and/or off-canvas scrollbar thumbs are <i>not</i> 
+            specifically guarded against, consider yourself warned.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          (perhaps)
+         </td>
+         <td>
+            TEXTALIGN: A default align for several subsequent invocations of <a href="#gCanvasText">gCanvasText</a>().<br>
+            TEXTANGLE: A default angle for several subsequent invocations of <a href="#gCanvasText">gCanvasText</a>().<br>
+            BGCOLOR: Replace <a href="#gCanvasSetBackground">gCanvasSet/GetBackground</a>().<br>
+            FGCOLOR: Replace <a href="#gCanvasSetForeground">gCanvasSet/GetForeground</a>().<br>
+            LINESTYLE: Replace <a href="#gCanvasSetLineStyle">gCanvasSet/GetLineStyle</a>().<br>
+            LINEWIDTH: Replace <a href="#gCanvasSetLineWidth">gCanvasSet/GetLineWidth</a>().<br>
+         </td>
+        </tr>
+
 <!--
         <tr>
          <td>
@@ -679,7 +910,7 @@ cdCanvasMark[Type|Size] => gDrawMark[Type|Size] (new)
 //       </td>
 //       <td>
 //          [GTK Only] (non inheritable): Contains the "cairo_t*" parameter of the internal GTK handler. <br>
-//          Valid only during the <a href="#REDRAW">REDRAW</a> handler and onyl when using GTK version 3. (since 3.7)
+//          Valid only during the <a href="#REDRAW">REDRAW</a> handler and onyl when using GTK version 3.
 //       </td>
 //      </tr>
         <tr>
@@ -700,14 +931,37 @@ cdCanvasMark[Type|Size] => gDrawMark[Type|Size] (new)
          </td>
         </tr>
 -->
+<!--
         <tr>
          <td>
-?         <a href="gSetAttribute.htm#EXPAND">EXPAND</a>
+??        DRAWAREA
          </td>
          <td>
-            (non inheritable): The default value is "YES". The natural size is the size of 1 character.
+            The visible region of a scrollable canvas that actually needs to be drawn.<br>
+            Used by the internal redraw routines of gList and gTable to only draw those rows actually needed...
+<X!X--
+<br>
+DEV I think I need to be a little smarter here... my list.asm is 500K lines, which implies a gCanvas of 10K * screen height, and o/c some files
+could easily have 500K text lines which would be 2,500 * screen width... a canvas of 4,800,000 x 10,800,000 or 188TB is probably not realistic!!
+<small>(even if that list.asm had no lines longer than the screen width, it would still imply a 77.25GB canvas!)</small>
+--X>
+            <br>
+            <br>
+            One can easily imagine and it would be perfectly feasible to load/create (say) an 4800x2800 canvas but only show a "viewport" of 
+            1920x1080, however a far more interesting case is that of xpEditer<a name=xped></a><sup><small><a href="#xped1">1</a></small></sup>,
+            which could be asked to show a file containing 500K lines, some of which could be 500K characters long, and in the worst case it 
+            could try (and would fail) to create a 236<i><b>TB</b></i> canvas of which at most 16MB would ever be shown.
+            Clearly it is much smarter to (only) have a &lt;= 16MB "virtual viewport" which is blanked and re-drawn as needed. 
+            <small>(Double quotes are used around "viewport" to emphasise it is <i>not</i> a "real" thing, and specifically does not relate to 
+            anything in GTK, WinAPI, or JavaScript, including anything that might sound supreficially similar.)</small><br>
+            [DEV] - that's where I'm heading, I need to finish these docs once it actually works...
+            <br>
+            <br>
+            <a name=xped1></a><small><sup><a href="#sped">1</a></sup></small> which uses a <a href="gList.htm">gList</a>, and before you ask the 
+            performance of (say) a GtkTextView would be far beyond awful, at least, that is, without a similar "fake viewport".
          </td>
         </tr>
+-->
 <!--
         <tr>
          <td>
@@ -753,27 +1007,6 @@ cdCanvasMark[Type|Size] => gDrawMark[Type|Size] (new)
          </td>
         </tr>
 -->
-        <tr>
-         <td>
-?         SCROLLABLE
-         </td>
-         <td>
-            (creation only, non inheritable): Enable or disable builtin scrollbars. Default: NO/0/false.<br>
-            Fairly obviously, scrollbars are only suitable for a finite area with impassible boundaries, and would not be needed/the wrong choice anyway 
-            on (say) an infinitely draggable edgeless road map, or most games and other simulations, but would be useful when zoomed in on an image, in
-            much the same way as the standard mspaint and other image editors. See demo\xpGUI\scroller.exw for an example. [DEV...]
-            <small><i>Not yet implemented.</i></small>
-         </td>
-        </tr>
-        <tr>
-         <td>
-?         SCROLLINFO
-         </td>
-         <td>
-            Obtain or set the scrollbar status.
-            <small><i>Not yet implemented.</i></small>
-         </td>
-        </tr>
 
 <!--
         <tr>
@@ -787,12 +1020,23 @@ cdCanvasMark[Type|Size] => gDrawMark[Type|Size] (new)
         </tr>
 -->
 <!--
+//      <tr>
+//       <td>
+//        <a href="gGetAttribute.htm#SIZE">SIZE</a>
+//       </td>
+//       <td>
+//          (non inheritable): The natural size is the size of 1 character. Note that pixels are 0-indexed, so (as mentioned above) on a 
+//          200x200 canvas valid co-ordinates are {0,0} to {199,199}.
+//       </td>
+//      </tr>
+-->
+<!--
         <tr>
          <td>
           TOUCH
          </td>
          <td>
-            [Windows 7 Only]: enable the multi-touch events processing. (Since 3.3)
+            [Windows 7 Only]: enable the multi-touch events processing.
          </td>
         </tr>
         <tr>
@@ -800,7 +1044,7 @@ cdCanvasMark[Type|Size] => gDrawMark[Type|Size] (new)
           WHEELDROPFOCUS
          </td>
          <td>
-            (non inheritable) when the wheel is used the focus control receives a SHOWDROPDOWN=No. (since 3.28)
+            (non inheritable) when the wheel is used the focus control receives a SHOWDROPDOWN=No.
          </td>
         </tr>
         <tr>
@@ -825,19 +1069,19 @@ cdCanvasMark[Type|Size] => gDrawMark[Type|Size] (new)
           also
          </td>
          <td>
-            <a href="gSetAttribute.htm#ACTIVE">ACTIVE</a>, 
-            <a href="gSetAttribute.htm#CANFOCUS">CANFOCUS</a>, 
+?           <a href="gSetAttribute.htm#ACTIVE">ACTIVE</a>, 
+?           <a href="gSetAttribute.htm#CANFOCUS">CANFOCUS</a>, 
             <a href="gSetAttribute.htm#FONT">FONT</a>, 
 <!--        <a href="gSetAttribute.htm#NAME">NAME</a>, -->
-<!--            <a href="gGetAttribute.htm#POSITION">POSITION</a>, -->>
+<!--            <a href="gGetAttribute.htm#POSITION">POSITION</a>, -->
 <!--            <a href="gGetAttribute.htm#SCREENPOSITION">SCREENPOSITION</a>, -->
             <a href="gSetAttribute.htm#MINSIZE">MINSIZE</a>, 
             <a href="gSetAttribute.htm#MAXSIZE">MAXSIZE</a>,
-            <a href="gSetAttribute.htm#SIZE">SIZE</a>,
+            <a href="gGetAttribute.htm#SIZE">SIZE</a>,
             <a href="gSetAttribute.htm#TIP">TIP</a>, 
 <!--            <a href="gSetAttribute.htm#RASTERSIZE">RASTERSIZE</a>,-->
 <!--        <a href="gSetAttribute.htm#ZORDER">ZORDER</a>,-->
-            <a href="gSetAttribute.htm#VISIBLE">VISIBLE</a>.<br>
+?           <a href="gSetAttribute.htm#VISIBLE">VISIBLE</a>.<br>
           <a name=HANDLERS></a>
          </td>
         </tr>
@@ -918,15 +1162,17 @@ cdCanvasMark[Type|Size] => gDrawMark[Type|Size] (new)
           REDRAW
          </td>
          <td>
-            A procedure that should be invoked when the canvas needs to be redrawn
+            A procedure that should be invoked when the canvas needs to be redrawn, and should retrieve/honour any <a href="#VIEWPORT">VIEWPORT</a>.<br>
+            <small>(Obviously it is not necessary to fetch the VIEWPORT if no <a href="#SCROLLSIZE">SCROLLSIZE</a> was ever set.)<br></small>
+            <br>
+            procedure redraw(<a href="gdx.htm">gdx</a> canvas[,<a href="integer.htm">integer</a> w, h])<br>
+            canvas: identifier of the canvas element that needs drawing.<br>
+            w,h: (optional) equivalent to <small><code>integer {w,h} = gGetAttribute(canvas,"SIZE")</code></small> as the first line of a single-arg procedure.
             <br>
             <br>
-            procedure redraw(<a href="gdx.htm">gdx</a> h)<br>
-            h: identifier of the element (ie canvas) that activated the event.
-            <br>
-            <br>
-            Usually specified on the initial gCanvas() call that creates the canvas, but can also be set later in the usual manner,
-            being specifically here <a href="gSetHandler.htm">gSetHandler</a>(canvas,"REDRAW",redraw).
+            Usually specified on the initial gCanvas() call, but can also be set or replaced later as usual, 
+            ie <a href="gSetHandler.htm">gSetHandler</a>(canvas,"REDRAW",redraw), however a fatal error occurs should 
+            the redraw routine (still) be NULL when the canvas is displayed.
             <br>
             <br>
             Note the background colour used for initially clearing the canvas should be set before the first paint event and is 
@@ -936,40 +1182,39 @@ cdCanvasMark[Type|Size] => gDrawMark[Type|Size] (new)
             Note that the redraw routine should usually invoke gCanvasSetBackground() just before returning, rather than leave a random
             background colour for the next initial clear/repaint, since that occurs <i>before</i> it is re-invoked again.
 -->
-          <a name=DROP></a>
+          <a name=IDROP></a>
          </td>
         </tr>
         <tr>
          <td>
-          DROP
+          IDROP
          </td>
          <td>
-            Intercept/override the drawing operations.
+            (optional) Intercept/override the drawing operations.
             <br>
             <br>
-            function drop(<a href="integer.htm">integer</a> rid)<br>
-            rid: an xpGUI drawing operation such as gCanvasText
-            <br>
-            Returns: the original or your intercept version of one of the routines listed below.<br>
+            function idrop(<a href="integer.htm">integer</a> rid)<br>
+            rid: an xpGUI drawing operation such as gCanvasText, full list below.<br>
+            Returns: the original (rid) or your intercept version of that.<br>
             When you write an intercept, you must replicate the exact signature, usually by copying from these help docs, including
             any defaults, as say iCanvasText(), which can then invoke the real gCanvasText(), if desired.
             <br>
             <br>
-            More useful on the canvas-derived controls <a href="gGraph.htm">gGraph</a>, <a href="gList.htm">gList</a>, and
+            Only useful on the canvas-derived controls <a href="gGraph.htm">gGraph</a>, <a href="gList.htm">gList</a>, and
             <a href="gTable.htm">gTable</a>, which have overidden the <a href="#REDRAW">REDRAW</a> handler.<br>
-            Allows an application to tweak/log the drawing primitives, for an example see demo\xpGUI\gTable.exw, where at first
-            I logged all such calls and copied them into demo\xpGUI\gCanvas.exw, before realising I could just tweak the two I
-            actually needed. In this specific instance that was for mocking up the <a href="gSetAttribute.htm#FONT">FONT</a> 
-            table in these very docs, so I could centre it (ain&rsquo;t I the fusspot).
+            Allows an application to tweak/log the drawing primitives, for an example see demo\xpGUI\gTable.exw, where I first
+            logged the calls planning to copy them into a test program, before realising I could just tweak the two actually needed.<br>
+            That specific instance was to mock up the <a href="gSetAttribute.htm#FONT">FONT</a> table in these very docs, so I could 
+            centre it (ain&rsquo;t I the fusspot).
             <br>
             <br>
-            The current set of so-used drawing operations is:<br>
+            The current set of so-interceptable drawing operations is:<br>
             <a href="#gCanvasSetForeground">gCanvasSetForeground</a>,<br>
             <a href="#gCanvasSetBackground">gCanvasSetBackground</a>, (not used by gTable)<br>
             <a href="#gCanvasRect">gCanvasRect</a>,<br>
             <a href="#gCanvasLine">gCanvasLine</a>,<br>
-            <a href="#gCanvasText">gCanvasText</a>. (the only one used by gList)
-            <br>
+            <a href="#gCanvasText">gCanvasText</a>. (the only one used by gList)<br>
+            More may be added as/when/if needed (search xpGUI.e for "IDROP", or better yet xpg_default_IDROP, to be sure).
             <br>
          </td>
         </tr>
@@ -990,7 +1235,7 @@ cdCanvasMark[Type|Size] => gDrawMark[Type|Size] (new)
           TOUCH_CB
          </td>
          <td>
-            [Windows 7 Only]: Event generated when a touch event occurred. Multiple touch events will trigger several calls. Must set TOUCH=Yes to receive this event. (Since 3.3)
+            [Windows 7 Only]: Event generated when a touch event occurred. Multiple touch events will trigger several calls. Must set TOUCH=Yes to receive this event.
             <br>
             <br>
             function touch_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> id, x, y, <a href="atom.htm">atom</a> pState)<br>
@@ -1008,7 +1253,7 @@ cdCanvasMark[Type|Size] => gDrawMark[Type|Size] (new)
           MULTITOUCH_CB
          </td>
          <td>
-            [Windows 7 Only]: Event generated when multiple touch events occurred. Must set TOUCH=Yes to receive this event. (Since 3.3)
+            [Windows 7 Only]: Event generated when multiple touch events occurred. Must set TOUCH=Yes to receive this event.
             <br>
             <br>
             function mulittouch_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> count, <a href="atom.htm">atom</a> pid, px, py, pstate) <br>
@@ -1033,14 +1278,15 @@ cdCanvasMark[Type|Size] => gDrawMark[Type|Size] (new)
             Called when the scrollbar is manipulated. (GTK 2.8) Also the POSX and POSY values will not be correctly updated for older GTK versions.
          </td>
         </tr>
-        <tr>
-         <td>
-?         <a href="gSetHandler.htm#WHEEL_CB">WHEEL_CB</a>
-         </td>
-         <td>
-            Event generated when the mouse wheel is rotated.
-         </td>
-        </tr>
+// replaced with MOUSEWHEEL:
+//      <tr>
+//       <td>
+//?       <a href="gSetHandler.htm#WHEEL_CB">WHEEL_CB</a>
+//       </td>
+//       <td>
+//          Event generated when the mouse wheel is rotated.
+//       </td>
+//      </tr>
 -->
 <!--
         <tr>
@@ -1109,11 +1355,196 @@ cdCanvasMark[Type|Size] => gDrawMark[Type|Size] (new)
             Note in practice redraw is actually defined as <a href="object.htm">object</a>, and attributes as
             <a href="sequence.htm">sequence</a> rather than string, but they are all manually and thoroughly verified to 
             be of the documented types, after being repositioned via xpGUI.e/paranormalise_raa().
+<!--
+            <br>
+            <br>
+            Also note that a gCanvas, and hence those based on said (<a href="gGraph.htm">gGraph</a>, <a href="gList.htm">gList</a>, and 
+            <a href="gTable.htm">gTable</a>) have ... [DEV]
+            whereas a <a href="gTreeView.htm">gTreeView</a> uses builtin scrollbars.
+-->
             <br>
             <br>
             Compatibility note: On a gCanvas (as shown) {0,0} is <a href="#gCanvasText">XPG_NW</a>, logically matching (say) the {x,y} of 
             <a href="gShow.htm">gShow</a>(), whereas on an <a href="IupCanvas.htm">IupCanvas</a>() it was/is 
-            <a href="cdCanvasSetTextAlignment.htm">CD_SOUTH_WEST</a>. In other words the vertical axis is inverted - "height-y" usually works.
+            <a href="cdCanvasSetTextAlignment.htm">CD_SOUTH_WEST</a>. In other words the vertical axis is inverted: "height-y" usually works,
+            that is when porting existing code from pGUI/IUP to xpGUI, and in some cases, even better, deleting a "height-".
+            <br>
+
+            <h3>Platform/backend considerations</h3>
+            GTK, bless it, decrees the top left pixel to be at {0.5,0.5} and (eg) cairo_rectangle(0.5,0.5,0,0) ie width,height of 0,0, draws that one pixel.<br>
+            WinAPI, bless it, decrees the top left pixel to be at {0,0} and <i>excludes</i> the right/bottom edge, so Rectange(0,0,1,1), ie ltrb, "".<br>
+            Of course xpGUI abstracts such differences away, such that gCanvasRect(0,0,0,0) draws the one top left pixel, and maps everything for GTK and
+            other backends appropriately, and for a canvas size of {w,h} valid pixel coordinates are 0..w-1 and 0..h-1. 
+            <small>[I could perhaps have made them 1..w and 1..h, but I didn&rsquo;t, and predict I&rsquo;ll thank myself when I get round to OpenGL.]</small>
+            In the same fashion as slices, 1..1 is 1 wide/high, and (eg) 1..0 or 7..6 logically draw nothing, not yet officially supported, though adding 
+            a few scattered if&gt;0 as/when/should they turn out to be helpful is not likely to be all that stressful.
+            <br>
+
+            <h3>Scrollbars</h3>
+            Note that the scrollbars are drawn and managed using pure hll Phix code and do <i>not</i> rely on any native functionality of the 
+            WinAPI, GTK, or JavaScript (etc) backends. It was, perhaps surprisingly, just all much simpler that way.<br>
+            Some platform/version specific tweaks may yet be required to match look and feel aspects, possibly optionally. <br>
+            Likewise the <a href="#VIEWPORT">VIEWPORT</a> is entirely unconnected with any similarly-named native feature of the various backends.<br>
+            One serendipitous outcome was that during development, clicking to one side of a scrollbar thumb and holding down did not stop once the 
+            thumb hit the mouse position, which it does on WinAPI/Arwen, but carried on like it does on GTK, which I prefer anyway, so I kept that.<br>
+            I didn&rsquo;t particularly want and saw no need to replicate the <i>42</i> attributes that IUP uses to manage scrollbars, not that 
+            I&rsquo;d stand in the way of any genuinely useful and specifically requested ones.
+<!--            , and maybe I&rsquo;d even support scrollbars which are 
+            <i>not</i> on a canvas, that is, pseudo-explicitly, albeit they&rsquo;d need careful explicit positioning and implicitly be implemented 
+            on a canvas of their own making anyway, much like the existing canvas-derived controls such as <a href="gGraph.htm">gGraph</a>, etc.-->
+            Theoretically a gCanvas with no pixels outside the scrollbar area could be used as a standalone scrollbar [with optional resizer thumb?],
+            though it would probably be much easier to fake (eg) a <a href="gButton.htm">gButton</a> on a gCanvas than modify the Layout Manager to 
+            respect a scrollbar or two (or ten) on top of everything else it is trying to achieve - and of course the scrollbars themselves should 
+            act as a pretty good model for faking any other controls: just be aware there is quite a bit going on, from mouse hover effects, timers,
+            and keyboard handling, to clipping the various offsets and hiding things should resizing make them no longer valid or necessary.
+            
+            <h3>Anti-aliasing, bezier curves, and polygon filling</h3>
+            I stumbled across a few useful images in my travels and thought I&rsquo;d include them here, to show you and remind myself how all
+            these things are supposed to work. While GTK and JavaScript have suitable methods already, the raw WinAPI (as far as I can tell)
+            does not perform proper anti-aliasing (and suchlike), so the following should explain what it is supposed to do on all platforms, 
+            but really only applies (in actual code terms) to WinAPI, except for the filled polygons parts.
+            <br>
+            <br>
+            <div class="parent">
+              <div class="child">
+                <img src="images/b/Bresenham_line.png" width="238" height="69"/>
+                <center><small>A bresenham line</small></center>
+              </div>
+              <div class="child">
+                <img src="images/b/Antialiased_line.png" width="238" height="69"/>
+                <center><small>An anti-aliased equivalent</small></center>
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
+            Shown magnified 35 times, the above shows some individual (square) pixels being used to imitate the theoretical cyan line.<br>
+            On the left we set seven pixels to the requested colour, in this case black, which results in a jagged/blocky line. <br>
+            On the right we set seven pairs of pixels to a mixture of foreground/background, making it look much smoother.<br>
+            On a steep line segment we&rsquo;d show each intersection with a y unit axis as two horizontal pixels, whereas as above on a flat 
+            line segment we show each intersection with an x unit axis as two vertical pixels. 
+            By "unit axis" I really mean (mathematical, horizontal/vertical) lines through the logical centres of the pixels, rather than their edges.
+            Of course it is not perfect, but can almost make a 1080p (1K) monitor look like a (non-anti-aliased) 4K UHD one. 
+            Every modern font (for example) is anti-aliased in much the same way, and you would soon grumble were they suddenly not.
+            <div class="parent">
+              <div class="child">
+                <img src="images/b/Bezier_2_big.gif" width="240" height="100"/>
+              </div>
+              <div class="child">
+                <img src="images/b/Bezier_2_big.svg.png" width="240" height="100"/>
+              </div>
+              <div class="child">
+                <img src="images/b/Bezier_3_big.gif" width="240" height="100"/>
+              </div>
+              <div class="child">
+                <img src="images/b/Bezier_3_big.svg.png" width="240" height="100"/>
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
+            The above were nicked from Wikipedia, and should give you a rough idea of how bezier curves work, with the next diagram below hopefully
+            clarifying things further. Note that a quadratic bezier is exactly the same as a cubic with (the same end points and) the two control 
+            points being the same. 
+            <small>Just in case your brain works like mine, remember that polynomial equations have daft names: unlike the more 
+            sensible Monomial, Binomial, Trinomial, Quadronomial, and Pentanomial (matching bicycle, tricycle, and quad bike) which stipulate number 
+            of terms but not the highest power, polynomials of degree 0..4 are called Constant (eg 6), Linear (eg ax+b), Quadratic (eg ax^2+bx+c), 
+            Cubic (eg ax^3+bx^2+cx+d), and Biquadratic or Quartic (eg ax^4+bx^3+cx^2+dx+e). And yes, I know the Latin word for square is quadratum, 
+            but it was still a daft naming choice, at least for English speakers. Quadratic beziers (the first two above) are <i>simpler</i> than 
+            cubic beziers (the last two).</small>
+            <div class="parent">
+              <div class="child">
+                <img src="images/b/decasteljau.png" width="275" height="275"/>
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
+            xpGUI uses the de Casteljau method to repeatedly bisect a bezier curve until S/Q/E are within one pixel of each other, at which point 
+            it (deems it safe to treat as a straight line and) estimates the intersection with a unit x or y axis along the line from S to E, 
+            skipping any fragments that don&rsquo;t actually cross a boundary.<br>
+<!--
+             <small>You (or rather xpGUI.e) could of course calculate where an extrapolated NP meets the unit axis, with the 
+            true answer being somewhere between that and the SE intersect, so prorata those two, or maybe figure out which of SQ or QE applies 
+            and use that, or even bisect to &#8530;th or less of a pixel, but it&rsquo;d probably make no discernable difference, and/or all go
+            horribly wrong.</small> <br>
+-->
+            For any curve S,C1,C2,E we first find the midpoints L,M,R (via (a+b)/2). We then find the secondary midpoints N and P. <br>
+            The tertiary midpoint, Q, is on the curve, at the point where the two halves formed by S,L,N,Q and Q,P,R,E meet. <br>
+<!--
+//          <small>In practice it is much easier to bisect and hence draw them end-first, but that&rsquo;s an entirely insignifcant detail.</small>
+//          <br>
+//          <br>
+// now fixed:
+//          Note, however, an initially close (sub-pixel) S and E where C1 and C2 are some distance away will not be handled properly as things 
+//          stand, but manually bisecting such should make it fine, and the additional code required to cope with such cases, if ever actually 
+//          needed, is not expected to be particularly tricky (but <i>is</i> expected to slow things down a bit).
+-->
+<!--
+            <div class="parent">
+              <div class="child">
+                <img src="images/b/Bezier.png" width="180" height="179"/>
+              </div>
+              <div class="child">
+                <img src="images/b/Bezier_quadAA.png" width="93" height="197"/>
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
+            Note the right hand image is actually from a slightly different algorithm that sometimes shows three pixels per intersection, but you
+            should get the idea (decent images of anti-aliased bezier curves are in pretty short supply on&rsquo;t tinternet; should you find or can
+            be bothered to create anything better let me know). While the middle part is a tad misleading, the important thing to note is the bottom 
+            (steep) part is constructed using horizontal pairs of pixels whereas the top (flat) part is constructed using vertical pairs.
+-->
+            <div class="parent">
+              <div class="child">
+                <img src="images/b/bezier_aa.png" width="241" height="73"/>
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
+            A zoomed in comparison of bresenham and anti-aliased bezier curves. Such a line could of course be drawn in either direction.
+            Notice how the lower/steep part is (naturally) constructed using more horizontal pairs of pixels than vertical, whereas the top/flat part 
+            is the other way round. <small>(Originally I planned to <i>only</i> draw horizontals on steep fragments and only vertical on flat, as 
+            per Xiaolin Wu&rsquo;s original (straight) line anti-aliasing algorithm, but drawing both turned out much nicer.)</small>
+            <br>
+            <br>
+            Filled polygons are achieved using a simple scanline method. First all y axis unit intersections are saved, using a micro fudge factor
+            where needed to ensure no segment starts or ends on an exact y axis boundary, hence avoiding any need to handle special cases. <small>
+            (Consider horizontal scanlines on a diamond shape: direct hits on the side vertices should be counted as one hit whereas direct hits on 
+            the top and bottom vertices should be counted as 0 or 2 hits, whereas mid-line hits simply don&rsquo;t need any of that.)</small><br>
+            We sort on {y,x}, verify each y has an even number of hits, then drawline each such pair that have ceil(first) &lt; floor(second). <br>
+            <small>(Technically, a few scattered +1 and/or +0.5 under GTK make a bit of a mockery of that last statement, but the sentiment remains valid.)</small>
+            <br>
+            <br>
+            This is done after the anti-aliased outline, to leave outer smoothing effects intact but cover unwanted lighter inner pixels.<br>
+            Fairly obviously and as intended any such fill completely obliterates any previous content uniformly with the specified colour.
+            <br>
+            <br>
+            Polygons can be composed of a mixture of straight and curved lines. While not recommended, complex (self-crossing) polygons are supported, 
+            and filled using an odd-even rule similar to <a href="cdCanvasBox.htm#cdCanvasSetFillMode">cdCanvasSetFillMode</a>(canvas,CD_EVENODD): the 
+            winding rule would only ever be applicable to polygons constructed from all straight edges, so that is not even attempted in xpGUI. <br>
+            Of somewhat more interest, multi-part polygons (with embedded {}, see demo\xpGUI\gCanvasPolygon.exw for some examples) do not shade any 
+            inner holes they might have. Just in case you were wondering, there is <i><b>no</b></i> scheme to interpolate hard corners (and if you 
+            don&rsquo;t know what that means you can quite safely ignore it).
+            <br>
+            <a name=warch></a>
+            <br>
+<!-- bluff!!
+            Note that, unlike the outer lines and unfilled polygons, exactly the same filling mechanism/code <i>is</i> employed for GTK, JavaScript, 
+            and WinAPI. 
+-->
+            Ideally, WinAPI would also use the polygon code for gCanvasArc/Circle with XPG_FILLED, that is if an automatic mapping to 
+            that is even possible (see https://pomax.github.io/bezierinfo/#circles_cubic for ideas), but there&rsquo;s a manually fudged attempt 
+            in demo/xpGUI/gCanvas.exw (see bUsePoly). UPDATE: Obviously (after sleeping on it for about three weeks) I could do this, it is just a 
+            whole bunch of extra code I hadn&rsquo;t planned for. Put simply, gCanvasArc() needs pretty much the same code as gCanvasPolygon(),
+            and maybe slightly simpler. For that matter, gCanvasPolygon() should probably also permit gCanvasArc()-based parts, as noted above the
+            angle parameter is not imlemented or even properly "designed", and gCanvasArc() should probably also have a rotate angle, such that 0 
+            is flat as now and 90 (or PI/4) is effectively the same as swapping w and h, but all that&rsquo;s gotta be left for another day, unless 
+            you yourself want to step up.
+            <br>
+            <br>
+            Dots and dashes look a bif naff especially for curved lines, but that is definitively something for someone else to solve.
+            <br>
+            <br>
+            There is of course slim to zero chance of ever achieving pixel-perfect identical results on GTK, JavaScript, and WinAPI, and almost
+            certainly none whatsoever should any fonts/text be involved, but of course they should look pretty similar - let me know of anything
+            blatently wrong, that is by more than a couple of stray pixels. Update: I stumbled across a post on TheCodeProject which showed how
+            to draw (straight) <a href="#gCanvasSetLineStyle">XPG_DOTTED</a> properly under WinAPI, which I incorporated, but have not found a 
+            GTK equivalent or even tested it under JavaScript yet.
+            <br>
          </td>
         </tr>
        </table>

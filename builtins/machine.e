@@ -214,7 +214,7 @@ end function
 global function bytes_to_int(sequence s, bool signed=true)
 -- converts a byte sequence such as that returned from peek() into an integer value.
     integer len = length(s)
-?"bytes_to_int(/delete_routine?) broke on linux..." sleep(1)
+--?"bytes_to_int(/delete_routine?) broke on linux..." sleep(1)
 --  atom mem = allocate(len,1)
     atom mem = allocate(len)
     poke(mem, s)

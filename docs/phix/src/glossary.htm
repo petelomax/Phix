@@ -1,4 +1,4 @@
-<head>
+﻿<head>
  <body>
   <toc>
    <these>
@@ -45,11 +45,15 @@
             I might accept a capture for later use such as "let restaurant = this;", but "that = this" is just drivel, unless 
             you can do the right thing with peanut butter, dying flowers, Matt Damon on a bicycle, hyenas, and India.<br>
             As disparate as those are, I can effortlessly invent meaningful abstractions for them: foods, emotives,
-            film scenes, animals, countries. <br>
+            film scenes, animals, countries. 
             If an abstraction cannot separate any of them, then it is truly not just abysmal, but obstructively unhelpful.<br>
             The only routines that can do anything useful without the slightest idea what/which it is, are almost inevitably
             so completely and utterly banal and trivial that they are indeed completely and utterly pointless themselves.<br>
             Not a fan, be I, of deliberately meaningless abstraction, but should you be, you have my heartfelt pity.
+            <br>
+            <br>
+            <small><i>&ldquo;The purpose of abstracting is not to be vague, but to create a new semantic level in which one 
+            can be absolutely precise.&rdquo;x</i> - Edsger W. Dijkstra<small>
             <br>
               <a name=allocation></a>
          </td>
@@ -114,7 +118,7 @@
             closure
          </td>
          <td>
-            (not supported in Phix, but pretty easy to explicitly emulate, and much easier to debug like that)
+            (<a href="closure.htm">not supported in Phix</a>, but pretty easy to explicitly emulate, and much easier to debug like that)
             A mapping associating each free variable of a function (variables that are used locally, but defined in an enclosing scope) 
             with the value or reference to which the name was bound when the closure was created. Unlike a plain function, a closure 
             allows the function to access those captured variables through the closure&rsquo;s copies of their values or references, 
@@ -143,6 +147,69 @@
             A command line option or programming statement that does not directly generate code but instead instructs the compiler how to 
             subsequently generate code.<br>
             Examples include "with trace", "-c", and "format".
+            <br>
+              <a name=constant></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+            constant
+         </td>
+         <td>
+            Technically in Phix a constant is just a normal variable that you are not allowed to modify post-declaration.<br>
+            In C-based languages, parameters are often "const" to prevent accidental modification with catastrophic consequences,<br>
+            however Phix relies on copy-on-write semantics to prevent any such dramatic consequences in the first place.<br>
+            Note that "const" in a routine scope in JavaScript often reconstructs it one every invocation, whereas Phix (and for that
+            matter Phix code transpiled to JavaScript) tries a bit harder to construct things only once.
+            <br>
+              <a name=delta></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+            delta debugging
+         </td>
+         <td>
+            A very efficient technique for locating a recently introduced bug. Let me document what just happened while I remember it:
+            I noticed the fonts on the <a href="gCanvas.htm">gCanvas</a> demo were all off, in fact all bold with no normal or italics.
+            I had a 3 month old xpGUI3.e (which was the second thing I tried) on which they still worked, however a source code diff
+            showed ~2,600 differences but nothing stood out as the obvious culprit. With a heavy sight of resignation I set to work and
+            wasted maybe an hour and a half making small edits to bring the old version more up-to-date and testing regularly, before
+            realising I really should be using delta debugging (in my defense I originally assumed I wouldn&rsquo;t have the backups I
+            needed any more). I opened up the demo\xpGUI\backups directory and scrolled to the end to see what I still had, and in less
+            that quarter of an hour had selected and tested as replacements for the "include xpGUI.e" line:
+            <br>
+            <br>
+<!--eucode>
+--include backup\xpGUI.5875.e -- good fonts
+--include backup\xpGUI.5877.e -- good fonts
+--include backup\xpGUI.5878.e -- duff fonts (& background)
+--include backup\xpGUI.5881.e -- duff fonts (& background)
+--include backup\xpGUI.5890.e -- duff fonts
+--include backup\xpGUI.5909.e -- duff fonts
+--include backup\xpGUI.5960.e -- duff
+--include backup\xpGUI.5965.e -- duff fonts
+</eucode-->
+<pre>
+<font color="#000080"><i>--include backup\xpGUI.5875.e -- good fonts
+--include backup\xpGUI.5877.e -- good fonts
+--include backup\xpGUI.5878.e -- duff fonts (&amp; background)
+--include backup\xpGUI.5881.e -- duff fonts (&amp; background)
+--include backup\xpGUI.5890.e -- duff fonts
+--include backup\xpGUI.5909.e -- duff fonts
+--include backup\xpGUI.5960.e -- duff
+--include backup\xpGUI.5965.e -- duff fonts</i></font>
+</pre>
+            <br>
+            The first one I picked, 5960, about two weeks old, had a compiler error. Using the date/times, on the basis that four edits in
+            the space of two minutes were probably all fixing compiler errors, I tried 5965. Jump back another week or so and 5909 is also 
+            wrong, ditto 5890, one more hop and 5875 worked. With no significant thought/effort involved I binary chopped to 5877/8, which 
+            differed in just 36 places, a little over 1% of the original rather daunting task, and from there the answer was pretty clear: 
+            I had created a compatible display context to eliminate flickering, but completely forgotten to copy in the fonts. <br>
+            Should you ever find yourself in a similar situation, with an old version that works and a new one that doesn&rsquo;t, delta 
+            debugging is an often incredibly efficient and pretty darn easy way of eliminating the vast majority of potential culprits.<br>
+            Edix/xpEditer create backups specifically designed to assist with delta debugging, though I recommend regularly renaming the
+            backup directory(/ies) to backup.<i>date</i> and permanently deleting them 3-6 months later.
             <br>
               <a name=dwordseq></a>
          </td>
@@ -308,6 +375,17 @@
             Note however that the result of 1.5+1.5 is the integer 3, not the float 3.0, hence the above type is highly likely to cause a wholly 
             unnecessary type check failure at some point and rather rudely terminate the application.
             <br>
+              <a name=greg></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+            Gregorian calendar
+         </td>
+         <td>
+            While (most) Catholic countries adopted the Gregorian calendar in 1582, Protestant countries (including Great Britain and its colonies) 
+            did not adopt it until 1752, and others even later: Turkey in 1926, and Saudi Arabia, astonishingly, 2016.
+            <br>
               <a name=gvar></a>
          </td>
         </tr>
@@ -318,7 +396,7 @@
          <td>
             Internal compiler/back-end term. Constants, file-level, global, and any unnamed temporary variables in top-level code are
             all gvars. They are stored in a static table at the start of the data section, see pemit2.e/filedump.exw for more details.
-            See also/contrast with tvar.
+            See also/contrast with <a href="#tvar">tvar</a>.
             <br>
               <a name=integer></a>
          </td>
@@ -329,7 +407,8 @@
          </td>
          <td>
             A variable that (on 32-bit) can hold a 31-bit signed integer value in the range -1073741824..1073741823 (#C0000000..#3FFFFFFF).<br>
-            On 64-bit, the 63-bit signed integer range is -4611686018427387904..4611686018427387903 (#C000000000000000..#3FFFFFFFFFFFFFFF).
+            On 64-bit, the 63-bit signed integer range is -4611686018427387904..4611686018427387903 (#C000000000000000..#3FFFFFFFFFFFFFFF).<br>
+            Note that "int" in other languages is usually 32/64 bit, which (may) need to use an <a href="atom.htm">atom</a> in Phix instead.
             <br>
               <a name=interpretation></a>
          </td>
@@ -397,6 +476,21 @@
             More often than not, "fixing" such messages will achieve absolutely nothing.
             Wasting time getting a "clean lint" is unlikely to be very productive, except for
             ensuring that the next time you use -lint it only shows new findings.
+            <br>
+              <a name=MCVE></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+            MCVE
+         </td>
+         <td>
+            Minimal complete verifiable example. The smallest thing that exhibits a problem, which should hopefully make it much easier to read
+            and understand, build, debug, and otherwise experiment with, than the equivalent issue buried somewhere deep inside a much larger
+            (/the original) program. Putting in the extra effort to make an mcve will very likely be worthwhile and lead to getting an answer 
+            much quicker when asking for help. It is also acceptable to ask first and then start working on creating an mcve, though you might
+            earn a bit of a reputation should you do that every time. Many a programmer has solved an issue without anyone else&rsquo;s help 
+            just by writing an mcve, and doing so often eliminates obvious mistakes and omissions, without publicly embarassing yourself.
             <br>
               <a name=namespace></a>
          </td>
@@ -550,9 +644,10 @@
          </td>
          <td>
             v: The act of increasing overall meaninglessness by making a new meaningless thing as a subset of some other meaningless thing.<br>
+            Bears some similarity to the infamous "Ah, now, if I were you, I wouldn't start from here" when giving someone directions.<br>
             Alternatively: Selectively substitute symptomatic subroutines while preserving the problematic parts in support of the so-called
-            open-closed principle, so that something somewhere subsequently successfully suffers the same sad symptoms seamlessly. <br>
-            Please, just don&rsquo;t bother to either explain or ask me why.
+            open-closed principle, so that something somewhere subsequently successfully suffers the same sad strange symptoms seamlessly. <br>
+            Please, just don&rsquo;t bother to either try and explain, or ask me why.
             <br>
               <a name=tbyte></a>
          </td>
@@ -670,7 +765,7 @@
          <td>
             I often refer to JavaScript as a <i>typeless</i> language. More strictly speaking it has very strong notions of quite a few
             (thousand) types, but no <i>variable</i> is ever constrained to only holding some subset of those types, not even a "const". 
-            Using phix terminology, I might say that <i>every</i> variable in JavaScript is of "type" <a href="object.htm">object</a>.
+            Using Phix terminology, I might say that <i>every</i> variable in JavaScript is of "type" <a href="object.htm">object</a>.
             <br>
               <a name=UTF8></a>
          </td>

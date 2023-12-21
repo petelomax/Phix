@@ -3494,13 +3494,11 @@ procedure show_as_base(integer base)
 --                  c = sprintf("#%x",n)
                     hexchar = "0123456789ABCDEF"
                     c = ""
---                  while n do
-                    while 1 do
+                    do
                         k = floor(remainder(n,16)+1)
                         c = prepend(c,hexchar[k])
                         n = floor(n/16)
-                        if n=0 then exit end if
-                    end while
+                    until n=0
                     c = prepend(c,'#')
 
                 elsif base=10 then  -- show as decimal
@@ -3513,24 +3511,20 @@ procedure show_as_base(integer base)
 
                 elsif base=8 then   -- show as octal
                     c = ""
---                  while n do
-                    while 1 do
+                    do
                         k = remainder(n,8)
                         c = prepend(c,k+'0')
                         n = floor(n/8)
-                        if n=0 then exit end if
-                    end while
+                    until n=0
                     c = "0o"&c
 
                 elsif base=2 then   -- show as binary
                     c = ""
---                  while n do
-                    while 1 do
+                    do
                         k = remainder(n,2)
                         c = prepend(c,k+'0')
                         n = floor(n/2)
-                        if n=0 then exit end if
-                    end while
+                    until n=0
                     c = "0b"&c
                 else
                     ?9/0    -- unknown base
@@ -4991,6 +4985,8 @@ Ihandln ntab = IupGetChild(ih, pos+1)
         if not saveFile() then return IUP_IGNORE end if
     end if
 
+    string filename = join_path({filepaths[currfile],filenames[currfile]})
+    IupConfigRecentUpdate(config, filename)
     removelast(delidx)
 
     IupHide(tab)    -- (in case it is the last one, see appUpdateRender)
@@ -6540,7 +6536,7 @@ Ihandle menu = IupMenu({IupSubmenu("&File",    create_file_menu()),
 end function
 
 function toolbar_item(atom action, string image, string tip, integer active=1)
-Ihandle item = IupButton(NULL, action, "CANFOCUS=NO, FLAT=YES")
+    Ihandle item = IupButton(NULL, action, "CANFOCUS=NO, FLAT=YES")
     IupSetStrAttribute(item, "IMAGE", get_image(image))
     integer k = find('(',tip)
     if k!=0 then

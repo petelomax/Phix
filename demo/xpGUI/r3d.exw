@@ -1,0 +1,114 @@
+--
+-- demo\xpGUI\r3d.exw
+-- ==================
+--
+--  The classic view from the starship enterprise at warp speed
+--
+--  Quick translation of a demo from 1997 (!!) by Oscar Brynolf
+--  Obviously ported to pGUI, made resizeable, and sufficiently 
+--  optimised/cleaned up to be almost completely unrecognisable.
+--
+with javascript_semantics
+requires("1.0.3")
+include xpGUI.e
+--gUseGTK()
+
+gdx dlg, canvas
+--cdCanvas cd_canvas
+
+constant num = 90,  -- number of lines aka stars
+         speed = 3, -- speed multiplier (higher=faster)
+         dist = 11000,
+         eye = 1450,
+--       X=1,
+--       Y=2, 
+         Z=3,
+         dz = 140*speed 
+
+sequence obj = repeat({0,0,eye+1},num)
+
+procedure redraw(gdx canvas)
+    --cdCanvasActivate(cd_canvas)
+    --cdCanvasClear(cd_canvas)
+--  integer {w, h} = sq_sub(gGetIntInt(canvas, "DRAWSIZE[*charsize]"),10)
+    integer {w, h} = sq_sub(gGetIntInt(canvas, "SIZE"),10)
+    atom {w2,h2} = {w/2,h/2}
+    for i=1 to num do
+        atom {tx,ty,tz} = obj[i],
+             px = (eye/tz*tx)+w2,
+             py = (eye/tz*ty)+h2,
+             px2 = (eye/(tz+250)*tx)+w2,
+             py2 = (eye/(tz+250)*ty)+h2
+        if tz<eye or abs(px)>w or abs(py)>h then
+            obj[i] = {(rnd()-0.5)*w*2,(rnd()-0.5)*h*2,rand(dist)}
+        else
+            obj[i][Z] = tz-dz
+            gCanvasSetForeground(canvas,iff(odd(i)?XPG_WHITE:XPG_YELLOW))
+            gCanvasLine(canvas,px,py,px2,py2)
+        end if
+    end for
+    --cdCanvasFlush(cd_canvas)
+--  return XPG_DEFAULT
+end procedure
+
+--function canvas_map_cb(gdx canvas)
+--  IupGLMakeCurrent(canvas)
+--  if platform()=JS then
+--      cd_canvas = cdCreateCanvas(CD_IUP, canvas)
+--  else
+--      atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+--      cd_canvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+--  end if
+----    gCanvasSetBackground(cd_canvas, XPG_PARCHMENT)
+--  gCanvasSetBackground(cd_canvas, XPG_BLACK)
+----    gCanvasSetForeground(cd_canvas, XPG_BLUE)
+--  return XPG_DEFAULT
+--end function
+
+--function canvas_unmap_cb(gdx canvas)
+--  cdKillCanvas(cd_canvas)
+--  return XPG_DEFAULT
+--end function
+
+--function canvas_resize_cb(gdx /*canvas*/)
+--  integer {canvas_width, canvas_height} = gGetIntInt(canvas, "DRAWSIZE[*charsize]")
+--  atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+--  cdCanvasSetAttribute(cd_canvas, "SIZE[*charsize]", "%dx%d %g", {canvas_width, canvas_height, res})
+--  return XPG_DEFAULT
+--end function
+
+procedure timer_action(gdx /*timer*/)
+--?"timer"
+    gRedraw(canvas)
+--  return XPG_IGNORE
+end procedure
+
+procedure main()
+    
+--  canvas = gCanvas(redraw,"SIZE=640x480")
+    canvas = gCanvas(redraw)
+--  gSetHandlers(canvas, "REDRAW", canvas_action_cb)
+--                           ?MAP_CB?[DEAD], canvas_map_cb,
+--                           ?UNMAP_CB?[DEAD], canvas_unmap_cb,
+--                           "RESIZE[*charsize]_CB", canvas_resize_cb})
+--  dlg = gDialog(gVbox({canvas}),`TITLE="Anti-Aliased Lines"`)
+    gCanvasSetBackground(canvas, XPG_BLACK)
+--  dlg = gDialog(canvas,`TITLE="r3d"`)
+    dlg = gDialog(canvas,`r3d`,"SIZE=640x480")
+    gShow(dlg)
+--  gSetAttribute(canvas, "SIZE", NULL)
+    gdx timer = gTimer(timer_action,30)
+    gMainLoop()
+end procedure
+
+main()
+-- bad:
+--  {"gTimer",9403,30,0,0}
+--  {"gTimer:SetAttribute","MSECS",0,30,0,16}
+--  {"gTimer:SetAttribute","RUN",0,30,0,16}
+--
+-- good:
+--  {"gTimer",9403,30,1,0}
+--  {"gTimer:SetAttribute","MSECS",0,30,0,16}
+--  {"gTimer:SetAttribute","RUN",1,30,16,16}
+

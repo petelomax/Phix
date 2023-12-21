@@ -2,6 +2,60 @@
 -- demo\rosetta\Guess_the_number3.exw
 --
 with javascript_semantics
+requires("1.0.3")
+--requires(64,true)
+include xpGUI.e
+--include ..\xpGUI\xpGUI2.e
+--include ..\xpGUI\xpGUI3.e -- no ghosting...
+--include ..\xpGUI\xpg_xpm.e
+--include ..\xpGUI\backup\xpGUI.0003.e -- gQuit missing...
+--include ..\xpGUI\backup\xpGUI.0017.e -- no ghosting...
+--include ..\xpGUI\backup\xpGUI.0335.e -- no ghosting...
+--include ..\xpGUI\backup\xpGUI.0363.e -- no ghosting...
+--include ..\xpGUI\backup\xpGUI.0364.e -- no ghosting...
+--include ..\xpGUI\backup\xpGUI.0365.e -- no ghosting...
+--include ..\xpGUI\backup\xpGUI.0366.e -- *** ghosting...   [FIXED]
+--include ..\xpGUI\backup\xpGUI.0378.e -- *** ghosting...
+--include ..\xpGUI\backup\xpGUI.0389.e -- *** ghosting...
+--include ..\xpGUI\backup\xpGUI.0390.e -- X*** ghosting...
+--include ..\xpGUI\backup\xpGUI.0404.e -- X*** ghosting...
+--include ..\xpGUI\backup\xpGUI.0422.e -- X*** ghosting...
+--include ..\xpGUI\backup\xpGUI.0425.e -- X*** ghosting...
+--include ..\xpGUI\backup\xpGUI.0459.e -- *** ghosting...
+--gUseGTK()
+
+constant lower_limit = 0, upper_limit = 100,
+         secret = rand_range(lower_limit,upper_limit),
+         fmt = "Enter your guess, a number between %d and %d",
+         prompt = sprintf(fmt,{lower_limit,upper_limit})
+
+gdx dlg, label, input, state
+ 
+procedure value_changed(gdx /*input*/)
+    integer guess = gGetInt(input,"VALUE")
+    string msg = iff(guess<secret?"Too low":
+                 iff(guess=secret?"You got it!":
+                 iff(guess>secret?"Too high":
+                                  "uh?")))
+    gSetAttribute(state,"TITLE",msg)
+end procedure
+
+label = gLabel(prompt)
+--input = gText(value_changed,"VALUE=0, EXPAND=HORIZONTAL, MASK="&XPG_MASK_INT)
+input = gText(value_changed,"VALUE=0, EXPAND=HORIZONTAL")
+state = gLabel("","EXPAND=HORIZONTAL")
+--gSetAttributes({label,input,state},"PADDING=0x15")
+--DEV MARGIN is not being applied:
+gSetAttributes({label,input,state},"MARGIN=0x15")
+--gSetAttributes({input,state},"PADDING=0x15")
+--gSetAttributes({input},"PADDING=0x15")
+--gSetHandler(input,"VALUE_CHANGED",value_changed)
+value_changed(input)
+dlg = gDialog(gVbox({label,input,state},"MARGIN=15x15"),`TITLE="Guess the number"`)
+gShow(dlg)
+gMainLoop()
+--/*
+with javascript_semantics
 requires("1.0.1") -- (VALUECHANGED_CB fix)
 include pGUI.e
 
@@ -35,3 +89,4 @@ if platform()!=JS then
     IupMainLoop()
     IupClose()
 end if
+--*/

@@ -4,6 +4,219 @@
 --
 -- Even dumber than a real lift - clicking 16161616 ties it up for ages...
 --
+--with garbage
+with javascript_semantics
+requires("1.0.3")
+include xpGUI.e
+--gUseGTK()
+gdx dlg, canvas, timer
+
+constant title = "Elevator Simulation",
+         XPG_DARKER_GREY = #383838,     -- (darker than XPG_DARK_GREY)
+         XPG_LIGHTER_ORANGE = #FFA500,  -- (lighter than XPG_ORANGE)
+         XPG_PALE_BLUE = #98C5DA,       -- (lighter than XPG_LIGHT_BLUE)
+         XPG_MEDIUM_BLUE = #759EB4,     -- (darker than XPG_LIGHT_BLUE)
+         panels = {{195,30,45,12},      -- indicator
+                   {380,150,50,90},     -- up/down
+                   {380,465,100,210},   -- main 
+                   {625,330,75,25},     -- restart
+                   {625,530,75,25}},    -- exit
+         buttons = {{380,110,"^"},
+                    {380,190,"v"},
+                    {335,305,"5"},{420,305,"6"},
+                    {335,385,"3"},{420,385,"4"},
+                    {335,465,"1"},{420,465,"2"},
+                    {380,540,"GF"},
+                    {380,630,">|<"}}
+
+integer cur_floor,  -- 0..6
+        wait_sign   -- "", -1 if none
+bool door_open
+
+sequence actions = {}   -- (see timer_action)
+
+procedure new_game()
+    cur_floor = rand(7)-1
+    wait_sign = rand(7)-1
+    door_open = rand(2)==1
+end procedure
+
+procedure redraw(gdx /*canvas*/)
+    integer {width, height} = gGetIntInt(canvas, "SIZE")
+    --cdCanvasActivate(cdcanvas)
+--  gCanvasSetBackground(canvas, XPG_DARKER_GREY)
+    --cdCanvasClear(cdcanvas)
+    gCanvasSetForeground(canvas, XPG_LIGHTER_ORANGE)
+--  cdCanvasSetInteriorStyle(cdcanvas, CD_SOLID)
+    for i=1 to length(panels) do
+        integer {cx,cy,hw,hh} = panels[i],
+                xmin = cx-hw,
+                xmax = cx+hw,
+--              ymin = height-(cy+hh),
+--              ymax = height-(cy-hh)
+                ymin = cy+hh,
+                ymax = cy-hh
+        gCanvasRect(canvas,xmin,xmax,ymin,ymax, true, 10) --rc(*2):]5,4)
+        // (a filled box has no antialiasing, so overwrite with an outline box too:)
+--      cdCanvasRoundedRect(cdcanvas,xmin,xmax,ymin,ymax,5,4)
+        gCanvasRect(canvas,xmin,xmax,ymin,ymax,false,10)
+    end for
+    gCanvasSetForeground(canvas,XPG_BLACK)
+    gSetAttribute(canvas,"FONT","Helvetica, 16")
+--  gCanvasSetTextAlignment?[use gCanvasText(align:=x) instead](canvas,XPG_CENTRE)
+    integer {cx,cy} = panels[1]
+    string floor_text = iff(cur_floor=0?"GF":sprintf("%d",cur_floor))
+--  gCanvasText(canvas,cx,height-cy,floor_text,align:=XPG_CENTRE)
+    gCanvasText(canvas,cx,cy,floor_text,align:=XPG_CENTRE)
+    cy += 75
+    for i=6 to 0 by -1 do
+        integer minx = cx-40,
+                maxx = cx+40,
+--              miny = height-(cy+45),
+--              maxy = height-(cy-40)
+                miny = cy+45,
+                maxy = cy-40
+--      gCanvasSetForeground(canvas, XPG_PARCHMENT)
+        gCanvasRect(canvas,minx,maxx,miny,maxy,bFill:=true,colour:=XPG_PARCHMENT)
+        if i=cur_floor then
+            if i=wait_sign then wait_sign = -1 end if
+--          gCanvasSetForeground(canvas, XPG_MEDIUM_BLUE)
+            gCanvasRect(canvas,minx,maxx,miny,maxy,bFill:=true,colour:=XPG_MEDIUM_BLUE)
+--          gCanvasSetForeground(canvas, XPG_PALE_BLUE)
+            gCanvasRect(canvas,minx+5,maxx-5,miny,maxy,bFill:=true,colour:=XPG_PALE_BLUE)
+            if door_open then
+--              gCanvasSetForeground(canvas, XPG_CYAN)
+                gCanvasRect(canvas,minx+8,maxx-8,miny,maxy,bFill:=true,colour:=XPG_CYAN)
+            else
+--              gCanvasSetForeground(canvas, XPG_MEDIUM_BLUE)
+                gCanvasLine(canvas,cx,miny,cx,maxy,colour:=XPG_MEDIUM_BLUE)
+            end if
+        elsif i=wait_sign then
+--          integer y3 = height-cy-3
+            integer y3 = cy+3
+            sequence poly = {{cx, miny+3},{maxx-2, y3},{cx, maxy-4},{minx+1, y3}}
+--          for j=1 to 2 do
+            for j,c in {XPG_YELLOW,XPG_BLACK} do
+--              gCanvasSetForeground(canvas, {XPG_YELLOW,XPG_BLACK}[j])
+--              cdCanvasBegin(cdcanvas,{CD_FILL,CD_CLOSED_LINES}[j])
+--              cdCanvasVertex(cdcanvas, cx, miny+3)
+--              cdCanvasVertex(cdcanvas, maxx-2, y3)
+--              cdCanvasVertex(cdcanvas, cx, maxy-4)
+--              cdCanvasVertex(cdcanvas, minx+1, y3)
+--              cdCanvasEnd(cdcanvas)
+                gCanvasPolygon(canvas,poly,j=1,colour:=c)
+            end for
+            gCanvasText(canvas,cx,y3,"WAIT",align:=XPG_CENTRE)
+        end if
+        cy += 90
+    end for
+    gSetAttribute(canvas,"FONT","Helvetica, 20")
+    for i=1 to length(buttons) do
+        {cx,cy,floor_text} = buttons[i]
+--      cy = height-cy
+        gCanvasSetForeground(canvas, XPG_SILVER)
+        gCanvasCircle(canvas, cx, cy, 30, true)
+        gCanvasSetForeground(canvas, XPG_BLACK)
+        gCanvasCircle(canvas, cx, cy, 25)
+        gCanvasCircle(canvas, cx, cy, 30)
+--      cdCanvasSetTextOrientation?[use gCanvasText(angle:=x) instead](cdcanvas, iff(i=1?180:0)) 
+        gCanvasText(canvas,cx,cy,iff(i=1?"v":floor_text),align:=XPG_CENTRE,angle:=iff(i=1?{XPG_C,180}:0))
+    end for
+    gSetAttribute(canvas,"FONT","Helvetica, 16")
+    gCanvasSetForeground(canvas, XPG_BLACK)
+    {cx,cy} = panels[4]
+--  gCanvasText(canvas,cx,height-cy,"Restart")
+    gCanvasText(canvas,cx,cy,"Restart",align:=XPG_CENTRE)
+    {cx,cy} = panels[5]
+--  gCanvasText(canvas,cx,height-cy,"Exit")
+    gCanvasText(canvas,cx,cy,"Exit",align:=XPG_CENTRE)
+    --cdCanvasFlush(cdcanvas)
+end procedure
+
+procedure canvas_click(gdx canvas, sequence status, integer x, y)
+    if status[1]='L' and status[2]!='R' then
+        integer cx,cy,hw,hh
+        string floor_text
+        for i=1 to length(buttons) do
+            {cx,cy,floor_text} = buttons[i]
+            {cx,cy} = {cx-x,cy-y}
+            if cx*cx+cy*cy<=3600 then -- (the button radius is 60)
+                actions &= floor_text[1] -- (let timer_action sort it out)
+                gSetInt(timer,"RUN",true)
+                exit
+            end if
+        end for
+        for i=4 to 5 do
+            {cx,cy,hw,hh} = panels[i]
+            if x>=cx-hw and x<=cx+hw
+            and y>=cy-hh and y<=cy+hh then  
+--              if i=5 then return XPG_CLOSE end if
+                if i=5 then
+                    gHide(dlg)
+                else
+                    new_game()
+                    gRedraw(dlg)
+                end if
+                exit    
+            end if
+        end for
+    end if
+end procedure
+
+procedure timer_action(gdx /*timer*/)
+    if length(actions)=0 then
+        gSetInt(timer,"RUN",false)
+    else
+        integer action -- 'G'==='0', '<' is open, '>' is close.
+        {action,actions} = {actions[1],actions[2..$]}
+        switch action do
+            case 'G': action = '0'; fallthrough
+            case '0','1','2','3','4','5','6':
+                integer d = action-'0'-cur_floor
+                if d!=0 then
+                    actions = repeat(sign(d),abs(d)) & '<' & actions
+                    if door_open then actions = prepend(actions,'>') end if
+                elsif not door_open then
+                    actions = prepend(actions,'<')
+                end if
+            case -1,+1:
+                cur_floor += action
+            case '>','<':
+                door_open = action=='<'
+            case '^','v':
+                if wait_sign!=-1 
+                and compare(cur_floor,wait_sign)==compare(action,'_') then
+                    -- (hint: in ascii, '^' < '_' whereas 'v' > '_' ...
+                    ---       plus action ain't ever gonna be '_' here.)
+                    actions = prepend(actions,wait_sign+'0')
+                end if
+            default: ?9/0 -- unknown action?
+        end switch
+        gRedraw(dlg)
+    end if
+end procedure
+
+procedure main()
+    
+    canvas = gCanvas(redraw,"SIZE=800x700")
+    gSetHandler(canvas, `CLICK`, canvas_click)
+    gCanvasSetBackground(canvas, XPG_DARKER_GREY)
+--  dlg = gDialog(canvas,`TITLE="%s", RESIZE[*charsize]=NO`,{title})
+--  dlg = gDialog(canvas,`TITLE="%s", RESIZE=NO`,{title})
+--DEV:
+--  dlg = gDialog(canvas,title,`RESIZE=NO`)
+    dlg = gDialog(canvas,title)
+    new_game()
+    gShow(dlg)
+    timer = gTimer(timer_action,500,false)
+    gMainLoop()
+end procedure
+main()
+--DEV test i=5/gHide()
+?"bye"
+{} = wait_key()
+
+--/*
 with javascript_semantics
 include pGUI.e
 Ihandle dlg, canvas, timer
@@ -47,10 +260,14 @@ function redraw_cb(Ihandle /*ih*/)
     cdCanvasSetForeground(cdcanvas, CD_LIGHTER_ORANGE)
     cdCanvasSetInteriorStyle(cdcanvas, CD_SOLID)
     for i=1 to length(panels) do
-        integer {cx,cy,hw,hh} = panels[i]
-        cdCanvasRoundedBox(cdcanvas,cx-hw,cx+hw,height-(cy+hh),height-(cy-hh),5,4)
+        integer {cx,cy,hw,hh} = panels[i],
+                xmin = cx-hw,
+                xmax = cx+hw,
+                ymin = height-(cy+hh),
+                ymax = height-(cy-hh)
+        cdCanvasRoundedBox(cdcanvas,xmin,xmax,ymin,ymax,5,4)
         // (a filled box has no antialiasing, so overwrite with an outline box too:)
-        cdCanvasRoundedRect(cdcanvas,cx-hw,cx+hw,height-(cy+hh),height-(cy-hh),5,4)
+        cdCanvasRoundedRect(cdcanvas,xmin,xmax,ymin,ymax,5,4)
     end for
     cdCanvasSetForeground(cdcanvas, CD_BLACK)
     cdCanvasFont(cdcanvas, "Helvetica", CD_PLAIN, 16)
@@ -206,3 +423,4 @@ procedure main()
     end if
 end procedure
 main()
+--*/

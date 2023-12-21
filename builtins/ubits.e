@@ -1,10 +1,10 @@
 --
--- builtins/ubits.e
+-- builtins\ubits.e
 --
 --  unsigned bit operations (autoinclude).
 --
 --  :%opAndBits, ie and_bits(), returns signed results, mainly because it is part of 
---  builtins/pMaths.e and uses the same logic as :%opAdd, etc. Ditto or/xor/not_bits().
+--  builtins\pMaths.e and uses the same logic as :%opAdd, etc. Ditto or/xor/not_bits().
 --  However many (esp cryptographic) functions require unsigned results, which is 
 --  where these routines can come in handy.
 --

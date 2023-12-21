@@ -1,5 +1,5 @@
 --
--- builtins/shift_bits.e
+-- builtins\shift_bits.e
 -- =====================
 --
 --  Copied from std/math.e, for compatibility with OpenEuphoria.

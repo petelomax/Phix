@@ -1,56 +1,25 @@
 --
--- demo/pGUI/IupCalendar.exw
---
-with javascript_semantics -- (less IupCalendar, p2js matches the iff(false..) line)
-include pGUI.e
+-- demo\xpGUI\gSlider.exw
+-- ======================
+-- 
+--requires(64)
+with javascript_semantics
+include xpGUI.e
+--gUseGTK()
+constant title = "gSlider"
 
-Ihandle btn, calendar, datepick, statusbar
-
-function action_cb(Ihandle /*btn*/)
-    IupSetAttribute(calendar, "VALUE", "1970/07/11")
-    IupSetAttribute(datepick, "VALUE", "1970/07/11")
-    return IUP_DEFAULT
-end function
-
-function value_cb(Ihandle ih)
---  printf(1, "VALUE_CB(%s)\n", IupGetAttribute(ih, "VALUE"))
-    string s = sprintf("VALUE_CB(%s)\n", IupGetAttribute(ih, "VALUE"))
-    IupSetStrAttribute(statusbar, "TITLE", s)
-    return IUP_DEFAULT
-end function
-
-procedure CalendarTest()
-    btn = IupButton("Set Value","ACTION", Icallback("action_cb"))
---  integer cd = iff(platform()!=JS?IupCalendar:IupDatePick)
-    integer cd = IupDatePick
---  integer cd = iff(false?IupCalendar:IupDatePick)
-    calendar = cd("VALUECHANGED_CB", Icallback("value_cb"))
-    datepick = IupDatePick("VALUECHANGED_CB", Icallback("value_cb"),
-                           "ZEROPRECED=YES, MONTHSHORTNAMES=Yes")
-    statusbar = IupLabel("","EXPAND=HORIZONTAL")
-    Ihandle box = IupVbox({IupHbox({IupFill(),calendar,IupFill()}),
-                           IupHbox({datepick,IupFill(),btn},
-                                   "NORMALIZESIZE=VERTICAL"),
-                           IupHbox({statusbar})},
-                          "MARGIN=10x10, GAP=10"),
-            dlg = IupDialog(box,`TITLE="IupCalendar Test"`)
-    -- the following prevents the title getting cropped:
-    IupSetAttribute(dlg,"MINSIZE","280x150")
-    IupShow(dlg)
---IupShow(IupClassInfoDialog(dlg))
---IupShow(IupGlobalsDialog("RASTERSIZE=450x500"))
---IupShow(IupElementPropertiesDialog(dlg,btn))
+procedure value_changed(gdx id)
+    gdx dlg = gGetDialog(id)
+    atom v = gGetAttribute(id,"VALUE")
+    gSetAttribute(dlg,"TITLE","%s:%g",{title,v})
 end procedure
 
-procedure main()
-    IupOpen()
-
-    CalendarTest()
-
-    if platform()!=JS then
-        IupMainLoop()
-        IupClose()
-    end if
-end procedure
-
-main()
+gdx slider = gSlider(value_changed,"SIZE=220x30"),
+--gdx slider = gSlider(value_changed,"ORIENTATION=VERTICAL"),
+    vbox = gVbox({slider},"MARGIN=9x9"),
+--  dialog = gDialog(slider,title,`SIZE=240x80`)
+    dialog = gDialog(vbox,title,`SIZE=240x80`)
+--gSetAttribute(slider,"VALUE",75)
+gShow(dialog)
+--?gGetAttribute(slider,"SIZE")
+gMainLoop()

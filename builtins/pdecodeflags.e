@@ -32,13 +32,12 @@ global function decode_flags(sequence FlagSet, atom v, string sep="+")
 --  The first entry can be eg {0,"closed"} to specify the "no bits set" meaning.
 --  Any bits not recognised are returned as a hex value at the start.
 --
-atom flag, fset
-string desc
-string res = ""
-
+    string res = ""
+--24/8/23:
+    v = and_bitsu(v,v)
     for i=1 to length(FlagSet) do
-        desc = FlagSet[i][2]
-        flag = FlagSet[i][1]
+        string desc = FlagSet[i][2]
+        atom flag = FlagSet[i][1]
         if flag=0 then
             if i!=1 then ?9/0 end if -- sanity check
             -- (I suspect ^ means there is some logic error setting up FlagSet,
@@ -48,12 +47,17 @@ string res = ""
                 exit
             end if
         else
-            fset = and_bits(v,flag)
+--23/8/23:
+--          atom fset = and_bits(v,flag)
+            flag = and_bitsu(flag,flag)
+            atom fset = and_bitsu(v,flag)
 --          if fset=flag then                   -- (oops, sign issues with eg #80000000)
 --1/10/19:
 --          if fset=and_bits(flag,flag) then
 --              v -= flag
-            if fset!=0 then
+--23/8/23:
+--          if fset!=0 then
+            if fset!=0 and (fset=flag or length(desc)=0) then
                 v -= fset
                 if length(res)!=0
                 and length(sep)!=0

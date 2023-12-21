@@ -34,6 +34,17 @@
             <i>&ldquo;name<small><sub>1</sub></small>=attr<small><sub>1</sub></small>, 
                       name<small><sub>2</sub></small>=attr<small><sub>2</sub></small>,...&rdquo;</i><br>
             args: if not {}, it performs <code>attributes = <a href="sprintf.htm">sprintf</a>(attributes,args)</code>.
+            <br>
+            <br>
+            Alternatively, if attributes is <i>&ldquo;=name<small><sub>1</sub></small>, 
+                                                       name<small><sub>2</sub></small>,...&rdquo;</i> (ie leading '=' then names only)<br>
+            then args must be {<i>attr<small><sub>1</sub></small></i>,<i>attr<small><sub>2</sub></small></i>,...} (and of the correct/exact/matching length).
+            <br>
+            <br>
+            Another alternative is that if attributes is just/exactly "==" then args is a pair-list: 
+            {{<i>&ldquo;name<small><sub>1</sub></small>&rdquo;</i>,<i>attr<small><sub>1</sub></small></i>}, 
+             {<i>&ldquo;name<small><sub>2</sub></small>&rdquo;</i>,<i>attr<small><sub>2</sub></small></i>},...}
+            <br>
          </td>
         </tr>
         <tr>
@@ -49,10 +60,14 @@
           <b>Comments:</b>
          </td>
          <td>
+            Fairly obviously the (new in 1.0.4) names-only/pair-list attributes is a trivial loop with individual values of any type.<br>
+            The rest of this section is about the older all-string/sprintf handling <small><i>(/me wonders how/why I ever coped!)</i></small>:
+            <br>
+            <br>
             Parses the (post-sprintf) attributes string and invokes 
             <a href="gSetAttribute.htm">gSetAttribute</a>(id,name<small><sub><i>i</i></sub></small>,attr<small><sub><i>i</i></sub></small>) 
-            for each pair in turn. This routine itself does not care or check whether id is a single or a sequence of ids, and instead
-            leaves all such handling to the "without-s" routine.
+            for each pair in turn. This routine itself does not care or check whether id is a single or a sequence of ids <small>[ditto 
+            names-only use]</small>, and instead leaves all such handling to the "without-s" routine. 
             <br>
             <br>
             Most interface elements can be created with an optional implicit inline invocation of gSetAttributes(), which can make code 
@@ -61,27 +76,39 @@
             <br>
             Fairly obviously, attribute values must be expressed(/ible) in textual form, but a <a href="integer.htm#bool">bool</a>, for
             instance, can be set using "1"/"0", "true"/"false", "YES"/"NO", "ON"/"OFF" and similar, as documented for the specific attribute, 
-            with (say) "SOMEFLAG=%t, ...", {flag, ...} or a separate <a href="gSetAttribute.htm">gSetAttribute</a>(id,"SOMEFLAG",flag) being 
-            some of the more obvious and straightforward choices.
+            with (say) "SOMEFLAG=%t, ...", {flag, ...} or a separate <a href="gSetAttribute.htm">gSetAttribute</a>(id,"SOMEFLAG",flag) or
+            <a href="gSetAttribute.htm#gSetInt">gSetInt</a>(id,"SOMEFLAG",flag) being some of the more obvious and straightforward choices.
+            <br>
+            <br>
+            Multiple values can be set using eg "240x80" or "{240,80}" syntax, note however that '{' and '}' are treated the same as double
+            quotes and (currently) <i>cannot</i> be nested (specifically, that is, when gSetAttributes is breaking up the attributes string
+            into fragments to relay on to the <a href="gSetAttribute.htm">gSetAttribute</a>() routine). It may however be possible to contain
+            nested {} in double quotes, eg `NAME="{1,{2,3}}"`, not that any such cases are currently needed, or have been extensively tested.
             <br>
             <br>
             There may be cases such as a title of `thing="X", [SIZE=%d]` which might prove difficult if not impossible to achieve via 
             gSetAttributes(), because of the probable mis-parsing of commas, spaces, [mixed] quotes, and equal signs. Bear this in mind, 
             especially when the data originates from file or user input, and may in fact require careful sanitisation, or even rejection.
             While quotation marks <i>are</i> parsed, so for example gSetAttributes(id,`TITLE="Address Book", SIZE=500x300`) works fine, 
-            there is however quite simply <i>no way</i> to include literal quotation marks in a value when using gSetAttributes(). Any 
-            such potentially confusing fields must be set individually using <a href="gSetAttribute.htm">gSetAttribute</a>() directly.
-            If there is any doubt, especially with settings that are not fixed constants, just do them one at a time.
+            there is however quite simply <i>no way</i> to include literal quotation marks in a value when using gSetAttributes(). At a push
+            it might be possible to make it support doubly-escaped strings such as "\\\"" or `\"` (both identical and no \ in either after 
+            parsing), but I&rsquo;m not keen and would probably struggle to justify the potential additional confusion that would probably 
+            introduce. Any such potentially confusing fields must be set individually using <a href="gSetAttribute.htm">gSetAttribute</a>() 
+            directly. If there is any doubt, especially with settings that are not fixed constants, just do them one at a time.
+            <small><i>[It is not inconceivable this string-only stuff will one day be consigned to the dustbin, where it rightly belongs (bar legacy code)]</i></small><small>
 <!-- [FIXED]
             <br>
             <br>
             Note also that hex values require quotes, eg gSetAttributes(ih,"FGCOLOR=#008000") does not work but 
             gSetAttributes(ih,`FGCOLOR="#008000"`) does. [DEV test me]
 -->
+<!--
             <br>
             <br>
             While the most common use is to set several attributes on a single element, it is also possible to set the same attribute(s) on
-            several elements, as example 3 below shows.
+            several elements, as example 2 of <a href="gSetAttribute.htm#eg2">gSetAttribute</a>() shows, though that bool would obviously
+            need to be made into a string for <i>this</i> "with-s" routine, to avoid a typecheck.
+-->
             <br>
             <br>
 <!--
@@ -113,29 +140,29 @@ DEV: all examples need testing/updating<br><br>
          </td>
          <td>
 <!--eucode>
-string dlgtype = iff(bOpen?`DIALOGTYPE=OPEN, TITLE=Open`
-                          :`DIALOGTYPE=SAVE, TITLE=Save`)
-gSetAttributes(filedlg, dlgtype)
+gSetAttributes(filedlg, iff(bOpen?`DIALOGTYPE=OPEN, TITLE=Open`
+                                 :`DIALOGTYPE=SAVE, TITLE=Save`))
 </eucode-->
 <pre>
-<font color="#004080">string</font><font color="#000000"> dlgtype</font><font color="#0000FF"> =</font><font color="#7060A8"> iff</font><font color="#0000FF">(</font><font color="#000000">bOpen</font><font color="#0000FF">?</font><font color="#008000">`DIALOGTYPE=OPEN, TITLE=Open`</font>
-<font color="#0000FF">                          :</font><font color="#008000">`DIALOGTYPE=SAVE, TITLE=Save`</font><font color="#0000FF">)</font>
-<font color="#7060A8">gSetAttributes</font><font color="#0000FF">(</font><font color="#000000">filedlg</font><font color="#0000FF">,</font><font color="#000000"> dlgtype</font><font color="#0000FF">)</font>
+<font color="#7060A8">gSetAttributes</font><font color="#0000FF">(</font><font color="#000000">filedlg</font><font color="#0000FF">,</font><font color="#7060A8"> iff</font><font color="#800000">(</font><font color="#000000">bOpen</font><font color="#0000FF">?</font><font color="#008000">`DIALOGTYPE=OPEN, TITLE=Open`</font>
+<font color="#0000FF">                                 :</font><font color="#008000">`DIALOGTYPE=SAVE, TITLE=Save`</font><font color="#800000">)</font><font color="#0000FF">)</font>
 </pre>
          </td>
         </tr>
+<!--
         <tr>
          <td>
           <b>Example 2:</b>
          </td>
          <td>
-            Creates a list with country names and defines Japan as the selected option.
+            Creates a <del>list</del> dropdown [<b>DEV:</b> gah, find something else!] with country names and defines Japan as the selected option.
          </td>
         </tr>
         <tr>
          <td>
          </td>
          <td>
+<X!X--
             Translate C code such as
             <br>
             <small><br>
@@ -145,24 +172,26 @@ gSetAttributes(filedlg, dlgtype)
              to
             <br>
             <small><br></small>
-<!--eucode>
-gdx list = gList(`VALUE=3, 1=Brazil, 2=USA, 3=Japan, 4=France`)
-</eucode-->
+--X>
+<X!X--eucode>
+gdx list = ?!gList?!(`VALUE=3, 1=Brazil, 2=USA, 3=Japan, 4=France`)
+</eucode--X>
 <pre>
-<font color="#7060A8">gdx</font><font color="#000000"> list</font><font color="#0000FF"> =</font><font color="#7060A8"> gList</font><font color="#0000FF">(</font><font color="#008000">`VALUE=3, 1=Brazil, 2=USA, 3=Japan, 4=France`</font><font color="#0000FF">)</font>
+<font color="#7060A8">gdx</font><font color="#000000"> list</font><font color="#0000FF"> = ?</font><font color="#FF0000">!</font><font color="#7060A8">gList</font><font color="#0000FF">?</font><font color="#FF0000">!</font><font color="#0000FF">(</font><font color="#008000">`VALUE=3, 1=Brazil, 2=USA, 3=Japan, 4=France`</font><font color="#0000FF">)</font>
 </pre>
             <small><br></small>
             Admittedly that is more of an example of when <i>not</i> to use gSetAttributes(), or more accurately implicitly inline it.
          </td>
         </tr>
+--->
         <tr>
          <td>
           <b>See Also:</b>
          </td>
          <td>
           <a href="gGetAttribute.htm">gGetAttribute</a>,
-          <a href="gSetAttribute.htm">gSetAttribute</a>,
-          <a href="gList.htm">gList</a>
+          <a href="gSetAttribute.htm">gSetAttribute</a>
+<!--          <a href="gList.htm">gList</a>-->
          </td>
         </tr>
        </table>

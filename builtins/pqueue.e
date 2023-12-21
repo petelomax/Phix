@@ -1,5 +1,5 @@
 --
--- builtins/pqueue.e
+-- builtins\pqueue.e
 -- =================
 --
 --  Basic implementation of priority and other queues (an autoinclude).

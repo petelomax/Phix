@@ -2,17 +2,42 @@
 -- demo\xpGUI\gSpin.exw
 -- ====================
 --
---  DEV focus and escape/quit handling issues...
---      also, implement and test the VALUE_CHANGED handler...
+-- for js, just use <input type="number" min="1" max="10" value="1">
+--  <input type="number" value="0.30" max="0.40" step="0.05" id="q1">
 --
 --requires(64,true)
 with javascript_semantics
 include xpGUI.e
---gUseGTK()
+--gUseGTK() -- almost working, part from silly sizes!
+
+procedure value_changed(gdx id)
+    ?{"value_changed",id,gGetAttribute(id,"VALUE")}
+end procedure
+gdx spin = gSpin(value_changed,`MARGIN=13x13,VALUE=5,RANGE="{3,7}",WRAP=YES`),
+--gdx spin = gSpin(value_changed,"MARGIN=13x13,VALUE=5"),
+--gdx spin = gSpin(value_changed,"MARGIN=13x13,WRAP=TRUE"),
+--gdx spin = gSpin(value_changed,"MARGIN=13x13,SIZE=40x22"),
+    dlg = gDialog(gHbox({spin}),"gSpin","SIZE=240x80")
+gSetBodge(spin,{13,13,40,22}) -- (needed for gtk2)
+--gSetBodge(spin,{13,13,40,16})
+gShow(dlg)
+--?gGetAttribute(spin,"VALUE")
+--?gGetInt(spin,"VALUE")
+?gGetAttribute(spin,"SIZE")
+--?gGetAttribute(spin,"FONT")
+--gSetAttribute(spin,"WRAP",true)
+gMainLoop()
+
 --win64: 226x73
 --gtk32: 212x66
 --gtk64: 168x34
 
+--/*
+--  DEV focus and escape/quit handling issues...
+--      also, implement and test the VALUE_CHANGED handler...
+-- Erm, I probably went off down the wrong tack here...
+
+--SUG make this 11x14 or construct algorithmically, via gImage()
 constant xpm_txt = """
 18 18 2 1
 . c None
@@ -41,17 +66,123 @@ xpm = gImage_from_XPM(xpm_txt)
 procedure redraw(gdx canvas)
     integer {w,h} = gGetAttribute(canvas,"SIZE")
     ?{"redraw",w,h} -- 414,221 under WinAPI, but 430,221 under GTK...
-    gImageDraw(xpm,canvas,0,0)
+--  gImageDraw(xpm,canvas,0,0)
+    gImageDraw(xpm,canvas,0,1)
 end procedure
 
-gdx txt = gText(`VALUE="0",SIZE=40x20`),
-    cnv = gCanvas(redraw,"SIZE=18x18"),
-    hbx = gHbox({txt,cnv},"MARGIN=13x13"),
-    dlg = gDialog(hbx,"gSpin","SIZE=240x80")
---gSetAttribute(txt,"FONT","Helvetica, Italic 19")
-gShow(dlg)
-?gGetAttribute(txt,"VALUE")
-gSetAttribute(txt,"SIZE","40x20")
-?gGetAttribute(txt,"SIZE")
-gMainLoop()
+--function spin_key_handler(gdx id, integer c)
+--function key_handler(gdx dlg, integer c, ctrl, shift, alt)
+function spin_key_handler(gdx txt, integer c, bool ctrl, shift, /*alt*/)
+?{"spin_key_handler",txt,c,{sprintf("#%x",c),gGetKeyName(c)},time()}
+--?{"key_handler",c,{sprintf("#%x",c),gGetKeyName(c)},ctrl,shift,alt,gVersion(true)}
+--sleep(1)
+--DEV: (test whether still actually needed...)
+--  if c=VK_ESC then return XPG_CLOSE end if -- (standard practice for me)
+--  if c=VK_F5 then return XPG_DEFAULT end if -- (let browser reload work)
+--  if c>='0' and c<='9' then return XPG_CONTINUE end if
+    if (c<'0' and c>=' ')
+    or (c>'9' and c<='~') then
+        return XPG_IGNORE
+    end if
+    if c=VK_UP or c=VK_DOWN then
+        integer v = to_integer(gGetAttribute(txt,"VALUE")),
+                a = iff(ctrl?10:iff(shift?2:1))
+        if c=VK_UP then
+            gSetAttribute(txt,"VALUE","%d",{v+a})
+        elsif c=VK_DOWN then
+            gSetAttribute(txt,"VALUE","%d",{v-a})
+        end if
+        return XPG_IGNORE
+    end if
 
+--/*
+    if c='?' then
+        pp(polys[polydx])
+--DEV cycle through our set of test polygons. [DONE]
+--  Also rotate on/off[=VK_CR], 
+--  dump[='?', DONE], 
+--  filled[='f'], snaptogrid[='g'], delete[=VK_DEL(green)], clear[='?c']
+--      wuline = not wuline
+--      set_title()
+--      gRedraw(gGetDialog(id))
+--      gRedraw(id)
+    elsif c=' ' or c='+' then
+        polydx += 1
+        if polydx>length(polys) then polydx = 1 end if
+        gRedraw(id)
+    elsif c='-' then
+        polydx -= 1
+        if polydx=0 then polydx = length(polys) end if
+        gRedraw(id)
+    else
+        c = lower(c)
+        if c='c' then
+            bDrawCtrls = not bDrawCtrls
+            gRedraw(id)
+        elsif c='f' then
+            bFilled = not bFilled
+            gRedraw(id)
+--DEV fixme...
+--      elsif c='m' then
+--          bMargin1 = not bMargin1
+--          set_dialog_size(gGetDialog(id))
+--          gRedraw(id)
+        end if
+    end if
+--*/
+--if alt then return XPG_IGNORE end if
+--DEV/SUG make XPG_CONTINUE act as CLOSE/DEFAULT/IGNORE??? (and o/c document that)
+--DEV/SUG make XPG_DEFAULT act as CLOSE/CONTINUE/IGNORE??? (and o/c document that)
+    return XPG_CONTINUE
+end function
+
+procedure spin_click(gdx canvas, sequence status, integer x, y)
+    integer {button,pressed,ctrl,shift,alt} = status
+    integer {w,h} = gGetAttribute(canvas,"SIZE")
+--  printf(1,"click(button:%c, pressed:%c, ctrl:%d, shift:%d, alt:%d, x:%d, y:%d, w:%d, h:%d)\n",
+--           {button,pressed,ctrl,shift,alt,x,y,w,h})
+    if button='L' then
+        if pressed='S' or pressed='D' then
+            gdx txt = gGetBrother(canvas,true)
+            integer v = to_integer(gGetAttribute(txt,"VALUE")),
+                    a = iff(ctrl?10:iff(shift?2:1))
+            if y<h/2 then
+                gSetAttribute(txt,"VALUE","%d",{v+a})
+            elsif y>h/2 then
+                gSetAttribute(txt,"VALUE","%d",{v-a})
+            end if
+--          -- start timer
+--      else
+--          -- stop timer
+        end if
+    end if
+end procedure
+
+
+gdx txt = gText(`VALUE="0",SIZE=30x20`),
+--gdx txt = gText(`VALUE="0",SIZE=40x20,EXPAND=NO`),
+--  cnv = gCanvas(redraw,"SIZE=18x18"),
+    cnv = gCanvas(redraw,"SIZE=18x20"),
+    hbx = gHbox({txt,cnv},"MARGIN=13x13"),
+--  spn = gSpin(value_changed,{txt,cnv},"MARGIN=13x13"),
+    dlg = gDialog(hbx,"gSpin","SIZE=240x80")
+
+--gdx --spin = gSpin(value_changed,"MARGIN=13x13"),
+--  dlg = gDialog(spin,"gSpin","SIZE=240x80")
+--gSetHandler(txt,`KEY`,spin_key_handler)
+--gSetHandler(cnv,`CLICK`,spin_click)
+--gCanvasSetBackground(cnv,#F0F0F0)
+--gCanvasSetBackground(cnv,#DCDAD5) -- GTK (but only once it is sized/positioned correctly)
+
+--gSetAttribute(txt,"FONT","Helvetica, Italic 19")
+--?gGetAttribute(txt,"VALUE")
+--gSetBodge(txt,{13,13,30,20})
+--gSetBodge(spin,{13,13,30,20})
+--gSetAttribute(txt,"SIZE","30x20")
+--?gGetAttribute(txt,"SIZE") -- 151,20 [DEV!]
+gShow(dlg)
+--?gGetAttribute(spin,"VALUE")
+--?gGetInt(spin,"VALUE")
+--?gGetAttribute(txt,"SIZE") -- 40,20 (ok!)
+gMainLoop()
+--*/

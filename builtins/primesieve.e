@@ -1,5 +1,5 @@
 --
--- builtins/primesieve.e
+-- builtins\primesieve.e
 -- =====================
 -- I found a suitable prebuilt 64-bit windows dll in the pascal bindings of primesieve (version 7.7, dated 31/12/21), 
 -- so gave it a try. Note that you'll have to grab the following dll yourself, and of course update the path to it.
@@ -138,7 +138,7 @@ end function
 
 --/* a test program, took 1hr 53 mins to run - "next" was atom not integer, but shd be ok.
 without js
-include builtins/primesieve.e -- (can provide if desired, ask me on my talk page)
+include builtins\primesieve.e -- (can provide if desired, ask me on my talk page)
 requires(WINDOWS)
 requires(64,true)
 atom t0 = time(), t1 = time()+1

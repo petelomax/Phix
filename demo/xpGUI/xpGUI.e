@@ -8,6 +8,7 @@ constant COPYRIGHT = "Copyright (C) 2023 Pete Lomax / Open Software License vers
 integer test_elem = 0
 -- **** DEV **** try making this all work **without** c_func/c_proc, but that #ilASM{} thing...
 -- (is that going to be a bucketload harder, cos this don't rely on #ilASM{[PE]|[ELF]} guards??)
+-- (behave: it's just mov reg,[proc_addr]; call reg; rather than call proc... flw)
 --
 --  A new (Dec 2022) cross-platform GUI for Phix
 --
@@ -21,7 +22,7 @@ integer test_elem = 0
 --
 --  Motivation:
 --   * Installing IUP on Linux was nowhere near as easy as I hoped it would be,
---     plus there are no prebuilt binaries(/suport) of IUP for an ARM machine.
+--     plus there are no prebuilt binaries(/support) of IUP for an ARM machine.
 --   * Low-level hiccups, in particular the inability to prevent <Alt x> bleeping,
 --     and timing problems triggering unexpected/unstoppable program shutdowns.
 --   * The IUP layout is not the best fit for the browser box model, and it is
@@ -66,6 +67,13 @@ integer test_elem = 0
 -- Partial: https://en.wikibooks.org/wiki/GTK%2B_By_Example
 -- Maybe: https://cboard.cprogramming.com/c-programming/153029-revised-gtkplus-text-editor-more-stable.html
 
+-- Test E:\downloads\misc\FASM\guicpuid.asm on a 64-bit lnx box... 
+-- ... check cpu use, and maybe update the rc/Windows/X11 task.
+-- ... and get filedump to start code at offset 490
+-- ==> having xpGUI target X11 directly might become a possibility...
+-- maybe: https://board.flatassembler.net/topic.php?t=21503 (32/64 bit xlib)
+
+
 without debug
 include pprntfN.e
 include cffi.e
@@ -77,28 +85,26 @@ with debug -- (leaving ths commented out often makes asserts etc more helpful)
 --with trace
 
 local bool bInit = false -- (xpg_Init() not yet called)
-local constant SPLAT = {LINUX,WINDOWS},
-               backdesc = {"GTK","WinAPI"},
-               GTK = 1, WinAPI = 2, -- must match ""
-               UNDEFINED = 0
---local enum GTK, WinAPI
+local constant UNDEFINED = 0 -- (==NULL)
+global constant XPG_GTK = 1, XPG_WINAPI = 2, XPG_JS = 3
+               
 local integer PrimaryWindowID = UNDEFINED,  -- id of the main application window
               handlers,                     -- key is {gdx,name}, data is integer routine_id
               handler_sigs,                 -- key is {ct,name}, data is allowed sig[1..3]
-              backend = find(platform(),SPLAT)
---            backend = iff(platform()= LINUX  ? GTK
---                     :iff(platform()=WINDOWS ? WinAPI
+              backend = find(platform(),{LINUX,WINDOWS}) -- (must match the constants!)
+--            backend = iff(platform()= LINUX  ? XPG_GTK
+--                     :iff(platform()=WINDOWS ? XPG_WINAPI
 --                     :9/0))
 global procedure gUseGTK()
     assert(not bInit)
-    backend = GTK
+    backend = XPG_GTK
 end procedure
 
 -- Aside: This source is littered with
 --
---      if backend=GTK then
+--      if backend=XPG_GTK then
 --          ...
---      elsif backend=WinAPI then
+--      elsif backend=XPG_WINAPI then
 --          ...
 --      else
 --          ?9/0 -- (unknown backend)
@@ -109,65 +115,84 @@ end procedure
 --
 
 
-local constant control_set = {{       DIALOG:=$,1,"Dialog"      },
-                              {          BOX:=$,2,"Box"         },
-                              {       BUTTON:=$,0,"Button"      },
-                              {       CANVAS:=$,0,"Canvas"      }, -- (also gGraph/gList/gTable)
-                              {     CHECKBOX:=$,0,"Checkbox"    },
-                              {    CLIPBOARD:=$,0,"Clipboard"   },
-                              {     DATEPICK:=$,0,"DatePick"    },
-                              {     DROPDOWN:=$,0,"DropDown"    },
-                              {        FRAME:=$,1,"Frame"       },
-                              {        GRAPH:=$,0,"Graph"       }, -- (in [CX_CANVAS_TYPE] only)
-                              {        LABEL:=$,0,"Label"       },
-                              {         LIST:=$,0,"list"        }, -- (in [CX_CANVAS_TYPE] only)
-                              {         MENU:=$,0,"Menu"        },
---                            {      MENUBAR:=$,0,"MenuBar"     },
---                            {     MENUITEM:=$,0,"MenuItem"    },
---                            {      MENUSEP:=$,0,"MenuSep"     },
---                            {      SUBMENU:=$,0,"SubMenu"     },
-                              {  PROGRESSBAR:=$,0,"ProgressBar" },
-                              {       SLIDER:=$,0,"Slider"      },
-                              {         TABS:=$,3,"Tabs"        },
-                              {        TABLE:=$,0,"Table"       }, -- (in [CX_CANVAS_TYPE] only)
-                              {         TEXT:=$,0,"Text"        },
-                              {        TIMER:=$,0,"Timer"       },
---                            {       TOGGLE:=$,0,"Toggle"      },
-                              {     TREEVIEW:=$,0,"TreeView"    }},
+local constant control_set = {{    DIALOG:=$,"Dialog"   },
+                              {       BOX:=$,"Box"      },
+                              {    BUTTON:=$,"Button"   },
+                              {    CANVAS:=$,"Canvas"   }, -- (also gGraph/gList/gTable/gSplit[2])
+                              {  CHECKBOX:=$,"Checkbox" },
+                              { CLIPBOARD:=$,"Clipboard"},
+                              {  DATEPICK:=$,"DatePick" },
+                              {  DROPDOWN:=$,"DropDown" },
+                              {     FRAME:=$,"Frame"    },
+                              {     GRAPH:=$,"Graph"    }, -- (in [CX_CANVAS_TYPE] only)
+                              {     LABEL:=$,"Label"    },
+                              {      LIST:=$,"list"     }, -- (in [CX_CANVAS_TYPE] only)
+                              {      MENU:=$,"Menu"     },
+                              {  PROGRESS:=$,"Progress" },
+                              {    SLIDER:=$,"Slider"   },
+                              {      SPIN:=$,"Spin"     },
+                              {      TABS:=$,"Tabs"     },
+                              {     TABLE:=$,"Table"    }, -- (in [CX_CANVAS_TYPE] only)
+                              {      TEXT:=$,"Text"     },
+                              {     TIMER:=$,"Timer"    },
+                              {  TREEVIEW:=$,"TreeView" }},
                        lcs = length(control_set),
-                 ctrl_kids = vslice(control_set,2), -- (controls that have children, 0b01=has decorations)
-                ctrl_names = vslice(control_set,3), -- (for error messages only)
---                ctrl_rdx = reinstate({},vslice(control_set,1),{}), -- (reverse lookup?)
-                  cf_glags = {{     CF_EXPANDH:=0x00000001, "CF_EXPANDH"      },
-                              {     CF_EXPANDV:=0x00000002, "CF_EXPANDV"      },
---SUG:
---                            {     CF_EXPANCH:=0x00000004, "CF_EXPANDH"      },    -- (accumulated from child elements)
---                            {     CF_EXPANCV:=0x00000008, "CF_EXPANDV"      },    -- (accumulated from child elements)
-                              {      CF_MAPPED:=0x00000010, "CF_MAPPED"       },    -- (re-used for "Active" on timers)
-                              {    CF_INACTIVE:=0x00000020, "CF_INACTIVE"     },
-                              { CF_NEVER_SHOWN:=0x00000040, "CF_NEVER_SHOWN"  },    -- (only meaningful on dialogs)
-                              {CF_CLOSE_ON_ESC:=0x00000080, "CF_CLOSE_ON_ESC" },    -- (only meaningful on dialogs)
---DEV (ctrl_kids prob. better)
---                            {        CF_LEAF:=0x00000100, "CF_LEAF"         },    -- (controls which have no children)
-                              {    CF_VERTICAL:=0x00000100, "CF_VERTICAL"     },    -- (only meaningful on some controls*)
--- (NO!)                      {     CF_NATURAL:=0x00000200, "CF_NATURAL"      },    -- (only meaningful on some controls)
---                            {       CF_SPLIT:=0x00000200, "CF_SPLIT"        },    -- (only meaningful on BOX controls)
---                            {       CF_MULTI:=0x00000400, "CF_MULTI"        },    -- (only meaningful on BOX controls)
+                ctrl_names = vslice(control_set,2), -- (for error messages only)
+                  cf_glags = {{     CF_EXPANDB:=0x00000001, "CF_EXPANDB"      },    -- both
+                              {     CF_EXPANDH:=0x00000002, "CF_EXPANDH"      },    -- horizontal only
+                              {     CF_EXPANDV:=0x00000004, "CF_EXPANDV"      },    -- vertical only
+                              {   CF_CONTAINER:=0x00000100, "CF_CONTAINER"    },    -- (gBox/Dialog/Frame/Tabs only)
+                              {   CF_DECORATED:=0x00000200, "CF_DECORATED"    },    -- (only Dialog/Frame/Tabs)
+                              {    CF_VERTICAL:=0x00000400, "CF_VERTICAL"     },    -- (only meaningful on some controls*)
                               {      CF_RESIZE:=0x00000800, "CF_RESIZE"       },    -- (only meaningful on gDialog ctrls)
-
 --DEV erm, NO: just put expand=NO on the container??!!
 --                            {        CF_FREE:=0x00001000, "CF_FREE"         },
---                            {     CF_EX_FREE:=0x00001300, "CF_EX_FREE"      },    -- or_all({CF_EXPANDH,CF_EXPANDV,CF_FREE})
---                            {       CF_EX_HV:=0x00000300, "CF_EX_HV"        },    -- or_all({CF_EXPANDH,CF_EXPANDV})
                               {      CF_SHRINK:=0x00002000, "CF_SHRINK"       },
+                              {       CF_SPLIT:=0x00004000, "CF_SPLIT"        },    -- (the gH/Vbox|canvas of a gSplit control)
                               {      CF_NORMAL:=0x00010000, "CF_NORMAL"       },    -- ctrl is part of a normaliser group
                               {       CF_RADIO:=0x00020000, "CF_RADIO"        },    -- ctrl is part of a radio group
 --                            {       CF_ACCEL:=0x00040000, "CF_ACCEL"        },    -- ctrl has an accelerator key (??) DEV/SUG
-                              {  CF_IGNORESIZE:=0x04000000, "CF_IGNORESIZE"   },    -- (ignore [recursive] resize events)
-                              {   CF_UNMAPATTR:=0x08000000, "CF_UNMAPATTR"    }}    -- (these handle unmapped attributes)
---                  CF_EHV = or_bits(CP_EXPANDH,CF_EXPANDV)
+                              {    CF_INACTIVE:=0x00100000, "CF_INACTIVE"     },
+                              { CF_NEVER_SHOWN:=0x00200000, "CF_NEVER_SHOWN"  },    -- (only meaningful on dialogs)
+                              {CF_CLOSE_ON_ESC:=0x00400000, "CF_CLOSE_ON_ESC" },    -- (only meaningful on dialogs)
+                              {  CF_IGNORESIZE:=0x00800000, "CF_IGNORESIZE"   },    -- (ignore [recursive] resize events)
+                              {      CF_MAPPED:=0x01000000, "CF_MAPPED"       },    -- (re-used for "Active" on timers)
+                              {   CF_UNMAPATTR:=0x02000000, "CF_UNMAPATTR"    }},   -- (these can get attributes unmapped)
+                 CF_EXPAND = CF_EXPANDV+CF_EXPANDH+CF_EXPANDB,                      -- 0b111 mask, with 0/1/2/4 for N/B/H/V
+                CF_HEXPAND = CF_EXPANDH+CF_EXPANDB,                                 -- 0b011 mask (expands horizontally)
+                CF_VEXPAND = CF_EXPANDV+CF_EXPANDB                                  -- 0b101 mask (expands vertically)
+                             -- aside: I used three bits for expansion even though 2 would suffice,
+                             --        mainly so that true===both, and hence "both" cannot be 0b11,
+                             --        and h-/v-only as 0b10 and 0b11 would be begging for trouble.
 
 --*CF_VERTICAL distinguishes a gVbox from a gHbox, and is ORIENTATION=VERTICAL for gProgressBar and gSlider
+
+local function cf_flags_x14(atom cflags)
+--
+--  returns a string of the form XCDVRSPNRINEGMU
+--                               123456789012345
+--
+--  string res = repeat(' ',15)
+    string res = repeat(' ',5)
+    res[1] = " BH?V"[and_bits(cflags,#F)+1]
+    res[2] = " C"[and_bits(floor(cflags/CF_CONTAINER),1)+1]
+    res[3] = " D"[and_bits(floor(cflags/CF_DECORATED),1)+1]
+    res[4] = " V"[and_bits(floor(cflags/CF_VERTICAL),1)+1]
+    res[5] = " R"[and_bits(floor(cflags/CF_RESIZE),1)+1]
+--/*
+    res[6] = " S"[and_bits(floor(cflags/CF_SHRINK),1)+1]
+    res[7] = " P"[and_bits(floor(cflags/CF_SPLIT),1)+1]
+    res[8] = " N"[and_bits(floor(cflags/CF_NORMAL),1)+1]
+    res[9] = " R"[and_bits(floor(cflags/CF_RADIO),1)+1]
+    res[10] = " I"[and_bits(floor(cflags/CF_INACTIVE),1)+1]
+    res[11] = " N"[and_bits(floor(cflags/CF_NEVER_SHOWN),1)+1]
+    res[12] = " E"[and_bits(floor(cflags/CF_CLOSE_ON_ESC),1)+1]
+    res[13] = " G"[and_bits(floor(cflags/CF_IGNORESIZE),1)+1]
+    res[14] = " M"[and_bits(floor(cflags/CF_MAPPED),1)+1]
+    res[15] = " U"[and_bits(floor(cflags/CF_UNMAPATTR),1)+1]
+--*/
+    return res
+end function
 
 --indexed by [DIALOG..TEEVIEW][map/set/get],
 --the routine info (2nd column) is for diagnostics only:
@@ -177,7 +202,7 @@ local enum CM_MAP, CM_MRI,              -- map/create
            CM_GET, CM_GRI,              -- get attributes   
            CM_LEN=$
 
-local procedure set_ctrl_msg(integer ct, rmap, rset, rget)
+local procedure xpg_set_ctrl_msg(integer ct, rmap, rset, rget)
     -- aside: get_routine_info(0,true) yields {0,0,"P",-1}
     sequence cmct = repeat(0,CM_LEN)
     cmct[CM_MAP] = rmap
@@ -196,12 +221,13 @@ local sequence ctrl_handles = {},   -- (native handles)
                  parent_ids = {},   -- (as gdx, nb see xpg_get_parent_handle)
                children_ids = {},   -- (as gdx) (also cairo context?)
                   ctrl_size = {},   -- (see SZ_XXX below)
---                  ctrl_mp = {},   -- (margin/padding, see MP_XXX below)
                   ctrl_font = {},   -- (UNDEFINED or index to fontcache)
                  ctrl_fonts = {},   -- (NULL or string)
 --              ctrl_styles = {},   -- XPG_NORMAL/(NULL or string)
                  ctrl_fontd = {},   -- (NULL?, pango fontdesc, WinAPI hFont atom)
+                    ctrl_bg = {},   -- (-1 or background colour [text only for now])
                   ctrl_xtra = {},   -- (control-specific, see CX_XXX below)
+                  user_data = {},
               wnd_proc_addr = {},   -- (WinAPI controls only)
 --            sub_proc_addr = {},   --       ""
               deferred_attr = {},   -- ({name,val} pairs)
@@ -214,14 +240,14 @@ local sequence ctrl_handles = {},   -- (native handles)
 -- user: as requested/set by [raster]size, or zero if not specifically set.
 -- w, h: actual, as calculated, should match results from querying the API.
 -- min/max may also be required/stored here.
-local enum SZ_W,
+local enum SZ_W,            -- actual/final
            SZ_H,
-           SZ_NATURAL_W,
-           SZ_NATURAL_H,
---DEV normalised naturals...
---DEV just use SZ_W, SZ_H ???
-           SZ_NORMAL_W,
+           SZ_NORMAL_W,     -- layout manager works from these
            SZ_NORMAL_H,
+           SZ_NATURAL_W,    -- initial
+           SZ_NATURAL_H,
+           SZ_USER_W,       -- explicit (initial) overrides
+           SZ_USER_H,
 --DEV shrinkage limits...
 --         SZ_SHRINK_W,
 --         SZ_SHRINK_H,
@@ -232,11 +258,6 @@ local enum SZ_W,
            SZ_MIN_H,
            SZ_MAX_W,
            SZ_MAX_H,
-           SZ_USER_W,
-           SZ_USER_H,
---DEV x,y (or just calculate as we go, why not...)
-           SZ_X,
-           SZ_Y,
 -- margins/padding (trbl), erm...
 --         SZ_MARGIN_TOP,
 --         SZ_MARGIN_RGT,
@@ -244,6 +265,9 @@ local enum SZ_W,
 --         SZ_MARGIN_LFT,
            SZ_MARGIN,   -- (see MP_XXX below)
            SZ_PADDING,  -- "", BUTTON/DATEPICK/DROPDOWN/TEXT only
+--DEV x,y (or just calculate as we go, why not...)
+           SZ_X,
+           SZ_Y,
            SZ_LENGTH = $
 
 local enum CX_LAST_FOCUS,
@@ -252,38 +276,63 @@ local enum CX_LAST_FOCUS,
 --         CX_DEF_ESCAPE,
            CX_DLG_LEN = $
 
---local enum MP_MARGIN,
---         MP_PADDING
 local enum MP_TOP,
            MP_RGT,
            MP_BTM,
            MP_LFT
 
+-- ctrl_xtra for gCanvas()
 local enum --CX_BOX_MARGIN, -- trbl
            CX_BOX_GAP,
-           CX_BOX_SPACE,
+           CX_BOX_SPACE_H,
+           CX_BOX_SPACE_V,
            CX_BOX_LEN = $
 --local enum CX_BM_TOP,
 --         CX_BM_RIGHT,
 --         CX_BM_BOTTOM,
 --         CX_BM_LEFT
 
-local constant CXCF_REPEN = 0b01
+local constant CXCF_REPEN = 0b01,
 --             CXCF_REFONT = 0b10 -- (Windows only)
---DEV:
---             CXCF_SCROLL = 0b100 -- (creation only)
+               CXCF_SCROLL = 0b100 -- (===[CX_SBINFO]!=NULL, w/o p2js violation)
 local enum CX_CANVAS_TYPE,      -- CANVAS/GRAPH/LIST/TABLE...
            CX_CANVAS_FLAGS,     -- CXCF_REPEN (etc)
            CX_CANVAS_BACK,      -- eg XPG_PARCHMENT (default XPG_WHITE)
            CX_CANVAS_FORE,      -- default XPG_BLACK
-           CX_CANVAS_HDC,       -- WinAPI:hDC, GTK:{cairo,layout}
+           CX_CANVAS_HDC,       -- XPG_WINAPI:hDC, XPG_GTK:{cairo,layout}
            CX_PENSTYLE,         -- eg/default XPG_CONTINUOUS
            CX_PENWIDTH,         -- default 1
            CX_TXTANGLE,         -- default 0 (degrees, not radians)
-           CX_GTL_ATTRS,        -- (gGraph/gTable/gList, see GX/LX/TX below)
+           CX_GTL_ATTRS,        -- gGraph/gTable/gList, see GX/LX/TX below
+           CX_SBINFO,           -- scrollbar info, NULL or see SB_XXX below 
            CX_CANVAS_LEN = $    -- (init ctrl_xtra[id] this size)
 
--- for gGraph():
+-- content of ctrl_xtra[canvas][CX_SBINFO], maybe others
+local enum SB_HVISB, -- horizontal scrollbar visible
+           SB_VVISB, -- vertical scrollbar visible
+           SB_VTTOP, -- vertical thumb top
+           SB_VTEND, -- vertical thumb end
+           SB_HTLFT, -- horizontal thumb left
+           SB_HTEND, -- hirizontal thumb end
+           SB_TIMER, -- timer for click-holds
+           SB_CLIKX, -- where clickdown
+           SB_CLIKY, --     """
+           SB_DRAGG, -- true if dragging
+           SB_MONLD, -- (mouse on scrollbar as last drawn, UA/AT/VT/BT/DA
+                     --    (with `` meaning on nowt)       LA/LT/HT/RT/RA)
+           SB_CKMON, -- "" at point of click
+-- (above are probably all best kept private)
+           SB_VWIDE, -- vertical scrollbar width (=17)
+           SB_HHIGH, -- horizontal scrollbar width (=17)
+--DEV SCROLLSIZE ("" as optional 3/4th args?)
+           SB_SCRLW, -- SCROLLSIZE
+           SB_SCRLH, --  "", next two are the VIEWPORT
+--DEV VIEWPORT:
+           SB_ORIGX,    -- 0..SCROLLW-(w-VSBVIS*SBWID) [nb client offset, not scrollbar]
+           SB_ORIGY,    -- 0..SCROLLH-(h-HSBVIS*SBHGH)              """
+           SB_INFOLEN = $
+
+-- ctrl_xtra[CX_GTL_ATTRS] for for gGraph():
 local constant graph_attrs = {{      GX_GRID:=$,'B',"GRID"          },
                               { GX_GRIDCOLOR:=$,'I',"GRIDCOLOR"     },
                               { GX_LEGENDBOX:=$,'B',"LEGENDBOX"     },
@@ -321,13 +370,10 @@ local constant graph_attrs = {{      GX_GRID:=$,'B',"GRID"          },
 --assert(GX_LEGENDXY=GX_LEN)
 if GX_LEGENDXY or GX_LEGENDPOS then end if -- DEV currently unused...
 
-local enum CX_TABTITLES,
-           CX_TABIMAGES,
-           CX_TABLENGTH = $ -- (init ctrl_xtra[id] this size)
-
--- for gTable():
+-- ctrl_xtra[CX_GTL_ATTRS] for gTable():
 -- (first 5 & last 3 are creation-only or internal and cannot be set via gSetAttribute)
 local constant table_attrs = {{   TX_COLUMNS:=$,'X',"?COLUMNS?"     },
+                              {  TX_LINESTEP:=$,'I',"LINESTEP"      },
 --DEV might yet make this get_data-style...
                               {      TX_DATA:=$,'X',"?DATA?"        },
                               {   TX_ACTCOLS:=$,'X',"?ACTCOLS?"     },
@@ -337,17 +383,18 @@ local constant table_attrs = {{   TX_COLUMNS:=$,'X',"?COLUMNS?"     },
 --X                           {   TX_TCANVAS:=$,'X',"?TCANVAS?"     },
 --X                           {   TX_BCANVAS:=$,'X',"?BCANVAS?"     },
 --                            {       TX_XXX:=$,'?',"XXX"           },
-                              {      TX_ROWS:=$,'X',"?ROWS?"        }, -- (visible lines)
+                              {      TX_ROWS:=$,'X',"?ROWS?"        }}, -- (visible lines)
 --DEV why not just use SZ_NATURAL_W?
-                              {  TX_NATHIGHT:=$,'X',"?NAT_HIGHT?"   },
-                              {  TX_NATWIDTH:=$,'X',"?NAT_WIDTH?"   }},
+--                            {  TX_NATHIGHT:=$,'X',"?NAT_HIGHT?"   },
+--                            {  TX_NATWIDTH:=$,'X',"?NAT_WIDTH?"   }},
                     TX_LEN = length(table_attrs),
               t_attr_types = vslice(table_attrs,2),
               t_attr_names = vslice(table_attrs,3)
 
--- for gList():
-local constant list_attrs = {{      LX_DATA:=$,'O',"DATA"       },
-                             {LX_AUTOSCROLL:=$,'B',"AUTOSCROLL" },
+-- ctrl_xtra[CX_GTL_ATTRS] for gList():
+local constant list_attrs = {{      LX_DATA:=$,'I',"DATA"       },
+                             {  LX_LINESTEP:=$,'I',"LINESTEP"   },
+--                           {LX_AUTOSCROLL:=$,'B',"AUTOSCROLL" },
 --DEV we'll need these, and probably more:
 --                           {     LX_COUNT:=$,'I',"COUNT"      },
 --                           {  LX_MULTIPLE:=$,'B',"MULTIPLE"   },
@@ -359,7 +406,7 @@ local constant list_attrs = {{      LX_DATA:=$,'O',"DATA"       },
                     LX_LEN = length(list_attrs),
               l_attr_types = vslice(list_attrs,2),
               l_attr_names = vslice(list_attrs,3)
-if LX_AUTOSCROLL then end if -- DEV currently unused...
+--if LX_AUTOSCROLL then end if -- DEV currently unused...
 
 local constant gtl_sets = {{GRAPH,grattr_names,grattr_types},
                            { LIST,l_attr_names,l_attr_types},
@@ -367,6 +414,21 @@ local constant gtl_sets = {{GRAPH,grattr_names,grattr_types},
               {gtl_types,
                gtl_names,
                gtl_sigs} = columnize(gtl_sets)
+
+-- content of ctrl_xtra[gSplit(canvas)][CX_GTL_ATTRS]
+local enum PX_DRAG,     -- Dragging (mouse button is down)
+           PX_CLICK,    -- where clicked (x **OR** y only)
+           PX_FRAC,     -- -1 not in use, else 0.0..1.0
+--SUG:
+--         PX_CURSOR, -- cursor (over inactive)
+           PX_LEN = $
+
+-- ctrl_xtra for gTabs():
+local enum CX_TABTITLES,
+           CX_TABIMAGES,
+           CX_TABWIDTH,
+           CX_TABHIGHT,
+           CX_TABLENGTH = $ -- (init ctrl_xtra[id] this size)
 
 local sequence norm_groups = {},    -- gNormalise() groups
               radio_groups = {}     -- gRadio() groups
@@ -402,23 +464,20 @@ global type gdx(object hdx)
     return integer(hdx) and hdx>=0 and hdx<=l
 end type
 
-global type gdc(object h)
-    -- a single gdx from gCanvas or a single gImage.
---  if atom(h) then return h!=NULL and gdx(h) and ctrl_types[h]=CANVAS and ctrl_xtra[h][CX_GTL_ATTRS]=0 end if
-    if atom(h) then return h!=NULL and gdx(h) and ctrl_types[h]=CANVAS end if
---  return sequence(h) and length(h)=2 and h[1]="gImage" and atom(h[2])
-    return sequence(h) and length(h)=2 and h[1]="gImage"
-end type
+--global type gdc(object h)
+--  -- a single gdx from gCanvas or a single gImage.
+----    if atom(h) then return h!=NULL and gdx(h) and ctrl_types[h]=CANVAS and ctrl_xtra[h][CX_GTL_ATTRS]=0 end if
+--  if atom(h) then return h!=NULL and gdx(h) and ctrl_types[h]=CANVAS end if
+----    return sequence(h) and length(h)=2 and h[1]="gImage" and atom(h[2])
+--  return sequence(h) and length(h)=3 and h[1]="gImage"
+--end type
 
-local integer last_xpgui_rid = gdx, -- (overwritten with gMainLoop[or whatever] later on in this file)
-              rtn_default_drop = 0,
-              rtn_graph_redraw = 0,
-              rtn_table_redraw = 0,
-              rtn_list_redraw = 0
+local integer last_xpgui_rid = gdx -- (overwritten with gMainLoop[or whatever] later on in this file)
+sequence internal_rtns = {}
 
 --DEV better off saying >rtn and get_routine_info() says ok??
 global type rtn(object rid)
-    return integer(rid) and (rid=NULL or rid>last_xpgui_rid or find(rid,{rtn_default_drop,rtn_graph_redraw,rtn_table_redraw,rtn_list_redraw}))
+    return integer(rid) and (rid=NULL or rid>last_xpgui_rid or find(rid,internal_rtns))
 end type
 
 local integer ctrl_free_list = 0
@@ -441,11 +500,12 @@ local function xpg_add_control(integer ctrl_type, parent_id=0, flags=0, bool bHa
         parent_ids[id] = parent_id
         children_ids[id] = UNDEFINED
         ctrl_size[id] = UNDEFINED
---      ctrl_mp[id] = UNDEFINED
         ctrl_font[id] = UNDEFINED
         ctrl_fonts[id] = UNDEFINED
         ctrl_fontd[id] = UNDEFINED
+        ctrl_bg[id] = -1
         ctrl_xtra[id] = UNDEFINED
+        user_data[id] = UNDEFINED
         wnd_proc_addr[id] = UNDEFINED
 --      sub_proc_addr[id] = UNDEFINED
         deferred_attr[id] = {}
@@ -457,11 +517,12 @@ local function xpg_add_control(integer ctrl_type, parent_id=0, flags=0, bool bHa
         parent_ids &= parent_id
         children_ids &= UNDEFINED
         ctrl_size &= UNDEFINED
---      ctrl_mp &= UNDEFINED
         ctrl_font &= UNDEFINED
         ctrl_fonts &= UNDEFINED
         ctrl_fontd &= UNDEFINED
+        ctrl_bg &= -1
         ctrl_xtra &= UNDEFINED
+        user_data &= UNDEFINED
         wnd_proc_addr &= UNDEFINED
 --      sub_proc_addr &= UNDEFINED
         deferred_attr &= {{}}
@@ -626,6 +687,21 @@ local function xpg_double_array(sequence doubles)
     return ptr
 end function
 
+--local function xpg_peek_double(object pDouble)
+local function xpg_peek_double(atom pDouble)
+--X pDouble is either atom or {atom,n}, the former being equivalent to {atom,1}.
+--  if atom(pDouble) then
+        return float64_to_atom(peek({pDouble,8}))
+--  else
+--      sequence doubles = {}
+--      for i=1 to pDouble[2] do
+--          doubles &= float64_to_atom(peek({pDouble[1]+8*(i-1),8}))
+--      end for
+--      return doubles
+--  end if
+end function
+
+
 local constant VK_SHIFT = #10, -- apps get/use VK_LSHIFT/VK_RSHIFT, not this
                VK_CTRL  = #11, -- apps get/use VK_LCTRL/VK_RCTRL, not this
                VK_ALT   = #12  -- apps get/use VK_LALT/VK_RALT, not this
@@ -647,6 +723,27 @@ local constant key_mappings = {{"VK_BS",        VK_BS       := #08,     #08, #FF
                                {"VK_LALT",      VK_LALT     := #19,   #2038, #FFE9},
                                {"VK_RALT",      VK_RALT     := #1A,   #2138, #FFEA},
                                {"VK_ESC",       VK_ESC      := #1B,     #1B, #FF1B},
+--/*
+-- DEV I did this...
+                               {"VK_DEL",       VK_DEL      := #1F,     #2E, #FFFF},
+                               {"VK_NUMLOCK",   VK_NUMLOCK  := #90,     #90, #FF7F},
+                               {"VK_DOWN",      VK_DOWN     := #A2,     #28, #FF54},
+                               {"VK_POUND",     VK_POUND    := #E3,     #A3, #00A3},
+                               {"VK_LEFT",      VK_LEFT     := #A4,     #25, #FF51},
+                               {"VK_RIGHT",     VK_RIGHT    := #A6,     #27, #FF53},
+                               {"VK_UP",        VK_UP       := #A8,     #26, #FF52},
+                               {"VK_APPS",      VK_APPS     := #E0,     #5D, #FF67},
+                               {"VK_INS",       VK_INS      := #E1,     #2D, #FF63},
+                               {"VK_SCROLL",    VK_SCROLL   := #E2,     #91, #FF14},
+                               {"VK_PGUP",      VK_PGUP     := #E4,     #21, #FF55},
+                               {"VK_PGDN",      VK_PGDN     := #E5,     #22, #FF56},
+                               {"VK_END",       VK_END      := #E6,     #23, #FF57},
+                               {"VK_HOME",      VK_HOME     := #E7,     #24, #FF50},
+-- ... but then found this (and bottled it!)
+     bGraphic = (wParam>=#30 and wParam<=#5A)   -- 0..9 & A..Z
+             or (wParam>=#60 and wParam<=#6F)   -- Numpad
+             or (wParam>=#BA and wParam<=#E2)   -- OEM
+--*/
                                {"VK_DEL",       VK_DEL      := #7F,     #2E, #FFFF},
                                {"VK_UP",        VK_UP       := #A1,     #26, #FF52},
                                {"VK_RIGHT",     VK_RIGHT    := #A2,     #27, #FF53},
@@ -669,12 +766,12 @@ local constant key_mappings = {{"VK_BS",        VK_BS       := #08,     #08, #FF
                                {"1",            '1',                    #00, #FFB1}, -- (Numpad 1, GTK only)
                                {"2",            '2',                    #00, #FFB2}, -- (Numpad 2, GTK only)
                                {"3",            '3',                    #00, #FFB3}, -- (Numpad 3, GTK only)
-                               {"4",            '4',                    #00, #FFB4}, -- (Numpad 3, GTK only)
-                               {"5",            '5',                    #00, #FFB5}, -- (Numpad 3, GTK only)
-                               {"6",            '6',                    #00, #FFB6}, -- (Numpad 3, GTK only)
-                               {"7",            '7',                    #00, #FFB7}, -- (Numpad 3, GTK only)
-                               {"8",            '8',                    #00, #FFB8}, -- (Numpad 3, GTK only)
-                               {"9",            '9',                    #00, #FFB9}, -- (Numpad 3, GTK only)
+                               {"4",            '4',                    #00, #FFB4}, -- (Numpad 4, GTK only)
+                               {"5",            '5',                    #00, #FFB5}, -- (Numpad 5, GTK only)
+                               {"6",            '6',                    #00, #FFB6}, -- (Numpad 6, GTK only)
+                               {"7",            '7',                    #00, #FFB7}, -- (Numpad 7, GTK only)
+                               {"8",            '8',                    #00, #FFB8}, -- (Numpad 8, GTK only)
+                               {"9",            '9',                    #00, #FFB9}, -- (Numpad 9, GTK only)
                                {"VK_F1",        VK_F1       := #F1,     #70, #FFBE},
                                {"VK_F2",        VK_F2       := #F2,     #71, #FFBF},
                                {"VK_F3",        VK_F3       := #F3,     #72, #FFC0},
@@ -687,44 +784,51 @@ local constant key_mappings = {{"VK_BS",        VK_BS       := #08,     #08, #FF
                                {"VK_F10",       VK_F10      := #FA,     #79, #FFC7},
                                {"VK_F11",       VK_F11      := #FB,     #7A, #FFC8},
                                {"VK_F12",       VK_F12      := #FC,     #7B, #FFC9}}
+--              key_values = vslice(key_mappings,2),
+--              key_names = vslice(key_mappings,1)
 
-local constant known_colours = {{"XPG_BLACK",           XPG_BLACK           := #000000},
-                                {"XPG_NAVY",            XPG_NAVY            := #000080},
-                                {"XPG_BLUE",            XPG_BLUE            := #0000FF},
-                                {"XPG_LIGHT_BLUE",      XPG_LIGHT_BLUE      := #4363D8},
-                                {"XPG_TEAL",            XPG_TEAL            := #008080},
-                                {"XPG_CYAN",            XPG_CYAN            := #00FFFF},
-                                {"XPG_DARK_GREEN",      XPG_DARK_GREEN      := #008000},
-                                {"XPG_GREEN",           XPG_GREEN           := #3CB44B},
-                                {"XPG_LIGHT_GREEN",     XPG_LIGHT_GREEN     := #00FF00},
-                                {"XPG_OLIVE",           XPG_OLIVE           := #808000},
-                                {"XPG_ORANGE",          XPG_ORANGE          := #FF8C00},
-                                {"XPG_AMBER",           XPG_AMBER           := #FFBF00},
-                                {"XPG_DARK_YELLOW",     XPG_DARK_YELLOW     := #EBEB00},
-                                {"XPG_YELLOW",          XPG_YELLOW          := #FFFF00},
-                                {"XPG_INDIGO",          XPG_INDIGO          := #4B0082},
-                                {"XPG_PURPLE",          XPG_PURPLE          := #911EB4},
-                                {"XPG_DARK_PURPLE",     XPG_DARK_PURPLE     := #800080},
-                                {"XPG_MAGENTA",         XPG_MAGENTA         := #FF00FF},
-                                {"XPG_VIOLET",          XPG_VIOLET          := #EE82EE},
-                                {"XPG_DARK_RED",        XPG_DARK_RED        := #800000},
-                                {"XPG_RED",             XPG_RED             := #FF0000},
-                                {"XPG_SLATE",           XPG_SLATE           := #404040},
-                                {"XPG_DARK_GREY",       XPG_DARK_GREY       := #808080},    
-                                {"XPG_GREY",            XPG_GREY            := #C0C0C0},    
-                                {"XPG_LIGHT_GREY",      XPG_LIGHT_GREY      := #E4E4E4},
-                                {"XPG_PARCHMENT",       XPG_PARCHMENT       := #FFFFE0},
-                                {"XPG_LIGHT_PARCHMENT", XPG_LIGHT_PARCHMENT := #FAF8EF},
-                                {"XPG_WHITE",           XPG_WHITE           := #FFFFFF}}
+local constant known_colours = {{"XPG_BLACK",           XPG_BLACK           := #00000000},
+                                {"XPG_NAVY",            XPG_NAVY            := #00000080},
+                                {"XPG_BLUE",            XPG_BLUE            := #000000FF},
+                                {"XPG_LIGHT_BLUE",      XPG_LIGHT_BLUE      := #004363D8},
+                                {"XPG_TEAL",            XPG_TEAL            := #00008080},
+                                {"XPG_DARK_CYAN",       XPG_DARK_CYAN       := #0000C0C0},
+                                {"XPG_CYAN",            XPG_CYAN            := #0000FFFF},
+                                {"XPG_DARK_GREEN",      XPG_DARK_GREEN      := #00008000},
+                                {"XPG_GREEN",           XPG_GREEN           := #003CB44B},
+                                {"XPG_LIGHT_GREEN",     XPG_LIGHT_GREEN     := #0000FF00},
+                                {"XPG_OLIVE",           XPG_OLIVE           := #00808000},
+                                {"XPG_ORANGE",          XPG_ORANGE          := #00FF8C00},
+                                {"XPG_AMBER",           XPG_AMBER           := #00FFBF00},
+                                {"XPG_DARK_YELLOW",     XPG_DARK_YELLOW     := #00EBEB00},
+                                {"XPG_YELLOW",          XPG_YELLOW          := #00FFFF00},
+                                {"XPG_INDIGO",          XPG_INDIGO          := #004B0082},
+                                {"XPG_PURPLE",          XPG_PURPLE          := #00911EB4},
+                                {"XPG_DARK_PURPLE",     XPG_DARK_PURPLE     := #00800080},
+                                {"XPG_MAGENTA",         XPG_MAGENTA         := #00FF00FF},
+                                {"XPG_DARK_VIOLET",     XPG_DARK_VIOLET     := #00F032E6},
+                                {"XPG_VIOLET",          XPG_VIOLET          := #00EE82EE},
+                                {"XPG_DARK_RED",        XPG_DARK_RED        := #00800000},
+                                {"XPG_RED",             XPG_RED             := #00FF0000},
+                                {"XPG_SLATE",           XPG_SLATE           := #00404040},
+                                {"XPG_DARK_GREY",       XPG_DARK_GREY       := #00808080},  
+                                {"XPG_GREY",            XPG_GREY            := #00C0C0C0},  
+                                {"XPG_LIGHT_GREY",      XPG_LIGHT_GREY      := #00E4E4E4},
+                                {"XPG_PARCHMENT",       XPG_PARCHMENT       := #00FFFFE0},
+                                {"XPG_LIGHT_PARCHMENT", XPG_LIGHT_PARCHMENT := #00FAF8EF},
+                                {"XPG_WHITE",           XPG_WHITE           := #00FFFFFF}},
+               known_colour_names = vslice(known_colours,1),
+               known_colour_values = vslice(known_colours,2)
 
-local constant line_styles = {{"XPG_CONTINUOUS",    XPG_CONTINUOUS   := 0},
-                              {"XPG_DASHED",        XPG_DASHED       := 1},
-                              {"XPG_DOTTED",        XPG_DOTTED       := 2},
-                              {"XPG_DASH_DOT",      XPG_DASH_DOT     := 3},
-                              {"XPG_DASH_DOT_DOT",  XPG_DASH_DOT_DOT := 4}}
--- (local)                                          XPG_CUSTOM_DASH   = 5, -- defined below
+local constant line_styles = {{"XPG_CONTINUOUS",    XPG_CONTINUOUS   := 1},
+                              {"XPG_DASHED",        XPG_DASHED       := 2},
+                              {"XPG_DOTTED",        XPG_DOTTED       := 3},
+                              {"XPG_DASH_DOT",      XPG_DASH_DOT     := 4},
+                              {"XPG_DASH_DOT_DOT",  XPG_DASH_DOT_DOT := 5},
+                              {"XPG_CUSTOM_DASH",   XPG_CUSTOM_DASH  := 6}},
+               line_style_descs = vslice(line_styles,1) & {"-1"}
 
--- stored in ctrl_xtra[id][CX_BOX_SPACE]:
+-- stored in ctrl_xtra[id][CX_BOX_SPACE_H|V] (as integer):
 local constant box_spacing = {{"NONE",      XPG_SPACE_NONE   := 0b000},
                               {"LEFT",      XPG_SPACE_LEFT   := 0b100},
                               {"TOP",       XPG_SPACE_TOP    := XPG_SPACE_LEFT},
@@ -738,41 +842,41 @@ local constant box_spacing = {{"NONE",      XPG_SPACE_NONE   := 0b000},
 
 without nested_globals -- (always disable asap)
 
-global constant XPG_DEFAULT     = -1,
-                XPG_IGNORE      = -2,
-                XPG_CLOSE       = -3,
-                XPG_CONTINUE    = -4,
+global constant XPG_CONTINUE = -4,
+                XPG_DEFAULT = -3,
+                XPG_IGNORE = -2,
+                XPG_CLOSE = -1,
 
-                XPG_DARK_GRAY = XPG_DARK_GREY,
                 XPG_GRAY = XPG_GREY,
                 XPG_SILVER = XPG_GREY,
+                XPG_DARK_GRAY = XPG_DARK_GREY,
                 XPG_LIGHT_GRAY = XPG_LIGHT_GREY,
                 
-                XPG_NORMAL      = 0x0,
-                XPG_BOLD        = 0x1,
-                XPG_ITALIC      = 0x2,
-                XPG_BOLDITALIC  = 0x3,
--- (local)      XPG_NORESET     = 0x4, -- for redraw_list(), defined below
+                XPG_NORMAL      = 0b000,
+                XPG_BOLD        = 0b001,
+                XPG_ITALIC      = 0b010,
+                XPG_BOLDITALIC  = 0b011,
+-- (local)      XPG_NORESET     = 0x100, -- for xpg_redraw_list(), defined below
 
                 XPG_FILLED = 0b001, -- (nb same as true[/false])
                 XPG_CHORD  = 0b010,
                 XPG_SECTOR = 0b100,
 
-                        -- WENS
-                XPG_NW = 0b1010,    XPG_NORTHWEST = XPG_NW,
-                XPG_W  = 0b1000,    XPG_WEST      = XPG_W,
-                XPG_SW = 0b1001,    XPG_SOUTHWEST = XPG_SW,
+                        -- WENS (note absence of both 0b11xx and 0bxx11)
+                XPG_C  = 0b0000,    XPG_CENTRE    = XPG_C,
                 XPG_N  = 0b0010,    XPG_NORTH     = XPG_N,
                 XPG_S  = 0b0001,    XPG_SOUTH     = XPG_S,
                 XPG_NE = 0b0110,    XPG_NORTHEAST = XPG_NE,
                 XPG_E  = 0b0100,    XPG_EAST      = XPG_E,
                 XPG_SE = 0b0101,    XPG_SOUTHEAST = XPG_SE,
-                XPG_C  = 0b0000,    XPG_CENTRE    = XPG_C,
+                XPG_SW = 0b1001,    XPG_SOUTHWEST = XPG_SW,
+                XPG_W  = 0b1000,    XPG_WEST      = XPG_W,
+                XPG_NW = 0b1010,    XPG_NORTHWEST = XPG_NW,
+
+                XPG_CENTER = #FFF3, -- (rest defined below, just before gShow)
 
                 XPG_RAD2DEG = 180/PI,
                 XPG_DEG2RAD = PI/180
-
-local constant  XPG_CUSTOM_DASH = 5
 
 global function gGetAlignName(integer d)
 --  if d=-1 then return "-1" end if -- erm, no
@@ -784,33 +888,74 @@ global function gGetAlignName(integer d)
     return res
 end function
 
-global function gGetLineStyleName(integer s)
-    if s=-1 then return "-1" end if -- erm, no
-    if s=XPG_CUSTOM_DASH then return "XPG_CUSTOM_DASH" end if
-    for sn in line_styles do
-        if s=sn[2] then return sn[1] end if
+--/*
+constant
+                        -- WENS (note absence of both 0b11xx and 0bxx11)
+                ZPG_NW = 0b1010,    ZPG_NORTHWEST = ZPG_NW,
+                ZPG_W  = 0b1000,    ZPG_WEST      = ZPG_W,
+                ZPG_SW = 0b1001,    ZPG_SOUTHWEST = ZPG_SW,
+                ZPG_N  = 0b0010,    ZPG_NORTH     = ZPG_N,
+                ZPG_S  = 0b0001,    ZPG_SOUTH     = ZPG_S,
+                ZPG_NE = 0b0110,    ZPG_NORTHEAST = ZPG_NE,
+                ZPG_E  = 0b0100,    ZPG_EAST      = ZPG_E,
+                ZPG_SE = 0b0101,    ZPG_SOUTHEAST = ZPG_SE,
+                ZPG_C  = 0b0000,    ZPG_CENTRE    = ZPG_C
+
+
+global function gGetAlignName(integer d)
+--  if d=-1 then return "-1" end if -- erm, no
+    if d=ZPG_C then return "XPG_C" end if
+    string res = "XPG_"
+    for bc in {{ZPG_N,'N'},{ZPG_S,'S'},{ZPG_E,'E'},{ZPG_W,'W'}} do
+        if and_bits(d,bc[1]) then res &= bc[2] end if
     end for
-    return sprintf("** unknown style:%d **",s)
+    return res
 end function
 
-global function gGetBoxSpacingName(integer s, gdx id=NULL)
+--*/
+
+sequence dashers = {{1},                                -- XPG_CONTINUOUS
+                    {1,1,1,1,1,1,0,0},                  -- XPG_DASHED
+--                  {1,1,0,0},                          -- XPG_DOTTED
+                    {1,0},                              -- XPG_DOTTED (now that we're using ExtCreatePen)
+                    {1,1,1,1,1,1,0,0,1,1,0,0},          -- XPG_DASH_DOT
+                    {1,1,1,1,1,1,0,0,1,1,0,0,1,1,0,0},  -- XPG_DASH_DOT_DOT
+                    {1}}                                -- XPG_CUSTOM_DASH
+
+--DEV(minor) should XPG_CUSTOM_DASH be canvas-specific??
+global function gGetLineStyleName(object s)
+    if sequence(s) then
+        assert(s==dashers[XPG_CUSTOM_DASH])
+        return "XPG_CUSTOM_DASH"
+    end if
+    return line_style_descs[s]
+--  if s=-1 then return "-1" end if
+----    if s=XPG_CUSTOM_DASH then return "XPG_CUSTOM_DASH" end if
+--  for sn in line_styles do
+--      if s=sn[2] then return sn[1] end if
+--  end for
+--  return sprintf("** unknown style:%d **",s)
+end function
+
+global function gGetBoxSpacingName(object s, integer id=NULL)
     assert(id=NULL or ctrl_types[id]=BOX)
+    if sequence(s) then
+        assert(length(s)=2)
+        integer {s1,s2} = s -- (force typecheck)
+        string r1 = gGetBoxSpacingName(s1),
+               r2 = gGetBoxSpacingName(s2,-1)
+        return sprintf("{%s,%s}",{r1,r2})
+    end if
+--  assert(integer(s)) -- (caught next anyway)
     integer k = find(s,box_spacing_masks)
     assert(k!=0,"unknown box spacing:0b%b",s)
     if id!=NULL
-    and and_bits(ctrl_flags[id],CF_VERTICAL) 
+    and (id=-1 or and_bits(ctrl_flags[id],CF_VERTICAL)) 
     and box_spacing_masks[k+1]==s then
         k += 1
     end if
     return box_spacing_descs[k]
 end function
-
-sequence dashers = {{1},                                -- XPG_CONTINUOUS
-                    {1,1,1,1,1,1,0,0},                  -- XPG_DASHED
-                    {1,1,0,0},                          -- XPG_DOTTED
-                    {1,1,1,1,1,1,0,0,1,1,0,0},          -- XPG_DASH_DOT
-                    {1,1,1,1,1,1,0,0,1,1,0,0,1,1,0,0},  -- XPG_DASH_DOT_DOT
-                    {1}}                                -- XPG_CUSTOM_DASH
 
 include builtins\ptypes.e   -- (types atom_string, rid_string, nullable_string, and boolean)
 
@@ -845,7 +990,7 @@ local constant  C_DBL = C_DOUBLE,
                 GDK_KEY_PRESS_MASK              = 0x000400, -- 1 << 10,
 --              GDK_KEY_RELEASE_MASK            = 0x000800, -- 1 << 11,
 --              GDK_ENTER_NOTIFY_MASK           = 0x001000, -- 1 << 12,
---              GDK_LEAVE_NOTIFY_MASK           = 0x002000, -- 1 << 13,
+                GDK_LEAVE_NOTIFY_MASK           = 0x002000, -- 1 << 13,
 --              GDK_FOCUS_CHANGE_MASK           = 0x004000, -- 1 << 14,
 --              GDK_STRUCTURE_MASK              = 0x008000, -- 1 << 15,
 --              GDK_PROPERTY_CHANGE_MASK        = 0x010000, -- 1 << 16,
@@ -853,7 +998,7 @@ local constant  C_DBL = C_DOUBLE,
 --              GDK_PROXIMITY_IN_MASK           = 0x040000, -- 1 << 18,
 --              GDK_PROXIMITY_OUT_MASK          = 0x080000, -- 1 << 19,
 --              GDK_SUBSTRUCTURE_MASK           = 0x100000, -- 1 << 20,
---              GDK_SCROLL_MASK                 = 0x200000, -- 1 << 21,
+                GDK_SCROLL_MASK                 = 0x200000, -- 1 << 21,
 --              GDK_ALL_EVENTS_MASK             = 0x3FFFFE
 --              } GdkEventMask;
 --              GDK_BKE_MASK = 0b0101_0000_0010,
@@ -885,7 +1030,7 @@ local constant  C_DBL = C_DOUBLE,
 --              GDK_KEY_PRESS           =  8,
 --              GDK_KEY_RELEASE         =  9,
 --              GDK_ENTER_NOTIFY        = 10,
---              GDK_LEAVE_NOTIFY        = 11,
+                GDK_LEAVE_NOTIFY        = 11,
 --              GDK_FOCUS_CHANGE        = 12,
 --              GDK_CONFIGURE           = 13,
 --              GDK_MAP                 = 14,
@@ -913,10 +1058,30 @@ local constant  C_DBL = C_DOUBLE,
 --              GDK_DAMAGE              = 36,
 --              GDK_EVENT_LAST  /* helper variable for decls */
 --              } GdkEventType;
+                GDK_SELECTION_CLIPBOARD = 69,
+--              typedef enum {
+--  GDK_HINT_POS           = 1 << 0,
+--  GDK_HINT_MIN_SIZE    = 1 << 1,
+--  GDK_HINT_MAX_SIZE    = 1 << 2,
+--  GDK_HINT_BASE_SIZE   = 1 << 3,
+--  GDK_HINT_ASPECT    = 1 << 4,
+--  GDK_HINT_RESIZE_INC  = 1 << 5,
+--  GDK_HINT_WIN_GRAVITY = 1 << 6,
+--  GDK_HINT_USER_POS    = 1 << 7,
+--  GDK_HINT_USER_SIZE   = 1 << 8
+--} GdkWindowHints;
+--              GDK_HINT_MINMAX = 0b0110, -- (GDK_HINT_MIN_SIZE | GDK_HINT_MAX_SIZE)
+                GDK_HINT_MIN_SIZE = 0b0010,
+                GDK_HINT_MAX_SIZE = 0b0100,
+                GDK_SB_H_DOUBLE_ARROW = 108,
+                GDK_SB_V_DOUBLE_ARROW = 116,
 
 --              GTK_ORIENTATION_HORIZONTAL = 0,
                 GTK_ORIENTATION_VERTICAL = 1,
+--              GTK_POLICY_ALWAYS    = 0,
                 GTK_POLICY_AUTOMATIC = 1,
+--              GTK_POLICY_NEVER     = 2,
+--              GTK_POLICY_EXTERNAL  = 3,
 --              GTK_PROGRESS_CONTINUOUS = 0,
 --              GTK_PROGRESS_DISCRETE = 1,
 --              GTK_PROGRESS_LEFT_TO_RIGHT = 0,
@@ -925,11 +1090,31 @@ local constant  C_DBL = C_DOUBLE,
 --              GTK_PROGRESS_TOP_TO_BOTTOM = 3,
                 GTK_SELECTION_NONE = 0,
 --              GTK_SELECTION_SINGLE = 1
-                GDK_SELECTION_CLIPBOARD = 69,
+--              GTK_SHADOW_NONE = 0,
+--GTK2:
+                GTK_STATE_NORMAL = 0,
+--              GTK_STATE_ACTIVE = 1,
+--              GTK_STATE_PRELIGHT = 2,
+--              GTK_STATE_SELECTED = 3,
+--              GTK_STATE_INSENSITIVE = 4,
+--GTK3:
+                GTK_STATE_FLAG_NORMAL       = 0,
+--              GTK_STATE_FLAG_ACTIVE       = 1 << 0,
+--              GTK_STATE_FLAG_PRELIGHT     = 1 << 1,
+--              GTK_STATE_FLAG_SELECTED     = 1 << 2,
+--              GTK_STATE_FLAG_INSENSITIVE  = 1 << 3,
+--              GTK_STATE_FLAG_INCONSISTENT = 1 << 4,
+--              GTK_STATE_FLAG_FOCUSED      = 1 << 5,
+--              GTK_STATE_FLAG_BACKDROP     = 1 << 6
                 GTK_STYLE_PROVIDER_PRIORITY_APPLICATION = 600,
 --              GTK_STYLE_PROVIDER_PRIORITY_USER = 800,
                 GTK_WINDOW_TOPLEVEL = 0,
 --              GTK_WINDOW_POPUP = 1,               -- menu/tooltip (not a proper sub-window)
+--              GTK_WIN_POS_NONE = 0,
+--              GTK_WIN_POS_CENTER = 1,
+--              GTK_WIN_POS_MOUSE = 2,
+--              GTK_WIN_POS_CENTER_ALWAYS = 3,
+--              GTK_WIN_POS_CENTER_ON_PARENT = 4,
 --              PANGO_STYLE_ITALIC = 2,
 --              PANGO_UNDERLINE_SINGLE = 1,
 --              PANGO_WEIGHT_BOLD = 700,
@@ -940,6 +1125,7 @@ local constant  C_DBL = C_DOUBLE,
                 BM_SETCHECK = 241,
 --              BM_GETSTATE = 242,
 --              BM_SETSTATE = 243,
+                BM_SETIMAGE = 247,
                 -- Button Styles
                 BS_PUSHBUTTON = 0,
 --              BS_DEFPUSHBUTTON = 1,
@@ -955,7 +1141,7 @@ local constant  C_DBL = C_DOUBLE,
 --              BS_TEXT = 0,
 --              BS_LEFTTEXT = #20,
 --              BS_RIGHTBUTTON = #20,
---              BS_ICON = #40,
+                BS_ICON = #40,
 --              BS_BITMAP = #80,
 --              BS_LEFT = #100,
 --              BS_RIGHT = #200,
@@ -1049,7 +1235,57 @@ local constant  C_DBL = C_DOUBLE,
 --              CF_PRIVATEFIRST     = #200,
 --              CF_PRIVATELAST      = #2FF,
 
+--              COLOR_SCROLLBAR = 0,
+--              COLOR_BACKGROUND = 1,
+--              COLOR_DESKTOP = 1,
+--              COLOR_ACTIVECAPTION = 2,
+--              COLOR_INACTIVECAPTION = 3,
+--              COLOR_MENU = 4,
+--              COLOR_WINDOW = 5,
+--              COLOR_WINDOWFRAME = 6,
+--              COLOR_MENUTEXT = 7,
+--              COLOR_WINDOWTEXT = 8,
+--              COLOR_CAPTIONTEXT = 9,
+--              COLOR_ACTIVEBORDER = 10,
+--              COLOR_INACTIVEBORDER = 11,
+--              COLOR_APPWORKSPACE = 12,
+--              COLOR_HIGHLIGHT = 13,
+--              COLOR_HIGHLIGHTTEXT = 14,
                 COLOR_BTNFACE = 15,
+--              COLOR_3DFACE = 15,
+--              COLOR_BTNSHADOW = 16,
+--              COLOR_3DSHADOW = 16,
+--              COLOR_GRAYTEXT = 17,
+--              COLOR_BTNTEXT = 18,
+--              COLOR_INACTIVECAPTIONTEXT = 19,
+--              COLOR_BTNHIGHLIGHT = 20,
+--              COLOR_BTNHILIGHT = 20,
+--              COLOR_3DHILIGHT = 20,
+--              COLOR_3DDKSHADOW = 21,
+--              COLOR_3DLIGHT = 22,
+--              COLOR_INFOTEXT = 23,
+--              COLOR_INFOBK = 24,
+--/*
+--              COLOR_HOTLIGHT = 26 ,
+--  Color for a hyperlink or hot-tracked item.
+-- 
+--              COLOR_GRADIENTACTIVECAPTION = 27,
+--  Right side color in the color gradient of an active window's title bar. 
+--  COLOR_ACTIVECAPTION specifies the left side color. 
+--  Use SPI_GETGRADIENTCAPTIONS with the SystemParametersInfo function to determine whether the gradient effect is enabled. 
+-- 
+--              COLOR_GRADIENTINACTIVECAPTION = 28,
+--  Right side color in the color gradient of an inactive window's title bar. 
+--  COLOR_INACTIVECAPTION specifies the left side color.
+-- 
+--              COLOR_MENUHILIGHT = 29,
+--  The color used to highlight menu items when the menu appears as a flat menu (see SystemParametersInfo). 
+--  The highlighted menu item is outlined with COLOR_HIGHLIGHT. 
+--
+--              COLOR_MENUBAR = 30,
+--  The background color for the menu bar when menus appear as flat menus (see SystemParametersInfo). 
+--  However, COLOR_MENU continues to specify the background color of the menu popup. 
+--*/
                 CS_VREDRAW = 1,
                 CS_HREDRAW = 2,
                 CS_DBLCLKS = 8,
@@ -1097,21 +1333,22 @@ local constant  C_DBL = C_DOUBLE,
 --              DTM_GETDATETIMEPICKERINFO = DTM_FIRST + 14
                 DTM_GETIDEALSIZE = DTM_FIRST + 15,
 --              DTS_SHORTDATECENTURYFORMAT = 0xC,
---      #DEFINE DTS_SHORTDATEFORMAT        0x00 
---      #DEFINE DTS_UPDOWN                 0x01
---      #DEFINE DTS_SHOWNONE               0x02
---      #DEFINE DTS_LONGDATEFORMAT         0x04
---      #DEFINE DTS_TIMEFORMAT             0x09
---      #DEFINE DTS_APPCANPARSE            0x10
---      #DEFINE DTS_RIGHTALIGN             0x20
---      #DEFINE DTS_SHORTDATECENTURYFORMAT 0x0C
+--              DTS_SHORTDATEFORMAT        = 0x00,
+--              DTS_UPDOWN                 = 0x01,
+--              DTS_SHOWNONE               = 0x02,
+--              DTS_LONGDATEFORMAT         = 0x04,
+--              DTS_TIMEFORMAT             = 0x09,
+--              DTS_APPCANPARSE            = 0x10,
+--              DTS_RIGHTALIGN             = 0x20,
+--              DTS_SHORTDATECENTURYFORMAT = 0x0C,
 
+--              EM_SETBKGNDCOLOR = 1091,
 --              ERROR_CLASS_ALREADY_EXISTS = 1410,
                 ES_AUTOHSCROLL = #80,
 --              ES_AUTOVSCROLL = 64,
                 ES_LEFT = 0,
 --              ES_CENTER = 1,
---              ES_RIGHT = 2,
+                ES_RIGHT = 2,
 --              ES_MULTILINE = 4,
 --              ES_UPPERCASE = 8,
 --              ES_LOWERCASE = #10,
@@ -1148,6 +1385,8 @@ local constant  C_DBL = C_DOUBLE,
                 HWND_TOPMOST = -1,
                 I_IMAGECALLBACK = -1,
                 IDC_ARROW = 32512,
+                IDC_SIZENS = 32645, -- Double-pointed arrow pointing north and south
+                IDC_SIZEWE = 32644, -- Double-pointed arrow pointing west and east
                 ILC_MASK        = 1,
 --              ILC_COLOR       = 0,
 --              ILC_COLORDDB    = #FE,
@@ -1156,6 +1395,7 @@ local constant  C_DBL = C_DOUBLE,
 --              ILC_COLOR16     = #10,
 --              ILC_COLOR24     = #18,
 --              ILC_COLOR32     = #20,
+                IMAGE_BITMAP = 0,
 --              LBN_DBLCLK = 2,
 --              LBN_ERRSPACE = -2,
 --              LBN_KILLFOCUS = 5,
@@ -1172,9 +1412,11 @@ local constant  C_DBL = C_DOUBLE,
                 MF_CHECKED    = #0008,
                 MF_POPUP      = #0010,
                 MF_SEPARATOR  = #0800,
+                MF_SYSMENU    = #2000,
                 MIIM_ID = 0x00000002,
                 MIIM_TYPE = 0x00000010,
                 MIIM_STRING = 0x00000040,
+                MIIM_BITMAP = 0x00000080,
                 -- FLAGS USED IN WM_XXX messages
                 MK_LBUTTON = #01,
                 MK_RBUTTON = #02,
@@ -1199,15 +1441,15 @@ local constant  C_DBL = C_DOUBLE,
 --              PBM_SETMARQUEE  = WM_USER + 10,
 
                 -- pen styles
---              PS_SOLID         = #00000000,       -- === XPG_CONTINUOUS = 0,
---              PS_DASH          = #00000001,       -- === XPG_DASHED = 1,
---              PS_DOT           = #00000002,       -- === XPG_DOTTED = 2,
---              PS_DASHDOT       = #00000003,       -- === XPG_DASH_DOT = 3,
---              PS_DASHDOTDOT    = #00000004,       -- === XPG_DASH_DOT_DOT = 4
+                PS_SOLID         = #00000000,       -- XPG_CONTINUOUS = 1,
+--              PS_DASH          = #00000001,       -- XPG_DASHED = 2,
+--              PS_DOT           = #00000002,       -- XPG_DOTTED = 3,
+--              PS_DASHDOT       = #00000003,       -- XPG_DASH_DOT = 4,
+--              PS_DASHDOTDOT    = #00000004,       -- XPG_DASH_DOT_DOT = 5
 --              PS_NULL          = #00000005,
 --              PS_INSIDEFRAME   = #00000006,
 --              PS_USERSTYLE     = #00000007,
---              PS_ALTERNATE     = #00000008,
+                PS_ALTERNATE     = #00000008,
 --              PS_STYLE_MASK    = #0000000F,
 --              PS_ENDCAP_ROUND  = #00000000,
 --              PS_ENDCAP_SQUARE = #00000100,
@@ -1229,7 +1471,7 @@ local constant  C_DBL = C_DOUBLE,
 --              R2_NOT = 6,             -- Pixel is the inverse of the screen color.
 --              R2_XORPEN = 7,          -- Pixel is the inverse of the R2_XORPEN color.
 --              R2_NOTMASKPEN = 8,      -- Pixel is the inverse of the R2_MASKPEN color.
-                R2_MASKPEN = 9,         -- combination common to pen and the screen.
+--              R2_MASKPEN = 9,         -- combination common to pen and the screen.
 --              R2_NOTXORPEN = 10,      -- combination of colors in pen and screen, but not in both.
 --              R2_NOP = 11,            -- Pixel remains unchanged.
 --              R2_MERGENOTPEN = 12,    -- combination of screen and inverse of pen.
@@ -1239,34 +1481,34 @@ local constant  C_DBL = C_DOUBLE,
 --              R2_WHITE = 16,          -- Pixel is always 1.
 --              R2_LAST = 16,
 
-                RDW_INVALIDATE      = #0001,
-                RDW_INTERNALPAINT   = #0002,
-                RDW_ERASE           = #0004,
+--              RDW_INVALIDATE      = #0001,
+--              RDW_INTERNALPAINT   = #0002,
+--              RDW_ERASE           = #0004,
 --              RDW_VALIDATE        = #0008,
 --              RDW_NOINTERNALPAINT = #0010,
 --              RDW_NOERASE         = #0020,
 --              RDW_NOCHILDREN      = #0040,
 --              RDW_ALLCHILDREN     = #0080,
-                RDW_UPDATENOW       = #0100,
+--              RDW_UPDATENOW       = #0100,
 --              RDW_ERASENOW        = #0200,
 --              RDW_FRAME           = #0400,
 --              RDW_NOFRAME         = #0800,
                 -- sort
-                SB_HORZ = 0,
-                SB_VERT = 1,
+--              SB_HORZ = 0,
+--              SB_VERT = 1,
 --              SB_CTL = 2,
 --              SB_BOTH = 3,
                 -- scroll info flags
-                SIF_RANGE = #1,
-                SIF_PAGE = #2,
-                SIF_POS = #4,
+--              SIF_RANGE = #1,
+--              SIF_PAGE = #2,
+--              SIF_POS = #4,
 --              SIF_DISABLENOSCROLL = #8,
-                SIF_TRACKPOS = #10,
-                SIF_ALL = or_all({SIF_RANGE,SIF_PAGE,SIF_POS,SIF_TRACKPOS}),
+--              SIF_TRACKPOS = #10,
+--              SIF_ALL = or_all({SIF_RANGE,SIF_PAGE,SIF_POS,SIF_TRACKPOS}),
                 SM_CXSCREEN = 0,
                 SM_CYSCREEN = 1,
-                SM_CXSMICON = 49,
-                SM_CYSMICON = 50,
+                SM_CXSMICON = 49,   -- see/use SM_XICON,
+                SM_CYSMICON = 50,   --         SM_YICON
 --              SND_FILENAME    = #00020000,
 --              SND_ASYNC       = #00000001,
 --              SND_FILEASYNC   = or_bits(SND_FILENAME,SND_ASYNC),
@@ -1380,7 +1622,7 @@ local constant  C_DBL = C_DOUBLE,
 --              TCM_REMOVEIMAGE = 4906,
 --              TCM_SETCURFOCUS = 4912,
 --              TCM_SETCURSEL = 4876,
---              TCM_SETIMAGELIST = 4867,
+                TCM_SETIMAGELIST = 4867,
 --              TCM_SETITEMEXTRA = 4878,
 --              TCM_SETITEMSIZE = 4905,
 --              TCM_SETPADDING = 4907,
@@ -1408,7 +1650,7 @@ local constant  C_DBL = C_DOUBLE,
 --              TCS_FLATBUTTONS = 8,
                 -- TC_ITEM FLAGS
                 TCIF_TEXT = 1,
---              TCIF_IMAGE = 2,
+                TCIF_IMAGE = 2,
 --              TCIF_PARAM = 8,
 --              TCIF_RTLREADING = 4,
                 -- HIT-TEST
@@ -1417,6 +1659,8 @@ local constant  C_DBL = C_DOUBLE,
 --              TCHT_ONITEMICON = 2,
 --              TCHT_ONITEMLABEL = 4,
 
+                TME_CANCEL = 0x80000000,
+                TME_LEAVE  = 0x00000002,
                 TPM_RETURNCMD = #100,
                 -----------------------
                 -- TOOLTIPS
@@ -1469,6 +1713,22 @@ local constant  C_DBL = C_DOUBLE,
                 TVS_HASLINES        = 2,
                 TVS_LINESATROOT     = 4,
                 TVSIL_NORMAL        = 0,
+--              UDM_SETRANGE = 1125,
+                UDM_SETBUDDY = 1129,
+                UDM_SETACCEL = 1131,
+                UDM_GETACCEL = 1132,
+                UDM_SETRANGE32 = 1135,
+                UDM_GETRANGE32 = 1136,
+--              WM_USER = #400, -- (1024)
+--              UDM_SETPOS32 = (WM_USER+113),
+--              UDM_GETPOS32 = (WM_USER+114),
+                UDM_SETPOS32 = 1137,
+                UDM_GETPOS32 = 1138,
+                UDN_DELTAPOS = -722,
+                UDS_WRAP = #001,
+                UDS_SETBUDDYINT = #002,
+                UDS_ALIGNRIGHT = #004,
+                UDS_ARROWKEYS = #020,
 --              WHITE_BRUSH = 0,
 --              WM_CREATE = 1,
                 WM_DESTROY = 2,
@@ -1483,11 +1743,12 @@ local constant  C_DBL = C_DOUBLE,
                 WM_PAINT = 15,
                 WM_CLOSE = 16,
                 WM_ERASEBKGND = 20,
+--              WM_SYSCOLORCHANGE = 21,
 --              WM_SHOWWINDOW = 24,
 --              WM_ACTIVATEAPP = 28,
 --              WM_SETCURSOR = 32,
 --              WM_MOUSEACTIVATE = 33,
---              WM_GETMINMAXINFO = 36,
+                WM_GETMINMAXINFO = 36,
                 WM_SETFONT = 48,
 --              WM_WINDOWPOSCHANGING = 70,
 --              WM_WINDOWPOSCHANGED = 71,
@@ -1513,24 +1774,28 @@ local constant  C_DBL = C_DOUBLE,
                 WM_VSCROLL = 277,
                 WM_MENUSELECT = 287,
 --              WM_MENUCOMMAND = 294,
+                WM_CTLCOLOREDIT = 307,
+--              WM_CTLCOLORBTN = 309,
 --              WM_CTLCOLORSTATIC = 312,
                 WM_MOUSEMOVE = 512,
                 WM_LBUTTONDOWN = 513,
---              WM_LBUTTONUP = 514,
+                WM_LBUTTONUP = 514,
 --              WM_LBUTTONDBLCLK = 515,
 --              WM_RBUTTONDOWN = 516,
 --              WM_RBUTTONUP = 517,
 --              WM_RBUTTONDBLCLK = 518,
 --              WM_MBUTTONDOWN = 519,
 --              WM_MBUTTONUP = 520,
-                WM_MBUTTONDBLCLK = 521,
+--              WM_MBUTTONDBLCLK = 521,
+                WM_MOUSEWHEEL = 522,
+                WM_XBUTTONDOWN = 523,
 --              WM_PARENTNOTIFY = 528,
 --              WM_SIZING = 532,
 --              WM_IME_SETCONTEXT = 641,
 --              WM_IME_NOTIFY = 642,
 --              WM_MOUSEHOVER = 673,    --  #02A1
 --              WM_NCMOUSELEAVE = 674,  --  #02A2
---              WM_MOUSELEAVE = 675,    --  #02A3
+                WM_MOUSELEAVE = 675,    --  #02A3
 --              WM_PRINTCLIENT = 792,
 
                 WS_CHILD            = #40000000,
@@ -1554,7 +1819,7 @@ local constant  C_DBL = C_DOUBLE,
                 WS_TABSTOP          = #00010000,
 --              WS_THICKFRAME       = #00040000,    -- (==WS_SIZEBOX)
                 WS_MINMAXTHICK      = #00070000,
-                WS_HSCROLL          = #00100000,
+--              WS_HSCROLL          = #00100000,
                 WS_VSCROLL          = #00200000,
                 WS_VISIBLE          = #10000000,
                 WS_GROUP            = #00020000,
@@ -1566,7 +1831,7 @@ local constant  C_DBL = C_DOUBLE,
 --              WS_OVERLAPPEDWINDOW = #00CB0000,
                 -- SetBkMode CONSTANTS
                 TRANSPARENT = 1,
---              OPAQUE = 2,
+                OPAQUE = 2,
                 XPG_PB_MAX = 32000
 
 local bool bGTK3
@@ -1590,11 +1855,15 @@ local integer   cairo_arc,
 --              cairo_set_source,
                 cairo_set_source_rgb,
                 cairo_stroke,
+--              cairo_surface_destroy,
                 cairo_translate,
 --              gdk_atom_intern,
                 gdk_cairo_create,
 --              gdk_cairo_rectangle,
                 gdk_cairo_set_source_pixbuf,
+                gdk_color_parse,
+                gdk_cursor_new_for_display,
+--              gdk_cursor_new_from_name,
                 gdk_display_get_default,
                 gdk_display_get_monitor,
                 gdk_display_get_pointer,
@@ -1603,15 +1872,19 @@ local integer   cairo_arc,
 --              gdk_pixbuf_get_from_drawable,
 --              gdk_pixbuf_get_from_surface,
 --              gdk_pixbuf_get_from_window,
+                gdk_pixbuf_get_height_,
                 gdk_pixbuf_get_pixels_,
                 gdk_pixbuf_get_type,
+                gdk_pixbuf_get_width_,
                 gdk_pixbuf_new_from_data,
                 gdk_pixbuf_new_from_xpm_data,
+                gdk_rgba_parse,
                 gdk_screen_get_default,
                 gdk_screen_get_height,
                 gdk_screen_get_width,
 --              gdk_screen_get_root_window,
 --              gdk_window_focus,
+                gdk_window_get_display,
 --              gdk_window_get_geometry,
                 gdk_window_get_height,
                 gdk_window_get_width,
@@ -1621,10 +1894,23 @@ local integer   cairo_arc,
                 gdk_window_invalidate_rect,
 --              gdk_window_move_resize,
                 gdk_window_process_updates,
+                gdk_window_set_cursor,
                 gtk_adjustment_new,
---              gtk_box_pack_start,
+--              gtk_adjustment_set_lower,
+--              gtk_adjustment_set_step_increment,
+--              gtk_adjustment_set_page_increment,
+--              gtk_adjustment_get_upper,
+--              gtk_adjustment_set_upper,
+--              gtk_adjustment_set_page_size,
+--              gtk_adjustment_changed,
+--GTK3 only:
+--              gtk_box_new,
+--              gtk_box_pack_end,
+                gtk_box_pack_start,
                 gtk_button_get_label,
+--              gtk_button_new_with_label,
                 gtk_button_new_with_mnemonic,
+                gtk_button_set_image,
                 gtk_button_set_label,
                 gtk_cell_renderer_pixbuf_new,
                 gtk_cell_renderer_text_new,
@@ -1661,7 +1947,14 @@ local integer   cairo_arc,
                 gtk_frame_set_label,
                 gtk_frame_get_label,
                 gtk_get_current_event_time,
---              gtk_hbox_new,
+--              gtk_grid_attach,
+--              gtk_grid_new,
+                gtk_hbox_new,
+                gtk_image_menu_item_new_with_mnemonic,
+                gtk_image_menu_item_set_always_show_image,
+                gtk_image_menu_item_set_image,
+--              gtk_image_menu_item_set_use_stock,
+                gtk_image_new_from_pixbuf,
                 gtk_label_new,
                 gtk_label_new_with_mnemonic,
                 gtk_label_set_text_with_mnemonic,
@@ -1675,6 +1968,7 @@ local integer   cairo_arc,
                 gtk_menu_bar_new,
                 gtk_menu_item_get_label,
                 gtk_menu_item_set_label,
+--              gtk_menu_item_new,
                 gtk_menu_item_new_with_mnemonic,
                 gtk_check_menu_item_new_with_mnemonic,
                 gtk_check_menu_item_set_active,
@@ -1687,6 +1981,8 @@ local integer   cairo_arc,
                 gtk_menu_popup,
                 gtk_menu_popup_at_pointer,
                 gtk_menu_shell_append,
+                gtk_misc_set_alignment,
+--              gtk_notebook_append_page,
                 gtk_notebook_get_n_pages,
                 gtk_notebook_insert_page,
                 gtk_notebook_new,
@@ -1703,10 +1999,21 @@ local integer   cairo_arc,
                 gtk_scale_new,  -- GTK3
                 gtk_hscale_new, -- GTK2
                 gtk_vscale_new, -- GTK2
+--              gtk_scrolled_window_add_with_viewport,
                 gtk_scrolled_window_new,
                 gtk_scrolled_window_set_policy,
+--              gtk_scrolled_window_set_shadow_type,
                 gtk_separator_menu_item_new,
---              gtk_style_context_add_provider,
+                gtk_spin_button_get_increments,
+                gtk_spin_button_get_range,
+                gtk_spin_button_get_value,
+                gtk_spin_button_get_wrap,
+                gtk_spin_button_new_with_range,
+                gtk_spin_button_set_increments,
+                gtk_spin_button_set_range,
+                gtk_spin_button_set_value,
+                gtk_spin_button_set_wrap,
+                gtk_style_context_add_provider,
                 gtk_style_context_add_provider_for_screen,
 --              gtk_text_view_new,
                 gtk_toggle_button_get_active,
@@ -1749,29 +2056,40 @@ local integer   cairo_arc,
                 gtk_tree_view_set_model,
 --              gtk_tree_view_set_search_column,
 --              gtk_vbox_new,
+--              gtk_viewport_new,
+--              gtk_viewport_set_shadow_type,
 --              gtk_widget_get_allocated_width,
 --              gtk_widget_get_allocated_height,
-                gtk_widget_get_allocation,
+--              gtk_widget_get_allocation,
                 gtk_widget_get_can_focus,
 --              gtk_widget_get_root_window,
-                gtk_widget_get_parent,
+--              gtk_widget_get_parent,
+                gtk_widget_get_pointer,
                 gtk_widget_get_sensitive,
                 gtk_widget_get_style_context,
                 gtk_widget_get_window,
                 gtk_widget_grab_focus,
                 gtk_widget_hide,
 --              gtk_widget_is_sensitive,
-                gtk_widget_modify_bg,
+                gtk_widget_modify_base,
+--              gtk_widget_modify_bg,
                 gtk_widget_modify_font,
+--              gtk_widget_modify_style,
+                gtk_widget_override_background_color,
                 gtk_widget_override_font,
                 gtk_widget_queue_draw,
+--              gtk_widget_queue_draw_area,
                 gtk_widget_realize,
                 gtk_widget_set_can_focus,
                 gtk_widget_set_events,
+--              gtk_widget_set_halign,
                 gtk_widget_set_realized,
                 gtk_widget_set_sensitive,
                 gtk_widget_set_size_request,
                 gtk_widget_set_tooltip_text,
+--              gtk_widget_set_usize,
+--              gtk_widget_set_hexpand,
+--              gtk_widget_set_vexpand,
                 gtk_widget_show,
                 gtk_widget_show_all,
                 gtk_widget_size_request,
@@ -1780,9 +2098,12 @@ local integer   cairo_arc,
                 gtk_window_move,
                 gtk_window_new,
                 gtk_window_set_default_size,
+                gtk_window_set_geometry_hints,
+--              gtk_window_set_policy,
                 gtk_window_set_title,
                 gtk_window_set_transient_for,
                 gtk_window_get_transient_for,
+--              gtk_window_set_position,
                 gtk_window_get_position,
                 gtk_window_get_size,
                 gtk_window_get_title,
@@ -1801,6 +2122,7 @@ local integer   cairo_arc,
                 pango_font_description_free,
                 pango_font_description_from_string,
                 pango_layout_context_changed,
+                pango_layout_get_pixel_extents,
                 pango_layout_get_pixel_size,
                 pango_layout_set_font_description,
                 pango_layout_set_text,
@@ -1810,8 +2132,15 @@ local integer   cairo_arc,
                 idGdkEventFocus,
                 idGdkEventKey,
                 idGdkEventMotion,
+                idGdkEventScroll,
+                idGdkEventCrossing,
                 idGdkRectangle,
                 idGtkRequisition,
+                idGdkColor,
+                idGdkRGBA,
+                idGdkGeometry,
+                gtk_col_resize_cursor = NULL,
+                gtk_row_resize_cursor = NULL,
                 GTK_ID_LOOKUP,
                 GTK_MENU_LOOKUP,
                 GTK_MENU_UPLOOK,
@@ -1827,12 +2156,14 @@ local integer   cairo_arc,
                 xCheckMenuRadioItem,
                 xChord,    
                 xCloseClipboard,
+                xCreateCompatibleBitmap,           
                 xCreateCompatibleDC,
                 xCreateDIBitmap,
                 xCreateFontIndirect,
                 xCreateMenu,
                 xCreatePopupMenu,
                 xCreatePen,
+                xExtCreatePen,
                 xCreateSolidBrush,
                 xCreateWindowEx,
                 xDefWindowProc,
@@ -1853,6 +2184,7 @@ local integer   cairo_arc,
                 xGetCursorPos,
                 xGetDC,
                 xGetDeviceCaps,
+                xGetDIBColorTable,
                 xGetFocus,
                 xGetForegroundWindow,
                 xGetKeyState,
@@ -1863,8 +2195,12 @@ local integer   cairo_arc,
                 xGetMenuState,         
 --              xGetMenuString,
                 xGetMessage,
+                xGetNextDlgTabItem,
                 xGetPixel,
                 xGetStockObject,
+--              xGetScrollInfo,
+                xGetSysColor,
+                xGetSysColorBrush,         
                 xGetSystemMetrics,
                 xGetTextExtentPoint32,
                 xGetTextExtentPoint32W,
@@ -1879,7 +2215,9 @@ local integer   cairo_arc,
                 xGlobalUnlock,
                 xImageList_Add,
                 xImageList_Create,
-                xIsClipboardFormatAvailable,           
+                xInvalidateRect,           
+                xIsClipboardFormatAvailable,
+--              xIsDialogMessage,
                 xKillTimer,
                 xLineTo,
                 xLoadCursor,
@@ -1889,24 +2227,31 @@ local integer   cairo_arc,
                 xOpenClipboard,
                 xPie,
 --              xPlaySound,
-                xPolyBezier,           
+--              xPolyBezier,           
                 xPostQuitMessage,
                 xRectangle,
                 xRedrawWindow,
                 xRegisterClassEx,
+                xReleaseCapture,
                 xReleaseDC,
                 xRoundRect,
+                xScreenToClient,           
                 xSelectObject,
                 xSendMessage,
+                xSetBkColor,
                 xSetBkMode,
+                xSetCapture,
                 xSetClipboardData,
+                xSetDIBColorTable,
                 xSetFocus,
                 xSetMenu,
+--              xSetMenuItemBitmaps,
                 xSetMenuItemInfo,                  
                 xSetParent,
                 xSetPixelV,
+--              xGetROP2,
                 xSetROP2,
-                xSetScrollInfo,
+--              xSetScrollInfo,
                 xSetTextAlign,
                 xSetTextColor,
                 xSetTimer,
@@ -1915,6 +2260,7 @@ local integer   cairo_arc,
                 xSetWindowText,
                 xShowWindow,
 --              xTextOut,
+                xTrackMouseEvent,
                 xTrackPopupMenuEx,
                 xTransparentBlt,           
                 xTranslateMessage,
@@ -1925,27 +2271,47 @@ local integer   cairo_arc,
                 idSIZE,
                 idPAINTSTRUCT,
                 idNMHDR,
+                idNMUPDOWN,
+                idUDACCEL,
                 idTVITEM,
                 idTVITEMEX,
                 idNMTREEVIEW,
                 idTVINSERTSTRUCT,
                 idLOGFONT,
+                idLOGBRUSH,
 --              idPIXELFORMATDESCRIPTOR,
                 idTOOLINFO,
-                idSCROLLINFO,
+--              idSCROLLINFO,
                 idTCITEM,
                 idMENUITEMINFO,
-                WINAPI_SUBMENUS, -- both key:handle, data:id 
-                                 -- and key:{mid,id}, data:{menu,pos}
-                WIN_MENU_CHECKED -- key:{mid,id}, data:0 or radio group as {{ids},mh}
+                idTRACKMOUSEEVENT,
+                idMINMAXINFO,
+                SM_XICON,
+                SM_YICON,
+                WINAPI_SUBMENUS,  -- both key:handle, data:id 
+                                  -- and key:{mid,id}, data:{menu,pos}
+                WINAPI_MENU_IMGS, -- key:{mid,id}, data: imgid (idx to xpm_texts)
+                WIN_MENU_CHECKED  -- key:{mid,id}, data:0 or radio group as {{ids},mh}
 
-local atom szAppName, pData, pPAINTSTRUCT, pRECT, pSIZE, pTVINSERTSTRUCT, 
-                             pTVITEMEX, pMSG, pLOGFONT, pTOOLINFO, pPOINT,
---                          pPIXELFORMATDESCRIPTOR,
-                             pSCROLLINFO, pTCITEM, pMENUITEMINFO, NullBrushID,
-                             pGtkRequisition
+local atom szAppName, pData, pPAINTSTRUCT, pRECT, pX, pY, pW, pH, pSIZE, pTVINSERTSTRUCT, 
+                             pTVITEMEX, pMSG, pLOGFONT, pLOGBRUSH, pTOOLINFO, pPOINT, pUDACCEL,
+--                          pPIXELFORMATDESCRIPTOR, pSCROLLINFO, 
+                             pTCITEM, pMENUITEMINFO, pTRACKMOUSEEVENT, NullBrushID,
+                             pGtkRequisition, pGDKCOLOR, pGDKRGBA, pGdkGeometry
 
 local sequence gtk_version
+
+--DEV/SUG: (or a whole bunch of #ilASM{}-based specifics)
+--/*
+local function g_func(integer rid, sequence args)
+    atom res = c_func(rid,args)
+    return res
+end function
+
+local procedure g_proc(integer rid, sequence args)
+    c_proc(rid, args)
+end procedure
+--*/
 
 local function xpg_to_bool(object v)
     -- convert "YES"/"NO"/etc to true/false (as a common requirement)
@@ -1972,7 +2338,7 @@ end function
 
 --DEV:
 --/*
-    function intints(val, w, h, name) {
+--  function intints(val, w, h, name) {
         // version of intint() for dialog [raster]size, supporting eg "QUARTERxEIGHTH"
         if (typeof(val) === "string") {
             // convert eg "225x75" to [225,75]
@@ -1981,7 +2347,7 @@ end function
             if (x !== -1) {
                 y = val.slice(x+1);
                 x = val.slice(0,x);
-                function fulleighth(s,x,f,name) {
+--              function fulleighth(s,x,f,name) {
                     let n = Number(s);
                     if (Number.isInteger(n)) {
                         if (name === "SIZE") {
@@ -1995,7 +2361,7 @@ end function
                     if (s === "QUARTER") { s = floor(x/4); }
                     if (s === "EIGHTH") { s = floor(x/8); }
                     return s;
-                }
+--              }
                 x = fulleighth(x,w,6/4,name);
                 y = fulleighth(y,h,15/8,name);
                 if (Number.isInteger(x) &&
@@ -2009,15 +2375,17 @@ end function
             crash("invalid intint value");
         }
         return val;
-    }
+--  }
 --*/
 --DEV (re-?)translate this for xpGUI.js:
 --DEV/SUG allow "px:10x15" == "10x15", "pt|[r]em:10x15" in points/[relative]em...
 local function xpg_intint(string val)
+    --
     -- convert eg "225x75" to {225,75}, and in fact 
     --            "50x10x20x30" to {50,10,20,30},
     --            "1"->{1}, and "1x2x3"->{1,2,3}.
---  sequence res = apply(split(val,'x',false),to_number)
+    -- likewise eg "{225,75}" -> {225,75}, etc.
+    --
     sequence res
     if val[1]='{' then
         assert(val[$]='}')
@@ -2029,7 +2397,7 @@ local function xpg_intint(string val)
 
     -- It could do this provided callers ignored any -1, which 
     -- would make "50x" not the same as "50x0", matching pGUI.
---  sequence res = apply(true,to_number,{split(val,'x',false),-1})
+--  res = apply(true,to_number,{res,-1})
     return res
 end function
 
@@ -2039,7 +2407,26 @@ end function
 --?xpg_intint("50x10x20x30")
 --?xpg_intint("50x")
 
+--/* DEV/SUG (for the SPACE attribute...)
+local function xpg_words(string val)
+    -- convert eg "AROUND" to {"AROUND"}, and
+    --            "{AROUND,TOP}" to {"AROUND","TOP"}.
+    -- note however "AROUNDxTOP" is /not/ supported.
+    -- caller to validate length(res) is acceptable,
+    -- as well as each word in it being recognised.
+    sequence res
+    if val[1]='{' then
+        assert(val[$]='}')
+        res = split(val[2..-2],',',false)
+    else
+        res = {val}
+    end if
+    return res
+end function
+--*/
+
 global function gGetDialog(gdx id)
+    if id>1 and ctrl_types[id]=TEXT and ctrl_types[id-1]=SPIN then id -= 1 end if
     while id and ctrl_types[id]!=DIALOG do
         id = parent_ids[id]
     end while
@@ -2055,7 +2442,7 @@ local function xpg_get_window_rect(gdx id)
     atom handle = ctrl_handles[id]
     integer ct = ctrl_types[id],
             left, top, width, height
-    if backend=GTK then
+    if backend=XPG_GTK then
 --/*
         idGdkRectangle = define_struct("""typedef struct GdkRectangle {
                                           int x;
@@ -2087,10 +2474,10 @@ local function xpg_get_window_rect(gdx id)
         -- [DEV] seems fine on windows 64-bit, might not be on Linux 64 bit...
 --      atom pX = pRECT, pY = pX+4, pW = pY+4, pH = pW+4
 --DEV/SUG assign these just the once, when pRECT is created?
-        atom pX = pRECT+get_field_details(idGdkRectangle,"x")[1],
-             pY = pRECT+get_field_details(idGdkRectangle,"y")[1],
-             pW = pRECT+get_field_details(idGdkRectangle,"width")[1],
-             pH = pRECT+get_field_details(idGdkRectangle,"height")[1]
+--      atom pX = pRECT+get_field_details(idGdkRectangle,"x")[1],
+--           pY = pRECT+get_field_details(idGdkRectangle,"y")[1],
+--           pW = pRECT+get_field_details(idGdkRectangle,"width")[1],
+--           pH = pRECT+get_field_details(idGdkRectangle,"height")[1]
         if ct!=DIALOG then
             handle = ctrl_handles[gGetDialog(id)]
         end if
@@ -2108,7 +2495,9 @@ local function xpg_get_window_rect(gdx id)
          width = get_struct_field(idGdkRectangle,pRECT,"width")
         height = get_struct_field(idGdkRectangle,pRECT,"height")
         if ct=DIALOG then -- GTK yields the client size...
---?"gwr" 
+--?{"gwr",left,top,width,height}
+--29/9/23:
+--/*
             atom window = c_func(gtk_widget_get_window,{handle})
             c_proc(gdk_window_get_origin,{window,pX,pY})
             -- (pW, pH are used as pFrameX, pFrameY here)
@@ -2119,7 +2508,11 @@ local function xpg_get_window_rect(gdx id)
                             - get_struct_field(idGdkRectangle,pRECT,"height")-border
             width += 2*border
             height += 2*border+caption
---?"gwre"
+--*/
+--  xpg_lm_get_dialog_decoration_size(gdx id)
+            width += 2
+            height += 32
+--?{"gwre",left,top,width,height}
         end if
 --/*
 
@@ -2134,18 +2527,23 @@ static void gtkDialogGetWindowDecor(Ihandle* ih, int *win_border, int *win_capti
   if (w) *w = width + 2*border;
   if (h) *h = height + 2*border + caption;  /* menu is inside the dialog_manager */
 --*/
-    elsif backend=WinAPI then
+    elsif backend=XPG_WINAPI then
         integer r = c_func(xGetWindowRect,{handle,pRECT})
         assert(r!=0)
           left = get_struct_field(idRECT,pRECT,"left")
            top = get_struct_field(idRECT,pRECT,"top")
          width = get_struct_field(idRECT,pRECT,"right")-left
         height = get_struct_field(idRECT,pRECT,"bottom")-top
+--DEV and now I cannot remember where these came from or what they were for, so...
+-- taking out the first/CF_RESIZE mullered initial size of gSplit.exw...
         if ct=DIALOG then
+--?{"xpg_get_window_rect",and_bits(ctrl_flags[id],CF_RESIZE)}
             if and_bits(ctrl_flags[id],CF_RESIZE) then
                 width -= 14; height -= 7;
+--              width -= 16; height -= 16;
             else
-                width -= 4; height -= 12;
+?"xpg_get_window_rect(no CF_RESIZE)..."
+--              width -= 4; height -= 12;
             end if
         end if
     else
@@ -2153,7 +2551,7 @@ static void gtkDialogGetWindowDecor(Ihandle* ih, int *win_border, int *win_capti
     end if
 --DEV suspect...
 --  sequence res = peek4s({pRECT,4})
---  if backend=WinAPI then
+--  if backend=XPG_WINAPI then
 --      res[3] -= res[1]    -- right ==> width
 --      res[4] -= res[2]    -- btm ==> height
 --  end if
@@ -2165,7 +2563,7 @@ local function xpg_get_client_rect(gdx id)
     -- returns {0,0,width,height}
     xpg_handle handle = ctrl_handles[id]
     integer width, height
-    if backend=GTK then
+    if backend=XPG_GTK then
         -- [DEV] seems fine on windows 64-bit, might not be on Linux 64 bit...
 -->
 --      atom pX = pRECT, pY = pX+4, pW = pY+4, pH = pW+4
@@ -2176,12 +2574,12 @@ local function xpg_get_client_rect(gdx id)
 --  integer child = children_ids[id][1]
 --  handle = ctrl_handles[child]
 --end if
-        atom pW = pRECT+get_field_details(idGdkRectangle,"width")[1],
-             pH = pRECT+get_field_details(idGdkRectangle,"height")[1]
+--      atom pW = pRECT+get_field_details(idGdkRectangle,"width")[1],
+--           pH = pRECT+get_field_details(idGdkRectangle,"height")[1]
         c_proc(gtk_window_get_size,{handle,pW,pH})
           width = get_struct_field(idGdkRectangle,pRECT,"width")
          height = get_struct_field(idGdkRectangle,pRECT,"height")
-    elsif backend=WinAPI then
+    elsif backend=XPG_WINAPI then
         integer r = c_func(xGetClientRect,{handle,pRECT})
         assert(r!=0)
 --      integer left = get_struct_field(idRECT,pRECT,"left")
@@ -2204,7 +2602,12 @@ local function xpg_lm_get_dialog_decoration_size(gdx id)
             height = w[4]-c[4]
     -- or maybe, border is height/2... (nah)
 --?{"lmgdds",w,c,width,height}
-?{"lmgdds",width,height}
+if backend=XPG_GTK then
+--  ?{"lmgdds(GTK)",width,height}
+    width = 2
+    height = 32
+end if
+--?{"lmgdds",width,height}
     return {width,height}
 end function
 
@@ -2240,11 +2643,26 @@ procedure xpg_set_font(gdx id, string v, atom angle=0)
          ctname = ctrl_names[ct] -- (debug aid)
     sequence styles = {}, fsf
     if comma then
-        styles = split(v[comma+1..$])
+--DEV test this with multiple commas, eg "Arial, bold, italic, 9" [untested]
+--      styles = split(v[comma+1..$])
+        styles = split_any(v[comma+1..$]," ,")
         fontsize = to_integer(styles[$])
         if fontsize then styles = styles[1..-2] end if
         if find(styles,{{"Normal"},{"normal"}}) then styles = {} end if
         for i,s in styles do
+--DEV the latter two should set some flags, somewhere, for GTK, which should use/trigger ...
+--  gboolean
+--  pango_parse_markup (
+--    const char* markup_text,
+--    int length,
+--    gunichar accel_marker,
+--    PangoAttrList** attr_list,
+--    char** text,
+--    gunichar* accel_char,
+--    GError** error
+--  )
+-- with surrounding <u> and <s>, and maybe <b> and <i> as well... and creating fewer fontdescs.
+--  <big>, <small>, <sub>, <sup>, and <tt> should also be re-considered (iff WinAPI will comply).
 --          assert(find(s,{"Bold","Italic","Underline","Strikeout"}))
             integer s1 = s[1], us1 = upper(s1)  
             if s1!=us1 then s[1] = us1; styles[i] = s end if
@@ -2259,8 +2677,9 @@ procedure xpg_set_font(gdx id, string v, atom angle=0)
     elsif fontsize then
         facerest &= sprintf(" %d",fontsize)
     end if
-    if backend=GTK then
-        if find(face,{"Helvetica","Arial"}) then
+    if backend=XPG_GTK then
+--      if find(face,{"Helvetica","Arial"}) then
+        if find(face,{"Helvetica","Arial","Calibri"}) then
             face = "Sans"
         elsif find(face,{"Courier","Courier New"}) then
             face = "Monospace"
@@ -2309,7 +2728,7 @@ procedure xpg_set_font(gdx id, string v, atom angle=0)
 --      if fontdesc!=NULL then
 --          c_proc(pango_font_description_free,{fontdesc})
 --      end if
-    elsif backend=WinAPI then
+    elsif backend=XPG_WINAPI then
         if ct=CANVAS then
             -- (WinAPI, save for (re-)applying lfEscapement/lfOrientation)
             ctrl_xtra[id][CX_TXTANGLE] = angle
@@ -2322,7 +2741,8 @@ procedure xpg_set_font(gdx id, string v, atom angle=0)
             face = "Times New Roman"
         end if
         atom hDC = c_func(xGetDC,{handle}), hFont
-        fsf = {face,styles,fontsize}
+--      fsf = {face,styles,fontsize}
+        fsf = {face,styles,fontsize,angle}
         k = find(fsf,fontcache)
 --?{fsf,k}
         if k then
@@ -2348,7 +2768,9 @@ procedure xpg_set_font(gdx id, string v, atom angle=0)
             set_struct_field(idLOGFONT,pLOGFONT,"lfUnderline",ub)
             set_struct_field(idLOGFONT,pLOGFONT,"lfStrikeOut",sb)
             hFont = c_func(xCreateFontIndirect,{pLOGFONT})
+--?{"styles",styles,fw,hFont}
             ctrl_font[id] = 0
+            -- find an unused k
             for k=length(fontcache) to 1 by -1 do
                 if not find(k,ctrl_font) then exit end if
             end for
@@ -2377,6 +2799,15 @@ procedure xpg_set_font(gdx id, string v, atom angle=0)
 --if not bOK then ?"not bOK: xpg_set_font line 2579..." end if
         ctrl_font[id] = k
         ctrl_fontd[id] = hFont
+--2/10/23:
+        if ct=CANVAS then
+            atom mdc = ctrl_xtra[id][CX_CANVAS_HDC]
+            prevFont = c_func(xSelectObject,{mdc,hFont})    
+--20/10/23:
+        elsif ct=SPIN then
+            handle = ctrl_handles[id+1]
+            {} = c_func(xSendMessage,{handle,WM_SETFONT,hFont,true})
+        end if
     else
         ?9/0 -- (unknown backend)
     end if
@@ -2384,10 +2815,11 @@ end procedure
 
 global function gGetTextExtent(gdx id, sequence text, bool bSumHeights=true)
     integer w = 0, h = 0, wi, hi, ct = ctrl_types[id]
-    atom handle = ctrl_handles[id], cairo=NULL, layout, pW, pH, hDC
+--  atom handle = ctrl_handles[id], cairo=NULL, layout, pW, pH, hDC
+    atom handle = ctrl_handles[id], cairo=NULL, layout, hDC
     assert(handle!=NULL)
     bool bOK, bDestroy = false
-    if backend=GTK then
+    if backend=XPG_GTK then
         if ct=CANVAS then
             -- (re-use the existing, when available:)
             {cairo,layout} = ctrl_xtra[id][CX_CANVAS_HDC]
@@ -2407,8 +2839,8 @@ global function gGetTextExtent(gdx id, sequence text, bool bSumHeights=true)
         if k then
             c_proc(pango_layout_set_font_description,{layout,cachedfonts[k]})
         end if
-        pW = pRECT+get_field_details(idGdkRectangle,"width")[1]
-        pH = pRECT+get_field_details(idGdkRectangle,"height")[1]
+--      pW = pRECT+get_field_details(idGdkRectangle,"width")[1]
+--      pH = pRECT+get_field_details(idGdkRectangle,"height")[1]
     else
         hDC = c_func(xGetDC,{handle})
 --      atom hFont = ctrl_fontd[id]
@@ -2422,9 +2854,23 @@ global function gGetTextExtent(gdx id, sequence text, bool bSumHeights=true)
 --  if string(text) then text = split(text,'\n') end if
     if string(text) then text = {text} end if
     for line in text do
-        if backend=GTK then
+--      if not string(line) then
+--          line = line[1]
+--          assert(string(line))
+--      end if
+        if backend=XPG_GTK then
             c_proc(pango_layout_set_text,{layout,line,length(line)})
+--1/12/23: using pango_layout_get_pixel_extents mullered text positioning in gCanvas.exw...
+--          (now if I could only remember what this was pigging well supposed to fix...)
             c_proc(pango_layout_get_pixel_size,{layout,pW,pH})
+--          c_proc(pango_layout_get_pixel_extents,{layout,NULL,pRECT})
+--          c_proc(pango_layout_get_pixel_extents,{layout,pRECT,NULL})
+--void
+--pango_layout_get_pixel_extents (
+--  PangoLayout* layout,
+--  PangoRectangle* ink_rect,
+--  PangoRectangle* logical_rect
+--)
             wi = get_struct_field(idGdkRectangle,pRECT,"width")
             hi = get_struct_field(idGdkRectangle,pRECT,"height")
         else
@@ -2440,7 +2886,7 @@ global function gGetTextExtent(gdx id, sequence text, bool bSumHeights=true)
             h = hi
         end if
     end for
-    if backend=GTK then
+    if backend=XPG_GTK then
         if bDestroy then
             c_proc(xg_object_unref,{layout})
 --?"cairo_destroy(GTE)"
@@ -2462,27 +2908,19 @@ local function xpg_return_default_attr(gdx id, string name, object dflt)
 end function
 
 global function gGetAttribute(gdx id, string name, object dflt=999_999_999)
-    if id!=0 then
+--  if id!=0 then
         integer ct = ctrl_types[id]
         if name="CLASSNAME" then 
             return ctrl_names[ct]
         elsif name="EXPAND" then
-            integer hvdx = and_bits(ctrl_flags[id],CF_EXPANDH+CF_EXPANDV)+1
-            return {"NONE","HORIZONTAL","VERTICAL","BOTH"}[hvdx]
+            integer hvdx = and_bits(ctrl_flags[id],CF_EXPAND) -- 0/1/2/4
+            string res = {"NONE","BOTH","HORIZONTAL",0,"VERTICAL"}[hvdx+1]
+            return res
         elsif name="GAP" then
             assert(ct=BOX)
             return ctrl_xtra[id][CX_BOX_GAP]
         elsif name="MARGIN"
            or name="PADDING" then
---/*
-            object cmi = ctrl_mp[id]
-            if atom(cmi) then return 0 end if
-            integer mpdx = find(name,{"MARGIN","PADDING"})
-            if ct=DIALOG then mpdx = 1 end if
---          assert(mpdx=MP_MARGIN or mpdx=MP_PADDING) --- (dev search aid..)
-            return cmi[mpdx]
---*/
---/!* DEV/SUG:
             assert(ct!=DIALOG,"no margin or padding on dialogs!")
 --          integer mpdx = iff(name="MARGIN" or ct=DIALOG?SZ_MARGIN:SZ_PADDING)
             integer mpdx = iff(name="MARGIN"?SZ_MARGIN:SZ_PADDING)
@@ -2494,7 +2932,6 @@ global function gGetAttribute(gdx id, string name, object dflt=999_999_999)
 
 --          object mp = ctrl_size[mpdx]
             return ctrl_size[id][mpdx] -- 0 | {1} | {1,2} | {1,2,3} | {1,2,3,4}
---*!/
         elsif name="MINSIZE"
            or name="MAXSIZE" then
             integer mmdx = find(name,{"MINSIZE","MAXSIZE"}),
@@ -2507,11 +2944,13 @@ global function gGetAttribute(gdx id, string name, object dflt=999_999_999)
             object csm = ctrl_size[id][mmdx]
             return iff(atom(csm)?{0,0}:csm)
 --*/
+        elsif name="USER_DATA" then
+            return user_data[id]
         end if
         bool bMapped = and_bits(ctrl_flags[id],CF_MAPPED)!=0
         if bMapped then
             atom handle = ctrl_handles[id]
-            integer w, h
+--          integer w, h
             if name="ACTIVE" then
                 -- do it this way for inheritance, and virtual controls
                 while id do
@@ -2522,36 +2961,75 @@ global function gGetAttribute(gdx id, string name, object dflt=999_999_999)
                 end while
                 return true
             elsif name="CANFOCUS" then
-                if backend=GTK then
+                if backend=XPG_GTK then
                     return c_func(gtk_widget_get_can_focus,{handle})
-                elsif backend=WinAPI then
+                elsif backend=XPG_WINAPI then
                     atom dwStyle = c_func(xGetWindowLong,{handle,GWL_STYLE})
                     return and_bits(dwStyle,WS_TABSTOP)!=0
                 else
                     ?9/0 -- (unknown backend)
                 end if
---          elsif name="SIZE" then
+            elsif name="SIZE" then
 ----NB from gCanvas, untested on anything else...
 ----better (once the layout manager is working)
---              return {ctrl_size[id][SZ_W],
---                      ctrl_size[id][SZ_H]}
---          elsif name="NATURALSIZE" then
-            elsif name="NATURALSIZE" 
-               or name="SIZE" then
-if false then
+                return {ctrl_size[id][SZ_W],
+                        ctrl_size[id][SZ_H]}
+            elsif name="NATURALSIZE" then
                 return {ctrl_size[id][SZ_NATURAL_W],
                         ctrl_size[id][SZ_NATURAL_H]}
+--/*
+--          elsif name="NATURALSIZE" 
+--             or name="SIZE" then
+                integer nw = ctrl_size[id][SZ_NATURAL_W],
+                        nh = ctrl_size[id][SZ_NATURAL_H]
+if name="SIZE" then
+--  nw = ctrl_size[id][SZ_NORMAL_W]
+--  nh = ctrl_size[id][SZ_NORMAL_H]
+    nw = ctrl_size[id][SZ_W]
+    nh = ctrl_size[id][SZ_H]
+end if
+-- seriously mullers xgUI/gCanvas.exw... [1/11/23] [FINALLY FIXED, under WinAPI anyway/only]
+--if false then
+--if backend=XPG_WINAPI then
+if true then
+--/*
+Under GTK, false:
+id ----ctyp----   x   y   w   h  nw  nh  uw  uh  p  children   flags
+ 1 Canvas         0   0   0   0   0   0   0   0  2  0          {840,462,238,124}
+ 2 Dialog       840 462 240 156   2  32 240 156  0  {1}        {840,462,240,156}
+{"gGetAttribute",1,"SIZE",{0,0},{238,124'|'}}
+{"gGetAttribute",1,"SIZE",{0,0},{238,124'|'}}
+true:
+id ----ctyp----   x   y   w   h  nw  nh  uw  uh  p  children   flags
+ 1 Canvas         0   0   0   0   0   0   0   0  2  0          {840,462,238,124}
+ 2 Dialog       840 462 240 156   2  32 240 156  0  {1}        {840,462,240,156}
+Under WinAPI, false:
+{"gGetAttribute",1,"SIZE",{238,124'|'},{238,124'|'}}
+{"gGetAttribute",1,"SIZE",{238,124'|'},{238,124'|'}}
+id ----ctyp----   x   y   w   h  nw  nh  uw  uh  p  children   flags
+ 1 Canvas         0   0 238 124  11  15   0   0  2  0          {848,493,238,124}
+ 2 Dialog       840 462 240 156  13  47 240 156  0  {1}        {840,462,240,156}
+true:
+id ----ctyp----   x   y   w   h  nw  nh  uw  uh  p  children   flags
+ 1 Canvas         0   0 238 124  11  15   0   0  2  0          {848,493,238,124}
+ 2 Dialog       840 462 240 156  13  47 240 156  0  {1}        {840,462,240,156}
+--*/
+                return {nw,nh}
 else --DEV temp:
-                if backend=GTK then
-                    if bGTK3 then
-                        c_proc(gtk_widget_size_request,{handle,pGtkRequisition})
-                        return {get_struct_field(idGtkRequisition,pGtkRequisition,"width"),
-                                get_struct_field(idGtkRequisition,pGtkRequisition,"height")}
-                    end if
-                    atom window = c_func(gtk_widget_get_window,{handle})
-----                atom window = handle
-                    return {c_func(gdk_window_get_width,{window}),
-                            c_func(gdk_window_get_height,{window})}
+--?{name,nw,nh}
+                if backend=XPG_GTK then
+--DEV fixes scroller.exw:
+--                  if bGTK3 then
+--                  if false then
+--                      c_proc(gtk_widget_size_request,{handle,pGtkRequisition})
+--                      w = get_struct_field(idGtkRequisition,pGtkRequisition,"width")
+--                      h = get_struct_field(idGtkRequisition,pGtkRequisition,"height")
+--                  else
+                        atom window = c_func(gtk_widget_get_window,{handle})
+                        w = c_func(gdk_window_get_width,{window})
+                        h = c_func(gdk_window_get_height,{window})
+--                  end if
+
 --                  c_proc(gtk_widget_size_request,{handle,pGtkRequisition})
 --                  return {get_struct_field(idGtkRequisition,pGtkRequisition,"width"),
 --                          get_struct_field(idGtkRequisition,pGtkRequisition,"height")}
@@ -2566,14 +3044,24 @@ else --DEV temp:
 --                  integer width = get_struct_field(idGdkRectangle,pRECT,"width"),
 --                         height = get_struct_field(idGdkRectangle,pRECT,"height")
 --                  return {width,height}
-                elsif backend=WinAPI then
+                elsif backend=XPG_WINAPI then
+crash("DEAD CODE") -- (I hope)
                     if ct=LABEL then
                         string title = gGetAttribute(id,"TITLE","")
                         {w,h} = gGetTextExtent(id,split(title,'\n'))
 --?{"GAlabel",title,w,h} 
                     else
+                        if ct=BOX then
+                            do
+--                              id = gGetParent(id)
+                                id = parent_ids[id]
+                                ct = ctrl_types[id]
+                            until ct!=BOX
+                            handle = ctrl_handles[id]
+                        end if
                         integer r = c_func(xGetWindowRect,{handle,pRECT})
                         assert(r!=0)
+--                      if r!=0 then ?"r!=0 line 2672 in p[GUI.e!!" end if
 --DEV suspect...
 -->
 --/*
@@ -2601,11 +3089,16 @@ else --DEV temp:
                         h = get_struct_field(idRECT,pRECT,"bottom")
                           - get_struct_field(idRECT,pRECT,"top")
                     end if
-                    return {w,h}
+--                  return {w,h}
                 else
                     ?9/0 -- (unknown backend)
                 end if
+  if nw!=w or nh!=h then
+    ?{"gGetAttribute",id,name,{nw,nh},{w,h}}
+  end if
+                return {w,h}
 end if
+--*/
             elsif name="USERSIZE" then
                 return {ctrl_size[id][SZ_USER_W],
                         ctrl_size[id][SZ_USER_H]}
@@ -2633,14 +3126,32 @@ end if
                 end while
                 string fontname = cached_fontnames[font]
                 return fontname
-            end if
---22/6/23
+            elsif name="MOUSEPOS" then
+                if backend=XPG_GTK then
+                    c_proc(gtk_widget_get_pointer,{handle,pX,pY})
+                    return {get_struct_field(idGdkRectangle,pRECT,"x"),
+                            get_struct_field(idGdkRectangle,pRECT,"y")}
+                elsif backend=XPG_WINAPI then
+                    bool bOK = c_func(xGetCursorPos,{pPOINT})
+                    assert(bOK)
+                    bOK = c_func(xScreenToClient,{handle,pPOINT})
+                    assert(bOK)
+                    return {get_struct_field(idPOINT,pPOINT,"x"),
+                            get_struct_field(idPOINT,pPOINT,"y")}
 --/*
-            integer geta = ctrl_msg[ct][CM_GET]
---?{name,id,geta,get_routine_info(geta)}
-            return geta(id,name,dflt)
-        end if
+--  JavaScript
+--  In a browser environment, it's impossible to actually get the cursor position at the specific moment. 
+--  You must wait for user input (movement, click, etc). One of many ways to add an event listener:
+--
+--  document.addEventListener('mousemove', function(e){
+--    var position = { x: e.clientX, y: e.clientY }
+--  }
+--  In the above example, the window may not be external. It must in fact be a web browser window, which runs the script.
 --*/
+                else
+                    ?9/0 -- (unknown backend)
+                end if              
+            end if
         else
 --DEV/SUG
 --          integer iid = id
@@ -2651,25 +3162,25 @@ end if
                     return did[k][2]
                 end if
             end for
---          if not find(name,{"ACTIVE","FONT"}) then exit end if
---          iid = parent_ids[iid]
---      end while
---22/6/23
+--              if not find(name,{"ACTIVE","FONT"}) then exit end if
+--              iid = parent_ids[iid]
+--          end while
         end if
         if bMapped or and_bits(ctrl_flags[id],CF_UNMAPATTR)!=0 then
             integer geta = ctrl_msg[ct][CM_GET]
 --?{name,id,geta,get_routine_info(geta)}
             return geta(id,name,dflt)
         end if
-    end if
+--  end if
     return xpg_return_default_attr(id,name,dflt)
 end function
 
 global function gGetInt(gdx id, string name, object dflt=999_999_999)
     if name="EXPAND" then
-        return and_bits(ctrl_flags[id],CF_EXPANDH+CF_EXPANDV) -- 0..3
+        return and_bits(ctrl_flags[id],CF_EXPAND) -- 0/1/2/4
     end if
-    integer res = gGetAttribute(id,name,dflt)
+    object ores = gGetAttribute(id,name,dflt)
+    integer res = iff(string(ores)?to_number(ores):ores)
     return res
 end function
 
@@ -2728,8 +3239,8 @@ local function xpg_demnemonicalize(string s)
     -- convert eg "&Help" to "Help" for sizing, more examples below
     string res = ""
     integer l = length(s), skip = false,
-          ech = iff(backend=GTK?'_':
-                iff(backend=WinAPI?'&':9/0))
+          ech = iff(backend=XPG_GTK?'_':
+                iff(backend=XPG_WINAPI?'&':9/0))
     for i=1 to l do
         if skip then
             skip = false
@@ -2747,33 +3258,35 @@ local function xpg_demnemonicalize(string s)
 end function
 
 --/*
-constant dtest = {{GTK,{{"",""},
-                        {"__","_"},
-                        {"_x","x"},
-                        {"&x","&x"},
-                        {"x&_y","x&y"},
-                        {"______","___"},
-                        {"_1_2_3","123"},
-                        {"___2__","_2_"},
-                        {"_1___3","1_3"},
-                        {"_Help","Help"}}},
-                  {WinAPI,{{"",""},
-                           {"&&","&"},
-                           {"&x","x"},
-                           {"_x","_x"},
-                           {"x_&y","x_y"},
-                           {"&&&&&&","&&&"},
-                           {"&1&2&3","123"},
-                           {"&&&2&&","&2&"},
-                           {"&1&&&3","1&3"},
-                           {"&Help","Help"}}}}
-procedure d_test()
+constant dtest = {{XPG_GTK,{{"",""},
+                            {"__","_"},
+                            {"_x","x"},
+                            {"&x","&x"},
+                            {"x&_y","x&y"},
+                            {"______","___"},
+                            {"_1_2_3","123"},
+                            {"___2__","_2_"},
+                            {"_1___3","1_3"},
+                            {"_Help","Help"}}},
+                  {XPG_WINAPI,{{"",""},
+                               {"&&","&"},
+                               {"&x","x"},
+                               {"_x","_x"},
+                               {"x_&y","x_y"},
+                               {"&&&&&&","&&&"},
+                               {"&1&2&3","123"},
+                               {"&&&2&&","&2&"},
+                               {"&1&&&3","1&3"},
+                               {"&Help","Help"}}}}
+--forward function gVersion(integer bBack=false)
+--procedure d_test()
     for b in dtest do
         backend = b[1]
         for t in b[2] do
             string {p,q} = t, r = xpg_demnemonicalize(p)
             if r!=q then
-                printf(1,"%s: wanted %s but got %s (%s)\n",{p,q,r,backdesc[backend]})
+                string b = gVersion(true)
+                printf(1,"%s: wanted %s but got %s (%s)\n",{p,q,r,b})
             end if
         end for
     end for
@@ -2782,7 +3295,7 @@ procedure d_test()
 --X printf(1,"NULL: wanted `` but got %s\n",{dNULL})
 --Xend if
     backend = find(platform(),SPLAT)
-end procedure
+--end procedure
 d_test()
 --*/
 
@@ -2796,26 +3309,26 @@ d_test()
 
 local function xpg_get_mp(gdx id, integer mp, mpx)
     -- get the margin or padding
---  -- mp should be either MP_MARGIN or MP_PADDING
     -- mp should be either SZ_MARGIN or SZ_PADDING
     -- mpx should be MP_TOP, MP_RGT, MP_BTM, or MP_LFT
---  object cmi = ctrl_mp[id]
     object cmi = ctrl_size[id][mp]
     if atom(cmi) then return 0 end if
---  object cmimp = cmi[mp]
---  if atom(cmimp) then return cmimp end if
     -- short sequences spell trbl...
     sequence mpdx = {{1,1,1,1},
                      {1,2,1,2},
                      {1,2,3,2},
                      {1,2,3,4}}[length(cmi)]
---                   {1,2,3,4}}[length(cmimp)]
     integer mpdxi = mpdx[mpx]
     return cmi[mpdxi]
---  return cmimp[mpdxi]
 end function
 
 local procedure xpg_lm_set_element_sizes(gdx id)
+    --
+    -- set [SZ_NATURAL_W/H], /after/ any FONT etc applied.
+    -- (could perhaps be done nearer the creation, but afaik won't 
+    --  work right until after gtk_widget_realize/CreateWindowEx,
+    --  and may need re-doing after a set "TEXT"/gRedraw() anyway.)
+    --
     integer ct = ctrl_types[id]
 --if ct=CANVAS then ?{"ans(CANVAS)",ctrl_size[id][SZ_NATURAL_W],ctrl_size[id][SZ_NATURAL_H]} end if
     object children = children_ids[id]
@@ -2824,8 +3337,8 @@ local procedure xpg_lm_set_element_sizes(gdx id)
 --      integer {mt,mr,mb,ml} = xpg_margins(ct),
 --              nw = ml, nh = mt, 
 --      integer {{nh,mr,mb,nw},gap} = xpg_margap(id),
-        integer nh = xpg_get_mp(id,MP_PADDING,MP_TOP),
-                nw = xpg_get_mp(id,MP_PADDING,MP_LFT),
+        integer nh = xpg_get_mp(id,SZ_PADDING,MP_TOP),
+                nw = xpg_get_mp(id,SZ_PADDING,MP_LFT),
                 gap2 = iff(ct=BOX?ctrl_xtra[id][CX_BOX_GAP]:0),
                 gap = 0
 --              cl = length(children)
@@ -2839,16 +3352,15 @@ local procedure xpg_lm_set_element_sizes(gdx id)
 --                  ch = ctrl_size[child][SZ_NATURAL_H],
             integer cw = max(ctrl_size[child][SZ_NATURAL_W],ctrl_size[child][SZ_USER_W]),
                     ch = max(ctrl_size[child][SZ_NATURAL_H],ctrl_size[child][SZ_USER_H]),
-                    mt = xpg_get_mp(child,MP_MARGIN,MP_TOP),
-                    ml = xpg_get_mp(child,MP_MARGIN,MP_LFT),
-                    mb = xpg_get_mp(child,MP_MARGIN,MP_BTM),
-                    mr = xpg_get_mp(child,MP_MARGIN,MP_RGT)
-?{"lmas",child,cw,ch}
+                    mt = xpg_get_mp(child,SZ_MARGIN,MP_TOP),
+                    ml = xpg_get_mp(child,SZ_MARGIN,MP_LFT),
+                    mb = xpg_get_mp(child,SZ_MARGIN,MP_BTM),
+                    mr = xpg_get_mp(child,SZ_MARGIN,MP_RGT)
+--?{"lmas",child,cw,ch}
 --          ctrl_size[child][SZ_W] = cw
 --          ctrl_size[child][SZ_H] = ch
             cw = ml+cw+mr
             ch = mt+ch+mb
---ctrl_mp
 --          integer cw = ctrl_size[child][SZ_W],
 --                  ch = ctrl_size[child][SZ_H]
             -- aside: for a single child this is of course
@@ -2868,8 +3380,8 @@ local procedure xpg_lm_set_element_sizes(gdx id)
 --/*
 --DEV...
 --      if ct=BOX then
-        nw += xpg_get_mp(id,MP_PADDING,MP_RGT)
-        nh += xpg_get_mp(id,MP_PADDING,MP_BTM)
+        nw += xpg_get_mp(id,SZ_PADDING,MP_RGT)
+        nh += xpg_get_mp(id,SZ_PADDING,MP_BTM)
 --      end if
 --      ctrl_size[id][SZ_W] = nw
 --      ctrl_size[id][SZ_H] = nh
@@ -2892,7 +3404,7 @@ local procedure xpg_lm_set_element_sizes(gdx id)
             nw += dw
             nh += dh
         end if
---      if backend=GTK
+--      if backend=XPG_GTK
 --      and (ct=FRAME or ct=BOX or ct=DIALOG) then -- [or, probably, DATEPICK, TABS]
 --      if ct=FRAME or ct=BOX or ct=DIALOG then -- [or, probably, DATEPICK/GTK, TABS]
             ctrl_size[id][SZ_NATURAL_W] = nw
@@ -2904,14 +3416,29 @@ local procedure xpg_lm_set_element_sizes(gdx id)
 --     or (ct=CANVAS and find(ctrl_xtra[id][CX_??],{BUTTON,CHECKBOX,DROPDOWN,LABEL,TEXT})) then
         integer w, h
         string title = gGetAttribute(id,"TITLE","")
-        if backend=GTK then
---      if backend=GTK and ct!=CANVAS then
+        if backend=XPG_GTK then
+--      if backend=XPG_GTK and ct!=CANVAS then
             atom handle = ctrl_handles[id]
+--10/11/23 (as per gGetAttribute/scroller.exw)
+--13/11/23 mullered gText.exw...
             c_proc(gtk_widget_size_request,{handle,pGtkRequisition})
             w = get_struct_field(idGtkRequisition,pGtkRequisition,"width")
             h = get_struct_field(idGtkRequisition,pGtkRequisition,"height")
+--          atom window = c_func(gtk_widget_get_window,{handle})
+--          w = c_func(gdk_window_get_width,{window})
+--          h = c_func(gdk_window_get_height,{window})
+--DEV bad idea...
+--          if ct=BUTTON then
+----                if backend=XPG_GTK then
+--              if bGTK3 then
+--                  w -=16
+--                  h -= 8
+----                    c_proc(gtk_window_set_default_size,{handle,w,h}) 
+--                  c_proc(gtk_widget_set_size_request,{handle,w,h}) 
+--              end if
+--          end if
 --?{"gtknatsize",w,h,title}
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
             if ct=BUTTON
             or ct=CHECKBOX
             or ct=LABEL then
@@ -2963,7 +3490,7 @@ local procedure xpg_lm_set_element_sizes(gdx id)
 --if not find(ct,{CHECKBOX,DROPDOWN,LABEL,TEXT}) then crash(ctrl_names[ct]) end if
 --          gnat(id)
 --      end if
-    elsif not find(ct,{CANVAS}) then
+    elsif not find(ct,{CANVAS,MENU}) then
         printf(1,"xpg_lm_set_element_sizes(%s)?\n",{ctrl_names[ct]})
     end if
 --if ct=CANVAS then ?{"<ans(CANVAS)",ctrl_size[id][SZ_NATURAL_W],ctrl_size[id][SZ_NATURAL_H]} end if
@@ -2976,7 +3503,7 @@ local procedure xpg_lm_set_element_sizes(gdx id)
 ----    ctrl_size[id][SZ_H] = h
 end procedure
 
-local procedure check_unmapped(gdx ids, integer flag, rdx=0)
+local procedure xpg_check_unmapped(gdx ids, integer flag, rdx=0)
     -- used by gRadio() and gNormalise()
     for id in ids do
         integer cfi = ctrl_flags[id],
@@ -2993,7 +3520,8 @@ local procedure check_unmapped(gdx ids, integer flag, rdx=0)
             -- ensure there are no kids on normalised items
             -- (or maybe check that no parent of id is also
             --  a member of ids, would need order tweakage)
-            assert(ctrl_kids[cti]=0)
+--          assert(ctrl_kids[cti]=0)
+            assert(and_bits(ctrl_flags[id],CF_CONTAINER)==0)
         else
             ?9/0 -- unknown flag?
         end if
@@ -3005,7 +3533,7 @@ end procedure
 global procedure gNormalise(gdx ids, string hvb="BOTH")
     integer ihvb = find(hvb,{"HORIZONTAL","VERTICAL","BOTH"})
     assert(ihvb!=0) -- nb: ihvb is now a bitfield, 0b01/0b10/0b11
-    check_unmapped(ids,CF_NORMAL)
+    xpg_check_unmapped(ids,CF_NORMAL)
     norm_groups = append(norm_groups,{ihvb,ids})
 end procedure
 
@@ -3017,6 +3545,7 @@ global constant integer gNormalize = gNormalise;
 
 --DEV...
 local function xpg_lm_gather_normal_groups(sequence ngused, gdx id)
+    -- (determine which if any of the norm_groups actually apply)
     integer cfi = ctrl_flags[id]
     assert(and_bits(cfi,CF_MAPPED)!=0)
     object children = children_ids[id]
@@ -3035,7 +3564,8 @@ local function xpg_lm_gather_normal_groups(sequence ngused, gdx id)
         end for
     end if  
     -- copy now for all non-normalised elements:
-if ctrl_kids[ctrl_types[id]]=0 then
+--if ctrl_kids[ctrl_types[id]]=0 then
+if and_bits(ctrl_flags[id],CF_CONTAINER)==0 then
 --  integer cw = ctrl_size[id][SZ_NATURAL_W],
 --          ch = ctrl_size[id][SZ_NATURAL_H]
     integer cw = max(ctrl_size[id][SZ_NATURAL_W],ctrl_size[id][SZ_USER_W]),
@@ -3048,6 +3578,10 @@ end if
 end function
 
 local procedure xpg_lm_normalise_sizes(gdx id)
+    --
+    -- set [SZ_NORMAL_W/H] from max([SZ_USER_W/H],[SZ_NATURAL_W/H]), and then
+    --  normalise, ie set all rqd w/h in each group to max w/h in each group.
+    --
 --DEV can we reorder this such that when we normalise any containers, all child elements have already been done??
 --perhaps we start with crtl_done = repeat(false,length(ctrl_handles)) or
 --                      crtl_done = apply(tagset(length(ctrl_handles)),is_leaf) or
@@ -3131,6 +3665,10 @@ end procedure
 
 
 local procedure xpg_lm_accumulate_sizes(gdx id)
+--?"xpg_lm_accumulate_sizes"
+    --
+    -- sum [SZ_NORMAL_W/H] with margins etc.
+    --
     integer ct = ctrl_types[id]
 --if ct=CANVAS then ?{"ans(CANVAS)",ctrl_size[id][SZ_NATURAL_W],ctrl_size[id][SZ_NATURAL_H]} end if
     object children = children_ids[id]
@@ -3138,8 +3676,8 @@ local procedure xpg_lm_accumulate_sizes(gdx id)
 --      integer {mt,mr,mb,ml} = xpg_margins(ct),
 --              nw = ml, nh = mt, 
 --      integer {{nh,mr,mb,nw},gap} = xpg_margap(id),
---      integer nh = xpg_get_mp(id,MP_PADDING,MP_TOP),
---              nw = xpg_get_mp(id,MP_PADDING,MP_LFT),
+--      integer nh = xpg_get_mp(id,SZ_PADDING,MP_TOP),
+--              nw = xpg_get_mp(id,SZ_PADDING,MP_LFT),
 --      integer nh = xpg_get_mp(id,SZ_MARGIN,MP_TOP),
 --              nw = xpg_get_mp(id,SZ_MARGIN,MP_LFT),
         integer nw = 0, nh = 0, gap = 0,
@@ -3164,7 +3702,6 @@ local procedure xpg_lm_accumulate_sizes(gdx id)
 --          ctrl_size[child][SZ_H] = ch
             cw = ml+cw+mr
             ch = mt+ch+mb
---ctrl_mp
 --          integer cw = ctrl_size[child][SZ_W],
 --                  ch = ctrl_size[child][SZ_H]
             -- aside: for a single child this is of course
@@ -3182,8 +3719,8 @@ local procedure xpg_lm_accumulate_sizes(gdx id)
         end for
 --DEV...
 --      if ct=BOX then
---      nw += xpg_get_mp(id,MP_PADDING,MP_RGT)
---      nh += xpg_get_mp(id,MP_PADDING,MP_BTM)
+--      nw += xpg_get_mp(id,SZ_PADDING,MP_RGT)
+--      nh += xpg_get_mp(id,SZ_PADDING,MP_BTM)
 --?{"lmas2",id,nw,nh}
 --      nw += xpg_get_mp(id,SZ_MARGIN,MP_LFT)
 --          + xpg_get_mp(id,SZ_MARGIN,MP_RGT)
@@ -3197,7 +3734,7 @@ local procedure xpg_lm_accumulate_sizes(gdx id)
 --DEV default margins of {2,2,2,2}... (should now be done)
 --          nw += 4
 --          nh += 4
-            if backend=GTK then
+            if backend=XPG_GTK then
                 if bGTK3 then
                     nw += 2
                     nh += 2
@@ -3205,7 +3742,7 @@ local procedure xpg_lm_accumulate_sizes(gdx id)
                     nw += 4
                     nh += 4
                 end if
-            elsif backend=WinAPI then
+            elsif backend=XPG_WINAPI then
                 nw += 2
                 nh += 1
             else
@@ -3218,7 +3755,7 @@ local procedure xpg_lm_accumulate_sizes(gdx id)
                 integer {tw,th} = gGetTextExtent(id,title)
                 nh += th -- (height)
                 --DEV/SUG minwidth from tw??
-            elsif backend=WinAPI then
+            elsif backend=XPG_WINAPI then
                 nh += 9
             end if
         elsif ct=DIALOG then
@@ -3228,15 +3765,19 @@ local procedure xpg_lm_accumulate_sizes(gdx id)
             integer {dw,dh} = xpg_lm_get_dialog_decoration_size(id)
             nw += dw
             nh += dh
+        elsif ct=TABS then
+--?{"nw",nw,ctrl_xtra[id][CX_TABWIDTH]}
+            nw = max(nw,ctrl_xtra[id][CX_TABWIDTH])
+            nh += ctrl_xtra[id][CX_TABHIGHT]
         end if
---      if backend=GTK
+--      if backend=XPG_GTK
 --      and (ct=FRAME or ct=BOX or ct=DIALOG) then -- [or, probably, DATEPICK, TABS]
 --      if ct=FRAME or ct=BOX or ct=DIALOG then -- [or, probably, DATEPICK/GTK, TABS]
 --          ctrl_size[id][SZ_NATURAL_W] = nw
 --          ctrl_size[id][SZ_NATURAL_H] = nh
 --      end if
 --if ct=DIALOG then ?{"lmas",id,nw,nh} end if
-?{"lmas",id,nw,nh}
+--?{"lmas",id,nw,nh}
         ctrl_size[id][SZ_NORMAL_W] = nw
         ctrl_size[id][SZ_NORMAL_H] = nh
 --/*
@@ -3244,14 +3785,14 @@ local procedure xpg_lm_accumulate_sizes(gdx id)
 --     or (ct=CANVAS and xpg_sizeable_custom_canvas_control(id)) then
 --     or (ct=CANVAS and find(ctrl_xtra[id][CX_??],{BUTTON,CHECKBOX,DROPDOWN,LABEL,TEXT})) then
         integer w, h
-        if backend=GTK then
---      if backend=GTK and ct!=CANVAS then
+        if backend=XPG_GTK then
+--      if backend=XPG_GTK and ct!=CANVAS then
             atom handle = ctrl_handles[id]
             c_proc(gtk_widget_size_request,{handle,pGtkRequisition})
             w = get_struct_field(idGtkRequisition,pGtkRequisition,"width")
             h = get_struct_field(idGtkRequisition,pGtkRequisition,"height")
 --?{"gtknatsize",w,h,title}
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
             if ct=BUTTON
             or ct=CHECKBOX
             or ct=LABEL then
@@ -3317,18 +3858,12 @@ local procedure xpg_lm_accumulate_sizes(gdx id)
 ----    ctrl_size[id][SZ_H] = h
 end procedure
 
--- xpg_apply_spacing?
---local procedure xpg_lm_disperse_user_sizes(gdx id, integer pw=0, ph=0)
-local procedure xpg_lm_disperse_user_sizes(gdx id, integer cw, ch)
-    -- Since GTK insists on being such an absolute dick about such matters,
-    -- cw,ch are/must be the **client** size, not the window size.
+-- https://www.joshwcomeau.com/css/interactive-guide-to-grid/
+-- https://www.joshwcomeau.com/css/interactive-guide-to-flexbox/
+-- older: https://css-tricks.com/snippets/css/a-guide-to-flexbox/
+-- hmm: https://flexboxfroggy.com/
+-- unrelated: https://www.joshwcomeau.com/operator-lookup/
 
---  integer w = ctrl_size[id][SZ_NORMAL_W],
---          h = ctrl_size[id][SZ_NORMAL_H]
-    integer w = max(ctrl_size[id][SZ_NORMAL_W],ctrl_size[id][SZ_USER_W]),
-            h = max(ctrl_size[id][SZ_NORMAL_H],ctrl_size[id][SZ_USER_H])
---integer ct = ctrl_types[id]
---if ct=DIALOG and backend=WinAPI then cw += 14; ch += 7; end if
 --/*
 BOOL CScreenImage::CaptureWindow(HWND hWnd) {
     CImage image;
@@ -3373,105 +3908,160 @@ BOOL CScreenImage::CaptureWindow(HWND hWnd) {
    int cyCaption = GetSystemMetrics(SM_CYCAPTION);
    int cyBorder = GetSystemMetrics(SM_CYBORDER);.
 --*/
-?{"xpg_lm_disperse_user_sizes",id,cw,ch,{w,h}}
+
+--DEV: this is not taking margins etc into account....
+--with trace
+-- xpg_lm_apply_spacing? xpg_lm_expand_to_fit?
+--local procedure xpg_lm_disperse_user_sizes(gdx id, integer pw=0, ph=0)
+local procedure xpg_lm_disperse_user_sizes(gdx id, integer cw, ch)
+?{"xpg_lm_disperse_user_sizes",id, cw, ch}
+    --
+    -- Since GTK insists on being such an absolute dick about such matters,
+    -- cw,ch are/must be the **client** size, not the window size.
+    -- Mind you, WinAPI is not much better, with its "invisible margins".
+    --
+    integer w = max(ctrl_size[id][SZ_NORMAL_W],ctrl_size[id][SZ_USER_W]),
+            h = max(ctrl_size[id][SZ_NORMAL_H],ctrl_size[id][SZ_USER_H]),
+           ct = ctrl_types[id]
     object children = children_ids[id]
     if sequence(children) then
---  if sequence(children) and (w or h) then
-        bool bVert = and_bits(ctrl_flags[id],CF_VERTICAL)!=0,
-             bBoth = ctrl_types[id]!=BOX
---DEV deep bug here...
---?{"bBoth",bBoth,"bVert",bVert}
-        integer flag = iff(bVert?CF_EXPANDV:CF_EXPANDH)
---      sequence ec = {} -- expandable children
-        sequence bexpand = repeat(0,length(children))
+        assert(find(ct,{DIALOG,BOX,FRAME,TABS})) -- sanity check
+        integer cfi = ctrl_flags[id]
+        bool bVert = and_bits(cfi,CF_VERTICAL)!=0,
+             bBoth = ct!=BOX,
+            bSplit = ct==BOX and and_bits(cfi,CF_SPLIT)!=0 and 
+                     ctrl_xtra[children[2]][CX_GTL_ATTRS][PX_FRAC]!=-1
+--DEV flags are 0bVHB, ie 4: vertical, 2: horiontal, 1:both, 0:none
+--      -- aside: Technically, 6===1, however I wanted EXPAND=TRUE
+        --               to behave exactly the same as EXPAND=BOTH.
+        --        Slightly more confusing, but same # of and_bits().
+--               CF_EXPAND = CF_EXPANDV+CF_EXPANDH+CF_EXPANDB,                      -- 0b111 mask, with 0/1/2/4 for N/B/H/V
+--              CF_HEXPAND = CF_EXPANDH+CF_EXPANDB,                                 -- 0b011 mask (expands horizontally)
+--              CF_VEXPAND = CF_EXPANDV+CF_EXPANDB                                  -- 0b101 mask (expands vertically)
+--      integer flag = iff(bVert?0b011:0b101)
+--      integer flag = iff(bVert?0b101:0b011)
+        integer flag = iff(bVert?CF_HEXPAND:CF_VEXPAND)
+--      integer flag = iff(bVert?CF_VEXPAND:CF_HEXPAND)
+        sequence bexpand = repeat(false,length(children))
         atom aw = 0, ah = 0,    -- all width/height
              ew = 0, eh = 0     -- expandable ""
-        integer n = 0
---/*
-        integer ct = ctrl_types[id],
-            {mt,mr,mb,ml} = iff(ct=BOX?ctrl_xtra[id][CX_BOX_MARGIN]:{0,0,0,0})
-                nw = ml, nh = mt, gap = 0,
-        end for
-        nw += mr
-        nh += mb
---*/
 
---      sequence expandable = {}
---      for child in children do
---          if and_bits(ctrl_flags[child],flag)!=0 then
-----                expandable &= child
---              n += 1
---          end if
---      end for
+        -- collect children which expand in the primary direction:
         for i,child in children do
             integer cflags = ctrl_flags[child],
                     ccw = ctrl_size[child][SZ_NORMAL_W],
                     cch = ctrl_size[child][SZ_NORMAL_H]
             aw += ccw
             ah += cch
---          if and_bits(cflags,flag)!=0 then
             if bBoth or and_bits(cflags,flag)!=0 then
---          if and_bits(ctrl_flags[child],flag)!=0 then
---              ec &= child
                 bexpand[i] = true
-                n += 1
                 ew += ccw
                 eh += cch
---              ew += ctrl_size[child][SZ_NORMAL_W]
---              eh += ctrl_size[child][SZ_NORMAL_H]
             end if
         end for
---?{"dus.ec:",ec}
---      integer n = length(ec),
---              wslack = cw-aw,
---              hslack = ch-ah
+        if bSplit then
+            assert(bexpand=={true,false,true})
+        end if
         integer wslack = max(0,cw-aw),
                 hslack = max(0,ch-ah)
---      integer wslack = max(0,w-aw),
---              hslack = max(0,h-ah)
---      if n=0 then
---          ec = children
---          n = length(ec)
---          ew = aw
---          eh = ah
---      end if
---DEV should this not do all children, checking if bexpand[i] is true????
---      for child in ec do
         for i,child in children do
-            integer ecw = ctrl_size[child][SZ_NORMAL_W],
+            integer cflags = ctrl_flags[child],
+                    ecw = ctrl_size[child][SZ_NORMAL_W],
                     ech = ctrl_size[child][SZ_NORMAL_H]
-            integer xw = 0, xh = 0
+--          integer xw = iff(bVert and and_bits(cflags,0b101)>0?cw-ecw:0),
+            integer xw = iff(bVert and and_bits(cflags,CF_VEXPAND)>0?cw-ecw:0),
+--          integer xw = iff(bVert and and_bits(cflags,0b011)>0?cw-ecw:0),
+--          integer xw = iff(bVert and and_bits(cflags,CF_HEXPAND)>0?cw-ecw:0),
+--                  xh = iff(bVert  or and_bits(cflags,0b011)=0?0:ch-ech)
+                    xh = iff(bVert  or and_bits(cflags,CF_HEXPAND)=0?0:ch-ech)
+--                  xh = iff(bVert  or and_bits(cflags,0b101)=0?0:ch-ech)
+--                  xh = iff(bVert  or and_bits(cflags,CF_VEXPAND)=0?0:ch-ech)
             if bexpand[i] then
-                if bBoth or bVert then
-                    xw = floor(wslack/n)
-                    wslack -= xw
+                if bVert then
+                    if (bBoth or and_bits(cflags,0b011)) and eh!=0 then
+--                  if (bBoth or and_bits(cflags,0b101)) and eh!=0 then
+                        xh = round((ech/eh)*hslack)
+                        hslack -= xh
+                        eh -= ech
+                    end if
+                else -- bHoriz
+                    if (bBoth or and_bits(cflags,0b101)) and ew!=0 then
+--                  if (bBoth or and_bits(cflags,0b011)) and ew!=0 then
+                        xw = round((ecw/ew)*wslack)
+                        wslack -= xw
+                        ew -= ecw
+                    end if
                 end if
-                if bBoth or not bVert then
-                    xh = floor(hslack/n)
-                    hslack -= xh
-                end if
---?{"xwxh",xw,xh}
---          ecw = ???
-                n -= 1
             end if
-            xpg_lm_disperse_user_sizes(child,ecw+xw,ech+xh)
+            if bSplit then
+                bexpand[i] = {ecw+xw,ech+xh} -- (for futher processing below)
+            else
+                xpg_lm_disperse_user_sizes(child,ecw+xw,ech+xh)
+            end if
         end for
-----        integer n = length(expendable)
---      while n do
-----        if length(expandable) then
---          n -= 1
---      end while
+        if bSplit then
+            gdx {c1,splitter,c2} = children
+            atom f = ctrl_xtra[splitter][CX_GTL_ATTRS][PX_FRAC]
+            integer bdx = 1+bVert,
+                    s1 = bexpand[1][bdx],
+                    s2 = bexpand[3][bdx],
+                   s12 = s1+s2
+            -- modify s1,s2 to match f as closely as possible...
+            -- s1+s2 should not change, keep both within MIN/MAX. [DEV]
+            ?{"bSplit",bexpand,f,bdx,s1,s2,s1/s12}
+            s1 = max(round(f*s12),1)
+            s2 = max(s12-s1,1)
+            s1 = s12-s2
+            ?{"bSplit",bexpand,f,bdx,s1,s2,s1/s12}
+            bexpand[1][bdx] = s1
+            bexpand[3][bdx] = s2
+            for i=1 to 3 do
+                integer {sw,sh} = bexpand[i]
+                xpg_lm_disperse_user_sizes(children[i],sw,sh)
+            end for
+        end if
     end if
---DEV??
---if parent_ids[id] then
---totally messes up resize in gCanvas.exw under GTK:
---  ctrl_size[id][SZ_W] = cw
---  ctrl_size[id][SZ_H] = ch
+    -- totally messes up resize in gCanvas.exw under GTK: [FIXED]
+    if ct=DIALOG then
+        cw += 2
+        ch += 32
+    end if
+-- messed up gCheckbox.exw
+-- ...but this has now messed up gSplit.exw
+--if backend=XPG_GTK then
+--if backend=XPG_GTK and not find(ct,{CANVAS}) then
+--for 15puzzle_game: (no help)
+--if backend=XPG_GTK and not find(ct,{CANVAS,DIALOG}) then
+--?{id,ctrl_names[ct],w,h,cw,ch}
+if false then -- oops, bad idea!
     ctrl_size[id][SZ_W] = w
     ctrl_size[id][SZ_H] = h
---end if
+else
+    ctrl_size[id][SZ_W] = cw
+    ctrl_size[id][SZ_H] = ch
+end if
 end procedure
 
+sequence bodge = {}
+
+-- debug aid, otherwise undocumented: 
+global procedure gSetBodge(integer id, sequence xywh, xywhg={}, xywhg3={}, bool bCrash=false)
+-- can be invoked as gSetBodge(id,{0,0,0,0}) to get a rough starting point
+-- bCrash can be set true so that after getting something to work, a quick
+-- run of demo/xpGUI/gButton.exw..gTreeview.exw does not need careful/slow 
+-- visual checking that it isn't being re-triggered, but otherwise is more
+-- of a hindrance than help when something actually goes wrong, probably.
+-- Note that bCrash=true is expected to trigger crashes on any resize...
+    if id>length(bodge) then bodge &= repeat(0,id-length(bodge)) end if
+    if backend=XPG_GTK then
+        -- The g and g3 args can be used when things differ under GTK[3].
+        if length(xywhg) then xywh = xywhg end if
+        if bGTK3 and length(xywhg3) then xywh = xywhg3 end if
+    end if
+    bodge[id] = {xywh,bCrash}   
+end procedure
+
+--DEV this may (seriously) want merging with xpg_lm_disperse_user_sizes...
 local procedure xpg_lm_calculate_offsets(gdx id, integer x=0, y=0)
     bool bMapped = and_bits(ctrl_flags[id],CF_MAPPED)!=0
     if not bMapped then return end if
@@ -3485,12 +4075,12 @@ local procedure xpg_lm_calculate_offsets(gdx id, integer x=0, y=0)
 --untried:
 --  if sequence(children) and length(children) then
         integer ct = ctrl_types[id],
---              pt = xpg_get_mp(id,MP_PADDING,MP_TOP),
---              pl = xpg_get_mp(id,MP_PADDING,MP_LFT)
+--              pt = xpg_get_mp(id,SZ_PADDING,MP_TOP),
+--              pl = xpg_get_mp(id,SZ_PADDING,MP_LFT)
                 pt = xpg_get_mp(id,SZ_MARGIN,MP_TOP),
                 pl = xpg_get_mp(id,SZ_MARGIN,MP_LFT)
 --DEV/SUG: (need to get expand working first...)
---         spacing = ctrl_xtra[id][CX_BOX_SPACE],
+--         spacing = ctrl_xtra[id][CX_BOX_SPACE_(H|V)],
 --              sl = and_bits(spacing,0b100)!=0,
 --              sc = and_bits(spacing,0b010)!=0,
 --              sr = and_bits(spacing,0b001)!=0
@@ -3502,7 +4092,7 @@ local procedure xpg_lm_calculate_offsets(gdx id, integer x=0, y=0)
             x = pl
             y = pt
         end if
-        if backend=WinAPI then
+        if backend=XPG_WINAPI then
             if ct=FRAME then
 --              x += 1
 ----            y += ctrl_size[id][SZ_H]
@@ -3537,13 +4127,21 @@ local procedure xpg_lm_calculate_offsets(gdx id, integer x=0, y=0)
 --              slack = ??
         for child in children do
             xpg_lm_calculate_offsets(child,x,y)
+            integer w = ctrl_size[child][SZ_W],
+                    h = ctrl_size[child][SZ_H]
+if child<=length(bodge) and sequence(bodge[child]) then 
+    {?,?,w,h} = bodge[child][1]
+end if
+
             if bVert then
-                y += ctrl_size[child][SZ_H]+gap
+                y += h+gap
+--              y += ctrl_size[child][SZ_H]+gap
 --              y += ctrl_size[child][SZ_H]
 --              y += ctrl_size[child][SZ_NATURAL_H]
 --              y += ctrl_size[child][SZ_NORMAL_H]+gap
             else
-                x += ctrl_size[child][SZ_W]+gap
+                x += w+gap
+--              x += ctrl_size[child][SZ_W]+gap
 --              x += ctrl_size[child][SZ_W]
 --              x += ctrl_size[child][SZ_NATURAL_W]
 --              x += ctrl_size[child][SZ_NORMAL_W]+gap
@@ -3554,26 +4152,8 @@ local procedure xpg_lm_calculate_offsets(gdx id, integer x=0, y=0)
     end if
 end procedure
 
-forward global procedure gRedraw(gdx id, integer flags=0b111)
-
-sequence bodge = {}
-
--- debug aid, otherwise undocumented: 
-global procedure gSetBodge(integer id, sequence xywh, xywhg={}, xywhg3={}, bool bCrash=false)
--- can be invoked as gSetBodge(id,{0,0,0,0}) to get a rough starting point
--- bCrash can be set true so that after getting something to work, a quick
--- run of demo/xpGUI/gButton.exw..gTreeview.exw does not need careful/slow 
--- visual checking that it isn't being re-triggered, but otherwise is more
--- of a hindrance than help when something actually goes wrong, probably.
--- Note that bCrash=true is expected to trigger crashes on any resize...
-    if id>length(bodge) then bodge &= repeat(0,id-length(bodge)) end if
-    if backend=GTK then
-        -- The g and g3 args can be used when things differ under GTK[3].
-        if length(xywhg) then xywh = xywhg end if
-        if bGTK3 and length(xywhg3) then xywh = xywhg3 end if
-    end if
-    bodge[id] = {xywh,bCrash}   
-end procedure
+--forward global procedure gRedraw(gdx id, integer flags=0b111)
+forward global procedure gRedraw(gdx id, integer flags=0b110)
 
 local procedure xpg_lm_apply_offsets(gdx id, parent=0)
 --?{"xpg_lm_apply_offsets",id}
@@ -3609,7 +4189,7 @@ local procedure xpg_lm_apply_offsets(gdx id, parent=0)
         end for
     end if
 --  if parent!=0 then
---  if parent!=0 or backend=WinAPI then
+--  if parent!=0 or backend=XPG_WINAPI then
         xpg_handle handle = ctrl_handles[id]
         integer pt = iff(parent?ctrl_types[parent]:0),
                 ct = ctrl_types[id]
@@ -3617,8 +4197,9 @@ local procedure xpg_lm_apply_offsets(gdx id, parent=0)
 --          x -= ctrl_size[p][SZ_X]
 --          y -= ctrl_size[p][SZ_Y]
 --      end if
+if ct=DIALOG then ?{"xpg_lm_apply_offsets",id} end if
 if id<=length(bodge) then
---if id<=length(bodge) and backend!=GTK then
+--if id<=length(bodge) and backend!=XPG_GTK then
     object bi = bodge[id], xywh = {x,y,w,h}
     if sequence(bi) then
         bool bCrash = bi[2]
@@ -3633,30 +4214,46 @@ if id<=length(bodge) then
         end if
     end if
 end if
-        if backend=GTK then
-            if pt=BOX then
+        if backend=XPG_GTK then
+--          if w>0 and h>0 then
+--          if w>0 and h>0 and pt!=DIALOG then
+--          if false then --DEV gTable: right width, wrong height...
+--2/10/23: (DEV: it would probably be much better if we got the size(esp height) right!)
+            if ct!=MENU then
+--              gtk_widget_set_size_request(widget,width,height);
+--?{"xpg_lm_apply_offsets",id,iff(pt=BOX?{x,y}:"n/a"),w,h}
+if ct=DIALOG then
+    w -= 2; h -= 32;
+end if
+--?{"lm:gtk_widget_set_size_request",id,w,h}
+--19/10/23:
+if ct!=DIALOG then              
+                c_proc(gtk_widget_set_size_request,{handle,w,h}) 
+else
+--5/11/23 commenting this out helped gCheckbox.exw a bit...
+                c_proc(gtk_widget_set_size_request,{handle,1,1}) 
+--?{"gtk_window_resize line 4148",handle}
+                c_proc(gtk_window_resize,{handle,w,h}) 
+end if
+            end if
+--          if pt=BOX then
+            if pt=BOX or pt=CANVAS then
+--?{"lm:gtk_fixed_move",id,x,y}
                 c_proc(gtk_fixed_move,{ctrl_handles[parent],handle,x,y})
 --          else
 --?{"gtk_window_move(o)",id}
 --              c_proc(gtk_window_move,{handle,x,y})
 --?{"<gtk_window_move(o)",id}
             end if
---          if w>0 and h>0 then
---          if w>0 and h>0 and pt!=DIALOG then
---          if false then --DEV gTable: right width, wrong height...
---              gtk_widget_set_size_request(widget,width,height);
---?{"xpg_lm_apply_offsets",id,iff(pt=BOX?{x,y}:"n/a"),w,h}
-if ct=DIALOG then
-    w -= 2; h -= 32;
-end if
-                c_proc(gtk_widget_set_size_request,{handle,w,h}) 
---          end if
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
 --          if handle then
 --          if pt and handle and w and h then
-            if handle and w and h then
+--          if handle and w and h then
+            if handle and w and h and ct!=SPIN then
 --              integer flags = SWP_NOZORDER
+--NB: using ct completely fouled up the margins in gButton.exw
                 integer flags = iff(pt?SWP_NOZORDER:SWP_NOMOVE+SWP_NOZORDER)
+--              integer flags = iff(ct=DIALOG?SWP_NOZORDER:SWP_NOMOVE+SWP_NOZORDER)
 --              bool ok
 --10/5/23:
 --              if parent then
@@ -3667,38 +4264,41 @@ end if
 --if ct=DIALOG then w += 2; h += 32; end if
 if ct=DIALOG then
     if and_bits(ctrl_flags[id],CF_RESIZE) then
-        w += 2+14; h += 32+7;
+--      w += 2+14; h += 32+7;
+        w += 14; h += 7;
     else
 --DEV wrong!
         w += 6; h += 24;
     end if
+--?{"lm:xSetWindowPos(1)",id,"(nomove)",w,h}
+else
+--?{"lm:xSetWindowPos(2)",id,x,y,w,h}
 end if
-?{"xpg_lm_apply_offsets",id,x,y,w,h,pt}
                     bool ok = c_func(xSetWindowPos,{handle,NULL,x,y,w,h,flags})
                     assert(ok)
 --/*
-                else
-                    integer r = c_func(xGetClientRect,{handle,pRECT})
-                    assert(r!=0)
---                  sequence crect = peek4u({pRECT,4})
-                    integer cw = get_struct_field(idRECT,pRECT,"right"),
-                            ch = get_struct_field(idRECT,pRECT,"bottom")
-                    r = c_func(xGetWindowRect,{handle,pRECT})
-                    assert(r!=0)
---DEV suspect... (not really, but let's just code this way throughout...)
---                  sequence wrect = peek4s({pRECT,4})
-                    integer ww = get_struct_field(idRECT,pRECT,"right")
-                               - get_struct_field(idRECT,pRECT,"left"),
-                            wh = get_struct_field(idRECT,pRECT,"bottom")
-                               - get_struct_field(idRECT,pRECT,"top")
-
---?{"xpg_lm_apply_offsets","crect",crect,cw,ch,"wrect",wrect,ww,wh}
-                    w += ww-cw
-                    h += wh-ch-1
-                    flags = SWP_NOMOVE+SWP_NOZORDER+SWP_NOACTIVATE
-                    ok = c_func(xSetWindowPos,{handle,NULL,0,0,w,h,flags})
-                    assert(ok)
-                end if
+--              else
+--                  integer r = c_func(xGetClientRect,{handle,pRECT})
+--                  assert(r!=0)
+----                    sequence crect = peek4u({pRECT,4})
+--                  integer cw = get_struct_field(idRECT,pRECT,"right"),
+--                          ch = get_struct_field(idRECT,pRECT,"bottom")
+--                  r = c_func(xGetWindowRect,{handle,pRECT})
+--                  assert(r!=0)
+----DEV suspect... (not really, but let's just code this way throughout...)
+----                    sequence wrect = peek4s({pRECT,4})
+--                  integer ww = get_struct_field(idRECT,pRECT,"right")
+--                             - get_struct_field(idRECT,pRECT,"left"),
+--                          wh = get_struct_field(idRECT,pRECT,"bottom")
+--                             - get_struct_field(idRECT,pRECT,"top")
+--
+----?{"xpg_lm_apply_offsets","crect",crect,cw,ch,"wrect",wrect,ww,wh}
+--                  w += ww-cw
+--                  h += wh-ch-1
+--                  flags = SWP_NOMOVE+SWP_NOZORDER+SWP_NOACTIVATE
+--                  ok = c_func(xSetWindowPos,{handle,NULL,0,0,w,h,flags})
+--                  assert(ok)
+--              end if
 --*/
 --else
 --  ?{"nope",pt,handle,w,h}
@@ -3707,7 +4307,7 @@ end if
             ?9/0 -- (unknown backend)
         end if
 --  end if
---I might yet rinstate this...
+--I might yet reinstate this...
 --  if parent=0 then
 --      gRedraw(id)
 --  end if
@@ -3715,7 +4315,24 @@ end procedure
 
 local procedure xpg_defer_attr(gdx id, string name, object v)
 --DEV scan for name?
-    deferred_attr[id] &= {{name,v}}
+--25/11/23 for gRadio() doc simplification, untested. Erm, not that it actually helps with that in any way, anyway.
+--  for i=1 to length(deferred_attr[id]) do
+--      if deferred_attr[id][i][1]=name then
+--          deferred_attr[id][i][2]=v
+--          return
+--      end if
+--  end for
+-- or
+    integer k = find(name,vslice(deferred_attr[id],1))
+--(might yet still need this...)
+--  object did = deferred_attr[id]
+--  integer k = find(name,vslice(did,1))
+--  did = 0
+    if k then
+        deferred_attr[id][k][2] = v 
+    else
+        deferred_attr[id] &= {{name,v}}
+    end if
 --  sequence daid = deferred_attr[id]
 --  sequence daid = deep_copy(deferred_attr[id])
 --  deferred_attr[id] = 0
@@ -3728,9 +4345,9 @@ local atom hwndTip = NULL
 local procedure xpg_set_tip(integer id, string v)
     atom handle = ctrl_handles[id]
     assert(handle!=NULL)
-    if backend=GTK then
+    if backend=XPG_GTK then
         c_proc(gtk_widget_set_tooltip_text,{handle,v})
-    elsif backend=WinAPI then
+    elsif backend=XPG_WINAPI then
         if hwndTip=NULL then
             atom pHwnd = ctrl_handles[gGetDialog(id)],
                 dwStyle = or_all({WS_POPUP,TTS_ALWAYSTIP,TTS_BALLOON})
@@ -3781,15 +4398,16 @@ global procedure gSetAttribute(gdx id, string name, object v, sequence args={})
        setattr = ctrl_msg[ct][CM_SET]
     atom handle = ctrl_handles[id]
     bool bMapped = and_bits(ctrl_flags[id],CF_MAPPED)!=0
+--if name="WRAP" then trace(1) end if
     if name="ACTIVE" then
         if string(v) then v = xpg_to_bool(v) end if
         xpg_set_ctrl_flag(id,CF_INACTIVE,not v)
         if not bMapped then
             xpg_defer_attr(id,name,v)
         else
-            if backend=GTK then
+            if backend=XPG_GTK then
                 c_proc(gtk_widget_set_sensitive,{handle,v})
-            elsif backend=WinAPI then
+            elsif backend=XPG_WINAPI then
 -- (or make it an error to enable/disable v/hbox...)
                 if handle=NULL then
                     gSetAttribute(children_ids[id],name,v)
@@ -3799,6 +4417,8 @@ global procedure gSetAttribute(gdx id, string name, object v, sequence args={})
             else
                 ?9/0 -- (unknown backend)
             end if
+--DEV
+--          if ct=SPIN then gSetAttribute(id+1,name,v) end if
         end if
     elsif name="CANFOCUS" then 
         assert(not find(ct,{DIALOG,BOX,CLIPBOARD,FRAME,TIMER}))
@@ -3806,9 +4426,9 @@ global procedure gSetAttribute(gdx id, string name, object v, sequence args={})
         if not bMapped then
             xpg_defer_attr(id,name,v)
         else
-            if backend=GTK then
+            if backend=XPG_GTK then
                 c_proc(gtk_widget_set_can_focus,{handle,v})
-            elsif backend=WinAPI then
+            elsif backend=XPG_WINAPI then
                 atom dwStyle = c_func(xGetWindowLong,{handle,GWL_STYLE})
                 dwStyle -= and_bits(dwStyle,WS_TABSTOP)
                 if v then dwStyle += WS_TABSTOP end if
@@ -3816,12 +4436,13 @@ global procedure gSetAttribute(gdx id, string name, object v, sequence args={})
             else
                 ?9/0 -- (unknown backend)
             end if
+--DEV
+--          if ct=SPIN then gSetAttribute(id+1,name,v) end if
         end if
     elsif name="EXPAND" then
-        assert(string(v))
---      if not bMapped then
---          xpg_defer_attr(id,name,v)
---      else
+--DEV/Sug allow 0..3, or one of "NHVB"... [DONE, but not tested]
+--      assert(string(v))
+        if string(v) then
 --DEV fatal error disabling on a gH/Vbox which is a direct child of a gDialog/gFrame/gTabs. (as per docs) [DONE]
 --DEV kill this nonsense: [DONE]
 --          bool bFree = false
@@ -3829,24 +4450,42 @@ global procedure gSetAttribute(gdx id, string name, object v, sequence args={})
 --          if bFree then v = v[1..-5] end if
             if v="FALSE" or v="NO" then v="NONE" end if
             if v="TRUE" or v="YES" then v="BOTH" end if
-            integer k = find(v,{"NONE","HORIZONTAL","VERTICAL","BOTH"})
+--          integer k = find(v,{"NONE","HORIZONTAL","VERTICAL","BOTH"})
+--          integer k = find(v,iff(length(v)=1?"NHVBTY":{"NONE","HORIZONTAL","VERTICAL","BOTH"}))
+            integer k = find(v,iff(length(v)=1?"NBHHVTY":{"NONE","BOTH","HORIZONTAL",0,"VERTICAL"}))
 --Value: "YES" (both directions), "HORIZONTAL", "VERTICAL", "HORIZONTALFREE", "VERTICALFREE" or "NO".
 --Default: "NO". For containers the default is "YES".
+--SUG:
+--          if k=0 and length(v)=1 then
+--              k = find(v[1],"NHVB")
+----                if k!=0 then
+----                    printf(1,"Warning: gSetAttribute(id,\"EXPAND\",\"%s\"): \"%c\" assumed\n",{v,"NHVB"[k]})
+----                end if
+--          end if
             assert(k!=0)
-            v = k-1
-            if ct=BOX and find(ctrl_types[parent_ids[id]],{DIALOG,FRAME,TABS}) then
-                assert(v=0b11,`cannot disable expansion on a "sole child" gH/Vbox`) -- (as per docs)
-            end if
-            integer f = ctrl_flags[id]
---          f -= and_bits(f,CF_EX_FREE)
---          f -= and_bits(f,CF_EX_HV)
-            f -= and_bits(f,CF_EXPANDH+CF_EXPANDV)
---          f = or_bits(f,(k-1)*CF_EXPANDH+CF_FREE*bFree)
---          if bFree then f += CF_FREE end if
-            if and_bits(v,0b01) then f += CF_EXPANDH end if
-            if and_bits(v,0b10) then f += CF_EXPANDV end if
-            ctrl_flags[id] = f
---      end if
+--          if k>5 then k=2 end if
+--          v = min(k,4)-1
+--          v = k-1
+            v = iff(k>5?1:k-1)
+        else
+            if v='F' then v = 'N' end if
+            if v='T' or v='Y' then v = 'B' end if
+--          if v>0b11 then v = find(v,"NHVB")-1 end if
+            if v>0b100 then v = find(v,"NBHHV")-1 end if
+--          assert(v>=0 and v<=3)
+--          assert(v>=0 and v<=4 and v!=3)
+        end if
+        assert(v=0b000 or v=0b001 or v=0b010 or v=0b100)
+        if ct=BOX and find(ctrl_types[parent_ids[id]],{DIALOG,FRAME,TABS}) then
+--          assert(v=0b11,`cannot disable expansion on a "sole child" gH/Vbox`) -- (as per docs)
+            assert(v=0b001,`cannot disable expansion on a "sole child" gH/Vbox`) -- (as per docs)
+        end if
+--DEV xpg_set_ctrl_flag()??
+        integer f = ctrl_flags[id]
+--      f -= and_bits(f,0b111)
+        f -= and_bits(f,CF_EXPAND)
+        f += v
+        ctrl_flags[id] = f
     elsif name="FONT" then
 --      "<face>, <styles> <size>". 
         assert(string(v))
@@ -3854,50 +4493,33 @@ global procedure gSetAttribute(gdx id, string name, object v, sequence args={})
             xpg_defer_attr(id,name,v)
 -- (or make it an error to set fonts on a v/hbox...)
         elsif handle=NULL then
-            assert(backend=WinAPI)
+            assert(backend=XPG_WINAPI)
             gSetAttribute(children_ids[id],name,v)
         else
             xpg_set_font(id,v)
 --          printf(1,"gSetAttribute(%s,\"%s\",face:%s, styles:%v, size:%d)...\n",{ctrl_names[ct],name,face,styles,fontsize})
         end if
-    elsif name="GAP" then
-        if string(v) then v = to_number(v) end if
-        assert(ct=BOX)
-        ctrl_xtra[id][CX_BOX_GAP] = v
+-- now done in xpg_set_font:
+--      if ct=SPIN then gSetAttribute(id+1,name,v) end if
+--  elsif name="GAP" then
+--      if string(v) then v = to_number(v) end if
+--      assert(ct=BOX)
+--      ctrl_xtra[id][CX_BOX_GAP] = v
     elsif name="MARGIN"
        or name="PADDING" then
         if string(v) then v = xpg_intint(v) end if
---/*
-        if atom(ctrl_mp[id]) then ctrl_mp[id] = {0,0,0} end if
-        integer mpdx = find(name,{"MARGIN","PADDING"})
-        if ct=DIALOG then
-            mpdx = 1 -- assume ... or did I mean 2 here??? [DEV]
-        end if
---      assert(mpdx=MP_MARGIN or mpdx=MP_PADDING) --- (dev search aid..)
-        ctrl_mp[id][mpdx] = v
---*/
         assert(ct!=DIALOG,"no margin or padding on dialogs!")
         integer mpdx = iff(name="MARGIN"?SZ_MARGIN:SZ_PADDING)
         if mpdx!=SZ_MARGIN and not find(ct,{BUTTON,DATEPICK,DROPDOWN,TEXT}) then
-            crash("gSetAttribute(%s,%s)",{ctrl_names[ct],name})
+--          crash("gSetAttribute(%s,%s)",{ctrl_names[ct],name})
+            string cn = gGetAttribute(id,"CLASSNAME")
+            crash("no PADDING on a %s: you need to set MARGIN instead",{cn})
         end if
---      return 
-        ctrl_size[id][mpdx] = v
---      return true
---  elsif name="PADDING" then
---      if not bMapped then
---          xpg_defer_attr(id,name,v)
---      else
---          if string(v) then v = xpg_intint(v) end if
---          printf(1,"gSetAttribute(%s,\"%s\",%v)...\n",{ctrl_names[ct],name,v})
---      end if
+        ctrl_size[id][mpdx] = v -- (save as 1..4 integers)
     elsif name="MINSIZE"
        or name="MAXSIZE" then
         if string(v) then v = xpg_intint(v) end if
         integer {w,h} = v,
---               mmdx = find(name,{"MINSIZE","MAXSIZE"}),
---          {mwx,mhx} = {{SZ_MIN_W,SZ_MIN_H},
---                       {SZ_MAX_W,SZ_MAX_H}}[mmdx]
             {mwx,mhx} = iff(name="MINSIZE"?{SZ_MIN_W,SZ_MIN_H}
                                           :{SZ_MAX_W,SZ_MAX_H})
         ctrl_size[id][mwx] = w
@@ -3907,11 +4529,43 @@ global procedure gSetAttribute(gdx id, string name, object v, sequence args={})
         integer mmdx = iff(name="MINSIZE"?SZ_MIN:SZ_MAX)
         ctrl_size[id][mmdx] = v
 --*/
+        if backend=XPG_GTK then
+            if not bMapped then
+                xpg_defer_attr(id,name,v)
+            else
+--DEV: works fine in demo\xpGUI\gtk_fixed.exw, bar MAXSIZE in GTK2[tough!]
+                integer {dw,dh} = xpg_lm_get_dialog_decoration_size(id), -- {2,32}
+                        minw = max(ctrl_size[id][SZ_MIN_W]-dw,1),
+                        minh = max(ctrl_size[id][SZ_MIN_H]-dh,1),
+                        maxw = ctrl_size[id][SZ_MAX_W],
+                        maxh = ctrl_size[id][SZ_MAX_H],
+                        flags = 0
+                if minw>1 
+                or maxw>1 then
+                    flags += GDK_HINT_MIN_SIZE
+                    set_struct_field(idGdkGeometry,pGdkGeometry,"min_width",minw)
+                    set_struct_field(idGdkGeometry,pGdkGeometry,"min_height",minh)
+                end if
+                maxw = iff(maxw>dw and maxw>minw?maxw-dw:65535)
+                maxh = iff(maxh>dh and maxh>minh?maxh-dh:65535)
+                if maxw<65535
+                or maxh<65535 then
+                    flags += GDK_HINT_MAX_SIZE
+                    set_struct_field(idGdkGeometry,pGdkGeometry,"max_width",maxw)
+                    set_struct_field(idGdkGeometry,pGdkGeometry,"max_height",maxh)
+                end if
+                assert(flags!=0)
+?{"geom",minw,minh,maxw,maxh,flags}
+--wait_key()
+--              c_proc(gtk_window_set_geometry_hints,{handle,handle,pGdkGeometry,flags})
+            end if 
+        end if 
     elsif name="SHRINK" then
         assert(string(v))
         if not bMapped then
             xpg_defer_attr(id,name,v)
         else
+-- (dialog only, I think...)
             printf(1,"gSetAttribute(%s,\"%s\",%s)...\n",{ctrl_names[ct],name,v})
             -- erm, a bit more like EXPAND, please, but both better:
             if string(v) then v = xpg_to_bool(v) end if
@@ -3921,34 +4575,57 @@ global procedure gSetAttribute(gdx id, string name, object v, sequence args={})
     elsif name="SIZE" then
         if v=NULL or v="NULL" then v = {0,0} 
         elsif string(v) then v = xpg_intint(v) end if
+        if integer(v) then v = {v,0}
+        elsif length(v)=1 then v = {v[1],0} end if
+        integer {width,hight} = v
+        ctrl_size[id][SZ_USER_W] = width
+        ctrl_size[id][SZ_USER_H] = hight
         if not bMapped then
             xpg_defer_attr(id,name,v)
         else
 --DEV NULL should be allowed too?? (above added, but as yet untested)
-            integer {width,hight} = v
 --DEVtemp:
---if backend=WinAPI then
+--if backend=XPG_WINAPI then
 --  if ct=DIALOG then width += 14; hight += 7; end if
 --end if
---DEV otherwise unused as yet...
-            ctrl_size[id][SZ_USER_W] = width
-            ctrl_size[id][SZ_USER_H] = hight
+            integer nw = ctrl_size[id][SZ_NATURAL_W],
+                    nh = ctrl_size[id][SZ_NATURAL_H]
+            if ct=CANVAS then -- (specifically for gSplit)
+                if width and width<nw then nw = width; ctrl_size[id][SZ_NATURAL_W] = nw end if
+                if hight and hight<nh then nh = hight; ctrl_size[id][SZ_NATURAL_H] = nh end if
+                -- (aside: next is still needed to deal with any w/h of 0)
+            end if
 --DEV: gRedraw(gGetDialog(id))
 --          if width=0 then width = ctrl_size[id][SZ_NATURAL_W] end if
 --          if hight=0 then hight = ctrl_size[id][SZ_NATURAL_H] end if
-            width = max(width,ctrl_size[id][SZ_NATURAL_W])
-            hight = max(hight,ctrl_size[id][SZ_NATURAL_H])
-            if backend=GTK then
+            width = max(width,nw)
+            hight = max(hight,nh)
+            if backend=XPG_GTK then
                 if ct=DIALOG then
 --                  {width,hight} = xpg_gtk_subtract_dialog_decorations(id,width,hight)
                     integer {dw,dh} = xpg_lm_get_dialog_decoration_size(id)
 --?{width,hight,"SIZE"}
 --                  c_proc(gtk_window_set_default_size,{handle,width,hight}) 
 --DEV makes gTable.exw better...
-                    c_proc(gtk_window_set_default_size,{handle,width-dw,hight-dh}) 
+--?{"sa:gtk_window_set_default_size",id,width,-dw,hight,-dh}
+--                  c_proc(gtk_window_set_default_size,{handle,width-dw,hight-dh}) 
 --                  c_proc(gtk_window_set_default_size,{handle,width,hight-dh}) 
+--DEV one of these looks odd...
+--?{"gSetAttribute:gtk_window_resize",id,width,-dw,hight,-dh}
+--?{"gtk_window_resize line 4581",handle}
+                    c_proc(gtk_window_resize,{handle,width-dw,hight-dh}) 
+--20/8/23:
+                    c_proc(gtk_window_set_default_size,{handle,1,1})
+--19/10/23:
+                    c_proc(gtk_widget_set_size_request,{handle,1,1})
                 elsif ct=BUTTON then
-                    c_proc(gtk_window_set_default_size,{handle,width,hight}) 
+--              elsif ct=BUTTON or ct=CANVAS then
+--?{"sa:gtk_window_set_default_size",id,width,hight}
+--                  c_proc(gtk_window_set_default_size,{handle,width,hight}) 
+--?{"gSetAttribute:gtk_window_resize",id,width,hight}
+?{"gtk_window_resize line 4592 (disabled...?)",handle}
+--?9/0
+--                  c_proc(gtk_window_resize,{handle,width,hight}) 
 --                  c_proc(gtk_window_set_default_size,{handle,width-30,hight-10}) 
 --                  c_proc(gtk_window_resize,{handle,width,hight}) 
 --                  c_proc(gtk_window_resize,{handle,width-30,hight-10}) 
@@ -3956,20 +4633,30 @@ global procedure gSetAttribute(gdx id, string name, object v, sequence args={})
                    or ct=FRAME then
 --                 or ct=FRAME
 --                 or ct=CANVAS then
-                    c_proc(gtk_widget_set_size_request,{handle,width,hight}) 
+--?{"sa:gtk_widget_set_size_request",id,width,hight}
+--                  c_proc(gtk_widget_set_size_request,{handle,width,hight}) 
+--?{"gSetAttribute:gtk_window_resize",id,width,hight}
+--?{"gtk_window_resize line 4604",handle}
+                    c_proc(gtk_window_resize,{handle,width,hight}) 
+
 --                  c_proc(gtk_widget_set_size_request,{handle,width-10,hight-30}) 
 --                  c_proc(gtk_window_set_default_size,{handle,width,hight}) 
 --?"w-10,h-30"
 --                  c_proc(gtk_window_set_default_size,{handle,width-10,hight-30}) 
 --                  c_proc(gtk_window_resize,{handle,width,hight}) 
 --                  c_proc(gtk_window_resize,{handle,width-10,hight-30}) 
+--              elsif ct=CANVAS then
+--                  c_proc(gtk_widget_set_size_request,{handle,width,hight}) 
+--                  c_proc(gtk_widget_set_size_request,{handle,0,0}) 
+--                  c_proc(gtk_window_resize,{handle,width,hight}) 
                 else
-                    -- (probably just need to figure out which of the above two works)
+                    -- (probably just need to figure out which of the above works)
                     printf(1,"gSetAttribute[GTK](%s,\"SIZE\",%v)\n",{ctrl_names[ct],v})
 --                  ?9/0 -- placeholder
                 end if
-            elsif backend=WinAPI then
---?{"WINAPISIZE",width,hight,id}
+            elsif backend=XPG_WINAPI then
+?{"WINAPISIZE",width,hight,id}
+if ct=DIALOG then width+=16 hight += 16 end if
 if handle then
                 integer flags = SWP_NOMOVE+SWP_NOZORDER+SWP_NOACTIVATE
 --DEV more closely matches gtk on a DIALOG... (I suspect GTK is wrong...)
@@ -3978,6 +4665,7 @@ if handle then
 --if ct=DIALOG then width += 14; hight += 7; end if
 --if ct=DIALOG then width += 13; hight += 14; end if
 --?{"gSetAttribute(SIZE):",id,width,hight}
+--?{"gSetAttribute:xSetWindowPos(3)[saSIZE]",id,"(nomove)",width,hight}
                 bool ok = c_func(xSetWindowPos,{handle,NULL,0,0,width,hight,flags})
                 assert(ok)
 end if
@@ -4003,14 +4691,14 @@ end if
             -- and actually set it, if post-xpg_add_tabs()
 --?{"tabtitle",posn,v}
             atom notebook = ctrl_handles[pid], n
-            if backend=GTK then
+            if backend=XPG_GTK then
 --DEV this "doubles up" the sample.exw tabs...
                 n = c_func(gtk_notebook_get_n_pages,{notebook})
                 if n>=posn then
 ?{"set TABTITLE",n,posn,v}
                     c_proc(gtk_notebook_set_tab_label_text,{notebook,handle,v})
                 end if
-            elsif backend=WinAPI then
+            elsif backend=XPG_WINAPI then
                 n = c_func(xSendMessage,{notebook,TCM_GETITEMCOUNT,0,0}) 
                 if n>=posn then
                     set_struct_field(idTCITEM,pTCITEM,"mask",TCIF_TEXT)
@@ -4029,11 +4717,15 @@ end if
         else
             xpg_set_tip(id,v)
         end if
+--DEV
+--      if ct=SPIN then gSetAttribute(id+1,name,v) end if
 
 --DEV/SUG: NORMALIZE_WIDTH|HEIGHT|BOTH > add to normalisers (and bMapped)
 --dict normalizers: key id, data is {group_name[?&"W|H|B"?]}, key is group_name, data is {ids}.
 -- (doh, investigate what IUP does...)
 --  elsif begins("NORMALIZE",name) then
+    elsif name="USER_DATA" then
+        user_data[id] = v
     elsif not setattr(id,name,v,bMapped) then
 --  else
         -- placeholder (add more code to the [] rtn) / typo catcher:
@@ -4050,6 +4742,7 @@ end procedure
 --local bool bFromDeferred = false
 
 local procedure xpg_apply_deferred_attributes(integer id)
+    -- invoked within gMap() [DEV: inline?]
 --  bFromDeferred = true
     integer ct = ctrl_types[id]
     sequence inherit = iff(ct=MENU or ct=BOX?{}:{"FONT"})
@@ -4189,9 +4882,26 @@ int main(int argc, char *argv[])
 --gtk_container_set_border_width(window,15);
 -- https://www.codeproject.com/Articles/1042516/Custom-Controls-in-Win-API-Scrolling
 
+-- (this might one day become a builtin??)
+local procedure crash_hat(string msg, txt, integer carat, nFrames=1)
+    -- neither txt nor "^ msg" should fall off rhs (79 chars)
+    integer lm = carat+1+length(msg)
+    if lm>79 then
+        txt = "..."&txt[lm-75..$]
+        carat -= lm-79
+    end if
+    if length(txt)>79 then
+        txt = txt[1..76]&"..."
+    end if
+    msg = sprintf("%s\n%s^ %s\n",{txt,repeat(' ',carat-1),msg})
+    crash(msg,nFrames:=nFrames)
+end procedure
 
+
+without trace
 global procedure gSetAttributes(gdx id, string attributes, sequence args={})
     // (manually translated from iup_attrib.c)
+
 --DEV foobars the switch toktype (try it!)
 --  static [XPGLEX_TK_END,XPGLEX_TK_SET,XPGLEX_TK_COMMA,XPGLEX_TK_NAME]
 --  constant XPGLEX_TK_END   = 0,
@@ -4201,6 +4911,21 @@ global procedure gSetAttributes(gdx id, string attributes, sequence args={})
              XPGLEX_TK_NAME  = 3,
              XPGLEX_TK_HEX   = 4;
     if length(attributes) then
+        if attributes[1]='=' then
+            if attributes="==" then
+                for i=1 to length(args) do
+                    {string n, object v} = args[i]
+                    gSetAttribute(id,n,v)
+                end for
+                return
+            end if
+            sequence names = split(attributes[2..$],',')
+            assert(length(names)==length(args),"names/args must be same length")
+            for i=1 to length(names) do
+                gSetAttribute(id,names[i],args[i])
+            end for
+            return
+        end if
         if length(args) then
             attributes = sprintf(attributes,args)
         end if
@@ -4236,6 +4961,8 @@ global procedure gSetAttributes(gdx id, string attributes, sequence args={})
                         toktype = XPGLEX_TK_COMMA
                     case '"':                       // string
                         delims = "\""
+                    case '{':
+                        delims = "}"
                     default:
                         if ch>' ' then              // identifier
                             i -= 1;                 // unget first character
@@ -4249,11 +4976,13 @@ global procedure gSetAttributes(gdx id, string attributes, sequence args={})
                         i += 1
                         if find(ch,delims) then exit end if
                         if toktype=XPGLEX_TK_HEX then
-                            --DEV/SUG "source line with ^"-style error, if we can
+                            --DEV/SUG "source line with ^"-style error, if we can:
                             -- maybe crash_hat("bad hex char",attributes,i,1,nFrames)
                             --   ==>    gSetAttributes(dlg,"BGCOLOR=#1234J678")
                             --                                           ^ bad hex char
                             -- or       bad hex char ("...234(>>J<<)678...") if no match
+                            -- better:      "...234J678..."
+                            --                     ^ bad hex char
                             -- crash_hat() attempts to deliver a source-level error with
                             -- a caret indicating the exact point of failure, however and
                             -- of course a compiled program has no access to source code 
@@ -4262,8 +4991,16 @@ global procedure gSetAttributes(gdx id, string attributes, sequence args={})
                             -- tries to match against the source code line if it can.
                             -- To keep things simple, there is no auto-sprintf(msg,args)
                             -- option in crash_hat(). For an example see xpGUI.e
-                            assert(find(ch,"#01234567890ABCDEFabcdef")!=0,"bad hex char")
-                            assert(ch!='#' or token="","multiple # chars?")
+--                          assert(find(ch,"#01234567890ABCDEFabcdef")!=0,"bad hex char")
+--DEV untested:
+                            if find(ch,"#01234567890ABCDEFabcdef")=0
+                            or (ch='#' and token!="") then
+                                crash_hat("bad hex char",attributes,i-1,2)
+                            end if
+--                          assert(ch!='#' or token="","multiple # chars?")
+--                          if ch='#' and token!="" then
+--                              crash_hat("multiple # chars?",attributes,i-1,2)
+--                          end if
                         end if
                         token &= ch
                     end while
@@ -4307,6 +5044,12 @@ global procedure gSetAttributes(gdx id, string attributes, sequence args={})
 end procedure
 
 global procedure gCanvasSetBackground(gdx canvas, atom colour)
+    if sequence(canvas) then
+        for c in canvas do
+            gCanvasSetBackground(c, colour)
+        end for
+        return
+    end if
     ctrl_xtra[canvas][CX_CANVAS_BACK] = colour
     ctrl_xtra[canvas][CX_CANVAS_FLAGS] ||= CXCF_REPEN
 end procedure
@@ -4316,6 +5059,14 @@ global function gCanvasGetBackground(gdx canvas)
 end function
 
 global procedure gCanvasSetForeground(gdx canvas, atom colour)
+    if sequence(canvas) then
+--DEV/SUG:
+--      for c from canvas do
+        for c in canvas do
+            gCanvasSetForeground(c, colour)
+        end for
+        return
+    end if
     ctrl_xtra[canvas][CX_CANVAS_FORE] = colour
     ctrl_xtra[canvas][CX_CANVAS_FLAGS] ||= CXCF_REPEN
 end procedure
@@ -4328,10 +5079,26 @@ local procedure xpg_register_handler(integer ct, string name, sequence sigs)
     setd({ct,name},sigs,handler_sigs)
 end procedure
 
-global procedure gSetHandler(gdx id, sequence name, rtn handler=NULL)
+--local function find_opt(sequence sig, rig)
+--  if find(sig,rig) then return true end if
+--  -- be a little more forgiving with optional args:
+--  {integer maxp, integer minp, string sigstr} = sig
+--  for ri in rig do
+--      if maxp=ri[1]
+--      and sigstr=ri[3] then
+--          return true
+--      end if
+--  end for
+--  return false
+---- or (untried)
+----    return find(sig,rig) or find(extract(sig,{1,1,3}),rig)
+--end function
+
+--global procedure gSetHandler(gdx id, sequence name, rtn handler=NULL)
+global procedure gSetHandler(object id, sequence name, rtn handler=NULL)
     if sequence(id) then
         for i in id do
-            assert(integer(i))
+--          assert(integer(i))
             gSetHandler(i,name,handler)
         end for
     elsif not string(name) then
@@ -4344,6 +5111,7 @@ global procedure gSetHandler(gdx id, sequence name, rtn handler=NULL)
         end for
     else
 --      assert(integer(id) and id>=1 and id<=length(ctrl_handles)) -- (already covered)
+        assert(gdx(id))
         integer ct = ctrl_types[id]
         if name="ACTION" then
             -- be helpful:
@@ -4356,12 +5124,14 @@ global procedure gSetHandler(gdx id, sequence name, rtn handler=NULL)
         -- avoid time-bombs like that old KEY_CB thing (whereby a program would work fine,
         -- but crash when you hit a function key, at one point I ended up with 92 of 'em):
         if handler!=NULL then
-            sequence sig = get_routine_info(handler,false),         -- (actual)
-                     rig = getdd({ct,name},{"???"},handler_sigs)    --  (rqd)
+--          sequence sig = get_routine_info(handler,false),         -- (actual)
+--                   rig = getdd({ct,name},{"???"},handler_sigs)    --  (rqd)
+            string sig = get_routine_info(handler,false)[3]         -- (actual)
+            sequence rig = getdd({ct,name},{},handler_sigs)         --  (rqd)
 --          if sig!=rig then
             if not find(sig,rig) then
-                rig = getdd({0,name},rig,handler_sigs)    --  (common handlers?)
-                if not find(sig,rig) then
+                sequence rig0 = getdd({0,name},{},handler_sigs)     --  (common handlers?)
+                if not find(sig,rig0) then
                     string cn = ctrl_names[ct]
 --                  crash("%s(%s) handler signature error (%v!=%v)",{cn,name,sig,rig})
                     crash("%s(%s) handler signature error find(%v,%v)=0",{cn,name,sig,rig})
@@ -4383,14 +5153,45 @@ global function gGetHandler(gdx id, string name, integer dflt=0)
     return rid
 end function
 
+local function xpg_collect_child_handlers(gdx id, string name)
+    sequence rids = {}
+    object c = children_ids[id]
+    if sequence(c) then
+        for ch in c do
+            rtn rid = getd({ch,name},handlers)
+--          if rid then rids &= rid end if
+            if rid then rids = append(rids,{ch,rid}) end if
+--  end for
+--  if length(rids)=0 then
+--      for ch in children_ids[id] do
+            rids &= xpg_collect_child_handlers(ch,name)
+        end for
+    end if
+    return rids
+end function
+
 local function gGetInheritedHandler(gdx id, string name)
     rtn rid = getd({id,name},handlers)
-    while rid=0 and parent_ids[id] do
-        id = parent_ids[id]
-        rid = getd({id,name},handlers)
-    end while
---  return {id,rid}
-    return rid
+    if rid=0 then
+        sequence chrid = xpg_collect_child_handlers(id,name)
+        integer l = length(chrid)
+        if l=1 then
+--          rid = chrid[1]
+            {id,rid} = chrid[1]
+--      elsif l=0 then
+        else
+            while rid=0 and parent_ids[id] do
+                id = parent_ids[id]
+                rid = getd({id,name},handlers)
+            end while
+        end if
+    end if
+--  while rid=0 and length(children_ids[id])=1 do
+--      id = children_ids[id][1]
+--      rid = getd({id,name},handlers)
+--  end while
+    return {id,rid}
+--  return rid
 end function
 
 local procedure xpg_setID(atom handle, integer id)
@@ -4398,9 +5199,9 @@ local procedure xpg_setID(atom handle, integer id)
     ctrl_flags[id] = or_bits(ctrl_flags[id],CF_MAPPED)
     integer ct = ctrl_types[id]
     assert(ct!=TIMER)
-    if backend=GTK then
+    if backend=XPG_GTK then
         setd(handle,id,GTK_ID_LOOKUP)
-    elsif backend=WinAPI then
+    elsif backend=XPG_WINAPI then
         if handle!=NULL then -- (not a virtual box)
             {} = c_func(xSetWindowLong,{handle,GWL_USERDATA,id})
             if ct=DIALOG then
@@ -4416,14 +5217,16 @@ local function xpg_getID(xpg_handle handle)
     -- returns: a gdx
     integer id = 0
     if handle!=NULL then
-        if backend=GTK then
+        if backend=XPG_GTK then
             id = getd(handle,GTK_ID_LOOKUP)
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
             id = c_func(xGetWindowLong,{handle,GWL_USERDATA})
         else
             ?9/0 -- (unknown backend)
         end if
-        assert(iff(id?ctrl_handles[id]=handle
+--DEV might be time to let this one go...
+--      assert(iff(id?ctrl_handles[id]=handle
+        assert(iff(id?(ctrl_handles[id]=handle or (ctrl_types[id]=SPIN and ctrl_xtra[id]=handle))
                      :find(handle,ctrl_handles)=0))
     end if
     return id
@@ -4453,13 +5256,13 @@ global procedure gHide(gdx id)
         return
     end if
     atom handle = ctrl_handles[id]
-    if backend=GTK then
+    if backend=XPG_GTK then
         c_proc(gtk_widget_hide,{handle})
 --DEV is dialog?
         if c_func(gtk_window_get_transient_for,{handle})=NULL then
             c_proc(gtk_main_quit)
         end if
-    elsif backend=WinAPI then
+    elsif backend=XPG_WINAPI then
 --DEV missing call? and/or test as above?
         {} = c_func(xSendMessage,{handle,WM_CLOSE,0,0}) -- this line has the better way of closing!!!
 --      {} = c_func(xCloseWindow,{handle})  -- this function will minimize a child window or minimize & 
@@ -4486,15 +5289,27 @@ global function gGetKeyName(integer c)
     if c>=' ' and c<='~' then
         return ""&c
     end if
-    return "unknown"
+--  return "unknown"
+    return sprintf("unknown(#%x)",c)
 end function
 
 global function gGetColourName(atom c)
     if c=-1 then return "-1" end if
-    for k in known_colours do
-        if c=k[2] then return k[1] end if
-    end for
+    integer k = find(c,known_colour_values)
+--  for k in known_colours do
+    if k then
+--      if c=k[2] then return k[1] end if
+        return known_colour_names[k]
+--  end for
+    end if
     return sprintf("#%06x",c)
+end function
+
+local function xpg_get_colour_value(string s)
+    integer k = find(s,known_colour_names)
+    if k then return known_colour_values[k] end if
+    integer clr = to_number(s) -- (typecheck on error)
+    return clr
 end function
 
 integer key_map = NULL
@@ -4503,9 +5318,9 @@ local function xpg_map_key(integer c)
     if key_map=NULL then
         key_map = new_dict()
         integer kdx
-        if backend=GTK then
+        if backend=XPG_GTK then
             kdx = 4
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
             kdx = 3
         else
             ?9/0
@@ -4522,29 +5337,42 @@ local function xpg_map_key(integer c)
     return getdd(c,c,key_map)
 end function
 
+local integer shiftkey = false,
+               ctrlkey = false,
+                altkey = false
+
 local function xpg_key_handler(gdx id, integer key, bool ctrl, shift, alt)
     -- GTK and WinAPI part
+    -- returns true if the key was handled / should not be propagated
+    shiftkey = shift    -- keep for gGetGlobal
+    ctrlkey = ctrl      -- ""
+    altkey = alt
 --?{id,key,gGetKeyName(key),ctrl,shift,alt}
 --  integer khandler = gGetHandler(id,"KEY",true)
-    integer khandler = gGetInheritedHandler(id,"KEY")
+    integer {kid,khandler} = gGetInheritedHandler(id,"KEY")
 --  integer khandler
 --  {id,khandler} = gGetInheritedHandler(id,"KEY")
     integer res = XPG_DEFAULT
     if khandler then
-        sequence sig = get_routine_info(khandler,false)
-        if sig={5,5,"FOIIII"} then
-            res = khandler(id,key,ctrl,shift,alt)
+--      sequence sig = get_routine_info(khandler,false)
+        string sig = get_routine_info(khandler,false)[3]
+--      if sig={5,5,"FOIIII"} then
+        if sig="FOIIII" then
+            res = khandler(kid,key,ctrl,shift,alt)
         elsif not alt then
-            if sig={4,4,"FOIII"} then
-                res = khandler(id,key,ctrl,shift)
+--          if sig={4,4,"FOIII"} then
+            if sig="FOIII" then
+                res = khandler(kid,key,ctrl,shift)
             elsif (not shift) 
                or (key>=#21 and key<=#7E) 
                or key=VK_POUND then
-                if sig={3,3,"FOII"} then
-                    res = khandler(id,key,ctrl)
+--              if sig={3,3,"FOII"} then
+                if sig="FOII" then
+                    res = khandler(kid,key,ctrl)
                 elsif not ctrl then
-                    if sig={2,2,"FOI"} then
-                        res = khandler(id,key)
+--                  if sig={2,2,"FOI"} then
+                    if sig="FOI" then
+                        res = khandler(kid,key)
                     else
                         ?9/0 -- unknown sig...
                     end if
@@ -4556,7 +5384,8 @@ local function xpg_key_handler(gdx id, integer key, bool ctrl, shift, alt)
             gHide(gGetDialog(id))
             return true
         end if
-        if res=XPG_IGNORE then
+        if res=XPG_IGNORE
+        or (res=XPG_DEFAULT and not find(key,{VK_ESC,VK_F5})) then
             return true
         end if
     end if
@@ -4582,6 +5411,14 @@ local function xpg_key_handler(gdx id, integer key, bool ctrl, shift, alt)
     return false
 end function
 
+local procedure xpg_mousewheel(gdx id, integer direction, bool ctrl, shift, alt)
+    -- GTK and WinAPI part
+    integer mwandler = gGetHandler(id,"MOUSEWHEEL")
+    if mwandler then
+        mwandler(id,direction,ctrl,shift,alt)
+    end if
+end procedure
+
 --local function xpg_gtk_check_escape(atom handle, event, /*data*/) -- (GTK only)
 local function xpg_gtk_check_escape(atom handle, event, gdx id) -- (GTK only)
     -- GTK only part (WinAPI equivalent in xpg_WinAPI_WndProc)
@@ -4603,31 +5440,54 @@ local function xpg_gtk_check_escape(atom handle, event, gdx id) -- (GTK only)
     return xpg_key_handler(id,key,ctrl,shift,alt)
 end function
 
+local function xpg_gtk_release_key(atom handle, event, gdx id) -- (GTK only)
+    -- (clear ctrl/shiftkey when/if those keys are released)
+    assert(id=xpg_getID(handle))
+    integer state = get_struct_field(idGdkEventKey,event,"state")
+    altkey = and_bits(state,GDK_ALT_MASK)!=0
+    ctrlkey = and_bits(state,GDK_CONTROL_MASK)!=0
+    shiftkey = and_bits(state,GDK_SHIFT_MASK)!=0
+    return false -- (propagate please)
+end function
+
 local function xpg_click_handler(gdx id, sequence status, integer x, y)
     -- GTK and WinAPI part
     integer clickhandler = gGetHandler(id,"CLICK")
     if clickhandler then
-        sequence sig = get_routine_info(clickhandler,false)
-        if sig={4,4,"FOPII"} then
+--      sequence sig = get_routine_info(clickhandler,false)
+        string sig = get_routine_info(clickhandler,false)[3]
+--      if sig={4,4,"FOPII"} then
+        if sig="FOPII" then
             return clickhandler(id,status,x,y)
-        elsif sig={2,2,"FOP"} then
+--      elsif sig={4,4,"POPII"} then
+        elsif sig="POPII" then
+            clickhandler(id,status,x,y)
+            return XPG_IGNORE
+--      elsif sig={2,2,"FOP"} then
+        elsif sig="FOP" then
             return clickhandler(id,status)
+--      elsif sig={2,2,"POP"} then
+        elsif sig="POP" then
+            clickhandler(id,status)
+            return XPG_IGNORE
         else
             ?9/0 -- unknown sig...
         end if
     end if
-    return false
+-- XPG_CONTINUE?
+--  return false
+    return XPG_CONTINUE
 end function
 
 -- DEV probably wants attaching to a few more things...
 --static gboolean clicked(GtkWidget *widget, GdkEventButton *event, gpointer user_data)
 local function xpg_gtk_click(atom widget, event, gdx id)
-    -- GTK only part (WinAPI equivalent in xpg_WinAPI_SubProc)
+    -- GTK only part (WinAPI equivalent in xpg_WinAPI_WndProc)
     assert(id=xpg_getID(widget))
     integer event_type = get_struct_field(idGdkEventButton,event,"event_type")
     if event_type!=GDK_TRIPLE_BUTTON_PRESS then -- (ignore(6), since WinAPI has nothing similar)
         integer btn = get_struct_field(idGdkEventButton,event,"button"),
-             button = "LMR"[btn],
+             button = "LMRXY"[btn],
             pressed = "SD?R"[event_type-3], -- GDK_BUTTON_PRESS..GDK_BUTTON_RELEASE
               state = get_struct_field(idGdkEventButton,event,"state"),
                ctrl = and_bits(state,GDK_CONTROL_MASK)!=0,
@@ -4636,8 +5496,9 @@ local function xpg_gtk_click(atom widget, event, gdx id)
                   x = get_struct_field(idGdkEventButton,event,"x",true),
                   y = get_struct_field(idGdkEventButton,event,"y",true)
         sequence status = {button,pressed,ctrl,shift,alt}
-        return xpg_click_handler(id,status,x,y)
+        return xpg_click_handler(id,status,x,y)=XPG_IGNORE
     end if
+-- TRUE to stop other handlers from being invoked for the event. FALSE to propagate the event further.
     return false
 end function
 
@@ -4645,12 +5506,16 @@ local procedure xpg_mousemove_handler(gdx id, integer x,y, left,middle,right, ct
     -- GTK and WinAPI part
     integer mousehandler = gGetHandler(id,"MOUSEMOVE")
     if mousehandler then
-        sequence sig = get_routine_info(mousehandler,false)
-        if sig={3,3,"POII"} then
+--      sequence sig = get_routine_info(mousehandler,false)
+        string sig = get_routine_info(mousehandler,false)[3]
+--      if sig={3,3,"POII"} then
+        if sig="POII" then
             mousehandler(id,x,y)
-        elsif sig={6,6,"POIIIII"} then
+--      elsif sig={6,6,"POIIIII"} then
+        elsif sig="POIIIII" then
             mousehandler(id,x,y,left,middle,right)
-        elsif sig={9,9,"POIIIIIIII"} then
+--      elsif sig={9,9,"POIIIIIIII"} then
+        elsif sig="POIIIIIIII" then
             mousehandler(id,x,y,left,middle,right,ctrl,shift,alt)
         else
             ?9/0 -- unknown sig...
@@ -4662,7 +5527,7 @@ end procedure
 --static gboolean clicked(GtkWidget *widget, GdkEventButton *event, gpointer user_data)
 local function xpg_gtk_mousemove(atom widget, event, gdx id)
 --?"xpg_gtk_mousemove"
-    -- GTK only part (WinAPI equivalent in xpg_WinAPI_SubProc)
+    -- GTK only part (WinAPI equivalent in xpg_WinAPI_WndProc)
     assert(id=xpg_getID(widget))
     integer event_type = get_struct_field(idGdkEventMotion,event,"event_type"),
 --?9/0
@@ -4725,15 +5590,18 @@ local function xpg_gtk_mousemove(atom widget, event, gdx id)
     return true
 end function
 
+--bool bLoopy = false
 --/!*
 local procedure xpg_resize(gdx id, integer w,h)
+?{"xpg_resize",id,w,h}
     --
     -- Common to WinAPI and GTK, check for and invoke RESIZE handler
     --
     -- Since GTK insists on being such an absolute dick about such matters,
     -- w,h are/must be the **client** size, not the window size.
     --
-    assert(ctrl_types[id]=DIALOG)
+--removed 4/12/23:
+--  assert(ctrl_types[id]=DIALOG)
 --21/7/23: (no help...erm...)
 --  ctrl_size[id][SZ_USER_W] = w
 --  ctrl_size[id][SZ_USER_H] = h
@@ -4742,15 +5610,21 @@ local procedure xpg_resize(gdx id, integer w,h)
 --  if and_bits(cfi,CF_IGNORESIZE)=0 then
     if and_bits(cfi,CF_MAPPED)!=0 and
        and_bits(cfi,CF_IGNORESIZE)=0 then
-?{"xpg_resize",id,w,h,ctrl_handles[id],xpg_get_window_rect(id)}
+        atom handle = ctrl_handles[id]
+--?{"xpg_resize",id,w,h,handle,xpg_get_window_rect(id)}
 --if w=0 and h=0 then ?9/0 end if
         ctrl_flags[id] = cfi+CF_IGNORESIZE
 --probably lots more to do here...
 
 --(untried, would need to actually apply them as well...)
         xpg_lm_disperse_user_sizes(id,w,h)
-        xpg_lm_calculate_offsets(id)
+--      xpg_lm_calculate_offsets(id)
+        xpg_lm_calculate_offsets(id,ctrl_size[id][SZ_X],ctrl_size[id][SZ_Y])
         xpg_lm_apply_offsets(id)
+--if backend=XPG_GTK then
+--?{"xpg_resize:gtk_window_set_default_size(1,1)",id}
+--  c_proc(gtk_window_set_default_size,{handle,1,1})
+--end if
 
 --...and I'm going to leave this undocumented...
         integer resize = gGetHandler(id,"RESIZE")
@@ -4833,6 +5707,7 @@ end function
 gdx gtk_focusid = NULL
 
 local function xpg_gtk_focusinout(atom widget, event, gdx id)
+--?"xpg_gtk_focusinout"
     assert(id=xpg_getID(widget))
 -- Maybe: FOCUS_CB here...
     integer e_in = get_struct_field(idGdkEventFocus,event,"in")
@@ -4892,7 +5767,7 @@ end procedure
 global procedure gSetFocus(gdx id)
     if id=NULL then return end if   -- quietly ignore
     integer ct = ctrl_types[id]
-    if backend=GTK then
+    if backend=XPG_GTK then
 --/*
         gdx pid = gGetDialog(id)
         atom ph = ctrl_handles[pid]
@@ -4915,7 +5790,7 @@ global procedure gSetFocus(gdx id)
             assert(bOK)
         end if
 
-    elsif backend=WinAPI then
+    elsif backend=XPG_WINAPI then
         if ct=DIALOG then
             -- Attempts to programmatically set the focus onto a window
             -- (like Edita does with main) must get rid of any auto-focus info.
@@ -4956,9 +5831,9 @@ end procedure
 global function gGetFocus()
 --  ?{"gGetFocus"}
     gdx id = 0
-    if backend=GTK then
+    if backend=XPG_GTK then
         return gtk_focusid
-    elsif backend=WinAPI then
+    elsif backend=XPG_WINAPI then
         atom hFocus = c_func(xGetFocus,{})
         if hFocus then
             id = xpg_getID(hFocus)
@@ -4976,191 +5851,9 @@ end function
 integer nMapDepth = 0
 
 local procedure xpg_WinAPI_resize(gdx id, integer w=0, h=0)
+--?{"xpg_WinAPI_resize",id, w, h}
     if nMapDepth!=0 then return end if
---?9/0
     integer ct = ctrl_types[id] 
---  if ct=DIALOG then
---      {w,h} = xpg_get_client_rect(id)[3..4]
---  end if
--- start simple:get a canvas to fill properly... [DONE, also treeview[BLUFF]]
---  if ct=DIALOG then
-if false then
-        -- single child cases:
-        sequence children = children_ids[id]
-        integer lc = length(children)
---      assert(lc=1)
-        assert(lc<=1)
-if lc=1 then
---if false then
-        gdx chid = children[1]
-  if ctrl_types[chid]=CANVAS then 
---if h=14 then ?9/0 end if
-        atom handle = ctrl_handles[chid],
---           flags = SWP_NOMOVE+SWP_NOZORDER+SWP_NOACTIVATE
-             flags = SWP_NOZORDER+SWP_NOACTIVATE
-?{"xpg_WinAPI_resize(temp/CANVAS)",id,ct,ctrl_names[ct],{w,h},children,handle} -- this should be done elsewhere!
-        if handle!=NULL  -- (mid-map?)
-        or ct=BOX then -- (under winAPI boxes are virtual)
-            if handle!=NULL then
---          if handle!=NULL and ct!=DIALOG then
---if w>6 and h>6 then
---              if w<=6 or h<=6 then flags ||= SWP_NOSIZE end if
-?{"xpg_WinAPI_resize",id,w,h}
-                bool ok = c_func(xSetWindowPos,{handle,NULL,0,0,w,h,flags})
---DEV/test/temp:
---              bool ok = c_func(xSetWindowPos,{handle,NULL,3,3,w-6,h-6,flags})
-                assert(ok)
---end if
-            end if
---DEV only if has children??
---          xpg_WinAPI_resize(chid,w,h)
-        end if
-  end if
-end if
-    end if
---  
-
---/*
-    // recursively, honouring EXPAND (etc) and invoking any RESIZE_CB/REDRAW_CB
-    let cn = ih.classList[0];
-    if (cn !== "dialog-header" &&   // (there can be no ["ACTION"] attached
-        cn !== "dialog-resizers") { //  to either, so simplify debugging..)
-        let bSizeChanged = false,
-             bDoChildren = false,
-                  prev_w,
-                  prev_h;
-
-        if (cn === "canvas") {
-            prev_w = ih.width;
-            prev_h = ih.height;
-            if (prev_w !== w || prev_h !== h) {
-                let ctx = ih.getContext("2d") || ih.getContext("webgl"),
-                    // save, since they get trashed(!!):
-                    fs = ctx.fillStyle,
-                    ss = ctx.strokeStyle,
-                    ta = ctx.textAlign,
-                    tb = ctx.textBaseline,
-                    cf = ctx.font;
-    
-                ih.width = w;
-                ih.height = h;
-                ctx.fillStyle = fs;
-                ctx.strokeStyle = ss;
-                ctx.textAlign = ta;
-                ctx.textBaseline = tb;
-                ctx.font = cf;
-                bSizeChanged = true;
-            }
-        } else if (cn === "container" ||
-                   cn === "table") {
-        } else {
-            prev_w = ih.offsetWidth,
-            prev_h = ih.offsetHeight;
-            let nw = w-ih.offsetLeft,
-                nh = h-(ih.offsetTop-45);
-            if (prev_w !== nw || prev_h !== nh) {
-                bSizeChanged = true;    
-                let expand = ih.EXPAND;
-                if (expand && expand !== "NO") {
-                    bDoChildren = true;
-                }
-            }
-        }
-
-        if (bSizeChanged) {
-            let resize_cb = ih.RESIZE_CB,
-//DEV redraw...
-                action_cb = ih.ACTION;
-
-            if (resize_cb) {
-                resize_cb(ih,w,h);
-            }
-            if (action_cb && cn === "canvas") { 
-                action_cb(ih); 
-            }
-
-            if (bDoChildren || cn === "dialog" || cn === "dialog-body") {
-                // for eg {button,fill,button,fill,button}, we want {0,1,0,2,0} and v_count of 2.
-                // each non-zero gets (2-1+1)/2, (2-2+1)/1 of the remaining prev_w-w, iyswim.
-                let w_children = [],    w_count = 0,    // width candidates
-                    h_children = [],    h_count = 0,    // height candidates
-                      children = ih.childNodes,
-                  l = children.length;
-
-                for (let i=0; i<l; i += 1) {
-                    let ci = children[i],
-                        expand = ci.EXPAND,
-                        cin = ci.classList[0] || ci.localName;
-                    if (cin === "dialog-body") {
-                        expand = "YES";
-                    } else if (!expand) {
-                        let ccv = ci.classList.contains("expandv"),
-                            cch = ci.classList.contains("expandh");
-                        expand = ccv ? (cch ? "YES" : "HORIZONTAL")
-                                     : (cch ? "VERTICAL" : "NO");
-                    }
-                    if (cin === "fill") {
-//DEV more complex: If User size is not defined, then when inside a gHbox EXPAND is HORIZONTAL, 
-//                                                    when inside a gVbox EXPAND is VERTICAL.
-//                  If User size is defined then EXPAND is NO. 
-                        if (cn === "hbox") {
-                            expand = "HORIZONTAL";
-                        } else if (cn === "vbox") {
-                            expand = "VERTICAL";
-                        }
-                    }
-                    if (expand && expand !== "NO") {
-//Value: "YES" (both directions), "HORIZONTAL", "VERTICAL", "HORIZONTALFREE", "VERTICALFREE" or "NO".
-//Default: "NO". For containers the default is "YES".
-                        if (expand === "YES" ||
-                            expand === "HORIZONTAL") {
-                            w_count += 1;
-                            w_children[i] = w_count;
-                        }
-                        if (expand === "YES" ||
-                            expand === "VERTICAL") {
-                            h_count += 1;
-                            h_children[i] = h_count;
-                        }
-                    }
-                }
-                if (w_count || h_count) {
-                    let rem_w = w-prev_w,
-                        rem_h = h-prev_h,
-                        wcrem = w_count,
-                        hcrem = h_count;
-                    for (let i=0; i<l; i += 1) {
-                        let w = w_children[i],
-                            h = h_children[i];
-                        if (w || h) {
-                            let ci = children[i],
-                                cw = ci.offsetWidth,
-                                ch = ci.clientHeight;
-                            if (w) {
-                                let dw = ((w_count-w+1)/wcrem)*rem_w;
-                                cw += dw;
-                                rem_w -= dw;
-                                wcrem -= 1;
-                            }
-                            if (h) {
-                                let dh = ((h_count-h+1)/hcrem)*rem_h;
-                                ch += dh;
-                                rem_h -= dh;
-                                hcrem -= 1;
-                            }
-                            $resize_children(ci,cw,ch);
-                        }
-                    }
-                    if ((w_count !== 0 && (rem_w !== 0 || wcrem !== 0)) ||
-                        (h_count !== 0 && (rem_h !== 0 || hcrem !== 0))) {
-                        crash("uh?");
-                    }
-                }
-            }
-        }
-    }
-}
---*/
     if ct=DIALOG then
 --w -=2; h -= 32;
         xpg_resize(id,w,h)
@@ -5177,6 +5870,28 @@ global function rgba(atom red, green, blue, alpha=0)
                   and_bits(red,  #FF)*#10000 + 
                   and_bits(green,#FF)*#100 + 
                   and_bits(blue, #FF)
+--SUG (untested)
+--  nested function ff(atom a)
+--      if a and a<=1 then a *= 255 end if
+--      return and_bits(a,#FF)
+--  end nested function
+--  atom colour = #1000000*ff(alpha)
+--              +   #10000*ff(red)
+--              +     #100*ff(green)
+--              +          ff(blue)
+--perhaps better:
+--  assert(sum(sq_lt({red,green,blue,alpha},0))=0,"no negatives!")
+--  integer m = iff(sum(sq_le({red,green,blue,alpha},1))=4?255:1)
+--  atom colour = and_bits(m*alpha,#FF)*#1000000 +
+--                and_bits(m*red,  #FF)*#10000 + 
+--                and_bits(m*green,#FF)*#100 + 
+--                and_bits(m*blue, #FF)
+--or maybe:
+--  atom colour = and_bits(alpha,#FF)
+--  for c in {red,green,blue} do
+--?     assert(c>=0)
+--      colour = colour*#100 + and_bits(c,#FF)
+--  end for
     return colour
 end function
 
@@ -5248,9 +5963,9 @@ end function
 --/*
 integer wm_dict = NULL
 
-function begins_wm(string s) return begins("WM_",s) end function
+--function begins_wm(string s) return begins("WM_",s) end function
 
-function win_msg(integer msg)
+--function win_msg(integer msg)
     -- diagnostics assistant
 --  static [wm_dict]
 --  integer wm_dict = NULL
@@ -5301,8 +6016,6 @@ function win_msg(integer msg)
                                 {243,"BM_SETSTATE"},
                                 {257,"WM_KEYUP"},
                                 {274,"WM_SYSCOMMAND"},
-                                {312,"WM_CTLCOLORSTATIC"},
-                                {514,"WM_LBUTTONUP"},
                                 {515,"WM_LBUTTONDBLCLK"},
                                 {516,"WM_RBUTTONDOWN"},
                                 {517,"WM_RBUTTONUP"},
@@ -5317,16 +6030,15 @@ function win_msg(integer msg)
                                 {641,"WM_IME_SETCONTEXT"},
                                 {642,"WM_IME_NOTIFY"},
                                 {674,"WM_NCMOUSELEAVE"},
-                                {675,"WM_MOUSELEAVE"},
                                 {792,"WM_PRINTCLIENT"}})
         end if
         string s = getd(msg,"",wm_dict)
         if length(s) then res = {s} end if
     end if
     return res
-end function
+--end function
 
-function ignorable_message(sequence s, integer msg)
+--function ignorable_message(sequence s, integer msg)
     if length(s)=1 then
         string s1 = s[1]
         if begins("WM_NC",s1)
@@ -5337,10 +6049,10 @@ function ignorable_message(sequence s, integer msg)
         end if
     end if
     return false
-end function
+--end function
 --*/
 
-local function xpg_process_key(integer id, msg, atom wParam, lParam)
+local function xpg_WinAPI_process_key(integer id, msg, atom wParam, lParam)
     --
     -- Firstly: get things down to one and precisely one message per keystroke.
     -- WM_CHAR is best for graphical characters, and distinguishes eg '1' from '!'
@@ -5399,23 +6111,16 @@ local function xpg_process_key(integer id, msg, atom wParam, lParam)
         integer res = xpg_key_handler(id,key,ctrl,shift,alt)
         if res then return 0 end if
     end if
---/!*
---DEV temp code... needs the full proper handling
     if wParam=VK_TAB then
-        integer fid = gGetFocus()
-        if fid=0 then fid = gGetDialog(id) end if
-        if fid then
-            integer window = gGetDialog(fid),
-                     child = children_ids[window][1]
-            gSetFocus(child)
-            return 0
-        end if
+        atom phwnd = ctrl_handles[gGetDialog(id)],
+              hwnd = ctrl_handles[id],
+             nhwnd = c_func(xGetNextDlgTabItem,{phwnd,hwnd,shift})
+        c_proc(xSetFocus,{nhwnd})
     end if
---*!/
     return true -- (carry on with xCallWindowProc/xDefWindowProc)
 end function
 
-local procedure drawMenuBar(gdx menu)
+local procedure xpg_WinAPI_draw_menu_bar(gdx menu)
     integer pid = parent_ids[menu]
     if pid then
         assert(ctrl_types[pid]=BOX)
@@ -5426,6 +6131,833 @@ local procedure drawMenuBar(gdx menu)
     end if
 end procedure
 
+local integer xpg_create_image_list, -- see xpg_xpm.e
+              xpg_winAPI_create_DIB_from_xpm -- "" 
+--            xpg_winAPI_size                   -- ""
+local atom closed_folder, open_folder, dot  -- for GTK
+local atom tree_himl                        -- for WinAPI
+
+--with trace
+local function xpg_xpm_callback(object xpm)
+    -- low-level operations for xpg_xpm.e (avoids making anything global)
+    if backend=XPG_GTK then
+--      return c_func(gdk_pixbuf_new_from_xpm_data,{xpg_word_array(xpm)})
+--trace(1)
+        atom pixbuf = c_func(gdk_pixbuf_new_from_xpm_data,{xpg_word_array(xpm)})
+        integer w = c_func(gdk_pixbuf_get_width_,{pixbuf}),
+                h = c_func(gdk_pixbuf_get_height_,{pixbuf})
+        return {pixbuf,w,h}
+    elsif backend=XPG_WINAPI then
+        string what = xpm[1]
+        if what="NEWLIST" then
+            -- create imagelist using the recommended sizes for small icons:
+--          return c_func(xImageList_Create,{c_func(xGetSystemMetrics,{SM_CXSMICON}),
+--                                           c_func(xGetSystemMetrics,{SM_CYSMICON}),
+--                                           ILC_COLOR8+ILC_MASK,1,32})
+            return c_func(xImageList_Create,{SM_XICON,SM_YICON,ILC_COLOR8+ILC_MASK,1,32})
+        elsif what="NEWDIB" then    
+            atom {mem,hdrSize} = xpm[2],
+                 hDC = c_func(xGetDC,{0}),      -- Get the screen's device context.
+                hDIB = c_func(xCreateDIBitmap, {hDC,                -- create DDB for/compatible with this
+                                                mem,                -- info about the DIB to create, eg h*w
+                                                CBM_INIT,           -- initialise it please with...
+                                                mem+hdrSize,        --      this bitmap,
+                                                mem,                --      which has this structure
+                                                DIB_RGB_COLORS})    --      and has explicit RGB values
+            assert(hDIB!=NULL)
+            bool bOK = c_func(xReleaseDC,{0,hDC})
+            assert(bOK)
+--?{"NEWDIB",hDIB}
+            return hDIB
+        elsif what="ADDICON" then
+            atom tree = xpm[2], icon = xpm[3]
+            c_proc(xImageList_Add,{tree,icon,NULL})
+            c_proc(xDeleteObject,{icon})
+            return true -- (ignored)
+        else
+            ?9/0
+        end if
+    else
+        ?9/0 -- (unknown backend)
+    end if
+end function
+
+--/*
+-- Hmm, nothing gets the same as mspaint's colour picker (ie the eyedropper icon)....
+for i=0 to 30 do
+    clr = c_func(xGetSysColor,{i})
+    printf(1,"Syscolour(%d) = %08x\n",{i,clr})
+end for
+Syscolour(0) = 00C8C8C8
+Syscolour(1) = 00000000
+Syscolour(2) = 00D1B499
+Syscolour(3) = 00DBCDBF
+Syscolour(4) = 00F0F0F0 === COLOR_MENU
+Syscolour(5) = 00FFFFFF
+Syscolour(6) = 00646464
+Syscolour(7) = 00000000
+Syscolour(8) = 00000000
+Syscolour(9) = 00000000
+Syscolour(10) = 00B4B4B4
+Syscolour(11) = 00FCF7F4
+Syscolour(12) = 00ABABAB
+Syscolour(13) = 00D77800
+Syscolour(14) = 00FFFFFF
+Syscolour(15) = 00F0F0F0
+Syscolour(16) = 00A0A0A0
+Syscolour(17) = 006D6D6D
+Syscolour(18) = 00000000
+Syscolour(19) = 00000000
+Syscolour(20) = 00FFFFFF
+Syscolour(21) = 00696969
+Syscolour(22) = 00E3E3E3
+Syscolour(23) = 00000000
+Syscolour(24) = 00E1FFFF
+Syscolour(25) = 00000000
+Syscolour(26) = 00CC6600
+Syscolour(27) = 00EAD1B9
+Syscolour(28) = 00F2E4D7
+Syscolour(29) = 00D77800
+Syscolour(30) = 00F0F0F0
+--*/
+
+local sequence xpm_texts = {},
+               xpm_clrs = {}
+
+local constant XPG_BTN_BG   = #00E1E1E1,
+               XPG_MENUBG   = #00F2F2F2,
+               XPG_MENUHLT  = #0091C9F7
+
+local function xpg_WinAPI_replace_bgclr(integer imgid, atom bgclr)
+    -- if there is already one of this background colour, use that
+    sequence ci = xpm_clrs[imgid]
+    for prev in ci do
+        if prev[2][4]=bgclr then
+            return prev
+        end if
+    end for
+    -- else create a new bitmap
+    sequence xpm = xpm_texts[imgid],
+             img = xpg_winAPI_create_DIB_from_xpm(xpm,xpg_xpm_callback,bgclr),
+             res = {"gImage",img,imgid}
+    xpm_clrs[imgid] = NULL -- (kill refcount)
+    ci = append(ci,res)
+    xpm_clrs[imgid] = ci
+    return res
+end function
+
+global function gImageRGBA(integer width, height, sequence pixels)
+    if backend=XPG_GTK then
+--      return c_func(gdk_pixbuf_new_from_xpm_data,{xpg_word_array(xpm)})
+    elsif backend=XPG_WINAPI then
+--          atom {mem,hdrSize} = xpm[2],
+--               hdc = c_func(xGetDC,{0}),      -- Get the screen's device context.
+--              hDIB = c_func(xCreateDIBitmap, {hdc,                -- create DDB for/compatible with this
+--                                              mem,                -- info about the DIB to create, eg h*w
+--                                              CBM_INIT,           -- initialise it please with...
+--                                              mem+hdrSize,        --      this bitmap,
+--                                              mem,                --      which has this structure
+--                                              DIB_RGB_COLORS})    --      and has explicit RGB values
+--          assert(hDIB!=NULL)
+--          bool bOK = c_func(xReleaseDC,{0,hdc})
+--          assert(bOK)
+--          return hDIB
+    else
+        ?9/0 -- (unknown backend)
+    end if
+--/*
+    let id = document.createElement("canvas");
+    id.width = width;
+    id.height = height;
+    let ctx = id.getContext("2d"),
+        imgData = ctx.createImageData(width,height),
+        len = length(pixels);
+    for (let i = 0; i < len; i += 1) {
+        imgData.data[i] = pixels[i+1];
+    }
+    ctx.putImageData(imgData,0,0);
+//  return id;
+//or, maybe:
+    let res = id.toDataURL();
+    return res;
+--*/
+    return {width,height,pixels}
+end function
+
+global function gImageRGB(integer width, height, sequence pixels)
+--/*
+    let id = document.createElement("canvas");
+    id.width = width;
+    id.height = height;
+    let ctx = id.getContext("2d"),
+        imgData = ctx.createImageData(width,height),
+        len = length(pixels),
+        k = 0;
+    for (let i = 0; i < len; i += 3) {
+        imgData.data[k+0] = pixels[i+1];
+        imgData.data[k+1] = pixels[i+2];
+        imgData.data[k+2] = pixels[i+3];
+        imgData.data[k+3] = 255; // (alpha)
+        k += 4
+    }
+    ctx.putImageData(imgData,0,0);
+    let res = id.toDataURL();
+    return res;
+--*/
+    return {width,height,pixels}
+--  return {"gImage",width,height,pixels}
+end function
+
+global function gImage(integer width, height, sequence pixels, palette={})
+    if palette={} then
+        palette = {{  0,  0,  0}, // ( 0 XPG_BLACK         = 0x000000)
+                   {#80,  0,  0}, // ( 1 XPG_DARK_RED      = 0x800000)
+                   {  0,#80,  0}, // ( 2 XPG_DARK_GREEN    = 0x008000) 
+                   {#80,#80,  0}, // ( 3 XPG_DARK_YELLOW   = 0x808000 aka XPG_OLIVE)
+                   {  0,  0,#80}, // ( 4 XPG_DARK_BLUE     = 0x000080 aka XPG_NAVY)
+                   {#80,  0,#80}, // ( 5 XPG_DARK_MAGENTA  = 0x800080) 
+                   {  0,#80,#80}, // ( 6 XPG_DARK_CYAN     = 0x008080) 
+                   {#C0,#C0,#C0}, // ( 7 XPG_GRAY          = 0xC0C0C0 aka XPG_GREY, XPG_SILVER)
+                   {#80,#80,#80}, // ( 8 XPG_DARK_GRAY     = 0x808080 aka XPG_DARK_GREY)
+                   {#FF,  0,  0}, // ( 9 XPG_RED           = 0xFF0000)   
+                   {  0,#FF,  0}, // (10 XPG_GREEN         = 0x00FF00 aka XPG_LIGHT_GREEN)
+                   {#FF,#FF,  0}, // (11 XPG_YELLOW        = 0xFFFF00)
+                   {  0,  0,#FF}, // (12 XPG_BLUE          = 0x0000FF)
+                   {#FF,  0,#FF}, // (13 XPG_MAGENTA       = 0xFF00FF)
+                   {  0,#FF,#FF}, // (14 XPG_CYAN          = 0x00FFFF)
+                   {#FF,#FF,#FF}} // (15 XPG_WHITE         = 0xFFFFFF)
+    else
+        for i,pi in palette do
+            if atom(pi) or string(pi) then
+                palette[i] = to_rgba(pi)
+            end if
+        end for
+    end if
+--/*
+    let id = document.createElement("canvas");
+    id.width = width;
+    id.height = height;
+    let ctx = id.getContext("2d"),
+        imgData = ctx.createImageData(width,height),
+        len = length(pixels),
+        k = 0;
+//DEV defer this until actually used, or better yet optionally allow a palette.
+    const $gImageDefaultColours = [
+
+//  if (length(palette) === 0) { palette = ["sequence",XPG_BLACK, etc.]; }
+    for (let i = 0; i < len; i += 1) {
+//      let pi = pixels[i+1],
+        let /*integer*/ pi = $subse(pixels,i+1),
+            p3 = $gImageDefaultColours[pi];
+//          p3 = to_rgba(palette[pi]);
+        for (let j = 0; j < 3; j += 1) {
+            imgData.data[k] = p3[j];
+            k += 1;
+        }   
+        imgData.data[k] = 255; // (alpha)
+        k += 1;
+    }
+    ctx.putImageData(imgData,0,0);
+    let res = id.toDataURL();
+    return res;
+}
+--*/
+--dev:
+--  return {"gImage",width,height,pixels}
+    return {width,height,pixels}
+end function
+
+--DEV...
+--forward local procedure xpg_Init()
+forward procedure xpg_Init()
+
+--global function gImage_from_XPM(sequence xpm, string usage="CANVAS")
+global function gImage_from_XPM(sequence xpm, atom transparent_colour=XPG_WHITE)
+--global function gImage_from_XPM(sequence xpm, object transparent_colour=XPG_WHITE)
+--  if string(transparent_colour) then
+--      if transparent_colour="MENU" then
+--          transparent_colour = XPG_MENUBG
+--      else
+--          ?9/0
+--      end if
+--  end if
+    if not bInit then xpg_Init() end if
+    if string(xpm) then xpm = split(xpm,'\n') end if
+    integer imgid = find(xpm,xpm_texts)
+    if imgid then
+        if backend=XPG_GTK then
+            return xpm_clrs[imgid]
+        elsif backend=XPG_WINAPI then
+            return xpg_WinAPI_replace_bgclr(imgid,transparent_colour)
+        else
+            ?9/0
+        end if
+--      ?9/0 -- placeholder (post killing off usage)
+--      return ??[k],clr)
+    end if
+    xpm_texts = append(xpm_texts,xpm)
+    imgid = length(xpm_texts)
+    object img
+    if backend=XPG_GTK then
+--      img = xpg_xpm_callback(xpm) -- (a GtkPixbuf)
+        img = xpg_xpm_callback(xpm) -- {GtkPixbuf,w,h}
+    elsif backend=XPG_WINAPI then
+--/*
+--XPG_WHITE
+--      integer clr = 0x00FFFFFF
+        integer clr = XPG_WHITE
+        -- note: several more cases are expected here...
+        if usage!="CANVAS" then -- (supports transparency)
+            if usage="MENU" then  --    (disny "")
+--              clr = c_func(xGetSysColor,{COLOR_MENU})
+--              clr = c_func(xGetSysColor,{COLOR_WINDOW})
+--              clr = c_func(xGetSysColor,{COLOR_BTNFACE})
+--              clr = c_func(xGetSysColorBrush,{COLOR_MENU})
+--              clr = c_func(xGetSysColorBrush,{COLOR_WINDOW})
+--              clr = c_func(xGetSysColorBrush,{COLOR_BTNFACE})
+--              clr = #00FFFFFF
+--              clr = #00000000
+--              clr = #00F2F2F2
+                clr = XPG_MENUBG
+            elsif usage="BUTTON" then
+--              clr = c_func(xGetSysColor,{COLOR_BTNFACE+1})
+--              clr = #00E1E1E1
+                clr = XPG_BTN_BG
+            else
+                crash("unknown xpm usage:%s",{usage})
+            end if
+        end if -- (usage not canvas)
+--*/
+        -- img is {hDIB,w,h,t}
+        img = xpg_winAPI_create_DIB_from_xpm(xpm,xpg_xpm_callback,transparent_colour)
+--      xpm_clrs = append(xpm_clrs,img)
+    else
+        ?9/0 -- (unknown backend)
+    end if
+    sequence res = {"gImage",img,imgid}
+    if backend=XPG_GTK then
+        xpm_clrs = append(xpm_clrs,res)
+    elsif backend=XPG_WINAPI then
+        xpm_clrs = append(xpm_clrs,{res})
+    else
+        ?9/0
+    end if
+    return res
+end function
+
+global procedure gImageDraw(sequence src, gdx tgt, atom x=0, y=0)
+    assert(src[1]="gImage")
+    assert(ctrl_types[tgt]=CANVAS)
+    if backend=XPG_GTK then
+        atom handle = ctrl_handles[tgt],
+             window = c_func(gtk_widget_get_window,{handle}),
+              cairo = c_func(gdk_cairo_create,{window}),
+--           pixbuf = src[2]
+             pixbuf = src[2][1]
+--or:       {pixbuf,w,h} = src[2]
+        c_proc(gdk_cairo_set_source_pixbuf,{cairo,pixbuf,x,y})
+        c_proc(cairo_paint,{cairo})
+        c_proc(cairo_fill,{cairo})
+        c_proc(cairo_destroy,{cairo})
+    elsif backend=XPG_WINAPI then
+--See the DEV in gCanvas.exw, when src is a string:
+--?"bang"
+--      atom {hDIB,w,h,cTrans} = src[2]
+--?"crash"
+        atom destDC = ctrl_xtra[tgt][CX_CANVAS_HDC],
+              srcDC = c_func(xCreateCompatibleDC,{destDC}),
+             {hDIB,w,h,cTrans} = src[2],
+             prevBM = c_func(xSelectObject,{srcDC,hDIB})
+--?"crash"
+        bool bOK
+--DEV or use AlphaBlend if it is a 32-bit bitmap??
+        if cTrans then
+            cTrans = xpg_WinAPI_rgb_to_bgr(cTrans)
+            bOK = c_func(xTransparentBlt,{destDC,x,y,w,h,srcDC,0,0,w,h,cTrans})
+        else                
+            bOK = c_func(xBitBlt,{destDC,x,y,w,h,srcDC,0,0,SRCCOPY})
+        end if
+        assert(bOK)
+        prevBM = c_func(xSelectObject,{srcDC,prevBM})
+        bOK = c_func(xDeleteDC,{srcDC})
+        assert(bOK)
+    else
+        ?9/0 -- (unknown backend)
+    end if
+end procedure
+
+--/*
+--dang, 2.32, not in my 2.24:
+--GdkPixbuf*
+--gdk_pixbuf_new_from_bytes (
+--  GBytes* data,
+--  GdkColorspace colorspace,
+--  gboolean has_alpha,
+--  int bits_per_sample,
+--  int width,
+--  int height,
+--  int rowstride
+--)
+--deprecated: (gone in gtk3)
+--GdkPixbuf*
+--gdk_pixbuf_new_from_inline (
+--  gint data_length,
+--  const guint8* data,
+--  gboolean copy_pixels,
+--  GError** error
+--)
+GdkPixbuf*
+gdk_pixbuf_add_alpha (
+    const GdkPixbuf* pixbuf,
+    gboolean substitute_color,
+    guchar r,
+    guchar g,
+    guchar b
+)
+
+GdkPixbuf*
+gdk_pixbuf_new_from_data (
+  const guchar* data,
+  GdkColorspace colorspace,
+  gboolean has_alpha,
+  int bits_per_sample,
+  int width,
+  int height,
+  int rowstride,
+  GdkPixbufDestroyNotify destroy_fn,
+  gpointer destroy_fn_data
+)
+void
+gdk_pixbuf_fill (
+  GdkPixbuf* pixbuf,
+  guint32 pixel
+)
+int
+gdk_pixbuf_get_bits_per_sample (
+  const GdkPixbuf* pixbuf
+)
+both gtk2 and gtk3:
+gdk_pixbuf_get_bits_per_sample
+gdk_pixbuf_get_colorspace
+gdk_pixbuf_get_file_info
+gdk_pixbuf_get_formats
+gdk_pixbuf_get_has_alpha
+gdk_pixbuf_get_height
+gdk_pixbuf_get_n_channels
+gdk_pixbuf_get_option
+gdk_pixbuf_get_pixels
+gdk_pixbuf_get_rowstride
+gdk_pixbuf_get_type
+gdk_pixbuf_get_width
+
+constant GDK_COLORSPACE_RGB = 0
+static void put_pixel(GdkPixbuf *pixbuf, int x, int y, guchar red, guchar green, guchar blue, guchar alpha) {
+  int n_channels = gdk_pixbuf_get_n_channels(pixbuf);
+
+  // Ensure that the pixbuf is valid
+  g_assert (gdk_pixbuf_get_colorspace (pixbuf) == GDK_COLORSPACE_RGB);
+
+  g_assert (gdk_pixbuf_get_bits_per_sample (pixbuf) == 8);
+  g_assert (gdk_pixbuf_get_has_alpha (pixbuf));
+  g_assert (n_channels == 4);
+
+  int width = gdk_pixbuf_get_width (pixbuf);
+  int height = gdk_pixbuf_get_height (pixbuf);
+
+  // Ensure that the coordinates are in a valid range
+  g_assert (x >= 0 && x < width);
+  g_assert (y >= 0 && y < height);
+
+  int rowstride = gdk_pixbuf_get_rowstride (pixbuf);
+
+  // The pixel buffer in the GdkPixbuf instance
+  guchar *pixels = gdk_pixbuf_get_pixels (pixbuf);
+
+  // The pixel we wish to modify
+  guchar *p = pixels + y * rowstride + x * n_channels;
+  p[0] = red;
+  p[1] = green;
+  p[2] = blue;
+  p[3] = alpha;
+}
+
+-- demo\rosetta\Bitmap_Greyscale.exw  (runnable version)
+
+--function to_grey(sequence image)
+    integer dimx = length(image),
+            dimy = length(image[1])
+    for x=1 to dimx do
+        for y=1 to dimy do
+            integer pixel = image[x][y]          -- red,green,blue
+            sequence r_g_b  =  sq_and_bits(pixel,{#FF0000,#FF00,#FF})
+            integer {r,g,b} = sq_floor_div(r_g_b,{#010000,#0100,#01})
+            image[x][y] = floor(0.2126*r + 0.7152*g + 0.0722*b)*#010101
+        end for
+    end for
+    return image
+--end function
+
+--include ppm.e   -- read_ppm(), write_ppm(), to_grey()  (as distributed, instead of the above)
+
+sequence img = read_ppm("Lena.ppm")
+img = to_grey(img)
+write_ppm("LenaGray.ppm",img)
+
+Hmm, put it anywhere with translate etc, from https://www.cairographics.org/samples/image/ :
+int              w, h;
+cairo_surface_t *image;
+
+image = cairo_image_surface_create_from_png ("data/romedalen.png");
+w = cairo_image_surface_get_width (image);
+h = cairo_image_surface_get_height (image);
+
+cairo_translate (cr,128.0,128.0);
+cairo_rotate (cr,45*M_PI/180);
+cairo_scale  (cr,256.0/w,256.0/h);
+cairo_translate (cr,-0.5*w,-0.5*h);
+
+cairo_set_source_surface (cr,image,0,0);
+--void cairo_set_source_surface (cairo_t *cr, cairo_surface_t *surface, double x,  double y);
+cairo_paint (cr);
+cairo_surface_destroy (image);
+ooh: gdk_cairo_set_source_pixbuf
+--gdk_draw_pixbuf -- deprecated, 2.0 only
+static gboolean do_expose (GtkWidget *da, GdkEvent *event, gpointer data) {
+    (void)event; (void)data;
+    GError *err = NULL;
+    GdkPixbuf *pix = gdk_pixbuf_new_from_file("/usr/share/icons/cab_view.png",&err);
+    if(err) {
+        printf("Error : %s\n",err->message);
+        g_error_free(err);
+        return FALSE;
+    }
+    cairo_t *cr = gdk_cairo_create (da->window);
+    gdk_cairo_set_source_pixbuf(cr,pix,0,0);
+    cairo_paint(cr);
+    cairo_fill (cr);
+    cairo_destroy (cr);
+    return FALSE;
+}
+updated/completed:
+// gcc expose.c -o expose `pkg-config gtk+-3.0 --cflags --libs`
+#include <gtk/gtk.h>
+#include <stdlib.h>
+
+static gboolean on_window_draw (GtkWidget *da, GdkEvent *event, gpointer data) {
+    (void)event; (void)data;
+    GError *err = NULL;
+    GdkPixbuf *pix = gdk_pixbuf_new_from_file("/usr/share/icons/cab_view.png",&err);
+    if(err) {
+        printf("Error : %s\n",err->message);
+        g_error_free(err);
+        return FALSE;
+    }
+    cairo_t *cr = gdk_cairo_create(gtk_widget_get_window(da));
+    //    cr = gdk_cairo_create(da->window);
+    gdk_cairo_set_source_pixbuf(cr,pix,0,0);
+    cairo_paint(cr);
+    //    cairo_fill(cr);
+    cairo_destroy(cr);
+    //    return FALSE;
+}
+
+int main(int argc, char **argv) {
+    GtkWidget *window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    GtkWidget *canvas;
+    gtk_widget_set_size_request(window,50,50);
+
+    g_signal_connect(window,"destroy",gtk_main_quit,NULL);
+    canvas = gtk_drawing_area_new();
+    gtk_container_add(window,canvas);
+    g_signal_connect(canvas,"draw",on_window_draw,NULL);
+
+    gtk_widget_set_app_paintable(canvas,TRUE);
+    gtk_widget_show_all(window);
+    gtk_main();
+    return 0;
+}
+--umm:
+void access_pixel( Glib::RefPtr<Gdk::Pixbuf> imageptr, int x, int y) {
+   if ( !imageptr ) return;
+   Gdk::Pixbuf & image = *imageptr.operator->(); // just for convenience
+
+   if ( ! image.get_colorspace() == Gdk::COLORSPACE_RGB ) return;
+   if ( ! image.get_bits_per_sample() == 8 ) return;
+   if ( !( x>=0 && y>=0 && x<image.get_width() && y<image.get_height() ) ) return;
+
+   int offset = y*image.get_rowstride() + x*image.get_n_channels();
+   guchar * pixel = &image.get_pixels()[ offset ]; // get pixel pointer
+   if ( pixel[0]>128 ) pixel[1] = 0; // conditionally modify the green channel
+
+   queue_draw(); // redraw after modify
+}
+void MyArea::on_draw(const Cairo::RefPtr<Cairo::Context>& cr, int width, int height) {
+  auto image = Gdk::Pixbuf::create_from_file("myimage.png");
+  // Draw the image at 110, 90, except for the outermost 10 pixels.
+  Gdk::Cairo::set_source_pixbuf(cr,image,100,80);
+  cr->rectangle(110,90,image->get_width()-20,image->get_height()-20);
+  cr->fill();
+}
+
+--button with image: (let's get an image on a gCanvas working first...)
+GtkWidget *image = gtk_image_new_from_file ("...");
+GtkWidget *button = gtk_button_new_with_label ("...");
+gtk_button_set_always_show_image (GTK_BUTTON (button),TRUE);
+gtk_button_set_image (GTK_BUTTON (button),image);
+
+button must have BS_BITMAP at creation
+SendMessage(hButton,BM_SETIMAGE,IMAGE_BITMAP,hBmp);
+
+--scrollable canvas:
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include <string.h>
+#include <ctype.h>
+#include <gtk/gtk.h>
+
+#define ZOOMING_STEP 1.2
+#define SCALING_FACTOR_INIT 1.0/10.0
+
+typedef struct m_data {
+    double scaling_factor;
+    cairo_surface_t *rectangle_surface_p, *final_surface_p;
+    GtkWidget *window_p, *drawing_area_p;
+    GtkAdjustment *hadjust_p, *vadjust_p;
+} m_data_struct;
+
+static void activate(GtkApplication *, gpointer);
+static gboolean zoom_it(GtkWidget *, GdkEvent *, gpointer);
+static gboolean configure_it(GtkWidget *, GdkEventConfigure *, gpointer);
+static gboolean draw_it(GtkWidget *, cairo_t *, gpointer);
+
+int main(int argc, char **argv) {
+    m_data_struct my_data;
+    my_data.scaling_factor = SCALING_FACTOR_INIT;
+    my_data.final_surface_p = NULL;
+    GtkApplication *app_p = gtk_application_new("calc.foil",G_APPLICATION_FLAGS_NONE);
+    g_signal_connect(app_p,"activate",G_CALLBACK(activate),&my_data);
+    int status = g_application_run(G_APPLICATION(app_p),0,NULL);
+    g_object_unref(app_p);
+}
+
+static void activate(GtkApplication *app_p, gpointer g_data_p) {
+
+    m_data_struct *my_data_p = (m_data_struct *)g_data_p;
+    my_data_p->window_p = gtk_application_window_new(app_p);
+    gtk_window_set_title(GTK_WINDOW(my_data_p->window_p),"Fot Calculation");
+    gtk_container_set_border_width(GTK_CONTAINER(my_data_p->window_p),8);
+    GtkWidget *notebook_p = gtk_notebook_new();
+    gtk_container_add(GTK_CONTAINER(my_data_p->window_p), notebook_p);
+    GtkWidget *grid0_p = gtk_grid_new();
+    gtk_notebook_append_page(GTK_NOTEBOOK(notebook_p), grid0_p, gtk_label_new("First Tab"));
+    GtkWidget *grid1_p = gtk_grid_new();
+    gtk_grid_attach(GTK_GRID(grid0_p), grid1_p, 2, 2, 2, 50);
+
+    GtkWidget *frame_p = gtk_frame_new("Rectangle");
+    gtk_frame_set_shadow_type(GTK_FRAME(frame_p), GTK_SHADOW_NONE);
+    GtkWidget *frame0_p = gtk_frame_new(NULL);
+    GtkWidget *scrolled_window_p = gtk_scrolled_window_new(NULL, NULL);
+    my_data_p->hadjust_p = gtk_scrolled_window_get_hadjustment(GTK_SCROLLED_WINDOW(scrolled_window_p));
+    my_data_p->vadjust_p = gtk_scrolled_window_get_vadjustment(GTK_SCROLLED_WINDOW(scrolled_window_p));
+    GtkWidget *drawing_area_p = gtk_drawing_area_new();
+    gtk_widget_set_size_request(scrolled_window_p, 300, 300);
+    g_signal_connect(drawing_area_p, "configure-event", G_CALLBACK(configure_it), g_data_p);
+    g_signal_connect(drawing_area_p, "draw", G_CALLBACK(draw_it), g_data_p);
+    g_signal_connect(drawing_area_p, "scroll-event", G_CALLBACK(zoom_it), g_data_p);
+    gtk_widget_set_events(drawing_area_p, gtk_widget_get_events(drawing_area_p)|GDK_SCROLL_MASK);
+    my_data_p->drawing_area_p = drawing_area_p;
+
+    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled_window_p), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
+    gtk_container_add(GTK_CONTAINER(scrolled_window_p), drawing_area_p);
+    gtk_container_add(GTK_CONTAINER(frame_p), frame0_p);
+    gtk_container_add(GTK_CONTAINER(frame0_p), scrolled_window_p);
+    gtk_grid_attach(GTK_GRID(grid1_p), frame_p, 1, 0, 1, 2);
+    my_data_p->rectangle_surface_p = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 3000, 3000);
+    cairo_t *cr_p = cairo_create(my_data_p->rectangle_surface_p);
+    cairo_set_line_width(cr_p, 50);
+    cairo_rectangle(cr_p, 100, 100, 1375, 1375);
+    cairo_rectangle(cr_p, 1525, 1525, 1375, 1375);
+    cairo_set_source_rgb(cr_p, 0, 0, 0);
+    cairo_stroke(cr_p);
+
+    gtk_widget_show_all(my_data_p->window_p);
+}
+
+static gboolean zoom_it(GtkWidget *widget_p, GdkEvent *event_p, gpointer g_data_p) {
+    gdouble new_x, new_y;
+    int do_zoom = 0;
+    m_data_struct *my_data_p = (m_data_struct *)g_data_p;
+    GdkEventScroll *this_event_p = (GdkEventScroll *)event_p;
+    if (this_event_p->direction == GDK_SCROLL_UP) {
+        my_data_p->scaling_factor *= ZOOMING_STEP;
+        /* we need to calc the new upper to set value, +1 for inaccuracy */
+        gtk_adjustment_set_upper(my_data_p->hadjust_p,gtk_adjustment_get_upper(my_data_p->hadjust_p)*ZOOMING_STEP+1);
+        gtk_adjustment_set_upper(my_data_p->vadjust_p,gtk_adjustment_get_upper(my_data_p->vadjust_p)*ZOOMING_STEP+1);      
+        new_x = this_event_p->x * ZOOMING_STEP;
+        new_y = this_event_p->y * ZOOMING_STEP;
+        do_zoom = 1;
+    }
+    if (this_event_p->direction == GDK_SCROLL_DOWN) {
+        double sf = my_data_p->scaling_factor / ZOOMING_STEP;
+        if (sf >= SCALING_FACTOR_INIT / (1 + (ZOOMING_STEP - 1) / 2)) {
+            /* zoom out max till level 0 but preventing inability */
+            /* not to zoom to level 0 due to inaccurancy */
+            my_data_p->scaling_factor = sf;
+            new_x = this_event_p->x / ZOOMING_STEP;
+            new_y = this_event_p->y / ZOOMING_STEP;
+            do_zoom = 1;
+        }
+    }
+    if (do_zoom) {
+        gtk_adjustment_set_value(my_data_p->hadjust_p,new_x+gtk_adjustment_get_value(my_data_p->hadjust_p)-this_event_p->x);
+        gtk_adjustment_set_value(my_data_p->vadjust_p,new_y+gtk_adjustment_get_value(my_data_p->vadjust_p)-this_event_p->y);
+        configure_it(widget_p, (GdkEventConfigure *)event_p, g_data_p);
+        gtk_widget_queue_draw(widget_p);
+    }
+    return TRUE;
+}
+
+static gboolean configure_it(GtkWidget *widget_p, GdkEventConfigure *event_p, gpointer g_data_p) {
+    m_data_struct *my_data_p = (m_data_struct *)g_data_p;
+    if (my_data_p->final_surface_p) { cairo_surface_destroy(my_data_p->final_surface_p); }
+    int s = 3000 * my_data_p->scaling_factor;
+    my_data_p->final_surface_p = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, s, s);
+    gtk_widget_set_size_request(my_data_p->drawing_area_p, s, s);
+    cairo_t *cr_p = cairo_create(my_data_p->final_surface_p);
+    cairo_scale(cr_p, my_data_p->scaling_factor, my_data_p->scaling_factor);
+    cairo_set_source_surface(cr_p, my_data_p->rectangle_surface_p, 0, 0);
+    cairo_paint(cr_p);
+    cairo_destroy(cr_p);
+    return TRUE;
+}
+
+static gboolean draw_it(GtkWidget *widget_p, cairo_t *cr_p, gpointer g_data_p) {
+    cairo_set_source_surface(cr_p, ((m_data_struct *)g_data_p)->final_surface_p, 0, 0);
+    cairo_paint(cr_p);
+    return FALSE;
+}
+from https://stackoverflow.com/questions/67145644/how-do-i-draw-a-pixmap-with-gtk
+#include <gtk/gtk.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+const int WIDTH = 1080;
+const int HEIGHT = 720;
+
+GtkWidget* mainWindow;
+
+int currentCol = 0;
+
+uint32_t* framebuffer = NULL;
+GdkPixbuf* pixbuf = NULL;
+
+
+typedef struct _rgbColor {
+    uint8_t red;
+    uint8_t green;
+    uint8_t blue;
+    uint8_t alpha;
+}rgbColor;
+
+void encodePixel(uint32_t* fb, rgbColor c, int x, int y) {
+    uint32_t r, g, b, a;
+
+    r = c.red;
+    g = c.green << 8;
+    b = c.blue << 16;
+    a = c.alpha << 24;
+    
+//  *(fb + (sizeof(uint32_t)*y+x)) = b | g | r | a;
+    fb[WIDTH*y+x] = b | g | r | a;
+}
+
+void fillWithColour(uint32_t* fb, rgbColor c) {
+    for (int y = 0; y < HEIGHT; y++) {
+        for (int x = 0; x < WIDTH; x++) {
+            encodePixel(fb, c, x, y);
+        }
+    }
+}
+
+void fillEveryInterval(uint32_t* fb, rgbColor c, int interval) {
+    for (int y = 1; y < HEIGHT; y += interval) {
+        for (int x = 0; x < WIDTH; x++) {
+            encodePixel(fb, c, x, y);
+        }
+    }
+}
+
+gboolean onTimerTick(gpointer user_data) {
+    rgbColor c = {0, 0, 0, 255};
+    if (currentCol == 0) {
+        c.red = 255;
+    }
+    if (currentCol == 1) {
+        c.green = 255;
+    }
+    if (currentCol == 2) {
+        c.blue = 255;
+        currentCol = -1;
+    }
+    currentCol++;
+    fillWithColour(framebuffer, c);
+
+    rgbColor c1 = {0, 0, 255, 255};
+    fillEveryInterval(framebuffer, c1, 20);
+    gtk_widget_queue_draw(mainWindow);
+    return 1;
+}
+
+gboolean onDraw(GtkWidget* widget, cairo_t *cr, gpointer user_data) {
+    gdk_cairo_set_source_pixbuf(cr, pixbuf, 0, 0);
+    cairo_paint(cr);
+    return 0;
+}
+
+void onWindowDestroy (GtkWidget* object, gpointer user_data) {
+    gtk_main_quit();
+}
+
+int main() {
+    framebuffer = malloc(sizeof(uint32_t)*WIDTH*HEIGHT);
+    rgbColor c = {255, 0, 0, 255};
+    fillWithColour(framebuffer, c);
+
+
+    gtk_init(NULL, NULL);
+    mainWindow = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    gtk_window_set_default_size(GTK_WINDOW(mainWindow), WIDTH, HEIGHT);
+    gtk_window_set_title(GTK_WINDOW(mainWindow), "Framebuffer test");
+
+    GtkWidget* drawingArea = gtk_drawing_area_new();
+
+    gtk_container_add(GTK_CONTAINER(mainWindow), drawingArea);
+
+    g_signal_connect(GTK_WINDOW(mainWindow), "destroy", (GCallback)onWindowDestroy, NULL);
+    g_signal_connect(GTK_DRAWING_AREA(drawingArea), "draw", (GCallback)onDraw, NULL);
+
+    g_timeout_add(500, onTimerTick, NULL);
+
+    gtk_widget_show_all(GTK_WINDOW(mainWindow));
+    pixbuf = gdk_pixbuf_new_from_data(framebuffer, GDK_COLORSPACE_RGB, true, 8, WIDTH, HEIGHT, WIDTH*4, NULL, NULL);
+    gtk_main();
+}
+[DONE:] GdkPixbuf *gdk_pixbuf_new_from_data (const guchar *data,
+                     GdkColorspace colorspace,
+                     gboolean has_alpha,
+                     int bits_per_sample,
+                     int width, int height,
+                     int rowstride,
+                     GdkPixbufDestroyNotify destroy_fn,
+                     gpointer destroy_fn_data);
+typedef enum {
+    GDK_COLORSPACE_RGB
+} GdkColorspace;
+
+--*/
+
 --function xpg_set_menu_attribute(gdx id, string name, object v, bool bMapped)
 global procedure gMenuSetAttribute(gdx menu, integer id, string name, object v)
     bool bMapped = and_bits(ctrl_flags[menu],CF_MAPPED)!=0, bOK
@@ -5434,18 +6966,18 @@ global procedure gMenuSetAttribute(gdx menu, integer id, string name, object v)
     assert(ct=MENU)
     assert(id!=0)
     if bMapped then
-        if backend=GTK then
+        if backend=XPG_GTK then
             mh = getd({menu,id},GTK_MENU_UPLOOK)
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
             mh = ctrl_handles[menu]
         else
             ?9/0 -- (unknown backend)
         end if
         if name="TITLE" then
             assert(string(v))
-            if backend=GTK then
+            if backend=XPG_GTK then
                 c_proc(gtk_menu_item_set_label,{mh,v})
-            elsif backend=WinAPI then
+            elsif backend=XPG_WINAPI then
                 object mi = getd({menu,id},WINAPI_SUBMENUS)
                 bool byPos = sequence(mi)
                 if byPos then {mh,id} = mi end if
@@ -5456,14 +6988,13 @@ global procedure gMenuSetAttribute(gdx menu, integer id, string name, object v)
 -- (and obvs. similar handling elsewhere would be a good idea)
                 mem_set(pMENUITEMINFO,0,misize)
                 set_struct_field(idMENUITEMINFO,pMENUITEMINFO,"cbSize",misize)
-
                 set_struct_field(idMENUITEMINFO,pMENUITEMINFO,"fMask",MIIM_TYPE)
                 bOK = c_func(xGetMenuItemInfo,{mh,id,byPos,pMENUITEMINFO})
                 assert(bOK)
                 set_struct_field(idMENUITEMINFO,pMENUITEMINFO,"dwTypeData",xpg_raw_string_ptr(v))
                 bOK = c_func(xSetMenuItemInfo,{mh,id,byPos,pMENUITEMINFO})
                 assert(bOK)
-                drawMenuBar(menu)
+                xpg_WinAPI_draw_menu_bar(menu)
             else
                 ?9/0 -- (unknown backend)
             end if
@@ -5472,16 +7003,16 @@ global procedure gMenuSetAttribute(gdx menu, integer id, string name, object v)
 ?{"ACTIVE",menu,id}
 ?def_menu_attr[menu]
             if string(v) then v = xpg_to_bool(v) end if
-            if backend=GTK then
+            if backend=XPG_GTK then
                 c_proc(gtk_widget_set_sensitive,{mh,v})
-            elsif backend=WinAPI then
+            elsif backend=XPG_WINAPI then
                 integer flags = or_bits(MF_BYCOMMAND,MF_GRAYED*(not v)),
                           res = c_func(xEnableMenuItem,{mh,id,flags})
                 if res = -1 then -- not a menu item...
                     {mh,id} = getd({menu,id},WINAPI_SUBMENUS)
                     res = c_func(xEnableMenuItem,{mh,id,flags+MF_BYPOSITION})
                 end if
-                drawMenuBar(menu)
+                xpg_WinAPI_draw_menu_bar(menu)
             else
                 ?9/0 -- (unknown backend)
             end if
@@ -5490,9 +7021,9 @@ global procedure gMenuSetAttribute(gdx menu, integer id, string name, object v)
 ?{"CHECKED",menu,id}
 ?def_menu_attr[menu]
             if string(v) then v = xpg_to_bool(v) end if
-            if backend=GTK then
+            if backend=XPG_GTK then
                 c_proc(gtk_check_menu_item_set_active,{mh,v})
-            elsif backend=WinAPI then
+            elsif backend=XPG_WINAPI then
                 object g = getd({menu,id},WIN_MENU_CHECKED)
                 if sequence(g) then -- a radio group
                     atom state = c_func(xGetMenuState,{mh,id,MF_BYCOMMAND})
@@ -5507,6 +7038,72 @@ global procedure gMenuSetAttribute(gdx menu, integer id, string name, object v)
                 else
                     c_proc(xCheckMenuItem,{mh,id,or_bits(MF_BYCOMMAND,MF_CHECKED*v)})
                 end if
+            else
+                ?9/0 -- (unknown backend)
+            end if
+            return
+        elsif name="IMAGE" then
+--?{"IMAGE",menu,id}
+--?def_menu_attr[menu]
+--          if string(v) then v = xpg_to_bool(v) end if
+            if string(v) then
+                v = gImage_from_XPM(v,XPG_MENUBG)
+            end if
+            assert(v[1]="gImage") -- shd be {"gImage",{GtkPixbuf,w,h},iid} [GTK]
+                                  --     or {"gImage",{hDIB,w,h,t},iid} [WinAPI]
+            if backend=XPG_GTK then
+--DEV DOCS: Note that under GTK xpGUI initially creates a GtkImageMenuItem rather than GtkMenuItem when
+--          the menu is first created, hence you //cannot// set an image on a menu item which has not
+--          had one from the get-go, you can however replace it.
+--?9/0
+--              assert(v[1]="gImage") -- shd be {"gImage",GtkPixbuf}
+--              atom pixbuf = v[2], -- (a GtkPixBuf)
+                atom pixbuf = v[2][1], -- (a GtkPixBuf)
+--DEV leak??
+                    gtk_img = c_func(gtk_image_new_from_pixbuf,{pixbuf})
+                c_proc(gtk_image_menu_item_set_image,{mh,gtk_img})
+--              c_proc(gtk_widget_set_sensitive,{mh,v})
+            elsif backend=XPG_WINAPI then
+--DEV I think we need to store this somewhere...
+--              integer flags = or_bits(MF_BYCOMMAND,MF_GRAYED*(not v)),
+--                        res = c_func(xEnableMenuItem,{mh,id,flags})
+--              if res = -1 then -- not a menu item...
+--                  {mh,id} = getd({menu,id},WINAPI_SUBMENUS)
+--                  res = c_func(xEnableMenuItem,{mh,id,flags+MF_BYPOSITION})
+--              end if
+--/*
+                if string(v) then
+--?1111
+--                  v = gImage_from_XPM(v,"MENU")
+                    v = gImage_from_XPM(v,XPG_MENUBG)
+--erm, no...
+--              elsif backend=XPG_WINAPI then
+--?2222
+--?v
+--                  v = xpg_WinAPI_replace_bgclr(v[3],XPG_MENUBG)
+--?v
+                end if
+--*/
+--              assert(v[1]="gImage") -- v shd be {"gImage",{hDIB,w,h,t},iid}
+                atom hBitmap = v[2][1]
+                integer iid = v[3]
+                setd({menu,id},iid,WINAPI_MENU_IMGS)
+--              bool 
+--              bOK = c_func(xSetMenuItemBitmaps,{mh,id,MF_BYCOMMAND,hBitmap,hBitmap});
+--              assert(bOK)
+                integer misize = get_struct_size(idMENUITEMINFO)
+                mem_set(pMENUITEMINFO,0,misize)
+                set_struct_field(idMENUITEMINFO,pMENUITEMINFO,"cbSize",misize)
+                set_struct_field(idMENUITEMINFO,pMENUITEMINFO,"fMask",MIIM_BITMAP)
+                set_struct_field(idMENUITEMINFO,pMENUITEMINFO,"hbmpItem",hBitmap)
+
+--              set_struct_field(idMENUITEMINFO,pMENUITEMINFO,"fMask",MIIM_TYPE)
+--              bOK = c_func(xGetMenuItemInfo,{mh,id,byPos,pMENUITEMINFO})
+--              assert(bOK)
+--              set_struct_field(idMENUITEMINFO,pMENUITEMINFO,"dwTypeData",xpg_raw_string_ptr(v))
+                bOK = c_func(xSetMenuItemInfo,{mh,id,false,pMENUITEMINFO})
+                assert(bOK)
+--              xpg_WinAPI_draw_menu_bar(menu)
             else
                 ?9/0 -- (unknown backend)
             end if
@@ -5550,9 +7147,9 @@ global function gMenuGetAttribute(gdx menu, integer id, string name)
     assert(id!=0)
     atom mh
     if bMapped then
-        if backend=GTK then
+        if backend=XPG_GTK then
             mh = getd({menu,id},GTK_MENU_UPLOOK)
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
             mh = ctrl_handles[menu]
         else
             ?9/0 -- (unknown backend)
@@ -5560,10 +7157,11 @@ global function gMenuGetAttribute(gdx menu, integer id, string name)
     end if
     if name="TITLE" then
         assert(bMapped)
-        if backend=GTK then
+        if backend=XPG_GTK then
             atom pStr = c_func(gtk_menu_item_get_label,{mh})
             return peek_string(pStr)
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
+--?{"gMenuGetattribute(TITLE)",mh,id}
             set_struct_field(idMENUITEMINFO,pMENUITEMINFO,"fMask",MIIM_STRING)
             set_struct_field(idMENUITEMINFO,pMENUITEMINFO,"dwTypeData",NULL)
             bOK = c_func(xGetMenuItemInfo,{mh,id,byPos,pMENUITEMINFO})
@@ -5604,9 +7202,9 @@ BOOL WINAPI ModifyMenu(
 */
     elsif bMapped then
         if name="ACTIVE" then
-            if backend=GTK then
+            if backend=XPG_GTK then
                 return c_func(gtk_widget_get_sensitive,{mh})
-            elsif backend=WinAPI then
+            elsif backend=XPG_WINAPI then
                 atom state = c_func(xGetMenuState,{mh,id,MF_BYCOMMAND})
                 if state=#FFFFFFFF then
                     {mh,id} = getd({menu,id},WINAPI_SUBMENUS)
@@ -5619,9 +7217,9 @@ BOOL WINAPI ModifyMenu(
                 ?9/0 -- (unknown backend)
             end if
         elsif name="CHECKED" then
-            if backend=GTK then
+            if backend=XPG_GTK then
                 return c_func(gtk_check_menu_item_get_active,{mh})
-            elsif backend=WinAPI then
+            elsif backend=XPG_WINAPI then
                 -- menu items only...
                 atom state = c_func(xGetMenuState,{mh,id,MF_BYCOMMAND})
                 return state!=#FFFFFFFF and and_bits(state,MF_CHECKED)
@@ -5644,21 +7242,24 @@ local function xpg_menu_common(integer pid, integer id, bool bSelected)
     -- common code for GTK clicked and selected events, and WinAPI
     --assert(id=xpg_getID(handle)) -- NO!!
     assert(pid!=NULL)
-    if backend=WinAPI and not bSelected
+    if backend=XPG_WINAPI and not bSelected
     and getd_index({pid,id},WIN_MENU_CHECKED)!=NULL then
         bool checked = gMenuGetAttribute(pid,id,"CHECKED")
         gMenuSetAttribute(pid,id,"CHECKED",not checked)
     end if
     integer handler = gGetHandler(pid,"HANDLER")
     assert(handler!=NULL)
-    sequence sig = get_routine_info(handler,false)
+--  sequence sig = get_routine_info(handler,false)
+    string sig = get_routine_info(handler,false)[3]
     integer res = XPG_DEFAULT -- (anything but XPG_CLOSE)
-    if sig={3,3,"FOII"} then
+--  if sig={3,3,"FOII"} then
+    if sig="FOII" then
         res = handler(pid,id,bSelected)
 --DEV JavaScript as a typeless language would struggle to distinguish these two... and as per "FI" below.
 --  elsif sig={2,2,"FII"} then
 --      res = handler(id,bSelected)
-    elsif sig={2,2,"FOI"} then
+--  elsif sig={2,2,"FOI"} then
+    elsif sig="FOI" then
         if not bSelected then
             res = handler(pid,id)
         end if
@@ -5684,34 +7285,85 @@ local function xpg_button_clicked(gdx id) -- (WinAPI and GTK)
     integer action = gGetHandler(id,"ACTION")
     if action then
         integer res = action(id)
---      if res=XPG_IGNORE then
---                  return 0
         if res=XPG_CLOSE then
             gHide(gGetDialog(id))
---          return 0
         end if
     end if
     return false
 end function
 
 local function xpg_gtk_button_clicked(atom handle, gdx id) -- (GTK only)
---?{"clicked",id}
     assert(id=xpg_getID(handle))
---temp:
---gdx parent = xpg_get_parent_id(id)
---integer {w,h} = gGetTextExtent(id,{"port from pGUI"})
---?{"click size",w,h}
     return xpg_button_clicked(id)
---  integer action = gGetHandler(id,"ACTION")
---  if action then
---      integer res = action(id)
---      if res=XPG_CLOSE then
---          gHide(gGetDialog(id))
---      end if
---  end if
---  return false
 end function
 
+local procedure xpg_check_changed(gdx id, bool bChecked)
+    -- common to WinAPI and GTK
+    integer value_changed = gGetHandler(id,"VALUE_CHANGED")
+    if value_changed then
+        bool bRadio = and_bits(ctrl_flags[id],CF_RADIO)!=0
+        if bRadio then
+            if bChecked then
+--              sequence sig = get_routine_info(value_changed,false)
+                string sig = get_routine_info(value_changed,false)[3]
+                if sig="PO" then
+                    value_changed(id)
+                elsif sig="POI" then
+                    value_changed(id,bChecked)
+                else
+                    ?9/0
+                end if
+            end if
+        else
+            value_changed(id,bChecked)
+        end if
+    end if
+end procedure
+
+local forward procedure xpg_redraw_scrollbars(gdx canvas)
+
+local procedure xpg_redraw_canvas(gdx canvas, atom back)
+    -- (shared code between GTK, via xpg_gtk_canvas_draw,
+    --  and WinAPI, via xpg_WinAPI_WndProc and WM_PAINT.)
+    integer {w, h} = gGetIntInt(canvas,"SIZE")
+    object sbinfo = ctrl_xtra[canvas][CX_SBINFO]
+    if sequence(sbinfo) then
+        integer mox = sbinfo[SB_SCRLW]-(w-sbinfo[SB_VVISB]*sbinfo[SB_VWIDE]),
+                moy = sbinfo[SB_SCRLH]-(h-sbinfo[SB_HVISB]*sbinfo[SB_HHIGH]),
+                origx = max(min(sbinfo[SB_ORIGX],mox),0),
+                origy = max(min(sbinfo[SB_ORIGY],moy),0)
+        sbinfo = {} -- (kill refcount)
+        ctrl_xtra[canvas][CX_SBINFO][SB_ORIGX] = origx
+        ctrl_xtra[canvas][CX_SBINFO][SB_ORIGY] = origy
+    end if
+    integer redraw = gGetHandler(canvas,"REDRAW")
+--  assert(redraw!=NULL,"gCanvas: MUST have a REDRAW procedure")
+--  redraw(canvas)
+--DEV temp (for demo\xpGUI\sample.exw)
+if redraw!=NULL then
+    string sig = get_routine_info(redraw,false)[3]
+    if sig="PO" then
+        redraw(canvas)
+    elsif sig="POII" then
+        redraw(canvas,w,h)
+    else
+        ?9/0
+    end if
+end if
+--DEV gotta be a neater way to do this (and still avoid p2js violations)... [FIXED]
+--  if sequence(sbinfo) then xpg_redraw_scrollbars(canvas) end if
+--  bool bRS = sequence(ctrl_xtra[canvas][CX_SBINFO])
+--  if bRS then xpg_redraw_scrollbars(canvas) end if
+--  sbinfo = ctrl_xtra[canvas][CX_SBINFO]
+--  sbinfo = iff(sequence(sbinfo)?{}:0)
+--  if sequence(sbinfo) then xpg_redraw_scrollbars(canvas) end if
+    if and_bits(ctrl_xtra[canvas][CX_CANVAS_FLAGS],CXCF_SCROLL) then
+        -- aside: ^^ that flag may well have changed inside redraw()
+        xpg_redraw_scrollbars(canvas)
+    end if
+--?{"gCanvasSetBackground",canvas,gGetColourName(back)}
+    gCanvasSetBackground(canvas,back)
+end procedure
 
 local integer assume_id -- for betwixt xCreateWindowEx() and xpg_setID()... (windows only)
 local atom assumed_hwnd -- ""
@@ -5726,18 +7378,51 @@ local function xpg_WinAPI_SubProc(atom hwnd, msg, wParam, lParam)
 --
     integer id = xpg_getID(hwnd),
             ct = ctrl_types[id]
---if ct=BUTTON then
---  ?{id,msg}
---end if
+--/*
+if ct=TEXT or ct=SPIN then
+integer WM_MOVE = 3,
+WM_KILLFOCUS = 8,
+--WM_SETTEXT = 12, -- maybe...
+WM_GETTEXT = 13,
+WM_GETTEXTLENGTH = 14,
+WM_SETCURSOR = 32,
+WM_MOUSEACTIVATE = 33,
+WM_GETFONT = 49,
+WM_WINDOWPOSCHANGING = 70,
+WM_WINDOWPOSCHANGED = 71,
+WM_NOTIFYFORMAT = 85,
+WM_NCCALCSIZE = 131,
+WM_NCHITTEST = 132,
+WM_NCPAINT = 133,
+WM_NCMOUSEMOVE = 160,
+EM_GETSEL = 176,
+EM_SETSEL = 177,
+EM_GETRECT = 178,
+EM_GETLINECOUNT = 186,
+EM_LINELENGTH = 193,
+EM_LINEFROMCHAR = 201,
+EM_POSFROMCHAR = 214,
+EM_CHARFROMPOS = 215,
+WM_CAPTURECHANGED = 533,
+WM_IME_SETCONTEXT = 641,
+WM_IME_NOTIFY = 642,
+EM_GETOLEINTERFACE = 1084
+ if not find(msg,{WM_MOVE,WM_SIZE,WM_SETFOCUS,WM_KILLFOCUS,WM_PAINT,/*WM_SETTEXT,*/WM_GETTEXT,WM_GETTEXTLENGTH,WM_ERASEBKGND,
+                  WM_SETCURSOR,WM_SETFONT,WM_GETFONT,WM_WINDOWPOSCHANGING,WM_WINDOWPOSCHANGED,WM_NOTIFYFORMAT,
+                  WM_NCCALCSIZE,WM_NCHITTEST,WM_NCPAINT,WM_NCMOUSEMOVE,WM_CAPTURECHANGED,WM_LBUTTONUP,WM_LBUTTONDOWN,
+                  WM_MOUSEMOVE,WM_IME_SETCONTEXT,WM_IME_NOTIFY,WM_MOUSELEAVE,EM_GETOLEINTERFACE,WM_MOUSEACTIVATE,
+                  EM_GETSEL,EM_SETSEL,EM_GETRECT,EM_GETLINECOUNT,EM_LINELENGTH,EM_LINEFROMCHAR,EM_POSFROMCHAR,EM_CHARFROMPOS}) then
+    ?{"sub",id,msg}
+ end if
+end if
 --?{"xpg_WinAPI_SubProc",id,win_msg(msg),ctrl_names[ct]}
-
+--*/
     if msg=WM_SETFOCUS then
         --
         -- save the item being focussed on in the parent window
         -- (quite why this don't work in WndProc is beyond me)
         --
         integer pid = gGetDialog(id)
---      ctrl_xtra[pid] = id
         ctrl_xtra[pid][CX_LAST_FOCUS] = id
 
     elsif msg=WM_CHAR
@@ -5750,77 +7435,28 @@ local function xpg_WinAPI_SubProc(atom hwnd, msg, wParam, lParam)
         --  that is, compared to the messages that WndProc might get.
         --  Frinst, '1'|'!' & 'a'|'A'|Shift|CapsLock make sense here.
         --
-        if xpg_process_key(id,msg,wParam,lParam)=0 then return 0 end if
+        if xpg_WinAPI_process_key(id,msg,wParam,lParam)=0 then return 0 end if
     --
     -- Everything else could easily go in xpg_WinAPI_WndProc(), but just as 
     -- long as we're not replicating code, we may as well leave it in here.
     --
     elsif msg=BM_SETCHECK and ct=CHECKBOX then
-        integer value_changed = gGetHandler(id,"VALUE_CHANGED")
-        if value_changed then
-            if (not and_bits(ctrl_flags[id],CF_RADIO))
-            or wParam=BST_CHECKED then
-                value_changed(id,wParam=BST_CHECKED)
-            end if
-        end if
+        bool bChecked = wParam=BST_CHECKED
+        xpg_check_changed(id,bChecked)
 
     elsif msg=WM_COMMAND then
         if ct=DROPDOWN then
             if floor(wParam/#10000)=LBN_SELCHANGE then
---?{"DROPDOWN LBN_SELCHANGE",id,lParam,xpg_getID(lParam)}
                 integer changed = gGetHandler(id,"CHANGED")
                 if changed then
                     changed(id)
                 end if
             end if
-
---      elsif ct=BUTTON then
-            -- buttons which are indirect children of the dialog, being
-            -- those in a gFrame/gTabs, as opposed to gVbox/gHbox-only.
---          return xpg_button_clicked(id)
-else
-integer oid = id
-        if lParam then -- (see win00inglod.exw for more...)
-            id = xpg_getID(lParam)
-            if id then
-                ct = ctrl_types[id]
-                if ct=BUTTON then
-                    return xpg_button_clicked(id)
-                end if
-            end if
         end if
-    printf(1,"SubProc WM_COMMAND(%s): wParam:%08x, lParam:%08x, oid:%d, id:%d\n",{ctrl_names[ct],wParam,lParam,oid,id})
-        end if
---elsif msg=WM_MENUCOMMAND then
---  printf(1,"SubProc WM_MENUCOMMAND(%s,%d): wParam:%08x, lParam:%08x\n",{ctrl_names[ct],id,wParam,lParam})
     end if
     return c_func(xCallWindowProc,{wnd_proc_addr[id],hwnd,msg,wParam,lParam})
 end function
 local constant WINAPI_SUBPROC_CB = call_back(xpg_WinAPI_SubProc)
-
---local procedure xpg_WinAPI_sub_class_control(gdx id, xpg_handle hwnd)
---  integer ct = ctrl_types[id]
---  -- certain control types do not get subclassed:
-----    if ct!=StaticBitmap and ct!=DIALOG 
-----    and ct!=ReBarBand then--and ct!=HyperText then
---  if ct!=DIALOG then
-----    if ct!=DIALOG and ct!=FRAME and ct!=BUTTON then
-----    if false then
-----?{"subclassing!",id}
---      assert(sub_proc_addr[id]==UNDEFINED)
---      atom prev_wnd_proc = c_func(xSetWindowLong,{hwnd,GWL_WNDPROC,WINAPI_SUBPROC_CB})
---      wnd_proc_addr[id] = prev_wnd_proc
---      sub_proc_addr[id] = WINAPI_SUBPROC_CB
---  end if
---end procedure
-
---local procedure xpg_WinAPI_unsub_class_control(integer id)
---  if sub_proc_addr[id]!=UNDEFINED then
---      atom PrevWndProc = wnd_proc_addr[id]
---      {} = c_func(xSetWindowLong,{ctrl_handles[id],GWL_WNDPROC,PrevWndProc})
---      sub_proc_addr[id] = UNDEFINED
---  end if
---end procedure
 
 local integer tracked_menu = 0
 
@@ -5844,6 +7480,9 @@ local function xpg_WinAPI_WndProc(atom hwnd, msg, wParam, lParam)
 --      end if
     end if
     integer ct = ctrl_types[id]
+--if ct=TEXT or ct=SPIN then
+--  ?{"winproc",msg,id}
+--end if
 --/*
 --if id!=2 then
 --if id=1 then
@@ -5926,100 +7565,95 @@ SetWindowPos(hWnd,  HWND_TOP,  100,  100,  300,  70,  SWP_SHOWWINDOW);
         return 0
 
 --*/
---integer oid = id
+--integer oid = id, oct = ct
         if lParam then -- (see win00inglod.exw for more...)
             id = xpg_getID(lParam)
         end if
         if id then
             ct = ctrl_types[id]
+--?{"WM_COMMAND",oid,id,lParam,wParam,oct,ct,TEXT,SPIN,ctrl_types[id-1]}
             if ct=BUTTON then
                 -- buttons which are implicitly direct children of the dialog,
                 -- because the gVbox() and gHbox() are "virtual" under WinAPI.
                 return xpg_button_clicked(id)
---?"wndclick"
---              integer action = gGetHandler(id,"ACTION")
---              if action then
---                  integer res = action(id)
---                  if res=XPG_IGNORE then
---                      return 0
---                  elsif res=XPG_CLOSE then
---                      gHide(gGetDialog(id))
---                      return 0
---                  end if
---              end if
             --
             -- It would make no odds to do these here rather than in SubProc. [FLW...]
             --
 --          elsif ct=CHECKBOX then
---              integer value_changed = gGetHandler(id,"VALUE_CHANGED")
---              if value_changed then
---                  bool bState = c_func(xSendMessage,{lParam,BM_GETCHECK,0,0})
---                  value_changed(id,bState)
---              end if
+--              bool bChecked = c_func(xSendMessage,{lParam,BM_GETCHECK,0,0})
+--              xpg_check_changed(id,bChecked)
 --          elsif ct=DROPDOWN and floor(wParam/#10000)=LBN_SELCHANGE then
 ----printf(1,"DROPDOWN di:%d, wParam:%08x, lParam:%08x\n",{id,wParam,lParam})
 --              integer changed = gGetHandler(id,"CHANGED")
 --              if changed then
 --                  changed(id)
 --              end if
+            elsif ct=TEXT then
+                if id>1 and ctrl_types[id-1]=SPIN then id -= 1 end if
+                integer value_changed = gGetHandler(id,"VALUE_CHANGED")
+                if value_changed then
+                    value_changed(id)
+                end if
             elsif ct=DIALOG then
-                -- a menu command
+                -- menu command - must be a gDialog(gVbox({gMenu(),...}),...) construct.
 --  printf(1,"WndProc WM_COMMAND(%s,%d): id:%d, wParam:%08x, lParam:%08x\n",{ctrl_names[ct],oid,id,wParam,lParam})
                 id = children_ids[id][1]
                 assert(ctrl_types[id]=BOX)
                 id = children_ids[id][1]
                 assert(ctrl_types[id]=MENU)
                 return xpg_menu_common(id,wParam,false)
---local sequence ctrl_handles = {}, -- (native handles)
---               ctrl_types = {},   -- (also ctrl_free_list)
---               ctrl_flags = {},   -- (CF_XXX settings, see above)
---               parent_ids = {},   -- (as gdx, nb see xpg_get_parent_handle)
---             children_ids = {},   -- (as gdx) (also cairo context?)
---
 --  printf(1,"WndProc WM_COMMAND(%s): id:%d, wParam:%08x, lParam:%08x\n",{ctrl_names[ct],id,wParam,lParam})
             end if
         end if
---      if ct=DROPDOWN and floor(wParam/#10000)=LBN_SELCHANGE then
 
     elsif msg=WM_MENUSELECT then
         integer flags = floor(wParam/#10000),
                   mid = and_bits(wParam,#FFFF)
-        if and_bits(flags,MF_POPUP) then
---          mid = c_func(xGetMenuItemID,{lParam,mid})
-            -- since GetMenuItemID obstinately returns -1 for submenus:
-            set_struct_field(idMENUITEMINFO,pMENUITEMINFO,"fMask",MIIM_ID)
-            bool bOK = c_func(xGetMenuItemInfo,{lParam,mid,true,pMENUITEMINFO})
-            if bOK then
-                atom mh = get_struct_field(idMENUITEMINFO,pMENUITEMINFO,"wID")
-                -- at least we can get a submenu handle, but we have to convert
-                -- that into a menu identifier ourselves (I can half see why..)
-                mid = getd(mh,WINAPI_SUBMENUS)
-            else
-                mid = 0
+        if not and_bits(flags,MF_SYSMENU) then
+            if and_bits(flags,MF_POPUP) then
+--              mid = c_func(xGetMenuItemID,{lParam,mid})
+                -- since GetMenuItemID obstinately returns -1 for submenus:
+                set_struct_field(idMENUITEMINFO,pMENUITEMINFO,"fMask",MIIM_ID)
+                bool bOK = c_func(xGetMenuItemInfo,{lParam,mid,true,pMENUITEMINFO})
+                if bOK then
+                    atom mh = get_struct_field(idMENUITEMINFO,pMENUITEMINFO,"wID")
+                    -- at least we can get a submenu handle, but we have to convert
+                    -- that into a menu identifier ourselves (I can half see why..)
+                    mid = getd(mh,WINAPI_SUBMENUS)
+                else
+                    mid = 0
+                end if
             end if
-        end if
-        if mid>0 then
+--?{"WM_MENUSELECT",hwnd,wParam,flags,mid,id}
             if tracked_menu then
---              return xpg_menu_common(tracked_menu,mid,true)
                 id = tracked_menu
             else
                 id = children_ids[id][1]
                 assert(ctrl_types[id]=BOX)
                 id = children_ids[id][1]
-                assert(ctrl_types[id]=MENU)
---              printf(1,"WndProc WM_MENUSELECT(%s,%d): wParam:%08x, lParam:%08x\n",{ctrl_names[ct],id,wParam,lParam})
             end if
-            return xpg_menu_common(id,mid,true)
+            assert(ctrl_types[id]=MENU)
+            if sequence(ctrl_xtra[id]) then
+                integer {pmid,previd} = ctrl_xtra[id]
+                sequence normal_img = xpg_WinAPI_replace_bgclr(previd,XPG_MENUBG)
+                gMenuSetAttribute(id,pmid,"IMAGE",normal_img)
+                ctrl_xtra[id] = 0
+            end if
+            if mid>0 then
+                -- (aside: //all// images have an id, btw, since they are leaf-only)
+                integer iid = getdd({id,mid},0,WINAPI_MENU_IMGS)
+                if iid then
+                    sequence highlit_img = xpg_WinAPI_replace_bgclr(iid,XPG_MENUHLT)
+                    gMenuSetAttribute(id,mid,"IMAGE",highlit_img)
+                    ctrl_xtra[id] = {mid,iid}
+                end if
+                return xpg_menu_common(id,mid,true)
+            end if
         end if
---elsif msg=WM_MENUCOMMAND then
---  printf(1,"WndProc WM_MENUCOMMAND(%s,%d): wParam:%08x, lParam:%08x\n",{ctrl_names[ct],id,wParam,lParam})
 
 --  elsif msg=BM_SETCHECK and ct=CHECKBOX then
---      integer value_changed = gGetHandler(id,"VALUE_CHANGED")
---      if value_changed then
---          value_changed(id,wParam=BST_CHECKED)
---      end if
-
+--      bool bChecked = wParam=BST_CHECKED
+--      xpg_check_changed(id,bChecked)
 --*!/
     elsif msg=WM_CHAR
        or msg=WM_KEYDOWN
@@ -6031,32 +7665,69 @@ SetWindowPos(hWnd,  HWND_TOP,  100,  100,  300,  70,  SWP_SHOWWINDOW);
         -- Also, you're on your own with '1'|'!' & 'a'|'A'|Shift|CapsLock,
         --  that is at least as I understand/believe these things to be.
 
-        if xpg_process_key(id,msg,wParam,lParam)=0 then return 0 end if
+        if xpg_WinAPI_process_key(id,msg,wParam,lParam)=0 then return 0 end if
+
+    elsif msg=WM_MOUSEWHEEL then
+        integer delta = sign(floor(wParam/#10000))
+        bool ctrl = and_bits(c_func(xGetKeyState,{VK_CTRL}),#8000)!=0,
+            shift = and_bits(c_func(xGetKeyState,{VK_SHIFT}),#8000)!=0,
+              alt = and_bits(c_func(xGetKeyState,{VK_ALT}),#8000)!=0
+--      printf(1,"WM_MOUSEWHEEL: delta:%d, ctrl:%d, shift:%d, alt:%d\n",{delta,ctrl,shift,alt})
+        xpg_mousewheel(id,delta,ctrl,shift,alt)
 
     elsif msg>=WM_LBUTTONDOWN
-      and msg<=WM_MBUTTONDBLCLK then
+--    and msg<=WM_MBUTTONDBLCLK then
+      and msg<=WM_XBUTTONDOWN then -- (excluding WM_MOUSEWHEEL just handled)
+        -- see definitions of WM_LBUTTONDOWN..WM_MBUTTONDBLCLK, 3 groups of 3:
         integer btn = floor((msg-510)/3),
-             button = "LRM"[btn],
-                rb3 = remainder(msg-513,3)+1,
-            pressed = "SRD"[rb3],
+                rb3 = remainder(msg-513,3)+1
+        if msg=WM_XBUTTONDOWN then -- (but this is different)
+            btn = floor(wParam/#10000)
+            assert(btn=1 or btn=2)
+            rb3 = 2-(and_bits(btn*#20,wParam)!=0) -- (no dbl)
+            btn += 3
+        elsif msg=WM_LBUTTONDOWN then
+            c_proc(xSetCapture,{hwnd})
+        elsif msg=WM_LBUTTONUP then
+            c_proc(xReleaseCapture,{})
+        end if
+        integer button = "LRMXY"[btn],
+               pressed = "SRD"[rb3],
+--DEV let's have a local routine to deal with this:
                   x = and_bits(lParam,#FFFF),
                   y = floor(lParam/#10000)
+        if x>#7FFF then x -= #10000 end if
+        if y>#7FFF then y -= #10000 end if
         bool ctrl = and_bits(c_func(xGetKeyState,{VK_CTRL}),#8000)!=0,
             shift = and_bits(c_func(xGetKeyState,{VK_SHIFT}),#8000)!=0,
               alt = and_bits(c_func(xGetKeyState,{VK_ALT}),#8000)!=0
         sequence status = {button,pressed,ctrl,shift,alt}
-        return xpg_click_handler(id,status,x,y)
+-- If an application processes this message, it should return zero. (so false is do not propagate)
+--      return xpg_click_handler(id,status,x,y)
+        return xpg_click_handler(id,status,x,y)!=XPG_IGNORE
 
     elsif msg=WM_MOUSEMOVE then
-        integer x = and_bits(lParam,#FFFF),
-                y = floor(lParam/#10000)
-        bool left = and_bits(wParam,MK_LBUTTON)!=0,
-           middle = and_bits(wParam,MK_MBUTTON)!=0,
-            right = and_bits(wParam,MK_RBUTTON)!=0,
-             ctrl = and_bits(wParam,MK_CONTROL)!=0,
-            shift = and_bits(wParam,MK_SHIFT)!=0,
-              alt = and_bits(c_func(xGetKeyState,{VK_ALT}),#8000)!=0
-        xpg_mousemove_handler(id,x,y,left,middle,right,ctrl,shift,alt)
+        integer xm = and_bits(lParam,#FFFF),
+                ym = floor(lParam/#10000)
+        bool bLeft = and_bits(wParam,MK_LBUTTON)!=0,
+           bMiddle = and_bits(wParam,MK_MBUTTON)!=0,
+            bRight = and_bits(wParam,MK_RBUTTON)!=0,
+             bCtrl = and_bits(wParam,MK_CONTROL)!=0,
+            bShift = and_bits(wParam,MK_SHIFT)!=0,
+              bAlt = and_bits(c_func(xGetKeyState,{VK_ALT}),#8000)!=0
+--4/12/23. (Dragging a gSplit sizer *is* going to get -ve x/y fairly quicky)
+        if xm>#7FFF then xm -= #10000 end if
+        if ym>#7FFF then ym -= #10000 end if
+        xpg_mousemove_handler(id,xm,ym,bLeft,bMiddle,bRight,bCtrl,bShift,bAlt)
+
+    elsif msg=WM_MOUSELEAVE then
+        -- first off, signal there is no longer any need to cancel TME_LEAVE:
+        set_struct_field(idTRACKMOUSEEVENT,pTRACKMOUSEEVENT,"dwFlags",0)
+        assert(ct=CANVAS)
+--NO...
+--      xpg_redraw_scrollbars(id)
+        bool bOKlm = c_func(xInvalidateRect,{hwnd,NULL,true})
+        assert(bOKlm)
 
     elsif msg=WM_NOTIFY then
 
@@ -6064,35 +7735,54 @@ SetWindowPos(hWnd,  HWND_TOP,  100,  100,  300,  70,  SWP_SHOWWINDOW);
         hwnd = get_struct_field(idNMTREEVIEW,lParam,"hdr.hwndFrom")
         id = xpg_getID(hwnd)
 
-        if id and ctrl_types[id]=TREEVIEW then
-            --NB: code had to be made INT, not UNIT for this to work:
-            wParam = get_struct_field(idNMHDR,lParam,"code")
-            if wParam=TVN_GETDISPINFO then
-                atom tvItem = lParam + get_struct_size(idNMHDR),
-                     tvmask = get_struct_field(idTVITEM,tvItem,"mask")
-                integer treeIdx = get_struct_field(idTVITEM,tvItem,"lParam")
-                string tvtext = tree_items[treeIdx][tText]
-                if and_bits(tvmask,TVIF_TEXT) then
-                    set_struct_field(idTVITEM,tvItem,"pszText",xpg_raw_string_ptr(tvtext))
-                end if
-                if and_bits(tvmask,TVIF_SELECTEDIMAGE) then
-                    integer tvstate = get_struct_field(idTVITEM,tvItem,"state"),
-                              tvimg = iff(and_bits(tvstate,TVIS_EXPANDED)?1:0)
-                    set_struct_field(idTVITEM,tvItem,"iSelectedImage",tvimg)
-                end if
-            elsif wParam=TVN_ITEMEXPANDED then
-                integer state = get_struct_field(idNMTREEVIEW,lParam,"itemNew.state")
-                bool expanded = and_bits(state,TVIS_EXPANDED)
-                if expanded then
-                    integer branchopen = gGetHandler(id,"BRANCHOPEN")
-                    if branchopen then
-                        -- aside: the argument to branchopen() is whatever the Windows branches of 
-                        --  gTreeGetUserId()/gTreeAddNodes(), as defined in this very source file, 
-                        --  actually need. (backend-specific)
-                        integer treeIdx = get_struct_field(idNMTREEVIEW,lParam,"itemNew.lParam")
-                        branchopen({hwnd,treeIdx})
+        if id then
+--          integer ct = ctrl_types[id]
+            ct = ctrl_types[id]
+            if ct=TREEVIEW then
+                --NB: code had to be made INT, not UNIT for this to work:
+                wParam = get_struct_field(idNMHDR,lParam,"code")
+                if wParam=TVN_GETDISPINFO then
+                    atom tvItem = lParam + get_struct_size(idNMHDR),
+                         tvmask = get_struct_field(idTVITEM,tvItem,"mask")
+                    integer treeIdx = get_struct_field(idTVITEM,tvItem,"lParam")
+                    string tvtext = tree_items[treeIdx][tText]
+                    if and_bits(tvmask,TVIF_TEXT) then
+                        set_struct_field(idTVITEM,tvItem,"pszText",xpg_raw_string_ptr(tvtext))
+                    end if
+                    if and_bits(tvmask,TVIF_SELECTEDIMAGE) then
+                        integer tvstate = get_struct_field(idTVITEM,tvItem,"state"),
+                                  tvimg = iff(and_bits(tvstate,TVIS_EXPANDED)?1:0)
+                        set_struct_field(idTVITEM,tvItem,"iSelectedImage",tvimg)
+                    end if
+                elsif wParam=TVN_ITEMEXPANDED then
+                    integer state = get_struct_field(idNMTREEVIEW,lParam,"itemNew.state")
+                    bool expanded = and_bits(state,TVIS_EXPANDED)
+                    if expanded then
+                        integer branchopen = gGetHandler(id,"BRANCHOPEN")
+                        if branchopen then
+                            -- aside: the argument to branchopen() is whatever the Windows branches of 
+                            --  gTreeGetUserId()/gTreeAddNodes(), as defined in this very source file, 
+                            --  actually need. (backend-specific)
+                            integer treeIdx = get_struct_field(idNMTREEVIEW,lParam,"itemNew.lParam")
+                            branchopen({hwnd,treeIdx})
+                        end if
                     end if
                 end if
+            elsif ct=SPIN then
+                wParam = get_struct_field(idNMHDR,lParam,"code")
+                if wParam == UDN_DELTAPOS then
+                    integer iPos = get_struct_field(idNMUPDOWN,lParam,"iPos"),
+                            iDelta = get_struct_field(idNMUPDOWN,lParam,"iDelta"),
+                            v = iPos+iDelta
+--                  if (value < UD_MIN_POS) { value = UD_MIN_POS; }
+--                  if (value > UD_MAX_POS) { value = UD_MAX_POS; }
+                    integer value_changed = gGetHandler(id,"VALUE_CHANGED")
+                    if value_changed then
+                        value_changed(id)
+                    end if
+                end if
+--elsif ct=TEXT then -- nope...
+--?"WM_NOTIFYtext"
             end if
         end if
 
@@ -6117,17 +7807,140 @@ SetWindowPos(hWnd,  HWND_TOP,  100,  100,  300,  70,  SWP_SHOWWINDOW);
 --*/
 
     elsif msg=WM_PAINT and ct=CANVAS then
-        atom hdc = c_func(xBeginPaint,{hwnd,pPAINTSTRUCT})
-        ctrl_xtra[id][CX_CANVAS_HDC] = hdc
+
+        atom pchdc = c_func(xBeginPaint,{hwnd,pPAINTSTRUCT}),
+             pcmdc = c_func(xCreateCompatibleDC,{pchdc}),
+            pcback = gCanvasGetBackground(id),
+          pchBrush = xpg_WinAPI_get_brush(pcback)
+        integer pcr = c_func(xGetClientRect,{hwnd,pRECT})
+        assert(pcr!=0)
+        integer pcleft = get_struct_field(idRECT,pRECT,"left"),
+                 pctop = get_struct_field(idRECT,pRECT,"top"),
+               pcwidth = get_struct_field(idRECT,pRECT,"right")-pcleft,
+              pcheight = get_struct_field(idRECT,pRECT,"bottom")-pctop
+        atom pcbmp = c_func(xCreateCompatibleBitmap,{pchdc,pcwidth,pcheight}),
+          oldpcbmp = c_func(xSelectObject,{pcmdc,pcbmp})
         -- (R2_MASKPEN is the only one worth having, in my tests)
-        integer prev = c_func(xSetROP2,{hdc,R2_MASKPEN})
-        assert(prev!=0) -- shd be R2_COPYPEN(13) or R2_MASKPEN(9)
-        integer redraw = gGetHandler(id,"REDRAW")
-        if redraw then
-            atom back = gCanvasGetBackground(id)
-            redraw(id)
-            gCanvasSetBackground(id,back)
-        end if
+--DEV/UPDATE: actually, it's rubbish...
+--      integer prev = c_func(xSetROP2,{mdc,R2_MASKPEN})
+--      assert(prev=R2_COPYPEN)
+        pcr = c_func(xFillRect,{pcmdc,pRECT,pchBrush})
+        assert(pcr!=0)
+--2/10/23: (OR USE ctrl_fontd[id] = hFont??)
+--      integer k = ctrl_font[id]
+--      assert(k!=UNDEFINED)
+--      atom hFont = cachedfonts[k]
+------DEV scan up?? (if this ever triggers)
+----        assert(hFont!=NULL and hFont!=UNDEFINED)
+--      hFont = c_func(xSelectObject,{mdc,hFont})
+        atom pchFont = ctrl_fontd[id],
+          pcprevFont = c_func(xSelectObject,{pcmdc,pchFont})
+
+        ctrl_xtra[id][CX_CANVAS_HDC] = pcmdc
+
+--Update: improves gCanvas, but (without flicker) fouls up colours...
+--     --> I think every canvas should have a gImage backing, for proper anti-aliasing.
+-- Some good advice here: https://stackoverflow.com/questions/60911015/in-c-win32-how-do-i-prevent-the-window-from-flickering
+-- from https://stackoverflow.com/questions/25460367/how-do-i-implement-double-buffering-in-the-winapi (linked to from above)
+--/*
+--case WM_PAINT: 
+--  {
+--      // skipped the initialization part to preserve space
+--      // just copy those, they are irrelevant for your problem
+--
+--      hdc = BeginPaint(hwnd, &ps);
+--
+--      // create memory DC and memory bitmap where we shall do our drawing
+--
+--      HDC memDC = CreateCompatibleDC( hdc );
+--
+--      // get window's client rectangle. We need this for bitmap creation.
+--      RECT rcClientRectangle;
+--      GetClientRect( hwnd, &rcClientRect );
+--
+--      // now we can create bitmap where we shall do our drawing
+--      HBITMAP bmp = CreateCompatibleBitmap( hdc, 
+--          rcClientRect.right - rcClientRect.left, 
+--          rcClientRect.bottom - rcClientRect.top );
+--
+--      // we need to save original bitmap, and select it back when we are done,
+--      // in order to avoid GDI leaks!
+--      HBITMAP oldBmp = (HBITMAP)SelectObject( memDC, bmp );
+--
+--      // now you draw your stuff in memory dc; 
+--      // just substitute hdc with memDC in your drawing code, 
+--      // like I did below:
+--
+--      TextOut( memDC, //...
+--      TextOut( memDC, //...
+--      for (int i = 0; i < 20; i++) 
+--      {
+--          for (int j = 0; j < 20; j++) 
+--          {
+--              if (level1[j][i] == '1') 
+--              {
+--                  SetTextColor( memDC, //...
+--                  SetBkColor( memDC, //...
+--                  TextOut( memDC, //...
+--              }
+--              SetBkColor( memDC, //...
+--              if (level1[j][i] == '0') 
+--              {
+--                  SetTextColor( memDC, //...
+--                  TextOut( memDC, //...
+--              }
+--              SetTextColor( memDC, //...
+--              if (i == x && j == y)
+--                  TextOut( memDC, //...
+--              if (level1[j][i] == 'e')
+--                  TextOut( memDC, //...
+--          }
+--      }
+--
+--      // OK, everything is drawn into memory DC, 
+--      // now is the time to draw that final result into our target DC
+--
+--      BitBlt( hdc, 0, 0, rcClientRect.right - rcClientRect.left, 
+--          rcClientRect.bottom - rcClientRect.top, memDC, 0, 0, SRCCOPY );
+--
+--      // all done, now we need to cleanup
+--      SelectObject( memDC, oldBmp ); // select back original bitmap
+--      DeleteObject( bmp ); // delete bitmap since it is no longer required
+--      DeleteDC( memDC );   // delete memory DC since it is no longer required
+--
+--      EndPaint(hwnd, &ps);
+--      break;
+--  }
+--*/
+--      integer prev = c_func(xSetROP2,{hdc,R2_MASKPEN})
+--      integer prev = c_func(xGetROP2,{hdc})
+--      bool clear = prev!=R2_MASKPEN
+--if true then
+--      prev = c_func(xSetROP2,{hdc,R2_MASKPEN})
+--      integer prev = c_func(xSetROP2,{hdc,R2_MASKPEN})
+--      assert(prev!=0) -- shd be R2_COPYPEN(13) or R2_MASKPEN(9)
+--end if
+--/*
+        integer r = c_func(xGetClientRect,{hwnd,pRECT})
+        assert(r!=0)
+        atom --hdc = wParam,
+             back = gCanvasGetBackground(id),
+             hBrush = xpg_WinAPI_get_brush(back)
+--if clear then
+        r = c_func(xFillRect,{hdc,pRECT,hBrush})
+        assert(r!=0)
+--end if
+--sleep(1)
+--*/
+        xpg_redraw_canvas(id,pcback)
+--/!*
+        bool bOKpc = c_func(xBitBlt,{pchdc,0,0,pcwidth,pcheight,pcmdc,0,0,SRCCOPY})
+        atom pcpBmp = c_func(xSelectObject,{pcmdc,oldpcbmp}); // select back original bitmap
+        assert(pcpBmp==pcbmp)
+        c_proc(xDeleteObject,{pcbmp}); // delete bitmap since it is no longer required
+        bOKpc = c_func(xDeleteDC,{pcmdc}); // delete memory DC since it is no longer required
+        assert(bOKpc)
+--*!/
         c_proc(xEndPaint,{hwnd,pPAINTSTRUCT})
         return 1
 
@@ -6142,12 +7955,30 @@ SetWindowPos(hWnd,  HWND_TOP,  100,  100,  300,  70,  SWP_SHOWWINDOW);
             integer l = length(Phix),
             h = c_func(xDrawText,{hdc,Phix,l,pRECT,DT_SINGLECENTER})
             c_proc(xEndPaint,{hwnd,pPAINTSTRUCT})
+--arwendemo/scroller.exw:
+        if viewBM=NULL
+        or mainX>viewX
+        or mainY>viewY then
+            {viewX,viewY} = {mainX,mainY}
+            viewBM = c_func(xCreateCompatibleBitmap,{mainDC, viewX, viewY})
+            {} = c_func(xDeleteObject,{c_func(xSelectObject,{viewDC, viewBM})})
+        end if
 --*/
 
-    elsif msg=WM_ERASEBKGND and ct=CANVAS then
---?"WM_ERASEBKGND"
+-- 31/10/23: a nicely simple fix for flashing during resize of demo\xpGUI\r3d.exw:
+--  elsif msg=WM_ERASEBKGND and ct=CANVAS then
+    elsif msg=WM_ERASEBKGND then
+        --  4/11/23: but introduced a horrible ghosting on guess the number 3.... [FIXED]
+        if ct!=DIALOG
+        or (length(children_ids[id])=1 and ctrl_types[children_ids[id][1]]=CANVAS) then
+--SUG/untried:
+--      if (ct!=DIALOG and ct!=CANVAS)
+--      or (ct=DIALOG and length(children_ids[id])=1 and ctrl_types[children_ids[id][1]]=CANVAS) then
+--?{"WM_ERASEBKGND",ct,gGetAttribute(id,"CLASSNAME")}
+
+-- good stuff: https://stackoverflow.com/questions/53000291/how-to-smooth-ugly-jitter-flicker-jumping-when-resizing-windows-especially-drag
 --DEV removing this made no difference... (it /is/ called, tho)
---/!*
+--/*
         integer r = c_func(xGetClientRect,{hwnd,pRECT})
         assert(r!=0)
         atom hdc = wParam,
@@ -6155,8 +7986,10 @@ SetWindowPos(hWnd,  HWND_TOP,  100,  100,  300,  70,  SWP_SHOWWINDOW);
              hBrush = xpg_WinAPI_get_brush(back)
         r = c_func(xFillRect,{hdc,pRECT,hBrush})
         assert(r!=0)
---*!/
-        return 1 -- (signal done)
+--*/
+            return 1 -- (signal done)
+--      return 0 -- (signal done) [no diff...]
+        end if
 
     elsif msg=WM_SIZE then
 --no help:
@@ -6175,9 +8008,14 @@ SetWindowPos(hWnd,  HWND_TOP,  100,  100,  300,  70,  SWP_SHOWWINDOW);
 --*/
 --      integer ct = ctrl_types[id] 
         if ct=DIALOG then
+--28/11/23: window_rect mucked up gButton.exw
             integer {w,h} = xpg_get_client_rect(id)[3..4]
+--          integer {w,h} = xpg_get_window_rect(id)[3..4]
 ?{"WM_SIZE",id,w,h}
             xpg_WinAPI_resize(id,w,h)
+--23/11/23 (no help with guess the number 3)
+--bool bOK = c_func(xInvalidateRect,{hwnd,NULL,true});
+--assert(bOK)
         end if
 --/*
         integer w = and_bits(lParam,#FFFF),
@@ -6215,36 +8053,32 @@ SetWindowPos(hWnd,  HWND_TOP,  100,  100,  300,  70,  SWP_SHOWWINDOW);
     -- MUST handle this message
     elsif msg=WM_DESTROY and id=PrimaryWindowID then
         c_proc(xPostQuitMessage,{0})
---DEVto go:
+--DEV to go...:
 --      -- unsubclass all subclassed controls
 --      for obj_id=1 to length(ctrl_types) do
---          xpg_WinAPI_unsub_class_control(obj_id)
+--          if sub_proc_addr[obj_id]!=UNDEFINED then
+--              atom hnd = ctrl_handles[obj_id],
+--                   wpa = wnd_proc_addr[obj_id]
+--              {} = c_func(xSetWindowLong,{hnd,GWL_WNDPROC,wpa})
+--              sub_proc_addr[obj_id] = UNDEFINED
+--          end if
 --      end for
         return  0
 
     elsif msg=WM_SETFOCUS then
         -- focus on the saved item rather than the window
-        -- (for task switching, eg Alt-Tab)
---      if ctrl_types[id]=DIALOG then
+        -- (for task switching, eg/ie Alt-Tab)
         if ct=DIALOG then
---maybe:
---          integer last_focus = ctrl_xtra[id]
             integer last_focus = ctrl_xtra[id][CX_LAST_FOCUS]
             if last_focus!=UNDEFINED
             and ctrl_types[last_focus]!=DIALOG then
                 c_proc(xSetFocus,{ctrl_handles[last_focus]})
                 return 0
             end if
--- No help...
---      else
---          -- save the item being focussed on in the parent window
---          integer pid = gGetDialog(id)
---          ctrl_xtra[pid] = id
---          ctrl_xtra[pid][CX_LAST_FOCUS] = id
+--      else -- (now stored in xpg_WinAPI_SubProc() instead)
         end if
     elsif msg=WM_HSCROLL
        or msg=WM_VSCROLL then
---      if ctrl_types[id]=SLIDER and lParam then
         if lParam then
             -- STAND ALONE CONTROLS - Scroll bar OR trackbar controls OR TabControl arrow buttons
                 -- get the id of the control
@@ -6274,53 +8108,61 @@ SetWindowPos(hWnd,  HWND_TOP,  100,  100,  300,  70,  SWP_SHOWWINDOW);
 --*/
             end if
         end if      
+-- (no help)
+--  elsif msg=WM_CTLCOLORBTN then
+--      atom hBrush = xpg_WinAPI_get_brush(#E1E1E1)
+--      return hBrush
+    elsif msg=WM_CTLCOLOREDIT then
+        integer editid = xpg_getID(lParam)
+        if ctrl_bg[editid]!=-1 then
+--?"WM_CTLCOLOREDIT"
+            atom hDC = wParam,
+                 clr = ctrl_bg[editid],
+                 hBrush = xpg_WinAPI_get_brush(clr)
+--          SetTextColor(hdcStatic, RGB(0, 255, 0));
+            {} = c_func(xSetBkColor,{hDC,xpg_WinAPI_rgb_to_bgr(clr)})
+--          {} = c_func(xSetBkMode,{hDC,TRANSPARENT}) -- (no help)
+            return hBrush
+        end if
+    elsif msg=WM_GETMINMAXINFO then
+--      string tMINMAXINFO = """typedef struct tagMINMAXINFO {
+--                                POINT ptReserved;
+--                                POINT ptMaxSize;
+--                                POINT ptMaxPosition;
+--                                POINT ptMinTrackSize;
+--                                POINT ptMaxTrackSize;
+--                              } MINMAXINFO, *PMINMAXINFO, *LPMINMAXINFO;"""
+--      idMINMAXINFO = define_struct(tMINMAXINFO)
+--arwen:
+--  if msg=WM_GETMINMAXINFO and id=Win then
+--      poke4(lParam + MINMAXINFO_ptMinTrackSize, {min_width,min_height}) 
+--      poke4(lParam + MINMAXINFO_ptMaxTrackSize, {max_width,max_height}) 
+--  elsif msg=WM_GETMINMAXINFO then
+--      poke4(lParam+MINMAXINFO_ptMinTrackSize+POINT_x,550)
+--      poke4(lParam+MINMAXINFO_ptMinTrackSize+POINT_Y,340)
+--MINSIZE
+--DEV:
+--gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
+--from D: A "modal" dialog (that is, one which freezes the rest of the application from user input), can be created by calling Window.setModal on the dialog. 
+--        When using Dialog.newWithButtons you can also pass the GTK_DIALOG_MODAL flag to make a dialog modal.
+--        gtk_window_set_modal().
+
+        atom pMM = lParam
+--?{"WM_GETMINMAXINFO",id}
+        integer minw = ctrl_size[id][SZ_MIN_W],
+                minh = ctrl_size[id][SZ_MIN_H],
+                maxw = ctrl_size[id][SZ_MAX_W],
+                maxh = ctrl_size[id][SZ_MAX_H]
+        if minw!=0 then set_struct_field(idMINMAXINFO,pMM,"ptMinTrackSize.x",minw) end if
+        if minh!=0 then set_struct_field(idMINMAXINFO,pMM,"ptMinTrackSize.y",minh) end if
+        if maxw!=0 then set_struct_field(idMINMAXINFO,pMM,"ptMaxTrackSize.x",maxw) end if
+        if maxh!=0 then set_struct_field(idMINMAXINFO,pMM,"ptMaxTrackSize.y",maxh) end if
+        return 0
     end if
     return c_func(xDefWindowProc,{hwnd,msg,wParam,lParam})
 end function
 
-local integer xpg_create_image_list, -- see xpg_xpm.e
-              xpg_winAPI_create_DIB_from_xpm -- "" 
---            xpg_winAPI_size                   -- ""
-local atom closed_folder, open_folder, dot  -- for GTK
-local atom tree_himl                        -- for WinAPI
-
-local function xpg_xpm_callback(object xpm)
-    -- low-level operations for xpg_xpm.e (avoids making anything global)
-    if backend=GTK then
-        return c_func(gdk_pixbuf_new_from_xpm_data,{xpg_word_array(xpm)})
-    elsif backend=WinAPI then
-        string what = xpm[1]
-        if what="NEWLIST" then
-            -- create imagelist using the recommended sizes for small icons:
-            return c_func(xImageList_Create,{c_func(xGetSystemMetrics,{SM_CXSMICON}),
-                                             c_func(xGetSystemMetrics,{SM_CYSMICON}),
-                                             ILC_COLOR8+ILC_MASK,1,32})
-        elsif what="NEWDIB" then    
-            atom {mem,hdrSize} = xpm[2],
-                 hdc = c_func(xGetDC,{0}),      -- Get the screen's device context.
-                hDIB = c_func(xCreateDIBitmap, {hdc,                -- create DDB for/compatible with this
-                                                mem,                -- info about the DIB to create, eg h*w
-                                                CBM_INIT,           -- initialise it please with...
-                                                mem+hdrSize,        --      this bitmap,
-                                                mem,                --      which has this structure
-                                                DIB_RGB_COLORS})    --      and has explicit RGB values
-            assert(hDIB!=NULL)
-            bool bOK = c_func(xReleaseDC,{0,hdc})
-            assert(bOK)
-            return hDIB
-        elsif what="ADDICON" then
-            atom tree = xpm[2], icon = xpm[3]
-            c_proc(xImageList_Add,{tree,icon,NULL})
-            c_proc(xDeleteObject,{icon})
-            return true -- (ignored)
-        else
-            ?9/0
-        end if
-    else
-        ?9/0 -- (unknown backend)
-    end if
-end function
-
+--with trace
 local procedure xpg_Init()
     bInit = true
     handlers = new_dict()   -- key is {gdx,name}, data is integer routine_id
@@ -6328,7 +8170,7 @@ local procedure xpg_Init()
     bool L = platform()=LINUX,
          bWinders = platform()=WINDOWS
     integer MB = machine_bits()
-    if backend=GTK then
+    if backend=XPG_GTK then
 --hmm: just pop libcairo-2.dll, libpng13.dll and zlib1.dll into your working directory...
         string gdk = iff(L?"libgdk-3.so.0"
                           :"libgdk-3-0.dll"), -- (win32bit replaced below)
@@ -6347,6 +8189,7 @@ local procedure xpg_Init()
                car = iff(L?"libcairo.so.2"
                           :"libcairo-2.dll"),
         initial_dir = current_dir()
+--?"libs"
         if bWinders then
             if MB=32 then
                 gdk = "libgdk-win32-2.0-0.dll"
@@ -6367,10 +8210,11 @@ local procedure xpg_Init()
         if bWinders then
             assert(chdir(initial_dir))
         end if
+--?"libs2"
         integer gtk_init_check = define_c_func(GTKLIB,"gtk_init_check",
             {C_PTR,     --  int* argc
              C_PTR},    --  char*** argv
-            C_INT)      -- gboolean
+            C_BOOL)     -- gboolean
         if c_func(gtk_init_check,{0,0})=0 then  
             crash("Failed to initialize GTK library!")  
         end if
@@ -6461,13 +8305,15 @@ local procedure xpg_Init()
              C_DBL})    --  double blue
         cairo_stroke = define_c_proc(CAIRO,"cairo_stroke",
             {C_PTR})    --  cairo_t* cr
+--      cairo_surface_destroy = define_c_proc(CAIRO,"cairo_surface_destroy",
+--          {C_PTR})    --  cairo_surface_t *surface
         cairo_translate = define_c_proc(CAIRO,"cairo_translate",
             {C_PTR,     --  cairo_t* cr
              C_DBL,     --  double tx
              C_DBL})    --  double ty
 --      gdk_atom_intern = define_c_func(GDKLIB,"gdk_atom_intern",
 --          {C_PTR,     --  const gchar* atom_name
---           C_INT},    --  gboolean only_if_exists
+--           C_BOOL},   --  gboolean only_if_exists
 --          C_PTR)      -- GdkAtom
         gdk_cairo_create = define_c_func(GDKLIB,"gdk_cairo_create",
             {C_PTR},    --  GdkDrawable *drawable
@@ -6480,6 +8326,18 @@ local procedure xpg_Init()
              C_PTR,     --  const GdkPixbuf *pixbuf
              C_DBL,     --  double pixbuf_x
              C_DBL})    --  double pixbuf_y
+        gdk_color_parse = define_c_func(GDKLIB,"gdk_color_parse",
+            {C_PTR,     --  const gchar* spec
+             C_PTR},    --  GdkColor* color
+            C_BOOL)     -- gboolean
+        gdk_cursor_new_for_display = define_c_func(GDKLIB,"gdk_cursor_new_for_display",
+            {C_PTR,     --  GdkDisplay* display
+             C_INT},    --  GdkCursorType cursor_type
+            C_PTR)      -- GdkCursor*
+--      gdk_cursor_new_from_name = define_c_func(GDKLIB,"gdk_cursor_new_from_name",
+--          {C_PTR,     --  GdkDisplay* display
+--           C_PTR},    --  const gchar* name
+--          C_PTR)      -- GdkCursor*
         gdk_display_get_default = define_c_func(GDKLIB,"gdk_display_get_default",
             {},         --  void
             C_PTR)      -- GdkDisplay*
@@ -6537,16 +8395,22 @@ local procedure xpg_Init()
 --           C_INT},    --  int height
 --          C_PTR)      -- GdkPixbuf*
 --  end if
+        gdk_pixbuf_get_height_ = define_c_func(GDKGTP,"gdk_pixbuf_get_height",
+            {C_PTR},    --  const GdkPixbuf* pixbuf
+            C_INT)      -- int
         gdk_pixbuf_get_pixels_ = define_c_func(GDKGTP,"gdk_pixbuf_get_pixels",
             {C_PTR},    --  const GdkPixbuf* pixbuf
             C_PTR)      -- guchar*
         gdk_pixbuf_get_type = define_c_func(GDKGTP,"gdk_pixbuf_get_type",
             {},         --  void
             C_INT)      -- GType
+        gdk_pixbuf_get_width_ = define_c_func(GDKGTP,"gdk_pixbuf_get_width",
+            {C_PTR},    --  const GdkPixbuf* pixbuf
+            C_INT)      -- int
         gdk_pixbuf_new_from_data = define_c_func(GDKGTP,"gdk_pixbuf_new_from_data",
             {C_PTR,     --  const guchar *data
              C_INT,     --  GdkColorspace colorspace
-             C_INT,     --  gboolean has_alpha
+             C_BOOL,    --  gboolean has_alpha
              C_INT,     --  int bits_per_sample
              C_INT,     --  int width
              C_INT,     --  int height
@@ -6557,6 +8421,13 @@ local procedure xpg_Init()
         gdk_pixbuf_new_from_xpm_data = define_c_func(GDKGTP,"gdk_pixbuf_new_from_xpm_data",
             {C_PTR},    --  const char** data
             C_PTR)      -- GdkPixbuf*
+    if bGTK3 then
+        gdk_rgba_parse = define_c_func(GDKLIB,"gdk_rgba_parse",
+            {C_PTR,         --  GdkRGBA *rgba
+             C_PTR},        --  const gchar *spec
+            C_BOOL)     -- gboolean
+
+    end if
         gdk_screen_get_default = define_c_func(GDKLIB,"gdk_screen_get_default",
             {},         --  void
             C_PTR)      -- GdkScreen*
@@ -6567,6 +8438,9 @@ local procedure xpg_Init()
 --      gdk_window_focus = define_c_proc(GDKLIB,"gdk_window_focus",
 --          {C_PTR,     --  GdkWindow *window
 --           C_INT})    --  guint32 timestamp
+        gdk_window_get_display = define_c_func(GDKLIB,"gdk_window_get_display",
+            {C_PTR},    --  GdkWindow *window
+            C_PTR)      -- GdkDisplay *
 --      gdk_window_get_geometry = define_c_proc(GDKLIB,"gdk_window_get_geometry",
 --          {C_PTR,     --  GdkWindow* window
 --           C_PTR,     --  gint* x
@@ -6595,16 +8469,19 @@ local procedure xpg_Init()
         gdk_window_invalidate_rect = define_c_proc(GDKLIB,"gdk_window_invalidate_rect",
             {C_PTR,     --  GdkWindow *window
              C_PTR,     --  const GdkRectangle *rect (NULL here)
-             C_INT})    --  gboolean invalidate_children
+             C_BOOL})   --  gboolean invalidate_children
 --      gdk_window_move_resize = define_c_proc(GDKLIB,"gdk_window_move_resize",
 --          {C_PTR,     --  GdkWindow* window
 --           C_INT,     --  gint x
 --           C_INT,     --  gint y
 --           C_INT,     --  gint width
 --           C_INT})    --  gint height
-         gdk_window_process_updates = define_c_proc(GDKLIB,"gdk_window_process_updates",
+        gdk_window_process_updates = define_c_proc(GDKLIB,"gdk_window_process_updates",
             {C_PTR,     --  GdkWindow* window
-             C_INT})    --  gboolean update_children
+             C_BOOL})   --  gboolean update_children
+        gdk_window_set_cursor = define_c_proc(GDKLIB,"gdk_window_set_cursor",
+            {C_PTR,     --  GdkWindow* window
+             C_PTR})    --  GdkCursor* cursor
         gtk_adjustment_new = define_c_func(GTKLIB,"gtk_adjustment_new",
             {C_DBL,     --  gdouble value
              C_DBL,     --  gdouble lower
@@ -6613,6 +8490,30 @@ local procedure xpg_Init()
              C_DBL,     --  gdouble page_increment
              C_DBL},    --  gdouble page_size
             C_PTR)      -- GtkObject*
+--      gtk_adjustment_get_upper = define_c_proc(GTKLIB,"gtk_adjustment_get_upper",
+--          {C_PTR},    --  GtkAdjustment *adjustment
+--           C_DBL)     -- gdouble
+--      gtk_adjustment_set_page_size = define_c_proc(GTKLIB,"gtk_adjustment_set_page_size",
+--          {C_PTR},    --  GtkAdjustment *adjustment
+--           C_DBL)     -- gdouble
+--      gtk_adjustment_set_lower = define_c_proc(GTKLIB,"gtk_adjustment_set_lower",
+--          {C_PTR,     --  GtkAdjustment *adjustment
+--           C_DBL})    --  gdouble lower
+--      gtk_adjustment_set_step_increment = define_c_proc(GTKLIB,"gtk_adjustment_set_step_increment",
+--          {C_PTR,     --  GtkAdjustment *adjustment
+--           C_DBL})    --  gdouble step_increment
+--      gtk_adjustment_set_page_increment = define_c_proc(GTKLIB,"gtk_adjustment_set_page_increment",
+--          {C_PTR,     --  GtkAdjustment *adjustment
+--           C_DBL})    --  gdouble page_increment
+--      gtk_adjustment_set_upper = define_c_proc(GTKLIB,"gtk_adjustment_set_upper",
+--          {C_PTR,     --  GtkAdjustment *adjustment
+--           C_DBL})    --  gdouble upper
+--      gtk_adjustment_set_page_size = define_c_proc(GTKLIB,"gtk_adjustment_set_page_size",
+--          {C_PTR,     --  GtkAdjustment *adjustment
+--           C_DBL})    --  gdouble page_size
+--      gtk_adjustment_changed = define_c_proc(GTKLIB,"gtk_adjustment_changed",
+--          {C_PTR})    --  GtkAdjustment *adjustment
+
 --gtk_alignment_new (then gtk_container_add)
 --/*
 --  GtkWidget* gtk_alignment_new(gfloat xalign,
@@ -6639,18 +8540,36 @@ local procedure xpg_Init()
 --    guint padding_right
 --  )
 --*/
---      gtk_box_pack_start = define_c_proc(GTKLIB,"gtk_box_pack_start",
+--      gtk_box_new = define_c_func(GTKLIB,"gtk_box_new",
+--          {C_INT,     --  GtkOrientation orientation
+--           C_BOOL,    --  gboolean homogeneous
+--           C_INT},    --  gint spacing
+--          C_PTR)      -- GtkWidget*
+--      gtk_box_pack_end = define_c_proc(GTKLIB,"gtk_box_pack_end",
 --          {C_PTR,     --  GtkBox* box
 --           C_PTR,     --  GtkWidget* child
---           C_INT,     --  gboolean expand
---           C_INT,     --  gboolean fill
+--           C_BOOL,    --  gboolean expand
+--           C_BOOL,    --  gboolean fill
 --           C_INT})    --  guint padding
+        -- aside: for notebook tabs with image only
+        gtk_box_pack_start = define_c_proc(GTKLIB,"gtk_box_pack_start",
+            {C_PTR,     --  GtkBox* box
+             C_PTR,     --  GtkWidget* child
+             C_BOOL,    --  gboolean expand
+             C_BOOL,    --  gboolean fill
+             C_INT})    --  guint padding
         gtk_button_get_label = define_c_func(GTKLIB,"gtk_button_get_label",
             {C_PTR},    --  GtkButton *button
             C_PTR)      -- const gchar *
+--      gtk_button_new_with_label = define_c_func(GTKLIB,"gtk_button_new_with_label",
+--          {C_PTR},    --  const gchar* label
+--          C_PTR)      -- GtkWidget*
         gtk_button_new_with_mnemonic = define_c_func(GTKLIB,"gtk_button_new_with_mnemonic",
             {C_PTR},    --  const gchar* label
             C_PTR)      -- GtkWidget*
+        gtk_button_set_image = define_c_proc(GTKLIB,"gtk_button_set_image",
+            {C_PTR,     --  GtkButton *button
+             C_PTR})    --  GtkWidget *image
         gtk_button_set_label = define_c_proc(GTKLIB,"gtk_button_set_label",
             {C_PTR,     --  GtkButton *button
              C_PTR})    --  const gchar* label
@@ -6688,10 +8607,10 @@ local procedure xpg_Init()
             C_PTR)      -- gchar*
         gtk_clipboard_wait_is_text_available = define_c_func(GTKLIB,"gtk_clipboard_wait_is_text_available",
             {C_PTR},    --  GtkClipboard* clipboard
-            C_INT)      -- gboolean
+            C_BOOL)     -- gboolean
         gtk_container_add = define_c_proc(GTKLIB,"gtk_container_add",
             {C_PTR,     --  GtkContainer* container
-             C_PTR})    --  GtkTreeIter* parent
+             C_PTR})    --  GtkWidget *widget
         gtk_container_set_border_width = define_c_proc(GTKLIB,"gtk_container_set_border_width",
             {C_PTR,     --  GtkContainer* container
              C_INT})    --  guint border_width
@@ -6706,7 +8625,7 @@ local procedure xpg_Init()
              C_PTR,     --  const gchar* data
              C_INT,     --  gssize length (-1)
              C_INT})    --  GError** error (NULL)
---          C_INT)      -- gboolean (unreliable anyway, it will either work or not)
+--          C_BOOL)     -- gboolean (unreliable anyway, it will either work or not)
 --          false)      -- bCrash (3.0+ only)
     end if
         gtk_drawing_area_new = define_c_func(GTKLIB,"gtk_drawing_area_new",
@@ -6771,10 +8690,37 @@ local procedure xpg_Init()
         gtk_get_current_event_time = define_c_func(GTKLIB,"gtk_get_current_event_time",
             {},         --  (void)
             C_INT)      -- guint32
---      gtk_hbox_new = define_c_func(GTKLIB,"gtk_hbox_new",
---          {C_INT,     --  gboolean homogeneous
---           C_INT},    --  gint spacing
+--GTK3 only:
+--      gtk_grid_attach = define_c_proc(GTKLIB,"gtk_grid_attach",
+--          {C_PTR,     --  GtkGrid *grid
+--           C_PTR,     --  GtkWidget *child
+--           C_INT,     --  gint left
+--           C_INT,     --  gint top
+--           C_INT,     --  gint width
+--           C_INT})    --  gint height
+--      gtk_grid_new = define_c_func(GTKLIB,"gtk_grid_new",
+--          {},         --  (void)
 --          C_PTR)      -- GtkWidget*
+        -- aside: for notebook tabs with images, only
+        gtk_hbox_new = define_c_func(GTKLIB,"gtk_hbox_new",
+            {C_BOOL,    --  gboolean homogeneous
+             C_INT},    --  gint spacing
+            C_PTR)      -- GtkWidget*
+        gtk_image_menu_item_new_with_mnemonic = define_c_func(GTKLIB,"gtk_image_menu_item_new_with_mnemonic",
+            {C_PTR},    --  const gchar* label
+            C_PTR)      -- GtkWidget*
+        gtk_image_menu_item_set_always_show_image = define_c_proc(GTKLIB,"gtk_image_menu_item_set_always_show_image",
+            {C_PTR,     --  GtkImageMenuItem *image_menu_item
+             C_BOOL})   --  gboolean always_show
+        gtk_image_menu_item_set_image = define_c_proc(GTKLIB,"gtk_image_menu_item_set_image",
+            {C_PTR,     --  GtkImageMenuItem *image_menu_item
+             C_PTR})    --  GtkWidget *image
+--      gtk_image_menu_item_set_use_stock = define_c_proc(GTKLIB,"gtk_image_menu_item_set_use_stock",
+--          {C_PTR,     --  GtkImageMenuItem *image_menu_item
+--           C_BOOL})   --  gboolean use_stock
+        gtk_image_new_from_pixbuf = define_c_func(GTKLIB,"gtk_image_new_from_pixbuf",
+            {C_PTR},    --  GdkPixbuf* pixbuf
+            C_PTR)      -- GtkWidget*
         gtk_label_new = define_c_func(GTKLIB,"gtk_label_new",
             {C_PTR},    --  const gchar* str
             C_PTR)      -- GtkWidget*
@@ -6825,6 +8771,9 @@ local procedure xpg_Init()
         gtk_menu_item_set_label = define_c_proc(GTKLIB,"gtk_menu_item_set_label",
             {C_PTR,     --  GtkMenuItem *menu_item
              C_PTR})    --  const gchar *label
+--      gtk_menu_item_new = define_c_func(GTKLIB,"gtk_menu_item_new",
+--          {},         --  void
+--          C_PTR)      -- GtkWidget*
         gtk_menu_item_new_with_mnemonic = define_c_func(GTKLIB,"gtk_menu_item_new_with_mnemonic",
             {C_PTR},    --  const gchar *label
             C_PTR)      -- GtkWidget*
@@ -6871,6 +8820,11 @@ local procedure xpg_Init()
         gtk_menu_shell_append = define_c_proc(GTKLIB,"gtk_menu_shell_append",
             {C_PTR,     --  GtkMenuShell *menu_shell
              C_PTR})    --  GtkWidget *child
+--      gtk_notebook_append_page = define_c_func(GTKLIB,"gtk_notebook_append_page",
+--          {C_PTR,     --  GtkNotebook *notebook
+--           C_PTR,     --  GtkWidget   *child
+--           C_PTR},    --  GtkWidget   *tab_label
+--          C_INT)      -- gint
         gtk_notebook_get_n_pages = define_c_func(GTKLIB,"gtk_notebook_get_n_pages",
             {C_PTR},    --  GtkNotebook *notebook
             C_INT)      -- int
@@ -6885,7 +8839,7 @@ local procedure xpg_Init()
              C_PTR)     -- GtkWidget*
         gtk_notebook_set_scrollable = define_c_proc(GTKLIB,"gtk_notebook_set_scrollable",
             {C_PTR,     --  GtkNotebook* notebook
-             C_INT})    --  gboolean scrollable
+             C_BOOL})   --  gboolean scrollable
         gtk_notebook_set_tab_label_text = define_c_proc(GTKLIB,"gtk_notebook_set_tab_label_text",
             {C_PTR,     --  GtkNotebook* notebook
              C_PTR,     --  GtkWidget* child
@@ -6896,7 +8850,7 @@ local procedure xpg_Init()
              C_DBL})    --  GtkOrientation orientation (GTK_ORIENTATION_*)
         gtk_progress_bar_set_inverted = define_c_proc(GTKLIB,"gtk_progress_bar_set_inverted",
             {C_PTR,     --  GtkProgressBar *pbar
-             C_INT})    --  gboolean inverted
+             C_BOOL})   --  gboolean inverted
     else
         gtk_progress_bar_set_orientation  = define_c_proc(GTKLIB,"gtk_progress_bar_set_orientation",
             {C_PTR,     --  GtkProgressBar *pbar
@@ -6932,6 +8886,22 @@ local procedure xpg_Init()
             {C_PTR},    --  GtkAdjustment *adjustment
             C_PTR)      -- GtkWidget*
     end if
+--  if bGTK3 then
+--      gtk_scrollbar_new = define_c_func(GTKLIB,"gtk_scrollbar_new",
+--          {C_PTR,     --  GtkOrientation orientation
+--           C_PTR},    --  GtkAdjustment *adjustment
+--          C_PTR)      -- GtkWidget*
+--  else
+--      gtk_hscrollbar_new = define_c_func(GTKLIB,"gtk_hscrollbar_new",
+--          {C_PTR},    --  GtkAdjustment *adjustment
+--          C_PTR)      -- GtkWidget*
+--      gtk_vscrollbar_new = define_c_func(GTKLIB,"gtk_vscrollbar_new",
+--          {C_PTR},    --  GtkAdjustment *adjustment
+--          C_PTR)      -- GtkWidget*
+--  end if
+--      gtk_scrolled_window_add_with_viewport = define_c_proc(GTKLIB,"gtk_scrolled_window_add_with_viewport",
+--          {C_PTR,     --  GtkScrolledWindow *scrolled_window
+--           C_PTR})    --  GtkWidget *child
         gtk_scrolled_window_new = define_c_func(GTKLIB,"gtk_scrolled_window_new",
             {C_PTR,     --  GtkAdjustment* hadjustment (NULL)
              C_PTR},    --  GtkAdjustment* vadjustment (NULL)
@@ -6940,25 +8910,70 @@ local procedure xpg_Init()
             {C_PTR,     --  GtkScrolledWindow* scrolled_window
              C_PTR,     --  GtkPolicyType hscrollbar_policy
              C_PTR})    --  GtkPolicyType vscrollbar_policy
+--      gtk_scrolled_window_set_shadow_type = define_c_proc(GTKLIB,"gtk_scrolled_window_set_shadow_type",
+--          {C_PTR,     --  GtkScrolledWindow* scrolled_window
+--           C_INT})    --  GtkShadowType type
         gtk_separator_menu_item_new = define_c_func(GTKLIB,"gtk_separator_menu_item_new",
             {},         --  (void)
             C_PTR)      -- GtkWidget*
---      gtk_style_context_add_provider = define_c_proc(GTKLIB,"gtk_style_context_add_provider",
---          {C_PTR,     --  GtkStyleContext *context
---           C_PTR,     --  GtkStyleProvider *provider
---           C_PTR})    --  guint priority
+        gtk_spin_button_get_increments = define_c_proc(GTKLIB,"gtk_spin_button_get_increments",
+            {C_PTR,     --  GtkSpinButton *spin_button
+             C_PTR,     --  double* step
+             C_PTR})    --  double* page
+        gtk_spin_button_get_range = define_c_proc(GTKLIB,"gtk_spin_button_get_range",
+            {C_PTR,     --  GtkSpinButton *spin_button
+             C_PTR,     --  double* min
+             C_PTR})    --  double* max
+        gtk_spin_button_get_value = define_c_func(GTKLIB,"gtk_spin_button_get_value",
+            {C_PTR},    --  GtkSpinButton* spin_button
+            C_DBL)      -- double
+        gtk_spin_button_get_wrap = define_c_func(GTKLIB,"gtk_spin_button_get_wrap",
+            {C_PTR},    --  GtkSpinButton* spin_button
+            C_BOOL)     -- gboolean
+        gtk_spin_button_new_with_range = define_c_func(GTKLIB,"gtk_spin_button_new_with_range",
+            {C_DBL,     --  gdouble min
+             C_DBL,     --  gdouble max
+             C_DBL},    --  gdouble step
+            C_PTR)      -- GtkWidget*
+        gtk_spin_button_set_increments = define_c_proc(GTKLIB,"gtk_spin_button_set_increments",
+            {C_PTR,     --  GtkSpinButton *spin_button
+             C_DBL,     --  gdouble step
+             C_DBL})    --  gdouble page
+        gtk_spin_button_set_range = define_c_proc(GTKLIB,"gtk_spin_button_set_range",
+            {C_PTR,     --  GtkSpinButton *spin_button
+             C_DBL,     --  gdouble min
+             C_DBL})    --  gdouble max
+        gtk_spin_button_set_value = define_c_proc(GTKLIB,"gtk_spin_button_set_value",
+            {C_PTR,     --  GtkSpinButton *spin_button
+             C_DBL})    --  double value
+        gtk_spin_button_set_wrap = define_c_proc(GTKLIB,"gtk_spin_button_set_wrap",
+            {C_PTR,     --  GtkSpinButton *spin_button
+             C_BOOL})   --  gboolean wrap
+--/*
+--double
+--gtk_spin_button_get_value (
+--  GtkSpinButton* spin_button
+--)
+--*/
+
+    if bGTK3 then
+        gtk_style_context_add_provider = define_c_proc(GTKLIB,"gtk_style_context_add_provider",
+            {C_PTR,     --  GtkStyleContext *context
+             C_PTR,     --  GtkStyleProvider *provider
+             C_PTR})    --  guint priority
         gtk_style_context_add_provider_for_screen = define_c_proc(GTKLIB,"gtk_style_context_add_provider_for_screen",
             {C_PTR,     --  GdkScreen* screen
              C_PTR,     --  GtkCssProvider* css_provider
-             C_INT},    --  guint priority
-            false)      -- bCrash (3.0+ only)
+             C_INT})    --  guint priority
+--          false)      -- bCrash (3.0+ only)
+    end if
 --multiline?
 --      gtk_text_view_new = define_c_func(GTKLIB,"gtk_text_view_new",
 --          {},         --  void
 --          C_PTR)      -- GtkWidget*
         gtk_toggle_button_get_active = define_c_func(GTKLIB,"gtk_toggle_button_get_active",
             {C_PTR},    --  GtkToggleButton *toggle_button
-            C_INT)      -- gboolean
+            C_BOOL)     -- gboolean
         gtk_toggle_button_set_active = define_c_proc(GTKLIB,"gtk_toggle_button_set_active",
             {C_PTR,     --  GtkToggleButton* toggle_button
              C_BOOL})   --  gboolean is_active
@@ -6979,7 +8994,7 @@ local procedure xpg_Init()
             {C_PTR,     --  GtkTreeModel* tree_model
              C_PTR,     --  GtkTreeIter* iter
              C_PTR},    --  GtkTreePath* path
-            C_INT)      -- gboolean
+            C_BOOL)     -- gboolean
         gtk_tree_model_get_path = define_c_func(GTKLIB,"gtk_tree_model_get_path",
             {C_PTR,     --  GtkTreeModel *tree_model
              C_PTR},    --  GtkTreeIter *iter
@@ -6997,7 +9012,7 @@ local procedure xpg_Init()
             {C_PTR,     --  GtkTreeModel* tree_model
              C_PTR,     --  GtkTreeIter* iter
              C_PTR},    --  GtkTreeIter* parent
-            C_INT)      -- gboolean
+            C_BOOL)     -- gboolean
         gtk_tree_path_free = define_c_proc(GTKLIB,"gtk_tree_path_free",
             {C_PTR})    --  GtkTreePath** path
 --(fine, should you actually need it)
@@ -7009,7 +9024,7 @@ local procedure xpg_Init()
 --          {C_PTR,     --  GtkTreeSelection* selection
 --           C_PTR,     --  GtkTreeModel** model
 --           C_PTR},    --  GtkTreeIter* iter
---          C_INT)      -- gboolean
+--          C_BOOL)     -- gboolean
         gtk_tree_selection_set_mode = define_c_proc(GTKLIB,"gtk_tree_selection_set_mode",
             {C_PTR,     --  GtkTreeSelection* selection
              C_INT})    --  GtkSelectionMode type
@@ -7032,7 +9047,7 @@ local procedure xpg_Init()
         gtk_tree_store_remove = define_c_func(GTKLIB,"gtk_tree_store_remove",
             {C_PTR,     --  GtkTreeStore* tree_store
              C_PTR},    --  GtkTreeIter* iter
-            C_INT)      -- gboolean
+            C_BOOL)     -- gboolean
         -- nb limited version, "..." replaced with column,value,-1
         gtk_tree_store_set = define_c_proc(GTKLIB,"gtk_tree_store_set",
             {C_PTR,     --  GtkTreeStore* tree_store
@@ -7053,7 +9068,7 @@ local procedure xpg_Init()
         gtk_tree_view_column_pack_start = define_c_proc(GTKLIB,"gtk_tree_view_column_pack_start",
             {C_PTR,     --  GtkTreeViewColumn* tree_column
              C_PTR,     --  GtkCellRenderer* cell
-             C_INT})    --  gboolean expand
+             C_BOOL})   --  gboolean expand
         gtk_tree_view_column_add_attribute = define_c_proc(GTKLIB,"gtk_tree_view_column_add_attribute",
             {C_PTR,     --  GtkTreeViewColumn* tree_column
              C_PTR,     --  GtkCellRenderer* cell_renderer
@@ -7062,12 +9077,12 @@ local procedure xpg_Init()
         gtk_tree_view_collapse_row = define_c_proc(GTKLIB,"gtk_tree_view_collapse_row",
             {C_PTR,     --  GtkTreeView* tree_view
              C_PTR})    --  GtkTreePath* path
---          C_INT)      -- gboolean
+--          C_BOOL)     -- gboolean
         gtk_tree_view_expand_row = define_c_proc(GTKLIB,"gtk_tree_view_expand_row",
             {C_PTR,     --  GtkTreeView* tree_view
              C_PTR,     --  GtkTreePath* path
-             C_INT})    --  gboolean open_all (children, recursively: false==just immediate children)
---          C_INT)      -- gboolean
+             C_BOOL})   --  gboolean open_all (children, recursively: false==just immediate children)
+--          C_BOOL)     -- gboolean
         gtk_tree_view_expand_to_path = define_c_proc(GTKLIB,"gtk_tree_view_expand_to_path",
             {C_PTR,     --  GtkTreeView* tree_view
              C_PTR})    --  GtkTreePath* path
@@ -7102,16 +9117,16 @@ local procedure xpg_Init()
             C_PTR)      -- GtkWidget*
         gtk_tree_view_set_enable_search = define_c_proc(GTKLIB,"gtk_tree_view_set_enable_search",
             {C_PTR,     --  GtkTreeView* tree_view
-             C_INT})    --  gboolean enable_search
+             C_BOOL})   --  gboolean enable_search
         gtk_tree_view_set_enable_tree_lines = define_c_proc(GTKLIB,"gtk_tree_view_set_enable_tree_lines",
             {C_PTR,     --  GtkTreeView* tree_view
-             C_INT})    --  gboolean enabled
+             C_BOOL})   --  gboolean enabled
 --      gtk_tree_view_set_grid_lines = define_c_proc(GTKLIB,"gtk_tree_view_set_grid_lines",
 --          {C_PTR,     --  GtkTreeView* tree_view
 --           C_INT})    --  GtkTreeViewGridLines grid_lines
         gtk_tree_view_set_headers_visible = define_c_proc(GTKLIB,"gtk_tree_view_set_headers_visible",
             {C_PTR,     --  GtkTreeView* tree_view
-             C_INT})    --  gboolean headers_visible
+             C_BOOL})   --  gboolean headers_visible
         gtk_tree_view_set_model = define_c_proc(GTKLIB,"gtk_tree_view_set_model",
             {C_PTR,     --  GtkTreeView* tree_view
              C_PTR})    --  GtkTreeModel* model
@@ -7119,30 +9134,41 @@ local procedure xpg_Init()
 --          {C_PTR,     --  GtkTreeView* tree_view
 --           C_INT})    --  gint column
 --      gtk_vbox_new = define_c_func(GTKLIB,"gtk_vbox_new",
---          {C_INT,     --  gboolean homogeneous
+--          {C_BOOL,    --  gboolean homogeneous
 --           C_INT},    --  gint spacing
 --          C_PTR)      -- GtkWidget*
+--      gtk_viewport_new = define_c_func(GTKLIB,"gtk_viewport_new",
+--          {C_PTR,     --  GtkAdjustment *hadjustment
+--           C_PTR},    --  GtkAdjustment *vadjustment
+--          C_PTR)      -- GtkWidget*
+--      gtk_viewport_set_shadow_type = define_c_proc(GTKLIB,"gtk_viewport_set_shadow_type",
+--          {C_PTR,     --  GtkViewport *viewport
+--           C_INT})    --  GtkShadowType type
 --      gtk_widget_get_allocated_height = define_c_func(GTKLIB,"gtk_widget_get_allocated_height",
 --          {C_PTR},    --  GtkWidget* widget
 --          C_INT)      -- int
 --      gtk_widget_get_allocated_width = define_c_func(GTKLIB,"gtk_widget_get_allocated_width",
 --          {C_PTR},    --  GtkWidget* widget
 --          C_INT)      -- int
-        gtk_widget_get_allocation = define_c_proc(GTKLIB,"gtk_widget_get_allocation",
-            {C_PTR,     --  GtkWidget *widget
-             C_PTR})    --  GtkAllocation *allocation (aka a GtkRectange)
+--      gtk_widget_get_allocation = define_c_proc(GTKLIB,"gtk_widget_get_allocation",
+--          {C_PTR,     --  GtkWidget *widget
+--           C_PTR})    --  GtkAllocation *allocation (aka a GtkRectange)
         gtk_widget_get_can_focus = define_c_func(GTKLIB,"gtk_widget_get_can_focus",
             {C_PTR},    --  GtkWidget* widget
-            C_INT)      -- gboolean
+            C_BOOL)     -- gboolean
 --      gtk_widget_get_root_window = define_c_func(GTKLIB,"gtk_widget_get_root_window",
 --          {C_PTR},    --  GtkWidget* widget
 --          C_PTR)      -- GdkWindow*
-        gtk_widget_get_parent = define_c_func(GTKLIB,"gtk_widget_get_parent",
-            {C_PTR},    --  GtkWidget* widget
-            C_PTR)      -- GtkWidget*
+--      gtk_widget_get_parent = define_c_func(GTKLIB,"gtk_widget_get_parent",
+--          {C_PTR},    --  GtkWidget* widget
+--          C_PTR)      -- GtkWidget*
+        gtk_widget_get_pointer = define_c_proc(GTKLIB,"gtk_widget_get_pointer",
+            {C_PTR,     --  GtkWidget *widget
+             C_PTR,     --  gint* x
+             C_PTR})    --  gint* y
         gtk_widget_get_sensitive = define_c_func(GTKLIB,"gtk_widget_get_sensitive",
             {C_PTR},    --  GtkWidget* widget
-            C_INT)      -- gboolean
+            C_BOOL)     -- gboolean
     if bGTK3 then
         gtk_widget_get_style_context = define_c_func(GTKLIB,"gtk_widget_get_style_context",
             {C_PTR},    --  GtkWidget* widget
@@ -7153,17 +9179,25 @@ local procedure xpg_Init()
             C_PTR)      -- GdkWindow*
         gtk_widget_grab_focus = define_c_func(GTKLIB,"gtk_widget_grab_focus",
             {C_PTR},    --  GtkWidget *widget
-            C_PTR)      -- gboolean
+            C_BOOL)     -- gboolean
         gtk_widget_hide = define_c_proc(GTKLIB,"gtk_widget_hide",
             {C_PTR})    --  GtkWindow* window,  // aka handle
 --      gtk_widget_is_sensitive = define_c_func(GTKLIB,"gtk_widget_is_sensitive",
 --          {C_PTR},    --  GtkWidget* widget
---          C_INT)      -- gboolean
-        gtk_widget_modify_bg = define_c_proc(GTKLIB,"gtk_widget_modify_bg",
+--          C_BOOL)     -- gboolean
+        gtk_widget_modify_base = define_c_proc(GTKLIB,"gtk_widget_modify_base",
             {C_PTR,     --  GtkWidget* widget
              C_INT,     --  GtkStateType state
              C_PTR})    --  const GdkColor *color
+--      gtk_widget_modify_bg = define_c_proc(GTKLIB,"gtk_widget_modify_bg",
+--          {C_PTR,     --  GtkWidget* widget
+--           C_INT,     --  GtkStateType state
+--           C_PTR})    --  const GdkColor *color
     if bGTK3 then
+        gtk_widget_override_background_color = define_c_proc(GTKLIB,"gtk_widget_override_background_color",
+            {C_PTR,     --  GtkWidget* widget
+             C_INT,     --  GtkStateFlags state
+             C_PTR})    --  const GdkRGBA *color
         gtk_widget_override_font = define_c_proc(GTKLIB,"gtk_widget_override_font",
             {C_PTR,     --  GtkWidget* widget
              C_PTR})    --  PangoFontDescription *font_desc
@@ -7172,22 +9206,53 @@ local procedure xpg_Init()
             {C_PTR,     --  GtkWidget* widget
              C_PTR})    --  PangoFontDescription *font_desc
     end if
+--      gtk_widget_modify_style = define_c_proc(GTKLIB,"gtk_widget_modify_style",
+--          {C_PTR,     --  GtkWidget* widget
+--           C_PTR})    --  GtkRcStyle* style
         gtk_widget_queue_draw = define_c_proc(GTKLIB,"gtk_widget_queue_draw",
             {C_PTR})    --  GtkWidget* widget
+--      gtk_widget_queue_draw_area = define_c_proc(GTKLIB,"gtk_widget_queue_draw_area",
+--          {C_PTR,     --  GtkWidget *widget
+--           C_INT,     --  gint x
+--           C_INT,     --  gint y
+--           C_INT,     --  gint width
+--           C_INT})    --  gint height
         gtk_widget_realize = define_c_proc(GTKLIB,"gtk_widget_realize",
             {C_PTR})    --  GtkWidget* widget
         gtk_widget_set_can_focus = define_c_proc(GTKLIB,"gtk_widget_set_can_focus",
             {C_PTR,     --  GtkWidget* widget
-             C_INT})    --  gboolean can_focus
+             C_BOOL})   --  gboolean can_focus
         gtk_widget_set_events = define_c_proc(GTKLIB,"gtk_widget_set_events",
             {C_PTR,     --  GtkWidget* widget
              C_INT})    --  gint events
+--GTK3?
+--    if bGTK3 then
+--      gtk_widget_set_halign = define_c_proc(GTKLIB,"gtk_widget_set_halign",
+--          {C_PTR,     --  GtkWidget* widget
+--           C_INT})    --  GtkAlign align
+--/*
+typedef enum
+{
+  GTK_ALIGN_FILL,
+  GTK_ALIGN_START,
+  GTK_ALIGN_END,
+  GTK_ALIGN_CENTER
+} GtkAlign;
+--*/
+--    else  
+        gtk_misc_set_alignment = define_c_proc(GTKLIB,"gtk_misc_set_alignment",
+            {C_PTR,     --  GtkMisc *misc
+             C_FLOAT,   --  gfloat xalign
+             C_FLOAT})  --  gfloat yalign
+--    end if
         gtk_widget_set_realized = define_c_proc(GTKLIB,"gtk_widget_set_realized",
             {C_PTR,     --  GtkWidget* widget
-             C_INT})    --  gboolean realized
+             C_BOOL})   --  gboolean realized
         gtk_widget_set_sensitive = define_c_proc(GTKLIB,"gtk_widget_set_sensitive",
             {C_PTR,     --  GtkWidget* widget
-             C_INT})    --  gboolean sensitive
+             C_BOOL})   --  gboolean sensitive
+        -- Aside: This is an "asshole function" that GTK largely ignores and turns into "geometry contraints".
+        --        Should only be used to set wxh to 1x1 to tell the stupid GTK geometry manager to "fuck off".
         gtk_widget_set_size_request = define_c_proc(GTKLIB,"gtk_widget_set_size_request",
             {C_PTR,     --  GtkWidget* widget   // aka handle
              C_INT,     --  gint width,
@@ -7195,6 +9260,18 @@ local procedure xpg_Init()
         gtk_widget_set_tooltip_text = define_c_proc(GTKLIB,"gtk_widget_set_tooltip_text",
             {C_PTR,     --  GtkWidget* widget   // aka handle
              C_PTR})    --  const gchar *text
+--      gtk_widget_set_usize = define_c_proc(GTKLIB,"gtk_widget_set_usize",
+--          {C_PTR,     --  GtkWidget* widget
+--           C_INT,     --  gint width
+--           C_INT})    --  gint height
+--  if bGTK3 then
+--      gtk_widget_set_hexpand = define_c_proc(GTKLIB,"gtk_widget_set_hexpand",
+--          {C_PTR,     --  GtkWidget* widget
+--           C_BOOL})   --  gboolean expand
+--      gtk_widget_set_vexpand = define_c_proc(GTKLIB,"gtk_widget_set_vexpand",
+--          {C_PTR,     --  GtkWidget* widget
+--           C_BOOL})   --  gboolean expand
+--  end if
         gtk_widget_show = define_c_proc(GTKLIB,"gtk_widget_show",
             {C_PTR})    --  GtkWindow* window,  // aka handle
         gtk_widget_show_all = define_c_proc(GTKLIB,"gtk_widget_show_all",
@@ -7213,10 +9290,14 @@ local procedure xpg_Init()
 --           C_PTR})    --  GtkRequisition *natural_size
 --  end if
 --  else
+        -- obtain the preferred size of a widget:
         gtk_widget_size_request = define_c_proc(GTKLIB,"gtk_widget_size_request",
             {C_PTR,     --  GtkWidget *widget
              C_PTR})    --  GtkRequisition *requisition
 --  end if
+--      gtk_window_set_position = define_c_proc(GTKLIB,"gtk_window_set_position",
+--          {C_PTR,     --  GtkWindow *window
+--           C_INT})    --  GtkWindowPosition position
         gtk_window_get_position = define_c_proc(GTKLIB,"gtk_window_get_position",
             {C_PTR,     --  GtkWindow *window
              C_PTR,     --  gint* root_x
@@ -7233,7 +9314,7 @@ local procedure xpg_Init()
              C_PTR)     --  GtkWindow* parent
 --      gtk_window_is_active = define_c_func(GTKLIB,"gtk_window_is_active",
 --          {C_PTR},    --  GtkWindow *window
---          C_INT)      -- gboolean
+--          C_BOOL)     -- gboolean
         gtk_window_move = define_c_proc(GTKLIB,"gtk_window_move",
             {C_PTR,     --  GtkWindow* window
              C_INT,     --  gint x
@@ -7246,9 +9327,20 @@ local procedure xpg_Init()
              C_INT,     --  gint width
              C_INT})    --  gint height
         gtk_window_set_default_size = define_c_proc(GTKLIB,"gtk_window_set_default_size",
-            {C_PTR,     --  GtkWindow* window,  // aka handle
-             C_INT,     --  gint width,
+            {C_PTR,     --  GtkWindow* window   // aka handle
+             C_INT,     --  gint width
              C_INT})    --  gint height
+        gtk_window_set_geometry_hints = define_c_proc(GTKLIB,"gtk_window_set_geometry_hints",
+            {C_PTR,     --  GtkWindow* window
+             C_PTR,     --  GtkWidget *geometry_widget
+             C_PTR,     --  GdkGeometry *geometry
+             C_INT})    --  GdkWindowHints geom_mask
+--GTK2 only...
+--      gtk_window_set_policy = define_c_proc(GTKLIB,"gtk_window_set_policy",
+--          {C_PTR,     --  GtkWindow* window,
+--           C_INT,     --  gint allow_shrink
+--           C_INT,     --  gint allow_grow
+--           C_INT})    --  gint auto_shrink
         gtk_window_set_title = define_c_proc(GTKLIB,"gtk_window_set_title",
             {C_PTR,     --  GtkWindow* window,  // aka handle
              C_PTR})    --  const gchar* title  // a string
@@ -7267,6 +9359,7 @@ local procedure xpg_Init()
              C_PTR,     --  GClosureNotify destroy_data,    // (NULL here)
              C_INT},    --  GConnectFlags connect_flags     //     ""
             C_INT)      -- gulong // handler id (>0 for success)
+        -- use this instead of g_object_set(), which is a null-terminated vararg, one at a time.
         g_object_set_property = define_c_proc(GTKGDO,"g_object_set_property",
             {C_PTR,     --  GObject* object
              C_PTR,     --  const gchar* property_name
@@ -7277,7 +9370,7 @@ local procedure xpg_Init()
              C_PTR})    --  GValue* value
         g_source_remove = define_c_func(LBGLIB,"g_source_remove",
             {C_INT},    --  guint tag
-            C_INT)      -- gboolean
+            C_BOOL)     -- gboolean
         g_timeout_add = define_c_func(LBGLIB,"g_timeout_add",
             {C_INT,     --  guint interval
              C_PTR,     --  GSourceFunc function
@@ -7305,6 +9398,10 @@ local procedure xpg_Init()
             C_PTR)      -- PangoFontDescription *
         pango_layout_context_changed = define_c_proc(PANGO,"pango_layout_context_changed",
             {C_PTR})    --  PangoLayout *layout
+        pango_layout_get_pixel_extents = define_c_proc(PANGO,"pango_layout_get_pixel_extents",
+            {C_PTR,     --  PangoLayout *layout
+             C_PTR,     --  PangoRectangle* ink_rect
+             C_PTR})    --  PangoRectangle* logical_rect
         pango_layout_get_pixel_size = define_c_proc(PANGO,"pango_layout_get_pixel_size",
             {C_PTR,     --  PangoLayout *layout
              C_PTR,     --  int *width
@@ -7407,7 +9504,7 @@ local procedure xpg_Init()
 --?define_struct(tGdkEventButton,bAdd:=0)
 
         string tGdkEventConfigure = """typedef struct GdkEventConfigure {
-                                         GdkEventType type;
+                                         GdkEventType event_type;
                                          GdkWindow *window;
                                          gint8 send_event;
                                          gint x, y;
@@ -7440,15 +9537,98 @@ local procedure xpg_Init()
                                     };"""
         idGdkEventMotion = define_struct(tGdkEventMotion)
 
+--                                    GdkModifierType* state;
+--                                    GdkScrollDirection direction;
+--                                    guint is_stop : 1;
+        string tGdkEventScroll = """typedef struct GdkEventScroll {
+                                      GdkEventType event_type;
+                                      GdkWindow* window;
+                                      gint8 send_event;
+                                      guint32 time;
+                                      gdouble x;
+                                      gdouble y;
+                                      guint state;
+                                      guint direction;
+                                      GdkDevice* device;
+                                      gdouble x_root;
+                                      gdouble y_root;
+                                      gdouble delta_x;
+                                      gdouble delta_y;
+                                      guint is_stop;
+                                    };"""
+        idGdkEventScroll = define_struct(tGdkEventScroll)
+
+        string tGdkEventCrossing = """typedef struct GdkEventCrossing {
+                                        GdkEventType event_type;
+                                        GdkWindow* window;
+                                        gint8 send_event;
+                                        GdkWindow* subwindow;
+                                        guint32 time;
+                                        gdouble x;
+                                        gdouble y;
+                                        gdouble x_root;
+                                        gdouble y_root;
+                                        GdkCrossingMode mode;
+                                        GdkNotifyType detail;
+                                        gboolean focus;
+                                        GdkModifierType* state;
+                                      };"""
+        idGdkEventCrossing = define_struct(tGdkEventCrossing)
+
+        string tGdkColor = """typedef struct GdkColor {
+                               guint32 pixel;
+                               guint16 red;
+                               guint16 green;
+                               guint16 blue;
+                              };"""
+        idGdkColor = define_struct(tGdkColor)
+
+        string tGdkRGBA = """typedef struct GdkRGBA {
+                              gdouble red;
+                              gdouble green;
+                              gdouble blue;
+                              gdouble alpha;
+                             };"""
+        idGdkRGBA = define_struct(tGdkRGBA)
+
+        string tGdkGeometry = """typedef struct GdkGeometry {
+                                  gint min_width;
+                                  gint min_height;
+                                  gint max_width;
+                                  gint max_height;
+                                  gint base_width;
+                                  gint base_height;
+                                  gint width_inc;
+                                  gint height_inc;
+                                  gdouble min_aspect;
+                                  gdouble max_aspect;
+                                  gint win_gravity;
+                                };"""
+--                                GdkGravity win_gravity;
+        idGdkGeometry = define_struct(tGdkGeometry)
+
         pData = allocate(machine_word())
         pRECT = allocate_struct(idGdkRectangle)
+        pGDKCOLOR = allocate_struct(idGdkColor)
+        pGDKRGBA = allocate_struct(idGdkRGBA)
+        pGdkGeometry = allocate_struct(idGdkGeometry)
+--SUG [local] get_field_ptr(pRECT,idGdkRectangle,"x")
+        pX = pRECT+get_field_details(idGdkRectangle,"x")[1]
+        pY = pRECT+get_field_details(idGdkRectangle,"y")[1]
+        pW = pRECT+get_field_details(idGdkRectangle,"width")[1]
+        pH = pRECT+get_field_details(idGdkRectangle,"height")[1]
         pGtkRequisition = allocate_struct(idGtkRequisition)
         GTK_ID_LOOKUP = new_dict() -- GTK only (key:handle, data:id)
         GTK_MENU_LOOKUP = new_dict() -- GTK only (key:handle, data:id)
         GTK_MENU_UPLOOK = new_dict() -- GTK only (key:{menu,id}, data:handle)
         GDK_TYPE_PIXBUF = c_func(gdk_pixbuf_get_type,{})
-        {closed_folder, open_folder, dot} = xpg_create_image_list("GTK",xpg_xpm_callback)
-    elsif backend=WinAPI then
+--trace(1)
+--      {closed_folder, open_folder, dot} = xpg_create_image_list("GTK",xpg_xpm_callback)
+        {closed_folder, open_folder, dot} = vslice(xpg_create_image_list("GTK",xpg_xpm_callback),1)
+--sequence il = xpg_create_image_list("GTK",xpg_xpm_callback),
+--il1 = vslice(il,1)
+--      {closed_folder, open_folder, dot} = il1
+    elsif backend=XPG_WINAPI then
         atom COMCTL32 = open_dll("comctl32.dll"),
              GDI32 = open_dll("gdi32.dll"),
 --           WINMM = open_dll("winmm.dll"),
@@ -7460,7 +9640,7 @@ local procedure xpg_Init()
              C_INT,     --  UINT uFlags
              C_INT,     --  UINT_PTR uIDNewItem
              C_PTR},    --  LPCTSTR lpNewItem
-            C_INT)      -- BOOL
+            C_BOOL)     -- BOOL
 --      xAngleArc = define_c_func(GDI32,"AngleArc",
 --          {C_PTR,     --  HDC hdc
 --           C_INT,     --  int X
@@ -7468,7 +9648,7 @@ local procedure xpg_Init()
 --           C_DWORD,   --  DWORD dwRadius
 --           C_FLOAT,   --  FLOAT eStartAngle
 --           C_FLOAT},  --  FLOAT eSweepAngle
---          C_INT)      -- BOOL
+--          C_BOOL)     -- BOOL
         xArc = define_c_func(GDI32,"Arc",
             {C_PTR,     --  HDC hdc
              C_INT,     --  int nLeftRect
@@ -7479,7 +9659,7 @@ local procedure xpg_Init()
              C_INT,     --  int nYStartArc
              C_INT,     --  int nXEndArc
              C_INT},    --  int nYEndArc
-            C_INT)      -- BOOL
+            C_BOOL)     -- BOOL
         xBeginPaint = define_c_func(USER32,"BeginPaint",
             {C_PTR,     --  HWND  hwnd              // handle of window
              C_PTR},    --  LPPAINTSTRUCT  lpPaint  // address of structure for paint information
@@ -7494,7 +9674,7 @@ local procedure xpg_Init()
              C_INT,     --  int nXSrc
              C_INT,     --  int nYSrc
              C_LONG},   --  DWORD dwRop
-            C_INT)      -- BOOL
+            C_BOOL)     -- BOOL
         xCallWindowProc = define_c_func(USER32,"CallWindowProcA",
             {C_PTR,     --  WNDPROC lpPrevWndFunc
              C_PTR,     --  HWND hWnd
@@ -7524,22 +9704,29 @@ local procedure xpg_Init()
              C_INT,     --  int nYRadial1
              C_INT,     --  int nXRadial2
              C_INT},    --  int nYRadial2
-            C_INT)      -- BOOL
+            C_BOOL)     -- BOOL
         xCloseClipboard = define_c_proc(USER32,"CloseClipboard",
             {})         --  (void)
---          C_INT)      -- BOOL (0 on failure)
-        xCreateCompatibleDC = define_c_func(GDI32, "CreateCompatibleDC",
-            {C_PTR},    --  HDC  hdc    // handle of memory device context
+--          C_BOOL)     -- BOOL (0 on failure)
+        xCreateCompatibleBitmap = define_c_func(GDI32,"CreateCompatibleBitmap",
+            {C_PTR,     --  HDC hdc
+             C_INT,     --  int nWidth
+             C_INT},    --  int nHeight
+            C_PTR)      -- HBITMAP
+        xCreateCompatibleDC = define_c_func(GDI32,"CreateCompatibleDC",
+            {C_PTR},    --  HDC hdc // handle of memory device context
             C_PTR)      -- HDC
-        xCreateDIBitmap = define_c_func(GDI32, "CreateDIBitmap",
+        xCreateDIBitmap = define_c_func(GDI32,"CreateDIBitmap",
             {C_PTR,     --  HDC hdc
              C_PTR,     --  const BITMAPINFOHEADER *lpbmih
              C_LONG,    --  DWORD fdwInit
              C_LONG,    --  const VOID *lpbInit
              C_PTR,     --  const BITMAPINFO *lpbmi
              C_LONG},   --  UINT fuUsage
-            C_PTR)      -- HBITMAP
-        xCreateFontIndirect = define_c_func(GDI32, "CreateFontIndirectA",
+--see gMenu.exw
+--          C_PTR)      -- HBITMAP
+            C_LONG)     -- HBITMAP
+        xCreateFontIndirect = define_c_func(GDI32,"CreateFontIndirectA",
             {C_PTR},    --  CONST LOGFONT  *lplf        // address of logical font structure
             C_LONG)     -- HFONT (handle of a logical font)
         xCreateMenu = define_c_func(USER32,"CreateMenu",
@@ -7552,6 +9739,13 @@ local procedure xpg_Init()
             {C_INT,     --  int fnPenStyle
              C_INT,     --  int nWidth
              C_INT},    --  COLORREF crColor
+            C_PTR)      -- HPEN handle to pen
+        xExtCreatePen = define_c_func(GDI32,"ExtCreatePen",
+            {C_INT,     --  DWORD fnPenStyle
+             C_INT,     --  DWORD nWidth
+             C_PTR,     --  const LOGBRUSH *lplb
+             C_INT,     --  DWORD dwStyleCount
+             C_INT},    --  const DWORD *lpStyle
             C_PTR)      -- HPEN handle to pen
         xCreateSolidBrush = define_c_func(GDI32, "CreateSolidBrush",
             {C_UINT},   --  COLORREF  crColor   // brush color value
@@ -7578,7 +9772,7 @@ local procedure xpg_Init()
             C_PTR)      -- LRESULT
         xDeleteDC = define_c_func(GDI32, "DeleteDC",
             {C_PTR},    --  HDC  hdc    // handle of device context 
-            C_INT)      -- BOOL
+            C_BOOL)     -- BOOL
         xDeleteObject = define_c_proc(GDI32, "DeleteObject",
             {C_PTR})    --  HGDIOBJ  hObject    // handle of graphic object
 --          C_BOOL)     -- BOOL
@@ -7590,7 +9784,7 @@ local procedure xpg_Init()
 --          C_LONG)     -- LONG (generally ignored)
         xDrawMenuBar = define_c_func(USER32,"DrawMenuBar",
             {C_PTR},    --  HWND hWnd
-            C_INT)      -- BOOL
+            C_BOOL)     -- BOOL
 --      xDrawText = define_c_func(USER32,"DrawTextA",
         xDrawText = define_c_func(USER32,"DrawTextW",
             {C_INT,     --  HDC  hDC            // handle of device context
@@ -7609,12 +9803,12 @@ local procedure xpg_Init()
             C_BOOL)     -- BOOL (was enabled)
         xEnableWindow = define_c_proc(USER32,"EnableWindow",
             {C_PTR,     --  HWND hWnd
-             C_INT})    --  BOOL bEnable
+             C_BOOL})   --  BOOL bEnable
 --          C_BOOL)     -- BOOL (was enabled)
         xEndPaint = define_c_proc(USER32,"EndPaint",
             {C_PTR,     --  HWND  hWnd                  // handle of window
              C_PTR})    -- CONST PAINTSTRUCT  *lpPaint  // address of structure for paint data
---          C_INT)      -- BOOL (function always returns true so linked as c_proc)
+--          C_BOOL)     -- BOOL (function always returns true so linked as c_proc)
         xFillRect = define_c_func(USER32,"FillRect",
             {C_PTR,     --  HDC hDC
              C_PTR,     --  const RECT *lprc
@@ -7623,7 +9817,7 @@ local procedure xpg_Init()
         xGetClientRect = define_c_func(USER32,"GetClientRect",
             {C_PTR,     --  HWND hWnd
              C_PTR},    --  LPRECT lpRect
-            C_LONG)     -- BOOL
+            C_BOOL)     -- BOOL
         xGetClipboardData = define_c_func(USER32,"GetClipboardData",
             {C_UINT},   --  UINT uFormat
             C_PTR)      -- HANDLE
@@ -7632,7 +9826,7 @@ local procedure xpg_Init()
             C_PTR)      -- HWND of the console window, or NULL.
         xGetCursorPos = define_c_func(USER32,"GetCursorPos",
             {C_PTR},    --  LPPOINT lpPoint
-            C_INT)      -- BOOL
+            C_BOOL)     -- BOOL
         xGetDC = define_c_func(USER32,"GetDC",
             {C_PTR},    --  HWND  hWnd  // handle of window
             C_PTR)      -- HDC
@@ -7640,6 +9834,12 @@ local procedure xpg_Init()
             {C_PTR,     --  HDC  hdc,   // device-context handle
              C_INT},    --  int  nIndex // index of capability to query
             C_INT)      -- int
+        xGetDIBColorTable = define_c_func(GDI32,"GetDIBColorTable",
+            {C_PTR,     -- HDC hdc
+             C_UINT,    -- UINT uStartIndex
+             C_UINT,    -- UINT cEntries
+             C_PTR},    -- RGBQUAD* pColors
+            C_UINT)     -- UINT (0 on failure)
         xGetFocus = define_c_func(USER32,"GetFocus",
             {},         --  (void)
             C_PTR)      -- HWND
@@ -7649,6 +9849,7 @@ local procedure xpg_Init()
         xGetKeyState = define_c_func(USER32, "GetKeyState",
             {C_INT},    --  int  nVirtKey       // virtual-key code
             C_INT)      -- SHORT
+        -- see NO_ERROR on...
         xGetLastError = define_c_func(KERNEL32,"GetLastError",
             {},         -- (void)
             C_INT)      -- DWORD
@@ -7663,9 +9864,9 @@ local procedure xpg_Init()
         xGetMenuItemInfo = define_c_func(USER32,"GetMenuItemInfoA",
             {C_PTR,     --  HMENU hMenu
              C_INT,     --  UINT uItem
-             C_INT,     --  BOOL fByPosition
+             C_BOOL,    --  BOOL fByPosition
              C_PTR},    --  LPMENUITEMINFO lpmii
-            C_INT)      -- BOOL
+            C_BOOL)     -- BOOL
         xGetMenuState = define_c_func(USER32,"GetMenuState",
             {C_PTR,     --  HMENU hMenu
              C_UINT,    --  UINT uId
@@ -7683,31 +9884,47 @@ local procedure xpg_Init()
              C_PTR,     --  HWND  hWnd      // handle of window
              C_UINT,    --  UINT  wMsgFilterMin  // first message
              C_UINT},   --  UINT  wMsgFilterMax  // last message
-             C_INT)     -- BOOL
+             C_BOOL)    -- BOOL
+        xGetNextDlgTabItem = define_c_func(USER32,"GetNextDlgTabItem",
+            {C_PTR,     --  HWND hDlg
+             C_PTR,     --  HWND hCtl
+             C_BOOL},   --  BOOL bPrevious
+             C_PTR)     -- HWND
 --DEV... (to go)
         xGetPixel = define_c_func(GDI32,"GetPixel",
             {C_PTR,     --  HDC hdc
              C_INT,     --  int X
              C_INT},    --  int Y
             C_INT)      -- COLORREF crColor
+--      xGetScrollInfo = define_c_func(USER32,"GetScrollInfo",
+--          {C_PTR,     --  HWND hwnd
+--           C_INT,     --  int fnBar
+--           C_PTR},    --  LPCSCROLLINFO lpsi
+--          C_BOOL)     -- BOOL
         xGetStockObject = define_c_func(GDI32,"GetStockObject",
             {C_INT},    --  int  fnObject   // type of stock object
             C_PTR)      -- HGDIOBJ GetStockObject(
+        xGetSysColor = define_c_func(USER32,"GetSysColor",
+            {C_INT},    --  int  nIndex     // display element
+            C_LONG)     -- DWORD
+        xGetSysColorBrush = define_c_func(USER32,"GetSysColorBrush",
+            {C_INT},    --  int  nIndex     // display element
+            C_LONG)     -- HBRUSH
         xGetSystemMetrics = define_c_func(USER32,"GetSystemMetrics",
             {C_INT},    --  int nIndex
             C_INT)      -- int
-        xGetTextExtentPoint32 = define_c_func(GDI32, "GetTextExtentPoint32A",
+        xGetTextExtentPoint32 = define_c_func(GDI32,"GetTextExtentPoint32A",
             {C_PTR,     --  HDC  hdc,   // handle of device context
              C_PTR,     --  LPCTSTR  lpString,  // address of text string
              C_INT,     --  int  cbString,  // number of characters in string
              C_PTR},    --  LPSIZE  lpSize  // address of structure for string size
-            C_INT)      -- BOOL
-        xGetTextExtentPoint32W = define_c_func(GDI32, "GetTextExtentPoint32W",
+            C_BOOL)     -- BOOL
+        xGetTextExtentPoint32W = define_c_func(GDI32,"GetTextExtentPoint32W",
             {C_PTR,     --  HDC  hdc,   // handle of device context
              C_PTR,     --  LPCTSTR  lpString,  // address of text string
              C_INT,     --  int  cbString,  // number of characters in string
              C_PTR},    --  LPSIZE  lpSize  // address of structure for string size
-            C_INT)      -- BOOL
+            C_BOOL)     -- BOOL
         xGetWindowLong = define_c_func(USER32,iff(MB=32?"GetWindowLongA"
                                                        :"GetWindowLongPtrA"),
             {C_PTR,     --  HWND  hWnd      // handle of window
@@ -7716,7 +9933,7 @@ local procedure xpg_Init()
         xGetWindowRect = define_c_func(USER32,"GetWindowRect",
             {C_PTR,     --  HWND hWnd
              C_PTR},    --  LPRECT lpRect
-            C_INT)      -- BOOL
+            C_BOOL)     -- BOOL
         xGetWindowText = define_c_proc(USER32,"GetWindowTextA",
             {C_PTR,     --  HWND hWnd
              C_PTR,     --  LPTSTR lpString
@@ -7740,31 +9957,40 @@ local procedure xpg_Init()
             C_INT)      -- SIZE_T
         xGlobalUnlock = define_c_proc(KERNEL32,"GlobalUnlock",
             {C_PTR})    --  HGLOBAL hMem
---          C_INT)      -- BOOL (non-0: success but still locked, 0: check success/failure via GetLastError)
+--          C_BOOL)     -- BOOL (non-0: success but still locked, 0: check success/failure via GetLastError)
         xImageList_Add = define_c_proc(COMCTL32,"ImageList_Add",
             {C_PTR,     --  HIMAGELIST  himl,   // handle to the image list
              C_PTR,     --  HBITMAP  hbmImage,  // handle to the bitmap containing the image
              C_PTR})    --  HBITMAP  hbmMask    // handle to the bitmap containing the mask
 --          C_INT)      -- int
-        xImageList_Create = define_c_func(COMCTL32, "ImageList_Create",
+        xImageList_Create = define_c_func(COMCTL32,"ImageList_Create",
             {C_INT,     --  int cx (Specifies the width, in pixels, of each image.)
              C_INT,     --  int cy (Specifies the height, in pixels, of each image.)
              C_UINT,    --  UINT  flags (ILC_xxx values, usually ILC_COLOR8)
              C_INT,     --  int  cInitial (Number of images that the image list initially contains.)
              C_INT},    --  int  cGrow (?Number of images to grow by when resized?)
             C_PTR)      -- HIMAGELIST (handle to the image list, NULL on failure)
+        xInvalidateRect = define_c_func(USER32,"InvalidateRect",
+            {C_PTR,     --  HWND hWnd
+             C_PTR,     --  const RECT *lpRect
+             C_BOOL},   --  BOOL bErase
+            C_BOOL)     -- BOOL
         xIsClipboardFormatAvailable = define_c_func(USER32,"IsClipboardFormatAvailable",
             {C_UINT},   --  UINT format
-            C_INT)      -- BOOL
-        xKillTimer = define_c_func(USER32, "KillTimer",
+            C_BOOL)     -- BOOL
+--      xIsDialogMessage = define_c_func(USER32,"IsDialogMessageA",
+--          {C_PTR,     --  HWND hDlg
+--           C_PTR},    --  LPMSG lpMsg
+--          C_BOOL)     -- BOOL
+        xKillTimer = define_c_func(USER32,"KillTimer",
             {C_PTR,     --  HWND hWnd (NULL here)
              C_UINT},   --  UINT_PTR uIDEvent
-            C_INT)      -- BOOL
-        xLineTo = define_c_func(GDI32, "LineTo",
+            C_BOOL)     -- BOOL
+        xLineTo = define_c_func(GDI32,"LineTo",
             {C_PTR,     --  HDC  hdc,   // device context handle
              C_INT,     --  int  nXEnd, // x-coordinate of line's ending point
              C_INT},    --  int  nYEnd  // y-coordinate of line's ending point
-            C_INT)      -- BOOL
+            C_BOOL)     -- BOOL
         xLoadCursor = define_c_func(USER32,"LoadCursorA",
             {C_PTR,     --  HINSTANCE hInstance
              C_PTR},    --  LPCTSTR lpCursorName
@@ -7778,18 +10004,18 @@ local procedure xpg_Init()
              C_INT,     --  int  X, // x-coordinate of new current position
              C_INT,     --  int  Y, // y-coordinate of new current position
              C_PTR},    --  LPPOINT  lpPoint    // address of old current position
-            C_INT)      -- BOOL
+            C_BOOL)     -- BOOL
         xMoveWindow = define_c_proc(USER32,"MoveWindow",
             {C_PTR,     --  HWND hWnd
              C_INT,     --  int X
              C_INT,     --  int Y
              C_INT,     --  int nWidth
              C_INT,     --  int nHeight
-             C_INT})    --  BOOL bRepaint
---          C_INT)      -- BOOL
+             C_BOOL})   --  BOOL bRepaint
+--          C_BOOL)     -- BOOL
         xOpenClipboard = define_c_func(USER32,"OpenClipboard",
             {C_PTR},    --  HWND hWndNewOwner
-            C_PTR)      -- BOOL
+            C_BOOL)     -- BOOL
         xPie = define_c_func(GDI32,"Pie",
             {C_PTR,     --  HDC hdc
              C_INT,     --  int nLeftRect
@@ -7800,41 +10026,44 @@ local procedure xpg_Init()
              C_INT,     --  int nYRadial1
              C_INT,     --  int nXRadial2
              C_INT},    --  int nYRadial2
-            C_INT)      -- BOOL
+            C_BOOL)     -- BOOL
 --      xPlaySound = define_c_proc(WINMM,"PlaySound",
 --  --  xPlaySound = define_c_func(WINMM,"PlaySoundA",
 --          {C_PTR,     --  LPCTSTR pszSound
 --           C_PTR,     --  HMODULE hmod
 --           C_INT})    --  DWORD   fdwSound
---  --      C_INT)      -- BOOL
-        xPolyBezier = define_c_func(GDI32, "PolyBezier",
-            {C_PTR,     --  HDC hdc
-             C_PTR,     --  const POINT *lppt
-             C_INT},    --  DWORD cPoints
-            C_INT)      -- BOOL
+--  --      C_BOOL)     -- BOOL
+--      xPolyBezier = define_c_func(GDI32,"PolyBezier",
+--          {C_PTR,     --  HDC hdc
+--           C_PTR,     --  const POINT *lppt
+--           C_INT},    --  DWORD cPoints
+--          C_BOOL)     -- BOOL
         xPostQuitMessage = define_c_proc(USER32,"PostQuitMessage",
             {C_INT})    --  int  nExitCode      // exit code
-        xRectangle = define_c_func(GDI32, "Rectangle",
+        xRectangle = define_c_func(GDI32,"Rectangle",
             {C_PTR,     --  HDC hdc
              C_INT,     --  int nLeftRect
              C_INT,     --  int nTopRect
              C_INT,     --  int nRightRect
              C_INT},    --  int nBottomRect
-            C_INT)      -- BOOL
-        xRedrawWindow = define_c_func(USER32, "RedrawWindow",
+            C_BOOL)     -- BOOL
+        xRedrawWindow = define_c_func(USER32,"RedrawWindow",
             {C_PTR,     --  HWND hWnd
              C_PTR,     --  const RECT *lprcUpdate (null here)
              C_PTR,     --  HRGN hrgnUpdate            "" 
              C_UINT},   --  UINT flags
-            C_INT)      -- BOOL
+            C_BOOL)     -- BOOL
         xRegisterClassEx = define_c_func(USER32,"RegisterClassExA",
             {C_PTR},    --  CONST WNDCLASSEX FAR *lpwcx // address of structure with class data
             C_PTR)      -- ATOM
-        xReleaseDC = define_c_func(USER32, "ReleaseDC",
+        xReleaseCapture = define_c_proc(USER32,"ReleaseCapture",
+            {})         --  (void)
+--          C_BOOL)     -- BOOL (ignored)
+        xReleaseDC = define_c_func(USER32,"ReleaseDC",
             {C_PTR,     --  HWND  hwnd, // handle of window
              C_PTR},    --  HDC  hdc    // handle of device context
-            C_INT)      -- BOOL
-        xRoundRect = define_c_func(GDI32, "RoundRect",
+            C_BOOL)     -- BOOL
+        xRoundRect = define_c_func(GDI32,"RoundRect",
             {C_PTR,     --  HDC hdc
              C_INT,     --  int nLeftRect
              C_INT,     --  int nTopRect
@@ -7842,7 +10071,11 @@ local procedure xpg_Init()
              C_INT,     --  int nBottomRect
              C_INT,     --  int nWidth
              C_INT},    --  int nHeight
-            C_INT)      -- BOOL
+            C_BOOL)     -- BOOL
+        xScreenToClient = define_c_func(USER32, "ScreenToClient",
+            {C_PTR,     --  HWND hWnd
+             C_PTR},    --  LPPOINT lpPoint
+            C_BOOL)     -- BOOL
         xSelectObject = define_c_func(GDI32, "SelectObject",
             {C_PTR,     --  HDC  hdc,   // handle of device context
              C_PTR},    --  HGDIOBJ  hgdiobj    // handle of object
@@ -7853,27 +10086,47 @@ local procedure xpg_Init()
              C_UINT,    --  WPARAM  wParam  // first message parameter
              C_UINT},   --  LPARAM  lParam  // second message parameter
             C_LONG)     -- LRESULT
+        xSetBkColor = define_c_func(GDI32, "SetBkColor",
+            {C_PTR,     --  HDC  hdc,   // handle of device context
+             C_PTR},    --  COLORREF  crColor   // background color value
+            C_PTR)      -- COLORREF
         xSetBkMode = define_c_func(GDI32, "SetBkMode",
             {C_PTR,     --  HDC  hdc,   // handle of device context
              C_INT},    --  int  iBkMode    // flag specifying background mode
             C_INT)      -- int
+        xSetCapture = define_c_proc(USER32,"SetCapture",
+            {C_PTR})    --  HWND hWnd
+--          C_PTR)      -- HWND (ignored)
         xSetClipboardData = define_c_func(USER32, "SetClipboardData",
             {C_UINT,    --  UINT uFormat
              C_PTR},    --  HANDLE hMem
             C_INT)      -- HANDLE (NULL means failure)
+        xSetDIBColorTable = define_c_func(GDI32,"SetDIBColorTable",
+            {C_PTR,     -- HDC hdc
+             C_UINT,    -- UINT uStartIndex
+             C_UINT,    -- UINT cEntries
+             C_PTR},    -- const RGBQUAD* pColors
+            C_UINT)     -- UINT (0 on failure)
         xSetFocus = define_c_proc(USER32,"SetFocus",
             {C_PTR})    --  HWND hWnd
 --          C_PTR)      -- HWND (previous focus)
         xSetMenu = define_c_func(USER32,"SetMenu",
             {C_PTR,     --  HWND hWnd
              C_PTR},    --  HMENU hMenu
-            C_INT)      -- BOOL
+            C_BOOL)     -- BOOL
+--      xSetMenuItemBitmaps = define_c_func(USER32,"SetMenuItemBitmaps",
+--          {C_PTR,     --  HMENU hMenu
+--           C_INT,     --  UINT uPosition
+--           C_INT,     --  UINT uFlags,
+--           C_PTR,     --  HBITMAP hBitmapUnchecked
+--           C_PTR},    --  HBITMAP hBitmapChecked
+--          C_BOOL)     -- BOOL
         xSetMenuItemInfo = define_c_func(USER32,"SetMenuItemInfoA",
             {C_PTR,     --  HMENU hMenu
              C_INT,     --  UINT uItem
-             C_INT,     --  BOOL fByPosition
+             C_BOOL,    --  BOOL fByPosition
              C_PTR},    --  LPMENUITEMINFO lpmii
-            C_INT)      -- BOOL
+            C_BOOL)     -- BOOL
         xSetParent = define_c_func(USER32,"SetParent",
             {C_PTR,     --  HWND  hwndChild         // handle of window whose parent is changing
              C_PTR},    --  HWND  hwndNewParent     // handle of new parent window
@@ -7883,17 +10136,20 @@ local procedure xpg_Init()
              C_INT,     --  int X
              C_INT,     --  int Y
              C_INT},    --  COLORREF crColor
-            C_INT)      -- BOOL (non-zero for success)
+            C_BOOL)     -- BOOL (non-zero for success)
+--      xGetROP2 = define_c_func(GDI32,"GetROP2",
+--          {C_PTR},    --  HDC hdc
+--          C_INT)      -- int
         xSetROP2 = define_c_func(GDI32,"SetROP2",
             {C_PTR,     --  HDC hdc
              C_INT},    --  int fnDrawMode
             C_INT)      -- int
-        xSetScrollInfo = define_c_func(USER32, "SetScrollInfo",
-            {C_PTR,     --  HWND hwnd
-             C_INT,     --  int fnBar
-             C_PTR,     --  LPCSCROLLINFO lpsi
-             C_UINT},   --  BOOL fRedraw
-            C_INT)      -- int
+--      xSetScrollInfo = define_c_func(USER32, "SetScrollInfo",
+--          {C_PTR,     --  HWND hwnd
+--           C_INT,     --  int fnBar
+--           C_PTR,     --  LPCSCROLLINFO lpsi
+--           C_BOOL},   --  BOOL fRedraw
+--          C_INT)      -- int
         xSetTextAlign = define_c_func(GDI32, "SetTextAlign",
             {C_PTR,     --  HDC hdc
              C_UINT},   --  UINT fMode
@@ -7922,7 +10178,7 @@ local procedure xpg_Init()
              C_INT,     --  int cx      // width
              C_INT,     --  int cy      // height
              C_UINT},   --  UINT uFlags // window-positioning flags (SWP_xxx)
-            C_LONG)     -- BOOL
+            C_BOOL)     -- BOOL
         xSetWindowText = define_c_proc(USER32,"SetWindowTextA",
             {C_PTR,     --  HWND hWnd
              C_PTR})    --  LPCTSTR lpString
@@ -7935,7 +10191,10 @@ local procedure xpg_Init()
 --           C_INT,     --  int  nYStart,       // y-coordinate of starting position
 --           C_PTR,     --  LPCTSTR  lpString,  // address of string
 --           C_INT},    --  int  cbString       // number of characters in string
---          C_INT)      -- BOOL success
+--          C_BOOL)     -- BOOL success
+        xTrackMouseEvent = define_c_func(USER32, "TrackMouseEvent",
+            {C_PTR},    --  LPTRACKMOUSEEVENT lpEventTrack
+            C_BOOL)     -- BOOL
         xTrackPopupMenuEx = define_c_func(USER32, "TrackPopupMenuEx",
             {C_PTR,     --  HMENU  hmenu,       
              C_UINT,    --  UINT  fuFlags,      
@@ -7943,7 +10202,7 @@ local procedure xpg_Init()
              C_INT,     --  int  y,     
              C_PTR,     --  HWND  hwnd,         
              C_PTR},    --  LPTPMPARAMS  lptpm  (NULL here)
-            C_LONG)     -- BOOL
+            C_BOOL)     -- BOOL
         xTransparentBlt = define_c_func(MSIMG32,"TransparentBlt",
             {C_PTR,     --  HDC hdcDest
              C_INT,     --  int xoriginDest
@@ -7956,13 +10215,13 @@ local procedure xpg_Init()
              C_INT,     --  int wSrc
              C_INT,     --  int hSrc
              C_UINT},   --  UINT crTransparent
-            C_LONG)     -- BOOL
+            C_BOOL)     -- BOOL
         xTranslateMessage = define_c_proc(USER32,"TranslateMessage",
             {C_PTR})    --  CONST MSG  *lpmsg   // address of structure with message
---          C_INT)      -- BOOL (true if was translated...)
+--          C_BOOL)     -- BOOL (true if was translated...)
         xUpdateWindow = define_c_proc(USER32,"UpdateWindow",
             {C_PTR})    --  HWND hWnd
---          C_INT)      -- BOOL
+--          C_BOOL)     -- BOOL
 
         idPOINT = define_struct("""typedef struct tagPOINT {
                                      LONG x;
@@ -8005,6 +10264,17 @@ local procedure xpg_Init()
                                     UINT_PTR idFrom;
                                     INT      code;
                                    } NMHDR;""")
+
+        idNMUPDOWN = define_struct("""typedef struct _NM_UPDOWN {
+                                       NMHDR hdr;
+                                       int   iPos;
+                                       int   iDelta;
+                                      } NMUPDOWN, *LPNMUPDOWN;""")
+
+        idUDACCEL = define_struct("""typedef struct {
+                                      UINT nSec;
+                                      UINT nInc;
+                                     } UDACCEL, *LPUDACCEL;""")
 
         idTVITEM = define_struct("""typedef struct tagTVITEM {
                                      UINT       mask;
@@ -8069,6 +10339,12 @@ local procedure xpg_Init()
                                       TCHAR lfFaceName[LF_FACESIZE];
                                      } LOGFONT, *PLOGFONT;""")
 
+        idLOGBRUSH = define_struct("""typedef struct tagLOGBRUSH {
+                                       UINT     lbStyle;
+                                       COLORREF lbColor;
+                                       ULONG_PTR lbHatch;
+                                      } LOGBRUSH, *PLOGBRUSH;""")
+
 --DEV might deserve to be in opengl.e... might deserve a separate glCanvas(), or gCanvas(...,bool bUseOpenGL=false)...
 --      idPIXELFORMATDESCRIPTOR = define_struct("""typedef struct tagPIXELFORMATDESCRIPTOR {
 --                                                  WORD  nSize;
@@ -8112,15 +10388,15 @@ local procedure xpg_Init()
                                         void     *lpReserved;
                                       } TOOLINFO, *PTOOLINFO, *LPTOOLINFO;""")
 
-        idSCROLLINFO = define_struct("""typedef struct tagSCROLLINFO {
-                                          UINT cbSize;
-                                          UINT fMask;
-                                          int  nMin;
-                                          int  nMax;
-                                          UINT nPage;
-                                          int  nPos;
-                                          int  nTrackPos;
-                                        } SCROLLINFO, *LPCSCROLLINFO;""")
+--      idSCROLLINFO = define_struct("""typedef struct tagSCROLLINFO {
+--                                        UINT cbSize;
+--                                        UINT fMask;
+--                                        int  nMin;
+--                                        int  nMax;
+--                                        UINT nPage;
+--                                        int  nPos;
+--                                        int  nTrackPos;
+--                                      } SCROLLINFO, *LPCSCROLLINFO;""")
 
         idTCITEM = define_struct("""typedef struct {
                                       UINT   mask;
@@ -8146,27 +10422,56 @@ local procedure xpg_Init()
                                             UINT     cch;
                                             HBITMAP hbmpItem;
                                           } MENUITEMINFO, *LPMENUITEMINFO;""")
+
+        idTRACKMOUSEEVENT = define_struct("""typedef struct tagTRACKMOUSEEVENT {
+                                               DWORD cbSize;
+                                               DWORD dwFlags;
+                                               HWND hwndTrack;
+                                               DWORD dwHoverTime;
+                                             } TRACKMOUSEEVENT, *LPTRACKMOUSEEVENT;""")
+
+        string tMINMAXINFO = """typedef struct tagMINMAXINFO {
+                                  POINT ptReserved;
+                                  POINT ptMaxSize;
+                                  POINT ptMaxPosition;
+                                  POINT ptMinTrackSize;
+                                  POINT ptMaxTrackSize;
+                                } MINMAXINFO, *PMINMAXINFO, *LPMINMAXINFO;"""
+        idMINMAXINFO = define_struct(tMINMAXINFO)
            
 --(tested, 16 bytes on both 32 and 64 bit:)
 --printf(1,"Windows %d bit, pRECT is %d bytes\n",{machine_bits(),get_struct_size(idRECT)})
            
         pPAINTSTRUCT = allocate_struct(idPAINTSTRUCT)
         pRECT = allocate_struct(idRECT)
+--/* DEV... (pLeft/Right/Top/Bottom)
+        atom pX = pRECT+get_field_details(idGdkRectangle,"x")[1],
+             pY = pRECT+get_field_details(idGdkRectangle,"y")[1],
+             pW = pRECT+get_field_details(idGdkRectangle,"width")[1],
+             pH = pRECT+get_field_details(idGdkRectangle,"height")[1]
+--*/
         pSIZE = allocate_struct(idSIZE)
         pTVINSERTSTRUCT = allocate_struct(idTVINSERTSTRUCT)
         pTVITEMEX = allocate_struct(idTVITEMEX)
         pMSG = allocate_struct(idMESSAGE)
         pLOGFONT = allocate_struct(idLOGFONT)
+        pLOGBRUSH = allocate_struct(idLOGBRUSH)
 --      pPIXELFORMATDESCRIPTOR = allocate_struct(idPIXELFORMATDESCRIPTOR)
         pTOOLINFO = allocate_struct(idTOOLINFO)
-        pSCROLLINFO = allocate_struct(idSCROLLINFO)
-        set_struct_field(idSCROLLINFO,pSCROLLINFO,"cbSize",get_struct_size(idSCROLLINFO))
+--      pSCROLLINFO = allocate_struct(idSCROLLINFO)
+--      set_struct_field(idSCROLLINFO,pSCROLLINFO,"cbSize",get_struct_size(idSCROLLINFO))
         pTCITEM = allocate_struct(idTCITEM)
+        pUDACCEL = allocate_struct(idUDACCEL)
         pPOINT = allocate_struct(idPOINT)
         pMENUITEMINFO = allocate_struct(idMENUITEMINFO)
         set_struct_field(idMENUITEMINFO,pMENUITEMINFO,"cbSize",get_struct_size(idMENUITEMINFO))
+        pTRACKMOUSEEVENT = allocate_struct(idTRACKMOUSEEVENT)
+        set_struct_field(idTRACKMOUSEEVENT,pTRACKMOUSEEVENT,"cbSize",get_struct_size(idTRACKMOUSEEVENT))
         NullBrushID = c_func(xGetStockObject,{NULL_BRUSH})
+        SM_XICON = c_func(xGetSystemMetrics,{SM_CXSMICON})
+        SM_YICON = c_func(xGetSystemMetrics,{SM_CYSMICON})
         WINAPI_SUBMENUS = new_dict()
+        WINAPI_MENU_IMGS = new_dict()
         WIN_MENU_CHECKED = new_dict() -- WIN only (autotoggle)
 
 
@@ -8214,28 +10519,57 @@ local procedure xpg_Init()
         if c_func(xRegisterClassEx,{pWNDCLASSEX})=0 then
             crash("RegisterClassEx error #%08x (%d)",c_func(xGetLastError,{}))
         end if
+        -- plus two for gSplit:
+        set_struct_field(idWNDCLASSEX,pWNDCLASSEX,"lpszClassName",xpg_raw_string_ptr("gHSplit"))
+        hCursor = c_func(xLoadCursor,{NULL,IDC_SIZEWE})
+        set_struct_field(idWNDCLASSEX,pWNDCLASSEX,"hCursor",hCursor)
+        if c_func(xRegisterClassEx,{pWNDCLASSEX})=0 then
+            crash("RegisterClassEx error #%08x (%d)",c_func(xGetLastError,{}))
+        end if
+        set_struct_field(idWNDCLASSEX,pWNDCLASSEX,"lpszClassName",xpg_raw_string_ptr("gVSplit"))
+        hCursor = c_func(xLoadCursor,{NULL,IDC_SIZENS})
+        set_struct_field(idWNDCLASSEX,pWNDCLASSEX,"hCursor",hCursor)
+        if c_func(xRegisterClassEx,{pWNDCLASSEX})=0 then
+            crash("RegisterClassEx error #%08x (%d)",c_func(xGetLastError,{}))
+        end if
 
         tree_himl = xpg_create_image_list("WinAPI",xpg_xpm_callback)
     else
         ?9/0 -- (unknown backend)
     end if
     -- finally setup common handlers:
-    xpg_register_handler(0,"KEY",{{2,2,"FOI"},{3,3,"FOII"},{4,4,"FOIII"},{5,5,"FOIIII"}})
-    xpg_register_handler(0,"CLICK",{{4,4,"FOPII"},{2,2,"FOP"}})
-    xpg_register_handler(0,"MOUSEMOVE",{{3,3,"POII"},{6,6,"POIIIII"},{9,9,"POIIIIIIII"}})
+--  xpg_register_handler(0,"KEY",{{2,2,"FOI"},{3,3,"FOII"},{4,4,"FOIII"},{5,5,"FOIIII"}})
+--  xpg_register_handler(0,"CLICK",{{4,4,"FOPII"},{4,4,"POPII"},{2,2,"FOP"},{2,2,"POP"}})
+--  xpg_register_handler(0,"MOUSEMOVE",{{3,3,"POII"},{6,6,"POIIIII"},{9,9,"POIIIIIIII"}})
+    xpg_register_handler(0,"KEY",{"FOI","FOII","FOIII","FOIIII"})
+    xpg_register_handler(0,"CLICK",{"FOPII","POPII","FOP","POP"})
+    xpg_register_handler(0,"MOUSEMOVE",{"POII","POIIIII","POIIIIIIII"})
 --DEV...
 --  xpg_register_handler(0,"REDRAW",{{1,1,"PO"},{0,0,"P"}})
+--  xpg_register_handler(0,"REDRAW",{"PO","P"})
 end procedure
 
-global function gVersion(bool bBack=false)
+global function gVersion(integer bBack=false)
     if not bInit then xpg_Init() end if
-    if bBack then return backdesc[backend] end if
+    if bBack then
+--      return iff(bBack=-1?backend:backdesc[backend]) 
+        if bBack=-1 then return backend end if
+        if backend=XPG_GTK then
+            return iff(bGTK3?"GTK3":"GTK2")
+        elsif backend=XPG_WINAPI then
+            return sprintf("Win%dAPI",machine_bits())
+        elsif backend=XPG_JS then
+            return "JS"
+        else
+            ?9/0 -- placeholder
+        end if
+    end if
     integer pdx = find(platform(),{WINDOWS,LINUX,ARM,JS})
     string bare = "xpGUI 0.1", backing,
            plat = {"Windows","Linux","Arm","JavaScript"}[pdx]
-    if backend=GTK then
+    if backend=XPG_GTK then
         backing = sprintf("GTK %d.%d.%d",gtk_version)
-    elsif backend=WinAPI then
+    elsif backend=XPG_WINAPI then
         backing = "WinAPI"
     else
         ?9/0 -- (unknown backend)
@@ -8248,7 +10582,7 @@ global function gGetGlobalIntInt(string name)
     if not bInit then xpg_Init() end if
     if name="SCREENSIZE" then 
         integer width, height
-        if backend=GTK then
+        if backend=XPG_GTK then
             if machine_bits()=32 then
                 width = c_func(gdk_screen_get_width)
                 height = c_func(gdk_screen_get_height)
@@ -8259,7 +10593,7 @@ global function gGetGlobalIntInt(string name)
                 width = get_struct_field(idGdkRectangle,pRECT,"width")
                 height = get_struct_field(idGdkRectangle,pRECT,"height")
             end if
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
             width = c_func(xGetSystemMetrics,{SM_CXSCREEN})
             height = c_func(xGetSystemMetrics,{SM_CYSCREEN})
         else
@@ -8268,14 +10602,14 @@ global function gGetGlobalIntInt(string name)
         return {width,height}
     elsif name="MOUSEPOS" then
         integer x, y
-        if backend=GTK then
+        if backend=XPG_GTK then
             atom display = c_func(gdk_display_get_default,{}),
                  pX = allocate(4), pY = allocate(4)
             c_proc(gdk_display_get_pointer,{display,NULL,pX,pY,NULL})
             x = peek4u(pX)
             y = peek4u(pY)
             free({pX,pY})
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
             bool bOK = c_func(xGetCursorPos,{pPOINT})
             assert(bOK)
             x = get_struct_field(idPOINT,pPOINT,"x")
@@ -8296,6 +10630,22 @@ global function gGetGlobal(string name)
     elsif name="SCREENSIZE" then 
 --      return sprintf("%dx%x",gGetGlobalIntInt(name))
         return gGetGlobalIntInt(name)
+    elsif name="CTRLKEY"
+       or name="CONTROLKEY" then
+        if backend=XPG_WINAPI then
+            ctrlkey = and_bits(c_func(xGetKeyState,{VK_CTRL}),#8000)!=0
+        end if
+        return ctrlkey
+    elsif name="SHIFTKEY" then
+        if backend=XPG_WINAPI then
+            shiftkey = and_bits(c_func(xGetKeyState,{VK_SHIFT}),#8000)!=0
+        end if
+        return shiftkey
+    elsif name="ALTKEY" then
+        if backend=XPG_WINAPI then
+            altkey = and_bits(c_func(xGetKeyState,{VK_ALT}),#8000)!=0
+        end if
+        return shiftkey
     elsif name="VERSION" then
         return gVersion()
     end if
@@ -8372,21 +10722,10 @@ local function xpg_WinAPI_create(integer id, string class_name, nullable_string 
         end if
     else
         -- subclass non-dialogs:
---local procedure xpg_WinAPI_sub_class_control(gdx id, xpg_handle hwnd)
---  integer ct = ctrl_types[id]
-    -- certain control types do not get subclassed:
---  if ct!=StaticBitmap and ct!=DIALOG 
---  and ct!=ReBarBand then--and ct!=HyperText then
---  if ct!=DIALOG then
---  if ct!=DIALOG and ct!=FRAME and ct!=BUTTON then
---  if false then
---?{"subclassing!",id}
---      assert(sub_proc_addr[id]==UNDEFINED)
-        atom prev_wnd_proc = c_func(xSetWindowLong,{hwnd,GWL_WNDPROC,WINAPI_SUBPROC_CB})
-        wnd_proc_addr[id] = prev_wnd_proc
---      sub_proc_addr[id] = WINAPI_SUBPROC_CB
---  end if
---end procedure
+--      atom prev_wnd_proc = c_func(xSetWindowLong,{hwnd,GWL_WNDPROC,WINAPI_SUBPROC_CB})
+--      wnd_proc_addr[id] = prev_wnd_proc
+        wnd_proc_addr[id] = c_func(xSetWindowLong,{hwnd,GWL_WNDPROC,WINAPI_SUBPROC_CB})
+
         if pID then
 --DEV trash this, one control at a time: (erm, no, eg ProgressBar ...)
 if not find(ct,{BUTTON,DROPDOWN}) then
@@ -8405,7 +10744,13 @@ end if
             -- aside: pID is now from xpg_get_parent_id(), skipping v/hbox, so use
             --        parent_ids[id] instead - not that this probably helps much.
 --          assert(find(id,children_ids[pID])!=0)
-            assert(find(id,children_ids[parent_ids[id]])!=0)
+--if ct!=SPIN then
+--          integer pid = parent_ids[id]
+--          if pid=0 then
+--              assert(ct=TEXT and ctrl_types[id-1]=SPIN)
+--          else
+--              assert(find(id,children_ids[pid])!=0)
+--          end if
         end if
     end if
 
@@ -8419,11 +10764,33 @@ local type dword_seq(object s)  -- (technically qword_seq on 64-bit)
     return sequence(s) and not string(s)
 end type
 
+--DEV/SUG it might not be complete madness to have a single 
+--  paranormalise(string|int sig, sequence args) routine,
+--  where the caller /is/ expected to desequence as now, 
+--    and sig is "TRAA", "QRAA", "RAA", "TAA", or "PTAAB"(/"PTAAE"?) (or "PTMRAA")
+--  or maybe you could have some bit-flags...  (and maybe version 2+...)
+--                               -- PTQRMAAE
+--   eg local constant XPG_PARP = 0b10000000, -- Parent
+--                     XPG_PART = 0b01000000, -- Title
+--                     XPG_PARQ = 0b00100000, -- seQuence (as per gDropDown/gTabs/gTreeView)
+--                     XPG_PARR = 0b00010000, -- Rtn
+--                     XPG_PARM = 0b00001000, -- Msg
+--                     XPG_PARA = 0b00000110, -- attributes/args (must always be set in sig)
+--                     XPG_PARE = 0b00000001, -- bEsc
+--                     XPG_TRAA = 0b01010110,
+--                     XPG_QRAA = 0b00110110,
+--                     XPG_RAA  = 0b00010110,
+--                     XPG_TAA  = 0b01000110,
+--                     XPG_PTAA = 0b11000111,
+--                     XPG_PRTM = 0b11011110
+--  assert(and_bits(sig,XPG_PARA)==XPG_PARA)
+
 local function paranormalise_traa(object title, click, sequence attributes, dword_seq args)
 -- used by gButton([nullable_string title=NULL,] [rtn click=NULL,] string attributes="", sequence args={})
 -- and gCheckbox(), gLink(), gMenuItem(), and gValuator(). (See the docs for the full details)
 -- This routine is designed to crash on the slightest oddity, hopefully with a decent easily understood message.
     integer nFrames = 3 -- (change this back to 1 to debug)
+--  integer nFrames = 1 -- (change this back to 1 to debug)
     if not nullable_string(title) then
         -- assume title omitted (and at least one other parameter passed)
         if atom(title) then -- (and, of course, title is not NULL here)
@@ -8884,20 +11251,123 @@ assert(paranormalise_ptaab(NULL,"","",{},false)=={NULL,"","",{},false})   -- bEs
 assert(paranormalise_ptaab(NULL,"","x=1",{},true)=={NULL,"","x=1",{},true}) -- attributes:="x=1"
 --*/
 
---local procedure xpg_signal_connect(atom handle, string signal, rtn rid, atom user_data=NULL)
+--local procedure xpg_gtk_signal_connect(atom handle, string signal, rtn rid, atom user_data=NULL)
 --14/6/23 id is not a gdx for menus... (should we assert??)
---local procedure xpg_signal_connect(atom handle, string signal, integer rid, gdx id)
-local procedure xpg_signal_connect(atom handle, string signal, integer rid, integer id)
+--local procedure xpg_gtk_signal_connect(atom handle, string signal, integer rid, gdx id)
+local procedure xpg_gtk_signal_connect(atom handle, string signal, integer rid, integer id)
     -- note that g_signal_connect is defined in the GTK sources as a #define of
     -- g_signal_connect_data(....,NULL,0), and is not exported from the dll/so.
     atom r = c_func(g_signal_connect_data,{handle,signal,call_back({'+',rid}),id,NULL,0})
     assert(r>0)
 end procedure
 
+integer timer_ids = NULL
+
+local function xpg_gtk_timer_proc(integer id)
+    integer action = gGetHandler(id,"ACTION")
+    if action then
+        action(id)
+    end if
+    return true
+end function
+local constant xpg_gtk_timer_proc_cb = call_back({'+',xpg_gtk_timer_proc})
+
+local function xpg_WinAPI_timer_proc(atom /*hwnd*/, integer /*msg*/, atom wid, /*mstime*/)
+--  assert(hwnd=NULL)
+--  assert(msg=WM_TIMER)
+--  if mstime<0 then mstime = and_bitsu(mstime,#FFFFFFFF) end if -- (unsign)
+    integer id = getd(wid,timer_ids)
+    return xpg_gtk_timer_proc(id)
+end function
+local constant xpg_WinAPI_timer_proc_cb = call_back({'+',xpg_WinAPI_timer_proc})
+
+function xpg_set_timer_attribute(gdx id, string name, object v, bool bMapped)
+    -- nb bMapped (ie CF_MAPPED) means there is an active running timer
+    atom handle = ctrl_handles[id], flags = ctrl_flags[id]
+    bool bOK = false, bRun = bMapped
+    if bMapped then
+        if backend=XPG_GTK then     
+            assert(c_func(g_source_remove,{handle}))
+        elsif backend=XPG_WINAPI then
+            assert(c_func(xKillTimer,{NULL,handle}))
+            deld(handle,timer_ids)
+        else
+            ?9/0 -- (unknown backend)
+        end if
+        handle = NULL
+        flags -= CF_MAPPED
+    end if
+    if name="MSECS"
+    or name="MSEC"
+    or name="TIME" then
+        if string(v) then v = to_number(v) end if
+        assert(v>=0)
+        deferred_attr[id] = v
+        bOK = true
+    elsif name="RUN"
+       or name="RUNNING"
+       or name="ACTIVE" then
+        if string(v) then v = xpg_to_bool(v) end if
+        bRun = v
+        bOK = true
+    end if
+    if bOK then
+        integer msecs = deferred_attr[id]
+        if bRun and msecs then
+            if backend=XPG_GTK then
+                handle = c_func(g_timeout_add,{msecs,xpg_gtk_timer_proc_cb,id})
+            elsif backend=XPG_WINAPI then
+                handle = c_func(xSetTimer,{NULL,0,msecs,xpg_WinAPI_timer_proc_cb})
+            else
+                ?9/0 -- (unknown backend)
+            end if
+            setd(handle,id,timer_ids)
+            flags += CF_MAPPED
+        end if
+--?{"gTimer:SetAttribute",name,bRun,msecs,flags,CF_MAPPED}
+        ctrl_handles[id] = handle
+        ctrl_flags[id] = flags
+    end if
+    return bOK
+end function
+
+function xpg_get_timer_attribute(gdx id, string name, object dflt)
+    if name="MSECS"
+    or name="MSEC"
+    or name="TIME" then
+        return deferred_attr[id]
+    elsif name="RUN"
+       or name="RUNNING"
+       or name="ACTIVE" then
+        return and_bits(ctrl_flags[id],CF_MAPPED)!=0
+    end if
+--  return xpg_return_default_attr(id,name,dflt)
+    crash(`gGetAttribute(TIMER,"%s")`,{name})
+end function
+
+--global function gTimer(rtn action=NULL, integer msecs=0, boolean active=false, object user_data=NULL)
+global function gTimer(rtn action=NULL, integer msecs=40, boolean active=true, object user_data=NULL)
+--?{"gTimer",action,msecs,active,user_data}
+    if not bInit then xpg_Init() end if
+    if timer_ids=NULL then timer_ids = new_dict() end if
+    integer id = xpg_add_control(TIMER)
+--  xpg_register_handler(TIMER,"ACTION",{{1,1,"PO"}})
+    xpg_register_handler(TIMER,"ACTION",{"PO"})
+    xpg_set_ctrl_msg(TIMER,0,xpg_set_timer_attribute,
+                             xpg_get_timer_attribute)
+    if action!=NULL then
+        gSetHandler(id,"ACTION",action)
+    end if
+    gSetAttribute(id,"MSECS",msecs)
+    gSetAttribute(id,"RUN",active)
+    gSetAttribute(id,"USER_DATA",user_data)
+    return id
+end function 
+
 procedure xpg_Dialog(integer id)
     integer parent = parent_ids[id]
     atom handle
-    if backend=GTK then
+    if backend=XPG_GTK then
         handle = c_func(gtk_window_new,{GTK_WINDOW_TOPLEVEL}) 
         assert(handle!=NULL)
         xpg_setID(handle,id)
@@ -8905,21 +11375,39 @@ procedure xpg_Dialog(integer id)
             c_proc(gtk_window_set_transient_for,{handle,ctrl_handles[parent]}) 
         end if
         c_proc(gtk_widget_set_events,{handle,GDK_KBR_MASK})
-        xpg_signal_connect(handle,"key_press_event",xpg_gtk_check_escape,id)
-        xpg_signal_connect(handle,"button-press-event",xpg_gtk_click,id)
-        xpg_signal_connect(handle,"button-release-event",xpg_gtk_click,id)
-        xpg_signal_connect(handle,"focus-in-event",xpg_gtk_focusinout,id)
-        xpg_signal_connect(handle,"focus-out-event",xpg_gtk_focusinout,id)
-        xpg_signal_connect(handle,"motion-notify-event",xpg_gtk_mousemove,id)
-        xpg_signal_connect(handle,"configure-event",xpg_gtk_configure_event,id)
+        xpg_gtk_signal_connect(handle,"key_press_event",xpg_gtk_check_escape,id)
+        xpg_gtk_signal_connect(handle,"key_release_event",xpg_gtk_release_key,id)
+        xpg_gtk_signal_connect(handle,"button-press-event",xpg_gtk_click,id)
+        xpg_gtk_signal_connect(handle,"button-release-event",xpg_gtk_click,id)
+        xpg_gtk_signal_connect(handle,"focus-in-event",xpg_gtk_focusinout,id)
+        xpg_gtk_signal_connect(handle,"focus-out-event",xpg_gtk_focusinout,id)
+        xpg_gtk_signal_connect(handle,"motion-notify-event",xpg_gtk_mousemove,id)
+        xpg_gtk_signal_connect(handle,"configure-event",xpg_gtk_configure_event,id)
         c_proc(gtk_widget_realize,{handle})
-    elsif backend=WinAPI then
+    elsif backend=XPG_WINAPI then
         -- (aside: ctrl_types[id] is already DIALOG)
         atom d = CW_USEDEFAULT, -- (==#80000000)
-             dwStyle = WS_OVERLAPPEDWINDOW
+             dwStyle = WS_OVERLAPPEDWINDOW,
+           dwStyleEx = WS_EX_ACCEPTFILES
+-- no help 20/12/23...
+--         dwStyleEx = WS_EX_CONTROLPARENT + WS_EX_ACCEPTFILES
+
         if gGetInt(id,"RESIZE",true) then dwStyle += WS_MINMAXTHICK end if
 --CS_OWNDC?
-        handle = xpg_WinAPI_create(id,"xpGUI","",parent,d,d,dwStyle,WS_EX_ACCEPTFILES)
+--CreateDialog (0 hits)
+--DialogBox (1 "about" in Gui.e, no others)
+--#define WM_NEXTDLGCTL                 0x0028 (commented out, no uses)
+--BS_DEFPUSHBUTTON (no uses) [try in combination with SetFocus(), presumably that is if it is a button]
+--DM_SETDEFID (0 hits)
+--   if (WM_KEYDOWN == msg && VK_TAB == wParam) {
+--      HWND next = GetNextDlgTabItem(mainWindow, control, (int)(GetKeyState(VK_SHIFT) & 0x8000));  -- (0 hits) [****FIXED!!!***]
+--      SetFocus(next);
+--      return 0;
+--  }
+--IsDialogMessage -- (0 uses)
+--WS_EX_CONTROLPARENT
+
+        handle = xpg_WinAPI_create(id,"xpGUI","",parent,d,d,dwStyle,dwStyleEx)
 --?{"xpg_DIALOG",xpg_get_window_rect(id)}
 --      atom mainDC = c_func(xGetDC,{handle})
 --      ctrl_xtra[id][CE_MAINDC] = mainDC
@@ -8935,9 +11423,9 @@ function xpg_set_dialog_attribute(gdx id, string name, object v, bool bMapped)
         assert(string(v))
         if not bMapped then
             xpg_defer_attr(id,name,v)
-        elsif backend=GTK then
+        elsif backend=XPG_GTK then
             c_proc(gtk_window_set_title,{handle,v}) 
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
             c_proc(xSetWindowText,{handle,v})
         else
             ?9/0 -- (unknown backend)
@@ -9064,9 +11552,9 @@ function xpg_get_dialog_attribute(gdx id, string name, object dflt)
         bool bMapped = and_bits(ctrl_flags[id],CF_MAPPED)!=0
         if not bMapped then
             if dflt=999_999_999 then dflt = "" end if
-        elsif backend=GTK then
+        elsif backend=XPG_GTK then
             return peek_string(c_func(gtk_window_get_title,{handle}))
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
             integer l = c_func(xGetWindowTextLength,{handle})
             string title = repeat(' ',l)
             c_proc(xGetWindowText,{handle,title,l+1})
@@ -9091,17 +11579,18 @@ global function gDialog(gdx child, object parent=NULL, title="", attributes="", 
     if not bInit then xpg_Init() end if
     assert(parent=NULL or ctrl_types[parent]=DIALOG)
     assert(child=NULL or ctrl_types[child]!=DIALOG)
-    integer flags = iff(bEsc?CF_CLOSE_ON_ESC:0)+CF_NEVER_SHOWN+CF_RESIZE+CF_UNMAPATTR,
+    integer flags = iff(bEsc?CF_CLOSE_ON_ESC:0)+CF_NEVER_SHOWN+CF_RESIZE+CF_UNMAPATTR+CF_CONTAINER+CF_DECORATED,
                id = xpg_add_control(DIALOG,parent,flags,bHasChildren:=true)
     if child then
         parent_ids[child] = id
         children_ids[id] = {child}
     end if
 --DEV not yet implemented anywhere...
-    xpg_register_handler(DIALOG,"CLOSE",{{1,1,"FO"}})
+--  xpg_register_handler(DIALOG,"CLOSE",{{1,1,"FO"}})
+    xpg_register_handler(DIALOG,"CLOSE",{"FO"})
 --  xpg_register_handler(DIALOG,"RESIZE",{{3,3,"FOII"}})
-    set_ctrl_msg(DIALOG,xpg_Dialog,xpg_set_dialog_attribute,
-                                   xpg_get_dialog_attribute)
+    xpg_set_ctrl_msg(DIALOG,xpg_Dialog,xpg_set_dialog_attribute,
+                                       xpg_get_dialog_attribute)
     object cxi = repeat(0,CX_DLG_LEN)
     cxi[CX_LAST_FOCUS] = UNDEFINED
     ctrl_xtra[id] = cxi
@@ -9120,7 +11609,7 @@ local procedure xpg_Box(gdx id)
     gdx parent = xpg_get_parent_id(id)
     atom box = NULL
 --  bool bVert = and_bits(ctrl_flags[id],CF_VERTICAL)!=0
-    if backend=GTK then
+    if backend=XPG_GTK then
 --      integer f = iff(bVert?gtk_vbox_new:gtk_hbox_new),
 --              spacing = 0
 --?{f,id,ctrl_flags[id],CF_VERTICAL,gtk_vbox_new,gtk_hbox_new}
@@ -9131,7 +11620,7 @@ local procedure xpg_Box(gdx id)
         xpg_gtk_add_to(parent,box)
         xpg_setID(box,id)
         c_proc(gtk_widget_realize,{box})
-    elsif backend=WinAPI then
+    elsif backend=XPG_WINAPI then
         -- (under winAPI boxes are virtual)
         ctrl_flags[id] = or_bits(ctrl_flags[id],CF_MAPPED)
     else
@@ -9140,6 +11629,7 @@ local procedure xpg_Box(gdx id)
 end procedure
 
 function xpg_set_box_attribute(gdx id, string name, object v, bool bMapped)
+    integer cfi = ctrl_flags[id]
 --  atom handle = ctrl_handles[id]
 --DEV... (I appear to have commented it out in the docs...)
 --  if name="ALIGNMENT" then
@@ -9153,45 +11643,86 @@ function xpg_set_box_attribute(gdx id, string name, object v, bool bMapped)
 --      printf(1,"gSetAttribute(BOX,\"%s\",%v)...\n",{name,v})
 --      return true
     if name="GAP" then
-        printf(1,"gSetAttribute(BOX,\"%s\",%v)...\n",{name,v})
+        if string(v) then v = to_number(v) end if
+--      assert(ct=BOX)
+        ctrl_xtra[id][CX_BOX_GAP] = v
+--      printf(1,"gSetAttribute(BOX,\"%s\",%v)...\n",{name,v})
         return true
     elsif name="SPACE" then
 --DEV may as well test these both ways round... [DONE]
 --      if integer(v) then v = gGetBoxSpacingName(v) end if
 --      printf(1,"gSetAttribute(BOX,\"SPACE\",%v)...\n",{v})
         if string(v) then
-            integer k = find(v,box_spacing_descs)
-            assert(k!=0,`gSetAttribute(BOX,"SPACE","%s")`,{v})
-            v = box_spacing_masks[k]
+            if v[1]='{' then
+                assert(v[$]='}')
+                v = v[2..-2]
+            end if
+            if find(',',v) then
+                v = split(v,',')
+            else
+                v = {v,v}
+            end if
+--      end if
+--      if integer(v) then
+        elsif integer(v) then
+            v = {v,v}
+        elsif length(v)=1 then
+            v = append(v,v[1])
         end if
-        ctrl_xtra[id][CX_BOX_SPACE] = v
+        assert(length(v)=2)
+        for i=CX_BOX_SPACE_H to CX_BOX_SPACE_V do
+            object vi = v[i-(CX_BOX_SPACE_H-1)]
+            if string(vi) then
+                integer k = find(vi,box_spacing_descs)
+                assert(k!=0,`gSetAttribute(BOX,"SPACE","%s")`,{vi})
+                vi = box_spacing_masks[k]
+            end if              
+            assert(integer(vi) and vi>=0b000 and vi<=0b111)
+            ctrl_xtra[id][i] = vi
+        end for
 --      string s = box_spacing_descs[find(v,box_spacing_masks)]
 --      printf(1,"gSetAttribute(BOX,\"SPACE\",%s)..\n",{s})
+        return true
+    elsif name="FRAC" and and_bits(cfi,CF_SPLIT)!=0 then
+        if string(v) then v = to_number(v) end if
+        assert(atom(v) and (v=-1 or (v>=0.0 and v<=1.0)))
+        ctrl_xtra[id][CX_GTL_ATTRS][PX_FRAC] = v
         return true
     end if
     return false
 end function
 
 function xpg_get_box_attribute(gdx id, string name, object dflt)
+    integer cfi = ctrl_flags[id]
     if name="SPACE" then
-        return ctrl_xtra[id][CX_BOX_SPACE]
+        integer h = ctrl_xtra[id][CX_BOX_SPACE_H],
+                v = ctrl_xtra[id][CX_BOX_SPACE_V]
+        return iff(h==v?h:{h,v})
+--      return {h,v}
     elsif name="ORIENTATION" then
-        return iff(and_bits(ctrl_flags[id],CF_VERTICAL)?"VERTICAL":"HORIZONTAL")
+        return iff(and_bits(cfi,CF_VERTICAL)?"VERTICAL":"HORIZONTAL")
+    elsif name="FRAC" and and_bits(cfi,CF_SPLIT)!=0 then
+        return ctrl_xtra[id][CX_GTL_ATTRS][PX_FRAC]
     end if
     return xpg_return_default_attr(id,name,dflt)
 end function
 
 local function gBox(integer hv, sequence children, string attributes, sequence args)
     if not bInit then xpg_Init() end if
-    integer id = xpg_add_control(BOX)
+--  integer id = xpg_add_control(BOX,flags:=CF_CONTAINER+iff(hv='V'?CF_VERTICAL:0))
+--DEV probably...:
+    integer id = xpg_add_control(BOX,flags:=CF_CONTAINER+CF_EXPANDB+iff(hv='V'?CF_VERTICAL:0))
 --  xpg_register_handler(BOX,"XXX",{{1,1,"PO"}})
-    set_ctrl_msg(BOX,xpg_Box,xpg_set_box_attribute,
-                             xpg_get_box_attribute)
-    if hv='V' then ctrl_flags[id] = CF_VERTICAL end if
+    xpg_set_ctrl_msg(BOX,xpg_Box,xpg_set_box_attribute,
+                                 xpg_get_box_attribute)
     object cxi = repeat(0,CX_BOX_LEN)
 --DEV...
 --  cxi[CX_BOX_MARGIN] = repeat(0,4)
-    cxi[CX_BOX_SPACE] = XPG_SPACE_RIGHT
+--DEV or NONE??
+--  cxi[CX_BOX_SPACE_H] = XPG_SPACE_RIGHT
+    cxi[CX_BOX_SPACE_H] = XPG_SPACE_NONE
+--  cxi[CX_BOX_SPACE_V] = XPG_SPACE_BOTTOM
+    cxi[CX_BOX_SPACE_V] = XPG_SPACE_NONE
     ctrl_xtra[id] = cxi
     cxi = 0 -- (kill refcount)
     children_ids[id] = children
@@ -9247,22 +11778,32 @@ local procedure xpg_Button(gdx id)
 --  sequence split_title = split(xpg_demnemonicalize(title),'\n')
 --  integer {w,h} = gGetTextExtent(parent,split_title)
 --test_elem = id
-    if backend=GTK then
+    if backend=XPG_GTK then
 --DOCS, maybe (I made this up) note the child of a dialog should normally be a vbox or hbox; should
 --      you create, for instance, a dialog with a single button child, it will expand to fill the
 --      entire dialog.
         button = c_func(gtk_button_new_with_mnemonic,{title})
+--?{"created button",button}
+        if ctrl_xtra[id]!=UNDEFINED then
+            sequence img = ctrl_xtra[id]
+            assert(img[1]="gImage") -- shd be {"gImage",GtkPixbuf}
+--          atom pixbuf = img[2], -- (a GtkPixBuf)
+            atom pixbuf = img[2][1], -- (a GtkPixBuf)
+--DEV leak??
+                 image = c_func(gtk_image_new_from_pixbuf,{pixbuf})
+            c_proc(gtk_button_set_image,{button,image})
+        end if
         c_proc(gtk_widget_set_events,{button,GDK_KBR_MASK})
         xpg_setID(button,id)
         xpg_gtk_add_to(parent,button)
 --GDK_STRUCTURE_MASK
 --      c_proc(gtk_widget_set_events,{button,GDK_KBR_MASK})
-        xpg_signal_connect(button,"clicked",xpg_gtk_button_clicked,id)
---      xpg_signal_connect(button,"realize",xpg_gtk_widget_realized,id)
---      xpg_signal_connect(button,"map",xpg_gtk_widget_mapped,id)
---      xpg_signal_connect(button,"map-event",xpg_gtk_widget_mapped,id)
-        xpg_signal_connect(button,"focus-in-event",xpg_gtk_focusinout,id)
-        xpg_signal_connect(button,"focus-out-event",xpg_gtk_focusinout,id)
+        xpg_gtk_signal_connect(button,"clicked",xpg_gtk_button_clicked,id)
+--      xpg_gtk_signal_connect(button,"realize",xpg_gtk_widget_realized,id)
+--      xpg_gtk_signal_connect(button,"map",xpg_gtk_widget_mapped,id)
+--      xpg_gtk_signal_connect(button,"map-event",xpg_gtk_widget_mapped,id)
+        xpg_gtk_signal_connect(button,"focus-in-event",xpg_gtk_focusinout,id)
+        xpg_gtk_signal_connect(button,"focus-out-event",xpg_gtk_focusinout,id)
 
 --X As a (temporary) workaround, I once stuck a v/hbox in:
 --      atom vbox = c_func(gtk_vbox_new,{false,6})
@@ -9270,6 +11811,7 @@ local procedure xpg_Button(gdx id)
 --      c_proc(gtk_box_pack_start,{hbox,button,false,false,0})
 --      c_proc(gtk_box_pack_start,{vbox,hbox,false,false,0})
 --      c_proc(gtk_container_add,{ctrl_handles[parent],vbox})
+--?{"realise",button}
         c_proc(gtk_widget_realize,{button})
 --      title = xpg_demnemonicalize(title)
 --if bGTK3 then
@@ -9390,9 +11932,12 @@ void iupdrvButtonAddBorders(int *x, int *y)
 }
 
 --*/
-    elsif backend=WinAPI then
+    elsif backend=XPG_WINAPI then
 --      sequence stitle = split(title,'\n')
         atom dwStyle = or_all({WS_CHILD,WS_VISIBLE,BS_PUSHBUTTON,WS_TABSTOP})
+        bool bIcon = ctrl_xtra[id]!=UNDEFINED
+--      if bIcon and title=NULL then dwStyle += BS_ICON end if
+        if bIcon then dwStyle += BS_ICON end if
 --      if gGetAttribute(id,"FLAT",false) then dwStyle ||= BS_FLAT end if
 --             {w,h} = xpg_set_button_natural_size(id,title)
 --    if string(text) then text = split(text,'\n') end if
@@ -9405,6 +11950,14 @@ void iupdrvButtonAddBorders(int *x, int *y)
 --      button = xpg_WinAPI_create(id,"button",title,parent,w,h,dwStyle,0)
 --      button = xpg_WinAPI_create(id,"button",title,parent,w+7,h+10,dwStyle,0)
         button = xpg_WinAPI_create(id,"button",title,parent,50,25,dwStyle,0)
+        if bIcon then
+            sequence img = ctrl_xtra[id]
+            assert(img[1]="gImage") -- img is {"gImage",{hDIB,w,h,t}}
+            {} = c_func(xSendMessage,{button,BM_SETIMAGE,IMAGE_BITMAP,img[2][1]})
+--IMAGE_BITMAP 
+--IMAGE_ICON 
+--lParam 
+        end if
     else
         ?9/0 -- (unknown backend)
     end if
@@ -9417,15 +11970,29 @@ local function xpg_set_button_attribute(gdx id, string name, object v, bool bMap
         assert(string(v))
         if not bMapped then
             xpg_defer_attr(id,name,v)
-        elsif backend=GTK then
+        elsif backend=XPG_GTK then
             c_proc(gtk_button_set_label,{handle,xpg_gtk_mnemonicalize(v)})
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
             c_proc(xSetWindowText,{handle,v})
 --          xpg_set_button_natural_size(id,v)
         else
             ?9/0 -- (unknown backend)
         end if
         return true -- (dealt with)
+    elsif name="IMAGE" then
+--DEV erm, not quite true: image *can* be changed, but not the presence/absence of an image....
+        assert(not bMapped,"image cannot be changed after mapping")
+--      ?{"xpg_set_button_attribute",id,name,v,ctrl_xtra[id]}
+        if string(v) then
+--          v = gImage_from_XPM(v,"BUTTON")
+            v = gImage_from_XPM(v,XPG_BTN_BG)
+--DEV this didn't work the other place I tried it... also (sip) [3]???
+        elsif backend=XPG_WINAPI then
+            v = xpg_WinAPI_replace_bgclr(v[3],XPG_BTN_BG)
+        end if
+        assert(sequence(v) and v[1]="gImage")
+        ctrl_xtra[id] = v
+        return true
 --/*
     elsif name="PADDING" then
 static int gtkButtonSetPaddingAttrib(Ihandle* ih, const char* value)
@@ -9472,15 +12039,15 @@ void iupgtkSetMargin(GtkWidget* widget,int horiz_padding,int vert_padding,int ma
 }
 
 --*/
---/*
     elsif name="FLAT" then
+--/*
         if string(v) then v = xpg_to_bool(v) end if
         if not bMapped then
             xpg_defer_attr(id,name,v)
-        elsif backend=GTK then
+        elsif backend=XPG_GTK then
 ?9/0
 --          c_proc(gtk_button_set_label,{handle,xpg_gtk_mnemonicalize(v)})
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
             atom dwStyle = c_func(xGetWindowLong,{handle,GWL_STYLE})
             if not and_bits(dwStyle,BS_FLAT) then
                 dwStyle ||= BS_FLAT
@@ -9493,8 +12060,9 @@ void iupgtkSetMargin(GtkWidget* widget,int horiz_padding,int vert_padding,int ma
         else
             ?9/0 -- (unknown backend)
         end if
-        return true -- (dealt with)
 --*/
+printf(1,"gSetAttribute(BUTTON,\"FLAT\") not yet implemented\n")
+        return true -- (dealt with)
     end if
     return false
 end function
@@ -9502,9 +12070,10 @@ end function
 local function xpg_get_button_attribute(gdx id, string name, object dflt)
     atom handle = ctrl_handles[id]
     if name="TITLE" then
-        if backend=GTK then
+        if backend=XPG_GTK then
+--?{"getting label",handle}
             return peek_string(c_func(gtk_button_get_label,{handle}))
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
             integer l = c_func(xGetWindowTextLength,{handle})
             string title = repeat(' ',l)
             c_proc(xGetWindowText,{handle,title,l+1})
@@ -9514,10 +12083,10 @@ local function xpg_get_button_attribute(gdx id, string name, object dflt)
         end if
 --/*
     elsif name="FLAT" then
-        if backend=GTK then
+        if backend=XPG_GTK then
 ?9/0
 --          return peek_string(c_func(gtk_button_get_label,{handle}))
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
             atom dwStyle = c_func(xGetWindowLong,{handle,GWL_STYLE})
             return and_bits(dwStyle,BS_FLAT)!=0
 --xGetWindowLong
@@ -9534,14 +12103,18 @@ local function xpg_get_button_attribute(gdx id, string name, object dflt)
 end function
 
 --with trace
---global function gButton(nullable_string title=NULL, object action=NULL, sequence attributes="", args={})
+-- gButton([nullable_string title=NULL,] [rtn action=NULL,] sequence attributes="", args={})
 global function gButton(object title=NULL, action=NULL, sequence attributes="", args={})
     {title,action,attributes,args} = paranormalise_traa(title,action,attributes,args)
     if not bInit then xpg_Init() end if
+--22/11/23 (???!!!)
+--  integer id = xpg_add_control(BUTTON,flags:=CF_UNMAPATTR)
     integer id = xpg_add_control(BUTTON)
-    xpg_register_handler(BUTTON,"ACTION",{{1,1,"FO"}})
-    set_ctrl_msg(BUTTON,xpg_Button,xpg_set_button_attribute,
-                                   xpg_get_button_attribute)
+--  xpg_register_handler(BUTTON,"ACTION",{{1,1,"FO"}})
+    xpg_register_handler(BUTTON,"ACTION",{"FO"})
+    xpg_set_ctrl_msg(BUTTON,xpg_Button,xpg_set_button_attribute,
+                                       xpg_get_button_attribute)
+    -- aside: ctrl_xtra on a button is UNDEFINED/NULL or a gImage
 --  gSetAttribute(id,"FONT","Helvetica, 9")
     if title!=NULL then
         gSetAttribute(id,"TITLE",title)
@@ -9549,9 +12122,12 @@ global function gButton(object title=NULL, action=NULL, sequence attributes="", 
     if action!=NULL then
         gSetHandler(id,"ACTION",action)
     end if
+--printf(1,"button:%x\n",ctrl_flags[id])
+--trace(1)
     if length(attributes) then
         gSetAttributes(id,attributes,args)
     end if
+--printf(1,"button:%x\n",ctrl_flags[id])
 --  gSetAttribute(id,"EXPAND",false)
 --  gSetInt(id,"EXPAND",false)
     return id
@@ -9559,6 +12135,7 @@ end function
 
 --static gboolean gtk_draw(GtkWidget*widget,cairo_t*cr,gpointer data)
 local function xpg_gtk_canvas_draw(atom canvas, cairo, gdx id) -- (GTK only)
+--?"xpg_gtk_canvas_draw"
     assert(id=xpg_getID(canvas))
     if not bGTK3 then
         atom window = c_func(gtk_widget_get_window,{canvas})
@@ -9571,13 +12148,7 @@ local function xpg_gtk_canvas_draw(atom canvas, cairo, gdx id) -- (GTK only)
       {r,g,b} = to_rgba(back)
     c_proc(cairo_set_source_rgb,{cairo,r/255,g/255,b/255})
     c_proc(cairo_paint,{cairo})
-    integer redraw = gGetHandler(id,"REDRAW")
-    if redraw then
---fOK = false
-        redraw(id)
---fOK = true
-        gCanvasSetBackground(id,back)
-    end if
+    xpg_redraw_canvas(id,back)
     if not bGTK3 then
         ctrl_xtra[id][CX_CANVAS_HDC] = {NULL,NULL}
 --?"cairo_destroy"
@@ -9591,13 +12162,14 @@ local procedure xpg_set_canvas_pen(gdx id, atom hdc, bool bBack=false)
     integer penstyle = ctrl_xtra[id][CX_PENSTYLE],
             penwidth = ctrl_xtra[id][CX_PENWIDTH],
            pencolour = ctrl_xtra[id][CX_CANVAS_FORE]
-    if backend=GTK then
+    if backend=XPG_GTK then
         c_proc(cairo_set_line_width,{hdc,penwidth})
 --DEV...
         if penstyle=XPG_CONTINUOUS then
             c_proc(cairo_set_dash,{hdc,0,0,0})
         else
-            sequence dashes = {{6,2},{2,2},{6,2,2,2},{6,2,2,2,2,2}}[penstyle]
+--          sequence dashes = {{6,2},{2,2},{6,2,2,2},{6,2,2,2,2,2}}[penstyle]
+            sequence dashes = {{6,2},{2,2},{6,2,2,2},{6,2,2,2,2,2}}[penstyle-1]
             atom pDash = xpg_double_array(dashes)
             c_proc(cairo_set_dash,{hdc,pDash,length(dashes),0})
             free(pDash)
@@ -9605,10 +12177,22 @@ local procedure xpg_set_canvas_pen(gdx id, atom hdc, bool bBack=false)
         if bBack then pencolour = gCanvasGetBackground(id) end if
         atom {r,g,b} = to_rgba(pencolour)
         c_proc(cairo_set_source_rgb,{hdc,r/255,g/255,b/255})
-    elsif backend=WinAPI then
+    elsif backend=XPG_WINAPI then
         if and_bits(ctrl_xtra[id][CX_CANVAS_FLAGS],CXCF_REPEN) then
-            atom bgr = xpg_WinAPI_rgb_to_bgr(pencolour),
-                 hPen = c_func(xCreatePen,{penstyle,penwidth,bgr})
+            atom bgr = xpg_WinAPI_rgb_to_bgr(pencolour), hPen
+--               hPen = c_func(xCreatePen,{penstyle,penwidth,bgr})
+--               hPen = c_func(xCreatePen,{penstyle-1,penwidth,bgr})
+            if penstyle=XPG_DOTTED then
+                set_struct_field(idLOGBRUSH,pLOGBRUSH,"lbStyle",PS_SOLID)
+                set_struct_field(idLOGBRUSH,pLOGBRUSH,"lbColor",bgr)
+                -- (PS_COSMETIC implied)
+                hPen = c_func(xExtCreatePen,{PS_ALTERNATE,1,pLOGBRUSH,0,NULL})
+            else
+                hPen = c_func(xCreatePen,{penstyle-1,penwidth,bgr})
+            end if
+--               hPen = c_func(xCreatePen,{penstyle-2,penwidth,bgr})
+--               hPen = c_func(xCreatePen,{penstyle+2,penwidth,bgr})
+--?{"penstyle",penstyle+2}
             hPen = c_func(xSelectObject,{hdc,hPen})
             c_proc(xDeleteObject,{hPen})
             ctrl_xtra[id][CX_CANVAS_FLAGS] -= CXCF_REPEN
@@ -9694,7 +12278,6 @@ end function
 --DEV temp:
 --bool wuline = false
 local constant wuline = true
---global procedure gwu(bool w) wuline = w end procedure
 
 --integer gdots = 0, gten = 1000
 
@@ -9706,26 +12289,31 @@ local procedure plot(gdx canvas, atom x, y, c, bool bFlip=false)
 --  note that bFlip is exclusively intended for wu_line() only.
     if bFlip then {x,y} = {y,x} end if
     atom C = 1-c, hDC, bgr
---  if backend=WinAPI then
-    if false then
+    if backend=XPG_WINAPI then
+--And you really shouldn't use SetPixel that's so slow. 
+--Create a memory DC using CreateDIBSection and modify the pixels (RGBQUADs) directly.
+--  if false then
         hDC = ctrl_xtra[canvas][CX_CANVAS_HDC]
 --DEV horribly slow... (but deal with that *after* gImage...)
         bgr = c_func(xGetPixel,{hDC,x,y})
-        {rB,gB,bB} = to_rgba(bgr)
+--12/12/23:
+--      {rB,gB,bB} = to_rgba(bgr)
+--      {rB,gB,bB} = to_rgba(xpg_WinAPI_rgb_to_bgr(bgr))
+        {bB,gB,rB} = to_rgba(bgr)
     end if
     integer r = and_bits(rL*c+rB*C,#FF),
             g = and_bits(gL*c+gB*C,#FF),
             b = and_bits(bL*c+bB*C,#FF)
 --  c = rgba(r,g,b)
 --  gCanvasPixel(canvas,x,y,c)
-    if backend=GTK then
+    if backend=XPG_GTK then
         atom cairo = ctrl_xtra[canvas][CX_CANVAS_HDC][1]
         c_proc(cairo_set_source_rgb,{cairo,r/255,g/255,b/255})
         c_proc(cairo_set_line_width,{cairo,0.5})
         c_proc(cairo_move_to,{cairo,x,y})
         c_proc(cairo_line_to,{cairo,x+1,y+1}) -- best I can do
         c_proc(cairo_stroke,{cairo})
-    elsif backend=WinAPI then
+    elsif backend=XPG_WINAPI then
         hDC = ctrl_xtra[canvas][CX_CANVAS_HDC]
         bgr = b*#10000+g*#100+r
 --if gdots then
@@ -9781,7 +12369,8 @@ procedure wu_line(gdx canvas, atom x1, y1, x2, y2)
     integer dots = 1,
             width = ctrl_xtra[canvas][CX_PENWIDTH],
             style = ctrl_xtra[canvas][CX_PENSTYLE]
-    sequence dasher = dashers[style+1]
+--  sequence dasher = dashers[style+1]
+    sequence dasher = dashers[style]
 
     -- handle first endpoint
     plot2(canvas,x1end,floor(y1end),fpart(y1end),1-fpart(x1+0.5),width,flip)
@@ -9813,29 +12402,40 @@ global procedure gCanvasLine(gdx canvas, atom x1, y1, x2, y2, integer style=-1, 
         pcolour = ctrl_xtra[canvas][CX_CANVAS_FORE]
         gCanvasSetForeground(canvas,colour)
     end if
-    bool bUseNative = x1=x2 or y1=y2
-if wuline and not bUseNative then
-    {rB,gB,bB} = to_rgba(gCanvasGetBackground(canvas))
-    {rL,gL,bL} = to_rgba(gCanvasGetForeground(canvas))
-    wu_line(canvas,x1,y1,x2,y2)
-else
-    if backend=GTK then
+    if backend=XPG_GTK then
 --?{"line",ctrl_xtra[id][CX_CANVAS_FLAGS]}
         atom cairo = xpg_gtk_get_cairo(canvas)
-        c_proc(cairo_move_to,{cairo,x1,y1})
-        c_proc(cairo_line_to,{cairo,x2,y2})
+--      integer penwidth = ctrl_xtra[canvas][CX_PENWIDTH]
+--      if penwidth=1 and (x1=x2 or y1=y2) then
+--          c_proc(cairo_set_line_width,{cairo,2})
+--      end if
+--      c_proc(cairo_move_to,{cairo,x1,y1})
+--      c_proc(cairo_move_to,{cairo,x1-.5,y1-.5})
+        c_proc(cairo_move_to,{cairo,x1+.5,y1+.5})
+--      c_proc(cairo_move_to,{cairo,x1,y1-.5})
+--      c_proc(cairo_line_to,{cairo,x2,y2})
+        c_proc(cairo_line_to,{cairo,x2+.5,y2+.5})
+--      c_proc(cairo_line_to,{cairo,x2-.5,y2-.5})
+--      c_proc(cairo_line_to,{cairo,x2,y2-.5})
         c_proc(cairo_stroke,{cairo})
-    elsif backend=WinAPI then
-        atom hDC = ctrl_xtra[canvas][CX_CANVAS_HDC]
-        xpg_set_canvas_pen(canvas,hDC)
-        bool bOK = c_func(xMoveToEx,{hDC,x1,y1,NULL})
-        assert(bOK!=0)
-        bOK = c_func(xLineTo,{hDC,x2,y2})
-        assert(bOK!=0)
+    elsif backend=XPG_WINAPI then
+        bool bUseNative = x1=x2 or y1=y2
+--DEV bUseNative:=true for flat/vertical?? (sip)
+        if wuline and not bUseNative then
+            {rB,gB,bB} = to_rgba(gCanvasGetBackground(canvas))
+            {rL,gL,bL} = to_rgba(gCanvasGetForeground(canvas))
+            wu_line(canvas,x1,y1,x2,y2)
+        else
+            atom hDC = ctrl_xtra[canvas][CX_CANVAS_HDC]
+            xpg_set_canvas_pen(canvas,hDC)
+            bool bOK = c_func(xMoveToEx,{hDC,x1,y1,NULL})
+            assert(bOK!=0)
+            bOK = c_func(xLineTo,{hDC,x2,y2})
+            assert(bOK!=0)
+        end if
     else
         ?9/0 -- (unknown backend)
     end if
-end if
     if style!=-1 then gCanvasSetLineStyle(canvas,pstyle) end if
     if width!=-1 then gCanvasSetLineWidth(canvas,pwidth) end if
     if colour!=-1 then
@@ -9898,7 +12498,8 @@ procedure wu_ellipse(gdx canvas, atom xc, yc, w, h, angle1=0, angle2=360)
         integer style = ctrl_xtra[canvas][CX_PENSTYLE],
                 width = ctrl_xtra[canvas][CX_PENWIDTH],
                 dots = 1, d = floor(width/2)
-        sequence dasher = dashers[style+1]
+--      sequence dasher = dashers[style+1]
+        sequence dasher = dashers[style]
 --?{"width",width} -- 1
 --DEV/SUG if filled then width=1...
 
@@ -9944,23 +12545,375 @@ procedure wu_ellipse(gdx canvas, atom xc, yc, w, h, angle1=0, angle2=360)
             end if
         end for
     end if
-
 end procedure
 
-global procedure gCanvasArc(gdx canvas, atom xc, yc, w, h, angle1, angle2, integer flags=0, style=-1, width=-1, atom colour=-1, fillcolour=-1)
+local procedure xpg_WinAPI_wu_bezier(gdx canvas, atom x1, y1, x2, y2, x3, y3, x4, y4)
+    --
+    -- draw a cubic bezier curve from x1,y1 to x4,y4 
+    --          using control points x2,y2 and x3,y3
+    -- aside: {x2,y2}=={x3,y3} shd == gCanvasQuadBezier
+    --
+    integer style = ctrl_xtra[canvas][CX_PENSTYLE],
+            width = ctrl_xtra[canvas][CX_PENWIDTH],
+            wu_d = floor(width/2), wub_dots = 1
+    {rB,gB,bB} = to_rgba(gCanvasGetBackground(canvas))
+    {rL,gL,bL} = to_rgba(gCanvasGetForeground(canvas))
+
+--if x1<x4 then
+--  {x1,y1,x2,y2,x3,y3,x4,y4} = {x4,y4,x3,y3,x2,y2,x1,y1}
+--end if
+--if integer(x1) then x1 += 0.00001 end if
+--if integer(y1) then y1 += 0.00001 end if
+--if integer(x4) then x4 += 0.00001 end if
+--if integer(y4) then y4 += 0.00001 end if
+    sequence curve = {{x1,y1,x2,y2,x3,y3,x4,y4}},
+        wub_dasher = dashers[style]
+    while length(curve) do -- main bisect loop
+        {x1,y1,x2,y2,x3,y3,x4,y4} = curve[$]
+        --
+        -- Uses the de Castejau method, with particular credit to 
+        -- https://hcklbrrfnn.files.wordpress.com/2012/08/bez.pdf
+        -- (or see a similar diagram in gCanvas.htm/technicalia)
+        --
+        --   -- l,m,r are the first mid-points,
+        atom lx = (x1+x2)/2,  ly = (y1+y2)/2,
+             mx = (x2+x3)/2,  my = (y2+y3)/2,
+             rx = (x3+x4)/2,  ry = (y3+y4)/2,
+             -- n,p are the secondary mid-points,
+             nx = (lx+mx)/2,  ny = (ly+my)/2,
+             px = (mx+rx)/2,  py = (my+ry)/2,
+             -- q is the (single) found point on the curve.
+             qx = (nx+px)/2,  qy = (ny+py)/2,
+             -- the size of the square containing s,q,e:
+             sx = max({x1,qx,x4})-min({x1,qx,x4}),
+             sy = max({y1,qy,y4})-min({y1,qy,y4})
+
+            atom dx = x1-x4,
+                 dy = y1-y4
+            bool bSteep = abs(dx)<abs(dy)
+
+        bool bSubPixel = sx<1 and sy<1
+        if not bSubPixel then
+            --
+            -- bisect curve[$] until it is:
+            --
+--if integer(qx) then qx += 0.00001 end if
+--if integer(qy) then qy += 0.00001 end if
+            curve[$] = {qx,qy,px,py,rx,ry,x4,y4}
+            curve  &= {{x1,y1,lx,ly,nx,ny,qx,qy}}
+        else
+            curve = curve[1..$-1] -- discard/done
+            --
+            -- It is quite likely we will have split a segment length 1.5
+            -- into 0.76 and 0.77, since nowt here is genuinely straight,
+            -- and one of those straddles (say) y=12 whereas the other is 
+            -- entirely between y=12 and y=13. For the straddler estimate
+            -- x using straight-line algebra and draw two pixels, whereas
+            -- we can/should just ignore the other and let prev/next segs
+            -- set their more accurate pixels (on y=12 and y=13).
+            --
+            wub_dots = iff(wub_dots=length(wub_dasher)?1:wub_dots+1)
+            if wub_dasher[wub_dots] then
+                if ceil(y1)!=ceil(y4) then
+                    atom cy = floor(max(y1,y4)),
+                         iy = x1 + dx/dy*(cy-y1)
+                    integer x = floor(iy)
+                    atom fx = iy-x
+                    if wu_d=0 then
+                        plot(canvas,x,cy,1-fx)
+                        plot(canvas,x+1,cy,fx)
+                    else
+                        plot(canvas,x-wu_d,cy,1-fx)
+                        for i=-wu_d+1 to wu_d-1 do
+                            plot(canvas,x+i,cy,1)
+                        end for
+                        plot(canvas,x+wu_d,cy,fx)
+                    end if
+                end if -- straddles a unit y
+                if ceil(x1)!=ceil(x4) then
+                    atom cx = floor(max(x1,x4)),
+                         ix = y1 + dy/dx*(cx-x1)
+                    integer y = floor(ix)
+                    atom fy = ix-y
+                    if wu_d=0 then
+                        plot(canvas,cx,y,1-fy)
+                        plot(canvas,cx,y+1,fy)
+                    else
+                        cx -= 1
+                        plot(canvas,cx,y-wu_d,1-fy)
+                        for i=-wu_d+1 to wu_d-1 do
+                            plot(canvas,cx,y+i,1)
+                        end for
+                        plot(canvas,cx,y+wu_d,fy)
+                    end if
+                end if -- straddles a unit x
+            end if -- dasher
+        end if -- subpixel
+    end while -- main bisect loop
+end procedure
+
+--/*
+--procedure xCanvasCubicBezier(gdx canvas, atom x1, y1, xc1, yc1, xc2, yc2, x2, y2, integer style=-1, width=-1, atom colour=-1, bool aa=true)
     integer pstyle, pwidth
-    if style!=-1 then pstyle = gCanvasGetLineStyle(canvas) gCanvasSetLineStyle(canvas,style) end if
-    if width!=-1 then pwidth = gCanvasGetLineWidth(canvas) gCanvasSetLineWidth(canvas,width) end if
-    atom pcolour, pfillcolour = gCanvasGetBackground(canvas)
+    if style!=-1 then
+        pstyle = gCanvasGetLineStyle(canvas)
+        gCanvasSetLineStyle(canvas,style)
+    end if
+    if width!=-1 then
+        pwidth = gCanvasGetLineWidth(canvas)
+        gCanvasSetLineWidth(canvas,width)
+    end if
+    atom pcolour
+    if colour!=-1 then
+        pcolour = gCanvasGetForeground(canvas)
+        gCanvasSetForeground(canvas,colour)
+    end if
+    if aa then
+--      wu_d = floor(width/2)
+--      wu_d = floor(gCanvasGetLineWidth(canvas)/2)
+        xpg_WinAPI_wu_bezier(canvas,x1,y1,xc1,yc1,xc2,yc2,x2,y2)
+    else
+        gCanvasCubicBezier(canvas,x1,y1,xc1,yc1,xc2,yc2,x2,y2)
+    end if
+    if colour!=-1 then gCanvasSetForeground(canvas,pcolour) end if
+    if width!=-1 then gCanvasSetLineWidth(canvas,pwidth) end if
+    if style!=-1 then gCanvasSetLineStyle(canvas,pstyle) end if
+--end procedure
+--*/
+
+global procedure gCanvasCubicBezier(gdx canvas, atom x1, y1, xc1, yc1, xc2, yc2, x2, y2, colour=-1)
+--global procedure gCanvasBezier(gdx canvas, atom x1, y1, xc1, yc1, xc2, yc2, x2, y2, integer style=-1, width=-1, atom colour=-1)
+----Hmmm...
+--  integer pstyle = gCanvasGetLineStyle(canvas),
+--          pwidth = gCanvasGetLineWidth(canvas)
+--  if pstyle!=XPG_CONTINUOUS then gCanvasSetLineStyle(canvas,XPG_CONTINUOUS) end if
+--??--  if pwidth!=1 then gCanvasSetLineWidth(canvas,1) end if
+    atom pcolour
     if colour!=-1 then
 --      pcolour = gCanvasGetForeground(canvas)
         pcolour = ctrl_xtra[canvas][CX_CANVAS_FORE]
         gCanvasSetForeground(canvas,colour)
     end if
-    if fillcolour!=-1 then
---      pfillcolour = gCanvasGetBackground(canvas)
-        gCanvasSetBackground(canvas,fillcolour)
+    if backend=XPG_GTK then
+        atom cairo = xpg_gtk_get_cairo(canvas)
+--      c_proc(cairo_move_to,{cairo,x1,y1})
+        c_proc(cairo_move_to,{cairo,x1+.5,y1+.5})
+--      c_proc(cairo_curve_to,{cairo,xc1,yc1,xc2,yc2,x2,y2})
+        c_proc(cairo_curve_to,{cairo,xc1+.5,yc1+.5,xc2+.5,yc2+.5,x2+.5,y2+.5})
+        c_proc(cairo_stroke,{cairo})
+    elsif backend=XPG_WINAPI then
+--if wuline then -- (DEV/always)
+--if true then
+        xpg_WinAPI_wu_bezier(canvas,x1,y1,xc1,yc1,xc2,yc2,x2,y2)
+--else
+--      integer onelong = get_struct_size(idPOINT)/2
+--      atom p4 = allocate(onelong*8),
+--          hDC = ctrl_xtra[canvas][CX_CANVAS_HDC],
+--       hBrush = NullBrushID
+--      xpg_set_canvas_pen(canvas,hDC)
+--      hBrush = c_func(xSelectObject,{hDC,hBrush})
+--      pokeN(p4,{x1,y1,xc1,yc1,xc2,yc2,x2,y2},onelong)
+--      bool bOK = c_func(xPolyBezier,{hDC,p4,4})
+--      assert(bOK)
+--      hBrush = c_func(xSelectObject,{hDC,hBrush}) -- (restore)
+--      -- aside: don't delete local sequence brushes[] entries!
+--      free(p4)
+----       get_struct_size(idPOINT)
+----        xPolyBezier = define_c_func(GDI32,"PolyBezier",
+----            {C_PTR,     --  HDC hdc
+----             C_PTR,     --  const POINT *lppt
+----             C_INT},    --  DWORD cPoints
+----            C_INT)      -- BOOL
+--end if
+    else
+        ?9/0 -- (unknown backend)
     end if
+
+--
+--  if pstyle!=XPG_CONTINUOUS then gCanvasSetLineStyle(canvas,pstyle) end if
+--  if pwidth!=1 then gCanvasSetLineWidth(canvas,pwidth) end if
+    if colour!=-1 then gCanvasSetForeground(canvas,pcolour) end if
+end procedure
+
+--     procedure gCanvasQuadBezier(gdx canvas, atom x1, y1, cx, cy, x2, y2, integer style=-1, width=-1, colour=-1, bool aa=true)
+global procedure gCanvasQuadBezier(gdx canvas, atom x1, y1, cx, cy, x2, y2, integer colour=-1)
+    -- draw a cubic bezier curve from x1,y1 to x2,y2 
+    --                 using the control point cx,cy
+--  gCanvasCubicBezier(canvas,x1,y1,cx,cy,cx,cy,x2,y2,style,width,colour,aa)
+    gCanvasCubicBezier(canvas,x1,y1,cx,cy,cx,cy,x2,y2,colour)
+end procedure
+
+global function gRotatePolygon(sequence poly, object angle)
+--
+--  DEV this is a fair bit slower than I thought it would be...
+--  In demo/xpGUI/gCanvasPolygon.exw the Phix logo with 33 {x,y}
+--  rotates worse than twice as slowly as the house with 5 {x,y}
+--  whereas I expected it would be keyboard-repeat-rate bound...
+--
+    atom cx, cy
+    if sequence(angle) then
+        {angle,cx,cy} = angle
+    else
+        {cx,cy} = poly[1]
+    end if
+    if angle!=0 then
+--      poly = deep_copy(poly)
+        integer lp = length(poly)
+        sequence res = repeat(0,lp)
+        atom r = angle*XPG_DEG2RAD,
+             s = sin(r),
+             c = cos(r)
+--      for i=1 to length(poly) do
+        for i=1 to lp do
+            sequence pi = poly[i]
+            integer lpi = length(pi)
+--          if lpi!=0 then
+            if lpi=0 then
+                res[i] = {}
+            else
+--              poly[i] = 0 -- (kill refcount)
+                sequence ri = repeat(0,lpi)
+                for j=1 to lpi-1 by 2 do
+                    integer k = j+1
+                    atom x = pi[j] - cx,
+                         y = pi[k] - cy
+                    -- counter-clockwise:
+--                  {x,y} = {y*s + x*c + cx, 
+--                           y*c - x*s + cy}
+                    -- clockwise:
+--                  {x,y} = {x*c - y*s + cx, 
+--                           x*s + y*c + cy}
+--                  pi[j] = x
+--                  pi[k] = y
+--                  pi[j] = x*c - y*s + cx
+--                  pi[k] = x*s + y*c + cy
+                    ri[j] = x*c - y*s + cx
+                    ri[k] = x*s + y*c + cy
+                end for
+--              poly[i] = pi
+                res[i] = ri
+            end if
+        end for
+        return res
+    end if
+    return poly
+end function
+
+global procedure gCanvasPolygon(gdx canvas, sequence poly, bool bFilled=true, integer colour=-1, style=-1, width=-1)
+--global procedure gCanvasPolygon(gdx canvas, sequence poly, bool bFilled=true, integer colour=-1, style=-1, width=-1, object angle=0)
+    --
+    -- draw a (possibly multi-part) polygon.
+    -- much credit and thanks to http://alienryderflex.com/polygon/ (but not much final code)
+    --
+    integer pcolour
+    if colour!=-1 then
+        pcolour = ctrl_xtra[canvas][CX_CANVAS_FORE]
+        if colour!=-1 then gCanvasSetForeground(canvas,colour) end if
+    end if
+    assert(not bFilled or style=-1 or style=XPG_CONTINUOUS)
+    assert(not bFilled or width=-1 or width=1)
+    integer pstyle, pwidth
+    if style!=-1 then pstyle = gCanvasGetLineStyle(canvas) gCanvasSetLineStyle(canvas,style) end if
+    if width!=-1 then pwidth = ctrl_xtra[canvas][CX_PENWIDTH] gCanvasSetLineWidth(canvas,width) end if
+--  if filled and (pwidth!=1 or (width!=-1 and width!=1)) then
+--      width = 1
+--  end if
+    -- draw outline and if filled collect all y unit axis intersections
+    sequence intersect = {}
+    integer l = length(poly), start = 1;
+    for i=1 to l do
+        sequence pi = poly[i]
+        integer lpi = length(pi)
+        if lpi==0 then -- (new loop)
+            start = i+1
+        else
+            integer j = iff(i=l or poly[i+1]={}?start:i+1)
+            atom {iX,iY} = pi,
+                 {aX,aY} = iff(lpi>2?pi[3..4]:{0,0}),
+                 {bX,bY} = iff(lpi>4?pi[5..6]:{aX,aY}),
+                 {jX,jY} = poly[j]
+            if lpi==2 then  // straight line
+                gCanvasLine(canvas,iX,iY,jX,jY)
+            else
+                gCanvasCubicBezier(canvas,iX,iY,aX,aY,bX,bY,jX,jY)
+            end if
+            if bFilled then
+                -- collect y unit intersections.
+                -- avoid any direct vertex hits:
+                if integer(iY) then iY += 0.00001 end if
+                if integer(jY) then jY += 0.00001 end if
+                if lpi=2 then -- line
+                    if iY>jY then {iY,iX,jY,jX} = {jY,jX,iY,iX} end if
+                    atom dx = jX-iX,
+                         dy = jY-iY
+                    for y=ceil(iY) to floor(jY) do
+                        intersect = append(intersect,{y,iX+dx/dy*(y-iY)})
+                    end for
+                else -- bezier
+                    sequence curve = {{iX,iY,aX,aY,bX,bY,jX,jY}}
+                    while length(curve) do -- main bisect loop
+                        {iX,iY,aX,aY,bX,bY,jX,jY} = curve[$]
+                        -- (these two may be superfluous...)
+                        if integer(iY) then iY += 0.00001 end if
+                        if integer(jY) then jY += 0.00001 end if
+                        --   -- l,m,r are the first mid-points,
+                        atom lx = (iX+aX)/2,  ly = (iY+aY)/2,
+                             mx = (aX+bX)/2,  my = (aY+bY)/2,
+                             rx = (bX+jX)/2,  ry = (bY+jY)/2,
+                             -- n,p are the secondary mid-points,
+                             nx = (lx+mx)/2,  ny = (ly+my)/2,
+                             px = (mx+rx)/2,  py = (my+ry)/2,
+                             -- q is the (single) found point on the curve.
+                             qx = (nx+px)/2,  qy = (ny+py)/2,
+                             -- the size of the square containing s,q,e:
+                             sx = max({iX,qx,jX})-min({iX,qx,jX}),
+                             sy = max({iY,qy,jY})-min({iY,qy,jY})
+                        if sx>=1 or sy>=1 then
+                            -- bisect curve[$] until it is subpixel
+                            curve[$] = {qx,qy,px,py,rx,ry,jX,jY}
+                            curve  &= {{iX,iY,lx,ly,nx,ny,qx,qy}}
+                        else
+                            curve = curve[1..$-1] -- discard/done
+                            if ceil(iY)!=ceil(jY) then -- straddler
+                                integer y = floor(max(iY,jY))
+                                atom iy = iX + (iX-jX)/(iY-jY)*(y-iY)
+                                intersect = append(intersect,{y,iy})
+                            end if -- straddles
+                        end if -- subpixel
+                    end while -- bisect loop
+                end if -- line/bezier segment
+            end if -- bFilled
+        end if -- (not new loop)
+    end for
+    if bFilled then
+        assert(even(length(intersect)))
+        intersect = sort(intersect)
+        for i=1 to length(intersect) by 2 do
+            atom {y1,x1} = intersect[i],
+                 {y2,x2} = intersect[i+1]
+            assert(y1==y2 and integer(y1))
+            x1 = ceil(x1)
+--          x1 = floor(x1) -- no...
+--          x1 = floor(x1+1) -- ok... (but that proves nothing...)
+--          x2 = floor(x2) -- but also no...
+            x2 = ceil(x2) -- (note added to docs re scattered +1s)
+--          x2 = floor(x2+1) -- ok... (ditto)
+            if x1<x2 then
+--          if x1<=x2 then -- (hmm, does not seem to make any difference...)
+                gCanvasLine(canvas,x1,y1,x2,y1)
+            end if
+        end for
+    end if
+    if colour!=-1 then gCanvasSetForeground(canvas,pcolour) end if
+    if style!=-1 then gCanvasSetLineStyle(canvas,pstyle) end if
+    if width!=-1 then gCanvasSetLineWidth(canvas,pwidth) end if
+end procedure
+
+global procedure gCanvasArc(gdx canvas, atom xc, yc, w, h, angle1, angle2, integer flags=0, style=-1, width=-1, atom colour=-1)
+    integer pstyle, pwidth, pcolour
+    if style!=-1 then pstyle = gCanvasGetLineStyle(canvas) gCanvasSetLineStyle(canvas,style) end if
+    if width!=-1 then pwidth = gCanvasGetLineWidth(canvas) gCanvasSetLineWidth(canvas,width) end if
+    if colour!=-1 then pcolour = ctrl_xtra[canvas][CX_CANVAS_FORE] gCanvasSetForeground(canvas,colour) end if
     atom a1r = angle1*PI/180,
          a2r = angle2*PI/180,
          -- The arc starts at the point (xc+(w/2)*cos(angle1),
@@ -9972,6 +12925,41 @@ global procedure gCanvasArc(gdx canvas, atom xc, yc, w, h, angle1, angle2, integ
          ey = yc+(h/2)*sin(a1r)
     bool bFilled = and_bits(flags,XPG_FILLED)
 
+    if backend=XPG_GTK then
+        atom cairo = xpg_gtk_get_cairo(canvas),
+           {r,g,b} = to_rgba(ctrl_xtra[canvas][CX_CANVAS_FORE])
+        c_proc(cairo_set_source_rgb,{cairo,r/255,g/255,b/255})
+
+--      for iter=1 to iff(bFilled?2:1) do
+            c_proc(cairo_new_path,{cairo})
+            c_proc(cairo_save,{cairo})
+            -- This took me forever to figure out. I finally found (just one) item of interest,
+            -- httpdead://github.com/ELWIN-MAO/gtk/blob/master/gtkroundedbox.c (dead link) said:
+            --  cairo_translate (cr,xc,yc);
+            --  cairo_scale (cr,xradius,yradius);
+            --  cairo_arc (cr,0,0,1.0,angle1,angle2);
+            -- of course, nowt in the docs, SO, or any tutorial covers this in "English"..
+            c_proc(cairo_translate,{cairo,xc,yc})
+--          c_proc(cairo_translate,{cairo,xc+0.5,yc+0.5})
+            c_proc(cairo_scale,{cairo,w/2,h/2})
+            c_proc(cairo_arc,{cairo,0,0,1,a1r,a2r})
+            if and_bits(flags,XPG_SECTOR) then
+                c_proc(cairo_line_to,{cairo,0,0})
+                c_proc(cairo_close_path,{cairo})
+            end if
+            c_proc(cairo_restore,{cairo})
+--          if not bFilled then exit end if
+        if bFilled then
+            c_proc(cairo_fill,{cairo})
+        else
+--          bFilled = false
+--          atom {r,g,b} = to_rgba(ctrl_xtra[canvas][CX_CANVAS_FORE])
+--          c_proc(cairo_set_source_rgb,{cairo,r/255,g/255,b/255})
+--if wuline then exit end if
+--      end for
+            c_proc(cairo_stroke,{cairo})
+        end if
+    elsif backend=XPG_WINAPI then
 --if wuline then
 if wuline and not bFilled then -- DEV
 --DEV/SUG if filled then width=1...
@@ -9980,8 +12968,8 @@ if wuline and not bFilled then -- DEV
 --  Alternatively draw outer and collect inner, then flood-fill all inner inclusive [?]
 --  Might just stick with cairo under GTK.
 
---  {rB,gB,bB} = to_rgba(gCanvasGetBackground(canvas))
-    {rB,gB,bB} = to_rgba(pfillcolour)
+    {rB,gB,bB} = to_rgba(gCanvasGetBackground(canvas))
+--  {rB,gB,bB} = to_rgba(pfillcolour)
     {rL,gL,bL} = to_rgba(gCanvasGetForeground(canvas))
 --?{"wu_ellipse",xc,yc,w,h,angle1,angle2,flags,{rB,gB,bB},{rL,gL,bL}}
     wu_ellipse(canvas,xc,yc,w,h,angle1,angle2)
@@ -9992,38 +12980,12 @@ if wuline and not bFilled then -- DEV
         wu_line(canvas,sx,sy,ex,ey)
     end if
 else
-    if backend=GTK then
-        atom cairo = xpg_gtk_get_cairo(canvas,bFilled)
-        for iter=1 to iff(bFilled?2:1) do
-            c_proc(cairo_new_path,{cairo})
-            c_proc(cairo_save,{cairo})
-            -- This took me forever to figure out. I finally found (just one) item of interest,
-            -- httpdead://github.com/ELWIN-MAO/gtk/blob/master/gtkroundedbox.c (dead link) said:
-            --  cairo_translate (cr,xc,yc);
-            --  cairo_scale (cr,xradius,yradius);
-            --  cairo_arc (cr,0,0,1.0,angle1,angle2);
-            -- of course, nowt in the docs, SO, or any tutorial covers this [in "English"]..
-            c_proc(cairo_translate,{cairo,xc,yc})
-            c_proc(cairo_scale,{cairo,w/2,h/2})
-            c_proc(cairo_arc,{cairo,0,0,1,a1r,a2r})
-            if and_bits(flags,XPG_SECTOR) then
-                c_proc(cairo_line_to,{cairo,0,0})
-                c_proc(cairo_close_path,{cairo})
-            end if
-            c_proc(cairo_restore,{cairo})
-            if not bFilled then exit end if
-            c_proc(cairo_fill,{cairo})
-            bFilled = false
-            atom {r,g,b} = to_rgba(ctrl_xtra[canvas][CX_CANVAS_FORE])
-            c_proc(cairo_set_source_rgb,{cairo,r/255,g/255,b/255})
---if wuline then exit end if
-        end for
-        c_proc(cairo_stroke,{cairo})
-    elsif backend=WinAPI then
 --if not wuline then
         atom hDC = ctrl_xtra[canvas][CX_CANVAS_HDC],
-           bgClr = gCanvasGetBackground(canvas),
-          hBrush = iff(bFilled?xpg_WinAPI_get_brush(bgClr):NullBrushID),
+--         bgClr = gCanvasGetBackground(canvas),
+            bClr = gCanvasGetForeground(canvas),
+--        hBrush = iff(bFilled?xpg_WinAPI_get_brush(bgClr):NullBrushID),
+          hBrush = iff(bFilled?xpg_WinAPI_get_brush(bClr):NullBrushID),
               lr = xc-w/2,
               tr = yc-h/2,
               rr = xc+w/2,
@@ -10044,233 +13006,27 @@ else
         hBrush = c_func(xSelectObject,{hDC,hBrush}) -- (restore)
         -- aside: don't delete local sequence brushes[] entries!
 --end if
+end if
     else
         ?9/0 -- (unknown backend)
     end if
-end if
 
     if style!=-1 then gCanvasSetLineStyle(canvas,pstyle) end if
     if width!=-1 then gCanvasSetLineWidth(canvas,pwidth) end if
     if colour!=-1 then gCanvasSetForeground(canvas,pcolour) end if
 --  if fillcolour!=-1 then gCanvasSetForeground(canvas,pfillcolour) end if
-    if fillcolour!=-1 then gCanvasSetBackground(canvas,pfillcolour) end if
+--  if fillcolour!=-1 then gCanvasSetBackground(canvas,pfillcolour) end if
 end procedure
 
-global procedure gCanvasCircle(gdx canvas, atom xc, yc, radius, boolean filled=false, integer style=-1, width=-1, atom colour=-1, fillcolour=-1)
+global procedure gCanvasCircle(gdx canvas, atom xc, yc, radius, boolean filled=false, integer style=-1, width=-1, atom colour=-1)
     atom diameter = radius*2
-    gCanvasArc(canvas,xc,yc,diameter,diameter,0,360,filled,style,width,colour,fillcolour)
+    gCanvasArc(canvas,xc,yc,diameter,diameter,0,360,filled,style,width,colour)
 end procedure
-
---/!*
---Aside: my very first use drew a 600 pixel wide and 420 pixel high curve, and
---       called itself recursively 2,458 times, with a maximum call depth of a
---       mere 12, and plotting just 1,230 pixels, pretty good methinks for a
---       wild stab of "dx<=1 and dy<=1". Clearly 615 pixels would not suffice,
---       so that puts a hard ceiling of less than twofold improvement on it.
---       update: with the ceils, just 821 pixel pairs now get plotted.
---       
---integer cbc = 0
---integer maxd = 0, d = 0
---integer cbp = 0
---integer dots = 0
---integer wu_d
-sequence wub_dasher
-integer wub_dots = 1, wu_d = 1
-procedure wu_bezier(gdx canvas, atom x1, y1, x2, y2, x3, y3, x4, y4)
---if cbc=0 then
---  ?{"CanvasCubicBezier",x1,y1,x2,y2,x3,y3,x4,y4}
---end if
---cbc += 1
---d += 1
---if d>maxd then maxd = d end if
-    -- draw a cubic bezier curve from x1,y1 to x4,y4 
-    --          using control points x2,y2 and x3,y3
-    -- aside: {x2,y2}={x3,y3} shd == gCanvasQuadBezier
-    --
-    -- Uses the de Castejau method, with particular credit to 
-    -- https://hcklbrrfnn.files.wordpress.com/2012/08/bez.pdf
-    --
-    atom dx = abs(x1-x4),
-         dy = abs(y1-y4)
---?{dx,dy}
---sleep(1)
-    if dx<=1 and dy<=1 then
-        --
-        -- It is quite likely we will have split a segment length 1.5
-        -- into 0.76 and 0.77, since nowt here is genuinely straight,
-        -- and one of those straddles (say) y=12 whereas the other is 
-        -- entirely between y=12 and y=13. For the straddler estimate
-        -- x using straight-line algebra and draw two pixels, whereas
-        -- we can/should just ignore the other and let prev/next segs
-        -- set their more accurate pixels (on y=12 and y=13).
-        --
-        -- For a steep line we want to draw x and x+1 for some int y.
-        -- For a flat line we want to draw y and y+1 for some int x.
-        --
-        bool bSteep = abs(dx)<abs(dy)
-        if bSteep then
-            integer ly = ceil(y1)
-            if ly!=ceil(y4) then -- straddler
-                wub_dots = iff(wub_dots=length(wub_dasher)?1:wub_dots+1)
-                if wub_dasher[wub_dots] then
-                    x1 += (ly-y1)*dx/dy
-                    integer x = floor(x1)
-                    atom fx = x1-x
-                    plot(canvas,x-wu_d,ly,1-fx)
-                    if wu_d=0 then
-                        plot(canvas,x+1,ly,fx)
-                    else
-                        for i=-wu_d+1 to wu_d-1 do
-                            plot(canvas,x+i,ly,1)
-                        end for
-                        plot(canvas,x+wu_d,ly,fx)
-                    end if
-                end if
-            end if
-        else -- flat
-            integer lx = ceil(x1)
-            if lx!=ceil(x4) then -- straddler
-                wub_dots = iff(wub_dots=length(wub_dasher)?1:wub_dots+1)
-                if wub_dasher[wub_dots] then
-                    y1 += (lx-x1)*dy/dx
-                    integer y = floor(y1)
-                    atom fy = y1-y
-                    if wu_d=0 then
-                        plot(canvas,lx,y,1-fy)
-                        plot(canvas,lx,y+1,fy)
-                    else
-                        lx -= 1
-                        plot(canvas,lx,y-wu_d,1-fy)
-                        for i=-wu_d+1 to wu_d-1 do
-                            plot(canvas,lx,y+i,1)
-                        end for
-                        plot(canvas,lx,y+wu_d,fy)
-                    end if
-                end if
-            end if
-        end if
-    else
-
---DEV/SUG as per gCanvas.exw, pen a ditty to show the de Casteljau construction
---        similar to the second diagram in above doc, with draggable end-points.
-
-        -- l,m,r are the first mid-points,
-        -- n,p are the secondary mid-points,
-        -- q is the (single) found point on the curve.
-        atom lx = (x1+x2)/2,  ly = (y1+y2)/2,
-             mx = (x2+x3)/2,  my = (y2+y3)/2,
-             rx = (x3+x4)/2,  ry = (y3+y4)/2,
-             nx = (lx+mx)/2,  ny = (ly+my)/2,
-             px = (mx+rx)/2,  py = (my+ry)/2,
-             qx = (nx+px)/2,  qy = (ny+py)/2
-        wu_bezier(canvas,x1,y1,lx,ly,nx,ny,qx,qy)
---      gCanvasPixel(canvas,qx,qy,XPG_BLUE) -- (temp)
-        wu_bezier(canvas,qx,qy,px,py,rx,ry,x4,y4)
-    end if
---d -= 1
-end procedure
---*!/
-
---/*
-procedure xCanvasCubicBezier(gdx canvas, atom x1, y1, xc1, yc1, xc2, yc2, x2, y2, integer style=-1, width=-1, atom colour=-1, bool aa=true)
-    integer pstyle, pwidth
-    if style!=-1 then
-        pstyle = gCanvasGetLineStyle(canvas)
-        gCanvasSetLineStyle(canvas,style)
-    end if
-    if width!=-1 then
-        pwidth = gCanvasGetLineWidth(canvas)
-        gCanvasSetLineWidth(canvas,width)
-    end if
-    atom pcolour
-    if colour!=-1 then
-        pcolour = gCanvasGetForeground(canvas)
-        gCanvasSetForeground(canvas,colour)
-    end if
-    if aa then
---      wu_d = floor(width/2)
-        wu_d = floor(gCanvasGetLineWidth(canvas)/2)
-        wu_bezier(canvas,x1,y1,xc1,yc1,xc2,yc2,x2,y2)
-    else
-        gCanvasCubicBezier(canvas,x1,y1,xc1,yc1,xc2,yc2,x2,y2)
-    end if
-    if colour!=-1 then gCanvasSetForeground(canvas,pcolour) end if
-    if width!=-1 then gCanvasSetLineWidth(canvas,pwidth) end if
-    if style!=-1 then gCanvasSetLineStyle(canvas,pstyle) end if
-end procedure
---*/
-
-global procedure gCanvasCubicBezier(gdx canvas, atom x1, y1, xc1, yc1, xc2, yc2, x2, y2, colour=-1)
---global procedure gCanvasBezier(gdx canvas, atom x1, y1, xc1, yc1, xc2, yc2, x2, y2, integer style=-1, width=-1, atom colour=-1)
-----Hmmm...
---  integer pstyle = gCanvasGetLineStyle(canvas),
---          pwidth = gCanvasGetLineWidth(canvas)
---  if pstyle!=XPG_CONTINUOUS then gCanvasSetLineStyle(canvas,XPG_CONTINUOUS) end if
---??--  if pwidth!=1 then gCanvasSetLineWidth(canvas,1) end if
-    atom pcolour
-    if colour!=-1 then
---      pcolour = gCanvasGetForeground(canvas)
-        pcolour = ctrl_xtra[canvas][CX_CANVAS_FORE]
-        gCanvasSetForeground(canvas,colour)
-    end if
-    if backend=GTK then
-        atom cairo = xpg_gtk_get_cairo(canvas)
-        c_proc(cairo_move_to,{cairo,x1,y1})
-        c_proc(cairo_curve_to,{cairo,xc1,yc1,xc2,yc2,x2,y2})
-        c_proc(cairo_stroke,{cairo})
-    elsif backend=WinAPI then
-if wuline then
---DEV ugh, this really needs gGetPixel... (mind you, we have that under winAPI...)
-    integer style = ctrl_xtra[canvas][CX_PENSTYLE],
-            width = ctrl_xtra[canvas][CX_PENWIDTH]
-    wub_dasher = dashers[style+1]
-    wub_dots = 1
-    wu_d = floor(width/2)
-    {rB,gB,bB} = to_rgba(gCanvasGetBackground(canvas))
-    {rL,gL,bL} = to_rgba(gCanvasGetForeground(canvas))
-    wu_bezier(canvas,x1,y1,xc1,yc1,xc2,yc2,x2,y2)
-else
-        integer onelong = get_struct_size(idPOINT)/2
-        atom p4 = allocate(onelong*8),
-            hDC = ctrl_xtra[canvas][CX_CANVAS_HDC],
-         hBrush = NullBrushID
-        xpg_set_canvas_pen(canvas,hDC)
-        hBrush = c_func(xSelectObject,{hDC,hBrush})
-        pokeN(p4,{x1,y1,xc1,yc1,xc2,yc2,x2,y2},onelong)
-        bool bOK = c_func(xPolyBezier,{hDC,p4,4})
-        assert(bOK)
-        hBrush = c_func(xSelectObject,{hDC,hBrush}) -- (restore)
-        -- aside: don't delete local sequence brushes[] entries!
-        free(p4)
---     get_struct_size(idPOINT)
---      xPolyBezier = define_c_func(GDI32,"PolyBezier",
---          {C_PTR,     --  HDC hdc
---           C_PTR,     --  const POINT *lppt
---           C_INT},    --  DWORD cPoints
---          C_INT)      -- BOOL
-end if
-    else
-        ?9/0 -- (unknown backend)
-    end if
-
---
---  if pstyle!=XPG_CONTINUOUS then gCanvasSetLineStyle(canvas,pstyle) end if
---  if pwidth!=1 then gCanvasSetLineWidth(canvas,pwidth) end if
-    if colour!=-1 then gCanvasSetForeground(canvas,pcolour) end if
-end procedure
-
---/*
-procedure gCanvasQuadBezier(gdx canvas, atom x1, y1, cx, cy, x2, y2, integer style=-1, width=-1, colour=-1, bool aa=true)
-    -- draw a cubic bezier curve from x1,y1 to x2,y2 
-    --                 using the control point cx,cy
-    gCanvasCubicBezier(canvas,x1,y1,cx,cy,cx,cy,x2,y2,style,width,colour,aa)
-end procedure
---*/
 
 global procedure gCanvasPixel(gdx canvas, atom x, y, colour=-1)
 --  if colour=-1 then colour = gCanvasGetForeground(canvas) end if
     if colour=-1 then colour = ctrl_xtra[canvas][CX_CANVAS_FORE] end if
-    if backend=GTK then
+    if backend=XPG_GTK then
         atom cairo = ctrl_xtra[canvas][CX_CANVAS_HDC][1]
         atom {r,g,b} = to_rgba(colour)
         c_proc(cairo_set_source_rgb,{cairo,r/255,g/255,b/255})
@@ -10284,7 +13040,7 @@ global procedure gCanvasPixel(gdx canvas, atom x, y, colour=-1)
 --      c_proc(cairo_fill,{cairo})
         c_proc(cairo_stroke,{cairo})
 --      c_proc(cairo_set_source,{cairo,old_source}) -- (crashes??)
-    elsif backend=WinAPI then
+    elsif backend=XPG_WINAPI then
         atom hDC = ctrl_xtra[canvas][CX_CANVAS_HDC],
              bgr = xpg_WinAPI_rgb_to_bgr(colour)
         bool bOK = c_func(xSetPixelV,{hDC,x,y,bgr})
@@ -10294,52 +13050,65 @@ global procedure gCanvasPixel(gdx canvas, atom x, y, colour=-1)
     end if
 end procedure
 
-global procedure gCanvasRect(gdx canvas, atom xmin, xmax, ymin, ymax, bool bFill=false, integer rc=0, style=-1, width=-1, atom colour=-1, fillcolour=-1)
+--global procedure gCanvasRect(gdx canvas, atom xmin, xmax, ymin, ymax, bool bFill=false, integer rc=0, style=-1, width=-1, atom colour=-1, fillcolour=-1)
+global procedure gCanvasRect(gdx canvas, atom xmin, xmax, ymin, ymax, bool bFill=false, integer rc=0, style=-1, width=-1, atom colour=-1)
     integer pstyle, pwidth
     if style!=-1 then pstyle = gCanvasGetLineStyle(canvas) gCanvasSetLineStyle(canvas,style) end if
     if width!=-1 then pwidth = gCanvasGetLineWidth(canvas) gCanvasSetLineWidth(canvas,width) end if
-    atom pcolour, pfillcolour
+--  atom pcolour, pfillcolour
+    atom pcolour
     if colour!=-1 then
 --      pcolour = gCanvasGetForeground(canvas)
         pcolour = ctrl_xtra[canvas][CX_CANVAS_FORE]
         gCanvasSetForeground(canvas,colour)
     end if
-    if fillcolour!=-1 then
-        assert(bFill,"no point setting a fill colour!")
-        pfillcolour = gCanvasGetBackground(canvas)
-        gCanvasSetBackground(canvas,fillcolour)
-    end if
-    if backend=GTK then
-        atom cairo = xpg_gtk_get_cairo(canvas,bFill)
-        for iter=1 to iff(bFill?2:1) do
+--  if fillcolour!=-1 then
+--      assert(bFill,"no point setting a fill colour!")
+--      pfillcolour = gCanvasGetBackground(canvas)
+--      gCanvasSetBackground(canvas,fillcolour)
+--  end if
+    if backend=XPG_GTK then
+--      atom cairo = xpg_gtk_get_cairo(canvas,bFill)
+        atom cairo = xpg_gtk_get_cairo(canvas),
+           {r,g,b} = to_rgba(ctrl_xtra[canvas][CX_CANVAS_FORE])
+        c_proc(cairo_set_source_rgb,{cairo,r/255,g/255,b/255})
+--      for iter=1 to iff(bFill?2:1) do
             if rc then
                 c_proc(cairo_new_path,{cairo})
-                c_proc(cairo_arc,{cairo,xmin+rc,ymin+rc,rc,PI,3*PI/2})
-                c_proc(cairo_arc,{cairo,xmax-rc,ymin+rc,rc,3*PI/2,2*PI})
-                c_proc(cairo_arc,{cairo,xmax-rc,ymax-rc,rc,0,PI/2})
-                c_proc(cairo_arc,{cairo,xmin+rc,ymax-rc,rc,PI/2,PI})
+                c_proc(cairo_arc,{cairo,xmin+rc+.5,ymin+rc+.5,rc,PI,3*PI/2})
+                c_proc(cairo_arc,{cairo,xmax-rc+.5,ymin+rc+.5,rc,3*PI/2,2*PI})
+                c_proc(cairo_arc,{cairo,xmax-rc+.5,ymax-rc+.5,rc,0,PI/2})
+                c_proc(cairo_arc,{cairo,xmin+rc+.5,ymax-rc+.5,rc,PI/2,PI})
                 c_proc(cairo_close_path,{cairo})
             else
-                c_proc(cairo_rectangle,{cairo,xmin,ymin,xmax-xmin,ymax-ymin})
+--              c_proc(cairo_rectangle,{cairo,xmin+.5,ymin+.5,xmax-xmin+1,ymax-ymin+1})
+                c_proc(cairo_rectangle,{cairo,xmin+.5,ymin+.5,xmax-xmin,ymax-ymin})
             end if
-            if not bFill then exit end if
+--          if not bFill then exit end if
+--          c_proc(cairo_fill,{cairo})
+--          bFill = false
+--          atom {r,g,b} = to_rgba(ctrl_xtra[canvas][CX_CANVAS_FORE])
+--          c_proc(cairo_set_source_rgb,{cairo,r/255,g/255,b/255})
+--      end for
+        if bFill then
             c_proc(cairo_fill,{cairo})
-            bFill = false
-            atom {r,g,b} = to_rgba(ctrl_xtra[canvas][CX_CANVAS_FORE])
-            c_proc(cairo_set_source_rgb,{cairo,r/255,g/255,b/255})
-        end for
-        c_proc(cairo_stroke,{cairo})
-    elsif backend=WinAPI then
+        else
+            c_proc(cairo_stroke,{cairo})
+        end if
+    elsif backend=XPG_WINAPI then
         atom hDC = ctrl_xtra[canvas][CX_CANVAS_HDC],
-           bgClr = gCanvasGetBackground(canvas),
-          hBrush = iff(bFill?xpg_WinAPI_get_brush(bgClr):NullBrushID)
+--         bgClr = gCanvasGetBackground(canvas),
+            bClr = gCanvasGetForeground(canvas),
+--        hBrush = iff(bFill?xpg_WinAPI_get_brush(bgClr):NullBrushID)
+          hBrush = iff(bFill?xpg_WinAPI_get_brush(bClr):NullBrushID)
         xpg_set_canvas_pen(canvas,hDC)
         bool bOK
         hBrush = c_func(xSelectObject,{hDC,hBrush})
         if rc then
             bOK = c_func(xRoundRect,{hDC,xmin,ymin,xmax,ymax,rc,rc})
         else
-            bOK = c_func(xRectangle,{hDC,xmin,ymin,xmax,ymax})
+            -- MSDN: The rectangle that is drawn excludes the bottom and right edges.
+            bOK = c_func(xRectangle,{hDC,xmin,ymin,xmax+1,ymax+1})
         end if
         assert(bOK!=0)
         hBrush = c_func(xSelectObject,{hDC,hBrush}) -- (restore)
@@ -10351,676 +13120,780 @@ global procedure gCanvasRect(gdx canvas, atom xmin, xmax, ymin, ymax, bool bFill
     if colour!=-1 then
         gCanvasSetForeground(canvas,pcolour)
     end if
-    if fillcolour!=-1 then
-        gCanvasSetForeground(canvas,pfillcolour)
-    end if
+--DEV erm, that was a bit wrong anyway!!
+--  if fillcolour!=-1 then
+--      gCanvasSetForeground(canvas,pfillcolour)
+--  end if
 end procedure
+
+--/*
+function rotate_point(atom x, y, cx, cy, angle)
+  atom r = angle*XPG_DEG2RAD, s = sin(r), c = cos(r);
+  // translate point back to origin:
+  x -= cx;
+  y -= cy;
+  // rotate point and translate it back:
+--anticlockwise
+--  sequence xy = {x*c - y*s + cx, 
+--               x*s + y*c + cy}
+--clockwise
+  sequence xy = {y*s + x*c + cx, 
+                 y*c - x*s + cy}
+  return xy
+end function
+--*/
 
 local function xpg_shifta(atom x, y, w, h, rot_pt, angle)
 --
 -- shift the NW corner to effect rotation about rot_pt
 --
-    --
-    -- Other angles are obviously doable, but need basic trig & more significantly a
-    --  bucketload of testing that I simply don't have time for.
-    -- Of course I'd very happily adopt code with either extended restrictions such as
-    --  {+90,-90}, and/or a decent demo/proof that it all works for all cases.
-    -- For these 9 simple cases I literally drew 9 tiny diagrams to work out the shifts,
-    --  ie figuring out where to put the NW corner so it'll all end up as asked for.
---DEV see copied use of CD_CENTER etc below...
-    --
---DEV write a proper test case and run WinAPI side-by-side with GTK. 
---    Get gSetAttribute(DIALOG,"SIZE") consistent (matching Iup RASTERSIZE) first...
---  if backend=GTK and and_bits(rot_pt,XPG_N) then y -= 1 end if
---  if and_bits(rot_pt,XPG_N) then y += iff(backend=GTK?-1:1) end if
---  if backend=WinAPI and and_bits(rot_pt,XPG_E) then x += 1 end if
-    if rot_pt=XPG_NW or angle=0 then
---  if rot_pt=XPG_NW then
-        -- do nowt case
-    else
-        assert(angle=90)
-        if rot_pt=XPG_W then
-            x += h/2
-            y += h/2
-        elsif rot_pt=XPG_SW then
---DEV re-test this in gCanvas.exw...
---          if backend=GTK then
---              x += h-1
---          elsif backend=WinAPI then
---              x += h-2
---          else
---              ?9/0
---          end if
-            x += h
-            y += h
-        elsif rot_pt=XPG_N then
-            x += w/2
-            y -= w/2
-        elsif rot_pt=XPG_S then
-            x += w/2+h
-            y += h-w/2
-        elsif rot_pt=XPG_NE then
-            x += w
-            y -= w
-        elsif rot_pt=XPG_E then
-            x += w+h/2
-            y += h/2-w
-        elsif rot_pt=XPG_SE then
-            x += w+h
-            y += h/2-w
-        elsif rot_pt=XPG_C 
---         or rot_pt=XPG_CENTER then    -- (gShow one, really, but let it pass here)
-           or rot_pt=#FFF3 then -- (can't be bothered to move it)
-            x += w+h/2
-            y += h/2-w/2
-        else
-            ?9/0
-        end if
+    atom nx = x, ny = y
+    if rot_pt!=XPG_NW and angle!=0 then -- (not the do nowt cases)
+--maybe: (erm, but with rot_pt in consideration...)
+-- 90: {x,y} -> {-y,x}
+-- 180: {x,y} -> {-x,-y}
+-- 270: {x,y} -> {y,-x}
+--      if angle=90 then
+--          {tx,ty} = {-vy,vx}
+--      elsif angle=180 then
+--          {tx,ty} = {-vx,-vy}
+--      elsif angle=270 then
+--          {tx,ty} = {vy,-vx}
+--      else
+        --
+        -- {vx,vy} is the vector from rot_pt to {x,y} at XPG_NW, in other
+        --          words a transform of {x,y} such that rot_pt is {0,0}.
+        --          All non-0 vx|y will in practice be -ve, which makes
+        --          sense when you consider where XPG_NW is, vs other 8.
+        -- {tx,ty} is {vx,vy} rotated about {0,0} by angle (std geometry).
+        --          Note that standard geometry has y=0 at the bottom,
+        --          whereas xpGUI has it at the top: signs / [counter]
+        --          clockwise direction may therefore be a bit squiffy.
+        -- {nx,ny} is obvs {x,y} adjusted by difference between v and t.
+        --
+        -- reminder: XPG_{N|E|S|W} are four-bit 0bWENS bitmasks, with
+        --           neither 0b1100 nor 0b0011 ever simultaneously set.
+        atom vx = {-w/2,-w,0}[floor(rot_pt/0b100)+1],
+             --ie (  C, E, W) aka Centre/East/West, as (0|1|2)+1
+             vy = {-h/2,-h,0}[rmdr(rot_pt,0b100)+1],
+             --ie (  C, S, N) aka Centre/South/North,     ""
+             ra = (360-angle)*XPG_DEG2RAD, -- (cw <==> ccw, radians)
+              c = cos(ra),
+              s = sin(ra),
+             tx = vy*s+vx*c,
+             ty = vy*c-vx*s
+        nx += tx-vx
+        ny += ty-vy
     end if
-    return {x,y}
+    return {nx,ny}
 end function
 
-local constant XPG_NORESET = 0x4 -- for redraw_list()
+local constant XPG_NORESET = 0x4 -- for xpg_redraw_list() [DEV not actually used yet]
 
-global procedure gCanvasText(gdx canvas, atom x, y, string text, integer align=XPG_E, object angle=0, atom colour=-1, style=-1)
+global procedure gCanvasText(gdx canvas, atom x, y, string text, integer align=XPG_E, object angle=0, colour=-1, integer style=-1)
 --?"gCanvasText"
-    if length(text)=0 then return end if
-    integer N = and_bits(align,XPG_N),
-            E = and_bits(align,XPG_E),
-            W = and_bits(align,XPG_W),
-            S = and_bits(align,XPG_S),
-            rot_pt = XPG_NW
-    if sequence(angle) then
-        {rot_pt,angle} = angle
-    end if
-    atom pcolour
-    if colour!=-1 then
---      pcolour = gCanvasGetForeground(canvas)
-        pcolour = ctrl_xtra[canvas][CX_CANVAS_FORE]
-        gCanvasSetForeground(canvas,colour)
-    end if
-    string pstyle
-    if style!=-1 then
-        pstyle = gGetAttribute(canvas,"FONT")
---?{style,pstyle}
-        integer comma = find(',',pstyle), fontsize = 0
-        string face = pstyle[1..comma-1]&", "
-        sequence styles = split(pstyle[comma+1..$])
-        if length(styles) then      
-            fontsize = to_integer(styles[$])
+    if length(text)!=0 then
+        x = round(x)
+        y = round(y)
+        if align=XPG_CENTER then align=XPG_C end if
+        integer N = and_bits(align,XPG_N),
+                E = and_bits(align,XPG_E),
+                W = and_bits(align,XPG_W),
+                S = and_bits(align,XPG_S),
+                rot_pt = XPG_NW
+        if sequence(angle) then
+            {rot_pt,angle} = angle
+            if rot_pt=XPG_CENTER then rot_pt=XPG_C end if
+        end if
+        atom {fgclr, bgclr} = iff(sequence(colour)?colour:{colour,-1}), pfgclr
+        if fgclr!=-1 then
+--          pfgclr = gCanvasGetForeground(canvas)
+            pfgclr = ctrl_xtra[canvas][CX_CANVAS_FORE]
+            gCanvasSetForeground(canvas,fgclr)
+        end if
+        string pstyle
+        if style!=-1 then
+            -- style: may be XPG_NORMAL, XPG_BOLD, XPG_ITALIC, or XPG_BOLDITALIC.
+            pstyle = gGetAttribute(canvas,"FONT")
+            integer comma = find(',',pstyle), fontsize = 0
+            string face = pstyle[1..comma-1]&", "
+            sequence styles = split(pstyle[comma+1..$])
+            if length(styles) then      
+                fontsize = to_integer(styles[$])
+                styles = {}
+            end if
             styles = {}
+            if and_bits(style,#1) then styles &= {"Bold"} end if
+            if and_bits(style,#2) then styles &= {"Italic"} end if
+            if length(styles) then
+                face &= join(styles)&" "
+            end if
+            if fontsize<0 then
+                face &= sprintf("%dpx",-fontsize)
+            elsif fontsize then
+                face &= sprintf("%d",fontsize)
+            end if
+            if pstyle==face then
+                style = -1
+            else
+                gSetAttribute(canvas,"FONT",face)
+            end if
         end if
-        styles = {}
-        if and_bits(style,#1) then styles &= {"Bold"} end if
-        if and_bits(style,#2) then styles &= {"Italic"} end if
-        if length(styles) then
-            face &= join(styles)&" "
-        end if
-        if fontsize<0 then
-            face &= sprintf("%dpx",-fontsize)
-        elsif fontsize then
-            face &= sprintf("%d",fontsize)
-        end if
---?face
---?fOK
-        gSetAttribute(canvas,"FONT",face)
-    end if
-    if backend=GTK then
---DEV/SUG:
---      {w,h,cairo,layout} = xpg_get_max_text_extent(canvas,{text})
---      atom cairo = xpg_gtk_get_cairo(canvas)
---      atom layout = c_func(pango_cairo_create_layout,{cairo}),
-        atom {cairo,layout} = ctrl_xtra[canvas][CX_CANVAS_HDC]
---      xpg_set_canvas_pen(canvas,cairo)
-        atom {r,g,b} = to_rgba(ctrl_xtra[canvas][CX_CANVAS_FORE])
-        c_proc(cairo_set_source_rgb,{cairo,r/255,g/255,b/255})
-        integer {w,h} = gGetTextExtent(canvas,split(text,'\n'))
-        x -= iff(W?w+2:iff(E?-2:ceil(w/2)))
-        y -= iff(N?h+1:iff(S?0:ceil(h/2)+1))
-        {x,y} = xpg_shifta(x,y,w,h,rot_pt,angle)
-        c_proc(cairo_move_to,{cairo,x,y})
---pango_cairo_show_layout (cr,layout);
---or maybe:
---pango_cairo_show_layout_line (cr,pango_layout_get_line(layout,0));
---      c_proc(pango_cairo_show_layout,{cairo,layout})
-        c_proc(cairo_save,{cairo})
-        if angle then
---DEV something like this...
--- from https://stackoverflow.com/questions/22960353/understanding-cairo-rotate :
---/*        ("" trying to draw a cross)
---  You are rotating around the origin, which is at the top-left corner of the image. 
---  To rotate around the center of the image, you must translate as well:
---
---          cairo_move_to(cr,0,HEIGHT/2.); 
---          cairo_line_to(cr,WIDTH,HEIGHT/2.);
---          cairo_stroke(cr);
---          cairo_translate(cr,WIDTH/2,HEIGHT/2); // translate origin to the center
---          cairo_rotate(cr,90.*(M_PI/180.));
---          cairo_translate(cr,-WIDTH/2,-HEIGHT/2); // translate origin back
---          cairo_move_to(cr,0,HEIGHT/2.);
---          cairo_line_to(cr,WIDTH,HEIGHT/2.);
---          cairo_stroke(cr);
---
---  Depending on your application, it might also make sense to actually draw everything relative to the center:
---
---          int half_w = WIDTH/2;
---          int half_h = HEIGHT/2;
---          cairo_translate(cr,half_w,half_h);
---          cairo_move_to(cr,-half_w,0); 
---          cairo_line_to(cr,half_w,0);
---          cairo_stroke(cr); // horizontal line
---          cairo_rotate(cr,90.*(M_PI/180.));
---          cairo_move_to(cr,-half_w,0);
---          cairo_line_to(cr,half_w,0);
---          cairo_stroke(cr); // vertical line
---*/
---          c_proc(cairo_translate,{cairo,0,h/2})
---?"rotate"
-            c_proc(cairo_rotate,{cairo,angle*PI/180})
---          c_proc(cairo_rotate,{cairo,(360-angle)*PI/180})
---          c_proc(cairo_translate,{cairo,-w/2,-h/2})
---          c_proc(cairo_translate,{cairo,0,-h/2})
---          c_proc(cairo_move_to,{cairo,x,y})
---          c_proc(pango_layout_context_changed,{layout})
-        end if
-        c_proc(pango_cairo_show_layout,{cairo,layout})
---      c_proc(xg_object_unref,{layout})
-        c_proc(cairo_restore,{cairo})
---or
---/*
---  cr->save();
---  cr->rotate_degrees(90);
---  Glib::RefPtr<Pango::Layout> y_axis_label = this->create_pango_layout("y-axis label");
---  y_axis_label->set_font_description(font);
---  cr->move_to(...); // wherever you wanna put it
---  y_axis_label->show_in_cairo_context(cr);
---  cr->restore();
---*/
---whereas IUP does this:
---/*
---  static void cdtext(cdCtxCanvas *ctxcanvas, int x, int y, const char *s, int len)
---  {
---    PangoFontMetrics* metrics;
---    int w, h, desc, dir = -1;
---    int ox = x, oy = y;
---
---    s = cdgStrToSystem(s,&len,ctxcanvas);
---    pango_layout_set_text(ctxcanvas->fontlayout,s,len);
---    
---    pango_layout_get_pixel_size(ctxcanvas->fontlayout,&w,&h);
---    metrics = pango_context_get_metrics(ctxcanvas->fontcontext,ctxcanvas->fontdesc,pango_context_get_language(ctxcanvas->fontcontext));
---    desc = (((pango_font_metrics_get_descent(metrics)) + PANGO_SCALE/2) / PANGO_SCALE);
---
---    switch (ctxcanvas->canvas->text_alignment)
---    {
---      case CD_BASE_RIGHT:
---      case CD_NORTH_EAST:
---      case CD_EAST:
---      case CD_SOUTH_EAST:
---        x = x - w;
---        break;
---      case CD_BASE_CENTER:
---      case CD_CENTER:
---      case CD_NORTH:
---      case CD_SOUTH:
---        x = x - w/2;
---        break;
---      case CD_BASE_LEFT:
---      case CD_NORTH_WEST:
---      case CD_WEST:
---      case CD_SOUTH_WEST:
---        x = x;
---        break;
---    }
---
---    if (ctxcanvas->canvas->invert_yaxis)
---      dir = 1;
---
---    switch (ctxcanvas->canvas->text_alignment)
---    {
---      case CD_BASE_LEFT:
---      case CD_BASE_CENTER:
---      case CD_BASE_RIGHT:
---        y = y - (dir*h - desc);
---        break;
---      case CD_SOUTH_EAST:
---      case CD_SOUTH_WEST:
---      case CD_SOUTH:
---        y = y - (dir*h);
---        break;
---      case CD_NORTH_EAST:
---      case CD_NORTH:
---      case CD_NORTH_WEST:
---        y = y;
---        break;
---      case CD_CENTER:
---      case CD_EAST:
---      case CD_WEST:
---        y = y - (dir*(h/2));
---        break;
---    }
---
---    if(!ctxcanvas->canvas->use_matrix)
---    {
---      ctxcanvas->fontmatrix.xx = 1;     ctxcanvas->fontmatrix.xy = 0;
---      ctxcanvas->fontmatrix.yx = 0;     ctxcanvas->fontmatrix.yy = 1;
---      ctxcanvas->fontmatrix.x0 = 0;     ctxcanvas->fontmatrix.y0 = 0;
---    }
---
---    if (ctxcanvas->canvas->use_matrix || ctxcanvas->canvas->text_orientation)
---    {
---      PangoRectangle rect;
---      double angle = ctxcanvas->canvas->text_orientation;
---
---      if (ctxcanvas->canvas->text_orientation)
---        pango_matrix_rotate(&ctxcanvas->fontmatrix,angle);
---
---      pango_context_set_matrix (ctxcanvas->fontcontext,&ctxcanvas->fontmatrix);
---      pango_layout_context_changed (ctxcanvas->fontlayout);
---
---      pango_layout_get_pixel_extents(ctxcanvas->fontlayout,NULL,&rect);
---  --#if PANGO_VERSION_CHECK(1,16,0)
---      pango_matrix_transform_pixel_rectangle(&ctxcanvas->fontmatrix,&rect);
---  --#endif
---
---      if (ctxcanvas->canvas->text_orientation)
---      {
---        double cos_angle = cos(angle*CD_DEG2RAD);
---        double sin_angle = sin(angle*CD_DEG2RAD);
---        cdRotatePoint(ctxcanvas->canvas,x,y,ox,oy,&x,&y,sin_angle,cos_angle);
---      }
---      
---      if (ctxcanvas->canvas->use_matrix)
---        cdMatrixTransformPoint(ctxcanvas->xmatrix,x,y,&x,&y);
---
---      /* Defines the new position (X,Y), considering the Pango rectangle transformed */
---      x += (int)rect.x;
---      y += (int)rect.y;
---    }
---
---    cdgdkCheckSolidStyle(ctxcanvas,1);
---
---    if (ctxcanvas->canvas->new_region)
---    {
---      GdkRegion *rgn;
---      gint *idx;
---      gint range;
---
---      pango_layout_line_get_x_ranges(pango_layout_get_line(ctxcanvas->fontlayout,0),0,len,&idx,&range);
---
---      /* TODO: this is only the bounding box of the layout, not the text itself,
---               must transform the text into a polygon. */
---      rgn = gdk_pango_layout_get_clip_region(ctxcanvas->fontlayout,x,y,idx,range);
---
---      sCombineRegion(ctxcanvas,rgn);
---    }
---    else
---      gdk_draw_layout(ctxcanvas->wnd,ctxcanvas->gc,x,y,ctxcanvas->fontlayout);
---
---    pango_context_set_matrix(ctxcanvas->fontcontext,NULL);
---
---    cdgdkCheckSolidStyle(ctxcanvas,0);
---
---    pango_font_metrics_unref(metrics); 
---  }
---
---*/
-    elsif backend=WinAPI then
-        if angle!=ctrl_xtra[canvas][CX_TXTANGLE] then
---          object v = ctrl_fonts[canvas]
---          if not string(v) then 
---              -- should no longer happen - cgCanvas() now sets a default of "Helvetica, 9"
---              crash("FONT must be explicitly set on a Canvas before text can be rotated",nFrames:=2)
---          end if
-            integer font = ctrl_font[canvas]
-            string fontname = cached_fontnames[font]
---          xpg_set_font(canvas,v,angle)
-            xpg_set_font(canvas,fontname,angle)
-        end if
-        atom hDC = ctrl_xtra[canvas][CX_CANVAS_HDC],
-             clr = ctrl_xtra[canvas][CX_CANVAS_FORE],
-             bgr = xpg_WinAPI_rgb_to_bgr(clr),
+
+        if backend=XPG_GTK then
+            atom {cairo,layout} = ctrl_xtra[canvas][CX_CANVAS_HDC]
+            -- aside: this actually invokes pango_layout_set_text...
+            integer {w,h} = gGetTextExtent(canvas,split(text,'\n'))
+            x -= iff(W?w+2:iff(E?-2:ceil(w/2)))
+            y -= iff(N?h+1:iff(S?0:ceil(h/2)+1))
+            if angle!=0 then
+                {x,y} = xpg_shifta(x,y,w,h,rot_pt,angle)
+            end if
+            if bgclr!=-1 then
+                if angle=0 then
+                    gCanvasRect(canvas,x,x+w,y,y+h,true,colour:=bgclr)
+                else
+                    sequence poly = {{x,y},{x+w,y},{x+w,y+h},{x,y+h}}
+                    poly = gRotatePolygon(poly, angle)
+                    gCanvasPolygon(canvas,poly,true,colour:=bgclr)
+                end if
+            end if
+            c_proc(cairo_move_to,{cairo,x,y})
+            c_proc(cairo_save,{cairo})
+            if angle then
+                c_proc(cairo_rotate,{cairo,angle*PI/180})
+            end if
+            atom {r,g,b} = to_rgba(ctrl_xtra[canvas][CX_CANVAS_FORE])
+            c_proc(cairo_set_source_rgb,{cairo,r/255,g/255,b/255})
+            c_proc(pango_cairo_show_layout,{cairo,layout})
+    --      c_proc(xg_object_unref,{layout})
+            c_proc(cairo_restore,{cairo})
+        elsif backend=XPG_WINAPI then
+            if angle!=ctrl_xtra[canvas][CX_TXTANGLE] then
+                integer font = ctrl_font[canvas]
+                string fontname = cached_fontnames[font]
+                xpg_set_font(canvas,fontname,angle)
+            end if
+            atom hDC = ctrl_xtra[canvas][CX_CANVAS_HDC],
+                 clr = ctrl_xtra[canvas][CX_CANVAS_FORE],
+                 bgr = xpg_WinAPI_rgb_to_bgr(clr), prev
+            if bgclr=-1 then
+                {} = c_func(xSetBkMode,{hDC,TRANSPARENT})
+            else
+                {} = c_func(xSetBkMode,{hDC,OPAQUE})
+                atom bgbgr = xpg_WinAPI_rgb_to_bgr(bgclr)
+                {} = c_func(xSetBkColor,{hDC,bgbgr})
+            end if
+    --DEV should we not be restoring this somewhere/sometimes?? (spotted in passing)
             prev = c_func(xSetTextColor,{hDC,bgr})
-        prev = c_func(xSetBkMode,{hDC,TRANSPARENT})
-        bool bOK
-        sequence utf16 = utf8_to_utf16(text)
-        integer l = length(utf16)
-        atom pUTF16 = allocate(2*l)
-        poke2(pUTF16,utf16)
-        bOK = c_func(xGetTextExtentPoint32W,{hDC,pUTF16,l,pSIZE})
-        assert(bOK)
-        integer lc = sum(sq_eq('\n',text))+1,
-                 w = get_struct_field(idSIZE,pSIZE,"cx"),
-                 h = get_struct_field(idSIZE,pSIZE,"cy")*lc
---  bOK = c_func(xReleaseDC,{pHwnd,hDC})
---?{"WinAPIsize",w,h}
-        x -= iff(W?w+1:iff(E?-1:ceil(w/2)))
-        y -= iff(N?h:iff(S?0:floor(h/2+1)))
-        {x,y} = xpg_shifta(x,y,w,h,rot_pt,angle)
---      bOK = c_func(xTextOut,{hDC,x,y,pUTF16,l}) -- does not do linebreaks...
-        set_struct_field(idRECT,pRECT,"left",x)
-        set_struct_field(idRECT,pRECT,"top",y)
-        set_struct_field(idRECT,pRECT,"right",x+w)
-        set_struct_field(idRECT,pRECT,"bottom",y+h)
-        h = c_func(xDrawText,{hDC,pUTF16,l,pRECT,DT_NOCLIP})
-        free(pUTF16)
---IUP does this:
---/*
---  static void sTextOutBlt(cdCtxCanvas* ctxcanvas, int px, int py, const char* s, int len)
---  {
---    HDC hBitmapDC;
---    HBITMAP hBitmap, hOldBitmap;
---    HFONT hOldFont;
---    int w, h, wt, ht, x, y, off, px_off = 0, py_off = 0;
---    double angle = ctxcanvas->canvas->text_orientation*CD_DEG2RAD;
---    double cos_teta = cos(angle);
---    double sin_teta = sin(angle);
---    
---  --  cdgettextsize(ctxcanvas,s,len,&w,&h);
---  --static void cdgettextsize (cdCtxCanvas* ctxcanvas, const char *s, int len, int *width, int *height)
---  --{
---    SIZE size;
---
---    TCHAR* wstr = cdwStrToSystemLen(s,&len,ctxcanvas->utf8mode);
---    GetTextExtentPoint32(ctxcanvas->hDC,wstr,len,&size);
---    
---    if (width)  
---      *width  = size.cx;
---    
---    if (height) 
---      *height = size.cy;
---  --}
---
---    wt = w;
---    ht = h;
---
---    if (ctxcanvas->canvas->text_orientation)
---    {
---      /* new image size */
---      w = (int)(w * cos_teta + h * sin_teta);
---      h = (int)(h * cos_teta + w * sin_teta);
---    }
---
---    /* place in the center of the image */
---    y = h/2;
---    x = w/2; 
---
---    /* fix center alignment */
---    off = ht/2 - ctxcanvas->font.descent;
---    if (ctxcanvas->canvas->text_orientation)
---    {
---      y += (int)(off * cos_teta);
---      x += (int)(off * sin_teta);
---    }
---    else
---      y += off;
---
---    /* calculates the alignment of the image on the canvas */
---    if (ctxcanvas->canvas->text_orientation)
---    {
---      switch (ctxcanvas->canvas->text_alignment)
---      {
---      case CD_CENTER:
---        py_off = 0;
---        px_off = 0;
---        break;
---      case CD_BASE_LEFT:
---        py_off = - (int)(off * cos_teta + w/2 * sin_teta);
---        px_off =   (int)(w/2 * cos_teta - off * sin_teta);         
---        break;
---      case CD_BASE_CENTER:
---        py_off = - (int)(off * cos_teta);
---        px_off = - (int)(off * sin_teta);
---        break;
---      case CD_BASE_RIGHT:
---        py_off = - (int)(off * cos_teta - w/2 * sin_teta);
---        px_off = - (int)(w/2 * cos_teta + off * sin_teta);
---        break;
---      case CD_NORTH:
---        py_off = (int)(ht/2 * cos_teta);
---        px_off = (int)(ht/2 * sin_teta);  
---        break;
---      case CD_SOUTH:
---        py_off = - (int)(ht/2 * cos_teta);
---        px_off = - (int)(ht/2 * sin_teta);  
---        break;
---      case CD_EAST:
---        py_off =   (int)(wt/2 * sin_teta);
---        px_off = - (int)(wt/2 * cos_teta);
---        break;
---      case CD_WEST:
---        py_off = - (int)(wt/2 * sin_teta);
---        px_off =   (int)(wt/2 * cos_teta);         
---        break;
---      case CD_NORTH_EAST:
---        py_off = (int)(ht/2 * cos_teta + wt/2 * sin_teta);
---        px_off = (int)(ht/2 * sin_teta - wt/2 * cos_teta);  
---        break;
---      case CD_SOUTH_WEST:
---        py_off = - (int)(ht/2 * cos_teta + wt/2 * sin_teta);
---        px_off = - (int)(ht/2 * sin_teta - wt/2 * cos_teta);  
---        break;
---      case CD_NORTH_WEST:
---        py_off = (int)(ht/2 * cos_teta - wt/2 * sin_teta);
---        px_off = (int)(ht/2 * sin_teta + wt/2 * cos_teta);  
---        break;
---      case CD_SOUTH_EAST:
---        py_off = - (int)(ht/2 * cos_teta - wt/2 * sin_teta);
---        px_off = - (int)(ht/2 * sin_teta + wt/2 * cos_teta);  
---        break;
---      }
---    }
---    else
---    {
---      switch (ctxcanvas->canvas->text_alignment)
---      {
---      case CD_BASE_RIGHT:
---      case CD_NORTH_EAST:
---      case CD_EAST:
---      case CD_SOUTH_EAST:
---        px_off = - w/2;
---        break;
---      case CD_BASE_CENTER:
---      case CD_CENTER:
---      case CD_NORTH:
---      case CD_SOUTH:
---        px_off = 0;  
---        break;
---      case CD_BASE_LEFT:
---      case CD_NORTH_WEST:
---      case CD_WEST:
---      case CD_SOUTH_WEST:
---        px_off = w/2;         
---        break;
---      }
---
---      switch (ctxcanvas->canvas->text_alignment)
---      {
---      case CD_BASE_LEFT:
---      case CD_BASE_CENTER:
---      case CD_BASE_RIGHT:
---        py_off = - off;
---        break;
---      case CD_SOUTH_EAST:
---      case CD_SOUTH_WEST:
---      case CD_SOUTH:
---        py_off = - h/2;
---        break;
---      case CD_NORTH_EAST:
---      case CD_NORTH:
---      case CD_NORTH_WEST:
---        py_off = + h/2;
---        break;
---      case CD_CENTER:
---      case CD_EAST:
---      case CD_WEST:
---        py_off = 0;
---        break;
---      }
---    }
---
---    /* moves from the center of the image to the upper left corner of the image */
---    px_off -= w/2;
---    py_off -= h/2;
---
---    /* shifts the given point */
---    if (ctxcanvas->canvas->invert_yaxis)
---    {
---      px += px_off;
---      py += py_off;
---    }
---    else
---    {
---      px += px_off;
---      py -= py_off;
---    }
---
---    hBitmap = CreateCompatibleBitmap(ctxcanvas->hDC,w,h);
---    hBitmapDC = CreateCompatibleDC(ctxcanvas->hDC);
---    
---    hOldBitmap = SelectObject(hBitmapDC,hBitmap);
---
---    /* copy a canvas area to a bitmap */
---    BitBlt(hBitmapDC,0,0,w,h,ctxcanvas->hDC,px,py,SRCCOPY);
---
---    /* compensates ROP before drawing */
---    BitBlt(hBitmapDC,0,0,w,h,ctxcanvas->hDC,px,py,ctxcanvas->RopBlt);
---
---    SetBkMode(hBitmapDC,TRANSPARENT);
---    SetBkColor(hBitmapDC,ctxcanvas->bg);
---    SetTextColor(hBitmapDC,ctxcanvas->fg);
---    SetTextAlign(hBitmapDC,TA_CENTER|TA_BASELINE);
---    hOldFont = SelectObject(hBitmapDC,ctxcanvas->hFont);
---
---    {
---  --(windows only)
---  WCHAR* cdwStringToUnicodeLen(const char* strint *len, int utf8mode)
---  {
---    static WCHAR wstr[10240] = L"";
---
---    if (utf8mode)
---      *len = MultiByteToWideChar(CP_UTF8,0,str,*len,wstr,10240);
---    else
---      *len = MultiByteToWideChar(CP_ACP,0,str,*len,wstr,10240);
---
---    if (*len<0)
---      *len = 0;
---
---    wstr[*len] = 0;
---
---    return wstr;
---  }
---
---      TCHAR* wstr = cdwStrToSystemLen(s,&len,ctxcanvas->utf8mode);
---      TextOut(hBitmapDC,x,y,wstr,len);
---    }
---    
---    if (ctxcanvas->canvas->invert_yaxis)
---      BitBlt(ctxcanvas->hDC,px,py,w,h,hBitmapDC,0,0,ctxcanvas->RopBlt);
---    else
---      StretchBlt(ctxcanvas->hDC,px,py,w,-h,hBitmapDC,0,0,w,h,ctxcanvas->RopBlt);
---
---    SelectObject(hBitmapDC,hOldFont);
---    SelectObject(hBitmapDC,hOldBitmap);
---    
---    DeleteObject(hBitmap);
---    DeleteDC(hBitmapDC);
---  }
---*/
-        assert(bOK!=0)
-    else
-        ?9/0 -- (unknown backend)
-    end if
-    if colour!=-1 then
-        gCanvasSetForeground(canvas,pcolour)
-    end if
-    if style!=-1 and not and_bits(style,XPG_NORESET) then
-        gSetAttribute(canvas,"FONT",pstyle)
+            bool bOK
+            sequence utf16 = utf8_to_utf16(text)
+            integer l = length(utf16)
+            atom pUTF16 = allocate(2*l)
+            poke2(pUTF16,utf16)
+            bOK = c_func(xGetTextExtentPoint32W,{hDC,pUTF16,l,pSIZE})
+            assert(bOK)
+            integer lc = sum(sq_eq('\n',text))+1,
+                     w = get_struct_field(idSIZE,pSIZE,"cx"),
+                     h = get_struct_field(idSIZE,pSIZE,"cy")*lc
+    --  bOK = c_func(xReleaseDC,{pHwnd,hDC})
+    --?{"WinAPIsize",w,h}
+            x -= iff(W?w+1:iff(E?-1:ceil(w/2)))
+            y -= iff(N?h:iff(S?0:floor(h/2+1)))
+            {x,y} = xpg_shifta(x,y,w,h,rot_pt,angle)
+    --      bOK = c_func(xTextOut,{hDC,x,y,pUTF16,l}) -- does not do linebreaks...
+            set_struct_field(idRECT,pRECT,"left",x)
+            set_struct_field(idRECT,pRECT,"top",y)
+            set_struct_field(idRECT,pRECT,"right",x+w)
+            set_struct_field(idRECT,pRECT,"bottom",y+h)
+            h = c_func(xDrawText,{hDC,pUTF16,l,pRECT,DT_NOCLIP})
+            free(pUTF16)
+            assert(bOK!=0)
+        else
+            ?9/0 -- (unknown backend)
+        end if
+        if fgclr!=-1 then
+            gCanvasSetForeground(canvas,pfgclr)
+        end if
+        if style!=-1 and not and_bits(style,XPG_NORESET) then
+            gSetAttribute(canvas,"FONT",pstyle)
+        end if
     end if
 end procedure
+
+--gboolean scroll_event(GtkWidget* self, GdkEventScroll event, gpointer user_data)
+local function xpg_gtk_scroll(atom /*widget*/, event, gdx id)
+    integer direction = get_struct_field(idGdkEventScroll,event,"direction"),
+            state = get_struct_field(idGdkEventScroll,event,"state"),
+            delta = iff(direction?-1:+1),
+            shift = and_bits(state,0b01)!=0,
+            ctrl = and_bits(state,0b100)!=0,
+            alt = and_bits(state,0b1000)!=0
+--  ?{"xpg_gtk_scroll",id,"direction",direction,"state",state,"delta",delta,"shift",shift,"ctrl",ctrl,"alt",alt}
+    xpg_mousewheel(id, delta, ctrl, shift, alt)
+--see also WM_MOUSEWHEEL
+
+--/*
+typedef enum
+{
+  GDK_SCROLL_UP,
+  GDK_SCROLL_DOWN,
+  GDK_SCROLL_LEFT,
+  GDK_SCROLL_RIGHT
+} GdkScrollDirection;
+
+GDK_SCROLL_UP
+struct GdkEventScroll {
+  GdkEventType type; -- GDK_SCROLL
+  GdkWindow* window;
+  gint8 send_event;
+  guint32 time;
+  gdouble x;
+  gdouble y;
+  GdkModifierType* state;
+  GdkScrollDirection direction;
+  GdkDevice* device;
+  gdouble x_root;
+  gdouble y_root;
+  gdouble delta_x;
+  gdouble delta_y;
+  guint is_stop : 1;
+}
+--*/
+    -- TRUE to stop other handlers from being invoked for the event. FALSE to propagate the event further.
+    return false
+end function
+
+--DEV per canvas??
+bool bGTKredraw_on_leave = false
+
+-- gboolean leave_notify_event(GtkWidget* self, GdkEventCrossing event, gpointer user_data)
+local function xpg_gtk_mouseleave(atom widget, event, gdx canvas)
+    assert(canvas=xpg_getID(widget))
+    integer event_type = get_struct_field(idGdkEventCrossing,event,"event_type")
+    if event_type=GDK_LEAVE_NOTIFY
+    and bGTKredraw_on_leave then
+        gRedraw(canvas)
+    end if
+    -- TRUE to stop other handlers from being invoked for the event. FALSE to propagate the event further.
+    return false
+end function
 
 local procedure xpg_Canvas(gdx id)
     -- (invoked via xpg_map)
     gdx parent = xpg_get_parent_id(id)
-    atom canvas
---  bool bShrink = gGetAttribute(id,"USERSIZE")!={0,0} and gGetAttribute(id,"SHRINK")
-    if backend=GTK then
-        canvas = c_func(gtk_drawing_area_new,{})
-        xpg_setID(canvas,id)
-        c_proc(gtk_widget_set_events,{canvas,GDK_KBR_MASK})
---      xpg_gtk_add_to(parent,canvas)
---      c_proc(gtk_container_add,{ctrl_handles[parent],canvas})
-        xpg_signal_connect(canvas,iff(bGTK3?"draw":"expose-event"),xpg_gtk_canvas_draw,id)
-        xpg_signal_connect(canvas,"button-press-event",xpg_gtk_click,id)
-        xpg_signal_connect(canvas,"button-release-event",xpg_gtk_click,id)
-        xpg_signal_connect(canvas,"motion-notify-event",xpg_gtk_mousemove,id)
-        xpg_signal_connect(canvas,"focus-in-event",xpg_gtk_focusinout,id)
-        xpg_signal_connect(canvas,"focus-out-event",xpg_gtk_focusinout,id)
-        ctrl_xtra[id][CX_CANVAS_HDC] = {NULL,NULL}
---10/5/23:
---      c_proc(gtk_widget_realize,{canvas})
---/"*
--- (need to fix
---      if gGetAttribute(id,"SCROLLABLE",false) then
-            atom sandle = c_func(gtk_scrolled_window_new,{NULL,NULL}) 
-            c_proc(gtk_scrolled_window_set_policy,{sandle,GTK_POLICY_AUTOMATIC,GTK_POLICY_AUTOMATIC})
-            c_proc(gtk_container_add,{sandle,canvas})
-            xpg_gtk_add_to(parent,sandle)
-            c_proc(gtk_widget_realize,{sandle})
---      end if
---      c_proc(gtk_widget_realize,{canvas})
---*!/
-    elsif backend=WinAPI then
---      atom dwStyle = or_all({WS_CHILD,WS_VISIBLE,WS_TABSTOP,TVS_HASLINES,TVS_LINESATROOT,TVS_HASBUTTONS})
---      integer {w,h} = gGetAttribute(id,"SIZE",{0,0})
---      tree_view = xpg_WinAPI_create(id,"SysTreeView32","",parent,w,h,dwStyle,WS_EX_CLIENTEDGE)
---      atom dwStyle = or_all({WS_CHILD,WS_VISIBLE,BS_PUSHBUTTON,WS_TABSTOP}),
---DEV you have to properly manage the scrollbars. First, though, log all SetWindowPos (etc) and make sure we can easily do the same for GTK...
--- SetScrollInfo(), SB_LINEUP (etc), and maybe ScrollWindowEx()
--- S/GetScrollInfo(), SB_LINEUP (etc), and maybe ScrollWindowEx()
-        atom dwStyle = or_all({WS_CHILD,WS_VISIBLE,WS_HSCROLL,WS_VSCROLL,BS_PUSHBUTTON,WS_TABSTOP}), w, h
+    gdx pid = gGetParent(id) -- nb parent skips gH/Vbox under WinAPI
+    atom canvas, w, h
 --DEV !=CANVAS?
-        if ctrl_xtra[id][CX_CANVAS_TYPE]=TABLE then -- its a gTable then
+    if ctrl_xtra[id][CX_CANVAS_TYPE]=TABLE then -- its a gTable then
 --DEV why not just use SZ_NATURAL_W? similar for gList? gGraph?
-            w = ctrl_xtra[id][CX_GTL_ATTRS][TX_NATWIDTH]
-            h = ctrl_xtra[id][CX_GTL_ATTRS][TX_NATHIGHT]
-        else
-            {w,h} = gGetTextExtent(parent,"W")
+--          w = ctrl_xtra[id][CX_GTL_ATTRS][TX_NATWIDTH]
+--          h = ctrl_xtra[id][CX_GTL_ATTRS][TX_NATHIGHT]
+        w = ctrl_size[id][SZ_NATURAL_W]
+        h = ctrl_size[id][SZ_NATURAL_H]
+    else
+        {w,h} = gGetTextExtent(parent,"W")
+        -- (specifically for gSplit:)
+        integer uw = ctrl_size[id][SZ_USER_W],
+                uh = ctrl_size[id][SZ_USER_H]
+--?{"xpg_Canvas",w,h,uw,uh}
+        if uw and uw<w then w = uw end if
+        if uh and uh<h then h = uh end if
+--?{"xpg_Canvas",w,h,uw,uh}
+    end if
+
+--  bool bShrink = gGetAttribute(id,"USERSIZE")!={0,0} and gGetAttribute(id,"SHRINK")
+    if backend=XPG_GTK then
+        canvas = c_func(gtk_drawing_area_new,{})
+--1/12/23 (for gSplit)
+        c_proc(gtk_widget_set_size_request,{canvas,w,h}) 
+        xpg_setID(canvas,id)
+--1/12/23... (for gSplit - certainly helps, but may only need to be a temp thing)
+        ctrl_size[id][SZ_NATURAL_W] = w
+        ctrl_size[id][SZ_NATURAL_H] = h
+
+        c_proc(gtk_widget_set_events,{canvas,GDK_KBR_MASK+GDK_SCROLL_MASK+GDK_LEAVE_NOTIFY_MASK})
+        xpg_gtk_signal_connect(canvas,iff(bGTK3?"draw":"expose-event"),xpg_gtk_canvas_draw,id)
+        xpg_gtk_signal_connect(canvas,"button-press-event",xpg_gtk_click,id)
+        xpg_gtk_signal_connect(canvas,"button-release-event",xpg_gtk_click,id)
+        xpg_gtk_signal_connect(canvas,"motion-notify-event",xpg_gtk_mousemove,id)
+        xpg_gtk_signal_connect(canvas,"focus-in-event",xpg_gtk_focusinout,id)
+        xpg_gtk_signal_connect(canvas,"focus-out-event",xpg_gtk_focusinout,id)
+        xpg_gtk_signal_connect(canvas,"scroll-event",xpg_gtk_scroll,id)
+        xpg_gtk_signal_connect(canvas,"leave-notify-event",xpg_gtk_mouseleave,id)
+        ctrl_xtra[id][CX_CANVAS_HDC] = {NULL,NULL}
+        xpg_gtk_add_to(parent,canvas)
+        c_proc(gtk_widget_realize,{canvas})
+        if gGetAttribute(id,"SPLIT") then -- (private/undocumented)
+            -- set the appropriate resizing cursor (WinAPI uses sep. classes)
+            string orientation = gGetAttribute(pid,"ORIENTATION")
+            bool bHoriz = (orientation="HORIZONTAL")
+            atom window = c_func(gtk_widget_get_window,{canvas}),
+                 display = c_func(gdk_window_get_display,{window}), csr
+            if bHoriz then
+                if gtk_col_resize_cursor=NULL then
+                    gtk_col_resize_cursor = c_func(gdk_cursor_new_for_display,{display,GDK_SB_H_DOUBLE_ARROW})
+                end if
+                csr = gtk_col_resize_cursor
+            else
+                if gtk_row_resize_cursor=NULL then
+                    gtk_row_resize_cursor = c_func(gdk_cursor_new_for_display,{display,GDK_SB_V_DOUBLE_ARROW})
+                end if
+                csr = gtk_row_resize_cursor
+            end if
+            assert(csr!=NULL)
+--DEV/SUG we might want to store this for IN<-->ACTIVE, and maybe set NULL now: (test before trying!)
+--          ctrl_xtra[id][CX_GTL_ATTRS][PX_CURSOR] = csr
+            c_proc(gdk_window_set_cursor,{window,csr})
+--          c_proc(gdk_window_set_cursor,{window,NULL}) -- (yep, this is fine!)
         end if
---?{"canvas",w,h}
---      ctrl_size[id][SZ_NATURAL_W] = w
---      ctrl_size[id][SZ_NATURAL_H] = h
-        canvas = xpg_WinAPI_create(id,"gCanvas","",parent,w,h,dwStyle,0)
-        -- initially disable the builtin scrollbars, at least until formally sized:
-        set_struct_field(idSCROLLINFO,pSCROLLINFO,"fMask",SIF_ALL)
-        set_struct_field(idSCROLLINFO,pSCROLLINFO,"nMin",0)
-        set_struct_field(idSCROLLINFO,pSCROLLINFO,"nMax",1)
-        set_struct_field(idSCROLLINFO,pSCROLLINFO,"nPage",2)
-        set_struct_field(idSCROLLINFO,pSCROLLINFO,"nPos",0)
---      set_struct_field(idSCROLLINFO,pSCROLLINFO,"nTrackPos",0) -- (ignored)
---       idSCROLLINFO = define_struct("""typedef struct tagSCROLLINFO {
---                                        UINT cbSize;
---                                        UINT fMask;
---                                        int  nMin;
---                                        int  nMax;
---                                        UINT nPage;
---                                        int  nPos;
---                                        int  nTrackPos;
---                                      } SCROLLINFO, *LPCSCROLLINFO;""")
-
-        integer cp -- currrent_position
-        cp = c_func(xSetScrollInfo,{canvas,SB_HORZ,pSCROLLINFO,true})
-        cp = c_func(xSetScrollInfo,{canvas,SB_VERT,pSCROLLINFO,true})
---       = define_c_func(USER32,"SetScrollInfo",
---          {C_PTR,     --  HWND hwnd
---           C_INT,     --  int fnBar
---           C_PTR,     --  LPCSCROLLINFO lpsi
---           C_UINT},   --  BOOL fRedraw
---          C_INT)      -- int
-
+    elsif backend=XPG_WINAPI then
+        atom dwStyle = or_all({WS_CHILD,WS_VISIBLE,BS_PUSHBUTTON,WS_TABSTOP})
+        string class_name = "gCanvas"
+        if gGetAttribute(id,"SPLIT") then -- (private/undocumented)
+            bool bVert = and_bits(ctrl_flags[pid],CF_VERTICAL)!=0
+            class_name = iff(bVert?"gVSplit":"gHSplit")
+        end if
+        canvas = xpg_WinAPI_create(id,class_name,"",parent,w,h,dwStyle,0)
     else
         ?9/0 -- (unknown backend)
     end if
+end procedure
+
+local function xpg_get_mouse_on_scrollbar(gdx canvas, integer mx, my)
+    -- return "" if not on a scrollbar, else a two char code
+    sequence sbinfo = ctrl_xtra[canvas][CX_SBINFO]
+    integer {w, h} = gGetIntInt(canvas,"SIZE"),
+            vsbvis = sbinfo[SB_VVISB],  sbwid = sbinfo[SB_VWIDE],
+            hsbvis = sbinfo[SB_HVISB],  sbhgh = sbinfo[SB_HHIGH],
+            sbvend = h-hsbvis*sbhgh, -- where vertical scrollbar ends
+            sbhend = w-vsbvis*sbwid, -- where horizontal scrollbar ends
+            vttop = sbinfo[SB_VTTOP],
+            vtend = sbinfo[SB_VTEND],
+            htlft = sbinfo[SB_HTLFT],
+            htend = sbinfo[SB_HTEND]
+--?{"xpg_get_mouse_on_scrollbar",mx,my,w,h}
+--DEV not quite: eliminates looping when both, but not when only one...
+--  (it might be the timer isn't stopping as it should when it hits the end??)
+--  (or perhaps we should apply a MINSIZE such that arrows cannot overlap?)
+--  bool bVert = vsbvis and mx>=w-sbwid and mx<=w,
+--       bHorz = hsbvis and my>=h-sbhgh and my<=h
+--  if bVert and ((not bHorz) or my<h-sbhgh) then
+--  if vsbvis and mx>=w-sbwid and mx<=w then
+    if vsbvis and mx>=w-sbwid and mx<w then
+        if my>=0 and my<=sbhgh then     return "UA" -- uparrow
+        elsif my<vttop then             return "AT" -- above thumb
+        elsif my<=vtend then            return "VT" -- vertical thumb
+        elsif my<sbvend-sbhgh then      return "BT" -- below thumb
+        elsif my<=sbvend then           return "DA" -- downarrow
+        end if
+--  elsif bHorz and ((not bVert) or mx<w-sbwid) then
+--  elsif hsbvis and my>=h-sbhgh and my<=h then
+    elsif hsbvis and my>=h-sbhgh and my<h then
+        if mx>=0 and mx<=sbwid then     return "LA" -- left arrow
+        elsif mx<htlft then             return "LT" -- left of thumb
+        elsif mx<=htend then            return "HT" -- horizontal thumb
+        elsif mx<sbhend-sbwid then      return "RT" -- right of thumb
+        elsif mx<=sbhend then           return "RA" -- right arrow
+        end if
+    end if
+    return "" -- (not on any of the ten scrollbar regions)
+end function
+
+local constant integer SBC_BACK = #F0F0F0,
+                     SBC_ARROWS = #606060, -- (inactive)
+                     SBC_MONARB = #DADADA, -- mouse hovering on arrow background
+                      SBC_THUMB = #CDCDCD, -- (inactive)
+                  SBC_THUMBDRAG = #606060, -- thumb being dragged 
+                   SBC_THUMBHOV = #A6A6A6, -- mouse hovering on a thumb
+                  SBC_SCROLLHOV = #C0C0C0, -- hover off thumb
+                     SBC_RESIZE = #BFBFBF
+
+local procedure xpg_redraw_scrollbars(gdx canvas)
+    integer {w, h} = gGetIntInt(canvas,"SIZE")
+    integer {scrollw,scrollh} = gGetAttribute(canvas,"SCROLLSIZE")
+    gCanvasSetLineStyle(canvas,XPG_CONTINUOUS)
+    gCanvasSetLineWidth(canvas,1)
+    integer {mx,my} = gGetAttribute(canvas,"MOUSEPOS"),
+             x, y -- scratch vars
+
+    string monsba = xpg_get_mouse_on_scrollbar(canvas,mx,my)
+--?{"xpg_redraw_scrollbars",monsba,mx,my}
+    sequence sbinfo = ctrl_xtra[canvas][CX_SBINFO]
+    ctrl_xtra[canvas][CX_SBINFO] = NULL
+    integer --scrollw = sbinfo[SB_SCRLW],
+            --scrollh = sbinfo[SB_SCRLH],
+            sbwid = sbinfo[SB_VWIDE],
+            sbhgh = sbinfo[SB_HHIGH],
+            origx = sbinfo[SB_ORIGX],
+            origy = sbinfo[SB_ORIGY]
+    bool hsbvis = w<scrollw, -- (w/o vertical, for now...)
+         vsbvis = (h-(hsbvis*sbwid))<scrollh,
+         bDragging = sbinfo[SB_DRAGG],
+         bTrackMouse = false
+    string clikmon = sbinfo[SB_CKMON]
+    if vsbvis then
+--      gCanvasRect(canvas,w-sbwid,w,0,h,true,colour:=SBC_BACK,fillcolour:=SBC_BACK)
+        gCanvasRect(canvas,w-sbwid,w,0,h,true,colour:=SBC_BACK)
+        hsbvis = (w-sbwid)<scrollw -- (ok, /with/ vertical)
+        if hsbvis then
+            -- draw both (later) and a corner resizer thumb (now)
+            gCanvasSetForeground(canvas,SBC_RESIZE)
+            for i=1 to 3 do
+                x = w-4
+--                  y = h-i*3-1
+                y = h-i*3
+                for j=1 to i do
+--DEV: I seem to have ended up drawing a 3x3 to get a 2x2 to appear....
+--DEV: this may/shd be temporary... (resize doobrie)
+if backend=XPG_WINAPI then
+                    gCanvasRect(canvas,x-1,x+1,y-1,y+1)
+elsif backend=XPG_GTK then
+                    gCanvasRect(canvas,x,x,y,y)
+else
+    ?9/0
+end if
+                    x -= 3
+                    y += 3
+                end for
+            end for
+--      else
+--          -- draw vertical only (full height, later)
+        end if
+        integer sbvend = h - hsbvis*sbhgh
+        -- up and down arrows on the vertial:
+        -- (aside: arrow regions are square...)
+        integer uarrclr = SBC_ARROWS,
+                darrclr = SBC_ARROWS
+        if monsba="UA" then -- highlight uparrow background
+--          gCanvasRect(canvas,w-sbwid+1,w-1,0,sbwid,true,colour:=SBC_MONARB,fillcolour:=SBC_MONARB)
+            gCanvasRect(canvas,w-sbwid+1,w-1,0,sbwid,true,colour:=SBC_MONARB)
+            uarrclr = XPG_BLACK
+            bTrackMouse = true
+        elsif monsba="DA" then -- highlight downarrow background
+--          gCanvasRect(canvas,w-sbwid+1,w-1,sbvend-sbwid,sbvend,true,colour:=SBC_MONARB,fillcolour:=SBC_MONARB)
+            gCanvasRect(canvas,w-sbwid+1,w-1,sbvend-sbwid,sbvend,true,colour:=SBC_MONARB)
+            darrclr = XPG_BLACK
+            bTrackMouse = true
+        end if
+        -- draw the up and down arrows themselves
+        --DEV: these 3/6/7/8/9 should probably be derived from SBWID...
+        x = w-9
+        for i=0 to 3 do -- 1 centre and 3 staggered side lines, ie/eg:
+                        --              X            X     X
+                        --             XXX           XX   XX
+                        --            XX XX           XX XX
+                        --           XX   XX           XXX
+                        --           X     X            X
+                        --          (3210123)       (3210123)
+                        -- (but X chars are less square than pixels)
+            integer xi = x-i,  yut = 7+i,  ydt = sbvend-8-i,
+                               yub = 9+i,  ydb = sbvend-6-i
+            gCanvasLine(canvas,xi,yut,xi,yub,colour:=uarrclr)
+            gCanvasLine(canvas,xi,ydt,xi,ydb,colour:=darrclr)
+            if i then
+                xi = x+i
+                gCanvasLine(canvas,xi,yut,xi,yub,colour:=uarrclr)
+                gCanvasLine(canvas,xi,ydt,xi,ydb,colour:=darrclr)
+            end if
+        end for
+        -- vertical thumb:
+        integer vttop = sbwid,
+                vtend = sbvend-sbwid,
+                vtmax = sbvend-sbwid*2,
+                vtlen = ceil((sbvend/scrollh)*vtmax)
+        if vtend<vttop then
+            -- draw as single line in the middle then
+            vttop = floor((vttop+vtend)/2)
+--DEV this ain't quite right either... (end==top draws nowt, when it should be a line)
+--          vtend = vttop
+--          vtend = vttop+1
+            vtlen = 1
+        end if
+        vttop += round((origy/scrollh)*vtmax)
+        vtend = vttop+vtlen
+--      gCanvasRect(canvas,w-sbwid+1,w-1,vttop,vtend,true,colour:=SBC_THUMB,fillcolour:=SBC_THUMB)
+        integer thumbclr = SBC_THUMB
+        if bDragging and clikmon = "VT" then
+            thumbclr = SBC_THUMBDRAG
+        elsif monsba="VT" then
+            thumbclr = SBC_THUMBHOV
+        elsif monsba!="" then
+            thumbclr = SBC_SCROLLHOV
+        end if
+        gCanvasRect(canvas,w-sbwid+1,w-1,vttop,vtend,true,colour:=thumbclr)
+        sbinfo[SB_VTTOP] = vttop
+        sbinfo[SB_VTEND] = vtend
+    end if
+    if hsbvis then
+        integer sbhend = w - vsbvis*sbwid
+--      gCanvasRect(canvas,0,sbhend,h-sbhgh,h,true,colour:=SBC_BACK,fillcolour:=SBC_BACK)
+        gCanvasRect(canvas,0,sbhend,h-sbhgh,h,true,colour:=SBC_BACK)
+        -- left and right arrows on the horizontal:
+        integer larrclr = SBC_ARROWS,
+                rarrclr = SBC_ARROWS
+        if monsba="LA" then -- highlight leftarrow background
+--          gCanvasRect(canvas,0,sbhgh,h-sbhgh+1,h-1,true,colour:=SBC_MONARB,fillcolour:=SBC_MONARB)
+            gCanvasRect(canvas,0,sbhgh,h-sbhgh+1,h-1,true,colour:=SBC_MONARB)
+            larrclr = XPG_BLACK
+            bTrackMouse = true
+        elsif monsba="RA" then -- highlight rightarrow background
+--          gCanvasRect(canvas,sbhend-sbhgh,sbhend,h-sbhgh+1,h-1,true,colour:=SBC_MONARB,fillcolour:=SBC_MONARB)
+            gCanvasRect(canvas,sbhend-sbhgh,sbhend,h-sbhgh+1,h-1,true,colour:=SBC_MONARB)
+            rarrclr = XPG_BLACK
+            bTrackMouse = true
+        end if
+        --DEV: these 3/5/7/9 should probably be derived from SBHGH...
+        y = h-9
+        for i=0 to 3 do -- 1 centre with 3 staggered lines, ie/eg:
+                        --         XX       (3)       XX
+                        --        XX        (2)        XX
+                        --       XX         (1)         XX
+                        --      XX          (0)          XX 
+                        --       XX         (1)         XX
+                        --        XX        (2)        XX
+                        --         XX       (3)       XX
+                        -- (but X chars are less square than pixels)
+            integer yi = y-i,  xll = 5+i,  xrl = sbhend-9-i,
+                               xlr = 7+i,  xrr = sbhend-7-i
+            gCanvasLine(canvas,xll,yi,xlr,yi,colour:=larrclr)
+            gCanvasLine(canvas,xrl,yi,xrr,yi,colour:=rarrclr)
+            if i then
+                yi = y+i
+                gCanvasLine(canvas,xll,yi,xlr,yi,colour:=larrclr)
+                gCanvasLine(canvas,xrl,yi,xrr,yi,colour:=rarrclr)
+            end if
+        end for
+        -- horizontal thumb:
+        integer htlft = sbhgh,
+                htend = sbhend-sbhgh,
+                htmax = sbhend-sbhgh*2,
+                htlen = ceil((sbhend/scrollw)*htmax)
+        if htend<htlft then
+            -- draw as one line in the middle then
+            htlft = floor((htlft+htend)/2)
+--          htend = htlft
+            htlen = 1
+        end if
+        htlft += round((origx/scrollw)*htmax)
+--DEV this overruns by 1 pixel, plus I think I actually want a (min) 1-pixel gap.
+        htend = htlft+htlen
+--      gCanvasRect(canvas,htlft,htend,h-sbhgh+1,h-1,true,colour:=SBC_THUMB,fillcolour:=SBC_THUMB)
+        integer thumbclr = SBC_THUMB
+        if bDragging and clikmon = "HT" then
+            thumbclr = SBC_THUMBDRAG
+        elsif monsba="HT" then
+            thumbclr = SBC_THUMBHOV
+        elsif monsba!="" then
+            thumbclr = SBC_SCROLLHOV
+        end if
+        gCanvasRect(canvas,htlft,htend,h-sbhgh+1,h-1,true,colour:=thumbclr)
+        sbinfo[SB_HTLFT] = htlft
+        sbinfo[SB_HTEND] = htend
+    end if
+    sbinfo[SB_HVISB] = hsbvis
+    sbinfo[SB_VVISB] = vsbvis
+    sbinfo[SB_MONLD] = monsba
+    ctrl_xtra[canvas][CX_SBINFO] = sbinfo
+--GTK equivalent to TrackMouseEvent and WM_MOUSELEAVE
+--def window_exit(widget, event, user_data)
+--The event is very important because its variable 'event.detail' tells us exactly what kind of leave-event happened. 
+--In your case, you want to test if it is equal to 'gtk.gdk.NOTIFY_NONLINEAR', because that means the pointer has "truly" left the window.
+--So, you should probably put something like
+--if (event.detail != gtk.gdk.NOTIFY_NONLINEAR)  { return; }
+--window.connect("leave-notify-event", window_exit, "")
+    if backend=XPG_GTK then
+        bGTKredraw_on_leave = bTrackMouse
+    elsif backend=XPG_WINAPI then
+        if bTrackMouse
+        or get_struct_field(idTRACKMOUSEEVENT,pTRACKMOUSEEVENT,"dwFlags")=TME_LEAVE then
+            -- ask for a WM_MOUSELEAVE msg, when/if it actually does:
+            atom dwFlags = iff(bTrackMouse?0:TME_CANCEL)+TME_LEAVE
+            set_struct_field(idTRACKMOUSEEVENT,pTRACKMOUSEEVENT,"hwndTrack",ctrl_handles[canvas])
+            set_struct_field(idTRACKMOUSEEVENT,pTRACKMOUSEEVENT,"dwFlags",dwFlags)
+            bool bOK = c_func(xTrackMouseEvent,{pTRACKMOUSEEVENT})
+            assert(bOK)
+        end if
+    else
+        ?9/0
+    end if
+end procedure
+
+local function xpg_scrollbar_key_handler(gdx canvas, integer c, bool ctrl, shift, alt)
+    object sbinfo = ctrl_xtra[canvas][CX_SBINFO]
+    if sequence(sbinfo) then
+--? was 0 13/11/23...
+        object ltattr = ctrl_xtra[canvas][CX_GTL_ATTRS]
+        integer {w, h} = gGetIntInt(canvas,"SIZE"), 
+                pg = (c=VK_PGUP or c=VK_PGDN),
+                ud = (c=VK_UP or c=VK_DOWN),
+                sa = (shift or alt),
+--              sa = (shift or alt or (ctrl_xtra[canvas][CX_CANVAS_TYPE]!=CANVAS)),
+                ct = ctrl_xtra[canvas][CX_CANVAS_TYPE],
+--ctrl_xtra[list][CX_GTL_ATTRS][LX_LINESTEP] = lh
+                vpg = h-sbinfo[SB_HVISB]*sbinfo[SB_HHIGH], -- vertical page size
+                hpg = w-sbinfo[SB_VVISB]*sbinfo[SB_VWIDE], -- horizontal page size
+                origx = sbinfo[SB_ORIGX],
+                origy = sbinfo[SB_ORIGY],
+--DEV: note this implements up/downarrow scrolling on a gList(), but actually those
+--      keys should alter the selected line, and only scroll when that hits top/btm.
+--      (obvs. that key handling simply does not belong on a plain canvas/graph,
+--            and a gTable has both that and a bit of left/right handling to do)
+                step1 = iff(ct=LIST and ud?ltattr[LX_LINESTEP]:
+                        iff(ct=TABLE and ud?ltattr[TX_LINESTEP]:1)),
+                step = iff(pg?vpg
+                             :iff(ctrl?iff(ud?vpg:hpg)
+                                      :iff(sa?10:step1)))
+        switch c do
+            case VK_LEFT:           origx -= step
+            case VK_RIGHT:          origx += step
+            case VK_UP,VK_PGUP:     origy -= step
+            case VK_DOWN,VK_PGDN:   origy += step
+            default:          return XPG_CONTINUE
+        end switch
+        sbinfo = 0 -- (kill refcount)
+        ctrl_xtra[canvas][CX_SBINFO][SB_ORIGX] = origx
+        ctrl_xtra[canvas][CX_SBINFO][SB_ORIGY] = origy
+        gRedraw(canvas)
+    end if
+    return XPG_CONTINUE
+end function
+
+-- aside: VT/HT missing from this set on purpose.
+local constant {TMON,TKEY,TCTRL} = columnize({{"UA",VK_UP,false},
+                                              {"AT",VK_UP,true},
+                                              {"BT",VK_DOWN,true},
+                                              {"DA",VK_DOWN,false},
+                                              {"LA",VK_LEFT,false},
+                                              {"LT",VK_LEFT,true},
+                                              {"RT",VK_RIGHT,true},
+                                              {"RA",VK_RIGHT,false}})
+
+local procedure xpg_scrollbar_timer_action(gdx canvas)
+    -- for when a mouse button is pressed and held down on a scrollbar:
+    object sbinfo = ctrl_xtra[canvas][CX_SBINFO]
+    if sequence(sbinfo) then
+        string clikmon = sbinfo[SB_CKMON]
+        integer k = find(clikmon,TMON), 
+               ox = sbinfo[SB_ORIGX], 
+               oy = sbinfo[SB_ORIGY]
+        sbinfo = NULL -- (kill refcount)
+        bool bCtrl = TCTRL[k],
+             bShift = gGetGlobal("SHIFTKEY"),
+             bAlt = gGetGlobal("ALTKEY")
+        {} = xpg_scrollbar_key_handler(canvas,TKEY[k],bCtrl,bShift,bAlt)
+        gdx timer = ctrl_xtra[canvas][CX_SBINFO][SB_TIMER]
+        if  ox==ctrl_xtra[canvas][CX_SBINFO][SB_ORIGX]
+        and oy==ctrl_xtra[canvas][CX_SBINFO][SB_ORIGY] then     -- no change
+            gSetAttribute(timer,"RUN",false) -- switch off
+        elsif timer then
+            gSetAttribute(timer,"TIME",100)
+        end if
+    end if
+end procedure
+
+local procedure xpg_scrollbar_timer_cb(gdx timer)
+    gdx canvas = gGetAttribute(timer,"USER_DATA")
+    xpg_scrollbar_timer_action(canvas)
+end procedure
+
+--local function xpg_scrollbar_click(gdx canvas, sequence status, integer x, y)
+local procedure xpg_scrollbar_click(gdx canvas, sequence status, integer x, y)
+--  integer {button,pressed,ctrl,shift,alt} = status
+--  printf(1,"click(button:%c, pressed:%c, ctrl:%d, shift:%d, alt:%d, x:%d, y:%d)\n",
+--           {button,pressed,ctrl,shift,alt,x,y})
+    object sbinfo = ctrl_xtra[canvas][CX_SBINFO]
+    if sequence(sbinfo) then
+        sbinfo = NULL
+        string clikmon = xpg_get_mouse_on_scrollbar(canvas,x,y)
+        ctrl_xtra[canvas][CX_SBINFO][SB_CKMON] = clikmon
+--?{"CLIKMON",clikmon}
+        ctrl_xtra[canvas][CX_SBINFO][SB_CLIKX] = x
+        ctrl_xtra[canvas][CX_SBINFO][SB_CLIKY] = y
+        bool dragg = status[2]!='R',
+           wasdrag = ctrl_xtra[canvas][CX_SBINFO][SB_DRAGG]
+        ctrl_xtra[canvas][CX_SBINFO][SB_DRAGG] = dragg
+        gdx timer = ctrl_xtra[canvas][CX_SBINFO][SB_TIMER]
+        if dragg then
+            if not find(clikmon,{"","VT","HT"}) then
+                xpg_scrollbar_timer_action(canvas)
+                if not timer then
+                    timer = gTimer(xpg_scrollbar_timer_cb,500,true,canvas)
+                    ctrl_xtra[canvas][CX_SBINFO][SB_TIMER] = timer
+                else
+                    gSetAttribute(timer,"TIME",500)
+                    gSetAttribute(timer,"RUN",true)
+                end if
+                ctrl_xtra[canvas][CX_SBINFO][SB_DRAGG] = false
+                dragg = false
+            end if
+        else
+            if timer then gSetAttribute(timer,"RUN",false) end if
+        end if
+        if dragg!=wasdrag then
+--NO...
+--          xpg_redraw_scrollbars(canvas)
+            atom handle = ctrl_handles[canvas]
+            bool bOK = c_func(xInvalidateRect,{handle,NULL,true})
+            assert(bOK)
+        end if
+    end if
+--DEV did I mean XPG_IGNORE here? (or should this just be a procedure?)
+--  return false
+--end function
+end procedure
+
+local procedure xpg_scrollbar_mousemove(gdx canvas, integer x,y, bool left,middle,right)
+    object sbinfo = ctrl_xtra[canvas][CX_SBINFO]
+    if sequence(sbinfo) then
+        string monsba = xpg_get_mouse_on_scrollbar(canvas,x,y)
+        string clikmon = sbinfo[SB_CKMON]
+        bool dragg = sbinfo[SB_DRAGG]
+        if dragg then
+            if left or right then
+                integer origx = sbinfo[SB_ORIGX],
+                        origy = sbinfo[SB_ORIGY],
+                        clikx = sbinfo[SB_CLIKX],
+                        cliky = sbinfo[SB_CLIKY]
+                if clikmon="" then
+                    origy += cliky-y
+                    cliky = y
+                    origx += clikx-x
+                    clikx = x
+                else
+                    integer {w, h} = gGetIntInt(canvas,"SIZE")
+                    if clikmon="VT" then
+                        integer vtmax = h - sbinfo[SB_HVISB]*sbinfo[SB_HHIGH]-sbinfo[SB_VWIDE]*2
+                        origy += round((y-cliky)*sbinfo[SB_SCRLH]/vtmax)
+                        cliky = y
+                    elsif clikmon="HT" then
+                        integer htmax = w - sbinfo[SB_VVISB]*sbinfo[SB_VWIDE]-sbinfo[SB_HHIGH]*2
+                        origx += round((x-clikx)*sbinfo[SB_SCRLW]/htmax)
+                        clikx = x
+                    end if
+                end if
+                sbinfo = NULL
+                ctrl_xtra[canvas][CX_SBINFO][SB_ORIGX] = origx
+                ctrl_xtra[canvas][CX_SBINFO][SB_ORIGY] = origy
+                ctrl_xtra[canvas][CX_SBINFO][SB_CLIKX] = clikx
+                ctrl_xtra[canvas][CX_SBINFO][SB_CLIKY] = cliky
+                gRedraw(canvas)     
+            else
+                sbinfo = NULL
+                ctrl_xtra[canvas][CX_SBINFO][SB_DRAGG] = false
+            end if
+        elsif monsba!=sbinfo[SB_MONLD] then -- (only if needed)
+            sbinfo = NULL
+            gRedraw(canvas)
+        end if
+    end if
+end procedure
+
+procedure xpg_canvas_wheel_handler(gdx canvas, integer direction, bool ctrl, shift, alt) 
+--?{"xpg_canvas_wheel_handler",id, direction, ctrl, chift, alt}
+    integer key = iff(ctrl?iff(direction=-1?VK_RIGHT:VK_LEFT)
+                          :iff(direction=-1?VK_DOWN:VK_UP))
+    {} = xpg_scrollbar_key_handler(canvas,key,false,shift,alt)
 end procedure
 
 --local function xpg_get_canvas_type(integer l)
@@ -11029,20 +13902,49 @@ local function xpg_set_canvas_attribute(gdx id, string name, object v, bool bMap
     integer ct = ctrl_xtra[id][CX_CANVAS_TYPE]
 --?{"xpg_set_canvas_attribute",id,ct,CANVAS}
 --  atom handle = ctrl_handles[id]
---DEV dunno where this came from... SCROLLINFO/SCROLLABLE??
-    if false then
---  if name="SCROLLBAR"
---  or name="XMAX"
---  or name="YMAX" then
-        if not bMapped then
-            xpg_defer_attr(id,name,v)
---      elsif backend=GTK then
---          c_proc(gtk_window_set_title,{handle,v}) 
---      elsif backend=WinAPI then
---          c_proc(xSetWindowText,{handle,v})
+    if name="SCROLLSIZE"
+    or name="SCROLLPORT"
+    or name="VIEWPORT" then
+        object sbinfo = ctrl_xtra[id][CX_SBINFO]
+        ctrl_xtra[id][CX_SBINFO] = NULL
+        integer flags = ctrl_xtra[id][CX_CANVAS_FLAGS]
+        if v=NULL then
+            flags -= and_bits(flags,CXCF_SCROLL)
+            ctrl_xtra[id][CX_CANVAS_FLAGS] = flags
         else
---          ?9/0 -- (unknown backend)
-            printf(1,"gSetAttribute(CANVAS,\"%s\",%v)...\n",{name,v})
+            if atom(sbinfo) then
+                sbinfo = repeat(0,SB_INFOLEN)
+                sbinfo[SB_VWIDE] = 17
+                sbinfo[SB_HHIGH] = 17
+                sbinfo[SB_MONLD] = ""
+                sbinfo[SB_CKMON] = ""
+                if not find(xpg_scrollbar_click,internal_rtns) then
+                    -- (let/permit/allow these to be a perfectly valid rtn)
+                    internal_rtns &= xpg_scrollbar_click; 
+                    internal_rtns &= xpg_scrollbar_mousemove; 
+                    internal_rtns &= xpg_scrollbar_key_handler; 
+                    internal_rtns &= xpg_canvas_wheel_handler; 
+                    internal_rtns &= xpg_scrollbar_timer_cb; 
+                end if
+                gSetHandler(id,"CLICK",xpg_scrollbar_click)
+                gSetHandler(id,"MOUSEMOVE",xpg_scrollbar_mousemove)
+                gSetHandler(id,"KEY",xpg_scrollbar_key_handler)
+                gSetHandler(id,"MOUSEWHEEL",xpg_canvas_wheel_handler)
+                ctrl_xtra[id][CX_CANVAS_FLAGS] = or_bits(flags,CXCF_SCROLL)
+            end if
+            if string(v) then v = xpg_intint(v) end if
+            if name="SCROLLSIZE" then
+                integer {w,h} = v
+                sbinfo[SB_SCRLW] = w
+                sbinfo[SB_SCRLH] = h
+            else -- name="SCROLLPORT" or name="VIEWPORT" then   
+    --          if string(v) then v = xpg_intint(v) end if
+    --?{"set VIEWPORT",v}
+                integer {x,y} = v
+                sbinfo[SB_ORIGX] = x
+                sbinfo[SB_ORIGY] = y
+            end if
+            ctrl_xtra[id][CX_SBINFO] = sbinfo
         end if
         return true
     elsif ct!=CANVAS then   -- gGraph/gTable/gList
@@ -11050,7 +13952,7 @@ local function xpg_set_canvas_attribute(gdx id, string name, object v, bool bMap
         integer lGTL = find(ct,gtl_types),
                 gxdx = find(name,gtl_names[lGTL])
 --?{"gxdx",gxdx,name,"lGTL",lGTL}
-?{"xpg_set_canvas_attribute",id,ct,name,gxdx}
+--?{"xpg_set_canvas_attribute",id,ct,name,gxdx}
         if gxdx then -- (else trigger std error handling)
             integer vtype = gtl_sigs[lGTL][gxdx]
             if vtype='B' then
@@ -11078,6 +13980,17 @@ local function xpg_set_canvas_attribute(gdx id, string name, object v, bool bMap
 --          ctrl_xtra[id][CX_GTL_ATTRS] = gtlattr
             return true
         end if
+    elsif name="SPLIT" then -- (private/undocumented)
+        assert(v="AYE")
+        -- (just do both...)
+        assert(and_bits(ctrl_flags[id],CF_SPLIT)=0)
+        ctrl_flags[id] += CF_SPLIT
+        gdx parent = parent_ids[id] -- nb cannot still be null!
+        assert(ctrl_types[parent]==BOX)
+        assert(length(children_ids[parent])==3)
+        assert(and_bits(ctrl_flags[parent],CF_SPLIT)=0)
+        ctrl_flags[parent] += CF_SPLIT
+        return true
     end if
     return false
 end function
@@ -11086,14 +13999,49 @@ function xpg_get_canvas_attribute(gdx id, string name, object dflt)
     -- nb id may not be mapped, unlike most other xpg_get_xxx_attribute rouines...
     atom handle = ctrl_handles[id]
     integer ct = ctrl_xtra[id][CX_CANVAS_TYPE]
-    if ct!=CANVAS then -- gGraph/gTable/gList
+--?{"xpg_get_canvas_attribute",id, name, dflt,{ct,CANVAS}}
+    if name="SCROLLSIZE"
+    or name="SCROLLPORT"
+    or name="VIEWPORT" then
+        integer w = 0, h = 0, x = 0, y = 0,
+                hsv = false, hsh = 0,
+                vsv = false, vsw = 0,
+                {sw,sh} = gGetAttribute(id,"SIZE")
+        object sbinfo = ctrl_xtra[id][CX_SBINFO]
+        if sequence(sbinfo) then
+            w = sbinfo[SB_SCRLW]
+            h = sbinfo[SB_SCRLH]
+            x = sbinfo[SB_ORIGX]
+            y = sbinfo[SB_ORIGY]
+            hsv = sbinfo[SB_HVISB]
+            hsh = sbinfo[SB_HHIGH]
+            vsv = sbinfo[SB_VVISB]
+            vsw = sbinfo[SB_VWIDE]
+        end if
+        if name="SCROLLSIZE" then
+            if w=0 then w = sw end if
+            if h=0 then h = sh end if
+            sbinfo = {w,h}
+        else --if name="SCROLLPORT" or name="VIEWPORT" then
+            sw -= vsv*vsw
+            sh -= hsv*hsh
+            sbinfo = {x,y,sw,sh}
+        end if
+        return sbinfo
+    elsif name="SPLIT" then -- (private/undocumented/once parent "known")
+        return and_bits(ctrl_flags[id],CF_SPLIT)!=0
+--      gdx parent = parent_ids[id]
+--      assert(ctrl_types[parent]==BOX)
+--      assert(length(children_ids[parent])==3)
+--      return and_bits(ctrl_flags[parent],CF_SPLIT)!=0
+    elsif ct!=CANVAS then -- gGraph/gTable/gList
         integer lGTL = find(ct,gtl_types),
                 gxdx = find(name,gtl_names[lGTL])
         if gxdx then return ctrl_xtra[id][CX_GTL_ATTRS][gxdx] end if
-        if ct=LIST and name="VALUESTR" then
---?{lGTL,name,"..."}
-            return `gGetAttribute(LIST,"VALUESTR")...`
-        end if
+--      if ct=LIST and name="VALUESTR" then
+----?{lGTL,name,"..."}
+--          return `gGetAttribute(LIST,"VALUESTR")...`
+--      end if
     end if
     return xpg_return_default_attr(id,name,dflt)
 end function
@@ -11101,11 +14049,15 @@ end function
 global function gCanvas(object redraw=NULL, sequence attributes="", args={})
     {redraw,attributes,args} = paranormalise_raa(redraw,attributes,args)
     if not bInit then xpg_Init() end if
-    integer id = xpg_add_control(CANVAS,flags:=CF_UNMAPATTR)
-    xpg_register_handler(CANVAS,"REDRAW",{{1,1,"PO"}})
-    xpg_register_handler(CANVAS,"DROP",{{1,1,"FI"}})
-    set_ctrl_msg(CANVAS,xpg_Canvas,xpg_set_canvas_attribute,
-                                   xpg_get_canvas_attribute)
+    integer id = xpg_add_control(CANVAS,flags:=CF_UNMAPATTR+CF_EXPANDB)
+--  xpg_register_handler(CANVAS,"REDRAW",{{1,1,"PO"}})
+    xpg_register_handler(CANVAS,"REDRAW",{"PO","POII"})
+--  xpg_register_handler(CANVAS,"DROP",{{1,1,"FI"}})
+    xpg_register_handler(CANVAS,"DROP",{"FI"})
+--  xpg_register_handler(CANVAS,"MOUSEWHEEL",{{5,5,"POIIII"}})
+    xpg_register_handler(CANVAS,"MOUSEWHEEL",{"POIIII"})
+    xpg_set_ctrl_msg(CANVAS,xpg_Canvas,xpg_set_canvas_attribute,
+                                       xpg_get_canvas_attribute)
     object cxi = repeat(0,CX_CANVAS_LEN)
     cxi[CX_CANVAS_TYPE] = CANVAS
     cxi[CX_CANVAS_FLAGS] = CXCF_REPEN
@@ -11127,7 +14079,7 @@ global function gCanvas(object redraw=NULL, sequence attributes="", args={})
 end function 
 
 global procedure gRadio(gdx ids)
-    check_unmapped(ids,CF_RADIO,length(radio_groups)+1)
+    xpg_check_unmapped(ids,CF_RADIO,length(radio_groups)+1)
     radio_groups = append(radio_groups,{NULL,ids})
 end procedure
 
@@ -11144,13 +14096,8 @@ end function
 
 local function xpg_gtk_toggle_clicked(atom handle, gdx id) -- (GTK only)
     assert(id=xpg_getID(handle))
-    integer value_changed = gGetHandler(id,"VALUE_CHANGED")
-    if value_changed then
-        bool bChecked = c_func(gtk_toggle_button_get_active,{handle})
-        if bChecked or (not and_bits(ctrl_flags[id],CF_RADIO)) then
-            value_changed(id,bChecked)
-        end if
-    end if
+    bool bChecked = c_func(gtk_toggle_button_get_active,{handle})
+    xpg_check_changed(id,bChecked)
     return 0 -- (ignored)
 end function
 
@@ -11161,7 +14108,7 @@ local procedure xpg_Checkbox(gdx id)
     string title = gGetAttribute(id,"TITLE")
     bool bRadio = and_bits(ctrl_flags[id],CF_RADIO)!=0
     integer rdx = ctrl_xtra[id]
-    if backend=GTK then
+    if backend=XPG_GTK then
         if bRadio then
             atom radio_group = radio_groups[rdx][1]
             checkbox = c_func(gtk_radio_button_new_with_mnemonic,{radio_group,title})
@@ -11173,10 +14120,10 @@ local procedure xpg_Checkbox(gdx id)
         xpg_setID(checkbox,id)
 
 --      c_proc(gtk_container_add,{ctrl_handles[parent],button})
---      xpg_signal_connect(checkbox,"realize",xpg_gtk_widget_realized,id)
-        xpg_signal_connect(checkbox,"clicked",xpg_gtk_toggle_clicked,id)
-        xpg_signal_connect(checkbox,"focus-in-event",xpg_gtk_focusinout,id)
-        xpg_signal_connect(checkbox,"focus-out-event",xpg_gtk_focusinout,id)
+--      xpg_gtk_signal_connect(checkbox,"realize",xpg_gtk_widget_realized,id)
+        xpg_gtk_signal_connect(checkbox,"clicked",xpg_gtk_toggle_clicked,id)
+        xpg_gtk_signal_connect(checkbox,"focus-in-event",xpg_gtk_focusinout,id)
+        xpg_gtk_signal_connect(checkbox,"focus-out-event",xpg_gtk_focusinout,id)
         xpg_gtk_add_to(parent,checkbox)
 --(temp?:)
 --      atom vbox = c_func(gtk_vbox_new,{false,6})
@@ -11185,7 +14132,7 @@ local procedure xpg_Checkbox(gdx id)
 --      c_proc(gtk_box_pack_start,{vbox,hbox,false,false,0})
 --      c_proc(gtk_container_add,{ctrl_handles[parent],vbox})
         c_proc(gtk_widget_realize,{checkbox})
-    elsif backend=WinAPI then
+    elsif backend=XPG_WINAPI then
         atom dwStyle = iff(bRadio?BS_AUTORADIOBUTTON:BS_AUTOCHECKBOX)
         if bRadio and id=radio_groups[rdx][2][1] then dwStyle += WS_GROUP end if
         dwStyle = or_all({dwStyle,WS_CHILD,WS_VISIBLE,WS_TABSTOP})
@@ -11203,11 +14150,11 @@ function xpg_set_checkbox_attribute(gdx id, string name, object v, bool bMapped)
         assert(string(v))
         if not bMapped then
             xpg_defer_attr(id,name,v)
-        elsif backend=GTK then
+        elsif backend=XPG_GTK then
 --          c_proc(gtk_window_set_title,{handle,v}) 
             c_proc(gtk_button_set_label,{handle,xpg_gtk_mnemonicalize(v)})
 --          c_proc(gtk_label_set_text_with_mnemonic,{handle,xpg_gtk_mnemonicalize(v)})
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
             c_proc(xSetWindowText,{handle,v})
         else
             ?9/0 -- (unknown backend)
@@ -11231,9 +14178,9 @@ function xpg_set_checkbox_attribute(gdx id, string name, object v, bool bMapped)
         for i=1 to 2 do -- ([offid then] id)
             if not bMapped then
                 xpg_defer_attr(id,name,v)
-            elsif backend=GTK then
+            elsif backend=XPG_GTK then
                 c_proc(gtk_toggle_button_set_active,{handle,v})
-            elsif backend=WinAPI then
+            elsif backend=XPG_WINAPI then
                 {} = c_func(xSendMessage,{handle,BM_SETCHECK,v,0})
             else
                 ?9/0 -- (unknown backend)
@@ -11256,9 +14203,9 @@ function xpg_get_checkbox_attribute(gdx id, string name, object dflt)
     if name="TITLE" then
         if not bMapped then
             if dflt=999_999_999 then dflt = "" end if
-        elsif backend=GTK then
+        elsif backend=XPG_GTK then
             return peek_string(c_func(gtk_button_get_label,{handle}))
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
             integer l = c_func(xGetWindowTextLength,{handle})
             string title = repeat(' ',l)
             c_proc(xGetWindowText,{handle,title,l+1})
@@ -11269,9 +14216,9 @@ function xpg_get_checkbox_attribute(gdx id, string name, object dflt)
     elsif name="VALUE" then
         if not bMapped then
             if dflt=999_999_999 then dflt = false end if
-        elsif backend=GTK then
+        elsif backend=XPG_GTK then
             return c_func(gtk_toggle_button_get_active,{handle})
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
             -- yields one of: BST_UNCHECKED = 0,  BST_CHECKED = 1,  BST_INDETERMINATE = 2
             return c_func(xSendMessage,{handle,BM_GETCHECK,0,0})
         else
@@ -11286,9 +14233,10 @@ global function gCheckbox(nullable_string title=NULL, object value_changed=NULL,
     if not bInit then xpg_Init() end if
     integer id = xpg_add_control(CHECKBOX,flags:=CF_UNMAPATTR)
 --test_elem = id
-    xpg_register_handler(CHECKBOX,"VALUE_CHANGED",{{2,2,"POI"}})
-    set_ctrl_msg(CHECKBOX,xpg_Checkbox,xpg_set_checkbox_attribute,
-                                       xpg_get_checkbox_attribute)
+--  xpg_register_handler(CHECKBOX,"VALUE_CHANGED",{{2,2,"POI"},{1,1,"PO"}})
+    xpg_register_handler(CHECKBOX,"VALUE_CHANGED",{"POI","PO"})
+    xpg_set_ctrl_msg(CHECKBOX,xpg_Checkbox,xpg_set_checkbox_attribute,
+                                           xpg_get_checkbox_attribute)
     -- ctrl_xtra[id] is the radio group (index), or 0 if none.
 --  gSetAttribute(id,"FONT","Helvetica, 9")
     if title!=NULL then
@@ -11309,13 +14257,13 @@ function xpg_set_clipboard_attribute(gdx id, string name, object v, bool /*bMapp
     assert(id=xpg_clipboard_id)
     integer fmt = find(name,{"TEXT","UNICODETEXT"})
     if fmt then
-        if backend=GTK then
+        if backend=XPG_GTK then
             atom clipboard = ctrl_handles[id]
             c_proc(gtk_clipboard_clear,{clipboard})
             if v!=NULL then
                 c_proc(gtk_clipboard_set_text,{clipboard,v,-1})
             end if
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
 --          atom hWnd = c_func(xGetActiveWindow,{}) -- (what arwen uses)
             atom hWnd = c_func(xGetForegroundWindow,{})
             if c_func(xOpenClipboard,{hWnd}) then
@@ -11372,7 +14320,7 @@ function xpg_get_clipboard_attribute(gdx id, string name, object dflt)
     if fmt then
         fmt = {CF_TEXT,CF_UNICODETEXT}[fmt]
         object clip = NULL
-        if backend=GTK then
+        if backend=XPG_GTK then
             atom clipboard = ctrl_handles[id],
                      pClip = c_func(gtk_clipboard_wait_for_text,{clipboard})
             if pClip!=NULL then
@@ -11382,7 +14330,7 @@ function xpg_get_clipboard_attribute(gdx id, string name, object dflt)
                     clip = peek_wstring(pClip)
                 end if
             end if
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
 --          atom hWnd = c_func(xGetActiveWindow,{}) -- (what arwen uses)
             atom hWnd = c_func(xGetForegroundWindow,{})
             if c_func(xOpenClipboard,{hWnd}) then
@@ -11412,10 +14360,10 @@ function xpg_get_clipboard_attribute(gdx id, string name, object dflt)
         end if
         return clip
     elsif name="TEXTAVAILABLE" then
-        if backend=GTK then
+        if backend=XPG_GTK then
             atom clipboard = ctrl_handles[id]
             return c_func(gtk_clipboard_wait_is_text_available,{clipboard})
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
             return c_func(xIsClipboardFormatAvailable,{CF_TEXT})
         else
             ?9/0 -- (unknown backend)
@@ -11429,14 +14377,14 @@ global function gClipboard()
     if id=0 then
         if not bInit then xpg_Init() end if
         id = xpg_add_control(CLIPBOARD,flags:=CF_MAPPED)
-        if backend=GTK then
+        if backend=XPG_GTK then
             atom clipboard = c_func(gtk_clipboard_get,{GDK_SELECTION_CLIPBOARD})
             ctrl_handles[id] = clipboard
         end if
 -- hmm, I wonder whether we can get a VALUE_CHANGED handler to work?
 --      xpg_register_handler(CLIPBOARD,"REDRAW",{{1,1,"PO"}})
-        set_ctrl_msg(CLIPBOARD,0,xpg_set_clipboard_attribute,
-                                 xpg_get_clipboard_attribute)
+        xpg_set_ctrl_msg(CLIPBOARD,0,xpg_set_clipboard_attribute,
+                                     xpg_get_clipboard_attribute)
         xpg_clipboard_id = id
     end if
     return id
@@ -11460,7 +14408,7 @@ local procedure xpg_DropDown(gdx id)
 --  bool editable = gGetAttribute(id,"EDITABLE",true)
 --Hmm, no idea, seems fine without it...
 --  integer v = gGetAttribute(id,"VALINT",0) -- (grab a copy /before/ mapping)
-    if backend=GTK then
+    if backend=XPG_GTK then
         if editable then
             dropdown = c_func(gtk_combo_box_text_new_with_entry,{})
         else
@@ -11468,12 +14416,12 @@ local procedure xpg_DropDown(gdx id)
         end if
         xpg_setID(dropdown,id)
         xpg_gtk_add_to(parent,dropdown)
---      xpg_signal_connect(dropdown,"realize",xpg_gtk_widget_realized,id)
-        xpg_signal_connect(dropdown,"changed",xpg_gtk_dropdown_changed,id)
-        xpg_signal_connect(dropdown,"focus-in-event",xpg_gtk_focusinout,id)
-        xpg_signal_connect(dropdown,"focus-out-event",xpg_gtk_focusinout,id)
+--      xpg_gtk_signal_connect(dropdown,"realize",xpg_gtk_widget_realized,id)
+        xpg_gtk_signal_connect(dropdown,"changed",xpg_gtk_dropdown_changed,id)
+        xpg_gtk_signal_connect(dropdown,"focus-in-event",xpg_gtk_focusinout,id)
+        xpg_gtk_signal_connect(dropdown,"focus-out-event",xpg_gtk_focusinout,id)
         c_proc(gtk_widget_realize,{dropdown})
-    elsif backend=WinAPI then
+    elsif backend=XPG_WINAPI then
         atom dwStyle = or_all({WS_CHILD,WS_VISIBLE,WS_VSCROLL,WS_TABSTOP,CBS_AUTOHSCROLL})
                      + iff(editable?CBS_DROPDOWN:CBS_DROPDOWNLIST)
 --/*
@@ -11501,7 +14449,7 @@ function xpg_set_dropdown_attribute(gdx id, string name, object v, bool bMapped)
             xpg_defer_attr(id,name,v)
         else
             integer changed
-            if backend=GTK then
+            if backend=XPG_GTK then
                 changed = gGetHandler(id,"CHANGED")
                 -- disable while adding all the entries...
                 if changed then gSetHandler(id,"CHANGED",NULL) end if
@@ -11511,22 +14459,22 @@ function xpg_set_dropdown_attribute(gdx id, string name, object v, bool bMapped)
                     c_proc(gtk_combo_box_text_remove,{handle,0})
                 end while
                 c_proc(gtk_combo_box_text_remove,{handle,0})
-            elsif backend=WinAPI then
+            elsif backend=XPG_WINAPI then
                 {} = c_func(xSendMessage,{handle,CB_RESETCONTENT,0,0})
             else
                 ?9/0 -- (unknown backend)
             end if
             for i=1 to length(v) do
                 string s = v[i]
-                if backend=GTK then
+                if backend=XPG_GTK then
                     c_proc(gtk_combo_box_text_append_text,{handle,s})
-                elsif backend=WinAPI then
+                elsif backend=XPG_WINAPI then
                     {} = c_func(xSendMessage,{handle,CB_ADDSTRING,0,s})
                 else
                     ?9/0 -- (unknown backend)
                 end if
             end for
-            if backend=GTK and changed then -- restore
+            if backend=XPG_GTK and changed then -- restore
                 gSetHandler(id,"CHANGED",changed)
             end if
         end if
@@ -11536,9 +14484,9 @@ function xpg_set_dropdown_attribute(gdx id, string name, object v, bool bMapped)
         if not bMapped then
             xpg_defer_attr(id,name,v)
         else
-            if backend=GTK then
+            if backend=XPG_GTK then
                 c_proc(gtk_combo_box_set_active,{handle,v-1})
-            elsif backend=WinAPI then
+            elsif backend=XPG_WINAPI then
                 {} = c_func(xSendMessage,{handle,CB_SETCURSEL,v-1,0})
                 -- (GTK does this automatically...)
                 integer changed = gGetHandler(id,"CHANGED")
@@ -11561,9 +14509,9 @@ function xpg_get_dropdown_attribute(gdx id, string name, object dflt)
     atom handle = ctrl_handles[id]
     if name="VALINT" then
         atom atmres
-        if backend=GTK then
+        if backend=XPG_GTK then
             atmres = c_func(gtk_combo_box_get_active,{handle})
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
             atmres = c_func(xSendMessage,{handle,CB_GETCURSEL,0,0})
         else
             ?9/0 -- (unknown backend)
@@ -11572,11 +14520,11 @@ function xpg_get_dropdown_attribute(gdx id, string name, object dflt)
         return res+1
     elsif name="VALSTR" then
         string res = ""
-        if backend=GTK then
+        if backend=XPG_GTK then
             atom pText = c_func(gtk_combo_box_text_get_active_text,{handle})
             if pText then res = peek_string(pText) end if
             c_proc(g_free,{pText})
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
             integer pos = c_func(xSendMessage,{handle,CB_GETCURSEL,0,0})
             if pos!=CB_ERR then
                 integer len = c_func(xSendMessage,{handle,CB_GETLBTEXTLEN,pos,0})
@@ -11601,9 +14549,10 @@ global function gDropDown(object options, selected=NULL, sequence attributes="",
     if not bInit then xpg_Init() end if
     integer id = xpg_add_control(DROPDOWN)
 --test_elem = id
-    xpg_register_handler(DROPDOWN,"CHANGED",{{1,1,"PO"}})
-    set_ctrl_msg(DROPDOWN,xpg_DropDown,xpg_set_dropdown_attribute,
-                                       xpg_get_dropdown_attribute)
+--  xpg_register_handler(DROPDOWN,"CHANGED",{{1,1,"PO"},{1,0,"PO"}})
+    xpg_register_handler(DROPDOWN,"CHANGED",{"PO"})
+    xpg_set_ctrl_msg(DROPDOWN,xpg_DropDown,xpg_set_dropdown_attribute,
+                                           xpg_get_dropdown_attribute)
 --  gSetAttribute(id,"FONT","Helvetica, 9")
     if selected!=NULL then
         gSetHandler(id,"CHANGED",selected)
@@ -11620,7 +14569,7 @@ local procedure xpg_Frame(gdx id)
     gdx parent = xpg_get_parent_id(id)
     atom frame
     string title = gGetAttribute(id,"TITLE","")
-    if backend=GTK then
+    if backend=XPG_GTK then
 --if title="" then tiotle=NULL end if
 --      frame = c_func(gtk_frame_new,{title})
         frame = c_func(gtk_frame_new,{iff(title=""?NULL:title)})
@@ -11628,9 +14577,9 @@ local procedure xpg_Frame(gdx id)
         xpg_gtk_add_to(parent,frame)
 --      c_proc(gtk_container_add,{ctrl_handles[parent],frame})
 -- DEV this is of no help here...
---      xpg_signal_connect(frame,"realize",xpg_gtk_widget_realized,id)
+--      xpg_gtk_signal_connect(frame,"realize",xpg_gtk_widget_realized,id)
         c_proc(gtk_widget_realize,{frame})
-    elsif backend=WinAPI then
+    elsif backend=XPG_WINAPI then
 --      if title="" then title="Y" end if
         atom dwStyle = or_all({WS_CHILD,WS_VISIBLE,BS_GROUPBOX}),
 --DEV...
@@ -11654,9 +14603,9 @@ function xpg_set_frame_attribute(gdx id, string name, object v, bool bMapped)
         assert(string(v))
         if not bMapped then
             xpg_defer_attr(id,name,v)
-        elsif backend=GTK then
+        elsif backend=XPG_GTK then
             c_proc(gtk_frame_set_label,{handle,v})
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
             c_proc(xSetWindowText,{handle,v})
         else
             ?9/0 -- (unknown backend)
@@ -11672,9 +14621,9 @@ end function
 function xpg_get_frame_attribute(gdx id, string name, object dflt)
     atom handle = ctrl_handles[id]
     if name="TITLE" then
-        if backend=GTK then
+        if backend=XPG_GTK then
             return peek_string(c_func(gtk_frame_get_label,{handle}))
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
             integer l = c_func(xGetWindowTextLength,{handle})
             string title = repeat(' ',l)
             c_proc(xGetWindowText,{handle,title,l+1})
@@ -11690,14 +14639,14 @@ end function
 global function gFrame(gdx child, object title=NULL, sequence attributes="", args={})
     {title,attributes,args} = paranormalise_taa(title,attributes,args)
     if not bInit then xpg_Init() end if
-    integer id = xpg_add_control(FRAME,bHasChildren:=true)
+    integer id = xpg_add_control(FRAME,flags:=CF_CONTAINER+CF_DECORATED,bHasChildren:=true)
     if child then
         parent_ids[child] = id
         children_ids[id] = {child}
     end if
 --  xpg_register_handler(FRAME,"XXX",{{1,1,"PO"}})
-    set_ctrl_msg(FRAME,xpg_Frame,xpg_set_frame_attribute,
-                                 xpg_get_frame_attribute)
+    xpg_set_ctrl_msg(FRAME,xpg_Frame,xpg_set_frame_attribute,
+                                     xpg_get_frame_attribute)
 --  gSetAttribute(id,"FONT","Helvetica, 9")
 --  gSetAttribute(id,"MARGIN",2)
 --  gSetAttribute(id,"PADDING",2)
@@ -11710,659 +14659,439 @@ global function gFrame(gdx child, object title=NULL, sequence attributes="", arg
     return id
 end function 
 
+local function xpg_default_IDROP(integer rid) return rid end function
+internal_rtns &= xpg_default_IDROP; -- (let/permit/allow this to be a perfectly valid rtn)
+
+-- builtins/IupGraph.e
+-- todo: bar graphs[stacked or side], grid style, piechart, ... [DEV]
+
+local procedure xpg_redraw_graph(gdx graph)
+--?"xpg_redraw_graph"
+
+    rtn drid = gGetHandler(graph,"DRID")
+--  sequence sig = get_routine_info(drid,false),
+    string sig = get_routine_info(drid,false)[3]
+--  sequence datasets = iff(sig={0,0,"F"}?drid(),
+    sequence datasets = iff(sig="F"?drid(),
+--                      iff(sig={1,1,"FO"}?drid(graph):9/0)),
+                        iff(sig="FO"?drid(graph):9/0)),
+--DEV let's just use gGetAttributes() and friends, ensure we've implemented them correctly...
+             grattrbs = ctrl_xtra[graph][CX_GTL_ATTRS]
+--  integer grid = grattrbs[GX_GRID],
+    integer grid = gGetInt(graph,"GRID"),
+--          gridcolour = grattrbs[GX_GRIDCOLOR],
+            gridcolour = gGetInt(graph,"GRIDCOLOR"),
+--          {width, hight} = gGetAttribute(graph,"DRAWSIZE"),
+            {width, hight} = gGetAttribute(graph,"SIZE"),
+            dsdx = 1,
+            idrop = gGetHandler(graph,"IDROP",xpg_default_IDROP),
+            xCanvasSetForeground = idrop(gCanvasSetForeground),
+            xCanvasSetBackground = idrop(gCanvasSetBackground),
+            xCanvasRect = idrop(gCanvasRect),
+            xCanvasLine = idrop(gCanvasLine),
+            xCanvasText = idrop(gCanvasText),
+            -- /now/ it feels safe to shadow the globals:
+            gCanvasSetForeground = xCanvasSetForeground,
+            gCanvasSetBackground = xCanvasSetBackground,
+            gCanvasRect = xCanvasRect,
+            gCanvasLine = xCanvasLine,
+            gCanvasText = xCanvasText
+
+--?{"graph size",width,hight}
+    // nb: "XTICK" etc may be/get set in the drid() call.
+    atom xtick = grattrbs[GX_XTICK],
+         xmin = grattrbs[GX_XMIN],
+         xmax = grattrbs[GX_XMAX],
+         xmargin = grattrbs[GX_XMARGIN],
+         xyshift = grattrbs[GX_XYSHIFT],
+         xangle = grattrbs[GX_XANGLE],
+         ytick = grattrbs[GX_YTICK],
+         ymin = grattrbs[GX_YMIN],
+         ymax = grattrbs[GX_YMAX],
+         ymargin = grattrbs[GX_YMARGIN],
+         yxshift = grattrbs[GX_YXSHIFT],
+         yangle = grattrbs[GX_YANGLE],
+         bgclr = gCanvasGetBackground(graph)
+--?{"xtick",xtick,"xmin",xmin,"xmax",xmax}
+
+    string title = grattrbs[GX_GTITLE],
+           xname = grattrbs[GX_XNAME],
+           yname = grattrbs[GX_YNAME],
+           xfmt = grattrbs[GX_XTICKFMT],
+           yfmt = grattrbs[GX_YTICKFMT],
+           mode = grattrbs[GX_MODE],
+           barmode = grattrbs[GX_BARMODE],
+           markstyle = grattrbs[GX_MARKSTYLE]
+--         fontface = "Helvetica"
+--  integer fontstyle = CD_PLAIN,
+--          fontsize = 9,
+--          bgclr = gGetAttribute(graph,"BGCOLOR"),
+--          titlestyle = gGetInt(graph,"TITLESTYLE",CD_PLAIN),
+    integer marksize = grattrbs[GX_MARKSIZE],
+            legend = 0, -- (idx to datasets)
+            lx, ly -- (XPG_EAST of the first legend text)
+--  cdCanvas cd_canvas = gGetAttribute(graph,"CD_CANVAS")
+    integer xacross = grattrbs[GX_XACROSS],
+            yacross = grattrbs[GX_YACROSS],
+            xrid = gGetHandler(graph,"XRID"),
+            yrid = gGetHandler(graph,"YRID"),
+            post = gGetHandler(graph,"POST")
+    while true do
+        sequence ds = datasets[dsdx],
+                 s = ds[1]
+        if not string(s) then exit end if
+--      if s="BCOLOR" then
+--          bgclr = ds[2]
+        assert(s=="NAMES")
+--      if s="NAMES" then
+            legend = dsdx
+--      elsif s="POST" then
+--          post = ds[2]
+--      else
+--          {fontface,fontstyle,fontsize} = ds
+--          ?9/0
+--      end if
+        dsdx += 1
+    end while
+--  gCanvasSetBackground(graph,bgclr)
+--  cdCanvasActivate(graph)
+--  cdCanvasClear(graph)
+
+    -- draw title and axis names
+    gCanvasSetForeground(graph,XPG_BLACK)
+    if title!="" then
+        gCanvasText(graph,width/2+4,0,title,XPG_SOUTH)
+    end if
+    if yname!="" then
+        gCanvasText(graph,34,hight/2,yname,XPG_SOUTH,90)
+    end if
+    if xname!="" then
+        gCanvasText(graph,width/2,hight-4,xname,XPG_NORTH)
+    end if
+--printf(1,"xacross:%d, yacross:%d\n",{xacross,yacross})    
+    -- draw the x/y-axis labels and vertical gridlines
+    xacross = iff(xacross?round((0-xmin)/xtick)+1:1)
+    yacross = iff(yacross?round((0-ymin)/ytick)+1:1)
+--printf(1,"xacross:%d, yacross:%d\n",{xacross,yacross})
+
+    integer vb = (barmode="VERTICAL"),
+            hb = (barmode="HORIZONTAL"),
+            nx = max(round((xmax-xmin)/xtick)+vb,1),
+            ny = max(round((ymax-ymin)/ytick)+hb,1)
+
+    if barmode!="" then
+        assert(vb or hb,"invalid BARMODE")
+        assert(mode="" or mode="BAR","invalid MODE for BARMODE")
+        mode = "BAR"
+    elsif mode="BAR" then
+        vb = true
+    end if
+    if markstyle!="" and mode!="MARK" and mode!="MARKLINE" then
+        assert(mode="","invalid MODE for MARKSTYLE")
+        mode = "MARK"
+    end if
+    atom dx = (width-60-xmargin)/nx,
+         dy = (hight-60-ymargin)/ny,
+         vx = 30+xmargin,
+         vy = 30+ymargin,
+         x = xmin,
+         y = ymin
+    for i=1 to nx+1-vb do   -- the vertical lines
+        if (grid and not vb) or i=xacross then
+            gCanvasSetForeground(graph,iff(i=xacross?XPG_BLACK:gridcolour))
+--          gCanvasLine(graph,vx,30+ymargin,vx,hight-30)
+            gCanvasLine(graph,vx,hight-(30+ymargin),vx,28)
+        end if
+        gCanvasSetForeground(graph,XPG_BLACK)
+        integer align = iff(xangle=0?XPG_SOUTH:
+                        iff(xangle=90?XPG_EAST:
+                        iff(xangle=-90?XPG_WEST:9/0)))
+        string xtext = iff(xrid?xrid(x):sprintf(xfmt,x))
+        atom tx = vx+dx*vb/2+1,
+             ty = hight-(25+ymargin+xyshift+(yacross-1)*dy)
+--printf(1,"ty: %d, ymargin:%d, xyshift:%d, yacross:%d, dy:%d\n",{ty,ymargin,xyshift,yacross,dy})
+--      gCanvasText(graph,vx+dx*vb/2,ty,xtext,align,xangle)
+--      gCanvasText(graph,vx+dx*vb/2,hight-ty,xtext,align,xangle)
+--      gCanvasText(graph,vx+dx*vb/2+1,hight-ty,xtext,align,xangle)
+--      gCanvasLine(graph,tx-5,ty-5,tx+5,ty+5,-1,-1,XPG_RED)
+--      gCanvasLine(graph,tx-5,ty+5,tx+5,ty-5,-1,-1,XPG_RED)
+
+        gCanvasText(graph,tx,ty,xtext,align,{XPG_W,xangle})
+        vx += dx
+        x += xtick
+    end for
+    for i=1 to ny+1-hb do   -- the horizontal lines
+        if (grid and not hb) or i=yacross then
+            gCanvasSetForeground(graph,iff(i=yacross?XPG_BLACK:gridcolour))
+--          gCanvasLine(graph,31+xmargin,vy,width-30,vy)
+            gCanvasLine(graph,31+xmargin,hight-vy,width-30,hight-vy)
+        end if
+        gCanvasSetForeground(graph,XPG_BLACK)
+        integer align = iff(yangle=0?XPG_WEST:
+                        iff(yangle=90?XPG_NORTH:
+                        iff(yangle=-90?XPG_SOUTH:9/0)))
+        string ytext = iff(yrid?yrid(y):sprintf(yfmt,y))
+        atom tx = 25+xmargin+yxshift+(xacross-1)*dx,
+             ty = hight-((vy+dy*hb/2)+2)
+--      gCanvasText(graph,tx,vy+dy*hb/2,ytext,align,yangle)
+--      gCanvasText(graph,tx,hight-(vy+dy*hb/2),ytext,align,yangle)
+        gCanvasText(graph,tx,ty,ytext,align,yangle)
+        vy += dy
+        y += ytick
+    end for 
+
+    integer lw,lh -- (legend text hight, per line)
+--DEV does this not want to be drawn last??
+    if legend then
+        sequence legendnames = datasets[legend][2]
+--      cdCanvasSetTextOrientation(graph,0)
+--      cdCanvasSetTextAlignment(graph,CD_EAST)
+--DEV/SUG:
+--      atom {lw,lh,cairo,layout} = xpg_get_max_text_extent(graph,legendnames)
+--      integer ll = length(legendnames), lw=0, lwi
+--/*
+        for i=1 to ll do
+--          {lwi,lh} = cdCanvasGetTextSize(graph,legendnames[i])
+--          string text = legendnames[i]
+--          if backend=XPG_GTK then
+--              c_proc(pango_layout_set_text,{layout,text,length(text)})
+--              c_proc(pango_layout_get_pixel_size,{layout,pWidth,pHight})
+--              lwi = get_struct_field(idGdkRectangle,pRECT,"width")
+--              lh = get_struct_field(idGdkRectangle,pRECT,"hight")
+--          elsif backend=XPG_WINAPI then
+--(DEV well, that one was waiting to blow up anyway!)
+--              {lwi,lh} = gGetTextExtent(graph,text)
+--          else
+--              ?9/0 -- (unknown backend)
+--          end if
+--          {lwi,lh} = gGetTextExtent(graph,legendnames[i])
+--          lw = max(lw,lwi)
+            lw = max(lw,gGetTextExtent(graph,legendnames[i])[1])
+        end for
+--*/
+        {lw,lh} = gGetTextExtent(graph,legendnames,false)
+--      lh = floor(lh/length(legendnames))
+--      if backend=XPG_GTK then
+--          c_proc(xg_object_unref,{layout})
+--      end if
+        string legendpos = gGetAttribute(graph,"LEGENDPOS","TOPRIGHT")
+        if legendpos="XY" then
+--          {lx,ly} = gGetIntInt(graph,"LEGENDPOSXY") -- (untested)
+            {lx,ly} = gGetAttribute(graph,"LEGENDXY") -- (untested)
+        else
+            if legendpos[1]='T' then
+                assert(legendpos[1..3]="TOP")
+                legendpos = legendpos[4..$]
+                ly = 10
+            else
+                assert(legendpos[1..6]="BOTTOM")
+                legendpos = legendpos[7..$]
+--              ly = hight-50-ll*lh
+                ly = hight-50-lh
+            end if
+            if legendpos="LEFT" then
+                lx = 30+xmargin+lw
+            elsif legendpos="CENTER" then
+                lx = floor((xmargin+width+lw)/2)
+            else
+                assert(legendpos="RIGHT")   
+                lx = width-30
+            end if
+        end if
+--      if gGetInt(graph,"LEGENDBOX") then
+        if grattrbs[GX_LEGENDBOX] then
+--          gCanvasSetForeground(graph,bgclr)
+            gCanvasSetForeground(graph,XPG_BLACK)
+            integer lxl = lx-lw-25, lxr = lx+10,
+--                  lyt = hight-(ly+15), lyb = hight-(ly+ll*lh+25)
+--DEV tryme:
+--                  lyt = ly+15, lyb = ly+ll*lh+25
+                    lyt = ly+15, lyb = ly+lh+25
+-- or maybe:
+--                  lyb = ly+15, lyt = ly+ll*lh+25
+            gCanvasRect(graph,lxl,lxr,lyt,lyb,true)
+--          gCanvasRect(graph,lxl,lxr,lyt,lyb,true,colour:=XPG_BLACK) -- NO!
+--          gCanvasSetForeground(graph,XPG_BLACK)
+--          gCanvasRect(graph,lxl,lxr,lyt,lyb)
+        end if
+    end if
+
+    -- and finally draw/plot the points!
+    atom w = dx/xtick,
+         h = dy/ytick
+    vx = 30+xmargin + (xacross-1)*dx
+    vy = 30+ymargin + (yacross-1)*dy
+    integer lm1 = dsdx-1
+    for d=dsdx to length(datasets) do
+        sequence dd = datasets[d],
+                 {px,py} = dd
+        integer ldd = length(dd),
+                 mm = (mode="MARK"),
+                dsz = marksize
+        string dms = markstyle,
+               dmm = mode
+        if ldd>=4 then
+            mm = true
+            dms = dd[4]
+            if ldd>=5 then
+//DEV and/or MARKSIZE...
+                object dd5 = dd[5]
+                if string(dd5) then
+                    assert(dd5="MARKLINE")
+                    dmm = "MARKLINE"
+                    if ldd>=6 then
+                        dsz = dd[6]
+                    end if
+                else
+                    dsz = dd5
+                end if
+            end if
+        end if          
+        atom fgclr = iff(ldd>=3?dd[3]:XPG_BLACK)
+        gCanvasSetForeground(graph,fgclr)
+        gCanvasSetBackground(graph,fgclr)
+--gdots = 14000
+        if length(px) then
+            atom x1 = 30+xmargin+(px[1]-xmin)*w,
+                 y1 = 30+ymargin+(py[1]-ymin)*h
+            for i=2-(vb or hb or mm) to length(px) do
+                atom x2 = 30+xmargin+(px[i]-xmin)*w+dx*vb/2,
+                     y2 = 30+ymargin+(py[i]-ymin)*h+dy*hb/2
+                if mode="BAR" then
+--                  gCanvasSetBackground(graph,fgclr)
+                    if vb then
+--                      gCanvasRect(graph,x2-dx/2+1,x2+dx/2-1,vy,y2,true)
+                        gCanvasRect(graph,x2-dx/2+1,x2+dx/2-1,hight-vy,hight-y2,true)
+                    elsif hb then
+--                      gCanvasRect(graph,vx,x2,y2-dy/2+1,y2+dy/2-1,true)
+                        gCanvasRect(graph,vx,x2,hight-(y2-dy/2+1),hight-(y2+dy/2-1),true)
+                    end if
+                else
+                    if mm then
+-- (from IupPlot:) mark style of the current dataset. 
+--        Can be: "HOLLOW_CIRCLE", "PLUS", "X", [DONE]
+--          "STAR", "CIRCLE", "BOX", "DIAMOND",
+--          "HOLLOW_BOX", "HOLLOW_DIAMOND". Default "X". 
+--        (rest to be implemented as and when needed)
+                        if dms="HOLLOW_CIRCLE" then
+--                          gCanvasCircle(graph,x2,y2,8)
+                            gCanvasCircle(graph,x2,hight-y2,2*(dsz+1))
+                        elsif dms="PLUS" then
+--                          gCanvasLine(graph,x2,y2-3,x2,y2+3)
+                            gCanvasLine(graph,x2,hight-(y2-dsz),x2,hight-(y2+dsz+1))
+--                          gCanvasLine(graph,x2-3,y2,x2+3,y2)
+                            gCanvasLine(graph,x2-dsz+1,hight-y2,x2+dsz,hight-y2)
+                        elsif dms="X" then
+--                          gCanvasLine(graph,x2-3,y2-3,x2+3,y2+3)
+                            gCanvasLine(graph,x2-dsz,hight-(y2-dsz),x2+dsz,hight-(y2+dsz))
+--                          gCanvasLine(graph,x2-3,y2+3,x2+3,y2-3)
+                            gCanvasLine(graph,x2-dsz,hight-(y2+dsz),x2+dsz,hight-(y2-dsz))
+                        elsif dms="DOT" then
+                            gCanvasPixel(graph,x2,hight-y2)
+                        else
+                            crash("unknown MARKSTYLE (%s)",{dms})
+                        end if
+                    end if
+                    if not mm or (dmm="MARKLINE" and i>=2) then
+--                      gCanvasLine(graph,x1,y1,x2,y2)
+--if abs(x2-x1)<.5 and abs(y2-y1)<.5 then
+--                      gCanvasPixel(graph,x2,hight-y2)
+--else
+                        gCanvasLine(graph,x1,hight-y1,x2,hight-y2)
+--end if
+                    end if
+                end if
+                x1 = x2
+                y1 = y2
+            end for
+        end if
+--gdots = 0
+        if legend then
+            integer lX = lx-20,
+--                  lY = hight-ly-25
+                    lY = ly-25
+            if mode="BAR" then -- (untested)
+                gCanvasRect(graph,lX,lX+10,lY-5,lY+5,true)
+--              gCanvasRect(graph,lX,lX+10,hight-(lY-5),hight-(lY+5),true)
+            else
+                if mm then
+                    if dms="HOLLOW_CIRCLE" then
+                        gCanvasCircle(graph,lX+15,lY,8)
+                    elsif dms="PLUS" then
+                        gCanvasLine(graph,lX+15,lY-5,lX+15,lY-5)
+                        gCanvasLine(graph,lX+10,lY,lX+20,lY)
+                    elsif dms="X" then
+                        gCanvasLine(graph,lX+10,lY+5,lX+20,lY-5)
+                        gCanvasLine(graph,lX+10,lY-5,lX+20,lY+5)
+                    elsif dms="DOT" then
+                        gCanvasPixel(graph,lX+15,lY)
+                    else --default/x
+                        ?9/0
+                    end if
+                end if
+                if not mm or dmm="MARKLINE" then
+                    gCanvasLine(graph,lX+5,lY,lX+25,lY)
+                end if
+            end if
+            gCanvasSetForeground(graph,XPG_BLACK)
+            gCanvasText(graph,lX,lY,datasets[legend][2][d-lm1])
+--DEV erm...            
+            ly += lh
+--          ly -= lh
+        end if
+    end for
+
+    gCanvasSetBackground(graph,bgclr)
+--  cdCanvasFlush(graph)
+--  IupSetAttribute(graph,"RASTERSIZE",NULL) -- release the minimum limitation
+    if post then post(graph) end if
+--?"graph drawn"
+end procedure
+internal_rtns &= xpg_redraw_graph; -- (let/permit/allow this to be a perfectly valid rtn)
+
+global function gGraph(rtn drid, string attributes="", sequence args={})
+    gdx graph = gCanvas(xpg_redraw_graph)
+--  gdx graph = gCanvas(xpg_redraw_graph,attributes,args)
+--  gdx graph = gCanvas(xpg_redraw_graph,attributes,args,GRAPH)
+    ctrl_xtra[graph][CX_CANVAS_TYPE] = GRAPH
+--  gSetAttribute(graph,"BGCOLOR",XPG_WHITE) -- (set a default)
+--erm...
+--  gCanvasSetForeground(graph,XPG_WHITE) -- (set a default)
+--  xpg_register_handler(CANVAS,"DRID",{{0,0,"F"},{1,1,"FO"}})
+    xpg_register_handler(CANVAS,"DRID",{"F","FO"})
+--  xpg_register_handler(CANVAS,"XRID",{{1,1,"FI"}})
+    xpg_register_handler(CANVAS,"XRID",{"FI"})
+--  xpg_register_handler(CANVAS,"YRID",{{1,1,"FI"}})
+    xpg_register_handler(CANVAS,"YRID",{"FI"})
+    gSetHandler(graph,"DRID",drid)
+    object grattrbs = repeat(0,GX_LEN)
+    grattrbs[GX_GRID] = true        -- (show the grid by default)
+    grattrbs[GX_LEGENDBOX] = true   -- (ditto box around legend)
+    grattrbs[GX_GRIDCOLOR] = XPG_GREY
+    grattrbs[GX_XTICK] = 1
+    grattrbs[GX_YTICK] = 1
+    grattrbs[GX_XMARGIN] = 10
+    grattrbs[GX_YMARGIN] = 10
+    grattrbs[GX_GTITLE] = ""
+    grattrbs[GX_XNAME] = ""
+    grattrbs[GX_YNAME] = ""
+    grattrbs[GX_XTICKFMT] = "%g"
+    grattrbs[GX_YTICKFMT] = "%g"
+    grattrbs[GX_MODE] = ""
+    grattrbs[GX_BARMODE] = ""
+    grattrbs[GX_MARKSTYLE] = ""
+    grattrbs[GX_MARKSIZE] = 3
+    ctrl_xtra[graph][CX_GTL_ATTRS] = grattrbs
+    grattrbs = 0 -- (kill refcount)
+    if length(attributes) then
+        gSetAttributes(graph,attributes,args)
+    end if
+    return graph    
+end function
+
 global function gHbox(sequence children={}, string attributes="", sequence args={})
     return gBox('H',children,attributes,args)
 end function
-
-global function gImageRGBA(integer width, height, sequence pixels)
-    if backend=GTK then
---      return c_func(gdk_pixbuf_new_from_xpm_data,{xpg_word_array(xpm)})
-    elsif backend=WinAPI then
---          atom {mem,hdrSize} = xpm[2],
---               hdc = c_func(xGetDC,{0}),      -- Get the screen's device context.
---              hDIB = c_func(xCreateDIBitmap, {hdc,                -- create DDB for/compatible with this
---                                              mem,                -- info about the DIB to create, eg h*w
---                                              CBM_INIT,           -- initialise it please with...
---                                              mem+hdrSize,        --      this bitmap,
---                                              mem,                --      which has this structure
---                                              DIB_RGB_COLORS})    --      and has explicit RGB values
---          assert(hDIB!=NULL)
---          bool bOK = c_func(xReleaseDC,{0,hdc})
---          assert(bOK)
---          return hDIB
-    else
-        ?9/0 -- (unknown backend)
-    end if
---/*
-    let id = document.createElement("canvas");
-    id.width = width;
-    id.height = height;
-    let ctx = id.getContext("2d"),
-        imgData = ctx.createImageData(width,height),
-        len = length(pixels);
-    for (let i = 0; i < len; i += 1) {
-        imgData.data[i] = pixels[i+1];
-    }
-    ctx.putImageData(imgData,0,0);
-//  return id;
-//or, maybe:
-    let res = id.toDataURL();
-    return res;
---*/
-    return {width,height,pixels}
-end function
-
-global function gImageRGB(integer width, height, sequence pixels)
---/*
-    let id = document.createElement("canvas");
-    id.width = width;
-    id.height = height;
-    let ctx = id.getContext("2d"),
-        imgData = ctx.createImageData(width,height),
-        len = length(pixels),
-        k = 0;
-    for (let i = 0; i < len; i += 3) {
-        imgData.data[k+0] = pixels[i+1];
-        imgData.data[k+1] = pixels[i+2];
-        imgData.data[k+2] = pixels[i+3];
-        imgData.data[k+3] = 255; // (alpha)
-        k += 4
-    }
-    ctx.putImageData(imgData,0,0);
-    let res = id.toDataURL();
-    return res;
---*/
-    return {width,height,pixels}
---  return {"gImage",width,height,pixels}
-end function
-
-global function gImage(integer width, height, sequence pixels, palette={})
-    if palette={} then
-        palette = {{  0,  0,  0}, // ( 0 XPG_BLACK         = 0x000000)
-                   {#80,  0,  0}, // ( 1 XPG_DARK_RED      = 0x800000)
-                   {  0,#80,  0}, // ( 2 XPG_DARK_GREEN    = 0x008000) 
-                   {#80,#80,  0}, // ( 3 XPG_DARK_YELLOW   = 0x808000 aka XPG_OLIVE)
-                   {  0,  0,#80}, // ( 4 XPG_DARK_BLUE     = 0x000080 aka XPG_NAVY)
-                   {#80,  0,#80}, // ( 5 XPG_DARK_MAGENTA  = 0x800080) 
-                   {  0,#80,#80}, // ( 6 XPG_DARK_CYAN     = 0x008080) 
-                   {#C0,#C0,#C0}, // ( 7 XPG_GRAY          = 0xC0C0C0 aka XPG_GREY, XPG_SILVER)
-                   {#80,#80,#80}, // ( 8 XPG_DARK_GRAY     = 0x808080 aka XPG_DARK_GREY)
-                   {#FF,  0,  0}, // ( 9 XPG_RED           = 0xFF0000)   
-                   {  0,#FF,  0}, // (10 XPG_GREEN         = 0x00FF00 aka XPG_LIGHT_GREEN)
-                   {#FF,#FF,  0}, // (11 XPG_YELLOW        = 0xFFFF00)
-                   {  0,  0,#FF}, // (12 XPG_BLUE          = 0x0000FF)
-                   {#FF,  0,#FF}, // (13 XPG_MAGENTA       = 0xFF00FF)
-                   {  0,#FF,#FF}, // (14 XPG_CYAN          = 0x00FFFF)
-                   {#FF,#FF,#FF}} // (15 XPG_WHITE         = 0xFFFFFF)
-    else
-        for i,pi in palette do
-            if atom(pi) or string(pi) then
-                palette[i] = to_rgba(pi)
-            end if
-        end for
-    end if
---/*
-    let id = document.createElement("canvas");
-    id.width = width;
-    id.height = height;
-    let ctx = id.getContext("2d"),
-        imgData = ctx.createImageData(width,height),
-        len = length(pixels),
-        k = 0;
-//DEV defer this until actually used, or better yet optionally allow a palette.
-    const $gImageDefaultColours = [
-
-//  if (length(palette) === 0) { palette = ["sequence",XPG_BLACK, etc.]; }
-    for (let i = 0; i < len; i += 1) {
-//      let pi = pixels[i+1],
-        let /*integer*/ pi = $subse(pixels,i+1),
-            p3 = $gImageDefaultColours[pi];
-//          p3 = to_rgba(palette[pi]);
-        for (let j = 0; j < 3; j += 1) {
-            imgData.data[k] = p3[j];
-            k += 1;
-        }   
-        imgData.data[k] = 255; // (alpha)
-        k += 1;
-    }
-    ctx.putImageData(imgData,0,0);
-    let res = id.toDataURL();
-    return res;
-}
---*/
---dev:
-    return {"gImage",width,height,pixels}
-end function
-
-global function gImage_from_XPM(sequence xpm)
-    if not bInit then xpg_Init() end if
-    if string(xpm) then xpm = split(xpm,'\n') end if
-    object img
-    if backend=GTK then
-        img = xpg_xpm_callback(xpm)
-    elsif backend=WinAPI then
-        img = xpg_winAPI_create_DIB_from_xpm(xpm,xpg_xpm_callback)
-    else
-        ?9/0 -- (unknown backend)
-    end if
-    gdc res = {"gImage",img}
-    return res
-end function
-
-global procedure gImageDraw(gdc src, tgt, atom x=0, y=0)
-    assert(sequence(src)) // **NOT** a gCanvas (but tgt can be)
-    if backend=GTK then
-        if atom(tgt) then   -- a gCanvas
-            atom handle = ctrl_handles[tgt],
-                 window = c_func(gtk_widget_get_window,{handle}),
-                  cairo = c_func(gdk_cairo_create,{window}),
-                 pixbuf = src[2]
-            c_proc(gdk_cairo_set_source_pixbuf,{cairo,pixbuf,x,y})
-            c_proc(cairo_paint,{cairo})
-            c_proc(cairo_fill,{cairo})
-            c_proc(cairo_destroy,{cairo})
-        else
-            ?9/0 -- gImage -> gImage
-        end if
-    elsif backend=WinAPI then
-        if atom(tgt) then   -- a gCanvas
---DEV/SUG (not quite the time for me to add a buglette right now...)
---          assert(gdx(tgt) and ctrl_types[tgt]=CANVAS)
-            atom destDC = ctrl_xtra[tgt][CX_CANVAS_HDC],
-                  srcDC = c_func(xCreateCompatibleDC,{destDC}),
-                {hDIB,w,h,cTrans} = src[2],
-                 prevBM = c_func(xSelectObject,{srcDC,hDIB})
-            bool bOK
---DEV or use AlphaBlend if it is a 32-bit bitmap??
-            if cTrans then
-                cTrans = xpg_WinAPI_rgb_to_bgr(cTrans)
-                bOK = c_func(xTransparentBlt,{destDC,x,y,w,h,srcDC,0,0,w,h,cTrans})
-            else                
-                bOK = c_func(xBitBlt,{destDC,x,y,w,h,srcDC,0,0,SRCCOPY})
-            end if
-            assert(bOK)
-            prevBM = c_func(xSelectObject,{srcDC,prevBM})
-            bOK = c_func(xDeleteDC,{srcDC})
-            assert(bOK)
-        else
-            ?9/0 -- gImage -> gImage
-        end if
-    else
-        ?9/0 -- (unknown backend)
-    end if
-end procedure
-
---/*
---dang, 2.32, not in my 2.24:
---GdkPixbuf*
---gdk_pixbuf_new_from_bytes (
---  GBytes* data,
---  GdkColorspace colorspace,
---  gboolean has_alpha,
---  int bits_per_sample,
---  int width,
---  int height,
---  int rowstride
---)
---deprecated: (gone in gtk3)
---GdkPixbuf*
---gdk_pixbuf_new_from_inline (
---  gint data_length,
---  const guint8* data,
---  gboolean copy_pixels,
---  GError** error
---)
-GdkPixbuf*
-gdk_pixbuf_add_alpha (
-    const GdkPixbuf* pixbuf,
-    gboolean substitute_color,
-    guchar r,
-    guchar g,
-    guchar b
-)
-
-GdkPixbuf*
-gdk_pixbuf_new_from_data (
-  const guchar* data,
-  GdkColorspace colorspace,
-  gboolean has_alpha,
-  int bits_per_sample,
-  int width,
-  int height,
-  int rowstride,
-  GdkPixbufDestroyNotify destroy_fn,
-  gpointer destroy_fn_data
-)
-void
-gdk_pixbuf_fill (
-  GdkPixbuf* pixbuf,
-  guint32 pixel
-)
-int
-gdk_pixbuf_get_bits_per_sample (
-  const GdkPixbuf* pixbuf
-)
-both gtk2 and gtk3:
-gdk_pixbuf_get_bits_per_sample
-gdk_pixbuf_get_colorspace
-gdk_pixbuf_get_file_info
-gdk_pixbuf_get_formats
-gdk_pixbuf_get_has_alpha
-gdk_pixbuf_get_height
-gdk_pixbuf_get_n_channels
-gdk_pixbuf_get_option
-gdk_pixbuf_get_pixels
-gdk_pixbuf_get_rowstride
-gdk_pixbuf_get_type
-gdk_pixbuf_get_width
-
-constant GDK_COLORSPACE_RGB = 0
-static void put_pixel(GdkPixbuf *pixbuf, int x, int y, guchar red, guchar green, guchar blue, guchar alpha) {
-  int n_channels = gdk_pixbuf_get_n_channels(pixbuf);
-
-  // Ensure that the pixbuf is valid
-  g_assert (gdk_pixbuf_get_colorspace (pixbuf) == GDK_COLORSPACE_RGB);
-
-  g_assert (gdk_pixbuf_get_bits_per_sample (pixbuf) == 8);
-  g_assert (gdk_pixbuf_get_has_alpha (pixbuf));
-  g_assert (n_channels == 4);
-
-  int width = gdk_pixbuf_get_width (pixbuf);
-  int height = gdk_pixbuf_get_height (pixbuf);
-
-  // Ensure that the coordinates are in a valid range
-  g_assert (x >= 0 && x < width);
-  g_assert (y >= 0 && y < height);
-
-  int rowstride = gdk_pixbuf_get_rowstride (pixbuf);
-
-  // The pixel buffer in the GdkPixbuf instance
-  guchar *pixels = gdk_pixbuf_get_pixels (pixbuf);
-
-  // The pixel we wish to modify
-  guchar *p = pixels + y * rowstride + x * n_channels;
-  p[0] = red;
-  p[1] = green;
-  p[2] = blue;
-  p[3] = alpha;
-}
-
--- demo\rosetta\Bitmap_Greyscale.exw  (runnable version)
-
-function to_grey(sequence image)
-    integer dimx = length(image),
-            dimy = length(image[1])
-    for x=1 to dimx do
-        for y=1 to dimy do
-            integer pixel = image[x][y]          -- red,green,blue
-            sequence r_g_b  =  sq_and_bits(pixel,{#FF0000,#FF00,#FF})
-            integer {r,g,b} = sq_floor_div(r_g_b,{#010000,#0100,#01})
-            image[x][y] = floor(0.2126*r + 0.7152*g + 0.0722*b)*#010101
-        end for
-    end for
-    return image
-end function
-
---include ppm.e   -- read_ppm(), write_ppm(), to_grey()  (as distributed, instead of the above)
-
-sequence img = read_ppm("Lena.ppm")
-img = to_grey(img)
-write_ppm("LenaGray.ppm",img)
-
-Hmm, put it anywhere with translate etc, from https://www.cairographics.org/samples/image/ :
-int              w, h;
-cairo_surface_t *image;
-
-image = cairo_image_surface_create_from_png ("data/romedalen.png");
-w = cairo_image_surface_get_width (image);
-h = cairo_image_surface_get_height (image);
-
-cairo_translate (cr,128.0,128.0);
-cairo_rotate (cr,45*M_PI/180);
-cairo_scale  (cr,256.0/w,256.0/h);
-cairo_translate (cr,-0.5*w,-0.5*h);
-
-cairo_set_source_surface (cr,image,0,0);
---void cairo_set_source_surface (cairo_t *cr, cairo_surface_t *surface, double x,  double y);
-cairo_paint (cr);
-cairo_surface_destroy (image);
-ooh: gdk_cairo_set_source_pixbuf
---gdk_draw_pixbuf -- deprecated, 2.0 only
-static gboolean do_expose (GtkWidget *da, GdkEvent *event, gpointer data) {
-    (void)event; (void)data;
-    GError *err = NULL;
-    GdkPixbuf *pix = gdk_pixbuf_new_from_file("/usr/share/icons/cab_view.png",&err);
-    if(err) {
-        printf("Error : %s\n",err->message);
-        g_error_free(err);
-        return FALSE;
-    }
-    cairo_t *cr = gdk_cairo_create (da->window);
-    gdk_cairo_set_source_pixbuf(cr,pix,0,0);
-    cairo_paint(cr);
-    cairo_fill (cr);
-    cairo_destroy (cr);
-    return FALSE;
-}
-updated/completed:
-// gcc expose.c -o expose `pkg-config gtk+-3.0 --cflags --libs`
-#include <gtk/gtk.h>
-#include <stdlib.h>
-
-static gboolean on_window_draw (GtkWidget *da, GdkEvent *event, gpointer data) {
-    (void)event; (void)data;
-    GError *err = NULL;
-    GdkPixbuf *pix = gdk_pixbuf_new_from_file("/usr/share/icons/cab_view.png",&err);
-    if(err) {
-        printf("Error : %s\n",err->message);
-        g_error_free(err);
-        return FALSE;
-    }
-    cairo_t *cr = gdk_cairo_create(gtk_widget_get_window(da));
-    //    cr = gdk_cairo_create(da->window);
-    gdk_cairo_set_source_pixbuf(cr,pix,0,0);
-    cairo_paint(cr);
-    //    cairo_fill(cr);
-    cairo_destroy(cr);
-    //    return FALSE;
-}
-
-int main(int argc, char **argv) {
-    GtkWidget *window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-    GtkWidget *canvas;
-    gtk_widget_set_size_request(window,50,50);
-
-    g_signal_connect(window,"destroy",gtk_main_quit,NULL);
-    canvas = gtk_drawing_area_new();
-    gtk_container_add(window,canvas);
-    g_signal_connect(canvas,"draw",on_window_draw,NULL);
-
-    gtk_widget_set_app_paintable(canvas,TRUE);
-    gtk_widget_show_all(window);
-    gtk_main();
-    return 0;
-}
---umm:
-void access_pixel( Glib::RefPtr<Gdk::Pixbuf> imageptr, int x, int y) {
-   if ( !imageptr ) return;
-   Gdk::Pixbuf & image = *imageptr.operator->(); // just for convenience
-
-   if ( ! image.get_colorspace() == Gdk::COLORSPACE_RGB ) return;
-   if ( ! image.get_bits_per_sample() == 8 ) return;
-   if ( !( x>=0 && y>=0 && x<image.get_width() && y<image.get_height() ) ) return;
-
-   int offset = y*image.get_rowstride() + x*image.get_n_channels();
-   guchar * pixel = &image.get_pixels()[ offset ]; // get pixel pointer
-   if ( pixel[0]>128 ) pixel[1] = 0; // conditionally modify the green channel
-
-   queue_draw(); // redraw after modify
-}
-void MyArea::on_draw(const Cairo::RefPtr<Cairo::Context>& cr, int width, int height) {
-  auto image = Gdk::Pixbuf::create_from_file("myimage.png");
-  // Draw the image at 110, 90, except for the outermost 10 pixels.
-  Gdk::Cairo::set_source_pixbuf(cr,image,100,80);
-  cr->rectangle(110,90,image->get_width()-20,image->get_height()-20);
-  cr->fill();
-}
-
---button with image: (let's get an image on a gCanvas working first...)
-GtkWidget *image = gtk_image_new_from_file ("...");
-GtkWidget *button = gtk_button_new_with_label ("...");
-gtk_button_set_always_show_image (GTK_BUTTON (button),TRUE);
-gtk_button_set_image (GTK_BUTTON (button),image);
-
-button must have BS_BITMAP at creation
-SendMessage(hButton,BM_SETIMAGE,IMAGE_BITMAP,hBmp);
-
---scrollable canvas:
-#include <stdio.h>
-#include <stdlib.h>
-#include <math.h>
-#include <string.h>
-#include <ctype.h>
-#include <gtk/gtk.h>
-
-#define ZOOMING_STEP 1.2
-#define SCALING_FACTOR_INIT 1.0/10.0
-
-typedef struct m_data {
-    double scaling_factor;
-    cairo_surface_t *rectangle_surface_p, *final_surface_p;
-    GtkWidget *window_p, *drawing_area_p;
-    GtkAdjustment *hadjust_p, *vadjust_p;
-} m_data_struct;
-
-static void activate(GtkApplication *, gpointer);
-static gboolean zoom_it(GtkWidget *, GdkEvent *, gpointer);
-static gboolean configure_it(GtkWidget *, GdkEventConfigure *, gpointer);
-static gboolean draw_it(GtkWidget *, cairo_t *, gpointer);
-
-int main(int argc, char **argv) {
-    m_data_struct my_data;
-    my_data.scaling_factor = SCALING_FACTOR_INIT;
-    my_data.final_surface_p = NULL;
-    GtkApplication *app_p = gtk_application_new("calc.foil",G_APPLICATION_FLAGS_NONE);
-    g_signal_connect(app_p,"activate",G_CALLBACK(activate),&my_data);
-    int status = g_application_run(G_APPLICATION(app_p),0,NULL);
-    g_object_unref(app_p);
-}
-
-static void activate(GtkApplication *app_p, gpointer g_data_p) {
-
-    m_data_struct *my_data_p = (m_data_struct *)g_data_p;
-    my_data_p->window_p = gtk_application_window_new(app_p);
-    gtk_window_set_title(GTK_WINDOW(my_data_p->window_p),"Fot Calculation");
-    gtk_container_set_border_width(GTK_CONTAINER(my_data_p->window_p),8);
-    GtkWidget *notebook_p = gtk_notebook_new();
-    gtk_container_add(GTK_CONTAINER(my_data_p->window_p), notebook_p);
-    GtkWidget *grid0_p = gtk_grid_new();
-    gtk_notebook_append_page(GTK_NOTEBOOK(notebook_p), grid0_p, gtk_label_new("First Tab"));
-    GtkWidget *grid1_p = gtk_grid_new();
-    gtk_grid_attach(GTK_GRID(grid0_p), grid1_p, 2, 2, 2, 50);
-
-    GtkWidget *frame_p = gtk_frame_new("Rectangle");
-    gtk_frame_set_shadow_type(GTK_FRAME(frame_p), GTK_SHADOW_NONE);
-    GtkWidget *frame0_p = gtk_frame_new(NULL);
-    GtkWidget *scrolled_window_p = gtk_scrolled_window_new(NULL, NULL);
-    my_data_p->hadjust_p = gtk_scrolled_window_get_hadjustment(GTK_SCROLLED_WINDOW(scrolled_window_p));
-    my_data_p->vadjust_p = gtk_scrolled_window_get_vadjustment(GTK_SCROLLED_WINDOW(scrolled_window_p));
-    GtkWidget *drawing_area_p = gtk_drawing_area_new();
-    gtk_widget_set_size_request(scrolled_window_p, 300, 300);
-    g_signal_connect(drawing_area_p, "configure-event", G_CALLBACK(configure_it), g_data_p);
-    g_signal_connect(drawing_area_p, "draw", G_CALLBACK(draw_it), g_data_p);
-    g_signal_connect(drawing_area_p, "scroll-event", G_CALLBACK(zoom_it), g_data_p);
-    gtk_widget_set_events(drawing_area_p, gtk_widget_get_events(drawing_area_p)|GDK_SCROLL_MASK);
-    my_data_p->drawing_area_p = drawing_area_p;
-
-    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled_window_p), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
-    gtk_container_add(GTK_CONTAINER(scrolled_window_p), drawing_area_p);
-    gtk_container_add(GTK_CONTAINER(frame_p), frame0_p);
-    gtk_container_add(GTK_CONTAINER(frame0_p), scrolled_window_p);
-    gtk_grid_attach(GTK_GRID(grid1_p), frame_p, 1, 0, 1, 2);
-    my_data_p->rectangle_surface_p = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 3000, 3000);
-    cairo_t *cr_p = cairo_create(my_data_p->rectangle_surface_p);
-    cairo_set_line_width(cr_p, 50);
-    cairo_rectangle(cr_p, 100, 100, 1375, 1375);
-    cairo_rectangle(cr_p, 1525, 1525, 1375, 1375);
-    cairo_set_source_rgb(cr_p, 0, 0, 0);
-    cairo_stroke(cr_p);
-
-    gtk_widget_show_all(my_data_p->window_p);
-}
-
-static gboolean zoom_it(GtkWidget *widget_p, GdkEvent *event_p, gpointer g_data_p) {
-    gdouble new_x, new_y;
-    int do_zoom = 0;
-    m_data_struct *my_data_p = (m_data_struct *)g_data_p;
-    GdkEventScroll *this_event_p = (GdkEventScroll *)event_p;
-    if (this_event_p->direction == GDK_SCROLL_UP) {
-        my_data_p->scaling_factor *= ZOOMING_STEP;
-        /* we need to calc the new upper to set value, +1 for inaccuracy */
-        gtk_adjustment_set_upper(my_data_p->hadjust_p,gtk_adjustment_get_upper(my_data_p->hadjust_p)*ZOOMING_STEP+1);
-        gtk_adjustment_set_upper(my_data_p->vadjust_p,gtk_adjustment_get_upper(my_data_p->vadjust_p)*ZOOMING_STEP+1);      
-        new_x = this_event_p->x * ZOOMING_STEP;
-        new_y = this_event_p->y * ZOOMING_STEP;
-        do_zoom = 1;
-    }
-    if (this_event_p->direction == GDK_SCROLL_DOWN) {
-        double sf = my_data_p->scaling_factor / ZOOMING_STEP;
-        if (sf >= SCALING_FACTOR_INIT / (1 + (ZOOMING_STEP - 1) / 2)) {
-            /* zoom out max till level 0 but preventing inability */
-            /* not to zoom to level 0 due to inaccurancy */
-            my_data_p->scaling_factor = sf;
-            new_x = this_event_p->x / ZOOMING_STEP;
-            new_y = this_event_p->y / ZOOMING_STEP;
-            do_zoom = 1;
-        }
-    }
-    if (do_zoom) {
-        gtk_adjustment_set_value(my_data_p->hadjust_p,new_x+gtk_adjustment_get_value(my_data_p->hadjust_p)-this_event_p->x);
-        gtk_adjustment_set_value(my_data_p->vadjust_p,new_y+gtk_adjustment_get_value(my_data_p->vadjust_p)-this_event_p->y);
-        configure_it(widget_p, (GdkEventConfigure *)event_p, g_data_p);
-        gtk_widget_queue_draw(widget_p);
-    }
-    return TRUE;
-}
-
-static gboolean configure_it(GtkWidget *widget_p, GdkEventConfigure *event_p, gpointer g_data_p) {
-    m_data_struct *my_data_p = (m_data_struct *)g_data_p;
-    if (my_data_p->final_surface_p) { cairo_surface_destroy(my_data_p->final_surface_p); }
-    int s = 3000 * my_data_p->scaling_factor;
-    my_data_p->final_surface_p = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, s, s);
-    gtk_widget_set_size_request(my_data_p->drawing_area_p, s, s);
-    cairo_t *cr_p = cairo_create(my_data_p->final_surface_p);
-    cairo_scale(cr_p, my_data_p->scaling_factor, my_data_p->scaling_factor);
-    cairo_set_source_surface(cr_p, my_data_p->rectangle_surface_p, 0, 0);
-    cairo_paint(cr_p);
-    cairo_destroy(cr_p);
-    return TRUE;
-}
-
-static gboolean draw_it(GtkWidget *widget_p, cairo_t *cr_p, gpointer g_data_p) {
-    cairo_set_source_surface(cr_p, ((m_data_struct *)g_data_p)->final_surface_p, 0, 0);
-    cairo_paint(cr_p);
-    return FALSE;
-}
-from https://stackoverflow.com/questions/67145644/how-do-i-draw-a-pixmap-with-gtk
-#include <gtk/gtk.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <stdbool.h>
-
-const int WIDTH = 1080;
-const int HEIGHT = 720;
-
-GtkWidget* mainWindow;
-
-int currentCol = 0;
-
-uint32_t* framebuffer = NULL;
-GdkPixbuf* pixbuf = NULL;
-
-
-typedef struct _rgbColor {
-    uint8_t red;
-    uint8_t green;
-    uint8_t blue;
-    uint8_t alpha;
-}rgbColor;
-
-void encodePixel(uint32_t* fb, rgbColor c, int x, int y) {
-    uint32_t r, g, b, a;
-
-    r = c.red;
-    g = c.green << 8;
-    b = c.blue << 16;
-    a = c.alpha << 24;
-    
-//  *(fb + (sizeof(uint32_t)*y+x)) = b | g | r | a;
-    fb[WIDTH*y+x] = b | g | r | a;
-}
-
-void fillWithColour(uint32_t* fb, rgbColor c) {
-    for (int y = 0; y < HEIGHT; y++) {
-        for (int x = 0; x < WIDTH; x++) {
-            encodePixel(fb, c, x, y);
-        }
-    }
-}
-
-void fillEveryInterval(uint32_t* fb, rgbColor c, int interval) {
-    for (int y = 1; y < HEIGHT; y += interval) {
-        for (int x = 0; x < WIDTH; x++) {
-            encodePixel(fb, c, x, y);
-        }
-    }
-}
-
-gboolean onTimerTick(gpointer user_data) {
-    rgbColor c = {0, 0, 0, 255};
-    if (currentCol == 0) {
-        c.red = 255;
-    }
-    if (currentCol == 1) {
-        c.green = 255;
-    }
-    if (currentCol == 2) {
-        c.blue = 255;
-        currentCol = -1;
-    }
-    currentCol++;
-    fillWithColour(framebuffer, c);
-
-    rgbColor c1 = {0, 0, 255, 255};
-    fillEveryInterval(framebuffer, c1, 20);
-    gtk_widget_queue_draw(mainWindow);
-    return 1;
-}
-
-gboolean onDraw(GtkWidget* widget, cairo_t *cr, gpointer user_data) {
-    gdk_cairo_set_source_pixbuf(cr, pixbuf, 0, 0);
-    cairo_paint(cr);
-    return 0;
-}
-
-void onWindowDestroy (GtkWidget* object, gpointer user_data) {
-    gtk_main_quit();
-}
-
-int main() {
-    framebuffer = malloc(sizeof(uint32_t)*WIDTH*HEIGHT);
-    rgbColor c = {255, 0, 0, 255};
-    fillWithColour(framebuffer, c);
-
-
-    gtk_init(NULL, NULL);
-    mainWindow = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-    gtk_window_set_default_size(GTK_WINDOW(mainWindow), WIDTH, HEIGHT);
-    gtk_window_set_title(GTK_WINDOW(mainWindow), "Framebuffer test");
-
-    GtkWidget* drawingArea = gtk_drawing_area_new();
-
-    gtk_container_add(GTK_CONTAINER(mainWindow), drawingArea);
-
-    g_signal_connect(GTK_WINDOW(mainWindow), "destroy", (GCallback)onWindowDestroy, NULL);
-    g_signal_connect(GTK_DRAWING_AREA(drawingArea), "draw", (GCallback)onDraw, NULL);
-
-    g_timeout_add(500, onTimerTick, NULL);
-
-    gtk_widget_show_all(GTK_WINDOW(mainWindow));
-    pixbuf = gdk_pixbuf_new_from_data(framebuffer, GDK_COLORSPACE_RGB, true, 8, WIDTH, HEIGHT, WIDTH*4, NULL, NULL);
-    gtk_main();
-}
-[DONE:] GdkPixbuf *gdk_pixbuf_new_from_data (const guchar *data,
-                     GdkColorspace colorspace,
-                     gboolean has_alpha,
-                     int bits_per_sample,
-                     int width, int height,
-                     int rowstride,
-                     GdkPixbufDestroyNotify destroy_fn,
-                     gpointer destroy_fn_data);
-typedef enum {
-    GDK_COLORSPACE_RGB
-} GdkColorspace;
-
---*/
 
 local procedure xpg_Label(gdx id)
     -- (invoked via xpg_map)
@@ -12370,14 +15099,22 @@ local procedure xpg_Label(gdx id)
     atom label
     nullable_string title = gGetAttribute(id,"TITLE",NULL)
 --  if title=NULL then title="" end if
-    if backend=GTK then
+    if backend=XPG_GTK then
         label = c_func(gtk_label_new,{title})
+--      if bGTK3 then
+----GTK3:
+--void
+--gtk_widget_set_halign (
+--  GtkWidget* widget,
+--  GtkAlign align
+--)
+        c_proc(gtk_misc_set_alignment,{label,0,0})
         xpg_setID(label,id)
         xpg_gtk_add_to(parent,label)
 --      c_proc(gtk_container_add,{ctrl_handles[parent],label})
---      xpg_signal_connect(label,"realize",xpg_gtk_widget_realized,id)
+--      xpg_gtk_signal_connect(label,"realize",xpg_gtk_widget_realized,id)
         c_proc(gtk_widget_realize,{label})
-    elsif backend=WinAPI then
+    elsif backend=XPG_WINAPI then
         atom dwStyle = or_all({WS_CHILD,WS_VISIBLE,ES_LEFT})
 --             {w,h} = xpg_set_label_natural_size(id,title)
 --integer
@@ -12398,9 +15135,9 @@ function xpg_set_label_attribute(gdx id, string name, object v, bool bMapped)
         assert(string(v))
         if not bMapped then
             xpg_defer_attr(id,name,v)
-        elsif backend=GTK then
+        elsif backend=XPG_GTK then
             c_proc(gtk_label_set_text_with_mnemonic,{handle,xpg_gtk_mnemonicalize(v)})
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
             c_proc(xSetWindowText,{handle,v})
 --          xpg_set_label_natural_size(id,title)
         else
@@ -12423,9 +15160,9 @@ end function
 function xpg_get_label_attribute(gdx id, string name, object dflt)
     atom handle = ctrl_handles[id]
     if name="TITLE" then
-        if backend=GTK then
+        if backend=XPG_GTK then
             return peek_string(c_func(gtk_label_get_text,{handle}))
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
             integer l = c_func(xGetWindowTextLength,{handle})
             string title = repeat(' ',l)
             c_proc(xGetWindowText,{handle,title,l+1})
@@ -12443,12 +15180,12 @@ global function gLabel(nullable_string title=NULL, sequence attributes="", args=
     integer id = xpg_add_control(LABEL)
 --test_elem = id
 --  xpg_register_handler(LABEL,"XXX",{{1,1,"PO"}})
-    set_ctrl_msg(LABEL,xpg_Label,xpg_set_label_attribute,
-                                 xpg_get_label_attribute)
+    xpg_set_ctrl_msg(LABEL,xpg_Label,xpg_set_label_attribute,
+                                     xpg_get_label_attribute)
 --DEV...
 --  gSetAttribute(id,"FONT","Helvetica, 9")
     if title!=NULL then
-if backend=GTK then title &= " " end if     --DEV in case italic...
+if backend=XPG_GTK then title &= " " end if     --DEV in case italic...
         gSetAttribute(id,"TITLE",title)
     end if
     if length(attributes) then
@@ -12457,87 +15194,78 @@ if backend=GTK then title &= " " end if     --DEV in case italic...
     return id
 end function 
 
-local function xpg_default_DROP(integer rid) return rid end function
-rtn_default_drop = xpg_default_DROP; -- (let/permit/allow this to be a perfectly valid rtn)
-
-local constant lSigs = {{1,1,"FI"},{2,2,"FOI"}}
-local enum              lFI,       lFOI
-
-local procedure redraw_list(gdx list)
---?9/0
---?"redraw_table"
--- [DEV] columns of {80,20,100} get 80/200,(4/10) 20/120 (1/6), and 100/100 (100%) of any slack respectively...
--- (later) First job: determine whether there is a vertical scrollbar... [unless that's already taken care of...]
-    object lstattr = ctrl_xtra[list][CX_GTL_ATTRS]
+--DEV this was supposed to use XPG_NORESET, presumably for performance/resource reasons, but doesn't yet...
+--      it would probably need some kind of look-ahead or probably better a simple single step buffering...
+local procedure xpg_redraw_list(gdx list)
+--?">xpg_redraw_list"
+    object lstattr = ctrl_xtra[list][CX_GTL_ATTRS],
+            sbinfo = ctrl_xtra[list][CX_SBINFO]
 --  if sequence(sortcol) then sortcol = sortcol[1] end if
-    object data = lstattr[LX_DATA]
---  sequence columns = deep_copy(tblattr[TX_COLUMNS]),
---           actcols = repeat(80,length(columns)),
---           colalgn = repeat('L',length(columns)),
---           ttlalgn = repeat('L',length(columns))
---           data = tblattr[TX_DATA],
---           tags = tblattr[TX_TAGSET]
---  lstattr = 0 -- (kill refcount)
---/*
-    for i,c in columns do
-        if not string(c) then
---          c = c[2]
---          if c<0 then c =-c; colexpd[i]='N' end if
-            actcols[i] = c[2]
-            if length(c)=3 then
-                string align = c[3]
-                ttlalgn[i] = align[1]
-                colalgn[i] = align[$]
-            end if
-            columns[i] = c[1]
-        end if
-    end for
---*/
---          {width, height} = gGetAttribute(list, "DRAWSIZE"),
-    integer {width, height} = gGetAttribute(list, "SIZE"),
-            n_rows, sIdx, lh = gGetTextExtent(list,"X")[2],
-            drop = gGetHandler(list,"DROP",xpg_default_DROP),
---          xCanvasSetForeground = drop(gCanvasSetForeground),
---          xCanvasRect = drop(gCanvasRect),
---          xCanvasLine = drop(gCanvasLine),
-            xCanvasText = drop(gCanvasText),
+    integer data = lstattr[LX_DATA],
+--          sbw = 17, --[SB_VWIDE],
+            sbw = iff(sequence(sbinfo)?sbinfo[SB_VWIDE]:17),
+            {width, height} = gGetAttribute(list, "SIZE"),
+            {ox,oy,vw,vh} = gGetAttribute(list,"VIEWPORT"),
+            line_height = gGetTextExtent(list,"X")[2],
+            longest_line,
+            n_rows, 
+--DEV kill this if it impacts performance in any way...
+            idrop = gGetHandler(list,"IDROP",xpg_default_IDROP),
+--          xCanvasSetForeground = idrop(gCanvasSetForeground),
+--          xCanvasRect = idrop(gCanvasRect),
+--          xCanvasLine = idrop(gCanvasLine),
+            xCanvasText = idrop(gCanvasText),
             -- /now/ it feels safe to shadow the globals:
 --          gCanvasSetForeground = xCanvasSetForeground,
 --          gCanvasRect = xCanvasRect,
 --          gCanvasLine = xCanvasLine,
             gCanvasText = xCanvasText
-    if integer(data) then
-        sequence sig = get_routine_info(data,false)
-        sIdx = find(sig,lSigs)
-        if sIdx=lFI then
-            n_rows = data(0)
-        elsif sIdx=lFOI then
-            n_rows = data(list,0)
-        else
-            ?9/0 -- unrecognised sig
-        end if
+    lstattr = 0 -- (kill refcount)
+    sbinfo = 0 -- (kill refcount)
+    ctrl_xtra[list][CX_GTL_ATTRS][LX_LINESTEP] = line_height
+--?{ox,oy,vw,vh}
+    string sig = get_routine_info(data,false)[3]
+    if sig="FI" then
+        n_rows = data(0)
+        longest_line = data(-1)
+    elsif sig="FOI" then
+        n_rows = data(list,0)
+        longest_line = data(list,-1)
     else
-        n_rows = length(data)
+        ?9/0 -- unrecognised sig
+    end if
+    if longest_line=0 then
+--DEV             sbinfo[SB_VWIDE] = 17
+--      gSetAttribute(list,"SCROLLSIZE",{width-17,line_height*(n_rows+1)})
+        gSetAttribute(list,"SCROLLSIZE",{width-sbw,line_height*(n_rows+1)})
     end if
     sequence si
---  integer nr = min(n_rows,ceil(height/lh)-1), vy = 13
-    integer nr = min(n_rows,ceil(height/lh)-1), vy = 9
-    for r=1 to nr do
-        if integer(data) then
-            if sIdx=lFI then
-                si = data(r)
-            elsif sIdx=lFOI then
-                si = data(list,r)
-            end if
+    integer l1 = max(1,floor(oy/line_height)+1),
+            nr = min(n_rows-l1+1,ceil(vh/line_height)),
+--?? (untried)
+--          nr = min(n_rows-l1+1,ceil(height/line_height)),
+            vy = oy
+    gCanvasSetForeground(list,XPG_BLACK) -- (nb *NOT* saved/restored between redraws)
+
+    for rll=iff(longest_line?0:1) to nr do
+        integer r = iff(rll=0?longest_line:rll+l1-1), vx = 2
+        if sig="FI" then
+            si = data(r)
+        elsif sig="FOI" then
+            si = data(list,r)
         else
-            si = data[r]
+            ?9/0
         end if
         if string(si) then
-            gCanvasText(list,2,vy,si)
+            if rll=0 then
+                vx += gGetTextExtent(list,si)[1]
+            else
+                gCanvasText(list,vx-ox,vy-oy,si,XPG_SE)
+            end if
         else
-            atom vx = 2
             for sii in si do
-                atom sic = -1, sis = -1
+                atom sic = -1, -- colour
+                     sis = -1  -- style
                 if not string(sii) then
                     if not sequence(sii) then
                         crash("fragments must be string or {string,colour[,style}}")
@@ -12549,113 +15277,30 @@ local procedure redraw_list(gdx list)
                     else
                         crash("unrecognised fragment[length]:%v",{sii})
                     end if
+                    assert(string(sii))
                 end if
-                assert(string(sii))
---              gCanvasText(list,vx,vy,sii,colour:=sic,style:=sis)
-                gCanvasText(list,vx,vy,sii,XPG_E,0,sic,sis)
+                if rll!=0 then
+                    gCanvasText(list,vx-ox,vy-oy,sii,XPG_SE,0,sic,sis)
+                end if
                 vx += gGetTextExtent(list,sii)[1]
             end for
         end if
-        vy += lh
+        if rll=0 then
+--DEV bit suspect... (not taking SB_VWIDE/SB_HHIGH into account?) [NAH!]
+            gSetAttribute(list,"SCROLLSIZE",{vx,line_height*(n_rows+1)})
+--          gSetAttribute(list,"SCROLLSIZE",{vx+sbw,line_height*(n_rows+1)})
+        else
+            vy += line_height
+        end if      
     end for
---/*
---          colsum = sum(actcols),
-            colsum = sum(filter(actcols,">",0)),
---          slack = width-colsum
-            slack = width-sum(sq_abs(actcols))
-    if slack>0 then
-        for i,c in actcols do
-            if c>0 then
-                integer ci = floor((c/colsum)*slack)
-                actcols[i] += ci
-                slack -= ci
-                colsum -= c
-            end if
-        end for
-    end if
-    actcols = sq_abs(actcols)
-    -- and save it for subsequent mouse handling:
-    ctrl_xtra[table][CX_GTL_ATTRS][TX_ACTCOLS] = actcols
-    
---string actcolstr = sprintf("%v",{actcols})
---string actcolstr = join(actcols,fmt:="%d")
---?{"width",width,"height",height,"columns",columns,"actcols",actcolstr,sum(actcols)}
-    gCanvasRect(table,0,width,0,24,true,colour:=XPG_GREY,fillcolour:=XPG_GREY)
-    gCanvasSetForeground(table,XPG_BLACK)
-    integer vx = 0, sortcol = 0, csgn = 0,
-            nr = min(length(data[1]),ceil(height/24)-1)
-    if sequence(ctrl_xtra[table][CX_GTL_ATTRS][TX_SORTCOLS]) then
-        sortcol = ctrl_xtra[table][CX_GTL_ATTRS][TX_SORTCOLS][1]
-        csgn = sign(sortcol)
-        sortcol = abs(sortcol)
-    end if
-    for c,a in actcols do   -- the vertical lines and column titles
-        gCanvasLine(table,vx,0,vx,height,colour:=XPG_LIGHT_GREY)
-        integer ta = ttlalgn[c],
-                tc = iff(c=sortcol?12:0), -- (space for chevron)
-                {tx, talign} = iff(ta='L'?{vx+5,XPG_EAST}:
-                               iff(ta='C'?{vx+floor(a/2),XPG_CENTRE}:
-                               iff(ta='R'?{vx+a-5-tc,XPG_WEST}:9/0)))
-        gCanvasText(table,tx,13,columns[c],talign)
-        if tc then
-            -- if sorted then draw the chevron
-            integer hx = vx+a-10, hy = 12
-            gCanvasLine(table,hx-5,hy-5*csgn,hx,hy)
-            gCanvasLine(table,hx,hy,hx+5,hy-5*csgn)
-            hy += 4*csgn
-            gCanvasLine(table,hx-5,hy-5*csgn,hx,hy)
-            gCanvasLine(table,hx,hy,hx+5,hy-5*csgn)
-        end if
-        integer ca = colalgn[c],
-                {cx, calign} = iff(ca='L'?{vx+5,XPG_EAST}:
-                               iff(ca='C'?{vx+floor(a/2),XPG_CENTRE}:
-                               iff(ca='R'?{vx+a-5,XPG_WEST}:9/0)))
---DEV use the tagset[DONE], and scroll info:
-        for r=1 to nr do
-            integer vy = 13+24*r,
-                    tr = tags[r]
-            object dtrc = data[1][tr][c]
-            if c<=length(data[2]) then
-                object d2c = data[2][c]
-                if string(d2c) then
---  d2c = `%[3]2d/%[2]02/%[1]4d`
-                    dtrc = sprintf(d2c,dtrc)
-                elsif sequence(d2c) then
-                    dtrc = d2c[r]
-                elsif d2c!=0 then
-                    integer fn = d2c
-                    dtrc = fn(data[1],r,c)
-                end if
-            end if
-            if not string(dtrc) then
-                dtrc = sprint(dtrc)
-            end if
-            gCanvasText(table,cx,vy,dtrc,calign)
-        end for
-        vx += a
-    end for
-    gCanvasSetForeground(table,XPG_LIGHT_GREY)
-    gCanvasLine(table,width-1,0,width-1,height)
-
-    for vy=0 to height by 24 do -- the horizontal lines
-        gCanvasLine(table,0,vy,width,vy)
-    end for 
---  gCanvasSetForeground(table,XPG_BLACK)
---*/
+--?"<xpg_redraw_list"
 end procedure
-rtn_list_redraw = redraw_list; -- (let/permit/allow this to be a perfectly valid rtn)
+internal_rtns &= xpg_redraw_list; -- (let/permit/allow this to be a perfectly valid rtn)
 
---global function gTable(sequence columns, data, integer rows=10, sequence attributes="", dword_seq args={})
---global function gList(object data, sequence attributes="", dword_seq args={})
-global function gList(object data, object selected=NULL, sequence attributes="", dword_seq args={})
---  {rows,attributes,args} = paranormalise_raa(rows,attributes,args,bCheckRid:=false)
+--global function gList(object data, object selected=NULL, sequence attributes="", dword_seq args={})
+global function gList(rtn data, object selected=NULL, sequence attributes="", dword_seq args={})
     {selected,attributes,args} = paranormalise_raa(selected,attributes,args)
---  if rows=0 then rows=10 end if
-    gdx list = gCanvas(redraw_list)
---  gdx list = gCanvas(redraw_list,attributes,args)
---?9/0
---DEV/SUG:
---  if rows<0 then rows = -rows; gSetAttribute(table,"SCROLLABLE",false) end if
+    gdx list = gCanvas(xpg_redraw_list)
 
 --  gSetAttribute(graph,"BGCOLOR",XPG_WHITE) -- (set a default)
 --erm...
@@ -12683,7 +15328,8 @@ global function gList(object data, object selected=NULL, sequence attributes="",
 --      gSetAttributes(list,attributes,args)
 --  end if
 
-    xpg_register_handler(CANVAS,"SELECTED",{{2,2,"POI"},{2,2,"POP"},{1,1,"PI"},{1,1,"PP"}})
+--  xpg_register_handler(CANVAS,"SELECTED",{{2,2,"POI"},{2,2,"POP"},{1,1,"PI"},{1,1,"PP"}})
+    xpg_register_handler(CANVAS,"SELECTED",{"POI","POP","PI","PP"})
     if selected!=NULL then
         gSetHandler(list,"SELECTED",selected)
     end if
@@ -12694,12 +15340,352 @@ global function gList(object data, object selected=NULL, sequence attributes="",
     return list
 end function 
 
+--DOH: the child of a dialog **must** be a vbox for a menu to be attached.
+--DOC: there is no MENU attribute of a gDialog, it's ""...
+
+local function xpg_gtk_menu_clicked(atom handle, integer id) -- (GTK only)
+    return xpg_menu_common(getd(handle,GTK_MENU_LOOKUP),id,false)
+end function
+
+local function xpg_gtk_menu_selected(atom handle, integer id) -- (GTK only)
+    return xpg_menu_common(getd(handle,GTK_MENU_LOOKUP),id,true)
+end function
+
+local procedure xpg_add_menu(integer pmid, atom menu, sequence children, bool bRadio)
+--?"xpg_add_menu"
+    bool bOK
+    string text
+    integer mdx
+    atom radio_group = NULL
+    sequence rdi = {}
+    for pos,c in children do
+        if string(c) then
+            assert(c="|" or c="-")
+            c = c[1]
+        end if
+        if atom(c) then
+            assert(c='|' or c='-')
+            if backend=XPG_GTK then
+                atom sep = c_func(gtk_separator_menu_item_new,{})
+                c_proc(gtk_widget_show,{sep}) -- (needed for popup menus)
+                c_proc(gtk_menu_shell_append,{menu,sep})
+                if radio_group!=NULL then
+                    bRadio = false
+                end if
+            elsif backend=XPG_WINAPI then
+                bOK = c_func(xAppendMenu,{menu,MF_SEPARATOR,0,NULL})
+                assert(bOK)
+                if length(rdi) then
+                    bRadio = false
+                end if
+            else
+                ?9/0 -- (unknown backend)
+            end if
+--      elsif length(c)=2 and integer(c[2]) then
+        elsif integer(c[$]) then
+            -- eg {"Cut",[img,]CUT=$}
+            bool bImg = length(c)==3
+            object img = iff(bImg?c[2]:NULL)
+--          {text,mdx} = c
+            text = c[1]
+            mdx = c[$]
+            bool bCheck = text[1]='?'
+            if bCheck then text = text[2..$] end if
+            if backend=XPG_GTK then
+                text = xpg_gtk_mnemonicalize(text)
+                atom mitem
+                if bCheck then
+                    assert(not bImg,"images on radio or check buttons not allowed")
+-- erm, gtk_menu_set_reserve_toggle_size(menu, false) [or not! - that may be gtk_menu_item() only]
+                    if bRadio then
+                        mitem = c_func(gtk_radio_menu_item_new_with_mnemonic,{radio_group,text})
+                        assert(mitem!=NULL)
+                        radio_group = c_func(gtk_radio_menu_item_get_group,{mitem})
+                    else
+                        mitem = c_func(gtk_check_menu_item_new_with_mnemonic,{text})
+                    end if
+                else
+                    if bImg then
+                        mitem = c_func(gtk_image_menu_item_new_with_mnemonic,{text})
+                        c_proc(gtk_image_menu_item_set_always_show_image,{mitem,true})
+--                      c_proc(gtk_image_menu_item_set_use_stock,{mitem,false}) -- (not actually needed)
+--20/11/23...
+--          if string(xpm) then xpm = split(xpm,'\n') end if
+--/*
+                        assert(img[1]="gImage") -- img is {"gImage",GtkPixbuf}
+                        atom gtk_image = c_func(gtk_image_new_from_pixbuf,{img[2]})
+                        c_proc(gtk_image_menu_item_set_image,{mitem,gtk_image})
+--*/
+                        assert(mdx!=0)
+--                      gMenuSetAttribute(pmid,mdx,"IMAGE",img)
+                    else
+                        mitem = c_func(gtk_menu_item_new_with_mnemonic,{text})
+                    end if
+                end if
+--?{mdx,text,mitem}
+                c_proc(gtk_widget_show,{mitem}) -- (needed for popup menus)
+                setd(mitem,pmid,GTK_MENU_LOOKUP)
+                if mdx then 
+                    setd({pmid,mdx},mitem,GTK_MENU_UPLOOK)
+                    if bImg then
+                        gMenuSetAttribute(pmid,mdx,"IMAGE",img)
+                    end if
+                end if
+                xpg_gtk_signal_connect(mitem,"activate",xpg_gtk_menu_clicked,mdx)
+                xpg_gtk_signal_connect(mitem,"select",xpg_gtk_menu_selected,mdx)
+                c_proc(gtk_menu_shell_append,{menu,mitem})
+--/*
+GtkWidget*
+gtk_radio_menu_item_new_with_mnemonic_from_widget (
+  GtkRadioMenuItem* group,
+  const gchar* label
+)
+GtkWidget*
+gtk_check_menu_item_new_with_mnemonic (
+  const gchar* label
+)
+--*/
+            elsif backend=XPG_WINAPI then
+
+--              bOK = c_func(xAppendMenu,{menu,MF_STRING+MF_CHECKED*bCheck,mdx,text})
+                bOK = c_func(xAppendMenu,{menu,MF_STRING,mdx,text})
+--?{mdx,text}
+                assert(bOK)
+--              if bCheck and bRadio then rdi &= mdx end if
+                if bCheck then
+--                  c_proc(xCheckMenuItem,{menu,mdx,MF_BYCOMMAND+MF_CHECKED})
+                    if bRadio then
+                        rdi &= mdx -- (full set stored for each below)
+                    else
+                        setd({pmid,mdx},0,WIN_MENU_CHECKED)
+                    end if
+                end if
+                if bImg then
+--/*
+                    assert(img[1]="gImage") -- img is {"gImage",{hDIB,w,h,t}}
+--/*
+    v = {1.844674407e+19,24,24,16777215}
+                object mi = getd({menu,id},WINAPI_SUBMENUS)
+                bool byPos = sequence(mi)
+                if byPos then {mh,id} = mi end if
+--*/
+                    integer misize = get_struct_size(idMENUITEMINFO)
+                    mem_set(pMENUITEMINFO,0,misize)
+                    set_struct_field(idMENUITEMINFO,pMENUITEMINFO,"cbSize",misize)
+                    set_struct_field(idMENUITEMINFO,pMENUITEMINFO,"fMask",MIIM_BITMAP)
+                    set_struct_field(idMENUITEMINFO,pMENUITEMINFO,"hbmpItem",img[2][1])
+                    bOK = c_func(xSetMenuItemInfo,{menu,mdx,false,pMENUITEMINFO})
+--  SetMenuItemBitmaps((HMENU)ih->handle, (UINT)ih->serial, MF_BYCOMMAND, hBitmapUnchecked, hBitmapChecked);
+                    assert(bOK)
+--*/
+                    gMenuSetAttribute(pmid,mdx,"IMAGE",img)
+
+--/*
+CreateCompatibleDC 
+                bOK = c_func(xGetMenuItemInfo,{mh,id,byPos,pMENUITEMINFO})
+                assert(bOK)
+                set_struct_field(idMENUITEMINFO,pMENUITEMINFO,"dwTypeData",xpg_raw_string_ptr(v))
+                bOK = c_func(xSetMenuItemInfo,{mh,id,byPos,pMENUITEMINFO})
+                assert(bOK)
+
+            set_struct_field(idMENUITEMINFO,pMENUITEMINFO,"fMask",MIIM_STRING)
+            set_struct_field(idMENUITEMINFO,pMENUITEMINFO,"dwTypeData",NULL)
+            bOK = c_func(xGetMenuItemInfo,{mh,id,byPos,pMENUITEMINFO})
+            if not bOK then
+                {{mh,id},byPos} = {getd({menu,id},WINAPI_SUBMENUS),true}
+                bOK = c_func(xGetMenuItemInfo,{mh,id,byPos,pMENUITEMINFO})
+                assert(bOK)
+            end if
+            integer cch = get_struct_field(idMENUITEMINFO,pMENUITEMINFO,"cch")+1
+            atom pMem = allocate(cch)
+            set_struct_field(idMENUITEMINFO,pMENUITEMINFO,"cch",cch)
+            set_struct_field(idMENUITEMINFO,pMENUITEMINFO,"dwTypeData",pMem)
+            bOK = c_func(xGetMenuItemInfo,{mh,id,byPos,pMENUITEMINFO})
+            string res = peek_string(pMem)
+            free(pMem)
+            set_struct_field(idMENUITEMINFO,pMENUITEMINFO,"fMask",MIIM_ID)
+            bool bOK = c_func(xGetMenuItemInfo,{lParam,mid,true,pMENUITEMINFO})
+            if bOK then
+                atom mh = get_struct_field(idMENUITEMINFO,pMENUITEMINFO,"wID")
+                -- at least we can get a submenu handle, but we have to convert
+                -- that into a menu identifier ourselves (I can half see why..)
+                mid = getd(mh,WINAPI_SUBMENUS)
+            else
+                mid = 0
+            end if
+
+static int winItemSetTitleImageAttrib(Ihandle* ih, const char* value)
+{
+  HBITMAP hBitmap;
+
+  /* check if the submenu handle was created in winSubmenuAddToParent */
+  if (ih->handle == (InativeHandle*)-1)
+    return 1;
+
+  hBitmap = iupImageGetImage(value, ih, 0);
+
+  {
+    MENUITEMINFO menuiteminfo;
+    menuiteminfo.cbSize = sizeof(MENUITEMINFO); 
+MIIM_BITMAP 
+0x00000080 
+    menuiteminfo.fMask = MIIM_BITMAP; 
+    menuiteminfo.hbmpItem = hBitmap;
+    SetMenuItemInfo((HMENU)ih->handle, (UINT)ih->serial, FALSE, &menuiteminfo);
+  }
+
+  winMenuUpdateBar(ih);
+
+  return 1;
+}
+--*/
+                end if
+--MIIM_BITMAP 
+            else
+                ?9/0 -- (unknown backend)
+            end if
+        else
+            text = c[1]
+            mdx = iff(length(c)=3?c[2]:0)
+            sequence grandkids = c[$]
+            bool bSubRadio = text[1]='?'
+            if bSubRadio then text = text[2..$] end if
+            if backend=XPG_GTK then
+                text = xpg_gtk_mnemonicalize(text)
+                atom mitem = c_func(gtk_menu_item_new_with_mnemonic,{text}),
+                   submenu = c_func(gtk_menu_new,{})
+                xpg_add_menu(pmid,submenu,grandkids,bSubRadio)
+                c_proc(gtk_menu_item_set_submenu,{mitem,submenu})
+                if mdx then
+                    setd(mitem,pmid,GTK_MENU_LOOKUP)
+--?{{pmid,mdx},text}
+                    setd({pmid,mdx},mitem,GTK_MENU_UPLOOK)
+                    xpg_gtk_signal_connect(mitem,"activate",xpg_gtk_menu_clicked,mdx)
+                    xpg_gtk_signal_connect(mitem,"select",xpg_gtk_menu_selected,mdx)
+                end if
+                c_proc(gtk_widget_show,{mitem}) -- (needed for popup menus)
+                c_proc(gtk_menu_shell_append,{menu,mitem})
+                if radio_group!=NULL then
+                    bRadio = false
+                end if
+            elsif backend=XPG_WINAPI then
+                atom submenu = c_func(xCreatePopupMenu,{})
+--?{"submenu",submenu,text,mdx,pmid}
+                if mdx then
+                    setd(submenu,mdx,WINAPI_SUBMENUS)
+                    setd({pmid,mdx},{menu,pos-1},WINAPI_SUBMENUS)
+                end if
+--17/11/23 moved so that gMenuSetAttribute("IMAGE") works [on the children]
+--              xpg_add_menu(pmid,submenu,grandkids,bSubRadio)
+                bOK = c_func(xAppendMenu,{menu,or_bits(MF_POPUP,MF_STRING),submenu,text})
+                assert(bOK)
+                xpg_add_menu(pmid,submenu,grandkids,bSubRadio)
+                if length(rdi) then
+                    bRadio = false
+                end if
+            else
+                ?9/0 -- (unknown backend)
+            end if
+        end if
+    end for
+    if length(rdi) then -- (implicitly WinAPI only)
+        rdi = sort(rdi)
+        integer f = rdi[1], l = rdi[$]
+        assert((l-f)=(length(rdi)-1))
+        bOK = c_func(xCheckMenuRadioItem,{menu,f,l,f,MF_BYCOMMAND})
+        -- and stash the full set against every entry
+        for mdx in rdi do
+            setd({pmid,mdx},{rdi,menu},WIN_MENU_CHECKED)
+        end for
+    end if
+end procedure
+
+-- or, if parent is a DIALOG it is a menubar...
+local procedure xpg_Menu(gdx id)
+    -- (invoked via xpg_map)
+    gdx parent = xpg_get_parent_id(id)
+    atom menu
+    sequence children = ctrl_xtra[id][1]
+    bool bRadio = ctrl_xtra[id][2]
+    assert(parent=NULL or bRadio=false)
+    ctrl_xtra[id] = 0 -- (no undo, yet)
+    if backend=XPG_GTK then
+--      assert(vbox?)
+        if parent then
+            menu = c_func(gtk_menu_bar_new,{})
+            atom vbox = ctrl_handles[parent]
+            c_proc(gtk_fixed_put,{vbox,menu,0,0})
+        else
+            menu = c_func(gtk_menu_new,{})
+        end if
+--      xpg_gtk_signal_connect(checkbox,"realize",xpg_gtk_widget_realized,id)
+--      xpg_gtk_signal_connect(menu,"clicked",xpg_gtk_menu_clicked,id)
+--      xpg_gtk_signal_connect(checkbox,"focus-in-event",xpg_gtk_focusinout,id)
+--      xpg_gtk_signal_connect(checkbox,"focus-out-event",xpg_gtk_focusinout,id)
+--      c_proc(gtk_widget_realize,{menu})
+    elsif backend=XPG_WINAPI then
+--             {w,h} = gGetTextExtent(parent,title)
+--      ctrl_size[id][SZ_NATURAL_W] = w?
+--      ctrl_size[id][SZ_NATURAL_H] = h
+        if parent then
+            menu = c_func(xCreateMenu,{})
+            bool bOK = c_func(xSetMenu,{ctrl_handles[parent],menu})
+            assert(bOK)
+        else
+            menu = c_func(xCreatePopupMenu,{})
+        end if
+    else
+        ?9/0 -- (unknown backend)
+    end if
+    xpg_setID(menu,id)
+    xpg_add_menu(id,menu,children,false)
+--dev deferred attributes?
+--?def_menu_attr[menu]
+--{{1,2},{{{"CHECKED",1},{"ACTIVE",1}},{{"ACTIVE",0}}}}
+    sequence {ids,attrs} = def_menu_attr[id]
+    def_menu_attr[id] = 0
+    for i,idx in ids do
+        for nv in attrs[i] do
+            {string name, object v} = nv
+            gMenuSetAttribute(id,idx,name,v)
+        end for
+    end for
+    if backend=XPG_WINAPI then xpg_WinAPI_draw_menu_bar(id) end if
+end procedure
+
+global function gMenu(sequence children, rtn handler, bool bRadio=false)
+    if not bInit then xpg_Init() end if
+    integer id = xpg_add_control(MENU)
+    ctrl_xtra[id] = {children,bRadio} -- as used by xpg_Menu, then undo highlight id for WinAPI
+--  xpg_register_handler(MENU,"HANDLER",{{3,3,"FOII"},{2,2,"FOI"},{2,2,"FII"},{1,1,"FI"}})
+--  xpg_register_handler(MENU,"HANDLER",{{3,3,"FOII"},{2,2,"FOI"},{1,1,"FI"}})
+--  xpg_register_handler(MENU,"HANDLER",{{3,3,"FOII"},{2,2,"FOI"}})
+    xpg_register_handler(MENU,"HANDLER",{"FOII","FOI"})
+    xpg_set_ctrl_msg(MENU,xpg_Menu,0,0) -- (ie gMenuGet[/Set]Attribute shd be used instead)
+--  gSetAttribute(id,"FONT","Helvetica, 9") -- WinAPI really don't like that!
+    assert(handler!=NULL)
+    gSetHandler(id,"HANDLER",handler)
+    def_menu_attr[id] = {{},{}} -- {{ids},{name,v} pairs}
+if backend=XPG_GTK then -- we certainly need it on this...
+--  if bGTK3 then
+--      ctrl_size[id][SZ_NATURAL_H] = 13
+--  else
+--      ctrl_size[id][SZ_NATURAL_H] = 25
+        ctrl_size[id][SZ_NATURAL_H] = 26
+--      ctrl_size[id][SZ_NATURAL_H] = 27
+--  end if
+end if
+    return id
+end function 
+
+--From: https://zetcode.com/gui/gtk2/menusandtoolbars/
+
 local procedure xpg_ProgressBar(gdx id)
     -- (invoked via xpg_map)
     gdx parent = xpg_get_parent_id(id)
     atom progress_bar
     bool orientation = gGetAttribute(id,"ORIENTATION",0)
-    if backend=GTK then
+    if backend=XPG_GTK then
         progress_bar = c_func(gtk_progress_bar_new,{})
         xpg_setID(progress_bar,id)
         if orientation then
@@ -12723,7 +15709,7 @@ local procedure xpg_ProgressBar(gdx id)
         xpg_gtk_add_to(parent,progress_bar)
 --      c_proc(gtk_container_add,{ctrl_handles[parent],progress_bar})
         c_proc(gtk_widget_realize,{progress_bar})
-    elsif backend=WinAPI then
+    elsif backend=XPG_WINAPI then
         atom dwStyle = or_all({WS_CHILD,WS_VISIBLE}),
 --WS_CLIPSIBLINGS?
              {w,h} = iff(orientation?{30,200}:{200,30})
@@ -12759,9 +15745,9 @@ function xpg_set_progress_attribute(gdx id, string name, object v, bool bMapped)
             atom {pbmin,pbmax,pbval} = ctrl_xtra[id]
             pbval = max(pbmin,min(pbval,pbmax))
             atom f = (pbval-pbmin)/(pbmax-pbmin)
-            if backend=GTK then
+            if backend=XPG_GTK then
                 c_proc(gtk_progress_bar_set_fraction,{handle,f})
-            elsif backend=WinAPI then
+            elsif backend=XPG_WINAPI then
                 f = floor(XPG_PB_MAX*f)
                 {} = c_func(xSendMessage,{handle,PBM_SETPOS,f,0})
             else
@@ -12785,14 +15771,14 @@ function xpg_set_progress_attribute(gdx id, string name, object v, bool bMapped)
         if string(v) then v = xpg_to_bool(v) end if
         if not bMapped then
             xpg_defer_attr(id,name,v)
-        elsif backend=GTK then
+        elsif backend=XPG_GTK then
             if not bGTK3 then
                 -- v shd be GTK_PROGRESS_CONTINUOUS|GTK_PROGRESS_DISCRETE
                 c_proc(gtk_progress_bar_set_bar_style,{handle,v})
             else
                 ?9/0
             end if
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
             atom dwStyle = c_func(xGetWindowLong,{handle,GWL_STYLE})
             if v then
                 if and_bits(dwStyle,PBS_SMOOTH) then
@@ -12825,10 +15811,10 @@ end function
 
 global function gProgressBar(string attributes="", args={})
     if not bInit then xpg_Init() end if
-    integer id = xpg_add_control(PROGRESSBAR)
---  xpg_register_handler(PROGRESSBAR,"VALUE_CHANGED",{{1,1,"PO"}})
-    set_ctrl_msg(PROGRESSBAR,xpg_ProgressBar,xpg_set_progress_attribute,
-                                             xpg_get_progress_attribute)
+    integer id = xpg_add_control(PROGRESS)
+--  xpg_register_handler(PROGRESS,"VALUE_CHANGED",{{1,1,"PO"}})
+    xpg_set_ctrl_msg(PROGRESS,xpg_ProgressBar,xpg_set_progress_attribute,
+                                              xpg_get_progress_attribute)
     if length(attributes) then
         gSetAttributes(id,attributes,args)
     end if
@@ -12986,6 +15972,7 @@ void iupdrvProgressBarInitClass(Iclass* ic)
 --*/
 
 local function xpg_gtk_slider_changed(atom handle, gdx id) -- (GTK only)
+-- (also used for spin changes)
     assert(id=xpg_getID(handle))
     integer value_changed = gGetHandler(id,"VALUE_CHANGED")
     if value_changed then
@@ -12999,7 +15986,7 @@ local procedure xpg_Slider(gdx id)
     gdx parent = xpg_get_parent_id(id)
     atom slider
     bool orientation = gGetAttribute(id,"ORIENTATION",0)
-    if backend=GTK then
+    if backend=XPG_GTK then
 --      atom adjustment = c_func(gtk_adjustment_new,{0,0,1.0,0.01,0.1,0})
         atom adjustment = c_func(gtk_adjustment_new,{0,0,100,1,20,0})
 --          {C_DBL,     --  gdouble value
@@ -13019,12 +16006,12 @@ local procedure xpg_Slider(gdx id)
         xpg_setID(slider,id)
         xpg_gtk_add_to(parent,slider)
 --      c_proc(gtk_container_add,{ctrl_handles[parent],slider})
---      xpg_signal_connect(slider,"realize",xpg_gtk_widget_realized,id)
-        xpg_signal_connect(slider,"value-changed",xpg_gtk_slider_changed,id)
-        xpg_signal_connect(slider,"focus-in-event",xpg_gtk_focusinout,id)
-        xpg_signal_connect(slider,"focus-out-event",xpg_gtk_focusinout,id)
+--      xpg_gtk_signal_connect(slider,"realize",xpg_gtk_widget_realized,id)
+        xpg_gtk_signal_connect(slider,"value-changed",xpg_gtk_slider_changed,id)
+        xpg_gtk_signal_connect(slider,"focus-in-event",xpg_gtk_focusinout,id)
+        xpg_gtk_signal_connect(slider,"focus-out-event",xpg_gtk_focusinout,id)
         c_proc(gtk_widget_realize,{slider})
-    elsif backend=WinAPI then
+    elsif backend=XPG_WINAPI then
         atom HV = iff(orientation?TBS_VERT:TBS_HORZ),
         dwStyle = or_all({WS_CHILD,WS_VISIBLE,HV,WS_TABSTOP}),
 --                                  TBS_AUTOTICKS,
@@ -13059,9 +16046,9 @@ function xpg_set_slider_attribute(gdx id, string name, object v, bool bMapped)
         if string(v) then v = to_number(v) end if
         if not bMapped then
             xpg_defer_attr(id,name,v)
-        elsif backend=GTK then
+        elsif backend=XPG_GTK then
             c_proc(gtk_range_set_value,{handle,v})
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
             {} = c_func(xSendMessage,{handle,TBM_SETPOS,true,v})
         else
             ?9/0 -- (unknown backend)
@@ -13076,9 +16063,9 @@ function xpg_get_slider_attribute(gdx id, string name, object dflt)
     if name="ORIENTATION" then
         return and_bits(ctrl_flags[id],CF_VERTICAL)!=0
     elsif name="VALUE" then
-        if backend=GTK then
+        if backend=XPG_GTK then
             return c_func(gtk_range_get_value,{handle})
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
             return c_func(xSendMessage,{handle,TBM_GETPOS,0,0})
         else
             ?9/0 -- (unknown backend)
@@ -13092,9 +16079,10 @@ global function gSlider(object orientation=NULL, value_changed=NULL, sequence at
     {orientation,value_changed,attributes,args} = paranormalise_traa(orientation,value_changed,attributes,args)
     if not bInit then xpg_Init() end if
     integer id = xpg_add_control(SLIDER)
-    xpg_register_handler(SLIDER,"VALUE_CHANGED",{{1,1,"PO"}})
-    set_ctrl_msg(SLIDER,xpg_Slider,xpg_set_slider_attribute,
-                                   xpg_get_slider_attribute)
+--  xpg_register_handler(SLIDER,"VALUE_CHANGED",{{1,1,"PO"}})
+    xpg_register_handler(SLIDER,"VALUE_CHANGED",{"PO"})
+    xpg_set_ctrl_msg(SLIDER,xpg_Slider,xpg_set_slider_attribute,
+                                       xpg_get_slider_attribute)
     if orientation!=NULL then
         gSetAttribute(id,"ORIENTATION",orientation)
     end if
@@ -13109,13 +16097,183 @@ global function gSlider(object orientation=NULL, value_changed=NULL, sequence at
     return id
 end function 
 
-local procedure redraw_table(gdx table)
+local procedure xpg_Spin(gdx id)
+    -- (invoked via xpg_map)
+    gdx parent = xpg_get_parent_id(id)
+    atom spin
+    bool bWrap = gGetAttribute(id,"WRAP",false)
+    if backend=XPG_GTK then
+        spin = c_func(gtk_spin_button_new_with_range,{0,100,1})
+        if bWrap then
+            c_proc(gtk_spin_button_set_wrap,{spin,true})
+        end if
+        xpg_setID(spin,id)
+        xpg_gtk_add_to(parent,spin)
+        xpg_gtk_signal_connect(spin,"value-changed",xpg_gtk_slider_changed,id)
+        xpg_gtk_signal_connect(spin,"focus-in-event",xpg_gtk_focusinout,id)
+        xpg_gtk_signal_connect(spin,"focus-out-event",xpg_gtk_focusinout,id)
+        c_proc(gtk_widget_realize,{spin})
+    elsif backend=XPG_WINAPI then
+        atom dwStyle = or_all({WS_CHILD,WS_VISIBLE,ES_RIGHT,WS_TABSTOP}),
+--           edit = xpg_WinAPI_create(id+1,"Edit",NULL,parent,70,25,dwStyle,WS_EX_CLIENTEDGE)
+             edit = xpg_WinAPI_create(id+1,"Edit",NULL,parent,70,22,dwStyle,WS_EX_CLIENTEDGE)
+        dwStyle = or_all({WS_CHILD,WS_VISIBLE,UDS_SETBUDDYINT,UDS_ALIGNRIGHT,UDS_ARROWKEYS})
+        if bWrap then dwStyle += UDS_WRAP end if
+--      spin = xpg_WinAPI_create(id,"msctls_updown32",NULL,parent,20,20,dwStyle,0)
+        spin = xpg_WinAPI_create(id,"msctls_updown32",NULL,parent,16,16,dwStyle,0)
+--DEV/temp:
+            integer flags = SWP_NOSIZE+SWP_NOACTIVATE
+            bool ok = c_func(xSetWindowPos,{edit,NULL,13,13,0,0,flags})
+            assert(ok)
+--      ctrl_xtra[id] = spin
+        {} = c_func(xSendMessage,{spin,UDM_SETBUDDY,edit,0})
+        {} = c_func(xSendMessage,{spin,UDM_SETRANGE32,0,100})
+    else
+        ?9/0 -- (unknown backend)
+    end if
+end procedure
+
+function xpg_set_spin_attribute(gdx id, string name, object v, bool bMapped)
+    atom handle = ctrl_handles[id]
+    if name="RANGE" then
+        if string(v) then v = xpg_intint(v) end if
+        assert(length(v)=2)
+        integer {minv,maxv} = v -- (delib typecheck)
+        if not bMapped then
+            xpg_defer_attr(id,name,v)
+        elsif backend=XPG_GTK then
+            c_proc(gtk_spin_button_set_range,{handle,minv,maxv})
+        elsif backend=XPG_WINAPI then
+            {} = c_func(xSendMessage,{handle,UDM_SETRANGE32,minv,maxv})
+        else
+            ?9/0 -- (unknown backend)
+        end if
+        return true
+    elsif name="STEP" then
+        if string(v) then v = to_number(v) end if
+        assert(integer(v) and v>0,"positive integer step only")
+        if not bMapped then
+            xpg_defer_attr(id,name,v)
+        elsif backend=XPG_GTK then
+            c_proc(gtk_spin_button_set_increments,{handle,v,v})
+        elsif backend=XPG_WINAPI then
+            set_struct_field(idUDACCEL,pUDACCEL,"nSec",0)
+            set_struct_field(idUDACCEL,pUDACCEL,"nInc",v)
+            integer bOK = c_func(xSendMessage,{handle,UDM_SETACCEL,1,pUDACCEL})
+            assert(bOK)
+        else
+            ?9/0 -- (unknown backend)
+        end if
+        return true
+    elsif name="VALUE" then
+        if string(v) then v = to_number(v) end if
+        assert(integer(v))
+        if not bMapped then
+            xpg_defer_attr(id,name,v)
+        elsif backend=XPG_GTK then
+            c_proc(gtk_spin_button_set_value,{handle,v})
+        elsif backend=XPG_WINAPI then
+            {} = c_func(xSendMessage,{handle,UDM_SETPOS32,0,v})
+            --DEV do we want to set the edit as well here??
+        else
+            ?9/0 -- (unknown backend)
+        end if
+        return true
+    elsif name="WRAP" then
+        if string(v) then v = xpg_to_bool(v) end if
+        if not bMapped then
+            xpg_defer_attr(id,name,v)
+        else -- [as already dealt with in xpg_Spin()..]
+            assert(v==gGetAttribute(id,"WRAP",false))
+        end if
+        return true
+    end if
+    return false
+end function
+
+function xpg_get_spin_attribute(gdx id, string name, object dflt)
+    atom handle = ctrl_handles[id]
+    if name="RANGE" then
+        if backend=XPG_GTK then
+            atom pMin = allocate(8),
+                 pMax = allocate(8)
+            c_proc(gtk_spin_button_get_range,{handle,pMin,pMax})
+            sequence res = {xpg_peek_double(pMin),
+                            xpg_peek_double(pMax)}
+            free({pMin,pMax})
+            return res
+        elsif backend=XPG_WINAPI then
+            atom piMin = allocate_word(),
+                 piMax = allocate_word()
+            {} = c_func(xSendMessage,{handle,UDM_GETRANGE32,piMin,piMax})
+            sequence res = {peekns(piMin),
+                            peekns(piMax)}
+            free({piMin,piMax})
+            return res
+        else
+            ?9/0 -- (unknown backend)
+        end if
+    elsif name="STEP" then
+        if backend=XPG_GTK then
+            atom pStep = allocate(8)
+            c_proc(gtk_spin_button_get_increments,{handle,pStep,NULL})
+            atom res = xpg_peek_double(pStep)
+            free(pStep)
+            return res
+        elsif backend=XPG_WINAPI then
+            integer n = c_func(xSendMessage,{handle,UDM_GETACCEL,1,pUDACCEL})
+            return get_struct_field(idUDACCEL,pUDACCEL,"nInc")
+        else
+            ?9/0 -- (unknown backend)
+        end if
+    elsif name="VALUE" then
+        if backend=XPG_GTK then
+            return c_func(gtk_spin_button_get_value,{handle})
+        elsif backend=XPG_WINAPI then
+            return c_func(xSendMessage,{handle,UDM_GETPOS32,0,NULL})
+        else
+            ?9/0 -- (unknown backend)
+        end if
+    elsif name="WRAP" then
+        if backend=XPG_GTK then
+            return c_func(gtk_spin_button_get_wrap,{handle})
+        elsif backend=XPG_WINAPI then
+            atom dwStyle = c_func(xGetWindowLong,{handle,GWL_STYLE})
+            return and_bits(dwStyle,UDS_WRAP)!=0
+        else
+            ?9/0 -- (unknown backend)
+        end if
+    end if
+    return xpg_return_default_attr(id,name,dflt)
+end function
+
+global function gSpin(object value_changed=NULL, sequence attributes="", args={})
+    {value_changed,attributes,args} = paranormalise_raa(value_changed,attributes,args)
+    if not bInit then xpg_Init() end if
+    integer id = xpg_add_control(SPIN,flags:=CF_UNMAPATTR),
+            ide = xpg_add_control(TEXT)
+    xpg_register_handler(SPIN,"VALUE_CHANGED",{"PO"})
+    xpg_set_ctrl_msg(SPIN,xpg_Spin,xpg_set_spin_attribute,
+                                   xpg_get_spin_attribute)
+    if value_changed!=NULL then
+        gSetHandler(id,"VALUE_CHANGED",value_changed)
+    end if
+    if length(attributes) then
+        gSetAttributes(id,attributes,args)
+    end if
+    return id
+end function 
+
+local procedure xpg_redraw_table(gdx table)
 --?9/0
---?"redraw_table"
+--?"xpg_redraw_table"
 -- [DEV] columns of {80,20,100} get 80/200,(4/10) 20/120 (1/6), and 100/100 (100%) of any slack respectively...
 -- (later) First job: determine whether there is a vertical scrollbar... [unless that's already taken care of...]
     object tblattr = ctrl_xtra[table][CX_GTL_ATTRS]
 --  if sequence(sortcol) then sortcol = sortcol[1] end if
+--  integer data = tblattr[TX_DATA] or better yet:
+--  integer data = gGetHandler(table,"DATA")
+--DEV data(table,0)...
     sequence columns = deep_copy(tblattr[TX_COLUMNS]),
              actcols = repeat(80,length(columns)),
              colalgn = repeat('L',length(columns)),
@@ -13124,6 +16282,9 @@ local procedure redraw_table(gdx table)
              data = tblattr[TX_DATA],
              tags = tblattr[TX_TAGSET]
     tblattr = 0 -- (kill refcount)
+--DEV config?, use throughout
+    integer line_height = 24
+    ctrl_xtra[table][CX_GTL_ATTRS][TX_LINESTEP] = line_height
     for i,c in columns do
         if not string(c) then
 --          c = c[2]
@@ -13143,6 +16304,17 @@ local procedure redraw_table(gdx table)
             colsum = sum(filter(actcols,">",0)),
 --          slack = width-colsum
             slack = width-sum(sq_abs(actcols))
+
+--DEV
+--?{"gSetAttribute",table,"SCROLLSIZE",{width-17,24*(length(data[1])+1)},{width,height}}
+    gSetAttribute(table,"SCROLLSIZE",{width-17,line_height*(length(data[1])+1)})
+--  gSetAttribute(table,"SCROLLSIZE",{colsum+max(slack,0)-17,line_height*(length(data[1])+1)})
+--DEV table size is not being set properly... (works a smidge better unde GTK)
+--?{colsum,slack,sum(actcols),actcols}
+--?gGetAttribute(table,"SCROLLSIZE")
+--?gGetAttribute(table,"SIZE")
+--  gSetAttribute(table,"VIEWPORT",{width,height}) -- (erm, should not change anything...)
+
     if slack>0 then
         for i,c in actcols do
             if c>0 then
@@ -13157,12 +16329,12 @@ local procedure redraw_table(gdx table)
     -- and save it for subsequent mouse handling:
     ctrl_xtra[table][CX_GTL_ATTRS][TX_ACTCOLS] = actcols
     
-    -- ("DROP" is shorthand for "Drawing Operation")
-    integer drop = gGetHandler(table,"DROP",xpg_default_DROP),
-            xCanvasSetForeground = drop(gCanvasSetForeground),
-            xCanvasRect = drop(gCanvasRect),
-            xCanvasLine = drop(gCanvasLine),
-            xCanvasText = drop(gCanvasText),
+    -- ("IDROP" is shorthand for "Intercept Drawing Operation")
+    integer idrop = gGetHandler(table,"IDROP",xpg_default_IDROP),
+            xCanvasSetForeground = idrop(gCanvasSetForeground),
+            xCanvasRect = idrop(gCanvasRect),
+            xCanvasLine = idrop(gCanvasLine),
+            xCanvasText = idrop(gCanvasText),
             -- /now/ it feels safe to shadow the globals:
             gCanvasSetForeground = xCanvasSetForeground,
             gCanvasRect = xCanvasRect,
@@ -13172,11 +16344,12 @@ local procedure redraw_table(gdx table)
 --string actcolstr = sprintf("%v",{actcols})
 --string actcolstr = join(actcols,fmt:="%d")
 --?{"width",width,"height",height,"columns",columns,"actcols",actcolstr,sum(actcols)}
---  gCanvasRect(table,0,width,0,24,true,colour:=XPG_GREY,fillcolour:=XPG_GREY)
-    gCanvasRect(table,0,width,0,24,true,0,-1,-1,XPG_GREY,XPG_GREY)
+--  gCanvasRect(table,0,width,0,line_height,true,colour:=XPG_GREY,fillcolour:=XPG_GREY)
+--  gCanvasRect(table,0,width,0,line_height,true,0,-1,-1,XPG_GREY,XPG_GREY)
+    gCanvasRect(table,0,width,0,line_height,true,0,-1,-1,XPG_GREY)
     gCanvasSetForeground(table,XPG_BLACK)
     integer vx = 0, sortcol = 0, csgn = 0,
-            nr = min(length(data[1]),ceil(height/24)-1)
+            nr = min(length(data[1]),ceil(height/line_height)-1)
     if sequence(ctrl_xtra[table][CX_GTL_ATTRS][TX_SORTCOLS]) then
         sortcol = ctrl_xtra[table][CX_GTL_ATTRS][TX_SORTCOLS][1]
         csgn = sign(sortcol)
@@ -13190,6 +16363,7 @@ local procedure redraw_table(gdx table)
                 {tx, talign} = iff(ta='L'?{vx+5,XPG_EAST}:
                                iff(ta='C'?{vx+floor(a/2),XPG_CENTRE}:
                                iff(ta='R'?{vx+a-5-tc,XPG_WEST}:9/0)))
+--DEV keep a record of where the column titles are, for the CLICK handler (sort)
         gCanvasText(table,tx,13,columns[c],talign)
         if tc then
             -- if sorted then draw the chevron
@@ -13213,7 +16387,7 @@ local procedure redraw_table(gdx table)
 --DEV use the tagset[DONE], and scroll info:
 
         for r=1 to nr do
-            integer vy = 13+24*r,
+            integer vy = 13+line_height*r,
                     tr = tags[r]
             object dtrc = data[1][tr][c]
             if c<=length(data[2]) then
@@ -13237,12 +16411,12 @@ local procedure redraw_table(gdx table)
     end for
     gCanvasSetForeground(table,XPG_LIGHT_GREY)
     gCanvasLine(table,width-1,0,width-1,height)
-    for vy=0 to height by 24 do -- the horizontal lines
+    for vy=0 to height by line_height do -- the horizontal lines
         gCanvasLine(table,0,vy,width,vy)
     end for 
 --  gCanvasSetForeground(table,XPG_BLACK)
 end procedure
-rtn_table_redraw = redraw_table; -- (let/permit/allow this to be a perfectly valid rtn)
+internal_rtns &= xpg_redraw_table; -- (let/permit/allow this to be a perfectly valid rtn)
 
 --DEV object data:
 --global function gTable(sequence columns, data, integer rows=10, sequence attributes="", dword_seq args={})
@@ -13251,8 +16425,8 @@ global function gTable(sequence columns, data, object rows=10, sequence attribut
     if rows=0 then rows=10 end if
 --  if not bInit then xpg_Init() end if
 --  integer id = xpg_add_control(TABLE)
-    gdx table = gCanvas(redraw_table)
---  gdx table = gCanvas(redraw_table,attributes,args)
+    gdx table = gCanvas(xpg_redraw_table)
+--  gdx table = gCanvas(xpg_redraw_table,attributes,args)
     ctrl_xtra[table][CX_CANVAS_TYPE] = TABLE
 --DEV/SUG:
 --  if rows<0 then rows = -rows; gSetAttribute(table,"SCROLLABLE",false) end if
@@ -13279,8 +16453,8 @@ global function gTable(sequence columns, data, object rows=10, sequence attribut
 --  t_attr[TX_SORTCOLS] = {3}
     t_attr[TX_ROWS] = rows
 --DEV why not just use SZ_NATURAL_W?
-    t_attr[TX_NATWIDTH] = natural_width
-    t_attr[TX_NATHIGHT] = natural_hight
+--  t_attr[TX_NATWIDTH] = natural_width
+--  t_attr[TX_NATHIGHT] = natural_hight
     ctrl_xtra[table][CX_GTL_ATTRS] = t_attr
     t_attr = 0 -- (kill refcount)
     ctrl_size[table][SZ_NATURAL_W] = natural_width
@@ -13309,13 +16483,37 @@ local function xpg_gtk_switch_page(atom notebook, /*page*/, integer pos, gdx id)
     return false -- (ignored)
 end function
 
+local atom tab_himl = NULL
+local sequence tab_imgs
+
+local function xpg_WinAPI_add_tab_icon(sequence img, atom notebook)
+    assert(img[1]="gImage") -- img is {"gImage",{hDIB,w,h,t}}
+    atom {hDib,w,h,t} = img[2]
+    assert(w==SM_XICON)
+    assert(h==SM_YICON)
+    if tab_himl==NULL then
+        tab_himl = c_func(xImageList_Create,{SM_XICON,SM_YICON,ILC_COLOR8+ILC_MASK,1,32})
+        tab_imgs = {}
+    end if
+    integer iImageIdx = find(img,tab_imgs)
+    if iImageIdx=0 then
+        c_proc(xImageList_Add,{tab_himl,hDib,NULL})
+        tab_imgs = append(tab_imgs,img)
+        iImageIdx = length(tab_imgs)
+    end if
+    {} = c_func(xSendMessage,{notebook,TCM_SETIMAGELIST,0,tab_himl})
+    return iImageIdx-1
+end function
+
 local procedure xpg_add_tabs(gdx id)
 ?"xpg_add_tabs"
     sequence children = children_ids[id],
-            tabtitles = ctrl_xtra[id][CX_TABTITLES]
-    ctrl_xtra[id][CX_TABTITLES] = 0
+            tabtitles = ctrl_xtra[id][CX_TABTITLES],
+            tabimages = ctrl_xtra[id][CX_TABIMAGES]
+    ctrl_xtra[id][CX_TABTITLES] = 0 -- kill refcount/replaced below
     integer lc = length(children),
-            lt = length(tabtitles)
+            lt = length(tabtitles),
+            li = length(tabimages)
     if lt<lc then
         tabtitles &= repeat(0,lc-lt)
         lt = lc
@@ -13330,37 +16528,213 @@ local procedure xpg_add_tabs(gdx id)
     end for
     ctrl_xtra[id][CX_TABTITLES] = tabtitles
     atom notebook = ctrl_handles[id]
-    if backend=GTK then
+    if backend=XPG_GTK then
 --DEV TABTITLE putting everything in twice...
         integer n = c_func(gtk_notebook_get_n_pages,{notebook})
-?{"TITTITLES:",tabtitles,n,length(tabtitles)}
+?{"TABTITLES:",tabtitles,n,length(tabtitles)}
+--?gGetAttribute(id,"FONT") -- Sans 9
 --if false then
+        integer summ32 = 0, tabh
         for i,desc in tabtitles do
 --if i>n then
             atom label = c_func(gtk_label_new_with_mnemonic,{desc}),
 --DEV deeply suspect use of [i] here... (spotted in passing) maybe I meant children[i]...
                  child = iff(i<=lc?ctrl_handles[i]:c_func(gtk_fixed_new,{}))
+            if i<=li and tabimages[i]!=NULL then
+                sequence img = tabimages[i]
+--?{i,img}
+                assert(img[1]="gImage") -- shd be {"gImage",GtkPixbuf}
+--              atom pixbuf = img[2], -- (a GtkPixBuf)
+                atom pixbuf = img[2][1], -- (a GtkPixBuf)
+                     image = c_func(gtk_image_new_from_pixbuf,{pixbuf}),
+                     hbox = c_func(gtk_hbox_new,{false,0})
+                c_proc(gtk_box_pack_start,{hbox,image,false,false,0})
+                c_proc(gtk_box_pack_start,{hbox,label,false,false,0})
+                label = hbox
+                c_proc(gtk_widget_show_all,{label})
+            end if
             integer r = c_func(gtk_notebook_insert_page,{notebook,child,label,-1})
 --          assert(r>=0)
---          assert(r==i-1)
-            if r!=i-1 then ?{"warning: gtk_notebook_insert_page returned",r,"not",i-1} end if
+            assert(r==i-1)
+            integer {w,h} = gGetTextExtent(id,desc)
+?{desc,w,h}
+            if bGTK3 then w = max(w,32) end if 
+            summ32 += w
+--          if r!=i-1 then ?{"warning: gtk_notebook_insert_page returned",r,"not",i-1} end if
+--DEV
+--/*
+            assert(img[1]="gImage") -- shd be {"gImage",GtkPixbuf}
+            atom pixbuf = img[2], -- (a GtkPixBuf)
+                 image = c_func(gtk_image_new_from_pixbuf,{pixbuf})
+            c_proc(gtk_image_menu_item_set_image,{mitem,image})
+            c_proc(gtk_button_set_image,{button,image})
+gtk_window_set_icon
+
+https://stackoverflow.com/questions/70593712/how-do-i-create-a-close-button-for-notebook-tab-with-gtk-c
+Here is a common way to create a big close button for GTK 2.24, GTK 3 and 4, problem is buttons are too big:
+
+GtkWidget *head, *content, *image, *btn, *label = gtk_label_new ("Title");
+
+// create empty boxes
+#if GTK_CHECK_VERSION (3,0,0)
+    head = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 0);
+--  content = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
+#else
+    head = gtk_hbox_new (FALSE, 0);
+--  content = gtk_vbox_new (FALSE, 0);
+#endif
+
+// add text to box
+#if GTK_CHECK_VERSION (4,0,0)
+    gtk_box_append (GTK_BOX (head), label);
+#else
+    gtk_box_pack_start (GTK_BOX (head), label, FALSE, FALSE, 0);
+#endif
+
+// create close button
+#if GTK_CHECK_VERSION (4,0,0)
+    btn = gtk_button_new_from_icon_name ("gtk-close");
+    gtk_button_set_has_frame (GTK_BUTTON (btn), FALSE);
+#else
+    btn = gtk_button_new ();
+    gtk_button_set_image (GTK_BUTTON (btn), gtk_image_new_from_icon_name ("gtk-close", GTK_ICON_SIZE_MENU));
+    gtk_button_set_relief (GTK_BUTTON (btn), GTK_RELIEF_NONE);
+#endif
+#if GTK_CHECK_VERSION (3,20,0)
+    gtk_widget_set_focus_on_click (btn, FALSE);
+#else
+    gtk_button_set_focus_on_click (GTK_BUTTON (btn), FALSE);
+#endif
+
+// add button to box
+#if GTK_CHECK_VERSION (4,0,0)
+    gtk_box_append (GTK_BOX (head), btn);
+#else
+    gtk_box_pack_start (GTK_BOX (head), btn, FALSE, FALSE, 0);
+#endif
+
+#if !GTK_CHECK_VERSION (4,0,0)
+    gtk_widget_show_all (head);
+#endif
+
+// add boxes to notebook
+gtk_notebook_append_page (GTK_NOTEBOOK (notebook), content, head);
+gtk_notebook_set_tab_reorderable (GTK_NOTEBOOK (notebook), content, TRUE);
+
+answer:
+#if GTK_CHECK_VERSION (4,0,0)
+    GtkCssProvider* provider = gtk_css_provider_new ();
+    gtk_css_provider_load_from_data (provider, "* { padding:0; }", -1);
+    gtk_style_context_add_provider (
+        gtk_widget_get_style_context (GTK_WIDGET (btn)),
+        GTK_STYLE_PROVIDER (provider),
+        GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+#elif GTK_CHECK_VERSION (3,0,0)
+    GtkCssProvider* provider = gtk_css_provider_new ();
+    gtk_css_provider_load_from_data (provider, "* { padding:0; }", -1, NULL);
+    gtk_style_context_add_provider (
+        gtk_widget_get_style_context (GTK_WIDGET (btn)),
+        GTK_STYLE_PROVIDER (provider),
+        GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+#else
+    gtk_widget_set_name (btn, "close-button");
+    gtk_rc_parse_string ("style \"close-button\"\n"
+        "{\n"
+            "GtkWidget::focus-padding = 0\n"
+            "GtkWidget::focus-line-width = 0\n"
+            "xthickness = 0\n"
+            "ythickness = 0\n"
+        "}\n"
+        "widget \"*.close-button\" style \"close-button\"");
+#endif
+--*/
         end for
 --end if
         c_proc(gtk_widget_realize,{notebook})
-    else
+        if bGTK3 then
+            summ32 += (lt-1)*30+40
+            tabh = 39
+        else
+            summ32 += (lt-1)*10+13
+            tabh = 30
+        end if 
+--DEV naturals be getting clobbered...
+?{"nw,nh",summ32,tabh}
+--      ctrl_size[id][SZ_NATURAL_W] = summ32
+--      ctrl_size[id][SZ_NATURAL_H] = tabh
+        ctrl_xtra[id][CX_TABWIDTH] = summ32
+        ctrl_xtra[id][CX_TABHIGHT] = tabh
+
+    elsif backend=XPG_WINAPI then
 --and maybe TCIF_IMAGE...
-        set_struct_field(idTCITEM,pTCITEM,"mask",TCIF_TEXT)
+--      atom img_list = 
+        integer summ30 = 0
         for i,desc in tabtitles do
+            integer mask = TCIF_TEXT
+            if i<=li and tabimages[i]!=NULL then
+                mask += TCIF_IMAGE
+                integer iImageIdx = xpg_WinAPI_add_tab_icon(tabimages[i],notebook)
+--              sequence img = tabimages[i]
+--?{"inAPI",i,img}
+--              assert(img[1]="gImage") -- img is {"gImage",{hDIB,w,h,t}}
+--no: iImage Type: int Index in the tab control's image list, or -1 if there is no image for the tab. 
+--TCM_SETIMAGELIST 
+--              set_struct_field(idTCITEM,pTCITEM,"iImage",img[2][1])
+                set_struct_field(idTCITEM,pTCITEM,"iImage",iImageIdx)
+            end if
+            set_struct_field(idTCITEM,pTCITEM,"mask",mask)
             set_struct_field(idTCITEM,pTCITEM,"pszText",xpg_raw_string_ptr(desc))
             set_struct_field(idTCITEM,pTCITEM,"cchTextMax",length(desc))
             {} = c_func(xSendMessage,{notebook,TCM_INSERTITEMA,i-1,pTCITEM})
+            integer {w,h} = gGetTextExtent(id,desc)
+            summ30 += max(w,30)
+--?{desc,w,h,summ30}
         end for
+        summ30 += (lt-1)*12+19
+--?{"summ30",summ30}
+        -- note these take no account (as yet) of any children...
+        -- (it might be worth keeping these somewhere safe??)
+--      ctrl_size[id][SZ_NATURAL_W] = summ30
+--      ctrl_size[id][SZ_NATURAL_H] = 24
+        -- like here...
+        ctrl_xtra[id][CX_TABWIDTH] = summ30
+        ctrl_xtra[id][CX_TABHIGHT] = 24
+
+
+--?{"summ32",summ32,summ32+12*length(tabtitles)+1}
 --TCM_GETITEMCOUNT
 --TCM_DELETEITEM 
 --WM_NOTIFY TCN_SELCHANGING TCN_SELCHANGE 
 --TCM_GETCURSEL TCM_SETCURSEL
 --TCM_SETIMAGELIST 
 --https://learn.microsoft.com/en-us/windows/win32/controls/tab-controls
+-- ImageList_Create
+--/*
+        elsif what="ADDICON" then
+            atom tree = xpm[2], icon = xpm[3]
+            c_proc(xImageList_Add,{tree,icon,NULL})
+            c_proc(xDeleteObject,{icon})
+        if what="NEWLIST" then
+            -- create imagelist using the recommended sizes for small icons:
+--          return c_func(xImageList_Create,{c_func(xGetSystemMetrics,{SM_CXSMICON}),
+--                                           c_func(xGetSystemMetrics,{SM_CYSMICON}),
+--                                           ILC_COLOR8+ILC_MASK,1,32})
+            return c_func(xImageList_Create,{SM_XICON,SM_YICON,ILC_COLOR8+ILC_MASK,1,32})
+
+atom hILsmall = 0
+
+--function addIcon(atom hIcon)
+    if hILsmall = 0 then
+        integer width = c_func(xGetSystemMetrics, {SM_CXSMICON}),
+                height = c_func(xGetSystemMetrics, {SM_CYSMICON})
+        hILsmall = c_func(xImageList_Create, {width, height, ILC_MASK+ILC_COLOR8,1,1})
+        {} = c_func(xImageList_SetBkColor, {hILsmall, CLR_NONE})
+    end if
+    integer iIcon = c_func(xImageList_AddIcon, {hILsmall,hIcon})
+    return iIcon+1
+--end function
+
+--*/
 --TCM_INSERTITEM
 --      idTCITEM = define_struct("""typedef struct {
 --                                    UINT   mask;
@@ -13371,6 +16745,8 @@ local procedure xpg_add_tabs(gdx id)
 --                                    int    iImage;
 --                                    LPARAM lParam;
 --                                  } TCITEM, *LPTCITEM;""")
+    else
+        ?9/0
     end if
 end procedure
 
@@ -13378,16 +16754,16 @@ local procedure xpg_Tabs(gdx id)
     -- (invoked via xpg_map)
     gdx parent = xpg_get_parent_id(id)
     atom handle
-    if backend=GTK then
+    if backend=XPG_GTK then
         handle = c_func(gtk_notebook_new,{})
         c_proc(gtk_notebook_set_scrollable,{handle,true})
         xpg_setID(handle,id)
         xpg_gtk_add_to(parent,handle)
 --      c_proc(gtk_container_add,{ctrl_handles[parent],handle})
---      xpg_signal_connect(handle,"realize",xpg_gtk_widget_realized,id)
-        xpg_signal_connect(handle,"focus-in-event",xpg_gtk_focusinout,id)
-        xpg_signal_connect(handle,"focus-out-event",xpg_gtk_focusinout,id)
-        xpg_signal_connect(handle,"switch-page",xpg_gtk_switch_page,id)
+--      xpg_gtk_signal_connect(handle,"realize",xpg_gtk_widget_realized,id)
+        xpg_gtk_signal_connect(handle,"focus-in-event",xpg_gtk_focusinout,id)
+        xpg_gtk_signal_connect(handle,"focus-out-event",xpg_gtk_focusinout,id)
+        xpg_gtk_signal_connect(handle,"switch-page",xpg_gtk_switch_page,id)
 --/*
 void gtk_notebook_remove_page(GtkNotebook *notebook, gint page_num);
 gint gtk_notebook_get_current_page(GtkNotebook *notebook);
@@ -14126,7 +17502,7 @@ static int winTabsMapMethod(Ihandle* ih)
         end if
 
 --*/
-    elsif backend=WinAPI then
+    elsif backend=XPG_WINAPI then
         atom {w,h} = gGetTextExtent(parent,ctrl_xtra[id][CX_TABTITLES],false),
            dwStyle = or_all({WS_CHILD,WS_VISIBLE,WS_CLIPCHILDREN,TCS_FOCUSONBUTTONDOWN}),
          dwStyleEx = WS_EX_CONTROLPARENT
@@ -14161,10 +17537,11 @@ end function
 global function gTabs(object children={}, tabchanged=NULL, sequence attributes="", args={})
     {children,tabchanged,attributes,args} = paranormalise_qraa(children,tabchanged,attributes,args)
     if not bInit then xpg_Init() end if
-    integer id = xpg_add_control(TABS,bHasChildren:=true)
-    xpg_register_handler(TABS,"TABCHANGED",{{3,3,"POII"}})
-    set_ctrl_msg(TABS,xpg_Tabs,xpg_set_tabs_attribute,
-                               xpg_get_tabs_attribute)
+    integer id = xpg_add_control(TABS,flags:=CF_CONTAINER+CF_DECORATED,bHasChildren:=true)
+--  xpg_register_handler(TABS,"TABCHANGED",{{3,3,"POII"}})
+    xpg_register_handler(TABS,"TABCHANGED",{"POII"})
+    xpg_set_ctrl_msg(TABS,xpg_Tabs,xpg_set_tabs_attribute,
+                                   xpg_get_tabs_attribute)
 --  gSetAttribute(id,"FONT","Helvetica, 9")
     ctrl_xtra[id] = repeat({},CX_TABLENGTH)
     integer lc = length(children)
@@ -14201,21 +17578,39 @@ global function gTabs(object children={}, tabchanged=NULL, sequence attributes="
     return id
 end function
 
+local function xpg_gtk_text_changed(atom widget, gdx id)
+    assert(id=xpg_getID(widget))
+    integer value_changed = gGetHandler(id,"VALUE_CHANGED")
+    if value_changed then
+        value_changed(id)
+    end if
+    return 0 -- (ignored)
+end function
+
 local procedure xpg_Text(gdx id)
     -- (invoked via xpg_map)
     gdx parent = xpg_get_parent_id(id)
     atom handle
-    if backend=GTK then
+    if backend=XPG_GTK then
 --      handle = c_func(gtk_text_view_new,{})
         handle = c_func(gtk_entry_new,{})
+--(no help)
+--          if bGTK3 then
+--              bool bOK = c_func(gdk_rgba_parse,{pGDKRGBA,"#FFFFFF"})
+--              assert(bOK)
+--              c_proc(gtk_widget_override_background_color,{handle,GTK_STATE_FLAG_NORMAL,pGDKRGBA})
+--          end if
+
         xpg_setID(handle,id)
         xpg_gtk_add_to(parent,handle)
 --      c_proc(gtk_container_add,{ctrl_handles[parent],handle})
---      xpg_signal_connect(handle,"realize",xpg_gtk_widget_realized,id)
-        xpg_signal_connect(handle,"focus-in-event",xpg_gtk_focusinout,id)
-        xpg_signal_connect(handle,"focus-out-event",xpg_gtk_focusinout,id)
+--      xpg_gtk_signal_connect(handle,"realize",xpg_gtk_widget_realized,id)
+        xpg_gtk_signal_connect(handle,"focus-in-event",xpg_gtk_focusinout,id)
+        xpg_gtk_signal_connect(handle,"focus-out-event",xpg_gtk_focusinout,id)
+        xpg_gtk_signal_connect(handle,"changed", xpg_gtk_text_changed,id);
         c_proc(gtk_widget_realize,{handle})
-    elsif backend=WinAPI then
+
+    elsif backend=XPG_WINAPI then
 --      string text = g
         atom dwStyle = or_all({WS_CHILD,WS_VISIBLE,WS_TABSTOP,WS_BORDER,ES_AUTOHSCROLL,ES_LEFT}),
 --           dwStyleEx = or_all({WS_EX_CLIENTEDGE,WS_EX_ACCEPTFILES})
@@ -14242,11 +17637,181 @@ function xpg_set_text_attribute(gdx id, string name, object v, bool bMapped)
         assert(string(v))
         if not bMapped then
             xpg_defer_attr(id,name,v)
-        elsif backend=GTK then
+        elsif backend=XPG_GTK then
             atom buffer = c_func(gtk_entry_get_buffer,{handle})
             c_proc(gtk_entry_buffer_set_text,{buffer,v,-1})
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
             c_proc(xSetWindowText,{handle,v})
+        else
+            ?9/0 -- (unknown backend)
+        end if
+        return true
+    elsif name="BGCOLOR"
+       or name="BGCOLOUR" then
+--      assert(string(v))
+        if string(v) then v = xpg_get_colour_value(v) end if
+        if not bMapped then
+            xpg_defer_attr(id,name,v)
+        elsif backend=XPG_GTK then
+--          atom buffer = c_func(gtk_entry_get_buffer,{handle})
+--          c_proc(gtk_entry_buffer_set_text,{buffer,v,-1})
+--?9/0
+--gtk_widget_override_background_color -- GTK3 only
+--gtk_widget_modify_base
+            v = sprintf("#%06x",v)
+            bool bOK
+            if bGTK3 then
+                bOK = c_func(gdk_rgba_parse,{pGDKRGBA,v})
+                assert(bOK)
+                c_proc(gtk_widget_override_background_color,{handle,GTK_STATE_FLAG_NORMAL,pGDKRGBA})
+--/* same problem:
+                atom css = c_func(gtk_css_provider_new,{})
+                string gtk_css_text = sprintf("* {background-image:none; background-color:%s;}",{v})
+                c_proc(gtk_css_provider_load_from_data,{css,gtk_css_text,-1,NULL})
+                atom context = c_func(gtk_widget_get_style_context,{handle})
+                c_proc(gtk_style_context_add_provider,{context,css,GTK_STYLE_PROVIDER_PRIORITY_USER})
+                c_proc(xg_object_unref,{css})
+--*/
+            else
+                bOK = c_func(gdk_color_parse,{v,pGDKCOLOR})
+                assert(bOK)
+                c_proc(gtk_widget_modify_base,{handle,GTK_STATE_NORMAL,pGDKCOLOR})
+            end if
+--gtk_widget_modify_style
+--/*
+void pushButton( GtkWidget* button ) {
+    // from your code
+    gtk_button_set_label( GTK_BUTTON( button ), "new_text" );
+
+    // You need an object to store css information: the CSS Provider
+    GtkCssProvider * cssProvider = gtk_css_provider_new();
+    // Load CSS into the object ("-1" says, that the css string is \0-terminated)
+    gtk_css_provider_load_from_data(css, "* { background-image:none; background-color:red;}",-1,NULL); 
+
+    // The "Style context" manages CSS providers (as there can be more of them)            
+    GtkStyleContext * context = gtk_widget_get_style_context(button);   
+    // So we want to add our CSS provider (that contains the CSS) to that "style manager".
+    gtk_style_context_add_provider(context, GTK_STYLE_PROVIDER(css),GTK_STYLE_PROVIDER_PRIORITY_USER);
+
+
+    // I'm not sure, if you need this. I took it from mame89's code
+    g_object_unref (css);  
+}
+Although: Be aware, that this code will create a new provider everytime the button was pushed. 
+I guess it's better practice to store the provider somewhere and removing and adding it to the (style)context when needed.
+
+============================
+
+GdkDisplay *display;
+GdkScreen *screen;
+display = gdk_display_get_default ();
+screen = gdk_display_get_default_screen (display);
+
+GtkCssProvider *provider;
+
+provider = gtk_css_provider_new ();
+
+gtk_style_context_add_provider_for_screen (screen, GTK_STYLE_PROVIDER (provider), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+
+gtk_css_provider_load_from_data(provider, CSS, -1, NULL);
+
+g_object_unref (provider);
+
+/* styling background color to black */
+GtkCssProvider* provider = gtk_css_provider_new();
+GdkDisplay* display = gdk_display_get_default();
+GdkScreen* screen = gdk_display_get_default_screen(display);
+
+
+gtk_style_context_add_provider_for_screen(screen,
+GTK_STYLE_PROVIDER(provider),
+GTK_STYLE_PROVIDER_PRIORITY_USER);
+
+gtk_css_provider_load_from_data(GTK_CSS_PROVIDER(p rovider),
+"#main_drawing_region,GtkDrawingArea { \n"
+" background-color: black; \n"
+"} \n", -1, NULL);
+g_object_unref(provider);
+
+
+
+#some-widget-name,
+gtk-widget-type-goes-here#title-label-if-any {
+background-color : black;
+}
+
+
+void
+gtk_widget_modify_style (
+  GtkWidget* widget,
+  GtkRcStyle* style
+)
+GtkRcStyle* gtk_widget_get_modifier_style (GtkWidget* widget);
+--          atom rcstyle = c_func(gtk_widget_get_modifier_style,{handle})
+void        gtk_widget_modify_bg          (GtkWidget            *widget,
+                       GtkStateType          state,
+                       const GdkColor       *color);
+typedef enum
+{
+  GTK_STATE_NORMAL,
+  GTK_STATE_ACTIVE,
+  GTK_STATE_PRELIGHT,
+  GTK_STATE_SELECTED,
+  GTK_STATE_INSENSITIVE
+} GtkStateType;
+
+gboolean
+gdk_color_parse (
+  const gchar* spec,
+  GdkColor* color
+)
+
+
+
+
+  GtkRcStyle *rc_style;  
+  GdkColor color;
+
+  iupgdkColorSetRGB(&color, r, g, b);
+
+  rc_style = gtk_widget_get_modifier_style(handle);
+
+  rc_style->base[GTK_STATE_NORMAL]   = rc_style->bg[GTK_STATE_NORMAL] = rc_style->bg[GTK_STATE_INSENSITIVE] = color;
+  rc_style->base[GTK_STATE_ACTIVE]   = rc_style->bg[GTK_STATE_ACTIVE] = gtkDarkerColor(&color);
+  rc_style->base[GTK_STATE_PRELIGHT] = rc_style->bg[GTK_STATE_PRELIGHT] = rc_style->base[GTK_STATE_INSENSITIVE] = gtkLighterColor(&color);
+
+  rc_style->color_flags[GTK_STATE_NORMAL] |= GTK_RC_BASE | GTK_RC_BG;
+  rc_style->color_flags[GTK_STATE_ACTIVE] |= GTK_RC_BASE | GTK_RC_BG;
+  rc_style->color_flags[GTK_STATE_PRELIGHT] |= GTK_RC_BASE | GTK_RC_BG;
+  rc_style->color_flags[GTK_STATE_INSENSITIVE] |= GTK_RC_BASE | GTK_RC_BG;
+
+  gtk_widget_modify_style(handle, rc_style);
+
+ case WM_CTLCOLORSTATIC:
+    {
+        HDC hdcStatic = (HDC)wParam;
+        if(lParam == (LPARAM)staticTextFieldTwo)
+        {
+            SetTextColor(hdcStatic, RGB(0, 255, 0));
+            SetBkColor(hdcStatic, RGB(0, 255, 255));
+            if (!hbrush)
+                hbrush = CreateSolidBrush(RGB(0, 255, 255));
+            return (LRESULT)hbrush;
+        }
+--*/
+        elsif backend=XPG_WINAPI then
+--          c_proc(xSetWindowText,{handle,v})
+--    SendMessage(ih->handle, EM_SETBKGNDCOLOR, 0, (LPARAM)color);
+--bust...
+--?{"EM_SETBKGNDCOLOR",handle,v}
+--          {} = c_func(xSendMessage,{handle,EM_SETBKGNDCOLOR,0,v})
+            ctrl_bg[id] = v
+            if bMapped then
+-- or maybe (untested) 
+--              bool bOK = c_func(xRedrawWindow({handle,NULL,NULL,or_all({RDW_ERASE,RDW_FRAME,RDW_INVALIDATE})
+                bool bOK = c_func(xInvalidateRect,{handle,NULL,true})
+                assert(bOK)
+            end if
         else
             ?9/0 -- (unknown backend)
         end if
@@ -14258,10 +17823,10 @@ end function
 function xpg_get_text_attribute(gdx id, string name, object dflt)
     atom handle = ctrl_handles[id]
     if name="VALUE" then
-        if backend=GTK then
+        if backend=XPG_GTK then
             atom buffer = c_func(gtk_entry_get_buffer,{handle})
             return peek_string(c_func(gtk_entry_buffer_get_text,{buffer}))
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
             integer l = c_func(xGetWindowTextLength,{handle})
             string title = repeat(' ',l)
             c_proc(xGetWindowText,{handle,title,l+1})
@@ -14278,10 +17843,12 @@ global function gText(object value_changed=NULL, sequence attributes="", args={}
     if not bInit then xpg_Init() end if
     integer id = xpg_add_control(TEXT)
 --test_elem = id
-    xpg_register_handler(TEXT,"CLICK",{{4,4,"FOPII"},{2,2,"FOP"}})
-    xpg_register_handler(TEXT,"VALUE_CHANGED",{{1,1,"PO"}})
-    set_ctrl_msg(TEXT,xpg_Text,xpg_set_text_attribute,
-                               xpg_get_text_attribute)
+--DEV do we need to do this?? (given the last few lines in xpg_Init())
+--  xpg_register_handler(TEXT,"CLICK",{{4,4,"FOPII"},{4,4,"POPII"},{2,2,"FOP"},{2,2,"POP"}})
+--  xpg_register_handler(TEXT,"VALUE_CHANGED",{{1,1,"PO"}})
+    xpg_register_handler(TEXT,"VALUE_CHANGED",{"PO"})
+    xpg_set_ctrl_msg(TEXT,xpg_Text,xpg_set_text_attribute,
+                                   xpg_get_text_attribute)
 --  gSetAttribute(id,"FONT","Helvetica, 9")
     if value_changed!=NULL then
         gSetHandler(id,"VALUE_CHANGED",value_changed)
@@ -14292,105 +17859,7 @@ global function gText(object value_changed=NULL, sequence attributes="", args={}
     return id
 end function 
 
-integer timer_ids = NULL
-
-local function xpg_gtk_timer_proc(integer id)
-    integer action = gGetHandler(id,"ACTION")
-    if action then
-        action(id)
-    end if
-    return true
-end function
-local constant xpg_gtk_timer_proc_cb = call_back({'+',xpg_gtk_timer_proc})
-
-local function xpg_win_timer_proc(atom /*hwnd*/, integer /*msg*/, atom wid, /*mstime*/)
---  assert(hwnd=NULL)
---  assert(msg=WM_TIMER)
---  if mstime<0 then mstime = and_bitsu(mstime,#FFFFFFFF) end if -- (unsign)
-    integer id = getd(wid,timer_ids)
-    return xpg_gtk_timer_proc(id)
-end function
-local constant xpg_win_timer_proc_cb = call_back({'+',xpg_win_timer_proc})
-
-function xpg_set_timer_attribute(gdx id, string name, object v, bool bMapped)
-    -- nb bMapped (ie CF_MAPPED) means there is an active running timer
-    atom handle = ctrl_handles[id], flags = ctrl_flags[id]
-    bool bOK = false, bRun = bMapped
-    if bMapped then
-        if backend=GTK then     
-            assert(c_func(g_source_remove,{handle}))
-        elsif backend=WinAPI then
-            assert(c_func(xKillTimer,{NULL,handle}))
-            deld(handle,timer_ids)
-        else
-            ?9/0 -- (unknown backend)
-        end if
-        handle = NULL
-        flags -= CF_MAPPED
-    end if
-    if name="MSECS"
-    or name="MSEC"
-    or name="TIME" then
-        if string(v) then v = to_number(v) end if
-        assert(v>=0)
-        deferred_attr[id] = v
-        bOK = true
-    elsif name="RUN"
-       or name="RUNNING"
-       or name="ACTIVE" then
-        if string(v) then v = xpg_to_bool(v) end if
-        bRun = v
-        bOK = true
-    end if
-    if bOK then
-        integer msecs = deferred_attr[id]
-        if bRun and msecs then
-            if backend=GTK then
-                handle = c_func(g_timeout_add,{msecs,xpg_gtk_timer_proc_cb,id})
-            elsif backend=WinAPI then
-                handle = c_func(xSetTimer,{NULL,0,msecs,xpg_win_timer_proc_cb})
-            else
-                ?9/0 -- (unknown backend)
-            end if
-            setd(handle,id,timer_ids)
-            flags += CF_MAPPED
-        end if
-        ctrl_handles[id] = handle
-        ctrl_flags[id] = flags
-    end if
-    return bOK
-end function
-
-function xpg_get_timer_attribute(gdx id, string name, object dflt)
-    if name="MSECS"
-    or name="MSEC"
-    or name="TIME" then
-        return deferred_attr[id]
-    elsif name="RUN"
-       or name="RUNNING"
-       or name="ACTIVE" then
-        return and_bits(ctrl_flags[id],CF_MAPPED)!=0
-    end if
---  return xpg_return_default_attr(id,name,dflt)
-    crash(`gGetAttribute(TIMER,"%s")`,{name})
-end function
-
-global function gTimer(rtn action=NULL, integer msecs=0, boolean active=false)
-    if not bInit then xpg_Init() end if
-    if timer_ids=NULL then timer_ids = new_dict() end if
-    integer id = xpg_add_control(TIMER)
-    xpg_register_handler(TIMER,"ACTION",{{1,1,"PO"}})
-    set_ctrl_msg(TIMER,0,xpg_set_timer_attribute,
-                         xpg_get_timer_attribute)
-    if action!=NULL then
-        gSetHandler(id,"ACTION",action)
-    end if
-    gSetAttribute(id,"MSECS",msecs)
-    gSetAttribute(id,"RUN",active)
-    return id
-end function 
-
-local procedure gtk_store_set(atom store, iter, sequence columns, data, integer n, cfn)
+local procedure xpg_gtk_store_set(atom store, iter, sequence columns, data, integer n, cfn)
     -- common code for gtk_tree_store_set() and gtk_list_store_set()
     assert(length(columns)=n)
     assert(length(data)=n)
@@ -14412,12 +17881,12 @@ local constant COL_IMG  = 0,    -- the node icon
                STD_COLS = {COL_IMG, COL_NAME, F_COLOUR, B_COLOUR, COLSPACE, USERDATA}
 
 local procedure xpg_TreeSetNodeAttributes(xpg_handle tree_view, object what, sequence attrs)
--- (internal routine)
+    -- (internal routine, common to WinAPI and GTK)
     atom tree_store, path, iter,    -- (GTK only)
          hItem, tIdx                -- (WinAPI only)
-    if backend=GTK then
+    if backend=XPG_GTK then
         {tree_store, path, iter} = what
-    elsif backend=WinAPI then
+    elsif backend=XPG_WINAPI then
         {hItem, tIdx} = what
     else
         ?9/0 -- (unknown backend)
@@ -14439,17 +17908,17 @@ local procedure xpg_TreeSetNodeAttributes(xpg_handle tree_view, object what, seq
         if name="STATE" then
             string state = attrs[i+1]
             if state="COLLAPSED" then
-                if backend=GTK then
+                if backend=XPG_GTK then
                     c_proc(gtk_tree_view_collapse_row,{tree_view,path})
-                elsif backend=WinAPI then
+                elsif backend=XPG_WINAPI then
                     {} = c_func(xSendMessage,{tree_view,TVM_EXPAND,TVE_COLLAPSE,hItem})
                 else
                     ?9/0 -- (unknown backend)
                 end if
             elsif state="EXPANDED" then
-                if backend=GTK then
+                if backend=XPG_GTK then
                     c_proc(gtk_tree_view_expand_row,{tree_view,path,false})
-                elsif backend=WinAPI then
+                elsif backend=XPG_WINAPI then
                     {} = c_func(xSendMessage,{tree_view,TVM_EXPAND,TVE_EXPAND,hItem})
                 else
                     ?9/0 -- (unknown backend)
@@ -14459,9 +17928,9 @@ local procedure xpg_TreeSetNodeAttributes(xpg_handle tree_view, object what, seq
             end if
         elsif name="USERDATA" then
             integer user_data = attrs[i+1]
-            if backend=GTK then
-                gtk_store_set(tree_store,iter,{USERDATA},{user_data},1,gtk_tree_store_set)
-            elsif backend=WinAPI then
+            if backend=XPG_GTK then
+                xpg_gtk_store_set(tree_store,iter,{USERDATA},{user_data},1,gtk_tree_store_set)
+            elsif backend=XPG_WINAPI then
 --NO! lParam is the tree_items index!
 --              set_struct_field(idTVITEMEX,pTVITEMEX,"hItem",hItem)
 --              set_struct_field(idTVITEMEX,pTVITEMEX,"mask",TVIF_HANDLE+TVIF_PARAM)
@@ -14509,10 +17978,10 @@ local procedure xpg_tree_add_nodes_rec(sequence tree_nodes, xpg_handle tree_view
     -- WinAPI vars:
     integer tIdx, pdx
     atom hItem
-    if backend=GTK then
+    if backend=XPG_GTK then
         {tree_store, iter, piter} = args
         c_proc(gtk_tree_store_append,{tree_store,iter,piter})
-    elsif backend=WinAPI then
+    elsif backend=XPG_WINAPI then
         pdx = args
     else
         ?9/0 -- (unknown backend)
@@ -14521,12 +17990,12 @@ local procedure xpg_tree_add_nodes_rec(sequence tree_nodes, xpg_handle tree_view
     string desc = tree_nodes[1]
     integer l = min(length(tree_nodes),3)
     bool bLeaf = l=1 or atom(tree_nodes[l])
-    if backend=GTK then
+    if backend=XPG_GTK then
         icon = iff(bLeaf?dot:closed_folder)
         integer userdata = 0 -- (set/overidden later via attributes)
         coldata = {icon,desc,"#000000","#FFFFFF","",userdata}
-        gtk_store_set(tree_store,iter,STD_COLS,coldata,NUM_COLS,gtk_tree_store_set) 
-    elsif backend=WinAPI then
+        xpg_gtk_store_set(tree_store,iter,STD_COLS,coldata,NUM_COLS,gtk_tree_store_set) 
+    elsif backend=XPG_WINAPI then
         integer {iImage,iExpanded} = iff(bLeaf?{2,2}:{0,1}),    -- dot or closed/open folder
                 cChildren = iff(bLeaf?0:length(tree_nodes[l]))
         tIdx = xpg_WinAPI_new_tree_item(desc,bLeaf,pdx)
@@ -14540,15 +18009,15 @@ local procedure xpg_tree_add_nodes_rec(sequence tree_nodes, xpg_handle tree_view
         ?9/0 -- (unknown backend)
     end if
     if not bLeaf or l=3 then
-        if backend=GTK then
+        if backend=XPG_GTK then
             path = c_func(gtk_tree_model_get_path,{tree_store,iter})
         end if
         object recargs
         if not bLeaf then
-            if backend=GTK then
+            if backend=XPG_GTK then
                 chiter = allocate(32,true)
                 recargs = {tree_store,chiter,iter}
-            elsif backend=WinAPI then
+            elsif backend=XPG_WINAPI then
                 recargs = tIdx
             else
                 ?9/0 -- (unknown backend)
@@ -14557,7 +18026,7 @@ local procedure xpg_tree_add_nodes_rec(sequence tree_nodes, xpg_handle tree_view
             for child in children do
                 xpg_tree_add_nodes_rec(child,tree_view,recargs)
             end for
-            if backend=WinAPI then
+            if backend=XPG_WINAPI then
                 set_struct_field(idTVITEMEX,pTVITEMEX,"mask",TVIF_HANDLE+TVIF_CHILDREN)
                 set_struct_field(idTVITEMEX,pTVITEMEX,"hItem",hItem)
                 set_struct_field(idTVITEMEX,pTVITEMEX,"cChildren",length(children))
@@ -14565,24 +18034,24 @@ local procedure xpg_tree_add_nodes_rec(sequence tree_nodes, xpg_handle tree_view
                 assert(bOK)
             end if
         end if
-        if backend=GTK then
+        if backend=XPG_GTK then
             c_proc(gtk_tree_view_expand_to_path,{tree_view,path})
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
             {} = c_func(xSendMessage,{tree_view,TVM_EXPAND,TVE_EXPAND,hItem})
         else
             ?9/0 -- (unknown backend)
         end if
         if l=3 then
-            if backend=GTK then
+            if backend=XPG_GTK then
                 recargs = {tree_store,path,iter}
-            elsif backend=WinAPI then
+            elsif backend=XPG_WINAPI then
                 recargs = {hItem,tIdx}
             else
                 ?9/0 -- (unknown backend)
             end if
             xpg_TreeSetNodeAttributes(tree_view,recargs,tree_nodes[2])
         end if
-        if backend=GTK then
+        if backend=XPG_GTK then
             c_proc(gtk_tree_path_free,{path})
         end if
     end if
@@ -14590,14 +18059,14 @@ end procedure
 
 global function gTreeGetUserId(object treenode)
     integer res
-    if backend=GTK then
+    if backend=XPG_GTK then
         atom {tree_view,iter,path} = treenode,
              tree_store = c_func(gtk_tree_view_get_model,{tree_view}),
              pWord = allocate(machine_word(),true)
         c_proc(gtk_tree_model_get,{tree_store,iter,USERDATA,pWord,-1})
         res = peekns(pWord)
         free(pWord)
-    elsif backend=WinAPI then
+    elsif backend=XPG_WINAPI then
         integer tIdx = treenode[2]
         res = tree_items[tIdx][tUserData]
     else
@@ -14614,7 +18083,7 @@ bool bNodesAdded = false
 --local procedure gTreeDeleteChildren(object treenode, integer nc=0)
 local procedure xpg_tree_delete_children(object treenode)
     xpg_handle tree_view = treenode[1]
-    if backend=GTK then
+    if backend=XPG_GTK then
 --      bNodesAdded = true
         atom piter = treenode[2],
              tree_store = c_func(gtk_tree_view_get_model,{tree_view}),
@@ -14627,7 +18096,7 @@ local procedure xpg_tree_delete_children(object treenode)
 --recursive call here???
             ok = c_func(gtk_tree_store_remove,{tree_store,chiter})
         end while
-    elsif backend=WinAPI then
+    elsif backend=XPG_WINAPI then
         integer treeIdx = treenode[2]
         string itemtext = tree_items[treeIdx][tText]
         atom hTreeItem = tree_items[treeIdx][tHandle]
@@ -14674,14 +18143,14 @@ global procedure gTreeAddNodes(object treenode, sequence children)
             ctrl_xtra[treenode] = children
         else
             xpg_handle tree_view = ctrl_handles[treenode]
-            if backend=GTK then
+            if backend=XPG_GTK then
                 atom iter = allocate(32,true),
                      tree_store = c_func(gtk_tree_view_get_model,{tree_view})
                 c_proc(gtk_tree_store_clear,{tree_store})
                 xpg_tree_add_nodes_rec(children,tree_view,{tree_store,iter,null})
 --?"setAdded(1)"
                 bNodesAdded = true
-            elsif backend=WinAPI then
+            elsif backend=XPG_WINAPI then
 --              xpg_tree_delete_children(treenode)
 --/*
                 atom hwnd = c_func(xSendMessage,{tree_view,TVM_GETNEXTITEM,TVGN_ROOT,0})
@@ -14713,12 +18182,12 @@ global procedure gTreeAddNodes(object treenode, sequence children)
 --      xpg_tree_delete_children(tree_view)
 --      xpg_tree_delete_children(treenode)
         object args
-        if backend=GTK then
+        if backend=XPG_GTK then
             atom tree_store = c_func(gtk_tree_view_get_model,{tree_view}),
                      chiter = allocate(32,true),
                       piter = treenode[2]
             args = {tree_store,chiter,piter}
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
             integer treeIdx = treenode[2]
             args = treeIdx
         else
@@ -14727,11 +18196,11 @@ global procedure gTreeAddNodes(object treenode, sequence children)
         for child in children do
             xpg_tree_add_nodes_rec(child,tree_view,args)
         end for
-        if backend=GTK then
+        if backend=XPG_GTK then
 --?"setAdded(2)"
             bNodesAdded := true
 --?{"bbNodesAdded",bNodesAdded}
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
 --DEV... this is now doing what I want (gTreeView2), but thrice-over it seems...
 --          atom hTreeItem = tree_items[treeIdx][tHandle]
             atom hTreeItem = tree_items[args][tHandle]
@@ -14746,19 +18215,20 @@ global procedure gTreeAddNodes(object treenode, sequence children)
     end if
 end procedure
 
-local function gtk_row_collapsed(xpg_handle tree_view, atom iter, /*path*/, gdx /*user_data*/)  -- (GTK only)
+local function xpg_gtk_row_collapsed(xpg_handle tree_view, atom iter, /*path*/, gdx /*user_data*/)  -- (GTK only)
     atom tree_store = c_func(gtk_tree_view_get_model,{tree_view})
-    gtk_store_set(tree_store,iter,{COL_IMG},{closed_folder},1,gtk_tree_store_set) 
+    xpg_gtk_store_set(tree_store,iter,{COL_IMG},{closed_folder},1,gtk_tree_store_set) 
     return true
 end function
 
+--DEV?? (if we really need to, can we set some flag in (say) ctrl_flags[id]??)
 bool bInAdd = false
 
-local function gtk_row_expanded(xpg_handle tree_view, atom iter, path, gdx /*user_data*/)   -- (GTK only)
+local function xpg_gtk_row_expanded(xpg_handle tree_view, atom iter, path, gdx /*user_data*/)   -- (GTK only)
 if not bInAdd then
     bInAdd = true
     atom tree_store = c_func(gtk_tree_view_get_model,{tree_view})
-    gtk_store_set(tree_store,iter,{COL_IMG},{open_folder},1,gtk_tree_store_set) 
+    xpg_gtk_store_set(tree_store,iter,{COL_IMG},{open_folder},1,gtk_tree_store_set) 
     integer id = xpg_getID(tree_view),
             branchopen = gGetHandler(id,"BRANCHOPEN")
     if branchopen!=NULL then
@@ -14785,17 +18255,17 @@ local bool bPrev = false
 local atom sel_iter = allocate(32),
              ppPath = allocate(machine_word())
 
-local function gtk_treeview_cursor_changed(xpg_handle tree_view, gdx /*id*/) -- (GTK only)
+local function xpg_gtk_treeview_cursor_changed(xpg_handle tree_view, gdx /*id*/) -- (GTK only)
     atom tree_store = c_func(gtk_tree_view_get_model,{tree_view})
     if bPrev then
-        gtk_store_set(tree_store,sel_iter,{F_COLOUR,B_COLOUR},{"#000000","#FFFFFF"},2,gtk_tree_store_set)
+        xpg_gtk_store_set(tree_store,sel_iter,{F_COLOUR,B_COLOUR},{"#000000","#FFFFFF"},2,gtk_tree_store_set)
         bPrev = false
     end if
     c_proc(gtk_tree_view_get_cursor,{tree_view,ppPath,NULL})
     atom path = peekns(ppPath)
     if path!=NULL
     and c_func(gtk_tree_model_get_iter,{tree_store,sel_iter,path}) then
-        gtk_store_set(tree_store,sel_iter,{F_COLOUR,B_COLOUR},{"#FFFFFF","#0000FF"},2,gtk_tree_store_set)
+        xpg_gtk_store_set(tree_store,sel_iter,{F_COLOUR,B_COLOUR},{"#FFFFFF","#0000FF"},2,gtk_tree_store_set)
         bPrev = true
     end if
     return 0 /* ignored */
@@ -14810,7 +18280,7 @@ local procedure xpg_TreeView(gdx id)
     ctrl_xtra[id] = 0
     gdx parent = xpg_get_parent_id(id)
     atom tree_view
-    if backend=GTK then
+    if backend=XPG_GTK then
         tree_view = c_func(gtk_tree_view_new,{})
         xpg_setID(tree_view,id)
         atom selection = c_func(gtk_tree_view_get_selection,{tree_view})
@@ -14819,12 +18289,12 @@ local procedure xpg_TreeView(gdx id)
         c_proc(gtk_tree_view_set_enable_tree_lines,{tree_view,true})
         c_proc(gtk_tree_selection_set_mode,{selection,GTK_SELECTION_NONE})
 --DEV or maybe on sandle?
---      xpg_signal_connect(tree_view,"realize",xpg_gtk_widget_realized,id)
-        xpg_signal_connect(tree_view,"row-collapsed",gtk_row_collapsed,id)
-        xpg_signal_connect(tree_view,"row-expanded",gtk_row_expanded,id)
-        xpg_signal_connect(tree_view,"cursor-changed",gtk_treeview_cursor_changed,id)
-        xpg_signal_connect(tree_view,"focus-in-event",xpg_gtk_focusinout,id)
-        xpg_signal_connect(tree_view,"focus-out-event",xpg_gtk_focusinout,id)
+--      xpg_gtk_signal_connect(tree_view,"realize",xpg_gtk_widget_realized,id)
+        xpg_gtk_signal_connect(tree_view,"row-collapsed",xpg_gtk_row_collapsed,id)
+        xpg_gtk_signal_connect(tree_view,"row-expanded",xpg_gtk_row_expanded,id)
+        xpg_gtk_signal_connect(tree_view,"cursor-changed",xpg_gtk_treeview_cursor_changed,id)
+        xpg_gtk_signal_connect(tree_view,"focus-in-event",xpg_gtk_focusinout,id)
+        xpg_gtk_signal_connect(tree_view,"focus-out-event",xpg_gtk_focusinout,id)
         atom column = c_func(gtk_tree_view_column_new,{}),
              img_renderer = c_func(gtk_cell_renderer_pixbuf_new,{}),
              txt_renderer = c_func(gtk_cell_renderer_text_new,{}),
@@ -14854,7 +18324,7 @@ local procedure xpg_TreeView(gdx id)
 --      c_proc(gtk_container_add,{ctrl_handles[parent],sandle})
         c_proc(gtk_widget_realize,{sandle})
         c_proc(gtk_widget_realize,{tree_view})
-    elsif backend=WinAPI then
+    elsif backend=XPG_WINAPI then
 
         atom dwStyle = or_all({WS_CHILD,WS_VISIBLE,WS_TABSTOP,TVS_HASLINES,TVS_LINESATROOT,TVS_HASBUTTONS})
         integer {w,h} = gGetAttribute(id,"SIZE",{0,0})
@@ -14883,9 +18353,10 @@ global function gTreeView(object tree_nodes={}, branchopen=NULL, sequence attrib
     {tree_nodes,branchopen,attributes,args} = paranormalise_qraa(tree_nodes,branchopen,attributes,args)
     if not bInit then xpg_Init() end if
     integer id = xpg_add_control(TREEVIEW)
-    xpg_register_handler(TREEVIEW,"BRANCHOPEN",{{1,1,"PO"}})
-    set_ctrl_msg(TREEVIEW,xpg_TreeView,xpg_set_treeview_attribute,
-                                       xpg_get_treeview_attribute)
+--  xpg_register_handler(TREEVIEW,"BRANCHOPEN",{{1,1,"PO"}})
+    xpg_register_handler(TREEVIEW,"BRANCHOPEN",{"PO"})
+    xpg_set_ctrl_msg(TREEVIEW,xpg_TreeView,xpg_set_treeview_attribute,
+                                           xpg_get_treeview_attribute)
     if branchopen!=NULL then
         gSetHandler(id,"BRANCHOPEN",branchopen)
     end if
@@ -14900,12 +18371,13 @@ global function gVbox(sequence children={}, string attributes="", sequence args=
     return gBox('V',children,attributes,args)
 end function
 
--- nb: uses gLabel, gText, so must be defined after them!
+-- The more hll-style controls: owt using (say) gLabel, gText, gHbox, or gVbox must/shd be defined after them!
+
 local procedure xpg_DatePick(gdx id)
     -- (invoked via xpg_map)
     gdx parent = xpg_get_parent_id(id)
     atom datepick
-    if backend=GTK then
+    if backend=XPG_GTK then
 --DEV do this in hll first...
         datepick = 9/0 -- c_func(gtk_frame_new,{title})
         xpg_setID(datepick,id)
@@ -15269,7 +18741,7 @@ local procedure xpg_DatePick(gdx id)
 --*/
         xpg_gtk_add_to(parent,datepick)
         c_proc(gtk_widget_realize,{datepick})
-    elsif backend=WinAPI then
+    elsif backend=XPG_WINAPI then
 
         atom dwStyle = or_all({WS_CHILD,WS_VISIBLE})
         if gGetAttribute(id,"CANFOCUS",false) then
@@ -15298,9 +18770,9 @@ function xpg_set_datepick_attribute(gdx id, string name, object v, bool bMapped)
         assert(string(v))
         if not bMapped then
             xpg_defer_attr(id,name,v)
-        elsif backend=GTK then
+        elsif backend=XPG_GTK then
             c_proc(gtk_frame_set_label,{handle,v})
-        elsif backend=WinAPI then
+        elsif backend=XPG_WINAPI then
             c_proc(xSetWindowText,{handle,v})
         else
             ?9/0 -- (unknown backend)
@@ -15320,671 +18792,380 @@ function xpg_get_datepick_attribute(gdx id, string name, object dflt)
     return xpg_return_default_attr(id,name,dflt)
 end function
 
-global function gDatePick(string attributes="", args={})
+global function gDatePick(object value_changed=NULL, sequence attributes="", args={})
+    {value_changed,attributes,args} = paranormalise_raa(value_changed,attributes,args)
     if not bInit then xpg_Init() end if
     integer id = xpg_add_control(DATEPICK)
-    xpg_register_handler(DATEPICK,"VALUE_CHANGED",{{1,1,"PO"}})
-    set_ctrl_msg(DATEPICK,xpg_DatePick,xpg_set_datepick_attribute,
-                                       xpg_get_datepick_attribute)
+--  xpg_register_handler(DATEPICK,"VALUE_CHANGED",{{1,1,"PO"}})
+    xpg_register_handler(DATEPICK,"VALUE_CHANGED",{"PO"})
+    xpg_set_ctrl_msg(DATEPICK,xpg_DatePick,xpg_set_datepick_attribute,
+                                           xpg_get_datepick_attribute)
+    if value_changed!=NULL then
+        gSetHandler(id,"VALUE_CHANGED",value_changed)
+    end if
     if length(attributes) then
         gSetAttributes(id,attributes,args)
     end if
     return id
 end function 
 
--- builtins/IupGraph.e
--- todo: bar graphs[stacked or side], grid style, piechart, ... [DEV]
-
-local procedure redraw_graph(gdx graph)
---?"redraw_graph"
-
-    rtn drid = gGetHandler(graph,"DRID")
-    sequence sig = get_routine_info(drid,false),
-             datasets = iff(sig={0,0,"F"}?drid(),
-                        iff(sig={1,1,"FO"}?drid(graph):9/0)),
-             grattrbs = ctrl_xtra[graph][CX_GTL_ATTRS]
-    integer grid = grattrbs[GX_GRID],
-            gridcolour = grattrbs[GX_GRIDCOLOR],
---          {width, hight} = gGetAttribute(graph,"DRAWSIZE"),
-            {width, hight} = gGetAttribute(graph,"SIZE"),
-            dsdx = 1,
-            drop = gGetHandler(graph,"DROP",xpg_default_DROP),
-            xCanvasSetForeground = drop(gCanvasSetForeground),
-            xCanvasSetBackground = drop(gCanvasSetBackground),
-            xCanvasRect = drop(gCanvasRect),
-            xCanvasLine = drop(gCanvasLine),
-            xCanvasText = drop(gCanvasText),
-            -- /now/ it feels safe to shadow the globals:
-            gCanvasSetForeground = xCanvasSetForeground,
-            gCanvasSetBackground = xCanvasSetBackground,
-            gCanvasRect = xCanvasRect,
-            gCanvasLine = xCanvasLine,
-            gCanvasText = xCanvasText
-
---?{"graph size",width,hight}
-    // nb: "XTICK" etc may be/get set in the drid() call.
-    atom xtick = grattrbs[GX_XTICK],
-         xmin = grattrbs[GX_XMIN],
-         xmax = grattrbs[GX_XMAX],
-         xmargin = grattrbs[GX_XMARGIN],
-         xyshift = grattrbs[GX_XYSHIFT],
-         xangle = grattrbs[GX_XANGLE],
-         ytick = grattrbs[GX_YTICK],
-         ymin = grattrbs[GX_YMIN],
-         ymax = grattrbs[GX_YMAX],
-         ymargin = grattrbs[GX_YMARGIN],
-         yxshift = grattrbs[GX_YXSHIFT],
-         yangle = grattrbs[GX_YANGLE],
-         bgclr = gCanvasGetBackground(graph)
-?{"xtick",xtick,"xmin",xmin,"xmax",xmax}
-
-    string title = grattrbs[GX_GTITLE],
-           xname = grattrbs[GX_XNAME],
-           yname = grattrbs[GX_YNAME],
-           xfmt = grattrbs[GX_XTICKFMT],
-           yfmt = grattrbs[GX_YTICKFMT],
-           mode = grattrbs[GX_MODE],
-           barmode = grattrbs[GX_BARMODE],
-           markstyle = grattrbs[GX_MARKSTYLE]
---         fontface = "Helvetica"
---  integer fontstyle = CD_PLAIN,
---          fontsize = 9,
---          bgclr = gGetAttribute(graph,"BGCOLOR"),
---          titlestyle = gGetInt(graph,"TITLESTYLE",CD_PLAIN),
-    integer marksize = grattrbs[GX_MARKSIZE],
-            legend = 0, -- (idx to datasets)
-            lx, ly -- (CD_EAST of the first legend text)
---  cdCanvas cd_canvas = gGetAttribute(graph,"CD_CANVAS")
-    integer xacross = grattrbs[GX_XACROSS],
-            yacross = grattrbs[GX_YACROSS],
-            xrid = gGetHandler(graph,"XRID"),
-            yrid = gGetHandler(graph,"YRID"),
-            post = gGetHandler(graph,"POST")
-    while true do
-        sequence ds = datasets[dsdx],
-                 s = ds[1]
-        if not string(s) then exit end if
---      if s="BCOLOR" then
---          bgclr = ds[2]
-        if s="NAMES" then
-            legend = dsdx
-        elsif s="POST" then
-            post = ds[2]
-        else
---          {fontface,fontstyle,fontsize} = ds
-            ?9/0
-        end if
-        dsdx += 1
-    end while
---  gCanvasSetBackground(graph,bgclr)
---  cdCanvasActivate(graph)
---  cdCanvasClear(graph)
-
-    -- draw title and axis names
-    gCanvasSetForeground(graph,XPG_BLACK)
-    if title!="" then
-        gCanvasText(graph,width/2+4,0,title,XPG_SOUTH)
-    end if
-    if yname!="" then
-        gCanvasText(graph,34,hight/2,yname,XPG_SOUTH,90)
-    end if
-    if xname!="" then
-        gCanvasText(graph,width/2,hight-4,xname,XPG_NORTH)
-    end if
-    
-    -- draw the x/y-axis labels and vertical gridlines
-    xacross = iff(xacross?round((0-xmin)/xtick)+1:1)
-    yacross = iff(yacross?round((0-ymin)/ytick)+1:1)
-
-    integer vb = (barmode="VERTICAL"),
-            hb = (barmode="HORIZONTAL"),
-            nx = round((xmax-xmin)/xtick)+vb,
-            ny = round((ymax-ymin)/ytick)+hb
---DEV
-if nx<=0 or ny<=0 then
-    ?{"gGrapg: nx,ny:",nx,ny}
-    nx = max(nx,1)
-    ny = max(ny,1)
-end if
-    if barmode!="" then
-        assert(vb or hb,"invalid BARMODE")
-        assert(mode="" or mode="BAR","invalid MODE for BARMODE")
-        mode = "BAR"
-    elsif mode="BAR" then
-        vb = true
-    end if
-    if markstyle!="" and mode!="MARK" and mode!="MARKLINE" then
-        assert(mode="","invalid MODE for MARKSTYLE")
-        mode = "MARK"
-    end if
-    atom dx = (width-60-xmargin)/nx,
-         dy = (hight-60-ymargin)/ny,
-         vx = 30+xmargin,
-         vy = 30+ymargin,
-         x = xmin,
-         y = ymin
-    for i=1 to nx+1-vb do   -- the vertical lines
-        if (grid and not vb) or i=xacross then
-            gCanvasSetForeground(graph,iff(i=xacross?XPG_BLACK:gridcolour))
---          gCanvasLine(graph,vx,30+ymargin,vx,hight-30)
-            gCanvasLine(graph,vx,hight-(30+ymargin),vx,28)
-        end if
-        gCanvasSetForeground(graph,XPG_BLACK)
-        integer align = iff(xangle=0?XPG_SOUTH:
-                        iff(xangle=90?XPG_EAST:
-                        iff(xangle=-90?XPG_WEST:9/0)))
-        string xtext = iff(xrid?xrid(x):sprintf(xfmt,x))
-        atom ty = 25+ymargin+xyshift+(yacross-1)*dy
---      gCanvasText(graph,vx+dx*vb/2,ty,xtext,align,xangle)
---      gCanvasText(graph,vx+dx*vb/2,hight-ty,xtext,align,xangle)
---      gCanvasText(graph,vx+dx*vb/2+1,hight-ty,xtext,align,xangle)
-        gCanvasText(graph,vx+dx*vb/2+1,hight-ty,xtext,align,{XPG_W,xangle})
-        vx += dx
-        x += xtick
-    end for
-    for i=1 to ny+1-hb do   -- the horizontal lines
-        if (grid and not hb) or i=yacross then
-            gCanvasSetForeground(graph,iff(i=yacross?XPG_BLACK:gridcolour))
---          gCanvasLine(graph,31+xmargin,vy,width-30,vy)
-            gCanvasLine(graph,31+xmargin,hight-vy,width-30,hight-vy)
-        end if
-        gCanvasSetForeground(graph,XPG_BLACK)
-        integer align = iff(yangle=0?XPG_WEST:
-                        iff(yangle=90?XPG_NORTH:
-                        iff(yangle=-90?XPG_SOUTH:9/0)))
-        string ytext = iff(yrid?yrid(y):sprintf(yfmt,y))
-        atom tx = 25+xmargin+yxshift+(xacross-1)*dx
---      gCanvasText(graph,tx,vy+dy*hb/2,ytext,align,yangle)
---      gCanvasText(graph,tx,hight-(vy+dy*hb/2),ytext,align,yangle)
-        gCanvasText(graph,tx,hight-(vy+dy*hb/2)+2,ytext,align,yangle)
-        vy += dy
-        y += ytick
-    end for 
-
-    integer lw,lh -- (legend text hight, per line)
---DEV does this not want to be drawn last??
-    if legend then
-        sequence legendnames = datasets[legend][2]
---      cdCanvasSetTextOrientation(graph,0)
---      cdCanvasSetTextAlignment(graph,CD_EAST)
---DEV/SUG:
---      atom {lw,lh,cairo,layout} = xpg_get_max_text_extent(graph,legendnames)
---      integer ll = length(legendnames), lw=0, lwi
---/*
-        for i=1 to ll do
---          {lwi,lh} = cdCanvasGetTextSize(graph,legendnames[i])
---          string text = legendnames[i]
---          if backend=GTK then
---              c_proc(pango_layout_set_text,{layout,text,length(text)})
---              c_proc(pango_layout_get_pixel_size,{layout,pWidth,pHight})
---              lwi = get_struct_field(idGdkRectangle,pRECT,"width")
---              lh = get_struct_field(idGdkRectangle,pRECT,"hight")
---          elsif backend=WinAPI then
---(DEV well, that one was waiting to blow up anyway!)
---              {lwi,lh} = gGetTextExtent(graph,text)
---          else
---              ?9/0 -- (unknown backend)
---          end if
---          {lwi,lh} = gGetTextExtent(graph,legendnames[i])
---          lw = max(lw,lwi)
-            lw = max(lw,gGetTextExtent(graph,legendnames[i])[1])
-        end for
---*/
-        {lw,lh} = gGetTextExtent(graph,legendnames,false)
---      lh = floor(lh/length(legendnames))
---      if backend=GTK then
---          c_proc(xg_object_unref,{layout})
---      end if
-        string legendpos = gGetAttribute(graph,"LEGENDPOS","TOPRIGHT")
-        if legendpos="XY" then
---          {lx,ly} = gGetIntInt(graph,"LEGENDPOSXY") -- (untested)
-            {lx,ly} = gGetAttribute(graph,"LEGENDXY") -- (untested)
-        else
-            if legendpos[1]='T' then
-                assert(legendpos[1..3]="TOP")
-                legendpos = legendpos[4..$]
-                ly = 10
-            else
-                assert(legendpos[1..6]="BOTTOM")
-                legendpos = legendpos[7..$]
---              ly = hight-50-ll*lh
-                ly = hight-50-lh
-            end if
-            if legendpos="LEFT" then
-                lx = 30+xmargin+lw
-            elsif legendpos="CENTER" then
-                lx = floor((xmargin+width+lw)/2)
-            else
-                assert(legendpos="RIGHT")   
-                lx = width-30
-            end if
-        end if
---      if gGetInt(graph,"LEGENDBOX") then
-        if grattrbs[GX_LEGENDBOX] then
---          gCanvasSetForeground(graph,bgclr)
-            gCanvasSetForeground(graph,XPG_BLACK)
-            integer lxl = lx-lw-25, lxr = lx+10,
---                  lyt = hight-(ly+15), lyb = hight-(ly+ll*lh+25)
---DEV tryme:
---                  lyt = ly+15, lyb = ly+ll*lh+25
-                    lyt = ly+15, lyb = ly+lh+25
--- or maybe:
---                  lyb = ly+15, lyt = ly+ll*lh+25
-            gCanvasRect(graph,lxl,lxr,lyt,lyb,true)
---          gCanvasSetForeground(graph,XPG_BLACK)
---          gCanvasRect(graph,lxl,lxr,lyt,lyb)
-        end if
-    end if
-
-    -- and finally draw/plot the points!
-    atom w = dx/xtick,
-         h = dy/ytick
-    vx = 30+xmargin + (xacross-1)*dx
-    vy = 30+ymargin + (yacross-1)*dy
-    integer lm1 = dsdx-1
-    for d=dsdx to length(datasets) do
-        sequence dd = datasets[d],
-                 {px,py} = dd
-        integer ldd = length(dd),
-                 mm = (mode="MARK")
-        string dms = markstyle,
-               dmm = mode
-        if ldd>=4 then
-            mm = true
-            dms = dd[4]
-            if ldd>=5 then
-                assert(dd[5]="MARKLINE")
-                dmm = "MARKLINE"
-            end if
-        end if          
-        atom fgclr = iff(ldd>=3?dd[3]:XPG_BLACK)
-        gCanvasSetForeground(graph,fgclr)
-        gCanvasSetBackground(graph,fgclr)
---gdots = 14000
-        if length(px) then
-            atom x1 = 30+xmargin+(px[1]-xmin)*w,
-                 y1 = 30+ymargin+(py[1]-ymin)*h
-            for i=2-(vb or hb or mm) to length(px) do
-                atom x2 = 30+xmargin+(px[i]-xmin)*w+dx*vb/2,
-                     y2 = 30+ymargin+(py[i]-ymin)*h+dy*hb/2
-                if mode="BAR" then
---                  gCanvasSetBackground(graph,fgclr)
-                    if vb then
---                      gCanvasRect(graph,x2-dx/2+1,x2+dx/2-1,vy,y2,true)
-                        gCanvasRect(graph,x2-dx/2+1,x2+dx/2-1,hight-vy,hight-y2,true)
-                    elsif hb then
---                      gCanvasRect(graph,vx,x2,y2-dy/2+1,y2+dy/2-1,true)
-                        gCanvasRect(graph,vx,x2,hight-(y2-dy/2+1),hight-(y2+dy/2-1),true)
-                    end if
-                else
-                    if mm then
--- (from IupPlot:) mark style of the current dataset. 
---        Can be: "HOLLOW_CIRCLE", "PLUS", "X", [DONE]
---          "STAR", "CIRCLE", "BOX", "DIAMOND",
---          "HOLLOW_BOX", "HOLLOW_DIAMOND". Default "X". 
---        (rest to be implemented as and when needed)
-                        if dms="HOLLOW_CIRCLE" then
---                          gCanvasCircle(graph,x2,y2,8)
-                            gCanvasCircle(graph,x2,hight-y2,2*(marksize+1))
-                        elsif dms="PLUS" then
---                          gCanvasLine(graph,x2,y2-3,x2,y2+3)
-                            gCanvasLine(graph,x2,hight-(y2-marksize),x2,hight-(y2+marksize+1))
---                          gCanvasLine(graph,x2-3,y2,x2+3,y2)
-                            gCanvasLine(graph,x2-marksize+1,hight-y2,x2+marksize,hight-y2)
-                        elsif dms="X" then
---                          gCanvasLine(graph,x2-3,y2-3,x2+3,y2+3)
-                            gCanvasLine(graph,x2-marksize,hight-(y2-marksize),x2+marksize,hight-(y2+marksize))
---                          gCanvasLine(graph,x2-3,y2+3,x2+3,y2-3)
-                            gCanvasLine(graph,x2-marksize,hight-(y2+marksize),x2+marksize,hight-(y2-marksize))
-                        elsif dms="DOT" then
-                            gCanvasPixel(graph,x2,hight-y2)
-                        else
-                            crash("unknown MARKSTYLE (%s)",{dms})
-                        end if
-                    end if
-                    if not mm or (dmm="MARKLINE" and i>=2) then
---                      gCanvasLine(graph,x1,y1,x2,y2)
---if abs(x2-x1)<.5 and abs(y2-y1)<.5 then
---                      gCanvasPixel(graph,x2,hight-y2)
---else
-                        gCanvasLine(graph,x1,hight-y1,x2,hight-y2)
---end if
-                    end if
-                end if
-                x1 = x2
-                y1 = y2
-            end for
-        end if
---gdots = 0
-        if legend then
-            integer lX = lx-20,
---                  lY = hight-ly-25
-                    lY = ly-25
-            if mode="BAR" then -- (untested)
-                gCanvasRect(graph,lX,lX+10,lY-5,lY+5,true)
---              gCanvasRect(graph,lX,lX+10,hight-(lY-5),hight-(lY+5),true)
-            else
-                if mm then
-                    if dms="HOLLOW_CIRCLE" then
-                        gCanvasCircle(graph,lX+15,lY,8)
-                    elsif dms="PLUS" then
-                        gCanvasLine(graph,lX+15,lY-5,lX+15,lY-5)
-                        gCanvasLine(graph,lX+10,lY,lX+20,lY)
-                    elsif dms="X" then
-                        gCanvasLine(graph,lX+10,lY+5,lX+20,lY-5)
-                        gCanvasLine(graph,lX+10,lY-5,lX+20,lY+5)
-                    elsif dms="DOT" then
-                        gCanvasPixel(graph,lX+15,lY)
-                    else --default/x
-                        ?9/0
-                    end if
-                end if
-                if not mm or dmm="MARKLINE" then
-                    gCanvasLine(graph,lX+5,lY,lX+25,lY)
-                end if
-            end if
-            gCanvasSetForeground(graph,XPG_BLACK)
-            gCanvasText(graph,lX,lY,datasets[legend][2][d-lm1])
---DEV erm...            
-            ly += lh
---          ly -= lh
-        end if
-    end for
-
-    gCanvasSetBackground(graph,bgclr)
---  cdCanvasFlush(graph)
---  IupSetAttribute(graph,"RASTERSIZE",NULL) -- release the minimum limitation
-    if post then post(graph) end if
---?"graph drawn"
-end procedure
-rtn_graph_redraw = redraw_graph; -- (let/permit/allow this to be a perfectly valid rtn)
-
-global function gGraph(rtn drid, string attributes="", sequence args={})
-    gdx graph = gCanvas(redraw_graph)
---  gdx graph = gCanvas(redraw_graph,attributes,args)
---  gdx graph = gCanvas(redraw_graph,attributes,args,GRAPH)
-    ctrl_xtra[graph][CX_CANVAS_TYPE] = GRAPH
---  gSetAttribute(graph,"BGCOLOR",XPG_WHITE) -- (set a default)
---erm...
---  gCanvasSetForeground(graph,XPG_WHITE) -- (set a default)
-    xpg_register_handler(CANVAS,"DRID",{{0,0,"F"},{1,1,"FO"}})
-    xpg_register_handler(CANVAS,"XRID",{{1,1,"FI"}})
-    xpg_register_handler(CANVAS,"YRID",{{1,1,"FI"}})
-    gSetHandler(graph,"DRID",drid)
-    object grattrbs = repeat(0,GX_LEN)
-    grattrbs[GX_GRID] = true        -- (show the grid by default)
-    grattrbs[GX_LEGENDBOX] = true   -- (ditto box around legend)
-    grattrbs[GX_GRIDCOLOR] = XPG_GREY
-    grattrbs[GX_XTICK] = 1
-    grattrbs[GX_YTICK] = 1
-    grattrbs[GX_XMARGIN] = 10
-    grattrbs[GX_YMARGIN] = 10
-    grattrbs[GX_GTITLE] = ""
-    grattrbs[GX_XNAME] = ""
-    grattrbs[GX_YNAME] = ""
-    grattrbs[GX_XTICKFMT] = "%g"
-    grattrbs[GX_YTICKFMT] = "%g"
-    grattrbs[GX_MODE] = ""
-    grattrbs[GX_BARMODE] = ""
-    grattrbs[GX_MARKSTYLE] = ""
-    grattrbs[GX_MARKSIZE] = 3
-    ctrl_xtra[graph][CX_GTL_ATTRS] = grattrbs
-    grattrbs = 0 -- (kill refcount)
-    if length(attributes) then
-        gSetAttributes(graph,attributes,args)
-    end if
-    return graph    
-end function
-
---DOH: the child of a dialog **must** be a vbox for a menu to be attached.
---DOC: there is no MENU attribute of a gDialog, it's ""...
-
-local function xpg_gtk_menu_clicked(atom handle, integer id) -- (GTK only)
-    return xpg_menu_common(getd(handle,GTK_MENU_LOOKUP),id,false)
-end function
-
-local function xpg_gtk_menu_selected(atom handle, integer id) -- (GTK only)
-    return xpg_menu_common(getd(handle,GTK_MENU_LOOKUP),id,true)
-end function
-
-local procedure xpg_add_menu(integer pmid, atom menu, sequence children, bool bRadio)
---?"xpg_add_menu"
-    bool bOK
-    string text
-    integer mdx
-    atom radio_group = NULL
-    sequence rdi = {}
-    for pos,c in children do
-        if string(c) then
-            assert(c="|" or c="-")
-            c = c[1]
-        end if
-        if atom(c) then
-            assert(c='|' or c='-')
-            if backend=GTK then
-                atom sep = c_func(gtk_separator_menu_item_new,{})
-                c_proc(gtk_widget_show,{sep}) -- (needed for popup menus)
-                c_proc(gtk_menu_shell_append,{menu,sep})
-                if radio_group!=NULL then
-                    bRadio = false
-                end if
-            elsif backend=WinAPI then
-                bOK = c_func(xAppendMenu,{menu,MF_SEPARATOR,0,NULL})
-                assert(bOK)
-                if length(rdi) then
-                    bRadio = false
-                end if
-            else
-                ?9/0 -- (unknown backend)
-            end if
-        elsif length(c)=2 and integer(c[2]) then
-            -- eg {"Cut",CUT=$}
-            {text,mdx} = c
-            bool bCheck = text[1]='?'
-            if bCheck then text = text[2..$] end if
-            if backend=GTK then
-                text = xpg_gtk_mnemonicalize(text)
-                atom mitem
-                if bCheck then
-                    if bRadio then
-                        mitem = c_func(gtk_radio_menu_item_new_with_mnemonic,{radio_group,text})
-                        assert(mitem!=NULL)
-                        radio_group = c_func(gtk_radio_menu_item_get_group,{mitem})
-                    else
-                        mitem = c_func(gtk_check_menu_item_new_with_mnemonic,{text})
-                    end if
-                else
-                    mitem = c_func(gtk_menu_item_new_with_mnemonic,{text})
-                end if
---?{mdx,text,mitem}
-                c_proc(gtk_widget_show,{mitem}) -- (needed for popup menus)
-                setd(mitem,pmid,GTK_MENU_LOOKUP)
-                if mdx then 
-                    setd({pmid,mdx},mitem,GTK_MENU_UPLOOK)
-                end if
-                xpg_signal_connect(mitem,"activate",xpg_gtk_menu_clicked,mdx)
-                xpg_signal_connect(mitem,"select",xpg_gtk_menu_selected,mdx)
-                c_proc(gtk_menu_shell_append,{menu,mitem})
---/*
-
-GtkWidget*
-gtk_radio_menu_item_new_with_mnemonic_from_widget (
-  GtkRadioMenuItem* group,
-  const gchar* label
-)
-GtkWidget*
-gtk_check_menu_item_new_with_mnemonic (
-  const gchar* label
-)
-
-  GtkWidget *box = gtk_box_new (GTK_ORIENTATION_HORIZONTAL,6);
-  GtkWidget *icon = gtk_image_new_from_icon_name ("folder-music-symbolic",GTK_ICON_SIZE_MENU);
-  GtkWidget *label = gtk_accel_label_new ("Music");
-  GtkWidget *menu_item = gtk_menu_item_new ();
-  GtkAccelGroup *accel_group = gtk_accel_group_new ();
-
-  gtk_container_add (GTK_CONTAINER (box),icon);
-
-  gtk_label_set_use_underline (GTK_LABEL (label),TRUE);
-  gtk_label_set_xalign (GTK_LABEL (label),0.0);
-
-  gtk_widget_add_accelerator (menu_item,"activate",accel_group,
-                              GDK_KEY_m,GDK_CONTROL_MASK,GTK_ACCEL_VISIBLE);
-  gtk_accel_label_set_accel_widget (GTK_ACCEL_LABEL (label),menu_item);
-
-  gtk_box_pack_end (GTK_BOX (box),label,TRUE,TRUE,0);
-
-  gtk_container_add (GTK_CONTAINER (menu_item),box);
-
-  gtk_widget_show_all (menu_item);
---*/
-            elsif backend=WinAPI then
-
---              bOK = c_func(xAppendMenu,{menu,MF_STRING+MF_CHECKED*bCheck,mdx,text})
-                bOK = c_func(xAppendMenu,{menu,MF_STRING,mdx,text})
---?{mdx,text}
-                assert(bOK)
---              if bCheck and bRadio then rdi &= mdx end if
-                if bCheck then
---                  c_proc(xCheckMenuItem,{menu,mdx,MF_BYCOMMAND+MF_CHECKED})
-                    if bRadio then
-                        rdi &= mdx -- (full set stored for each below)
-                    else
-                        setd({pmid,mdx},0,WIN_MENU_CHECKED)
-                    end if
-                end if
-            else
-                ?9/0 -- (unknown backend)
-            end if
-        else
-            text = c[1]
-            mdx = iff(length(c)=3?c[2]:0)
-            sequence grandkids = c[$]
-            bool bSubRadio = text[1]='?'
-            if bSubRadio then text = text[2..$] end if
-            if backend=GTK then
-                text = xpg_gtk_mnemonicalize(text)
-                atom mitem = c_func(gtk_menu_item_new_with_mnemonic,{text}),
-                   submenu = c_func(gtk_menu_new,{})
-                xpg_add_menu(pmid,submenu,grandkids,bSubRadio)
-                c_proc(gtk_menu_item_set_submenu,{mitem,submenu})
-                if mdx then
-                    setd(mitem,pmid,GTK_MENU_LOOKUP)
---?{{pmid,mdx},text}
-                    setd({pmid,mdx},mitem,GTK_MENU_UPLOOK)
-                    xpg_signal_connect(mitem,"activate",xpg_gtk_menu_clicked,mdx)
-                    xpg_signal_connect(mitem,"select",xpg_gtk_menu_selected,mdx)
-                end if
-                c_proc(gtk_widget_show,{mitem}) -- (needed for popup menus)
-                c_proc(gtk_menu_shell_append,{menu,mitem})
-                if radio_group!=NULL then
-                    bRadio = false
-                end if
-            elsif backend=WinAPI then
-                atom submenu = c_func(xCreatePopupMenu,{})
---?{"submenu",submenu,text,mdx,pmid}
-                if mdx then
-                    setd(submenu,mdx,WINAPI_SUBMENUS)
-                    setd({pmid,mdx},{menu,pos-1},WINAPI_SUBMENUS)
-                end if
-                xpg_add_menu(pmid,submenu,grandkids,bSubRadio)
-                bOK = c_func(xAppendMenu,{menu,or_bits(MF_POPUP,MF_STRING),submenu,text})
-                assert(bOK)
-                if length(rdi) then
-                    bRadio = false
-                end if
-            else
-                ?9/0 -- (unknown backend)
-            end if
-        end if
-    end for
-    if length(rdi) then -- (implicitly WinAPI only)
-        rdi = sort(rdi)
-        integer f = rdi[1], l = rdi[$]
-        assert((l-f)=(length(rdi)-1))
-        bOK = c_func(xCheckMenuRadioItem,{menu,f,l,f,MF_BYCOMMAND})
-        -- and stash the full set against every entry
-        for mdx in rdi do
-            setd({pmid,mdx},{rdi,menu},WIN_MENU_CHECKED)
-        end for
-    end if
-end procedure
-
--- or, if parent is a DIALOG it is a menubar...
-local procedure xpg_Menu(gdx id)
-    -- (invoked via xpg_map)
-    gdx parent = xpg_get_parent_id(id)
-    atom menu
-    sequence children = ctrl_xtra[id][1]
-    bool bRadio = ctrl_xtra[id][2]
-    assert(parent=NULL or bRadio=false)
-    ctrl_xtra[id] = 0
-    if backend=GTK then
---      assert(vbox?)
-        if parent then
-            menu = c_func(gtk_menu_bar_new,{})
-            atom vbox = ctrl_handles[parent]
-            c_proc(gtk_fixed_put,{vbox,menu,0,0})
-        else
-            menu = c_func(gtk_menu_new,{})
-        end if
---      xpg_signal_connect(checkbox,"realize",xpg_gtk_widget_realized,id)
---      xpg_signal_connect(menu,"clicked",xpg_gtk_menu_clicked,id)
---      xpg_signal_connect(checkbox,"focus-in-event",xpg_gtk_focusinout,id)
---      xpg_signal_connect(checkbox,"focus-out-event",xpg_gtk_focusinout,id)
---      c_proc(gtk_widget_realize,{menu})
-    elsif backend=WinAPI then
---             {w,h} = gGetTextExtent(parent,title)
---      ctrl_size[id][SZ_NATURAL_W] = w?
---      ctrl_size[id][SZ_NATURAL_H] = h
-        if parent then
-            menu = c_func(xCreateMenu,{})
-            bool bOK = c_func(xSetMenu,{ctrl_handles[parent],menu})
-            assert(bOK)
-        else
-            menu = c_func(xCreatePopupMenu,{})
-        end if
+local procedure xpg_splitter_redraw(gdx canvas, integer w,h)
+    string orientation = gGetAttribute(gGetParent(canvas),"ORIENTATION")
+    if orientation="HORIZONTAL" then
+        gCanvasLine(canvas,1,0,1,h-1)
     else
-        ?9/0 -- (unknown backend)
+        gCanvasLine(canvas,0,1,w-1,1)
     end if
-    xpg_setID(menu,id)
-    xpg_add_menu(id,menu,children,false)
---dev deferred attributes?
---?def_menu_attr[menu]
---{{1,2},{{{"CHECKED",1},{"ACTIVE",1}},{{"ACTIVE",0}}}}
-    sequence {ids,attrs} = def_menu_attr[id]
-    def_menu_attr[id] = 0
-    for i,idx in ids do
-        for nv in attrs[i] do
-            {string name, object v} = nv
-            gMenuSetAttribute(id,idx,name,v)
-        end for
-    end for
-    if backend=WinAPI then drawMenuBar(id) end if
 end procedure
+internal_rtns &= xpg_splitter_redraw; -- (let/permit/allow this to be a perfectly valid rtn)
 
-global function gMenu(sequence children, rtn handler, bool bRadio=false)
+local procedure xpg_splitter_click(gdx canvas, sequence status, integer x, y)
+    gdx parent = gGetParent(canvas)
+    assert(ctrl_types[parent]=BOX)
+    bool bDrag = status[2]!='R',
+         bVert = and_bits(ctrl_flags[parent],CF_VERTICAL)!=0
+    integer cldx = 1 + bVert,
+            click = {x,y}[cldx]
+    ctrl_xtra[canvas][CX_GTL_ATTRS][PX_DRAG] = bDrag
+    ctrl_xtra[canvas][CX_GTL_ATTRS][PX_CLICK] = click
+--Temp?: (no help anyway)
+--if not bDrag then
+--  gRedraw(parent)
+--end if
+end procedure
+internal_rtns &= xpg_splitter_click; -- (let/permit/allow this to be a perfectly valid rtn)
+
+local procedure xpg_splitter_mousemove(gdx canvas, integer x,y, bool left,middle,right)
+--?{"xpg_splitter_mousemove",canvas, x,y, left,middle,right}
+    bool bDrag = ctrl_xtra[canvas][CX_GTL_ATTRS][PX_DRAG]
+    if bDrag then
+        gdx parent = gGetParent(canvas)
+        bool bVert = and_bits(ctrl_flags[parent],CF_VERTICAL)!=0
+        gdx {c1,s,c2} = children_ids[parent]
+        assert(s==canvas)
+        integer cldx = 1 + bVert,
+               mouse = {x,y}[cldx],
+               click = ctrl_xtra[canvas][CX_GTL_ATTRS][PX_CLICK],
+                diff = click-mouse, -- (+ve left/up, -ve right/down)
+              sizedx = SZ_W + bVert,
+                  s1 = ctrl_size[c1][sizedx],
+                  s2 = ctrl_size[c2][sizedx],
+                 s12 = s1+s2,
+                   d = max(min(diff,s1),-s2)
+        atom f = (s1-d)/s12
+        assert(f>=0.0 and f<=1.0)
+--?{"f",f}
+        -- (aside: f is applied by xpg_lm_disperse_user_sizes)
+        ctrl_xtra[canvas][CX_GTL_ATTRS][PX_FRAC] = f
+--DEV this might be better on a timer??
+        gRedraw(parent)
+    end if
+end procedure
+internal_rtns &= xpg_splitter_mousemove; -- (let/permit/allow this to be a perfectly valid rtn)
+
+global function gSplit(gdx child1, child2, string orientation="VERTICAL")
+--, sequence attributes="", args={})
+--  {orientation,attributes,args} = paranormalise_taa(orientation,attributes,args)
+--  if orientation="" then orientation = "VERTICAL" end if
+    bool bVert = {true,false}[find(orientation,{"VERTICAL","HORIZONTAL"})]
     if not bInit then xpg_Init() end if
-    integer id = xpg_add_control(MENU)
-    ctrl_xtra[id] = {children,bRadio}
---  xpg_register_handler(MENU,"HANDLER",{{3,3,"FOII"},{2,2,"FOI"},{2,2,"FII"},{1,1,"FI"}})
---  xpg_register_handler(MENU,"HANDLER",{{3,3,"FOII"},{2,2,"FOI"},{1,1,"FI"}})
-    xpg_register_handler(MENU,"HANDLER",{{3,3,"FOII"},{2,2,"FOI"}})
-    set_ctrl_msg(MENU,xpg_Menu,0,0) -- (ie gMenuGet[/Set]Attribute shd be used instead)
---  gSetAttribute(id,"FONT","Helvetica, 9") -- WinAPI really don't like that!
-    assert(handler!=NULL)
-    gSetHandler(id,"HANDLER",handler)
-    def_menu_attr[id] = {{},{}} -- {{ids},{name,v} pairs}
+--  gdx splitter = gCanvas(xpg_splitter_redraw,"SPLIT=AYE"), id
+    gdx splitter = gCanvas(xpg_splitter_redraw), id
+    gSetAttribute(splitter,"EXPAND",orientation)
+    gCanvasSetLineStyle(splitter,XPG_DOTTED)
+    gCanvasSetBackground(splitter,#F0F0F0)
+    gCanvasSetForeground(splitter,#C0C0C0)
+    gSetHandler(splitter,"CLICK",xpg_splitter_click)
+    gSetHandler(splitter,"MOUSEMOVE",xpg_splitter_mousemove)
+    object p_attr = repeat(0,PX_LEN)
+    p_attr[PX_FRAC] = -1 -- (not initially in use)
+    ctrl_xtra[splitter][CX_GTL_ATTRS] = p_attr
+    p_attr = 0 -- (kill refcount)
+    if bVert then
+        gSetAttribute(splitter,"SIZE","x3")
+        id = gVbox({child1,splitter,child2})
+    else
+        gSetAttribute(splitter,"SIZE","3x")
+        id = gHbox({child1,splitter,child2})
+    end if
+    gSetAttribute(splitter,"SPLIT","AYE") -- (private/undocumented/once parent "known")
     return id
+--/*
+--maybe, if inactive: (and 
+else if (msg == WM_SETCURSOR) {
+    if ((HWND)wParam == hwndWhatever) {
+--      SetCursor(hCursorHand);
+        SetCursor(NULL);
+        return(TRUE);
+    }
+--*/
 end function 
 
---From: https://zetcode.com/gui/gtk2/menusandtoolbars/
+--/*
+//Some js:
+let ismdwn = 0
+rpanrResize.addEventListener('mousedown', mD)
+
+function mD(event) {
+  ismdwn = 1
+  document.body.addEventListener('mousemove', mV)
+  document.body.addEventListener('mouseup', end)
+}
+
+function mV(event) {
+  if (ismdwn === 1) {
+    pan1.style.flexBasis = event.clientX + "px"
+  } else {
+    end()
+  }
+}
+const end = (e) => {
+  ismdwn = 0
+  document.body.removeEventListener('mouseup', end)
+  rpanrResize.removeEventListener('mousemove', mV)
+}
+div {
+  display: flex;
+  border: 1px black solid;
+  width: 100%;
+  height: 200px;
+}
+
+#pan1 {
+  flex-grow: 1;
+  flex-shrink: 0;
+  flex-basis: 50%; /* initial status */
+}
+
+#pan2 {
+  flex-grow: 0;
+  flex-shrink: 1;
+  overflow-x: auto;
+}
+
+#rpanrResize {
+  flex-grow: 0;
+  flex-shrink: 0;
+  background: #1b1b51;
+  width: 0.2rem;
+  cursor: col-resize;
+  margin: 0 0 0 auto;
+}
+<div>
+  <div id="pan1">MENU</div>
+  <div id="rpanrResize">&nbsp;</div>
+  <div id="pan2">BODY</div>
+</div>
+--*/
+--and
+--/*
+Improving on Reza's answer:
+
+prevent the browser from interfering with a drag
+prevent setting an element to a negative size
+prevent drag getting out of sync with the mouse due to incremental delta interaction with element width saturation
+<html><head><style>
+
+.splitter {
+    width: 100%;
+    height: 100px;
+    display: flex;
+}
+
+#separator {
+    cursor: col-resize;
+    background-color: #aaa;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='30'><path d='M2 0 v30 M5 0 v30 M8 0 v30' fill='none' stroke='black'/></svg>");
+    background-repeat: no-repeat;
+    background-position: center;
+    width: 10px;
+    height: 100%;
+
+    /* Prevent the browser's built-in drag from interfering */
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+#first {
+    background-color: #dde;
+    width: 20%;
+    height: 100%;
+    min-width: 10px;
+}
+
+#second {
+    background-color: #eee;
+    width: 80%;
+    height: 100%;
+    min-width: 10px;
+}
+
+</style></head><body>
+
+<div class="splitter">
+    <div id="first"></div>
+    <div id="separator" ></div>
+    <div id="second" ></div>
+</div>
+
+<script>
+
+// A function is used for dragging and moving
+function dragElement(element, direction)
+{
+    var   md; // remember mouse down info
+    const first  = document.getElementById("first");
+    const second = document.getElementById("second");
+
+    element.onmousedown = onMouseDown;
+
+    function onMouseDown(e)
+    {
+        //console.log("mouse down: " + e.clientX);
+        md = {e,
+              offsetLeft:  element.offsetLeft,
+              offsetTop:   element.offsetTop,
+              firstWidth:  first.offsetWidth,
+              secondWidth: second.offsetWidth
+             };
+
+        document.onmousemove = onMouseMove;
+        document.onmouseup = () => {
+            //console.log("mouse up");
+            document.onmousemove = document.onmouseup = null;
+        }
+    }
+
+    function onMouseMove(e)
+    {
+        //console.log("mouse move: " + e.clientX);
+        var delta = {x: e.clientX - md.e.clientX,
+                     y: e.clientY - md.e.clientY};
+
+        if (direction === "H" ) // Horizontal
+        {
+            // Prevent negative-sized elements
+            delta.x = Math.min(Math.max(delta.x, -md.firstWidth),
+                       md.secondWidth);
+
+            element.style.left = md.offsetLeft + delta.x + "px";
+            first.style.width = (md.firstWidth + delta.x) + "px";
+            second.style.width = (md.secondWidth - delta.x) + "px";
+        }
+    }
+}
+
+
+dragElement( document.getElementById("separator"), "H" );
+
+</script></body></html>
+--*/
+--Reza's original, for better style aspects [perhaps]
+--/*
+function onload()
+{
+    dragElement( document.getElementById("separator"), "H" );
+}
+
+// This function is used for dragging and moving
+function dragElement( element, direction, handler )
+{
+  // Two variables for tracking positions of the cursor
+  const drag = { x : 0, y : 0 };
+  const delta = { x : 0, y : 0 };
+  /* If present, the handler is where you move the DIV from
+     otherwise, move the DIV from anywhere inside the DIV */
+  handler ? ( handler.onmousedown = dragMouseDown ): ( element.onmousedown = dragMouseDown );
+
+  // A function that will be called whenever the down event of the mouse is raised
+  function dragMouseDown( e )
+  {
+    drag.x = e.clientX;
+    drag.y = e.clientY;
+    document.onmousemove = onMouseMove;
+    document.onmouseup = () => { document.onmousemove = document.onmouseup = null; }
+  }
+
+  // A function that will be called whenever the up event of the mouse is raised
+  function onMouseMove( e )
+  {
+    const currentX = e.clientX;
+    const currentY = e.clientY;
+
+    delta.x = currentX - drag.x;
+    delta.y = currentY - drag.y;
+
+    const offsetLeft = element.offsetLeft;
+    const offsetTop = element.offsetTop;
+
+
+    const first = document.getElementById("first");
+    const second = document.getElementById("second");
+    let firstWidth = first.offsetWidth;
+    let secondWidth = second.offsetWidth;
+    if (direction === "H" ) // Horizontal
+    {
+        element.style.left = offsetLeft + delta.x + "px";
+        firstWidth += delta.x;
+        secondWidth -= delta.x;
+    }
+    drag.x = currentX;
+    drag.y = currentY;
+    first.style.width = firstWidth + "px";
+    second.style.width = secondWidth + "px";
+  }
+}
+.splitter {
+    width: 500px;
+    height: 100px;
+    display: flex;
+}
+
+#separator {
+    cursor: col-resize;
+    background: url(https://raw.githubusercontent.com/RickStrahl/jquery-resizable/master/assets/vsizegrip.png) center center no-repeat #535353;
+    width: 10px;
+    height: 100px;
+    min-width: 10px;
+}
+
+#first {
+    background-color: green;
+    width: 100px;
+    height: 100px;
+    min-width: 10px;
+}
+
+#second {
+    background-color: red;
+    width: 390px;
+    height: 100px;
+    min-width: 10px;
+}
+<html>
+
+    <head>
+        <link rel="stylesheet" href="T10-Splitter.css">
+        <script src="T10-Splitter.js"></script>
+    </head>
+
+    <body onload="onload()">
+        <div class="splitter">
+            <div id="first"></div>
+            <div id="separator"></div>
+            <div id="second"></div>
+        </div>
+    </body>
+
+</html>
+--*/
 
 -- https://stackoverflow.com/questions/5561236/win32-splitter-control
 
 --DEV/temp:
 procedure xpg_lm_dump_ctrls()
-    printf(1,"id ----ctyp----   x   y   w   h  nw  nh  uw  uh  p  children   flags\n")
+    printf(1,"id ---ctyp---   x   y   w   h  nw  nh  uw  uh  p  children   flags\n")
     for id=1 to length(ctrl_types) do
         integer ct = ctrl_types[id],
                  x = ctrl_size[id][SZ_X],
@@ -16003,18 +19184,23 @@ procedure xpg_lm_dump_ctrls()
         atom flags = ctrl_flags[id]
         bool bMapped = and_bits(flags,CF_MAPPED)!=0
         if not bMapped then
-            printf(1,"%2d %-12s %57s\n",{id,idt,"Not mapped"})
+            printf(1,"%2d %-10s %57s\n",{id,idt,"Not mapped"})
         else
             if ct=BOX then
                 integer v = and_bits(flags,CF_VERTICAL)
                 idt := iff(v?"Vbox":"Hbox")
-                flags -= v -- (maybe/maybe not)
+                flags -= v
             end if
+--          integer e = and_bits(flags,CF_EXPAND)
+--          flags -= e
             string f = decode_flags(cf_glags,flags)
-            if not find(ct,{BOX,MENU,TIMER,CLIPBOARD}) then
-                f = sprintf("%v",{xpg_get_window_rect(id)})
-            end if
-            printf(1,"%2d %-12s %3d %3d %3d %3d %3d %3d %3d %3d %2d  %-10v %s\n",
+--          if e then
+--              f &= ",CF_EXPAND"&("BHHV"[e])
+--          end if
+--          if not find(ct,{BOX,MENU,TIMER,CLIPBOARD}) then
+--              f = sprintf("%v",{xpg_get_window_rect(id)})
+--          end if
+            printf(1,"%2d %-10s %3d %3d %3d %3d %3d %3d %3d %3d %2d  %-10v %s\n",
                      { id,  idt,  x,  y,  w,  h, nw, nh, uw, uh,  p,     c, f})
         end if
     end for
@@ -16284,7 +19470,7 @@ global procedure gMap(gdx id)
             xpg_add_tabs(id)
         end if
     end if
---  if bRealise and backend=GTK then
+--  if bRealise and backend=XPG_GTK then
 --      xpg_realise(id)
 --  end if
 --  if and_bits(ctrl_flags[id],CF_MAPPED) then -- (skip virtual v/hbox)
@@ -16299,6 +19485,8 @@ global procedure gMap(gdx id)
     nMapDepth -= 1
 end procedure
 
+--SUG: if we can make XPG_CENTER #FFF0 here, then we could have XPG_CENTER===XPG_CENTRE...
+
 -- gShow x and y less than #FFF0 (65520) are treated as actual pixel locations,
 -- otherwise the low 4 bits determine the parent/mouse-relative positioning:
 --                                                PBT (for y)
@@ -16306,7 +19494,7 @@ end procedure
 global constant XPG_CURRENT      = #FFF0,   -- 0b0000   -- 65520
                 XPG_LEFT         = #FFF1,   -- 0b0001   -- 65521
                 XPG_RIGHT        = #FFF2,   -- 0b0010   -- 65522
-                XPG_CENTER       = #FFF3,   -- 0b0011   -- 65523
+--              XPG_CENTER       = #FFF3,   -- 0b0011   -- 65523 -- (used above for -> XPG_C)
                 XPG_MOUSEPOS     = #FFF4,   -- 0b0100   -- 65524
                 XPG_LEFTPARENT   = #FFF5,   -- 0b0101   -- 65525
                 XPG_RIGHTPARENT  = #FFF6,   -- 0b0110   -- 65526
@@ -16319,6 +19507,7 @@ global constant XPG_CURRENT      = #FFF0,   -- 0b0000   -- 65520
 local constant XPG_PARENT        = #0004    -- 0b0100
 
 local function xpg_placement(integer xy, os, ol, is, il)
+--?{"xpg_placement",xy, os, ol, is, il}
     -- xy is the x or y of gShow(), which can be an absolute value such as 100 (returned as is)
     -- or one of the XPG_XXX - which obviously need the outer and inner starts and lengths.
     integer res = is                                -- (default for xy==XPG_CURRENT)
@@ -16344,15 +19533,15 @@ local function xpg_placement(integer xy, os, ol, is, il)
     return res
 end function
 
-local function gtk_menu_position_func(atom /*pMenu*/, pX, pY, pPushIn, xy)
---?{"gtk_menu_position_func","x",floor(xy/#8000),"y",and_bits(xy,#7FFF)}
+local function xpg_gtk_menu_position_func(atom /*pMenu*/, pX, pY, pPushIn, xy)
+--?{"xpg_gtk_menu_position_func","x",floor(xy/#8000),"y",and_bits(xy,#7FFF)}
     poke4(pX,floor(xy/#8000))
     poke4(pY,and_bits(xy,#7FFF))
     poke4(pPushIn,false)
     return 0 -- (ignored)
 end function
 
-local function any_active_window() -- WinAPI only
+local function xpg_WinAPI_any_active_window() -- WinAPI only
     for id,ct in ctrl_types do
         if ct=DIALOG
         and parent_ids[id]=0
@@ -16374,17 +19563,17 @@ global procedure gPopupMenu(gdx menu, integer x=XPG_MOUSEPOS, y=XPG_MOUSEPOS)
         assert(x==y,"gPopupMenu: XPG_MOUSEPOS is both-only")
         {x,y} = gGetGlobal("MOUSEPOS")
     end if
-    if backend=GTK then
+    if backend=XPG_GTK then
         if bGTK3 then
             c_proc(gtk_menu_popup_at_pointer,{handle,NULL})
         else
-            atom cb = call_back(gtk_menu_position_func),
+            atom cb = call_back(xpg_gtk_menu_position_func),
                data = x*#8000+y,
              cevntt = c_func(gtk_get_current_event_time,{})
             c_proc(gtk_menu_popup,{handle,NULL,NULL,cb,data,0,cevntt})
         end if
-    elsif backend=WinAPI then
-        atom hwnd = any_active_window()
+    elsif backend=XPG_WINAPI then
+        atom hwnd = xpg_WinAPI_any_active_window()
         tracked_menu = menu
         integer res = c_func(xTrackPopupMenuEx,{handle,TPM_RETURNCMD,x,y,hwnd,NULL})
         tracked_menu = 0
@@ -16435,9 +19624,10 @@ puts(1,"") -- DEV while xpg_lm_dump_ctrls() is creating a console...
         -- GTK3 refuses to disclose any size info until after being shown, so we
         -- //have// to show wrong size, then correct.. (what a bunch of cretins)
         -- (to be fair, GTK is so pig-awful slow a tiny flicker'l bother no-one)
-        if backend=GTK and bGTK3 then
+        if backend=XPG_GTK and bGTK3 then
             c_proc(gtk_widget_show_all,{handle})
         end if
+--DEV gRefresh(id)...
 --xpg_lm_dump_ctrls()
 --?{gGetAttribute(id,"SIZE"),"good"}
 --if 0 then
@@ -16469,7 +19659,8 @@ puts(1,"") -- DEV while xpg_lm_dump_ctrls() is creating a console...
 --        {dw,dh} = xpg_lm_get_dialog_decoration_size(id)
 --?{dw,dh,"post-sdd"}
 --      {dw,dh} = xpg_lm_get_dialog_client_size(id,dw,dh)
-?{"lmdus",w-dw,h-dh,w,h,dw,dh}
+--?{"lmdus",w-dw,h-dh,w,h,dw,dh}
+?{"gShow",id,w,dw,h,dh,{w-dw,h-dh}}
         xpg_lm_disperse_user_sizes(id,w-dw,h-dh)
 --xpg_lm_dump_ctrls()
         xpg_lm_calculate_offsets(id)
@@ -16480,9 +19671,9 @@ puts(1,"") -- DEV while xpg_lm_dump_ctrls() is creating a console...
 --void gtk_widget_map(GtkWidget* widget) -- not used in IUP except by IupScintilla
 --void gtk_widget_realize(GtkWidget* widget) -- used heavily in IUP...
 --DEV rescan for sizes... (or is that WM_SIZE/whatever, and can we ditch level?)
-xpg_lm_dump_ctrls()
+--xpg_lm_dump_ctrls()
 --?"calculate natural sizes..."
---      if backend=WinAPI then
+--      if backend=XPG_WINAPI then
 --          xpg_WinAPI_resize(id)
 --      end if
 --?{gGetAttribute(id,"SIZE"),"bad"}
@@ -16530,22 +19721,26 @@ xpg_lm_dump_ctrls()
 --DEV only used in gShow(), so inline there...
 --local procedure xpg_move_window(gdx id, atom x, y)
 --  xpg_handle handle = ctrl_handles[id]
-    if backend=GTK then
+--?{"gShow",id,wx,wy}
+    ctrl_size[id][SZ_X] = wx
+    ctrl_size[id][SZ_Y] = wy
+    if backend=XPG_GTK then
 --?{"gtk_window_move",id}
+--?{"gShow:gtk_window_move",id,wx,wy}
         c_proc(gtk_window_move,{handle,wx,wy})
 --?{"<gtk_window_move",id}
-    elsif backend=WinAPI then
+    elsif backend=XPG_WINAPI then
 --if handle then
         integer flags = SWP_NOZORDER+SWP_NOSIZE
 --      integer flags = SWP_NOZORDER
         integer w = ctrl_size[id][SZ_W]+dw,
                 h = ctrl_size[id][SZ_H]+dh
-?{"gShow(initial position)",id,wx,wy,w,h}
+--?{"gShow(initial position)",id,wx,wy,{w,h,"??"}}
 --nMapDepth += 1
         bool ok = c_func(xSetWindowPos,{handle,NULL,wx,wy,w,h,flags})
 --      bool ok = c_func(xSetWindowPos,{handle,NULL,wx,wy,w+16,h+29,flags})
 --nMapDepth -= 1
-?{"gShow:swp returned",ok}
+--?{"gShow:swp returned",ok}
         assert(ok)
 --end if
     else
@@ -16554,14 +19749,14 @@ xpg_lm_dump_ctrls()
 --end procedure
 --?"moved"
 --DEV setAttribute(h,"VISIBLE",true)...
-    if backend=GTK then
+    if backend=XPG_GTK then
 --?{gGetAttribute(id,"SIZE"),"good"}
         if c_func(gtk_window_get_transient_for,{handle})=NULL then
 --          if XPG_PARENTDIALOG!=NULL
 --          and XPG_PARENTDIALOG!=h then
 --              c_proc(gtk_window_set_transient_for,{h,XPG_PARENTDIALOG}) 
 --          else
-                xpg_signal_connect(handle,"destroy",xpg_gtk_quit,id)
+                xpg_gtk_signal_connect(handle,"destroy",xpg_gtk_quit,id)
 --          end if
         end if
 --      c_proc(gtk_widget_show,{id})
@@ -16585,7 +19780,7 @@ xpg_lm_dump_ctrls()
 ----      get_struct_field(idGdkRectangle,pRECT,"height")}
 --
 --end if
-    elsif backend=WinAPI then
+    elsif backend=XPG_WINAPI then
 --?{gGetAttribute(id,"SIZE"),"bad"}
         c_proc(xShowWindow,{handle,SW_SHOWNORMAL})
         c_proc(xUpdateWindow,{handle})
@@ -16597,7 +19792,7 @@ if test_elem then
 end if
 
 xpg_lm_dump_ctrls()
-?xpg_get_window_rect(id)
+--?{"xpg_get_window_rect(final)",xpg_get_window_rect(id),id}
 end procedure
 
 --/*
@@ -16630,13 +19825,20 @@ void iupdrvPostRedraw(Ihandle *ih)
 }
 --*/
 
---DEV/SUG should we just invoke this from gShow()????
-global procedure gRedraw(gdx id, integer flags=0b111)
+--DEV/SUG should we just invoke this from gShow()???? **** WHERE IS THE xpg_lm_xxx() ??!! ***
+--global procedure gRedraw(gdx id, integer flags=0b111)
+global procedure gRedraw(gdx id, integer flags=0b110)
 --DEV? (docs say...)
     assert(and_bits(ctrl_flags[id],CF_MAPPED)!=0)
-    bool bNow = and_bits(flags,0b001)   --DEV made up... see docs
+--7/11/23... (no change at all to Booker.exw...)
+    integer {w,h} = gGetAttribute(id,"SIZE")
+    bool bNow = and_bits(flags,0b001),  --DEV made up... see docs
+         bResize = and_bits(flags,0b010)
+    if bResize then
+        xpg_resize(id,w,h)
+    end if
     atom handle = ctrl_handles[id]
-    if backend=GTK then
+    if backend=XPG_GTK then
         atom window = c_func(gtk_widget_get_window,{handle})
         if window then
             c_proc(gdk_window_invalidate_rect,{window,NULL,true})
@@ -16645,15 +19847,66 @@ global procedure gRedraw(gdx id, integer flags=0b111)
         if window and bNow then
             c_proc(gdk_window_process_updates,{window,true})
         end if
-    elsif backend=WinAPI then
+    elsif backend=XPG_WINAPI then
+--/*
         atom dwFlags = or_all({RDW_ERASE,RDW_INVALIDATE,RDW_INTERNALPAINT})
+--      atom dwFlags = or_all({RDW_INVALIDATE,RDW_INTERNALPAINT})
+--?{"bNow",bNow}
         if bNow then dwFlags = or_bits(dwFlags,RDW_UPDATENOW) end if
         bool bOK = c_func(xRedrawWindow,{handle,NULL,NULL,dwFlags})
+        assert(bOK)
+--*/
+--flipped back 4/11/23: (no help with guess the number 3...)
+--      bool bOK = c_func(xInvalidateRect,{handle,NULL,true});
+        bool bOK = c_func(xInvalidateRect,{handle,NULL,false});
         assert(bOK)
     else
         ?9/0 -- (unknown backend)
     end if
 end procedure 
+
+global function gQuit(gdx /*id*/)
+    -- standard "Close"/"Quit" button shorthand
+?"gQuit"
+    return XPG_CLOSE
+end function
+internal_rtns &= gQuit; -- (let/permit/allow this to be a perfectly valid rtn)
+
+local gdx mbid = NULL, lbl
+
+--procedure gMsgBox(gdx parent,string title, msg, sequence args={}, bool bWrap=true)
+global procedure gMsgBox(gdx parent=NULL, string title="", msg="", sequence args={})
+    if length(args) then msg = sprintf(msg,args) end if
+--DEV this may be an IUP-only thing.... quite how to resize for wordwrap remains an open question...
+--  if string(msg) and find('\n',msg) and bWrap then
+--      -- make each paragraph a single line, improves wordwrap
+--      -- (note: this may be a windows only thing, not yet tested on lnx)
+--      msg = substitute(msg,"\n\n","\r\r")
+--      msg = substitute(msg,"\n"," ")
+--      msg = substitute(msg,"  "," ")
+--      msg = substitute(msg,"\r\r","\n\n")
+--  end if
+    if mbid=NULL then
+--      lbl = gLabel(msg,"MARGIN=10x10")
+        lbl = gLabel(msg)
+--      if not find(gQuit,internal_rtns) then internal_rtns &= gQuit end if
+        gdx btn = gButton("OK",gQuit),
+             ok = gHbox({btn},"SPACE=LEFT"), -- DEV not aligning...
+          child = gVbox({lbl,ok},"MARGIN=10x10,GAP=10")
+--DEV/SUG a min width of 230, or possibly based on text_extent(title)...
+        mbid = gDialog(child,parent,title)
+--BS_DEFPUSHBUTTON
+    else
+        --DEV reparent??
+        gSetAttribute(mbid,"TITLE",title)
+        gSetAttribute(lbl,"TITLE",msg)
+--      gSetAttribute(mbid,"SIZE",NULL) -- DEV oops
+        gRedraw(mbid,0b111)             -- DEV not resizing...
+    end if
+--DEV modal??
+--  ?{"gMsgBox",parent,title,msg,bWrap}
+    gShow(mbid,XPG_CENTERPARENT,XPG_CENTERPARENT) -- DEV not repositioning...
+end procedure
 
 --gtk3+: (from https://stackoverflow.com/questions/50076541/override-icons-used-in-the-tree-view )
 local constant gtk_css_text = """
@@ -16667,7 +19920,7 @@ treeview.view.expander:checked { -gtk-icon-source: -gtk-icontheme("zoom-out-symb
 treeview.view.expander:backdrop { color: #adafb0; }"""
 
 global procedure gMainLoop()
-    if backend=GTK then
+    if backend=XPG_GTK then
 --/!*
 --      if gtk_css_provider_new!=-1 then    -- (available on 3.0+ only)
         if bGTK3 then
@@ -16680,12 +19933,17 @@ global procedure gMainLoop()
         end if
 --*!/
         c_proc(gtk_main)
-    elsif backend=WinAPI then
+    elsif backend=XPG_WINAPI then
         while c_func(xGetMessage,{pMSG,NULL,0,0}) do
 --DEV
 --          if not translateAccelerator() then
+--atom hwnd = get_struct_field(idMESSAGE,pMSG,"hwnd")
+--          if not c_func(xIsDialogMessage,{hwnd,pMSG}) then
             c_proc(xTranslateMessage,{pMSG})
             c_proc(xDispatchMessage,{pMSG})
+--else
+--  ?"wasDialogMessage!"
+--end if
         end while
     else
         ?9/0 -- (unknown backend)
@@ -16697,10 +19955,10 @@ last_xpgui_rid = gMainLoop -- (or whatever ends up last in this file)
 --/*
 --DEV prolly better to set up an idle doobrie...
 global procedure gLoopStep()
-    if backend=GTK then
+    if backend=XPG_GTK then
 --      if (gtk_main_iteration_do(FALSE)) return IUP_CLOSE;
 --      return IUP_DEFAULT;
-    elsif backend=WinAPI then
+    elsif backend=XPG_WINAPI then
 --      MSG msg;
 --      if (PeekMessage(&msg,0,0,0,PM_REMOVE)) return winLoopProcessMessage(&msg);
 --static int winLoopProcessMessage(MSG* msg)
@@ -16721,13 +19979,6 @@ global procedure gLoopStep()
     end if
 end procedure
 --*/
-
-global function gQuit(gdx /*id*/)
-    -- standard "Close"/"Quit" button shorthand
-    -- (nb > last_xpgui_rid to pass rtn() checks)
-?"gQuit"
-    return XPG_CLOSE
-end function
 
 --/*
 --one off the mailing list: (we definately need a natural size (and always have), at least for win32)
@@ -16894,13 +20145,216 @@ PFD_TYPE_COLORINDEX
 Color-index pixels. Each pixel uses a color-index value.
 --*/
 
---/* For a gSplit doobrie:
-static gboolean on_crossing(GtkWidget *darea, GdkEventCrossing *event) {
-    GdkDisplay *display = gtk_widget_get_display(darea);
-    GdkCursor *cursor = gdk_cursor_new_from_name(display,"col-resize" or "row-resize");
-    // Assign the cursor to the window
-    gdk_window_set_cursor(gtk_widget_get_window(darea),cursor);
+--/*
+C:\Program Files (x86)\Phix\demo\xpGUI\aaline.exw:24 include xpGUI.e                        -- needs aacircle/arc, properly porting into xpGUI.e
+C:\Program Files (x86)\Phix\demo\xpGUI\gButton.exw:21 include xpGUI.e                       -- GOOD
+C:\Program Files (x86)\Phix\demo\xpGUI\gCanvas.exw:16 include xpGUI.e -- DEV silly size under WinAPI [FIXED 20/8/23]
+C:\Program Files (x86)\Phix\demo\xpGUI\gCanvasPolygon.exw:31 include xpGUI.e
+C:\Program Files (x86)\Phix\demo\xpGUI\gCheckbox.exw:10 include xpGUI.e
+C:\Program Files (x86)\Phix\demo\xpGUI\gDatePick.exw:7 include xpGUI.e
+C:\Program Files (x86)\Phix\demo\xpGUI\gDialog.exw:6 include xpGUI.e
+C:\Program Files (x86)\Phix\demo\xpGUI\gDialogs.exw:16 include xpGUI.e
+C:\Program Files (x86)\Phix\demo\xpGUI\gDropDown.exw:7 include xpGUI.e
+C:\Program Files (x86)\Phix\demo\xpGUI\gFrame.exw:13 include xpGUI.e
+C:\Program Files (x86)\Phix\demo\xpGUI\gGraph.exw:8 include xpGUI.e                     -- DEV silly size... [FIXED, but minsize on GTK remains...]
+C:\Program Files (x86)\Phix\demo\xpGUI\gGraph1.exw:11 include xpGUI.e
+C:\Program Files (x86)\Phix\demo\xpGUI\gGraph2.exw:7 include xpGUI.e
+C:\Program Files (x86)\Phix\demo\xpGUI\gGraph4.exw:6 include xpGUI.e
+C:\Program Files (x86)\Phix\demo\xpGUI\gHbox.exw:7 include xpGUI.e
+C:\Program Files (x86)\Phix\demo\xpGUI\gLabel.exw:8 include xpGUI.e
+C:\Program Files (x86)\Phix\demo\xpGUI\gList.exw:8 include xpGUI.e
+C:\Program Files (x86)\Phix\demo\xpGUI\gMenu.exw:20 include xpGUI.e
+C:\Program Files (x86)\Phix\demo\xpGUI\gProgressBar.exw:7 include xpGUI.e
+C:\Program Files (x86)\Phix\demo\xpGUI\gRadio.exw:7 include xpGUI.e
+C:\Program Files (x86)\Phix\demo\xpGUI\GraphR.exw:25 include xpGUI.e
+C:\Program Files (x86)\Phix\demo\xpGUI\gSample.exw:20 include xpGUI.e                   -- [RUBBISH]
+C:\Program Files (x86)\Phix\demo\xpGUI\gSlider.exw:7 include xpGUI.e
+C:\Program Files (x86)\Phix\demo\xpGUI\gSpin.exw:10 include xpGUI.e
+C:\Program Files (x86)\Phix\demo\xpGUI\gSplit.exw:26 include xpGUI.e
+C:\Program Files (x86)\Phix\demo\xpGUI\gTable.exw:42 include xpGUI.e
+C:\Program Files (x86)\Phix\demo\xpGUI\gTabs.exw:10 include xpGUI.e
+C:\Program Files (x86)\Phix\demo\xpGUI\gText.exw:10 include xpGUI.e
+C:\Program Files (x86)\Phix\demo\xpGUI\gTimer.exw:13 include xpGUI.e
+C:\Program Files (x86)\Phix\demo\xpGUI\gTreeView.exw:9 include xpGUI.e -- ok
+C:\Program Files (x86)\Phix\demo\xpGUI\gTreeView2.exw:50 include xpGUI.e
+C:\Program Files (x86)\Phix\demo\xpGUI\gVbox.exw:7 include xpGUI.e
+C:\Program Files (x86)\Phix\demo\xpGUI\r3d.exw:13 include xpGUI.e                       -- GOOD (cf 15_puzzle_game_in_3D)
+C:\Program Files (x86)\Phix\demo\xpGUI\sample.exw:32 include xpGUI.e
+C:\Program Files (x86)\Phix\demo\xpGUI\scroller.exw:27 include xpGUI.e                  -- GOOD, apart frm GTK3 (no scrollbars at all, gulp)
+C:\Program Files (x86)\Phix\demo\xpGUI\test.exw:46 --include xpGUI.e                    -- [TRASH]
+
+demo\pGUI\astextrix.exw [??]
+demo\pGUI\boids3d.exw [but with a separate/hide-able settings window?]
+demo\pGUI\filedump.exw
+demo\pGUI\gears.exw [openGL]
+demo\pGUI\HelloF.exw [openGL]
+--demo\pGUI\IupSampleDialog.exw (see/compare with demo\xpGUI\sample.exw)
+demo\pGUI\pdemo.exw
+demo\pGUI\rubik.exw -- blimey, leave that one alone for now!
+Searching for: include pGUI.e
+ Files scanned 496, Directories scanned 7, Lines 761071
+C:\Program Files (x86)\Phix\demo\rosetta\15_puzzle_game.exw:6 include pGUI.e                -- GOOD p2js: No font size(??), Esc to gMsgBox closes whole page...
+C:\Program Files (x86)\Phix\demo\rosetta\15_puzzle_game_in_3D.exw:21 include pGUI.e         -- GOOD, except timer is horribly slow under WinAPI (good-ish on GTK)
+                                                                                            --       and "3" seems to be anti-aliasing with an orange background
+C:\Program Files (x86)\Phix\demo\rosetta\2048.exw:14 include pGUI.e                         -- GOOD (bar the final gMsgBox, needs a MINSIZE, and to be modal)
+C:\Program Files (x86)\Phix\demo\rosetta\21_Game.exw:24 include pGUI.e                      -- partial (looks rubbish...)
+C:\Program Files (x86)\Phix\demo\rosetta\9billionnames.exw:75 include pGUI.e                -- FAIR: wierd colour, grid slightly off, MINSIZE not working.
+C:\Program Files (x86)\Phix\demo\rosetta\Abelian_sandpile_model.exw:28 include pGUI.e       -- FAIR: but usual canvas resizing issues, ""
+C:\Program Files (x86)\Phix\demo\rosetta\animate_pendulum.exw:14 include pGUI.e             -- FAIR: needs anti-aliased circles under WinAPI
+C:\Program Files (x86)\Phix\demo\rosetta\Animation.exw:8 include pGUI.e                     -- FAIR: no label click [dlg OK], colours iffy [GTK OK], margins on wrong thing??
+C:\Program Files (x86)\Phix\demo\rosetta\AplusB.exw:14 include pGUI.e                       -- POOR: slightly better in GTK
+C:\Program Files (x86)\Phix\demo\rosetta\Archimedean_spiral.exw:6 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Arithmetic_Integer.exw:1 (not yet part of distro)  -- ??
+C:\Program Files (x86)\Phix\demo\rosetta\AudioAlarm.exw:20 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Audio_frequency_generator.exw:5 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\B-spline.exw:9 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Babylonian_spiral.exw:73 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\BarnsleyFern.exw:5 include pGUI.e                      -- GOOD, but might benefit from a pre/once-built gImage??
+C:\Program Files (x86)\Phix\demo\rosetta\Bilinear_interpolation.exw:6 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Black_Box.exw:467 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\BrownianTree.exw:9 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\BullsAndCows.exw:34 include pGUI.e                     -- POOR: layout awful, inital focus, SIZE=NULL totally mishandled
+C:\Program Files (x86)\Phix\demo\rosetta\Canny_Edge_Detection.exw:7 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Chaos_game.exw:6 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\ChatClient.exw:12 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\ChatServer.exw:13 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Clock.exw:6 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Color_quantization.exw:13 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Colour_bars.exw:7 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Colour_bars.exw:43 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Colour_pinstripe.exw:6 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Colour_separation.exw:7 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Colour_wheel.exw:8 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Compare_sorting_algorithms.exw:11 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Convex_hull.exw:65 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Conways_Game_of_Life.exw:6 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Create2Darray.exw:11 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\DeathStar.exw:8 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Determine_if_two_triangles_overlap.exw:5
+C:\Program Files (x86)\Phix\demo\rosetta\DragonCurve.exw:8 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\DrawRotatingCube.exw:11 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Draw_a_sphere.exw:6 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\draw_cuboid.exw:18 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Draw_pixel_2.exw:5 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\ElevatorSimulation.exw:8 include pGUI.e                -- GOOD, except disable resize
+C:\Program Files (x86)\Phix\demo\rosetta\Euler_method.exw:40 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\FibonacciFractal.exw:5 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Finite_State_Machine.exw:47 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Forest_fire.exw:13 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\FractalTree.exw:6 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Gallery_Generator.exw:203 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\GaltonBox.exw:10 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Gaussian_primes.exw:65 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Goldbachs_comet.exw:29 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Greed.exw:5                                            --DEV make this a gui (xpGUI/include pGUI.e) make @ more visible, write a solver?
+C:\Program Files (x86)\Phix\demo\rosetta\Greyscale_bars.exw:8 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Guess_the_number.exw:5 include pGUI.e                  -- ?
+C:\Program Files (x86)\Phix\demo\rosetta\Guess_the_number2.exw:5 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Guess_the_number3.exw:6 include pGUI.e                 -- FAIR: margin not applied on labels, no label resize on set value
+C:\Program Files (x86)\Phix\demo\rosetta\GUI_component_interaction.exw:6 include pGUI.e         -- ?
+C:\Program Files (x86)\Phix\demo\rosetta\GUI_enabling_and_disabling_controls.exw:5              -- ?
+C:\Program Files (x86)\Phix\demo\rosetta\GUI_maximum_window_dimensions.exw:23                   -- ?
+C:\Program Files (x86)\Phix\demo\rosetta\hexapawn.exw:27 include pGUI.e                         -- ?
+C:\Program Files (x86)\Phix\demo\rosetta\hilbert_curve.exw:8 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Hough_transform.exw:11 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\ImageNoise.exw:7 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Image_convolution.exw:8 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Inventory_sequence.exw:35 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Julia_set.exw:7 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Julia_set.exw:170 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Keyboard_macros.exw:6 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Koch_curve.exw:6 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\K_means_clustering.exw:17 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\mastermind.exw:54 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Matrix_Digital_Rain.exw:14 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\minQBN.exw:7 --include pGUI.e                          -- ?
+C:\Program Files (x86)\Phix\demo\rosetta\minQBN.exw:10 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Modified_random_distribution.exw:44 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Morpion_solitaire.exw:70 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Morse_code.exw:6 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Mouse_position.exw:12 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Munching_squares.exw:6 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Musical_scale.exw:5 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\NumberTripletsGame.exw:7 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\OpenGL.exw:12 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\OpenGLShader.exw:13 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\OpenGLShader.exw:244 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Order_by_pair_comparisons.exw:316 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Particle_fountain.exw:6 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\peano_curve.exw:8 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Penrose_tiling.exw:11 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Pentagram.exw:9 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Perceptron.exw:17 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Peripheral_Drift_Illusion.exw:12 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\plasma.exw:7 include pGUI.e                            -- ?
+C:\Program Files (x86)\Phix\demo\rosetta\Playing_cards.exw:60 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Plot_coordinate_pairs.exw:6 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Polynomial_regression.exw:56 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Polyspiral.exw:12 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Pseudorandom_number_generator_image.exw:7
+C:\Program Files (x86)\Phix\demo\rosetta\PythagorasTree.exw:8 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Rank_History.exw:26 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Raster_bars.exw:10 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Run_examples.exw:32 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\safe_mode.exw:109 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Sierpinski_arrowhead_curve.exw:10 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Sierpinski_curve.exw:10 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Sierpinski_square_curve.exw:9 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\SierpinskyPentagon.exw:7 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\SierpinskyPentagon.svg.exw:29 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\SierpinskyPentagon.svg.exw:524 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\SierpinskyTriangle.exw:6 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Simple_window.exw:5 include pGUI.e                     -- ?
+C:\Program Files (x86)\Phix\demo\rosetta\Simulate_keyboard_input.exw:6 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Simulate_mouse_input.exw:8 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Single_instance.exw:8 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\sleep.exw:23 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Snake.exw:19 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Snake_AI.exw:158 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Speak.exw:13 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Speech.exw:12 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Spinning_rod_animation.exw:37 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\SpliRT.exw:12 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Sudoku.exw:1038 --include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Sunflower.exw:8 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Superellipse.exw:8 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Sutherland_Hodgman_polygon_clipping.exw:53
+C:\Program Files (x86)\Phix\demo\rosetta\tamagotchi.exw:10 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Tetrominoes.exw:22 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Tic_tac_toe.exw:11 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Tupper.exw:39 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\turtle.e:15 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Uno.exw:18 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\User_Input_Graphical.exw:8 include pGUI.e              -- ?
+C:\Program Files (x86)\Phix\demo\rosetta\vibrect.exw:13 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\viewppm.exw:10 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\virtunome.exw:11 include pGUI.e                        -- ?
+C:\Program Files (x86)\Phix\demo\rosetta\VoronoiDiagram.exw:9 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\WaveFunctionCollapse.exw:7 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\WaveFunctionCollapse.exw:339 --include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\WaveFunctionCollapse.exw:342 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Window_creation.exw:6 include pGUI.e                   -- ?
+C:\Program Files (x86)\Phix\demo\rosetta\Window_management.exw:6 include pGUI.e                 -- ?
+C:\Program Files (x86)\Phix\demo\rosetta\Wireworld.exw:98 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Wordiff.exw:48 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\XiaolinWuLine.exw:19 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Yellowstone_sequence.exw:30 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Yin_and_yang.exw:6 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\7guis\Booker.exw:6 include pGUI.e                      -- meh: dlg size shd dflt from TITLE, expand off
+C:\Program Files (x86)\Phix\demo\rosetta\7guis\Cells.exw:6 include pGUI.e                       -- **needs** editable fields on a gTable...
+C:\Program Files (x86)\Phix\demo\rosetta\7guis\CircleDraw.exw:7 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\7guis\Converter.exw:6 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\7guis\Counter.exw:6 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\7guis\CRUD.exw:6 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\7guis\Timer.exw:6 include pGUI.e
+C:\Program Files (x86)\Phix\pwa\phix\hello_world.exw:1 (needs {{libheader|Phix/pGUI}})          -- ?
+ [https://rosettacode.org/wiki/Hello_world/Newbie#Phix]
+https://rosettacode.org/wiki/Integer_comparison#Phix add a gui
+<syntaxhighlight lang="wren">
+WM_GETMINMAXINFO                0x0024
+           
+hmm: https://hoyoung2.blogspot.com/2011/06/gtk-tutorial.html
+     https://github.com/tindzk/GTK/blob/master/examples/fixed/fixed.c
 
 --*/
-
 

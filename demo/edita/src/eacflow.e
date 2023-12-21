@@ -45,7 +45,7 @@ end procedure
 sequence cB_end = KtoF("end"),
          cB_endn = KtoF("end nested"), 
          cB_nestd = KtoF("nested"),
-         cB_global = {KtoF("global"),KtoF("public"),KtoF("export"),KtoF("override"),cB_nestd},
+         cB_global = {KtoF("global"),KtoF("local"),KtoF("public"),KtoF("export"),KtoF("override"),cB_nestd},
          cB_globali,
          cB_set1 = {KtoF("if"),KtoF("switch"),KtoF("for"),KtoF("while"),
                     KtoF("procedure"),KtoF("function"),KtoF("type"),KtoF("try")},

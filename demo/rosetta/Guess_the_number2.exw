@@ -2,6 +2,63 @@
 -- demo\rosetta\Guess_the_number2.exw
 --
 with javascript_semantics -- (spacing not (yet) great...)
+requires("1.0.3")
+include xpGUI.e
+gdx lbl, guess, toohigh, too_low, correct, newgame, dlg
+
+integer Min=0, Max=100, Guess
+constant LTHINK = sprintf("Think of a number between %d and %d.",{Min,Max})
+
+procedure set_active(bool bActive)
+    gSetInt({toohigh, too_low, correct},"ACTIVE",bActive)
+    gSetInt(newgame,"ACTIVE",not bActive)
+end procedure
+
+procedure set_guess()
+    Guess = floor((Max+Min)/2)
+    string title = sprintf("My guess is %d, is this too high, too low, or correct?", Guess)
+    if Max<Min then
+        set_active(false)
+        title = "I think something is strange here..."
+    end if
+    gSetAttribute(guess,"TITLE",title)
+    gRedraw(guess)
+end procedure
+
+function click_cb(gdx ih)
+    switch substitute(gGetAttribute(ih,"TITLE"),"Too ","")[1] do
+        case 'H':   Max = Guess-1  set_guess()
+        case 'L':   Min = Guess+1  set_guess()
+        case 'C':   gSetAttribute(guess,"TITLE","I did it!")
+                    set_active(false)
+        case 'N':   Min = 0  Max = 100  set_guess()
+                    set_active(true)
+    end switch
+    return XPG_DEFAULT
+end function
+
+procedure main()
+    
+    lbl = gLabel(LTHINK)
+    guess = gLabel("")
+    toohigh = gButton("Too High", click_cb)
+    too_low = gButton("Too Low", click_cb)
+    correct = gButton("Correct", click_cb)
+    newgame = gButton("New Game", click_cb, "ACTIVE=NO")
+    dlg = gDialog(gVbox({lbl,
+                         guess,
+                         gHbox({toohigh,too_low,correct,newgame},"GAP=10")},
+                        `NMARGIN=15x15,GAP=10`),
+                  `MINSIZE[*charsize]=300x100,TITLE="Guess the number2"`)
+    set_guess()
+    gShow(dlg)
+    gMainLoop()
+end procedure
+ 
+main()
+
+--/*
+with javascript_semantics -- (spacing not (yet) great...)
 include pGUI.e
 Ihandle lbl, guess, toohigh, too_low, correct, newgame, dlg
 
@@ -59,6 +116,7 @@ procedure main()
 end procedure
  
 main()
+--*/
 
 --/* previous desktop-only version
 integer Min=0, Max=100, Guess, Response

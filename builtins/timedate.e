@@ -1958,7 +1958,7 @@ atom delta = timedate_to_seconds(td2)-timedate_to_seconds(td1)
     return delta
 end function
 --/* test code:
-include builtins/timedate.e
+include builtins\timedate.e
 
 set_timedate_formats({"DD/MM/YYYY","Dddd, Mmmm dd yyyy"},2)
 

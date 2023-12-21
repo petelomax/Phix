@@ -8,19 +8,46 @@
 --requires(64,true)
 with javascript_semantics
 include xpGUI.e
+--include backup\xpGUI.0826.e -- GOOD
+--include backup\xpGUI.0889.e -- GOOD
+--include backup\xpGUI.0933.e -- GOOD
+--include backup\xpGUI.0934.e -- GOOD
+--include backup\xpGUI.0957.e -- BAD
+--include backup\xpGUI.0959.e -- BAD
+--include backup\xpGUI.0960.e -- X
+--include backup\xpGUI.0961.e -- BAD
+--include backup\xpGUI.0970.e -- BAD
+--include backup\xpGUI.1022.e -- BAD
+--include xpGUI3.e -- shows something..
 --gUseGTK()
 --win64: 226x73
 --gtk32: 212x66
 --gtk64: 168x34
 
-gdx txt = gText(`VALUE="one two three"`),
---gdx txt = gText(`VALUE="one two three",EXPAND=HORIZONTAL`),
+--integer vtc = 0
+procedure value_changed(gdx txt)
+--vtc += 1
+--if vtc=1 then ?9/0 end if -- WM_COMMAND from xSetWindowText
+--if vtc=2 then ?9/0 end if
+--if vtc=3 then ?9/0 end if -- WM_LBUTTONDOWN...
+    ?{"value_changed",gGetAttribute(txt,"VALUE")}
+end procedure
+
+gdx txt = gText(value_changed,`VALUE="one two three"`),
+--gdx txt = gText(value_changed,`VALUE="one two three",SIZE=200x100`),
+--gdx txt = gText(`VALUE="one two three",EXPAND=HORIZONTAL`), -- ooh/er, WinAPI... [DEV]
+--gdx txt = gText(`VALUE="one two three",EXPAND=VERTICAL`),
+--gdx txt = gText(`VALUE="one two three",EXPAND=BOTH`),     -- ""
 --gdx txt = gText(),
 --  dialog = gDialog(txt,`gText`,`SIZE=226x73`)
     hbx = gHbox({txt},"MARGIN=13x13"),
     dlg = gDialog(hbx,"gText","SIZE=240x80")
+--  dlg = gDialog(hbx,"gText")
 --gSetAttribute(txt,"FONT","Helvetica, Italic 19")
+--gSetAttribute(txt,"SIZE",250)
+--gSetAttribute(txt,"SIZE","250")
 gShow(dlg)
 ?gGetAttribute(txt,"VALUE")
+?gGetAttribute(txt,"SIZE")
 gMainLoop()
 

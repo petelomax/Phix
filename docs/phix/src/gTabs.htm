@@ -36,7 +36,7 @@
             <br>
             children: List of elements|titles|images for each tab, see notes.<!--that will be placed in the box, each one becoming a separate tab.--> It can be empty.<br>
             tabchange: an optional procedure, which should be invoked whenever the user changes the selected tab.<br>
-            For more information on the attributes and args parameters see <a href="gSetAttributes.htm">gSetAttributes</a>.<br>
+            For more information on the attributes and args parameters see <a href="gSetAttributes.htm">gSetAttributes</a>().<br>
             This is a <a href="g_paranormal.htm">paranormalised function</a> <small>(see <a href="#tech" onclick="opentech()">technicalia</a>).</small>
             <br>
             <br>
@@ -65,12 +65,13 @@
           <b>Example:</b>
          </td>
          <td>
-            <p align="center"><img alt="gTabs" src="images/gTabs.png" width="240" height="80"/></p>
-        <small>
+          <div style="float:left;">
+           <small>
 <!--eucode>
 -- demo\xpGUI\gTabs.exw
 include xpGUI.e
-gdx tabs = gTabs({"First Tab","Second Tab","Third Tab","Fourth Tab"}),
+--constant xpm = ...(code omitted for brevity)
+gdx tabs = gTabs({{"First",xpm},"Second","Third","Fourth"}),
     dlg = gDialog(tabs,"gTabs","SIZE=240x80")
 gShow(dlg)
 gMainLoop()
@@ -78,13 +79,17 @@ gMainLoop()
 <pre>
 <font color="#000080"><i>-- demo\xpGUI\gTabs.exw</i></font>
 <font color="#008080">include</font><font color="#000000"> xpGUI.e</font>
-<font color="#7060A8">gdx</font><font color="#000000"> tabs</font><font color="#0000FF"> =</font><font color="#7060A8"> gTabs</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#008000">"First Tab"</font><font color="#0000FF">,</font><font color="#008000">"Second Tab"</font><font color="#0000FF">,</font><font color="#008000">"Third Tab"</font><font color="#0000FF">,</font><font color="#008000">"Fourth Tab"</font><font color="#800000">}</font><font color="#0000FF">),</font>
+<font color="#000080"><i>--constant xpm = ...(code omitted for brevity)</i></font>
+<font color="#7060A8">gdx</font><font color="#000000"> tabs</font><font color="#0000FF"> =</font><font color="#7060A8"> gTabs</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#800080">{</font><font color="#008000">"First"</font><font color="#0000FF">,</font><font color="#000000">xpm</font><font color="#800080">}</font><font color="#0000FF">,</font><font color="#008000">"Second"</font><font color="#0000FF">,</font><font color="#008000">"Third"</font><font color="#0000FF">,</font><font color="#008000">"Fourth"</font><font color="#800000">}</font><font color="#0000FF">),</font>
 <font color="#000000">    dlg</font><font color="#0000FF"> =</font><font color="#7060A8"> gDialog</font><font color="#0000FF">(</font><font color="#000000">tabs</font><font color="#0000FF">,</font><font color="#008000">"gTabs"</font><font color="#0000FF">,</font><font color="#008000">"SIZE=240x80"</font><font color="#0000FF">)</font>
 <font color="#7060A8">gShow</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">)</font>
 <font color="#7060A8">gMainLoop</font><font color="#0000FF">()</font>
 </pre>
-          <br>
-          </small>
+           <br>
+           </small>
+          </div>
+          <img alt="gTabs" style="float:right;" src="images/gTabs.png" width="240" height="80"/>
+          <div class="clear"></div>
 <!--
             <br>
             <br>
@@ -101,11 +106,11 @@ gMainLoop()
          <td>
             There are at least two very distinct uses of a tab control. The first, which is depicted above and I shall dub "obvious", 
             has a fixed number of tabs with different interface elements on each, only one set of which is visible at any given time. 
-            The second, which is used by gEditor and I shall dub "virtual", does not actually have a body as such on each tab, and it 
+            The second, which is(/will be) used by xpEditer and I shall dub "virtual", does not actually have a body as such on each tab, and it 
             becomes the sole responsibility of the application (rather than xpGUI) to change the contents of some other (unspecified) 
             display element, and for that matter to independently ensure the sizes of the tab bar and that any corresponding contents 
             remain in sync, if/when appropriate. 
-            In the case of gEditor the latter is achieved simply by putting them in the same <a href="gBox.htm">gVbox</a>().
+            In the case of xpEditer the latter is achieved simply by putting them in the same <a href="gBox.htm">gVbox</a>().
             <br>
             <a name=NOTES></a>
             <br>
@@ -123,7 +128,7 @@ gMainLoop()
             half the time.
             <br>
             <br>
-            Note that gEditor uses a "virtual" gTabs and a single <a href="gCanvas.htm">gCanvas</a> that is fully redrawn on tab change, 
+            Note that xpEditer uses a "virtual" gTabs and a single <a href="gCanvas.htm">gCanvas</a> that is fully redrawn on tab change, 
             and likewise filedump.exw does a similar trick over a single <a href="gTable.htm">gTable</a>, hence neither should be copied
             or studied for more traditional uses, by which I specifically mean where selecting a different tab automatically hides some 
             controls and displays some others. Neither of those make any attempt to use mnemonics on tab titles, either.
@@ -135,6 +140,8 @@ DEV...<br>
             The tab control can be created with no children and filled dynamically using <a href="IupAppend.htm">IupAppend</a>.<br>
             There is no "IupTabItem", instead the children can be any standard element, with <a href="IupHbox.htm">IupHbox</a>
             and <a href="IupVbox.htm">IupVbox</a> being the most likely/useful.
+            A tab control with no children is not officially supported. xpEditer uses [or is planned to] a fake "&lt;empty&gt;" tab
+            (disabled) to cover that case, and filedump is not intended to be runnable without a file to show.
 <!--
             <br>
             <br>
@@ -217,6 +224,7 @@ DEV...<br>
          </td>
         </tr>
 -->
+<!--
         <tr>
          <td>
 ?         CHILDSIZEALL
@@ -225,6 +233,7 @@ DEV...<br>
             (non inheritable): compute the natural size using all children. If set to NO will compute using only the current tab. Default: Yes. (since 3.27)
          </td>
         </tr>
+-->
         <tr>
          <td>
 ?         COUNT
@@ -251,6 +260,7 @@ DEV...<br>
 //       </td>
 //      </tr>
 -->
+<!--
         <tr>
          <td>
 ?         MULTILINE
@@ -260,6 +270,7 @@ DEV...<br>
             Can be "YES" or "NO". Default "NO". It is always enabled when TABTYPE=LEFT or TABTYPE=RIGHT. (since 3.0)
          </td>
         </tr>
+-->
         <tr>
          <td>
 ?         SHOWCLOSE
@@ -272,12 +283,13 @@ DEV...<br>
         </tr>
         <tr>
          <td>
-?         <a href="gSetAttribute.htm#SIZE">SIZE</a>
+?         <a href="gGetAttribute.htm#SIZE">SIZE</a>
          </td>
          <td>
             (non inheritable) The default size is the smallest size that fits its largest child. All child elements are considered even invisible ones.
          </td>
         </tr>
+<!--
         <tr>
          <td>
 ?         TABIMAGEn
@@ -286,13 +298,14 @@ DEV...<br>
             (non inheritable) image name to be used in the respective tab. 
             Use <a href="IupSetHandle.htm">IupSetHandle</a> or <a href="IupSetAttributeHandle.htm">IupSetAttributeHandle</a> to associate an image to a name. 
             n starts at 0. See also <a href="gImage.htm">gImage</a>. 
-<!--
+<X!--
 //          In Motif, the image is shown only if TABTITLEn is NULL. 
 //          In Windows and Motif set the <a href="gSetAttribute.htm#BGCOLOR">BGCOLOR</a> attribute before setting the image. 
--->
+--X>
             When set after map will update the TABIMAGE attribute on the respective child (since 3.10). (since 3.0)
          </td>
         </tr>
+-->
 <!--
         <tr>
          <td>
@@ -307,6 +320,7 @@ DEV...<br>
          </td>
         </tr>
 -->
+<!--
         <tr>
          <td>
 ?         TABPADDING
@@ -318,6 +332,8 @@ DEV...<br>
           <a name=TABVISIBLE></a>
          </td>
         </tr>
+-->
+<!--
         <tr>
          <td>
 ?         TABVISIBLEn
@@ -326,6 +342,8 @@ DEV...<br>
             (non inheritable) Allows to hide a tab. n starts at 0. When a tab is hidden the tabs indices are not changed. Can be Yes or No. Default: Yes. (since 3.8)
          </td>
         </tr>
+-->
+<!--
         <tr>
          <td>
 ?         TABTITLEn
@@ -338,6 +356,7 @@ DEV...<br>
             When set after map will update the TABTITLE attribute on the respective child.
          </td>
         </tr>
+-->
 <!--
         <tr>
          <td>
@@ -393,10 +412,11 @@ DEV...<br>
 <!--            <a href="gSetAttribute.htm#NAME">NAME</a>, -->
 <!--?           <a href="gGetAttribute.htm#POSITION">POSITION</a>, -->
 <!--?           <a href="gGetAttribute.htm#SCREENPOSITION">SCREENPOSITION</a>, -->
-            <a href="gGetAttribute.htm#CLIENTSIZE">CLIENTSIZE</a>, 
+<!--            <a href="gGetAttribute.htm#CLIENTSIZE">CLIENTSIZE</a>, -->
 <!--            <a href="gGetAttribute.htm#CLIENTOFFSET">CLIENTOFFSET</a>,-->
             <a href="gSetAttribute.htm#MINSIZE">MINSIZE</a>, 
             <a href="gSetAttribute.htm#MAXSIZE">MAXSIZE</a>,
+            <a href="gGetAttribute.htm#SIZE">SIZE</a>,
             <a href="gSetAttribute.htm#TIP">TIP</a>, 
 <!--            <a href="gSetAttribute.htm#RASTERSIZE">RASTERSIZE</a>,-->
 <!--            <a href="gSetAttribute.htm#ZORDER">ZORDER</a>,-->

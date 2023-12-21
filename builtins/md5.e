@@ -1,5 +1,5 @@
 --
--- builtins/md5.e
+-- builtins\md5.e
 --
 -- Non-optimised. Originally written by Davi Tassinari de Figueiredo.
 -- Not documented. Actually taken from demo\rosetta\md5.exw ...

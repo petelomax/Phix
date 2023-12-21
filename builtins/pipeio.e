@@ -580,7 +580,7 @@ global function call_named_pipe(string szPipename, string msg)
     return res
 end function
 
--- <end of builtins/pipeio.e>
+-- <end of builtins\pipeio.e>
 
 --/* This also works on linux:
 --(DEV: surely there must be a way to make pmain.e do most of this (esp 32 vs 64 bit) for me!!)

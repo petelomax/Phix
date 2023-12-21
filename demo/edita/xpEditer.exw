@@ -4,12 +4,12 @@
 --
 --  Expediter: n. One employed to ensure the steady progress to completion of a project.
 --
--- Port of Edita to the cross platform pGUI library, instead of (32 bit windows only) arwen.
---  -- hang on, what about running it in a browser?! (save via php etc??!!)
--- Author Pete Lomax April 2022.
+-- Port of Edita to the cross platform xpGUI library, from (32 bit windows only) arwen.
+-- Author Pete Lomax November 2023.
 --
 -- Aims: 
 --  * Refactor as many components of Edita as possible so they can be used in both.
+--      (simply MOVE any code to be shared into NEW gui-free source files!!)
 --  * Fast startup, better backups from Edix (which I accept has failed).
 --  * Rock-solid anti-crash: reboot/re-open the gui part without loss (see below).
 --  * Run online! 
@@ -17,10 +17,18 @@
 --          pwa\js\poc\cheter.html for using local storage (php wd be better..)
 --      and E:/downloads/misc/js/highlight-text-inside-a-textarea/dist/index.html
 --  * Mixed mode syntax highlighting!! (HTML + CSS + JavaScript + PHP)
---  * Syntax checking (aka periodic background compile)
---  * Spell checking
+--  * Syntax checking (aka periodic quiet background compile)
+--  * Spell checking (with "" to augment the spelling dictionary?)
 --  * At some point I expect to remove/rename demo/Edita as demo/xpEditer, but as
 --      long as both still exist they will be left in the same shared directory.
+--      (sharing any read-only files but replicating any writeable ones)
+--  * Better handling of files modified by someone/something else
+--      (quickly re-test all that in Edita, just to be sure?)
+--  * Completely replace ini file handling, see what I did with p2js_keywords.e, 
+--      p2js_auto.e, p2js_depend.e, and also think about recovery/restore.
+--  * Add: overpaste: if it recognises the selected text, paste in a substitution for
+--      that specific thing rather than the clipboard. List with active, temp chkbxs,
+--      in datetime order, and quietly collect (inactive) suitables, if you can.
 --
 -- Anti-crash:
 --  Use Opera/Chrome approach of multiple processes, ie "xxx has crashed, reload?"
@@ -30,13 +38,6 @@
 --  - based on some kind of "desired state" table, methinks...
 --  - or just shut windows asap, and move any lengthy ops to b/g task (disabling tab)...
 --  Own settings manager in preference to IupConfig()/rewrite ini.e properly
---
--- * Better handling of files modified by someone/something else
--- * Completely replace ini file handling, see what I did with p2js_keywords.e, 
---      p2js_auto.e, p2js_depend.e, and also think about recovery/restore.
--- * Add: overpaste: if it recognises the selected text, paste in a substitution for
---      that specific thing rather than the clipboard. List with active, temp chkbxs,
---      in datetime order, and quietly collect (inactive) suitables, if you can.
 --
 --DEV/SUG: (settings) Don't backup broken files [ ]. By default (unchecked), a backup
 --  is made of every file before it is overwritten. When this is checked it does not
@@ -84,59 +85,2839 @@
 --  ie "this set of [ten] files all compiled cleanly / save as a delta point".
 --  (An ipc block with a warning if byte[1] not 0 would seem to be in order.)
 
+-- TODO:
+--  Menus (with icons, and fixed backgrounds under WinAPI)
+--  Toolbar
+--  Tabs (with a single gList)
+--  A brand new ini file handling routine...
+--  syntax colouring (mixed mode!)
+--  gSplit (or maybe not/use popups or ipc'd standalones instead?)
+--  run/p2js etc                        (""?)
+--  project tree
+--  status bar
+--  layout designer
+
 --puts(1,"") -- (temp [warning child not used])
+with javascript_semantics
 --include ../xpGUI/xpGUI.e
+--requires(64,true)
+--include hll_stubs.e -- DEV needed for 64bit [FIXME]
 include xpGUI.e
+--include ..\xpGUI\xpg_xpm.e
+--include ..\xpGUI\backup\xpGUI.0003.e  -- X gQuit
+--include ..\xpGUI\backup\xpGUI.0320.e  -- X = 
+--include ..\xpGUI\backup\xpGUI.0321.e  -- X GTK_ID_LOOKUP
+--include ..\xpGUI\backup\xpGUI.0322.e  -- X "" 
+--include ..\xpGUI\backup\xpGUI.0323.e  -- X "" 
+--include ..\xpGUI\backup\xpGUI.0324.e  -- X "" 
+--include ..\xpGUI\backup\xpGUI.0329.e  -- bad (pre?)
+--include ..\xpGUI\backup\xpGUI.1260.e  -- good
+--include ..\xpGUI\backup\xpGUI.1270.e  -- X
+--include ..\xpGUI\backup\xpGUI.1271.e  -- good
+--include ..\xpGUI\backup\xpGUI.1272.e  -- bad
+--include ..\xpGUI\backup\xpGUI.1273.e  -- bad
+--include ..\xpGUI\backup\xpGUI.1274.e  -- bad
+--include ..\xpGUI\backup\xpGUI.1275.e  -- bad
+--include ..\xpGUI\backup\xpGUI.1278.e  -- X
+--include ..\xpGUI\backup\xpGUI.1279.e  -- X
+--gUseGTK()
 
---gOpen() -- (platform default)
---gOpen(XPG_GTK) -- (use gtk)
---gOpen(XPG_WINAPI) -- (use Windows API)
+integer backend = gVersion(-1) -- (temp/force init)
+--include src\xpediter_icons.e
+--include src\xpediter_menus.e
+--constant file_new_xpm_txt = """
+constant file_new_xpm = """
+16 16 4 1 0 0
+. c None
+_ c #FFFFFF
+! c #C0C0C0
+# c #808080
+..!!!!!!!!!.....
+..!_______!!....
+..!______!!_!...
+..!_______###!..
+..!________!_!..
+..!__________!..
+..!__________!..
+..!__________!..
+..!__________!..
+..!__________!..
+..!__________!..
+..!__________!..
+..!__________!..
+..!__________!..
+..#__________#..
+..############..
+"""
+--constant file_new_xpm = gImage_from_XPM(file_new_xpm_txt,"MENU")
+--sequence file_new_xpm = gImage_from_XPM(file_new_xpm_txt,"MENU")
 
---gHandle main = gDialog(NULL,`TITLE="xpEditer",SIZE=500x300`,false)
-gdx main = gDialog(NULL,`TITLE="xpEditer",SIZE=500x300`)    -- (TEMP/for now...)
-gShow(main)
---if platform()!=JS then
+constant file_open_xpm = """
+16 16 17 1 0 0
+. c None
+_ c #FDFDFD
+! c #F3D590
+# c #E6C37B
+$ c #D9B264
+% c #FAE39C
+& c #FDE9A5
+' c #C59639
+( c #D8BB81
+) c #D6B471
+* c #DBC59A
++ c #E3E1D9
+, c #B28630
+- c #41C9FE
+E c #2EB6F4
+/ c #B09053
+0 c #9E772A
+..!##########!..
+..#!#$!%&&&&&#..
+..#&&%#'%%%!&#..
+..#&&&&'!!%%%#..
+..(&&&&'!#%!%)..
+..)&%%&'*#!%%)..
+..)%%%%'#(!!%)..
+..)%!%!'(#!!%_).
+..$%!!%,((!!!_$.
+..$!!!!,((!!!+$.
+..$!#!!,)(!!!-).
+..$!##!,((#!!E/.
+../!##!0#(!!!/*.
+../'$!#000/,//..
+....)/$,........
+......(/........
+"""
+--constant file_open_xpm = gImage_from_XPM(file_open_xpm_txt,"MENU")
+
+constant file_reopen_xpm = """
+16 16 17 1 0 0
+. c None
+_ c #FCFCFB
+! c #F5D995
+# c #E6C37B
+$ c #D6B36E
+% c #C0953F
+& c #B0C2AF
+' c #91A5A1
+( c #88B4D4
+) c #75ACD3
+* c #6993AE
++ c #D5BB84
+, c #6D7A6E
+- c #AD9157
+E c #B28630
+/ c #38C0F9
+0 c #9E772A
+..!##########!..
+..#!#$!!!!!!!#..
+..#!!!#%!!!!!!..
+..!!!!&'((()&#..
+..#!!!(()*'*)'..
+..#!!!())+!!+*..
+..$!!!',*#!!!-..
+..#!!!!E+#!!!_$.
+..$!!!!%#+!!!_$.
+..$!!!!E+##!#_$.
+..$!#!!E$+!!!/$.
+..%!###E+$!#!/-.
+..-!##!E$+!#!%..
+..-%###000-E--..
+....$%$E........
+......+-........
+"""
+--constant file_reopen_xpm = gImage_from_XPM(file_reopen_txt,"MENU")
+
+constant file_save_xpm = """
+16 16 17 1 0 0
+. c None
+_ c #F5F8F8
+! c #CB9CE2
+# c #A975C2
+$ c #BBCBCB
+% c #CB98E4
+& c #9E6DB7
+' c #D4DADD
+( c #9864B1
+) c #BB8AD3
+* c #8B57A4
++ c #7B4795
+, c #BBBBC0
+- c #ACACB6
+E c #A99CB0
+/ c #6D3987
+0 c #777777
+................
+.!#$$$$$$$$$$#!.
+.#!__________!#.
+.#!__________!#.
+.#!__________!#.
+.#%__________%#.
+.&%_'''''_''_%&.
+.(%_________'%&.
+.&%))))))#)))%(.
+.()**+*******%(.
+.()*$,$$,$*#*)(.
+.*)(,++,-,(#()(.
+.*)(-((-E,(#&)*.
+..+*-((---(##)+.
+.../000000////*.
+................
+"""
+--constant file_save_xpm = gImage_from_XPM(file_save_txt,"MENU")
+
+constant file_saveas_xpm = """
+16 16 17 1 0 0
+. c None
+_ c #F1F3F2
+! c #D9DAB7
+# c #B05155
+$ c #F1A8A8
+% c #CA99E1
+& c #A976C2
+' c #BBCBCB
+( c #AEABB6
+) c #6D3987
+* c #BB90D1
++ c #B6A84A
+, c #F7E679
+- c #777777
+E c #9360AB
+/ c #3B2032
+0 c #7B4C93
+.............!#$
+.%&''''''''''#$#
+.&%_________(_)$
+.*%_______!+,-E.
+.&%______!+,+*&.
+.&%_____!+,+!%&.
+.&%____'+,+!_%E.
+.&*____+_+!__%&.
+.&**&**/-E*&**E.
+.E*EE000E0E0E%E.
+.E*E'''''!E&E%E.
+.E*E(00(((E&E%E.
+.E*E(EE(((E&&*0.
+.%0E(EE(((E&&%0.
+..()------))))0.
+................
+"""
+--constant file_saveas_xpm = gImage_from_XPM(file_saveas_txt,"MENU")
+
+constant file_close_xpm = """
+16 16 17 1 0 0
+. c None
+_ c #FDFDFD
+! c #F0D48C
+# c #E6C57D
+$ c #FDECA7
+% c #E1BE79
+& c #F9E39D
+' c #DEC07C
+( c #D5B36D
+) c #DDDDD7
+* c #C8A55F
++ c #41C9FE
+, c #C29E57
+- c #2EB6F4
+E c #AC8844
+/ c #CCC2AE
+0 c #A38D63
+..!##########!..
+..#$$$$$$$$$$#..
+..#$$$$$$$$$$#..
+..#$$$$$$$$$$%..
+..%$$$&$&$$$$'..
+..%$&&&&&&&&$%..
+..(&&&&&&&&&&(..
+..(&!!!!!!!&%%).
+..(&!!&!&!&''_(.
+..(&!!!!!!!(!_(.
+..(!#!!!!!!(!_*.
+..*!!###!#!*!)*.
+..*!##!###!*!+*.
+..,!#######,!-,.
+..,!#!#!!#!E!E/.
+..0EEEEEEEEEE0..
+"""
+--constant file_close_xpm = gImage_from_XPM(file_close_txt,"MENU")
+
+constant file_preview_xpm = """
+16 16 17 1 0 0
+. c None
+_ c #F7F9FB
+! c #CADBEF
+# c #5C93C9
+$ c #6A89AF
+% c #56708C
+& c #D1D1D2
+' c #D4E6FB
+( c #BAC5D1
+) c #94A2B1
+* c #ACB8C5
++ c #B5B5B6
+, c #777777
+- c #8C8C8C
+E c #505050
+/ c #2E5077
+0 c #2B2B2B
+....####$%$.....
+...#_'_((''$....
+...#_!')!!!($...
+...#_'!)!''!%...
+...#_''*)'_+%...
+..,#_''!),%-+E..
+.)&#'''''!!'/(E.
+-&',-,,-,,-,,-!E
+-__&____'&'&++,E
+,__+&+&&&&&&+__E
+,&&-&&+++++&-&&E
+,&+-&(++(++&-++0
+,++--,,,,EEE,++0
+,++,+&++(++)0+-0
+.,E#__'__'__#0E.
+...##########...
+"""
+--constant file_preview_xpm = gImage_from_XPM(file_preview_txt,"MENU")
+constant file_print_xpm = """
+16 16 17 1 0 0
+. c None
+_ c #F8F9FB
+! c #B9D5F1
+# c #7DAEDC
+$ c #4E89C6
+% c #6496CA
+& c #88ABD9
+' c #D1E5FB
+( c #84B6E2
+) c #C3DDF9
+* c #D1D1D1
++ c #8D8D8D
+, c #757575
+- c #BDC0C5
+E c #B6B6B6
+/ c #4B4B4B
+0 c #2B2B2B
+....#$$$%$&.....
+...$_____'(%....
+...%_)))!_'(&...
+...$_''')'__$...
+...$_''')!!_$...
+..+$_'''')!'$,..
+.+*$_''''))_$-,.
++*_,,,+,+,,,,_-,
++__*________*__,
+,__E**-*--**E__/
+,**+*------*+**/
+,--+*EEEEEE*+-E0
+,EE+++,,,///,EE0
+,EE,E--E--EE0E+0
++,/%__'__''_%0/+
+...%%%%%%%%%%...
+"""
+--constant file_print_xpm = gImage_from_XPM(file_print_txt,"MENU")
+constant file_exit_xpm = """
+16 16 17 1 0 0
+. c None
+_ c #F7F7F7
+! c #CA8C5E
+# c #AB6735
+$ c #B1896D
+% c #EADFDB
+& c #AFAFAF
+' c #9D9D9D
+( c #C27E4B
+) c #AD7450
+* c #D0D0D0
++ c #A25E2D
+, c #924E1B
+- c #945530
+E c #7A4234
+/ c #6D372E
+0 c #7C5C59
+..#########.....
+.#&&&&&&'#!()...
+.#**&*&&&#+#!(#.
+.+**&**&&+(,+)!#
+.#*&&*&&&+(+(,!#
+.#&&'***&-(##+!+
+.$&_&'&'&-(+#+(+
+.'_____'&-###,(+
+.$'%'''&&-##,&!+
+.E*''***&-#+,/(-
+.-%&&***&-###+(-
+.E%%%%*%&-++#+(-
+.E%%*%***E),#+#-
+.0///////0E##+#-
+............/#)E
+..............E0
+"""
+--constant file_exit_xpm = gImage_from_XPM(file_exit_txt,"MENU")
+--/*
+constant undo_txt = """
+16 16 16 1 0 0
+. c None
+! c #ABB4B0
+# c #568F6C
+$ c #497D63
+% c #92A39B
+& c #CDD0CF
+' c #308255
+( c #6D9A82
+) c #A3DFAB
+* c #5BD65D
++ c #0F9C2C
+, c #28774B
+- c #C9F8C5
+d c #1DD823
+/ c #06F608
+0 c #1F7B3F
+................
+................
+.......#$$......
+.....'()**+,....
+....'&-)*ddd+...
+...$)-**dd///0..
+('0(-**d0,+///(.
+'**d*d+,...'d/0.
+$*dd///+....$d+.
+.+dd////$....'+.
+.0/////+......0(
+.#d///+........#
+..+/+$..........
+...(............
+................
+................
+"""
+--*/
+constant undo_xpm = """
+16 16 17 1 0 0
+. c None
+1 c #FBFEFE
+! c #D7F5F9
+# c #55F2BA
+$ c #04E4A3
+% c #00D6B3
+& c #02C7C9
+' c #01BBD8
+( c #04ACEE
+) c #53C4F5
+* c #02ED96
++ c #4EE5C7
+, c #8DE8E3
+- c #39CBE0
+d c #77E4DE
+/ c #A4EDE9
+0 c #37BCF3
+..#$%%%&&&''()..
+.$$$%%%&&&'''((.
+#*$$%+,-&&''((()
+**$$d11,&''''(((
+**$/111!,-&'((((
+**!1111111!-'(((
+*#11111111110(((
+**!1111111111(((
+**$,111!11111,((
+***$d11,&-!111((
+**$$%+d&&&'/110(
+**$$$%%&&&''!1)(
+**$$%%%&&&''d10(
+#*$$%%%&&&'((/()
+.*$$%%%&&&'''((.
+..#$%%%&&'''()..
+"""
+--constant undo_xpm = gImage_from_XPM(undo_xpm_txt,"MENU")
+
+constant redo_xpm = """
+16 16 17 1 0 0
+. c None
+1 c #FBFEFE
+! c #D7F5F9
+# c #53C4F5
+$ c #04ACEE
+% c #01BBD8
+& c #02C7C9
+' c #00D6B3
+( c #04E4A3
+) c #55F2BA
+* c #39CBE0
++ c #8DE8E3
+, c #4EE5C7
+- c #02ED96
+d c #77E4DE
+/ c #A4EDE9
+0 c #37BCF3
+..#$%%&&&'''()..
+.$$%%%&&&'''(((.
+#$$$%%&&*+,'((-)
+$$$%%%%&+11d((--
+$$$$%&*+!111/(--
+$$$%*!1111111!--
+$$$01111111111)-
+$$$1111111111!--
+$$+11111!111+(--
+$$111!*&+11d(---
+$011/%&&&d,'((--
+$#1!%%&&&''(((--
+$01d%%&&&'''((--
+#$/$$%&&&'''((-)
+.$$%%%&&&'''((-.
+..#$%%%&&'''()..
+"""
+--constant redo_xpm = gImage_from_XPM(redo_xpm_txt,"MENU")
+
+constant cut_xpm = """
+16 16 2 1
+. c None
+* c #000000
+................
+................
+.............*..
+............*...
+...........**...
+..........**....
+.****....**.....
+*...**..**......
+*...******......
+.****...*******.
+.......**.......
+......***.......
+.....*..*.......
+....*...*.......
+....*..*........
+....***.........
+"""
+--constant cut_xpm = gImage_from_XPM(cut_xpm_txt,"MENU")
+constant cuta_xpm = """
+16 16 2 1
+. c None
+* c #000000
+...*............
+...*............
+.*****.......*..
+...*........*...
+...*.......**...
+..........**....
+.****....**.....
+*...**..**......
+*...******......
+.****...*******.
+.......**.......
+......***.......
+.....*..*.......
+....*...*.......
+....*..*........
+....***.........
+"""
+--constant cuta_xpm = gImage_from_XPM(cuta_xpm_txt,"MENU")
+constant cutp_xpm = """
+16 16 2 1
+. c None
+* c #000000
+................
+................
+.............*..
+............*...
+...........**...
+..........**....
+.****....**.....
+*...**..**......
+*...******......
+.****...*******.
+.......**.......
+......***...*...
+.....*..*...*...
+....*...*.*****.
+....*..*....*...
+....***.....*...
+"""
+--constant cutp_xpm = gImage_from_XPM(cutp_xpm_txt,"MENU")
+constant copy_xpm = """
+16 16 17 1 0 0
+. c None
+1 c #B5B7B7
+! c #ADB0B0
+# c #ABAEAE
+$ c #FFFEFE
+% c #E7E8E9
+& c #CBCBCB
+' c #DFE0E0
+( c #A3A5A5
+) c #EBEBEC
+* c #E3E4E5
++ c #F4F4F5
+, c #A6A8A8
+- c #C6C7C7
+d c #EFF0F0
+/ c #F6F6F8
+0 c #D0D0D0
+1!####!1........
+!$$$$$$%&.......
+#$'''$($)&......
+!$*%*$&($#!#!&..
+#$%)%+$$$,$$$%&.
+#$))))))$,*$($%-
+#$dddddd$,%$&($!
+#$++++++$,)+$$$#
+#$//////$,dd))$#
+#$$$$$$$$,+ddd$#
+!$$$$$$$$,/+++$#
+1!#####,,1////$#
+......!/)$$$$$$#
+......!$$$$$$$$!
+......1!######!1
+................
+"""
+--constant copy_xpm = gImage_from_XPM(copy_xpm_txt,"MENU")
+constant copya_xpm = """
+16 16 17 1 0 0
+. c None
+1 c #B5B7B7
+! c #ADB0B0
+# c #ABAEAE
+$ c #FFFFFF
+% c #EFE4B0
+& c #E9EAEA
+' c #CACBCB
+( c #E1CC66
+) c #EADC98
+* c #E6D37D
++ c #DFE0E0
+, c #A2A4A4
+- c #EDE0A5
+d c #F4F4F5
+/ c #EFF0F0
+0 c #D0D0D0
+1!!###!1........
+!%%%%%%&'.......
+#%(((%%$&'......
+#%(((%1!!#!#!'..
+#%))))!$$$$$$&'.
+#%****#$+++$,$&'
+#%)))-!$+&&$',$!
+#%****#$&&&d$$$#
+#%----#$&///&&$#
+!%--%%#$//d///$#
+!%%%%%!$dddddd$#
+1!!####$dd$ddd$#
+......#$$$$$$$$#
+......!$$$$$$$$!
+......1!######!1
+................
+"""
+--constant copya_xpm = gImage_from_XPM(copya_xpm_txt,"MENU")
+constant copyp_xpm = """
+16 16 17 1 0 0
+. c None
+1 c #B5B7B7
+! c #ADB0B0
+# c #ABAEAE
+$ c #FFFFFF
+% c #E8E9E9
+& c #CACBCB
+' c #DFE0E0
+( c #EFF0F0
+) c #F4F4F5
+* c #EFE4B0
++ c #E1CC66
+, c #A2A4A4
+- c #EADC98
+d c #E6D37D
+/ c #EDE0A5
+0 c #D0D0D0
+1!!###!1........
+!$$$$$$%&.......
+#$'''$$$%&......
+#$%%%$1!!#!#!&..
+#$%%()!*****$%&.
+#$(%((!*+++*,$%&
+#$(()(#*+++*&,*!
+#$))))!*----***#
+#$))$)!*dddddd*#
+#$$$$$#*/--///*#
+!$$$$$#*dddddd*#
+1!#####*//////*#
+......#*//*****#
+......!********!
+......1!####!#!1
+................
+"""
+--constant copyp_xpm = gImage_from_XPM(copyp_xpm_txt,"MENU")
+constant paste_xpm = """
+16 16 17 1 0 0
+. c None
+1 c #FAFAFA
+! c #8E9399
+# c #D1B18A
+$ c #9F7341
+% c #E2E0DD
+& c #C3A174
+' c #EBCDAB
+( c #C89658
+) c #A7A29A
+* c #CCCCCE
++ c #ABAFB1
+, c #A0723B
+- c #B5BCC0
+d c #976C3D
+/ c #B5884F
+0 c #B29473
+....!!!.........
+.$$!%%%!$$......
+$'()***+(',.....
+,%(!!!+-+++++*..
+d%((((-1111111*.
+,'((((+1%%%1)1%*
+d'((((+1%%%1*)1+
+d'/((/-1%1%1111+
+d#////+111%1%11+
+d#////+11%11%11+
+d&////+11111%11+
+d0////+11111111+
+d//$/$+11111111+
+.ddddd-11111111+
+......-++++++++-
+................
+"""
+--constant paste_xpm = gImage_from_XPM(paste_xpm_txt,"MENU")
+constant delete_xpm = """
+16 16 16 1 0 0
+. c None
+1 c #F2F2F2
+! c #BDBABA
+# c #727272
+$ c #D0D0D0
+% c #EDD6D6
+& c #8F8F8F
+' c #C16E6E
+( c #B02E2E
+) c #CDB6B6
+* c #D49A9A
++ c #A51414
+, c #B54A4A
+- c #BB9797
+D c #921212
+/ c #943333
+..111111111!11..
+..111111111#$1..
+..11%%1$1%1&#$..
+..11%$1$%$%111..
+..11111111111%..
+..1$$$$$$$$$%1..
+..1%1$1$1$1$11..
+..1$$$$$$$$$$1..
+..1$$%$$%'($$)(.
+..1$$$$$$(+(*(+,
+..%$$$$$$!(+++,.
+..$$$$$$$$-D++..
+..$$!!!!$-DDDD/.
+..$!$!$!!DD/-DD/
+..$$!!!!!&/!!!/.
+..$$$$$$$$$$$$..
+"""
+--constant delete_xpm = gImage_from_XPM(delete_xpm_txt,"MENU")
+constant find_xpm = """
+16 16 16 1 0 0
+. c None
+! c #B3B2B3
+# c #535051
+$ c #72706F
+% c #393535
+& c #CACACA
+' c #736157
+( c #89817E
+) c #888687
+* c #241D1A
++ c #533321
+, c #794C33
+- c #846350
+d c #5F331B
+/ c #894A27
+0 c #B05D2F
+................
+................
+................
+................
+....!#....#!....
+...!$%!&&!%$!...
+..!#%%%#'%#%$!..
+.!(%%%%))%%%$!&.
+.$$#**%$$%%%$$$.
+(+,'%%)$))#%+-'$
+%d//+$!..!$+///*
+#/00+!....!+00/#
+.$,-!......!'-(.
+................
+................
+................
+"""
+
+constant find_next_xpm = """
+16 16 16 1 0 0
+. c None
+! c #D1D3D5
+# c #ABADAF
+$ c #EBEBEB
+% c #BFC0C2
+& c #5F6264
+' c #7C7E80
+( c #4F4F51
+) c #3F4042
+* c #7F8082
++ c #6F7072
+, c #151515
+- c #5D5F61
+d c #2E2F30
+/ c #8E9092
+0 c #9CA1A6
+................
+....!#..........
+.$%!&''(#$......
+!)*%'+%+,-#$....
+#d'/%/d&)*0/!...
+#,(/'+&-/'-**0..
+/,d+*/0/'&-)++0$
+0'+/*0$$.0&(d0#%
+!/+(++0...')+!/#
+.%&)d&-/..$(//&$
+..'(dd*#$..$*0$.
+..$(d&!0#.......
+...%d0%)!.......
+....*++!........
+.....$..........
+................
+"""
+
+constant find_prev_xpm = """
+16 16 16 1 0 0
+. c None
+! c #ABADAF
+# c #D1D3D5
+$ c #EBEBEB
+% c #4F4F51
+& c #7F8082
+' c #7C7E80
+( c #5D5F61
+) c #BFC0C2
+* c #5F6264
++ c #151515
+, c #6F7072
+- c #3F4042
+d c #8E9092
+/ c #9CA1A6
+0 c #2E2F30
+................
+..........!#....
+......$!%&'(#)$.
+....$!*+,),&)&-#
+...#d/'-,0d)d'0!
+../&&('d((,'d%+!
+$/,,-(*'d/dd,0+d
+)//0%*/$.$d&d,'/
+!/#,-&.../,,%,d#
+$*dd%$..d((0%*).
+.$/&$..#!d00%'..
+.......!/#*0%$..
+.......#%!!0!...
+........#*,d....
+..........$.....
+................
+"""
+
+constant zoomin_xpm = """
+16 16 16 1 0 0
+. c None
+! c #E8E9EA
+# c #EDF0F2
+$ c #CACBCC
+% c #B7C8D0
+& c #B6B7B8
+' c #DBE6EB
+( c #666768
+) c #CADDE4
+* c #C6D1D6
++ c #5E5F60
+, c #D7D8D9
+- c #555656
+d c #3F3F3F
+/ c #494949
+0 c #8F8F8F
+.....!#.........
+..!$%%%%!.......
+.#%%%%%%%!......
+.&%'%())*&......
+#$'#*+'''*'.....
+,)%----()*,.....
+!,)*&+%*'),.....
+.&''*+'!!&#.....
+.,$##'##,(#.....
+..$&,!,&(d-!....
+...#$&$#$/d-!...
+.........$//-!..
+..........$//-!.
+....##!!!!#&/-0.
+..#!',,$$,,,&0#.
+................
+"""
+constant zoomout_xpm = """
+16 16 16 1 0 0
+. c None
+! c #E7E9E9
+# c #EDF0F2
+$ c #CACBCC
+% c #B7C9D0
+& c #D7D8D9
+' c #B7B7B8
+( c #DAE7EC
+) c #C9DCE4
+* c #CCD7DB
++ c #696B6B
+, c #8F9597
+- c #98A1A5
+d c #AAB5BA
+/ c #3F3F3F
+0 c #4D4D4D
+.....!#.........
+..!$%%%$!.......
+.#%%%%%%%&......
+.'%()))))'......
+#$(#(((((*&.....
+!)(++++,)*&.....
+!*)---,d)*&.....
+.'(((((!#'#.....
+.&$#####&+!.....
+..$'!!('+/0!....
+...#$'$!$0/0#...
+.........$000!..
+..........$000#.
+....##!!!!#'00,.
+..#!!&&$$&&&',#.
+................
+"""
+
+constant goto_xpm = """
+16 16 17 1 0 0
+. c None
+1 c #F7FAFA
+! c #D1D5D5
+# c #B7C8C8
+$ c #DAE9E9
+% c #A7B8B8
+& c #97A8A8
+' c #6BABDF
+( c #AFCEE9
+) c #4D92CE
+* c #8FD8F9
++ c #6FD7FF
+, c #5DD1FF
+- c #3D7CB8
+d c #38C5FF
+/ c #8D9B9B
+0 c #7E8E8E
+..!########.....
+..#1111$1$##....
+..#11$$$$$%1#...
+..#1111$$$&&&&..
+..#11$1$$$$$$#..
+..#11111$$$$$#..
+..#1111$1$$$$#..
+..%11111111$1#..
+..%111$1'(111%..
+..%11111''(11%..
+..%1'')))*)(1%..
+..%1)*+,,++)1%..
+..%1'))-)d)(1%..
+..&11111--(11&..
+../11111'(111/..
+..&0000000000/..
+"""
+--constant goto_xpm = gImage_from_XPM(goto_xpm_txt,"MENU")
+
+constant run_xpm = """
+16 16 14 1 0 0
+. c None
+# c #686868
+$ c #525252
+% c #777777
+& c #8B8B8B
+' c #353535
+( c #171717
+) c #474747
+* c #1F701F
++ c #15A115
+, c #2BB82B
+- c #2BC42B
+d c #3F8F3F
+/ c #49D549
+....#$$$$$#.....
+...#%&&&&&%#....
+.$$$%#'('#&$$$..
+..'$%))#))%$'...
+...$%)#%%'%$....
+...)%$$%$$%)....
+.)))%$'('$%)))..
+..()#))#))%)(...
+...)%)###'%'....
+...'#$)#$$#)....
+.')'#$'''$#'')..
+..('#)*+*)#'(...
+...'#),-,)#'....
+...'#)d/d)#'....
+...')$$)$$)'....
+....'((((('.....
+"""
+--constant run_xpm = gImage_from_XPM(run_xpm_txt,"MENU")
+
+--SUG: use this to indicate b/g running...
+--/*
+constant wun_xpm = """
+16 16 21 1 0 0
+. c None
+5 c #686868
+! c #525252
+# c #777777
+$ c #8B8B8B
+% c #353535
+& c #171717
+' c #474747
+( c #73690F
+) c #B0A003
+* c #C6B703
++ c #D5C400
+, c #9C941E
+- c #E4D404
+d c #535353
+/ c #1F701F
+0 c #15A115
+1 c #2BB82B
+2 c #2BC42B
+3 c #3F8F3F
+4 c #49D549
+....5!!!!!5.....
+...5#$$$$$#5....
+.!!!#5%&%5$!!!..
+..%!#''5''#!%...
+...!#'5##%#!....
+...'#!!#!!#'....
+.'''#!%&%!#'''..
+..&'5'()('#'&...
+...'#'*+*'#%....
+...%5!,-,d5'....
+.%'%5!%%%!5%%'..
+..&%5'/0/'5%&...
+...%5'121'5%....
+...%5'343'5%....
+...%'!!'!!'%....
+....%&&&&&%.....
+"""
+--constant wun_xpm = gImage_from_XPM(wun_xpm_txt,"MENU")
+--*/
+
+constant prun_xpm = """
+16 16 14 1 0 0
+. c None
+# c #696969
+$ c #535353
+% c #777777
+& c #8B8B8B
+' c #353535
+( c #171717
+) c #474747
+* c #73690F
++ c #B0A003
+, c #C6B703
+- c #D5C400
+d c #9C941E
+/ c #E4D404
+....#$$$$$#.....
+...#%&&&&&%#....
+.$$$%#'('#&)$$..
+..'$%))#))%$'...
+...$%)#%#)%$....
+...)%$$#$$%)....
+.)))%$'('$%)))..
+..()#)*+*)%$(...
+...)%),-,)#)....
+...'#$d/d$#'....
+.')'#$'''$#')'..
+..('#))$))#'(...
+...'#)$$$)#'....
+...'#$)$)$$'....
+...')$))$$)'....
+....'((((('.....
+"""
+--constant prun_xpm = gImage_from_XPM(prun_xpm_txt,"MENU")
+constant error_xpm = """
+16 16 16 1 0 0
+. c None
+! c #AFCEAF
+# c #3C843C
+$ c #549E54
+% c #A6D7EE
+& c #8EAE8E
+' c #72C472
+( c #387038
+) c #507750
+* c #A4BFDA
++ c #58B7DD
+, c #5496D1
+- c #3288AE
+d c #2E73AA
+/ c #64D3FF
+0 c #23727F
+................
+.....#$$#$......
+....$%$$$%#.....
+.&..##'''$#..&..
+.'!&$''''$$&!'..
+..$######$#($...
+...)$''('$$)....
+...(#$$('$#(....
+.$(()$$#'$#(($..
+&..)#$$#$$))..&.
+....($$#$$(.+,..
+...(($$$--dd+%,.
+..(..($$-%/////,
+..)...##0d,-d/,.
+.......#....dd..
+................
+"""
+--constant error_xpm = gImage_from_XPM(error_xpm_txt,"MENU")
+constant compare_xpm = """
+16 16 17 1 0 0
+. c None
+1 c #FFFFFF
+! c #CBD8D8
+# c #B9CACA
+$ c #E4E7E7
+% c #B3C4C4
+& c #F5FBFB
+' c #E8F3F3
+( c #F0F6F6
+) c #DEEBEB
+* c #A7B7B7
++ c #8B8B8B
+, c #98A8A8
+- c #DADBDB
+d c #889999
+/ c #7B7B7B
+0 c #5B5B5B
+................
+........!###....
+........%&'%#...
+........%()*1%..
+..+$+$+$%(',,,..
+..$.....*&(''*..
+..+.....,1&&&,..
+..-.....*dddd*..
+../.............
+..-.....!###....
+../.....%&'%#...
+..-.....%()*1%..
+..+!0-0-*&',,,..
+........*&(''*..
+........,1&&&,..
+........,dddd,..
+"""
+--constant compare_xpm = gImage_from_XPM(compare_xpm_txt,"MENU")
+constant dircomp_xpm = """
+16 16 15 1 0 0
+. c None
+! c #969696
+# c #E3E4E4
+$ c #F7DB79
+% c #F9E087
+& c #F9DF83
+' c #FFE897
+( c #FEE58C
+) c #8B8B8B
+* c #EACA60
++ c #EBC856
+, c #F3D56D
+- c #7B7B7B
+d c #D9DADA
+/ c #5B5B5B
+..!.............
+..#.....$%%&&...
+..!.....%''''...
+..#.....('''(...
+..)#)#)#%''((...
+..#.....&'((**..
+..).....$(((++..
+..#.....,$$$++..
+..-.............
+..d.....$%%&&...
+..-.....%''''...
+..d.....('''(...
+..)d/d/d&''((...
+........&'((**..
+........$(((++..
+........,$$$++..
+"""
+--constant dircomp_xpm = gImage_from_XPM(dircomp_xpm_txt,"MENU")
+constant fif_xpm = """
+16 16 16 1 0 0
+. c None
+! c #F3DE9D
+# c #E6C37C
+$ c #FEEDA9
+% c #D5A13B
+& c #DFB65B
+' c #D7B46F
+( c #F0D58E
+) c #646461
+* c #5A4D2F
++ c #433B28
+, c #373530
+- c #23211A
+d c #A2792A
+/ c #AE8D4B
+0 c #B1B1B1
+......########..
+.....#$$$$$$$$#.
+.....#$$$$$$$$#.
+..###%&&&&&$$$#.
+.#$$$$$$$$&$!$'.
+.#$$$$$$$$%!!!'.
+.#$$$$$$$$%$('##
+.'$!!!!!)**!**)'
+.'$!!!!!*)+(+))'
+.'!(((()+,++,,,*
+.'(((((*)),),)),
+.'(((((*)),-,)*,
+.'(###(+))-d-)),
+.%((###-),-/-),,
+./(##(#-))-0-)),
+./////d----0,--*
+"""
+--constant fif_xpm = gImage_from_XPM(fif_xpm_txt,"MENU")
+
+constant htmlise_xpm = """
+16 16 9 1 0 0
+. c None
+# c #71B4EA
+$ c #65A7E7
+% c #6BB2EB
+' c #77B9EC
+) c #5BA6E6
+- c #5999E2
+/ c #659AE3
+0 c #548FDF
+................
+................
+................
+................
+................
+.....#$..%#.....
+....##$..%'#....
+...)#$....$#)...
+..$')......)#-..
+...)$-....$$-...
+..../$-../$/....
+...../0..-/.....
+................
+................
+................
+................
+"""
+--constant htmlise_xpm = gImage_from_XPM(htmlise_xpm_txt,"MENU")
+
+constant reindent_xpm = """
+16 16 15 1 0 0
+. c None
+! c #737373
+# c #6B6B6B
+$ c #636363
+% c #555555
+& c #4B4B4B
+' c #444444
+( c #97BCEE
+) c #84B1E8
++ c #6EA1E2
+, c #7AAAE6
+- c #373737
+d c #292929
+/ c #191919
+0 c #0F0F0F
+................
+................
+................
+..!!.#$$$.%&''..
+................
+..(...!!#.$.%%..
+..()............
+.)()+.$$.%.&''..
+..)+............
+..,...'---.d./..
+................
+..&'-.-d........
+................
+..--ddd/.00.....
+................
+................
+"""
+--constant reindent_xpm = gImage_from_XPM(reindent_xpm_txt,"MENU")
+
+constant cca_xpm = """
+16 16 7 1 0 0
+. c None
+# c #3C3C3C
+$ c #555555
+% c #535353
+' c #1B1B1B
+( c #4A4A4A
+) c #6C6C6C
+................
+................
+......#..$......
+...%..#.........
+...%..#..'..(...
+...%..)..'......
+...%.....'..(...
+...%..#.........
+...%..#..'......
+...%..#.........
+...%.....'..(...
+...%..)..'......
+...%..#..'..(...
+...%..#.........
+......#..$......
+................
+"""
+--constant cca_xpm = gImage_from_XPM(cca_xpm_txt,"MENU")
+
+constant qjmp_xpm = """
+16 16 15 1 0 0
+. c None
+_ c #FDFDFD
+$ c #9E9FA0
+% c #7E7F81
+& c #515254
+' c #6E6E6F
+( c #F4F1D1
+) c #EEE0AA
+* c #D5B15F
++ c #B47F08
+, c #AD8313
+- c #DDBF84
+d c #C69123
+/ c #F0D35F
+0 c #7F7310
+................
+................
+................
+.........$%%....
+.........$%&&...
+...........%&'&.
+.....++++,..&&&.
+....-((_(--$&&'.
+...d(//(*,...$%.
+..d()/)*d0......
+.+)()//((d.&'...
+.+d+/))/+0.&&...
+...*()d*........
+..d)/d..........
+.+)d*...........
+.*+.............
+"""
+--constant qjmp_xpm = gImage_from_XPM(qjmp_xpm_txt,"MENU")
+
+constant design_xpm = """
+16 16 17 1 0 0
+. c None
+_ c #CACAC9
+! c #F2F2F2
+# c #F8F0D9
+$ c #AFAFAF
+% c #D8D2B0
+& c #E54E4E
+' c #B89292
+( c #DEAEA0
+) c #C13B3B
+* c #977575
++ c #C1B045
+, c #F7E679
+- c #949494
+d c #A79637
+/ c #000000
+0 c #998854
+_!_!_!_!_!_#_!_.
+!!!!!!!!!!!!!!!.
+_______________.
+!!!!_!!!!!!!!!!.
+$!!!_!!!!!!!!!_.
+!!!!_!!!!!!!!!#.
+$!!!_!%&%!!!!!_.
+!!!!_!'()!!!!!_.
+$!!!%$!*(!!!!!_.
+!!!%+,-$!!#!!!_.
+$!%+,d%!!_!_!!$.
+!%+,d%#!!!!!!!_.
+#d,d$$$$$$$$-$$.
+(#d%!!_!!_!!!!$.
+/0%_----------$.
+................
+"""
+--constant design_xpm = gImage_from_XPM(design_xpm_txt,"MENU")
+
+constant pilcrow_xpm = """
+16 16 8 1 0 0
+. c None
+# c #787878
+$ c #535353
+( c #4B4B4B
+* c #434343
+, c #3A3A3A
+- c #2E2E2E
+0 c #1B1B1B
+................
+................
+................
+.....#$$$$$.....
+....#$$$.$......
+....$($(.(......
+....#(((.(......
+.....#(*.*......
+.......*.*......
+.......,.,......
+.......,.,......
+.......-.-......
+......00.00.....
+................
+................
+................
+"""
+--constant pilcrow_xpm = gImage_from_XPM(pilcrow_xpm_txt,"MENU")
+
+constant crash_xpm = """
+16 16 17 1 0 0
+. c None
+_ c #FDFCFB
+! c #F0E5DA
+# c #D8CEC5
+$ c #D5C5B5
+% c #C9B9AA
+& c #E6D9CD
+' c #A99989
+( c #BEAFA0
+) c #E1D0BF
+* c #B7AA9C
++ c #9E8D7D
+, c #97908A
+- c #383838
+d c #504F4E
+/ c #6A5E51
+0 c #897868
+.....#$%$#......
+...#%&!_'&%#....
+..#(!_&''&!%$...
+.!'&_!')!%!&'!..
+.**)!!&!!!!)*(..
+.+%!,--!--,!%+..
+.*'!--,!,--!'*..
+.!'!,d&d&/,!+!..
+..._&&d0d&&_....
+..+%$),&,)%$+...
+..%00)!_!$00%...
+...#0%'!'$0#....
+....00/0/00.....
+....0%'%'$0.....
+....''$&)''.....
+.....'000'......
+"""
+--constant crash_xpm = gImage_from_XPM(crash_xpm_txt,"MENU")
+
+constant rec_xpm = """
+16 16 11 1 0 0
+. c None
+$ c #D04B4B
+% c #B32F2F
+' c #B54949
+( c #E96060
+) c #C32D2D
+* c #B11313
++ c #9C3030
+, c #CC1212
+/ c #936767
+0 c #7C3737
+................
+................
+......$%$.......
+....'(((($$.....
+...$(($(((('....
+...$$$$$$$$$....
+..'$))%%***+'...
+..'$%*******%...
+..')********'...
+...%*,*****%....
+...'),,,,,,+....
+....+%,,,+'.....
+...../000/......
+................
+................
+................
+"""
+--constant rec_xpm = gImage_from_XPM(rec_xpm_txt,"MENU")
+constant play_xpm = """
+16 16 12 1 0 0
+. c None
+! c #89D0F7
+$ c #65B4EA
+% c #9DD9F4
+& c #57A3DF
+' c #58ACE6
+( c #7DC9F6
+) c #4B92CE
+* c #2C9DDF
++ c #3B79B5
+, c #2DBAF9
+d c #5E81A6
+................
+....d...........
+....$$..........
+....$%$.........
+....&!%'........
+....&($%&.......
+....&($&(&......
+....)$)))$).....
+....)'**$)......
+....+,*'+.......
+....+,,+........
+....+,+.........
+....++..........
+....d...........
+................
+................
+"""
+--constant play_xpm = gImage_from_XPM(play_xpm_txt,"MENU")
+
+constant colours_xpm = """
+16 16 10 1 0 0
+. c None
+! c #FE6E6A
+# c #FFA972
+$ c #F0D566
+% c #D0EBB2
+& c #4FCC6C
+' c #5FB0EB
+( c #5779B0
+) c #D99ADD
+* c #FF76B1
+................
+................
+..!!!.###.$$$...
+..!!!.###.$$$...
+..!!!.###.$$$...
+................
+..%%%.&&&.'''...
+..%%%.&&&.'''...
+..%%%.&&&.'''...
+................
+..(((.))).***...
+..(((.))).***...
+..(((.))).***...
+................
+................
+................
+"""
+--constant colours_xpm = gImage_from_XPM(colours_xpm_txt,"MENU")
+constant fonts_xpm = """
+16 16 17 1 0 0
+. c None
+1 c #F7F9FC
+! c #CBE3FA
+# c #A4C8DB
+$ c #C6DAEF
+% c #8BB4D3
+& c #7CA3C0
+' c #7595B3
+( c #B1D7F9
+) c #97CAFA
+* c #52698E
++ c #94A5B6
+, c #3D61A7
+- c #4A576D
+d c #485163
+/ c #3D4455
+0 c #293143
+................
+.!#$###%&&&''...
+.(!11!11!11!)*..
+.#1!!!!!!($1)%*.
+.#1++++++(!111*.
+.#1+!++!+((((1*.
+.#1!!+*,,,,,(1-.
+.%1!!+*(,,(,(1-.
+.%1(!&+(,,(()1d.
+.&1!++++,,())1d.
+.&1(((((,,)))!d.
+.'1!(((,,,,)(!/.
+.'1((((()()))1/.
+.*$11!1!1!1$1$0.
+.'****--dd///0d.
+................
+"""
+--constant fonts_xpm = gImage_from_XPM(fonts_xpm_txt,"MENU")
+constant display_xpm = """
+16 16 16 1 0 0
+. c None
+1 c #CACACA
+! c #B3B3B3
+# c #E5E5E5
+$ c #2C6B9D
+% c #3276AA
+& c #3C83B8
+' c #4888BC
+( c #4E95CA
+) c #58A5DB
+* c #D7D7D7
++ c #417EAD
+, c #5BAEE4
+- c #67A7D6
+d c #979797
+0 c #7D7D7D
+1!1!!1!!1!!1!!11
+!##############!
+!#$%%%%%%&&&''#!
+!#%()())()()((#!
+!#$(''('''''('#!
+!*$'**+**$#*&'*!
+!*$%11$11+11'(*!
+!*$+%%&&&'(())1!
+!1$&'((()),,,)*!
+!1&&&((())),)-1d
+d111********111d
+!dddddd!ddddd!d!
+.....d!!!!d.....
+.....011*1d.....
+.....00d000.....
+................
+"""
+--constant display_xpm = gImage_from_XPM(display_xpm_txt,"MENU")
+constant editopt_xpm = """
+16 16 17 1 0 0
+. c None
+1 c #C8C8C8
+! c #A3A3A3
+# c #FEFEFE
+$ c #9B9B9B
+% c #EBEBEB
+& c #E5E5E5
+' c #BCBCBC
+( c #949494
+) c #888888
+* c #D8D8D8
++ c #B5B5B5
+, c #757575
+- c #F2F2F2
+d c #666666
+/ c #5D5D5D
+0 c #505050
+.!!!!!!!!.......
+$########!......
+$#%&&&&&#%$.....
+(#%%%&%&#&%$....
+(#%%&%&&#&&%(...
+)#%%%%%%#####)..
+)#%%%%%%&*++&)..
+,#%%%%%'$$**$$..
+,#-%-%%(%&*&&%(.
+,#----1)*+))+*).
+d#--%-$11)1*)11$
+d#----(+1,11,'+$
+/#----1,++,,'+,.
+/#----&d+'**'+d.
+0######!//($//..
+0000000000000...
+"""
+--constant editopt_xpm = gImage_from_XPM(editopt_xpm_txt,"MENU")
+constant keybdopt_xpm = """
+16 16 17 1 0 0
+. c None
+1 c #FFFFFF
+! c #727272
+# c #E7E7E7
+$ c #7C7C7C
+% c #F3F3F3
+& c #A2A2A2
+' c #B4B4B4
+( c #6E6E6E
+) c #CBCBCB
+* c #9C9C9C
++ c #DEDEDE
+, c #C2C2C2
+- c #929292
+d c #858585
+/ c #ACACAC
+0 c #B9B9B9
+................
+..............!.
+..............$.
+.............&'.
+....&!(((((((&..
+...&'...........
+...!............
+.&&&&&&&&&&&&&&.
+*+)+)+)+)+)+))+*
+*,1,1,1,1,1,11,-
+-)'''''''''''')-
+d+/%/%/%/%/%##'d
+d0&&&&&&&&/&&&0d
+$&%*######*#*#&$
+!/-*------&-&-/!
+.!!!!!!!(!(!!!!.
+"""
+--constant keybdopt_xpm = gImage_from_XPM(keybdopt_xpm_txt,"MENU")
+constant extopt_xpm = """
+16 16 17 1 0 0
+. c None
+1 c #FFFFFF
+! c #C4C4C4
+# c #A2A2A2
+$ c #D9D9D9
+% c #F3F3F3
+& c #B4B4B4
+' c #BBBBBB
+( c #CACACA
+) c #E8E8E8
+* c #989898
++ c #A9A9A9
+, c #848484
+- c #777777
+d c #6C6C6C
+/ c #565656
+0 c #4C4C4C
+.......##.......
+......#%%#......
+...&#'($$('#'...
+..')))$(($)))&..
+..*1((!'!!!(1*..
+..+!''#,*#'&!+..
+.,!'&#&%%&#&'!,.
+-)(&&,%11%,&&()-
+-(&+'-%11%-'+&(-
+.d*#&#+%%+#&#*d.
+..,#+(#--#(+#,..
+..d##+($$!&*+d..
+..,+**#++#**+,..
+...-/d,**,d/-...
+......0**0......
+.......00.......
+"""
+--constant extopt_xpm = gImage_from_XPM(extopt_xpm_txt,"MENU")
+
+constant panelon_xpm = """
+16 16 17 1 0 0
+. c None
+1 c #F4F4F5
+! c #CACACC
+# c #B2B2B2
+$ c #6787ED
+% c #9A9A9A
+& c #B8C6EE
+' c #C8D2F2
+( c #4C6CCE
+) c #4C6EE7
+* c #7089D4
++ c #294BB2
+, c #3355CF
+- c #A6B3DA
+d c #627AC3
+/ c #5A72BE
+0 c #7F7F7F
+.!##!#!##!#!#!..
+!!1!!!!!!!!!!!!.
+$$$$#####%%%%%%.
+$&'$1111111111!.
+('')1111111111!.
+(&'(1111*'1111#.
++'&,1111(+&111#.
++&'+'-d++&+&11#.
++&&+1''&&&&+11#.
++&&+!-/++&+-11#.
++&&+11'1++-'11%.
++&&+!1!1/-!1!1#.
+,&-,11!1!1!1!1%.
+,&&,!111111111%.
+$)))0000000000%.
+................
+"""
+--constant panelon_xpm = gImage_from_XPM(panelon_xpm_txt,"MENU")
+--/*
+constant paneloff_xpm = """
+16 16 17 1 0 0
+. c None
+1 c #F4F4F5
+! c #CACACC
+# c #B2B2B2
+$ c #6787ED
+% c #9A9A9A
+& c #B8C6EE
+' c #C8D2F2
+( c #4C6CCE
+) c #4C6EE7
+* c #7089D4
++ c #294BB2
+, c #3355CF
+- c #A6B3DA
+d c #627AC3
+/ c #5A72BE
+0 c #7F7F7F
+.!##!#!##!#!#!..
+!!1!!!!!!!!!!!!.
+$$$$#####%%%%%%.
+$&'$1111111111!.
+('')1111111111!.
+(&'(11'*111111#.
++'&,1&,+111111#.
++'&+-+'+,d-111#.
++&&++&&&&''111#.
++&&+-+&++/-!11#.
++&&+'-++1!1'11%.
++&&+1'-/11!1!1#.
+,&-,!1!1!1!1!1%.
+,&&,1111!11111%.
+$)))0000000000%.
+................
+"""
+--*/
+--constant paneloff_xpm = gImage_from_XPM(paneloff_xpm_txt,"MENU")
+constant help_xpm = """
+16 16 18 1 0 0
+. c None
+1 c #F8F8F8
+! c #FDFDFD
+# c #4C6ED2
+$ c #425EC3
+% c #6484E1
+& c #7092F1
+' c #4473F3
+( c #95A4D7
+) c #B6C2E6
+* c #3560D8
++ c #7789BC
+, c #D2D2D3
+- c #304FB7
+d c #4E5FB2
+/ c #325ACB
+0 c #3C6BEB
+2 c #34378E
+................
+...####$###$%...
+..%&&&&&&&&&&#..
+.#&%%%%#%#%%%&#.
+.$&%%#1111&%'&$.
+.$%###(()1(##%$.
+.$%###*$+,+--$$.
+.$%*$--d,(----$.
+.$#$-/-,,----/-.
+.$#/////-/////$.
+.$#***/11/****-.
+.-0000*,1**000d.
+.d0'000**00'00d.
+..-'''''''''0-..
+...2222222222...
+................
+"""
+--constant help_xpm = gImage_from_XPM(help_xpm_txt,"MENU")
+constant phix_xpm = """
+16 16 17 1 0 0
+. c None
+1 c #ECEBEA
+! c #BFCAC0
+# c #B1B3AE
+$ c #F9CF67
+% c #F8C830
+& c #E2CFA1
+' c #CDBC99
+( c #F5AE1F
+) c #F3B44C
+* c #747E53
++ c #8DA273
+, c #65A92C
+- c #70CD2F
+d c #749B5F
+/ c #4D7F2F
+0 c #92D53F
+.!############!.
+.#1$%%&1111111!.
+!1$%%'111111111!
+!$%%&1&&$111111!
+!%%&1&$$$$&1111!
+!(&11)%&$%)1111!
+!'111111%()1111!
+!111111)((111#*!
+!111111$)&11+,!!
+!111111'$&1+-+1!
+!111111,*!d-/11!
+!111111'0,-,!11!
+!1111&&'0--+111!
+!1111&&1d,d!111!
+.#111&11&+!111!.
+.!############!.
+"""
+--constant phix_xpm = gImage_from_XPM(phix_xpm_txt,"MENU")
+constant home_xpm = """
+16 16 17 1 0 0
+. c None
+1 c #F3F2EF
+! c #6EB3DC
+# c #1681B7
+$ c #A1D0EB
+% c #1F90D3
+& c #4F99BF
+' c #0A7CB6
+( c #C17118
+) c #A86B1D
+* c #E3D4BF
++ c #D2A357
+, c #9B7840
+- c #0E62C3
+d c #AEA087
+/ c #E2AA3F
+0 c #AF9873
+....###########.
+...#$$$$$$$$$$$#
+...%$%%%%%%%&%$#
+...#$!!!$!$!$!$'
+...%11111111111#
+...%()11*1!!!!1'
+...(++)1$1!!$!1#
+..,+11+)11$&!$1'
+.,+1--1+)1$$$$1#
+,,1*1*1*,)$!!$1'
+.d1+((+*d1$1$*1#
+.d*)//)*d111111'
+.d*)/+)*d'#'###&
+.d*)//)*d.......
+.dddddd0d.......
+................
+"""
+--constant home_xpm = gImage_from_XPM(home_xpm_txt,"MENU")
+constant forum_xpm = """
+16 16 17 1 0 0
+. c None
+1 c #F6F8F8
+! c #F5CAB3
+# c #D16A58
+$ c #BA442B
+% c #E1AF9A
+& c #E22008
+' c #A7A19F
+( c #A6DAF7
+) c #94B6D7
+* c #E49D5D
++ c #2067AA
+, c #595E5F
+- c #1F1A19
+d c #4687C1
+/ c #58362C
+0 c #549DDB
+...#$...........
+..&&&#'())......
+.#&&&#'*+++,....
+.$&&&--'d,,,....
+.##---/,-//,....
+.!%%!',,#%*,....
+.!#!1!,/*%*.....
+.#/!1%,-**%.....
+.&-(1)---#0,'...
+#&-,('---+0)+)..
+$&-)**----0000..
+,&)1%!(,,d*d0d..
+.'(1!1((((d+dd..
+.(((((((((++++..
+..)((((((('.....
+....))))))......
+"""
+--constant forum_xpm = gImage_from_XPM(forum_xpm_txt,"MENU")
+constant upgrade_xpm = """
+16 16 17 1 0 0
+. c None
+1 c #B9CFA2
+! c #83AA5A
+# c #FAFCF7
+$ c #B3CA9A
+% c #7CA151
+& c #EEF0D3
+' c #E6E4C2
+( c #66893A
+) c #D5B15D
+* c #B47F08
++ c #AD8313
+, c #F0D35F
+- c #C69123
+d c #5B6D1D
+/ c #EAE0AC
+0 c #3D590E
+.!!!!!!!!!!!!!..
+!$$$$$$$$$$$$$!.
+%$$$$$$$$$$$$$%.
+%!!!!!!!!!!!!!!.
+%##&#&&&&&&&&&%.
+%##&&&&''''1'&%.
+(#&&&&&&')****+.
+(####&&'),&#&#).
+(###&&&$-&,,&,+.
+d####&/-&/,/)++.
+d#####*///,,&&-.
+d#####/-*,//,-d.
+0######))&/-)/0.
+(00000d-/,-d00(.
+......*/-)......
+......--........
+"""
+--constant upgrade_xpm = gImage_from_XPM(upgrade_xpm_txt,"MENU")
+constant about_xpm = """
+16 16 17 1 0 0
+. c None
+1 c #F8F8F8
+! c #92A2D5
+# c #4D6ED2
+$ c #425EC3
+% c #6785E1
+& c #6F91EF
+' c #4874EF
+( c #D3D5DD
+) c #2F4EB5
+* c #3159C9
++ c #3F60BE
+, c #3660D6
+- c #798ABE
+d c #3C6AE9
+/ c #4D5DB1
+0 c #34378E
+................
+...####$###$%...
+..%&&&&&&&&&&#..
+.#&&&&%%'#&&%&#.
+.$&%'#%%1(#'%%$.
+.$&####&1(###%$.
+.$%###$))))))*$.
+.+%$,)-((!)))*$.
+.$#**))!(+)))*).
+.+#***+(!*****+.
+.+#,,,!(%!,,,,).
+.)dddd%(1!dddd/.
+./'dddd*,ddddd/.
+..)'''''''''d)..
+...000000000)...
+................
+"""
+--constant about_xpm = gImage_from_XPM(about_xpm_txt,"MENU")
+
+--DEV all these NEW:=$ are pretty naff... let's have xpGUI.e save xpm icons for use and look them up, 
+--      and allocate unique numbers for each leaf(|named submenu), and call handlers with the strings...
+-- better MAIN_MENU = {{"&File",{{"&New"[,"new"]},
+constant MAIN_MENU = {{"&File",{{"&New\tCtrl N",file_new_xpm,NEW:=$},
+                                {"&Open\tCtrl O",file_open_xpm,OPEN:=$},
+                                {"&ReOpen\tCtrl Shift O",file_reopen_xpm,REOPEN:=$},
+                                {"&Save\tCtrl S",file_save_xpm,SAVE:=$},
+                                {"Save&As",file_saveas_xpm,SAVEAS:=$},
+                                {"FileLis&t\tCtrl T",FILELIST:=$},
+                                {"&Close\tCtrl F4",file_close_xpm,CLOSE:=$},
+                                "|",
+--DEV disabled colours? (for now)
+                                {"Print Pre&view\tCtrl P",file_preview_xpm,PREVIEW:=$},
+                                {"&Print\tCtrl Shift P",file_print_xpm,PRINT:=$},
+                                "|",
+--DEV disable while empty:
+                                {"Recent&Files",RECENT:=$,{}},
+                                {"E&xit",file_exit_xpm,EXIT:=$}}},
+--                    {"&Edit",EDIT_MENU:=$,
+                      {"&Edit",{{"Undo\tCtrl Z",undo_xpm,UNDO:=$},
+                                {"Redo\tCtrl Y",redo_xpm,REDO:=$},
+                                "|",
+                                {"Clipboard",{{"Cu&t\tCtrl X",cut_xpm,CUT:=$},
+                                              {"Cut Append\tCtrl Shift X",cuta_xpm,CUTA:=$},
+                                              {"Cut Prepend\tAlt Shift X",cutp_xpm,CUTP:=$},
+                                              {"&Copy\tCtrl C",copy_xpm,COPY:=$},
+                                              {"Copy Append\tCtrl Shift C",copya_xpm,COPYA:=$},
+                                              {"Copy Prepend\tAlt Shift C",copyp_xpm,COPYP:=$},
+                                              {"Paste\tCtrl V",paste_xpm,PASTE:=$},
+                                              {"Copy Filename",COPYN:=$}}},
+                                {"&Delete\tDelete",delete_xpm,DELETE:=$},
+                                "|",
+                                {"&Find\tCtrl F",find_xpm,FIND:=$},
+                                {"Find Next\tF3",find_next_xpm,FINDN:=$},
+                                {"Find Prev\tShift F3",find_prev_xpm,FINDP:=$},
+                                "|",
+                                {"Next Control Structure\tCtrl ]",NCS:=$},
+                                {"Prev Control Structure\tCtrl ]",PCS:=$},
+                                "|",
+                                {"Zoom In\tCtrl +",zoomin_xpm,ZIN:=$},
+                                {"Zoom Out\tCtrl -",zoomout_xpm,ZOUT:=$},
+                                "|",
+                                {"&Goto\tCtrl G",goto_xpm,GOTO:=$},
+                                "|",
+                                {"Select &All\tCtrl A",SELA:=$}}},
+                      {"&Tools",{{"Run\tF5",run_xpm,RUN:=$},
+                                 {"Parameterised Run\tCtrl F5",prun_xpm,PRUN:=$},
+                                 {"Jump to error\tF12",error_xpm,ERROR:=$},
+                                 {"&Compare",compare_xpm,COMPARE:=$},
+                                 {"&Directory Compare",dircomp_xpm,DIRCOMP:=$},
+                                 {"&Find In Files\tCtrl Shift F",fif_xpm,FIF:=$},
+                                 {"&Htmlise eucode",htmlise_xpm,HTMLISE:=$},
+                                 {"Re-&Indent source",reindent_xpm,REINDENT:=$},
+                                 {"Co&mmon Code Analysis",cca_xpm,CCA:=$},
+                                 {"&Quick Jump\tCtrl Q",qjmp_xpm,QJMP:=$},
+--Recovery[nah] or perhaps delta debugging?
+                                 {"&Layout Designer",design_xpm,DESIGN:=$},
+                                 {"Show Formatting\tCtrl Shift H",pilcrow_xpm,SHOWFMT:=$},
+                                 "|",
+                                 {"Crash",crash_xpm,CRASH:=$}}},
+                      {"&Macro",{{"Record F6\tCtrl F6",rec_xpm,REC6:=$},
+                                 {"Record F7\tCtrl F7",rec_xpm,REC7:=$}, 
+                                 {"Record F8\tCtrl F8",rec_xpm,REC8:=$}, 
+                                 {"Record F9\tCtrl F9",rec_xpm,REC9:=$}, 
+                                 {"Play F6\tF6",play_xpm,PLAY6:=$},
+                                 {"Play F7\tF7",play_xpm,PLAY7:=$},
+                                 {"Play F8\tF8",play_xpm,PLAY8:=$},
+                                 {"Play F9\tF9",play_xpm,PLAY9:=$},
+                                 {"Macro Management\tShift F8",MM:=$}}},
+--Autocomplete?
+                      {"&Options",{{"&Colours",colours_xpm,COLOURS:=$},
+                                   {"&Fonts",fonts_xpm,FONTS:=$},
+--Wordwrap??
+                                   {"&Display Options",display_xpm,DISPLAY:=$},
+                                   {"&Edit Options",editopt_xpm,EDITOPT:=$},
+                                   {"&Keyboard Settings\tCtrl F1",keybdopt_xpm,KEYBDOPT:=$},
+                                   {"File E&xtensions",extopt_xpm,EXTOPT:=$},
+--NB needs en/disabling and paneloff...
+                                   {"File Pane&l\tCtrl L",panelon_xpm,PANEL:=$}}},
+                      {"&Help",{{"&Context Help\tF1",help_xpm,H_F1:=$},
+                                "|",
+                                {"phix.chm",phix_xpm,H_PHIX:=$},
+                                {"mini.chm",phix_xpm,H_MINI:=$},
+                                "|",
+                                {"Phix Home Page",home_xpm,H_HOME:=$},
+                                {"manual",phix_xpm,H_MAN:=$},
+                                {"licence",phix_xpm,H_LICENCE:=$},
+                                {"OpenEuphoria Forum",forum_xpm,H_FORUM:=$},
+                                {"Check for &Upgrades",upgrade_xpm,H_UPGRADE:=$},
+                                {"&About",about_xpm,ABOUT:=$}}}}
+
+--DEV/SUG: (put zeroes in the above definition)
+--,     MAIN_MENU = add_menu_icons(MAIN_MEN0)
+
+--constant file_new_hl_xpm = xpg_WinAPI_replace_colour(file_new_xpm,XPG_RED)
+
+
+function menu_handler(gdx menu, integer id, bool bHighlight)
+--function menu_handler(gdx menu, integer id)
+    string s = gMenuGetAttribute(menu,id,"TITLE"),
+           h = iff(bHighlight?" (highlight)":
+--             iff(not find(id,{NORMALC,DOTTEDC,FILLEDC})?"":
+               iff(not find(id,{SHOWFMT,PANEL})?"":
+               iff(gMenuGetAttribute(menu,id,"CHECKED")?" (Checked)":" (unchecked)")))
+--DEV as per btn_click, just invoke the keyboard handler? (at least for those we can, 
+--                                                      ie those with \t in the title)
+    printf(1,"%s%s (menu=%d, id=%d)\n",{s,h,menu,id})
+--  if id=CLOSE and not bHighlight then
+----        integer mitem = EDIT_MENU
+----        integer mitem = OPEN
+--      integer mitem = PASTE
+--      bool bActive = gMenuGetAttribute(menu,mitem,"ACTIVE")
+----?{"CLOSE:",bActive,CLOSE,EDIT_MENU}
+--      gMenuSetAttribute(menu,mitem,"ACTIVE",not bActive)
+--  end if
+    return iff(id=EXIT and not bHighlight?XPG_CLOSE:XPG_DEFAULT)
+end function
+
+function toolbar_item(atom action, string image, string tip, integer active, id=0)
+    gdx item = gButton(NULL, action, "CANFOCUS=NO, FLAT=YES")
+--  gdx item = gButton("", action, "CANFOCUS=NO, FLAT=YES")
+--  gdx item = gButton(tip, action, "CANFOCUS=NO, FLAT=YES")
+--  gdx item = gButton(" ", action, "CANFOCUS=NO, FLAT=YES")
+--  gdx item = gCanvas(action, "CANFOCUS=NO, FLAT=YES") -- erm, no...
+    gSetAttribute(item, "IMAGE", image)
+    gSetAttribute(item, "USER_DATA", id)
+    integer k = find('(',tip)
+    if k!=0 then
+        k += 1
+        integer l = find(')',tip,k)-1
+--      tip[k..l] = keybd:mapkeytext(tip[k..l])
+    end if
+    gSetAttribute(item, "TIP", tip)
+--  gSetAttribute(item, "SIZE", {20,20})
+    gSetAttribute(item, "SIZE", {24,24})
+--  gSetAttribute(item, "SIZE", {16,16})
+    gSetInt(item, "ACTIVE", active)
+    return item
+end function
+
+function btn_click(gdx btn)
+-- quite possibly/probably what this should do is trigger the keyboard handler...
+-- (and then they are all just btn_click, not toolb_new etc)
+--  ?{"btn_click",gGetAttribute(btn,"TIP")}
+--  ?{"btn_click",gGetAttribute(btn,"TITLE")}
+    ?{"btn_click",gGetAttribute(btn,"USER_DATA")}
+--?gGetAttribute(gGetDialog(btn),"CLIENTSIZE")
+--gImageDraw(canvas,
+    return XPG_IGNORE
+end function
+
+procedure rtn_changed(gdx id)
+-- (we should have stashed away where the routines are...)
+    ?{"rtn_changed",gGetAttribute(id,"VALINT")}
+end procedure
+
+function make_toolbar()
+integer cb_new = btn_click,
+        cb_open = btn_click,
+        cb_save = btn_click,
+        cb_close = btn_click,
+        cb_preview = btn_click,
+        cb_print = btn_click,
+        cb_cut = btn_click,
+        cb_copy = btn_click,
+        cb_paste = btn_click,
+        cb_undo = btn_click,
+        cb_redo = btn_click,
+        fdlg_cb_find = btn_click,
+        fdlg_cb_findnext = btn_click,
+        fdlg_cb_findprev = btn_click,
+        cb_zoomin = btn_click,
+        cb_zoomout = btn_click,
+--      cb_backoff = btn_click,
+        cb_run = btn_click
+
+gdx toolb_new     = toolbar_item(cb_new,            file_new_xpm,     "New (Ctrl N)",           1, NEW),
+    toolb_open    = toolbar_item(cb_open,           file_open_xpm,    "Open (Ctrl O)",          1, OPEN),
+    toolb_save    = toolbar_item(cb_save,           file_save_xpm,    "Save (Ctrl S)",          1, SAVE),
+    toolb_close   = toolbar_item(cb_close,          file_close_xpm,   "Close (Ctrl F4)",        0, CLOSE),
+    toolb_sep1    = gLabel(" ", "SEPARATOR=VERTICAL"),
+    toolb_prntp   = toolbar_item(cb_preview,        file_preview_xpm, "Print Preview (Ctrl P)", 0, PREVIEW),
+    toolb_print   = toolbar_item(cb_print,          file_print_xpm,   "Print (Ctrl Shift P)",   0, PRINT),
+    toolb_sep2    = gLabel(" ", "SEPARATOR=VERTICAL"),
+    toolb_cut     = toolbar_item(cb_cut,            cut_xpm,          "Cut (Ctrl X)",           1, CUT),
+    toolb_copy    = toolbar_item(cb_copy,           copy_xpm,         "Copy (Ctrl C)",          1, COPY),
+    toolb_paste   = toolbar_item(cb_paste,          paste_xpm,        "Paste (Ctrl V)",         1, PASTE),
+    toolb_sep3    = gLabel(" ", "SEPARATOR=VERTICAL"),
+    toolb_undo    = toolbar_item(cb_undo,           undo_xpm,         "Undo (Ctrl Z)",          1, UNDO),
+    toolb_redo    = toolbar_item(cb_redo,           redo_xpm,         "Redo (Ctrl Y)",          1, REDO),
+    toolb_find    = toolbar_item(fdlg_cb_find,      find_xpm,         "Find (Ctrl F)",          0, FIND),
+    toolb_fnxt    = toolbar_item(fdlg_cb_findnext,  find_next_xpm,    "Find Next (F3)",         0, FINDN),
+    toolb_fprv    = toolbar_item(fdlg_cb_findprev,  find_prev_xpm,    "Find Prev (Shift F3)",   0, FINDP),
+    toolb_sep4    = gLabel(" ", "SEPARATOR=VERTICAL"),
+    toolb_zoomin  = toolbar_item(cb_zoomin,         zoomin_xpm,       "Zoom In (Ctrl +)",       0, ZIN),
+    toolb_zoomout = toolbar_item(cb_zoomout,        zoomout_xpm,      "Zoom Out (Ctrl -)",      0, ZOUT),
+    toolb_sep5    = gLabel(" ", "SEPARATOR=VERTICAL"),
+--SUG: make the traffic lights blink if you want...
+--  toolb_back    = toolbar_item(cb_backoff,        "PNG_rotate1",    "Background Processing",  0),
+    toolb_run     = toolbar_item(cb_run,            run_xpm,          "Run (F5)",               0, RUN),
+
+--?DEV in windows the control will still get the focus when clicked 
+--  [the DEV part being that we need some extra code to re-focus]
+--Ihandle
+--htlbl = IupLabel("&D")
+
+--  toolb_rtns = gDropDown({},rtn_changed,"CANFOCUS=NO, EXPAND=HORIZONTAL, ACTIVE=NO"),
+    toolb_rtns = gDropDown({"one","two"},rtn_changed,"CANFOCUS=NO, EXPAND=HORIZONTAL"),
+--  toolb_rtns    = gDropDown({"one","two"},rtn_changed,"CANFOCUS=NO, EXPAND=BOTH"),
+--  toolb_sep6    = gLabel(" xxxxxxxxx", "SEPARATOR=VERTICAL"),
+--  toolb_lbl     = gLabel("xxxxxxx..."),
+    toolbar = gHbox({toolb_new,
+                     toolb_open,
+                     toolb_save,
+--                   toolb_saveas,
+                     toolb_close,
+                     toolb_sep1,
+-- print/page setup
+                     toolb_prntp,
+                     toolb_print,
+                     toolb_sep2,
+                     toolb_cut,
+                     toolb_copy,
+                     toolb_paste,
+                     toolb_sep3,
+                     toolb_undo,
+                     toolb_redo,
+                     toolb_find,
+                     toolb_fnxt,
+                     toolb_fprv,
+                     toolb_sep4,
+                     toolb_zoomin,
+                     toolb_zoomout,
+                     toolb_sep5,
+--                   toolb_back,
+                     toolb_run,
+--htlbl,
+--                   toolb_rtns}, "GAP=2, MARGIN=2x2, SIZE=200x40")
+--                   toolb_rtns}, "GAP=2, SIZE=800x40")
+                     toolb_rtns}, "GAP=2")
+--                   toolb_rtns,
+--                   toolb_sep6}, "GAP=2")
+--                   toolb_rtns}, "GAP=2,MARGIN=20x20")
+    return toolbar
+end function
+
+sequence src = get_text("xpEditer.exw",GT_LF_STRIPPED)
+integer maxl = largest(apply(src,length),return_index:=true)
+
+--function get_data([gdx id,] integer item)
+function get_data(integer item)
+--  ?{"get_data",item}
+--  if item=0 then return 1 end if
+    if item=0 then return length(src) end if
+--  if item=-1 then return 0 end if
+    if item=-1 then return maxl end if
+--  return 0
+--  return "gList"
+    return src[item]
+end function
+
+--DEV a gMenu needs to be granted a natural height... or not...
+gdx menu = gMenu(MAIN_MENU,menu_handler),
+    tbar = make_toolbar(),
+--  tabs = gTabs(),
+--Notes: user sizes and those returned from gGetTextExtent() may already be massaged by xpGUI.e
+--       min size picked such that a) not ignored and b) selecting rhs tab does not crop/hard-right 
+--                the selection outline (which eventually we want to suppress, in xpEditer anyway).
+--m=30, p=12, x=19
+--  tabs = gTabs({"First"},"SIZE=49x25"), -- 24x15: real size is 46x24, text size is 25x9 (no y etc?), 
+--                                      margins(trbl) of {3,13,6,8} aka +{} see gtabs.winapi.first.png
+--                                                           4   5
+--  tabs = gTabs({"First","Second"},"SIZE=103x25"), --"",42x15:   97x24              42x9
+--  tabs = gTabs({"First","Second","Third"},"SIZE=145x25"), -- "",28x15
+--  tabs = gTabs({"First","Second","Thirdy"},"SIZE=148x25"), --   33x15
+--  tabs = gTabs({"First","Second","i"},"SIZE=145x25"),            3x15
+--  tabs = gTabs({"First","Second","Third","Fourth"},"SIZE=192x25"),    -- 35x15
+--  tabs = gTabs({"i","Second","Third","Fourth"},"SIZE=192x25"),
+--  tabs = gTabs({"Fiftieth","Second","Third","Fourth"},"SIZE=198x25"), -- 36x15
+--  tabs = gTabs({"First","Second","Third","Fourth","Fifth"},"SIZE=234x25"), -- 23x15
+--  tabs = gTabs({"Second"},"SIZE=61x25"),
+--  tabs = gTabs({"Second","Third"},"SIZE=103x25"), -- 28
+--  tabs = gTabs({"Second","Thiord"},"SIZE=108x25"), -- 35
+--  tabs = gTabs({"Second","Third","Fourth"},"SIZE=150x25"),
+--GTK2: (might very well want to set a height of 30/31 for >1 tab...) 
+--       {0,10,13 seems the best we can do...)
+--  tabs = gTabs({"First"},"SIZE=37x30"), -- {22}
+--  tabs = gTabs({"First","Second"},"SIZE=89x30"), -- {22,41}
+--  tabs = gTabs({"First","Second","Third"},"SIZE=129x30"), -- {22,41,28}
+--  tabs = gTabs({"i","Second","Third"},"SIZE=107x30"), -- {2,41,28} -- ah, there's always +1 here...?
+--  tabs = gTabs({"i","Second","Thirdy"},"SIZE=113x30"),    -- {4x9,43x10,36x12} -- ""
+--  tabs = gTabs({"i","Second","Thirdy"},"SIZE=113x30"),    -- {2x14,41x14,34x14} -- ""
+--  tabs = gTabs({"First","Second","Third","Fourth"},"SIZE=176x30"), -- {22,41,28,36}
+--  tabs = gTabs({"First","Second","Third","Fourth","Fifth"},"SIZE=211x30"),    -- {22,41,28,36,24}
+--  tabs = gTabs({"Second"},"SIZE=54x30"), -- {41}
+--  tabs = gTabs({"Second","Third"},"SIZE=94x30"), -- {41,28}
+--  tabs = gTabs({"Second","Thiord"},"SIZE=101x30"), -- {41,35}
+--  tabs = gTabs({"Second","Third","Fourth"},"SIZE=141x30"), -- {41,28,36}
+--GTK3: -- 32,30,40 is spot on.
+--  tabs = gTabs({"First"},"SIZE=72x39"),
+--  tabs = gTabs({"First","Second"},"SIZE=145x39"),
+--  tabs = gTabs({"First","Second","Third"},"SIZE=207x39"),
+--  tabs = gTabs({"i","Second","Third"},"SIZE=207x30"), -- {2,41,28}
+--  tabs = gTabs({"i","Second","Thirdy"},"SIZE=211x30"), -- {2,41,28}
+--  tabs = gTabs({"First","Second","Third","Fourth"},"SIZE=275x39"),
+--  tabs = gTabs({"First","Second","Third","Fourth","Fifth"},"SIZE=337x39"),
+--  tabs = gTabs({"Second"},"SIZE=83x39"),
+--  tabs = gTabs({"Second","Third"},"SIZE=145x39"),
+--  tabs = gTabs({"Second","Thiord"},"SIZE=150x39"),
+--  tabs = gTabs({"Second","Third","Fourth"},"SIZE=213x39"),
+--/* ditty for estimating gTabs() width: (DEV where should I keep this??)
+function tabw(sequence s, integer m, p, x, e)
+    integer res = x+(length(s)-1)*p
+    for si in s do
+        res += max(si,m)
+    end for
+--  res = abs(res-e)
+    return res
+--  return e-res
+end function
+--win32:
+--/*
+constant tests  = {{{24},49},
+                   {{24,42},103},
+                   {{24,42,28},145},
+                   {{24,42,33},148},
+                   {{24,42,3},145},
+                   {{24,42,28,35},192},
+                   {{3,42,28,35},192},
+                   {{36,42,28,35},198},
+                   {{24,42,28,35,23},234},
+                   {{42},61},
+                   {{42,28},103},
+                   {{42,35},108},
+                   {{42,28,35},150}}
+--*/
+--GTK2:
+--/*
+constant tests  = {{{22},37},
+                   {{22,41},89},
+                   {{22,41,28},129},
+                   {{2,41,28},107},
+                   {{22,41,28,36},176},
+                   {{22,41,28,36,24},211},
+                   {{41},54},
+                   {{41,28},94},
+                   {{41,35},101},
+                   {{41,28,36},141}}
+--*/ -- using ink rect:
+--/*
+constant tests  = {{{24},37},
+                   {{24,43},89},
+                   {{24,43,30},129},
+                   {{4,43,30},107},
+                   {{4,43,36},113},
+                   {{24,43,30,38},176},
+                   {{24,43,30,38,26},211},
+                   {{43},54},
+                   {{43,30},94},
+                   {{43,37},101},
+                   {{43,30,38},141}}
+--*/
+--  tabs = gTabs({"First"},"SIZE=37x29"), -- {22}
+--  tabs = gTabs({"First","Second"},"SIZE=89x31"), -- {22,41}
+--  tabs = gTabs({"First","Second","Third"},"SIZE=129x28"), -- {22,41,28}
+--  tabs = gTabs({"i","Second","Third"},"SIZE=107x30"), -- {2,41,28} -- ah, there's always +1 here...?
+--  tabs = gTabs({"First","Second","Third","Fourth"},"SIZE=176x28"), -- {22,41,28,36}
+--  tabs = gTabs({"First","Second","Third","Fourth","Fifth"},"SIZE=211x28"),    -- {22,41,28,36,24}
+--  tabs = gTabs({"Second"},"SIZE=54x28"), -- {41}
+--  tabs = gTabs({"Second","Third"},"SIZE=94x28"), -- {41,28}
+--  tabs = gTabs({"Second","Thiord"},"SIZE=101x28"), -- {41,35}
+--  tabs = gTabs({"Second","Third","Fourth"},"SIZE=141x28"), -- {41,28,36}
+--GTK3:
+constant tests  = {{{24},72},
+                   {{24,43},145},
+                   {{24,43,30},207},
+                   {{4,43,30},207},
+                   {{4,43,36},211},
+                   {{24,43,30,38},275},
+                   {{24,43,30,38,26},337},
+                   {{43},83},
+                   {{43,30},145},
+                   {{43,37},150},
+                   {{43,30,38},213}}
+
+
+--ppOpt({pp_IntCh,false})
+integer be = 999999, me = 99999
+sequence bs, ms
+for m=0 to 65 do
+    for p=4 to 60 do
+        for x=4 to 51 do
+--?{"mpx",m,p,x}
+            integer te = 0, ne = 0
+            for t in tests do
+                integer e = t[2]
+                t = t[1]
+                integer r = tabw(t,m,p,x,e)
+--if {m,p,x} = {30,12,19} then
+if {m,p,x} = {32,30,40} then
+--if find({m,p,x},{{0,10,13},{0,10,11},{26,9,12},{4,10,11}}) then
+--if e=37 then pp({"=",{m,p,x}}) end if
+----                pp({{t,m,p,x},e,r,abs(e-r)})
+                pp({{t,m,p,x},e,r,r-e})
+end if
+                te += abs(e-r)
+                if e!=r then ne += 1 end if
+            end for
+            if te<be then
+                be = te
+                bs = {m,p,x}
+            end if
+            if ne<me then
+                me = ne
+                ms = {m,p,x}
+            end if
+        end for
+    end for
+end for
+pp({"be",be,bs})
+pp({"me",me,ms})
+--/*
+"="
+{{{24}, 0,10,11}, 37,35,2}
+{{{24,43}, 0,10,11}, 89,88,1}
+{{{24,43,30}, 0,10,11}, 129,128,1}
+{{{4,43,30}, 0,10,11}, 107,108,1}
+{{{4,43,36}, 0,10,11}, 113,114,1}
+{{{24,43,30,38}, 0,10,11}, 176,176,0}
+{{{24,43,30,38,26}, 0,10,11}, 211,212,1}
+{{{43}, 0,10,11}, 54,54,0}
+{{{43,30}, 0,10,11}, 94,94,0}
+{{{43,37}, 0,10,11}, 101,101,0}
+{{{43,30,38}, 0,10,11}, 141,142,1}
+"="
+{{{24}, 4,10,11}, 37,35,2}
+{{{24,43}, 4,10,11}, 89,88,1}
+{{{24,43,30}, 4,10,11}, 129,128,1}
+{{{4,43,30}, 4,10,11}, 107,108,1}
+{{{4,43,36}, 4,10,11}, 113,114,1}
+{{{24,43,30,38}, 4,10,11}, 176,176,0}
+{{{24,43,30,38,26}, 4,10,11}, 211,212,1}
+{{{43}, 4,10,11}, 54,54,0}
+{{{43,30}, 4,10,11}, 94,94,0}
+{{{43,37}, 4,10,11}, 101,101,0}
+{{{43,30,38}, 4,10,11}, 141,142,1}
+"="
+{{{24}, 26,9,12}, 37,38,1}
+{{{24,43}, 26,9,12}, 89,90,1}
+{{{24,43,30}, 26,9,12}, 129,129,0}
+{{{4,43,30}, 26,9,12}, 107,129,22}
+{{{4,43,36}, 26,9,12}, 113,135,22}
+{{{24,43,30,38}, 26,9,12}, 176,176,0}
+{{{24,43,30,38,26}, 26,9,12}, 211,211,0}
+{{{43}, 26,9,12}, 54,55,1}
+{{{43,30}, 26,9,12}, 94,94,0}
+{{{43,37}, 26,9,12}, 101,101,0}
+{{{43,30,38}, 26,9,12}, 141,141,0}
+{`be`, 8, {0,10,11}}
+{`me`, 5, {26,9,12}}
+
+<:
+{"be",8,{0,10,11}}
+{"me",5,{26,9,12}}
+<=:
+{"be",8,{4,10,11}}
+{"me",5,{26,9,12}}
+
+
+--*/
+
+--*/
+
+
+    tabs = gTabs({"First","Second"}),
+--  edit = gList(get_data,"SIZE=100x100"),
+--  edit = gList(get_data), -- x1 taken over by the scrollbar!
+--  edit = gList(get_data,"EXPAND=BOTH"),   --DEV should be the default? [DONE]
+--  edit = gList(get_data,"EXPAND=BOTH, SIZE=100x100"),
+    edit = gList(get_data,"SIZE=x145"),
+--  edit = gList(get_data,"EXPAND=VERTICAL"),
+    stab = gLabel("status bar","SIZE=200x25"), 
+    -- ^more probably gHbox({lc,sep,move,sep,dt,sep,msg},"VISIBLE=%t",{visible})
+--  hbox = gVbox({tbar,tabs,edit}),
+--  vbox = gVbox({menu,hbox}),
+    vbox = gVbox({menu,tbar,tabs,edit,stab}),
+--  vbox = gVbox({menu,gVbox({tbar,tabs,edit,stab},"MARGIN=10")}),
+--  vbox = gVbox({menu,tbar,tabs,edit}),
+--  vbox = gVbox({menu,tbar,tabs}),
+--  vbox = gVbox({menu,tabs}),
+--  vbox = gVbox({menu}),
+--   dlg = gDialog(vbox,`xpEditer`,`SIZE=500x300`,false)
+--   dlg = gDialog(vbox,`xpEditer`,`SIZE=500x300`)
+     dlg = gDialog(vbox,`xpEditer`,`SIZE=600x300`) -- 602x312!?
+--Step 1: can we do this at all? - YES!
+--gMenuSetAttribute(menu,NEW,"IMAGE",fonts_xpm)
+
+gShow(dlg)
+--?gGetGlobal("SCREENSIZE") -- {1920,1080}
 gMainLoop()
---  w1 = gDestroy(w1)   -- if that's what it takes...
---end if
 --?"done"
 --wait_key()
 
 --Need demos for: menus, taskbar/dropdown, tabs, canvas, splitter, treeview, listview(table), statusbar,
 --                file open/save, and I think that's just about it. Check pwa/p2js at each & every step.
---Split eg eamenus.ew into eamenus.ew and eamenus.ex, both of which include eamenus.e, iyswim.
---          In other words .ew starts to mean arwen-only, .ex means uses xpGUI, and .e is gui-agnostic.
+--Split eg eamenus.ew into eamenus.ew and xpmenus.e, both of which include menus.e, iyswim.
+--          In other words .ew starts to mean arwen-only, xp* means uses xpGUI, others gui-agnostic.
 --          also start shifting whatever we can into edita.e
 
---procedure test()
---//function test()
---//    static <accs,fred>  -- (triggers "static fred not defined" error at end of routine)
---  static [accs]
---  static sequence accs = {}
---
---  nested function makeAdder(integer x)
---      accs &= x
---      return length(accs)
---  end nested function
---
---//    string s = "inner scope"
---  nested function add(integer mal, y)
---//        ?s  // illegal
---      return accs[mal] + y
---  end nested function
---
---  integer add5 = makeAdder(5),
---         add10 = makeAdder(10)
---
---  ?add(add5,2)    -- 7
---  ?add(add10,2)   -- 10
---//?? return {add5,add10,makeAdder,add}
---//end function
---end procedure
---test()
---//?? integer {a5,a10,make_adder,add} = test()
---//?? ?add(a5,2)
---//?? ?add(a10,2)
---//?? constant a15 = make_adder(15)
---//?? ?add(a10,2)
+--DEV:
+--gSetAttribute(BUTTON,"FLAT") not yet implemented
+--gSetAttribute(LABEL,"SEPARATOR","VERTICAL")...
+--"xpg_add_tabs"
+--WinAPI:
+--26 Tabs       0   0   0   0   0   0  99  25 29  {}         CF_MAPPED+CF_CONTAINER+CF_DECORATED
 
+--/*
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(LABEL,"SEPARATOR","VERTICAL")...
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(LABEL,"SEPARATOR","VERTICAL")...
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(LABEL,"SEPARATOR","VERTICAL")...
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(LABEL,"SEPARATOR","VERTICAL")...
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(LABEL,"SEPARATOR","VERTICAL")...
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+"xpg_add_tabs"
+"xpg_lm_accumulate_sizes"
+"xpg_lm_accumulate_sizes"
+"xpg_lm_accumulate_sizes"
+"xpg_lm_accumulate_sizes"
+"xpg_lm_accumulate_sizes"
+"xpg_lm_accumulate_sizes"
+"xpg_lm_accumulate_sizes"
+"xpg_lm_accumulate_sizes"
+"xpg_lm_accumulate_sizes"
+"xpg_lm_accumulate_sizes"
+"xpg_lm_accumulate_sizes"
+"xpg_lm_accumulate_sizes"
+"xpg_lm_accumulate_sizes"
+"xpg_lm_accumulate_sizes"
+"xpg_lm_accumulate_sizes"
+"xpg_lm_accumulate_sizes"
+"xpg_lm_accumulate_sizes"
+"xpg_lm_accumulate_sizes"
+"xpg_lm_accumulate_sizes"
+"xpg_lm_accumulate_sizes"
+"xpg_lm_accumulate_sizes"
+"xpg_lm_accumulate_sizes"
+"xpg_lm_accumulate_sizes"
+"xpg_lm_accumulate_sizes"
+"xpg_lm_accumulate_sizes"
+"xpg_lm_accumulate_sizes"
+"xpg_lm_accumulate_sizes"
+"xpg_lm_accumulate_sizes"
+"xpg_lm_accumulate_sizes"
+"xpg_lm_accumulate_sizes"
+{"xpg_lm_disperse_user_sizes",30,{513,248}}
+{"xpg_lm_disperse_user_sizes",29,{513,248}}
+{"xpg_lm_disperse_user_sizes",1,{0,0}}
+{"xpg_lm_disperse_user_sizes",25,{513,24}}
+{"xpg_lm_disperse_user_sizes",2,{24,24}}
+{"xpg_lm_disperse_user_sizes",3,{24,24}}
+{"xpg_lm_disperse_user_sizes",4,{24,24}}
+{"xpg_lm_disperse_user_sizes",5,{24,24}}
+{"xpg_lm_disperse_user_sizes",6,{3,15}}
+{"xpg_lm_disperse_user_sizes",7,{24,24}}
+{"xpg_lm_disperse_user_sizes",8,{24,24}}
+{"xpg_lm_disperse_user_sizes",9,{3,15}}
+{"xpg_lm_disperse_user_sizes",10,{24,24}}
+{"xpg_lm_disperse_user_sizes",11,{24,24}}
+{"xpg_lm_disperse_user_sizes",12,{24,24}}
+{"xpg_lm_disperse_user_sizes",13,{3,15}}
+{"xpg_lm_disperse_user_sizes",14,{24,24}}
+{"xpg_lm_disperse_user_sizes",15,{24,24}}
+{"xpg_lm_disperse_user_sizes",16,{24,24}}
+{"xpg_lm_disperse_user_sizes",17,{24,24}}
+{"xpg_lm_disperse_user_sizes",18,{24,24}}
+{"xpg_lm_disperse_user_sizes",19,{3,15}}
+{"xpg_lm_disperse_user_sizes",20,{24,24}}
+{"xpg_lm_disperse_user_sizes",21,{24,24}}
+{"xpg_lm_disperse_user_sizes",22,{3,15}}
+{"xpg_lm_disperse_user_sizes",23,{24,24}}
+{"xpg_lm_disperse_user_sizes",24,{46'.',24}}
+{"xpg_lm_disperse_user_sizes",26,{103'g',24}}
+{"xpg_lm_disperse_user_sizes",27,{513,145}}
+{"xpg_lm_disperse_user_sizes",28,{200,25}}
+{"xpg_lm_apply_offsets",30}
+{"xpg_lm_apply_offsets",29}
+{"xpg_lm_apply_offsets",1}
+{"xpg_lm_apply_offsets",25}
+{"xpg_lm_apply_offsets",2}
+{"xpg_lm_apply_offsets",3}
+{"xpg_lm_apply_offsets",4}
+{"xpg_lm_apply_offsets",5}
+{"xpg_lm_apply_offsets",6}
+{"xpg_lm_apply_offsets",7}
+{"xpg_lm_apply_offsets",8}
+{"xpg_lm_apply_offsets",9}
+{"xpg_lm_apply_offsets",10}
+{"xpg_lm_apply_offsets",11}
+{"xpg_lm_apply_offsets",12}
+{"xpg_lm_apply_offsets",13}
+{"xpg_lm_apply_offsets",14}
+{"xpg_lm_apply_offsets",15}
+{"xpg_lm_apply_offsets",16}
+{"xpg_lm_apply_offsets",17}
+{"xpg_lm_apply_offsets",18}
+{"xpg_lm_apply_offsets",19}
+{"xpg_lm_apply_offsets",20}
+{"xpg_lm_apply_offsets",21}
+{"xpg_lm_apply_offsets",22}
+{"xpg_lm_apply_offsets",23}
+{"xpg_lm_apply_offsets",24}
+{"xpg_lm_apply_offsets",26}
+{"xpg_lm_apply_offsets",27}
+{"xpg_lm_apply_offsets",28}
+{"xpg_lm_disperse_user_sizes",30,{513,228}}
+{"xpg_lm_disperse_user_sizes",29,{513,228}}
+{"xpg_lm_disperse_user_sizes",1,{0,0}}
+{"xpg_lm_disperse_user_sizes",25,{513,24}}
+{"xpg_lm_disperse_user_sizes",2,{24,24}}
+{"xpg_lm_disperse_user_sizes",3,{24,24}}
+{"xpg_lm_disperse_user_sizes",4,{24,24}}
+{"xpg_lm_disperse_user_sizes",5,{24,24}}
+{"xpg_lm_disperse_user_sizes",6,{3,15}}
+{"xpg_lm_disperse_user_sizes",7,{24,24}}
+{"xpg_lm_disperse_user_sizes",8,{24,24}}
+{"xpg_lm_disperse_user_sizes",9,{3,15}}
+{"xpg_lm_disperse_user_sizes",10,{24,24}}
+{"xpg_lm_disperse_user_sizes",11,{24,24}}
+{"xpg_lm_disperse_user_sizes",12,{24,24}}
+{"xpg_lm_disperse_user_sizes",13,{3,15}}
+{"xpg_lm_disperse_user_sizes",14,{24,24}}
+{"xpg_lm_disperse_user_sizes",15,{24,24}}
+{"xpg_lm_disperse_user_sizes",16,{24,24}}
+{"xpg_lm_disperse_user_sizes",17,{24,24}}
+{"xpg_lm_disperse_user_sizes",18,{24,24}}
+{"xpg_lm_disperse_user_sizes",19,{3,15}}
+{"xpg_lm_disperse_user_sizes",20,{24,24}}
+{"xpg_lm_disperse_user_sizes",21,{24,24}}
+{"xpg_lm_disperse_user_sizes",22,{3,15}}
+{"xpg_lm_disperse_user_sizes",23,{24,24}}
+{"xpg_lm_disperse_user_sizes",24,{46'.',24}}
+{"xpg_lm_disperse_user_sizes",26,{103'g',24}}
+{"xpg_lm_disperse_user_sizes",27,{513,145}}
+{"xpg_lm_disperse_user_sizes",28,{200,25}}
+{"xpg_lm_apply_offsets",30}
+{"xpg_lm_apply_offsets",29}
+{"xpg_lm_apply_offsets",1}
+{"xpg_lm_apply_offsets",25}
+{"xpg_lm_apply_offsets",2}
+{"xpg_lm_apply_offsets",3}
+{"xpg_lm_apply_offsets",4}
+{"xpg_lm_apply_offsets",5}
+{"xpg_lm_apply_offsets",6}
+{"xpg_lm_apply_offsets",7}
+{"xpg_lm_apply_offsets",8}
+{"xpg_lm_apply_offsets",9}
+{"xpg_lm_apply_offsets",10}
+{"xpg_lm_apply_offsets",11}
+{"xpg_lm_apply_offsets",12}
+{"xpg_lm_apply_offsets",13}
+{"xpg_lm_apply_offsets",14}
+{"xpg_lm_apply_offsets",15}
+{"xpg_lm_apply_offsets",16}
+{"xpg_lm_apply_offsets",17}
+{"xpg_lm_apply_offsets",18}
+{"xpg_lm_apply_offsets",19}
+{"xpg_lm_apply_offsets",20}
+{"xpg_lm_apply_offsets",21}
+{"xpg_lm_apply_offsets",22}
+{"xpg_lm_apply_offsets",23}
+{"xpg_lm_apply_offsets",24}
+{"xpg_lm_apply_offsets",26}
+{"xpg_lm_apply_offsets",27}
+{"xpg_lm_apply_offsets",28}
+id ---ctyp---   x   y   w   h  nw  nh  uw  uh  p  children   flags
+ 1 Menu         0   0   0   0   0   0   0   0 29  0          CF_MAPPED
+ 2 Button       0   0  24  24  24  24  24  24 25  0          CF_MAPPED
+ 3 Button      26   0  24  24  24  24  24  24 25  0          CF_MAPPED
+ 4 Button      52   0  24  24  24  24  24  24 25  0          CF_MAPPED
+ 5 Button      78   0  24  24  24  24  24  24 25  0          CF_MAPPED+CF_INACTIVE
+ 6 Label      104   0   3  15   3  15   0   0 25  0          CF_MAPPED
+ 7 Button     109   0  24  24  24  24  24  24 25  0          CF_MAPPED+CF_INACTIVE
+ 8 Button     135   0  24  24  24  24  24  24 25  0          CF_MAPPED+CF_INACTIVE
+ 9 Label      161   0   3  15   3  15   0   0 25  0          CF_MAPPED
+10 Button     166   0  24  24  24  24  24  24 25  0          CF_MAPPED
+11 Button     192   0  24  24  24  24  24  24 25  0          CF_MAPPED
+12 Button     218   0  24  24  24  24  24  24 25  0          CF_MAPPED
+13 Label      244   0   3  15   3  15   0   0 25  0          CF_MAPPED
+14 Button     249   0  24  24  24  24  24  24 25  0          CF_MAPPED
+15 Button     275   0  24  24  24  24  24  24 25  0          CF_MAPPED
+16 Button     301   0  24  24  24  24  24  24 25  0          CF_MAPPED+CF_INACTIVE
+17 Button     327   0  24  24  24  24  24  24 25  0          CF_MAPPED+CF_INACTIVE
+18 Button     353   0  24  24  24  24  24  24 25  0          CF_MAPPED+CF_INACTIVE
+19 Label      379   0   3  15   3  15   0   0 25  0          CF_MAPPED
+20 Button     384   0  24  24  24  24  24  24 25  0          CF_MAPPED+CF_INACTIVE
+21 Button     410   0  24  24  24  24  24  24 25  0          CF_MAPPED+CF_INACTIVE
+22 Label      436   0   3  15   3  15   0   0 25  0          CF_MAPPED
+23 Button     441   0  24  24  24  24  24  24 25  0          CF_MAPPED+CF_INACTIVE
+24 DropDown   467   0  46  24  46  22   0   0 25  0          CF_MAPPED,CF_EXPANDH
+25 Hbox         0   0 513  24 513  24   0   0 29  {2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,
+--                                                  20,21,22,23,24} CF_MAPPED+CF_CONTAINER
+26 Tabs         0  24 103  24 103  24   0   0 29  {}         CF_MAPPED+CF_CONTAINER+CF_DECORATED
+27 Canvas       0  48 513 145  11 145   0 145 29  0          CF_MAPPED+CF_UNMAPATTR,CF_EXPANDB
+28 Label        0 193 200  25 200  25 200  25 29  0          CF_MAPPED
+29 Vbox         0   0 513 228 513 218   0   0 30  {1,25,26,27,28} CF_MAPPED+CF_CONTAINER
+30 Dialog     702 400 515 260 515 270 500 300  0  {29}       CF_MAPPED+CF_CLOSE_ON_ESC+
+--                                              CF_CONTAINER+CF_DECORATED+CF_RESIZE+CF_UNMAPATTR
+{"btn_click",""}
+?gGetGlobal("SCREENSIZE") -- {1920,1080}
+{"xpg_lm_disperse_user_sizes",30,{1920,1037}}
+{"xpg_lm_disperse_user_sizes",29,{1920,1037}} -- too much?
+{"xpg_lm_disperse_user_sizes",1,{0,0}}
+{"xpg_lm_disperse_user_sizes",25,{513,24}}
+{"xpg_lm_disperse_user_sizes",2,{24,24}}
+{"xpg_lm_disperse_user_sizes",3,{24,24}}
+{"xpg_lm_disperse_user_sizes",4,{24,24}}
+{"xpg_lm_disperse_user_sizes",5,{24,24}}
+{"xpg_lm_disperse_user_sizes",6,{3,15}}
+{"xpg_lm_disperse_user_sizes",7,{24,24}}
+{"xpg_lm_disperse_user_sizes",8,{24,24}}
+{"xpg_lm_disperse_user_sizes",9,{3,15}}
+{"xpg_lm_disperse_user_sizes",10,{24,24}}
+{"xpg_lm_disperse_user_sizes",11,{24,24}}
+{"xpg_lm_disperse_user_sizes",12,{24,24}}
+{"xpg_lm_disperse_user_sizes",13,{3,15}}
+{"xpg_lm_disperse_user_sizes",14,{24,24}}
+{"xpg_lm_disperse_user_sizes",15,{24,24}}
+{"xpg_lm_disperse_user_sizes",16,{24,24}}
+{"xpg_lm_disperse_user_sizes",17,{24,24}}
+{"xpg_lm_disperse_user_sizes",18,{24,24}}
+{"xpg_lm_disperse_user_sizes",19,{3,15}}
+{"xpg_lm_disperse_user_sizes",20,{24,24}}
+{"xpg_lm_disperse_user_sizes",21,{24,24}}
+{"xpg_lm_disperse_user_sizes",22,{3,15}}
+{"xpg_lm_disperse_user_sizes",23,{24,24}}
+{"xpg_lm_disperse_user_sizes",24,{46'.',24}}
+{"xpg_lm_disperse_user_sizes",26,{103'g',24}}
+{"xpg_lm_disperse_user_sizes",27,{513,145}}
+{"xpg_lm_disperse_user_sizes",28,{200,25}}
+{"xpg_lm_apply_offsets",30}
+{"xpg_lm_apply_offsets",29}
+{"xpg_lm_apply_offsets",1}
+{"xpg_lm_apply_offsets",25}
+{"xpg_lm_apply_offsets",2}
+{"xpg_lm_apply_offsets",3}
+{"xpg_lm_apply_offsets",4}
+{"xpg_lm_apply_offsets",5}
+{"xpg_lm_apply_offsets",6}
+{"xpg_lm_apply_offsets",7}
+{"xpg_lm_apply_offsets",8}
+{"xpg_lm_apply_offsets",9}
+{"xpg_lm_apply_offsets",10}
+{"xpg_lm_apply_offsets",11}
+{"xpg_lm_apply_offsets",12}
+{"xpg_lm_apply_offsets",13}
+{"xpg_lm_apply_offsets",14}
+{"xpg_lm_apply_offsets",15}
+{"xpg_lm_apply_offsets",16}
+{"xpg_lm_apply_offsets",17}
+{"xpg_lm_apply_offsets",18}
+{"xpg_lm_apply_offsets",19}
+{"xpg_lm_apply_offsets",20}
+{"xpg_lm_apply_offsets",21}
+{"xpg_lm_apply_offsets",22}
+{"xpg_lm_apply_offsets",23}
+{"xpg_lm_apply_offsets",24}
+{"xpg_lm_apply_offsets",26}
+{"xpg_lm_apply_offsets",27}
+{"xpg_lm_apply_offsets",28}
+
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(LABEL,"SEPARATOR","VERTICAL")...
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(LABEL,"SEPARATOR","VERTICAL")...
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(LABEL,"SEPARATOR","VERTICAL")...
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(LABEL,"SEPARATOR","VERTICAL")...
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(LABEL,"SEPARATOR","VERTICAL")...
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute[GTK](Box,"SIZE",{800,40})
+{"created button",79131008}
+{"realise",79131008}
+{"gtk_window_resize line 4592",79131008}
+
+
+--*/

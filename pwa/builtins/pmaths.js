@@ -104,11 +104,15 @@
 }
 
 /*global*/ function minsq(/*sequence*/ s, /*bool*/ return_index=false) {
+    // (aliased to smallest)
     let /*object*/ res = $subse(s,1);
     let /*integer*/ rdx = 1;
-    for (let i=2, i$lim=length(s); i<=i$lim; i+=1) {
-        if (compare($subse(s,i),res)<0) {
-            res = $subse(s,i);
+//  for i=2 to length(s) do
+    for (let i = 2, si$lim = length(s); i <= si$lim; i += 1) { let si = $subse(s,i);
+//      if s[i]<res then
+        if (compare(si,res)<0) {
+//          res = s[i]
+            res = si;
             rdx = i;
         }
     }
@@ -121,11 +125,15 @@ let smallest = minsq;
 }
 
 /*global*/ function maxsq(/*sequence*/ s, /*bool*/ return_index=false) {
+    // (aliased to largest)
     let /*object*/ res = $subse(s,1);
     let /*integer*/ rdx = 1;
-    for (let i=2, i$lim=length(s); i<=i$lim; i+=1) {
-        if (compare($subse(s,i),res)>0) {
-            res = $subse(s,i);
+//  for i=2 to length(s) do
+    for (let i = 2, si$lim = length(s); i <= si$lim; i += 1) { let si = $subse(s,i);
+//      if s[i]>res then
+        if (compare(si,res)>0) {
+//          res = s[i]
+            res = si;
             rdx = i;
         }
     }

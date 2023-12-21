@@ -1,5 +1,5 @@
 --
--- builtins/pvlookup.e
+-- builtins\pvlookup.e
 --
 
 global function vlookup(object find_item, sequence grid_data, integer source_col, target_col, object def_value = 0)

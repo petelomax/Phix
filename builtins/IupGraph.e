@@ -1,5 +1,5 @@
 --
--- builtins/IupGraph.e
+-- builtins\IupGraph.e
 --
 -- todo: bar graphs[stacked or side], grid style, piechart, ...
 --

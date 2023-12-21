@@ -1,8 +1,8 @@
 --
--- builtins/repeat.e
+-- builtins\repeat.e
 -- =================
 --
---  Implements repeat() and repeatch(). [Migrated from builtins/VM/pRepeatN.e for version 1.0.0]
+--  Implements repeat() and repeatch(). [Migrated from builtins\VM\pRepeatN.e for version 1.0.0]
 --
 --  The repeatch() function returns a string and helps with type propagation.
 --  The compiler automatically maps repeat() to repeatch() whenever it can 
@@ -50,7 +50,7 @@ without debug
 --          2: Write code normally, but expect the odd new "cow semantics" fatal error.
 --          3: Rewrite and/or wrap any offenders detected in a deep_copy() as needed.
 --
---      Refer to builtins/psqop.e for some examples of code rewritten to be compliant (w/o using deep_copy).
+--      Refer to builtins\psqop.e for some examples of code rewritten to be compliant (w/o using deep_copy).
 --      Obviously, examples of code that now uses deep_copy() can be easily found using a standard search.
 --
 --      Sometimes, you may want to avoid modifying parameters, eg if the main loop below was setting o[i] instead 

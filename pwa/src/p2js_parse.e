@@ -259,7 +259,10 @@ function rcall(object fp, sequence tok)
 --  sequence res = {fp,tok}
     sequence res = {tok}
     integer ttidx = tok[TOKTTIDX]
+    -- fixup aliases for named arg purposes (others may be rqd):
     if ttidx=T_iif then ttidx = T_iff end if
+    if ttidx=T_largest then ttidx = T_maxsq end if
+    if ttidx=T_smallest then ttidx = T_minsq end if
     integer was_calling_the_rtn = calling_the_rtn
     calling_the_rtn = ttidx
     expectt('(')

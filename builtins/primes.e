@@ -1,5 +1,5 @@
 --
--- builtins/primes.e
+-- builtins\primes.e
 -- =================
 --
 without debug

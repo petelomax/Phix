@@ -850,7 +850,8 @@ end procedure
 --with trace
 global procedure onClickToolQjmp()
 sequence lcfile
-integer default_view
+--integer default_view
+Ihandle default_view
 
     -- early out
     if not currfile then

@@ -1,7 +1,7 @@
 --
--- builtins/punique.e
+-- builtins\punique.e
 --
--- See also/similar to Eu's include/std/sequence.e/remove_dups()...
+-- See also/similar to Eu's include\std\sequence.e\remove_dups()...
 --
 --include dict.e
 

@@ -14,12 +14,12 @@
          </td>
          <td>
          <a href="atom.htm">atom</a> pMem = allocate(<a href="integer.htm">integer</a> i, 
-                                                     <a href="integer.htm#bool">bool</a> cleanup=<a href="logicops.htm">false</a>)
+                                                     <a href="integer.htm#bool">bool</a> cleanup=<a href="logicops.htm=tf">false</a>)
          <br>
          <i>-- or --</i>
          <br>
          <a href="atom.htm">atom</a> pMem = allocate_word(<a href="atom.htm">atom</a> v=0, 
-                                                          <a href="integer.htm#bool">bool</a> cleanup=<a href="logicops.htm">false</a>,
+                                                          <a href="integer.htm#bool">bool</a> cleanup=<a href="logicops.htm#tf">false</a>,
                                                           <a href="integer.htm">integer</a> size=<a href="machine_bits.htm">machine_word</a>())
          <br>
          </td>
@@ -46,25 +46,32 @@
           <b>Comments:</b>
          </td>
          <td>
-            If the optional cleanup flag is non-zero, the memory will be automatically released once it is no longer required, otherwise 
-            the application should invoke <a href="free.htm">free</a>() manually.
+            If the optional cleanup flag is <a href="logicops.htm#tf">true</a> (/non-zero), the memory will be automatically released 
+            once it is no longer required, otherwise the application should invoke <a href="free.htm">free</a>() manually. 
+            Note that you should avoid invoking <a href="free.htm">free</a>() or <a href="delete.htm">delete</a>() on pMem when cleanup 
+            is true - if nothing else that would explictly invalidate the implicit safety guarantees it provided, and in some cases open 
+            the door to unpredictable memory corruption, should there still be a reference to some memory that you have just explicitly 
+            said (by invoking said) can now be used for something else (and o/c that whole tribe of potential problems is ever-present 
+            when cleanup is <a href="logicops.htm#tf">false</a>).
+<!--
+//          <br>
+//          <br>
+//          Note that when cleanup is <a href="logicops.htm#tf">true</a>, ie the default automatic memory management is in force, you  
+//          explicitly: doing so is guaranteed to leave an invalid pointer to memory lying around. In preference you should either let 
+//          things happen naturally, or explicitly set the last/only copy of pMem to NULL, and in that way ensure 
+//          the raw memory is not actually freed until it is guaranteed safe to do so, and accidental references to 
+//          it will not cause unpredictable memory corruption.
+-->
             <br>
             <br>
-            Note that when cleanup is true, ie the default automatic memory management is in force, you should avoid 
-            invoking <a href="free.htm">free</a>() or <a href="delete.htm">delete</a>() on pMem explicitly: doing 
-            so is guaranteed to leave an invalid pointer to memory lying around. In preference you should either let 
-            things happen naturally, or explicitly set the last/only copy of pMem to NULL, and in that way ensure 
-            the raw memory is not actually freed until it is guaranteed safe to do so, and accidental references to 
-            it will not cause unpredictable memory corruption.
+            In an ideal world the cleanup flag should probably default to true, however that causes far too many problems with legacy code.<br>
+            <small></i>(Somewhere beneath the calm waters of the lake my little feet are paddling away furiously...)</i></small>
             <br>
             <br>
             The <b>allocate_word</b>() function allocates a single block of size bytes of memory (must be 1/2/4/8) and sets it to (machine integer) v.<br>
             Obviously v is defined as atom to allow full 32/64 bit values outside the usual 31/63 bit range, and the same caveats apply as explained in
             detail in <a href="peek.htm">peek</a>() and <a href="poke.htm">poke</a>() when using a size of 8 on a 32-bit architecture.
-            The <a href="peek.htm">peekns/peeknu</a>() routines are a natural companion to allocate_word, however (as yet) there is no built-in version of
-            <a href="poke.htm">pokeN</a>() that defaults the third parameter to machine_word(). Hopefully the initialise-on-declaration the above provides 
-            suffices in the vast majority of cases, but while I cannot see any difficulty providing one, I will wait until there is a genuine need, for
-            much the same reasons outlined in the implementation notes of those peek functions.
+            The <a href="peek.htm">peekns/peeknu</a>/<a href="poke.htm">poken</a>() routines are natural companions to allocate_word().
          </td>
         </tr>
         <tr>

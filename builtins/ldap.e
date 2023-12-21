@@ -1,5 +1,5 @@
 --
--- builtins/ldap.e
+-- builtins\ldap.e
 --
 --  Note this is incomplete, windows-only (depends on wldap32.dll), and largely untested.
 --  It has been tested against a random 7-year-old list of public LDAP servers (see eof),

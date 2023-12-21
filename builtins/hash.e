@@ -1,5 +1,5 @@
 --
--- builtins/hash.e
+-- builtins\hash.e
 --
 --  Based on the work of Jiri Babor, as modified by Aku,
 --  and further by me, to support *any* objects as key.
@@ -24,7 +24,7 @@
 --  only for compatibility with Euphoria, and was not written 
 --  for the best possible performance - I would expect to get
 --  better performance using standard dictionaries instead.
---  (see builtins/dict.e, or better yet the manual).
+--  (see builtins\dict.e, or better yet the manual).
 --
 sequence hash_t
 atom hash_t_rol_1

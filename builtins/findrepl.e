@@ -1,5 +1,5 @@
 --
--- builtins/findrepl.e
+-- builtins\findrepl.e
 --
 global function find_replace(object needle, sequence haystack, object replacement, integer max_replacements=0)
 

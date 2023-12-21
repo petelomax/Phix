@@ -1,5 +1,5 @@
 --
--- builtins/scanf.e
+-- builtins\scanf.e
 -- ================
 --
 --  (Also implements to_number())
@@ -251,7 +251,6 @@ end function
 
 function get_number(string s, integer sidx, inbase=10)
 integer scan_ch2
-atom N
 integer msign, base = 0, tokvalid = 1
 
 --  sidx += 1
@@ -271,7 +270,7 @@ integer msign, base = 0, tokvalid = 1
 --  if  scan_ch>='0' 
 --  and scan_ch<='9' then
     if inbase<=36 and scan_ch>'Z' then scan_ch = upper(scan_ch) end if
-    N = baseset[scan_ch]
+    atom N = baseset[scan_ch]
     if N<inbase then
         sidx += 1
         if sidx>length(s) then return {N*msign,sidx} end if

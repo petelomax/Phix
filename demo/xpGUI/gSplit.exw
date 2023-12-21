@@ -3,56 +3,101 @@
 -- =====================
 --
 --  DEV ONLY JUST ABOUT STARTED... (doc image fudged)
--- Need to get EXPAND working properly.
--- SIZE on a gCanvas /should/ overrule naturalsize. (or we can just fix that inside xpGUI.e)
--- XPG_DOTTED is a bit too dashy for this... XPG_CUSTOM??
--- Get resize cursors working
--- Add CLICK and MOUSEMOVE handlers... (any needed data to be stored in ctrl_xtra[id])
+-- Need to get EXPAND working properly. [DONE!]
+-- SIZE on a gCanvas /should/ overrule naturalsize. (or we can just fix that inside xpGUI.e) [DONE]
+-- XPG_DOTTED is a bit too dashy for this... XPG_CUSTOM?? [is it now ok? YES]
+-- Get resize cursors working [DONE]
+-- Add CLICK and MOUSEMOVE handlers... (any needed data to be stored in ctrl_xtra[id], eventually)
 --
 --requires(64,true)
 with javascript_semantics
 include xpGUI.e
+--include backup\xpGUI.1800.e -- no gSplit...
+--include backup\xpGUI.1930.e -- no gSplit...
+--include backup\xpGUI.2071.e -- lovely cursors
+--include backup\xpGUI.2072.e -- X
+--include backup\xpGUI.2073.e -- X
+--include backup\xpGUI.2074.e -- X
+--include backup\xpGUI.2075.e -- X
+--include backup\xpGUI.2076.e -- X
+--include backup\xpGUI.2077.e -- no cursors [fixed, was delib!)
+--include backup\xpGUI.2080.e -- no cursors
+--include backup\xpGUI.2117.e -- no cursors
+--include backup\xpGUI.2118.e -- X
+--include backup\xpGUI.2280.e -- Good
+--include backup\xpGUI.2305.e -- Good
+--include backup\xpGUI.2346.e -- Good
+--include backup\xpGUI.2347.e -- BAD
+--include backup\xpGUI.2354.e -- BAD
+--include backup\xpGUI.2366.e -- BAD
 --gUseGTK()
 
-procedure redraw(gdx canvas)
-    integer {w,h} = gGetAttribute(canvas,"SIZE")
-    string orientation = gGetAttribute(gGetParent(canvas),"ORIENTATION")
-    ?{"redraw",w,h,orientation}
-    if orientation="HORIZONTAL" then
-        gCanvasLine(canvas,2,0,2,h)
-    else
-        gCanvasLine(canvas,0,2,w,2)
-    end if
+--procedure cross(gdx canvas, integer w,h)
+----DEV (at least) one of these must be wrong... (1,w-2 is probably what it shd really be...) [FIXED]
+----GTK:
+--  gCanvasRect(canvas,1,w-1,1,h-1, colour:=XPG_GREEN)
+----WinAPI:
+----    gCanvasRect(canvas,0,w,0,h, colour:=XPG_GREEN)
+--end procedure
+
+
+--gdx tx1 = gLabel(`1`), tx2 = gLabel(`2`), tx3 = gLabel(`3`)
+--gdx c1 = gCanvas(cross), c2 = gCanvas(cross), c3 = gCanvas(cross)
+--?{"c123",c1,c2,c3}
+--  gSetAttribute({tx1,tx2,tx3},"EXPAND",true)
+--  gSetAttribute({tx1,tx2,tx3},"SIZE","40x12")
+--  gSetAttribute({tx1,tx2,tx3},"MARGIN","1x1")
+--  gSetAttribute({c2,c2,c3},"BGCLR",XPG_PARCHMENT)
+--  gCanvasSetBackground({c1,c2,c3},XPG_PARCHMENT)
+--gdx sv = gSplit(tx2,tx3),--"VERTICAL"),
+--  sh = gSplit(tx1,sv,"HORIZONTAL"),
+--DEV not xpGUI.js, yet:
+procedure edge(gdx canvas, integer w,h)
+--procedure edge(gdx canvas)
+--  integer {w,h} = gGetAttribute(canvas,"SIZE")
+--?{w,h}
+--DEV (at least) one of these must be wrong... (1,w-2 is probably what it shd really be...) [FIXED, note added to docs]
+--(these all still need testing under p2js...)
+--GTK:
+--  gCanvasRect(canvas,1,w-1,1,h-1, colour:=XPG_GREEN)
+--  gCanvasRect(canvas,1,w-1,1,h-1, colour:=XPG_BLUE)
+--  gCanvasRect(canvas,1,w-1,1,h-1, colour:=XPG_BLACK)
+--  gCanvasRect(canvas,1,w-2,1,h-2, colour:=XPG_OLIVE)
+    gCanvasRect(canvas,1,w-2,1,h-2)
+--  gCanvasRect(canvas,1,w-2,1,h-2, rc:=5, colour:=XPG_OLIVE)
+--  gCanvasRect(canvas,0,w-1,0,h-1, rc:=5, colour:=XPG_OLIVE)
+--WinAPI:
+--  gCanvasRect(canvas,0,w,0,h, colour:=XPG_GREEN)
+--  gCanvasLine(canvas,0,0,w-1,h-1)
+--  gCanvasLine(canvas,w-1,0,0,h-1)
 end procedure
 
---DEV to be moved into xpGUI.e and o/c pGUI.js
-function gSplit(gdx child1, child2, string orientation="VERTICAL", string attributes="", args={})
-    gdx splitter = gCanvas(redraw,attributes,args)
-?{"EXPAND",orientation}
-    gSetAttribute(splitter,"EXPAND",orientation)
-    gCanvasSetLineStyle(splitter,XPG_DOTTED)
---DEV put this back once it's working....
---  gCanvasSetBackground(splitter,#F0F0F0)
-    gCanvasSetForeground(splitter,#C0C0C0)
-    if orientation="VERTICAL" then
-        gSetAttribute(splitter,"SIZE","3x")
-        return gVbox({child1,splitter,child2})
-    elsif orientation="HORIZONTAL" then
-        gSetAttribute(splitter,"SIZE","x3")
-        return gHbox({child1,splitter,child2})
-    end if
-    crash("Unknown gSplit orientation:%s",{orientation})
-end function
-
-gdx tx1 = gLabel(`1`), tx2 = gLabel(`2`), tx3 = gLabel(`3`)
-    gSetAttribute({tx1,tx2,tx3},"SIZE","40x12")
---  gSetAttribute({tx1,tx2,tx3},"MARGIN","1x1")
-gdx shv = gSplit(tx1,gSplit(tx2,tx3),"HORIZONTAL"),
-    dlg = gDialog(shv,"gSplit","SIZE=240x80")
+gdx c1 = gCanvas(edge), 
+    c2 = gCanvas(edge), 
+    c3 = gCanvas(edge),
+    sv = gSplit(c2,c3),--"VERTICAL"),
+    sh = gSplit(c1,sv,"HORIZONTAL"),
+    dlg = gDialog(sh,"gSplit","SIZE=240x80")
+--gCanvasSetBackground({c1,c2,c3},XPG_LIGHT_PARCHMENT)
+--gCanvasSetBackground({c1,c2,c3},XPG_LIGHT_GREY)
+--gCanvasSetBackground({c1,c2,c3},XPG_GREY)
+--gCanvasSetBackground({c1,c2,c3},XPG_DARK_GREY)
+--gCanvasSetBackground({c1,c2,c3},XPG_BLUE)
+gCanvasSetBackground({c1,c2,c3},XPG_PARCHMENT)
+gCanvasSetForeground({c1,c2,c3},XPG_OLIVE)
 gShow(dlg)
 --gSetAttribute(txt,"FONT","Helvetica, Italic 19")
 --?gGetAttribute(txt,"VALUE")
 --gSetAttribute(txt,"SIZE","40x20")
 --?gGetAttribute(txt,"SIZE")
-?gGetAttribute(shv,"EXPAND","YES")
+
+--seems OK: (delete this once working)
+--?gGetAttribute(sv,"EXPAND","YeS") -- "NONE"
+--?gGetAttribute(sh,"EXPAND","YeS") -- "NONE"
+--gdx vs = gGetChild(sv,2),
+--  hs = gGetChild(sh,2)
+--?{"v",vs,"h",hs}
+--?gGetAttribute(vs,"EXPAND","YeS") -- "VERTICAL"
+--?gGetAttribute(hs,"EXPAND","YeS") -- "HORIZONTAL"
+
 gMainLoop()

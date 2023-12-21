@@ -1,5 +1,5 @@
 --
--- builtins/isatty.e
+-- builtins\isatty.e
 -- =================
 --
 --  Phix implementation of isatty().

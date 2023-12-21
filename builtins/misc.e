@@ -152,7 +152,7 @@ sequence s
 end function
 --*/
 
--- now in builtins/pretty.e:
+-- now in builtins\pretty.e:
 -- removed 31/3/21 (p2js):
 --include builtins\pretty.e
 ---- pretty print variables

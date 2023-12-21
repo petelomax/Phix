@@ -2071,8 +2071,9 @@ end if
                 shl rcx,2
                 mov rdx,[return_type]
                 mov rsp,rcx
---10/9/22: (no help...)
+--10/9/22: (no help...) 4/10/23: helps a bit with gMenu.exw (undone, for now, as C_LONG got used instead...)
 --              mov r15,h4
+--              xor rbx,rbx
 
 --DEV this is and isn't quite right... (definition of C_INT suspect for starter, inability to really mean DWORD for desert)
 -- (probably wants cdqe (eax -> rax))

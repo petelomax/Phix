@@ -1,0 +1,126 @@
+--
+-- demo\xpGUI\gtk_spin.exw
+-- =======================
+--
+--  NOTE: GTK3 replacing up/down buttons with sideways -/+ is not my problem.
+--
+--requires(64,true)
+include cffi.e
+
+constant currdir = current_dir(),
+         m = machine_bits(),
+         gtkdir = sprintf("win_gtk%d",m)
+printf(1,"begin(GTK %d bits)\n",m)
+assert(chdir(gtkdir))
+constant gtk = iff(m=32?"libgtk-win32-2.0-0.dll":"libgtk-3-0.dll"),
+         GTKLIB = open_dll(gtk), 
+         GTKGDO = open_dll("libgobject-2.0-0.dll"),
+         C_DBL = C_DOUBLE,
+         gtk_init_check = define_c_func(GTKLIB,"gtk_init_check",
+            {C_PTR,     --  int* argc
+             C_PTR},    --  char*** argv
+            C_INT)      -- gboolean
+if gtk_init_check < 1 or c_func(gtk_init_check,{0,0})=0 then 
+  crash("Failed to initialize GTK library!") 
+end if 
+assert(chdir(currdir))
+constant gtk_container_add = define_c_proc(GTKLIB,"gtk_container_add",
+            {C_PTR,     --  GtkContainer* container
+             C_PTR}),   --  GtkWidget *widget
+         gtk_main = define_c_proc(GTKLIB,"gtk_main",{}),
+         gtk_main_quit = define_c_proc(GTKLIB,"gtk_main_quit",{}),
+         gtk_spin_button_new_with_range = define_c_func(GTKLIB,"gtk_spin_button_new_with_range",
+            {C_DBL,     --  gdouble min
+             C_DBL,     --  gdouble max
+             C_DBL},    --  gdouble step
+            C_PTR),     -- GtkWidget*
+         gtk_spin_button_set_range = define_c_proc(GTKLIB,"gtk_spin_button_set_range",
+            {C_PTR,     --  GtkSpinButton *spin_button
+             C_DBL,     --  gdouble min
+             C_DBL}),   --  gdouble max
+--/*
+void
+gtk_spin_button_set_increments (
+  GtkSpinButton* spin_button,
+  double step,
+  double page
+)
+double
+gtk_spin_button_get_value (
+  GtkSpinButton* spin_button
+)
+void
+gtk_spin_button_set_value (
+  GtkSpinButton* spin_button,
+  double value
+)
+--??
+void
+gtk_spin_button_get_range (
+  GtkSpinButton* spin_button,
+  double* min,
+  double* max
+)
+--*/
+         gtk_widget_show_all = define_c_proc(GTKLIB,"gtk_widget_show_all",
+            {C_PTR}),   --  GtkWindow* window,  // aka handle
+         gtk_window_new = define_c_func(GTKLIB,"gtk_window_new",
+            {C_INT},    --  GtkWindowType type // usually GTK_WINDOW_TOPLEVEL (nb gone in GTK4)
+            C_PTR),     -- GtkWidget* // handle
+         -- note that g_signal_connect is defined in the GTK sources as a #define of
+         -- g_signal_connect_data(....,NULL,0), and is not exported from the dll/so.
+         g_signal_connect_data = define_c_func(GTKGDO,"g_signal_connect_data",
+            {C_PTR,     --  GObject* instance,              // aka handle
+             C_PTR,     --  const gchar* detailed_signal,   // a string
+             C_PTR,     --  GCallback c_handler,            // a callback
+             C_PTR,     --  gpointer data,                  // data for ""
+             C_PTR,     --  GClosureNotify destroy_data,    // (NULL here)
+             C_INT},    --  GConnectFlags connect_flags     //     ""
+            C_INT),     -- gulong // handler id (>0 for success)
+         tGdkEventKey = """typedef struct GdkEventKey {
+                            GdkEventType event_type;
+                            GdkWindow* window;
+                            byte sendEvent;
+                            uint time;
+                            ModifierType state;
+                            uint keyval;
+                            int length;
+                            char* string_;
+                            ushort hardwareKeycode;
+                            ubyte group;
+                           }""",
+        idGdkEventKey = define_struct(tGdkEventKey)
+
+local function xpg_gtk_quit(atom winmain, /*user_data*/) -- (GTK only)
+    c_proc(gtk_main_quit) 
+    return 0 
+end function 
+constant quit_cb = call_back({'+',xpg_gtk_quit})
+
+constant GTK_ESC = #FF1B
+
+local function xpg_gtk_check_escape(atom winmain, event, /*data*/) -- (GTK only)
+    integer keyval = get_struct_field(idGdkEventKey,event,"keyval")
+    if keyval=GTK_ESC then
+        c_proc(gtk_main_quit)
+    end if
+    -- nb true here disables up/down via arrow keys...
+    return false
+end function
+constant key_cb = call_back({'+',xpg_gtk_check_escape})
+
+atom winmain = c_func(gtk_window_new,{0}) ,
+     spin = c_func(gtk_spin_button_new_with_range,{1,100,1}) -- range is 1..100, try it! 
+ 
+c_proc(gtk_container_add,{winmain,spin}) 
+--c_proc(gtk_spin_button_set_range,{spin,25,75}) -- range is now 25..75 on EU, 0..25 with phix 
+c_proc(gtk_spin_button_set_range,{spin,25.1,75.1}) -- range is now 25..75 on EU, 0..25 with phix 
+integer id = 0
+atom r = c_func(g_signal_connect_data,{winmain,"destroy",quit_cb,id,NULL,0})
+assert(r>0)
+r = c_func(g_signal_connect_data,{winmain,"key_press_event",key_cb,id,NULL,0})
+assert(r>0)
+ 
+c_proc(gtk_widget_show_all,{winmain}) 
+c_proc(gtk_main,{}) 
+--?3

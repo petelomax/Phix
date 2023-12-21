@@ -1,0 +1,68 @@
+--
+-- demo\rosetta\Arithmetic_Integer.exw
+--
+--  https://rosettacode.org/wiki/Arithmetic/Integer#Phix
+--
+--  Get two integers from the user, and then (for those two integers), display their:
+--
+--    sum
+--    difference
+--    product
+--    integer quotient
+--    remainder
+--    exponentiation   (if the operator exists)
+--
+--  Don't include error handling.
+--
+--  For quotient, indicate how it rounds   (e.g. towards zero, towards negative infinity, etc.).
+--
+--  For remainder, indicate whether its sign matches the sign of the first operand or of the second operand, if they are different.
+--
+--  Bonus: Include an example of the integer `divmod` operator. For example: as in #Haskell, #Python and #ALGOL 68
+--      Python also has the procedure divmod that returns both quotient and remainder. eg quotient, remainder = divmod(355,113)
+--      Giving a quotient of 3, and a remainder of 16.
+--
+with javascript_semantics
+include pGUI.e
+
+Ihandle lab, tab, res, dlg
+
+constant fmt = """
+a = %d
+b = %d
+a + b = %d
+a - b = %d
+a * b = %d
+a / b = %g  (does not truncate)
+remainder(a,b) = %d (same sign as first operand)
+power(a,b) = %g
+"""
+
+function valuechanged_cb(Ihandle tab)
+    string s = IupGetAttribute(tab,"VALUE")
+    sequence r = scanf(s,"%d %d")
+    if length(r)=1 then
+        integer {a,b} = r[1]
+        s = sprintf(fmt, {a, b, a+b, a-b, a*b, a/b, remainder(a,b), power(a,b)})
+        IupSetStrAttribute(res,"TITLE",s)
+        IupRefresh(res)
+    end if
+    return IUP_DEFAULT
+end function
+
+procedure main()
+    IupOpen()
+    lab = IupLabel("Enter two numbers")
+    tab = IupText("VALUECHANGED_CB", Icallback("valuechanged_cb"),"EXPAND=HORIZONTAL")
+    res = IupLabel("(separated by a space)\n\n\n\n\n\n\n","EXPAND=BOTH")
+    dlg = IupDialog(IupVbox({IupHbox({lab,tab},"GAP=10,NORMALIZESIZE=VERTICAL"),
+                             IupHbox({res})},"MARGIN=5x5"),
+                            `SIZE=188x112,TITLE="Arithmetic/Integer"`)
+    IupShow(dlg)
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
+end procedure
+ 
+main()

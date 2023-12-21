@@ -733,8 +733,8 @@ global constant
     K_sDEL = iup_XkeyShift(K_DEL),
 --*/
     K_sSP = iup_XkeyShift(K_SP),
---/*
     K_sTAB = iup_XkeyShift(K_TAB),
+--/*
     K_sCR = iup_XkeyShift(K_CR),
     K_sBS = iup_XkeyShift(K_BS),
     K_sPAUSE = iup_XkeyShift(K_PAUSE),

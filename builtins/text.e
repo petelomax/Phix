@@ -550,7 +550,7 @@ end ifdef
 --
 -- See Also:
 --   [[:upper]], [[:proper]], [[:set_encoding_properties]], [[:get_encoding_properties]]
---/* Phix: defined in builtins/pcase.e (auto-include)
+--/* Phix: defined in builtins\pcase.e (auto-include)
 public function lower(object x)
 -- convert atom or sequence to lower case
     if length(lower_case_SET) != 0 then

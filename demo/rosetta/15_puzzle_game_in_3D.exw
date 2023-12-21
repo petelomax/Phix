@@ -16,6 +16,561 @@
 --       when thinking/before it has managed to find a solution
 --       should re-scramble to something hopefully a bit easier.
 --
+--/!*
+with javascript_semantics
+without debug
+requires("1.0.3")
+include xpGUI.e
+include builtins\VM\pcmdlnN.e
+include builtins\pcurrdir.e
+include builtins\pgetpath.e
+include builtins\VM\pcfunc.e
+include builtins\pfile.e
+include builtins\VM\pprntfN.e
+include builtins\get_routine_info.e
+include builtins\VM\pTime.e
+include builtins\scanf.e
+include builtins\pdir.e
+include builtins\penv.e
+with debug
+--gUseGTK()
+
+constant title = "8 puzzle game in 3D",
+         iterations_per_timeslice = 100_000 -- too low ==> too slow, but (obviously)
+                                            -- too high ==> responsiveness:=sluggish
+                                            -- 100K gives me around 20% CPU usage,
+                                            -- that is, when in "thinking" mode.
+gdx dlg, canvas
+--cdCanvas cd_canvas
+
+-- <copied from demo\rosetta\DrawRotatingCube.exw>:
+--
+-- First, define 8 corners equidistant from {0,0,0}:
+--
+--          6-----2
+--      5-----1   3
+--      8-----4  
+--
+-- ie the right face is 1-2-3-4 clockwise, and the left face
+--  is 5-6-7-8 counter-clockwise (unless using x-ray vision).
+--
+enum X, Y, Z
+constant l = 100
+constant corners = {{+l,+l,+l},     -- 1 (front top right)
+                    {+l,+l,-l},     -- 2 (back top "right")
+                    {+l,-l,-l},     -- 3 (back btm "right")
+                    {+l,-l,+l},     -- 4 (front btm right)
+                    {-l,+l,+l},     -- 5 (front top left)
+                    {-l,+l,-l},     -- 6 (back top "left")
+                    {-l,-l,-l},     -- 7 (back btm "left")
+                    {-l,-l,+l}}     -- 8 (front btm left)
+-- I put left/right in quotes for the back face as a reminder
+-- those match the above diagram, but of course they would be
+-- swapped were you looking "at" the face/rotated it by 180.
+
+constant faces = {{XPG_RED,          1,2,3,4},   -- right
+                  {XPG_YELLOW,       1,5,6,2},   -- top
+                  {XPG_DARK_GREEN,   1,4,8,5},   -- front
+                  {XPG_BLUE,         2,3,7,6},   -- back
+                  {XPG_WHITE,        3,4,8,7},   -- bottom
+                  {XPG_ORANGE,       8,7,6,5}}   -- left
+
+-- <this bit not from DrawRotatingCube>
+constant colours = {XPG_TEAL,
+                    XPG_DARK_YELLOW,
+                    XPG_LIGHT_BLUE,
+                    XPG_INDIGO,
+                    XPG_ORANGE,
+                    XPG_PURPLE,
+                    XPG_MAGENTA,
+                    XPG_OLIVE,
+                    XPG_CYAN,
+                    XPG_YELLOW,
+                    XPG_BLUE,
+                    XPG_VIOLET,
+                    XPG_LIGHT_GREEN,
+                    XPG_NAVY,
+                    XPG_DARK_RED}
+
+constant m = l/2, n = l/4, k = l/8
+-- (ps: the 6 has a curved/hooked top, whereas the 9 has a flat bottom.)
+constant digits = {{{n,n,l},{k,m,l},{-k,m,l},{-n,n,l},{-n,-n,l},{-k,-m,l},{k,-m,l},{n,-n,l},{n,n,l}}, --0
+                   {{k,n,l},{0,m,l},{0,-m,l},{k,-m,l},{-k,-m,l}},   -- 1
+                   {{n,n,l},{k,m,l},{-k,m,l},{-n,n,l},{n,-m,l},{-n,-m,l}}, -- 2
+                   {{n,n,l},{k,m,l},{-k,m,l},{-n,n,l},{-k,0,l},{-n,-n,l},{-k,-m,l},{k,-m,l},{n,-n,l}}, --3
+                   {{-n,0,l},{n,0,l},{0,m,l},{0,-m,l}}, -- 4
+                   {{-k,m,l},{n,m,l},{n,0,l},{-k,0,l},{-n,-n,l},{-k,-m,l},{k,-m,l},{n,-n,l}}, -- 5
+                   {{-n,n,l},{-k,m,l},{k,m,l},{n,n,l},{n,-n,l},{k,-m,l},{-k,-m,l},{-n,-n,l},{-k,0,l},{k,0,l},{n,-n,l}}, -- 6
+                   {{n,m,l},{-n,m,l},{0,-m,l}}, -- 7
+                   {{k,0,l},{n,n,l},{k,m,l},{-k,m,l},{-n,n,l},{-k,0,l},{-n,-n,l},{-k,-m,l},{k,-m,l},{n,-n,l},{k,0,l},{-k,0,l}}, --8
+                   {{-n,n,l},{-k,0,l},{k,0,l},{n,n,l},{k,m,l},{-k,m,l},{-n,n,l},{-n,-n,l},{-k,-m,l},{k,-m,l}}} --9
+
+-- initial rotation onto the required face
+constant irot = {{  0,-90,0},   -- right
+                 {-90,  0,0},   -- top
+                 {  0,  0,0},   -- front
+                 {180,  0,0},   -- back
+                 { 90,  0,0},   -- bottom
+                 {  0, 90,0}}   -- left
+
+--</not from DrawRotatingCube, but the following lot is>
+
+-- rotation angles, 0..359, on a timer
+atom rx = 45,   -- initially makes cube like a H
+     ry = 35,   --     "	   "    "	italic H
+     rz = 0
+
+constant naxes = {{Y,Z},    -- (rotate about the X-axis)
+                  {X,Z},    -- (rotate about the Y-axis)
+                  {X,Y}}    -- (rotate about the Z-axis)
+
+function rotate(sequence points, atom angle, integer axis)
+--
+-- rotate points by the specified angle about the given axis
+--
+    atom radians = angle*XPG_DEG2RAD,
+         sin_t = sin(radians),
+         cos_t = cos(radians)
+    integer {nx,ny} = naxes[axis]
+    for i=1 to length(points) do
+        atom x = points[i][nx],
+             y = points[i][ny]
+        points[i][nx] = x*cos_t - y*sin_t
+        points[i][ny] = y*cos_t + x*sin_t
+    end for
+    return points
+end function
+
+function projection(sequence points, atom d)
+--
+-- project points from {0,0,d} onto the perpendicular plane through {0,0,0}
+--
+    for i=1 to length(points) do
+        atom {x,y,z} = points[i],
+             denom = (1-z/d)
+        points[i][X] = x/denom
+        points[i][Y] = y/denom
+    end for
+    return points
+end function
+
+function nearest(sequence points)
+--
+-- return the index of the nearest point (highest z value)
+--
+    return largest(vslice(points,Z),true)
+end function
+
+-- (this has has a scale added, which DrawRotatingCube.exw does not,
+--  plus the drawing of the digits on the faces is also new here.)
+
+procedure draw_cube(atom cx, cy, scale, integer digit)
+    -- {cx,cy} is the centre point of the canvas
+    -- A scale of 100 should draw ~2.5"/6cm cube on a 480x480 canvas
+    -- digit can (now in fact) be 0..15, 0 draws a 1..6 standard dice
+    sequence points = sq_mul(corners,scale/100)
+    points = rotate(points,rx,X)
+    points = rotate(points,ry,Y)
+    points = rotate(points,rz,Z)
+    points = projection(points,1000)
+    integer np = nearest(points)
+    --
+    -- find the three faces that contain the nearest point,
+    -- then for each of those faces let diag be the point
+    -- that is diagonally opposite said nearest point, and
+    -- order by/draw those faces furthest diag away first.
+    --
+    sequence faceset = {}
+    for i=1 to length(faces) do
+        sequence fi = faces[i]
+        integer k = find(np,fi)       -- k:=2..5, or 0
+        if k then
+            integer diag = mod(k,4)+2 -- {2,3,4,5} --> {4,5,2,3}
+                                      -- aka swap 2<=>4 & 3<=>5
+            diag = fi[diag] -- 1..8, diagonally opp. np
+            faceset = append(faceset,{points[diag][Z],i})
+        end if
+    end for
+    faceset = sort(faceset)
+    for i=1 to length(faceset) do
+        integer fn = faceset[i][2]
+        sequence face = faces[fn]
+        integer clr = iff(digit?colours[digit]:face[1])
+        gCanvasSetForeground(canvas,clr)
+--      gCanvasSetBackground(canvas,XPG_BLACK)
+        -- first fill sides (with bresenham edges), then
+        -- redraw edges, but anti-aliased aka smoother
+--      sequence modes = {CD_FILL,CD_CLOSED_LINES}
+--      for m=1 to length(modes) do
+--      for bFill in {true,false} do
+--          cdCanvasBegin(cd_canvas,modes[m])
+            sequence poly = {}
+            for fdx=2 to 5 do
+                sequence pt = points[face[fdx]]
+--              cdCanvasVertex(cd_canvas,cx+pt[X],cy-pt[Y])
+                poly = append(poly,{cx+pt[X],cy-pt[Y]})
+            end for
+--          cdCanvasEnd(cd_canvas)
+        for bFill in {true,false} do
+            gCanvasPolygon(canvas,poly,bFill)
+            gCanvasSetBackground(canvas,clr)
+            gCanvasSetForeground(canvas,XPG_BLACK)
+        end for
+-- </DrawRotatingCube.exw>
+        -- now draw the number(s) on the face
+        integer d = iff(digit?digit:fn), skip_point = 0
+        sequence dp, d2
+        if d<=9 then
+            dp = digits[d+1]
+        else
+            dp = deep_copy(digits[2]) -- (ie a '1')
+            d2 = deep_copy(digits[remainder(d,10)+1])
+            skip_point = length(dp)+1
+            atom dx = iff(d=11?1.5:2.5)*k,
+                 x2 = 1.5*k
+            for l=1 to length(dp) do dp[l][X] += dx end for
+            for l=1 to length(d2) do d2[l][X] -= x2 end for
+            dp &= d2
+        end if
+        dp = sq_mul(dp,scale/100)
+        -- rotate the digit(s) onto the required face
+        dp = rotate(dp,irot[fn][X],X)
+        dp = rotate(dp,irot[fn][Y],Y)
+        -- then rotate to match the cube
+        dp = rotate(dp,rx,X)
+        dp = rotate(dp,ry,Y)
+        dp = rotate(dp,rz,Z)
+        dp = projection(dp,1000)
+        atom {x1,y1} = dp[1]
+        for l=2 to length(dp) do
+            atom {x2,y2} = dp[l]
+            if l!=skip_point then
+                gCanvasLine(canvas,cx+x1,cy-y1,cx+x2,cy-y2)
+            end if
+            {x1,y1} = {x2,y2}
+        end for
+    end for
+end procedure
+
+-- <copied from demo\pGUI\r3d.exw>:
+constant num = 90,  -- number of lines
+         dist = 11000,
+         eye = 1450,
+         dz = 430
+
+sequence stars = repeat({0,0,eye+1},num)
+
+procedure draw_stars(integer w, h)
+    atom w2 = w/2, h2 = h/2
+    for i=1 to num do
+        atom {x,y,z} = stars[i],
+             px = (eye/z*x)+w2,
+             py = (eye/z*y)+h2,
+             px2 = (eye/(z+250)*x)+w2,
+             py2 = (eye/(z+250)*y)+h2
+        if z<eye or abs(px)>w or abs(py)>h then
+            stars[i] = {(rnd()-0.5)*w*2,(rnd()-0.5)*h*2,rand(dist)}
+        else
+            stars[i][Z] = z-dz
+            gCanvasSetForeground(canvas,iff(odd(i)?XPG_WHITE:XPG_YELLOW))
+            gCanvasLine(canvas,px,py,px2,py2)
+        end if
+    end for
+end procedure
+--</r3d.exw>
+
+--<from demo/rosetta/Solve15puzzle_simple.exw>
+enum left, down, up, right  -- (nb 5-move flips it, as in down===5-up, etc)
+
+integer N = 3,  -- use '8' to toggle between 8 and 15 games
+        N2,
+        space
+ 
+sequence valid_moves,
+         zero_cost,
+         piecemasks,
+         goal,
+         board
+
+string moves = ""
+
+-- Based on demo/rosetta/Solve15puzzle_simple.exw, but  
+--  made re-entrant iterative rather than recursive, 
+--  and able to solve either an 8 or 15 puzzle, and to
+--  use an entirely private copy of the board, etc.
+
+enum RESET, THINKING, SOLVED -- (solve_state values)
+integer solve_state = RESET,
+        iscount = 0
+enum MOVE=1, /*SKIP=2, SPACE=3, NFREE=4,*/ UNDO=5 -- (solve_stack entries)
+sequence solve_stack, solve_board
+string solve_time
+atom solve_t0
+
+procedure iterative_solve()
+    if solve_state=RESET then
+        solve_state = THINKING
+        --
+        -- The following is equivalent to:
+        --  move := left-1 (aka no move)
+        --  skip_move := 0 (aka no skip)
+        --  idle_space := space
+        --  nfree := 0
+        --  undo := false
+        --
+        solve_stack = {{0,0,space,0,false}}
+        solve_board = deep_copy(board)
+        solve_t0 = time()
+        iscount = 0
+    end if
+
+    integer nleft = iterations_per_timeslice,
+            new_space       -- (scratch)
+
+    while nleft>0 do
+        integer {move,skip_move,idle_space,nfree,undo} = solve_stack[$]
+        if undo then
+            new_space = valid_moves[idle_space][move]
+            solve_board[new_space] = solve_board[idle_space]
+            solve_board[idle_space] = 0
+        else
+            assert(solve_board[idle_space]=0)
+        end if
+        move += 1
+        if move>right then
+            if length(solve_stack)=1 then
+                -- (as per RESET above)
+                assert(idle_space=space)
+                nfree += 1
+                solve_stack = {{0,0,idle_space,nfree,false}}
+            else
+                solve_stack = solve_stack[1..$-1] -- (pop)
+            end if
+        else
+            solve_stack[$][MOVE] = move
+            solve_stack[$][UNDO] = false
+            if move!=skip_move then
+                new_space = valid_moves[idle_space][move]
+                if new_space then
+                    integer piece = solve_board[new_space],
+                            zcsmv = zero_cost[idle_space][move],
+                            pmask = piecemasks[piece],
+                            zcost = (and_bits(zcsmv,pmask)=0) -- (0==free, 1==not)
+                    nfree -= zcost
+                    if nfree>=0 then
+                        solve_stack[$][UNDO] = true -- (set the undo flag)
+                        solve_board[idle_space] = piece
+                        solve_board[new_space] = 0
+                        if idle_space=piece and solve_board=goal then
+                            moves = repeat(' ',length(solve_stack))
+                            for i=1 to length(solve_stack) do
+                                move = solve_stack[i][MOVE]
+                                moves[i] = "ludr"[move]
+                            end for
+                            solve_state = SOLVED
+                            exit
+                        end if
+                        iscount += 1
+                        solve_stack = append(solve_stack,{0,5-move,new_space,nfree,false})
+                    end if
+                end if
+            end if
+        end if
+        nleft -= 1 
+    end while
+    solve_time = sprintf("(%s)",{elapsed(time()-solve_t0)})
+end procedure
+
+function set_title()
+    if board=goal then
+        moves = ""
+        return sprintf("%s - solved",{title})
+    elsif solve_state<=THINKING then
+        return sprintf("%s - thinking (%,d tries)",{title,iscount})
+    else
+        return sprintf("%s - solvable in %d moves %s",{title,length(moves),solve_time})
+    end if
+end function
+
+procedure move(integer d)
+    if d then
+        integer new_space = valid_moves[space][d]
+        if new_space then
+            if length(moves) and moves[1]="ludr"[d] then
+                moves = moves[2..$]
+                solve_time = ""
+            else
+                solve_state = RESET
+                moves = "" -- (force re-examination)
+            end if
+            board[space] = board[new_space]
+            board[new_space] = 0
+            space = new_space
+        end if
+    end if
+end procedure
+
+procedure scramble()
+    for i=1 to 5000 do move(rand(4)) end for
+    solve_state = RESET
+end procedure
+
+sequence cubies,
+         rxyz
+
+procedure reset()
+    N2 = N*N
+    valid_moves = repeat(repeat(0,4),N2)
+    zero_cost = repeat(repeat(0,4),N2)
+    piecemasks = sq_power(2,tagset(N2-2,0))
+    for square=1 to N2 do
+        integer s_row = floor((square+N-1)/N),
+                s_col = remainder((square-1),N)+1
+        for move=left to right do -- (via up/down)
+            if (move=left  and s_col>1)
+            or (move=down  and s_row>1)
+            or (move=up    and s_row<N)
+            or (move=right and s_col<N) then
+                integer origin = square+{-1,-N,+N,+1}[move],
+                        o_row = floor((origin+N-1)/N),
+                        o_col = remainder((origin-1),N)+1
+                valid_moves[square][move] = origin
+                for piece=1 to N2-1 do -- (aka target)
+                    integer t_row = floor((piece+N-1)/N),
+                            t_col = remainder((piece-1),N)+1,
+                            p_md = abs(t_row-o_row)+abs(t_col-o_col),
+                            n_md = abs(t_row-s_row)+abs(t_col-s_col)
+                    if n_md<=p_md then
+                        zero_cost[square][move] += piecemasks[piece]
+                    end if
+                end for
+            end if
+        end for
+    end for
+    goal = tagset(N2-1)&0 
+    board = deep_copy(goal)
+    space = find(0,board)
+    moves = ""
+    -- </Solve15puzzle_simple.exw>
+    cubies = iff(N=3?{{-1,-1},{ 0,-1},{+1,-1},
+                      {-1, 0},{ 0, 0},{+1, 0},
+                      {-1,+1},{ 0,+1},{+1,+1}}
+            :iff(N=4?{{-1.5,-1.5},{-0.5,-1.5},{0.5,-1.5},{1.5,-1.5},
+                      {-1.5,-0.5},{-0.5,-0.5},{0.5,-0.5},{1.5,-0.5},
+                      {-1.5,+0.5},{-0.5,+0.5},{0.5,+0.5},{1.5,+0.5},
+                      {-1.5,+1.5},{-0.5,+1.5},{0.5,+1.5},{1.5,+1.5}}
+            :9/0))
+    scramble()
+    rxyz = sq_rand(repeat({45,35,1,3},N2))
+end procedure
+
+procedure canvas_redraw(gdx canvas)
+--  cdCanvasActivate(cd_canvas)
+--  cdCanvasClear(cd_canvas)
+--  integer {w, h} = gGetIntInt(canvas, "DRAWSIZE[*charsize]")
+--?"redraw"
+    integer {w, h} = gGetIntInt(canvas, "SIZE")
+    atom cx = w/2,
+         cy = h/2,
+         dxy = min(w,h)/N,
+         size = dxy/4.5
+    draw_stars(w,h)
+--?board
+    for i=1 to N2 do
+        integer bi = board[i]
+        if bi then
+            atom {dx,dy} = cubies[i], r
+            {rx,ry,rz,r} = rxyz[bi]
+            rx = mod(rx+0.25*r,360)
+            ry = mod(ry+0.50*r,360)
+            rz = mod(rz+0.75*r,360)
+            rxyz[bi] = {rx,ry,rz,r}
+--          draw_cube(cx+dx*dxy,cy-dy*dxy,size,bi)
+            draw_cube(cx+dx*dxy,cy+dy*dxy,size,bi)
+        end if
+    end for
+    --cdCanvasFlush(cd_canvas)
+    gSetAttribute(dlg,"TITLE",set_title())
+end procedure
+
+--function canvas_map_cb(gdx canvas)
+--  IupGLMakeCurrent(canvas)
+--  if platform()=JS then
+--      cd_canvas = cdCreateCanvas(CD_IUP, canvas)
+--  else
+--      atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+--      cd_canvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+--  end if
+--  gCanvasSetBackground(cd_canvas, XPG_BLACK)
+--  return XPG_DEFAULT
+--end function
+
+--function canvas_resize_cb(gdx /*canvas*/)
+--  integer {canvas_width, canvas_height} = gGetIntInt(canvas, "DRAWSIZE[*charsize]")
+--  atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+--  cdCanvasSetAttribute(cd_canvas, "SIZE[*charsize]", "%dx%d %g", {canvas_width, canvas_height, res})
+--  return XPG_DEFAULT
+--end function
+
+function key_handler(gdx ih, integer c)
+--  if c=VK_ESC then return XPG_CLOSE end if -- (standard practice for me)
+--  if c=VK_F5 then return XPG_DEFAULT end if -- (let browser reload work)
+    --
+    -- aside: the precise mapping of enums/VK_XXX/"ludr" is semi-ad-hoc,
+    --        aka I'm not wasting any effort enforcing strict coherence
+    --        when a piddling tweak or two (right here) would suffice,
+    --        aka what does right (etc) really mean anyway, given that 
+    --        for instance piece:up is the same as saying space:down.
+    --
+    integer k = 0
+    if c='8' then
+        -- toggle between an 8 and 15 game
+        N = 7-N -- (3<==>4)
+        reset()
+    elsif lower(c)='s' then
+        if length(moves) then
+            k = find(moves[1],"ludr")
+        else
+            scramble()
+        end if
+    else
+        k = find(c,{VK_RIGHT,VK_DOWN,VK_UP,VK_LEFT})
+    end if
+    move(k)     -- (move(0) does nowt)
+    gRedraw(ih)
+--  return XPG_IGNORE
+    return XPG_DEFAULT
+end function
+
+procedure timer_cb(gdx /*ih*/)
+--?{"timer",time()}
+    if solve_state!=SOLVED then
+        iterative_solve()
+    end if
+    gRedraw(canvas)
+--  return XPG_IGNORE
+end procedure
+
+procedure main()
+    
+    reset()
+    canvas = gCanvas("SIZE=640x480")
+    gCanvasSetBackground(canvas, XPG_BLACK)
+    gSetHandlers(canvas, {"REDRAW", canvas_redraw,
+--                           ?MAP_CB?[DEAD], canvas_map_cb,
+--                           "RESIZE[*charsize]_CB", canvas_resize_cb,
+                          "KEY", key_handler})
+    dlg = gDialog(canvas,title)
+    gShow(dlg)
+--  gSetAttribute(canvas, "SIZE", NULL)
+    gdx hTimer = gTimer(timer_cb, 30, true)
+    gMainLoop()
+end procedure
+
+main()
+--*!/
+
+--/*
 with javascript_semantics
 without debug
 include pGUI.e
@@ -197,6 +752,8 @@ procedure draw_cube(atom cx, cy, scale, integer digit)
         -- first fill sides (with bresenham edges), then
         -- redraw edges, but anti-aliased aka smoother
         sequence modes = {CD_FILL,CD_CLOSED_LINES}
+--      sequence modes = {CD_CLOSED_LINES}
+--      sequence modes = {CD_FILL}
         for m=1 to length(modes) do
             cdCanvasBegin(cd_canvas,modes[m])
             for fdx=2 to 5 do
@@ -555,4 +1112,4 @@ procedure main()
 end procedure
 
 main()
-
+--*/

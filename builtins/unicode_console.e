@@ -1,5 +1,5 @@
 --
--- builtins/unicode_console.e
+-- builtins\unicode_console.e
 --
 --  Implements unicode_console()    -- initialises one, and returns true if unicode supported
 --

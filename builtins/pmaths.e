@@ -106,11 +106,15 @@ global function min(object a, b)
 end function
 
 global function minsq(sequence s, bool return_index=false)
+    -- (aliased to smallest)
     object res = s[1]
     integer rdx = 1
-    for i=2 to length(s) do
-        if s[i]<res then
-            res = s[i]
+--  for i=2 to length(s) do
+    for i,si in s from 2 do
+--      if s[i]<res then
+        if si<res then
+--          res = s[i]
+            res = si
             rdx = i
         end if
     end for
@@ -122,11 +126,15 @@ global function max(object a, b)
 end function
 
 global function maxsq(sequence s, bool return_index=false)
+    -- (aliased to largest)
     object res = s[1]
     integer rdx = 1
-    for i=2 to length(s) do
-        if s[i]>res then
-            res = s[i]
+--  for i=2 to length(s) do
+    for i,si in s from 2 do
+--      if s[i]>res then
+        if si>res then
+--          res = s[i]
+            res = si
             rdx = i
         end if
     end for

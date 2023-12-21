@@ -1,0 +1,812 @@
+--
+-- demo\xpGUI\win_spin.exw
+-- =======================
+--
+-- A translation of the spin control at the primitive WinAPI level, from zetcode
+--
+-- NOTE/TODO: initial setfocus, up/down only work after clicking (might fall out in the wash)
+-- one thing I don't see here is how precisely the updown is positioned...
+--
+--requires(32,true)
+--requires(64,true)
+requires(WINDOWS)
+include builtins\cffi.e
+
+--/*
+include builtins\peekstr.e
+include builtins\VM\pcmdlnN.e
+include builtins\pmaths.e
+include builtins\ptagset.e
+include builtins\VM\pcfunc.e
+include builtins\VM\pFloatN.e
+include builtins\find.e
+include builtins\VM\pprntfN.e
+include builtins\porall.e
+--/**/include builtins\misc.e
+--/**/include builtins\machine.e
+--/**/include builtins\dll.e
+--*/
+
+--#without reformat
+constant COLOR_3DFACE = 15,
+         CS_HREDRAW = 2,
+         CS_VREDRAW = 1,
+         CW_USEDEFAULT = #80000000,
+         ES_RIGHT = 2,
+         IDC_ARROW = 32512,
+         SW_SHOWNORMAL = 1,
+         SS_LEFT = 0,
+         UDM_SETBUDDY = 1129,
+--       UDM_SETRANGE = 1125,
+         UDM_SETRANGE32 = 1135,
+--       WM_USER = #400, -- (1024)
+--       UDM_SETPOS32 = (WM_USER+113),
+         UDM_SETPOS32 = 1137,
+         UDN_DELTAPOS = -722,
+         UDS_SETBUDDYINT = #002,
+         UDS_ALIGNRIGHT = #004,
+         UDS_ARROWKEYS = #020,
+         VK_ESCAPE = #1B,
+--       WHITE_BRUSH = 0,
+         WM_CREATE = #01,
+         WM_DESTROY = #02,
+         WM_NOTIFY = 78,
+         WM_CHAR = 258,
+         WS_OVERLAPPED      = #00000000,
+         WS_CAPTION         = #00C00000,
+         WS_SYSMENU         = #00080000,
+         WS_THICKFRAME      = #00040000,
+         WS_MINIMIZEBOX     = #00020000,
+         WS_MAXIMIZEBOX     = #00010000,
+         WS_OVERLAPPEDWINDOW = or_all({WS_OVERLAPPED, WS_CAPTION, WS_SYSMENU,
+                                       WS_THICKFRAME, WS_MINIMIZEBOX,
+                                       WS_MAXIMIZEBOX}),
+         WS_CHILD           = #40000000,
+         WS_VISIBLE         = #10000000,
+         WS_EX_CLIENTEDGE   = #00000200,
+         
+--  COMCTL32 = open_dll("comctl32.dll"),
+    KNL32    = open_dll("kernel32.dll"),
+    USER32   = open_dll("user32.dll"),
+--  GDI32    = open_dll("gdi32.dll"),
+--/*
+    xInitCommonControlsEx = define_c_func(COMCTL32,"InitCommonControlsEx",
+        {C_PTR},    --  const LPINITCOMMONCONTROLSEX lpInitCtrls
+        C_BOOL),    -- BOOL
+--*/
+--/*           
+    xCreateCompatibleDC = define_c_func(GDI32, "CreateCompatibleDC",
+        {C_PTR},    --  HDC  hdc    // handle of memory device context
+        C_PTR),     -- HDC
+
+    xGetDC = define_c_func(USER32, "GetDC",
+        {C_PTR},    --  HWND  hWnd  // handle of window
+        C_PTR),     -- HDC
+
+    xBeginPaint = define_c_func(USER32, "BeginPaint",
+        {C_PTR,     --  HWND  hwnd, // handle of window
+         C_PTR},    --  LPPAINTSTRUCT  lpPaint  // address of structure for paint information
+        C_PTR),     -- HDC
+
+    xEndPaint = define_c_proc(USER32, "EndPaint",
+        {C_PTR,     --  HWND  hWnd, // handle of window
+         C_PTR}),   -- CONST PAINTSTRUCT  *lpPaint  // address of structure for paint data
+--      C_INT),     -- BOOL (function always returns true so linked as c_proc)
+
+    xInvalidateRect = define_c_func(USER32, "InvalidateRect",
+        {C_PTR,     --  HWND  hWnd, // handle of window with changed update region
+         C_PTR,     --  CONST RECT  * lpRect,   // address of rectangle coordinates
+         C_USHORT}, --  BOOL  bErase    // erase-background flag
+        C_USHORT),  -- BOOL
+
+    xGetStockObject = define_c_func(GDI32, "GetStockObject",
+        {C_INT},    --  int  fnObject   // type of stock object
+        C_INT),     -- HGDIOBJ GetStockObject(
+
+    xSelectObject = define_c_func(GDI32, "SelectObject",
+        {C_PTR,     --  HDC  hdc,   // handle of device context
+         C_PTR},    --  HGDIOBJ  hgdiobj    // handle of object
+        C_PTR),     -- HGDIOBJ
+
+    xDeleteObject = define_c_func(GDI32, "DeleteObject",
+        {C_PTR},    --  HGDIOBJ  hObject    // handle of graphic object
+        C_LONG),    -- BOOL
+           
+    xCreateSolidBrush = define_c_func(GDI32, "CreateSolidBrush",
+        {C_UINT},   --  COLORREF  crColor   // brush color value
+        C_PTR),     -- HBRUSH
+
+    xSetBkColor = define_c_func(GDI32, "SetBkColor",
+        {C_PTR,     --  HDC  hdc,   // handle of device context
+         C_PTR},    --  COLORREF  crColor   // background color value
+        C_PTR),     -- COLORREF
+--*/
+    xGetSysColorBrush = define_c_func(USER32, "GetSysColorBrush",
+        {C_INT},    --  int  nIndex
+        C_LONG),    -- HBRUSH
+--/*
+    xGetSysColor = define_c_func(USER32, "GetSysColor",
+        {C_INT},    --  int  nIndex     // display element
+        C_LONG),    -- DWORD
+    xRectangle = define_c_func(GDI32, "Rectangle",
+        {C_PTR,     --  HDC  hdc,   // handle of device context
+         C_INT,     --  int  nLeftRect,     // x-coord. of bounding rectangle's upper-left corner
+         C_INT,     --  int  nTopRect,      // y-coord. of bounding rectangle's upper-left corner
+         C_INT,     --  int  nRightRect,    // x-coord. of bounding rectangle's lower-right corner
+         C_INT},    --  int  nBottomRect    // y-coord. of bounding rectangle's lower-right corner
+        C_LONG),    -- BOOL
+
+    xCreateCompatibleBitmap = define_c_func(GDI32, "CreateCompatibleBitmap", {C_PTR, C_INT, C_INT}, C_PTR),
+
+--  xLoadIcon   = define_c_func(USER32, "LoadIconA", {C_PTR, C_PTR}, C_PTR),
+--  xLoadCursor = define_c_func(USER32, "LoadCursorA", {C_PTR, C_INT}, C_INT),
+--*/
+    xLoadCursor = define_c_func(USER32,"LoadCursorA",
+        {C_PTR,     --  HINSTANCE hInstance
+         C_PTR},    --  LPCTSTR lpCursorName
+        C_PTR),     -- HCURSOR
+    xLoadIcon = define_c_func(USER32,"LoadIconA",
+        {C_PTR,     --  HINSTANCE hInstance
+         C_PTR},    --  LPCTSTR lpIconName
+        C_PTR),     -- HICON
+--/*
+--  xBitBlt     = define_c_func(GDI32, "BitBlt", {C_LONG, C_INT, C_INT, C_INT, C_INT, C_LONG, C_INT, C_INT, C_LONG}, C_INT),
+        xBitBlt = define_c_func(GDI32, "BitBlt",
+            {C_PTR,     --  HDC hdcDest
+             C_INT,     --  int nXDest
+             C_INT,     --  int nYDest
+             C_INT,     --  int nWidth
+             C_INT,     --  int nHeight
+             C_PTR,     --  HDC hdcSrc
+             C_INT,     --  int nXSrc
+             C_INT,     --  int nYSrc
+             C_LONG},   --  DWORD dwRop
+            C_INT),     -- BOOL
+
+    xStretchBlt = define_c_func(GDI32, "StretchBlt", {C_LONG, C_INT, C_INT, C_INT, C_INT, C_LONG, C_INT, C_INT, C_INT, C_INT, C_LONG}, C_INT),
+--*/
+    xRegisterClassEx = define_c_func(USER32, "RegisterClassExA",
+        {C_PTR},    --  const WNDCLASSEX *lpwcx
+        C_PTR),     -- ATOM
+
+    xCreateWindowEx = define_c_func(USER32,"CreateWindowExA",
+        {C_LONG,    --  DWORD  dwExStyle,   // extended window style
+         C_PTR,     --  LPCTSTR  lpClassName,       // address of registered class name
+         C_PTR,     --  LPCTSTR  lpWindowName,      // address of window name
+         C_LONG,    --  DWORD  dwStyle,     // window style
+         C_INT,     --  int  x,     // horizontal position of window
+         C_INT,     --  int  y,     // vertical position of window
+         C_INT,     --  int  nWidth,        // window width
+         C_INT,     --  int  nHeight,       // window height
+         C_PTR,     --  HWND  hWndParent,   // handle of parent or owner window
+         C_PTR,     --  HMENU  hMenu,       // handle of menu or child-window identifier
+         C_PTR,     --  HANDLE  hInstance,  // handle of application instance
+         C_PTR},    --  LPVOID  lpParam     // address of window-creation data
+        C_PTR),     -- HWND
+
+    xGetLastError = define_c_func(KNL32,"GetLastError",
+        {},         -- (void)
+        C_INT),     -- DWORD
+
+    xShowWindow = define_c_proc(USER32, "ShowWindow",
+        {C_PTR,     --  HWND  hwnd, // handle of window
+         C_INT}),   --  int  nCmdShow   // show state of window
+
+    xUpdateWindow = define_c_proc(USER32,"UpdateWindow",
+        {C_PTR}),   --  HWND hWnd
+--      C_INT)      -- BOOL
+
+--/*
+
+    xDestroyWindow = define_c_func(USER32, "DestroyWindow",
+        {C_PTR},    --  HWND  hWnd  // handle of window to destroy
+        C_LONG),    -- BOOL
+
+    xGetWindowLong = define_c_func(USER32, "GetWindowLongA",
+        {C_PTR,     --  HWND  hWnd,     // handle of window
+         C_UINT},   --  int  nIndex     // offset of value to retrieve
+        C_LONG),    -- LONG
+
+    xSetWindowLong = define_c_func(USER32, "SetWindowLongA",
+        {C_PTR,     --  HWND  hWnd,     // handle of window
+         C_UINT,    --  int  nIndex     // offset of value to store
+         C_LONG},   --  LONG dwNewLong  // value to store
+        C_LONG),    -- LONG             // previous value
+
+--  xGetClientRect = define_c_func(USER32, "GetClientRect", {C_PTR, C_PTR}, C_LONG),
+    xGetClientRect = define_c_func(USER32,"GetClientRect",
+            {C_PTR,     --  HWND hWnd
+             C_PTR},    --  LPRECT lpRect
+            C_LONG),    -- BOOL
+--*/
+    xGetMessage = define_c_func(USER32, "GetMessageA",
+        {C_PTR,     --  LPMSG  lpMsg,       // address of structure with message
+         C_PTR,     --  HWND  hWnd, // handle of window
+         C_UINT,    --  UINT  wMsgFilterMin,        // first message
+         C_UINT},   --  UINT  wMsgFilterMax         // last message
+         C_INT),    -- BOOL
+
+    xTranslateMessage = define_c_proc(USER32, "TranslateMessage",
+        {C_PTR}),   --  CONST MSG  *lpmsg   // address of structure with message
+        -- BOOL
+
+--  xDispatchMessage = define_c_func(USER32, "DispatchMessageA",
+--      {C_PTR},    --  CONST MSG  * lpmsg  // address of structure with message
+--      C_LONG),    -- LONG
+    xDispatchMessage = define_c_proc(USER32,"DispatchMessageA",
+        {C_PTR}),   --  CONST MSG  * lpmsg  // address of structure with message
+--      C_LONG),    -- LONG (generally ignored)
+
+    xSendMessage = define_c_func(USER32, "SendMessageA",
+        {C_PTR,     --  HWND  hwnd, // handle of destination window
+         C_UINT,    --  UINT  uMsg, // message to send
+         C_UINT,    --  WPARAM  wParam, // first message parameter
+         C_UINT},   --  LPARAM  lParam  // second message parameter
+        C_LONG),    -- LRESULT
+    xPostQuitMessage = define_c_proc(USER32, "PostQuitMessage",
+        {C_INT}),   --  int  nExitCode      // exit code
+
+    xDefWindowProc = define_c_func(USER32, "DefWindowProcA",
+        {C_PTR,     --  HWND  hWnd, // handle of window
+         C_UINT,    --  UINT  Msg,  // message identifier
+         C_UINT,    --  WPARAM  wParam, // first message parameter
+         C_UINT},   --  LPARAM  lParam  // second message parameter
+        C_PTR),     -- LRESULT
+
+    xSetWindowText = define_c_proc(USER32,"SetWindowTextA",
+        {C_PTR,     --  HWND hWnd
+         C_PTR})    --  LPCTSTR lpString
+
+--/*
+
+--  xCallWindowProc = define_c_func(USER32, "CallWindowProcA",  {C_PTR,C_PTR,C_UINT,C_UINT,C_UINT}, C_PTR),
+        xCallWindowProc = define_c_func(USER32,"CallWindowProcA",
+            {C_PTR,     --  WNDPROC lpPrevWndFunc
+             C_PTR,     --  HWND hWnd
+             C_UINT,    --  UINT Msg
+             C_UINT,    --  WPARAM wParam
+             C_UINT},   --  LPARAM lParam
+            C_PTR),     -- LRESULT
+
+--  xGetScrollInfo = define_c_func(USER32, "GetScrollInfo", {C_PTR, C_INT, C_PTR}, C_INT),
+        xGetScrollInfo = define_c_func(USER32, "GetScrollInfo",
+            {C_PTR,     --  HWND hwnd
+             C_INT,     --  int fnBar
+             C_PTR},    --  LPCSCROLLINFO lpsi
+            C_BOOL),    -- BOOL
+
+--  xSetScrollInfo = define_c_func(USER32, "SetScrollInfo", {C_PTR, C_INT, C_PTR, C_INT}, C_INT),   
+        xSetScrollInfo = define_c_func(USER32, "SetScrollInfo",
+            {C_PTR,     --  HWND hwnd
+             C_INT,     --  int fnBar
+             C_PTR,     --  LPCSCROLLINFO lpsi
+             C_UINT},   --  BOOL fRedraw
+            C_INT),     -- int
+
+--/*
+    xGetScrollPos = define_c_func(USER32, "GetScrollPos", {C_PTR, C_INT}, C_INT),
+--  xSetScrollPos = define_c_func(USER32, "SetScrollPos", {C_PTR, C_INT, C_PTR, C_SHORT}, C_INT),
+--*/
+    xCreatePen = define_c_func(GDI32,"CreatePen",
+        {C_INT,     --  int  fnPenStyle,    // pen style 
+         C_INT,     --  int  nWidth,    // pen width  
+         C_INT},    --  COLORREF  crColor   // pen color 
+        C_PTR),     -- HPEN handle to pen
+
+--  xSetROP2 = define_c_func(GDI32, "SetROP2", {C_PTR, C_LONG}, C_LONG),
+        xSetROP2 = define_c_func(GDI32,"SetROP2",
+            {C_PTR,     --  HDC hdc
+             C_INT},    --  int fnDrawMode
+            C_INT),     -- int
+
+--  xRoundRect = define_c_func(GDI32,"RoundRect",{C_PTR,C_INT,C_INT,C_INT,C_INT,C_INT,C_INT},C_INT),
+--*/
+
+--/*
+constant idRECT = define_struct("""typedef struct _RECT {
+                                    LONG left;
+                                    LONG top;
+                                    LONG right;
+                                    LONG bottom;
+                                  } RECT, *PRECT;""")
+constant pRECT = allocate_struct(idRECT)
+
+constant idPOINT = define_struct("""typedef struct tagPOINT {
+                                     LONG x;
+                                     LONG y;
+                                   } POINT, *PPOINT;""")
+--constant p_POINT = allocate_struct(idPOINT)
+--*/
+constant tPOINT = """
+typedef struct tagPOINT {
+  LONG x;
+  LONG y;
+} POINT, *PPOINT;
+"""
+--constant idPOINT = define_struct(tPOINT)
+{} = define_struct(tPOINT)
+
+--/*
+constant idPAINTSTRUCT = define_struct("""typedef struct tagPAINTSTRUCT {
+                                          HDC  hdc;
+                                          BOOL fErase;
+                                          RECT rcPaint;
+                                          BOOL fRestore;
+                                          BOOL fIncUpdate;
+                                          BYTE rgbReserved[32];
+                                         } PAINTSTRUCT, *PPAINTSTRUCT;""")
+constant pPAINTSTRUCT = allocate_struct(idPAINTSTRUCT)
+
+constant idWNDCLASSEX = define_struct("""typedef struct tagWNDCLASSEX {
+                                          UINT      cbSize;
+                                          UINT      style;
+                                          WNDPROC   lpfnWndProc;
+                                          int       cbClsExtra;
+                                          int       cbWndExtra;
+                                          HINSTANCE hInstance;
+                                          HICON     hIcon;
+                                          HCURSOR   hCursor;
+                                          HBRUSH    hbrBackground;
+                                          LPCTSTR   lpszMenuName;
+                                          LPCTSTR   lpszClassName;
+                                          HICON     hIconSm;
+                                        } WNDCLASSEX, *PWNDCLASSEX;""")
+constant pWNDCLASSEX = allocate_struct(idWNDCLASSEX)
+--*/
+constant tWNDCLASSEX = """
+typedef struct tagWNDCLASSEX {
+  UINT      cbSize;
+  UINT      style;
+  WNDPROC   lpfnWndProc;
+  int       cbClsExtra;
+  int       cbWndExtra;
+  HINSTANCE hInstance;
+  HICON     hIcon;
+  HCURSOR   hCursor;
+  HBRUSH    hbrBackground;
+  LPCTSTR   lpszMenuName;
+  LPCTSTR   lpszClassName;
+  HICON     hIconSm;
+} WNDCLASSEX, *PWNDCLASSEX;
+"""
+constant idWNDCLASSEX = define_struct(tWNDCLASSEX)
+
+constant tMSG = """
+typedef struct tagMSG {
+  HWND   hwnd;
+  UINT   message;
+  WPARAM wParam;
+  LPARAM lParam;
+  DWORD  time;
+  POINT  pt;
+} MSG, *PMSG, *LPMSG;
+"""
+constant idMSG = define_struct(tMSG)
+
+--/*
+constant idMSG = define_struct("""typedef struct tagMSG {
+                                   HWND  hwnd;
+                                   UINT  message;
+                                   WPARAM wParam;
+                                   LPARAM lParam;
+                                   DWORD  time;
+                                   POINT  pt;
+                                  } MSG, *PMSG, *LPMSG;""")
+constant pMSG = allocate_struct(idMSG)
+
+constant idSCROLLINFO = define_struct("""typedef struct tagSCROLLINFO {
+                                          UINT cbSize;
+                                          UINT fMask;
+                                          int  nMin;
+                                          int  nMax;
+                                          UINT nPage;
+                                          int  nPos;
+                                          int  nTrackPos;
+                                        } SCROLLINFO, *LPCSCROLLINFO;""")
+constant pSCROLLINFO = allocate_struct(idSCROLLINFO)
+--*/
+--/*
+constant idINITCOMMONCONTROLSEX = define_struct("""typedef struct tagINITCOMMONCONTROLSEX {
+                                                      DWORD dwSize;
+                                                      DWORD dwICC;
+                                                    } INITCOMMONCONTROLSEX, *LPINITCOMMONCONTROLSEX;""")
+constant pINITCOMMONCONTROLSEX = allocate_struct(idINITCOMMONCONTROLSEX)
+--*/
+-- aside: code is now INT, was UINT (specific case: TVN_SELCHANGED == -402...)
+constant tNMHDR = """
+typedef struct tagNMHDR {
+  HWND      hwndFrom;
+  UINT_PTR  idFrom;
+  INT       code;
+} NMHDR;"""
+constant idNMHDR = define_struct(tNMHDR)
+
+constant tNMUPDOWN = """
+typedef struct _NM_UPDOWN {
+  NMHDR hdr;
+  int   iPos;
+  int   iDelta;
+} NMUPDOWN, *LPNMUPDOWN;"""
+constant idNMUPDOWN = define_struct(tNMUPDOWN)
+
+--constant ICC_UPDOWN_CLASS = 0x00000010
+
+constant ID_UPDOWN = 1,
+         ID_EDIT = 2,
+         ID_STATIC = 3,
+         UD_MAX_POS = 30,
+         UD_MIN_POS = 0
+--       UD_MMRANGE = UD_MIN_POS*#10000+UD_MAX_POS
+
+atom mainhwnd, hUpDown, hEdit, hStatic;
+
+--procedure CreateControls(atom hwnd,wndproc)
+procedure CreateControls(atom hwnd)
+
+--DEV see if it copes without this... (answer: I can see no difference!)
+--/*
+--  INITCOMMONCONTROLSEX icex;
+
+--  icex.dwSize = sizeof(INITCOMMONCONTROLSEX);
+    set_struct_field(idINITCOMMONCONTROLSEX,pINITCOMMONCONTROLSEX,"dwSize",get_struct_size(idINITCOMMONCONTROLSEX))
+    set_struct_field(idINITCOMMONCONTROLSEX,pINITCOMMONCONTROLSEX,"dwICC",ICC_UPDOWN_CLASS)
+--  icex.dwICC  = ICC_UPDOWN_CLASS;
+--  InitCommonControlsEx(&icex); 
+    bool bOK = c_func(xInitCommonControlsEx,{pINITCOMMONCONTROLSEX}) 
+    assert(bOK)
+--*/
+
+    sequence cwargs
+    atom UPDOWN_CLASSA = allocate_string("msctls_updown32"),
+--       UD_STYLE = or_all({WS_CHILD,WS_VISIBLE,UDS_SETBUDDYINT,UDS_ALIGNRIGHT}),
+         UD_STYLE = or_all({WS_CHILD,WS_VISIBLE,UDS_SETBUDDYINT,UDS_ALIGNRIGHT,UDS_ARROWKEYS}),
+         WC_EDITA = allocate_string("Edit"),
+         ED_STYLE = or_all({WS_CHILD,WS_VISIBLE,ES_RIGHT}),
+         WC_STATICA = allocate_string("Static"),
+         SS_STYLE = or_all({WS_CHILD,WS_VISIBLE,SS_LEFT})
+
+    cwargs = {0,                -- extended style
+              UPDOWN_CLASSA,    -- window class name
+              NULL,             -- window caption
+              UD_STYLE,         -- window style
+              0,                -- initial x position
+              0,                -- initial y position
+              0,                -- initial x size
+              0,                -- initial y size
+              hwnd,             -- parent window handle
+              ID_UPDOWN,        -- window menu handle
+              NULL,             -- hInstance // program instance handle
+              NULL}             -- lParam (for WM_CREATE)
+
+    hUpDown = c_func(xCreateWindowEx,cwargs)
+    if hUpDown=0 then
+        crash("CreateWindowEx error #%08x",{c_func(xGetLastError,{})})
+    end if
+
+--  hUpDown = CreateWindowW(UPDOWN_CLASSW, NULL, WS_CHILD | WS_VISIBLE 
+--      | UDS_SETBUDDYINT | UDS_ALIGNRIGHT, 
+--      0, 0, 0, 0, hwnd, (HMENU) ID_UPDOWN, NULL, NULL);
+
+    cwargs = {WS_EX_CLIENTEDGE, -- extended style
+              WC_EDITA,         -- window class name
+              NULL,             -- window caption
+              ED_STYLE,         -- window style
+              15,               -- initial x position
+              15,               -- initial y position
+              70,               -- initial x size
+              25,               -- initial y size
+              hwnd,             -- parent window handle
+              ID_EDIT,          -- window menu handle
+              NULL,             -- hInstance // program instance handle
+              NULL}             -- lParam (for WM_CREATE)
+
+    hEdit = c_func(xCreateWindowEx,cwargs)
+    if hEdit=0 then
+        crash("CreateWindowEx error #%08x",{c_func(xGetLastError,{})})
+    end if
+
+--  hEdit = CreateWindowExW(WS_EX_CLIENTEDGE, WC_EDITW, NULL, WS_CHILD 
+--      | WS_VISIBLE | ES_RIGHT, 15, 15, 70, 25, hwnd, 
+--      (HMENU) ID_EDIT, NULL, NULL);
+    
+    cwargs = {NULL,             -- extended style
+              WC_STATICA,       -- window class name
+              NULL,             -- window caption
+              SS_STYLE,         -- window style
+              15,               -- initial x position
+              60,               -- initial y position
+              300,              -- initial x size
+              230,              -- initial y size
+              hwnd,             -- parent window handle
+              ID_STATIC,        -- window menu handle
+              NULL,             -- hInstance // program instance handle
+              NULL}             -- lParam (for WM_CREATE)
+
+    hStatic = c_func(xCreateWindowEx,cwargs)
+    if hStatic=0 then
+        crash("CreateWindowEx error #%08x",{c_func(xGetLastError,{})})
+    end if
+
+--  hStatic = CreateWindowW(WC_STATICW, L"0", WS_CHILD | WS_VISIBLE
+--      | SS_LEFT, 15, 60, 300, 230, hwnd, (HMENU) ID_STATIC, NULL, NULL);
+--UDS_ARROWKEYS 
+
+    {} = c_func(xSendMessage,{hUpDown,UDM_SETBUDDY,hEdit,0})
+--  SendMessageW(hUpDown, UDM_SETBUDDY, (WPARAM) hEdit, 0);
+--DEV or use UDM_SETRANGE32 (no macro/munging rqd)
+--  {} = c_func(xSendMessage,{hUpDown,UDM_SETRANGE,0,UD_MMRANGE})
+    {} = c_func(xSendMessage,{hUpDown,UDM_SETRANGE32,UD_MIN_POS,UD_MAX_POS})
+--  SendMessageW(hUpDown, UDM_SETRANGE, 0, MAKELPARAM(UD_MAX_POS, UD_MIN_POS));
+    {} = c_func(xSendMessage,{hUpDown,UDM_SETPOS32,0,0})
+--UDM_SETPOS32 (WM_USER+113) 
+--  SendMessageW(hUpDown, UDM_SETPOS32, 0, 0);
+end procedure
+
+--/*
+LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    
+    LPNMUPDOWN lpnmud;
+    UINT code;
+
+    switch(msg) {
+
+        case WM_CREATE:
+
+            CreateControls(hwnd);
+
+            break;
+
+        case WM_NOTIFY:
+
+            code = ((LPNMHDR) lParam)->code;
+
+            if (code == UDN_DELTAPOS) {
+
+                lpnmud = (NMUPDOWN *) lParam;                
+
+                int value = lpnmud->iPos + lpnmud->iDelta;
+
+                if (value < UD_MIN_POS) {
+                    value = UD_MIN_POS;
+                }
+
+                if (value > UD_MAX_POS) {
+                    value = UD_MAX_POS;
+                }
+
+                const int asize = 4;
+                wchar_t buf[asize];
+                size_t cbDest = asize * sizeof(wchar_t);
+                StringCbPrintfW(buf, cbDest, L"%d", value);
+
+                SetWindowTextW(hStatic, buf);                  
+            }
+
+            break;
+
+        case WM_DESTROY:
+            PostQuitMessage(0);
+            break;
+    }
+
+    return DefWindowProcW(hwnd, msg, wParam, lParam);
+}
+--*/
+
+function WndProc(atom hwnd, iMsg, wParam, lParam)
+    -- callback routine to handle Window class
+
+--?{"WndProc",hwnd,iMsg,wParam,lParam}
+    if iMsg=WM_CHAR and wParam=VK_ESCAPE then
+        iMsg = WM_DESTROY
+    end if
+    switch iMsg do
+
+        case WM_CREATE:
+
+--          CreateControls(hwnd,lParam);
+            CreateControls(hwnd);
+--          atom wav_file = allocate_string(`\Windows\Media\tada.wav`)
+--          c_proc(xPlaySound, {wav_file,NULL,SND_FILEASYNC})
+--          free(wav_file)
+
+        case WM_NOTIFY:
+            integer code = get_struct_field(idNMHDR,lParam,"code")
+            if code=UDN_DELTAPOS then
+                integer v = get_struct_field(idNMUPDOWN,lParam,"iPos")
+                          + get_struct_field(idNMUPDOWN,lParam,"iDelta")
+                if v<UD_MIN_POS then v = UD_MIN_POS end if
+                if v>UD_MAX_POS then v = UD_MAX_POS end if
+                string s = sprintf("%d",v)
+                c_proc(xSetWindowText,{hStatic,s})
+            end if
+
+--          atom pPAINTSTRUCT = allocate_struct(idPAINTSTRUCT),
+--               pRECT = allocate_struct(idRECT),
+--               hdc = c_func(xBeginPaint, {hwnd, pPAINTSTRUCT}),
+--               Phix = allocate_string("A Plain Vanilla Window using Phix!")
+--          c_proc(xGetClientRect, {hwnd, pRECT})
+--          c_proc(xDrawText, {hdc, Phix, -1, pRECT, DT_SINGLECENTER})
+--          c_proc(xEndPaint, {hwnd, pPAINTSTRUCT})
+--          free({Phix,pPAINTSTRUCT,pRECT})
+
+--      case WM_CHAR:
+--          if wParam=VK_ESCAPE then
+--              {} = c_func(xSendMessage,{mainhwnd,WM_CLOSE,0,0})
+--          end if
+
+        case WM_DESTROY:
+
+            c_proc(xPostQuitMessage, {0})
+
+        default:
+
+            return c_func(xDefWindowProc, {hwnd, iMsg, wParam, lParam})
+
+    end switch
+    return 0
+end function
+
+--/*
+int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
+    PWSTR lpCmdLine, int nCmdShow) {
+
+    MSG  msg;
+--  WNDCLASSW wc = {0};
+
+--  wc.style = CS_HREDRAW | CS_VREDRAW;
+--  wc.lpszClassName = L"Updown control";
+--  wc.hInstance     = hInstance;
+--  wc.hbrBackground = GetSysColorBrush(COLOR_3DFACE);
+--  wc.lpfnWndProc   = WndProc;
+--  wc.hCursor       = LoadCursor(0, IDC_ARROW);
+
+--  RegisterClassW(&wc);
+    CreateWindowW(wc.lpszClassName, L"Updown control",
+        WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+        100, 100, 280, 200, NULL, NULL, hInstance, NULL);
+
+    while (GetMessage(&msg, NULL, 0, 0)) {
+
+        DispatchMessage(&msg);
+    }
+
+    return (int) msg.wParam;
+}
+--*/
+procedure win_main()
+
+    atom pWndclass = allocate_struct(idWNDCLASSEX),
+         szAppName = allocate_string("Updown control"),
+         hInstance = instance(),
+         icon_handle = c_func(xLoadIcon, {hInstance, 10}),
+         cursor_hndl = c_func(xLoadCursor, {NULL, IDC_ARROW}),
+         background = c_func(xGetSysColorBrush,{COLOR_3DFACE}),
+         window_style = or_bits(WS_OVERLAPPEDWINDOW,WS_VISIBLE),
+         wndproc = call_back(WndProc)
+
+    set_struct_field(idWNDCLASSEX,pWndclass,"cbSize",get_struct_size(idWNDCLASSEX))
+    set_struct_field(idWNDCLASSEX,pWndclass,"style",or_bits(CS_HREDRAW, CS_VREDRAW))
+    set_struct_field(idWNDCLASSEX,pWndclass,"lpfnWndProc",wndproc)
+    set_struct_field(idWNDCLASSEX,pWndclass,"hIcon",icon_handle)
+    set_struct_field(idWNDCLASSEX,pWndclass,"hIconSm",icon_handle)
+    set_struct_field(idWNDCLASSEX,pWndclass,"hCursor",cursor_hndl)
+    set_struct_field(idWNDCLASSEX,pWndclass,"hbrBackground",background)
+    set_struct_field(idWNDCLASSEX,pWndclass,"lpszClassName",szAppName)
+    set_struct_field(idWNDCLASSEX,pWndclass,"hInstance",hInstance)
+
+    if c_func(xRegisterClassEx, {pWndclass})=0 then
+        crash("RegisterClassEx error #%08x",{c_func(xGetLastError,{})})
+    end if
+
+    sequence cwargs = {0,                   -- extended style
+                       szAppName,           -- window class name
+                       "Updown control",    -- window caption
+                       window_style,        -- window style
+                       CW_USEDEFAULT,       -- initial x position
+                       CW_USEDEFAULT,       -- initial y position
+                       300,                 -- initial x size
+                       200,                 -- initial y size
+                       NULL,                -- parent window handle
+                       NULL,                -- window menu handle
+                       hInstance,           -- hInstance // program instance handle
+                       NULL}                -- lParam (for WM_CREATE)
+--                     wndproc}             -- lParam (for WM_CREATE)
+    mainhwnd = c_func(xCreateWindowEx,cwargs)
+    if mainhwnd=0 then
+        crash("CreateWindowEx error #%08x",{c_func(xGetLastError,{})})
+    end if
+    free({szAppName,pWndclass})
+
+    c_proc(xShowWindow, {mainhwnd, SW_SHOWNORMAL})
+    c_proc(xUpdateWindow, {mainhwnd})
+
+    atom pMSG = allocate_struct(idMSG)
+    while c_func(xGetMessage, {pMSG, NULL, 0, 0}) do
+        c_proc(xTranslateMessage, {pMSG})
+        c_proc(xDispatchMessage, {pMSG})
+    end while
+    free(pMSG)
+end procedure
+
+win_main()
+--?"done"
+--wait_key()
+
+--/*
+constant tRECT = """
+typedef struct _RECT {
+  LONG left;
+  LONG top;
+  LONG right;
+  LONG bottom;
+} RECT, *PRECT;
+"""
+constant idRECT = define_struct(tRECT)         
+
+constant tPAINTSTRUCT = """
+typedef struct tagPAINTSTRUCT {
+  HDC  hdc;
+  BOOL fErase;
+  RECT rcPaint;
+  BOOL fRestore;
+  BOOL fIncUpdate;
+  BYTE rgbReserved[32];
+} PAINTSTRUCT, *PPAINTSTRUCT;
+"""
+constant idPAINTSTRUCT = define_struct(tPAINTSTRUCT)
+
+constant 
+         
+         WM_PAINT  = #0F,
+         SND_FILENAME = #00020000,
+         SND_ASYNC    = #00000001,
+         DT_SINGLELINE = #0020,
+         DT_CENTER     = #0001,
+         DT_VCENTER    = #0004,
+         DT_SINGLECENTER = or_all({DT_SINGLELINE, DT_CENTER, DT_VCENTER}),
+         SND_FILEASYNC = or_bits(SND_FILENAME,SND_ASYNC)
+
+integer xLoadIcon, xLoadCursor, xGetStockObject, xRegisterClassEx,
+        xCreateWindowEx, xShowWindow, xUpdateWindow, xGetMessage,
+        xTranslateMessage, xDispatchMessage, xPlaySound, xBeginPaint,
+        xGetClientRect, xDrawText, xEndPaint, xPostQuitMessage, xDefWindowProc,
+        xGetLastError
+
+procedure link_dll_routines()
+    -- get handles to all dll routines that we need
+
+    atom USER32 = open_dll("user32.dll"),
+         GDI32 = open_dll("gdi32.dll"),
+         winmm = open_dll("winmm.dll"),
+         kernel32 = open_dll("kernel32.dll")
+
+    xLoadIcon = define_c_func(USER32, "LoadIconA", {C_PTR, C_INT}, C_INT)
+    xLoadCursor = define_c_func(USER32, "LoadCursorA", {C_PTR, C_INT}, C_INT)
+    xGetStockObject = define_c_func(GDI32, "GetStockObject", {C_INT}, C_INT)
+    xRegisterClassEx = define_c_func(USER32, "RegisterClassExA", {C_PTR}, C_INT)
+    xCreateWindowEx = define_c_func(USER32, "CreateWindowExA",
+                                  {C_INT, C_INT,C_INT,C_INT,C_INT,C_INT,C_INT,C_INT,C_INT,C_INT,C_INT,C_INT},
+                                  C_INT)
+    xShowWindow = define_c_proc(USER32, "ShowWindow", {C_INT, C_INT})
+    xUpdateWindow = define_c_proc(USER32, "UpdateWindow", {C_INT})
+    xGetMessage = define_c_func(USER32, "GetMessageA",
+                             {C_INT, C_INT, C_INT, C_INT}, C_INT)
+    xTranslateMessage = define_c_proc(USER32, "TranslateMessage", {C_INT})
+    xDispatchMessage = define_c_proc(USER32, "DispatchMessageA", {C_INT})
+    xPlaySound = define_c_proc(winmm, "PlaySound", {C_INT, C_INT, C_INT})
+    xBeginPaint = define_c_func(USER32, "BeginPaint", {C_INT, C_PTR}, C_INT)
+    xGetClientRect = define_c_proc(USER32, "GetClientRect", {C_INT, C_PTR})
+    xDrawText = define_c_proc(USER32, "DrawTextA",
+                           {C_INT, C_INT, C_INT, C_INT, C_INT})
+    xEndPaint = define_c_proc(USER32, "EndPaint", {C_INT, C_INT})
+    xPostQuitMessage = define_c_proc(USER32, "PostQuitMessage", {C_INT})
+    xDefWindowProc = define_c_func(USER32, "DefWindowProcA",
+                                {C_INT, C_INT, C_INT, C_INT}, C_INT)
+    xGetLastError = define_c_func(kernel32,"GetLastError",{},C_INT)
+end procedure
+
+link_dll_routines()
+
+--*/
+

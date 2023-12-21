@@ -1,5 +1,5 @@
 --DEAD
-?"WARNING: builtins/platform.e is dead"
+?"WARNING: builtins\platform.e is dead"
 --
 -- platform.e
 --

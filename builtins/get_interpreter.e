@@ -316,7 +316,8 @@ global procedure requires(object x, bool bQuiet=false)
         integer m = abs(x)
         sequence cl = command_line()
         string {c1,c2} = cl, cmd, msg
-        bool precompiled = (c1==c2)
+        bool precompiled = (c1==c2),
+             bOptional = and_bits(bQuiet,0b100)!=0
         if not precompiled then
 --          if bPrefW=-1 then bPrefW = find('w',get_file_base(c1))!=0 end if
 --          bool bPrefW = find('w',get_file_base(c1))!=0
@@ -325,7 +326,7 @@ global procedure requires(object x, bool bQuiet=false)
             assert(not bQuiet or xmb=0,"would go bananas") -- (as per docs)
             string p = get_interpreter(false,{m},platform(),bPrefW)
 --          string p = get_interpreter(false,{m},platform(),-1)
-            if c1!=p or m!=x then
+            if p!="" and (c1!=p or m!=x) then
                 cl[1] = p
                 cmd = join(apply(cl,enquote))
                 if bQuiet then
@@ -342,9 +343,11 @@ global procedure requires(object x, bool bQuiet=false)
                 abort(0)
             end if
         end if
-        msg = iff(precompiled?"incorrectly packaged?"
-                :"no such interpreter could be found")
-        crash("requires %d bit (%s)...",{m,msg},2)
+        if not bOptional then
+            msg = iff(precompiled?"incorrectly packaged?"
+                    :"no such interpreter could be found")
+            crash("requires %d bit (%s)...",{m,msg},2)
+        end if
     end if
 end procedure
 

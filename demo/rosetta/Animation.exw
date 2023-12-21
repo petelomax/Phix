@@ -4,6 +4,58 @@
 --
 -- Author Pete Lomax, August 2015
 --
+--DEV no label click, colours iffy, margins on wrong thing??
+--/!*
+with javascript_semantics
+requires("1.0.3")
+--requires(64,true)
+include xpGUI.e
+--gUseGTK()
+
+string hw = "Hello World!     "
+bool direction = true
+gdx label
+
+--function button_cb(gdx /*ih*/, integer /*button*/, pressed, /*x*/, /*y*/, atom /*pStatus*/)
+procedure label_click(gdx /*label*/, sequence status)
+--DEV compiler hang:
+--  bool bPressed!='R'
+    bool bPressed = (status[2]!='R')
+?{"label_click",status,bPressed,direction}
+    if bPressed then
+        direction = not direction
+    end if
+end procedure
+
+procedure timer_action(gdx /*ih*/)
+    hw = iff(direction ? hw[$] & hw[1..-2]
+                       : hw[2..$] & hw[1])
+    gSetAttribute(label,"TITLE",hw)
+end procedure
+
+procedure main()
+    
+    label = gLabel(hw,`FONT="Verdana, 18"`)
+--  label = gLabel(hw,`FONT="Verdana, 18",MARGIN=70x40`)
+--DEV (I actually prefer the one below, but this should work too, as should the gHbox)
+--  gSetHandler(label, `CLICK`, label_click)
+--  gdx dlg = gDialog(label,"TITLE=Animation, DIALOGFRAME=YES, CHILDOFFSET=70x40, SIZE[*charsize]=200x80")
+--  gdx dlg = gDialog(label,"TITLE=Animation,SIZE=200x80")
+--  gdx dlg = gDialog(label,"TITLE=Animation,SIZE=300x150")
+--  gdx dlg = gDialog(gHbox({label}),"TITLE=Animation,SIZE=300x150")
+    gdx dlg = gDialog(gHbox({label},"MARGIN=70x40"),"TITLE=Animation,SIZE=300x150")
+gSetHandler(dlg, `CLICK`, label_click)
+
+--gHbox({gLabel("This is a label")},"MARGIN=14x14"),
+    gShow(dlg)
+    gdx hTimer = gTimer(timer_action, 160)
+    gMainLoop()
+end procedure
+
+main()
+--*!/
+
+--/*
 with javascript_semantics
 include pGUI.e
 
@@ -31,6 +83,7 @@ procedure main()
     IupSetCallback(label, "BUTTON_CB", Icallback("button_cb"))
     Ihandle dlg = IupDialog(label,"TITLE=Animation, DIALOGFRAME=YES, CHILDOFFSET=70x40, SIZE=200x80")
     IupShow(dlg)
+--?IupGetAttribute(dlg,"RASTERSIZE")
     Ihandle hTimer = IupTimer(Icallback("timer_cb"), 160)
     if platform()!=JS then
         IupMainLoop()
@@ -39,7 +92,7 @@ procedure main()
 end procedure
 
 main()
-
+--*/
 --arwen version (windows 32-bit-only )
 --/*
 include ..\arwen\arwen.ew

@@ -4,12 +4,38 @@
 --
 --  Demonstration/test of some simple gTabs() controls....
 --
-with javascript_semantics   -- usual (re)size issues remain... [DEV]
+with javascript_semantics   -- usual (re)size issues remain... [DEV] [NOW SOLVED??]
 --requires("1.0.3")
 --requires(64,true)
 include xpGUI.e
+--include xpGUI3.e -- proves something to do with resizing got fixed under WinAPI!!
 --gUseGTK()
 
+-- nb must match system small icons under winAPI (typically 16x16) [docs need updating]
+-- DEV background not quite right under WinAPI...
+constant xpm_txt = """
+16 16 3 1
++ c None
+. c #000000
+# c #FF0000
+++++++++++++++++
+++++++++++++++++
+++++++++++++++++
+++++++###.++++++
+++++#####.++++++
+++#######.++++++
+++#######.++++++
+++++#####.++++++
+++++++###.++++++
++++++++...++++++
++++++++...++++++
++++++++...++++++
+++++++......++++
+++++.........+++
+++++++++++++++++
+++++++++++++++++
+"""
+constant xpm = gImage_from_XPM(xpm_txt)
 --/*
 gdx vboxA = gVbox({gLabel("Inside Tab A"), gButton("Button A")},`TABTITLE="Tab A"`),
     vboxB = gVbox({gLabel("Inside Tab B"), gButton("Button B")},`TABTITLE="Tab B"`),
@@ -29,11 +55,13 @@ gdx vboxA = gVbox({gLabel("Inside Tab A"), gButton("Button A")},`TABTITLE="Tab A
 --  dlg = gDialog(hbox,"TITLE=gTabs, SIZE[*charsize]=200x120, DIALOGFRAME=YES")
     dlg = gDialog(hbox,"gTabs","SIZE=200x120")
 --*/
---gdx tabs = gTabs({"First Tab","Second Tab","Third Tab","Fourth Tab"}, "SIZE=225x23"),
-gdx tabs = gTabs({"First Tab","Second Tab","Third Tab","Fourth Tab"}),
---gdx   tabs = gTabs({"Tab A","Tab B","Third Tab","Fourth Tab"}),
---gdx   tabs = gTabs({"Tab A","Tab B"}),
---  dlg = gDialog(tabs,"gTabs","SIZE=230x120")  -- DEV much better for GTK...
+--gdx tabs = gTabs({"First","Second","Third","Fourth"}, "SIZE=225x23"),
+
+--***DEV: the children loop in gTabs() needs a bit of a rewrite, and quite probably moving...
+--  (adding/removing children post-map also (almost certainly) needs a bit more work)
+--gdx tabs = gTabs({"First","Second",{"Third",xpm},"Fourth"}),
+gdx tabs = gTabs({{"First",xpm},{"Second"},{"Third"},{"Fourth"}}),
+--  dlg = gDialog(tabs,"gTabs","SIZE=230x120")  -- DEV much better for GTK...[??]
     dlg = gDialog(tabs,"gTabs","SIZE=240x80")
 --  dlg = gDialog(gVbox({tabs}),"gTabs","SIZE=230x120")
 --  dlg = gDialog(gVbox({tabs},"SIZE=210x120"),"gTabs","SIZE=230x120")

@@ -10,8 +10,7 @@
 global sequence Extensions,     -- eg {"e","ex","ew","exw","html"}
                 ExtensionNos    -- eg { 1 , 1  , 1  , 1   , 2}
 
-global integer newSyntax        -- from ExtensionNos, or 1 if none
-                newSyntax=1
+global integer newSyntax = 1    -- from ExtensionNos, or 1 if none
 
 global sequence SynNames,       -- eg "Euphoria" (nb Phix uses "Euphoria")
                 LineComments,   -- eg {"--"}
@@ -28,47 +27,43 @@ global sequence SynNames,       -- eg "Euphoria" (nb Phix uses "Euphoria")
                 styleTabs,      -- eg {...EA_Normal,        EA_Italic,...}
                 charMaps        -- character Types for #00..#FF
 
-global integer MAXnColours
-               MAXnColours=16   -- (minimum possible) [??]
-
+global integer MAXnColours = 16 -- (minimum possible) [??]
 
 constant standardThings={"Background", "Comments", "Highlight", "Current Line", "Strings",
 --                       "Illegals", "Operators", "URLs", "Other"}
                          "Illegals", "Operators", "URLs", "Other",
                          "Marginbg","Linenos","Bookmarks"}
 
-global constant Background=1, Comments=2, Highlight=3, HighLine=4, Strings=5, 
-                Illegals=6, Operators=7, URLs=8, Other=9,
-                Marginbg=10, Linenos=11, BookMarks=12
+global constant Background = 1, Comments = 2, Highlight = 3, HighLine = 4, Strings = 5, 
+                Illegals = 6, Operators = 7, URLs = 8, Other = 9,
+                Marginbg = 10, Linenos = 11, BookMarks = 12
 
-global constant EA_Normal=4, EA_Bold=1, EA_Italic=2 -- So we can have Bold+Italic(=3)
+global constant EA_Normal = 4, EA_Bold = 1, EA_Italic = 2 -- So we can have Bold+Italic(=3)
 
-global constant
- TokenStart = 1,
- TokenChar  = 2,
- TokenFirst = 3,
- TokenLast  = 4,
- OpenBrace  = 5,
- CloseBrace = 6,
- Whitespace = 7,
- Delimiter  = 8,
- Operator   = 9,
- String     = 10,
- Illegal    = 11,
- Comment    = 12
+global constant TokenStart  = 1,
+                TokenChar   = 2,
+                TokenFirst  = 3,
+                TokenLast   = 4,
+                OpenBrace   = 5,
+                CloseBrace  = 6,
+                Whitespace  = 7,
+                Delimiter   = 8,
+                Operator    = 9,
+                String      = 10,
+                Illegal     = 11,
+                Comment     = 12
 
 global sequence wordChar    -- set by easynld.e (all are TokenChar, not TokenStart/First/Last)
 
+global sequence standardColourNames = {}, 
+                standardColours = {}
 
-global sequence standardColourNames,standardColours
-standardColourNames={} standardColours={}
-
-procedure addStandardColour(sequence text, integer r, integer g, integer b)
-integer colour
+procedure addStandardColour(sequence text, integer r, g, b)
     standardColourNames = append(standardColourNames,text)
-    colour = r+g*#100+b*#10000
+    integer colour = r+g*#100+b*#10000
     standardColours = append(standardColours,colour)
 end procedure
+
 addStandardColour("Black",    0,  0,  0)
 addStandardColour("Maroon", 128,  0,  0)
 addStandardColour("Green",    0,128,  0)
@@ -98,16 +93,14 @@ integer f,          -- file handle
 sequence errorMsg
 
 --global sequence comment -- eg "--"    -- set by changeTo()
-global sequence lineComments -- eg {"--"}   -- set by changeTo()
-global sequence blockComment                -- ""
-global sequence ColourTab                   -- ""
-global sequence StyleTab                    -- ""
+global sequence lineComments, -- eg {"--"}  -- set by changeTo()
+                blockComment,               -- ""
+                ColourTab,                  -- ""
+                StyleTab,                   -- ""
+                charMap,                    -- ""
+                urlChar -- all are TokenChar, not TokenStart/First/Last
 
 sequence fullname   -- eg "syn\Euphoria.syn" (same for Phix)
-
-global sequence charMap     -- set by changeTo()
-
-global sequence urlChar     -- all are TokenChar, not TokenStart/First/Last
 
 procedure setCharMap(object charset, integer chartype)
     if atom(charset) then

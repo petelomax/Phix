@@ -1,5 +1,5 @@
 --
--- builtins/progress.e
+-- builtins\progress.e
 --
 --  A simple console-based progress indicator.
 --

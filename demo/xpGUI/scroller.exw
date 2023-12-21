@@ -2,133 +2,128 @@
 -- demo\xpGUI\scroller.exw
 -- =======================
 --
---  Ported from arwendemo/scroller.exw
+--  Based on arwendemo\scroller.exw but much better. This is one of the "cool" demos.
 --
---  This is one of the "cool" demos. [DEV rubbish/incomplete...]
+--  The scrollbars are in fact 100% fake, as in completely drawn/shown/hidden/managed in Phix.
+--  That turned out easier than trying to convince both the WinAPI and GTK natives to obey me.
+--  It also means they are theoretically 100% customisable, should you for instance dislike
+--  the (carefully and faithfully replicated) Windows 10 style on a Linux box, or whatever.
+--  A similar approach on other things (eg gDatePick) may also end up proving quite useful...
+--  Incidentally, gGraph, gList, and gTable are also implemented in 100% pure Phix hll code.
 --
--- TODO: support drag (mousewheel already works)
---  A help popup... maybe a second window...
+--  Should you set the SCROLLSIZE to (eg) 6800000x5600000, that's equivalent to a 138TB canvas,
+--  but being virtual it takes <= what (eg) 1920x1280 does and actually just 624x440 or 1.05MB.
+--
+--  tests: (manual, and/or add to the manual)
+--   page up/down, ctrl arrow, and clicks to left/right/above/below of scrollbar thumb are the right amount
+--   scrollbar arrows highlight on hover, which goes away when mouse goes off-window (as well as off-scrollbar inwards)
+--   shift(/alt) arrows ("" and keyboard) are much faster than plain arrows (and as above, ctrl is page u/d/l/r)
+--   thumb drag captures mouse properly/works when the cursor strays off-window (as long as btn held down)
+--   mousewheel moves up/down, ctrl mousewheel moves left/right
+--   drag anywhere works fine
+--   viewport>canvas centres it
+--   resizing drags btm right corner with, when it should (the original/arwen had a fancy focus thing...[DEV])
+--
+-- TODO:
+--  A help popup?... maybe a second window...
 --  + zoom in
 --  - zoom out
 --  = original zoom
 --  # fit to screen
 --
+-- center the canvas when smaller than the avalilable space -- [FIXED]
+-- MOUSELEAVE, eg hover on vertical scrollbar uparrow, then move mouse off(dialog), should remove the highlight. [FIXED]
+-- mouse capture under WinAPI: dragging scrollbar thumbs stops when mouse goes off-window [unlike GTK].          [FIXED]
+-- (by default) give the dialog a MINSIZE that fits the title (and make that work on GTK).
+--XX When dragging a scrollbar and straying slightly off-dialog, the cursor flips into a dialog resizer, which is
+--XX something that demo\arwendemo\scroller.exw does not do... 
+--^^^^BLUFF: this allows right-click dragging (of the entire canvas[1]) which the arwen one does not...
+--           [1] which includes the scrollbars, but maybe should not??  Next thing is real though:
+-- The bottom right square does not allow dialog resizing, except for the same region as when not present,
+--  whereas the arwen demo allows the proper dragging anywhere on that ~1cm square box.
+--
 with javascript_semantics
---requires("1.0.3")
+requires("1.0.3")
+--requires(64,true) -- DEV GTK draw canvas size is 1x1... [FIXED]   lm_dump says 0x0... [still...]
+                  -- no scrollbars get shown at all...    """
+                  -- left/right don't limit properly, pg up/dn way off... [FIXED]
+                  -- mousewheel does not trigger (mask missing?) [FIXED]
 include xpGUI.e
-gUseGTK()
+--include backup\xpGUI.0003.e -- (no gQuit)
+--include backup\xpGUI.0220.e -- GOOD
+--include backup\xpGUI.0801.e -- GOOD
+--include backup\xpGUI.0802.e -- BAD    [FIXED(ish?)]
+--include backup\xpGUI.0803.e -- BAD
+--include backup\xpGUI.0806.e -- BAD
+--include backup\xpGUI.0814.e -- BAD
+--include backup\xpGUI.0820.e -- BAD
+--include backup\xpGUI.0821.e -- x
+--include backup\xpGUI.0826.e -- BAD
+--gUseGTK() --DEV resize thumb is off/blocky/blurry(and now boxy) - even with the 2 not 3...
+          --    all boxes are width-2...    
 
-gdx dlg, canvas
---cdCanvas cddbuffer, cdcanvas
+constant TITLE = sprintf(`Virtual Window Demo (%s)`,{gVersion(true)})
 
---constant imageX = 1280,
-constant imageX = 680,
---       imageY = 960
-         imageY = 560
+constant imgX = 680-0000,
+         imgY = 560-0000
+--?file_size_k(6800000*5600000*4) -- 138TB
 
 procedure redraw(gdx canvas)
---  integer {w, h} = gGetIntInt(canvas,"DRAWSIZE[*charsize]"),
---  integer {w, h} = gGetIntInt(canvas,"DRAWSIZE"),
-    integer {w, h} = gGetIntInt(canvas,"SIZE"),
-            px = 0, --gGetInt(canvas,"POSX"),
-            py = 0 --gGetInt(canvas,"POSY")
---?{"redraw",w,h,gGetIntInt(canvas, "SIZE")}
-?{"redraw",w,h}
---?IupGetGlobalIntInt("SCREENSIZE[*charsize]")
+    integer {ox,oy,vw,vh} = gGetAttribute(canvas,"VIEWPORT")
+--integer {w,h} = gGetAttribute(canvas,"SIZE")
+--?{"VIEWPORT",{ox,oy,vw,vh},"SIZE",{w,h}}
+-- GTK3: {"VIEWPORT",{0,0,1,1},"SIZE",{1,1}}
+-- GTK2: {"VIEWPORT",{0,0,624,440},"SIZE",{624,440}}
+--?{"SCROLLSIZE",gGetAttribute(canvas,"SCROLLSIZE")} -- {"SCROLLSIZE",{680,560}} (both)
 
---  cdCanvasActivate(cddbuffer)
---  cdCanvasClear(cddbuffer)
-    gCanvasSetForeground(canvas, XPG_BLACK)
---  gCanvasRect(canvas,10-px,floor((imageX-80)/2)-px,h-10+py,h-floor((imageY-130)/2)+py)
-    gCanvasRect(canvas,10-px,floor((imageX-80)/2)-px,10+py,floor((imageY-130)/2)+py)
-    gCanvasSetForeground(canvas, XPG_RED)
---  gCanvasRect(canvas,floor(imageX/4)-px,imageX-75-px,h-floor(imageY/4)+py,h-(imageY-75)+py)
-    gCanvasRect(canvas,floor(imageX/4)-px,imageX-75-px,floor(imageY/4)+py,(imageY-75)+py)
-    gCanvasSetForeground(canvas, XPG_GREEN)
---  gCanvasRect(canvas,5-px,imageX-5-px,h-5+py,h-imageY+5+py)
-    gCanvasRect(canvas,5-px,imageX-5-px,5+py,imageY+5+py)
+    --
+    -- Centre the virtual canvas when smaller than the avalilable space:
+    -- Aside: these need to be the opposite sign to what I initially expected,
+    --  but a VIEWPORT with ox=+10 should hide ten pixels of the virtual, and
+    --  hence ox:=-10 should be and is what's needed to show a 10 pixel border.
+    --  As per the docs, the viewport itself has a hard lower limit of {0,0}.
+    --
+    if vw>imgX then ox = floor((imgX-vw)/2) end if
+    if vh>imgY then oy = floor((imgY-vh)/2) end if
+--  gCanvasRect(canvas,-ox,imgX-ox,-oy,imgY-oy, true, colour:=XPG_WHITE)
+    gCanvasRect(canvas,-ox,imgX-ox,-oy,imgY-oy, true, colour:=XPG_LIGHT_PARCHMENT)
+    gCanvasRect(canvas,10-ox,floor((imgX-80)/2)-ox,10-oy,floor((imgY-130)/2)-oy, colour:=XPG_BLACK)
+    gCanvasRect(canvas,floor(imgX/4)-ox,imgX-75-ox,floor(imgY/4)-oy,(imgY-75)-oy, colour:=XPG_RED)
+    gCanvasRect(canvas,5-ox,imgX-5-ox,5-oy,imgY-5-oy, colour:=XPG_GREEN)
 end procedure
 
---function resize_cb(gdx /*ih*/)
---?"resize_cb"
---  for twice=1 to 2 do
---      --
---      -- twice in case X/YHIDDEN change (not actually valid here/yet),
---      --   aka re-apply the updated drawsize (which /is/ valid now).
---      --
---      integer {w, h} = gGetIntInt(canvas, "DRAWSIZE[*charsize]")
---      IupSetInt(canvas,"DX",w)
---      IupSetInt(canvas,"DY",h)
---  end for
---  return XPG_DEFAULT
---end function
+gdx canvas = gCanvas(redraw,"SCROLLSIZE=%dx%d",{imgX,imgY}),
+--gdx canvas = gCanvas(redraw),
+       dlg = gDialog(canvas,TITLE,`SIZE=626x472`)
+gCanvasSetBackground(canvas,XPG_PARCHMENT)
+gShow(dlg)
+gMainLoop()
 
---function map_cb(gdx ih)
---?"map_cb"
---  cdcanvas = cdCreateCanvas(CD_IUP, ih)
---  cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
-----    gCanvasSetBackground(cddbuffer, XPG_WHITE)
---  gCanvasSetBackground(cddbuffer, XPG_PARCHMENT)
---  gCanvasSetForeground(cddbuffer, XPG_RED)
---  return XPG_DEFAULT
---end function
-
-procedure main()
-    
-    canvas = gCanvas(redraw,"SCROLLBAR=YES, XMAX=%d, YMAX=%d",{imageX,imageY})
-    gSetAttributes(canvas,"SIZE=%dx%d",{imageX,imageY})
---  gSetAttributes(canvas,"SHRINK=YES")
-    gCanvasSetBackground(canvas,XPG_PARCHMENT)
-
---  gSetHandlers(canvas, {?MAP_CB?, map_cb,
-----                             "RESIZE[*charsize]_CB", resize_cb,
---                           "ACTION", redraw_cb})
-    dlg = gDialog(canvas,`SIZE=640x480, TITLE="Virtual Window Demo"`)
-    gShow(dlg)
---  gSetAttribute(canvas,"SIZE",NULL)
---  IupRefresh(dlg) -- spanners desktop
---  IupUpdate(dlg)  -- no help
---  IupRedraw(dlg)  -- no help
---  IupRefreshChildren(dlg) -- no help
---  if platform()!=JS then
-        gMainLoop()
-        
---  end if
-end procedure
-
-main()
 --/*
-Canvas X/YHIDDEN glitch?
-Hi there. I am emulating a 640x480 window on a 1280x960 canvas, all working fine and 
-perfectly happy to leave this as-is, however I just thought I should say something.
-
-function resize_cb(gdx /*ih*/)
-    for twice=1 to 2 do
-        --
-        -- twice in case X/YHIDDEN change (not actually valid here/yet),
-        --   aka re-apply the updated drawsize (which /is/ valid now).
-        --
-        integer {w, h} = gGetIntInt(canvas, "DRAWSIZE[*charsize]")
-        IupSetInt(canvas,"DX",w)
-        IupSetInt(canvas,"DY",h)
-    end for
-    return XPG_DEFAULT
-end function
-
-Prior to the twice loop (which I am still going to need no matter what) I noticed that
-when I had dragged the scrollbar(s) off the 0-position, then maximised and restored the 
-window, XHIDDEN was working but YHIDDEN was not (as in the scrollbars actually being 
-shown on-screen), which I assume is because XHIDDEN is updated by the set of DY, but 
-the latter is not setting its own YHIDDEN properly. I managed to replicate the problem
-on XHIDDEN instead by (removing the twice loop and) swapping the two set lines. Note
-that everything works fine when the scrollbar thumbs are in the 0-position.
-
-You can run an online version at http://phix.x10.mx/p2js/scroller.htm just so you can see 
-roughly what my demo is trying to do, but note that is not actually using any of your code 
-(whereas the desktop version of that same demo does), does not have any scrollbar handling 
-at all yet (so no such glitch), plus it needs a manual max/restore when first run. Also it
-is probably easier to translate that JavaScript code to C than the Phix code it came from.
-
+-- MOUSEWHEEL: I have no idea as yet, quite some investigation is required, for GTK, WinAPI, [DONE] 
+-- /and/ JavaScript... maybe:
+--  function zoom(event) {
+--    event.preventDefault();
+--
+--    scale += event.deltaY * -0.01;
+--
+--    // Restrict scale
+--    scale = Math.min(Math.max(0.125, scale), 4);
+--
+--    // Apply scale transform
+--    el.style.transform = `scale(${scale})`;
+--  }
+--
+--  let scale = 1;
+--  const el = document.querySelector("div");
+--  el.onwheel = zoom;
+--or:
+--  el.addEventListener("wheel", zoom, { passive: false });
+--  window.addEventListener("wheel", event => {
+--      const delta = Math.sign(event.deltaY);
+--      console.info(delta);
+--  });
+--
 --
 -- scroller.exw
 -- ============
@@ -146,8 +141,8 @@ is probably easier to translate that JavaScript code to C than the Phix code it 
 --  # fit to screen
 --  F toggle focus
 
-include arwen.ew
-include axtra.ew    -- setPenColor/drawRectangleh (bit of a hack to be honest)
+--include arwen.ew
+--include axtra.ew  -- setPenColor/drawRectangleh (bit of a hack to be honest)
 
 -- Terminology:
 --  main: the (resizeable) window (X/Y/DC).
@@ -163,10 +158,10 @@ atom viewBM = NULL      -- display buffer (from xCreateCompatibleBitmap).
 
 constant Main = create(Window, "Virtual Window Demo", 0, 0, 25, 25, mainX, mainY, {{WS_HSCROLL,WS_VSCROLL},0}),
          mainDC = getPrivateDC(Main),
-         imageX = 1280,
-         imageY = 960,
+         imgX = 1280,
+         imgY = 960,
          imageDC = c_func(xCreateCompatibleDC,{mainDC}),
-         imageBM = c_func(xCreateCompatibleBitmap,{mainDC, imageX, imageY}),
+         imageBM = c_func(xCreateCompatibleBitmap,{mainDC, imgX, imgY}),
          viewDC = c_func(xCreateCompatibleDC,{mainDC})
 
 --
@@ -182,31 +177,31 @@ atom focusX, focusY         -- (stored as atoms so that single-step scroll at ve
 bool firsttime = true,      -- (controls setting of {focusX, focusY}, and calling drawImage)
      drawfocus = false
 
-procedure drawImage()
--- initialise imageBM, and optionally redraw when the focus changes
-    if firsttime then
-        {} = c_func(xDeleteObject,{c_func(xSelectObject,{imageDC, imageBM})})
-    end if
-    setPenColor(BrightWhite)    drawRectangleh(imageDC, True, 0, 0, imageX, imageY)
-    setPenColor(Black)          drawRectangleh(imageDC, False, 10, 10, floor((imageX-80)/2), floor((imageY-130)/2))
-    setPenColor(BrightRed)      drawRectangleh(imageDC, False, floor(imageX/4), floor(imageY/4), imageX-75, imageY-75)
-    setPenColor(Green)          drawRectangleh(imageDC, False, 5, 5, imageX-5, imageY-5)
-    if drawfocus then
-        setPenColor(Green)      drawRectangleh(imageDC, False, floor(focusX-2), floor(focusY-2), floor(focusX+2), floor(focusY+2))
-    end if
-end procedure
+--procedure drawImage()
+---- initialise imageBM, and optionally redraw when the focus changes
+--  if firsttime then
+--      {} = c_func(xDeleteObject,{c_func(xSelectObject,{imageDC, imageBM})})
+--  end if
+--  setPenColor(BrightWhite)    drawRectangleh(imageDC, True, 0, 0, imgX, imgY)
+--  setPenColor(Black)          drawRectangleh(imageDC, False, 10, 10, floor((imgX-80)/2), floor((imgY-130)/2))
+--  setPenColor(BrightRed)      drawRectangleh(imageDC, False, floor(imgX/4), floor(imgY/4), imgX-75, imgY-75)
+--  setPenColor(Green)          drawRectangleh(imageDC, False, 5, 5, imgX-5, imgY-5)
+--  if drawfocus then
+--      setPenColor(Green)      drawRectangleh(imageDC, False, floor(focusX-2), floor(focusY-2), floor(focusX+2), floor(focusY+2))
+--  end if
+--end procedure
 
 integer zoom = 10   -- in tenths (1..1000+, upper limit depends solely on how quickly you get bored), or -1= fit to screen
 
-function Zoom(atom v)       return v*zoom/10            end function
-function Zoomf(atom v)      return floor(Zoom(v)+0.5)   end function
-function UnZoom(integer v)  return v*10/zoom            end function
-function UnZoomf(integer v) return floor(UnZoom(v)+0.5) end function
+--function Zoom(atom v)     return v*zoom/10            end function
+--function Zoomf(atom v)        return floor(Zoom(v)+0.5)   end function
+--function UnZoom(integer v)    return v*10/zoom            end function
+--function UnZoomf(integer v) return floor(UnZoom(v)+0.5) end function
 
-function mainHandler(integer id, integer msg, atom wParam, object /*lParam*/)
+--function mainHandler(integer id, integer msg, atom wParam, object /*lParam*/)
     if msg=WM_PAINT then
-        integer ZimageX = Zoomf(imageX),
-                ZimageY = Zoomf(imageY),
+        integer ZimgX = Zoomf(imgX),
+                ZimgY = Zoomf(imgY),
                 ZfocusX, ZfocusY, halfX, halfY
         if not firsttime then
             ZfocusX = Zoomf(focusX)
@@ -226,8 +221,8 @@ function mainHandler(integer id, integer msg, atom wParam, object /*lParam*/)
             sequence six = {1,100,100,1}, siy = six
             -- (a zoom of -1 is fit to screen, so deliberately disable/hide the scrollbars)
             if zoom!=-1 then                                    -- scroll info (scratch)
-                six = {halfX,ZimageX+halfX,mainX,ZfocusX}       -- {Min/Max/Pagesize/Pos}
-                siy = {halfY,ZimageY+halfY,mainY,ZfocusY}
+                six = {halfX,ZimgX+halfX,mainX,ZfocusX}     -- {Min/Max/Pagesize/Pos}
+                siy = {halfY,ZimgY+halfY,mainY,ZfocusY}
             end if
             setScrollInfo({id,SB_HORZ},six,1)
             setScrollInfo({id,SB_VERT},siy,1)
@@ -242,7 +237,7 @@ function mainHandler(integer id, integer msg, atom wParam, object /*lParam*/)
         end if
 
         integer dstX = 0, dstY = 0, dstW = mainX, dstH = mainY,
-                srcX = 0, srcY = 0, srcW = imageX, srcH = imageY
+                srcX = 0, srcY = 0, srcW = imgX, srcH = imgY
         if zoom!=-1 then
             if firsttime or drawfocus then
                 drawImage()
@@ -252,26 +247,26 @@ function mainHandler(integer id, integer msg, atom wParam, object /*lParam*/)
             drawRectangleh(viewDC, True, 0, 0, mainX, mainY)        -- clear background
 
             srcX = ZfocusX-halfX
-            integer gap = mainX-ZimageX
+            integer gap = mainX-ZimgX
             if gap>=0 then                  -- (enough for) gap on both sides
                 dstX = floor(gap/2)         -- so just center it
-                dstW = ZimageX
+                dstW = ZimgX
                 srcX = 0
             elsif srcX<=0 then              -- gap on lhs? (and overhang>gap on rhs)
                 srcX = 0                    -- so move to "hard left" (some overhang remains on rhs)
-            elsif srcX>ZimageX-mainX then   -- gap on rhs? (and overhang>gap on lhs)
-                srcX = ZimageX-mainX        -- so move to "hard right" (some overhang remains on lhs)
+            elsif srcX>ZimgX-mainX then -- gap on rhs? (and overhang>gap on lhs)
+                srcX = ZimgX-mainX      -- so move to "hard right" (some overhang remains on lhs)
             end if
             srcY = ZfocusY-halfY
-            gap = mainY-ZimageY
+            gap = mainY-ZimgY
             if gap>=0 then                  -- (enough for) gap on both sides
                 dstY = floor(gap/2)         -- so just center it
-                dstH = ZimageY
+                dstH = ZimgY
                 srcY = 0
             elsif srcY<=0 then              -- gap on top? (and overhang>gap on btm)
                 srcY = 0                    -- so move to "hard top" (some overhang remains on btm)
-            elsif srcY>ZimageY-mainY then   -- gap on btm? (and overhang>gap on top)
-                srcY = ZimageY-mainY        -- so move to "hard btm" (some overhang remains on top)
+            elsif srcY>ZimgY-mainY then -- gap on btm? (and overhang>gap on top)
+                srcY = ZimgY-mainY      -- so move to "hard btm" (some overhang remains on top)
             end if
             srcX = UnZoomf(srcX)
             srcY = UnZoomf(srcY)
@@ -288,7 +283,7 @@ function mainHandler(integer id, integer msg, atom wParam, object /*lParam*/)
         focusY = UnZoom(wParam)
         repaintWindow(Main,False)
     elsif msg=WM_CHAR then
-        if wParam=VVK_ESCAPE then
+        if wParam=K_ESCAPE then
             closeWindow(Main)
         elsif find(wParam,"=#-+fF") then
             oldzoom = zoom
@@ -306,7 +301,7 @@ function mainHandler(integer id, integer msg, atom wParam, object /*lParam*/)
         end if
     end if
     return 0
-end function
+--end function
 setHandler(Main, mainHandler)
 
 WinMain(Main, SW_NORMAL) 

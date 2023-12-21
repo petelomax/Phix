@@ -1,5 +1,5 @@
 --
--- builtins/IupBeep.e
+-- builtins\IupBeep.e
 --
 incomplete, basis for a new IupBeep(object f, d) function?
 note I am thinking of IupBeep(261.63,0.5) and/or IupBeep({{261.63,293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25},0.5})
@@ -32,7 +32,7 @@ end for
 printf(1,"That's all\n")
 
 from pwa\js\poc\musical_scale.html -- modified copy of https://rosettacode.org/wiki/Musical_scale#JavaScript
-                                    -- (obviously this ends up in pwa/builtins\IupBeep.js, as per <del>IupGraph.js</del> mpfr.js)
+                                    -- (obviously this ends up in pwa\builtins\IupBeep.js, as per <del>IupGraph.js</del> mpfr.js)
 <!doctype html>
 <html>
 <head>

@@ -5,6 +5,16 @@
 --   Creates a dialog with a menu with three submenus, and a popup menu.
 --   One of the submenus has a submenu, which has another submenu.
 --
+-- KNOWN ISSUE: transparent bitmaps on menus under WinAPI.
+-- There is a ton of pigheaded misinformation about this on'tinternet.
+-- "Pre multiplied alpha" is the thing, apparently, and the details are: "thread closed: fuck off".
+-- Nearest thing found so far:
+-- C:\Program Files (x86)\Phix\demo\Win32Demo\xcontrols\Examples\PicMenu\PicMenuTst.exw
+-- Since Edix/IUP manages this, maybe experiment with simple_paint stuff???
+--  (ie find out what the heck it has actually loaded, and encode that as a binary string??)
+--  [that would all be rather nice: obviously some kind of program to help you to build
+--   these things, but then just constant bitmap = x"0102<drivel>FF", and you're done!]
+--
 -- working notes:
 -- see file:///E:/downloads/misc/js/vanillajs/menu/fixed-header-with-responsive-drop-down-sliding-menu/dist/index.html
 -- gMenu not defined [FIXED, the above has now been incorporated into pGUI.js and pGUI.css]
@@ -16,10 +26,82 @@
 with javascript_semantics -- (some problems remain as noted above)
 --requires("1.0.3")
 --requires(64,true)
-with trace
+--with trace
 include xpGUI.e
---gUseGTK()
+--include xpGUI2.e -- GOOD...
+--include xpGUI3.e -- works on 32-bit...
+--include backup.0002\xpGUI.2491.e -- GOOD
+--include backup\xpGUI.2520.e -- menu there
+--include backup\xpGUI.2575.e -- menu there
+--include backup\xpGUI.2646.e -- menu there
+--include backup\xpGUI.2708.e -- menu there
+--include backup\xpGUI.2786.e -- menu there (17/7/ 22:12)
+--include backup\xpGUI.2873.e -- menu gone (17/7 23:20)
+--include backup\xpGUI.2942.e -- menu gone
+--include backup\xpGUI.3217.e -- menu gone
+--include backup\xpGUI.3316.e -- menu gone
+--include backup\xpGUI.3530.e -- menu gone
+--include backup\xpGUI.3630.e -- menu gone
+--include backup\xpGUI.3758.e -- duff
+--include backup\xpGUI.3759.e -- duff
+--include backup\xpGUI.3760.e -- duff
+--include backup\xpGUI.3761.e -- duff
+--include backup\xpGUI.3880.e -- duff
+--include backup\xpGUI.3880.e -- duff
+--include backup\xpGUI.4342.e -- menu gone
+--include backup\xpGUI.4644.e -- menu gone
+--include backup\xpGUI.5575.e -- menu gone
+--include backup\xpGUI.5662.e -- menu gone
+--include backup\xpGUI.5875.e -- menu gone
+--include backup\xpGUI.5877.e -- good fonts
+--include backup\xpGUI.5878.e -- duff fonts (& background)
+--include backup\xpGUI.5881.e -- duff fonts (& background)
+--include backup\xpGUI.5890.e -- duff fonts
+--include backup\xpGUI.5909.e -- duff fonts
+--include backup\xpGUI.5960.e -- duff
+--include backup.0002\xpGUI.5965.e -- GOOD
 
+--include backup\xpGUI.0220.e -- GOOD
+--include backup\xpGUI.0801.e -- X
+--include backup\xpGUI.0826.e -- GOOD (with img removed)
+--include backup\xpGUI.1502.e -- X
+--include backup\xpGUI.1507.e -- GOOD
+--include backup\xpGUI.1530.e -- 
+--include backup\xpGUI.1531.e -- GOOD
+--include backup\xpGUI.1532.e -- 
+--include backup\xpGUI.1533.e -- 
+--include backup\xpGUI.1535.e -- 
+--include backup\xpGUI.1542.e -- 
+--include backup\xpGUI.1545.e -- 
+--include backup\xpGUI.1572.e -- GOOD
+
+gUseGTK()
+constant cut_xpm_txt = """
+16 16 2 1
+. c None
+* c #000000
+................
+................
+.............*..
+............*...
+...........**...
+..........**....
+.****....**.....
+*...**..**......
+*...******......
+.****...*******.
+.......**.......
+......***.......
+.....*..*.......
+....*...*.......
+....*..*........
+....***.........
+"""
+--constant cut_xpm = gImage_from_XPM(cut_xpm_txt,"MENU") -- DEV flakey on WinAPI 64-bit... [FIXED by making xCreateDIBitmap return C_LONG not C_PTR...4/10/23]
+constant cut_xpm = gImage_from_XPM(cut_xpm_txt) -- DEV flakey on WinAPI 64-bit... [FIXED by making xCreateDIBitmap return C_LONG not C_PTR...4/10/23]
+-- I may need to circle back on that and get C_PTR to work properly.... (as a return type in VM\pcfunc.e, that is)
+
+--constant POPUP_ITEMS = {{"Cut",cut_xpm,CUT:=$},
 constant POPUP_ITEMS = {{"Cut",CUT:=$},
                         {"Copy",COPY:=$},
                         {"Paste",PASTE:=$},
@@ -43,8 +125,12 @@ constant POPUP_ITEMS = {{"Cut",CUT:=$},
                                 {"Recent&Files",RECENT:=$,{}},
                                 {"E&xit",EXIT}}},
                       {"&Edit",EDIT_MENU:=$, -- (optional id)
-                               {{"Copy",COPY},
+--                             {{"Cut",cut_xpm_txt,CUT},
+                               {{"Cut",CUT},
+                                {"Copy",COPY},
                                 {"Paste",PASTE,{{"Normal",NORMAL:=$},
+                                          {"html-stripped",STRIPPED:=$}}}}},
+--/*
                                           {"html-stripped",STRIPPED:=$}}},
                                 "|",
                                 {"Create",{{"Line",LINE:=$},
@@ -56,6 +142,7 @@ constant POPUP_ITEMS = {{"Cut",CUT:=$},
                                            {"Triangle",{{"Equilateral",EQUILATERAL:=$},
                                                         {"Isoceles",ISOCELES:=$},
                                                         {"Scalenus",SCALENUS:=$}}}}}}},
+--*/
                       {"&Help",HELP:=$}}
 
 -- Each entry is one of {string menu_item, integer id} for a "leaf" menu entry, or 
@@ -82,7 +169,8 @@ function menu_handler(gdx menu, integer id, bool bHighlight)
 --function menu_handler(gdx menu, integer id)
     string s = gMenuGetAttribute(menu,id,"TITLE"),
            h = iff(bHighlight?" (highlight)":
-               iff(not find(id,{NORMALC,DOTTEDC,FILLEDC})?"":
+--             iff(not find(id,{NORMALC,DOTTEDC,FILLEDC})?"":
+               iff(not find(id,{})?"":
                iff(gMenuGetAttribute(menu,id,"CHECKED")?" (Checked)":" (unchecked)")))
     printf(1,"%s%s (menu=%d, id=%d)\n",{s,h,menu,id})
     if id=CLOSE and not bHighlight then
@@ -97,15 +185,19 @@ function menu_handler(gdx menu, integer id, bool bHighlight)
 end function
 
 gdx menu = gMenu(MAIN_MENU,menu_handler),
-    text = gText(`VALUE = "Right click here for a Cut Copy Paste Delete Reload Exit popup", EXPAND = YES`),
-    txt2 = gText(`VALUE = "Right click here for a different menu popup", EXPAND = YES`),
+--DEV labels???
+--  text = gText(`VALUE = "Right click here for a Cut Copy Paste Delete Reload Exit popup", EXPAND = YES`),
+--  txt2 = gText(`VALUE = "Right click here for a different menu popup", EXPAND = YES`),
+    lbl1 = gLabel(`Right click here for a Cut Copy Paste Delete Reload Exit popup`, `EXPAND = YES`),
+    lbl2 = gLabel(`Right click here for a different menu popup`, `EXPAND = YES`),
     popup_menus = {NULL,NULL}
 
 function text_click(gdx id, sequence status, integer x, y)
     if status[1..2]="RR" then -- (right button released)
-        integer tn = find(id,{text,txt2})
+--      integer tn = find(id,{text,txt2})
+        integer tn = find(id,{lbl1,lbl2})
 --DEV temp (right click not yet working on a gText...)
-if tn=0 then tn=rand(2) end if
+if tn=0 then ?{"oops:tn=0",id,lbl1,lbl2,menu,gGetDialog(id)}; tn=rand(2) end if
         if popup_menus[tn] = NULL then
             popup_menus[tn] = gMenu({POPUP_ITEMS,MAIN_MENU}[tn],menu_handler)
 --DEV bRadio...
@@ -138,7 +230,7 @@ end function
 --end function
 
 --gdx vbox = gVbox({menu,text,txt2}),
---gdx vbox = gVbox({menu}),
+--gdx vbox = gVbox({menu,lbl1,lbl2},"GAP=22"),
 gdx vbox = gVbox({menu}),
 --   dlg = gDialog(vbox,`TITLE="gSubmenu Example", SIZE[*charsize] = QUARTERxEIGHTH`)
 --   dlg = gDialog(vbox,`gSubmenu Example`,`SIZE = QUARTERxEIGHTH`)
@@ -146,7 +238,9 @@ gdx vbox = gVbox({menu}),
 --   dlg = gDialog(vbox,`gMenu`,`SIZE = 240x38`)
 --DEV:...
      dlg = gDialog(vbox,`gMenu`,`SIZE=240x120`)
-gSetHandler({text,txt2,dlg},"CLICK",text_click)
+--gSetHandler({text,txt2,dlg},"CLICK",text_click)
+gSetHandler({lbl1,lbl2,dlg},"CLICK",text_click)
+--gSetHandler({lbl1,lbl2},"CLICK",text_click) -- [DEV] not yet working...
 --gSetHandler(txt2,"CLICK",txt2_click)
 
 --gSetAttributeHandle(dlg,"MENU",menu)
@@ -154,7 +248,18 @@ gSetHandler({text,txt2,dlg},"CLICK",text_click)
 --gSetAttributeHandle(NULL,?PARENTDIALOG?,dlg)
 gShow(dlg)
 --?gMenuGetAttribute(menu,COPY,"TITLE")
-gMenuSetAttribute(menu,COPY,"TITLE","Mimic")
+--gMenuSetAttribute(menu,COPY,"TITLE","Mimic")
 --?gMenuGetAttribute(menu,COPY,"TITLE")
+--DEV erm, I don't think you're supposed to be able to get the size of a vbox under WinAPI,
+--    at least it cannot ever have possibly worked/you can't throw NULL at GetWindowRect...
+--?{"vbs",gGetAttribute(vbox,"SIZE")}
+--?{"cut_xpm",cut_xpm,sprintf("#%16x",cut_xpm[2][1])}
 gMainLoop()
 
+--/*
+fail:
+{"cut_xpm",{"gImage",{1.844674407e+19,24,24,15790320}},"#FFFFFFFFBB051774"}
+{"cut_xpm",{"gImage",{1.844674407e+19,24,24,15790320}},"#FFFFFFFFBF051774"}
+pass:
+{"cut_xpm",{"gImage",{      956648147,24,24,15790320}},"#        39054AD3"}
+--*/

@@ -137,14 +137,14 @@ global function dir(sequence name)
 end function
 --*/
 
---/* Not required for Phix (defined in autoinclude builtins/pcurrdir.e)
+--/* Not required for Phix (defined in autoinclude builtins\pcurrdir.e)
 global function current_dir()
 -- returns name of current working directory
     return machine_func(M_CURRENT_DIR, 0)
 end function
 --*/
 
---/* Not required for Phix (defined in autoinclude builtins/pchdir.e)
+--/* Not required for Phix (defined in autoinclude builtins\pchdir.e)
 global function chdir(sequence newdir)
 -- Changes the current directory. Returns 1 - success, 0 - fail.
     return machine_func(M_CHDIR, newdir)

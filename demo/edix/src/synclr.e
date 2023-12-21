@@ -391,7 +391,8 @@ sequence backC,textC,attrC
 
 --with trace
 procedure scanForUrls(sequence text)
--- Scan for urls
+-- Scan for urls (such as http::\\wikipedia.org)
+-- See also https://rosettacode.org/wiki/Find_URI_in_text#Phix for a standalone version
 integer chidx0
 integer syntaxClass
 --trace(1)
@@ -409,7 +410,10 @@ integer syntaxClass
             --
             textC[chidx..chidx2-1] = ColourTab[Comments]
             attrC[chidx..chidx2-1] = StyleTab[Comments]
-            chidx = chidx2
+--24/8/23: (urls at the start of the line)
+            if chidx2-1>chidx or text[chidx]<=' ' then
+                chidx = chidx2
+            end if
             while chidx2<=lt do
                 ch2 = text[chidx2]
                 if ch2<=128 then
@@ -428,6 +432,7 @@ integer syntaxClass
                 chidx2 += 1
                 chidx0 = chidx2
                 syntaxClass = Comments
+                string bstack = ""
                 while chidx2<=lt do
                     ch2 = text[chidx2]
                     if ch2='\"' and chidx2=chidx0 then
@@ -441,6 +446,11 @@ integer syntaxClass
                             end if
                         end while
                         exit
+                    elsif find(ch2,"(<[{") then
+                        bstack &= ch2+iff(ch2='('?1:2)
+                    elsif find(ch2,")>]}") then
+                        if length(bstack)=0 or bstack[$]!=ch2 then exit end if
+                        bstack = bstack[1..$-1]
                     end if
 --2/1/23: (one assumes utf32... I guess utf//8// might be ok in a url... )
 --                  if urlChar[ch2+1]!=TokenChar then exit end if
@@ -448,6 +458,10 @@ integer syntaxClass
                     syntaxClass = URLs
                     chidx2 += 1
                 end while
+                if syntaxClass=URLs
+                and text[chidx2-1]='.' then
+                    chidx2 -= 1
+                end if
                 textC[chidx..chidx2-1] = ColourTab[syntaxClass]
                 attrC[chidx..chidx2-1] = StyleTab[syntaxClass]
 --              if chidx0!=chidx2 then
@@ -836,7 +850,10 @@ end if
 --=========
                     else
                         while chidx2<=length(text) do
-                            if urlChar[text[chidx2]+1]!=TokenChar then exit end if
+--24/8/23:
+--                          if urlChar[text[chidx2]+1]!=TokenChar then exit end if
+                            ch2 = text[chidx2]
+                            if ch2>255 or urlChar[ch2+1]!=TokenChar then exit end if
                             syntaxClass = URLs
                             chidx2 += 1
                         end while

@@ -362,6 +362,9 @@ end procedure -- (for Edita/CtrlQ)
         mov eax,[esi+edi*4]
         mov edx,[ecx]           -- prev(res)
         jne @f
+            -- 6/12/23: only if s has a refcount of 1
+            cmp dword[esi-8],1
+            jne @f
             -- 1/5/22: in eg s[i] &= x, s[i]:=0, w/o incref
             mov [esi+edi*4],ebx
             jmp opSubse1CompoundOp
@@ -427,6 +430,9 @@ end procedure -- (for Edita/CtrlQ)
         mov rdx,[rcx]           -- prev(res)
         mov r15,h4
         jne @f
+            -- 6/12/23: only if s has a refcount of 1
+            cmp qword[rsi-16],1
+            jne @f
             -- 1/5/22: in eg s[i] &= x, s[i]:=0, w/o incref
             mov [rsi+rdi*8],rbx
             jmp opSubse1CompoundOp

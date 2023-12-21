@@ -15,87 +15,84 @@ local constant BI_RGB = 0
 local integer idBITMAPINFOHEADER,
               idRGBQUAD
 
-local constant dir_closed_xpm = {
-/* columns rows colors chars-per-pixel */
-"16 16 8 1 ",
-"  c #000000",
-". c #9C9C00",
-"X c #CECE63",
-"o c #FFCE9C",
-"O c #FFFF9C",
-"+ c #FFFFCE",
-"@ c #F7F7F7",
-"# c #FFFFFF",
-/* pixels */
-"################",
-"###.... ########",
-"##.@++O. #######",
-"#.XXXXXX......##",
-"#.++++++++++OX #",
-"#.+OOOOOOOOOoX #",
-"#.+OOOOOOoOoOX #",
-"#.+OOOOOOOoOoX #",
-"#.+OOOOoOoOoOX #",
-"#.+OOOOOoOoOoX #",
-"#.+OOOOoOoOooX #",
-"#.+oOooOoOoooX #",
-"#.XXXXXXXXXXXX #",
-"##             #",
-"################",
-"################"},
-dir_open_xpm = {
-/* columns rows colors chars-per-pixel */
-"16 16 6 1 ",
-"  c #000000",
-". c #9C9C00",
-"X c #CECE63",
-"o c #FFCE9C",
-"O c #FFFF9C",
-"+ c #FFFFFF",
-/* pixels */
-"++++++++++++++++",
-"+++....+++++++++",
-"++.++++.++++++++",
-"+.+OOOO+......++",
-"+.+OOOOOO++++X +",
-"+.+OOOOOOOOOOX +",
-"...........XOX +",
-".+OOOOOoOoX XX +",
-".+OOOOOOoOX XX +",
-"+.+OOOOoOoo. . +",
-"+.+OOooOoooX . +",
-"++.+oOOooooX.  +",
-"++...........  +",
-"+++            +",
-"++++++++++++++++",
-"++++++++++++++++"},
-dot_xpm = {
-/* columns rows colors chars-per-pixel */
-"16 16 7 1 ",
-"  c #383838",
-". c #636363",
-"X c #808080",
-"o c #A1A1A1",
-"O c #C0C0C0",
-"+ c #DEDEDE",
-"@ c #FFFFFF",
-/* pixels */
-"@@@@@@@@@@@@@@@@",
-"@@@@@@@@@@@@@@@@",
-"@@@@@@@@@@@@@@@@",
-"@@@@@@@@@@@@@@@@",
-"@@@@@@XXooo@@@@@",
-"@@@@@XooO+Oo@@@@",
-"@@@@.XXooO+Oo@@@",
-"@@@@.XXXooOOo@@@",
-"@@@@ .XXXoooX@@@",
-"@@@@ ..XXXoXX@@@",
-"@@@@@ ..XXXX@@@@",
-"@@@@@@  ...@@@@@",
-"@@@@@@@@@@@@@@@@",
-"@@@@@@@@@@@@@@@@",
-"@@@@@@@@@@@@@@@@",
-"@@@@@@@@@@@@@@@@"}
+-- first line is columns rows colors chars-per-pixel [hotx hoty]?
+-- The next "colors" lines are, well colours ('c').
+-- The next "rows" lines must be "columns" wide.
+local constant dir_closed_xpm = """
+16 16 8 1
+_ c #000000
+. c #9C9C00
+X c #CECE63
+o c #FFCE9C
+O c #FFFF9C
++ c #FFFFCE
+@ c #F7F7F7
+# c #FFFFFF
+################
+###...._########
+##.@++O._#######
+#.XXXXXX......##
+#.++++++++++OX_#
+#.+OOOOOOOOOoX_#
+#.+OOOOOOoOoOX_#
+#.+OOOOOOOoOoX_#
+#.+OOOOoOoOoOX_#
+#.+OOOOOoOoOoX_#
+#.+OOOOoOoOooX_#
+#.+oOooOoOoooX_#
+#.XXXXXXXXXXXX_#
+##_____________#
+################
+################""",
+dir_open_xpm = """
+16 16 6 1
+_ c #000000
+. c #9C9C00
+X c #CECE63
+o c #FFCE9C
+O c #FFFF9C
++ c #FFFFFF
+++++++++++++++++
++++....+++++++++
+++.++++.++++++++
++.+OOOO+......++
++.+OOOOOO++++X_+
++.+OOOOOOOOOOX_+
+...........XOX_+
+.+OOOOOoOoX_XX_+
+.+OOOOOOoOX_XX_+
++.+OOOOoOoo._._+
++.+OOooOoooX_._+
+++.+oOOooooX.__+
+++...........__+
++++____________+
+++++++++++++++++
+++++++++++++++++""",
+dot_xpm = """
+16 16 7 1
+_ c #383838
+. c #636363
+X c #808080
+o c #A1A1A1
+O c #C0C0C0
++ c #DEDEDE
+@ c #FFFFFF
+@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@@
+@@@@@@XXooo@@@@@
+@@@@@XooO+Oo@@@@
+@@@@.XXooO+Oo@@@
+@@@@.XXXooOOo@@@
+@@@@_.XXXoooX@@@
+@@@@_..XXXoXX@@@
+@@@@@_..XXXX@@@@
+@@@@@@__...@@@@@
+@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@@"""
 
 local function xpg_hexstr_to_int(string c2)
     -- convert eg "1F" to 31
@@ -108,7 +105,7 @@ local function xpg_hexstr_to_int(string c2)
 end function    
 --assert(xpg_hexstr_to_int("1F")==31)
 
-local function xpg_winAPI_create_DIB_from_xpm(sequence xpm, integer callback)
+local function xpg_winAPI_create_DIB_from_xpm(sequence xpm, integer callback, cTrans=#FFFFFF)
 -- (WinAPI only, GTK uses gdk_pixbuf_new_from_xpm_data() instead)
 --  ... whereas demo\rosetta\virtunome.exw uses IupImageRGBA() ... [DEV]
 --
@@ -156,14 +153,20 @@ local function xpg_winAPI_create_DIB_from_xpm(sequence xpm, integer callback)
     assert(codeWide=1)
 
     -- palette and packing size
+--/!*
     integer palSize,    -- colours rounded up to supported sizes
             bpp         -- bits per pixel (1, 4, 8)
     if    colours<=2 then               palSize = 2     bpp = 1
     elsif colours<=16 then              palSize = 16    bpp = 4
     elsif colours<=256 then             palSize = 256   bpp = 8
+--*!/
+--  integer palSize = 256,  -- colours rounded up to supported sizes
+--          bpp = 8         -- bits per pixel (1, 4, 8)
+--  if colours>256 then
     else
         crash("too many colours")
     end if
+--?{"palSize",2,"bpp",bpp,"colours",colours}
 
     -- calculate the size of the BITMAPINFO header
     integer headerSize = get_struct_size(idBITMAPINFOHEADER) + 
@@ -184,10 +187,12 @@ local function xpg_winAPI_create_DIB_from_xpm(sequence xpm, integer callback)
         bytes = width
     elsif bpp = 4 then      -- 2:1, 2 pixels per byte
         if remainder(width,2) then pi = append(pi,0) end if             -- pad to multiple of 2
-        bytes = floor(length(pi) / 2)
+--      bytes = floor(length(pi) / 2)
+        bytes = length(pi)/2
     elsif bpp = 1 then      -- 8:1, 8 pixels per byte (monochrome)
         while remainder(length(pi),8) do pi = append(pi,0) end while    -- pad to multiple of 8
-        bytes = floor(length(pi) / 8)
+--      bytes = floor(length(pi) / 8)
+        bytes = length(pi)/8
     end if
 
     -- scanline needs to fall on a dword boundary (4 bytes)
@@ -223,7 +228,8 @@ local function xpg_winAPI_create_DIB_from_xpm(sequence xpm, integer callback)
     sequence cc             -- colour code, eg 'x' ==> palette[7] (ie cc[7] would be 'x').
                             -- cc[i] may be char (if codeWide=1) or string (if >1).
     cc = repeat(0,colours)  -- colour code map of <charsWide> chars --> palette index
-    atom pTransparent = NULL, cTrans = #000000
+    atom pTransparent = NULL
+--  , cTrans = #000000
     sequence cused = {}
 
     xpm = xpm[2..length(xpm)]   -- discard header
@@ -257,7 +263,7 @@ local function xpg_winAPI_create_DIB_from_xpm(sequence xpm, integer callback)
                 exit
             end if
         end for
-assert(bOK)
+        assert(bOK)
         if bOK then
             -- convert to an {r,g,b} code
             if data[1]='#' then
@@ -270,6 +276,7 @@ assert(bOK)
                 cused &= rr*#10000+gg*#100+bb
             elsif data="none" then
                 assert(pTransparent=NULL)
+                assert(i=1) -- (added 16/11/23, for )
                 pTransparent = mbPtr
             else
                 crash("hex colours only!")
@@ -278,16 +285,22 @@ assert(bOK)
         mbPtr += 4
 
     end for
-    if pTransparent!=NULL then
+--  if pTransparent!=NULL then
+--/!*
+    if pTransparent=NULL then
+        cTrans = #000000
+    else
         -- find an unused colour, any of the 16,777,215
         --    which are not XPG_BLACK aka NULL will do:
-        cTrans = #FFFFFF
+--      cTrans = #FFFFFF
         while find(cTrans,cused) do cTrans -= 1 end while
+--cTrans = #000000
+--*!/
         poke4(pTransparent,cTrans) -- (rgb->bgr'd later)
     end if
 
     xpm = xpm[colours+1..length(xpm)]   -- discard colour table
-    assert(length(xpm)=height)
+    assert(length(xpm)=height,"length(xpm)!=height")
 
     mbPtr = memBitmapInfo+headerSize
 
@@ -342,6 +355,7 @@ assert(bOK)
 --  return hDIB
 --  return {hDIB,width,height,bTransparent}
     return {hDIB,width,height,cTrans}
+--  return {hDIB,width,height,cTrans,memBitmapInfo}
 end function
 
 local function xpg_create_image_list(string plat, integer callback)
@@ -349,6 +363,7 @@ local function xpg_create_image_list(string plat, integer callback)
     if plat="GTK" then
         sequence tree_images = repeat(0,3)
         for i,xpm in {dir_closed_xpm,dir_open_xpm,dot_xpm} do
+            if string(xpm) then xpm = split(xpm,'\n') end if
             tree_images[i] = callback(xpm)
         end for
         return tree_images
@@ -377,7 +392,8 @@ local function xpg_create_image_list(string plat, integer callback)
         atom tree_himl = callback({"NEWLIST"})
         for i,xpm in {dir_closed_xpm,dir_open_xpm,dot_xpm} do
 --          atom icon = xpg_winAPI_create_DIB_from_xpm(xpm,callback)
-            atom icon = xpg_winAPI_create_DIB_from_xpm(xpm,callback)[1]
+            if string(xpm) then xpm = split(xpm,'\n') end if
+            atom icon = xpg_winAPI_create_DIB_from_xpm(xpm,callback,false)[1]
             {} = callback({"ADDICON",tree_himl,icon})           
         end for
         return tree_himl

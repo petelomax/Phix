@@ -1,8 +1,8 @@
 --
--- builtins/matrix.e
+-- builtins\matrix.e
 --
 -- proposed addition, not documented or tested or in phix7zip.lst as yet...
--- see also builtins/glmath.e [erm, maybe...]
+-- see also builtins\glmath.e [erm, maybe...]
 --
 
 -- from/see/update https://rosettacode.org/wiki/Matrix_multiplication#Phix

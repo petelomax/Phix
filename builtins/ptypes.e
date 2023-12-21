@@ -1,5 +1,5 @@
 --
--- builtins/ptypes.e
+-- builtins\ptypes.e
 --
 --  NB not an autoinclude, but used/included by [x]pGUI.e, mpfr.e, pFilter.e, and structs.e.
 --

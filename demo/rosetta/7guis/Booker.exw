@@ -2,6 +2,82 @@
 -- demo\rosetta\7guis\Booker.exw
 -- =============================
 --
+--/!*
+-- "book it" button is not expanding, nor are T1/2.
+-- combo is not centering
+-- known issue: GTK3 blanks: try some of those other dlls that I donwloaded...
+-- get dialog [min]size to honour title
+-- fetch SIZE before mapping
+-- get basic expand working
+-- kill of all those annoying and unhelpful debug statements [DONE]
+with javascript_semantics -- but many problems remain [DEV]
+requires("1.0.3")
+--requires(64,true) -- DEV GTK3 input blanks until (eg) home/end keyed
+include xpGUI.e
+--gUseGTK()
+include builtins\timedate.e
+set_timedate_formats({"DD.MM.YYYY"}) -- (add more if rqd)
+
+gdx dlg, vbox,
+    C,      -- Combo: one-way or return
+    T1,     -- departure date
+    T2,     -- return date
+    B       -- book button
+
+procedure changed(gdx /*C or T1 or T2*/=NULL)
+    integer item = gGetInt(C,"VALINT")
+    sequence d1 = parse_date_string(gGetAttribute(T1,"VALUE")),
+             d2 = parse_date_string(gGetAttribute(T2,"VALUE"))
+    bool b1ok = timedate(d1),
+         b2ok = item=1 or (timedate(d2) and d2>=d1)
+--DEV: (doc, pGUI_to_xpGUI?)
+--  gSetAttribute(T1,"BGCOLOR",iff(b1ok?"TXTBGCOLOR":XPG_RED))
+--  gSetAttribute(T2,"BGCOLOR",iff(b2ok?"TXTBGCOLOR":XPG_RED))
+    gSetAttribute(T1,"BGCOLOR",iff(b1ok?XPG_WHITE:XPG_RED))
+    gSetAttribute(T2,"BGCOLOR",iff(b2ok?XPG_WHITE:XPG_RED))
+    gSetInt(T2,"ACTIVE",item=2)
+    gSetInt(B,"ACTIVE",b1ok and b2ok)
+end procedure
+ 
+function book_it(gdx /*B*/)
+    string msg = "You have booked a "
+               & gGetAttribute(C,"VALSTR")
+               & " leaving on "
+               & gGetAttribute(T1,"VALUE")
+    integer item = gGetInt(C,"VALINT")
+    if item=2 then
+        msg &= " and returning on "
+            & gGetAttribute(T2,"VALUE")
+    end if
+    gMsgBox(dlg,"Flight Booker",msg)
+    return XPG_CONTINUE
+end function
+
+--C = IupList(changed,`DROPDOWN=YES,VALUE=1,1="one-way flight",2="return flight"`)
+C = gDropDown({"one-way flight","return flight"},changed,`VALINT=1`)
+T1 = gText(changed)
+T2 = gText(changed)
+gSetAttributes({T1,T2},"VALUE=%s,EXPAND=HORIZONTAL",{format_timedate(date())})
+B = gButton("Book Flight",book_it,"EXPAND=HORIZONTAL")
+--vbox = gVbox({C,T1,T2,B},"MARGIN=20x10,GAP=10,ALIGNMENT=ACENTER")
+--vbox = gVbox({C,T1,T2,B},"MARGIN=20x10,GAP=10,SPACE=AROUND")
+vbox = gVbox({C,T1,T2,B},`MARGIN=20x10,GAP=10,SPACE={AROUND,BETWEEN}`)
+--vbox = gVbox({C,T1,T2,B},`MARGIN=20x10,GAP=10,SPACE="{AROUND,BETWEEN}"`)
+dlg = gDialog(vbox,`Flight Booker`,`SIZE=250x190`)
+--dlg = gDialog(vbox,`Flight Booker`)
+--DEV!! (pre-map)
+--?gGetAttribute(dlg,"SIZE")
+--?gGetAttribute(C,"SIZE")
+--?gGetAttribute(T1,"SIZE")
+--?gGetAttribute(dlg,"RASTERSIZE")
+--?gGetAttribute(vbox,"SIZE")
+--gSetAttributeHandle(NULL,?PARENTDIALOG?[DEAD],dlg)
+changed()
+gShow(dlg)
+--?gGetAttribute(dlg,"SIZE") -- {187,197} (WinAPI), {178,168} (GTK2)
+gMainLoop()
+--*!/
+--/*
 with javascript_semantics -- but many problems remain [DEV]
 include pGUI.e
 include builtins\timedate.e
@@ -59,7 +135,8 @@ T2 = IupText("VALUECHANGED_CB",cb_t12_changed)
 IupSetAttributes({T1,T2},"VALUE=%s,EXPAND=HORIZONTAL",{format_timedate(date())})
 B = IupButton("Book Flight",cb_book,"EXPAND=HORIZONTAL")
 vbox = IupVbox({C,T1,T2,B},"MARGIN=20x10,GAP=10,ALIGNMENT=ACENTER")
-dlg = IupDialog(vbox,`TITLE="Flight Booker"`)
+--dlg = IupDialog(vbox,`TITLE="Flight Booker"`)
+dlg = IupDialog(vbox,`TITLE="Flight Booker", RASTERSIZE=260x185`)
 IupSetAttributeHandle(NULL,"PARENTDIALOG",dlg)
 enable()
 IupShow(dlg)
@@ -67,3 +144,4 @@ if platform()!=JS then
     IupMainLoop()
     IupClose()
 end if
+--*/

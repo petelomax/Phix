@@ -18,6 +18,47 @@ include win32lib6.ew -- win32 library
 
 include tbar_xpm.e      -- pixmap library
 
+--/* same problem...
+constant
+    xSetMenuItemBitmaps=registerw32Function(user32,"SetMenuItemBitmaps",
+    {C_ULONG,C_ULONG,C_INT,C_POINTER,C_POINTER},C_INT)
+
+procedure setPicMenu(integer pParent, integer pMenu, atom pBMPHndle )
+  VOID = w32Func(xSetMenuItemBitmaps,{
+      getHandle(pParent),
+      getHandle(pMenu),
+      MF_BYCOMMAND, 
+      pBMPHndle,
+      pBMPHndle})
+end procedure
+
+procedure setPicMenuItem(integer pParent, integer pMenuItem, atom pBMPHndle )
+  VOID = w32Func(xSetMenuItemBitmaps,{
+      getHandle(pParent),
+      getMenuPosn(pMenuItem), 
+      MF_BYPOSITION,
+      pBMPHndle,
+      pBMPHndle})
+end procedure
+
+global function createPicMenu(integer pMenuType, sequence pText, integer pParent, sequence pBMPFile)
+    integer lMenuHnd 
+    lMenuHnd = create( pMenuType, "  " & pText, pParent, 0, 0, 0, 0, 0 )
+   -- Note, spaces are prepended to the text to move it away from the bmp
+    if pMenuType = Menu then
+        setPicMenu(pParent, lMenuHnd, loadBitmapFromFile(pBMPFile))
+    elsif pMenuType = MenuItem then
+        setPicMenuItem(pParent, lMenuHnd, loadBitmapFromFile(pBMPFile)) 
+    end if       
+    return lMenuHnd
+end function
+
+-- called with
+--Exit = createPicMenu( Menu, "Another menu", MyPopup, "Exit.bmp")
+--or
+--Exit = createPicMenu( MenuItem, "Exit", MyPopup, "Exit.bmp") 
+--*/
+
 without warning
 -- version
 constant
@@ -113,6 +154,7 @@ GText = create(RichEdit, "", Generic, 4, 25, 380, 200, ES_NOHIDESEL),
     MenuPrint   = create(MenuItem, "Print",     FileMenu, 0, 0, 0, 0, 0),
     MenuSep3    = create(MenuItem, "-",         FileMenu, 0, 0, 0, 0, 0),
     MenuClose   = create(MenuItem, "&Close",    FileMenu, 0, 0, 0, 0, w32AUTOCLOSE),
+--  MenuClose = createPicMenu( MenuItem, "Exit", FileMenu, "FileExit.bmp"),
 
     EditMenu    = create(Menu, "&Edit", Generic, 0, 0, 0, 0, 0),
     MenuUndo    = create(MenuItem, "&Undo",     EditMenu, 0, 0, 0, 0, 0),
@@ -149,7 +191,7 @@ GText = create(RichEdit, "", Generic, 4, 25, 380, 200, ES_NOHIDESEL),
 -----------------------------------------------------------------------------
 -- MENU ACTIONS
 -----------------------------------------------------------------------------
-procedure onClick_MenuNew(integer self, integer even, sequence parms)
+procedure onClick_MenuNew(integer self, integer event, sequence parms)
     -- clear file, and blank name
 
     -- clear window title
@@ -194,7 +236,7 @@ end procedure
 
 
 -----------------------------------------------------------------------------
-procedure onClick_MenuOpen(integer self, integer even, sequence parms)
+procedure onClick_MenuOpen(integer self, integer event, sequence parms)
 
     -- read a file into the MLE
 
@@ -309,7 +351,7 @@ end procedure
 
 
 -----------------------------------------------------------------------------
-procedure onClick_MenuSaveAs(integer self, integer even, sequence parms)
+procedure onClick_MenuSaveAs(integer self, integer event, sequence parms)
 
     -- save as
     sequence fName
@@ -329,7 +371,7 @@ setHandler({MenuSaveAs, ToolSaveAs}, w32HClick, routine_id("onClick_MenuSaveAs")
 
 
 -----------------------------------------------------------------------------
-procedure onClick_MenuSave(integer self, integer even, sequence parms)
+procedure onClick_MenuSave(integer self, integer event, sequence parms)
 
     -- save
 
@@ -498,7 +540,7 @@ function breakText(sequence text)
 end function
 
 -----------------------------------------------------------------------------
-procedure onClick_MenuPrint(integer self, integer even, sequence parms)
+procedure onClick_MenuPrint(integer self, integer event, sequence parms)
 
     -- print document on printer
     integer ignore
@@ -548,14 +590,14 @@ setHandler({MenuPrint, ToolPrint}, w32HClick, routine_id("onClick_MenuPrint"))
 setHandler(ToolClose, w32HClick, routine_id("autoclose"))
 
 -----------------------------------------------------------------------------
-procedure onClick_MenuUndo(integer self, integer even, sequence parms)
+procedure onClick_MenuUndo(integer self, integer event, sequence parms)
     -- undo
     undo(GText)
 end procedure
 setHandler({MenuUndo, ToolUndo}, w32HClick, routine_id("onClick_MenuUndo"))
 
 -----------------------------------------------------------------------------
-procedure onClick_MenuCut(integer self, integer even, sequence parms)
+procedure onClick_MenuCut(integer self, integer event, sequence parms)
 -- cut
     cut(GText)
 end procedure
@@ -563,7 +605,7 @@ setHandler({MenuCut, ToolCut}, w32HClick, routine_id("onClick_MenuCut"))
 
 
 -----------------------------------------------------------------------------
-procedure onClick_MenuCopy(integer self, integer even, sequence parms)
+procedure onClick_MenuCopy(integer self, integer event, sequence parms)
 -- copy
     copy(GText)
 end procedure
@@ -571,7 +613,7 @@ setHandler({MenuCopy , ToolCopy},w32HClick, routine_id("onClick_MenuCopy"))
 
 
 -----------------------------------------------------------------------------
-procedure onClick_MenuPaste(integer self, integer even, sequence parms)
+procedure onClick_MenuPaste(integer self, integer event, sequence parms)
 -- paste
     paste(GText)
 end procedure
@@ -579,7 +621,7 @@ setHandler({MenuPaste, ToolPaste}, w32HClick,routine_id("onClick_MenuPaste"))
 
 
 -----------------------------------------------------------------------------
-procedure onClick_MenuDelete(integer self, integer even, sequence parms)
+procedure onClick_MenuDelete(integer self, integer event, sequence parms)
 -- clear
     clear(GText)
 end procedure
@@ -588,7 +630,7 @@ setHandler({MenuDelete, ToolDelete}, w32HClick,  routine_id("onClick_MenuDelete"
 
 -----------------------------------------------------------------------------
 -- about... behavior
-procedure onClick_MenuAbout(integer self, integer even, sequence parms)
+procedure onClick_MenuAbout(integer self, integer event, sequence parms)
     integer result
 
     result = message_box(App & " " & Ver                    -- text
@@ -601,7 +643,7 @@ setHandler({MenuAbout, ToolAbout}, w32HClick, routine_id("onClick_MenuAbout"))
 
 
 -----------------------------------------------------------------------------
-procedure onResize_Generic(integer self, integer even, sequence parms)
+procedure onResize_Generic(integer self, integer event, sequence parms)
 
     -- get the area in the window not occupied by the
     -- toolbar and status area

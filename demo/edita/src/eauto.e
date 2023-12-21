@@ -59,76 +59,71 @@
 
 global sequence autoComplete        -- set by changeTo() and below
 
-global constant acWHITESPACE=-3,
-                acCOMMA=-2,                 -- actually, ( or ,
-                acEOL=-1,
-                acLINEPOS=1,
-                acLINEMATCH=2,
-                acTRIGGERCH=3,
-                acCURSORMOVE=4,
-                acINSERTBLOCK=5
+global constant acWHITESPACE = -3,
+                acCOMMA      = -2,          -- actually, ( or ,
+                acEOL        = -1,
+                acLINEPOS     = 1,
+                acLINEMATCH   = 2,
+                acTRIGGERCH   = 3,
+                acCURSORMOVE  = 4,
+                acINSERTBLOCK = 5
 
 
 -- see also loadAutoComplete() in easynld.e
 
-function lineMatch(integer aCset, integer ch)
-sequence oneline
-integer pos, what
-    oneline = filetext[currfile][CursorY+1]
-    pos = 1
-    for i = 1 to length(autoComplete[aCset][acLINEMATCH]) do
-        what = autoComplete[aCset][acLINEMATCH][i]
-        if what = acWHITESPACE then
-            while 1 do
-                if pos > length(oneline) then return 0 end if
+function lineMatch(integer aCset, ch)
+    sequence oneline = filetext[currfile][CursorY+1]
+    integer pos = 1, l = length(oneline)
+--  for i=1 to length(autoComplete[aCset][acLINEMATCH]) do
+--      integer what = autoComplete[aCset][acLINEMATCH][i]
+    for what in autoComplete[aCset][acLINEMATCH] do
+        if what=acWHITESPACE then
+            while true do
+                if pos>l then return 0 end if
                 if not find(oneline[pos]," \t") then exit end if
                 pos += 1
             end while
         else
-            if pos > length(oneline) then return 0 end if
-            if oneline[pos] != what then return 0 end if
+            if pos>l or oneline[pos]!=what then return 0 end if
             pos += 1
         end if
     end for
-    if pos != length(oneline) then return 0 end if
-    if oneline[pos] != ch then return 0 end if
+    if pos!=l or oneline[pos]!=ch then return 0 end if
     return 1
 end function
 
-
 global integer acBlockID    -- routine_id of acBlock (in edita.exw)
 
-sequence acRemainder        -- don't drag "then", "do", etc to next line
-         acRemainder = ""
-integer acRemIdx            -- if user keys "integer", and it auto-completes after
-        acRemIdx = 0        --  "int", the "eger" does NOT make it "integer eger"
+sequence acRemainder = ""   -- don't drag "then", "do", etc to next line
 
-sequence outerRem           -- don't drag ) onto next line, even if 'a'tom, 'i'nteger, etc
-         outerRem = ""      --  have been auto-completed within the ().
+integer acRemIdx = 0        -- if user keys "integer", and it auto-completes after
+                            --  "int", the "eger" does NOT make it "integer eger"
+
+sequence outerRem = ""      -- don't drag ) onto next line, even if 'a'tom, 'i'nteger, etc
+                            --  have been auto-completed within the ().
 
 global function acNoDrag(integer k, sequence oneline, integer ch)
 -- check for autocompleted text still after the cursor:
 --  don't drag it onto the next line.
-integer leno, lenr, res
-    res = 0
+    integer res = 0
     if k and isAutoComplete and length(acRemainder) then
-        if ch = VK_RETURN then
+        if ch=VK_RETURN then
             -- match against the end of the line
             oneline = oneline[k..length(oneline)]
-            leno = length(oneline)
+            integer leno = length(oneline)
             if leno then
-                lenr = length(acRemainder)
-                if lenr >= leno
+                integer lenr = length(acRemainder)
+                if lenr>=leno
                 and equal(oneline,acRemainder[lenr-leno+1..lenr]) then
                     -- stop "then", "do", etc being dragged onto next line.
-                    CursorX+=leno
+                    CursorX += leno
                     res = 1
                 else
                     lenr = length(outerRem)
-                    if lenr >= leno
+                    if lenr>=leno
                     and equal(oneline,outerRem[lenr-leno+1..lenr]) then
                         -- stop final ")" being dragged onto next line.
-                        CursorX+=leno
+                        CursorX += leno
                         res = 1
                     end if
                 end if
@@ -142,11 +137,9 @@ integer leno, lenr, res
 end function
 
 procedure doAuto(integer i)
-integer nX, nY
-sequence ai
-    ai = autoComplete[i]
-    nX = CursorX + ai[acCURSORMOVE]
-    nY = CursorY
+    sequence ai = autoComplete[i]
+    integer nX = CursorX + ai[acCURSORMOVE],
+            nY = CursorY
     acRemIdx = 0
     call_proc(acBlockID,{ai[acINSERTBLOCK]})
     acRemainder = ai[acINSERTBLOCK][1]
@@ -207,9 +200,9 @@ global function skipAutoComplete(integer ch)
 -- after eg 'int' is autocompleted to 'integer', if the user carries on typing
 --  the remainder of the word ('eger'), ignore it.
     if acRemIdx then
-        if ch = acRemainder[acRemIdx] then
+        if ch=acRemainder[acRemIdx] then
             acRemIdx += 1
-            if acRemIdx > length(acRemainder) then
+            if acRemIdx>length(acRemainder) then
                 acRemIdx = 0
             end if
             return 1

@@ -34,7 +34,7 @@
 with javascript_semantics -- work rqd: most of the usual resize problems,
                           --           one extra blank entry from s/where
                           --           column resizers completely kaput,
-                          --           CLICVK_CB callback also """  """ ,
+                          --           CLICK_CB callback also """  """ ,
                           --           things marked as tested below were 
                           --           tested on desktop/Phix & not p2js.
 --requires("1.0.3")
@@ -42,7 +42,7 @@ with javascript_semantics -- work rqd: most of the usual resize problems,
 include xpGUI.e
 --gUseGTK()
 constant columns = {{"Chq",38,"R"},
-                    {"Date",86,"C"},
+                    {"Date",100,"C"},
                     {"Amount",100,"R"}},
          -- or just {"Chq","Date","Amount"},
          data = {{{1,{2020,1,13},1500.89},
@@ -55,13 +55,13 @@ constant columns = {{"Chq",38,"R"},
                   "%.2f"}}  -- (see note)
 
 gdx table = gTable(columns,data,3),
---    dlg = gDialog(table,"gTable") 
-      dlg = gDialog(table,"gTable","SIZE=240x129") 
+      dlg = gDialog(table,"gTable") 
+--    dlg = gDialog(table,"gTable","SIZE=240x128") 
 gShow(dlg)
 gMainLoop()
 --*!/
 --/* to create the fonts table for the manual
---      (some of this from an xfer to gCanvas idea, since "drop"ped)
+--      (some of this from an xfer to gCanvas.exw idea, since "drop"ped)
 include xpGUI.e
 --/*
 constant columns = {{"Recommended",100,"C"},
@@ -76,11 +76,11 @@ constant columns = {"Recommended","Windows","GTK","Description"},
                  {}}
 
 --/*
-procedure iCanvasRect(gdx canvas, atom xmin, xmax, ymin, ymax, bool bFill=false, integer rc=0, style=-1, width=-1, atom colour=-1, fillcolour=-1)
-    gCanvasRect(canvas, xmin, xmax, ymin, ymax, bFill, rc, style, width, colour, fillcolour)
-    printf(1,"gCanvasRect(table,%d,%d,%d,%d,%t,%d,%s,%d,%s,%s)\n",
+procedure iCanvasRect(gdx canvas, atom xmin, xmax, ymin, ymax, bool bFill=false, integer rc=0, style=-1, width=-1, atom colour=-1)
+    gCanvasRect(canvas, xmin, xmax, ymin, ymax, bFill, rc, style, width, colour)
+    printf(1,"gCanvasRect(table,%d,%d,%d,%d,%t,%d,%s,%d,%s)\n",
                        {xmin,xmax,ymin,ymax,bFill,rc,gGetLineStyleName(style),
-                                                  width,gGetColourName(colour),gGetColourName(fillcolour)})
+                                                  width,gGetColourName(colour)})
 end procedure
 
 procedure iCanvasSetForeground(gdx canvas, atom colour)
@@ -88,7 +88,7 @@ procedure iCanvasSetForeground(gdx canvas, atom colour)
     printf(1,"gCanvasSetForeground(table,%s)\n",{gGetColourName(colour)})
 end procedure
 
-procedure iCanvasLine(gdc canvas, atom x1, y1, x2, y2, integer style=-1, width=-1, atom colour=-1)
+procedure iCanvasLine(gdx canvas, atom x1, y1, x2, y2, integer style=-1, width=-1, atom colour=-1)
     gCanvasLine(canvas, x1, y1, x2, y2, style, width, colour)
     printf(1,"gCanvasLine(table,%d,%d,%d,%d,%s,%d,%s)\n",
                                 {x1,y1,x2,y2,gGetLineStyleName(style),width,gGetColourName(colour)})
@@ -115,7 +115,7 @@ procedure iCanvasText(gdx canvas, atom x, y, string text, integer align=XPG_E, o
 --*/
 end procedure
 
-function drop(integer rid)
+function idrop(integer rid)
     if rid=gCanvasText then return iCanvasText end if
 --  switch rid do
 --      case gCanvasRect:           rid = iCanvasRect
@@ -130,7 +130,7 @@ end function
 gdx table = gTable(columns,data,3),
 --    dlg = gDialog(table,"gTable","SIZE=484x136")
       dlg = gDialog(table,"gTable")
-gSetHandler(table,"DROP",drop) --DEV to be documented (lets get scrolling/sorting fixed first, though)
+gSetHandler(table,"IDROP",idrop)
 gShow(dlg)
 --printf(1,"table size is %dx%d\n",gGetAttribute(table,"SIZE"))
 
@@ -287,7 +287,7 @@ gdx table = gTable(columns,data,10),
 --XgSetAttribute(dlg, "TITLE", "gTable demo")
 --tables = {table}  -- (needed for resize_cb)
 --gSetHandler(dlg, "RESIZE_CB", resize_cb) -- (optional)
---gSetHandler(table, "CLICVK_CB", click_cb) --(optional)
+--gSetHandler(table, "CLICK_CB", click_cb) --(optional)
 --gSetAttributeHandle(NULL,?PARENTDIALOG?,dlg)
 gShow(dlg)
 gMainLoop()

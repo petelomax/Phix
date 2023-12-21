@@ -252,7 +252,6 @@ function $completeFloat(/*string*/ s, /*integer*/ sidx, /*atom*/ N, /*integer*/ 
 }
 function $get_number(/*string*/ s, /*integer*/ sidx, inbase=10) {
     let /*integer*/ scan_ch2;
-    let /*atom*/ N;
     let /*integer*/ msign, base = 0, tokvalid = 1;
 //  sidx += 1
     if (compare(sidx,length(s))>0) { return ["sequence"]; }
@@ -271,7 +270,7 @@ function $get_number(/*string*/ s, /*integer*/ sidx, inbase=10) {
 //  if  $scan_ch>='0' 
 //  and $scan_ch<='9' then
     if (inbase<=36 && $scan_ch>0X5A) { $scan_ch = upper($scan_ch); }
-    N = $subse($baseset,$scan_ch);
+    let /*atom*/ N = $subse($baseset,$scan_ch);
     if (N<inbase) {
         sidx += 1;
         if (compare(sidx,length(s))>0) { return ["sequence",N*msign,sidx]; }

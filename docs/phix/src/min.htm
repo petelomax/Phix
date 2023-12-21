@@ -13,25 +13,27 @@
           <b>Definition:</b>
          </td>
          <td>
-          <a href="object.htm">object</a> x1 = min(<a href="object.htm">object</a> x2, x3)
+          <a href="object.htm">object</a> res = min(<a href="object.htm">object</a> x, y)
           <br>
           <i>-- or --</i>
           <br>
-          <a href="object.htm">object</a> res = sq_min(<a href="object.htm">object</a> x2, x3)
+          <a href="object.htm">object</a> res = min(<a href="sequence.htm">sequence</a> s) <small>(see <a href="#tech" onclick="opentech()">technicalia</a>)</small>
           <br>
           <i>-- or --</i>
           <br>
-          <a href="object.htm">object</a> x1 = min(<a href="sequence.htm">sequence</a> s1)
-          <br>
+          <a href="object.htm">object</a> res = smallest(<a href="sequence.htm">sequence</a> s, 
+                                                         <a href="integer.htm#bool">bool</a> return_index=<a href="logicops.htm#tf">false</a>)
+          <small><br>
           <i>-- or --</i>
           <br>
-          <a href="object.htm">object</a> x1 = minsq(<a href="sequence.htm">sequence</a> s1, <a href="integer.htm#bool">bool</a> return_index=false)
+          <a href="object.htm">object</a> res = sq_min(<a href="object.htm">object</a> a, b)
+          </small>
 <!--
           <br>
           <i>-- or --</i>
           <br>
-          <a href="object.htm">object</a> x1 = smallest(<a href="sequence.htm">sequence</a> set, 
-                                                        <a href="integer.htm#bool">bool</a> return_index=<a href="logicops.htm">false</a>)
+          <a href="object.htm">object</a> res = smallest(<a href="sequence.htm">sequence</a> set, 
+                                                        <a href="integer.htm#bool">bool</a> return_index=<a href="logicops.htm#tf">false</a>)
 -->
          </td>
         </tr>
@@ -39,22 +41,23 @@
          <td>
           <b>Description:</b>
          </td>
-         <td>Returns the smallest of x2 and x3, or the smallest element in <a href="sequence.htm">sequence</a> s1.
+         <td>Returns the smallest of x and y, or the smallest element in <a href="sequence.htm">sequence</a> s.
             Atoms are considered to be less than sequences. Sequences are compared "alphabetically" (case sensitive, 
             ie 'Z'&lt;'a') starting with the first element until a difference is found.
             <br>
             <br>
-            The sq_min(a,b) function applies min() to the <i>top-level</i> elements of a and b when they are in fact sequences,
-            otherwise it applies an atom to all the elements of the other, or if they are both atoms it behaves identically 
-            to min(a,b). Typically the result is a sequence, but it can be an atom if passed two atoms.
+            The sq_min(a,b) function applies min() to the <i>top-level</i> elements of a and b when they are both sequences,
+            in which case they <i>must</i> be the same length, otherwise it applies an atom to all the elements of the other, 
+            or if they are both atoms it behaves identically to min(a,b). The result is a sequence in all but the latter case.
             Note that it is <i><b>not</b></i> recursive, and passing a single argument to sq_min() is not allowed.
             <br>
             <br>
-            As of 1.0.3, the <b>smallest</b>() function became a simple alias of minsq().
+            As of 1.0.3, the <b>smallest</b>() function became a simple alias of minsq(), and is now the preferred name.<br>
             <br>
             <br>
-            There are similar functions <b>max</b>(), <b>sq_max</b>(), <b>maxsq</b>(), and <b>largest</b>() for obtaining
-            (you&rsquo;ve guessed it) the largest. There are no sq_smallest or sq_largest routines.
+            There are similar functions <b>max</b>()<small><b>, sq_max</b>(), <b>maxsq</b>(),<small> and <b>largest</b>() for obtaining
+            (you&rsquo;ve guessed it) the largest. <br>
+            There are no sq_smallest or sq_largest routines.
          </td>
         </tr>
         <tr>
@@ -63,8 +66,9 @@
          </td>
          <td>
             <a href="atom.htm">atom</a> res = <b>median</b>(<a href="sequence.htm">sequence</a> s)<br>
-            s must be a non-empty and sorted sequence on entry.<br>
-            Returns the middle element for odd-length sequences, or the average of the middle two elements for even-length sequences.
+            s must be a non-empty sequence on entry, and pre-sorted for meaningful results <small>(<i>not</i> verified)</small>.<br>
+            Returns the middle element for odd-length sequences, or the average of the middle two elements for even-length sequences.<br>
+            Yields the same result as <a href="sum.htm">average</a>() when the spread is perfectly balanced, eg {1,40,50,60,99}.
          </td>
         </tr>
         <tr>
@@ -130,15 +134,17 @@ s = sq_min(s,1)         -- no element of s is now > 1
           </a>
          </td>
          <td>
-            min(s1) is an alias for minsq(s1); the compiler automatically substitutes the function being called when only one parameter is passed. <br>
+            min(s) is an "alias" for smallest(s) aka minsq(s); the compiler automatically substitutes the function when only one parameter is passed. <br>
+            <small>[At some point I should probably just retire minsq and force the use of smallest, ditto maxsq/largest.]</small>
+            <small>[Mind you, I have half a mind to retire sq_min() as well, since <a href="apply.htm">apply</a>() should do perfectly well enough.]</small>
             Note that providing the return_index parameter prevents such a substitution, ie min(s,true) is just plain wrong, as is minsq(x,y).<br>
-            <small>(To clarify that, min(s,true) would <i>always</i> return true, when s is a sequence, as atoms are deemed less than sequences.)</small><br>
+            <small>(To clarify that, min(s,true) would just return the true, unless there was something smaller in s, and <i>never</i> an index.)</small><br>
             Both routines are declared in builtins\pmaths.e (an auto-include). Some extra care must be taken with routine_id("min"), as obviously 
             no equivalent mapping occurs for the one or two parameter cases.
          <br>
          <br>
-            The Euphoria version of min() only accepts a single argument and behaves as minsq(flatten(s1)), whereas the Phix version is 
-            <b><i>not</i></b> recursive. <br>
+            The Euphoria version of min() only accepts a single argument and behaves (via self-recursion) as smallest(flatten(s)), whereas the Phix version 
+            is <b><i>not</i></b> recursive. <br>
             Unlike the Euphoria version, min(&lt;atom&gt;) generates a runtime error, as does min({}). <br>
             This function is only compatible with Euphoria when passed a single argument that is a non-empty and non-nested sequence of atoms. <br>
             Unlike several other functions the min() and sq_min() functions are not recursive. <br>
@@ -149,10 +155,10 @@ s = sq_min(s,1)         -- no element of s is now > 1
             The smallest/largest functions differ from the Euphoria versions in std\stats.e in (at least) three ways:<br>
             * The set passed in the first parameter must be a non-empty sequence (compilation or run-time error if passed an atom or {})<br>
             * It can return non-atoms in the set (if no atoms occur, it will be the first/last in an alphabetical and case-sensitive ordering)<br>
-            * It can return the index of the lowest/highest entry, rather than the actual value of said.
+            * It can return the index of the lowest/highest entry, rather than only the actual value of said.
             <br>
             <br>
-            This should not, imho, cause sensibly-written code to be incompatible/misbehave.
+            None of that should cause sensibly-written code to be incompatible or misbehave (imho/ymmv).
          </td>
         </tr>
        </table>

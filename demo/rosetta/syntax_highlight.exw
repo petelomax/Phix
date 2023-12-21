@@ -1,0 +1,76 @@
+--
+-- demo\rosetta\syntax_highlight.exw
+-- =================================
+--
+string pgm = substitute(get_text(command_line()[$]),"\r\n","\n")
+-- or(/for javascript compatibility) specify constant pgm = """...""" 
+constant qqq = `""`&`"`, /* (split to assist with permitting ^^^) */
+         keywords = {`and`,`assert`,`bool`,`command_line`,`constant`,`do`,`else`,`elsif`,`end`,
+        `find`,`for`,`function`,`get_text`,`if`,`iff`,`in`,`integer`,`length`,`match`,`not`,
+        `procedure`,`puts`,`return`,`sequence`,`string`,`substitute`,`then`,`wait_key`,`while`},
+         htmlify = {"'&<>",{`apos`,`amp`,`lt`,`gt`}}
+integer i = 1, l = length(pgm), word_start = 0
+string out = " "
+
+procedure spacenl(sequence s)
+    for ch in s do
+        integer k = find(ch,htmlify[1])
+        if k then ch = '&' & htmlify[2][k] & ';' end if
+        out &= ch
+        if ch='\n' then out &= ' ' end if
+    end for
+end procedure
+ 
+function do_string(integer i, ni, l, string stype)
+    assert(ni>0,"%d quoted string not closed",{stype})
+    ni += l
+    spacenl(pgm[i..ni])
+    return ni
+end function
+
+while i<=l do
+    integer ch = pgm[i]
+    if (ch>='a' and ch<='z') or ch='_' then
+        if not word_start then word_start := i end if
+    else
+        if word_start then
+            string one_word = pgm[word_start..i-1]
+            bool is_key = find(one_word,keywords)
+            if is_key then out &= `'''` end if
+            out &= one_word
+            if is_key then out &= `'''` end if
+            word_start = 0
+        end if
+        if ch='-' and i<l and pgm[i+1]='-' then
+            -- nb: does not handle --/* style comments
+            integer line_comment = i    
+            while i<l and pgm[i+1]!='\n' do i += 1 end while
+            out &= `''`
+            spacenl(pgm[line_comment..i])
+            out &= `''`
+        elsif ch='/' and i<l and pgm[i+1]='*' then
+            -- nb: does not handle nested block comments
+            integer block_comment = i
+            i = match(`*/`,pgm,i+2)+1
+            assert(i>1,"missing closing block comment")
+            out &= `''`
+            spacenl(pgm[block_comment..i])
+            out &= `''`
+        elsif ch='"' then
+            if i+1<l and pgm[i..i+2]=qqq then
+                i = do_string(i,match(qqq,pgm,i+3),2,"triple")
+            else
+                i = do_string(i,find('"',pgm,i+1),0,"double")
+            end if
+        elsif find(ch,"`'") then
+            string stype = iff(ch='`'?"backtick":"single")
+            i = do_string(i,find(ch,pgm,i+1),0,stype)
+        else
+            spacenl({ch})
+        end if
+    end if
+    i += 1
+end while
+puts(1,out)
+{} = wait_key()
+

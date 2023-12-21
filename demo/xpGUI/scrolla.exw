@@ -1,7 +1,13 @@
--- Starter for arwen-cutdowns: includes, globals, and most constants sorted out...
---include ../arwen/Arwen.ew
+--
+-- demo\xpGUI\scrolla.exw
+-- ======================
+--
+-- DEV this is all wrong: what I want is a couple of independent scrollbars
+--      and a fixed size canvas, and draw the right bits on that from "".
+--
 without profile
-requires(32)
+--requires(32)
+--requires(64)  -- Yeah, now fine!
 requires(WINDOWS)
 include builtins\peekstr.e
 include builtins\VM\pcmdlnN.e
@@ -12,8 +18,9 @@ include builtins\VM\pFloatN.e
 include builtins\find.e
 include builtins\VM\pprntfN.e
 include builtins\porall.e
+include builtins\cffi.e
 
-with profile
+--with profile
 
 object void -- ubiquitous assignee variable
 
@@ -211,9 +218,30 @@ constant
 
     xCreateCompatibleBitmap = define_c_func(gdi32, "CreateCompatibleBitmap", {C_PTR, C_INT, C_INT}, C_PTR),
 
-    xLoadIcon   = define_c_func(user32, "LoadIconA", {C_PTR, C_PTR}, C_PTR),
-    xLoadCursor = define_c_func(user32, "LoadCursorA", {C_PTR, C_INT}, C_INT),
-    xBitBlt     = define_c_func(gdi32, "BitBlt", {C_LONG, C_INT, C_INT, C_INT, C_INT, C_LONG, C_INT, C_INT, C_LONG}, C_INT),
+--  xLoadIcon   = define_c_func(user32, "LoadIconA", {C_PTR, C_PTR}, C_PTR),
+--  xLoadCursor = define_c_func(user32, "LoadCursorA", {C_PTR, C_INT}, C_INT),
+        xLoadCursor = define_c_func(user32,"LoadCursorA",
+            {C_PTR,     --  HINSTANCE hInstance
+             C_PTR},    --  LPCTSTR lpCursorName
+            C_PTR),     -- HCURSOR
+        xLoadIcon = define_c_func(user32,"LoadIconA",
+            {C_PTR,     --  HINSTANCE hInstance
+             C_PTR},    --  LPCTSTR lpIconName
+            C_PTR),     -- HICON
+
+--  xBitBlt     = define_c_func(gdi32, "BitBlt", {C_LONG, C_INT, C_INT, C_INT, C_INT, C_LONG, C_INT, C_INT, C_LONG}, C_INT),
+        xBitBlt = define_c_func(gdi32, "BitBlt",
+            {C_PTR,     --  HDC hdcDest
+             C_INT,     --  int nXDest
+             C_INT,     --  int nYDest
+             C_INT,     --  int nWidth
+             C_INT,     --  int nHeight
+             C_PTR,     --  HDC hdcSrc
+             C_INT,     --  int nXSrc
+             C_INT,     --  int nYSrc
+             C_LONG},   --  DWORD dwRop
+            C_INT),     -- BOOL
+
     xStretchBlt = define_c_func(gdi32, "StretchBlt", {C_LONG, C_INT, C_INT, C_INT, C_INT, C_LONG, C_INT, C_INT, C_INT, C_INT, C_LONG}, C_INT),
 
     xRegisterClassEx = define_c_func(user32, "RegisterClassExA",
@@ -254,7 +282,11 @@ constant
          C_LONG},   --  LONG dwNewLong  // value to store
         C_LONG),    -- LONG             // previous value
 
-    xGetClientRect = define_c_func(user32, "GetClientRect", {C_PTR, C_PTR}, C_LONG),
+--  xGetClientRect = define_c_func(user32, "GetClientRect", {C_PTR, C_PTR}, C_LONG),
+    xGetClientRect = define_c_func(user32,"GetClientRect",
+            {C_PTR,     --  HWND hWnd
+             C_PTR},    --  LPRECT lpRect
+            C_LONG),    -- BOOL
 
     xGetMessage = define_c_func(user32, "GetMessageA",
         {C_PTR,     --  LPMSG  lpMsg,       // address of structure with message
@@ -267,9 +299,13 @@ constant
         {C_PTR}),   --  CONST MSG  *lpmsg   // address of structure with message
         -- BOOL
 
-    xDispatchMessage = define_c_func(user32, "DispatchMessageA",
-        {C_PTR},    --  CONST MSG  * lpmsg  // address of structure with message
-        C_LONG),    -- LONG
+--  xDispatchMessage = define_c_func(user32, "DispatchMessageA",
+--      {C_PTR},    --  CONST MSG  * lpmsg  // address of structure with message
+--      C_LONG),    -- LONG
+    xDispatchMessage = define_c_proc(user32,"DispatchMessageA",
+        {C_PTR}),   --  CONST MSG  * lpmsg  // address of structure with message
+--      C_LONG),    -- LONG (generally ignored)
+
 
     xSendMessage = define_c_func(user32, "SendMessageA",
         {C_PTR,     --  HWND  hwnd, // handle of destination window
@@ -288,10 +324,30 @@ constant
          C_UINT},   --  LPARAM  lParam  // second message parameter
         C_PTR),     -- LRESULT
 
-    xCallWindowProc = define_c_func(user32, "CallWindowProcA",  {C_PTR,C_PTR,C_UINT,C_UINT,C_UINT}, C_PTR),
+--  xCallWindowProc = define_c_func(user32, "CallWindowProcA",  {C_PTR,C_PTR,C_UINT,C_UINT,C_UINT}, C_PTR),
+        xCallWindowProc = define_c_func(user32,"CallWindowProcA",
+            {C_PTR,     --  WNDPROC lpPrevWndFunc
+             C_PTR,     --  HWND hWnd
+             C_UINT,    --  UINT Msg
+             C_UINT,    --  WPARAM wParam
+             C_UINT},   --  LPARAM lParam
+            C_PTR),     -- LRESULT
 
-    xGetScrollInfo = define_c_func(user32, "GetScrollInfo", {C_PTR, C_INT, C_PTR}, C_INT),
-    xSetScrollInfo = define_c_func(user32, "SetScrollInfo", {C_PTR, C_INT, C_PTR, C_INT}, C_INT),   
+--  xGetScrollInfo = define_c_func(user32, "GetScrollInfo", {C_PTR, C_INT, C_PTR}, C_INT),
+        xGetScrollInfo = define_c_func(user32, "GetScrollInfo",
+            {C_PTR,     --  HWND hwnd
+             C_INT,     --  int fnBar
+             C_PTR},    --  LPCSCROLLINFO lpsi
+            C_BOOL),    -- BOOL
+
+--  xSetScrollInfo = define_c_func(user32, "SetScrollInfo", {C_PTR, C_INT, C_PTR, C_INT}, C_INT),   
+        xSetScrollInfo = define_c_func(user32, "SetScrollInfo",
+            {C_PTR,     --  HWND hwnd
+             C_INT,     --  int fnBar
+             C_PTR,     --  LPCSCROLLINFO lpsi
+             C_UINT},   --  BOOL fRedraw
+            C_INT),     -- int
+
 --/*
     xGetScrollPos = define_c_func(user32, "GetScrollPos", {C_PTR, C_INT}, C_INT),
 --  xSetScrollPos = define_c_func(user32, "SetScrollPos", {C_PTR, C_INT, C_PTR, C_SHORT}, C_INT),
@@ -302,102 +358,75 @@ constant
          C_INT},    --  COLORREF  crColor   // pen color 
         C_PTR),     -- HPEN handle to pen
 
-    xSetROP2 = define_c_func(gdi32, "SetROP2", {C_PTR, C_LONG}, C_LONG),
+--  xSetROP2 = define_c_func(gdi32, "SetROP2", {C_PTR, C_LONG}, C_LONG),
+        xSetROP2 = define_c_func(gdi32,"SetROP2",
+            {C_PTR,     --  HDC hdc
+             C_INT},    --  int fnDrawMode
+            C_INT),     -- int
 
-    xRoundRect = define_c_func(gdi32,"RoundRect",{C_PTR,C_INT,C_INT,C_INT,C_INT,C_INT,C_INT},C_INT),
+--  xRoundRect = define_c_func(gdi32,"RoundRect",{C_PTR,C_INT,C_INT,C_INT,C_INT,C_INT,C_INT},C_INT),
 $
 
-sequence ListOfStructures = {}  -- holds sizes of each structure
-integer CurrentStructure,   -- points to latest structure being built
-        LatestSize          -- current size of latest structure being built
+constant idRECT = define_struct("""typedef struct _RECT {
+                                    LONG left;
+                                    LONG top;
+                                    LONG right;
+                                    LONG bottom;
+                                  } RECT, *PRECT;""")
+constant pRECT = allocate_struct(idRECT)
 
-function new_struct()
-    ListOfStructures &= 0
-    CurrentStructure = length(ListOfStructures)
-    LatestSize = 0
-    return CurrentStructure
-end function
+constant idPOINT = define_struct("""typedef struct tagPOINT {
+                                     LONG x;
+                                     LONG y;
+                                   } POINT, *PPOINT;""")
+--constant p_POINT = allocate_struct(idPOINT)
 
-function sizeofstruct(integer id)
-    return ListOfStructures[id]
-end function
+constant idPAINTSTRUCT = define_struct("""typedef struct tagPAINTSTRUCT {
+                                          HDC  hdc;
+                                          BOOL fErase;
+                                          RECT rcPaint;
+                                          BOOL fRestore;
+                                          BOOL fIncUpdate;
+                                          BYTE rgbReserved[32];
+                                         } PAINTSTRUCT, *PPAINTSTRUCT;""")
+constant pPAINTSTRUCT = allocate_struct(idPAINTSTRUCT)
 
-function struc(integer sType)
-    integer disp = LatestSize, size
-    if sType > #00FFFFFF then -- this type is defined in dll.e
-        size = and_bits(sType, #00FFFFFF)
-    else
-        size = ListOfStructures[sType]
-    end if
-    LatestSize += size
-    ListOfStructures[CurrentStructure] = LatestSize
-    return disp
-end function
+constant idWNDCLASSEX = define_struct("""typedef struct tagWNDCLASSEX {
+                                          UINT      cbSize;
+                                          UINT      style;
+                                          WNDPROC   lpfnWndProc;
+                                          int       cbClsExtra;
+                                          int       cbWndExtra;
+                                          HINSTANCE hInstance;
+                                          HICON     hIcon;
+                                          HCURSOR   hCursor;
+                                          HBRUSH    hbrBackground;
+                                          LPCTSTR   lpszMenuName;
+                                          LPCTSTR   lpszClassName;
+                                          HICON     hIconSm;
+                                        } WNDCLASSEX, *PWNDCLASSEX;""")
+constant pWNDCLASSEX = allocate_struct(idWNDCLASSEX)
 
-function anySize(integer size) -- allow arbitrary sized elements
-    return or_bits(#01000000, size)
-end function
+constant idMSG = define_struct("""typedef struct tagMSG {
+                                   HWND  hwnd;
+                                   UINT  message;
+                                   WPARAM wParam;
+                                   LPARAM lParam;
+                                   DWORD  time;
+                                   POINT  pt;
+                                  } MSG, *PMSG, *LPMSG;""")
+constant pMSG = allocate_struct(idMSG)
 
-constant
-    -- Define RECT Structure
-    RECT        = new_struct(), 
-    RECT_left   = struc(C_LONG),
-    RECT_top    = struc(C_LONG),
-    RECT_right  = struc(C_LONG),
-    RECT_bottom = struc(C_LONG),
-    pRECT = allocate(sizeofstruct(RECT)),
-
-    -- Define POINT Structure
-    POINT       = new_struct(),
-    POINT_x     = struc(C_LONG),
-    POINT_Y     = struc(C_LONG),
-
-    -- Define PAINTSTRUCT Structure
-    PAINTSTRUCT             = new_struct(),
-    PAINTSTRUCT_hdc         = struc(C_LONG),
-    PAINTSTRUCT_fErase      = struc(C_UINT),
-    PAINTSTRUCT_rcPaint     = struc(RECT),
-    PAINTSTRUCT_fRestore    = struc(C_UINT),
-    PAINTSTRUCT_fIncUpdate  = struc(C_UINT),
-    PAINTSTRUCT_rgbReserved = struc(anySize(32)),
-    pPAINT = allocate(sizeofstruct(PAINTSTRUCT)),
-
-    -- Define WNDCLASSEX Structure
-    WNDCLASSEX                  = new_struct(),
-    WNDCLASSEX_cbSize           = struc(C_LONG), 
-    WNDCLASSEX_style            = struc(C_LONG), 
-    WNDCLASSEX_lpfnWndProc      = struc(C_PTR), 
-    WNDCLASSEX_cbClsExtra       = struc(C_LONG), 
-    WNDCLASSEX_cbWndExtra       = struc(C_LONG), 
-    WNDCLASSEX_hInstance        = struc(C_LONG), 
-    WNDCLASSEX_hIcon            = struc(C_LONG), 
-    WNDCLASSEX_hCursor          = struc(C_LONG), 
-    WNDCLASSEX_hbrBackground    = struc(C_LONG), 
-    WNDCLASSEX_lpszMenuName     = struc(C_PTR), 
-    WNDCLASSEX_lpszClassName    = struc(C_PTR), 
-    WNDCLASSEX_hIconSm          = struc(C_LONG),
-    pWNDCLASS = allocate(sizeofstruct(WNDCLASSEX)),
-
-    -- Define MSG Structure
-    MSG             = new_struct(),
-    MSG_hwnd        = struc(C_PTR),
-    MSG_message     = struc(C_UINT),
-    MSG_wParam      = struc(C_UINT),
-    MSG_lParam      = struc(C_UINT),
-    MSG_time        = struc(C_LONG),
-    MSG_pt          = struc(POINT),
-    pMSG = allocate(sizeofstruct(MSG)),
-
-    -- Define SCROLLINFO Structure
-    SCROLLINFO              = new_struct(),
-    SCROLLINFO_cbSize       = struc(C_UINT),
-    SCROLLINFO_fMask        = struc(C_UINT),
-    SCROLLINFO_nMin         = struc(C_INT),
-    SCROLLINFO_nMax         = struc(C_INT),
-    SCROLLINFO_nPage        = struc(C_UINT),
-    SCROLLINFO_nPos         = struc(C_INT),
-    SCROLLINFO_nTrackPos    = struc(C_INT),
-    pSCROLL = allocate(sizeofstruct(SCROLLINFO))
+constant idSCROLLINFO = define_struct("""typedef struct tagSCROLLINFO {
+                                          UINT cbSize;
+                                          UINT fMask;
+                                          int  nMin;
+                                          int  nMax;
+                                          UINT nPage;
+                                          int  nPos;
+                                          int  nTrackPos;
+                                        } SCROLLINFO, *LPCSCROLLINFO;""")
+constant pSCROLLINFO = allocate_struct(idSCROLLINFO)
 
 constant WINDOW = 0,
          Window = 1
@@ -417,9 +446,13 @@ end function
 
 constant
     Black           = rgb(  0,   0,   0),
-    Green           = rgb(  0, 128,   0),
+--  Green           = rgb(  0, 128,   0),
+    Green           = rgb(  0, 255,   0),
     BrightRed       = rgb(255,   0,   0),
     Parchment       = rgb(255, 255, 224),
+    LightParchment  = rgb(#FA, #F8, #EF),
+--                              {"XPG_PARCHMENT",       XPG_PARCHMENT       := #FF FF #E0},
+--                              {"XPG_LIGHT_PARCHMENT", XPG_LIGHT_PARCHMENT := #FAF8EF},
     BrightWhite     = rgb(255, 255, 255)
 
 atom WndProcCallBack        -- 32-bit callback address for WndProc routine
@@ -467,8 +500,9 @@ function getClientRect(integer id)
 -- returns {left,top,width,height}
     atom hwnd = ObjectHwnd[id]
     assert(c_func(xGetClientRect, {hwnd, pRECT}))
-    sequence rect = peek4u({pRECT,4})
-    return rect
+    integer width = get_struct_field(idRECT,pRECT,"right"),
+           height = get_struct_field(idRECT,pRECT,"bottom")
+    return {0,0,width,height}
 end function
 
 procedure openWindow(integer id, integer styleFlag)
@@ -494,14 +528,14 @@ procedure setScrollInfo(sequence id, object settings, integer fRedraw)
 -- or MinMax[StepPos] for ProgressBars
     integer {id1,fnBar} = id
     atom hwnd = ObjectHwnd[id1]
-    poke4(pSCROLL + SCROLLINFO_cbSize,      sizeofstruct(SCROLLINFO))
-    poke4(pSCROLL + SCROLLINFO_fMask,       SIF_ALL)-- THIS WAS PREVIOUSLY ONE OF THE routine parameters
-    poke4(pSCROLL + SCROLLINFO_nMin,        settings) -- single call to insert up to 5 values (MinMaxPagePosTrack)
---  poke4(pSCROLL + SCROLLINFO_nMax,        max)
---  poke4(pSCROLL + SCROLLINFO_nPage,       page)
---  poke4(pSCROLL + SCROLLINFO_nPos,        pos)
---  poke4(pSCROLL + SCROLLINFO_nTrackPos, trackpos)
-    void = c_func(xSetScrollInfo, {hwnd, fnBar, pSCROLL, fRedraw})
+    set_struct_field(idSCROLLINFO,pSCROLLINFO,"cbSize",get_struct_size(idSCROLLINFO))
+    set_struct_field(idSCROLLINFO,pSCROLLINFO,"fMask",SIF_ALL)
+    integer {nMin,nMax,nPage,nPos} = settings
+    set_struct_field(idSCROLLINFO,pSCROLLINFO,"nMin",nMin)
+    set_struct_field(idSCROLLINFO,pSCROLLINFO,"nMax",nMax)
+    set_struct_field(idSCROLLINFO,pSCROLLINFO,"nPage",nPage)
+    set_struct_field(idSCROLLINFO,pSCROLLINFO,"nPos",nPos)
+    void = c_func(xSetScrollInfo, {hwnd, fnBar, pSCROLLINFO, fRedraw})
 end procedure
 
 procedure setHandler(integer id, integer r_id)
@@ -533,19 +567,19 @@ end function
 
 function registerClass(sequence classname, atom classstyle, atom wndproc, atom icon_handle, atom cursor_handle, atom brush)
     atom szAppName = get_raw_string_ptr(classname)
-    poke4(pWNDCLASS + WNDCLASSEX_cbSize,            sizeofstruct(WNDCLASSEX))
-    poke4(pWNDCLASS + WNDCLASSEX_style,             classstyle)
-    poke4(pWNDCLASS + WNDCLASSEX_lpfnWndProc,       wndproc) -- default message handler
-    poke4(pWNDCLASS + WNDCLASSEX_cbClsExtra,        0) -- no more than 40 bytes for win95
-    poke4(pWNDCLASS + WNDCLASSEX_cbWndExtra,        0) -- "		"      "		"        "
-    poke4(pWNDCLASS + WNDCLASSEX_hInstance,         instance())
-    poke4(pWNDCLASS + WNDCLASSEX_hIcon,             icon_handle)    -- (32 x 32)
-    poke4(pWNDCLASS + WNDCLASSEX_hIconSm,           icon_handle)    -- (16 x 16)
-    poke4(pWNDCLASS + WNDCLASSEX_hCursor,           cursor_handle)
-    poke4(pWNDCLASS + WNDCLASSEX_hbrBackground,     brush)
-    poke4(pWNDCLASS + WNDCLASSEX_lpszMenuName,      NULL)
-    poke4(pWNDCLASS + WNDCLASSEX_lpszClassName,     szAppName)
-    atom regdclass = c_func(xRegisterClassEx,{pWNDCLASS})
+    set_struct_field(idWNDCLASSEX,pWNDCLASSEX,"cbSize",get_struct_size(idWNDCLASSEX))
+    set_struct_field(idWNDCLASSEX,pWNDCLASSEX,"style",classstyle)
+    set_struct_field(idWNDCLASSEX,pWNDCLASSEX,"lpfnWndProc",wndproc) -- default message handler
+    set_struct_field(idWNDCLASSEX,pWNDCLASSEX,"cbClsExtra",0)   -- no more than 40 bytes for win95
+    set_struct_field(idWNDCLASSEX,pWNDCLASSEX,"cbWndExtra",0)   -- "		"      "		"        "
+    set_struct_field(idWNDCLASSEX,pWNDCLASSEX,"hInstance",instance())
+    set_struct_field(idWNDCLASSEX,pWNDCLASSEX,"hIcon",icon_handle)  -- (32 x 32)
+    set_struct_field(idWNDCLASSEX,pWNDCLASSEX,"hIconSm",icon_handle) -- (16 x 16)
+    set_struct_field(idWNDCLASSEX,pWNDCLASSEX,"hCursor",cursor_handle)
+    set_struct_field(idWNDCLASSEX,pWNDCLASSEX,"hbrBackground",brush)
+    set_struct_field(idWNDCLASSEX,pWNDCLASSEX,"lpszMenuName",NULL)
+    set_struct_field(idWNDCLASSEX,pWNDCLASSEX,"lpszClassName",szAppName)
+    atom regdclass = c_func(xRegisterClassEx,{pWNDCLASSEX})
     return regdclass -- could be NULL at times
 end function
 
@@ -615,18 +649,20 @@ end function
 
 function proc_ScrollMessage(integer id, integer fnBar, atom request)
     request = and_bits(request, #FFFF)
-    integer ssize = sizeofstruct(SCROLLINFO)
+--  integer ssize = sizeofstruct(SCROLLINFO)
+    integer ssize = get_struct_size(idSCROLLINFO)
     atom hwnd = ObjectHwnd[id]
-    poke4(pSCROLL + SCROLLINFO_cbSize, ssize)
-    poke4(pSCROLL + SCROLLINFO_fMask, SIF_ALL)
-    assert(c_func(xGetScrollInfo, {hwnd, fnBar, pSCROLL}))
+    set_struct_field(idSCROLLINFO,pSCROLLINFO,"cbSize",ssize)
+    set_struct_field(idSCROLLINFO,pSCROLLINFO,"fMask",SIF_ALL)
+
+    assert(c_func(xGetScrollInfo, {hwnd, fnBar, pSCROLLINFO}))
 
     -- retrieve the values
-    atom minp = peek4s(pSCROLL + SCROLLINFO_nMin),
-         maxp = peek4s(pSCROLL + SCROLLINFO_nMax),
-         page = peek4u(pSCROLL + SCROLLINFO_nPage),
-          pos = peek4s(pSCROLL + SCROLLINFO_nPos),
-     trackpos = peek4s(pSCROLL + SCROLLINFO_nTrackPos),
+    atom minp = get_struct_field(idSCROLLINFO,pSCROLLINFO,"nMin"),
+         maxp = get_struct_field(idSCROLLINFO,pSCROLLINFO,"nMax"),
+         page = get_struct_field(idSCROLLINFO,pSCROLLINFO,"nPage"),
+          pos = get_struct_field(idSCROLLINFO,pSCROLLINFO,"nPos"),
+     trackpos = get_struct_field(idSCROLLINFO,pSCROLLINFO,"nTrackPos"),
      max_move = maxp - page + 1,
          temp = pos
 
@@ -663,17 +699,9 @@ function proc_ScrollMessage(integer id, integer fnBar, atom request)
     end if
     -- exit if no real movement occurred
     if temp=pos then return {} end if
-    poke4(pSCROLL + SCROLLINFO_nPos, temp)
-    void = c_func(xSetScrollInfo, {hwnd, fnBar, pSCROLL, True})
+    set_struct_field(idSCROLLINFO,pSCROLLINFO,"nPos",temp)
+    void = c_func(xSetScrollInfo, {hwnd, fnBar, pSCROLLINFO, True})
     return temp
-end function
-
-function proc_SizeMessage(integer id)
-    assert(c_func(xGetClientRect, {ObjectHwnd[id], pRECT}))
-    -- (client rects are {0,0,width,height})
-    integer width = peek4s(pRECT + RECT_right),
-           height = peek4s(pRECT + RECT_bottom)
-    return {0, 0, width, height}
 end function
 
 function proc_MouseMessage(atom lParam)
@@ -709,13 +737,16 @@ function WndProc(atom hwnd, atom msg, atom wParam, atom lParam)
             end if
             return 0
         elsif msg=WM_PAINT then
-            atom hdc = c_func(xBeginPaint,{hwnd,pPAINT})
+            atom hdc = c_func(xBeginPaint,{hwnd,pPAINTSTRUCT})
             if iHandler!=UNDEFINED then
                 -- extract client paint coords & send to the handler routine with the DC
-                temp = peek4u({pPAINT+PAINTSTRUCT_rcPaint,4})
+                temp = {get_struct_field(idPAINTSTRUCT,pPAINTSTRUCT,"rcPaint.left"),
+                        get_struct_field(idPAINTSTRUCT,pPAINTSTRUCT,"rcPaint.top"),
+                        get_struct_field(idPAINTSTRUCT,pPAINTSTRUCT,"rcPaint.right"),
+                        get_struct_field(idPAINTSTRUCT,pPAINTSTRUCT,"rcPaint.bottom")}
                 void = call_func(iHandler, {id, msg, hdc, temp})
             end if
-            c_proc(xEndPaint, {hwnd, pPAINT})
+            c_proc(xEndPaint, {hwnd, pPAINTSTRUCT})
             return 0
         elsif msg=WM_KEYDOWN 
            or msg=WM_SYSKEYDOWN then
@@ -731,7 +762,8 @@ function WndProc(atom hwnd, atom msg, atom wParam, atom lParam)
             end if
             return 0
         elsif msg=WM_SIZE then
-            sequence client_rect = proc_SizeMessage(id)
+--          sequence client_rect = proc_SizeMessage(id)
+            sequence client_rect = getClientRect(id)
             if iHandler!=UNDEFINED then
                 void = call_func(iHandler,{id,msg,wParam,client_rect})
             end if
@@ -769,7 +801,8 @@ procedure WinMain(integer id, integer sw_style)
     openWindow(PrimaryWindowID, sw_style)
     while c_func(xGetMessage, {pMSG, NULL, 0, 0})>0 do
         c_proc(xTranslateMessage,{pMSG})
-        void = c_func(xDispatchMessage,{pMSG})
+--      void = c_func(xDispatchMessage,{pMSG})
+        c_proc(xDispatchMessage,{pMSG})
     end while
 end procedure
 
@@ -821,13 +854,20 @@ integer mainX = 640,    -- (x size of window, less borders, scrollbars etc.)
         viewY           --  y                   ""                          Y
 atom viewBM = NULL      -- display buffer (from xCreateCompatibleBitmap).
 
-constant Main = create(Window, "Virtual Window Demo", 25, 25, mainX, mainY, or_all({WS_HSCROLL,WS_VSCROLL})),
-         mainDC = ObjectDC[Main],
-         imageX = 1280,
-         imageY = 960,
+constant winmain = create(Window, "Virtual Window Demo (WinAPI)", 25, 25, mainX, mainY, or_all({WS_HSCROLL,WS_VSCROLL})),
+         mainDC = ObjectDC[winmain],
+         imgX = 1280,
+         imgY = 960,
          imageDC = c_func(xCreateCompatibleDC,{mainDC}),
-         imageBM = c_func(xCreateCompatibleBitmap,{mainDC, imageX, imageY}),
+         imageBM = c_func(xCreateCompatibleBitmap,{mainDC, imgX, imgY}),
          viewDC = c_func(xCreateCompatibleDC,{mainDC})
+
+--constant HGDI_ERROR = 65535
+atom prev = c_func(xSelectObject,{imageDC, imageBM})
+--?{"prev",prev,"imageBM",imageBM,"mainDC",mainDC,"HGDI_ERROR",HGDI_ERROR}
+--{"prev",8716303,"imageBM",319102662,"mainDC",1174488208.0,"HGDI_ERROR",65535}
+--?9/0
+{} = c_func(xDeleteObject,{prev})
 
 --
 -- {focusX,focusY} represents the logical focus point, moved by scrolling, but *not* by resizing or zooming.
@@ -844,13 +884,18 @@ bool firsttime = true,      -- (controls setting of {focusX, focusY}, and callin
 
 procedure drawImage()
 -- initialise imageBM, and optionally redraw when the focus changes
-    if firsttime then
-        {} = c_func(xDeleteObject,{c_func(xSelectObject,{imageDC, imageBM})})
-    end if
-    setPenColor(BrightWhite)    drawRectangleh(imageDC, True, 0, 0, imageX, imageY)
-    setPenColor(Black)          drawRectangleh(imageDC, False, 10, 10, floor((imageX-80)/2), floor((imageY-130)/2))
-    setPenColor(BrightRed)      drawRectangleh(imageDC, False, floor(imageX/4), floor(imageY/4), imageX-75, imageY-75)
-    setPenColor(Green)          drawRectangleh(imageDC, False, 5, 5, imageX-5, imageY-5)
+--  if firsttime then
+--      atom prev = c_func(xSelectObject,{imageDC, imageBM})
+--?{"prev",prev,"imageBM",imageBM,"mainDC",mainDC,"HGDI_ERROR",HGDI_ERROR}
+----?9/0
+--      {} = c_func(xDeleteObject,{prev})
+--  end if
+--DEV this should only draw those bits that will actually be shown...
+--  setPenColor(BrightWhite)    drawRectangleh(imageDC, True, 0, 0, imgX, imgY)
+    setPenColor(LightParchment) drawRectangleh(imageDC, True, 0, 0, imgX, imgY)
+    setPenColor(Black)          drawRectangleh(imageDC, False, 10, 10, floor((imgX-80)/2), floor((imgY-130)/2))
+    setPenColor(BrightRed)      drawRectangleh(imageDC, False, floor(imgX/4), floor(imgY/4), imgX-75, imgY-75)
+    setPenColor(Green)          drawRectangleh(imageDC, False, 5, 5, imgX-5, imgY-5)
     if drawfocus then
         setPenColor(Green)      drawRectangleh(imageDC, False, floor(focusX-2), floor(focusY-2), floor(focusX+2), floor(focusY+2))
     end if
@@ -863,17 +908,21 @@ function Zoomf(atom v)      return floor(Zoom(v)+0.5)   end function
 function UnZoom(integer v)  return v*10/zoom            end function
 function UnZoomf(integer v) return floor(UnZoom(v)+0.5) end function
 
+--bool inpaint = false
+
 function mainHandler(integer id, integer msg, atom wParam, object /*lParam*/)
     if msg=WM_PAINT then
-        integer ZimageX = Zoomf(imageX),
-                ZimageY = Zoomf(imageY),
+--if not inpaint then
+        integer ZimgX = Zoomf(imgX),
+                ZimgY = Zoomf(imgY),
                 ZfocusX, ZfocusY, halfX, halfY
         if not firsttime then
             ZfocusX = Zoomf(focusX)
             ZfocusY = Zoomf(focusY)
         end if
+--if 01 then
         for max_iterations=1 to 2 do                -- (repeat if the scrollbar visibility changes)
-            sequence mcr = getClientRect(Main)      -- (less scroll bars, status line, and menu)
+            sequence mcr = getClientRect(winmain)   -- (less scroll bars, status line, and menu)
             {halfX,halfY,mainX,mainY} = mcr
             assert(halfX=0 and halfY=0)             -- sanity check
             halfX = floor(mainX/2)
@@ -886,13 +935,42 @@ function mainHandler(integer id, integer msg, atom wParam, object /*lParam*/)
             -- (a zoom of -1 is fit to screen, so deliberately disable/hide the scrollbars)
             sequence six = {1,100,100,1}, siy = six             -- scroll info (scratch)
             if zoom!=-1 then 
-                six = {halfX,ZimageX+halfX,mainX,ZfocusX}       -- {Min/Max/Pagesize/Pos}
-                siy = {halfY,ZimageY+halfY,mainY,ZfocusY}
+                six = {halfX,ZimgX+halfX,mainX,ZfocusX}     -- {Min/Max/Pagesize/Pos}
+                siy = {halfY,ZimgY+halfY,mainY,ZfocusY}
             end if
             setScrollInfo({id,SB_HORZ},six,1)
             setScrollInfo({id,SB_VERT},siy,1)
-            if getClientRect(Main)=mcr then exit end if
+            if getClientRect(winmain)=mcr then exit end if
         end for
+--else
+----    inpaint = true
+--      sequence six = {1,100,100,1}, siy = six     -- scroll info (scratch)
+--      setScrollInfo({id,SB_HORZ},six,1)
+--      setScrollInfo({id,SB_VERT},siy,1)
+--      sequence mcr = getClientRect(winmain), ncr  -- (less scroll bars, status line, and menu)
+--      for max_iterations=1 to 2 do                -- (repeat if the scrollbar visibility changes)
+--          {halfX,halfY,mainX,mainY} = mcr
+--          assert(halfX=0 and halfY=0)             -- sanity check
+--          halfX = floor(mainX/2)
+--          halfY = floor(mainY/2)
+--          if firsttime then
+--              {focusX,focusY} = {halfX,halfY}
+--              ZfocusX = Zoomf(focusX)
+--              ZfocusY = Zoomf(focusY)
+--          end if
+--          -- (a zoom of -1 is fit to screen, so deliberately disable/hide the scrollbars)
+----            if zoom!=-1 then 
+--          if zoom=-1 then exit end if
+--              six = {halfX,ZimgX+halfX,mainX,ZfocusX}     -- {Min/Max/Pagesize/Pos}
+--              siy = {halfY,ZimgY+halfY,mainY,ZfocusY}
+----            end if
+--          setScrollInfo({id,SB_HORZ},six,1)
+--          setScrollInfo({id,SB_VERT},siy,1)
+--          ncr = getClientRect(winmain)
+--          if ncr=mcr then exit end if
+--          mcr = ncr
+--      end for
+--end if
         if viewBM=NULL
         or mainX>viewX
         or mainY>viewY then
@@ -902,7 +980,7 @@ function mainHandler(integer id, integer msg, atom wParam, object /*lParam*/)
         end if
 
         integer dstX = 0, dstY = 0, dstW = mainX, dstH = mainY,
-                srcX = 0, srcY = 0, srcW = imageX, srcH = imageY
+                srcX = 0, srcY = 0, srcW = imgX, srcH = imgY
         if zoom!=-1 then
             if firsttime or drawfocus then
                 drawImage()
@@ -912,26 +990,26 @@ function mainHandler(integer id, integer msg, atom wParam, object /*lParam*/)
             drawRectangleh(viewDC, True, 0, 0, mainX, mainY)        -- clear background
 
             srcX = ZfocusX-halfX
-            integer gap = mainX-ZimageX
+            integer gap = mainX-ZimgX
             if gap>=0 then                  -- (enough for) gap on both sides
                 dstX = floor(gap/2)         -- so just center it
-                dstW = ZimageX
+                dstW = ZimgX
                 srcX = 0
             elsif srcX<=0 then              -- gap on lhs? (and overhang>gap on rhs)
                 srcX = 0                    -- so move to "hard left" (some overhang remains on rhs)
-            elsif srcX>ZimageX-mainX then   -- gap on rhs? (and overhang>gap on lhs)
-                srcX = ZimageX-mainX        -- so move to "hard right" (some overhang remains on lhs)
+            elsif srcX>ZimgX-mainX then -- gap on rhs? (and overhang>gap on lhs)
+                srcX = ZimgX-mainX      -- so move to "hard right" (some overhang remains on lhs)
             end if
             srcY = ZfocusY-halfY
-            gap = mainY-ZimageY
+            gap = mainY-ZimgY
             if gap>=0 then                  -- (enough for) gap on both sides
                 dstY = floor(gap/2)         -- so just center it
-                dstH = ZimageY
+                dstH = ZimgY
                 srcY = 0
             elsif srcY<=0 then              -- gap on top? (and overhang>gap on btm)
                 srcY = 0                    -- so move to "hard top" (some overhang remains on btm)
-            elsif srcY>ZimageY-mainY then   -- gap on btm? (and overhang>gap on top)
-                srcY = ZimageY-mainY        -- so move to "hard btm" (some overhang remains on top)
+            elsif srcY>ZimgY-mainY then -- gap on btm? (and overhang>gap on top)
+                srcY = ZimgY-mainY      -- so move to "hard btm" (some overhang remains on top)
             end if
             srcX = UnZoomf(srcX)
             srcY = UnZoomf(srcY)
@@ -941,15 +1019,17 @@ function mainHandler(integer id, integer msg, atom wParam, object /*lParam*/)
         {} = c_func(xStretchBlt, {viewDC,dstX,dstY,dstW,dstH,imageDC,srcX,srcY,srcW,srcH,SRCCOPY})
         {} = c_func(xBitBlt, {mainDC, 0, 0, mainX, mainY, viewDC, 0, 0, SRCCOPY})
         firsttime = false
+--  inpaint = false
+--end if
     elsif msg=WM_HSCROLL then
         focusX = UnZoom(wParam)
-        repaintWindow(Main,False)
+        repaintWindow(winmain,False)
     elsif msg=WM_VSCROLL then
         focusY = UnZoom(wParam)
-        repaintWindow(Main,False)
+        repaintWindow(winmain,False)
     elsif msg=WM_CHAR then
         if wParam=VK_ESCAPE then
-            closeWindow(Main)
+            closeWindow(winmain)
         elsif find(wParam,"=#-+fF") then
             integer oldzoom = zoom
             if    wParam='#'            then zoom = -1
@@ -961,13 +1041,13 @@ function mainHandler(integer id, integer msg, atom wParam, object /*lParam*/)
                 drawImage()
             end if
             if zoom!=oldzoom then
-                repaintWindow(Main,False)
+                repaintWindow(winmain,False)
             end if
         end if
     end if
     return 0
 end function
-setHandler(Main, mainHandler)
+setHandler(winmain, mainHandler)
 
-WinMain(Main, SW_NORMAL) 
+WinMain(winmain, SW_NORMAL) 
 

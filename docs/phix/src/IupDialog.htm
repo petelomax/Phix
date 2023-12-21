@@ -19,7 +19,7 @@
             <a href="Ihandle.htm">Ihandle</a> ih = IupDialog(<a href="Ihandle.htm">Ihandln</a> child=NULL, 
                                                              <a href="string.htm">string</a> attributes="", 
                                                              <a href="html/glossary.htm#dwordseq">dword_seq</a> args={},
-                                                             <a href="integer.htm#bool">bool</a> bEsc=true)
+                                                             <a href="integer.htm#bool">bool</a> bEsc=<a href="logicops.htm#tf">true</a>)
          </td>
         </tr>
         <tr>
@@ -35,11 +35,12 @@
             bEsc: if true (the default) then <a href="IupClose.htm">IupCloseOnEscape</a>(ih) is applied automatically.
             <br>
             <br>
-            In a similar fashion to <a href="paranormal.htm">paranormalised functions</a>, only slightly simpler, attributes and
-            args are actually defined as <a href="object.htm">object</a>, so that IupDialog(<i>child</i>,false) behaves the same 
-            as IupDialog(<i>child</i>,bEsc:=false), and likewise if the string attributes is present but args is omitted, 
-            IupDialog(<i>child</i>,"<i>attributes</i>",false) behaves the same as 
-            IupDialog(<i>child</i>,"<i>attributes</i>",bEsc:=false).
+            In a similar fashion to <a href="paranormal.htm">paranormalised functions</a>, only slightly simpler, attributes and args 
+            are actually defined as <a href="object.htm">object</a>, so that IupDialog(<i>child</i>,<a href="logicops.htm#tf">false</a>) 
+            behaves the same as IupDialog(<i>child</i>,bEsc:=<a href="logicops.htm#tf">false</a>), and likewise if the string attributes 
+            is present but args is omitted, 
+            IupDialog(<i>child</i>,"<i>attributes</i>",<a href="logicops.htm#tf">false</a>) behaves the same as 
+            IupDialog(<i>child</i>,"<i>attributes</i>",bEsc:=<a href="logicops.htm#tf">false</a>).
             <br>
             <br>
             Note that bEsc was added in version 0.8.3, prior to that it would behave as false, which meant that in nine out of
@@ -351,7 +352,11 @@ TASKBARBUTTON=SHOW
          </td>
          <td>
             Name of the button activated when the user press Enter/Esc when focus is in another control of the dialog. <br>
-            Use <a href="IupSetHandle.htm">IupSetHandle</a> or <a href="IupSetAttributeHandle.htm">IupSetAttributeHandle</a> to associate a button to a name.
+            Use <a href="IupSetHandle.htm">IupSetHandle</a> or <a href="IupSetAttributeHandle.htm">IupSetAttributeHandle</a> to associate a button to a name.<br>
+<!--
+            Note there are no equivalents for xpGUI: these had quite a few problems, and using a <a href="gSetHandler.htm#KEY">KEY</a>
+            handler on the <a href="gDialog,htm">gDialog</a> is not exactly difficult, and all round just a much better idea.
+-->
          </td>
         </tr>
         <tr>
@@ -1224,31 +1229,31 @@ end if
 -- =====================
 --</i></font>
 <font color="#008080">include</font><font color="#000000"> pGUI.e</font>
-<font color="#5E005E">Ihandln</font><font color="#000000"> dialog
+<font color="#7060A8">Ihandln</font><font color="#000000"> dialog
 </font>
-<font color="#008080">function</font><font color="#000000"> close_cb</font><font color="#0000FF">(</font><font color="#5E005E">Ihandle</font><font color="#000080"><i> /*ih*/</i></font><font color="#0000FF">)</font>
+<font color="#008080">function</font><font color="#000000"> close_cb</font><font color="#0000FF">(</font><font color="#7060A8">Ihandle</font><font color="#000080"><i> /*ih*/</i></font><font color="#0000FF">)</font>
 <font color="#000080"><i>    -- save_files() and/or IupConfigDialogClosed(config,dialog,"MainWindow"), etc.</i></font>
 <font color="#008080">    return</font><font color="#004600"> IUP_CLOSE</font><font color="#000080"><i> -- (for quit_cb)</i></font>
 <font color="#008080">end function
 
-function</font><font color="#000000"> quit_cb</font><font color="#0000FF">(</font><font color="#5E005E">Ihandle</font><font color="#000000"> ih</font><font color="#0000FF">)</font>
+function</font><font color="#000000"> quit_cb</font><font color="#0000FF">(</font><font color="#7060A8">Ihandle</font><font color="#000000"> ih</font><font color="#0000FF">)</font>
 <font color="#000080"><i>    -- (alternatively invoke [say] my_shutdown() from both close_cb() and quit_cb(),
     --                              and from anywhere that invokes IupExitLoop().)</i></font>
 <font color="#008080">    return</font><font color="#000000"> close_cb</font><font color="#0000FF">(</font><font color="#000000">ih</font><font color="#0000FF">)</font>
 <font color="#008080">end function
 </font>
-<font color="#5E005E">IupOpen</font><font color="#0000FF">()</font>
-<font color="#5E005E">Ihandle</font><font color="#000000"> quit_bt</font><font color="#0000FF"> =</font><font color="#5E005E"> IupButton</font><font color="#0000FF">(</font><font color="#008000">"Quit"</font><font color="#0000FF">,</font><font color="#008000"> "ACTION"</font><font color="#0000FF">,</font><font color="#5E005E"> Icallback</font><font color="#800000">(</font><font color="#008000">"quit_cb"</font><font color="#800000">)</font><font color="#0000FF">),</font>
-<font color="#000000">        label</font><font color="#0000FF"> =</font><font color="#5E005E"> IupLabel</font><font color="#0000FF">(</font><font color="#008000">"Very Long Text Label"</font><font color="#0000FF">,</font><font color="#008000">"EXPAND=YES, ALIGNMENT=ACENTER"</font><font color="#0000FF">),</font>
-<font color="#000000">        vbox</font><font color="#0000FF"> =</font><font color="#5E005E"> IupVbox</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">label</font><font color="#0000FF">,</font><font color="#000000"> quit_bt</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000">"ALIGNMENT=ACENTER,MARGIN=10x10,GAP=15"</font><font color="#0000FF">)</font>
-<font color="#5E005E">Ihandln</font><font color="#000000"> dialog</font><font color="#0000FF"> =</font><font color="#5E005E"> IupDialog</font><font color="#0000FF">(</font><font color="#000000">vbox</font><font color="#0000FF">,</font><font color="#008000">`TITLE="Dialog Title", SIZE=180x`</font><font color="#0000FF">)</font>
-<font color="#5E005E">IupSetCallback</font><font color="#0000FF">(</font><font color="#000000">dialog</font><font color="#0000FF">,</font><font color="#008000">"CLOSE_CB"</font><font color="#0000FF">,</font><font color="#5E005E">Icallback</font><font color="#800000">(</font><font color="#008000">"close_cb"</font><font color="#800000">)</font><font color="#0000FF">)</font>
-<font color="#5E005E">IupSetAttributeHandle</font><font color="#0000FF">(</font><font color="#000000">dialog</font><font color="#0000FF">,</font><font color="#008000"> "DEFAULTESC"</font><font color="#0000FF">,</font><font color="#000000"> quit_bt</font><font color="#0000FF">)</font>
-<font color="#5E005E">IupShow</font><font color="#0000FF">(</font><font color="#000000">dialog</font><font color="#0000FF">)</font>
+<font color="#7060A8">IupOpen</font><font color="#0000FF">()</font>
+<font color="#7060A8">Ihandle</font><font color="#000000"> quit_bt</font><font color="#0000FF"> =</font><font color="#7060A8"> IupButton</font><font color="#0000FF">(</font><font color="#008000">"Quit"</font><font color="#0000FF">,</font><font color="#008000"> "ACTION"</font><font color="#0000FF">,</font><font color="#7060A8"> Icallback</font><font color="#800000">(</font><font color="#008000">"quit_cb"</font><font color="#800000">)</font><font color="#0000FF">),</font>
+<font color="#000000">        label</font><font color="#0000FF"> =</font><font color="#7060A8"> IupLabel</font><font color="#0000FF">(</font><font color="#008000">"Very Long Text Label"</font><font color="#0000FF">,</font><font color="#008000">"EXPAND=YES, ALIGNMENT=ACENTER"</font><font color="#0000FF">),</font>
+<font color="#000000">        vbox</font><font color="#0000FF"> =</font><font color="#7060A8"> IupVbox</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">label</font><font color="#0000FF">,</font><font color="#000000"> quit_bt</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000">"ALIGNMENT=ACENTER,MARGIN=10x10,GAP=15"</font><font color="#0000FF">)</font>
+<font color="#7060A8">Ihandln</font><font color="#000000"> dialog</font><font color="#0000FF"> =</font><font color="#7060A8"> IupDialog</font><font color="#0000FF">(</font><font color="#000000">vbox</font><font color="#0000FF">,</font><font color="#008000">`TITLE="Dialog Title", SIZE=180x`</font><font color="#0000FF">)</font>
+<font color="#7060A8">IupSetCallback</font><font color="#0000FF">(</font><font color="#000000">dialog</font><font color="#0000FF">,</font><font color="#008000">"CLOSE_CB"</font><font color="#0000FF">,</font><font color="#7060A8">Icallback</font><font color="#800000">(</font><font color="#008000">"close_cb"</font><font color="#800000">)</font><font color="#0000FF">)</font>
+<font color="#7060A8">IupSetAttributeHandle</font><font color="#0000FF">(</font><font color="#000000">dialog</font><font color="#0000FF">,</font><font color="#008000"> "DEFAULTESC"</font><font color="#0000FF">,</font><font color="#000000"> quit_bt</font><font color="#0000FF">)</font>
+<font color="#7060A8">IupShow</font><font color="#0000FF">(</font><font color="#000000">dialog</font><font color="#0000FF">)</font>
 <font color="#008080">if</font><font color="#7060A8"> platform</font><font color="#0000FF">()!=</font><font color="#004600">JS</font><font color="#008080"> then</font>
-<font color="#5E005E">    IupMainLoop</font><font color="#0000FF">()</font>
-<font color="#000000">    dialog</font><font color="#0000FF"> =</font><font color="#5E005E"> IupDestroy</font><font color="#0000FF">(</font><font color="#000000">dialog</font><font color="#0000FF">)</font>
-<font color="#5E005E">    IupClose</font><font color="#0000FF">()</font>
+<font color="#7060A8">    IupMainLoop</font><font color="#0000FF">()</font>
+<font color="#000000">    dialog</font><font color="#0000FF"> =</font><font color="#7060A8"> IupDestroy</font><font color="#0000FF">(</font><font color="#000000">dialog</font><font color="#0000FF">)</font>
+<font color="#7060A8">    IupClose</font><font color="#0000FF">()</font>
 <font color="#008080">end if</font>
 </pre>
             <br>

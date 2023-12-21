@@ -35,7 +35,8 @@ global constant newEBP = 04 -- 4=on, 0=off(ie old style/working)
 --global constant pxversion = {1,0,0},  -- 1.0.0    -- 04/07/21
 --global constant pxversion = {1,0,1},  -- 1.0.1    -- 25/11/21
 --global constant pxversion = {1,0,2},  -- 1.0.2    -- 26/02/23
-global constant phixversion = {1,0,3},  -- 1.0.3    -- 07/08/23
+--global constant pxversion = {1,0,3},  -- 1.0.3    -- 07/08/23
+global constant phixversion = {1,0,4},  -- 1.0.4    -- 0?/0?/23
                 phixverstr = sprintf("%d.%d.%d",phixversion)
 sequence phixver = phixversion  -- (debug aid, otherwise unused)
 if sequence(phixver) then end if
@@ -212,8 +213,11 @@ global constant S_used = #000001,   -- bit for not used warnings
                 S_fwd  = #000004,   -- routine is not yet defined (explicit "forward" or implicit call)
                 S_for  = #000008,   -- variable in current use as for loop control var (cleared on end for)
                 S_used_and_set = #03,   --S_used+S_set,
+--              S_uset = #000003,   --S_used+S_set,
                 S_fwd_and_used = #05,   --S_fwd+S_used,
+--              S_fusd = #000005,   --S_fwd+S_used,
                 S_for_used_set = #0B,   --S_used+S_set+S_for
+--              S_usfr = #00000B,   --S_used+S_set+S_for
 --DEV these should be S_xxx not K_xxx... (but K_used and S_used are completely different)
                 K_used = #000010,   -- isParam on tvars & to link reachable routines, see notes below
                 K_sqr  = #000020,   -- sequence rebuilt flag when interpreting
@@ -226,11 +230,12 @@ global constant S_used = #000001,   -- bit for not used warnings
                 K_ran  = #000800,   -- set once routine has been called (for tls routines)
                 K_gbl  = #001000,   -- a true "global"
                 S_used_set_gbl = #1003, -- K_gbl+S_set+S_used       -- DEV S_gsu
+--              S_gsu  = #001003,   -- K_gbl+S_set+S_used
                 K_Fres = #002000,   -- a function result
                 K_lit  = #004000,   -- literal flag
---              K_litnoclr = #4200, -- K_lit+K_noclr,               -- DEV S_lnc
-                S_lnc  = #4200,     -- K_lit+K_noclr,
-                S_lncu = #4201,     -- K_lit+K_noclr+S_Used,
+--              K_litnoclr=#4200,   -- K_lit+K_noclr,               -- DEV S_lnc
+                S_lnc  = #004200,   -- K_lit+K_noclr,
+                S_lncu = #004201,   -- K_lit+K_noclr+S_used,
                 K_type = #008000,   -- type() routine parameter
                 K_othr = #010000,   -- other routine parameter
                 K_ridt = #020000,   -- known routine_id target

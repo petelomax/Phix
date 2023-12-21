@@ -1,5 +1,5 @@
 --
--- builtins/pfindall.e
+-- builtins\pfindall.e
 --
 global function find_all(object needle, sequence haystack, integer start=1)
     sequence res = {}

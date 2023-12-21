@@ -75,17 +75,17 @@
             All handlers receive at least the element for which the event was triggerd as a parameter, almost always in the form of a 
             <a href="gdx.htm">gdx</a>, though it may be a tad more opaque for some, such as <a href="gTreeView.htm#BRANCHOPEN">BRANCHOPEN</a>.
             <br>
-            <a name=XPG_DEFAULT></a>
-            <a name=XPG_CLOSE></a>
-            <a name=XPG_IGNORE></a>
             <a name=XPG_CONTINUE></a>
+            <a name=XPG_DEFAULT></a>
+            <a name=XPG_IGNORE></a>
+            <a name=XPG_CLOSE></a>
             <br>
             Most handlers (except those defined as procedures) must return one of the following values:
             <ul>
-            <li>XPG_DEFAULT (-1): Proceed normally with user interaction. <!--Should other return values not apply, the handler should return this value.--> </li>
-            <li>XPG_IGNORE (-2): Perform no further processing of this event. <!--Applies only to some events.--> </li>
-            <li>XPG_CLOSE (-3): Close the parent window and in some cases exit the application. <!--Applies only to some events.--> </li>
             <li>XPG_CONTINUE (-4): Pass the treatment of the event to the parent element. <!--Applies only to some events.--> </li>
+            <li>XPG_DEFAULT (-3): Proceed normally with user interaction (but see <a href="#KEY">KEY</a>). <!--Should other return values not apply, the handler should return this value.--> </li>
+            <li>XPG_IGNORE (-2): Perform no further processing of this event. <!--Applies only to some events.--> </li>
+            <li>XPG_CLOSE (-1): Close the parent window and in some cases exit the application. <!--Applies only to some events.--> </li>
             </ul>
             Only some handlers support the last 3 return values, check each handler documentation. <!--When nothing is documented then only XPG_DEFAULT 
             is supported (and in all probability that handler should therefore be a procedure).-->
@@ -127,11 +127,68 @@ DEV rewrite rqd from this point on:
                                                                    <a href="string.htm">string</a> name,
                                                                    <a href="integer.htm">integer</a> dflt=0) <br>
             can be used to retrieve a previously set handler, primarily intended for use inside xpGUI.e itself, and to be honest I cannot offhand
-            think of any good reason user code should ever want to use it, but it costs absolutely nothing to be available anyway. There is also<br>
-            <a href="rtn.htm">rtn</a> handler = <b>gGetInheritedHandler</b>(<a href="gdx.htm">gdx</a> id, 
-                                                                   <a href="string.htm">string</a> name) <br>
-            which is currently only used for <a href="#KEY">KEY</a> (and deliberately has no default/returns NULL if not defined).
+            think of any good reason user code should ever want to use it, but it costs absolutely nothing to be available anyway. The default is
+            currently only used for the <a href="gCanvas.htm#IDROP">IDROP</a> handler.<br>
+            <a name=inheritance></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Inheritance:</b>
+         </td>
+         <td>
+            <a href="rtn.htm">rtn</a> handler = gGetInheritedHandler(<a href="gdx.htm">gdx</a> id, 
+                                                                     <a href="string.htm">string</a> name) <br>
+            is used on those handlers specifically marked/linked here, currently only <a href="#KEY">KEY</a>.
+            This routine is intended for internal use only, and currently local/unavailable externally.
+            <!-- (and deliberately has no default/returns NULL if not defined).<br>-->
             <!--, please refer to that source file for further details and examples if needed.-->
+            <br>
+            <br>
+            Typically events propagate up the dialog hierarchy, so, for instance, the <a href="gDialog.htm#bEsc">bEsc</a> can be
+            handled at the dialog level, even if that key (first) went to a child element. In some cases the return value from a
+            handler depends on the event occuring on the right control, in which case not only must the handler be attached just
+            so, but you may also need to force the issue with an explicit <a href="gSetFocus.htm">gSetFocus</a>(). However some
+            controls don&rsquo;t even allow that (esp under GTK), and don&rsquo;t depend on system-level default behaviour. One
+            case in particular is a single <a href="gCanvas.htm">gCanvas</a>, or the canvas-derived controls
+            <a href="gGraph.htm">gGraph</a>, <a href="gList.htm">gList</a>, and <a href="gTable.htm">gTable</a>, or a single
+            <a href="gTreeView.htm">gTreeView</a> or <a href="gTabs.htm">gTabs</a>, that occupies the whole of the
+            <a href="gDialog.htm">gDialog</a>, and without this a key handler on the canvas would only work <i>after</i> it had 
+            been clicked on, with there then being nowhere you could click or any other (simple) way that would re-disable it.
+            <br>
+            <br>
+            The above routine implements a bi-directional handler inheritance model, for instance suppose you have <br>
+            <a href="gDialog.htm">gDialog</a>(<a href="gBox.htm">gHbox</a>({<a href="gLabel.htm">gLabel</a>(),<a href="gText.htm">gText</a>()}))
+            <small>(and there isn&rsquo;t an appropriate handler on the element that actually received the event)</small>.
+            <br>
+            <br>
+            If the dialog has a key handler, but none such on any children, all key events on them are forwarded to that.<br>
+            Note however the return value from the key handler only has meaning when it is attached to the correct control.<br>
+            If <i>only</i> the hbox has a handler, all other three elements would pass along any key events they receive to that.<br>
+            The text field could inherit from the hbox or dialog (potentially with some of the issues just mentioned), but never 
+            under any circumstances from the sibling label (not that setting a key handler on that makes much sense).<br>
+            If there is one and only one such handler on the children of the dialog then it too will forward key events to that.<br>
+            However, a dialog with more than one child having a handler (and it not) simply does nothing, and future releases
+            reserve the right to restrict such downward inheritance/propagation to those specific cases it actually benefits.
+            In the example just given, a handler on the text field might not get triggered precisely because the return values
+            might not be honoured correctly, effectively forcing an appropriate <a href="gSetFocus.htm">gSetFocus</a>(), but
+            as it stands that part has not yet been implemented (and should not upset any correctly written code if it ever is).
+<!--
+            <br>
+            <br>
+            One case in particular is simplified, being a 
+            There is no good reason to force you to (remember to) put the handler on the dialog rather than the canvas (or vice versa),
+            and before this was implemented a , which was all just frankly annoying, and in the long term
+            might well have scuppered some plan to implement a re-usable component, should some "downwards" handler not trigger.
+            As noted, any cases where this "two-way" does the wrong thing will be blocked/fixed, as and when they are first noticed.
+            UPDATE: Ah, erm, "forcing you to remember" might be the same as "forcing you to get the keyboard focus right", so all this
+            downwards malarky, and this entire routine, might just suddenly vanish...
+AH, no, (maybe) this is //all about// controls that //cannot// have keyboard focus.....
+-->
+            <br>
+            <br>
+            Lastly, there is no problem putting the same handler all over the shop, as long as <a href="#XPG_IGNORE">XPG_IGNORE</a> is
+            used approriately, to prevent the same event being processed multiple times.
          </td>
         </tr>
         <tr>
@@ -186,27 +243,36 @@ gSetHandler({canvas1,canvas2},{"REDRAW",redraw,"CLICK",click})
             Event generated when any mouse button is pressed or released.
             <br>
             <br>
-            function click(<a href="gdx.htm">gdx</a> id, <a href="sequence.htm">sequence</a> status[,
-                                                         <a href="integer.htm">integer</a> x, y])
+            function/procedure click(<a href="gdx.htm">gdx</a> id, <a href="sequence.htm">sequence</a> status[,
+                                                                   <a href="integer.htm">integer</a> x, y])
             <br>
             <br>
             id: identifies the interface element that activated the event.<br>
             status: a sequence of two characters and three bools that qualify the precise event that just occurred:<br>
-            &nbsp;The first character is 'L', 'M',  or 'R' for Left, Middle, or Right button.<br>
-            &nbsp;The second character is 'S', 'D', or 'R' for Single-click, Double-click, or Release events, see note.<br>
-            &nbsp;The third element is true if the ctrl key is depressed, false otherwise.<br>
-            &nbsp;The fourth element is true if the shift key is depressed, false otherwise.<br>
-            &nbsp;The fifth element is true if the alt key is depressed, false otherwise.<br>
+            &nbsp;The first character is 'L', 'M', 'R' for Left, Middle, or Right button, or 'X', 'Y' for those under your thumb on the mouse.<br>
+            &nbsp;The second character is 'S', 'D', or 'R' for Single-click, Double-click (not XY), or Release events, see note.<br>
+            &nbsp;The third element is <a href="logicops.htm#tf">true</a> if the ctrl key is depressed, <a href="logicops.htm#tf">false</a> otherwise.<br>
+            &nbsp;The fourth element is <a href="logicops.htm#tf">true</a> if the shift key is depressed, <a href="logicops.htm#tf">false</a> otherwise.<br>
+            &nbsp;The fifth element is <a href="logicops.htm#tf">true</a> if the alt key is depressed, <a href="logicops.htm#tf">false</a> otherwise.<br>
             &nbsp;You may prefer to code <code>integer {button,pressed,ctrl,shift,alt} = status</code> over using [1..5]s.<br>
             x,y: (optional) pixel co-ordinates of the mouse cursor when the click/release occurred.
             <br>
             <br>
-            Note that for a double left-click, and with CSA omitted for clarity, GTK sends "LS", "LR", "LS", "LD", "LR", 
-            whereas WinAPI slightly more sensibly just sends: "LS", "LR", "LD", "LR" (ie no second "LS").
-            <br>
-            <br>
             The <a href="gButton.htm#ACTION">ACTION</a> event is usually much more suitable for a <a href="gButton.htm">gButton</a>.<br>
-            The <a href="gCheckbox.htm#VALUE_CHANGED">VALUE_CHANGED</a> event is usually much more suitable for a <a href="gCheckbox.htm">gCheckbox</a>.
+            The <a href="gCheckbox.htm#VALUE_CHANGED">VALUE_CHANGED</a> event is usually much more suitable for a <a href="gCheckbox.htm">gCheckbox</a>.<br>
+            The <a href="gMenu.htm#HANDLER">HANDLER</a> handler is <i>always</i> much more suitable for a <a href="gMenu.htm">gMenu</a>.
+            <br>
+            <br>
+            In many/most other cases the system would naturally ignore a click and perform no further action anyway, hence<br>
+            if the handler is declared as a procedure it is treated the same as a function which always returns XPG_IGNORE.<br>
+            Returning <a href="#XPG_IGNORE">XPG_IGNORE</a> prevents the event from being propagated, all other values do not,
+            though it is probably best to use <a href="#XPG_CONTINUE">XPG_CONTINUE</a> to implicitly imply that propagation.
+            <br>
+            <br>
+            Note that for a double click <small>(and for clarity showing only the second character of 5/4 consecutive status codes)</small>, 
+            GTK sends "S", "R", "S", "D", "R", whereas WinAPI slightly more sensibly just sends: "S", "R", "D", "R" (ie no second "S").<br>
+            <small>[DEV I have yet to test what JavaScript does... Sending a fake second "S" under WinAPI seems silly, suppressing the second "S"
+            under GTK would necessitate fetching the system double-click speed setting, and I simply don&rsquo;t fancy doing that either.]</small>
             <br>
             <br>
 <!-- erm, test this...
@@ -275,8 +341,9 @@ gSetHandler({canvas1,canvas2},{"REDRAW",redraw,"CLICK",click})
 //BUTTON_CB(but=1 (0), x=154, y=83 [    1       ])
 // </pre>
             <br>
--->
             Affects: <a href="gCanvas.htm">gCanvas</a>, ...
+-->
+            Affects: All, except menus.
 <!--
                      <a href="gButton.htm">gButton</a>, 
                      <a href="gText.htm">gText</a>, 
@@ -387,7 +454,7 @@ gSetHandler({canvas1,canvas2},{"REDRAW",redraw,"CLICK",click})
           KEY 
          </td>
          <td>
-            (inherited) Event generated when a keyboard event occurs.
+            (<a href="#inheritance">inherited</a>) Event generated when a keyboard event occurs.
             <br>
             <br>
             function key_handler(<a href="gdx.htm">gdx</a> id, <a href="integer.htm">integer</a> c,
@@ -399,8 +466,8 @@ gSetHandler({canvas1,canvas2},{"REDRAW",redraw,"CLICK",click})
             ctrl, shift, alt: (optional) any key modifiers that were also pressed.
             <br>
             <br>
-            Note that, unlike pGUI, a key such as &lt;Ctrl C&gt; is passed to key_handler as 'c' or 'C' with ctrl=true, depending
-            on the state of caps lock. While the latter is honoured, there is no forwarding of its state with every keypress, and
+            Note that, unlike pGUI, a key such as &lt;Ctrl C&gt; is passed to key_handler as 'c' or 'C' with ctrl=<a href="logicops.htm#tf">true</a>, 
+            depending on the state of caps lock. While the latter is honoured, there is no forwarding of its state with every keypress, and
             obviously no guarantee of any correlation at all between shift and 'C' or 'c'.
 <!--
             , 
@@ -436,6 +503,9 @@ gSetHandler({canvas1,canvas2},{"REDRAW",redraw,"CLICK",click})
             event.key of length 1 using codePointAt(0) and lengths &gt; 1 manually/laboriously, in this case "F1" ==&gt; 0xF1), -->
             There is a relatively straightforward mapping table in xpGUI.e which should be fairly easy to tweak if ever needed,
             and some (hopefully) matching definitions/manual mapping in xpGUI.js. <small>(obvs. just search for VK_F1)</small>
+            <a name=gGetKeyName></a>
+            You can also use <a href="string.htm">string</a> res = <b>gGetKeyName</b>(<a href="integer,htm">integer</a> c) to
+            convert key codes into something more human-readable.
 <!-- DEV, nah, just do it right!
             Also, while xpGUI.e maps keystrokes from WinAPI and GTK to consistent values, there is no correlation whatsoever
             between those and the values used in xpGUI.js (no problem unless you&rsquo;re using literal constants or bit-tricks,
@@ -506,7 +576,7 @@ gSetHandler({canvas1,canvas2},{"REDRAW",redraw,"CLICK",click})
             <br>
             Note that VK_POUND is (currently) the pseudo-UTF-8 value #C2A3 representing the UTF-32 code point #00A3, aka &pound;, and may well need 
             special treatment, perhaps by being substituted with x"C2A3". In truth I accidentally made VK_DOWN #A3, but it would be trivial to change 
-            both VK_DOWN and VK_POUND to almost anything else, should doing so actually make anything any easier, just let me know.
+            either or both VK_DOWN and VK_POUND to almost anything else, should doing so actually make anything any easier, just let me know.
             <br>
             <br>
             Finally, I own/use a UK keyboard, and haven&rsquo;t done <i>any</i> testing of non-latin-alphabet input, but I strongly doubt changes
@@ -515,28 +585,40 @@ gSetHandler({canvas1,canvas2},{"REDRAW",redraw,"CLICK",click})
             <br>
             <br>
             Returns: <br>
+            If <a href="#XPG_CONTINUE">XPG_CONTINUE</a> is returned the key is propagated to anything that might handle it. <br>
+            If <a href="#XPG_DEFAULT">XPG_DEFAULT</a> is returned VK_ESC (close window as per <a href="gDialog.htm#bEsc">bEsc</a>) and 
+            VK_F5 (refresh browser when under pwa/p2js) <i>are</i> propagated, but other keys are not.<br>
+<!--???         Take care not to overdo that... -->
             If <a href="#XPG_IGNORE">XPG_IGNORE</a> is returned the key is ignored and not processed by the control and not propagated. <br>
             There are cases where <a href="#XPG_IGNORE">XPG_IGNORE</a> may start disabling generic OS/backend-specific behaviour, and cases where
             it simply doesn&rsquo;t get that chance, such as &lt;Alt F4&gt;, ymmv.<br>
-<!--???         Take care not to overdo that... -->
 <!--
             If <a href="#XPG_CONTINUE">XPG_CONTINUE</a> is returned the key is processed and the event propagated to the parent of the element receiving it. (default behavior)<br>
             If <a href="#XPG_DEFAULT">XPG_DEFAULT</a> is returned the key is processed but it is not propagated. <br>
 -->
-            <a href="#XPG_CLOSE">XPG_CLOSE</a> will be processed. <br>
+            <a href="#XPG_CLOSE">XPG_CLOSE</a> will be processed.
+<!-- again with the stuffing peoples heads with stupid ideas, Pete... (!!)
 ?[DEV/SUG]
             A positive atom will be treated as a unicode replacement (0..#10FFFF) for whatever was keyed, a string as a UTF-8 replacement, and a 
             sequence of length 4 will be treated as that (ie either) plus three bool flags for ctrl, shift, and alt.
+-->
             <br>
             <br>
             Notes<br>
             Keyboard handlers depend on the keyboard usage of the control with the focus. <br>
             So if you return <a href="#XPG_IGNORE">XPG_IGNORE</a> the control will usually not process the key. <br>
             But be aware that sometimes the control processes the key in another event so even when returning <a href="#XPG_IGNORE">XPG_IGNORE</a> 
-            the key can still get processed, although it will(/should) not be propagated, again ymmv.
+            the key can still get processed, although it will(/should) not be propagated, again ymmv.<br>
+            It may also be that a keystroke went to the wrong control (eg the containing dialog) which graciously invoked some child handler in
+            case it <i>could</i> deal with it, but no amount of returning <a href="#XPG_CONTINUE">XPG_CONTINUE</a> will make the key have been
+            originally entered in the right control, that is should you be hoping/expecting the standard system behaviour to kick in. Should
+            things only work as desired after manually clicking on a control, then maybe you should think about somehow forcing an appropriate 
+            <a href="gSetFocus.htm">gSetFocus</a>().
             <br>
             <br>
-            If the handler does not exist it is automatically propagated to the parent of the element (aka inherited).
+            If there is no handler attached to a control the event is automatically propagated to the parent of the element (aka inherited), or
+            in some cases that can work <a href="#inheritance">downwards</a>.
+<!--        <br><small>(Aside: since WinAPI and now GTK use fake/virtual h/vbox, that might not be entirely quite true just yet..)</small>-->
             <br>
             <br>
             Affects: All elements with keyboard interaction.
@@ -559,32 +641,34 @@ gSetHandler({canvas1,canvas2},{"REDRAW",redraw,"CLICK",click})
             <br>
             id: identifier of the interface element that activated the event.<br>
             x, y: position in the canvas where the event has occurred, in pixels.<br>
-            left,middle,right: (optional) status of the mouse buttons, true for down and false for up.<br>
-            ctrl,shift,alt: (optional) status of the modifier keys, true for down and false for up.
+            left,middle,right: (optional) status of the mouse buttons, <a href="logicops.htm#tf">true</a> for down and <a href="logicops.htm#tf">false</a> for up.<br>
+            ctrl,shift,alt: (optional) status of the modifier keys, <a href="logicops.htm#tf">true</a> for down and <a href="logicops.htm#tf">false</a> for up.
             <br>
             <br>
             In a similar fashion to <a href="g_paranormal.htm">paranormalised</a> functions, only without any reshuffling of the
             parameters, you can assume that all of the following are potentially perfectly valid (ie "in sets of 3"):
             <br>
             <br>
+<!--
+                mousemove(gdx id, integer x, y, left, middle, right)
+                mousemove(gdx id, integer x, y, left, middle, right, ctrl, shift, alt)
+-->
 <small>
 <!--eucode>
                 mousemove(gdx id, integer x, y)
-                mousemove(gdx id, integer x, y, left, middle, right)
-                mousemove(gdx id, integer x, y, left, middle, right, ctrl, shift, alt)
                 mousemove(gdx id, integer x, y, bool left, middle, right)
                 mousemove(gdx id, integer x, y, bool left, middle, right, ctrl, shift, alt)
 </eucode-->
 <pre>
 <font color="#000000">                mousemove</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">)</font>
-<font color="#000000">                mousemove</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#000000"> left</font><font color="#0000FF">,</font><font color="#000000"> middle</font><font color="#0000FF">,</font><font color="#000000"> right</font><font color="#0000FF">)</font>
-<font color="#000000">                mousemove</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#000000"> left</font><font color="#0000FF">,</font><font color="#000000"> middle</font><font color="#0000FF">,</font><font color="#000000"> right</font><font color="#0000FF">,</font><font color="#000000"> ctrl</font><font color="#0000FF">,</font><font color="#000000"> shift</font><font color="#0000FF">,</font><font color="#000000"> alt</font><font color="#0000FF">)</font>
 <font color="#000000">                mousemove</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#004080"> bool</font><font color="#000000"> left</font><font color="#0000FF">,</font><font color="#000000"> middle</font><font color="#0000FF">,</font><font color="#000000"> right</font><font color="#0000FF">)</font>
 <font color="#000000">                mousemove</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#004080"> bool</font><font color="#000000"> left</font><font color="#0000FF">,</font><font color="#000000"> middle</font><font color="#0000FF">,</font><font color="#000000"> right</font><font color="#0000FF">,</font><font color="#000000"> ctrl</font><font color="#0000FF">,</font><font color="#000000"> shift</font><font color="#0000FF">,</font><font color="#000000"> alt</font><font color="#0000FF">)</font>
 </pre>
 </small>
             <br>
-            An error occurs if the handler does not have 3, 6, or 9 parameters, or the last 2..8 are not integer/bool.
+            An error occurs if the handler does not have 3, 6, or 9 parameters, or the last 2..8 are not integer/bool.<br>
+            Since bool is a subset of integer, and in fact <a href="routine_id.htm#aux">get_routine_info</a>() returns 'I' 
+            for parameters of both, it doesn&rsquo;t actually make any difference should the "bool" type specifier be omitted.
             <br>
             <br>
             On Windows, as similarly noted in <a href="#KEYDIFFS">KEY</a> above, if you dab on the Alt key, <i>then</i> try moving the mouse,
@@ -603,6 +687,54 @@ gSetHandler({canvas1,canvas2},{"REDRAW",redraw,"CLICK",click})
                      <a href="IupText.htm">IupText</a>, <a href="IupTree.htm">IupTree</a>
 -->
             <br>
+          <a name=MOUSEWHEEL></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          MOUSEWHEEL
+         </td>
+         <td>
+            Event generated when the mouse wheel is used - automatically taken care of on several/most controls, and in truth this is more 
+            for documenting how that is done, not that I would try to stop you from using it.
+            <br>
+            <br>
+            procedure mouse_wheel(<a href="gdx.htm">gdx</a> id, integer direction, bool ctrl, shift, alt)<br>
+            ih: identifier of the element that activated the event.<br>
+            direction: -1 when rolled toward the user/down, +1 when rolled away/up.<br>
+            ctrl, shift, alt: <a href="logicops.htm#tf">true</a> if that key is being held down, <a href="logicops.htm#tf">false</a> otherwise.
+            <br>
+            <br>
+            At the time of writing this has only been implemented/tested on a <a href="gCanvas.htm">gCanvas</a>, which has a totally fake
+            scrollbar implementation, whereas <a href="gTreeView.htm">gTreeView</a> intead uses and relies on an implicit native scrollbar.<br>
+            The default builtin handler for a canvas, which automatically comes into effect when a <a href="gCanvas.htm#SCROLLSIZE">SCROLLSIZE</a>
+            larger than <a href="gSetHandler.htm#SIZE">SIZE</a> is specified, uses ctrl to scroll horizontally and/or shift to scroll faster.<br>
+            Be warned that as per <a href="#KEYDIFFS">KEY</a>, WinAPI does it&rsquo;s usual strange things with the Alt key (alone).<br>
+            The direction is kinda backwards, but it&rsquo;s the same sign as WinAPI, and simply replicated on the other backends.
+            <br>
+            <br>
+            Note there is no inherent speed handling, which I would fundamentally disagree with (on scrollbars) anyway: it is far better for an 
+            application to gradually increase the (rate of) effect the longer a wheel is turned without pause, or just have shift be faster, than 
+            is is to expect an arthritic hand to spin it like a manic 12-year old. Besides, a mousewheel should be for fine control anyway: for 
+            fast just use the scrollbar directly.
+            <br>
+            <br>
+            Setting a <a href="gCanvas.htm#SCROLLSIZE">SCROLLSIZE</a> on a <a href="gCanvas.htm">gCanvas</a> (and derived controls) automatically 
+            adds a mousewheel handler (which maps to keyboard commands) to control the scrollbars.<br>
+            Also, <a href="gSlider.htm">gSlider</a> and <a href="gSpin.htm">gSpin</a> rely on the native handling and do not actually use a
+            mousewheel handler at all. There is in fact some speed handling within the latter for free, at least under WinAPI.
+            <br>
+            <br>
+            Affects: 
+            <a href="gCanvas.htm">gCanvas</a>,
+            <a href="gGraph.htm">gGraph</a>,
+            <a href="gList.htm">gList</a>,
+            <a href="gTable.htm">gTable</a><br>
+<!--
+            <a href="gDatePick.htm">gDatePick</a>,
+            <a href="gSlider.htm">gSlider</a>,
+            <a href="gSpin.htm">gSpin</a><br>
+-->
           <a name=VALUE_CHANGED></a>
          </td>
         </tr>
@@ -620,10 +752,12 @@ gSetHandler({canvas1,canvas2},{"REDRAW",redraw,"CLICK",click})
             <br>
             <br>
             Affects: 
+            <a href="gCheckbox.htm#VALUE_CHANGED">gCheckbox</a>,
             <a href="gDatePick.htm#VALUE_CHANGED">gDatePick</a>,
             <a href="gList.htm#VALUE_CHANGED">gList</a>,
-            <a href="gText.htm#VALUE_CHANGED">gText</a>,
-            <a href="gCheckbox.htm#VALUE_CHANGED">gCheckbox</a><br>
+            <a href="gSlider.htm#VALUE_CHANGED">gSlider</a>,
+            <a href="gSpin.htm#VALUE_CHANGED">gSpin</a>,
+            <a href="gText.htm#VALUE_CHANGED">gText</a><br>
           <a name=tech></a>
          </td>
         </tr>
@@ -832,7 +966,7 @@ gSetHandler({canvas1,canvas2},{"REDRAW",redraw,"CLICK",click})
 //          <br>
 //          ih: identifier of the element that activated the event.<br>
 //          c: identifier of typed key. See <a href="#KEY">KEY</a> above for possible values.<br>
-//          press: 1(true) when the key is pressed, 0(false) when the key is released.
+//          press: <a href="logicops.htm#tf">true</a>(1) when the key is pressed, <a href="logicops.htm#tf">false</a>() when the key is released.
 //          <br>
 //          <br>
 //          Returns: If <a href="#XPG_IGNORE">XPG_IGNORE</a> is returned the key is ignored by the system. <br>
@@ -924,36 +1058,36 @@ gSetHandler({canvas1,canvas2},{"REDRAW",redraw,"CLICK",click})
 //      </tr>
 -->
 <!--
-          <a name=RESIZE_CB></a>
-        <tr>
-         <td>
-?         RESIZE_CB
-         </td>
-         <td>
-            Event generated when the canvas or dialog size is changed.
-            <br>
-            <br>
-            function resize_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> width, height)
-            <br>
-            <br>
-            ih: identifier of the element that activated the event.<br>
-            width: the width of the internal element size in pixels not considering the decorations (client size)<br>
-            height: the height of the internal element size in pixels not considering the decorations (client size)
-            <br>
-            <br>
-            For a dialog, this event is also generated when the dialog is mapped, after the map and before the show.
-            <br>
-            <br>
-            When XAUTOHIDE=Yes or YAUTOHIDE=Yes, if the canvas scrollbar is hidden/shown after changing the DX or DY attributes from inside the handler, 
-            the size of the drawing area will immediately change, so the parameters with and height will be invalid. <br>
-<X!X--          To update the parameters consult the DRAWSIZE attribute. --X>
-            Also activate the drawing toolkit only after updating the DX or DY attributes.
-            <br>
-            <br>
-            Affects: <a href="IupCanvas.htm">IupCanvas</a>, <a href="IupGLCanvas.htm">IupGLCanvas</a>, <a href="IupDialog.htm">IupDialog</a>
-            <br>
-         </td>
-        </tr>
+//        <a name=RESIZE_CB></a>
+//      <tr>
+//       <td>
+//?       RESIZE_CB
+//       </td>
+//       <td>
+//          Event generated when the canvas or dialog size is changed.
+//          <br>
+//          <br>
+//          function resize_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> width, height)
+//          <br>
+//          <br>
+//          ih: identifier of the element that activated the event.<br>
+//          width: the width of the internal element size in pixels not considering the decorations (client size)<br>
+//          height: the height of the internal element size in pixels not considering the decorations (client size)
+//          <br>
+//          <br>
+//          For a dialog, this event is also generated when the dialog is mapped, after the map and before the show.
+//          <br>
+//          <br>
+//          When XAUTOHIDE=Yes or YAUTOHIDE=Yes, if the canvas scrollbar is hidden/shown after changing the DX or DY attributes from inside the handler, 
+//          the size of the drawing area will immediately change, so the parameters with and height will be invalid. <br>
+//<X!X--            To update the parameters consult the DRAWSIZE attribute. --X>
+//          Also activate the drawing toolkit only after updating the DX or DY attributes.
+//          <br>
+//          <br>
+//          Affects: <a href="IupCanvas.htm">IupCanvas</a>, <a href="IupGLCanvas.htm">IupGLCanvas</a>, <a href="IupDialog.htm">IupDialog</a>
+//          <br>
+//       </td>
+//      </tr>
 -->
 <!--
           <a name=SCROLL_CB></a>
@@ -1065,15 +1199,75 @@ gSetHandler({canvas1,canvas2},{"REDRAW",redraw,"CLICK",click})
           </a>
          </td>
          <td>
-            Since xpGUI uses normal first class routines as handlers instead of callbacks, IupSetCallback() has been renamed/needs to be replaced with 
-            gSetHandler(), and importantly any quotes around the routine name must be removed, though <a href="xpport.htm">xpGUI_from_pGUI</a>() does 
-            all that automatically for you if you let it.<br>
-            There are no equivalents in xpGUI for <a href="Icallback.htm">Icallback(), cbfunc(), iup_name_from_cb(), or iup_cb_from_name()</a>, nor
-            <a href="IupGetCallback.htm">IupGetCallback</a>().<br>
+            Since xpGUI uses normal first class routines as handlers instead of callbacks, <a href="IupSetCallback.htm">IupSetCallback</a>() 
+            has been renamed/needs to be replaced with gSetHandler(), and importantly any quotes around the routine name must be removed, 
+            though <a href="xpport.htm">xpGUI_from_pGUI</a>() does all that automatically for you if you let it.<br>
+            There are no equivalents in xpGUI for <a href="Icallback.htm">Icallback(), cbfunc(), iup_name_from_cb(), or iup_cb_from_name()</a>, and
+            likewise <a href="IupGetCallback.htm">IupGetCallback</a>() shd be/is auto-replaced with <a href="#gGetHandler">gGetHandler</a>(), but
+            of course if the old code was actually invoking the callback that would need altering as well.
+            <br>
+            <br>
+            Some handlers accept a variable number of parameters, such as <a href="#CLICK">CLICK</a>, <a href="#KEY">KEY</a>, and 
+            <a href="#MOUSEMOVE">MOUSEMOVE</a>. While theoretically desktop/Phix could examine the signature of a single-parameter
+            routine and pass it an <a href="integer.htm">integer</a> or <a href="string.htm">string</a> appropriately, JavaScript is
+            a <i><a href="glossary.htm#typeless">typeless</a></i> language, and hence would only know "1 parameter", hence handlers
+            with variable arguments can only be designed/implemented as differing on the total number of arguments, not their types.
+            Cases affected by this include <a href="gCheckbox.htm#VALUE_CHANGED">gCheckbox VALUE_CHANGED</a> and
+            and <a href="gMenu.htm#HANDLER">gMenu HANDLER</a>: it is just not possible to make the id optional in the presence 
+            of other optional parameters. A somewhat slightly more convoluted workaround was devised for 
+            <a href="gTable.htm#SELECT">gTable SELECT</a>. Of course this speaks far more to my determination to make things
+            "as simple as possible" than it does to any actual inconvenience.
+            <br>
          </td>
         </tr>
        </table>
        <img id="Timg" src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
        <br>
        <br>
       </div>

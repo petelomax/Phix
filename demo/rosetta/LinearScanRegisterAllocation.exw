@@ -1842,6 +1842,7 @@ http://rosettacode.org/mw/index.php?title=Ramanujan_primes#Phix - Phix 2.7s, Go 
 https://rosettacode.org/wiki/Numbers_which_are_the_cube_roots_of_the_product_of_their_proper_divisors#Phix -- 8x slower than gcc/C++ [as I'd expect... (tio vs desktop)]
 ...Project Euler 74
 tests/t68forin.exw count_primes() is about 15 times faster under Julia... (15s vs 3:45 on 32 bit, 2:39 on 64bit [presumably latter does far fewer %pLoadFlt])
+Investigate xpGUI.e/gRotatePolygon() as well... I really didn't expect 33 vs 5 pts would be even slightly noticeable, but it really is.
 That'll do for now...
 
 48:017 054 300
@@ -3588,4 +3589,169 @@ Total execution time: 3 cycles
 
 Hmm: https://neverendingsecurity.wordpress.com/2015/04/07/openreil-open-source-library-that-implements-translator-and-tools-for-reil-reverse-engineering-intermediate-language/
 Interesting: https://stackoverflow.com/questions/67081866/why-are-the-variables-i-and-j-considered-dead-in-the-control-flow-graph
+--*/
+
+--/*
+From: https://godbolt.org/z/xhvdx5v58
+/* Type your code here, or load an example. */
+int add_all(int a, int b) {
+    return a + b;
+}
+
+int main() {
+    int x = add_all(1, 2);
+    return x;
+}
+===>
+add_all:
+        push    {r7}
+        sub     sp, sp, #12
+        add     r7, sp, #0
+        str     r0, [r7, #4]
+        str     r1, [r7]
+        ldr     r2, [r7, #4]
+        ldr     r3, [r7]
+        add     r3, r3, r2
+        mov     r0, r3
+        adds    r7, r7, #12
+        mov     sp, r7
+        ldr     r7, [sp], #4
+        bx      lr
+main:
+        push    {r7, lr}
+        sub     sp, sp, #8
+        add     r7, sp, #0
+        movs    r1, #2
+        movs    r0, #1
+        bl      add_all
+        str     r0, [r7, #4]
+        ldr     r3, [r7, #4]
+        mov     r0, r3
+        adds    r7, r7, #8
+        mov     sp, r7
+        pop     {r7, pc}
+or Raspbian buster:
+add_all:
+        str     fp, [sp, #-4]!
+        add     fp, sp, #0
+        sub     sp, sp, #12
+        str     r0, [fp, #-8]
+        str     r1, [fp, #-12]
+        ldr     r2, [fp, #-8]
+        ldr     r3, [fp, #-12]
+        add     r3, r2, r3
+        mov     r0, r3
+        add     sp, fp, #0
+        ldr     fp, [sp], #4
+        bx      lr
+main:
+        push    {fp, lr}
+        add     fp, sp, #4
+        sub     sp, sp, #8
+        mov     r1, #2
+        mov     r0, #1
+        bl      add_all
+        str     r0, [fp, #-8]
+        ldr     r3, [fp, #-8]
+        mov     r0, r3
+        sub     sp, fp, #4
+        pop     {fp, pc}
+or Arm v7-a clang:
+add_all:
+        sub     sp, sp, #8
+        str     r0, [sp, #4]
+        str     r1, [sp]
+        ldr     r0, [sp, #4]
+        ldr     r1, [sp]
+        add     r0, r0, r1
+        add     sp, sp, #8
+        bx      lr
+main:
+        push    {r11, lr}
+        mov     r11, sp
+        sub     sp, sp, #8
+        mov     r0, #0
+        str     r0, [sp, #4]
+        mov     r0, #1
+        mov     r1, #2
+        bl      add_all
+        str     r0, [sp]
+        ldr     r0, [sp]
+        mov     sp, r11
+        pop     {r11, lr}
+        bx      lr
+or x64 msvc:
+add_all PROC
+        mov     dword [rsp+16], edx
+        mov     dword [rsp+8], ecx
+        mov     eax, dword [rsp+16]
+        mov     ecx, dword [rsp+8]
+        add     ecx, eax
+        mov     eax, ecx
+        ret     0
+add_all ENDP
+
+main    PROC
+        sub     rsp, 56                             ; 00000038H
+        mov     edx, 2
+        mov     ecx, 1
+        call    add_all
+--      mov     dword [rsp+32], eax
+--      mov     eax, dword [rsp+32]
+        add     rsp, 56                             ; 00000038H
+        ret     0
+main    ENDP
+or x86 msvc:
+_add_all PROC
+        push    ebp
+        mov     ebp, esp
+        mov     eax, dword [ebp+8]
+        add     eax, dword [ebp+12]
+        pop     ebp
+        ret     0
+_add_all ENDP
+
+_main   PROC
+        push    ebp
+        mov     ebp, esp
+        push    ecx
+        push    2
+        push    1
+        call    _add_all
+        add     esp, 8
+--      mov     dword [ebp-4], eax
+--      mov     eax, dword [ebp-4]
+        mov     esp, ebp
+        pop     ebp
+        ret     0
+_main   ENDP
+
+Help typos by suggesting similar names
+If the compilation error is that variable "user_pos" is not defined, and there's a variable userpos in that scope, that's worth mentioning in the error message. 
+Levenshtein distance provides an easy-to-compute way of finding the similarity of two strings, be they variables, functions, or attributes.
+
+In case: https://langdev.stackexchange.com/questions/1503/how-can-an-abstract-syntax-tree-be-converted-into-linear-three-address-code
+         https://langdev.stackexchange.com/questions/1064/how-to-transpile-goto-to-a-language-that-lacks-it
+
+SUG (DOCS): Phix does not formally use a proper abstract syntax tree, instead the initial parse tree 
+            is iteratively transformed into what it calls a code generation tree, including a variant
+            of linear scan register allocation that works directly (/iteratively) on the tree, since 
+            it is much easier to manipulate smaller nodes and accumulate information about some subset
+            of them, that is compared to a single flat list of instuctions for the entire program.
+            An individual bloack/node can be tagged with a set of variables it would be useful to have
+            in registers on entry, a set that actually are, similar for exit, and registers damaged.
+            Note that a block may have, sy, x in rdi on entry but in rsi on exit, and it becomes the
+            containing block's responsibility to cope/ignore such. Loops are a slightly specialised
+            version of blocks that are responsible for co-ordinating their own in/out register sets.
+registers: x86 has just 5 (eax,ecx,edx,edi,esi)
+           x64 has 13 (rax,rcx,rdx,rdi,rsi,r8..15)
+           arm has 11+32 (r0..r10 plus s0..s31, with d0..d15 overlapping them in pairs) [use fmsr/fmrs for r<=>s]
+Note that registers may hold the reference or [raw] address of a variable, and the cgt needs to record that,
+eg: lea eax,[fred] ; address
+    mov eax,[fred] ; reference
+    shl eax,2      ; raw address.
+Likewise the floating point registers (d0..15 on arm, ?? on x86/64) can hold an atom's value.
+Need to do something about eliding refcount updates...
+It is fairly foolish to store unnamed temporary variables in the symtab....
+In fact a flat symtab is probably wrong too, for instance if we want "scope" in the debugger...
 --*/

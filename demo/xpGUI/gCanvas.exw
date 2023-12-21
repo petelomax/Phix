@@ -3,19 +3,83 @@
 -- ======================
 -- 
 -- DEV may now well be "working" in xpGUI.js, except for tiny canvas size...
--- DEV does not work on 64-bit GTK... I might /never/ have had that right.
+-- DEV does not work on 64-bit GTK... I might /never/ have had that right. [Seems much better 20/8/23...]
 --
---requires(64,true)
+-- Tests ((32|64)x(WinApi|gUsekGtk), ie fourfold):
+--  Is the default window filled and 240x163?
+--  Can it be resized (including shrinking)?
+--  Are the edges properly anti-aliased and shapes filled? (more of a to-do, that one, on WinAPI anyway)
+--   (work for the latter probably best done in aaline.exw rather than here...)
+--
+--requires(64,true) --DEV no resizing under GTK3... (19/10/23) [NOW APPARENTLY FIXED]
 with javascript_semantics
---include xpGUI.e -- DEV silly size under WinAPI
-include xpGUI3.e
+include xpGUI.e -- DEV silly size under WinAPI [FIXED 20/8/23]
+--include xpGUI4.e
+--include xpGUI3.e -- DEV [25/8/23] allows some shrinkage under GTK...
+--include backup\xpGUI.0220.e -- GOOD
+--include backup\xpGUI.0801.e -- GOOD
+--include backup\xpGUI.0826.e -- GOOD
+--include backup\xpGUI.1004.e -- GOOD
+--include backup\xpGUI.1220.e -- GOOD
+--include backup\xpGUI.1414.e -- GOOD
+--include backup\xpGUI.1475.e -- X
+--include backup\xpGUI.1476.e -- X
+--include backup\xpGUI.1477.e -- GOOD
+--include backup\xpGUI.1483.e -- GOOD
+--include backup\xpGUI.1486.e -- GOOD
+--include backup\xpGUI.1487.e -- GOOD
+--include backup\xpGUI.1488.e -- BAD
+--include backup\xpGUI.1490.e -- BAD
+--include backup\xpGUI.1502.e -- X
+--include backup\xpGUI.1507.e -- BAD
+--include backup\xpGUI.1530.e -- BAD
+--include backup\xpGUI.1531.e -- BAD
+--include backup\xpGUI.1532.e -- BAD
+--include backup\xpGUI.1533.e -- BAD
+--include backup\xpGUI.1535.e -- BAD
+--include backup\xpGUI.1542.e -- BAD
+--include backup\xpGUI.1545.e -- X
+--include backup\xpGUI.1572.e -- BAD
 --include xpGUI2.e
+--DEV [20/8/23] Won't permit size reduction.... (xpGUI3.e does, although it gives me a 242x156 window[ie +2,-7])
+--DEV [23/8/23] Now better, but limited to initial size...
+--DEV [2/12/23 under WinAPI w,h get 238,124 but under GTK they get 12,14...
+--gUseGTK()
+--ERM: why are **ALL** these XPG_NW,0??
+--{"xpg_shifta","oxoy(orig)",{205,87'W'},"rxry(adj)",{0,0},"nxny(new)",{205,87'W'},"xy(old)",{205,87'W'},"XPG_NW",0}
+--{"xpg_shifta","oxoy(orig)",{177,55'7'},"rxry(adj)",{0,0},"nxny(new)",{177,55'7'},"xy(old)",{177,55'7'},"XPG_NW",0}
+--{"xpg_shifta","oxoy(orig)",{158,71'G'},"rxry(adj)",{0,0},"nxny(new)",{158,71'G'},"xy(old)",{158,71'G'},"XPG_NW",0}
+--{"xpg_shifta","oxoy(orig)",{54'6',23},"rxry(adj)",{0,0},"nxny(new)",{54'6',23},"xy(old)",{54'6',23},"XPG_NW",0}
+--{"xpg_shifta","oxoy(orig)",{67'C',97'a'},"rxry(adj)",{0,0},"nxny(new)",{67'C',97'a'},"xy(old)",{67'C',97'a'},"XPG_NW",0}
+--{"xpg_shifta","oxoy(orig)",{181,9},"rxry(adj)",{0,0},"nxny(new)",{181,9},"xy(old)",{181,9},"XPG_NW",0}
+--{"xpg_shifta","oxoy(orig)",{164,31},"rxry(adj)",{0,0},"nxny(new)",{164,31},"xy(old)",{164,31},"XPG_NW",0}
+--{"xpg_shifta","oxoy(orig)",{1,0},"rxry(adj)",{0,0},"nxny(new)",{1,0},"xy(old)",{1,0},"XPG_NW",0}
+--{"xpg_shifta","oxoy(orig)",{121'y',47'/'},"rxry(adj)",{0,0},"nxny(new)",{121'y',47'/'},"xy(old)",{121'y',47'/'},"XPG_NW",0}
+--{"xpg_shifta","oxoy(orig)",{218,109'm'},"rxry(adj)",{0,0},"nxny(new)",{218,109'm'},"xy(old)",{218,109'm'},"XPG_NW",0}
+--{"xpg_shifta","oxoy(orig)",{225,62'>'},"rxry(adj)",{0,0},"nxny(new)",{225,62'>'},"xy(old)",{225,62'>'},"XPG_NW",0}
+--{"xpg_shifta","oxoy(orig)",{120'x',109'm'},"rxry(adj)",{0,0},"nxny(new)",{120'x',109'm'},"xy(old)",{120'x',109'm'},"XPG_NW",0}
+--{"xpg_shifta","oxoy(orig)",{1,62'>'},"rxry(adj)",{0,0},"nxny(new)",{1,62'>'},"xy(old)",{1,62'>'},"XPG_NW",0}
+--{"xpg_shifta","oxoy(orig)",{92'\',0},"rxry(adj)",{0,0},"nxny(new)",{92'\',0},"xy(old)",{92'\',0},"XPG_NW",0}
+--{"xpg_shifta","oxoy(orig)",{211,47'/'},"rxry(adj)",{0,0},"nxny(new)",{211,47'/'},"xy(old)",{211,47'/'},"XPG_NW",0}
+
+
+--bool bUsePoly = true -- (avoids bresenham edges on filled arcs under WinAPI)
+bool bUsePoly = false -- (bresenham edges on filled arcs under WinAPI)
+
+--include backup\xpGUI.5875.e -- good fonts
+--include backup\xpGUI.5877.e -- good fonts
+--include backup\xpGUI.5878.e -- duff fonts (& background)
+--include backup\xpGUI.5881.e -- duff fonts (& background)
+--include backup\xpGUI.5890.e -- duff fonts
+--include backup\xpGUI.5909.e -- duff fonts
+--include backup\xpGUI.5960.e -- duff
+--include backup\xpGUI.5965.e -- duff fonts
 --include backup\xpGUI.3521.e -- good (resize)
 --include backup\xpGUI.3524.e -- duff
 --include backup\xpGUI.3525.e -- duff
 --include backup\xpGUI.3526.e -- duff
---include backup\xpGUI.3527.e -- duff
---include backup\xpGUI.3528.e -- near but off
+--include backup\xpGUI.3527.e -- duff [GTK3 bad]
+--include backup\xpGUI.3528.e -- near but off (fonts good) [GTK3 good]
 --include backup\xpGUI.3529.e -- duff
 --include backup\xpGUI.3530.e -- duff
 --include backup\xpGUI.3531.e -- duff
@@ -45,8 +109,6 @@ include xpGUI3.e
 --include backup\xpGUI.2003.e -- duff
 --include backup\xpGUI.2032.e -- duff
 --gUseGTK()
---gwu(true)
-bool bUseImage = false
 
 --/*
 constant xpm_txt = {
@@ -77,6 +139,38 @@ constant xpm_txt = {
 "                        ",
 "                        ",
 "                        "}
+--*/
+--/*
+-- test codewide>1 (assert failure as it stands)
+constant xpm_txt = """
+24 24 2 2
+._ c None
+*_ c #000000
+._._._._._._._._._._._._._._._._._._._._._._._._
+._._._._._._._._._._._._._._._._._._._._._._._._
+._._._._._._._._._._._._._._._._._._._._._._._._
+._._._._._._._._._._._._._._._._._._._._._._._._
+._._._._._._._._._._._._._._._._._._._._._._._._
+._._._._._._._._._._._._._._._._._._*_._._._._._
+._._._._._._._._._._._._._._._._*_*_._._._._._._
+._._._._._._._._._._._._._._._*_*_._._._._._._._
+._._._._._._._._._._._._._._*_*_._._._._._._._._
+._._._._._._._._._._._._._*_*_._._._._._._._._._
+._._._._*_*_*_*_._._._._*_*_._._._._._*_*_*_._._
+._._._*_._._._*_*_._._*_*_._._._*_*_*_*_._._._._
+._._._*_._._._*_*_*_*_*_*_*_*_*_*_*_._._._._._._
+._._._._*_*_*_*_._._._*_*_*_*_._._._._._._._._._
+._._._._._._._._._._*_*_._._._._._._._._._._._._
+._._._._._._._._._*_*_*_._._._._._._._._._._._._
+._._._._._._._._*_._._*_._._._._._._._._._._._._
+._._._._._._._*_._._._*_._._._._._._._._._._._._
+._._._._._._._*_._._*_._._._._._._._._._._._._._
+._._._._._._._*_*_*_._._._._._._._._._._._._._._
+._._._._._._._._._._._._._._._._._._._._._._._._
+._._._._._._._._._._._._._._._._._._._._._._._._
+._._._._._._._._._._._._._._._._._._._._._._._._
+._._._._._._._._._._._._._._._._._._._._._._._._
+"""
 --*/
 --/!*
 constant xpm_txt = """
@@ -112,12 +206,12 @@ constant xpm_txt = """
 --/*
 constant xpm_txt = {
 "32 32 6 1",
-" 	s None	c None",
-".	c #808080",
-"X	c white",
-"o	c black",
-"O	c #c0c0c0",
-"+	c #ffff00",
+"  s None c None",
+". c #808080",
+"X c #FFFFFF",
+"o c #000000",
+"O c #c0c0c0",
+"+ c #ffff00",
 "    ...................         ",
 "    .XXXXXXXXXXXXXXXXX.o        ",
 "    .XXXXXXXXXXXXXXXXX..o       ",
@@ -150,7 +244,6 @@ constant xpm_txt = {
 "    .XXXXXXXXXXXXXXXXXXXXXXOo   ",
 "    .OOOOOOOOOOOOOOOOOOOOOOOo   ",
 "    ooooooooooooooooooooooooo   "}
-"""
 --*/
 --/*
 constant xpm_txt = """
@@ -179,77 +272,78 @@ _@@@@@@@@@@@@@@.
 """
 --*/
 constant xpm = gImage_from_XPM(xpm_txt)
+--DEV: I mangled the above to:
+--constant xpm = (xpm_txt)
+--which led to a very weird "p2js violation: JavaScript does not support string subscript destructuring" 
+--inside printf() from the first line of xpg_lm_dump_ctrls()... Note that an assert(src[1]="gImage") in
+--gImageDraw() successfully (but unintentionally) averted the issue... What I did find was that ?"bang"
+--(in"") was displayed but ?"crash" not, with the ex.err claiming it had long since left that routine.
+--With a bit of luck it's just a duff era somewhere in that statement... (an atom {a,b,c,d} = str[2]).
+--I may well have optimised that kind of thing, but not updated the error handling to match properly.
 
-procedure draw(gdc canvas, integer w, h)
-    integer {cx,cy} = {floor(w/2),floor(h/2)}
-    ?{"redraw",w,h} -- 414,221 under WinAPI, but 430,221 under GTK...
+
+function xy_mul(sequence poly, atom xm, ym)
+    poly = deep_copy(poly)
+    for i=1 to length(poly) do
+        for j=1 to length(poly[i]) by 2 do
+            poly[i][j] *= xm
+            poly[i][j+1] *= ym
+        end for
+    end for
+    return poly
+end function
+
+--procedure redraw(gdx canvas)
+procedure redraw(gdx canvas, integer w, h)
+--  integer {w,h} = gGetAttribute(canvas,"SIZE"),
+    integer cx = floor(w/2),
+            cy = floor(h/2)
+--  ?{"redraw",w,h} -- 238,131 under WinAPI, but 430,221 under GTK...
 --?to_rgba(XPG_YELLOW) -- hmm, {255,255,0,0}
 --?to_rgba(XPG_RED) -- hmm, {255,0,0,0}
 --?gGetTextExtent(canvas,"W")
 --  gCanvasSetForeground(canvas,XPG_GREEN)
 --  gCanvasArc(canvas,cx,cy,w,h,0,360)
 
-if false then
--- from gTable.exw, older style...:
---canvas size is 464x97 
-gCanvasRect(canvas,0,468,0,24,true,colour:=XPG_GREY,fillcolour:=XPG_GREY)
-gCanvasSetForeground(canvas,XPG_BLACK)
-gCanvasLine(canvas,0,0,0,97,colour:=XPG_LIGHT_GREY)
-gCanvasText(canvas,45,13,"Recommended",XPG_C)
-gCanvasText(canvas,45,37,"Helvetica",XPG_C)
-gCanvasText(canvas,45,61,"Courier",XPG_C)
-gCanvasText(canvas,45,85,"Times",XPG_C)
-gCanvasLine(canvas,90,0,90,97,colour:=XPG_LIGHT_GREY)
-gCanvasText(canvas,148,13,"Windows",XPG_C)
-gCanvasText(canvas,148,37,"Arial",XPG_C)
-gCanvasText(canvas,148,61,"Courier New",XPG_C)
-gCanvasText(canvas,148,85,"Times New Roman",XPG_C)
-gCanvasLine(canvas,206,0,206,97,colour:=XPG_LIGHT_GREY)
-gCanvasText(canvas,244,13,"GTK",XPG_C)
-gCanvasText(canvas,244,37,"Sans",XPG_C)
-gCanvasText(canvas,244,61,"Monospace",XPG_C)
-gCanvasText(canvas,244,85,"Serif",XPG_C)
-gCanvasLine(canvas,283,0,283,97,colour:=XPG_LIGHT_GREY)
-gCanvasText(canvas,288,13,"Description",XPG_E)
-gCanvasText(canvas,288,37,"without serif, variable spacing",XPG_E)
-gSetAttribute(canvas,"FONT","Courier, 9")
-gCanvasText(canvas,288,61,"with serif, fixed spacing",XPG_E)
-gSetAttribute(canvas,"FONT","Times, 10")
-gCanvasText(canvas,288,85,"with serif, variable spacing",XPG_E)
-gSetAttribute(canvas,"FONT","Arial, 9")
-gCanvasSetForeground(canvas,XPG_LIGHT_GREY)
-gCanvasLine(canvas,467,0,467,97)
-gCanvasLine(canvas,0,0,468,0)
-gCanvasLine(canvas,0,24,468,24)
-gCanvasLine(canvas,0,48,468,48)
-gCanvasLine(canvas,0,72,468,72)
-gCanvasLine(canvas,0,96,468,96)
-return
-end if
     gCanvasSetForeground(canvas,XPG_GREEN)
     gCanvasLine(canvas,0,cy,w-1,cy)
     gCanvasLine(canvas,cx,0,cx,h-1)
 --  gCanvasLine(canvas,0,0,w,h)
 --  gCanvasLine(canvas,0,h,w,0)
     gCanvasArc(canvas,cx,cy,w,h,15,50)
-    gCanvasText(canvas,w*.9,h*.7,"arc",XPG_S,0,XPG_BLACK)
+--  gCanvasText(canvas,w*.9,h*.7,"arc",XPG_S,0,XPG_BLACK)
+    gCanvasText(canvas,w*.9,h*.7,"arc",XPG_S,0,XPG_BLACK,XPG_NORMAL)
+--  gCanvasText(canvas,w*.9,h*.7,"arc",XPG_S,0,XPG_BLACK,XPG_ITALIC)
     atom dx = (w/2)*cos(15*PI/180), dy = (h/2)*sin(15*PI/180)
     gCanvasLine(canvas,cx,cy,cx+dx,cy+dy,XPG_DOTTED,1,XPG_GREY)
     gCanvasText(canvas,cx+dx/2,cy+dy/2,"15",XPG_NE,0,XPG_GREY)
+--  gCanvasText(canvas,cx+round(dx/2),cy+round(dy/2),"15",XPG_NE,0,XPG_GREY)
          dx = (w/2)*cos(50*PI/180); dy = (h/2)*sin(50*PI/180)
     gCanvasLine(canvas,cx,cy,cx+dx,cy+dy,XPG_DOTTED,1,XPG_GREY)
     gCanvasText(canvas,cx+dx/2,cy+dy/2,"50",XPG_NE,0,XPG_GREY)
 
-    gCanvasArc(canvas,cx,cy,w,h,55,165,XPG_CHORD+XPG_FILLED,-1,-1,XPG_AMBER,XPG_AMBER)
---  gCanvasArc(canvas,cx,cy,w,h,55,165,XPG_CHORD+XPG_FILLED,-1,-1,XPG_YELLOW,XPG_YELLOW)
---  gCanvasArc(canvas,cx,cy,w,h,55,165,XPG_CHORD+XPG_FILLED,-1,-1,#00FFFF,#00FFFF) -- CYAN...
-    gCanvasText(canvas,w*.35,h*.85,"chord",XPG_CENTRE,0,XPG_BLACK)
-    gCanvasArc(canvas,cx,cy,w,h,185,265,XPG_SECTOR+XPG_FILLED,-1,-1,XPG_OLIVE,XPG_OLIVE)
+if bUsePoly then
+    -- These were hand-generated by manually dragging control points to match an overlaid gCanvasArc(),
+    -- that is within the gCanvasPolygon.exw example, and the code needed/added should still be there.
+    -- As per the docs, code that generates this from (say) {cx,cy,w,h,55,165} would be most welcome.
+    sequence psect = xy_mul({{0,117,8,72,42,48},{66,34,91,20,128,5},{195,0},{214,129}},w/430,h/260),
+             pchrd = xy_mul({{337,234,287,256,244,258},{214,258,156,260,34,231},{5,161}},w/430,h/260)
+    gCanvasPolygon(canvas,psect,colour:=XPG_OLIVE)
+    gCanvasPolygon(canvas,pchrd,colour:=XPG_AMBER)
+else
+-- bresenham edges (under winAPI):
+    gCanvasArc(canvas,cx,cy,w,h,185,265,XPG_SECTOR+XPG_FILLED,-1,-1,XPG_OLIVE)
+    gCanvasArc(canvas,cx,cy,w,h,55,165,XPG_CHORD+XPG_FILLED,-1,-1,XPG_AMBER)
+-- no bresenham lines (under winAPI):
+--  gCanvasArc(canvas,cx,cy,w,h,185,265,XPG_SECTOR,-1,-1,XPG_OLIVE)
+--  gCanvasArc(canvas,cx,cy,w,h,55,165,XPG_CHORD,-1,-1,XPG_AMBER)
+end if
     gCanvasText(canvas,w*.3,h*.25,"sector",XPG_CENTRE,0,XPG_BLACK)
+    gCanvasText(canvas,w*.35,h*.85,"chord",XPG_CENTRE,0,XPG_BLACK)
     atom x3 = w*3/4, y4 = h/4, r = h/6, r2 = r/sqrt(2), r4 = r2/2
 --?"red:"
     gCanvasCircle(canvas,x3,y4,r,colour:=XPG_RED)
---  gCanvasCircle(canvas,x3,y4,r,XPG_FILLED,colour:=XPG_RED)
+--  gCanvasCircle(canvas,x3,y4,r,XPG_FILLED,colour:=XPG_RED) -- but back still parchment!!!
 --  gCanvasCircle(canvas,x3,y4,r,XPG_FILLED,colour:=XPG_RED,fillcolour:=XPG_RED)
 --?"/red"
     gCanvasLine(canvas,x3,y4,x3+r2,y4-r2,-1,1,XPG_GREY)
@@ -258,6 +352,20 @@ end if
     gCanvasSetForeground(canvas,XPG_GREEN)
     gCanvasText(canvas,0,0,"0,0",XPG_SE)
     gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE)
+--?sin(90*XPG_DEG2RAD) -- 1
+--?cos(90*XPG_DEG2RAD) -- ~0
+--  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,{XPG_SE,90}) -- <crap>[FIXED]
+--  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,{XPG_SW,90}) -- GOOD
+--  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,{XPG_SW,45},colour:={XPG_RED,XPG_BLUE}) -- GOOD
+--  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,{XPG_NW,45},colour:={XPG_RED,XPG_BLUE}) -- GOOD
+--  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,colour:={XPG_RED,XPG_BLUE}) -- GOOD
+--  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,{XPG_S,90}) -- GOOD
+--  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,{XPG_W,90}) -- GOOD
+--  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,{XPG_E,90}) -- GOOD
+--  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,{XPG_NE,90}) -- GOOD
+--  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,{XPG_N,90}) -- GOOD
+--  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,{XPG_NW,90}) -- GOOD
+--  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,{XPG_C,90}) -- <crap>[FIXED]
     gCanvasText(canvas,w,h,"w,h",XPG_NW)
     gCanvasSetForeground(canvas,XPG_BLACK)
     string degrees = utf32_to_utf8({#00B0})
@@ -271,7 +379,8 @@ end if
     gCanvasText(canvas,w,cy,"360"&degrees,XPG_NW)
 
 --DEV:
---  gCanvasCubicBezier(canvas,10,10,w-10,10,0,h-10,w-10,h-10)
+--  gCanvasSetLineWidth(canvas,2)
+    gCanvasCubicBezier(canvas,10,10,w-10,10,0,h-10,w-10,h-10)
 
 --  gCanvasSetLineWidth(canvas,5)
 --  gCanvasSetLineStyle(canvas,XPG_CONTINUOUS)
@@ -294,24 +403,9 @@ end if
 --  gCanvasSetBackground(canvas,XPG_PARCHMENT) -- (no longer needed...)
 
     gImageDraw(xpm,canvas,w*.3, h*.3)
-end procedure
-
---puts(1,"")
-procedure redraw(gdx canvas)
-    integer {w,h} = gGetAttribute(canvas,"SIZE")
---  atom {cx,cy} = {w/2,h/2}
---object style = gCanvasGetLineStyle(canvas)
---?style
---assert(style!=0)
-    if bUseImage then
---      gdc image = gImageRGBA(w,h,gGetAttribute)
-?9/0
---      gdc image = gImageRGBA(w,h,{gCanvasGetBackground(canvas)})
---      draw(image,w,h)
---      gImageDraw(image,canvas)
-    else
-        draw(canvas,w,h)
-    end if
+--gCanvasSetBackground(canvas, XPG_PARCHMENT)
+--?gCanvasGetFont
+--?gGetAttribute(canvas,"FONT")
 end procedure
 
 --/* -- works fine:
@@ -337,15 +431,10 @@ procedure mousemove(gdx canvas, integer x,y, bool left,middle,right, ctrl,shift,
 end procedure
 --*/
 
-gdx canvas = gCanvas(redraw),
---gdx canvas = gCanvas(redraw,`SIZE=430x260`),
---gdx canvas = gCanvas(redraw,`SIZE=464x97`),
---  dialog = gDialog(canvas,`TITLE="gCanvas",SIZE=450x300`)
---  dialog = gDialog(canvas,`gCanvas`,`SIZE=430x260`)
---  dialog = gDialog(canvas,`gCanvas`,`SIZE=219x163`)
-    dialog = gDialog(canvas,`gCanvas`,`SIZE=240x163`)
---  dialog = gDialog(canvas,`gCanvas`,`SIZE=254x163`)
---  dialog = gDialog(gHbox({canvas}),`TITLE="gCanvas",SIZE=430x260`)
+gdx canvas = gCanvas(redraw), -- DEV silly size under GTK... (fully resizeable under WinAPI)
+--gdx canvas = gCanvas(redraw,`SIZE=238x126`),
+--  dialog = gDialog(canvas,`gCanvas`,`SIZE=330x240`)
+    dialog = gDialog(canvas,`gCanvas`,`SIZE=240x156`) -- matches docs
 gCanvasSetBackground(canvas, XPG_PARCHMENT)
 --gCanvasSetBackground(canvas, XPG_LIGHT_PARCHMENT)
 --?gGetAttribute(dialog,"MINSIZE")
@@ -356,6 +445,9 @@ gCanvasSetBackground(canvas, XPG_PARCHMENT)
 --gSetBodge(canvas,{0,0,0,0})
 gShow(dialog)
 --?gGetTextExtent(canvas,"W")
+--gSetAttribute(canvas,"SIZE",NULL) -- no help
+--gSetAttribute(canvas,"SIZE",{0,0}) -- no help
+--?gGetAttribute(canvas,"SIZE") -- (still wrong!)
 gMainLoop()
 --?"done"
 --wait_key()

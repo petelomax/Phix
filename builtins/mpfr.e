@@ -2554,7 +2554,10 @@ global function mpz_pollard_rho(mpz_or_string s, bool bAsStrings=false)
                 y = mpz_init(2),
                 f = mpz_init(1)  -- factor
             integer size = 2
+--25/8/23: (no help, on repuint(180) anyway)
             while mpz_cmp_si(f,1)=0 do
+--          while mpz_cmp_si(f,1)=0 and size<=#20000000 do
+--          while mpz_cmp_si(f,1)=0 and size<=#2000 do -- (really bad idea!)
                 for count=1 to size do
                     mpz_mul(x,x,x)
                     mpz_add_si(x,x,1)
@@ -2651,7 +2654,7 @@ global function mpz_factors(object s, object include1=0, bool bAsAtmStr=true, bS
 --  wrap a plain mpz argument like that; there is a high risk of treating
 --  the raw memory address of an unwrapped mpz as a small integer.
 --  When I say integer, I mean an atom with no fractional part that passes
---  builtins/pfactors.e/check_limits() or it&rsquo;s equivalent, so maybe
+--  builtins\pfactors.e\check_limits() or it&rsquo;s equivalent, so maybe
 --  "small" isn&rsquo;t the right word, but I think you get what I mean.<br>
 --  As per factors():
 --  if include1 is 1 the result contains 1 and n
@@ -2757,7 +2760,7 @@ end function
 --DEV erm, I think this should be mpz_bin_uiui()...
 --global function mpz_binom(integer n, k)
 global procedure mpz_bin_uiui(mpz rop, integer n, k)
--- equivalent, for small n and k, to builtins/factorial.e's choose()
+-- equivalent, for small n and k, to builtins\factorial.e's choose()
 --  mpz r = mpz_init(1)
     mpz_set_si(rop,1)
     for i=1 to k do
@@ -3421,6 +3424,56 @@ global procedure mpfr_printf(integer fn, string fmt, atom x, boolean comma_fill=
     puts(fn,mpfr_sprintf(fmt,x,comma_fill))
 end procedure
 
+local function mpfr_round(string s, integer l)
+    -- eg "111.116",6 ==> "111.12"
+    --    "11611.111",3 ==> "12000"
+    assert(s[l]!='.') -- sanity check
+    integer d = find('.',s), ch, a = 0
+    if d>l then s[d..d] = "" end if
+    if l<length(s) then
+        ch = s[l+1]
+if ch='.' or ch=',' then ?9/0 end if -- DEV placeholder...
+        if ch='5' then
+            a = and_bits(s[l],1)
+            for ch in s from l+1 do
+                if ch!='0' and ch!='.' and ch!=',' then
+                    a = 1
+                    exit
+                end if
+            end for
+        elsif ch>'5' then
+            a = 1
+        end if
+    end if
+    if a then
+        for i=l to 1 by -1 do
+            ch = s[i]
+            if ch!='.' and ch!=',' then
+                if ch!='9' then
+                    s[i] = ch+1
+                    a = 0
+                    exit
+                end if
+                s[i] = '0'
+            end if
+        end for
+        if a then
+            s = "1"&s
+            l += 1
+        end if
+    end if
+    if d>l then
+        s = s[1..d-1]
+        for i=l+1 to length(s) do
+            assert(s[i]!='.') -- sanity check
+            if s[i]!=',' then s[i] = '0' end if
+        end for
+    else
+        s = s[1..l]
+    end if
+    return s
+end function
+
 --global function mpfr_get_fixed(mpfr x, integer dp=6)
 global function mpfr_get_fixed(mpfr x, integer dp=6, base=10, boolean comma_fill=false, integer maxlen=0)
 --global function mpfr_get_fixed(mpfr x, integer dp=6, base=10, rounding=default_rounding)
@@ -3433,15 +3486,19 @@ global function mpfr_get_fixed(mpfr x, integer dp=6, base=10, boolean comma_fill
         if d then
             if dp>0 then
                 if length(res)-d>dp then
-                    -- eg 111.111 with 2 ==> "111.11"
-                    res = res[1..d+dp]
+                    -- eg "111.116" with 2 ==> "111.12"
+--                  res = res[1..d+dp]
+                    res = mpfr_round(res,d+dp)
                 end if
             else
-                -- eg 11111.111 with -3 ==> "11000"
+                -- eg 11611.111 with -3 ==> "12000"
+                res = mpfr_round(res,d-1)
+--/*
                 res = res[1..d-1]
 --              assert(abs(dp)>length(res),"too small for -%d places",{-dp})
                 if abs(dp)>length(res) then return "0" end if
                 res[dp..-1] = repeat('0',abs(dp))
+--*/
             end if
         end if
     end if

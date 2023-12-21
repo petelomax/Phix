@@ -16,8 +16,9 @@
             include xpGUI.e
             <br>
             <br>
-            <a href="gdx.htm">gdx</a> id = gList(<a href="object.htm">object</a> data, 
-                                                [<a href="rtn.htm">rtn</a> selected=NULL,]
+<!--        <a href="gdx.htm">gdx</a> id = gList(<a href="object.htm">object</a> data, -->
+<!--                                            [<a href="rtn.htm">rtn</a> selected=NULL,]-->
+            <a href="gdx.htm">gdx</a> id = gList(<a href="rtn.htm">rtn</a> get_data, [selected=NULL,]
 <!--                                            [<a href="integer.htm">integer</a> rows=0,]]-->
                                                  <a href="string.htm">string</a> attributes="",
                                                  <a href="html/glossary.htm#dwordseq">dword_seq</a> args={})
@@ -29,13 +30,16 @@
          </td>
          <td>
 <!--
-            NOT STARTED... <small>(I&rsquo;m thinking a gList() should be like the thing you get in Ctrl Q, but syntax colourable/ownerdrawn?)</small><br>
-            <small>- maybe what I really want and should aim for here is a gEditableAndSyntaxColourableMultilineText()...</small>
-            <br>
-            <br>
+//          NOT STARTED... <small>(I&rsquo;m thinking a gList() should be like the thing you get in Ctrl Q, but syntax colourable/ownerdrawn?)</small><br>
+//          <small>- maybe what I really want and should aim for here is a gEditableAndSyntaxColourableMultilineText()...</small>
+//          <br>
+//          <br>
 -->
-            Creates a simple interface element that displays a read-only, non-sortable, header-less list of text-only items, with automatic scrollbars.
-            <br><small>NB: scrollbars/scrolling/selection not even started [DEV]</small>
+            Creates a simple interface element that displays a non-sortable, header-less list of text-only items, with automatic scrollbars. 
+<!--[technically read-only,] -->
+<!--            While the gList does not itself perform any modification of data, there is nothing to prevent the application
+            from modifying that and telling the gList to redisplay, but should keep control/posession of the "master copy" of that data.-->
+            <br><small>NB: scrollbars now almost done, but selection not even started [DEV]</small>
 <!--
             The list can be visible or can be dropped down. <br>
             It also can have an edit box for text input. <br>
@@ -44,10 +48,11 @@
 -->
             <br>
             <br>
-            data: (non-optional) a sequence of string [fragment]s or (recommended) a fetch function, see notes and <a href="#DATA">DATA</a> below.<br>
+<!--        data: (non-optional) a sequence of string[ fragment]s or (recommended) a fetch function, see notes and <a href="#DATA">DATA</a> below.<br>-->
+            get_data: (non-optional) a fetch function, see notes and <a href="#DATA">DATA</a> below.<br>
             selected: (optional) a procedure which is invoked when the selection changes.<br>
 <!--            rows: (optional) the maximum number of lines to be displayed at any given time.<br>-->
-            For more information on the attributes and args parameters see <a href="gSetAttributes.htm">gSetAttributes</a>.<br>
+            For more information on the attributes and args parameters see <a href="gSetAttributes.htm">gSetAttributes</a>().<br>
             This is a <a href="g_paranormal.htm">paranormalised function</a>.  <small>(see <a href="#tech" onclick="opentech()">technicalia</a>)</small>
             <br>
             <br>
@@ -59,7 +64,7 @@
           <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
          </td>
          <td>
-          Not yet Supported. [DEV]
+          Almost, no scrollbars as yet, for one thing. [DEV]
          </td>
         </tr>
         <tr>
@@ -76,55 +81,66 @@
           <b>Example:</b>
          </td>
          <td>
-            <p align="center"><img alt="gList" src="images/gList.png" width="240" height="80"></p>
-            <center><small><i>(image to be replaced with one that shows a scrollbar, once they are working...)</i></small></center>
-
+          <div style="float:left;">
 <!--eucode>
 -- demo\xpGUI\gList.exw
 include xpGUI.e
 
-sequence data = {"one",{{"too",XPG_RED,XPG_ITALIC}},"three"}
---                    ^^^ see note below
+sequence data = {"one","too","three"}
+integer ldx = largest(apply(data,length),true)
 
 function get_data(integer idx)
     if idx=0 then return length(data) end if
-    if idx=-1 then return 0 end if
-    return data[idx]
+    if idx=-1 then return ldx end if -- note 1
+    sequence res = data[idx]
+    if res="too" then -- spelling mistake?
+        -- see note 2 below
+        res = {{"too",XPG_RED,XPG_ITALIC}}
+    end if
+    return res
 end function
 
 procedure selected(integer idx)
     ?{"selected",idx,data[idx]}
 end procedure
 
-gdx list = gList(get_data,selected),
-        -- gList(data,selected), -- (fine too)
-    dialog = gDialog(list,"gList",`SIZE=240x80`)
-gShow(window)
+gdx list = gList(get_data,selected,`FONT="Consolas, 12"`),
+     dlg = gDialog(list,"gList",`SIZE=240x80`)
+gCanvasSetBackground(list,XPG_LIGHT_PARCHMENT)
+gShow(dlg)
 gMainLoop()
 </eucode-->
 <pre>
 <font color="#000080"><i>-- demo\xpGUI\gList.exw</i></font>
 <font color="#008080">include</font><font color="#000000"> xpGUI.e
 </font>
-<font color="#004080">sequence</font><font color="#000000"> data</font><font color="#0000FF"> = {</font><font color="#008000">"one"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#800080">{</font><font color="#008000">"too"</font><font color="#0000FF">,</font><font color="#004600">XPG_RED</font><font color="#0000FF">,</font><font color="#004600">XPG_ITALIC</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000">"three"</font><font color="#0000FF">}</font>
-<font color="#000080"><i>--                    ^^^ see note below
-</i></font>
+<font color="#004080">sequence</font><font color="#000000"> data</font><font color="#0000FF"> = {</font><font color="#008000">"one"</font><font color="#0000FF">,</font><font color="#008000">"too"</font><font color="#0000FF">,</font><font color="#008000">"three"</font><font color="#0000FF">}</font>
+<font color="#004080">integer</font><font color="#000000"> ldx</font><font color="#0000FF"> =</font><font color="#7060A8"> largest</font><font color="#0000FF">(</font><font color="#7060A8">apply</font><font color="#800000">(</font><font color="#000000">data</font><font color="#0000FF">,</font><font color="#7060A8">length</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#004600">true</font><font color="#0000FF">)
+</font>
 <font color="#008080">function</font><font color="#000000"> get_data</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> idx</font><font color="#0000FF">)</font>
 <font color="#008080">    if</font><font color="#000000"> idx</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#008080"> then return</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">data</font><font color="#0000FF">)</font><font color="#008080"> end if
-    if</font><font color="#000000"> idx</font><font color="#0000FF">=-</font><font color="#000000">1</font><font color="#008080"> then return</font><font color="#000000"> 0</font><font color="#008080"> end if
-    return</font><font color="#000000"> data</font><font color="#0000FF">[</font><font color="#000000">idx</font><font color="#0000FF">]</font>
+    if</font><font color="#000000"> idx</font><font color="#0000FF">=-</font><font color="#000000">1</font><font color="#008080"> then return</font><font color="#000000"> ldx</font><font color="#008080"> end if</font><font color="#000080"><i> -- note 1</i></font>
+<font color="#004080">    sequence</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#000000"> data</font><font color="#0000FF">[</font><font color="#000000">idx</font><font color="#0000FF">]</font>
+<font color="#008080">    if</font><font color="#000000"> res</font><font color="#0000FF">=</font><font color="#008000">"too"</font><font color="#008080"> then</font><font color="#000080"><i> -- spelling mistake?
+        -- see note 2 below</i></font>
+<font color="#000000">        res</font><font color="#0000FF"> = {</font><font color="#800000">{</font><font color="#008000">"too"</font><font color="#0000FF">,</font><font color="#004600">XPG_RED</font><font color="#0000FF">,</font><font color="#004600">XPG_ITALIC</font><font color="#800000">}</font><font color="#0000FF">}</font>
+<font color="#008080">    end if
+    return</font><font color="#000000"> res</font>
 <font color="#008080">end function
 
 procedure</font><font color="#000000"> selected</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> idx</font><font color="#0000FF">)
     ?{</font><font color="#008000">"selected"</font><font color="#0000FF">,</font><font color="#000000">idx</font><font color="#0000FF">,</font><font color="#000000">data</font><font color="#800000">[</font><font color="#000000">idx</font><font color="#800000">]</font><font color="#0000FF">}</font>
 <font color="#008080">end procedure
 </font>
-<font color="#7060A8">gdx</font><font color="#000000"> list</font><font color="#0000FF"> =</font><font color="#7060A8"> gList</font><font color="#0000FF">(</font><font color="#000000">get_data</font><font color="#0000FF">,</font><font color="#000000">selected</font><font color="#0000FF">),</font>
-<font color="#000080"><i>        -- gList(data,selected), -- (fine too)</i></font>
-<font color="#000000">    dialog</font><font color="#0000FF"> =</font><font color="#7060A8"> gDialog</font><font color="#0000FF">(</font><font color="#000000">list</font><font color="#0000FF">,</font><font color="#008000">"gList"</font><font color="#0000FF">,</font><font color="#008000">`SIZE=240x80`</font><font color="#0000FF">)</font>
-<font color="#7060A8">gShow</font><font color="#0000FF">(</font><font color="#000000">window</font><font color="#0000FF">)</font>
+<font color="#7060A8">gdx</font><font color="#000000"> list</font><font color="#0000FF"> =</font><font color="#7060A8"> gList</font><font color="#0000FF">(</font><font color="#000000">get_data</font><font color="#0000FF">,</font><font color="#000000">selected</font><font color="#0000FF">,</font><font color="#008000">`FONT="Consolas, 12"`</font><font color="#0000FF">),</font>
+<font color="#000000">     dlg</font><font color="#0000FF"> =</font><font color="#7060A8"> gDialog</font><font color="#0000FF">(</font><font color="#000000">list</font><font color="#0000FF">,</font><font color="#008000">"gList"</font><font color="#0000FF">,</font><font color="#008000">`SIZE=240x80`</font><font color="#0000FF">)</font>
+<font color="#7060A8">gCanvasSetBackground</font><font color="#0000FF">(</font><font color="#000000">list</font><font color="#0000FF">,</font><font color="#004600">XPG_LIGHT_PARCHMENT</font><font color="#0000FF">)</font>
+<font color="#7060A8">gShow</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">)</font>
 <font color="#7060A8">gMainLoop</font><font color="#0000FF">()</font>
 </pre>
+          </div>
+          <img alt="gList" style="float:right;" src="images/gList.png" width="240" height="80">
+          <div class="clear"></div>
          </td>
         </tr>
         <tr>
@@ -132,45 +148,61 @@ procedure</font><font color="#000000"> selected</font><font color="#0000FF">(</f
           <b>Notes:</b>
          </td>
          <td>
-            In some cases it is easier/sensible to specify a (small) fixed set of strings for data, however should that data be
-            frequently (or in fact ever) updated, for instance with diagnostic info or progress messages, it is much better to 
-            provide it via a <a href="#DATA">DATA</a> fetch function.
+<!--            While it may sometimes be easier to store relatively small and static data directly in the gList itself, it is usually much
+            more flexible to use a <a href="#DATA">DATA</a> fetch function, especially should you ever want to modify the data (as opposed 
+            to wholesale replacement). -->
+            A gList is technically a read-only control, however there is nothing to prevent an application from handling keyboard/mouse input 
+            and modifying the data itself, and then presumably invoking <a href="gRedraw.htm">gRedraw</a>().
+<!--        In some (rarer) cases it is easier/sensible to specify a (small) fixed set of strings for data, however should that data be
+            frequently or in fact ever updated, it is much better to provide it via a <a href="#DATA">DATA</a> fetch function.-->
             <br>
             <br>
-            With a fetch function, the application assumes all responsiblity for owning and limiting the data, for example it may be wise 
-            to crop a log back to 1,000 entries when adding the 2,001st (ymmv), rather than collect until you inevitably run out of memory.
-            Independently of a gList, that approach should also prevent any ex.err during development potentially taking several minutes 
-            to write, and several GB of disk space, as well as using all that memory, on top of gradually getting slower and slower.<br>
-            It is the responsibility of the gList() to deal with all that quickly and efficiently, whatever you decide to do.<br>
-            First-class performance is in fact a significant concern in the design of this (deliberately simple) interface element.
+<!--            With a fetch function, the application assumes all responsiblity for owning/modifying/limiting the data.<br>-->
+            First-class performance is a significant concern in the design of this (deliberately simple) interface element.<br>
+            <small><sup>1</sup></small> Specifically when gList() asks data(-1), aka "what is the longest line?", it is <i>entirely</i> the 
+            application&rsquo;s responsibility to figure out a clever way to answer that efficiently, and <i>not</i> the fault of gList() 
+            should an inefficient method be used, for instance apply(data,length) is fine when done once but not ideal should it repeat 
+            &gt;99.99% of the exact same work on every single keystroke. For that reason, 0 is allowed to say "don&rsquo;t care", with the 
+            obvious catch of no horizontal scrollbar to view the rest of any over-long lines.
             <br>
             <br>
             Text is always left aligned, with everything in the same font face/pointsize, but optionally scrollable and each line can be 
-            specified as a list of coloured and/or normal/bold/italic text fragments.
+            specified as a list of coloured and/or normal/bold/italic text fragments. Line numbers (for instance) would be the responsibility
+            of the get_data() function. 
+<!--
+            You could also use <a href="gCanvas.htm#IDROP">IDROP</a> to draw everything yourself (except for the
+            scrollbars, and/but only as long as you have no problem/can cope with the x,y you will get given).
+GAK: I may yet remove IDROP support on gList, should there be even the slightest performance gain for xpEditer...
+-->
             <br>
             <br>
-            Should this control not meet your needs then perhaps you should consider a <a href="gTable.htm">gTable</a>() instead, 
+            Should this control not meet your needs then perhaps you might consider a <a href="gTable.htm">gTable</a>() instead, 
             which can handle multiple sortable columns, with headers, numeric entries, icons[??], etc. Also, a gList is just one 
             half of the original <a href="IupList.htm">IupList</a> functionality which has been completely redesigned and split, 
             so you may actually be looking for a <a href="gDropDown.htm">gDropDown</a>() instead. Should you be looking for a 
             "dropped down with edit area" then what you probably want is actually a <a href="gBox.htm">gVbox</a>() with a pair of 
             {<a href="gText.htm">gText</a>,gList}) children instead, and performing the whole "add entry" thing explicitly yourself, 
-            along with setting the <a href="gText.htm">gText</a> whenever selection changes in the gList.
+            along with setting the <a href="gText.htm">gText</a> whenever selection changes in the gList. (Not really a fan of that 
+            kind of silly nonsense, be I, but at least whenever xpGUI starts to show signs of getting a bit highly opinionated, it 
+            should be relatively straightforward to change.)
+<!--
             <br>
             <br>
             While technically a gList is strictly read-only, (with a fetch function) the application is free to make any required changes 
-            to the data itself, and that way mimic an editable control, and in fact that is what gEditor [?ged? is planned to do]/does.
+            to the data itself, and that way mimic an editable control, and in fact that is what xpEditer does/is planned to do.
+-->
             <br>
             <br>
-            Each element of data/return from the <a href="#DATA">DATA</a> fetch function can be a plain string or a sequence of
-            (string | {string,colour[,style]}) fragments.<br>
-            Note the double braces on the "too" above, and that <code>`,{"t",{"o",XPG_RED},"o"},`</code> (and `,"two",`) would also be valid.<br>
-            A <code>`,{"too",XPG_RED},`</code> would display "too" in black, then complain XPG_RED is neither string nor {string,colour[,style]},<br>
-            where colour and style are as per <a href="gCanvas.htm#gCanvasText">gCanvasText</a>() (including -1 for "as is"). Oh, and when I said
-            black just then, I really meant the <a href="gCanvas.htm#gCanvasSetForeground">gCanvasSetForeground</a>() currenly in force.
-            <br>
+            Each element of data/returns from the <a href="#DATA">DATA</a> fetch function can be a plain string or a sequence of string or
+            {string,colour[,style]} fragments. Of course you could pre-analyse (/syntax-colour) the whole of data in one go up-front, or
+            perform that per-line/on demand as shown above, and the maxlen index might also change over time.<br>
+            <small><sup>2</sup></small> Note the double braces on the "too" above: a <code>{"too",XPG_RED}</code> would display "too" 
+            (in the current foreground colour), but then complain that XPG_RED is neither a string nor {string,colour[,style]}, where 
+            colour and style are as per <a href="gCanvas.htm#gCanvasText">gCanvasText</a>() (including the -1 for "as is").
+            Obviously "two" would also be valid <small>[albeit misleading/autocorrect]</small>, as would <code>{"t",{"o",XPG_RED},"o"}</code>.
             <br>
 <!--
+            <br>
             When the list has focus use the arrow keys to move focus from one item to another. 
             When DROPDOWN=Yes use the Alt+Down key combination to show the dropdown list. 
             While the dropdown is shown the arrow key may change the current value depending on the system, 
@@ -194,7 +226,7 @@ procedure</font><font color="#000000"> selected</font><font color="#0000FF">(</f
             </ul>
             <br>
             IMPORTANT: In Windows when DROPDOWN=Yes the vertical size is controlled by the system, and has the height just right to include the borders and the text. 
-//          So the User height from <a href="gSetAttribute.htm#RASTERSIZE">RASTERSIZE</a> or <a href="gSetAttribute.htm#SIZE">SIZE</a> will be always ignored.
+//          So the User height from <a href="gSetAttribute.htm#RASTERSIZE">RASTERSIZE</a> or <a href="gGetAttribute.htm#SIZE">SIZE</a> will be always ignored.
             <br>
             <br>
             In Windows, list items are limited to 255 pixels height. 
@@ -237,8 +269,8 @@ procedure</font><font color="#000000"> selected</font><font color="#0000FF">(</f
             does not need to concatenate the attribute name with the id.
             <br>
             <br>
--->
             Some further examples can be seen in demo\xpGUI\sample.exw [DEV]
+-->
          </td>
         </tr>
         <tr>
@@ -247,9 +279,11 @@ procedure</font><font color="#000000"> selected</font><font color="#0000FF">(</f
          </td>
          <td>
           <br>
-          <a name=COUNT></a>
+          <a name=MULTIPLE></a> 
          </td>
         </tr>
+<!--
+          <a name=COUNT></a>
         <tr>
          <td>
 ?         COUNT
@@ -258,29 +292,36 @@ procedure</font><font color="#000000"> selected</font><font color="#0000FF">(</f
             (read-only, non inheritable) returns the number of items. Note that when a <a href="#DATA">DATA</a> fetch function is in use, and
             hence the application (rather than the gList) "owns" the data, it simply returns the result from invoking that routine with 0.
             Should not be confused with <a href="#ROWS">ROWS</a>, which concerns the display size.<br>
-          <a name=DATA></a>
          </td>
         </tr>
+-->
+<!--
+          <a name=DDATA></a>
         <tr>
          <td>
 ?         DATA
          </td>
          <td>
-            Fetch/replace the (static) control-owned data when a <a href="#DATA">DATA</a> fetch function is not in use, which it only is
-            (in use) when this is NULL. You might use this in response to the selection in a set of radio buttons being (manually) altered, 
-            but it is <i>not</i> recommended to update the (ever longer) contents this way several times a second. Technically you can also 
-            use this to set a handler, and this one is set on creation rather than the other, but subsequently used seamlessly.<br>
-          <a name=MULTIPLE></a> 
+            Fetch/replace the (static) control-owned data when a <a href="sequence.htm">sequence</a>, or the <a href="#DATA">DATA</a> fetch 
+            function when an <a href="integer.htm">integer</a>/<a href="rtn.htm">rtn</a>. See notes above.
+<X!X--
+            Relatively short and reasonably static sequences
+            should be fine, but it is <i>not</i> recommended to update the (ever longer) contents this way several times a second, instead 
+            the application should maintain said itself and use a proper fetch function.<br>
+--X>
          </td>
         </tr>
+-->
         <tr>
          <td>
-?         MULTIPLE
+??        MULTIPLE
          </td>
          <td>
-            (creation only) Allows selecting several items simultaneously (multiple list). Default: "NO"/0/false.<br>
+            (creation only) Allows selecting several items simultaneously (multiple list). Default: "NO"/0/<a href="logicops.htm#tf">false</a>.<br>
             To select multiple items, the Ctrl or Shift key must be held down.<br>
             Note this changes the required signature of any <a href="#SELECTED">SELECTED</a> handler.<br>
+            Also note this is whole lines, inappropriate for and distinct from block selection in (say) an editor, which is much more of a 
+            syntax-colouring thing (see <a href="#DATA">DATA</a>). The latter can however co-exist quite happily with single line selection.<br>
 <!--             Only valid when EDITBOX=NO and DROPDOWN=NO. -->
           <a name=ROWS></a>
          </td>
@@ -290,11 +331,20 @@ procedure</font><font color="#000000"> selected</font><font color="#0000FF">(</f
 ?         ROWS
          </td>
          <td>
-            (creation only) The number of lines to be displayed at any given time, if not set the length of data is consulted, minimum 1.
-            Should not be confused with <a href="#COUNT">COUNT</a>, which can be much larger.
+            (creation only) The number of lines to be displayed at any given time, in cases where no explict <a href="gGetAttribute.htm#SIZE">SIZE</a>
+            has been set. Of course using ROWS rather than SIZE helps to prevent it showing partial/vertically clipped lines, however that cannot be
+            assured when it is resized or micro-scrolled. If (both are) undefined the length of data is/may be consulted and clamped to 1..50, that is 
+            unless constrained by some outer container size or suchlike, say perhaps being normalised to some other sibling control.<br>
+<!--
+            Should not be confused with <a href="#COUNT">COUNT</a>, which can be much larger.<br>
+better:<br>
+-->
+<!--            Typically much smaller than <a href="#COUNT">COUNT</a>, but can be a bit larger.<br>-->
+            Typically much smaller than whatever get_data(0) returns, but can be a bit larger.<br>
 <!--?        Can also be referenced as "VISIBLELINES".-->
          </td>
         </tr>
+<!--
         <tr>
          <td>
 ?         SIZE
@@ -305,22 +355,14 @@ procedure</font><font color="#000000"> selected</font><font color="#0000FF">(</f
             the longest line, and if the height is not set or zero, the same times <a href="#ROWS">ROWS</a> is used.
          </td>
         </tr>
+-->
         <tr>
          <td>
-?         TOPITEM
+??        SELECTED
          </td>
          <td>
-            (write-only) position the given item at the top of the list or near to make it visible.
-<!--             Valid only when DROPDOWN=NO. -->
-         </td>
-        </tr>
-        <tr>
-         <td>
-?         SELECTED
-         </td>
-         <td>
-            (read only) When <a href="#MULTIPLE">MULTIPLE</a> is false, returns the index of the currently selected line, or 0 if none.<br>
-            When <a href="#MULTIPLE">MULTIPLE</a> is true, returns a sequence of such, or {} if none.<br>
+            (read only) When <a href="#MULTIPLE">MULTIPLE</a> is <a href="logicops.htm#tf">false</a>, returns the index of the currently selected line, or 0 if none.<br>
+            When <a href="#MULTIPLE">MULTIPLE</a> is <a href="logicops.htm#tf">true</a>, returns a sequence of such, or {} if none.<br>
             This can be used as an independant (and on-demand) alternative to a <a href="#SELECTED">SELECTED</a> handler.
 <!--
             (non inheritable) Depends on the DROPDOWN+EDITBOX combination:
@@ -337,16 +379,42 @@ procedure</font><font color="#000000"> selected</font><font color="#0000FF">(</f
         </tr>
         <tr>
          <td>
-?         VALUESTR
+<nobr>?       SHOWITEM
+</nobr>
          </td>
          <td>
-            (read only) Returns data[SELECTED] or "". Note that if data contains any zero-length strings it is not 
-            possible to distinguish a SELECTED of zero from any such line, likewise should data contain duplicates
-            it is not possible to use VALUESTR to determine which one is actually selected. This attribute is only
-            intended for use in the "data as sequence" creation mode, and not when a fetch function exists. 
-            Should <a href="#MULTIPLE">MULTIPLE</a> be true, returns instead a sequence of such, or {} if none.
+            (write-only) Ensure the specified line (1..length(data)) is visible, in other words set the vertical scrollbar as needed. <br>
+            Can also be {line,fromcol[,tocol[,toline]]} to set the horizontal scrollbar as well, to show as much of that as possible.<br>
          </td>
         </tr>
+        <tr>
+         <td>
+?         TOPITEM
+         </td>
+         <td>
+            Position the specified line (1..length(DATA)) at the top of the list.
+<!-- erm, maybe... re-read ROWS above...
+            When queried, returns {topline,visible_lines}, where visible_lines is read-only and both may contain a fraction. <br>
+            Setting the size of the canvas will of course affect the number of visible lines, but that <i>cannot</i> be set directly - 
+            <a href="gGetAttribute.htm#gGetTextExtent">gGetTextExtent</a>() <i>might</i> be (partially) helpful, but to be honest it 
+            is probably somewhat unwise to even try, imo, and sizes that "jump" in multiples of (avg?) character sizes never look good.
+-->
+         </td>
+        </tr>
+<!--
+//      <tr>
+//       <td>
+//??          VALUESTR
+//       </td>
+//       <td>
+//          (read only) Returns data[SELECTED] or "". Note that if data contains any zero-length strings it is not possible to distinguish 
+//          a SELECTED of zero from any such line, likewise should data contain duplicates it is not possible to use VALUESTR to determine 
+//          which one is actually selected. This attribute is only intended for use in the "data as sequence" creation mode, and not when 
+//          a fetch function exists. 
+//          Should <a href="#MULTIPLE">MULTIPLE</a> be <a href="logicops.htm#tf">true</a>, returns instead a sequence of such, or {} if none.
+//       </td>
+//      </tr>
+-->
 <!--
 //      <tr>
 //       <td>
@@ -598,7 +666,8 @@ procedure</font><font color="#000000"> selected</font><font color="#0000FF">(</f
          </td>
          <td>
             Defines the number of visible columns for the Natural Size, this means that will act also as minimum number of visible columns. 
-            It uses a wider character size then the one used for the <a href="gSetAttribute.htm#SIZE">SIZE</a> attribute so strings will fit better without the need of extra columns. 
+            It uses a wider character size then the one used for the <a href="gGetAttribute.htm#SIZE">SIZE</a> attribute so strings will 
+            fit better without the need of extra columns. 
             Set this attribute to speed Natural Size computation for very large lists.
          </td>
         </tr>
@@ -617,8 +686,9 @@ procedure</font><font color="#000000"> selected</font><font color="#0000FF">(</f
          </td>
          <td>
 <!--        APPEND, CLIPBOARD, FILTER, INSERT, CUEBANNER, -->
-<!-- ***NB*** gEditor is going to need a CARET!   Rather than CUEBANNER it would be an if data={} then return 1/"xxx" thing here... -->
-??          CARET, CARETPOS, SCROLLTO, 
+<!-- ***NB*** xpEditer is going to need a CARET!  Rather than CUEBANNER it would be an if data={} then return 1/"xxx" thing here... -->
+??          CARET, CARETPOS, 
+<!--SCROLLTO, -->
 <!--            PADDING<a href="notpgui.htm"><span style="color:lime;"><sup>+</sup></span></a>,-->
 <!--        MASK, NC, READONLY, SELECTEDTEXT, SELECTION, SELECTIONPOS, SCROLLTOPOS: 
             Same as the <a href="IupText.htm">IupText</a> attributes, but are valid only when EDITBOX=YES and effective only for the edit box inside the list.
@@ -627,17 +697,22 @@ procedure</font><font color="#000000"> selected</font><font color="#0000FF">(</f
             <br>
             <a href="gSetAttribute.htm#ACTIVE">ACTIVE</a>, 
             <a href="gSetAttribute.htm#CANFOCUS">CANFOCUS</a>, 
-            <a href="gSetAttribute.htm#EXPAND">EXPAND</a>, 
+            <a href="gCanvas.htm#EXPAND">EXPAND</a> (see note), 
             <a href="gSetAttribute.htm#FONT">FONT</a>, 
 <!--            <a href="gSetAttribute.htm#NAME">NAME</a>, -->
 <!--?           <a href="gGetAttribute.htm#POSITION">POSITION</a>, -->
 <!--?           <a href="gGetAttribute.htm#SCREENPOSITION">SCREENPOSITION</a>, -->
             <a href="gSetAttribute.htm#MINSIZE">MINSIZE</a>, 
             <a href="gSetAttribute.htm#MAXSIZE">MAXSIZE</a>, 
+            <a href="gGetAttribute.htm#SIZE">SIZE</a>, 
             <a href="gSetAttribute.htm#TIP">TIP</a>, 
 <!--            <a href="gSetAttribute.htm#RASTERSIZE">RASTERSIZE</a>,-->
 <!--            <a href="gSetAttribute.htm#ZORDER">ZORDER</a>,-->
             <a href="gSetAttribute.htm#VISIBLE">VISIBLE</a>.
+            <br>
+            <br>
+            Note that <a href="gCanvas#SCROLLSIZE">SCROLLSIZE</a> and <a href="gCanvas#VIEWPORT">VIEWPORT</a> are automatically handled on
+            a gList, and you should not attempt to tamper with them.<br>
 <!--
             <br>
             <br>
@@ -673,12 +748,11 @@ procedure</font><font color="#000000"> selected</font><font color="#0000FF">(</f
             <br>
             When item is 0, as shown above, should simply return the outer/vertical <a href="length.htm">length</a>().<br>
             When item is -1, returning 0, or in fact the index of any line that fully fits, simply disables the horizontal scrollbar.<br>
-            Aside: idx:=fetch_data(-1) is immediately followed by txt:=fetch_data(idx) for all idx>0.
+            Aside: idx:=fetch_data(-1) is immediately followed by line:=fetch_data(idx) for all idx>0.
             Technically speaking, for perfect horizontal scrolling, fetch_data(-1) should effectively invoke
-            <a href="gGetAttribute.htm#gGetTextExtent">gGetTextExtent</a>() on <i>every</i> element of data, and the
-            "data as sequence" creation mode does just that, but in practice it is usually good enough to rely on 
-            <a href="length.htm">length</a>(), and in fact when a fixed-width font is in use that perfectly identifies 
-            the correct longest line anyway.
+            <a href="gGetAttribute.htm#gGetTextExtent">gGetTextExtent</a>() on <i>every</i> element of data, <!--and the
+            "data as sequence" creation mode does just that,--> but in practice <a href="length.htm">length</a>() is usually 
+            good enough, and in fact when a fixed-width font is in use that perfectly identifies the correct line anyway.
             <br>
             <br>
             Obviously your application may well perform much better by cacheing the results from such [getsize] calls, and
@@ -686,22 +760,29 @@ procedure</font><font color="#000000"> selected</font><font color="#0000FF">(</f
             tell the honest truth, iyswim. Obviously, you are perfectly at liberty to break up each data[i] on every fetch, 
             rather than store it in pieces. Should some data[i] contain multiple fragments, it would be down to you to either 
             sum the gGetTextExtent/length or apply said to a contatenation of them <small>(gList does the former on the 
-            txt:=fetch_data(idx) mentioned)</small>. Naturally if the application owns the data, it can easily limit the
+            line:=fetch_data(idx) mentioned)</small>. Edita keeps tables of linelengths to minimise the effort required in 
+            that regard when things change, and therefore so will the new xpEditer, which will actually use a gList().
+<!--
+            Naturally since the application owns the data, it can easily limit the
             gGetTextExtent/length to newly added items only, whereas if the interface element owns the data, it would have 
             to start again from the top whenever given a complete replacement (with no easy way to give it a partial update).
+-->
             <br>
             <br>
-            The fetch_data function can simulate a cuebanner by returning 1/1/"Enter xxx" when the internal application data is {}.
+            The fetch_data function can simulate a cuebanner by returning 1/1/"Enter xxx" when the internal application data is {},
+            of course with appropriate colour/style on the fake fragment if desired. [DEV: untested]
             <br>
             <br>
             The function should return the integer length|idx, a text string, or a sequence of {text|{text,colour[,style]}} fragments.<br>
             Only those lines which are actually being displayed are ever requested, plus, optionally, the longest.
+<!--
             <br>
             <br>
-            Note that <a href="gSetHandler.htm">gSetHandler</a>(id,"DATA",fetch_data) only works as expected after creation when it was initially NULL, 
+??          Note that <a href="gSetHandler.htm">gSetHandler</a>(id,"DATA",fetch_data) only works as expected after creation when it was initially NULL, 
             or when a <a href="gSetAttribute.htm">gSetAttribute</a>(id,"DATA",NULL) has also occurred (the latter may need to be 2nd).<br>
             <small>[Somewhat unusually there is both a DATA handler and a DATA attribute, with the former only ever used when the latter is NULL.]<br></small>
             <small>[The latter can also be a (non-null integer) handler, which would be used (in preference to this but) in exactly the same way.]<br></small>
+-->
 <!--
             <br>
             <br>
@@ -908,7 +989,7 @@ procedure</font><font color="#000000"> selected</font><font color="#0000FF">(</f
 //          <a href="gSetHandler.htm#DESTROY_CB">DESTROY_CB</a>, 
 -->
             <a href="gSetHandler.htm#CLICK">CLICK</a>, 
-            <a href="gCanvas.htm#DROP">DROP</a>, 
+            <a href="gCanvas.htm#IDROP">IDROP</a>, 
 <!--
 ?           <a href="gSetHandler.htm#GETFOCUS_CB">GETFOCUS_CB</a>, 
             <a href="gSetHandler.htm#KILLFOCUS_CB">KILLFOCUS_CB</a>, 
@@ -955,9 +1036,31 @@ procedure</font><font color="#000000"> selected</font><font color="#0000FF">(</f
 </pre>
 </small>
             <br>
-            Note that in practice selected is actually defined as <a href="object.htm">object</a>, and attributes as
-            a <a href="sequence.htm">sequence</a> rather than a string, but are thoroughly verified to be of the 
-            documented types, after being repositioned via xpGUI.e/paranormalise_raa().
+            Note that in practice selected is actually defined as <a href="object.htm">object</a>, and attributes as 
+            <a href="sequence.htm">sequence</a> rather than string, but are thoroughly verified to be of the documented types, 
+            after being repositioned via xpGUI.e/paranormalise_raa() [the non-optional data fetch routine never being moved].
+            <br>
+            <br>
+<!--
+            The first parameter was, and in fact still is, either a rtn or a sequence which xpGUI.e stored: that was simply not anywhere
+            near as helpful as hoped, and made these docs awful/confusing. It is planned to rip that out and make it strictly rtn-only.
+-->
+            The new xpEditer program uses (or rather is planned to use) a gList to implement the syntax-coloured editable text area, though it 
+            is the application code which interprets all keystrokes (bar basic navigation) and modifies the text, not the gList() itself.<br>
+            In that particular case the data will contain the plain text lines, with get_data() splitting requested lines into the appropriate
+            syntax-colouring fragments on demand, in a similar fashion to what Edita has always done, with bracket/comment carryFwds[]s, and a
+            linelengths[], since recalculating 50,000 lengths gets a bit costly when you do it on every single keystroke, etc.<br>
+            Since it may be opening hundreds of files and some of those could be rather long, it initially returns 0 for the longest line, which 
+            (temporarily) disables the horizontal scrollbar, then uses a background process and redraws with a proper scrollbar when done.<br>
+            Likewise it might (semi-deliberately) get the initial bracket/comment carry forwards wrong, and correct the current tab if needed,
+            which is only goiung to matter when it is re-opening a file from the previous session, with the viewport not at the very top.<br>
+            During the implementation of all that, I will of course move as much reusable code into xpGUI.e as I can, for potential use on a 
+            gTable(), which I already know will be needed for demo\rosetta\7guis\Cells.exw and possibly several other things.
+            <br>
+            <br>
+            Another example: it might be wise to keep the last 1,000 log entries in a circular list, rather than keep all and gradually get
+            slower and slower before inevitably running out of memory and crashing and finally creating a ridiculously humongous ex.err.<br>
+            It is the responsibility of the gList() to deal with all that quickly and efficiently, whatever you decide to do.<br>
          </td>
         </tr>
        </table>

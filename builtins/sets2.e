@@ -1,5 +1,5 @@
 --
--- builtins/sets2.e
+-- builtins\sets2.e
 -- ================
 --
 --  Basic set operations.

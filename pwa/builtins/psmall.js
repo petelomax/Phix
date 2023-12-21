@@ -5,6 +5,7 @@
 // ========
 //
 //  Phix implementation of smallest() and largest().
+//  NB: While on desktop/Phix these are now aliases of minsq and maxsq, this file is still "active" under p2js [DEV/temp...]
 //
 //  Compatibility Note: This differs from the OpenEuphoria version of smallest() in std\stats.e in (at least) three ways:
 //   * The set passed in the first parameter must be a non-empty sequence (compilation or run-time error if passed an atom or {})

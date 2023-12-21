@@ -1,5 +1,5 @@
 ﻿--
--- builtins/xml.e
+-- builtins\xml.e
 -- ==============
 --
 -- Converts xml (text) <--> DOM (nested structure)
@@ -38,7 +38,7 @@
 --
 
 --ERM:...
---  It is important to note that builtins/xml.e currently only supports XPath minimally.
+--  It is important to note that builtins\xml.e currently only supports XPath minimally.
 --  (currently a very early work in progress/draft library; design comments welcome)
 
 

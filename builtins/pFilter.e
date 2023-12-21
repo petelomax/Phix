@@ -8,8 +8,8 @@
 --
 --  There is no get_routine_info() in JavaScript, so this was hand-translated for p2js.js
 --
-include builtins/ptypes.e               -- type rid_string
-include builtins/get_routine_info.e     -- get_routine_info()
+include builtins\ptypes.e               -- type rid_string
+include builtins\get_routine_info.e     -- get_routine_info()
 
 global function filter(sequence s, rid_string rs, object userdata = {}, string rangetype = "")
 --

@@ -171,7 +171,8 @@ integer exponent, k
         f = -f
     elsif showplus then
 --      result = "+"
-        result = repeat('+',1)
+--      result = repeat('+',1)
+        result = repeat(showplus,1) -- '+' or ' '
     end if
     exponent = 0
     if f=nan then
@@ -337,7 +338,8 @@ end for
                         end if
 --                      if find(result,{"","-","+"}) then
                         if length(result)=0
-                        or (length(result)=1 and (result[1]='-' or result[1]='+')) then
+--                      or (length(result)=1 and (result[1]='-' or result[1]='+')) then
+                        or (length(result)=1 and find(result[1],"-+ ")) then
                             result &= '0'
                         end if
                         result &= '.'
@@ -608,8 +610,10 @@ integer tmp
                     zerofill = 1
                     i += 1
                 else
-                    if fi='+' then
-                        showplus = 1
+--                  if fi='+' then
+                    if fi='+' or fi='_' then
+--                      showplus = 1
+                        showplus = iff(fi='+'?'+':' ')
                         i += 1
                         if i>length(fmt) then ueofmt() end if
                         fi = fmt[i]
@@ -829,7 +833,8 @@ end if
                             end if
                         elsif showplus then
                             if base=10 then
-                                r1 = append(r1,'+')
+--                              r1 = append(r1,'+')
+                                r1 = append(r1,showplus)
                             elsif minfieldwidth>length(r1) then
                                 r1 &= repeat('0',minfieldwidth-length(r1))
                             end if

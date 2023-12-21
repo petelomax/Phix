@@ -7,7 +7,7 @@
 -- Uses the clipboard text if it begins with "GraphR:{" and ends with "}":
 --  between those it should contain a comma-separated list of elements,
 --  each of which is a sub-sequence of "{description,start,size}", for
---  an example/test by copying GraphR:{{"red",0,20},{"orange",30,50}}
+--  an example, test by copying GraphR:{{"red",0,20},{"orange",30,50}}
 --  Note that eg "red" is a description not a colour here, which happens 
 --  to match the (non-overrideable) colours in the rainbow constant.
 --
@@ -25,7 +25,7 @@ with javascript_semantics
 include xpGUI.e
 --gUseGTK()
 
-constant default_v = {{"red",0,20},
+constant default_v = {{"red",0,20},         -- {name,x,width}
                       {"orange",10,30},
                       {"yellow",20,40},
                       {"green",30,50},
@@ -33,13 +33,11 @@ constant default_v = {{"red",0,20},
                       {"indigo",50,70},
                       {"violet",60,80}}
 
-sequence v  -- decoded version of above/clipboard text
+sequence v  -- decoded version of clipboard text, or copy of the above
 
-integer maxright    -- The highest (start+size) found.
+integer maxright    -- The highest (start+size) [aka x+width] found.
 
 constant rainbow = {XPG_RED, XPG_ORANGE, XPG_YELLOW, XPG_GREEN, XPG_BLUE, XPG_INDIGO, XPG_VIOLET}
-
-gdx dlg, canvas
 
 function negate_colour(object colour)
     if string(colour) then  -- pwa/p2js
@@ -53,11 +51,9 @@ function negate_colour(object colour)
 end function
 
 procedure redraw(gdx canvas)
---  integer {width, height} = gGetIntInt(canvas, "DRAWSIZE")
     integer {width, height} = gGetIntInt(canvas, "SIZE")
     -- surrounding box:
-    gCanvasSetForeground(canvas, XPG_BLACK)
-    gCanvasRect(canvas, 5, width-10, 5, height-10) 
+    gCanvasRect(canvas, 5, width-5, 5, height-5, colour:=XPG_BLACK)
     width -= 30
     for pass=1 to 2 do  -- draw all blocks first, then text
         integer cidx = 1, x, y = 20, w, right
@@ -67,22 +63,20 @@ procedure redraw(gdx canvas)
             right = x+w
             integer x1 = floor(x/maxright*width)+10,
                     x2 = floor(right/maxright*width)+10,
-                    y2 = height-((length(v)-i)*20+15)
+                    y2 = height-((length(v)-i)*20+15),
+                    rc = rainbow[cidx]
             if pass=1 then
-                gCanvasSetBackground(canvas, rainbow[cidx])
-                gCanvasSetForeground(canvas, rainbow[cidx])
-                gCanvasRect(canvas, x1, x2, y, y2,true) 
+                gCanvasRect(canvas, x1, x2, y, y2, true, colour:=rc) 
             else
-                integer nc = negate_colour(rainbow[cidx])
-                gCanvasText(canvas, x1, y, text, XPG_SE,0,nc)
-                gCanvasText(canvas, x1, y, text, XPG_SE,{XPG_SW,90},nc)
+                rc = negate_colour(rc)
+                gCanvasText(canvas, x1, y, text, XPG_SE, colour:=rc)
+                gCanvasText(canvas, x1, y, text, XPG_SE, {XPG_SW,90}, rc)
             end if
             y += 20
             cidx += 1
             if cidx>length(rainbow) then cidx = 1 end if
         end for
     end for
---  gCanvasSetBackground(canvas, XPG_WHITE)
 end procedure
 
 gdx clipboard = gClipboard()
@@ -98,21 +92,10 @@ else
         v[i] = scanf(v[i],`"%s",%d,%d`)[1]
     end for
 end if
-maxright = 0
-for i=1 to length(v) do
-    integer {?,x,width} = v[i],
-            right = x+width
-    if right>maxright then maxright = right end if
-end for
---canvas = gCanvas("RASTERSIZE=600x400")
---canvas = gCanvas("SIZE=600x400")
-canvas = gCanvas()
-
-gSetHandler(canvas,"REDRAW", redraw)
-
---dlg = gDialog(canvas, "TITLE=GraphR")
-dlg = gDialog(canvas,"GraphR","SIZE=600x400")
-
+maxright = max(sq_add(vslice(v,2),vslice(v,3))) -- max({<x>+<width>})
+gdx canvas = gCanvas(redraw),
+    dlg = gDialog(canvas,"GraphR","SIZE=600x400")
+gCanvasSetBackground(canvas,XPG_LIGHT_PARCHMENT)
 gShow(dlg)
 gMainLoop()
 

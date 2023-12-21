@@ -1,0 +1,287 @@
+--
+-- demo\xpGUI\gtk_fixed.exw
+-- ========================
+--
+-- Quick translation of the zetcode example, see if we can (also?) get drawareas to co-operate...
+--         ****************** Update: it all worked first time!! ***********************
+--
+-- ===> (xpGUI.e shd) focus on properly logging and analysing/filtering all API calls from xpGUI.e, to debug things.
+--      (probably wants dumping to a log file, with a second program filtering by id and/or function name)
+--
+--with trace
+requires(64,true)
+include cffi.e
+
+constant currdir = current_dir(),
+         m = machine_bits(),
+         gtkdir = sprintf("win_gtk%d",m)
+printf(1,"begin(GTK %d bits)\n",m)
+assert(chdir(gtkdir))
+constant gtk = iff(m=32?"libgtk-win32-2.0-0.dll":"libgtk-3-0.dll"),
+         gdk = iff(m=32?"libgdk-win32-2.0-0.dll":"libgdk-3-0.dll"),
+         GTKLIB = open_dll(gtk), 
+         GDKLIB = open_dll(gdk),
+         GTKGDO = open_dll("libgobject-2.0-0.dll"),
+         CAIRO  = open_dll("libcairo-2.dll"),
+         C_DBL = C_DOUBLE,
+         gtk_init_check = define_c_func(GTKLIB,"gtk_init_check",
+            {C_PTR,     --  int* argc
+             C_PTR},    --  char*** argv
+            C_INT)      -- gboolean
+if gtk_init_check < 1 or c_func(gtk_init_check,{0,0})=0 then 
+  crash("Failed to initialize GTK library!") 
+end if 
+assert(chdir(currdir))
+constant GTK_WINDOW_TOPLEVEL = 0,
+         GTK_WIN_POS_CENTER = 1,
+         GDK_HINT_MINMAX = 0b0110,
+         cairo_set_source_rgb = define_c_proc(CAIRO,"cairo_set_source_rgb",
+            {C_PTR,     --  cairo_t* cr
+             C_DBL,     --  double red
+             C_DBL,     --  double green
+             C_DBL}),   --  double blue
+         cairo_paint = define_c_proc(CAIRO,"cairo_paint",
+            {C_PTR}),   --  cairo_t* cr
+--/*
+         cairo_set_line_width = define_c_proc(CAIRO,"cairo_set_line_width",
+            {C_PTR,     --  cairo_t* cr
+             C_DBL}),   --  double width
+         cairo_rectangle = define_c_proc(CAIRO,"cairo_rectangle",
+            {C_PTR,     --  cairo_t* cr
+             C_DBL,     --  double x
+             C_DBL,     --  double y
+             C_DBL,     --  double width
+             C_DBL}),   --  double height
+         cairo_stroke = define_c_proc(CAIRO,"cairo_stroke",
+            {C_PTR}),   --  cairo_t* cr
+--*/
+         cairo_destroy = define_c_proc(CAIRO,"cairo_destroy",
+            {C_PTR}),   --  cairo_t* cr
+         gdk_cairo_create = define_c_func(GDKLIB,"gdk_cairo_create",
+            {C_PTR},    --  GdkDrawable *drawable
+            C_PTR),     -- cairo_t *
+         gtk_button_new_with_label = define_c_func(GTKLIB,"gtk_button_new_with_label",
+            {C_PTR},    --  const gchar* label
+            C_PTR),     -- GtkWidget*
+         gtk_container_add = define_c_proc(GTKLIB,"gtk_container_add",
+            {C_PTR,     --  GtkContainer* container
+             C_PTR}),   --  GtkWidget *widget
+         gtk_drawing_area_new = define_c_func(GTKLIB,"gtk_drawing_area_new",
+            {},         --  void
+            C_PTR),     -- GtkWidget*
+         gtk_fixed_new = define_c_func(GTKLIB,"gtk_fixed_new",
+            {},         --  (void)
+            C_PTR),     -- GtkWidget*
+         gtk_fixed_put = define_c_proc(GTKLIB,"gtk_fixed_put",
+            {C_PTR,     --  GtkFixed *fixed
+             C_PTR,     --  GtkWidget *widget
+             C_INT,     --  gint x
+             C_INT}),   --  gint y
+--/*
+         gtk_label_new = define_c_func(GTKLIB,"gtk_label_new",
+            {C_PTR},    --  const gchar* str
+            C_PTR),     -- GtkWidget*
+         gtk_label_set_text = define_c_proc(GTKLIB,"gtk_label_set_text",
+            {C_PTR,     --  GtkLabel *label
+             C_PTR}),   --  const gchar *str
+--*/
+         gtk_main       = define_c_proc(GTKLIB,"gtk_main",{}),
+         gtk_main_quit = define_c_proc(GTKLIB,"gtk_main_quit",{}),
+         gtk_widget_get_window = define_c_func(GTKLIB,"gtk_widget_get_window",
+            {C_PTR},    --  GtkWidget* widget
+            C_PTR),     -- GdkWindow*
+--/*
+         gtk_widget_queue_draw = define_c_proc(GTKLIB,"gtk_widget_queue_draw",
+            {C_PTR}),   --  GtkWidget* widget
+--*/
+         gtk_widget_set_size_request = define_c_proc(GTKLIB,"gtk_widget_set_size_request",
+            {C_PTR,     --  GtkWidget* widget   // aka handle
+             C_INT,     --  gint width,
+             C_INT}),   --  gint height
+--/*
+--       gtk_widget_show = define_c_proc(GTKLIB,"gtk_widget_show",
+--          {C_PTR}),   --  GtkWindow* window,  // aka handle
+--*/
+         gtk_widget_show_all = define_c_proc(GTKLIB,"gtk_widget_show_all",
+            {C_PTR}),   --  GtkWindow* window,  // aka handle
+         gtk_window_new = define_c_func(GTKLIB,"gtk_window_new",
+            {C_INT},    --  GtkWindowType type // usually GTK_WINDOW_TOPLEVEL (nb gone in GTK4)
+            C_PTR),     -- GtkWidget* // handle
+         gtk_window_set_default_size = define_c_proc(GTKLIB,"gtk_window_set_default_size",
+            {C_PTR,     --  GtkWindow* window
+             C_INT,     --  gint width
+             C_INT}),   --  gint height
+         gtk_window_resize = define_c_proc(GTKLIB,"gtk_window_resize",
+            {C_PTR,     --  GtkWindow* window
+             C_INT,     --  gint width
+             C_INT}),   --  gint height
+         gtk_window_set_geometry_hints = define_c_proc(GTKLIB,"gtk_window_set_geometry_hints",
+            {C_PTR,     --  GtkWindow* window
+             C_PTR,     --  GtkWidget *geometry_widget
+             C_PTR,     --  GdkGeometry *geometry
+             C_INT}),   --  GdkWindowHints geom_mask
+         gtk_window_set_position = define_c_proc(GTKLIB,"gtk_window_set_position",
+            {C_PTR,     --  GtkWindow *window
+             C_INT}),   --  GtkWindowPosition position
+         gtk_window_set_title = define_c_proc(GTKLIB,"gtk_window_set_title",
+            {C_PTR,     --  GtkWindow* window,  // aka handle
+             C_PTR}),   --  const gchar* title  // a string
+         -- note that g_signal_connect is defined in the GTK sources as a #define of
+         -- g_signal_connect_data(....,NULL,0), and is not exported from the dll/so.
+         g_signal_connect_data = define_c_func(GTKGDO,"g_signal_connect_data",
+            {C_PTR,     --  GObject* instance,              // aka handle
+             C_PTR,     --  const gchar* detailed_signal,   // a string
+             C_PTR,     --  GCallback c_handler,            // a callback
+             C_PTR,     --  gpointer data,                  // data for ""
+             C_PTR,     --  GClosureNotify destroy_data,    // (NULL here)
+             C_INT},    --  GConnectFlags connect_flags     //     ""
+            C_INT),     -- gulong // handler id (>0 for success)
+         tGdkEventKey = """typedef struct GdkEventKey {
+                            GdkEventType event_type;
+                            GdkWindow* window;
+                            byte sendEvent;
+                            uint time;
+                            ModifierType state;
+                            uint keyval;
+                            int length;
+                            char* string_;
+                            ushort hardwareKeycode;
+                            ubyte group;
+                           }""",
+        idGdkEventKey = define_struct(tGdkEventKey),
+        tGdkGeometry = """typedef struct GdkGeometry {
+                                  gint min_width;
+                                  gint min_height;
+                                  gint max_width;
+                                  gint max_height;
+                                  gint base_width;
+                                  gint base_height;
+                                  gint width_inc;
+                                  gint height_inc;
+                                  gdouble min_aspect;
+                                  gdouble max_aspect;
+                                  gint win_gravity;
+                                };""",
+--                                GdkGravity win_gravity;
+        idGdkGeometry = define_struct(tGdkGeometry),
+        pGdkGeometry = allocate_struct(idGdkGeometry)
+
+local function xpg_gtk_quit(atom winmain, /*user_data*/) -- (GTK only)
+    c_proc(gtk_main_quit) 
+    return 0 
+end function 
+constant quit_cb = call_back({'+',xpg_gtk_quit})
+
+constant GTK_ESC = #FF1B
+
+local function xpg_gtk_check_escape(atom winmain, event, /*data*/) -- (GTK only)
+    integer keyval = get_struct_field(idGdkEventKey,event,"keyval")
+    if keyval=GTK_ESC then
+        c_proc(gtk_main_quit)
+    end if
+    return true
+end function
+constant key_cb = call_back({'+',xpg_gtk_check_escape})
+
+local function draw(atom widget, cairo, user_data)
+    -- GTK3 version, which gets the cairo context it should draw on.
+    --  (also invoked from GTK2 version, with the cairo it created)
+
+    c_proc(cairo_set_source_rgb,{cairo, #FA/255, #F8/255, #EF/255});      -- (light parchment)
+--  c_proc(cairo_set_source_rgb,{cairo, #FF/255, #00/255, #00/255});      -- (red)
+    c_proc(cairo_paint,{cairo});
+    -- TRUE to stop other handlers from being invoked for the event. FALSE to propagate the event further.
+    return true
+end function
+constant draw_cb = call_back({'+',draw})
+
+local function expose_event(atom widget, /*event*/, user_data)
+    -- GTK2 version, which needs to create a cairo context to draw on.
+    --  (then invokes GTK3 version, passing said cairo just created)
+    atom win = c_func(gtk_widget_get_window,{widget}),
+       cairo = c_func(gdk_cairo_create,{win})
+    integer res = draw(widget,cairo,user_data)
+    c_proc(cairo_destroy,{cairo});
+    return res
+end function
+constant expose_cb = call_back({'+',expose_event})
+
+atom winmain = c_func(gtk_window_new,{GTK_WINDOW_TOPLEVEL})
+c_proc(gtk_window_set_title,{winmain,"GtkFixed"})
+--c_proc(gtk_window_set_default_size,{winmain, 300, 200})
+c_proc(gtk_window_resize,{winmain, 300, 200})
+c_proc(gtk_window_set_position,{winmain, GTK_WIN_POS_CENTER})
+
+integer id = 0
+atom r = c_func(g_signal_connect_data,{winmain,"destroy",quit_cb,id,NULL,0})
+assert(r>0)
+r = c_func(g_signal_connect_data,{winmain,"key_press_event",key_cb,id,NULL,0})
+assert(r>0)
+
+atom fixed = c_func(gtk_fixed_new,{}),
+     btn1 = c_func(gtk_button_new_with_label,{"btn1"}),
+     btn2 = c_func(gtk_button_new_with_label,{"btn2"}),
+     btn3 = c_func(gtk_button_new_with_label,{"btn3"}),
+     darea = c_func(gtk_drawing_area_new,{})
+c_proc(gtk_container_add,{winmain, fixed})
+c_proc(gtk_fixed_put,{fixed,btn1,150,50})
+c_proc(gtk_fixed_put,{fixed,btn2,15,15})
+c_proc(gtk_fixed_put,{fixed,btn3,100,100})
+c_proc(gtk_fixed_put,{fixed,darea,35,60})
+c_proc(gtk_widget_set_size_request,{btn1,80,30})
+c_proc(gtk_widget_set_size_request,{btn2,80,30})
+c_proc(gtk_widget_set_size_request,{btn3,80,30})
+-- NB: this is critical for anything at all to be displayed:
+c_proc(gtk_widget_set_size_request,{darea,80,30})
+-- either of these allows the dialog to be made smaller (w/o it hits the buttons): [dang, GTK2 only]
+--c_proc(gtk_widget_set_size_request,{fixed,1,1})
+--c_proc(gtk_widget_set_size_request,{winmain,1,1})
+--c_proc(gtk_widget_set_size_request,{winmain,100,100}) -- ===MINSIZE (GTK2 only)
+--c_proc(gtk_window_set_default_size,{winmain,100,100}) -- ===MINSIZE (GTK2 only)
+--/*
+gtk_widget_set_size_request
+void
+gtk_window_set_geometry_hints (
+  GtkWindow* window,
+  GtkWidget* geometry_widget,
+  GdkGeometry* geometry,
+  GdkWindowHints geom_mask
+)
+--GTK2 only:
+void
+gtk_window_set_policy (GtkWindow *window,
+                       gint allow_shrink,
+                       gint allow_grow,
+                       gint auto_shrink);
+--*/
+
+{string sig, atom cb} = iff(m=32?{"expose_event", expose_cb}:{"draw", draw_cb})
+r = c_func(g_signal_connect_data,{darea, sig, cb, NULL,NULL,0});
+assert(r>0)
+
+-- quick poc for MINSIZE/MAXSIZE. works fine on GTK3, but not MAXSIZE on GTK2[tough! or try some other dlls]
+-- UPDATE: GTK3 still does not allow clipping.... [erm, tough!!]
+-- note that similar code in xpGUI.e does not currently work, presumably because it mucks things up with
+--                                      conflicting/confusing gtk_widget_set_size_request() and the like
+if true then
+                integer {dw,dh} = {2,32},
+                        minw = 350-dw, --max(ctrl_size[id][SZ_MIN_W]-dw,1),
+--                      minw = 1, --max(ctrl_size[id][SZ_MIN_W]-dw,1),
+                        minh = 250-dh, --max(ctrl_size[id][SZ_MIN_H]-dh,1),
+--                      minh = 1, --max(ctrl_size[id][SZ_MIN_H]-dh,1),
+                        maxw = 800-dw, --ctrl_size[id][SZ_MAX_W],
+                        maxh = 600-dh  --ctrl_size[id][SZ_MAX_H]
+                set_struct_field(idGdkGeometry,pGdkGeometry,"min_width",minw)
+                set_struct_field(idGdkGeometry,pGdkGeometry,"min_height",minh)
+                set_struct_field(idGdkGeometry,pGdkGeometry,"max_width",maxw)
+                set_struct_field(idGdkGeometry,pGdkGeometry,"max_height",maxh)
+--?{"geom",minw,minh,maxw,maxh}
+                c_proc(gtk_window_set_geometry_hints,{winmain,winmain,pGdkGeometry,GDK_HINT_MINMAX})
+end if
+
+c_proc(gtk_widget_show_all,{winmain})
+--c_proc(gtk_window_set_default_size,{winmain, 1, 1})
+--c_proc(gtk_widget_set_size_request,{winmain, 1, 1})
+c_proc(gtk_main)
+
+

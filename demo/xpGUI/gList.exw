@@ -6,32 +6,44 @@
 with javascript_semantics -- needs work: MINSIZE[*charsize], GAP, MARGIN, width... [DEV]
 --requires("1.0.3")
 include xpGUI.e
+--gUseGTK()
 
---sequence data = {"one",{"t",{"o",XPG_RED,XPG_ITALIC},"o"},"three"}
-sequence data = {"one",{{"too",XPG_RED,XPG_ITALIC}},"three"}
---sequence data = {"one",{{"too",XPG_RED}},"three"}
---                    ^^^ see note below
+--sequence data = {"one","too","three"}
+
+sequence data = get_text("gList.exw",GT_LF_STRIPPED)
+integer mdx = largest(apply(data,length),return_index:=true)
 
 function get_data(integer idx)
     if idx=0 then return length(data) end if
-    if idx=-1 then return 0 end if
-    return data[idx]
+    if idx=-1 then return mdx end if
+    sequence res = data[idx]
+    if res="too" then -- spelling mistake?
+        -- (see note 1 below)
+        res = {{"too",XPG_RED,XPG_ITALIC}}
+    end if
+    return res
 end function
 
---DEV not yet supported, nor is any mouse/key entry, line highlighting, or scrolling
+--DEV not yet supported, nor is any mouse/key entry, line highlighting, or [scrolling - FIXED(ish)]
 --procedure selected(integer idx)
 --  ?{"selected",idx,data[idx]}
 --end procedure
 
 --gdx list = gList(get_data,selected),
-gdx list = gList(get_data),
+--gdx list = gList(get_data),
+--gdx list = gList(get_data,selected,`FONT="Consolas, 12"`),
+gdx list = gList(get_data,`FONT="Consolas, 12"`),
 --DEV should not need this...
 --gdx list = gList(get_data,"SIZE=240x80"),
         -- gList(data,selected), -- (fine too)
-    dialog = gDialog(list,"gList",`SIZE=240x80`)
-gCanvasSetBackground(list,#F0F0F0)
-gShow(dialog)
-?gGetAttribute(list,"EXPAND","YES")
+--  dlg = gDialog(list,"gList",`SIZE=240x80`)
+    dlg = gDialog(list,"gList",`SIZE=550x350`)
+--gCanvasSetBackground(list,#F0F0F0)
+gCanvasSetBackground(list,XPG_LIGHT_PARCHMENT)
+--gCanvasSetBackground(list,XPG_LIGHT_GREY)
+--gSetAttribute(list,"FONT","Consolas, 12")
+gShow(dlg)
+--?gGetAttribute(list,"EXPAND","YES")
 gMainLoop()
 
 --/*

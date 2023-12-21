@@ -285,9 +285,7 @@ constant P_REG = #0001,
 
 constant REG32 = {T_eax,T_ecx,T_edx,T_ebx,T_esp,T_ebp,T_esi,T_edi},
          REG16 = {T_ax,T_cx,T_dx,T_bx,T_sp,T_bp,T_si,T_di},
-         REG8  = {T_al,T_cl,T_dl,T_bl,T_ah,T_ch,T_dh,T_bh}
---DEV:
-        ,
+         REG8  = {T_al,T_cl,T_dl,T_bl,T_ah,T_ch,T_dh,T_bh},
          R64 = {T_rax,T_rcx,T_rdx,T_rbx,T_rsp,T_rbp,T_rsi,T_rdi,T_r8,T_r9,T_r10,T_r11,T_r12,T_r13,T_r14,T_r15},
          R32 = {T_r8d,T_r9d,T_r10d,T_r11d,T_r12d,T_r13d,T_r14d,T_r15d},
          R16 = {T_r8w,T_r9w,T_r10w,T_r11w,T_r12w,T_r13w,T_r14w,T_r15w},

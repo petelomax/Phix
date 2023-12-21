@@ -6,10 +6,285 @@
 --  ported to pGUI July 2017
 --  made p2js compatible September 2021
 --   (just 4 tiny tweaks: with js, one deep_copy, two platform()=JS)
+--  ported to xpGUI Oct 2023
 --
 --  Faithful desktop gui reproduction of https://gabrielecirulli.github.io/2048/
 --  Now I just got figure out how to win...
 --
+--/!*
+with javascript_semantics
+requires("1.0.3")
+include xpGUI.e
+
+gdx canvas, dialog
+--cdCanvas cddbuffer, cdcanvas
+
+constant tile_colours = {#CCC0B4,   -- blank
+                         #EEE4DA,   -- 2
+                         #EDE0C8,   -- 4
+                         #F2B179,   -- 8
+                         #F59563,   -- 16
+                         #F67C5F,   -- 32
+                         #F65E3B,   -- 64
+                         #EDCF72,   -- 128
+                         #EDCC61,   -- 256
+                         #EDC850,   -- 512
+                         #EDC53F,   -- 1024
+                         #EDC22E}   -- 2048
+
+-- the 4x4 board.
+--  note that values are [1..12] for [blank,2,4,8,..2048].
+--  (merging two eights is not 8+8->16 but 4+1->5, internally)
+sequence board
+
+integer newgame = 1,
+        valid = 0, 
+        prev, nxt
+
+procedure add_rand(integer count)
+-- (nb infinite loop if board is full)
+    while count do
+        integer x = rand(4),
+                y = rand(4)
+        if board[y][x]=1 then   -- blank
+            board[y][x] = 2+(rand(10)=10)
+            count -= 1
+        end if
+    end while   
+end procedure
+
+procedure move_x(integer x, y, d)
+    integer bxy = board[x][y]
+    if bxy!=1 then -- (not blank)
+        if bxy=prev then
+            board[x][y] = 1
+            bxy += 1
+            board[x][nxt] = bxy
+            nxt += d
+            prev = 13
+            valid = 1 
+        else
+            if prev=1 -- (blank)
+            or y!=nxt then
+                if prev!=1
+                and prev!=13 then
+                    nxt += d
+                end if
+                if y!=nxt then
+                    board[x][y] = 1
+                    board[x][nxt] = bxy
+                    valid = 1
+                end if
+            end if
+            prev = bxy
+        end if
+    end if
+end procedure
+
+procedure move_y(integer x, y, d)
+    integer bxy = board[x][y]
+    if bxy!=1 then -- (not blank)
+        if bxy=prev then
+            board[x][y] = 1
+            bxy += 1
+            board[nxt][y] = bxy
+            nxt += d
+            prev = 13
+            valid = 1 
+        else
+            if prev=1 -- (blank)
+            or x!=nxt then
+                if prev!=1
+                and prev!=13 then
+                    nxt += d
+                end if
+                if x!=nxt then
+                    board[x][y] = 1
+                    board[nxt][y] = bxy
+                    valid = 1
+                end if
+            end if
+            prev = bxy
+        end if
+    end if
+end procedure
+
+function move(integer key)
+-- a non-zero result means it changed something.
+    valid = 0
+    if key=VK_LEFT then
+        for x=1 to 4 do
+            prev = 13
+            nxt = 1
+            for y=1 to 4 do
+                move_x(x,y,+1)
+            end for
+        end for
+    elsif key=VK_UP then
+        for y=1 to 4 do
+            prev = 13
+            nxt = 4
+            for x=4 to 1 by -1 do
+                move_y(x,y,-1)
+            end for
+        end for
+    elsif key=VK_RIGHT then
+        for x=1 to 4 do
+            prev = 13
+            nxt = 4
+            for y=4 to 1 by -1 do
+                move_x(x,y,-1)
+            end for
+        end for
+    elsif key=VK_DOWN then
+        for y=1 to 4 do
+            prev = 13
+            nxt = 1
+            for x=1 to 4 do
+                move_y(x,y,+1)
+            end for
+        end for
+    end if
+    return valid
+end function
+
+function game_won()
+    for i=1 to length(board) do
+        if find(12,board[i]) then return 1 end if
+    end for
+    return 0
+end function
+
+constant valid_keys = {VK_LEFT,VK_DOWN,VK_RIGHT,VK_UP}
+
+function no_valid_moves()
+    sequence saved_board = deep_copy(board)
+    for i=1 to length(valid_keys) do
+        if move(valid_keys[i]) then
+            board = saved_board
+            return 0    -- OK
+        end if
+    end for
+    return 1 -- game over...
+end function
+
+procedure redraw(gdx canvas)
+    integer ox,oy,              -- top right coords
+            os,ts,              -- overall and tile size
+            ts2,                -- half tile, for number positioning
+--          {dw,dh} = gGetIntInt(canvas, "DRAWSIZE[*charsize]")
+            {dw,dh} = gGetIntInt(canvas, "SIZE")
+    if dw>=dh then
+        ox = floor((dw-dh)/2)
+        oy = 0
+        os = dh
+    else
+        ox = 0
+        oy = floor((dh-dw)/2)
+        os = dw
+    end if
+    ts = floor((os-10)/4-7)
+    ts2 = floor(ts/2+5)-10
+
+    if newgame then
+        board = repeat(repeat(1,4),4)
+        add_rand(2)
+        newgame = 0
+    end if
+
+--  cdCanvasActivate(cddbuffer)
+--  gCanvasSetBackground(cddbuffer, #FAF8EF)
+--  cdCanvasClear(cddbuffer)
+    gCanvasSetForeground(canvas, #BBADA0)
+    gCanvasRect(canvas, ox+5, ox+os-5, oy+5, oy+os-5, true, 20)
+
+--?board
+    integer tx = ox+15
+    for y=1 to 4 do
+        integer ty = oy+15
+        for x=1 to 4 do
+--          integer bxy = board[x][y]
+            integer bxy = board[5-x][y]
+            gCanvasSetForeground(canvas, tile_colours[bxy])
+            gCanvasRect(canvas, tx, tx+ts-10, ty, ty+ts-10, true, 10)
+            if bxy>1 then
+                gCanvasSetForeground(canvas, iff(bxy<=3?#776E65:#F9F6F2))
+                gSetAttribute(canvas, "FONT", "Calibri, bold %d", {iff(bxy>10?32:40)})
+                gCanvasText(canvas, tx+ts2, ty+ts2-25-iff(bxy<11?7:0), sprint(power(2,bxy-1)),XPG_S)
+            end if
+            ty += ts+5
+        end for
+        tx += ts+5
+    end for
+    --cdCanvasFlush(cddbuffer)
+--  return XPG_DEFAULT
+end procedure
+
+--function map_cb(gdx ih)
+--  cdcanvas = cdCreateCanvas(CD_IUP, ih)
+--  cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+--  gCanvasSetTextAlignment?[use gCanvasText(align:=x) instead](cddbuffer, XPG_SOUTH) 
+--  return XPG_DEFAULT
+--end function
+
+function key_cb(gdx dlg, integer c)
+--  if c=VK_ESC then return XPG_CLOSE end if -- (standard practice for me)
+--  if c=VK_F5 then return XPG_DEFAULT end if -- (let browser reload work)
+    if find(c,valid_keys) then
+        if move(c) then
+            gRedraw(canvas)
+            string mbmsg = ""
+            if game_won() then
+                mbmsg = "!!!YOU WON!!!\n\nAnother Go?"
+            else
+                add_rand(1)
+                gRedraw(canvas)
+                if no_valid_moves() then
+                    mbmsg = "You Lost.\n\nAnother Go?"
+                end if
+            end if
+            if length(mbmsg) then
+--              if platform()=JS then
+--                  IupMessage("Game Over",mbmsg);
+                    gMsgBox(dlg,"Game Over",mbmsg);
+                    newgame=1
+--              else
+--                  if IupAlarm("Game Over",mbmsg,"Yes","No")=1 then
+--                      newgame=1
+--                  else
+--                      return XPG_CLOSE
+--                  end if
+--              end if
+            end if
+        end if
+        gRedraw(canvas)
+    end if
+    return XPG_DEFAULT
+end function
+
+procedure main()
+
+    
+
+    canvas = gCanvas("SIZE=520x540")
+--  gSetHandler(canvas, ?MAP_CB?[DEAD], map_cb)
+    gSetHandler(canvas, "REDRAW", redraw)
+    gCanvasSetBackground(canvas, #FAF8EF)
+
+
+--  dialog = gDialog(canvas,"MINSIZE[*charsize]=440x450")
+    dialog = gDialog(canvas,"SIZE=440x450")
+    gSetAttribute(dialog,"TITLE","2048");
+    gSetHandler(dialog, `KEY`, key_cb);
+
+    gShow(dialog)
+--  gSetAttribute(canvas, "SIZE", NULL)
+    gMainLoop()
+end procedure
+main()
+--*!/
+
+--/*
 with javascript_semantics
 include pGUI.e
 
@@ -276,4 +551,4 @@ procedure main()
     end if
 end procedure
 main()
-
+--*/

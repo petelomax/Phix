@@ -1,13 +1,16 @@
---
+﻿--
 -- demo\xpGUI\gTreeView.exw
 -- ========================
 -- 
 --  See also gTreeView2.exw for an example of deferred loading.
 --
 with javascript_semantics
---requires(64)
-include xpGUI.e
+--requires(64,true)
+include xpGUI.e -- ok
 --gUseGTK()
+
+--gMsgBox(NULL,`gMsgBox`,`This is a simple %s window.`,{`message box`})
+--gMainLoop()
 
 --
 -- While a literal constant such as this is a bit eye-wateringly ugly, and
@@ -56,7 +59,42 @@ gdx tree_view = gTreeView(tree_nodes),
 --gTreeAddNodes(tree_view,{})
 --gTreeAddNodes(tree_view,tree_nodes)
 --?upper(deep_copy(tree_nodes))
+--DEV(spotted in passing) broken [not sure if it ever worked...]
 --gTreeAddNodes(tree_view,upper(deep_copy(tree_nodes)))
+
+--Aside: gMsgBox() initially implemented here, since the treeview has a decent focus indicator, provided you select a node first.
+--/*
+-- cropped to 1..6 lines (F1), ditto but word wrapped (F2) [by replacing '\n' with ' ', that is, rather than changing bWrap]
+constant hlp_txt = """
+Put the tiles back into order 1..15 and the hole last.
+Rightarrow moves the tile to the left of the hole (rightwards) into it.
+Leftarrow moves the tile to the right of the hole (leftwards) into it.
+Uparrow moves the tile below the hole (upwards) into it.
+Downarrow moves the tile above the hole (downwards) into it.
+Press 'N' to start a new game.
+"""
+function key_handler(gdx dlg, integer c)
+    if c=VK_F1
+    or c=VK_F2 then
+        sequence cr = find_all('\n',hlp_txt)
+        integer lcr = length(cr),
+                r = rand(lcr+1)
+        string help_text = hlp_txt
+        if c=VK_F2 then help_text = substitute(help_text,'\n',' ') end if
+        if r<=lcr then help_text = help_text[1..cr[r]-1] end if
+--      ?{"cr",cr}
+--      wuline = not wuline
+--      set_title()
+--      gRedraw(dlg)
+--      gMsgBox(dlg,"Help",help_text,bWrap:=false)
+--      gMsgBox(dlg,"Help",help_text,bWrap:=(c=VK_F2))
+        gMsgBox(dlg,"Help",help_text)
+    end if
+--if alt then return XPG_IGNORE end if
+    return XPG_CONTINUE
+end function
+gSetHandler(dlg, `KEY`, key_handler)
+--*/
 gShow(dlg)
 ?gGetAttribute(dlg,"SIZE")
 ?gGetAttribute(tree_view,"SIZE")

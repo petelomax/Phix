@@ -2,6 +2,135 @@
 -- demo\rosetta\21_Game.exw
 -- ========================
 --
+--with trace
+with javascript_semantics -- DEV NORMALIZESIZE[*charsize], CANFOCUS, "You" not checked, VALUE_HANDLE.
+                          -- The radio_texts simply don't do anything at all in p2js.
+constant title = "21 Game",
+         help_text = """
+Play by choosing 1, 2, or 3 to add to the running total (initially 0).
+
+The first player to reach 21 wins.
+
+If the computer goes first you cannot win.
+
+If you leave your opponent on 18, 19, or 20, they will play {3,2,1} and win.
+If you leave your opponent on 17, simply match their play {1,2,3} with {3,2,1} and win.
+If you leave your opponent on 14, 15, or 16, they'll leave you on 17 and win.
+So the aim is 21 (doh), and before that 17, 13, 9, 5, and 1. Anything else loses.
+""",
+         radio_texts = {"You","Computer","Random"},
+         button_text = {"one","two","three","concede","new game","quit"}
+integer total = 0
+
+requires("1.0.3")
+include xpGUI.e
+gdx dlg, vbox, lbl, frame, radios, playstate
+sequence radioset, buttons
+
+function show_help()
+--  IupMessage(title,help_text)
+    ?{"IupMessage",title,help_text}
+    return XPG_IGNORE -- (don't open browser help!)
+end function
+
+function play(integer n)
+    if n!=0 then
+        if n=6 then return XPG_CLOSE end if
+        string title
+        if n>3 then
+            -- concede or new_game
+            total = 0
+            title = iff(n=4?"(conceded) ":"")
+            title &= "Total is 0"
+--          gdx r = gGetAttribute(radios,"VALUE_HANDLE")
+            gdx r = gRadioItem(radioset[1])
+            n = find(r,radioset)
+            if n=2 or (n=3 and rand(2)=1) then
+                title &= "," -- trigger a computer move
+            end if
+            gSetInt(buttons[1..3],"ACTIVE",true)
+        else
+            -- n = 1..3
+            title = sprintf("Total is %d",total)
+            if total=21      -- (from key_cb)
+            or total+n>21 then -- (invalid)
+                return XPG_DEFAULT
+            end if
+            total += n
+            title &= sprintf(", you play %d (-> %d),",{n,total})
+            if total=21 then title &= " you win" end if
+        end if
+        if find(',',title) and total!=21 then
+            -- computer move
+            sequence moves = {1,rand(3),3,2}
+            n = moves[mod(total,4)+1]
+            total += n
+            title &= sprintf(" computer plays %d (-> %d)",{n,total})
+            if total=21 then
+                title &= ", computer wins"
+            elsif mod(total,4)=1 then
+                title &= ", (you've already lost)"
+            end if
+        end if      
+        if total=21 then
+            title &= " GAME OVER"
+            gSetInt(buttons[1..4],"ACTIVE",false)
+        else
+            if total>18 then
+                gSetInt(buttons[22-total..3],"ACTIVE",false)
+            end if
+            gSetInt(buttons[4],"ACTIVE",total!=0)
+        end if      
+--DEV??
+--      gSetFocus(dlg) -- (stops inactive button beeping)
+        gSetAttribute(playstate,"TITLE",title)
+    end if
+--gRedraw(dlg) -- (no help)
+    return XPG_DEFAULT
+end function
+
+function button_cb(gdx ih)
+    string title = gGetAttribute(ih,"TITLE")
+    return play(find(title,button_text))
+end function
+constant cb_button = button_cb
+
+function key_cb(gdx /*dlg*/, integer c)
+    if c=VK_ESC then return XPG_CLOSE end if -- (standard practice for me)
+    if c=VK_F5 then return XPG_DEFAULT end if -- (let browser reload work)
+    if c=VK_F1 then return show_help() end if
+    return play(find(upper(c),"123CNQ"))
+end function
+
+
+--playstate = gLabel("","EXPAND=HORIZONTAL, PADDING=10x10")
+playstate = gLabel("","EXPAND=HORIZONTAL, MARGIN=10x10")
+--radioset = apply(true,gCheckbox,{radio_texts,{"RIGHTBUTTON=YES, CANFOCUS=NO"}})
+--radioset = apply(true,gCheckbox,{radio_texts,{"RIGHTBUTTON=YES"}})
+radioset = apply(true,gCheckbox,{radio_texts})
+buttons = apply(true,gButton,{button_text,cb_button,{"PADDING=5x5"}})
+radios = gHbox(radioset,"GAP=45")
+gRadio(radioset)
+--frame = gHbox({gLabel(`First Player:`),radios},"NORMALIZESIZE[*charsize]=VERTICAL")
+lbl = gLabel(`First Player:`)
+frame = gHbox({lbl,radios})
+--gNormalize({lbl,radios}) -- erm, no groups...
+--gNormalize({lbl,radioset}) -- erm, typecheck
+--?"boom"
+--trace(1)
+--gNormalize(flatten({lbl,radioset}))
+gNormalize(flatten({lbl,radioset},{})) -- erm, not actually working properly yet anyway!!
+vbox = gVbox({frame,playstate,gHbox(buttons,"GAP=10")},"MARGIN=20x10")
+--dlg = gDialog(vbox,`TITLE="%s", MINSIZE[*charsize]=540x200`,{title})
+dlg = gDialog(vbox,`TITLE="%s", MINSIZE=540x200`,{title})
+gShow(dlg)
+--gSetHandler({dlg,buttons},`KEY`,key_cb)
+gSetHandler(dlg,`KEY`,key_cb)
+--gSetAttributeHandle(NULL,?PARENTDIALOG?[DEAD],dlg)
+{} = play(find("new game",button_text))
+gMainLoop()
+
+--/*
 with javascript_semantics -- DEV NORMALIZESIZE, CANFOCUS, "You" not checked, VALUE_HANDLE.
                           -- The radio_texts simply don't do anything at all in p2js.
 constant title = "21 Game",
@@ -50,7 +179,7 @@ function play(integer n)
             title = sprintf("Total is %d",total)
             if total=21      -- (from key_cb)
             or total+n>21 then -- (invalid)
-                return IUP_IGNORE
+                return IUP_DEFAULT
             end if
             total += n
             title &= sprintf(", you play %d (-> %d),",{n,total})
@@ -80,7 +209,7 @@ function play(integer n)
         IupSetFocus(dlg) -- (stops inactive button beeping)
         IupSetStrAttribute(playstate,"TITLE",title)
     end if
-    return IUP_IGNORE
+    return IUP_DEFAULT
 end function
 
 function button_cb(Ihandle ih)
@@ -98,7 +227,9 @@ end function
 
 IupOpen()
 playstate = IupLabel("","EXPAND=HORIZONTAL, PADDING=10x10")
-radioset = apply(true,IupToggle,{radio_texts,{"RIGHTBUTTON=YES, CANFOCUS=NO"}})
+--radioset = apply(true,IupToggle,{radio_texts,{"RIGHTBUTTON=YES, CANFOCUS=NO"}})
+radioset = apply(true,IupToggle,{radio_texts,{"RIGHTBUTTON=YES"}})
+--radioset = apply(true,IupToggle,{radio_texts})
 buttons = apply(true,IupButton,{button_text,cb_button,{"PADDING=5x5"}})
 radios = IupRadio(IupHbox(radioset,"GAP=45"))
 frame = IupHbox({IupLabel(`First Player:`),radios},"NORMALIZESIZE=VERTICAL")
@@ -112,7 +243,7 @@ if platform()!=JS then
     IupMainLoop()
     IupClose()
 end if
-
+--*/
 
 --/* console only version saved for posterity:
 bool computer_first = false

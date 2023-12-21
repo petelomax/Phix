@@ -2,19 +2,47 @@
 -- demo\xpGUI\gButton.exw
 -- ======================
 -- 
---  DEV initial focus... initial size...
+--  DEV initial focus... 
+--      initial size... [seems OK now]
+--
+-- SUG: "p gButton.exw -test 32 false"
+--      "p gButton.exw -test 32 true"
+--      "p gButton.exw -test 64 false"
+--      "p gButton.exw -test 64 true"
+--  OR: (use get_interpreter() and)
+--      "p gButton.exw -test GTK"
+--      "p gButton.exw -test WinAPI"
+-- and in either case include the xpgui_unit_test.e etc below.
+--
+-- GTK2 makes the button {-6,0} smaller than winAPI, GTK3 {16,8} bigger. (NMP)
 --
 --with trace
 with javascript_semantics
 --requires(64,true)
 include xpGUI.e
+--include xpGUI3.e
+--include xpGUI2.e
 --include backup\xpGUI.4098.e   -- ok
 --include backup\xpGUI.2344.e   -- ok
 --include backup\xpGUI.2355.e   -- ok
---include backup\xpGUI.2357.e   -- ok
+--include backup.0002\xpGUI.2357.e  -- ok
 --include backup\xpGUI.2366.e   -- bad
 --include backup\xpGUI.2367.e   -- bad
---include backup\xpGUI.2380.e   -- bad
+--include backup.0002\xpGUI.2380.e  -- bad
+--include backup\xpGUI.0003.e -- (no gQuit)
+--include backup\xpGUI.0220.e -- GOOD
+--include backup\xpGUI.0801.e -- GOOD
+--include backup\xpGUI.0826.e -- GOOD
+--include backup\xpGUI.1502.e -- X
+--include backup\xpGUI.1507.e -- GOOD
+--include backup\xpGUI.1530.e -- GOOD
+--include backup\xpGUI.1532.e -- GOOD (right size)
+--include backup\xpGUI.1533.e -- BAD
+--include backup\xpGUI.1535.e -- BAD
+--include backup\xpGUI.1542.e -- BAD (big)
+--include backup\xpGUI.1545.e -- X
+--include backup\xpGUI.1572.e -- BAD (small) [FIXED]
+
 --gUseGTK()
 --win32/64: 99x24 +{2,2} - yep, 101x26.
 --gtk32: 95x26
@@ -46,6 +74,35 @@ end function
 --  ?{"key_handler",id,c,ctrl,shift,alt}
 --  return XPG_DEFAULT
 --end function
+--/!*
+constant cut_xpm_txt = """
+24 20 2 1
+. c None
+* c #000000
+........................
+........................
+........................
+..................*.....
+................**......
+...............**.......
+..............**........
+.............**.........
+....****....**.....***..
+...*...**..**...****....
+...*...***********......
+....****...****.........
+..........**............
+.........***............
+........*..*............
+.......*...*............
+.......*..*.............
+.......***..............
+........................
+........................
+"""
+--constant cut_xpm = gImage_from_XPM(cut_xpm_txt,"BUTTON")
+constant cut_xpm = gImage_from_XPM(cut_xpm_txt)
+--*!/
 
 --gdx btn = gButton(`port from pGUI`,action),        -- nb fills the window
 --gdx btn = gHbox({gButton(`port from pGUI`,action)}), -- WinAPI ok, GTK not
@@ -55,16 +112,21 @@ gdx btn = gButton(`&port from pGUI`,action),
 --gdx btn = gButton(`port from pGUI`,action,"PADDING=10"),
 --  hbx = gVbox({gHbox({btn})}),
 --  hbx = gVbox({btn}),
+--  hbx = gHbox({btn},`PADDING=11x11`),
     hbx = gHbox({btn},`MARGIN=11x11`),
 --  hbx = btn,
     dlg = gDialog(hbx,`gButton`,`SIZE=240x80`)
+--  dlg = gDialog(hbx,`gButton`)
 --  dlg = gDialog(hbx,`gButton`,`SIZE=226x73`)
 --DEV 236x68...
 --  dlg = gDialog(hbx,`TITLE="gButton",SIZE=226x73,RESIZE=NO`)
 --gSetHandler(dlg,"KEY",key_handler)
---gSetAttribute(btn,"ACTIVE",mini_porting_helper(true))
+gSetAttribute(btn,"ACTIVE",mini_porting_helper(true))
 gSetAttribute(btn,"TIP","This is a button")
---gSetBodge(btn,{0,0,101,26})
+--DEV image size is not taken into account properly under WinAPI...
+--gSetAttribute(btn,"IMAGE",cut_xpm)
+--gSetAttribute(btn,"IMAGE",cut_xpm_txt)
+--gSetBodge(btn,{11,11,101,26}) -- bad idea...
 gShow(dlg)
 --DEV (win32) tab still/somehow kills focus, onto nothing
 --gSetFocus(btn) -- (test, should not change (active) behaviour/apparance...) [DEV, it does...]
@@ -74,4 +136,23 @@ gShow(dlg)
 ----integer q = gGetHandler(btn,"CLICK")
 --?q(btn) -- (-2)
 gMainLoop()
+--assert(true,"OK")
+--SUG: instead of gMainLoop() [eg]:
+--Xglobal constant XPGT = {{btn,{0,0,0,0}},}
+--include xpgui_unit_tests.e
+--if XPG_TESTING then
+-- (CLIENTPOS, CLIENTSIZE, CLIENTAREA)
+--  xpg_unit_test("btn",gGetAttribute(btn,"CLIENTAREA"),{0,0,0,0})
+--  xpg_unit_test("dlg (init)",gGetAttribute(dlg,"SIZE"),{240,80})
+--  gSetAttribute(dlg,"SIZE",{300,100})
+--  xpg_unit_test("dlg (resized)",gGetAttribute(dlg,"SIZE"),{300,100})
+--assert
+--  sleep(1)
+-- else
+--  gMainLoop()_
+-- end if
+--and an xpgui_unit_tests.exw driver:
+
+--Gdk-WARNING **: gdkdisplay-win32.c:565: GetClipboardOwner failed with code 203: The system could not find the environment option that was entered.
+
 

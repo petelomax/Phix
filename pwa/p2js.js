@@ -169,7 +169,7 @@ function puts(fn, text, cleanup=true) {
                    .replace(sp,"&ensp;")
                    .replace(lf,"<br>");
     }
-    let where = fn === 2 ? "afterbegin" : "beforeend";
+    let where = (fn === 2) ? "afterbegin" : "beforeend";
     if ($tx_clr !== -1 || $bg_clr !== -1) {
         text = `<span style="` + ($tx_clr !== -1?`color:`+$tx_clr+`;`:"")
                                + ($bg_clr !== -1?`background-color:`+$bg_clr+`;`:"")
@@ -228,14 +228,19 @@ function integer(i, name = "") {
 //  if ((ti !== "boolean") && (ti !== "function") && !Number.isSafeInteger(i)) {
 //5/11/22:
 //  if ((ti !== "boolean") && (ti !== "function") && (ti != "undefined") && (i!="") && (i!=~~i)) {
+//7/11/23:
+  if ((ti !== "object") && !(i instanceof HTMLElement)) {
+
     if ((ti === "undefined") || 
         (ti === "object") || 
         (ti === "string") || 
-//      ((ti !== "boolean") && (ti !== "function") && (i!=~~i))) {
-        (ti === "function") ||
-        ((ti !== "boolean") && (i!=~~i))) {
+        ((ti !== "boolean") && (ti !== "function") && (i!=~~i))) {
+// ^^^ put back 7/11/23...
+//      (ti === "function") ||
+//      ((ti !== "boolean") && (i!=~~i))) {
         return $typeCheckError(name,i);
     }
+  }
     return true;
 }
 let int = integer;
@@ -309,7 +314,7 @@ function $charArray(s) {
     string(s,"s");
     let l = s.length;
     let res = ["sequence"];
-    for (let i=0; i<l; i+=1) {
+    for (let i = 0; i < l; i += 1) {
         let ch = s.codePointAt(i);
         res[i+1] = ch;
     }
@@ -421,7 +426,7 @@ function sprintf(fmt, args = []) {
 //          let e = parseInt(num.toString().split('e-')[1]);
             let e = parseInt(numStr.split('e-')[1]);
             if (e) {
-                let negative = num < 0;
+                let negative = (num < 0);
                 if (negative) num *= -1
                 num *= Math.pow(10, e - 1);
                 numStr = '0.' + (new Array(e)).join('0') + num.toString().substring(2);
@@ -561,6 +566,22 @@ function sprintf(fmt, args = []) {
         return n.toString(b);
     }
 
+    function blankTZ(r1) {
+//      if (find(0X2E,r1)) {
+//      let i = r1.indexOf(0X2E);
+        let i = r1.indexOf('.');
+        if (i != -1) {
+            for (let r1dx=length(r1); r1dx>=1; r1dx-=1) {
+                let /*integer*/ r1ch = $subse(r1,r1dx);
+                if ((r1ch===0X30) || (r1ch===0X2E)) {
+                    r1 = $repe(r1,r1dx,0X20);
+                }
+                if (r1ch!==0X30) { break; }
+            }
+        }
+        return r1;
+    }
+
 //  function callback(expr, sgn, size, dot, precision, specifier) {
     function callback(expr, subscript, sgn, size, dot, precision, specifier) {
         //
@@ -594,7 +615,7 @@ function sprintf(fmt, args = []) {
 //          i *= ssign;
             if (ssign === -1) { i = args.length - i; }
         }
-        precision = precision ? parseInt(precision,10) : dot ? 0 : 6;
+        precision = precision ? parseInt(precision,10) : (dot ? 0 : 6);
 //      if (precision>15) { precision = 15; }
         if (precision>16) { precision = 16; }
         let res = "";
@@ -620,6 +641,7 @@ function sprintf(fmt, args = []) {
             case 'e': res = flti(precision).toExponential(precision); break;
             case 'E': res = flti(precision).toExponential(precision).toUpperCase(); break;
             case 'f': res = flti(precision).toFixed(precision); break;
+            case 'F': res = blankTZ(flti(precision).toFixed(precision)); break;
             case 'g': res = eorf(precision); break;
             case 'G': res = eorf(precision).toUpperCase(); break;
             default: crash("unrecognised specifier");
@@ -637,9 +659,11 @@ function sprintf(fmt, args = []) {
             }
         } else if (sgn === '+' && res[0] !== '-') {
             res = '+' + res;
+        } else if (sgn === '_' && res[0] !== '-') {
+            res = ' ' + res;
         }
         if (size) {
-            let pad = (size[0] === '0' && "-+=|".indexOf(sgn) === -1 && res.indexOf('-') === -1) ? '0' : ' ';
+            let pad = (size[0] === '0' && "-+_=|".indexOf(sgn) === -1 && res.indexOf('-') === -1) ? '0' : ' ';
             let padlen = parseInt(size,10)-res.length;
             if (padlen>0) {
                 let half = Math.floor(padlen/2);
@@ -655,9 +679,9 @@ function sprintf(fmt, args = []) {
     }
     //
     // Replace each %[subscript][sgn][[0]size][.[precision]]specifier (eg "%,7.2f") in turn
-    //  (where sgn is one of "-+=|," or undefined)
+    //  (where sgn is one of "-+_=|," or undefined)
     //
-    const regex = new RegExp(`%(\[-?[0-9]+\])?([-+=|,])?(0?[0-9]+)?([.]([0-9]+)?)?([sqQtncvVdboxXaAeEfgG%])`,'g');
+    const regex = new RegExp(`%(\[-?[0-9]+\])?([-+_=|,])?(0?[0-9]+)?([.]([0-9]+)?)?([sqQtncvVdboxXaAeEfFgG%])`,'g');
     if (string(args)) {
         if (fmt.match(regex).length>1) { args = $charArray(args); }
     }
@@ -689,21 +713,21 @@ function sprint(o,asCh) {
 //      let all_ascii = true;
         let l = o.length;
         res = "\"";
-        for (let i=0; i<l; i+=1) {
+        for (let i = 0; i < l; i += 1) {
             let ch = o.codePointAt(i);
-            if (ch===0) {
+            if (ch === 0) {
                 res += "\\0";
-            } else if (ch===0X5C) {
+            } else if (ch === 0X5C) {
                 res += "\\\\";
-            } else if (ch===0X22) {
+            } else if (ch === 0X22) {
                 res += "\\\"";
-            } else if (ch>=32) {
+            } else if (ch >= 32) {
                 res += o[i];
-            } else if (ch===9) {
+            } else if (ch === 9) {
                 res += "\\t";
-            } else if (ch===10) {
+            } else if (ch === 10) {
                 res += "\\n";
-            } else if (ch===13) {
+            } else if (ch === 13) {
                 res += "\\r";
             } else {
 //              all_ascii = false;
@@ -715,13 +739,13 @@ function sprint(o,asCh) {
     } else if (sequence(o)) {
         let l = o.length-1;
         res = "{";
-        if (asCh===false) { asCh = true; } // (nb -1 and true left as-is)
-        for (let i=1; i<=l; i+=1) {
+        if (asCh === false) { asCh = true; } // (nb -1 and true left as-is)
+        for (let i = 1; i <= l; i += 1) {
             if (i>1) { res += ","; }
             res += sprint(o[i],asCh);
         }
         res += "}";
-    } else if (asCh===true && integer(o) && o>=32 && o<127) {
+    } else if ((asCh === true) && integer(o) && (o>=32) && (o<127)) {
         res = "'" + String.fromCodePoint(o) + "'";
     } else if (integer(o)) {
         res = o.toString();
@@ -929,7 +953,7 @@ function repeat(item, count) {
 //      let res = item.repeat(count);
 //      return res;
 //  }
-    if (integer(item) && item>=7 && item<=255) {
+    if (integer(item) && (item >= 7) && (item <= 255)) {
         return String.fromCodePoint(item).repeat(count);
     }
     let res = ["sequence"];
@@ -983,7 +1007,7 @@ function sq_rnd(/*object*/ shape=1) {
     if (atom(shape)) { return rnd(); }
 /* // old
     let /!*sequence*!/ res = repeat(0,length(shape));
-    for (let i=1, i$lim=length(shape); i<=i$lim; i+=1) {
+    for (let i = 1, i$lim = length(shape); i <= i$lim; i += 1) {
         res = $repe(res,i,sq_rnd($subse(shape,i)));
     }
 //untried (erm, can shape be a string...?):
@@ -992,7 +1016,7 @@ function sq_rnd(/*object*/ shape=1) {
     if (string(shape)) { shape = $charArray(shape); }
     let l = length(shape),
         res = repeat(0,l);
-    for (let i=1; i<=l; i+=1) {
+    for (let i = 1; i <= l; i += 1) {
         res[i] = sq_rnd(shape[i]);
     }
     return res;
@@ -1054,7 +1078,7 @@ function call_proc(rid,params) {
 function xor(a,b) {
 //  return ( a || b ) && !( a && b );
 //  return ( a && !b ) || ( !a && b );
-  return (!a != !b) ? 1 : 0;
+  return ((!a) != (!b)) ? 1 : 0;
 //  return (!a != !b) ? true : false;   // maybe...
 }
 
@@ -1077,7 +1101,7 @@ function machine_word() {
 }
 
 function version() {
-    return "1.0.3";
+    return "1.0.4";
 }
 //let IupVersion = version;
 
@@ -1126,8 +1150,8 @@ function $sidii(s, idii, skip=0, t) {
     if (idii) { 
 //      let l = length(idii)-skip;
         let l = length(idii);
-//      for (let i=1; i<=l; i+=1) {
-        for (let i=l; i>skip; i-=1) {
+//      for (let i = 1; i <= l; i += 1) {
+        for (let i = l; i > skip; i -= 1) {
             let idx = floor(idii[i]);
             if (idx<0) { idx += length(s)+1; }
             if (string(s) || atom(s)) { crash("attempt to subscript an atom"); }
@@ -1237,7 +1261,7 @@ function $repss(s, ss, se, x, idii) {
 //      /*t =*/ $sidii(s,idii,1,t);
     }
     if (atom(x)) {
-        for (let i=ss; i<=se; i+=1) {
+        for (let i = ss; i <= se; i += 1) {
             t[i] = x;
         }
     } else {
@@ -1245,8 +1269,8 @@ function $repss(s, ss, se, x, idii) {
         if (string(x)) { x = $charArray(x); }
         let l = length(x),
             sl = se-ss+1;
-        if (l===sl) {
-            for (let i=1; i<=sl; i+=1) {
+        if (l === sl) {
+            for (let i = 1; i <= sl; i += 1) {
                 t[ss] = x[i];
                 ss += 1;
             }
@@ -1333,7 +1357,8 @@ function date(bMSecs = false) {
 
 function get_routine_info(fn) {
     let minp = 0, fname;
-    if (integer(fn)) {
+//  if (integer(fn)) {
+    if (integer(fn) && typeof(fn) !== "function") {
         const e = new Error();
         const frame = e.stack.split("\n")[2-fn];
         fname = frame.split(" ")[5];
@@ -1385,13 +1410,13 @@ function int_to_bits(/*atom*/ x, /*integer*/ nbits=0) {
         while (true) {
             bits = $conCat(bits, and_bits(x,1));
             x = floor(x/2);
-            if (x===0) { break; }
+            if (x === 0) { break; }
         }
     } else {
         bits = repeat(0,nbits);
         if (integer(x) && nbits<30) {
             // faster method
-            for (let i=1, i$lim=nbits; i<=i$lim; i+=1) {
+            for (let i = 1; i <= nbits; i += 1) {
                 bits = $repe(bits,i,and_bits(x,mask) && 1);
                 mask *= 2;
             }
@@ -1400,7 +1425,7 @@ function int_to_bits(/*atom*/ x, /*integer*/ nbits=0) {
             if (x<0) {
                 x += power(2,nbits); // for 2's complement bit pattern
             }
-            for (let i=1, i$lim=nbits; i<=i$lim; i+=1) {
+            for (let i = 1; i <= nbits; i += 1) {
                 bits = $repe(bits,i,remainder(x,2));
                 x = floor(x/2);
             }
@@ -1411,10 +1436,8 @@ function int_to_bits(/*atom*/ x, /*integer*/ nbits=0) {
 
 function bits_to_int(/*sequence*/ bits) {
 // get the (positive) value of a sequence of "bits"
-    let /*atom*/ val, p;
-    val = 0;
-    p = 1;
-    for (let i=1, i$lim=length(bits); i<=i$lim; i+=1) {
+    let /*atom*/ val = 0, p = 1, nbits = length(bits);
+    for (let i = 1; i <= nbits; i += 1) {
         if ($subse(bits,i)) {
             val += p;
         }
@@ -1491,7 +1514,7 @@ function get_proper_path(filepath) {
 function get_proper_dir(/*string*/ filepath, /*bool*/ remove_slash=false) {
     string(filepath,"filepath");
     let l = filepath.length, res = "";
-    for (let i=l-1; i>=0; i-=1) {
+    for (let i = l-1; i >= 0; i -= 1) {
         let ch = filepath.codePointAt(i);
         if (ch === 0X2F ||  // '/'
             ch === 0X5C) {  // '\\'
@@ -1541,7 +1564,7 @@ function atom_to_float32(/*atom*/ a) {
      byteArray = new Uint8Array(buffer);
     view.setFloat32(0, a);
     let res = repeat(0,4);
-    for (let i = 1; i <= 4; i++) {
+    for (let i = 1; i <= 4; i += 1) {
         res[i] = byteArray[4-i];
     }
     return res;
@@ -1553,7 +1576,7 @@ function atom_to_float64(/*atom*/ a) {
      byteArray = new Uint8Array(buffer);
     view.setFloat64(0, a);
     let res = repeat(0,8);
-    for (let i = 1; i <= 8; i++) {
+    for (let i = 1; i <= 8; i += 1) {
         res[i] = byteArray[8-i];
     }
     return res;
@@ -1563,7 +1586,7 @@ function float32_to_atom(/*sequence*/ s) {
     let buffer = new ArrayBuffer(4),
           view = new DataView(buffer),
      byteArray = new Uint8Array(buffer);
-    for (let i = 1; i <= 4; i++) {
+    for (let i = 1; i <= 4; i += 1) {
         byteArray[4-i] = s[i];
     }
     let res = view.getFloat32(0);
@@ -1576,7 +1599,7 @@ function float64_to_atom(/*sequence*/ s) {
           view = new DataView(buffer),
 //  floatArray = new Float32Array(buffer),
      byteArray = new Uint8Array(buffer);
-    for (let i = 1; i <= 8; i++) {
+    for (let i = 1; i <= 8; i += 1) {
         byteArray[8-i] = s[i];
     }
     let res = view.getFloat64(0);
