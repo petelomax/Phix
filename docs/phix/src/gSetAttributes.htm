@@ -37,11 +37,12 @@
             <br>
             <br>
             Alternatively, if attributes is <i>&ldquo;=name<small><sub>1</sub></small>, 
-                                                       name<small><sub>2</sub></small>,...&rdquo;</i> (ie leading '=' then names only)<br>
-            then args must be {<i>attr<small><sub>1</sub></small></i>,<i>attr<small><sub>2</sub></small></i>,...} (and of the correct/exact/matching length).
+                                                       name<small><sub>2</sub></small>,...&rdquo;</i>, ie leading '=' 
+            followed by comma-separated names, <br> then args must be 
+            {<i>attr<small><sub>1</sub></small></i>,<i>attr<small><sub>2</sub></small></i>,...} of the correct/exact/matching length.
             <br>
             <br>
-            Another alternative is that if attributes is just/exactly "==" then args is a pair-list: 
+            Another alternative is that if attributes is just/exactly "==" then args is a pair-list: <br>
             {{<i>&ldquo;name<small><sub>1</sub></small>&rdquo;</i>,<i>attr<small><sub>1</sub></small></i>}, 
              {<i>&ldquo;name<small><sub>2</sub></small>&rdquo;</i>,<i>attr<small><sub>2</sub></small></i>},...}
             <br>
@@ -71,7 +72,7 @@
             <br>
             <br>
             Most interface elements can be created with an optional implicit inline invocation of gSetAttributes(), which can make code 
-            much cleaner than invoking this function, as example 2 below shows.
+            much cleaner than invoking this function directly, as examples 2 and 3 below show.
             <br>
             <br>
             Fairly obviously, attribute values must be expressed(/ible) in textual form, but a <a href="integer.htm#bool">bool</a>, for
@@ -95,7 +96,7 @@
             parsing), but I&rsquo;m not keen and would probably struggle to justify the potential additional confusion that would probably 
             introduce. Any such potentially confusing fields must be set individually using <a href="gSetAttribute.htm">gSetAttribute</a>() 
             directly. If there is any doubt, especially with settings that are not fixed constants, just do them one at a time.
-            <small><i>[It is not inconceivable this string-only stuff will one day be consigned to the dustbin, where it rightly belongs (bar legacy code)]</i></small><small>
+            <small><i>[It is not inconceivable this string-only stuff will one day be consigned to the dustbin, where it rightly belongs (bar legacy code)]</i></small>
 <!-- [FIXED]
             <br>
             <br>
@@ -131,59 +132,63 @@
           <b>Example 1:</b>
          </td>
          <td>
-DEV: all examples need testing/updating<br><br>
-            Select the appropriate file dialog type and title.
-         </td>
-        </tr>
-        <tr>
-         <td>
-         </td>
-         <td>
 <!--eucode>
+-- Select the appropriate file dialog type and title.
 gSetAttributes(filedlg, iff(bOpen?`DIALOGTYPE=OPEN, TITLE=Open`
                                  :`DIALOGTYPE=SAVE, TITLE=Save`))
 </eucode-->
 <pre>
+<font color="#000080"><i>-- Select the appropriate file dialog type and title.</i></font>
 <font color="#7060A8">gSetAttributes</font><font color="#0000FF">(</font><font color="#000000">filedlg</font><font color="#0000FF">,</font><font color="#7060A8"> iff</font><font color="#800000">(</font><font color="#000000">bOpen</font><font color="#0000FF">?</font><font color="#008000">`DIALOGTYPE=OPEN, TITLE=Open`</font>
 <font color="#0000FF">                                 :</font><font color="#008000">`DIALOGTYPE=SAVE, TITLE=Save`</font><font color="#800000">)</font><font color="#0000FF">)</font>
 </pre>
          </td>
         </tr>
-<!--
         <tr>
          <td>
           <b>Example 2:</b>
          </td>
          <td>
-            Creates a <del>list</del> dropdown [<b>DEV:</b> gah, find something else!] with country names and defines Japan as the selected option.
+<!--eucode>
+gButton(dlg, "=ACTIVE,IMAGE",{true,xpm}) -- or:
+gButton(dlg, "==",{{"ACTIVE",true},{"IMAGE",xpm}})
+</eucode-->
+<pre>
+<font color="#7060A8">gButton</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">,</font><font color="#008000"> "=ACTIVE,IMAGE"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#004600">true</font><font color="#0000FF">,</font><font color="#000000">xpm</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#000080"><i> -- or:</i></font>
+<font color="#7060A8">gButton</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">,</font><font color="#008000"> "=="</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#800080">{</font><font color="#008000">"ACTIVE"</font><font color="#0000FF">,</font><font color="#004600">true</font><font color="#800080">}</font><font color="#0000FF">,</font><font color="#800080">{</font><font color="#008000">"IMAGE"</font><font color="#0000FF">,</font><font color="#000000">xpm</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">)</font>
+</pre>
+            Admittedly that is more of an example of when <i>not</i> to use gSetAttributes(), or more accurately implicitly inline it,<br>
+            but of course there would be no difficulty whatsoever extracting attr/arg into [a] separate following gSetAttribute[s]().<br>
          </td>
         </tr>
         <tr>
          <td>
+          <b>Example 3:</b>
          </td>
          <td>
-<X!X--
             Translate C code such as
             <br>
             <small><br>
              <code>list = IupList(); IupSetAtt(NULL, list, "VALUE", "3", "1", "Brazil", "2", "USA", "3", "Japan", "4", "France", NULL);</code>
             <br></small>
             <br>
-             to
+             &nbsp;&nbsp;to
             <br>
             <small><br></small>
---X>
-<X!X--eucode>
-gdx list = ?!gList?!(`VALUE=3, 1=Brazil, 2=USA, 3=Japan, 4=France`)
-</eucode--X>
+<!--eucode>
+gdx list = gDropDown(changed,"=OPTIONS,VALINT",{{"Brazil","USA","Japan","France"},3})
+-- or
+gdx list = gDropDown({"Brazil","USA","Japan","France"},changed,"VALINT=3")
+</eucode-->
 <pre>
-<font color="#7060A8">gdx</font><font color="#000000"> list</font><font color="#0000FF"> = ?</font><font color="#FF0000">!</font><font color="#7060A8">gList</font><font color="#0000FF">?</font><font color="#FF0000">!</font><font color="#0000FF">(</font><font color="#008000">`VALUE=3, 1=Brazil, 2=USA, 3=Japan, 4=France`</font><font color="#0000FF">)</font>
+<font color="#7060A8">gdx</font><font color="#000000"> list</font><font color="#0000FF"> =</font><font color="#7060A8"> gDropDown</font><font color="#0000FF">(</font><font color="#000000">changed</font><font color="#0000FF">,</font><font color="#008000">"=OPTIONS,VALINT"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#800080">{</font><font color="#008000">"Brazil"</font><font color="#0000FF">,</font><font color="#008000">"USA"</font><font color="#0000FF">,</font><font color="#008000">"Japan"</font><font color="#0000FF">,</font><font color="#008000">"France"</font><font color="#800080">}</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- or</i></font>
+<font color="#7060A8">gdx</font><font color="#000000"> list</font><font color="#0000FF"> =</font><font color="#7060A8"> gDropDown</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#008000">"Brazil"</font><font color="#0000FF">,</font><font color="#008000">"USA"</font><font color="#0000FF">,</font><font color="#008000">"Japan"</font><font color="#0000FF">,</font><font color="#008000">"France"</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000">changed</font><font color="#0000FF">,</font><font color="#008000">"VALINT=3"</font><font color="#0000FF">)</font>
 </pre>
             <small><br></small>
-            Admittedly that is more of an example of when <i>not</i> to use gSetAttributes(), or more accurately implicitly inline it.
+            Which creates a <del>list</del> dropdown with country names and defines Japan as the selected/default option.<br>
          </td>
         </tr>
---->
         <tr>
          <td>
           <b>See Also:</b>
@@ -191,7 +196,9 @@ gdx list = ?!gList?!(`VALUE=3, 1=Brazil, 2=USA, 3=Japan, 4=France`)
          <td>
           <a href="gGetAttribute.htm">gGetAttribute</a>,
           <a href="gSetAttribute.htm">gSetAttribute</a>
-<!--          <a href="gList.htm">gList</a>-->
+          <a href="gButton.htm">gButton</a>,
+          <a href="gDropDown.htm">gDropDown</a>,
+          <a href="gList.htm">gList</a>
          </td>
         </tr>
        </table>

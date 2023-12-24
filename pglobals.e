@@ -36,7 +36,7 @@ global constant newEBP = 04 -- 4=on, 0=off(ie old style/working)
 --global constant pxversion = {1,0,1},  -- 1.0.1    -- 25/11/21
 --global constant pxversion = {1,0,2},  -- 1.0.2    -- 26/02/23
 --global constant pxversion = {1,0,3},  -- 1.0.3    -- 07/08/23
-global constant phixversion = {1,0,4},  -- 1.0.4    -- 0?/0?/23
+global constant phixversion = {1,0,4},  -- 1.0.4    -- 23/12/23
                 phixverstr = sprintf("%d.%d.%d",phixversion)
 sequence phixver = phixversion  -- (debug aid, otherwise unused)
 if sequence(phixver) then end if

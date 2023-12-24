@@ -1293,6 +1293,7 @@ local constant  C_DBL = C_DOUBLE,
                 CW_USEDEFAULT = #80000000,
                 DEFAULT_CHARSET = 1,
                 DIB_RGB_COLORS = 0,
+--              DLGC_WANTMESSAGE = 0x0004,
 
                 -- DrawText CONSTANTS
 --              DT_TOP = 0,
@@ -1760,6 +1761,7 @@ local constant  C_DBL = C_DOUBLE,
 --              WM_NCHITTEST = 132,
 --              WM_NCPAINT = 133,
 --              WM_NCACTIVATE = 134,
+--              WM_GETDLGCODE = 135,
 --              WM_NCMOUSEMOVE = 160,
 --              WM_NCLBUTTONDOWN = 161,
                 WM_KEYDOWN = 256,
@@ -2195,7 +2197,8 @@ local integer   cairo_arc,
                 xGetMenuState,         
 --              xGetMenuString,
                 xGetMessage,
-                xGetNextDlgTabItem,
+--              xGetNextDlgTabItem,
+--              xGetParent,
                 xGetPixel,
                 xGetStockObject,
 --              xGetScrollInfo,
@@ -2204,6 +2207,7 @@ local integer   cairo_arc,
                 xGetSystemMetrics,
                 xGetTextExtentPoint32,
                 xGetTextExtentPoint32W,
+--              xGetWindow,
                 xGetWindowLong,
                 xGetWindowRect,
                 xGetWindowText,
@@ -2217,7 +2221,7 @@ local integer   cairo_arc,
                 xImageList_Create,
                 xInvalidateRect,           
                 xIsClipboardFormatAvailable,
---              xIsDialogMessage,
+                xIsDialogMessage,
                 xKillTimer,
                 xLineTo,
                 xLoadCursor,
@@ -5786,7 +5790,7 @@ global procedure gSetFocus(gdx id)
         integer cf = ctrl_flags[id]
         if not and_bits(cf,CF_INACTIVE) then
             bool bOK = c_func(gtk_widget_grab_focus,{ctrl_handles[id]})
---?{"bOK2",bOK}
+--?{"bOK2",bOK,id}
             assert(bOK)
         end if
 
@@ -6052,6 +6056,264 @@ integer wm_dict = NULL
 --end function
 --*/
 
+--DEV: cleanup/rename as xpg_WinAPI_XXX, maybe use gGetBrother() etc, ...
+
+/*
+function xpg_tab_is_enterable(gdx id)-- is this control normally enterable?
+--/*
+integer tmp
+    tmp = ObjectType[id]
+    if tmp!=StatusBar then
+        if tmp!=Window then
+            if tmp!=TabItem then
+                if tmp!=Menu then
+                    if tmp!=MenuItem then
+                        return true
+                    end if
+                end if
+            end if
+        end if
+    end if
+    return false
+--DEV tryme:
+--  return not find(ObjectType[id],{StatusBar,Window,TabItem,Menu,MenuItem})
+--*/
+    integer ct = ctrl_types[id]
+    bool res = not find(ct,{DIALOG,MENU})
+--if not find(ct,{}) then
+--  printf(1,"xpg_tab_is_enterable(%d[a %s]):%t\n",{id,ctrl_names[ct],res})
+--end if
+    return res
+end function
+*/
+
+--/*
+--local function xpg_WinAPI_Tab_isFocussable(gdx id) -- can the focus exist on this control right now?
+----    bool res = false
+----    if hasWS_TABSTOP(ObjectType[id]) then
+--  atom hwnd = ctrl_handles[id],
+--      style = c_func(xGetWindowLong,{hwnd,GWL_STYLE})
+--  bool res = and_bits(style,WS_TABSTOP)!=0
+----    if and_bits(style,WS_TABSTOP) then
+------      if isEnabled(id) then
+------          if isVisible(id) then
+----                res = true
+------          end if
+------      end if
+----    end if
+----integer ct = ctrl_types[id]
+----if not find(ct,{}) then
+----    printf(1,"xpg_WinAPI_Tab_isFocussable(%d[a %s]):%t\n",{id,ctrl_names[ct],res})
+----end if
+--  return res
+--end function
+--*/
+
+local function xpg_tab_to_next_valid_control(integer id, integer nextsibling, integer owner, bool bPrev)
+
+    if not id then -- 2ndpass, from start
+        id = owner
+    elsif id=owner and nextsibling then -- 1st pass, hit end so now exit
+        return id
+    end if
+
+    integer pID = parent_ids[id]
+    object siblings
+
+    if pID and nextsibling then
+        siblings = children_ids[pID]
+        if integer(siblings) then
+            return NULL
+        end if
+        integer index = find(id, siblings)
+        if not index then
+            return NULL
+        end if
+        index += iff(bPrev?-1:+1)
+        if index<1 or index>length(siblings) then
+            return xpg_tab_to_next_valid_control(pID, 1, owner, bPrev)
+        end if
+        id = siblings[index]
+--      if xpg_WinAPI_Tab_isFocussable(id) then
+        if gGetAttribute(id,"CANFOCUS") then
+            return id
+        end if
+    end if
+
+    -- loop through all children from first to last, possibly recursively, seeking a valid TAB spot
+    siblings = children_ids[id]
+    pID = id
+    if sequence(siblings) then
+        integer {first,last,step} = iff(bPrev?{length(siblings),1,-1}:
+                                              {1,length(siblings),+1})
+        for i=first to last by step do
+            id = siblings[i]
+--          if xpg_WinAPI_Tab_isFocussable(id) then
+            if gGetAttribute(id,"CANFOCUS") then
+                return id
+--          elsif xpg_tab_is_enterable(id) then
+            elsif not find(ctrl_types[id],{DIALOG,MENU}) then
+                id = xpg_tab_to_next_valid_control(id, 0, owner, bPrev) -- go down a level
+                if id then
+                    return id
+                end if
+            end if
+        end for
+    end if
+
+    -- exit, failure here, go up to next level
+    return xpg_tab_to_next_valid_control(pID, 1, owner, bPrev)
+
+end function
+
+local procedure xpg_find_next_tab_stop(gdx id, bool shift)
+    integer ct = ctrl_types[id],
+        window = gGetDialog(id) -- if id is already a window then will return itself
+--  bool ctrl = false
+--  Tab_moveFocus(id, window, ctrl, bPrev)
+--procedure Tab_moveFocus(gdx id, window, bool ctrl, bPrev)
+    integer newid = xpg_tab_to_next_valid_control(id, 1, window, shift) -- 1st pass, to start
+    if newid=window then
+        newid = xpg_tab_to_next_valid_control(0, 0, window, shift) -- 2nd pass, from end
+    end if
+    if newid!=NULL then
+        gSetFocus(newid)
+    end if
+end procedure
+
+--/*
+--procedure Tab_moveFocus(gdx id, window, bool ctrl, bPrev)
+--
+----/*
+--  integer objtype = ObjectType[id],
+--          pID = ObjectParent[id],
+--          newid
+--
+--  -- DEAL TO TABITEMS & CONTROLS OWNED BY THEM
+--  if objtype=TabItem then
+--      if shift then -- move to prev tab
+--          newid = Tab_prevValidControl(id, 1, window)
+--      elsif ctrl then -- move to next tab
+--          newid = Tab_nextValidControl(id, 1, window)
+--      else -- cycle through subordinates, NB: ONE WAY!
+--          newid = Tab_nextValidControl(id, 0, pID)
+--          if newid=pID then
+--              newid = id
+--          end if
+--          setFocus(newid)
+--          return
+--      end if
+--
+--  elsif pID and ObjectType[pID]=TabItem then
+--      if shift then
+--          id = Tab_prevValidControl(pID, 1, window)
+--      elsif ctrl then
+--          id = Tab_nextValidControl(pID, 1, window)
+--      else
+--          id = Tab_nextValidControl(id, 1, pID)
+--      end if
+--      setFocus(id)
+--      return
+--
+--  end if
+--
+--  -- Attempt to retrieve the next valid Tab spot
+--  if not shift then -- forward
+--      newid = Tab_nextValidControl(id, 1, window) -- 1st pass, to end
+--      if newid=window then
+--          newid = Tab_nextValidControl(0, 0, window) -- 2nd pass, from start
+--      end if
+--
+--  else -- backward
+--      newid = Tab_prevValidControl(id, 1, window) -- 1st pass, to start
+--      if newid=window then
+--          newid = Tab_prevValidControl(0, 0, window) -- 2nd pass, from end
+--      end if
+--
+--  end if
+----*/
+--  integer newid = xpg_tab_to_next_valid_control(id, 1, window, bPrev) -- 1st pass, to start
+--  if newid=window then
+--      newid = xpg_tab_to_next_valid_control(0, 0, window, bPrev) -- 2nd pass, from end
+--  end if
+--
+--
+--  -- if an error happened then simply retrieve the owner window as a last resort
+----    if newid=NULL then
+----        newid = window
+----    end if
+--
+--  -- for TabItems force tab focus, otherwise set focus as normal
+----    setFocus(newid)
+--  if newid!=NULL then
+--      gSetFocus(newid)
+--  end if
+--end procedure
+--*/
+
+--/*
+procedure moveFocusNextAvailable(integer id)
+
+    integer wID = getParentWindow(id)
+
+    if not wID then
+        return
+    end if
+
+    integer next = Tab_nextValidControl(id, 0, wID)
+    if next=wID then
+        next = Tab_nextValidControl(0, 0, wID)
+    end if
+
+    if next=wID or next=0 then
+        return
+    end if
+
+    setFocus(next)
+
+end procedure
+
+function proc_KeyDownMessage(integer id, integer msg, atom wParam, atom lParam)
+
+    -- 0 means return 0 upon return to caller
+    -- 1 means continue
+
+    if wParam=VK_TAB then -- process tabbing between controls
+        if msg or lParam then end if    --DEV suppress warnings
+
+        integer tmp = id
+
+        id = getFocus()
+
+        -- ensure an actual control/window is referenced
+        if not id then
+            id = getParentWindow(tmp)
+            if not id then
+                return 1
+            end if
+        end if
+
+        -- ensure an owner window is present
+        integer window = getParentWindow(id) -- if id is already a window then will return itself
+
+--      integer objtype = ObjectType[id]
+
+        integer ctrl = getKeyState(VK_CONTROL),
+                shift = getKeyState(VK_SHIFT)
+
+        -- move tab forward or backward depending on the system keys
+        Tab_moveFocus(id, window, ctrl, shift)
+
+        return 0
+
+    end if
+
+    return 1
+
+end function
+
+--*/
+
 local function xpg_WinAPI_process_key(integer id, msg, atom wParam, lParam)
     --
     -- Firstly: get things down to one and precisely one message per keystroke.
@@ -6106,17 +6368,17 @@ local function xpg_WinAPI_process_key(integer id, msg, atom wParam, lParam)
     if key then
 --DEV/temp:
 --      printf(1,"%s: key:%x (%s), ctrl:%d, shift:%d, alt:%d\n",
---              {what,key,gGetKeyName(key),ctrl,shift,alt})
-
+--                {what,key,gGetKeyName(key),ctrl,shift,alt})
         integer res = xpg_key_handler(id,key,ctrl,shift,alt)
         if res then return 0 end if
+        -- GTK equivalent done in xpg_gtk_focus(), ie 
+        -- the "focus" event not the "key_press_event":
+        if msg=WM_KEYDOWN and key=VK_TAB then
+--      if msg=WM_CHAR and key=VK_TAB then  -- (or, maybe...)
+            xpg_find_next_tab_stop(id,shift)
+        end if
     end if
-    if wParam=VK_TAB then
-        atom phwnd = ctrl_handles[gGetDialog(id)],
-              hwnd = ctrl_handles[id],
-             nhwnd = c_func(xGetNextDlgTabItem,{phwnd,hwnd,shift})
-        c_proc(xSetFocus,{nhwnd})
-    end if
+--*!/
     return true -- (carry on with xCallWindowProc/xDefWindowProc)
 end function
 
@@ -7453,6 +7715,20 @@ end if
                 end if
             end if
         end if
+--/*
+    elsif msg=WM_GETDLGCODE and lParam!=NULL
+      and get_struct_field(idMESSAGE,lParam,"message")=WM_KEYDOWN
+      and get_struct_field(idMESSAGE,lParam,"wParam")=VK_ESC then
+--integer m = get_struct_field(idMESSAGE,lParam,"message"),
+--      k = get_struct_field(idMESSAGE,lParam,"wParam")
+----?{m,WM_KEYDOWN,k,VK_ESC,"(sub)"}
+--  if m=WM_KEYDOWN
+--  and k=VK_ESC then
+--?"return 4!(s)"
+        return DLGC_WANTMESSAGE;
+--  end if
+--end if
+--*/
     end if
     return c_func(xCallWindowProc,{wnd_proc_addr[id],hwnd,msg,wParam,lParam})
 end function
@@ -7491,6 +7767,43 @@ if not ignorable_message(r,msg) then
     ?{"xpg_WinAPI_WndProc",id,msg,r}
 end if
 --*/
+--if not find(msg,{1,3,5,6,7,8,12,15,20,24,28,32,36,48,70,71,85,127,129,13,132,133,134,169,297,312,512,528,641,642,674,792,799,49326}) then
+--{"gShow",39''',135,2,326,32' ',{133,294}}
+--39 Dialog   892 377 135 326 135 326   0   0  0  {38}       CF_CONTAINER+CF_DECORATED+CF_RESIZE+CF_CLOSE_ON_ESC+CF_MAPPED+CF_UNMAPATTR
+--dialog size: {135,326}
+--"wasDialogMessage!"
+--"wasDialogMessage!"
+--WM_GETDLGCODE = 135,
+--{"xpg_WinAPI_WndProc",39''',135,27,9827984}
+--WM_COMMAND = 273
+--{"xpg_WinAPI_WndProc",39''',273,2,0}
+--"wasDialogMessage!"
+--WM_KEYUP = 257
+--{"xpg_WinAPI_WndProc",39''',257,27,-1073676287}
+--{"xpg_WinAPI_WndProc",39''',257,27,#C0010001}
+--  ?{"xpg_WinAPI_WndProc",id,msg,wParam,lParam}
+--end if
+--if msg = 135 then return 0x0080 end if -- as next
+--if msg = 135 then return 0x0084 end if -- as next
+--if msg = 135 then return 0x0004 end if -- but kills tab handling
+--if msg = 135 then return 0x0002 end if -- kills tab and esc handling
+--if msg = 135 and wParam!=VK_TAB then return 0x0004 end if -- but kills esc handling!!
+--if msg = 135 and msg!=NULL and wParam!=VK_TAB then return 0x0004 end if -- but kills esc handling!!
+--if msg = 135 and lParam!=NULL
+--then
+----and get_struct_field(idMESSAGE,pMSG,"message")=WM_KEYDOWN
+----and get_struct_field(idMESSAGE,pMSG,"wParam")=VK_ESC then
+--integer m = get_struct_field(idMESSAGE,lParam,"message"),
+--      k = get_struct_field(idMESSAGE,lParam,"wParam")
+----?{m,WM_KEYDOWN,k,VK_ESC}
+--  if m=WM_KEYDOWN
+--  and k=VK_ESC then
+----?"return 4!"
+----        return DLGC_WANTMESSAGE;
+--      return 0x0004
+--  end if
+--end if
+
 
 --      case WM_ACTIVATE:
 --          if bAssumed then return 0 end if
@@ -7598,10 +7911,14 @@ SetWindowPos(hWnd,  HWND_TOP,  100,  100,  300,  70,  SWP_SHOWWINDOW);
                 -- menu command - must be a gDialog(gVbox({gMenu(),...}),...) construct.
 --  printf(1,"WndProc WM_COMMAND(%s,%d): id:%d, wParam:%08x, lParam:%08x\n",{ctrl_names[ct],oid,id,wParam,lParam})
                 id = children_ids[id][1]
-                assert(ctrl_types[id]=BOX)
-                id = children_ids[id][1]
-                assert(ctrl_types[id]=MENU)
-                return xpg_menu_common(id,wParam,false)
+--              assert(ctrl_types[id]=BOX)
+                if ctrl_types[id]=BOX then
+                    id = children_ids[id][1]
+--              assert(ctrl_types[id]=MENU)
+                    if ctrl_types[id]=MENU then
+                        return xpg_menu_common(id,wParam,false)
+                    end if
+                end if
 --  printf(1,"WndProc WM_COMMAND(%s): id:%d, wParam:%08x, lParam:%08x\n",{ctrl_names[ct],id,wParam,lParam})
             end if
         end if
@@ -8027,6 +8344,12 @@ SetWindowPos(hWnd,  HWND_TOP,  100,  100,  300,  70,  SWP_SHOWWINDOW);
 --DEV
 --      xpg_lm_distribute_any_slack(id)
 
+--/*
+    elsif msg=WM_GETDLGCODE and lParam!=NULL
+      and get_struct_field(idMESSAGE,lParam,"message")=WM_KEYDOWN
+      and get_struct_field(idMESSAGE,lParam,"wParam")=VK_ESC then
+        return DLGC_WANTMESSAGE;
+--*/    
     elsif msg=WM_CLOSE then
 
         if id=PrimaryWindowID then
@@ -9885,11 +10208,14 @@ typedef enum
              C_UINT,    --  UINT  wMsgFilterMin  // first message
              C_UINT},   --  UINT  wMsgFilterMax  // last message
              C_BOOL)    -- BOOL
-        xGetNextDlgTabItem = define_c_func(USER32,"GetNextDlgTabItem",
-            {C_PTR,     --  HWND hDlg
-             C_PTR,     --  HWND hCtl
-             C_BOOL},   --  BOOL bPrevious
-             C_PTR)     -- HWND
+--      xGetNextDlgTabItem = define_c_func(USER32,"GetNextDlgTabItem",
+--          {C_PTR,     --  HWND hDlg
+--           C_PTR,     --  HWND hCtl
+--           C_BOOL},   --  BOOL bPrevious
+--           C_PTR)     -- HWND
+--      xGetParent = define_c_func(USER32,"GetParent",
+--          {C_PTR},    --  HWND  hWnd  // handle of child window
+--          C_PTR)      -- HWND
 --DEV... (to go)
         xGetPixel = define_c_func(GDI32,"GetPixel",
             {C_PTR,     --  HDC hdc
@@ -9925,6 +10251,10 @@ typedef enum
              C_INT,     --  int  cbString,  // number of characters in string
              C_PTR},    --  LPSIZE  lpSize  // address of structure for string size
             C_BOOL)     -- BOOL
+--      xGetWindow = define_c_func(USER32,"GetWindow",
+--          {C_PTR,     --  HWND hWnd
+--           C_UINT},   --  UINT uCmd
+--          C_PTR)      -- HWND
         xGetWindowLong = define_c_func(USER32,iff(MB=32?"GetWindowLongA"
                                                        :"GetWindowLongPtrA"),
             {C_PTR,     --  HWND  hWnd      // handle of window
@@ -9978,10 +10308,10 @@ typedef enum
         xIsClipboardFormatAvailable = define_c_func(USER32,"IsClipboardFormatAvailable",
             {C_UINT},   --  UINT format
             C_BOOL)     -- BOOL
---      xIsDialogMessage = define_c_func(USER32,"IsDialogMessageA",
---          {C_PTR,     --  HWND hDlg
---           C_PTR},    --  LPMSG lpMsg
---          C_BOOL)     -- BOOL
+        xIsDialogMessage = define_c_func(USER32,"IsDialogMessageA",
+            {C_PTR,     --  HWND hDlg
+             C_PTR},    --  LPMSG lpMsg
+            C_BOOL)     -- BOOL
         xKillTimer = define_c_func(USER32,"KillTimer",
             {C_PTR,     --  HWND hWnd (NULL here)
              C_UINT},   --  UINT_PTR uIDEvent
@@ -11364,6 +11694,20 @@ global function gTimer(rtn action=NULL, integer msecs=40, boolean active=true, o
     return id
 end function 
 
+--gboolean focus(GtkWidget* self, GtkDirectionType direction, gpointer user_data)
+local function xpg_gtk_focus(atom widget, integer direction, gdx id)
+    -- GTK only part (WinAPI equivalent in xpg_WinAPI_process_key)
+    -- Same tab handling as WinAPI, since GTK often gets it wrong.
+    assert(id=xpg_getID(widget))
+    integer ct = ctrl_types[id] 
+    assert(ct=DIALOG)
+--?{"xpg_gtk_focus",direction,id,ctrl_names[ct]}
+    gdx fid = gGetFocus()
+    if fid then id = fid end if
+    xpg_find_next_tab_stop(id, direction)
+    return true
+end function
+
 procedure xpg_Dialog(integer id)
     integer parent = parent_ids[id]
     atom handle
@@ -11383,13 +11727,13 @@ procedure xpg_Dialog(integer id)
         xpg_gtk_signal_connect(handle,"focus-out-event",xpg_gtk_focusinout,id)
         xpg_gtk_signal_connect(handle,"motion-notify-event",xpg_gtk_mousemove,id)
         xpg_gtk_signal_connect(handle,"configure-event",xpg_gtk_configure_event,id)
+        xpg_gtk_signal_connect(handle,"focus",xpg_gtk_focus,id)
         c_proc(gtk_widget_realize,{handle})
     elsif backend=XPG_WINAPI then
         -- (aside: ctrl_types[id] is already DIALOG)
         atom d = CW_USEDEFAULT, -- (==#80000000)
              dwStyle = WS_OVERLAPPEDWINDOW,
            dwStyleEx = WS_EX_ACCEPTFILES
--- no help 20/12/23...
 --         dwStyleEx = WS_EX_CONTROLPARENT + WS_EX_ACCEPTFILES
 
         if gGetInt(id,"RESIZE",true) then dwStyle += WS_MINMAXTHICK end if
@@ -14582,12 +14926,14 @@ local procedure xpg_Frame(gdx id)
     elsif backend=XPG_WINAPI then
 --      if title="" then title="Y" end if
         atom dwStyle = or_all({WS_CHILD,WS_VISIBLE,BS_GROUPBOX}),
+           dwStyleEx = 0,
+--         dwStyleEx = WS_EX_CONTROLPARENT,
 --DEV...
                {w,h} = gGetTextExtent(parent,title)
 --             {w,h} = gGetTextExtent(parent,iff(title=""?"X":title))
 --      ctrl_size[id][SZ_NATURAL_W] = w  -- no! leave this at 0!
 --      ctrl_size[id][SZ_NATURAL_H] = h
-        frame = xpg_WinAPI_create(id,"button",title,parent,w,h,dwStyle,0)
+        frame = xpg_WinAPI_create(id,"button",title,parent,w,h,dwStyle,dwStyleEx)
 --      frame = xpg_WinAPI_create(id,"button",iff(title=""?NULL:title),parent,w,h,dwStyle,0)
 --DEV this may want to be 6 wide and char height+3 high...
 --      ctrl_size[id][SZ_NATURAL_W] = 0
@@ -19623,7 +19969,7 @@ puts(1,"") -- DEV while xpg_lm_dump_ctrls() is creating a console...
         nMapDepth += 1
         -- GTK3 refuses to disclose any size info until after being shown, so we
         -- //have// to show wrong size, then correct.. (what a bunch of cretins)
-        -- (to be fair, GTK is so pig-awful slow a tiny flicker'l bother no-one)
+        -- (to be fair GTK3 is so pig-awful slow a tiny flicker'l bother no-one)
         if backend=XPG_GTK and bGTK3 then
             c_proc(gtk_widget_show_all,{handle})
         end if
@@ -19937,13 +20283,33 @@ global procedure gMainLoop()
         while c_func(xGetMessage,{pMSG,NULL,0,0}) do
 --DEV
 --          if not translateAccelerator() then
---atom hwnd = get_struct_field(idMESSAGE,pMSG,"hwnd")
---          if not c_func(xIsDialogMessage,{hwnd,pMSG}) then
-            c_proc(xTranslateMessage,{pMSG})
-            c_proc(xDispatchMessage,{pMSG})
---else
---  ?"wasDialogMessage!"
---end if
+--
+-- https://devblogs.microsoft.com/oldnewthing/20201231-00/?p=104627
+-- https://devblogs.microsoft.com/oldnewthing/20230329-00/?p=107983
+--Xhttp://blogs.msdn.com/oldnewthing/archive/2003/10/21/55384.aspx
+--Xhttps://devblogs.microsoft.com/oldnewthing/20031021-00/?p=55384
+--https://devblogs.microsoft.com/oldnewthing/20031021-00/?p=42083
+--
+-- This worked, and even possibly better, but in the end I needed 
+--  xpg_find_next_tab_stop() for GTK anyway, and given the hoops
+--  I had to jump through to get VK_ESC working alongside it...
+--
+--/*
+            bool dmsg = false
+            atom hwnd = get_struct_field(idMESSAGE,pMSG,"hwnd")
+            if hwnd then
+                integer id = xpg_getID(hwnd)
+                if id then
+                    integer pid = gGetDialog(id)
+                    atom phwnd = ctrl_handles[pid]
+                    dmsg = c_func(xIsDialogMessage,{phwnd,pMSG})
+                end if
+            end if
+            if not dmsg then
+--*/
+                c_proc(xTranslateMessage,{pMSG})
+                c_proc(xDispatchMessage,{pMSG})
+--          end if
         end while
     else
         ?9/0 -- (unknown backend)
