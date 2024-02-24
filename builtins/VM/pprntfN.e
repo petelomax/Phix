@@ -218,20 +218,26 @@ end for
                 fwk += epwr
                 digit += 1
             end while
+--24/2/24:
+            f -= fwk
         else
             digit = floor(f)
+--21/2/24:
+            f = (f-digit)*10
         end if
         result &= digit+'0'
         expadj = 1
         if precision>0 then
             result &= '.'
             dotdone = 1
-            atom fadj = 0
+--24/2/24:
+--          atom fadj = 0
 --1/11/15
 --          for i=1 to precision do
             for i=1 to precision-(charflag='g') do
                 if ewk>0 then
-                    f -= fwk
+--24/2/24:
+--                  f -= fwk
                     ewk -= 1
                     epwr = power(10,ewk)
                     fwk = 0--epwr
@@ -240,19 +246,25 @@ end for
                         fwk += epwr
                         digit += 1
                     end while
+--24/2/24:
 --30/10/21
-                    fadj = fwk
+--                  fadj = fwk
+                    f -= fwk
                 else
-                    f = (f-digit)*10
+--21/2/24
+--                  f = (f-digit)*10
                     digit = floor(f)
-                    fadj = 0
+                    f = (f-digit)*10
+--24/2/24:
+--                  fadj = 0
                 end if
 --12/7/16:
                 if digit=10 then exit end if
                 result &= digit+'0'
                 expadj += 1
             end for
-            f -= fadj
+--24/2/24:
+--          f -= fadj
         else
             if ewk>0 then
                 f -= fwk
@@ -540,21 +552,48 @@ procedure init_2()
 --  ?hexchar[1+10+26]&""    -- 'a'
 
 --      dxoetc = "dxobscvefgEXG"
-        dxoetc = "dxobstncvVefgEXG"
+--      dxoetc = "dxobstncvVefgEXG"
+        dxoetc = "dxobstncvVRefgEXG"
         init2 = 1
     end if
     leave_cs()
 end procedure
 
+local function toRoman(integer n, bool lowercase)
+    assert(n>=1 and n<=3999,"roman numerals must be 1..3999",4)
+    string res = ""
+    integer idx = 1, -- (..7, to "MDCLXVI")
+             rn = 1000, -- 500,100,50,10,5,1
+          tenth =  100  -- 100, 10,10, 1,1,0
+    while n>0 do
+        while n>=rn do
+            res &= "MDCLXVI"[idx];
+            n -= rn;
+        end while
+        if n+tenth>=rn then
+            res &= "CXI"[floor((idx+1)/2)];
+            n += tenth -- above loop once more
+        elsif n then
+            idx += 1;
+            rn /= iff(odd(idx)?5:2);
+--(sip, untested:)
+--          if odd(idx) then tenth = floor(rn/10) end if
+            if odd(idx) then tenth = rn/10 end if
+        end if
+    end while
+    if lowercase then res = lower(res) end if
+    return res
+end function
+
 --without trace
-function sprintf_(sequence fmt, object args)
+local function sprintf_(sequence fmt, object args)
 integer i, fi, fidx
 integer nxt
 string result, r1
 object o, oj
 atom work
 integer base, sgn, r1len, hc
-integer lowerHex
+bool lowerHex
 --?result   --DOH, infinite loop! (use puts(1,<string>) instead!)
 integer zerofill
 integer leftjustify
@@ -658,13 +697,14 @@ integer tmp
                     end while
                 end if
 
-                lowerHex = 0
+                lowerHex = false
                 -- 23/2/10 'b' added
                 -- 12/1/19 'v' added
                 -- 11/12/19 't' added
                 -- 16/11/20 'q' and 'Q' added
                 -- 22/05/21 'a' and 'A' added
                 -- 10/08/22 'F' added
+                -- 08/02/24 'r', 'R' added
                 blankTZ = false
                 if fi='a' or fi='A' then
                     lowerHex = fi='a'
@@ -689,6 +729,9 @@ integer tmp
                     elsif fi='F' then
                         blankTZ = true
                         fi = 'f'
+                    elsif fi='r' then
+                        lowerHex = true -- (repurposed here)
+                        fi = 'R'
                     end if
 --                  fidx = find(fi,"dxobstcvefgEXG")
 --                  fidx = find(fi,"dxobstncvefgEXG")
@@ -708,7 +751,7 @@ integer tmp
                         --  are drowned out by many more from the logical behaviour crowd,
                         --  set lowerHex to 1/0 rather than the 0/1 it is now.
                         --
-                        lowerHex = 1
+                        lowerHex = true
                         fidx = 2
                     end if
 
@@ -864,7 +907,8 @@ end if
                             r1 = repeat('0',1)
                         end if
                     end if
-                elsif fidx<=10 then -- one of "stncvV"
+--              elsif fidx<=10 then -- one of "stncvV"
+                elsif fidx<=11 then -- one of "stncvVR"
                     if showplus then
                         crash("show plus not supported on %c",fi,3)
                     end if
@@ -887,6 +931,8 @@ end if
                         o = sprint(o)
                         -- aside: in the following if construct, only the  
                         -- last (ie precision) branch is relevant to %v.
+                    elsif fi='R' then
+                        o = toRoman(o,lowerHex)
                     elsif fi='t' then
                         o = iff(o?"true":"false")
                     elsif fi='n' then
@@ -1102,17 +1148,25 @@ global procedure printf(integer fn, sequence fmt, object args={})
     end if
 end procedure
 
-global function sprint(object x, integer asCh=false, maxlen=-1, nest=0)
+local integer asChdef = false
+
+--global function sprint(object x, integer asCh=false, maxlen=-1, nest=0)
+global function sprint(object x, integer asCh=asChdef, maxlen=-1, nest=0)
 -- Return the string representation of any data object. 
 -- This is the same as the output from print(1, x) or '?', 
 --  but returned as a string sequence rather than printed.
 -- asCh: true: print eg 65 as 65'A', 
 --       false: not top-level,
 --           -1: sticky false
+--       """"+10: (ie 9,10,11) new default (-1,0,1 respectively)
 -- maxlen, nest: see docs
 -- Alternative: see ppp.e (ppf/ppOpt/ppExf).
-object s, xi
-
+    object s, xi
+    if asCh>=9 then
+        asCh -= 10
+        assert(asCh>=-1 and asCh<=1)
+        if nest=0 then asChdef = asCh end if
+    end if
     if atom(x) then
 --      if asCh and integer(x) and ((x>=' ' and x<='~') or find(x,"\r\n\t"))
         if asCh=true    -- (not false or -1)
@@ -1202,8 +1256,9 @@ object s, xi
 end function
 
 --DEV move this to pfileioN.e:
-global procedure print(integer fn, object x, integer asCh=false, maxlen=-1)
+global procedure print(integer fn, object x, integer asCh=asChdef, maxlen=-1)
 -- Print a string representation of any data object.
 -- Alternative: see ppp.e (pp/ppOpt/ppEx).
+--printf(1,"asCh:%d\n",asCh)
     puts(fn,sprint(x,asCh,maxlen))
 end procedure
