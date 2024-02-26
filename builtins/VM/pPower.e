@@ -318,7 +318,9 @@ end procedure -- (for Edita/CtrlQ)
 --      cmp rcx,10
 --      mov rdx,-73
 --      jbe :testrdx
-        cmp rcx,17
+--22/2/24:
+--      cmp rcx,17
+        cmp rcx,18
         mov rdx,-10
         ja :notIntRes
 --      cmp rax,-177

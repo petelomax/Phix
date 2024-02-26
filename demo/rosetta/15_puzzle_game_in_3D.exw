@@ -196,7 +196,7 @@ procedure draw_cube(atom cx, cy, scale, integer digit)
         integer fn = faceset[i][2]
         sequence face = faces[fn]
         integer clr = iff(digit?colours[digit]:face[1])
-        gCanvasSetForeground(canvas,clr)
+        gSetAttribute(canvas,"FGCLR",clr)
 --      gCanvasSetBackground(canvas,XPG_BLACK)
         -- first fill sides (with bresenham edges), then
         -- redraw edges, but anti-aliased aka smoother
@@ -213,8 +213,9 @@ procedure draw_cube(atom cx, cy, scale, integer digit)
 --          cdCanvasEnd(cd_canvas)
         for bFill in {true,false} do
             gCanvasPolygon(canvas,poly,bFill)
-            gCanvasSetBackground(canvas,clr)
-            gCanvasSetForeground(canvas,XPG_BLACK)
+--          gCanvasSetBackground(canvas,clr)
+            gSetAttribute(canvas,"BGCLR",clr)
+            gSetAttribute(canvas,"FGCLR",XPG_BLACK)
         end for
 -- </DrawRotatingCube.exw>
         -- now draw the number(s) on the face
@@ -272,7 +273,7 @@ procedure draw_stars(integer w, h)
             stars[i] = {(rnd()-0.5)*w*2,(rnd()-0.5)*h*2,rand(dist)}
         else
             stars[i][Z] = z-dz
-            gCanvasSetForeground(canvas,iff(odd(i)?XPG_WHITE:XPG_YELLOW))
+            gSetAttribute(canvas,"FGCLR",iff(odd(i)?XPG_WHITE:XPG_YELLOW))
             gCanvasLine(canvas,px,py,px2,py2)
         end if
     end for
@@ -543,11 +544,11 @@ function key_handler(gdx ih, integer c)
 end function
 
 procedure timer_cb(gdx /*ih*/)
---?{"timer",time()}
+?{"timer",time()}
     if solve_state!=SOLVED then
         iterative_solve()
     end if
-    gRedraw(canvas)
+    gRedraw(canvas,0)
 --  return XPG_IGNORE
 end procedure
 
@@ -555,7 +556,8 @@ procedure main()
     
     reset()
     canvas = gCanvas("SIZE=640x480")
-    gCanvasSetBackground(canvas, XPG_BLACK)
+--  gCanvasSetBackground(canvas, XPG_BLACK)
+    gSetAttribute(canvas,"BGCLR",XPG_BLACK)
     gSetHandlers(canvas, {"REDRAW", canvas_redraw,
 --                           ?MAP_CB?[DEAD], canvas_map_cb,
 --                           "RESIZE[*charsize]_CB", canvas_resize_cb,

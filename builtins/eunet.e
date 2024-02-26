@@ -619,41 +619,41 @@ end function
 
 global function eunet_get_error()
   -- returns a 2-element sequence {ERROR_CODE,ERROR_STRING}
-sequence rtn
-    rtn = {0,""}
+sequence rtns
+    rtns = {0,""}
     if platform()=WINDOWS then
-        rtn[1] = c_func(error_,{})
+        rtns[1] = c_func(error_,{})
     elsif platform()=LINUX then
-        rtn[1] = peek4u(errno_)
+        rtns[1] = peek4u(errno_)
     end if
     if error_mode=EUNET_ERRORMODE_OS then
-        return rtn
+        return rtns
     end if
     if error_mode=EUNET_ERRORMODE_EUNET then
-        if rtn[1]=EAGAIN or rtn[1]=WSAEWOULDBLOCK then
-            rtn = {EUNET_ERROR_NODATA,"There is no data waiting."}
-        elsif rtn[1]=9501 or rtn[1]=9003 then
-            rtn = {EUNET_ERROR_NODNSRECORDS,"DNS could not find an exact match."}
-        elsif rtn[1]=EOPNOTSUPP or rtn[1]=WSAEOPNOTSUPP then
+        if rtns[1]=EAGAIN or rtns[1]=WSAEWOULDBLOCK then
+            rtns = {EUNET_ERROR_NODATA,"There is no data waiting."}
+        elsif rtns[1]=9501 or rtns[1]=9003 then
+            rtns = {EUNET_ERROR_NODNSRECORDS,"DNS could not find an exact match."}
+        elsif rtns[1]=EOPNOTSUPP or rtns[1]=WSAEOPNOTSUPP then
             if platform()=WINDOWS then
-                rtn = {EUNET_ERROR_LINUXONLY,"This only works on Linux."}
+                rtns = {EUNET_ERROR_LINUXONLY,"This only works on Linux."}
             elsif platform()=LINUX then
-                rtn = {EUNET_ERROR_WINDOWSONLY,"This only works on Windows."}
+                rtns = {EUNET_ERROR_WINDOWSONLY,"This only works on Windows."}
             else
-                rtn = {EUNET_ERROR_UNKNOWN,"You are not using Windows or Linux."}
+                rtns = {EUNET_ERROR_UNKNOWN,"You are not using Windows or Linux."}
             end if
-        elsif rtn[1]=WSAENOTCONN or rtn[1]=ENOTCONN then
-            rtn = {EUNET_ERROR_NOCONNECTION,"This socket is not connected to anything."}
-        elsif rtn[1]=WSAENOTSOCK or rtn[1]=ENOTSOCK then
-            rtn = {EUNET_ERROR_NOTASOCKET,"Either the socket is already closed, or "&
+        elsif rtns[1]=WSAENOTCONN or rtns[1]=ENOTCONN then
+            rtns = {EUNET_ERROR_NOCONNECTION,"This socket is not connected to anything."}
+        elsif rtns[1]=WSAENOTSOCK or rtns[1]=ENOTSOCK then
+            rtns = {EUNET_ERROR_NOTASOCKET,"Either the socket is already closed, or "&
                    "you are\n trying to use a file handle in an IP socket."}
-        elsif rtn[1]=0 then
-            rtn = {EUNET_ERROR_NOERROR,"OK"}
+        elsif rtns[1]=0 then
+            rtns = {EUNET_ERROR_NOERROR,"OK"}
         else
-            rtn = {EUNET_ERROR_UNKNOWN,"Unknown error."}
+            rtns = {EUNET_ERROR_UNKNOWN,"Unknown error."}
         end if
     end if
-    return rtn
+    return rtns
 
 end function
 
@@ -850,14 +850,14 @@ end function
 -------------------------------------------------------------------------------
 
 function windows_get_iface_list()
-sequence ifaces, rtn
+sequence ifaces, rtns
     ifaces = windows_get_adapters_table()
-    rtn = {}
+    rtns = {}
     for ctr=1 to length(ifaces) do
-        rtn = append(rtn,ifaces[ctr][2])
+        rtns = append(rtns,ifaces[ctr][2])
     end for
 
-    return rtn
+    return rtns
 end function
 
 -------------------------------------------------------------------------------
@@ -1274,7 +1274,7 @@ end function
 function linux_poll(sequence socket_list, atom timeout)
 
 atom fdptr, nfds
-object rtn
+object rtns
 
     fdptr = allocate(length(socket_list)*8)
     nfds = 0
@@ -1295,15 +1295,15 @@ object rtn
         free(fdptr)
         return {}
     end if
-    rtn = c_func(poll_,{fdptr,nfds,timeout})
-    if rtn>0 then
-        rtn = {}
+    rtns = c_func(poll_,{fdptr,nfds,timeout})
+    if rtns>0 then
+        rtns = {}
         for ctr=0 to nfds-1 do
-            rtn = rtn & ((peek(fdptr+6+(ctr*8)))+(peek(fdptr+7+(ctr*8))*256))
+            rtns = rtns & ((peek(fdptr+6+(ctr*8)))+(peek(fdptr+7+(ctr*8))*256))
         end for
     end if
     free(fdptr)
-    return rtn
+    return rtns
 
 end function
 
@@ -1618,7 +1618,7 @@ end function
 -- Set_socket_options returns 0 on success and -1 on error.
 
 function linux_getsockopts(atom socket, integer level, integer optname)
-object rtn
+object rtns
 atom buf, status, bufsiz
     buf = allocate(1028)
     poke4(buf,1024)
@@ -1626,20 +1626,20 @@ atom buf, status, bufsiz
     if status=0 then
         bufsiz = peek4u(buf)
         if bufsiz=0 then
-            rtn = {}
+            rtns = {}
         elsif bufsiz=4 then
-            rtn = peek4u(buf+4)
+            rtns = peek4u(buf+4)
         else
-            rtn = {}
+            rtns = {}
             for ctr=1 to bufsiz do
-                rtn = rtn & peek(buf+3+ctr)
+                rtns = rtns & peek(buf+3+ctr)
             end for
         end if
     else
-        rtn = {"ERROR",status}
+        rtns = {"ERROR",status}
     end if
     free(buf)
-    return rtn
+    return rtns
 
 end function
 
@@ -1664,7 +1664,7 @@ end function
 -------------------------------------------------------------------------------
 
 function linux_setsockopts(atom socket, integer level, integer optname, object val)
-object rtn
+object rtns
 atom buf, bufsiz
     if atom(val) then
         buf = allocate(8)
@@ -1677,8 +1677,8 @@ atom buf, bufsiz
         poke4(buf,bufsiz)
         poke(buf+4,val)
     end if
-    rtn = c_func(setsockopts_,{socket,level,optname,buf+4,buf})
-    return rtn
+    rtns = c_func(setsockopts_,{socket,level,optname,buf+4,buf})
+    return rtns
 end function
 
 -------------------------------------------------------------------------------
@@ -1716,7 +1716,7 @@ function linux_dnsquery(sequence dname, integer q_type)
 
 atom nameptr, rtnptr, success, ptrptr, dnameptr, qlen
 atom answer_start, answer_end, num_as_rec, num_qr_rec
-sequence rtn, line, subx
+sequence rtns, line, subx
 object temp
 
     nameptr = allocate_string(dname&0)
@@ -1760,7 +1760,7 @@ object temp
     answer_end = rtnptr+success
 
   -- Now we're finally at the answer section
-    rtn = {}
+    rtns = {}
     for seq=1 to num_as_rec do
         line = repeat(0,8)
         subx = repeat(0,32)
@@ -1803,10 +1803,10 @@ object temp
                 subx[1] = peek_string(dnameptr)
                 temp = linux_dnsquery(subx[1],NS_T_A)
                 if atom(temp) then
-                    rtn = append(rtn,{subx[1],line[3],seq})
+                    rtns = append(rtns,{subx[1],line[3],seq})
                 else
                     for ctr=1 to length(temp) do
-                        rtn = append(rtn,{temp[ctr][1],line[3],seq+ctr-1})
+                        rtns = append(rtns,{temp[ctr][1],line[3],seq+ctr-1})
                     end for
                 end if
             end if
@@ -1817,10 +1817,10 @@ object temp
                 subx[1] = peek_string(dnameptr)
                 temp = linux_dnsquery(subx[1],NS_T_A)
                 if atom(temp) then
-                    rtn = append(rtn,{subx[1],line[3],subx[2]})
+                    rtns = append(rtns,{subx[1],line[3],subx[2]})
                 else
                     for ctr=1 to length(temp) do
-                        rtn = append(rtn,{temp[ctr][1],line[3],subx[2]+ctr-1})
+                        rtns = append(rtns,{temp[ctr][1],line[3],subx[2]+ctr-1})
                     end for
                 end if
             end if
@@ -1828,7 +1828,7 @@ object temp
             subx[1] = sprintf("%d.%d.%d.%d",{peek(ptrptr),peek(ptrptr+1),
                                              peek(ptrptr+2),peek(ptrptr+3)})
             if q_type=NS_T_ANY or q_type=NS_T_A then
-                rtn = append(rtn,{subx[1],line[3],seq})
+                rtns = append(rtns,{subx[1],line[3],seq})
             end if
         elsif line[3]=NS_T_PTR then
 
@@ -1842,7 +1842,7 @@ object temp
     free(nameptr)
     free(rtnptr)
 
-    return rtn
+    return rtns
 
 end function
 
@@ -1853,7 +1853,7 @@ function windows_dnsquery(sequence dname, integer q_type, atom options)
   -- NOTE: This function does not work on Windows versions below Windows 2000.
 
 atom success,nameptr, rtnptr, recptr, sqn
-sequence rtn, line, subx
+sequence rtns, line, subx
 object temp
 
     if dnsquery_<0 then
@@ -1868,7 +1868,7 @@ object temp
         free(rtnptr)
         return success
     end if
-    rtn = {}
+    rtns = {}
     recptr = peek4u(rtnptr)
     sqn = 1
     while recptr>0 do
@@ -1886,27 +1886,27 @@ object temp
             subx[2] = peek(recptr+28)+(peek(recptr+29)*256) -- Preference
             temp = windows_dnsquery(subx[1],NS_T_A,options)
             if atom(temp) then
-                rtn = append(rtn,{subx[1],line[3],subx[2]})
+                rtns = append(rtns,{subx[1],line[3],subx[2]})
             else
                 for ctr=1 to length(temp) do
-                    rtn = append(rtn,{temp[ctr][1],line[3],subx[2]+ctr-1})
+                    rtns = append(rtns,{temp[ctr][1],line[3],subx[2]+ctr-1})
                 end for
             end if
         elsif line[3]=NS_T_NS then
             subx[1] = peek_string(peek4u(recptr+24)) -- NS server name
             temp = windows_dnsquery(subx[1],NS_T_A,options)
             if atom(temp) then
-                rtn = append(rtn,{subx[1],line[3],sqn})
+                rtns = append(rtns,{subx[1],line[3],sqn})
             else
                 for ctr=1 to length(temp) do
-                    rtn = append(rtn,{temp[ctr][1],line[3],sqn+ctr-1})
+                    rtns = append(rtns,{temp[ctr][1],line[3],sqn+ctr-1})
                 end for
             end if
         elsif line[3]=NS_T_A then
             subx[1] = sprintf("%d.%d.%d.%d",{peek(recptr+24),peek(recptr+25),
                                              peek(recptr+26),peek(recptr+27)})
             if q_type=NS_T_ANY or q_type=NS_T_A then
-                rtn = append(rtn,{subx[1],line[3],sqn})
+                rtns = append(rtns,{subx[1],line[3],sqn})
             end if
         elsif line[3]=NS_T_PTR then
 
@@ -1918,7 +1918,7 @@ object temp
     free(nameptr)
     free(rtnptr)
 
-    return rtn
+    return rtns
 
 end function
 
@@ -1938,21 +1938,21 @@ end function
 -------------------------------------------------------------------------------
 
 global function eunet_getmxrr(sequence dname, atom options)
-object rtn
+object rtns
 
   -- Error 9003 = MS: RCODE_NAME_ERROR - Something's there, but it's not exact.
   -- Error 9501 = No Data Found
 
     dname = trim(dname)
-    rtn = eunet_dnsquery(dname,NS_T_MX,options)
-    if sequence(rtn) and length(rtn)>0 then
-        return rtn
+    rtns = eunet_dnsquery(dname,NS_T_MX,options)
+    if sequence(rtns) and length(rtns)>0 then
+        return rtns
     end if
-    if rtn=9501 or rtn=9003 or rtn= -1 or
-    (sequence(rtn) and length(rtn)=0) then
-        rtn = eunet_dnsquery("mail."&dname,NS_T_MX,options)
+    if rtns=9501 or rtns=9003 or rtns= -1 or
+    (sequence(rtns) and length(rtns)=0) then
+        rtns = eunet_dnsquery("mail."&dname,NS_T_MX,options)
     end if
-    return rtn
+    return rtns
 end function
 
 -------------------------------------------------------------------------------
@@ -2092,7 +2092,7 @@ end function
 function linux_getaddrinfo(object node, object service, object /*hints*/)
 atom addrinfo, success, node_ptr, service_ptr, hints_ptr, addrinfo_ptr, svcport
 atom cpos
-sequence rtn, val
+sequence rtns, val
 
     addrinfo = allocate(32)
     poke(addrinfo,repeat(0,32))
@@ -2123,12 +2123,12 @@ sequence rtn, val
         if sequence(service) then free(service_ptr) end if
         return success
     end if
-    rtn = {}
+    rtns = {}
   -- addrinfo is a pointer to a pointer to a structure in Linux.
     addrinfo_ptr = peek4u(addrinfo)
 -- 27 Nov 2007: Only one addrinfo structure is supported
 --  while addrinfo_ptr != 0 do
-    rtn = append(rtn,{
+    rtns = append(rtns,{
                       peek4u(addrinfo_ptr),
                       peek4u(addrinfo_ptr+4),
                       peek4u(addrinfo_ptr+8),
@@ -2138,29 +2138,29 @@ sequence rtn, val
     addrinfo_ptr = peek4u(addrinfo_ptr+28)
 --  end while
     c_proc(freeaddrinfo_,{peek4u(addrinfo)})
-    if svcport=0 and rtn[1][4]>0 then
-        svcport = rtn[1][4]
+    if svcport=0 and rtns[1][4]>0 then
+        svcport = rtns[1][4]
     end if
-    if length(rtn[1][5])=0 and sequence(node) then
-        rtn[1][5] = eunet_gethostbyname(node)
+    if length(rtns[1][5])=0 and sequence(node) then
+        rtns[1][5] = eunet_gethostbyname(node)
         if sequence(service) and svcport=0 then
-            rtn[1][5] = rtn[1][5] & sprintf(":%d",eunet_getservbyname(service))
+            rtns[1][5] = rtns[1][5] & sprintf(":%d",eunet_getservbyname(service))
         elsif svcport>0 then
-            rtn[1][5] = rtn[1][5] & sprintf(":%d",svcport)
+            rtns[1][5] = rtns[1][5] & sprintf(":%d",svcport)
         end if
     elsif svcport>0 then
-        cpos = find(':',rtn[1][5])
-        if cpos=0 or cpos=length(rtn[1][5]) or
-        compare(rtn[1][5][length(rtn[1][5])-1..length(rtn[1][5])],":0")=0 then
+        cpos = find(':',rtns[1][5])
+        if cpos=0 or cpos=length(rtns[1][5]) or
+        compare(rtns[1][5][length(rtns[1][5])-1..length(rtns[1][5])],":0")=0 then
             if cpos=0 then
-                rtn[1][5] = rtn[1][5] & sprintf(":%d",svcport)
+                rtns[1][5] = rtns[1][5] & sprintf(":%d",svcport)
             else
-                rtn[1][5] = rtn[1][5][1..cpos-1] & sprintf(":%d",svcport)
+                rtns[1][5] = rtns[1][5][1..cpos-1] & sprintf(":%d",svcport)
             end if
         end if
     end if
     free(addrinfo)
-    return rtn
+    return rtns
 end function
 
 -------------------------------------------------------------------------------

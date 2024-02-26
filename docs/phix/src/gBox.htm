@@ -145,10 +145,12 @@ DEV...<br><br>
          </td>
          <td>
             (non inheritable) Defines a (minimum) horizontal/vertical space in pixels between the children. Default: "0".
+<!--
             <br>
             <br>
             In practice, this simply adjusts the top/left <a href="gSetAttribute.htm#MARGIN">MARGIN</a> of children[2..$], transiently as 
             part of <a href="xplayout.htm">Layout Management</a> (and could equivalently adjust the right/bottom margin[1..$-1]).
+-->
 <!-- madness, use MARGIN!!
              plus that of children[1] when the XPG_SPACE_TOP/LEFT bit is
             set and the bottom/right margin of child[$] when the XPG_SPACE_BOTTOM/RIGHT bit is set in the <a href="#SPACE">SPACE</a> setting.<br>
@@ -167,20 +169,21 @@ DEV...<br><br>
         </tr>
         <tr>
          <td>
-?         SPACE
+          SPACE
          </td>
          <td>
 <!--            <b>NOT YET IMPLEMENTED/IN PROGRESS...</b><br>-->
             Applies independently to <i>both</i> horizontal and vertical expansion for <i>both</i> gHbox and gVbox, albeit differently.<br>
-            Only has any effect in the primary orientation of the box when (as it is by default) <a href="gSetAttribute.htm#EXPAND">EXPAND</a> 
-            <i>is</i> set on the gH/Vbox but <i>not</i> on any of its children, whereas for the cross orientation, that would be "not on all" 
-            of the children. For instance a gVbox with SPACE=AROUND would:<br>
+            Only has any effect in the primary orientation when <a href="gSetAttribute.htm#EXPAND">EXPAND</a> <i>is</i> set on the gH/Vbox 
+            (as it is by default) but <b><i>not</i></b> on <i>any</i> of the children, whereas for the cross orientation that would instead
+            be "not on all" children. For instance a gHbox with SPACE=AROUND would:<br>
             <ul>
-             <li>split slack between children that expand vertically (and otherwise ignore SPACE/do the same whatever the setting), but</li>
-             <li>if none insert said split slack/vertical padding above the first, below the last, and between the children, and </li>
-             <li>expand those children that do so horizontally (ditto ignore for them), but</li>
-             <li>add horizontal padding before and after each of those that do not (ie expand widthwise)</li>
-             <li>note that each child is, obviously, treated as a single child in the cross orientation</li>
+             <li>split slack between children that expand horizontally (and otherwise ignore SPACE), but if none <br>
+                 insert slack/horizontal padding before the first, after the last, and between the children, and </li>
+             <li>expand those children that do so vertically (ditto ignore for them), but add <br>
+                 vertical padding above and below each of those that do not (ie expand heightwise)</li>
+             <li>note that each child is, obviously, treated as a single child in the cross orientation, and</li>
+             <li>likewise <i>any</i> child that expands leaves 0 for SPACE to subsequently distribute</li>
             </ul>
 <!--
             <small><pre><code>
@@ -204,8 +207,17 @@ DEV...<br><br>
             <br>
             <br>
 -->
-            Obviously if the gH/Vbox does not itself expand in a given direction, then it isn&rsquo;t passed any slack in that direction that 
-            it has to deal with, in the first place, unless the standard <a href="xplayout.htm#SoleChild">sole child</a> exception applies.
+            In other words, <a href="gSetAttribute.htm#MARGIN">MARGIN</a> and <a href="#GAP">GAP</a> can be considered a baseline minimum,
+            with SPACE distributing any excess when no child[ren] gobble that up. Quite often SPACE has no effect when the window is first
+            shown, only swinging into effect when the dialog is resized, unless the box initially expands to some explicitly defined size
+            or to match some sibling element.
+            <br>
+            <br>
+            Should a gH/Vbox not itself expand in a given direction, then it isn&rsquo;t passed any slack in that direction that it has to 
+            deal with in the first place, unless the standard <a href="xplayout.htm#SoleChild">sole child</a> exception applies. While you 
+            can specify <i>fixed</i> <a href="#GAP">GAP</a>/<a href="gSetAttribute.htm#MARGIN">MARGIN</a>, any excess space is then either 
+            all passed/split to expandable children, or spread as follows, with no way to half-and-half it, but of course each expandable 
+            child can do whatever it likes with the extra space it gets passed, and especially so when it too is also a gH/Vbox.
 <!--
 ?           <small>^^^ drivel: 7guis/Booker hsa a vbox with dropdown, 2*text, and a button, with no expand (horizontally) on the dropdown but 
             on the other three. An alignment of AROUND should center the dropdown, while the other three expand...
@@ -221,8 +233,15 @@ DEV...<br><br>
 -->
             <br>
             <br>
-            Should be set to one or two of the following values (eg gHbox({..},"SPACE=LEFT") being the neatest code):
-            <br>
+            Set to one or two of the following values, with eg <code>gHbox({..},"SPACE=LEFT")</code> being the neatest code:
+<!-- for the inbuilt chm search function: -->
+<!--
+            <span style="display: none;"><small>LEFT   BLEFT   XPG_SPACE_LEFT   XPG_SPACE_BLEFT 
+                                                TOP    BTOP    XPG_SPACE_TOP    XPG_SPACE_BTOP
+                                                RIGHT  BRIGHT  XPG_SPACE_RIGHT  XPG_SPACE_BRIGHT
+                                                BOTTOM BBOTTOM XPG_SPACE_BOTTOM XPG_SPACE_BBOTTOM
+                                                AROUND BAROUND XPG_SPACE_AROUND XPG_SPACE_BAROUND </small></span><br>
+-->
 <!--            <br>-->
 <!--            <table>-->
 <!--            <table style="margin-bottom: 10px;"> -->
@@ -233,6 +252,10 @@ DEV...<br><br>
                 <th>Description</th>
             </tr>
             <tr>
+<!--
+                <td>[B]LEFT</td>
+                <td>XPG_SPACE_[B]LEFT (0b[1]100)</td>
+-->
                 <td>LEFT</td>
                 <td>XPG_SPACE_LEFT (0b100)</td>
                 <td>all space on the left, elements are right-aligned</td>
@@ -288,13 +311,28 @@ DEV...<br><br>
             <br>
 -->
             A single setting such as "SPACE=CENTRE" applies both horizontally and vertically, whereas "SPACE={BETWEEN,CENTRE}" sets the
-            {h,v} for both gHbox and gVbox <small>(rather than {primary,cross} or/aka {h,v} for the former, but {v,h} for the latter)</small>. 
+            {h,v} for both gHbox and gVbox <small>(rather than {primary,cross} aka {h,v} for the former, but {v,h} for the latter)</small>. 
+<!--
             <br>
             <br>
-            Note that NONE is meaningless and officially unsupported, it may for instance trigger <a href="xplayout.htm#SoleChild">sole child</a> 
-            behaviour, either on different backends or in some future release. If it has any meaning, that would be "you forgot to set this", 
-            or perhaps that this container does not expand, or should <i>never</i> have no expanding children in the primary direction, or any 
-            non-expanding in the cross. That said, it <i>is</i> the default.
+            The [B] prefix sets the balance flag (0b1000), which causes the cross axis to behave as CENTRE and then be matched in the outer
+            margin[s] of the primary axis. Currently (at least) for desktop/Phix only, simply ignored by xpGUI.js. Note the balance flag has 
+            no (positive) effect should <i>any</i> of the children expand in the cross axis, in practice it matches the primary outer margins 
+            with the (minimum of) 0. For an example of this (/BLEFT) in action, see the demo\xpGUI\gButton.exw example: margins are initially 
+            11x11, so the top/left/bottom match, then kept in sync as the window is resized. Obviously you can remove BLEFT (or replace with 
+            LEFT) to see the difference said flag makes when resizing, ie without it the left margin would stay 11 no matter what happens to 
+            the vertical margins. It can of course only keep things in sync when there is sufficient space to do so, and it would be nonsense 
+            to set that flag with BETWEEN, CENTRE, or NONE, or set it on the cross but not primary axis. To that end you should refrain from 
+            using the B prefix or at least take extra special care when setting SPACE in a {h,v} fashion (which is at liberty to ignore/override 
+            the cross axis setting to CENTRE anyway).
+-->
+            <br>
+            <br>
+            Note that NONE is meaningless and officially unsupported, it may for instance thwart expansion or perhaps trigger similar 
+            behaviour to <a href="xplayout.htm#SoleChild">sole child</a>, on different backends or in some future release. If it has any 
+            meaning, that would be "you forgot to set this", or perhaps this container does not expand, or <i>never</i> has no expanding 
+            children in the primary direction, or <i>any</i> non-expanding in the cross. That said, it <i>is</i> the default, albeit 
+            behaving as RIGHT|BOTTOM, but should you want a guarantee, be explicit.
             <br>
             <br>
 <!--
@@ -315,8 +353,8 @@ DEV...<br><br>
             (AROUND|CENTRE), like they fairly obviously should. While we certainly need the RIGHT/BOTTOM <i>bit</i>, (NONE|RIGHT|BOTTOM) 
             [by their lonesome] also actually behave identically even when multiple children are involved (flw). The simple truth of the
             matter is that the SPACE attribute is only consulted when the container is given space and it does not know what else to do
-            with it: should it not get excess space in the first place it should have EXPAND=NO, or perhaps RESIZE=NO. That said, the
-            layout manager is at liberty, when practical, to assume you meant RIGHT|BOTTOM, rather than just always crash. 
+            with it: should it not be given excess space in the first place it should have EXPAND=NO, or perhaps RESIZE=NO. That said, 
+            when practical the layout manager is at liberty to assume you meant RIGHT|BOTTOM, rather than always/belligerently crash. 
 <!--
             , and may yet be 
             replaced with the standard NULL/"NULL", and/or prohibited from being explicitly set to that. It may also turn out that NONE
@@ -325,25 +363,39 @@ DEV...<br><br>
 -->
             <br>
             <br>
-            Note that <a href="gGetAttribute.htm">gGetAttribute</a>(id,"SPACE") returns the integer value[s], and crashes if id is not a box.<br>
-            <a href="string.htm">string</a> res = <b>gGetBoxSpacingName</b>(<a href="object.htm">object</a> s, <a href="integer.htm">integer</a> id=NULL) 
-            can be used to obtain a human-readable string equivalent, accepts an integer or a pair of them in s (as returned from "SPACE"), and 
-            uses the optional id to return TOP/BOTTOM in preference to LEFT/RIGHT when id is -1 or a gVbox gdx, but the latter when 0 or a gHbox,
-            unless it is a {h,v} pair which does that same thing on them but completely ignores any id. 
+            Note that <a href="gGetAttribute.htm#gGetInt">gGetInt</a>(id,"SPACE") returns the integer value[s], ie {h,v} or if same an integer, 
+            whereas <a href="gGetAttribute.htm">gGetAttribute</a>(id,"SPACE") returns a human-readable string, and both crash if id is not a box.
+<!--
+//          Note that <a href="gGetAttribute.htm">gGetAttribute</a>(id,"SPACE") returns the integer value[s], and crashes if id is not a box.<br>
+//          <a href="string.htm">string</a> res = <b>gGetBoxSpacingName</b>(<a href="object.htm">object</a> s, <a href="integer.htm">integer</a> id=NULL) 
+//          can be used to obtain a human-readable string equivalent, accepts an integer or a pair of them in s (as returned from "SPACE"), and 
+//          uses the optional id to return LEFT/RIGHT in preference to TOP/BOTTOM when id is 0 or a gHbox gdx, but the latter when -1 or a gVbox,
+//          unless it is a {h,v} pair which does that same thing on them respectively and completely ignores any id. 
+-->
             <br>
             <br>
-            To achieve, say, three buttons on the left and two on the right, just use nested gHbox with the appropriate settings:<br>
+            To achieve, say, three buttons on the left and two on the right, use nested gHbox() with appropriate settings:<br>
 <!--eucode>
-    gdx l3 = gHbox({b1,b2,b3},"EXPAND=NO"),
-        r2 = gHbox({rb1,rb2},"EXPAND=NO"),
-      all5 = gHbox({l3,r2},"SPACE=BETWEEN")
+    gdx lh = gHbox({l1,l2,l3},"EXPAND=NO"),
+        rh = gHbox({r1,r2},"EXPAND=NO"),
+      all5 = gHbox({lh,rh},"SPACE=BETWEEN")
+-- or gHbox({gHbox({l1,l2,l3},"SPACE=RIGHT"),gHbox({r1,r2},"EXPAND=NO")})
+-- or gHbox({gHbox({l1,l2,l3},"EXPAND=NO"),gHbox({r1,r2},"SPACE=LEFT")})
+-- or gHbox({gHbox({l1,l2,l3}),gHbox({r1,r2},"EXPAND=NO")})
+-- or gHbox({gHbox({l1,l2,l3}),gHbox({r1,r2},"SPACE=LEFT")})
 </eucode-->
 <pre>
-<font color="#7060A8">    gdx</font><font color="#000000"> l3</font><font color="#0000FF"> =</font><font color="#7060A8"> gHbox</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">b1</font><font color="#0000FF">,</font><font color="#000000">b2</font><font color="#0000FF">,</font><font color="#000000">b3</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000">"EXPAND=NO"</font><font color="#0000FF">),</font>
-<font color="#000000">        r2</font><font color="#0000FF"> =</font><font color="#7060A8"> gHbox</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">rb1</font><font color="#0000FF">,</font><font color="#000000">rb2</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000">"EXPAND=NO"</font><font color="#0000FF">),</font>
-<font color="#000000">      all5</font><font color="#0000FF"> =</font><font color="#7060A8"> gHbox</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">l3</font><font color="#0000FF">,</font><font color="#000000">r2</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000">"SPACE=BETWEEN"</font><font color="#0000FF">)</font>
+<font color="#7060A8">    gdx</font><font color="#000000"> lh</font><font color="#0000FF"> =</font><font color="#7060A8"> gHbox</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">l1</font><font color="#0000FF">,</font><font color="#000000">l2</font><font color="#0000FF">,</font><font color="#000000">l3</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000">"EXPAND=NO"</font><font color="#0000FF">),</font>
+<font color="#000000">        rh</font><font color="#0000FF"> =</font><font color="#7060A8"> gHbox</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">r1</font><font color="#0000FF">,</font><font color="#000000">r2</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000">"EXPAND=NO"</font><font color="#0000FF">),</font>
+<font color="#000000">      all5</font><font color="#0000FF"> =</font><font color="#7060A8"> gHbox</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">lh</font><font color="#0000FF">,</font><font color="#000000">rh</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000">"SPACE=BETWEEN"</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- or gHbox({gHbox({l1,l2,l3},"SPACE=RIGHT"),gHbox({r1,r2},"EXPAND=NO")})
+-- or gHbox({gHbox({l1,l2,l3},"EXPAND=NO"),gHbox({r1,r2},"SPACE=LEFT")})
+-- or gHbox({gHbox({l1,l2,l3}),gHbox({r1,r2},"EXPAND=NO")})
+-- or gHbox({gHbox({l1,l2,l3}),gHbox({r1,r2},"SPACE=LEFT")})</i></font>
 </pre>
-            Bear in mind this works on the slack left <i>after</i> any <a href="gSetAttribute.htm#MARGIN">MARGIN</a> and/or <a href="#GAP">GAP</a> has been applied.
+            Bear in mind this works on the slack left <i>after</i> any <a href="gSetAttribute.htm#MARGIN">MARGIN</a> and/or <a href="#GAP">GAP</a> 
+            have been applied, and note it is sometimes necessary to prevent slack being passed down to children, as well as needing three gHbox() 
+            no matter which way you do it. None of those is particularly "best", just use whichever you prefer.
             <br>
             <br>
 <!-- while perfectly true, this adds nothing useful...
@@ -358,8 +410,9 @@ DEV...<br><br>
 //          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js</b></span></a>.
 -->
             See also: <a href="gSetAttribute.htm#EXPAND">EXPAND</a>,
-                      <a href="gSetAttribute.htm#MARGIN">MARGIN</a>,
+                      <a href="gSetAttribute.htm#MARGIN">MARGIN</a> (not <a href="gSetAttribute.htm#PADDING"><span class="illegal">PADDING</span></a>),
                       <a href="#GAP">GAP</a>.<br>
+            There are also a <a href="javascript.htm#style"><i>elem</i>.style.left/top</a>, were you looking for them.
           <a name=ORIENTATION></a>
          </td>
         </tr>
@@ -524,7 +577,7 @@ DEV...<br><br>
 <!--            <a href="gGetAttribute.htm#CLIENTOFFSET">CLIENTOFFSET</a>,-->
 <!--            <a href="gSetAttribute.htm#MINSIZE">MINSIZE</a>, -->
 <!--            <a href="gSetAttribute.htm#MAXSIZE">MAXSIZE</a>,-->
-            <a href="gGetAttribute.htm#SIZE">SIZE</a>.
+            <a href="gGetAttribute.htm#SIZE">SIZE</a>.<br>
 <!--            <a href="gSetAttribute.htm#USER_SIZE">USER_SIZE</a>.<br>-->
          </td>
         </tr>

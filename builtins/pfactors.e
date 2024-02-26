@@ -22,14 +22,14 @@ without debug -- keep ex.err clean
 
 integer lim_chk = 0     -- 0: fail maxint, 1: pass it
 
-procedure check_limits(atom n, string rtn)
+procedure check_limits(atom n, string called_from)
 --28/9/22:
 --  if n<1 or n!=floor(n) then
     if n<0 or not integer(n-floor(n)) then
 --atom dbg = n-floor(n)
         string g = sprintf("%g",n)
         if not find('.',g) then g &= sprintf("%+g",n-round(n)) end if
-        crash("%s(%s): argument must be a non-negative integer",{rtn,g},nFrames:=3)
+        crash("%s(%s): argument must be a non-negative integer",{called_from,g},nFrames:=3)
 --29/9/22:
 --  elsif n>=power(2,iff(machine_bits()=32?53:64)) then
     elsif compare(n,power(2,iff(machine_bits()=32?53:64)))>=lim_chk then
@@ -44,7 +44,7 @@ procedure check_limits(atom n, string rtn)
         -- (yes, this routine actually gets a number ending in 4 not 5)
         -- (also, it is >= since eg 90007..93 ends up in here as ..92,
         --  though factors(0|1,-9) can be used to change that behaviour)
-        crash("argument to %s() exceeds maximum precision",{rtn},nFrames:=3)
+        crash("argument to %s() exceeds maximum precision",{called_from},nFrames:=3)
     end if
 end procedure
 

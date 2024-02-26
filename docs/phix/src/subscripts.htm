@@ -10,24 +10,45 @@
         in square brackets. Element numbers start at 1. Many programmers weaned on 0-based indexes may automatically 
         and strenuously object to 1-based indexes, but personally I find that s[0] always being a subscript error
         is a massive bonus in that it catches probably at least half of all those pesky off-by-1 bugs from the very 
-        first time I run my program. Non-integer subscripts are rounded down to an integer.
- <pre>
-DEV: reword this
-Phix uses 1-based indexing because:
-* the first item is indexed is 1
-* the last index n is equal to the length of the sequence
-* numbering from the head {{mono|1 ... n}}  is symmetrical to numbering from the tail {{mono|-n ... -1}}
-* when searching for an item, an index value of 0 means "item not found"
-* a slice is inclusive from the first index to the last index
-* there are no off-by-one complications as found with 0-based indexing
-Sequences with mixed values and strings work the same; both sequences and strings are mutable.
-There have been many debates
-<ref >{{cite web|url=https://www.jsoftware.com/papers/indexorigin.htm|title=Is Index Origin 0 a Hindrance? Roger Hui|accessdate=2021-01-09}}</ref>
-<ref >{{cite web|url=https://groups.google.com/forum/?hl=en#!topic/julia-dev/tNN72FnYbYQ|title=Thread on Julia google groups|accessdate=2021-01-09}}</ref>
-<ref >{{cite web|url=https://hisham.hm/2021/01/18/again-on-0-based-vs-1-based-indexing/|title=Again on 0-based vs. 1-based indexing|accessdate=2021-01-20}}</ref>
-<ref >{{cite web|url=https://andregarzia.com/2021/01/lua-a-misunderstood-language.html|title=Lua, a misunderstood language|accessdate=2021-01-20}}</ref>
-about the use of 0-based compared to 1-based indexing.
- </pre>
+        first time I run my program. 
+        <br>
+        <br>
+        Phix uses 1-based indexing because:
+        <ul>
+         <li> the first item of a (non-empty) sequence s is 1 and the last is <a href="length.htm">length</a>(s) </li>
+         <li> numbering from the head 1..n is symmetrical to numbering from the tail -n..-1 </li>
+         <li> when searching a result of 0 means "item not found" <small>(and certainly not -1 == "last")</small> </li>
+         <li> a slice is inclusive from the first index to the last index <small>(and not half-in-half-out)</small></li>
+         <li> there are no off-by-one complications as found with 0-based indexing </li>
+         <li> there is no need to explain 1-based indexing to anyone and you certainly don&rsquo;t need a diagram </li>
+         <li> avoiding fencepost errors via the clumsy math of half-open intervals is just plain stupid </li>
+        </ul>   
+        Since Phix does not have unsigned integers (aka 0-1 is <i>never</i> MAXINT), there is no equivalent for the dirty trick 
+        that is <code>"idx&lt;len"</code> checking both bounds, instead <code>"idx&gt;=1 and idx&lt;=len"</code> must be used, or
+        <code>"abs(idx)&gt;=1 and abs(idx)&lt;=len"</code> to let -ve indexes be permitted. Both a phix <code>"i=1 to 5"</code> and
+        a C <code>"i=0; i<5;"</code> iterate 5 times, the stupid in the last point refers to claims that <code>"5-0"</code> is easy 
+        but <code>"(5-1)+1"</code> is hard. I certainly cannot think of anything nice to say about the logic behind something like 
+        <code>for i in range(0,7)</code> stopping when i is 6 <small>(In Phix you might use <code>for i in {0,1,2,3,4,5,6} do</code>
+        or maybe <a href="tagset.htm">tagset/tagstart</a>, with no such "cropping")</small>. 
+        The fencepost error is caused by performing <i>mental</i> arithmetic when none is needed at all... or worse, thinking you 
+        can do that kind of math without thinking about it...<br>
+        There have been many debates about the use of 0-based compared to 1-based indexing:
+        <ul>
+         <li> <a href="javascript:ExternalLink('ext791');" id="ext791" style="color:#9B5565" 
+                title='https://craftofcoding.wordpress.com/2021/03/26/zero-based-indexing-considered-harmful/'>Zero-based indexing considered harmful</a> </li>
+         <li> <a href="javascript:ExternalLink('ext792');" id="ext792" style="color:#9B5565" 
+                title='https://hisham.hm/2021/01/18/again-on-0-based-vs-1-based-indexing/'>Again on 0-based vs. 1-based indexing</a> </li>
+         <li> <a href="javascript:ExternalLink('ext793');" id="ext793" style="color:#9B5565" 
+                title='https://andregarzia.com/2021/01/lua-a-misunderstood-language.html'>Lua, a misunderstood language</a> </li>
+         <li> <a href="javascript:ExternalLink('ext794');" id="ext794" style="color:#9B5565" 
+                title='https://www.jsoftware.com/papers/indexorigin.htm'>Is Index Origin 0 a Hindrance? Roger Hui</a> </li>
+         <li> <a href="javascript:ExternalLink('ext795');" id="ext795" style="color:#9B5565" 
+                title='https://groups.google.com/forum/?hl=en#!topic/julia-dev/tNN72FnYbYQ'>Thread on Julia google groups</a> </li>
+        </ul>
+        Other programming languages that use 1-based indices include Algol, AWK, Cobol, Fortran, FoxPro, Icon, Julia, Lua, Mathematica,
+        MATLAB, PL/1, R, Smalltalk, and Wolfram <small>(for some of those it is an overrideable default basis)</small>.<br>
+        Sequences with mixed values and strings work the same; both sequences and strings are mutable.<br>
+        Non-integer subscripts are rounded down to an integer.
        <br>
        <br>
         For example, if x contains {5, 7.2, 9, 0.5, 13} then x[2] is 7.2. Suppose we
@@ -38,15 +59,13 @@ about the use of 0-based compared to 1-based indexing.
 <pre>
 <font color="#000000">     x</font><font color="#0000FF">[</font><font color="#000000">2</font><font color="#0000FF">] = {</font><font color="#000000">11</font><font color="#0000FF">,</font><font color="#000000">22</font><font color="#0000FF">,</font><font color="#000000">33</font><font color="#0000FF">}</font>
 </pre>
-       Then x becomes: {5, {11,22,33}, 9, 0.5, 13}. Now if we ask for x[2] we get
-        {11,22,33} and if we ask for x[2][3] we get the atom 33. If you try to
-        subscript with a number that is outside of the range 1 to the number of
-        elements, you will get a subscript error. For example x[0], x[-99] or
-        x[6] will cause errors. So will x[1][3] since x[1] is not a sequence. There
-        is no limit to the number of subscripts that may follow a variable, but
-        the variable must contain sequences that are nested deeply enough. The
-        two dimensional array, common in other languages, can be easily represented
-        with a sequence of sequences:
+        Then x becomes: {5, {11,22,33}, 9, 0.5, 13}. Now if we ask for x[2] we get {11,22,33} and if we ask for x[2][3] we get the atom 33. 
+        If you try to subscript with a number that is outside of the range 1 to the number of elements, you will get a subscript error. 
+        For example x[0], x[-99] or x[6] will cause errors, as will <nobr>x[1][3]</nobr> since x[1] is not a sequence. There is no limit to 
+        the number of subscripts that may follow a variable, but the variable must contain sequences that are nested deeply enough. 
+        <br>
+        <br>
+        The two dimensional array, common in other languages, can be easily represented with a sequence of sequences:
 <!--eucode>
     x = {
          {5, 6, 7, 8, 9},      -- x[1]
@@ -61,21 +80,19 @@ about the use of 0-based compared to 1-based indexing.
 <font color="#800000">         {</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000"> 1</font><font color="#0000FF">,</font><font color="#000000"> 0</font><font color="#0000FF">,</font><font color="#000000"> 1</font><font color="#0000FF">,</font><font color="#000000"> 0</font><font color="#800000">}      </font><font color="#000080"><i> -- x[3]</i></font>
 <font color="#0000FF">        }</font>
 </pre>
-        where we have written the numbers in a way that makes the structure
-        clearer. An expression of the form x[i][j] can be used to access any element,
-        or if you prefer x[i,j] has exactly the same meaning.
-        Personally, I use "," when the subscripts have some equivalence, eg points in 
-        3D space deserve [x,y,z], whereas I use "][" when they are logically distinct 
-        - almost always the case when one is variable and the other a constant - eg
-        shape[idx][COLOUR].
+        where we have written the numbers in a way that makes the structure clearer. <br>
+        An expression of the form x[i][j] can be used to access any element, or if you prefer x[i,j] has exactly the same meaning. <br>
+        Personally, I use "," when the subscripts have some equivalence, eg points in 3D space deserve [x,y,z], whereas I use "][" 
+        when they are logically distinct - almost always the case when one is variable and the other constant, such as shape[idx][COLOUR].
        <br>
        <br>
-        The two dimensions are not symmetric however, since an entire "row" can be
-        selected with x[i], whereas you need to use a library routine to select an 
-        entire column, such as <a href="vslice.htm">vslice</a>(), or perhaps even
-        <a href="columnize.htm">columnize</a>() [with columns as a plain integer].
-        Other logical structures, such as n-dimensional arrays, arrays of strings, 
-        structures, arrays of structures etc. can also be handled easily and flexibly:
+        Dimensions are not symmetric however, since an entire "row" can be selected with x[i], whereas you need to use a library routine 
+        to select an entire column, such as <a href="vslice.htm">vslice</a>(), or perhaps <a href="columnize.htm">columnize</a>() with 
+        columns as a plain integer, aka phix is row-major.
+        <br>
+        <br>
+        Other logical structures, such as n-dimensional arrays, arrays of strings, structures, arrays of structures, and similar can 
+        also be handled easily and flexibly:
        <br>
        <br>
        <h4>3-D array:</h4>

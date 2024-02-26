@@ -109,7 +109,7 @@ end function
 function unix_dnsquery(sequence dname, integer q_type)
 atom nameptr, rtnptr, success, ptrptr, dnameptr, qlen
 atom answer_start, answer_end, num_as_rec, num_qr_rec
-sequence rtn, line, subx
+sequence rtns, line, subx
 object temp
 
     nameptr = allocate_string(dname&0)
@@ -153,8 +153,8 @@ object temp
     answer_end = rtnptr+success
 
     -- Now we're finally at the answer section
-    rtn = {}
-    for seq=1 to num_as_rec do
+    rtns = {}
+    for seqid=1 to num_as_rec do
         line = repeat(0,8)
         subx = repeat(0,32)
         if ptrptr>=answer_end then
@@ -196,10 +196,10 @@ object temp
                 subx[1] = peek_string(dnameptr)
                 temp = unix_dnsquery(subx[1],NS_T_A)
                 if atom(temp) then
-                    rtn = append(rtn,{subx[1],line[3],seq})
+                    rtns = append(rtns,{subx[1],line[3],seqid})
                 else
                     for ctr=1 to length(temp) do
-                        rtn = append(rtn,{temp[ctr][1],line[3],seq+ctr-1})
+                        rtns = append(rtns,{temp[ctr][1],line[3],seqid+ctr-1})
                     end for
                 end if
             end if
@@ -210,10 +210,10 @@ object temp
                 subx[1] = peek_string(dnameptr)
                 temp = unix_dnsquery(subx[1],NS_T_A)
                 if atom(temp) then
-                    rtn = append(rtn,{subx[1],line[3],subx[2]})
+                    rtns = append(rtns,{subx[1],line[3],subx[2]})
                 else
                     for ctr=1 to length(temp) do
-                        rtn = append(rtn,{temp[ctr][1],line[3],subx[2]+ctr-1})
+                        rtns = append(rtns,{temp[ctr][1],line[3],subx[2]+ctr-1})
                     end for
                 end if
             end if
@@ -221,7 +221,7 @@ object temp
             subx[1] = sprintf("%d.%d.%d.%d",{peek(ptrptr),peek(ptrptr+1),
                                              peek(ptrptr+2),peek(ptrptr+3)})
             if q_type=NS_T_ANY or q_type=NS_T_A then
-                rtn = append(rtn,{subx[1],line[3],seq})
+                rtns = append(rtns,{subx[1],line[3],seqid})
             end if
         elsif line[3]=NS_T_PTR then
 
@@ -235,7 +235,7 @@ object temp
     free(nameptr)
     free(rtnptr)
 
-    return rtn
+    return rtns
 
 end function
 
@@ -243,8 +243,8 @@ end function
 function windows_dnsquery(sequence dname, integer q_type, atom options)
 -- NOTE: This function does not work on Windows versions below Windows 2000.
 
-atom success,nameptr, rtnptr, recptr, seq
-sequence rtn, line, subx
+atom success,nameptr, rtnptr, recptr, seqid
+sequence rtns, line, subx
 object temp
 
     if dnsquery_<0 then
@@ -259,9 +259,9 @@ object temp
         free(rtnptr)
         return success
     end if
-    rtn = {}
+    rtns = {}
     recptr = peek4u(rtnptr)
-    seq = 1
+    seqid = 1
     while recptr>0 do
         line = repeat(0,8)
         subx = repeat(0,32)
@@ -277,39 +277,39 @@ object temp
             subx[2] = peek(recptr+28)+(peek(recptr+29)*256) -- Preference
             temp = windows_dnsquery(subx[1],NS_T_A,options)
             if atom(temp) then
-                rtn = append(rtn,{subx[1],line[3],subx[2]})
+                rtns = append(rtns,{subx[1],line[3],subx[2]})
             else
                 for ctr=1 to length(temp) do
-                    rtn = append(rtn,{temp[ctr][1],line[3],subx[2]+ctr-1})
+                    rtns = append(rtns,{temp[ctr][1],line[3],subx[2]+ctr-1})
                 end for
             end if
         elsif line[3]=NS_T_NS then
             subx[1] = peek_string(peek4u(recptr+24)) -- NS server name
             temp = windows_dnsquery(subx[1],NS_T_A,options)
             if atom(temp) then
-                rtn = append(rtn,{subx[1],line[3],seq})
+                rtns = append(rtns,{subx[1],line[3],seqid})
             else
                 for ctr=1 to length(temp) do
-                    rtn = append(rtn,{temp[ctr][1],line[3],seq+ctr-1})
+                    rtns = append(rtns,{temp[ctr][1],line[3],seqid+ctr-1})
                 end for
             end if
         elsif line[3]=NS_T_A then
             subx[1] = sprintf("%d.%d.%d.%d",{peek(recptr+24),peek(recptr+25),
                                              peek(recptr+26),peek(recptr+27)})
             if q_type=NS_T_ANY or q_type=NS_T_A then
-                rtn = append(rtn,{subx[1],line[3],seq})
+                rtns = append(rtns,{subx[1],line[3],seqid})
             end if
         elsif line[3]=NS_T_PTR then
 
         end if
         recptr = line[1]
-        seq = seq+1
+        seqid = seqid+1
     end while
     c_proc(dnsrlfree_,{peek4u(rtnptr),1})
     free(nameptr)
     free(rtnptr)
 
-    return rtn
+    return rtns
 
 end function
 
@@ -378,21 +378,21 @@ end function
 --     [[:dnsquery]]
 
 public function getmxrr(sequence dname, atom options)
-object rtn
+object rtns
 
 -- Error 9003 = MS: RCODE_NAME_ERROR - Something's there, but it's not exact.
 -- Error 9501 = No Data Found
 
     dname = socket_trim(dname)
-    rtn = dnsquery(dname,NS_T_MX,options)
-    if sequence(rtn) and length(rtn)>0 then
-        return rtn
+    rtns = dnsquery(dname,NS_T_MX,options)
+    if sequence(rtns) and length(rtns)>0 then
+        return rtns
     end if
-    if rtn=9501 or rtn=9003 or rtn=-1 or
-    (sequence(rtn) and length(rtn)=0) then
-        rtn = dnsquery("mail."&dname,NS_T_MX,options)
+    if rtns=9501 or rtns=9003 or rtns=-1 or
+    (sequence(rtns) and length(rtns)=0) then
+        rtns = dnsquery("mail."&dname,NS_T_MX,options)
     end if
-    return rtn
+    return rtns
 end function
 
 -------------------------------------------------------------------------------
@@ -442,7 +442,7 @@ end function
 function unix_getaddrinfo(object node, object service, object hints)
 atom addrinfo, success, node_ptr, service_ptr, hints_ptr, addrinfo_ptr,
                 svcport, cpos
-sequence rtn, val
+sequence rtns, val
 
     hints = hints -- TODO -- not implemented.
     addrinfo = allocate(32)
@@ -474,12 +474,12 @@ sequence rtn, val
         if sequence(service) then free(service_ptr) end if
         return 0
     end if
-    rtn = {}
+    rtns = {}
     -- addrinfo is a pointer to a pointer to a structure in Linux.
     addrinfo_ptr = peek4u(addrinfo)
     -- 27 Nov 2007: Only one addrinfo structure is supported
     --  while addrinfo_ptr != 0 do
-    rtn = append(rtn,{
+    rtns = append(rtns,{
                       peek4u(addrinfo_ptr),
                       peek4u(addrinfo_ptr+4),
                       peek4u(addrinfo_ptr+8),
@@ -492,28 +492,28 @@ sequence rtn, val
 
     c_proc(freeaddrinfo_,{peek4u(addrinfo)})
 
-    if length(rtn[1][5])=0 and sequence(node) then
-        rtn[1][5] = gethostbyname(node)
+    if length(rtns[1][5])=0 and sequence(node) then
+        rtns[1][5] = gethostbyname(node)
         if sequence(service) and svcport=0 then
-            rtn[1][5] = rtn[1][5] & sprintf(":%d",getservbyname(service))
+            rtns[1][5] = rtns[1][5] & sprintf(":%d",getservbyname(service))
         elsif svcport>0 then
-            rtn[1][5] = rtn[1][5] & sprintf(":%d",svcport)
+            rtns[1][5] = rtns[1][5] & sprintf(":%d",svcport)
         end if
     elsif svcport>0 then
-        cpos = find(':',rtn[1][5])
-        if cpos=0 or cpos=length(rtn[1][5]) or
-        eu:compare(rtn[1][5][$-1..$],":0")=0 then
+        cpos = find(':',rtns[1][5])
+        if cpos=0 or cpos=length(rtns[1][5]) or
+        eu:compare(rtns[1][5][$-1..$],":0")=0 then
             if cpos=0 then
-                rtn[1][5] = rtn[1][5] & sprintf(":%d",svcport)
+                rtns[1][5] = rtns[1][5] & sprintf(":%d",svcport)
             else
-                rtn[1][5] = rtn[1][5][1..cpos-1] & sprintf(":%d",svcport)
+                rtns[1][5] = rtns[1][5][1..cpos-1] & sprintf(":%d",svcport)
             end if
         end if
     end if
 
     free(addrinfo)
 
-    return rtn
+    return rtns
 end function
 
 function windows_getaddrinfo(object node, object service, object hints)

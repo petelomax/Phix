@@ -765,7 +765,7 @@ function IupOpen() {
 // pretty cool, eg "Red" -> #ff0000, "PeachPuff" -> #ffdab9, "PaleGoldenRod" -> #eee8aa, 
 //  plus "RGB(123,234,142)" -> #7bea8e and "HSL(284,6%,49%)" -> #807584. Handy!
 //function standardize_color(str){
-//  var ctx = document.createElement("canvas").getContext('2d');
+//  var ctx = document.createElement("canvas").getContext("2d");
 //  ctx.fillStyle = str;
 //  return ctx.fillStyle;
 //}
@@ -3896,8 +3896,8 @@ function IupSplit(/*Ihandln*/ child1=NULL, child2=NULL, /*string*/ attributes=""
 //    (child2)
 //  </div>
 //
-    let ih = document.createElement(`div`),
-      drag = document.createElement(`div`);
+    let ih = document.createElement("div"),
+      drag = document.createElement("div");
     ih.style.display = "flex";
     ih.style.flexDirection = "column";  // ("row" if HORIZONTAL)
     ih.EXPAND = "YES"
@@ -3993,8 +3993,8 @@ function IupSplit(/*Ihandln*/ child1=NULL, child2=NULL, /*string*/ attributes=""
 //DEV erm, hello, where are IupTableClick_cb(), IupTableEnterItem_cb(), IupTableResize_cb(),
 //                          IupTableGetSelected(), IupTableGetData(), IupTableSetData()???
 function IupTable(columns, data, visible=10, attributes="", args=[]) {
-    let table = document.createElement(`table`),
-        container = document.createElement(`div`);  // wraps table+resizers
+    let table = document.createElement("table"),
+        container = document.createElement("div");  // wraps table+resizers
     table.style.height = visible*23+27 + "px";
 //  table.classList = "table";
     container.appendChild(table);

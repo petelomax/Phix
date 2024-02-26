@@ -581,7 +581,9 @@ string s
 --          else
                 lines += 1
                 if not novalue then
-                    s = sprint(o,MAXLINELEN-7-length(name))
+--8/2/24:
+--                  s = sprint(o,MAXLINELEN-7-length(name))
+                    s = sprint(o,maxlen:=MAXLINELEN-7-length(name))
                 end if
                 printf(1,"    %s = %s\n",{name,s})
 --          end if
@@ -889,33 +891,33 @@ procedure throw(object e, object user_data={})
         []
           }
 
-    integer rtn = e[E_RTN]
-    if rtn=-1 then              -- replace with the calling routine number
+    integer rid = e[E_RTN]
+    if rid=-1 then              -- replace with the calling routine number
         #ilASM{
             [32]
                 mov eax,[ebp+20]    -- prev_ebp
                 mov eax,[eax+8]     -- calling routine no
-                mov [rtn],eax
+                mov [rid],eax
             [64]
                 mov rax,[rbp+40]    -- prev_ebp
                 mov rax,[rax+16]    -- calling routine no
-                mov [rtn],rax
+                mov [rid],rax
               }
-        e[E_RTN] = rtn
+        e[E_RTN] = rid
     end if
 
-    if rtn>=1 and rtn<=length(symtab)
-    and sequence(symtab[rtn])
-    and symtab[rtn][S_NTyp]>=S_Type then
+    if rid>=1 and rid<=length(symtab)
+    and sequence(symtab[rid])
+    and symtab[rid][S_NTyp]>=S_Type then
         if e[E_NAME]=-1 then
-            object name = symtab[rtn][S_Name]
+            object name = symtab[rid][S_Name]
             if not string(name) then
                 name = sprint(name)
             end if
             e[E_NAME] = name
         end if
         if e[E_FILE]=-1 then
-            integer fno = symtab[rtn][S_FPno]
+            integer fno = symtab[rid][S_FPno]
             if fno<1 or fno>length(symtab[T_fileset]) then
                 e[E_FILE] = sprintf("?? (fno=%d)",{fno})    -- should not happen!
             else
@@ -926,8 +928,8 @@ procedure throw(object e, object user_data={})
             end if
         end if
     elsif e[E_NAME]=-1 then
-        e[E_NAME] = sprintf("?? (rtn=%d)",rtn)  -- should not happen!
-        rtn = -1  -- (only real addresses in real routines get mapped to a line no)
+        e[E_NAME] = sprintf("?? (rid=%d)",rid)  -- should not happen!
+        rid = -1  -- (only real addresses in real routines get mapped to a line no)
     end if
     if e[E_ADDR]=-1 then -- replace with called from address from the throw() call:
         atom addr
@@ -943,13 +945,13 @@ procedure throw(object e, object user_data={})
               }
         e[E_ADDR] = addr
 --5/9/19:
---      if e[E_LINE]=-1 and rtn!=-1 then
---          integer lineno := convert_offset(addr-1,symtab[rtn])
+--      if e[E_LINE]=-1 and rid!=-1 then
+--          integer lineno := convert_offset(addr-1,symtab[rid])
 --          e[E_LINE] = lineno
 --      end if
     end if 
-    if e[E_LINE]=-1 and rtn!=-1 then
-        integer lineno := convert_offset(e[E_ADDR]-1,symtab[rtn])
+    if e[E_LINE]=-1 and rid!=-1 then
+        integer lineno := convert_offset(e[E_ADDR]-1,symtab[rid])
         e[E_LINE] = lineno
     end if
     #ilASM{
@@ -1132,7 +1134,7 @@ end function
 --  as a run-of-the-mill type thing, as is the case if they ever appear in an ex.err.
 
 --integer exception = 0
---integer rtn           -- routine no, initially from symtab[T_callstk], then from callstack
+--integer rid           -- routine no, initially from symtab[T_callstk], then from callstack
 integer or_ebp          -- from the exception context, or the real ebp (pre-diag()) [stored/4]
 atom or_esp,            -- from the exception context, or the real esp
      xceptn,            -- exception code or 0
@@ -1503,9 +1505,9 @@ end function
 --/*
 function retN()
     if machine_bits()=32 then
-        {N,rtn,from_addr,ret_addr,prev_ebp,ebp_root} = peek4u({or_ebp*4+4,6})
+        {N,rid,from_addr,ret_addr,prev_ebp,ebp_root} = peek4u({or_ebp*4+4,6})
     else -- machine_bits()=64
-        {N,rtn,from_addr,ret_addr,prev_ebp,ebp_root} = peek8u({or_ebp*4+8,6})
+        {N,rid,from_addr,ret_addr,prev_ebp,ebp_root} = peek8u({or_ebp*4+8,6})
     end if
 
 atom prev_ebp
@@ -1521,7 +1523,7 @@ atom prev_ebp
 --              put2(sprintf("<**diag.e: bad prev_ebp** (#%08x)>\n",or_ebp*4))
 --              return 0
 --          end if
-            rtn = peek4u(or_ebp*4+8)
+            rid = peek4u(or_ebp*4+8)
             era -= 1    -- ensure within code emitted for line [DEV??]
             return 1
         end if
@@ -1593,13 +1595,13 @@ end function
 ----?o
 ----?vsb_used
 --      base = ecs+vsb_used*4
---      rtnX = peek4u(base+16)
---      if rtn!=rtnX then
---          printf(1,"diag callee internal error (rtn %d!=%d)\n",{rtn,rtnX})
+--      ridX = peek4u(base+16)
+--      if rid!=ridX then
+--          printf(1,"diag callee internal error (rid %d!=%d)\n",{rid,ridX})
 --          return 0
 --      end if
---      rtn = peek4u(base+12)
-----printf(1,"new rtn=%d\n",rtn)
+--      rid = peek4u(base+12)
+----printf(1,"new rid=%d\n",rid)
 --      N = peek4u(base+8)
 --      if N<0 or N>vsb_used then
 --          printf(1,"diag callee internal error (N=%d, vsb_used=%d)\n",{N,vsb_used})
@@ -1643,7 +1645,7 @@ sequence vmap -- variable map; var address --> offset into threadstack
                 --  (a flat array of all static and dynamic var refs)
                 -- ==> index into symtab for var name, type, etc.
 
-function varIdx(atom addr, integer rtn, sequence symtab)
+function varIdx(atom addr, integer rid, sequence symtab)
 integer gvar0   -- addr gvar[0] (==[maxgvar]) [may need to be atom, or gvar04]
 integer maxgvar
 integer varno
@@ -1693,18 +1695,18 @@ integer nTyp
 --      return verror("bad varno(%d)\n",{varno})
     end if
     -- a tvar
-    if rtn<1 or rtn>length(symtab) then
-        printf(1,"pdiag.e/VarIdx: bad rtn(%d)\n",{rtn})
+    if rid<1 or rid>length(symtab) then
+        printf(1,"pdiag.e/VarIdx: bad rid(%d)\n",{rid})
         return -1
     end if
-    sr = symtab[rtn]
+    sr = symtab[rid]
     if atom(sr) then
-        printf(1,"pdiag.e/VarIdx:atom(symtab[%d])!\n",{rtn})
+        printf(1,"pdiag.e/VarIdx:atom(symtab[%d])!\n",{rid})
         return -1
     end if
     nTyp = sr[S_NTyp]
     if nTyp<S_Type then
-        printf(1,"pdiag.e/VarIdx:bad type(symtab[%d][S_NTyp]=%d)!\n",{rtn,nTyp})
+        printf(1,"pdiag.e/VarIdx:bad type(symtab[%d][S_NTyp]=%d)!\n",{rid,nTyp})
         return -1
     end if
 --DEV (untried)
@@ -1728,7 +1730,7 @@ integer nTyp
         end if
         nTyp = sr[S_NTyp]
         if nTyp!=S_TVar3 then
-            printf(1,"pdiag.e/VarIdx:bad type(symtab[%d][S_NTyp](%d)!=S_TVar3)\n",{rtn,nTyp})
+            printf(1,"pdiag.e/VarIdx:bad type(symtab[%d][S_NTyp](%d)!=S_TVar3)\n",{rid,nTyp})
             return -1
         end if
         if tidx=0 then exit end if
@@ -1752,10 +1754,10 @@ object sr
 --DEV isn't this <=0? aren't both N and tidx +ve?!
 --  if tidx<0 and tidx<N then
     if tidx>=0 and tidx<N then
-        rtnid = peek4u(or_ebp*4+8)  --DEV?? rtn not good enough for ya?
+        rtnid = peek4u(or_ebp*4+8)  --DEV?? rid not good enough for ya?
 -- this may be temp!
-if rtnid!=rtn then
-    puts(1,"pdiag.e:varIdx - rtnid!=rtn\n")
+if rtnid!=rid then
+    puts(1,"pdiag.e:varIdx - rtnid!=rid\n")
 end if
         if rtnid<1 or rtnid>length(symtab) then
             puts(1,"pdiag.e:symtab[rtnid] ioob!\n")
@@ -1879,8 +1881,8 @@ atom    --returnoffset, -- era as offset into code block, used in lineno calc
 sequence msg,           -- error message, from msgs[msg_id] plus any params
          wmsg,          -- work var, used for building msg
 --       s8,            -- copy of symtab[T_callstk], see below
-         sr,            -- copy of symtab[rtn]
---       linetab,       -- copy of symtab[rtn][S_ltab]
+         sr,            -- copy of symtab[rid]
+--       linetab,       -- copy of symtab[rid][S_ltab]
          filename,      -- output var
          pathset,       -- copy of symtab[T_pathset] with mainpath added if .exe
          x6             -- e30->e92 fixup
@@ -1893,8 +1895,8 @@ sequence msg,           -- error message, from msgs[msg_id] plus any params
 integer p
 
 --DEV temp (29/4/19):
---integer N, rtn
-atom N, rtn
+--integer N, rid
+atom N, rid
 --DEV from_addr is not really used!! (if we can get away without it...)
 atom from_addr, ehand, ret_addr, prev_ebp, ebp_root
 atom vsb_prev, vsb_next, vsb_magic
@@ -2577,26 +2579,26 @@ X               mov qword[rbp+32],:rbidsret
 --DEV (temp)
 --DEV these may want to be inside the loop... (is ebp_root overwritten?)
 --DEV untried:
---  {N,rtn,from_addr,ret_addr,prev_ebp,ebp_root} = peekNS({or_ebp*4+machine_word(),6},machine_word(),0)
+--  {N,rid,from_addr,ret_addr,prev_ebp,ebp_root} = peekNS({or_ebp*4+machine_word(),6},machine_word(),0)
 --  {vsb_prev,vsb_next,symtabptr,gvarptr,vsb_magic} = peekNS({ebp_root,5},machine_word(),0)
     if machine_bits()=32 then
 --EXCEPT
---      {N,rtn,from_addr,ret_addr,prev_ebp,ebp_root} = peek4u({or_ebp*4+4,6})
-        {N,rtn,from_addr,ehand,prev_ebp,ebp_root,ret_addr} = peek4u({or_ebp*4+4,7})
+--      {N,rid,from_addr,ret_addr,prev_ebp,ebp_root} = peek4u({or_ebp*4+4,6})
+        {N,rid,from_addr,ehand,prev_ebp,ebp_root,ret_addr} = peek4u({or_ebp*4+4,7})
         {vsb_prev,vsb_next,symtabptr,gvarptr,vsb_magic} = peek4u({ebp_root,5})
     else -- machine_bits()=64
---      {N,rtn,from_addr,ret_addr,prev_ebp,ebp_root} = peek8u({or_ebp*4+8,6})
-        {N,rtn,from_addr,ehand,prev_ebp,ebp_root,ret_addr} = peek8u({or_ebp*4+8,7})
+--      {N,rid,from_addr,ret_addr,prev_ebp,ebp_root} = peek8u({or_ebp*4+8,6})
+        {N,rid,from_addr,ehand,prev_ebp,ebp_root,ret_addr} = peek8u({or_ebp*4+8,7})
         {vsb_prev,vsb_next,symtabptr,gvarptr,vsb_magic} = peek8u({ebp_root,5})
     end if
 
 --  if not batchmode then --DEV
     if show_low_level_diagnostics then
         if diagdiag>0 or (vsb_magic-#40565342) or msg_id<1 or msg_id>length(msgs) then
-            printf(1,"N=%d, rtn=%d, from=#%s, ret=#%s, ehand=%s, prevebp=#%s, ebproot=#%s\n",
+            printf(1,"N=%d, rid=%d, from=#%s, ret=#%s, ehand=%s, prevebp=#%s, ebproot=#%s\n",
 --DEV (is fn not assigned yet??)
---          put2(sprintf("N=%d, rtn=%d, from=#%s, ret=#%s, ehand=%s, prevebp=#%s, ebproot=#%s\n",
-                   {N,rtn,addrS(from_addr),addrS(ret_addr),addrS(ehand),addrS(prev_ebp),addrS(ebp_root)})
+--          put2(sprintf("N=%d, rid=%d, from=#%s, ret=#%s, ehand=%s, prevebp=#%s, ebproot=#%s\n",
+                   {N,rid,addrS(from_addr),addrS(ret_addr),addrS(ehand),addrS(prev_ebp),addrS(ebp_root)})
             printf(1,"or_eax=#%08x, or_ecx=#%08x, or_edx=#%08x,\nor_esi=#%08x, or_edi=#%08x\n",
 --          put2(sprintf("or_eax=#%08x, or_ecx=#%08x, or_edx=#%08x,\nor_esi=#%08x, or_edi=#%08x\n",
                    {or_eax,or_ecx,or_edx,or_esi,or_edi})
@@ -2694,7 +2696,7 @@ X               mov qword[rbp+32],:rbidsret
     ep2 = s8[2]             -- error parameter 2
     era = s8[3]             -- return addr (adjusted to be within code emitted for line)
     etd = s8[4]             -- threadstack ptr
-    rtn = s8[5]             -- active routine number
+    rid = s8[5]             -- active routine number
     or_ebp*4 = s8[6]            -- frame ptr (at point of failure)
 --vsb_used [DEV]
     dcount = s8[8]          -- dropped callstack blocks
@@ -2808,7 +2810,7 @@ end if
         if msg_id=1 then
             varno = or_ecx
         else
-            varno = varIdx(or_ecx,rtn,symtab)
+            varno = varIdx(or_ecx,rid,symtab)
         end if
         o = "???"
         if varno<1 or varno>length(symtab) then
@@ -2844,7 +2846,9 @@ end if
                             o = "*** INVALID ??? ***"
                         end if
                     else
-                        o = sprint(o,50-length(name))
+--8/2/24:
+--                      o = sprint(o,50-length(name))
+                        o = sprint(o,maxlen:=50-length(name))
                     end if
                 end if
             end if
@@ -2879,7 +2883,7 @@ end if
         elsif msg_id=91 then
             or_esi = or_ecx
         elsif msg_id=93 then
-            or_esi = varIdx(or_edi,rtn,symtab)
+            or_esi = varIdx(or_edi,rid,symtab)
         end if
         -- varno in or_esi
         if or_esi<1 or or_esi>length(symtab) then
@@ -2959,7 +2963,9 @@ end if
                             o = "*** INVALID ??? ***"
                         end if
                     else
-                        o = sprint(o,55-length(name))
+--8/2/24:
+--                      o = sprint(o,55-length(name))
+                        o = sprint(o,maxlen:=55-length(name))
                     end if
                 end if
             end if
@@ -2990,7 +2996,7 @@ end if
     elsif msg_id=108 then       -- e108pe(edi)
         msg = sprintf(msg,{or_edi})
     elsif msg_id=80 then        -- e80cbrna(esi)
-        rtn = or_esi    -- routine number
+        rid = or_esi    -- routine number
         -- (params/locals suppressed below, since they no longer exist)
     elsif msg_id=53 then        -- e53mcat(esi,ecx)
         msg = sprintf(msg,{or_esi,or_ecx*4,or_ecx*4-or_esi})
@@ -3166,13 +3172,13 @@ bool error_handler
     and msg_id!=12      -- not e12pa ('!' keyed in trace window)
     and msg_id!=56 then -- not e56rocow (also non-catchable)
         msg = trim(msg)
-if rtn<1 or rtn>length(symtab) then
-    ?{"oops, pDiagN.e line 3170: rtn is",rtn,length(symtab),msg_id,msg}
+if rid<1 or rid>length(symtab) then
+    ?{"oops, pDiagN.e line 3170: rid is",rid,length(symtab),msg_id,msg}
 else
-        sr = symtab[rtn]
+        sr = symtab[rid]
         lineno = convert_offset(or_era,sr)
         diaglooping -= 1
-        throw({msg_id,or_era,lineno,rtn,-1,-1,-1,msg})
+        throw({msg_id,or_era,lineno,rid,-1,-1,-1,msg})
 end if
     end if
 
@@ -3190,22 +3196,22 @@ end if
         fn = open("ex.err","w")
     end if
 --puts(1,"ex.err open\n")
---?{"rtn",rtn}
+--?{"rid",rid}
     msg2 = ""
     while 1 do
---?rtn
-        if rtn<1 or rtn>length(symtab) then -- See note at top
-            printf(1,"pDiagN.e line 398: oops, rtn[=%d] out of range[1..%d]\n",{rtn,length(symtab)})
+--?rid
+        if rid<1 or rid>length(symtab) then -- See note at top
+            printf(1,"pDiagN.e line 398: oops, rid[=%d] out of range[1..%d]\n",{rid,length(symtab)})
 --          exit
 --      end if
             rtype = 0   -- (added 15/4/16, at the time we had the wrong symtab... then again it was a bug in pTrace.e)
 else
-        sr = symtab[rtn]
+        sr = symtab[rid]
 --?sr
         sNTyp = sr[S_NTyp]
         if sNTyp>=S_Type
         and (swod or and_bits(sr[S_State],K_wdb)) then -- skip without debug items
---          sequence sr = symtab[rtn]
+--          sequence sr = symtab[rid]
             lineno = convert_offset(or_era,sr)
 --/*
             lineno = sr[S_1stl]     -- line no of "procedure"/"function"/"type" keyword
@@ -3475,12 +3481,12 @@ end if
         else -- K_wdb
 --removed 4/2/21...
 --          if sNTyp<S_Type then
---              put2(sprintf("pDiagN.e line 3322: symtab[%d] bad S_NTyp[%d]\n",{rtn,sNTyp}))
+--              put2(sprintf("pDiagN.e line 3322: symtab[%d] bad S_NTyp[%d]\n",{rid,sNTyp}))
 --?sr
 --?"sleep(5)..."
 --sleep(5)
 ----            else
-----                put2(sprintf("diag.e: symtab[%d] skipped (no debug)\n",{rtn}))
+----                put2(sprintf("diag.e: symtab[%d] skipped (no debug)\n",{rid}))
 --          end if
 --          msg_id = 0
 --          if not retN() then exit end if
@@ -3508,22 +3514,22 @@ end if
             if or_ebp=0 then exit end if
 --DEV (untried)
 --constant W = machine_word()
---  --      {N,rtn,from_addr,ret_addr,prev_ebp,ebp_root} = peekNS({or_ebp*4+W,6},W,0)
---          {N,rtn,from_addr,?,prev_ebp,ebp_root,ret_addr} = peekNS({or_ebp*4+W,7},W,0)
+--  --      {N,rid,from_addr,ret_addr,prev_ebp,ebp_root} = peekNS({or_ebp*4+W,6},W,0)
+--          {N,rid,from_addr,?,prev_ebp,ebp_root,ret_addr} = peekNS({or_ebp*4+W,7},W,0)
             if machine_bits()=32 then
 --EXCEPT
---              {N,rtn,from_addr,ret_addr,prev_ebp,ebp_root} = peek4u({or_ebp*4+4,6})
-                {N,rtn,from_addr,?,prev_ebp,ebp_root,ret_addr} = peek4u({or_ebp*4+4,7})
+--              {N,rid,from_addr,ret_addr,prev_ebp,ebp_root} = peek4u({or_ebp*4+4,6})
+                {N,rid,from_addr,?,prev_ebp,ebp_root,ret_addr} = peek4u({or_ebp*4+4,7})
             else -- machine_bits()=64
---              {N,rtn,from_addr,ret_addr,prev_ebp,ebp_root} = peek8u({or_ebp*4+8,6})
-                {N,rtn,from_addr,?,prev_ebp,ebp_root,ret_addr} = peek8u({or_ebp*4+8,7})
+--              {N,rid,from_addr,ret_addr,prev_ebp,ebp_root} = peek8u({or_ebp*4+8,6})
+                {N,rid,from_addr,?,prev_ebp,ebp_root,ret_addr} = peek8u({or_ebp*4+8,7})
             end if
 if 0 then -- DEV 29/10/17/TEMP
     if show_low_level_diagnostics then
 --      if diagdiag>0 or (vsb_magic-#40565342) or msg_id<1 or msg_id>length(msgs) then
         if diagdiag>0 then
-            put2(sprintf("N=%d, rtn=%d, from=#%s, ret=#%s, ehand=%s, prevebp=#%s, ebproot=#%s\n",
-                   {N,rtn,addrS(from_addr),addrS(ret_addr),addrS(ehand),addrS(prev_ebp),addrS(ebp_root)}))
+            put2(sprintf("N=%d, rid=%d, from=#%s, ret=#%s, ehand=%s, prevebp=#%s, ebproot=#%s\n",
+                   {N,rid,addrS(from_addr),addrS(ret_addr),addrS(ehand),addrS(prev_ebp),addrS(ebp_root)}))
             put2(sprintf("or_eax=#%08x, or_ecx=#%08x, or_edx=#%08x,\nor_esi=#%08x, or_edi=#%08x\n",
                    {or_eax,or_ecx,or_edx,or_esi,or_edi}))
 --          magicok = "\"@VSB\""
@@ -3539,8 +3545,8 @@ if 0 then -- DEV 29/10/17/TEMP
     end if
 end if
 --if diagdiag then
---          printf(1,"N=%d, rtn=%d, from=#%s, ret=#%s, prevebp=#%s, ebproot=#%s\n",
---                 {N,rtn,addrS(from_addr),addrS(ret_addr),addrS(prev_ebp),addrS(ebp_root)})
+--          printf(1,"N=%d, rid=%d, from=#%s, ret=#%s, prevebp=#%s, ebproot=#%s\n",
+--                 {N,rid,addrS(from_addr),addrS(ret_addr),addrS(prev_ebp),addrS(ebp_root)})
 --end if
 -- (untried [might cause problems with test after loop, which might go away if moved (back) above??])
             if prev_ebp=0 then exit end if
@@ -5048,7 +5054,7 @@ puts(1,"uh? (pdiagN.e line 4791)\n")
     --  parameter it is referring to.
     -- For more details, also see variable builtinparamwrong.
 --integer builtinparamwrong
---integer k, rtn, callee, fileno, pathno, noofparams, i2, i3, i4, km1, km2, km3, kp1
+--integer k, rid, callee, fileno, pathno, noofparams, i2, i3, i4, km1, km2, km3, kp1
 --integer lineno
 --object si, codeseg, o, o2, name
 --integer tidx, idx
@@ -5170,7 +5176,7 @@ puts(1,"uh? (pdiagN.e line 4791)\n")
 --              -- messages, eg "first parameter to match must be 
 --              -- a sequence", "file number is not an integer",
 --              -- and likwise not show any "current value".
---              builtinparamwrong=rtn
+--              builtinparamwrong=rid
 --          end if
 --
 --flush(pn)

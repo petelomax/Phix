@@ -764,6 +764,21 @@ global function define_c_proc(object lib, object name, sequence args, bool bCras
     return define_c(lib, name, args, 0, bCrash)
 end function
 
+global function c_name(integer rid)
+    assert(rid>=1 and rid<=tmax)
+--  -- result is {name,addr,args,return_type,convention,safe}
+--  return table[rid]
+--  -- better: (see comments in define_c_func.htm src)
+--  sequence tn = table[rid]
+--  string name = tn[1],
+--  sequence args = tn[3]
+--  integer return_type = tn[4]
+--  return {name,args,return_type}
+--  -- try3 ("")
+    string name = table[rid][1] -- (deliberately crash if not)
+    return name
+end function
+
 global function define_c_var(atom lib, sequence name)
 --
 -- Get the address of a public C variable defined in a dll or .so file.
@@ -1229,7 +1244,7 @@ integer esp4
                 []
                     call :%opGetST      -- [e/rdi]=symtab
               }
-        integer rtn
+        integer rtnid
         integer fno, pathno
         for level=1 to 2 do
             #ilASM{
@@ -1241,7 +1256,7 @@ integer esp4
                     sub ecx,1
                     jg @b
                     mov eax,[esi+8]     -- calling routine no
-                    mov [rtn],eax
+                    mov [rtnid],eax
                 [64]
                     mov rcx,[level]
                     mov rsi,rbp
@@ -1250,13 +1265,13 @@ integer esp4
                     sub rcx,1
                     jg @b
                     mov rax,[rsi+16]    -- calling routine no
-                    mov [rtn],rax
+                    mov [rtnid],rax
                 []
                   }
-            sequence si = symtab[rtn]
+            sequence si = symtab[rtnid]
             fno = si[S_FPno]
             pathno = symtab[T_fileset][fno][1]
---          ?{"level",level,"rtn",rtn,"fno",fno,"pathno",pathno,"si",si}
+--          ?{"level",level,"rtnid",rtnid,"fno",fno,"pathno",pathno,"si",si}
         end for
         string file = symtab[T_fileset][fno][2]
 --  string path = symtab[T_pathset][symtab[T_fileset][fno][1]]

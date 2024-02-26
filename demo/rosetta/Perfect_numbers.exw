@@ -64,19 +64,43 @@ end for
 --*/
 --/!*
 ?"mpfr:"
+--/*
 include mpfr.e
-mpz n = mpz_init(),
+mpz o = mpz_init(),
     p = mpz_init()
 for i = 2 to 159 do
-    mpz_ui_pow_ui(n, 2, i)
-    mpz_sub_ui(n, n, 1)
-    if mpz_prime(n) then
+    mpz_ui_pow_ui(o, 2, i)
+    mpz_sub_ui(o, o, 1)
+    if mpz_prime(o) then
         mpz_ui_pow_ui(p,2,i-1)
-        mpz_mul(n,n,p)
-        printf(1, "%d  %s\n",{i,mpz_get_str(n,comma_fill:=true)})
+        mpz_mul(o,o,p)
+        printf(1, "%d  %s\n",{i,mpz_get_str(o,comma_fill:=true)})
     end if
 end for
-n = mpz_free(n)
+{o,p} = mpz_free({o,p})
+--*/
+include mpfr.e
+atom t0 = time(), t1 = t0+1
+integer maxprime = 4423, -- 19937 (rather slow)
+        lim = length(get_primes_le(maxprime))
+mpz n = mpz_init(), m = mpz_init()
+for i=1 to lim do
+    integer p = get_prime(i)
+    mpz_ui_pow_ui(n, 2, p)
+    mpz_sub_ui(n, n, 1)
+    if mpz_prime(n) then
+        mpz_ui_pow_ui(m, 2, p-1)
+        mpz_mul(n, n, m)
+        string ns = mpz_get_short_str(n,comma_fill:=true),
+               et = elapsed_short(time()-t0,5,"(%s)")
+        printf(1, "%d  %s %s\n",{p,ns,et})
+    elsif time()>t1 then
+        progress("%d/%d (%.1f%%)\r",{p,maxprime,i/lim*100})
+        t1 = time()+1
+    end if
+end for
+?elapsed(time()-t0)
+
 
 -- output:
 --  6
@@ -117,6 +141,30 @@ n = mpz_free(n)
 --  127  14,474,011,154,664,524,427,946,373,126,085,988,481,573,677,491,474,835,889,066,354,349,131,199,152,128
 
 --*!/
+?"cheat:"
+include mpfr.e
+/*atom*/ t0 = time()
+--mpz n = mpz_init(), m = mpz_init()
+sequence validp = {2, 3, 5, 7, 13, 17, 19, 31, 61, 89, 107, 127, 521, 607,
+                1279, 2203, 2281, 3217, 4253, 4423, 9689, 9941, 11213,
+                19937, 21701, 23209, 44497, 86243, 110503, 132049, 216091,
+                756839, 859433, 1257787, 1398269, -- (JS limit, <1e6 digits)
+                2976221, 3021377, 6972593, 13466917, 20996011, 24036583, 
+                25964951, 30402457, 32582657, 37156667, 42643801, 43112609, 
+                57885161, 74207281, 77232917, 82589933}
+assert(length(validp)=51)
+if platform()=JS then validp = validp[1..35] end if -- (keep JS under 5s)
+for p in validp do
+    mpz_ui_pow_ui(n, 2, p)
+    mpz_sub_ui(n, n, 1)
+    mpz_ui_pow_ui(m, 2, p-1)
+    mpz_mul(n, n, m)
+    string ns = mpz_get_short_str(n,comma_fill:=true),
+           et = elapsed_short(time()-t0,5,"(%s)")
+    printf(1, "%d  %s %s\n",{p,ns,et})
+end for
+?elapsed(time()-t0)
+
 ?"done"
 {} = wait_key()
 

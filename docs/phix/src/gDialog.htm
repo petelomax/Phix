@@ -200,22 +200,23 @@ gMainLoop()
           CLOSE_ON_ESCAPE
          </td>
          <td>
-            An alternative way to set the same thing as the bEsc parameter, or to check what it is.<br>
-            Note there is no procedural equivalent for(/this replaces) <a href="IupClose.htm#IupCloseOnEscape">IupCloseOnEscape</a>().<br>
+            An alternative way to set the same thing as the bEsc parameter, or to check what it is
+            <small>(replaces <a href="IupClose.htm#IupCloseOnEscape">IupCloseOnEscape</a>).</small><br>
           <a name=DEFAULTENTER></a>
           <a name=DEFAULTESC></a>
          </td>
         </tr>
         <tr>
          <td>
-??        DEFAULTENTER<br>
+          DEFAULTENTER<br>
           DEFAULTESC
          </td>
          <td>
             <a href="constants.htm#NULL">NULL</a>, <a href="gSetHander.htm#XPG_CLOSE">XPG_CLOSE</a>, <a href="gSetHander.htm#XPG_IGNORE">XPG_IGNORE</a>, 
-            or the <a href="gdx.htm">gdx</a> of the button to be activated (more accurately the <a href="gButton.htm#CLICK">CLICK</a> handler of said
+            or the <a href="gdx.htm">gdx</a> of the button to be activated (more accurately the <a href="gButton.htm#ACTION">ACTION</a> handler of said
             to be invoked) when the user presses (an otherwise unhandled) Enter/Esc when the keyboard focus is on any control within the dialog. <br>
-            Alternatively/for now just use a <a href="gSetHandler.htm#KEY">KEY</a> handler on the dialog.<br>
+            Alternatively (/when there is no suitable button) just use a <a href="gSetHandler.htm#KEY">KEY</a> handler on the dialog.<br>
+            Note that DEFAULTESC takes priority over bEsc/CLOSE_ON_ESCAPE.<br>
 <!--
 Ah, this could be tricky under pwa/p2js, unless we split/sprintf rather than the current sprintf/split...
             It is not possible to set these via <a href="gSetAttributes.htm">gSetAttributes</a>(), including any implicit inline call at creation, 
@@ -281,17 +282,25 @@ void gtk_widget_set_receives_default ( GtkWidget* widget, gboolean receives_defa
             In Motif if set to YES when the dialog is hidden, then it can not be changed after it is visible.
           <a name=MARGIN></a>
 -->
+          <a name=MARGIN></a>
+          <a name=PADDING></a>
+          <a name=EXPAND></a>
          </td>
         </tr>
         <tr>
          <td>
           <a href="gSetAttribute.htm#MARGIN"><span class="illegal">MARGIN</span></a>,<br>
-          <a href="gSetAttribute.htm#PADDING"><span class="illegal">PADDING</span></a>  
+          <a href="gSetAttribute.htm#PADDING"><span class="illegal">PADDING</span></a>,<br> 
+          <a href="gSetAttribute.htm#EXPAND"><span class="illegal">EXPAND</span></a>    
          </td>
          <td>
             There are no such things on a dialog itself, however like all containers a dialog is responsible for handling child margin[s], hence instead 
             specify a <a href="gSetAttribute.htm#MARGIN">MARGIN</a> on the (sole) child for some space around the edges of a dialog, and of course should 
-            that be a gH/Vbox additional options <a href="gBox.htm#GAP">GAP</a> and <a href="gBox.htm#SPACE">SPACE</a> are also available.<br>
+            that be a gH/Vbox additional options <a href="gBox.htm#GAP">GAP</a> and <a href="gBox.htm#SPACE">SPACE</a> are also available. 
+            EXPAND is meaningless on a gDialog: there is nothing for it to expand into (you may be thinking of <a href="#RESIZE">RESIZE</a>). 
+            A dialog is given a natural size sufficient for its contents, unless explicitly overidden by the <a href="#SIZE">SIZE</a>, 
+            <a href="gSetAttribute.htm#MINSIZE">MINSIZE</a>, and/or 
+            <a href="gSetAttribute.htm#MAXSIZE">MAXSIZE</a> attributes.<br>
           <a name=MAXBOX></a>
           <a name=MINBOX></a>
           <a name=MENUBOX></a>
@@ -376,13 +385,14 @@ DEV post-v1, probably...<br>
             <b>NOTE:</b> the above <a href="gGetAttribute.htm#SIZE">SIZE</a> values are for gDialog <i>only</i>, 
             they will <b>not</b> work with other controls such as <a href="gButton.htm">gButton</a>, 
             <a href="gBox.htm">gBox</a>, or <a href="gFrame.htm">gFrame</a>.<br>
-            The dialog Natural size is only considered when the User size is not defined or when it is bigger than the Current size.
+            The dialog natural size is only considered when the user size is not defined.
+<!--?            or when it is bigger than the current size. -->
 <!--
              <br>
             This behavior is different from a control that goes inside the dialog. <br>
 //?         Because of that, when <a href="gGetAttribute.htm#SIZE">SIZE</a> or <a href="gSetAttribute.htm#RASTERSIZE">RASTERSIZE</a> are set 
-            (changing the User size), the Current size is internally reset to 0x0, 
-            so the the Natural size can be considered when re-computing the Current size of the dialog.
+//?         (changing the User size), the current size is internally reset to 0x0, 
+//          so the the natural size can be considered when re-computing the current size of the dialog.
 -->
             <br>
             <br>
@@ -1437,13 +1447,12 @@ focus: is non zero if the dialog or any of its children is getting the focus, is
             <br>
             Attempting gDialog(child,bEsc) would be mis-treated as gDialog(child,parent), since <a href="logicops.htm#tf">false</a> is 
             the same as NULL aka no parent, and <a href="logicops.htm#tf">true</a> is the same as 1 which <i>could</i> be the valid id 
-            of a parent dialog, whereas any of (say) <br>
+            of a parent dialog, whereas any and all of the following should be fine:<br>
             &nbsp;&nbsp;&nbsp;gDialog(child,NULL,bEsc), <br>
             &nbsp;&nbsp;&nbsp;gDialog(child,"",bEsc), <br>
             &nbsp;&nbsp;&nbsp;gDialog(child,bEsc:=bEsc), <br>
             &nbsp;&nbsp;&nbsp;gDialog(child,"CLOSE_ON_ESCAPE=%t",{bEsc}), or even <br>
-            &nbsp;&nbsp;&nbsp;gDialog(child) with a later <a href="gSetAttribute.htm">gSetAttribute</a>(dlg,"CLOSE_ON_ESCAPE",bEsc) <br>
-            should all be fine.
+            &nbsp;&nbsp;&nbsp;gDialog(child) with a later <a href="gSetAttribute.htm">gSetAttribute</a>(dlg,"CLOSE_ON_ESCAPE",bEsc)
             <br>
             <br>
             Typically only the main dialog on a non-trivial program needs bEsc setting, and it is pretty rare you would <i>not</i> 
@@ -1502,10 +1511,12 @@ focus: is non zero if the dialog or any of its children is getting the focus, is
             It is not actually an error to never set it, just fairly unlikely to be what you genuinely want, unless you are hiding 
             the whole title bar, if/when that becomes possible, and even then a hidden name could still prove quite useful for
             debugging purposes.
+<!--
             <br>
             <br>
 ?           pGUI/IUP had/has a boolean "SHRINK" setting (default: NO) on an <a href="IupDialog.htm">IupDialog</a> that allowed a dialog 
             to be (manually) resized smaller than the natural size, cropping contents. It has not been copied, but may one day be.
+-->
             <br>
             <br>
             Note that under WinAPI, xpGUI uses plain windows, not "dialogs", which pretty much must be defined in a resource section,

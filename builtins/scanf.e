@@ -56,7 +56,9 @@ constant NONE    = 0,
          DECIMAL = 10,
          BINARY  = 12,
          HEXADEC = 16,
-         OCTAL   = 18
+         OCTAL   = 18,
+         ROMAN   = 20,  -- ( ie %R )
+         ROMAL   = 21   -- ( ie %r )
 
 function parse_fmt(string fmt)
 --
@@ -102,6 +104,7 @@ sequence res = {}
                 case 't':               ftyp = OCTAL
                 case 'x':               ftyp = HEXADEC
                 case 'f','g','e':       ftyp = ATOM
+                case 'r':               ftyp = iff(scan_ch='R'?ROMAN:ROMAL)
                 case '%':               ftyp = LITERAL
                 default:                crash("bad format")
             end switch
@@ -353,7 +356,7 @@ integer msign, base = 0, tokvalid = 1
         end if
         if base=0 then base=inbase end if
 
-        while 1 do
+        while true do
 --          if scan_ch<'0' or scan_ch>'9' then
 --              if scan_ch!='_' then exit end if    -- allow eg 1_000_000 to mean 1000000
 --          else
@@ -378,8 +381,9 @@ integer msign, base = 0, tokvalid = 1
             if scan_ch!='.' then
                 -- allow eg 65'A' to be the same as 65:
 --DEV could probably do with some more bounds checking here (spotted in passing)
-                if scan_ch='\'' and s[sidx]=N and s[sidx+2]='\'' then
-                    sidx += 3
+--              if scan_ch='\'' and s[sidx]=N and s[sidx+2]='\'' then
+                if scan_ch='\'' and scan_ch2=N and sidx<length(s) and s[sidx+1]='\'' then
+                    sidx += 2
                     return {N*msign,sidx}
                 end if
                 scan_ch2 = '.'
@@ -424,6 +428,31 @@ integer msign, base = 0, tokvalid = 1
     return {}
 end function
 
+local function from_roman(string s)
+    integer res = 0, prev = 0
+    for i=length(s) to 1 by -1 do
+        integer rdx = find(upper(s[i]),"IVXLCDM"),
+                rn = power(10,floor((rdx-1)/2))
+        if even(rdx) then rn *= 5 end if
+        res += iff(rn<prev?-rn:rn)
+        prev = rn
+    end for
+    return res
+end function
+
+local function get_roman(string s, integer sidx, ffi)
+    string romans = iff(ffi=ROMAN?"MDCLXVI":"mdclxvi")
+    if sidx>length(s) then return {} end if
+    scan_ch = s[sidx]
+    integer r1 = sidx
+    while find(scan_ch,romans) do
+        sidx += 1
+        if sidx>length(s) then exit end if
+        scan_ch = s[sidx]
+    end while
+    return iff(sidx>r1?{from_roman(s[r1..sidx-1]),sidx}:{})
+end function
+
 global function to_number(string s, object failure={}, integer inbase=10)
     atom N
     integer sidx = 1
@@ -445,7 +474,7 @@ global function to_number(string s, object failure={}, integer inbase=10)
 end function
 
 
-function scanff(sequence res, string s, integer sidx, sequence fmts, integer fidx)
+local function scanff(sequence res, string s, integer sidx, sequence fmts, integer fidx)
 object ffi, tries
 integer start
 sequence resset = {}
@@ -486,6 +515,13 @@ atom N
                 sidx += 1
             end while
             res = resset
+        elsif ffi=ROMAN
+           or ffi=ROMAL then
+            tries = get_roman(s,sidx,ffi)
+            if length(tries)=0 then return {} end if
+            {N, sidx} = tries
+            res = append(res,N)
+            res = scanff(res,s,sidx,fmts,fidx+1)
         else
 --       ATOM    = 4,   -- ( ie %f )
 --       DECIMAL = 10,

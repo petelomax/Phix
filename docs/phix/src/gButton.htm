@@ -124,8 +124,10 @@ gMainLoop()
             <a href="gDialog.htm#DEFAULTENTER">DEFAULTENTER</a>/<a href="gDialog.htm#DEFAULTESC">DEFAULTESC</a> on the dialog, as well as clicking 
             on them, obviously.
             <br>
+<!--
             <br>
             Some further examples can be seen in demo\xpGUI\sample.exw<br>
+-->
           <a name=gQuit></a>
          </td>
         </tr>
@@ -134,7 +136,7 @@ gMainLoop()
           <b>Shorthand:</b>
          </td>
          <td>
-            The following routine is defined in xpGUI.e for use as a simple shorthand on "Close"/"Quit" buttons:
+            Use <b>gQuit</b> as a simple shorthand for "Close"/"Cancel"/"Quit"(etc) buttons, when nowt else needs doing:
             <br>
             <small>
 <!--eucode>
@@ -148,8 +150,10 @@ gMainLoop()
 <font color="#008080">            end function</font>
 </pre>
             </small>
+<!--
             Of course, should you want to perform any additional processing when such a button is clicked, then as per
             action() above just write a similar (renamed) routine containing the required code and use that instead.
+-->
          </td>
         </tr>
 
@@ -224,16 +228,26 @@ gMainLoop()
           IMAGE
          </td>
          <td>
-            (creation only, via <Ma href="gSetAttribute.htm">gSetAttribute</a>() only, write only, non inheritable) a <a href="gImage.htm">gImage</a>. <br>
+<!--        (creation only, via <Ma href="gSetAttribute.htm">gSetAttribute</a>() only, write only,-->
+            (non inheritable) a <a href="gImage.htm">gImage</a>. <br>
 <!--
             It is <i>not</i> possible to define an image in the initial creation call, since attributes/args are effectively string-only, and in
             addition a <a href="gImage.htm">gImage</a> is highly backend-specific, as the documentation for that states.<br>
 -->
             Obviously attributes/args would need to be in one of the leading '=' forms to specify an image in the initial creation call.<br>
-            [DEV] Note that under WinAPI the size does not take the image into account properly, let me know if you find a fix for that.<br>
+            Whether a button contains text, an image, or both, is fixed at creation. Both may be substituted, but the (space for or size of) 
+            an image cannot be added/removed, and if the text is NULL or "" when first displayed then attempts to set it will/may be quietly 
+            ignored.<br>
 <!--
+            While they can be substituted later, the presence/absence of images and text is fixed at creation, in other words you can replace
+            an image with another one but not remove it or add one where there was none, and likewise you can replace some text with some 
+            other text, but not if the text was initially NULL or "" when the button was first mapped/displayed. 
+-->
+            You could perhaps hide one button and instead show a different one, in roughly the same place, should that help any.<br>
+<!--
+            [DEV] Note that under WinAPI the size does not take the image into account properly, let me know if you find a fix for that.<br> [FIXED]
             Must be set before map.[?] defines the behavior of the button to contain an image. <br>
-?           The natural size will be size of the image in pixels, plus the button borders. <br>
+//?         The natural size will be size of the image in pixels, plus the button borders. <br>
             Use <a href="IupSetHandle.htm">IupSetHandle</a> or <a href="IupSetAttributeHandle.htm">IupSetAttributeHandle</a> to associate an image to a name. <br>
             See also <a href="IupImage.htm">IupImage</a>. <br>
 -->
@@ -258,7 +272,7 @@ gMainLoop()
          </td>
          <td>
             (non inheritable) Image name of the pressed button. <br>
-            If IMPRESS and IMAGE are defined, the button borders are not shown and not computed in natural size. <br>
+//          If IMPRESS and IMAGE are defined, the button borders are not shown and not computed in natural size. <br>
             When the button is clicked the pressed image does not offset. <br>
             In Motif the button will lose its focus feedback also. (GTK 2.6)
          </td>
@@ -335,11 +349,12 @@ gMainLoop()
             (non inheritable) Button&rsquo;s text. <br>
             If <a href="#IMAGE">IMAGE</a> is not defined before map, then the default behavior is to contain only text. <br>
 <!--?           The button behavior can not be changed after map. <br>-->
-            The natural size will be large enough to include all the text in the selected font, even using multiple lines, plus the button borders. <br>
+            The natural size will be large enough to include all the text in the selected font, even using multiple lines, plus 
+            when specified an image, and the button borders. <br>
             The '\n' character is accepted for line change. <br>
             The "&" character can be used to define a mnemonic, the next character will be used as key. <br>
             Use "&&" to show the "&" character instead of defining a mnemonic. <br>
-?           The button can be activated from any control in the dialog using the "Alt+key" combination.
+            The button can be activated from any control in the dialog using the "Alt+key" combination.
 <!--
              <br>
             In old Motif versions (2.1) using a '\n' causes an invalid memory access inside Motif. (mnemonic support since 3.0)
@@ -356,7 +371,8 @@ gMainLoop()
             <a href="gSetAttribute.htm#FONT">FONT</a>, 
 <!--        <a href="gSetAttribute.htm#NAME">NAME</a>, -->
             <a href="gSetAttribute.htm#EXPAND">EXPAND</a>, 
-?           <a href="gSetAttribute.htm#PADDING">PADDING</a>, 
+            <a href="gSetAttribute.htm#MARGIN">MARGIN</a>, 
+<!--?           <a href="gSetAttribute.htm#PADDING">PADDING</a>, -->
 <!--?           <a href="gGetAttribute.htm#POSITION">POSITION</a>, -->
 <!--?           <a href="gGetAttribute.htm#SCREENPOSITION">SCREENPOSITION</a>, -->
 <!--            <a href="gSetAttribute.htm#MINSIZE">MINSIZE</a>, -->
@@ -387,17 +403,18 @@ gMainLoop()
          <td>
             Event generated when the button is activated, similar to "click" events in other systems. When using a mouse, the 
             event is only triggered when release occurs <i>inside</i> the button area, but you can also (tab-to and) activate 
-            a button using the keyboard, or use an accelerator key, or even ESC/ENTER when specified as that default on the.
+            a button using the keyboard, or use an accelerator key, or even ENTER/ESC when specified as that default on the
             dialog, via <a href="gDialog.htm#DEFAULTENTER">DEFAULTENTER</a>/<a href="gDialog.htm#DEFAULTESC">DEFAULTESC</a>.
             <br> 
             <br> 
             Note that in xpGUI "<a href="gSetHandler.htm#CLICK">CLICK</a>" is a lower-level event that applies to pretty much 
             all controls except menus, including left/middle/right and single/double/release events as well as ctrl/shift/alt,
-            and only a select few of those w/should match/justify what/when triggers "ACTION".
+            and only a selected few of those w/should match/justify what/when triggers "ACTION", and also in any case such an
+            event would <i>never</i> cover button activation via the keyboard.
             <br>
             <br>
-            function action(<a href="gdx.htm">gdx</a> h)<br>
-            h: identifier of the element that activated the event.
+            function action(<a href="gdx.htm">gdx</a> id)<br>
+            id: identifier of the element that activated the event.
 <!-- (simply untested... [DEV])
             <br>
             <br>

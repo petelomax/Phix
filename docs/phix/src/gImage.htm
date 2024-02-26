@@ -239,7 +239,7 @@ end procedure
 
 gdx canvas = gCanvas(redraw),
     dialog = gDialog(canvas,`gImage`,`SIZE=240x80`)
-gCanvasSetBackground(canvas, XPG_LIGHT_PARCHMENT)
+gSetAttribute(canvas,"BGCLR",XPG_LIGHT_PARCHMENT)
 gShow(dialog)
 gMainLoop()
 </eucode-->
@@ -274,7 +274,7 @@ gMainLoop()
 </font>
 <font color="#7060A8">gdx</font><font color="#000000"> canvas</font><font color="#0000FF"> =</font><font color="#7060A8"> gCanvas</font><font color="#0000FF">(</font><font color="#000000">redraw</font><font color="#0000FF">),</font>
 <font color="#000000">    dialog</font><font color="#0000FF"> =</font><font color="#7060A8"> gDialog</font><font color="#0000FF">(</font><font color="#000000">canvas</font><font color="#0000FF">,</font><font color="#008000">`gImage`</font><font color="#0000FF">,</font><font color="#008000">`SIZE=240x80`</font><font color="#0000FF">)</font>
-<font color="#7060A8">gCanvasSetBackground</font><font color="#0000FF">(</font><font color="#000000">canvas</font><font color="#0000FF">,</font><font color="#004600"> XPG_LIGHT_PARCHMENT</font><font color="#0000FF">)</font>
+<font color="#7060A8">gSetAttribute</font><font color="#0000FF">(</font><font color="#000000">canvas</font><font color="#0000FF">,</font><font color="#008000">"BGCLR"</font><font color="#0000FF">,</font><font color="#004600">XPG_LIGHT_PARCHMENT</font><font color="#0000FF">)</font>
 <font color="#7060A8">gShow</font><font color="#0000FF">(</font><font color="#000000">dialog</font><font color="#0000FF">)</font>
 <font color="#7060A8">gMainLoop</font><font color="#0000FF">()</font>
 </pre>
@@ -667,19 +667,20 @@ IupSetAttribute(label, "IMAGE", "../etc/tecgraf.bmp");
             the gdc type (still there in the source code and docs, but commented out in both), and probably renaming all the canvas primitives...
             <br>
             <br>
-            Internally, the transparent_colour parameter is set to the (currently private) colours XPG_BTN_BG, XPG_MENUBG, and to a lesser extent XPG_MENUHLT, 
-            to help avoid creating (wrong pseudo-transparency) bitmaps that will never actually be used. It is not massively important, quite the opposite.
+            Internally, the transparent_colour parameter is set to the (currently private) colours XPG_BTN_BG, XPG_MENUBG, XPG_BTN_IA for inactive buttons,
+            and XPG_MENUHLT for highlit menus, instead of (nearly always) creating (wrong pseudo-transparency) bitmaps that will never actually be used. 
+            It is not massively important, quite the opposite.
             <br>
             <br>
             GTK, HTML/JS, and gImageDraw() all handle transparency properly, however that is not the case for buttons and menu items under WinAPI, hence
-            xpGUI creates bitmaps with the specified "background" (when needed both XPG_MENUBG and XPG_MENUHLT in the case of menus) and uses them instead. 
+            xpGUI creates bitmaps with the specified "background" (when needed both BG and IA/HLT) and uses them instead. 
             Under WinAPI, xpGUI.e maintains a mini-cache of images for each background colour - see xpm_clrs, under GTK each entry is always length 1.
             <br>
             <br>
             Otherwise transparent_colour is (almost/effectively) completely ignored in all other cases (ie the first three just mentioned), though might still 
             go kaboom should you throw XPG_BLACK/NULL at it, so dont do dat, and in fact XPG_WHITE was chosen so it could try all 16,777,215 available colours 
             when looking for an unused one. Supplying the wrong transparent_colour should not be noticeable, just waste a tiny (very tiny) wee bit of memory,
-            wheres obviously and in contrast defining the xpm itself wrong would be <i>very</i> noticeable, more often than not.
+            whereas obviously and in contrast defining the xpm itself wrong would be <i>very</i> noticeable, more often than not.
 <!-- it now checks:
             <br>
             <br>

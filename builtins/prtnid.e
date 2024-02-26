@@ -104,7 +104,7 @@ global function routine_id(sequence s)
 
 sequence symtab         -- yup, we (routine_id) is symtab[188], give or take...
 object  si              -- copy of symtab[i], speedwise
-integer rtn,            -- routine number of callee, from callstack
+integer rid,            -- routine number of callee, from callstack
         cFno,           -- calling fileno. Any namespace *must* be in this file.
         tFno,           -- target fileno, or 0 if no namespace specified
         siFno,          -- copy of si[S_FPno], speedwise
@@ -125,14 +125,14 @@ sequence name_space     -- eg "fred" when "fred:thing" is passed as parameter.
 --DEV (16/03/2013) if we add parentscope to routine_id then we must add locals, see pemit.e
 --          mov edi,[ebp+20]    -- prev_ebp
             mov edi,[edi+8]     -- calling routine no
-            mov [rtn],edi
+            mov [rid],edi
 --      [64]
 --          pop al  -- see prtnidN.e (:%opGetST now in pStack.e)
 --      []
           }
 
-    cFno = symtab[rtn][S_FPno]      -- fileno of callee (whether routine or toplevel)
---?{rtn,cFno}
+    cFno = symtab[rid][S_FPno]      -- fileno of callee (whether routine or toplevel)
+--?{rid,cFno}
     tFno = find(':',s)
     if tFno then
         name_space = s[1..tFno-1]

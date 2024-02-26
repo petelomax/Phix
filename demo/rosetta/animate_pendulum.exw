@@ -24,25 +24,18 @@ atom angle = iff(full?PI-0.01:PI/2),  -- (near_vertical | horiz)
      velocity = 0
 integer w = 0, h = 0, len = 0
 
+--procedure redraw(gdx /*canvas*/, integer w, h) -- no, see above!
 procedure redraw(gdx /*canvas*/)
---  {w, h} = gGetIntInt(canvas, "DRAWSIZE[*charsize]")
     {w, h} = gGetIntInt(canvas, "SIZE")
-    --cdCanvasActivate(cdcanvas)
-    --cdCanvasClear(cdcanvas)
     -- new suspension point:
     integer sX = floor(w/2),
             sY = floor(h/iff(full?2:16)),  -- (mid | top)
     -- repaint:
             eX = floor(len*sin(angle)+sX),
             eY = floor(len*cos(angle)+sY)
---  gCanvasSetForeground(cdcanvas, XPG_CYAN)
     gCanvasLine(canvas, sX, sY, eX, eY, colour:=XPG_CYAN)
---  gCanvasSetForeground(cdcanvas, XPG_DARK_GREEN)
     gCanvasCircle(canvas, sX, sY, 3, true, colour:=XPG_DARK_GREEN)
---  gCanvasSetForeground(cdcanvas, XPG_BLUE)
     gCanvasCircle(canvas, eX, eY, 18, true, colour:=XPG_BLUE)
-    --cdCanvasFlush(cdcanvas)
---  return XPG_DEFAULT
 end procedure
 
 procedure timer_action(gdx /*timer*/)
@@ -59,36 +52,13 @@ procedure timer_action(gdx /*timer*/)
         angle += dt*velocity
         gRedraw(canvas)
     end if
---  return XPG_IGNORE
 end procedure
-
---function map_cb(gdx /*ih*/)
---  IupGLMakeCurrent(canvas)
---  if platform()=JS then
---      cdcanvas = cdCreateCanvas(CD_IUP, canvas)
---  else
---      atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
---      cdcanvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
---  end if
---  gCanvasSetBackground(cdcanvas, XPG_PARCHMENT)
---  return XPG_DEFAULT
---end function
---
---function canvas_resize_cb(gdx /*canvas*/)
---  integer {canvas_width, canvas_height} = gGetIntInt(canvas, "DRAWSIZE[*charsize]")
---  atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
---  cdCanvasSetAttribute(cdcanvas, "SIZE[*charsize]", "%dx%d %g", {canvas_width, canvas_height, res})
---  return XPG_DEFAULT
---end function
 
 procedure main()
     
     canvas = gCanvas(redraw)
-    gSetAttribute(canvas, "SIZE", iff(full?"640x640":"640x340")) -- (fit 360|180)
-    gCanvasSetBackground(canvas, XPG_PARCHMENT)
---  gSetHandler(canvas, ?MAP_CB?[DEAD], map_cb)
---  gSetHandler(canvas, "ACTION", redraw_cb)
---  gSetHandler(canvas, "RESIZE[*charsize]_CB", canvas_resize_cb)
+    gSetAttribute(canvas,"SIZE",iff(full?"640x640":"640x340")) -- (fit 360|180)
+    gSetAttribute(canvas,"BGCLR",XPG_PARCHMENT)
 
     timer = gTimer(timer_action, 20)
 

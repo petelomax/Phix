@@ -312,11 +312,15 @@ function $charArray(s) {
 // Needed because Array.from(string) produces lots of diddy-strings...
 //  whereas this produces the array of codePointAt I was expecting.
     string(s,"s");
-    let l = s.length;
+    let l = s.length, i = 1;
     let res = ["sequence"];
-    for (let i = 0; i < l; i += 1) {
-        let ch = s.codePointAt(i);
-        res[i+1] = ch;
+// As per MDN:
+//  for (let i = 0; i < l; i += 1) {
+    for (const codePoint of s) {
+//      let ch = s.codePointAt(i);
+        let ch = codePoint.codePointAt(0);
+//      res[i+1] = ch;
+        res[i++] = ch;
     }
     return res;
 }
@@ -402,6 +406,8 @@ function sprintf(fmt, args = []) {
             tr = typeof(res);
         if (tr == "boolean") {
             res = res ? 1 : 0;
+        } else if (res instanceof HTMLElement) {
+            res = res.ID;
         } else {
             if (!Number.isInteger(res)) {
                 if (tr !== "number") {
@@ -582,6 +588,29 @@ function sprintf(fmt, args = []) {
         return r1;
     }
 
+    function toRoman(/*integer*/ n) {
+        assert(n>=1 && n<=3999);
+        let /*string*/ res = "";
+        let /*integer*/ idx = 1,  // (..7, to "MDCLXVI")
+                        rn = 1000,  // 500,100,50,10,5,1
+                        tenth = 100; // 100, 10,10, 1,1,0
+        while (n>0) {
+            while (n>=rn) {
+                res = $conCat(res, $subse("MDCLXVI",idx), false);
+                n -= rn;
+            }
+            if (compare(n+tenth,rn)>=0) {
+                res = $conCat(res, $subse("CXI",floor((idx+1)/2)), false);
+                n += tenth; // above loop once more
+            } else if (n) {
+                idx += 1;
+                rn /= ((odd(idx)) ? 5 : 2);
+                if (odd(idx)) { tenth = floor(rn/10); }
+            }
+        }
+        return res;
+    }
+
 //  function callback(expr, sgn, size, dot, precision, specifier) {
     function callback(expr, subscript, sgn, size, dot, precision, specifier) {
         //
@@ -644,6 +673,8 @@ function sprintf(fmt, args = []) {
             case 'F': res = blankTZ(flti(precision).toFixed(precision)); break;
             case 'g': res = eorf(precision); break;
             case 'G': res = eorf(precision).toUpperCase(); break;
+            case 'R': res = toRoman(inti()); break;
+            case 'r': res = toRoman(inti()).toLowerCase(); break;
             default: crash("unrecognised specifier");
         }
         if (sgn === ',') {
@@ -681,7 +712,7 @@ function sprintf(fmt, args = []) {
     // Replace each %[subscript][sgn][[0]size][.[precision]]specifier (eg "%,7.2f") in turn
     //  (where sgn is one of "-+_=|," or undefined)
     //
-    const regex = new RegExp(`%(\[-?[0-9]+\])?([-+_=|,])?(0?[0-9]+)?([.]([0-9]+)?)?([sqQtncvVdboxXaAeEfFgG%])`,'g');
+    const regex = new RegExp(`%(\[-?[0-9]+\])?([-+_=|,])?(0?[0-9]+)?([.]([0-9]+)?)?([sqQtncvVdboxXaAeEfFgGRr%])`,'g');
     if (string(args)) {
         if (fmt.match(regex).length>1) { args = $charArray(args); }
     }
@@ -713,8 +744,11 @@ function sprint(o,asCh) {
 //      let all_ascii = true;
         let l = o.length;
         res = "\"";
-        for (let i = 0; i < l; i += 1) {
-            let ch = o.codePointAt(i);
+//As per MDN:
+//      for (let i = 0; i < l; i += 1) {
+        for (const codePoint of o) {
+//          let ch = o.codePointAt(i);
+            let ch = codePoint.codePointAt(0);
             if (ch === 0) {
                 res += "\\0";
             } else if (ch === 0X5C) {
@@ -722,7 +756,8 @@ function sprint(o,asCh) {
             } else if (ch === 0X22) {
                 res += "\\\"";
             } else if (ch >= 32) {
-                res += o[i];
+//              res += o[i];
+                res += codePoint;
             } else if (ch === 9) {
                 res += "\\t";
             } else if (ch === 10) {
@@ -1101,7 +1136,7 @@ function machine_word() {
 }
 
 function version() {
-    return "1.0.4";
+    return "1.0.5";
 }
 //let IupVersion = version;
 

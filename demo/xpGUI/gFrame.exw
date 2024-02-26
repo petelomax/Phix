@@ -10,8 +10,31 @@
 --without js -- multiline labels are not supported (yet, or ?ever? - is there /really/ any need?)
 --requires(64,true)
 with javascript_semantics
+--with trace
 include xpGUI.e
---gUseGTK()
+--include backup\xpGUI.0003.e  -- no gQuit...
+--include backup\xpGUI.0220.e -- GOOD
+--include backup\xpGUI.0801.e -- GOOD
+--include backup\xpGUI.0826.e -- GOOD
+--include backup\xpGUI.1502.e -- X
+--include backup\xpGUI.1507.e -- GOOD
+--include backup\xpGUI.1530.e -- GOOD
+--include backup\xpGUI.1532.e -- GOOD (right size)
+--include backup\xpGUI.1533.e -- BAD
+--include backup\xpGUI.1535.e -- BAD
+--include backup\xpGUI.1542.e -- BAD (big)
+--include backup\xpGUI.1545.e -- X
+--include backup\xpGUI.1572.e -- OK
+--include backup\xpGUI.1830.e -- OK
+--include backup\xpGUI.1905.e -- OK
+--include backup\xpGUI.1993.e -- OK
+--include backup\xpGUI.1997.e -- OK
+--include backup\xpGUI.2004.e -- BAD
+--include backup\xpGUI.2066.e -- BAD
+--include backup\xpGUI.2120.e -- BAD
+--include backup\xpGUI.2140.e -- BAD
+
+--gUseGTK() -- goes mental!! (fixed, at end of xpg_lm_disperse_user_sizes)
 
 --/*
 --Manual screenshot version:
@@ -97,13 +120,19 @@ constant frametitle = `gFrame`,
 --        frameattr = `SIZE=160x35`,
 --        frameattr = `SIZE=210x170`,
 --        frameattr = `SIZE=110x42`,
-          frameattr = `SIZE=110x42,MARGIN=5`,
+--        frameattr = `SIZE=110x42,MARGIN=5`,
+--        frameattr = `MARGIN=5`,
+--        frameattr = `MARGIN=5, EXPAND=BOTH`,
+--        frameattr = `PADDING=5, EXPAND=BOTH`,
+          frameattr = `EXPAND=BOTH`,
 --        frameattr = ``,
 --        frameattr = `ACTIVE=YES`,
 --        frameattr = `ACTIVE=NO`,
-          sane_attr = substitute_all(frameattr,{", ","="},{"\n",":"}),
+--        sane_attr = substitute_all(frameattr,{", ","="},{"\n",":"}),
+          sane_attr = substitute_all(frameattr,{",","="},{";",":"}),
 --        labeltext = "IupFrame Attributes:\n"&sane_attr
           labeltext = "IupFrame Attributes: "&sane_attr
+--        labeltext = "IupFrame Attributes: "&frameattr
 
 gdx quit_bt = gButton("Quit", quit),
 --gdx quit_bt = gButton("Quit", quit_cb, "EXPAND=FALSE"),
@@ -111,17 +140,27 @@ gdx quit_bt = gButton("Quit", quit),
 --DEV:
 --  vbox = gVbox({gCanvas("SIZE=100x100"),
 --                gFill(),
-                  quit_bt}),
+--                quit_bt}),
+                  quit_bt},"MARGIN=2"),
 --                gHbox({quit_bt})}),
 --  frame = gFrame(vbox,"This is the frame",frameattr),
---  frame = gFrame(vbox,frametitle,frameattr),
+    frame = gFrame(vbox,frametitle,frameattr),
 --  frame = gFrame(vbox,frameattr),
-    frame = gFrame(NULL,frametitle,frameattr),
+--  frame = gFrame(NULL,frametitle,frameattr),
 --  hbox = gHbox({frame},"MARGIN=10x10"),
-    hbox = gHbox({gVbox({frame})}),
+--  hbox = gHbox({gVbox({frame})}),
+--  hbox = gHbox({frame},"MARGIN=0"),
+    hbox = gHbox({frame},"MARGIN=5"),
+--  hbox = gHbox({gHbox({frame},"MARGIN=10")},"MARGIN=5"),
 --  hbox = gHbox({gVbox({frame})},"MARGIN=10x0"),
 --  dlg = gDialog(hbox,"gFrame","SIZE=240x80")
-    dlg = gDialog(frame,"SIZE=240x80")
+--  dlg = gDialog(frame,"SIZE=240x80")
+--  dlg = gDialog(hbox,"SIZE=240x80")
+--DEV what we want vs what we must say to get it... (WinAPI)
+--  dlg = gDialog(hbox,"MINSIZE=240x102")
+    dlg = gDialog(hbox,"MINSIZE=238x70")
+--  dlg = gDialog(hbox,"SIZE=240x100")
+--  dlg = gDialog(frame,"SIZE=240x80,EXPAND=BOTH")
 --gSetBodge(frame,{5,0,110,42})
 --  dlg = gDialog(hbox,"gFrame")
 --  dlg = gDialog(frame,"gFrame")
@@ -148,6 +187,8 @@ gdx label = gLabel(labeltext),
 --*/
 
 --  IupSetAttributeHandle(dlg, "DEFAULTESC", quit_bt)
+--trace(1)
+--gSetAttribute(dlg,"EXPAND","BOTH")
 
 gShow(dlg)
 --?"shown"
@@ -155,6 +196,9 @@ gShow(dlg)
 --?"focus"
 --gSetFocus(vbox)
 --?gGetAttribute(frame,"SIZE")
+--?gGetAttribute(frame,"EXPAND")
+--?gGetAttribute(dlg,"EXPAND")
+?gGetAttribute(dlg,"SIZE")
 --?"frame_title..."
 --?gGetAttribute(frame,"TITLE","??")
 
@@ -164,3 +208,56 @@ gShow(dlg)
 
 gMainLoop()
 --*!/
+
+--/*
+WinAPI:
+{"gShow",6,215,2,102'f',32' ',{213,70'F'}}
+{"xpg_lm_disperse_user_sizes",6,213,70'F',0,0}
+{"xpg_lm_disperse_user_sizes",5,203,60'<',0,0}
+{"xpg_lm_disperse_user_sizes",4,203,60'<',5,5}
+{"frame bexpand",{{197,40'(',1,14}}}
+{"xpg_lm_disperse_user_sizes",3,197,40'(',1,14}
+{"xpg_lm_disperse_user_sizes",2,197,15,3,16}
+{"xpg_lm_disperse_user_sizes",1,43'+',26,3,31}
+{"xpg_lm_apply_sizes_and_offsets",6,0,0,215,102'f'}
+{"xpg_lm_apply_sizes_and_offsets",5,5,5,203,60'<'}
+{"xpg_lm_apply_sizes_and_offsets",4,5,5,203,60'<'}
+{"xpg_lm_apply_sizes_and_offsets",3,3,16,197,40'('}
+{"xpg_lm_apply_sizes_and_offsets",2,3,16,197,15}
+c_func(xSetWindowPos,{{2,"Label"},0,3,16,197,15,"SWP_NOZORDER"}) ==> 1
+{"xpg_lm_apply_sizes_and_offsets",1,3,31,43'+',26}
+c_func(xSetWindowPos,{{1,"Button"},0,3,31,43,26,"SWP_NOZORDER"}) ==> 1
+c_func(xSetWindowPos,{{4,"Frame"},0,5,5,203,61,"SWP_NOZORDER"}) ==> 1
+{"WM_SIZE",6,222,70'F'}
+c_func(xSetWindowPos,{{6,"Dialog"},0,0,0,229,109,"SWP_NOMOVE+SWP_NOZORDER"}) ==> 1
+c_func(xSetWindowPos,{{6,"Dialog"},0,848,489,217,134,"SWP_NOSIZE+SWP_NOZORDER"}) ==> 1
+{"WM_SIZE",6,222,70'F'}
+{"xpg_resize",6,238,70'F',{238,70'F'},{0,0}}
+{"xpg_lm_disperse_user_sizes",6,238,70'F',848,489}
+{"xpg_lm_disperse_user_sizes",5,228,60'<',0,0}
+{"xpg_lm_disperse_user_sizes",4,228,60'<',5,5}
+{"frame bexpand",{{222,40'(',1,14}}}
+{"xpg_lm_disperse_user_sizes",3,222,40'(',1,14}
+{"xpg_lm_disperse_user_sizes",2,197,15,3,16}
+{"xpg_lm_disperse_user_sizes",1,43'+',26,3,31}
+{"xpg_lm_apply_sizes_and_offsets",6,848,489,240,102'f'}
+{"xpg_lm_apply_sizes_and_offsets",5,5,5,228,60'<'}
+{"xpg_lm_apply_sizes_and_offsets",4,5,5,228,60'<'}
+{"xpg_lm_apply_sizes_and_offsets",3,3,16,222,40'('}
+{"xpg_lm_apply_sizes_and_offsets",2,3,16,197,15}
+c_func(xSetWindowPos,{{2,"Label"},0,3,16,197,15,"SWP_NOZORDER"}) ==> 1
+{"xpg_lm_apply_sizes_and_offsets",1,3,31,43'+',26}
+c_func(xSetWindowPos,{{1,"Button"},0,3,31,43,26,"SWP_NOZORDER"}) ==> 1
+c_func(xSetWindowPos,{{4,"Frame"},0,5,5,228,61,"SWP_NOZORDER"}) ==> 1
+{"WM_SIZE",6,238,70'F'}
+c_func(xSetWindowPos,{{6,"Dialog"},0,848,489,254,109,"SWP_NOMOVE+SWP_NOZORDER"}) ==> 1
+id ---ctyp---   x   y   w   h  nw  nh  uw  uh  p  children   flags
+ 1 Button       3  31  43  26  43  26   0   0  3  0          CF_MAPPED
+ 2 Label        3  16 197  15 197  15   0   0  3  0          CF_MAPPED
+ 3 Vbox         1  14 222  40 197  41   0   0  4  {2,1}      CF_EXPANDB+CF_CONTAINER+CF_MAPPED
+ 4 Frame        5   5 228  60 203  60   0   0  5  {3}        CF_EXPANDB+CF_CONTAINER+CF_DECORATED+CF_MAPPED
+ 5 Hbox         0   0 228  60 203  60   0   0  6  {4}        CF_EXPANDB+CF_CONTAINER+CF_MAPPED
+ 6 Dialog     848 489 240 102 215 102   0   0  0  {5}        CF_CONTAINER+CF_DECORATED+CF_RESIZE+CF_CLOSE_ON_ESC+CF_MAPPED+CF_UNMAPATTR
+{240,102'f'}
+
+--*/

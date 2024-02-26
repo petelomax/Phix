@@ -1608,7 +1608,6 @@ procedure completeFloat()
 atom dec
 --integer ndp -- number of decimal places
 integer exponent
-integer esigned
 --  ndp=0
 atom fraction
     if Ch='.' then
@@ -1638,7 +1637,7 @@ atom fraction
     exponent = 0
     if Ch='e' or Ch='E' then
         toktype = DIGIBAD
-        esigned = 0
+        integer esigned = 0 -- 23/2/24 now explicitly -1/0/+1
         while 1 do
             col += 1
             Ch = text[col]
@@ -1647,9 +1646,12 @@ atom fraction
             if Ch<'0' or Ch>'9' then
                 if Ch!='_' then
                     if toktype!=DIGIBAD then exit end if -- ie first time round only
+                    if esigned!=0 then exit end if       --           ""    
                     if Ch='-' then
-                        esigned = 1
-                    elsif Ch!='+' then
+                        esigned = -1
+                    elsif Ch='+' then
+                        esigned = +1
+                    else
                         exit
                     end if
                 end if
@@ -1658,14 +1660,16 @@ atom fraction
                 toktype = DIGIT
             end if
         end while
-        if esigned then
+        if esigned=-1 then
             exponent = -exponent
         end if
 --  end if
     if toktype=DIGIBAD then Abort("illegal") end if
 --  exponent-=ndp
 --  if exponent then
-        if exponent>308 then
+--22/2/24:
+--      if exponent>308 then
+        if exponent>308 and machine_bits()=32 then
             -- rare case: avoid power() overflow
             TokN *= power(10, 308)
             if exponent>1000 then
@@ -1676,11 +1680,12 @@ atom fraction
             end for
         elsif exponent<0 then
             TokN /= power(10,-exponent)
---28/9/22 (1e18 failed to be stored as an integer...)
-        elsif exponent<21 then
-            for e=1 to exponent do
-                TokN *= 10
-            end for
+--removed 22/2/24, VM/opPow should now cover this.
+----28/9/22 (1e18 failed to be stored as an integer...)
+--      elsif exponent<21 then
+--          for e=1 to exponent do
+--              TokN *= 10
+--          end for
         else
             TokN *= power(10, exponent)
         end if

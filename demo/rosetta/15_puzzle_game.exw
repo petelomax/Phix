@@ -111,57 +111,25 @@ procedure redraw(gdx /*ih*/)
     ts = floor((os-10)/4-7)
     ht = floor(ts/2+5)-10
 
---  cdCanvasActivate(cddbuffer)
---  gCanvasSetBackground(cddbuffer, #FAF8EF)
---  cdCanvasClear(cddbuffer)
---  gCanvasSetForeground(canvas, #BBADA0)
---  gCanvasSetBackground(canvas, #BBADA0)
---  cdCanvasRoundedBox(cddbuffer, ox+5, ox+os-5, oy+5, oy+os-5, 10, 10)
---  gCanvasRect(?cddbuffer, ox+5, ox+os-5, oy+5, oy+os-5, [bFill, rc:] 10, 10)
     gCanvasRect(canvas, ox+5, ox+os-5, oy+5, oy+os-5, true, 20, colour:=#BBADA0)
---DEV/SUG:
---gCanvasRect(gdx canvas, atom xmin, xmax, ymin, ymax, bool bFill=false, integer rc=0, style=-1, width=-1, atom colour=-1, fillcolour=-1)
---gCanvasRect(gdx canvas, atom xmin, xmax, ymin, ymax, bool bFill=false, integer rc=0, style=-1, width=-1, atoms colour=-1, fillcolour=-1)
---gCanvasRect(gdx canvas, atom xmin, xmax, ymin, ymax, bool bFill=false, integer rc=0, style=-1, width=-1, object colour=-1)
--- if colour is an atom, and not -1, it (transiently) sets both the foreground/outline and background/fill colours.
--- if colour is a sequence of length 2, it sets the forground and background colours differently (if not -1s).
---better: outline and fill in the same (foreground) colour!! - and have only the one colour parameter.... [DONE]
 
 --?board
     integer tx = ox+15
     for y=1 to 4 do
         integer ty = oy+15
         for x=1 to 4 do
---          gCanvasSetForeground(canvas, #EEE4DA)
---          gCanvasSetBackground(canvas, #EEE4DA)
---          cdCanvasRoundedBox(cddbuffer, tx, tx+ts-10, ty, ty+ts-10, 5, 5)
             gCanvasRect(canvas, tx, tx+ts-10, ty, ty+ts-10, true, 10, colour:=#EEE4DA)
---?{y,x,(4-x)*4+y}
---          integer bxy = board[(4-x)*4+y]
             integer bxy = board[(x-1)*4+y]
             if bxy then
---              gCanvasSetForeground(canvas, #776E65)
---              cdCanvasFont(canvas, "Calibri", CD_BOLD, 32)
---              gSetAttribute(canvas, "FONT", "Calibri, bold 32")
---              gCanvasText(canvas, tx+ht, ty+ht, sprint(bxy), XPG_C, colour:=#776E65) 
                 gCanvasText(canvas, tx+ht, ty+ht, sprint(bxy), XPG_C, {XPG_E,angle}, colour:=#776E65) 
             end if
             ty += ts+5
         end for
         tx += ts+5
     end for
---  gCanvasSetBackground[original](canvas)
     string fmt = iff(board==solved?"%s - solved":"%s")
     gSetAttribute(dialog,"TITLE",fmt,{title})
---  return XPG_DEFAULT
 end procedure
-
---function map_cb(gdx ih)
---  cdcanvas = cdCreateCanvas(CD_IUP, ih)
---  cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
---  gCanvasSetTextAlignment?[use gCanvasText(align:=x) instead](cddbuffer, 0) 
---  return XPG_DEFAULT
---end function
 
 function key_handler(gdx dlg, integer c)
 --  if c=VK_ESC then return XPG_CLOSE end if -- (standard practice for me)
@@ -178,7 +146,8 @@ function key_handler(gdx dlg, integer c)
 end function
 
 canvas = gCanvas(redraw,"SIZE=520x540")
-gCanvasSetBackground(canvas,#FAF8EF)
+--gCanvasSetBackground(canvas,#FAF8EF)
+gSetAttribute(canvas,"BGCLR",#FAF8EF)
 gSetAttribute(canvas, "FONT", "Calibri, bold 32")
 --gSetHandlers(canvas, {--?MAP_CB?[DEAD], map_cb,
 --                       "REDRAW", redraw})

@@ -81,7 +81,7 @@ end procedure
 
 gdx canvas = gCanvas(redraw),
     dialog = gDialog(canvas,`gCanvas`,`SIZE=240x163`)
-gCanvasSetBackground(canvas, XPG_PARCHMENT)
+gSetAttribute(canvas,"BGCLR",XPG_PARCHMENT)
 gShow(dialog)
 gMainLoop()
 </eucode-->
@@ -97,7 +97,7 @@ gMainLoop()
 </font>
 <font color="#7060A8">gdx</font><font color="#000000"> canvas</font><font color="#0000FF"> =</font><font color="#7060A8"> gCanvas</font><font color="#0000FF">(</font><font color="#000000">redraw</font><font color="#0000FF">),</font>
 <font color="#000000">    dialog</font><font color="#0000FF"> =</font><font color="#7060A8"> gDialog</font><font color="#0000FF">(</font><font color="#000000">canvas</font><font color="#0000FF">,</font><font color="#008000">`gCanvas`</font><font color="#0000FF">,</font><font color="#008000">`SIZE=240x163`</font><font color="#0000FF">)</font>
-<font color="#7060A8">gCanvasSetBackground</font><font color="#0000FF">(</font><font color="#000000">canvas</font><font color="#0000FF">,</font><font color="#004600"> XPG_PARCHMENT</font><font color="#0000FF">)</font>
+<font color="#7060A8">gSetAttribute</font><font color="#0000FF">(</font><font color="#000000">canvas</font><font color="#0000FF">,</font><font color="#008000">"BGCLR"</font><font color="#0000FF">,</font><font color="#004600">XPG_PARCHMENT</font><font color="#0000FF">)</font>
 <font color="#7060A8">gShow</font><font color="#0000FF">(</font><font color="#000000">dialog</font><font color="#0000FF">)</font>
 <font color="#7060A8">gMainLoop</font><font color="#0000FF">()</font>
 </pre>
@@ -130,33 +130,11 @@ gMainLoop()
             When the canvas is displayed for the first time, the handler call order is always:
             <br>
             <br>
-<X!X--
-//          <a href="gSetHandler.htm#MAP_CB">MAP_CB</a><br>
---X>
 //          <a href="gSetHandler.htm#RESIZE_CB">RESIZE_CB</a><br>
             <a href="#REDRAW">REDRAW</a>
             <br>
             <br>
 //          When the canvas is resized the <a href="#REDRAW">REDRAW</a> handler is always called after the <a href="gSetHandler.htm#RESIZE_CB">RESIZE_CB</a> handler.
-            <br>
-            <br>
-//          <h4>Using with the CD library</h4>
-            <br>
-//          When using the CD library to draw in a IupCanvas, you can use the handlers to manage the canvas. The simplest way is to do:
-            <br>
-            <br>
-<X!X--
-//          <a href="gSetHandler.htm#MAP_CB">MAP_CB</a> - calls cdCreateCanvas  (current size is not available yet)<br>
-//          <a href="gSetHandler.htm#UNMAP_CB">UNMAP_CB</a> - calls cdKillCanvas<br>
---X>
-//          <a href="gSetHandler.htm#RESIZE_CB">RESIZE_CB</a> - Calling <a href="cdCanvasActivate.htm">cdCanvasActivate</a>() and 
-//                      <a href="cdCanvasGetSize.htm">cdCanvasGetSize</a>() returns the same values as given by the handler parameters.
-//                      Recalculate the drawing size, update the scrollbars if any.<br>
-            <a href="#REDRAW">REDRAW</a> - call <a href="cdCanvasActivate.htm">cdCanvasActivate</a> then use CD primitives to draw the scene, and finally call 
-                        <a href="cdCanvasClear.htm#aux">cdCanvasFlush</a>() if using a double buffer.<br>
-            <a href="gSetHandler.htm#SCROLL_CB">SCROLL_CB</a> - when using scrollbars, if this handler is defined the canvas must be manually redrawn,
-                        call yourself the redraw handler or call <a href="gRedraw.htm">gRedraw</a>.
-                        In other words, if this handler is not defined the canvas is automatically redrawn.<br>
          </td>
         </tr>
 -->
@@ -330,69 +308,74 @@ gMainLoop()
             &nbsp;&nbsp;Values should be 0.0..1.0. An alpha of 0.0 is fully opaque, 1.0 is fully transparent.
 //          and therefore the result from any of those can also be used wherever a <a href="gdx.htm#gdc">gdc</a> type is required, as well as a
 //          <a href="gImage.htm">gImage</a>.
--->
-            You can set defaults for several subsequent calls, or override on each <small>(in small font below, just to keep lines short)</small>:
+
+            <a href="gSetAttribute.htm#BGCLR">BGCLR</a>, 
+            <a href="gSetAttribute.htm#FGCLR">FGCLR</a>, 
+            <a href="#LINESTYLE">LINESTYLE</a>, and
+            <a href="#LINEWIDTH">LINEWIDTH</a>
+
             <br><small>[DEV: these (8) may get/shd be replaced with (4) attributes...]</small>
             <br>
-            <a name=gCanvasSetBackground></a>
-            <a name=gCanvasGetBackground></a>
+//          <a name=gCanvasSetBackground></a>
+//          <a name=gCanvasGetBackground></a>
             <br>
-            <b>gCanvasSetBackground</b>(<a href="gdx.htm">gdx</a> canvas, <a href="atom.htm">atom</a> colour)<br>
-<!--            &nbsp;&nbsp;The colour can be eg <a href="#XPG_colours">XPG_PARCHMENT</a> or a similar literal constant or result from [hsv_to]rgba().<br>-->
+//          <b>gCanvasSetBackground</b>(<a href="gdx.htm">gdx</a> canvas, <a href="atom.htm">atom</a> colour)<br>
+<x!--           &nbsp;&nbsp;The colour can be eg <a href="#XPG_colours">XPG_PARCHMENT</a> or a similar literal constant or result from [hsv_to]rgba().<br>--x>
             &nbsp;&nbsp;The canvas is initially cleared to this colour, <i>prior</i> to a <a href="#REDRAW">REDRAW</a> handler. Default: <a href="#XPG_colours">XPG_WHITE</a>.
-<!-- I can think of no reason why anytmore...
+<x!-- I can think of no reason why anytmore...
             &nbsp;&nbsp;Automatically restored after each redraw, so you do not have to remember to.<br>
             &nbsp;&nbsp;<small>Note however it makes no attempt to retain/restore foreground or line style/width between redraw handler calls,
                                 esp. should any scrollbars be getting drawn.<br></small>
--->
-<!-- DEV test/update this... (commented out when I suddenly spotted my own "but not fills" below...)
-            &nbsp;&nbsp;To manually clear an area, draw a filled shape after <a href="#gCanvasSetForeground">gCanvasSetForeground</a>() instead.<br>
-            &nbsp;&nbsp;<a href="atom.htm">atom</a> colour = <b>gCanvasGetBackground</b>(<a href="gdx.htm">gdx</a> canvas) is also provided.
--->
+--x>
+<x!-- DEV test/update this... (commented out when I suddenly spotted my own "but not fills" below...)
+            &nbsp;&nbsp;To manually clear an area, draw a filled shape after gSetAttribute(canvas,"FGCLR") instead.<br>
+//          &nbsp;&nbsp;<a href="atom.htm">atom</a> colour = <b>gCanvasGetBackground</b>(<a href="gdx.htm">gdx</a> canvas) is also provided.
+--x>
             <br>
-            <a name=gCanvasSetForeground></a>
-            <a name=gCanvasGetForeground></a>
+//          <a name=gCanvasSetForeground></a>
+//          <a name=gCanvasGetForeground></a>
             <br>
-            <b>gCanvasSetForeground</b>(<a href="gdx.htm">gdx</a> canvas, <a href="atom.htm">atom</a> colour)<br>
+//          <b>gCanvasSetForeground</b>(<a href="gdx.htm">gdx</a> canvas, <a href="atom.htm">atom</a> colour)<br>
             &nbsp;&nbsp;Text, outer lines, and fills are drawn in this colour. Default: <a href="#XPG_colours">XPG_BLACK</a>.<br>
             &nbsp;&nbsp;Programs usually set the background once at the start but foreground often, via this directly or implicitly/transiently as below.<br>
-            &nbsp;&nbsp;<a href="atom.htm">atom</a> colour = <b>gCanvasGetForeground</b>(<a href="gdx.htm">gdx</a> canvas) is also provided,
-            ditto <b>gCanvasGetBackground</b>().
+//          &nbsp;&nbsp;<a href="atom.htm">atom</a> colour = <b>gCanvasGetForeground</b>(<a href="gdx.htm">gdx</a> canvas) is also provided,
+//          ditto <b>gCanvasGetBackground</b>().
+
             <br>
-            <a name=gCanvasSetLineStyle></a>
+//          <a name=gCanvasSetLineStyle></a>
             <br>
-            <b>gCanvasSetLineStyle</b>(<a href="gdx.htm">gdx</a> canvas, <a href="object.htm">object</a> style)<br>
+//          <b>gCanvasSetLineStyle</b>(<a href="gdx.htm">gdx</a> canvas, <a href="object.htm">object</a> style)<br>
             &nbsp;&nbsp;Default: XPG_CONTINUOUS(==1), valid styles are:<br>
             <img src="images/gCanvasLineStyles.png" border="2" width="262" height="62"/>
             <span style="visibility: hidden;"><small>XPG_DASHED XPG_DOTTED XPG_DASH_DOT XPG_DASH_DOT_DOT</small></span><br>
-<!--
+<Z!--
             &nbsp;&nbsp;Values other than XPG_CONTINUOUS reset the line width to 1, since WinAPI/GTK support nowt else.<br>
--->
+--X>
             Note that values other than XPG_CONTINUOUS with a line width other than 1 appear as rhomboids, and perhaps for that 
             same reason native WinAPI/GTK do not support such, but while that effect may be less than ideal it is reasonably acceptable on
             slightly thicker lines, and just seems churlish to remove it completely.<br>
             &nbsp;&nbsp;style may also be a sequence (of 1/0, see xpGUI.e) which sets XPG_CUSTOM_DASH(==6).<br>
             &nbsp;&nbsp;<small><i>(XPG_CUSTOM_DASH is currently set at the system level rather than per canvas, for no good reason, shout should that sting.)</i></small><br>
-            <a name=gCanvasGetLineStyle></a>
-            &nbsp;&nbsp;<a href="object.htm">object</a> style = <b>gCanvasGetLineStyle</b>(<a href="gdx.htm">gdx</a> canvas) is also provided
+//          <a name=gCanvasGetLineStyle></a>
+//          &nbsp;&nbsp;<a href="object.htm">object</a> style = <b>gCanvasGetLineStyle</b>(<a href="gdx.htm">gdx</a> canvas) is also provided
             (returns 1..5 but pattern not XPG_CUSTOM_DASH).<br>
             &nbsp;&nbsp;Use <a href="string.htm">string</a> res = <b>gGetLineStyleName</b>(<a href="object.htm">object</a> style) to 
             convert a style to a human readable string.
             <br>
-            <a name=gCanvasSetLineWidth></a>
+//          <a name=gCanvasSetLineWidth></a>
             <br>
-            <b>gCanvasSetLineWidth</b>(<a href="gdx.htm">gdx</a> canvas, <a href="atom.htm">atom</a> width)<br>
+//          <b>gCanvasSetLineWidth</b>(<a href="gdx.htm">gdx</a> canvas, <a href="atom.htm">atom</a> width)<br>
             &nbsp;&nbsp;Values other than 1 reset the line style to XPG_CONTINUOUS, ditto. Default: 1.<br>
-            <a name=gCanvasGetLineWidth></a>
-            &nbsp;&nbsp;<a href="atom.htm">atom</a> width = <b>gCanvasGetLineWidth</b>(<a href="gdx.htm">gdx</a> canvas) is also provided.
+//          <a name=gCanvasGetLineWidth></a>
+//          &nbsp;&nbsp;<a href="atom.htm">atom</a> width = <b>gCanvasGetLineWidth</b>(<a href="gdx.htm">gdx</a> canvas) is also provided.
             <br>
             <br>
+-->
             The following routines should only be used inside its <a href="#REDRAW">REDRAW</a> handler.
             Use <a href="gRedraw.htm">gRedraw</a>() to force a repaint.<br>
-            Non-1 style/width/colour perform implicit (but transient) 
-            <a href="#gCanvasSetLineStyle">gCanvasSetLineStyle</a>(), 
-            <a href="#gCanvasSetLineWidth">gCanvasSetLineWidth</a>(), or 
-            <a href="#gCanvasSetForeground">gCanvasSetForeground</a>().
+            Non-1 style/width/colour transiently set 
+            <a href="#LINESTYLE">LINESTYLE</a>/<a href="#LINEWIDTH">LINEWIDTH</a>/<a href="gSetAttribute.htm#FGCLR">FGCLR</a>, which can also
+            be set as defaults for several subsequent calls, or overriden on each <small>(in small font below, just to keep lines short)</small>.
             <br>
             <br>
             Note that pixels are 0-indexed, so on a 200x200 canvas valid co-ordinates are {0,0} to {199,199}, with any attempts to draw 
@@ -533,8 +516,8 @@ DEV:        There is a planned gImageGetPixel(), but a gCanvasGetPixel() would h
             &nbsp;&nbsp;&nbsp;&nbsp;with XPG_NORTHWEST, XPG_NORTHEAST, XPG_SOUTHWEST, XPG_SOUTHEAST, and XPG_CENTRE.<br>
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<small>(Technically <a href="gShow.htm">XPG_CENTER</a> is the wrong constant, but explicitly/deliberately treated as XPG_CENTRE here.)</small><br>
             &nbsp;&nbsp;&nbsp;&nbsp;You might also imagine the red centre of XPG_C being shifted to one of the eight surrounding orange crosses.<br>
-            &nbsp;&nbsp;&nbsp;&nbsp;Should the text end up too close to {x,y} you are expected to explicitly adjust {x,y} as a form of "padding",<br>
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;and further it is fairly likely that certain fonts and/or backends may have subtly different requirements.<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;Should the text end up too close to {x,y} you are expected to explicitly adjust {x,y} to mimic a margin, and<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;further it is fairly likely that certain fonts and/or backends may have subtly different requirements.<br>
             &nbsp;&nbsp;&nbsp;&nbsp;<a href="string.htm">string</a> res = <b>gGetAlignName</b>(<a href="integer.htm">integer</a> align) converts
                         an alignnent to a human readable string.<br>
             &nbsp;&nbsp;angle: in degrees, clockwise, replaces <a href="cdCanvasSetTextOrientation.htm">cdCanvasSetTextOrientation</a>() of pGUI (transiently).<br>
@@ -559,7 +542,7 @@ DEV:        There is a planned gImageGetPixel(), but a gCanvasGetPixel() would h
             &nbsp;&nbsp;&nbsp;&nbsp;<small>&nbsp;For the 9 simple cases it <i>does</i> work for, as per xpGUI.e/xpg_shifta() I literally 
                                             drew 9 tiny diagrams to work out the shifts needed.)</small><br>
 -->
-            &nbsp;&nbsp;colour: as usual, an atom other than -1 performs an implicit (but transient) <a href="#gCanvasSetForeground">gCanvasSetForeground</a>() occurs,<br>
+            &nbsp;&nbsp;colour: as usual, an atom other than -1 transiently sets <a href="gSetAttribute.htm#FGCLR">FGCLR</a>(),<br>
             &nbsp;&nbsp;&nbsp;&nbsp;should colour be a {fore,back} pair such as {XPG_RED,XPG_BLUE} (note unlike other functions it is object not atom), then<br>
             &nbsp;&nbsp;&nbsp;&nbsp;while WinAPI/DrawText copes, under GTK it does a <a href="#gCanvasRect">gCanvasRect</a>() or if angle!=0 a rotated
                                                                                      <a href="#gCanvasPolygon">gCanvasPolygon</a>() first.<br>
@@ -673,7 +656,7 @@ cdCanvasMark[Type|Size] => gDrawMark[Type|Size] (new)
 //          Strings with multiple line are accepted using '\n' as line separator. <br>
             Horizontal text alignment for multiple lines can be controlled using DRAWTEXTALIGNMENT attribute: ALEFT (default), ARIGHT and ACENTER options.<br>
             For single line texts if the text is larger than its box and DRAWTEXTWRAP=Yes, then the line will be automatically broken in multiple lines. <br>
-            Notice that this is done internally by the system, the element natural size will still use only a single line. <br>
+//X         Notice that this is done internally by the system, the element natural size will still use only a single line. <br>
 //          For the remaining lines to be visible the element should use EXPAND=VERTICAL or set a SIZE?/RASTERSIZE? with enough height for the wrapped lines. <br>
             If the text is larger that its box and DRAWTEXTELLIPSIS=Yes, an ellipsis ("...") will be placed near the last visible part of the text and replace the invisible part. <br>
             It will be ignored when WRAP=Yes. w and h are optional and can be -1 or 0, the text size will be used, so WRAP nor ELLIPSIS will not produce any changes. <br>
@@ -853,23 +836,66 @@ cdCanvasMark[Type|Size] => gDrawMark[Type|Size] (new)
             <br>
             Setting this attribute automatically updates the otherwise private scrollbars. Any and all handling of the latter is achieved via the
             VIEWPORT attribute. Settings that result in the entire visible area being "dead space" and/or off-canvas scrollbar thumbs are <i>not</i> 
-            specifically guarded against, consider yourself warned.
+            specifically guarded against, consider yourself warned.<br>
+            <a name=LINESTYLE></a>
          </td>
         </tr>
         <tr>
          <td>
-          (perhaps)
+            LINESTYLE
          </td>
          <td>
-            TEXTALIGN: A default align for several subsequent invocations of <a href="#gCanvasText">gCanvasText</a>().<br>
-            TEXTANGLE: A default angle for several subsequent invocations of <a href="#gCanvasText">gCanvasText</a>().<br>
-            BGCOLOR: Replace <a href="#gCanvasSetBackground">gCanvasSet/GetBackground</a>().<br>
-            FGCOLOR: Replace <a href="#gCanvasSetForeground">gCanvasSet/GetForeground</a>().<br>
-            LINESTYLE: Replace <a href="#gCanvasSetLineStyle">gCanvasSet/GetLineStyle</a>().<br>
-            LINEWIDTH: Replace <a href="#gCanvasSetLineWidth">gCanvasSet/GetLineWidth</a>().<br>
+            Default: XPG_CONTINUOUS(==1), valid styles are:<br>
+            <img src="images/gCanvasLineStyles.png" border="2" width="262" height="62"/>
+            <span style="visibility: hidden;"><small>XPG_DASHED XPG_DOTTED XPG_DASH_DOT XPG_DASH_DOT_DOT</small></span><br>
+<!--
+            &nbsp;&nbsp;Values other than XPG_CONTINUOUS reset the line width to 1, since WinAPI/GTK support nowt else.<br>
+-->
+            Note that values other than XPG_CONTINUOUS with a line width other than 1 may appear as rhomboids, and perhaps for that 
+            same reason native WinAPI/GTK do not support such, but while that effect may be less than ideal it is reasonably acceptable on
+            slightly thicker lines, and fine on horizontal/vertical lines, and just seems churlish to remove it completely.<br>
+            The style may also be a sequence (of 1/0, see xpGUI.e) which sets XPG_CUSTOM_DASH(==6).<br>
+            <small><i>(XPG_CUSTOM_DASH is currently set at the system level rather than per canvas, for no good reason, shout should that sting.)</i></small><br>
+<!--
+//          <a name=gCanvasGetLineStyle></a>
+//          &nbsp;&nbsp;<a href="object.htm">object</a> style = <b>gCanvasGetLineStyle</b>(<a href="gdx.htm">gdx</a> canvas) is also provided
+-->
+            returns 1..5 but pattern not XPG_CUSTOM_DASH.<br>
+            <a name=gGetLineStyleName></a>
+            Use <a href="string.htm">string</a> res = <b>gGetLineStyleName</b>(<a href="object.htm">object</a> style) to 
+            convert a style to a human readable string.<br>
+            <a name=LINEWIDTH></a>
          </td>
         </tr>
-
+        <tr>
+         <td>
+            LINEWIDTH
+         </td>
+         <td>
+            As above, values other than 1 may cause line styles other than XPG_CONTINUOUS to appear as rhomboids. Default: 1.<br>
+            Implemented in JavaScript via <a href="javascript.htm#lineWidth"><i>ctx</i>.lineWidth</a>
+<!--            <a name=TEXTALIGN></a>-->
+         </td>
+        </tr>
+<!--
+        <tr>
+         <td>
+            TEXTALIGN
+         </td>
+         <td>
+            A default align for several subsequent invocations of <a href="#gCanvasText">gCanvasText</a>().<br>
+            <a name=TEXTANGLE></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+            TEXTANGLE
+         </td>
+         <td>
+            A default angle for several subsequent invocations of <a href="#gCanvasText">gCanvasText</a>().<br>
+         </td>
+        </tr>
+-->
 <!--
         <tr>
          <td>
@@ -1070,6 +1096,8 @@ could easily have 500K text lines which would be 2,500 * screen width... a canva
          </td>
          <td>
 ?           <a href="gSetAttribute.htm#ACTIVE">ACTIVE</a>, 
+?           <a href="gSetAttribute.htm#BGCLR">BGCLR</a>, 
+?           <a href="gSetAttribute.htm#FGCLR">FGCLR</a>, 
 ?           <a href="gSetAttribute.htm#CANFOCUS">CANFOCUS</a>, 
             <a href="gSetAttribute.htm#FONT">FONT</a>, 
 <!--        <a href="gSetAttribute.htm#NAME">NAME</a>, -->
@@ -1179,8 +1207,8 @@ could easily have 500K text lines which would be 2,500 * screen width... a canva
             applied before redraw() is invoked, and automatically restored after (so you don&rsquo;t have to). Any decision to
             change that initial clear setting should likewise therefore be made and performed outside of the redraw() routine.<br>
 <!--
-            Note that the redraw routine should usually invoke gCanvasSetBackground() just before returning, rather than leave a random
-            background colour for the next initial clear/repaint, since that occurs <i>before</i> it is re-invoked again.
+//          Note that the redraw routine should usually invoke gCanvasSetBackground() just before returning, rather than leave a random
+//          background colour for the next initial clear/repaint, since that occurs <i>before</i> it is re-invoked again.
 -->
           <a name=IDROP></a>
          </td>
@@ -1202,19 +1230,24 @@ could easily have 500K text lines which would be 2,500 * screen width... a canva
             <br>
             Only useful on the canvas-derived controls <a href="gGraph.htm">gGraph</a>, <a href="gList.htm">gList</a>, and
             <a href="gTable.htm">gTable</a>, which have overidden the <a href="#REDRAW">REDRAW</a> handler.<br>
-            Allows an application to tweak/log the drawing primitives, for an example see demo\xpGUI\gTable.exw, where I first
+            Allows an application to tweak/log the drawing primitives, for an example see demo\xpGUI\gTable.exw<!--, where I first
             logged the calls planning to copy them into a test program, before realising I could just tweak the two actually needed.<br>
             That specific instance was to mock up the <a href="gSetAttribute.htm#FONT">FONT</a> table in these very docs, so I could 
-            centre it (ain&rsquo;t I the fusspot).
+            centre it (ain&rsquo;t I the fusspot).-->
             <br>
             <br>
             The current set of so-interceptable drawing operations is:<br>
-            <a href="#gCanvasSetForeground">gCanvasSetForeground</a>,<br>
-            <a href="#gCanvasSetBackground">gCanvasSetBackground</a>, (not used by gTable)<br>
+<!--
+//          <a href="#gCanvasSetForeground">gCanvasSetForeground</a>,<br>
+//          <a href="#gCanvasSetBackground">gCanvasSetBackground</a>, (not used by gTable)<br>
+-->
             <a href="#gCanvasRect">gCanvasRect</a>,<br>
             <a href="#gCanvasLine">gCanvasLine</a>,<br>
             <a href="#gCanvasText">gCanvasText</a>. (the only one used by gList)<br>
-            More may be added as/when/if needed (search xpGUI.e for "IDROP", or better yet xpg_default_IDROP, to be sure).
+            More may be added as/when/if needed (search xpGUI.e for "IDROP", or better yet xpg_default_IDROP, to be sure).<br>
+            Note changes to the attributes <a href="gSetAttribute.htm#BGCLR">BGCLR</a>, 
+            are <i>not</i> intercepted and may need -1s replaced with <a href="gGetAttribute.htm">gGetAttribute</a>(), at least
+            when logging for later use as opposed to minor/immediate tweaking.
             <br>
          </td>
         </tr>
@@ -1542,9 +1575,11 @@ could easily have 500K text lines which would be 2,500 * screen width... a canva
             There is of course slim to zero chance of ever achieving pixel-perfect identical results on GTK, JavaScript, and WinAPI, and almost
             certainly none whatsoever should any fonts/text be involved, but of course they should look pretty similar - let me know of anything
             blatently wrong, that is by more than a couple of stray pixels. Update: I stumbled across a post on TheCodeProject which showed how
-            to draw (straight) <a href="#gCanvasSetLineStyle">XPG_DOTTED</a> properly under WinAPI, which I incorporated, but have not found a 
+            to draw (straight) <a href="#LINESTYLE">XPG_DOTTED</a> properly under WinAPI, which I incorporated, but have not found a 
             GTK equivalent or even tested it under JavaScript yet.
             <br>
+<!-- rotated ellipsis under js, plus link to "gi-1985-15.pdf" : http://g6auc.me.uk/ellipses/index.html -->
+<!-- see also https://stackoverflow.com/questions/3025519/how-do-i-draw-an-ellipse-with-arbitrary-orientation-pixel-by-pixel -->
          </td>
         </tr>
        </table>

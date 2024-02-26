@@ -5,24 +5,35 @@
 constant v = version(),
          num_zips = 4   -- see also C:\Program Files (x86)\Phix\demo\pGUI\pdemo\installation.e
 
-printf(1,"Build using version %s?(Y/N):",{v})
+printf(1,"Build using version %s?(Y/N or 6 to build p64.exe only):",{v})
 integer ch = upper(getc(0))
 printf(1,"%c\n",ch)
-if ch!='Y' then sleep(1) abort(1) end if
+if ch!='Y' and ch!='6' then sleep(1) abort(1) end if
+
+procedure compile(string lc, integer mode = 0)
+    integer c_res
+    while true do
+        ?lc
+        c_res = system_exec(lc,mode)
+        if c_res=0 then exit end if
+        if mode=0 then
+            printf(1,"\n\nError, %s failed with error code %d\n",{lc,c_res})
+            {} = wait_key()
+            abort(0)
+        end if
+        puts(1,"sleep...\n")
+        sleep(0.4)
+    end while
+end procedure
 
 --p -c -norun p32.exu
 --p -c -norun p64.exu
-for m in {32,64} do
-    string lc = sprintf("p -c -norun p%d.exu",{m})
-    ?lc
-    integer c_res = system_exec(lc)
-    if c_res!=0 then
-        printf(1,"\n\nError, %s failed with error code %d\n",{lc,c_res})
---      ?9/0
-        {} = wait_key()
-        abort(0)
-    end if
-end for
+compile("p -c -norun p64")              -- (somewhat duff, eg PI is 3.14159265358979311600, 1.2246e-16 out)
+compile("copy /Y p64.exe p64b.exe",4)
+compile("p64b -c -norun p64")           -- (properly built -- PI is 3.14159265358979323851, 0.0005e-16 out)
+if ch='6' then ?"ok" sleep(1) abort(1) end if
+compile("p -c -norun p32.exu")
+compile("p64 -c -norun p64.exu")
 
 --printf(1,"Continue?(Y/N):",{v})
 --ch = upper(getc(0))

@@ -23,15 +23,36 @@ constant polyh = {{298,124}, {71,381}, {34,381}, {276,105}},
                    {168,381}, {134,382}, {194,318,201,307,303,198}, {160,265}, {185,227,221,205,359,193}, {},
                    {282,381,142,395,383,225}, {322,216,454,199,214,364}}
 
-procedure redraw(gdx canvas)
-    gCanvasPolygon(canvas,polyh,colour:=XPG_BLUE) -- half the h
-    gCanvasPolygon(canvas,polyp,colour:=XPG_GREEN) -- whole p
-    gCanvasPolygon(canvas,polyb,colour:=XPG_BLUE) -- rest of hi
+function pmul(sequence p, atom m, wa, ha)
+    integer lp = length(p)
+    sequence res = repeat(0,lp)
+    for i,pi in p do
+        integer lpi = length(pi)
+        sequence ri = repeat(0,lpi)
+        for j=1 to lpi by 2 do
+            ri[j] = pi[j]*m + wa
+            ri[j+1] = pi[j+1]*m + ha
+        end for
+        res[i] = ri
+    end for
+    return res
+end function
+
+procedure redraw(gdx canvas, integer w, h)
+--  gCanvasPolygon(canvas,polyh,colour:=XPG_BLUE) -- half the h
+--  gCanvasPolygon(canvas,polyp,colour:=XPG_GREEN) -- whole p
+--  gCanvasPolygon(canvas,polyb,colour:=XPG_BLUE) -- rest of hi
+--  atom mw = w/400, mh = h/400
+    atom mw = min(w,h), m = mw/400, wa = (w-mw)/2, ha = (h-mw)/2
+    gCanvasPolygon(canvas,pmul(polyh,m,wa,ha),colour:=XPG_BLUE) -- half the h
+    gCanvasPolygon(canvas,pmul(polyp,m,wa,ha),colour:=XPG_GREEN) -- whole p
+    gCanvasPolygon(canvas,pmul(polyb,m,wa,ha),colour:=XPG_BLUE) -- rest of hi
 end procedure
 
-gdx canvas = gCanvas(redraw,`SIZE=400x400`),
+--gdx canvas = gCanvas(redraw,`SIZE=400x400`),
+gdx canvas = gCanvas(redraw,`SIZE=120x120`),
     dialog = gDialog(canvas,`PhixLogo`)
-gCanvasSetBackground(canvas, XPG_PARCHMENT)
+gSetAttribute(canvas,"BGCLR",XPG_PARCHMENT)
 gShow(dialog)
 gMainLoop()
 

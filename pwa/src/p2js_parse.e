@@ -822,7 +822,7 @@ function vardef(integer thistdx, skip=0, iForPar=0)
         end if
         vtype = TYPO
     end if
-    integer last_comma
+    integer last_comma = 0
     bool bEq = false
     while true do
         tok = tokens[tdx]
@@ -871,6 +871,7 @@ function vardef(integer thistdx, skip=0, iForPar=0)
                 ttidx = tok[TOKTTIDX]
                 if find(ttidx,vartypes)
                 or find(ttidx,udts) then
+                    if last_comma=0 then return parse_error(tok,"back-to-back types?") end if
                     tdx = last_comma
                     exit
                 end if

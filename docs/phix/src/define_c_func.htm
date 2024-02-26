@@ -68,6 +68,7 @@
             The following C types are predefined (in psym.e/syminit):
             <br>
             <br>
+            <small>
 <!--eucode>
                     C_BYTE = #01000001,     -- an 8 bit signed integer
                     C_CHAR = C_BYTE,
@@ -114,8 +115,8 @@
 <font color="#004600">                   C_FLOAT</font><font color="#0000FF"> =</font><font color="#000000"> #03000004</font><font color="#0000FF">,    </font><font color="#000080"><i> -- a 32-bit float</i></font>
 <font color="#004600">                  C_DOUBLE</font><font color="#0000FF"> =</font><font color="#000000"> #03000008     </font><font color="#000080"><i> -- a 64-bit float</i></font>
 </pre>
+            </small>
 <!-- DEV: -- also C_WPARAM, C_LPARAM, C_HRESULT ?? -->
-            <br>
             <br>
 <!--
         <tr>
@@ -176,15 +177,39 @@ DEV not yet (ever??) supported [Eu types&lt;-&gt;c_func]:
           <br>
           <br>
             The C type "long double" should be avoided at all costs - it is highly compiler-dependent
-            and can be 10/8/12/16 bytes aligned to an 8/2/4/16 byte boundary.
+            and can be 10/8/12/16 bytes aligned to an 8/2/4/16 byte boundary.<br>
+            <a name=aux></a>
          </td>
         </tr>
         <tr>
          <td>
-          <b>Auxillary function:</b>
+          <b>Auxillary functions:</b>
          </td>
          <td>
             integer res = <b>sizeof</b>(integer c_type) - returns the size in bytes of the above types.<br>
+<!-- a cffi_info() could be ten times as useful... -->
+            <br>
+<!--
+            sequence {name,addr,args,return_type,convention,safe} = <b>c_info</b>(integer fn) - returns the internal define_c_func/proc details.<br>
+            The sole fn parameter is expected to be some previous result from invoking define_c_func() or define_c_proc().<br>
+            The name, args, and return_type (0 for a proc) are as were passed in, with little or no validation or modification (this end), and are
+            expected to be of use only for diagnostic purposes, and realistically speaking probably only the name. In light of that, this routine is deliberately kept as trivial as possible, so much 
+            so that it does not even discard the useless bits: unless for some strange reason you are trying to replicate all the code in pcfunc.e 
+            the other three fields, being addr, convention (1=STDCALL, 2=CDECL), and safe (for <a href="with.htm#safe_mode">safe_mode</a> use), are 
+            pretty much guaranteed to be completely worthless to you.<br>
+try 2:
+            {string name, sequence args, integer return_type} = <b>c_info</b>(integer fn) - returns the internal define_c_func/proc details.<br>
+            The sole fn parameter is expected to be some previous result from invoking define_c_func() or define_c_proc().<br>
+            The results are pretty much as were passed in, with little or no validation or modification (this end), and are expected to be of use 
+            only for diagnostic purposes. The args and return type (0 for a proc) are C_INT and similar: note in particular that C_PTR cannot be
+            properly distinguished from a machine-word-sized integer, attempts to make them human-readable would be a thankless task. There could
+            perhaps one day be a cffi_info() which might be little more helpful in that regard, that is assuming fn was originally from cffi.e, 
+            and that had started saving the appropriate details somewhere.<br>
+try 3:
+-->
+            string name = <b>c_name</b>(integer rid) - returns the name as originally passed to the define_c_func/proc that yielded rid.<br>
+            This is expected to be useful for diagnostic purposes only. Deliberately crashes should fname not have been a string.<br>
+            <small><i>[Aside: any args/return details would not be very helpful, maybe a cffi_info() might offer something better...]</i></small><br>
          </td>
         </tr>
         <tr>
@@ -193,17 +218,18 @@ DEV not yet (ever??) supported [Eu types&lt;-&gt;c_func]:
          </td>
          <td>
 <!--eucode>
--- user32.dll contains the LoadIconA C function which takes a C pointer and a C int as parameters
--- and returns a C int as a result.
+-- user32.dll contains the LoadIconA C function which takes a C pointer
+--            and a C int as parameters and returns a C int as a result.
 atom user32 = open_dll("user32.dll")
 integer xLoadIcon = define_c_func(user32, "LoadIconA", {C_PTR, C_INT}, C_INT)
 </eucode-->
 <pre>
-<font color="#000080"><i>-- user32.dll contains the LoadIconA C function which takes a C pointer and a C int as parameters
--- and returns a C int as a result.</i></font>
+<font color="#000080"><i>-- user32.dll contains the LoadIconA C function which takes a C pointer
+--            and a C int as parameters and returns a C int as a result.</i></font>
 <font color="#004080">atom</font><font color="#000000"> user32</font><font color="#0000FF"> =</font><font color="#7060A8"> open_dll</font><font color="#0000FF">(</font><font color="#008000">"user32.dll"</font><font color="#0000FF">)</font>
 <font color="#004080">integer</font><font color="#000000"> xLoadIcon</font><font color="#0000FF"> =</font><font color="#7060A8"> define_c_func</font><font color="#0000FF">(</font><font color="#000000">user32</font><font color="#0000FF">,</font><font color="#008000"> "LoadIconA"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#004600">C_PTR</font><font color="#0000FF">,</font><font color="#004600"> C_INT</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#004600"> C_INT</font><font color="#0000FF">)</font>
 </pre>
+            <br>
             The naming convention of xLoadIcon is partly a personal preference but it can also improve the help system
             in Edita/Edix, when F1 is keyed, as they both strip a leading "x" when looking for a chm file to open.
          </td>
@@ -252,6 +278,53 @@ integer xLoadIcon = define_c_func(user32, "LoadIconA", {C_PTR, C_INT}, C_INT)
         </tr>
        </table>
        <img src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
        <br>
        <br>
       </div>

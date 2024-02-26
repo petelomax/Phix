@@ -1,4 +1,4 @@
-<head>
+﻿<head>
  <body>
   <toc>
    <these>
@@ -172,6 +172,205 @@ constant tRECT = """
             In contrast, pointer names such as PRECT are (all) kept separately, albeit to cffi.e they are 
             just pointers that would explicitly need the correct id (eg/ie idRECT) to delve any deeper.<br>
             Note there is no "rcPaint", instead we have "rcPaint.left" etc.
+            <br>
+            <a name=bitfields></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Bitfields:</b>
+         </td>
+         <td>
+            Note that cffi.e does not (yet) support bitfields, for example<br>
+            <small>
+<!--eucode>
+include cffi.e
+constant tDCB = """
+typedef struct _DCB {
+  DWORD DCBlength;
+  DWORD BaudRate;
+  DWORD fBinary : 1;
+  DWORD fParity : 1;
+  DWORD fOutxCtsFlow : 1;
+  DWORD fOutxDsrFlow : 1;
+  DWORD fDtrControl : 2;
+  DWORD fDsrSensitivity : 1;
+  DWORD fTXContinueOnXoff : 1;
+  DWORD fOutX : 1;
+  DWORD fInX : 1;
+  DWORD fErrorChar : 1;
+  DWORD fNull : 1;
+  DWORD fRtsControl : 2;
+  DWORD fAbortOnError : 1;
+  DWORD fDummy2 : 17;
+  WORD  wReserved;
+  WORD  XonLim;
+  WORD  XoffLim;
+  BYTE  ByteSize;
+  BYTE  Parity;
+  BYTE  StopBits;
+  char  XonChar;
+  char  XoffChar;
+  char  ErrorChar;
+  char  EofChar;
+  char  EvtChar;
+  WORD  wReserved1;
+} DCB, *LPDCB;""",
+idDCB = define_struct(tDCB)
+</eucode-->
+<pre>
+<font color="#008080">include</font><font color="#000000"> cffi.e</font>
+<font color="#008080">constant</font><font color="#000000"> tDCB</font><font color="#0000FF"> =</font><font color="#008000"> """
+typedef struct _DCB {
+  DWORD DCBlength;
+  DWORD BaudRate;
+  DWORD fBinary : 1;
+  DWORD fParity : 1;
+  DWORD fOutxCtsFlow : 1;
+  DWORD fOutxDsrFlow : 1;
+  DWORD fDtrControl : 2;
+  DWORD fDsrSensitivity : 1;
+  DWORD fTXContinueOnXoff : 1;
+  DWORD fOutX : 1;
+  DWORD fInX : 1;
+  DWORD fErrorChar : 1;
+  DWORD fNull : 1;
+  DWORD fRtsControl : 2;
+  DWORD fAbortOnError : 1;
+  DWORD fDummy2 : 17;
+  WORD  wReserved;
+  WORD  XonLim;
+  WORD  XoffLim;
+  BYTE  ByteSize;
+  BYTE  Parity;
+  BYTE  StopBits;
+  char  XonChar;
+  char  XoffChar;
+  char  ErrorChar;
+  char  EofChar;
+  char  EvtChar;
+  WORD  wReserved1;
+} DCB, *LPDCB;"""</font><font color="#0000FF">,</font>
+<font color="#000000">idDCB</font><font color="#0000FF"> =</font><font color="#7060A8"> define_struct</font><font color="#0000FF">(</font><font color="#000000">tDCB</font><font color="#0000FF">)</font>
+</pre>
+            </small><br>
+            fails with the (somewhat obtuse) error "bitfields are not (yet) supported". <br>
+            In this particular case, the 32 bits of fBinary .. fDummy2 are packed into a single 32-bit dword, but note should 
+            the :1 .. :17 over-run it ought to allocate further dwords as needed - if you encounter an example that does that, 
+            or slices byte/word[s]/etc let me know, ideally along with something I can properly test. <br>
+            It would (probably) not be particularly difficult to extend cffi.e to cope (eg -ve offset/size/signed), but for now 
+            you should replace those 14 fields with a single dword and perform the necessary bit-slicing on that yourself, again 
+            let me know should that start getting too tedious or too error-prone.
+<!-- notes:
+apparently only [un]signed int is allowed, int alone is implementation-defined rather than the usual signed... [DWORD==uint]
+always 4 bytes anyway... bitfields that straddle an allocation unit boundary are implementation-defined... (aka unsupported)
+struct S
+{
+    // will usually occupy 4 bytes:
+    // 5 bits: value of b1
+    // 11 bits: unused
+    // 6 bits: value of b2
+    // 2 bits: value of b3
+    // 8 bits: unused
+    unsigned b1 : 5, : 11, b2 : 6, b3 : 2;
+};
+bitfields /can/ be signed, so signed of +/-b might be on the cards. (or we should only support unsigned bitfields)
+<unnamed>:0 forces jump to next allocation unit. (machine dependant... so let's go unsupported)
+
+// Space optimized representation of the date
+struct date {
+    // d has value between 0 and 31, so 5 bits are sufficient
+    unsigned int d : 5;
+
+    // m has value between 0 and 15, so 4 bits are sufficient
+    unsigned int m : 4;
+
+    // a y of 0..4095 needs 12 bits, which will do us.
+    unsigned int y : 12;
+};
+
+int main()
+{
+        printf("Size of date is %lu bytes\n",
+                sizeof(struct date));
+        struct date dt = { 31, 12, 2014 };
+        printf("Date is %d/%d/%d", dt.d, dt.m, dt.y);
+        return 0;
+}
+
+maximum bitfield length is 64, but for portablility do not permit >32.
+
+struct on_off {
+                  unsigned light : 1;
+                  unsigned toaster : 1;
+                  int count;            /* 4 bytes */
+                  unsigned ac : 4;
+                  unsigned : 4;
+                  unsigned clock : 1;
+                  unsigned : 0;
+                  unsigned flag : 1;
+                 } kitchen ;
+
+The structure kitchen contains eight members totalling 16 bytes. The following table describes the storage that each member occupies:
+
+Member name             Storage occupied
+light                   1 bit
+toaster                 1 bit
+(padding — 30 bits)     To the next int boundary
+count                   The size of an int (4 bytes)
+ac                      4 bits
+(unnamed field)         4 bits
+clock                   1 bit
+(padding — 23 bits)     To the next int boundary (unnamed field)
+flag                    1 bit
+(padding — 31 bits)     To the next int boundary
+
+Bit fields are allocated within an integer from least-significant to most-significant bit. In the following code
+
+struct mybitfields
+{
+    unsigned short a : 4;
+    unsigned short b : 5;
+    unsigned short c : 7;
+} test;
+
+int main( void )
+{
+    test.a = 2;
+    test.b = 31;
+    test.c = 0;
+    return 0;
+}
+the bits of test would be arranged as follows:
+
+00000001 11110010
+cccccccb bbbbaaaa
+Since the 8086 family of processors store the low byte of integer values before the high byte, 
+the integer 0x01F2 would be stored in physical memory as 0xF2 followed by 0x01.
+
+struct
+{
+    unsigned int first : 9;
+    unsigned int second : 7;
+    unsigned int may_straddle : 30;
+    unsigned int last : 18;
+} tricky_bits;
+A standard C implementation could pack these bit fields into two 32-bit integers. 
+It might store tricky_bits.may_straddle as 16 bits in one 32-bit integer and 14 bits in the next 32-bit integer. 
+The Windows ABI convention packs bit fields into single storage integers, and doesn't straddle storage units. 
+The Microsoft compiler stores each bit field in the above example so it fits completely in a single 32-bit integer. 
+In this case, first and second are stored in one integer, may_straddle is stored in a second integer, and last is 
+stored in a third integer. The sizeof operator returns 12 on an instance of tricky_bits. (PL: DO NOT SUPPORT THIS!)
+crash("bitfield straddling is implementation-dependent")
+
+struct time
+{
+unsigned int hours: 5; // Size restricted to 5 bits     (0..32)
+unsigned int minutes:6; // Size restricted to 6 bits    (0..64)
+unsigned int seconds:6; // Size restricted to 6 bits    (0..64)
+};
+size is 4 bytes...
+-->
          </td>
         </tr>
         <tr>
@@ -227,6 +426,48 @@ constant tRECT = """
         </tr>
        </table>
        <img src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
        <br>
        <br>
       </div>

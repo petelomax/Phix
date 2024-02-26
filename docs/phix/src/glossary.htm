@@ -29,23 +29,29 @@
             Now, if you asked me where I&rsquo;d been, and I said "a building", then at best you might assume I meant a
             building site, maybe to check on progress or some kind of foundation or topping out ceremony. You would not
             assume I meant "a restaurant" or whatever. Clearly, "building" is a terrible abstraction, with little valid use
-            outside construction, insurance, and planning (or non-abstract uses such as "clear the building") - would you 
+            outside construction, insurance, and planning, or non-abstract uses such as "clear the building".
+<!--
+            ) - would you 
             walk into an estate agents and say you want to buy "a building"? (OK, fair point, you might actually ask for
             "a building which can be demolished", say, but you probably wouldn&rsquo;t ever use an unqualified form.) <br>
+-->
             There are good and useful abstractions, bad abstractions, and programming abstractions.
             <br>
             <br>
             There is a subtly different use of "abstract" in classes: just as you might have a cat or dog but cannot
             actually have a pet "animal", you cannot create an instance of an abstract class but can create instances
-            of non-abstract subclasses/extensions of an abstract class. Consider it an "incomplete specification".
+            of non-abstract subclasses or extensions of an abstract class. Consider it an "incomplete specification".
+            Of course polymorphism requires an abstraction but that should still be as meaningful as possible, for 
+            instance the price of an asset rather than a "thing", or perhaps to make it clear you simply cannot get 
+            the length of a weight or a colour or any of those of each other.
             <br>
             <br>
             Obviously within a class, "this" is almost not an abstraction, whereas "this" in JavaScript is a ripe source 
-            of bugs and the subject of many a stupid trick to restore its magical meaningless status.<br>
+            of bugs and the subject of many a stupid trick to restore its magical meaningless status.
             I might accept a capture for later use such as "let restaurant = this;", but "that = this" is just drivel, unless 
-            you can do the right thing with peanut butter, dying flowers, Matt Damon on a bicycle, hyenas, and India.<br>
+            you can do the right thing with peanut butter, dying flowers, Matt Damon on a bicycle, hyenas, and India.
             As disparate as those are, I can effortlessly invent meaningful abstractions for them: foods, emotives,
-            film scenes, animals, countries. 
+            film scenes, animals, countries. <br>
             If an abstraction cannot separate any of them, then it is truly not just abysmal, but obstructively unhelpful.<br>
             The only routines that can do anything useful without the slightest idea what/which it is, are almost inevitably
             so completely and utterly banal and trivial that they are indeed completely and utterly pointless themselves.<br>
@@ -53,7 +59,7 @@
             <br>
             <br>
             <small><i>&ldquo;The purpose of abstracting is not to be vague, but to create a new semantic level in which one 
-            can be absolutely precise.&rdquo;x</i> - Edsger W. Dijkstra<small>
+            can be absolutely precise.&rdquo;</i> - Edsger W. Dijkstra<small>
             <br>
               <a name=allocation></a>
          </td>
@@ -210,6 +216,82 @@
             debugging is an often incredibly efficient and pretty darn easy way of eliminating the vast majority of potential culprits.<br>
             Edix/xpEditer create backups specifically designed to assist with delta debugging, though I recommend regularly renaming the
             backup directory(/ies) to backup.<i>date</i> and permanently deleting them 3-6 months later.
+            <br>
+              <a name=dllhell></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+            dll hell
+         </td>
+         <td>
+<!--            Cry-baby nonsense, that vanishes if you put versions in the dll names. -->
+            Historically a very real problem for sysadmins and service desk staff, but never had to be. The problem is utilising say
+            "somelib.dll" and getting version conflicts, especially when installing some other application clobbers that file (in a
+            central location) with something incompatible. Can also happen when you want to run two versions of your own application
+            side-by-side. Compounded (in other programming languages) by load-time resolution from details stored in a resource section, 
+            which many programmers (myself included) find rather cryptic, and luckily phix does not have/need. A similar issue can be
+            caused by 32/64 bit, though Windows has C:\Windows\System32\ for 64-bit dlls and C:\Windows\SysWOW64\ for 32-bit dlls, and
+            Linux something similar (but less confusing).
+            <br>
+            <br>
+            Some suggested ways to avoid these kinds of issues are:
+            <ul>
+             <li>Put the dll/so in the application directory, and hope it looks there first <small>(flakey on Linux)</small></li>
+             <li>Name the dll/so appropriately, eg phix ships with builtins\bz32.dll and builtins\bz64.dll</li>
+             <li>Put then in separate directories, eg phix ships with demo\pGUI\win32\ and demo\pGUI\win64\</li>
+             <li>Use the version in the name or path, eg somelib.1.0.4.dll and|or somelib.1.12.3.dll</li>
+            </ul>
+            Changing the filename only tends to work for single files that don&rsquo;t load anything else, unless all properly rebuilt.<br>
+            Using directories typically needs a <a href="chdir.htm">chdir</a>() in before the open_dll() and an undo/back out after.<br>
+            While the last option is clearly preferred on Linux, it also has symlinks to help you quickly and completely knobble it.<br>
+            <small><i>[Strong be the Force in this one to use latest and freshly built greatest, Master Luke. 
+                       Reverse polarity of symlink must we, to reach ancients... <small>nb: not advice ! </small>]</i></small><br>
+            Should you deliberately lie about the version when manually renaming a dll/so, you fully deserve every bit of pain you get.
+            <br>
+            <br>
+            While other programming languages rely on the operating system to resolve everything at load-time, via cryptic constructs
+            such as got/plt, and should it go wrong you are <i>totally</i> hosed, instead phix uses <a href="open_dll.htm">open_dll</a>() 
+            and friends, in <i>your</i> code, where you <i>do</i> have the opportunity to catch any errors and try something else, and
+            indeed initially constuct paths and filenames dynamically when desired. <br>
+            In truth, phix is perfectly capable of load time resolution, but reserves that for really critical things such as LoadLibrary 
+            and GetProcAddress or dlopen and dlsym, for which there is no potential conflict and you have no say over name/location anyway. <br>
+            While I may regularly ridicule the slow load times of many an executable created from other programming languages, in this 
+            one particular aspect an extra few milliseconds (if even that) is totally worth it, and almost completely insignificant. 
+            <br>
+            <br>
+            The main downside of open_dll() is there is no one true way to use it that will necessarily solve all such potential issues.<br>
+            Probably the most tested (relevant) use of open_dll() is demo\pGUI\pGUI.e and tbh not quite as bad as I remember it.<br>
+            The simplest one I can point you at is builtins\LiteZip.e though I only ever found a 32-bit windows dll for that.<br>
+            Least tested would be demo\pSQLite\pSQLite.e whereas builtins\mpfr.e would easily be the messiest. <br>
+            Ideally after navigating to a dll/so in a file manager the version/bitsize should be obvious, not that I always manage that.
+<!--
+
+            I liken it to `Waaah, pete@gmail.com has already been taken, it's not fair` and just like using the made-up pete3875@gmail.com, 
+            should you open somelib.1.0.4.dll or somelib.1.12.3.dll it will obviously work. However, that applies to <i>all</i> the other 
+            dll/so files: they can&rsquo;t be opening "somelib.dll"; such utter madness is just as insane as all friends and family of all 
+            3,876 petes all using exactly the one same email address would be.
+            <br>
+            <br>
+            Compounded by the fact it is rightly very difficult to re-target a pre-built dll/so, and Linux symlinks can help but especially
+            when system-wide are (not the worst fall-back, but) also plain and simply wrong, no matter which direction you do them in. <br>
+            Quite why the .NET GUID/assemblies/GAC mess would be any better than using the obvious version numbers in manifest files escapes 
+            me, unless it was to deliberately stop any non-.NET thing using any of their toys, or perhaps more likely vice-versa, since if 
+            .NET <i>could</i> use <i>any</i> non-.NET things then some stupid programmers would no doubt immediately re-invent dll hell for 
+            .NET, no matter how loudly anyone shouted "NO. STOP IT. BAD BOY."<br>
+            Pretty sure M$ knew this easy answer all along, and people like Eric Raymond said it back in the 90&rsquo;s, but no-one listened.<br>
+            Of course it is perfectly possible to follow the gmp model: use any gmp dll/so and respect whatever gmp_version() returns to you.<br>
+            You could also, like I once did, implement a reparse point service for Windows Server 2012, but I have completely forgotten how.<br>
+            Finally, should you deliberately lie about the version when manually renaming a dll/so, you deserve every bit of pain you get.
+            <br>
+            <br>
+            A similar issue is caused by 32/64 bit, they also need to either be appropriately named or put in separate directories, and phix
+            itself in fact ships with builtins\bz32.dll and bz64.dll for one way of dealing with it and demo\pGUI\win32|64\ for t&rsquo;other,
+            whereas the Windows operating system has C:\Windows\System32\ for 64-bit dlls and C:\Windows\SysWOW64\ for 32-bit dlls.
+            <br>
+            <br>
+            Anyway, give &rsquo;em all properly versioned file(/path)names, consistently throughout, problem gone.
+-->
             <br>
               <a name=dwordseq></a>
          </td>

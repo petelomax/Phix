@@ -96,7 +96,8 @@
             Also, <a href="gSetAttribute.htm">gSetAttribute</a>() is obviously and for good reason downright belligerent 
             in pointing out unsupported attributes, whereas gGetAttribute() is somewhere between moderately aggressive in 
             that regard and quite wrong in flagging something as an error simply because it hasn&rsquo;t yet been set. 
-            There will doubtless be several such cases that should undeniably be treated as a straightorward bug (jlmk).
+            There will doubtless be several such cases that should undeniably be treated as a straightforward bug (jlmk).
+            <small>[One specific case that was explicitly fixed for is gGetAttribute(id,"ACTIVE")]</small><br>
             Simply providing a suitable default can sometimes go a long way to alleviating much of that.
 <!--
             explicitly setting dflt can avoid some of that.
@@ -121,15 +122,15 @@
           <b>Aliases:</b>
          </td>
          <td>
-            The following aliases can be used for a clearer statement of intent and to make code a little more self-documenting:
+            The following aliases can be used for a clearer statement of intent and to make the code a little more self-documenting:
             <br>
             <a name=gGetInt></a>
             <br>
-            <a href="atom.htm">atom</a> res = <b>gGetInt</b>(<a href="gdx.htm">gdx</a> id, <a href="string.htm">string</a> name,
-                                                             <a href="object.htm">object</a> dflt=999_999_999)<br>
+            <a href="integer.htm">integer</a> res = <b>gGetInt</b>(<a href="gdx.htm">gdx</a> id, <a href="string.htm">string</a> name,
+                                                                   <a href="object.htm">object</a> dflt=999_999_999)<br>
             <a name=gGetIntInt></a>
-            <a href="atom.htm">atom</a> {a,b} = <b>gGetIntInt</b>(<a href="gdx.htm">gdx</a> id, <a href="string.htm">string</a> name,
-                                                                  <a href="object.htm">object</a> dflt={0,0})<br>
+            <a href="integer.htm">integer</a> {a,b} = <b>gGetIntInt</b>(<a href="gdx.htm">gdx</a> id, <a href="string.htm">string</a> name,
+                                                                        <a href="object.htm">object</a> dflt={0,0})<br>
 <!--
             <a href="atom.htm">atom</a> {a1,a2} = <b>IupGetIntInt</b>(<a href="Ihandle.htm">Ihandln</a> ih, <a href="string.htm">string</a> name)<br>
             <a href="atom.htm">atom</a> res = <b>IupGetInt2</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="string.htm">string</a> name)<br>
@@ -165,9 +166,9 @@
             (Renaming as IupGetAtom() etc would only succeed in making it more difficult to translate C code, or search for examples.)
 -->
             <br>
-            With the exceptions of gGetInt(id,&ldquo;<a href="gSetAttribute.htm#EXPAND">EXPAND</a>&rdquo;) and gGetIntInt() quietly returning {0,0} when there is a 
-            typo in name, they don&rsquo;t guarantee or do anything differently. Obviously storing (say) the string returned by gGetInt(id,"TITLE") in an integer 
-            would however crash.<br>
+            With the exceptions of gGetInt(id,&ldquo;<a href="gSetAttribute.htm#EXPAND">EXPAND</a>/<a href="gBox.htm#SPACE">SPACE</a>&rdquo;), and gGetIntInt() 
+            quietly returning {0,0} should there be a typo in name, they don&rsquo;t guarantee or do anything differently, apart from the lightest validation
+            of the result. Even something like gGetInt(id,"TITLE") would be fine as long as <a href="to_number.htm">to_number</a>() does not object.<br>
             <a name=gGetTextExtent></a>
          </td>
         </tr>
@@ -257,7 +258,7 @@
             (read-only, except on <a href="gDialog.htm">gDialog</a>, non inheritable)<br>
             Returns the client area size of a container. <br>
             It is the space available for positioning and sizing children, see <a href="xplayout.htm">Layout Management</a>.<br>
-            It is the container current size excluding the decorations (if any). 
+//          It is the container current size excluding the decorations (if any). 
             <br>
             <br>
             Value: {width,height} or "widthxheight", where width and height are integer values corresponding 
@@ -294,7 +295,8 @@
             <br>
             Returns: {x,y}, a pair of integer pixel offsets.
             <br>
-          <a name=NATURALSIZE></a>
+          <a name=SIZE></a>
+<!--          <a name=NATURALSIZE></a>-->
          </td>
         </tr>
 <!--
@@ -395,39 +397,24 @@
 //       </td>
 //      </tr>
 -->
+<!--
         <tr>
          <td>
-?         NATURALSIZE,<br>
+          NATURALSIZE,<br>
           NORMALSIZE
-<!-- Shirley, this is just "PIXELSIZE"...
-        ,<br>
-//        CURRENTSIZE
--->
          </td>
          <td>
             (read only) Retrieves the last calculated natural size in pixels. Not expected/intended to be particularly useful.<br>
             The NORMALSIZE attribute yields the largest natural width/height from any normaliser group it is a part of, or the
             same as NATURALSIZE when not part of any such.<br>
-<!--
-?           (Note the latter <i>is</i> affected by USER_SIZE bubbling up and on itself and other elements in such groups, 
-             but not by any said on any parent[s], and further is implemented as a single-pass affair, so may include
-             such effects from previously processed elements/groups but not those that get updated later. While it may
-             be true to say that normalisation works best on visible elements, that still doesn&rsquo;t quite cover 
-             before/after/cross-group effects. There may be cases where explicitly setting USER_SIZE achieves effects
-             that normalisation cannot.)<br>
--->
-<!--
-//          The CURRENTSIZE attribute yields the actual width/height as finalised by the layout manager code.<br>
--->
             Returns: integer {width,height}. For more details see <a href="xplayout.htm">Layout Management</a>.
             <br>
             <br>
             See Also: <a href="#SIZE">SIZE</a> 
-<!--//                    <a href="gSetAttribute.htm#RASTERSIZE">RASTERSIZE</a>-->
             <br>
-          <a name=SIZE></a>
          </td>
         </tr>
+-->
         <tr>
          <td>
           SIZE
@@ -491,8 +478,8 @@
             The average character size of the current <a href="#FONT">FONT</a> can be obtained from the CHARSIZE attribute.
             <br>
             <br>
-            To obtain the last computed Natural size of the element in pixels, use the read-only attribute 
-            <a href="gGetAttribute.htm#NATURALSIZE">NATURALSIZE</a>.
+//          To obtain the last computed Natural size of the element in pixels, use the read-only attribute 
+//          <a href="gGetAttribute.htm#NATURALSIZE">NATURALSIZE</a>.
             <br>
             <br>
             To obtain the User size of the element in pixels after it is mapped, use the attribute USER_SIZE.(???!)

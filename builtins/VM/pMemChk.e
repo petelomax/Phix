@@ -147,7 +147,7 @@ function getline(atom era)
 integer pLink, N
 atom addr, a2
 integer fno, pathno
-string path, file, rtn
+string path, file, rid
 --sequence line
 sequence symtabN
 object linetab
@@ -288,14 +288,14 @@ object ttidx
     ttidx = symtabN[S_Name]
     if atom(ttidx) then
         if ttidx=-1 then
-            rtn = sprintf("[%08x]",{addr})
+            rid = sprintf("[%08x]",{addr})
         else
-            rtn = sprintf("[%s, %08x]",{getname(ttidx,-2),addr})
+            rid = sprintf("[%s, %08x]",{getname(ttidx,-2),addr})
         end if
     else
-        rtn = sprintf("[%s, %08x]",{ttidx,addr})
+        rid = sprintf("[%s, %08x]",{ttidx,addr})
     end if
-    return {era,path,file,lineno,rtn}
+    return {era,path,file,lineno,rid}
 end function
 
 

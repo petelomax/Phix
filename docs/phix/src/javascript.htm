@@ -34,7 +34,12 @@
         <br>
         <br>
         This covers both the use of JavaScript in p2js.js and pGUI.js, as well as providing some explanation 
-        for the sort of code that pwa/p2js.exw spits out.
+        for the sort of code that pwa/p2js.exw spits out. Several pages such as <a href="atom.htm">atom</a>
+        and <a href="length.htm">length</a> have JavaScript-links to this page in their "See Also"/p2js sections, 
+        rather than have that weird little popup when Phix.chm opens whereby despite their different cases both 
+        number and Number lookups (from eg xpEditer) would ask you to pick between atom and javascript, and
+        then mess up the focus, often with the newly opened chm window hidden/relegated to the background.
+        Obviously Phix gets preference over JavaScript in respect of which it opens first/by default.
         <br>
         <br>
         Transpilation is largely a mechanical process of <a href="mappings.htm">mapping</a> between language 
@@ -210,7 +215,8 @@ initValidation.validate( "hello" );
             Self explanatory. Note that s14.indexOf(1) is 1, whereas a14.indexOf(1) is 0, of course. <br>
             While s14 has that special marker of s14[0]==="sequence", there is nothing similar on strings, so 
             the odd +1 is required. Also note that JavaScript does not have a character type, so indexOf() 
-            behaves more like match() on Strings, but more like find() on Arrays.<br>
+            behaves more like match() on Strings, but more like find() on Arrays.
+            <i>array</i>.<b>lastIndexOf</b>() should require no further explanation.<br>
             Returns -1 if not found.
          </div>
         </div>
@@ -338,6 +344,30 @@ toLowerCase
 //  "ABC".codePointAt(0) is 65
 //
 -->
+        <a name=codePointAt></a>
+        <div style="clear:both;height:1px;"> </div>
+        <div class="flexbox">
+         <div>
+            <nobr>/*integer*/ res =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><i>string</i>.<b>codePointAt</b>(</nobr>
+         </div>
+         <div>
+            <nobr><i>idx</i>);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Obtain the unicode code point starting at idx. Note that idx is 0-based and UTF-16 surrogate-pair-based, MDN recommends using ... 
+            (the spread operator) or for...of and codePointAt(0), rather than a traditional index. While p2js.js and xpGUI.js use this to
+            convert say a colour of "#80FF00" which should be fine, there may be some s[i] -> $subse() and the like which require manually
+            calling utf8_to_utf32() or similar to get some things to work (and there is certainly one such case already on rosettacode).
+         </div>
+        </div>
+        <br>
+
         <a name=fromCharCode></a>
         <a name=fromCodePoint></a>
         <div style="clear:both;height:1px;"> </div>
@@ -385,6 +415,56 @@ toLowerCase
         </div>
         <br>
 
+        <a name=parseFloat></a>
+        <div style="clear:both;height:1px;"> </div>
+        <div class="flexbox">
+         <div>
+            <nobr>/*atom*/ res =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><b>parseFloat</b>(</nobr>
+         </div>
+         <div>
+            <nobr>/* string*/ <i>s</i>);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Coerces s to a string, strips leading whitespace, and converts the first number to a floating point [or Nan].<br>
+            Note that anything after the first number is simply ignored, and it also parses ["-"]"Infinity" as [-]Infinity.<br>
+            /*atom*/ res = <b>Number</b>(v) is probably better, since it coerces the parameter to a number primitive, including BigInts
+            (provided they fit), fails when there is trailing garbage, converts booleans to 0 or 1, and handles leading "0x", "0b", and 
+            "0o", which parseFloat does not. <br>
+            Note that "new Number()" (which MDN warns you should rarely use) is one of those completely whacko <a href="OOP.htm">OOP</a> jobbies 
+            that does my head in, eg new Number(42) !== 42, ie new Number(42) === 42 yields false but the less strict new Number(42) == 42 yields true.
+         </div>
+        </div>
+        <br>
+
+        <a name=parseInt></a>
+        <div style="clear:both;height:1px;"> </div>
+        <div class="flexbox">
+         <div>
+            <nobr>/*integer*/ res =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><b>parseInt</b>(</nobr>
+         </div>
+         <div>
+            <nobr>/* string*/ <i>s</i>[, radix]);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Coerces s to a string, strips leading whitespace, and converts the first number to an integer [or Nan].<br>
+            The radix defaults to 10 unless s begins [+/-]0x (or X) in which case it becomes 16. No other bases are supported, and neither is
+            scientific notation: like parseFloat it ignores (what it thinks is) trailing garbage and "1e3"/"1.3"/"1_3"/"1,3" yield 1.
+         </div>
+        </div>
+        <br>
+
         <a name=stringslice></a>
         <div style="clear:both;height:1px;"> </div>
         <div class="flexbox">
@@ -409,12 +489,82 @@ toLowerCase
             So we have str[i..j] &lt;==&gt; s.slice(i-1,j); though do bear in mind some of the <br>
             direct uses in p2js.js may bear little resemblence to Phix &lt;==&gt; js transpilation.<br>
             If the second parameter is omitted, it yields all of the rest of the string, <br>   
-            same as supplying <i>string</i>.length (===length(<i>string</i>)).
+            same as supplying <i>string</i>.length (===length(<i>string</i>)).<br>
+            Negative subscripts are also supported, for example if s="the lazy dog." then
+            s.slice(-4) is "dog." and s.slice(-9, -5) is "lazy".<br>
+            <i>string</i>.<b>substring</b>(start,end) is similar, but treats negative subscripts as
+            0 and swaps start&gt;end.
          </div>
         </div>
         <br>
 
+        <a name=toUpperCase></a>
+        <div style="clear:both;height:1px;"> </div>
+        <div class="flexbox">
+         <div>
+            <nobr>/*string*/ res =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><i>string</i>.<b>toUpperCase</b>();</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Self explanatory, ditto toLowerCase().<br>
+         </div>
+        </div>
+        <br>
+
+
         <h3>elements</h3>
+
+        <a name=createElement></a>
+        <div style="clear:both;height:1px;"> </div>
+        <div class="flexbox">
+         <div>
+            <nobr>/*elem*/ <i>res</i> =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr>document.<b>createElement</b>(</nobr>
+         </div>
+         <div>
+            <nobr>/*string*/ <i>tag</i>);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Self explanatory. tag may be "a", "button", "canvas", "div", "fieldset", "input", "label", "legend", "li", "nav", "option", "progress", 
+            "script", "select", "table", "tbody", "td", "th", "thead", "tr", "textarea", "ul", etc.<br>
+            The following values are not (currently) used by xpGUI.js: "b", "br", "i", "hr", "output", "p", etc.<br>
+            xpGUI.js does not use (or understand) the options argument - ignore that if you don&rsquo;t know what it means.<br>
+            xpGUI.js contains a trivial $ocument_createElement() shim that, for some but not all uses, assigns a .ID which is used within printf() to
+            mimic the integer id of xpGUI.e strictly for diagnostic purposes, but is otherwise completely unused.<br>
+            <b>createElementNS</b>(namespace, tag) is similar but allows/requires a namespace to be specified, in xpGUI.js that would (always) be 
+            "http://www.w3.org/2000/svg", and at least in xpGUI.js only ever uses the tags "svg" and "path".<br>
+            <b>createTextNode</b>(<i>text</i>) is similar but will html-escape the text.<br>
+         </div>
+        </div>
+        <br>
+
+        <a name=activeElement></a>
+        <div style="clear:both;height:1px;"> </div>
+        <div class="flexbox">
+         <div>
+            <nobr>/*elem*/ res =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr>document.<b>activeElement</b>;</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            (read-only) Implements <a href="gSetFocus.htm">gGetFocus</a>().
+         </div>
+        </div>
+        <br>
 
         <a name=addEventListener></a>
         <div style="clear:both;height:1px;"> </div>
@@ -443,7 +593,8 @@ toLowerCase
             fn: a listener function which optionally accepts a single event parameter (sometimes inlined/fat arrow).<br>
             use_capture: <a href="logicops.htm#tf">true</a> (parent before child) or <a href="logicops.htm#tf">false</a> 
                         (child before parent, aka bubbling) [I think]<br>
-            Assigning .onclick, .oncontextmenu, .onresize, .onkeydown, etc is equivalent (sans use_capture setting).
+            Assigning .onclick, .oncontextmenu, .ondblclick, .ondragstart, .onkeydown, .onkeyup, 
+            .onmousedown, .onmousemove, .onmouseup, .onresize, .onselectstart, etc is equivalent (sans use_capture setting).
          </div>
         </div>
         <br>
@@ -469,6 +620,47 @@ toLowerCase
         </div>
         <br>
 
+        <a name=childNodes></a>
+        <div style="clear:both;height:1px;"> </div>
+        <div class="flexbox">
+         <div>
+            <nobr>/*NodeList*/ res =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><i>elem</i>.<b>childNodes</b>(</nobr>
+         </div>
+         <div>
+            <nobr>);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Probably better to use children instead, since this contains elements, text(/whitespace), and comments.<br>
+            That said, xpGUI.js should not be creating text and comment nodes in the DOM it is explicitly creating.<br>
+            /*bool*/ res = <i>elem</i>.<b>hasChildNodes</b>(); would return true should there be any/only such guff.
+         </div>
+        </div>
+        <br>
+
+        <a name=children></a>
+        <div style="clear:both;height:1px;"> </div>
+        <div class="flexbox">
+         <div>
+            <nobr>/*HTMLCollection*/ res =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><i>elem</i>.<b>children</b>;</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Actual elements-only, otherwise self explanatory. <i>elem</i>.<b>childElementCount</b>; returns the (ditto) length.
+         </div>
+        </div>
+        <br>
+
         <a name=classList></a>
         <div style="clear:both;height:1px;"> </div>
         <div class="flexbox">
@@ -487,11 +679,11 @@ toLowerCase
         </div>
         <br>
 
-        <a name=add></a>
+        <a name=classList_add></a>
         <div style="clear:both;height:1px;"> </div>
         <div class="flexbox">
          <div>
-            <nobr><i>elem</i>.classList.<b>add</b>(</nobr>
+            <nobr><i>elem</i>.<b>classList</b>.<b>add</b>(</nobr>
          </div>
          <div>
             <nobr>/*string*/ <i>token</i>);</nobr>
@@ -505,14 +697,14 @@ toLowerCase
         </div>
         <br>
 
-        <a name=contains></a>
+        <a name=classList_contains></a>
         <div style="clear:both;height:1px;"> </div>
         <div class="flexbox">
          <div>
             <nobr>/*bool*/ res =&nbsp;</nobr>
          </div>
          <div>
-            <nobr><i>elem</i>.classList.<b>contains</b>(</nobr>
+            <nobr><i>elem</i>.<b>classList</b>.<b>contains</b>(</nobr>
          </div>
          <div>
             <nobr>/*string*/ <i>token</i>);</nobr>
@@ -526,11 +718,11 @@ toLowerCase
         </div>
         <br>
 
-        <a name=remove></a>
+        <a name=classList_remove></a>
         <div style="clear:both;height:1px;"> </div>
         <div class="flexbox">
          <div>
-            <nobr><i>elem</i>.classList.<b>remove</b>(</nobr>
+            <nobr><i>elem</i>.<b>classList</b>.<b>remove</b>(</nobr>
          </div>
          <div>
             <nobr>/*string*/ <i>token</i>);</nobr>
@@ -544,14 +736,14 @@ toLowerCase
         </div>
         <br>
 
-        <a name=toggle></a>
+        <a name=classList_toggle></a>
         <div style="clear:both;height:1px;"> </div>
         <div class="flexbox">
          <div>
             <nobr>/*bool*/ res =&nbsp;</nobr>
          </div>
          <div>
-            <nobr><i>elem</i>.classList.<b>toggle</b>(</nobr>
+            <nobr><i>elem</i>.<b>classList</b>.<b>toggle</b>(</nobr>
          </div>
          <div>
             <nobr>/*string*/ <i>token</i>,</nobr> <nobr>/*bool*/ bForce);</nobr>
@@ -584,43 +776,62 @@ toLowerCase
         </div>
         <br>
 
-        <a name=createElement></a>
+        <a name=clientXXX></a>
         <div style="clear:both;height:1px;"> </div>
         <div class="flexbox">
          <div>
-            <nobr>/*elem*/ <i>res</i> =&nbsp;</nobr>
+            <nobr>/*string*/ res =&nbsp;</nobr>
          </div>
          <div>
-            <nobr>document.<b>createElement</b>(</nobr>
-         </div>
-         <div>
-            <nobr>/*string*/ <i>tag</i>);</nobr>
+            <nobr><i>elem</i>.<b>clientHeight</b>;</nobr><br>
+<!--
+            <nobr><i>elem</i>.<b>offsetLeft</b>;</nobr><br>
+            <nobr><i>elem</i>.<b>offsetTop</b>;</nobr><br>
+-->
+            <nobr><i>elem</i>.<b>clientWidth</b>;</nobr><br>
          </div>
          <div>
             &nbsp;&nbsp;
          </div>
          <div>
-            Self explanatory. tag may be eg 'button', 'div', 'li', 'table', 'tbody', 'td', 'th', 'thead', 'tr', 'ul', etc.<br>
-            pGUI.js does not use (or understand) the options argument.<br>
-            createElementNS is similar but allows/requires a namespace to be specified, in pGUI.js that would (always) be "http://www.w3.org/2000/svg".
+            (read-only) eg "100px". padding+content (w/o border/margin).<br>
          </div>
         </div>
         <br>
 
-        <a name=firstChild></a>
+        <a name=disabled></a>
+        <div style="clear:both;height:1px;"> </div>
+        <div class="flexbox">
+         <div>
+            <nobr>/*bool*/ res =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><i>elem</i>.<b>disabled</b>;</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Self explanatory, can also be set. Implements <a href="gSetAttribute.htm#ACTIVE">ACTIVE</a>, but may not perfectly match desktop/Phix.
+         </div>
+        </div>
+        <br>
+
+        <a name=firstElementChild></a>
         <div style="clear:both;height:1px;"> </div>
         <div class="flexbox">
          <div>
             <nobr>/*elem*/ <i>res</i> =&nbsp;</nobr>
          </div>
          <div>
-            <nobr><i>elem</i>.<b>firstChild</b>;</nobr>
+            <nobr><i>elem</i>.<b>firstElementChild</b>;</nobr>
          </div>
          <div>
             &nbsp;&nbsp;
          </div>
          <div>
-            Self explanatory.
+            Self explanatory. <i>elem</i>.<b>firstChild</b> is similar, but does not skip text and comment nodes.<br>
+            Likewise <i>elem</i>.<b>lastElementChild</b> and <i>elem</i>.<b>lastChild</b>
          </div>
         </div>
         <br>
@@ -647,6 +858,27 @@ toLowerCase
         </div>
         <br>
 
+        <a name=getComputedStyle></a>
+        <div style="clear:both;height:1px;"> </div>
+        <div class="flexbox">
+         <div>
+            <nobr>/*object*/ res =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><b>getComputedStyle</b>(</nobr>
+         </div>
+         <div>
+            <nobr><i>elem</i>);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Erm, might be best to avoid using this if at all possible...
+         </div>
+        </div>
+        <br>
+
         <a name=getElementsByClassName></a>
         <div style="clear:both;height:1px;"> </div>
         <div class="flexbox">
@@ -664,27 +896,6 @@ toLowerCase
          </div>
          <div>
             Similar to querySelectorAll, likewise a classname of "this that" would obtain the same results as querySelectorAll(".this, .that").
-         </div>
-        </div>
-        <br>
-
-        <a name=hasChildNodes></a>
-        <div style="clear:both;height:1px;"> </div>
-        <div class="flexbox">
-         <div>
-            <nobr>/*bool*/ res =&nbsp;</nobr>
-         </div>
-         <div>
-            <nobr><i>elem</i>.<b>hasChildNodes</b>(</nobr>
-         </div>
-         <div>
-            <nobr>);</nobr>
-         </div>
-         <div>
-            &nbsp;&nbsp;
-         </div>
-         <div>
-            Self explanatory.
          </div>
         </div>
         <br>
@@ -727,17 +938,60 @@ toLowerCase
         </div>
         <br>
 
-        <a name=nextSibling></a>
+        <a name=isConnected></a>
         <div style="clear:both;height:1px;"> </div>
         <div class="flexbox">
          <div>
-            <nobr><i>elem</i>.<b>nextSibling</b>;</nobr>
+            <nobr>/*bool*/ res =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><i>elem</i>.<b>isConnected</b>;</nobr>
          </div>
          <div>
             &nbsp;&nbsp;
          </div>
          <div>
-            Self explanatory.
+            Pretty self explanatory, true if part of the document, false if not yet added.<br>
+         </div>
+        </div>
+        <br>
+
+        <a name=nextElementSibling></a>
+        <div style="clear:both;height:1px;"> </div>
+        <div class="flexbox">
+         <div>
+            <nobr>/*elem*/ res =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><i>elem</i>.<b>nextElementSibling</b>;</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Self explanatory. <i>elem</i>.<b>nextSibling</b> is similar, but does not skip text and comment nodes.<br>
+            Likewise <i>elem</i>.<b>previousElementSibling</b> and <i>elem</i>.<b>previousSibling</b>.
+         </div>
+        </div>
+        <br>
+
+        <a name=offsetXXX></a>
+        <div style="clear:both;height:1px;"> </div>
+        <div class="flexbox">
+         <div>
+            <nobr>/*string*/ res =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><i>elem</i>.<b>offsetHeight</b>;</nobr><br>
+            <nobr><i>elem</i>.<b>offsetLeft</b>;</nobr><br>
+            <nobr><i>elem</i>.<b>offsetTop</b>;</nobr><br>
+            <nobr><i>elem</i>.<b>offsetWidth</b>;</nobr><br>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            (read-only) eg "100px". border+padding+content (w/o margin).<br>
          </div>
         </div>
         <br>
@@ -745,6 +999,9 @@ toLowerCase
         <a name=parentNode></a>
         <div style="clear:both;height:1px;"> </div>
         <div class="flexbox">
+         <div>
+            <nobr>/*elem*/ res =&nbsp;</nobr>
+         </div>
          <div>
             <nobr><i>elem</i>.<b>parentNode</b>;</nobr>
          </div>
@@ -775,8 +1032,8 @@ toLowerCase
          <div>
             returns the first child element that matches the CSS selector.
             query is a CSS selector such as <br>
-            '.selected' (the first sub-element of that class), <br>
-            'td' (the first &lt;ul&gt; sub-element).<br>
+            '.selected' (the first sub-element of that class), or 
+            'ul' (the first &lt;ul&gt; sub-element).<br>
          </div>
         </div>
         <br>
@@ -801,7 +1058,7 @@ toLowerCase
             '.nestmenu, .menuitem' (all sub-element children that are of either class), <br>
             '.topmenu > span' (all span sub-elements with a parent of topmenu class), <br>
             'td' (all &lt;td&gt; sub-elements).<br>
-            The returned NodeList can often be treated as an Array, but sometimes needs res = Array.from(res);
+            The result can often be treated as an Array, but sometimes needs res = Array.from(res);
          </div>
         </div>
         <br>
@@ -874,9 +1131,42 @@ toLowerCase
             &nbsp;&nbsp;
          </div>
          <div>
-            Too many to list, but the fields pGUI.js uses are: top, left, width, height, bottom, right, justifyContent, 
-            alignItems, maxWidth, textAlign, margin, marginTop, marginBottom, marginLeft, marginRight, background, 
-            cursor, position, display, and zIndex.
+            Too many to fully list, but the fields pGUI.js uses, with examples, are: <br>
+            <i>elem</i>.<b>style</b>.<b>alignItems</b> = "flex-start"; /* or "center"/"stretch"/"flex-end" */<br>
+            <i>elem</i>.<b>style</b>.<b>alignSelf</b> = "flex-start"; /* or "center"/"stretch"/"flex-end" */<br>
+            <i>elem</i>.<b>style</b>.<b>background</b> = "transparent";<br>
+            <i>elem</i>.<b>style</b>.<b>backgroundColor</b> = "#808080";<br>
+            <i>elem</i>.<b>style</b>.<b>color</b> = "#FF0080";<br>
+            <i>elem</i>.<b>style</b>.<b>cursor</b> = "nw-resize"; /* nw can also ne jn/ne/e/nw */<br>
+            <i>elem</i>.<b>style</b>.<b>display</b> = "flex"; /*  or"block"/"none" */<br>
+            <i>elem</i>.<b>style</b>.<b>flexBasis</b> = "200px"; /* ?? */<br>
+            <i>elem</i>.<b>style</b>.<b>flexDirection</b> = "row"; /* or "column" */<br>
+            <i>elem</i>.<b>style</b>.<b>flexGrow</b> = 1; /* ?? */<br>
+            <i>elem</i>.<b>style</b>.<b>fontFamily</b> = "Arial";<br>
+            <i>elem</i>.<b>style</b>.<b>fontSize</b> = "10px"; /* or "10pt" */<br>
+            <i>elem</i>.<b>style</b>.<b>fontStyle</b> = "italic";<br>
+            <i>elem</i>.<b>style</b>.<b>fontWeight</b> = "bold";<br>
+            <i>elem</i>.<b>style</b>.<b>justifyContent</b> = "flex-start"; <small>/* or "center"/"space-between"/"space-evenly"/"flex-end" */</small><br>
+            <i>elem</i>.<b>style</b>.<b>margin</b> = "1px"; /* or ..."1px 2px 3px 4px", see <a href="xplayout.htm#margin">here</a> */<br>
+            <i>elem</i>.<b>style</b>.<b>marginBottom</b> = "1px";<br>
+            <i>elem</i>.<b>style</b>.<b>marginLeft</b> = "1px";<br>
+            <i>elem</i>.<b>style</b>.<b>marginRight</b> = "1px";<br>
+            <i>elem</i>.<b>style</b>.<b>marginTop</b> = "1px";<br>
+            <i>elem</i>.<b>style</b>.<b>opacity</b> = 0.5; /* 0 is transparent, 1 fully opaque */<br>
+            <i>elem</i>.<b>style</b>.<b>paddingBottom</b> = "1px";<br>
+            <i>elem</i>.<b>style</b>.<b>paddingLeft</b> = "1px";<br>
+            <i>elem</i>.<b>style</b>.<b>paddingRight</b> = "1px";<br>
+            <i>elem</i>.<b>style</b>.<b>paddingTop</b> = "1px";<br>
+            <i>elem</i>.<b>style</b>.<b>position</b> = "absolute"; /* or "relative"/"fixed" */<br>
+            <i>elem</i>.<b>style</b>.<b>textAlign</b> = "left"; /* or "center"/"right" */<br>
+            <i>elem</i>.<b>style</b>.<b>textBaseline</b> = "top"; /* or "middle"/"bottom" */<br>
+            <i>elem</i>.<b>style</b>.<b>textDecoration</b> = "underline"; /* or "line-through" */<br>
+            <i>elem</i>.<b>style</b>.<b>transform</b> = "rotate(90deg)";<br>
+            <i>elem</i>.<b>style</b>.<b>height</b> = "80px"; <small>/* only has effect on block-level or absolute/fixed position elements */</small><br>
+            <i>elem</i>.<b>style</b>.<b>width</b> = "240px"; <small>/* ditto */</small><br>
+            <i>elem</i>.<b>style</b>.<b>left</b> = "100px";<br>
+            <i>elem</i>.<b>style</b>.<b>top</b> = "100px";<br>
+            also [?]: bottom, right, maxWidth, and zIndex.
          </div>
         </div>
         <br>
@@ -904,16 +1194,339 @@ toLowerCase
         <div style="clear:both;height:1px;"> </div>
         <div class="flexbox">
          <div>
+            <nobr>/*string*/ res =&nbsp;</nobr>
+         </div>
+         <div>
             <nobr><i>elem</i>.<b>title</b>;</nobr>
          </div>
          <div>
             &nbsp;&nbsp;
          </div>
          <div>
-            The "title" in this case means/is shown as a tooltip.
+            (also settable) The "title" in this case means/is shown as a tooltip, and implements <a href="gSetAttribute.htm#TIP">TIP</a>.
          </div>
         </div>
         <br>
+
+        <a name=width></a>
+        <div style="clear:both;height:1px;"> </div>
+        <div class="flexbox">
+         <div>
+            <nobr>/*integer*/ res =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><i>elem</i>.<b>width</b>/<b>height</b>;</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Erm... width/height of embedded objects... xpGUI.js should probably not be using these...
+         </div>
+        </div>
+        <br>
+
+        <h3>canvas</h3>
+
+        <a name=getContext></a>
+        <div style="clear:both;height:1px;"> </div>
+        <div class="flexbox">
+         <div>
+            <nobr>/*CanvasRenderingContext2D*/&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr>ctx =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><i>canvas</i>.<b>getContext</b>("2d");</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Get a drawing context, on which all drawing operations occur.<br>
+            When OpenGL is being used, "webgl" instead of "2d" yields a similar /*WebGLRenderingContext*/.<br>
+         </div>
+        </div>
+        <br>
+
+        <a name=beginPath></a>
+        <div style="clear:both;height:1px;"> </div>
+        <div class="flexbox">
+         <div>
+            <nobr><i>ctx</i>.<b>beginPath</b>()</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Start a new path by emptying the list of sub-paths.
+         </div>
+        </div>
+        <br>
+
+        <a name=bezierCurveTo></a>
+        <div style="clear:both;height:1px;"> </div>
+        <div class="flexbox">
+         <div>
+            <nobr><i>ctx</i>.<b>bezierCurveTo</b>(</nobr>
+         </div>
+         <div>
+            <nobr>xc1, xc2, yc1, yc2, x2, y2);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Extend the path with a bezier curve. <br>
+            The current position is used as x1,y1. <br>
+            Use stroke() or fill() to draw the path.
+         </div>
+        </div>
+        <br>
+
+        <a name=closePath></a>
+        <div style="clear:both;height:1px;"> </div>
+        <div class="flexbox">
+         <div>
+            <nobr><i>ctx</i>.<b>closePath</b>();</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Extend the path with a line from the current position to the start.
+            Use stroke() or fill() to draw the path.
+         </div>
+        </div>
+        <br>
+
+        <a name=ellipse></a>
+        <div style="clear:both;height:1px;"> </div>
+        <div class="flexbox">
+         <div>
+            <nobr><i>ctx</i>.<b>ellipse</b>(</nobr>
+         </div>
+         <div>
+            <nobr>x, y, radiusX, radiusY,&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr>rotation, startAngle, endAngle,&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr>counterclockwise);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            x,y: ellipse centre<br>
+            radiusX: major axis radius<br>
+            radiusY: minor axis radius<br>
+            rotation: in radians<br>
+            startAngle: "", clockwise from x axis<br>
+            endAngle: ditto. 0..2*PI is full.<br>
+            counterclockwise: self explanatory<br>
+         </div>
+        </div>
+        <br>
+
+        <a name=fill></a>
+        <div style="clear:both;height:1px;"> </div>
+        <div class="flexbox">
+         <div>
+            <nobr><i>ctx</i>.<b>fill</b>();</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Draw the path and fill it.
+         </div>
+        </div>
+        <br>
+
+        <a name=fillRect></a>
+        <div style="clear:both;height:1px;"> </div>
+        <div class="flexbox">
+         <div>
+            <nobr><i>ctx</i>.<b>fillRect</b>(</nobr>
+         </div>
+         <div>
+            <nobr>x, y, w, h);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Draw and fill a recangle. (does not change the current path)
+         </div>
+        </div>
+        <br>
+
+        <a name=fillStyle></a>
+        <div style="clear:both;height:1px;"> </div>
+        <div class="flexbox">
+         <div>
+            <nobr><i>ctx</i>.<b>fillStyle</b> = "#FF0080";</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            All the <a href="gCanvas.htm#XPG_colours">standard colours</a> are also valid.
+         </div>
+        </div>
+        <br>
+
+        <a name=ctx_font></a>
+        <div style="clear:both;height:1px;"> </div>
+        <div class="flexbox">
+         <div>
+            <nobr><i>ctx</i>.<b>font</b> = "bold 12px sans-serif";</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Note this is quite different from the way most other elements use the <a href="#style">style</a> to set the font.
+         </div>
+        </div>
+        <br>
+
+        <a name=getImageData></a>
+        <div style="clear:both;height:1px;"> </div>
+        <div class="flexbox">
+         <div>
+            <nobr><i>ctx</i>.<b>getImageData</b>(</nobr>
+         </div>
+         <div>
+            <nobr>x, y, w, h);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Obtain an ImageData object representing the underlying pixel data for a specified portion of the canvas.
+         </div>
+        </div>
+        <br>
+
+        <a name=lineTo></a>
+        <div style="clear:both;height:1px;"> </div>
+        <div class="flexbox">
+         <div>
+            <nobr><i>ctx</i>.<b>lineTo</b>(</nobr>
+         </div>
+         <div>
+            <nobr>x, y);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Extend the path with a line from the current position to x,y.
+            Use stroke() or fill() to draw the path.
+         </div>
+        </div>
+        <br>
+
+        <a name=lineWidth></a>
+        <div style="clear:both;height:1px;"> </div>
+        <div class="flexbox">
+         <div>
+            <nobr><i>ctx</i>.<b>lineWidth</b>(1);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Implements <a href="gCanvas.htm#LINEWIDTH">LINEWIDTH</a>.
+         </div>
+        </div>
+        <br>
+
+        <a name=moveTo></a>
+        <div style="clear:both;height:1px;"> </div>
+        <div class="flexbox">
+         <div>
+            <nobr><i>ctx</i>.<b>moveTo</b>(</nobr>
+         </div>
+         <div>
+            <nobr>x, y);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Move the current position to x,y.
+         </div>
+        </div>
+        <br>
+
+        <a name=setLineDash></a>
+        <div style="clear:both;height:1px;"> </div>
+        <div class="flexbox">
+         <div>
+            <nobr><i>ctx</i>.<b>setLineDash</b>(<i>array</i>);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Implements <a href="gCanvas.htm#LINESTYLE">LINESTYLE</a>.
+         </div>
+        </div>
+        <br>
+
+        <a name=stroke></a>
+        <div style="clear:both;height:1px;"> </div>
+        <div class="flexbox">
+         <div>
+            <nobr><i>ctx</i>.<b>stroke</b>();</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Draw the path, without filling it.
+         </div>
+        </div>
+        <br>
+
+        <a name=strokeRect></a>
+        <div style="clear:both;height:1px;"> </div>
+        <div class="flexbox">
+         <div>
+            <nobr><i>ctx</i>.<b>strokeRect</b>(</nobr>
+         </div>
+         <div>
+            <nobr>x, y, w, h);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Draw a recangle, without filling it. (does not change the current path)
+         </div>
+        </div>
+        <br>
+
+        <a name=strokeStyle></a>
+        <div style="clear:both;height:1px;"> </div>
+        <div class="flexbox">
+         <div>
+            <nobr><i>ctx</i>.<b>strokeStyle</b> = "#FF0080";</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            All the <a href="gCanvas.htm#XPG_colours">standard colours</a> are also valid.
+         </div>
+        </div>
+        <br>
+
 
         <h3>events</h3>
 
@@ -982,6 +1595,23 @@ toLowerCase
         <div style="clear:both;height:1px;"> </div>
         <br>
 
+        <a name=setTimeout></a>
+        <div class="flexbox">
+         <div>
+            <nobr><b>setTimeout</b>(</nobr>
+         </div>
+         <div>
+            <nobr><i>fn</i>, <i>delay</i>[, <i>params...</i>]);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Invoke fn with params after delay milliseconds.
+         </div>
+        </div>
+        <br>
+
         <a name=typeof></a>
         <div class="flexbox">
          <div>
@@ -995,14 +1625,15 @@ toLowerCase
          </div>
          <div>
             Technically a prefix operator, it is used as a function in p2js/pGUI.js. Valid results are "string",
-            "number", "undefined", "boolean", "function", and "object". Note the latter is returned for arrays...
+            "number", "undefined", "boolean", "function", and "object". Note the latter is returned for arrays,
+            see <a href="#isArray">isArray</a>.
          </div>
         </div>
         <br>
 
         <a name=this></a>
         <div style="clear:both;height:1px;"> </div>
-        <b>this</b> is avoided at all costs in p2js/pGUI.js. Besides, rather than say dlg.show(), we use <a href="IupShow.htm">IupShow</a>(dlg).
+        <b>this</b> is avoided at all costs in p2js/xpGUI.js. Besides, rather than say dlg.show(), we use <a href="gShow.htm">gShow</a>(dlg).
         <br>
         <h3>operators</h3>
         <br>
@@ -1086,7 +1717,8 @@ toLowerCase
         <div style="clear:both;height:1px;"> </div>
         <a name=globals></a>
         <br>
-        &nbsp;
+        Note the following might have been complete for pGUI.js, but for xpGUI.js it is very much a subset, only those I could be 
+        bothered to write something about. Should you figure out something useful to add (beyond "document $all"), let me know.<br>
         <br>
         <table style="width: auto;">
          <tr>
@@ -1166,6 +1798,15 @@ toLowerCase
          </tr>
          <tr>
             <td>
+             <a name=ocument_createElement></a>
+             $ocument_createElement
+            </td>
+            <td>
+              A trivial wrapper to <a href="#createElement">createElement</a> which sets a dummy (integer) id to mimic desktop/Phix, in case we try to print it.
+            </td>
+         </tr>
+         <tr>
+            <td>
              <nobr>$paranormalise()</nobr>
             </td>
             <td>
@@ -1226,6 +1867,7 @@ toLowerCase
          </tr>
          <tr>
             <td>
+             <a name=storeAttr></a>
              $storeAttr[]
             </td>
             <td>

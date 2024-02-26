@@ -1948,7 +1948,9 @@ atom pi, inf, nan
 --                     [but 2.71828182845904553488 if built using 32-bit p.exe]
 --  initialConstant("EULER",2.7182818284590452)
     initialConstant("EULER",2.7182818284590452353602)
+--                    LN10 is 3.32192809488736234787
     initialConstant("INVLN10",0.43429448190325182765)
+--                              12345678901234567890
 --  initialConstant("INVLN2",1.44269504088896340739)
 --sug:  Phi (the golden ratio, = 1.618033988749895)
 
@@ -2902,6 +2904,7 @@ end if
     initialAutoEntry("atom_to_float80",         S_Func,"FN",    "VM\\pFloatN.e",0,E_none)
     initialAutoEntry("current_dir",             S_Func,"F",     "pcurrdir.e",0,E_none)
 --  initialAutoEntry("current_dirN",            S_Func,"F",     "VM\\pcurrdirN.e",0,E_none)
+    initialAutoEntry("c_info",                  S_Func,"FI",    "VM\\pcfunc.e",0,E_none)
     initialAutoEntry("decode_flags",            S_Func,"FPNS",  "pdecodeflags.e",0,E_none,2)
     initialAutoEntry("decode_base64",           S_Func,"FP",    "base64.e",0,E_none)
     initialAutoEntry("dict_name",               S_Func,"FI",    "dict.e",0,E_none,0)

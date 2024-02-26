@@ -1786,6 +1786,19 @@ function mpq_inits(/*integer*/ n, /*object*/ v=0) {
 
 let mpq_free = mpz_free;
 
+function mpq_get_d(/*mpq*/ op) {
+// return (atom) floor(mpq_get_num(op)/mpq_get_den(op))
+//Convert op to a double, truncating if necessary (ie. rounding towards zero).
+//If the exponent from the conversion is too big or too small to fit a double then the result is
+//system dependent. For too big an infinity is returned when available. For too small 0:0 is
+//normally returned. Hardware overflow, underflow and denorm traps may or may not occur.
+//DEV (as per mpfr_get_d()) there must be some way quite a bit a better than this...
+
+    let dn = (op[MPQ$N]*(10n**20n))/op[MPQ$D],
+        d = Number(dn)/1e20;
+    return d;
+}
+
 function mpq_get_num(/*mpz*/ numerator, /*mpq*/ rational) {
     numerator[MPZ$B] = rational[MPQ$N];
 }
@@ -2012,19 +2025,6 @@ function mpq_div_2exp(/*mpq*/ rop, op, /*integer*/ bits) {
 
 /*
 
-global function mpq_get_d(mpq op)
--- return (atom) floor(mpq_get_num(op)/mpq_get_den(op))
---Convert op to a double, truncating if necessary (ie. rounding towards zero).
---If the exponent from the conversion is too big or too small to fit a double then the result is
---system dependent. For too big an infinity is returned when available. For too small 0:0 is
---normally returned. Hardware overflow, underflow and denorm traps may or may not occur.
-    if op=NULL then ?9/0 end if
-    if x_mpq_get_d=NULL then
-        x_mpq_get_d = define_c_func(mpir_dll, "+__gmpq_get_d", {P},D)
-    end if
-    atom res = c_func(x_mpq_get_d,{op})
-    return res
-end function
 
 global procedure mpq_mul_2exp(mpq rop, op, integer bits)
 -- set rop to op * 2^bits

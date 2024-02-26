@@ -1,6 +1,7 @@
 --
 -- log10.e
 --
+with debug
 
 global function log10(atom n)
 --Added 26/9/22:

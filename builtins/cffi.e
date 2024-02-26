@@ -386,7 +386,7 @@ sequence structs,       -- struct names
 
 function add_struct(sequence res)
 -- internal routine
--- res is eg {"RECT",16,4,{{"left","top","right","bottom"},{{"long",4,0,1},{"long",4,4,1},{"long",4,8,1},{"long",4,12,1}}}}
+-- res is eg {"RECT",16,4,{{"left","top","right","bottom"},{{"long",4,0,1},{"long",4,4,1},{"long",4,8,1},{"long",4,12,1}}},{}}
 -- returns an integer id
     string name
     sequence members, ptrnames
@@ -1026,27 +1026,65 @@ procedure init_cffi()
     dll_names = {}
     dll_addrs = {}
     {C_SIZES,C_CONSTS} = columnize({
+                                         {{1,1},C_BYTE},    -- (=== C_CHAR)
+                                         {{1,0},C_UBYTE},   -- (=== C_UCHAR)
                                          {{2,1},C_WORD},    -- (=== C_SHORT)
                                          {{2,0},C_USHORT},
-                                         {{4,0},C_DWORD},   -- (=== C_PTR, C_HWND, etc)
                                          {{4,1},C_INT},
+                                         {{4,0},C_DWORD},   -- (=== C_PTR, C_HWND, etc)
                                          {{8,0},C_PTR},
 --DEV temp (do_type should probably zero signed on all pointers)
                                          {{8,1},C_PTR},
                                          $})
 --/* Some of these may need adding:
---  initialConstant("C_CHAR",       #01000001)
---  initialConstant("C_BYTE",       #01000001)
---  initialConstant("C_UCHAR",      #02000001)
---  initialConstant("C_UBYTE",      #02000001)
---  initialConstant("C_SHORT",      #01000002)
---  initialConstant("C_WORD",       #01000002)
---  initialConstant("C_USHORT",     #02000002)
+--X initialConstant("C_CHAR",       #01000001)
+--X initialConstant("C_BYTE",       #01000001)
+--X initialConstant("C_UCHAR",      #02000001)
+--X initialConstant("C_UBYTE",      #02000001)
+--X initialConstant("C_SHORT",      #01000002)
+--X initialConstant("C_WORD",       #01000002)
+--X initialConstant("C_USHORT",     #02000002)
 --  initialConstant("C_INT64",      #01000008)  -- (a 64 bit signed integer)
 --  initialConstant("C_QWORD",      #02000008)  -- (a 64 bit unsigned integer)
 --  initialConstant("C_FLOAT",      #03000004)
 --*/
 
+--/* bitfields: in the following, fBinary..fDummy2 occupy one dword, ie 4 bytes or 32 bits...
+                 // and fBinary can only be 0/1, fDtrControl 0..3, ie 0..power(2,b)-1
+// each field has size,offset,signed: if size&signed -ve it is a bitmap field??
+typedef struct _DCB {
+  DWORD DCBlength;
+  DWORD BaudRate;
+  DWORD fBinary : 1;
+  DWORD fParity : 1;
+  DWORD fOutxCtsFlow : 1;
+  DWORD fOutxDsrFlow : 1;
+  DWORD fDtrControl : 2;
+  DWORD fDsrSensitivity : 1;
+  DWORD fTXContinueOnXoff : 1;
+  DWORD fOutX : 1;
+  DWORD fInX : 1;
+  DWORD fErrorChar : 1;
+  DWORD fNull : 1;
+  DWORD fRtsControl : 2;
+  DWORD fAbortOnError : 1;
+  DWORD fDummy2 : 17;
+  WORD  wReserved;
+  WORD  XonLim;
+  WORD  XoffLim;
+  BYTE  ByteSize;
+  BYTE  Parity;
+  BYTE  StopBits;
+  char  XonChar;
+  char  XoffChar;
+  char  ErrorChar;
+  char  EofChar;
+  char  EvtChar;
+  WORD  wReserved1;
+} DCB, *LPDCB;
+
+That's actually a pretty decent example, with fBinary..fDummy2 occupying all 32 bits of a single dword
+--*/
     cffi_init = true
 end procedure
 
@@ -1153,6 +1191,7 @@ global procedure set_struct_field(integer id, atom pStruct, atom_string field, o
     sequence {membernames,details} = get_smembers(id)
     integer k = iff(string(field)?find(field,membernames):field)
     integer {?,size,offset} = details[k]
+--  integer {?,size,offset,signed} = details[k]
     if atom(v) then
         pokeN(pStruct+offset,v,size)
     else
@@ -1290,6 +1329,11 @@ integer rid
     while ch!=')' do
         mtype = stoken()
         if match("_",mtype)=1 then  --  "_In_", "_Inout_opt_", "_Out_" etc
+            mtype = stoken()
+        elsif equal(mtype,"[") then  -- "[in]", "[in, optional]", etc
+            while not equal(mtype,"]") do
+                mtype = stoken()
+            end while
             mtype = stoken()
         elsif equal(mtype,"void") then
             if ch!=')' then ?9/0 end if

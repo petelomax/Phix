@@ -1,0 +1,140 @@
+--
+-- demo\GildedRoseKataN.exw
+-- ========================
+--
+--  A "normal only" version of demo\GildedRoseKata.exw
+--
+sequence items = {}, -- descriptions, eg "Aged Brie"
+         sellin = {}, -- days left
+         quality = {}  -- quality(ha!)
+
+procedure update_quality(integer i)
+    // ages the item by a day, and updates its quality
+    string name = items[i]
+    if name != "Sulfuras" then  sellin[i] -= 1 end if
+    integer si = sellin[i], 
+            qi = quality[i],
+           adj = 1+(si<0)
+    switch name 
+        case "Aged Brie":       quality[i] = min(qi+adj,50)
+        case "Backstage pass":  quality[i] = iff(si<0?0:min(qi+1+(si<10)+(si<5),50))
+        case "Sulfuras":        break
+        case "Conjured":        quality[i] = max(0,qi-2*adj)
+        else:                   quality[i] = max(0,qi-adj)
+    end switch
+end procedure
+
+function new_item(sequence item)
+    {string name, integer days, integer qual} = item
+    items = append(items,name)
+    sellin = append(sellin,days)
+    quality = append(quality,qual)
+    return length(items)
+end function
+
+procedure print_items()
+    for i=1 to length(items) do
+        printf(1,"%s: %d days left, quality is %d\n",{items[i],sellin[i],quality[i]})
+    end for
+    printf(1,"\n")
+end procedure
+
+enum  NAME, DAYS, QUALITY, EDAYS, EQUALITY, DESC
+
+procedure ExampleGildedRose()
+    sequence samples = {{"Normal",          5, 5, 4, 4},
+                        {"Aged Brie",       5, 5, 4, 6},
+                        {"Sulfuras",        5, 5, 5, 5},
+                        {"Backstage pass",  5, 5, 4, 8},
+                        {"Conjured",        5, 5, 4, 3}}
+    for s in samples do
+        {} = new_item(s)
+    end for
+
+    print_items()
+
+    for i=1 to length(items) do
+        update_quality(i)
+        assert(sellin[i]=samples[i][EDAYS])
+        assert(quality[i]=samples[i][EQUALITY])
+    end for
+
+    print_items()
+
+    // Output:
+    // Normal: 5 days left, quality is 5
+    // Aged Brie: 5 days left, quality is 5
+    // Sulfuras: 5 days left, quality is 5
+    // Backstage pass: 5 days left, quality is 5
+    // Conjured: 5 days left, quality is 5
+    //
+    // Normal: 4 days left, quality is 4
+    // Aged Brie: 4 days left, quality is 6
+    // Sulfuras: 5 days left, quality is 5
+    // Backstage pass: 4 days left, quality is 8
+    // Conjured: 4 days left, quality is 3
+end procedure
+
+ExampleGildedRose()
+
+constant tests = {
+    {"Normal",           5, 10,   4,  9, "before sell date"},
+    {"Normal",           0, 10,  -1,  8, "on sell date"},
+    {"Normal",         -10, 10, -11,  8, "after sell date"},
+    {"Normal",           5,  0,   4,  0, "of zero quality"},
+    {"Aged Brie",        5, 50,   4, 50, "before sell date with max quality"},
+    {"Aged Brie",        0, 10,  -1, 12, "on sell date"},
+    {"Aged Brie",        0, 49,  -1, 50, "on sell date near max quality"},
+    {"Aged Brie",        0, 50,  -1, 50, "on sell date with max quality"},
+    {"Aged Brie",      -10, 10, -11, 12, "after sell date"},
+    {"Aged Brie",      -10, 50, -11, 50, "after sell date with max quality"},
+    {"Sulfuras",         5, 80,   5, 80, "before sell date"},
+    {"Sulfuras",         0, 80,   0, 80, "on sell date"},
+    {"Sulfuras",       -10, 80, -10, 80, "after sell date"},
+    {"Backstage pass",  11, 10,  10, 11, "long before sell date"},
+    {"Backstage pass",  11, 49,  10, 50, "long before sell date near max quality"},
+    {"Backstage pass",  11, 50,  10, 50, "long before sell date at max quality"},
+    {"Backstage pass",  10, 10,   9, 12, "medium close to sell date (upper bound)"},
+    {"Backstage pass",  10, 49,   9, 50, "medium close to sell date (upper bound) near max quality"},
+    {"Backstage pass",  10, 50,   9, 50, "medium close to sell date (upper bound) at max quality"},
+    {"Backstage pass",   6, 10,   5, 12, "medium close to sell date (lower bound)"},
+    {"Backstage pass",   6, 49,   5, 50, "medium close to sell date (lower bound) near max quality"},
+    {"Backstage pass",   6, 50,   5, 50, "medium close to sell date (lower bound) at max quality"},
+    {"Backstage pass",   5, 10,   4, 13, "very close to sell date (upper bound)"},
+    {"Backstage pass",   5, 49,   4, 50, "very close to sell date (upper bound) near max quality"},
+    {"Backstage pass",   5, 50,   4, 50, "very close to sell date (upper bound) at max quality"},
+    {"Backstage pass",   1, 10,   0, 13, "very close to sell date (lower bound)"},
+    {"Backstage pass",   1, 49,   0, 50, "very close to sell date (lower bound) near max quality"},
+    {"Backstage pass",   1, 50,   0, 50, "very close to sell date (lower bound) at max quality"},
+    {"Backstage pass",   0, 10,  -1,  0, "on sell date"},
+    {"Backstage pass", -10, 10, -11,  0, "after sell date"},
+    {"Conjured",         5, 10,   4,  8, "before sell date"},
+    {"Conjured",         5,  0,   4,  0, "before sell date at zero quality"},
+    {"Conjured",         0, 10,  -1,  6, "on sell date"},
+    {"Conjured",         0,  0,  -1,  0, "on sell date at zero quality"},
+    {"Conjured",       -10, 10, -11,  6, "after sell date"},
+    {"Conjured",       -10,  0, -11,  0, "after sell date at zero quality"},
+}
+
+procedure TestGildedRose()
+    for t in tests do
+        string name = t[NAME],
+               desc = t[DESC]
+        integer it = new_item(t)
+        update_quality(it)
+        integer adays = sellin[it],
+                edays = t[EDAYS],
+             aquality = quality[it],
+             equality = t[EQUALITY]
+        if aquality != equality then
+            printf(1,"\n%s %s\nexpected quality: %d\nactual quality: %d\n", {name, desc, equality, aquality})
+        end if
+        if adays != edays then
+            printf(1,"\n%s %s\nexpected days left: %d\nactual days left: %d\n", {name, desc, edays, adays})
+        end if
+    end for
+end procedure
+TestGildedRose()
+?"done"
+{} = wait_key()
+

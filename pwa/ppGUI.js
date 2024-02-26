@@ -765,7 +765,7 @@ function IupOpen() {
 // pretty cool, eg "Red" -> #ff0000, "PeachPuff" -> #ffdab9, "PaleGoldenRod" -> #eee8aa, 
 //  plus "RGB(123,234,142)" -> #7bea8e and "HSL(284,6%,49%)" -> #807584. Handy!
 //function standardize_color(str){
-//  var ctx = document.createElement("canvas").getContext('2d');
+//  var ctx = document.createElement("canvas").getContext("2d");
 //  ctx.fillStyle = str;
 //  return ctx.fillStyle;
 //}
@@ -3146,9 +3146,9 @@ function IupButton(title = null, action = null, func = null, attributes = "", ar
 const IupFlatButton = IupButton;
 
 function IupTable(columns, data, visible=10, attributes="", args=[]) {
-    let table = document.createElement(`table`),
-        container = document.createElement(`div`);  // wraps table+resizers
-    table.style.height = visible*23+27 + 'px';
+    let table = document.createElement("table"),
+        container = document.createElement("div");  // wraps table+resizers
+    table.style.height = visible*23+27 + "px";
     container.appendChild(table);
     container.classList = 'container';
 
@@ -3193,10 +3193,10 @@ function IupTable(columns, data, visible=10, attributes="", args=[]) {
 
     function update_item(node) {
         let id = Number(node.id),
-            tds = Array.from(node.querySelectorAll('td'));
+            tds = Array.from(node.querySelectorAll("td"));
         if (tds.length===1) {
             for (let i=1; i<=nColumns; i += 1) {
-                let td = document.createElement('td');
+                let td = document.createElement("td");
                 node.appendChild(td);
                 tds[i] = td;
             }
@@ -3368,18 +3368,18 @@ function IupTable(columns, data, visible=10, attributes="", args=[]) {
     function populate_table() {
         let tbody, bRefresh = false;
         if (created===0) {
-            let thead = document.createElement('thead'),
-                headr = document.createElement('tr');
-            tbody = document.createElement('tbody');
-            tbody.setAttribute('tabindex', "0");
+            let thead = document.createElement("thead"),
+                headr = document.createElement("tr");
+            tbody = document.createElement("tbody");
+            tbody.setAttribute("tabindex", "0");
             thead.appendChild(headr);
             table.appendChild(thead);
             table.appendChild(tbody);
             for (let i=1; i<=nColumns; i += 1) {
-                let th = document.createElement('th'),
+                let th = document.createElement("th"),
                     ci = columns[i];
                 if (Array.isArray(ci)) {
-                    let wydth = (columns[i][2]-11) + 'px',
+                    let wydth = (columns[i][2]-11) + "px",
                         align = columns[i][3].toLowerCase().slice(1);
                     th.style.width = wydth;
                     th.style.maxWidth = wydth;
@@ -3390,12 +3390,12 @@ function IupTable(columns, data, visible=10, attributes="", args=[]) {
                 }
                 th.textContent = ci;
                 th.id = i;
-                th.classList.add('sortable');
+                th.classList.add("sortable");
                 th.onclick = sortTable;
                 headr.appendChild(th);
             }   
-            let th = document.createElement('th');
-            th.classList.add('thlast');
+            let th = document.createElement("th");
+            th.classList.add("thlast");
             headr.appendChild(th);
             bRefresh = true;
         } else {
@@ -3407,9 +3407,9 @@ function IupTable(columns, data, visible=10, attributes="", args=[]) {
 //      for (; created<last; created += 1) {
         for (let i=created; i<=last; i += 1) {
             created = i;
-            let tr = document.createElement('tr');
+            let tr = document.createElement("tr");
             for (let c=1; c<=nColumns; c += 1) {
-                tr.appendChild(document.createElement('td'));
+                tr.appendChild(document.createElement("td"));
             }
             tr.id = created+1;
             tr.onclick = trClick;
@@ -3950,16 +3950,16 @@ function myTimer2() {
 /*
 // for IupMenu, perhaps...
 function popupMenu() {
-  const menuItems = ['add', 'this'];
+  const menuItems = ["add", "this"];
 
-  const popup = document.createElement('div');
-  const popupList = document.createElement('ul')
-  popup.className = 'popup-menu';
+  const popup = document.createElement("div");
+  const popupList = document.createElement("ul")
+  popup.className = "popup-menu";
   popup.appendChild(popupList)
   document.body.appendChild(popup)
 
   function create_item(item) {
-    const li = document.createElement('li');
+    const li = document.createElement("li");
     li.textContent = item;
     popupList.appendChild(li);
   }
@@ -3967,25 +3967,25 @@ function popupMenu() {
 
   function context_listener(event) {
     event.preventDefault();
-    popup.style.display = 'block';
+    popup.style.display = "block";
     let dW = document.documentElement.clientWidth,
         dH = document.documentElement.clientHeight,
         pW = popup.offsetWidth,
         pH = popup.offsetHeight,
         pX = Math.min(event.pageX,dW-pW-3),
         pY = Math.min(event.pageY,dH-pH-3);
-    popup.style.left = pX + 'px';
-    popup.style.top = pY + 'px';
+    popup.style.left = pX + "px";
+    popup.style.top = pY + "px";
   }
-  document.addEventListener('contextmenu', context_listener);
+  document.addEventListener("contextmenu", context_listener);
 
   function click_hide(event) {
     const classes = event.target.classList;
-    if (!classes.contains('popup-menu-list')) {
-      popup.style.display = 'none';
+    if (!classes.contains("popup-menu-list")) {
+      popup.style.display = "none";
     }
   }
-  document.addEventListener('click', click_hide);
+  document.addEventListener("click", click_hide);
 }
 
 window.onload = popupMenu;

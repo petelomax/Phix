@@ -317,19 +317,19 @@ end procedure
 
 procedure xCanvasCubicBezier(gdx canvas, atom x1, y1, xc1, yc1, xc2, yc2, x2, y2, integer style=-1, width=-1, atom colour=-1, bool aa=true)
     integer pstyle, pwidth, pcolour
-    if style!=-1 then pstyle = gCanvasGetLineStyle(canvas) gCanvasSetLineStyle(canvas,style) end if
-    if width!=-1 then pwidth = gCanvasGetLineWidth(canvas) gCanvasSetLineWidth(canvas,width) end if
-    if colour!=-1 then pcolour = gCanvasGetForeground(canvas) gCanvasSetForeground(canvas,colour) end if
+    if style!=-1 then pstyle = gGetAttribute(canvas,"LINESTYLE") gSetAttribute(canvas,"LINESTYLE",style) end if
+    if width!=-1 then pwidth = gGetAttribute(canvas,"LINEWIDTH") gSetAttribute(canvas,"LINEWIDTH",width) end if
+    if colour!=-1 then pcolour = gGetAttribute(canvas,"FGCLR") gSetAttribute(canvas,"FGCLR",colour) end if
     if aa then
 --      wu_d = floor(width/2)
-        wu_d = floor(gCanvasGetLineWidth(canvas)/2)
+        wu_d = floor(gGetAttribute(canvas,"LINEWIDTH")/2)
         wu_bezier(canvas,x1,y1,xc1,yc1,xc2,yc2,x2,y2)
     else
         gCanvasCubicBezier(canvas,x1,y1,xc1,yc1,xc2,yc2,x2,y2)
     end if
-    if colour!=-1 then gCanvasSetForeground(canvas,pcolour) end if
-    if width!=-1 then gCanvasSetLineWidth(canvas,pwidth) end if
-    if style!=-1 then gCanvasSetLineStyle(canvas,pstyle) end if
+    if colour!=-1 then gSetAttribute(canvas,"FGCLR",pcolour) end if
+    if width!=-1 then gSetAttribute(canvas,"LINEWIDTH",pwidth) end if
+    if style!=-1 then gSetAttribute(canvas,"LINESTYLE",pstyle) end if
 end procedure
 
 procedure gCanvasQuadBezier(gdx canvas, atom x1, y1, cx, cy, x2, y2, integer style=-1, width=-1, colour=-1, bool aa=true)
@@ -342,11 +342,11 @@ procedure redraw(gdx canvas)
 --  integer {w, h} = sq_sub(gGetIntInt(canvas, "DRAWSIZE"),10)
     integer {w, h} = sq_sub(gGetIntInt(canvas, "SIZE"),10),
             hm200 = h-200
---  gCanvasSetLineStyle(canvas,XPG_DASHED)
+--  gSetAttribute(canvas,"LINESTYLE",XPG_DASHED)
 --  cdCanvasActivate(canvas)
 --  cdCanvasClear(canvas)
 --  if platform()=JS then
---      gCanvasSetLineWidth(canvas,iff(wuline?1:4))
+--      gSetAttribute(canvas,"LINEWIDTH",iff(wuline?1:4))
 --  end if
 --if wuline then
 --  wu_line(canvas,0,h,200,hm200)
@@ -370,12 +370,12 @@ if wuline then
 --  gCanvasArc(canvas, 205, 205, 300, 100, 15, 85) 
 else
     gCanvasArc(canvas,200,hm200,200,200,0,360) 
---  gCanvasSetForeground(canvas, XPG_GREEN)
+--  gSetAttribute(canvas,"FGCLR",XPG_GREEN)
 
 --  gCanvasArc[with flags|=XPG_SECTOR](canvas, 200, 200, 200, 200, 0, 360) 
     gCanvasArc(canvas,200,hm200,300,100,0,360) 
 --  gCanvasArc(canvas,200,hm200,300,100,15,50) 
---  gCanvasSetForeground(canvas, LINE)
+--  gSetAttribute(canvas,"FGCLR",LINE)
 
 end if
 --test - it works (much better) if you draw the polygon /after/ the lines!!
@@ -385,9 +385,8 @@ end if
 --  cdCanvasVertex(canvas,200,200)
 --  cdCanvasEnd(canvas)
 --/test
---  gCanvasSetBackground[original](canvas)
---  cdCanvasSetBackground(canvas, BACK)
---  cdCanvasSetForeground(canvas, LINE)
+--  gSetAttribute(canvas,"BG_CLR",BACK)
+--  gSetAttribute(canvas,"FG_CLR",LINE)
 --  gCanvasBezier(canvas,10,10,w-10,10,0,h-10,w-10,h-10)
 --dots = 50
 if wuline then
@@ -444,8 +443,8 @@ end function
 gdx canvas = gCanvas(redraw)
 --gSetAttribute(canvas, "RASTERSIZE", "640x480")
 --gSetHandler(canvas,"REDRAW", redraw)
-gCanvasSetBackground(canvas, BACK)
-gCanvasSetForeground(canvas, LINE)
+gSetAttribute(canvas,"BGCLR",BACK)
+gSetAttribute(canvas,"FGCLR",LINE)
 --dlg = gDialog(canvas)
 dlg = gDialog(canvas,"SIZE=640x480")
 set_title()

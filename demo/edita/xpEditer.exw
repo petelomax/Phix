@@ -96,6 +96,17 @@
 --  project tree
 --  status bar
 --  layout designer
+-- Finding any of f("table"), f('table'), or f(`table`) should find the other two 
+--      [similar to/with case insensitive searching]
+-- Make OVR mode much harder to turn on, maybe a toolbar button, or hold Insert for >=5s, 
+--      and much more visible: cursor->invert-blink the char about to be trashed.
+-- Add a "confirm close" messagebox!!! (and make Esc not quit)
+-- Add an "insert file(s)" option, eg open all 13 *.cs files from 
+--  demo\HFDP\orig\HeadFirstDesignPatternsInCSharp\Strategy.Duck
+-- Add a restore facility: save a list of edit actions and optionally re-apply on load...
+--  better: restore the "redo" stack ("Crash recovery: restore by pressing redo 47 times now")
+--  Normal shutdown, or more precisely save, would [probably] of course clear the stack.
+--
 
 --puts(1,"") -- (temp [warning child not used])
 with javascript_semantics
@@ -120,6 +131,11 @@ include xpGUI.e
 --include ..\xpGUI\backup\xpGUI.1275.e  -- bad
 --include ..\xpGUI\backup\xpGUI.1278.e  -- X
 --include ..\xpGUI\backup\xpGUI.1279.e  -- X
+--include ..\xpGUI\backup\xpGUI.2970.e  -- good
+--include ..\xpGUI\backup\xpGUI.2973.e  -- X
+--include ..\xpGUI\backup\xpGUI.2974.e  -- !
+--include ..\xpGUI\backup\xpGUI.2982.e  -- X
+--include ..\xpGUI\backup\xpGUI.3013.e  -- X
 --gUseGTK()
 
 integer backend = gVersion(-1) -- (temp/force init)
@@ -1591,6 +1607,38 @@ d c #5E81A6
 """
 --constant play_xpm = gImage_from_XPM(play_xpm_txt,"MENU")
 
+constant backups_xpm = """
+16 16 12 1 0 0
+. c None
+1 c #D8E983
+! c #D5E66D
+# c #B6D353
+$ c #616551
+% c #353E25
+& c #A7B66E
+' c #9AA65F
+( c #C7DB65
+) c #7D855E
+* c #C4DC5B
++ c #BBD269
+................
+................
+................
+.....1!!!11.....
+....1#$%%$#!....
+...!&%'(('$&!...
+...!$&!)!!($*...
+..*$%)*'!**)'*..
+..*+$+*'&**')*..
+..##+***'&*)'#..
+...($&###(+$+...
+...#&)&++&$'*...
+....#&)$$)&+....
+.....#++++#.....
+................
+................
+"""
+
 constant colours_xpm = """
 16 16 10 1 0 0
 . c None
@@ -2176,7 +2224,8 @@ constant MAIN_MENU = {{"&File",{{"&New\tCtrl N",file_new_xpm,NEW:=$},
                                  {"Play F9\tF9",play_xpm,PLAY9:=$},
                                  {"Macro Management\tShift F8",MM:=$}}},
 --Autocomplete?
-                      {"&Options",{{"&Colours",colours_xpm,COLOURS:=$},
+                      {"&Options",{{"&Backups",backups_xpm,BACKUPS:=$},
+                                   {"&Colours",colours_xpm,COLOURS:=$},
                                    {"&Fonts",fonts_xpm,FONTS:=$},
 --Wordwrap??
                                    {"&Display Options",display_xpm,DISPLAY:=$},
@@ -2251,10 +2300,13 @@ function btn_click(gdx btn)
 -- (and then they are all just btn_click, not toolb_new etc)
 --  ?{"btn_click",gGetAttribute(btn,"TIP")}
 --  ?{"btn_click",gGetAttribute(btn,"TITLE")}
-    ?{"btn_click",gGetAttribute(btn,"USER_DATA")}
+    integer id = gGetAttribute(btn,"USER_DATA")
+    ?{"btn_click",id}
+--?9/0
 --?gGetAttribute(gGetDialog(btn),"CLIENTSIZE")
 --gImageDraw(canvas,
     return XPG_IGNORE
+--  return iff(id=CLOSE?XPG_CLOSE:XPG_IGNORE)
 end function
 
 procedure rtn_changed(gdx id)
@@ -2294,6 +2346,7 @@ gdx toolb_new     = toolbar_item(cb_new,            file_new_xpm,     "New (Ctrl
     toolb_copy    = toolbar_item(cb_copy,           copy_xpm,         "Copy (Ctrl C)",          1, COPY),
     toolb_paste   = toolbar_item(cb_paste,          paste_xpm,        "Paste (Ctrl V)",         1, PASTE),
     toolb_sep3    = gLabel(" ", "SEPARATOR=VERTICAL"),
+--DEV these icons are just not nice...
     toolb_undo    = toolbar_item(cb_undo,           undo_xpm,         "Undo (Ctrl Z)",          1, UNDO),
     toolb_redo    = toolbar_item(cb_redo,           redo_xpm,         "Redo (Ctrl Y)",          1, REDO),
     toolb_find    = toolbar_item(fdlg_cb_find,      find_xpm,         "Find (Ctrl F)",          0, FIND),
@@ -2345,14 +2398,16 @@ gdx toolb_new     = toolbar_item(cb_new,            file_new_xpm,     "New (Ctrl
 --htlbl,
 --                   toolb_rtns}, "GAP=2, MARGIN=2x2, SIZE=200x40")
 --                   toolb_rtns}, "GAP=2, SIZE=800x40")
-                     toolb_rtns}, "GAP=2")
+--                   toolb_rtns}, "GAP=2")
+                     toolb_rtns}, "GAP=0") -- good... (so gap not yet handled correctly)
 --                   toolb_rtns,
 --                   toolb_sep6}, "GAP=2")
 --                   toolb_rtns}, "GAP=2,MARGIN=20x20")
     return toolbar
 end function
 
-sequence src = get_text("xpEditer.exw",GT_LF_STRIPPED)
+--sequence src = get_text("xpEditer.exw",GT_LF_STRIPPED)
+sequence src = get_text("xpEditer.exw",GT_LF_STRIPPED)[1..5]
 integer maxl = largest(apply(src,length),return_index:=true)
 
 --function get_data([gdx id,] integer item)
@@ -2585,13 +2640,16 @@ pp({"me",me,ms})
 --  edit = gList(get_data), -- x1 taken over by the scrollbar!
 --  edit = gList(get_data,"EXPAND=BOTH"),   --DEV should be the default? [DONE]
 --  edit = gList(get_data,"EXPAND=BOTH, SIZE=100x100"),
-    edit = gList(get_data,"SIZE=x145"),
+--  edit = gList(get_data,`FONT="Consolas, 12", SIZE=x145`),
+    edit = gList(get_data,`FONT="Consolas, 12", SIZE=1035x145`),
+--  edit = gList(get_data,`FONT="Consolas, 12", SIZE=1035x550`),
 --  edit = gList(get_data,"EXPAND=VERTICAL"),
     stab = gLabel("status bar","SIZE=200x25"), 
     -- ^more probably gHbox({lc,sep,move,sep,dt,sep,msg},"VISIBLE=%t",{visible})
 --  hbox = gVbox({tbar,tabs,edit}),
 --  vbox = gVbox({menu,hbox}),
     vbox = gVbox({menu,tbar,tabs,edit,stab}),
+--  vbox = gVbox({tbar,tabs,edit,stab}),
 --  vbox = gVbox({menu,gVbox({tbar,tabs,edit,stab},"MARGIN=10")}),
 --  vbox = gVbox({menu,tbar,tabs,edit}),
 --  vbox = gVbox({menu,tbar,tabs}),

@@ -1073,6 +1073,11 @@ push rsi
             mov rdi,rbx             -- addr (NULL)
             call "libc.so.6","mmap"
 --          add rsp,48
+--9/2/24:
+            test rax,rax
+            jg @f
+                xor rax,rax
+         @@:
 pop rsi
 pop rdi
 --*!/
@@ -3690,6 +3695,11 @@ end procedure -- (for Edita/CtrlQ)
         test rax,rax
 --      jz :memoryallocationfailure
         jnz @f
+--9/2/24:
+            mov rdx,[rsp+48]
+            mov al,33   -- e33maf
+            sub rdx,1
+            jmp :!iDiag
             int3
       @@:
         mov [rax],rbx                   -- set slack (=0)

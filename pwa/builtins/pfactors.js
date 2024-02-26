@@ -22,14 +22,14 @@
 //
 /*without debug*/ // keep ex.err clean
 let /*integer*/ $lim_chk = 0; // 0: fail maxint, 1: pass it
-function $check_limits(/*atom*/ n, /*string*/ rtn) {
+function $check_limits(/*atom*/ n, /*string*/ called_from) {
 //28/9/22:
 //  if n<1 or n!=floor(n) then
     if (n<0 || !integer(n-floor(n))) {
 //atom dbg = n-floor(n)
         let /*string*/ g = sprintf("%g",n);
         if (!find(0X2E,g)) { g = $conCat(g, sprintf("%+g",n-round(n)), false); }
-        crash("%s(%s): argument must be a non-negative integer",["sequence",rtn,g],3);
+        crash("%s(%s): argument must be a non-negative integer",["sequence",called_from,g],3);
 //29/9/22:
 //  elsif n>=power(2,iff(machine_bits()=32?53:64)) then
     } else if (compare(compare(n,power(2,((equal(machine_bits(),32)) ? 53 : 64))),$lim_chk)>=0) {
@@ -44,7 +44,7 @@ function $check_limits(/*atom*/ n, /*string*/ rtn) {
         // (yes, this routine actually gets a number ending in 4 not 5)
         // (also, it is >= since eg 90007..93 ends up in here as ..92,
         //  though factors(0|1,-9) can be used to change that behaviour)
-        crash("argument to %s() exceeds maximum precision",["sequence",rtn],3);
+        crash("argument to %s() exceeds maximum precision",["sequence",called_from],3);
     }
 }
 //include primes.e

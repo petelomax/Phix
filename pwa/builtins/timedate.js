@@ -1891,7 +1891,7 @@ let /*string*/ $default_format = "h:mpm Dddd Mmmm ddth, yyyy";
     return delta;
 }
 /* test code:
-include builtins/timedate.e
+include builtins\timedate.e
 
 set_timedate_formats({"DD/MM/YYYY","Dddd, Mmmm dd yyyy"},2)
 

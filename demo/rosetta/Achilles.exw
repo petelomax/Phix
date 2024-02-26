@@ -1,0 +1,191 @@
+-- Achilles.exw - close but no cigar...
+--  5832 is 2^3 * 3^6 = 18^3...
+--  ie perfect power is getting [3*]{{2,1}} and [2*]{{3,3}} and not being able to figure out it could be (2*3*3)^3...
+--var pps = Set.new()
+
+?"started..."
+--?power(18,3)
+--?power(8*9,2) = 5184
+--integer pps = new_dict()
+--procedure getPerfectPowers(integer maxExp)
+--/*
+function getPerfectPowers(integer maxExp)
+    atom umax = power(10,maxExp)
+--?{"umax",umax}
+    sequence pps = {}
+--  for i=2 to floor(sqrt(umax)) do
+    integer imax = floor(sqrt(umax))
+?{"imax",imax}
+atom t1 = time()+1
+    for i=2 to imax do
+        atom p = i*i
+if time()>t1 then
+    ?i
+    t1 = time()+1
+end if
+--?p
+        while p<umax do
+            pps &= p
+--          setd(p,0,pps)
+            p *= i
+        end while
+    end for
+    pps = unique(pps)
+    return pps
+end function
+--end procedure
+
+with trace
+--*/
+--sequence pfcache = {0}
+--function pfc(integer n)
+--  if n>length(pfcache) then
+--      pfcache = append(pfcache,prime_powers(n))
+--      ?length(pfcache)
+--  end if
+--  return pfcache[n]
+--end function
+
+--=== Alternative ===
+--Playing with prime powers: turns out I reinvented stuff that's been on the wp page all along.<br>
+--Minimal memory usage apart from the inevitable accumulation of primes in the background, but
+--while 3* faster than the above, not about to break any records.
+
+constant maxDigits = 12
+atom t0 = time()
+
+function perfect_power(sequence pfa, pfb)
+    --
+    -- Return true if a^2*b^3 is a perfect power, where pfa and pfb are the prime_powers of
+    -- a and b respectively, eg 6 => {{2,1}{3,1}} and 15 => {{3,1},{5,1}}. Perform a custom
+    -- merge by popping largest tail[s]*(3 &| 2) into a2b3, then test the final gcd > 1, ie
+    -- there exists some n>1 such that k =* primes^(powers/n) all ints, and k^n === a^2*b^3.
+    -- (-going backwards marginally helps with the indexes, but does not help performance.)
+    --
+    integer ia = length(pfa),
+            ib = length(pfb), c
+    sequence a2b3 = {}
+    while ia or ib do
+        if ia=0 then
+            c = pfb[ib][2]*3
+            ib -= 1
+        elsif ib=0 then
+            c = pfa[ia][2]*2
+            ia -= 1
+        else
+            c = compare(pfa[ia][1],pfb[ib][1])
+            if c>0 then
+                c = pfa[ia][2]*2
+                ia -= 1
+            elsif c=0 then
+                c = pfa[ia][2]*2
+                  + pfb[ib][2]*3
+                ia -= 1
+                ib -= 1
+            else
+                c = pfb[ib][2]*3
+                ib -= 1
+            end if
+        end if
+        a2b3 &= c
+    end while
+    return gcd(a2b3)!=1
+end function
+
+function getAchilles(integer minExp, maxExp)
+    atom lmax = power(10,minExp),
+         umax = power(10,maxExp)
+    sequence achilles = {}
+    for b=2 to floor(power(umax,1/3)) do
+        sequence pfb = prime_powers(b)
+        atom b3 = b * b * b
+        for a=ceil(sqrt(lmax/b3)) to floor(sqrt(umax/b3)) do
+            atom p = b3 * a * a
+            if not perfect_power(prime_powers(a),pfb) then
+--          -- same results, but twelve times slower!
+--          if gcd(vslice(prime_powers(p),2))=1 then
+                achilles &= p
+            end if
+        end for
+    end for
+    return achilles
+end function
+
+sequence achillesSet = unique(getAchilles(1, 5)) // enough for first 2 parts
+printf(1,"First 50 Achilles numbers:\n%s\n",{join_by(achillesSet[1..50],1,10," ",fmt:="%4d")})
+sequence strongAchilles = {}
+for n in achillesSet do
+    if binary_search(phi(n),achillesSet)>0 then
+        strongAchilles &= n
+        if length(strongAchilles)>=30 then exit end if
+    end if
+end for
+printf(1,"First 30 strong Achilles numbers:\n%s\n",{join_by(strongAchilles,1,10," ",fmt:="%5d")})
+
+printf(1,"Number of Achilles numbers with:\n")
+for d=2 to maxDigits do
+    integer ac = length(unique(getAchilles(d-1, d)))
+    string e = elapsed(time()-t0,1,"(%s)")
+    printf(1,"%2d digits: %d %s\n", {d, ac, e})
+end for
+--/*
+"started..."
+First 50 Achilles numbers:
+  72  108  200  288  392  432  500  648  675  800
+ 864  968  972 1125 1152 1323 1352 1372 1568 1800
+1944 2000 2312 2592 2700 2888 3087 3200 3267 3456
+3528 3872 3888 4000 4232 4500 4563 4608 5000 5292
+5324 5400 5408 5488 6075 6125 6272 6728 6912 7200
+
+First 30 strong Achilles numbers:
+  500   864  1944  2000  2592  3456  5000 10125 10368 12348
+12500 16875 19652 19773 30375 31104 32000 33275 37044 40500
+49392 50000 52488 55296 61731 64827 67500 69984 78608 80000
+
+Number of Achilles numbers with:
+ 2 digits: 1
+ 3 digits: 12
+ 4 digits: 47
+ 5 digits: 192
+ 6 digits: 664
+ 7 digits: 2242
+ 8 digits: 7395
+ 9 digits: 24008
+10 digits: 77330
+11 digits: 247449 (2.6s)
+12 digits: 788855 (9.1s)
+13 digits: 2508051 (32.4s)
+14 digits: 7960336 (1 minute and 59s)
+<killed>
+
+Output:
+First 50 Achilles numbers:
+  72  108  200  288  392  432  500  648  675  800
+ 864  968  972 1125 1152 1323 1352 1372 1568 1800
+1944 2000 2312 2592 2700 2888 3087 3200 3267 3456
+3528 3872 3888 4000 4232 4500 4563 4608 5000 5292
+5324 5400 5408 5488 6075 6125 6272 6728 6912 7200
+
+First 30 strong Achilles numbers:
+  500   864  1944  2000  2592  3456  5000 10125 10368 12348
+12500 16875 19652 19773 30375 31104 32000 33275 37044 40500
+49392 50000 52488 55296 61731 64827 67500 69984 78608 80000
+
+Number of Achilles numbers with:
+ 2 digits: 1
+ 3 digits: 12
+ 4 digits: 47
+ 5 digits: 192
+ 6 digits: 664
+ 7 digits: 2242
+ 8 digits: 7395
+ 9 digits: 24008
+10 digits: 77330
+11 digits: 247449
+12 digits: 788855
+13 digits: 2508051
+14 digits: 7960336
+15 digits: 25235383
+--*/
+?"done"
+wait_key()

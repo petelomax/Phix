@@ -72,7 +72,7 @@
 // is about 3.6x slower, however the pcase.e version is 8.4x
 // faster than the legacy wildcard.e version (on Phix, that
 // is, and about 2.7x faster on RDS Eu). Comparing the routine
-// immediately above and builtins/pcase.e, when both are run on
+// immediately above and builtins\pcase.e, when both are run on
 // Phix, the latter is an astonishing 30.5x faster.
 //
 // The bottom line is, I guess, that Phix supports (explicit)

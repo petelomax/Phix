@@ -68,7 +68,7 @@ function _debug_info()
 -- use throw to convert a return address and routine number 
 -- from the call stack into a proper line number, etc.
 -- (private, not called direct/from outside this file)
-integer rtn
+integer rid
 atom ret_addr
  
     #ilASM{
@@ -79,7 +79,7 @@ atom ret_addr
             lea edi,[ret_addr]
             call :%pStoreMint
             mov eax,[edx+8]     -- calling routine no
-            mov [rtn],eax
+            mov [rid],eax
         [64]
             mov rdx,[rbp+40]    -- prev_ebp
             mov rax,[rdx+56]    -- return address
@@ -87,11 +87,11 @@ atom ret_addr
             lea rdi,[ret_addr]
             call :%pStoreMint
             mov rax,[rdx+16]    -- calling routine no
-            mov [rtn],rax
+            mov [rid],rax
         []
           }
     try
-        throw({1,ret_addr-1,-1,rtn,-1,-1,-1})
+        throw({1,ret_addr-1,-1,rid,-1,-1,-1})
     catch e
         return e
     end try

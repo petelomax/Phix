@@ -79,8 +79,8 @@ global procedure skip_blanks()
 end procedure
 
 constant ESCAPE_CHARS = "nt'\"\\r",
---       ESCAPED_CHARS = "\n\t'\"\\\r"
-         ESCAPED_CHARS = {'\n','\t','\'','\"','\\','\r',}
+         ESCAPED_CHARS = "\n\t'\"\\\r"
+--       ESCAPED_CHARS = {'\n','\t','\'','\"','\\','\r',}
 
 function escape_char(character c)
 -- return escape character
@@ -132,6 +132,22 @@ function get_string()
             if ch=GET_FAIL then
                 return {GET_FAIL, 0}
             end if
+        end if
+        text = text & ch
+    end while
+end function
+
+function get_backstring()
+-- get a backtick-quoted character string
+-- ch is "live" at exit
+    sequence text = ""
+    while TRUE do
+        get_ch()
+        if ch=GET_EOF then
+            return {GET_FAIL, 0}
+        elsif ch='`' then
+            get_ch()
+            return {GET_SUCCESS, text}
         end if
         text = text & ch
     end while
@@ -197,6 +213,17 @@ function get_number()
         mantissa = mantissa*10 + (ch-'0')
         get_ch()
     end while
+
+--24/1/24:
+    if ch='\'' then
+        -- treat eg 100'd' as just 100 (verifying ch==n)
+        get_ch()
+        assert(ch=mantissa)
+        get_ch()
+        assert(ch='\'')
+        get_ch()
+        return {GET_SUCCESS, mantissa}
+    end if
 
     if ch='.' then
         -- get fraction
@@ -329,6 +356,8 @@ function Get()
 
         elsif ch='\"' then
             return get_string()
+        elsif ch='`' then
+            return get_backstring()
         elsif ch='\'' then
             return get_qchar()
         else

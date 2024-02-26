@@ -4,7 +4,7 @@
 // builtins\find.e (an autoinclude)
 // ===============
 //
-//  hll implementation of find()  (replaces builtins/VM/pFind.e)
+//  hll implementation of find()  (replaces builtins\VM\pFind.e)
 //
 /*without trace*/ //without debug
 

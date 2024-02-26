@@ -4831,7 +4831,7 @@ sequence casesfound,        -- error checking (when processing an if/switch stmt
 integer switch_duplicate_found,
         switch_duplicate_line,
         switch_duplicate_value,
-        swecode             -- error code (1..1 to indicate which swecode = nn line triggered)
+        swecode             -- error code (1..15+ to indicate which swecode = nn line triggered)
 
 integer swroot
 atom swmin, swmax   -- scratch vars, not preserved between opCtrls

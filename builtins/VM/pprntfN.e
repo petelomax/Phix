@@ -250,6 +250,8 @@ end for
 --30/10/21
 --                  fadj = fwk
                     f -= fwk
+--26/2/24:
+                    if ewk=0 then f *= 10 end if
                 else
 --21/2/24
 --                  f = (f-digit)*10

@@ -1072,11 +1072,11 @@ integer maxfiles
 sequence scanned
 integer segfile
 object varname
-sequence sr     -- symtab[rtn]
+sequence sr     -- symtab[rid]
 integer symidx
 integer x
 atom this_ebp
-integer rtn
+integer rid
 sequence matchset
 integer k, lm
 sequence si
@@ -1113,8 +1113,8 @@ integer y
 
         maxfiles = length(filenames)
         scanned = repeat(0,maxfiles)
-        rtn = active_routine
-        sr = symtab[rtn]
+        rid = active_routine
+        sr = symtab[rid]
         symidx = sr[S_Parm1]
         while symidx do
             if symtab[symidx][S_Name]=varname then
@@ -1148,8 +1148,8 @@ integer y
                 end if  -- K_wdb
                 this_ebp = retD(this_ebp)
                 if this_ebp=0 then exit end if
-                rtn = peek4u(this_ebp+8)
-                sr = symtab[rtn]
+                rid = peek4u(this_ebp+8)
+                sr = symtab[rid]
             end while
         end if
 
@@ -1406,7 +1406,7 @@ integer fileno
             call :%opGetST      -- [edi]:=symtab (see pStack.e)
             mov esi,[ebp4]
             lea edi,[vsb_root]
-            mov edx,[ebx+esi*4+8]       -- rtn
+            mov edx,[ebx+esi*4+8]       -- rid
             mov eax,[ebx+esi*4+24]      -- vsb_root
             mov [active_routine],edx
             call :%pStoreMint
@@ -1415,7 +1415,7 @@ integer fileno
             call :%opGetST      -- [rdi]:=symtab (see pStack.e)
             mov rsi,[ebp4]
             lea rdi,[vsb_root]
-            mov rdx,[rbx+rsi*4+16]      -- rtn
+            mov rdx,[rbx+rsi*4+16]      -- rid
             mov rax,[rbx+rsi*4+48]      -- vsb_root
             mov [active_routine],rdx
             call :%pStoreMint
