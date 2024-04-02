@@ -11,6 +11,7 @@ void Errorx(int ec, char*s, int v) {
     exit(ec);
 }
 
+#define dbg 1
 #define TERMS 50000
 #define IOP 0  // code for gro, wr0, wr1, put
 #define VAR 1  // code for variable lookup
@@ -18,10 +19,10 @@ void Errorx(int ec, char*s, int v) {
 #define ABS 3  // code for abstractions
 #define REF(c) (++(c)->refs, c)
 
-struct Parse {
-  int n;
-  int i;
-};
+//struct Parse {
+//  int n;
+//  int i;
+//};
 
 struct Closure {
   struct Closure *next;
@@ -61,6 +62,7 @@ void Gc(struct Closure *p) {
   for (; p && p != &root; p = p->envp) {
     if (--p->refs) break;
     Gc(p->next);
+if (dbg) printf("free()\n");
     p->next = frep;
     frep = p;
   }
@@ -71,8 +73,12 @@ void Var(void) {
   struct Closure *t, *e;
   e = t = envp;
   x = mem[ip + 1];
-  for (i = 0; i < x && e != &root; ++i) e = e->next;
+  for (i = 0; i < x && e != &root; ++i) {
+if (dbg) printf("vloop: %d\n",e->term); 
+    e = e->next;
+  }
   if (e == &root) Errorx(10 + x, "UNDEFINED VARIABLE %d", x);
+if (dbg) printf("Var: x=%d, ip:%d==>%d\n", x,ip,e->term);
 //  if (e == &root) exit(998);
   ip = e->term;
   envp = REF(e->envp);
@@ -80,8 +86,10 @@ void Var(void) {
 }
 
 void Gro(void) {
-  int c;
-  if ((c = fgetc(stdin)) != -1) {
+  int c = fgetc(stdin), sc = ecp;
+if (dbg) printf("Gro: c:%d\n",c);
+//  if (c != -1) {
+  if (c != -1 &&c != 26) {
     mem[ecp++] = ABS;
     mem[ecp++] = APP;
     mem[ecp++] = 8;
@@ -99,6 +107,7 @@ void Gro(void) {
     mem[ecp++] = VAR;
     mem[ecp++] = 0;
   }
+if (dbg) printf("Gro: mem[%d..%d] (%d)\n",sc+1,ecp,mem[ecp-1]);
 }
 
 void Put(void) {
@@ -144,6 +153,7 @@ void App(void) {
   int x = mem[ip + 1];
   struct Closure *t = Alloc();
   t->term = ip + 2 + x;
+if (dbg) printf("App: t:??, ip:%d, x:%d, term:%d\n",ip,x,t->term);
   t->envp = t->term > 21 && t->term != ecp ? REF(envp) : &root;
   t->next = contp;
   contp = t;
@@ -162,6 +172,7 @@ void Iop(void) {
 
 static void Rex(void) {
   int mip = mem[ip];
+if (dbg) printf("Rex: ip=%d, %d\n", ip, mip);
 //  switch (mem[ip]) {
   switch (mip) {
     case VAR:
@@ -195,10 +206,11 @@ char NeedBit(FILE* f) {
   return b;
 }
 
-struct Parse Parse(int ignored, FILE* f) {
-  int t, start;
+//struct Parse Parse(int ignored, FILE* f) {
+int Parse(int ignored, FILE* f) {
+  int t, start, p;
   char bit, need;
-  struct Parse p;
+//  struct Parse p;
   for (need = 0, start = ecp;;) {
     if (ecp + 2 > TERMS) Error(5, "OUT OF TERMS");
 //  if (ecp + 2 > TERMS) exit(994);
@@ -210,21 +222,28 @@ struct Parse Parse(int ignored, FILE* f) {
       for (t = 0; NeedBit(f);) ++t;
       mem[ecp++] = VAR;
       mem[ecp++] = t;
+if (dbg) printf("mem[%d..%d] = VAR,%d\n",ecp-1,ecp,t);
       break;
     } else if (NeedBit(f)) {
       t = ecp;
       ecp += 2;
       mem[t] = APP;
+//    p = Parse(0, f);
+//    mem[t + 1] = p.n;
       p = Parse(0, f);
-      mem[t + 1] = p.n;
+      mem[t + 1] = p;
+//if (dbg) printf("mem[%d..%d] = APP,%d\n",t,t+1,p);
+if (dbg) printf("mem[%d..%d] = APP,%d\n",t+1,t+2,p);
       need = 1;
     } else {
       mem[ecp++] = ABS;
+if (dbg) printf("mem[%d] = ABS\n",ecp);
     }
   }
-  p.i = start;
-  p.n = ecp - start;
-  return p;
+//  p.i = start;
+//  p.n = ecp - start;
+//  return p;
+  return ecp-start;
 }
 
 void LoadRom(void) {
@@ -243,7 +262,8 @@ void Krivine(void) {
   mem[ecp++] = APP;
   gotoget = ecp++;
   main = ecp;
-  mem[gotoget] = Parse(1, stdin).n;
+//  mem[gotoget] = Parse(1, stdin).n;
+  mem[gotoget] = Parse(1, stdin);
   for (;;) Rex();
 }
 
